@@ -45,9 +45,9 @@ func buildCodeFunctionSummaryReducerIntent(
 		return ReducerIntent{}, false
 	}
 	payload := map[string]any{}
-	repoID, _ := payloadString(trigger.Payload, "repo_id")
-	if repoID == "" && markerFact != nil {
-		repoID, _ = payloadString(markerFact.Payload, "repo_id")
+	repoID := codeFunctionSummaryTriggerRepoID(trigger)
+	if repoID == "" && markerFact != nil && markerFact != trigger {
+		repoID = codeFunctionSummaryTriggerRepoID(markerFact)
 	}
 	if repoID != "" {
 		payload["repo_id"] = repoID
@@ -65,4 +65,33 @@ func buildCodeFunctionSummaryReducerIntent(
 		SourceSystem: strings.TrimSpace(trigger.CollectorKind),
 		Payload:      payload,
 	}, true
+}
+
+func codeFunctionSummaryTriggerRepoID(trigger *facts.Envelope) string {
+	if trigger == nil {
+		return ""
+	}
+	switch trigger.FactKind {
+	case facts.CodeFunctionSummaryFactKind:
+		summary, err := decodeCodeFunctionSummary(*trigger)
+		if err != nil {
+			return ""
+		}
+		return repoIDFromFunctionID(summary.FunctionID)
+	case facts.CodeDataflowScannedFactKind:
+		scanned, err := decodeCodeDataflowScanned(*trigger)
+		if err != nil {
+			return ""
+		}
+		return codegraphDerefString(scanned.RepoID)
+	default:
+		return ""
+	}
+}
+
+func repoIDFromFunctionID(functionID string) string {
+	if idx := strings.Index(functionID, "\x1f"); idx >= 0 {
+		return strings.TrimSpace(functionID[:idx])
+	}
+	return ""
 }

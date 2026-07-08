@@ -21,8 +21,8 @@ import (
 // an oci_registry_canonical failure in both the
 // eshu_dp_projector_input_invalid_facts_total metric and the structured error
 // log, misleading an operator investigating at 3am. This test now also proves
-// quarantinedFactStagePrefixes' table shape scales to a THIRD family
-// (package_registry) without the two prior families' routing regressing.
+// quarantinedFactStagePrefixes' table shape scales to additional families
+// (package_registry and codegraph) without prior families' routing regressing.
 func TestGroupQuarantinedFactsByStageRoutesEachFamilyToItsOwnStage(t *testing.T) {
 	t.Parallel()
 
@@ -31,12 +31,13 @@ func TestGroupQuarantinedFactsByStageRoutesEachFamilyToItsOwnStage(t *testing.T)
 		{factID: "oci-1", factKind: facts.OCIImageManifestFactKind, field: "digest"},
 		{factID: "tf-2", factKind: facts.TerraformStateTagObservationFactKind, field: "resource_address"},
 		{factID: "pkg-1", factKind: facts.PackageRegistryPackageFactKind, field: "package_id"},
+		{factID: "code-1", factKind: FactKindFileObserved, field: "relative_path"},
 	}
 
 	grouped := groupQuarantinedFactsByStage(merged)
 
-	if len(grouped) != 3 {
-		t.Fatalf("len(grouped) = %d, want 3 (terraform_state_canonical + oci_registry_canonical + package_registry_canonical); got %+v", len(grouped), grouped)
+	if len(grouped) != 4 {
+		t.Fatalf("len(grouped) = %d, want 4 (terraform_state_canonical + oci_registry_canonical + package_registry_canonical + codegraph_canonical); got %+v", len(grouped), grouped)
 	}
 
 	tfGroup := grouped[terraformStateCanonicalStage]
@@ -63,6 +64,14 @@ func TestGroupQuarantinedFactsByStageRoutesEachFamilyToItsOwnStage(t *testing.T)
 	}
 	if pkgGroup[0].factID != "pkg-1" {
 		t.Fatalf("package_registry_canonical group carries fact %q, want pkg-1; a sibling family's fact must not be misattributed to this stage", pkgGroup[0].factID)
+	}
+
+	codegraphGroup := grouped[codegraphCanonicalStage]
+	if len(codegraphGroup) != 1 {
+		t.Fatalf("len(grouped[%q]) = %d, want 1", codegraphCanonicalStage, len(codegraphGroup))
+	}
+	if codegraphGroup[0].factID != "code-1" {
+		t.Fatalf("codegraph_canonical group carries fact %q, want code-1; a sibling family's fact must not be misattributed to this stage", codegraphGroup[0].factID)
 	}
 }
 
@@ -98,6 +107,10 @@ func TestQuarantinedFactStageRoutesAndFallsBack(t *testing.T) {
 		{facts.TerraformStateResourceFactKind, terraformStateCanonicalStage},
 		{facts.OCIImageManifestFactKind, ociRegistryCanonicalStage},
 		{facts.OCIRegistryRepositoryFactKind, ociRegistryCanonicalStage},
+		{FactKindFileObserved, codegraphCanonicalStage},
+		{"fileFact", codegraphCanonicalStage},
+		{FactKindRepositoryObserved, codegraphCanonicalStage},
+		{"repositoryFact", codegraphCanonicalStage},
 		// A fact kind no prefix matches must fall back to the distinct unknown
 		// stage, never to any family's own label.
 		{"some_unwired_future_family.thing", unknownCanonicalStage},

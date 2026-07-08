@@ -33,6 +33,27 @@ func ec2UsesProfileIntentEnvelope(factID, scopeID, generationID, instanceID, pro
 	}
 }
 
+func TestBuildProjectionDoesNotQueueEC2UsesProfileFromInvalidPosture(t *testing.T) {
+	t.Parallel()
+
+	scopeValue, generation := ec2UsesProfileScopeAndGeneration()
+	envelopes := []facts.Envelope{
+		ec2UsesProfileIntentEnvelope("fact-invalid-profile", scopeValue.ScopeID, generation.GenerationID, "i-invalid",
+			"arn:aws:iam::111122223333:instance-profile/app"),
+	}
+	delete(envelopes[0].Payload, "account_id")
+
+	projection, err := buildProjection(scopeValue, generation, envelopes)
+	if err != nil {
+		t.Fatalf("buildProjection() error = %v, want nil", err)
+	}
+	for _, intent := range projection.reducerIntents {
+		if intent.Domain == reducer.DomainEC2UsesProfileMaterialization {
+			t.Fatalf("unexpected ec2_uses_profile_materialization intent from input_invalid posture")
+		}
+	}
+}
+
 func ec2UsesProfileScopeAndGeneration() (scope.IngestionScope, scope.ScopeGeneration) {
 	scopeValue := scope.IngestionScope{
 		ScopeID:      "aws:111122223333:us-east-1:ec2",

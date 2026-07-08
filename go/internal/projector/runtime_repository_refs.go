@@ -5,39 +5,36 @@ package projector
 
 import (
 	"sort"
-	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/content"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
 func buildRepositoryRefs(fact facts.Envelope) []content.RepositoryRef {
-	if fact.FactKind != "repository" || fact.IsTombstone {
+	if NormalizeFactKind(fact.FactKind) != "repository" || fact.IsTombstone {
 		return nil
 	}
-	rawEntries := repositoryRefEntries(fact.Payload["git_refs"])
-	if len(rawEntries) == 0 {
+	repository, err := decodeCodegraphRepository(fact)
+	if err != nil || len(repository.GitRefs) == 0 {
 		return nil
 	}
 
-	defaultBranch, _ := payloadString(fact.Payload, "default_branch")
-	refsByKey := make(map[string]content.RepositoryRef, len(rawEntries))
-	for _, entry := range rawEntries {
-		name := refPayloadString(entry, "name")
-		headSHA := refPayloadString(entry, "head_sha")
-		if name == "" || headSHA == "" {
+	defaultBranch := codegraphDerefString(repository.DefaultBranch)
+	refsByKey := make(map[string]content.RepositoryRef, len(repository.GitRefs))
+	for _, entry := range repository.GitRefs {
+		if entry.Name == "" || entry.HeadSHA == "" {
 			continue
 		}
-		kind := refPayloadString(entry, "kind")
+		kind := entry.Kind
 		if kind == "" {
 			kind = "branch"
 		}
-		isDefault := refPayloadBool(entry, "is_default") || name == defaultBranch
-		key := kind + "\x00" + name
+		isDefault := entry.IsDefault || entry.Name == defaultBranch
+		key := kind + "\x00" + entry.Name
 		refsByKey[key] = content.RepositoryRef{
-			Name:       name,
+			Name:       entry.Name,
 			Kind:       kind,
-			HeadSHA:    headSHA,
+			HeadSHA:    entry.HeadSHA,
 			Default:    isDefault,
 			ObservedAt: fact.ObservedAt,
 		}
@@ -64,55 +61,4 @@ func buildRepositoryRefs(fact facts.Envelope) []content.RepositoryRef {
 		refs = append(refs, refsByKey[key])
 	}
 	return refs
-}
-
-func repositoryRefEntries(value any) []map[string]any {
-	switch typed := value.(type) {
-	case []map[string]any:
-		return typed
-	case []any:
-		entries := make([]map[string]any, 0, len(typed))
-		for _, item := range typed {
-			entry, ok := item.(map[string]any)
-			if ok {
-				entries = append(entries, entry)
-			}
-		}
-		return entries
-	default:
-		return nil
-	}
-}
-
-func refPayloadString(payload map[string]any, key string) string {
-	if len(payload) == 0 {
-		return ""
-	}
-	value, ok := payload[key]
-	if !ok {
-		return ""
-	}
-	text, ok := asString(value)
-	if !ok {
-		return ""
-	}
-	return strings.TrimSpace(text)
-}
-
-func refPayloadBool(payload map[string]any, key string) bool {
-	if len(payload) == 0 {
-		return false
-	}
-	value, ok := payload[key]
-	if !ok {
-		return false
-	}
-	switch typed := value.(type) {
-	case bool:
-		return typed
-	case string:
-		return strings.EqualFold(strings.TrimSpace(typed), "true")
-	default:
-		return false
-	}
 }

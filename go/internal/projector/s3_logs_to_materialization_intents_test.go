@@ -25,10 +25,32 @@ func s3PostureIntentEnvelope(factID, scopeID, generationID, loggingTarget string
 			SourceSystem: "aws",
 		},
 		Payload: map[string]any{
+			"account_id":            "111111111111",
+			"region":                "us-east-1",
 			"bucket_arn":            "arn:aws:s3:::orders",
 			"bucket_name":           "orders",
 			"logging_target_bucket": loggingTarget,
 		},
+	}
+}
+
+func TestBuildProjectionDoesNotQueueS3LogsToFromInvalidPosture(t *testing.T) {
+	t.Parallel()
+
+	scopeValue, generation := s3LogsToScopeAndGeneration()
+	envelopes := []facts.Envelope{
+		s3PostureIntentEnvelope("fact-invalid-logging", scopeValue.ScopeID, generation.GenerationID, "central-logs"),
+	}
+	delete(envelopes[0].Payload, "account_id")
+
+	projection, err := buildProjection(scopeValue, generation, envelopes)
+	if err != nil {
+		t.Fatalf("buildProjection() error = %v, want nil", err)
+	}
+	for _, intent := range projection.reducerIntents {
+		if intent.Domain == reducer.DomainS3LogsToMaterialization {
+			t.Fatalf("unexpected s3_logs_to_materialization intent from input_invalid posture")
+		}
 	}
 }
 

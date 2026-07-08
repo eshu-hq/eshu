@@ -171,6 +171,57 @@ func TestBuildProjectionQueuesContainerImageIdentityForAzureImageReference(t *te
 	}
 }
 
+func TestBuildProjectionDoesNotQueueContainerImageIdentityFromInvalidAWSRelationship(t *testing.T) {
+	t.Parallel()
+
+	scopeValue := scope.IngestionScope{
+		ScopeID:      "aws:123456789012:us-east-1:ecs",
+		ScopeKind:    "aws_cloud",
+		SourceSystem: "aws",
+	}
+	generation := scope.ScopeGeneration{
+		ScopeID:      scopeValue.ScopeID,
+		GenerationID: "aws-generation-1",
+		ObservedAt:   time.Date(2026, time.June, 13, 13, 0, 0, 0, time.UTC),
+		IngestedAt:   time.Date(2026, time.June, 13, 13, 0, 1, 0, time.UTC),
+		Status:       scope.GenerationStatusPending,
+	}
+	envelopes := []facts.Envelope{{
+		FactID:        "fact-invalid-aws-image-relationship",
+		ScopeID:       scopeValue.ScopeID,
+		GenerationID:  generation.GenerationID,
+		FactKind:      facts.AWSRelationshipFactKind,
+		SchemaVersion: facts.AWSRelationshipSchemaVersion,
+		CollectorKind: "aws_cloud",
+		ObservedAt:    generation.ObservedAt,
+		SourceRef: facts.Ref{
+			SourceSystem: "aws",
+		},
+		Payload: map[string]any{
+			"account_id":            "123456789012",
+			"region":                "us-east-1",
+			"relationship_type":     "REFERENCES_IMAGE",
+			"source_resource_id":    "arn:aws:ecs:us-east-1:123456789012:task-definition/api:1",
+			"target_resource_id":    "",
+			"target_type":           "container_image",
+			"target_arn":            "",
+			"source_arn":            "arn:aws:ecs:us-east-1:123456789012:task-definition/api:1",
+			"collector_instance_id": "aws-collector-1",
+		},
+	}}
+	delete(envelopes[0].Payload, "target_resource_id")
+
+	projection, err := buildProjection(scopeValue, generation, envelopes)
+	if err != nil {
+		t.Fatalf("buildProjection() error = %v, want nil", err)
+	}
+	for _, intent := range projection.reducerIntents {
+		if intent.Domain == reducer.DomainContainerImageIdentity {
+			t.Fatalf("unexpected container_image_identity intent from input_invalid relationship")
+		}
+	}
+}
+
 func requireContainerImageIdentityIntent(t *testing.T, intents []ReducerIntent) ReducerIntent {
 	t.Helper()
 	for _, intent := range intents {

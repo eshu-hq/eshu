@@ -22,9 +22,9 @@ import (
 // and not projected, while every valid fact still materializes, so one
 // malformed fact never fails the whole repository generation's projection. The
 // caller records them as visible input_invalid dead-letters
-// (recordProjectorQuarantinedFacts). The terraform_state, OCI registry, and
-// package_registry extractors are typed today; future typed families append to
-// the same slice.
+// (recordProjectorQuarantinedFacts). The codegraph repository/file,
+// terraform_state, OCI registry, and package_registry extractors are typed
+// today; future typed families append to the same slice.
 func buildCanonicalMaterialization(
 	scopeValue scope.IngestionScope,
 	generation scope.ScopeGeneration,
@@ -43,7 +43,10 @@ func buildCanonicalMaterialization(
 	}
 
 	// Extract repository.
-	mat.Repository = extractRepository(inputFacts)
+	var quarantined []quarantinedFact
+	var codegraphQuarantined []quarantinedFact
+	mat.Repository, codegraphQuarantined = extractRepositoryWithQuarantine(inputFacts)
+	quarantined = append(quarantined, codegraphQuarantined...)
 	if mat.Repository != nil {
 		if mat.Repository.RepoID != "" {
 			mat.RepoID = mat.Repository.RepoID
@@ -59,7 +62,8 @@ func buildCanonicalMaterialization(
 	mat.ReconciliationProjection = extractReconciliationProjection(inputFacts) && !mat.DeltaProjection
 
 	// Extract files.
-	mat.Files = extractFiles(inputFacts, repoID, repoPath)
+	mat.Files, codegraphQuarantined = extractFilesWithQuarantine(inputFacts, repoID, repoPath)
+	quarantined = append(quarantined, codegraphQuarantined...)
 
 	// Build directory chain from file paths.
 	mat.Directories = buildDirectoryChain(mat.Files, repoPath, repoID)
@@ -77,90 +81,11 @@ func buildCanonicalMaterialization(
 	// (module_name, imported_module, param_name, etc.) and merges any
 	// additionally discovered modules into the set above.
 	extractRelationships(inputFacts, &mat)
-	quarantined := extractTerraformStateRows(&mat, inputFacts)
+	quarantined = append(quarantined, extractTerraformStateRows(&mat, inputFacts)...)
 	quarantined = append(quarantined, extractOCIRegistryRows(&mat, inputFacts)...)
 	quarantined = append(quarantined, extractPackageRegistryRows(&mat, inputFacts)...)
 
 	return mat, quarantined
-}
-
-// extractRepository builds a RepositoryRow from the first RepositoryObserved
-// fact envelope.
-func extractRepository(envelopes []facts.Envelope) *RepositoryRow {
-	repoFacts := FilterRepositoryFacts(envelopes)
-	if len(repoFacts) == 0 {
-		return nil
-	}
-
-	p := repoFacts[0].Payload
-	repoID, _ := payloadString(p, "repo_id")
-	name, _ := payloadString(p, "name")
-	repoPath, _ := payloadString(p, "path")
-	localPath, _ := payloadString(p, "local_path")
-	remoteURL, _ := payloadString(p, "remote_url")
-	repoSlug, _ := payloadString(p, "repo_slug")
-
-	// The collector does not emit "path" — fall back to local_path which is
-	// unique per repository and satisfies the Repository.path constraint.
-	if repoPath == "" {
-		repoPath = localPath
-	}
-
-	// The collector does not emit "has_remote" — derive from remote_url
-	// presence which the collector sets when the repository has an origin.
-	hasRemote := false
-	if ptr := payloadBoolPtr(p, "has_remote"); ptr != nil {
-		hasRemote = *ptr
-	} else {
-		hasRemote = remoteURL != ""
-	}
-
-	return &RepositoryRow{
-		RepoID:    repoID,
-		Name:      name,
-		Path:      repoPath,
-		LocalPath: localPath,
-		RemoteURL: remoteURL,
-		RepoSlug:  repoSlug,
-		HasRemote: hasRemote,
-	}
-}
-
-// extractFiles builds FileRow entries from file fact envelopes, skipping
-// tombstones. The canonical path (used as the Neo4j MERGE key) is
-// repoPath/relative_path — a globally unique path that prevents cross-repo
-// constraint collisions. The relative_path is preserved separately for display.
-func extractFiles(envelopes []facts.Envelope, repoID, repoPath string) []FileRow {
-	fileFacts := FilterFileFacts(envelopes)
-	var rows []FileRow
-
-	for i := range fileFacts {
-		if fileFacts[i].IsTombstone {
-			continue
-		}
-
-		p := fileFacts[i].Payload
-		relativePath, _ := payloadString(p, "relative_path")
-		if relativePath == "" {
-			continue
-		}
-
-		fullPath := qualifyPath(repoPath, relativePath)
-		name := path.Base(relativePath)
-		language, _ := payloadString(p, "language")
-		dirPath := path.Dir(fullPath)
-
-		rows = append(rows, FileRow{
-			Path:         fullPath,
-			RelativePath: relativePath,
-			Name:         name,
-			Language:     language,
-			RepoID:       repoID,
-			DirPath:      dirPath,
-		})
-	}
-
-	return rows
 }
 
 // buildDirectoryChain walks file paths to produce a deduped, depth-sorted

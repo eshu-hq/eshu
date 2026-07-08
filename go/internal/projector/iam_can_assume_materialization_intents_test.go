@@ -25,11 +25,33 @@ func iamTrustPermissionEnvelope(factID, scopeID, generationID, policySource stri
 			SourceSystem: "aws",
 		},
 		Payload: map[string]any{
+			"account_id":        "123456789012",
+			"region":            "aws-global",
 			"principal_arn":     "arn:aws:iam::123456789012:role/eshu-runtime",
 			"policy_source":     policySource,
 			"effect":            "Allow",
 			"assume_principals": []any{"arn:aws:iam::123456789012:role/ci-deployer"},
 		},
+	}
+}
+
+func TestBuildProjectionDoesNotQueueIAMCanAssumeFromInvalidPermission(t *testing.T) {
+	t.Parallel()
+
+	scopeValue, generation := iamCanAssumeScopeAndGeneration()
+	envelopes := []facts.Envelope{
+		iamTrustPermissionEnvelope("fact-invalid-trust", scopeValue.ScopeID, generation.GenerationID, "trust"),
+	}
+	delete(envelopes[0].Payload, "principal_arn")
+
+	projection, err := buildProjection(scopeValue, generation, envelopes)
+	if err != nil {
+		t.Fatalf("buildProjection() error = %v, want nil", err)
+	}
+	for _, intent := range projection.reducerIntents {
+		if intent.Domain == reducer.DomainIAMCanAssumeMaterialization {
+			t.Fatalf("unexpected iam_can_assume_materialization intent from input_invalid permission")
+		}
 	}
 }
 

@@ -5,8 +5,10 @@ package projector
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/sdk/go/factschema"
 )
 
 // validateFactSchemaVersion rejects a core-owned fact that carries an
@@ -17,8 +19,25 @@ import (
 // own a versioned schema for — including out-of-tree component facts — pass
 // through unchanged.
 func validateFactSchemaVersion(fact facts.Envelope) error {
+	if err := validateCodegraphFactSchemaVersion(fact); err != nil {
+		return fmt.Errorf("fact %q: %w", fact.FactID, err)
+	}
 	if err := facts.ValidateSchemaVersion(fact.FactKind, fact.SchemaVersion); err != nil {
 		return fmt.Errorf("fact %q: %w", fact.FactID, err)
 	}
 	return nil
+}
+
+func validateCodegraphFactSchemaVersion(fact facts.Envelope) error {
+	switch NormalizeFactKind(fact.FactKind) {
+	case factschema.FactKindCodegraphFile, factschema.FactKindCodegraphRepository:
+	default:
+		return nil
+	}
+
+	version := strings.TrimSpace(fact.SchemaVersion)
+	if version == "" || strings.HasPrefix(version, "1.") {
+		return nil
+	}
+	return fmt.Errorf("%w: %q", factschema.ErrUnsupportedSchemaMajor, version)
 }

@@ -39,9 +39,11 @@ func canonicalGraphPhaseStates(generationID string, inputFacts []facts.Envelope)
 	rows := make([]reducer.GraphProjectionPhaseState, 0)
 
 	for _, fact := range inputFacts {
-		switch fact.FactKind {
+		switch NormalizeFactKind(fact.FactKind) {
 		case "repository":
 			rows = appendCanonicalRepositoryGraphPhase(rows, seen, generationID, fact)
+		}
+		switch fact.FactKind {
 		case facts.TerraformStateSnapshotFactKind, facts.TerraformStateWarningFactKind:
 			rows = appendTerraformStateGraphPhase(
 				rows,
@@ -85,11 +87,12 @@ func appendCanonicalRepositoryGraphPhase(
 	generationID string,
 	fact facts.Envelope,
 ) []reducer.GraphProjectionPhaseState {
-	repoID, _ := payloadString(fact.Payload, "repo_id")
-	if repoID == "" {
-		repoID, _ = payloadString(fact.Payload, "graph_id")
+	repository, err := decodeCodegraphRepository(fact)
+	if err != nil {
+		return rows
 	}
-	sourceRunID, _ := payloadString(fact.Payload, "source_run_id")
+	repoID := repository.RepoID
+	sourceRunID := codegraphDerefString(repository.SourceRunID)
 	if strings.TrimSpace(fact.ScopeID) == "" || repoID == "" || sourceRunID == "" || strings.TrimSpace(generationID) == "" {
 		return rows
 	}

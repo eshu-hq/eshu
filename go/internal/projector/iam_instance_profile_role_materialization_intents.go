@@ -31,8 +31,11 @@ func buildIAMInstanceProfileRoleMaterializationReducerIntent(
 		if envelope.FactKind != facts.AWSResourceFactKind {
 			continue
 		}
-		resourceType, _ := payloadString(envelope.Payload, "resource_type")
-		if resourceType != iamInstanceProfileRoleResourceTypeInstanceProfile {
+		resource, err := decodeAWSResource(envelope)
+		if err != nil {
+			continue
+		}
+		if resource.ResourceType != iamInstanceProfileRoleResourceTypeInstanceProfile {
 			continue
 		}
 		return ReducerIntent{

@@ -84,3 +84,19 @@ func TestWorkloadStageSkipsEmptyRepoID(t *testing.T) {
 		t.Errorf("RepositoryIDs len = %d, want 0", len(result.RepositoryIDs))
 	}
 }
+
+func TestWorkloadStageSkipsMissingRepoID(t *testing.T) {
+	t.Parallel()
+
+	envelopes := []facts.Envelope{
+		{FactID: "r-1", FactKind: "repository", Payload: map[string]any{"graph_id": "repo:r1", "source_run_id": "run-1"}},
+	}
+
+	result := ProjectWorkloadStage(envelopes)
+	if len(result.RepositoryIDs) != 0 {
+		t.Errorf("RepositoryIDs len = %d, want 0 for repository fact missing repo_id", len(result.RepositoryIDs))
+	}
+	if len(result.SourceRunPairs) != 0 {
+		t.Errorf("SourceRunPairs len = %d, want 0 for repository fact missing repo_id", len(result.SourceRunPairs))
+	}
+}

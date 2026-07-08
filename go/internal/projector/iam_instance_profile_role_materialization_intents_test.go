@@ -107,7 +107,10 @@ func TestBuildProjectionDoesNotQueueIAMInstanceProfileRoleWithoutProfile(t *test
 		FactKind:      facts.AWSResourceFactKind,
 		SchemaVersion: facts.AWSResourceSchemaVersion,
 		Payload: map[string]any{
+			"account_id":    "123456789012",
+			"region":        "aws-global",
 			"resource_type": "aws_iam_role",
+			"resource_id":   "arn:aws:iam::123456789012:role/app",
 			"arn":           "arn:aws:iam::123456789012:role/app",
 		},
 	}}
@@ -119,6 +122,27 @@ func TestBuildProjectionDoesNotQueueIAMInstanceProfileRoleWithoutProfile(t *test
 	for _, intent := range projection.reducerIntents {
 		if intent.Domain == reducer.DomainIAMInstanceProfileRoleMaterialization {
 			t.Fatalf("unexpected iam_instance_profile_role_materialization intent without profile fact")
+		}
+	}
+}
+
+func TestBuildProjectionDoesNotQueueIAMInstanceProfileRoleFromInvalidResource(t *testing.T) {
+	t.Parallel()
+
+	scopeValue, generation := iamInstanceProfileRoleScopeAndGeneration()
+	envelopes := []facts.Envelope{
+		iamInstanceProfileResourceFact("fact-invalid-profile", scopeValue.ScopeID, generation.GenerationID,
+			"arn:aws:iam::123456789012:role/app"),
+	}
+	delete(envelopes[0].Payload, "resource_id")
+
+	projection, err := buildProjection(scopeValue, generation, envelopes)
+	if err != nil {
+		t.Fatalf("buildProjection() error = %v, want nil", err)
+	}
+	for _, intent := range projection.reducerIntents {
+		if intent.Domain == reducer.DomainIAMInstanceProfileRoleMaterialization {
+			t.Fatalf("unexpected iam_instance_profile_role_materialization intent from input_invalid resource")
 		}
 	}
 }
