@@ -97,3 +97,23 @@ Not claimed today:
   without a single exact handler function, external route configuration,
   runtime-discovered routes, generated handlers, and other JVM web frameworks
   are not claimed as exact route truth.
+
+## Parser Performance
+
+The Kotlin parser collapses its four framework-route detectors — Spring,
+JAX-RS, Micronaut, and Ktor — from four independent full-tree tree-sitter
+walks into one combined walk. Each detector only reads its own node kind
+(`function_declaration` for Spring/JAX-RS/Micronaut, `call_expression` for
+Ktor) and writes to its own route slice, with no shared mutable state and no
+dependency on another detector's output, so they collapse safely. The
+`collectDeclarations` pre-pass and the main declaration/call walk are
+unaffected: `collectDeclarations` seeds type information the main walk
+consumes and must still run first. This lowers the framework-detection walk
+count from 4 to 1 while keeping parser output byte-identical, verified by a
+one-time old-vs-new `0/0` symmetric-diff over the fixture corpus via the
+opt-in `KOTLIN_PARSE_DUMP` harness (`equivalence_dump_test.go`, a manual
+differential — not a standing CI gate); standing regression protection comes
+from the Kotlin parser package tests and the B-12 golden snapshot (epic
+#4831, #4841). Contributors adding a new framework-route detector should
+extend the shared pass rather than add another full-tree walk when the
+detector has no dependency on another detector's completed output.
