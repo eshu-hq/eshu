@@ -280,7 +280,8 @@ func (w *recordingCodeValueFlowTaintSweeper) callCount() int {
 }
 
 type recordingCodeValueFlowInterprocSweeper struct {
-	calls []codeValueFlowSweepCall
+	calls       []codeValueFlowSweepCall
+	byUIDsCalls []codeValueFlowSweepCall
 }
 
 func (w *recordingCodeValueFlowInterprocSweeper) RetractStaleCodeInterprocEvidence(
@@ -296,6 +297,39 @@ func (w *recordingCodeValueFlowInterprocSweeper) RetractStaleCodeInterprocEviden
 		evidenceSource: evidenceSource,
 		limit:          limit,
 	})
+	return nil
+}
+
+func (w *recordingCodeValueFlowInterprocSweeper) RetractStaleCodeInterprocEvidenceByUIDs(
+	_ context.Context, sourceUIDs []string, scopeID, generationID, evidenceSource string,
+) error {
+	w.byUIDsCalls = append(w.byUIDsCalls, codeValueFlowSweepCall{
+		scopeID:        scopeID,
+		generationID:   generationID,
+		evidenceSource: evidenceSource,
+		limit:          len(sourceUIDs),
+	})
+	return nil
+}
+
+// CodeInterprocEvidenceWriter methods (not needed for old-path testing, just the by-uids):
+func (w *recordingCodeValueFlowInterprocSweeper) WriteCodeInterprocEvidence(context.Context, []map[string]any, string, string, string) error {
+	return nil
+}
+
+func (w *recordingCodeValueFlowInterprocSweeper) RetractCodeInterprocEvidence(context.Context, []string, string, string) error {
+	return nil
+}
+
+func (w *recordingCodeValueFlowInterprocSweeper) RetractCodeInterprocEvidenceSource(context.Context, string) error {
+	return nil
+}
+
+func (w *recordingCodeValueFlowInterprocSweeper) RetractCodeInterprocEvidenceByUIDs(context.Context, []string, []string, string) error {
+	return nil
+}
+
+func (w *recordingCodeValueFlowInterprocSweeper) RetractCodeInterprocEvidenceSourceByUIDs(context.Context, []string, string) error {
 	return nil
 }
 
@@ -327,6 +361,92 @@ func (l *fakeCodeValueFlowLeaseManager) ReleasePartitionLease(
 ) error {
 	l.releaseCalls++
 	return nil
+}
+
+// TestCodeValueFlowStaleCleanupRunnerLedgerDrivenInterprocSweep proves when both
+// InterprocLedger and InterprocWriter are set, the runner enumerates stale uids
+// from the ledger, calls the anchored-delete method, and prunes stale rows.
+func TestCodeValueFlowStaleCleanupRunnerLedgerDrivenInterprocSweep(t *testing.T) {
+	reader := &fakeCodeValueFlowCurrentGenerationReader{
+		rows: []CodeValueFlowCurrentGeneration{
+			{ScopeID: "scope-a", GenerationID: "gen-current-a"},
+		},
+	}
+	taint := &recordingCodeValueFlowTaintSweeper{}
+	interprocWriter := &recordingCodeValueFlowInterprocSweeper{}
+	ledger := &fakeCodeInterprocProjectedEdgeLedger{
+		listStaleUIDs: []string{"uid-1", "uid-2"},
+	}
+	leaseManager := &fakeCodeValueFlowLeaseManager{claimResults: []bool{true}}
+	runner := &CodeValueFlowStaleCleanupRunner{
+		CurrentGenerations: reader,
+		TaintEvidence:      taint,
+		InterprocWriter:    interprocWriter,
+		InterprocLedger:    ledger,
+		LeaseManager:       leaseManager,
+		Config: CodeValueFlowStaleCleanupRunnerConfig{
+			LeaseOwner:       "value-flow-owner",
+			LeaseTTL:         2 * time.Minute,
+			ScopeBatchLimit:  25,
+			DeleteBatchLimit: 50,
+		},
+	}
+
+	result, err := runner.RunOnce(context.Background())
+	if err != nil {
+		t.Fatalf("RunOnce() error = %v, want nil", err)
+	}
+	if !result.LeaseAcquired {
+		t.Fatal("LeaseAcquired = false, want true")
+	}
+	if got, want := result.InterprocSweeps, 1; got != want {
+		t.Fatalf("InterprocSweeps = %d, want %d", got, want)
+	}
+	// The old RetractStaleCodeInterprocEvidence should NOT be called.
+	if len(interprocWriter.calls) != 0 {
+		t.Fatalf("old interproc sweeper calls = %d, want 0 (should use by-uids via writer)", len(interprocWriter.calls))
+	}
+	// The by-uids path should have been called once.
+	if len(interprocWriter.byUIDsCalls) != 1 {
+		t.Fatalf("byUIDsCalls = %d, want 1", len(interprocWriter.byUIDsCalls))
+	}
+	if ledger.pruneStaleCalls != 1 {
+		t.Fatalf("pruneStaleCalls = %d, want 1", ledger.pruneStaleCalls)
+	}
+}
+
+// TestCodeValueFlowStaleCleanupRunnerLedgerEmptyUidsNoOp proves when the ledger
+// returns empty uids, the anchored delete is a no-op and the scope is still
+// counted as swept.
+func TestCodeValueFlowStaleCleanupRunnerLedgerEmptyUidsNoOp(t *testing.T) {
+	reader := &fakeCodeValueFlowCurrentGenerationReader{
+		rows: []CodeValueFlowCurrentGeneration{
+			{ScopeID: "scope-a", GenerationID: "gen-current-a"},
+		},
+	}
+	taint := &recordingCodeValueFlowTaintSweeper{}
+	interprocWriter := &recordingCodeValueFlowInterprocSweeper{}
+	ledger := &fakeCodeInterprocProjectedEdgeLedger{
+		listStaleUIDs: nil, // no stale uids
+	}
+	runner := &CodeValueFlowStaleCleanupRunner{
+		CurrentGenerations: reader,
+		TaintEvidence:      taint,
+		InterprocWriter:    interprocWriter,
+		InterprocLedger:    ledger,
+		Config: CodeValueFlowStaleCleanupRunnerConfig{
+			ScopeBatchLimit:  25,
+			DeleteBatchLimit: 50,
+		},
+	}
+
+	result, err := runner.RunOnce(context.Background())
+	if err != nil {
+		t.Fatalf("RunOnce() error = %v, want nil", err)
+	}
+	if got, want := result.InterprocSweeps, 1; got != want {
+		t.Fatalf("InterprocSweeps = %d, want %d (empty ledger still counts as swept)", got, want)
+	}
 }
 
 func equalCodeValueFlowStringSlices(left, right []string) bool {

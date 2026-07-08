@@ -2074,3 +2074,67 @@ backoffs (real work exists), Postgres doing productive write work draining the
 backlog toward idle. So the fix is not only a spin fix — it restores
 search-vector building for the unbuilt scope backlog that the NULL join key had
 silently starved.
+
+## #4893 — TAINT_FLOWS_TO edge + CodeTaintEvidence node retract anchored by uid via ledgers (evidence)
+
+The reducer's value-flow retracts scanned the whole graph on NornicDB. The
+TAINT_FLOWS_TO **edge** retract used an unanchored `(:Function)-[rel]->(:Function)
+WHERE rel.<prop>` shape that NornicDB plans as `traverseGraphParallel`/`findPaths`
+over the whole Function adjacency; the CodeTaintEvidence **node** retract used
+`MATCH (n:CodeTaintEvidence) WHERE n.scope_id ... WITH n LIMIT k DETACH DELETE n`,
+which the NornicDB delete-with-limit hot path (`collectDeleteWithLimitCandidates`)
+serves via `GetNodesByLabel` — decoding the whole node population when no
+`scope_id` property index exists. Both are fired per-scope by
+`CodeValueFlowStaleCleanupRunner` (~896 scopes) and per-intent by the
+materialization/fixpoint paths.
+
+Fix: durable `code_interproc_projected_edge` and `code_taint_evidence_projected_node`
+ledgers record the source-Function uid / node uid of every projected artifact,
+written BEFORE the graph write so each ledger is a superset of the graph. Retract
+enumerates uids from the ledger and anchors the delete by the indexed uid
+(`UNWIND $uids MATCH (s:Function {uid})-[rel:TAINT_FLOWS_TO]->() WHERE <pred> DELETE rel`
+and `UNWIND $uids MATCH (n:CodeTaintEvidence {uid}) WHERE <pred> DETACH DELETE n`),
+then prunes the ledger. An empty ledger enumeration is the existence guard: the
+reducer sends no graph delete when a scope has no projected artifacts, so a
+zero-taint corpus does zero graph work (this also side-steps the
+`collectDeleteWithLimitCandidates` fail-open, which broad-scans on a 0-result
+`WITH n LIMIT` delete — the reason a naive `scope_id` property index would not
+have fixed the zero-taint case; NornicDB hot-path cookbook §8.5 recommends
+indexed key-list deletes). A one-time, count-guarded startup backfill seeds each
+ledger from existing graph artifacts so pre-deploy edges/nodes remain retractable.
+
+Performance Evidence: backend NornicDB v1.1.10 `d97f02c1` (~980k nodes / 1.6M
+edges; 511,825 Function nodes; 0 TAINT_FLOWS_TO edges; 0 CodeTaintEvidence nodes
+on the live `e2e3586persist` stack). BEFORE: the stale-cleanup log showed one
+100-scope cycle at `duration_seconds=13055.6` (3.6 h, `cursor_exhausted=false`),
+pinning NornicDB CPU 150–509% continuously; a read-shaped reproduction of the
+edge retract (`MATCH (:Function)-[rel:TAINT_FLOWS_TO]->(:Function) WHERE
+rel.evidence_source=… RETURN count`) measured 18.57 s to return 0. AFTER
+(rebuilt reducer hot-swapped on the same stack): stale-cleanup cycles ran at
+`duration_seconds=0.03–0.09` and all 896 scopes drained (`cursor_exhausted=true`)
+in ~0.5 s; NornicDB CPU fell to 0.55–3.17% idle; a live goroutine dump showed
+zero `traverseGraphParallel`/`findPaths` and zero `collectDeleteWithLimitCandidates`
+frames. Anchored retract-read timing: 0.03 s for 100 uids, 1.6 s for 2000 uids
+vs 18.57 s unanchored. Result class: Wall-clock win (continuous 150–509% pin →
+idle).
+
+No-Regression Evidence: result-set equivalence proven on the live backend with a
+uniquely-scoped seeded edge set — the old whole-scan delete set and the
+ledger-anchored delete set were identical for both the scoped retract (all four
+seeded edges) and the stale retract (the two prior-generation edges); seed
+removed after. Focused gates: `go test ./internal/storage/postgres
+./internal/storage/cypher ./internal/reducer ./cmd/reducer -count=1` and
+`golangci-lint run` on those packages pass. Store/writer/handler/runner/backfill
+tests cover record-before-write ordering, ledger-enumerated anchored delete,
+prune, first-generation skip, empty-ledger existence-guard no-op, and count-guard
+backfill.
+
+Observability Evidence: the win is diagnosable through the EXISTING reducer
+`code value-flow stale cleanup cycle completed` log (`scopes_scanned`,
+`taint_sweeps`, `interproc_sweeps`, `cursor_exhausted`, `duration_seconds` — the
+13055.6 → 0.05 drop is directly visible there), the existing reducer run
+spans/execution counters, and the `InstrumentedDB` Postgres query
+spans/`eshu_dp_postgres_query_duration_seconds` covering the new ledger reads and
+writes. The change adds no new metric instrument, metric label, worker, queue
+domain, lease, runtime knob, or graph-write route; the two new ledger tables are
+reached through the existing Postgres store instrumentation.

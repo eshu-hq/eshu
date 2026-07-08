@@ -4,6 +4,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"time"
@@ -115,12 +116,46 @@ func buildReducerService(
 	codeValueFlowStaleCleanupRunner := codeValueFlowStaleCleanupRunnerFor(
 		database,
 		graphWriters.codeTaintEvidence,
+		graphWriters.codeTaintEvidence,
+		graphWriters.codeInterprocEvidence,
 		graphWriters.codeInterprocEvidence,
 		intentStore,
 		codeValueFlowStaleCleanupCfg,
 	)
 	if codeValueFlowStaleCleanupRunner != nil {
 		codeValueFlowStaleCleanupRunner.Logger = logger
+	}
+	// Seed the projected-edge ledger from existing graph TAINT_FLOWS_TO edges so
+	// the ledger is a superset of graph edges at deploy time (one-time,
+	// idempotent backfill). Must run before stale-cleanup or fixpoint projection
+	// start retracting. graphReader is the query.GraphQuery read port; the
+	// ledger uses the same postgres-backed store wired for the runtime.
+	backfillStateMarker := postgres.NewCodeValueFlowBackfillStateStore(database)
+	backfiller := reducer.CodeInterprocProjectedEdgeBackfiller{
+		Reader:      reducer.CodeInterprocProjectedEdgeBackfillReader{Graph: graphReader},
+		Ledger:      postgres.NewCodeInterprocProjectedEdgeStore(database),
+		StateMarker: backfillStateMarker,
+		EvidenceSources: []string{
+			reducer.CodeInterprocEvidenceSource(),
+			reducer.CodeInterprocFixpointEvidenceSource(),
+		},
+	}
+	if err := backfiller.Run(context.Background()); err != nil {
+		return reducer.Service{}, fmt.Errorf("code interproc projected edge backfill: %w", err)
+	}
+	// Seed the projected-node ledger from existing graph CodeTaintEvidence nodes
+	// so the ledger is a superset of graph nodes at deploy time (one-time,
+	// idempotent backfill). Mirrors the interproc edge backfill above.
+	taintNodeBackfiller := reducer.CodeTaintEvidenceProjectedNodeBackfiller{
+		Reader:      reducer.CodeTaintEvidenceProjectedNodeBackfillReader{Graph: graphReader},
+		Ledger:      postgres.NewCodeTaintEvidenceProjectedNodeStore(database),
+		StateMarker: backfillStateMarker,
+		EvidenceSources: []string{
+			reducer.CodeTaintEvidenceSource(),
+		},
+	}
+	if err := taintNodeBackfiller.Run(context.Background()); err != nil {
+		return reducer.Service{}, fmt.Errorf("code taint evidence projected node backfill: %w", err)
 	}
 	// Semantic path: permit gate OUTSIDE the write timeout (#3652 P1); see
 	// boundSemanticEntityExecutor.

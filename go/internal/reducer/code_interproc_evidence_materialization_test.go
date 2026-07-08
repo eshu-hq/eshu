@@ -20,6 +20,20 @@ type recordingCodeInterprocEvidenceWriter struct {
 	retractEvidence string
 	globalRetracts  int
 	globalEvidence  string
+
+	// anchored-delete methods
+	retractByUIDsCalls    int
+	retractByUIDsUids     []string
+	retractByUIDsScopes   []string
+	retractByUIDsEvidence string
+	sourceByUIDsCalls     int
+	sourceByUIDsUids      []string
+	sourceByUIDsEvidence  string
+	staleByUIDsCalls      int
+	staleByUIDsUids       []string
+	staleByUIDsScope      string
+	staleByUIDsGeneration string
+	staleByUIDsEvidence   string
 }
 
 func (w *recordingCodeInterprocEvidenceWriter) WriteCodeInterprocEvidence(
@@ -47,6 +61,36 @@ func (w *recordingCodeInterprocEvidenceWriter) RetractCodeInterprocEvidenceSourc
 ) error {
 	w.globalRetracts++
 	w.globalEvidence = evidenceSource
+	return nil
+}
+
+func (w *recordingCodeInterprocEvidenceWriter) RetractCodeInterprocEvidenceByUIDs(
+	_ context.Context, sourceUIDs []string, scopeIDs []string, evidenceSource string,
+) error {
+	w.retractByUIDsCalls++
+	w.retractByUIDsUids = append(w.retractByUIDsUids, sourceUIDs...)
+	w.retractByUIDsScopes = append(w.retractByUIDsScopes, scopeIDs...)
+	w.retractByUIDsEvidence = evidenceSource
+	return nil
+}
+
+func (w *recordingCodeInterprocEvidenceWriter) RetractCodeInterprocEvidenceSourceByUIDs(
+	_ context.Context, sourceUIDs []string, evidenceSource string,
+) error {
+	w.sourceByUIDsCalls++
+	w.sourceByUIDsUids = append(w.sourceByUIDsUids, sourceUIDs...)
+	w.sourceByUIDsEvidence = evidenceSource
+	return nil
+}
+
+func (w *recordingCodeInterprocEvidenceWriter) RetractStaleCodeInterprocEvidenceByUIDs(
+	_ context.Context, sourceUIDs []string, scopeID, generationID, evidenceSource string,
+) error {
+	w.staleByUIDsCalls++
+	w.staleByUIDsUids = append(w.staleByUIDsUids, sourceUIDs...)
+	w.staleByUIDsScope = scopeID
+	w.staleByUIDsGeneration = generationID
+	w.staleByUIDsEvidence = evidenceSource
 	return nil
 }
 

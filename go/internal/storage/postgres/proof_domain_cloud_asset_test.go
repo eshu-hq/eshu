@@ -53,6 +53,7 @@ func TestProofDomainCloudAssetResolutionFlowsCollectorToReducerIntent(t *testing
 				"graph_id":   "repo-aws-123",
 				"graph_kind": "repository",
 				"name":       "aws-repo",
+				"repo_id":    "repo-aws-123",
 			},
 			SourceRef: facts.Ref{
 				SourceSystem: "git",

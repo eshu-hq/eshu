@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -16,6 +17,10 @@ import (
 // codeTaintEvidenceSource is the evidence-source tag for reducer-owned
 // CodeTaintEvidence graph writes, used for scoped retraction before reprojection.
 const codeTaintEvidenceSource = "reducer/code-taint"
+
+// CodeTaintEvidenceSource returns the evidence-source string for reducer-owned
+// code-taint evidence nodes.
+func CodeTaintEvidenceSource() string { return codeTaintEvidenceSource }
 
 func codeTaintEvidenceDomainDefinition() DomainDefinition {
 	return DomainDefinition{
@@ -56,6 +61,8 @@ type CodeTaintEvidenceLoader interface {
 type CodeTaintEvidenceWriter interface {
 	WriteCodeTaintEvidence(ctx context.Context, rows []map[string]any, scopeID, generationID, evidenceSource string) error
 	RetractCodeTaintEvidence(ctx context.Context, scopeIDs []string, generationID, evidenceSource string) error
+	RetractCodeTaintEvidenceByUIDs(ctx context.Context, nodeUIDs []string, scopeIDs []string, evidenceSource string) error
+	RetractStaleCodeTaintEvidenceByUIDs(ctx context.Context, nodeUIDs []string, scopeID, generationID, evidenceSource string) error
 }
 
 // CodeTaintEvidenceMaterializationHandler reduces one taint-evidence intent into
@@ -63,6 +70,7 @@ type CodeTaintEvidenceWriter interface {
 type CodeTaintEvidenceMaterializationHandler struct {
 	Loader               CodeTaintEvidenceLoader
 	Writer               CodeTaintEvidenceWriter
+	Ledger               CodeTaintEvidenceProjectedNodeLedger
 	PriorGenerationCheck PriorGenerationCheck
 	Instruments          *telemetry.Instruments
 }
@@ -96,13 +104,39 @@ func (h CodeTaintEvidenceMaterializationHandler) Handle(ctx context.Context, int
 		return Result{}, err
 	}
 	if !skipRetract {
-		if err := h.Writer.RetractCodeTaintEvidence(
-			ctx, []string{intent.ScopeID}, intent.GenerationID, codeTaintEvidenceSource,
-		); err != nil {
-			return Result{}, fmt.Errorf("retract code taint evidence: %w", err)
+		if h.Ledger != nil {
+			uids, err := h.Ledger.ListNodeUIDsForScopes(ctx, codeTaintEvidenceSource, []string{intent.ScopeID})
+			if err != nil {
+				return Result{}, fmt.Errorf("list node uids for retract: %w", err)
+			}
+			if err := h.Writer.RetractCodeTaintEvidenceByUIDs(
+				ctx, uids, []string{intent.ScopeID}, codeTaintEvidenceSource,
+			); err != nil {
+				return Result{}, fmt.Errorf("retract code taint evidence by uids: %w", err)
+			}
+			if err := h.Ledger.PruneForScopes(ctx, codeTaintEvidenceSource, []string{intent.ScopeID}); err != nil {
+				return Result{}, fmt.Errorf("prune code taint evidence projected nodes: %w", err)
+			}
+		} else {
+			if err := h.Writer.RetractCodeTaintEvidence(
+				ctx, []string{intent.ScopeID}, intent.GenerationID, codeTaintEvidenceSource,
+			); err != nil {
+				return Result{}, fmt.Errorf("retract code taint evidence: %w", err)
+			}
 		}
 	}
 	if len(rows) > 0 {
+		if h.Ledger != nil {
+			uids := nodeUIDsFromRows(rows)
+			if len(uids) > 0 {
+				if err := h.Ledger.RecordProjectedNodes(
+					ctx, codeTaintEvidenceSource, intent.ScopeID, intent.GenerationID,
+					uids, time.Now(),
+				); err != nil {
+					return Result{}, fmt.Errorf("record projected nodes: %w", err)
+				}
+			}
+		}
 		if err := h.Writer.WriteCodeTaintEvidence(
 			ctx, rows, intent.ScopeID, intent.GenerationID, codeTaintEvidenceSource,
 		); err != nil {
@@ -142,4 +176,19 @@ func (h CodeTaintEvidenceMaterializationHandler) shouldSkipRetract(ctx context.C
 		return false, fmt.Errorf("check prior generation for code taint evidence retract: %w", err)
 	}
 	return !hasPrior, nil
+}
+
+// nodeUIDsFromRows extracts distinct uid values from taint evidence rows.
+func nodeUIDsFromRows(rows []map[string]any) []string {
+	seen := make(map[string]struct{}, len(rows))
+	for _, row := range rows {
+		if uid, ok := row["uid"].(string); ok && uid != "" {
+			seen[uid] = struct{}{}
+		}
+	}
+	uids := make([]string, 0, len(seen))
+	for uid := range seen {
+		uids = append(uids, uid)
+	}
+	return uids
 }

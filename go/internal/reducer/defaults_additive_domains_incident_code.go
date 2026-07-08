@@ -29,6 +29,7 @@ func appendIncidentAndCodeEvidenceAdditiveDomains(definitions []DomainDefinition
 		codeTaint.Handler = CodeTaintEvidenceMaterializationHandler{
 			Loader:               handlers.CodeTaintEvidenceLoader,
 			Writer:               handlers.CodeTaintEvidenceWriter,
+			Ledger:               handlers.CodeTaintEvidenceProjectedNodeLedger,
 			PriorGenerationCheck: handlers.PriorGenerationCheck,
 			Instruments:          handlers.Instruments,
 		}
@@ -39,6 +40,7 @@ func appendIncidentAndCodeEvidenceAdditiveDomains(definitions []DomainDefinition
 		codeInterproc.Handler = CodeInterprocEvidenceMaterializationHandler{
 			Loader:               handlers.CodeInterprocEvidenceLoader,
 			Writer:               handlers.CodeInterprocEvidenceWriter,
+			Ledger:               handlers.CodeInterprocProjectedEdgeLedger,
 			PriorGenerationCheck: handlers.PriorGenerationCheck,
 			Instruments:          handlers.Instruments,
 		}

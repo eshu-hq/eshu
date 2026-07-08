@@ -129,7 +129,11 @@ type CodeValueFlowStaleCleanupResult struct {
 type CodeValueFlowStaleCleanupRunner struct {
 	CurrentGenerations CodeValueFlowCurrentGenerationReader
 	TaintEvidence      CodeTaintStaleEvidenceRetractor
+	TaintWriter        CodeTaintEvidenceWriter
+	TaintLedger        CodeTaintEvidenceProjectedNodeLedger
 	InterprocEvidence  CodeInterprocStaleEvidenceRetractor
+	InterprocWriter    CodeInterprocEvidenceWriter
+	InterprocLedger    CodeInterprocProjectedEdgeLedger
 	LeaseManager       PartitionLeaseManager
 	Config             CodeValueFlowStaleCleanupRunnerConfig
 	Wait               func(context.Context, time.Duration) error
@@ -229,24 +233,66 @@ func (r *CodeValueFlowStaleCleanupRunner) RunOnce(ctx context.Context) (CodeValu
 			result.ScopesSkipped++
 			continue
 		}
-		if err := r.TaintEvidence.RetractStaleCodeTaintEvidence(
-			ctx,
-			scopeID,
-			generationID,
-			codeTaintEvidenceSource,
-			deleteLimit,
-		); err != nil {
-			return CodeValueFlowStaleCleanupResult{}, fmt.Errorf("retract stale code taint evidence: %w", err)
+		if r.TaintLedger != nil && r.TaintWriter != nil {
+			uids, err := r.TaintLedger.ListStaleNodeUIDs(
+				ctx, codeTaintEvidenceSource, scopeID, generationID, deleteLimit,
+			)
+			if err != nil {
+				return CodeValueFlowStaleCleanupResult{}, fmt.Errorf("list stale taint node uids: %w", err)
+			}
+			if err := r.TaintWriter.RetractStaleCodeTaintEvidenceByUIDs(
+				ctx, uids, scopeID, generationID, codeTaintEvidenceSource,
+			); err != nil {
+				return CodeValueFlowStaleCleanupResult{}, fmt.Errorf("retract stale code taint evidence by uids: %w", err)
+			}
+			if len(uids) > 0 {
+				if err := r.TaintLedger.PruneStaleForUIDs(
+					ctx, codeTaintEvidenceSource, scopeID, generationID, uids,
+				); err != nil {
+					return CodeValueFlowStaleCleanupResult{}, fmt.Errorf("prune stale taint projected nodes for uids: %w", err)
+				}
+			}
+		} else {
+			if err := r.TaintEvidence.RetractStaleCodeTaintEvidence(
+				ctx,
+				scopeID,
+				generationID,
+				codeTaintEvidenceSource,
+				deleteLimit,
+			); err != nil {
+				return CodeValueFlowStaleCleanupResult{}, fmt.Errorf("retract stale code taint evidence: %w", err)
+			}
 		}
 		result.TaintSweeps++
-		if err := r.InterprocEvidence.RetractStaleCodeInterprocEvidence(
-			ctx,
-			scopeID,
-			generationID,
-			codeInterprocEvidenceSource,
-			deleteLimit,
-		); err != nil {
-			return CodeValueFlowStaleCleanupResult{}, fmt.Errorf("retract stale code interproc evidence: %w", err)
+		if r.InterprocLedger != nil && r.InterprocWriter != nil {
+			uids, err := r.InterprocLedger.ListStaleSourceUIDs(
+				ctx, codeInterprocEvidenceSource, scopeID, generationID, deleteLimit,
+			)
+			if err != nil {
+				return CodeValueFlowStaleCleanupResult{}, fmt.Errorf("list stale interproc source uids: %w", err)
+			}
+			if err := r.InterprocWriter.RetractStaleCodeInterprocEvidenceByUIDs(
+				ctx, uids, scopeID, generationID, codeInterprocEvidenceSource,
+			); err != nil {
+				return CodeValueFlowStaleCleanupResult{}, fmt.Errorf("retract stale code interproc evidence by uids: %w", err)
+			}
+			if len(uids) > 0 {
+				if err := r.InterprocLedger.PruneStaleForUIDs(
+					ctx, codeInterprocEvidenceSource, scopeID, generationID, uids,
+				); err != nil {
+					return CodeValueFlowStaleCleanupResult{}, fmt.Errorf("prune stale interproc projected edges for uids: %w", err)
+				}
+			}
+		} else {
+			if err := r.InterprocEvidence.RetractStaleCodeInterprocEvidence(
+				ctx,
+				scopeID,
+				generationID,
+				codeInterprocEvidenceSource,
+				deleteLimit,
+			); err != nil {
+				return CodeValueFlowStaleCleanupResult{}, fmt.Errorf("retract stale code interproc evidence: %w", err)
+			}
 		}
 		result.InterprocSweeps++
 		result.ScopesScanned++
@@ -268,10 +314,10 @@ func (r *CodeValueFlowStaleCleanupRunner) validate() error {
 	if r.CurrentGenerations == nil {
 		return ErrCodeValueFlowCurrentGenerationsRequired
 	}
-	if r.TaintEvidence == nil {
+	if r.TaintEvidence == nil && (r.TaintLedger == nil || r.TaintWriter == nil) {
 		return errors.New("code value-flow taint stale evidence retractor is required")
 	}
-	if r.InterprocEvidence == nil {
+	if r.InterprocEvidence == nil && (r.InterprocLedger == nil || r.InterprocWriter == nil) {
 		return errors.New("code value-flow interproc stale evidence retractor is required")
 	}
 	if r.LeaseManager != nil && strings.TrimSpace(r.Config.LeaseOwner) == "" {

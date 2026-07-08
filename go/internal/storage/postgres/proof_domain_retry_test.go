@@ -155,6 +155,7 @@ func proofReplayFacts(
 				"graph_id":       "repo-123",
 				"graph_kind":     "repository",
 				"name":           "eshu",
+				"repo_id":        "repo-123",
 				"content_path":   "README.md",
 				"content_body":   body,
 				"content_digest": body,

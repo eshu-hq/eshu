@@ -248,3 +248,223 @@ func TestCodeInterprocEvidenceWriterRetractStaleGenerationRejectsBlankInputs(t *
 		})
 	}
 }
+
+// TestCodeInterprocEvidenceWriterRetractByUIDsAnchoredDelete proves the anchored
+// retract uses UNWIND $source_uids + indexed Function.uid anchor instead of a
+// whole-graph (:Function) scan.
+func TestCodeInterprocEvidenceWriterRetractByUIDsAnchoredDelete(t *testing.T) {
+	t.Parallel()
+
+	executor := &recordingExecutor{}
+	writer := NewCodeInterprocEvidenceWriter(executor, 0)
+	if err := writer.RetractCodeInterprocEvidenceByUIDs(
+		context.Background(),
+		[]string{"uid-a", "uid-b"},
+		[]string{"scope-1"},
+		"reducer/code-interproc",
+	); err != nil {
+		t.Fatalf("RetractCodeInterprocEvidenceByUIDs returned error: %v", err)
+	}
+	if len(executor.calls) != 1 {
+		t.Fatalf("len(calls) = %d, want 1", len(executor.calls))
+	}
+	cypher := executor.calls[0].Cypher
+	for _, want := range []string{
+		"UNWIND $source_uids AS suid",
+		"MATCH (s:Function {uid: suid})",
+		"DELETE rel",
+	} {
+		if !strings.Contains(cypher, want) {
+			t.Fatalf("retract by uids cypher missing %q:\n%s", want, cypher)
+		}
+	}
+	if !strings.Contains(cypher, "rel.scope_id IN $scope_ids") {
+		t.Fatalf("retract by uids cypher missing scope filter:\n%s", cypher)
+	}
+	if got := executor.calls[0].Parameters["source_uids"]; got == nil {
+		t.Fatalf("source_uids param missing")
+	}
+	if got := executor.calls[0].Parameters["scope_ids"]; got == nil {
+		t.Fatalf("scope_ids param missing")
+	}
+}
+
+// TestCodeInterprocEvidenceWriterRetractByUIDsEmptyIsNoOp proves empty uids
+// is a clean no-op.
+func TestCodeInterprocEvidenceWriterRetractByUIDsEmptyIsNoOp(t *testing.T) {
+	t.Parallel()
+
+	executor := &recordingExecutor{}
+	writer := NewCodeInterprocEvidenceWriter(executor, 0)
+	if err := writer.RetractCodeInterprocEvidenceByUIDs(
+		context.Background(),
+		nil,
+		[]string{"scope-1"},
+		"reducer/code-interproc",
+	); err != nil {
+		t.Fatalf("RetractCodeInterprocEvidenceByUIDs returned error: %v", err)
+	}
+	if len(executor.calls) != 0 {
+		t.Fatalf("len(calls) = %d, want 0 for empty uids", len(executor.calls))
+	}
+}
+
+// TestCodeInterprocEvidenceWriterRetractByUIDsBatchesUids proves when uids
+// exceed the batch size, they are split into multiple statements.
+func TestCodeInterprocEvidenceWriterRetractByUIDsBatchesUids(t *testing.T) {
+	t.Parallel()
+
+	uids := make([]string, 1200)
+	for i := range uids {
+		uids[i] = "uid-" + string(rune('a'+i%26)) + string(rune('0'+i/26))
+	}
+
+	executor := &recordingExecutor{}
+	const batchSize = 500
+	writer := NewCodeInterprocEvidenceWriter(executor, batchSize)
+	if err := writer.RetractCodeInterprocEvidenceByUIDs(
+		context.Background(),
+		uids,
+		[]string{"scope-1"},
+		"reducer/code-interproc",
+	); err != nil {
+		t.Fatalf("RetractCodeInterprocEvidenceByUIDs returned error: %v", err)
+	}
+	// 1200 uids at 500 batch = ceil(1200/500) = 3 batches
+	if len(executor.calls) != 3 {
+		t.Fatalf("len(calls) = %d, want 3 batches", len(executor.calls))
+	}
+}
+
+// TestCodeInterprocEvidenceWriterRetractEvidenceSourceByUIDs proves the source
+// scoped retract uses anchored uid lookup without scope filter.
+func TestCodeInterprocEvidenceWriterRetractEvidenceSourceByUIDs(t *testing.T) {
+	t.Parallel()
+
+	executor := &recordingExecutor{}
+	writer := NewCodeInterprocEvidenceWriter(executor, 0)
+	if err := writer.RetractCodeInterprocEvidenceSourceByUIDs(
+		context.Background(),
+		[]string{"uid-a"},
+		"reducer/code-interproc-fixpoint",
+	); err != nil {
+		t.Fatalf("RetractCodeInterprocEvidenceSourceByUIDs returned error: %v", err)
+	}
+	if len(executor.calls) != 1 {
+		t.Fatalf("len(calls) = %d, want 1", len(executor.calls))
+	}
+	cypher := executor.calls[0].Cypher
+	for _, want := range []string{
+		"UNWIND $source_uids AS suid",
+		"MATCH (s:Function {uid: suid})",
+		"rel.evidence_source = $evidence_source",
+		"DELETE rel",
+	} {
+		if !strings.Contains(cypher, want) {
+			t.Fatalf("source retract by uids cypher missing %q:\n%s", want, cypher)
+		}
+	}
+	if strings.Contains(cypher, "scope_id") {
+		t.Fatalf("source retract must not filter by scope_id:\n%s", cypher)
+	}
+}
+
+// TestCodeInterprocEvidenceWriterRetractStaleByUIDs proves stale cleanup uses
+// the anchored uid lookup with generation_id <> filter.
+func TestCodeInterprocEvidenceWriterRetractStaleByUIDs(t *testing.T) {
+	t.Parallel()
+
+	executor := &recordingExecutor{}
+	writer := NewCodeInterprocEvidenceWriter(executor, 0)
+	if err := writer.RetractStaleCodeInterprocEvidenceByUIDs(
+		context.Background(),
+		[]string{"uid-a"},
+		"scope-1",
+		"gen-current",
+		"reducer/code-interproc",
+	); err != nil {
+		t.Fatalf("RetractStaleCodeInterprocEvidenceByUIDs returned error: %v", err)
+	}
+	if len(executor.calls) != 1 {
+		t.Fatalf("len(calls) = %d, want 1", len(executor.calls))
+	}
+	cypher := executor.calls[0].Cypher
+	for _, want := range []string{
+		"UNWIND $source_uids AS suid",
+		"MATCH (s:Function {uid: suid})",
+		"rel.scope_id = $scope_id",
+		"rel.evidence_source = $evidence_source",
+		"rel.generation_id <> $generation_id",
+		"DELETE rel",
+	} {
+		if !strings.Contains(cypher, want) {
+			t.Fatalf("stale retract by uids cypher missing %q:\n%s", want, cypher)
+		}
+	}
+	if got := executor.calls[0].Parameters["scope_id"]; got != "scope-1" {
+		t.Fatalf("scope_id param = %v, want scope-1", got)
+	}
+	if got := executor.calls[0].Parameters["generation_id"]; got != "gen-current" {
+		t.Fatalf("generation_id param = %v, want gen-current", got)
+	}
+}
+
+// TestCodeInterprocEvidenceWriterRetractStaleByUIDsEmptyIsNoOp proves empty
+// uids is a no-op for stale cleanup too.
+func TestCodeInterprocEvidenceWriterRetractStaleByUIDsEmptyIsNoOp(t *testing.T) {
+	t.Parallel()
+
+	executor := &recordingExecutor{}
+	writer := NewCodeInterprocEvidenceWriter(executor, 0)
+	if err := writer.RetractStaleCodeInterprocEvidenceByUIDs(
+		context.Background(),
+		nil,
+		"scope-1",
+		"gen-current",
+		"reducer/code-interproc",
+	); err != nil {
+		t.Fatalf("RetractStaleCodeInterprocEvidenceByUIDs returned error: %v", err)
+	}
+	if len(executor.calls) != 0 {
+		t.Fatalf("len(calls) = %d, want 0 for empty uids", len(executor.calls))
+	}
+}
+
+// TestCodeInterprocEvidenceWriterRetractStaleByUIDsRejectsBlankInputs proves
+// the anchored stale retract fails closed on blank inputs.
+func TestCodeInterprocEvidenceWriterRetractStaleByUIDsRejectsBlankInputs(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name           string
+		scopeID        string
+		generationID   string
+		evidenceSource string
+		wantErr        string
+	}{
+		{name: "scope", scopeID: "", generationID: "gen-current", evidenceSource: "reducer/code-interproc", wantErr: "scope_id must not be blank"},
+		{name: "generation", scopeID: "scope-1", generationID: "", evidenceSource: "reducer/code-interproc", wantErr: "generation_id must not be blank"},
+		{name: "source", scopeID: "scope-1", generationID: "gen-current", evidenceSource: "", wantErr: "evidence_source must not be blank"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			executor := &recordingExecutor{}
+			writer := NewCodeInterprocEvidenceWriter(executor, 0)
+			err := writer.RetractStaleCodeInterprocEvidenceByUIDs(
+				context.Background(),
+				[]string{"uid-a"},
+				tt.scopeID,
+				tt.generationID,
+				tt.evidenceSource,
+			)
+			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("error = %v, want containing %q", err, tt.wantErr)
+			}
+			if len(executor.calls) != 0 {
+				t.Fatalf("len(calls) = %d, want 0 after validation failure", len(executor.calls))
+			}
+		})
+	}
+}

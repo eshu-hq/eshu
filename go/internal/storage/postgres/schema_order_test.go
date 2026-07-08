@@ -64,4 +64,7 @@ var orderedBootstrapDefinitionNames = []string{
 	"aws_gcp_freshness_claim_lease",
 	"deferred_backfill_partition_memo",
 	"dead_letter_poison_idx",
+	"code_interproc_projected_edge",
+	"code_taint_evidence_projected_node",
+	"code_value_flow_backfill_state",
 }

@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/parser/interproc"
 	"github.com/eshu-hq/eshu/go/internal/parser/summary"
@@ -373,12 +374,16 @@ type ValueFlowFixpointProjectionResult struct {
 type ValueFlowFixpointEvidenceProjector struct {
 	Loader CodeInterprocEvidenceLoader
 	Writer CodeInterprocEvidenceWriter
+	Ledger CodeInterprocProjectedEdgeLedger
 }
 
 // ProjectValueFlowFixpointEvidence retracts and rewrites the full fixpoint-owned
 // TAINT_FLOWS_TO evidence source. The solve reads global durable summary/source
 // state, so retraction must match that global write contract rather than a
 // triggering scope's last-stamped edge ownership.
+// When a Ledger is present, retraction enumerates source Function uids from the
+// ledger and uses anchored-delete; the ledger is recorded before the graph edge
+// write.
 func (p ValueFlowFixpointEvidenceProjector) ProjectValueFlowFixpointEvidence(
 	ctx context.Context,
 	scopeID string,
@@ -392,10 +397,34 @@ func (p ValueFlowFixpointEvidenceProjector) ProjectValueFlowFixpointEvidence(
 		return ValueFlowFixpointProjectionResult{}, err
 	}
 	rows := ExtractCodeInterprocFixpointEvidenceRows(inputs)
-	if err := p.Writer.RetractCodeInterprocEvidenceSource(ctx, codeInterprocFixpointEvidenceSource); err != nil {
-		return ValueFlowFixpointProjectionResult{}, fmt.Errorf("retract value-flow fixpoint evidence: %w", err)
+	if p.Ledger != nil {
+		uids, err := p.Ledger.ListSourceUIDsForSource(ctx, codeInterprocFixpointEvidenceSource)
+		if err != nil {
+			return ValueFlowFixpointProjectionResult{}, fmt.Errorf("list source uids for fixpoint retract: %w", err)
+		}
+		if err := p.Writer.RetractCodeInterprocEvidenceSourceByUIDs(ctx, uids, codeInterprocFixpointEvidenceSource); err != nil {
+			return ValueFlowFixpointProjectionResult{}, fmt.Errorf("retract value-flow fixpoint evidence by uids: %w", err)
+		}
+		if err := p.Ledger.PruneForSource(ctx, codeInterprocFixpointEvidenceSource); err != nil {
+			return ValueFlowFixpointProjectionResult{}, fmt.Errorf("prune fixpoint projected edges: %w", err)
+		}
+	} else {
+		if err := p.Writer.RetractCodeInterprocEvidenceSource(ctx, codeInterprocFixpointEvidenceSource); err != nil {
+			return ValueFlowFixpointProjectionResult{}, fmt.Errorf("retract value-flow fixpoint evidence: %w", err)
+		}
 	}
 	if len(rows) > 0 {
+		if p.Ledger != nil {
+			uids := sourceUIDsFromRows(rows)
+			if len(uids) > 0 {
+				if err := p.Ledger.RecordProjectedEdges(
+					ctx, codeInterprocFixpointEvidenceSource, scopeID, generationID,
+					uids, time.Now(),
+				); err != nil {
+					return ValueFlowFixpointProjectionResult{}, fmt.Errorf("record fixpoint projected edges: %w", err)
+				}
+			}
+		}
 		if err := p.Writer.WriteCodeInterprocEvidence(ctx, rows, scopeID, generationID, codeInterprocFixpointEvidenceSource); err != nil {
 			return ValueFlowFixpointProjectionResult{}, fmt.Errorf("write value-flow fixpoint evidence: %w", err)
 		}

@@ -63,6 +63,25 @@ WHERE n.scope_id = $scope_id
 WITH n LIMIT $limit
 DETACH DELETE n`
 
+// Anchored-delete variants that enumerate node uids from the ledger instead of
+// scanning the entire :CodeTaintEvidence label. Each DETACH DELETE is bounded to
+// the nodes reachable from the ledger-enumerated uid anchor via the uid index.
+
+const retractCodeTaintEvidenceByUIDsCypher = `UNWIND $node_uids AS nuid
+MATCH (n:CodeTaintEvidence {uid: nuid})
+WHERE n.scope_id IN $scope_ids
+  AND n.evidence_source = $evidence_source
+DETACH DELETE n`
+
+const retractStaleCodeTaintEvidenceByUIDsCypher = `UNWIND $node_uids AS nuid
+MATCH (n:CodeTaintEvidence {uid: nuid})
+WHERE n.scope_id = $scope_id
+  AND n.evidence_source = $evidence_source
+  AND n.generation_id <> $generation_id
+DETACH DELETE n`
+
+const codeTaintEvidenceRetractUIDBatchSize = 500
+
 // CodeTaintEvidenceWriter materializes reducer-owned value-flow taint evidence
 // into graph nodes and Function relationships.
 type CodeTaintEvidenceWriter struct {
@@ -191,6 +210,79 @@ func (w *CodeTaintEvidenceWriter) RetractStaleCodeTaintEvidence(
 	return w.dispatch(ctx, []Statement{stmt})
 }
 
+// RetractCodeTaintEvidenceByUIDs removes reducer-owned taint evidence nodes for
+// the given scopes, enumerating node uids from the ledger instead of scanning the
+// whole :CodeTaintEvidence label. Empty node_uids is a no-op.
+func (w *CodeTaintEvidenceWriter) RetractCodeTaintEvidenceByUIDs(
+	ctx context.Context,
+	nodeUIDs []string,
+	scopeIDs []string,
+	evidenceSource string,
+) error {
+	if len(nodeUIDs) == 0 {
+		return nil
+	}
+	if w.executor == nil {
+		return fmt.Errorf("code taint evidence writer executor is required")
+	}
+	batches := chunkStrings(nodeUIDs, codeTaintEvidenceRetractUIDBatchSize)
+	stmts := make([]Statement, 0, len(batches))
+	for _, batch := range batches {
+		stmts = append(stmts, Statement{
+			Operation: OperationCanonicalRetract,
+			Cypher:    retractCodeTaintEvidenceByUIDsCypher,
+			Parameters: map[string]any{
+				"node_uids":                     batch,
+				"scope_ids":                     scopeIDs,
+				"evidence_source":               evidenceSource,
+				StatementMetadataPhaseKey:       canonicalPhaseCodeTaintEvidence,
+				StatementMetadataEntityLabelKey: codeTaintEvidenceLabel,
+				StatementMetadataSummaryKey:     fmt.Sprintf("label=%s retract_by_uids scopes=%d uids=%d", codeTaintEvidenceLabel, len(scopeIDs), len(batch)),
+			},
+		})
+	}
+	return w.dispatchRetract(ctx, stmts)
+}
+
+// RetractStaleCodeTaintEvidenceByUIDs removes stale taint evidence nodes for one
+// scope/source pair whose generation is not the current generation, enumerating
+// node uids from the ledger. Empty node_uids is a no-op.
+func (w *CodeTaintEvidenceWriter) RetractStaleCodeTaintEvidenceByUIDs(
+	ctx context.Context,
+	nodeUIDs []string,
+	scopeID string,
+	generationID string,
+	evidenceSource string,
+) error {
+	if len(nodeUIDs) == 0 {
+		return nil
+	}
+	if err := validateStaleEvidenceRetractInputs(scopeID, generationID, evidenceSource); err != nil {
+		return err
+	}
+	if w.executor == nil {
+		return fmt.Errorf("code taint evidence writer executor is required")
+	}
+	batches := chunkStrings(nodeUIDs, codeTaintEvidenceRetractUIDBatchSize)
+	stmts := make([]Statement, 0, len(batches))
+	for _, batch := range batches {
+		stmts = append(stmts, Statement{
+			Operation: OperationCanonicalRetract,
+			Cypher:    retractStaleCodeTaintEvidenceByUIDsCypher,
+			Parameters: map[string]any{
+				"node_uids":                     batch,
+				"scope_id":                      scopeID,
+				"generation_id":                 generationID,
+				"evidence_source":               evidenceSource,
+				StatementMetadataPhaseKey:       canonicalPhaseCodeTaintEvidence,
+				StatementMetadataEntityLabelKey: codeTaintEvidenceLabel,
+				StatementMetadataSummaryKey:     fmt.Sprintf("label=%s stale_retract_by_uids scope=%s generation=%s uids=%d", codeTaintEvidenceLabel, scopeID, generationID, len(batch)),
+			},
+		})
+	}
+	return w.dispatchRetract(ctx, stmts)
+}
+
 func (w *CodeTaintEvidenceWriter) dispatch(ctx context.Context, stmts []Statement) error {
 	if len(stmts) == 0 {
 		return nil
@@ -199,6 +291,22 @@ func (w *CodeTaintEvidenceWriter) dispatch(ctx context.Context, stmts []Statemen
 		if err := ge.ExecuteGroup(ctx, stmts); err != nil {
 			return WrapRetryableNeo4jError(err)
 		}
+		return nil
+	}
+	for _, stmt := range stmts {
+		if err := w.executor.Execute(ctx, stmt); err != nil {
+			return WrapRetryableNeo4jError(err)
+		}
+	}
+	return nil
+}
+
+// dispatchRetract routes retract statements through sequential Execute calls,
+// never ExecuteGroup. See CodeInterprocEvidenceWriter.dispatchRetract for the
+// rationale: NornicDB v1.1.9 bolt driver bug with UNWIND/MATCH/DELETE inside
+// session.ExecuteWrite / tx.Run.
+func (w *CodeTaintEvidenceWriter) dispatchRetract(ctx context.Context, stmts []Statement) error {
+	if len(stmts) == 0 {
 		return nil
 	}
 	for _, stmt := range stmts {

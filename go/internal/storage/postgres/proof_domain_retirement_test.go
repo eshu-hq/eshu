@@ -67,6 +67,7 @@ func retirementRepositoryFact(scopeID, generationID, factID, digest string, obse
 			"graph_kind": "repository",
 			"name":       "retire-target",
 			"digest":     digest,
+			"repo_id":    "repo-retire",
 		},
 		SourceRef: facts.Ref{
 			SourceSystem: "git",

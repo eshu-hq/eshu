@@ -376,3 +376,56 @@ write now surfaces as queue `failure_class = projection_retryable` with a bounde
 requeue rather than a terminal `projection_failed` dead letter, so dead-letter
 count and `attempt_count` exposed by the projector queue now distinguish
 transient backpressure from real terminal failures.
+
+## #4893 — uid-anchored TAINT_FLOWS_TO edge and CodeTaintEvidence node retracts
+
+`CodeInterprocEvidenceWriter.Retract*ByUIDs` and
+`CodeTaintEvidenceWriter.Retract*ByUIDs` replace the unanchored
+`(:Function)-[rel]->(:Function) WHERE rel.<prop>` / `MATCH (n:CodeTaintEvidence)
+WHERE n.scope_id ... WITH n LIMIT` scans with `UNWIND $uids MATCH (…{uid})`
+indexed point-lookup deletes. The caller enumerates uids from the reducer-owned
+ledgers (see `go/internal/reducer/AGENTS.md` #4893) and passes them in; empty
+uids is a no-op (existence guard). The retract WHERE predicate
+(`scope_id`/`evidence_source`/`generation_id`) is preserved for correctness — the
+uid anchor is only the fast seed.
+
+Performance Evidence: NornicDB v1.1.10 `d97f02c1`, 511,825 Function nodes; the
+unanchored edge retract read 18.57 s (count 0) vs 0.03 s (100 uids) / 1.6 s
+(2000 uids) anchored; live stack NornicDB CPU 150–509% → 0.55–3.17% idle,
+stale-cleanup cycle 13055.6 s → 0.05 s. Full evidence in
+`go/internal/reducer/AGENTS.md` (#4893).
+
+No-Observability-Change: the new `*ByUIDs` methods flow through the existing
+`Executor`/`GroupExecutor` dispatch, `Statement` phase/label/summary metadata,
+retry wrapping, and failure logging; no new metric, label, worker, queue domain,
+lease, runtime knob, or graph-write route.
+
+### #4893 retract dispatch route (NornicDB v1.1.9 bolt ExecuteWrite bug)
+
+The five value-flow by-uid retract methods route their DELETE statements
+through `dispatchRetract` (sequential `Executor.Execute`, i.e. the reducer's
+`session.Run` autocommit path), NOT through `dispatch`/`ExecuteGroup`. NornicDB
+v1.1.9 (the version `docker-compose.yaml` pins) has a bolt bug:
+`session.ExecuteWrite`/`tx.Run` returns `rels-deleted=0` for an
+`UNWIND ... MATCH (s {uid})-[rel:TYPE]->() ... DELETE rel` statement inside an
+explicit transaction, while the identical statement deletes correctly via
+`session.Run` (autocommit) and HTTP `tx/commit`. `UNWIND`, `IN`, and
+`IN`-on-relationship-property all work in isolation over bolt; only
+DELETE-via-matched-relationship inside `ExecuteWrite` is affected. The MERGE
+write path keeps using `ExecuteGroup` (works, and needs the atomic batch). Do
+NOT route these retracts back through `ExecuteGroup` — the CI guard
+`TestCode(Interproc|Taint)EvidenceRetractByUIDsRoutesThroughAutocommitExecute`
+fails if you do. Tracked upstream as the NornicDB bolt ExecuteWrite follow-up.
+
+No-Regression Evidence: DSN-gated bolt integration tests
+(`code_evidence_bolt_retract_test.go`, `ESHU_CYPHER_BOLT_DSN`) reproduce
+red (post-retract edge/node count unchanged) against a live NornicDB v1.1.9
+and prove green after the fix (count -> 0); a full two-generation reducer E2E
+on v1.1.9 confirms a dropped cross-function taint flow's TAINT_FLOWS_TO edge is
+retracted while the survivor is kept and the ledger is pruned. The no-backend
+CI guard above catches a dispatch-route regression without a live backend.
+
+No-Observability-Change: the fix only changes the dispatch route (Execute vs
+ExecuteGroup) for retract statements; same Cypher, same parameters, same
+`Statement` metadata, same retry wrapping (`WrapRetryableNeo4jError`). No metric,
+label, worker, queue domain, lease, runtime knob, or graph-write route added.

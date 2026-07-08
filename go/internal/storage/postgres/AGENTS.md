@@ -522,3 +522,24 @@ the shared-projection blocked/terminal counters, and
 - `BootstrapDefinitions` ordering — FK constraints enforce ordering; reordering
   without verifying all FK dependencies will break bootstrap in fresh
   deployments.
+
+## #4893 — projected-edge / projected-node ledgers
+
+`CodeInterprocProjectedEdgeStore` (`code_interproc_projected_edge`, migration 044)
+and `CodeTaintEvidenceProjectedNodeStore` (`code_taint_evidence_projected_node`,
+migration 045) record the source-Function uid / CodeTaintEvidence node uid of
+every projected value-flow artifact so the reducer retracts by indexed uid
+instead of scanning the whole graph on NornicDB. Both follow the store
+conventions here: `ExecQueryer`, idempotent batched upsert with in-batch dedupe,
+`SchemaSQL` const mirrored by the migration, and `SELECT DISTINCT ... ORDER BY`
+enumeration / bounded `DELETE` prune, all parameterized. Written before the graph
+write (superset invariant); see `go/internal/reducer/AGENTS.md` (#4893).
+
+No-Regression Evidence: `go test ./internal/storage/postgres -run
+'CodeInterprocProjectedEdge|CodeTaintEvidenceProjectedNode' -count=1` covers
+schema-SQL parity, in-batch dedupe/blank skipping, enumeration query shapes, and
+prune shapes. Full runtime evidence in `go/internal/reducer/AGENTS.md` (#4893).
+
+No-Observability-Change: the ledger reads/writes are covered by the existing
+`InstrumentedDB` Postgres query spans and `eshu_dp_postgres_query_duration_seconds`;
+no new metric, label, worker, queue domain, lease, or runtime knob.
