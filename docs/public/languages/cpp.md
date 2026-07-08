@@ -63,3 +63,24 @@ Not claimed today:
   build-target selection, transitive include graphs, template instantiation,
   overload resolution, virtual dispatch breadth, callback registration, dynamic
   symbol lookup, and external linkage are modeled or scoped out.
+
+## Parser Performance
+
+The C++ parser collapses Crow/Drogon/Pistache framework-route detection from
+a dedicated full-tree tree-sitter walk into Parse's main payload walk. The
+route check reads `call_expression` nodes the main walk already visits (for
+`appendCall`) and depends on nothing besides that node's own text, so
+`cppRouteCollector.collect` now runs from the same case as
+`buildCPPFrameworkSemantics`'s standalone pass did. `annotateCPPDeadCodeRoots`
+stays a separate walk: it reads `payload["functions"]` only after the main
+walk has fully populated it, a genuine dependency this merge does not touch.
+This lowers the framework-detection walk count from 2 to 1 (main walk +
+dead-code-roots walk remain) while keeping parser output byte-identical,
+verified by a one-time old-vs-new `0/0` symmetric-diff over the fixture
+corpus via the opt-in `CPP_PARSE_DUMP` harness (`equivalence_dump_test.go`, a
+manual differential — not a standing CI gate); standing regression
+protection comes from the C++ parser package tests and the B-12 golden
+snapshot (epic #4831, #4841). Contributors adding a new framework-route
+detector should extend `cppRouteCollector` rather than add another full-tree
+walk when the detector has no dependency on another collector's completed
+output.
