@@ -376,3 +376,26 @@ write now surfaces as queue `failure_class = projection_retryable` with a bounde
 requeue rather than a terminal `projection_failed` dead letter, so dead-letter
 count and `attempt_count` exposed by the projector queue now distinguish
 transient backpressure from real terminal failures.
+
+## #4893 — uid-anchored TAINT_FLOWS_TO edge and CodeTaintEvidence node retracts
+
+`CodeInterprocEvidenceWriter.Retract*ByUIDs` and
+`CodeTaintEvidenceWriter.Retract*ByUIDs` replace the unanchored
+`(:Function)-[rel]->(:Function) WHERE rel.<prop>` / `MATCH (n:CodeTaintEvidence)
+WHERE n.scope_id ... WITH n LIMIT` scans with `UNWIND $uids MATCH (…{uid})`
+indexed point-lookup deletes. The caller enumerates uids from the reducer-owned
+ledgers (see `go/internal/reducer/AGENTS.md` #4893) and passes them in; empty
+uids is a no-op (existence guard). The retract WHERE predicate
+(`scope_id`/`evidence_source`/`generation_id`) is preserved for correctness — the
+uid anchor is only the fast seed.
+
+Performance Evidence: NornicDB v1.1.10 `d97f02c1`, 511,825 Function nodes; the
+unanchored edge retract read 18.57 s (count 0) vs 0.03 s (100 uids) / 1.6 s
+(2000 uids) anchored; live stack NornicDB CPU 150–509% → 0.55–3.17% idle,
+stale-cleanup cycle 13055.6 s → 0.05 s. Full evidence in
+`go/internal/reducer/AGENTS.md` (#4893).
+
+No-Observability-Change: the new `*ByUIDs` methods flow through the existing
+`Executor`/`GroupExecutor` dispatch, `Statement` phase/label/summary metadata,
+retry wrapping, and failure logging; no new metric, label, worker, queue domain,
+lease, runtime knob, or graph-write route.
