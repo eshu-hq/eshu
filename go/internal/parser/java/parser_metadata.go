@@ -13,25 +13,41 @@ type javaMethodReferenceIndex struct {
 	namesByClass map[string]map[string]struct{}
 }
 
+// buildJavaMethodReferenceIndex requires the full declared-type-name count
+// before it can decide any single method_reference node's receiver type
+// (declaredTypes[receiver] == 1 must reflect every declaration in the file,
+// including ones that appear after the reference). It still visits the tree
+// only once: the walk collects both the declared-type counts and the
+// method_reference nodes, then a second, non-walking pass classifies the
+// collected nodes once declaredTypes is fully populated.
 func buildJavaMethodReferenceIndex(
 	root *tree_sitter.Node,
 	source []byte,
 	inference *javaCallInferenceIndex,
 ) *javaMethodReferenceIndex {
 	index := &javaMethodReferenceIndex{namesByClass: map[string]map[string]struct{}{}}
-	declaredTypes := javaDeclaredTypeNameCounts(root, source)
+	declaredTypes := map[string]int{}
+	var methodReferenceNodes []*tree_sitter.Node
 	walkNamed(root, func(node *tree_sitter.Node) {
-		if node.Kind() != "method_reference" {
-			return
+		switch node.Kind() {
+		case "class_declaration", "record_declaration", "interface_declaration", "enum_declaration":
+			name := strings.TrimSpace(nodeText(node.ChildByFieldName("name"), source))
+			if name != "" {
+				declaredTypes[name]++
+			}
+		case "method_reference":
+			methodReferenceNodes = append(methodReferenceNodes, cloneNode(node))
 		}
+	})
+	for _, node := range methodReferenceNodes {
 		name, receiver := javaMethodReferenceParts(nodeText(node, source))
 		if name == "" {
-			return
+			continue
 		}
 		receiver = strings.TrimSpace(receiver)
 		classContext := javaNearestTypeContext(node, source)
 		if classContext == "" {
-			return
+			continue
 		}
 		if receiver != "this" {
 			receiverType := javaVisibleNameType(node, receiver, source, inference)
@@ -39,7 +55,7 @@ func buildJavaMethodReferenceIndex(
 				receiverType = receiver
 			}
 			if receiverType == "" {
-				return
+				continue
 			}
 			classContext = receiverType
 		}
@@ -47,22 +63,8 @@ func buildJavaMethodReferenceIndex(
 			index.namesByClass[classContext] = map[string]struct{}{}
 		}
 		index.namesByClass[classContext][name] = struct{}{}
-	})
+	}
 	return index
-}
-
-func javaDeclaredTypeNameCounts(root *tree_sitter.Node, source []byte) map[string]int {
-	names := map[string]int{}
-	walkNamed(root, func(node *tree_sitter.Node) {
-		switch node.Kind() {
-		case "class_declaration", "record_declaration", "interface_declaration", "enum_declaration":
-			name := strings.TrimSpace(nodeText(node.ChildByFieldName("name"), source))
-			if name != "" {
-				names[name]++
-			}
-		}
-	})
-	return names
 }
 
 func javaNearestTypeContext(node *tree_sitter.Node, source []byte) string {

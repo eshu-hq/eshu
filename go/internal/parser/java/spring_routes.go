@@ -21,32 +21,25 @@ type javaSpringRoute struct {
 	handler string
 }
 
-func javaSpringRoutes(root *tree_sitter.Node, source []byte) []javaSpringRoute {
-	if root == nil {
-		return nil
+// javaSpringRouteForMethod applies the Spring classifier to one
+// method_declaration node, given its name and already-parsed leading
+// annotations.
+func javaSpringRouteForMethod(
+	node *tree_sitter.Node,
+	source []byte,
+	name string,
+	annotations []javaSpringAnnotation,
+) (javaSpringRoute, bool) {
+	methodRoute, ok := javaSpringMethodRoute(annotations)
+	if !ok {
+		return javaSpringRoute{}, false
 	}
-
-	routes := make([]javaSpringRoute, 0)
-	walkNamed(root, func(node *tree_sitter.Node) {
-		if node.Kind() != "method_declaration" {
-			return
-		}
-		name := strings.TrimSpace(nodeText(node.ChildByFieldName("name"), source))
-		if name == "" {
-			return
-		}
-		methodRoute, ok := javaSpringMethodRoute(javaLeadingAnnotations(nodeText(node, source)))
-		if !ok {
-			return
-		}
-		prefix := javaSpringClassPrefix(node, source)
-		routes = append(routes, javaSpringRoute{
-			method:  methodRoute.method,
-			path:    javaJoinSpringRoutePath(prefix, methodRoute.path),
-			handler: name,
-		})
-	})
-	return routes
+	prefix := javaSpringClassPrefix(node, source)
+	return javaSpringRoute{
+		method:  methodRoute.method,
+		path:    javaJoinSpringRoutePath(prefix, methodRoute.path),
+		handler: name,
+	}, true
 }
 
 func javaSpringClassPrefix(node *tree_sitter.Node, source []byte) string {

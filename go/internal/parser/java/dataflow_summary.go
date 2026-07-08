@@ -22,32 +22,19 @@ type javaLocalFunction struct {
 	paramTypes []string
 }
 
-func javaInterprocPayloads(
-	root *tree_sitter.Node,
-	source []byte,
+// javaInterprocResults finishes the interprocedural analysis from the
+// effects/sources that javaCollectDataflowFunctions gathered in its single
+// method/constructor walk: it builds the summary and source rows (when
+// repositoryID and packageName are both known) and solves the interproc
+// program for cross-function findings. Splitting this out of the walk
+// itself is what lets the dataflow-function walk and the interproc walk
+// share one tree traversal instead of each performing its own.
+func javaInterprocResults(
+	effectsByID map[summary.FunctionID]summary.Effects,
+	sources []interproc.Source,
 	repositoryID string,
-	callInference *javaCallInferenceIndex,
+	packageName string,
 ) (findings, summaries, sourceRows []map[string]any) {
-	packageName := javaPackageName(root, source)
-	localFuncs := javaLocalFunctionIDs(root, source, repositoryID, packageName)
-	effectsByID := map[summary.FunctionID]summary.Effects{}
-	var sources []interproc.Source
-
-	walkNamed(root, func(node *tree_sitter.Node) {
-		if node.Kind() != "method_declaration" && node.Kind() != "constructor_declaration" {
-			return
-		}
-		name := strings.TrimSpace(nodeText(node.ChildByFieldName("name"), source))
-		if name == "" {
-			return
-		}
-		id := javaFunctionID(repositoryID, packageName, javaNearestTypeContext(node, source), javaFunctionSignatureName(node, source))
-		fn := javaLowerFunction(node, source, cfg.DefaultLimits())
-		spec := javaEffectsSpec(node, source, fn, callInference, localFuncs)
-		effectsByID[id] = valueflow.DeriveEffects(fn, spec)
-		sources = append(sources, javaInterprocSources(node, source, id)...)
-	})
-
 	if strings.TrimSpace(repositoryID) != "" && strings.TrimSpace(packageName) != "" {
 		summaries = make([]map[string]any, 0, len(effectsByID))
 		for id, effects := range effectsByID {
@@ -86,15 +73,48 @@ func javaFunctionSignatureName(node *tree_sitter.Node, source []byte) string {
 	return name + "(" + strings.Join(javaParameterTypes(node, source), ",") + ")"
 }
 
-func javaLocalFunctionIDs(root *tree_sitter.Node, source []byte, repositoryID, packageName string) map[string][]javaLocalFunction {
-	out := map[string][]javaLocalFunction{}
+// javaLocalFunctionIndex resolves the file's package name and its local
+// method/constructor FunctionID index in one tree walk. The FunctionID for
+// each declaration depends on packageName, which can only be known once the
+// (single, file-scoped) package_declaration has been seen, so the walk
+// collects the declaration nodes and assigns FunctionIDs in a second,
+// non-walking pass once packageName is final. This preserves the exact
+// javaPackageName and javaLocalFunctionIDs behavior it replaces, just
+// merged into a single full-tree traversal.
+func javaLocalFunctionIndex(
+	root *tree_sitter.Node,
+	source []byte,
+	repositoryID string,
+) (string, map[string][]javaLocalFunction) {
+	var packageName string
+	var declNodes []*tree_sitter.Node
 	walkNamed(root, func(node *tree_sitter.Node) {
-		if node.Kind() != "method_declaration" && node.Kind() != "constructor_declaration" {
-			return
+		switch node.Kind() {
+		case "package_declaration":
+			if packageName != "" {
+				return
+			}
+			walkDirectNamed(node, func(child *tree_sitter.Node) {
+				if packageName == "" {
+					packageName = strings.TrimSpace(nodeText(child, source))
+				}
+			})
+			if packageName == "" {
+				raw := strings.TrimSpace(nodeText(node, source))
+				raw = strings.TrimPrefix(raw, "package")
+				raw = strings.TrimSuffix(raw, ";")
+				packageName = strings.TrimSpace(raw)
+			}
+		case "method_declaration", "constructor_declaration":
+			declNodes = append(declNodes, cloneNode(node))
 		}
+	})
+
+	out := map[string][]javaLocalFunction{}
+	for _, node := range declNodes {
 		name := strings.TrimSpace(nodeText(node.ChildByFieldName("name"), source))
 		if name == "" {
-			return
+			continue
 		}
 		classContext := javaNearestTypeContext(node, source)
 		paramTypes := javaParameterTypes(node, source)
@@ -103,8 +123,8 @@ func javaLocalFunctionIDs(root *tree_sitter.Node, source []byte, repositoryID, p
 			id:         javaFunctionID(repositoryID, packageName, classContext, javaFunctionSignatureName(node, source)),
 			paramTypes: paramTypes,
 		})
-	})
-	return out
+	}
+	return packageName, out
 }
 
 func javaEffectsSpec(
@@ -272,27 +292,6 @@ func javaInterprocSources(funcNode *tree_sitter.Node, source []byte, id summary.
 
 func javaLocalFunctionKey(classContext, name string, arity int) string {
 	return classContext + "\x00" + name + "\x00" + strconv.Itoa(arity)
-}
-
-func javaPackageName(root *tree_sitter.Node, source []byte) string {
-	var packageName string
-	walkNamed(root, func(node *tree_sitter.Node) {
-		if packageName != "" || node.Kind() != "package_declaration" {
-			return
-		}
-		walkDirectNamed(node, func(child *tree_sitter.Node) {
-			if packageName == "" {
-				packageName = strings.TrimSpace(nodeText(child, source))
-			}
-		})
-		if packageName == "" {
-			raw := strings.TrimSpace(nodeText(node, source))
-			raw = strings.TrimPrefix(raw, "package")
-			raw = strings.TrimSuffix(raw, ";")
-			packageName = strings.TrimSpace(raw)
-		}
-	})
-	return packageName
 }
 
 func allNonEmptyStrings(values []string) bool {

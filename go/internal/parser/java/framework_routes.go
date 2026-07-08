@@ -11,10 +11,51 @@ import (
 
 func buildJavaFrameworkSemantics(root *tree_sitter.Node, source []byte) map[string]any {
 	semantics := map[string]any{"frameworks": []string{}}
-	appendJavaRouteFramework(semantics, "spring", javaSpringRoutes(root, source))
-	appendJavaRouteFramework(semantics, "jax_rs", javaJAXRSRoutes(root, source))
-	appendJavaRouteFramework(semantics, "micronaut", javaMicronautRoutes(root, source))
+	springRoutes, jaxrsRoutes, micronautRoutes := javaCollectFrameworkRoutes(root, source)
+	appendJavaRouteFramework(semantics, "spring", springRoutes)
+	appendJavaRouteFramework(semantics, "jax_rs", jaxrsRoutes)
+	appendJavaRouteFramework(semantics, "micronaut", micronautRoutes)
 	return semantics
+}
+
+// javaCollectFrameworkRoutes walks the tree once and feeds every
+// method_declaration node's leading annotations to the Spring, JAX-RS, and
+// Micronaut route classifiers, instead of each classifier re-walking the
+// whole tree independently. Each classifier keeps its own early-return
+// guards and result slice, so per-framework output order and content stay
+// identical to the previous three-walk implementation.
+func javaCollectFrameworkRoutes(
+	root *tree_sitter.Node,
+	source []byte,
+) (springRoutes, jaxrsRoutes, micronautRoutes []javaSpringRoute) {
+	if root == nil {
+		return nil, nil, nil
+	}
+
+	springRoutes = make([]javaSpringRoute, 0)
+	jaxrsRoutes = make([]javaSpringRoute, 0)
+	micronautRoutes = make([]javaSpringRoute, 0)
+	walkNamed(root, func(node *tree_sitter.Node) {
+		if node.Kind() != "method_declaration" {
+			return
+		}
+		name := strings.TrimSpace(nodeText(node.ChildByFieldName("name"), source))
+		if name == "" {
+			return
+		}
+		annotations := javaLeadingAnnotations(nodeText(node, source))
+
+		if route, ok := javaSpringRouteForMethod(node, source, name, annotations); ok {
+			springRoutes = append(springRoutes, route)
+		}
+		if route, ok := javaJAXRSRouteForMethod(node, source, name, annotations); ok {
+			jaxrsRoutes = append(jaxrsRoutes, route)
+		}
+		if route, ok := javaMicronautRouteForMethod(node, source, name, annotations); ok {
+			micronautRoutes = append(micronautRoutes, route)
+		}
+	})
+	return springRoutes, jaxrsRoutes, micronautRoutes
 }
 
 func appendJavaRouteFramework(semantics map[string]any, name string, routes []javaSpringRoute) {
@@ -43,74 +84,60 @@ func appendJavaRouteFramework(semantics map[string]any, name string, routes []ja
 	}
 }
 
-func javaJAXRSRoutes(root *tree_sitter.Node, source []byte) []javaSpringRoute {
-	if root == nil {
-		return nil
+// javaJAXRSRouteForMethod applies the JAX-RS classifier to one
+// method_declaration node, given its name and already-parsed leading
+// annotations. It preserves the exact guard order the original
+// per-framework walk used.
+func javaJAXRSRouteForMethod(
+	node *tree_sitter.Node,
+	source []byte,
+	name string,
+	annotations []javaSpringAnnotation,
+) (javaSpringRoute, bool) {
+	method, ok := javaJAXRSHTTPMethod(annotations)
+	if !ok {
+		return javaSpringRoute{}, false
 	}
-
-	routes := make([]javaSpringRoute, 0)
-	walkNamed(root, func(node *tree_sitter.Node) {
-		if node.Kind() != "method_declaration" {
-			return
-		}
-		name := strings.TrimSpace(nodeText(node.ChildByFieldName("name"), source))
-		if name == "" {
-			return
-		}
-		annotations := javaLeadingAnnotations(nodeText(node, source))
-		method, ok := javaJAXRSHTTPMethod(annotations)
-		if !ok {
-			return
-		}
-		methodPath, methodPathOK := javaRequiredPathAnnotation(annotations)
-		if javaHasPathAnnotation(annotations) && !methodPathOK {
-			return
-		}
-		prefix, prefixPresent, prefixOK := javaJAXRSClassPrefix(node, source)
-		if prefixPresent && !prefixOK {
-			return
-		}
-		if !methodPathOK && !prefixOK {
-			return
-		}
-		routes = append(routes, javaSpringRoute{
-			method:  method,
-			path:    javaJoinSpringRoutePath(prefix, methodPath),
-			handler: name,
-		})
-	})
-	return routes
+	methodPath, methodPathOK := javaRequiredPathAnnotation(annotations)
+	if javaHasPathAnnotation(annotations) && !methodPathOK {
+		return javaSpringRoute{}, false
+	}
+	prefix, prefixPresent, prefixOK := javaJAXRSClassPrefix(node, source)
+	if prefixPresent && !prefixOK {
+		return javaSpringRoute{}, false
+	}
+	if !methodPathOK && !prefixOK {
+		return javaSpringRoute{}, false
+	}
+	return javaSpringRoute{
+		method:  method,
+		path:    javaJoinSpringRoutePath(prefix, methodPath),
+		handler: name,
+	}, true
 }
 
-func javaMicronautRoutes(root *tree_sitter.Node, source []byte) []javaSpringRoute {
-	if root == nil {
-		return nil
+// javaMicronautRouteForMethod applies the Micronaut classifier to one
+// method_declaration node, given its name and already-parsed leading
+// annotations.
+func javaMicronautRouteForMethod(
+	node *tree_sitter.Node,
+	source []byte,
+	name string,
+	annotations []javaSpringAnnotation,
+) (javaSpringRoute, bool) {
+	methodRoute, ok := javaMicronautMethodRoute(annotations)
+	if !ok {
+		return javaSpringRoute{}, false
 	}
-
-	routes := make([]javaSpringRoute, 0)
-	walkNamed(root, func(node *tree_sitter.Node) {
-		if node.Kind() != "method_declaration" {
-			return
-		}
-		name := strings.TrimSpace(nodeText(node.ChildByFieldName("name"), source))
-		if name == "" {
-			return
-		}
-		methodRoute, ok := javaMicronautMethodRoute(javaLeadingAnnotations(nodeText(node, source)))
-		if !ok {
-			return
-		}
-		prefix, prefixOK := javaMicronautClassPrefix(node, source)
-		if !prefixOK && methodRoute.path == "" {
-			return
-		}
-		routes = append(routes, javaSpringRoute{
-			method:  methodRoute.method,
-			path:    javaJoinSpringRoutePath(prefix, methodRoute.path),
-			handler: name,
-		})
-	})
-	return routes
+	prefix, prefixOK := javaMicronautClassPrefix(node, source)
+	if !prefixOK && methodRoute.path == "" {
+		return javaSpringRoute{}, false
+	}
+	return javaSpringRoute{
+		method:  methodRoute.method,
+		path:    javaJoinSpringRoutePath(prefix, methodRoute.path),
+		handler: name,
+	}, true
 }
 
 func javaJAXRSClassPrefix(node *tree_sitter.Node, source []byte) (string, bool, bool) {
