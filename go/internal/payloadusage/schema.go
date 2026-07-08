@@ -199,6 +199,12 @@ var factKindSchemaFile = map[string]string{ // #nosec G101 -- fact-kind identifi
 	// supply-chain-impact seeder, but both read the same decoded struct, so one
 	// mapping covers the gate for every field either consumer reads.
 	"FactKindSecurityAlertRepositoryAlert": "security_alert.repository_alert.v1.schema.json",
+	// reducer_derived package-correlation family: all three kinds are emitted
+	// through typed reducer-derived encoders and read back through reducer decode
+	// seams (package_correlation_writer.go, factschema_decode_reducerderived.go).
+	"FactKindReducerPackageOwnershipCorrelation":   "reducer_package_ownership_correlation.v1.schema.json",
+	"FactKindReducerPackageConsumptionCorrelation": "reducer_package_consumption_correlation.v1.schema.json",
+	"FactKindReducerPackagePublicationCorrelation": "reducer_package_publication_correlation.v1.schema.json",
 	// observability family (Wave 4e): the seventeen kinds the coverage-metadata
 	// classifier decodes through the typed view seam
 	// (factschema_decode_observability.go). observability.source_instance carries

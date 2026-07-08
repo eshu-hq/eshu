@@ -85,6 +85,7 @@ coverage:
   - {surface: "read_surface:GET /api/v0/cloud/resources", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/cloud/resources", proof_gate: golden-corpus-gate}
   - {surface: "read_surface:GET /api/v0/images", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/images", proof_gate: golden-corpus-gate}
   - {surface: "read_surface:GET /api/v0/package-registry/packages", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/package-registry/packages?ecosystem=go&limit=50", proof_gate: golden-corpus-gate}
+  - {surface: "read_surface:GET /api/v0/package-registry/correlations", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/package-registry/correlations?package_id=github.com/acme/lib-common&limit=50", proof_gate: golden-corpus-gate}
   - {surface: "read_surface:GET /api/v0/incidents/{incident_id}/context", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/incidents/PSCD1/context", proof_gate: golden-corpus-gate}
   - {surface: "read_surface:GET /api/v0/work-items/evidence", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/work-items/evidence?limit=50&scope_id=jira:supply-chain-demo:SCD", proof_gate: golden-corpus-gate}
   - {surface: "read_surface:GET /api/v0/supply-chain/sbom-attestations/attachments", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/supply-chain/sbom-attestations/attachments?limit=50&document_id=scd-sbom", proof_gate: golden-corpus-gate}

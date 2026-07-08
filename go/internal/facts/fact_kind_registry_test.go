@@ -242,6 +242,21 @@ func TestReducerDerivedFindingGovernanceRegistry(t *testing.T) {
 			readSurface:   "POST /api/v0/cloud/runtime-drift/findings",
 			payloadSchema: "sdk/go/factschema/schema/reducer_multi_cloud_runtime_drift_finding.v1.schema.json",
 		},
+		{
+			kind:          "reducer_package_ownership_correlation",
+			readSurface:   "GET /api/v0/package-registry/correlations",
+			payloadSchema: "sdk/go/factschema/schema/reducer_package_ownership_correlation.v1.schema.json",
+		},
+		{
+			kind:          "reducer_package_consumption_correlation",
+			readSurface:   "GET /api/v0/package-registry/correlations",
+			payloadSchema: "sdk/go/factschema/schema/reducer_package_consumption_correlation.v1.schema.json",
+		},
+		{
+			kind:          "reducer_package_publication_correlation",
+			readSurface:   "GET /api/v0/package-registry/correlations",
+			payloadSchema: "sdk/go/factschema/schema/reducer_package_publication_correlation.v1.schema.json",
+		},
 	}
 	for _, tc := range cases {
 		tc := tc

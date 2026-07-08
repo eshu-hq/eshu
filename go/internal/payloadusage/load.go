@@ -241,6 +241,7 @@ func parseAllStructShapes(resolved Paths) (map[string]StructShape, error) {
 		{resolved.CodegraphStructDir, "codegraphv1"},
 		{resolved.CodedataflowStructDir, "codedataflowv1"},
 		{resolved.ServiceCatalogStructDir, "servicecatalogv1"},
+		{resolved.ReducerDerivedStructDir, "reducerderivedv1"},
 	}
 	shapes := make(map[string]StructShape)
 	for _, family := range families {

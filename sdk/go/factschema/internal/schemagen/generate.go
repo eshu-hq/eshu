@@ -1495,6 +1495,38 @@ func ReducerMultiCloudRuntimeDriftFindingSchema() ([]byte, error) {
 	return reflectSchema(ReducerMultiCloudRuntimeDriftFindingSchemaID, "Eshu reducer_multi_cloud_runtime_drift_finding Payload (schema version 1)", &reducerderivedv1.MultiCloudRuntimeDriftFinding{})
 }
 
+// ReducerPackageOwnershipCorrelationSchemaID is the checked-in JSON Schema $id
+// for the schema-version-1 "reducer_package_ownership_correlation" payload.
+const ReducerPackageOwnershipCorrelationSchemaID = schemaBaseID + "reducerderived/v1/package_ownership_correlation.schema.json"
+
+// ReducerPackageOwnershipCorrelationSchema returns the JSON Schema bytes for
+// reducerderivedv1.PackageOwnershipCorrelation.
+func ReducerPackageOwnershipCorrelationSchema() ([]byte, error) {
+	return reflectSchema(ReducerPackageOwnershipCorrelationSchemaID, "Eshu reducer_package_ownership_correlation Payload (schema version 1)", &reducerderivedv1.PackageOwnershipCorrelation{})
+}
+
+// ReducerPackageConsumptionCorrelationSchemaID is the checked-in JSON Schema
+// $id for the schema-version-1 "reducer_package_consumption_correlation"
+// payload.
+const ReducerPackageConsumptionCorrelationSchemaID = schemaBaseID + "reducerderived/v1/package_consumption_correlation.schema.json"
+
+// ReducerPackageConsumptionCorrelationSchema returns the JSON Schema bytes for
+// reducerderivedv1.PackageConsumptionCorrelation.
+func ReducerPackageConsumptionCorrelationSchema() ([]byte, error) {
+	return reflectSchema(ReducerPackageConsumptionCorrelationSchemaID, "Eshu reducer_package_consumption_correlation Payload (schema version 1)", &reducerderivedv1.PackageConsumptionCorrelation{})
+}
+
+// ReducerPackagePublicationCorrelationSchemaID is the checked-in JSON Schema
+// $id for the schema-version-1 "reducer_package_publication_correlation"
+// payload.
+const ReducerPackagePublicationCorrelationSchemaID = schemaBaseID + "reducerderived/v1/package_publication_correlation.schema.json"
+
+// ReducerPackagePublicationCorrelationSchema returns the JSON Schema bytes for
+// reducerderivedv1.PackagePublicationCorrelation.
+func ReducerPackagePublicationCorrelationSchema() ([]byte, error) {
+	return reflectSchema(ReducerPackagePublicationCorrelationSchemaID, "Eshu reducer_package_publication_correlation Payload (schema version 1)", &reducerderivedv1.PackagePublicationCorrelation{})
+}
+
 // ObservabilityDeclaredFolderSchemaID is the checked-in JSON Schema $id for the
 // schema-version-1 'observability.declared_folder' payload.
 const ObservabilityDeclaredFolderSchemaID = schemaBaseID + "observability/v1/declared_folder.schema.json"

@@ -234,6 +234,9 @@ func run() error {
 		{name: "reducer_supply_chain_impact_finding.v1.schema.json", generate: schemagen.ReducerSupplyChainImpactFindingSchema},
 		{name: "reducer_aws_cloud_runtime_drift_finding.v1.schema.json", generate: schemagen.ReducerAWSCloudRuntimeDriftFindingSchema},
 		{name: "reducer_multi_cloud_runtime_drift_finding.v1.schema.json", generate: schemagen.ReducerMultiCloudRuntimeDriftFindingSchema},
+		{name: "reducer_package_ownership_correlation.v1.schema.json", generate: schemagen.ReducerPackageOwnershipCorrelationSchema},
+		{name: "reducer_package_consumption_correlation.v1.schema.json", generate: schemagen.ReducerPackageConsumptionCorrelationSchema},
+		{name: "reducer_package_publication_correlation.v1.schema.json", generate: schemagen.ReducerPackagePublicationCorrelationSchema},
 		// The observability family fact kinds are DOTTED (like the incident
 		// family). All eighteen are consumed by the reducer's
 		// observability_coverage_correlation domain (observability/v1/doc.go).

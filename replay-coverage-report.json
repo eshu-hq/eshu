@@ -2,12 +2,12 @@
   "schema_version": "replay-coverage-report.v4",
   "blocking": true,
   "totals": {
-    "total": 399,
-    "covered": 215,
+    "total": 400,
+    "covered": 216,
     "uncovered": 175,
     "unresolved": 0,
     "exempt": 9,
-    "percent_satisfied": 56.14
+    "percent_satisfied": 56.25
   },
   "registry_summaries": [
     {
@@ -39,8 +39,8 @@
     },
     {
       "registry": "fact_kind_registry",
-      "total": 21,
-      "covered": 20,
+      "total": 22,
+      "covered": 21,
       "uncovered": 0,
       "unresolved": 0,
       "exempt": 1,
@@ -113,8 +113,8 @@
   "scenario_type_summaries": [
     {
       "scenario_type": "baseline",
-      "total": 211,
-      "covered": 206,
+      "total": 212,
+      "covered": 207,
       "uncovered": 0,
       "unresolved": 0,
       "exempt": 5,
@@ -1866,6 +1866,16 @@
       "ref": "GET /api/v0/observability/coverage/correlations?provider=tempo\u0026limit=50",
       "proof_gate": "golden-corpus-gate",
       "detail": "snapshot HTTP query shape \"GET /api/v0/observability/coverage/correlations?provider=tempo\u0026limit=50\""
+    },
+    {
+      "registry": "fact_kind_registry",
+      "key": "read_surface:GET /api/v0/package-registry/correlations",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "api_mcp_golden",
+      "ref": "GET /api/v0/package-registry/correlations?package_id=github.com/acme/lib-common\u0026limit=50",
+      "proof_gate": "golden-corpus-gate",
+      "detail": "snapshot HTTP query shape \"GET /api/v0/package-registry/correlations?package_id=github.com/acme/lib-common\u0026limit=50\""
     },
     {
       "registry": "fact_kind_registry",

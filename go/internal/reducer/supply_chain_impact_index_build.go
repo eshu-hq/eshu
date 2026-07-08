@@ -101,7 +101,10 @@ func addSupplyChainImpactIndexEntry(index *supplyChainImpactIndex, envelope fact
 			index.affectedProducts[product.cveID] = append(index.affectedProducts[product.cveID], product)
 		}
 	case packageConsumptionCorrelationFactKind:
-		consumption := supplyChainConsumptionFromEnvelope(envelope)
+		consumption, err := supplyChainConsumptionFromEnvelope(envelope)
+		if err != nil {
+			return partitionDecodeFailures(envelope, err)
+		}
 		if consumption.packageID != "" {
 			index.consumption[consumption.packageID] = append(index.consumption[consumption.packageID], consumption)
 		}

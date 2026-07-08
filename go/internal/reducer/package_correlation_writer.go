@@ -11,13 +11,13 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/truth"
+	"github.com/eshu-hq/eshu/sdk/go/factschema"
 )
 
 const (
-	packageOwnershipCorrelationFactKind   = "reducer_package_ownership_correlation"
-	packageConsumptionCorrelationFactKind = "reducer_package_consumption_correlation"
-	packagePublicationCorrelationFactKind = "reducer_package_publication_correlation"
+	packageOwnershipCorrelationFactKind   = factschema.FactKindReducerPackageOwnershipCorrelation
+	packageConsumptionCorrelationFactKind = factschema.FactKindReducerPackageConsumptionCorrelation
+	packagePublicationCorrelationFactKind = factschema.FactKindReducerPackagePublicationCorrelation
 )
 
 // PackageCorrelationWrite carries package ownership, publication, and
@@ -132,12 +132,13 @@ func (w PostgresPackageCorrelationWriter) writePayload(
 	}
 	if _, err := w.DB.ExecContext(
 		ctx,
-		canonicalReducerFactInsertQuery,
+		canonicalVersionedReducerFactInsertQuery,
 		factID,
 		payloadString(payload, "scope_id"),
 		payloadString(payload, "generation_id"),
 		factKind,
 		stableFactKey,
+		facts.ReducerDerivedSchemaVersionV1,
 		reducerFactCollectorKind(payloadString(payload, "source_system")),
 		facts.SourceConfidenceInferred,
 		payloadString(payload, "source_system"),
@@ -191,31 +192,7 @@ func packageOwnershipPayload(
 	write PackageCorrelationWrite,
 	decision PackageSourceCorrelationDecision,
 ) map[string]any {
-	return map[string]any{
-		"reducer_domain":           string(DomainPackageSourceCorrelation),
-		"intent_id":                write.IntentID,
-		"scope_id":                 write.ScopeID,
-		"generation_id":            write.GenerationID,
-		"source_system":            write.SourceSystem,
-		"cause":                    write.Cause,
-		"relationship_kind":        "ownership",
-		"package_id":               decision.PackageID,
-		"version_id":               decision.VersionID,
-		"hint_kind":                decision.HintKind,
-		"source_url":               decision.SourceURL,
-		"repository_id":            decision.RepositoryID,
-		"repository_name":          decision.RepositoryName,
-		"candidate_repository_ids": uniqueSortedStrings(decision.CandidateRepositoryIDs),
-		"outcome":                  string(decision.Outcome),
-		"reason":                   decision.Reason,
-		"provenance_only":          decision.ProvenanceOnly,
-		"canonical_writes":         decision.CanonicalWrites,
-		"evidence_fact_ids":        uniqueSortedStrings(decision.EvidenceFactIDs),
-		"correlation_kind":         packageOwnershipCorrelationFactKind,
-		"source_layers": []string{
-			string(truth.LayerSourceDeclaration),
-		},
-	}
+	return mustPackageCorrelationPayload(typedPackageOwnershipPayload(write, decision))
 }
 
 func packageConsumptionFactID(write PackageCorrelationWrite, decision PackageConsumptionDecision) string {
@@ -259,83 +236,7 @@ func packageConsumptionPayload(
 	write PackageCorrelationWrite,
 	decision PackageConsumptionDecision,
 ) map[string]any {
-	payload := map[string]any{
-		"reducer_domain":    string(DomainPackageSourceCorrelation),
-		"intent_id":         write.IntentID,
-		"scope_id":          write.ScopeID,
-		"generation_id":     write.GenerationID,
-		"source_system":     write.SourceSystem,
-		"cause":             write.Cause,
-		"relationship_kind": "consumption",
-		"package_id":        decision.PackageID,
-		"ecosystem":         decision.Ecosystem,
-		"package_name":      decision.PackageName,
-		"repository_id":     decision.RepositoryID,
-		"repository_name":   decision.RepositoryName,
-		"relative_path":     decision.RelativePath,
-		"manifest_section":  decision.ManifestSection,
-		"dependency_range":  decision.DependencyRange,
-		"outcome":           string(decision.Outcome),
-		"reason":            decision.Reason,
-		"provenance_only":   decision.ProvenanceOnly,
-		"canonical_writes":  decision.CanonicalWrites,
-		"evidence_fact_ids": uniqueSortedStrings(decision.EvidenceFactIDs),
-		"correlation_kind":  packageConsumptionCorrelationFactKind,
-		"source_layers": []string{
-			string(truth.LayerSourceDeclaration),
-			string(truth.LayerObservedResource),
-		},
-	}
-	if strings.TrimSpace(decision.ObservedVersion) != "" {
-		payload["observed_version"] = strings.TrimSpace(decision.ObservedVersion)
-	}
-	if strings.TrimSpace(decision.RequestedRange) != "" {
-		payload["requested_range"] = strings.TrimSpace(decision.RequestedRange)
-	}
-	if len(decision.DependencyPath) > 0 {
-		payload["dependency_path"] = orderedStrings(decision.DependencyPath)
-		payload["dependency_depth"] = decision.DependencyDepth
-	}
-	if strings.TrimSpace(decision.InstalledVersion) != "" {
-		payload["installed_version"] = strings.TrimSpace(decision.InstalledVersion)
-	}
-	if decision.DirectDependency != nil {
-		payload["direct_dependency"] = *decision.DirectDependency
-	}
-	if decision.Lockfile {
-		payload["lockfile"] = true
-	}
-	if strings.TrimSpace(decision.DependencyScope) != "" {
-		payload["dependency_scope"] = strings.TrimSpace(decision.DependencyScope)
-	}
-	if strings.TrimSpace(decision.PrivateAssets) != "" {
-		payload["private_assets"] = strings.TrimSpace(decision.PrivateAssets)
-	}
-	if strings.TrimSpace(decision.IncludeAssets) != "" {
-		payload["include_assets"] = strings.TrimSpace(decision.IncludeAssets)
-	}
-	if strings.TrimSpace(decision.ExcludeAssets) != "" {
-		payload["exclude_assets"] = strings.TrimSpace(decision.ExcludeAssets)
-	}
-	if decision.DevelopmentOnly {
-		payload["development_dependency"] = true
-	}
-	if decision.TestDependency {
-		payload["test_dependency"] = true
-	}
-	if strings.TrimSpace(decision.VersionEvidence) != "" {
-		payload["version_evidence"] = strings.TrimSpace(decision.VersionEvidence)
-	}
-	if strings.TrimSpace(decision.UnresolvedMSBuildProperty) != "" {
-		payload["unresolved_msbuild_property"] = strings.TrimSpace(decision.UnresolvedMSBuildProperty)
-	}
-	if strings.TrimSpace(decision.AmbiguousMSBuildProperty) != "" {
-		payload["ambiguous_msbuild_property"] = strings.TrimSpace(decision.AmbiguousMSBuildProperty)
-	}
-	if decision.PartialEvidence {
-		payload["partial_evidence"] = true
-	}
-	return payload
+	return mustPackageCorrelationPayload(typedPackageConsumptionPayload(write, decision))
 }
 
 func packagePublicationFactID(write PackageCorrelationWrite, decision PackagePublicationDecision) string {
@@ -383,36 +284,14 @@ func packagePublicationPayload(
 	write PackageCorrelationWrite,
 	decision PackagePublicationDecision,
 ) map[string]any {
-	return map[string]any{
-		"reducer_domain":           string(DomainPackageSourceCorrelation),
-		"intent_id":                write.IntentID,
-		"scope_id":                 write.ScopeID,
-		"generation_id":            write.GenerationID,
-		"source_system":            write.SourceSystem,
-		"cause":                    write.Cause,
-		"relationship_kind":        "publication",
-		"package_id":               decision.PackageID,
-		"version_id":               decision.VersionID,
-		"version":                  decision.Version,
-		"published_at":             decision.PublishedAt,
-		"source_url":               decision.SourceURL,
-		"source_hint_fact_id":      decision.SourceHintFactID,
-		"source_hint_kind":         decision.SourceHintKind,
-		"source_hint_version_id":   decision.SourceHintVersionID,
-		"repository_id":            decision.RepositoryID,
-		"repository_name":          decision.RepositoryName,
-		"candidate_repository_ids": uniqueSortedStrings(decision.CandidateRepositoryIDs),
-		"outcome":                  string(decision.Outcome),
-		"reason":                   decision.Reason,
-		"provenance_only":          decision.ProvenanceOnly,
-		"canonical_writes":         decision.CanonicalWrites,
-		"evidence_fact_ids":        uniqueSortedStrings(decision.EvidenceFactIDs),
-		"correlation_kind":         packagePublicationCorrelationFactKind,
-		"source_layers": []string{
-			string(truth.LayerSourceDeclaration),
-			string(truth.LayerObservedResource),
-		},
+	return mustPackageCorrelationPayload(typedPackagePublicationPayload(write, decision))
+}
+
+func mustPackageCorrelationPayload(payload map[string]any, err error) map[string]any {
+	if err != nil {
+		panic(fmt.Sprintf("encode package correlation payload: %v", err))
 	}
+	return payload
 }
 
 func payloadString(payload map[string]any, key string) string {

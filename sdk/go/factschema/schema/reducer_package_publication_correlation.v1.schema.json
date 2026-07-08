@@ -1,0 +1,168 @@
+{
+  "$id": "https://eshu.dev/schemas/factschema/reducerderived/v1/package_publication_correlation.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "candidate_repository_ids": {
+      "items": {
+        "type": "string"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "canonical_writes": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "cause": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "correlation_kind": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "evidence_fact_ids": {
+      "items": {
+        "type": "string"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "generation_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "intent_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "outcome": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "package_id": {
+      "type": "string"
+    },
+    "provenance_only": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "published_at": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "reason": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "reducer_domain": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "relationship_kind": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "repository_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "repository_name": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "scope_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "source_hint_fact_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "source_hint_kind": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "source_hint_version_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "source_layers": {
+      "items": {
+        "type": "string"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "source_system": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "source_url": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "version": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "version_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "package_id"
+  ],
+  "title": "Eshu reducer_package_publication_correlation Payload (schema version 1)",
+  "type": "object"
+}

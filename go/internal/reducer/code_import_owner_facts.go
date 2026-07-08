@@ -21,15 +21,29 @@ import (
 // owner resolution, so the decoder reads exactly those; every other persisted
 // field is provenance the code-import join does not need. Non-ownership fact
 // kinds are ignored.
-func decodePackageOwnershipCorrelationDecisions(envelopes []facts.Envelope) []PackageSourceCorrelationDecision {
+func decodePackageOwnershipCorrelationDecisions(
+	envelopes []facts.Envelope,
+) ([]PackageSourceCorrelationDecision, []quarantinedFact, error) {
 	decisions := make([]PackageSourceCorrelationDecision, 0)
+	var quarantined []quarantinedFact
 	for _, envelope := range envelopes {
 		if envelope.FactKind != packageOwnershipCorrelationFactKind || envelope.IsTombstone {
 			continue
 		}
-		packageID := strings.TrimSpace(payloadStr(envelope.Payload, "package_id"))
-		repositoryID := strings.TrimSpace(payloadStr(envelope.Payload, "repository_id"))
-		outcome := PackageSourceCorrelationOutcome(strings.TrimSpace(payloadStr(envelope.Payload, "outcome")))
+		correlation, err := decodeReducerPackageOwnershipCorrelation(envelope)
+		if err != nil {
+			q, isQuarantine, fatal := partitionDecodeFailures(envelope, err)
+			if fatal != nil {
+				return nil, nil, fatal
+			}
+			if isQuarantine {
+				quarantined = append(quarantined, q)
+				continue
+			}
+		}
+		packageID := strings.TrimSpace(correlation.PackageID)
+		repositoryID := strings.TrimSpace(derefString(correlation.RepositoryID))
+		outcome := PackageSourceCorrelationOutcome(strings.TrimSpace(derefString(correlation.Outcome)))
 		if packageID == "" {
 			continue
 		}
@@ -39,22 +53,36 @@ func decodePackageOwnershipCorrelationDecisions(envelopes []facts.Envelope) []Pa
 			Outcome:      outcome,
 		})
 	}
-	return decisions
+	return decisions, quarantined, nil
 }
 
 // decodePackagePublicationCorrelationDecisions rebuilds the exact/derived
 // publication decisions from persisted reducer_package_publication_correlation
 // facts. As with ownership, only package_id, repository_id, and outcome
 // participate in owner resolution. Non-publication fact kinds are ignored.
-func decodePackagePublicationCorrelationDecisions(envelopes []facts.Envelope) []PackagePublicationDecision {
+func decodePackagePublicationCorrelationDecisions(
+	envelopes []facts.Envelope,
+) ([]PackagePublicationDecision, []quarantinedFact, error) {
 	decisions := make([]PackagePublicationDecision, 0)
+	var quarantined []quarantinedFact
 	for _, envelope := range envelopes {
 		if envelope.FactKind != packagePublicationCorrelationFactKind || envelope.IsTombstone {
 			continue
 		}
-		packageID := strings.TrimSpace(payloadStr(envelope.Payload, "package_id"))
-		repositoryID := strings.TrimSpace(payloadStr(envelope.Payload, "repository_id"))
-		outcome := PackageSourceCorrelationOutcome(strings.TrimSpace(payloadStr(envelope.Payload, "outcome")))
+		correlation, err := decodeReducerPackagePublicationCorrelation(envelope)
+		if err != nil {
+			q, isQuarantine, fatal := partitionDecodeFailures(envelope, err)
+			if fatal != nil {
+				return nil, nil, fatal
+			}
+			if isQuarantine {
+				quarantined = append(quarantined, q)
+				continue
+			}
+		}
+		packageID := strings.TrimSpace(correlation.PackageID)
+		repositoryID := strings.TrimSpace(derefString(correlation.RepositoryID))
+		outcome := PackageSourceCorrelationOutcome(strings.TrimSpace(derefString(correlation.Outcome)))
 		if packageID == "" {
 			continue
 		}
@@ -64,5 +92,5 @@ func decodePackagePublicationCorrelationDecisions(envelopes []facts.Envelope) []
 			Outcome:      outcome,
 		})
 	}
-	return decisions
+	return decisions, quarantined, nil
 }

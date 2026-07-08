@@ -354,7 +354,7 @@ func TestPackageCorrelationWriterPersistsCargoLockfileEvidence(t *testing.T) {
 	if got, want := len(db.execs), 1; got != want {
 		t.Fatalf("ExecContext calls = %d, want %d", got, want)
 	}
-	payload := unmarshalPackageCorrelationPayload(t, db.execs[0].args[14])
+	payload := unmarshalPackageCorrelationPayload(t, db.execs[0].args[15])
 	if got, want := payload["lockfile"], true; got != want {
 		t.Fatalf("lockfile = %#v, want %#v so Cargo.lock exact-version evidence survives reducer handoff", got, want)
 	}
