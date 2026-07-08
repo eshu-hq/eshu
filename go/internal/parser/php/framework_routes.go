@@ -22,10 +22,10 @@ type phpRoute struct {
 // (see collectPHPDeclarations). It performs no AST traversal of its own;
 // imports must be fully collected by the time this runs, which phase 1
 // guarantees since it finishes the whole file before Parse calls this.
-func buildPHPFrameworkSemantics(routeAttributes []*tree_sitter.Node, slimRouteCandidates []*tree_sitter.Node, source []byte, payload map[string]any) map[string]any {
+func buildPHPFrameworkSemantics(routeAttributes []*tree_sitter.Node, slimRouteCandidates []*tree_sitter.Node, slimReceiverVars map[string]struct{}, source []byte, payload map[string]any) map[string]any {
 	semantics := map[string]any{"frameworks": []string{}}
 	appendPHPRouteFramework(semantics, "symfony", phpSymfonyRoutes(routeAttributes, source, phpImportedSymfonyRouteNames(payload)))
-	appendPHPRouteFramework(semantics, "slim", phpSlimRoutes(slimRouteCandidates, source, payload))
+	appendPHPRouteFramework(semantics, "slim", phpSlimRoutes(slimRouteCandidates, slimReceiverVars, source, payload))
 	return semantics
 }
 

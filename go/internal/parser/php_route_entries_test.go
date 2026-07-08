@@ -302,3 +302,47 @@ $app->get('', 'SomeHandler::class');
 		t.Fatalf("framework_semantics.slim should be absent when the only route has an empty path")
 	}
 }
+
+func TestDefaultEngineParsePathPHPSkipsNonSlimReceiverGetCalls(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	sourcePath := filepath.Join(repoRoot, "container.php")
+	writeTestFile(
+		t,
+		sourcePath,
+		`<?php
+
+use Slim\Factory\AppFactory;
+
+$app = AppFactory::create();
+$container = new \Some\Psr\Container();
+$cache = new \Some\Cache\Pool();
+
+// These are NOT Slim routes — receivers have no Slim provenance.
+$container->get('settings');
+$cache->get('user:1');
+$cache->delete('stale-key');
+`,
+	)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	got, err := engine.ParsePath(repoRoot, sourcePath, false, Options{IndexSource: true})
+	if err != nil {
+		t.Fatalf("ParsePath(%s) error = %v, want nil", sourcePath, err)
+	}
+
+	// $app->get(...) is absent from this fixture, so slim should not
+	// appear at all — the container/cache calls must not be emitted.
+	semantics, ok := got["framework_semantics"].(map[string]any)
+	if !ok {
+		return
+	}
+	if _, ok := semantics["slim"]; ok {
+		t.Fatalf("framework_semantics.slim should be absent: container->get('settings') and cache->get('user:1') have non-Slim receivers")
+	}
+}

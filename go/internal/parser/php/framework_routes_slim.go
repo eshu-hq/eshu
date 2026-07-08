@@ -42,7 +42,7 @@ func phpIsSlimVerbCandidate(node *tree_sitter.Node, source []byte) bool {
 // and causes the inner route to be skipped — a wrong path is worse than a
 // missing one. Empty paths (including empty-subpath routes with no enclosing
 // group) are never emitted.
-func phpSlimRoutes(candidates []*tree_sitter.Node, source []byte, payload map[string]any) []phpRoute {
+func phpSlimRoutes(candidates []*tree_sitter.Node, slimReceiverVars map[string]struct{}, source []byte, payload map[string]any) []phpRoute {
 	if !phpHasSlimImport(payload) {
 		return nil
 	}
@@ -50,6 +50,20 @@ func phpSlimRoutes(candidates []*tree_sitter.Node, source []byte, payload map[st
 	routes := make([]phpRoute, 0)
 	for _, node := range candidates {
 		if node.Kind() != "member_call_expression" {
+			continue
+		}
+		// Only emit routes whose receiver has proven Slim provenance.
+		// A bare ->get('literal') on an untracked variable (e.g.
+		// $container->get('settings')) must not be treated as a route.
+		objectNode := node.ChildByFieldName("object")
+		if objectNode == nil {
+			continue
+		}
+		receiverName := phpSlimReceiverName(objectNode, source)
+		if receiverName == "" {
+			continue
+		}
+		if _, ok := slimReceiverVars[receiverName]; !ok {
 			continue
 		}
 		nameNode := node.ChildByFieldName("name")
@@ -204,4 +218,138 @@ func phpEnclosingGroupPrefixes(node *tree_sitter.Node, source []byte) ([]string,
 		prefixes[i], prefixes[j] = prefixes[j], prefixes[i]
 	}
 	return prefixes, true
+}
+
+// collectPHPSlimParameter checks whether a simple_parameter node declares a
+// variable typed with a Slim class or interface. If it does, the variable
+// name (without $) is recorded in slimReceiverVars. This covers the common
+// bootstrap pattern return function (App $app) { $app->get(...); } and the
+// group-closure pattern function (RouteCollectorProxyInterface $group) { ... }.
+func collectPHPSlimParameter(state *phpParseState, node *tree_sitter.Node) {
+	typeName, varName := phpSimpleParameterParts(node, state.source)
+	if typeName == "" || varName == "" {
+		return
+	}
+	if phpIsSlimTypeName(typeName, state.payload) {
+		state.slimReceiverVars[varName] = struct{}{}
+	}
+}
+
+// collectPHPSlimScopedCall records the LHS variable of a Slim factory scoped
+// call such as AppFactory::create() or \Slim\Factory\AppFactory::create(...).
+// Only the create() method on a Slim-typed scope is recognized as a factory.
+func collectPHPSlimScopedCall(state *phpParseState, node *tree_sitter.Node) {
+	scopeNode := node.ChildByFieldName("scope")
+	nameNode := node.ChildByFieldName("name")
+	if scopeNode == nil || nameNode == nil {
+		return
+	}
+	methodName := strings.ToLower(strings.TrimSpace(shared.NodeText(nameNode, state.source)))
+	if methodName != "create" {
+		return
+	}
+	scopeName := strings.TrimSpace(shared.NodeText(scopeNode, state.source))
+	if !phpIsSlimTypeName(scopeName, state.payload) {
+		return
+	}
+	for current := node.Parent(); current != nil; current = current.Parent() {
+		if current.Kind() == "assignment_expression" {
+			if lhs := phpAssignmentLHS(current, state.source); lhs != "" {
+				state.slimReceiverVars[lhs] = struct{}{}
+			}
+			return
+		}
+	}
+}
+
+// collectPHPSlimObjectCreation records the LHS variable of a Slim constructor
+// call such as new \Slim\App(...) or new App(...) where App resolves to
+// Slim\App through imports.
+func collectPHPSlimObjectCreation(state *phpParseState, node *tree_sitter.Node) {
+	classNode := phpObjectCreationTypeNode(node)
+	if classNode == nil {
+		return
+	}
+	className := strings.TrimSpace(shared.NodeText(classNode, state.source))
+	if !phpIsSlimTypeName(className, state.payload) {
+		return
+	}
+	for current := node.Parent(); current != nil; current = current.Parent() {
+		if current.Kind() == "assignment_expression" {
+			if lhs := phpAssignmentLHS(current, state.source); lhs != "" {
+				state.slimReceiverVars[lhs] = struct{}{}
+			}
+			return
+		}
+	}
+}
+
+// phpIsSlimTypeName reports whether a type name resolves to a Slim namespace,
+// either as a fully qualified name starting with Slim\ or through the import
+// payload (explicit alias or last-segment short name). It does NOT use
+// importAliases because normalizePHPTypeName strips the namespace.
+func phpIsSlimTypeName(name string, payload map[string]any) bool {
+	name = strings.Trim(name, `\`)
+	if strings.HasPrefix(name, "Slim\\") {
+		return true
+	}
+	imports, _ := payload["imports"].([]map[string]any)
+	for _, item := range imports {
+		importName := strings.Trim(strings.TrimSpace(phpStringValue(item["name"])), `\`)
+		if !strings.HasPrefix(importName, "Slim\\") {
+			continue
+		}
+		alias := strings.TrimSpace(phpStringValue(item["alias"]))
+		if alias != "" && alias == name {
+			return true
+		}
+		if shared.LastPathSegment(importName, `\`) == name {
+			return true
+		}
+	}
+	return false
+}
+
+// phpAssignmentLHS returns the bare variable name (without $) from the
+// left-hand side of an assignment_expression node, or the empty string when
+// the LHS is not a simple variable_name.
+func phpAssignmentLHS(node *tree_sitter.Node, source []byte) string {
+	cursor := node.Walk()
+	defer cursor.Close()
+	for _, child := range node.NamedChildren(cursor) {
+		child := child
+		if child.Kind() == "variable_name" {
+			return strings.TrimPrefix(strings.TrimSpace(shared.NodeText(&child, source)), "$")
+		}
+	}
+	return ""
+}
+
+// phpSimpleParameterParts extracts the type name and bare variable name from
+// a simple_parameter node such as "App $app" or "int $count". Primitive types
+// are returned but will not match a Slim namespace.
+func phpSimpleParameterParts(node *tree_sitter.Node, source []byte) (string, string) {
+	var typeName, varName string
+	cursor := node.Walk()
+	defer cursor.Close()
+	for _, child := range node.NamedChildren(cursor) {
+		child := child
+		switch child.Kind() {
+		case "named_type", "primitive_type":
+			typeName = strings.TrimSpace(shared.NodeText(&child, source))
+		case "variable_name":
+			varName = strings.TrimPrefix(strings.TrimSpace(shared.NodeText(&child, source)), "$")
+		}
+	}
+	return typeName, varName
+}
+
+// phpSlimReceiverName returns the bare variable name (without $) from the
+// object field of a member_call_expression, or the empty string when the
+// receiver is not a simple variable_name (e.g. a chained expression).
+func phpSlimReceiverName(objectNode *tree_sitter.Node, source []byte) string {
+	if objectNode.Kind() != "variable_name" {
+		return ""
+	}
+	return strings.TrimPrefix(strings.TrimSpace(shared.NodeText(objectNode, source)), "$")
 }
