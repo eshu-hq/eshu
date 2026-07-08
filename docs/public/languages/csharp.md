@@ -85,3 +85,17 @@ Not claimed today:
   exactness blockers for dead-code cleanup.
 - C# route truth requires explicit local source evidence. Implicit/global using
   configuration and project-level endpoint conventions are not resolved.
+
+## Parser Performance
+
+The C# parser collapses its semantic-fact collection and framework-route
+detection from separate full-tree tree-sitter walks into single passes:
+`collectCSharpSemanticFacts` gathers candidate method-declaration nodes during
+the one type-collection walk and resolves interface methods afterward (once the
+declared-type counts are complete), and the ASP.NET attribute-route and
+minimal-API route detectors, which inspect disjoint node kinds, share one walk.
+This lowers the common-case full-tree walk count from 4 to 2 while keeping
+parser output byte-identical (a `0/0` symmetric-diff over the fixture corpus
+gates it; epic #4831, #4869). Contributors adding a new fact collector should
+extend the shared pass rather than add another full-tree walk when the
+collector has no dependency on another collector's completed output.
