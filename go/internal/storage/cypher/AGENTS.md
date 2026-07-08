@@ -399,3 +399,33 @@ No-Observability-Change: the new `*ByUIDs` methods flow through the existing
 `Executor`/`GroupExecutor` dispatch, `Statement` phase/label/summary metadata,
 retry wrapping, and failure logging; no new metric, label, worker, queue domain,
 lease, runtime knob, or graph-write route.
+
+### #4893 retract dispatch route (NornicDB v1.1.9 bolt ExecuteWrite bug)
+
+The five value-flow by-uid retract methods route their DELETE statements
+through `dispatchRetract` (sequential `Executor.Execute`, i.e. the reducer's
+`session.Run` autocommit path), NOT through `dispatch`/`ExecuteGroup`. NornicDB
+v1.1.9 (the version `docker-compose.yaml` pins) has a bolt bug:
+`session.ExecuteWrite`/`tx.Run` returns `rels-deleted=0` for an
+`UNWIND ... MATCH (s {uid})-[rel:TYPE]->() ... DELETE rel` statement inside an
+explicit transaction, while the identical statement deletes correctly via
+`session.Run` (autocommit) and HTTP `tx/commit`. `UNWIND`, `IN`, and
+`IN`-on-relationship-property all work in isolation over bolt; only
+DELETE-via-matched-relationship inside `ExecuteWrite` is affected. The MERGE
+write path keeps using `ExecuteGroup` (works, and needs the atomic batch). Do
+NOT route these retracts back through `ExecuteGroup` — the CI guard
+`TestCode(Interproc|Taint)EvidenceRetractByUIDsRoutesThroughAutocommitExecute`
+fails if you do. Tracked upstream as the NornicDB bolt ExecuteWrite follow-up.
+
+No-Regression Evidence: DSN-gated bolt integration tests
+(`code_evidence_bolt_retract_test.go`, `ESHU_CYPHER_BOLT_DSN`) reproduce
+red (post-retract edge/node count unchanged) against a live NornicDB v1.1.9
+and prove green after the fix (count -> 0); a full two-generation reducer E2E
+on v1.1.9 confirms a dropped cross-function taint flow's TAINT_FLOWS_TO edge is
+retracted while the survivor is kept and the ledger is pruned. The no-backend
+CI guard above catches a dispatch-route regression without a live backend.
+
+No-Observability-Change: the fix only changes the dispatch route (Execute vs
+ExecuteGroup) for retract statements; same Cypher, same parameters, same
+`Statement` metadata, same retry wrapping (`WrapRetryableNeo4jError`). No metric,
+label, worker, queue domain, lease, runtime knob, or graph-write route added.
