@@ -167,36 +167,99 @@ func phpClassMethodArray(node *tree_sitter.Node, source []byte) (string, string)
 }
 
 // phpClassConstantClassName returns the normalized class name from a
-// `Class::class` constant access expression nested in an array element.
+// `Class::class` constant access expression nested in an array element. The
+// class constant is usually the array element's direct child, but PHP allows
+// arbitrary wrapping (parentheses, casts, a ternary's branches, ...), so this
+// searches the full subtree in the same pre-order shared.WalkNamed would,
+// just without WalkNamed's per-call closure/test-hook overhead: see
+// phpFirstNamedMatch.
+//
+// The match predicate must require the "::class" suffix itself, not just the
+// "class_constant_access_expression" kind: a subtree can contain an unrelated
+// class-constant access (e.g. `FeatureFlag::ENABLED`) before the real
+// `Class::class` literal, as in
+// `[FeatureFlag::ENABLED ? NewController::class : OldController::class, 'show']`.
+// The old shared.WalkNamed callback kept scanning past a non-"::class" match
+// and only stopped on the first one whose text actually ends in "::class";
+// stopping at the first matching kind regardless of suffix (as an earlier
+// version of this function did) silently dropped the route target.
 func phpClassConstantClassName(node *tree_sitter.Node, source []byte) string {
-	var className string
-	shared.WalkNamed(node, func(candidate *tree_sitter.Node) {
-		if className != "" || candidate.Kind() != "class_constant_access_expression" {
-			return
+	candidate := phpFirstNamedMatch(node, func(n *tree_sitter.Node) bool {
+		if n.Kind() != "class_constant_access_expression" {
+			return false
 		}
-		text := strings.TrimSpace(shared.NodeText(candidate, source))
-		if !strings.HasSuffix(text, "::class") {
-			return
-		}
-		className = normalizePHPTypeName(strings.TrimSuffix(text, "::class"))
+		return strings.HasSuffix(strings.TrimSpace(shared.NodeText(n, source)), "::class")
 	})
-	return className
+	if candidate == nil {
+		return ""
+	}
+	text := strings.TrimSpace(shared.NodeText(candidate, source))
+	return normalizePHPTypeName(strings.TrimSuffix(text, "::class"))
 }
 
-// phpStringLiteralValue returns the unquoted content of the first string literal
-// under a node.
+// phpStringLiteralValue returns the unquoted content of the first string
+// literal under a node, searched in the same full-subtree pre-order as
+// phpClassConstantClassName.
 func phpStringLiteralValue(node *tree_sitter.Node, source []byte) string {
-	var value string
-	shared.WalkNamed(node, func(candidate *tree_sitter.Node) {
-		if value != "" {
-			return
-		}
-		switch candidate.Kind() {
+	candidate := phpFirstNamedMatch(node, func(n *tree_sitter.Node) bool {
+		switch n.Kind() {
 		case "string", "encapsed_string":
-			value = phpUnquoteString(shared.NodeText(candidate, source))
+			return true
+		default:
+			return false
 		}
 	})
-	return value
+	if candidate == nil {
+		return ""
+	}
+	return phpUnquoteString(shared.NodeText(candidate, source))
+}
+
+// phpFirstNamedMatch returns the first named node in pre-order (node itself,
+// then its named descendants depth-first) for which match reports true, or
+// nil when no node matches. It visits exactly the same nodes in the same
+// order as shared.WalkNamed would, but short-circuits the moment a match is
+// found instead of visiting the remainder of the subtree, and avoids
+// shared.WalkNamed's per-call closure and test-hook overhead. This keeps
+// dead-code root classification for `[Class::class, 'method']`-shaped array
+// literals byte-identical (including pathological wrapping such as
+// `[(Foo::class), 'm']` or `[$cond ? A::class : B::class, 'm']`) while
+// removing the redundant re-walk cost the nested shared.WalkNamed calls used
+// to add on top of the outer declaration walk.
+func phpFirstNamedMatch(node *tree_sitter.Node, match func(*tree_sitter.Node) bool) *tree_sitter.Node {
+	if node == nil {
+		return nil
+	}
+	if match(node) {
+		return shared.CloneNode(node)
+	}
+	cursor := node.Walk()
+	defer cursor.Close()
+	return phpFirstNamedMatchChildren(cursor, match)
+}
+
+// phpFirstNamedMatchChildren is the recursive descent used by
+// phpFirstNamedMatch; it shares one TreeCursor across the whole search
+// instead of allocating a new cursor per level.
+func phpFirstNamedMatchChildren(cursor *tree_sitter.TreeCursor, match func(*tree_sitter.Node) bool) *tree_sitter.Node {
+	if !cursor.GotoFirstChild() {
+		return nil
+	}
+	defer cursor.GotoParent()
+	for {
+		child := cursor.Node()
+		if child.IsNamed() {
+			if match(child) {
+				return shared.CloneNode(child)
+			}
+			if found := phpFirstNamedMatchChildren(cursor, match); found != nil {
+				return found
+			}
+		}
+		if !cursor.GotoNextSibling() {
+			return nil
+		}
+	}
 }
 
 // phpStringArgumentLiteral returns the unquoted content of a single string

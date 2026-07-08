@@ -52,6 +52,32 @@ Canonical implementation:
   `go/internal/parser/php/README.md` for the walk-count and byte-identity
   evidence.
 
+## Parser Performance
+
+- The dead-code root scan's Laravel-style literal route-target extraction
+  (`[Controller::class, 'action']` array literals, `go/internal/parser/php/dead_code_roots.go`)
+  used to call `shared.WalkNamed` a second time on each array element from
+  inside the main declaration walk's callback, redundantly re-traversing a
+  subtree the outer walk had already visited. `phpClassConstantClassName` and
+  `phpStringLiteralValue` now search the same subtree, in the same pre-order,
+  through a purpose-built early-exit-capable helper (`phpFirstNamedMatch`)
+  instead of `shared.WalkNamed`. This removes `shared.WalkNamed`'s per-call
+  closure and test-hook overhead and stops the search the instant a match is
+  found, rather than always finishing the whole subtree. It does **not**
+  narrow the search depth: the helper still finds a `Class::class` constant or
+  string literal wrapped in parentheses, casts, or a ternary's branches one
+  level below the array element's direct child, exactly as the old
+  `shared.WalkNamed` call did, so a 500-route microbenchmark shows about a 2x
+  time and 25% allocation reduction with no change in which node matches
+  (epic #4831, #4844).
+- Output is byte-identical, verified by a one-time old-vs-new `0/0`
+  symmetric-diff over the fixture corpus via the opt-in `PHP_PARSE_DUMP`
+  harness (`equivalence_dump_test.go`, a manual differential — not a standing
+  CI gate); standing regression protection comes from the PHP parser package
+  tests (including `TestPHPClassMethodArrayHandlesWrappedClassConstant`,
+  which locks in the wrapped-expression equivalence the existing fixture
+  corpus does not exercise) and the B-12 golden snapshot.
+
 ## Framework And Library Support
 
 Supported today:
