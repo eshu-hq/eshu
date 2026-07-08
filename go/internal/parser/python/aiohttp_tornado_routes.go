@@ -34,15 +34,17 @@ type pythonTornadoImports struct {
 
 func detectPythonAioHTTPSemantics(root *tree_sitter.Node, source []byte) map[string]any {
 	webSymbols := pythonAioHTTPWebSymbols(root, source)
-	if len(webSymbols) == 0 {
+	routeTableSymbols, appSymbols, paramAppSymbols := pythonAioHTTPSymbols(root, source, webSymbols)
+	if len(webSymbols) == 0 && len(paramAppSymbols) == 0 {
 		return nil
 	}
-	routeTableSymbols, appSymbols := pythonAioHTTPSymbols(root, source, webSymbols)
-	if len(routeTableSymbols) == 0 && len(appSymbols) == 0 {
+	if len(routeTableSymbols) == 0 && len(appSymbols) == 0 && len(paramAppSymbols) == 0 {
 		return nil
 	}
+	functionNames := pythonModuleFunctionNames(root, source)
+	importedNames := pythonModuleImportedNames(root, source)
 	entries := pythonAioHTTPRouteTableEntries(root, source, routeTableSymbols)
-	entries = append(entries, pythonAioHTTPApplicationRouteEntries(root, source, appSymbols, webSymbols, pythonModuleFunctionNames(root, source))...)
+	entries = append(entries, pythonAioHTTPApplicationRouteEntries(root, source, appSymbols, webSymbols, functionNames, paramAppSymbols, importedNames)...)
 	return pythonRouteSemantics(entries)
 }
 
@@ -60,7 +62,7 @@ func pythonAioHTTPSymbols(
 	root *tree_sitter.Node,
 	source []byte,
 	webSymbols map[string]struct{},
-) (map[string]struct{}, map[string]struct{}) {
+) (map[string]struct{}, map[string]struct{}, map[uintptr]map[string]struct{}) {
 	routeTableSymbols := make(map[string]struct{})
 	appSymbols := make(map[string]struct{})
 	pythonWalkServerAssignments(root, source, func(symbol string, call *tree_sitter.Node, callee string) {
@@ -77,7 +79,8 @@ func pythonAioHTTPSymbols(
 			appSymbols[symbol] = struct{}{}
 		}
 	})
-	return routeTableSymbols, appSymbols
+	paramAppSymbols := pythonAioHTTPParamAppSymbols(root, source)
+	return routeTableSymbols, appSymbols, paramAppSymbols
 }
 
 func pythonAioHTTPRouteTableEntries(
@@ -109,13 +112,36 @@ func pythonAioHTTPApplicationRouteEntries(
 	appSymbols map[string]struct{},
 	webSymbols map[string]struct{},
 	functionNames map[string]struct{},
+	paramAppSymbols map[uintptr]map[string]struct{},
+	importedNames map[string]struct{},
 ) []map[string]string {
-	if len(appSymbols) == 0 {
+	if len(appSymbols) == 0 && len(paramAppSymbols) == 0 {
 		return nil
 	}
 	entries := make([]map[string]string, 0)
 	walkNamed(root, func(node *tree_sitter.Node) {
 		if node.Kind() != "call" {
+			return
+		}
+		funcDef := pythonEnclosingFunctionDef(node)
+		if funcDef != nil {
+			paramApps, ok := paramAppSymbols[funcDef.Id()]
+			if !ok {
+				return
+			}
+			effectiveSymbols := make(map[string]struct{}, len(appSymbols)+len(paramApps))
+			for k := range appSymbols {
+				effectiveSymbols[k] = struct{}{}
+			}
+			for k := range paramApps {
+				effectiveSymbols[k] = struct{}{}
+			}
+			method, path, handler, ok := pythonAioHTTPParamApplicationRouteEntry(node, source, effectiveSymbols, functionNames, importedNames)
+			if ok {
+				entries = append(entries, routeEntry(method, path, handler))
+				return
+			}
+			entries = append(entries, pythonAioHTTPAddRoutesEntries(node, source, effectiveSymbols, webSymbols, functionNames)...)
 			return
 		}
 		if pythonInsidePythonDefinition(node) {
@@ -158,6 +184,58 @@ func pythonAioHTTPApplicationRouteEntry(
 	path := pythonRoutePathLiteral(pythonPositionalArgument(call, 0), source)
 	handler := pythonIdentifierName(pythonPositionalArgument(call, 1), source)
 	return method, path, handler, method != "" && path != "" && pythonIsKnownPythonFunction(handler, functionNames)
+}
+
+// pythonAioHTTPParamApplicationRouteEntry resolves an aiohttp route entry from a
+// call inside a function with a param-based app. It differs from
+// pythonAioHTTPApplicationRouteEntry in how handlers are proven: rather than
+// requiring the handler to be a same-file module-level function definition, it
+// accepts module-level imported names and unshadowed module-level function
+// definitions. A handler that is only a local variable (e.g.
+// `handler = make_handler()`) is not emitted — the route still carries method
+// and path but omits the handler field so downstream HANDLES_ROUTE projection
+// does not fabricate a false edge.
+func pythonAioHTTPParamApplicationRouteEntry(
+	call *tree_sitter.Node,
+	source []byte,
+	appSymbols map[string]struct{},
+	functionNames map[string]struct{},
+	importedNames map[string]struct{},
+) (string, string, string, bool) {
+	function := call.ChildByFieldName("function")
+	if function == nil || function.Kind() != "attribute" {
+		return "", "", "", false
+	}
+	attribute := strings.TrimSpace(nodeText(function.ChildByFieldName("attribute"), source))
+	method, ok := pythonAioHTTPRouteMethods[attribute]
+	if !ok && attribute != "add_route" {
+		return "", "", "", false
+	}
+	if !pythonAioHTTPCallTargetsAppRouter(function.ChildByFieldName("object"), source, appSymbols) {
+		return "", "", "", false
+	}
+	funcDef := pythonEnclosingFunctionDef(call)
+	if attribute == "add_route" {
+		method = pythonAioHTTPMethodLiteral(pythonPositionalArgument(call, 0), source)
+		path := pythonRoutePathLiteral(pythonPositionalArgument(call, 1), source)
+		handler := pythonIdentifierName(pythonPositionalArgument(call, 2), source)
+		if method == "" || path == "" {
+			return "", "", "", false
+		}
+		if handler != "" && pythonIsProvenParamAppHandler(handler, functionNames, importedNames, funcDef, call, source) {
+			return method, path, handler, true
+		}
+		return method, path, "", true // proven handler not found; emit route without handler
+	}
+	path := pythonRoutePathLiteral(pythonPositionalArgument(call, 0), source)
+	handler := pythonIdentifierName(pythonPositionalArgument(call, 1), source)
+	if method == "" || path == "" {
+		return "", "", "", false
+	}
+	if handler != "" && pythonIsProvenParamAppHandler(handler, functionNames, importedNames, funcDef, call, source) {
+		return method, path, handler, true
+	}
+	return method, path, "", true // proven handler not found; emit route without handler
 }
 
 func pythonAioHTTPAddRoutesEntries(

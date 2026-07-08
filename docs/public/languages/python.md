@@ -32,7 +32,7 @@ This page describes the current Go parser and query contract for Python.
 | Relationships | `relationships` | supported | call and receiver evidence | source and target symbol evidence | `get_code_relationship_story` | `go/internal/parser/engine_python_call_semantics_test.go` | Compose-backed fixture verification | Relationship evidence remains parser/query-backed, not semantic inference. |
 | FastAPI/Flask route roots | `fastapi-flask-route-roots` | supported | `framework_semantics.route_entries` | `method, path`; `handler` only when a decorator wraps an exact `def` | `HANDLES_ROUTE` when reducer can resolve the exact handler | `go/internal/parser/python/semantics_test.go::TestBuildPythonFrameworkSemanticsFastAPIRouterPrefix`, `go/internal/parser/python/semantics_test.go::TestBuildPythonFrameworkSemanticsFlaskMultipleMethods` | B-7 `rc-8` `HANDLES_ROUTE` gate through the Flask `api-svc` fixture | Exact route evidence only; orphan or ambiguous decorators do not fabricate handlers. |
 | Django/DRF routes | `django-drf-routes` | supported | `framework_semantics.route_entries` | `method, path`; `handler` only for same-file function identifiers, same-file class-view methods, literal DRF `as_view` action maps, and bounded router/viewset actions | `HANDLES_ROUTE` when reducer can resolve the exact handler | `go/internal/parser/python/django_drf_routes_test.go`, `go/internal/parser/engine_python_django_drf_routes_test.go`, `go/internal/reducer/handles_route_intents_test.go::TestBuildHandlesRouteIntentRowsResolvesClassMethodHandler` | Shared reducer route projection proof; route-to-caller API/MCP readbacks use existing `HANDLES_ROUTE` truth | Bounded Django `path(...)`, DRF `ViewSet.as_view({...})`, router registrations, literal URLconf router mounts, and literal `@action` routes emit exact entries; dynamic `include()`, generated URLconf, runtime resolver/plugin discovery, and nonliteral action maps stay unclaimed. |
-| aiohttp/Tornado routes | `aiohttp-tornado-routes` | supported | `framework_semantics.route_entries` | `method, path`; `handler` only for same-file aiohttp function handlers or same-file Tornado request-handler methods | `HANDLES_ROUTE` when reducer can resolve the exact handler | `go/internal/parser/python/aiohttp_tornado_routes_test.go`, `go/internal/parser/engine_python_aiohttp_tornado_routes_test.go`, `go/internal/reducer/handles_route_python_framework_intents_test.go` | Shared reducer route projection proof; route-to-caller API/MCP readbacks use existing `HANDLES_ROUTE` truth | Bounded aiohttp `RouteTableDef` decorators, literal `app.router.add_*`, literal `app.router.add_route`, literal `app.add_routes([web.*(...)])`, and Tornado `Application` URL specs emit exact entries. Nonliteral path/method/handler values, imported Tornado handlers, app factories, generated route lists, plugin loading, and runtime-discovered routes stay unclaimed. |
+| aiohttp/Tornado routes | `aiohttp-tornado-routes` | supported | `framework_semantics.route_entries` | `method, path`; `handler` for same-file aiohttp functions, imported identifiers used as param-app handlers, or same-file Tornado request-handler methods | `HANDLES_ROUTE` when reducer can resolve the exact handler | `go/internal/parser/python/aiohttp_tornado_routes_test.go`, `go/internal/parser/engine_python_aiohttp_tornado_routes_test.go`, `go/internal/reducer/handles_route_python_framework_intents_test.go` | Shared reducer route projection proof; route-to-caller API/MCP readbacks use existing `HANDLES_ROUTE` truth | Bounded aiohttp `RouteTableDef` decorators, literal `app.router.add_*`, literal `app.router.add_route`, literal `app.add_routes([web.*(...)])`, injected-param `setup_routes(app)` detection, and Tornado `Application` URL specs emit exact entries. Nonliteral path/method/handler values, imported Tornado handlers, app factories, generated route lists, plugin loading, and runtime-discovered routes stay unclaimed. |
 | Outbound contracts | `outbound-contracts` | partial | - | - | - | `go/internal/parser/python/semantics_test.go::TestBuildPythonFrameworkSemanticsUnknownDecoratorRemainsUnclassified` | Explicit unsupported-contract wording on this page | `requests`, `httpx`, gRPC, Celery topic, and generated-client usage do not create deterministic cross-repo contract edges today. |
 | Dead-code roots | `dead-code-roots` | derived | `dead_code_root_kinds` | modeled root kind and source location | `find_dead_code` | `go/internal/parser/python_dead_code_roots_test.go` | Compose-backed fixture verification | Derived liveness roots are not cleanup-safe exact truth. |
 
@@ -68,12 +68,16 @@ Supported today:
   exact function or class-method handler.
 - Bounded aiohttp and Tornado routes emit route entries only for exact static
   declarations: aiohttp `RouteTableDef` decorators, literal
-  `app.router.add_*` and `app.router.add_route(...)` calls, literal
-  `app.add_routes([web.*(...)])` entries, and Tornado `Application` URL specs
-  with same-file `RequestHandler` methods. aiohttp call-style handlers must be
-  same-file functions; Tornado handler classes must be same-file classes with
-  exact HTTP verb methods. `HANDLES_ROUTE` is projected only when the reducer
-  resolves those exact function or class-method handlers.
+  `app.router.add_*` and `app.router.add_route(...)` calls on module-level app
+  symbols or on injected function parameters (the `setup_routes(app)` pattern),
+  literal `app.add_routes([web.*(...)])` entries, and Tornado `Application` URL specs
+  with same-file `RequestHandler` methods. For injected-param routes the handler
+  identifier is recorded regardless of whether it is defined in the same file
+  (standard aiohttp demo pattern: imported route handlers). Module-level
+  aiohttp call-style handlers must still be same-file functions; Tornado
+  handler classes must be same-file classes with exact HTTP verb methods.
+  `HANDLES_ROUTE` is projected only when the reducer resolves those exact
+  function or class-method handlers.
 - Celery task decorators, Click and Typer command callbacks, and AWS Lambda
   handler shapes are modeled as entrypoint roots.
 - Dataclasses, properties, dunder protocol methods, `__all__`, package

@@ -158,10 +158,8 @@ async def handler(request):
 
 def build_app():
     app = web.Application()
-    return app
-
-def install_routes(app):
     app.router.add_get("/shadowed", handler)
+    return app
 `)
 	defer closer()
 
