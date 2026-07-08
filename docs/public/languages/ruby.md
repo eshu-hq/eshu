@@ -27,6 +27,37 @@ Canonical implementation: `go/internal/parser/registry.go` plus the entrypoint a
 | Exact Rails/Sinatra route entries | `rails-sinatra-literal-route-truth` | supported | `framework_semantics.{rails,sinatra}.route_entries` | `method, path, handler` | `relationship:HANDLES_ROUTE` when the reducer resolves one exact handler | `go/internal/parser/ruby_route_entries_test.go::TestDefaultEngineParsePathRubyEmitsExactRailsRouteEntries`, `go/internal/parser/ruby_route_entries_test.go::TestDefaultEngineParsePathRubyEmitsExactSinatraMethodRouteEntries`, `go/internal/reducer/handles_route_ruby_test.go::TestBuildHandlesRouteIntentRowsEmitsRubyRailsRouteMatches`, `go/internal/query/content_reader_framework_routes_ruby_test.go::TestParseFrameworkSemanticsExtractsRubyRoutes` | Golden corpus gate | Exact literal Rails `to: "controller#action"` entries inside `Rails.application.routes.draw` and Sinatra `&method(:handler)` route blocks emit route entries. Reducer projection stays exact-only and skips unresolved or ambiguous handlers. |
 | Dead-code roots | `dead-code-roots` | derived | `functions.metadata.dead_code_root_kinds` | `name, line_number, dead_code_root_kinds` | `code_quality.dead_code` root suppression | `go/internal/parser/ruby_dead_code_roots_test.go::TestDefaultEngineParsePathRubyEmitsDeadCodeRootKinds`, `go/internal/query/code_dead_code_ruby_roots_test.go::TestHandleDeadCodeExcludesRubyRootKindsFromMetadata` | Compose-backed Ruby dogfood required by issue #93 | Rails controller actions, Rails callback methods, dynamic dispatch hooks, literal method-reference targets, and script entrypoints are modeled as derived roots. |
 
+## Parser Performance
+
+`Parse` walks the tree-sitter AST once per file for dead-code roots and
+framework routes instead of four times (issue
+[#4842](https://github.com/eshu-hq/eshu/issues/4842), child of epic
+[#4831](https://github.com/eshu-hq/eshu/issues/4831)). Previously
+`annotateRubyDeadCodeRoots` ran three separate `shared.WalkNamed` passes
+(Rails callback registrations, literal method references, script-entrypoint
+guards) and `buildRubyFrameworkSemantics` ran its own bespoke recursive walk
+for Rails and Sinatra route detection, each re-traversing the same AST. All
+four are now collected by one merged `shared.WalkNamed` pass
+(`rubyCollectSemantics`): the three dead-code checks are pure node-local
+predicates with no interaction, so they run unconditionally for every `call`
+node, and route context (which framework/class a route call is nested under)
+is resolved by climbing from a candidate call node to its nearest
+context-changing ancestor (a class extending `Sinatra::Base`, or a
+`Rails.application.routes.draw` call) instead of being threaded down during
+descent. The nearest context-changing ancestor found by climbing is exactly
+the context top-down threading always assigned, so folding route resolution
+into the flat pass does not reorder or alter any of the four original
+analyses.
+
+Parser output is byte-identical before and after this change: a corpus dump
+across all `.rb` fixtures under `tests/fixtures`, canonicalized to recursively
+key-sorted JSON and hashed per file per `Options` variant (`Options{}` and
+`Options{IndexSource: true}`), produced a `0/0` symmetric diff between the
+pre-change and post-change dumps. This is a one-time manual differential
+(`go/internal/parser/ruby/equivalence_dump_test.go`, opt-in via
+`RUBY_PARSE_DUMP`), not a standing CI gate; standing protection is the ruby
+parser package tests plus the B-12 golden snapshot.
+
 ## Framework And Library Support
 
 Supported today:

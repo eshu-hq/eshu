@@ -21,110 +21,91 @@ type rubyRouteContext struct {
 	className string
 }
 
-func buildRubyFrameworkSemantics(syntax *rubySyntax) map[string]any {
+// buildRubyFrameworkSemantics assembles the framework_semantics payload
+// section from routesByFramework, the routes rubyCollectSemantics gathered
+// during the single merged tree walk (see rubyCollectRouteCandidate and
+// rubyResolveRouteContext).
+func buildRubyFrameworkSemantics(routesByFramework map[string][]rubyRoute) map[string]any {
 	semantics := map[string]any{"frameworks": []string{}}
-	if syntax == nil || syntax.root == nil {
-		return semantics
-	}
-
-	routesByFramework := make(map[string][]rubyRoute)
-	context := rubyRouteContext{}
-	if rubyImportsSinatra(syntax.imports) {
-		context.framework = "sinatra"
-	}
-	syntax.collectRubyRoutes(syntax.root, context, routesByFramework)
-
 	for _, framework := range []string{"rails", "sinatra"} {
 		appendRubyRouteFramework(semantics, framework, routesByFramework[framework])
 	}
 	return semantics
 }
 
-func (s *rubySyntax) collectRubyRoutes(
-	node *tree_sitter.Node,
-	context rubyRouteContext,
-	routesByFramework map[string][]rubyRoute,
-) {
-	if node == nil {
-		return
-	}
-
-	if node.Kind() == "class" {
-		nextContext := context
-		if s.classExtendsSinatraBase(node) {
-			nextContext = rubyRouteContext{
-				framework: "sinatra",
-				className: s.constantName(node.ChildByFieldName("name")),
-			}
-		}
-		s.collectRubyRouteChildren(node, nextContext, routesByFramework)
-		return
-	}
-
-	if node.Kind() == "call" {
-		if s.isRailsRoutesDraw(node) {
-			s.collectRubyRouteChildren(node, rubyRouteContext{framework: "rails"}, routesByFramework)
-			return
-		}
-		if route, ok := s.exactRubyRoute(node, context); ok {
-			routesByFramework[context.framework] = append(routesByFramework[context.framework], route)
-		}
-	}
-
-	s.collectRubyRouteChildren(node, context, routesByFramework)
-}
-
-func (s *rubySyntax) collectRubyRouteChildren(
-	node *tree_sitter.Node,
-	context rubyRouteContext,
-	routesByFramework map[string][]rubyRoute,
-) {
-	cursor := node.Walk()
-	defer cursor.Close()
-	if !cursor.GotoFirstChild() {
-		return
-	}
-	for {
-		child := cursor.Node()
-		if child.IsNamed() {
-			s.collectRubyRoutes(child, context, routesByFramework)
-		}
-		if !cursor.GotoNextSibling() {
-			break
-		}
-	}
-}
-
-func (s *rubySyntax) exactRubyRoute(node *tree_sitter.Node, context rubyRouteContext) (rubyRoute, bool) {
-	if context.framework == "" || node.ChildByFieldName("receiver") != nil {
-		return rubyRoute{}, false
+// rubyCollectRouteCandidate resolves node (a "call" node visited by the
+// merged rubyCollectSemantics walk) into a route, if it is an exact-path HTTP
+// route call reachable under a Rails or Sinatra route-registration context.
+// The cheap, node-local route shape (no receiver, HTTP-verb method name,
+// literal exact path) is checked before resolving context, so the ancestor
+// climb in rubyResolveRouteContext only runs for call nodes that already look
+// like a route registration.
+func (s *rubySyntax) rubyCollectRouteCandidate(node *tree_sitter.Node, topLevelSinatra bool) (string, rubyRoute, bool) {
+	if node.ChildByFieldName("receiver") != nil {
+		return "", rubyRoute{}, false
 	}
 	methodNode := node.ChildByFieldName("method")
 	method, ok := rubyHTTPRouteMethod(s.text(methodNode))
 	if !ok {
-		return rubyRoute{}, false
+		return "", rubyRoute{}, false
 	}
 	path := s.firstLiteralStringArgument(node)
 	if !rubyExactRoutePath(path) {
-		return rubyRoute{}, false
+		return "", rubyRoute{}, false
 	}
 
+	context := s.rubyResolveRouteContext(node, topLevelSinatra)
 	switch context.framework {
 	case "rails":
 		handler, ok := s.railsRouteHandler(node)
 		if !ok {
-			return rubyRoute{}, false
+			return "", rubyRoute{}, false
 		}
-		return rubyRoute{method: method, path: path, handler: handler}, true
+		return context.framework, rubyRoute{method: method, path: path, handler: handler}, true
 	case "sinatra":
 		handler, ok := s.sinatraMethodHandler(node, context.className)
 		if !ok {
-			return rubyRoute{}, false
+			return "", rubyRoute{}, false
 		}
-		return rubyRoute{method: method, path: path, handler: handler}, true
+		return context.framework, rubyRoute{method: method, path: path, handler: handler}, true
 	default:
-		return rubyRoute{}, false
+		return "", rubyRoute{}, false
 	}
+}
+
+// rubyResolveRouteContext resolves the framework/class context a route
+// candidate call node sees by climbing from node to its nearest
+// context-changing ancestor: a class extending Sinatra::Base, or a
+// Rails.application.routes.draw call. A non-matching class ancestor is
+// transparent (the original top-down walk inherited the enclosing context
+// through it unchanged), so the climb continues past it. This replaces the
+// context parameter collectRubyRoutes used to thread down during its own
+// dedicated recursive walk: the nearest context-changing ancestor found by
+// climbing is exactly the context top-down threading would have assigned,
+// because both mechanisms resolve to whichever enclosing scope is closest to
+// node. Recovering context this way lets route candidates be resolved
+// in-line during the single merged rubyCollectSemantics walk instead of
+// requiring a second, context-threaded traversal.
+func (s *rubySyntax) rubyResolveRouteContext(node *tree_sitter.Node, topLevelSinatra bool) rubyRouteContext {
+	for current := node.Parent(); current != nil; current = current.Parent() {
+		switch current.Kind() {
+		case "class":
+			if s.classExtendsSinatraBase(current) {
+				return rubyRouteContext{
+					framework: "sinatra",
+					className: s.constantName(current.ChildByFieldName("name")),
+				}
+			}
+		case "call":
+			if s.isRailsRoutesDraw(current) {
+				return rubyRouteContext{framework: "rails"}
+			}
+		}
+	}
+	if topLevelSinatra {
+		return rubyRouteContext{framework: "sinatra"}
+	}
+	return rubyRouteContext{}
 }
 
 func (s *rubySyntax) isRailsRoutesDraw(node *tree_sitter.Node) bool {

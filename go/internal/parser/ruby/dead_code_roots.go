@@ -6,7 +6,6 @@ package ruby
 import (
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
@@ -61,21 +60,37 @@ func rubyFunctionDefinitionRootKinds(
 	return rootKinds
 }
 
+// rubyDeadCodeNames holds the three independent name sets a single merged
+// tree walk collects for annotateRubyDeadCodeRoots: Rails callback
+// registrations, literal method references, and script-entrypoint call
+// names. Populating all three from one shared.WalkNamed pass (see
+// rubyCollectSemantics) replaces what were three separate full-tree walks.
+type rubyDeadCodeNames struct {
+	railsCallback    map[string]struct{}
+	methodReference  map[string]struct{}
+	scriptEntrypoint map[string]struct{}
+}
+
 // annotateRubyDeadCodeRoots tags functions reachable through Rails callbacks,
 // literal method references, and script entrypoints discovered in the AST.
-func annotateRubyDeadCodeRoots(payload map[string]any, syntax *rubySyntax) {
+// names is collected once per file by rubyCollectSemantics; the three
+// per-kind loops below preserve the original append order (rails callback,
+// then method reference, then script entrypoint) so a function matched by
+// more than one kind still accumulates its dead_code_root_kinds in the same
+// order the three separate walks always produced.
+func annotateRubyDeadCodeRoots(payload map[string]any, names rubyDeadCodeNames) {
 	functionsByName := rubyFunctionItemsByName(payload)
-	for name := range rubyRailsCallbackMethodNames(syntax) {
+	for name := range names.railsCallback {
 		for _, function := range functionsByName[name] {
 			appendRubyFunctionRootKind(function, rubyRailsCallbackMethodRoot)
 		}
 	}
-	for name := range rubyLiteralMethodReferenceNames(syntax) {
+	for name := range names.methodReference {
 		for _, function := range functionsByName[name] {
 			appendRubyFunctionRootKind(function, rubyMethodReferenceTargetRoot)
 		}
 	}
-	for name := range rubyScriptEntrypointCallNames(syntax) {
+	for name := range names.scriptEntrypoint {
 		for _, function := range functionsByName[name] {
 			appendRubyFunctionRootKind(function, rubyScriptEntrypointRoot)
 		}
@@ -96,48 +111,38 @@ func rubyFunctionItemsByName(payload map[string]any) map[string][]map[string]any
 	return functions
 }
 
-// rubyRailsCallbackMethodNames returns the symbol names registered through Rails
-// callback calls anywhere in the tree.
-func rubyRailsCallbackMethodNames(syntax *rubySyntax) map[string]struct{} {
-	names := make(map[string]struct{})
-	shared.WalkNamed(syntax.root, func(node *tree_sitter.Node) {
-		if node.Kind() != "call" {
-			return
-		}
-		method := node.ChildByFieldName("method")
-		if method == nil || method.Kind() != "identifier" {
-			return
-		}
-		if _, ok := rubyRailsCallbackMethods[syntax.text(method)]; !ok {
-			return
-		}
-		for _, symbol := range syntax.symbolArguments(node) {
-			names[symbol] = struct{}{}
-		}
-	})
-	return names
+// rubyCollectRailsCallbackNames records the symbol names registered by a
+// single Rails callback registration call node into names. It is invoked once
+// per "call" node from the merged rubyCollectSemantics walk instead of
+// running its own dedicated shared.WalkNamed pass.
+func rubyCollectRailsCallbackNames(syntax *rubySyntax, node *tree_sitter.Node, names map[string]struct{}) {
+	method := node.ChildByFieldName("method")
+	if method == nil || method.Kind() != "identifier" {
+		return
+	}
+	if _, ok := rubyRailsCallbackMethods[syntax.text(method)]; !ok {
+		return
+	}
+	for _, symbol := range syntax.symbolArguments(node) {
+		names[symbol] = struct{}{}
+	}
 }
 
-// rubyLiteralMethodReferenceNames returns the symbol names passed to reflection
-// methods like method/send/public_send.
-func rubyLiteralMethodReferenceNames(syntax *rubySyntax) map[string]struct{} {
-	names := make(map[string]struct{})
-	shared.WalkNamed(syntax.root, func(node *tree_sitter.Node) {
-		if node.Kind() != "call" {
-			return
-		}
-		method := node.ChildByFieldName("method")
-		if method == nil || method.Kind() != "identifier" {
-			return
-		}
-		if _, ok := rubyMethodReferenceMethods[syntax.text(method)]; !ok {
-			return
-		}
-		for _, symbol := range syntax.symbolArguments(node) {
-			names[symbol] = struct{}{}
-		}
-	})
-	return names
+// rubyCollectMethodReferenceNames records the symbol names passed to a single
+// reflection call node (method/send/public_send) into names. It is invoked
+// once per "call" node from the merged rubyCollectSemantics walk instead of
+// running its own dedicated shared.WalkNamed pass.
+func rubyCollectMethodReferenceNames(syntax *rubySyntax, node *tree_sitter.Node, names map[string]struct{}) {
+	method := node.ChildByFieldName("method")
+	if method == nil || method.Kind() != "identifier" {
+		return
+	}
+	if _, ok := rubyMethodReferenceMethods[syntax.text(method)]; !ok {
+		return
+	}
+	for _, symbol := range syntax.symbolArguments(node) {
+		names[symbol] = struct{}{}
+	}
 }
 
 // symbolArguments returns the names of simple symbol arguments of a call node,
@@ -184,29 +189,23 @@ func (s *rubySyntax) collectSymbolNames(node *tree_sitter.Node, names *[]string)
 	}
 }
 
-// rubyScriptEntrypointCallNames returns the method names made reachable by a
-// `if __FILE__ == $0` (or `$PROGRAM_NAME`) script guard. The guard is detected
-// on the AST: an if/unless node whose condition compares `__FILE__` against a
-// `$0`/`$PROGRAM_NAME` global, in either order. Receiverless calls and bare
-// identifier statements in the guard body name reachable methods.
-func rubyScriptEntrypointCallNames(syntax *rubySyntax) map[string]struct{} {
-	names := make(map[string]struct{})
-	shared.WalkNamed(syntax.root, func(node *tree_sitter.Node) {
-		switch node.Kind() {
-		case "if", "unless":
-		default:
-			return
-		}
-		if !rubyIsScriptGuardCondition(syntax, node.ChildByFieldName("condition")) {
-			return
-		}
-		body := node.ChildByFieldName("consequence")
-		if body == nil {
-			return
-		}
-		rubyCollectScriptBodyNames(syntax, body, names)
-	})
-	return names
+// rubyCollectScriptEntrypointNames records the method names made reachable by
+// a single `if __FILE__ == $0` (or `$PROGRAM_NAME`) script guard node into
+// names. The guard is detected on the AST: an if/unless node whose condition
+// compares `__FILE__` against a `$0`/`$PROGRAM_NAME` global, in either order.
+// Receiverless calls and bare identifier statements in the guard body name
+// reachable methods. It is invoked once per "if"/"unless" node from the
+// merged rubyCollectSemantics walk instead of running its own dedicated
+// shared.WalkNamed pass.
+func rubyCollectScriptEntrypointNames(syntax *rubySyntax, node *tree_sitter.Node, names map[string]struct{}) {
+	if !rubyIsScriptGuardCondition(syntax, node.ChildByFieldName("condition")) {
+		return
+	}
+	body := node.ChildByFieldName("consequence")
+	if body == nil {
+		return
+	}
+	rubyCollectScriptBodyNames(syntax, body, names)
 }
 
 // rubyIsScriptGuardCondition reports whether a condition node is an equality
