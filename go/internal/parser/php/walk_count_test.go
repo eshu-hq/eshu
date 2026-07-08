@@ -72,8 +72,8 @@ final class ReportController {
 		t.Fatalf("Parse() error = %v, want nil", err)
 	}
 
-	const wantWalkNamedCalls = 2
+	const wantWalkNamedCalls = 1
 	if walkNamedCalls != wantWalkNamedCalls {
-		t.Fatalf("shared.WalkNamed call count = %d, want %d (phase 1 + phase 2)", walkNamedCalls, wantWalkNamedCalls)
+		t.Fatalf("shared.WalkNamed call count = %d, want %d (phase 1 only; phase 2 resolved in-memory)", walkNamedCalls, wantWalkNamedCalls)
 	}
 }

@@ -61,6 +61,12 @@ func recordPHPBoundedFile(payload map[string]any, path string, originalBytes int
 // receiver chains, return-type maps resolve method and function call chains, and
 // import aliases normalize use-imported short names back to their canonical
 // types.
+//
+// Gather slices hold phase-2 resolution-candidate node pointers collected
+// during phase 1's WalkNamed so phase 2 can run as in-memory loops instead of
+// a second full-tree traversal. Tree-sitter *tree_sitter.Node values point at
+// stack-allocated cursors during the recursive walk; every gathered node is
+// cloned (shared.CloneNode) so the slices are valid after the walk returns.
 type phpParseState struct {
 	payload             map[string]any
 	source              []byte
@@ -77,6 +83,15 @@ type phpParseState struct {
 	deadCodeFacts       phpDeadCodeFacts
 	deadCodeFunctions   []phpDeadCodeFunctionFact
 	routeAttributes     []*tree_sitter.Node
+
+	// Phase-2 gather slices: candidate nodes collected during phase 1's
+	// WalkNamed and resolved in-memory after phase 1 completes, eliminating
+	// the second full-tree WalkNamed traversal.
+	gatheredVariableNames   []*tree_sitter.Node
+	gatheredMemberCalls     []*tree_sitter.Node
+	gatheredScopedCalls     []*tree_sitter.Node
+	gatheredObjectCreations []*tree_sitter.Node
+	gatheredFunctionCalls   []*tree_sitter.Node
 }
 
 // Parse extracts PHP declarations, imports, variables, and calls from the
@@ -128,8 +143,23 @@ func Parse(path string, isDependency bool, options shared.Options, parser *tree_
 	state.parents = parents
 	collectPHPDeclarations(state, root)
 
-	// Phase 2: emit variables and call rows that depend on the type evidence.
-	emitPHPVariablesAndCalls(state, root)
+	// Phase 2: resolve gathered phase-2 nodes in-memory against the now-complete
+	// type evidence instead of re-walking the full tree.
+	for _, node := range state.gatheredVariableNames {
+		emitPHPVariableName(state, node)
+	}
+	for _, node := range state.gatheredMemberCalls {
+		emitPHPMemberCall(state, node)
+	}
+	for _, node := range state.gatheredScopedCalls {
+		emitPHPScopedCall(state, node)
+	}
+	for _, node := range state.gatheredObjectCreations {
+		emitPHPObjectCreation(state, node)
+	}
+	for _, node := range state.gatheredFunctionCalls {
+		emitPHPFunctionCall(state, node)
+	}
 
 	// Route attributes recorded during phase 1 resolve against the now-complete
 	// import set below (buildPHPFrameworkSemantics); no further tree walk.
@@ -202,28 +232,22 @@ func collectPHPDeclarations(state *phpParseState, root *tree_sitter.Node) {
 			state.routeAttributes = append(state.routeAttributes, shared.CloneNode(node))
 		case "function_call_expression":
 			observePHPWordPressHookCall(state, node)
+			state.gatheredFunctionCalls = append(state.gatheredFunctionCalls, shared.CloneNode(node))
 		case "array_creation_expression":
 			collectPHPLiteralRouteTarget(state, node)
-		}
-	})
-}
-
-// emitPHPVariablesAndCalls walks the AST a second time to emit property,
-// assignment, and parameter variable rows plus every call row with inferred
-// receiver types.
-func emitPHPVariablesAndCalls(state *phpParseState, root *tree_sitter.Node) {
-	shared.WalkNamed(root, func(node *tree_sitter.Node) {
-		switch node.Kind() {
+		// Gather phase-2 resolution-candidate nodes during phase 1's
+		// WalkNamed so phase 2 can resolve them in-memory instead of
+		// re-walking the full tree. Cloned with shared.CloneNode because
+		// tree-sitter *tree_sitter.Node values point at stack-allocated
+		// cursors during the recursive walk.
 		case "variable_name":
-			emitPHPVariableName(state, node)
+			state.gatheredVariableNames = append(state.gatheredVariableNames, shared.CloneNode(node))
 		case "member_call_expression", "nullsafe_member_call_expression":
-			emitPHPMemberCall(state, node)
+			state.gatheredMemberCalls = append(state.gatheredMemberCalls, shared.CloneNode(node))
 		case "scoped_call_expression":
-			emitPHPScopedCall(state, node)
+			state.gatheredScopedCalls = append(state.gatheredScopedCalls, shared.CloneNode(node))
 		case "object_creation_expression":
-			emitPHPObjectCreation(state, node)
-		case "function_call_expression":
-			emitPHPFunctionCall(state, node)
+			state.gatheredObjectCreations = append(state.gatheredObjectCreations, shared.CloneNode(node))
 		}
 	})
 }
