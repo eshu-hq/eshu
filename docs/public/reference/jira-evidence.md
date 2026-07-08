@@ -266,8 +266,19 @@ Jira-backed read surfaces must distinguish these states:
 | Stale window | The latest Jira generation is older than the freshness target. |
 | Permission-hidden | Jira denied access; the issue may exist but is not visible to the collector. |
 | Rejected unsafe payload | Source data was malformed or unsafe to retain. |
+| Metadata warning | Metadata collection for a scope was blocked (archived, unsupported, or permission-hidden); distinct from a hidden record. |
 
 Readers must not collapse these states into one "not found" result.
+
+A `work_item.metadata_warning` row reports the `metadata_warning` evidence
+state, distinct from `permission_hidden`: the warning means the collector could
+not read a class of metadata for the scope, not that one issue record is hidden.
+The row carries the warning's own fields — `metadata_type` (the metadata class,
+for example `workflow`), `warning_reason` (the bounded reason token, for example
+`permission_hidden`, `archived`, or `unsupported`), and
+`provider_id_fingerprint` (the one-way fingerprint of the redacted provider id).
+The `metadata_warning` state is stable across every reason; the specific reason
+lives in `warning_reason`.
 
 `GET /api/v0/work-items/evidence` and MCP `list_work_item_evidence` expose
 these states directly from active work-item source facts. Calls must be bounded
