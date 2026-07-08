@@ -22,6 +22,17 @@ func detectKoaSemantics(root *tree_sitter.Node, source []byte) (map[string]any, 
 	return javaScriptFrameworkRouteSemantics(entries, javaScriptSortedNameSet(bases)), true
 }
 
+func detectKoaSemanticsFromGathered(root *tree_sitter.Node, source []byte, koaBases map[string]struct{}, gatheredCallExpressions []*tree_sitter.Node) (map[string]any, bool) {
+	if len(koaBases) == 0 {
+		return nil, false
+	}
+	entries := javaScriptKoaRouteEntriesFromGathered(gatheredCallExpressions, source, koaBases)
+	if len(entries) == 0 {
+		return nil, false
+	}
+	return javaScriptFrameworkRouteSemantics(entries, javaScriptSortedNameSet(koaBases)), true
+}
+
 func detectFastifySemantics(root *tree_sitter.Node, source []byte, fastifyBases map[string]struct{}) (map[string]any, bool) {
 	if len(fastifyBases) == 0 {
 		return nil, false
@@ -33,11 +44,33 @@ func detectFastifySemantics(root *tree_sitter.Node, source []byte, fastifyBases 
 	return javaScriptFrameworkRouteSemantics(entries, javaScriptSortedNameSet(fastifyBases)), true
 }
 
+func detectFastifySemanticsFromGathered(root *tree_sitter.Node, source []byte, fastifyBases map[string]struct{}, gatheredCallExpressions []*tree_sitter.Node) (map[string]any, bool) {
+	if len(fastifyBases) == 0 {
+		return nil, false
+	}
+	entries := javaScriptFastifyRouteEntriesFromGathered(gatheredCallExpressions, source, fastifyBases)
+	if len(entries) == 0 {
+		return nil, false
+	}
+	return javaScriptFrameworkRouteSemantics(entries, javaScriptSortedNameSet(fastifyBases)), true
+}
+
 func detectNestJSSemantics(root *tree_sitter.Node, source []byte, parents *javaScriptParentLookup) (map[string]any, bool) {
 	if !javaScriptHasNestJSCommonImport(string(source)) {
 		return nil, false
 	}
 	entries := javaScriptNestJSRouteEntries(root, source, parents)
+	if len(entries) == 0 {
+		return nil, false
+	}
+	return javaScriptFrameworkRouteSemantics(entries, nil), true
+}
+
+func detectNestJSSemanticsFromGathered(root *tree_sitter.Node, source []byte, parents *javaScriptParentLookup, gatheredMethodDefinitions []*tree_sitter.Node) (map[string]any, bool) {
+	if !javaScriptHasNestJSCommonImport(string(source)) {
+		return nil, false
+	}
+	entries := javaScriptNestJSRouteEntriesFromGathered(gatheredMethodDefinitions, source, parents)
 	if len(entries) == 0 {
 		return nil, false
 	}

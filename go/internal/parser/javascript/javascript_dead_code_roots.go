@@ -32,6 +32,8 @@ func javaScriptDeadCodeRootEvidence(
 	siblingParser *javaScriptSiblingParser,
 	parents *javaScriptParentLookup,
 	fastifyBases map[string]struct{},
+	expressBases map[string]struct{},
+	koaBases map[string]struct{},
 ) javaScriptDeadCodeEvidence {
 	hapiHandlerFile := javaScriptIsHapiHandlerFile(repoRoot, path, siblingParser)
 	registeredRootKinds := javaScriptRegisteredDeadCodeRootKinds(root, source)
@@ -49,7 +51,7 @@ func javaScriptDeadCodeRootEvidence(
 		registeredRootKinds,
 		javaScriptCommonJSDefaultExportAliasRootKinds(root, source),
 	)
-	mergeJavaScriptRegisteredRootKinds(registeredRootKinds, javaScriptFrameworkRegisteredDeadCodeRootKinds(root, source, fastifyBases))
+	mergeJavaScriptRegisteredRootKinds(registeredRootKinds, javaScriptFrameworkRegisteredDeadCodeRootKinds(root, source, fastifyBases, expressBases, koaBases))
 	if hapiHandlerFile {
 		mergeJavaScriptRegisteredRootKinds(
 			registeredRootKinds,

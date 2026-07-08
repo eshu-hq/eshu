@@ -118,7 +118,7 @@ func Parse(
 	reactAliases := rootIndexes.reactAliases
 	siblingParser := newJavaScriptSiblingParser(parserFactory, parserReturner)
 	defer siblingParser.Close()
-	deadCodeRoots := javaScriptDeadCodeRootEvidence(repoRoot, path, root, source, siblingParser, parents, rootIndexes.fastifyBases)
+	deadCodeRoots := javaScriptDeadCodeRootEvidence(repoRoot, path, root, source, siblingParser, parents, rootIndexes.fastifyBases, rootIndexes.expressBases, rootIndexes.koaBases)
 	if len(deadCodeRoots.fileRootKinds) > 0 {
 		payload["dead_code_file_root_kinds"] = append([]string(nil), deadCodeRoots.fileRootKinds...)
 	}
@@ -126,6 +126,12 @@ func Parse(
 	tsConfigImports := NewTSConfigImportResolver(repoRoot, path)
 	newExpressionTypes := rootIndexes.newExpressionTypes
 	fastifyBases := rootIndexes.fastifyBases
+
+	// Gather resolution-candidate node pointers during the declaration walk
+	// so the post-walk framework-semantics resolution can iterate them
+	// in-memory instead of re-walking the entire tree per framework.
+	var gatheredCallExpressions []*tree_sitter.Node
+	var gatheredMethodDefinitions []*tree_sitter.Node
 
 	walkNamed(root, func(node *tree_sitter.Node) {
 		switch node.Kind() {
@@ -140,6 +146,7 @@ func Parse(
 		case "method_definition":
 			nameNode := node.ChildByFieldName("name")
 			appendFunctionDeclaration(payload, path, node, nameNode, source, outputLanguage, options, deadCodeRoots)
+			gatheredMethodDefinitions = append(gatheredMethodDefinitions, cloneNode(node))
 		case "class_declaration", "abstract_class_declaration":
 			nameNode := node.ChildByFieldName("name")
 			name := nodeText(nameNode, source)
@@ -283,6 +290,7 @@ func Parse(
 			if strings.TrimSpace(name) == "" {
 				return
 			}
+			gatheredCallExpressions = append(gatheredCallExpressions, cloneNode(node))
 			fullName := rewriteJavaScriptCommonJSModuleExportAliasFullName(
 				javaScriptCallFullName(functionNode, source),
 				commonJSModuleAliases,
@@ -391,7 +399,11 @@ func Parse(
 		sortNamedBucket(payload, "type_aliases")
 		sortNamedBucket(payload, "enums")
 	}
-	payload["framework_semantics"] = buildJavaScriptFrameworkSemantics(path, root, source, payload, parents, fastifyBases)
+	payload["framework_semantics"] = buildJavaScriptFrameworkSemantics(
+		path, root, source, payload, parents,
+		fastifyBases, rootIndexes.expressBases, rootIndexes.koaBases,
+		gatheredCallExpressions, gatheredMethodDefinitions,
+	)
 
 	emitValueFlowBuckets(payload, root, source, outputLanguage, options)
 

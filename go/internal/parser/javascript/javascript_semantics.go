@@ -176,6 +176,10 @@ func buildJavaScriptFrameworkSemantics(
 	payload map[string]any,
 	parents *javaScriptParentLookup,
 	fastifyBases map[string]struct{},
+	expressBases map[string]struct{},
+	koaBases map[string]struct{},
+	gatheredCallExpressions []*tree_sitter.Node,
+	gatheredMethodDefinitions []*tree_sitter.Node,
 ) map[string]any {
 	semantics := map[string]any{
 		"frameworks": []string{},
@@ -186,19 +190,19 @@ func buildJavaScriptFrameworkSemantics(
 		frameworks = append(frameworks, "nextjs")
 		semantics["nextjs"] = nextjs
 	}
-	if express, ok := detectExpressSemantics(root, source); ok {
+	if express, ok := detectExpressSemanticsFromGathered(root, source, gatheredCallExpressions); ok {
 		frameworks = append(frameworks, "express")
 		semantics["express"] = express
 	}
-	if koa, ok := detectKoaSemantics(root, source); ok {
+	if koa, ok := detectKoaSemanticsFromGathered(root, source, koaBases, gatheredCallExpressions); ok {
 		frameworks = append(frameworks, "koa")
 		semantics["koa"] = koa
 	}
-	if fastify, ok := detectFastifySemantics(root, source, fastifyBases); ok {
+	if fastify, ok := detectFastifySemanticsFromGathered(root, source, fastifyBases, gatheredCallExpressions); ok {
 		frameworks = append(frameworks, "fastify")
 		semantics["fastify"] = fastify
 	}
-	if nestjs, ok := detectNestJSSemantics(root, source, parents); ok {
+	if nestjs, ok := detectNestJSSemanticsFromGathered(root, source, parents, gatheredMethodDefinitions); ok {
 		frameworks = append(frameworks, "nestjs")
 		semantics["nestjs"] = nestjs
 	}
