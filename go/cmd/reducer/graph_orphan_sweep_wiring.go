@@ -50,6 +50,7 @@ func (s graphOrphanSweeper) SweepOrphanNodes(
 		Counts:   result.Counts,
 		Marked:   result.Marked,
 		Deleted:  result.Deleted,
+		Skipped:  result.Skipped,
 		Duration: result.Duration,
 	}, nil
 }

@@ -355,8 +355,11 @@ func TestOrphanSweepStoreUsesInjectedClockAndBoundsMutations(t *testing.T) {
 
 	executor := &recordingOrphanSweepExecutor{}
 	reader := &countingOrphanSweepReader{
-		orphanCount: 3,
-		agedCount:   4,
+		markedCount:   1,
+		orphanCount:   3,
+		agedCount:     4,
+		unmarkedCount: 3,
+		relinkedCount: 1,
 	}
 	store := NewOrphanSweepStore(executor, reader)
 	store.Now = func() time.Time { return time.Unix(1_000, 0).UTC() }
@@ -387,6 +390,9 @@ func TestOrphanSweepStoreUsesInjectedClockAndBoundsMutations(t *testing.T) {
 	}
 	if got := executor.calls[2].Parameters["cutoff_unix"]; got != int64(900) {
 		t.Fatalf("sweep cutoff_unix = %#v, want injected clock minus TTL", got)
+	}
+	if got := result.Skipped["Repository"]; got != 0 {
+		t.Fatalf("Repository skipped = %d, want 0 (all writes executed)", got)
 	}
 }
 
@@ -441,14 +447,25 @@ func (g *convergingOrphanSweepGraph) remaining(label string) int64 {
 }
 
 type countingOrphanSweepReader struct {
-	orphanCount int64
-	agedCount   int64
+	markedCount   int64
+	orphanCount   int64
+	agedCount     int64
+	unmarkedCount int64
+	relinkedCount int64
 }
 
 func (r *countingOrphanSweepReader) Run(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 	count := r.orphanCount
-	if strings.Contains(cypher, "n.eshu_orphan_observed_at_unix <= $cutoff_unix") {
+	switch {
+	case strings.Contains(cypher, "n.eshu_orphan_observed_at_unix <= $cutoff_unix"):
 		count = r.agedCount
+	case strings.Contains(cypher, "n.eshu_orphan_observed_at_unix IS NULL"):
+		count = r.unmarkedCount
+	case strings.Contains(cypher, "n.eshu_orphan_observed_at_unix IS NOT NULL") &&
+		strings.Contains(cypher, "AND (n)--()"):
+		count = r.relinkedCount
+	case strings.Contains(cypher, "n.eshu_orphan_observed_at_unix IS NOT NULL"):
+		count = r.markedCount
 	}
 	return []map[string]any{{"orphan_count": count}}, nil
 }
