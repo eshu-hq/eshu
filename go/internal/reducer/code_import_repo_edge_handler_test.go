@@ -105,6 +105,66 @@ func TestCodeImportRepoEdgeHandlerProjectsEdgeForExternalImport(t *testing.T) {
 	}
 }
 
+// TestCodeImportRepoEdgeHandlerQuarantinesMalformedOwnershipCorrelation proves
+// a malformed persisted reducer_package_ownership_correlation fact is counted
+// as input_invalid without dropping a valid sibling ownership fact from the
+// same batch.
+func TestCodeImportRepoEdgeHandlerQuarantinesMalformedOwnershipCorrelation(t *testing.T) {
+	t.Parallel()
+
+	observedAt := time.Date(2026, 6, 23, 9, 0, 0, 0, time.UTC)
+	packageID := "npm://registry.npmjs.org/express"
+	loader := &stubCodeImportFactLoader{
+		fileFacts: []facts.Envelope{
+			makeCodeImportFileEnvelope("consumer-repo", "src/app.js", "javascript", []string{"express"}),
+		},
+		ownershipFacts: []facts.Envelope{
+			packageRegistryPackageFact(packageID, "npm", "express", "", observedAt),
+			{
+				FactID:        "ownership:missing-package",
+				FactKind:      packageOwnershipCorrelationFactKind,
+				ObservedAt:    observedAt,
+				StableFactKey: "ownership:missing-package",
+				Payload: map[string]any{
+					"repository_id": "ignored-owner",
+					"outcome":       "exact",
+				},
+			},
+			codeImportOwnershipCorrelationFact(packageID, "owner-repo", "exact", observedAt),
+		},
+	}
+	intentWriter := &recordingRepoDependencyIntentWriter{}
+	handler := CodeImportRepoEdgeHandler{
+		FactLoader:                 loader,
+		OwnershipLoader:            loader,
+		RepoDependencyIntentWriter: intentWriter,
+		Now:                        func() time.Time { return observedAt },
+	}
+
+	result, err := handler.Handle(context.Background(), Intent{
+		IntentID:     "intent-code-import",
+		ScopeID:      "git:consumer-repo",
+		GenerationID: "gen-1",
+		Domain:       DomainCodeImportRepoEdge,
+	})
+	if err != nil {
+		t.Fatalf("Handle() error = %v, want nil", err)
+	}
+	if got := result.SubSignals["input_invalid_facts"]; got != 1 {
+		t.Fatalf("SubSignals[input_invalid_facts] = %v, want 1", got)
+	}
+	if len(intentWriter.rows) != 1 {
+		t.Fatalf("RepoDependencyIntentWriter calls = %d, want 1", len(intentWriter.rows))
+	}
+	rows := intentWriter.rows[0]
+	if len(rows) != 1 {
+		t.Fatalf("enqueued intents = %d, want 1", len(rows))
+	}
+	if got := rows[0].Payload["target_repo_id"]; got != "owner-repo" {
+		t.Errorf("target_repo_id = %v, want owner-repo", got)
+	}
+}
+
 // TestCodeImportRepoEdgeHandlerRejectsWrongDomain proves the handler refuses an
 // intent for any other domain.
 func TestCodeImportRepoEdgeHandlerRejectsWrongDomain(t *testing.T) {

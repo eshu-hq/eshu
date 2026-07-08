@@ -19,26 +19,30 @@ import (
 // supplyChainOSPackageFromEnvelope) live in supply_chain_impact_typed_decode.go
 // (split out to keep this file under the repo's 500-line cap).
 
-func supplyChainConsumptionFromEnvelope(envelope facts.Envelope) supplyChainPackageConsumption {
+func supplyChainConsumptionFromEnvelope(envelope facts.Envelope) (supplyChainPackageConsumption, error) {
+	correlation, err := decodeReducerPackageConsumptionCorrelation(envelope)
+	if err != nil {
+		return supplyChainPackageConsumption{}, err
+	}
 	return supplyChainPackageConsumption{
 		factID:                    envelope.FactID,
 		evidenceKind:              packageConsumptionCorrelationFactKind,
-		packageID:                 payloadStr(envelope.Payload, "package_id"),
-		repositoryID:              payloadStr(envelope.Payload, "repository_id"),
-		dependencyRange:           payloadStr(envelope.Payload, "dependency_range"),
-		observedVersion:           firstNonBlank(payloadStr(envelope.Payload, "observed_version"), payloadStr(envelope.Payload, "resolved_version")),
-		requestedRange:            payloadStr(envelope.Payload, "requested_range"),
-		installedVersion:          payloadStr(envelope.Payload, "installed_version"),
-		dependencyPath:            payloadOrderedStrings(envelope.Payload, "dependency_path"),
-		dependencyDepth:           supplyChainInt(envelope.Payload, "dependency_depth"),
-		directDependency:          payloadBoolPointer(envelope.Payload, "direct_dependency"),
-		dependencyScope:           supplyChainDependencyScope(envelope.Payload),
-		versionEvidence:           payloadStr(envelope.Payload, "version_evidence"),
-		unresolvedMSBuildProperty: payloadStr(envelope.Payload, "unresolved_msbuild_property"),
-		ambiguousMSBuildProperty:  payloadStr(envelope.Payload, "ambiguous_msbuild_property"),
-		partialEvidence:           payloadBool(envelope.Payload, "partial_evidence"),
-		lockfile:                  payloadBool(envelope.Payload, "lockfile"),
-	}
+		packageID:                 strings.TrimSpace(correlation.PackageID),
+		repositoryID:              strings.TrimSpace(derefString(correlation.RepositoryID)),
+		dependencyRange:           strings.TrimSpace(derefString(correlation.DependencyRange)),
+		observedVersion:           firstNonBlank(derefString(correlation.ObservedVersion), derefString(correlation.ResolvedVersion)),
+		requestedRange:            strings.TrimSpace(derefString(correlation.RequestedRange)),
+		installedVersion:          strings.TrimSpace(derefString(correlation.InstalledVersion)),
+		dependencyPath:            orderedStrings(correlation.DependencyPath),
+		dependencyDepth:           derefInt(correlation.DependencyDepth),
+		directDependency:          correlation.DirectDependency,
+		dependencyScope:           supplyChainDependencyScopeFromCorrelation(correlation.DependencyScope, correlation.ManifestSection),
+		versionEvidence:           strings.TrimSpace(derefString(correlation.VersionEvidence)),
+		unresolvedMSBuildProperty: strings.TrimSpace(derefString(correlation.UnresolvedMSBuildProperty)),
+		ambiguousMSBuildProperty:  strings.TrimSpace(derefString(correlation.AmbiguousMSBuildProperty)),
+		partialEvidence:           derefBool(correlation.PartialEvidence),
+		lockfile:                  derefBool(correlation.Lockfile),
+	}, nil
 }
 
 // supplyChainSBOMComponentFromEnvelope reads sbom.component raw
@@ -183,6 +187,13 @@ func supplyChainDependencyScope(payload map[string]any) string {
 		return scope
 	}
 	return payloadStr(payload, "manifest_section")
+}
+
+func supplyChainDependencyScopeFromCorrelation(dependencyScope, manifestSection *string) string {
+	if scope := strings.TrimSpace(derefString(dependencyScope)); scope != "" {
+		return scope
+	}
+	return strings.TrimSpace(derefString(manifestSection))
 }
 
 func firstConsumption(

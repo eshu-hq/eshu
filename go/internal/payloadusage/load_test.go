@@ -42,8 +42,8 @@ func TestLoadAgainstRealReducer(t *testing.T) {
 		t.Fatalf("Load() error = %v", err)
 	}
 
-	if len(manifest.Kinds) != 103 {
-		t.Fatalf("len(manifest.Kinds) = %d, want 103 (8 aws/iam + 6 wired incident (4 reducer-decoded + incident.lifecycle_event and change.record decoded only by the query-layer incident-context read model, #4794 W2a) + 2 wired gcp + 2 wired azure + 3 wired kubernetes_live + 8 wired vulnerability + 5 wired sbom_attestation + 6 wired ci_cd_run + 8 wired secrets_iam vault/k8s reducer kinds + 1 wired security_alert reducer kind + 17 wired observability reducer kinds (source_instance is typed but has no reducer decode wrapper, so it is intentionally excluded) + 2 wired code kinds (file, repository outer envelopes) + 6 wired codedataflow kinds (Wave 4f S2) + 4 wired service_catalog kinds (entity, ownership, repository_link via the reducer; operational_link decoded only by the query-layer incident-context read model, #4794 W2a) + 6 projector oci_registry kinds + 5 projector terraform_state kinds + 3 projector package_registry kinds + 9 wired work_item query kinds (issue_type_metadata added #4731) + 2 wired documentation kinds via the reducer, projector, and query factschema_decode*.go globs); got %+v", len(manifest.Kinds), manifest.Kinds)
+	if len(manifest.Kinds) != 106 {
+		t.Fatalf("len(manifest.Kinds) = %d, want 106 (8 aws/iam + 6 wired incident (4 reducer-decoded + incident.lifecycle_event and change.record decoded only by the query-layer incident-context read model, #4794 W2a) + 2 wired gcp + 2 wired azure + 3 wired kubernetes_live + 8 wired vulnerability + 5 wired sbom_attestation + 6 wired ci_cd_run + 8 wired secrets_iam vault/k8s reducer kinds + 1 wired security_alert reducer kind + 3 reducer_derived package correlation kinds + 17 wired observability reducer kinds (source_instance is typed but has no reducer decode wrapper, so it is intentionally excluded) + 2 wired code kinds (file, repository outer envelopes) + 6 wired codedataflow kinds (Wave 4f S2) + 4 wired service_catalog kinds (entity, ownership, repository_link via the reducer; operational_link decoded only by the query-layer incident-context read model, #4794 W2a) + 6 projector oci_registry kinds + 5 projector terraform_state kinds + 3 projector package_registry kinds + 9 wired work_item query kinds (issue_type_metadata added #4731) + 2 wired documentation kinds via the reducer, projector, and query factschema_decode*.go globs); got %+v", len(manifest.Kinds), manifest.Kinds)
 	}
 
 	var awsResource *KindManifest
@@ -141,8 +141,8 @@ func TestGateAgainstRealReducerAndSchemas(t *testing.T) {
 	if len(violations) != 0 {
 		t.Fatalf("Gate() found %d violation(s) against the real repository state, want 0:\n%s", len(violations), violationsString(violations))
 	}
-	if len(manifest.Kinds) != 103 {
-		t.Fatalf("len(manifest.Kinds) = %d, want 103", len(manifest.Kinds))
+	if len(manifest.Kinds) != 106 {
+		t.Fatalf("len(manifest.Kinds) = %d, want 106", len(manifest.Kinds))
 	}
 }
 

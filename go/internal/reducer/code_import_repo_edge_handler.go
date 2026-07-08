@@ -101,10 +101,27 @@ func (h CodeImportRepoEdgeHandler) Handle(ctx context.Context, intent Intent) (R
 	if err != nil {
 		return Result{}, fmt.Errorf("load active package ownership facts: %w", err)
 	}
+	ownershipDecisions, ownershipQuarantined, err := decodePackageOwnershipCorrelationDecisions(ownershipEnvelopes)
+	if err != nil {
+		return Result{}, fmt.Errorf("decode package ownership correlations: %w", err)
+	}
+	publicationDecisions, publicationQuarantined, err := decodePackagePublicationCorrelationDecisions(ownershipEnvelopes)
+	if err != nil {
+		return Result{}, fmt.Errorf("decode package publication correlations: %w", err)
+	}
+	quarantined := append(ownershipQuarantined, publicationQuarantined...)
+	inputInvalidCount := recordQuarantinedFacts(
+		ctx,
+		h.Instruments,
+		DomainCodeImportRepoEdge,
+		intent.ScopeID,
+		intent.GenerationID,
+		quarantined,
+	)
 	owners := buildCodeImportOwnerIndex(
 		ownershipEnvelopes,
-		decodePackageOwnershipCorrelationDecisions(ownershipEnvelopes),
-		decodePackagePublicationCorrelationDecisions(ownershipEnvelopes),
+		ownershipDecisions,
+		publicationDecisions,
 	)
 
 	edgeInput := CodeImportRepoDependencyInput{
@@ -135,12 +152,12 @@ func (h CodeImportRepoEdgeHandler) Handle(ctx context.Context, intent Intent) (R
 	intents = append(intents, upsertIntents...)
 	intents = append(intents, refreshIntents...)
 	if len(intents) == 0 {
-		return h.succeededResult(intent, counts, 0), nil
+		return h.succeededResult(intent, counts, 0, inputInvalidCount), nil
 	}
 	if err := h.RepoDependencyIntentWriter.UpsertIntents(ctx, intents); err != nil {
 		return Result{}, fmt.Errorf("upsert code import repo dependency intents: %w", err)
 	}
-	return h.succeededResult(intent, counts, len(upsertIntents)), nil
+	return h.succeededResult(intent, counts, len(upsertIntents), inputInvalidCount), nil
 }
 
 func (h CodeImportRepoEdgeHandler) tracerStartSkippable() bool {
@@ -163,7 +180,12 @@ func (h CodeImportRepoEdgeHandler) skippedResult(intent Intent, reason string) R
 	}
 }
 
-func (h CodeImportRepoEdgeHandler) succeededResult(intent Intent, counts codeImportEdgeCounts, written int) Result {
+func (h CodeImportRepoEdgeHandler) succeededResult(
+	intent Intent,
+	counts codeImportEdgeCounts,
+	written int,
+	inputInvalidCount int,
+) Result {
 	return Result{
 		IntentID: intent.IntentID,
 		Domain:   DomainCodeImportRepoEdge,
@@ -179,6 +201,7 @@ func (h CodeImportRepoEdgeHandler) succeededResult(intent Intent, counts codeImp
 			counts.skippedSelf,
 			counts.skippedMalformedFile,
 		),
+		SubSignals: inputInvalidSubSignals(inputInvalidCount),
 	}
 }
 

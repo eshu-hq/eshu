@@ -1,0 +1,258 @@
+{
+  "$id": "https://eshu.dev/schemas/factschema/reducerderived/v1/package_consumption_correlation.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "ambiguous_msbuild_property": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "canonical_writes": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "cause": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "correlation_kind": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "dependency_depth": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "dependency_path": {
+      "items": {
+        "type": "string"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "dependency_range": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "dependency_scope": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "development_dependency": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "direct_dependency": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "ecosystem": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "evidence_fact_ids": {
+      "items": {
+        "type": "string"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "exclude_assets": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "generation_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "include_assets": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "installed_version": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "intent_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "lockfile": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "manifest_section": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "observed_version": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "outcome": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "package_id": {
+      "type": "string"
+    },
+    "package_name": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "partial_evidence": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "private_assets": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "provenance_only": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "reason": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "reducer_domain": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "relationship_kind": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "relative_path": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "repository_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "repository_name": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "requested_range": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "resolved_version": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "scope_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "source_layers": {
+      "items": {
+        "type": "string"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "source_system": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "test_dependency": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "unresolved_msbuild_property": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "version_evidence": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "package_id"
+  ],
+  "title": "Eshu reducer_package_consumption_correlation Payload (schema version 1)",
+  "type": "object"
+}

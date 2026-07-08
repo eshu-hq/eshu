@@ -17,6 +17,15 @@ const (
 	// FactKindReducerMultiCloudRuntimeDriftFinding identifies one provider-neutral
 	// runtime drift finding written by the reducer.
 	FactKindReducerMultiCloudRuntimeDriftFinding = "reducer_multi_cloud_runtime_drift_finding"
+	// FactKindReducerPackageOwnershipCorrelation identifies one reducer-owned
+	// package source-hint ownership decision.
+	FactKindReducerPackageOwnershipCorrelation = "reducer_package_ownership_correlation"
+	// FactKindReducerPackageConsumptionCorrelation identifies one reducer-owned
+	// package consumption decision.
+	FactKindReducerPackageConsumptionCorrelation = "reducer_package_consumption_correlation"
+	// FactKindReducerPackagePublicationCorrelation identifies one reducer-owned
+	// package publication decision.
+	FactKindReducerPackagePublicationCorrelation = "reducer_package_publication_correlation"
 )
 
 // DecodeReducerSupplyChainImpactFinding decodes env.Payload into the latest
@@ -53,4 +62,40 @@ func DecodeReducerMultiCloudRuntimeDriftFinding(env Envelope) (reducerderivedv1.
 // runtime drift finding into the map payload shape an Envelope carries.
 func EncodeReducerMultiCloudRuntimeDriftFinding(finding reducerderivedv1.MultiCloudRuntimeDriftFinding) (map[string]any, error) {
 	return encodeDirectPayload(finding)
+}
+
+// DecodeReducerPackageOwnershipCorrelation decodes env.Payload into the latest
+// reducerderivedv1.PackageOwnershipCorrelation struct.
+func DecodeReducerPackageOwnershipCorrelation(env Envelope) (reducerderivedv1.PackageOwnershipCorrelation, error) {
+	return decodeLatestMajor[reducerderivedv1.PackageOwnershipCorrelation](FactKindReducerPackageOwnershipCorrelation, env)
+}
+
+// EncodeReducerPackageOwnershipCorrelation marshals a typed package ownership
+// correlation into the map payload shape an Envelope carries.
+func EncodeReducerPackageOwnershipCorrelation(correlation reducerderivedv1.PackageOwnershipCorrelation) (map[string]any, error) {
+	return encodeDirectPayload(correlation)
+}
+
+// DecodeReducerPackageConsumptionCorrelation decodes env.Payload into the
+// latest reducerderivedv1.PackageConsumptionCorrelation struct.
+func DecodeReducerPackageConsumptionCorrelation(env Envelope) (reducerderivedv1.PackageConsumptionCorrelation, error) {
+	return decodeLatestMajor[reducerderivedv1.PackageConsumptionCorrelation](FactKindReducerPackageConsumptionCorrelation, env)
+}
+
+// EncodeReducerPackageConsumptionCorrelation marshals a typed package
+// consumption correlation into the map payload shape an Envelope carries.
+func EncodeReducerPackageConsumptionCorrelation(correlation reducerderivedv1.PackageConsumptionCorrelation) (map[string]any, error) {
+	return encodeDirectPayload(correlation)
+}
+
+// DecodeReducerPackagePublicationCorrelation decodes env.Payload into the
+// latest reducerderivedv1.PackagePublicationCorrelation struct.
+func DecodeReducerPackagePublicationCorrelation(env Envelope) (reducerderivedv1.PackagePublicationCorrelation, error) {
+	return decodeLatestMajor[reducerderivedv1.PackagePublicationCorrelation](FactKindReducerPackagePublicationCorrelation, env)
+}
+
+// EncodeReducerPackagePublicationCorrelation marshals a typed package
+// publication correlation into the map payload shape an Envelope carries.
+func EncodeReducerPackagePublicationCorrelation(correlation reducerderivedv1.PackagePublicationCorrelation) (map[string]any, error) {
+	return encodeDirectPayload(correlation)
 }

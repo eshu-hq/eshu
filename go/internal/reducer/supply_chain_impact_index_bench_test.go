@@ -12,8 +12,9 @@ import (
 
 // BenchmarkBuildSupplyChainImpactIndexWithQuarantine measures the in-memory
 // classification-index build for a representative per-scope-generation batch
-// of vulnerability.* facts: one CVE, one affected_package, and one os_package
-// fact per synthetic advisory. This is the cold, once-per-scope-generation
+// of vulnerability.* plus reducer package-consumption facts: one CVE, one
+// affected_package, one reducer_package_consumption_correlation, and one
+// os_package fact per synthetic advisory. This is the cold, once-per-scope-generation
 // path buildSupplyChainImpactIndexWithQuarantine feeds
 // BuildSupplyChainImpactFindings/SupplyChainImpactHandler.Handle (not a hot
 // per-edge loop), so the typed-decode cost is measured for a no-regression
@@ -21,9 +22,10 @@ import (
 // BenchmarkBuildIncidentRoutingEvidenceInputs precedent.
 func BenchmarkBuildSupplyChainImpactIndexWithQuarantine(b *testing.B) {
 	const advisoryCount = 2000
-	envelopes := make([]facts.Envelope, 0, advisoryCount*3)
+	envelopes := make([]facts.Envelope, 0, advisoryCount*4)
 	for i := 0; i < advisoryCount; i++ {
 		cveID := fmt.Sprintf("CVE-2026-%05d", i)
+		packageID := fmt.Sprintf("pkg:npm/bench-package-%d", i)
 		envelopes = append(envelopes, facts.Envelope{
 			FactID:   fmt.Sprintf("cve-%d", i),
 			FactKind: facts.VulnerabilityCVEFactKind,
@@ -45,12 +47,24 @@ func BenchmarkBuildSupplyChainImpactIndexWithQuarantine(b *testing.B) {
 				"cve_id":            cveID,
 				"advisory_id":       cveID,
 				"source":            "osv",
-				"package_id":        fmt.Sprintf("pkg:npm/bench-package-%d", i),
+				"package_id":        packageID,
 				"ecosystem":         "npm",
 				"package_name":      fmt.Sprintf("bench-package-%d", i),
 				"purl":              fmt.Sprintf("pkg:npm/bench-package-%d@1.0.0", i),
 				"affected_versions": []any{"1.0.0"},
 				"fixed_versions":    []any{"1.0.1"},
+			},
+		})
+		envelopes = append(envelopes, facts.Envelope{
+			FactID:   fmt.Sprintf("package-consumption-%d", i),
+			FactKind: packageConsumptionCorrelationFactKind,
+			Payload: map[string]any{
+				"package_id":       packageID,
+				"repository_id":    fmt.Sprintf("repo-%d", i),
+				"dependency_range": "^1.0.0",
+				"observed_version": "1.0.0",
+				"dependency_path":  []any{fmt.Sprintf("bench-package-%d", i)},
+				"dependency_depth": 1,
 			},
 		})
 		envelopes = append(envelopes, facts.Envelope{

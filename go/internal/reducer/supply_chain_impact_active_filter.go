@@ -230,7 +230,10 @@ func supplyChainImpactParserFileRepositoryIDs(envelopes []facts.Envelope) []stri
 		if envelope.FactKind != packageConsumptionCorrelationFactKind {
 			continue
 		}
-		consumption := supplyChainConsumptionFromEnvelope(envelope)
+		consumption, err := supplyChainConsumptionFromEnvelope(envelope)
+		if err != nil {
+			continue
+		}
 		if consumption.repositoryID == "" {
 			continue
 		}
