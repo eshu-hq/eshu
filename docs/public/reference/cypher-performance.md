@@ -990,21 +990,27 @@ AND rel.scope_id IN $scope_ids AND rel.evidence_source = $evidence_source DELETE
 rel` (security-group anchors two families on `sg.uid` / `rule.uid`). This is
 O(scope source count), not O(total store).
 
-Performance Evidence: the shape depends on NornicDB's IN-list start-node index
-seed (orneryd/NornicDB#258); on the built fix-branch binary,
+Performance Evidence: the speedup depends on NornicDB's IN-list start-node index
+seed (orneryd/NornicDB#258/#259), so all numbers below are measured on the
+fix-branch backend, not on the Compose default. On the built fix-branch binary,
 `BenchmarkInListAnchoredRelMatch` (50k-node label, 100-uid sublist) goes
 109,930,838 -> 301,410 ns/op (~365x), 83MB -> 228KB, 1.39M -> 2.8k allocs.
-Real query path (HTTP, built binary, 20k-CloudResource store,
+Real query path (HTTP, fix-branch binary, 20k-CloudResource store,
 `NORNICDB_ASYNC_WRITES_ENABLED=false`): the node-only `WHERE source.uid IN $u`
 seed is flat ~0.10s at N=100/500/5000; the full anchored retract is 0.26s (N=100)
 and 0.70s (N=500) versus the OLD label scan at ~7s and growing with the whole
 store.
 
-Backend / version: NornicDB `fix/rel-source-uid-in-index-seed`
+Backend / version: the win needs NornicDB `fix/rel-source-uid-in-index-seed`
 (orneryd/NornicDB#259, which also fixes the multi-MATCH relationship-binding
-correctness bug #257); the Eshu Compose NornicDB image is pinned to that branch
-until it merges. On stock NornicDB the anchored shape is correct but not yet
-index-seeded, so this change ships pinned.
+correctness bug #257). The Compose default is NOT that branch — it stays on the
+published stock image (`docker-compose.yaml` still defaults `NORNICDB_IMAGE` to
+`timothyswt/nornicdb-cpu-bge`), where the anchored shape is correct but not yet
+index-seeded, so it is no worse than the old label scan but does not yet get the
+O(scope) speedup. To measure or run the speedup before #259 merges and ships a
+tagged image, override `NORNICDB_IMAGE` to a build of that branch (noted in
+`docker-compose.yaml`). This note documents the shape and the fix-branch
+measurement; it does not claim the stock default is fast.
 
 Input shape: warm re-ingest of a scope that already has a prior generation (cold
 ingest still skips the retract on first projection). Leak-safe by construction:
