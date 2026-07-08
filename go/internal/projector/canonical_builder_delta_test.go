@@ -37,8 +37,10 @@ func TestBuildCanonicalMaterializationExtractsDeltaProjectionScope(t *testing.T)
 			ScopeID:  "scope-1",
 			FactKind: "file",
 			Payload: map[string]any{
-				"relative_path": "src/main.go",
-				"language":      "go",
+				"repo_id":          "repo-abc",
+				"relative_path":    "src/main.go",
+				"language":         "go",
+				"parsed_file_data": map[string]any{},
 			},
 		},
 	}

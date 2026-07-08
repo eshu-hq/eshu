@@ -258,6 +258,8 @@ var quarantinedFactStagePrefixes = []stagePrefix{
 	{prefix: "package_registry.", stage: packageRegistryCanonicalStage},
 	{prefix: "terraform_state", stage: terraformStateCanonicalStage},
 	{prefix: "oci_registry.", stage: ociRegistryCanonicalStage},
+	{prefix: "repository", stage: codegraphCanonicalStage},
+	{prefix: "file", stage: codegraphCanonicalStage},
 }
 
 // quarantinedFactStage returns the bounded telemetry stage label for the

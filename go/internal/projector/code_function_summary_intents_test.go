@@ -30,7 +30,7 @@ func TestBuildCodeFunctionSummaryReducerIntentFromFact(t *testing.T) {
 			FactKind:      facts.CodeFunctionSummaryFactKind,
 			FactID:        "summary-fact-1",
 			CollectorKind: "git",
-			Payload:       map[string]any{"repo_id": "repo-1"},
+			Payload:       map[string]any{"function_id": "repo-1\x1fpkg\x1f\x1fHandle"},
 		},
 	})
 	if !ok {
@@ -47,6 +47,26 @@ func TestBuildCodeFunctionSummaryReducerIntentFromFact(t *testing.T) {
 	}
 	if _, ok := intent.Payload["full_snapshot"]; ok {
 		t.Fatalf("summary-only intent marked full snapshot: %#v", intent.Payload)
+	}
+}
+
+func TestBuildCodeFunctionSummaryReducerIntentSkipsInvalidSummaryRepoID(t *testing.T) {
+	t.Parallel()
+	scopeValue := scope.IngestionScope{ScopeID: "scope-1"}
+	generation := scope.ScopeGeneration{GenerationID: "gen-1"}
+	intent, ok := buildCodeFunctionSummaryReducerIntent(scopeValue, generation, []facts.Envelope{
+		{
+			FactKind:      facts.CodeFunctionSummaryFactKind,
+			FactID:        "summary-fact-1",
+			CollectorKind: "git",
+			Payload:       map[string]any{"repo_id": "repo-1"},
+		},
+	})
+	if !ok {
+		t.Fatal("no intent queued for a code_function_summary fact")
+	}
+	if _, ok := intent.Payload["repo_id"]; ok {
+		t.Fatalf("intent payload = %#v, want no repo_id from input_invalid summary", intent.Payload)
 	}
 }
 

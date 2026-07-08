@@ -37,7 +37,11 @@ func buildIAMCanAssumeMaterializationReducerIntent(
 		if envelope.FactKind != facts.AWSIAMPermissionFactKind {
 			continue
 		}
-		if source, _ := payloadString(envelope.Payload, "policy_source"); source != iamCanAssumePolicySourceTrust {
+		permission, err := decodeAWSIAMPermission(envelope)
+		if err != nil {
+			continue
+		}
+		if permission.PolicySource != iamCanAssumePolicySourceTrust {
 			continue
 		}
 		return ReducerIntent{

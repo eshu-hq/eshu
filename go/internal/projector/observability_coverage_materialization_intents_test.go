@@ -25,10 +25,33 @@ func observabilityAWSResourceEnvelope(factID, scopeID, generationID, resourceTyp
 			SourceSystem: "aws",
 		},
 		Payload: map[string]any{
+			"account_id":    "123456789012",
 			"arn":           "arn:aws:cloudwatch:us-east-1:123456789012:alarm:cpu-high",
+			"region":        "us-east-1",
 			"resource_id":   "cpu-high",
 			"resource_type": resourceType,
 		},
+	}
+}
+
+func TestBuildProjectionDoesNotQueueObservabilityCoverageFromInvalidAWSResource(t *testing.T) {
+	t.Parallel()
+
+	scopeValue, generation := observabilityCoverageScopeAndGeneration()
+	envelopes := []facts.Envelope{
+		observabilityAWSResourceEnvelope("fact-invalid-alarm", scopeValue.ScopeID, generation.GenerationID, "aws_cloudwatch_alarm"),
+	}
+	delete(envelopes[0].Payload, "resource_id")
+
+	projection, err := buildProjection(scopeValue, generation, envelopes)
+	if err != nil {
+		t.Fatalf("buildProjection() error = %v, want nil", err)
+	}
+	for _, intent := range projection.reducerIntents {
+		if intent.Domain == reducer.DomainObservabilityCoverageMaterialization ||
+			intent.Domain == reducer.DomainObservabilityCoverageCorrelation {
+			t.Fatalf("unexpected observability coverage intent from input_invalid resource: %s", intent.Domain)
+		}
 	}
 }
 

@@ -33,7 +33,11 @@ func buildS3LogsToMaterializationReducerIntent(
 		if envelope.FactKind != facts.S3BucketPostureFactKind {
 			continue
 		}
-		target, _ := payloadString(envelope.Payload, "logging_target_bucket")
+		posture, err := decodeS3BucketPosture(envelope)
+		if err != nil {
+			continue
+		}
+		target := codegraphDerefString(posture.LoggingTargetBucket)
 		if strings.TrimSpace(target) == "" {
 			continue
 		}

@@ -24,7 +24,11 @@ func ProjectWorkloadStage(envelopes []facts.Envelope) WorkloadStageResult {
 
 	seenRepos := make(map[string]struct{}, len(repoFacts))
 	for i := range repoFacts {
-		repoID, _ := payloadString(repoFacts[i].Payload, "repo_id")
+		repository, err := decodeCodegraphRepository(repoFacts[i])
+		if err != nil {
+			continue
+		}
+		repoID := repository.RepoID
 		if repoID == "" {
 			continue
 		}
@@ -34,7 +38,7 @@ func ProjectWorkloadStage(envelopes []facts.Envelope) WorkloadStageResult {
 		seenRepos[repoID] = struct{}{}
 		result.RepositoryIDs = append(result.RepositoryIDs, repoID)
 
-		sourceRunID, _ := payloadString(repoFacts[i].Payload, "source_run_id")
+		sourceRunID := codegraphDerefString(repository.SourceRunID)
 		if sourceRunID != "" {
 			result.SourceRunPairs[repoID] = sourceRunID
 		}

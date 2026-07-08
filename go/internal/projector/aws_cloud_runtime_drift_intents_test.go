@@ -172,7 +172,9 @@ func awsResourceEnvelope(factID, scopeID, generationID string) facts.Envelope {
 			SourceSystem: "aws",
 		},
 		Payload: map[string]any{
+			"account_id":    "123456789012",
 			"arn":           "arn:aws:lambda:us-east-1:123456789012:function:team-api",
+			"region":        "us-east-1",
 			"resource_id":   "team-api",
 			"resource_type": "aws_lambda_function",
 			"tags": map[string]any{

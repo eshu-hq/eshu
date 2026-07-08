@@ -38,7 +38,11 @@ func buildEC2UsesProfileMaterializationReducerIntent(
 		if envelope.FactKind != facts.EC2InstancePostureFactKind {
 			continue
 		}
-		profileARN, _ := payloadString(envelope.Payload, "instance_profile_arn")
+		posture, err := decodeEC2InstancePosture(envelope)
+		if err != nil {
+			continue
+		}
+		profileARN := codegraphDerefString(posture.InstanceProfileARN)
 		if strings.TrimSpace(profileARN) == "" {
 			continue
 		}

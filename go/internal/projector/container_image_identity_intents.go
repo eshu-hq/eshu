@@ -48,8 +48,11 @@ func containerImageIdentityTriggerFact(envelope facts.Envelope) bool {
 	case facts.GCPImageReferenceFactKind:
 		return true
 	case facts.AWSRelationshipFactKind:
-		targetType, _ := payloadString(envelope.Payload, "target_type")
-		return targetType == "container_image"
+		relationship, err := decodeAWSRelationship(envelope)
+		if err != nil {
+			return false
+		}
+		return codegraphDerefString(relationship.TargetType) == "container_image"
 	case "content_entity":
 		return len(containerImageRefsFromEntityMetadata(envelope.Payload)) > 0
 	default:

@@ -64,9 +64,9 @@ func buildObservabilityCoverageMaterializationReducerIntent(
 // awsResourceTypeForEnvelope returns the resource_type string from an
 // aws_resource fact payload, or empty when absent.
 func awsResourceTypeForEnvelope(envelope facts.Envelope) string {
-	if envelope.Payload == nil {
+	resource, err := decodeAWSResource(envelope)
+	if err != nil {
 		return ""
 	}
-	resourceType, _ := envelope.Payload["resource_type"].(string)
-	return resourceType
+	return resource.ResourceType
 }
