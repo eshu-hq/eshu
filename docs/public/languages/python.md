@@ -118,6 +118,43 @@ index builders should extend the shared pass rather than adding another
 full-tree walk when the new builder has no dependency on another builder's
 completed output.
 
+- **Framework-route re-walk elimination (#4922, epic #4917):**
+  `buildPythonFrameworkSemantics` (`go/internal/parser/python/framework_routes.go`)
+  and `buildPythonORMTableMappings` were dispatching every per-framework detector
+  (FastAPI, Flask, Django, DRF, aiohttp, Tornado) to run independent full-tree
+  `walkNamed` traversals for each file — separate walks for server-symbol
+  assignments, route decorators, call-site routes, import-statement scanning,
+  HTTP-method-by-class mapping, and class-definition ORM-table extraction. Each
+  detector's walks were redundant because the main parse walk already visits
+  every named node. Resolution-candidate nodes (assignment, decorator, call,
+  function_definition, class_definition, import_statement/import_from_statement)
+  are now gathered (cloned) during a single `gatherPythonFrameworkNodes` pass,
+  and every framework detector resolves against the pre-gathered in-memory slices
+  via plain `for` loops — eliminating all per-framework full-tree walks. The
+  old code ran up to ~20 `walkNamed` traversals per file; the new code runs
+  exactly 2 (the main walk + the gather walk).
+
+Performance Evidence: throwaway microbenchmark parsing `deadcode/python/app.py`
+(85-LOC Python with FastAPI + Flask routes, Apple M5 Max):
+  - **BEFORE** (merge-base 8085fd1b8): **1,821,348 ns/op**, **301,979 B/op**, **12,493 allocs/op**
+  - **AFTER** (gather-then-resolve): **414,693 ns/op**, **41,448 B/op**, **1,507 allocs/op**
+  - Delta: **-77.2% wall**, **-86.3% memory**, **-87.9% allocs** (framework-semantics + ORM path only)
+
+`BenchmarkParse/python` (10,019-LOC corpus, 10-count):
+  - **BEFORE** (merge-base 8085fd1b8): ~10.6s/op, ~1,875 MB/op, ~75.7M allocs/op
+  - **AFTER** (gather-then-resolve): ~9.4s/op, ~1,841 MB/op, ~74.2M allocs/op
+  - Delta: **-11% wall**, **-1.8% memory**, **-1.9% allocs** (full `Parse`)
+
+No-Regression Evidence: parser output is byte-identical old-vs-new (the `0/0`
+symmetric-diff over the full fixtures corpus via `PY_PARSE_DUMP`, plus
+byte-identical `diff` output), so no accuracy regression is possible; the
+change only removes duplicate traversal work.
+
+No-Observability-Change: this is a pure structural walk consolidation with no
+runtime-behavior change and no new metric/span/log surface. Per-file Python parse
+timing is already covered by the existing parser parse-stage telemetry; no new
+operator signals are warranted.
+
 ## Related Docs
 
 - [Dead Code Language Maturity](../reference/dead-code-language-maturity.md)

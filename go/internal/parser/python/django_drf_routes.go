@@ -314,3 +314,107 @@ func pythonCallInURLPatterns(call *tree_sitter.Node, source []byte) bool {
 	}
 	return false
 }
+
+// --- Gathered-variant helpers for the Django/DRF detectors ---
+
+// pythonModuleFunctionNamesGathered mirrors pythonModuleFunctionNames
+// but iterates a pre-gathered function_definition slice.
+func pythonModuleFunctionNamesGathered(gathered []*tree_sitter.Node, source []byte) map[string]struct{} {
+	names := make(map[string]struct{})
+	for _, node := range gathered {
+		if !pythonModuleLevelDefinition(node) {
+			continue
+		}
+		name := nodeText(node.ChildByFieldName("name"), source)
+		if name != "" {
+			names[name] = struct{}{}
+		}
+	}
+	return names
+}
+
+// pythonHTTPMethodsByClassGathered mirrors pythonHTTPMethodsByClass
+// but iterates a pre-gathered function_definition slice.
+func pythonHTTPMethodsByClassGathered(gathered []*tree_sitter.Node, source []byte) map[string][]string {
+	return pythonMethodsByClassGathered(gathered, source, pythonHTTPRouteMethods)
+}
+
+// pythonMethodsByClassGathered mirrors pythonMethodsByClass
+// but iterates a pre-gathered function_definition slice.
+func pythonMethodsByClassGathered(
+	gathered []*tree_sitter.Node,
+	source []byte,
+	allowed map[string]struct{},
+) map[string][]string {
+	byClass := make(map[string][]string)
+	for _, node := range gathered {
+		className := pythonEnclosingClassName(node, source)
+		methodName := nodeText(node.ChildByFieldName("name"), source)
+		if className == "" || methodName == "" {
+			continue
+		}
+		if _, ok := allowed[strings.ToLower(methodName)]; !ok {
+			continue
+		}
+		byClass[className] = appendUniqueString(byClass[className], strings.ToUpper(methodName))
+	}
+	return byClass
+}
+
+// pythonHasDjangoPathImportGathered mirrors pythonHasDjangoPathImport
+// but iterates a pre-gathered import slice. It only considers
+// import_from_statement nodes, matching the original helper's exact
+// predicate (`from django.urls import path`); an `import` statement
+// (`import django.urls as path`) must not match.
+func pythonHasDjangoPathImportGathered(gathered []*tree_sitter.Node, source []byte) bool {
+	for _, node := range gathered {
+		if node.Kind() != "import_from_statement" {
+			continue
+		}
+		text := nodeText(node, source)
+		if strings.Contains(text, "django.urls") && strings.Contains(text, "path") {
+			return true
+		}
+	}
+	return false
+}
+
+// detectPythonDjangoSemanticsGathered produces the same output as
+// detectPythonDjangoSemantics using pre-gathered nodes.
+func detectPythonDjangoSemanticsGathered(g pythonGatheredNodes, source []byte) map[string]any {
+	classMethods := pythonHTTPMethodsByClassGathered(g.functions, source)
+	entries := pythonDjangoURLPatternEntriesGathered(g, source, classMethods)
+	return pythonRouteSemantics(entries)
+}
+
+// pythonDjangoURLPatternEntriesGathered mirrors pythonDjangoURLPatternEntries
+// using pre-gathered nodes.
+func pythonDjangoURLPatternEntriesGathered(
+	g pythonGatheredNodes,
+	source []byte,
+	classMethods map[string][]string,
+) []map[string]string {
+	if !pythonHasDjangoPathImportGathered(g.imports, source) {
+		return nil
+	}
+	functionNames := pythonModuleFunctionNamesGathered(g.functions, source)
+	entries := make([]map[string]string, 0)
+	for _, node := range g.calls {
+		if pythonCallSimpleName(node.ChildByFieldName("function"), source) != "path" {
+			continue
+		}
+		if !pythonCallInURLPatterns(node, source) {
+			continue
+		}
+		routePath := pythonDjangoRoutePath(pythonPositionalArgument(node, 0), source)
+		if routePath == "" {
+			continue
+		}
+		view := pythonPositionalArgument(node, 1)
+		if view == nil || pythonViewTargetIsInclude(view, source) || pythonViewTargetIsDRFActionMap(view, source) {
+			continue
+		}
+		entries = append(entries, pythonDjangoViewEntries(routePath, view, source, classMethods, functionNames)...)
+	}
+	return entries
+}
