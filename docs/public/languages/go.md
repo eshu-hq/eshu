@@ -119,6 +119,43 @@ runtime-behavior change and no new metric/span/log surface. Per-file Go parse
 timing is already covered by the existing parser/pre-scan parse-stage
 telemetry; no new operator signals are warranted.
 
+- **Dead-code resolution re-walk elimination (#4920):** `goCollectSemanticDeadCodeRoots`
+  (`go/internal/parser/golang/dead_code_semantic_roots.go`) was running two
+  independent full-tree `walkNamed` traversals for each file — one to resolve
+  every `var_spec`, `short_var_declaration`, `assignment_statement`,
+  `composite_literal`, `parameter_declaration`, `field_declaration`,
+  `function_declaration`, `return_statement`, and `call_expression` against
+  walk-1's declaration maps, and a third via
+  `goMarkGenericConstraintInterfaceRoots` to resolve
+  `type_parameter_declaration` nodes. These walks were redundant because walk-1
+  (declaration collection) already visits every named node in the tree.
+  Resolution-candidate node pointers are now gathered (cloned) during walk-1 in
+  typed slices, and the resolution logic runs as plain in-memory `for` loops
+  over the gathered pointers — zero additional tree traversals.
+  `goMarkGenericConstraintInterfaceRoots` now takes a `[]*tree_sitter.Node`
+  instead of re-walking from `root`. This eliminates exactly two
+  `shared.WalkNamed` full-tree traversals per file.
+
+Performance Evidence: `BenchmarkParse/go` (10,035-LOC Go file, 5-count benchstat comparison):
+  - **BEFORE** (merge-base cd83c3d75): ~696ms/op, ~602 MB/op, ~4,831,786 allocs/op
+  - **AFTER** (gather-then-resolve): ~683ms/op, ~598 MB/op, ~4,695,185 allocs/op
+  - Delta: **-13ms (-1.9%)**, **-136,601 allocs/op (-2.8%)**
+  (`go test ./internal/parser -bench 'BenchmarkParse/go' -benchmem -count=5`)
+
+Accuracy proof: the same differential-equivalence harness produces byte-for-byte
+identical output (symmetric set difference `0/0`) across multiple corpus sizes
+(9 files × 4 variants = 36 entries narrow; 28 files × 4 variants = 112 entries
+broad, both `diff`/`comm -3` clean). This harness runs under `GO_PARSE_DUMP`
+and is a manual differential, not a CI gate. The walk-count test
+(`walk_count_test.go`, using `shared.SetWalkNamedHookForTest`) asserts the
+per-file `shared.WalkNamed` count dropped from 60 to 58 (exactly the 2 removed
+dead-code resolution re-walks). See epic #4917 and issue #4920.
+
+No-Observability-Change: this is a pure structural walk consolidation with no
+runtime-behavior change and no new metric/span/log surface. Per-file Go parse
+timing is already covered by the existing parser/pre-scan parse-stage
+telemetry; no new operator signals are warranted.
+
 ## Known Limitations
 - Generic type constraints may not be fully captured
 - Channel types not separately tracked
