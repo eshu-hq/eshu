@@ -16,15 +16,16 @@ import (
 // separate full-tree walks.
 func detectPythonAioHTTPSemanticsGathered(g pythonGatheredNodes, source []byte) map[string]any {
 	webSymbols := pythonAioHTTPWebSymbolsGathered(g.imports, source)
-	if len(webSymbols) == 0 {
+	routeTableSymbols, appSymbols := pythonAioHTTPSymbolsGathered(g.assignments, source, webSymbols)
+	paramAppSymbols := pythonAioHTTPParamAppSymbolsGathered(g.functions, source)
+	if len(webSymbols) == 0 && len(paramAppSymbols) == 0 {
 		return nil
 	}
-	routeTableSymbols, appSymbols := pythonAioHTTPSymbolsGathered(g.assignments, source, webSymbols)
-	if len(routeTableSymbols) == 0 && len(appSymbols) == 0 {
+	if len(routeTableSymbols) == 0 && len(appSymbols) == 0 && len(paramAppSymbols) == 0 {
 		return nil
 	}
 	entries := pythonAioHTTPRouteTableEntriesGathered(g.decorators, source, routeTableSymbols)
-	entries = append(entries, pythonAioHTTPApplicationRouteEntriesGathered(g.calls, source, appSymbols, webSymbols, pythonModuleFunctionNamesGathered(g.functions, source))...)
+	entries = append(entries, pythonAioHTTPApplicationRouteEntriesGathered(g.calls, source, appSymbols, webSymbols, pythonModuleFunctionNamesGathered(g.functions, source), paramAppSymbols)...)
 	return pythonRouteSemantics(entries)
 }
 
@@ -127,12 +128,34 @@ func pythonAioHTTPApplicationRouteEntriesGathered(
 	appSymbols map[string]struct{},
 	webSymbols map[string]struct{},
 	functionNames map[string]struct{},
+	paramAppSymbols map[uintptr]map[string]struct{},
 ) []map[string]string {
-	if len(appSymbols) == 0 {
+	if len(appSymbols) == 0 && len(paramAppSymbols) == 0 {
 		return nil
 	}
 	entries := make([]map[string]string, 0)
 	for _, node := range gathered {
+		funcDef := pythonEnclosingFunctionDef(node)
+		if funcDef != nil {
+			paramApps, ok := paramAppSymbols[funcDef.Id()]
+			if !ok {
+				continue
+			}
+			effectiveSymbols := make(map[string]struct{}, len(appSymbols)+len(paramApps))
+			for k := range appSymbols {
+				effectiveSymbols[k] = struct{}{}
+			}
+			for k := range paramApps {
+				effectiveSymbols[k] = struct{}{}
+			}
+			method, path, handler, ok := pythonAioHTTPParamApplicationRouteEntry(node, source, effectiveSymbols)
+			if ok {
+				entries = append(entries, routeEntry(method, path, handler))
+				continue
+			}
+			entries = append(entries, pythonAioHTTPAddRoutesEntries(node, source, effectiveSymbols, webSymbols, functionNames)...)
+			continue
+		}
 		if pythonInsidePythonDefinition(node) {
 			continue
 		}
@@ -217,4 +240,77 @@ func pythonTornadoApplicationEntriesGathered(
 		}
 	}
 	return entries
+}
+
+// pythonAioHTTPParamAppSymbolsGathered mirrors pythonAioHTTPParamAppSymbols
+// but uses pre-gathered function_definition nodes instead of a full-tree walk.
+func pythonAioHTTPParamAppSymbolsGathered(functions []*tree_sitter.Node, source []byte) map[uintptr]map[string]struct{} {
+	result := make(map[uintptr]map[string]struct{})
+
+	for _, funcNode := range functions {
+		params := pythonParameterNames(funcNode.ChildByFieldName("parameters"), source)
+		if len(params) == 0 {
+			continue
+		}
+		paramSet := make(map[string]struct{}, len(params))
+		for _, p := range params {
+			paramSet[p] = struct{}{}
+		}
+		body := funcNode.ChildByFieldName("body")
+		if body == nil {
+			continue
+		}
+
+		matched := make(map[string]struct{})
+		walkNamed(body, func(child *tree_sitter.Node) {
+			if child.Kind() != "call" {
+				return
+			}
+			function := child.ChildByFieldName("function")
+			if function == nil {
+				return
+			}
+			if function.Kind() != "attribute" {
+				return
+			}
+			attr := strings.TrimSpace(nodeText(function.ChildByFieldName("attribute"), source))
+
+			// param.add_routes(...)
+			if attr == "add_routes" {
+				receiver := function.ChildByFieldName("object")
+				if receiver != nil && receiver.Kind() == "identifier" {
+					name := strings.TrimSpace(nodeText(receiver, source))
+					if _, ok := paramSet[name]; ok {
+						matched[name] = struct{}{}
+					}
+				}
+				return
+			}
+
+			// param.router.add_<verb>(...) or param.router.add_route(...)
+			_, isHTTPMethod := pythonAioHTTPRouteMethods[attr]
+			if !isHTTPMethod && attr != "add_route" {
+				return
+			}
+			object := function.ChildByFieldName("object")
+			if object == nil || object.Kind() != "attribute" ||
+				strings.TrimSpace(nodeText(object.ChildByFieldName("attribute"), source)) != "router" {
+				return
+			}
+			receiver := object.ChildByFieldName("object")
+			if receiver == nil || receiver.Kind() != "identifier" {
+				return
+			}
+			name := strings.TrimSpace(nodeText(receiver, source))
+			if _, ok := paramSet[name]; ok {
+				matched[name] = struct{}{}
+			}
+		})
+
+		if len(matched) > 0 {
+			result[funcNode.Id()] = matched
+		}
+	}
+
+	return result
 }
