@@ -69,11 +69,8 @@ type cppFunctionKey struct {
 
 func annotateCPPDeadCodeRoots(
 	payload map[string]any,
-	root *tree_sitter.Node,
 	source []byte,
-	gatheredFuncDefs []*tree_sitter.Node,
-	gatheredCallExprs []*tree_sitter.Node,
-	gatheredDecls []*tree_sitter.Node,
+	gatheredResolutionNodes []*tree_sitter.Node,
 ) {
 	functionsByName := cppFunctionItemsByName(payload)
 	if len(functionsByName) == 0 {
@@ -87,25 +84,27 @@ func annotateCPPDeadCodeRoots(
 	}
 	annotateCPPNodeAddonInitRoots(functionsByName)
 
-	// Resolution loops over slices gathered during the main payload walk
-	// (parser.go), in the same pre-order the original WalkNamed traversal
-	// produced. Each slice keeps nodes in pre-order, and the loops process
-	// them in the same sequence the original walk-2 processed kinds:
-	// function_definition → call_expression → declaration.
-
-	for _, node := range gatheredFuncDefs {
-		annotateCPPMethodRuntimeRoots(functionsByKey, functionsByName, node, source)
-	}
-	for _, node := range gatheredCallExprs {
-		annotateCPPNodeAddonRegistrationRoot(functionsByName, node, source)
-		for _, argument := range cppCallArguments(node, source) {
-			for _, function := range functionsByName[argument] {
-				appendCPPDeadCodeRootKind(function, cppCallbackArgumentTarget)
+	// Single in-memory loop over the resolution-candidate nodes gathered
+	// during the main payload walk (parser.go). The slice is in the main
+	// walk's pre-order, which preserves the original walk-2 interleaved
+	// pre-order exactly — a declaration that appears before a call
+	// expression in source is visited first, matching origin/main's
+	// dead_code_root_kinds slice ordering (load-bearing for byte-identical
+	// output; see #4844).
+	for _, node := range gatheredResolutionNodes {
+		switch node.Kind() {
+		case "function_definition":
+			annotateCPPMethodRuntimeRoots(functionsByKey, functionsByName, node, source)
+		case "call_expression":
+			annotateCPPNodeAddonRegistrationRoot(functionsByName, node, source)
+			for _, argument := range cppCallArguments(node, source) {
+				for _, function := range functionsByName[argument] {
+					appendCPPDeadCodeRootKind(function, cppCallbackArgumentTarget)
+				}
 			}
+		case "declaration":
+			annotateCPPFunctionPointerTargetRoot(functionsByName, functionPointerAliases, node, source)
 		}
-	}
-	for _, node := range gatheredDecls {
-		annotateCPPFunctionPointerTargetRoot(functionsByName, functionPointerAliases, node, source)
 	}
 }
 

@@ -298,72 +298,86 @@ public:
 	}
 }
 
-// TestGatherResolveCrossKindSameKeyOrdering is the COMMITTED characterization
-// test for the cross-kind same-key ordering property. When a single function
-// receives dead-code root kinds from multiple different node-kind-based loops
-// (e.g. a virtual method that is also used as a callback argument), the
-// emitted dead_code_root_kinds slice order is deterministic: function_definition
-// loop roots come first (gatheredFuncDefs), then call_expression loop roots
-// (gatheredCallExprs), then declaration loop roots (gatheredDecls).
-// This matches the sequential-loop ordering of the gather-then-resolve
-// refactor and differs from the original walk-2 interleaved pre-order.
-// This test locks in the NEW ordering so a future reorder of the gather
-// loops cannot silently reorder the output.
-func TestGatherResolveCrossKindSameKeyOrdering(t *testing.T) {
-	// A virtual method that is also passed as a callback argument (as a
-	// bare function pointer, not a member access, so cppCallArguments
-	// resolves it as a bare identifier).
-	source := `class Scheduler {
-public:
-    virtual void onTick() { }
-};
-
-void Scheduler_onTick_stub(Scheduler* self) {
-    self->onTick();
-}
-
-void registerTickCallback(void (*cb)()) { }
-
-void setup() {
-    registerTickCallback(onTick);
-}
-
-void onTick() { }
+// TestGatherResolveCrossKindDeclBeforeCall verifies that when a declaration
+// (function-pointer target) appears BEFORE a call expression (callback arg)
+// in source, the dead_code_root_kinds ordering matches origin/main:
+// cpp.function_pointer_target before cpp.callback_argument_target. The
+// single interleaved pre-order loop preserves the original walk-2 visitation
+// order; separate per-kind grouped loops would reverse this (#4844).
+func TestGatherResolveCrossKindDeclBeforeCall(t *testing.T) {
+	// Declaration (function-pointer target) appears BEFORE the call.
+	source := `void foo() {}
+typedef void (*Handler)();
+Handler ptr = foo;        // EARLY declaration -> function_pointer_target on foo
+void reg(void (*cb)());
+void setup() { reg(foo); } // LATE call -> callback_argument_target on foo
 `
 	payload := parseCPPString(t, source)
 	rootKinds := deadCodeRootKindsFromPayload(payload)
 
-	// Scheduler.onTick is virtual.
-	kinds, ok := rootKinds["Scheduler.onTick"]
+	kinds, ok := rootKinds["foo"]
 	if !ok {
-		t.Fatal("Scheduler.onTick not found in payload functions")
+		t.Fatal("foo not found in payload functions")
 	}
-	if !slices.Contains(kinds, cppVirtualMethodRoot) {
-		t.Errorf("Scheduler.onTick should have cpp.virtual_method root, got %v", kinds)
+	if !slices.Contains(kinds, cppFunctionPointerTargetRoot) {
+		t.Errorf("foo should have cpp.function_pointer_target, got %v", kinds)
+	}
+	if !slices.Contains(kinds, cppCallbackArgumentTarget) {
+		t.Errorf("foo should have cpp.callback_argument_target, got %v", kinds)
 	}
 
-	// onTick (free function) should be both a callback argument target
-	// (passed to registerTickCallback) AND if it also happens to have
-	// no virtual/override, it shows single-kind. But we need cross-kind
-	// on the same key. Use a simpler case: virtual method inside a class
-	// where the method name also happens to be a NODE_MODULE_INIT.
-
-	// Simpler cross-kind case: main function that is also main.
-	// Actually, let's use a scenario where a NAPI_MODULE_INIT function is
-	// ALSO marked from a call_expression. These are semantically different
-	// root kinds on the same key.
-
-	t.Logf("Scheduler.onTick root kinds: %v", kinds)
+	// Declaration comes first in source, so function_pointer_target comes
+	// first in the slice.
+	wantOrder := []string{cppFunctionPointerTargetRoot, cppCallbackArgumentTarget}
+	if !slices.Equal(kinds, wantOrder) {
+		t.Errorf("decl-before-call ordering mismatch:\n  got:  %v\n  want: %v", kinds, wantOrder)
+	}
+	t.Logf("foo root kinds (decl-before-call, order-locked): %v", kinds)
 }
 
-// TestGatherResolveCrossKindMultiRoot verifies that a function that is
-// both a node_addon_entrypoint (from NODE_MODULE_INIT name match) AND
-// a callback_argument_target (from a call expression) carries both root
-// kinds in the correct order: NODE_MODULE_INIT roots come from
-// functionsByName iteration in annotateCPPNodeAddonInitRoots (before the
-// loops), then call_expression loop appends callback_argument_target.
-// The ordering is: the init-root pass first, then call_expr loop.
-func TestGatherResolveCrossKindMultiRoot(t *testing.T) {
+// TestGatherResolveCrossKindCallBeforeDecl verifies that when a call
+// expression (callback arg) appears BEFORE a declaration (function-pointer
+// target) in source, the dead_code_root_kinds ordering matches origin/main:
+// cpp.callback_argument_target before cpp.function_pointer_target.
+// Paired with TestGatherResolveCrossKindDeclBeforeCall to lock both
+// interleaved orderings.
+func TestGatherResolveCrossKindCallBeforeDecl(t *testing.T) {
+	// Call appears BEFORE the declaration.
+	source := `void foo() {}
+void reg(void (*cb)());
+void setup() { reg(foo); } // EARLY call -> callback_argument_target on foo
+typedef void (*Handler)();
+Handler ptr = foo;          // LATE declaration -> function_pointer_target on foo
+`
+	payload := parseCPPString(t, source)
+	rootKinds := deadCodeRootKindsFromPayload(payload)
+
+	kinds, ok := rootKinds["foo"]
+	if !ok {
+		t.Fatal("foo not found in payload functions")
+	}
+	if !slices.Contains(kinds, cppCallbackArgumentTarget) {
+		t.Errorf("foo should have cpp.callback_argument_target, got %v", kinds)
+	}
+	if !slices.Contains(kinds, cppFunctionPointerTargetRoot) {
+		t.Errorf("foo should have cpp.function_pointer_target, got %v", kinds)
+	}
+
+	// Call comes first in source, so callback_argument_target comes first.
+	wantOrder := []string{cppCallbackArgumentTarget, cppFunctionPointerTargetRoot}
+	if !slices.Equal(kinds, wantOrder) {
+		t.Errorf("call-before-decl ordering mismatch:\n  got:  %v\n  want: %v", kinds, wantOrder)
+	}
+	t.Logf("foo root kinds (call-before-decl, order-locked): %v", kinds)
+}
+
+// TestGatherResolveCrossKindInitBeforeCall verifies that when a node-addon
+// init function (NODE_MODULE_INIT name match via annotateCPPNodeAddonInitRoots,
+// which runs BEFORE the resolution loop) also appears as a callback argument
+// target (via a call expression in the resolution loop), the init-root pass
+// appends first, then the loop appends second. This ordering is fixed because
+// annotateCPPNodeAddonInitRoots always runs before the resolution loop.
+func TestGatherResolveCrossKindInitBeforeCall(t *testing.T) {
 	source := `#include <node.h>
 
 void NODE_MODULE_INIT(Napi::Env env, Napi::Object exports) {
@@ -394,19 +408,18 @@ void init() {
 		t.Errorf("NODE_MODULE_INIT should have cpp.callback_argument_target root, got %v", kinds)
 	}
 
-	// Lock ordering: init-root pass (before loops) adds cpp.node_addon_entrypoint
-	// first, then call_expression loop adds cpp.callback_argument_target.
+	// Init-root pass (before loop) adds entrypoint first, then loop adds callback.
 	wantOrder := []string{cppNodeAddonEntrypointRoot, cppCallbackArgumentTarget}
 	if !slices.Equal(kinds, wantOrder) {
-		t.Errorf("NODE_MODULE_INIT cross-kind ordering mismatch:\n  got:  %v\n  want: %v", kinds, wantOrder)
+		t.Errorf("init-before-call ordering mismatch:\n  got:  %v\n  want: %v", kinds, wantOrder)
 	}
 	t.Logf("NODE_MODULE_INIT root kinds (order-locked): %v", kinds)
 }
 
 // TestGatherResolveBreakVerify confirms that the characterization tests have
-// teeth: when annotateCPPDeadCodeRoots runs with empty gathered slices, no
-// dead-code root kinds are added from those three resolution loops. This
-// proves the tests depend on the gathered slices, not on a fallback.
+// teeth: when annotateCPPDeadCodeRoots runs with an empty gathered slice, no
+// dead-code root kinds are added from the resolution loop. This proves the
+// tests depend on the gathered slice, not on a fallback.
 func TestGatherResolveBreakVerify(t *testing.T) {
 	source := `class Widget {
 public:
@@ -447,14 +460,14 @@ void setup() {
 		delete(f, "dead_code_root_kinds")
 	}
 
-	// Re-annotate with empty slices — should add nothing from the three loops.
-	annotateCPPDeadCodeRoots(payload, nil, []byte(source), nil, nil, nil)
+	// Re-annotate with empty slices — should add nothing from the loop.
+	annotateCPPDeadCodeRoots(payload, []byte(source), nil)
 
 	rootKindsAfter := deadCodeRootKindsFromPayload(payload)
 
 	// The main-function loop and annotateCPPNodeAddonInitRoots still run from
-	// functionsByName, but neither applies to this fixture. All three
-	// resolution loops get empty slices, so no roots should be added.
+	// functionsByName, but neither applies to this fixture. The resolution
+	// loop gets an empty slice, so no roots should be added.
 	if kinds, ok := rootKindsAfter["Widget.render"]; !ok {
 		t.Fatal("Widget.render not found after empty-gather annotation")
 	} else if len(kinds) > 0 {

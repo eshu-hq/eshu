@@ -42,14 +42,18 @@ func Parse(
 
 	routes := newCPPRouteCollector()
 
-	// Gather resolution-candidate node pointers during the main walk so
-	// annotateCPPDeadCodeRoots can resolve them in in-memory loops instead
-	// of a second full-tree shared.WalkNamed traversal. Tree-sitter node
-	// pointers are stack-allocated during cursor iteration; every gathered
-	// node is cloned (shared.CloneNode) for safe retention.
-	var gatheredFuncDefs []*tree_sitter.Node
-	var gatheredCallExprs []*tree_sitter.Node
-	var gatheredDecls []*tree_sitter.Node
+	// Gather resolution-candidate node pointers during the main walk in a
+	// single ordered slice (pre-order) so annotateCPPDeadCodeRoots can
+	// resolve them in one in-memory loop instead of a second full-tree
+	// shared.WalkNamed traversal. Appending to one slice during the main
+	// walk's pre-order preserves the original interleaved visitation
+	// order of the old walk-2 exactly (declaration before call when the
+	// declaration appears earlier in source), which is load-bearing for
+	// byte-identical dead_code_root_kinds slice ordering (#4924, #4844).
+	// Tree-sitter node pointers are stack-allocated during cursor
+	// iteration; every gathered node is cloned (shared.CloneNode) for
+	// safe retention.
+	var gatheredResolutionNodes []*tree_sitter.Node
 
 	shared.WalkNamed(root, func(node *tree_sitter.Node) {
 		switch node.Kind() {
@@ -69,17 +73,17 @@ func Parse(
 			appendCTypedefAliases(payload, node, source, "cpp")
 		case "function_definition":
 			appendCPPFunction(payload, node, source, options)
-			gatheredFuncDefs = append(gatheredFuncDefs, shared.CloneNode(node))
+			gatheredResolutionNodes = append(gatheredResolutionNodes, shared.CloneNode(node))
 		case "declaration":
 			appendCTypedefAliases(payload, node, source, "cpp")
-			gatheredDecls = append(gatheredDecls, shared.CloneNode(node))
+			gatheredResolutionNodes = append(gatheredResolutionNodes, shared.CloneNode(node))
 		case "call_expression":
 			appendCall(payload, cLikeCallNameNode(node.ChildByFieldName("function")), source, "cpp")
 			routes.collect(node, source)
-			gatheredCallExprs = append(gatheredCallExprs, shared.CloneNode(node))
+			gatheredResolutionNodes = append(gatheredResolutionNodes, shared.CloneNode(node))
 		}
 	})
-	annotateCPPDeadCodeRoots(payload, root, source, gatheredFuncDefs, gatheredCallExprs, gatheredDecls)
+	annotateCPPDeadCodeRoots(payload, source, gatheredResolutionNodes)
 
 	sortSystemsPayload(
 		payload,
