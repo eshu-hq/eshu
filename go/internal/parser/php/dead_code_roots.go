@@ -173,17 +173,27 @@ func phpClassMethodArray(node *tree_sitter.Node, source []byte) (string, string)
 // searches the full subtree in the same pre-order shared.WalkNamed would,
 // just without WalkNamed's per-call closure/test-hook overhead: see
 // phpFirstNamedMatch.
+//
+// The match predicate must require the "::class" suffix itself, not just the
+// "class_constant_access_expression" kind: a subtree can contain an unrelated
+// class-constant access (e.g. `FeatureFlag::ENABLED`) before the real
+// `Class::class` literal, as in
+// `[FeatureFlag::ENABLED ? NewController::class : OldController::class, 'show']`.
+// The old shared.WalkNamed callback kept scanning past a non-"::class" match
+// and only stopped on the first one whose text actually ends in "::class";
+// stopping at the first matching kind regardless of suffix (as an earlier
+// version of this function did) silently dropped the route target.
 func phpClassConstantClassName(node *tree_sitter.Node, source []byte) string {
 	candidate := phpFirstNamedMatch(node, func(n *tree_sitter.Node) bool {
-		return n.Kind() == "class_constant_access_expression"
+		if n.Kind() != "class_constant_access_expression" {
+			return false
+		}
+		return strings.HasSuffix(strings.TrimSpace(shared.NodeText(n, source)), "::class")
 	})
 	if candidate == nil {
 		return ""
 	}
 	text := strings.TrimSpace(shared.NodeText(candidate, source))
-	if !strings.HasSuffix(text, "::class") {
-		return ""
-	}
 	return normalizePHPTypeName(strings.TrimSuffix(text, "::class"))
 }
 
