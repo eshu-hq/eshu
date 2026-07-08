@@ -193,14 +193,15 @@ type DefaultHandlers struct {
 	// against uncommitted nodes.
 	ObservabilityCoverageEdgeWriter ObservabilityCoverageEdgeWriter
 
-	// ProjectedSourceLedger records and enumerates the source CloudResource
-	// uids of edges projected by the AWS, Azure, GCP relationship, and
-	// observability-coverage handlers (issue #4858), so their prior-generation
-	// retract can enumerate uids from the ledger and delete by an anchored
-	// source-uid MATCH instead of scanning the whole :CloudResource label. It
-	// is optional and shared across all four handlers, distinguished by each
-	// handler's own evidence_source string; nil preserves each handler's
-	// pre-ledger whole-scope retract.
+	// ProjectedSourceLedger records and enumerates the source uids of edges
+	// projected by the AWS, Azure, GCP relationship, observability-coverage,
+	// and security-group reachability handlers (issue #4858, #4881), so their
+	// prior-generation retract can enumerate uids from the ledger and delete by
+	// an anchored source-uid MATCH instead of scanning the whole
+	// :CloudResource (or, for security-group reachability's rule->endpoint
+	// family, :SecurityGroupRule) label. It is optional and shared across all
+	// five handlers, distinguished by each handler's own evidence_source
+	// string; nil preserves each handler's pre-ledger whole-scope retract.
 	ProjectedSourceLedger ProjectedSourceLedger
 
 	// IAMCanAssumeEdgeWriter projects aws_iam_permission trust statements into

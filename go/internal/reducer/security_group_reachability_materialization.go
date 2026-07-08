@@ -25,6 +25,12 @@ import (
 // and never touches edges or nodes owned by other writers.
 const securityGroupReachabilityEvidenceSource = "reducer/security-group-reachability"
 
+// SecurityGroupReachabilityEvidenceSource returns the evidence-source string
+// for reducer-owned security-group reachability edges, exported so
+// cmd/reducer can wire the ProjectedSourceEdgeBackfiller against the same
+// value this handler uses (issue #4881, mirroring AWSRelationshipEvidenceSource).
+func SecurityGroupReachabilityEvidenceSource() string { return securityGroupReachabilityEvidenceSource }
+
 // Edge-type labels for the reachability edges-materialized counter. They are the
 // bounded edge_type metric dimension members for
 // eshu_dp_security_group_reachability_edges_total.
@@ -77,6 +83,12 @@ type SecurityGroupReachabilityWriter interface {
 	WriteSecurityGroupSGRuleEdges(ctx context.Context, rows []map[string]any, scopeID, generationID, evidenceSource string) error
 	WriteSecurityGroupRuleEndpointEdges(ctx context.Context, rows []map[string]any, scopeID, generationID, evidenceSource string) error
 	RetractSecurityGroupReachability(ctx context.Context, scopeIDs []string, generationID, evidenceSource string) error
+	// RetractSecurityGroupReachabilityByUIDs removes reducer-owned reachability
+	// edges (both the SG->rule and rule->endpoint TO families) for the given
+	// scopes, enumerating source uids from the projected-source ledger instead
+	// of scanning the whole :CloudResource / :SecurityGroupRule labels.
+	// Implementations MUST treat an empty sourceUIDs as a no-op.
+	RetractSecurityGroupReachabilityByUIDs(ctx context.Context, sourceUIDs []string, scopeIDs []string, evidenceSource string) error
 }
 
 // securityGroupReachabilityGateKeyspaces are the three canonical-nodes keyspaces
@@ -109,8 +121,16 @@ type SecurityGroupReachabilityMaterializationHandler struct {
 	// PriorGenerationCheck reports whether the scope has any prior generation. Nil
 	// keeps retract behavior conservative (always retract before write).
 	PriorGenerationCheck PriorGenerationCheck
-	Tracer               trace.Tracer
-	Instruments          *telemetry.Instruments
+	// Ledger records and enumerates the source uids of projected reachability
+	// edges — the union of SG CloudResource uids (SG->rule edge source) and
+	// SecurityGroupRule uids (rule->endpoint edge source) — so retraction can
+	// enumerate uids from the ledger and use anchored-delete instead of
+	// scanning the whole :CloudResource / :SecurityGroupRule labels (issue
+	// #4858, #4881). Nil preserves the pre-ledger whole-scope retract
+	// (RetractSecurityGroupReachability).
+	Ledger      ProjectedSourceLedger
+	Tracer      trace.Tracer
+	Instruments *telemetry.Instruments
 }
 
 // Handle executes one security-group reachability materialization intent.
@@ -190,38 +210,14 @@ func (h SecurityGroupReachabilityMaterializationHandler) Handle(
 	if err != nil {
 		return Result{}, err
 	}
-	var retractDuration time.Duration
-	if !skipRetract {
-		retractStart := time.Now()
-		if err := h.Writer.RetractSecurityGroupReachability(
-			ctx,
-			[]string{intent.ScopeID},
-			intent.GenerationID,
-			securityGroupReachabilityEvidenceSource,
-		); err != nil {
-			return Result{}, fmt.Errorf("retract canonical security group reachability edges: %w", err)
-		}
-		retractDuration = time.Since(retractStart)
+	retractDuration, err := h.retractPriorGeneration(ctx, intent, skipRetract)
+	if err != nil {
+		return Result{}, err
 	}
 
-	// Write the rule nodes before the edges so each edge has a committed node to
-	// MATCH. The node write and both edge writes are each idempotent by uid, so a
-	// retry after a partial failure converges on the same graph.
 	writeStart := time.Now()
-	if len(reach.RuleNodes) > 0 {
-		if err := h.Writer.WriteSecurityGroupRuleNodes(ctx, reach.RuleNodes, securityGroupReachabilityEvidenceSource); err != nil {
-			return Result{}, fmt.Errorf("write canonical security group rule nodes: %w", err)
-		}
-	}
-	if len(reach.SGRuleEdges) > 0 {
-		if err := h.Writer.WriteSecurityGroupSGRuleEdges(ctx, reach.SGRuleEdges, intent.ScopeID, intent.GenerationID, securityGroupReachabilityEvidenceSource); err != nil {
-			return Result{}, fmt.Errorf("write canonical security group sg-rule edges: %w", err)
-		}
-	}
-	if len(reach.RuleEndpointEdges) > 0 {
-		if err := h.Writer.WriteSecurityGroupRuleEndpointEdges(ctx, reach.RuleEndpointEdges, intent.ScopeID, intent.GenerationID, securityGroupReachabilityEvidenceSource); err != nil {
-			return Result{}, fmt.Errorf("write canonical security group rule-endpoint edges: %w", err)
-		}
+	if err := h.writeReachability(ctx, intent, reach); err != nil {
+		return Result{}, err
 	}
 	writeDuration := time.Since(writeStart)
 
@@ -259,6 +255,86 @@ func (h SecurityGroupReachabilityMaterializationHandler) Handle(
 		CanonicalWrites: canonicalWrites,
 		SubSignals:      inputInvalidSubSignals(inputInvalidCount),
 	}, nil
+}
+
+// retractPriorGeneration removes the prior generation's reachability edges
+// before the fresh write below, returning the retract duration. When
+// skipRetract is true (first generation for the scope) it is a no-op. When a
+// Ledger is wired, it enumerates the union source-uid set from the ledger and
+// anchors the delete on it (RetractSecurityGroupReachabilityByUIDs), then
+// prunes the ledger; otherwise it falls back to the pre-ledger whole-scope
+// retract (RetractSecurityGroupReachability).
+func (h SecurityGroupReachabilityMaterializationHandler) retractPriorGeneration(
+	ctx context.Context, intent Intent, skipRetract bool,
+) (time.Duration, error) {
+	if skipRetract {
+		return 0, nil
+	}
+	retractStart := time.Now()
+	if h.Ledger != nil {
+		uids, err := h.Ledger.ListSourceUIDsForScopes(ctx, securityGroupReachabilityEvidenceSource, []string{intent.ScopeID})
+		if err != nil {
+			return 0, fmt.Errorf("list source uids for security group reachability retract: %w", err)
+		}
+		if err := h.Writer.RetractSecurityGroupReachabilityByUIDs(
+			ctx, uids, []string{intent.ScopeID}, securityGroupReachabilityEvidenceSource,
+		); err != nil {
+			return 0, fmt.Errorf("retract canonical security group reachability edges by uids: %w", err)
+		}
+		if err := h.Ledger.PruneForScopes(ctx, securityGroupReachabilityEvidenceSource, []string{intent.ScopeID}); err != nil {
+			return 0, fmt.Errorf("prune security group reachability projected sources: %w", err)
+		}
+	} else if err := h.Writer.RetractSecurityGroupReachability(
+		ctx,
+		[]string{intent.ScopeID},
+		intent.GenerationID,
+		securityGroupReachabilityEvidenceSource,
+	); err != nil {
+		return 0, fmt.Errorf("retract canonical security group reachability edges: %w", err)
+	}
+	return time.Since(retractStart), nil
+}
+
+// writeReachability writes the rule nodes before the edges so each edge has a
+// committed node to MATCH, recording the ledger's union source-uid set (the
+// SG->rule edge source keyed "sg_uid" plus the rule->endpoint edge source keyed
+// "rule_uid") BEFORE the edge writes so the ledger stays a superset of graph
+// edges even if a write crashes partway through — the same union
+// RetractSecurityGroupReachabilityByUIDs anchors both retract statements on.
+// The node write and both edge writes are each idempotent by uid, so a retry
+// after a partial failure converges on the same graph.
+func (h SecurityGroupReachabilityMaterializationHandler) writeReachability(
+	ctx context.Context, intent Intent, reach SecurityGroupReachabilityResult,
+) error {
+	if len(reach.RuleNodes) > 0 {
+		if err := h.Writer.WriteSecurityGroupRuleNodes(ctx, reach.RuleNodes, securityGroupReachabilityEvidenceSource); err != nil {
+			return fmt.Errorf("write canonical security group rule nodes: %w", err)
+		}
+	}
+	if h.Ledger != nil {
+		uids := append(
+			sourceUIDsFromRowsByKey(reach.SGRuleEdges, "sg_uid"),
+			sourceUIDsFromRowsByKey(reach.RuleEndpointEdges, "rule_uid")...,
+		)
+		if len(uids) > 0 {
+			if err := h.Ledger.RecordProjectedSources(
+				ctx, securityGroupReachabilityEvidenceSource, intent.ScopeID, intent.GenerationID, uids, time.Now(),
+			); err != nil {
+				return fmt.Errorf("record security group reachability projected sources: %w", err)
+			}
+		}
+	}
+	if len(reach.SGRuleEdges) > 0 {
+		if err := h.Writer.WriteSecurityGroupSGRuleEdges(ctx, reach.SGRuleEdges, intent.ScopeID, intent.GenerationID, securityGroupReachabilityEvidenceSource); err != nil {
+			return fmt.Errorf("write canonical security group sg-rule edges: %w", err)
+		}
+	}
+	if len(reach.RuleEndpointEdges) > 0 {
+		if err := h.Writer.WriteSecurityGroupRuleEndpointEdges(ctx, reach.RuleEndpointEdges, intent.ScopeID, intent.GenerationID, securityGroupReachabilityEvidenceSource); err != nil {
+			return fmt.Errorf("write canonical security group rule-endpoint edges: %w", err)
+		}
+	}
+	return nil
 }
 
 // firstNotReadyKeyspace returns the first of the three gate keyspaces whose

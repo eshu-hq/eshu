@@ -10,12 +10,17 @@ import (
 	"time"
 )
 
-// ProjectedSourceEdgeRow is one enumerated CloudResource source edge from the
+// ProjectedSourceEdgeRow is one enumerated projected-source edge from the
 // graph, carrying the identity fields the projected-source ledger needs. It
-// covers all four evidence-source families the ledger is shared across (AWS,
-// Azure, GCP relationship edges, and observability coverage edges) since the
-// enumeration query is a single bare-relationship scan filtered by
-// evidence_source rather than one query per edge label.
+// covers all five evidence-source families the ledger is shared across (AWS,
+// Azure, GCP relationship edges, observability coverage edges, and
+// security-group reachability edges) since the enumeration runs one
+// bare-relationship scan per distinct SOURCE NODE LABEL (see
+// ProjectedSourceEdgeBackfillReader.EnumerateProjectedSourceEdges) rather than
+// one query per edge label. Four of the five families anchor on :CloudResource
+// source nodes; the security-group reachability rule->endpoint TO family
+// anchors on :SecurityGroupRule source nodes instead, so a second scan covers
+// it.
 type ProjectedSourceEdgeRow struct {
 	EvidenceSource string
 	ScopeID        string
@@ -69,9 +74,9 @@ type ProjectedSourceEdgeBackfiller struct {
 	StateMarker CodeValueFlowBackfillStateMarker
 
 	// EvidenceSources is the set of evidence_source values to backfill: the
-	// four CloudResource edge families (AWS relationship, Azure relationship,
-	// GCP relationship, observability coverage) that share the
-	// ProjectedSourceLedger.
+	// five edge families (AWS relationship, Azure relationship, GCP
+	// relationship, observability coverage, and security-group reachability)
+	// that share the ProjectedSourceLedger.
 	EvidenceSources []string
 
 	// Now returns the current time (injected for test determinism).
@@ -86,35 +91,67 @@ type ProjectedSourceEdgeBackfillReader struct {
 	Graph GraphQueryRunner
 }
 
-// EnumerateProjectedSourceEdges runs the one-time full scan of CloudResource
-// source edges for the given evidence sources. AWS, Azure, and GCP
-// relationship types are an open vocabulary (new relationship types can be
-// introduced by writers without a graph schema change), so the query uses a
-// bare relationship pattern `-[r]->()` with no type list — a type-listed
-// MATCH would silently miss any relationship type added after this file was
-// written. Observability coverage edges (COVERS) are also CloudResource
-// source edges, so this single bare-relationship query covers all four
-// evidence-source families by filtering on r.evidence_source alone. This is a
-// one-time startup scan (see Run), not a hot-path query.
+// projectedSourceEdgeBackfillCloudResourceSourceCypher enumerates the four
+// evidence-source families whose projected edges originate on a :CloudResource
+// node: AWS/Azure/GCP relationship edges and observability coverage edges, plus
+// the security-group reachability SG->rule edge family (its source is the SG
+// CloudResource node). AWS/Azure/GCP relationship types are an open vocabulary
+// (new relationship types can be introduced by writers without a graph schema
+// change), so the query uses a bare relationship pattern `-[r]->()` with no
+// type list — a type-listed MATCH would silently miss any relationship type
+// added after this file was written.
+const projectedSourceEdgeBackfillCloudResourceSourceCypher = `MATCH (s:CloudResource)-[r]->()
+WHERE r.evidence_source IN $evidence_sources
+RETURN s.uid AS source_uid,
+       r.scope_id AS scope_id,
+       r.generation_id AS generation_id,
+       r.evidence_source AS evidence_source`
+
+// projectedSourceEdgeBackfillSecurityGroupRuleSourceCypher enumerates the
+// security-group reachability rule->endpoint TO edge family, whose source is
+// the :SecurityGroupRule node rather than :CloudResource (issue #4881). The
+// evidence_sources filter is shared with the CloudResource-source scan above;
+// a non-security-group evidence source simply matches no :SecurityGroupRule
+// source edges here.
+const projectedSourceEdgeBackfillSecurityGroupRuleSourceCypher = `MATCH (s:SecurityGroupRule)-[r]->()
+WHERE r.evidence_source IN $evidence_sources
+RETURN s.uid AS source_uid,
+       r.scope_id AS scope_id,
+       r.generation_id AS generation_id,
+       r.evidence_source AS evidence_source`
+
+// EnumerateProjectedSourceEdges runs the one-time full scan of projected
+// source edges for the given evidence sources, across BOTH source-node label
+// families the shared ledger covers: :CloudResource (four families) and
+// :SecurityGroupRule (the reachability rule->endpoint TO family). Two separate
+// bare-relationship scans are used rather than one UNION query, since a
+// two-clause scan is a safer, already-proven Cypher shape on this backend and
+// this runs once at startup, not on a hot path (see Run). This is a one-time
+// startup scan, not a hot-path query.
 func (r ProjectedSourceEdgeBackfillReader) EnumerateProjectedSourceEdges(
 	ctx context.Context, evidenceSources []string,
 ) ([]ProjectedSourceEdgeRow, error) {
 	if r.Graph == nil {
 		return nil, fmt.Errorf("backfill reader requires graph query runner")
 	}
-	rows, err := r.Graph.Run(
-		ctx,
-		`MATCH (s:CloudResource)-[r]->()
-WHERE r.evidence_source IN $evidence_sources
-RETURN s.uid AS source_uid,
-       r.scope_id AS scope_id,
-       r.generation_id AS generation_id,
-       r.evidence_source AS evidence_source`,
-		map[string]any{"evidence_sources": evidenceSources},
-	)
-	if err != nil {
-		return nil, fmt.Errorf("enumerate projected source edges: %w", err)
+	var out []ProjectedSourceEdgeRow
+	for _, cypher := range []string{
+		projectedSourceEdgeBackfillCloudResourceSourceCypher,
+		projectedSourceEdgeBackfillSecurityGroupRuleSourceCypher,
+	} {
+		rows, err := r.Graph.Run(ctx, cypher, map[string]any{"evidence_sources": evidenceSources})
+		if err != nil {
+			return nil, fmt.Errorf("enumerate projected source edges: %w", err)
+		}
+		out = append(out, parseProjectedSourceEdgeRows(rows)...)
 	}
+	return out, nil
+}
+
+// parseProjectedSourceEdgeRows converts raw graph query rows into
+// ProjectedSourceEdgeRow values, dropping any row with an empty identity field
+// so a malformed row never seeds a blank-keyed ledger entry.
+func parseProjectedSourceEdgeRows(rows []map[string]any) []ProjectedSourceEdgeRow {
 	var out []ProjectedSourceEdgeRow
 	for _, row := range rows {
 		sourceUID := anyToString(row["source_uid"])
@@ -131,7 +168,7 @@ RETURN s.uid AS source_uid,
 			SourceUID:      sourceUID,
 		})
 	}
-	return out, nil
+	return out
 }
 
 // projectedSourceEdgeBackfillKey returns the stable backfill-state marker key

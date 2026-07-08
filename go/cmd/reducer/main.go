@@ -157,15 +157,16 @@ func buildReducerService(
 	if err := taintNodeBackfiller.Run(context.Background()); err != nil {
 		return reducer.Service{}, fmt.Errorf("code taint evidence projected node backfill: %w", err)
 	}
-	// Seed the projected-source-edge ledger from existing graph CloudResource
-	// source edges (AWS/Azure/GCP relationship edges and observability
-	// coverage edges) so the ledger is a superset of graph edges at deploy
-	// time (one-time, idempotent backfill). Must run before any
-	// ledger-anchored RetractXxxByUIDs call in the AWS/Azure/GCP/observability
-	// materialization handlers wired below, so the first post-deploy retract
-	// is not a no-op that orphans pre-ledger edges. projectedSourceEdgeStore
-	// is constructed once here and reused as DefaultHandlers.ProjectedSourceLedger
-	// below so both the backfill and the runtime handlers share one store.
+	// Seed the projected-source-edge ledger from existing graph source edges
+	// (AWS/Azure/GCP relationship edges, observability coverage edges, and
+	// security-group reachability edges) so the ledger is a superset of graph
+	// edges at deploy time (one-time, idempotent backfill). Must run before any
+	// ledger-anchored RetractXxxByUIDs call in the AWS/Azure/GCP/observability/
+	// security-group-reachability materialization handlers wired below, so the
+	// first post-deploy retract is not a no-op that orphans pre-ledger edges.
+	// projectedSourceEdgeStore is constructed once here and reused as
+	// DefaultHandlers.ProjectedSourceLedger below so both the backfill and the
+	// runtime handlers share one store.
 	projectedSourceEdgeStore := postgres.NewProjectedSourceEdgeStore(database)
 	projectedSourceEdgeBackfiller := reducer.ProjectedSourceEdgeBackfiller{
 		Reader:      reducer.ProjectedSourceEdgeBackfillReader{Graph: graphReader},
@@ -176,6 +177,7 @@ func buildReducerService(
 			reducer.AzureRelationshipEvidenceSource(),
 			reducer.GCPRelationshipEvidenceSource(),
 			reducer.ObservabilityCoverageEvidenceSource(),
+			reducer.SecurityGroupReachabilityEvidenceSource(),
 		},
 	}
 	if err := projectedSourceEdgeBackfiller.Run(context.Background()); err != nil {
@@ -292,10 +294,11 @@ func buildReducerService(
 		IAMEscalationEdgeWriter:             graphWriters.iamEscalationEdge,
 		IAMCanPerformEdgeWriter:             graphWriters.iamCanPerformEdge,
 		ObservabilityCoverageEdgeWriter:     graphWriters.observabilityCoverageEdge,
-		// ProjectedSourceLedger (issue #4858) is shared by the AWS, Azure, GCP
-		// relationship, and observability-coverage handlers above; each handler
-		// keys its own ledger rows by its distinct evidence_source string, so
-		// one store instance is enough. This is the same projectedSourceEdgeStore
+		// ProjectedSourceLedger (issue #4858, #4881) is shared by the AWS,
+		// Azure, GCP relationship, observability-coverage, and
+		// security-group-reachability handlers above; each handler keys its
+		// own ledger rows by its distinct evidence_source string, so one store
+		// instance is enough. This is the same projectedSourceEdgeStore
 		// instance the ProjectedSourceEdgeBackfiller above seeded at startup,
 		// mirroring the code-interproc ledger wiring
 		// (postgres.NewCodeInterprocProjectedEdgeStore) constructed earlier.
