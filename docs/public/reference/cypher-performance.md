@@ -1017,9 +1017,20 @@ No-Regression Evidence: row-set equivalence holds — the anchored retract delet
 the identical edge set as the whole-scope retract, because every edge carrying a
 writer's `evidence_source` is reachable from one of that writer's recorded source
 uids by construction; the leak-safety regression tests assert it (gen N records
-{A,B}; gen N+1 drops B; the retract still anchors on {A,B}). A full warm-reingest
-timing on a real ops-qa cloud graph is the confirming end-to-end gate before
-merge.
+{A,B}; gen N+1 drops B; the retract still anchors on {A,B}).
+
+Real warm-reingest gate (built binary, real AWS account, patched NornicDB
+`nornicdb-relseed`, `NORNICDB_ASYNC_WRITES_ENABLED=false`): a live EC2 scan
+emitted 974 `aws_relationship` facts; a second scan of the same scope produced
+the warm re-ingest. On the second generation the retract fires
+(`skip_retract=false`): `aws_relationship_materialization` retracts in 0.676s and
+`security_group_reachability_materialization` in 0.250s. Row-set equivalence
+holds in the graph — after gen 2, the aws-relationship edges are 956 for the new
+generation and 0 for the prior generation (fully retracted, no leak, no
+over-delete); security-group edges are 382 (191 rule + 191 endpoint) for the new
+generation and 0 prior. The `projected_source_edge` ledger prunes the prior
+generation and records only the new one, and all reducer/projector work items
+finish terminal-clean (0 failed / 0 pending / 0 dead-letter).
 
 No-Observability-Change: the retract keeps its existing statement metadata
 (phase/entity/summary) and the reducer materialization spans/metrics
