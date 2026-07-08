@@ -32,7 +32,7 @@ func detectPythonDRFSemantics(root *tree_sitter.Node, source []byte) map[string]
 }
 
 func pythonDRFManualViewSetEntries(root *tree_sitter.Node, source []byte) []map[string]string {
-	if !pythonHasDjangoPathImport(root, source) {
+	if len(pythonDjangoURLImportNames(root, source)) == 0 {
 		return nil
 	}
 	entries := make([]map[string]string, 0)
