@@ -118,6 +118,19 @@ families:
       file: "sdk/go/factschema/schema/file.v1.schema.json"
       repository: "sdk/go/factschema/schema/repository.v1.schema.json"
     kinds: [file, repository]
+  reducer_derived:
+    lifecycle_owner: go/internal/facts
+    schema_version: "1.0.0"
+    reducer_domain: reducer_derived_findings
+    projection_hook: reducer_derived_read_model
+    admission_hook: facts.ValidateSchemaVersion
+    read_surface: "GET /api/v0/supply-chain/impact/findings"
+    read_surface_overrides: {reducer_aws_cloud_runtime_drift_finding: "POST /api/v0/aws/runtime-drift/findings", reducer_multi_cloud_runtime_drift_finding: "POST /api/v0/cloud/runtime-drift/findings"}
+    truth_profile: provider_gated
+    provider_key_independent: false
+    payload_schema_overrides: {reducer_supply_chain_impact_finding: "sdk/go/factschema/schema/reducer_supply_chain_impact_finding.v1.schema.json", reducer_aws_cloud_runtime_drift_finding: "sdk/go/factschema/schema/reducer_aws_cloud_runtime_drift_finding.v1.schema.json", reducer_multi_cloud_runtime_drift_finding: "sdk/go/factschema/schema/reducer_multi_cloud_runtime_drift_finding.v1.schema.json"}
+    kinds: [reducer_supply_chain_impact_finding, reducer_aws_cloud_runtime_drift_finding, reducer_multi_cloud_runtime_drift_finding]
+  reducer_internal: {lifecycle_owner: go/internal/facts, admission_exempt: true, reducer_domain: cloud_asset_resolution, projection_hook: cloud_asset_resolution, admission_hook: none, read_surface: none, truth_profile: deterministic, provider_key_independent: true, kinds: [reducer_cloud_asset_resolution]}
   ec2_instance_posture:
     lifecycle_owner: go/internal/facts
     schema_version: "1.0.0"

@@ -121,4 +121,30 @@ var intentionalRequiredCollections = map[requiredCollectionKey]struct{}{
 	// File with a nil parser payload the code-graph-core reducer handlers
 	// would then silently skip.
 	{FactKindCodegraphFile, "parsed_file_data"}: {},
+	// reducer_supply_chain_impact_finding collection keys are emitted
+	// unconditionally by PostgresSupplyChainImpactWriter. Empty collections are
+	// encoded as [] rather than null, so an absent key indicates a malformed
+	// governed reducer-derived payload.
+	{FactKindReducerSupplyChainImpactFinding, "priority_reason_codes"}:  {},
+	{FactKindReducerSupplyChainImpactFinding, "priority_contributions"}: {},
+	{FactKindReducerSupplyChainImpactFinding, "workload_ids"}:           {},
+	{FactKindReducerSupplyChainImpactFinding, "deployment_ids"}:         {},
+	{FactKindReducerSupplyChainImpactFinding, "service_ids"}:            {},
+	{FactKindReducerSupplyChainImpactFinding, "environments"}:           {},
+	{FactKindReducerSupplyChainImpactFinding, "catalog_entity_refs"}:    {},
+	{FactKindReducerSupplyChainImpactFinding, "catalog_owner_refs"}:     {},
+	{FactKindReducerSupplyChainImpactFinding, "missing_evidence"}:       {},
+	{FactKindReducerSupplyChainImpactFinding, "evidence_path"}:          {},
+	{FactKindReducerSupplyChainImpactFinding, "evidence_fact_ids"}:      {},
+	{FactKindReducerSupplyChainImpactFinding, "source_layers"}:          {},
+	// Runtime drift writers emit these collections unconditionally and
+	// normalize empty values to [] so the read model never sees a null list.
+	{FactKindReducerAWSCloudRuntimeDriftFinding, "missing_evidence"}:   {},
+	{FactKindReducerAWSCloudRuntimeDriftFinding, "warning_flags"}:      {},
+	{FactKindReducerAWSCloudRuntimeDriftFinding, "evidence"}:           {},
+	{FactKindReducerAWSCloudRuntimeDriftFinding, "source_layers"}:      {},
+	{FactKindReducerMultiCloudRuntimeDriftFinding, "missing_evidence"}: {},
+	{FactKindReducerMultiCloudRuntimeDriftFinding, "warning_flags"}:    {},
+	{FactKindReducerMultiCloudRuntimeDriftFinding, "evidence"}:         {},
+	{FactKindReducerMultiCloudRuntimeDriftFinding, "source_layers"}:    {},
 }

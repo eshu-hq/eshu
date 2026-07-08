@@ -12,9 +12,11 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/truth"
+	"github.com/eshu-hq/eshu/sdk/go/factschema"
+	reducerderivedv1 "github.com/eshu-hq/eshu/sdk/go/factschema/reducerderived/v1"
 )
 
-const supplyChainImpactFactKind = "reducer_supply_chain_impact_finding"
+const supplyChainImpactFactKind = facts.ReducerSupplyChainImpactFindingFactKind
 
 // PostgresSupplyChainImpactWriter stores reducer-owned vulnerability impact
 // findings in the shared fact store.
@@ -35,18 +37,25 @@ func (w PostgresSupplyChainImpactWriter) WriteSupplyChainImpactFindings(
 	}
 	now := reducerWriterNow(w.Now)
 	for _, finding := range write.Findings {
-		payloadJSON, err := json.Marshal(supplyChainImpactPayload(write, finding))
+		payload, err := factschema.EncodeReducerSupplyChainImpactFinding(
+			supplyChainImpactTypedPayload(write, finding),
+		)
+		if err != nil {
+			return SupplyChainImpactWriteResult{}, fmt.Errorf("encode supply chain impact payload: %w", err)
+		}
+		payloadJSON, err := json.Marshal(payload)
 		if err != nil {
 			return SupplyChainImpactWriteResult{}, fmt.Errorf("marshal supply chain impact payload: %w", err)
 		}
 		if _, err := w.DB.ExecContext(
 			ctx,
-			canonicalReducerFactInsertQuery,
+			canonicalVersionedReducerFactInsertQuery,
 			supplyChainImpactFactID(write, finding),
 			write.ScopeID,
 			write.GenerationID,
 			supplyChainImpactFactKind,
 			supplyChainImpactStableFactKey(write, finding),
+			facts.ReducerDerivedSchemaVersionV1,
 			reducerFactCollectorKind(write.SourceSystem),
 			facts.SourceConfidenceInferred,
 			write.SourceSystem,
@@ -125,85 +134,114 @@ func supplyChainImpactLogicalIdentity(finding SupplyChainImpactFinding) map[stri
 }
 
 func supplyChainImpactPayload(write SupplyChainImpactWrite, finding SupplyChainImpactFinding) map[string]any {
-	payload := map[string]any{
-		"reducer_domain":         string(DomainSupplyChainImpact),
-		"intent_id":              write.IntentID,
-		"scope_id":               write.ScopeID,
-		"generation_id":          write.GenerationID,
-		"source_system":          write.SourceSystem,
-		"cause":                  write.Cause,
-		"finding_id":             supplyChainImpactFindingID(finding),
-		"cve_id":                 finding.CVEID,
-		"advisory_id":            finding.AdvisoryID,
-		"package_id":             finding.PackageID,
-		"ecosystem":              finding.Ecosystem,
-		"package_name":           finding.PackageName,
-		"purl":                   finding.PURL,
-		"product_criteria":       finding.ProductCriteria,
-		"match_criteria_id":      finding.MatchCriteriaID,
-		"observed_version":       finding.ObservedVersion,
-		"requested_range":        finding.RequestedRange,
-		"fixed_version":          finding.FixedVersion,
-		"vulnerable_range":       finding.VulnerableRange,
-		"match_reason":           finding.MatchReason,
-		"impact_status":          string(finding.Status),
-		"confidence":             finding.Confidence,
-		"cvss_score":             finding.CVSSScore,
-		"advisory_published_at":  finding.AdvisoryPublishedAt,
-		"advisory_updated_at":    finding.AdvisoryUpdatedAt,
-		"epss_probability":       finding.EPSSProbability,
-		"epss_percentile":        finding.EPSSPercentile,
-		"known_exploited":        finding.KnownExploited,
-		"priority_reason":        finding.PriorityReason,
-		"priority_score":         finding.PriorityScore,
-		"priority_bucket":        finding.PriorityBucket,
-		"priority_reason_codes":  uniqueSortedStrings(finding.PriorityReasonCodes),
-		"priority_contributions": serializePriorityContributions(finding.PriorityContributions),
-		"runtime_reachability":   finding.RuntimeReachability,
-		"repository_id":          finding.RepositoryID,
-		"subject_digest":         finding.SubjectDigest,
-		"image_ref":              finding.ImageRef,
-		"dependency_scope":       finding.DependencyScope,
-		"workload_ids":           uniqueSortedStrings(finding.WorkloadIDs),
-		"deployment_ids":         uniqueSortedStrings(finding.DeploymentIDs),
-		"service_ids":            uniqueSortedStrings(finding.ServiceIDs),
-		"environments":           uniqueSortedStrings(finding.Environments),
-		"catalog_entity_refs":    uniqueSortedStrings(finding.CatalogEntityRefs),
-		"catalog_owner_refs":     uniqueSortedStrings(finding.CatalogOwnerRefs),
-		"detection_profile":      string(finding.DetectionProfile),
-		"missing_evidence":       uniqueSortedStrings(finding.MissingEvidence),
-		"evidence_path":          orderedUniqueStrings(finding.EvidencePath),
-		"evidence_fact_ids":      uniqueSortedStrings(finding.EvidenceFactIDs),
-		"canonical_writes":       finding.CanonicalWrites,
-		"source_layers": []string{
+	payload, err := factschema.EncodeReducerSupplyChainImpactFinding(
+		supplyChainImpactTypedPayload(write, finding),
+	)
+	if err != nil {
+		panic(fmt.Sprintf("encode supply chain impact payload: %v", err))
+	}
+	return payload
+}
+
+func supplyChainImpactTypedPayload(
+	write SupplyChainImpactWrite,
+	finding SupplyChainImpactFinding,
+) reducerderivedv1.SupplyChainImpactFinding {
+	payload := reducerderivedv1.SupplyChainImpactFinding{
+		ReducerDomain:         string(DomainSupplyChainImpact),
+		IntentID:              write.IntentID,
+		ScopeID:               write.ScopeID,
+		GenerationID:          write.GenerationID,
+		SourceSystem:          write.SourceSystem,
+		Cause:                 write.Cause,
+		FindingID:             supplyChainImpactFindingID(finding),
+		CVEID:                 finding.CVEID,
+		AdvisoryID:            finding.AdvisoryID,
+		PackageID:             finding.PackageID,
+		Ecosystem:             finding.Ecosystem,
+		PackageName:           finding.PackageName,
+		PURL:                  finding.PURL,
+		ProductCriteria:       finding.ProductCriteria,
+		MatchCriteriaID:       finding.MatchCriteriaID,
+		ObservedVersion:       finding.ObservedVersion,
+		RequestedRange:        finding.RequestedRange,
+		FixedVersion:          finding.FixedVersion,
+		VulnerableRange:       finding.VulnerableRange,
+		MatchReason:           finding.MatchReason,
+		ImpactStatus:          string(finding.Status),
+		Confidence:            finding.Confidence,
+		CVSSScore:             finding.CVSSScore,
+		AdvisoryPublishedAt:   finding.AdvisoryPublishedAt,
+		AdvisoryUpdatedAt:     finding.AdvisoryUpdatedAt,
+		EPSSProbability:       finding.EPSSProbability,
+		EPSSPercentile:        finding.EPSSPercentile,
+		KnownExploited:        finding.KnownExploited,
+		PriorityReason:        finding.PriorityReason,
+		PriorityScore:         finding.PriorityScore,
+		PriorityBucket:        finding.PriorityBucket,
+		PriorityReasonCodes:   nonNilStrings(uniqueSortedStrings(finding.PriorityReasonCodes)),
+		PriorityContributions: nonNilMapSlice(serializePriorityContributions(finding.PriorityContributions)),
+		RuntimeReachability:   finding.RuntimeReachability,
+		RepositoryID:          finding.RepositoryID,
+		SubjectDigest:         finding.SubjectDigest,
+		ImageRef:              finding.ImageRef,
+		DependencyScope:       finding.DependencyScope,
+		WorkloadIDs:           nonNilStrings(uniqueSortedStrings(finding.WorkloadIDs)),
+		DeploymentIDs:         nonNilStrings(uniqueSortedStrings(finding.DeploymentIDs)),
+		ServiceIDs:            nonNilStrings(uniqueSortedStrings(finding.ServiceIDs)),
+		Environments:          nonNilStrings(uniqueSortedStrings(finding.Environments)),
+		CatalogEntityRefs:     nonNilStrings(uniqueSortedStrings(finding.CatalogEntityRefs)),
+		CatalogOwnerRefs:      nonNilStrings(uniqueSortedStrings(finding.CatalogOwnerRefs)),
+		DetectionProfile:      string(finding.DetectionProfile),
+		MissingEvidence:       nonNilStrings(uniqueSortedStrings(finding.MissingEvidence)),
+		EvidencePath:          nonNilStrings(orderedUniqueStrings(finding.EvidencePath)),
+		EvidenceFactIDs:       nonNilStrings(uniqueSortedStrings(finding.EvidenceFactIDs)),
+		CanonicalWrites:       finding.CanonicalWrites,
+		SourceLayers: []string{
 			string(truth.LayerSourceDeclaration),
 			string(truth.LayerObservedResource),
 		},
 	}
 	if len(finding.DependencyPath) > 0 {
-		payload["dependency_path"] = orderedStrings(finding.DependencyPath)
-		payload["dependency_depth"] = finding.DependencyDepth
+		depth := finding.DependencyDepth
+		payload.DependencyPath = orderedStrings(finding.DependencyPath)
+		payload.DependencyDepth = &depth
 	}
 	if finding.DirectDependency != nil {
-		payload["direct_dependency"] = *finding.DirectDependency
+		payload.DirectDependency = finding.DirectDependency
 	}
 	if reachability := supplyChainReachabilityPayload(finding.Reachability); reachability != nil {
-		payload["reachability"] = reachability
+		payload.Reachability = reachability
 	}
 	provenance := supplyChainImpactProvenancePayload(finding)
 	if len(provenance) > 0 {
-		payload["provenance"] = provenance
+		payload.Provenance = provenance
 	}
 	if suppression := supplyChainImpactSuppressionPayload(finding.Suppression); suppression != nil {
-		payload["suppression"] = suppression
+		suppressionState := string(supplyChainImpactSuppressionState(finding.Suppression))
+		payload.Suppression = suppression
 		// Persist the state as a top-level payload key as well so the
 		// Postgres read model can filter on it without parsing nested JSON.
-		payload["suppression_state"] = string(supplyChainImpactSuppressionState(finding.Suppression))
+		payload.SuppressionState = &suppressionState
 	}
 	if remediation := supplyChainImpactRemediationPayload(finding.Remediation); remediation != nil {
-		payload["remediation"] = remediation
+		payload.Remediation = remediation
 	}
 	return payload
+}
+
+func nonNilStrings(values []string) []string {
+	if values == nil {
+		return []string{}
+	}
+	return values
+}
+
+func nonNilMapSlice(values []map[string]any) []map[string]any {
+	if values == nil {
+		return []map[string]any{}
+	}
+	return values
 }
 
 // supplyChainImpactRemediationPayload serializes the advisory-only safe

@@ -293,7 +293,13 @@ func TestPostgresMultiCloudRuntimeDriftWriterPersistsOneFactPerFinding(t *testin
 	if got, want := db.execs[0].args[3], multiCloudRuntimeDriftFactKind; got != want {
 		t.Fatalf("fact_kind = %v, want %v", got, want)
 	}
-	if got, want := db.execs[0].args[6], facts.SourceConfidenceInferred; got != want {
+	if !strings.Contains(db.execs[0].query, "schema_version") {
+		t.Fatalf("insert query missing schema_version column for governed reducer fact: %s", db.execs[0].query)
+	}
+	if got, want := db.execs[0].args[5], "1.0.0"; got != want {
+		t.Fatalf("schema_version = %v, want %v", got, want)
+	}
+	if got, want := db.execs[0].args[7], facts.SourceConfidenceInferred; got != want {
 		t.Fatalf("source_confidence = %v, want %v", got, want)
 	}
 
@@ -301,9 +307,9 @@ func TestPostgresMultiCloudRuntimeDriftWriterPersistsOneFactPerFinding(t *testin
 	// config layer for the unmanaged finding.
 	var foundUnmanaged bool
 	for _, call := range db.execs {
-		payloadBytes, ok := call.args[14].([]byte)
+		payloadBytes, ok := call.args[15].([]byte)
 		if !ok {
-			t.Fatalf("payload arg type = %T, want []byte", call.args[14])
+			t.Fatalf("payload arg type = %T, want []byte", call.args[15])
 		}
 		var payload map[string]any
 		if err := json.Unmarshal(payloadBytes, &payload); err != nil {

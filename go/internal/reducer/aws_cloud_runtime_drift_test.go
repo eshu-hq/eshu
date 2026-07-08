@@ -414,13 +414,19 @@ func TestPostgresAWSCloudRuntimeDriftWriterPersistsOneFactPerFinding(t *testing.
 	if got, want := db.execs[0].args[3], awsCloudRuntimeDriftFactKind; got != want {
 		t.Fatalf("fact_kind = %v, want %v", got, want)
 	}
-	if got, want := db.execs[0].args[6], facts.SourceConfidenceInferred; got != want {
+	if !strings.Contains(db.execs[0].query, "schema_version") {
+		t.Fatalf("insert query missing schema_version column for governed reducer fact: %s", db.execs[0].query)
+	}
+	if got, want := db.execs[0].args[5], "1.0.0"; got != want {
+		t.Fatalf("schema_version = %v, want %v", got, want)
+	}
+	if got, want := db.execs[0].args[7], facts.SourceConfidenceInferred; got != want {
 		t.Fatalf("source_confidence = %v, want %v", got, want)
 	}
 
-	payloadBytes, ok := db.execs[0].args[14].([]byte)
+	payloadBytes, ok := db.execs[0].args[15].([]byte)
 	if !ok {
-		t.Fatalf("payload arg type = %T, want []byte", db.execs[0].args[14])
+		t.Fatalf("payload arg type = %T, want []byte", db.execs[0].args[15])
 	}
 	var payload map[string]any
 	if err := json.Unmarshal(payloadBytes, &payload); err != nil {
@@ -436,9 +442,9 @@ func TestPostgresAWSCloudRuntimeDriftWriterPersistsOneFactPerFinding(t *testing.
 		t.Fatalf("payload canonical_id = %#v, want %q", got, want)
 	}
 
-	payloadBytes, ok = db.execs[1].args[14].([]byte)
+	payloadBytes, ok = db.execs[1].args[15].([]byte)
 	if !ok {
-		t.Fatalf("payload arg type = %T, want []byte", db.execs[1].args[14])
+		t.Fatalf("payload arg type = %T, want []byte", db.execs[1].args[15])
 	}
 	payload = map[string]any{}
 	if err := json.Unmarshal(payloadBytes, &payload); err != nil {

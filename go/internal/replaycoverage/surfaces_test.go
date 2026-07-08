@@ -26,7 +26,8 @@ func testInputs() ([]SupportedSurface, map[string]SupportedSurface) {
 		{Kind: "aws_resource", ReadSurface: "GET /api/v0/cloud/inventory"},
 		{Kind: "azure_cloud_resource", ReadSurface: "GET /api/v0/cloud/inventory"}, // duplicate read_surface deduped
 		{Kind: "ci.run", ReadSurface: "GET /api/v0/ci-cd/run-correlations"},
-		{Kind: "blank_surface", ReadSurface: ""}, // blank read_surface skipped
+		{Kind: "blank_surface", ReadSurface: ""},        // blank read_surface skipped
+		{Kind: "internal_surface", ReadSurface: "none"}, // sentinel read_surface skipped
 	}
 	ledger := ParserLedger{Version: 1, Parsers: []ParserLedgerEntry{{Parser: "hcl"}, {Parser: "dockerfile"}}}
 	productClaims := capabilitycatalog.ProductClaimLedger{Version: "v1", Claims: []capabilitycatalog.ProductClaim{
@@ -89,6 +90,7 @@ func TestEnumerateSupportedKeys(t *testing.T) {
 	wantAbsent := []string{
 		"collector:azure",                 // gated lane, not implemented
 		"read_surface:",                   // blank read_surface skipped
+		"read_surface:none",               // sentinel read_surface skipped
 		"capability:cap.unsupported_only", // no positive profile claim
 	}
 	for _, key := range wantAbsent {

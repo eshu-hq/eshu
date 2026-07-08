@@ -1,0 +1,131 @@
+{
+  "$id": "https://eshu.dev/schemas/factschema/reducerderived/v1/multi_cloud_runtime_drift_finding.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "ambiguous_resources": {
+      "type": "integer"
+    },
+    "candidate_id": {
+      "type": "string"
+    },
+    "candidate_kind": {
+      "type": "string"
+    },
+    "candidate_state": {
+      "type": "string"
+    },
+    "canonical_id": {
+      "type": "string"
+    },
+    "cause": {
+      "type": "string"
+    },
+    "cloud_resource_uid": {
+      "type": "string"
+    },
+    "confidence": {
+      "type": "number"
+    },
+    "evidence": {
+      "items": {
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "finding_kind": {
+      "type": "string"
+    },
+    "generation_id": {
+      "type": "string"
+    },
+    "intent_id": {
+      "type": "string"
+    },
+    "management_status": {
+      "type": "string"
+    },
+    "matched_terraform_state_address": {
+      "type": "string"
+    },
+    "missing_evidence": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "orphaned_resources": {
+      "type": "integer"
+    },
+    "provider": {
+      "type": "string"
+    },
+    "publication_fact_kind": {
+      "type": "string"
+    },
+    "raw_identity": {
+      "type": "string"
+    },
+    "recommended_action": {
+      "type": "string"
+    },
+    "reducer_domain": {
+      "type": "string"
+    },
+    "scope_id": {
+      "type": "string"
+    },
+    "source_layers": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "source_system": {
+      "type": "string"
+    },
+    "unknown_resources": {
+      "type": "integer"
+    },
+    "unmanaged_resources": {
+      "type": "integer"
+    },
+    "warning_flags": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "reducer_domain",
+    "intent_id",
+    "scope_id",
+    "generation_id",
+    "source_system",
+    "cause",
+    "canonical_id",
+    "candidate_id",
+    "candidate_kind",
+    "cloud_resource_uid",
+    "provider",
+    "raw_identity",
+    "finding_kind",
+    "management_status",
+    "confidence",
+    "candidate_state",
+    "matched_terraform_state_address",
+    "missing_evidence",
+    "warning_flags",
+    "recommended_action",
+    "evidence",
+    "orphaned_resources",
+    "unmanaged_resources",
+    "ambiguous_resources",
+    "unknown_resources",
+    "publication_fact_kind",
+    "source_layers"
+  ],
+  "title": "Eshu reducer_multi_cloud_runtime_drift_finding Payload (schema version 1)",
+  "type": "object"
+}

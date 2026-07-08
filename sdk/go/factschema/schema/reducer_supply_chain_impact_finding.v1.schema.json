@@ -1,0 +1,298 @@
+{
+  "$id": "https://eshu.dev/schemas/factschema/reducerderived/v1/supply_chain_impact_finding.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "advisory_id": {
+      "type": "string"
+    },
+    "advisory_published_at": {
+      "type": "string"
+    },
+    "advisory_updated_at": {
+      "type": "string"
+    },
+    "canonical_writes": {
+      "type": "integer"
+    },
+    "catalog_entity_refs": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "catalog_owner_refs": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "cause": {
+      "type": "string"
+    },
+    "confidence": {
+      "type": "string"
+    },
+    "cve_id": {
+      "type": "string"
+    },
+    "cvss_score": {
+      "type": "number"
+    },
+    "dependency_depth": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "dependency_path": {
+      "items": {
+        "type": "string"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "dependency_scope": {
+      "type": "string"
+    },
+    "deployment_ids": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "detection_profile": {
+      "type": "string"
+    },
+    "direct_dependency": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "ecosystem": {
+      "type": "string"
+    },
+    "environments": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "epss_percentile": {
+      "type": "string"
+    },
+    "epss_probability": {
+      "type": "string"
+    },
+    "evidence_fact_ids": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "evidence_path": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "finding_id": {
+      "type": "string"
+    },
+    "fixed_version": {
+      "type": "string"
+    },
+    "generation_id": {
+      "type": "string"
+    },
+    "image_ref": {
+      "type": "string"
+    },
+    "impact_status": {
+      "type": "string"
+    },
+    "intent_id": {
+      "type": "string"
+    },
+    "known_exploited": {
+      "type": "boolean"
+    },
+    "match_criteria_id": {
+      "type": "string"
+    },
+    "match_reason": {
+      "type": "string"
+    },
+    "missing_evidence": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "observed_version": {
+      "type": "string"
+    },
+    "package_id": {
+      "type": "string"
+    },
+    "package_name": {
+      "type": "string"
+    },
+    "priority_bucket": {
+      "type": "string"
+    },
+    "priority_contributions": {
+      "items": {
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "priority_reason": {
+      "type": "string"
+    },
+    "priority_reason_codes": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "priority_score": {
+      "type": "integer"
+    },
+    "product_criteria": {
+      "type": "string"
+    },
+    "provenance": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "purl": {
+      "type": "string"
+    },
+    "reachability": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "reducer_domain": {
+      "type": "string"
+    },
+    "remediation": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "repository_id": {
+      "type": "string"
+    },
+    "requested_range": {
+      "type": "string"
+    },
+    "runtime_reachability": {
+      "type": "string"
+    },
+    "scope_id": {
+      "type": "string"
+    },
+    "service_ids": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "source_layers": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "source_system": {
+      "type": "string"
+    },
+    "subject_digest": {
+      "type": "string"
+    },
+    "suppression": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "suppression_state": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "vulnerable_range": {
+      "type": "string"
+    },
+    "workload_ids": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "reducer_domain",
+    "intent_id",
+    "scope_id",
+    "generation_id",
+    "source_system",
+    "cause",
+    "finding_id",
+    "cve_id",
+    "advisory_id",
+    "package_id",
+    "ecosystem",
+    "package_name",
+    "purl",
+    "product_criteria",
+    "match_criteria_id",
+    "observed_version",
+    "requested_range",
+    "fixed_version",
+    "vulnerable_range",
+    "match_reason",
+    "impact_status",
+    "confidence",
+    "cvss_score",
+    "advisory_published_at",
+    "advisory_updated_at",
+    "epss_probability",
+    "epss_percentile",
+    "known_exploited",
+    "priority_reason",
+    "priority_score",
+    "priority_bucket",
+    "priority_reason_codes",
+    "priority_contributions",
+    "runtime_reachability",
+    "repository_id",
+    "subject_digest",
+    "image_ref",
+    "dependency_scope",
+    "workload_ids",
+    "deployment_ids",
+    "service_ids",
+    "environments",
+    "catalog_entity_refs",
+    "catalog_owner_refs",
+    "detection_profile",
+    "missing_evidence",
+    "evidence_path",
+    "evidence_fact_ids",
+    "canonical_writes",
+    "source_layers"
+  ],
+  "title": "Eshu reducer_supply_chain_impact_finding Payload (schema version 1)",
+  "type": "object"
+}

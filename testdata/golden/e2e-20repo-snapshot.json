@@ -4408,6 +4408,46 @@
         ],
         "minimum_results": 0
       },
+      "POST /api/v0/aws/runtime-drift/findings": {
+        "description": "AWS runtime drift findings for the synthetic AWS account scope; proves the reducer-derived drift read surface is mounted and bounded without requiring positive drift rows.",
+        "truth_class": "derived",
+        "envelope": true,
+        "request_body": {
+          "account_id": "123456789012",
+          "region": "us-east-1",
+          "limit": 50
+        },
+        "required_response_fields": [
+          "data",
+          "truth",
+          "error"
+        ],
+        "required_json_values": {
+          "data.analysis_status": "materialized_aws_runtime_drift",
+          "data.truth_basis": "materialized_reducer_rows"
+        },
+        "minimum_results": 0
+      },
+      "POST /api/v0/cloud/runtime-drift/findings": {
+        "description": "Provider-neutral runtime drift findings for the synthetic GCP cloud scope; proves the reducer-derived drift read surface is mounted and bounded without requiring positive drift rows.",
+        "truth_class": "derived",
+        "envelope": true,
+        "request_body": {
+          "scope_id": "gcp:project:supply-chain-demo-project",
+          "provider": "gcp",
+          "limit": 50
+        },
+        "required_response_fields": [
+          "data",
+          "truth",
+          "error"
+        ],
+        "required_json_values": {
+          "data.analysis_status": "materialized_multi_cloud_runtime_drift",
+          "data.truth_basis": "materialized_reducer_rows"
+        },
+        "minimum_results": 0
+      },
       "GET /api/v0/observability/coverage/correlations?provider=tempo&limit=50": {
         "description": "Observability coverage correlations (tempo); confirms the observability coverage read surface is queryable.",
         "required_response_fields": [
