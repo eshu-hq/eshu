@@ -103,3 +103,109 @@ func pythonAioHTTPParamAppSymbols(root *tree_sitter.Node, source []byte) map[uin
 
 	return result
 }
+
+// pythonModuleImportedNames collects every module-level imported alias that is
+// in scope at the top of the file. It handles `import foo`, `import foo as bar`,
+// `from module import name`, and `from module import name as alias`. Wildcard
+// imports (`from module import *`) are intentionally ignored.
+func pythonModuleImportedNames(root *tree_sitter.Node, source []byte) map[string]struct{} {
+	names := make(map[string]struct{})
+	pythonWalkImportStatements(root, source, func(statement string) {
+		statement = strings.Join(strings.Fields(strings.TrimSpace(statement)), " ")
+		switch {
+		case strings.HasPrefix(statement, "import "):
+			for _, clause := range pythonSplitImportClauses(strings.TrimSpace(strings.TrimPrefix(statement, "import "))) {
+				_, alias := pythonSplitImportAlias(clause)
+				if alias != "" {
+					names[alias] = struct{}{}
+					continue
+				}
+				// Import without `as`: use the first dot-segment as the local name.
+				if localName := pythonImportLocalAlias(clause); localName != "" {
+					names[localName] = struct{}{}
+				}
+			}
+		case strings.HasPrefix(statement, "from "):
+			rest := strings.TrimSpace(strings.TrimPrefix(statement, "from "))
+			importIndex := strings.Index(rest, " import ")
+			if importIndex == -1 {
+				return
+			}
+			importClause := strings.TrimSpace(rest[importIndex+len(" import "):])
+			importClause = strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(importClause, "("), ")"))
+			for _, clause := range pythonSplitImportClauses(importClause) {
+				if strings.TrimSpace(clause) == "*" {
+					continue // wildcard imports are unresolved
+				}
+				name, alias := pythonSplitImportAlias(clause)
+				if alias != "" {
+					names[alias] = struct{}{}
+					continue
+				}
+				if name != "" {
+					names[name] = struct{}{}
+				}
+			}
+		}
+	})
+	return names
+}
+
+// pythonIsProvenParamAppHandler reports whether handler is a proven handler
+// function identifier for a param-app aiohttp route. A handler is proven when it
+// is either a module-level imported name or a module-level function definition
+// that is not shadowed by a local variable assignment in the enclosing function
+// body before the call.
+func pythonIsProvenParamAppHandler(
+	handler string,
+	functionNames map[string]struct{},
+	importedNames map[string]struct{},
+	funcDef *tree_sitter.Node,
+	call *tree_sitter.Node,
+	source []byte,
+) bool {
+	if handler == "" {
+		return false
+	}
+	_, isModuleFn := functionNames[handler]
+	_, isImported := importedNames[handler]
+	if !isModuleFn && !isImported {
+		return false
+	}
+	// Check for shadowing by a local assignment in the enclosing function body
+	// before the call.
+	if funcDef != nil && isShadowedInFuncBody(funcDef, handler, call, source) {
+		return false
+	}
+	return true
+}
+
+// isShadowedInFuncBody reports whether the function body contains an assignment
+// to name (as a bare left-hand identifier) at a source position before call.
+func isShadowedInFuncBody(funcDef *tree_sitter.Node, name string, call *tree_sitter.Node, source []byte) bool {
+	body := funcDef.ChildByFieldName("body")
+	if body == nil {
+		return false
+	}
+	callStart := call.StartByte()
+	shadowed := false
+	walkNamed(body, func(node *tree_sitter.Node) {
+		if shadowed {
+			return
+		}
+		if node.Kind() != "assignment" {
+			return
+		}
+		if node.StartByte() >= callStart {
+			return
+		}
+		left := node.ChildByFieldName("left")
+		if left == nil || left.Kind() != "identifier" {
+			return
+		}
+		if strings.TrimSpace(nodeText(left, source)) == name {
+			shadowed = true
+		}
+	})
+	return shadowed
+}

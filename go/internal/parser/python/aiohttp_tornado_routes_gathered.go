@@ -24,8 +24,10 @@ func detectPythonAioHTTPSemanticsGathered(g pythonGatheredNodes, source []byte) 
 	if len(routeTableSymbols) == 0 && len(appSymbols) == 0 && len(paramAppSymbols) == 0 {
 		return nil
 	}
+	functionNames := pythonModuleFunctionNamesGathered(g.functions, source)
+	importedNames := pythonModuleImportedNamesGathered(g.imports, source)
 	entries := pythonAioHTTPRouteTableEntriesGathered(g.decorators, source, routeTableSymbols)
-	entries = append(entries, pythonAioHTTPApplicationRouteEntriesGathered(g.calls, source, appSymbols, webSymbols, pythonModuleFunctionNamesGathered(g.functions, source), paramAppSymbols)...)
+	entries = append(entries, pythonAioHTTPApplicationRouteEntriesGathered(g.calls, source, appSymbols, webSymbols, functionNames, paramAppSymbols, importedNames)...)
 	return pythonRouteSemantics(entries)
 }
 
@@ -129,6 +131,7 @@ func pythonAioHTTPApplicationRouteEntriesGathered(
 	webSymbols map[string]struct{},
 	functionNames map[string]struct{},
 	paramAppSymbols map[uintptr]map[string]struct{},
+	importedNames map[string]struct{},
 ) []map[string]string {
 	if len(appSymbols) == 0 && len(paramAppSymbols) == 0 {
 		return nil
@@ -148,7 +151,7 @@ func pythonAioHTTPApplicationRouteEntriesGathered(
 			for k := range paramApps {
 				effectiveSymbols[k] = struct{}{}
 			}
-			method, path, handler, ok := pythonAioHTTPParamApplicationRouteEntry(node, source, effectiveSymbols)
+			method, path, handler, ok := pythonAioHTTPParamApplicationRouteEntry(node, source, effectiveSymbols, functionNames, importedNames)
 			if ok {
 				entries = append(entries, routeEntry(method, path, handler))
 				continue
@@ -313,4 +316,48 @@ func pythonAioHTTPParamAppSymbolsGathered(functions []*tree_sitter.Node, source 
 	}
 
 	return result
+}
+
+// pythonModuleImportedNamesGathered mirrors pythonModuleImportedNames but uses a
+// pre-gathered import node slice.
+func pythonModuleImportedNamesGathered(gathered []*tree_sitter.Node, source []byte) map[string]struct{} {
+	names := make(map[string]struct{})
+	pythonWalkImportStatementsGathered(gathered, source, func(statement string) {
+		statement = strings.Join(strings.Fields(strings.TrimSpace(statement)), " ")
+		switch {
+		case strings.HasPrefix(statement, "import "):
+			for _, clause := range pythonSplitImportClauses(strings.TrimSpace(strings.TrimPrefix(statement, "import "))) {
+				_, alias := pythonSplitImportAlias(clause)
+				if alias != "" {
+					names[alias] = struct{}{}
+					continue
+				}
+				if localName := pythonImportLocalAlias(clause); localName != "" {
+					names[localName] = struct{}{}
+				}
+			}
+		case strings.HasPrefix(statement, "from "):
+			rest := strings.TrimSpace(strings.TrimPrefix(statement, "from "))
+			importIndex := strings.Index(rest, " import ")
+			if importIndex == -1 {
+				return
+			}
+			importClause := strings.TrimSpace(rest[importIndex+len(" import "):])
+			importClause = strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(importClause, "("), ")"))
+			for _, clause := range pythonSplitImportClauses(importClause) {
+				if strings.TrimSpace(clause) == "*" {
+					continue
+				}
+				name, alias := pythonSplitImportAlias(clause)
+				if alias != "" {
+					names[alias] = struct{}{}
+					continue
+				}
+				if name != "" {
+					names[name] = struct{}{}
+				}
+			}
+		}
+	})
+	return names
 }

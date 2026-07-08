@@ -41,8 +41,10 @@ func detectPythonAioHTTPSemantics(root *tree_sitter.Node, source []byte) map[str
 	if len(routeTableSymbols) == 0 && len(appSymbols) == 0 && len(paramAppSymbols) == 0 {
 		return nil
 	}
+	functionNames := pythonModuleFunctionNames(root, source)
+	importedNames := pythonModuleImportedNames(root, source)
 	entries := pythonAioHTTPRouteTableEntries(root, source, routeTableSymbols)
-	entries = append(entries, pythonAioHTTPApplicationRouteEntries(root, source, appSymbols, webSymbols, pythonModuleFunctionNames(root, source), paramAppSymbols)...)
+	entries = append(entries, pythonAioHTTPApplicationRouteEntries(root, source, appSymbols, webSymbols, functionNames, paramAppSymbols, importedNames)...)
 	return pythonRouteSemantics(entries)
 }
 
@@ -111,6 +113,7 @@ func pythonAioHTTPApplicationRouteEntries(
 	webSymbols map[string]struct{},
 	functionNames map[string]struct{},
 	paramAppSymbols map[uintptr]map[string]struct{},
+	importedNames map[string]struct{},
 ) []map[string]string {
 	if len(appSymbols) == 0 && len(paramAppSymbols) == 0 {
 		return nil
@@ -133,9 +136,7 @@ func pythonAioHTTPApplicationRouteEntries(
 			for k := range paramApps {
 				effectiveSymbols[k] = struct{}{}
 			}
-			// Param-based routes accept any non-empty identifier as handler,
-			// since handlers are commonly imported (e.g. aiohttp-demos).
-			method, path, handler, ok := pythonAioHTTPParamApplicationRouteEntry(node, source, effectiveSymbols)
+			method, path, handler, ok := pythonAioHTTPParamApplicationRouteEntry(node, source, effectiveSymbols, functionNames, importedNames)
 			if ok {
 				entries = append(entries, routeEntry(method, path, handler))
 				return
@@ -186,14 +187,20 @@ func pythonAioHTTPApplicationRouteEntry(
 }
 
 // pythonAioHTTPParamApplicationRouteEntry resolves an aiohttp route entry from a
-// call inside a function with a param-based app. It is like
-// pythonAioHTTPApplicationRouteEntry but accepts any non-empty identifier as the
-// handler name, since param-app handlers are commonly imported from other modules
-// (standard aiohttp pattern: e.g. aiohttp-demos routes.py).
+// call inside a function with a param-based app. It differs from
+// pythonAioHTTPApplicationRouteEntry in how handlers are proven: rather than
+// requiring the handler to be a same-file module-level function definition, it
+// accepts module-level imported names and unshadowed module-level function
+// definitions. A handler that is only a local variable (e.g.
+// `handler = make_handler()`) is not emitted — the route still carries method
+// and path but omits the handler field so downstream HANDLES_ROUTE projection
+// does not fabricate a false edge.
 func pythonAioHTTPParamApplicationRouteEntry(
 	call *tree_sitter.Node,
 	source []byte,
 	appSymbols map[string]struct{},
+	functionNames map[string]struct{},
+	importedNames map[string]struct{},
 ) (string, string, string, bool) {
 	function := call.ChildByFieldName("function")
 	if function == nil || function.Kind() != "attribute" {
@@ -207,15 +214,28 @@ func pythonAioHTTPParamApplicationRouteEntry(
 	if !pythonAioHTTPCallTargetsAppRouter(function.ChildByFieldName("object"), source, appSymbols) {
 		return "", "", "", false
 	}
+	funcDef := pythonEnclosingFunctionDef(call)
 	if attribute == "add_route" {
 		method = pythonAioHTTPMethodLiteral(pythonPositionalArgument(call, 0), source)
 		path := pythonRoutePathLiteral(pythonPositionalArgument(call, 1), source)
 		handler := pythonIdentifierName(pythonPositionalArgument(call, 2), source)
-		return method, path, handler, method != "" && path != "" && handler != ""
+		if method == "" || path == "" {
+			return "", "", "", false
+		}
+		if handler != "" && pythonIsProvenParamAppHandler(handler, functionNames, importedNames, funcDef, call, source) {
+			return method, path, handler, true
+		}
+		return method, path, "", true // proven handler not found; emit route without handler
 	}
 	path := pythonRoutePathLiteral(pythonPositionalArgument(call, 0), source)
 	handler := pythonIdentifierName(pythonPositionalArgument(call, 1), source)
-	return method, path, handler, method != "" && path != "" && handler != ""
+	if method == "" || path == "" {
+		return "", "", "", false
+	}
+	if handler != "" && pythonIsProvenParamAppHandler(handler, functionNames, importedNames, funcDef, call, source) {
+		return method, path, handler, true
+	}
+	return method, path, "", true // proven handler not found; emit route without handler
 }
 
 func pythonAioHTTPAddRoutesEntries(
