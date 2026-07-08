@@ -6,11 +6,104 @@ package reducer
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 )
+
+var factSchemaWireKindCases = []struct {
+	name     string
+	contract string
+	wireKind string
+}{
+	{"aws_resource", factschema.FactKindAWSResource, facts.AWSResourceFactKind},
+	{"aws_relationship", factschema.FactKindAWSRelationship, facts.AWSRelationshipFactKind},
+	{"aws_security_group_rule", factschema.FactKindAWSSecurityGroupRule, facts.AWSSecurityGroupRuleFactKind},
+	{"ec2_instance_posture", factschema.FactKindEC2InstancePosture, facts.EC2InstancePostureFactKind},
+	{"s3_bucket_posture", factschema.FactKindS3BucketPosture, facts.S3BucketPostureFactKind},
+	{"aws_iam_permission", factschema.FactKindAWSIAMPermission, facts.AWSIAMPermissionFactKind},
+	{"aws_resource_policy_permission", factschema.FactKindAWSResourcePolicyPermission, facts.AWSResourcePolicyPermissionFactKind},
+	{"aws_iam_principal", factschema.FactKindAWSIAMPrincipal, facts.AWSIAMPrincipalFactKind},
+	{"aws_iam_trust_policy", factschema.FactKindAWSIAMTrustPolicy, facts.AWSIAMTrustPolicyFactKind},
+	{"aws_iam_permission_policy", factschema.FactKindAWSIAMPermissionPolicy, facts.AWSIAMPermissionPolicyFactKind},
+	{"aws_iam_policy_attachment", factschema.FactKindAWSIAMPolicyAttachment, facts.AWSIAMPolicyAttachmentFactKind},
+	{"aws_iam_permission_boundary", factschema.FactKindAWSIAMPermissionBoundary, facts.AWSIAMPermissionBoundaryFactKind},
+	{"aws_iam_instance_profile", factschema.FactKindAWSIAMInstanceProfile, facts.AWSIAMInstanceProfileFactKind},
+	{"aws_iam_access_analyzer_finding", factschema.FactKindAWSIAMAccessAnalyzerFinding, facts.AWSIAMAccessAnalyzerFindingFactKind},
+	{"gcp_cloud_resource", factschema.FactKindGCPCloudResource, facts.GCPCloudResourceFactKind},
+	{"gcp_cloud_relationship", factschema.FactKindGCPCloudRelationship, facts.GCPCloudRelationshipFactKind},
+	{"gcp_collection_warning", factschema.FactKindGCPCollectionWarning, facts.GCPCollectionWarningFactKind},
+	{"gcp_dns_record", factschema.FactKindGCPDNSRecord, facts.GCPDNSRecordFactKind},
+	{"gcp_iam_policy_observation", factschema.FactKindGCPIAMPolicyObservation, facts.GCPIAMPolicyObservationFactKind},
+	{"gcp_iam_principal", factschema.FactKindGCPIAMPrincipal, facts.GCPIAMPrincipalFactKind},
+	{"gcp_iam_trust_policy", factschema.FactKindGCPIAMTrustPolicy, facts.GCPIAMTrustPolicyFactKind},
+	{"gcp_iam_permission_policy", factschema.FactKindGCPIAMPermissionPolicy, facts.GCPIAMPermissionPolicyFactKind},
+	{"kubernetes_live.pod_template", factschema.FactKindKubernetesLivePodTemplate, facts.KubernetesPodTemplateFactKind},
+	{"kubernetes_live.relationship", factschema.FactKindKubernetesLiveRelationship, facts.KubernetesRelationshipFactKind},
+	{"kubernetes_live.warning", factschema.FactKindKubernetesLiveWarning, facts.KubernetesWarningFactKind},
+	{"oci_registry.repository", factschema.FactKindOCIRegistryRepository, facts.OCIRegistryRepositoryFactKind},
+	{"oci_registry.image_manifest", factschema.FactKindOCIImageManifest, facts.OCIImageManifestFactKind},
+	{"oci_registry.image_index", factschema.FactKindOCIImageIndex, facts.OCIImageIndexFactKind},
+	{"oci_registry.image_descriptor", factschema.FactKindOCIImageDescriptor, facts.OCIImageDescriptorFactKind},
+	{"oci_registry.image_tag_observation", factschema.FactKindOCIImageTagObservation, facts.OCIImageTagObservationFactKind},
+	{"oci_registry.image_referrer", factschema.FactKindOCIImageReferrer, facts.OCIImageReferrerFactKind},
+	{"oci_registry.warning", factschema.FactKindOCIRegistryWarning, facts.OCIRegistryWarningFactKind},
+	{"sbom.document", factschema.FactKindSBOMDocument, facts.SBOMDocumentFactKind},
+	{"sbom.component", factschema.FactKindSBOMComponent, facts.SBOMComponentFactKind},
+	{"sbom.dependency_relationship", factschema.FactKindSBOMDependencyRelationship, facts.SBOMDependencyRelationshipFactKind},
+	{"sbom.external_reference", factschema.FactKindSBOMExternalReference, facts.SBOMExternalReferenceFactKind},
+	{"sbom.warning", factschema.FactKindSBOMWarning, facts.SBOMWarningFactKind},
+	{"attestation.statement", factschema.FactKindAttestationStatement, facts.AttestationStatementFactKind},
+	{"attestation.signature_verification", factschema.FactKindAttestationSignatureVerification, facts.AttestationSignatureVerificationFactKind},
+	{"attestation.slsa_provenance", factschema.FactKindAttestationSLSAProvenance, facts.AttestationSLSAProvenanceFactKind},
+	{"scanner_worker.analysis", factschema.FactKindScannerWorkerAnalysis, facts.ScannerWorkerAnalysisFactKind},
+	{"scanner_worker.warning", factschema.FactKindScannerWorkerWarning, facts.ScannerWorkerWarningFactKind},
+	{"ci.run", factschema.FactKindCICDRun, facts.CICDRunFactKind},
+	{"ci.artifact", factschema.FactKindCICDArtifact, facts.CICDArtifactFactKind},
+	{"ci.environment_observation", factschema.FactKindCICDEnvironmentObservation, facts.CICDEnvironmentObservationFactKind},
+	{"ci.trigger_edge", factschema.FactKindCICDTriggerEdge, facts.CICDTriggerEdgeFactKind},
+	{"ci.step", factschema.FactKindCICDStep, facts.CICDStepFactKind},
+	{"ci.workflow_image_evidence", factschema.FactKindCICDWorkflowImageEvidence, facts.CICDWorkflowImageEvidenceFactKind},
+	{"vault_auth_role", factschema.FactKindVaultAuthRole, facts.VaultAuthRoleFactKind},
+	{"vault_acl_policy", factschema.FactKindVaultACLPolicy, facts.VaultACLPolicyFactKind},
+	{"vault_kv_metadata", factschema.FactKindVaultKVMetadata, facts.VaultKVMetadataFactKind},
+	{"vault_auth_mount", factschema.FactKindVaultAuthMount, facts.VaultAuthMountFactKind},
+	{"vault_identity_entity", factschema.FactKindVaultIdentityEntity, facts.VaultIdentityEntityFactKind},
+	{"vault_identity_alias", factschema.FactKindVaultIdentityAlias, facts.VaultIdentityAliasFactKind},
+	{"vault_secret_engine_mount", factschema.FactKindVaultSecretEngineMount, facts.VaultSecretEngineMountFactKind},
+	{"k8s_service_account", factschema.FactKindKubernetesServiceAccount, facts.KubernetesServiceAccountFactKind},
+	{"k8s_workload_identity_use", factschema.FactKindKubernetesWorkloadIdentityUse, facts.KubernetesWorkloadIdentityUseFactKind},
+	{"eks_irsa_annotation", factschema.FactKindEKSIRSAAnnotation, facts.EKSIRSAAnnotationFactKind},
+	{"eks_pod_identity_association", factschema.FactKindEKSPodIdentityAssociation, facts.EKSPodIdentityAssociationFactKind},
+	{"k8s_gcp_workload_identity_binding", factschema.FactKindKubernetesGCPWorkloadIdentityBinding, facts.KubernetesGCPWorkloadIdentityBindingFactKind},
+	{"k8s_rbac_role", factschema.FactKindKubernetesRBACRole, facts.KubernetesRBACRoleFactKind},
+	{"k8s_rbac_binding", factschema.FactKindKubernetesRBACBinding, facts.KubernetesRBACBindingFactKind},
+	{"k8s_service_account_token_posture", factschema.FactKindKubernetesServiceAccountTokenPosture, facts.KubernetesServiceAccountTokenPostureFactKind},
+	{"secrets_iam_coverage_warning", factschema.FactKindSecretsIAMCoverageWarning, facts.SecretsIAMCoverageWarningFactKind},
+	{"security_alert.repository_alert", factschema.FactKindSecurityAlertRepositoryAlert, facts.SecurityAlertRepositoryAlertFactKind},
+	{"observability.declared_folder", factschema.FactKindObservabilityDeclaredFolder, facts.ObservabilityDeclaredFolderFactKind},
+	{"observability.declared_dashboard", factschema.FactKindObservabilityDeclaredDashboard, facts.ObservabilityDeclaredDashboardFactKind},
+	{"observability.declared_datasource", factschema.FactKindObservabilityDeclaredDatasource, facts.ObservabilityDeclaredDatasourceFactKind},
+	{"observability.declared_alert_rule", factschema.FactKindObservabilityDeclaredAlertRule, facts.ObservabilityDeclaredAlertRuleFactKind},
+	{"observability.declared_scrape_config", factschema.FactKindObservabilityDeclaredScrapeConfig, facts.ObservabilityDeclaredScrapeConfigFactKind},
+	{"observability.declared_metric_rule", factschema.FactKindObservabilityDeclaredMetricRule, facts.ObservabilityDeclaredMetricRuleFactKind},
+	{"observability.declared_metric_route", factschema.FactKindObservabilityDeclaredMetricRoute, facts.ObservabilityDeclaredMetricRouteFactKind},
+	{"observability.declared_log_route", factschema.FactKindObservabilityDeclaredLogRoute, facts.ObservabilityDeclaredLogRouteFactKind},
+	{"observability.declared_trace_route", factschema.FactKindObservabilityDeclaredTraceRoute, facts.ObservabilityDeclaredTraceRouteFactKind},
+	{"observability.applied_resource", factschema.FactKindObservabilityAppliedResource, facts.ObservabilityAppliedResourceFactKind},
+	{"observability.applied_sync_state", factschema.FactKindObservabilityAppliedSyncState, facts.ObservabilityAppliedSyncStateFactKind},
+	{"observability.observed_dashboard", factschema.FactKindObservabilityObservedDashboard, facts.ObservabilityObservedDashboardFactKind},
+	{"observability.observed_target", factschema.FactKindObservabilityObservedTarget, facts.ObservabilityObservedTargetFactKind},
+	{"observability.observed_rule", factschema.FactKindObservabilityObservedRule, facts.ObservabilityObservedRuleFactKind},
+	{"observability.observed_log_signal", factschema.FactKindObservabilityObservedLogSignal, facts.ObservabilityObservedLogSignalFactKind},
+	{"observability.observed_trace_signal", factschema.FactKindObservabilityObservedTraceSignal, facts.ObservabilityObservedTraceSignalFactKind},
+	{"observability.coverage_warning", factschema.FactKindObservabilityCoverageWarning, facts.ObservabilityCoverageWarningFactKind},
+	{"observability.source_instance", factschema.FactKindObservabilitySourceInstance, facts.ObservabilitySourceInstanceFactKind},
+	{"semantic.documentation_observation", factschema.FactKindSemanticDocumentationObservation, facts.SemanticDocumentationObservationFactKind},
+	{"semantic.code_hint", factschema.FactKindSemanticCodeHint, facts.SemanticCodeHintFactKind},
+}
 
 // TestFactSchemaKindsMatchWireFactKinds locks each contracts-module fact-kind
 // constant (factschema.FactKind*) to the wire fact-kind constant the collector
@@ -27,97 +120,7 @@ import (
 func TestFactSchemaKindsMatchWireFactKinds(t *testing.T) {
 	t.Parallel()
 
-	cases := []struct {
-		name     string
-		contract string
-		wireKind string
-	}{
-		{"aws_resource", factschema.FactKindAWSResource, facts.AWSResourceFactKind},
-		{"aws_relationship", factschema.FactKindAWSRelationship, facts.AWSRelationshipFactKind},
-		{"aws_security_group_rule", factschema.FactKindAWSSecurityGroupRule, facts.AWSSecurityGroupRuleFactKind},
-		{"ec2_instance_posture", factschema.FactKindEC2InstancePosture, facts.EC2InstancePostureFactKind},
-		{"s3_bucket_posture", factschema.FactKindS3BucketPosture, facts.S3BucketPostureFactKind},
-		{"aws_iam_permission", factschema.FactKindAWSIAMPermission, facts.AWSIAMPermissionFactKind},
-		{"aws_resource_policy_permission", factschema.FactKindAWSResourcePolicyPermission, facts.AWSResourcePolicyPermissionFactKind},
-		{"aws_iam_principal", factschema.FactKindAWSIAMPrincipal, facts.AWSIAMPrincipalFactKind},
-		{"aws_iam_trust_policy", factschema.FactKindAWSIAMTrustPolicy, facts.AWSIAMTrustPolicyFactKind},
-		{"aws_iam_permission_policy", factschema.FactKindAWSIAMPermissionPolicy, facts.AWSIAMPermissionPolicyFactKind},
-		{"aws_iam_policy_attachment", factschema.FactKindAWSIAMPolicyAttachment, facts.AWSIAMPolicyAttachmentFactKind},
-		{"aws_iam_permission_boundary", factschema.FactKindAWSIAMPermissionBoundary, facts.AWSIAMPermissionBoundaryFactKind},
-		{"aws_iam_instance_profile", factschema.FactKindAWSIAMInstanceProfile, facts.AWSIAMInstanceProfileFactKind},
-		{"aws_iam_access_analyzer_finding", factschema.FactKindAWSIAMAccessAnalyzerFinding, facts.AWSIAMAccessAnalyzerFindingFactKind},
-		{"gcp_cloud_resource", factschema.FactKindGCPCloudResource, facts.GCPCloudResourceFactKind},
-		{"gcp_cloud_relationship", factschema.FactKindGCPCloudRelationship, facts.GCPCloudRelationshipFactKind},
-		{"gcp_collection_warning", factschema.FactKindGCPCollectionWarning, facts.GCPCollectionWarningFactKind},
-		{"gcp_dns_record", factschema.FactKindGCPDNSRecord, facts.GCPDNSRecordFactKind},
-		{"gcp_iam_policy_observation", factschema.FactKindGCPIAMPolicyObservation, facts.GCPIAMPolicyObservationFactKind},
-		{"gcp_iam_principal", factschema.FactKindGCPIAMPrincipal, facts.GCPIAMPrincipalFactKind},
-		{"gcp_iam_trust_policy", factschema.FactKindGCPIAMTrustPolicy, facts.GCPIAMTrustPolicyFactKind},
-		{"gcp_iam_permission_policy", factschema.FactKindGCPIAMPermissionPolicy, facts.GCPIAMPermissionPolicyFactKind},
-		{"kubernetes_live.pod_template", factschema.FactKindKubernetesLivePodTemplate, facts.KubernetesPodTemplateFactKind},
-		{"kubernetes_live.relationship", factschema.FactKindKubernetesLiveRelationship, facts.KubernetesRelationshipFactKind},
-		{"kubernetes_live.warning", factschema.FactKindKubernetesLiveWarning, facts.KubernetesWarningFactKind},
-		{"oci_registry.repository", factschema.FactKindOCIRegistryRepository, facts.OCIRegistryRepositoryFactKind},
-		{"oci_registry.image_manifest", factschema.FactKindOCIImageManifest, facts.OCIImageManifestFactKind},
-		{"oci_registry.image_index", factschema.FactKindOCIImageIndex, facts.OCIImageIndexFactKind},
-		{"oci_registry.image_descriptor", factschema.FactKindOCIImageDescriptor, facts.OCIImageDescriptorFactKind},
-		{"oci_registry.image_tag_observation", factschema.FactKindOCIImageTagObservation, facts.OCIImageTagObservationFactKind},
-		{"oci_registry.image_referrer", factschema.FactKindOCIImageReferrer, facts.OCIImageReferrerFactKind},
-		{"oci_registry.warning", factschema.FactKindOCIRegistryWarning, facts.OCIRegistryWarningFactKind},
-		{"sbom.document", factschema.FactKindSBOMDocument, facts.SBOMDocumentFactKind},
-		{"sbom.component", factschema.FactKindSBOMComponent, facts.SBOMComponentFactKind},
-		{"sbom.dependency_relationship", factschema.FactKindSBOMDependencyRelationship, facts.SBOMDependencyRelationshipFactKind},
-		{"sbom.external_reference", factschema.FactKindSBOMExternalReference, facts.SBOMExternalReferenceFactKind},
-		{"sbom.warning", factschema.FactKindSBOMWarning, facts.SBOMWarningFactKind},
-		{"attestation.statement", factschema.FactKindAttestationStatement, facts.AttestationStatementFactKind},
-		{"attestation.signature_verification", factschema.FactKindAttestationSignatureVerification, facts.AttestationSignatureVerificationFactKind},
-		{"attestation.slsa_provenance", factschema.FactKindAttestationSLSAProvenance, facts.AttestationSLSAProvenanceFactKind},
-		{"scanner_worker.analysis", factschema.FactKindScannerWorkerAnalysis, facts.ScannerWorkerAnalysisFactKind},
-		{"scanner_worker.warning", factschema.FactKindScannerWorkerWarning, facts.ScannerWorkerWarningFactKind},
-		{"ci.run", factschema.FactKindCICDRun, facts.CICDRunFactKind},
-		{"ci.artifact", factschema.FactKindCICDArtifact, facts.CICDArtifactFactKind},
-		{"ci.environment_observation", factschema.FactKindCICDEnvironmentObservation, facts.CICDEnvironmentObservationFactKind},
-		{"ci.trigger_edge", factschema.FactKindCICDTriggerEdge, facts.CICDTriggerEdgeFactKind},
-		{"ci.step", factschema.FactKindCICDStep, facts.CICDStepFactKind},
-		{"ci.workflow_image_evidence", factschema.FactKindCICDWorkflowImageEvidence, facts.CICDWorkflowImageEvidenceFactKind},
-		{"vault_auth_role", factschema.FactKindVaultAuthRole, facts.VaultAuthRoleFactKind},
-		{"vault_acl_policy", factschema.FactKindVaultACLPolicy, facts.VaultACLPolicyFactKind},
-		{"vault_kv_metadata", factschema.FactKindVaultKVMetadata, facts.VaultKVMetadataFactKind},
-		{"vault_auth_mount", factschema.FactKindVaultAuthMount, facts.VaultAuthMountFactKind},
-		{"vault_identity_entity", factschema.FactKindVaultIdentityEntity, facts.VaultIdentityEntityFactKind},
-		{"vault_identity_alias", factschema.FactKindVaultIdentityAlias, facts.VaultIdentityAliasFactKind},
-		{"vault_secret_engine_mount", factschema.FactKindVaultSecretEngineMount, facts.VaultSecretEngineMountFactKind},
-		{"k8s_service_account", factschema.FactKindKubernetesServiceAccount, facts.KubernetesServiceAccountFactKind},
-		{"k8s_workload_identity_use", factschema.FactKindKubernetesWorkloadIdentityUse, facts.KubernetesWorkloadIdentityUseFactKind},
-		{"eks_irsa_annotation", factschema.FactKindEKSIRSAAnnotation, facts.EKSIRSAAnnotationFactKind},
-		{"eks_pod_identity_association", factschema.FactKindEKSPodIdentityAssociation, facts.EKSPodIdentityAssociationFactKind},
-		{"k8s_gcp_workload_identity_binding", factschema.FactKindKubernetesGCPWorkloadIdentityBinding, facts.KubernetesGCPWorkloadIdentityBindingFactKind},
-		{"k8s_rbac_role", factschema.FactKindKubernetesRBACRole, facts.KubernetesRBACRoleFactKind},
-		{"k8s_rbac_binding", factschema.FactKindKubernetesRBACBinding, facts.KubernetesRBACBindingFactKind},
-		{"k8s_service_account_token_posture", factschema.FactKindKubernetesServiceAccountTokenPosture, facts.KubernetesServiceAccountTokenPostureFactKind},
-		{"secrets_iam_coverage_warning", factschema.FactKindSecretsIAMCoverageWarning, facts.SecretsIAMCoverageWarningFactKind},
-		{"security_alert.repository_alert", factschema.FactKindSecurityAlertRepositoryAlert, facts.SecurityAlertRepositoryAlertFactKind},
-		{"observability.declared_folder", factschema.FactKindObservabilityDeclaredFolder, facts.ObservabilityDeclaredFolderFactKind},
-		{"observability.declared_dashboard", factschema.FactKindObservabilityDeclaredDashboard, facts.ObservabilityDeclaredDashboardFactKind},
-		{"observability.declared_datasource", factschema.FactKindObservabilityDeclaredDatasource, facts.ObservabilityDeclaredDatasourceFactKind},
-		{"observability.declared_alert_rule", factschema.FactKindObservabilityDeclaredAlertRule, facts.ObservabilityDeclaredAlertRuleFactKind},
-		{"observability.declared_scrape_config", factschema.FactKindObservabilityDeclaredScrapeConfig, facts.ObservabilityDeclaredScrapeConfigFactKind},
-		{"observability.declared_metric_rule", factschema.FactKindObservabilityDeclaredMetricRule, facts.ObservabilityDeclaredMetricRuleFactKind},
-		{"observability.declared_metric_route", factschema.FactKindObservabilityDeclaredMetricRoute, facts.ObservabilityDeclaredMetricRouteFactKind},
-		{"observability.declared_log_route", factschema.FactKindObservabilityDeclaredLogRoute, facts.ObservabilityDeclaredLogRouteFactKind},
-		{"observability.declared_trace_route", factschema.FactKindObservabilityDeclaredTraceRoute, facts.ObservabilityDeclaredTraceRouteFactKind},
-		{"observability.applied_resource", factschema.FactKindObservabilityAppliedResource, facts.ObservabilityAppliedResourceFactKind},
-		{"observability.applied_sync_state", factschema.FactKindObservabilityAppliedSyncState, facts.ObservabilityAppliedSyncStateFactKind},
-		{"observability.observed_dashboard", factschema.FactKindObservabilityObservedDashboard, facts.ObservabilityObservedDashboardFactKind},
-		{"observability.observed_target", factschema.FactKindObservabilityObservedTarget, facts.ObservabilityObservedTargetFactKind},
-		{"observability.observed_rule", factschema.FactKindObservabilityObservedRule, facts.ObservabilityObservedRuleFactKind},
-		{"observability.observed_log_signal", factschema.FactKindObservabilityObservedLogSignal, facts.ObservabilityObservedLogSignalFactKind},
-		{"observability.observed_trace_signal", factschema.FactKindObservabilityObservedTraceSignal, facts.ObservabilityObservedTraceSignalFactKind},
-		{"observability.coverage_warning", factschema.FactKindObservabilityCoverageWarning, facts.ObservabilityCoverageWarningFactKind},
-		{"observability.source_instance", factschema.FactKindObservabilitySourceInstance, facts.ObservabilitySourceInstanceFactKind},
-	}
-
-	for _, tc := range cases {
+	for _, tc := range factSchemaWireKindCases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -126,6 +129,26 @@ func TestFactSchemaKindsMatchWireFactKinds(t *testing.T) {
 				t.Fatalf("factschema constant %q != wire fact kind facts constant %q; the contracts-module fact-kind string has drifted from the reducer's wire kind and Decode dispatch will silently never match", tc.contract, tc.wireKind)
 			}
 		})
+	}
+}
+
+func TestFactSchemaWireKindCasesCoverSemanticFacts(t *testing.T) {
+	t.Parallel()
+
+	covered := map[string]bool{}
+	for _, tc := range factSchemaWireKindCases {
+		covered[tc.contract] = true
+	}
+	for _, kind := range facts.SemanticFactKinds() {
+		if !slices.Contains([]string{
+			facts.SemanticDocumentationObservationFactKind,
+			facts.SemanticCodeHintFactKind,
+		}, kind) {
+			t.Fatalf("unexpected semantic fact kind %q; update the semantic drift-lock coverage expectation", kind)
+		}
+		if !covered[kind] {
+			t.Fatalf("semantic fact kind %q is missing from factSchemaWireKindCases", kind)
+		}
 	}
 }
 

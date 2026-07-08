@@ -37,6 +37,30 @@ func TestEncodeSemanticDocumentationObservationMatchesLegacyJSONShape(t *testing
 	}
 }
 
+func TestEncodeDocumentationFindingPreservesZeroClaimByteOffset(t *testing.T) {
+	t.Parallel()
+
+	got, err := EncodeDocumentationFinding(map[string]any{
+		"finding_id":        "finding:deploy:1",
+		"finding_version":   "2026-07-08T15:00:00Z",
+		"claim_byte_offset": 0,
+		"claim_byte_length": 42,
+	})
+	if err != nil {
+		t.Fatalf("EncodeDocumentationFinding() error = %v, want nil", err)
+	}
+	offset, ok := got["claim_byte_offset"]
+	if !ok {
+		t.Fatalf("EncodeDocumentationFinding() omitted claim_byte_offset; payload = %#v", got)
+	}
+	if offset != float64(0) {
+		t.Fatalf("claim_byte_offset = %#v, want JSON-shaped zero", offset)
+	}
+	if got["claim_byte_length"] != float64(42) {
+		t.Fatalf("claim_byte_length = %#v, want 42", got["claim_byte_length"])
+	}
+}
+
 func BenchmarkDocumentationSectionEncodeNoRegression(b *testing.B) {
 	payload := documentationSectionEncodeFixture()
 	b.Run("legacy_json_roundtrip", func(b *testing.B) {

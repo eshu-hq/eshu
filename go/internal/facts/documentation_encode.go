@@ -309,20 +309,11 @@ func stringPtrFromMap(payload map[string]any, key string) *string {
 func intPtrFromMap(payload map[string]any, key string) *int {
 	switch value := payload[key].(type) {
 	case int:
-		if value == 0 {
-			return nil
-		}
 		return &value
 	case int64:
-		if value == 0 {
-			return nil
-		}
 		converted := int(value)
 		return &converted
 	case float64:
-		if value == 0 {
-			return nil
-		}
 		converted := int(value)
 		if float64(converted) != value {
 			return nil
