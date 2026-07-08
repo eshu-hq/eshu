@@ -142,22 +142,20 @@ every `go test` run and fails the build if it no longer matches the
 committed artifact — schema drift is a test failure, not something only a
 separate CI diff gate would catch.
 
-## Envelope unification (out of scope, documented follow-up)
+## Envelope adapter unification
 
-Eshu currently has **three** separate envelope definitions for the same wire
-concept:
+Eshu has three package-specific envelope shapes for the same fact concept:
 
 1. `factschema.Envelope` (this module),
 2. `go/internal/facts.Envelope` (the durable reducer-side representation),
 3. `sdk/go/collector.Fact` (the wire-protocol collector-side representation).
 
-Contract System v1 §3.1 calls for eventually generating or aliasing all
-three from one definition. This scaffold does **not** do that: `Envelope`
-here is a standalone struct with its own field set and JSON tags, matching
-the contributor-summary field list, and does not import or alias
-`facts.Envelope` or `collector.Fact`. Unifying the three is tracked as
-follow-up work under the epic this scaffold is step 1 of; see design §3.1
-and §7 step 1 ("envelope unification").
+Their field names and JSON tags cannot be collapsed without changing public SDK
+wire compatibility or the durable internal fact shape. The unification point is
+therefore the generated core adapter in `go/internal/factenvelope`, which maps
+`sdk/go/collector.Fact` into `go/internal/facts.Envelope` and adapts
+`facts.Envelope` into this module's `Envelope` for Decode calls. This module
+remains standalone and imports no Eshu internals.
 
 ## Fixtures and tests
 

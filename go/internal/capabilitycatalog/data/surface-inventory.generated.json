@@ -2213,6 +2213,11 @@
     },
     {
       "category": "command",
+      "name": "fact-envelope-adapter",
+      "readiness": "implemented"
+    },
+    {
+      "category": "command",
       "name": "fact-kind-registry",
       "readiness": "implemented"
     },

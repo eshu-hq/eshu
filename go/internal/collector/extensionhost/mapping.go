@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
+	"github.com/eshu-hq/eshu/go/internal/factenvelope"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
@@ -54,35 +55,13 @@ func (s *Source) envelopesForResult(item workflow.WorkItem, result sdkcollector.
 			continue
 		}
 		seen[key] = struct{}{}
-		envelope := facts.Envelope{
-			FactID: facts.StableID("CollectorExtensionFact", map[string]any{
-				"component_id":    s.manifest.Metadata.ID,
-				"fact_kind":       fact.Kind,
-				"generation_id":   item.GenerationID,
-				"scope_id":        item.ScopeID,
-				"stable_fact_key": fact.StableKey,
-			}),
-			ScopeID:          item.ScopeID,
-			GenerationID:     item.GenerationID,
-			FactKind:         fact.Kind,
-			StableFactKey:    fact.StableKey,
-			SchemaVersion:    fact.SchemaVersion,
-			CollectorKind:    string(item.CollectorKind),
-			FencingToken:     item.CurrentFencingToken,
-			SourceConfidence: string(fact.SourceConfidence),
-			ObservedAt:       fact.ObservedAt.UTC(),
-			Payload:          fact.Payload,
-			IsTombstone:      fact.Tombstone,
-			SourceRef: facts.Ref{
-				SourceSystem:   fact.SourceRef.SourceSystem,
-				ScopeID:        fact.SourceRef.ScopeID,
-				GenerationID:   fact.SourceRef.GenerationID,
-				FactKey:        fact.SourceRef.FactKey,
-				SourceURI:      fact.SourceRef.URI,
-				SourceRecordID: fact.SourceRef.RecordID,
-			},
-		}
-		envelopes = append(envelopes, envelope.Clone())
+		envelopes = append(envelopes, factenvelope.InternalFromSDKFact(fact, factenvelope.InternalEnvelopeOptions{
+			ComponentID:   s.manifest.Metadata.ID,
+			ScopeID:       item.ScopeID,
+			GenerationID:  item.GenerationID,
+			CollectorKind: string(item.CollectorKind),
+			FencingToken:  item.CurrentFencingToken,
+		}))
 	}
 	return envelopes
 }

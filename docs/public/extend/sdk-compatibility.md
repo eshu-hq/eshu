@@ -16,6 +16,12 @@ states which combinations are supported together.
 | --- | --- | --- | --- | --- |
 | `sdk/go/collector` v0.1.x (unreleased; see `sdk/go/collector/CHANGELOG.md`) | `v0.0.3-pre-release-*` train (current; stable `v0.0.3` not yet cut, see [Release Log](../releases/index.md)) | `collector-sdk/v1alpha1` | `sdk/go/factschema` v0.1.x (unreleased; see `sdk/go/factschema/CHANGELOG.md`) | Initial supported combination. Manifests may set `payloadSchemaRef` to validate a namespaced component fact against a fixture-pack payload shape. |
 
+The `v0.1.x` row includes core-side generated adapters between
+`sdk/go/collector.Fact`, `go/internal/facts.Envelope`, and
+`sdk/go/factschema.Envelope`. Those adapters preserve the
+`collector-sdk/v1alpha1` JSON field names and do not require a wire-protocol or
+fixture-pack version bump.
+
 This table grows one row per tagged SDK release once tags exist. Do not
 remove a row when a newer one is added — a consumer pinned to an older tag
 still needs to find its row.

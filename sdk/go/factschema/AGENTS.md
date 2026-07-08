@@ -39,10 +39,10 @@ remain independent from Eshu internals, mirroring `sdk/go/collector`'s
 - The reducer only ever decodes the **latest** struct for a fact kind;
   version shims for older schema majors live in this module's decode
   functions, never in reducer handler code.
-- Do not add envelope unification (aliasing/generating `Envelope` from
-  `go/internal/facts.Envelope` or `sdk/go/collector.Fact`) here — it is
-  documented follow-up work in `README.md` and design §3.1/§7, out of scope
-  for this scaffold.
+- Keep this module independent from Eshu internals when maintaining envelope
+  mapping. The generated core adapter lives in `go/internal/factenvelope`; this
+  public module does not import `go/internal/facts` or `sdk/go/collector` to
+  alias their package-specific envelope shapes.
 - This module carries the AWS/IAM/security-group fact family (`aws_resource`,
   `aws_relationship`, `aws_security_group_rule`, `ec2_instance_posture`,
   `s3_bucket_posture`, `aws_iam_permission`, `aws_resource_policy_permission`,
