@@ -26,43 +26,21 @@ type goLocalNameBinding struct {
 	scopeEnd   int
 }
 
-// goConstructorReturnTypes records same-file constructor return types used for
-// bounded local receiver inference.
-func goConstructorReturnTypes(root *tree_sitter.Node, source []byte) map[string]string {
-	returns := make(map[string]string)
-	shared.WalkNamed(root, func(node *tree_sitter.Node) {
-		if node.Kind() != "function_declaration" {
-			return
-		}
-		name := strings.TrimSpace(nodeText(node.ChildByFieldName("name"), source))
-		if name == "" {
-			return
-		}
-		typeName := goTypeNameFromNode(node.ChildByFieldName("result"), source)
-		if typeName == "" {
-			return
-		}
-		returns[name] = typeName
-	})
-	return returns
-}
-
-// goLocalNameBindings records local names that can shadow package-level
-// function-value references. The lookup is threaded down to scope helpers so
-// each ancestor walk stays O(1); see #161.
-func goLocalNameBindings(root *tree_sitter.Node, source []byte, lookup *goParentLookup) []goLocalNameBinding {
-	bindings := make([]goLocalNameBinding, 0)
-	shared.WalkNamed(root, func(node *tree_sitter.Node) {
-		switch node.Kind() {
-		case "function_declaration", "method_declaration", "func_literal":
-			bindings = append(bindings, goLocalNameBindingsFromParameters(node, source)...)
-		case "short_var_declaration":
-			bindings = append(bindings, goLocalNameBindingsFromNames(node, goIdentifierNodes(node.ChildByFieldName("left"), source), source, lookup)...)
-		case "var_spec":
-			bindings = append(bindings, goLocalNameBindingsFromNames(node, goIdentifierNodes(node.ChildByFieldName("name"), source), source, lookup)...)
-		}
-	})
-	return bindings
+// goCollectConstructorReturnType records the constructor return type for one
+// function_declaration node into returns, if any. It is the single-node
+// visitor used by goCollectFileLevelIndexes (the per-file merged walk in
+// Parse; see #4839) that replaced the standalone goConstructorReturnTypes
+// full-tree walk.
+func goCollectConstructorReturnType(node *tree_sitter.Node, source []byte, returns map[string]string) {
+	name := strings.TrimSpace(nodeText(node.ChildByFieldName("name"), source))
+	if name == "" {
+		return
+	}
+	typeName := goTypeNameFromNode(node.ChildByFieldName("result"), source)
+	if typeName == "" {
+		return
+	}
+	returns[name] = typeName
 }
 
 // goLocalNameBindingsFromParameters scopes parameter names to the function
@@ -134,8 +112,7 @@ func goLocalReceiverBindings(
 	lookup *goParentLookup,
 ) []goLocalReceiverBinding {
 	bindings := make([]goLocalReceiverBinding, 0)
-	mapValueTypes := goLocalMapValueTypes(root, source, lookup)
-	localInterfaces := goLocalInterfaceNames(root, source)
+	mapValueTypes, localInterfaces := goCollectLocalMapValueTypesAndInterfaceNames(root, source, lookup)
 	shared.WalkNamed(root, func(node *tree_sitter.Node) {
 		switch node.Kind() {
 		case "function_declaration", "method_declaration", "func_literal":

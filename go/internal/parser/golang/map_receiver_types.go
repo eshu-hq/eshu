@@ -10,6 +10,30 @@ import (
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
+// goCollectLocalMapValueTypesAndInterfaceNames builds the map-value-type
+// binding list and the local-interface-name set in a single shared.WalkNamed
+// pass over root, instead of the two independent full-tree walks that the
+// former goLocalMapValueTypes and goLocalInterfaceNames standalone functions
+// each used to perform before goLocalReceiverBindings' own main walk (see
+// #4839). The two node-kind sets are disjoint (map-value-type binding kinds
+// vs. type_spec), so each output accumulates in exactly the traversal order
+// its former standalone walk produced.
+func goCollectLocalMapValueTypesAndInterfaceNames(
+	root *tree_sitter.Node,
+	source []byte,
+	lookup *goParentLookup,
+) ([]goLocalMapValueTypeBinding, map[string]struct{}) {
+	bindings := make([]goLocalMapValueTypeBinding, 0)
+	interfaceNames := make(map[string]struct{})
+
+	shared.WalkNamed(root, func(node *tree_sitter.Node) {
+		goCollectLocalMapValueType(node, source, lookup, &bindings)
+		goCollectLocalInterfaceName(node, source, interfaceNames)
+	})
+
+	return bindings, interfaceNames
+}
+
 type goLocalMapValueTypeBinding struct {
 	variable   string
 	typeName   string
@@ -18,36 +42,36 @@ type goLocalMapValueTypeBinding struct {
 	scopeEnd   int
 }
 
-// goLocalMapValueTypes records lexical map value types so range receiver
-// inference follows Go block shadowing instead of package-wide variable names.
-// The lookup is threaded so nested scope helpers walk ancestors in O(1) per
-// step instead of repeatedly re-entering tree-sitter cgo; see #161.
-func goLocalMapValueTypes(root *tree_sitter.Node, source []byte, lookup *goParentLookup) []goLocalMapValueTypeBinding {
-	bindings := make([]goLocalMapValueTypeBinding, 0)
-	shared.WalkNamed(root, func(node *tree_sitter.Node) {
-		switch node.Kind() {
-		case "function_declaration", "method_declaration":
-			bindings = append(bindings, goParameterMapValueTypes(node, source)...)
-		case "func_literal":
-			bindings = append(bindings, goParameterMapValueTypes(node, source)...)
-		case "short_var_declaration", "assignment_statement":
-			leftNames := goIdentifierNodes(node.ChildByFieldName("left"), source)
-			values := goExpressionNodes(node.ChildByFieldName("right"))
-			bindings = append(bindings, goAssignedMapValueTypes(node, leftNames, values, source, lookup)...)
-		case "var_spec":
-			nameNodes := goIdentifierNodes(node.ChildByFieldName("name"), source)
-			if typeName := goMapValueTypeNameFromNode(node.ChildByFieldName("type"), source); typeName != "" {
-				for _, nameNode := range nameNodes {
-					if binding := goNewMapValueTypeBinding(node, nameNode, typeName, source, lookup); binding.variable != "" {
-						bindings = append(bindings, binding)
-					}
+// goCollectLocalMapValueType appends the map-value-type bindings contributed
+// by one node to *bindings, for the node kinds goLocalMapValueTypes' former
+// standalone walk recognized. It is the single-node visitor shared by
+// goCollectLocalMapValueTypesAndInterfaceNames (the merged walk used by
+// goLocalReceiverBindings; see #4839).
+func goCollectLocalMapValueType(
+	node *tree_sitter.Node,
+	source []byte,
+	lookup *goParentLookup,
+	bindings *[]goLocalMapValueTypeBinding,
+) {
+	switch node.Kind() {
+	case "function_declaration", "method_declaration", "func_literal":
+		*bindings = append(*bindings, goParameterMapValueTypes(node, source)...)
+	case "short_var_declaration", "assignment_statement":
+		leftNames := goIdentifierNodes(node.ChildByFieldName("left"), source)
+		values := goExpressionNodes(node.ChildByFieldName("right"))
+		*bindings = append(*bindings, goAssignedMapValueTypes(node, leftNames, values, source, lookup)...)
+	case "var_spec":
+		nameNodes := goIdentifierNodes(node.ChildByFieldName("name"), source)
+		if typeName := goMapValueTypeNameFromNode(node.ChildByFieldName("type"), source); typeName != "" {
+			for _, nameNode := range nameNodes {
+				if binding := goNewMapValueTypeBinding(node, nameNode, typeName, source, lookup); binding.variable != "" {
+					*bindings = append(*bindings, binding)
 				}
-				return
 			}
-			bindings = append(bindings, goAssignedMapValueTypes(node, nameNodes, goExpressionNodes(node.ChildByFieldName("value")), source, lookup)...)
+			return
 		}
-	})
-	return bindings
+		*bindings = append(*bindings, goAssignedMapValueTypes(node, nameNodes, goExpressionNodes(node.ChildByFieldName("value")), source, lookup)...)
+	}
 }
 
 func goParameterMapValueTypes(node *tree_sitter.Node, source []byte) []goLocalMapValueTypeBinding {

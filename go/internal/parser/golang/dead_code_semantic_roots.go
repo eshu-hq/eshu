@@ -26,6 +26,7 @@ func goCollectSemanticDeadCodeRoots(
 	importAliases map[string][]string,
 	importedParamMethods GoImportedInterfaceParamMethods,
 	localNameBindings []goLocalNameBinding,
+	constructorReturns map[string]string,
 	functionRootKinds map[string][]string,
 	interfaceRootKinds map[string][]string,
 	structRootKinds map[string][]string,
@@ -77,7 +78,6 @@ func goCollectSemanticDeadCodeRoots(
 		}
 	})
 
-	constructorReturns := goConstructorReturnTypes(root, source)
 	interfaceConcreteTypes := make(map[string][]string)
 	structFieldTypes := goStructFieldConcreteTypes(root, source, structTypes)
 	structFieldTargets := goStructFieldInterfaceTargets(root, source, interfaceMethods)
