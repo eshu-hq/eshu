@@ -287,7 +287,16 @@ func TestPostgresSupplyChainImpactWriterPersistsSignalsWithoutPriorityCollapse(t
 	if result.CanonicalWrites != 1 || result.FactsWritten != 1 {
 		t.Fatalf("result = %#v, want one canonical fact", result)
 	}
-	payload := unmarshalSupplyChainImpactPayload(t, db.execs[0].args[14])
+	if !strings.Contains(db.execs[0].query, "schema_version") {
+		t.Fatalf("insert query missing schema_version column for governed reducer fact: %s", db.execs[0].query)
+	}
+	if got, want := db.execs[0].args[5], "1.0.0"; got != want {
+		t.Fatalf("schema_version = %v, want %v", got, want)
+	}
+	if got, want := db.execs[0].args[7], facts.SourceConfidenceInferred; got != want {
+		t.Fatalf("source_confidence = %v, want %v", got, want)
+	}
+	payload := unmarshalSupplyChainImpactPayload(t, db.execs[0].args[15])
 	if got, want := payload["impact_status"], string(SupplyChainImpactAffectedExact); got != want {
 		t.Fatalf("impact_status = %#v, want %#v", got, want)
 	}

@@ -90,6 +90,11 @@ func requiredFieldValue(t *testing.T, typ reflect.Type, jsonName string, nonEmpt
 				return 1
 			}
 			return 0
+		case reflect.Float32, reflect.Float64:
+			if nonEmpty {
+				return 1.0
+			}
+			return 0.0
 		default:
 			if nonEmpty {
 				return "x"
@@ -513,6 +518,15 @@ func decodeByKind(t *testing.T, factKind string, payload map[string]any) error {
 	case FactKindSecurityAlertRepositoryAlert:
 		_, err := DecodeSecurityAlertRepositoryAlert(env)
 		return err
+	case FactKindReducerSupplyChainImpactFinding:
+		_, err := DecodeReducerSupplyChainImpactFinding(env)
+		return err
+	case FactKindReducerAWSCloudRuntimeDriftFinding:
+		_, err := DecodeReducerAWSCloudRuntimeDriftFinding(env)
+		return err
+	case FactKindReducerMultiCloudRuntimeDriftFinding:
+		_, err := DecodeReducerMultiCloudRuntimeDriftFinding(env)
+		return err
 	case FactKindDocumentationSource:
 		_, err := DecodeDocumentationSource(env)
 		return err
@@ -743,6 +757,9 @@ var allDecodedKinds = []string{
 	FactKindWorkItemFieldMetadata,
 	FactKindWorkItemMetadataWarning,
 	FactKindSecurityAlertRepositoryAlert,
+	FactKindReducerSupplyChainImpactFinding,
+	FactKindReducerAWSCloudRuntimeDriftFinding,
+	FactKindReducerMultiCloudRuntimeDriftFinding,
 	FactKindObservabilityDeclaredFolder,
 	FactKindObservabilityDeclaredDashboard,
 	FactKindObservabilityDeclaredDatasource,
@@ -1130,6 +1147,12 @@ func TestDecodeEachKind_UnsupportedMajorDeadLetters(t *testing.T) {
 				_, err = DecodeWorkItemMetadataWarning(env)
 			case FactKindSecurityAlertRepositoryAlert:
 				_, err = DecodeSecurityAlertRepositoryAlert(env)
+			case FactKindReducerSupplyChainImpactFinding:
+				_, err = DecodeReducerSupplyChainImpactFinding(env)
+			case FactKindReducerAWSCloudRuntimeDriftFinding:
+				_, err = DecodeReducerAWSCloudRuntimeDriftFinding(env)
+			case FactKindReducerMultiCloudRuntimeDriftFinding:
+				_, err = DecodeReducerMultiCloudRuntimeDriftFinding(env)
 			case FactKindObservabilityDeclaredFolder:
 				_, err = DecodeObservabilityDeclaredFolder(env)
 			case FactKindObservabilityDeclaredDashboard:

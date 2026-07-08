@@ -423,6 +423,7 @@ func liveFamilies() []liveFamily {
 		{"oci_registry", facts.OCIRegistryFactKinds, facts.OCIRegistrySchemaVersion},
 		{"package_registry", facts.PackageRegistryFactKinds, facts.PackageRegistrySchemaVersion},
 		{"rds_posture", facts.RDSPostureFactKinds, facts.RDSPostureSchemaVersion},
+		{"reducer_derived", facts.ReducerDerivedFactKinds, facts.ReducerDerivedSchemaVersion},
 		{"s3_bucket_posture", facts.S3BucketPostureFactKinds, facts.S3BucketPostureSchemaVersion},
 		{"s3_external_principal_grant", facts.S3ExternalPrincipalGrantFactKinds, facts.S3ExternalPrincipalGrantSchemaVersion},
 		{"sbom_attestation", facts.SBOMAttestationFactKinds, facts.SBOMAttestationSchemaVersion},

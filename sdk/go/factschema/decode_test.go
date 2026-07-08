@@ -27,6 +27,7 @@ import (
 	observabilityv1 "github.com/eshu-hq/eshu/sdk/go/factschema/observability/v1"
 	ociregistryv1 "github.com/eshu-hq/eshu/sdk/go/factschema/ociregistry/v1"
 	packageregistryv1 "github.com/eshu-hq/eshu/sdk/go/factschema/packageregistry/v1"
+	reducerderivedv1 "github.com/eshu-hq/eshu/sdk/go/factschema/reducerderived/v1"
 	sbomv1 "github.com/eshu-hq/eshu/sdk/go/factschema/sbom/v1"
 	scannerworkerv1 "github.com/eshu-hq/eshu/sdk/go/factschema/scannerworker/v1"
 	secretsiamv1 "github.com/eshu-hq/eshu/sdk/go/factschema/secretsiam/v1"
@@ -417,6 +418,9 @@ var payloadContracts = []struct {
 	{FactKindWorkItemFieldMetadata, "work_item.field_metadata.v1.schema.json", reflect.TypeOf(workitemv1.WorkItemFieldMetadata{})},
 	{FactKindWorkItemMetadataWarning, "work_item.metadata_warning.v1.schema.json", reflect.TypeOf(workitemv1.WorkItemMetadataWarning{})},
 	{FactKindSecurityAlertRepositoryAlert, "security_alert.repository_alert.v1.schema.json", reflect.TypeOf(securityalertv1.RepositoryAlert{})},
+	{FactKindReducerSupplyChainImpactFinding, "reducer_supply_chain_impact_finding.v1.schema.json", reflect.TypeOf(reducerderivedv1.SupplyChainImpactFinding{})},
+	{FactKindReducerAWSCloudRuntimeDriftFinding, "reducer_aws_cloud_runtime_drift_finding.v1.schema.json", reflect.TypeOf(reducerderivedv1.AWSCloudRuntimeDriftFinding{})},
+	{FactKindReducerMultiCloudRuntimeDriftFinding, "reducer_multi_cloud_runtime_drift_finding.v1.schema.json", reflect.TypeOf(reducerderivedv1.MultiCloudRuntimeDriftFinding{})},
 	{FactKindObservabilityDeclaredFolder, "observability.declared_folder.v1.schema.json", reflect.TypeOf(observabilityv1.DeclaredFolder{})},
 	{FactKindObservabilityDeclaredDashboard, "observability.declared_dashboard.v1.schema.json", reflect.TypeOf(observabilityv1.DeclaredDashboard{})},
 	{FactKindObservabilityDeclaredDatasource, "observability.declared_datasource.v1.schema.json", reflect.TypeOf(observabilityv1.DeclaredDatasource{})},

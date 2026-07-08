@@ -4,7 +4,7 @@
 
 Every surface Eshu claims to support should have a green, credential-free, Docker-free replay scenario. This dashboard is generated from the C-1 coverage manifest and the source-of-truth registries (epic [#4172](https://github.com/eshu-hq/eshu/issues/4172)); it is refreshed by the replay-coverage gate so the gap is reviewable in a PR diff.
 
-**Overall: 222/395 surfaces satisfied (56.20%)** — mode: blocking.
+**Overall: 224/399 surfaces satisfied (56.14%)** — mode: blocking.
 
 ## Coverage by axis
 
@@ -13,22 +13,22 @@ Every surface Eshu claims to support should have a green, credential-free, Docke
 | authorization_catalog | 24 | 24 | 100.00% | 0 | 0 |
 | Capability claims | 131 | 131 | 100.00% | 0 | 0 |
 | Read surfaces (CLI) | 7 | 7 | 100.00% | 0 | 0 |
-| Read surfaces (API/MCP) | 19 | 19 | 100.00% | 0 | 1 |
+| Read surfaces (API/MCP) | 21 | 21 | 100.00% | 0 | 1 |
 | Parsers | 4 | 4 | 100.00% | 0 | 0 |
 | Product claims | 11 | 11 | 100.00% | 0 | 0 |
-| Projections (cost/ordering) | 0 | 25 | 0.00% | 25 | 0 |
+| Projections (cost/ordering) | 0 | 27 | 0.00% | 27 | 0 |
 | Reducer drain (crash) | 1 | 1 | 100.00% | 0 | 0 |
 | Retractable edge types (delta) | 2 | 52 | 3.85% | 50 | 0 |
 | Retractable node types (delta) | 1 | 87 | 1.15% | 86 | 0 |
 | Collectors | 22 | 34 | 64.71% | 12 | 8 |
-| **Total** | **222** | **395** | **56.20%** | **173** | **9** |
+| **Total** | **224** | **399** | **56.14%** | **175** | **9** |
 
 ## Coverage by scenario type
 
 | Scenario type | Satisfied | Total | % | Uncovered | Exempt |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| baseline | 209 | 209 | 100.00% | 0 | 5 |
-| cost | 1 | 24 | 4.17% | 23 | 0 |
+| baseline | 211 | 211 | 100.00% | 0 | 5 |
+| cost | 1 | 26 | 3.85% | 25 | 0 |
 | crash | 2 | 2 | 100.00% | 0 | 0 |
 | delta_tombstone | 4 | 140 | 2.86% | 136 | 0 |
 | fault | 5 | 17 | 29.41% | 12 | 4 |
@@ -63,13 +63,14 @@ Uncovered (18) — needs a parser-fixture replay scenario:
 
 ## Gaps — surfaces still needing a replay scenario
 
-173 surface(s) uncovered or unresolved:
+175 surface(s) uncovered or unresolved:
 
-### Projections (cost/ordering) (25)
+### Projections (cost/ordering) (27)
 
 - `projection:aws_cloud_runtime_drift` (cost)
 - `projection:azure_resource_materialization` (cost)
 - `projection:ci_cd_run_correlation` (cost)
+- `projection:cloud_asset_resolution` (cost)
 - `projection:code_graph_projection` (cost)
 - `projection:config_state_drift` (cost)
 - `projection:container_image_identity` (cost)
@@ -83,6 +84,7 @@ Uncovered (18) — needs a parser-fixture replay scenario:
 - `projection:observability_coverage_correlation` (cost)
 - `projection:package_source_correlation` (cost)
 - `projection:rds_posture_materialization` (cost)
+- `projection:reducer_derived_findings` (cost)
 - `projection:s3_external_principal_grant_materialization` (cost)
 - `projection:s3_internet_exposure_materialization` (cost)
 - `projection:sbom_attestation_attachment` (cost)
@@ -250,7 +252,7 @@ Uncovered (18) — needs a parser-fixture replay scenario:
 - `collector:terraform_state` (fault)
 - `collector:vulnerability_intelligence` (fault)
 
-## Covered surfaces (222)
+## Covered surfaces (224)
 
 | Surface | Scenario type | Scenario | Proof gate | Artifact |
 | --- | --- | --- | --- | --- |
@@ -434,6 +436,8 @@ Uncovered (18) — needs a parser-fixture replay scenario:
 | `read_surface:GET /api/v0/supply-chain/sbom-attestations/attachments` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/supply-chain/sbom-attestations/attachments?limit=50&document_id=scd-sbom` |
 | `read_surface:GET /api/v0/supply-chain/security-alerts/reconciliations` | baseline | exempt | — | — |
 | `read_surface:GET /api/v0/work-items/evidence` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/work-items/evidence?limit=50&scope_id=jira:supply-chain-demo:SCD` |
+| `read_surface:POST /api/v0/aws/runtime-drift/findings` | baseline | api_mcp_golden | golden-corpus-gate | `POST /api/v0/aws/runtime-drift/findings` |
+| `read_surface:POST /api/v0/cloud/runtime-drift/findings` | baseline | api_mcp_golden | golden-corpus-gate | `POST /api/v0/cloud/runtime-drift/findings` |
 | `read_surface:list_repository_files` | baseline | api_mcp_golden | golden-corpus-gate | `list_repository_files` |
 | `parser:cloudformation` | baseline | parser_fixture | parserfixture-tests | `go/internal/replay/parserfixture/testdata/fixtures/cloudformation.fixture.json` |
 | `parser:dockerfile` | baseline | parser_fixture | parserfixture-tests | `go/internal/replay/parserfixture/testdata/fixtures/dockerfile.fixture.json` |

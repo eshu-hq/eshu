@@ -219,6 +219,94 @@ func TestFactKindRegistryClassifiesSemanticFacts(t *testing.T) {
 	}
 }
 
+func TestReducerDerivedFindingGovernanceRegistry(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		kind          string
+		readSurface   string
+		payloadSchema string
+	}{
+		{
+			kind:          "reducer_supply_chain_impact_finding",
+			readSurface:   "GET /api/v0/supply-chain/impact/findings",
+			payloadSchema: "sdk/go/factschema/schema/reducer_supply_chain_impact_finding.v1.schema.json",
+		},
+		{
+			kind:          "reducer_aws_cloud_runtime_drift_finding",
+			readSurface:   "POST /api/v0/aws/runtime-drift/findings",
+			payloadSchema: "sdk/go/factschema/schema/reducer_aws_cloud_runtime_drift_finding.v1.schema.json",
+		},
+		{
+			kind:          "reducer_multi_cloud_runtime_drift_finding",
+			readSurface:   "POST /api/v0/cloud/runtime-drift/findings",
+			payloadSchema: "sdk/go/factschema/schema/reducer_multi_cloud_runtime_drift_finding.v1.schema.json",
+		},
+	}
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.kind, func(t *testing.T) {
+			t.Parallel()
+
+			entry, ok := FactKindRegistryEntryFor(tc.kind)
+			if !ok {
+				t.Fatalf("FactKindRegistryEntryFor(%q) ok = false, want true", tc.kind)
+			}
+			if entry.AdmissionExempt {
+				t.Fatalf("registry entry for %q AdmissionExempt = true, want false", tc.kind)
+			}
+			if got, want := entry.SchemaVersion, "1.0.0"; got != want {
+				t.Fatalf("registry entry for %q SchemaVersion = %q, want %q", tc.kind, got, want)
+			}
+			if got := entry.PayloadSchema; got != tc.payloadSchema {
+				t.Fatalf("registry entry for %q PayloadSchema = %q, want %q", tc.kind, got, tc.payloadSchema)
+			}
+			if got := entry.ReadSurface; got != tc.readSurface {
+				t.Fatalf("registry entry for %q ReadSurface = %q, want %q", tc.kind, got, tc.readSurface)
+			}
+			if version, ok := SchemaVersion(tc.kind); !ok || version != "1.0.0" {
+				t.Fatalf("SchemaVersion(%q) = (%q, %v), want (1.0.0, true)", tc.kind, version, ok)
+			}
+			if err := ValidateSchemaVersion(tc.kind, "2.0.0"); err == nil {
+				t.Fatalf("ValidateSchemaVersion(%q, 2.0.0) error = nil, want unsupported major", tc.kind)
+			}
+		})
+	}
+}
+
+func TestReducerCloudAssetResolutionRegistryIsAdmissionExempt(t *testing.T) {
+	t.Parallel()
+
+	const kind = "reducer_cloud_asset_resolution"
+	entry, ok := FactKindRegistryEntryFor(kind)
+	if !ok {
+		t.Fatalf("FactKindRegistryEntryFor(%q) ok = false, want true", kind)
+	}
+	if !entry.AdmissionExempt {
+		t.Fatalf("registry entry for %q AdmissionExempt = false, want true", kind)
+	}
+	if entry.SchemaVersion != "" {
+		t.Fatalf("registry entry for %q SchemaVersion = %q, want blank", kind, entry.SchemaVersion)
+	}
+	if entry.PayloadSchema != "" {
+		t.Fatalf("registry entry for %q PayloadSchema = %q, want blank", kind, entry.PayloadSchema)
+	}
+	if entry.ReadSurface != "none" {
+		t.Fatalf("registry entry for %q ReadSurface = %q, want none", kind, entry.ReadSurface)
+	}
+	if version, ok := SchemaVersion(kind); ok {
+		t.Fatalf("SchemaVersion(%q) = (%q, true), want ok=false", kind, version)
+	}
+	for _, candidate := range []string{"", "1.0.0", "2.0.0", "not-a-version"} {
+		if got := ClassifySchemaVersion(kind, candidate); got != CompatibilityUnknownKind {
+			t.Fatalf("ClassifySchemaVersion(%q, %q) = %q, want %q", kind, candidate, got, CompatibilityUnknownKind)
+		}
+		if err := ValidateSchemaVersion(kind, candidate); err != nil {
+			t.Fatalf("ValidateSchemaVersion(%q, %q) = %v, want nil", kind, candidate, err)
+		}
+	}
+}
+
 func TestW1fTypedFamiliesCarryPayloadSchemas(t *testing.T) {
 	t.Parallel()
 

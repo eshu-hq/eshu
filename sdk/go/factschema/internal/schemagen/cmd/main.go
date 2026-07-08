@@ -227,6 +227,13 @@ func run() error {
 		// seeder, so the typed struct mirrors the existing payload exactly
 		// (Contract System v1 Wave 4e, #4566/#4582).
 		{name: "security_alert.repository_alert.v1.schema.json", generate: schemagen.SecurityAlertRepositoryAlertSchema},
+		// The reducer_derived family contains reducer-owned durable findings.
+		// These kinds are written by reducer domains after source evidence has
+		// been admitted, so their schemas describe read-model payloads rather
+		// than collector input.
+		{name: "reducer_supply_chain_impact_finding.v1.schema.json", generate: schemagen.ReducerSupplyChainImpactFindingSchema},
+		{name: "reducer_aws_cloud_runtime_drift_finding.v1.schema.json", generate: schemagen.ReducerAWSCloudRuntimeDriftFindingSchema},
+		{name: "reducer_multi_cloud_runtime_drift_finding.v1.schema.json", generate: schemagen.ReducerMultiCloudRuntimeDriftFindingSchema},
 		// The observability family fact kinds are DOTTED (like the incident
 		// family). All eighteen are consumed by the reducer's
 		// observability_coverage_correlation domain (observability/v1/doc.go).

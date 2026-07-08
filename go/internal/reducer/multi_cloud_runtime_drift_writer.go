@@ -15,9 +15,11 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/correlation/drift/multicloud"
 	"github.com/eshu-hq/eshu/go/internal/correlation/model"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/sdk/go/factschema"
+	reducerderivedv1 "github.com/eshu-hq/eshu/sdk/go/factschema/reducerderived/v1"
 )
 
-const multiCloudRuntimeDriftFactKind = "reducer_multi_cloud_runtime_drift_finding"
+const multiCloudRuntimeDriftFactKind = facts.ReducerMultiCloudRuntimeDriftFindingFactKind
 
 // PostgresMultiCloudRuntimeDriftWriter persists admitted provider-neutral runtime
 // drift findings into the shared fact store.
@@ -42,19 +44,26 @@ func (w PostgresMultiCloudRuntimeDriftWriter) WriteMultiCloudRuntimeDriftFinding
 	canonicalIDs := make([]string, 0, len(write.Candidates))
 	for _, candidate := range write.Candidates {
 		canonicalID := canonicalMultiCloudRuntimeDriftID(write, candidate)
-		payloadJSON, err := json.Marshal(multiCloudRuntimeDriftPayload(write, candidate, canonicalID))
+		payload, err := factschema.EncodeReducerMultiCloudRuntimeDriftFinding(
+			multiCloudRuntimeDriftTypedPayload(write, candidate, canonicalID),
+		)
+		if err != nil {
+			return MultiCloudRuntimeDriftWriteResult{}, fmt.Errorf("encode multi cloud runtime drift payload: %w", err)
+		}
+		payloadJSON, err := json.Marshal(payload)
 		if err != nil {
 			return MultiCloudRuntimeDriftWriteResult{}, fmt.Errorf("marshal multi cloud runtime drift payload: %w", err)
 		}
 
 		if _, err := w.DB.ExecContext(
 			ctx,
-			canonicalReducerFactInsertQuery,
+			canonicalVersionedReducerFactInsertQuery,
 			multiCloudRuntimeDriftFactID(write, candidate),
 			write.ScopeID,
 			write.GenerationID,
 			multiCloudRuntimeDriftFactKind,
 			multiCloudRuntimeDriftStableFactKey(write, candidate),
+			facts.ReducerDerivedSchemaVersionV1,
 			reducerFactCollectorKind(write.SourceSystem),
 			facts.SourceConfidenceInferred,
 			write.SourceSystem,
@@ -111,44 +120,44 @@ func multiCloudRuntimeDriftIdentity(write MultiCloudRuntimeDriftWrite, candidate
 	}
 }
 
-func multiCloudRuntimeDriftPayload(
+func multiCloudRuntimeDriftTypedPayload(
 	write MultiCloudRuntimeDriftWrite,
 	candidate model.Candidate,
 	canonicalID string,
-) map[string]any {
+) reducerderivedv1.MultiCloudRuntimeDriftFinding {
 	status := multicloud.ManagementStatusFromCandidate(candidate)
-	return map[string]any{
-		"reducer_domain":     string(DomainMultiCloudRuntimeDrift),
-		"intent_id":          write.IntentID,
-		"scope_id":           write.ScopeID,
-		"generation_id":      write.GenerationID,
-		"source_system":      write.SourceSystem,
-		"cause":              write.Cause,
-		"canonical_id":       canonicalID,
-		"candidate_id":       candidate.ID,
-		"candidate_kind":     candidate.Kind,
-		"cloud_resource_uid": candidate.CorrelationKey,
-		"provider":           multicloud.ProviderFromCandidate(candidate),
-		"raw_identity":       multiCloudRuntimeRawIdentity(candidate),
-		"finding_kind":       multiCloudRuntimeFindingKind(candidate),
-		"management_status":  status,
-		"confidence":         candidate.Confidence,
-		"candidate_state":    string(candidate.State),
-		"matched_terraform_state_address": multiCloudRuntimeEvidenceValue(
+	return reducerderivedv1.MultiCloudRuntimeDriftFinding{
+		ReducerDomain:    string(DomainMultiCloudRuntimeDrift),
+		IntentID:         write.IntentID,
+		ScopeID:          write.ScopeID,
+		GenerationID:     write.GenerationID,
+		SourceSystem:     write.SourceSystem,
+		Cause:            write.Cause,
+		CanonicalID:      canonicalID,
+		CandidateID:      candidate.ID,
+		CandidateKind:    candidate.Kind,
+		CloudResourceUID: candidate.CorrelationKey,
+		Provider:         multicloud.ProviderFromCandidate(candidate),
+		RawIdentity:      multiCloudRuntimeRawIdentity(candidate),
+		FindingKind:      multiCloudRuntimeFindingKind(candidate),
+		ManagementStatus: status,
+		Confidence:       candidate.Confidence,
+		CandidateState:   string(candidate.State),
+		MatchedTerraformStateAddress: multiCloudRuntimeEvidenceValue(
 			candidate,
 			multicloud.EvidenceTypeStateResource,
 			"resource_address",
 		),
-		"missing_evidence":      multiCloudRuntimeMissingEvidence(candidate, status),
-		"warning_flags":         multiCloudRuntimeWarningFlags(candidate, status),
-		"recommended_action":    multiCloudRuntimeRecommendedAction(status),
-		"evidence":              multiCloudRuntimeDriftEvidencePayload(candidate.Evidence),
-		"orphaned_resources":    write.Summary.OrphanedResources,
-		"unmanaged_resources":   write.Summary.UnmanagedResources,
-		"ambiguous_resources":   write.Summary.AmbiguousResources,
-		"unknown_resources":     write.Summary.UnknownResources,
-		"publication_fact_kind": multiCloudRuntimeDriftFactKind,
-		"source_layers": []string{
+		MissingEvidence:     nonNilStrings(multiCloudRuntimeMissingEvidence(candidate, status)),
+		WarningFlags:        nonNilStrings(multiCloudRuntimeWarningFlags(candidate, status)),
+		RecommendedAction:   multiCloudRuntimeRecommendedAction(status),
+		Evidence:            nonNilMapSlice(multiCloudRuntimeDriftEvidencePayload(candidate.Evidence)),
+		OrphanedResources:   write.Summary.OrphanedResources,
+		UnmanagedResources:  write.Summary.UnmanagedResources,
+		AmbiguousResources:  write.Summary.AmbiguousResources,
+		UnknownResources:    write.Summary.UnknownResources,
+		PublicationFactKind: multiCloudRuntimeDriftFactKind,
+		SourceLayers: []string{
 			"source_declaration",
 			"applied_declaration",
 			"observed_resource",

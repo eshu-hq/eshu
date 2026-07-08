@@ -9,7 +9,7 @@ constraint `sdk/go/collector` already satisfies. Both collector repositories
 and the core reducer depend on this module; they never depend on each other.
 
 The migration is incremental, family by family (Contract System v1 §7,
-`docs/internal/design/contract-system-v1.md`). Two families are typed today:
+`docs/internal/design/contract-system-v1.md`). Typed families include:
 
 - **aws / iam / security-group** — `aws/v1` and `iam/v1` (underscore kinds).
 - **incident** — `incident/v1`: the incident-context and incident-routing kinds
@@ -21,6 +21,11 @@ The migration is incremental, family by family (Contract System v1 §7,
   `incident_routing.coverage_warning`). This is the first family with **dotted**
   wire kinds; the `FactKind*` constants and schema filenames match the dots the
   collector already emits (for example `incident.record.v1.schema.json`).
+- **reducerderived** — `reducerderived/v1`: governed reducer-owned finding
+  payloads such as `reducer_supply_chain_impact_finding`,
+  `reducer_aws_cloud_runtime_drift_finding`, and
+  `reducer_multi_cloud_runtime_drift_finding`. These are emitted by reducer
+  writers after source facts have already been admitted.
 
 ## Compatibility
 
@@ -36,9 +41,9 @@ The migration is incremental, family by family (Contract System v1 §7,
   `stable_fact_key`, `scope_id`, `generation_id`, `collector_kind`,
   `source_confidence`, `observed_at`, `is_tombstone`, `source_ref`, and the
   raw `payload` map.
-- `aws/v1.Resource`, `iam/v1.Permission`, `incident/v1.IncidentRecord`, and
-  their siblings — the typed payload structs, one per fact kind, under each
-  family's `<family>/v1` package.
+- `aws/v1.Resource`, `iam/v1.Permission`, `incident/v1.IncidentRecord`,
+  `reducerderived/v1.SupplyChainImpactFinding`, and their siblings — the typed
+  payload structs, one per fact kind, under each family's `<family>/v1` package.
 - `Decode<Kind>(env Envelope) (<Struct>, error)` — the kind-keyed decode seam
   (for example `DecodeAWSResource`, `DecodeIncidentRecord`). Reducer handlers
   call this instead of reading `env.Payload["some_key"]` directly.

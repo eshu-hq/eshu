@@ -14,9 +14,11 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/correlation/drift/cloudruntime"
 	"github.com/eshu-hq/eshu/go/internal/correlation/model"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/sdk/go/factschema"
+	reducerderivedv1 "github.com/eshu-hq/eshu/sdk/go/factschema/reducerderived/v1"
 )
 
-const awsCloudRuntimeDriftFactKind = "reducer_aws_cloud_runtime_drift_finding"
+const awsCloudRuntimeDriftFactKind = facts.ReducerAWSCloudRuntimeDriftFindingFactKind
 
 // PostgresAWSCloudRuntimeDriftWriter persists admitted AWS runtime drift
 // findings into the shared fact store.
@@ -40,19 +42,26 @@ func (w PostgresAWSCloudRuntimeDriftWriter) WriteAWSCloudRuntimeDriftFindings(
 	canonicalIDs := make([]string, 0, len(write.Candidates))
 	for _, candidate := range write.Candidates {
 		canonicalID := canonicalAWSCloudRuntimeDriftID(write, candidate)
-		payloadJSON, err := json.Marshal(awsCloudRuntimeDriftPayload(write, candidate, canonicalID))
+		payload, err := factschema.EncodeReducerAWSCloudRuntimeDriftFinding(
+			awsCloudRuntimeDriftTypedPayload(write, candidate, canonicalID),
+		)
+		if err != nil {
+			return AWSCloudRuntimeDriftWriteResult{}, fmt.Errorf("encode aws cloud runtime drift payload: %w", err)
+		}
+		payloadJSON, err := json.Marshal(payload)
 		if err != nil {
 			return AWSCloudRuntimeDriftWriteResult{}, fmt.Errorf("marshal aws cloud runtime drift payload: %w", err)
 		}
 
 		if _, err := w.DB.ExecContext(
 			ctx,
-			canonicalReducerFactInsertQuery,
+			canonicalVersionedReducerFactInsertQuery,
 			awsCloudRuntimeDriftFactID(write, candidate),
 			write.ScopeID,
 			write.GenerationID,
 			awsCloudRuntimeDriftFactKind,
 			awsCloudRuntimeDriftStableFactKey(write, candidate),
+			facts.ReducerDerivedSchemaVersionV1,
 			reducerFactCollectorKind(write.SourceSystem),
 			facts.SourceConfidenceInferred,
 			write.SourceSystem,
@@ -109,42 +118,42 @@ func awsCloudRuntimeDriftIdentity(write AWSCloudRuntimeDriftWrite, candidate mod
 	}
 }
 
-func awsCloudRuntimeDriftPayload(
+func awsCloudRuntimeDriftTypedPayload(
 	write AWSCloudRuntimeDriftWrite,
 	candidate model.Candidate,
 	canonicalID string,
-) map[string]any {
+) reducerderivedv1.AWSCloudRuntimeDriftFinding {
 	status := awsCloudRuntimeManagementStatus(candidate)
-	return map[string]any{
-		"reducer_domain":    string(DomainAWSCloudRuntimeDrift),
-		"intent_id":         write.IntentID,
-		"scope_id":          write.ScopeID,
-		"generation_id":     write.GenerationID,
-		"source_system":     write.SourceSystem,
-		"cause":             write.Cause,
-		"canonical_id":      canonicalID,
-		"candidate_id":      candidate.ID,
-		"candidate_kind":    candidate.Kind,
-		"arn":               candidate.CorrelationKey,
-		"finding_kind":      awsCloudRuntimeFindingKind(candidate),
-		"management_status": status,
-		"confidence":        candidate.Confidence,
-		"candidate_state":   string(candidate.State),
-		"matched_terraform_state_address": awsCloudRuntimeEvidenceValue(
+	return reducerderivedv1.AWSCloudRuntimeDriftFinding{
+		ReducerDomain:    string(DomainAWSCloudRuntimeDrift),
+		IntentID:         write.IntentID,
+		ScopeID:          write.ScopeID,
+		GenerationID:     write.GenerationID,
+		SourceSystem:     write.SourceSystem,
+		Cause:            write.Cause,
+		CanonicalID:      canonicalID,
+		CandidateID:      candidate.ID,
+		CandidateKind:    candidate.Kind,
+		ARN:              candidate.CorrelationKey,
+		FindingKind:      awsCloudRuntimeFindingKind(candidate),
+		ManagementStatus: status,
+		Confidence:       candidate.Confidence,
+		CandidateState:   string(candidate.State),
+		MatchedTerraformStateAddress: awsCloudRuntimeEvidenceValue(
 			candidate,
 			cloudruntime.EvidenceTypeStateResource,
 			"resource_address",
 		),
-		"missing_evidence":      awsCloudRuntimeMissingEvidence(candidate, status),
-		"warning_flags":         awsCloudRuntimeWarningFlags(candidate, status),
-		"recommended_action":    awsCloudRuntimeRecommendedAction(status),
-		"evidence":              awsCloudRuntimeDriftEvidencePayload(candidate.Evidence),
-		"orphaned_resources":    write.Summary.OrphanedResources,
-		"unmanaged_resources":   write.Summary.UnmanagedResources,
-		"ambiguous_resources":   write.Summary.AmbiguousResources,
-		"unknown_resources":     write.Summary.UnknownResources,
-		"publication_fact_kind": awsCloudRuntimeDriftFactKind,
-		"source_layers": []string{
+		MissingEvidence:     nonNilStrings(awsCloudRuntimeMissingEvidence(candidate, status)),
+		WarningFlags:        nonNilStrings(awsCloudRuntimeWarningFlags(candidate, status)),
+		RecommendedAction:   awsCloudRuntimeRecommendedAction(status),
+		Evidence:            nonNilMapSlice(awsCloudRuntimeDriftEvidencePayload(candidate.Evidence)),
+		OrphanedResources:   write.Summary.OrphanedResources,
+		UnmanagedResources:  write.Summary.UnmanagedResources,
+		AmbiguousResources:  write.Summary.AmbiguousResources,
+		UnknownResources:    write.Summary.UnknownResources,
+		PublicationFactKind: awsCloudRuntimeDriftFactKind,
+		SourceLayers: []string{
 			"source_declaration",
 			"applied_declaration",
 			"observed_resource",

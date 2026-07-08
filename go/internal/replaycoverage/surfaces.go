@@ -128,7 +128,7 @@ func EnumerateSupported(
 	readSurfaceFamilies := map[string]int{}
 	for _, entry := range factKinds {
 		rs := strings.TrimSpace(entry.ReadSurface)
-		if rs == "" {
+		if rs == "" || strings.EqualFold(rs, "none") {
 			continue
 		}
 		readSurfaceFamilies[rs]++

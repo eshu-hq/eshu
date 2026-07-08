@@ -84,6 +84,7 @@ var schemaVersionFamilies = []schemaVersionFamily{
 	{OCIRegistryFactKinds, OCIRegistrySchemaVersion},
 	{PackageRegistryFactKinds, PackageRegistrySchemaVersion},
 	{RDSPostureFactKinds, RDSPostureSchemaVersion},
+	{ReducerDerivedFactKinds, ReducerDerivedSchemaVersion},
 	{S3BucketPostureFactKinds, S3BucketPostureSchemaVersion},
 	{S3ExternalPrincipalGrantFactKinds, S3ExternalPrincipalGrantSchemaVersion},
 	{SBOMAttestationFactKinds, SBOMAttestationSchemaVersion},

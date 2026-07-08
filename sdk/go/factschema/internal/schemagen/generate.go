@@ -22,6 +22,7 @@ import (
 	observabilityv1 "github.com/eshu-hq/eshu/sdk/go/factschema/observability/v1"
 	ociregistryv1 "github.com/eshu-hq/eshu/sdk/go/factschema/ociregistry/v1"
 	packageregistryv1 "github.com/eshu-hq/eshu/sdk/go/factschema/packageregistry/v1"
+	reducerderivedv1 "github.com/eshu-hq/eshu/sdk/go/factschema/reducerderived/v1"
 	sbomv1 "github.com/eshu-hq/eshu/sdk/go/factschema/sbom/v1"
 	scannerworkerv1 "github.com/eshu-hq/eshu/sdk/go/factschema/scannerworker/v1"
 	secretsiamv1 "github.com/eshu-hq/eshu/sdk/go/factschema/secretsiam/v1"
@@ -1460,6 +1461,37 @@ const SecurityAlertRepositoryAlertSchemaID = schemaBaseID + "securityalert/v1/re
 // securityalertv1.RepositoryAlert.
 func SecurityAlertRepositoryAlertSchema() ([]byte, error) {
 	return reflectSchema(SecurityAlertRepositoryAlertSchemaID, "Eshu security_alert.repository_alert Payload (schema version 1)", &securityalertv1.RepositoryAlert{})
+}
+
+// ReducerSupplyChainImpactFindingSchemaID is the checked-in JSON Schema $id for
+// the schema-version-1 "reducer_supply_chain_impact_finding" payload.
+const ReducerSupplyChainImpactFindingSchemaID = schemaBaseID + "reducerderived/v1/supply_chain_impact_finding.schema.json"
+
+// ReducerSupplyChainImpactFindingSchema returns the JSON Schema bytes for
+// reducerderivedv1.SupplyChainImpactFinding.
+func ReducerSupplyChainImpactFindingSchema() ([]byte, error) {
+	return reflectSchema(ReducerSupplyChainImpactFindingSchemaID, "Eshu reducer_supply_chain_impact_finding Payload (schema version 1)", &reducerderivedv1.SupplyChainImpactFinding{})
+}
+
+// ReducerAWSCloudRuntimeDriftFindingSchemaID is the checked-in JSON Schema $id
+// for the schema-version-1 "reducer_aws_cloud_runtime_drift_finding" payload.
+const ReducerAWSCloudRuntimeDriftFindingSchemaID = schemaBaseID + "reducerderived/v1/aws_cloud_runtime_drift_finding.schema.json"
+
+// ReducerAWSCloudRuntimeDriftFindingSchema returns the JSON Schema bytes for
+// reducerderivedv1.AWSCloudRuntimeDriftFinding.
+func ReducerAWSCloudRuntimeDriftFindingSchema() ([]byte, error) {
+	return reflectSchema(ReducerAWSCloudRuntimeDriftFindingSchemaID, "Eshu reducer_aws_cloud_runtime_drift_finding Payload (schema version 1)", &reducerderivedv1.AWSCloudRuntimeDriftFinding{})
+}
+
+// ReducerMultiCloudRuntimeDriftFindingSchemaID is the checked-in JSON Schema
+// $id for the schema-version-1
+// "reducer_multi_cloud_runtime_drift_finding" payload.
+const ReducerMultiCloudRuntimeDriftFindingSchemaID = schemaBaseID + "reducerderived/v1/multi_cloud_runtime_drift_finding.schema.json"
+
+// ReducerMultiCloudRuntimeDriftFindingSchema returns the JSON Schema bytes for
+// reducerderivedv1.MultiCloudRuntimeDriftFinding.
+func ReducerMultiCloudRuntimeDriftFindingSchema() ([]byte, error) {
+	return reflectSchema(ReducerMultiCloudRuntimeDriftFindingSchemaID, "Eshu reducer_multi_cloud_runtime_drift_finding Payload (schema version 1)", &reducerderivedv1.MultiCloudRuntimeDriftFinding{})
 }
 
 // ObservabilityDeclaredFolderSchemaID is the checked-in JSON Schema $id for the
