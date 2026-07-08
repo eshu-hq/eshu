@@ -66,13 +66,13 @@ func embeddedShellCommands(root *tree_sitter.Node, source []byte, language strin
 	if root == nil {
 		return nil
 	}
-	imports := jsShellImportAliases(root, source)
+	imports, functions := jsShellRootScan(root, source)
 	if len(imports.moduleAliases) == 0 && len(imports.directCalls) == 0 {
 		return nil
 	}
 
 	var commands []jsEmbeddedShellCommand
-	for _, function := range jsShellEnclosingFunctions(root, source) {
+	for _, function := range functions {
 		walkNamed(function.body, func(node *tree_sitter.Node) {
 			if node.Kind() != "call_expression" {
 				return
@@ -137,56 +137,56 @@ func jsChildProcessCallAPI(node *tree_sitter.Node, source []byte, imports jsShel
 	return "", ""
 }
 
-// jsShellEnclosingFunctions returns every named function whose body could host a
-// child_process call: function_declaration and named function_expression nodes.
-// A call nested inside multiple such functions is attributed to each enclosing
+// jsShellRootScan collects child_process import/require bindings and every
+// named enclosing function in a single root traversal. The two results are
+// independent -- import bindings never gate which functions are collected,
+// and function collection never reads the bindings -- so combining them into
+// one walkNamed pass over root produces the identical imports and functions
+// values that two separate full-tree walks (jsShellImportAliases and
+// jsShellEnclosingFunctions historically) would, while visiting the tree
+// once instead of twice.
+//
+// Import bindings come from import_statement and require variable_declarator
+// nodes. Module aliases come from default/namespace imports and
+// `const alias = require("child_process")`; direct-call bindings come from
+// named imports and `const { exec } = require("child_process")`, restricted
+// to the known process-spawning APIs. The "node:" specifier prefix is
+// accepted for both forms.
+//
+// Functions are every named function whose body could host a child_process
+// call: function_declaration and named function_expression nodes. A call
+// nested inside multiple such functions is attributed to each enclosing
 // function, matching the per-function scan semantics relied upon by callers.
-func jsShellEnclosingFunctions(root *tree_sitter.Node, source []byte) []jsShellFunction {
-	functions := make([]jsShellFunction, 0)
-	walkNamed(root, func(node *tree_sitter.Node) {
-		switch node.Kind() {
-		case "function_declaration", "function_expression":
-		default:
-			return
-		}
-		nameNode := node.ChildByFieldName("name")
-		if nameNode == nil {
-			return
-		}
-		name := strings.TrimSpace(nodeText(nameNode, source))
-		if name == "" {
-			return
-		}
-		body := node.ChildByFieldName("body")
-		if body == nil {
-			return
-		}
-		functions = append(functions, jsShellFunction{
-			name:       name,
-			lineNumber: nodeLine(node),
-			body:       body,
-		})
-	})
-	return functions
-}
-
-// jsShellImportAliases collects child_process bindings from import_statement and
-// require variable_declarator nodes. Module aliases come from default/namespace
-// imports and `const alias = require("child_process")`; direct-call bindings
-// come from named imports and `const { exec } = require("child_process")`,
-// restricted to the known process-spawning APIs. The "node:" specifier prefix
-// is accepted for both forms.
-func jsShellImportAliases(root *tree_sitter.Node, source []byte) jsShellImports {
+func jsShellRootScan(root *tree_sitter.Node, source []byte) (jsShellImports, []jsShellFunction) {
 	imports := jsShellImports{moduleAliases: map[string]struct{}{}, directCalls: map[string]string{}}
+	functions := make([]jsShellFunction, 0)
 	walkNamed(root, func(node *tree_sitter.Node) {
 		switch node.Kind() {
 		case "import_statement":
 			jsCollectShellImportStatement(node, source, &imports)
 		case "variable_declarator":
 			jsCollectShellRequireDeclarator(node, source, &imports)
+		case "function_declaration", "function_expression":
+			nameNode := node.ChildByFieldName("name")
+			if nameNode == nil {
+				return
+			}
+			name := strings.TrimSpace(nodeText(nameNode, source))
+			if name == "" {
+				return
+			}
+			body := node.ChildByFieldName("body")
+			if body == nil {
+				return
+			}
+			functions = append(functions, jsShellFunction{
+				name:       name,
+				lineNumber: nodeLine(node),
+				body:       body,
+			})
 		}
 	})
-	return imports
+	return imports, functions
 }
 
 func jsCollectShellImportStatement(node *tree_sitter.Node, source []byte, imports *jsShellImports) {

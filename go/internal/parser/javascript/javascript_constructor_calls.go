@@ -11,46 +11,54 @@ import (
 
 // javaScriptNewExpressionVariableTypes tracks local variables initialized from
 // constructors so later member calls can carry bounded receiver type metadata.
-func javaScriptNewExpressionVariableTypes(root *tree_sitter.Node, source []byte) map[string]string {
-	typesByVariable := make(map[string]string)
-	returnTypesByFunction := javaScriptFunctionReturnTypes(root, source)
-	walkNamed(root, func(node *tree_sitter.Node) {
-		switch node.Kind() {
-		case "variable_declarator":
-			nameNode := node.ChildByFieldName("name")
-			valueNode := node.ChildByFieldName("value")
-			if nameNode == nil {
-				return
-			}
-			variableName := strings.TrimSpace(nodeText(nameNode, source))
-			if typeName := javaScriptDeclaredTypeName(node, source); variableName != "" && typeName != "" {
-				typesByVariable[variableName] = typeName
-			}
-			if valueNode == nil || valueNode.Kind() != "new_expression" {
-				if valueNode != nil && valueNode.Kind() == "call_expression" {
-					functionNode := valueNode.ChildByFieldName("function")
-					if returnType := returnTypesByFunction[javaScriptCallName(functionNode, source)]; variableName != "" && returnType != "" {
-						typesByVariable[variableName] = returnType
-					}
-				}
-				return
-			}
-			constructorName, _ := javaScriptNewExpressionConstructorName(valueNode, source)
-			if variableName == "" || constructorName == "" {
-				return
-			}
-			typesByVariable[variableName] = constructorName
-		case "public_field_definition", "field_definition", "required_parameter", "optional_parameter", "formal_parameter":
-			variableName := javaScriptTypedBindingName(node, source)
-			typeName := javaScriptDeclaredTypeName(node, source)
-			if variableName == "" || typeName == "" {
-				return
-			}
-			typesByVariable[variableName] = typeName
-			typesByVariable["this."+variableName] = typeName
+// javaScriptCollectNewExpressionVariableType records dst's inferred type for
+// one variable_declarator, public_field_definition, field_definition, or
+// parameter node, given the already-fully-computed returnTypesByFunction
+// lookup (see javaScriptFunctionReturnTypes). It is a no-op for any other
+// node kind, so callers may invoke it on every visited node in a shared
+// traversal without pre-filtering. returnTypesByFunction must already be
+// complete before this is called for any node: a variable_declarator's
+// call_expression value may reference a function declared later in the file.
+func javaScriptCollectNewExpressionVariableType(
+	node *tree_sitter.Node,
+	source []byte,
+	returnTypesByFunction map[string]string,
+	dst map[string]string,
+) {
+	switch node.Kind() {
+	case "variable_declarator":
+		nameNode := node.ChildByFieldName("name")
+		valueNode := node.ChildByFieldName("value")
+		if nameNode == nil {
+			return
 		}
-	})
-	return typesByVariable
+		variableName := strings.TrimSpace(nodeText(nameNode, source))
+		if typeName := javaScriptDeclaredTypeName(node, source); variableName != "" && typeName != "" {
+			dst[variableName] = typeName
+		}
+		if valueNode == nil || valueNode.Kind() != "new_expression" {
+			if valueNode != nil && valueNode.Kind() == "call_expression" {
+				functionNode := valueNode.ChildByFieldName("function")
+				if returnType := returnTypesByFunction[javaScriptCallName(functionNode, source)]; variableName != "" && returnType != "" {
+					dst[variableName] = returnType
+				}
+			}
+			return
+		}
+		constructorName, _ := javaScriptNewExpressionConstructorName(valueNode, source)
+		if variableName == "" || constructorName == "" {
+			return
+		}
+		dst[variableName] = constructorName
+	case "public_field_definition", "field_definition", "required_parameter", "optional_parameter", "formal_parameter":
+		variableName := javaScriptTypedBindingName(node, source)
+		typeName := javaScriptDeclaredTypeName(node, source)
+		if variableName == "" || typeName == "" {
+			return
+		}
+		dst[variableName] = typeName
+		dst["this."+variableName] = typeName
+	}
 }
 
 func javaScriptTypedBindingName(node *tree_sitter.Node, source []byte) string {

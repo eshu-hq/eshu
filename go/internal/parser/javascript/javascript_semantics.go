@@ -122,39 +122,38 @@ func javaScriptNormalizeReactAlias(name string, reactAliases map[string]string) 
 	return name
 }
 
-func javaScriptReactAliases(root *tree_sitter.Node, source []byte, outputLanguage string) map[string]string {
-	if root == nil || outputLanguage != "tsx" {
-		return nil
+// javaScriptCollectReactAliasFromImportStatement records dst[alias] = name for
+// one import_statement node that imports a react wrapper type/function under
+// a local alias (e.g. `import { memo as m } from "react"`). It is a no-op for
+// any other node kind, so callers may invoke it on every visited node in a
+// shared traversal without pre-filtering.
+func javaScriptCollectReactAliasFromImportStatement(
+	node *tree_sitter.Node,
+	source []byte,
+	outputLanguage string,
+	dst map[string]string,
+) {
+	if node.Kind() != "import_statement" {
+		return
 	}
-
-	reactAliases := map[string]string{}
-	walkNamed(root, func(node *tree_sitter.Node) {
-		if node.Kind() != "import_statement" {
-			return
+	for _, item := range javaScriptImportEntries(node, source, outputLanguage) {
+		sourceName, _ := item["source"].(string)
+		if sourceName != "react" {
+			continue
 		}
-		for _, item := range javaScriptImportEntries(node, source, outputLanguage) {
-			sourceName, _ := item["source"].(string)
-			if sourceName != "react" {
-				continue
-			}
-			alias, _ := item["alias"].(string)
-			if alias == "" {
-				continue
-			}
-			name, _ := item["name"].(string)
-			if name == "" || name == "*" || name == "default" {
-				continue
-			}
-			switch name {
-			case "ComponentType", "FC", "FunctionComponent", "memo", "forwardRef", "lazy":
-				reactAliases[alias] = name
-			}
+		alias, _ := item["alias"].(string)
+		if alias == "" {
+			continue
 		}
-	})
-	if len(reactAliases) == 0 {
-		return nil
+		name, _ := item["name"].(string)
+		if name == "" || name == "*" || name == "default" {
+			continue
+		}
+		switch name {
+		case "ComponentType", "FC", "FunctionComponent", "memo", "forwardRef", "lazy":
+			dst[alias] = name
+		}
 	}
-	return reactAliases
 }
 
 func javaScriptLooksLikeComponent(node *tree_sitter.Node, source []byte, outputLanguage string) bool {

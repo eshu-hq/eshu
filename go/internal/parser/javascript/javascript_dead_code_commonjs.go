@@ -76,26 +76,24 @@ func javaScriptCommonJSDefaultExportAliasRootKinds(
 	return registered
 }
 
-func javaScriptCommonJSModuleExportAliases(root *tree_sitter.Node, source []byte) map[string]struct{} {
-	aliases := make(map[string]struct{})
-	if root == nil {
-		return aliases
+// javaScriptCollectCommonJSModuleExportAlias records dst[name] = struct{}{}
+// for one variable_declarator node that aliases module.exports to a local
+// name (`const alias = module.exports`). It is a no-op for any other node
+// kind, so callers may invoke it on every visited node in a shared traversal
+// without pre-filtering.
+func javaScriptCollectCommonJSModuleExportAlias(node *tree_sitter.Node, source []byte, dst map[string]struct{}) {
+	if node.Kind() != "variable_declarator" {
+		return
 	}
-	walkNamed(root, func(node *tree_sitter.Node) {
-		if node.Kind() != "variable_declarator" {
-			return
-		}
-		valueNode := node.ChildByFieldName("value")
-		if strings.TrimSpace(nodeText(valueNode, source)) != "module.exports" {
-			return
-		}
-		name := javaScriptIdentifierName(node.ChildByFieldName("name"), source)
-		if name == "" {
-			return
-		}
-		aliases[name] = struct{}{}
-	})
-	return aliases
+	valueNode := node.ChildByFieldName("value")
+	if strings.TrimSpace(nodeText(valueNode, source)) != "module.exports" {
+		return
+	}
+	name := javaScriptIdentifierName(node.ChildByFieldName("name"), source)
+	if name == "" {
+		return
+	}
+	dst[name] = struct{}{}
 }
 
 func javaScriptMethodInsideCommonJSDefaultExport(node *tree_sitter.Node, source []byte, parents *javaScriptParentLookup) bool {
