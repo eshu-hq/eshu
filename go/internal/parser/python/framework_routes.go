@@ -91,10 +91,10 @@ type pythonRouteDecorator struct {
 }
 
 func detectPythonFastAPISemantics(root *tree_sitter.Node, source []byte) map[string]any {
-	appSymbols, routerPrefixes := pythonFastAPIServerSymbols(root, source)
+	appSymbols, routerPrefixes, routerSymbols := pythonFastAPIServerSymbols(root, source)
 	serverSymbols := make([]string, 0, len(appSymbols)+len(routerPrefixes))
 	serverSymbols = append(serverSymbols, appSymbols...)
-	for _, symbol := range pythonRouterSymbolsInOrder(root, source) {
+	for _, symbol := range routerSymbols {
 		serverSymbols = appendUniqueString(serverSymbols, symbol)
 	}
 
@@ -171,34 +171,30 @@ func detectPythonFlaskSemantics(root *tree_sitter.Node, source []byte) map[strin
 	}
 }
 
-// pythonFastAPIServerSymbols returns FastAPI() app symbols in source order plus
-// a map from APIRouter symbol to its `prefix=` value.
-func pythonFastAPIServerSymbols(root *tree_sitter.Node, source []byte) ([]string, map[string]string) {
+// pythonFastAPIServerSymbols returns FastAPI() app symbols in source order, a
+// map from APIRouter symbol to its `prefix=` value, and APIRouter() symbols in
+// source order (kept as a separate return so the caller can list app symbols
+// before routers). All three come from a single walkNamed pass over
+// server-constructor assignments; the router-prefix and router-symbol-order
+// accumulators previously required two separate full-tree walks
+// (pythonFastAPIServerSymbols and pythonRouterSymbolsInOrder) over the
+// identical assignment predicate.
+func pythonFastAPIServerSymbols(root *tree_sitter.Node, source []byte) ([]string, map[string]string, []string) {
 	appSymbols := make([]string, 0)
 	prefixes := make(map[string]string)
+	routerSymbols := make([]string, 0)
 	pythonWalkServerAssignments(root, source, func(symbol string, call *tree_sitter.Node, callee string) {
 		switch callee {
 		case "APIRouter":
 			prefixes[symbol] = pythonKeywordArgumentString(call, "prefix", source)
+			routerSymbols = appendUniqueString(routerSymbols, symbol)
 		default:
 			if _, ok := pythonFastAPIServerConstructors[callee]; ok {
 				appSymbols = appendUniqueString(appSymbols, symbol)
 			}
 		}
 	})
-	return appSymbols, prefixes
-}
-
-// pythonRouterSymbolsInOrder returns APIRouter() symbols in source order so the
-// server-symbol list stays app-symbols-first, then routers.
-func pythonRouterSymbolsInOrder(root *tree_sitter.Node, source []byte) []string {
-	symbols := make([]string, 0)
-	pythonWalkServerAssignments(root, source, func(symbol string, _ *tree_sitter.Node, callee string) {
-		if callee == "APIRouter" {
-			symbols = appendUniqueString(symbols, symbol)
-		}
-	})
-	return symbols
+	return appSymbols, prefixes, routerSymbols
 }
 
 func pythonFlaskServerSymbols(root *tree_sitter.Node, source []byte) []string {
