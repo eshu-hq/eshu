@@ -3,7 +3,52 @@
 
 package groovy
 
-import "testing"
+import (
+	"fmt"
+	"strings"
+	"testing"
+)
+
+// TestPipelineMetadataAnsibleGateAmongManyNonAnsibleCommands is a
+// characterization test for the issue #4845 Ansible precondition gate in
+// PipelineMetadata: a shell command containing "ansible-playbook" must still
+// be found and produce the same AnsiblePlaybookHint regardless of how many
+// other, non-matching shell commands surround it. This is exactly the shape
+// the gate optimizes (many short non-Ansible sh calls in a shared-library
+// Jenkins pipeline) and the shape a too-narrow gate would silently break.
+func TestPipelineMetadataAnsibleGateAmongManyNonAnsibleCommands(t *testing.T) {
+	t.Parallel()
+
+	var b strings.Builder
+	b.WriteString("def call() {\n")
+	for i := 0; i < 50; i++ {
+		fmt.Fprintf(&b, "  sh 'kubectl apply -f deploy/service-%d.yaml --namespace prod'\n", i)
+	}
+	b.WriteString("  sh 'ansible-playbook site.yml -i inventory/prod --limit web'\n")
+	for i := 50; i < 100; i++ {
+		fmt.Fprintf(&b, "  sh 'echo step-%d'\n", i)
+	}
+	b.WriteString("}\n")
+
+	got := PipelineMetadata(b.String())
+
+	if len(got.ShellCommands) != 101 {
+		t.Fatalf("ShellCommands len = %d, want 101", len(got.ShellCommands))
+	}
+	if len(got.AnsiblePlaybookHints) != 1 {
+		t.Fatalf("AnsiblePlaybookHints len = %d, want 1: %#v", len(got.AnsiblePlaybookHints), got.AnsiblePlaybookHints)
+	}
+	hint := got.AnsiblePlaybookHints[0]
+	if hint.Playbook != "site.yml" {
+		t.Fatalf("Playbook = %q, want site.yml", hint.Playbook)
+	}
+	if hint.Inventory != "inventory/prod" {
+		t.Fatalf("Inventory = %#v, want inventory/prod", hint.Inventory)
+	}
+	if hint.Command != "ansible-playbook site.yml -i inventory/prod --limit web" {
+		t.Fatalf("Command = %q, want the full ansible-playbook shell command", hint.Command)
+	}
+}
 
 func TestPipelineMetadataExtractsJenkinsSignals(t *testing.T) {
 	t.Parallel()

@@ -51,6 +51,18 @@ func PipelineMetadata(sourceText string) Metadata {
 
 	ansibleHints := make([]AnsiblePlaybookHint, 0)
 	for _, command := range shellCommands {
+		// groovyAnsiblePattern requires the literal "ansible-playbook" to
+		// match at all, so this substring check is a provable superset of
+		// the regex: any command it skips could not have matched. Shared
+		// library "vars" files can carry many short, discrete sh-step
+		// calls; regexp.FindStringSubmatch's fixed per-call overhead
+		// dominates over that shape, and this cheap precondition avoids it
+		// for the (common) commands that mention no Ansible playbook at
+		// all. Measured win recorded on issue #4845 (epic #4831); see
+		// docs/public/languages/groovy.md#parser-performance.
+		if !strings.Contains(command, "ansible-playbook") {
+			continue
+		}
 		matches := groovyAnsiblePattern.FindStringSubmatch(command)
 		if matches == nil {
 			continue
