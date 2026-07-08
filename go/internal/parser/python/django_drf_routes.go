@@ -362,9 +362,15 @@ func pythonMethodsByClassGathered(
 }
 
 // pythonHasDjangoPathImportGathered mirrors pythonHasDjangoPathImport
-// but iterates a pre-gathered import slice.
+// but iterates a pre-gathered import slice. It only considers
+// import_from_statement nodes, matching the original helper's exact
+// predicate (`from django.urls import path`); an `import` statement
+// (`import django.urls as path`) must not match.
 func pythonHasDjangoPathImportGathered(gathered []*tree_sitter.Node, source []byte) bool {
 	for _, node := range gathered {
+		if node.Kind() != "import_from_statement" {
+			continue
+		}
 		text := nodeText(node, source)
 		if strings.Contains(text, "django.urls") && strings.Contains(text, "path") {
 			return true
