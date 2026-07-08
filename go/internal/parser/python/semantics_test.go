@@ -215,7 +215,7 @@ func TestPythonModuleAllNamesAcceptsListAndTuple(t *testing.T) {
 			root, source, closer := parsePythonForTest(t, testCase.source)
 			defer closer()
 
-			names := pythonModuleAllNames(root, source)
+			names := buildPythonPrimaryIndexes(root, source).moduleAllNames
 			if _, ok := names["alpha"]; !ok {
 				t.Fatalf("__all__ names missing alpha: %#v", names)
 			}
@@ -263,7 +263,7 @@ func TestPythonModuleAllNamesAcceptsConcatenatedLiterals(t *testing.T) {
 			root, source, closer := parsePythonForTest(t, testCase.source)
 			defer closer()
 
-			names := pythonModuleAllNames(root, source)
+			names := buildPythonPrimaryIndexes(root, source).moduleAllNames
 			if len(names) != len(testCase.want) {
 				t.Fatalf("__all__ names = %#v, want %v", names, testCase.want)
 			}

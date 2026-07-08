@@ -52,9 +52,10 @@ func Parse(
 	payload["embedded_shell_commands"] = embeddedShellCommandPayloads(root, source)
 	scope := options.NormalizedVariableScope()
 	lambdaHandlers := pythonLambdaHandlerRoots(repoRoot, path)
-	dataclassClasses := pythonDataclassClassNames(root, source)
-	scriptMainRoots := pythonScriptMainGuardRoots(root, source)
-	publicAPIRootKinds := pythonPublicAPIRootKinds(repoRoot, path, root, source)
+	primaryIndexes := buildPythonPrimaryIndexes(root, source)
+	dataclassClasses := primaryIndexes.dataclassClasses
+	scriptMainRoots := primaryIndexes.scriptMainRoots
+	publicAPIRootKinds := pythonPublicAPIRootKinds(repoRoot, path, root, source, primaryIndexes.moduleAllNames)
 	if docstring := pythonDocstring(root, source); docstring != "" {
 		moduleName := strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
 		if moduleName == "" {
