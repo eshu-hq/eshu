@@ -5,6 +5,7 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
 	"strings"
 	"testing"
 	"time"
@@ -207,6 +208,122 @@ func TestCodeInterprocProjectedEdgeStorePruneStale(t *testing.T) {
 	}
 	if !strings.Contains(query, "generation_id <> $3") {
 		t.Fatalf("PruneStale query missing generation_id <>:\n%s", query)
+	}
+}
+
+// TestCodeInterprocProjectedEdgeStoreLedgerHasRowsForSourceQueryShape proves
+// the EXISTS query has the correct shape and parameters. The recording fakes
+// return no rows, so hasRows is always false — that's fine for a shape test.
+func TestCodeInterprocProjectedEdgeStoreLedgerHasRowsForSourceQueryShape(t *testing.T) {
+	t.Parallel()
+
+	db := &recordingExecQueryer{}
+	store := NewCodeInterprocProjectedEdgeStore(db)
+
+	hasRows, err := store.LedgerHasRowsForSource(
+		context.Background(),
+		"reducer/code-interproc",
+	)
+	if err != nil {
+		t.Fatalf("LedgerHasRowsForSource error: %v", err)
+	}
+	if hasRows {
+		t.Fatalf("LedgerHasRowsForSource returned true with empty rows")
+	}
+	if len(db.queries) != 1 {
+		t.Fatalf("query calls = %d, want 1", len(db.queries))
+	}
+	q := db.queries[0]
+	if !strings.Contains(q.query, "SELECT EXISTS") {
+		t.Fatalf("LedgerHasRowsForSource query missing SELECT EXISTS:\n%s", q.query)
+	}
+	if !strings.Contains(q.query, "code_interproc_projected_edge") {
+		t.Fatalf("LedgerHasRowsForSource query missing table:\n%s", q.query)
+	}
+	if !strings.Contains(q.query, "evidence_source = $1") {
+		t.Fatalf("LedgerHasRowsForSource query missing evidence_source filter:\n%s", q.query)
+	}
+	if len(q.args) != 1 || q.args[0] != "reducer/code-interproc" {
+		t.Fatalf("args wrong: %+v", q.args)
+	}
+}
+
+// ledgerHasRowsDB is a minimal ExecQueryer that returns a single boolean row
+// for the LedgerHasRowsForSource EXISTS query.
+type ledgerHasRowsDB struct {
+	result bool
+}
+
+func (db ledgerHasRowsDB) ExecContext(context.Context, string, ...any) (sql.Result, error) {
+	return nil, nil
+}
+
+func (db ledgerHasRowsDB) QueryContext(context.Context, string, ...any) (Rows, error) {
+	return &ledgerHasRowsRows{exists: db.result}, nil
+}
+
+type ledgerHasRowsRows struct {
+	exists bool
+	done   bool
+}
+
+func (r *ledgerHasRowsRows) Next() bool {
+	if r.done {
+		return false
+	}
+	r.done = true
+	return true
+}
+
+func (r *ledgerHasRowsRows) Scan(dest ...any) error {
+	if len(dest) > 0 {
+		if b, ok := dest[0].(*bool); ok {
+			*b = r.exists
+		}
+	}
+	return nil
+}
+
+func (r *ledgerHasRowsRows) Err() error   { return nil }
+func (r *ledgerHasRowsRows) Close() error { return nil }
+
+// TestCodeInterprocProjectedEdgeStoreLedgerHasRowsForSourceTrue proves the
+// EXISTS query returns true when the table has rows for the source.
+func TestCodeInterprocProjectedEdgeStoreLedgerHasRowsForSourceTrue(t *testing.T) {
+	t.Parallel()
+
+	db := ledgerHasRowsDB{result: true}
+	store := NewCodeInterprocProjectedEdgeStore(db)
+
+	hasRows, err := store.LedgerHasRowsForSource(
+		context.Background(),
+		"reducer/code-interproc",
+	)
+	if err != nil {
+		t.Fatalf("LedgerHasRowsForSource error: %v", err)
+	}
+	if !hasRows {
+		t.Fatalf("LedgerHasRowsForSource returned false, want true")
+	}
+}
+
+// TestCodeInterprocProjectedEdgeStoreLedgerHasRowsForSourceFalse proves the
+// EXISTS query returns false when the table has no rows for the source.
+func TestCodeInterprocProjectedEdgeStoreLedgerHasRowsForSourceFalse(t *testing.T) {
+	t.Parallel()
+
+	db := ledgerHasRowsDB{result: false}
+	store := NewCodeInterprocProjectedEdgeStore(db)
+
+	hasRows, err := store.LedgerHasRowsForSource(
+		context.Background(),
+		"reducer/code-interproc",
+	)
+	if err != nil {
+		t.Fatalf("LedgerHasRowsForSource error: %v", err)
+	}
+	if hasRows {
+		t.Fatalf("LedgerHasRowsForSource returned true, want false")
 	}
 }
 

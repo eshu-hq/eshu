@@ -90,6 +90,12 @@ WHERE evidence_source = $1
   AND generation_id <> $3
 `
 
+const codeInterprocHasRowsForSourceSQL = `
+SELECT EXISTS(
+    SELECT 1 FROM code_interproc_projected_edge WHERE evidence_source = $1
+)
+`
+
 // CodeInterprocProjectedEdgeSchemaSQL returns the DDL for the projected-edge ledger.
 func CodeInterprocProjectedEdgeSchemaSQL() string {
 	return codeInterprocProjectedEdgeSchemaSQL
@@ -334,4 +340,28 @@ func (s CodeInterprocProjectedEdgeStore) PruneStale(
 		return fmt.Errorf("prune stale code interproc projected edges: %w", err)
 	}
 	return nil
+}
+
+// LedgerHasRowsForSource returns true when at least one row exists for the
+// given evidence source.
+func (s CodeInterprocProjectedEdgeStore) LedgerHasRowsForSource(
+	ctx context.Context,
+	evidenceSource string,
+) (bool, error) {
+	if s.db == nil {
+		return false, fmt.Errorf("code interproc projected edge store database is required")
+	}
+	rows, err := s.db.QueryContext(ctx, codeInterprocHasRowsForSourceSQL, evidenceSource)
+	if err != nil {
+		return false, fmt.Errorf("check code interproc rows for source: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	if !rows.Next() {
+		return false, rows.Err()
+	}
+	var exists bool
+	if err := rows.Scan(&exists); err != nil {
+		return false, fmt.Errorf("scan code interproc exists: %w", err)
+	}
+	return exists, nil
 }

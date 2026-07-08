@@ -75,4 +75,12 @@ type CodeInterprocProjectedEdgeLedger interface {
 		scopeID string,
 		currentGenerationID string,
 	) error
+
+	// LedgerHasRowsForSource returns true when at least one row exists for the
+	// given evidence source. Used by the backfill orchestrator to determine
+	// whether a source already has a seeded ledger (idempotent once).
+	LedgerHasRowsForSource(
+		ctx context.Context,
+		evidenceSource string,
+	) (bool, error)
 }

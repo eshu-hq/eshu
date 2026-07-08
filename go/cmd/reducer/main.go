@@ -4,6 +4,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"time"
@@ -122,6 +123,22 @@ func buildReducerService(
 	)
 	if codeValueFlowStaleCleanupRunner != nil {
 		codeValueFlowStaleCleanupRunner.Logger = logger
+	}
+	// Seed the projected-edge ledger from existing graph TAINT_FLOWS_TO edges so
+	// the ledger is a superset of graph edges at deploy time (one-time,
+	// idempotent backfill). Must run before stale-cleanup or fixpoint projection
+	// start retracting. graphReader is the query.GraphQuery read port; the
+	// ledger uses the same postgres-backed store wired for the runtime.
+	backfiller := reducer.CodeInterprocProjectedEdgeBackfiller{
+		Reader: reducer.CodeInterprocProjectedEdgeBackfillReader{Graph: graphReader},
+		Ledger: postgres.NewCodeInterprocProjectedEdgeStore(database),
+		EvidenceSources: []string{
+			reducer.CodeInterprocEvidenceSource(),
+			reducer.CodeInterprocFixpointEvidenceSource(),
+		},
+	}
+	if err := backfiller.Run(context.Background()); err != nil {
+		return reducer.Service{}, fmt.Errorf("code interproc projected edge backfill: %w", err)
 	}
 	// Semantic path: permit gate OUTSIDE the write timeout (#3652 P1); see
 	// boundSemanticEntityExecutor.

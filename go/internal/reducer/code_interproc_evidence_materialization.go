@@ -21,6 +21,14 @@ const (
 	codeInterprocFixpointEvidenceSource = "reducer/code-interproc-fixpoint"
 )
 
+// CodeInterprocEvidenceSource returns the evidence-source string for
+// reducer-owned code-interproc edges.
+func CodeInterprocEvidenceSource() string { return codeInterprocEvidenceSource }
+
+// CodeInterprocFixpointEvidenceSource returns the evidence-source string for
+// fixpoint-projected code-interproc edges.
+func CodeInterprocFixpointEvidenceSource() string { return codeInterprocFixpointEvidenceSource }
+
 func codeInterprocEvidenceDomainDefinition() DomainDefinition {
 	return DomainDefinition{
 		Domain:  DomainCodeInterprocEvidence,
