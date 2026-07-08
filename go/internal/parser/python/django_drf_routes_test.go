@@ -534,3 +534,60 @@ custom_routes = [
 		t.Fatalf("frameworks = %#v, want empty outside urlpatterns", frameworks)
 	}
 }
+
+func TestBuildPythonFrameworkSemanticsDjangoRequiresDispatcherImport(t *testing.T) {
+	// Negative (Codex P2): a module that imports from django.urls but only
+	// imports non-dispatcher names (reverse) must NOT emit route_entries even
+	// when a local helper shadows a dispatcher name under urlpatterns.
+	root, source, closer := parsePythonForTest(t, `from django.urls import reverse
+from django.views import View
+
+class UserView(View):
+    def get(self, request):
+        return "user"
+
+def path(route, handler):
+    return (route, handler)
+
+urlpatterns = [
+    path("users/", UserView.as_view()),
+]
+`)
+	defer closer()
+
+	got := buildPythonFrameworkSemantics(root, source)
+	frameworks, _ := got["frameworks"].([]string)
+	if len(frameworks) != 0 {
+		t.Fatalf("frameworks = %#v, want empty when only reverse was imported from django.urls", frameworks)
+	}
+}
+
+func TestBuildPythonFrameworkSemanticsDjangoDetectsImportedDispatcher(t *testing.T) {
+	// Positive counterpart: importing a known dispatcher name (url) from
+	// django.conf.urls must produce route_entries.
+	root, source, closer := parsePythonForTest(t, `from django.conf.urls import url
+
+def health(request):
+    return "ok"
+
+urlpatterns = [
+    url(r'^health/?$', health),
+]
+`)
+	defer closer()
+
+	got := buildPythonFrameworkSemantics(root, source)
+	frameworks, _ := got["frameworks"].([]string)
+	if !reflect.DeepEqual(frameworks, []string{"django"}) {
+		t.Fatalf("frameworks = %#v, want [django]", frameworks)
+	}
+	django, _ := got["django"].(map[string]any)
+	if django == nil {
+		t.Fatalf("django semantics missing: %#v", got)
+	}
+	assertStringSlice(t, django, "route_methods", []string{"ANY"})
+	assertStringSlice(t, django, "route_paths", []string{"/health/"})
+	assertRouteEntries(t, django, []map[string]string{
+		{"method": "ANY", "path": "/health/", "handler": "health"},
+	})
+}

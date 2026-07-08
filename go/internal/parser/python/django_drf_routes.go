@@ -48,7 +48,8 @@ func pythonDjangoURLPatternEntries(
 	source []byte,
 	classMethods map[string][]string,
 ) []map[string]string {
-	if !pythonHasDjangoURLImport(root, source) {
+	importedNames := pythonDjangoURLImportNames(root, source)
+	if len(importedNames) == 0 {
 		return nil
 	}
 	functionNames := pythonModuleFunctionNames(root, source)
@@ -58,7 +59,7 @@ func pythonDjangoURLPatternEntries(
 			return
 		}
 		callName := pythonCallSimpleName(node.ChildByFieldName("function"), source)
-		if callName != "path" && callName != "url" && callName != "re_path" {
+		if _, ok := importedNames[callName]; !ok {
 			return
 		}
 		if !pythonCallInURLPatterns(node, source) {
@@ -323,23 +324,6 @@ func pythonPositionalArgument(call *tree_sitter.Node, index int) *tree_sitter.No
 	return nil
 }
 
-// pythonHasDjangoURLImport returns true when the module contains an
-// import-from statement that loads a URL dispatcher from either
-// django.conf.urls (legacy) or django.urls (modern). It does not require
-// a specific imported name (url, path, re_path, include, etc.) because a
-// Django URLconf module may import only the names it needs.
-func pythonHasDjangoURLImport(root *tree_sitter.Node, source []byte) bool {
-	hasImport := false
-	walkNamed(root, func(node *tree_sitter.Node) {
-		if hasImport || node.Kind() != "import_from_statement" {
-			return
-		}
-		text := nodeText(node, source)
-		hasImport = strings.Contains(text, "django.conf.urls") || strings.Contains(text, "django.urls")
-	})
-	return hasImport
-}
-
 func pythonCallInURLPatterns(call *tree_sitter.Node, source []byte) bool {
 	for parent := call.Parent(); parent != nil; parent = parent.Parent() {
 		if parent.Kind() != "assignment" {
@@ -397,23 +381,6 @@ func pythonMethodsByClassGathered(
 	return byClass
 }
 
-// pythonHasDjangoURLImportGathered mirrors pythonHasDjangoURLImport
-// but iterates a pre-gathered import slice. It only considers
-// import_from_statement nodes, matching the original helper's predicate
-// (an import like `import django.urls as path` must not match).
-func pythonHasDjangoURLImportGathered(gathered []*tree_sitter.Node, source []byte) bool {
-	for _, node := range gathered {
-		if node.Kind() != "import_from_statement" {
-			continue
-		}
-		text := nodeText(node, source)
-		if strings.Contains(text, "django.conf.urls") || strings.Contains(text, "django.urls") {
-			return true
-		}
-	}
-	return false
-}
-
 // detectPythonDjangoSemanticsGathered produces the same output as
 // detectPythonDjangoSemantics using pre-gathered nodes.
 func detectPythonDjangoSemanticsGathered(g pythonGatheredNodes, source []byte) map[string]any {
@@ -429,14 +396,15 @@ func pythonDjangoURLPatternEntriesGathered(
 	source []byte,
 	classMethods map[string][]string,
 ) []map[string]string {
-	if !pythonHasDjangoURLImportGathered(g.imports, source) {
+	importedNames := pythonDjangoURLImportNamesGathered(g.imports, source)
+	if len(importedNames) == 0 {
 		return nil
 	}
 	functionNames := pythonModuleFunctionNamesGathered(g.functions, source)
 	entries := make([]map[string]string, 0)
 	for _, node := range g.calls {
 		callName := pythonCallSimpleName(node.ChildByFieldName("function"), source)
-		if callName != "path" && callName != "url" && callName != "re_path" {
+		if _, ok := importedNames[callName]; !ok {
 			continue
 		}
 		if !pythonCallInURLPatterns(node, source) {

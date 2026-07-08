@@ -16,7 +16,7 @@ func detectPythonDRFSemanticsGathered(g pythonGatheredNodes, source []byte) map[
 }
 
 func pythonDRFManualViewSetEntriesGathered(g pythonGatheredNodes, source []byte) []map[string]string {
-	if !pythonHasDjangoURLImportGathered(g.imports, source) {
+	if len(pythonDjangoURLImportNamesGathered(g.imports, source)) == 0 {
 		return nil
 	}
 	entries := make([]map[string]string, 0)
