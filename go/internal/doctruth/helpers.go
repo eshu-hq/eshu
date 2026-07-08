@@ -6,7 +6,6 @@ package doctruth
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"sort"
 	"strings"
 	"unicode"
@@ -119,18 +118,6 @@ func claimID(section SectionInput, hint ClaimHint) string {
 func textHash(value string) string {
 	sum := sha256.Sum256([]byte(value))
 	return "sha256:" + hex.EncodeToString(sum[:])
-}
-
-func payloadToMap(payload any) (map[string]any, error) {
-	encoded, err := json.Marshal(payload)
-	if err != nil {
-		return nil, err
-	}
-	var out map[string]any
-	if err := json.Unmarshal(encoded, &out); err != nil {
-		return nil, err
-	}
-	return out, nil
 }
 
 func firstNonEmpty(values ...string) string {

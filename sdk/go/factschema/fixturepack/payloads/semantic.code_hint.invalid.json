@@ -1,0 +1,29 @@
+{
+  "hint_type": "calls",
+  "hint_hash": "sha256:semantic-code-hint",
+  "source": {
+    "source_id": "semantic-code-source:fp",
+    "source_class": "code"
+  },
+  "chunk": {
+    "chunk_id": "semantic-code-chunk:fp",
+    "chunk_hash": "sha256:chunk",
+    "source_hash": "sha256:source",
+    "prompt_version": "semantic-code.v1",
+    "redaction_version": "semantic-redaction.v1",
+    "extractor_version": "semantic-code-mock-emitter.v1",
+    "extraction_mode": "assistant_mediated"
+  },
+  "provider": {
+    "provider_profile_id": "profile:mock",
+    "provider_kind": "mock"
+  },
+  "subject": {
+    "entity_id": "function:fp"
+  },
+  "corroboration_state": "uncorroborated",
+  "promotion_policy": "requires_deterministic_evidence",
+  "policy_state": "allowed",
+  "redaction_state": "skipped_no_sensitive_content",
+  "freshness_state": "fresh"
+}

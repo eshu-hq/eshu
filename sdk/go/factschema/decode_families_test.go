@@ -75,6 +75,8 @@ func requiredFieldValue(t *testing.T, typ reflect.Type, jsonName string, nonEmpt
 				return map[string]any{"k": "v"}
 			}
 			return map[string]any{}
+		case reflect.Struct:
+			return requiredPayloadForType(t, field.Type, nonEmpty)
 		case reflect.Bool:
 			// A required bool has no "empty" value distinct from its zero value
 			// (false is both a valid observed value and the Go zero value), so
@@ -106,6 +108,15 @@ func requiredFieldValue(t *testing.T, typ reflect.Type, jsonName string, nonEmpt
 	return nil
 }
 
+func requiredPayloadForType(t *testing.T, typ reflect.Type, nonEmpty bool) map[string]any {
+	t.Helper()
+	out := map[string]any{}
+	for _, key := range payloadKeySetOf(typ).Required {
+		out[key] = requiredFieldValue(t, typ, key, nonEmpty)
+	}
+	return out
+}
+
 // fullPayloadForKind returns a minimal valid payload map (every required key
 // present, non-empty) for one fact kind, so a per-kind test can delete a single
 // required key and prove decode dead-letters on exactly that field. Each value
@@ -114,11 +125,7 @@ func requiredFieldValue(t *testing.T, typ reflect.Type, jsonName string, nonEmpt
 func fullPayloadForKind(t *testing.T, factKind string) map[string]any {
 	t.Helper()
 	typ := structTypeForKind(t, factKind)
-	out := map[string]any{}
-	for _, key := range requiredFieldsForKind(t, factKind) {
-		out[key] = requiredFieldValue(t, typ, key, true)
-	}
-	return out
+	return requiredPayloadForType(t, typ, true)
 }
 
 // decodeByKind dispatches to the kind's public Decode function so the test
@@ -551,6 +558,12 @@ func decodeByKind(t *testing.T, factKind string, payload map[string]any) error {
 	case FactKindDocumentationEvidencePacket:
 		_, err := DecodeDocumentationEvidencePacket(env)
 		return err
+	case FactKindSemanticDocumentationObservation:
+		_, err := DecodeSemanticDocumentationObservation(env)
+		return err
+	case FactKindSemanticCodeHint:
+		_, err := DecodeSemanticCodeHint(env)
+		return err
 	case FactKindServiceCatalogEntity:
 		_, err := DecodeServiceCatalogEntity(env)
 		return err
@@ -786,6 +799,8 @@ var allDecodedKinds = []string{
 	FactKindDocumentationClaimCandidate,
 	FactKindDocumentationFinding,
 	FactKindDocumentationEvidencePacket,
+	FactKindSemanticDocumentationObservation,
+	FactKindSemanticCodeHint,
 	FactKindServiceCatalogEntity,
 	FactKindServiceCatalogOwnership,
 	FactKindServiceCatalogRepositoryLink,
@@ -1205,6 +1220,10 @@ func TestDecodeEachKind_UnsupportedMajorDeadLetters(t *testing.T) {
 				_, err = DecodeDocumentationFinding(env)
 			case FactKindDocumentationEvidencePacket:
 				_, err = DecodeDocumentationEvidencePacket(env)
+			case FactKindSemanticDocumentationObservation:
+				_, err = DecodeSemanticDocumentationObservation(env)
+			case FactKindSemanticCodeHint:
+				_, err = DecodeSemanticCodeHint(env)
 			case FactKindServiceCatalogEntity:
 				_, err = DecodeServiceCatalogEntity(env)
 			case FactKindServiceCatalogOwnership:

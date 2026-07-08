@@ -7,7 +7,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -175,7 +174,7 @@ func (s *Source) factEnvelopes(
 				generationValue,
 				facts.DocumentationSectionFactKind,
 				facts.DocumentationSectionStableID(section),
-				sectionPayloadMap(section),
+				section,
 				documentPayload.CanonicalURI,
 				page.ID,
 			)
@@ -297,7 +296,7 @@ func mergePageDetails(listed Page, detail Page) Page {
 }
 
 func envelope(scopeValue scope.IngestionScope, generationValue scope.ScopeGeneration, kind string, key string, payload any, uri string, recordID string) (facts.Envelope, error) {
-	payloadMap, err := payloadToMap(payload)
+	payloadMap, err := documentationPayloadMap(payload)
 	if err != nil {
 		return facts.Envelope{}, fmt.Errorf("convert %s payload: %w", kind, err)
 	}
@@ -328,19 +327,21 @@ func envelope(scopeValue scope.IngestionScope, generationValue scope.ScopeGenera
 	}, nil
 }
 
-func payloadToMap(payload any) (map[string]any, error) {
-	if payloadMap, ok := payload.(map[string]any); ok {
-		return payloadMap, nil
+func documentationPayloadMap(payload any) (map[string]any, error) {
+	switch value := payload.(type) {
+	case facts.DocumentationSourcePayload:
+		return facts.EncodeDocumentationSource(value)
+	case facts.DocumentationDocumentPayload:
+		return facts.EncodeDocumentationDocument(value)
+	case facts.DocumentationSectionPayload:
+		return facts.EncodeDocumentationSection(value)
+	case facts.DocumentationLinkPayload:
+		return facts.EncodeDocumentationLink(value)
+	case map[string]any:
+		return value, nil
+	default:
+		return nil, fmt.Errorf("unsupported documentation payload type %T", payload)
 	}
-	encoded, err := json.Marshal(payload)
-	if err != nil {
-		return nil, err
-	}
-	var out map[string]any
-	if err := json.Unmarshal(encoded, &out); err != nil {
-		return nil, err
-	}
-	return out, nil
 }
 
 func schemaVersionForFactKind(kind string) string {

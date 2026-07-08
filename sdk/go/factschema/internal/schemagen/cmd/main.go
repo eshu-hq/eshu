@@ -271,6 +271,8 @@ func run() error {
 		{name: "documentation_claim_candidate.v1.schema.json", generate: schemagen.DocumentationClaimCandidateSchema},
 		{name: "documentation_finding.v1.schema.json", generate: schemagen.DocumentationFindingSchema},
 		{name: "documentation_evidence_packet.v1.schema.json", generate: schemagen.DocumentationEvidencePacketSchema},
+		{name: "semantic.documentation_observation.v1.schema.json", generate: schemagen.SemanticDocumentationObservationSchema},
+		{name: "semantic.code_hint.v1.schema.json", generate: schemagen.SemanticCodeHintSchema},
 		// The service_catalog family is ALREADY registered and
 		// schema-version-admitted; this wave only fills payload_schema_overrides
 		// for the four kinds a real consumer decodes (three via the reducer

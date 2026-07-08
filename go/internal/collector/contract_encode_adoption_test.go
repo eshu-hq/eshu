@@ -191,6 +191,56 @@ func TestContractEncodeAdoptionRatchet(t *testing.T) {
 				"EncodeIncidentRoutingCoverageWarning",
 			},
 		},
+		{
+			path: "confluence/source.go",
+			calls: []string{
+				"EncodeDocumentationDocument",
+				"EncodeDocumentationLink",
+				"EncodeDocumentationSection",
+				"EncodeDocumentationSource",
+			},
+		},
+		{
+			path: "documentationexport/facts.go",
+			calls: []string{
+				"EncodeDocumentationDocument",
+				"EncodeDocumentationLink",
+				"EncodeDocumentationSection",
+				"EncodeDocumentationSource",
+			},
+		},
+		{
+			path: "mediadoc/extract.go",
+			calls: []string{
+				"EncodeDocumentationDocument",
+				"EncodeDocumentationSection",
+			},
+		},
+		{
+			path: "ocrdoc/extract.go",
+			calls: []string{
+				"EncodeDocumentationDocument",
+				"EncodeDocumentationSection",
+			},
+		},
+		{
+			path: "../doctruth/extractor.go",
+			calls: []string{
+				"EncodeDocumentationClaimCandidate",
+				"EncodeDocumentationEntityMention",
+			},
+		},
+		{
+			path: "../doctruth/verifier.go",
+			calls: []string{
+				"EncodeDocumentationEvidencePacket",
+				"EncodeDocumentationFinding",
+			},
+		},
+		{
+			path:  "../semanticdocs/emitter.go",
+			calls: []string{"EncodeSemanticDocumentationObservation"},
+		},
 	}
 
 	for _, target := range targets {

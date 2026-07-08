@@ -422,6 +422,12 @@ const (
 	// so this minor bump does not change decode routing.
 	DocumentationSectionSchemaVersion = "1.1.0"
 
+	// FactKindSemanticCodeHint is the "semantic.code_hint" fact kind.
+	FactKindSemanticCodeHint = "semantic.code_hint"
+	// FactKindSemanticDocumentationObservation is the
+	// "semantic.documentation_observation" fact kind.
+	FactKindSemanticDocumentationObservation = "semantic.documentation_observation"
+
 	// The code family fact-kind strings are BARE (no family prefix), unlike
 	// every other family in this file: they are the git collector's original,
 	// pre-Contract-System literal kinds ("file", "repository",

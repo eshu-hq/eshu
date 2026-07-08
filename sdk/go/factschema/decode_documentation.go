@@ -22,7 +22,7 @@ func DecodeDocumentationSource(env Envelope) (documentationv1.Source, error) {
 // map[string]any payload shape an Envelope carries. It is the inverse of
 // DecodeDocumentationSource for schema-version-1 payloads.
 func EncodeDocumentationSource(source documentationv1.Source) (map[string]any, error) {
-	return encodeToPayload(source)
+	return encodeDirectPayload(source)
 }
 
 // DecodeDocumentationDocument decodes env.Payload into the latest
@@ -38,7 +38,7 @@ func DecodeDocumentationDocument(env Envelope) (documentationv1.Document, error)
 // map[string]any payload shape an Envelope carries. It is the inverse of
 // DecodeDocumentationDocument for schema-version-1 payloads.
 func EncodeDocumentationDocument(document documentationv1.Document) (map[string]any, error) {
-	return encodeToPayload(document)
+	return encodeDirectPayload(document)
 }
 
 // DecodeDocumentationSection decodes env.Payload into the latest
@@ -58,7 +58,7 @@ func DecodeDocumentationSection(env Envelope) (documentationv1.Section, error) {
 // map[string]any payload shape an Envelope carries. It is the inverse of
 // DecodeDocumentationSection for schema-version-1 payloads.
 func EncodeDocumentationSection(section documentationv1.Section) (map[string]any, error) {
-	return encodeToPayload(section)
+	return encodeDirectPayload(section)
 }
 
 // DecodeDocumentationLink decodes env.Payload into the latest
@@ -73,7 +73,7 @@ func DecodeDocumentationLink(env Envelope) (documentationv1.Link, error) {
 // map[string]any payload shape an Envelope carries. It is the inverse of
 // DecodeDocumentationLink for schema-version-1 payloads.
 func EncodeDocumentationLink(link documentationv1.Link) (map[string]any, error) {
-	return encodeToPayload(link)
+	return encodeDirectPayload(link)
 }
 
 // DecodeDocumentationEntityMention decodes env.Payload into the latest
@@ -89,7 +89,7 @@ func DecodeDocumentationEntityMention(env Envelope) (documentationv1.EntityMenti
 // into the map[string]any payload shape an Envelope carries. It is the
 // inverse of DecodeDocumentationEntityMention for schema-version-1 payloads.
 func EncodeDocumentationEntityMention(mention documentationv1.EntityMention) (map[string]any, error) {
-	return encodeToPayload(mention)
+	return encodeDirectPayload(mention)
 }
 
 // DecodeDocumentationClaimCandidate decodes env.Payload into the latest
@@ -106,7 +106,7 @@ func DecodeDocumentationClaimCandidate(env Envelope) (documentationv1.ClaimCandi
 // inverse of DecodeDocumentationClaimCandidate for schema-version-1
 // payloads.
 func EncodeDocumentationClaimCandidate(claim documentationv1.ClaimCandidate) (map[string]any, error) {
-	return encodeToPayload(claim)
+	return encodeDirectPayload(claim)
 }
 
 // DecodeDocumentationFinding decodes env.Payload into the latest
@@ -123,7 +123,7 @@ func DecodeDocumentationFinding(env Envelope) (documentationv1.Finding, error) {
 // map[string]any payload shape an Envelope carries. It is the inverse of
 // DecodeDocumentationFinding for schema-version-1 payloads.
 func EncodeDocumentationFinding(finding documentationv1.Finding) (map[string]any, error) {
-	return encodeToPayload(finding)
+	return encodeDirectPayload(finding)
 }
 
 // DecodeDocumentationEvidencePacket decodes env.Payload into the latest
@@ -142,5 +142,5 @@ func DecodeDocumentationEvidencePacket(env Envelope) (documentationv1.EvidencePa
 // inverse of DecodeDocumentationEvidencePacket for schema-version-1
 // payloads.
 func EncodeDocumentationEvidencePacket(packet documentationv1.EvidencePacket) (map[string]any, error) {
-	return encodeToPayload(packet)
+	return encodeDirectPayload(packet)
 }
