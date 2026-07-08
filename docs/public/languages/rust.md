@@ -53,6 +53,32 @@ Primary proof:
   declarations, macro-expanded routes, variable-held routers, and Cargo feature
   selection do not emit exact route entries.
 
+## Parser Performance
+
+`Parse` walks the tree-sitter AST once per file instead of three times
+(issue [#4840](https://github.com/eshu-hq/eshu/issues/4840), child of epic
+[#4831](https://github.com/eshu-hq/eshu/issues/4831)). Previously
+`rustBenchmarkFunctionNames`, the main payload walk, and axum route detection
+(inside `buildRustFrameworkSemantics`) each performed a separate full
+`shared.WalkNamed` traversal over the same tree. The axum route scan is now
+folded into the main payload walk: `call_expression` candidates (their text
+and end byte, matching the ordering the walk always applied) are collected
+in-line while the main walk already visits every `call_expression` node for
+`function_calls`, and route resolution is deferred to
+`buildRustFrameworkSemantics` because it needs the full import table, which is
+only complete once the main walk finishes. The `rustBenchmarkFunctionNames`
+pre-pass stays a separate walk before the main walk, because
+`criterion_group!` can name a benchmark function that a single forward pass
+has not reached yet, and moving that lookup after the main walk would reorder
+`dead_code_root_kinds` for benchmark functions.
+
+Parser output is byte-identical before and after this change: a corpus dump
+across all `.rs` fixtures under `tests/fixtures`, canonicalized to
+recursively key-sorted JSON and hashed per file per `Options` variant
+(`Options{}` and `Options{IndexSource: true}`), produced a `0/0` symmetric
+diff between the pre-change and post-change dumps
+(`go/internal/parser/rust/equivalence_dump_test.go`).
+
 ## Framework And Library Support
 
 Supported today:

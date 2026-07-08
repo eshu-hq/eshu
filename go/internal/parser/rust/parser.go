@@ -36,7 +36,19 @@ func Parse(
 	payload["traits"] = []map[string]any{}
 	payload["type_aliases"] = []map[string]any{}
 	root := tree.RootNode()
+	// benchmarkFunctionNames must be known before the main walk below assigns
+	// dead_code_root_kinds: a criterion_group! invocation can name a benchmark
+	// function that the walk has not reached yet, so this pre-pass keeps
+	// dead_code_root_kinds ordering identical to a name-aware single pass.
 	benchmarkFunctionNames := rustBenchmarkFunctionNames(root, source)
+
+	// axumCallCandidates collects candidate call_expression text (and its end
+	// byte, for the same order-by-end-byte behavior rustAxumRoutes always
+	// applied) during the single main walk below instead of re-walking the
+	// tree a third time. Route resolution needs the full import table, which
+	// is only complete after the walk finishes, so resolution stays deferred
+	// to buildRustFrameworkSemantics.
+	var axumCallCandidates []rustAxumCallCandidate
 
 	shared.WalkNamed(root, func(node *tree_sitter.Node) {
 		switch node.Kind() {
@@ -54,6 +66,7 @@ func Parse(
 			appendRustImportMetadata(payload, node, source)
 		case "call_expression":
 			appendRustCall(payload, node, source)
+			axumCallCandidates = collectRustAxumCallCandidate(axumCallCandidates, node, source)
 		case "macro_definition":
 			appendRustMacroDefinition(payload, node, source, options)
 		case "macro_invocation":
@@ -86,7 +99,7 @@ func Parse(
 		"function_calls",
 		"impl_blocks",
 	)
-	payload["framework_semantics"] = buildRustFrameworkSemantics(root, source, payload)
+	payload["framework_semantics"] = buildRustFrameworkSemantics(payload, axumCallCandidates)
 
 	return payload, nil
 }
