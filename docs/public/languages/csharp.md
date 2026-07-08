@@ -95,7 +95,11 @@ the one type-collection walk and resolves interface methods afterward (once the
 declared-type counts are complete), and the ASP.NET attribute-route and
 minimal-API route detectors, which inspect disjoint node kinds, share one walk.
 This lowers the common-case full-tree walk count from 4 to 2 while keeping
-parser output byte-identical (a `0/0` symmetric-diff over the fixture corpus
-gates it; epic #4831, #4869). Contributors adding a new fact collector should
+parser output byte-identical, verified by a one-time old-vs-new `0/0`
+symmetric-diff over the fixture corpus via the opt-in `CS_PARSE_DUMP` harness
+(`equivalence_dump_test.go`, a manual differential — not a standing CI gate);
+standing regression protection comes from the C# parser package tests and the
+B-12 golden snapshot (epic #4831, #4869). Contributors adding a new fact
+collector should
 extend the shared pass rather than add another full-tree walk when the
 collector has no dependency on another collector's completed output.
