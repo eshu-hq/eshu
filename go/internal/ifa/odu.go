@@ -120,6 +120,7 @@ func renderFact(fact facts.Envelope) map[string]any {
 		"collector_kind":    fact.CollectorKind,
 		"fact_id":           fact.FactID,
 		"fact_kind":         fact.FactKind,
+		"fencing_token":     fact.FencingToken,
 		"generation_id":     fact.GenerationID,
 		"is_tombstone":      fact.IsTombstone,
 		"observed_at":       timeString(fact.ObservedAt),

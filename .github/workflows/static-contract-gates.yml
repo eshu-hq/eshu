@@ -37,6 +37,7 @@ jobs:
       telemetry: ${{ steps.filter.outputs.telemetry }}
       dashboard: ${{ steps.filter.outputs.dashboard }}
       contract: ${{ steps.filter.outputs.contract }}
+      ifa: ${{ steps.filter.outputs.ifa }}
       matrix: ${{ steps.gate-matrix.outputs.matrix }}
       any: ${{ steps.gate-matrix.outputs.any }}
     steps:
@@ -115,6 +116,12 @@ jobs:
               - 'specs/collector_fact_contract.v1.yaml'
               - 'scripts/*verify-contracttest*.sh'
               - 'scripts/*fact-kind-registry*.sh'
+            ifa:
+              - '.github/workflows/static-contract-gates.yml'
+              - 'specs/ci-gates.v1.yaml'
+              - 'go/internal/ifa/**'
+              - 'go/cmd/ifa/**'
+              - 'docs/internal/design/4389-ifa-conformance-platform.md'
       - name: Build selected gate matrix
         id: gate-matrix
         run: |
@@ -147,6 +154,7 @@ jobs:
           append_gate "${{ steps.filter.outputs.telemetry }}" "telemetry" "Verify telemetry coverage gate" "scripts/test-verify-telemetry-coverage.sh" "scripts/verify-telemetry-coverage.sh"
           append_gate "${{ steps.filter.outputs.dashboard }}" "dashboard" "Verify generate-operator-dashboard gate" "scripts/test-generate-operator-dashboard.sh" "scripts/generate-operator-dashboard.sh && git diff --exit-code -- docs/public/observability/dashboards/eshu-operator-overview.json"
           append_gate "${{ steps.filter.outputs.contract }}" "contract" "Verify contract source-of-truth gate" "scripts/test-verify-contracttest.sh && scripts/test-verify-fact-kind-registry.sh" "scripts/generate-contracttest.sh && scripts/generate-fact-kind-registry.sh && git diff --exit-code -- go/internal/collector/contracttest/contract_data.go go/internal/facts/fact_kind_registry.generated.go go/internal/facts/FACT_KIND_REGISTRIES.md"
+          append_gate "${{ steps.filter.outputs.ifa }}" "ifa" "Verify Ifa contract-layer gate" "cd go && go test ./internal/ifa ./cmd/ifa -count=1" "cd go && go test ./internal/ifa ./cmd/ifa -count=1"
 
           printf 'matrix={"include":[%s]}\n' "${matrix_items}" >>"${GITHUB_OUTPUT}"
           printf 'any=%s\n' "${any}" >>"${GITHUB_OUTPUT}"

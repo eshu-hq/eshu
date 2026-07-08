@@ -42,6 +42,32 @@ func TestOduCanonicalizesFactsIdempotently(t *testing.T) {
 	}
 }
 
+func TestOduCanonicalizationPreservesFencingToken(t *testing.T) {
+	t.Parallel()
+
+	firstFacts := unorderedFacts()
+	secondFacts := unorderedFacts()
+	for i := range firstFacts {
+		firstFacts[i].FencingToken = 7
+		secondFacts[i].FencingToken = 8
+	}
+
+	first, err := ifa.CanonicalizeOdu(context.Background(), ifa.Odu{Name: "fenced", Facts: firstFacts}, nil)
+	if err != nil {
+		t.Fatalf("CanonicalizeOdu(first) error = %v", err)
+	}
+	second, err := ifa.CanonicalizeOdu(context.Background(), ifa.Odu{Name: "fenced", Facts: secondFacts}, nil)
+	if err != nil {
+		t.Fatalf("CanonicalizeOdu(second) error = %v", err)
+	}
+	if bytes.Equal(first, second) {
+		t.Fatalf("canonical output ignored fencing token:\n%s", first)
+	}
+	if !bytes.Contains(first, []byte(`"fencing_token": 7`)) {
+		t.Fatalf("canonical output missing fencing token:\n%s", first)
+	}
+}
+
 func TestOduLoadsFactsThroughFactStore(t *testing.T) {
 	t.Parallel()
 
