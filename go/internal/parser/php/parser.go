@@ -83,6 +83,7 @@ type phpParseState struct {
 	deadCodeFacts       phpDeadCodeFacts
 	deadCodeFunctions   []phpDeadCodeFunctionFact
 	routeAttributes     []*tree_sitter.Node
+	slimRouteCandidates []*tree_sitter.Node
 
 	// Phase-2 gather slice: candidate nodes collected during phase 1's
 	// WalkNamed and resolved in-memory after phase 1 completes, eliminating
@@ -187,7 +188,7 @@ func Parse(path string, isDependency bool, options shared.Options, parser *tree_
 	if namespace := phpNamespaceName(root, source); namespace != "" {
 		payload["namespace"] = namespace
 	}
-	if semantics := buildPHPFrameworkSemantics(state.routeAttributes, source, state.payload); len(semantics["frameworks"].([]string)) > 0 {
+	if semantics := buildPHPFrameworkSemantics(state.routeAttributes, state.slimRouteCandidates, source, state.payload); len(semantics["frameworks"].([]string)) > 0 {
 		payload["framework_semantics"] = semantics
 	}
 
@@ -247,8 +248,13 @@ func collectPHPDeclarations(state *phpParseState, root *tree_sitter.Node) {
 		// backward type flow is impossible. Cloned with shared.CloneNode
 		// because tree-sitter *tree_sitter.Node values point at
 		// stack-allocated cursors during the recursive walk.
+		case "member_call_expression":
+			if phpIsSlimVerbCandidate(node, state.source) {
+				state.slimRouteCandidates = append(state.slimRouteCandidates, shared.CloneNode(node))
+			}
+			state.gatheredPhase2Nodes = append(state.gatheredPhase2Nodes, shared.CloneNode(node))
 		case "variable_name",
-			"member_call_expression", "nullsafe_member_call_expression",
+			"nullsafe_member_call_expression",
 			"scoped_call_expression", "object_creation_expression":
 			state.gatheredPhase2Nodes = append(state.gatheredPhase2Nodes, shared.CloneNode(node))
 		}

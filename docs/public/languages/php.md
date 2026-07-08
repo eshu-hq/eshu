@@ -29,6 +29,7 @@ Canonical implementation:
 | Cross-file object-call families | `cross-file-object-call-families` | supported | `go/internal/reducer/code_call_materialization_cross_file_exact_test.go::TestExtractCodeCallRowsResolvesCrossFilePHPMethodReturnCallChainReceiverCallsUsingTypedPropertyInference`, `go/internal/query/code_relationships_graph_kotlin_php_test.go::TestHandleRelationshipsReturnsGraphBackedPHPCrossFileReturnTypeAliasedCalls`, `go/internal/query/code_relationships_graph_php_long_tail_test.go::TestHandleRelationshipsReturnsGraphBackedPHPCrossFileChainedStaticFactoryReturnCalls` | Cross-file return-type aliases, cross-file method-return chains, and cross-file chained static factory returns are all query-proven in the current platform. |
 | Nullsafe and anonymous-class receivers | `nullsafe-and-anonymous-class-receivers` | supported | `go/internal/parser/php_language_test.go::TestDefaultEngineParsePathPHPEmitsNullsafeReceiverMetadata`, `go/internal/reducer/code_call_materialization_family_test.go::TestExtractCodeCallRowsResolvesPHPNullsafeReceiverChainsUsingTypedPropertyInference`, `go/internal/query/code_relationships_graph_php_long_tail_test.go::TestHandleRelationshipsReturnsGraphBackedPHPAnonymousClassReceiverCalls` | Nullsafe receiver chains and anonymous-class receiver calls both survive the full parser/reducer/query path. |
 | Symfony attribute route truth | `symfony-attribute-route-truth` | supported | `go/internal/parser/php_route_entries_test.go::TestDefaultEngineParsePathPHPEmitsSymfonyRouteEntries`, `go/internal/reducer/handles_route_php_test.go::TestBuildHandlesRouteIntentRowsEmitsPHPSymfonyRouteMatches`, `go/internal/query/content_reader_framework_routes_php_test.go::TestParseFrameworkSemanticsExtractsPHPSymfonyRoutes` | Method-level attributes resolved to Symfony `Route` emit exact `framework_semantics.symfony.route_entries` when the source proves literal path, literal HTTP method list, and declaring handler method. `HANDLES_ROUTE` is projected only when the reducer resolves that class-qualified handler exactly. |
+| Slim web-route detection | `slim-web-route-detection` | supported | `go/internal/parser/php_route_entries_test.go::TestDefaultEngineParsePathPHPEmitsSlimRouteEntries`, `go/internal/reducer/handles_route_php_test.go::TestBuildHandlesRouteIntentRowsEmitsPHPSlimRouteMatches`, `go/internal/parser/php_route_entries_test.go::TestDefaultEngineParsePathPHPEmitsSlimRoutesFromSkeleton` | Slim `$app->get()`, `$app->post()`, `$app->map()` and related route-registration calls emit `framework_semantics.slim.route_entries` when the file imports a Slim namespace and the first argument is a literal path string. Phase-1 `member_call_expression` gathering + post-walk Slim-import-gated resolution; no dedicated route walk. Group-prefix concatenation (`$group->get('', ...)` under `$app->group('/users', ...)`) is not yet implemented — inner routes emit as-registered without the prefix. |
 | Dead-code root hints | `dead-code-root-hints` | derived | `go/internal/parser/php_dead_code_roots_test.go::TestDefaultEngineParsePathPHPEmitsDeadCodeRootKinds`, `go/internal/query/code_dead_code_php_roots_test.go::TestHandleDeadCodeExcludesPHPRootKindsFromMetadata`, `tests/fixtures/deadcode/php/app.php` | Parser metadata suppresses PHP script entrypoints, constructors, known PHP magic methods, same-file interface methods and implementations, trait methods, route-backed controller actions, literal route handlers, Symfony route attributes, and WordPress hook callbacks from cleanup candidates. |
 
 ## Current Truth
@@ -113,15 +114,19 @@ Supported today:
   `framework_semantics.symfony.route_entries` when the path and methods are
   literal and the declaring method is the handler. `HANDLES_ROUTE` projection
   still requires an exact reducer match to that class-qualified method.
+- Slim `$app->get()`/`$app->post()`/`$app->map()` and related route-registration
+  calls emit `framework_semantics.slim.route_entries` when the file imports a
+  Slim namespace. Detection is phase-1 `member_call_expression` candidate
+  gathering gated on a Slim `use` import, with no dedicated second tree walk.
 - Constructors, magic methods, same-file interface methods and implementations,
   and trait methods are also modeled as live root evidence.
 
 Not claimed today:
 
-- Composer/autoload public surfaces, Laravel router conventions, Symfony
-  dynamic attributes, broader framework route resolution, include/require
-  resolution, reflection-heavy flows, and arbitrary dynamic dispatch remain
-  outside the exactness boundary.
+- Composer/autoload public surfaces, Laravel router conventions (separate
+  follow-up), Symfony dynamic attributes, broader framework route resolution,
+  include/require resolution, reflection-heavy flows, and arbitrary dynamic
+  dispatch remain outside the exactness boundary.
 - Exact route-to-handler truth for Laravel, WordPress, broader Symfony, and
   other PHP frameworks is tracked by
   [#4162](https://github.com/eshu-hq/eshu/issues/4162).
@@ -134,6 +139,10 @@ Not claimed today:
   public surfaces, include/require resolution, namespace alias breadth, broader
   framework route resolution, and arbitrary whole-program alias flow remain
   outside the documented contract.
+- Slim `$app->group()` prefix concatenation is not yet implemented: inner
+  routes registered under a group emit their exact registered paths without
+  the group prefix. A route `$group->get('/tasks', ...)` inside
+  `$app->group('/api', ...)` currently emits `/tasks` rather than `/api/tasks`.
 - A PHP file larger than 1 MiB has its tree-sitter parse skipped entirely in
   the normal parse stage, to bound superlinear tree-sitter parse cost on very
   large generated files such as CID font maps or bundled library sources
