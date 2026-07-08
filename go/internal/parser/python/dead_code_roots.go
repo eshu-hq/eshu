@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package python //nolint:filelength // 522 lines: dead-code root evidence (script-main guard, dunder protocol). Per internal/parser/python/AGENTS.md the per-language helper files intentionally bundle the AST-walking evidence rules; the per-rule contracts are tested in language_test.go.
+package python
 
 import (
 	"strings"
@@ -169,36 +169,10 @@ func pythonClassDeadCodeRootKinds(decorators []string) []string {
 	return rootKinds
 }
 
-func pythonDataclassClassNames(root *tree_sitter.Node, source []byte) map[string]bool {
-	names := make(map[string]bool)
-	walkNamed(root, func(node *tree_sitter.Node) {
-		if node.Kind() != "class_definition" {
-			return
-		}
-		if len(pythonClassDeadCodeRootKinds(pythonDecorators(node, source))) == 0 {
-			return
-		}
-		name := strings.TrimSpace(nodeText(node.ChildByFieldName("name"), source))
-		if name != "" {
-			names[name] = true
-		}
-	})
-	return names
-}
-
-func pythonScriptMainGuardRoots(root *tree_sitter.Node, source []byte) map[string]bool {
-	roots := make(map[string]bool)
-	walkNamed(root, func(node *tree_sitter.Node) {
-		if node.Kind() != "if_statement" || !pythonIsScriptMainGuard(node, source) {
-			return
-		}
-		pythonCollectScriptMainGuardCalls(node.ChildByFieldName("consequence"), source, roots)
-	})
-	if len(roots) == 0 {
-		return nil
-	}
-	return roots
-}
+// pythonDataclassClassNames and pythonScriptMainGuardRoots (dataclass-decorated
+// class names and script `__main__` guard call roots) are computed together
+// with the module `__all__` export scan in a single walkNamed pass; see
+// buildPythonPrimaryIndexes in primary_indexes.go.
 
 func pythonCollectScriptMainGuardCalls(node *tree_sitter.Node, source []byte, roots map[string]bool) {
 	if node == nil {

@@ -12,14 +12,21 @@ import (
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
+// pythonPublicAPIRootKinds derives public-API root-kind evidence for module
+// `__all__` exports, package `__init__` re-exports, and public-API base
+// classes. moduleAllNames is the module `__all__` export set computed once
+// per file by buildPythonPrimaryIndexes and threaded in here rather than
+// re-walked, since it is otherwise an independent full-tree pass over the
+// same root.
 func pythonPublicAPIRootKinds(
 	repoRoot string,
 	sourcePath string,
 	root *tree_sitter.Node,
 	source []byte,
+	moduleAllNames map[string]struct{},
 ) map[string][]string {
 	rootKinds := make(map[string][]string)
-	for name := range pythonModuleAllNames(root, source) {
+	for name := range moduleAllNames {
 		rootKinds[name] = appendUniqueString(rootKinds[name], "python.module_all_export")
 	}
 	for name := range pythonPackageInitExportedNames(repoRoot, sourcePath) {
@@ -27,23 +34,6 @@ func pythonPublicAPIRootKinds(
 	}
 	pythonAddPublicAPIBaseRoots(root, source, rootKinds)
 	return rootKinds
-}
-
-func pythonModuleAllNames(root *tree_sitter.Node, source []byte) map[string]struct{} {
-	names := make(map[string]struct{})
-	walkNamed(root, func(node *tree_sitter.Node) {
-		if node.Kind() != "assignment" {
-			return
-		}
-		left := node.ChildByFieldName("left")
-		if strings.TrimSpace(nodeText(left, source)) != "__all__" {
-			return
-		}
-		for _, name := range pythonStringSequenceLiterals(node.ChildByFieldName("right"), source) {
-			names[name] = struct{}{}
-		}
-	})
-	return names
 }
 
 // pythonStringSequenceLiterals returns the identifier-shaped string literals
