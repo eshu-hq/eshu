@@ -71,3 +71,25 @@ Not claimed today:
   blockers.
 - Exact route-to-handler truth for Scala frameworks beyond the literal Play and
   http4s subset is not claimed.
+
+## Parser Performance
+
+The Scala parser collapses http4s route detection from a dedicated full-tree
+tree-sitter walk into the main payload walk. The http4s check reads
+`call_expression` nodes the main walk already visits and does not depend on
+any state the main walk collects later, so it now collects candidate route
+evidence unconditionally during the main pass; the import-bucket gate that
+decides whether http4s is actually imported is applied afterward to the
+routes already gathered, instead of re-walking the tree to collect them. This
+lowers the common-case full-tree walk count for http4s files from 3 to 2
+(`scalaCollectTypeContracts` stays a separate pre-pass: it seeds
+`traitMethods`/`typeTraits` the main walk's dead-code-root classification
+reads, so it must still run first) while keeping parser output
+byte-identical, verified by a one-time old-vs-new `0/0` symmetric-diff over
+the fixture corpus via the opt-in `SCALA_PARSE_DUMP` harness
+(`equivalence_dump_test.go`, a manual differential — not a standing CI gate);
+standing regression protection comes from the Scala parser package tests and
+the B-12 golden snapshot (epic #4831, #4841). Contributors adding a new
+framework-route detector should extend the shared pass rather than add
+another full-tree walk when the detector has no dependency on another
+detector's completed output.
