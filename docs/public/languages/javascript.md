@@ -139,8 +139,11 @@ enclosing-function scans run in one traversal, and the React-alias,
 CommonJS-export, new-expression-type, and Fastify-base index builders run in
 one shared dispatch walk gated per collector exactly as the originals were.
 This lowers the always-on root-walk count in that path from 7 to 3 while
-keeping parser output byte-identical (a `0/0` symmetric-diff over the fixture
-corpus gates it; epic #4831, #4868). This is distinct from the shipped
+keeping parser output byte-identical, verified by a one-time old-vs-new `0/0`
+symmetric-diff over the fixture corpus via the opt-in `JSTS_PARSE_DUMP` harness
+(`equivalence_dump_test.go`, a manual differential — not a standing CI gate);
+standing regression protection comes from the JS/TS parser package tests and
+the B-12 golden snapshot (epic #4831, #4868). This is distinct from the shipped
 TypeScript public-surface reexport BFS cache (#4765), which it does not touch.
 Contributors adding a new index builder should extend the shared dispatch walk
 rather than add another full-tree walk when the builder has no dependency on
