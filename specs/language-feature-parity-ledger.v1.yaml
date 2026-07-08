@@ -244,10 +244,10 @@ language_features:
     docs_claim: docs/public/languages/php.md
     parser_backing: tree-sitter-backed
     no_provider_required: true
-    supported_features: [core-declarations, trait-adaptation-aliases, static-receiver-families, typed-property-and-alias-receivers, function-return-receiver-chains, method-return-receiver-chains, cross-file-object-call-families, nullsafe-and-anonymous-class-receivers, symfony-attribute-route-truth, slim-web-route-detection]
-    partial_features: [laravel-wordpress-route-truth, broader-symfony-route-truth, reflection-heavy-dispatch]
+    supported_features: [core-declarations, trait-adaptation-aliases, static-receiver-families, typed-property-and-alias-receivers, function-return-receiver-chains, method-return-receiver-chains, cross-file-object-call-families, nullsafe-and-anonymous-class-receivers, symfony-attribute-route-truth, slim-web-route-detection, laravel-route-facade-truth]
+    partial_features: [broader-symfony-route-truth, reflection-heavy-dispatch]
     derived_features: [dead-code-root-hints]
-    source_files: [go/internal/parser/php_language.go, go/internal/parser/php/parser.go, go/internal/parser/php/framework_routes.go, go/internal/parser/php/framework_routes_slim.go]
+    source_files: [go/internal/parser/php_language.go, go/internal/parser/php/parser.go, go/internal/parser/php/framework_routes.go, go/internal/parser/php/framework_routes_slim.go, go/internal/parser/php/framework_routes_laravel.go]
     test_files: [go/internal/parser/php_language_test.go, go/internal/parser/php_dead_code_roots_test.go, go/internal/parser/php_route_entries_test.go, go/internal/reducer/handles_route_php_test.go, go/internal/query/content_reader_framework_routes_php_test.go]
     docs: [docs/public/languages/php.md]
     read_surfaces: [execute_language_query, get_code_relationship_story, find_dead_code]

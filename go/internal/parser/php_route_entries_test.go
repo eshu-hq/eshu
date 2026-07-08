@@ -416,3 +416,81 @@ $other = \App\Utils\Helper::post('/some/path');
 		t.Fatalf("framework_semantics.laravel should be absent for non-Laravel scoped calls")
 	}
 }
+
+func TestDefaultEngineParsePathPHPEmitsLaravelNestedGroupRouteEntries(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	sourcePath := filepath.Join(repoRoot, "nested_group.php")
+	writeTestFile(
+		t,
+		sourcePath,
+		`<?php
+
+use Illuminate\Support\Facades\Route;
+
+Route::group(['prefix' => 'api'], function () {
+    Route::group(['prefix' => 'v1'], function () {
+        Route::get('users', 'UserController@index');
+        Route::post('users', 'UserController@store');
+    });
+});
+`,
+	)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	got, err := engine.ParsePath(repoRoot, sourcePath, false, Options{IndexSource: true})
+	if err != nil {
+		t.Fatalf("ParsePath(%s) error = %v, want nil", sourcePath, err)
+	}
+
+	assertFrameworksEqual(t, got, "laravel")
+	assertNestedRouteEntriesEqual(t, got, "laravel", []map[string]string{
+		{"method": "GET", "path": "api/v1/users", "handler": "UserController@index"},
+		{"method": "POST", "path": "api/v1/users", "handler": "UserController@store"},
+	})
+}
+
+func TestDefaultEngineParsePathPHPEmitsLaravelGlobalBackslashRouteInNamespace(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	sourcePath := filepath.Join(repoRoot, "namespaced.php")
+	writeTestFile(
+		t,
+		sourcePath,
+		`<?php
+
+namespace App\Http;
+
+// No "use Illuminate\Support\Facades\Route;" import here.
+// Explicit \Route:: must be the global alias and still resolve.
+\Route::get('users', 'UserController@index');
+
+// Bare Route:: in a namespaced file without a Route import resolves
+// to App\Http\Route, which is NOT the Laravel facade — must NOT emit.
+Route::get('profiles', 'ProfileController@show');
+`,
+	)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	got, err := engine.ParsePath(repoRoot, sourcePath, false, Options{IndexSource: true})
+	if err != nil {
+		t.Fatalf("ParsePath(%s) error = %v, want nil", sourcePath, err)
+	}
+
+	assertFrameworksEqual(t, got, "laravel")
+	assertNestedRouteEntriesEqual(t, got, "laravel", []map[string]string{
+		// \Route::get(...) — global alias, must emit.
+		{"method": "GET", "path": "users", "handler": "UserController@index"},
+		// Bare Route::get(...) in namespaced file without import — must NOT emit.
+	})
+}

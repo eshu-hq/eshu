@@ -220,16 +220,27 @@ func phpIsLaravelRouteScopeText(scopeText string, payload map[string]any) bool {
 		return true
 	}
 
-	// \Route (global alias with explicit backslash) or bare Route
+	// \Route — explicit global alias. The leading backslash in the
+	// source text means the author explicitly qualified to the global
+	// namespace, so this satisfies the gate even in a namespaced file
+	// without a use import. By contrast, bare Route:: in a namespaced
+	// file without a Route import resolves to the current namespace
+	// (could be a different class), so it stays unclaimed.
+	if strings.HasPrefix(scopeText, `\`) && normalized == "Route" {
+		return true
+	}
+
+	// Bare Route — needs provenance:
+	// Case 1: Explicit use import resolves Route.
+	// Case 2: A namespace-less file (Route resolves to \Route in the
+	//   global namespace) with no import that shadows it. This covers
+	//   the common Laravel routes/*.php convention where files are in
+	//   the global namespace and the \Route alias is registered by the
+	//   framework.
 	if normalized == "Route" {
-		// Case 1: Explicit use import resolves Route.
 		if phpHasLaravelRouteImport(payload) {
 			return true
 		}
-		// Case 2: Global namespace (no namespace declaration) and
-		// no import shadows Route. This is the common pattern in
-		// Laravel routes/*.php files where Route facade is available
-		// through the framework's class alias.
 		_, hasNS := payload["namespace"]
 		if !hasNS && !phpHasConflictingRouteImport(payload) {
 			return true
@@ -311,7 +322,7 @@ func phpEnclosingLaravelGroupPrefixes(node *tree_sitter.Node, source []byte) ([]
 		// key — a namespace/middleware-only group. Skip it silently.
 	}
 	// Reverse to get outermost-first order (parent walk yields innermost-first).
-	for i, j := 0, len(prefixes)-1; i < j; i, j = i-1, j+1 {
+	for i, j := 0, len(prefixes)-1; i < j; i, j = i+1, j-1 {
 		prefixes[i], prefixes[j] = prefixes[j], prefixes[i]
 	}
 	return prefixes, true
@@ -385,13 +396,21 @@ func phpExtractArrayStringValue(arrayText, key string) (string, bool) {
 }
 
 // phpLaravelRoutePath concatenates enclosing group prefixes with the route's
-// subpath. Empty paths are never emitted — an empty-subpath route with no
-// enclosing group is skipped.
+// subpath using '/' as the separator. Empty path segments are filtered out.
+// An empty-subpath route with no enclosing group is skipped.
 func phpLaravelRoutePath(prefixes []string, subpath string) string {
 	parts := make([]string, 0, len(prefixes)+1)
-	parts = append(parts, prefixes...)
-	parts = append(parts, subpath)
-	path := strings.Join(parts, "")
+	for _, p := range prefixes {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			parts = append(parts, p)
+		}
+	}
+	subpath = strings.TrimSpace(subpath)
+	if subpath != "" {
+		parts = append(parts, subpath)
+	}
+	path := strings.Join(parts, "/")
 	if strings.TrimSpace(path) == "" {
 		return ""
 	}
