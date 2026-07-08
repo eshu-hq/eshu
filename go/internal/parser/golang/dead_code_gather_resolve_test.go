@@ -6,6 +6,7 @@ package golang
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -94,14 +95,29 @@ func TestDeadCodeGatherResolveForwardReferences(t *testing.T) {
 		t.Fatalf("Parse() error = %v, want nil", err)
 	}
 
-	// Collect dead_code_root_kinds across all entity buckets.
+	// Collect dead_code_root_kinds across all entity buckets, keyed by the
+	// lowercase "class_context.name" method key (falling back to the bare
+	// name for package-level functions). The parser stores
+	// dead_code_root_kinds as []string; a []any fallback keeps the test
+	// robust if that ever changes, but the []string branch is the real one
+	// (asserting []any alone silently matched nothing and made this test a
+	// no-op — see #4921 review).
 	rootKinds := make(map[string][]string)
 	collectRootKinds := func(items []map[string]any) {
 		for _, item := range items {
 			name := strings.ToLower(stringOrEmpty(item, "name"))
-			kinds, _ := item["dead_code_root_kinds"].([]any)
-			for _, k := range kinds {
-				rootKinds[name] = append(rootKinds[name], k.(string))
+			if ctx := strings.ToLower(stringOrEmpty(item, "class_context")); ctx != "" {
+				name = ctx + "." + name
+			}
+			switch kinds := item["dead_code_root_kinds"].(type) {
+			case []string:
+				rootKinds[name] = append(rootKinds[name], kinds...)
+			case []any:
+				for _, k := range kinds {
+					if s, ok := k.(string); ok {
+						rootKinds[name] = append(rootKinds[name], s)
+					}
+				}
 			}
 		}
 	}
@@ -113,9 +129,22 @@ func TestDeadCodeGatherResolveForwardReferences(t *testing.T) {
 		collectRootKinds(classes)
 	}
 
-	t.Logf("dead_code_root_kinds summary:")
-	for name, kinds := range rootKinds {
-		t.Logf("  %s: %v", name, kinds)
+	// Each expected entry is a forward reference: the resolution node
+	// (call_expression, type_parameter_declaration, or interface-return)
+	// names a symbol declared LATER in the file, so it resolves only
+	// because walk-1 gathers every declaration before any resolution loop
+	// runs. If the gather-then-resolve refactor dropped forward-reference
+	// resolution, these root kinds would be absent and the test fails.
+	wantForwardRefs := map[string]string{
+		"handlerimpl.run":         "go.interface_method_implementation",
+		"stringprocessor.process": "go.generic_constraint_method",
+		"latestruct.method":       "go.direct_method_call",
+	}
+	for key, wantKind := range wantForwardRefs {
+		got := rootKinds[key]
+		if !slices.Contains(got, wantKind) {
+			t.Errorf("forward-reference resolution lost for %q: got dead_code_root_kinds %v, want to contain %q", key, got, wantKind)
+		}
 	}
 }
 
