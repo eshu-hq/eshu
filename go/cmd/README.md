@@ -44,6 +44,7 @@ exact binary set on `PATH`.
 | `eshu-workflow-coordinator` | `workflow-coordinator/` | Long-running workflow coordinator |
 | `capability-inventory` | `capability-inventory/` | Generate/verify the capability catalog artifact (dev/CI tool) |
 | `audit-preflight` | `audit-preflight/` | Validate competitive-audit issues against the preflight contract (dev/CI tool) |
+| `fact-envelope-adapter` | `fact-envelope-adapter/` | Generate/verify the shared fact-envelope adapter artifact (dev/CI tool) |
 
 ## Pipeline shape
 

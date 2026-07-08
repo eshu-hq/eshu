@@ -44,6 +44,12 @@ entry — until a maintainer actually cuts the tag, per the convention below.
   namespaced component fact declare the fixture-pack payload schema shape the
   host and CI should validate before publication or activation.
 
+### Changed
+
+- Core Eshu now generates the host-side adapter from `collector.Fact` into the
+  durable fact envelope. This does not change the `collector-sdk/v1alpha1` wire
+  protocol or the public Go API.
+
 ## Convention for future entries
 
 Add a new `## [Unreleased]` entry at the top of this file for every

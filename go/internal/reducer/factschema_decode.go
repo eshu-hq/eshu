@@ -11,6 +11,7 @@ import (
 
 	"go.opentelemetry.io/otel/metric"
 
+	"github.com/eshu-hq/eshu/go/internal/factenvelope"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
@@ -343,10 +344,10 @@ func decodeGCPCloudRelationship(env facts.Envelope) (gcpv1.Relationship, error) 
 }
 
 // factschemaEnvelope adapts a go/internal/facts.Envelope to the contracts-module
-// factschema.Envelope the Decode* seam accepts. Only the fields the decode seam
-// reads (FactKind, SchemaVersion, Payload) are populated; envelope unification
-// is documented follow-up work (design §3.1), so the adapter stays explicit and
-// narrow rather than aliasing the two envelope types.
+// factschema.Envelope the Decode* seam accepts through the generated shared
+// adapter. Keeping this wrapper preserves the reducer-local call sites while
+// making factenvelope the single source for field mapping and version-less
+// schema normalization.
 //
 // A version-less SchemaVersion is normalized to the current major-1 schema
 // version. "Version-less" means either an empty string (what a fact carries
@@ -369,28 +370,5 @@ func decodeGCPCloudRelationship(env facts.Envelope) (gcpv1.Relationship, error) 
 // seam's default branch, and a fact missing a required identity field still
 // dead-letters as input_invalid regardless of its version.
 func factschemaEnvelope(env facts.Envelope) factschema.Envelope {
-	schemaVersion := env.SchemaVersion
-	if schemaVersion == "" || schemaVersion == persistedVersionlessSchemaVersion {
-		schemaVersion = defaultSchemaMajorVersion
-	}
-	return factschema.Envelope{
-		FactKind:      env.FactKind,
-		SchemaVersion: schemaVersion,
-		Payload:       env.Payload,
-	}
+	return factenvelope.FactSchemaFromInternal(env)
 }
-
-// defaultSchemaMajorVersion is the schema version the reducer assumes when an
-// envelope carries none. It is a major-1 version because every migrated fact
-// kind is at schema major 1 today; the value's minor/patch are irrelevant since
-// the Decode seam dispatches on the major component only.
-const defaultSchemaMajorVersion = "1.0.0"
-
-// persistedVersionlessSchemaVersion is the sentinel the Postgres persist layer
-// stamps for a fact whose collector emitted no SchemaVersion
-// (emptyToDefault(envelope.SchemaVersion, "0.0.0") in
-// go/internal/storage/postgres/facts.go and facts_streaming.go). A fact loaded
-// back for reduction therefore carries this value rather than the empty string,
-// so factschemaEnvelope normalizes it to defaultSchemaMajorVersion exactly like
-// an empty version. It is never a real schema version any collector emits.
-const persistedVersionlessSchemaVersion = "0.0.0"

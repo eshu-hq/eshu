@@ -11,13 +11,11 @@ import "time"
 // not-yet-decoded Payload that a kind-specific typed struct is decoded from
 // via the seam in decode.go.
 //
-// Envelope unification is explicitly out of scope for this scaffold. Eshu
-// today has three separate envelope definitions — this one,
-// go/internal/facts.Envelope, and sdk/go/collector.Fact — that describe the
-// same wire concept with different field names and Go representations.
-// Generating or aliasing all three from one source is documented follow-up
-// work; see the "Envelope unification" section of this package's README.md
-// and design §3.1.
+// The public factschema, durable internal, and collector SDK envelope shapes
+// intentionally keep their package-specific field names and JSON tags. Core
+// adapters generated under go/internal/factenvelope are the single mapping
+// source between those shapes, so decode callers do not hand-copy envelope
+// fields in reducer, projector, or extensionhost packages.
 type Envelope struct {
 	// FactKind is the namespaced fact kind identifier (for example
 	// "aws_resource"). It selects which decode function and JSON Schema

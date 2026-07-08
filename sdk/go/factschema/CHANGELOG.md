@@ -48,6 +48,12 @@ entry — until a maintainer actually cuts the tag, per the convention below.
   missing required field on decode dead-letters visibly instead of silently
   zeroing out.
 
+### Changed
+
+- Core Eshu now generates the adapter that maps durable internal fact envelopes
+  into this module's `Envelope` for Decode calls. This does not change any
+  factschema payload schema, fixture-pack artifact, or public Go API.
+
 ## Convention for future entries
 
 Add a new `## [Unreleased]` entry at the top of this file for every

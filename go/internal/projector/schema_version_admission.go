@@ -7,9 +7,12 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/factenvelope"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 )
+
+const projectorPersistedVersionlessSchemaVersion = factenvelope.PersistedVersionlessSchemaVersion
 
 // validateFactSchemaVersion rejects a core-owned fact that carries an
 // unsupported schema version before it is projected. It gates every core fact

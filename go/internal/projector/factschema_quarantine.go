@@ -12,6 +12,7 @@ import (
 
 	"go.opentelemetry.io/otel/metric"
 
+	"github.com/eshu-hq/eshu/go/internal/factenvelope"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
@@ -180,46 +181,13 @@ func recordProjectorQuarantinedFacts(
 }
 
 // factschemaEnvelope adapts a go/internal/facts.Envelope to the contracts-module
-// factschema.Envelope the Decode* seam accepts. Only the fields the decode seam
-// reads (FactKind, SchemaVersion, Payload) are populated; envelope unification
-// is documented follow-up work (design §3.1), so the adapter stays explicit and
-// narrow rather than aliasing the two envelope types. An empty SchemaVersion is
-// normalized to the current major-1 schema version, matching the reducer's
-// factschemaEnvelope: every oci emitter stamps a concrete "1.0.0" version and
-// the projector's schema-version admission gates on it upstream, so a
-// version-less fact does not occur on the production path. A present but
-// unsupported major still dead-letters through the Decode* seam's default
-// branch.
+// factschema.Envelope the Decode* seam accepts through the generated shared
+// adapter. Keeping this wrapper preserves the projector-local call sites while
+// making factenvelope the single source for field mapping and version-less
+// schema normalization.
 func factschemaEnvelope(env facts.Envelope) factschema.Envelope {
-	schemaVersion := env.SchemaVersion
-	if schemaVersion == "" || schemaVersion == projectorPersistedVersionlessSchemaVersion {
-		schemaVersion = projectorDefaultSchemaMajorVersion
-	}
-	return factschema.Envelope{
-		FactKind:      env.FactKind,
-		SchemaVersion: schemaVersion,
-		Payload:       env.Payload,
-	}
+	return factenvelope.FactSchemaFromInternal(env)
 }
-
-// projectorPersistedVersionlessSchemaVersion is the sentinel the Postgres
-// persist layer stamps for a fact whose collector emitted no SchemaVersion
-// (emptyToDefault(envelope.SchemaVersion, "0.0.0") in
-// go/internal/storage/postgres/facts.go). The git collector emits file and
-// repository facts with no SchemaVersion, so a fact LOADED for projection
-// carries "0.0.0", not "". Normalizing it to the latest major here (mirroring
-// the reducer's factschemaEnvelope, #4753) keeps the projector's codegraph
-// canonical extract from dead-lettering every real version-less file/repository
-// fact — the regression #4899 introduced by only normalizing the "" spelling.
-// "0.0.0" is never a real emitted schema version, so this is safe for every
-// other family (all stamp a concrete "1.0.0").
-const projectorPersistedVersionlessSchemaVersion = "0.0.0"
-
-// projectorDefaultSchemaMajorVersion is the schema version the projector assumes
-// when an envelope carries none. It is a major-1 version because every migrated
-// fact kind is at schema major 1 today; the Decode seam dispatches on the major
-// component only.
-const projectorDefaultSchemaMajorVersion = "1.0.0"
 
 // groupQuarantinedFactsByStage partitions a MERGED quarantinedFact slice — as
 // buildCanonicalMaterialization returns, appending across every typed
