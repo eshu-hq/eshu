@@ -71,24 +71,30 @@ DELETE rel`
 
 // retractObservabilityCoverageEdgesByUIDsCypher is the ledger-anchored
 // counterpart of retractObservabilityCoverageEdgesCypher: it enumerates source
-// (observability) CloudResource uids from $source_uids instead of scanning
-// the whole :CloudResource label. The inline `{uid: suid}` on the MATCH seeds
-// the CloudResource.uid index so the delete walks only the ledger-enumerated
-// observability node's outgoing adjacency. A bare `[rel]` is safe here: COVERS
-// edges use a signal-specific Cypher relationship type
-// (AWS_COVERS_<signal>) drawn from a closed vocabulary, but enumerating every
-// member would still require keeping this Cypher in lockstep with
-// observabilityCoverageSignalVocabulary; the `evidence_source` predicate
-// already scopes the delete to only this writer's edges, so a bare `[rel]`
-// cannot reach an edge owned by a different writer.
-const retractObservabilityCoverageEdgesByUIDsCypher = `UNWIND $source_uids AS suid
-MATCH (obs:CloudResource {uid: suid})-[rel]->(:CloudResource)
-WHERE rel.scope_id IN $scope_ids
+// (observability) CloudResource uids via a `WHERE obs.uid IN $source_uids`
+// predicate instead of scanning the whole :CloudResource label. `obs.uid IN
+// $source_uids` (a single-clause MATCH with the IN-list predicate on the
+// source node, not a separate UNWIND + property-map MATCH) seeds the
+// CloudResource.uid index so the engine expands adjacency for only the
+// ledger-enumerated observability nodes instead of the whole label; this
+// depends on the NornicDB IN-list start-node index seed fix
+// (orneryd/NornicDB#258) and measured ~300s/timeout on the prior UNWIND-based
+// shape. The single-clause form also binds the relationship correctly, unlike
+// a two-clause `MATCH (obs) MATCH ()-[rel]->()` split (orneryd/NornicDB#257).
+// A bare `[rel]` is safe here: COVERS edges use a signal-specific Cypher
+// relationship type (AWS_COVERS_<signal>) drawn from a closed vocabulary, but
+// enumerating every member would still require keeping this Cypher in
+// lockstep with observabilityCoverageSignalVocabulary; the `evidence_source`
+// predicate already scopes the delete to only this writer's edges, so a bare
+// `[rel]` cannot reach an edge owned by a different writer.
+const retractObservabilityCoverageEdgesByUIDsCypher = `MATCH (obs:CloudResource)-[rel]->()
+WHERE obs.uid IN $source_uids
+  AND rel.scope_id IN $scope_ids
   AND rel.evidence_source = $evidence_source
 DELETE rel`
 
 // observabilityCoverageEdgeRetractUIDBatchSize bounds the number of source
-// uids UNWOUND per anchored-retract statement.
+// uids passed in the $source_uids IN-list per anchored-retract statement.
 const observabilityCoverageEdgeRetractUIDBatchSize = 500
 
 // ObservabilityCoverageEdgeWriter materializes resolved observability coverage

@@ -325,9 +325,11 @@ func TestCloudResourceEdgeWriterSatisfiesReducerInterface(t *testing.T) {
 }
 
 // TestCloudResourceEdgeWriterRetractByUIDsAnchoredDelete proves the anchored
-// retract enumerates $source_uids and seeds the CloudResource.uid index
-// (MATCH (source:CloudResource {uid: suid})) instead of scanning the whole
-// :CloudResource label, while still filtering by scope and evidence source.
+// retract enumerates $source_uids via a single-clause
+// `WHERE source.uid IN $source_uids` predicate that seeds the
+// CloudResource.uid index, instead of scanning the whole :CloudResource label
+// or splitting into a two-clause MATCH/MATCH, while still filtering by scope
+// and evidence source.
 func TestCloudResourceEdgeWriterRetractByUIDsAnchoredDelete(t *testing.T) {
 	t.Parallel()
 
@@ -346,8 +348,8 @@ func TestCloudResourceEdgeWriterRetractByUIDsAnchoredDelete(t *testing.T) {
 	}
 	cypher := executor.calls[0].Cypher
 	for _, want := range []string{
-		"UNWIND $source_uids AS suid",
-		"MATCH (source:CloudResource {uid: suid})",
+		"MATCH (source:CloudResource)-[rel]->()",
+		"WHERE source.uid IN $source_uids",
 		"rel.scope_id IN $scope_ids",
 		"rel.evidence_source = $evidence_source",
 		"DELETE rel",
@@ -356,8 +358,8 @@ func TestCloudResourceEdgeWriterRetractByUIDsAnchoredDelete(t *testing.T) {
 			t.Fatalf("retract by uids cypher missing %q:\n%s", want, cypher)
 		}
 	}
-	if strings.Contains(cypher, "MATCH (source:CloudResource)-[rel]->") {
-		t.Fatalf("retract by uids cypher must not fall back to the whole-label scan:\n%s", cypher)
+	if strings.Contains(cypher, "UNWIND $source_uids AS suid") || strings.Contains(cypher, "{uid: suid}") {
+		t.Fatalf("retract by uids cypher must not use the slow UNWIND + property-map MATCH shape:\n%s", cypher)
 	}
 	if got := executor.calls[0].Parameters["source_uids"]; got == nil {
 		t.Fatalf("source_uids param missing")
@@ -388,7 +390,7 @@ func TestCloudResourceEdgeWriterRetractByUIDsEmptyIsNoOp(t *testing.T) {
 }
 
 // TestCloudResourceEdgeWriterRetractByUIDsBatchesUids proves uids beyond the
-// batch size split into multiple UNWIND statements.
+// batch size split into multiple statements.
 func TestCloudResourceEdgeWriterRetractByUIDsBatchesUids(t *testing.T) {
 	t.Parallel()
 

@@ -45,26 +45,32 @@ WHERE rel.scope_id IN $scope_ids
 DELETE rel`
 
 // retractCloudResourceEdgesByUIDsCypher is the ledger-anchored counterpart of
-// retractCloudResourceEdgesCypher: it enumerates source CloudResource uids
-// from $source_uids instead of scanning the whole :CloudResource label. The
-// inline `{uid: suid}` on the MATCH seeds the CloudResource.uid index so the
-// delete walks only the ledger-enumerated source's outgoing adjacency. A bare
-// `[rel]` (no relationship-type literal) is intentional and safe here: AWS
-// relationship edges use an open, per-relationship-type Cypher token
+// retractCloudResourceEdgesCypher: it enumerates source CloudResource uids via
+// a `WHERE source.uid IN $source_uids` predicate instead of scanning the whole
+// :CloudResource label. `source.uid IN $source_uids` (a single-clause MATCH
+// with the IN-list predicate on the source node, not a separate UNWIND +
+// property-map MATCH) seeds the CloudResource.uid index so the engine expands
+// adjacency for only the ledger-enumerated sources instead of the whole label;
+// this depends on the NornicDB IN-list start-node index seed fix
+// (orneryd/NornicDB#258) and measured ~300s/timeout on the prior UNWIND-based
+// shape. The single-clause form also binds the relationship correctly, unlike
+// a two-clause `MATCH (source) MATCH ()-[rel]->()` split (orneryd/NornicDB#257).
+// A bare `[rel]` (no relationship-type literal) is intentional and safe here:
+// AWS relationship edges use an open, per-relationship-type Cypher token
 // (AWS_<relationship_type>) rather than one fixed type, so enumerating types
 // would require an ever-growing allowlist; the `evidence_source` predicate
 // already scopes the delete to only this writer's edges (no other writer
 // stamps rel.evidence_source = "reducer/aws-relationships"), so a bare `[rel]`
 // cannot reach an edge owned by a different writer.
-const retractCloudResourceEdgesByUIDsCypher = `UNWIND $source_uids AS suid
-MATCH (source:CloudResource {uid: suid})-[rel]->(:CloudResource)
-WHERE rel.scope_id IN $scope_ids
+const retractCloudResourceEdgesByUIDsCypher = `MATCH (source:CloudResource)-[rel]->()
+WHERE source.uid IN $source_uids
+  AND rel.scope_id IN $scope_ids
   AND rel.evidence_source = $evidence_source
 DELETE rel`
 
 // cloudResourceEdgeRetractUIDBatchSize bounds the number of source uids
-// UNWOUND per anchored-retract statement, mirroring
-// codeInterprocEvidenceRetractUIDBatchSize.
+// passed in the $source_uids IN-list per anchored-retract statement,
+// mirroring codeInterprocEvidenceRetractUIDBatchSize.
 const cloudResourceEdgeRetractUIDBatchSize = 500
 
 // CloudResourceEdgeWriter materializes resolved aws_relationship facts into
