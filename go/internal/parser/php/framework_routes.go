@@ -17,14 +17,15 @@ type phpRoute struct {
 }
 
 // buildPHPFrameworkSemantics resolves framework route semantics from the
-// attribute candidates phase 1 already recorded while visiting every
-// "attribute" node for observePHPAttribute (see collectPHPDeclarations). It
-// performs no AST traversal of its own; imports must be fully collected by
-// the time this runs, which phase 1 guarantees since it finishes the whole
-// file before Parse calls this.
-func buildPHPFrameworkSemantics(candidates []*tree_sitter.Node, source []byte, payload map[string]any) map[string]any {
+// attribute candidates and Slim route candidates phase 1 already recorded
+// while visiting every "attribute" node and "member_call_expression" node
+// (see collectPHPDeclarations). It performs no AST traversal of its own;
+// imports must be fully collected by the time this runs, which phase 1
+// guarantees since it finishes the whole file before Parse calls this.
+func buildPHPFrameworkSemantics(routeAttributes []*tree_sitter.Node, slimRouteCandidates []*tree_sitter.Node, slimReceiverVars map[string]struct{}, source []byte, payload map[string]any) map[string]any {
 	semantics := map[string]any{"frameworks": []string{}}
-	appendPHPRouteFramework(semantics, "symfony", phpSymfonyRoutes(candidates, source, phpImportedSymfonyRouteNames(payload)))
+	appendPHPRouteFramework(semantics, "symfony", phpSymfonyRoutes(routeAttributes, source, phpImportedSymfonyRouteNames(payload)))
+	appendPHPRouteFramework(semantics, "slim", phpSlimRoutes(slimRouteCandidates, slimReceiverVars, source, payload))
 	return semantics
 }
 

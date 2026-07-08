@@ -147,3 +147,202 @@ final class CustomController {
 		t.Fatalf("framework_semantics = %#v, want absent for an unresolved bare Route attribute", semantics)
 	}
 }
+
+func TestDefaultEngineParsePathPHPEmitsSlimRouteEntries(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	sourcePath := filepath.Join(repoRoot, "routes.php")
+	writeTestFile(
+		t,
+		sourcePath,
+		`<?php
+
+use Slim\Factory\AppFactory;
+
+$app = AppFactory::create();
+
+$app->get('/', function ($req, $res) { return $res; });
+$app->post('/users', \App\Action\CreateUserAction::class);
+$app->map(['GET', 'POST'], '/multi', 'Handler:method');
+`,
+	)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	got, err := engine.ParsePath(repoRoot, sourcePath, false, Options{IndexSource: true})
+	if err != nil {
+		t.Fatalf("ParsePath(%s) error = %v, want nil", sourcePath, err)
+	}
+
+	assertFrameworksEqual(t, got, "slim")
+	assertNestedRouteEntriesEqual(t, got, "slim", []map[string]string{
+		{"method": "GET", "path": "/", "handler": ""},
+		{"method": "POST", "path": "/users", "handler": "CreateUserAction"},
+		{"method": "GET", "path": "/multi", "handler": "Handler:method"},
+		{"method": "POST", "path": "/multi", "handler": "Handler:method"},
+	})
+}
+
+func TestDefaultEngineParsePathPHPSkipsNonSlimGetCall(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	sourcePath := filepath.Join(repoRoot, "not_slim.php")
+	writeTestFile(
+		t,
+		sourcePath,
+		`<?php
+
+$collection = new SomeCollection();
+$item = $collection->get($id);
+`,
+	)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	got, err := engine.ParsePath(repoRoot, sourcePath, false, Options{IndexSource: true})
+	if err != nil {
+		t.Fatalf("ParsePath(%s) error = %v, want nil", sourcePath, err)
+	}
+
+	semantics, ok := got["framework_semantics"].(map[string]any)
+	if !ok {
+		return
+	}
+	if _, ok := semantics["slim"]; ok {
+		t.Fatalf("framework_semantics.slim should be absent for non-Slim get() call")
+	}
+}
+
+func TestDefaultEngineParsePathPHPEmitsSlimGroupedAndNestedRouteEntries(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	sourcePath := filepath.Join(repoRoot, "grouped_routes.php")
+	writeTestFile(
+		t,
+		sourcePath,
+		`<?php
+
+use Slim\App;
+use Slim\Interfaces\RouteCollectorProxyInterface;
+
+	return function (App $app) {
+    $app->get('/', \App\Action\HomeAction::class);
+    $app->group('/users', function (RouteCollectorProxyInterface $group) {
+        $group->get('', \App\Action\ListUsers::class);
+        $group->get('/{id}', \App\Action\ViewUser::class);
+        $group->group('/{id}/posts', function (RouteCollectorProxyInterface $g) {
+            $g->get('', \App\Action\ListPosts::class);
+        });
+    });
+};
+`,
+	)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	got, err := engine.ParsePath(repoRoot, sourcePath, false, Options{IndexSource: true})
+	if err != nil {
+		t.Fatalf("ParsePath(%s) error = %v, want nil", sourcePath, err)
+	}
+
+	assertFrameworksEqual(t, got, "slim")
+	assertNestedRouteEntriesEqual(t, got, "slim", []map[string]string{
+		{"method": "GET", "path": "/", "handler": "HomeAction"},
+		{"method": "GET", "path": "/users", "handler": "ListUsers"},
+		{"method": "GET", "path": "/users/{id}", "handler": "ViewUser"},
+		{"method": "GET", "path": "/users/{id}/posts", "handler": "ListPosts"},
+	})
+}
+
+func TestDefaultEngineParsePathPHPSkipsSlimRouteWithEmptyPath(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	sourcePath := filepath.Join(repoRoot, "empty_path.php")
+	writeTestFile(
+		t,
+		sourcePath,
+		`<?php
+
+use Slim\Factory\AppFactory;
+
+$app = AppFactory::create();
+$app->get('', 'SomeHandler::class');
+`,
+	)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	got, err := engine.ParsePath(repoRoot, sourcePath, false, Options{IndexSource: true})
+	if err != nil {
+		t.Fatalf("ParsePath(%s) error = %v, want nil", sourcePath, err)
+	}
+
+	// Empty-path route must not be emitted — an empty path is wrong truth.
+	semantics, ok := got["framework_semantics"].(map[string]any)
+	if !ok {
+		return
+	}
+	if _, ok := semantics["slim"]; ok {
+		t.Fatalf("framework_semantics.slim should be absent when the only route has an empty path")
+	}
+}
+
+func TestDefaultEngineParsePathPHPSkipsNonSlimReceiverGetCalls(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	sourcePath := filepath.Join(repoRoot, "container.php")
+	writeTestFile(
+		t,
+		sourcePath,
+		`<?php
+
+use Slim\Factory\AppFactory;
+
+$app = AppFactory::create();
+$container = new \Some\Psr\Container();
+$cache = new \Some\Cache\Pool();
+
+// These are NOT Slim routes — receivers have no Slim provenance.
+$container->get('settings');
+$cache->get('user:1');
+$cache->delete('stale-key');
+`,
+	)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	got, err := engine.ParsePath(repoRoot, sourcePath, false, Options{IndexSource: true})
+	if err != nil {
+		t.Fatalf("ParsePath(%s) error = %v, want nil", sourcePath, err)
+	}
+
+	// $app->get(...) is absent from this fixture, so slim should not
+	// appear at all — the container/cache calls must not be emitted.
+	semantics, ok := got["framework_semantics"].(map[string]any)
+	if !ok {
+		return
+	}
+	if _, ok := semantics["slim"]; ok {
+		t.Fatalf("framework_semantics.slim should be absent: container->get('settings') and cache->get('user:1') have non-Slim receivers")
+	}
+}

@@ -56,3 +56,50 @@ func TestBuildHandlesRouteIntentRowsEmitsPHPSymfonyRouteMatches(t *testing.T) {
 		t.Fatalf("resolution_method = %q, want %q", got, want)
 	}
 }
+
+func TestBuildHandlesRouteIntentRowsEmitsPHPSlimRouteMatches(t *testing.T) {
+	t.Parallel()
+
+	envelopes := []facts.Envelope{
+		handlesRouteRepoEnvelope("repo-1"),
+		handlesRouteFileEnvelope(
+			"repo-1",
+			"app/routes.php",
+			[]map[string]any{
+				{
+					"name":          "handleHome",
+					"class_context": "",
+					"uid":           "content-entity:slim-handler",
+					"line_number":   5,
+					"end_line":      7,
+					"lang":          "php",
+				},
+			},
+			"slim",
+			[]any{
+				map[string]any{"method": "GET", "path": "/", "handler": "handleHome"},
+			},
+		),
+	}
+
+	intents := buildHandlesRouteIntentsForTest(t, envelopes)
+	if len(intents) != 1 {
+		t.Fatalf("expected exactly 1 HANDLES_ROUTE intent, got %d", len(intents))
+	}
+	intent := intents[0]
+	if got, want := payloadStr(intent.Payload, "function_entity_id"), "content-entity:slim-handler"; got != want {
+		t.Fatalf("function_entity_id = %q, want %q", got, want)
+	}
+	if got, want := payloadStr(intent.Payload, "framework"), "slim"; got != want {
+		t.Fatalf("framework = %q, want %q", got, want)
+	}
+	if got, want := payloadStr(intent.Payload, "path"), "/"; got != want {
+		t.Fatalf("path = %q, want %q", got, want)
+	}
+	if got, want := payloadStr(intent.Payload, "http_method"), "GET"; got != want {
+		t.Fatalf("http_method = %q, want %q", got, want)
+	}
+	if got, want := payloadStr(intent.Payload, "resolution_method"), codeprovenance.MethodSameFile; got != want {
+		t.Fatalf("resolution_method = %q, want %q", got, want)
+	}
+}
