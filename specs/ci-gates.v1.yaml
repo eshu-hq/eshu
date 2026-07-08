@@ -352,6 +352,11 @@ gates:
     blocking: true
     triggers:
       - "go/internal/reducer/**"
+      - "go/internal/projector/**"
+      - "go/internal/query/**"
+      - "go/internal/storage/postgres/**"
+      - "go/internal/relationships/**"
+      - "go/internal/replay/**"
       - "sdk/go/factschema/**"
       - "go/internal/payloadusage/**"
       - "go/cmd/payload-usage-manifest/**"
@@ -365,15 +370,16 @@ gates:
     requirements:
       - go
     ci_only_reason: ""
-    # Contract System v1 §6 enforcement gate 2: derives, from the typed
-    # factschema.Decode* calls in go/internal/reducer/factschema_decode.go,
-    # which declared payload fields each reducer-decoded fact kind's handlers
-    # actually read (go/internal/payloadusage), and fails when a handler reads
-    # a field no checked-in JSON Schema
-    # (sdk/go/factschema/schema/*.json) declares. This is the REVERSE
-    # direction from factschema-diff (a schema breaking its own declared
-    # shape): a reducer starting to require a field no schema promises. See
-    # go/internal/payloadusage/README.md and
+    # Contract System v1 §6 enforcement gate 2: derives, from typed
+    # factschema.Decode* seams across reducer/projector/query/loader/
+    # relationships/replay, which declared payload fields typed-decoded
+    # handlers actually read (go/internal/payloadusage), and fails when a
+    # handler reads a field no checked-in JSON Schema
+    # (sdk/go/factschema/schema/*.json) declares. It also ratchets new raw
+    # payload reads on loader/relationships/replay behind explicit exemptions.
+    # This is the REVERSE direction from factschema-diff (a schema breaking its
+    # own declared shape): a consumer starting to require a field no schema
+    # promises. See go/internal/payloadusage/README.md and
     # go/internal/reducer/payload_usage_manifest_test.go
     # (TestPayloadUsageManifest).
 

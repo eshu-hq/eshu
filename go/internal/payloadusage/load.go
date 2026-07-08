@@ -73,13 +73,33 @@ func resolveDecodeFiles(p Paths) ([]string, error) {
 // state, not a fail-closed misconfiguration. The reducer glob remains
 // fail-closed because the reducer always has at least the AWS decode seam.
 func resolveProjectorDecodeFiles(p Paths) ([]string, error) {
-	if len(p.ProjectorDecodeFiles) > 0 {
-		return p.ProjectorDecodeFiles, nil
+	return resolveOptionalDecodeFiles("projector", p.ProjectorDir, p.ProjectorDecodeFiles)
+}
+
+// resolveQueryDecodeFiles returns the set of query-layer decode-seam files to
+// parse. When QueryDecodeFiles is already set it is returned as-is; otherwise it
+// globs every factschema_decode*.go under QueryDir so a query family whose
+// wrappers live in a split file is covered, mirroring resolveProjectorDecodeFiles.
+// Like the projector glob (and unlike the reducer's fail-closed glob), an EMPTY
+// match is NOT an error: the query read model has exactly one typed family today
+// (work_item), so a repo checkout with no query decode seam is a valid
+// intermediate state rather than a fail-closed misconfiguration.
+func resolveQueryDecodeFiles(p Paths) ([]string, error) {
+	return resolveOptionalDecodeFiles("query", p.QueryDir, p.QueryDecodeFiles)
+}
+
+// resolveOptionalDecodeFiles globs factschema_decode*.go under dir, excluding
+// test files, for pipeline surfaces whose typed coverage is allowed to be empty
+// during incremental migration. explicit, when non-empty, is returned as-is so
+// tests and callers can pin fixture files.
+func resolveOptionalDecodeFiles(label string, dir string, explicit []string) ([]string, error) {
+	if len(explicit) > 0 {
+		return explicit, nil
 	}
-	pattern := filepath.Join(p.ProjectorDir, "factschema_decode*.go")
+	pattern := filepath.Join(dir, "factschema_decode*.go")
 	matches, err := filepath.Glob(pattern)
 	if err != nil {
-		return nil, fmt.Errorf("payloadusage: glob projector decode seam files %s: %w", pattern, err)
+		return nil, fmt.Errorf("payloadusage: glob %s decode seam files %s: %w", label, pattern, err)
 	}
 	files := matches[:0]
 	for _, m := range matches {
@@ -92,32 +112,16 @@ func resolveProjectorDecodeFiles(p Paths) ([]string, error) {
 	return files, nil
 }
 
-// resolveQueryDecodeFiles returns the set of query-layer decode-seam files to
-// parse. When QueryDecodeFiles is already set it is returned as-is; otherwise it
-// globs every factschema_decode*.go under QueryDir so a query family whose
-// wrappers live in a split file is covered, mirroring resolveProjectorDecodeFiles.
-// Like the projector glob (and unlike the reducer's fail-closed glob), an EMPTY
-// match is NOT an error: the query read model has exactly one typed family today
-// (work_item), so a repo checkout with no query decode seam is a valid
-// intermediate state rather than a fail-closed misconfiguration.
-func resolveQueryDecodeFiles(p Paths) ([]string, error) {
-	if len(p.QueryDecodeFiles) > 0 {
-		return p.QueryDecodeFiles, nil
-	}
-	pattern := filepath.Join(p.QueryDir, "factschema_decode*.go")
-	matches, err := filepath.Glob(pattern)
-	if err != nil {
-		return nil, fmt.Errorf("payloadusage: glob query decode seam files %s: %w", pattern, err)
-	}
-	files := matches[:0]
-	for _, m := range matches {
-		if strings.HasSuffix(m, "_test.go") {
-			continue
-		}
-		files = append(files, m)
-	}
-	sort.Strings(files)
-	return files, nil
+func resolveLoaderDecodeFiles(p Paths) ([]string, error) {
+	return resolveOptionalDecodeFiles("loader", p.LoaderDir, p.LoaderDecodeFiles)
+}
+
+func resolveRelationshipsDecodeFiles(p Paths) ([]string, error) {
+	return resolveOptionalDecodeFiles("relationships", p.RelationshipsDir, p.RelationshipsDecodeFiles)
+}
+
+func resolveReplayDecodeFiles(p Paths) ([]string, error) {
+	return resolveOptionalDecodeFiles("replay", p.ReplayDir, p.ReplayDecodeFiles)
 }
 
 // parseDecodeSeamsFiles parses every file in files and returns the merged seam
@@ -193,6 +197,14 @@ func mergeUsage(a, b map[string][]FieldUsage) map[string][]FieldUsage {
 			}
 			return x.GoFieldName < y.GoFieldName
 		})
+	}
+	return merged
+}
+
+func mergeUsageSets(sets ...map[string][]FieldUsage) map[string][]FieldUsage {
+	merged := map[string][]FieldUsage{}
+	for _, set := range sets {
+		merged = mergeUsage(merged, set)
 	}
 	return merged
 }
@@ -284,20 +296,26 @@ func Load(p Paths) (Manifest, error) {
 		return Manifest{}, err
 	}
 
-	// The query read model is the ONLY decode site for the work_item family: no
-	// reducer or projector domain consumes work_item.* payloads, so its typed
-	// decode wrappers live in go/internal/query/factschema_decode_workitem.go.
-	// Parse them and merge so the manifest gate covers query decode sites too. An
-	// empty query seam set is valid (only work_item is typed at the query layer).
-	queryDecodeFiles, err := resolveQueryDecodeFiles(resolved)
-	if err != nil {
-		return Manifest{}, err
+	seams := mergeSeams(reducerSeams, projectorSeams)
+	for _, group := range []struct {
+		name  string
+		files func(Paths) ([]string, error)
+	}{
+		{"query", resolveQueryDecodeFiles},
+		{"loader", resolveLoaderDecodeFiles},
+		{"relationships", resolveRelationshipsDecodeFiles},
+		{"replay", resolveReplayDecodeFiles},
+	} {
+		files, resolveErr := group.files(resolved)
+		if resolveErr != nil {
+			return Manifest{}, resolveErr
+		}
+		groupSeams, parseErr := parseDecodeSeamsFiles(files)
+		if parseErr != nil {
+			return Manifest{}, fmt.Errorf("payloadusage: parse %s decode seams: %w", group.name, parseErr)
+		}
+		seams = mergeSeams(seams, groupSeams)
 	}
-	querySeams, err := parseDecodeSeamsFiles(queryDecodeFiles)
-	if err != nil {
-		return Manifest{}, err
-	}
-	seams := mergeSeams(mergeSeams(reducerSeams, projectorSeams), querySeams)
 
 	if missing := UnmappedSeamFactKinds(seams); len(missing) > 0 {
 		return Manifest{}, fmt.Errorf(
@@ -311,10 +329,10 @@ func Load(p Paths) (Manifest, error) {
 		return Manifest{}, err
 	}
 
-	// Scan the reducer, projector, AND query directories for field usage against
-	// the merged seam set, so a field a projector canonical extractor or a query
-	// read-model builder reads off a decoded struct is gated the same as a
-	// reducer handler read.
+	// Scan every typed-decode surface for field usage against the merged seam
+	// set, so a field a projector canonical extractor, query read-model builder,
+	// loader, relationship extractor, or replay materializer reads off a decoded
+	// struct is gated the same as a reducer handler read.
 	reducerUsage, err := ScanDecodeUsage(resolved.ReducerDir, seams)
 	if err != nil {
 		return Manifest{}, err
@@ -327,7 +345,19 @@ func Load(p Paths) (Manifest, error) {
 	if err != nil {
 		return Manifest{}, err
 	}
-	usage := mergeUsage(mergeUsage(reducerUsage, projectorUsage), queryUsage)
+	loaderUsage, err := ScanDecodeUsage(resolved.LoaderDir, seams)
+	if err != nil {
+		return Manifest{}, err
+	}
+	relationshipsUsage, err := ScanDecodeUsage(resolved.RelationshipsDir, seams)
+	if err != nil {
+		return Manifest{}, err
+	}
+	replayUsage, err := ScanDecodeUsage(resolved.ReplayDir, seams)
+	if err != nil {
+		return Manifest{}, err
+	}
+	usage := mergeUsageSets(reducerUsage, projectorUsage, queryUsage, loaderUsage, relationshipsUsage, replayUsage)
 
 	manifest := BuildManifest(seams, shapes, usage)
 	if err := verifyEverySeamProduced(seams, manifest); err != nil {
@@ -370,6 +400,13 @@ func Gate(p Paths) (Manifest, []Violation, error) {
 	manifest, err := Load(p)
 	if err != nil {
 		return Manifest{}, nil, err
+	}
+	rawAccesses, err := CheckRawPayloadConvention(DefaultRawPayloadConfig(ResolvePaths(p)))
+	if err != nil {
+		return Manifest{}, nil, err
+	}
+	if len(rawAccesses) > 0 {
+		return Manifest{}, nil, RawPayloadError(rawAccesses)
 	}
 	declared, err := LoadDeclaredFieldsFromSchemas(ResolvePaths(p).SchemaDir)
 	if err != nil {
