@@ -68,23 +68,24 @@ func recordPHPBoundedFile(payload map[string]any, path string, originalBytes int
 // stack-allocated cursors during the recursive walk; every gathered node is
 // cloned (shared.CloneNode) so the slices are valid after the walk returns.
 type phpParseState struct {
-	payload             map[string]any
-	source              []byte
-	indexSource         bool
-	seenVariables       map[string]struct{}
-	seenCalls           map[string]struct{}
-	classPropertyTypes  map[string]map[string]string
-	classParentTypes    map[string]string
-	localVariableTypes  map[string]map[string]string
-	methodReturnTypes   map[string]map[string]string
-	functionReturnTypes map[string]string
-	importAliases       map[string]string
-	parents             *phpParentLookup
-	deadCodeFacts       phpDeadCodeFacts
-	deadCodeFunctions   []phpDeadCodeFunctionFact
-	routeAttributes     []*tree_sitter.Node
-	slimRouteCandidates []*tree_sitter.Node
-	slimReceiverVars    map[string]struct{}
+	payload                map[string]any
+	source                 []byte
+	indexSource            bool
+	seenVariables          map[string]struct{}
+	seenCalls              map[string]struct{}
+	classPropertyTypes     map[string]map[string]string
+	classParentTypes       map[string]string
+	localVariableTypes     map[string]map[string]string
+	methodReturnTypes      map[string]map[string]string
+	functionReturnTypes    map[string]string
+	importAliases          map[string]string
+	parents                *phpParentLookup
+	deadCodeFacts          phpDeadCodeFacts
+	deadCodeFunctions      []phpDeadCodeFunctionFact
+	routeAttributes        []*tree_sitter.Node
+	slimRouteCandidates    []*tree_sitter.Node
+	slimReceiverVars       map[string]struct{}
+	laravelRouteCandidates []*tree_sitter.Node
 
 	// Phase-2 gather slice: candidate nodes collected during phase 1's
 	// WalkNamed and resolved in-memory after phase 1 completes, eliminating
@@ -190,7 +191,7 @@ func Parse(path string, isDependency bool, options shared.Options, parser *tree_
 	if namespace := phpNamespaceName(root, source); namespace != "" {
 		payload["namespace"] = namespace
 	}
-	if semantics := buildPHPFrameworkSemantics(state.routeAttributes, state.slimRouteCandidates, state.slimReceiverVars, source, state.payload); len(semantics["frameworks"].([]string)) > 0 {
+	if semantics := buildPHPFrameworkSemantics(state.routeAttributes, state.slimRouteCandidates, state.slimReceiverVars, state.laravelRouteCandidates, source, state.payload); len(semantics["frameworks"].([]string)) > 0 {
 		payload["framework_semantics"] = semantics
 	}
 
@@ -259,6 +260,9 @@ func collectPHPDeclarations(state *phpParseState, root *tree_sitter.Node) {
 			collectPHPSlimParameter(state, node)
 		case "scoped_call_expression":
 			collectPHPSlimScopedCall(state, node)
+			if phpIsLaravelVerbCandidate(node, state.source) {
+				state.laravelRouteCandidates = append(state.laravelRouteCandidates, shared.CloneNode(node))
+			}
 			state.gatheredPhase2Nodes = append(state.gatheredPhase2Nodes, shared.CloneNode(node))
 		case "object_creation_expression":
 			collectPHPSlimObjectCreation(state, node)

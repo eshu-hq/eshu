@@ -346,3 +346,73 @@ $cache->delete('stale-key');
 		t.Fatalf("framework_semantics.slim should be absent: container->get('settings') and cache->get('user:1') have non-Slim receivers")
 	}
 }
+
+func TestDefaultEngineParsePathPHPEmitsLaravelRouteEntries(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	sourcePath := filepath.Join(repoRoot, "routes.php")
+	writeTestFile(
+		t,
+		sourcePath,
+		`<?php
+
+use Illuminate\Support\Facades\Route;
+
+Route::post('users/login', 'AuthController@login');
+Route::get('user', 'UserController@index');
+Route::delete('users/{id}', 'UserController@destroy');
+`,
+	)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	got, err := engine.ParsePath(repoRoot, sourcePath, false, Options{IndexSource: true})
+	if err != nil {
+		t.Fatalf("ParsePath(%s) error = %v, want nil", sourcePath, err)
+	}
+
+	assertFrameworksEqual(t, got, "laravel")
+	assertNestedRouteEntriesEqual(t, got, "laravel", []map[string]string{
+		{"method": "POST", "path": "users/login", "handler": "AuthController@login"},
+		{"method": "GET", "path": "user", "handler": "UserController@index"},
+		{"method": "DELETE", "path": "users/{id}", "handler": "UserController@destroy"},
+	})
+}
+
+func TestDefaultEngineParsePathPHPSkipsNonLaravelScopedGetCall(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	sourcePath := filepath.Join(repoRoot, "not_laravel.php")
+	writeTestFile(
+		t,
+		sourcePath,
+		`<?php
+
+$result = SomeClass::get('config-key');
+$other = \App\Utils\Helper::post('/some/path');
+`,
+	)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	got, err := engine.ParsePath(repoRoot, sourcePath, false, Options{IndexSource: true})
+	if err != nil {
+		t.Fatalf("ParsePath(%s) error = %v, want nil", sourcePath, err)
+	}
+
+	semantics, ok := got["framework_semantics"].(map[string]any)
+	if !ok {
+		return
+	}
+	if _, ok := semantics["laravel"]; ok {
+		t.Fatalf("framework_semantics.laravel should be absent for non-Laravel scoped calls")
+	}
+}
