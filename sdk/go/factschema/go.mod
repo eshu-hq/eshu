@@ -1,6 +1,6 @@
 module github.com/eshu-hq/eshu/sdk/go/factschema
 
-go 1.26.0
+go 1.26.5
 
 require github.com/invopop/jsonschema v0.13.0
 
