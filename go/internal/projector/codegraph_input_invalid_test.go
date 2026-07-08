@@ -212,6 +212,65 @@ func TestBuildProjectionRejectsUnsupportedCodegraphSchemaMajor(t *testing.T) {
 	}
 }
 
+// TestBuildProjectionAcceptsPersistedVersionlessCodegraphRepository is the #4893
+// regression guard for the #4899 admission gate: the git collector emits
+// repository facts with no SchemaVersion and the Postgres persist layer stamps
+// them "0.0.0", so a fact LOADED for projection carries "0.0.0". The admission
+// gate (validateCodegraphFactSchemaVersion, which runs in buildProjection BEFORE
+// the typed decode adapter) must accept that sentinel; #4899 rejected it, so
+// buildProjection failed before canonical materialization and no generation ever
+// activated. This exercises buildProjection, not only buildCanonicalMaterialization.
+func TestBuildProjectionAcceptsPersistedVersionlessCodegraphRepository(t *testing.T) {
+	t.Parallel()
+
+	scopeValue := testScope()
+	generation := testGeneration()
+	_, err := buildProjection(scopeValue, generation, []facts.Envelope{
+		{
+			FactID:        "repository-versionless",
+			ScopeID:       scopeValue.ScopeID,
+			GenerationID:  generation.GenerationID,
+			FactKind:      factschema.FactKindCodegraphRepository,
+			SchemaVersion: "0.0.0", // persist-layer sentinel for a version-less collector fact
+			Payload: map[string]any{
+				"repo_id":    "repo-abc",
+				"name":       "my-project",
+				"local_path": "/repos/my-project",
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("buildProjection() error = %v, want nil; a persisted \"0.0.0\" repository fact must be admitted", err)
+	}
+}
+
+// TestBuildProjectionAcceptsPersistedVersionlessCodegraphFile is the companion
+// #4893 regression guard for a persisted version-less codegraph file fact.
+func TestBuildProjectionAcceptsPersistedVersionlessCodegraphFile(t *testing.T) {
+	t.Parallel()
+
+	scopeValue := testScope()
+	generation := testGeneration()
+	_, err := buildProjection(scopeValue, generation, []facts.Envelope{
+		{
+			FactID:        "file-versionless",
+			ScopeID:       scopeValue.ScopeID,
+			GenerationID:  generation.GenerationID,
+			FactKind:      factschema.FactKindCodegraphFile,
+			SchemaVersion: "0.0.0",
+			Payload: map[string]any{
+				"repo_id":          "repo-abc",
+				"relative_path":    "cmd/main.go",
+				"parsed_file_data": map[string]any{},
+				"language":         "go",
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("buildProjection() error = %v, want nil; a persisted \"0.0.0\" file fact must be admitted", err)
+	}
+}
+
 func BenchmarkBuildCanonicalMaterializationCodegraphFiles(b *testing.B) {
 	sc := testScope()
 	gen := testGeneration()
@@ -262,4 +321,47 @@ func benchmarkCodegraphFacts(fileCount int) []facts.Envelope {
 		})
 	}
 	return envelopes
+}
+
+// TestBuildCanonicalMaterializationProjectsPersistedVersionlessCodegraphFile is
+// the #4893 regression guard for the #4899 codegraph typed-decode: the git
+// collector emits file/repository facts with no SchemaVersion, and the Postgres
+// persist layer stamps a version-less fact as "0.0.0", so a fact LOADED for
+// projection carries "0.0.0". Before the fix the projector's factschemaEnvelope
+// normalized only the "" spelling, so a real "0.0.0" file fact failed the
+// decode's supported-major check and was quarantined/dropped, projecting zero
+// File rows (the proof-domain content-write regression). After the fix the
+// "0.0.0" sentinel is normalized to the latest major and the file projects.
+func TestBuildCanonicalMaterializationProjectsPersistedVersionlessCodegraphFile(t *testing.T) {
+	t.Parallel()
+
+	versionlessFile := facts.Envelope{
+		FactID:        "file-versionless",
+		ScopeID:       "scope-1",
+		GenerationID:  "gen-1",
+		FactKind:      factschema.FactKindCodegraphFile,
+		SchemaVersion: "0.0.0", // persist-layer sentinel for a collector-emitted version-less fact
+		Payload: map[string]any{
+			"repo_id":          "repo-abc",
+			"relative_path":    "cmd/main.go",
+			"parsed_file_data": map[string]any{},
+			"language":         "go",
+		},
+	}
+
+	result, quarantined := buildCanonicalMaterialization(
+		testScope(),
+		testGeneration(),
+		[]facts.Envelope{versionlessFile},
+	)
+
+	if len(quarantined) != 0 {
+		t.Fatalf("len(quarantined) = %d, want 0; a persisted \"0.0.0\" file fact must decode, not dead-letter", len(quarantined))
+	}
+	if len(result.Files) != 1 {
+		t.Fatalf("len(Files) = %d, want 1; the persisted version-less file fact must project", len(result.Files))
+	}
+	if got := result.Files[0].Path; got != "/repos/my-project/cmd/main.go" {
+		t.Fatalf("file path = %q, want %q", got, "/repos/my-project/cmd/main.go")
+	}
 }

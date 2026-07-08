@@ -64,6 +64,7 @@ func TestProofDomainWorkloadIdentityFlowsCollectorToReducerIntent(t *testing.T) 
 				"graph_id":   "repo-123",
 				"graph_kind": "repository",
 				"name":       "eshu",
+				"repo_id":    "repo-123",
 			},
 			SourceRef: facts.Ref{
 				SourceSystem: "git",

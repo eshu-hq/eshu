@@ -192,7 +192,7 @@ func recordProjectorQuarantinedFacts(
 // branch.
 func factschemaEnvelope(env facts.Envelope) factschema.Envelope {
 	schemaVersion := env.SchemaVersion
-	if schemaVersion == "" {
+	if schemaVersion == "" || schemaVersion == projectorPersistedVersionlessSchemaVersion {
 		schemaVersion = projectorDefaultSchemaMajorVersion
 	}
 	return factschema.Envelope{
@@ -201,6 +201,19 @@ func factschemaEnvelope(env facts.Envelope) factschema.Envelope {
 		Payload:       env.Payload,
 	}
 }
+
+// projectorPersistedVersionlessSchemaVersion is the sentinel the Postgres
+// persist layer stamps for a fact whose collector emitted no SchemaVersion
+// (emptyToDefault(envelope.SchemaVersion, "0.0.0") in
+// go/internal/storage/postgres/facts.go). The git collector emits file and
+// repository facts with no SchemaVersion, so a fact LOADED for projection
+// carries "0.0.0", not "". Normalizing it to the latest major here (mirroring
+// the reducer's factschemaEnvelope, #4753) keeps the projector's codegraph
+// canonical extract from dead-lettering every real version-less file/repository
+// fact — the regression #4899 introduced by only normalizing the "" spelling.
+// "0.0.0" is never a real emitted schema version, so this is safe for every
+// other family (all stamp a concrete "1.0.0").
+const projectorPersistedVersionlessSchemaVersion = "0.0.0"
 
 // projectorDefaultSchemaMajorVersion is the schema version the projector assumes
 // when an envelope carries none. It is a major-1 version because every migrated
