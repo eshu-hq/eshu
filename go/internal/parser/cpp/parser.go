@@ -41,6 +41,16 @@ func Parse(
 	root := tree.RootNode()
 
 	routes := newCPPRouteCollector()
+
+	// Gather resolution-candidate node pointers during the main walk so
+	// annotateCPPDeadCodeRoots can resolve them in in-memory loops instead
+	// of a second full-tree shared.WalkNamed traversal. Tree-sitter node
+	// pointers are stack-allocated during cursor iteration; every gathered
+	// node is cloned (shared.CloneNode) for safe retention.
+	var gatheredFuncDefs []*tree_sitter.Node
+	var gatheredCallExprs []*tree_sitter.Node
+	var gatheredDecls []*tree_sitter.Node
+
 	shared.WalkNamed(root, func(node *tree_sitter.Node) {
 		switch node.Kind() {
 		case "preproc_include":
@@ -59,14 +69,17 @@ func Parse(
 			appendCTypedefAliases(payload, node, source, "cpp")
 		case "function_definition":
 			appendCPPFunction(payload, node, source, options)
+			gatheredFuncDefs = append(gatheredFuncDefs, shared.CloneNode(node))
 		case "declaration":
 			appendCTypedefAliases(payload, node, source, "cpp")
+			gatheredDecls = append(gatheredDecls, shared.CloneNode(node))
 		case "call_expression":
 			appendCall(payload, cLikeCallNameNode(node.ChildByFieldName("function")), source, "cpp")
 			routes.collect(node, source)
+			gatheredCallExprs = append(gatheredCallExprs, shared.CloneNode(node))
 		}
 	})
-	annotateCPPDeadCodeRoots(payload, root, source)
+	annotateCPPDeadCodeRoots(payload, root, source, gatheredFuncDefs, gatheredCallExprs, gatheredDecls)
 
 	sortSystemsPayload(
 		payload,

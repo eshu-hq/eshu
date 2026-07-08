@@ -67,7 +67,14 @@ type cppFunctionKey struct {
 	name  string
 }
 
-func annotateCPPDeadCodeRoots(payload map[string]any, root *tree_sitter.Node, source []byte) {
+func annotateCPPDeadCodeRoots(
+	payload map[string]any,
+	root *tree_sitter.Node,
+	source []byte,
+	gatheredFuncDefs []*tree_sitter.Node,
+	gatheredCallExprs []*tree_sitter.Node,
+	gatheredDecls []*tree_sitter.Node,
+) {
 	functionsByName := cppFunctionItemsByName(payload)
 	if len(functionsByName) == 0 {
 		return
@@ -80,21 +87,26 @@ func annotateCPPDeadCodeRoots(payload map[string]any, root *tree_sitter.Node, so
 	}
 	annotateCPPNodeAddonInitRoots(functionsByName)
 
-	shared.WalkNamed(root, func(node *tree_sitter.Node) {
-		switch node.Kind() {
-		case "function_definition":
-			annotateCPPMethodRuntimeRoots(functionsByKey, functionsByName, node, source)
-		case "call_expression":
-			annotateCPPNodeAddonRegistrationRoot(functionsByName, node, source)
-			for _, argument := range cppCallArguments(node, source) {
-				for _, function := range functionsByName[argument] {
-					appendCPPDeadCodeRootKind(function, cppCallbackArgumentTarget)
-				}
+	// Resolution loops over slices gathered during the main payload walk
+	// (parser.go), in the same pre-order the original WalkNamed traversal
+	// produced. Each slice keeps nodes in pre-order, and the loops process
+	// them in the same sequence the original walk-2 processed kinds:
+	// function_definition → call_expression → declaration.
+
+	for _, node := range gatheredFuncDefs {
+		annotateCPPMethodRuntimeRoots(functionsByKey, functionsByName, node, source)
+	}
+	for _, node := range gatheredCallExprs {
+		annotateCPPNodeAddonRegistrationRoot(functionsByName, node, source)
+		for _, argument := range cppCallArguments(node, source) {
+			for _, function := range functionsByName[argument] {
+				appendCPPDeadCodeRootKind(function, cppCallbackArgumentTarget)
 			}
-		case "declaration":
-			annotateCPPFunctionPointerTargetRoot(functionsByName, functionPointerAliases, node, source)
 		}
-	})
+	}
+	for _, node := range gatheredDecls {
+		annotateCPPFunctionPointerTargetRoot(functionsByName, functionPointerAliases, node, source)
+	}
 }
 
 func annotateCPPNodeAddonInitRoots(functionsByName map[string][]map[string]any) {

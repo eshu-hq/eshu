@@ -75,8 +75,8 @@ void registerRoutes() {
 		t.Fatal("payload[\"framework_semantics\"] = nil, want non-nil (fixture has Crow and Drogon routes)")
 	}
 
-	const wantWalkNamedCalls = 15
+	const wantWalkNamedCalls = 14
 	if walkNamedCalls != wantWalkNamedCalls {
-		t.Fatalf("shared.WalkNamed call count = %d, want %d (main walk + dead-code-roots walk + bounded firstNamedDescendant/other subtree scans, unchanged by the framework-route merge)", walkNamedCalls, wantWalkNamedCalls)
+		t.Fatalf("shared.WalkNamed call count = %d, want %d (main walk + bounded firstNamedDescendant/other subtree scans; dead-code-roots second walk eliminated by gather-then-resolve #4924)", walkNamedCalls, wantWalkNamedCalls)
 	}
 }
