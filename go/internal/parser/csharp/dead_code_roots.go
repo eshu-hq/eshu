@@ -133,6 +133,16 @@ func nearestNamedAncestorWithQualifiedKind(node *tree_sitter.Node, source []byte
 	return "", "", ""
 }
 
+// collectCSharpSemanticFacts walks the tree once to collect both type
+// evidence (class/interface/struct/record names, qualified names, base
+// lists) and candidate interface-method nodes. Interface-method resolution
+// needs facts.interfaceSimpleNameCounts fully populated before it can decide
+// whether a candidate's declaring interface name is unambiguous, so that
+// resolution runs as a second pass over the (typically much smaller) node
+// list gathered here rather than as a second shared.WalkNamed traversal of
+// the whole tree. This preserves the exact two-pass semantics (all types seen
+// before any interface-method decision) while performing only one full-tree
+// walk.
 func collectCSharpSemanticFacts(root *tree_sitter.Node, source []byte) csharpSemanticFacts {
 	facts := csharpSemanticFacts{
 		types:                     map[string]csharpTypeInfo{},
@@ -140,6 +150,7 @@ func collectCSharpSemanticFacts(root *tree_sitter.Node, source []byte) csharpSem
 		interfaceMethods:          map[string]map[csharpMethodKey]struct{}{},
 		interfaceSimpleNameCounts: map[string]int{},
 	}
+	var interfaceMethodCandidates []*tree_sitter.Node
 	shared.WalkNamed(root, func(node *tree_sitter.Node) {
 		switch node.Kind() {
 		case "class_declaration", "interface_declaration", "struct_declaration", "record_declaration":
@@ -161,19 +172,18 @@ func collectCSharpSemanticFacts(root *tree_sitter.Node, source []byte) csharpSem
 			if node.Kind() == "interface_declaration" {
 				facts.interfaceSimpleNameCounts[name]++
 			}
+		case "method_declaration":
+			interfaceMethodCandidates = append(interfaceMethodCandidates, node)
 		}
 	})
-	shared.WalkNamed(root, func(node *tree_sitter.Node) {
-		if node.Kind() != "method_declaration" {
-			return
-		}
+	for _, node := range interfaceMethodCandidates {
 		contextName, contextKind, contextQualified := nearestNamedAncestorWithQualifiedKind(node, source, "interface_declaration")
 		if contextKind != "interface_declaration" || contextName == "" {
-			return
+			continue
 		}
 		name := strings.TrimSpace(shared.NodeText(node.ChildByFieldName("name"), source))
 		if name == "" {
-			return
+			continue
 		}
 		methodKey := csharpMethodKeyForNode(name, node, source)
 		if contextQualified != "" {
@@ -182,7 +192,7 @@ func collectCSharpSemanticFacts(root *tree_sitter.Node, source []byte) csharpSem
 		if facts.interfaceSimpleNameCounts[contextName] == 1 {
 			csharpAddInterfaceMethod(facts.interfaceMethods, contextName, methodKey)
 		}
-	})
+	}
 	return facts
 }
 
