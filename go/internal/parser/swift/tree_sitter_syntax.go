@@ -35,6 +35,16 @@ func swiftSourceAndTree(path string, parser *tree_sitter.Parser) ([]byte, *tree_
 // requirements, and Vapor route handler names. The Vapor `use:` route hint has no
 // dedicated symbol node, so it is read as framework evidence from call argument
 // labels rather than producing a call or symbol row.
+//
+// Before the walk-collapse fix (issue #4841, epic #4831), conformance/method
+// collection, the Vapor import check, the route-receiver scan, and the
+// value_argument handler scan each ran their own full-tree traversal (two via
+// shared.WalkNamed, one via manual recursion). None of them consumes another's
+// output while collecting — collectSwiftFileFacts only needs the fully
+// populated route-receiver map once it is done, to resolve group-nested
+// receivers in swiftVaporRouteEntries afterward — so all four now run in one
+// combined recursive walk, and only the Vapor-gated route-entries pass (which
+// genuinely depends on that completed map) still runs as its own traversal.
 func collectSwiftSemanticFacts(root *tree_sitter.Node, source []byte) swiftSemanticFacts {
 	facts := swiftSemanticFacts{
 		protocolMethods:    make(map[string]map[string]struct{}),
@@ -42,20 +52,37 @@ func collectSwiftSemanticFacts(root *tree_sitter.Node, source []byte) swiftSeman
 		vaporRouteHandlers: make(map[string]struct{}),
 		vaporRouteEntries:  []map[string]string{},
 	}
-	collectSwiftConformancesAndMethods(root, source, "", "", facts)
-	collectSwiftVaporRoutes(root, source, &facts)
+	state := &swiftPrePassState{routeReceivers: make(map[string]swiftVaporRouteReceiver)}
+	collectSwiftFileFacts(root, source, "", "", &facts, state)
+	if state.hasVaporImport {
+		facts.vaporRouteEntries = append(facts.vaporRouteEntries, swiftVaporRouteEntries(root, source, state.routeReceivers)...)
+	}
 	return facts
 }
 
-// collectSwiftConformancesAndMethods records each nominal type's conformance set
-// and each protocol's declared method names, descending with the enclosing type
-// context so protocol requirements attribute to their protocol.
-func collectSwiftConformancesAndMethods(
+// swiftPrePassState carries the Vapor-import flag and the Vapor
+// route-receiver candidates collectSwiftFileFacts accumulates alongside the
+// type-conformance and protocol-method facts. It is threaded by pointer
+// since both fields are written during the single combined walk and only
+// read afterward, once the walk (and therefore the route-receiver map) is
+// complete.
+type swiftPrePassState struct {
+	hasVaporImport bool
+	routeReceivers map[string]swiftVaporRouteReceiver
+}
+
+// collectSwiftFileFacts records each nominal type's conformance set, each
+// protocol's declared method names, the Vapor import flag, Vapor
+// route-receiver candidates, and Vapor `use:` handler names in one combined
+// recursive walk, descending with the enclosing type context so protocol
+// requirements attribute to their protocol.
+func collectSwiftFileFacts(
 	node *tree_sitter.Node,
 	source []byte,
 	currentType string,
 	currentKind string,
-	facts swiftSemanticFacts,
+	facts *swiftSemanticFacts,
+	state *swiftPrePassState,
 ) {
 	if node == nil {
 		return
@@ -98,73 +125,41 @@ func collectSwiftConformancesAndMethods(
 				}
 			}
 		}
+	case "import_declaration":
+		if !state.hasVaporImport {
+			if identifier := swiftFirstChildOfKind(node, "identifier"); identifier != nil {
+				if strings.TrimSpace(shared.NodeText(identifier, source)) == "Vapor" {
+					state.hasVaporImport = true
+				}
+			}
+		}
+	case "parameter":
+		if name := swiftParameterName(node, source); name != "" {
+			switch swiftVaporReceiverTypeName(node, source) {
+			case "Application", "RoutesBuilder":
+				state.routeReceivers[name] = swiftVaporRouteReceiver{}
+			}
+		}
+	case "property_declaration":
+		pattern := swiftFirstChildOfKind(node, "pattern", "simple_identifier")
+		if name := swiftPatternName(pattern, source); name != "" {
+			switch swiftVaporReceiverTypeName(node, source) {
+			case "Application", "RoutesBuilder":
+				state.routeReceivers[name] = swiftVaporRouteReceiver{}
+			}
+		}
+	case "value_argument":
+		collectSwiftVaporRouteHandler(node, source, facts)
 	}
 
 	for _, child := range swiftNamedChildren(node) {
 		child := child
-		collectSwiftConformancesAndMethods(&child, source, nextType, nextKind, facts)
+		collectSwiftFileFacts(&child, source, nextType, nextKind, facts, state)
 	}
-}
-
-// collectSwiftVaporRoutes records handler names and exact route entries passed
-// to Vapor route registrations. The grammar models the labeled handler as a
-// value_argument whose value_argument_label is `use`, so both root evidence and
-// route_entries come from syntax-backed framework evidence rather than symbol
-// rows or line scans.
-func collectSwiftVaporRoutes(root *tree_sitter.Node, source []byte, facts *swiftSemanticFacts) {
-	hasVaporImport := swiftHasImport(root, source, "Vapor")
-	routeReceivers := swiftVaporRouteReceivers(root, source)
-	shared.WalkNamed(root, func(node *tree_sitter.Node) {
-		if node.Kind() == "value_argument" {
-			collectSwiftVaporRouteHandler(node, source, facts)
-		}
-	})
-	if hasVaporImport {
-		facts.vaporRouteEntries = append(facts.vaporRouteEntries, swiftVaporRouteEntries(root, source, routeReceivers)...)
-	}
-}
-
-func swiftHasImport(root *tree_sitter.Node, source []byte, module string) bool {
-	hasImport := false
-	shared.WalkNamed(root, func(node *tree_sitter.Node) {
-		if hasImport || node.Kind() != "import_declaration" {
-			return
-		}
-		identifier := swiftFirstChildOfKind(node, "identifier")
-		if identifier == nil {
-			return
-		}
-		hasImport = strings.TrimSpace(shared.NodeText(identifier, source)) == module
-	})
-	return hasImport
 }
 
 type swiftVaporRouteReceiver struct {
 	pathSegments []string
-}
-
-func swiftVaporRouteReceivers(root *tree_sitter.Node, source []byte) map[string]swiftVaporRouteReceiver {
-	receivers := make(map[string]swiftVaporRouteReceiver)
-	shared.WalkNamed(root, func(node *tree_sitter.Node) {
-		var name string
-		switch node.Kind() {
-		case "parameter":
-			name = swiftParameterName(node, source)
-		case "property_declaration":
-			pattern := swiftFirstChildOfKind(node, "pattern", "simple_identifier")
-			name = swiftPatternName(pattern, source)
-		default:
-			return
-		}
-		if name == "" {
-			return
-		}
-		switch swiftVaporReceiverTypeName(node, source) {
-		case "Application", "RoutesBuilder":
-			receivers[name] = swiftVaporRouteReceiver{}
-		}
-	})
-	return receivers
 }
 
 func swiftVaporReceiverTypeName(node *tree_sitter.Node, source []byte) string {
