@@ -102,6 +102,19 @@ Not claimed today:
 - Plugin discovery, monkey-patching, dependency injection, and runtime
   reflection remain exactness blockers.
 
+## Parser Performance
+
+The Python parser consolidates its per-file, full-tree tree-sitter walks so
+independent index builders that only read the AST (dataclass-decorated class
+names, `if __name__ == "__main__"` guard call roots, and module `__all__`
+exports) run in a single pass instead of one walk each, and the duplicate
+FastAPI server-symbol walk is folded into one traversal (epic #4831, #4867).
+Parser output is byte-identical before and after this change (a `0/0`
+symmetric-diff over the fixture corpus gates it); contributors adding new
+index builders should extend the shared pass rather than adding another
+full-tree walk when the new builder has no dependency on another builder's
+completed output.
+
 ## Related Docs
 
 - [Dead Code Language Maturity](../reference/dead-code-language-maturity.md)
