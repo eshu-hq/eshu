@@ -35,6 +35,7 @@ var (
 func javaScriptFrameworkRegisteredDeadCodeRootKinds(
 	root *tree_sitter.Node,
 	source []byte,
+	fastifyBases map[string]struct{},
 ) map[string][]string {
 	registered := make(map[string][]string)
 	if root == nil {
@@ -44,7 +45,6 @@ func javaScriptFrameworkRegisteredDeadCodeRootKinds(
 	text := string(source)
 	expressBases := javaScriptExpressRegistrationBases(root, source, text)
 	koaBases := javaScriptKoaRegistrationBases(root, source, text)
-	fastifyBases := javaScriptFastifyRegistrationBases(root, source, text)
 	if len(expressBases) == 0 && len(koaBases) == 0 && len(fastifyBases) == 0 {
 		return registered
 	}

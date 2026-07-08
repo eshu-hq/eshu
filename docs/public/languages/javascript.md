@@ -148,3 +148,29 @@ TypeScript public-surface reexport BFS cache (#4765), which it does not touch.
 Contributors adding a new index builder should extend the shared dispatch walk
 rather than add another full-tree walk when the builder has no dependency on
 another builder's completed output.
+
+The Fastify registration bases computed inside that shared dispatch walk were
+previously computed again in two downstream consumers
+(`javaScriptFrameworkRegisteredDeadCodeRootKinds` and
+`detectFastifySemantics`), each running its own full-tree traversal. The
+precomputed map is now threaded from `buildJavaScriptRootIndexes` through
+both call chains, removing two redundant traversals per file that imports
+Fastify (#4905).
+
+Performance Evidence: microbenchmark against a synthetic 4500-line Fastify-fixture
+file (500 routes each over GET/POST/PUT, 500 handlers) measured before-and-after
+on an Apple M5 Max, `go test -bench BenchmarkParseFastifyFixture -benchmem`:
+
+- Before (3× compute): 226 ms/op, 133.0 MB/op, 1,398,488 allocs/op
+- After  (1× compute): 200 ms/op, 128.5 MB/op, 1,239,340 allocs/op
+- Delta: −11.5 % ns, −3.4 % memory, −11.4 % allocs
+
+Output is byte-identical on the fixture corpus (JSTS_PARSE_DUMP manual
+differential 0/0), the B-12 golden snapshot is unchanged, and the JS/TS parser
+package tests stay green.
+
+No-Observability-Change: the threading removes internal recomputation; no
+metric, span, structured log, status field, queue, graph-write, worker, lease,
+batch, or runtime knob is added or removed. Operators still diagnose parser
+behavior through the existing collector `telemetry.FileParseDuration` instrument
+and parse-stage logs.
