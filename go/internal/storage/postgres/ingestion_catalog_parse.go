@@ -71,59 +71,12 @@ func repositoryCatalogEntryFromPayload(rawPayload []byte) (relationships.Catalog
 }
 
 // repositoryCatalogEntryFromMap derives a repository CatalogEntry (RepoID plus
-// matching aliases) from a decoded repository fact payload. The streaming commit
-// path and the JSON catalog loader share this function so a generation's
-// committed repository identity is computed identically to the cached catalog
-// entry; otherwise alias-drift detection (issue #3521) would compare
+// matching aliases) from a decoded repository fact payload. It delegates to
+// relationships.RepositoryCatalogEntry (#4394 T2) so the streaming commit path,
+// the JSON catalog loader, and Ifá's derived-catalog seam
+// (go/internal/ifa) all compute a generation's committed repository identity
+// identically; otherwise alias-drift detection (issue #3521) would compare
 // inconsistently shaped aliases.
 func repositoryCatalogEntryFromMap(payload map[string]any) (relationships.CatalogEntry, bool) {
-	repoID := catalogString(payload, "repo_id", "graph_id", "name")
-	if strings.TrimSpace(repoID) == "" {
-		return relationships.CatalogEntry{}, false
-	}
-
-	aliases := uniqueCatalogAliases(
-		repoID,
-		catalogString(payload, "name", "repo_name"),
-		catalogString(payload, "repo_slug"),
-	)
-
-	return relationships.CatalogEntry{
-		RepoID:  repoID,
-		Aliases: aliases,
-	}, true
-}
-
-func catalogString(payload map[string]any, keys ...string) string {
-	for _, key := range keys {
-		value, ok := payload[key]
-		if !ok {
-			continue
-		}
-		text, ok := value.(string)
-		if !ok {
-			continue
-		}
-		if strings.TrimSpace(text) != "" {
-			return strings.TrimSpace(text)
-		}
-	}
-	return ""
-}
-
-func uniqueCatalogAliases(values ...string) []string {
-	seen := make(map[string]struct{}, len(values))
-	aliases := make([]string, 0, len(values))
-	for _, value := range values {
-		value = strings.TrimSpace(value)
-		if value == "" {
-			continue
-		}
-		if _, ok := seen[value]; ok {
-			continue
-		}
-		seen[value] = struct{}{}
-		aliases = append(aliases, value)
-	}
-	return aliases
+	return relationships.RepositoryCatalogEntry(payload)
 }

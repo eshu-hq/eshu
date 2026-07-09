@@ -8,6 +8,7 @@ import (
 	"sort"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/relationships"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
@@ -45,14 +46,14 @@ func proofRepositoryCatalogRows(input map[string]facts.Envelope) [][]any {
 		if envelope.FactKind != "repository" {
 			continue
 		}
-		repoID := catalogString(envelope.Payload, "repo_id", "graph_id", "name")
-		if repoID == "" {
+		entry, ok := relationships.RepositoryCatalogEntry(envelope.Payload)
+		if !ok {
 			continue
 		}
-		if _, exists := seen[repoID]; exists {
+		if _, exists := seen[entry.RepoID]; exists {
 			continue
 		}
-		seen[repoID] = struct{}{}
+		seen[entry.RepoID] = struct{}{}
 		payload, _ := json.Marshal(envelope.Payload)
 		rows = append(rows, []any{payload})
 	}
