@@ -388,6 +388,7 @@ func (h *AdminProviderConfigMutationHandler) handleTestConnection(w http.Respons
 		return
 	}
 	if h.Tester == nil {
+		h.audit(r, eventType, governanceaudit.DecisionDenied, "provider_config_connection_tester_unavailable", "")
 		WriteError(w, http.StatusServiceUnavailable, "connection test capability is unavailable")
 		return
 	}

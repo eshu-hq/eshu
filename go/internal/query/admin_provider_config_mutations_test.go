@@ -342,6 +342,30 @@ func TestHandleTestConnectionAdminProviderConfig(t *testing.T) {
 	}
 }
 
+// TestHandleTestConnectionAdminProviderConfigAuditsWhenTesterUnavailable
+// proves handleTestConnection audits provider_config_connection_tester_unavailable
+// on a nil Tester exactly like handleStatusChange does for the identical nil
+// condition (see admin_provider_config_mutations.go) — every allowed and
+// denied provider-config attempt must be governance-audited, and this 503 is
+// a denied attempt.
+func TestHandleTestConnectionAdminProviderConfigAuditsWhenTesterUnavailable(t *testing.T) {
+	t.Parallel()
+	audit := &recordingAuditAppender{}
+	mux := newProviderConfigMutationMux(&fakeAdminProviderConfigMutationStore{}, nil, audit)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v0/auth/admin/provider-configs/pc_1/test-connection", nil)
+	req = req.WithContext(ContextWithAuthContext(req.Context(), providerConfigAdminAuth()))
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("test-connection with nil Tester status = %d, want 503: %s", rec.Code, rec.Body.String())
+	}
+	if !audit.hasReason("provider_config_connection_tester_unavailable") {
+		t.Errorf("test-connection with nil Tester did not audit provider_config_connection_tester_unavailable: %#v", audit.events)
+	}
+}
+
 // providerConfigMutationCases enumerates every mutation route with a valid
 // body so the auth gates can be asserted uniformly (mirrors
 // adminMutationCases in admin_identity_mutations_test.go).

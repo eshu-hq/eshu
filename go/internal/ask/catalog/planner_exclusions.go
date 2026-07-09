@@ -19,33 +19,42 @@ package catalog
 // catalog entry or listed here (nothing silently vanishes).
 func plannerExcludedSurfaces() map[string]struct{} {
 	return map[string]struct{}{
-		"DELETE /api/v0/auth/admin/idp-group-mappings/{mapping_ref}": {}, // tombstones an IdP group->role mapping (admin mutation)
-		"DELETE /api/v0/auth/browser-session":                        {}, // revokes the caller's browser session
-		"GET /api/v0/auth/admin/api-tokens":                          {}, // lists the tenant's generated API token metadata (admin)
-		"GET /api/v0/auth/admin/audit/events":                        {}, // lists the tenant's governance audit events (admin)
-		"GET /api/v0/auth/admin/audit/summary":                       {}, // aggregate governance audit counts (admin)
-		"GET /api/v0/auth/admin/idp-group-mappings":                  {}, // lists the tenant's IdP group->role mappings (admin)
-		"GET /api/v0/auth/admin/idp-providers":                       {}, // lists the tenant's configured IdP providers (admin)
-		"GET /api/v0/auth/admin/role-assignments":                    {}, // lists the tenant's membership-role assignments (admin)
-		"GET /api/v0/auth/admin/roles":                               {}, // lists the tenant's roles and grants (admin)
-		"GET /api/v0/auth/browser-session":                           {}, // reads caller-local session metadata only
-		"GET /api/v0/auth/local/api-tokens":                          {}, // lists the caller's own API token metadata
-		"GET /api/v0/auth/local/invitations":                         {}, // lists the tenant's invitations metadata (admin)
-		"GET /api/v0/auth/profile":                                   {}, // reads the caller's own identity profile
-		"GET /api/v0/auth/providers":                                 {}, // lists configured login providers for the tenant (pre-auth discovery)
-		"GET /api/v0/auth/sessions":                                  {}, // lists the caller's own browser sessions
-		"PATCH /api/v0/auth/browser-session/context":                 {}, // switches the caller's tenant/workspace context
-		"POST /api/v0/admin/backfill":                                {}, // RequestBackfill enqueues backfill work
-		"POST /api/v0/admin/dead-letter":                             {}, // DeadLetterWorkItems dead-letters queued work
-		"POST /api/v0/admin/recover-generations":                     {}, // re-drives wedged generation scopes through recovery
-		"POST /api/v0/admin/refinalize":                              {}, // re-enqueues projector work for the given scope
-		"POST /api/v0/admin/reindex":                                 {}, // RequestReindex enqueues ingester reindex work
-		"POST /api/v0/admin/replay":                                  {}, // ReplayFailed re-processes failed work items
-		"POST /api/v0/admin/skip":                                    {}, // skips queued work items
-		"POST /api/v0/auth/admin/idp-group-mappings":                 {}, // creates an IdP group->role mapping (admin mutation)
-		"POST /api/v0/auth/admin/role-assignments":                   {}, // grants a membership-role assignment (admin mutation)
-		"POST /api/v0/auth/admin/role-assignments/revoke":            {}, // revokes a membership-role assignment (admin mutation)
-		"POST /api/v0/auth/browser-session":                          {}, // creates a caller browser session and cookies
+		"DELETE /api/v0/auth/admin/idp-group-mappings/{mapping_ref}":                    {}, // tombstones an IdP group->role mapping (admin mutation)
+		"DELETE /api/v0/auth/browser-session":                                           {}, // revokes the caller's browser session
+		"GET /api/v0/auth/admin/api-tokens":                                             {}, // lists the tenant's generated API token metadata (admin)
+		"GET /api/v0/auth/admin/audit/events":                                           {}, // lists the tenant's governance audit events (admin)
+		"GET /api/v0/auth/admin/audit/summary":                                          {}, // aggregate governance audit counts (admin)
+		"GET /api/v0/auth/admin/idp-group-mappings":                                     {}, // lists the tenant's IdP group->role mappings (admin)
+		"GET /api/v0/auth/admin/idp-providers":                                          {}, // lists the tenant's configured IdP providers (admin)
+		"GET /api/v0/auth/admin/provider-configs":                                       {}, // lists the tenant's DB-backed/env identity provider configs (admin)
+		"GET /api/v0/auth/admin/provider-configs/{provider_config_id}":                  {}, // reads one identity provider config's metadata (admin)
+		"GET /api/v0/auth/admin/provider-configs/{provider_config_id}/revisions":        {}, // lists one identity provider config's revision history (admin)
+		"GET /api/v0/auth/admin/role-assignments":                                       {}, // lists the tenant's membership-role assignments (admin)
+		"GET /api/v0/auth/admin/roles":                                                  {}, // lists the tenant's roles and grants (admin)
+		"GET /api/v0/auth/browser-session":                                              {}, // reads caller-local session metadata only
+		"GET /api/v0/auth/local/api-tokens":                                             {}, // lists the caller's own API token metadata
+		"GET /api/v0/auth/local/invitations":                                            {}, // lists the tenant's invitations metadata (admin)
+		"GET /api/v0/auth/profile":                                                      {}, // reads the caller's own identity profile
+		"GET /api/v0/auth/providers":                                                    {}, // lists configured login providers for the tenant (pre-auth discovery)
+		"GET /api/v0/auth/sessions":                                                     {}, // lists the caller's own browser sessions
+		"PATCH /api/v0/auth/browser-session/context":                                    {}, // switches the caller's tenant/workspace context
+		"POST /api/v0/admin/backfill":                                                   {}, // RequestBackfill enqueues backfill work
+		"POST /api/v0/admin/dead-letter":                                                {}, // DeadLetterWorkItems dead-letters queued work
+		"POST /api/v0/admin/recover-generations":                                        {}, // re-drives wedged generation scopes through recovery
+		"POST /api/v0/admin/refinalize":                                                 {}, // re-enqueues projector work for the given scope
+		"POST /api/v0/admin/reindex":                                                    {}, // RequestReindex enqueues ingester reindex work
+		"POST /api/v0/admin/replay":                                                     {}, // ReplayFailed re-processes failed work items
+		"POST /api/v0/admin/skip":                                                       {}, // skips queued work items
+		"POST /api/v0/auth/admin/idp-group-mappings":                                    {}, // creates an IdP group->role mapping (admin mutation)
+		"POST /api/v0/auth/admin/provider-configs":                                      {}, // creates a DB-backed identity provider config (admin mutation)
+		"POST /api/v0/auth/admin/provider-configs/{provider_config_id}":                 {}, // creates a new active revision for a provider config (admin mutation)
+		"POST /api/v0/auth/admin/provider-configs/{provider_config_id}/disable":         {}, // disables a provider config (admin mutation)
+		"POST /api/v0/auth/admin/provider-configs/{provider_config_id}/enable":          {}, // enables a provider config after test-connection (admin mutation)
+		"POST /api/v0/auth/admin/provider-configs/{provider_config_id}/revert":          {}, // reverts a provider config to a prior revision (admin mutation)
+		"POST /api/v0/auth/admin/provider-configs/{provider_config_id}/test-connection": {}, // tests a provider config's stored connection material (admin mutation)
+		"POST /api/v0/auth/admin/role-assignments":                                      {}, // grants a membership-role assignment (admin mutation)
+		"POST /api/v0/auth/admin/role-assignments/revoke":                               {}, // revokes a membership-role assignment (admin mutation)
+		"POST /api/v0/auth/browser-session":                                             {}, // creates a caller browser session and cookies
 		// Local-credential auth routes: login, bootstrap, break-glass recovery,
 		// invitations, and per-user account administration. All authenticate or
 		// mutate accounts rather than return facts.
