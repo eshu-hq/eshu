@@ -190,7 +190,7 @@ func repositoryShardParseThroughputSummary(
 			shapeFiles, parsedFiles, _, err := snapshotter.buildParsedRepositoryFiles(
 				context.Background(),
 				fixture.repoPaths[repositoryID],
-				discovery.RepoFileSet{Files: files},
+				discovery.RepoFileSet{Files: fileWithSizeSlice(files...)},
 				engine,
 				"commit-sha",
 				false,

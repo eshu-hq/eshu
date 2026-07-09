@@ -47,7 +47,7 @@ func TestSCIPSnapshotRunsEachSupportedLanguageSubtree(t *testing.T) {
 	_, parsedFiles, _, err := snapshotter.buildParsedRepositoryFiles(
 		context.Background(),
 		repoRoot,
-		discovery.RepoFileSet{Files: []string{pythonPath, goPath}},
+		discovery.RepoFileSet{Files: fileWithSizeSlice(pythonPath, goPath)},
 		defaultCollectorTestEngine(t),
 		"commit-sha",
 		false,
@@ -109,7 +109,7 @@ func TestSCIPSnapshotRunsSameLanguagePackageSubtrees(t *testing.T) {
 	_, parsedFiles, _, err := snapshotter.buildParsedRepositoryFiles(
 		context.Background(),
 		repoRoot,
-		discovery.RepoFileSet{Files: []string{apiPath, jobsPath}},
+		discovery.RepoFileSet{Files: fileWithSizeSlice(apiPath, jobsPath)},
 		defaultCollectorTestEngine(t),
 		"commit-sha",
 		false,
@@ -166,7 +166,7 @@ func TestSCIPSnapshotSameLanguageSubtreeFailurePreservesOtherRoots(t *testing.T)
 	_, parsedFiles, _, err := snapshotter.buildParsedRepositoryFiles(
 		context.Background(),
 		repoRoot,
-		discovery.RepoFileSet{Files: []string{apiPath, jobsPath}},
+		discovery.RepoFileSet{Files: fileWithSizeSlice(apiPath, jobsPath)},
 		defaultCollectorTestEngine(t),
 		"commit-sha",
 		false,
@@ -222,7 +222,7 @@ func TestSCIPSnapshotLanguageSubtreeFallbackPreservesOtherLanguages(t *testing.T
 	_, parsedFiles, _, err := snapshotter.buildParsedRepositoryFiles(
 		context.Background(),
 		repoRoot,
-		discovery.RepoFileSet{Files: []string{pythonPath, goPath}},
+		discovery.RepoFileSet{Files: fileWithSizeSlice(pythonPath, goPath)},
 		defaultCollectorTestEngine(t),
 		"commit-sha",
 		false,

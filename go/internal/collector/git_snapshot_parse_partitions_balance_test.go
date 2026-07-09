@@ -79,7 +79,7 @@ func TestBuildParseSubtreePartitionsCoversExactFileSet(t *testing.T) {
 		files = append(files, path)
 	}
 
-	partitions := buildParseSubtreePartitions(repoRoot, files, 3)
+	partitions := buildParseSubtreePartitions(repoRoot, fileWithSizeSliceFromDisk(files...), 3)
 
 	got := collectPartitionJobs(partitions)
 	if len(got) != len(files) {
@@ -126,7 +126,7 @@ func TestBuildParseSubtreePartitionsSpreadsHeavyFiles(t *testing.T) {
 	}
 
 	workers := 4
-	partitions := buildParseSubtreePartitions(repoRoot, files, workers)
+	partitions := buildParseSubtreePartitions(repoRoot, fileWithSizeSliceFromDisk(files...), workers)
 
 	var totalBytes int64
 	var maxPartitionBytes int64
@@ -167,7 +167,7 @@ func TestBuildParseSubtreePartitionsSpreadsEmptyFiles(t *testing.T) {
 		files = append(files, path)
 	}
 
-	partitions := buildParseSubtreePartitions(repoRoot, files, 4)
+	partitions := buildParseSubtreePartitions(repoRoot, fileWithSizeSliceFromDisk(files...), 4)
 
 	if len(partitions) < 2 {
 		t.Fatalf("empty files collapsed into %d partition(s); want them spread across workers", len(partitions))
@@ -200,7 +200,7 @@ func TestBuildParseSubtreePartitionsEdgeCases(t *testing.T) {
 		repoRoot := t.TempDir()
 		path := filepath.Join(repoRoot, "only.py")
 		writeSizedFile(t, path, 1234)
-		partitions := buildParseSubtreePartitions(repoRoot, []string{path}, 4)
+		partitions := buildParseSubtreePartitions(repoRoot, fileWithSizeSlice(path), 4)
 		jobs := collectPartitionJobs(partitions)
 		if len(jobs) != 1 || jobs[0].index != 0 || jobs[0].path != path {
 			t.Fatalf("single-file partitions = %#v, want one job index 0 path %q", jobs, path)
@@ -216,7 +216,7 @@ func TestBuildParseSubtreePartitionsEdgeCases(t *testing.T) {
 			writeSizedFile(t, path, 500)
 			files = append(files, path)
 		}
-		partitions := buildParseSubtreePartitions(repoRoot, files, 4)
+		partitions := buildParseSubtreePartitions(repoRoot, fileWithSizeSliceFromDisk(files...), 4)
 
 		// Loss-free coverage.
 		got := collectPartitionJobs(partitions)

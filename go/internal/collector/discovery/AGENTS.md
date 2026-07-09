@@ -34,7 +34,7 @@
   error immediately. The matcher is the seam for the parser registry; callers
   must always supply one.
 
-- **External symlinks skipped** — `isExternalSymlink` rejects symlinks that
+- **External symlinks skipped** — `classifyPath` rejects symlinks that
   resolve outside the scan root. This prevents traversal of system paths through
   symlinked directories inside a repo. Do not remove this check.
 

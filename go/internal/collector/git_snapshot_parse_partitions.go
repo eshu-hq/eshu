@@ -54,7 +54,12 @@ type parseFileJobSized struct {
 // resulting partitions cover the exact same file set as the input — same
 // indexes, no file dropped or duplicated — so the parse result is unchanged;
 // only the worker distribution differs.
-func buildParseSubtreePartitions(repoPath string, files []string, workerCount int) []parseSubtreePartition {
+//
+// Each file's byte size comes from the discovery walk (FileWithSize.Size);
+// when the size is a zero sentinel (unavailable), the function applies the
+// same defaultParseFileSizeBytes fallback the old os.Stat path used, so
+// partition balancing is identical.
+func buildParseSubtreePartitions(repoPath string, files []discovery.FileWithSize, workerCount int) []parseSubtreePartition {
 	if len(files) == 0 {
 		return nil
 	}
@@ -62,15 +67,15 @@ func buildParseSubtreePartitions(repoPath string, files []string, workerCount in
 	groupOrder := make([]string, 0, len(files))
 	groups := make(map[string][]parseFileJobSized)
 	var totalBytes int64
-	for index, filePath := range files {
-		key := parseSubtreePartitionKey(repoPath, filePath)
+	for index, file := range files {
+		key := parseSubtreePartitionKey(repoPath, file.Path)
 		if _, ok := groups[key]; !ok {
 			groupOrder = append(groupOrder, key)
 		}
-		size := parseFileSizeBytes(filePath)
+		size := fileSizeForPartitioning(file.Size)
 		totalBytes += size
 		groups[key] = append(groups[key], parseFileJobSized{
-			job:  parseFileJob{index: index, path: filePath},
+			job:  parseFileJob{index: index, path: file.Path},
 			size: size,
 		})
 	}
@@ -136,6 +141,51 @@ func jobsFromSized(sized []parseFileJobSized) []parseFileJob {
 	return jobs
 }
 
+// buildParseSubtreePartitionsFromPaths is the original os.Stat-based
+// implementation kept alongside buildParseSubtreePartitions for the
+// output-equivalence test in the test file. Do not call it in production
+// paths; it is retained only to prove the FileWithSize path produces
+// identical partitions.
+func buildParseSubtreePartitionsFromPaths(repoPath string, files []string, workerCount int) []parseSubtreePartition {
+	if len(files) == 0 {
+		return nil
+	}
+
+	groupOrder := make([]string, 0, len(files))
+	groups := make(map[string][]parseFileJobSized)
+	var totalBytes int64
+	for index, filePath := range files {
+		key := parseSubtreePartitionKey(repoPath, filePath)
+		if _, ok := groups[key]; !ok {
+			groupOrder = append(groupOrder, key)
+		}
+		size := parseFileSizeBytes(filePath)
+		totalBytes += size
+		groups[key] = append(groups[key], parseFileJobSized{
+			job:  parseFileJob{index: index, path: filePath},
+			size: size,
+		})
+	}
+	sort.Strings(groupOrder)
+
+	targetBytes := parseSubtreePartitionTargetBytes(totalBytes, workerCount)
+
+	partitions := make([]parseSubtreePartition, 0, len(groupOrder))
+	for _, key := range groupOrder {
+		sized := groups[key]
+		var groupBytes int64
+		for _, item := range sized {
+			groupBytes += item.size
+		}
+		if groupBytes <= targetBytes {
+			partitions = append(partitions, parseSubtreePartition{key: key, jobs: jobsFromSized(sized)})
+			continue
+		}
+		partitions = append(partitions, chunkGroupByBytes(key, sized, targetBytes)...)
+	}
+	return partitions
+}
+
 // parseFileSizeBytes returns the on-disk size of a file, falling back to a
 // default weight when os.Stat fails so an unstattable file is still scheduled
 // (never dropped).
@@ -145,6 +195,20 @@ func parseFileSizeBytes(filePath string) int64 {
 		return defaultParseFileSizeBytes
 	}
 	return max(info.Size(), minParseFileWeightBytes)
+}
+
+// fileSizeForPartitioning returns the byte weight for a file whose size was
+// carried from discovery. A negative carried size is the sentinel for
+// "unavailable" (a symlink whose target could not be followed) and falls back
+// to the same defaultParseFileSizeBytes the old os.Stat-failure path used. A
+// genuine zero-byte file (carried size 0) keeps the minParseFileWeightBytes
+// floor, exactly as the old os.Stat path returned max(0, floor), so partition
+// balancing is byte-identical.
+func fileSizeForPartitioning(carriedSize int64) int64 {
+	if carriedSize < 0 {
+		return defaultParseFileSizeBytes
+	}
+	return max(carriedSize, minParseFileWeightBytes)
 }
 
 func parseSubtreePartitionTargetBytes(totalBytes int64, workerCount int) int64 {

@@ -9,44 +9,64 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/discovery"
 	"github.com/eshu-hq/eshu/go/internal/parser"
 )
 
-func partitionNativeSnapshotFiles(files []string, registry parser.Registry) ([]string, []string) {
-	parserFiles := make([]string, 0, len(files))
-	documentationFiles := []string{}
-	for _, filePath := range files {
-		if isGitDocumentationPath(filePath) {
-			if isNotebookDocumentationPath(filePath) {
-				if isParserPreferredDocumentationPath(filePath, registry) {
-					parserFiles = append(parserFiles, filePath)
+func partitionNativeSnapshotFiles(files []discovery.FileWithSize, registry parser.Registry) ([]discovery.FileWithSize, []discovery.FileWithSize) {
+	parserFiles := make([]discovery.FileWithSize, 0, len(files))
+	documentationFiles := []discovery.FileWithSize{}
+	for _, file := range files {
+		if isGitDocumentationPath(file.Path) {
+			if isNotebookDocumentationPath(file.Path) {
+				if isParserPreferredDocumentationPath(file.Path, registry) {
+					parserFiles = append(parserFiles, file)
 				}
-				documentationFiles = append(documentationFiles, filePath)
+				documentationFiles = append(documentationFiles, file)
 				continue
 			}
-			if isParserPreferredDocumentationPath(filePath, registry) {
-				parserFiles = append(parserFiles, filePath)
+			if isParserPreferredDocumentationPath(file.Path, registry) {
+				parserFiles = append(parserFiles, file)
 				continue
 			}
-			documentationFiles = append(documentationFiles, filePath)
+			documentationFiles = append(documentationFiles, file)
 			continue
 		}
-		parserFiles = append(parserFiles, filePath)
+		parserFiles = append(parserFiles, file)
 	}
 	return parserFiles, documentationFiles
 }
 
-func parserPreScanFiles(files []string) []string {
-	out := make([]string, 0, len(files))
-	for _, filePath := range files {
-		if isNotebookDocumentationPath(filePath) {
+func parserPreScanFiles(files []discovery.FileWithSize) []discovery.FileWithSize {
+	out := make([]discovery.FileWithSize, 0, len(files))
+	for _, file := range files {
+		if isNotebookDocumentationPath(file.Path) {
 			continue
 		}
-		out = append(out, filePath)
+		out = append(out, file)
 	}
 	return out
+}
+
+// sortUniqueFileWithSizeSlice deduplicates and sorts a slice of FileWithSize
+// by Path. When two entries share the same Path the first is kept.
+func sortUniqueFileWithSizeSlice(files []discovery.FileWithSize) []discovery.FileWithSize {
+	if len(files) <= 1 {
+		return files
+	}
+	sort.Slice(files, func(i, j int) bool {
+		return files[i].Path < files[j].Path
+	})
+	unique := files[:1]
+	for i := 1; i < len(files); i++ {
+		if files[i].Path != unique[len(unique)-1].Path {
+			unique = append(unique, files[i])
+		}
+	}
+	return unique
 }
 
 func isParserPreferredDocumentationPath(filePath string, registry parser.Registry) bool {

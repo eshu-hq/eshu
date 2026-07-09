@@ -106,14 +106,6 @@ func (s DiscoveryStats) TotalFilesSkipped() int {
 	return total
 }
 
-// RepoFileSet groups one repo root with its discovered supported files.
-//
-// RepoRoot and Files are absolute paths and Files are sorted for stable output.
-type RepoFileSet struct {
-	RepoRoot string
-	Files    []string
-}
-
 // ResolveRepositoryFileSets discovers supported files beneath root, groups them
 // by the nearest repo root, and applies repo-local .gitignore/.eshuignore
 // filtering.
@@ -158,8 +150,8 @@ func ResolveRepositoryFileSetsWithStats(
 
 	result := make([]RepoFileSet, 0, len(repoRoots))
 	for _, repoRoot := range repoRoots {
-		files := append([]string(nil), groups[repoRoot]...)
-		sort.Strings(files)
+		files := append([]FileWithSize(nil), groups[repoRoot]...)
+		sortFileWithSizeSlice(files)
 		if opts.HonorGitignore {
 			before := len(files)
 			files = filterRepoFilesByGitignore(repoRoot, files)
@@ -206,7 +198,7 @@ func collectSupportedFiles(
 	scanRoot string,
 	supported SupportedFileMatcher,
 	opts Options,
-) ([]string, DiscoveryStats, error) {
+) ([]FileWithSize, DiscoveryStats, error) {
 	ignoredDirs := normalizeIgnoredDirs(opts.IgnoredDirs)
 	ignoredExts := normalizeExtensions(opts.IgnoredExtensions)
 	preservedHidden := normalizePrefixes(opts.PreservedHiddenPrefixes)
@@ -220,7 +212,7 @@ func collectSupportedFiles(
 		DirsSkippedByUser:       make(map[string]int),
 		FilesSkippedByUser:      make(map[string]int),
 	}
-	files := make([]string, 0)
+	files := make([]FileWithSize, 0)
 	if err := filepath.WalkDir(scanRoot, func(path string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			if errors.Is(walkErr, fs.ErrPermission) {
@@ -272,25 +264,44 @@ func collectSupportedFiles(
 			stats.FilesSkippedByUser[reason]++
 			return nil
 		}
-		if isExternalSymlink(scanRoot, path) {
+		external, info, ok := classifyPath(scanRoot, path)
+		if !ok || external {
 			return nil
 		}
 
-		files = append(files, path)
+		fileEntry := FileWithSize{Path: path}
+		if info.Mode()&os.ModeSymlink != 0 {
+			// Included symlink: follow-Stat for the target size so
+			// partition balancing is byte-identical to the old
+			// code that called os.Stat (which follows symlinks).
+			if targetInfo, targetErr := os.Stat(path); targetErr == nil {
+				fileEntry.Size = targetInfo.Size()
+			} else {
+				// Target could not be followed — mark unavailable so the
+				// partition weighter applies its default, matching the old
+				// os.Stat-failure path (not the zero-byte floor).
+				fileEntry.Size = SizeUnavailable
+			}
+		} else {
+			// Regular file: size harvested from the single Lstat
+			// classifyPath already performed (0 for a genuine empty file).
+			fileEntry.Size = info.Size()
+		}
+		files = append(files, fileEntry)
 		return nil
 	}); err != nil {
 		return nil, stats, err
 	}
 
-	sort.Strings(files)
+	sortFileWithSizeSlice(files)
 	return files, stats, nil
 }
 
-func groupFilesByRepository(scanRoot string, files []string) map[string][]string {
-	groups := make(map[string][]string)
+func groupFilesByRepository(scanRoot string, files []FileWithSize) map[string][]FileWithSize {
+	groups := make(map[string][]FileWithSize)
 	repoCache := make(map[string]string)
 	for _, file := range files {
-		repoRoot := nearestRepositoryRoot(scanRoot, filepath.Dir(file), repoCache)
+		repoRoot := nearestRepositoryRoot(scanRoot, filepath.Dir(file.Path), repoCache)
 		if repoRoot == "" {
 			repoRoot = scanRoot
 		}
@@ -342,25 +353,29 @@ func hasGitMarker(dir string) bool {
 	return info.IsDir() || info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0
 }
 
-func isExternalSymlink(scanRoot, path string) bool {
+// classifyPath does a single os.Lstat and returns the symlink-external verdict,
+// the FileInfo for size harvesting, and an ok flag. For regular files, info.Size()
+// is the on-disk size. For included symlinks the caller must follow-Stat for the
+// target size (to match the old partition os.Stat behavior that followed symlinks).
+func classifyPath(scanRoot, path string) (external bool, info os.FileInfo, ok bool) {
 	info, err := os.Lstat(path)
 	if err != nil {
-		return true
+		return true, nil, false
 	}
 	if info.Mode()&os.ModeSymlink == 0 {
-		return false
+		return false, info, true
 	}
 
 	resolved, err := filepath.EvalSymlinks(path)
 	if err != nil {
-		return true
+		return true, info, true
 	}
 	absResolved, err := filepath.Abs(resolved)
 	if err != nil {
-		return true
+		return true, info, true
 	}
-
-	return !pathWithinRoot(scanRoot, absResolved)
+	external = !pathWithinRoot(scanRoot, absResolved)
+	return external, info, true
 }
 
 func pathWithinRoot(root, candidate string) bool {

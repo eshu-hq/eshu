@@ -37,9 +37,9 @@ func TestResolveNativeSnapshotFileSetKeepsNestedNPMWorkspaceManifests(t *testing
 		"packages/client/package-lock.json": false,
 	}
 	for _, path := range fileSet.Files {
-		rel, err := filepath.Rel(resolvedRepoRoot, path)
+		rel, err := filepath.Rel(resolvedRepoRoot, path.Path)
 		if err != nil {
-			t.Fatalf("filepath.Rel(%q) error = %v", path, err)
+			t.Fatalf("filepath.Rel(%q) error = %v", path.Path, err)
 		}
 		rel = filepath.ToSlash(rel)
 		if _, ok := want[rel]; ok {

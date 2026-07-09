@@ -21,19 +21,19 @@ type gitignorePattern struct {
 	anchored bool
 }
 
-func filterRepoFilesByGitignore(repoRoot string, files []string) []string {
+func filterRepoFilesByGitignore(repoRoot string, files []FileWithSize) []FileWithSize {
 	return filterRepoFilesByIgnoreFile(repoRoot, files, ".gitignore")
 }
 
-func filterRepoFilesByEshuIgnore(repoRoot string, files []string) []string {
+func filterRepoFilesByEshuIgnore(repoRoot string, files []FileWithSize) []FileWithSize {
 	return filterRepoFilesByIgnoreFile(repoRoot, files, ".eshuignore")
 }
 
-func filterRepoFilesByIgnoreFile(repoRoot string, files []string, ignoreFileName string) []string {
+func filterRepoFilesByIgnoreFile(repoRoot string, files []FileWithSize, ignoreFileName string) []FileWithSize {
 	cache := make(map[string]*gitignoreSpec)
-	kept := make([]string, 0, len(files))
+	kept := make([]FileWithSize, 0, len(files))
 	for _, file := range files {
-		if !isIgnoredByRepoIgnoreFile(repoRoot, file, ignoreFileName, cache) {
+		if !isIgnoredByRepoIgnoreFile(repoRoot, file.Path, ignoreFileName, cache) {
 			kept = append(kept, file)
 		}
 	}

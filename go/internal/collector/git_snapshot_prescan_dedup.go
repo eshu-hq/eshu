@@ -6,6 +6,7 @@ package collector
 import (
 	"slices"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/discovery"
 	"github.com/eshu-hq/eshu/go/internal/parser"
 )
 
@@ -24,22 +25,22 @@ import (
 // derive-eligible files. See git_snapshot_native.go's SnapshotRepository for
 // the caller that decides this.
 func partitionPreScanFilesForDerive(
-	files []string,
+	files []discovery.FileWithSize,
 	registry parser.Registry,
 	deriveFromParseEnabled bool,
-) (legacyFiles []string, deriveEligibleFiles []string) {
+) (legacyFiles []discovery.FileWithSize, deriveEligibleFiles []discovery.FileWithSize) {
 	if !deriveFromParseEnabled {
 		return files, nil
 	}
-	legacyFiles = make([]string, 0, len(files))
-	deriveEligibleFiles = make([]string, 0, len(files))
-	for _, path := range files {
-		definition, ok := registry.LookupByPath(path)
+	legacyFiles = make([]discovery.FileWithSize, 0, len(files))
+	deriveEligibleFiles = make([]discovery.FileWithSize, 0, len(files))
+	for _, file := range files {
+		definition, ok := registry.LookupByPath(file.Path)
 		if !ok || !parser.IsDerivedPreScanLanguage(definition.Language) {
-			legacyFiles = append(legacyFiles, path)
+			legacyFiles = append(legacyFiles, file)
 			continue
 		}
-		deriveEligibleFiles = append(deriveEligibleFiles, path)
+		deriveEligibleFiles = append(deriveEligibleFiles, file)
 	}
 	return legacyFiles, deriveEligibleFiles
 }

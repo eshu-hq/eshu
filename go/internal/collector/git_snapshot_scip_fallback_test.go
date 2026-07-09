@@ -49,7 +49,7 @@ func TestSCIPSnapshotConcurrentParseMergesSCIPSupplement(t *testing.T) {
 	shapeFiles, parsedFiles, _, err := snapshotter.buildParsedRepositoryFiles(
 		context.Background(),
 		repoRoot,
-		discovery.RepoFileSet{Files: []string{appPath, helperPath}},
+		discovery.RepoFileSet{Files: fileWithSizeSlice(appPath, helperPath)},
 		defaultCollectorTestEngine(t),
 		"commit-sha",
 		false,
@@ -118,7 +118,7 @@ func TestSCIPSnapshotFallbackLogsBoundedReason(t *testing.T) {
 			_, parsedFiles, _, err := snapshotter.buildParsedRepositoryFiles(
 				context.Background(),
 				repoRoot,
-				discovery.RepoFileSet{Files: []string{appPath}},
+				discovery.RepoFileSet{Files: fileWithSizeSlice(appPath)},
 				defaultCollectorTestEngine(t),
 				"commit-sha",
 				false,
@@ -268,7 +268,7 @@ func TestSCIPSnapshotRecordsAttemptResults(t *testing.T) {
 			_, parsedFiles, _, err := snapshotter.buildParsedRepositoryFiles(
 				context.Background(),
 				repoRoot,
-				discovery.RepoFileSet{Files: []string{appPath}},
+				discovery.RepoFileSet{Files: fileWithSizeSlice(appPath)},
 				defaultCollectorTestEngine(t),
 				"commit-sha",
 				false,

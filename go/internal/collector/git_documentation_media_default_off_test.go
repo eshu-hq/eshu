@@ -26,7 +26,7 @@ func TestMediaDocumentationFormatsRemainDefaultOff(t *testing.T) {
 	}
 	for _, relativePath := range relativePaths {
 		file := filepath.Join(repoPath, filepath.FromSlash(relativePath))
-		parserFiles, documentationFiles := partitionNativeSnapshotFiles([]string{file}, parser.Registry{})
+		parserFiles, documentationFiles := partitionNativeSnapshotFiles(fileWithSizeSlice(file), parser.Registry{})
 		if len(documentationFiles) != 0 {
 			t.Fatalf("partitionNativeSnapshotFiles(%q) documentationFiles = %#v, want none", file, documentationFiles)
 		}
