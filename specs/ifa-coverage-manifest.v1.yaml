@@ -40,6 +40,17 @@
 # go/internal/ifa/coverage_falsegreen_test.go for the proof this file's
 # narrowed_correlation:rc-29 row cannot be satisfied by the wrong Odù or by an
 # unfiltered correlation.
+#
+# The five odu:demo-org-roundtrip rows (issue #4804, the W6 terminal "contract
+# system alive" proof) name proof_gate: golden-corpus-gate instead of
+# ifa-contract-layer: odu:demo-org-roundtrip carries every fact the demo-org
+# synthetic GCP cassette generates (go/internal/synth/gcp), replayed through
+# the production cassette.Source seam, so its genuinely-green claim is proven
+# by go/internal/ifa's own RoundTripTypedPayloads AND by the golden-corpus
+# gate's existing coverage of the generator/replay path — not by the advisory,
+# non-blocking ifa-contract-layer gate every other row here still uses.
+# ifa-contract-layer itself stays advisory for the whole P1 milestone (the
+# blocking flip is P4, per the #4394 design); it is not flipped by this file.
 version: "v1"
 coverage:
   - {surface: "fact_kind:repository", scenario: odu, scenario_type: baseline, ref: "odu:kustomize-deploys-from", proof_gate: ifa-contract-layer}
@@ -49,3 +60,8 @@ coverage:
   - {surface: "fact_kind:aws_warning", scenario: odu, scenario_type: baseline, ref: "odu:aws-pack", proof_gate: ifa-contract-layer}
   - {surface: "fact_kind:aws_tag_observation", scenario: odu, scenario_type: baseline, ref: "odu:aws-pack", proof_gate: ifa-contract-layer}
   - {surface: "narrowed_correlation:rc-29", scenario: odu, scenario_type: baseline, ref: "odu:kustomize-deploys-from", proof_gate: ifa-contract-layer}
+  - {surface: "fact_kind:gcp_cloud_resource", scenario: odu, scenario_type: baseline, ref: "odu:demo-org-roundtrip", proof_gate: golden-corpus-gate}
+  - {surface: "fact_kind:gcp_cloud_relationship", scenario: odu, scenario_type: baseline, ref: "odu:demo-org-roundtrip", proof_gate: golden-corpus-gate}
+  - {surface: "fact_kind:gcp_collection_warning", scenario: odu, scenario_type: baseline, ref: "odu:demo-org-roundtrip", proof_gate: golden-corpus-gate}
+  - {surface: "fact_kind:gcp_dns_record", scenario: odu, scenario_type: baseline, ref: "odu:demo-org-roundtrip", proof_gate: golden-corpus-gate}
+  - {surface: "fact_kind:gcp_iam_policy_observation", scenario: odu, scenario_type: baseline, ref: "odu:demo-org-roundtrip", proof_gate: golden-corpus-gate}

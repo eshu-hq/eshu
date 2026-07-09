@@ -126,4 +126,63 @@ func TestCoverageLockstepAgainstRealSpecs(t *testing.T) {
 	if rc29Coverage.Status != replaycoverage.StatusCovered {
 		t.Errorf("narrowed_correlation:rc-29 status = %q, detail=%q, want covered", rc29Coverage.Status, rc29Coverage.Detail)
 	}
+
+	// The five odu:demo-org-roundtrip rows (#4804) must resolve covered: the
+	// cataloged Odù carries a fact of each gcp_* kind and every one validates
+	// against the fixturepack schema the registry names.
+	demoOrgKinds := []string{
+		"gcp_cloud_resource",
+		"gcp_cloud_relationship",
+		"gcp_collection_warning",
+		"gcp_dns_record",
+		"gcp_iam_policy_observation",
+	}
+	for _, kind := range demoOrgKinds {
+		sc := findSurfaceCoverage(t, cov, FactKindSurfacePrefix+kind)
+		if sc.Status != replaycoverage.StatusCovered {
+			t.Errorf("fact_kind:%s status = %q, detail=%q, want covered", kind, sc.Status, sc.Detail)
+		}
+	}
+
+	// Unlike the ifa-contract-layer rows above, golden-corpus-gate is blocking
+	// with a local command and a CI workflow (specs/ci-gates.v1.yaml), so the
+	// five odu:demo-org-roundtrip rows that name it must produce zero
+	// proof-gate validation errors, not the advisory "is not blocking" error.
+	for _, err := range replaycoverage.ValidateRequiredProofGates(ifaManifest, replaycoverage.AuthzProofLedger{}, proofGates) {
+		if strings.Contains(err.Error(), `"golden-corpus-gate"`) {
+			t.Errorf("unexpected golden-corpus-gate proof-gate validation error (want zero): %v", err)
+		}
+	}
+
+	// Deliberate wrong-Odù false-green break (mirrors
+	// coverage_falsegreen_test.go's rc-29/argocd break): binding
+	// fact_kind:gcp_cloud_resource to odu:aws-pack — a cataloged Odù that
+	// carries no gcp_cloud_resource fact at all — must not resolve covered. A
+	// coverage gate that stayed green here could not tell a real GCP-family
+	// binding apart from an unrelated cataloged Odù.
+	wrongCoverage := make([]replaycoverage.CoverageEntry, len(ifaManifest.Coverage))
+	copy(wrongCoverage, ifaManifest.Coverage)
+	for i, entry := range wrongCoverage {
+		if entry.Surface == FactKindSurfacePrefix+"gcp_cloud_resource" {
+			wrongCoverage[i].Ref = "odu:aws-pack"
+		}
+	}
+	wrongOduManifest := ifaManifest
+	wrongOduManifest.Coverage = wrongCoverage
+
+	wrongCov, _, _ := RunCoverage(CoverageInputs{
+		Expectations: exp,
+		Manifest:     wrongOduManifest,
+		Catalog:      CatalogByName(),
+		Registry:     byKind,
+		ProofGates:   proofGates,
+		Blocking:     false,
+	})
+	wrongSC := findSurfaceCoverage(t, wrongCov, FactKindSurfacePrefix+"gcp_cloud_resource")
+	if wrongSC.Status == replaycoverage.StatusCovered {
+		t.Fatal("fact_kind:gcp_cloud_resource bound to odu:aws-pack must not resolve covered (false green): odu:aws-pack carries no gcp_cloud_resource fact")
+	}
+	if wrongSC.Status != replaycoverage.StatusUnresolved {
+		t.Errorf("fact_kind:gcp_cloud_resource (bound to odu:aws-pack) status = %q, want unresolved", wrongSC.Status)
+	}
 }
