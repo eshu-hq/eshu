@@ -578,3 +578,63 @@ is still covered by the existing `InstrumentedDB` Postgres query spans and
 `eshu_dp_postgres_query_duration_seconds`. Operators continue to diagnose
 readiness waits through the same Postgres query spans, queue status,
 `/admin/status` blockage rows, and reducer logs.
+
+## #4860 — Batch ContentWriter tombstone DELETEs
+
+`ContentWriter.Write` accumulated tombstoned `(repo_id, relative_path)` file
+keys and `(repo_id, entity_id)` entity keys during its record/entity loops and
+now issues one batched `DELETE ... WHERE (col, col) IN (...)` per target table
+(chunked at `contentFileBatchSize`), replacing the per-row `DELETE` round trips.
+The delete order (content_entities → content_file_references → content_files)
+and the exact key columns are byte-identical to the prior per-row queries
+(`deleteContentEntityQuery`/`deleteContentFileQuery` key on `relative_path`;
+`deleteContentEntityByIDQuery` keys on `entity_id`), so the same rows are
+deleted; only the round-trip count changes. Entity `StartLine` validation is
+unchanged (still enforced for every entity before the deleted-branch, matching
+origin/main). The parallel `ContentStore` per-row delete path
+(`content_store_writes.go`) is a separate type and out of scope.
+
+Performance Evidence: measured with a counting `fakeExecQueryer` that records
+every `ExecContext` DELETE (deterministic, no DB needed), via
+`TestContentWriterBatchesTombstoneDeletes`.
+
+| scenario | BEFORE (per-row) | AFTER (batched) | reduction |
+| --- | --- | --- | --- |
+| 100 deleted files (entities+refs+files) | 300 DELETE execs | 3 DELETE execs | 99% |
+| 5 deleted entities (by entity_id) | 5 DELETE execs | 1 DELETE exec | 80% |
+| combined (100 files + 5 entities) | 305 DELETE execs | 4 DELETE execs | 98.7% |
+| 1 deleted file | 3 execs | 3 execs (1-row IN batch) | same execs, batched shape |
+
+Output-equivalence: the batched `IN (...)` key set equals the per-row key set
+(same `(repo_id, relative_path)` / `(repo_id, entity_id)` tuples), asserted by
+the batched-query value-group count in the test; `result.DeletedCount` is
+incremented identically. `DELETE ... IN` is idempotent and order-independent.
+
+Live Postgres proof (prove-theory-first, addresses the concern that a fake exec
+count does not prove index behavior): `postgres:18-alpine`, 100,000 rows per
+table across 5 repos, batch size 500, `EXPLAIN (ANALYZE, BUFFERS)` on the exact
+explicit row-constructor `WHERE (col, col) IN ((v1,v2),...)` shape the Go code
+emits (500 tuples), all in rolled-back transactions. Every batched delete is
+index-backed — NO sequential scan, buffers hit-only:
+
+| batched DELETE (500 tuples) | plan node | exec time |
+| --- | --- | --- |
+| content_files by (repo_id, relative_path) | Index Scan `content_files_pkey` | 1.16 ms |
+| content_entities by (repo_id, relative_path) | Index Scan `content_entities_path_idx` | 1.30 ms |
+| content_entities by (repo_id, entity_id) | Index Scan `content_entities_pkey` | 0.87 ms |
+| content_file_references by (repo_id, relative_path) | Index Scan `content_file_references_repo_path_idx` | 1.15 ms |
+
+Server-side wall-time for the same 500 content_files deletes (clock_timestamp
+around a rolled-back tx): OLD 500 per-row `DELETE` = **3.501 ms** vs NEW one
+batched `IN` = **2.108 ms** (~1.66x faster server-side), before counting the
+499 eliminated client↔server round trips (the dominant win over a network,
+quantified by the exec-count table above). Postgres rewrites the same-repo
+row-list to `repo_id = $ AND relative_path = ANY(array)` and still index-scans;
+with mixed repos the row-wise `IN` remains index-backed via the same keys.
+
+No-Observability-Change: the batched deletes target the same tables and rows as
+before and add no metric instrument, metric label, span, log key, route, queue
+domain, worker, lease, or runtime knob. Operators still diagnose the content
+write path through the existing `InstrumentedDB` Postgres exec/query spans and
+`eshu_dp_postgres_query_duration_seconds`, and the existing content-write stage
+timing logs.

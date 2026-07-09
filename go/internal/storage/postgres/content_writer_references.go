@@ -15,7 +15,6 @@ import (
 const (
 	contentReferenceBatchSize    = 500
 	columnsPerContentReference   = 5
-	deleteContentReferenceQuery  = `DELETE FROM content_file_references WHERE repo_id = $1 AND relative_path = $2`
 	upsertContentReferencePrefix = `INSERT INTO content_file_references (
     repo_id, relative_path, reference_kind, reference_value, indexed_at
 ) VALUES `
@@ -32,13 +31,6 @@ type preparedContentReferenceRow struct {
 	path   string
 	kind   string
 	value  string
-}
-
-func (w ContentWriter) deleteContentReferences(ctx context.Context, repoID, path string) error {
-	if _, err := w.db.ExecContext(ctx, deleteContentReferenceQuery, repoID, path); err != nil {
-		return fmt.Errorf("delete content_file_references: %w", err)
-	}
-	return nil
 }
 
 func (w ContentWriter) deleteContentReferenceBatch(ctx context.Context, batch []preparedFileRow) error {
