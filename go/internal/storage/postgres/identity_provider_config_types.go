@@ -14,7 +14,7 @@ import (
 // stored; every Seal/Open call reconstructs it from the row being sealed or
 // opened, which is what makes a ciphertext copied into a different revision
 // row fail to decrypt (a cut-and-paste / confused-deputy defense).
-const providerSecretAADPrefix = "eshu:provider-secret:v1"
+const providerSecretAADPrefix = "eshu:provider-secret:v1" // #nosec G101 -- AAD scheme/version tag bound into provider-secret envelopes; not a credential value.
 
 // ErrProviderSecretKeyringUnavailable is returned by any provider-config write
 // that carries a plaintext secret when no DEK is configured

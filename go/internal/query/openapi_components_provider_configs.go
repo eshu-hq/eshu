@@ -22,7 +22,7 @@ const openAPIComponentsProviderConfigs = `      "AdminProviderConfig": {
           "secret_fingerprint": {"type": "string"},
           "key_id": {"type": "string"},
           "shadowed_by_environment": {"type": "boolean", "description": "True when an env/file-registered provider already occupies this provider_config_id; the env config is authoritative and this row's sealed secret is never consulted for login."},
-          "source": {"type": "string", "enum": ["database", "environment"]},
+          "managed_by": {"type": "string", "enum": ["database", "environment"], "description": "\"database\" for a normal DB-backed row; \"environment\" for a row shadowed by (or synthesized from) an env/file-registered provider."},
           "created_at": {"type": "string", "format": "date-time"},
           "updated_at": {"type": "string", "format": "date-time"}
         }

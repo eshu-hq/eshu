@@ -198,3 +198,61 @@ func TestProviderConfigConcurrentUpdateDuringEnableRejectsStaleRevision(t *testi
 		t.Fatalf("active revision count = %d, want exactly 1", activeCount)
 	}
 }
+
+// TestProviderConfigConcurrentDisableAndEnableSerialize runs Disable and
+// Enable concurrently against the same provider config under -race, proving
+// setProviderConfigStatus's row-locked write (added so DisableProviderConfig
+// shares Update/Revert/Enable's lockProviderConfig-then-write pattern instead
+// of a bare autocommit UPDATE) serializes against a concurrent Enable rather
+// than racing outside that shared conflict domain. Both calls must complete
+// without error, and the config must land in a clean, non-corrupted state —
+// exactly the status one of the two operations legitimately produced, never
+// a torn write.
+func TestProviderConfigConcurrentDisableAndEnableSerialize(t *testing.T) {
+	db := newProviderConfigFakeDB()
+	store := NewIdentitySubjectStore(db)
+	store.SetProviderSecretKeyring(testKeyring(t))
+	ctx := context.Background()
+
+	if _, err := store.CreateProviderConfig(ctx, ProviderConfigCreate{
+		ProviderConfigID: "pc_enable_5", TenantID: "tenant_a", ProviderKind: "external_oidc",
+		ProviderKeyHash: "hash_e5", RevisionID: "rev_1", ConfigurationHash: "h1",
+		PlaintextSecret: `{"client_secret":"s"}`, Now: time.Now(),
+	}); err != nil {
+		t.Fatalf("seed create: %v", err)
+	}
+	if _, err := store.EnableProviderConfig(ctx, ProviderConfigEnable{
+		ProviderConfigID: "pc_enable_5", TenantID: "tenant_a", ExpectedActiveRevisionID: "rev_1", Now: time.Now(),
+	}); err != nil {
+		t.Fatalf("seed enable: %v", err)
+	}
+
+	var wg sync.WaitGroup
+	var disableErr, enableErr error
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		_, disableErr = store.DisableProviderConfig(ctx, ProviderConfigDisable{
+			ProviderConfigID: "pc_enable_5", TenantID: "tenant_a", Now: time.Now(),
+		})
+	}()
+	go func() {
+		defer wg.Done()
+		_, enableErr = store.EnableProviderConfig(ctx, ProviderConfigEnable{
+			ProviderConfigID: "pc_enable_5", TenantID: "tenant_a", ExpectedActiveRevisionID: "rev_1", Now: time.Now(),
+		})
+	}()
+	wg.Wait()
+
+	if disableErr != nil {
+		t.Fatalf("DisableProviderConfig() error = %v", disableErr)
+	}
+	if enableErr != nil {
+		t.Fatalf("EnableProviderConfig() error = %v", enableErr)
+	}
+
+	status := db.configs["pc_enable_5"].status
+	if status != "active" && status != "draft" {
+		t.Fatalf("status = %q after concurrent Disable/Enable, want exactly one of active|draft (not a torn write)", status)
+	}
+}

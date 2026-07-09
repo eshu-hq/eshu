@@ -94,7 +94,7 @@ func buildOIDCProviderConfigWrite(body adminProviderConfigWriteRequest) (builtPr
 	if err != nil {
 		return builtProviderConfigWrite{}, fmt.Errorf("encode oidc configuration: %w", err)
 	}
-	secretJSON, err := json.Marshal(oidcSecretFields{ClientSecret: clientSecret})
+	secretJSON, err := json.Marshal(oidcSecretFields{ClientSecret: clientSecret}) // #nosec G117 -- write-only secret payload marshaled solely to be sealed by secretcrypto.Seal; never emitted to any read surface.
 	if err != nil {
 		return builtProviderConfigWrite{}, fmt.Errorf("encode oidc secret: %w", err)
 	}

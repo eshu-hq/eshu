@@ -4,8 +4,11 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
+	"log/slog"
+	"strings"
 	"testing"
 	"time"
 
@@ -156,6 +159,58 @@ func TestEnvRegisteredProviderIDsHandlesNilHandlers(t *testing.T) {
 	ids := envRegisteredProviderIDs(nil, nil)
 	if len(ids) != 0 {
 		t.Fatalf("envRegisteredProviderIDs(nil, nil) = %v, want empty", ids)
+	}
+}
+
+// TestDecodeProviderConfigurationLogsMalformedJSON proves that a stored
+// configuration column that fails to parse as JSON is surfaced via a warning
+// log (naming the provider_config_id and the parse error) rather than being
+// silently swallowed. The API response still degrades to configuration:null
+// (the column is never secret, so a decode failure must not fail the whole
+// list/detail read) — but an operator can now find the corrupt row from logs
+// instead of treating it as a legitimately empty configuration.
+func TestDecodeProviderConfigurationLogsMalformedJSON(t *testing.T) {
+	t.Parallel()
+
+	var logBuf bytes.Buffer
+	adapter := &providerConfigReadAdapter{
+		logger: slog.New(slog.NewJSONHandler(&logBuf, nil)),
+	}
+
+	detail := adapter.toAdminDetail(pgstatus.ProviderConfigDetail{
+		ProviderConfigID: "pc_corrupt",
+		ProviderKind:     "external_oidc",
+		Status:           "active",
+		Configuration:    "{not valid json",
+	})
+
+	if detail.Configuration != nil {
+		t.Fatalf("Configuration = %v, want nil for malformed JSON", detail.Configuration)
+	}
+	logged := logBuf.String()
+	if !strings.Contains(logged, "pc_corrupt") {
+		t.Fatalf("log output missing provider_config_id %q; got: %s", "pc_corrupt", logged)
+	}
+	if !strings.Contains(strings.ToLower(logged), "warn") {
+		t.Fatalf("log output missing a warning-level entry for malformed configuration; got: %s", logged)
+	}
+}
+
+// TestDecodeProviderConfigurationNilLoggerSafe proves a nil logger (the
+// zero-value providerConfigReadAdapter used by most other tests in this file)
+// does not panic when the configuration fails to decode.
+func TestDecodeProviderConfigurationNilLoggerSafe(t *testing.T) {
+	t.Parallel()
+
+	adapter := &providerConfigReadAdapter{}
+	detail := adapter.toAdminDetail(pgstatus.ProviderConfigDetail{
+		ProviderConfigID: "pc_corrupt_nil_logger",
+		ProviderKind:     "external_oidc",
+		Status:           "active",
+		Configuration:    "{not valid json",
+	})
+	if detail.Configuration != nil {
+		t.Fatalf("Configuration = %v, want nil for malformed JSON", detail.Configuration)
 	}
 }
 

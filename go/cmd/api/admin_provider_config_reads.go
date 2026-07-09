@@ -7,22 +7,34 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"log/slog"
 
 	"github.com/eshu-hq/eshu/go/internal/query"
 	pgstatus "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
 // decodeProviderConfiguration parses the stored non-secret configuration JSON
-// text into a generic map for the API response. A malformed or empty value
-// decodes to nil rather than erroring the whole list/detail read — the
-// configuration column is never secret, so a decode failure here is a data
-// quality signal for the admin, not a security concern.
-func decodeProviderConfiguration(configurationJSON string) map[string]any {
+// text into a generic map for the API response. A malformed value decodes to
+// nil rather than erroring the whole list/detail read — the configuration
+// column is never secret, so a decode failure here is a data quality signal
+// for the admin, not a security concern — but it is logged (naming
+// providerConfigID and the parse error) so a corrupt row is diagnosable
+// instead of silently indistinguishable from a legitimately empty
+// configuration. logger may be nil (e.g. in tests), in which case the warning
+// is skipped.
+func decodeProviderConfiguration(logger *slog.Logger, providerConfigID, configurationJSON string) map[string]any {
 	if configurationJSON == "" {
 		return nil
 	}
 	var out map[string]any
 	if err := json.Unmarshal([]byte(configurationJSON), &out); err != nil {
+		if logger != nil {
+			logger.Warn(
+				"provider config: stored configuration failed to parse as JSON",
+				"provider_config_id", providerConfigID,
+				"err", err,
+			)
+		}
 		return nil
 	}
 	return out
@@ -31,14 +43,15 @@ func decodeProviderConfiguration(configurationJSON string) map[string]any {
 // newAdminProviderConfigReadHandler wires the DB-backed provider-config admin
 // read endpoints (#4966). The handler is nil-safe: a nil database yields a
 // handler whose store is nil, so each route returns 503 rather than
-// panicking.
+// panicking. logger may be nil.
 func newAdminProviderConfigReadHandler(
 	db *sql.DB,
 	oidcLoginHandler *query.OIDCLoginHandler,
 	samlHandler *query.SAMLHandler,
+	logger *slog.Logger,
 ) *query.AdminProviderConfigReadHandler {
 	handler := &query.AdminProviderConfigReadHandler{}
-	if store := newProviderConfigReadAdapter(db, oidcLoginHandler, samlHandler); store != nil {
+	if store := newProviderConfigReadAdapter(db, oidcLoginHandler, samlHandler, logger); store != nil {
 		handler.Store = store
 	}
 	return handler
@@ -66,17 +79,21 @@ func newAdminProviderConfigReadHandler(
 // for a pure env-only provider. A pure env-only SAML provider therefore
 // remains invisible on this admin list until it gains a colliding DB row
 // (at which point it surfaces as a normal shadowed entry). Flagged as a
-// known gap rather than guessed at — see the #4966 executor report.
+// known gap rather than guessed at — tracked in #4978.
 type providerConfigReadAdapter struct {
 	store            *pgstatus.IdentitySubjectStore
 	envProviderIDs   map[string]struct{}
 	envOIDCProviders []query.OIDCRegisteredProvider
+	// logger receives a warning when a stored configuration column fails to
+	// parse as JSON (see decodeProviderConfiguration). May be nil.
+	logger *slog.Logger
 }
 
 func newProviderConfigReadAdapter(
 	db *sql.DB,
 	oidcLoginHandler *query.OIDCLoginHandler,
 	samlHandler *query.SAMLHandler,
+	logger *slog.Logger,
 ) *providerConfigReadAdapter {
 	if db == nil {
 		return nil
@@ -89,6 +106,7 @@ func newProviderConfigReadAdapter(
 		store:            pgstatus.NewIdentitySubjectStore(pgstatus.ExecQueryer(pgstatus.SQLDB{DB: db})),
 		envProviderIDs:   envRegisteredProviderIDs(oidcLoginHandler, samlHandler),
 		envOIDCProviders: envOIDCProviders,
+		logger:           logger,
 	}
 }
 
@@ -193,7 +211,7 @@ func (a *providerConfigReadAdapter) toAdminDetail(detail pgstatus.ProviderConfig
 		ProviderKind:          detail.ProviderKind,
 		Status:                detail.Status,
 		ActiveRevisionID:      detail.ActiveRevisionID,
-		Configuration:         decodeProviderConfiguration(detail.Configuration),
+		Configuration:         decodeProviderConfiguration(a.logger, detail.ProviderConfigID, detail.Configuration),
 		HasSecret:             detail.HasSecret,
 		SecretFingerprint:     detail.SecretFingerprint,
 		SecretKeyID:           detail.SecretKeyID,

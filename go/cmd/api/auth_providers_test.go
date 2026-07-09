@@ -205,6 +205,15 @@ func (r *authProvidersFakeRows) Close() error { return nil }
 // the env active check). Under the fixed env-wins ordering, the DB row is
 // skipped because the id is env-registered, and the env path's own active
 // check then correctly excludes it — env_oidc_1 must be ABSENT.
+//
+// This test also proves the SAML twin of the OIDC dead-button fix: an
+// enabled DB-only external_saml row must NOT be offered as a login option,
+// because the SAML runtime (go/cmd/api/saml_sso.go) resolves providers only
+// from ESHU_SAML_PROVIDERS_JSON — there is no SAML DB resolver yet — so
+// surfacing that button would produce a login that always fails. DB-backed
+// SAML login-runtime wiring is tracked in #4978. An enabled DB-only
+// external_oidc row, by contrast, IS offered because the OIDC DB resolver
+// exists.
 func TestListLoginProvidersEnvProviderWinsOverCollidingDBRow(t *testing.T) {
 	t.Parallel()
 
@@ -213,8 +222,11 @@ func TestListLoginProvidersEnvProviderWinsOverCollidingDBRow(t *testing.T) {
 			// Colliding row: same id as the env-registered OIDC provider
 			// below, and reported "active" by the plain list query.
 			{ProviderConfigID: "env_oidc_1", ProviderKind: "external_oidc"},
-			// Non-colliding DB-only row: must still appear regardless.
-			{ProviderConfigID: "pc_db_only", ProviderKind: "external_saml"},
+			// Non-colliding DB-only SAML row: must be excluded — no SAML DB
+			// login runtime exists yet (#4978).
+			{ProviderConfigID: "pc_db_only_saml", ProviderKind: "external_saml"},
+			// Non-colliding DB-only OIDC row: must still appear regardless.
+			{ProviderConfigID: "pc_db_only_oidc", ProviderKind: "external_oidc"},
 		},
 		// env_oidc_1 deliberately reports NOT active via the env path's own
 		// per-tenant check (map defaults to false for an absent key) — the
@@ -244,8 +256,11 @@ func TestListLoginProvidersEnvProviderWinsOverCollidingDBRow(t *testing.T) {
 	if _, ok := byID["env_oidc_1"]; ok {
 		t.Fatal("env_oidc_1 present in ListLoginProviders() result: the colliding DB row won instead of deferring to the env path's own (failing) active check — env must be authoritative")
 	}
-	if _, ok := byID["pc_db_only"]; !ok {
-		t.Fatal("pc_db_only (non-colliding DB row) missing from ListLoginProviders() result")
+	if _, ok := byID["pc_db_only_saml"]; ok {
+		t.Fatal("pc_db_only_saml present in ListLoginProviders() result: an enabled DB-only external_saml provider must be excluded from login discovery until the SAML login runtime can resolve DB-backed providers (#4978)")
+	}
+	if _, ok := byID["pc_db_only_oidc"]; !ok {
+		t.Fatal("pc_db_only_oidc (non-colliding DB-only external_oidc row) missing from ListLoginProviders() result")
 	}
 
 	// Positive case: when the env path's own active check DOES pass, the
