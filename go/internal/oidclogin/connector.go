@@ -25,9 +25,17 @@ type oidcConnector struct {
 // NewOIDCConnector constructs a connector backed by provider discovery and
 // JWKS verification.
 func NewOIDCConnector(ctx context.Context, provider ProviderConfig) (Connector, error) {
-	clientSecret, err := readClientSecret(provider.ClientSecretFile)
-	if err != nil {
-		return nil, err
+	// A DB-backed provider (#4966) supplies its decrypted secret in-process
+	// via ProviderConfig.ClientSecret rather than a file path; prefer it when
+	// set. Env-file providers never populate ClientSecret, so this is a no-op
+	// for them.
+	clientSecret := strings.TrimSpace(provider.ClientSecret)
+	if clientSecret == "" {
+		var err error
+		clientSecret, err = readClientSecret(provider.ClientSecretFile)
+		if err != nil {
+			return nil, err
+		}
 	}
 	oidcProvider, err := oidc.NewProvider(ctx, provider.IssuerURL)
 	if err != nil {

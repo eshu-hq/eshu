@@ -16,7 +16,7 @@ import (
 func TestNewOIDCLoginHandlerDisabledByDefault(t *testing.T) {
 	t.Parallel()
 
-	handler, err := newOIDCLoginHandler(func(string) string { return "" }, nil, nil)
+	handler, err := newOIDCLoginHandler(func(string) string { return "" }, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("newOIDCLoginHandler() error = %v, want nil", err)
 	}
@@ -25,17 +25,33 @@ func TestNewOIDCLoginHandlerDisabledByDefault(t *testing.T) {
 	}
 }
 
-func TestNewOIDCLoginHandlerEnabledRequiresConfigFile(t *testing.T) {
+// TestNewOIDCLoginHandlerEnabledWithoutConfigFileRequiresDatabase proves
+// ESHU_AUTH_OIDC_ENABLED=true with no env config file is a valid activation
+// path (#4966, epic #4962: DB-only OIDC providers, no config file needed) as
+// long as a database is available — the requirement shifted from "config
+// file" to "database", since DB-backed providers are the only possible
+// provider source in that combination.
+func TestNewOIDCLoginHandlerEnabledWithoutConfigFileRequiresDatabase(t *testing.T) {
 	t.Parallel()
 
-	_, err := newOIDCLoginHandler(func(key string) string {
+	envOnly := func(key string) string {
 		if key == envAuthOIDCEnabled {
 			return "true"
 		}
 		return ""
-	}, nil, nil)
-	if err == nil || !strings.Contains(err.Error(), envAuthOIDCConfigFile) {
-		t.Fatalf("newOIDCLoginHandler() error = %v, want config file requirement", err)
+	}
+
+	_, err := newOIDCLoginHandler(envOnly, nil, nil, nil)
+	if err == nil || !strings.Contains(err.Error(), "postgres") {
+		t.Fatalf("newOIDCLoginHandler() error = %v, want a postgres-required error when enabled with no config file and no db", err)
+	}
+
+	handler, err := newOIDCLoginHandler(envOnly, &sql.DB{}, nil, nil)
+	if err != nil {
+		t.Fatalf("newOIDCLoginHandler() error = %v, want nil when a database is available", err)
+	}
+	if handler == nil || handler.Service == nil {
+		t.Fatalf("newOIDCLoginHandler() = %#v, want a wired DB-only handler", handler)
 	}
 }
 
@@ -50,9 +66,16 @@ func TestNewOIDCLoginHandlerParsesEnabledWithVarBoolSemantics(t *testing.T) {
 		wantNil bool
 	}{
 		{
-			name:    "numeric true requires config",
+			// No config file and no db: numeric "1" still parses as
+			// enabled=true (boolean semantics unchanged), and with no
+			// possible provider source (no config file, no db for DB-backed
+			// providers) newOIDCLoginHandler now fails on the db requirement
+			// rather than the old config-file requirement (#4966, epic
+			// #4962: a config file is no longer strictly required when
+			// enabled).
+			name:    "numeric true with no config and no db requires database",
 			env:     "1",
-			wantErr: envAuthOIDCConfigFile,
+			wantErr: "postgres",
 		},
 		{
 			name:    "numeric false disables mounted config",
@@ -81,7 +104,7 @@ func TestNewOIDCLoginHandlerParsesEnabledWithVarBoolSemantics(t *testing.T) {
 				default:
 					return ""
 				}
-			}, nil, nil)
+			}, nil, nil, nil)
 			if tt.wantErr != "" {
 				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
 					t.Fatalf("newOIDCLoginHandler() error = %v, want %s failure", err, tt.wantErr)
@@ -132,7 +155,7 @@ func TestNewOIDCLoginHandlerLoadsFileBackedConfig(t *testing.T) {
 		default:
 			return ""
 		}
-	}, db, nil)
+	}, db, nil, nil)
 	if err != nil {
 		t.Fatalf("newOIDCLoginHandler() error = %v, want nil", err)
 	}
@@ -167,7 +190,7 @@ func TestNewOIDCLoginHandlerParsesSessionRefreshWindow(t *testing.T) {
 		default:
 			return ""
 		}
-	}, &sql.DB{}, nil)
+	}, &sql.DB{}, nil, nil)
 	if err != nil {
 		t.Fatalf("newOIDCLoginHandler() error = %v, want nil", err)
 	}
@@ -204,7 +227,7 @@ func TestNewOIDCLoginHandlerInvalidSessionRefreshWindowFailsStartup(t *testing.T
 				default:
 					return ""
 				}
-			}, &sql.DB{}, nil)
+			}, &sql.DB{}, nil, nil)
 			if err == nil || !strings.Contains(err.Error(), envAuthOIDCSessionRefreshWindow) {
 				t.Fatalf("newOIDCLoginHandler() error = %v, want refresh window failure", err)
 			}
@@ -235,7 +258,7 @@ func TestNewOIDCLoginHandlerInvalidProviderOverrideFailsStartup(t *testing.T) {
 		default:
 			return ""
 		}
-	}, &sql.DB{}, nil)
+	}, &sql.DB{}, nil, nil)
 	if err == nil || !strings.Contains(err.Error(), "validate oidc login config") {
 		t.Fatalf("newOIDCLoginHandler() error = %v, want invalid provider override", err)
 	}

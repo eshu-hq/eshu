@@ -193,7 +193,33 @@ func wireAPI(
 		}
 		return nil, nil, nil, fmt.Errorf("new router: %w", err)
 	}
-	oidcLoginHandler, err := newOIDCLoginHandler(getenv, db, instruments)
+	// Provider-config secret keyring (#4966, epic #4962). ErrKeyNotConfigured
+	// is non-fatal at boot: a deployment that never creates a DB-backed
+	// provider config with a secret does not need a DEK. Any OTHER error
+	// (malformed key, wrong length) is fatal — a misconfigured DEK must not
+	// silently degrade to "no encryption" for a feature that seals secrets.
+	// See secretcrypto/README.md's "Behavior when unset: FAIL CLOSED" section.
+	// Built before newOIDCLoginHandler because the OIDC login runtime needs it
+	// to open DB-backed provider secrets at token-exchange time.
+	providerSecretKeyring, err := secretcrypto.KeyringFromEnv(getenv)
+	if err != nil && !errors.Is(err, secretcrypto.ErrKeyNotConfigured) {
+		_ = db.Close()
+		if driver != nil {
+			_ = driver.Close(ctx)
+		}
+		return nil, nil, nil, fmt.Errorf("configure provider secret keyring: %w", err)
+	}
+	if errors.Is(err, secretcrypto.ErrKeyNotConfigured) {
+		providerSecretKeyring = nil
+		if logger != nil {
+			logger.Info(
+				"provider config secret encryption key not configured; provider-config secret writes will fail closed until ESHU_AUTH_SECRET_ENC_KEY(_FILE) is set",
+				telemetry.EventAttr("auth.provider_config.keyring_unconfigured"),
+			)
+		}
+	}
+
+	oidcLoginHandler, err := newOIDCLoginHandler(getenv, db, instruments, providerSecretKeyring)
 	if err != nil {
 		_ = db.Close()
 		if driver != nil {
@@ -232,29 +258,6 @@ func wireAPI(
 		Store: newAuthProviderListStore(db, samlHandler, oidcLoginHandler),
 	}
 
-	// Provider-config secret keyring (#4966, epic #4962). ErrKeyNotConfigured
-	// is non-fatal at boot: a deployment that never creates a DB-backed
-	// provider config with a secret does not need a DEK. Any OTHER error
-	// (malformed key, wrong length) is fatal — a misconfigured DEK must not
-	// silently degrade to "no encryption" for a feature that seals secrets.
-	// See secretcrypto/README.md's "Behavior when unset: FAIL CLOSED" section.
-	providerSecretKeyring, err := secretcrypto.KeyringFromEnv(getenv)
-	if err != nil && !errors.Is(err, secretcrypto.ErrKeyNotConfigured) {
-		_ = db.Close()
-		if driver != nil {
-			_ = driver.Close(ctx)
-		}
-		return nil, nil, nil, fmt.Errorf("configure provider secret keyring: %w", err)
-	}
-	if errors.Is(err, secretcrypto.ErrKeyNotConfigured) {
-		providerSecretKeyring = nil
-		if logger != nil {
-			logger.Info(
-				"provider config secret encryption key not configured; provider-config secret writes will fail closed until ESHU_AUTH_SECRET_ENC_KEY(_FILE) is set",
-				telemetry.EventAttr("auth.provider_config.keyring_unconfigured"),
-			)
-		}
-	}
 	providerConfigTester := newProviderConfigConnectionTester(db, providerSecretKeyring)
 	router.AdminProviderConfigReads = newAdminProviderConfigReadHandler(db, oidcLoginHandler, samlHandler)
 	router.AdminProviderConfigMutations = newAdminProviderConfigMutationHandler(db, governanceAudit, providerSecretKeyring, providerConfigTester)

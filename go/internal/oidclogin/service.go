@@ -32,6 +32,11 @@ type Service struct {
 	now              func() time.Time
 	newSecret        func() (string, error)
 	configErr        error
+	// dbProviders resolves a DB-backed provider config (#4966, epic #4962)
+	// when providerConfigID does not match any env-file provider. Optional —
+	// nil means OIDC login serves env-file providers only. Set via
+	// WithDBProviderResolver.
+	dbProviders DBProviderResolver
 }
 
 // NewService constructs an OIDC login service.
@@ -73,7 +78,7 @@ func (s *Service) StartOIDCLogin(
 	ctx context.Context,
 	req query.OIDCLoginStartRequest,
 ) (query.OIDCLoginStartResponse, error) {
-	provider, err := s.provider(req.ProviderConfigID)
+	provider, err := s.provider(ctx, req.ProviderConfigID, req.TenantID, req.WorkspaceID)
 	if err != nil {
 		return query.OIDCLoginStartResponse{}, err
 	}
@@ -136,7 +141,7 @@ func (s *Service) CompleteOIDCLogin(
 	if !ok {
 		return query.OIDCLoginCompleteResponse{}, query.ErrOIDCLoginDenied
 	}
-	provider, err := s.provider(record.ProviderConfigID)
+	provider, err := s.provider(ctx, record.ProviderConfigID, record.TenantID, record.WorkspaceID)
 	if err != nil {
 		return query.OIDCLoginCompleteResponse{}, err
 	}
@@ -200,7 +205,18 @@ func (s *Service) CompleteOIDCLogin(
 	}, nil
 }
 
-func (s *Service) provider(providerConfigID string) (ProviderConfig, error) {
+// provider resolves a provider_config_id to its full ProviderConfig,
+// preferring the env-file provider set (unchanged, tenant-agnostic lookup by
+// id) and falling back to a DB-backed provider (#4966, epic #4962) via
+// dbProviders when the id is not found there. Env config always wins on a
+// ambiguous/colliding id — the DB fallback only runs when no env provider
+// matched — matching the same env-authoritative precedence enforced at the
+// pre-auth discovery list (see cmd/api/auth_providers.go's
+// ListLoginProviders doc comment) and the admin read surface's
+// shadowed_by_environment derivation. The DB fallback requires a non-empty
+// tenantID (DB rows are tenant-scoped) and is a no-op when dbProviders is nil
+// (env-only deployment).
+func (s *Service) provider(ctx context.Context, providerConfigID, tenantID, workspaceID string) (ProviderConfig, error) {
 	if err := s.ready(); err != nil {
 		return ProviderConfig{}, err
 	}
@@ -211,6 +227,16 @@ func (s *Service) provider(providerConfigID string) (ProviderConfig, error) {
 	for _, provider := range s.config.Providers {
 		if provider.ProviderConfigID == providerConfigID {
 			return provider, nil
+		}
+	}
+	tenantID = strings.TrimSpace(tenantID)
+	if s.dbProviders != nil && providerConfigID != "" && tenantID != "" {
+		dbProvider, found, err := s.dbProviders.ResolveProvider(ctx, providerConfigID, tenantID, strings.TrimSpace(workspaceID))
+		if err != nil {
+			return ProviderConfig{}, fmt.Errorf("%w: resolve db provider", query.ErrOIDCLoginUnavailable)
+		}
+		if found {
+			return dbProvider, nil
 		}
 	}
 	return ProviderConfig{}, query.ErrOIDCLoginInvalidRequest
@@ -273,8 +299,17 @@ func normalizeConfig(config Config) (Config, error) {
 		seen[normalized.ProviderConfigID] = struct{}{}
 		providers = append(providers, normalized)
 	}
+	// Zero env-file providers is valid: OIDC login can run purely on
+	// DB-backed provider configs resolved at request time via
+	// Service.dbProviders (see WithDBProviderResolver and provider()) — a
+	// deployment need not maintain an env config file at all once #4966
+	// provider-config CRUD is in use. A caller with neither env-file nor
+	// DB-backed providers configured simply has no usable provider, which
+	// surfaces as ErrOIDCLoginInvalidRequest at request time, not here.
 	if len(providers) == 0 {
-		return Config{}, errors.New("at least one provider is required")
+		config.Providers = providers
+		config.DefaultProviderID = ""
+		return config, nil
 	}
 	if config.DefaultProviderID == "" {
 		config.DefaultProviderID = providers[0].ProviderConfigID

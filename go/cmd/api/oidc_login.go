@@ -15,6 +15,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/oidclogin"
 	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/secretcrypto"
 	pgstatus "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -67,6 +68,7 @@ func newOIDCLoginHandler(
 	getenv func(string) string,
 	db *sql.DB,
 	instruments *telemetry.Instruments,
+	providerSecretKeyring *secretcrypto.Keyring,
 ) (*query.OIDCLoginHandler, error) {
 	enabled := false
 	if rawEnabled := strings.TrimSpace(getenv(envAuthOIDCEnabled)); rawEnabled != "" {
@@ -80,19 +82,27 @@ func newOIDCLoginHandler(
 		enabled = true
 	}
 	configPath := strings.TrimSpace(getenv(envAuthOIDCConfigFile))
-	if configPath == "" {
-		if enabled {
-			return nil, fmt.Errorf("%s is required when %s=true", envAuthOIDCConfigFile, envAuthOIDCEnabled)
-		}
+	// OIDC login activates when either an env config file is present (as
+	// before) or ESHU_AUTH_OIDC_ENABLED=true is set explicitly (#4966, epic
+	// #4962: this is now valid even with no config file, for a deployment
+	// that registers OIDC providers only through the DB-backed CRUD API).
+	// Previously an empty configPath with enabled=true was a hard error;
+	// that combination is now the DB-only activation path.
+	if configPath == "" && !enabled {
 		return nil, nil
 	}
 	if db == nil {
 		return nil, fmt.Errorf("postgres is required for oidc login")
 	}
 
-	config, staticResolver, err := oidclogin.LoadConfigFile(configPath)
-	if err != nil {
-		return nil, err
+	var config oidclogin.Config
+	var staticResolver oidclogin.GrantResolver = oidclogin.StaticGrantResolver{}
+	if configPath != "" {
+		loaded, resolver, err := oidclogin.LoadConfigFile(configPath)
+		if err != nil {
+			return nil, err
+		}
+		config, staticResolver = loaded, resolver
 	}
 	if providerID := strings.TrimSpace(getenv(envAuthOIDCProviderID)); providerID != "" {
 		config.DefaultProviderID = providerID
@@ -122,11 +132,16 @@ func newOIDCLoginHandler(
 	config = normalized
 
 	store := newPostgresOIDCStoreAdapter(db, instruments)
+	var serviceOptions []oidclogin.Option
+	if resolver := newOIDCDBProviderResolver(db, providerSecretKeyring); resolver != nil {
+		serviceOptions = append(serviceOptions, oidclogin.WithDBProviderResolver(resolver))
+	}
 	service := oidclogin.NewService(
 		config,
 		store,
 		fallbackOIDCGrantResolver{primary: store, fallback: staticResolver},
 		oidclogin.NewOIDCConnector,
+		serviceOptions...,
 	)
 	cookieSecureMode, err := query.ValidateCookieSecureMode(getenv(query.CookieSecureModeEnv))
 	if err != nil {
