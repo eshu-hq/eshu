@@ -38,3 +38,100 @@
   color: var(--muted);
   white-space: nowrap;
 }
+
+/* Identity & Access (#4967): spans the full grid row so the providers table
+   and drawer forms have room to breathe next to the narrower single-concern
+   panels. The tab strip itself reuses the global .seg segmented-control
+   primitive (styles.css) — the same one VulnerabilitiesPage.tsx uses for its
+   Reachable/Catalog tabs — so only the panel's own spacing is added here. */
+.identity-access-panel {
+  grid-column: 1 / -1;
+}
+
+.identity-access-tab-panel {
+  margin-top: 14px;
+}
+
+/* Provider Add/Edit drawer form fields (ProviderConfigDrawer /
+   OidcProviderFields / SamlProviderFields). */
+.provider-form-fields {
+  display: grid;
+  gap: 12px;
+}
+
+.provider-field {
+  display: grid;
+  gap: 4px;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.provider-field input,
+.provider-field textarea {
+  font: inherit;
+  color: var(--bone);
+  background: var(--bg-raised);
+  border: 1px solid var(--line-2);
+  border-radius: 6px;
+  padding: 7px 10px;
+  resize: vertical;
+}
+
+.provider-field input:focus,
+.provider-field textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.provider-field small {
+  color: var(--subtle);
+  font-size: 0.72rem;
+}
+
+.provider-field-readonly input {
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 0.78rem;
+}
+
+/* Read-only endpoint fields (redirect URI / SP entity id / ACS URL) pair the
+   input with a Copy button (CopyField.tsx), mirroring ArtifactCard's copy
+   affordance elsewhere in the console. */
+.field-copy-row {
+  display: flex;
+  gap: 6px;
+  align-items: stretch;
+}
+
+.field-copy-row input {
+  flex: 1;
+  min-width: 0;
+}
+
+.field-copy-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+.provider-section-gap {
+  margin-top: 4px;
+}
+
+.provider-field-hint {
+  margin-top: -4px;
+}
+
+.provider-test-result {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* The OIDC/SAML kind toggle reuses .seg too (styles.css); it only needs
+   bottom spacing before the field group starts. */
+.seg[aria-label="Provider kind"] {
+  margin-bottom: 4px;
+}
