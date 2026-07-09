@@ -241,6 +241,20 @@ func wireAPI(
 		}
 	}
 
+	// First-run setup wizard (#4965). Reuses providerSecretKeyring — the same
+	// ESHU_AUTH_SECRET_ENC_KEY(_FILE) material seed_initial_admin.go sealed
+	// the bootstrap credential envelope with — so a nil keyring here (DEK
+	// unconfigured) is not fatal; VerifyBootstrapCredential fails closed.
+	bootstrapMode, err := loadAuthBootstrapMode(getenv)
+	if err != nil {
+		_ = db.Close()
+		if driver != nil {
+			_ = driver.Close(ctx)
+		}
+		return nil, nil, nil, fmt.Errorf("configure setup wizard: %w", err)
+	}
+	router.Setup = newSetupHandler(db, providerSecretKeyring, instruments, governanceAudit, cookieSecureMode, bootstrapMode)
+
 	oidcLoginHandler, err := newOIDCLoginHandler(getenv, db, instruments, providerSecretKeyring)
 	if err != nil {
 		_ = db.Close()

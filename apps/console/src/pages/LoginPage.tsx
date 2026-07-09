@@ -18,6 +18,7 @@ import {
 import type { AuthLoginProvider, InsecureCookieOrigin } from "../api/authSession";
 import type { BrowserSessionResponse } from "../api/client";
 import type { EshuApiClient } from "../api/client";
+import "./authFlow.css";
 
 export interface LoginPageProps {
   readonly client: EshuApiClient;

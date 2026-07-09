@@ -1,0 +1,213 @@
+/* ============================================================ Auth flow
+   Shared styling for the local-login screen (LoginPage.tsx) and the
+   first-run setup wizard (SetupPage.tsx, #4965). Both reuse the console's
+   existing graphite / bone / teal / ember token system defined in
+   styles.css's :root — no new colors, fonts, or radii are introduced here,
+   so the wizard reads as the same product as the rest of the console. */
+
+.login-page {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+}
+
+.login-card {
+  width: 100%;
+  max-width: 400px;
+  background: linear-gradient(180deg, var(--bg-panel), color-mix(in oklab, var(--bg-panel) 80%, var(--bg)));
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 32px 30px;
+}
+
+.setup-card { max-width: 440px; }
+
+.login-brand { display: flex; align-items: center; gap: 11px; margin-bottom: 22px; }
+
+.login-title { font-size: 1.3rem; margin: 0 0 4px; }
+.login-subtitle { color: var(--muted); font-size: 0.85rem; margin: 0 0 22px; line-height: 1.5; }
+
+.login-error,
+.login-insecure-origin-warning {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  background: color-mix(in oklab, var(--crit) 12%, var(--bg-2));
+  border: 1px solid color-mix(in oklab, var(--crit) 35%, var(--line));
+  color: var(--bone-dim);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  margin-bottom: 16px;
+}
+.login-error svg,
+.login-insecure-origin-warning svg { flex: none; margin-top: 1px; color: var(--crit); }
+.login-insecure-origin-warning {
+  background: color-mix(in oklab, var(--ember) 10%, var(--bg-2));
+  border-color: color-mix(in oklab, var(--ember) 30%, var(--line));
+}
+.login-insecure-origin-warning svg { color: var(--ember); }
+
+.login-form { display: grid; gap: 14px; }
+.login-field { display: grid; gap: 6px; }
+.login-field label { font-size: 0.78rem; font-weight: 650; color: var(--bone-dim); }
+.login-field input {
+  background: var(--bg-field);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 9px 11px;
+  color: var(--bone);
+  font-size: 0.92rem;
+  font-family: var(--font);
+  width: 100%;
+}
+.login-field input:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.login-field input[readonly] { color: var(--muted); }
+.login-field-hint { color: var(--subtle); font-size: 0.72rem; }
+
+.btn-primary {
+  background: linear-gradient(135deg, var(--deep-teal), var(--teal));
+  color: #06110f;
+  font-weight: 700;
+  font-size: 0.92rem;
+  border-radius: var(--radius-sm);
+  padding: 10px 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: filter 0.12s, transform 0.05s;
+}
+.btn-primary:hover:not(:disabled) { filter: brightness(1.08); }
+.btn-primary:active:not(:disabled) { transform: translateY(1px); }
+.btn-primary:disabled { opacity: 0.55; cursor: not-allowed; }
+.btn-primary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.btn-secondary {
+  background: var(--bg-raised);
+  border: 1px solid var(--line-2);
+  color: var(--bone);
+  font-weight: 650;
+  font-size: 0.88rem;
+  border-radius: var(--radius-sm);
+  padding: 9px 15px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+.btn-secondary:hover:not(:disabled) { border-color: var(--accent); }
+.btn-secondary:disabled { opacity: 0.55; cursor: not-allowed; }
+.btn-secondary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.login-submit { width: 100%; margin-top: 4px; }
+
+.login-sso { margin-top: 20px; display: grid; gap: 9px; }
+.login-sso-divider {
+  text-align: center;
+  color: var(--subtle);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  position: relative;
+}
+.login-sso-divider::before,
+.login-sso-divider::after { content: ""; position: absolute; top: 50%; width: 38%; height: 1px; background: var(--line); }
+.login-sso-divider::before { left: 0; }
+.login-sso-divider::after { right: 0; }
+.login-sso-btn { width: 100%; }
+
+/* ------------------------------------------------------ setup wizard */
+.setup-stepper {
+  display: flex;
+  align-items: flex-start;
+  list-style: none;
+  margin: 0 0 26px;
+  padding: 0;
+}
+.setup-step {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: center;
+  text-align: center;
+  color: var(--subtle);
+  font-size: 0.7rem;
+  font-weight: 650;
+  position: relative;
+}
+.setup-step:not(:first-child)::before {
+  content: "";
+  position: absolute;
+  top: 13px;
+  right: 50%;
+  width: 100%;
+  height: 1px;
+  background: var(--line-2);
+  z-index: 0;
+}
+.setup-step[data-state="done"]:not(:first-child)::before { background: var(--teal); }
+.setup-step-dot {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--bg-field);
+  border: 1px solid var(--line-2);
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 0.76rem;
+  font-weight: 700;
+  position: relative;
+  z-index: 1;
+}
+.setup-step[data-state="current"] .setup-step-dot { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+.setup-step[data-state="current"] { color: var(--bone); }
+.setup-step[data-state="done"] .setup-step-dot { background: var(--teal); border-color: var(--teal); color: #06110f; }
+.setup-step[data-state="done"] { color: var(--bone-dim); }
+
+.setup-hint {
+  background: color-mix(in oklab, var(--teal) 8%, var(--bg-2));
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  font-size: 0.8rem;
+  color: var(--bone-dim);
+  line-height: 1.5;
+  margin-bottom: 18px;
+}
+
+.setup-recovery-codes {
+  list-style: none;
+  margin: 0 0 16px;
+  padding: 14px;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  background: var(--bg-field);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+.setup-recovery-codes li { font-family: var(--mono); font-size: 0.86rem; color: var(--bone); letter-spacing: 0.01em; }
+
+.setup-recovery-actions { display: flex; gap: 9px; margin-bottom: 18px; }
+
+.setup-confirm {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin-bottom: 18px;
+  font-size: 0.82rem;
+  color: var(--bone-dim);
+  line-height: 1.45;
+}
+.setup-confirm input[type="checkbox"] { margin-top: 3px; width: 16px; height: 16px; accent-color: var(--teal); flex: none; }

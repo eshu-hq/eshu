@@ -186,6 +186,7 @@ type APIRouter struct {
 	AdminDeadLetters             *AdminDeadLetterListHandler
 	Admin                        *AdminHandler
 	Ask                          *AskHandler
+	Setup                        *SetupHandler
 	LocalIdentity                *LocalIdentityHandler
 	BrowserSessions              *BrowserSessionHandler
 	SessionList                  *BrowserSessionListHandler
@@ -210,6 +211,12 @@ func (a *APIRouter) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v0/openapi.json", ServeOpenAPI)
 	mux.HandleFunc("GET /api/v0/docs", ServeSwaggerUI)
 	mux.HandleFunc("GET /api/v0/redoc", ServeReDoc)
+
+	// First-run setup wizard (#4965). Mounted before LocalIdentity so the
+	// route table's precedence reads the same as the login-vs-setup story.
+	if a.Setup != nil {
+		a.Setup.Mount(mux)
+	}
 
 	// Browser sessions
 	if a.LocalIdentity != nil {

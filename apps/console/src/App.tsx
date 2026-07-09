@@ -26,7 +26,7 @@ import type { ConsoleModel } from "./console/types";
 import { NAV_GROUPS, NAV_ITEMS, type NavItem } from "./i18n/navigation";
 import { ConsoleI18nProvider, FormattedMessage, useConsoleIntl } from "./i18n/provider";
 import { formatRepositoryCount, shellMessageDescriptors } from "./i18n/shellMessages";
-import { LoginPage } from "./pages/LoginPage";
+import { AuthGate } from "./pages/AuthGate";
 import "./styles.css";
 import "./appShell.css";
 
@@ -429,7 +429,7 @@ function AppShell(): React.JSX.Element {
           </div>
         ) : null}
         {showLogin ? (
-          <LoginPage
+          <AuthGate
             client={new EshuApiClient({ baseUrl: source.base })}
             onSuccess={handleLoginSuccess}
             baseUrl={source.base}
