@@ -93,6 +93,18 @@ or deployed service. Existing diagnostics remain the `go test` suite and
 CI-gate selection output; `ifa coverage`'s JSON report and stdout summary are
 the P1 operator-facing artifacts.
 
+No-Observability-Change: P3's `MutateCassette` (`mutate.go`) and
+`DeadLetterRecord`/`SortDeadLetterRecords`/`DeadLetterSetsEqual`
+(`dead_letters.go`) also add no runtime path, worker, queue, or graph write.
+`MutateCassette` is a pure in-memory cassette transform (JSON in, JSON out,
+no I/O of its own — the CLI wrapper does the disk I/O). The dead-letter
+helpers are pure Go values and a comparator; the one Postgres `SELECT` this
+slice adds lives in `cmd/ifa/dead_letters.go`, a diagnostic CLI read path, not
+a deployed service — see that command's own README "Telemetry" section.
+Existing diagnostics remain the `go test` suite (including
+`scripts/verify-ifa-dead-letter-determinism.sh`'s docker-backed proof) and the
+`ifa mutate-cassette`/`ifa dead-letters` command output.
+
 ## Gotchas / Invariants
 
 - The canonical form is produced by `replay.CanonicalizeValue`, not by a new Ifá
