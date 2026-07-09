@@ -1066,6 +1066,10 @@ gates:
       - "go/cmd/ifa/**"
       - "docs/internal/design/4389-ifa-conformance-platform.md"
       - "specs/ci-gates.v1.yaml"
+      - "specs/ifa-coverage-manifest.v1.yaml"
+      - "specs/fact-kind-registry.v1.yaml"
+      - "specs/replay-coverage-manifest.v1.yaml"
+      - "testdata/golden/e2e-20repo-snapshot.json"
     local:
       command: "cd go && go test ./internal/ifa ./cmd/ifa -count=1"
       test_command: "cd go && go test ./internal/ifa ./cmd/ifa -count=1"
