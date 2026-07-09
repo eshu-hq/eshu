@@ -19,6 +19,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/discovery"
 	"github.com/eshu-hq/eshu/go/internal/content/shape"
 	"github.com/eshu-hq/eshu/go/internal/parser"
+	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 )
 
 type parseFileJob struct {
@@ -352,6 +353,31 @@ func (s NativeRepositorySnapshotter) parseRepositoryFile(
 		return parseResult{index: job.index, skipped: true}
 	}
 
+	// Read the file body exactly once upfront. The same bytes are handed to
+	// shared.PrimeSource (so the parser's internal readSource cache hit
+	// reuses them without a second physical disk read during ParsePath) and
+	// to shapeFileFromParsed for the content snapshot. This eliminates the
+	// 2N→N physical-read amplification for the N-file parse+shape path
+	// (#4851). The refcount contract (PrimeSource first-writer-wins +
+	// ClearSource releases at refs≤0) makes this safe for concurrent parse
+	// workers on distinct paths.
+	body, bodyErr := os.ReadFile(job.path)
+	if bodyErr != nil {
+		s.recordParseFileStatus(ctx, "skipped")
+		return parseResult{index: job.index, skipped: true}
+	}
+
+	// Prime the parser's shared single-read cache with the caller's bytes so
+	// ParsePath's internal readSource (which delegates to shared.ReadSource)
+	// returns them without a physical disk read. Resolve the absolute path
+	// to match ParsePath's own filepath.Abs call so the cache key matches.
+	// On failure (job.path is already absolute so this is defensive),
+	// fall back to plain ParsePath without priming.
+	if absPath, absErr := filepath.Abs(job.path); absErr == nil {
+		shared.PrimeSource(absPath, body)
+		defer shared.ClearSource(absPath)
+	}
+
 	startTime := time.Now()
 	parsed, err := engine.ParsePath(
 		repoPath,
@@ -366,12 +392,6 @@ func (s NativeRepositorySnapshotter) parseRepositoryFile(
 	}
 	if scipPayload, ok := scipFiles[job.path]; ok {
 		mergeSCIPSupplement(parsed, scipPayload)
-	}
-
-	body, err := os.ReadFile(job.path)
-	if err != nil {
-		s.recordParseFileStatus(ctx, "skipped")
-		return parseResult{index: job.index, skipped: true}
 	}
 
 	relativePath, err := filepath.Rel(repoPath, job.path)
