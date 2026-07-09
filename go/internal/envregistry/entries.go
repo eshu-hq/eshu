@@ -75,6 +75,11 @@ var coreEntries = []Entry{
 	{Name: "ESHU_API_V0_SUNSET_DATE", Type: VarString, Default: "Thu, 01 Jul 2027 00:00:00 GMT", Subsystem: "api", Description: "RFC 1123 GMT date after which /api/v0/ routes may be removed. Passed through as-is in the Sunset response header on every /api/v0/ response."},
 	{Name: "ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_READ", Type: VarBool, Default: "false", Subsystem: "api", Description: "When true, serve GET /api/v0/supply-chain/impact/findings from the maintained canonical winners read model (#3389) instead of read-time dedup (bounded O(page)). Honored by both the API and MCP server; enable only after the reducer maintainer has populated the winners table. Output is byte-identical."},
 
+	// auth
+	{Name: "ESHU_AUTH_SECRET_ENC_KEY", Type: VarString, Subsystem: "auth", Description: "Base64-encoded 32-byte primary data-encryption key (DEK) for sealing reversible identity secrets (one-time admin bootstrap credential, provider write-only secrets) with AES-256-GCM. Superseded by ESHU_AUTH_SECRET_ENC_KEY_FILE when both are set. Never auto-generated: an ephemeral DEK would make every previously sealed envelope permanently undecryptable after a restart (epic #4962)."},
+	{Name: "ESHU_AUTH_SECRET_ENC_KEY_FILE", Type: VarString, Subsystem: "auth", Description: "Path to a file holding the base64-encoded 32-byte primary DEK; takes precedence over ESHU_AUTH_SECRET_ENC_KEY when both are set (epic #4962)."},
+	{Name: "ESHU_AUTH_SECRET_ENC_KEY_ID", Type: VarString, Subsystem: "auth", Description: "Optional label for the primary DEK's key id, embedded in every envelope it seals for rotation bookkeeping. Defaults to the first 8 hex characters of SHA-256(key) when unset (epic #4962)."},
+
 	// mcp
 	{Name: "ESHU_MCP_TRANSPORT", Type: VarEnum, Default: "http", Subsystem: "mcp", Allowed: []string{"http", "stdio"}, Description: "MCP server transport mode."},
 	{Name: "ESHU_MCP_ADDR", Type: VarString, Default: ":8080", Subsystem: "mcp", Description: "MCP HTTP transport listen address."},
