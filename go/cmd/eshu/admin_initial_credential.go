@@ -152,9 +152,9 @@ func runAdminResetInitialCredential(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return fmt.Errorf("seal replacement credential: %w", err)
 	}
-	keyID, err := envelopeKeyIDCLI(sealed)
-	if err != nil {
-		return fmt.Errorf("resolve sealed credential key id: %w", err)
+	keyID := secretcrypto.EnvelopeKeyID(sealed)
+	if keyID == "" {
+		return fmt.Errorf("resolve sealed credential key id: malformed sealed envelope")
 	}
 
 	now := time.Now().UTC()
@@ -258,14 +258,4 @@ func generateSecret(n int) (string, error) {
 func localCredentialHash(value string) string {
 	sum := sha256.Sum256([]byte(value))
 	return "sha256:" + hex.EncodeToString(sum[:])
-}
-
-// envelopeKeyIDCLI extracts the key_id field secretcrypto.Keyring.Seal
-// embedded in a sealed ESK1 envelope ("ESK1.<key_id>.<nonce>.<ciphertext>").
-func envelopeKeyIDCLI(sealed string) (string, error) {
-	parts := strings.SplitN(sealed, ".", 4)
-	if len(parts) != 4 || parts[1] == "" {
-		return "", errors.New("malformed sealed envelope")
-	}
-	return parts[1], nil
 }

@@ -178,10 +178,7 @@ func TestKeyringFromEnvDefaultKeyIDIsFingerprint(t *testing.T) {
 	sum := sha256.Sum256(key)
 	wantID := hex.EncodeToString(sum[:])[:8]
 
-	gotID, err := envelopeKeyID(envelope)
-	if err != nil {
-		t.Fatalf("envelopeKeyID: %v", err)
-	}
+	gotID := secretcrypto.EnvelopeKeyID(envelope)
 	if gotID != wantID {
 		t.Fatalf("default key id = %q, want SHA-256 fingerprint prefix %q", gotID, wantID)
 	}
@@ -203,10 +200,7 @@ func TestKeyringFromEnvUsesExplicitKeyID(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Seal: %v", err)
 	}
-	gotID, err := envelopeKeyID(envelope)
-	if err != nil {
-		t.Fatalf("envelopeKeyID: %v", err)
-	}
+	gotID := secretcrypto.EnvelopeKeyID(envelope)
 	if gotID != "prod-dek-2026" {
 		t.Fatalf("key id = %q, want prod-dek-2026", gotID)
 	}

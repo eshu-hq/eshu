@@ -246,9 +246,9 @@ func seedBootstrapAdminGenerated(
 	if err != nil {
 		return "error", fmt.Errorf("seal bootstrap credential: %w", err)
 	}
-	keyID, err := envelopeKeyID(sealed)
-	if err != nil {
-		return "error", fmt.Errorf("resolve sealed bootstrap credential key id: %w", err)
+	keyID := secretcrypto.EnvelopeKeyID(sealed)
+	if keyID == "" {
+		return "error", fmt.Errorf("resolve sealed bootstrap credential key id: malformed sealed envelope")
 	}
 
 	inserted, err := store.GenerateBootstrapAdminWithCredential(ctx, record, pgstorage.BootstrapCredentialSeal{

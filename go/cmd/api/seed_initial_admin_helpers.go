@@ -124,18 +124,6 @@ func newBootstrapID() string {
 	return "id_" + hex.EncodeToString(buf[:])
 }
 
-// envelopeKeyID extracts the key_id field secretcrypto.Keyring.Seal embedded
-// in a sealed ESK1 envelope (format "ESK1.<key_id>.<nonce>.<ciphertext>"), so
-// GenerateBootstrapCredential's key_id column always matches the envelope
-// without this package re-deriving secretcrypto's private fingerprint rule.
-func envelopeKeyID(sealed string) (string, error) {
-	parts := strings.SplitN(sealed, ".", 4)
-	if len(parts) != 4 || parts[1] == "" {
-		return "", fmt.Errorf("malformed sealed envelope")
-	}
-	return parts[1], nil
-}
-
 // recordAuthSecretSealResult records one eshu_dp_auth_secret_seal_total
 // observation for the bootstrap-credential operation. It never attaches
 // plaintext, ciphertext, or key material — only the bounded operation name

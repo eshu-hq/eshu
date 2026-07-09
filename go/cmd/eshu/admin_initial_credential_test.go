@@ -21,19 +21,6 @@ import (
 	pgstorage "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
-func TestEnvelopeKeyIDCLI(t *testing.T) {
-	got, err := envelopeKeyIDCLI("ESK1.abcd1234.nonce-b64.ciphertext-b64")
-	if err != nil {
-		t.Fatalf("envelopeKeyIDCLI() error = %v", err)
-	}
-	if got != "abcd1234" {
-		t.Fatalf("envelopeKeyIDCLI() = %q, want %q", got, "abcd1234")
-	}
-	if _, err := envelopeKeyIDCLI("not-an-envelope"); err == nil {
-		t.Fatal("envelopeKeyIDCLI() error = nil, want error for malformed envelope")
-	}
-}
-
 func TestGenerateSecretIsRandomAndSized(t *testing.T) {
 	a, err := generateSecret(24)
 	if err != nil {
@@ -152,9 +139,9 @@ func TestAdminInitialCredentialAndResetRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Seal() error = %v", err)
 	}
-	keyID, err := envelopeKeyIDCLI(sealed)
-	if err != nil {
-		t.Fatalf("envelopeKeyIDCLI() error = %v", err)
+	keyID := secretcrypto.EnvelopeKeyID(sealed)
+	if keyID == "" {
+		t.Fatalf("EnvelopeKeyID() returned empty for a freshly sealed envelope: %q", sealed)
 	}
 	inserted, err := store.GenerateBootstrapCredential(ctx, pgstorage.BootstrapCredentialSeal{
 		TenantID:         pgstorage.BootstrapAdminTenantID,
@@ -208,9 +195,9 @@ func TestAdminInitialCredentialAndResetRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Seal() error = %v", err)
 	}
-	newKeyID, err := envelopeKeyIDCLI(newSealed)
-	if err != nil {
-		t.Fatalf("envelopeKeyIDCLI() error = %v", err)
+	newKeyID := secretcrypto.EnvelopeKeyID(newSealed)
+	if newKeyID == "" {
+		t.Fatalf("EnvelopeKeyID() returned empty for a freshly sealed envelope: %q", newSealed)
 	}
 	if err := store.ResetBootstrapCredential(ctx, pgstorage.ResetBootstrapCredentialInput{
 		TenantID:               pgstorage.BootstrapAdminTenantID,

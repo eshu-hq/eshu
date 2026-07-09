@@ -245,3 +245,48 @@ func TestNewKeyringFailsClosed(t *testing.T) {
 		})
 	}
 }
+
+// TestEnvelopeKeyIDExtractsFromASealedEnvelope proves EnvelopeKeyID reads
+// back the same key id Seal embedded, without decrypting anything (no aad,
+// no keyring lookup needed to call it).
+func TestEnvelopeKeyIDExtractsFromASealedEnvelope(t *testing.T) {
+	kr := mustKeyring(t, "prod-dek-2026", map[secretcrypto.KeyID][]byte{"prod-dek-2026": testKey(t, 1)})
+	envelope, err := kr.Seal([]byte("payload"), nil)
+	if err != nil {
+		t.Fatalf("Seal: %v", err)
+	}
+	if got := secretcrypto.EnvelopeKeyID(envelope); got != "prod-dek-2026" {
+		t.Fatalf("EnvelopeKeyID() = %q, want %q", got, "prod-dek-2026")
+	}
+}
+
+// TestEnvelopeKeyIDReturnsEmptyForMalformedInput proves EnvelopeKeyID fails
+// closed to "" (never a panic or a guess) on input that never came from a
+// real Seal call: wrong field count or a missing key id field.
+func TestEnvelopeKeyIDReturnsEmptyForMalformedInput(t *testing.T) {
+	cases := map[string]string{
+		"not_an_envelope":       "not-an-envelope",
+		"too_few_fields":        "ESK1.key-a.nonce-b64",
+		"empty_key_id":          "ESK1..nonce-b64.ciphertext-b64",
+		"empty_string":          "",
+		"only_scheme_tag":       "ESK1",
+		"extra_dot_in_field_ok": "ESK1.key-a.nonce-b64.cipher.text.with.dots",
+	}
+	for name, envelope := range cases {
+		t.Run(name, func(t *testing.T) {
+			got := secretcrypto.EnvelopeKeyID(envelope)
+			if name == "extra_dot_in_field_ok" {
+				// SplitN(sealed, ".", 4) folds any extra dots into the final
+				// field, matching Open's own parseEnvelope behavior for the
+				// ciphertext field — this is not malformed input.
+				if got != "key-a" {
+					t.Fatalf("EnvelopeKeyID(%q) = %q, want %q", envelope, got, "key-a")
+				}
+				return
+			}
+			if got != "" {
+				t.Fatalf("EnvelopeKeyID(%q) = %q, want \"\"", envelope, got)
+			}
+		})
+	}
+}

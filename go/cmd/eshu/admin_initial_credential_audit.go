@@ -28,8 +28,8 @@ import (
 // governanceaudit package's own bounded, lowercase snake_case, <=64-char
 // format (governanceaudit.NormalizeEvent's validReasonCode).
 const (
-	bootstrapCredentialAuditReasonRetrieved = "bootstrap_credential_retrieved"
-	bootstrapCredentialAuditReasonReset     = "bootstrap_credential_reset"
+	bootstrapCredentialAuditReasonRetrieved = "bootstrap_credential_retrieved" // #nosec G101 -- audit reason-code label, not a credential value
+	bootstrapCredentialAuditReasonReset     = "bootstrap_credential_reset"     // #nosec G101 -- audit reason-code label, not a credential value
 )
 
 // governanceAuditAppender is the minimal Append contract this CLI needs. It
