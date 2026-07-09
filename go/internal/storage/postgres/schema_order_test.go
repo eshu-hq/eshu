@@ -70,4 +70,5 @@ var orderedBootstrapDefinitionNames = []string{
 	"projected_source_edge",
 	"drop_graph_projection_phase_state_lookup_idx",
 	"drop_fact_records_stable_key_idx",
+	"provider_config_sealed_secret",
 }

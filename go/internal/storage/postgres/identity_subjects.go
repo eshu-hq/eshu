@@ -7,6 +7,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
+	"github.com/eshu-hq/eshu/go/internal/secretcrypto"
 )
 
 const identitySubjectSchemaSQL = `
@@ -358,11 +360,27 @@ CREATE INDEX IF NOT EXISTS identity_token_metadata_active_idx
 // writes for the user-management rollout.
 type IdentitySubjectStore struct {
 	db ExecQueryer
+	// providerSecretKeyring seals provider-config write-only secrets (#4966).
+	// It is nil when no DEK is configured (ESHU_AUTH_SECRET_ENC_KEY(_FILE)
+	// unset); provider-config writes that carry a secret fail closed in that
+	// case (see identity_provider_config_writes.go). This store never calls
+	// (*secretcrypto.Keyring).Open — only Seal. Open is confined to
+	// login/authn packages (oidclogin, samlauth), never this storage package.
+	providerSecretKeyring *secretcrypto.Keyring
 }
 
 // NewIdentitySubjectStore constructs a Postgres identity subject store.
 func NewIdentitySubjectStore(db ExecQueryer) *IdentitySubjectStore {
 	return &IdentitySubjectStore{db: db}
+}
+
+// SetProviderSecretKeyring wires the keyring used to seal provider-config
+// write-only secrets (#4966). It is a separate setter rather than a
+// constructor parameter so every existing NewIdentitySubjectStore call site
+// is unaffected; callers that never write a provider-config secret (or run
+// without a configured DEK) may leave it unset.
+func (s *IdentitySubjectStore) SetProviderSecretKeyring(k *secretcrypto.Keyring) {
+	s.providerSecretKeyring = k
 }
 
 // IdentitySubjectSchemaSQL returns the additive identity subject DDL.
