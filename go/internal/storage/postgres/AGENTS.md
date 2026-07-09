@@ -680,3 +680,53 @@ route, worker, queue domain, lease, graph write, or runtime knob changes. The
 `fact_records` upsert is still covered by the existing `InstrumentedDB` Postgres
 query spans and `eshu_dp_postgres_query_duration_seconds`. Changed-since and all
 reads are unaffected (they use `fact_records_scope_generation_idx`).
+
+## #4862 — Keep content pg_trgm GIN indexes (drop disproven)
+
+A proposal to drop the two `pg_trgm` GIN indexes on `content_files.content`
+and `content_entities.source_cache` was audited against a live 838-repo Postgres
+stack and disproven. Both indexes are actively used by the all-repo / code-topic
+search read path: `investigateCodeTopic` (`content_reader_code_topic.go`) and
+the `SearchFileContentAnyRepo` / `SearchEntityContentAnyRepo` content readers.
+Repo-scoped searches do not use these GINs (the selective `repo_id` equality
+wins), so the all-repo `ILIKE '%term%'` reads are the only load-bearing consumers.
+
+### Performance Evidence
+
+Live audit on a drained `e2e3586persist` stack (Postgres 18-alpine, 838 repos):
+
+| metric | value |
+|---|---|
+| `content_entities` live rows | 2,504,903 (2312 MB) |
+| `content_files` live rows | 137,373 (746 MB) |
+| `content_entities_source_trgm_idx` size | 518 MB |
+| `content_files_content_trgm_idx` size | 233 MB |
+| total GIN write-tax | 751 MB |
+| `content_entities_source_trgm_idx` idx_scan | 1 (post-search) |
+| `content_files_content_trgm_idx` idx_scan | 2 (post-search) |
+
+The planner selects both indexes via **Bitmap Index Scan** for the all-repo path.
+Session-local drop simulation (no actual DROP, `SET enable_bitmapscan=off;
+SET enable_indexscan=off`):
+
+| query | WITH GIN | forced seq scan | penalty |
+|---|---|---|---|
+| `content_entities.source_cache ILIKE '%authenticate%'` | 737 ms | 3580 ms | ~4.9× slower |
+| planner cost (entities) | 347 | 153158 | ~440× |
+| `content_files.content ILIKE '%authenticate%'` | 4203 ms | 5388 ms | ~1.3× slower |
+| planner cost (files) | 138 | 15108 | ~100× |
+
+The seq-scan penalty scales with table size, so it widens on larger corpora. The
+replacement surface `eshu_search_index_documents` (2,596,903 rows) and
+`eshu_search_index_terms` (70,625,586 rows) exists and is populated, but the
+all-repo / code-topic read path is not yet wired to it. Re-scoping that path
+onto the search-index tables, then dropping the GINs, is tracked as issue #4980.
+Until #4980 lands and B-7 proves no read regression, neither GIN may be dropped.
+
+No-Observability-Change: this change adds no metric, span, log key, route, worker,
+queue domain, lease, graph write, or runtime knob. Operators still diagnose
+content search through the existing `postgres.query` spans with
+`db.operation=investigate_code_topic|search_file_content|search_entity_content`
+and `eshu_dp_postgres_query_duration_seconds`. The schema-constant guard test
+(`TestContentStoreSearchIndexSchemaSQLKeepsTrigramGINsUntilRescope`) is a
+compile-time and unit-test safety lock with no runtime footprint.
