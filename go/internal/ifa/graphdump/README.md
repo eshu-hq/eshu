@@ -84,6 +84,63 @@ Evidence:` / `No-Observability-Change:`.)
   no `telemetry.Instruments` field, and no operator-facing counter. Operator
   visibility for this verb is its own CLI output (canonical bytes or a
   digest), not a runtime signal — it has no runtime deployment to observe.
+- Benchmark Evidence: prove-the-theory-first shim for the P3 determinism
+  matrix (issue #4396), run ahead of the matrix script itself (a later
+  slice). Three independent, fresh (fresh Postgres + fresh NornicDB, `docker
+  compose down -v` between every run, distinct compose projects/ports) drives
+  of `testdata/cassettes/gcpcloud/supply-chain-demo.json` through
+  `scripts/verify-ifa-replay-drive.sh`'s `eshu-ifa drive` + projector/reducer
+  drain, followed by `ifa graph-dump -digest` against the kept NornicDB:
+  - Run A (`-workers 1`, fresh stack): digest
+    `f692b33c72b99bb2ca44f25ca08804be425c96324186acd48995a6d59ccbc873`.
+  - Run B (`-workers 4`, independent fresh stack, same unmodified cassette):
+    digest `f692b33c72b99bb2ca44f25ca08804be425c96324186acd48995a6d59ccbc873`
+    — byte-identical to Run A (`diff` of the two full canonical dumps is
+    empty). Proves the canonical graph dump is deterministic across worker
+    counts on fresh databases; no denylist change was needed for this pass
+    (the existing `eshu_orphan_observed_at_unix` entry was sufficient), and no
+    genuine cross-worker-count reducer nondeterminism was found.
+  - Run C (`-workers 1`, independent fresh stack, cassette with exactly one
+    payload value mutated: the `analytics` BigQuery dataset's
+    `gcp_cloud_resource.payload.display_name`, `"analytics"` ->
+    `"analytics-mutated-runC"`, which `go/internal/reducer/gcp_resource_materialization.go`
+    projects onto the `CloudResource` node's `name` property): digest
+    `e6adf7a86dfaafb884e226a68da3f5dc9f267bb76b9711163ac0834078bc8676` — differs
+    from Run A. The full-dump diff isolates to the mutated `name` property plus
+    the expected cascading node-digest/edge-endpoint/sort-order changes content
+    addressing produces from that one changed value. Proves the canonical
+    graph dump is sensitive to a single changed input value, i.e. the matrix's
+    equality check cannot pass vacuously.
+  - Reviewer rerun (three sequential invocations; ports/projects below avoid
+    colliding with `verify-golden-corpus-gate.sh`'s 15432/7687/7474 or
+    `verify-ifa-replay-drive.sh`'s own default 15532/7788/7575):
+    ```bash
+    # Run A (workers=1)
+    REPLAY_DRIVE_COMPOSE_PROJECT=ifa-det-a ESHU_POSTGRES_PORT=15632 \
+      NEO4J_BOLT_PORT=7789 NEO4J_HTTP_PORT=7676 REPLAY_DRIVE_WORKERS=1 \
+      scripts/verify-ifa-replay-drive.sh --keep
+    # note the "[--keep] work dir retained: <dir>" path, then:
+    NEO4J_URI=bolt://localhost:7789 NEO4J_USERNAME=neo4j NEO4J_PASSWORD=change-me \
+      NEO4J_DATABASE=nornic ESHU_GRAPH_BACKEND=nornicdb <dir>/bin/eshu-ifa graph-dump -digest
+    docker compose -p ifa-det-a -f docker-compose.yaml down -v
+
+    # Run B (workers=4, same cassette) — repeat with a fresh project/ports
+    # (e.g. ifa-det-b / 15633 / 7790 / 7677) and REPLAY_DRIVE_WORKERS=4;
+    # compare the digest to Run A's.
+
+    # Run C (workers=1, mutated cassette) — copy
+    # testdata/cassettes/gcpcloud/supply-chain-demo.json, change the
+    # "analytics" gcp_cloud_resource fact's payload.display_name, then repeat
+    # with a fresh project/ports (e.g. ifa-det-c / 15634 / 7791 / 7678) and
+    # REPLAY_DRIVE_CASSETTE=<mutated path> (verify-ifa-replay-drive.sh's
+    # cassette path is currently hardcoded; the reviewer's copy needs the same
+    # one-line parameterization the shim used, or a manual `eshu-ifa drive
+    # -cassette <mutated path> -workers 1` call against the same stack).
+    # Compare the digest to Run A's; it must differ.
+    ```
+  - Each run tore down with `docker compose -p <project> -f docker-compose.yaml
+    down -v`, confirmed via `docker ps -a` / `docker volume ls` / `docker
+    network ls` filtered on the project name showing no leftovers.
 
 ## Verification
 
