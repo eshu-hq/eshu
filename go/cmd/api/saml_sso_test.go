@@ -20,7 +20,7 @@ import (
 func TestNewSAMLHandlerDisabledWhenProvidersUnset(t *testing.T) {
 	t.Parallel()
 
-	handler, err := newSAMLHandler(nil, nil, func(string) string { return "" }, nil)
+	handler, err := newSAMLHandler(nil, nil, func(string) string { return "" }, nil, query.CookieSecureAuto)
 	if err != nil {
 		t.Fatalf("newSAMLHandler() error = %v, want nil", err)
 	}
@@ -32,7 +32,7 @@ func TestNewSAMLHandlerDisabledWhenProvidersUnset(t *testing.T) {
 func TestNewSAMLHandlerRequiresPostgresWhenProvidersConfigured(t *testing.T) {
 	t.Parallel()
 
-	_, err := newSAMLHandler(nil, nil, samlTestGetenv(), fakeBrowserSessionStore{})
+	_, err := newSAMLHandler(nil, nil, samlTestGetenv(), fakeBrowserSessionStore{}, query.CookieSecureAuto)
 	if err == nil {
 		t.Fatal("newSAMLHandler() error = nil, want postgres requirement")
 	}

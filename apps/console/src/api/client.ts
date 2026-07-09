@@ -3,6 +3,14 @@ import { EshuEnvelopeError, unwrapEnvelope } from "./envelope";
 
 export const eshuEnvelopeAccept = "application/eshu.envelope+json";
 export const browserSessionCSRFCookieName = "__Host-eshu_csrf";
+// browserSessionCSRFCookieNameInsecure is the CSRF cookie name the backend
+// issues instead of browserSessionCSRFCookieName when
+// ESHU_AUTH_COOKIE_SECURE=auto relaxes Secure for a plain-HTTP loopback
+// origin (#4964). The __Host- prefix (RFC 6265bis) requires Secure=true or
+// browsers reject the cookie outright, so a relaxed cookie cannot use that
+// name — every reader must check both. See go/internal/query/auth.go
+// BrowserSessionCookieNameInsecure.
+export const browserSessionCSRFCookieNameInsecure = "eshu_csrf";
 export const browserSessionCSRFHeaderName = "X-Eshu-CSRF";
 
 // EshuApiHttpError is thrown when the backend answers with a non-2xx status. It
@@ -15,7 +23,9 @@ export class EshuApiHttpError extends Error {
   readonly status: number;
 
   constructor(status: number, error: EshuError | null = null) {
-    super(error ? `${error.code}: ${error.message}` : `Eshu API request failed with HTTP ${status}`);
+    super(
+      error ? `${error.code}: ${error.message}` : `Eshu API request failed with HTTP ${status}`,
+    );
     this.error = error;
     this.name = "EshuApiHttpError";
     this.status = status;
@@ -28,10 +38,7 @@ export class EshuApiHttpError extends Error {
 // API…". See issue #1680.
 export const eshuDefaultTimeoutMs = 15000;
 
-export type EshuFetcher = (
-  input: RequestInfo | URL,
-  init?: RequestInit
-) => Promise<Response>;
+export type EshuFetcher = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 
 export interface EshuApiClientOptions {
   readonly apiKey?: string;
@@ -84,8 +91,8 @@ export class EshuApiClient {
       this.fetcher(this.url(path), {
         credentials: "same-origin",
         headers: this.headers("GET"),
-        signal
-      }).then((response) => this.parse<TData>(response))
+        signal,
+      }).then((response) => this.parse<TData>(response)),
     );
   }
 
@@ -94,8 +101,8 @@ export class EshuApiClient {
       this.fetcher(this.url(path), {
         credentials: "same-origin",
         headers: this.headers("GET"),
-        signal
-      }).then((response) => this.parseJson<TData>(response))
+        signal,
+      }).then((response) => this.parseJson<TData>(response)),
     );
   }
 
@@ -106,11 +113,11 @@ export class EshuApiClient {
         credentials: "same-origin",
         headers: {
           ...this.headers("POST"),
-          "Content-Type": "application/json"
+          "Content-Type": "application/json",
         },
         method: "POST",
-        signal
-      }).then((response) => this.parse<TData>(response))
+        signal,
+      }).then((response) => this.parse<TData>(response)),
     );
   }
 
@@ -121,11 +128,11 @@ export class EshuApiClient {
         credentials: "same-origin",
         headers: {
           ...this.headers("POST"),
-          "Content-Type": "application/json"
+          "Content-Type": "application/json",
         },
         method: "POST",
-        signal
-      }).then((response) => this.parseJson<TData>(response))
+        signal,
+      }).then((response) => this.parseJson<TData>(response)),
     );
   }
 
@@ -136,11 +143,11 @@ export class EshuApiClient {
         credentials: "same-origin",
         headers: {
           ...this.headers("PATCH"),
-          "Content-Type": "application/json"
+          "Content-Type": "application/json",
         },
         method: "PATCH",
-        signal
-      }).then((response) => this.parseJson<TData>(response))
+        signal,
+      }).then((response) => this.parseJson<TData>(response)),
     );
   }
 
@@ -156,15 +163,15 @@ export class EshuApiClient {
         credentials: "same-origin",
         headers: {
           ...this.headers("POST"),
-          "Content-Type": "application/json"
+          "Content-Type": "application/json",
         },
         method: "POST",
-        signal
+        signal,
       }).then(async (response) => {
         if (!response.ok) {
           throw await this.httpError(response);
         }
-      })
+      }),
     );
   }
 
@@ -174,12 +181,12 @@ export class EshuApiClient {
         credentials: "same-origin",
         headers: this.headers("DELETE"),
         method: "DELETE",
-        signal
+        signal,
       }).then(async (response) => {
         if (!response.ok) {
           throw await this.httpError(response);
         }
-      })
+      }),
     );
   }
 
@@ -197,12 +204,12 @@ export class EshuApiClient {
 
   async switchBrowserSessionContext(
     tenantId: string,
-    workspaceId: string
+    workspaceId: string,
   ): Promise<BrowserSessionResponse> {
-    return this.patchJson<BrowserSessionResponse>(
-      "/api/v0/auth/browser-session/context",
-      { tenant_id: tenantId, workspace_id: workspaceId }
-    );
+    return this.patchJson<BrowserSessionResponse>("/api/v0/auth/browser-session/context", {
+      tenant_id: tenantId,
+      workspace_id: workspaceId,
+    });
   }
 
   // withTimeout runs a single request under a per-request abort deadline so one
@@ -212,19 +219,14 @@ export class EshuApiClient {
   // and Request implementations validate against, and always clears the timer so
   // no pending timeout leaks once the request settles. A non-positive or
   // non-finite timeout disables the deadline and passes signal: undefined.
-  private async withTimeout<T>(
-    run: (signal: AbortSignal | undefined) => Promise<T>
-  ): Promise<T> {
+  private async withTimeout<T>(run: (signal: AbortSignal | undefined) => Promise<T>): Promise<T> {
     if (!Number.isFinite(this.timeoutMs) || this.timeoutMs <= 0) {
       return run(undefined);
     }
     const controller = new AbortController();
     const timer = setTimeout(() => {
       controller.abort(
-        new DOMException(
-          `Eshu API request timed out after ${this.timeoutMs}ms`,
-          "TimeoutError"
-        )
+        new DOMException(`Eshu API request timed out after ${this.timeoutMs}ms`, "TimeoutError"),
       );
     }, this.timeoutMs);
     try {
@@ -245,7 +247,7 @@ export class EshuApiClient {
     }
     return {
       ...envelopeHeaders(),
-      Authorization: `Bearer ${this.apiKey}`
+      Authorization: `Bearer ${this.apiKey}`,
     };
   }
 
@@ -310,7 +312,7 @@ function isEnvelope(value: unknown): boolean {
     if (typeof error.code !== "string" || typeof error.message !== "string") {
       throw new EshuEnvelopeError({
         code: "invalid_error_envelope",
-        message: "Eshu API returned an invalid error envelope"
+        message: "Eshu API returned an invalid error envelope",
       });
     }
   }
@@ -319,21 +321,30 @@ function isEnvelope(value: unknown): boolean {
 
 function envelopeHeaders(): HeadersInit {
   return {
-    Accept: eshuEnvelopeAccept
+    Accept: eshuEnvelopeAccept,
   };
 }
 
 function cookieSessionHeaders(method: string): HeadersInit {
   const headers: Record<string, string> = {
-    Accept: eshuEnvelopeAccept
+    Accept: eshuEnvelopeAccept,
   };
   if (requiresCSRF(method)) {
-    const csrfToken = readCookie(browserSessionCSRFCookieName);
+    const csrfToken = readCsrfCookie();
     if (csrfToken.length > 0) {
       headers[browserSessionCSRFHeaderName] = csrfToken;
     }
   }
   return headers;
+}
+
+// readCsrfCookie prefers the __Host--prefixed CSRF cookie (set for a Secure
+// context) and falls back to the bare name set only by the loopback Secure
+// relaxation (#4964) — see browserSessionCSRFCookieNameInsecure.
+function readCsrfCookie(): string {
+  return (
+    readCookie(browserSessionCSRFCookieName) || readCookie(browserSessionCSRFCookieNameInsecure)
+  );
 }
 
 function requiresCSRF(method: string): boolean {

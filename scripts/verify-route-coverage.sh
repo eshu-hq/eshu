@@ -132,7 +132,13 @@ while IFS= read -r gofile; do
       if [ ${#word} -lt 4 ]; then
         continue
       fi
-      if rg -q "func Test\w*${word}\w*\(" \
+      # Case-insensitive: pascal_case() title-cases each snake_case segment
+      # (e.g. "saml_handler" -> "SamlHandler"), but idiomatic Go test names
+      # preserve initialisms as written in the source identifier (e.g.
+      # "SAMLHandler", matching the "SAML" acronym in the handler struct
+      # name). An exact-case search would false-positive as "uncovered" on
+      # any acronym-bearing handler/route even when a matching test exists.
+      if rg -qi "func Test\w*${word}\w*\(" \
            --glob '*_test.go' \
            --max-depth 1 \
            "$query_dir" "$api_dir" 2>/dev/null; then

@@ -164,6 +164,7 @@ func TestNewRouterMountsPostgresBackedHandlers(t *testing.T) {
 		query.GovernanceStatusConfig{},
 		nil,
 		false,
+		query.CookieSecureAuto,
 	)
 	if err != nil {
 		t.Fatalf("newRouter() error = %v, want nil", err)
@@ -253,6 +254,7 @@ func TestNewRouterUsesSuppliedStatusReader(t *testing.T) {
 		query.GovernanceStatusConfig{},
 		nil,
 		false,
+		query.CookieSecureAuto,
 	)
 	if err != nil {
 		t.Fatalf("newRouter() error = %v, want nil", err)
@@ -364,6 +366,7 @@ func TestNewRouter_MountsAdminRoutes(t *testing.T) {
 		query.GovernanceStatusConfig{},
 		nil,
 		false,
+		query.CookieSecureAuto,
 	)
 	if err != nil {
 		t.Fatalf("newRouter() error = %v, want nil", err)

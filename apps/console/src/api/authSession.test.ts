@@ -15,7 +15,8 @@ import {
   loginLocal,
   beginOidcLogin,
   beginSamlLogin,
-  logout
+  logout,
+  isCookiePersistenceAtRiskOrigin,
 } from "./authSession";
 import type { EshuApiClient, BrowserSessionResponse } from "./client";
 import { EshuApiHttpError } from "./client";
@@ -25,8 +26,8 @@ const mockSession: BrowserSessionResponse = {
     mode: "browser_session",
     tenant_id: "tenant_a",
     workspace_id: "ws_a",
-    all_scopes: true
-  }
+    all_scopes: true,
+  },
 };
 
 // Raw LocalIdentitySessionResponse returned by the backend on 200.
@@ -36,9 +37,9 @@ const mockSessionRaw = {
     mode: "browser_session",
     tenant_id: "tenant_a",
     workspace_id: "ws_a",
-    all_scopes: true
+    all_scopes: true,
   },
-  csrf_token: "csrf-tok"
+  csrf_token: "csrf-tok",
 };
 
 function makeClient(overrides: Partial<EshuApiClient> = {}): EshuApiClient {
@@ -47,12 +48,14 @@ function makeClient(overrides: Partial<EshuApiClient> = {}): EshuApiClient {
     postJson: vi.fn(async () => mockSessionRaw),
     logoutBrowserSession: vi.fn(async () => undefined),
     createBrowserSession: vi.fn(async () => mockSession),
-    ...overrides
+    ...overrides,
   } as unknown as EshuApiClient;
 }
 
 describe("loadCurrentSession", () => {
-  beforeEach(() => { vi.clearAllMocks(); });
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
 
   it("returns the session when getBrowserSession succeeds", async () => {
     const client = makeClient();
@@ -63,7 +66,9 @@ describe("loadCurrentSession", () => {
 
   it("returns null on 401", async () => {
     const client = makeClient({
-      getBrowserSession: vi.fn(async () => { throw new EshuApiHttpError(401); })
+      getBrowserSession: vi.fn(async () => {
+        throw new EshuApiHttpError(401);
+      }),
     });
     const result = await loadCurrentSession(client);
     expect(result).toBeNull();
@@ -71,7 +76,9 @@ describe("loadCurrentSession", () => {
 
   it("returns null on 403", async () => {
     const client = makeClient({
-      getBrowserSession: vi.fn(async () => { throw new EshuApiHttpError(403); })
+      getBrowserSession: vi.fn(async () => {
+        throw new EshuApiHttpError(403);
+      }),
     });
     const result = await loadCurrentSession(client);
     expect(result).toBeNull();
@@ -79,7 +86,9 @@ describe("loadCurrentSession", () => {
 
   it("returns null on 404", async () => {
     const client = makeClient({
-      getBrowserSession: vi.fn(async () => { throw new EshuApiHttpError(404); })
+      getBrowserSession: vi.fn(async () => {
+        throw new EshuApiHttpError(404);
+      }),
     });
     const result = await loadCurrentSession(client);
     expect(result).toBeNull();
@@ -87,29 +96,35 @@ describe("loadCurrentSession", () => {
 
   it("rethrows non-auth errors (e.g. 500)", async () => {
     const client = makeClient({
-      getBrowserSession: vi.fn(async () => { throw new EshuApiHttpError(500); })
+      getBrowserSession: vi.fn(async () => {
+        throw new EshuApiHttpError(500);
+      }),
     });
     await expect(loadCurrentSession(client)).rejects.toThrow(EshuApiHttpError);
   });
 
   it("rethrows network errors (non-http)", async () => {
     const client = makeClient({
-      getBrowserSession: vi.fn(async () => { throw new Error("network failure"); })
+      getBrowserSession: vi.fn(async () => {
+        throw new Error("network failure");
+      }),
     });
     await expect(loadCurrentSession(client)).rejects.toThrow("network failure");
   });
 });
 
 describe("loginLocal", () => {
-  beforeEach(() => { vi.clearAllMocks(); });
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
 
   it("POSTs login_id and password to /api/v0/auth/local/login", async () => {
     const client = makeClient();
     await loginLocal(client, { login: "user@example.com", password: "s3cr3t" });
-    expect(client.postJson).toHaveBeenCalledWith(
-      "/api/v0/auth/local/login",
-      { login_id: "user@example.com", password: "s3cr3t" }
-    );
+    expect(client.postJson).toHaveBeenCalledWith("/api/v0/auth/local/login", {
+      login_id: "user@example.com",
+      password: "s3cr3t",
+    });
   });
 
   it("returns {status:'ok', session} on 200 authenticated response", async () => {
@@ -126,7 +141,9 @@ describe("loginLocal", () => {
     const client = makeClient({
       // Cast to the generic postJson signature: this mock resolves the raw 202
       // body, but EshuApiClient["postJson"] is generic <TData>.
-      postJson: vi.fn(async () => ({ status: "mfa_required" })) as unknown as EshuApiClient["postJson"]
+      postJson: vi.fn(async () => ({
+        status: "mfa_required",
+      })) as unknown as EshuApiClient["postJson"],
     });
     const result = await loginLocal(client, { login: "u", password: "p" });
     expect(result).toEqual<LocalLoginResult>({ status: "mfa_required" });
@@ -134,7 +151,9 @@ describe("loginLocal", () => {
 
   it("returns {status:'invalid'} on 401", async () => {
     const client = makeClient({
-      postJson: vi.fn(async () => { throw new EshuApiHttpError(401); })
+      postJson: vi.fn(async () => {
+        throw new EshuApiHttpError(401);
+      }),
     });
     const result = await loginLocal(client, { login: "u", password: "p" });
     expect(result).toEqual<LocalLoginResult>({ status: "invalid" });
@@ -142,7 +161,9 @@ describe("loginLocal", () => {
 
   it("returns {status:'disabled'} on 403", async () => {
     const client = makeClient({
-      postJson: vi.fn(async () => { throw new EshuApiHttpError(403); })
+      postJson: vi.fn(async () => {
+        throw new EshuApiHttpError(403);
+      }),
     });
     const result = await loginLocal(client, { login: "u", password: "p" });
     expect(result).toEqual<LocalLoginResult>({ status: "disabled" });
@@ -150,7 +171,9 @@ describe("loginLocal", () => {
 
   it("returns {status:'locked'} on 423", async () => {
     const client = makeClient({
-      postJson: vi.fn(async () => { throw new EshuApiHttpError(423); })
+      postJson: vi.fn(async () => {
+        throw new EshuApiHttpError(423);
+      }),
     });
     const result = await loginLocal(client, { login: "u", password: "p" });
     expect(result).toEqual<LocalLoginResult>({ status: "locked" });
@@ -158,14 +181,20 @@ describe("loginLocal", () => {
 
   it("rethrows 5xx errors — never swallows non-auth HTTP errors", async () => {
     const client = makeClient({
-      postJson: vi.fn(async () => { throw new EshuApiHttpError(500); })
+      postJson: vi.fn(async () => {
+        throw new EshuApiHttpError(500);
+      }),
     });
-    await expect(loginLocal(client, { login: "u", password: "p" })).rejects.toThrow(EshuApiHttpError);
+    await expect(loginLocal(client, { login: "u", password: "p" })).rejects.toThrow(
+      EshuApiHttpError,
+    );
   });
 
   it("rethrows network/timeout errors", async () => {
     const client = makeClient({
-      postJson: vi.fn(async () => { throw new Error("fetch failed"); })
+      postJson: vi.fn(async () => {
+        throw new Error("fetch failed");
+      }),
     });
     await expect(loginLocal(client, { login: "u", password: "p" })).rejects.toThrow("fetch failed");
   });
@@ -173,16 +202,20 @@ describe("loginLocal", () => {
   it("includes recovery_code when mfaCode is provided", async () => {
     const client = makeClient();
     await loginLocal(client, { login: "user@example.com", password: "s3cr3t", mfaCode: "ABC123" });
-    expect(client.postJson).toHaveBeenCalledWith(
-      "/api/v0/auth/local/login",
-      { login_id: "user@example.com", password: "s3cr3t", recovery_code: "ABC123" }
-    );
+    expect(client.postJson).toHaveBeenCalledWith("/api/v0/auth/local/login", {
+      login_id: "user@example.com",
+      password: "s3cr3t",
+      recovery_code: "ABC123",
+    });
   });
 
   it("omits recovery_code when mfaCode is not provided", async () => {
     const client = makeClient();
     await loginLocal(client, { login: "user@example.com", password: "s3cr3t" });
-    const body = (client.postJson as ReturnType<typeof vi.fn>).mock.calls[0][1] as Record<string, unknown>;
+    const body = (client.postJson as ReturnType<typeof vi.fn>).mock.calls[0][1] as Record<
+      string,
+      unknown
+    >;
     expect(body).not.toHaveProperty("recovery_code");
   });
 });
@@ -191,7 +224,7 @@ describe("beginOidcLogin", () => {
   it("returns a URL pointing to /api/v0/auth/oidc/login with provider_config_id", () => {
     const url = beginOidcLogin("/eshu-api/", {
       providerConfigId: "google",
-      returnTo: "/dashboard"
+      returnTo: "/dashboard",
     });
     expect(url).toContain("/api/v0/auth/oidc/login");
     expect(url).toContain("provider_config_id=google");
@@ -203,7 +236,7 @@ describe("beginOidcLogin", () => {
       providerConfigId: "google",
       tenantId: "t1",
       workspaceId: "w1",
-      returnTo: "/"
+      returnTo: "/",
     });
     expect(url).toContain("tenant_id=t1");
     expect(url).toContain("workspace_id=w1");
@@ -212,7 +245,7 @@ describe("beginOidcLogin", () => {
   it("omits tenant_id and workspace_id when not provided", () => {
     const url = beginOidcLogin("/eshu-api/", {
       providerConfigId: "google",
-      returnTo: "/"
+      returnTo: "/",
     });
     expect(url).not.toContain("tenant_id");
     expect(url).not.toContain("workspace_id");
@@ -241,7 +274,9 @@ describe("beginSamlLogin", () => {
     const redirectFn = vi.fn();
     beginSamlLogin("/eshu-api/", { providerId: "okta", returnTo: "/" }, redirectFn);
     expect(redirectFn).toHaveBeenCalledTimes(1);
-    expect(redirectFn).toHaveBeenCalledWith(expect.stringContaining("/api/v0/auth/saml/providers/okta/login"));
+    expect(redirectFn).toHaveBeenCalledWith(
+      expect.stringContaining("/api/v0/auth/saml/providers/okta/login"),
+    );
   });
 });
 
@@ -250,5 +285,54 @@ describe("logout", () => {
     const client = makeClient();
     await logout(client);
     expect(client.logoutBrowserSession).toHaveBeenCalledTimes(1);
+  });
+});
+
+// isCookiePersistenceAtRiskOrigin mirrors the backend's #4964 origin
+// classification (go/internal/query/browser_session_cookie_secure.go):
+// ESHU_AUTH_COOKIE_SECURE=auto (the default) only relaxes the Secure cookie
+// attribute for a plain-HTTP loopback origin. Any other plain-HTTP origin
+// keeps Secure=true, so the browser silently drops the session cookie there.
+describe("isCookiePersistenceAtRiskOrigin", () => {
+  it("returns false for https origins regardless of hostname", () => {
+    expect(
+      isCookiePersistenceAtRiskOrigin({
+        protocol: "https:",
+        hostname: "console.internal.example.com",
+      }),
+    ).toBe(false);
+    expect(isCookiePersistenceAtRiskOrigin({ protocol: "https:", hostname: "localhost" })).toBe(
+      false,
+    );
+  });
+
+  it("returns false for plain-http localhost", () => {
+    expect(isCookiePersistenceAtRiskOrigin({ protocol: "http:", hostname: "localhost" })).toBe(
+      false,
+    );
+  });
+
+  it("returns false for plain-http 127.0.0.1 and other 127.0.0.0/8 addresses", () => {
+    expect(isCookiePersistenceAtRiskOrigin({ protocol: "http:", hostname: "127.0.0.1" })).toBe(
+      false,
+    );
+    expect(isCookiePersistenceAtRiskOrigin({ protocol: "http:", hostname: "127.0.0.2" })).toBe(
+      false,
+    );
+  });
+
+  it("returns false for plain-http IPv6 loopback", () => {
+    expect(isCookiePersistenceAtRiskOrigin({ protocol: "http:", hostname: "::1" })).toBe(false);
+    expect(isCookiePersistenceAtRiskOrigin({ protocol: "http:", hostname: "[::1]" })).toBe(false);
+  });
+
+  it("returns true for plain-http non-loopback hosts — the cookie will not persist there", () => {
+    expect(
+      isCookiePersistenceAtRiskOrigin({
+        protocol: "http:",
+        hostname: "console.internal.example.com",
+      }),
+    ).toBe(true);
+    expect(isCookiePersistenceAtRiskOrigin({ protocol: "http:", hostname: "10.0.0.5" })).toBe(true);
   });
 });

@@ -19,9 +19,17 @@ For each `HandleFunc("METHOD /path", h.methodName)` registration in a changed fi
 3. For short method names (< 7 chars PascalCase), add the file-stem PascalCase as fallback
    - `detail` in `fact_schema_version.go` → also search for `FactSchemaVersion`
    - `getFamily` in `collector_extraction_readiness.go` → `Family` (from strip) matches `CollectorExtractionReadinessFamily`
-4. Search all `*_test.go` files for `func Test\w*<term>\w*(`
+4. Search all `*_test.go` files, case-insensitively, for `func Test\w*<term>\w*(`
 
 A route is covered if any search term matches a test function name.
+
+Matching is case-insensitive because `pascal_case()` title-cases each
+snake_case segment of the file stem (`saml_handler` -> `SamlHandler`), but
+idiomatic Go test names preserve initialisms as written in the source
+identifier (`SAMLHandler`, matching the `SAML` acronym in the handler struct
+name). An exact-case search false-positived as "uncovered" on `saml_handler.go:handleACS`
+even though `TestSAMLHandlerACSCreatesHashOnlyBrowserSession` (and three
+sibling tests) already covered it (#4964).
 
 ### Diff scope
 - CI (`GITHUB_BASE_REF`): compares against PR base branch

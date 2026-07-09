@@ -47,10 +47,25 @@ const (
 )
 
 const (
-	// BrowserSessionCookieName is the host-scoped HttpOnly dashboard session cookie.
+	// BrowserSessionCookieName is the host-scoped HttpOnly dashboard session
+	// cookie, set only when the Secure attribute is applied. The __Host-
+	// prefix (RFC 6265bis) requires Secure, no Domain attribute, and Path=/;
+	// browsers reject the cookie outright if Secure is missing.
 	BrowserSessionCookieName = "__Host-eshu_session"
-	// BrowserSessionCSRFCookieName is the readable host-scoped CSRF cookie.
+	// BrowserSessionCSRFCookieName is the readable host-scoped CSRF cookie,
+	// set only when the Secure attribute is applied. See BrowserSessionCookieName.
 	BrowserSessionCSRFCookieName = "__Host-eshu_csrf"
+	// BrowserSessionCookieNameInsecure is the dashboard session cookie name
+	// used only when CookieSecureAuto relaxes Secure for a plain-HTTP
+	// loopback origin (#4964). It cannot use the __Host- prefix: a
+	// __Host--prefixed cookie sent with Secure=false is invalid per RFC
+	// 6265bis and browsers silently drop it, which would reintroduce the
+	// exact silent session-loss bug #4964 fixes. Readers must check both
+	// this name and BrowserSessionCookieName.
+	BrowserSessionCookieNameInsecure = "eshu_session"
+	// BrowserSessionCSRFCookieNameInsecure is the readable CSRF cookie name
+	// used alongside BrowserSessionCookieNameInsecure. See its doc comment.
+	BrowserSessionCSRFCookieNameInsecure = "eshu_csrf"
 	// BrowserSessionCSRFHeaderName is required on unsafe dashboard session requests.
 	BrowserSessionCSRFHeaderName = "X-Eshu-CSRF"
 )
@@ -271,15 +286,15 @@ func tryBrowserSessionAuth(
 	next http.Handler,
 	audit GovernanceAuditAppender,
 ) bool {
-	sessionCookie, err := r.Cookie(BrowserSessionCookieName)
-	if err != nil || strings.TrimSpace(sessionCookie.Value) == "" {
+	sessionValue, ok := browserSessionCookieValue(r)
+	if !ok {
 		return false
 	}
 	requireCSRF := browserSessionRequiresCSRF(r.Method)
 	csrfToken := strings.TrimSpace(r.Header.Get(BrowserSessionCSRFHeaderName))
 	auth, ok, err := resolver.ResolveBrowserSession(
 		r.Context(),
-		BrowserSessionSecretHash(sessionCookie.Value),
+		BrowserSessionSecretHash(sessionValue),
 		BrowserSessionSecretHash(csrfToken),
 		requireCSRF,
 		time.Now().UTC(),

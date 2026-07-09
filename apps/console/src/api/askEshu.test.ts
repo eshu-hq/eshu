@@ -1,6 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { askEshu, askNarrationStatus, type AskAnswer, type AskError, type AskTraceStep } from "./askEshu";
+import {
+  askEshu,
+  askNarrationStatus,
+  type AskAnswer,
+  type AskError,
+  type AskTraceStep,
+} from "./askEshu";
 import type { EshuFetcher } from "./client";
 
 function sseResponse(chunks: readonly string[], status = 200): Response {
@@ -11,7 +17,7 @@ function sseResponse(chunks: readonly string[], status = 200): Response {
         controller.enqueue(encoder.encode(chunk));
       }
       controller.close();
-    }
+    },
   });
   return new Response(body, { status, headers: { "Content-Type": "text/event-stream" } });
 }
@@ -19,7 +25,7 @@ function sseResponse(chunks: readonly string[], status = 200): Response {
 function jsonResponse(value: unknown, status = 200): Response {
   return new Response(JSON.stringify(value), {
     status,
-    headers: { "Content-Type": "application/json" }
+    headers: { "Content-Type": "application/json" },
   });
 }
 
@@ -35,8 +41,8 @@ describe("askEshu (streaming)", () => {
         'event: trace\ndata: {"tool":"resolve_entity","supported":true,"truth_class":"deterministic"}\n\n',
         'event: trace\ndata: {"tool":"graph_query","supported":false,"truth_class":"fallback","err":"timeout"}\n\n',
         'event: answer\ndata: {"answer_prose":"Hello","truth_class":"derived","partial":true,"limitations":["stale"]}\n\n',
-        "event: done\ndata: {}\n\n"
-      ])
+        "event: done\ndata: {}\n\n",
+      ]),
     );
 
     await new Promise<void>((resolve) => {
@@ -52,7 +58,7 @@ describe("askEshu (streaming)", () => {
         onDone: () => {
           done();
           resolve();
-        }
+        },
       });
     });
 
@@ -77,7 +83,7 @@ describe("askEshu (streaming)", () => {
     expect(init.method).toBe("POST");
     expect(JSON.parse(init.body as string)).toEqual({
       question: "How does auth work?",
-      format: "auto"
+      format: "auto",
     });
   });
 
@@ -86,8 +92,8 @@ describe("askEshu (streaming)", () => {
     const fetcher = vi.fn(async () =>
       sseResponse([
         'event: answer\ndata: {"answer_prose":\ndata: "Split across lines"}\n\n',
-        "event: done\ndata: {}\n\n"
-      ])
+        "event: done\ndata: {}\n\n",
+      ]),
     );
     await new Promise<void>((resolve) => {
       askEshu({
@@ -97,7 +103,7 @@ describe("askEshu (streaming)", () => {
         onAnswer: (value) => {
           answer = value;
         },
-        onDone: () => resolve()
+        onDone: () => resolve(),
       });
     });
     expect((answer as AskAnswer | null)?.answer_prose).toBe("Split across lines");
@@ -108,8 +114,8 @@ describe("askEshu (streaming)", () => {
     const fetcher = vi.fn(async () =>
       sseResponse([
         'event: error\ndata: {"state":"forbidden","reason":"scoped token"}\n\n',
-        "event: done\ndata: {}\n\n"
-      ])
+        "event: done\ndata: {}\n\n",
+      ]),
     );
     await new Promise<void>((resolve) => {
       askEshu({
@@ -119,7 +125,7 @@ describe("askEshu (streaming)", () => {
         onError: (value) => {
           error = value;
         },
-        onDone: () => resolve()
+        onDone: () => resolve(),
       });
     });
     expect((error as AskError | null)?.state).toBe("forbidden");
@@ -142,7 +148,7 @@ describe("askEshu (streaming)", () => {
         onDone: () => {
           done();
           resolve();
-        }
+        },
       });
     });
 
@@ -153,7 +159,7 @@ describe("askEshu (streaming)", () => {
   it("maps a 503 to an unavailable error carrying the server reason", async () => {
     let error: AskError | null = null;
     const fetcher = vi.fn(async () =>
-      jsonResponse({ state: "unavailable", reason: "Ask is off" }, 503)
+      jsonResponse({ state: "unavailable", reason: "Ask is off" }, 503),
     );
 
     await new Promise<void>((resolve) => {
@@ -164,7 +170,7 @@ describe("askEshu (streaming)", () => {
         onError: (value) => {
           error = value;
         },
-        onDone: () => resolve()
+        onDone: () => resolve(),
       });
     });
 
@@ -190,7 +196,7 @@ describe("askEshu (streaming)", () => {
           resolve();
         },
         onError,
-        onDone
+        onDone,
       });
     });
 
@@ -210,7 +216,7 @@ describe("askEshu (streaming)", () => {
         onError: (value) => {
           error = value;
         },
-        onDone: () => resolve()
+        onDone: () => resolve(),
       });
     });
     expect((error as AskError | null)?.state).toBe("bad_request");
@@ -229,9 +235,12 @@ describe("askEshu (streaming)", () => {
       .fn<EshuFetcher>()
       .mockResolvedValueOnce(
         jsonResponse(
-          { error: "internal_error", detail: "streaming not supported by this server configuration" },
-          500
-        )
+          {
+            error: "internal_error",
+            detail: "streaming not supported by this server configuration",
+          },
+          500,
+        ),
       )
       .mockResolvedValueOnce(
         jsonResponse({
@@ -239,8 +248,8 @@ describe("askEshu (streaming)", () => {
           truth_class: "derived",
           query_trace: [{ tool: "resolve_entity", supported: true, truth_class: "deterministic" }],
           partial: false,
-          limitations: []
-        })
+          limitations: [],
+        }),
       );
 
     await new Promise<void>((resolve) => {
@@ -257,7 +266,7 @@ describe("askEshu (streaming)", () => {
         onDone: () => {
           done();
           resolve();
-        }
+        },
       });
     });
 
@@ -266,11 +275,15 @@ describe("askEshu (streaming)", () => {
     expect(traces).toHaveLength(1);
     expect(done).toHaveBeenCalledTimes(1);
     expect(fetcher).toHaveBeenCalledTimes(2);
-    expect((fetcher.mock.calls[0][1] as RequestInit).headers as Record<string, string>).toMatchObject({
-      Accept: "text/event-stream"
+    expect(
+      (fetcher.mock.calls[0][1] as RequestInit).headers as Record<string, string>,
+    ).toMatchObject({
+      Accept: "text/event-stream",
     });
-    expect((fetcher.mock.calls[1][1] as RequestInit).headers as Record<string, string>).toMatchObject({
-      Accept: "application/json"
+    expect(
+      (fetcher.mock.calls[1][1] as RequestInit).headers as Record<string, string>,
+    ).toMatchObject({
+      Accept: "application/json",
     });
   });
 
@@ -291,7 +304,7 @@ describe("askEshu (streaming)", () => {
         onDone: () => {
           done();
           resolve();
-        }
+        },
       });
     });
 
@@ -314,8 +327,8 @@ describe("askEshu (sync fallback)", () => {
         query_trace: [{ tool: "resolve_entity", supported: true, truth_class: "deterministic" }],
         partial: false,
         limitations: [],
-        evidence_handles: [{ kind: "service", label: "checkout-api" }]
-      })
+        evidence_handles: [{ kind: "service", label: "checkout-api" }],
+      }),
     );
 
     await new Promise<void>((resolve) => {
@@ -328,7 +341,7 @@ describe("askEshu (sync fallback)", () => {
         onAnswer: (value) => {
           answer = value;
         },
-        onDone: () => resolve()
+        onDone: () => resolve(),
       });
     });
 
@@ -340,15 +353,17 @@ describe("askEshu (sync fallback)", () => {
   });
 
   it("uses browser-session cookies and CSRF when no Ask API key is configured", async () => {
-    const cookieSpy = vi.spyOn(document, "cookie", "get").mockReturnValue("__Host-eshu_csrf=csrf-secret");
+    const cookieSpy = vi
+      .spyOn(document, "cookie", "get")
+      .mockReturnValue("__Host-eshu_csrf=csrf-secret");
     let answer: AskAnswer | null = null;
     const fetcher = vi.fn<EshuFetcher>(async () =>
       jsonResponse({
         answer_prose: "cookie-backed answer",
         truth_class: "deterministic",
         partial: false,
-        limitations: []
-      })
+        limitations: [],
+      }),
     );
     try {
       await new Promise<void>((resolve) => {
@@ -360,7 +375,7 @@ describe("askEshu (sync fallback)", () => {
           onAnswer: (value) => {
             answer = value;
           },
-          onDone: () => resolve()
+          onDone: () => resolve(),
         });
       });
     } finally {
@@ -373,12 +388,50 @@ describe("askEshu (sync fallback)", () => {
     expect((init.headers as Record<string, string>).Authorization).toBeUndefined();
     expect((init.headers as Record<string, string>)["X-Eshu-CSRF"]).toBe("csrf-secret");
   });
+
+  // #4964 follow-up: under ESHU_AUTH_COOKIE_SECURE=auto's plain-HTTP
+  // loopback relaxation the backend issues the bare "eshu_csrf" cookie name
+  // instead of "__Host-eshu_csrf" (RFC 6265bis requires Secure for that
+  // prefix). Without this fallback the CSRF header would never be attached
+  // under local dev without TLS.
+  it("falls back to the bare eshu_csrf cookie name when __Host-eshu_csrf is absent", async () => {
+    const cookieSpy = vi.spyOn(document, "cookie", "get").mockReturnValue("eshu_csrf=csrf-secret");
+    const fetcher = vi.fn<EshuFetcher>(async () =>
+      jsonResponse({
+        answer_prose: "cookie-backed answer",
+        truth_class: "deterministic",
+        partial: false,
+        limitations: [],
+      }),
+    );
+    try {
+      await new Promise<void>((resolve) => {
+        askEshu({
+          connection: { baseUrl: "https://eshu.example/api/", apiKey: "", fetcher },
+          question: "How does auth work?",
+          format: "auto",
+          stream: false,
+          onAnswer: () => {},
+          onDone: () => resolve(),
+        });
+      });
+    } finally {
+      cookieSpy.mockRestore();
+    }
+
+    const init = fetcher.mock.calls[0]?.[1] as RequestInit;
+    expect((init.headers as Record<string, string>)["X-Eshu-CSRF"]).toBe("csrf-secret");
+  });
 });
 
 describe("askNarrationStatus", () => {
   it("reads state and reason from the status envelope", async () => {
     const fetcher = vi.fn(async () =>
-      jsonResponse({ data: { state: "disabled", reason: "no provider" }, error: null, truth: null })
+      jsonResponse({
+        data: { state: "disabled", reason: "no provider" },
+        error: null,
+        truth: null,
+      }),
     );
     const probe = await askNarrationStatus({ ...connection, fetcher });
     expect(probe.state).toBe("disabled");
@@ -390,8 +443,8 @@ describe("askNarrationStatus", () => {
       jsonResponse({
         data: { state: "unavailable", reason: "no provider", provider_configured: false },
         error: null,
-        truth: null
-      })
+        truth: null,
+      }),
     );
     const probe = await askNarrationStatus({ ...connection, fetcher });
     expect(probe.state).toBe("unavailable");
@@ -400,7 +453,7 @@ describe("askNarrationStatus", () => {
 
   it("defaults providerConfigured to true when the field is absent", async () => {
     const fetcher = vi.fn(async () =>
-      jsonResponse({ data: { state: "available" }, error: null, truth: null })
+      jsonResponse({ data: { state: "available" }, error: null, truth: null }),
     );
     const probe = await askNarrationStatus({ ...connection, fetcher });
     expect(probe.providerConfigured).toBe(true);

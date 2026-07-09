@@ -44,8 +44,12 @@ func newPostgresBrowserSessionAdapter(
 	}
 }
 
-func newBrowserSessionHandler(db *sql.DB, instruments *telemetry.Instruments) *query.BrowserSessionHandler {
-	handler := &query.BrowserSessionHandler{}
+func newBrowserSessionHandler(
+	db *sql.DB,
+	instruments *telemetry.Instruments,
+	cookieSecureMode query.CookieSecureMode,
+) *query.BrowserSessionHandler {
+	handler := &query.BrowserSessionHandler{CookieSecure: cookieSecureMode}
 	if store := newPostgresBrowserSessionAdapter(db, instruments); store != nil {
 		handler.Store = store
 	}

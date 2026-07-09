@@ -23,9 +23,11 @@ func newLocalIdentityHandler(
 	db *sql.DB,
 	instruments *telemetry.Instruments,
 	governanceAudit query.GovernanceAuditSummaryReader,
+	cookieSecureMode query.CookieSecureMode,
 ) *query.LocalIdentityHandler {
 	handler := &query.LocalIdentityHandler{
-		Audit: adminRecoveryAuditAppender(governanceAudit),
+		Audit:        adminRecoveryAuditAppender(governanceAudit),
+		CookieSecure: cookieSecureMode,
 	}
 	if store := newPostgresLocalIdentityAdapter(db, instruments); store != nil {
 		handler.Store = store

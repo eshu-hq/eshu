@@ -100,6 +100,9 @@ type SAMLHandler struct {
 	Now             func() time.Time
 	IdleTimeout     time.Duration
 	AbsoluteTimeout time.Duration
+	// CookieSecure selects the Secure-attribute policy for issued session
+	// and CSRF cookies. Empty defaults to CookieSecureAuto (#4964).
+	CookieSecure CookieSecureMode
 }
 
 // RegisteredProviderIDs returns the set of provider_config_ids managed by the
@@ -359,6 +362,8 @@ func (h *SAMLHandler) createSession(w http.ResponseWriter, r *http.Request, auth
 	sessionAuth.Mode = AuthModeBrowserSession
 	writeBrowserSessionCookies(
 		w,
+		r,
+		h.cookieSecureMode(),
 		sessionSecret,
 		csrfSecret,
 		absoluteExpiresAt,
@@ -399,6 +404,11 @@ func (h *SAMLHandler) absoluteTimeout() time.Duration {
 		return h.AbsoluteTimeout
 	}
 	return DefaultBrowserSessionAbsoluteTimeout
+}
+
+// cookieSecureMode normalizes h.CookieSecure, defaulting to CookieSecureAuto.
+func (h *SAMLHandler) cookieSecureMode() CookieSecureMode {
+	return ParseCookieSecureMode(string(h.CookieSecure))
 }
 
 func (h *SAMLHandler) newSecret() (string, error) {

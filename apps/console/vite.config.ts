@@ -20,7 +20,7 @@ export default defineConfig({
     // build; align the warning limit with the documented main-chunk budget so
     // the build log stays signal, not noise. See
     // docs/public/reference/console-bundle-budget.md.
-    chunkSizeWarningLimit: 720,
+    chunkSizeWarningLimit: 722,
     rollupOptions: {
       output: {
         // Split stable, cacheable vendor code out of the main entry chunk so

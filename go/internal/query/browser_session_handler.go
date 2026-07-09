@@ -75,6 +75,9 @@ type BrowserSessionHandler struct {
 	Now             func() time.Time
 	IdleTimeout     time.Duration
 	AbsoluteTimeout time.Duration
+	// CookieSecure selects the Secure-attribute policy for issued session
+	// and CSRF cookies. Empty defaults to CookieSecureAuto (#4964).
+	CookieSecure CookieSecureMode
 }
 
 // BrowserSessionResponse is returned by browser session routes.
@@ -206,6 +209,8 @@ func (h *BrowserSessionHandler) issueBrowserSessionWithExternalAuth(
 	sessionAuth.Mode = AuthModeBrowserSession
 	writeBrowserSessionCookies(
 		w,
+		r,
+		h.cookieSecureMode(),
 		sessionSecret,
 		csrfSecret,
 		absoluteExpiresAt,
@@ -254,7 +259,7 @@ func (h *BrowserSessionHandler) handleLogout(w http.ResponseWriter, r *http.Requ
 		WriteError(w, http.StatusInternalServerError, "failed to revoke browser session")
 		return
 	}
-	writeBrowserSessionCookies(w, "", "", time.Time{}, -1)
+	writeBrowserSessionCookies(w, r, h.cookieSecureMode(), "", "", time.Time{}, -1)
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -333,6 +338,11 @@ func (h *BrowserSessionHandler) absoluteTimeout() time.Duration {
 	return DefaultBrowserSessionAbsoluteTimeout
 }
 
+// cookieSecureMode normalizes h.CookieSecure, defaulting to CookieSecureAuto.
+func (h *BrowserSessionHandler) cookieSecureMode() CookieSecureMode {
+	return ParseCookieSecureMode(string(h.CookieSecure))
+}
+
 func (h *BrowserSessionHandler) newSecret() (string, error) {
 	if h.NewSecret != nil {
 		secret, err := h.NewSecret()
@@ -349,11 +359,11 @@ func (h *BrowserSessionHandler) newSecret() (string, error) {
 }
 
 func browserSessionHashFromCookie(r *http.Request) (string, bool) {
-	cookie, err := r.Cookie(BrowserSessionCookieName)
-	if err != nil {
+	value, ok := browserSessionCookieValue(r)
+	if !ok {
 		return "", false
 	}
-	sessionHash := BrowserSessionSecretHash(cookie.Value)
+	sessionHash := BrowserSessionSecretHash(value)
 	return sessionHash, sessionHash != ""
 }
 
@@ -368,35 +378,94 @@ func requestUsesBrowserSession(r *http.Request) bool {
 
 func writeBrowserSessionCookies(
 	w http.ResponseWriter,
+	r *http.Request,
+	mode CookieSecureMode,
 	sessionSecret string,
 	csrfSecret string,
 	expiresAt time.Time,
 	maxAge int,
 ) {
-	expires := time.Unix(0, 0).UTC()
-	if maxAge > 0 {
-		expires = expiresAt.UTC()
+	if maxAge <= 0 {
+		clearBrowserSessionCookies(w)
+		return
 	}
+	secure := browserSessionCookieSecure(r, mode)
+	sessionName, csrfName := browserSessionCookieNames(secure)
+	expires := expiresAt.UTC()
 	http.SetCookie(w, &http.Cookie{
-		Name:     BrowserSessionCookieName,
+		Name:     sessionName,
 		Value:    sessionSecret,
 		Path:     "/",
 		MaxAge:   maxAge,
 		Expires:  expires,
 		HttpOnly: true,
-		Secure:   true,
+		Secure:   secure,
 		SameSite: http.SameSiteStrictMode,
 	})
 	http.SetCookie(w, &http.Cookie{
-		Name:     BrowserSessionCSRFCookieName,
+		Name:     csrfName,
 		Value:    csrfSecret,
 		Path:     "/",
 		MaxAge:   maxAge,
 		Expires:  expires,
 		HttpOnly: false,
-		Secure:   true,
+		Secure:   secure,
 		SameSite: http.SameSiteStrictMode,
 	})
+}
+
+// clearBrowserSessionCookies expires both the __Host--prefixed cookie
+// variant and the bare insecure variant used by CookieSecureAuto's loopback
+// relaxation (#4964), so logout removes whichever variant the browser
+// actually holds regardless of which mode issued it — the handler has no
+// durable record of which name a given browser used. The __Host- clear must
+// keep Secure=true: RFC 6265bis applies the same __Host- validity criteria
+// to a deleting Set-Cookie as to a creating one, and browsers additionally
+// ignore any Secure Set-Cookie (creating or deleting) received over a
+// non-HTTPS connection. The bare-name clear must use Secure=false for the
+// mirror-image reason: it is the variant a plain-HTTP loopback browser can
+// actually hold, and a Secure Set-Cookie sent back over that same
+// connection would be ignored, leaving the cookie stuck.
+func clearBrowserSessionCookies(w http.ResponseWriter) {
+	expired := time.Unix(0, 0).UTC()
+	sessionVariants := []struct {
+		name   string
+		secure bool
+	}{
+		{BrowserSessionCookieName, true},
+		{BrowserSessionCookieNameInsecure, false},
+	}
+	for _, v := range sessionVariants {
+		http.SetCookie(w, &http.Cookie{
+			Name:     v.name,
+			Value:    "",
+			Path:     "/",
+			MaxAge:   -1,
+			Expires:  expired,
+			HttpOnly: true,
+			Secure:   v.secure,
+			SameSite: http.SameSiteStrictMode,
+		})
+	}
+	csrfVariants := []struct {
+		name   string
+		secure bool
+	}{
+		{BrowserSessionCSRFCookieName, true},
+		{BrowserSessionCSRFCookieNameInsecure, false},
+	}
+	for _, v := range csrfVariants {
+		http.SetCookie(w, &http.Cookie{
+			Name:     v.name,
+			Value:    "",
+			Path:     "/",
+			MaxAge:   -1,
+			Expires:  expired,
+			HttpOnly: false,
+			Secure:   v.secure,
+			SameSite: http.SameSiteStrictMode,
+		})
+	}
 }
 
 func browserSessionAuthResponse(auth AuthContext) BrowserSessionAuthResponse {

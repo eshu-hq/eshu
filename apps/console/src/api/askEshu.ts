@@ -23,6 +23,7 @@ import {
 import type { EshuFetcher } from "./client";
 import {
   browserSessionCSRFCookieName,
+  browserSessionCSRFCookieNameInsecure,
   browserSessionCSRFHeaderName,
   eshuEnvelopeAccept,
 } from "./client";
@@ -397,7 +398,11 @@ function postHeaders(apiKey: string, accept: string): HeadersInit {
     "Content-Type": "application/json",
   };
   if (apiKey.trim().length === 0) {
-    const csrfToken = readCookie(browserSessionCSRFCookieName);
+    // Prefer the __Host--prefixed cookie (Secure context); fall back to the
+    // bare name issued only by the plain-HTTP loopback Secure relaxation
+    // (#4964) — see browserSessionCSRFCookieNameInsecure.
+    const csrfToken =
+      readCookie(browserSessionCSRFCookieName) || readCookie(browserSessionCSRFCookieNameInsecure);
     if (csrfToken.length > 0) {
       headers[browserSessionCSRFHeaderName] = csrfToken;
     }
