@@ -91,19 +91,66 @@ func (h *LocalIdentityHandler) issueLocalIdentitySession(
 		WriteError(w, http.StatusServiceUnavailable, "browser session store is unavailable")
 		return
 	}
-	sessionSecret, err := h.newSecret()
-	if err != nil {
-		WriteError(w, http.StatusInternalServerError, "failed to create local identity session")
+	issued, ok := issueLocalSessionCookies(
+		w, r, h.Sessions, h.newSecret, h.now(), h.idleTimeout(), h.absoluteTimeout(), h.cookieSecureMode(), auth,
+	)
+	if !ok {
 		return
 	}
-	csrfSecret, err := h.newSecret()
+	WriteJSON(w, http.StatusOK, LocalIdentitySessionResponse{
+		Status:            status,
+		Auth:              issued.Auth,
+		CSRFToken:         issued.CSRFToken,
+		IdleExpiresAt:     issued.IdleExpiresAt,
+		AbsoluteExpiresAt: issued.AbsoluteExpiresAt,
+		LockedUntil:       lockedUntil,
+	})
+}
+
+// localSessionIssued carries the fields every local-identity login-style
+// response needs after issueLocalSessionCookies creates the server-side
+// session row and sets the session/CSRF cookies.
+type localSessionIssued struct {
+	Auth              BrowserSessionAuthResponse
+	CSRFToken         string
+	IdleExpiresAt     time.Time
+	AbsoluteExpiresAt time.Time
+}
+
+// issueLocalSessionCookies is the session-issuance body shared by
+// LocalIdentityHandler (production login, break-glass) and SetupHandler (the
+// first-run wizard's final step, #4965): create the hash-only browser
+// session row, set the session/CSRF cookies, and return the fields the
+// caller's own response envelope needs. On any failure it writes the error
+// response itself and returns ok=false, so callers only need to check ok
+// before building their response body.
+func issueLocalSessionCookies(
+	w http.ResponseWriter,
+	r *http.Request,
+	sessions BrowserSessionStore,
+	newSecret func() (string, error),
+	now time.Time,
+	idleTimeout time.Duration,
+	absoluteTimeout time.Duration,
+	cookieSecure CookieSecureMode,
+	auth LocalIdentityAuthContext,
+) (localSessionIssued, bool) {
+	if sessions == nil {
+		WriteError(w, http.StatusServiceUnavailable, "browser session store is unavailable")
+		return localSessionIssued{}, false
+	}
+	sessionSecret, err := newSecret()
 	if err != nil {
 		WriteError(w, http.StatusInternalServerError, "failed to create local identity session")
-		return
+		return localSessionIssued{}, false
 	}
-	now := h.now()
-	idleExpiresAt := now.Add(h.idleTimeout())
-	absoluteExpiresAt := now.Add(h.absoluteTimeout())
+	csrfSecret, err := newSecret()
+	if err != nil {
+		WriteError(w, http.StatusInternalServerError, "failed to create local identity session")
+		return localSessionIssued{}, false
+	}
+	idleExpiresAt := now.Add(idleTimeout)
+	absoluteExpiresAt := now.Add(absoluteTimeout)
 	sessionAuth := AuthContext{
 		Mode:                         AuthModeBrowserSession,
 		TenantID:                     auth.TenantID,
@@ -117,7 +164,7 @@ func (h *LocalIdentityHandler) issueLocalIdentitySession(
 		AllowedPermissionFeatures:    append([]string(nil), auth.AllowedPermissionFeatures...),
 		AllowedPermissionDataClasses: append([]string(nil), auth.AllowedPermissionDataClasses...),
 	}
-	if err := h.Sessions.CreateBrowserSession(r.Context(), BrowserSessionCreateRecord{
+	if err := sessions.CreateBrowserSession(r.Context(), BrowserSessionCreateRecord{
 		SessionHash:                  BrowserSessionSecretHash(sessionSecret),
 		CSRFTokenHash:                BrowserSessionSecretHash(csrfSecret),
 		TenantID:                     auth.TenantID,
@@ -137,17 +184,15 @@ func (h *LocalIdentityHandler) issueLocalIdentitySession(
 		UpdatedAt:                    now,
 	}); err != nil {
 		WriteError(w, http.StatusInternalServerError, "failed to create local identity session")
-		return
+		return localSessionIssued{}, false
 	}
-	writeBrowserSessionCookies(w, r, h.cookieSecureMode(), sessionSecret, csrfSecret, absoluteExpiresAt, int(h.absoluteTimeout().Seconds()))
-	WriteJSON(w, http.StatusOK, LocalIdentitySessionResponse{
-		Status:            status,
+	writeBrowserSessionCookies(w, r, cookieSecure, sessionSecret, csrfSecret, absoluteExpiresAt, int(absoluteTimeout.Seconds()))
+	return localSessionIssued{
 		Auth:              browserSessionAuthResponse(sessionAuth),
 		CSRFToken:         csrfSecret,
 		IdleExpiresAt:     idleExpiresAt,
 		AbsoluteExpiresAt: absoluteExpiresAt,
-		LockedUntil:       lockedUntil,
-	})
+	}, true
 }
 
 func (h *LocalIdentityHandler) writeLocalIdentityUnauthenticated(

@@ -969,7 +969,13 @@ type Instruments struct {
 	// AuthBootstrapSeedTotal counts the startup bootstrap identity seeding
 	// stage's outcome by bounded outcome value (sealed_existing, seeded_env,
 	// generated, skipped, error).
-	AuthBootstrapSeedTotal             metric.Int64Counter
+	AuthBootstrapSeedTotal metric.Int64Counter
+	// AuthSetupWizardTotal counts first-run setup wizard (#4965) outcomes by
+	// bounded step and result (claim/success, claim/denied, admin/success,
+	// admin/denied, mfa/success, mfa/denied, error), so an operator can tell
+	// a legitimate completion from repeated wrong-credential guesses at the
+	// exposed claim step.
+	AuthSetupWizardTotal               metric.Int64Counter
 	SharedAcceptanceUpsertDuration     metric.Float64Histogram
 	SharedAcceptanceLookupDuration     metric.Float64Histogram
 	SharedAcceptancePrefetchSize       metric.Int64Histogram
@@ -3465,6 +3471,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register AuthBootstrapSeedTotal counter: %w", err)
+	}
+
+	inst.AuthSetupWizardTotal, err = meter.Int64Counter(
+		"eshu_dp_auth_setup_wizard_total",
+		metric.WithDescription("First-run setup wizard (#4965) outcomes by bounded step_result value (claim_allowed, claim_denied, admin_allowed, admin_denied, mfa_allowed, mfa_denied, error)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register AuthSetupWizardTotal counter: %w", err)
 	}
 
 	inst.SharedAcceptanceUpsertDuration, err = meter.Float64Histogram(

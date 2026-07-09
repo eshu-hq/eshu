@@ -30,6 +30,15 @@ var publicHTTPPaths = map[string]bool{
 	"/api/v0/auth/local/login":               true,
 	"/api/v0/auth/local/invitations/accept":  true,
 	"/api/v0/auth/local/break-glass/session": true,
+	// First-run setup wizard (#4965): a fresh deployment has no session,
+	// bearer token, or prior credential, so these routes must bypass
+	// AuthMiddleware and rely entirely on their own bootstrap-credential
+	// proof (SetupStore.VerifyBootstrapCredential) plus the permanent
+	// SetupStore.SetupNeeded seal check every mutating route re-runs.
+	"/api/v0/auth/setup-state": true,
+	"/api/v0/auth/setup/claim": true,
+	"/api/v0/auth/setup/admin": true,
+	"/api/v0/auth/setup/mfa":   true,
 }
 
 type authContextKey struct{}

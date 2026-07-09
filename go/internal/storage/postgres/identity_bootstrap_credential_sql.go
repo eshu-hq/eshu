@@ -72,6 +72,21 @@ WHERE tenant_id = $1
   AND workspace_id = $2
 `
 
+// selectBootstrapCredentialConsumedStateQuery reports whether the bootstrap
+// credential row for (tenant, workspace, subject) has already been consumed.
+// CompleteSetupMFA (identity_setup_completion.go, #4990) runs this inside its
+// pg_advisory_xact_lock(3456) critical section to detect a concurrent
+// completion that already won the race before this caller acquired the
+// lock — a missing row is treated as "already consumed" by the caller (fail
+// closed) rather than this query inventing a row that was never generated.
+const selectBootstrapCredentialConsumedStateQuery = `
+SELECT consumed_at IS NOT NULL
+FROM identity_bootstrap_credentials
+WHERE tenant_id = $1
+  AND workspace_id = $2
+  AND subject_id_hash = $3
+`
+
 // selectBootstrapCredentialOwnerUserIDQuery resolves the active local user
 // that owns a bootstrap credential's subject, so Reset can rotate its bcrypt
 // hash in the same transaction as the envelope re-seal.
