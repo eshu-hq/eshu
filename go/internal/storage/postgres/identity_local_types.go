@@ -23,6 +23,12 @@ var (
 	ErrLocalIdentityInvitationRequired    = errors.New("local identity invitation required")
 	ErrLocalIdentityAPITokenUnavailable   = errors.New("local identity api token unavailable")
 	ErrLocalIdentityTransactionRequired   = errors.New("local identity store transaction support is required")
+	// ErrLocalIdentityMFARequiredByPolicy means the tenant's sign-in policy
+	// has RequireMFAForAllUsers=true (issue #4968) and this invitation
+	// acceptance did not enroll an MFA factor. Distinct from
+	// ErrLocalIdentityAdminMFARequired, which is the unconditional
+	// admin/owner-bootstrap MFA requirement independent of tenant policy.
+	ErrLocalIdentityMFARequiredByPolicy = errors.New("local identity mfa required by tenant sign-in policy")
 )
 
 // LocalIdentityBootstrapRecord contains hash-only first-owner setup state.

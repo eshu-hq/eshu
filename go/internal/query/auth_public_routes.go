@@ -15,7 +15,15 @@ func publicHTTPRoute(r *http.Request) bool {
 	if r.Method == http.MethodGet &&
 		(r.URL.Path == "/api/v0/auth/oidc/login" ||
 			r.URL.Path == "/api/v0/auth/oidc/callback" ||
-			r.URL.Path == "/api/v0/auth/providers") {
+			r.URL.Path == "/api/v0/auth/providers" ||
+			// /api/v0/auth/sign-in-policy is public GET-only (issue #4968):
+			// the login page must know require_sso BEFORE the user is
+			// authenticated, to decide whether to hide the local password
+			// form. It exposes only require_sso — see
+			// SignInPolicyReadHandler.handlePublicGet. The admin PATCH route
+			// at the same base path (/api/v0/auth/admin/sign-in-policy) is a
+			// DIFFERENT path and stays authenticated.
+			r.URL.Path == "/api/v0/auth/sign-in-policy") {
 		return true
 	}
 	return publicSAMLHTTPRoute(r)

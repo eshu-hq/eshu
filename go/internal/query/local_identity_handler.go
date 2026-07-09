@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 const localIdentitySecretBytes = 32
@@ -28,6 +29,18 @@ type LocalIdentityHandler struct {
 	// CookieSecure selects the Secure-attribute policy for issued session
 	// and CSRF cookies. Empty defaults to CookieSecureAuto (#4964).
 	CookieSecure CookieSecureMode
+	// SignInPolicy reads the tenant sign-in policy (issue #4968, epic #4962)
+	// enforced by handleLogin (require_sso: local login denied for a
+	// non-admin identity; break-glass local admin sign-in is unaffected — see
+	// requireSSODecision in local_identity_sign_in_policy_gate.go) and by
+	// handleCreateInvitation (allow_local_user_creation). Nil means no
+	// policy store is wired: every gate fails open to today's unrestricted
+	// behavior, matching this package's existing store-unavailable-fails-
+	// open convention for optional reads.
+	SignInPolicy SignInPolicyReadStore
+	// Instruments records the require_sso login-gate decision
+	// (eshu_dp_auth_require_sso_login_gate_total). Optional: nil-safe.
+	Instruments *telemetry.Instruments
 }
 
 // Mount registers local identity routes.
@@ -123,6 +136,20 @@ func (h *LocalIdentityHandler) handleLogin(w http.ResponseWriter, r *http.Reques
 		h.writeLocalIdentityUnauthenticated(w, r, result)
 		return
 	}
+	// Sign-in policy require_sso gate (issue #4968). Applied identically
+	// regardless of how the caller reached this endpoint: there is no request
+	// field that bypasses it. The console's /login?local=1 is a pure UI hint
+	// (render the local form even when the policy would otherwise hide it) —
+	// it carries no server-side meaning, so the guardrail cannot be
+	// client-bypassed. Break-glass is simply "the identity that just
+	// authenticated is an admin."
+	allowed, decision := h.requireSSODecision(r.Context(), result.Auth)
+	h.recordRequireSSOLoginGate(r.Context(), decision)
+	if !allowed {
+		h.auditLocalIdentity(r, governanceaudit.EventTypeIdentityAuthentication, governanceaudit.DecisionDenied, "local_login_denied_require_sso_policy", result.Auth.SubjectIDHash)
+		WriteError(w, http.StatusForbidden, "local sign-in is disabled by tenant policy; sign in with SSO, or an admin may use break-glass local sign-in")
+		return
+	}
 	h.auditLocalIdentity(r, governanceaudit.EventTypeIdentityAuthentication, governanceaudit.DecisionAllowed, "local_login_authenticated", result.Auth.SubjectIDHash)
 	h.issueLocalIdentitySession(w, r, result.Auth, string(result.Status), result.LockedUntil)
 }
@@ -152,6 +179,17 @@ func (h *LocalIdentityHandler) handleCreateInvitation(w http.ResponseWriter, r *
 	}
 	tenantID := localIdentityDefault(req.TenantID, authTenantID(r))
 	workspaceID := localIdentityDefault(req.WorkspaceID, authWorkspaceID(r))
+	// Sign-in policy allow_local_user_creation gate (issue #4968). SSO login
+	// never creates an invitation or a local identity row — it resolves an
+	// ephemeral session directly from IdP claims/group mappings (see
+	// go/internal/oidclogin.Service.CompleteOIDCLogin and
+	// SAMLHandler.handleACS) — so this gate needs no SSO-identity carve-out:
+	// invitations are exclusively the local-password-account creation path.
+	if !h.allowLocalUserCreation(r.Context(), tenantID) {
+		h.auditLocalIdentity(r, governanceaudit.EventTypeRoleGrantChange, governanceaudit.DecisionDenied, "local_invitation_denied_by_policy", "")
+		WriteError(w, http.StatusForbidden, "local user creation is disabled by tenant sign-in policy")
+		return
+	}
 	record := LocalIdentityInvitationRecord{
 		InviteID:             h.newID(),
 		TenantID:             tenantID,

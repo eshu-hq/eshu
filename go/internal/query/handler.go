@@ -198,6 +198,8 @@ type APIRouter struct {
 	AuthProviders                *AuthProviderListHandler
 	AdminProviderConfigReads     *AdminProviderConfigReadHandler
 	AdminProviderConfigMutations *AdminProviderConfigMutationHandler
+	SignInPolicyReads            *SignInPolicyReadHandler
+	SignInPolicyMutations        *SignInPolicyMutationHandler
 }
 
 // Mount registers all query-layer HTTP routes on the given mux.
@@ -239,6 +241,12 @@ func (a *APIRouter) Mount(mux *http.ServeMux) {
 	}
 	if a.AdminProviderConfigMutations != nil {
 		a.AdminProviderConfigMutations.Mount(mux)
+	}
+	if a.SignInPolicyReads != nil {
+		a.SignInPolicyReads.Mount(mux)
+	}
+	if a.SignInPolicyMutations != nil {
+		a.SignInPolicyMutations.Mount(mux)
 	}
 	if a.Profile != nil {
 		a.Profile.Mount(mux)

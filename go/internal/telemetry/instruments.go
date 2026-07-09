@@ -975,7 +975,24 @@ type Instruments struct {
 	// admin/denied, mfa/success, mfa/denied, error), so an operator can tell
 	// a legitimate completion from repeated wrong-credential guesses at the
 	// exposed claim step.
-	AuthSetupWizardTotal               metric.Int64Counter
+	AuthSetupWizardTotal metric.Int64Counter
+	// AuthSignInPolicyGuardrailTotal counts every attempt to enable
+	// require_sso on a tenant's sign-in policy (issue #4968, epic #4962), by
+	// bounded decision value (allowed, denied_no_provider,
+	// denied_no_sso_proof). Lets an operator see guardrail rejections trying
+	// to lock a tenant out of local login without a proven SSO path, not just
+	// successful policy changes.
+	AuthSignInPolicyGuardrailTotal metric.Int64Counter
+	// AuthRequireSSOLoginGateTotal counts every local password login attempt
+	// evaluated against a tenant's require_sso policy (issue #4968, epic
+	// #4962), by bounded decision value (not_required, allowed_admin,
+	// denied_non_admin). allowed_admin covers both the normal login form (when
+	// require_sso is off) and the break-glass path
+	// (/login?local=1 — a console-only UI hint with no server meaning): the
+	// server applies the identical admin-only rule either way, so this
+	// counter cannot distinguish which URL the caller used, only whether the
+	// authenticated identity was an admin.
+	AuthRequireSSOLoginGateTotal       metric.Int64Counter
 	SharedAcceptanceUpsertDuration     metric.Float64Histogram
 	SharedAcceptanceLookupDuration     metric.Float64Histogram
 	SharedAcceptancePrefetchSize       metric.Int64Histogram
@@ -3479,6 +3496,22 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register AuthSetupWizardTotal counter: %w", err)
+	}
+
+	inst.AuthSignInPolicyGuardrailTotal, err = meter.Int64Counter(
+		"eshu_dp_auth_sign_in_policy_guardrail_total",
+		metric.WithDescription("Tenant sign-in policy require_sso enable attempts by bounded decision value (allowed, denied_no_provider, denied_no_sso_proof)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register AuthSignInPolicyGuardrailTotal counter: %w", err)
+	}
+
+	inst.AuthRequireSSOLoginGateTotal, err = meter.Int64Counter(
+		"eshu_dp_auth_require_sso_login_gate_total",
+		metric.WithDescription("Local password login attempts evaluated against tenant require_sso policy by bounded decision value (not_required, allowed_admin, denied_non_admin)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register AuthRequireSSOLoginGateTotal counter: %w", err)
 	}
 
 	inst.SharedAcceptanceUpsertDuration, err = meter.Float64Histogram(

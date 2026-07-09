@@ -116,6 +116,16 @@ func (s *IdentitySubjectStore) AcceptLocalIdentityInvitation(
 	if !ok {
 		return ErrLocalIdentityInvitationRequired
 	}
+	// Sign-in policy MFA-for-all-users gate (issue #4968): read inside this
+	// same transaction, using the invite's own tenant_id, so the check and the
+	// identity insert below observe a consistent snapshot.
+	requireMFA, err := signInPolicyRequiresMFAForUsers(ctx, tx, invite.TenantID)
+	if err != nil {
+		return err
+	}
+	if requireMFA && acceptance.MFAFactorID == "" {
+		return ErrLocalIdentityMFARequiredByPolicy
+	}
 	if err := insertInvitedLocalIdentity(ctx, tx, invite, acceptance); err != nil {
 		return err
 	}

@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -20,6 +21,12 @@ import (
 type postgresBrowserSessionAdapter struct {
 	store      *pgstatus.BrowserSessionStore
 	idleWindow time.Duration
+	// signInPolicy records the require_sso guardrail's SSO-admin-proof signal
+	// (issue #4968, epic #4962) from CreateBrowserSession — see that method's
+	// doc comment for why this is the single choke point both OIDC and SAML
+	// funnel through. nil in the (test-only) construction paths that never
+	// wire a database.
+	signInPolicy *pgstatus.IdentitySubjectStore
 }
 
 func newPostgresBrowserSessionAdapter(
@@ -38,9 +45,19 @@ func newPostgresBrowserSessionAdapter(
 			StoreName:   "browser_sessions",
 		}
 	}
+	signInPolicyDB := pgstatus.ExecQueryer(pgstatus.SQLDB{DB: db})
+	if instruments != nil {
+		signInPolicyDB = &pgstatus.InstrumentedDB{
+			Inner:       signInPolicyDB,
+			Tracer:      otel.Tracer(telemetry.DefaultSignalName),
+			Instruments: instruments,
+			StoreName:   "identity_sign_in_policy",
+		}
+	}
 	return &postgresBrowserSessionAdapter{
-		store:      pgstatus.NewBrowserSessionStore(sessionDB),
-		idleWindow: query.DefaultBrowserSessionIdleTimeout,
+		store:        pgstatus.NewBrowserSessionStore(sessionDB),
+		idleWindow:   query.DefaultBrowserSessionIdleTimeout,
+		signInPolicy: pgstatus.NewIdentitySubjectStore(signInPolicyDB),
 	}
 }
 
@@ -94,11 +111,26 @@ func wrapAPIAuth(
 	)
 }
 
+// CreateBrowserSession persists one dashboard session. It is the single
+// choke point every session-issuing path funnels through — local/break-glass
+// login (LocalIdentityHandler), OIDC (BrowserSessionHandler.
+// issueBrowserSessionWithExternalAuth), and SAML (SAMLHandler.createSession)
+// all call this same interface method — so it is also where the require_sso
+// guardrail's SSO-admin-proof signal (issue #4968, epic #4962) is captured:
+// whenever the resulting session is both an admin (AllScopes) and was
+// established via an external IdP (ExternalProviderConfigID set), record
+// that this tenant has now proven "an admin can sign in via SSO," one half
+// of the guardrail that gates enabling require_sso. Local and break-glass
+// sessions never carry ExternalProviderConfigID, so they never trigger this.
+//
+// The record is best-effort (logged, not fatal): a transient failure to
+// persist this proof must never fail the login itself — the same
+// best-effort convention governance audit already uses on this path.
 func (a *postgresBrowserSessionAdapter) CreateBrowserSession(
 	ctx context.Context,
 	record query.BrowserSessionCreateRecord,
 ) error {
-	return a.store.CreateSession(ctx, pgstatus.BrowserSessionRecord{
+	if err := a.store.CreateSession(ctx, pgstatus.BrowserSessionRecord{
 		SessionHash:                  record.SessionHash,
 		CSRFTokenHash:                record.CSRFTokenHash,
 		TenantID:                     record.TenantID,
@@ -123,7 +155,28 @@ func (a *postgresBrowserSessionAdapter) CreateBrowserSession(
 		IdleExpiresAt:                record.IdleExpiresAt,
 		AbsoluteExpiresAt:            record.AbsoluteExpiresAt,
 		UpdatedAt:                    record.UpdatedAt,
-	})
+	}); err != nil {
+		return err
+	}
+	a.recordSSOAdminVerificationBestEffort(ctx, record)
+	return nil
+}
+
+func (a *postgresBrowserSessionAdapter) recordSSOAdminVerificationBestEffort(
+	ctx context.Context,
+	record query.BrowserSessionCreateRecord,
+) {
+	if a.signInPolicy == nil || !record.AllScopes || record.ExternalProviderConfigID == "" {
+		return
+	}
+	verifiedAt := record.ExternalAuthValidatedAt
+	if verifiedAt.IsZero() {
+		verifiedAt = record.IssuedAt
+	}
+	if err := a.signInPolicy.RecordSSOAdminVerification(ctx, record.TenantID, record.ExternalProviderConfigID, verifiedAt); err != nil {
+		slog.ErrorContext(ctx, "sign-in policy sso admin verification record failed",
+			"err", err, "tenant_id", record.TenantID)
+	}
 }
 
 func (a *postgresBrowserSessionAdapter) RevokeBrowserSession(
