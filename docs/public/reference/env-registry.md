@@ -31,6 +31,14 @@ This reference is generated from the code-owned registry in `go/internal/envregi
 | `ESHU_SCOPED_TOKENS_FILE` | string | — | Path to an operator-managed scoped-token registry file; API and MCP fail closed if the configured file is malformed or unreadable. |
 | `ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_READ` | bool | `false` | When true, serve GET /api/v0/supply-chain/impact/findings from the maintained canonical winners read model (#3389) instead of read-time dedup (bounded O(page)). Honored by both the API and MCP server; enable only after the reducer maintainer has populated the winners table. Output is byte-identical. |
 
+## auth
+
+| Variable | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `ESHU_AUTH_SECRET_ENC_KEY` | string | — | Base64-encoded 32-byte primary data-encryption key (DEK) for sealing reversible identity secrets (one-time admin bootstrap credential, provider write-only secrets) with AES-256-GCM. Superseded by ESHU_AUTH_SECRET_ENC_KEY_FILE when both are set. Never auto-generated: an ephemeral DEK would make every previously sealed envelope permanently undecryptable after a restart (epic #4962). |
+| `ESHU_AUTH_SECRET_ENC_KEY_FILE` | string | — | Path to a file holding the base64-encoded 32-byte primary DEK; takes precedence over ESHU_AUTH_SECRET_ENC_KEY when both are set (epic #4962). |
+| `ESHU_AUTH_SECRET_ENC_KEY_ID` | string | — | Optional label for the primary DEK's key id, embedded in every envelope it seals for rotation bookkeeping. Defaults to the first 8 hex characters of SHA-256(key) when unset (epic #4962). |
+
 ## collector-aws-cloud
 
 | Variable | Type | Default | Notes |
