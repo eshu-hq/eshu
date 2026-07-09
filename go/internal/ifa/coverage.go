@@ -80,6 +80,13 @@ type OduResolver struct {
 
 // Resolve implements replaycoverage.Resolver.
 func (r OduResolver) Resolve(entry replaycoverage.CoverageEntry) (bool, string) {
+	// An Ifá coverage entry is only meaningful when it binds a surface to an
+	// Odù via the odu scenario. A valid-but-non-odu scenario (e.g. baseline)
+	// must not resolve as covered even with a cataloged ref — otherwise the
+	// nonOduScenarioGuard finding and a "covered" report row would contradict.
+	if entry.Scenario != replaycoverage.ScenarioOdu {
+		return false, fmt.Sprintf("ifa coverage entry uses scenario %q, want %q", entry.Scenario, replaycoverage.ScenarioOdu)
+	}
 	odu, ok := r.Catalog[entry.Ref]
 	if !ok {
 		return false, fmt.Sprintf("no cataloged Odù named %q", entry.Ref)

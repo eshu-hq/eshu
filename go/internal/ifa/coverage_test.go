@@ -74,6 +74,31 @@ func TestRunCoverageCoveredFactKindResolves(t *testing.T) {
 	}
 }
 
+// TestRunCoverageNonOduScenarioIsNotCovered proves a manifest row that uses a
+// valid but non-odu scenario (here cassette) with an otherwise-resolvable
+// surface and cataloged ref does NOT count as covered — the resolver rejects
+// it, so the nonOduScenarioGuard finding cannot be contradicted by a "covered"
+// report row (codex #4972 review).
+func TestRunCoverageNonOduScenarioIsNotCovered(t *testing.T) {
+	t.Parallel()
+
+	in := CoverageInputs{
+		Expectations: coverageFixtureExpectations(),
+		Catalog:      coverageFixtureCatalog(),
+		Registry:     coverageFixtureRegistry(),
+		Manifest: replaycoverage.Manifest{
+			Coverage: []replaycoverage.CoverageEntry{
+				{Surface: "fact_kind:repository", Scenario: replaycoverage.ScenarioCassette, ScenarioType: replaycoverage.ScenarioTypeBaseline, Ref: "odu:kustomize-deploys-from", ProofGate: "ifa-contract-layer"},
+			},
+		},
+	}
+	cov, _, _ := RunCoverage(in)
+	sc := findSurfaceCoverage(t, cov, FactKindSurfacePrefix+"repository")
+	if sc.Status == replaycoverage.StatusCovered {
+		t.Errorf("repository status = %q, want NOT covered: a non-odu scenario binding must not count as covered", sc.Status)
+	}
+}
+
 func TestRunCoverageRefToNonCatalogedOduIsUnresolved(t *testing.T) {
 	t.Parallel()
 
