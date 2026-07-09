@@ -107,7 +107,7 @@ describe("ProviderConfigDrawer — create mode, OIDC (default)", () => {
         onSaved={vi.fn()}
       />,
     );
-    fireEvent.click(screen.getByRole("button", { name: "SAML" }));
+    fireEvent.click(screen.getByRole("radio", { name: "SAML" }));
     const acs = screen.getByLabelText("SAML ACS URL") as HTMLInputElement;
     const spEntity = screen.getByLabelText("SAML SP entity ID") as HTMLInputElement;
     expect(acs.value).toMatch(
@@ -285,7 +285,7 @@ describe("ProviderConfigDrawer — edit mode", () => {
         onSaved={vi.fn()}
       />,
     );
-    expect(screen.queryByRole("button", { name: "SAML" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("radio", { name: "SAML" })).not.toBeInTheDocument();
   });
 
   it("editing and saving an already-active provider shows Draft, not a stale Active (backend resets status on every update)", async () => {

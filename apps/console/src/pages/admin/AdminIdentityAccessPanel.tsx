@@ -5,6 +5,11 @@
 // a Sign-in policy placeholder tab (the real policy surface ships in #4968 —
 // E-6). This component is UX only; the server enforces authorization on every
 // request each panel makes.
+//
+// The tab strip reuses the console's real segmented-control primitive (.seg,
+// styles.css) with the exact role="tablist"/role="tab"/aria-selected markup
+// VulnerabilitiesPage.tsx already uses for its Reachable/Catalog tabs — not a
+// bespoke tab-strip style.
 import { useState } from "react";
 
 import { AdminIdPGroupMappingsPanel } from "./AdminIdPGroupMappingsPanel";
@@ -31,21 +36,21 @@ export function AdminIdentityAccessPanel({
 
   return (
     <Panel title="Identity & Access" className="identity-access-panel">
-      <div className="tab-strip" role="tablist" aria-label="Identity & Access sections">
+      <div className="seg" role="tablist" aria-label="Identity & Access sections">
         {TABS.map((t) => (
           <button
             key={t.id}
             type="button"
             role="tab"
             aria-selected={tab === t.id}
-            className={`tab-btn${tab === t.id ? " active" : ""}`}
+            className={tab === t.id ? "active" : ""}
             onClick={() => setTab(t.id)}
           >
             {t.label}
           </button>
         ))}
       </div>
-      <div className="tab-panel" role="tabpanel">
+      <div className="identity-access-tab-panel" role="tabpanel">
         {tab === "providers" ? <AdminProvidersPanel client={client} baseUrl={baseUrl} /> : null}
         {tab === "group-mappings" ? <AdminIdPGroupMappingsPanel client={client} /> : null}
         {tab === "sign-in-policy" ? (

@@ -41,33 +41,15 @@
 
 /* Identity & Access (#4967): spans the full grid row so the providers table
    and drawer forms have room to breathe next to the narrower single-concern
-   panels. */
+   panels. The tab strip itself reuses the global .seg segmented-control
+   primitive (styles.css) — the same one VulnerabilitiesPage.tsx uses for its
+   Reachable/Catalog tabs — so only the panel's own spacing is added here. */
 .identity-access-panel {
   grid-column: 1 / -1;
 }
 
-.tab-strip {
-  display: flex;
-  gap: 4px;
-  border-bottom: 1px solid var(--line);
-  margin-bottom: 14px;
-}
-
-.tab-btn {
-  padding: 8px 14px;
-  font-size: 0.84rem;
-  font-weight: 650;
-  color: var(--muted);
-  border-bottom: 2px solid transparent;
-}
-
-.tab-btn:hover {
-  color: var(--bone);
-}
-
-.tab-btn.active {
-  color: var(--accent);
-  border-bottom-color: var(--accent);
+.identity-access-tab-panel {
+  margin-top: 14px;
 }
 
 /* Provider Add/Edit drawer form fields (ProviderConfigDrawer /
@@ -148,8 +130,8 @@
   flex-wrap: wrap;
 }
 
-.provider-kind-toggle {
-  display: flex;
-  gap: 8px;
+/* The OIDC/SAML kind toggle reuses .seg too (styles.css); it only needs
+   bottom spacing before the field group starts. */
+.seg[aria-label="Provider kind"] {
   margin-bottom: 4px;
 }

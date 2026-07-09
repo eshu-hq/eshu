@@ -242,10 +242,12 @@ export function ProviderConfigDrawer({
         </div>
         <div className="drawer-body">
           {existing ? null : (
-            <div className="provider-kind-toggle" role="radiogroup" aria-label="Provider kind">
+            <div className="seg" role="radiogroup" aria-label="Provider kind">
               <button
                 type="button"
-                className={`btn-ghost${kind === "oidc" ? " active" : ""}`}
+                role="radio"
+                aria-checked={kind === "oidc"}
+                className={kind === "oidc" ? "active" : ""}
                 disabled={busy}
                 onClick={() => setKind("oidc")}
               >
@@ -253,7 +255,9 @@ export function ProviderConfigDrawer({
               </button>
               <button
                 type="button"
-                className={`btn-ghost${kind === "saml" ? " active" : ""}`}
+                role="radio"
+                aria-checked={kind === "saml"}
+                className={kind === "saml" ? "active" : ""}
                 disabled={busy}
                 onClick={() => setKind("saml")}
               >
