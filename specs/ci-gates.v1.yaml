@@ -1287,9 +1287,10 @@ gates:
       - "go/internal/replay/inputtape/**"
       - "go/internal/replay/schedulereplay/**"
       - "go/internal/replay/crashreplay/**"
+      - "go/internal/replay/concurrentreplay/**"
       - ".github/workflows/test.yml"
     local:
-      command: "cd go && go test -race -count=1 -timeout 300s ./internal/replay/inputtape/... ./internal/replay/schedulereplay/... ./internal/replay/crashreplay/..."
+      command: "cd go && go test -race -count=1 -timeout 300s ./internal/replay/inputtape/... ./internal/replay/schedulereplay/... ./internal/replay/crashreplay/... ./internal/replay/concurrentreplay/..."
       test_command: ""
     ci:
       workflow: test.yml
