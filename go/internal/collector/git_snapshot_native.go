@@ -180,7 +180,7 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 	}
 	commitSHA := repository.SourceCommitSHA
 	if commitSHA == "" {
-		commitSHA = gitCommitSHA(ctx, repoPath)
+		commitSHA = gitCommitSHAFn(ctx, repoPath)
 	}
 	snapshot.HeadCommitSHA = commitSHA
 	if len(fileSet.Files) == 0 {

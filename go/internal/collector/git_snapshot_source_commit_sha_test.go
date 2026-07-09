@@ -155,6 +155,65 @@ func TestSnapshotFallsBackToGitCommitSHA(t *testing.T) {
 	}
 }
 
+// TestSnapshotHeadCommitSubprocessCount is the measured before/after for #4880:
+// it counts git rev-parse HEAD subprocess invocations in the snapshot path via
+// the gitCommitSHAFn seam. When the sync-resolved SourceCommitSHA is carried,
+// the snapshot runs 0 such subprocesses; when empty (fallback), exactly 1.
+// It must not run in parallel: it swaps the package-level gitCommitSHAFn seam.
+func TestSnapshotHeadCommitSubprocessCount(t *testing.T) {
+	repoPath := t.TempDir()
+	runGit(t, repoPath, "init")
+	runGit(t, repoPath, "config", "user.email", "test@example.com")
+	runGit(t, repoPath, "config", "user.name", "Test")
+	writeFile(t, repoPath, "main.py", "def hello():\n    pass\n")
+	runGit(t, repoPath, "add", "main.py")
+	runGit(t, repoPath, "commit", "-m", "initial commit")
+
+	engine, err := parser.DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v", err)
+	}
+	snapshotter := NativeRepositorySnapshotter{
+		Engine: engine,
+		Now: func() time.Time {
+			return time.Date(2026, time.April, 14, 12, 0, 0, 0, time.UTC)
+		},
+	}
+
+	original := gitCommitSHAFn
+	var calls int
+	gitCommitSHAFn = func(ctx context.Context, p string) string {
+		calls++
+		return original(ctx, p)
+	}
+	defer func() { gitCommitSHAFn = original }()
+
+	// Carried sync-resolved SHA: the snapshot must run zero git rev-parse HEAD.
+	calls = 0
+	if _, err := snapshotter.SnapshotRepository(context.Background(), SelectedRepository{
+		RepoPath:        repoPath,
+		RemoteURL:       "https://github.com/example/service",
+		SourceCommitSHA: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+	}); err != nil {
+		t.Fatalf("SnapshotRepository(carried) error = %v", err)
+	}
+	if calls != 0 {
+		t.Fatalf("carried SourceCommitSHA: git rev-parse HEAD invocations = %d, want 0", calls)
+	}
+
+	// Empty SHA (non-sync fallback): exactly one git rev-parse HEAD.
+	calls = 0
+	if _, err := snapshotter.SnapshotRepository(context.Background(), SelectedRepository{
+		RepoPath:  repoPath,
+		RemoteURL: "https://github.com/example/service",
+	}); err != nil {
+		t.Fatalf("SnapshotRepository(fallback) error = %v", err)
+	}
+	if calls != 1 {
+		t.Fatalf("empty SourceCommitSHA: git rev-parse HEAD invocations = %d, want 1", calls)
+	}
+}
+
 func runGit(t *testing.T, repoPath string, args ...string) string {
 	t.Helper()
 	cmdArgs := append([]string{"-C", repoPath}, args...)
