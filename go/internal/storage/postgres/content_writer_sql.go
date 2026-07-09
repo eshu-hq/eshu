@@ -64,7 +64,7 @@ SET commit_sha = EXCLUDED.commit_sha,
 
 // deleteContentFileQuery removes one file row for a tombstoned record.
 // The matching content_file_references rows are removed separately via
-// deleteContentReferences before the file delete fires.
+// deleteContentReferencePathsBatch before the file delete fires.
 const deleteContentFileQuery = `
 DELETE FROM content_files
 WHERE repo_id = $1

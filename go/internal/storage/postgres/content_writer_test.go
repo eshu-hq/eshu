@@ -174,14 +174,16 @@ func TestContentWriterLogsStageTimings(t *testing.T) {
 	}
 }
 
-func TestContentWriterDeletesAreNotBatched(t *testing.T) {
+func TestContentWriterBatchesSmallTombstoneDelete(t *testing.T) {
 	t.Parallel()
 
 	db := &fakeExecQueryer{}
 	writer := NewContentWriter(db)
 	writer.Now = func() time.Time { return time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC) }
 
-	// Create 1 deleted record
+	// Create 1 deleted record — the batched path still issues one DELETE
+	// per table (the batch is just 1 row), preserving the same entity→
+	// reference→file order.
 	records := []content.Record{
 		{Path: "deleted.go", Deleted: true},
 	}
@@ -203,7 +205,7 @@ func TestContentWriterDeletesAreNotBatched(t *testing.T) {
 
 	// Deletes should remove entities, indexed file references, and the file row.
 	if got, want := len(db.execs), 3; got != want {
-		t.Fatalf("exec count = %d, want %d (3 deletes)", got, want)
+		t.Fatalf("exec count = %d, want %d (3 batched deletes)", got, want)
 	}
 	if !strings.Contains(db.execs[0].query, "DELETE FROM content_entities") {
 		t.Fatalf("first query should delete entities: %s", db.execs[0].query)
@@ -213,6 +215,13 @@ func TestContentWriterDeletesAreNotBatched(t *testing.T) {
 	}
 	if !strings.Contains(db.execs[2].query, "DELETE FROM content_files") {
 		t.Fatalf("third query should delete files: %s", db.execs[2].query)
+	}
+
+	// Each DELETE must use the batched IN (...) syntax.
+	for _, e := range db.execs {
+		if !strings.Contains(e.query, "IN (") {
+			t.Fatalf("DELETE query should use batched IN (...) syntax: %s", e.query)
+		}
 	}
 }
 

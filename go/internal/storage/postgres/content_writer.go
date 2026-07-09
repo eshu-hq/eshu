@@ -155,23 +155,18 @@ func (w ContentWriter) Write(ctx context.Context, materialization content.Materi
 		)
 	}
 
-	// Process file records: handle deletes first, then batch upserts
+	// Process file records: accumulate tombstone keys for batched deletes,
+	// then batch upserts.
 	var fileUpserts []preparedFileRow
+	var deletedFilePaths []string
+	var purgeEntityPaths []string
 	for _, record := range cloned.Records {
 		if strings.TrimSpace(record.Path) == "" {
 			return content.Result{}, fmt.Errorf("content record path is required")
 		}
 
 		if record.Deleted {
-			if _, err := w.db.ExecContext(ctx, deleteContentEntityQuery, cloned.RepoID, record.Path); err != nil {
-				return content.Result{}, fmt.Errorf("delete content_entities for %q: %w", record.Path, err)
-			}
-			if err := w.deleteContentReferences(ctx, cloned.RepoID, record.Path); err != nil {
-				return content.Result{}, fmt.Errorf("delete content_file_references for %q: %w", record.Path, err)
-			}
-			if _, err := w.db.ExecContext(ctx, deleteContentFileQuery, cloned.RepoID, record.Path); err != nil {
-				return content.Result{}, fmt.Errorf("delete content_files for %q: %w", record.Path, err)
-			}
+			deletedFilePaths = append(deletedFilePaths, record.Path)
 			result.DeletedCount++
 			continue
 		}
@@ -204,9 +199,7 @@ func (w ContentWriter) Write(ctx context.Context, materialization content.Materi
 		}
 
 		if record.PurgeEntities {
-			if _, err := w.db.ExecContext(ctx, deleteContentEntityQuery, cloned.RepoID, record.Path); err != nil {
-				return content.Result{}, fmt.Errorf("purge content_entities for %q: %w", record.Path, err)
-			}
+			purgeEntityPaths = append(purgeEntityPaths, record.Path)
 		}
 
 		fileUpserts = append(fileUpserts, preparedFileRow{
@@ -221,6 +214,26 @@ func (w ContentWriter) Write(ctx context.Context, materialization content.Materi
 			templateDialect: templateDialect,
 			iacRelevant:     iacRelevant,
 		})
+	}
+
+	// Batch-delete tombstoned content_entities, content_file_references,
+	// and content_files rows so N deleted records go from 3N round trips
+	// to ≤ 3 batches (one per table, chunked at contentFileBatchSize).
+	// Order matches the per-row path: entities → references → files.
+	//
+	// PurgeEntityPaths and deletedFilePaths are unioned for the entity
+	// batch: both use the same (repo_id, relative_path) key.
+	allEntityDeletePaths := make([]string, 0, len(deletedFilePaths)+len(purgeEntityPaths))
+	allEntityDeletePaths = append(allEntityDeletePaths, deletedFilePaths...)
+	allEntityDeletePaths = append(allEntityDeletePaths, purgeEntityPaths...)
+	if err := w.deleteContentEntityPathsBatch(ctx, cloned.RepoID, allEntityDeletePaths); err != nil {
+		return content.Result{}, err
+	}
+	if err := w.deleteContentReferencePathsBatch(ctx, cloned.RepoID, deletedFilePaths); err != nil {
+		return content.Result{}, err
+	}
+	if err := w.deleteContentFilesBatch(ctx, cloned.RepoID, deletedFilePaths); err != nil {
+		return content.Result{}, err
 	}
 	w.logStage(
 		ctx, cloned, "prepare_files", filePrepareStart,
@@ -239,9 +252,11 @@ func (w ContentWriter) Write(ctx context.Context, materialization content.Materi
 		"batch_count", contentBatchCount(len(fileUpserts), contentFileBatchSize),
 	)
 
-	// Process entity records: handle deletes first, then batch upserts
+	// Process entity records: accumulate tombstone entity IDs for
+	// batched deletes, then batch upserts.
 	entityPrepareStart := time.Now()
 	var entityUpserts []preparedEntityRow
+	var deletedEntityIDs []string
 	for _, entity := range cloned.Entities {
 		if strings.TrimSpace(entity.EntityID) == "" {
 			return content.Result{}, fmt.Errorf("content entity id is required")
@@ -266,14 +281,7 @@ func (w ContentWriter) Write(ctx context.Context, materialization content.Materi
 		sourceCache := strings.TrimSpace(entity.SourceCache)
 
 		if entity.Deleted {
-			if _, err := w.db.ExecContext(
-				ctx,
-				deleteContentEntityByIDQuery,
-				cloned.RepoID,
-				entity.EntityID,
-			); err != nil {
-				return content.Result{}, fmt.Errorf("delete content_entities by entity_id for %q: %w", entity.EntityID, err)
-			}
+			deletedEntityIDs = append(deletedEntityIDs, entity.EntityID)
 			result.DeletedCount++
 			continue
 		}
@@ -301,6 +309,13 @@ func (w ContentWriter) Write(ctx context.Context, materialization content.Materi
 			sourceCache:     sourceCache,
 			metadataJSON:    metadataJSON,
 		})
+	}
+
+	// Batch-delete tombstoned content_entities by entity_id so N
+	// entity.Deleted records go from N round trips to ≤ 1 batch
+	// (chunked at contentFileBatchSize).
+	if err := w.deleteContentEntityIDsBatch(ctx, cloned.RepoID, deletedEntityIDs); err != nil {
+		return content.Result{}, err
 	}
 	// Deduplicate by entity_id before fan-out. content_entities has
 	// entity_id as its PRIMARY KEY (see upsertContentEntityQuery's
