@@ -1,0 +1,262 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+package main
+
+import (
+	"context"
+	"crypto/rand"
+	"crypto/sha256"
+	"database/sql"
+	"encoding/base64"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"os"
+	"strings"
+	"time"
+
+	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/spf13/cobra"
+	"golang.org/x/crypto/bcrypt"
+
+	"github.com/eshu-hq/eshu/go/internal/secretcrypto"
+	pgstorage "github.com/eshu-hq/eshu/go/internal/storage/postgres"
+)
+
+// eshu admin initial-credential / reset-initial-credential (epic #4962,
+// issue #4963).
+//
+// Both subcommands connect directly to Postgres (sql.Open("pgx", dsn) from
+// ESHU_POSTGRES_DSN, the existing cmd/eshu pattern at
+// local_host_config.go:227) rather than calling the API. Direct-DB access is
+// the same trust boundary as the API process itself (both need the DEK and
+// Postgres credentials to do anything useful here); an unauthenticated HTTP
+// endpoint would be new attack surface, and a shared-API-key approach has no
+// key to check on a fresh stack before the first admin exists.
+//
+// The generated plaintext is printed to stdout exactly once per invocation
+// and is never logged or written to any file by this command.
+const (
+	adminCredentialDSNEnv = "ESHU_POSTGRES_DSN"
+	generatedPasswordSize = 24
+	generatedRecoverySize = 20
+)
+
+// bootstrapCredentialPayloadCLI mirrors go/cmd/api/seed_initial_admin.go's
+// bootstrapCredentialPayload JSON shape. The two packages cannot share an
+// unexported type across binaries, so this struct's field tags must stay
+// byte-for-byte identical to the sealing side's.
+type bootstrapCredentialPayloadCLI struct {
+	Username     string `json:"username"`
+	Password     string `json:"password"`
+	RecoveryCode string `json:"recovery_code"`
+}
+
+func init() {
+	initialCredentialCmd := &cobra.Command{
+		Use:   "initial-credential",
+		Short: "Retrieve the one-time generated bootstrap admin credential",
+		RunE:  runAdminInitialCredential,
+	}
+	adminCmd.AddCommand(initialCredentialCmd)
+
+	resetInitialCredentialCmd := &cobra.Command{
+		Use:   "reset-initial-credential",
+		Short: "Regenerate and reseal the bootstrap admin credential",
+		RunE:  runAdminResetInitialCredential,
+	}
+	resetInitialCredentialCmd.Flags().String("username", "", "Username to seal into the new credential bundle; required only if the prior credential cannot be recovered to carry it forward")
+	adminCmd.AddCommand(resetInitialCredentialCmd)
+}
+
+func runAdminInitialCredential(cmd *cobra.Command, _ []string) error {
+	ctx := cmd.Context()
+	db, err := openAdminCredentialDB(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = db.Close() }()
+
+	keyring, err := secretcrypto.KeyringFromEnv(os.Getenv)
+	if err != nil {
+		return fmt.Errorf("resolve data-encryption key: %w", err)
+	}
+
+	store := pgstorage.NewIdentitySubjectStore(pgstorage.SQLDB{DB: db})
+	payload, err := openBootstrapCredentialPayload(ctx, store, keyring)
+	if err != nil {
+		return err
+	}
+
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(),
+		"username:      %s\npassword:      %s\nrecovery code: %s\n",
+		payload.Username, payload.Password, payload.RecoveryCode)
+	return nil
+}
+
+func runAdminResetInitialCredential(cmd *cobra.Command, _ []string) error {
+	ctx := cmd.Context()
+	db, err := openAdminCredentialDB(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = db.Close() }()
+
+	keyring, err := secretcrypto.KeyringFromEnv(os.Getenv)
+	if err != nil {
+		return fmt.Errorf("resolve data-encryption key: %w", err)
+	}
+	store := pgstorage.NewIdentitySubjectStore(pgstorage.SQLDB{DB: db})
+
+	username, _ := cmd.Flags().GetString("username")
+	username = strings.TrimSpace(username)
+	if username == "" {
+		if existing, err := openBootstrapCredentialPayload(ctx, store, keyring); err == nil {
+			username = existing.Username
+		}
+	}
+	if username == "" {
+		return errors.New(
+			"cannot recover the original username (the prior credential was already consumed, reset, or sealed under a different key); pass --username to reset-initial-credential",
+		)
+	}
+
+	password, err := generateSecret(generatedPasswordSize)
+	if err != nil {
+		return fmt.Errorf("generate replacement password: %w", err)
+	}
+	recoveryCode, err := generateSecret(generatedRecoverySize)
+	if err != nil {
+		return fmt.Errorf("generate replacement recovery code: %w", err)
+	}
+	passwordHash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return fmt.Errorf("hash replacement password: %w", err)
+	}
+
+	payload, err := json.Marshal(bootstrapCredentialPayloadCLI{
+		Username:     username,
+		Password:     password,
+		RecoveryCode: recoveryCode,
+	})
+	if err != nil {
+		return fmt.Errorf("encode replacement credential payload: %w", err)
+	}
+	aad := pgstorage.BootstrapCredentialAAD(pgstorage.BootstrapAdminTenantID, pgstorage.BootstrapAdminWorkspaceID)
+	sealed, err := keyring.Seal(payload, aad)
+	if err != nil {
+		return fmt.Errorf("seal replacement credential: %w", err)
+	}
+	keyID, err := envelopeKeyIDCLI(sealed)
+	if err != nil {
+		return fmt.Errorf("resolve sealed credential key id: %w", err)
+	}
+
+	now := time.Now().UTC()
+	if err := store.ResetBootstrapCredential(ctx, pgstorage.ResetBootstrapCredentialInput{
+		TenantID:               pgstorage.BootstrapAdminTenantID,
+		WorkspaceID:            pgstorage.BootstrapAdminWorkspaceID,
+		SealedCredential:       sealed,
+		KeyID:                  keyID,
+		PasswordHash:           string(passwordHash),
+		PasswordAlgorithm:      "bcrypt",
+		PasswordParametersHash: localCredentialHash("bcrypt"),
+		ResetAt:                now,
+	}); err != nil {
+		if errors.Is(err, pgstorage.ErrBootstrapCredentialNotFound) {
+			return errors.New(
+				"no bootstrap credential exists for this deployment (the admin was seeded from ESHU_ADMIN_USERNAME/PASSWORD and has no generated envelope, or ESHU_AUTH_BOOTSTRAP_MODE is sso-only/disabled); there is nothing to reset",
+			)
+		}
+		return fmt.Errorf("reset bootstrap credential: %w", err)
+	}
+
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(),
+		"username:      %s\npassword:      %s\nrecovery code: %s\n",
+		username, password, recoveryCode)
+	return nil
+}
+
+// openBootstrapCredentialPayload retrieves and opens the sealed bootstrap
+// credential envelope, returning an actionable error on decrypt failure
+// rather than a bare secretcrypto.ErrDecrypt.
+func openBootstrapCredentialPayload(
+	ctx context.Context,
+	store *pgstorage.IdentitySubjectStore,
+	keyring *secretcrypto.Keyring,
+) (bootstrapCredentialPayloadCLI, error) {
+	envelope, found, err := store.SelectBootstrapCredential(ctx, pgstorage.BootstrapAdminTenantID, pgstorage.BootstrapAdminWorkspaceID)
+	if err != nil {
+		return bootstrapCredentialPayloadCLI{}, fmt.Errorf("select bootstrap credential: %w", err)
+	}
+	if !found {
+		return bootstrapCredentialPayloadCLI{}, errors.New(
+			"no retrievable bootstrap credential: it was already consumed by a login, never generated (check ESHU_AUTH_BOOTSTRAP_MODE), or already reset; run `eshu admin reset-initial-credential` to regenerate one",
+		)
+	}
+
+	aad := pgstorage.BootstrapCredentialAAD(pgstorage.BootstrapAdminTenantID, pgstorage.BootstrapAdminWorkspaceID)
+	plaintext, err := keyring.Open(envelope.SealedCredential, aad)
+	if err != nil {
+		if errors.Is(err, secretcrypto.ErrDecrypt) {
+			return bootstrapCredentialPayloadCLI{}, errors.New(
+				"cannot decrypt the sealed bootstrap credential: the configured ESHU_AUTH_SECRET_ENC_KEY differs from the key that generated it; run `eshu admin reset-initial-credential` to regenerate the credential under the current key",
+			)
+		}
+		return bootstrapCredentialPayloadCLI{}, fmt.Errorf("open bootstrap credential: %w", err)
+	}
+
+	var payload bootstrapCredentialPayloadCLI
+	if err := json.Unmarshal(plaintext, &payload); err != nil {
+		return bootstrapCredentialPayloadCLI{}, fmt.Errorf("decode bootstrap credential payload: %w", err)
+	}
+	return payload, nil
+}
+
+// openAdminCredentialDB opens a direct Postgres connection from
+// ESHU_POSTGRES_DSN, mirroring local_host_config.go:227's
+// applyLocalBootstrap pattern.
+func openAdminCredentialDB(ctx context.Context) (*sql.DB, error) {
+	dsn := strings.TrimSpace(os.Getenv(adminCredentialDSNEnv))
+	if dsn == "" {
+		return nil, fmt.Errorf("%s is required", adminCredentialDSNEnv)
+	}
+	db, err := sql.Open("pgx", dsn)
+	if err != nil {
+		return nil, fmt.Errorf("open postgres connection: %w", err)
+	}
+	if err := db.PingContext(ctx); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("ping postgres connection: %w", err)
+	}
+	return db, nil
+}
+
+// generateSecret returns a fresh crypto/rand base64url secret of n raw bytes.
+func generateSecret(n int) (string, error) {
+	buf := make([]byte, n)
+	if _, err := rand.Read(buf); err != nil {
+		return "", fmt.Errorf("generate secret: %w", err)
+	}
+	return base64.RawURLEncoding.EncodeToString(buf), nil
+}
+
+// localCredentialHash mirrors go/internal/query/local_identity_handler_helpers.go's
+// unexported localIdentityHash ("sha256:<hex>") so PasswordParametersHash
+// stays consistent with every other hash-only identity field.
+func localCredentialHash(value string) string {
+	sum := sha256.Sum256([]byte(value))
+	return "sha256:" + hex.EncodeToString(sum[:])
+}
+
+// envelopeKeyIDCLI extracts the key_id field secretcrypto.Keyring.Seal
+// embedded in a sealed ESK1 envelope ("ESK1.<key_id>.<nonce>.<ciphertext>").
+func envelopeKeyIDCLI(sealed string) (string, error) {
+	parts := strings.SplitN(sealed, ".", 4)
+	if len(parts) != 4 || parts[1] == "" {
+		return "", errors.New("malformed sealed envelope")
+	}
+	return parts[1], nil
+}
