@@ -418,12 +418,13 @@ func TestValueFlowFullOutputEquivalence(t *testing.T) {
 	compareJSON(t, "DataflowFunctions", sharedDf, perDf)
 }
 
-// BenchmarkValueFlowStage counts how many times the entity-lookup and
+// TestValueFlowBuildCount counts how many times the entity-lookup and
 // function-resolver builders are invoked during a combined run of all five
 // value-flow builders. Pre-patch, the five builders collectively called
 // buildEntityUIDLookup-equivalent code 3 times and newFunctionUIDResolver 2
-// times. Post-patch, both are called once. This benchmark verifies the
-// 5→1 reduction by asserting only one shared build per shape.
+// times (5 internal builds). Post-patch, each shared shape is built once, for
+// 2 builds total. This test verifies the 5→2 reduction by asserting only one
+// shared build per shape.
 func TestValueFlowBuildCount(t *testing.T) {
 	// This test counts the builder invocations rather than measuring wall time
 	// so the result is deterministic and portable. The per-builder path would
