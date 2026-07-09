@@ -290,6 +290,14 @@ func wireAPI(
 		return nil, nil, nil, fmt.Errorf("configure saml sso: %w", err)
 	}
 	router.SAML = samlHandler
+	if samlHandler != nil {
+		// Per-tenant session timeout override (issue #4968, epic #4962):
+		// browserSessionAdapter already implements query.SignInPolicyReadStore
+		// (see cmd/api/browser_sessions.go's GetSignInPolicy), so SAML's
+		// session issuance resolves the same override BrowserSessionHandler
+		// and LocalIdentityHandler do.
+		samlHandler.SignInPolicy = browserSessionAdapter
+	}
 	router.AuthProviders = &query.AuthProviderListHandler{
 		Store: newAuthProviderListStore(db, samlHandler, oidcLoginHandler),
 	}

@@ -21,12 +21,29 @@ import (
 type postgresBrowserSessionAdapter struct {
 	store      *pgstatus.BrowserSessionStore
 	idleWindow time.Duration
-	// signInPolicy records the require_sso guardrail's SSO-admin-proof signal
-	// (issue #4968, epic #4962) from CreateBrowserSession — see that method's
-	// doc comment for why this is the single choke point both OIDC and SAML
-	// funnel through. nil in the (test-only) construction paths that never
-	// wire a database.
+	// signInPolicy serves two #4968 (epic #4962) purposes: recording the
+	// require_sso guardrail's SSO-admin-proof signal from CreateBrowserSession
+	// (see that method's doc comment for why this is the single choke point
+	// both OIDC and SAML funnel through), and implementing
+	// query.SignInPolicyReadStore (GetSignInPolicy below) so the same adapter
+	// instance can resolve a per-tenant session-timeout override when wired
+	// as query.BrowserSessionHandler.SignInPolicy. nil in the (test-only)
+	// construction paths that never wire a database.
 	signInPolicy *pgstatus.IdentitySubjectStore
+}
+
+// GetSignInPolicy implements query.SignInPolicyReadStore so this same
+// adapter instance can be wired as a BrowserSessionHandler's SignInPolicy
+// field (see newBrowserSessionHandler) without a second database connection.
+func (a *postgresBrowserSessionAdapter) GetSignInPolicy(ctx context.Context, tenantID string) (query.SignInPolicy, error) {
+	if a.signInPolicy == nil {
+		return query.SignInPolicy{}, errors.New("sign-in policy store is unavailable")
+	}
+	policy, err := a.signInPolicy.GetSignInPolicy(ctx, tenantID)
+	if err != nil {
+		return query.SignInPolicy{}, err
+	}
+	return signInPolicyFromPostgres(policy), nil
 }
 
 func newPostgresBrowserSessionAdapter(
@@ -69,6 +86,12 @@ func newBrowserSessionHandler(
 	handler := &query.BrowserSessionHandler{CookieSecure: cookieSecureMode}
 	if store := newPostgresBrowserSessionAdapter(db, instruments); store != nil {
 		handler.Store = store
+		// The same adapter instance also resolves the per-tenant session
+		// timeout override (issue #4968, epic #4962) — it already wraps the
+		// identity_sign_in_policies-backed store for the SSO-admin-proof
+		// capture above, so this reuses that connection rather than opening
+		// a second one.
+		handler.SignInPolicy = store
 	}
 	return handler
 }

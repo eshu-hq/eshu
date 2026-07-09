@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-func TestPublicSignInPolicyReturnsOnlyRequireSSO(t *testing.T) {
+func TestSignInPolicyHandlePublicGetReturnsOnlyRequireSSO(t *testing.T) {
 	t.Parallel()
 
 	store := &fakeSignInPolicyReadStore{policy: SignInPolicy{
@@ -42,7 +42,7 @@ func TestPublicSignInPolicyReturnsOnlyRequireSSO(t *testing.T) {
 	}
 }
 
-func TestPublicSignInPolicyDefaultsToFalseWithoutTenantID(t *testing.T) {
+func TestSignInPolicyHandlePublicGetDefaultsToFalseWithoutTenantID(t *testing.T) {
 	t.Parallel()
 
 	store := &fakeSignInPolicyReadStore{policy: SignInPolicy{RequireSSO: true}}
@@ -66,7 +66,7 @@ func TestPublicSignInPolicyDefaultsToFalseWithoutTenantID(t *testing.T) {
 	}
 }
 
-func TestAdminSignInPolicyGetRequiresAllScopeAdmin(t *testing.T) {
+func TestSignInPolicyHandleAdminGetRequiresAllScopeAdmin(t *testing.T) {
 	t.Parallel()
 
 	store := &fakeSignInPolicyReadStore{policy: SignInPolicy{}}
@@ -86,7 +86,7 @@ func TestAdminSignInPolicyGetRequiresAllScopeAdmin(t *testing.T) {
 	}
 }
 
-func TestAdminSignInPolicyGetReturnsFullDetail(t *testing.T) {
+func TestSignInPolicyHandleAdminGetReturnsFullDetail(t *testing.T) {
 	t.Parallel()
 
 	verifiedAt := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)

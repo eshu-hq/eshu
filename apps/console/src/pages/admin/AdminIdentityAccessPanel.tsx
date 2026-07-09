@@ -1,10 +1,11 @@
 // pages/admin/AdminIdentityAccessPanel.tsx
-// Admin -> Identity & Access (#4967, epic #4962 Wave 2): a tabbed area
-// composing Providers (AdminProvidersPanel, full CRUD against the #4966 API),
-// Group -> role mappings (AdminIdPGroupMappingsPanel, moved in unchanged), and
-// a Sign-in policy placeholder tab (the real policy surface ships in #4968 —
-// E-6). This component is UX only; the server enforces authorization on every
-// request each panel makes.
+// Admin -> Identity & Access (#4967/#4968, epic #4962 Wave 2/E-6): a tabbed
+// area composing Providers (AdminProvidersPanel, full CRUD against the #4966
+// API), Group -> role mappings (AdminIdPGroupMappingsPanel, moved in
+// unchanged), and Sign-in policy (SignInPolicyPanel, the #4968 require-SSO /
+// MFA / local-user-creation / session-lifetime policy surface). This
+// component is UX only; the server enforces authorization and the
+// require_sso guardrail on every request each panel makes.
 //
 // The tab strip reuses the console's real segmented-control primitive (.seg,
 // styles.css) with the exact role="tablist"/role="tab"/aria-selected markup
@@ -14,6 +15,7 @@ import { useState } from "react";
 
 import { AdminIdPGroupMappingsPanel } from "./AdminIdPGroupMappingsPanel";
 import { AdminProvidersPanel } from "./AdminProvidersPanel";
+import { SignInPolicyPanel } from "./SignInPolicyPanel";
 import type { EshuApiClient } from "../../api/client";
 import { Panel } from "../../components/atoms";
 
@@ -74,14 +76,7 @@ export function AdminIdentityAccessPanel({
       >
         {tab === "providers" ? <AdminProvidersPanel client={client} baseUrl={baseUrl} /> : null}
         {tab === "group-mappings" ? <AdminIdPGroupMappingsPanel client={client} /> : null}
-        {tab === "sign-in-policy" ? (
-          <Panel title="Sign-in policy">
-            <p className="empty-note">
-              Sign-in policy (session lifetime, MFA requirements, allowed sign-in methods) ships in
-              a follow-up (#4968). Nothing to configure here yet.
-            </p>
-          </Panel>
-        ) : null}
+        {tab === "sign-in-policy" ? <SignInPolicyPanel client={client} /> : null}
       </div>
     </Panel>
   );

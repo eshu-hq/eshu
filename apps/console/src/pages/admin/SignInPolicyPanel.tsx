@@ -120,23 +120,24 @@ export function SignInPolicyPanel({
       ) : null}
 
       <div className="provider-form-fields">
-        <label className="policy-toggle-row" htmlFor="policy-require-sso">
+        <div className="policy-toggle-row">
           <input
             id="policy-require-sso"
             type="checkbox"
             checked={policy.require_sso}
             disabled={saving || !client}
+            aria-describedby="policy-require-sso-hint"
             onChange={(e) => void applyUpdate({ requireSso: e.target.checked })}
           />
           <span>
-            Require SSO for sign-in
-            <small>
+            <label htmlFor="policy-require-sso">Require SSO for sign-in</label>
+            <small id="policy-require-sso-hint">
               Hides the local password form on the login page. Rejected unless at least one provider
               has a passing connection test and an admin has signed in via SSO. Break-glass local
               admin sign-in stays reachable at <code>/login?local=1</code>.
             </small>
           </span>
-        </label>
+        </div>
         {!ssoProven ? (
           <p className="empty-note provider-field-hint">
             No admin has signed in via SSO yet for this tenant — required before Require SSO can be
@@ -144,35 +145,39 @@ export function SignInPolicyPanel({
           </p>
         ) : null}
 
-        <label className="policy-toggle-row" htmlFor="policy-allow-local-creation">
+        <div className="policy-toggle-row">
           <input
             id="policy-allow-local-creation"
             type="checkbox"
             checked={policy.allow_local_user_creation}
             disabled={saving || !client}
+            aria-describedby="policy-allow-local-creation-hint"
             onChange={(e) => void applyUpdate({ allowLocalUserCreation: e.target.checked })}
           />
           <span>
-            Allow local user creation
-            <small>Off means invitations can only link SSO identities.</small>
+            <label htmlFor="policy-allow-local-creation">Allow local user creation</label>
+            <small id="policy-allow-local-creation-hint">
+              Off means invitations can only link SSO identities.
+            </small>
           </span>
-        </label>
+        </div>
 
-        <label className="policy-toggle-row" htmlFor="policy-require-mfa">
+        <div className="policy-toggle-row">
           <input
             id="policy-require-mfa"
             type="checkbox"
             checked={policy.require_mfa_for_all_users}
             disabled={saving || !client}
+            aria-describedby="policy-require-mfa-hint"
             onChange={(e) => void applyUpdate({ requireMfaForAllUsers: e.target.checked })}
           />
           <span>
-            Require MFA for all users
-            <small>
+            <label htmlFor="policy-require-mfa">Require MFA for all users</label>
+            <small id="policy-require-mfa-hint">
               Admins always require MFA. This extends the requirement to every local user.
             </small>
           </span>
-        </label>
+        </div>
 
         <div className="provider-field">
           <label htmlFor="policy-idle-timeout">Idle session timeout (minutes)</label>

@@ -7,7 +7,28 @@
 // On successful local login, calls onSuccess(session) — caller navigates.
 // Visuals match the approved auth mockup (authFlow.css) — elevated card,
 // icon-led fields, password reveal, loading button state.
-import { AlertTriangle, ChevronRight, Eye, EyeOff, Lock, TriangleAlert, User } from "lucide-react";
+//
+// Sign-in policy require_sso (#4968, epic #4962): also fetches GET
+// /api/v0/auth/sign-in-policy (public, no auth) for the same tenant. When
+// require_sso is true, the local password form is hidden UNLESS the URL
+// carries ?local=1 — but that query param is a PURE UI HINT with no
+// server-side meaning: POST /api/v0/auth/local/login applies the identical
+// require_sso rule (session issued only for an admin identity) whether or
+// not this hint was present, so hiding/showing the form here never changes
+// what the server allows. This is why there is no client-side "am I an
+// admin" check before rendering the form under ?local=1 — the server is the
+// only authorization boundary; this page only decides what's convenient to
+// show.
+import {
+  AlertTriangle,
+  ChevronRight,
+  Eye,
+  EyeOff,
+  Info,
+  Lock,
+  TriangleAlert,
+  User,
+} from "lucide-react";
 import { useState, useEffect, type FormEvent } from "react";
 
 import { AuthBrandMark } from "./AuthBrandMark";
@@ -20,6 +41,7 @@ import {
   INSECURE_COOKIE_ORIGIN_MESSAGE,
 } from "../api/authSession";
 import type { AuthLoginProvider, InsecureCookieOrigin } from "../api/authSession";
+import { loadPublicRequireSSO } from "../api/adminSignInPolicy";
 import type { BrowserSessionResponse } from "../api/client";
 import type { EshuApiClient } from "../api/client";
 import "./authFlow.css";
@@ -56,14 +78,24 @@ export function LoginPage({
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [providers, setProviders] = useState<readonly AuthLoginProvider[]>([]);
   const [showPassword, setShowPassword] = useState(false);
+  const [requireSSO, setRequireSSO] = useState(false);
   // #4964: the backend's default cookie policy keeps Secure=true (and thus
   // never persists the session) for any plain-HTTP origin outside loopback.
   // Detect that case up front so the diagnostic banner is visible before the
   // user ever submits credentials, not just after a confusing failed login.
   const showInsecureOriginBanner = isCookiePersistenceAtRiskOrigin(location);
 
-  // Fetch available SSO providers on mount. The tenant_id query param scopes
-  // the request to a single tenant — without it the endpoint returns empty.
+  // ?local=1 is a console-only UI hint (#4968): it renders the local form
+  // even when require_sso would otherwise hide it. It has NO server-side
+  // meaning — POST /api/v0/auth/local/login enforces the identical
+  // admin-only rule under require_sso whether or not this param is present.
+  const localFormHint =
+    new URLSearchParams(globalThis.location?.search ?? "").get("local") === "1";
+  const showLocalForm = !requireSSO || localFormHint;
+
+  // Fetch available SSO providers and the tenant's require_sso hint on mount.
+  // The tenant_id query param scopes both requests to a single tenant —
+  // without it, providers returns empty and require_sso defaults to false.
   // Errors are swallowed so they never block the local login form.
   useEffect(() => {
     let cancelled = false;
@@ -71,6 +103,9 @@ export function LoginPage({
       new URLSearchParams(globalThis.location?.search ?? "").get("tenant_id") ?? undefined;
     void listAuthProviders(client, tenantId).then((items) => {
       if (!cancelled) setProviders(items);
+    });
+    void loadPublicRequireSSO(client, tenantId).then((value) => {
+      if (!cancelled) setRequireSSO(value);
     });
     return () => {
       cancelled = true;
@@ -196,84 +231,93 @@ export function LoginPage({
           </div>
         ) : null}
 
-        <form
-          onSubmit={(e) => {
-            void handleSubmit(e);
-          }}
-        >
-          <div className="field">
-            <label htmlFor="login-id">Login</label>
-            <div className="input-shell lead-icon">
-              <span className="input-lead" aria-hidden>
-                <User />
-              </span>
-              <input
-                id="login-id"
-                type="text"
-                autoComplete="username"
-                placeholder="you@example.test"
-                value={login}
-                disabled={submitting}
-                onChange={(e) => setLogin(e.target.value)}
-                required
-              />
-            </div>
-          </div>
-          <div className="field">
-            <label htmlFor="login-password">Password</label>
-            <div className="input-shell lead-icon">
-              <span className="input-lead" aria-hidden>
-                <Lock />
-              </span>
-              <input
-                id="login-password"
-                type={showPassword ? "text" : "password"}
-                autoComplete="current-password"
-                value={password}
-                disabled={submitting}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
-              <button
-                type="button"
-                className="reveal"
-                aria-label={showPassword ? "Hide password" : "Show password"}
-                aria-pressed={showPassword}
-                onClick={() => setShowPassword((v) => !v)}
-              >
-                {showPassword ? <EyeOff aria-hidden /> : <Eye aria-hidden />}
-              </button>
-            </div>
-          </div>
-          {phase === "mfa" ? (
+        {showLocalForm ? (
+          <form
+            onSubmit={(e) => {
+              void handleSubmit(e);
+            }}
+          >
             <div className="field">
-              <label htmlFor="login-mfa">Recovery code</label>
-              <div className="input-shell">
+              <label htmlFor="login-id">Login</label>
+              <div className="input-shell lead-icon">
+                <span className="input-lead" aria-hidden>
+                  <User />
+                </span>
                 <input
-                  id="login-mfa"
+                  id="login-id"
                   type="text"
-                  autoComplete="one-time-code"
-                  value={mfaCode}
+                  autoComplete="username"
+                  placeholder="you@example.test"
+                  value={login}
                   disabled={submitting}
-                  onChange={(e) => setMfaCode(e.target.value)}
+                  onChange={(e) => setLogin(e.target.value)}
+                  required
                 />
               </div>
             </div>
-          ) : null}
-          <button
-            className="btn-primary btn-block"
-            type="submit"
-            disabled={submitting}
-            data-loading={submitting ? "true" : undefined}
-          >
-            <span className="spin" aria-hidden />
-            <span className="btn-label">{submitting ? "Signing in…" : "Sign in"}</span>
-          </button>
-        </form>
+            <div className="field">
+              <label htmlFor="login-password">Password</label>
+              <div className="input-shell lead-icon">
+                <span className="input-lead" aria-hidden>
+                  <Lock />
+                </span>
+                <input
+                  id="login-password"
+                  type={showPassword ? "text" : "password"}
+                  autoComplete="current-password"
+                  value={password}
+                  disabled={submitting}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                />
+                <button
+                  type="button"
+                  className="reveal"
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  aria-pressed={showPassword}
+                  onClick={() => setShowPassword((v) => !v)}
+                >
+                  {showPassword ? <EyeOff aria-hidden /> : <Eye aria-hidden />}
+                </button>
+              </div>
+            </div>
+            {phase === "mfa" ? (
+              <div className="field">
+                <label htmlFor="login-mfa">Recovery code</label>
+                <div className="input-shell">
+                  <input
+                    id="login-mfa"
+                    type="text"
+                    autoComplete="one-time-code"
+                    value={mfaCode}
+                    disabled={submitting}
+                    onChange={(e) => setMfaCode(e.target.value)}
+                  />
+                </div>
+              </div>
+            ) : null}
+            <button
+              className="btn-primary btn-block"
+              type="submit"
+              disabled={submitting}
+              data-loading={submitting ? "true" : undefined}
+            >
+              <span className="spin" aria-hidden />
+              <span className="btn-label">{submitting ? "Signing in…" : "Sign in"}</span>
+            </button>
+          </form>
+        ) : (
+          <div className="note">
+            <Info aria-hidden />
+            <span>
+              Your organization requires single sign-on. Continue with one of the providers below.
+            </span>
+          </div>
+        )}
 
         {providers.length > 0 ? (
           <>
-            <div className="divider">or continue with</div>
+            {showLocalForm ? <div className="divider">or continue with</div> : null}
             <div className="sso-stack">
               {providers.map((provider) => (
                 <button

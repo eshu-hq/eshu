@@ -31,6 +31,7 @@ func plannerExcludedSurfaces() map[string]struct{} {
 		"GET /api/v0/auth/admin/provider-configs/{provider_config_id}/revisions":        {}, // lists one identity provider config's revision history (admin)
 		"GET /api/v0/auth/admin/role-assignments":                                       {}, // lists the tenant's membership-role assignments (admin)
 		"GET /api/v0/auth/admin/roles":                                                  {}, // lists the tenant's roles and grants (admin)
+		"GET /api/v0/auth/admin/sign-in-policy":                                         {}, // reads the tenant's full sign-in policy (admin)
 		"GET /api/v0/auth/browser-session":                                              {}, // reads caller-local session metadata only
 		"GET /api/v0/auth/local/api-tokens":                                             {}, // lists the caller's own API token metadata
 		"GET /api/v0/auth/local/invitations":                                            {}, // lists the tenant's invitations metadata (admin)
@@ -38,6 +39,8 @@ func plannerExcludedSurfaces() map[string]struct{} {
 		"GET /api/v0/auth/providers":                                                    {}, // lists configured login providers for the tenant (pre-auth discovery)
 		"GET /api/v0/auth/sessions":                                                     {}, // lists the caller's own browser sessions
 		"GET /api/v0/auth/setup-state":                                                  {}, // reports first-run setup wizard needs_setup/bootstrap_mode (pre-auth)
+		"GET /api/v0/auth/sign-in-policy":                                               {}, // public require_sso hint for the login page (pre-auth)
+		"PATCH /api/v0/auth/admin/sign-in-policy":                                       {}, // updates the tenant's sign-in policy (admin mutation)
 		"PATCH /api/v0/auth/browser-session/context":                                    {}, // switches the caller's tenant/workspace context
 		"POST /api/v0/admin/backfill":                                                   {}, // RequestBackfill enqueues backfill work
 		"POST /api/v0/admin/dead-letter":                                                {}, // DeadLetterWorkItems dead-letters queued work

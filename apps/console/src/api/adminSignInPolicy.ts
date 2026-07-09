@@ -55,20 +55,35 @@ export interface SignInPolicyUpdateInput {
   readonly absoluteTimeoutSeconds?: number;
 }
 
-function toUpdateWireBody(input: SignInPolicyUpdateInput): Record<string, unknown> {
-  const body: Record<string, unknown> = {};
-  if (input.requireSso !== undefined) body.require_sso = input.requireSso;
-  if (input.allowLocalUserCreation !== undefined) {
-    body.allow_local_user_creation = input.allowLocalUserCreation;
-  }
-  if (input.requireMfaForAllUsers !== undefined) {
-    body.require_mfa_for_all_users = input.requireMfaForAllUsers;
-  }
-  if (input.idleTimeoutSeconds !== undefined) body.idle_timeout_seconds = input.idleTimeoutSeconds;
-  if (input.absoluteTimeoutSeconds !== undefined) {
-    body.absolute_timeout_seconds = input.absoluteTimeoutSeconds;
-  }
-  return body;
+// SignInPolicyUpdateWireBody is the exact JSON shape
+// signInPolicyUpdateRequestBody expects (go/internal/query/
+// sign_in_policy_mutations.go). A typed field set (not
+// Record<string, unknown>) so a field-name typo fails at compile time,
+// matching adminProviderConfig.ts's toWireBody convention.
+interface SignInPolicyUpdateWireBody {
+  readonly require_sso?: boolean;
+  readonly allow_local_user_creation?: boolean;
+  readonly require_mfa_for_all_users?: boolean;
+  readonly idle_timeout_seconds?: number;
+  readonly absolute_timeout_seconds?: number;
+}
+
+function toUpdateWireBody(input: SignInPolicyUpdateInput): SignInPolicyUpdateWireBody {
+  return {
+    ...(input.requireSso !== undefined ? { require_sso: input.requireSso } : {}),
+    ...(input.allowLocalUserCreation !== undefined
+      ? { allow_local_user_creation: input.allowLocalUserCreation }
+      : {}),
+    ...(input.requireMfaForAllUsers !== undefined
+      ? { require_mfa_for_all_users: input.requireMfaForAllUsers }
+      : {}),
+    ...(input.idleTimeoutSeconds !== undefined
+      ? { idle_timeout_seconds: input.idleTimeoutSeconds }
+      : {}),
+    ...(input.absoluteTimeoutSeconds !== undefined
+      ? { absolute_timeout_seconds: input.absoluteTimeoutSeconds }
+      : {}),
+  };
 }
 
 // SignInPolicyUpdateOutcome never throws to the caller — a guardrail

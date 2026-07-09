@@ -12,6 +12,18 @@ function makeClient(): EshuApiClient {
     getJson: vi.fn(async (path: string) => {
       if (path.includes("idp-group-mappings")) return { group_mappings: [] };
       if (path.includes("provider-configs")) return { provider_configs: [], truncated: false };
+      if (path.includes("admin/sign-in-policy")) {
+        return {
+          tenant_id: "tenant_a",
+          require_sso: false,
+          allow_local_user_creation: true,
+          require_mfa_for_all_users: false,
+          idle_timeout_seconds: 0,
+          absolute_timeout_seconds: 0,
+          policy_revision_hash: "sha256:test",
+          updated_at: "2026-06-01T00:00:00Z",
+        };
+      }
       return {};
     }),
   } as unknown as EshuApiClient;
@@ -46,10 +58,16 @@ describe("AdminIdentityAccessPanel", () => {
     await waitFor(() => expect(screen.getByText("No group mappings found.")).toBeInTheDocument());
   });
 
-  it("switches to the Sign-in policy placeholder tab on click", () => {
+  it("switches to the Sign-in policy tab on click and loads the real policy panel", async () => {
     const client = makeClient();
     render(<AdminIdentityAccessPanel client={client} />);
     fireEvent.click(screen.getByRole("tab", { name: "Sign-in policy" }));
-    expect(screen.getByText(/ships in a follow-up \(#4968\)/)).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Sign-in policy" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    await waitFor(() =>
+      expect(screen.getByLabelText("Require SSO for sign-in")).toBeInTheDocument(),
+    );
   });
 });

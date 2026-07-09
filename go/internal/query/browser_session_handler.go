@@ -78,6 +78,13 @@ type BrowserSessionHandler struct {
 	// CookieSecure selects the Secure-attribute policy for issued session
 	// and CSRF cookies. Empty defaults to CookieSecureAuto (#4964).
 	CookieSecure CookieSecureMode
+	// SignInPolicy resolves a per-tenant idle/absolute session timeout
+	// override (issue #4968, epic #4962). Nil falls back to
+	// IdleTimeout/AbsoluteTimeout (or their process-wide defaults) for every
+	// tenant, matching pre-#4968 behavior. This handler is the session
+	// issuer for both plain token-upgrade sessions (handleCreate) and OIDC
+	// (issueBrowserSessionWithExternalAuth, called from OIDCLoginHandler).
+	SignInPolicy SignInPolicyReadStore
 }
 
 // BrowserSessionResponse is returned by browser session routes.
@@ -165,8 +172,11 @@ func (h *BrowserSessionHandler) issueBrowserSessionWithExternalAuth(
 		return BrowserSessionResponse{}, false
 	}
 	now := h.now()
-	idleExpiresAt := now.Add(h.idleTimeout())
-	absoluteExpiresAt := now.Add(h.absoluteTimeout())
+	idleTimeout, absoluteTimeout := resolveSessionTimeouts(
+		r.Context(), h.SignInPolicy, auth.TenantID, h.idleTimeout(), h.absoluteTimeout(),
+	)
+	idleExpiresAt := now.Add(idleTimeout)
+	absoluteExpiresAt := now.Add(absoluteTimeout)
 	if idleExpiresAt.After(absoluteExpiresAt) {
 		idleExpiresAt = absoluteExpiresAt
 	}
@@ -214,7 +224,7 @@ func (h *BrowserSessionHandler) issueBrowserSessionWithExternalAuth(
 		sessionSecret,
 		csrfSecret,
 		absoluteExpiresAt,
-		int(h.absoluteTimeout().Seconds()),
+		int(absoluteTimeout.Seconds()),
 	)
 	response := BrowserSessionResponse{
 		Auth:              browserSessionAuthResponse(sessionAuth),
