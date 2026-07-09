@@ -77,8 +77,22 @@ func (h *AdminProviderConfigMutationHandler) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v0/auth/admin/provider-configs/{provider_config_id}/test-connection", h.handleTestConnection)
 }
 
-func (h *AdminProviderConfigMutationHandler) storeReady(w http.ResponseWriter) bool {
+// storeReady reports whether h.Store is usable, auditing the denial before
+// writing 503 when it is not — matching handleTestConnection's identical
+// nil-Tester audit pattern (every allowed and denied provider-config attempt
+// must be governance-audited). Guarded for h==nil (h.audit is itself
+// nil-safe, but h.audit(r, ...) cannot even be called on a nil receiver
+// without evaluating h first) so a nil handler still degrades to a plain 503
+// rather than panicking.
+func (h *AdminProviderConfigMutationHandler) storeReady(
+	w http.ResponseWriter,
+	r *http.Request,
+	eventType governanceaudit.EventType,
+) bool {
 	if h == nil || h.Store == nil {
+		if h != nil {
+			h.audit(r, eventType, governanceaudit.DecisionDenied, "provider_config_store_unavailable", "")
+		}
 		WriteError(w, http.StatusServiceUnavailable, "admin provider config mutation store is unavailable")
 		return false
 	}
@@ -124,10 +138,10 @@ func (h *AdminProviderConfigMutationHandler) requirePermission(
 }
 
 func (h *AdminProviderConfigMutationHandler) handleCreate(w http.ResponseWriter, r *http.Request) {
-	if !h.storeReady(w) {
+	const eventType = governanceaudit.EventTypeIDPConfigChange
+	if !h.storeReady(w, r, eventType) {
 		return
 	}
-	const eventType = governanceaudit.EventTypeIDPConfigChange
 	if !h.requirePermission(w, r, eventType, "identity_admin.provider_config_create") {
 		return
 	}
@@ -190,10 +204,10 @@ func (h *AdminProviderConfigMutationHandler) handleCreate(w http.ResponseWriter,
 }
 
 func (h *AdminProviderConfigMutationHandler) handleUpdate(w http.ResponseWriter, r *http.Request) {
-	if !h.storeReady(w) {
+	const eventType = governanceaudit.EventTypeIDPConfigChange
+	if !h.storeReady(w, r, eventType) {
 		return
 	}
-	const eventType = governanceaudit.EventTypeIDPConfigChange
 	if !h.requirePermission(w, r, eventType, "identity_admin.provider_config_update") {
 		return
 	}
@@ -252,10 +266,10 @@ func (h *AdminProviderConfigMutationHandler) handleUpdate(w http.ResponseWriter,
 }
 
 func (h *AdminProviderConfigMutationHandler) handleRevert(w http.ResponseWriter, r *http.Request) {
-	if !h.storeReady(w) {
+	const eventType = governanceaudit.EventTypeIDPConfigChange
+	if !h.storeReady(w, r, eventType) {
 		return
 	}
-	const eventType = governanceaudit.EventTypeIDPConfigChange
 	if !h.requirePermission(w, r, eventType, "identity_admin.provider_config_revert") {
 		return
 	}
@@ -324,10 +338,10 @@ func (h *AdminProviderConfigMutationHandler) handleDisable(w http.ResponseWriter
 // between the test and this call — so Enable can never activate a revision
 // that was not the one just tested.
 func (h *AdminProviderConfigMutationHandler) handleStatusChange(w http.ResponseWriter, r *http.Request, capability string, enable bool) {
-	if !h.storeReady(w) {
+	const eventType = governanceaudit.EventTypeIDPConfigChange
+	if !h.storeReady(w, r, eventType) {
 		return
 	}
-	const eventType = governanceaudit.EventTypeIDPConfigChange
 	if !h.requirePermission(w, r, eventType, capability) {
 		return
 	}

@@ -342,6 +342,31 @@ func TestHandleTestConnectionAdminProviderConfig(t *testing.T) {
 	}
 }
 
+// TestHandleCreateAdminProviderConfigAuditsWhenStoreUnavailable proves
+// storeReady audits provider_config_store_unavailable on a nil Store exactly
+// like handleTestConnection audits its nil-Tester 503 — every allowed and
+// denied provider-config attempt must be governance-audited, and this 503 is
+// a denied attempt. handleCreate is representative of all four storeReady
+// call sites (create, update, revert, enable/disable), which all share the
+// same storeReady helper.
+func TestHandleCreateAdminProviderConfigAuditsWhenStoreUnavailable(t *testing.T) {
+	t.Parallel()
+	audit := &recordingAuditAppender{}
+	mux := newProviderConfigMutationMux(nil, &fakeProviderConfigConnectionTester{}, audit)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v0/auth/admin/provider-configs", strings.NewReader(validOIDCCreateBody))
+	req = req.WithContext(ContextWithAuthContext(req.Context(), providerConfigAdminAuth()))
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("create with nil Store status = %d, want 503: %s", rec.Code, rec.Body.String())
+	}
+	if !audit.hasReason("provider_config_store_unavailable") {
+		t.Errorf("create with nil Store did not audit provider_config_store_unavailable: %#v", audit.events)
+	}
+}
+
 // TestHandleTestConnectionAdminProviderConfigAuditsWhenTesterUnavailable
 // proves handleTestConnection audits provider_config_connection_tester_unavailable
 // on a nil Tester exactly like handleStatusChange does for the identical nil

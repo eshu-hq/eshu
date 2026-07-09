@@ -20,9 +20,13 @@ import (
 // It is the orchestration point that reads a provider config's sealed_secret
 // ciphertext from Postgres (never plaintext — GetProviderConfigConnectionTestMaterial
 // never calls Open) and hands it to oidclogin.TestConnection or
-// samlauth.TestConnection, which are this codebase's only two
-// (*secretcrypto.Keyring).Open call sites for provider-config secrets. This
-// type itself never calls Open.
+// samlauth.TestConnection. Those are two of this codebase's four
+// (*secretcrypto.Keyring).Open call sites for provider-config secrets — the
+// other two are the login-path resolvers, oidclogin.ResolveSealedProviderConfig
+// and samlauth.ResolveSealedProviderConfig (#4966, epic #4962; completes
+// #4978), invoked from cmd/api's oidcDBProviderResolver and
+// samlDBProviderResolver respectively, not from this type. This type itself
+// never calls Open.
 type providerConfigConnectionTester struct {
 	store   *pgstatus.IdentitySubjectStore
 	keyring *secretcrypto.Keyring

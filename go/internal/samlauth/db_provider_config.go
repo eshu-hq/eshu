@@ -56,10 +56,13 @@ type DBSAMLProvider struct {
 // (#4966, epic #4962; completes #4978).
 //
 // This is one of exactly two (*secretcrypto.Keyring).Open call sites in this
-// codebase for provider-config secrets — the other is TestConnection
+// package for provider-config secrets — the other is TestConnection
 // (provider_connection_test_probe.go), used by the admin test-connection
-// endpoint. Both are confined to this package per the epic #4962 boundary
-// (go/internal/query never imports secretcrypto — see
+// endpoint. oidclogin has its own two Open call sites for OIDC provider-config
+// secrets (ResolveSealedProviderConfig and TestConnection there); the epic
+// #4962 boundary confines every Open call site for provider-config secrets to
+// these two login/authn packages combined (go/internal/query never imports
+// secretcrypto — see
 // secretcrypto_open_boundary_test.go). The decrypted key/certificate are held
 // only in the returned DBSAMLProvider for the duration of building one
 // crewjam saml.ServiceProvider (query.newCrewjamServiceProvider); they are

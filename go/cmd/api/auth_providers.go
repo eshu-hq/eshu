@@ -13,8 +13,10 @@ import (
 
 // authProviderListStore implements query.AuthProviderStore by combining:
 //   - active external_oidc and external_saml rows from identity_provider_configs
-//     (DB-backed; both kinds now have a working login-runtime resolver — see
-//     oidcDBProviderResolver and samlDBProviderResolver, #4966/#4978)
+//     (DB-backed; both kinds have a working login-runtime resolver — see
+//     oidcDBProviderResolver and samlDBProviderResolver, #4966/#4978 — but a
+//     DB-backed external_saml row is only surfaced when the SAML runtime is
+//     actually mounted, see samlRuntimeEnabled below)
 //   - SAML providers registered via ESHU_SAML_PROVIDERS_JSON env config that
 //     are also active in identity_provider_configs (to avoid surfacing
 //     env-only providers the DB hasn't provisioned)
@@ -27,6 +29,14 @@ import (
 type authProviderListStore struct {
 	// identity provides the DB-backed provider listing and activity check.
 	identity *pgstatus.IdentitySubjectStore
+	// samlRuntimeEnabled reports whether the SAML login runtime is mounted at
+	// all (samlHandler != nil, i.e. ESHU_SAML_PROVIDERS_JSON is set). SAML has
+	// no DB-only activation toggle — unlike OIDC's ESHU_AUTH_OIDC_ENABLED — so
+	// when this is false, query.APIRouter.Mount never registers
+	// /api/v0/auth/saml/providers/{id}/login (see its `if a.SAML != nil`
+	// gate). A DB-backed external_saml row must never be surfaced as a login
+	// option while this is false: the button would 404 every time.
+	samlRuntimeEnabled bool
 	// samlProviderIDs is the set of provider_config_ids from the env-config
 	// SAML runtime (ESHU_SAML_PROVIDERS_JSON). Only IDs whose DB row is also
 	// active are surfaced.
@@ -58,9 +68,10 @@ func newAuthProviderListStore(
 		identityStore = pgstatus.NewIdentitySubjectStore(pgstatus.ExecQueryer(pgstatus.SQLDB{DB: db}))
 	}
 	return &authProviderListStore{
-		identity:        identityStore,
-		samlProviderIDs: samlIDs,
-		oidcProviders:   oidcProviders,
+		identity:           identityStore,
+		samlRuntimeEnabled: samlHandler != nil,
+		samlProviderIDs:    samlIDs,
+		oidcProviders:      oidcProviders,
 	}
 }
 
@@ -74,23 +85,19 @@ func newAuthProviderListStore(
 // which flags the same collision for the same reason: env config is the
 // source of truth for login, so the DB row's own secret must never be
 // consulted for it here). Order: non-colliding DB-sourced rows (as returned
-// by ListActiveLoginProviders, excluding external_saml — see below), then
-// env-config SAML entries, then env-config OIDC entries — each only when
-// their DB row is separately confirmed active for the tenant (env config
-// supplies identity/auth material; the DB row still gates whether the
-// provider is turned on).
+// by ListActiveLoginProviders), then env-config SAML entries, then env-config
+// OIDC entries — each only when their DB row is separately confirmed active
+// for the tenant (env config supplies identity/auth material; the DB row
+// still gates whether the provider is turned on).
 //
-// Enabled DB-only external_saml rows are excluded from the non-colliding
-// DB-sourced rows: the SAML login runtime (saml_sso.go) resolves providers
-// only from ESHU_SAML_PROVIDERS_JSON, so a DB-only SAML provider has no
-// runtime path to a successful login. Surfacing it as a login button would
-// always fail. Tracked in #4978. external_oidc is unaffected — the OIDC DB
-// resolver exists.
-//
-// Both external_oidc and external_saml DB-sourced rows are now included
-// (#4966, epic #4962; completes #4978): the SAML login runtime resolves a
-// DB-backed provider exactly like OIDC does (see samlDBProviderResolver), so
-// there is no longer a dead-login-button risk for an enabled DB-only SAML row.
+// A non-colliding DB-sourced external_saml row is surfaced only when
+// s.samlRuntimeEnabled is true (see that field's doc comment): the SAML
+// login runtime has a working DB resolver now (#4966, epic #4962; completes
+// #4978), but its routes are never mounted at all unless
+// ESHU_SAML_PROVIDERS_JSON is set — SAML has no DB-only activation toggle
+// (unlike OIDC's ESHU_AUTH_OIDC_ENABLED). Surfacing a DB-only external_saml
+// row while the runtime is disabled would produce a login button whose route
+// 404s every time. external_oidc rows are unaffected by this gate.
 // tenantID must be non-empty; callers must not invoke this method with an empty
 // tenantID — the handler returns an empty list in that case without calling here.
 func (s *authProviderListStore) ListLoginProviders(ctx context.Context, tenantID string) ([]query.AuthProviderItem, error) {
@@ -123,6 +130,12 @@ func (s *authProviderListStore) ListLoginProviders(ctx context.Context, tenantID
 			// Env config is authoritative for this id; the DB-sourced entry
 			// is intentionally skipped so the env-sourced entry below (once
 			// its own active check passes) represents it instead.
+			continue
+		}
+		if item.ProviderKind == "external_saml" && !s.samlRuntimeEnabled {
+			// The SAML runtime is not mounted at all (see samlRuntimeEnabled's
+			// doc comment) — surfacing this row would offer a login button
+			// whose route always 404s.
 			continue
 		}
 		label := displayLabelForKind(item.ProviderKind)

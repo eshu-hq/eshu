@@ -206,12 +206,14 @@ func (r *authProvidersFakeRows) Close() error { return nil }
 // skipped because the id is env-registered, and the env path's own active
 // check then correctly excludes it — env_oidc_1 must be ABSENT.
 //
-// This test also proves the SAML twin of the OIDC dead-button fix now holds
-// in the OTHER direction: an enabled DB-only external_saml row IS offered as
-// a login option, exactly like external_oidc, because the SAML login runtime
-// now resolves DB-backed providers too (samlDBProviderResolver, #4966, epic
-// #4962; completes #4978) — surfacing it no longer risks a login that always
-// fails.
+// This test also proves the SAML dead-button gate: with the SAML runtime
+// DISABLED (samlRuntimeEnabled left at its zero value, false — the default
+// when no ESHU_SAML_PROVIDERS_JSON entry mounted the SAML routes at all, see
+// authProviderListStore.samlRuntimeEnabled's doc comment), an enabled
+// DB-only external_saml row must be ABSENT from the result: its login route
+// is never mounted, so surfacing it would be a button that always 404s. See
+// TestListLoginProvidersSurfacesDBOnlySAMLWhenRuntimeEnabled for the
+// runtime-enabled case, where the same row IS offered.
 func TestListLoginProvidersEnvProviderWinsOverCollidingDBRow(t *testing.T) {
 	t.Parallel()
 
@@ -220,10 +222,13 @@ func TestListLoginProvidersEnvProviderWinsOverCollidingDBRow(t *testing.T) {
 			// Colliding row: same id as the env-registered OIDC provider
 			// below, and reported "active" by the plain list query.
 			{ProviderConfigID: "env_oidc_1", ProviderKind: "external_oidc"},
-			// Non-colliding DB-only SAML row: must appear, same as OIDC — the
-			// SAML DB login runtime now resolves it (#4978).
+			// Non-colliding DB-only SAML row: must be ABSENT while the SAML
+			// runtime is disabled (this test's store never sets
+			// samlRuntimeEnabled) — see the doc comment above.
 			{ProviderConfigID: "pc_db_only_saml", ProviderKind: "external_saml"},
-			// Non-colliding DB-only OIDC row: must still appear regardless.
+			// Non-colliding DB-only OIDC row: must still appear regardless —
+			// OIDC has its own independent activation toggle
+			// (ESHU_AUTH_OIDC_ENABLED), unaffected by the SAML runtime gate.
 			{ProviderConfigID: "pc_db_only_oidc", ProviderKind: "external_oidc"},
 		},
 		// env_oidc_1 deliberately reports NOT active via the env path's own
@@ -254,8 +259,8 @@ func TestListLoginProvidersEnvProviderWinsOverCollidingDBRow(t *testing.T) {
 	if _, ok := byID["env_oidc_1"]; ok {
 		t.Fatal("env_oidc_1 present in ListLoginProviders() result: the colliding DB row won instead of deferring to the env path's own (failing) active check — env must be authoritative")
 	}
-	if _, ok := byID["pc_db_only_saml"]; !ok {
-		t.Fatal("pc_db_only_saml missing from ListLoginProviders() result: an enabled DB-only external_saml provider must now be offered as a login option (#4978)")
+	if _, ok := byID["pc_db_only_saml"]; ok {
+		t.Fatal("pc_db_only_saml present in ListLoginProviders() result: the SAML runtime is disabled (samlRuntimeEnabled=false), so its login route is never mounted — surfacing this row is the dead-button regression")
 	}
 	if _, ok := byID["pc_db_only_oidc"]; !ok {
 		t.Fatal("pc_db_only_oidc (non-colliding DB-only external_oidc row) missing from ListLoginProviders() result")
@@ -276,6 +281,36 @@ func TestListLoginProvidersEnvProviderWinsOverCollidingDBRow(t *testing.T) {
 	}
 	if !found {
 		t.Fatal("env_oidc_1 missing once the env path's own active check passes")
+	}
+}
+
+// TestListLoginProvidersSurfacesDBOnlySAMLWhenRuntimeEnabled proves the
+// companion case to TestListLoginProvidersEnvProviderWinsOverCollidingDBRow:
+// once the SAML runtime is mounted (samlRuntimeEnabled=true — set whenever
+// newAuthProviderListStore is constructed with a non-nil samlHandler, i.e.
+// ESHU_SAML_PROVIDERS_JSON is set), a non-colliding, enabled DB-only
+// external_saml row IS offered as a login option, because the SAML login
+// runtime now resolves DB-backed providers too (samlDBProviderResolver,
+// #4966, epic #4962; completes #4978) and its route is actually mounted.
+func TestListLoginProvidersSurfacesDBOnlySAMLWhenRuntimeEnabled(t *testing.T) {
+	t.Parallel()
+
+	fakeDB := &authProvidersFakeDB{
+		dbRows: []pgstatus.LoginProviderItem{
+			{ProviderConfigID: "pc_db_only_saml", ProviderKind: "external_saml"},
+		},
+	}
+	store := &authProviderListStore{
+		identity:           pgstatus.NewIdentitySubjectStore(fakeDB),
+		samlRuntimeEnabled: true,
+	}
+
+	items, err := store.ListLoginProviders(context.Background(), "tenant_a")
+	if err != nil {
+		t.Fatalf("ListLoginProviders() error = %v", err)
+	}
+	if len(items) != 1 || items[0].ProviderConfigID != "pc_db_only_saml" {
+		t.Fatalf("ListLoginProviders() = %+v, want exactly [pc_db_only_saml] once the SAML runtime is enabled", items)
 	}
 }
 
