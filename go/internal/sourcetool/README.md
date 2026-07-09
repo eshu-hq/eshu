@@ -44,6 +44,11 @@ no metrics/spans/logs.
 - The OpenAPI `source_tool` filter enum is asserted equal to `Canonical` by a
   query-package test, and the reducer classifier values are asserted ⊆
   `Canonical` by a reducer test — both fail on drift.
+- The B-12 golden snapshot's narrowed correlations are asserted consistent with
+  the reducer classifier by `cross_repo_source_tool_snapshot_test.go`: every rc
+  that pins `source_tool` pins exactly the token its evidence kinds derive to,
+  so a hand-edited snapshot whose `evidence_kinds` and `allowed` source_tool
+  disagree fails statically rather than only in the live golden-corpus gate.
 
 ## Related docs
 
