@@ -25,6 +25,20 @@ const TABS: readonly { readonly id: IdentityAccessTab; readonly label: string }[
   { id: "sign-in-policy", label: "Sign-in policy" },
 ];
 
+// tabId/panelId complete the ARIA tabs pattern (WAI-ARIA APG): each tab
+// references the panel it controls via aria-controls, and the panel
+// references its controlling tab via aria-labelledby. Only one tab panel is
+// ever mounted at a time (conditional rendering below), so a single wrapper
+// element whose id/aria-labelledby follow the active tab is sufficient —
+// there is never more than one id in the DOM at once.
+function tabId(t: IdentityAccessTab): string {
+  return `identity-access-tab-${t}`;
+}
+
+function panelId(t: IdentityAccessTab): string {
+  return `identity-access-panel-${t}`;
+}
+
 export function AdminIdentityAccessPanel({
   client,
   baseUrl,
@@ -40,9 +54,11 @@ export function AdminIdentityAccessPanel({
         {TABS.map((t) => (
           <button
             key={t.id}
+            id={tabId(t.id)}
             type="button"
             role="tab"
             aria-selected={tab === t.id}
+            aria-controls={panelId(t.id)}
             className={tab === t.id ? "active" : ""}
             onClick={() => setTab(t.id)}
           >
@@ -50,7 +66,12 @@ export function AdminIdentityAccessPanel({
           </button>
         ))}
       </div>
-      <div className="identity-access-tab-panel" role="tabpanel">
+      <div
+        id={panelId(tab)}
+        className="identity-access-tab-panel"
+        role="tabpanel"
+        aria-labelledby={tabId(tab)}
+      >
         {tab === "providers" ? <AdminProvidersPanel client={client} baseUrl={baseUrl} /> : null}
         {tab === "group-mappings" ? <AdminIdPGroupMappingsPanel client={client} /> : null}
         {tab === "sign-in-policy" ? (

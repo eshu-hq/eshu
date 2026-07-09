@@ -162,10 +162,42 @@ export interface SAMLProviderConfigInput {
 
 export type ProviderConfigInput = OIDCProviderConfigInput | SAMLProviderConfigInput;
 
+// OIDCProviderConfigWireBody / SAMLProviderConfigWireBody are the exact JSON
+// shapes adminProviderConfigWriteRequest expects (go/internal/query/
+// admin_provider_config_types.go). provider_config_id is optional on both —
+// omitted on update (the URL id wins) and on an edit-existing-row create.
+export interface OIDCProviderConfigWireBody {
+  readonly provider_kind: "oidc";
+  readonly provider_config_id?: string;
+  readonly issuer: string;
+  readonly client_id: string;
+  readonly client_secret: string;
+  readonly scopes: readonly string[];
+  readonly group_claim: string;
+  readonly redirect_url: string;
+}
+
+export interface SAMLProviderConfigWireBody {
+  readonly provider_kind: "saml";
+  readonly provider_config_id?: string;
+  readonly metadata_url: string;
+  readonly metadata_xml: string;
+  readonly entity_id: string;
+  readonly group_attribute: string;
+  readonly service_provider_entity_id: string;
+  readonly service_provider_acs_url: string;
+  readonly sp_private_key: string;
+  readonly sp_certificate: string;
+}
+
+export type ProviderConfigWireBody = OIDCProviderConfigWireBody | SAMLProviderConfigWireBody;
+
 // toWireBody maps a typed form input to the exact JSON field names
 // adminProviderConfigWriteRequest expects. Exported for direct unit testing
-// of the field-name mapping without a network mock.
-export function toWireBody(input: ProviderConfigInput): Record<string, unknown> {
+// of the field-name mapping without a network mock. The return type is a
+// discriminated union (not Record<string, unknown>) so a field-name typo or
+// a missing required field fails at compile time.
+export function toWireBody(input: ProviderConfigInput): ProviderConfigWireBody {
   const idField = input.providerConfigId ? { provider_config_id: input.providerConfigId } : {};
   if (input.kind === "oidc") {
     return {
@@ -334,12 +366,19 @@ export async function testProviderConfigConnection(
 // only after a round trip. The backend's create route accepts a caller-
 // supplied provider_config_id verbatim (adminProviderConfigWriteRequest's
 // ProviderConfigID doc comment), so this id is sent as-is on create.
+//
+// Entropy comes from crypto.getRandomValues() only — never Math.random(),
+// which is not cryptographically secure and is flagged by CodeQL in any
+// security-relevant path (this id becomes part of a URL registered with an
+// external IdP, so collisions/predictability matter). getRandomValues is
+// used directly (not crypto.randomUUID(), which wraps the same primitive)
+// so there is a single, unconditional entropy source with no fallback
+// branch that could silently degrade to a weaker one.
 export function newClientProviderConfigId(): string {
-  const uuid =
-    typeof globalThis.crypto?.randomUUID === "function"
-      ? globalThis.crypto.randomUUID()
-      : `${Date.now().toString(16)}${Math.random().toString(16).slice(2)}`;
-  return `pc_${uuid.replace(/-/g, "")}`;
+  const bytes = new Uint8Array(16);
+  globalThis.crypto.getRandomValues(bytes);
+  const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+  return `pc_${hex}`;
 }
 
 function normalizeBase(baseUrl: string): string {
