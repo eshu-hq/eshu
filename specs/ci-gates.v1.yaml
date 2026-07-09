@@ -1081,6 +1081,27 @@ gates:
       - go
     ci_only_reason: ""
 
+  - id: ifa-determinism
+    name: Ifa P3 graph-determinism matrix
+    category: exactness
+    tier: pre-pr
+    blocking: false
+    triggers:
+      - "go/internal/ifa/graphdump/**"
+      - "go/cmd/ifa/**"
+      - "scripts/verify-ifa-determinism.sh"
+      - "scripts/test-verify-ifa-determinism.sh"
+      - "scripts/lib/ifa_determinism_common.sh"
+    local:
+      command: "bash scripts/test-verify-ifa-determinism.sh"
+      test_command: "bash scripts/test-verify-ifa-determinism.sh"
+    ci:
+      workflow: static-contract-gates.yml
+      job: "Verify Ifa graph-determinism gate"
+    requirements:
+      - go
+    ci_only_reason: ""
+
   - id: parserfixture-tests
     name: Parser Fixture Replay Tests
     category: exactness

@@ -146,3 +146,8 @@ report, and dead-letters JSON are the operator-facing artifacts.
 - `go/internal/ifa/README.md`
 - `go/internal/ifa/graphdump/README.md`
 - `docs/internal/design/4389-ifa-conformance-platform.md`
+- `scripts/verify-ifa-determinism.sh` - the P3 determinism-matrix gate (slice
+  5, #4396): drives `ifa graph-dump` at N ∈ {1, 2, 4} against independent
+  fresh Postgres + NornicDB stacks and asserts the resulting canonical graphs
+  are byte-identical. See `go/internal/ifa/graphdump/README.md`'s "Benchmark
+  Evidence" section for a recorded run.

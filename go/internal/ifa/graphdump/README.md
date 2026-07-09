@@ -141,6 +141,34 @@ Evidence:` / `No-Observability-Change:`.)
   - Each run tore down with `docker compose -p <project> -f docker-compose.yaml
     down -v`, confirmed via `docker ps -a` / `docker volume ls` / `docker
     network ls` filtered on the project name showing no leftovers.
+  - **Automated matrix (slice 5, `scripts/verify-ifa-determinism.sh`):** the
+    manual 3-run shim above is now a repeatable gate. One invocation drives
+    N ∈ {1, 2, 4} sequentially against a reused Compose project/port triple
+    (`eshu-ifa-determinism-<pid>`, postgres:15636, neo4j-bolt:7793,
+    neo4j-http:7680 — distinct from every sibling `verify-ifa-*.sh` script's
+    own defaults), `docker compose down -v` between every cell for a
+    genuinely fresh Postgres + NornicDB each time, and asserts all three
+    `ifa graph-dump -digest` outputs are byte-identical, printing the full
+    canonical-graph diff on any divergence instead of hiding it. Rerun:
+    `bash scripts/verify-ifa-determinism.sh`. Recorded run (2026-07-09, clean
+    unmutated demo-org Odù):
+    - N=1: digest
+      `f692b33c72b99bb2ca44f25ca08804be425c96324186acd48995a6d59ccbc873`,
+      cell wall time 72s.
+    - N=2: digest
+      `f692b33c72b99bb2ca44f25ca08804be425c96324186acd48995a6d59ccbc873`,
+      cell wall time 71s.
+    - N=4: digest
+      `f692b33c72b99bb2ca44f25ca08804be425c96324186acd48995a6d59ccbc873`,
+      cell wall time 68s.
+    - All three digests equal (and byte-identical to Run A/B above) — matrix
+      green. Total wall time ~211s for the full N ∈ {1, 2, 4} matrix on this
+      machine, well inside the ~30-45 minute budget a larger corpus would
+      need; the demo-org Odù is small (234 facts, 110 nodes materialized per
+      cell), so most of each cell's ~70s is Compose container start/health-check
+      overhead, not drive/drain/dump work. Confirmed no leftover containers,
+      volumes, or networks after the run (`docker ps -a` / `docker volume ls`
+      / `docker network ls` filtered on the project name, all empty).
 
 ## Verification
 
