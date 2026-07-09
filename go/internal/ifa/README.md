@@ -55,6 +55,15 @@ authoring; it does not build a second coverage framework.
 - `EnumerateSurfaces`, `OduResolver`, `CoverageInputs`, `RunCoverage` - Ifá's
   own coverage reconciliation, mirroring `go/internal/replaycoverage`'s gate
   shape.
+- `MutateCassette`, `MutationKind`, `MutateOptions`, `MutatedFact` (`mutate.go`)
+  - the P3 failure-path-determinism fixture generator (ADR step 3a, issue
+    #4396): deterministically corrupts K facts of a cassette (selected by
+    ascending `StableFactKey`) to produce input that fails typed decode, never
+    mutating the source cassette.
+- `DeadLetterRecord`, `SortDeadLetterRecords`, `DeadLetterSetsEqual`
+  (`dead_letters.go`) - the durable `fact_work_items` dead-letter set shape and
+  its cross-run comparator, which `cmd/ifa`'s `ifa dead-letters` verb reads and
+  renders.
 
 ## Dependencies
 
@@ -133,6 +142,21 @@ the P1 operator-facing artifacts.
   `roundtrip_test.go`'s baseline and teeth cases); a future fact family with a
   genuinely divergent number representation would need to prove that
   assumption again before reusing this comparator unchanged.
+- `MutateCassette`'s two `MutationKind` values do NOT map onto one fixed
+  durable outcome. Proven empirically against a real Postgres + NornicDB stack
+  (`scripts/verify-ifa-dead-letter-determinism.sh`), not just by reading the
+  decode seam: `MutationMissingField` is QUARANTINED per fact
+  (`go/internal/reducer/factschema_decode.go`'s `partitionDecodeFailures`) —
+  metric + log, no durable `fact_work_items` row. `MutationSchemaMajor`, for a
+  fact kind core registers a schema version for, trips the projector's OWN
+  admission-time schema-version gate
+  (`go/internal/projector/schema_version_admission.go`) BEFORE the reducer's
+  typed-decode seam is ever reached — a whole-work-item failure, not a
+  per-fact one — and the durable row's `failure_class` came back
+  `"projection_bug"` in that run, not the reducer's `"input_invalid"`. Do not
+  assume a fixed `failure_class` literal for a mutation kind; compare full
+  `DeadLetterRecord` sets with `DeadLetterSetsEqual` instead. See `mutate.go`'s
+  `MutationKind` doc comment for the full path-by-path breakdown.
 
 ## Related Docs
 

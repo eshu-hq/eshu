@@ -62,6 +62,20 @@ session.
   `-out` or stdout; with `-digest`, it writes the sha256 hex digest instead.
   It is a read-only diagnostic verb: it applies no schema DDL and performs no
   write.
+- `ifa mutate-cassette -cassette FILE -out FILE -fact-kind KIND -kind
+  missing-field|schema-major [-field F] [-schema-major V] [-count N]` -
+  Ifá P3 failure-path-determinism fixture generator (ADR step 3a): loads
+  `-cassette` through the production `cassette.LoadFile` seam, corrupts `-count`
+  facts of `-fact-kind` via `go/internal/ifa.MutateCassette`, and writes the
+  result to `-out` — a new file, never the source. It performs no I/O beyond
+  reading `-cassette` and writing `-out`.
+- `ifa dead-letters [-out FILE] [-postgres-dsn]` - reads the durable
+  `fact_work_items` dead-letter set (`status='dead_letter'`) from Postgres
+  (same DSN precedence as `ifa drive`) and prints it as deterministic sorted
+  JSON via `go/internal/ifa.DeadLetterRecord`/`SortDeadLetterRecords`. Read-only:
+  one `SELECT`, no schema DDL or write. Deliberately does not reuse
+  `cmd/golden-corpus-gate`'s drain SQL, which counts `dead_letter` rows AS
+  residual by design; this verb's whole purpose is to read those rows.
 
 ## Dependencies
 
@@ -97,11 +111,35 @@ new driver dependency for the repo. `internal/ifa/graphdump` itself takes on
 no new dependency: it stays driver-free by design (see its README's
 "Ownership Boundary").
 
+`ifa mutate-cassette` and `ifa dead-letters` (P3, ADR step 3a) add no new
+dependency: `mutate_cassette.go` uses `go/internal/ifa` (`MutateCassette`) and
+the already-imported `go/internal/replay/cassette`; `dead_letters.go` reuses
+`driveOpenPostgres` (unexported, defined in `drive.go`, same package) and
+`go/internal/ifa` (`DeadLetterRecord`, `SortDeadLetterRecords`).
+
 ## Telemetry
 
 No runtime telemetry is emitted. This is not a deployed service; the coverage
-report, drive report, and graph-dump canonical output/digest are the
-operator-facing artifacts.
+report, drive report, graph-dump canonical output/digest, mutate-cassette
+report, and dead-letters JSON are the operator-facing artifacts.
+
+## Gotchas / Invariants
+
+- `ifa mutate-cassette`'s two `-kind` values reach very different runtime
+  failure paths for a fact kind core registers a schema version for (proven
+  empirically with `scripts/verify-ifa-dead-letter-determinism.sh` against a
+  real Postgres + NornicDB stack, not just by reading the decode seam):
+  `missing-field` is QUARANTINED per fact (metric + log, no durable
+  `fact_work_items` row); `schema-major` trips the projector's own
+  admission-time schema-version gate
+  (`go/internal/projector/schema_version_admission.go`) BEFORE the reducer's
+  typed-decode seam is ever reached, dead-lettering the whole projector work
+  item durably. The durable row's `failure_class` came back `"projection_bug"`
+  in that run, not the reducer's `"input_invalid"` — do not assume a fixed
+  `failure_class` literal for a given `-kind`; assert on `status='dead_letter'`
+  and compare full rows (`ifa.DeadLetterSetsEqual`) instead. See
+  `go/internal/ifa/mutate.go`'s `MutationKind` doc comment for the full
+  path-by-path breakdown.
 
 ## Related Docs
 

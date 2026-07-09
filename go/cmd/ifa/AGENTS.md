@@ -8,11 +8,17 @@
 4. `drive.go` - P2 concurrent replay driver verb (issue #4395).
 5. `graph_dump.go`, `graphdump_reader.go` - P3 graph-truth determinism verb
    (issue #4396).
-6. `go/internal/ifa/AGENTS.md` - library contract.
-7. `go/internal/ifa/graphdump/AGENTS.md` - the canonicalization package
+6. `mutate_cassette.go` - P3 failure-path-determinism fixture generator verb
+   (ADR step 3a, issue #4396): wraps `go/internal/ifa.MutateCassette`.
+7. `dead_letters.go` - P3 failure-path-determinism read verb (ADR step 3a,
+   issue #4396): reads the durable `fact_work_items` dead-letter set.
+8. `go/internal/ifa/AGENTS.md` - library contract.
+9. `go/internal/ifa/graphdump/AGENTS.md` - the canonicalization package
    `graph_dump.go` calls into.
-8. `docs/internal/design/4389-ifa-conformance-platform.md` - the ADR; read its
-   "Placement" section before touching this command's dependency graph.
+10. `docs/internal/design/4389-ifa-conformance-platform.md` - the ADR; read its
+    "Placement" section before touching this command's dependency graph, and
+    step 3a for the failure-path-determinism requirement `mutate_cassette.go`/
+    `dead_letters.go` serve.
 
 ## Invariants
 
@@ -72,6 +78,17 @@
 - `ifa graph-dump` is read-only: it applies no schema DDL and issues only the
   two `MATCH` reads in `graphdump_reader.go` (`boltNodesCypher`/
   `boltEdgesCypher`). Do not add a write statement to this verb.
+- `ifa mutate-cassette` NEVER overwrites `-cassette`; it always writes to
+  `-out`, a separate path. Never point `-out` at a committed `testdata/`
+  cassette in a script or CI job.
+- `ifa mutate-cassette`'s `-kind` values do not map onto a single fixed durable
+  outcome — see this directory's `README.md` "Gotchas / Invariants" and
+  `go/internal/ifa/mutate.go`'s `MutationKind` doc comment before writing a
+  new caller that assumes a specific `failure_class` string for either kind.
+- `ifa dead-letters` deliberately does not reuse
+  `cmd/golden-corpus-gate/drains.go`'s SQL: that gate's residual query counts
+  `dead_letter` rows AS residual by design. Do not "fix" `dead-letters` to
+  match that gate's semantics; they answer different questions.
 
 ## Verification
 
@@ -80,5 +97,7 @@ cd go && go test ./cmd/ifa -count=1
 cd go && go test -race ./internal/replay/concurrentreplay/... ./internal/ifa/graphdump/... ./cmd/ifa/... -count=1
 bash scripts/test-verify-ifa-replay-drive.sh
 bash scripts/verify-ifa-replay-drive.sh
+bash scripts/verify-ifa-dead-letter-determinism.sh -mutation schema-major
+bash scripts/verify-ifa-dead-letter-determinism.sh -mutation missing-field
 ESHU_PERFORMANCE_EVIDENCE_BASE=origin/main bash scripts/verify-performance-evidence.sh
 ```
