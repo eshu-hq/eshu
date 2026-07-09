@@ -89,8 +89,7 @@ export function LoginPage({
   // even when require_sso would otherwise hide it. It has NO server-side
   // meaning — POST /api/v0/auth/local/login enforces the identical
   // admin-only rule under require_sso whether or not this param is present.
-  const localFormHint =
-    new URLSearchParams(globalThis.location?.search ?? "").get("local") === "1";
+  const localFormHint = new URLSearchParams(globalThis.location?.search ?? "").get("local") === "1";
   const showLocalForm = !requireSSO || localFormHint;
 
   // Fetch available SSO providers and the tenant's require_sso hint on mount.
