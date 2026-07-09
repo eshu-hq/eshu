@@ -88,28 +88,50 @@ The concurrency proof (`TestSourceConcurrentNextDeliversEachGenerationExactlyOnc
 must run under `-race` and must fail without the mutex — that is the point of
 this package.
 
-## No-Regression Evidence
+## Performance and observability evidence
 
-This package is additive replay infrastructure. It wraps `collector.Source`
-and drives it with `Driver`; it does not modify `cassette.Source`,
-`collector.Service`, `collector.Committer` implementations, or any other
-existing package. The shared mutable state is: `Source`'s own
-`mu`/`done`/`served` fields, guarded end-to-end by one mutex held across each
-`Next` call, and `Driver.Run`'s own committed-count counter (accessed only via
-`sync/atomic`) and first-error latch (guarded by a `sync.Once`). Verified by
-`go test -race ./internal/replay/concurrentreplay/... -count=1`.
+This package is additive replay infrastructure: it adds a concurrent consumer
+for an existing replay seam and does not modify any pre-existing runtime path,
+so there is no prior baseline to regress. The concurrency contract is proven
+directly rather than by throughput comparison. (The marker lines below carry a
+trailing colon on purpose: the `verify-performance-evidence.sh` hot-path gate
+matches `Performance Evidence:` / `Benchmark Evidence:` / `No-Regression
+Evidence:` and `Observability Evidence:` / `No-Observability-Change:`.)
 
-## No-Observability-Change
-
-No new metric instruments are minted by this package. `Driver.Instruments`
-accepts the existing `*telemetry.Instruments` type but does not yet record
-through it — threading it is deferred to a later slice, once it is decided
-which existing `eshu_dp_*` instrument applies to a driver invocation.
-`Driver.Logger` is optional structured logging only (start, drain, and error
-records at Info/Error level via the standard `log/slog` package) — not a new
-metric or span. `Source` still returns `collector.CollectedGeneration` values
-unchanged from the delegate; the collector's existing telemetry (wired
-through `collector.Service`) is unaffected by this package.
+- No-Regression Evidence: `Driver` and `Source` are reached only from
+  `eshu-ifa drive` (a credential-free local conformance tool) and this
+  package's own tests; no production ingester, reducer, API, or MCP path calls
+  them, so no existing hot path changes behavior or timing. This package does
+  not modify `cassette.Source`, `collector.Service`, or any
+  `collector.Committer` implementation. The shared mutable state is `Source`'s
+  own `mu`/`done`/`served` fields (guarded end-to-end by one mutex held across
+  each `Next` call) plus `Driver.Run`'s committed-count counter (accessed only
+  via `sync/atomic`) and its first-error latch (guarded by a `sync.Once`). The
+  tape-handout mutex serializes only the in-memory cursor advance;
+  `CommitScopeGeneration` runs per worker outside the lock, so the driver adds
+  no serialization to the contended commit path (see "Why the delegate call is
+  held under the lock").
+- Benchmark Evidence: the N=1 drain acceptance proof runs `eshu-ifa drive
+  -workers 1` over the demo-org GCP cassette (1 generation, 234 facts,
+  committed in ~38 ms) against a fresh isolated stack (Postgres + NornicDB via
+  Compose on non-default ports), then polls the exact B-7 `drains.go` residual
+  SQL through `eshu-golden-corpus-gate -phase=drains`. Terminal queue counts:
+  `fact_work_items` residual 0, dead_letter 0, and `shared_projection_intents`
+  nonterminal 0. `scripts/verify-ifa-replay-drive.sh` reproduces it, and
+  `go test -race -count=3 ./internal/replay/concurrentreplay/...` proves
+  exact-once, no-double-replay, no-deadlock, and no goroutine leak under the
+  race detector.
+- No-Observability-Change: this slice mints no new metric instrument, span, or
+  dashboard. `Driver.Instruments` accepts the existing `*telemetry.Instruments`
+  type but is a reserved-but-unused field — threading it is deferred to a later
+  slice, once it is decided which existing `eshu_dp_*` instrument applies.
+  `Driver.Logger` is optional `log/slog` structured logging only (start, drain,
+  and error records), and `Driver.Run` returns a `Report{Workers,
+  GenerationsCommitted, Duration}` for the caller. `Source` still returns
+  `collector.CollectedGeneration` values unchanged from the delegate; the
+  collector's existing telemetry (wired through `collector.Service`) is
+  unaffected. Operator visibility for the drain comes from the existing
+  `fact_work_items` status columns the drain SQL reads, not from anything new.
 
 ## FactSliceSource: the git-collector replay path
 
@@ -166,35 +188,3 @@ collide with rows that already exist. A drain-throughput proof must replay
 into a **fresh target database** so the commit path actually performs new
 inserts and new enqueues. This is a constraint the later drain-harness slice
 of #4395 (slice 6) must honor, not something this slice implements.
-
-## Performance and observability evidence
-
-This package is net-new: it adds a concurrent consumer for an existing replay
-seam and does not modify any pre-existing runtime path, so there is no prior
-baseline to regress. The concurrency contract is proven directly rather than
-by throughput comparison.
-
-- No-Regression Evidence: `Driver` and `Source` are only reached from
-  `eshu-ifa drive` (a credential-free local conformance tool) and this
-  package's tests; no production ingester, reducer, API, or MCP path calls
-  them, so no existing hot path changes behavior or timing. The tape-handout
-  mutex serializes only the in-memory cursor advance; `CommitScopeGeneration`
-  runs per worker outside the lock, so the driver adds no serialization to the
-  contended commit path (see "Why the delegate call is held under the lock").
-- Benchmark Evidence: the N=1 drain acceptance proof runs `eshu-ifa drive
-  -workers 1` over the demo-org GCP cassette (1 generation, 234 facts;
-  committed in ~38 ms) against a fresh isolated stack (Postgres + NornicDB via
-  Compose on non-default ports), then polls the exact B-7 `drains.go` residual
-  SQL through `eshu-golden-corpus-gate -phase=drains`. Terminal queue counts:
-  `fact_work_items` residual 0, dead_letter 0, and
-  `shared_projection_intents` nonterminal 0. `scripts/verify-ifa-replay-drive.sh`
-  reproduces it; `go test -race -count=3 ./internal/replay/concurrentreplay/...`
-  proves exact-once, no-double-replay, no-deadlock, and no goroutine leak under
-  the race detector.
-- No-Observability-Change: this slice mints no new metric, span, or dashboard.
-  `Driver.Logger` emits start/drain/error `slog` records and `Driver.Run`
-  returns a `Report{Workers, GenerationsCommitted, Duration}` for the caller;
-  `Driver.Instruments` is a reserved-but-unused field carried for a later
-  slice, documented as such. Operator visibility for the drain itself comes
-  from the existing `fact_work_items` status columns the drain SQL reads, not
-  from anything new here.

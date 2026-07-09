@@ -78,7 +78,7 @@ type Report struct {
 //
 // Run returns an error without draining d.Source, and without spawning any
 // worker, if d.Source or d.Committer is nil.
-func (d Driver) Run(ctx context.Context) (Report, error) {
+func (d *Driver) Run(ctx context.Context) (Report, error) {
 	if d.Source == nil {
 		return Report{}, errors.New("concurrentreplay: driver source is required")
 	}
@@ -153,7 +153,7 @@ func (d Driver) Run(ctx context.Context) (Report, error) {
 // until the source is exhausted or either step fails. failFast is called with
 // the first error this worker observes; it is a no-op for every call after
 // the first, across all workers, so only one error is ever kept.
-func (d Driver) drainOne(ctx context.Context, committed *int64, failFast func(error)) {
+func (d *Driver) drainOne(ctx context.Context, committed *int64, failFast func(error)) {
 	for {
 		gen, ok, err := d.Source.Next(ctx)
 		if err != nil {
