@@ -3,7 +3,12 @@
 
 package ifa
 
-import "github.com/eshu-hq/eshu/go/internal/facts"
+import (
+	"fmt"
+
+	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/sdk/go/factschema/fixturepack"
+)
 
 // repositoryFactKind is the raw fact-kind literal for a repository fact. It
 // has no exported constant in go/internal/facts (the kind is admission-exempt,
@@ -27,6 +32,54 @@ const contentFactKind = "content"
 var catalogSeed = []CatalogOdu{
 	kustomizeDeploysFromOdu(),
 	argocdDeploysFromOdu(),
+	awsPackOdu(),
+}
+
+// awsFamilySchemaBackedKinds are the representative aws_* fact kinds
+// odu:aws-pack carries with fixturepack.ValidPayload examples, proving the
+// payload-schema derivation axis (design §1c) for the AWS cloud-inventory
+// family. awsTagObservationKind additionally proves the schema-less
+// registry-only path (facts.AWSTagObservationFactKind carries no
+// PayloadSchema) in the same Odù.
+var awsFamilySchemaBackedKinds = []string{
+	facts.AWSResourceFactKind,
+	facts.AWSResourcePolicyPermissionFactKind,
+	facts.AWSSecurityGroupRuleFactKind,
+	facts.AWSWarningFactKind,
+}
+
+// awsPackOdu carries one valid fixturepack payload per representative aws_*
+// fact kind, plus one registry-only (schema-less) aws_tag_observation fact.
+// It has no repository fact and produces no graph evidence — it exists purely
+// to prove fact_kind:* payload-schema coverage (fact_kind:aws_resource in
+// specs/ifa-coverage-manifest.v1.yaml), not narrowed_correlation coverage.
+func awsPackOdu() CatalogOdu {
+	factsForOdu := make([]facts.Envelope, 0, len(awsFamilySchemaBackedKinds)+1)
+	for _, kind := range awsFamilySchemaBackedKinds {
+		payload, ok := fixturepack.ValidPayload(kind)
+		if !ok {
+			panic(fmt.Sprintf("ifa: catalog_seed odu:aws-pack: fixturepack has no valid payload example for %q", kind))
+		}
+		factsForOdu = append(factsForOdu, facts.Envelope{
+			ScopeID:  "aws:sandbox-account",
+			FactKind: kind,
+			Payload:  payload,
+		})
+	}
+	factsForOdu = append(factsForOdu, facts.Envelope{
+		ScopeID:  "aws:sandbox-account",
+		FactKind: facts.AWSTagObservationFactKind,
+		Payload: map[string]any{
+			"resource_id": "vpc-0abc123def456",
+			"key":         "env",
+			"value":       "prod",
+		},
+	})
+
+	return CatalogOdu{
+		Odu:    Odu{Name: "odu:aws-pack", Facts: factsForOdu},
+		Detail: "fixturepack-valid payloads for the aws_resource/aws_resource_policy_permission/aws_security_group_rule/aws_warning family, plus the schema-less aws_tag_observation registry-only kind",
+	}
 }
 
 // kustomizeDeploysFromOdu carries a Kustomize overlay content fact in a
