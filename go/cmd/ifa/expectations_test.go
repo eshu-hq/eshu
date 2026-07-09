@@ -5,6 +5,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"path/filepath"
 	"testing"
@@ -14,7 +15,7 @@ func TestRunExpectationsPrintsJSONForOneKind(t *testing.T) {
 	repoRoot := repoRootDir(t)
 
 	var stdout, stderr bytes.Buffer
-	err := run([]string{
+	err := run(context.Background(), []string{
 		"expectations",
 		"-specs-dir", filepath.Join(repoRoot, "specs"),
 		"-snapshot", filepath.Join(repoRoot, "testdata", "golden", "e2e-20repo-snapshot.json"),
@@ -37,7 +38,7 @@ func TestRunExpectationsUnknownKindErrors(t *testing.T) {
 	repoRoot := repoRootDir(t)
 
 	var stdout, stderr bytes.Buffer
-	err := run([]string{
+	err := run(context.Background(), []string{
 		"expectations",
 		"-specs-dir", filepath.Join(repoRoot, "specs"),
 		"-snapshot", filepath.Join(repoRoot, "testdata", "golden", "e2e-20repo-snapshot.json"),

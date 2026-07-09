@@ -5,6 +5,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -29,7 +30,7 @@ func TestRunCoverageAgainstRealSpecsIsAdvisoryAndWritesReport(t *testing.T) {
 	reportOut := filepath.Join(t.TempDir(), "report.json")
 
 	var stdout, stderr bytes.Buffer
-	err := run([]string{
+	err := run(context.Background(), []string{
 		"coverage",
 		"-specs-dir", filepath.Join(repoRoot, "specs"),
 		"-snapshot", filepath.Join(repoRoot, "testdata", "golden", "e2e-20repo-snapshot.json"),
@@ -66,7 +67,7 @@ coverage:
 	}
 
 	var stdout, stderr bytes.Buffer
-	err := run([]string{
+	err := run(context.Background(), []string{
 		"coverage",
 		"-specs-dir", specsDir,
 		"-snapshot", filepath.Join(repoRoot, "testdata", "golden", "e2e-20repo-snapshot.json"),
