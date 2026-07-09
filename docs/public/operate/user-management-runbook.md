@@ -54,7 +54,19 @@ it as a real identity provider owned by Eshu, not a demo fallback.
 
 Operator rules:
 
-1. Bootstrap the first owner/admin through an operator-controlled flow.
+1. Bootstrap the first owner/admin through the generated-credential and
+   first-run setup wizard flow (issues #4963, #4965): retrieve the one-time
+   admin credential from the API startup log banner or
+   `eshu admin initial-credential`, then complete the Console's Claim ->
+   Create admin -> Secure wizard, which enrolls MFA recovery codes and signs
+   the admin in. See
+   [Console First Five Minutes](../getting-started/console-first-five-minutes.md)
+   for the full walkthrough. `ESHU_AUTH_BOOTSTRAP_MODE` controls this: the
+   default `generated` mode requires a configured data-encryption key
+   (`ESHU_AUTH_SECRET_ENC_KEY`); `sso-only` and `disabled` skip local admin
+   seeding entirely. An operator may instead seed a specific admin identity
+   with `ESHU_ADMIN_USERNAME`/`ESHU_ADMIN_PASSWORD` before first boot, which
+   still requires the wizard's Secure step to enroll MFA.
 2. Require MFA for admin accounts before protected tenants become active.
 3. Keep non-admin MFA policy explicit; do not imply it is mandatory unless the
    tenant policy says so.
