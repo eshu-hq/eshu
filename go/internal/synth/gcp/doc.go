@@ -24,9 +24,9 @@
 // payload.
 //
 // This package imports only sdk/go/factschema (the contracts module),
-// go/internal/replay, and go/internal/replay/cassette. It does not, and must
-// not, import go/internal/collector/gcpcloud or any other collector
-// internal package (Contract System v1 §3.5): assetTypeInventory
+// go/internal/facts, go/internal/replay, and go/internal/replay/cassette. It
+// does not, and must not, import go/internal/collector/gcpcloud or any other
+// collector internal package (Contract System v1 §3.5): assetTypeInventory
 // (asset_types.go) is a deliberately duplicated, static copy of the GCP
 // typed-depth extractor registry's asset-type vocabulary, refreshed by hand
 // rather than imported.
@@ -55,4 +55,12 @@
 // testdata/generated-cassettes/ instead of overwriting the committed
 // golden-corpus cassette; committed-path swaps are valid only behind the
 // operator-controlled golden-corpus gate.
+//
+// DemoOrgFactEnvelopes (demo_envelopes.go) generates the demo-org cassette and
+// replays it through the production cassette.Source seam
+// (go/internal/replay/cassette/source.go), returning the flattened
+// facts.Envelope set every scope in the generated cassette carries. It exists
+// so a consumer needing the demo-org corpus as fact envelopes (Ifá's
+// odu:demo-org-roundtrip, issue #4804) drives the same replay path a real
+// poll loop would, instead of hand-mirroring the generator's payload shapes.
 package gcp

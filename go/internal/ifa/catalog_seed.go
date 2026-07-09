@@ -33,6 +33,7 @@ var catalogSeed = []CatalogOdu{
 	kustomizeDeploysFromOdu(),
 	argocdDeploysFromOdu(),
 	awsPackOdu(),
+	demoOrgRoundtripOdu(),
 }
 
 // awsFamilySchemaBackedKinds are the representative aws_* fact kinds

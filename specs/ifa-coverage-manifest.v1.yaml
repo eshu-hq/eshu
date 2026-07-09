@@ -40,6 +40,18 @@
 # go/internal/ifa/coverage_falsegreen_test.go for the proof this file's
 # narrowed_correlation:rc-29 row cannot be satisfied by the wrong Odù or by an
 # unfiltered correlation.
+#
+# The five odu:demo-org-roundtrip rows (issue #4804, the W6 terminal "contract
+# system alive" proof) use proof_gate: ifa-contract-layer like every other row.
+# That advisory gate's `go test ./internal/ifa` is what re-runs
+# RoundTripTypedPayloads (go/internal/ifa/roundtrip.go) on any change under
+# go/internal/ifa or go/internal/synth/gcp, proving each emitted gcp_* fact the
+# demo-org synthetic generator produces survives Encode -> factschema Decode ->
+# re-Encode byte-identically. The golden-corpus gate is NOT the enforcement gate
+# for these rows: it replays the committed testdata cassette (not the generator)
+# and does not trigger on ifa/synth changes, so it proves the pipeline -> graph
+# -> demo-answers path, not this typed round trip. ifa-contract-layer stays
+# advisory for the whole P1 milestone (the blocking flip is P4, per #4394).
 version: "v1"
 coverage:
   - {surface: "fact_kind:repository", scenario: odu, scenario_type: baseline, ref: "odu:kustomize-deploys-from", proof_gate: ifa-contract-layer}
@@ -49,3 +61,8 @@ coverage:
   - {surface: "fact_kind:aws_warning", scenario: odu, scenario_type: baseline, ref: "odu:aws-pack", proof_gate: ifa-contract-layer}
   - {surface: "fact_kind:aws_tag_observation", scenario: odu, scenario_type: baseline, ref: "odu:aws-pack", proof_gate: ifa-contract-layer}
   - {surface: "narrowed_correlation:rc-29", scenario: odu, scenario_type: baseline, ref: "odu:kustomize-deploys-from", proof_gate: ifa-contract-layer}
+  - {surface: "fact_kind:gcp_cloud_resource", scenario: odu, scenario_type: baseline, ref: "odu:demo-org-roundtrip", proof_gate: ifa-contract-layer}
+  - {surface: "fact_kind:gcp_cloud_relationship", scenario: odu, scenario_type: baseline, ref: "odu:demo-org-roundtrip", proof_gate: ifa-contract-layer}
+  - {surface: "fact_kind:gcp_collection_warning", scenario: odu, scenario_type: baseline, ref: "odu:demo-org-roundtrip", proof_gate: ifa-contract-layer}
+  - {surface: "fact_kind:gcp_dns_record", scenario: odu, scenario_type: baseline, ref: "odu:demo-org-roundtrip", proof_gate: ifa-contract-layer}
+  - {surface: "fact_kind:gcp_iam_policy_observation", scenario: odu, scenario_type: baseline, ref: "odu:demo-org-roundtrip", proof_gate: ifa-contract-layer}

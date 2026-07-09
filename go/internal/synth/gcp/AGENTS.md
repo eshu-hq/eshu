@@ -3,8 +3,9 @@
 ## Owned surface
 
 - `go/internal/synth/gcp/` — `Generate(Options)`, the seeded GCP corpus
-  generator, `assetTypeInventory` (`asset_types.go`), and the maintainer-run
-  parity check (`parity_test.go`).
+  generator, `assetTypeInventory` (`asset_types.go`), `DemoOrgFactEnvelopes`
+  (`demo_envelopes.go`, the production `cassette.Source` replay seam for the
+  demo-org corpus), and the maintainer-run parity check (`parity_test.go`).
 
 ## Key invariants
 

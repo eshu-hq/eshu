@@ -7,9 +7,13 @@
 3. `odu.go` - Odù contract-layer canonicalization.
 4. `expectations.go`, `evidence.go`, `schema.go`, `coverage.go` - the P1
    derivation join and coverage reconciliation.
-5. `go/internal/replay/AGENTS.md` - canonicalization invariants reused here.
-6. `go/internal/replaycoverage/AGENTS.md` - the coverage machinery Ifá reuses
+5. `roundtrip.go` - `RoundTripTypedPayloads` and `demoOrgRoundtripOdu`, the P1
+   terminal typed-payload round-trip proof (issue #4804).
+6. `go/internal/replay/AGENTS.md` - canonicalization invariants reused here.
+7. `go/internal/replaycoverage/AGENTS.md` - the coverage machinery Ifá reuses
    wholesale.
+8. `go/internal/synth/gcp/AGENTS.md` - the synthetic GCP corpus generator
+   `demoOrgRoundtripOdu` depends on.
 
 ## Invariants
 
