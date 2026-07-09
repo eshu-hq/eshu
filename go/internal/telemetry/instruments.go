@@ -3461,7 +3461,7 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 
 	inst.AuthBootstrapSeedTotal, err = meter.Int64Counter(
 		"eshu_dp_auth_bootstrap_seed_total",
-		metric.WithDescription("Startup bootstrap identity seeding stage outcome by bounded outcome value (sealed_existing, seeded_env, generated, skipped, error)"),
+		metric.WithDescription("Startup bootstrap identity seeding stage outcome by bounded outcome value (sealed_existing, seeded_env, generated, skipped_sso-only, skipped_disabled, error)"),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register AuthBootstrapSeedTotal counter: %w", err)

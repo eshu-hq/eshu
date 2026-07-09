@@ -78,6 +78,26 @@ type ResetBootstrapCredentialInput struct {
 	ResetAt                time.Time
 }
 
+// HasBootstrappedLocalIdentity reports whether any local identity already
+// exists. It is a cheap, lock-free read used only to let a caller skip
+// redundant crypto work (bcrypt hashing, AES-GCM sealing) before attempting a
+// bootstrap seed on a restart; it is never the correctness boundary for "was
+// seeding already done" — BootstrapLocalIdentity's and
+// GenerateBootstrapAdminWithCredential's own pg_advisory_xact_lock(3455)
+// check-then-insert is. A benign race between this read and a concurrent
+// replica's bootstrap attempt is harmless: the atomic method's own
+// check-then-insert still applies.
+func (s *IdentitySubjectStore) HasBootstrappedLocalIdentity(ctx context.Context) (bool, error) {
+	if s.db == nil {
+		return false, errors.New("identity subject store database is required")
+	}
+	count, err := countExistingLocalIdentityUsers(ctx, s.db)
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
 // GenerateBootstrapCredential idempotently inserts the sealed one-time admin
 // credential envelope for one (tenant, workspace), guarded by
 // pg_advisory_xact_lock(3456) (3455 is BootstrapLocalIdentity's own

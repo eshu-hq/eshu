@@ -5,16 +5,10 @@ package main
 
 import (
 	"context"
-	"crypto/rand"
-	"crypto/sha256"
-	"encoding/base64"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"log/slog"
-	"os"
 	"strings"
 	"time"
 
@@ -25,6 +19,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/bcrypt"
 
+	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/secretcrypto"
 	pgstorage "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -97,6 +92,7 @@ func seedInitialAdmin(
 	getenv func(string) string,
 	instruments *telemetry.Instruments,
 	logger *slog.Logger,
+	auditAppender query.GovernanceAuditAppender,
 ) error {
 	tracer := otel.Tracer(telemetry.DefaultSignalName)
 	ctx, span := tracer.Start(ctx, "auth.bootstrap_seed")
@@ -104,7 +100,7 @@ func seedInitialAdmin(
 
 	mode, err := loadAuthBootstrapMode(getenv)
 	if err != nil {
-		return finishBootstrapSeed(ctx, span, instruments, logger, "error", err)
+		return finishBootstrapSeed(ctx, span, instruments, logger, auditAppender, "error", err)
 	}
 
 	store := pgstorage.NewIdentitySubjectStore(identityDB)
@@ -112,7 +108,7 @@ func seedInitialAdmin(
 
 	if username, password, ok := adminCredentialFromEnv(getenv); ok {
 		outcome, err := seedBootstrapAdminFromEnv(ctx, store, username, password, now, logger)
-		return finishBootstrapSeed(ctx, span, instruments, logger, outcome, err)
+		return finishBootstrapSeed(ctx, span, instruments, logger, auditAppender, outcome, err)
 	}
 
 	switch mode {
@@ -122,14 +118,14 @@ func seedInitialAdmin(
 				telemetry.EventAttr("auth.bootstrap_seed.skipped"),
 				slog.String("mode", mode))
 		}
-		return finishBootstrapSeed(ctx, span, instruments, logger, "skipped", nil)
+		return finishBootstrapSeed(ctx, span, instruments, logger, auditAppender, "skipped_"+mode, nil)
 	case authBootstrapModeGenerated:
-		outcome, err := seedBootstrapAdminGenerated(ctx, store, getenv, now, logger, instruments)
-		return finishBootstrapSeed(ctx, span, instruments, logger, outcome, err)
+		outcome, err := seedBootstrapAdminGenerated(ctx, store, getenv, now, logger, instruments, auditAppender)
+		return finishBootstrapSeed(ctx, span, instruments, logger, auditAppender, outcome, err)
 	default:
 		// Unreachable given loadAuthBootstrapMode's closed enum; fail closed
 		// rather than silently falling through to an unhandled mode.
-		return finishBootstrapSeed(ctx, span, instruments, logger, "error", fmt.Errorf("unsupported bootstrap mode %q", mode))
+		return finishBootstrapSeed(ctx, span, instruments, logger, auditAppender, "error", fmt.Errorf("unsupported bootstrap mode %q", mode))
 	}
 }
 
@@ -184,6 +180,15 @@ func seedBootstrapAdminFromEnv(
 // otherwise strand an admin identity with no retrievable credential and no
 // reset path (ResetBootstrapCredential requires a pre-existing credential
 // row to rotate).
+//
+// HasBootstrappedLocalIdentity runs first as a cheap, lock-free short-circuit
+// so a benign restart after the admin already exists does not churn crypto
+// (bcrypt hash, AES-GCM seal) or tick eshu_dp_auth_secret_seal_total on every
+// boot, and does not require a configured DEK once seeding is already done.
+// It is never the correctness boundary — GenerateBootstrapAdminWithCredential's
+// own advisory-locked check-then-insert still runs unconditionally afterward
+// (the "ON CONFLICT belt"), so a benign race with a concurrent replica's
+// startup is still handled correctly.
 func seedBootstrapAdminGenerated(
 	ctx context.Context,
 	store *pgstorage.IdentitySubjectStore,
@@ -191,7 +196,17 @@ func seedBootstrapAdminGenerated(
 	now time.Time,
 	logger *slog.Logger,
 	instruments *telemetry.Instruments,
+	auditAppender query.GovernanceAuditAppender,
 ) (string, error) {
+	exists, err := store.HasBootstrappedLocalIdentity(ctx)
+	if err != nil {
+		return "error", fmt.Errorf("check existing local identities: %w", err)
+	}
+	if exists {
+		logAlreadyProvisioned(logger)
+		return "sealed_existing", nil
+	}
+
 	keyring, err := secretcrypto.KeyringFromEnv(getenv)
 	if err != nil {
 		return "error", fmt.Errorf(
@@ -250,8 +265,10 @@ func seedBootstrapAdminGenerated(
 			logAlreadyProvisioned(logger)
 			return "sealed_existing", nil
 		}
+		auditBootstrapCredentialGenerated(ctx, auditAppender, keyID, err)
 		return "error", fmt.Errorf("bootstrap generated local admin with credential: %w", err)
 	}
+	auditBootstrapCredentialGenerated(ctx, auditAppender, keyID, nil)
 	recordAuthBootstrapCredentialGenerated(ctx, instruments, inserted)
 	if !inserted {
 		// Extremely unlikely (the identity insert in the same transaction
@@ -272,193 +289,6 @@ func seedBootstrapAdminGenerated(
 	return "generated", nil
 }
 
-// newBootstrapLocalIdentityRecord builds the hash-only owner record
-// BootstrapLocalIdentity persists. It always installs exactly one MFA
-// recovery-code hash: AuthenticateLocalIdentity requires MFA proof for every
-// admin-role login regardless of how the admin was seeded (see
-// seedInitialAdmin's doc comment).
-func newBootstrapLocalIdentityRecord(
-	username, passwordHash string,
-	recoveryCodeHashes []string,
-	now time.Time,
-) pgstorage.LocalIdentityBootstrapRecord {
-	userID := newBootstrapID()
-	factorID := newBootstrapID()
-	return pgstorage.LocalIdentityBootstrapRecord{
-		TenantID:               pgstorage.BootstrapAdminTenantID,
-		WorkspaceID:            pgstorage.BootstrapAdminWorkspaceID,
-		UserID:                 userID,
-		SubjectIDHash:          localIdentityHash(username),
-		ProfileHandleHash:      localIdentityHash(username),
-		PasswordHash:           passwordHash,
-		PasswordAlgorithm:      "bcrypt",
-		PasswordParametersHash: localIdentityHash("bcrypt"),
-		MFAFactorID:            factorID,
-		MFAFactorKind:          bootstrapAdminMFAFactorKind,
-		RecoveryCodeHashes:     recoveryCodeHashes,
-		PolicyRevisionHash:     localIdentityHash(pgstorage.BootstrapAdminTenantID + ":" + pgstorage.BootstrapAdminWorkspaceID),
-		CreatedAt:              now,
-	}
-}
-
-// loadAuthBootstrapMode reads ESHU_AUTH_BOOTSTRAP_MODE, defaulting to
-// "generated" and failing closed on any value outside the closed enum
-// (generated, sso-only, disabled).
-func loadAuthBootstrapMode(getenv func(string) string) (string, error) {
-	raw := strings.TrimSpace(getenv(authBootstrapModeEnv))
-	if raw == "" {
-		return authBootstrapModeGenerated, nil
-	}
-	switch raw {
-	case authBootstrapModeGenerated, authBootstrapModeSSOOnly, authBootstrapModeDisabled:
-		return raw, nil
-	default:
-		return "", fmt.Errorf(
-			"%s=%q is not one of generated, sso-only, disabled", authBootstrapModeEnv, raw,
-		)
-	}
-}
-
-// adminCredentialFromEnv reads ESHU_ADMIN_USERNAME plus
-// ESHU_ADMIN_PASSWORD/ESHU_ADMIN_PASSWORD_FILE (file takes precedence over
-// inline, mirroring secretcrypto's DEK-loading precedence). ok is true only
-// when both a username and a password resolved, matching the boot decision's
-// conjunctive "ESHU_ADMIN_USERNAME + password" condition.
-func adminCredentialFromEnv(getenv func(string) string) (username, password string, ok bool) {
-	username = strings.TrimSpace(getenv(adminUsernameEnv))
-	if path := strings.TrimSpace(getenv(adminPasswordFileEnv)); path != "" {
-		data, err := os.ReadFile(path) // #nosec G304 -- path is operator-controlled via ESHU_ADMIN_PASSWORD_FILE, not request input
-		if err == nil {
-			password = strings.TrimSpace(string(data))
-		}
-	} else {
-		password = getenv(adminPasswordEnv)
-	}
-	return username, password, username != "" && password != ""
-}
-
-// generateBootstrapSecret returns a fresh crypto/rand base64url secret of n
-// raw bytes plus its "sha256:<hex>" hash, matching the hashing convention
-// go/internal/query/local_identity_handler_helpers.go's localIdentityHash
-// uses for every other hash-only identity field.
-func generateBootstrapSecret(n int) (secret, hash string, err error) {
-	buf := make([]byte, n)
-	if _, err := rand.Read(buf); err != nil {
-		return "", "", fmt.Errorf("generate bootstrap secret: %w", err)
-	}
-	secret = base64.RawURLEncoding.EncodeToString(buf)
-	return secret, localIdentityHash(secret), nil
-}
-
-// localIdentityHash mirrors go/internal/query/local_identity_handler_helpers.go's
-// unexported localIdentityHash so every hash-only identity field this package
-// writes (subject_id_hash, profile_handle_hash, recovery-code hashes, policy
-// revision hash) uses the identical "sha256:<hex>" convention the rest of the
-// local-identity surface reads.
-func localIdentityHash(value string) string {
-	value = strings.TrimSpace(value)
-	if value == "" {
-		return ""
-	}
-	sum := sha256.Sum256([]byte(value))
-	return "sha256:" + hex.EncodeToString(sum[:])
-}
-
-func newBootstrapID() string {
-	var buf [16]byte
-	_, _ = rand.Read(buf[:])
-	return "id_" + hex.EncodeToString(buf[:])
-}
-
-// envelopeKeyID extracts the key_id field secretcrypto.Keyring.Seal embedded
-// in a sealed ESK1 envelope (format "ESK1.<key_id>.<nonce>.<ciphertext>"), so
-// GenerateBootstrapCredential's key_id column always matches the envelope
-// without this package re-deriving secretcrypto's private fingerprint rule.
-func envelopeKeyID(sealed string) (string, error) {
-	parts := strings.SplitN(sealed, ".", 4)
-	if len(parts) != 4 || parts[1] == "" {
-		return "", fmt.Errorf("malformed sealed envelope")
-	}
-	return parts[1], nil
-}
-
-// recordAuthSecretSealResult records one eshu_dp_auth_secret_seal_total
-// observation for the bootstrap-credential operation. It never attaches
-// plaintext, ciphertext, or key material — only the bounded operation name
-// and success/error result.
-func recordAuthSecretSealResult(ctx context.Context, instruments *telemetry.Instruments, err error) {
-	if instruments == nil || instruments.AuthSecretSealTotal == nil {
-		return
-	}
-	result := "success"
-	if err != nil {
-		result = "error"
-	}
-	instruments.AuthSecretSealTotal.Add(ctx, 1, metric.WithAttributes(
-		attribute.String(telemetry.MetricDimensionOperation, "onetime_admin_credential"),
-		attribute.String(telemetry.MetricDimensionResult, result),
-	))
-}
-
-// recordAuthBootstrapCredentialGenerated records one
-// eshu_dp_auth_bootstrap_credential_generated_total observation.
-func recordAuthBootstrapCredentialGenerated(ctx context.Context, instruments *telemetry.Instruments, inserted bool) {
-	if instruments == nil || instruments.AuthBootstrapCredentialGeneratedTotal == nil {
-		return
-	}
-	result := "already_provisioned"
-	if inserted {
-		result = "generated"
-	}
-	instruments.AuthBootstrapCredentialGeneratedTotal.Add(ctx, 1, metric.WithAttributes(
-		attribute.String(telemetry.MetricDimensionResult, result),
-	))
-}
-
-func logAlreadyProvisioned(logger *slog.Logger) {
-	if logger == nil {
-		return
-	}
-	logger.Info(
-		"local admin identity already provisioned; retrieve the bootstrap credential with `eshu admin initial-credential`",
-		telemetry.EventAttr("auth.bootstrap_seed.already_provisioned"),
-	)
-}
-
-// bannerLines carries the one-time plaintext printed to the startup log.
-// This, the `eshu admin initial-credential` CLI, and the operator-managed
-// Helm secret it may be mirrored into are the only three surfaces that ever
-// see this plaintext (epic #4962's negative-leakage invariant).
-type bannerLines struct {
-	Username     string
-	Password     string
-	RecoveryCode string
-	EnvSeeded    bool
-}
-
-// bootstrapBannerWriter is the one-time banner's destination. Production
-// always writes to stderr; tests swap this to a buffer so the negative-
-// leakage proof can assert the plaintext appears exactly once, only here.
-var bootstrapBannerWriter io.Writer = os.Stderr
-
-func printBootstrapBanner(lines bannerLines) {
-	var b strings.Builder
-	b.WriteString("\n================ ESHU BOOTSTRAP ADMIN CREDENTIAL (one-time) ================\n")
-	fmt.Fprintf(&b, "username:      %s\n", lines.Username)
-	if !lines.EnvSeeded {
-		fmt.Fprintf(&b, "password:      %s\n", lines.Password)
-	}
-	fmt.Fprintf(&b, "recovery code: %s\n", lines.RecoveryCode)
-	if lines.EnvSeeded {
-		b.WriteString("(password was set via ESHU_ADMIN_PASSWORD; only the MFA recovery code is generated)\n")
-	} else {
-		b.WriteString("Retrieve this again with: eshu admin initial-credential\n")
-	}
-	b.WriteString("This banner will not be shown again. Save these values now.\n")
-	b.WriteString("==============================================================================\n")
-	_, _ = fmt.Fprint(bootstrapBannerWriter, b.String())
-}
-
 // finishBootstrapSeed records the bootstrap-seed span status and outcome
 // counter, and returns the original error unchanged so callers keep normal
 // Go error-handling control flow.
@@ -467,6 +297,7 @@ func finishBootstrapSeed(
 	span trace.Span,
 	instruments *telemetry.Instruments,
 	logger *slog.Logger,
+	auditAppender query.GovernanceAuditAppender,
 	outcome string,
 	err error,
 ) error {
@@ -483,5 +314,6 @@ func finishBootstrapSeed(
 			attribute.String(telemetry.MetricDimensionOutcome, outcome),
 		))
 	}
+	auditBootstrapModeChoice(ctx, auditAppender, outcome)
 	return err
 }

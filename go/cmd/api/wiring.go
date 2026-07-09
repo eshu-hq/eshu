@@ -170,7 +170,7 @@ func wireAPI(
 			StoreName:   "identity_bootstrap_credential",
 		}
 	}
-	if err := seedInitialAdmin(ctx, seedIdentityDB, getenv, instruments, logger); err != nil {
+	if err := seedInitialAdmin(ctx, seedIdentityDB, getenv, instruments, logger, adminRecoveryAuditAppender(governanceAudit)); err != nil {
 		_ = db.Close()
 		if driver != nil {
 			_ = driver.Close(ctx)
