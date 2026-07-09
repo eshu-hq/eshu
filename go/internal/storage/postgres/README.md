@@ -1497,6 +1497,76 @@ secret, invite code, credential handle, or raw external group name; the
 SQL-security tests in `identity_admin_mutations_test.go` assert the
 parameterized, tenant-scoped, idempotent, no-secret contract per statement.
 
+## Bootstrap admin credential (epic #4962, issue #4963)
+
+`identity_bootstrap_credentials` (migration 051) and the new
+`identity_bootstrap_credential.go`/`identity_bootstrap_credential_sql.go` pair
+add `GenerateBootstrapCredential`, `SelectBootstrapCredential`,
+`ConsumeBootstrapCredential`, and `ResetBootstrapCredential` to
+`IdentitySubjectStore`. They persist the one-time generated admin credential's
+sealed AES-256-GCM envelope (`go/internal/secretcrypto`) so an operator can
+retrieve it via `eshu admin initial-credential`; the store never seals, opens,
+hashes, or generates plaintext itself, only pre-sealed/pre-hashed values the
+caller (`go/cmd/api/seed_initial_admin.go`, `go/cmd/eshu/admin_initial_credential.go`)
+supplies. `AuthenticateLocalIdentity` (`identity_local.go`) calls
+`ConsumeBootstrapCredential` unconditionally on every successful local login;
+it is a no-op UPDATE affecting zero rows for every subject except the
+bootstrap admin's own first login.
+
+No-Regression Evidence: this is a net-new table and net-new statements on it;
+no existing query, index, or write path changes. Backend PostgreSQL 16. Input
+shape: exactly one `(tenant_id, workspace_id)` row ever exists in practice
+(Eshu's self-hosted deployment model is single-tenant) — never a scan. Call
+frequency is intentionally low: `GenerateBootstrapCredential` runs at most once
+per process lifetime (idempotent `INSERT ... ON CONFLICT (tenant_id,
+workspace_id) DO NOTHING`, proven by
+`TestGenerateBootstrapCredentialIdempotentOnRestart`);
+`ConsumeBootstrapCredential` runs once per local login as an indexed
+conditional `UPDATE` by primary key, which is a no-op after the bootstrap
+admin's first login (or always, for every other subject/mode); `Reset` is an
+explicit rare operator action. Concurrency is guarded by
+`pg_advisory_xact_lock(3456)`, a distinct key from `BootstrapLocalIdentity`'s
+own `pg_advisory_xact_lock(3455)` (`identity_local_sql.go`).
+`GenerateBootstrapAdminWithCredential` acquires both in the same transaction,
+always in the fixed order 3455 then 3456; that same-session, fixed-order
+acquisition is what rules out a deadlock between the two keys — deadlock
+requires two *different* transactions each holding one lock and blocking on
+the other, which cannot happen when a single session takes both, in the same
+order, every time. `GenerateBootstrapCredential` and `ResetBootstrapCredential`
+each take 3456 alone. `ConsumeBootstrapCredential` deliberately takes no lock
+at all: its atomic conditional `UPDATE ... WHERE consumed_at IS NULL` is
+itself the concurrency guard, so it never contends with 3456 or 3455. A real
+Postgres concurrency gate
+(`identity_bootstrap_credential_concurrency_test.go`,
+`TestBootstrapCredentialConcurrencyGateGenerateConsumeReset`, `-race`, 5
+rounds, skipped without `ESHU_POSTGRES_DSN`/`ESHU_BOOTSTRAP_CREDENTIAL_PROOF_DSN`)
+drives 2 concurrent `Generate` + 1 `Consume` + 1 `Reset` against one row and
+proves: both racing `Generate` calls report `inserted=false` against an
+already-provisioned row; `reset_count` increases by exactly 1; the row is
+always exactly one of retrievable (`consumed_at` NULL, ciphertext present) or
+consumed (`consumed_at` set, ciphertext cleared) — never both, never neither;
+and the `identity_local_credentials` bcrypt hash always matches whatever
+`Reset` sealed, so the database password and the sealed envelope never
+diverge under concurrent Consume/Reset pressure.
+
+Observability Evidence: the identity DB handle these methods run on is
+wrapped in `InstrumentedDB` by both callers (`StoreName:
+"identity_bootstrap_credential"`), so per-statement `eshu_dp_postgres_query_duration_seconds{operation,store}`
+is inherited without per-call wiring. `go/cmd/api/seed_initial_admin.go` adds
+an OTEL span (`auth.bootstrap_seed`) around the whole seeding stage plus three
+new counters: `eshu_dp_auth_bootstrap_seed_total{outcome}` (sealed_existing,
+seeded_env, generated, skipped, error), `eshu_dp_auth_bootstrap_credential_generated_total{result}`
+(generated vs. already_provisioned), and `eshu_dp_auth_secret_seal_total{operation,result}`
+around the `secretcrypto.Keyring.Seal` call. No statement, span, log, or
+metric attribute ever carries plaintext password, recovery code, or
+ciphertext; the generated plaintext appears only in the one-time startup
+banner (`bootstrapBannerWriter`), the `eshu admin initial-credential`/
+`reset-initial-credential` CLI stdout, and an operator's own
+`ESHU_ADMIN_PASSWORD`/`ESHU_ADMIN_PASSWORD_FILE` — proven by
+`TestSeedInitialAdminNegativeLeakage` (structured-log capture) and the
+SQL-exec-argument leak checks in `identity_bootstrap_credential_test.go` and
+`identity_bootstrap_credential_concurrency_test.go`.
+
 ## Browser-session permission-catalog persistence (#3684)
 
 `browser_sessions` gains three additive columns —

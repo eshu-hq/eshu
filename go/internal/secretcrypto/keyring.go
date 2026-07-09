@@ -163,6 +163,26 @@ func newGCM(key []byte) (cipher.AEAD, error) {
 	return gcm, nil
 }
 
+// EnvelopeKeyID extracts the key_id field from a sealed ESK1 envelope
+// ("ESK1.<key_id>.<nonce>.<ciphertext>", the format Seal produces) without
+// decrypting or otherwise validating the rest of the envelope. It is a pure
+// format helper, not a substitute for Open: callers must never treat a
+// non-empty result as proof the envelope is authentic or decryptable.
+//
+// It returns "" for any malformed input (wrong field count, or an empty
+// key_id field) rather than an error. Every caller in this codebase calls it
+// immediately after its own successful Seal, which by construction can never
+// produce a malformed envelope; a persisted-envelope reader should treat ""
+// as "key id unknown" rather than propagate a bespoke error type for a case
+// that, for a well-formed envelope, cannot happen.
+func EnvelopeKeyID(sealed string) string {
+	parts := strings.SplitN(sealed, ".", envelopeParts)
+	if len(parts) != envelopeParts || parts[1] == "" {
+		return ""
+	}
+	return parts[1]
+}
+
 // parseEnvelope splits and decodes an ESK1 envelope into its key id, nonce,
 // and ciphertext fields without doing any cryptographic work. Every failure
 // here is collapsed by the caller (Open) into the opaque ErrDecrypt; this

@@ -132,6 +132,10 @@ okta-saml-live-proof*.md
 /go/capability-inventory
 /go/skillgen
 
+# Per-worktree isolated Go build cache (golang-engineering skill: parallel
+# agents must not share the default ~/.cache/go-build across worktrees).
+.gocache/
+
 # Per-deployment override for the skillgen generator. The default
 # capability set is all-collectors-enabled; contributors can drop a
 # capabilities.local.yaml at the skill-fragments/ root to disable a

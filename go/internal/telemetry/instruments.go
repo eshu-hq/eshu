@@ -951,8 +951,25 @@ type Instruments struct {
 	// go/internal/query/semantic_search_telemetry.go); it is declared here so the
 	// metric is registered on the API and MCP providers and tracked by the
 	// telemetry-coverage contract. Degraded search is expected in no-embedder mode.
-	SearchHybridDegraded               metric.Int64Counter
-	OIDCLoginThrottled                 metric.Int64Counter
+	SearchHybridDegraded metric.Int64Counter
+	OIDCLoginThrottled   metric.Int64Counter
+	// AuthSecretSealTotal and AuthSecretOpenTotal count go/internal/secretcrypto
+	// Keyring.Seal/Open calls made by identity bootstrap-credential seeding
+	// (epic #4962/#4963) and, later, provider-secret write/read (#4966), by
+	// bounded operation and result. Producers must never attach plaintext,
+	// ciphertext, or key material as attributes.
+	AuthSecretSealTotal metric.Int64Counter
+	AuthSecretOpenTotal metric.Int64Counter
+	// AuthBootstrapCredentialGeneratedTotal counts
+	// IdentitySubjectStore.GenerateBootstrapCredential outcomes by result
+	// ("generated" on a true first insert, "already_provisioned" on an
+	// idempotent conflict), so an operator can tell a fresh generation from a
+	// restart-before-first-login no-op.
+	AuthBootstrapCredentialGeneratedTotal metric.Int64Counter
+	// AuthBootstrapSeedTotal counts the startup bootstrap identity seeding
+	// stage's outcome by bounded outcome value (sealed_existing, seeded_env,
+	// generated, skipped, error).
+	AuthBootstrapSeedTotal             metric.Int64Counter
 	SharedAcceptanceUpsertDuration     metric.Float64Histogram
 	SharedAcceptanceLookupDuration     metric.Float64Histogram
 	SharedAcceptancePrefetchSize       metric.Int64Histogram
@@ -3416,6 +3433,38 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register OIDCLoginThrottled counter: %w", err)
+	}
+
+	inst.AuthSecretSealTotal, err = meter.Int64Counter(
+		"eshu_dp_auth_secret_seal_total",
+		metric.WithDescription("go/internal/secretcrypto Keyring.Seal calls by operation and result (success, error). Never carries plaintext, ciphertext, or key material."),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register AuthSecretSealTotal counter: %w", err)
+	}
+
+	inst.AuthSecretOpenTotal, err = meter.Int64Counter(
+		"eshu_dp_auth_secret_open_total",
+		metric.WithDescription("go/internal/secretcrypto Keyring.Open calls by operation and result (success, error). Never carries plaintext, ciphertext, or key material."),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register AuthSecretOpenTotal counter: %w", err)
+	}
+
+	inst.AuthBootstrapCredentialGeneratedTotal, err = meter.Int64Counter(
+		"eshu_dp_auth_bootstrap_credential_generated_total",
+		metric.WithDescription("IdentitySubjectStore.GenerateBootstrapCredential outcomes by result (generated on a true first insert, already_provisioned on an idempotent conflict)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register AuthBootstrapCredentialGeneratedTotal counter: %w", err)
+	}
+
+	inst.AuthBootstrapSeedTotal, err = meter.Int64Counter(
+		"eshu_dp_auth_bootstrap_seed_total",
+		metric.WithDescription("Startup bootstrap identity seeding stage outcome by bounded outcome value (sealed_existing, seeded_env, generated, skipped_sso-only, skipped_disabled, error)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register AuthBootstrapSeedTotal counter: %w", err)
 	}
 
 	inst.SharedAcceptanceUpsertDuration, err = meter.Float64Histogram(

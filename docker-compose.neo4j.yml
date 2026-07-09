@@ -177,6 +177,15 @@ services:
       ESHU_REPOSITORY_RULES_JSON: ${ESHU_REPOSITORY_RULES_JSON:-[]}
       ESHU_API_KEY: ${ESHU_API_KEY:-}
       ESHU_AUTO_GENERATE_API_KEY: "true"
+      # ESHU_AUTH_BOOTSTRAP_MODE defaults to "generated" (#4963), which
+      # requires a configured data-encryption key to seal the one-time admin
+      # credential. This is a fixed, publicly-known, all-zero dev-only
+      # placeholder — never a real secret — so the local stack boots without
+      # extra setup and a `docker compose down/up` cycle keeps decrypting the
+      # same sealed envelope (a randomly-generated key would strand it after
+      # every restart). Real deployments MUST override this with their own
+      # secret DEK; see docs/public/reference/env-registry.md.
+      ESHU_AUTH_SECRET_ENC_KEY: ${ESHU_AUTH_SECRET_ENC_KEY:-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=}
       ESHU_DEPLOYMENT_ENVIRONMENT: local-compose
       ESHU_PROMETHEUS_METRICS_ENABLED: "true"
       ESHU_PROMETHEUS_METRICS_PORT: "9464"

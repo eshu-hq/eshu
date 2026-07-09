@@ -183,6 +183,11 @@ export ESHU_REPOSITORY_RULES_JSON="[]"
 export ESHU_QUERY_PROFILE="local_full_stack"
 export ESHU_API_KEY="${GATE_API_KEY}"
 export ESHU_API_ADDR=":${GATE_API_PORT}"
+# ESHU_AUTH_BOOTSTRAP_MODE defaults to "generated" (#4963), which requires a
+# configured data-encryption key to seal the one-time admin credential;
+# without it eshu-api fails closed at startup and /readyz never returns.
+# Fixed, publicly-known, all-zero dev-only placeholder — never a real secret.
+export ESHU_AUTH_SECRET_ENC_KEY="AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
 # Every Lifecycle binary (the 9 collectors, projector, reducer) starts an
 # operator status server on ESHU_LISTEN_ADDR and a metrics scrape server on
 # ESHU_METRICS_ADDR, both defaulting to fixed ports (8080 / 9464). Run

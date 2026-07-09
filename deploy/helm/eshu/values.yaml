@@ -151,7 +151,10 @@ api:
   # extraVolumes / extraVolumeMounts let an operator mount additional read-only
   # material (for example an ESHU_SCOPED_TOKENS_FILE registry Secret) into the
   # API container without forking the chart. Pair them with api.env to point
-  # ESHU_SCOPED_TOKENS_FILE at the mounted path.
+  # ESHU_SCOPED_TOKENS_FILE at the mounted path. The same convention covers
+  # bootstrap identity seeding's ESHU_AUTH_SECRET_ENC_KEY_FILE and
+  # ESHU_ADMIN_USERNAME/ESHU_ADMIN_PASSWORD_FILE (epic #4962/#4963,
+  # eshu-initial-admin Secret) — see README.md.
   extraVolumes: []
   extraVolumeMounts: []
   connectionTuning:

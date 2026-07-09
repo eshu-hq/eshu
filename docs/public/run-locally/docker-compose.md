@@ -43,6 +43,30 @@ state, facts, queues, status, content, and recovery data.
 | `resolution-engine` | Reducer queue drain, graph projection, repair, and shared materialization. |
 | `projector` | Always-on source-local projector, gated only on schema + workspace setup (NOT bootstrap-index). Drains stranded `retrying` projector work items that bootstrap-index leaves behind on a canonical-write failure, so a failed bootstrap cannot permanently wedge convergence (#4727). Matches the Helm ungated-ingester topology. |
 
+## Bootstrap Admin Credential
+
+`ESHU_AUTH_BOOTSTRAP_MODE` defaults to `generated` (#4963): on first boot, with
+no local identities yet, the `eshu` service seals a freshly generated
+one-time admin username/password/recovery-code bundle with
+`ESHU_AUTH_SECRET_ENC_KEY`, a base64-encoded 32-byte data-encryption key (see
+[Environment Variable Reference](../reference/env-registry.md)). Without a
+configured DEK, `generated` mode fails closed and the API never starts.
+
+The default and Neo4j Compose files ship a fixed, publicly-known, all-zero
+`ESHU_AUTH_SECRET_ENC_KEY` placeholder so the stack boots without extra setup
+and survives a `docker compose down`/`up` cycle (a randomly-generated key
+would strand the sealed credential after every restart). This value is
+**never** appropriate outside local development — set your own
+`ESHU_AUTH_SECRET_ENC_KEY` (or `ESHU_AUTH_SECRET_ENC_KEY_FILE`) before
+deploying anywhere the stack's data matters. Retrieve the generated
+credential with `eshu admin initial-credential`, or set
+`ESHU_ADMIN_USERNAME`/`ESHU_ADMIN_PASSWORD` to seed a specific admin instead
+(no DEK required: the operator-supplied password is never sealed, only
+hashed, and the one-time MFA recovery code prints to the startup banner and
+is never retrievable again), or set
+`ESHU_AUTH_BOOTSTRAP_MODE=sso-only`/`disabled` to skip local admin seeding
+entirely.
+
 ## Semantic Provider Modes
 
 The default stack is a no-external-provider semantic mode with deterministic
