@@ -7,7 +7,7 @@ import {
   type KeyboardEvent,
   type MouseEvent,
 } from "react";
-import { NavLink, useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 
 import { logout } from "./api/authSession";
 import { EshuApiClient } from "./api/client";
@@ -17,15 +17,16 @@ import type { RepoListItem } from "./api/repoCatalog";
 import { bootFromKey, bootFromSession } from "./appBoot";
 import { AppRoutes } from "./appRoutes";
 import { buildAllowedNavSet } from "./auth/capabilityAccess";
+import { AppSidebar } from "./components/AppSidebar";
 import { ServiceDrawer } from "./components/ServiceDrawer";
 import { ConnectionState, SourcePopover, type SourceState } from "./components/SourceControls";
 import { loadConsoleEnvironment, saveConsoleEnvironment } from "./config/environment";
 import { demoModel } from "./console/demoModel";
 import { emptyConsoleModel } from "./console/liveModel";
 import type { ConsoleModel } from "./console/types";
-import { NAV_GROUPS, NAV_ITEMS, type NavItem } from "./i18n/navigation";
+import { NAV_ITEMS, type NavItem } from "./i18n/navigation";
 import { ConsoleI18nProvider, FormattedMessage, useConsoleIntl } from "./i18n/provider";
-import { formatRepositoryCount, shellMessageDescriptors } from "./i18n/shellMessages";
+import { shellMessageDescriptors } from "./i18n/shellMessages";
 import { AuthGate } from "./pages/AuthGate";
 import "./styles.css";
 import "./appShell.css";
@@ -262,69 +263,13 @@ function AppShell(): React.JSX.Element {
 
   return (
     <div className="shell">
-      <nav className="sidebar">
-        <a className="brand" href="/">
-          <span className="brand-mark brand-glyph" aria-hidden>
-            <i />
-            <i />
-            <i />
-          </span>
-          <span>
-            <span className="brand-name">
-              e<b>shu</b>
-            </span>
-            <span className="brand-sub">
-              <FormattedMessage {...shellMessageDescriptors.brandSubtitle} />
-            </span>
-          </span>
-        </a>
-        {NAV_GROUPS.map((group) => (
-          <div className="nav-section" key={group.messageId}>
-            <div className="nav-group-label">
-              <FormattedMessage id={group.messageId} />
-            </div>
-            {group.items
-              .filter((n) => allowedNav.has(n.to))
-              .map((n) => {
-                const Icon = n.icon;
-                const count = n.count?.(visibleModel) ?? null;
-                const label = intl.formatMessage({ id: n.messageId });
-                return (
-                  <NavLink
-                    key={n.to}
-                    to={n.to}
-                    aria-label={label}
-                    className={({ isActive }) => `nav-item${isActive ? " active" : ""}`}
-                  >
-                    <Icon aria-hidden />
-                    <span className="nav-label">{label}</span>
-                    {count !== null ? (
-                      <span aria-hidden className={`nav-count${n.alert ? " alert" : ""}`}>
-                        {count}
-                      </span>
-                    ) : null}
-                  </NavLink>
-                );
-              })}
-          </div>
-        ))}
-        <div className="sidebar-foot">
-          <div className="backend-card">
-            <div className="bc-top">
-              <i />
-              {model.runtime.indexStatus}
-            </div>
-            <div className="bc-meta">
-              <span>{backendMode}</span>
-              <span>
-                {source.status === "connected"
-                  ? formatRepositoryCount(intl, model.runtime.repositories)
-                  : "—"}
-              </span>
-            </div>
-          </div>
-        </div>
-      </nav>
+      <AppSidebar
+        allowedNav={allowedNav}
+        visibleModel={visibleModel}
+        model={model}
+        source={source}
+        backendMode={backendMode}
+      />
       <main className="main">
         <header className="topbar">
           <div className="topbar-title">
@@ -442,6 +387,7 @@ function AppShell(): React.JSX.Element {
               source={source}
               repositories={repositories}
               onOpenService={openService}
+              auth={session?.auth}
             />
           </div>
         ) : (

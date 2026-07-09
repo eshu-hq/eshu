@@ -24,7 +24,7 @@ const profileFixture = {
   allowed_permission_features: ["ask_search"],
   permission_catalog_enforced: true,
   mfa: { has_active_mfa: true, factor_kind: "totp" },
-  memberships: [{ tenant_id: "tenant_a", workspace_id: "workspace_a" }]
+  memberships: [{ tenant_id: "tenant_a", workspace_id: "workspace_a" }],
 };
 
 const sessionsFixture = {
@@ -36,9 +36,9 @@ const sessionsFixture = {
       absolute_expires_at: NOW,
       tenant_id: "tenant_a",
       workspace_id: "workspace_a",
-      current: true
-    }
-  ]
+      current: true,
+    },
+  ],
 };
 
 const tokensFixture = {
@@ -47,9 +47,9 @@ const tokensFixture = {
       token_id: "tok-001",
       token_class: "personal",
       issued_at: NOW,
-      expires_at: NOW
-    }
-  ]
+      expires_at: NOW,
+    },
+  ],
 };
 
 function makeClient(overrides: {
@@ -74,7 +74,7 @@ function makeClient(overrides: {
         throw new Error("forced error");
       }
       return {};
-    }
+    },
   } as unknown as EshuApiClient;
 }
 
@@ -89,7 +89,7 @@ function happyClient(): EshuApiClient {
 describe("ProfilePage", () => {
   it("shows loading state initially", () => {
     const client = {
-      getJson: () => new Promise(() => {})
+      getJson: () => new Promise(() => {}),
     } as unknown as EshuApiClient;
     render(<ProfilePage client={client} />);
     expect(screen.getByText("Loading profile…")).toBeInTheDocument();
@@ -97,9 +97,7 @@ describe("ProfilePage", () => {
 
   it("renders identity provider from profile", async () => {
     render(<ProfilePage client={happyClient()} />);
-    await waitFor(() =>
-      expect(screen.getByText("oidc-config-xyz")).toBeInTheDocument()
-    );
+    await waitFor(() => expect(screen.getByText("oidc-config-xyz")).toBeInTheDocument());
   });
 
   it("renders 'Local' when external_provider_config_id is absent", async () => {
@@ -111,16 +109,14 @@ describe("ProfilePage", () => {
             active_workspace_id: "w",
             permission_catalog_enforced: false,
             mfa: { has_active_mfa: false },
-            memberships: []
+            memberships: [],
           };
         if (path === "/api/v0/auth/sessions") return { sessions: [] };
         return { tokens: [] };
-      }
+      },
     } as unknown as EshuApiClient;
     render(<ProfilePage client={client} />);
-    await waitFor(() =>
-      expect(screen.getByText("Local")).toBeInTheDocument()
-    );
+    await waitFor(() => expect(screen.getByText("Local")).toBeInTheDocument());
   });
 
   it("renders active tenant and workspace", async () => {
@@ -129,9 +125,11 @@ describe("ProfilePage", () => {
     // the memberships/sessions tables, so scope the assertion to the active
     // context definition list to avoid ambiguous multi-match.
     await waitFor(() =>
-      expect(container.querySelector('[aria-label="Active context details"]')).not.toBeNull()
+      expect(container.querySelector('[aria-label="Active context details"]')).not.toBeNull(),
     );
-    const activeContext = container.querySelector('[aria-label="Active context details"]') as HTMLElement;
+    const activeContext = container.querySelector(
+      '[aria-label="Active context details"]',
+    ) as HTMLElement;
     expect(within(activeContext).getByText("tenant_a")).toBeInTheDocument();
     expect(within(activeContext).getByText("workspace_a")).toBeInTheDocument();
   });
@@ -139,7 +137,7 @@ describe("ProfilePage", () => {
   it("renders sessions table with current marker", async () => {
     render(<ProfilePage client={happyClient()} />);
     await waitFor(() =>
-      expect(screen.getByRole("table", { name: "Browser sessions" })).toBeInTheDocument()
+      expect(screen.getByRole("table", { name: "Browser sessions" })).toBeInTheDocument(),
     );
     expect(screen.getByText("current")).toBeInTheDocument();
   });
@@ -147,7 +145,7 @@ describe("ProfilePage", () => {
   it("renders tokens table with token_id but no Label column (hash-as-label removed)", async () => {
     render(<ProfilePage client={happyClient()} />);
     await waitFor(() =>
-      expect(screen.getByRole("table", { name: "API tokens" })).toBeInTheDocument()
+      expect(screen.getByRole("table", { name: "API tokens" })).toBeInTheDocument(),
     );
     expect(screen.getByText("tok-001")).toBeInTheDocument();
     // "Label" column was removed: SHA-256(display_label) must not be presented
@@ -166,11 +164,11 @@ describe("ProfilePage", () => {
               token_id: "tok-expired",
               token_class: "personal",
               issued_at: "2020-01-01T00:00:00Z",
-              expires_at: "2020-02-01T00:00:00Z"
-            }
-          ]
+              expires_at: "2020-02-01T00:00:00Z",
+            },
+          ],
         };
-      }
+      },
     } as unknown as EshuApiClient;
     render(<ProfilePage client={client} />);
     const table = await screen.findByRole("table", { name: "API tokens" });
@@ -182,9 +180,7 @@ describe("ProfilePage", () => {
     const client = makeClient({ throwAll: true });
     render(<ProfilePage client={client} />);
     await waitFor(() =>
-      expect(
-        screen.getAllByText(/unavailable from this source/).length
-      ).toBeGreaterThan(0)
+      expect(screen.getAllByText(/unavailable from this source/).length).toBeGreaterThan(0),
     );
   });
 
@@ -192,7 +188,7 @@ describe("ProfilePage", () => {
     const client = makeClient({ sessions: "throw" });
     render(<ProfilePage client={client} />);
     await waitFor(() =>
-      expect(screen.getByText("Sessions unavailable from this source.")).toBeInTheDocument()
+      expect(screen.getByText("Sessions unavailable from this source.")).toBeInTheDocument(),
     );
   });
 
@@ -200,15 +196,13 @@ describe("ProfilePage", () => {
     const client = makeClient({ tokens: "throw" });
     render(<ProfilePage client={client} />);
     await waitFor(() =>
-      expect(screen.getByText("Tokens unavailable from this source.")).toBeInTheDocument()
+      expect(screen.getByText("Tokens unavailable from this source.")).toBeInTheDocument(),
     );
   });
 
   it("never renders session_hash, token_hash, csrf, or credential handles", async () => {
     render(<ProfilePage client={happyClient()} />);
-    await waitFor(() =>
-      expect(screen.queryByText("Loading profile…")).not.toBeInTheDocument()
-    );
+    await waitFor(() => expect(screen.queryByText("Loading profile…")).not.toBeInTheDocument());
     const body = document.body.innerHTML;
     const forbidden = [
       "session_hash",
@@ -218,7 +212,7 @@ describe("ProfilePage", () => {
       "credential_handle",
       "password_hash",
       "recovery_code_hash",
-      "mfa_hash"
+      "mfa_hash",
     ];
     for (const f of forbidden) {
       expect(body).not.toContain(f);
@@ -227,9 +221,42 @@ describe("ProfilePage", () => {
 
   it("renders MFA enabled badge when mfa.has_active_mfa is true", async () => {
     render(<ProfilePage client={happyClient()} />);
+    await waitFor(() => expect(screen.getByText("enabled")).toBeInTheDocument());
+  });
+
+  it("renders effective permissions (roles + granted families) when the catalog is enforced (#4969)", async () => {
+    render(<ProfilePage client={happyClient()} />);
     await waitFor(() =>
-      expect(screen.getByText("enabled")).toBeInTheDocument()
+      expect(screen.getByRole("heading", { name: "Effective permissions" })).toBeInTheDocument(),
     );
+    const section = screen
+      .getByRole("heading", { name: "Effective permissions" })
+      .closest("section") as HTMLElement;
+    // profileFixture: role_ids ["developer"], allowed_permission_features ["ask_search"].
+    expect(within(section).getByText("developer")).toBeInTheDocument();
+    expect(within(section).getByText("ask_search")).toBeInTheDocument();
+  });
+
+  it("shows the not-enforced note in effective permissions when the catalog is off (#4969)", async () => {
+    const client = {
+      getJson: async (path: string) => {
+        if (path === "/api/v0/auth/profile")
+          return {
+            role_ids: ["developer"],
+            allowed_permission_features: [],
+            permission_catalog_enforced: false,
+            mfa: { has_active_mfa: false },
+            memberships: [],
+          };
+        if (path === "/api/v0/auth/sessions") return { sessions: [] };
+        return { tokens: [] };
+      },
+    } as unknown as EshuApiClient;
+    render(<ProfilePage client={client} />);
+    await waitFor(() =>
+      expect(screen.getByRole("heading", { name: "Effective permissions" })).toBeInTheDocument(),
+    );
+    expect(screen.getByText(/Catalog not enforced/)).toBeInTheDocument();
   });
 
   it("renders MFA none badge when mfa.has_active_mfa is false", async () => {
@@ -239,15 +266,13 @@ describe("ProfilePage", () => {
           return {
             permission_catalog_enforced: false,
             mfa: { has_active_mfa: false },
-            memberships: []
+            memberships: [],
           };
         if (path === "/api/v0/auth/sessions") return { sessions: [] };
         return { tokens: [] };
-      }
+      },
     } as unknown as EshuApiClient;
     render(<ProfilePage client={client} />);
-    await waitFor(() =>
-      expect(screen.getByText("none")).toBeInTheDocument()
-    );
+    await waitFor(() => expect(screen.getByText("none")).toBeInTheDocument());
   });
 });

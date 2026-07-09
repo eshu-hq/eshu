@@ -1,0 +1,62 @@
+/* accessDenied.css — the /admin route guard's 403 screen (issue #4969).
+   Reuses styles.css's :root tokens and the shared .panel/.badge atoms so the
+   screen matches the rest of the admin/auth surface instead of a bare div. */
+
+.access-denied-wrap {
+  display: flex;
+  justify-content: center;
+  padding: 48px 20px;
+}
+
+.access-denied-panel {
+  max-width: 560px;
+  text-align: center;
+}
+
+.access-denied-panel .panel-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+
+.access-denied-icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: color-mix(in oklab, var(--crit) 14%, transparent);
+  color: var(--crit);
+}
+
+.access-denied-icon svg {
+  width: 26px;
+  height: 26px;
+}
+
+.access-denied-panel h1 {
+  margin: 0;
+  font-size: 1.15rem;
+  color: var(--bone);
+}
+
+.access-denied-panel p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.88rem;
+  line-height: 1.55;
+  max-width: 46ch;
+}
+
+.access-denied-families {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+}
+
+.access-denied-hint a {
+  color: var(--teal);
+  font-weight: 600;
+}
