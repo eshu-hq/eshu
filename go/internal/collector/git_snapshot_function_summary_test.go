@@ -35,7 +35,7 @@ func TestBuildFunctionSummariesReadsBucket(t *testing.T) {
 		{EntityID: "uid-view", Path: "src/handler.go", EntityType: "Function", EntityName: "view"},
 		{EntityID: "uid-query", Path: "src/handler.go", EntityType: "Function", EntityName: "query"},
 	}
-	summaries := buildFunctionSummaries("/repo", parsed, entities)
+	summaries := buildFunctionSummaries("/repo", parsed, newFunctionUIDResolver(entities))
 	if len(summaries) != 2 {
 		t.Fatalf("want 2 summaries, got %d: %+v", len(summaries), summaries)
 	}

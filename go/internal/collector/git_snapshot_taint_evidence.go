@@ -8,7 +8,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/content"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -23,18 +22,12 @@ const taintEvidenceFunctionLabel = "Function"
 const taintEvidenceFactKind = "code_taint_evidence"
 
 // buildTaintEvidence resolves each file's intraprocedural taint_findings to the
-// graph Function entity they concern, using the same (path, label, name, line)
-// identity the entity materialization assigns. A finding whose function cannot be
-// resolved to an entity id is dropped (no orphan evidence). The result is empty
-// when the parser emitted no taint findings, so the snapshot is byte-identical
-// when the value-flow gate is off.
-func buildTaintEvidence(repoPath string, parsedFiles []map[string]any, entities []content.EntityRecord) []TaintEvidenceSnapshot {
-	lookup := make(map[string]string, len(entities))
-	for _, entity := range entities {
-		key := entityLookupKey(entity.Path, entity.EntityType, entity.EntityName, entity.StartLine)
-		lookup[key] = entity.EntityID
-	}
-
+// graph Function entity they concern, using the shared entityUIDLookup map
+// built by buildEntityUIDLookup. A finding whose function cannot be resolved
+// to an entity id is dropped (no orphan evidence). The result is empty when the
+// parser emitted no taint findings, so the snapshot is byte-identical when
+// the value-flow gate is off. entityUIDLookup is read-only.
+func buildTaintEvidence(repoPath string, parsedFiles []map[string]any, entityUIDLookup map[string]string) []TaintEvidenceSnapshot {
 	var evidence []TaintEvidenceSnapshot
 	for _, parsedFile := range parsedFiles {
 		findings, _ := parsedFile["taint_findings"].([]map[string]any)
@@ -52,7 +45,7 @@ func buildTaintEvidence(repoPath string, parsedFiles []map[string]any, entities 
 			functionName := snapshotPayloadString(finding, "function_name")
 			line := snapshotPayloadInt(finding, "line_number")
 			key := entityLookupKey(relativePath, taintEvidenceFunctionLabel, functionName, line)
-			functionUID, ok := lookup[key]
+			functionUID, ok := entityUIDLookup[key]
 			if !ok {
 				// The function did not materialize as an entity; drop the finding
 				// rather than emit evidence with no node to attach to.

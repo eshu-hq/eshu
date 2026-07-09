@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/content"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -34,18 +33,14 @@ type DataflowFunctionSnapshot struct {
 
 // buildDataflowFunctions reads each parsed file's dataflow_functions bucket.
 // Empty when the parser emitted no bucket, preserving the dataflow-gate-off
-// snapshot shape.
+// snapshot shape. entityUIDLookup is the shared (path, type, name, line) →
+// entity ID map built once per snapshot by buildEntityUIDLookup; it is
+// read-only.
 func buildDataflowFunctions(
 	repoPath string,
 	parsedFiles []map[string]any,
-	entities []content.EntityRecord,
+	entityUIDLookup map[string]string,
 ) []DataflowFunctionSnapshot {
-	lookup := make(map[string]string, len(entities))
-	for _, entity := range entities {
-		key := entityLookupKey(entity.Path, entity.EntityType, entity.EntityName, entity.StartLine)
-		lookup[key] = entity.EntityID
-	}
-
 	var functions []DataflowFunctionSnapshot
 	for _, parsedFile := range parsedFiles {
 		rows, _ := parsedFile["dataflow_functions"].([]map[string]any)
@@ -85,7 +80,7 @@ func buildDataflowFunctions(
 				function.DefUse = snapshotPayloadMapSlice(row, "def_use")
 			}
 			key := entityLookupKey(relativePath, taintEvidenceFunctionLabel, functionName, line)
-			function.FunctionUID = lookup[key]
+			function.FunctionUID = entityUIDLookup[key]
 			functions = append(functions, function)
 		}
 	}

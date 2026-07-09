@@ -68,7 +68,7 @@ func TestBuildInterprocTaintEvidencePreservesReceiver(t *testing.T) {
 		{EntityID: "func-a-handle", Path: "src/handler.go", EntityType: "Function", EntityName: "Handle", StartLine: 3, Metadata: map[string]any{"class_context": "A"}},
 		{EntityID: "func-b-handle", Path: "src/handler.go", EntityType: "Function", EntityName: "Handle", StartLine: 9, Metadata: map[string]any{"class_context": "B"}},
 	}
-	evidence := buildInterprocTaintEvidence("/repo", parsed, entities)
+	evidence := buildInterprocTaintEvidence("/repo", parsed, newFunctionUIDResolver(entities))
 	if len(evidence) != 1 {
 		t.Fatalf("same-named methods on distinct receivers must resolve, got %d: %+v", len(evidence), evidence)
 	}
@@ -83,7 +83,7 @@ func TestBuildInterprocTaintEvidenceResolvesBothEndpoints(t *testing.T) {
 	t.Parallel()
 
 	parsed := []map[string]any{{"path": "/repo/src/handler.go", "interproc_findings": interprocFindingFixture()}}
-	evidence := buildInterprocTaintEvidence("/repo", parsed, viewAndRunQueryEntities())
+	evidence := buildInterprocTaintEvidence("/repo", parsed, newFunctionUIDResolver(viewAndRunQueryEntities()))
 	if len(evidence) != 1 {
 		t.Fatalf("want 1 evidence row, got %d: %+v", len(evidence), evidence)
 	}
@@ -120,7 +120,7 @@ func TestBuildInterprocTaintEvidencePreservesWhyTrail(t *testing.T) {
 		EntityID: "func-service", Path: "src/handler.go", EntityType: "Function", EntityName: "service", StartLine: 6,
 	})
 
-	evidence := buildInterprocTaintEvidence("/repo", parsed, entities)
+	evidence := buildInterprocTaintEvidence("/repo", parsed, newFunctionUIDResolver(entities))
 	if len(evidence) != 1 {
 		t.Fatalf("want 1 evidence row, got %d: %+v", len(evidence), evidence)
 	}
@@ -151,7 +151,7 @@ func TestBuildInterprocTaintEvidenceDropsAmbiguousName(t *testing.T) {
 	entities := append(viewAndRunQueryEntities(), content.EntityRecord{
 		EntityID: "func-runquery-2", Path: "src/handler.go", EntityType: "Function", EntityName: "runQuery", StartLine: 20,
 	})
-	if evidence := buildInterprocTaintEvidence("/repo", parsed, entities); len(evidence) != 0 {
+	if evidence := buildInterprocTaintEvidence("/repo", parsed, newFunctionUIDResolver(entities)); len(evidence) != 0 {
 		t.Fatalf("ambiguous sink name must drop the finding, got %+v", evidence)
 	}
 }
@@ -164,7 +164,7 @@ func TestBuildInterprocTaintEvidenceDropsUnresolved(t *testing.T) {
 	parsed := []map[string]any{{"path": "/repo/src/handler.go", "interproc_findings": interprocFindingFixture()}}
 	// Only the source function exists; the sink does not.
 	entities := []content.EntityRecord{{EntityID: "func-view", Path: "src/handler.go", EntityType: "Function", EntityName: "view", StartLine: 3}}
-	if evidence := buildInterprocTaintEvidence("/repo", parsed, entities); len(evidence) != 0 {
+	if evidence := buildInterprocTaintEvidence("/repo", parsed, newFunctionUIDResolver(entities)); len(evidence) != 0 {
 		t.Fatalf("unresolved sink must drop the finding, got %+v", evidence)
 	}
 }
@@ -175,7 +175,7 @@ func TestBuildInterprocTaintEvidenceEmptyWithoutFindings(t *testing.T) {
 	t.Parallel()
 
 	parsed := []map[string]any{{"path": "/repo/src/handler.go"}}
-	if evidence := buildInterprocTaintEvidence("/repo", parsed, viewAndRunQueryEntities()); evidence != nil {
+	if evidence := buildInterprocTaintEvidence("/repo", parsed, newFunctionUIDResolver(viewAndRunQueryEntities())); evidence != nil {
 		t.Fatalf("no findings must yield nil evidence, got %+v", evidence)
 	}
 }
