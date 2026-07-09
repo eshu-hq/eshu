@@ -188,7 +188,7 @@ func streamFacts(
 	documentationPaths := documentationMetaRelativePaths(snapshot.DocumentationFileMetas)
 	if len(snapshot.ContentFileMetas) > 0 {
 		for i, meta := range snapshot.ContentFileMetas {
-			body, err := os.ReadFile(filepath.Join(repoPath, filepath.FromSlash(meta.RelativePath))) // #nosec G304 -- reads indexed repo content file at a path derived from the scan target, not user-supplied input
+			body, err := streamContentBodyReadFile(filepath.Join(repoPath, filepath.FromSlash(meta.RelativePath))) // #nosec G304 -- reads indexed repo content file at a path derived from the scan target, not user-supplied input
 			if err != nil {
 				// File disappeared between parse and emit — skip.
 				snapshot.ContentFileMetas[i] = ContentFileMeta{}
@@ -373,6 +373,12 @@ func streamFacts(
 	w.send(inheritanceMaterializationFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt))
 	w.send(codeImportRepoEdgeFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt))
 }
+
+// streamContentBodyReadFile is the seam streamFacts uses to read each content
+// file body once at emit time. It is a package var so a test can count physical
+// body reads and prove the #4877 change reads each candidate body exactly once
+// (emit only) rather than twice (the removed pre-stream count pass plus emit).
+var streamContentBodyReadFile = os.ReadFile
 
 // factStreamWriter wraps a fact channel with an atomic counter. Every send
 // through this writer increments the counter atomically so the stream

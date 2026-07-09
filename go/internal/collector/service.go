@@ -56,8 +56,8 @@ type CollectedGeneration struct {
 	Generation scope.ScopeGeneration
 	Facts      <-chan facts.Envelope
 	// EstimatedFactCount is a conservative pre-computed estimate from metadata
-	// counts. Use FactCount() for the best available count (exact after the
-	// stream drains).
+	// counts. Use FactCount() for the best available count; see its doc for the
+	// exact-vs-conservative-floor semantics after the stream drains.
 	EstimatedFactCount int
 	// factCountAtomic is set by streaming collectors that emit through a
 	// goroutine. The goroutine increments it per emitted envelope; after the
@@ -75,11 +75,22 @@ type CollectedGeneration struct {
 	DiscoveryAdvisory *DiscoveryAdvisoryReport
 }
 
-// FactCount returns the best available fact count. When a streaming goroutine
-// is active, this returns the larger of the pre-computed estimate and the atomic
-// counter (which starts at 0 and is incremented per emitted envelope). Before
-// the goroutine sends its first envelope the estimate is returned; after the
-// Facts channel drains the atomic holds the exact total.
+// FactCount returns the best available fact count as max(atomic streamed count,
+// EstimatedFactCount). While a streaming goroutine is active the atomic starts
+// at 0 and is incremented per emitted envelope, so before the first send this
+// returns the estimate (a conservative floor rather than 0). After the Facts
+// channel drains the atomic holds the exact number of emitted facts:
+//   - Under normal operation every estimated item emits at least one fact, so
+//     the drained atomic is >= the estimate and this returns the exact count.
+//   - If emit-time skips reduce the true count below the estimate (e.g. a
+//     content file's os.ReadFile fails after the estimate counted it, or an
+//     emitter returns early), this returns the estimate floor — a conservative
+//     over-count, matching the prior "estimated total" semantics rather than
+//     silently reporting fewer facts than were counted.
+//
+// The value is observability-only (a log field and the
+// eshu_dp_workflow_claim_facts_emitted_total counter); it is never a
+// correctness or completeness gate.
 func (cg CollectedGeneration) FactCount() int {
 	if cg.factCountAtomic != nil {
 		atomicVal := int(cg.factCountAtomic.Load())

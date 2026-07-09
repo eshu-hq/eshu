@@ -298,7 +298,12 @@ Performance Evidence: Eliminates three pre-stream body-re-reading count passes
   Before this change, a repository with service-catalog, documentation, and
   workflow files incurred 2× body reads per candidate file: once in the
   pre-stream count pass and once in the streaming emit pass. After this change,
-  each body is read exactly once (at emit time). The pre-stream `FactCount`
+  each body is read exactly once (at emit time). Measured before/after:
+  `TestStreamFactBodyReadCountBeforeAfter` counts physical content-body reads
+  through the `streamContentBodyReadFile` seam on a 3-candidate documentation
+  fixture and asserts 2 reads per candidate BEFORE (reconstructed removed count
+  pass + stream) versus exactly 1 AFTER (stream only) — total 6→3 body reads.
+  The pre-stream `FactCount`
   estimate now uses metadata-only counts (file data, content entities,
   tombstones, follow-ups) plus an `*atomic.Int64` counter that `streamFacts`
   increments per emitted envelope. After the Facts channel drains,
