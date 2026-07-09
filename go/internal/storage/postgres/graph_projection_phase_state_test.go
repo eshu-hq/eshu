@@ -86,8 +86,13 @@ func TestGraphProjectionPhaseStateSchemaSQL(t *testing.T) {
 	if !strings.Contains(sqlStr, "PRIMARY KEY (scope_id, acceptance_unit_id, source_run_id, generation_id, keyspace, phase)") {
 		t.Fatal("missing graph projection phase primary key")
 	}
-	if !strings.Contains(sqlStr, "graph_projection_phase_state_lookup_idx") {
-		t.Fatal("missing graph projection lookup index")
+	if strings.Contains(sqlStr, "graph_projection_phase_state_lookup_idx") {
+		t.Fatal("schema constant must not create redundant graph_projection_phase_state_lookup_idx; " +
+			"primary key (scope_id, acceptance_unit_id, source_run_id, generation_id, keyspace, phase) " +
+			"already covers every lookup query")
+	}
+	if !strings.Contains(sqlStr, "graph_projection_phase_state_updated_idx") {
+		t.Fatal("missing graph_projection_phase_state_updated_idx (distinct index, must be kept)")
 	}
 }
 
@@ -199,3 +204,54 @@ func (r *graphProjectionBoolRows) Scan(dest ...any) error {
 
 func (r *graphProjectionBoolRows) Err() error   { return nil }
 func (r *graphProjectionBoolRows) Close() error { return nil }
+
+// TestBootstrapDefinitionsAvoidRedundantGraphProjectionPhaseStateLookupIndex
+// asserts that migration 012_graph_projection_phase_state no longer creates
+// the redundant lookup index. The primary key already covers every
+// (scope_id, acceptance_unit_id, source_run_id, generation_id, keyspace, phase)
+// lookup, so a separate identical index is pure write amplification.
+func TestBootstrapDefinitionsAvoidRedundantGraphProjectionPhaseStateLookupIndex(t *testing.T) {
+	t.Parallel()
+
+	var marker Definition
+	for _, def := range BootstrapDefinitions() {
+		if def.Name == "graph_projection_phase_state" {
+			marker = def
+			break
+		}
+	}
+	if marker.Name == "" {
+		t.Fatal("graph_projection_phase_state definition missing")
+	}
+	if strings.Contains(marker.SQL, "CREATE INDEX IF NOT EXISTS graph_projection_phase_state_lookup_idx") {
+		t.Fatalf("graph_projection_phase_state should not create redundant lookup index; "+
+			"primary key (scope_id, acceptance_unit_id, source_run_id, generation_id, keyspace, phase) "+
+			"already covers every lookup query:\n%s", marker.SQL)
+	}
+	if !strings.Contains(marker.SQL, "graph_projection_phase_state_updated_idx") {
+		t.Fatal("graph_projection_phase_state_updated_idx (distinct index) must be kept")
+	}
+}
+
+// TestBootstrapDefinitionsDropGraphProjectionPhaseStateLookupIndex asserts that
+// migration 048_drop_graph_projection_phase_state_lookup_idx exists and contains
+// exactly the CONCURRENTLY drop for the redundant index.
+func TestBootstrapDefinitionsDropGraphProjectionPhaseStateLookupIndex(t *testing.T) {
+	t.Parallel()
+
+	var marker Definition
+	for _, def := range BootstrapDefinitions() {
+		if def.Name == "drop_graph_projection_phase_state_lookup_idx" {
+			marker = def
+			break
+		}
+	}
+	if marker.Name == "" {
+		t.Fatal("drop_graph_projection_phase_state_lookup_idx definition missing; " +
+			"create migration 048_drop_graph_projection_phase_state_lookup_idx.sql")
+	}
+	const want = "DROP INDEX CONCURRENTLY IF EXISTS graph_projection_phase_state_lookup_idx"
+	if !strings.Contains(marker.SQL, want) {
+		t.Fatalf("drop lookup-index migration missing %q:\n%s", want, marker.SQL)
+	}
+}

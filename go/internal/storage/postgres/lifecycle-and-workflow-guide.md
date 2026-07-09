@@ -259,7 +259,7 @@ keeps scan/default/retry/ID helpers shared by single-claim, batch, and replay pa
 Benchmark Evidence: `BenchmarkReducerQueueClaimDeepQueue` measures the current
 single-claim reducer path against live Postgres with the existing
 `fact_work_items_reducer_conflict_claim_idx` and
-`graph_projection_phase_state_lookup_idx` DDL. On local Compose Postgres 18.4
+`graph_projection_phase_state_updated_idx` DDL. On local Compose Postgres 18.4
 from the remote-e2e stack, Apple M4 Pro, one reducer claim worker, 1,024 active
 repository scopes/generations, no graph-readiness rows, no projector work, and
 workload-identity rows using production `platform_graph` conflict keys derived
