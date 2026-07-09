@@ -311,8 +311,8 @@ describe("LoginPage", () => {
       await waitFor(() => expect(screen.queryByLabelText(/^login$/i)).not.toBeInTheDocument());
       expect(screen.queryByLabelText(/password/i)).not.toBeInTheDocument();
       expect(screen.getByText(/requires single sign-on/i)).toBeInTheDocument();
-      // No "or" divider when the local form is not rendered — nothing to divide.
-      expect(screen.queryByText("or")).not.toBeInTheDocument();
+      // No divider when the local form is not rendered — nothing to divide.
+      expect(screen.queryByText("or continue with")).not.toBeInTheDocument();
     });
 
     it("shows the local password form under ?local=1 even when require_sso is true", async () => {
@@ -325,16 +325,16 @@ describe("LoginPage", () => {
 
       await screen.findByRole("button", { name: /continue with okta/i });
       expect(screen.getByLabelText(/^login$/i)).toBeInTheDocument();
-      expect(screen.getByLabelText(/password/i)).toBeInTheDocument();
+      expect(screen.getByLabelText("Password")).toBeInTheDocument();
       // The divider reappears once both the local form and SSO buttons render.
-      expect(screen.getByText("or")).toBeInTheDocument();
+      expect(screen.getByText("or continue with")).toBeInTheDocument();
     });
 
     it("still shows the local password form when require_sso is false", async () => {
       const client = makeClientWithProvidersAndPolicy([], false);
       renderLogin(client);
       expect(screen.getByLabelText(/^login$/i)).toBeInTheDocument();
-      expect(screen.getByLabelText(/password/i)).toBeInTheDocument();
+      expect(screen.getByLabelText("Password")).toBeInTheDocument();
       expect(screen.queryByText(/requires single sign-on/i)).not.toBeInTheDocument();
     });
   });

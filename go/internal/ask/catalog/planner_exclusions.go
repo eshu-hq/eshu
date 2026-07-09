@@ -90,6 +90,12 @@ func plannerExcludedSurfaces() map[string]struct{} {
 		"GET /api/v0/auth/saml/providers/{provider_id}/login":    {}, // redirects to the SAML IdP
 		"GET /api/v0/auth/saml/providers/{provider_id}/metadata": {}, // serves SP SAML metadata
 		"POST /api/v0/auth/saml/providers/{provider_id}/acs":     {}, // consumes the SAML assertion (ACS)
+		// First-run setup wizard routes (#4965): guided claim->admin->MFA flow
+		// that authenticates and provisions the first admin identity rather
+		// than returning repository, graph, runtime, or cloud facts.
+		"POST /api/v0/auth/setup/admin": {}, // wizard step 2: sets the admin password
+		"POST /api/v0/auth/setup/claim": {}, // wizard step 1: verifies the bootstrap credential
+		"POST /api/v0/auth/setup/mfa":   {}, // wizard step 3: enrolls MFA and issues a session
 	}
 }
 
