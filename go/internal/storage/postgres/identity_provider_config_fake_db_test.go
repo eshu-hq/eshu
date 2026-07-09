@@ -232,6 +232,21 @@ func (db *providerConfigFakeDB) QueryContext(_ context.Context, query string, ar
 			configuration = rev.configuration
 		}
 		return &scalarRows{data: [][]any{{row.providerKind, row.activeRevisionID, rev.sealedSecret, configuration}}}, nil
+	case selectActiveSAMLProviderConfigForLoginQuery:
+		providerConfigID := args[0].(string)
+		row := db.configs[providerConfigID]
+		if row == nil || row.tombstoned || row.providerKind != "external_saml" || row.status != "active" || row.activeRevisionID == "" {
+			return &scalarRows{}, nil
+		}
+		rev, ok := db.revisions[providerConfigID][row.activeRevisionID]
+		if !ok {
+			return &scalarRows{}, nil
+		}
+		var configuration any
+		if rev.configuration != "" {
+			configuration = rev.configuration
+		}
+		return &scalarRows{data: [][]any{{row.providerKind, row.activeRevisionID, rev.sealedSecret, configuration}}}, nil
 	default:
 		return nil, errUnexpectedProviderConfigQuery(query)
 	}

@@ -17,7 +17,7 @@ const openAPIComponentsProviderConfigs = `      "AdminProviderConfig": {
           "provider_kind": {"type": "string", "enum": ["external_oidc", "external_saml"]},
           "status": {"type": "string", "enum": ["draft", "active"]},
           "active_revision_id": {"type": "string"},
-          "configuration": {"type": "object", "description": "Non-secret settings: issuer/client_id/scopes/group_claim (oidc) or metadata_url/entity_id/group_attribute (saml)."},
+          "configuration": {"type": "object", "description": "Non-secret settings: issuer/client_id/scopes/group_claim (oidc) or metadata_url/entity_id/group_attribute/service_provider_entity_id/service_provider_acs_url (saml)."},
           "has_secret": {"type": "boolean"},
           "secret_fingerprint": {"type": "string"},
           "key_id": {"type": "string"},
@@ -42,8 +42,10 @@ const openAPIComponentsProviderConfigs = `      "AdminProviderConfig": {
           "redirect_url": {"type": "string"},
           "metadata_url": {"type": "string"},
           "metadata_xml": {"type": "string"},
-          "entity_id": {"type": "string"},
+          "entity_id": {"type": "string", "description": "Expected identity provider entity id, validated against the parsed IdP metadata."},
           "group_attribute": {"type": "string"},
+          "service_provider_entity_id": {"type": "string", "description": "Eshu's own SP entity id advertised for this provider. Optional at create/test-connection time; required for the provider to resolve for login."},
+          "service_provider_acs_url": {"type": "string", "description": "Eshu's own SP Assertion Consumer Service URL for this provider. Optional at create/test-connection time; required for the provider to resolve for login."},
           "sp_private_key": {"type": "string", "description": "Write-only PEM. Required on every create and update for saml."},
           "sp_certificate": {"type": "string", "description": "Write-only PEM. Required on every create and update for saml."}
         }

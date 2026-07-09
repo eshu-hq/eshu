@@ -112,7 +112,7 @@ The Console browser flow uses these `/api/v0` routes:
 | `GET /api/v0/auth/admin/roles` | All-scopes admin read that lists the caller's tenant roles and the capability grants each role confers. Never returns role key hashes or hashed scope selectors. |
 | `GET /api/v0/auth/admin/idp-providers` | All-scopes admin read that lists the caller's tenant identity providers (config id, kind, status only). Never returns issuer/metadata/entity/client hashes or credential handles. |
 | `GET /api/v0/auth/admin/provider-configs` | All-scopes admin read that lists the caller's tenant's DB-backed and env/file-registered identity provider configs, merged (env-file authoritative; a colliding DB row is `shadowed_by_environment=true`). Never returns a secret — only `has_secret`, `secret_fingerprint`, and `key_id`. |
-| `GET /api/v0/auth/admin/provider-configs/{provider_config_id}` | All-scopes admin read for one provider config's full metadata, including its non-secret `configuration` (issuer/client_id/scopes/group_claim for OIDC; metadata_url/entity_id/group_attribute for SAML). Never returns a secret. |
+| `GET /api/v0/auth/admin/provider-configs/{provider_config_id}` | All-scopes admin read for one provider config's full metadata, including its non-secret `configuration` (issuer/client_id/scopes/group_claim for OIDC; metadata_url/entity_id/group_attribute/service_provider_entity_id/service_provider_acs_url for SAML). Never returns a secret. |
 | `GET /api/v0/auth/admin/provider-configs/{provider_config_id}/revisions` | All-scopes admin read that lists a provider config's revision history, newest first. Never returns a secret — only `has_secret` per revision. |
 | `GET /api/v0/auth/admin/idp-group-mappings` | All-scopes admin read that lists the caller's tenant/workspace external group→role mappings via an opaque mapping reference. Never returns the external group hash. |
 | `GET /api/v0/auth/admin/api-tokens` | All-scopes admin read that lists every user's generated API tokens in the caller's tenant/workspace (token id, class, owner, status, timestamps). Never returns the token hash. |
@@ -212,6 +212,19 @@ active membership, admin role, and all-scope role grant rows; missing identity
 rows, stale group claims, or revoked grants fail closed. Malformed provider
 JSON, unknown fields, or missing metadata env values fail closed during API
 wiring.
+
+Once the SAML runtime is enabled by at least one `ESHU_SAML_PROVIDERS_JSON`
+entry, an enabled (`status: active`) DB-backed `external_saml` provider config
+also resolves for login: it decrypts its sealed `sp_private_key`/
+`sp_certificate` only in the `samlauth` login/authn path (never in any read
+surface), and requires `service_provider_entity_id`/`service_provider_acs_url`/
+`metadata_xml` in its `configuration` to resolve — a provider missing any of
+them fails closed rather than presenting a non-functional login button. A DB
+row that collides on `provider_config_id` with an env-registered provider is
+always served from env config (`shadowed_by_environment`), matching OIDC's
+precedence. A deployment with zero `ESHU_SAML_PROVIDERS_JSON` entries has the
+SAML runtime disabled entirely, regardless of DB-backed provider configs
+(unlike OIDC, SAML has no DB-only activation toggle yet).
 
 ## Ask Eshu — POST /api/v0/ask
 

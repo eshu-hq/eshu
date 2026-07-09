@@ -69,13 +69,22 @@ type adminProviderConfigWriteRequest struct {
 	GroupClaim   string   `json:"group_claim,omitempty"`
 	RedirectURL  string   `json:"redirect_url,omitempty"`
 
-	// SAML fields.
-	MetadataURL    string `json:"metadata_url,omitempty"`
-	MetadataXML    string `json:"metadata_xml,omitempty"`
-	EntityID       string `json:"entity_id,omitempty"`
-	GroupAttribute string `json:"group_attribute,omitempty"`
-	SPPrivateKey   string `json:"sp_private_key,omitempty"` // #nosec G101 -- JSON field name, not a credential
-	SPCertificate  string `json:"sp_certificate,omitempty"`
+	// SAML fields. EntityID is the expected IDENTITY PROVIDER entity id
+	// (validated against parsed IdP metadata — see ValidateIdentityProviderMetadata).
+	// ServiceProviderEntityID/ServiceProviderACSURL are Eshu's OWN SP endpoints
+	// for this provider, mirroring an env-file provider's
+	// service_provider_entity_id/service_provider_acs_url (#4966 follow-up
+	// #4978). Like OIDC's RedirectURL, both are optional at write/test-connection
+	// time but required for the provider to resolve for login — see
+	// samlauth.ResolveSealedProviderConfig.
+	MetadataURL             string `json:"metadata_url,omitempty"`
+	MetadataXML             string `json:"metadata_xml,omitempty"`
+	EntityID                string `json:"entity_id,omitempty"`
+	GroupAttribute          string `json:"group_attribute,omitempty"`
+	ServiceProviderEntityID string `json:"service_provider_entity_id,omitempty"`
+	ServiceProviderACSURL   string `json:"service_provider_acs_url,omitempty"`
+	SPPrivateKey            string `json:"sp_private_key,omitempty"` // #nosec G101 -- JSON field name, not a credential
+	SPCertificate           string `json:"sp_certificate,omitempty"`
 }
 
 // adminProviderConfigRevertRequest is the JSON body for reverting to a prior

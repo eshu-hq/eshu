@@ -20,7 +20,7 @@ import (
 func TestNewSAMLHandlerDisabledWhenProvidersUnset(t *testing.T) {
 	t.Parallel()
 
-	handler, err := newSAMLHandler(nil, nil, func(string) string { return "" }, nil, query.CookieSecureAuto)
+	handler, err := newSAMLHandler(nil, nil, func(string) string { return "" }, nil, query.CookieSecureAuto, nil)
 	if err != nil {
 		t.Fatalf("newSAMLHandler() error = %v, want nil", err)
 	}
@@ -32,7 +32,7 @@ func TestNewSAMLHandlerDisabledWhenProvidersUnset(t *testing.T) {
 func TestNewSAMLHandlerRequiresPostgresWhenProvidersConfigured(t *testing.T) {
 	t.Parallel()
 
-	_, err := newSAMLHandler(nil, nil, samlTestGetenv(), fakeBrowserSessionStore{}, query.CookieSecureAuto)
+	_, err := newSAMLHandler(nil, nil, samlTestGetenv(), fakeBrowserSessionStore{}, query.CookieSecureAuto, nil)
 	if err == nil {
 		t.Fatal("newSAMLHandler() error = nil, want postgres requirement")
 	}
@@ -309,6 +309,18 @@ func (r *samlIdentityTestRows) Scan(dest ...any) error {
 				return fmt.Errorf("row[%d] type = %T, want bool", i, row[i])
 			}
 			*target = value
+		case *sql.NullString:
+			// Used by GetActiveSAMLProviderConfigForLogin's
+			// sealed_secret/configuration columns, which are nullable in the
+			// real schema (identity_provider_config_revisions).
+			switch value := row[i].(type) {
+			case string:
+				*target = sql.NullString{String: value, Valid: true}
+			case nil:
+				*target = sql.NullString{}
+			default:
+				return fmt.Errorf("row[%d] type = %T, want string or nil for sql.NullString", i, row[i])
+			}
 		default:
 			return fmt.Errorf("unsupported scan target %T", dest[i])
 		}

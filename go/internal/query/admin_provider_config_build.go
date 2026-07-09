@@ -43,11 +43,17 @@ type oidcSecretFields struct {
 }
 
 // samlConfigurationFields is the non-secret SAML configuration JSON shape.
+// ServiceProviderEntityID/ServiceProviderACSURL are Eshu's own SP endpoints
+// for this provider (#4966 follow-up #4978) — mirrored by samlauth's
+// dbSAMLConfiguration, which decodes this same JSON shape at login-resolution
+// time; both sides are documented to keep them in sync.
 type samlConfigurationFields struct {
-	MetadataURL    string `json:"metadata_url,omitempty"`
-	MetadataXML    string `json:"metadata_xml,omitempty"`
-	EntityID       string `json:"entity_id"`
-	GroupAttribute string `json:"group_attribute,omitempty"`
+	MetadataURL             string `json:"metadata_url,omitempty"`
+	MetadataXML             string `json:"metadata_xml,omitempty"`
+	EntityID                string `json:"entity_id"`
+	GroupAttribute          string `json:"group_attribute,omitempty"`
+	ServiceProviderEntityID string `json:"service_provider_entity_id,omitempty"`
+	ServiceProviderACSURL   string `json:"service_provider_acs_url,omitempty"`
 }
 
 // samlSecretFields is the SAML secret JSON shape sealed by the store.
@@ -126,10 +132,12 @@ func buildSAMLProviderConfigWrite(body adminProviderConfigWriteRequest) (builtPr
 	}
 
 	configJSON, err := json.Marshal(samlConfigurationFields{
-		MetadataURL:    metadataURL,
-		MetadataXML:    metadataXML,
-		EntityID:       entityID,
-		GroupAttribute: strings.TrimSpace(body.GroupAttribute),
+		MetadataURL:             metadataURL,
+		MetadataXML:             metadataXML,
+		EntityID:                entityID,
+		GroupAttribute:          strings.TrimSpace(body.GroupAttribute),
+		ServiceProviderEntityID: strings.TrimSpace(body.ServiceProviderEntityID),
+		ServiceProviderACSURL:   strings.TrimSpace(body.ServiceProviderACSURL),
 	})
 	if err != nil {
 		return builtProviderConfigWrite{}, fmt.Errorf("encode saml configuration: %w", err)

@@ -245,7 +245,7 @@ func wireAPI(
 			)
 		}
 	}
-	samlHandler, err := newSAMLHandler(db, instruments, getenv, browserSessionAdapter, cookieSecureMode)
+	samlHandler, err := newSAMLHandler(db, instruments, getenv, browserSessionAdapter, cookieSecureMode, providerSecretKeyring)
 	if err != nil {
 		_ = db.Close()
 		if driver != nil {
