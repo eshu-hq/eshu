@@ -22,14 +22,14 @@ import (
 // instead of silently indistinguishable from a legitimately empty
 // configuration. logger may be nil (e.g. in tests), in which case the warning
 // is skipped.
-func decodeProviderConfiguration(logger *slog.Logger, providerConfigID, configurationJSON string) map[string]any {
+func decodeProviderConfiguration(ctx context.Context, logger *slog.Logger, providerConfigID, configurationJSON string) map[string]any {
 	if configurationJSON == "" {
 		return nil
 	}
 	var out map[string]any
 	if err := json.Unmarshal([]byte(configurationJSON), &out); err != nil {
 		if logger != nil {
-			logger.Warn(
+			logger.WarnContext(ctx,
 				"provider config: stored configuration failed to parse as JSON",
 				"provider_config_id", providerConfigID,
 				"err", err,
@@ -139,7 +139,7 @@ func (a *providerConfigReadAdapter) GetProviderConfigDetail(
 	if err != nil || !found {
 		return query.AdminProviderConfigDetail{}, found, err
 	}
-	return a.toAdminDetail(detail), true, nil
+	return a.toAdminDetail(ctx, detail), true, nil
 }
 
 func (a *providerConfigReadAdapter) ListProviderConfigDetails(
@@ -154,7 +154,7 @@ func (a *providerConfigReadAdapter) ListProviderConfigDetails(
 	out := make([]query.AdminProviderConfigDetail, 0, len(items))
 	for _, item := range items {
 		seen[item.ProviderConfigID] = struct{}{}
-		out = append(out, a.toAdminDetail(item))
+		out = append(out, a.toAdminDetail(ctx, item))
 	}
 	// Synthesize entries for pure env-file-only OIDC providers (no DB row at
 	// all) so they are visible to the admin console — see the package doc
@@ -200,7 +200,7 @@ func (a *providerConfigReadAdapter) ListProviderConfigRevisions(
 	return out, nil
 }
 
-func (a *providerConfigReadAdapter) toAdminDetail(detail pgstatus.ProviderConfigDetail) query.AdminProviderConfigDetail {
+func (a *providerConfigReadAdapter) toAdminDetail(ctx context.Context, detail pgstatus.ProviderConfigDetail) query.AdminProviderConfigDetail {
 	_, shadowed := a.envProviderIDs[detail.ProviderConfigID]
 	managedBy := "database"
 	if shadowed {
@@ -211,7 +211,7 @@ func (a *providerConfigReadAdapter) toAdminDetail(detail pgstatus.ProviderConfig
 		ProviderKind:          detail.ProviderKind,
 		Status:                detail.Status,
 		ActiveRevisionID:      detail.ActiveRevisionID,
-		Configuration:         decodeProviderConfiguration(a.logger, detail.ProviderConfigID, detail.Configuration),
+		Configuration:         decodeProviderConfiguration(ctx, a.logger, detail.ProviderConfigID, detail.Configuration),
 		HasSecret:             detail.HasSecret,
 		SecretFingerprint:     detail.SecretFingerprint,
 		SecretKeyID:           detail.SecretKeyID,

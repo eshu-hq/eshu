@@ -88,21 +88,21 @@ func TestEnvProviderShadowsDBProvider(t *testing.T) {
 		envProviderIDs: envRegisteredProviderIDs(oidcHandler, samlHandler),
 	}
 
-	shadowed := adapter.toAdminDetail(pgstatus.ProviderConfigDetail{
+	shadowed := adapter.toAdminDetail(context.Background(), pgstatus.ProviderConfigDetail{
 		ProviderConfigID: "env_oidc_1", ProviderKind: "external_oidc", Status: "active",
 	})
 	if !shadowed.ShadowedByEnvironment || shadowed.ManagedBy != "environment" {
 		t.Fatalf("provider config sharing an id with an env-registered OIDC provider = %+v, want ShadowedByEnvironment=true ManagedBy=environment", shadowed)
 	}
 
-	samlShadowed := adapter.toAdminDetail(pgstatus.ProviderConfigDetail{
+	samlShadowed := adapter.toAdminDetail(context.Background(), pgstatus.ProviderConfigDetail{
 		ProviderConfigID: "env_saml_1", ProviderKind: "external_saml", Status: "active",
 	})
 	if !samlShadowed.ShadowedByEnvironment || samlShadowed.ManagedBy != "environment" {
 		t.Fatalf("provider config sharing an id with an env-registered SAML provider = %+v, want ShadowedByEnvironment=true ManagedBy=environment", samlShadowed)
 	}
 
-	notShadowed := adapter.toAdminDetail(pgstatus.ProviderConfigDetail{
+	notShadowed := adapter.toAdminDetail(context.Background(), pgstatus.ProviderConfigDetail{
 		ProviderConfigID: "pc_db_only", ProviderKind: "external_oidc", Status: "active",
 	})
 	if notShadowed.ShadowedByEnvironment || notShadowed.ManagedBy != "database" {
@@ -177,7 +177,7 @@ func TestDecodeProviderConfigurationLogsMalformedJSON(t *testing.T) {
 		logger: slog.New(slog.NewJSONHandler(&logBuf, nil)),
 	}
 
-	detail := adapter.toAdminDetail(pgstatus.ProviderConfigDetail{
+	detail := adapter.toAdminDetail(context.Background(), pgstatus.ProviderConfigDetail{
 		ProviderConfigID: "pc_corrupt",
 		ProviderKind:     "external_oidc",
 		Status:           "active",
@@ -203,7 +203,7 @@ func TestDecodeProviderConfigurationNilLoggerSafe(t *testing.T) {
 	t.Parallel()
 
 	adapter := &providerConfigReadAdapter{}
-	detail := adapter.toAdminDetail(pgstatus.ProviderConfigDetail{
+	detail := adapter.toAdminDetail(context.Background(), pgstatus.ProviderConfigDetail{
 		ProviderConfigID: "pc_corrupt_nil_logger",
 		ProviderKind:     "external_oidc",
 		Status:           "active",

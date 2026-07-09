@@ -393,6 +393,7 @@ func (h *AdminProviderConfigMutationHandler) handleTestConnection(w http.Respons
 	}
 	providerConfigID := strings.TrimSpace(PathParam(r, "provider_config_id"))
 	if providerConfigID == "" {
+		h.audit(r, eventType, governanceaudit.DecisionDenied, "provider_config_id_required", "")
 		WriteError(w, http.StatusBadRequest, "provider_config_id is required")
 		return
 	}

@@ -305,7 +305,7 @@ func TestLoginListAndReadAdapterAgreeOnCollision(t *testing.T) {
 	readAdapter := &providerConfigReadAdapter{
 		envProviderIDs: envRegisteredProviderIDs(oidcHandler, nil),
 	}
-	detail := readAdapter.toAdminDetail(pgstatus.ProviderConfigDetail{
+	detail := readAdapter.toAdminDetail(context.Background(), pgstatus.ProviderConfigDetail{
 		ProviderConfigID: collidingID, ProviderKind: "external_oidc", Status: "active",
 	})
 	if !detail.ShadowedByEnvironment {
