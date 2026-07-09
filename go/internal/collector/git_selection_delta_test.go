@@ -50,7 +50,7 @@ esac
 	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 
 	repoPath := t.TempDir()
-	updated, delta, err := updateRepository(
+	updated, delta, _, err := updateRepository(
 		context.Background(),
 		RepoSyncConfig{CloneDepth: 1, GitAuthMethod: "none"},
 		repoPath,
@@ -98,7 +98,7 @@ func TestBuildSelectedRepositoriesCarriesGitDeltaFileTargets(t *testing.T) {
 		},
 	}
 
-	selected := buildSelectedRepositories(config, selection.SelectedRepoPaths, selection.DeltaByRepoPath, selection.ReconcileByRepoPath)
+	selected := buildSelectedRepositories(config, selection.SelectedRepoPaths, selection.DeltaByRepoPath, selection.ReconcileByRepoPath, nil)
 	if len(selected) != 1 {
 		t.Fatalf("selected repositories = %d, want 1", len(selected))
 	}

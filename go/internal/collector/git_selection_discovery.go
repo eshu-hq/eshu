@@ -36,6 +36,12 @@ type GitSyncSelection struct {
 	// reconciliation snapshot this cycle so their generation bypasses the
 	// freshness-hint skip and always re-projects to retract drift.
 	ReconcileByRepoPath map[string]bool
+	// SourceCommitSHAByRepoPath carries the sync-resolved remote HEAD SHA for
+	// each repo path that was updated this cycle (both delta and full-observe
+	// sub-paths). Populated only by the git-sync path; empty for non-sync
+	// selectors. The snapshot code uses this to skip a redundant git rev-parse
+	// HEAD subprocess.
+	SourceCommitSHAByRepoPath map[string]string
 }
 
 // GitSyncDelta carries the file-scoped change set for an updated Git checkout.

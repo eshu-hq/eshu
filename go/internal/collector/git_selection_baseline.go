@@ -30,7 +30,7 @@ func syncExistingRepository(
 	event gitSyncLogEvent,
 	baseline gitDeltaBaseline,
 	forceReconcile bool,
-) (bool, GitSyncDelta, error) {
+) (bool, GitSyncDelta, string, error) {
 	if forceReconcile {
 		// Force a full re-observation regardless of any usable baseline. An empty
 		// baseline drives updateRepository's full-snapshot path; the nil

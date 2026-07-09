@@ -266,7 +266,7 @@ func TestUpdateRepositoryBaselinesDeltaOnLastProjectedCommit(t *testing.T) {
 		;;`)
 
 	repoPath := t.TempDir()
-	updated, delta, err := updateRepository(
+	updated, delta, _, err := updateRepository(
 		context.Background(),
 		baselineTestConfig(),
 		repoPath,
@@ -304,7 +304,7 @@ func TestUpdateRepositoryNoOpWhenBaselineEqualsRemote(t *testing.T) {
 		exit 0
 		;;`)
 
-	updated, delta, err := updateRepository(
+	updated, delta, _, err := updateRepository(
 		context.Background(),
 		baselineTestConfig(),
 		t.TempDir(),
@@ -341,7 +341,7 @@ func TestUpdateRepositoryFallsBackToFullSnapshotWhenNoBaseline(t *testing.T) {
 		;;`)
 
 	var fallbacks []string
-	updated, delta, err := updateRepository(
+	updated, delta, _, err := updateRepository(
 		context.Background(),
 		baselineTestConfig(),
 		t.TempDir(),
@@ -385,7 +385,7 @@ func TestUpdateRepositoryFallsBackWhenBaselineUnreachable(t *testing.T) {
 		;;`)
 
 	var fallbacks []string
-	updated, delta, err := updateRepository(
+	updated, delta, _, err := updateRepository(
 		context.Background(),
 		baselineTestConfig(),
 		t.TempDir(),

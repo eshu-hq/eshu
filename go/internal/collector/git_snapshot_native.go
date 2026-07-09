@@ -178,7 +178,10 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 		DeletedRelativePaths:     deltaDeletedRelativePaths,
 		Reconcile:                repository.Reconcile,
 	}
-	commitSHA := gitCommitSHA(ctx, repoPath)
+	commitSHA := repository.SourceCommitSHA
+	if commitSHA == "" {
+		commitSHA = gitCommitSHA(ctx, repoPath)
+	}
 	snapshot.HeadCommitSHA = commitSHA
 	if len(fileSet.Files) == 0 {
 		snapshot.DiscoveryAdvisory = buildDiscoveryAdvisoryReport(

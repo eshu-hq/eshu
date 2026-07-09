@@ -46,6 +46,14 @@ type SelectedRepository struct {
 	// must bypass the freshness-hint skip so it always re-projects and retracts
 	// any drift the delta path missed (epic #2340).
 	Reconcile bool `json:"reconcile,omitempty"`
+	// SourceCommitSHA carries the source commit resolved by the git-sync path
+	// after checkoutRemoteBranch completed. It is populated only when Eshu's own
+	// sync resolved and checked out a known remote SHA (git-sync selector modes
+	// "explicit" and "githubOrg"). Non-sync selectors (filesystem, clone, and
+	// any path that did not run checkoutRemoteBranch with a freshly-resolved
+	// remote SHA) leave this empty. Snapshot code uses this to skip a redundant
+	// git rev-parse HEAD subprocess when the SHA is already known.
+	SourceCommitSHA string `json:"source_commit_sha,omitempty"`
 }
 
 // RepositorySnapshot captures one repository parse snapshot and content transport.

@@ -89,6 +89,19 @@ README.
   logs, `SpanScopeAssign`, `SpanCollectorStream`, and pprof profiles expose the
   selector/copy window separately from per-repository discovery, pre-scan,
   parse, materialize, commit, and projection stages.
+Performance Evidence: git-sync mode removes one `git rev-parse HEAD` subprocess
+  per selected repository per cycle by carrying the SHA that the sync already
+  resolved through `checkoutRemoteBranch`. The carried `SourceCommitSHA` on
+  `SelectedRepository` is thread-safe and empty for non-sync selectors
+  (filesystem, clone, or any path that did not run `checkoutRemoteBranch`). The
+  focused proof is
+  `go test ./internal/collector -run 'Test(CheckoutRemoteBranchEquivalence|SnapshotUsesSourceCommitSHA|SnapshotFallsBackToGitCommitSHA)' -count=1`.
+No-Observability-Change: the `logGitSyncCompleted` structured log, the git-sync
+  operation span (`collector.observe` / `SpanScopeAssign`), and the snapshot
+  stage telemetry (`collector snapshot stage completed` logs,
+  `eshu_dp_collector_snapshot_stage_duration_seconds`) already diagnose the
+  sync-and-snapshot path. No new metrics, spans, logs, or status fields were
+  added; the `HeadCommitSHA` snapshot field is unchanged.
 - Collector Performance Evidence: declared Prometheus/Mimir, Loki, and Tempo
   source facts reuse the existing repository parse and fact-stream pass. The
   focused proof is

@@ -37,6 +37,7 @@ func syncGitRepositoriesWithLogger(
 	deltaByRepoPath := make(map[string]GitSyncDelta)
 	refsByRepoPath := make(map[string][]GitRef)
 	reconcileByRepoPath := make(map[string]bool)
+	sourceSHAByRepoPath := make(map[string]string)
 	reconciledThisCycle := 0
 	for i, repoID := range repositoryIDs {
 		if err := ctx.Err(); err != nil {
@@ -65,7 +66,7 @@ func syncGitRepositoriesWithLogger(
 		// not stampede into simultaneous full snapshots.
 		forceReconcile := reconcileBudgetRemaining(baseline.Reconcile, reconciledThisCycle) &&
 			baseline.reconcileDue(ctx, config, repoPath)
-		updated, delta, updateErr := syncExistingRepository(ctx, config, repoPath, token, logger, event, baseline, forceReconcile)
+		updated, delta, sourceSHA, updateErr := syncExistingRepository(ctx, config, repoPath, token, logger, event, baseline, forceReconcile)
 		if updateErr == nil && updated {
 			selected = append(selected, repoPath)
 			refs, refsErr := remoteGitRefs(ctx, config, repoPath, token)
@@ -77,6 +78,7 @@ func syncGitRepositoriesWithLogger(
 			if !delta.IsEmpty() {
 				deltaByRepoPath[repoPath] = delta
 			}
+			sourceSHAByRepoPath[repoPath] = sourceSHA
 			if forceReconcile {
 				reconcileByRepoPath[repoPath] = true
 				reconciledThisCycle++
@@ -85,10 +87,11 @@ func syncGitRepositoriesWithLogger(
 		}
 	}
 	return GitSyncSelection{
-		SelectedRepoPaths:   sortUniqueStrings(selected),
-		DeltaByRepoPath:     deltaByRepoPath,
-		RefsByRepoPath:      refsByRepoPath,
-		ReconcileByRepoPath: reconcileByRepoPath,
+		SelectedRepoPaths:         sortUniqueStrings(selected),
+		DeltaByRepoPath:           deltaByRepoPath,
+		RefsByRepoPath:            refsByRepoPath,
+		ReconcileByRepoPath:       reconcileByRepoPath,
+		SourceCommitSHAByRepoPath: sourceSHAByRepoPath,
 	}, nil
 }
 
@@ -149,6 +152,11 @@ func cloneRepository(
 // sync falls back to a full snapshot — an empty delta — and reports the reason
 // through onFallback so operators can watch the delta-skip rate. onFallback may
 // be nil.
+//
+// When updated is true, sourceCommitSHA is the remote HEAD SHA resolved during
+// this sync. After checkoutRemoteBranch completes, HEAD equals sourceCommitSHA,
+// so the snapshot can carry it rather than shelling out to git rev-parse HEAD
+// again. sourceCommitSHA is empty when updated is false (no snapshot).
 func updateRepository(
 	ctx context.Context,
 	config RepoSyncConfig,
@@ -158,29 +166,29 @@ func updateRepository(
 	event gitSyncLogEvent,
 	baselineSHA string,
 	onFallback func(reason string),
-) (bool, GitSyncDelta, error) {
+) (updated bool, delta GitSyncDelta, sourceCommitSHA string, _ error) {
 	event = event.withOperation("fetch")
 	branch, err := resolveDefaultBranch(ctx, config, repoPath, token)
 	if err != nil {
 		logGitSyncFailed(ctx, logger, event, err)
-		return false, GitSyncDelta{}, err
+		return false, GitSyncDelta{}, "", err
 	}
 	if branch == "" {
 		logGitSyncCompleted(ctx, logger, event, false)
-		return false, GitSyncDelta{}, nil
+		return false, GitSyncDelta{}, "", nil
 	}
 
 	event.Branch = branch
 	logGitSyncStarted(ctx, logger, event)
 	if err := gitFetchBranch(ctx, config, repoPath, branch, token, logger, event); err != nil {
 		logGitSyncFailed(ctx, logger, event, err)
-		return false, GitSyncDelta{}, err
+		return false, GitSyncDelta{}, "", err
 	}
 	remoteRef := "refs/remotes/origin/" + branch
 	remoteSHA, err := gitRevParse(ctx, repoPath, remoteRef, config, token)
 	if err != nil {
 		logGitSyncFailed(ctx, logger, event, err)
-		return false, GitSyncDelta{}, err
+		return false, GitSyncDelta{}, "", err
 	}
 
 	baseline := strings.TrimSpace(baselineSHA)
@@ -193,7 +201,7 @@ func updateRepository(
 		// The last projected commit already equals the remote head; nothing new
 		// has been observed since the last successful projection.
 		logGitSyncCompleted(ctx, logger, event, false)
-		return false, GitSyncDelta{}, nil
+		return false, GitSyncDelta{}, "", nil
 	case !isGitCommitReachable(ctx, config, repoPath, token, baseline):
 		// The baseline is known but absent from local history (shallow-clone
 		// prune or divergence); a delta diff would be wrong, so re-observe fully.
@@ -202,22 +210,22 @@ func updateRepository(
 		delta, err := gitDiffDelta(ctx, config, repoPath, token, baseline, remoteRef)
 		if err != nil {
 			logGitSyncFailed(ctx, logger, event, err)
-			return false, GitSyncDelta{}, err
+			return false, GitSyncDelta{}, "", err
 		}
 		if err := checkoutRemoteBranch(ctx, config, repoPath, token, branch); err != nil {
 			logGitSyncFailed(ctx, logger, event, err)
-			return false, GitSyncDelta{}, err
+			return false, GitSyncDelta{}, "", err
 		}
 		logGitSyncCompleted(ctx, logger, event, true)
-		return true, delta, nil
+		return true, delta, remoteSHA, nil
 	}
 
 	if err := checkoutRemoteBranch(ctx, config, repoPath, token, branch); err != nil {
 		logGitSyncFailed(ctx, logger, event, err)
-		return false, GitSyncDelta{}, err
+		return false, GitSyncDelta{}, "", err
 	}
 	logGitSyncCompleted(ctx, logger, event, true)
-	return true, GitSyncDelta{}, nil
+	return true, GitSyncDelta{}, remoteSHA, nil
 }
 
 func checkoutRemoteBranch(
