@@ -128,7 +128,25 @@ func TestKnownAuthFlowRoutesArePlannerExcluded(t *testing.T) {
 	}
 }
 
-// TestPlannerExcludedSurfacesAreImplementedAndExcluded is the registry-drift
+// TestKnownAuthSetupRoutesArePlannerExcluded pins the first-run setup-wizard
+// surfaces (#4990) as planner-excluded: the setup-state status read and the
+// claim/admin/mfa bootstrap mutations authenticate/bootstrap the first admin
+// rather than return repository, graph, runtime, or cloud facts.
+func TestKnownAuthSetupRoutesArePlannerExcluded(t *testing.T) {
+	t.Parallel()
+	want := []string{
+		"GET /api/v0/auth/setup-state",
+		"POST /api/v0/auth/setup/admin",
+		"POST /api/v0/auth/setup/claim",
+		"POST /api/v0/auth/setup/mfa",
+	}
+	for _, name := range want {
+		if !isPlannerExcludedSurface(name) {
+			t.Errorf("expected %q to be planner-excluded", name)
+		}
+	}
+}
+
 // gate: every curated excluded name must (a) be a real implemented surface in
 // the inventory (no stale entries) and (b) be absent from the parsed catalog.
 func TestPlannerExcludedSurfacesAreImplementedAndExcluded(t *testing.T) {
