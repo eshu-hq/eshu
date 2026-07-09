@@ -115,10 +115,11 @@ the P1 operator-facing artifacts.
   post-materialization phases reuse; the one statically decidable half — every
   narrowed rc pins `source_tool` to exactly what its evidence kinds derive to —
   is locked by a reducer-package test (`cross_repo_source_tool_snapshot_test.go`).
-- Graph-evidence reach is proven by running the real `relationships.Discover`
-  `Evidence` extractor, not a hand-authored classifier. A machine-readable
-  fact-kind-to-dispatch surface (e.g. to warn "this Odù carries kind X but X
-  never reaches the extractor") is deliberately deferred to a P2+ consumer that
+- Graph-evidence reach is proven by running the real
+  `relationships.DiscoverEvidence` extractor, not a hand-authored classifier. A
+  machine-readable fact-kind-to-dispatch surface (e.g. to warn "this Odù carries
+  kind X but X never reaches the extractor") is deliberately deferred to a P2+
+  consumer that
   needs it (#4959); building it now would mean exporting the dispatch from
   `relationships` and paying its docs-lockstep gates for no in-repo reader.
 - `RoundTripTypedPayloads` only proves fact kinds registered in
