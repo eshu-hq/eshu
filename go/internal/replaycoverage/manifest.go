@@ -25,7 +25,11 @@ const ManifestFileName = "replay-coverage-manifest.v1.yaml"
 // graph correlation, a capability claim points at the matrix row whose
 // per-profile verification refs prove supported answers and unsupported
 // capability refusals, and a product claim points at the public claim ledger row
-// whose proof is checked by capability-inventory docs mode.
+// whose proof is checked by capability-inventory docs mode. The odu kind is
+// Ifá's own scenario artifact (#4394): a cataloged Odù (go/internal/ifa) proves
+// a fact-kind or evidence-narrowed-correlation binding by running the
+// production evidence extractor and payload-schema validator over the Odù's
+// facts; it appears only in Ifá's own coverage manifest.
 type ScenarioType string
 
 const (
@@ -55,6 +59,12 @@ const (
 	// ScenarioProofArtifact is a repo-relative proof contract or evidence file
 	// whose greenness is proven by the named proof gate.
 	ScenarioProofArtifact ScenarioType = "proof_artifact"
+	// ScenarioOdu is an Ifá Odù (#4394): a derived fact-kind or
+	// evidence-narrowed-correlation binding whose ref names a cataloged Odù
+	// scenario in go/internal/ifa. It is used only by Ifá's own coverage
+	// manifest (specs/ifa-coverage-manifest.v1.yaml); the replay-coverage
+	// manifest never carries it.
+	ScenarioOdu ScenarioType = "odu"
 )
 
 // DepthScenarioType is the scenario-depth class a replay artifact covers for a
@@ -95,6 +105,7 @@ var validScenarioTypes = map[ScenarioType]struct{}{
 	ScenarioAuthzScopedRoute: {},
 	ScenarioGoTest:           {},
 	ScenarioProofArtifact:    {},
+	ScenarioOdu:              {},
 }
 
 // validDepthScenarioTypes is the closed set of C-8 scenario-depth classes.

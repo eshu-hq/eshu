@@ -33,9 +33,13 @@ writes the report, and sets the exit code lives in
 `specs/replay-coverage-manifest.v1.yaml` that maps each surface to the scenario
 that covers it (plus audited exemptions). Every coverage entry has both an
 artifact kind (`scenario`: cassette, parser_fixture, api_mcp_golden, cli_golden,
-correlation, capability_claim, product_claim, authz_scoped_route, go_test, or
-proof_artifact) and a depth class (`scenario_type`: baseline, delta_tombstone,
-fault, ordering, crash, or cost).
+correlation, capability_claim, product_claim, authz_scoped_route, go_test,
+proof_artifact, or odu) and a depth class (`scenario_type`: baseline,
+delta_tombstone, fault, ordering, crash, or cost). `odu` is reserved for Ifá's
+own coverage manifest (`specs/ifa-coverage-manifest.v1.yaml`, `go/internal/ifa`,
+#4394): it never appears in `specs/replay-coverage-manifest.v1.yaml`, but
+`LoadManifest` and `Reconcile` are reused unchanged so Ifá gets the same
+honest-red/stale/proof-gate machinery this package already proves out.
 `Reconcile` classifies every required
 surface/scenario_type pair as `covered`, `uncovered`, `unresolved` (manifest
 entry, missing artifact), or `exempt`, and reports stale manifest drift.

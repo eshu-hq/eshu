@@ -181,6 +181,19 @@ Guardrails:
 - Keep unsupported or partial source states visible in evidence details,
   limitations, status rows, logs, or query responses.
 
+### Shared repository-catalog derivation
+
+Relationship extractors that match candidates by repository alias resolve those
+aliases against a catalog derived from `repository` facts.
+`relationships.RepositoryCatalogEntry` (`relationships/catalog.go`) is the single
+source of truth for that derivation: it turns a decoded repository fact payload
+into a `CatalogEntry` (RepoID plus its aliases). The Postgres streaming commit
+path and Ifá's offline derived catalog (#4394) both call it, so a generation's
+committed repository identity is computed identically to any catalog derived
+offline from the same facts. Do not re-implement repository-alias derivation in
+an extractor; use this helper so alias-drift detection compares consistently
+shaped aliases.
+
 ## Interpreting Code Relationship Truth In API And MCP Responses
 
 Code relationship reads (`POST /api/v0/code/relationships/story` and the

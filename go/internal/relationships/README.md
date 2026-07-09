@@ -438,3 +438,26 @@ no plan change. `go test ./internal/relationships ./internal/reducer ./internal/
 
 No-Observability-Change: no metrics, spans, or structured logs are added or
 altered; the citation flows as evidence-fact and edge-property data only.
+
+## Shared repository-catalog derivation (#4394)
+
+`RepositoryCatalogEntry` (`catalog.go`) is the single source of truth for
+deriving a repository `CatalogEntry` (RepoID plus matching aliases) from a
+decoded repository fact payload. The logic moved here verbatim from the Postgres
+ingestion path (`go/internal/storage/postgres/ingestion_catalog_parse.go`), which
+now delegates to it, so Ifá's offline derived catalog (#4394) computes a
+generation's committed repository identity identically to the streaming commit
+path. The raw-payload-usage exemption for these pre-typed reads moved with the
+code (`go/internal/payloadusage/rawpayload.go`); no read changed.
+
+No-Regression Evidence: this is a behavior-preserving extraction — the parser
+body (`catalogPayloadString` over `repo_id`/`graph_id`/`name`/`repo_name`/
+`repo_slug`) is byte-for-byte the prior Postgres implementation, it is a pure
+in-memory map read with no query, graph round trip, allocation growth, or
+concurrency, and it runs off the streaming hot path only at catalog build. `go
+test ./internal/relationships ./internal/storage/postgres -count=1` stays green
+against the delegated implementation.
+
+No-Observability-Change: no metrics, spans, structured logs, or status surfaces
+are added or altered; the change relocates an existing pure function between
+packages.

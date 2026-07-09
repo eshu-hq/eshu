@@ -122,6 +122,10 @@ jobs:
               - 'go/internal/ifa/**'
               - 'go/cmd/ifa/**'
               - 'docs/internal/design/4389-ifa-conformance-platform.md'
+              - 'specs/ifa-coverage-manifest.v1.yaml'
+              - 'specs/fact-kind-registry.v1.yaml'
+              - 'specs/replay-coverage-manifest.v1.yaml'
+              - 'testdata/golden/e2e-20repo-snapshot.json'
       - name: Build selected gate matrix
         id: gate-matrix
         run: |

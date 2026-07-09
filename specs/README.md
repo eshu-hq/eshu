@@ -66,6 +66,13 @@ documentation.
   to the golden-corpus-gate cassette families and fixture repos each answer
   depends on. It is the acceptance oracle every sibling demo-mode issue tests
   against. Loaded and referentially validated by `go/internal/demospec`.
+- `ifa-coverage-manifest.v1.yaml` maps every derived Ifá surface (each
+  fact-kind-registry entry, plus each B-12 evidence-narrowed required
+  correlation) to the cataloged Odù that proves it (epic #4389, issue #4394).
+  It reuses the replay-coverage manifest's YAML grammar and
+  `go/internal/replaycoverage` machinery unchanged; only the `odu` scenario
+  kind and `go/internal/ifa`'s own resolver are new. Reconciled by
+  `go/internal/ifa.RunCoverage` and `go/cmd/ifa`.
 
 Treat edits here as contract changes. Update matching docs and verification in
 the same PR.
