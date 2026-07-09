@@ -35,7 +35,9 @@ describe("AuthGate", () => {
         <AuthGate client={client} onSuccess={vi.fn()} />
       </MemoryRouter>,
     );
-    await waitFor(() => expect(screen.getByText(/sign in to eshu/i)).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByText("Sign in", { selector: "h1" })).toBeInTheDocument(),
+    );
   });
 
   it("falls back to LoginPage when the setup-state check fails", async () => {
@@ -47,6 +49,8 @@ describe("AuthGate", () => {
         <AuthGate client={client} onSuccess={vi.fn()} />
       </MemoryRouter>,
     );
-    await waitFor(() => expect(screen.getByText(/sign in to eshu/i)).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByText("Sign in", { selector: "h1" })).toBeInTheDocument(),
+    );
   });
 });

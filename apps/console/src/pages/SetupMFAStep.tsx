@@ -1,62 +1,32 @@
-// SetupMFAStep.tsx — wizard step 3: enroll MFA recovery codes and complete
-// first-run setup (#4965). Split out of SetupPage.tsx to keep both files
-// small and focused, mirroring the backend's own setup_handler.go /
-// setup_mfa_handler.go split.
+// SetupMFAStep.tsx — wizard step 3 content: recovery-code enrollment
+// (#4965). Purely presentational — SetupPage.tsx owns the request that
+// generates the codes (fired once on entering this step) and the Finish
+// button in the persistent footer; this component only renders the result
+// and the "I've saved these" confirmation gate.
 //
-// The codes are rendered exactly once and the wizard does not advance past
-// this step until the operator explicitly confirms they saved them — see
-// the "I've saved these" checkbox gating the Finish button below. Codes are
-// never sent anywhere but this one response body; there is no re-fetch path.
-import { Check, Copy, Download } from "lucide-react";
-import { useState, type RefObject } from "react";
-
-import type { BrowserSessionResponse, EshuApiClient } from "../api/client";
-import { completeSetupMFA } from "../api/setupSession";
+// TOTP is intentionally NOT rendered here. #4986 tracks real TOTP
+// enrollment + login verification; go/internal/storage/postgres/
+// identity_local.go's AuthenticateLocalIdentity only ever checks
+// MFARecoveryCodeHash today, so a scannable QR here would be a dead control
+// that looks functional but authenticates nothing. The note below is
+// text-only and non-interactive.
+import { Check, Copy, Download, ShieldAlert } from "lucide-react";
+import { useState } from "react";
 
 export interface SetupMFAStepProps {
-  readonly client: EshuApiClient;
-  readonly username: string;
-  readonly password: string;
-  readonly headingRef: RefObject<HTMLHeadingElement | null>;
-  readonly onError: (message: string | null) => void;
-  readonly onSuccess: (session: BrowserSessionResponse) => void;
+  readonly codes: readonly string[] | null;
+  readonly saved: boolean;
+  readonly onSavedChange: (saved: boolean) => void;
+  readonly headingRef: React.RefObject<HTMLHeadingElement | null>;
 }
 
 export function SetupMFAStep({
-  client,
-  username,
-  password,
+  codes,
+  saved,
+  onSavedChange,
   headingRef,
-  onError,
-  onSuccess,
 }: SetupMFAStepProps): React.JSX.Element {
-  const [submitting, setSubmitting] = useState(false);
-  const [codes, setCodes] = useState<readonly string[] | null>(null);
-  const [session, setSession] = useState<BrowserSessionResponse | null>(null);
-  const [saved, setSaved] = useState(false);
   const [copied, setCopied] = useState(false);
-
-  async function handleGenerate(): Promise<void> {
-    setSubmitting(true);
-    onError(null);
-    const result = await completeSetupMFA(client, { username, password });
-    setSubmitting(false);
-    switch (result.status) {
-      case "completed":
-        setCodes(result.recoveryCodes);
-        setSession(result.session);
-        break;
-      case "invalid":
-        onError(
-          "That credential is wrong or expired. Retrieve it again with " +
-            "`eshu admin initial-credential`, or regenerate it with `eshu admin reset-initial-credential`.",
-        );
-        break;
-      case "gone":
-        onError("Setup is no longer available — this instance already has an administrator.");
-        break;
-    }
-  }
 
   async function copyAll(): Promise<void> {
     if (!codes) return;
@@ -82,83 +52,85 @@ export function SetupMFAStep({
     setTimeout(() => URL.revokeObjectURL(url), 2000);
   }
 
-  function finish(): void {
-    if (!saved || !session) return;
-    onSuccess(session);
-  }
-
   if (codes === null) {
     return (
-      <>
-        <h1 className="login-title" ref={headingRef} tabIndex={-1}>
-          Enroll recovery codes
-        </h1>
-        <p className="login-subtitle">
-          Eshu generates ten one-time recovery codes for this account. They are shown once — save
-          them somewhere safe before continuing.
-        </p>
-        <button
-          className="btn-primary login-submit"
-          type="button"
-          disabled={submitting}
-          onClick={() => {
-            void handleGenerate();
-          }}
-        >
-          {submitting ? "Generating…" : "Generate recovery codes"}
-        </button>
-      </>
+      <div className="stage">
+        <div className="card-head">
+          <h2 ref={headingRef} tabIndex={-1}>
+            Securing your account
+          </h2>
+          <p>Generating your one-time recovery codes…</p>
+        </div>
+      </div>
     );
   }
 
   return (
-    <>
-      <h1 className="login-title" ref={headingRef} tabIndex={-1}>
-        Save your recovery codes
-      </h1>
-      <p className="login-subtitle">
-        Each code signs you in once if you lose access to your password. They will not be shown
-        again.
-      </p>
-      <ul className="setup-recovery-codes" aria-label="Recovery codes">
-        {codes.map((code) => (
-          <li key={code}>{code}</li>
-        ))}
-      </ul>
-      <div className="setup-recovery-actions">
-        <button
-          className="btn-secondary"
-          type="button"
-          onClick={() => {
-            void copyAll();
-          }}
-        >
-          {copied ? (
-            <>
-              <Check aria-hidden size={14} /> Copied
-            </>
-          ) : (
-            <>
-              <Copy aria-hidden size={14} /> Copy all
-            </>
-          )}
-        </button>
-        <button className="btn-secondary" type="button" onClick={download}>
-          <Download aria-hidden size={14} /> Download
-        </button>
+    <div className="stage">
+      <div className="card-head">
+        <h2 ref={headingRef} tabIndex={-1}>
+          Save your recovery codes
+        </h2>
+        <p>
+          Each code signs you in once if you lose access to your password. They will not be shown
+          again.
+        </p>
       </div>
-      <label className="setup-confirm" htmlFor="setup-codes-saved">
+
+      <div className="note soon">
+        <ShieldAlert aria-hidden />
+        <span>
+          Authenticator app (TOTP) — coming soon. Recovery codes are the supported MFA today.
+        </span>
+      </div>
+
+      <p className="section-label">Store these somewhere safe</p>
+      <div className="recovery">
+        <div className="recovery-head">
+          <ShieldAlert aria-hidden />
+          <span>
+            <strong>Each code works once.</strong>&nbsp;They&apos;re your only way back in if you
+            lose your device.
+          </span>
+        </div>
+        <ul className="codes" aria-label="Recovery codes">
+          {codes.map((code) => (
+            <li key={code}>{code}</li>
+          ))}
+        </ul>
+        <div className="recovery-actions">
+          <button
+            className={`btn-mini${copied ? " ok" : ""}`}
+            type="button"
+            onClick={() => {
+              void copyAll();
+            }}
+          >
+            {copied ? <Check aria-hidden /> : <Copy aria-hidden />}
+            <span>{copied ? "Copied" : "Copy all"}</span>
+          </button>
+          <button className="btn-mini" type="button" onClick={download}>
+            <Download aria-hidden />
+            <span>Download .txt</span>
+          </button>
+        </div>
+      </div>
+
+      <label className="confirm" htmlFor="setup-codes-saved">
         <input
           id="setup-codes-saved"
           type="checkbox"
           checked={saved}
-          onChange={(e) => setSaved(e.target.checked)}
+          onChange={(e) => onSavedChange(e.target.checked)}
         />
-        I've saved these recovery codes somewhere safe.
+        <span className="checkbox" aria-hidden>
+          <Check />
+        </span>
+        <span>
+          I&apos;ve saved my recovery codes in a secure location and understand they won&apos;t be
+          shown again.
+        </span>
       </label>
-      <button className="btn-primary login-submit" type="button" disabled={!saved} onClick={finish}>
-        Finish setup
-      </button>
-    </>
+    </div>
   );
 }

@@ -7,16 +7,21 @@
 // already at the 500-line cap) so App.tsx's diff stays a one-line component
 // swap.
 //
-// SetupPage is loaded via React.lazy (mirroring WorkspacePage in
-// appRoutes.tsx): it only ever renders on a fresh, un-provisioned
-// deployment, so its code (recovery-code icons, the stepper) must not grow
-// the main bundle every established deployment ships on every load — the
-// console:bundle-budget gate enforces this.
+// Both LoginPage and SetupPage are loaded via React.lazy (mirroring
+// WorkspacePage in appRoutes.tsx): AuthGate never renders both, and neither
+// is needed by any authenticated session, so their restyled markup and icon
+// imports must not grow the main bundle every already-provisioned
+// deployment ships on every load — the console:bundle-budget gate enforces
+// this. The chunk fetch overlaps the setup-state network round trip this
+// component already makes, so it adds no perceptible extra latency.
 import { lazy, Suspense, useEffect, useState } from "react";
 
-import { LoginPage, type LoginPageProps } from "./LoginPage";
+import type { LoginPageProps } from "./LoginPage";
 import { getSetupState } from "../api/setupSession";
 
+const LoginPage = lazy(() =>
+  import("./LoginPage").then((module) => ({ default: module.LoginPage })),
+);
 const SetupPage = lazy(() =>
   import("./SetupPage").then((module) => ({ default: module.SetupPage })),
 );
@@ -47,12 +52,13 @@ export function AuthGate(props: AuthGateProps): React.JSX.Element {
   if (needsSetup === null) {
     return <div className="login-page" aria-busy="true" />;
   }
-  if (needsSetup) {
-    return (
-      <Suspense fallback={<div className="login-page" aria-busy="true" />}>
+  return (
+    <Suspense fallback={<div className="login-page" aria-busy="true" />}>
+      {needsSetup ? (
         <SetupPage client={props.client} onSuccess={props.onSuccess} />
-      </Suspense>
-    );
-  }
-  return <LoginPage {...props} />;
+      ) : (
+        <LoginPage {...props} />
+      )}
+    </Suspense>
+  );
 }

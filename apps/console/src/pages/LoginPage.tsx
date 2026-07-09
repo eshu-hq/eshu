@@ -5,8 +5,12 @@
 // Local username/password login remains the DEFAULT/primary surface.
 // If no providers are configured, no SSO buttons are rendered (current behavior).
 // On successful local login, calls onSuccess(session) — caller navigates.
+// Visuals match the approved auth mockup (authFlow.css) — elevated card,
+// icon-led fields, password reveal, loading button state.
+import { AlertTriangle, ChevronRight, Eye, EyeOff, Lock, TriangleAlert, User } from "lucide-react";
 import { useState, useEffect, type FormEvent } from "react";
 
+import { AuthBrandMark } from "./AuthBrandMark";
 import {
   loginLocal,
   listAuthProviders,
@@ -51,6 +55,7 @@ export function LoginPage({
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [providers, setProviders] = useState<readonly AuthLoginProvider[]>([]);
+  const [showPassword, setShowPassword] = useState(false);
   // #4964: the backend's default cookie policy keeps Secure=true (and thus
   // never persists the session) for any plain-HTTP origin outside loopback.
   // Detect that case up front so the diagnostic banner is visible before the
@@ -161,100 +166,130 @@ export function LoginPage({
 
   return (
     <div className="login-page">
-      <div className="login-card">
-        <div className="login-brand">
-          <span className="brand-mark brand-glyph" aria-hidden>
-            <i />
-            <i />
-            <i />
+      <div className="auth-brand">
+        <AuthBrandMark />
+        <span className="auth-brand-txt">
+          <span className="auth-brand-name">
+            e<b>shu</b>
           </span>
-          <span>
-            <span className="brand-name">
-              e<b>shu</b>
-            </span>
-            <span className="brand-sub">Context Graph</span>
-          </span>
+          <span className="auth-brand-sub">Context Graph</span>
+        </span>
+      </div>
+
+      <section className="login-card" aria-labelledby="signin-title">
+        <div className="card-head">
+          <h1 id="signin-title">Sign in</h1>
+          <p>Access your organization&apos;s code-to-cloud context graph.</p>
         </div>
-        <h1 className="login-title">Sign in to Eshu</h1>
 
         {showInsecureOriginBanner ? (
-          <div className="login-insecure-origin-warning" role="alert" aria-live="assertive">
-            {INSECURE_COOKIE_ORIGIN_MESSAGE}
+          <div className="alert alert-warn" role="alert" aria-live="assertive">
+            <TriangleAlert aria-hidden />
+            <span>{INSECURE_COOKIE_ORIGIN_MESSAGE}</span>
           </div>
         ) : null}
 
         {errorMsg !== null ? (
-          <div className="login-error" role="alert" aria-live="assertive">
-            {errorMsg}
+          <div className="alert alert-err" role="alert" aria-live="assertive">
+            <AlertTriangle aria-hidden />
+            <span>{errorMsg}</span>
           </div>
         ) : null}
 
         <form
-          className="login-form"
           onSubmit={(e) => {
             void handleSubmit(e);
           }}
         >
-          <div className="login-field">
+          <div className="field">
             <label htmlFor="login-id">Login</label>
-            <input
-              id="login-id"
-              type="text"
-              autoComplete="username"
-              value={login}
-              disabled={submitting}
-              onChange={(e) => setLogin(e.target.value)}
-              required
-            />
-          </div>
-          <div className="login-field">
-            <label htmlFor="login-password">Password</label>
-            <input
-              id="login-password"
-              type="password"
-              autoComplete="current-password"
-              value={password}
-              disabled={submitting}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
-          </div>
-          {phase === "mfa" ? (
-            <div className="login-field">
-              <label htmlFor="login-mfa">Recovery code</label>
+            <div className="input-shell lead-icon">
+              <span className="input-lead" aria-hidden>
+                <User />
+              </span>
               <input
-                id="login-mfa"
+                id="login-id"
                 type="text"
-                autoComplete="one-time-code"
-                value={mfaCode}
+                autoComplete="username"
+                placeholder="you@example.test"
+                value={login}
                 disabled={submitting}
-                onChange={(e) => setMfaCode(e.target.value)}
+                onChange={(e) => setLogin(e.target.value)}
+                required
               />
             </div>
+          </div>
+          <div className="field">
+            <label htmlFor="login-password">Password</label>
+            <div className="input-shell lead-icon">
+              <span className="input-lead" aria-hidden>
+                <Lock />
+              </span>
+              <input
+                id="login-password"
+                type={showPassword ? "text" : "password"}
+                autoComplete="current-password"
+                value={password}
+                disabled={submitting}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
+              <button
+                type="button"
+                className="reveal"
+                aria-label={showPassword ? "Hide password" : "Show password"}
+                aria-pressed={showPassword}
+                onClick={() => setShowPassword((v) => !v)}
+              >
+                {showPassword ? <EyeOff aria-hidden /> : <Eye aria-hidden />}
+              </button>
+            </div>
+          </div>
+          {phase === "mfa" ? (
+            <div className="field">
+              <label htmlFor="login-mfa">Recovery code</label>
+              <div className="input-shell">
+                <input
+                  id="login-mfa"
+                  type="text"
+                  autoComplete="one-time-code"
+                  value={mfaCode}
+                  disabled={submitting}
+                  onChange={(e) => setMfaCode(e.target.value)}
+                />
+              </div>
+            </div>
           ) : null}
-          <button className="btn-primary login-submit" type="submit" disabled={submitting}>
-            {submitting ? "Signing in…" : "Sign in"}
+          <button
+            className="btn-primary btn-block"
+            type="submit"
+            disabled={submitting}
+            data-loading={submitting ? "true" : undefined}
+          >
+            <span className="spin" aria-hidden />
+            <span className="btn-label">{submitting ? "Signing in…" : "Sign in"}</span>
           </button>
         </form>
 
         {providers.length > 0 ? (
-          <div className="login-sso">
-            <div className="login-sso-divider" aria-hidden>
-              or
+          <>
+            <div className="divider">or continue with</div>
+            <div className="sso-stack">
+              {providers.map((provider) => (
+                <button
+                  key={provider.provider_config_id}
+                  className="btn-sso"
+                  type="button"
+                  onClick={() => handleSSOClick(provider)}
+                >
+                  Continue with {provider.display_label}
+                  <ChevronRight aria-hidden className="chev" />
+                </button>
+              ))}
             </div>
-            {providers.map((provider) => (
-              <button
-                key={provider.provider_config_id}
-                className="btn-secondary login-sso-btn"
-                type="button"
-                onClick={() => handleSSOClick(provider)}
-              >
-                Continue with {provider.display_label}
-              </button>
-            ))}
-          </div>
+          </>
         ) : null}
-      </div>
+      </section>
     </div>
   );
 }

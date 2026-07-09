@@ -6,15 +6,22 @@
 // credential (see go/internal/query/setup_handler.go's doc comment) — the
 // wizard keeps them in state across steps instead of minting its own
 // session, so there is nothing extra to steal or replay-protect client-side.
-// Reuses the same visual language as LoginPage.tsx (authFlow.css) so the
-// operator's first screen looks like the same product as the rest of the
-// console.
-import { AlertTriangle, ShieldCheck } from "lucide-react";
+//
+// Visuals match the approved auth mockup (authFlow.css): a persistent
+// stepper header, a single Back/Continue/Finish footer, and — per the
+// scoping decision below — recovery codes as the only *working* MFA
+// control. TOTP enrollment is tracked separately in #4986: the login
+// runtime (go/internal/storage/postgres/identity_local.go) only ever
+// verifies MFARecoveryCodeHash today, so rendering a scannable QR here would
+// be a dead control that looks functional but authenticates nothing. This
+// page renders zero TOTP UI.
+import { AlertTriangle, ChevronRight } from "lucide-react";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 
+import { AuthBrandMark } from "./AuthBrandMark";
 import { SetupMFAStep } from "./SetupMFAStep";
 import type { BrowserSessionResponse, EshuApiClient } from "../api/client";
-import { claimSetup, createSetupAdmin } from "../api/setupSession";
+import { claimSetup, completeSetupMFA, createSetupAdmin } from "../api/setupSession";
 import "./authFlow.css";
 
 export interface SetupPageProps {
@@ -27,10 +34,10 @@ export interface SetupPageProps {
 
 type SetupStep = "claim" | "admin" | "mfa";
 
-const STEPS: ReadonlyArray<{ id: SetupStep; label: string }> = [
-  { id: "claim", label: "Claim" },
-  { id: "admin", label: "Administrator" },
-  { id: "mfa", label: "Recovery codes" },
+const STEPS: ReadonlyArray<{ id: SetupStep; k: string; t: string }> = [
+  { id: "claim", k: "Step 1", t: "Claim" },
+  { id: "admin", k: "Step 2", t: "Create admin" },
+  { id: "mfa", k: "Step 3", t: "Secure" },
 ];
 
 export function SetupPage({ client, onSuccess }: SetupPageProps): React.JSX.Element {
@@ -41,11 +48,12 @@ export function SetupPage({ client, onSuccess }: SetupPageProps): React.JSX.Elem
   const [confirmPassword, setConfirmPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [codes, setCodes] = useState<readonly string[] | null>(null);
+  const [session, setSession] = useState<BrowserSessionResponse | null>(null);
+  const [saved, setSaved] = useState(false);
+  const mfaRequested = useRef(false);
   const headingRef = useRef<HTMLHeadingElement>(null);
 
-  // Move focus to the new step's heading on every transition so screen-reader
-  // and keyboard users get an explicit landmark instead of losing focus into
-  // the removed step's DOM.
   useEffect(() => {
     headingRef.current?.focus();
   }, [step]);
@@ -97,164 +105,326 @@ export function SetupPage({ client, onSuccess }: SetupPageProps): React.JSX.Elem
     }
   }
 
+  // Entering step 3 immediately requests the recovery codes: arriving here
+  // already required explicit operator intent (Continue from step 2), and
+  // the codes must exist before the operator can be asked to confirm they
+  // saved them. Guarded by mfaRequested so React StrictMode's double-invoke
+  // (or a re-render) cannot double-submit this mutating, wizard-sealing call.
+  useEffect(() => {
+    if (step !== "mfa" || mfaRequested.current) return;
+    mfaRequested.current = true;
+    setSubmitting(true);
+    setErrorMsg(null);
+    void completeSetupMFA(client, { username: username.trim(), password }).then((result) => {
+      setSubmitting(false);
+      switch (result.status) {
+        case "completed":
+          setCodes(result.recoveryCodes);
+          setSession(result.session);
+          break;
+        case "invalid":
+          setErrorMsg(WRONG_CREDENTIAL_MESSAGE);
+          break;
+        case "gone":
+          setErrorMsg(SETUP_UNAVAILABLE_MESSAGE);
+          break;
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step]);
+
+  function handleFinish(): void {
+    if (!saved || !session) return;
+    onSuccess(session);
+  }
+
   const stepIndex = STEPS.findIndex((s) => s.id === step);
+  const backDisabled = step === "claim" || step === "mfa";
+  const finishDisabled = !saved || codes === null;
 
   return (
     <div className="login-page">
-      <div className="login-card setup-card">
-        <div className="login-brand">
-          <span className="brand-mark brand-glyph" aria-hidden>
-            <i />
-            <i />
-            <i />
-          </span>
-          <span>
-            <span className="brand-name">
-              e<b>shu</b>
-            </span>
-            <span className="brand-sub">Context Graph</span>
-          </span>
-        </div>
+      <div className="auth-brand">
+        <AuthBrandMark size={38} />
+        <span className="auth-brand-name">
+          e<b>shu</b>
+        </span>
+      </div>
 
-        <ol className="setup-stepper" aria-label="Setup progress">
+      <section className="login-card setup-card" aria-label="First-run setup">
+        <ol className="stepper" aria-label="Setup progress">
           {STEPS.map((s, i) => (
             <li
               key={s.id}
-              className="setup-step"
-              data-state={i < stepIndex ? "done" : i === stepIndex ? "current" : "upcoming"}
+              style={{ display: "contents" }}
               aria-current={i === stepIndex ? "step" : undefined}
             >
-              <span className="setup-step-dot" aria-hidden>
-                {i + 1}
-              </span>
-              {s.label}
+              {i > 0 ? (
+                <span className={`step-line${i <= stepIndex ? " fill" : ""}`} aria-hidden />
+              ) : null}
+              <div
+                className="step"
+                data-state={i < stepIndex ? "done" : i === stepIndex ? "active" : "upcoming"}
+              >
+                <span className="step-dot" aria-hidden>
+                  {i < stepIndex ? <ChevronRight size={15} /> : i + 1}
+                </span>
+                <span className="step-txt">
+                  <span className="step-k">{s.k}</span>
+                  <span className="step-t">{s.t}</span>
+                </span>
+              </div>
             </li>
           ))}
         </ol>
 
-        {errorMsg !== null ? (
-          <div className="login-error" role="alert" aria-live="assertive">
-            <AlertTriangle aria-hidden size={15} />
-            <span>{errorMsg}</span>
+        <div className="card-body">
+          {errorMsg !== null ? (
+            <div className="alert alert-err" role="alert" aria-live="assertive">
+              <AlertTriangle aria-hidden />
+              <span>{errorMsg}</span>
+            </div>
+          ) : null}
+
+          {step === "claim" ? (
+            <div className="stage">
+              <div className="card-head">
+                <h2 ref={headingRef} tabIndex={-1}>
+                  Claim this instance
+                </h2>
+                <p>
+                  This Eshu instance hasn&apos;t been set up yet. Enter the one-time admin
+                  credential to prove you own the deployment.
+                </p>
+              </div>
+              <form
+                id="claim-form"
+                onSubmit={(e) => {
+                  void handleClaimSubmit(e);
+                }}
+              >
+                <div className="field">
+                  <label htmlFor="setup-username">Username</label>
+                  <div className="input-shell">
+                    <input
+                      id="setup-username"
+                      type="text"
+                      autoComplete="username"
+                      value={username}
+                      disabled={submitting}
+                      onChange={(e) => setUsername(e.target.value)}
+                      required
+                    />
+                  </div>
+                </div>
+                <div className="field">
+                  <label htmlFor="setup-password">One-time password</label>
+                  <div className="input-shell mono">
+                    <input
+                      id="setup-password"
+                      type="password"
+                      autoComplete="current-password"
+                      value={password}
+                      disabled={submitting}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required
+                    />
+                  </div>
+                </div>
+              </form>
+              <div className="note">
+                <AlertTriangle aria-hidden />
+                <span>
+                  Retrieve this value on the host where Eshu is running:{" "}
+                  <code>eshu admin initial-credential</code>. It&apos;s printed once at first boot
+                  and rotates after a successful claim.
+                </span>
+              </div>
+            </div>
+          ) : null}
+
+          {step === "admin" ? (
+            <AdminStage
+              submitting={submitting}
+              username={username}
+              newPassword={newPassword}
+              confirmPassword={confirmPassword}
+              onNewPasswordChange={setNewPassword}
+              onConfirmPasswordChange={setConfirmPassword}
+              onSubmit={handleAdminSubmit}
+              headingRef={headingRef}
+            />
+          ) : null}
+
+          {step === "mfa" ? (
+            <SetupMFAStep
+              codes={codes}
+              saved={saved}
+              onSavedChange={setSaved}
+              headingRef={headingRef}
+            />
+          ) : null}
+        </div>
+
+        <div className="card-foot">
+          <span className="step-count">
+            Step {stepIndex + 1} of {STEPS.length}
+          </span>
+          <div className="foot-btns">
+            <button
+              type="button"
+              className="btn-ghost"
+              disabled={backDisabled || submitting}
+              onClick={() => setStep("claim")}
+            >
+              Back
+            </button>
+            {step !== "mfa" ? (
+              <button
+                type="submit"
+                form={step === "claim" ? "claim-form" : "admin-form"}
+                className="btn-primary"
+                disabled={submitting}
+                data-loading={submitting ? "true" : undefined}
+              >
+                <span className="spin" aria-hidden />
+                <span className="btn-label">Continue</span>
+                <ChevronRight aria-hidden size={16} />
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="btn-primary"
+                disabled={finishDisabled}
+                onClick={handleFinish}
+              >
+                Finish setup
+              </button>
+            )}
           </div>
-        ) : null}
+        </div>
+      </section>
+    </div>
+  );
+}
 
-        {step === "claim" ? (
-          <>
-            <h1 className="login-title" ref={headingRef} tabIndex={-1}>
-              Claim this instance
-            </h1>
-            <p className="login-subtitle">
-              Enter the one-time administrator credential printed to the server log at first start,
-              or retrieved with <code className="mono">eshu admin initial-credential</code>.
-            </p>
-            <form
-              className="login-form"
-              onSubmit={(e) => {
-                void handleClaimSubmit(e);
-              }}
-            >
-              <div className="login-field">
-                <label htmlFor="setup-username">Username</label>
-                <input
-                  id="setup-username"
-                  type="text"
-                  autoComplete="username"
-                  value={username}
-                  disabled={submitting}
-                  onChange={(e) => setUsername(e.target.value)}
-                  required
-                />
-              </div>
-              <div className="login-field">
-                <label htmlFor="setup-password">One-time password</label>
-                <input
-                  id="setup-password"
-                  type="password"
-                  autoComplete="current-password"
-                  value={password}
-                  disabled={submitting}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                />
-              </div>
-              <button className="btn-primary login-submit" type="submit" disabled={submitting}>
-                {submitting ? "Verifying…" : "Continue"}
-              </button>
-            </form>
-          </>
-        ) : null}
+interface AdminStageProps {
+  readonly submitting: boolean;
+  readonly username: string;
+  readonly newPassword: string;
+  readonly confirmPassword: string;
+  readonly onNewPasswordChange: (value: string) => void;
+  readonly onConfirmPasswordChange: (value: string) => void;
+  readonly onSubmit: (e: FormEvent<HTMLFormElement>) => void;
+  readonly headingRef: React.RefObject<HTMLHeadingElement | null>;
+}
 
-        {step === "admin" ? (
-          <>
-            <h1 className="login-title" ref={headingRef} tabIndex={-1}>
-              Create the first administrator
-            </h1>
-            <p className="login-subtitle">
-              Choose the password that replaces the one-time credential. This account owns the whole
-              instance.
-            </p>
-            <form
-              className="login-form"
-              onSubmit={(e) => {
-                void handleAdminSubmit(e);
-              }}
-            >
-              <div className="login-field">
-                <label htmlFor="setup-admin-username">Username</label>
-                <input id="setup-admin-username" type="text" value={username} readOnly />
-              </div>
-              <div className="login-field">
-                <label htmlFor="setup-new-password">New password</label>
-                <input
-                  id="setup-new-password"
-                  type="password"
-                  autoComplete="new-password"
-                  value={newPassword}
-                  disabled={submitting}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  required
+// AdminStage renders wizard step 2's form, including the password-strength
+// meter (a pure client-side heuristic — it never talks to the backend and
+// never blocks submission, matching the mockup exactly).
+function AdminStage({
+  submitting,
+  username,
+  newPassword,
+  confirmPassword,
+  onNewPasswordChange,
+  onConfirmPasswordChange,
+  onSubmit,
+  headingRef,
+}: AdminStageProps): React.JSX.Element {
+  const strength = scorePassword(newPassword);
+  return (
+    <div className="stage">
+      <div className="card-head">
+        <h2 ref={headingRef} tabIndex={-1}>
+          Create the admin account
+        </h2>
+        <p>
+          This becomes the first owner of the workspace, with full control over members, providers,
+          and data sources.
+        </p>
+      </div>
+      <form id="admin-form" onSubmit={onSubmit}>
+        <div className="field">
+          <label htmlFor="setup-admin-username">Username</label>
+          <div className="input-shell">
+            <input id="setup-admin-username" type="text" value={username} readOnly />
+          </div>
+        </div>
+        <div className="field">
+          <label htmlFor="setup-new-password">New password</label>
+          <div className="input-shell">
+            <input
+              id="setup-new-password"
+              type="password"
+              autoComplete="new-password"
+              value={newPassword}
+              disabled={submitting}
+              onChange={(e) => onNewPasswordChange(e.target.value)}
+              required
+            />
+          </div>
+          <div className="strength">
+            <div className="strength-bars">
+              {[0, 1, 2, 3].map((i) => (
+                <i
+                  key={i}
+                  style={{ background: i < strength.score ? strength.color : undefined }}
                 />
-              </div>
-              <div className="login-field">
-                <label htmlFor="setup-confirm-password">Confirm password</label>
-                <input
-                  id="setup-confirm-password"
-                  type="password"
-                  autoComplete="new-password"
-                  value={confirmPassword}
-                  disabled={submitting}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  required
-                />
-              </div>
-              <button className="btn-primary login-submit" type="submit" disabled={submitting}>
-                {submitting ? "Saving…" : "Continue"}
-              </button>
-            </form>
-          </>
-        ) : null}
-
-        {step === "mfa" ? (
-          <SetupMFAStep
-            client={client}
-            username={username}
-            password={password}
-            headingRef={headingRef}
-            onError={setErrorMsg}
-            onSuccess={onSuccess}
-          />
-        ) : null}
-
-        {step !== "mfa" ? (
-          <p className="login-subtitle" style={{ marginTop: 18, marginBottom: 0 }}>
-            <ShieldCheck aria-hidden size={13} style={{ verticalAlign: -2 }} /> This wizard is
-            unreachable once setup is complete.
-          </p>
-        ) : null}
+              ))}
+            </div>
+            <div className="strength-row">
+              <span>Use 12+ characters with a mix of cases, numbers &amp; symbols.</span>
+              <b style={{ color: strength.score ? strength.color : undefined }}>{strength.label}</b>
+            </div>
+          </div>
+        </div>
+        <div className="field">
+          <label htmlFor="setup-confirm-password">Confirm password</label>
+          <div className="input-shell">
+            <input
+              id="setup-confirm-password"
+              type="password"
+              autoComplete="new-password"
+              value={confirmPassword}
+              disabled={submitting}
+              onChange={(e) => onConfirmPasswordChange(e.target.value)}
+              required
+            />
+          </div>
+        </div>
+      </form>
+      <div className="note">
+        <ChevronRight aria-hidden />
+        <span>
+          A default tenant and workspace are auto-created and assigned to this account. You can
+          rename them later in Settings.
+        </span>
       </div>
     </div>
   );
+}
+
+interface PasswordStrength {
+  readonly score: number;
+  readonly label: string;
+  readonly color: string;
+}
+
+// scorePassword is a pure, client-side-only heuristic (never sent to the
+// backend, never blocks submission) matching the approved mockup's scoring
+// exactly: length and character-class diversity.
+function scorePassword(value: string): PasswordStrength {
+  let s = 0;
+  if (value.length >= 8) s++;
+  if (value.length >= 12) s++;
+  if (/[a-z]/.test(value) && /[A-Z]/.test(value)) s++;
+  if (/\d/.test(value)) s++;
+  if (/[^A-Za-z0-9]/.test(value)) s++;
+  const score = Math.min(4, Math.max(value ? 1 : 0, s - 1));
+  const labels = ["", "Weak", "Fair", "Good", "Strong"];
+  const colors = ["", "#f0506e", "#f5b73d", "#2dd4bf", "#2dd4bf"];
+  return { score, label: labels[score] ?? "", color: colors[score] ?? "" };
 }
 
 const WRONG_CREDENTIAL_MESSAGE =

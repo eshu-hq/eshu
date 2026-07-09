@@ -98,11 +98,24 @@ describe("SetupPage — step 2 (create administrator)", () => {
     expect(postJson).not.toHaveBeenCalled();
   });
 
-  it("advances to step 3 once the administrator password is set", async () => {
+  it("advances to step 3 and auto-requests recovery codes once the administrator password is set", async () => {
     const client = makeClient(async (path) => {
       if (path === "/api/v0/auth/setup/claim") return { status: "claimed" };
       if (path === "/api/v0/auth/setup/admin") {
         return { status: "admin_created", tenant_id: "default", workspace_id: "default" };
+      }
+      if (path === "/api/v0/auth/setup/mfa") {
+        return {
+          status: "completed",
+          recovery_codes: ["code-one", "code-two"],
+          auth: {
+            mode: "browser_session",
+            tenant_id: "default",
+            workspace_id: "default",
+            all_scopes: true,
+          },
+          csrf_token: "csrf-tok",
+        };
       }
       throw new Error(`unexpected path ${path}`);
     });
@@ -116,14 +129,14 @@ describe("SetupPage — step 2 (create administrator)", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: /continue/i }));
 
-    await waitFor(() =>
-      expect(screen.getByRole("button", { name: /generate recovery codes/i })).toBeInTheDocument(),
-    );
+    // Step 3 fires the recovery-code generation call automatically on entry
+    // (no separate "Generate" click) — the codes appear once it resolves.
+    await waitFor(() => expect(screen.getByText("code-one")).toBeInTheDocument());
   });
 });
 
 describe("SetupPage — step 3 (MFA) and completion", () => {
-  async function advanceToStep3(
+  async function advanceToStep3WithCodes(
     client: EshuApiClient,
     onSuccess: (session: BrowserSessionResponse) => void,
   ): Promise<void> {
@@ -141,12 +154,10 @@ describe("SetupPage — step 3 (MFA) and completion", () => {
       target: { value: "a-strong-password" },
     });
     fireEvent.click(screen.getByRole("button", { name: /continue/i }));
-    await waitFor(() =>
-      expect(screen.getByRole("button", { name: /generate recovery codes/i })).toBeInTheDocument(),
-    );
+    await waitFor(() => expect(screen.getByText("code-one")).toBeInTheDocument());
   }
 
-  it("shows recovery codes and gates Finish behind the saved-confirmation checkbox", async () => {
+  it("gates Finish behind the saved-confirmation checkbox and never renders TOTP UI", async () => {
     const onSuccess = vi.fn<(session: BrowserSessionResponse) => void>();
     const client = makeClient(async (path) => {
       if (path === "/api/v0/auth/setup/claim") return { status: "claimed" };
@@ -168,11 +179,13 @@ describe("SetupPage — step 3 (MFA) and completion", () => {
       }
       throw new Error(`unexpected path ${path}`);
     });
-    await advanceToStep3(client, onSuccess);
+    await advanceToStep3WithCodes(client, onSuccess);
 
-    fireEvent.click(screen.getByRole("button", { name: /generate recovery codes/i }));
-    await waitFor(() => expect(screen.getByText("code-one")).toBeInTheDocument());
     expect(screen.getByText("code-two")).toBeInTheDocument();
+    // TOTP is not shipped as a working control (#4986) — no QR, secret, or
+    // one-time-code input may render anywhere in the wizard.
+    expect(screen.queryByRole("img", { name: /qr/i })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/authenticator|totp|6-digit/i)).not.toBeInTheDocument();
 
     const finishButton = screen.getByRole("button", { name: /finish setup/i });
     expect(finishButton).toBeDisabled();
@@ -185,5 +198,32 @@ describe("SetupPage — step 3 (MFA) and completion", () => {
     expect(onSuccess).toHaveBeenCalledTimes(1);
     const [session] = onSuccess.mock.calls[0];
     expect(session.auth.tenant_id).toBe("default");
+  });
+
+  it("shows the CLI recovery pointer when the mfa call rejects the reproved credential", async () => {
+    const client = makeClient(async (path) => {
+      if (path === "/api/v0/auth/setup/claim") return { status: "claimed" };
+      if (path === "/api/v0/auth/setup/admin") {
+        return { status: "admin_created", tenant_id: "default", workspace_id: "default" };
+      }
+      if (path === "/api/v0/auth/setup/mfa") throw new EshuApiHttpError(401);
+      throw new Error(`unexpected path ${path}`);
+    });
+    renderSetup(client);
+    fireEvent.change(screen.getByLabelText(/username/i), { target: { value: "admin" } });
+    fireEvent.change(screen.getByLabelText(/one-time password/i), {
+      target: { value: "generated-pw" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /continue/i }));
+    await waitFor(() => expect(screen.getByLabelText(/new password/i)).toBeInTheDocument());
+    fireEvent.change(screen.getByLabelText(/^new password/i), {
+      target: { value: "a-strong-password" },
+    });
+    fireEvent.change(screen.getByLabelText(/confirm password/i), {
+      target: { value: "a-strong-password" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /continue/i }));
+
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent(/initial-credential/i));
   });
 });

@@ -61,7 +61,7 @@ describe("LoginPage", () => {
   it("renders the login form with login and password fields", () => {
     renderLogin(makeClient());
     expect(screen.getByLabelText(/login/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/password/i)).toBeInTheDocument();
+    expect(screen.getByLabelText("Password")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /sign in/i })).toBeInTheDocument();
   });
 
@@ -69,7 +69,7 @@ describe("LoginPage", () => {
     renderLogin(makeClient());
     expect(screen.queryByPlaceholderText(/api credential/i)).not.toBeInTheDocument();
     expect(screen.queryByPlaceholderText(/api key/i)).not.toBeInTheDocument();
-    const passwordInput = screen.getByLabelText(/password/i);
+    const passwordInput = screen.getByLabelText("Password");
     expect((passwordInput as HTMLInputElement).type).toBe("password");
   });
 
@@ -87,7 +87,7 @@ describe("LoginPage", () => {
     fireEvent.change(screen.getByLabelText(/login/i), {
       target: { value: "admin@example.com" },
     });
-    fireEvent.change(screen.getByLabelText(/password/i), {
+    fireEvent.change(screen.getByLabelText("Password"), {
       target: { value: "hunter2" },
     });
     fireEvent.click(screen.getByRole("button", { name: /sign in/i }));
@@ -111,7 +111,7 @@ describe("LoginPage", () => {
     renderLogin(client);
 
     fireEvent.change(screen.getByLabelText(/login/i), { target: { value: "u" } });
-    fireEvent.change(screen.getByLabelText(/password/i), { target: { value: "wrong" } });
+    fireEvent.change(screen.getByLabelText("Password"), { target: { value: "wrong" } });
     fireEvent.click(screen.getByRole("button", { name: /sign in/i }));
 
     const alert = await screen.findByRole("alert");
@@ -128,7 +128,7 @@ describe("LoginPage", () => {
     renderLogin(client);
 
     fireEvent.change(screen.getByLabelText(/login/i), { target: { value: "u" } });
-    fireEvent.change(screen.getByLabelText(/password/i), { target: { value: "p" } });
+    fireEvent.change(screen.getByLabelText("Password"), { target: { value: "p" } });
     fireEvent.click(screen.getByRole("button", { name: /sign in/i }));
 
     const alert = await screen.findByRole("alert");
@@ -144,7 +144,7 @@ describe("LoginPage", () => {
     renderLogin(client);
 
     fireEvent.change(screen.getByLabelText(/login/i), { target: { value: "u" } });
-    fireEvent.change(screen.getByLabelText(/password/i), { target: { value: "p" } });
+    fireEvent.change(screen.getByLabelText("Password"), { target: { value: "p" } });
     fireEvent.click(screen.getByRole("button", { name: /sign in/i }));
 
     const alert = await screen.findByRole("alert");
@@ -163,7 +163,7 @@ describe("LoginPage", () => {
     renderLogin(client);
 
     fireEvent.change(screen.getByLabelText(/login/i), { target: { value: "u" } });
-    fireEvent.change(screen.getByLabelText(/password/i), { target: { value: "p" } });
+    fireEvent.change(screen.getByLabelText("Password"), { target: { value: "p" } });
     fireEvent.click(screen.getByRole("button", { name: /sign in/i }));
 
     // Recovery-code field must appear (mfa phase).
@@ -181,7 +181,7 @@ describe("LoginPage", () => {
     renderLogin(client, onSuccess);
 
     fireEvent.change(screen.getByLabelText(/login/i), { target: { value: "u@x.com" } });
-    fireEvent.change(screen.getByLabelText(/password/i), { target: { value: "pass" } });
+    fireEvent.change(screen.getByLabelText("Password"), { target: { value: "pass" } });
     fireEvent.click(screen.getByRole("button", { name: /sign in/i }));
 
     const mfaInput = await screen.findByLabelText(/recovery code/i);
@@ -258,7 +258,7 @@ describe("LoginPage", () => {
     renderLogin(client);
 
     fireEvent.change(screen.getByLabelText(/login/i), { target: { value: "u" } });
-    fireEvent.change(screen.getByLabelText(/password/i), { target: { value: "p" } });
+    fireEvent.change(screen.getByLabelText("Password"), { target: { value: "p" } });
     fireEvent.click(screen.getByRole("button", { name: /^sign in$/i }));
 
     const submittingBtn = await screen.findByRole("button", { name: /signing in/i });
