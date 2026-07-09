@@ -246,13 +246,13 @@ func TestRevertProviderConfigRestoresPriorRevisionSecret(t *testing.T) {
 	}
 }
 
-// TestConcurrentUpdateAndRevertSerializeToOneActiveRevision runs Update and
+// TestProviderConfigConcurrentUpdateAndRevertSerializeToOneActiveRevision runs Update and
 // Revert concurrently against the same provider config under -race, proving
 // this package's transaction logic (not just the SQL shape) leaves exactly
 // one active revision and every revision's sealed_secret intact. The fake
 // DB's Begin/Commit mutex stands in for Postgres's FOR UPDATE row lock on
 // this single conflict domain (one identity_provider_configs row).
-func TestConcurrentUpdateAndRevertSerializeToOneActiveRevision(t *testing.T) {
+func TestProviderConfigConcurrentUpdateAndRevertSerializeToOneActiveRevision(t *testing.T) {
 	db := newProviderConfigFakeDB()
 	store := NewIdentitySubjectStore(db)
 	store.SetProviderSecretKeyring(testKeyring(t))
@@ -328,4 +328,4 @@ func TestConcurrentUpdateAndRevertSerializeToOneActiveRevision(t *testing.T) {
 // compare-and-swap tests (TestEnableProviderConfigRequiresExpectedRevision,
 // TestEnableProviderConfigSucceedsWhenRevisionMatches,
 // TestEnableProviderConfigFailsWhenRevisionChanged,
-// TestConcurrentUpdateDuringEnableRejectsStaleRevision).
+// TestProviderConfigConcurrentUpdateDuringEnableRejectsStaleRevision).

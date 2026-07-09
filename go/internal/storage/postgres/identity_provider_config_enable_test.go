@@ -111,7 +111,7 @@ func TestEnableProviderConfigFailsWhenRevisionChanged(t *testing.T) {
 	}
 }
 
-// TestConcurrentUpdateDuringEnableRejectsStaleRevision runs Update and Enable
+// TestProviderConfigConcurrentUpdateDuringEnableRejectsStaleRevision runs Update and Enable
 // concurrently against the same provider config under -race, proving the
 // row-locked compare-and-swap in EnableProviderConfig, combined with
 // activateProviderConfigActiveRevisionQuery's unconditional status='draft'
@@ -132,7 +132,7 @@ func TestEnableProviderConfigFailsWhenRevisionChanged(t *testing.T) {
 // provider config is NEVER observed active with a revision other than rev_1
 // (rev_2 is never tested in this test), and exactly one revision is ever
 // marked active in the revisions table.
-func TestConcurrentUpdateDuringEnableRejectsStaleRevision(t *testing.T) {
+func TestProviderConfigConcurrentUpdateDuringEnableRejectsStaleRevision(t *testing.T) {
 	db := newProviderConfigFakeDB()
 	store := NewIdentitySubjectStore(db)
 	store.SetProviderSecretKeyring(testKeyring(t))

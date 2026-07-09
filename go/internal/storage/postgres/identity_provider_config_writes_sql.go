@@ -70,7 +70,7 @@ INSERT INTO identity_provider_config_revisions (
 // status='active' pointed at a revision nothing ever tested — the same
 // invariant EnableProviderConfig's compare-and-swap protects, closed from the
 // other direction (a real bug this package's own concurrency test caught:
-// TestConcurrentUpdateDuringEnableRejectsStaleRevision). For
+// TestProviderConfigConcurrentUpdateDuringEnableRejectsStaleRevision). For
 // CreateProviderConfig this is a no-op — status is already 'draft' from the
 // INSERT moments earlier in the same transaction.
 const activateProviderConfigActiveRevisionQuery = `
