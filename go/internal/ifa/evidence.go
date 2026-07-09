@@ -66,10 +66,20 @@ func EvidenceSatisfies(rc goldengate.RequiredCorrelation, ev []relationships.Evi
 		return false, fmt.Sprintf("required correlation %s has no evidence_kinds filter; Ifá only proves evidence-narrowed correlations", rc.ID)
 	}
 
+	required := map[string]struct{}{}
+	for _, kind := range rc.EvidenceKinds {
+		required[kind] = struct{}{}
+	}
+
 	observed := map[relationships.EvidenceKind]struct{}{}
+	var matching int64
 	for _, e := range ev {
-		if string(e.RelationshipType) == rc.Relationship {
-			observed[e.EvidenceKind] = struct{}{}
+		if string(e.RelationshipType) != rc.Relationship {
+			continue
+		}
+		observed[e.EvidenceKind] = struct{}{}
+		if _, ok := required[string(e.EvidenceKind)]; ok {
+			matching++
 		}
 	}
 
@@ -85,7 +95,26 @@ func EvidenceSatisfies(rc goldengate.RequiredCorrelation, ev []relationships.Evi
 			rc.Relationship, strings.Join(missing, ", "), strings.Join(observedEvidenceKinds(observed), ", "),
 		)
 	}
-	return true, fmt.Sprintf("relationship %s carries required evidence kind(s) %v", rc.Relationship, rc.EvidenceKinds)
+
+	// Mirror the B-12 gate's existence semantics (goldengate.EvaluateRequired
+	// Correlation): at least MinimumCount narrowed edges must exist, so require
+	// at least that many matching evidence facts. Otherwise a min-counted
+	// correlation (e.g. rc-35, minimum_count 8) would be marked covered by a
+	// single matching fact while the golden-corpus gate still fails.
+	want := rc.MinimumCount
+	if want < 1 {
+		want = 1
+	}
+	if matching < want {
+		return false, fmt.Sprintf(
+			"relationship %s carries required evidence kind(s) %v but only %d matching evidence fact(s), want >= %d",
+			rc.Relationship, rc.EvidenceKinds, matching, want,
+		)
+	}
+	return true, fmt.Sprintf(
+		"relationship %s carries required evidence kind(s) %v across %d matching evidence fact(s) (>= %d)",
+		rc.Relationship, rc.EvidenceKinds, matching, want,
+	)
 }
 
 func observedEvidenceKinds(observed map[relationships.EvidenceKind]struct{}) []string {

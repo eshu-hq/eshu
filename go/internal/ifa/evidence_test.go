@@ -124,6 +124,37 @@ func TestEvidenceSatisfiesArgoCDFailsWithMissingKindDetail(t *testing.T) {
 	}
 }
 
+// TestEvidenceSatisfiesEnforcesMinimumCount proves EvidenceSatisfies honors
+// RequiredCorrelation.MinimumCount: a correlation like rc-35 (minimum_count 8)
+// must not be marked satisfied by a single matching evidence fact, mirroring
+// the B-12 gate's existence count (reviewer #4972).
+func TestEvidenceSatisfiesEnforcesMinimumCount(t *testing.T) {
+	t.Parallel()
+
+	rc := goldengate.RequiredCorrelation{
+		ID:            "rc-min",
+		Relationship:  "DEPLOYS_FROM",
+		FromLabel:     "Repository",
+		ToLabel:       "Repository",
+		MinimumCount:  2,
+		EvidenceKinds: []string{"KUSTOMIZE_RESOURCE_REFERENCE"},
+	}
+	fact := relationships.EvidenceFact{
+		EvidenceKind:     "KUSTOMIZE_RESOURCE_REFERENCE",
+		RelationshipType: "DEPLOYS_FROM",
+	}
+
+	if ok, detail := EvidenceSatisfies(rc, []relationships.EvidenceFact{fact}); ok {
+		t.Errorf("EvidenceSatisfies with 1 fact vs minimum_count 2 = true, want false; detail=%q", detail)
+	} else if !strings.Contains(detail, "want >= 2") {
+		t.Errorf("detail = %q, want it to name the required count", detail)
+	}
+
+	if ok, detail := EvidenceSatisfies(rc, []relationships.EvidenceFact{fact, fact}); !ok {
+		t.Errorf("EvidenceSatisfies with 2 facts vs minimum_count 2 = false, want true; detail=%q", detail)
+	}
+}
+
 func hasEvidence(ev []relationships.EvidenceFact, kind relationships.EvidenceKind, rel relationships.RelationshipType) bool {
 	for _, e := range ev {
 		if e.EvidenceKind == kind && e.RelationshipType == rel {
