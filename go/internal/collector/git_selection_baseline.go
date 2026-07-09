@@ -21,6 +21,9 @@ import (
 // managed checkout and updates it. A baseline lookup failure is logged and
 // treated as an absent baseline, so the sync falls back to a correct full
 // snapshot rather than trusting the local working-copy HEAD as a delta base.
+// When the returned bool is true, the returned string is the remote HEAD SHA
+// resolved during this sync (empty otherwise), carried up so the snapshot can
+// skip a redundant `git rev-parse HEAD` (#4880).
 func syncExistingRepository(
 	ctx context.Context,
 	config RepoSyncConfig,
