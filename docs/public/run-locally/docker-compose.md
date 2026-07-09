@@ -607,9 +607,23 @@ until an operator or test claims the sealed one-time bootstrap credential (see
 | `ESHU_E2E_MOCK_OIDC_GROUPS` | `member` | Comma-separated group claim values for the synthetic identity. |
 
 This foundation does not yet configure a DB-backed OIDC provider config
-pointing Eshu at the mock IdP, drive a browser through the login flow, or run
-in CI — see `go/cmd/mock-oidc-idp/README.md` for the mock IdP's endpoint
-contract and issue #4971 for the remaining phases.
+pointing Eshu at the mock IdP or run in CI — see
+`go/cmd/mock-oidc-idp/README.md` for the mock IdP's endpoint contract and
+issue #4971 for the remaining phases.
+
+Phase 2 adds a browser-auth runner that drives this stack end to end for the
+non-OIDC acceptance items: `npm run console:e2e:auth`
+(`apps/console/e2e/runAuthE2E.ts`, wrapped by `scripts/run-auth-e2e.sh`,
+documented in `apps/console/README.md#browser-auth-e2e-gate`). It proves the
+first-run setup wizard and bootstrap-credential consumption end to end. Its
+`require_sso` guardrail-rejection assertion currently fails: it uncovered a
+pre-existing gap where `GET`/`PATCH /api/v0/auth/admin/sign-in-policy` are
+missing from `go/internal/query/auth_scoped_routes.go`'s browser-session
+route allowlist, so a real admin's browser-session cookie gets 403 before the
+guardrail logic in `sign_in_policy_mutations.go` ever runs — tracked as a
+follow-up fix, not a phase-3 item. This runner does not yet drive a browser
+through the OIDC login flow itself — that needs the mock IdP reachable from
+both the API container and the host browser, which is issue #4971 phase 3.
 
 ## Point CLI Commands At Compose
 

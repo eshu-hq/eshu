@@ -181,6 +181,43 @@ the environment (the wrapper sources `e2e-artifacts/.env.console-e2e`); the key
 is never hard-coded. Artifacts in `e2e-artifacts/` are local proof only and are
 gitignored — never commit screenshots, traces, or the local key.
 
+## Browser-Auth E2E Gate
+
+`npm run console:e2e:auth` is a separate browser gate from the one above: it
+proves the FIRST-RUN auth flow itself (issue #4971 phase 2, epic #4962
+closer) — the setup wizard, session-cookie login, and the `require_sso`
+guardrail — rather than route rendering against an already-provisioned
+corpus stack. It authenticates through a real browser session, never an API
+key, because that is the only way to exercise the flow under test.
+
+Unlike `console:e2e`, this gate owns its own Compose stack lifecycle end to
+end (`scripts/run-auth-e2e.sh`): it always brings up a fresh
+`docker-compose.e2e.yaml` stack (isolated Compose project
+`eshu-e2e-auth` by default, so it never touches a developer's own
+manually-started `eshu-e2e` stack) and always tears it down with `down -v`,
+because the acceptance items only mean something starting from zero local
+identities — reusing a long-lived stack could mask a real "dead-end login
+form" regression behind a leftover admin session. Set
+`ESHU_KEEP_COMPOSE_STACK=true` to skip teardown for debugging.
+
+The runner (`e2e/runAuthE2E.ts`) reuses the same console-reachability
+approach as `runConsoleLiveE2E.ts`: the host Vite dev server, proxying
+`/eshu-api` to the stack's host-mapped API port via `ESHU_DEV_PROXY_TARGET`.
+See that file's header comment for the full acceptance-item breakdown and
+for the phase-3 TODO markers (OIDC provider add/test/enable, non-admin SSO
+gating and `/admin` 403, and the negative-secret-leakage scan are out of
+scope here).
+
+As of this writing the `item5_guardrail_rejects_premature_enable` step fails
+by design — it caught a real, pre-existing gap (missing scoped-route
+allowlist entries for the sign-in-policy admin routes; see that file's header
+comment) rather than a runner bug. Do not "fix" that step to tolerate the
+403; fix the allowlist instead.
+
+```bash
+npm run console:e2e:auth
+```
+
 ## API Contract
 
 The console treats `application/eshu.envelope+json` as the canonical response

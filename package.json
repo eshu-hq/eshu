@@ -17,6 +17,7 @@
     "console:bundle-report": "node scripts/console-bundle-report.mjs",
     "console:a11y": "npx tsx apps/console/e2e/a11yAudit.ts --gate",
     "console:e2e": "bash scripts/run-console-live-e2e.sh",
+    "console:e2e:auth": "bash scripts/run-auth-e2e.sh",
     "console:e2e:mock": "npx tsx apps/console/e2e/runPerPageE2E.ts",
     "console:e2e:typecheck": "tsc -p apps/console/e2e/tsconfig.json",
     "typecheck": "tsc -b",
