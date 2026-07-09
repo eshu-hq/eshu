@@ -9,7 +9,7 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, it, expect, vi } from "vitest";
 
-import type { EshuApiClient } from "./api/client";
+import type { BrowserSessionAuth, EshuApiClient } from "./api/client";
 import { AppRoutes } from "./appRoutes";
 import { demoModel } from "./console/demoModel";
 
@@ -53,5 +53,66 @@ describe("AppRoutes /admin baseUrl wiring", () => {
     // empty default.
     const redirectInput = (await screen.findByLabelText("OIDC redirect URI")) as HTMLInputElement;
     expect(redirectInput.value).toBe("https://custom-eshu.example.test/api/v0/auth/oidc/callback");
+  });
+});
+
+describe("AppRoutes /admin capability gating (#4969)", () => {
+  function makeAuth(overrides: Partial<BrowserSessionAuth> = {}): BrowserSessionAuth {
+    return {
+      mode: "browser_session",
+      all_scopes: false,
+      permission_catalog_enforced: true,
+      ...overrides,
+    };
+  }
+
+  function renderAdmin(auth: BrowserSessionAuth | null | undefined): void {
+    const client = {
+      getJson: vi.fn(async () => ({})),
+    } as unknown as EshuApiClient;
+    render(
+      <MemoryRouter initialEntries={["/admin"]}>
+        <AppRoutes
+          model={demoModel}
+          client={client}
+          source={{ base: "", key: "", mode: "private", status: "connected", msg: "" }}
+          repositories={[]}
+          onOpenService={vi.fn()}
+          auth={auth}
+        />
+      </MemoryRouter>,
+    );
+  }
+
+  it("shows the 403 access screen for a non-admin session under an enforced catalog", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    renderAdmin(makeAuth({ allowed_permission_features: ["ask_search"] }));
+    expect(
+      screen.getByRole("heading", { name: "You don't have access to this area" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { level: 1, name: "Admin" })).not.toBeInTheDocument();
+    warnSpy.mockRestore();
+  });
+
+  it("renders only the Tokens panel for a partial `tokens`-only grant", async () => {
+    renderAdmin(makeAuth({ allowed_permission_features: ["tokens"] }));
+    expect(screen.getByRole("heading", { level: 1, name: "Admin" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("API tokens")).toBeInTheDocument());
+    expect(screen.queryByText("Invitations")).not.toBeInTheDocument();
+    expect(screen.queryByText("Audit")).not.toBeInTheDocument();
+  });
+
+  it("shows the full Admin area unchanged for an all_scopes session", async () => {
+    renderAdmin(makeAuth({ all_scopes: true }));
+    expect(screen.getByRole("heading", { level: 1, name: "Admin" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Invitations")).toBeInTheDocument());
+    expect(screen.getByText("API tokens")).toBeInTheDocument();
+    expect(screen.getByText("Audit")).toBeInTheDocument();
+  });
+
+  it("fails open (renders Admin) when the server does not report catalog enforcement", async () => {
+    renderAdmin(makeAuth({ permission_catalog_enforced: false, allowed_permission_features: [] }));
+    expect(screen.getByRole("heading", { level: 1, name: "Admin" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Invitations")).toBeInTheDocument());
   });
 });

@@ -3,9 +3,10 @@
 import { lazy, Suspense } from "react";
 import { Route, Routes } from "react-router-dom";
 
-import type { EshuApiClient } from "./api/client";
+import type { BrowserSessionAuth, EshuApiClient } from "./api/client";
 import { demoDefaults } from "./api/demoClient";
 import type { RepoListItem } from "./api/repoCatalog";
+import { AdminRouteGuard } from "./auth/AdminRouteGuard";
 import type { SourceState } from "./components/SourceControls";
 import type { ConsoleModel } from "./console/types";
 import { AdminPage } from "./pages/AdminPage";
@@ -59,6 +60,10 @@ export interface AppRoutesProps {
   readonly source: SourceState;
   readonly repositories: readonly RepoListItem[];
   readonly onOpenService: (name: string) => void;
+  // auth gates /admin (issue #4969): the route guard and AdminPage's
+  // per-panel gating both derive from this session auth. Undefined in tests
+  // that don't exercise gating — fails open, matching capabilityAccess.ts.
+  readonly auth?: BrowserSessionAuth | null;
 }
 
 // AppRoutes renders the full route table for the connected console shell.
@@ -68,6 +73,7 @@ export function AppRoutes({
   client,
   source,
   repositories,
+  auth,
   onOpenService,
 }: AppRoutesProps): React.JSX.Element {
   const sourceLabel = source.mode === "demo" ? "demo fixtures" : "live";
@@ -203,7 +209,14 @@ export function AppRoutes({
       <Route path="/operations" element={<OperationsPage model={model} />} />
       <Route path="/freshness-causality" element={<FreshnessCausalityPage client={client} />} />
       <Route path="/profile" element={<ProfilePage client={client} />} />
-      <Route path="/admin" element={<AdminPage client={client} baseUrl={source.base} />} />
+      <Route
+        path="/admin"
+        element={
+          <AdminRouteGuard auth={auth}>
+            <AdminPage client={client} baseUrl={source.base} auth={auth} />
+          </AdminRouteGuard>
+        }
+      />
       <Route
         path="/workspace/:entityKind/:entityId"
         element={

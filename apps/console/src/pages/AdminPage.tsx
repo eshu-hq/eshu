@@ -8,8 +8,12 @@
 // "unavailable" on a load error rather than fabricated rows.
 //
 // This page is UX only — the server enforces authorization on every request.
-// The /admin route and nav link are gated behind the identity_admin permission
-// family in auth/capabilityAccess.ts (fail-open until #3684 persists features).
+// The /admin route is gated by AdminRouteGuard (auth/AdminRouteGuard.tsx);
+// each panel below is additionally gated by its own permission family via
+// visibleAdminPanels (auth/capabilityAccess.ts) so a delegated role — e.g.
+// one holding only `tokens` — sees just its panel (issue #4969). Fail-open
+// (every panel) whenever the catalog is not enforced, preserving the
+// pre-#4969 #3703 contract.
 //
 // AdminIdentityAccessPanel (the #4967 provider-config CRUD area — the
 // heaviest addition on this page) is loaded via React.lazy/dynamic import to
@@ -18,7 +22,8 @@
 // (scripts/console-bundle-budget.mjs).
 import { lazy, Suspense } from "react";
 
-import type { EshuApiClient } from "../api/client";
+import type { BrowserSessionAuth, EshuApiClient } from "../api/client";
+import { visibleAdminPanels } from "../auth/capabilityAccess";
 import { AdminAssignmentsPanel } from "./admin/AdminAssignmentsPanel";
 import { AdminAuditPanel } from "./admin/AdminAuditPanel";
 import { AdminInvitationsPanel } from "./admin/AdminInvitationsPanel";
@@ -34,13 +39,19 @@ const AdminIdentityAccessPanel = lazy(() =>
 export function AdminPage({
   client,
   baseUrl,
+  auth,
 }: {
   readonly client?: EshuApiClient;
   // baseUrl is the Eshu API origin, used to render the read-only OIDC
   // redirect URI / SAML SP entity id + ACS URL an operator copies into their
   // IdP (#4967). Defaults to "" (relative URLs) when not supplied.
   readonly baseUrl?: string;
+  // auth drives per-panel family gating (#4969). Undefined fails open
+  // (every panel renders), matching capabilityAccess.ts's ambiguous-case
+  // policy.
+  readonly auth?: BrowserSessionAuth | null;
 }): React.JSX.Element {
+  const visible = visibleAdminPanels(auth);
   return (
     <section className="page-shell">
       <h1>Admin</h1>
@@ -49,20 +60,22 @@ export function AdminPage({
         renders metadata only and never exposes secrets.
       </p>
       <div className="panel-grid">
-        <AdminInvitationsPanel client={client} />
-        <AdminAssignmentsPanel client={client} />
-        <AdminRolesPanel client={client} />
-        <Suspense
-          fallback={
-            <section className="panel identity-access-panel">
-              <p className="empty-note">Loading Identity & Access…</p>
-            </section>
-          }
-        >
-          <AdminIdentityAccessPanel client={client} baseUrl={baseUrl} />
-        </Suspense>
-        <AdminTokensPanel client={client} />
-        <AdminAuditPanel client={client} />
+        {visible.has("invitations") ? <AdminInvitationsPanel client={client} /> : null}
+        {visible.has("assignments") ? <AdminAssignmentsPanel client={client} /> : null}
+        {visible.has("roles") ? <AdminRolesPanel client={client} /> : null}
+        {visible.has("identityAccess") ? (
+          <Suspense
+            fallback={
+              <section className="panel identity-access-panel">
+                <p className="empty-note">Loading Identity & Access…</p>
+              </section>
+            }
+          >
+            <AdminIdentityAccessPanel client={client} baseUrl={baseUrl} />
+          </Suspense>
+        ) : null}
+        {visible.has("tokens") ? <AdminTokensPanel client={client} /> : null}
+        {visible.has("audit") ? <AdminAuditPanel client={client} /> : null}
       </div>
     </section>
   );

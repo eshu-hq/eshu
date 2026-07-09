@@ -6,7 +6,16 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { describe, it, expect } from "vitest";
 
 import { AdminPage } from "./AdminPage";
-import type { EshuApiClient } from "../api/client";
+import type { BrowserSessionAuth, EshuApiClient } from "../api/client";
+
+function makeAuth(overrides: Partial<BrowserSessionAuth> = {}): BrowserSessionAuth {
+  return {
+    mode: "browser_session",
+    all_scopes: false,
+    permission_catalog_enforced: true,
+    ...overrides,
+  };
+}
 
 describe("AdminPage", () => {
   it("renders the page heading and every panel title", async () => {
@@ -45,5 +54,43 @@ describe("AdminPage", () => {
     await waitFor(() =>
       expect(screen.getAllByText(/unavailable from this source/).length).toBeGreaterThan(0),
     );
+  });
+
+  it("renders only the Tokens panel for a `tokens`-only grant (#4969 partial grant)", async () => {
+    const client = {
+      getJson: async () => ({}),
+    } as unknown as EshuApiClient;
+    render(
+      <AdminPage client={client} auth={makeAuth({ allowed_permission_features: ["tokens"] })} />,
+    );
+    await waitFor(() => expect(screen.getByText("API tokens")).toBeInTheDocument());
+    expect(screen.queryByText("Invitations")).not.toBeInTheDocument();
+    expect(screen.queryByText("Role assignments")).not.toBeInTheDocument();
+    expect(screen.queryByText("Roles & grants")).not.toBeInTheDocument();
+    expect(screen.queryByText("Identity & Access")).not.toBeInTheDocument();
+    expect(screen.queryByText("Audit")).not.toBeInTheDocument();
+  });
+
+  it("renders every panel for a full admin session (all_scopes)", async () => {
+    const client = {
+      getJson: async () => ({}),
+    } as unknown as EshuApiClient;
+    render(<AdminPage client={client} auth={makeAuth({ all_scopes: true })} />);
+    await waitFor(() => expect(screen.getByText("Invitations")).toBeInTheDocument());
+    expect(screen.getByText("Role assignments")).toBeInTheDocument();
+    expect(screen.getByText("Roles & grants")).toBeInTheDocument();
+    expect(await screen.findByText("Identity & Access")).toBeInTheDocument();
+    expect(screen.getByText("API tokens")).toBeInTheDocument();
+    expect(screen.getByText("Audit")).toBeInTheDocument();
+  });
+
+  it("renders no panels when the catalog is enforced and no admin family is granted", () => {
+    const client = {
+      getJson: async () => ({}),
+    } as unknown as EshuApiClient;
+    render(<AdminPage client={client} auth={makeAuth({ allowed_permission_features: [] })} />);
+    expect(screen.queryByText("Invitations")).not.toBeInTheDocument();
+    expect(screen.queryByText("API tokens")).not.toBeInTheDocument();
+    expect(screen.queryByText("Audit")).not.toBeInTheDocument();
   });
 });
