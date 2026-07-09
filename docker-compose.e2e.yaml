@@ -108,6 +108,12 @@ services:
   # /authorize call is a non-admin, member-mapped-group synthetic user by
   # default; override the MOCK_OIDC_* variables to test a different mapping.
   #
+  # Built from the dedicated `mock-oidc-idp` Dockerfile stage, never the
+  # product image: a no-auth, any-caller token-minting IdP must not ship
+  # inside the released Eshu image (see the Dockerfile comment above that
+  # stage). The stage's own CMD runs the binary, so no `command:` override is
+  # needed here.
+  #
   # ESHU_E2E_MOCK_OIDC_ISSUER_URL intentionally defaults to the in-network
   # service hostname, which is what Eshu (also on this network) resolves.
   # Reaching /authorize from a host-side or separately-networked browser (the
@@ -118,9 +124,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      target: mock-oidc-idp
       args:
         SOURCE_DATE_EPOCH: ${SOURCE_DATE_EPOCH:-0}
-    command: ["/usr/local/bin/eshu-mock-oidc-idp"]
     ports:
       - "${ESHU_E2E_BIND_ADDR:-127.0.0.1}:${ESHU_E2E_MOCK_OIDC_PORT:-28090}:8080"
     environment:

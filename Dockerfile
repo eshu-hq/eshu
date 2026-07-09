@@ -67,10 +67,47 @@ RUN cd go \
     && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-collector-azure-cloud ./cmd/collector-azure-cloud \
     && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-webhook-listener ./cmd/webhook-listener \
     && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-bootstrap-data-plane ./cmd/bootstrap-data-plane \
-    && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-admin-status ./cmd/admin-status \
-    && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-mock-oidc-idp ./cmd/mock-oidc-idp
+    && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-admin-status ./cmd/admin-status
 
-# Production stage
+# mock-oidc-idp: E2E-only synthetic OIDC IdP (issue #4971), built and shipped
+# as its own image, never as part of the product image below. A no-auth,
+# any-caller token-minting IdP must not ship inside the released Eshu image
+# (Trivy/auditors correctly flag auth-bypass tooling in a security product's
+# image, and a compromised orchestrator could start it inside the trust
+# boundary via an explicit `command:` override). It is built in its own stage
+# off `builder`, so /go-bin/ — and therefore the production stage's
+# `COPY --from=builder /go-bin/` below — never contains it. These two stages
+# MUST stay before "Production stage": no docker-compose*.yaml `build:` block
+# in this repo sets an explicit `target:`, so plain `docker build .` /
+# `docker compose build` resolves to whichever stage is LAST in this file: the
+# production stage must remain that last stage, with mock-oidc-idp reached
+# only via an explicit `--target mock-oidc-idp` (see docker-compose.e2e.yaml).
+FROM builder AS mock-oidc-builder
+RUN cd go \
+    && export CGO_ENABLED=1 \
+    && export GOFLAGS="-buildvcs=false" \
+    && LDFLAGS="-s -w -buildid= -extldflags '-static' -X github.com/eshu-hq/eshu/go/internal/buildinfo.Version=${ESHU_VERSION}" \
+    && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /mock-bin/eshu-mock-oidc-idp ./cmd/mock-oidc-idp
+
+FROM alpine:3.21@sha256:48b0309ca019d89d40f670aa1bc06e426dc0931948452e8491e3d65087abc07d AS mock-oidc-idp
+
+RUN apk add --no-cache curl
+
+COPY --from=mock-oidc-builder /mock-bin/ /usr/local/bin/
+
+RUN adduser -D -u 10001 mock-oidc-idp
+
+EXPOSE 8080
+
+USER mock-oidc-idp
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -fsS http://localhost:8080/.well-known/openid-configuration || exit 1
+
+CMD ["eshu-mock-oidc-idp"]
+
+# Production stage. MUST remain the last stage in this file — see the
+# mock-oidc-idp comment above.
 FROM alpine:3.21@sha256:48b0309ca019d89d40f670aa1bc06e426dc0931948452e8491e3d65087abc07d
 
 RUN apk add --no-cache git curl
