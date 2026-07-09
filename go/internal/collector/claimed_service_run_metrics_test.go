@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
+//nolint:filelength // pre-existing test file exceeding the 500-line cap
+
 package collector
 
 import (
@@ -473,7 +475,7 @@ func successSource(t *testing.T) *stubClaimedSource {
 func successCollectedGeneration(t *testing.T, now time.Time) CollectedGeneration {
 	t.Helper()
 	gen := FactsFromSlice(testScope(), testGeneration(now), testFacts(now))
-	gen.FactCount = 1
+	gen.EstimatedFactCount = 1
 	return gen
 }
 

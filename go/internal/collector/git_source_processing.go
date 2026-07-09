@@ -244,7 +244,7 @@ func (s *GitSource) snapshotOneRepository(
 
 	duration := time.Since(start).Seconds()
 	scopeKind := string(generation.Scope.ScopeKind)
-	factCount := generation.FactCount
+	factCount := generation.FactCount()
 	sizeTier := s.repoSizeTier(snapshot.FileCount)
 
 	// Record metrics. The per-repo duration carries the bounded repo_size_tier

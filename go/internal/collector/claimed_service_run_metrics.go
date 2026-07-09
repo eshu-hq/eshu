@@ -45,8 +45,10 @@ func (s ClaimedService) recordClaimRunDuration(
 
 // recordClaimFactsEmitted records the number of facts emitted in a successful
 // claimed-service run, labeled by collector_kind and source_system.
-// CollectedGeneration.FactCount is an estimated total already populated by
-// every collector at the seam; no extra scan or IO is introduced.
+// CollectedGeneration.FactCount() returns the exact streamed count here because
+// the metric is recorded only on the success path (after the Facts channel has
+// been drained), and the count is accumulated as facts stream, so no extra scan
+// or IO is introduced to obtain it.
 //
 // Only called on the success path (after commitCollected returns nil). Unchanged,
 // released, and failed runs contribute zero facts and are not counted here —
@@ -61,7 +63,7 @@ func (s ClaimedService) recordClaimFactsEmitted(
 	if s.Instruments == nil || s.Instruments.WorkflowClaimFactsEmitted == nil {
 		return
 	}
-	count := int64(collected.FactCount)
+	count := int64(collected.FactCount())
 	if count <= 0 {
 		return
 	}

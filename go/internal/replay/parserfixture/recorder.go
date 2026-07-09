@@ -80,7 +80,7 @@ type captureState struct {
 // captureGeneration drains one collected generation's fact channel and maps it
 // onto the fixture scope schema.
 func captureGeneration(e *Emitter, gen collector.CollectedGeneration) *captureState {
-	recorded := make([]Fact, 0, gen.FactCount)
+	recorded := make([]Fact, 0, gen.FactCount())
 	for env := range gen.Facts {
 		recorded = append(recorded, toFact(env))
 	}

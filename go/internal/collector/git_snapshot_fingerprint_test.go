@@ -32,7 +32,7 @@ func TestBuildCollectedGenerationDerivesStableFreshnessHintForEquivalentSnapshot
 	if got, want := collectedA.Generation.GenerationID, collectedB.Generation.GenerationID; got != want {
 		t.Fatalf("GenerationID mismatch for equivalent snapshots: got %q, want %q", got, want)
 	}
-	if got, want := collectedA.FactCount, collectedB.FactCount; got != want {
+	if got, want := collectedA.FactCount(), collectedB.FactCount(); got != want {
 		t.Fatalf("Fact count mismatch for equivalent snapshots: got %d, want %d", got, want)
 	}
 }

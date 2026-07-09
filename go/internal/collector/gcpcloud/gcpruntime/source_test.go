@@ -79,7 +79,7 @@ func fixedClock() func() time.Time {
 
 func drainFacts(t *testing.T, collected collector.CollectedGeneration) []facts.Envelope {
 	t.Helper()
-	out := make([]facts.Envelope, 0, collected.FactCount)
+	out := make([]facts.Envelope, 0, collected.FactCount())
 	for env := range collected.Facts {
 		out = append(out, env)
 	}

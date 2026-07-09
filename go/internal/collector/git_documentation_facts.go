@@ -21,101 +21,9 @@ import (
 
 const gitDocumentationSourceType = "repository_documentation"
 
-func gitDocumentationFactCount(
-	ctx context.Context,
-	repoPath string,
-	repo repositoryidentity.Metadata,
-	scopeID string,
-	generationID string,
-	observedAt time.Time,
-	snapshot RepositorySnapshot,
-) int {
-	total := 0
-	sourceEmitted := false
-	documentationPaths := documentationMetaRelativePaths(snapshot.DocumentationFileMetas)
-	if len(snapshot.ContentFileMetas) > 0 {
-		for _, meta := range snapshot.ContentFileMetas {
-			if documentationPaths[meta.RelativePath] {
-				continue
-			}
-			if !isDocumentationPathOrStructuredAPIContractCandidate(meta.RelativePath) {
-				continue
-			}
-			body, ok := readDocumentationCandidateBody(repoPath, meta.RelativePath, nil)
-			if !ok {
-				continue
-			}
-			envelopes, emitted := gitDocumentationEnvelopesForContentFile(
-				ctx,
-				repoPath,
-				repo,
-				scopeID,
-				generationID,
-				observedAt,
-				meta.RelativePath,
-				meta.Digest,
-				meta.CommitSHA,
-				body,
-				!sourceEmitted,
-			)
-			total += len(envelopes)
-			sourceEmitted = sourceEmitted || emitted
-		}
-	} else {
-		for _, fileSnapshot := range snapshot.ContentFiles {
-			if documentationPaths[fileSnapshot.RelativePath] {
-				continue
-			}
-			if !isDocumentationPathOrStructuredAPIContractCandidate(fileSnapshot.RelativePath) {
-				continue
-			}
-			envelopes, emitted := gitDocumentationEnvelopesForContentFile(
-				ctx,
-				repoPath,
-				repo,
-				scopeID,
-				generationID,
-				observedAt,
-				fileSnapshot.RelativePath,
-				fileSnapshot.Digest,
-				fileSnapshot.CommitSHA,
-				[]byte(fileSnapshot.Body),
-				!sourceEmitted,
-			)
-			total += len(envelopes)
-			sourceEmitted = sourceEmitted || emitted
-		}
-	}
-	for _, meta := range snapshot.DocumentationFileMetas {
-		if _, _, ok := gitDocumentationSourceURIAndFormat(meta.RelativePath); !ok {
-			continue
-		}
-		body, ok := readDocumentationBody(repoPath, meta.RelativePath, nil)
-		if !ok {
-			continue
-		}
-		envelopes, emitted := gitDocumentationEnvelopesForContentFile(
-			ctx,
-			repoPath,
-			repo,
-			scopeID,
-			generationID,
-			observedAt,
-			meta.RelativePath,
-			meta.Digest,
-			meta.CommitSHA,
-			body,
-			!sourceEmitted,
-		)
-		total += len(envelopes)
-		sourceEmitted = sourceEmitted || emitted
-	}
-	return total
-}
-
 func emitGitDocumentationFactsForContentFile(
 	ctx context.Context,
-	ch chan<- facts.Envelope,
+	w factStreamWriter,
 	repoPath string,
 	repo repositoryidentity.Metadata,
 	scopeID string,
@@ -141,7 +49,7 @@ func emitGitDocumentationFactsForContentFile(
 		emitSource,
 	)
 	for _, envelope := range envelopes {
-		ch <- envelope
+		w.send(envelope)
 	}
 	return sourceEmitted
 }
@@ -281,36 +189,6 @@ func readDocumentationBody(repoPath string, relativePath string, body []byte) ([
 	}
 	defer func() { _ = file.Close() }()
 	raw, err := io.ReadAll(io.LimitReader(file, int64(documentationReadLimitBytes(format)+1)))
-	if err != nil {
-		return nil, false
-	}
-	return raw, true
-}
-
-func readDocumentationCandidateBody(repoPath string, relativePath string, body []byte) ([]byte, bool) {
-	if body != nil {
-		return body, true
-	}
-	sourceURI, format, ok := gitDocumentationSourceURIAndFormat(relativePath)
-	var readLimit int
-	if ok {
-		if format.format == "xls" {
-			return nil, true
-		}
-		readLimit = documentationReadLimitBytes(format)
-	} else {
-		sourceURI, ok = documentationSourceURI(relativePath)
-		if !ok || !isPotentialStructuredAPIContractPath(sourceURI) {
-			return nil, false
-		}
-		readLimit = apiContractMaxBodyBytes
-	}
-	file, err := os.Open(filepath.Join(repoPath, filepath.FromSlash(sourceURI))) // #nosec G304 -- reads indexed repo API-contract file at a path derived from the scan target, not user-supplied input
-	if err != nil {
-		return nil, false
-	}
-	defer func() { _ = file.Close() }()
-	raw, err := io.ReadAll(io.LimitReader(file, int64(readLimit+1)))
 	if err != nil {
 		return nil, false
 	}

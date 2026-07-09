@@ -22,9 +22,9 @@ func TestDrainCollectorWithTelemetry(t *testing.T) {
 	source := &fakeSource{
 		generations: []collector.CollectedGeneration{
 			{
-				Scope:     scope.IngestionScope{ScopeID: "s1"},
-				Facts:     testFactChannel(facts.Envelope{}, facts.Envelope{}),
-				FactCount: 2,
+				Scope:              scope.IngestionScope{ScopeID: "s1"},
+				Facts:              testFactChannel(facts.Envelope{}, facts.Envelope{}),
+				EstimatedFactCount: 2,
 			},
 		},
 	}
@@ -47,7 +47,7 @@ func TestDrainCollectorCollectsDiscoveryAdvisoryReports(t *testing.T) {
 		Generation: scope.ScopeGeneration{
 			GenerationID: "generation-1",
 		},
-		FactCount: 0,
+		EstimatedFactCount: 0,
 		DiscoveryAdvisory: &collector.DiscoveryAdvisoryReport{
 			SchemaVersion: "discovery_advisory.v1",
 			Run: collector.DiscoveryAdvisoryRun{

@@ -57,8 +57,8 @@ func TestRunEnsuresGraphSchemaBeforeOpeningGraph(t *testing.T) {
 				source: &fakeSource{
 					generations: []collector.CollectedGeneration{
 						{
-							Scope:     scope.IngestionScope{ScopeID: "s1"},
-							FactCount: 0,
+							Scope:              scope.IngestionScope{ScopeID: "s1"},
+							EstimatedFactCount: 0,
 						},
 					},
 				},

@@ -17,7 +17,7 @@ func terraformStateBackendExpressionWarningFactCount(repoID string, fileData []m
 }
 
 func emitTerraformStateBackendExpressionWarnings(
-	ch chan<- facts.Envelope,
+	w factStreamWriter,
 	repoID string,
 	scopeID string,
 	generationID string,
@@ -25,7 +25,7 @@ func emitTerraformStateBackendExpressionWarnings(
 	fileData []map[string]any,
 ) {
 	for _, warning := range terraformStateBackendExpressionWarnings(repoID, fileData) {
-		ch <- terraformStateBackendExpressionWarningEnvelope(scopeID, generationID, observedAt, warning)
+		w.send(terraformStateBackendExpressionWarningEnvelope(scopeID, generationID, observedAt, warning))
 	}
 }
 

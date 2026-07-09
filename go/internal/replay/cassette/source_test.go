@@ -91,7 +91,7 @@ func TestSourceNextEmitsOneGenerationPerScope(t *testing.T) {
 	if got, want := gen.Generation.GenerationID, "cassette-k8s-test-gen1"; got != want {
 		t.Errorf("GenerationID = %q, want %q", got, want)
 	}
-	if got, want := gen.FactCount, 1; got != want {
+	if got, want := gen.FactCount(), 1; got != want {
 		t.Errorf("FactCount = %d, want %d", got, want)
 	}
 

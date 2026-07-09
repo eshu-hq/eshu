@@ -35,7 +35,7 @@ func TestTaintEvidenceCountedStreamedAndFreshness(t *testing.T) {
 	envelopes := drainFactChannel(collected.Facts)
 
 	// Parity: FactCount accounts for the extra taint evidence fact.
-	if got, want := len(envelopes), collected.FactCount; got != want {
+	if got, want := len(envelopes), collected.FactCount(); got != want {
 		t.Fatalf("streamed facts = %d, FactCount = %d (taint evidence not counted)", got, want)
 	}
 	// Exactly one extra fact relative to the no-evidence snapshot.

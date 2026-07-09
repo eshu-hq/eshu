@@ -139,8 +139,8 @@ func TestClaimedSourceTreatsEmptyProjectAsSuccessfulEmptyGeneration(t *testing.T
 	if !ok {
 		t.Fatal("NextClaimed() ok = false, want true")
 	}
-	if collected.FactCount != 0 {
-		t.Fatalf("FactCount = %d, want 0", collected.FactCount)
+	if collected.FactCount() != 0 {
+		t.Fatalf("FactCount = %d, want 0", collected.FactCount())
 	}
 }
 

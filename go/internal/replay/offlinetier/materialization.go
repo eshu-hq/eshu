@@ -22,7 +22,7 @@ import (
 // fact is malformed, so a bad cassette fails loudly rather than projecting an
 // empty graph that would look green.
 func MaterializationFromGeneration(gen collector.CollectedGeneration) (projector.CanonicalMaterialization, error) {
-	envelopes := make([]facts.Envelope, 0, gen.FactCount)
+	envelopes := make([]facts.Envelope, 0, gen.FactCount())
 	for env := range gen.Facts {
 		envelopes = append(envelopes, env)
 	}

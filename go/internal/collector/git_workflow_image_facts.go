@@ -4,7 +4,6 @@
 package collector
 
 import (
-	"os"
 	"path"
 	"path/filepath"
 	"strings"
@@ -14,36 +13,8 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/workflowimage"
 )
 
-func workflowImageEvidenceFactCount(repoPath string, snapshot RepositorySnapshot) int {
-	total := 0
-	if len(snapshot.ContentFileMetas) > 0 {
-		for _, meta := range snapshot.ContentFileMetas {
-			total += workflowImageEvidenceFactCountForFile(repoPath, meta.RelativePath, "")
-		}
-		return total
-	}
-	for _, fileSnapshot := range snapshot.ContentFiles {
-		total += workflowImageEvidenceFactCountForFile(repoPath, fileSnapshot.RelativePath, fileSnapshot.Body)
-	}
-	return total
-}
-
-func workflowImageEvidenceFactCountForFile(repoPath string, relativePath string, body string) int {
-	if !isGitHubActionsWorkflowPath(relativePath) {
-		return 0
-	}
-	if body == "" {
-		raw, err := os.ReadFile(filepath.Join(repoPath, filepath.FromSlash(relativePath))) // #nosec G304 -- reads indexed repo file at a path derived from the scan target, not user-supplied input
-		if err != nil {
-			return 0
-		}
-		body = string(raw)
-	}
-	return len(workflowimage.ExtractGitHubActions(relativePath, body))
-}
-
 func emitWorkflowImageEvidenceFactsForContentFile(
-	ch chan<- facts.Envelope,
+	w factStreamWriter,
 	repoID string,
 	scopeID string,
 	generationID string,
@@ -55,7 +26,7 @@ func emitWorkflowImageEvidenceFactsForContentFile(
 		return
 	}
 	for _, evidence := range workflowimage.ExtractGitHubActions(relativePath, body) {
-		ch <- workflowImageEvidenceFactEnvelope(repoID, scopeID, generationID, observedAt, evidence)
+		w.send(workflowImageEvidenceFactEnvelope(repoID, scopeID, generationID, observedAt, evidence))
 	}
 }
 

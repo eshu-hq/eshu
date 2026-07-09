@@ -91,7 +91,7 @@ func observabilityFactCount(fileData []map[string]any) int {
 }
 
 func emitObservabilityFactsForFile(
-	ch chan<- facts.Envelope,
+	w factStreamWriter,
 	repoPath string,
 	repoID string,
 	scopeID string,
@@ -106,14 +106,14 @@ func emitObservabilityFactsForFile(
 		return
 	}
 	sourceClass := observabilitySourceClassForFile(fileData)
-	ch <- observabilitySourceInstanceEnvelope(
+	w.send(observabilitySourceInstanceEnvelope(
 		repoPath, repoID, scopeID, generationID, observedAt, relativePath, sourceRevision, sourceClass, rowCount-1,
-	)
+	))
 	for _, mapping := range observabilitySourceBuckets {
 		for _, row := range observabilityRows(fileData, mapping.bucket) {
-			ch <- observabilityRowEnvelope(
+			w.send(observabilityRowEnvelope(
 				mapping.kind, repoPath, repoID, scopeID, generationID, observedAt, relativePath, sourceRevision, row,
-			)
+			))
 		}
 	}
 }

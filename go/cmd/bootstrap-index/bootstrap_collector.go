@@ -89,9 +89,9 @@ func drainCollector(
 			return nil
 		}
 
-		factCount := collected.FactCount
+		factCountPre := collected.FactCount()
 		if instruments != nil {
-			instruments.FactsEmitted.Add(cycleCtx, int64(factCount), metric.WithAttributes(
+			instruments.FactsEmitted.Add(cycleCtx, int64(factCountPre), metric.WithAttributes(
 				telemetry.AttrScopeKind(string(collected.Scope.ScopeKind)),
 				telemetry.AttrCollectorKind("bootstrap-index"),
 			))
@@ -111,7 +111,7 @@ func drainCollector(
 				logger.ErrorContext(
 					ctx, "bootstrap collector commit failed",
 					log.ScopeID(collected.Scope.ScopeID),
-					slog.Int("fact_count", factCount),
+					slog.Int("fact_count", factCountPre),
 					log.Err(err),
 					telemetry.PhaseAttr(telemetry.PhaseEmission),
 					telemetry.FailureClassAttr("commit_failure"),
@@ -119,6 +119,10 @@ func drainCollector(
 			}
 			return fmt.Errorf("bootstrap collector commit: %w", err)
 		}
+
+		// After commit drains the stream, FactCount() returns the exact
+		// streamed count.
+		factCount := collected.FactCount()
 
 		// Emit per-file-kind content_entity counters from the discovery advisory.
 		// The advisory classifies each entity into a bounded source_file_kind

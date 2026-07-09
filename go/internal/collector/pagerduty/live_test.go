@@ -61,7 +61,7 @@ func TestLivePagerDutyIncidentOrConfigEvidence(t *testing.T) {
 	}
 
 	envs := drainFacts(collected.Facts)
-	if got, want := collected.FactCount, len(envs); got != want {
+	if got, want := collected.FactCount(), len(envs); got != want {
 		t.Fatalf("FactCount = %d, want len(envelopes) %d", got, want)
 	}
 	if len(envs) == 0 {

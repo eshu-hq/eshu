@@ -94,7 +94,7 @@ func TestDataflowFunctionFactEmittedAndCounted(t *testing.T) {
 	collected := buildStreamingGeneration(repoPath, repo, "run-1", observedAt, withDataflow, false)
 	envelopes := drainFactChannel(collected.Facts)
 
-	if got, want := len(envelopes), collected.FactCount; got != want {
+	if got, want := len(envelopes), collected.FactCount(); got != want {
 		t.Fatalf("streamed facts = %d, FactCount = %d (dataflow function not counted)", got, want)
 	}
 	if got := len(envelopes) - len(baseFacts); got != 1 {

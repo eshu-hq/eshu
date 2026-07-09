@@ -288,3 +288,39 @@ No-Observability-Change: The same `collector snapshot stage completed` log
   status field, queue domain, worker count, batch size, or runtime knob is
   added. The five builders return byte-identical output; snapshot shape is
   unchanged.
+### Derive FactCount from the emitted stream to drop the pre-stream body re-read pass (#4877)
+
+Performance Evidence: Eliminates three pre-stream body-re-reading count passes
+  — `serviceCatalogFactCount` (reads service-catalog file bodies via
+  `os.ReadFile`), `gitDocumentationFactCount` (reads documentation/API-contract
+  candidate bodies via `os.Open`/`io.ReadAll`), and
+  `workflowImageEvidenceFactCount` (reads workflow bodies via `os.ReadFile`).
+  Before this change, a repository with service-catalog, documentation, and
+  workflow files incurred 2× body reads per candidate file: once in the
+  pre-stream count pass and once in the streaming emit pass. After this change,
+  each body is read exactly once (at emit time). Measured before/after:
+  `TestStreamFactBodyReadCountBeforeAfter` counts physical content-body reads
+  through the `streamContentBodyReadFile` seam on a 3-candidate documentation
+  fixture and asserts 2 reads per candidate BEFORE (reconstructed removed count
+  pass + stream) versus exactly 1 AFTER (stream only) — total 6→3 body reads.
+  The pre-stream `FactCount`
+  estimate now uses metadata-only counts (file data, content entities,
+  tombstones, follow-ups) plus an `*atomic.Int64` counter that `streamFacts`
+  increments per emitted envelope. After the Facts channel drains,
+  `CollectedGeneration.FactCount()` returns the exact streamed count. On a
+  fixture exercising all three body-reading categories, pre-change body read
+  count was 2× (count + emit), post-change is 1× (emit only). The functions
+  `serviceCatalogFactCount`, `gitDocumentationFactCount`,
+  `workflowImageEvidenceFactCount`, `serviceCatalogFactCountForFile`,
+  `workflowImageEvidenceFactCountForFile`, `readDocumentationCandidateBody`,
+  and `isDocumentationPathOrStructuredAPIContractCandidate` are removed as
+  unused.
+No-Observability-Change: The `fact_count` structured log attribute (service.go)
+  and `eshu_dp_workflow_claim_facts_emitted_total` metric
+  (claimed_service_run_metrics.go) are unchanged in meaning — they now reflect
+  an exact streamed count rather than a pre-stream estimate, which is strictly
+  more accurate. The `eshu_dp_workflow_claim_facts_emitted_total` metric
+  description in `instruments.go` already documents it as an "estimated total";
+  the exact count is at least as good. The `FactsEmitted` and `FactsCommitted`
+  counters in `service.go` and bootstrap use `FactCount()` which after drain
+  returns the exact total.

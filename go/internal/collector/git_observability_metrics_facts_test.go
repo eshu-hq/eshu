@@ -75,7 +75,7 @@ func TestStreamFactsEmitsDeclaredPrometheusMimirObservabilityFacts(t *testing.T)
 
 	collected := buildStreamingGeneration(repoPath, repo, "run-1", observedAt, snapshot, false)
 	allFacts := drainFactChannel(collected.Facts)
-	if got, want := collected.FactCount, len(allFacts); got != want {
+	if got, want := collected.FactCount(), len(allFacts); got != want {
 		t.Fatalf("FactCount = %d, want len(allFacts) %d", got, want)
 	}
 
