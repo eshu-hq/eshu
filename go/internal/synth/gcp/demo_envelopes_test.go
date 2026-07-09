@@ -49,6 +49,15 @@ func TestDemoOrgFactEnvelopesRepliesThroughProductionSeam(t *testing.T) {
 		counts[env.FactKind]++
 	}
 
+	// The two structural counts follow profile.ResourceCount directly. The
+	// three descriptive-fact counts are what the generator's per-kind builders
+	// derive over that same resource inventory, asserted here as a drift lock
+	// on those builders (change a builder's proportion and update the count;
+	// the failure message names the kind and both counts):
+	//   - 10: collection_warnings.go buildCollectionWarningFacts
+	//   -  6: dns_records.go buildDNSRecordFacts
+	//   - 13: iam_policy_observations.go buildIAMPolicyObservationFacts, one per
+	//         iamObservationEvery-th resource (iamObservationEvery = 5).
 	want := map[string]int{
 		factschema.FactKindGCPCloudResource:        profile.ResourceCount,
 		factschema.FactKindGCPCloudRelationship:    profile.ResourceCount - 1,
