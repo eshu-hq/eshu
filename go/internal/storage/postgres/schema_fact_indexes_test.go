@@ -234,3 +234,48 @@ CREATE INDEX IF NOT EXISTS fact_records_active_container_image_refs_idx
 		t.Fatalf("fact_records active container image refs index must start with cursor keys:\n%s", facts.SQL)
 	}
 }
+
+// TestFactRecordSchemaDroppedStableKeyIndex asserts that factRecordSchemaSQL
+// no longer creates fact_records_stable_key_idx but still creates the
+// neighboring collector_status_active_idx and active_repository_idx.
+func TestFactRecordSchemaDroppedStableKeyIndex(t *testing.T) {
+	t.Parallel()
+
+	if strings.Contains(factRecordSchemaSQL, "fact_records_stable_key_idx") {
+		t.Fatal("factRecordSchemaSQL must not contain fact_records_stable_key_idx; " +
+			"remove the CREATE INDEX lines from schema_fact_records.go")
+	}
+
+	// Neighbor indexes must still be present.
+	for _, want := range []string{
+		"fact_records_collector_status_active_idx",
+		"fact_records_active_repository_idx",
+	} {
+		if !strings.Contains(factRecordSchemaSQL, want) {
+			t.Fatalf("factRecordSchemaSQL missing neighbor index %q", want)
+		}
+	}
+}
+
+// TestBootstrapDefinitionsDropFactRecordsStableKeyIndex asserts that
+// migration 049_drop_fact_records_stable_key_idx exists and contains
+// exactly the CONCURRENTLY drop for the unused index.
+func TestBootstrapDefinitionsDropFactRecordsStableKeyIndex(t *testing.T) {
+	t.Parallel()
+
+	var marker Definition
+	for _, def := range BootstrapDefinitions() {
+		if def.Name == "drop_fact_records_stable_key_idx" {
+			marker = def
+			break
+		}
+	}
+	if marker.Name == "" {
+		t.Fatal("drop_fact_records_stable_key_idx definition missing; " +
+			"create migration 049_drop_fact_records_stable_key_idx.sql")
+	}
+	const want = "DROP INDEX CONCURRENTLY IF EXISTS fact_records_stable_key_idx"
+	if !strings.Contains(marker.SQL, want) {
+		t.Fatalf("drop stable-key-index migration missing %q:\n%s", want, marker.SQL)
+	}
+}

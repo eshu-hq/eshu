@@ -49,9 +49,6 @@ CREATE INDEX IF NOT EXISTS fact_records_collector_status_active_idx
         ingested_at DESC
     )
     WHERE is_tombstone = FALSE;
-CREATE INDEX IF NOT EXISTS fact_records_stable_key_idx
-    ON fact_records (stable_fact_key, generation_id);
-
 CREATE INDEX IF NOT EXISTS fact_records_active_repository_idx
     ON fact_records (observed_at ASC, fact_id ASC, generation_id)
     WHERE fact_kind = 'repository'
