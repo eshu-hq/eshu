@@ -1064,6 +1064,7 @@ gates:
     triggers:
       - "go/internal/ifa/**"
       - "go/cmd/ifa/**"
+      - "go/internal/synth/gcp/**"
       - "docs/internal/design/4389-ifa-conformance-platform.md"
       - "specs/ci-gates.v1.yaml"
       - "specs/ifa-coverage-manifest.v1.yaml"
