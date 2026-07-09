@@ -69,16 +69,6 @@ func sortUniqueFileWithSizeSlice(files []discovery.FileWithSize) []discovery.Fil
 	return unique
 }
 
-// collectorFilePaths extracts just the absolute paths from a FileWithSize
-// slice for consumers that only need paths (e.g. the parser engine).
-func collectorFilePaths(files []discovery.FileWithSize) []string {
-	paths := make([]string, len(files))
-	for i, f := range files {
-		paths[i] = f.Path
-	}
-	return paths
-}
-
 func isParserPreferredDocumentationPath(filePath string, registry parser.Registry) bool {
 	if strings.ToLower(filepath.Ext(filePath)) == ".ipynb" {
 		_, ok := registry.LookupByPath(filePath)

@@ -276,11 +276,15 @@ func collectSupportedFiles(
 			// code that called os.Stat (which follows symlinks).
 			if targetInfo, targetErr := os.Stat(path); targetErr == nil {
 				fileEntry.Size = targetInfo.Size()
+			} else {
+				// Target could not be followed — mark unavailable so the
+				// partition weighter applies its default, matching the old
+				// os.Stat-failure path (not the zero-byte floor).
+				fileEntry.Size = SizeUnavailable
 			}
-			// else: Size stays 0 (sentinel → defaultParseFileSizeBytes).
 		} else {
 			// Regular file: size harvested from the single Lstat
-			// classifyPath already performed.
+			// classifyPath already performed (0 for a genuine empty file).
 			fileEntry.Size = info.Size()
 		}
 		files = append(files, fileEntry)

@@ -198,12 +198,14 @@ func parseFileSizeBytes(filePath string) int64 {
 }
 
 // fileSizeForPartitioning returns the byte weight for a file whose size was
-// carried from discovery. A zero or negative carried size is the sentinel for
-// "unavailable" (Info() failed during the walk) and falls back to the same
-// defaultParseFileSizeBytes the old os.Stat path used, so partition balancing
-// is byte-identical.
+// carried from discovery. A negative carried size is the sentinel for
+// "unavailable" (a symlink whose target could not be followed) and falls back
+// to the same defaultParseFileSizeBytes the old os.Stat-failure path used. A
+// genuine zero-byte file (carried size 0) keeps the minParseFileWeightBytes
+// floor, exactly as the old os.Stat path returned max(0, floor), so partition
+// balancing is byte-identical.
 func fileSizeForPartitioning(carriedSize int64) int64 {
-	if carriedSize <= 0 {
+	if carriedSize < 0 {
 		return defaultParseFileSizeBytes
 	}
 	return max(carriedSize, minParseFileWeightBytes)

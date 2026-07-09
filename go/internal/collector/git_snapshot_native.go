@@ -208,7 +208,7 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 	preScanStartedAt := time.Now()
 	importsMap, preScanFileStats, err := engine.PreScanRepositoryPathsWithWorkersStats(
 		repoPath,
-		collectorFilePaths(legacyPreScanFiles),
+		discovery.FilePaths(legacyPreScanFiles),
 		effectiveSnapshotParseWorkers(s.ParseWorkers),
 	)
 	if err != nil {
@@ -333,7 +333,7 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 	)
 	snapshot.FileData = parsedFiles
 	snapshot.ContentFileMetas = materializationRecordsToMetas(materialization.Records)
-	snapshot.DocumentationFileMetas = documentationFileMetasForPaths(repoPath, collectorFilePaths(documentationFiles), commitSHA)
+	snapshot.DocumentationFileMetas = documentationFileMetasForPaths(repoPath, discovery.FilePaths(documentationFiles), commitSHA)
 	snapshot.ContentEntities = materializationEntitiesToSnapshots(materialization.Entities, s.now())
 	snapshot.DiscoveryAdvisory = buildDiscoveryAdvisoryReport(
 		repoPath,

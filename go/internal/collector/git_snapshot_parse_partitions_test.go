@@ -149,14 +149,16 @@ func TestBuildParseSubtreePartitions_FileWithSize_MatchesStatPath(t *testing.T) 
 	// CANDIDATE: new carried-size path via buildParseSubtreePartitions.
 	// For regular files: use Stat size (== Lstat size).
 	// For the included symlink: use os.Stat follow (target size).
-	// For missing: stays zero (sentinel).
+	// For missing/unstattable: SizeUnavailable sentinel, mirroring the
+	// production discovery walk (a followed-symlink Stat failure).
 	sized := make([]discovery.FileWithSize, len(allPaths))
 	for i, path := range allPaths {
 		sized[i] = discovery.FileWithSize{Path: path}
 		if info, err := os.Stat(path); err == nil {
 			sized[i].Size = info.Size()
+		} else {
+			sized[i].Size = discovery.SizeUnavailable
 		}
-		// missingPath and failed-Stat: stays zero (sentinel)
 	}
 	candidatePartitions := buildParseSubtreePartitions(repoRoot, sized, 3)
 
@@ -231,6 +233,34 @@ func TestBuildParseSubtreePartitions_ZeroStatCalls(t *testing.T) {
 	}
 	// Success without os.Stat calls in production path (verified structurally
 	// by the fact that fileSizeForPartitioning does not call os).
+}
+
+// TestFileSizeForPartitioningSentinelVsGenuineZero pins the #4850 review P2:
+// a genuine zero-byte file must keep the minParseFileWeightBytes floor (matching
+// the old os.Stat path's max(0, floor)), while only the negative
+// discovery.SizeUnavailable sentinel falls back to defaultParseFileSizeBytes
+// (matching the old os.Stat-failure path). Conflating the two would change
+// per-file byte-weight attribution for empty files.
+func TestFileSizeForPartitioningSentinelVsGenuineZero(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name    string
+		carried int64
+		want    int64
+	}{
+		{"unavailable sentinel falls back to default", discovery.SizeUnavailable, defaultParseFileSizeBytes},
+		{"genuine zero-byte file keeps floor", 0, minParseFileWeightBytes},
+		{"small file below floor is raised to floor", 100, minParseFileWeightBytes},
+		{"normal file keeps its size", 8000, 8000},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := fileSizeForPartitioning(tc.carried); got != tc.want {
+				t.Fatalf("fileSizeForPartitioning(%d) = %d, want %d", tc.carried, got, tc.want)
+			}
+		})
+	}
 }
 
 func BenchmarkPartitionedParseLargeMonorepo(b *testing.B) {
