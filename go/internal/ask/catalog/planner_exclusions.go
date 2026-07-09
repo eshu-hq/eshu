@@ -37,6 +37,7 @@ func plannerExcludedSurfaces() map[string]struct{} {
 		"GET /api/v0/auth/profile":                                                      {}, // reads the caller's own identity profile
 		"GET /api/v0/auth/providers":                                                    {}, // lists configured login providers for the tenant (pre-auth discovery)
 		"GET /api/v0/auth/sessions":                                                     {}, // lists the caller's own browser sessions
+		"GET /api/v0/auth/setup-state":                                                  {}, // reports whether first-run admin setup is required (auth bootstrap status, not a repository/graph/runtime/cloud fact)
 		"PATCH /api/v0/auth/browser-session/context":                                    {}, // switches the caller's tenant/workspace context
 		"POST /api/v0/admin/backfill":                                                   {}, // RequestBackfill enqueues backfill work
 		"POST /api/v0/admin/dead-letter":                                                {}, // DeadLetterWorkItems dead-letters queued work
@@ -55,6 +56,9 @@ func plannerExcludedSurfaces() map[string]struct{} {
 		"POST /api/v0/auth/admin/role-assignments":                                      {}, // grants a membership-role assignment (admin mutation)
 		"POST /api/v0/auth/admin/role-assignments/revoke":                               {}, // revokes a membership-role assignment (admin mutation)
 		"POST /api/v0/auth/browser-session":                                             {}, // creates a caller browser session and cookies
+		"POST /api/v0/auth/setup/admin":                                                 {}, // creates the first-run admin during setup (auth bootstrap mutation)
+		"POST /api/v0/auth/setup/claim":                                                 {}, // claims the one-time first-run setup credential (auth bootstrap mutation)
+		"POST /api/v0/auth/setup/mfa":                                                   {}, // enrolls MFA for the first-run admin during setup (auth bootstrap mutation)
 		// Local-credential auth routes: login, bootstrap, break-glass recovery,
 		// invitations, and per-user account administration. All authenticate or
 		// mutate accounts rather than return facts.
