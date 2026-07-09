@@ -4,6 +4,7 @@
 package query
 
 import (
+	"fmt"
 	"net"
 	"net/http"
 	"strings"
@@ -33,15 +34,39 @@ const (
 // "always" disables it and restores the pre-#4964 always-Secure behavior.
 const CookieSecureModeEnv = "ESHU_AUTH_COOKIE_SECURE"
 
-// ParseCookieSecureMode parses an ESHU_AUTH_COOKIE_SECURE value. Empty or
-// unrecognized values fall back to CookieSecureAuto: that keeps the
-// loopback-only relaxation as the safe default rather than silently
-// widening or narrowing it on a typo.
+// ParseCookieSecureMode normalizes an already-validated CookieSecureMode
+// struct field (BrowserSessionHandler.CookieSecure and its siblings) at
+// request time: empty (the Go zero value, e.g. in a test that never sets the
+// field) defaults to CookieSecureAuto; any other value passes through
+// unchanged. Callers holding raw operator input (an ESHU_AUTH_COOKIE_SECURE
+// env value) MUST use ValidateCookieSecureMode instead, which fails closed
+// on an unrecognized value rather than normalizing it.
 func ParseCookieSecureMode(value string) CookieSecureMode {
-	if CookieSecureMode(strings.ToLower(strings.TrimSpace(value))) == CookieSecureAlways {
-		return CookieSecureAlways
+	if strings.TrimSpace(value) == "" {
+		return CookieSecureAuto
 	}
-	return CookieSecureAuto
+	return CookieSecureMode(value)
+}
+
+// ValidateCookieSecureMode parses an ESHU_AUTH_COOKIE_SECURE value at
+// startup, matching the documented cmd/api convention for constrained enum
+// env vars (ParseQueryProfile, ParseGraphBackend): an unrecognized,
+// non-empty value returns an error so wireAPI fails startup closed instead
+// of silently guessing an operator's intent. Empty defaults to
+// CookieSecureAuto, matching the documented default. Comparison is
+// case-insensitive and trims surrounding whitespace.
+func ValidateCookieSecureMode(value string) (CookieSecureMode, error) {
+	trimmed := strings.ToLower(strings.TrimSpace(value))
+	switch CookieSecureMode(trimmed) {
+	case "":
+		return CookieSecureAuto, nil
+	case CookieSecureAuto:
+		return CookieSecureAuto, nil
+	case CookieSecureAlways:
+		return CookieSecureAlways, nil
+	default:
+		return "", fmt.Errorf("%s: unrecognized value %q, want %q or %q", CookieSecureModeEnv, value, CookieSecureAuto, CookieSecureAlways)
+	}
 }
 
 // browserSessionCookieSecure reports whether the Secure attribute should be
@@ -96,4 +121,37 @@ func requestHostIsLoopback(r *http.Request) bool {
 	}
 	ip := net.ParseIP(host)
 	return ip != nil && ip.IsLoopback()
+}
+
+// browserSessionCookieNames returns the (session, csrf) cookie names to use
+// for a Set-Cookie under secure: the __Host--prefixed names when secure is
+// true, or the bare insecure names when secure is false. A __Host--prefixed
+// cookie sent with Secure=false is invalid per RFC 6265bis and browsers
+// reject it outright, so the relaxed CookieSecureAuto loopback path must
+// never pair the __Host- name with Secure=false (#4964).
+func browserSessionCookieNames(secure bool) (session, csrf string) {
+	if secure {
+		return BrowserSessionCookieName, BrowserSessionCSRFCookieName
+	}
+	return BrowserSessionCookieNameInsecure, BrowserSessionCSRFCookieNameInsecure
+}
+
+// browserSessionCookieValue returns the raw dashboard session cookie value
+// from r, preferring the __Host--prefixed cookie (BrowserSessionCookieName,
+// set for a Secure context) and falling back to the bare insecure name
+// (BrowserSessionCookieNameInsecure, set only by CookieSecureAuto's
+// plain-HTTP loopback relaxation). Exactly one of the two names is ever set
+// for a given session (see browserSessionCookieNames), so trying both here
+// is how every read path accepts a session regardless of which mode issued
+// it. Returns false when neither cookie is present or both are empty.
+func browserSessionCookieValue(r *http.Request) (string, bool) {
+	if r == nil {
+		return "", false
+	}
+	for _, name := range []string{BrowserSessionCookieName, BrowserSessionCookieNameInsecure} {
+		if cookie, err := r.Cookie(name); err == nil && strings.TrimSpace(cookie.Value) != "" {
+			return cookie.Value, true
+		}
+	}
+	return "", false
 }

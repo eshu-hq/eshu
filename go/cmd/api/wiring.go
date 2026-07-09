@@ -157,7 +157,14 @@ func wireAPI(
 	componentHome := strings.TrimSpace(getenv("ESHU_COMPONENT_HOME"))
 	componentPolicy := componentPolicyFromEnv(getenv)
 	readImpactFromWinners := query.SupplyChainImpactWinnersReadEnabled(getenv(query.SupplyChainImpactWinnersReadEnv))
-	cookieSecureMode := query.ParseCookieSecureMode(getenv(query.CookieSecureModeEnv))
+	cookieSecureMode, err := query.ValidateCookieSecureMode(getenv(query.CookieSecureModeEnv))
+	if err != nil {
+		_ = db.Close()
+		if driver != nil {
+			_ = driver.Close(ctx)
+		}
+		return nil, nil, nil, fmt.Errorf("configure cookie secure mode: %w", err)
+	}
 	browserSessionAdapter := newPostgresBrowserSessionAdapter(db, instruments)
 	router, err := newRouterWithSemanticEmbedding(
 		db,

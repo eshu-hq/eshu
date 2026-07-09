@@ -18,14 +18,14 @@ describe("EshuApiClient", () => {
           capability: "runtime.status",
           freshness: { state: "fresh" },
           level: "exact",
-          profile: "local_full_stack"
-        }
+          profile: "local_full_stack",
+        },
       });
     };
 
     const client = new EshuApiClient({
       baseUrl: "http://localhost:8080/",
-      fetcher
+      fetcher,
     });
 
     await client.get<{ readonly status: string }>("/api/v0/index-status");
@@ -43,13 +43,13 @@ describe("EshuApiClient", () => {
       calls.push(request);
       return Response.json({
         count: 1,
-        repositories: [{ id: "repository:r_1", name: "platform-tools" }]
+        repositories: [{ id: "repository:r_1", name: "platform-tools" }],
       });
     };
 
     const client = new EshuApiClient({
       baseUrl: "/eshu-api/",
-      fetcher
+      fetcher,
     });
 
     const payload = await client.getJson<{
@@ -74,19 +74,19 @@ describe("EshuApiClient", () => {
     const client = new EshuApiClient({
       apiKey: "local-compose-token",
       baseUrl: "/eshu-api/",
-      fetcher
+      fetcher,
     });
 
     await client.getJson("/api/v0/index-status");
 
-    expect(calls[0]?.headers.get("Authorization")).toBe(
-      "Bearer local-compose-token"
-    );
+    expect(calls[0]?.headers.get("Authorization")).toBe("Bearer local-compose-token");
     expect(inits[0]?.credentials).toBe("same-origin");
   });
 
   it("adds a CSRF header for unsafe cookie-session requests", async () => {
-    const cookieSpy = vi.spyOn(document, "cookie", "get").mockReturnValue("__Host-eshu_csrf=csrf-secret");
+    const cookieSpy = vi
+      .spyOn(document, "cookie", "get")
+      .mockReturnValue("__Host-eshu_csrf=csrf-secret");
     const calls: Request[] = [];
     const fetcher = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
       const request = inspectionRequest(input, init);
@@ -94,19 +94,19 @@ describe("EshuApiClient", () => {
       return Response.json({
         data: { status: "ok" },
         error: null,
-        truth: null
+        truth: null,
       });
     };
 
     try {
       const client = new EshuApiClient({
         baseUrl: "/eshu-api/",
-        fetcher
+        fetcher,
       });
 
       await client.post("/api/v0/auth/browser-session/context", {
         tenant_id: "tenant_a",
-        workspace_id: "workspace_a"
+        workspace_id: "workspace_a",
       });
 
       expect(calls[0]?.headers.get("X-Eshu-CSRF")).toBe("csrf-secret");
@@ -116,8 +116,45 @@ describe("EshuApiClient", () => {
     }
   });
 
+  // #4964 follow-up: under ESHU_AUTH_COOKIE_SECURE=auto's plain-HTTP loopback
+  // relaxation, the backend cannot use the __Host- cookie name (RFC 6265bis
+  // requires Secure for it) and issues the bare "eshu_csrf" name instead. The
+  // client must fall back to that name or CSRF headers silently stop being
+  // attached and every unsafe request 403s under local dev without TLS.
+  it("falls back to the bare eshu_csrf cookie name when __Host-eshu_csrf is absent", async () => {
+    const cookieSpy = vi.spyOn(document, "cookie", "get").mockReturnValue("eshu_csrf=csrf-secret");
+    const calls: Request[] = [];
+    const fetcher = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+      const request = inspectionRequest(input, init);
+      calls.push(request);
+      return Response.json({
+        data: { status: "ok" },
+        error: null,
+        truth: null,
+      });
+    };
+
+    try {
+      const client = new EshuApiClient({
+        baseUrl: "/eshu-api/",
+        fetcher,
+      });
+
+      await client.post("/api/v0/auth/browser-session/context", {
+        tenant_id: "tenant_a",
+        workspace_id: "workspace_a",
+      });
+
+      expect(calls[0]?.headers.get("X-Eshu-CSRF")).toBe("csrf-secret");
+    } finally {
+      cookieSpy.mockRestore();
+    }
+  });
+
   it("does not add CSRF to explicit bearer-token requests", async () => {
-    const cookieSpy = vi.spyOn(document, "cookie", "get").mockReturnValue("__Host-eshu_csrf=csrf-secret");
+    const cookieSpy = vi
+      .spyOn(document, "cookie", "get")
+      .mockReturnValue("__Host-eshu_csrf=csrf-secret");
     const calls: Request[] = [];
     const fetcher = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
       const request = inspectionRequest(input, init);
@@ -129,14 +166,12 @@ describe("EshuApiClient", () => {
       const client = new EshuApiClient({
         apiKey: "local-compose-token",
         baseUrl: "/eshu-api/",
-        fetcher
+        fetcher,
       });
 
       await client.postJson("/api/v0/code/dead-code", { limit: 1 });
 
-      expect(calls[0]?.headers.get("Authorization")).toBe(
-        "Bearer local-compose-token"
-      );
+      expect(calls[0]?.headers.get("Authorization")).toBe("Bearer local-compose-token");
       expect(calls[0]?.headers.has("X-Eshu-CSRF")).toBe(false);
     } finally {
       cookieSpy.mockRestore();
@@ -148,16 +183,19 @@ describe("EshuApiClient", () => {
     const fetcher = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
       const request = inspectionRequest(input, init);
       calls.push(request);
-      return Response.json({
-        auth: { mode: "browser_session", all_scopes: false },
-        csrf_token: "csrf-secret"
-      }, { status: 201 });
+      return Response.json(
+        {
+          auth: { mode: "browser_session", all_scopes: false },
+          csrf_token: "csrf-secret",
+        },
+        { status: 201 },
+      );
     };
 
     const client = new EshuApiClient({
       apiKey: "scoped-login-token",
       baseUrl: "/eshu-api/",
-      fetcher
+      fetcher,
     });
 
     const session = await client.createBrowserSession();
@@ -170,7 +208,9 @@ describe("EshuApiClient", () => {
   });
 
   it("revokes and switches browser sessions with CSRF proof", async () => {
-    const cookieSpy = vi.spyOn(document, "cookie", "get").mockReturnValue("__Host-eshu_csrf=csrf-secret");
+    const cookieSpy = vi
+      .spyOn(document, "cookie", "get")
+      .mockReturnValue("__Host-eshu_csrf=csrf-secret");
     const calls: Request[] = [];
     const fetcher = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
       const request = inspectionRequest(input, init);
@@ -183,15 +223,15 @@ describe("EshuApiClient", () => {
           mode: "browser_session",
           tenant_id: "tenant_b",
           workspace_id: "workspace_b",
-          all_scopes: true
-        }
+          all_scopes: true,
+        },
       });
     };
 
     try {
       const client = new EshuApiClient({
         baseUrl: "/eshu-api/",
-        fetcher
+        fetcher,
       });
 
       await client.logoutBrowserSession();
@@ -218,7 +258,7 @@ describe("EshuApiClient", () => {
     const client = new EshuApiClient({
       apiKey: " ",
       baseUrl: "/eshu-api/",
-      fetcher
+      fetcher,
     });
 
     await client.getJson("/api/v0/index-status");
@@ -264,8 +304,7 @@ describe("EshuApiClient", () => {
   });
 
   it("throws a typed EshuApiHttpError carrying the response status on non-2xx", async () => {
-    const fetcher = async (): Promise<Response> =>
-      new Response("not found", { status: 404 });
+    const fetcher = async (): Promise<Response> => new Response("not found", { status: 404 });
     const client = new EshuApiClient({ baseUrl: "/eshu-api/", fetcher });
 
     const error = await client
@@ -280,14 +319,17 @@ describe("EshuApiClient", () => {
 
   it("preserves structured Eshu error envelopes on non-2xx responses", async () => {
     const fetcher = async (): Promise<Response> =>
-      Response.json({
-        data: null,
-        error: {
-          code: "unsupported_capability",
-          message: "identity trust chains require local-authoritative profile"
+      Response.json(
+        {
+          data: null,
+          error: {
+            code: "unsupported_capability",
+            message: "identity trust chains require local-authoritative profile",
+          },
+          truth: null,
         },
-        truth: null
-      }, { status: 501 });
+        { status: 501 },
+      );
     const client = new EshuApiClient({ baseUrl: "/eshu-api/", fetcher });
 
     const error = await client
@@ -302,8 +344,7 @@ describe("EshuApiClient", () => {
   });
 
   it("throws a typed EshuApiHttpError from the JSON helpers too", async () => {
-    const fetcher = async (): Promise<Response> =>
-      new Response("boom", { status: 500 });
+    const fetcher = async (): Promise<Response> => new Response("boom", { status: 500 });
     const client = new EshuApiClient({ baseUrl: "/eshu-api/", fetcher });
 
     const error = await client
@@ -322,7 +363,7 @@ describe("EshuApiClient", () => {
       function browserFetch(
         this: typeof globalThis,
         input: RequestInfo | URL,
-        init?: RequestInit
+        init?: RequestInit,
       ): Promise<Response> {
         if (this !== globalThis) {
           throw new TypeError("Illegal invocation");
@@ -330,13 +371,13 @@ describe("EshuApiClient", () => {
         const request = inspectionRequest(input, init);
         calls.push(request);
         return Promise.resolve(Response.json({ status: "healthy" }));
-      }
+      },
     );
 
     const client = new EshuApiClient({ baseUrl: "/eshu-api/" });
 
     await expect(client.getJson("/api/v0/index-status")).resolves.toEqual({
-      status: "healthy"
+      status: "healthy",
     });
     expect(calls[0]?.url).toBe("http://localhost:5174/eshu-api/api/v0/index-status");
   });
