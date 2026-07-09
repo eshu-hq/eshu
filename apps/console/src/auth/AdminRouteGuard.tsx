@@ -1,4 +1,4 @@
-// auth/AdminRouteGuard.tsx — wraps /admin/* so a session without any
+// auth/AdminRouteGuard.tsx — wraps /admin (exact path) so a session without any
 // ADMIN_ROUTE_FAMILIES permission family sees the 403 access screen instead
 // of the Admin page shell (issue #4969). Fail-closed whenever the server
 // reports permission_catalog_enforced; fail-open (today's #3703 contract)

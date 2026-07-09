@@ -20,8 +20,8 @@ export function AccessDeniedPage(): React.JSX.Element {
           </div>
           <h1 id="access-denied-title">You don't have access to this area</h1>
           <p>
-            This area needs one of the identity, roles, tokens, or audit admin permissions. Your
-            current session doesn't hold any of them, so this denial has been logged.
+            This area needs one of the identity, roles, tokens, or audit admin permissions, and your
+            current session doesn't hold any of them.
           </p>
           <div
             className="access-denied-families"
