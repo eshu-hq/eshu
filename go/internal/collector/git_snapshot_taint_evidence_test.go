@@ -45,7 +45,7 @@ func TestBuildTaintEvidenceResolvesFunctionUID(t *testing.T) {
 		"path":           "/repo/src/handler.go",
 		"taint_findings": taintFindingFixture(),
 	}}
-	evidence := buildTaintEvidence("/repo", parsedFiles, handleFunctionEntity())
+	evidence := buildTaintEvidence("/repo", parsedFiles, buildEntityUIDLookup(handleFunctionEntity()))
 
 	if len(evidence) != 1 {
 		t.Fatalf("want 1 evidence row, got %d: %+v", len(evidence), evidence)
@@ -79,7 +79,7 @@ func TestBuildTaintEvidenceDropsUnresolved(t *testing.T) {
 		EntityID: "func-other", Path: "src/handler.go", EntityType: "Function",
 		EntityName: "other", StartLine: 3,
 	}}
-	if evidence := buildTaintEvidence("/repo", parsedFiles, entities); len(evidence) != 0 {
+	if evidence := buildTaintEvidence("/repo", parsedFiles, buildEntityUIDLookup(entities)); len(evidence) != 0 {
 		t.Fatalf("unresolved finding must be dropped, got %+v", evidence)
 	}
 }
@@ -90,7 +90,7 @@ func TestBuildTaintEvidenceEmptyWithoutFindings(t *testing.T) {
 	t.Parallel()
 
 	parsedFiles := []map[string]any{{"path": "/repo/src/handler.go"}}
-	if evidence := buildTaintEvidence("/repo", parsedFiles, handleFunctionEntity()); evidence != nil {
+	if evidence := buildTaintEvidence("/repo", parsedFiles, buildEntityUIDLookup(handleFunctionEntity())); evidence != nil {
 		t.Fatalf("no findings must yield nil evidence, got %+v", evidence)
 	}
 }

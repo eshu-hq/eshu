@@ -47,7 +47,7 @@ func TestBuildDataflowFunctionsReadsParserBucket(t *testing.T) {
 		StartLine:  3,
 	}}
 
-	functions := buildDataflowFunctions("/repo", parsed, entities)
+	functions := buildDataflowFunctions("/repo", parsed, buildEntityUIDLookup(entities))
 	if len(functions) != 1 {
 		t.Fatalf("want 1 dataflow function, got %d: %+v", len(functions), functions)
 	}

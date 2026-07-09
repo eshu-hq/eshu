@@ -66,9 +66,11 @@ func newFunctionUIDResolver(entities []content.EntityRecord) func(relativePath, 
 	}
 }
 
-func buildInterprocTaintEvidence(repoPath string, parsedFiles []map[string]any, entities []content.EntityRecord) []InterprocTaintEvidenceSnapshot {
-	resolve := newFunctionUIDResolver(entities)
-
+// buildInterprocTaintEvidence resolves each file's interproc_findings to the
+// graph Function entities they span, using the shared functionUIDResolver built
+// once per snapshot by newFunctionUIDResolver. The resolver is read-only; a
+// finding whose endpoint cannot be resolved is dropped.
+func buildInterprocTaintEvidence(repoPath string, parsedFiles []map[string]any, functionUIDResolver func(relativePath, receiver, name string) (string, bool)) []InterprocTaintEvidenceSnapshot {
 	var evidence []InterprocTaintEvidenceSnapshot
 	for _, parsedFile := range parsedFiles {
 		findings, _ := parsedFile["interproc_findings"].([]map[string]any)
@@ -84,8 +86,8 @@ func buildInterprocTaintEvidence(repoPath string, parsedFiles []map[string]any, 
 		for _, finding := range findings {
 			sourceReceiver, sourceName := functionIDReceiverName(snapshotPayloadString(finding, "source_func"))
 			sinkReceiver, sinkName := functionIDReceiverName(snapshotPayloadString(finding, "sink_func"))
-			sourceUID, okSource := resolve(relativePath, sourceReceiver, sourceName)
-			sinkUID, okSink := resolve(relativePath, sinkReceiver, sinkName)
+			sourceUID, okSource := functionUIDResolver(relativePath, sourceReceiver, sourceName)
+			sinkUID, okSink := functionUIDResolver(relativePath, sinkReceiver, sinkName)
 			if !okSource || !okSink {
 				continue
 			}
@@ -101,7 +103,7 @@ func buildInterprocTaintEvidence(repoPath string, parsedFiles []map[string]any, 
 				SourceKind:         snapshotPayloadString(finding, "source_kind"),
 				Confidence:         snapshotPayloadFloat(finding, "confidence"),
 				Cloud:              cloud,
-				WhyTrail:           interprocWhyTrailFromFinding(relativePath, finding, resolve),
+				WhyTrail:           interprocWhyTrailFromFinding(relativePath, finding, functionUIDResolver),
 				WhyTrailTruncated:  snapshotPayloadBool(finding, "why_trail_truncated"),
 			})
 		}

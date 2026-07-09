@@ -313,12 +313,18 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 	)
 
 	valueFlowStartedAt := time.Now()
-	annotateParsedFilesWithEntityIDs(repoPath, parsedFiles, materialization.Entities)
-	snapshot.TaintEvidence = buildTaintEvidence(repoPath, parsedFiles, materialization.Entities)
-	snapshot.InterprocTaintEvidence = buildInterprocTaintEvidence(repoPath, parsedFiles, materialization.Entities)
-	snapshot.FunctionSummaries = buildFunctionSummaries(repoPath, parsedFiles, materialization.Entities)
+	// Build lookup structures once per snapshot — the five value-flow
+	// builders previously each rebuilt identical structures from the same
+	// materialization.Entities slice (#4879).
+	entityUIDLookup := buildEntityUIDLookup(materialization.Entities)
+	functionUIDResolver := newFunctionUIDResolver(materialization.Entities)
+
+	annotateParsedFilesWithEntityIDs(repoPath, parsedFiles, entityUIDLookup)
+	snapshot.TaintEvidence = buildTaintEvidence(repoPath, parsedFiles, entityUIDLookup)
+	snapshot.InterprocTaintEvidence = buildInterprocTaintEvidence(repoPath, parsedFiles, functionUIDResolver)
+	snapshot.FunctionSummaries = buildFunctionSummaries(repoPath, parsedFiles, functionUIDResolver)
 	snapshot.FunctionSources = buildFunctionSources(parsedFiles)
-	snapshot.DataflowFunctions = buildDataflowFunctions(repoPath, parsedFiles, materialization.Entities)
+	snapshot.DataflowFunctions = buildDataflowFunctions(repoPath, parsedFiles, entityUIDLookup)
 	snapshot.DataflowCatalogVersions = buildDataflowCatalogVersions(parsedFiles)
 	// Record that the value-flow gate ran so a per-generation marker fact is
 	// emitted even when no findings were produced, letting the reducer retract

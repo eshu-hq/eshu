@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/content"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -40,9 +39,9 @@ type FunctionSummarySnapshot struct {
 // re-resolving names. A function whose uid cannot be resolved still carries its
 // summary (the FunctionID is durable); only the graph projection needs the uid.
 // Empty when the parser emitted no summaries, so the snapshot is byte-identical
-// when value-flow emission is disabled.
-func buildFunctionSummaries(repoPath string, parsedFiles []map[string]any, entities []content.EntityRecord) []FunctionSummarySnapshot {
-	resolve := newFunctionUIDResolver(entities)
+// when value-flow emission is disabled. functionUIDResolver is the shared
+// resolver built once per snapshot by newFunctionUIDResolver; it is read-only.
+func buildFunctionSummaries(repoPath string, parsedFiles []map[string]any, functionUIDResolver func(relativePath, receiver, name string) (string, bool)) []FunctionSummarySnapshot {
 	var summaries []FunctionSummarySnapshot
 	for _, parsedFile := range parsedFiles {
 		rows, _ := parsedFile["dataflow_summaries"].([]map[string]any)
@@ -61,7 +60,7 @@ func buildFunctionSummaries(repoPath string, parsedFiles []map[string]any, entit
 				continue
 			}
 			receiver, name := functionIDReceiverName(functionID)
-			uid, _ := resolve(relativePath, receiver, name)
+			uid, _ := functionUIDResolver(relativePath, receiver, name)
 			summary := FunctionSummarySnapshot{
 				FunctionID: functionID,
 				GraphUID:   uid,

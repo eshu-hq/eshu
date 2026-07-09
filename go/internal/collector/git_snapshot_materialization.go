@@ -119,17 +119,29 @@ func entityBucketsFromParsed(payload map[string]any) map[string][]shape.Entity {
 	return buckets
 }
 
-func annotateParsedFilesWithEntityIDs(
-	repoPath string,
-	parsedFiles []map[string]any,
-	entities []content.EntityRecord,
-) {
+// buildEntityUIDLookup builds a read-only map from (path, entity type, entity
+// name, start line) → entity ID covering every entity in the slice. Value-flow
+// builders that resolve parsed-file entities against the materialized entity
+// set share this map so it is built once per snapshot instead of once per
+// builder. The returned map must not be mutated by any consumer.
+func buildEntityUIDLookup(entities []content.EntityRecord) map[string]string {
 	lookup := make(map[string]string, len(entities))
 	for _, entity := range entities {
 		key := entityLookupKey(entity.Path, entity.EntityType, entity.EntityName, entity.StartLine)
 		lookup[key] = entity.EntityID
 	}
+	return lookup
+}
 
+// annotateParsedFilesWithEntityIDs annotates each bucket item in parsedFiles
+// with its corresponding entity ID by consulting the shared entityUIDLookup map.
+// The map is read-only; the parsedFiles slice and its nested maps are mutated
+// in-place.
+func annotateParsedFilesWithEntityIDs(
+	repoPath string,
+	parsedFiles []map[string]any,
+	entityUIDLookup map[string]string,
+) {
 	for _, parsedFile := range parsedFiles {
 		absolutePath := snapshotPayloadString(parsedFile, "path")
 		relativePath, err := filepath.Rel(repoPath, absolutePath)
@@ -144,7 +156,7 @@ func annotateParsedFilesWithEntityIDs(
 				name := snapshotPayloadString(items[i], "name")
 				lineNumber := snapshotPayloadInt(items[i], "line_number")
 				key := entityLookupKey(relativePath, mapping.label, name, lineNumber)
-				if entityID, ok := lookup[key]; ok {
+				if entityID, ok := entityUIDLookup[key]; ok {
 					items[i]["uid"] = entityID
 				}
 			}

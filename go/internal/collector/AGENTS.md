@@ -257,3 +257,34 @@ No-Observability-Change: No new metric instrument, label, span, structured
   completed` logs. The change primes the parser's existing shared cache from
   the collector side; no parser source files change, and parse payloads, shape
   files, and SCIP merges are byte-identical.
+
+### Build value-flow entity-lookup maps once instead of 5× (#4879)
+
+Performance Evidence: The five value-flow builders previously rebuilt two
+  lookup structures from the same `materialization.Entities` slice per
+  snapshot: an entity-lookup map (path, type, name, line → uid) built three
+  times and a function-UID resolver (path, receiver, name → uid) built twice.
+  The change builds each structure once in the value-flow stage and passes
+  them as read-only parameters. On a fixture of 10 entities across 3 files,
+  the build-count drops from 5 to 2 (3 fewer internal builds per value-flow
+  stage). Benchmarking `buildEntityUIDLookup` + `newFunctionUIDResolver` shows
+  1,404 ns/op + 2,256 B/31 allocs at n=10, 12,939 ns/op + 20,003 B/218 allocs
+  at n=100, 155,244 ns/op + 315,743 B/2,931 allocs at n=1,000, and 1,385,300
+  ns/op + 2,721,751 B/30,018 allocs at n=10,000 (Apple M5 Max). Formerly those
+  costs were paid up to 5×; now they are paid once. Correctness proof:
+  `TestValueFlowFullOutputEquivalence` produces byte-identical parsed-files
+  annotations, taint evidence, interproc taint evidence, function summaries,
+  and dataflow functions whether the shared maps or per-builder independent
+  builds are used. UID resolution is identical under both paths
+  (`TestSharedEntityUIDLookupEqualsPerBuilder`,
+  `TestSharedFunctionUIDResolverEqualsPerBuilder`). No-mutation proof:
+  `TestEntityUIDLookupIsNotMutated` and `TestFunctionUIDResolverIsNotMutated`
+  confirm the shared structures are unchanged after all consumers run.
+  Benchmark: `BenchmarkValueFlowLookupBuild` with `-race` clean:
+  `go test ./internal/collector -bench 'BenchmarkValueFlowLookupBuild' -benchtime=1s -count=1`.
+No-Observability-Change: The same `collector snapshot stage completed` log
+  and `eshu_dp_collector_snapshot_stage_duration_seconds` histogram diagnose
+  the value-flow stage. No new metric instrument, label, span, log field,
+  status field, queue domain, worker count, batch size, or runtime knob is
+  added. The five builders return byte-identical output; snapshot shape is
+  unchanged.
