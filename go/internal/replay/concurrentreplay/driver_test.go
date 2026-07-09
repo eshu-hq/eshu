@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -250,5 +251,55 @@ func TestDriverWorkersDefaultsToOne(t *testing.T) {
 	}
 	if got, want := len(committer.snapshot()), generationCount; got != want {
 		t.Fatalf("committed %d generations, want %d", got, want)
+	}
+}
+
+// TestDriverRunNilSource covers the precondition guard: Run must reject a nil
+// Source with a sentinel error and without spawning any worker, so a future
+// refactor that drops the check is caught.
+func TestDriverRunNilSource(t *testing.T) {
+	t.Parallel()
+
+	driver := concurrentreplay.Driver{
+		Committer: &recordingCommitter{},
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	report, err := driver.Run(ctx)
+	if err == nil {
+		t.Fatal("Run with nil Source: got nil error, want 'source is required'")
+	}
+	if !strings.Contains(err.Error(), "source is required") {
+		t.Fatalf("Run with nil Source: error %q, want it to contain 'source is required'", err)
+	}
+	if report.GenerationsCommitted != 0 {
+		t.Fatalf("Run with nil Source: GenerationsCommitted = %d, want 0", report.GenerationsCommitted)
+	}
+}
+
+// TestDriverRunNilCommitter covers the precondition guard: Run must reject a
+// nil Committer with a sentinel error even when Source is valid, so no worker
+// drains the tape into a missing committer.
+func TestDriverRunNilCommitter(t *testing.T) {
+	t.Parallel()
+
+	driver := concurrentreplay.Driver{
+		Source: concurrentreplay.NewSource(newScriptedGenerationSource(3)),
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	report, err := driver.Run(ctx)
+	if err == nil {
+		t.Fatal("Run with nil Committer: got nil error, want 'committer is required'")
+	}
+	if !strings.Contains(err.Error(), "committer is required") {
+		t.Fatalf("Run with nil Committer: error %q, want it to contain 'committer is required'", err)
+	}
+	if report.GenerationsCommitted != 0 {
+		t.Fatalf("Run with nil Committer: GenerationsCommitted = %d, want 0", report.GenerationsCommitted)
 	}
 }
