@@ -435,6 +435,7 @@ Each row maps a lifecycle stage to the metric that diagnoses it at 3 AM.
 | stage | file:line | required metric name(s) | category |
 | --- | --- | --- | --- |
 | api shutdown | go/cmd/api/main.go:100 | `eshu_dp_shutdown_duration_seconds` | api lifecycle |
+| bootstrap identity seeding (epic #4962/#4963) | go/cmd/api/seed_initial_admin.go:1 | `eshu_dp_auth_bootstrap_seed_total`, `eshu_dp_auth_bootstrap_credential_generated_total`, `eshu_dp_auth_secret_seal_total`, `eshu_dp_auth_secret_open_total`, `eshu_dp_postgres_query_duration_seconds` | api lifecycle |
 
 <!-- eshu:metric:section=graph-write-statement-metadata -->
 ## Graph-Write Statement Metadata
