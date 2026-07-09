@@ -24,6 +24,49 @@ function fillOidcRequired(): void {
   fireEvent.change(screen.getByLabelText("Client secret"), { target: { value: "s3cret" } });
 }
 
+describe("ProviderConfigDrawer — focus and keyboard behavior", () => {
+  it("focuses the close button on mount", () => {
+    const client = makeClient(async () => ({}));
+    render(
+      <ProviderConfigDrawer
+        client={client}
+        baseUrl="https://eshu.example.test"
+        onClose={vi.fn()}
+        onSaved={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Close" })).toHaveFocus();
+  });
+
+  it("closes on Escape", () => {
+    const client = makeClient(async () => ({}));
+    const onClose = vi.fn();
+    render(
+      <ProviderConfigDrawer
+        client={client}
+        baseUrl="https://eshu.example.test"
+        onClose={onClose}
+        onSaved={vi.fn()}
+      />,
+    );
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it("is an aria-modal dialog", () => {
+    const client = makeClient(async () => ({}));
+    render(
+      <ProviderConfigDrawer
+        client={client}
+        baseUrl="https://eshu.example.test"
+        onClose={vi.fn()}
+        onSaved={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole("dialog")).toHaveAttribute("aria-modal", "true");
+  });
+});
+
 describe("ProviderConfigDrawer — create mode, OIDC (default)", () => {
   it("renders the deployment-wide OIDC redirect URI read-only", () => {
     const client = makeClient(async () => ({}));
@@ -267,10 +310,10 @@ describe("ProviderConfigDrawer — edit mode", () => {
         onSaved={vi.fn()}
       />,
     );
-    expect(screen.getByText("Active")).toBeInTheDocument();
+    expect(screen.getByText("active")).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("Client secret"), { target: { value: "new-secret" } });
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
-    expect(await screen.findByText("Draft")).toBeInTheDocument();
+    expect(await screen.findByText("draft")).toBeInTheDocument();
   });
 
   it("calls onClose when the close button is clicked", () => {

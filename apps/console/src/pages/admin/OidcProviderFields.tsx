@@ -6,7 +6,11 @@
 // write-only contract (client_secret is required on every create/update).
 // Fields use an explicit aria-label on the input (not a wrapping <label>),
 // matching the rest of this admin surface's convention (see
-// AdminAssignmentsPanel/AdminIdPGroupMappingsPanel).
+// AdminAssignmentsPanel/AdminIdPGroupMappingsPanel). The two sections below
+// reuse the global .section-label heading style (ServiceDrawer's "Deployment
+// path"/"Dependencies" pattern) so "what you enter" and "what you register
+// with your IdP" read as distinct groups without inventing a new style.
+import { CopyField } from "./CopyField";
 import type { OidcFormState } from "./providerConfigForm";
 
 export function OidcProviderFields({
@@ -22,6 +26,7 @@ export function OidcProviderFields({
 }): React.JSX.Element {
   return (
     <div className="provider-form-fields">
+      <div className="section-label">Connect to your identity provider</div>
       <div className="provider-field">
         <span>Issuer</span>
         <input
@@ -75,11 +80,12 @@ export function OidcProviderFields({
           onChange={(e) => onChange({ ...form, groupClaim: e.target.value })}
         />
       </div>
-      <div className="provider-field provider-field-readonly">
-        <span>Redirect URI</span>
-        <input value={redirectUri} readOnly aria-label="OIDC redirect URI" />
-        <small>Register this exact URL as the allowed redirect URI in your IdP.</small>
-      </div>
+
+      <div className="section-label provider-section-gap">Register with your identity provider</div>
+      <CopyField label="Redirect URI" value={redirectUri} ariaLabel="OIDC redirect URI" />
+      <p className="empty-note provider-field-hint">
+        Register this exact URL as the allowed redirect URI in your IdP.
+      </p>
     </div>
   );
 }

@@ -5,7 +5,10 @@
 // private key / certificate inputs are never pre-filled and never echo a
 // prior value — write-only, resupplied on every create/update. Fields use an
 // explicit aria-label on the input (not a wrapping <label>), matching the
-// rest of this admin surface's convention.
+// rest of this admin surface's convention. The two sections below reuse the
+// global .section-label heading style so "what you enter" and "what you
+// register with your IdP" read as distinct groups.
+import { CopyField } from "./CopyField";
 import type { SamlFormState } from "./providerConfigForm";
 
 export function SamlProviderFields({
@@ -23,6 +26,7 @@ export function SamlProviderFields({
 }): React.JSX.Element {
   return (
     <div className="provider-form-fields">
+      <div className="section-label">Connect to your identity provider</div>
       <div className="provider-field">
         <span>IdP metadata URL</span>
         <input
@@ -89,15 +93,15 @@ export function SamlProviderFields({
           Signing material is never displayed after save. Required again on every change.
         </small>
       </div>
-      <div className="provider-field provider-field-readonly">
-        <span>SP entity ID</span>
-        <input value={serviceProviderEntityId} readOnly aria-label="SAML SP entity ID" />
-      </div>
-      <div className="provider-field provider-field-readonly">
-        <span>ACS URL</span>
-        <input value={acsUrl} readOnly aria-label="SAML ACS URL" />
-        <small>Register these exact values in your IdP.</small>
-      </div>
+
+      <div className="section-label provider-section-gap">Register with your identity provider</div>
+      <CopyField
+        label="SP entity ID"
+        value={serviceProviderEntityId}
+        ariaLabel="SAML SP entity ID"
+      />
+      <CopyField label="ACS URL" value={acsUrl} ariaLabel="SAML ACS URL" />
+      <p className="empty-note provider-field-hint">Register these exact values in your IdP.</p>
     </div>
   );
 }

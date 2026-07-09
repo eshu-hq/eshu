@@ -14,7 +14,11 @@
 // straight to "enabled" — the actual enable-safety compare-and-swap is
 // enforced server-side (EnableProviderConfig's expectedActiveRevisionID
 // guard); this client-side reset is UX only.
-import { useState } from "react";
+//
+// Focus/keyboard behavior mirrors EvidenceDrawer.tsx exactly (close-button
+// focus on mount, Escape closes, Tab is trapped inside the drawer) so this
+// drawer behaves identically to every other drawer in the console.
+import { useEffect, useRef, useState } from "react";
 
 import { OidcProviderFields } from "./OidcProviderFields";
 import {
@@ -42,6 +46,7 @@ import {
   toFormKind,
 } from "../../api/adminProviderConfig";
 import type { EshuApiClient } from "../../api/client";
+import { Badge } from "../../components/atoms";
 
 export function ProviderConfigDrawer({
   client,
@@ -78,6 +83,52 @@ export function ProviderConfigDrawer({
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
+  const drawerRef = useRef<HTMLElement>(null);
+
+  // Focus the close control once on open, matching EvidenceDrawer.tsx.
+  useEffect(() => {
+    closeRef.current?.focus();
+  }, []);
+
+  useEffect(() => {
+    function onKey(event: globalThis.KeyboardEvent): void {
+      if (event.key === "Escape") {
+        onClose();
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  // Trap Tab focus inside the drawer — see EvidenceDrawer.tsx's identical
+  // trapFocus for why this is needed (aria-modal hides the background from
+  // assistive tech, so focus must never leave the drawer via Tab).
+  function trapFocus(event: React.KeyboardEvent): void {
+    if (event.key !== "Tab") {
+      return;
+    }
+    const root = drawerRef.current;
+    if (root === null) {
+      return;
+    }
+    const focusables = root.querySelectorAll<HTMLElement>(
+      'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    );
+    if (focusables.length === 0) {
+      return;
+    }
+    const first = focusables[0];
+    const last = focusables[focusables.length - 1];
+    const active = root.ownerDocument.activeElement;
+    if (event.shiftKey && active === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && active === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
 
   const valid = kind === "oidc" ? oidcFormValid(oidcForm) : samlFormValid(samlForm);
 
@@ -122,12 +173,10 @@ export function ProviderConfigDrawer({
       return;
     }
     const result = await testProviderConfigConnection(client, providerConfigId);
+    // testResult drives the dedicated pass/fail indicator below the fields
+    // (not the transient `notice` line, which is reserved for save/enable
+    // outcomes) — see the "Test sign-in passed/failed" block in the render.
     setTestResult({ ok: result.ok, detail: result.detail });
-    setNotice(
-      result.ok
-        ? `Test sign-in passed.${result.detail ? ` ${result.detail}` : ""}`
-        : `Test sign-in failed.${result.detail ? ` ${result.detail}` : ""}`,
-    );
     setTesting(false);
     onSaved();
   }
@@ -167,16 +216,27 @@ export function ProviderConfigDrawer({
     <>
       <div className="drawer-scrim" onClick={onClose} />
       <aside
+        ref={drawerRef}
         className="drawer"
         role="dialog"
+        aria-modal="true"
         aria-label={existing ? "Edit provider" : "Add provider"}
+        onKeyDown={trapFocus}
       >
         <div className="drawer-head">
           <div>
             <div className="insp-kind">{existing ? "Edit provider" : "Add provider"}</div>
-            <strong>{status === "active" ? "Active" : "Draft"}</strong>
+            <strong>
+              <Badge tone={status === "active" ? "teal" : "neutral"}>{status}</Badge>
+            </strong>
           </div>
-          <button className="drawer-close" onClick={onClose} aria-label="Close">
+          <button
+            ref={closeRef}
+            className="drawer-close"
+            onClick={onClose}
+            aria-label="Close"
+            type="button"
+          >
             ✕
           </button>
         </div>
@@ -224,6 +284,15 @@ export function ProviderConfigDrawer({
               }}
             />
           )}
+
+          {testResult ? (
+            <p className="empty-note provider-test-result" role="status">
+              <Badge tone={testResult.ok ? "teal" : "crit"}>
+                {testResult.ok ? "Test sign-in passed" : "Test sign-in failed"}
+              </Badge>
+              {testResult.detail ? ` ${testResult.detail}` : ""}
+            </p>
+          ) : null}
 
           {notice ? (
             <p className="empty-note" role="status">
