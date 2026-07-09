@@ -76,4 +76,8 @@ jobs:
         # the #4703 rank-once candidate-set+order differential (0/0) against real
         # Postgres so a query-shape or O(N^2) regression on
         # reducer_queue_batch_query.go fails CI, not only a manual drain.
-        run: go test ./internal/storage/postgres/ -run '^(TestReducerContentionGate|TestClaimBatchRankOnceRewrite)' -race -count=1 -timeout 180s -v
+        # TestSignInPolicyConcurrencyGate runs the #4968 sign-in-policy
+        # exactly-one-winner / no-lost-update row-lock proof against real
+        # Postgres so the concurrency contract is proven in CI, not only when a
+        # local DSN happens to be set.
+        run: go test ./internal/storage/postgres/ -run '^(TestReducerContentionGate|TestClaimBatchRankOnceRewrite|TestSignInPolicyConcurrencyGate)' -race -count=1 -timeout 180s -v

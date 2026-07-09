@@ -290,6 +290,14 @@ func wireAPI(
 		return nil, nil, nil, fmt.Errorf("configure saml sso: %w", err)
 	}
 	router.SAML = samlHandler
+	if samlHandler != nil {
+		// Per-tenant session timeout override (issue #4968, epic #4962):
+		// browserSessionAdapter already implements query.SignInPolicyReadStore
+		// (see cmd/api/browser_sessions.go's GetSignInPolicy), so SAML's
+		// session issuance resolves the same override BrowserSessionHandler
+		// and LocalIdentityHandler do.
+		samlHandler.SignInPolicy = browserSessionAdapter
+	}
 	router.AuthProviders = &query.AuthProviderListHandler{
 		Store: newAuthProviderListStore(db, samlHandler, oidcLoginHandler),
 	}
@@ -297,6 +305,14 @@ func wireAPI(
 	providerConfigTester := newProviderConfigConnectionTester(db, providerSecretKeyring)
 	router.AdminProviderConfigReads = newAdminProviderConfigReadHandler(db, oidcLoginHandler, samlHandler, logger)
 	router.AdminProviderConfigMutations = newAdminProviderConfigMutationHandler(db, governanceAudit, providerSecretKeyring, providerConfigTester, oidcLoginHandler, samlHandler)
+
+	// Tenant sign-in policy (epic #4962, issue #4968): built before
+	// router.LocalIdentity below so its SignInPolicyReadStore can be wired
+	// into the local-login require_sso gate in the same call.
+	router.SignInPolicyReads = newSignInPolicyReadHandler(db, instruments)
+	router.SignInPolicyMutations = newSignInPolicyMutationHandler(db, instruments, governanceAudit)
+	router.LocalIdentity.SignInPolicy = router.SignInPolicyReads.Store
+	router.LocalIdentity.Instruments = instruments
 
 	apiMux := http.NewServeMux()
 	router.Mount(apiMux)

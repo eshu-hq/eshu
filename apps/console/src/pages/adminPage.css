@@ -135,3 +135,36 @@
 .seg[aria-label="Provider kind"] {
   margin-bottom: 4px;
 }
+
+/* Sign-in policy toggle row (#4968): a labeled checkbox with a description,
+   reusing the same field typography as .provider-field so the panel reads
+   as one system with the Providers tab next to it. */
+.policy-toggle-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.policy-toggle-row input[type="checkbox"] {
+  margin-top: 3px;
+  accent-color: var(--accent);
+}
+
+.policy-toggle-row span {
+  display: grid;
+  gap: 2px;
+  font-size: 0.85rem;
+  color: var(--bone);
+}
+
+.policy-toggle-row small {
+  color: var(--subtle);
+  font-size: 0.72rem;
+  font-weight: 400;
+}
+
+.policy-toggle-row code {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+}

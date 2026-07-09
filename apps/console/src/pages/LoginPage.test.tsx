@@ -9,7 +9,7 @@
 // OIDC/SAML buttons are hidden in Slice A pending provider discovery (#3682).
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { LoginPage } from "./LoginPage";
 import type { EshuApiClient, BrowserSessionResponse } from "../api/client";
@@ -42,11 +42,32 @@ function makeClient(overrides: Partial<EshuApiClient> = {}): EshuApiClient {
     postJson: vi.fn(async () => mockSessionRaw),
     logoutBrowserSession: vi.fn(async () => undefined),
     getBrowserSession: vi.fn(async () => mockSession),
-    // getJson is called by listAuthProviders on mount; return empty list so
-    // Slice A local-login tests see no SSO buttons and remain unaffected.
-    getJson: vi.fn(async () => ({ providers: [] })),
+    // getJson is called by listAuthProviders (providers) and
+    // loadPublicRequireSSO (sign-in-policy) on mount; route by path so both
+    // fetches resolve to their own safe empty/false default and existing
+    // local-login tests remain unaffected.
+    getJson: vi.fn(async (path: string) => {
+      if (path.includes("sign-in-policy")) return { require_sso: false };
+      return { providers: [] };
+    }),
     ...overrides,
   } as unknown as EshuApiClient;
+}
+
+// makeClientWithProvidersAndPolicy lets a test independently control the
+// provider list and the require_sso hint, routing by request path the same
+// way the real GET /api/v0/auth/providers and GET /api/v0/auth/sign-in-policy
+// endpoints are two distinct routes.
+function makeClientWithProvidersAndPolicy(
+  providers: readonly unknown[],
+  requireSSO: boolean,
+): EshuApiClient {
+  return makeClient({
+    getJson: vi.fn(async (path: string) => {
+      if (path.includes("sign-in-policy")) return { require_sso: requireSSO };
+      return { providers };
+    }),
+  } as unknown as Partial<EshuApiClient>);
 }
 
 function renderLogin(client: EshuApiClient, onSuccess = vi.fn()): void {
@@ -264,5 +285,57 @@ describe("LoginPage", () => {
     const submittingBtn = await screen.findByRole("button", { name: /signing in/i });
     expect(submittingBtn).toBeDisabled();
     resolve(mockSessionRaw);
+  });
+
+  // #4968: require_sso is a console-only UI HINT — the server (POST
+  // /api/v0/auth/local/login) applies the identical admin-only rule whether
+  // or not ?local=1 is present. These tests only prove the UI hint renders
+  // correctly; server enforcement is proven in go/internal/query
+  // (local_identity_sign_in_policy_gate_test.go).
+  describe("require_sso sign-in policy (#4968)", () => {
+    afterEach(() => {
+      window.history.pushState({}, "", "/");
+    });
+
+    it("hides the local password form and shows an SSO-only note when require_sso is true", async () => {
+      // tenant_id is required for both GET /providers and GET /sign-in-policy
+      // to return anything but their pre-auth empty/false default.
+      window.history.pushState({}, "", "/login?tenant_id=tenant_a");
+      const client = makeClientWithProvidersAndPolicy(
+        [{ provider_config_id: "pc_1", display_label: "Okta", provider_kind: "oidc" }],
+        true,
+      );
+      renderLogin(client);
+
+      await screen.findByRole("button", { name: /continue with okta/i });
+      await waitFor(() => expect(screen.queryByLabelText(/^login$/i)).not.toBeInTheDocument());
+      expect(screen.queryByLabelText(/password/i)).not.toBeInTheDocument();
+      expect(screen.getByText(/requires single sign-on/i)).toBeInTheDocument();
+      // No divider when the local form is not rendered — nothing to divide.
+      expect(screen.queryByText("or continue with")).not.toBeInTheDocument();
+    });
+
+    it("shows the local password form under ?local=1 even when require_sso is true", async () => {
+      window.history.pushState({}, "", "/login?tenant_id=tenant_a&local=1");
+      const client = makeClientWithProvidersAndPolicy(
+        [{ provider_config_id: "pc_1", display_label: "Okta", provider_kind: "oidc" }],
+        true,
+      );
+      renderLogin(client);
+
+      await screen.findByRole("button", { name: /continue with okta/i });
+      expect(screen.getByLabelText(/^login$/i)).toBeInTheDocument();
+      expect(screen.getByLabelText("Password")).toBeInTheDocument();
+      // The divider reappears once both the local form and SSO buttons render.
+      expect(screen.getByText("or continue with")).toBeInTheDocument();
+    });
+
+    it("still shows the local password form when require_sso is false", async () => {
+      const client = makeClientWithProvidersAndPolicy([], false);
+      renderLogin(client);
+      expect(screen.getByLabelText(/^login$/i)).toBeInTheDocument();
+      expect(screen.getByLabelText("Password")).toBeInTheDocument();
+      expect(screen.queryByText(/requires single sign-on/i)).not.toBeInTheDocument();
+    });
   });
 });

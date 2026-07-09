@@ -116,6 +116,16 @@ func (s *IdentitySubjectStore) AcceptLocalIdentityInvitation(
 	if !ok {
 		return ErrLocalIdentityInvitationRequired
 	}
+	// Sign-in policy MFA-for-all-users gate (issue #4968): read inside this
+	// same transaction, using the invite's own tenant_id, so the check and the
+	// identity insert below observe a consistent snapshot.
+	requireMFA, err := signInPolicyRequiresMFAForUsers(ctx, tx, invite.TenantID)
+	if err != nil {
+		return err
+	}
+	if requireMFA && acceptance.MFAFactorID == "" {
+		return ErrLocalIdentityMFARequiredByPolicy
+	}
 	if err := insertInvitedLocalIdentity(ctx, tx, invite, acceptance); err != nil {
 		return err
 	}
@@ -163,6 +173,20 @@ func (s *IdentitySubjectStore) AuthenticateLocalIdentity(
 	if bcrypt.CompareHashAndPassword([]byte(row.PasswordHash), []byte(attempt.Password)) != nil {
 		return s.recordFailedLocalIdentityAttempt(ctx, row, attempt.Now)
 	}
+	// MFA is gated on HasAdminRole only: admins always require MFA at login,
+	// regardless of the tenant's require_mfa_for_all_users sign-in policy
+	// (issue #4968). A non-admin whose tenant has require_mfa_for_all_users=true
+	// is only checked for MFA once, at invitation-accept time
+	// (signInPolicyRequiresMFAForUsers in identity_sign_in_policy.go, enforced
+	// in AcceptLocalIdentityInvitation above) — a pre-existing non-admin local
+	// user who never had an MFA factor is NOT re-checked here at login. This
+	// gap only bites when require_sso=false (require_sso=true already blocks
+	// non-admin local login entirely via requireSSODecision in
+	// go/internal/query/local_identity_sign_in_policy_gate.go). Extending
+	// login-time MFA enforcement to all users is a deliberate follow-up, not
+	// an oversight in this change: it needs its own design (e.g. what happens
+	// to an existing session with no MFA factor when policy flips to
+	// require_mfa_for_all_users=true after the user was created).
 	if row.HasAdminRole {
 		if !row.HasActiveMFA || attempt.MFARecoveryCodeHash == "" {
 			return LocalIdentityAuthenticationResult{Status: LocalIdentityAuthMFARequired}, nil

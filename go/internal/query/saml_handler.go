@@ -103,6 +103,11 @@ type SAMLHandler struct {
 	// CookieSecure selects the Secure-attribute policy for issued session
 	// and CSRF cookies. Empty defaults to CookieSecureAuto (#4964).
 	CookieSecure CookieSecureMode
+	// SignInPolicy resolves a per-tenant idle/absolute session timeout
+	// override (issue #4968, epic #4962). Nil falls back to
+	// IdleTimeout/AbsoluteTimeout for every tenant, matching pre-#4968
+	// behavior.
+	SignInPolicy SignInPolicyReadStore
 }
 
 // RegisteredProviderIDs returns the set of provider_config_ids managed by the
@@ -332,8 +337,11 @@ func (h *SAMLHandler) createSession(w http.ResponseWriter, r *http.Request, auth
 		WriteError(w, http.StatusInternalServerError, "failed to create browser session")
 		return
 	}
-	idleExpiresAt := now.Add(h.idleTimeout())
-	absoluteExpiresAt := now.Add(h.absoluteTimeout())
+	idleTimeout, absoluteTimeout := resolveSessionTimeouts(
+		r.Context(), h.SignInPolicy, auth.TenantID, h.idleTimeout(), h.absoluteTimeout(),
+	)
+	idleExpiresAt := now.Add(idleTimeout)
+	absoluteExpiresAt := now.Add(absoluteTimeout)
 	if err := h.Sessions.CreateBrowserSession(r.Context(), BrowserSessionCreateRecord{
 		SessionHash:                  BrowserSessionSecretHash(sessionSecret),
 		CSRFTokenHash:                BrowserSessionSecretHash(csrfSecret),
@@ -367,7 +375,7 @@ func (h *SAMLHandler) createSession(w http.ResponseWriter, r *http.Request, auth
 		sessionSecret,
 		csrfSecret,
 		absoluteExpiresAt,
-		int(h.absoluteTimeout().Seconds()),
+		int(absoluteTimeout.Seconds()),
 	)
 	// Mirror OIDC: redirect to returnToPath when a safe same-origin path was
 	// stored with the AuthnRequest. Fall back to JSON session response when no

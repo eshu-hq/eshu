@@ -91,8 +91,17 @@ func (h *LocalIdentityHandler) issueLocalIdentitySession(
 		WriteError(w, http.StatusServiceUnavailable, "browser session store is unavailable")
 		return
 	}
+	// Per-tenant session timeout override (issue #4968, epic #4962): resolved
+	// here (not inside issueLocalSessionCookies, which SetupHandler's
+	// first-run wizard session also calls and has no SignInPolicy store) so
+	// only production/break-glass login honors a tenant's configured
+	// idle/absolute override, falling back to h.idleTimeout()/
+	// h.absoluteTimeout() when unset or on a policy-read error.
+	idleTimeout, absoluteTimeout := resolveSessionTimeouts(
+		r.Context(), h.SignInPolicy, auth.TenantID, h.idleTimeout(), h.absoluteTimeout(),
+	)
 	issued, ok := issueLocalSessionCookies(
-		w, r, h.Sessions, h.newSecret, h.now(), h.idleTimeout(), h.absoluteTimeout(), h.cookieSecureMode(), auth,
+		w, r, h.Sessions, h.newSecret, h.now(), idleTimeout, absoluteTimeout, h.cookieSecureMode(), auth,
 	)
 	if !ok {
 		return

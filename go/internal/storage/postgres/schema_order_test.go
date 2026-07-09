@@ -72,4 +72,5 @@ var orderedBootstrapDefinitionNames = []string{
 	"drop_fact_records_stable_key_idx",
 	"provider_config_sealed_secret",
 	"identity_bootstrap_credential",
+	"identity_sign_in_policy",
 }
