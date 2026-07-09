@@ -100,6 +100,28 @@ func TestCoverageLockstepAgainstRealSpecs(t *testing.T) {
 		}
 	}
 
+	// validateProofGate returns the "is not blocking" error BEFORE it reaches
+	// the missing-command / missing-workflow checks, so the assertion above
+	// cannot, on its own, catch a gate that is both advisory AND missing its
+	// local command or CI workflow. Assert well-formedness directly against the
+	// registry so that compound breakage still fails here (#4959 tracks the
+	// shared precedence gap in replaycoverage/proof_gates.go).
+	var ifaGate *cigates.Gate
+	for i := range proofGates.Gates {
+		if proofGates.Gates[i].ID == "ifa-contract-layer" {
+			ifaGate = &proofGates.Gates[i]
+		}
+	}
+	if ifaGate == nil {
+		t.Fatal("ifa-contract-layer gate not found in ci-gates registry")
+	}
+	if ifaGate.Local == nil || strings.TrimSpace(ifaGate.Local.Command) == "" {
+		t.Error("ifa-contract-layer gate has no local command; the advisory proof-gate assertion above would mask this")
+	}
+	if strings.TrimSpace(ifaGate.CI.Workflow) == "" {
+		t.Error("ifa-contract-layer gate has no CI workflow; the advisory proof-gate assertion above would mask this")
+	}
+
 	rc29Coverage := findSurfaceCoverage(t, cov, NarrowedCorrelationSurfacePrefix+"rc-29")
 	if rc29Coverage.Status != replaycoverage.StatusCovered {
 		t.Errorf("narrowed_correlation:rc-29 status = %q, detail=%q, want covered", rc29Coverage.Status, rc29Coverage.Detail)

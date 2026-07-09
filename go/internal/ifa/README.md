@@ -88,6 +88,12 @@ the P1 operator-facing artifacts.
 - The `ifa-contract-layer` CI gate stays advisory for P1 (the blocking flip is
   a later milestone); `ifa coverage`'s own proof-gate validation surfaces that
   as a `Required` finding without hard-failing the advisory default.
+- `EvidenceSatisfies` checks a correlation's `evidence_kinds` half only. It does
+  not check `required_edge_properties` / `allowed_edge_property_values` (e.g.
+  rc-29's `source_tool`), because `relationships.EvidenceFact` carries no
+  source-tool field and edge-property derivation is reducer-owned
+  (post-materialization). The golden-corpus gate asserts that half live;
+  extending it to the Ifá contract layer is tracked in #4959.
 
 ## Related Docs
 

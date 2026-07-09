@@ -169,6 +169,11 @@ func indexReadSurfaceQueryRefs(m replaycoverage.Manifest) map[string][]QueryRef 
 // what DiscoverEvidence's artifact_type/content dispatch keys on (that path
 // reads the unregistered "content" fact kind), so graph truth for those kinds
 // stays golden-gate-owned.
+//
+// This is descriptive metadata surfaced by `ifa expectations`; coverage
+// resolution never reads it. It mirrors the single FactKind-keyed branch in the
+// relationships evidence dispatch, so it must be re-audited if that dispatch
+// grows another FactKind-keyed branch — tracked as a drift guard in #4959.
 func graphDerivationFor(kind string) string {
 	if kind == facts.GCPCloudRelationshipFactKind {
 		return graphDerivationGCPCloudRelationship
