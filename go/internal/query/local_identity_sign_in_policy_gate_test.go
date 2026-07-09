@@ -136,7 +136,7 @@ func TestLocalLoginUnaffectedWhenRequireSSOPolicyIsOff(t *testing.T) {
 	}
 }
 
-func TestLocalLoginFailsOpenWhenSignInPolicyReadErrors(t *testing.T) {
+func TestLocalLoginDeniedForNonAdminWhenSignInPolicyReadErrors(t *testing.T) {
 	t.Parallel()
 
 	store := &fakeLocalIdentityStore{
@@ -164,8 +164,47 @@ func TestLocalLoginFailsOpenWhenSignInPolicyReadErrors(t *testing.T) {
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want %d (a policy read outage must not silently grant a non-admin a session on a require_sso tenant): %s", rec.Code, http.StatusForbidden, rec.Body.String())
+	}
+	if len(sessions.created) != 0 {
+		t.Fatalf("created sessions = %d, want 0 (non-admin must not receive a session when the policy cannot be read)", len(sessions.created))
+	}
+}
+
+func TestLocalLoginAllowedForAdminBreakGlassWhenSignInPolicyReadErrors(t *testing.T) {
+	t.Parallel()
+
+	store := &fakeLocalIdentityStore{
+		authResult: LocalIdentityAuthenticationResult{
+			Status:        LocalIdentityAuthAuthenticated,
+			Authenticated: true,
+			Auth: LocalIdentityAuthContext{
+				TenantID:      "tenant_local",
+				SubjectIDHash: "sha256:admin-subject",
+				AllScopes:     true,
+			},
+		},
+	}
+	sessions := &fakeBrowserSessionStore{}
+	policy := &fakeSignInPolicyReadStore{err: context.DeadlineExceeded}
+	handler := &LocalIdentityHandler{Store: store, Sessions: sessions, SignInPolicy: policy}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v0/auth/local/login",
+		bytes.NewBufferString(`{"login_id":"admin@example.test","password":"plaintext-password"}`),
+	)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
 	if rec.Code != http.StatusOK {
-		t.Fatalf("status = %d, want %d (policy read failure must fail open, not lock out every local login): %s", rec.Code, http.StatusOK, rec.Body.String())
+		t.Fatalf("status = %d, want %d (admin break-glass must survive a policy read outage): %s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	if len(sessions.created) != 1 {
+		t.Fatalf("created sessions = %d, want 1 (admin break-glass must survive a policy read outage)", len(sessions.created))
 	}
 }
 

@@ -986,12 +986,17 @@ type Instruments struct {
 	// AuthRequireSSOLoginGateTotal counts every local password login attempt
 	// evaluated against a tenant's require_sso policy (issue #4968, epic
 	// #4962), by bounded decision value (not_required, allowed_admin,
-	// denied_non_admin). allowed_admin covers both the normal login form (when
-	// require_sso is off) and the break-glass path
+	// denied_non_admin, policy_read_error_admin_allowed,
+	// policy_read_error_fail_closed_non_admin). allowed_admin covers both the
+	// normal login form (when require_sso is off) and the break-glass path
 	// (/login?local=1 — a console-only UI hint with no server meaning): the
 	// server applies the identical admin-only rule either way, so this
 	// counter cannot distinguish which URL the caller used, only whether the
-	// authenticated identity was an admin.
+	// authenticated identity was an admin. The two policy_read_error_*
+	// values cover a sign-in-policy read failure: admins still get in
+	// (break-glass does not depend on a readable policy), non-admins are
+	// denied (a non-admin's session depends on confirming require_sso is
+	// off, which an unreadable policy cannot do).
 	AuthRequireSSOLoginGateTotal       metric.Int64Counter
 	SharedAcceptanceUpsertDuration     metric.Float64Histogram
 	SharedAcceptanceLookupDuration     metric.Float64Histogram
@@ -3508,7 +3513,7 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 
 	inst.AuthRequireSSOLoginGateTotal, err = meter.Int64Counter(
 		"eshu_dp_auth_require_sso_login_gate_total",
-		metric.WithDescription("Local password login attempts evaluated against tenant require_sso policy by bounded decision value (not_required, allowed_admin, denied_non_admin)"),
+		metric.WithDescription("Local password login attempts evaluated against tenant require_sso policy by bounded decision value (not_required, allowed_admin, denied_non_admin, policy_read_error_admin_allowed, policy_read_error_fail_closed_non_admin)"),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register AuthRequireSSOLoginGateTotal counter: %w", err)

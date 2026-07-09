@@ -31,19 +31,35 @@ import (
 //     there is no client-suppliable field that changes the outcome.
 //   - "denied_non_admin": require_sso is on and the identity is not an
 //     admin. The local session is not issued.
-//   - "policy_read_error_fail_open": the policy read itself failed. Failing
-//     open here (not closed) is intentional: failing closed would mean a
-//     transient sign-in-policy read error locks out EVERY local login for
-//     the tenant, including admin break-glass — the exact outage break-glass
-//     exists to prevent. The error is logged so an operator sees the gap.
+//   - "policy_read_error_admin_allowed": the policy read itself failed and
+//     the already-authenticated identity is an admin (AllScopes). Admin
+//     break-glass is granted regardless of the require_sso setting even when
+//     it CAN be read (see "allowed_admin" above), so a read outage changes
+//     nothing for this identity: it is not the fail-open path, just the
+//     ordinary break-glass rule applied without first confirming the
+//     (irrelevant, for an admin) policy value.
+//   - "policy_read_error_fail_closed_non_admin": the policy read itself
+//     failed and the identity is not an admin. Failing CLOSED here (not
+//     open) is intentional: a non-admin's session depends entirely on
+//     whether require_sso is off, and a read failure means that cannot be
+//     confirmed. Failing open would let a non-admin log in on a tenant that
+//     actually has require_sso=true during exactly the outage window an
+//     attacker would want. This does not touch admin break-glass, which is
+//     AllScopes-gated and unconditional (see "policy_read_error_admin_allowed"
+//     above) — the original "lock out every local login including
+//     break-glass" concern does not apply. The error is logged so an
+//     operator sees the gap.
 func (h *LocalIdentityHandler) requireSSODecision(ctx context.Context, auth LocalIdentityAuthContext) (allowed bool, decision string) {
 	if h.SignInPolicy == nil {
 		return true, "not_required"
 	}
 	policy, err := h.SignInPolicy.GetSignInPolicy(ctx, auth.TenantID)
 	if err != nil {
-		slog.ErrorContext(ctx, "sign-in policy read failed during local login gate; failing open", "err", err)
-		return true, "policy_read_error_fail_open"
+		slog.ErrorContext(ctx, "sign-in policy read failed during local login gate", "err", err)
+		if auth.AllScopes {
+			return true, "policy_read_error_admin_allowed"
+		}
+		return false, "policy_read_error_fail_closed_non_admin"
 	}
 	if !policy.RequireSSO {
 		return true, "not_required"
