@@ -198,26 +198,3 @@ func TestDeriveIsDeterministicallySorted(t *testing.T) {
 		t.Errorf("Kinds not sorted: %v", []string{got.Kinds[0].Kind, got.Kinds[1].Kind, got.Kinds[2].Kind})
 	}
 }
-
-func TestDeriveGraphDerivationDefaultsToNoneExceptGCPCloudRelationship(t *testing.T) {
-	t.Parallel()
-
-	entries := []facts.FactKindRegistryEntry{
-		testFactKindEntry("aws_resource", "", ""),
-		testFactKindEntry(facts.GCPCloudRelationshipFactKind, "", ""),
-	}
-	got, err := Derive(entries, testSnapshot(), testReplayManifest())
-	if err != nil {
-		t.Fatalf("Derive: %v", err)
-	}
-	byKind := map[string]KindExpectation{}
-	for _, ke := range got.Kinds {
-		byKind[ke.Kind] = ke
-	}
-	if byKind["aws_resource"].GraphDerivation != "none (graph truth owned by golden-corpus gate)" {
-		t.Errorf("aws_resource GraphDerivation = %q", byKind["aws_resource"].GraphDerivation)
-	}
-	if byKind[facts.GCPCloudRelationshipFactKind].GraphDerivation == "none (graph truth owned by golden-corpus gate)" {
-		t.Errorf("%s GraphDerivation should not be the default none label; it is dispatched by fact kind in relationships.DiscoverEvidence", facts.GCPCloudRelationshipFactKind)
-	}
-}

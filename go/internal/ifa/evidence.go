@@ -61,6 +61,20 @@ func DiscoveredEvidence(odu Odu) []relationships.EvidenceFact {
 // unsatisfied, detail names the missing evidence kind(s) so a false-green break
 // (see coverage_falsegreen_test.go) is diagnosable without re-deriving evidence
 // by hand.
+//
+// This checks the evidence-kind half only, by design (#4959 resolved). A
+// correlation's required_edge_properties / allowed_edge_property_values (e.g.
+// rc-29's source_tool) are NOT checked here: source_tool is stamped at
+// materialization time by the reducer from an edge's PRIMARY evidence kind
+// (cross_repo_evidence_type.go), and which evidence facts a resolver aggregates
+// into one edge — hence which becomes primary — is not decidable from a fact
+// slice pre-materialization (a mixed ArgoCD+Kustomize edge satisfies rc-29's
+// kinds yet stamps argocd). The live edge-property check is the golden-corpus
+// gate's goldengate.EvaluateEdgeProperty over the materialized graph, which
+// Ifá's post-materialization phases (P3) reuse unchanged. The one statically
+// decidable half — every narrowed rc pins source_tool to exactly what its
+// evidence kinds derive to — is locked by a reducer-package test
+// (cross_repo_source_tool_snapshot_test.go), not by this function.
 func EvidenceSatisfies(rc goldengate.RequiredCorrelation, ev []relationships.EvidenceFact) (bool, string) {
 	if len(rc.EvidenceKinds) == 0 {
 		return false, fmt.Sprintf("required correlation %s has no evidence_kinds filter; Ifá only proves evidence-narrowed correlations", rc.ID)

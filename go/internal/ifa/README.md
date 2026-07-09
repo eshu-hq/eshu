@@ -105,12 +105,23 @@ the P1 operator-facing artifacts.
 - The `ifa-contract-layer` CI gate stays advisory for P1 (the blocking flip is
   a later milestone); `ifa coverage`'s own proof-gate validation surfaces that
   as a `Required` finding without hard-failing the advisory default.
-- `EvidenceSatisfies` checks a correlation's `evidence_kinds` half only. It does
-  not check `required_edge_properties` / `allowed_edge_property_values` (e.g.
-  rc-29's `source_tool`), because `relationships.EvidenceFact` carries no
-  source-tool field and edge-property derivation is reducer-owned
-  (post-materialization). The golden-corpus gate asserts that half live;
-  extending it to the Ifá contract layer is tracked in #4959.
+- `EvidenceSatisfies` checks a correlation's `evidence_kinds` half only, by
+  design (#4959 resolved). It does not check `required_edge_properties` /
+  `allowed_edge_property_values` (e.g. rc-29's `source_tool`): `source_tool` is
+  stamped at materialization time from an edge's primary evidence kind, and
+  which facts a resolver aggregates into one edge is undecidable from a fact
+  slice pre-materialization. The golden-corpus gate asserts that half live over
+  the materialized graph (`goldengate.EvaluateEdgeProperty`), which Ifá's
+  post-materialization phases reuse; the one statically decidable half — every
+  narrowed rc pins `source_tool` to exactly what its evidence kinds derive to —
+  is locked by a reducer-package test (`cross_repo_source_tool_snapshot_test.go`).
+- Graph-evidence reach is proven by running the real
+  `relationships.DiscoverEvidence` extractor, not a hand-authored classifier. A
+  machine-readable fact-kind-to-dispatch surface (e.g. to warn "this Odù carries
+  kind X but X never reaches the extractor") is deliberately deferred to a P2+
+  consumer that
+  needs it (#4959); building it now would mean exporting the dispatch from
+  `relationships` and paying its docs-lockstep gates for no in-repo reader.
 - `RoundTripTypedPayloads` only proves fact kinds registered in
   `gcpRoundTripByKind` (`roundtrip.go`); a fact kind absent from that table
   fails closed with an error naming the kind rather than silently skipping

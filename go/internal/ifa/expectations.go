@@ -16,20 +16,6 @@ import (
 // for a fact-kind-registry read surface (replaycoverage/surfaces.go).
 const readSurfaceManifestPrefix = "read_surface:"
 
-// graphDerivationNone is the default GraphDerivation label for a fact kind
-// whose payload never reaches relationships.DiscoverEvidence: the majority of
-// registered fact kinds (aws_resource, sbom.*, semantic.*, ...) describe
-// cloud/supply-chain/observability truth that the golden-corpus gate's node
-// and edge count assertions already own, not cross-repository relationship
-// evidence.
-const graphDerivationNone = "none (graph truth owned by golden-corpus gate)"
-
-// graphDerivationGCPCloudRelationship is the GraphDerivation label for the one
-// registered fact kind relationships.DiscoverEvidence dispatches on by its
-// FactKind literal rather than by content artifact_type (see
-// discoverFromEnvelopeWithIndex's GCPCloudRelationshipFactKind case).
-const graphDerivationGCPCloudRelationship = "gcp cloud relationship evidence (dispatched by fact kind in relationships.DiscoverEvidence)"
-
 // QueryRef points at one replay-coverage-manifest row that proves a fact
 // kind's read_surface query truth. It is a read-only projection of
 // replaycoverage.CoverageEntry: Ifá never re-declares query coverage, it reads
@@ -46,10 +32,11 @@ type QueryRef struct {
 }
 
 // KindExpectation is the derived P1 expectation for one fact-kind-registry
-// entry: its query-truth binding (1a), its payload-schema derivation (1c), and
-// whether its facts ever reach the graph-evidence extractor (1b/1d). Nothing
-// here is hand-listed; every field is computed from the registry entry, the
-// B-12 snapshot, and the replay-coverage manifest.
+// entry: its query-truth binding (1a) and its payload-schema derivation (1c).
+// Graph-evidence reach (1b/1d) is proven by running the real
+// relationships.DiscoverEvidence extractor (see EvidenceSatisfies), not carried
+// as a per-kind field here. Nothing here is hand-listed; every field is
+// computed from the registry entry and the replay-coverage manifest.
 type KindExpectation struct {
 	// Kind is the fact-kind-registry Kind string.
 	Kind string
@@ -69,11 +56,6 @@ type KindExpectation struct {
 	// payload-schema artifact yet, so Ifá can only assert the kind's presence in
 	// the registry, never validate its payload shape. Non-blocking.
 	RegistryOnly bool
-	// GraphDerivation names how (or whether) this kind's facts reach
-	// relationships.DiscoverEvidence. Almost every kind is
-	// graphDerivationNone; only facts.GCPCloudRelationshipFactKind is
-	// dispatched by FactKind rather than by content artifact_type.
-	GraphDerivation string
 }
 
 // DerivedExpectations is the full P1 derivation join output: one
@@ -120,11 +102,10 @@ func Derive(entries []facts.FactKindRegistryEntry, snap goldengate.Snapshot, rep
 func deriveKindExpectation(entry facts.FactKindRegistryEntry, queryRefsBySurface map[string][]QueryRef) KindExpectation {
 	readSurface := normalizeReadSurface(entry.ReadSurface)
 	ke := KindExpectation{
-		Kind:            entry.Kind,
-		ReadSurface:     readSurface,
-		PayloadSchema:   strings.TrimSpace(entry.PayloadSchema),
-		RegistryOnly:    strings.TrimSpace(entry.PayloadSchema) == "",
-		GraphDerivation: graphDerivationFor(entry.Kind),
+		Kind:          entry.Kind,
+		ReadSurface:   readSurface,
+		PayloadSchema: strings.TrimSpace(entry.PayloadSchema),
+		RegistryOnly:  strings.TrimSpace(entry.PayloadSchema) == "",
 	}
 	if readSurface != "" {
 		ke.QueryRefs = queryRefsBySurface[readSurface]
@@ -161,22 +142,4 @@ func indexReadSurfaceQueryRefs(m replaycoverage.Manifest) map[string][]QueryRef 
 		})
 	}
 	return index
-}
-
-// graphDerivationFor classifies whether kind's facts ever reach
-// relationships.DiscoverEvidence. Only facts.GCPCloudRelationshipFactKind is
-// dispatched there by FactKind; every other registered kind's payload is not
-// what DiscoverEvidence's artifact_type/content dispatch keys on (that path
-// reads the unregistered "content" fact kind), so graph truth for those kinds
-// stays golden-gate-owned.
-//
-// This is descriptive metadata surfaced by `ifa expectations`; coverage
-// resolution never reads it. It mirrors the single FactKind-keyed branch in the
-// relationships evidence dispatch, so it must be re-audited if that dispatch
-// grows another FactKind-keyed branch — tracked as a drift guard in #4959.
-func graphDerivationFor(kind string) string {
-	if kind == facts.GCPCloudRelationshipFactKind {
-		return graphDerivationGCPCloudRelationship
-	}
-	return graphDerivationNone
 }
