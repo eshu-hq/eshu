@@ -300,6 +300,18 @@ func (h *AdminProviderConfigMutationHandler) handleDisable(w http.ResponseWriter
 // is the "provider cannot be enabled without a passing test" gate, enforced
 // here rather than by persisting a trust flag (see the package doc comment
 // on why no new column tracks test state).
+//
+// KNOWN GAP (tracked, not fixed in this change): the test-connection call and
+// the EnableProviderConfig call are not atomic. A concurrent Update that
+// creates and activates a new revision between them would let Enable activate
+// that new, not-yet-tested revision rather than the one that just passed.
+// This requires two concurrent authenticated all-scope admin actions racing
+// on the same provider_config_id — not reachable by an unprivileged caller —
+// and the window is a single HTTP round trip. Closing it fully needs
+// EnableProviderConfig to accept an expected active-revision id and compare
+// -and-swap under the same row lock Update/Revert already use (see
+// identity_provider_config_writes.go's lockProviderConfig). Flagged for a
+// follow-up rather than implemented here to keep this change's diff focused.
 func (h *AdminProviderConfigMutationHandler) handleStatusChange(w http.ResponseWriter, r *http.Request, capability string, enable bool) {
 	if !h.storeReady(w) {
 		return
