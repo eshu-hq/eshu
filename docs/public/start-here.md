@@ -11,6 +11,7 @@ from zero to one indexed repository, a status check, and a first useful answer.
 | Goal | First page |
 | --- | --- |
 | Get one complete local run | [First Successful Run](getting-started/first-successful-run.md) |
+| Go from `docker compose up` to a logged-in dashboard with SSO | [Console First Five Minutes](getting-started/console-first-five-minutes.md) |
 | Run Eshu on your laptop | [Run locally](run-locally/index.md) |
 | Connect Codex, Claude, Cursor, VS Code, or another MCP client | [Connect MCP](mcp/index.md) |
 | Index repositories and ask questions | [Use Eshu](use/index.md) |
