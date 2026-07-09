@@ -156,8 +156,18 @@ func newCrewjamServiceProvider(provider SAMLProviderConfig, now time.Time) (saml
 	if err != nil {
 		return saml.ServiceProvider{}, fmt.Errorf("parse saml acs url: %w", err)
 	}
+	// Key/Certificate are only non-nil for a DB-backed provider resolved via
+	// samlauth.ResolveSealedProviderConfig (#4966, epic #4962; completes
+	// #4978) — an env-file provider never carries them. crewjam only
+	// consults them to decrypt an IdP-encrypted EncryptedAssertion element;
+	// Eshu's SP-initiated AuthnRequest uses HTTP-Redirect binding, which
+	// crewjam never signs regardless (see MakeAuthenticationRequest's doc
+	// comment), so setting them here is safe for every IdP that sends plain
+	// (unencrypted) assertions.
 	return saml.ServiceProvider{
 		EntityID:              provider.ServiceProvider.EntityID,
+		Key:                   provider.ServiceProvider.Key,
+		Certificate:           provider.ServiceProvider.Certificate,
 		MetadataURL:           *metadataURL,
 		AcsURL:                *acsURL,
 		IDPMetadata:           idpMetadata,

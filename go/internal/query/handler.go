@@ -146,55 +146,57 @@ func requireContextOverview(w http.ResponseWriter, r *http.Request, profile Quer
 
 // APIRouter builds the top-level /api/v0 mux for all query endpoints.
 type APIRouter struct {
-	Repositories           *RepositoryHandler
-	Entities               *EntityHandler
-	Code                   *CodeHandler
-	Content                *ContentHandler
-	Infra                  *InfraHandler
-	GraphEntityInventory   *GraphEntityInventoryHandler
-	CloudInventory         *CloudInventoryHandler
-	CloudRuntimeDrift      *CloudRuntimeDriftHandler
-	IaC                    *IaCHandler
-	Impact                 *ImpactHandler
-	Evidence               *EvidenceHandler
-	Documentation          *DocumentationHandler
-	SemanticEvidence       *SemanticEvidenceHandler
-	SemanticSearch         *SemanticSearchHandler
-	PackageRegistry        *PackageRegistryHandler
-	Dependencies           *DependenciesHandler
-	CICD                   *CICDHandler
-	ServiceCatalog         *ServiceCatalogHandler
-	Kubernetes             *KubernetesHandler
-	SecretsIAM             *SecretsIAMHandler
-	ObservabilityCoverage  *ObservabilityCoverageHandler
-	Images                 *ImageHandler
-	SupplyChain            *SupplyChainHandler
-	Incident               *IncidentHandler
-	WorkItems              *WorkItemHandler
-	Visualization          *VisualizationHandler
-	Freshness              *FreshnessHandler
-	Status                 *StatusHandler
-	ComponentExtensions    *ComponentExtensionsHandler
-	ExtractionReadiness    *CollectorExtractionReadinessHandler
-	FactSchemaVersions     *FactSchemaVersionHandler
-	Playbooks              *QueryPlaybookHandler
-	InvestigationWorkflows *InvestigationWorkflowHandler
-	Metrics                *MetricsHandler
-	Capabilities           *CapabilitiesHandler
-	SurfaceInventory       *SurfaceInventoryHandler
-	Compare                *CompareHandler
-	AdminDeadLetters       *AdminDeadLetterListHandler
-	Admin                  *AdminHandler
-	Ask                    *AskHandler
-	LocalIdentity          *LocalIdentityHandler
-	BrowserSessions        *BrowserSessionHandler
-	SessionList            *BrowserSessionListHandler
-	AdminIdentityReads     *AdminIdentityReadHandler
-	AdminIdentityMutations *AdminIdentityMutationHandler
-	Profile                *ProfileHandler
-	OIDCLogin              *OIDCLoginHandler
-	SAML                   *SAMLHandler
-	AuthProviders          *AuthProviderListHandler
+	Repositories                 *RepositoryHandler
+	Entities                     *EntityHandler
+	Code                         *CodeHandler
+	Content                      *ContentHandler
+	Infra                        *InfraHandler
+	GraphEntityInventory         *GraphEntityInventoryHandler
+	CloudInventory               *CloudInventoryHandler
+	CloudRuntimeDrift            *CloudRuntimeDriftHandler
+	IaC                          *IaCHandler
+	Impact                       *ImpactHandler
+	Evidence                     *EvidenceHandler
+	Documentation                *DocumentationHandler
+	SemanticEvidence             *SemanticEvidenceHandler
+	SemanticSearch               *SemanticSearchHandler
+	PackageRegistry              *PackageRegistryHandler
+	Dependencies                 *DependenciesHandler
+	CICD                         *CICDHandler
+	ServiceCatalog               *ServiceCatalogHandler
+	Kubernetes                   *KubernetesHandler
+	SecretsIAM                   *SecretsIAMHandler
+	ObservabilityCoverage        *ObservabilityCoverageHandler
+	Images                       *ImageHandler
+	SupplyChain                  *SupplyChainHandler
+	Incident                     *IncidentHandler
+	WorkItems                    *WorkItemHandler
+	Visualization                *VisualizationHandler
+	Freshness                    *FreshnessHandler
+	Status                       *StatusHandler
+	ComponentExtensions          *ComponentExtensionsHandler
+	ExtractionReadiness          *CollectorExtractionReadinessHandler
+	FactSchemaVersions           *FactSchemaVersionHandler
+	Playbooks                    *QueryPlaybookHandler
+	InvestigationWorkflows       *InvestigationWorkflowHandler
+	Metrics                      *MetricsHandler
+	Capabilities                 *CapabilitiesHandler
+	SurfaceInventory             *SurfaceInventoryHandler
+	Compare                      *CompareHandler
+	AdminDeadLetters             *AdminDeadLetterListHandler
+	Admin                        *AdminHandler
+	Ask                          *AskHandler
+	LocalIdentity                *LocalIdentityHandler
+	BrowserSessions              *BrowserSessionHandler
+	SessionList                  *BrowserSessionListHandler
+	AdminIdentityReads           *AdminIdentityReadHandler
+	AdminIdentityMutations       *AdminIdentityMutationHandler
+	Profile                      *ProfileHandler
+	OIDCLogin                    *OIDCLoginHandler
+	SAML                         *SAMLHandler
+	AuthProviders                *AuthProviderListHandler
+	AdminProviderConfigReads     *AdminProviderConfigReadHandler
+	AdminProviderConfigMutations *AdminProviderConfigMutationHandler
 }
 
 // Mount registers all query-layer HTTP routes on the given mux.
@@ -224,6 +226,12 @@ func (a *APIRouter) Mount(mux *http.ServeMux) {
 	}
 	if a.AdminIdentityMutations != nil {
 		a.AdminIdentityMutations.Mount(mux)
+	}
+	if a.AdminProviderConfigReads != nil {
+		a.AdminProviderConfigReads.Mount(mux)
+	}
+	if a.AdminProviderConfigMutations != nil {
+		a.AdminProviderConfigMutations.Mount(mux)
 	}
 	if a.Profile != nil {
 		a.Profile.Mount(mux)

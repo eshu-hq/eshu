@@ -32,6 +32,39 @@ type ProviderConfig struct {
 	SubjectClaim     string   `json:"subject_claim,omitempty"`
 	EmailClaim       string   `json:"email_claim,omitempty"`
 	GroupsClaim      string   `json:"groups_claim,omitempty"`
+	// ClientSecret is the decrypted client secret for a DB-backed provider
+	// (#4966, epic #4962), held only in-process and only for the duration of
+	// one connector build — see ResolveSealedProviderConfig, this package's
+	// (*secretcrypto.Keyring).Open call site. Never populated from the env
+	// config file (which uses ClientSecretFile instead) and never
+	// JSON-marshaled (json:"-"): this field must never be logged, returned,
+	// or persisted. NewOIDCConnector prefers this over ClientSecretFile when
+	// both are somehow set.
+	ClientSecret string `json:"-"` // #nosec G101 -- struct field name, not a credential
+}
+
+// DBProviderResolver resolves a DB-backed provider config (#4966, epic
+// #4962) by provider_config_id, scoped to the caller's tenant/workspace.
+// Implemented outside this package (in cmd/api, backed by storage/postgres)
+// because fetching the sealed_secret ciphertext requires a database; the
+// implementation must call ResolveSealedProviderConfig to decrypt it rather
+// than opening the envelope itself, keeping every
+// (*secretcrypto.Keyring).Open call site for provider-config secrets inside
+// this package (see ResolveSealedProviderConfig's doc comment). found=false
+// (with a nil error) means no active DB-backed provider matches — the
+// caller's env-file lookup already ran first and also missed, so this
+// becomes ErrOIDCLoginInvalidRequest at the Service.provider() call site,
+// same as an unknown env-file id.
+type DBProviderResolver interface {
+	ResolveProvider(ctx context.Context, providerConfigID, tenantID, workspaceID string) (ProviderConfig, bool, error)
+}
+
+// WithDBProviderResolver wires a DB-backed provider fallback into the
+// service. When unset, Service.provider() only resolves env-file providers.
+func WithDBProviderResolver(resolver DBProviderResolver) Option {
+	return func(s *Service) {
+		s.dbProviders = resolver
+	}
 }
 
 // StateRecord is one hash-only OIDC login state.
@@ -164,11 +197,32 @@ func safeReturnPath(path string) string {
 	return path
 }
 
+// resolveProviderContext validates the request's tenant/workspace against the
+// provider's own scope. tenantID is always required to match exactly
+// (defaulting to the provider's when the request omits it).
+//
+// workspaceID is only enforced when the provider itself is workspace-scoped
+// (provider.WorkspaceID != ""), which is always true for env-file providers.
+// DB-backed providers (#4966, epic #4962) have no workspace column in
+// identity_provider_configs — that table is tenant-scoped only — so
+// provider.WorkspaceID is always "" for them; the request's workspace (which
+// may itself be empty) passes through unchecked at this layer. The actual
+// RBAC boundary for a DB-backed provider is
+// identity_provider_group_role_mappings, which IS workspace-scoped and is
+// consulted later during grant resolution (GrantQuery.WorkspaceID) — so a
+// login still cannot obtain access outside its resolved workspace's grants,
+// even though this function does not gate it for DB-backed providers.
 func resolveProviderContext(provider ProviderConfig, tenantID string, workspaceID string) (string, string, error) {
 	tenantID = defaultString(strings.TrimSpace(tenantID), provider.TenantID)
-	workspaceID = defaultString(strings.TrimSpace(workspaceID), provider.WorkspaceID)
-	if tenantID != provider.TenantID || workspaceID != provider.WorkspaceID {
+	if tenantID != provider.TenantID {
 		return "", "", query.ErrOIDCLoginInvalidRequest
+	}
+	workspaceID = strings.TrimSpace(workspaceID)
+	if provider.WorkspaceID != "" {
+		workspaceID = defaultString(workspaceID, provider.WorkspaceID)
+		if workspaceID != provider.WorkspaceID {
+			return "", "", query.ErrOIDCLoginInvalidRequest
+		}
 	}
 	return tenantID, workspaceID, nil
 }

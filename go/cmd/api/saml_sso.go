@@ -17,6 +17,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/samlauth"
+	"github.com/eshu-hq/eshu/go/internal/secretcrypto"
 	pgstatus "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -29,7 +30,13 @@ type postgresSAMLStore struct {
 	ledger    *pgstatus.SAMLSSOStore
 	identity  *pgstatus.IdentitySubjectStore
 	providers map[string]samlProviderRuntimeConfig
-	now       func() time.Time
+	// dbProviders resolves enabled DB-backed external_saml providers not
+	// present in the env-file providers map (#4966, epic #4962; completes
+	// #4978). nil when no keyring is configured — a deployment with no DEK
+	// then serves env-file providers only, matching OIDC's dbProviders
+	// nil-means-env-only contract.
+	dbProviders samlProviderDBResolver
+	now         func() time.Time
 }
 
 type samlProviderRuntimeConfig struct {
@@ -54,6 +61,7 @@ func newSAMLHandler(
 	getenv func(string) string,
 	sessions query.BrowserSessionStore,
 	cookieSecureMode query.CookieSecureMode,
+	providerSecretKeyring *secretcrypto.Keyring,
 ) (*query.SAMLHandler, error) {
 	if strings.TrimSpace(getenv(envSAMLProvidersJSON)) == "" {
 		return nil, nil
@@ -77,6 +85,7 @@ func newSAMLHandler(
 		pgstatus.NewSAMLSSOStore(samlDB),
 		pgstatus.NewIdentitySubjectStore(samlDB),
 		getenv,
+		newSAMLDBProviderResolver(db, providerSecretKeyring),
 	)
 	if err != nil {
 		return nil, err
@@ -93,6 +102,7 @@ func newPostgresSAMLStore(
 	ledger *pgstatus.SAMLSSOStore,
 	identity *pgstatus.IdentitySubjectStore,
 	getenv func(string) string,
+	dbProviders samlProviderDBResolver,
 ) (*postgresSAMLStore, error) {
 	if ledger == nil {
 		return nil, errors.New("saml ledger store is required")
@@ -108,10 +118,11 @@ func newPostgresSAMLStore(
 		return nil, errors.New("at least one SAML provider is required")
 	}
 	return &postgresSAMLStore{
-		ledger:    ledger,
-		identity:  identity,
-		providers: providers,
-		now:       func() time.Time { return time.Now().UTC() },
+		ledger:      ledger,
+		identity:    identity,
+		providers:   providers,
+		dbProviders: dbProviders,
+		now:         func() time.Time { return time.Now().UTC() },
 	}, nil
 }
 
@@ -184,13 +195,26 @@ func samlProviderRuntimeFromEnvConfig(
 	return runtime, nil
 }
 
+// GetSAMLProvider resolves providerID to its SAML config, preferring the
+// env-file provider set (unchanged, tenant-agnostic lookup by id) and falling
+// back to a DB-backed provider (#4966, epic #4962; completes #4978) via
+// s.dbProviders when the id is not found there. Env config always wins on a
+// colliding id — the DB fallback only runs when no env provider matched —
+// matching the same env-authoritative precedence OIDC's Service.provider()
+// enforces and auth_providers.go's ListLoginProviders doc comment describes.
+// The DB fallback is a no-op when s.dbProviders is nil (no keyring
+// configured, or an env-only deployment).
 func (s *postgresSAMLStore) GetSAMLProvider(
 	ctx context.Context,
 	providerID string,
 ) (query.SAMLProviderConfig, bool, error) {
-	provider, ok := s.providers[strings.TrimSpace(providerID)]
+	providerID = strings.TrimSpace(providerID)
+	provider, ok := s.providers[providerID]
 	if !ok {
-		return query.SAMLProviderConfig{}, false, nil
+		if s.dbProviders == nil || providerID == "" {
+			return query.SAMLProviderConfig{}, false, nil
+		}
+		return s.dbProviders.ResolveProvider(ctx, providerID)
 	}
 	if s.identity != nil {
 		active, err := s.identity.HasActiveSAMLProviderConfig(ctx, provider.provider.ProviderConfigID)
@@ -248,19 +272,45 @@ func (s *postgresSAMLStore) ReserveSAMLReplay(
 	})
 }
 
+// ResolveSAMLPrincipal maps a validated principal to Eshu authorization
+// context. providerID resolution mirrors GetSAMLProvider's env-then-DB
+// precedence (#4966, epic #4962; completes #4978), but deliberately does NOT
+// call the full GetSAMLProvider/samlDBProviderResolver.ResolveProvider for a
+// DB-backed provider — that would open its sealed sp_private_key/
+// sp_certificate for no reason, since ResolveSAMLExternalSubject only needs
+// the provider_config_id (already re-validated as active by that query's own
+// pc.status='active' predicate). Instead, a DB-only providerID is confirmed
+// via the same lightweight HasActiveSAMLProviderConfig existence/active
+// check GetSAMLProvider uses for an ENV-registered provider — no secret is
+// touched. This closes the gap where a DB-backed provider could pass
+// assertion verification (via GetSAMLProvider's DB fallback earlier in the
+// ACS flow) and then fail here anyway because s.providers, indexed directly,
+// never knows about DB-backed rows.
 func (s *postgresSAMLStore) ResolveSAMLPrincipal(
 	ctx context.Context,
 	providerID string,
 	principal samlauth.Principal,
 	now time.Time,
 ) (query.AuthContext, bool, error) {
-	provider, ok := s.providers[strings.TrimSpace(providerID)]
-	if !ok {
-		return query.AuthContext{}, false, nil
+	providerID = strings.TrimSpace(providerID)
+	providerConfigID := providerID
+	if provider, ok := s.providers[providerID]; ok {
+		providerConfigID = provider.provider.ProviderConfigID
+	} else {
+		if s.dbProviders == nil || s.identity == nil {
+			return query.AuthContext{}, false, nil
+		}
+		active, err := s.identity.HasActiveSAMLProviderConfig(ctx, providerID)
+		if err != nil {
+			return query.AuthContext{}, false, err
+		}
+		if !active {
+			return query.AuthContext{}, false, nil
+		}
 	}
 	if s.identity != nil {
 		result, err := s.identity.ResolveSAMLExternalSubject(ctx, pgstatus.SAMLExternalSubjectResolutionRequest{
-			ProviderConfigID:      provider.provider.ProviderConfigID,
+			ProviderConfigID:      providerConfigID,
 			ExternalSubjectIDHash: principal.ExternalSubjectHash,
 			GroupClaimsHash:       principal.GroupClaimHash,
 			Now:                   now,

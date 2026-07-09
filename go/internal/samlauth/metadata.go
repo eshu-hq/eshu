@@ -4,6 +4,7 @@
 package samlauth
 
 import (
+	"crypto"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/xml"
@@ -35,6 +36,26 @@ type IdentityProviderMetadata struct {
 type ServiceProviderConfig struct {
 	EntityID string
 	ACSURL   string
+
+	// Key and Certificate are the SP's own signing/decryption key pair,
+	// decrypted from a DB-backed provider config's sealed sp_private_key /
+	// sp_certificate (#4966, epic #4962; completes #4978) by
+	// ResolveSealedProviderConfig — the only (*secretcrypto.Keyring).Open
+	// call site for this material. Always nil for an env/file-registered
+	// provider (samlProviderEnvConfig carries no key material at all).
+	//
+	// crewjam's ServiceProvider only consults these for decrypting an
+	// EncryptedAssertion element (service_provider.go's
+	// parseEncryptedAssertion) — Eshu's SP-initiated AuthnRequest uses
+	// HTTP-Redirect binding, which crewjam never signs regardless of these
+	// fields (see its MakeAuthenticationRequest doc comment: "We don't need
+	// to sign the XML document if the IDP uses HTTP-Redirect binding").
+	// Wiring them is still the correct login-runtime completion: an IdP
+	// configured to encrypt assertions to this SP cannot be decrypted
+	// without them, and every #4966 DB-backed SAML provider retains its own
+	// sp_private_key/sp_certificate specifically so this is possible.
+	Key         crypto.Signer
+	Certificate *x509.Certificate
 }
 
 // ValidateIdentityProviderMetadata parses IdP metadata and enforces the Eshu

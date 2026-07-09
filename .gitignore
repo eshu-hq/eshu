@@ -137,3 +137,5 @@ okta-saml-live-proof*.md
 # capabilities.local.yaml at the skill-fragments/ root to disable a
 # subset for their local render. Never commit it.
 skill-fragments/capabilities.local.yaml
+go/.gocache/
+go/.gocache2/
