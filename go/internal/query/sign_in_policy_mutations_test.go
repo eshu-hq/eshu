@@ -160,3 +160,112 @@ func TestAdminSignInPolicyUpdateRejectsWorkspaceScopedCaller(t *testing.T) {
 		t.Fatalf("status = %d, want %d: %s", rec.Code, http.StatusForbidden, rec.Body.String())
 	}
 }
+
+func TestAdminSignInPolicyUpdateRejectsNegativeIdleTimeout(t *testing.T) {
+	t.Parallel()
+
+	store := &fakeSignInPolicyMutationStore{}
+	handler := &SignInPolicyMutationHandler{Store: store}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, adminSignInPolicyRequest(`{"idle_timeout_seconds":-1}`))
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d: %s", rec.Code, http.StatusBadRequest, rec.Body.String())
+	}
+	if store.calledTenantID != "" {
+		t.Fatalf("store was called with a rejected update: tenant_id = %q", store.calledTenantID)
+	}
+}
+
+func TestAdminSignInPolicyUpdateRejectsNegativeAbsoluteTimeout(t *testing.T) {
+	t.Parallel()
+
+	store := &fakeSignInPolicyMutationStore{}
+	handler := &SignInPolicyMutationHandler{Store: store}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, adminSignInPolicyRequest(`{"absolute_timeout_seconds":-1}`))
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d: %s", rec.Code, http.StatusBadRequest, rec.Body.String())
+	}
+	if store.calledTenantID != "" {
+		t.Fatalf("store was called with a rejected update: tenant_id = %q", store.calledTenantID)
+	}
+}
+
+func TestAdminSignInPolicyUpdateRejectsIdleBelowMinimumFloor(t *testing.T) {
+	t.Parallel()
+
+	store := &fakeSignInPolicyMutationStore{}
+	handler := &SignInPolicyMutationHandler{Store: store}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, adminSignInPolicyRequest(`{"idle_timeout_seconds":59}`))
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d: %s", rec.Code, http.StatusBadRequest, rec.Body.String())
+	}
+}
+
+func TestAdminSignInPolicyUpdateRejectsAbsoluteBelowMinimumFloor(t *testing.T) {
+	t.Parallel()
+
+	store := &fakeSignInPolicyMutationStore{}
+	handler := &SignInPolicyMutationHandler{Store: store}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, adminSignInPolicyRequest(`{"absolute_timeout_seconds":59}`))
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d: %s", rec.Code, http.StatusBadRequest, rec.Body.String())
+	}
+}
+
+func TestAdminSignInPolicyUpdateRejectsAbsoluteLessThanIdle(t *testing.T) {
+	t.Parallel()
+
+	store := &fakeSignInPolicyMutationStore{}
+	handler := &SignInPolicyMutationHandler{Store: store}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, adminSignInPolicyRequest(`{"idle_timeout_seconds":3600,"absolute_timeout_seconds":1800}`))
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d: %s", rec.Code, http.StatusBadRequest, rec.Body.String())
+	}
+	if store.calledTenantID != "" {
+		t.Fatalf("store was called with a rejected update: tenant_id = %q", store.calledTenantID)
+	}
+}
+
+func TestAdminSignInPolicyUpdateAllowsZeroAndMinimumFloorTimeouts(t *testing.T) {
+	t.Parallel()
+
+	store := &fakeSignInPolicyMutationStore{result: SignInPolicy{TenantID: "tenant_a"}}
+	audit := &fakeSignInPolicyAudit{}
+	handler := &SignInPolicyMutationHandler{Store: store, Audit: audit}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, adminSignInPolicyRequest(`{"idle_timeout_seconds":0,"absolute_timeout_seconds":60}`))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d: %s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	if store.calledTenantID != "tenant_a" {
+		t.Fatalf("store was not called: tenant_id = %q", store.calledTenantID)
+	}
+}

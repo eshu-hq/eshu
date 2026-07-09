@@ -31,8 +31,8 @@ const openAPIComponentsSignInPolicy = `      "AdminSignInPolicy": {
           "require_sso": {"type": "boolean"},
           "allow_local_user_creation": {"type": "boolean"},
           "require_mfa_for_all_users": {"type": "boolean"},
-          "idle_timeout_seconds": {"type": "integer"},
-          "absolute_timeout_seconds": {"type": "integer"}
+          "idle_timeout_seconds": {"type": "integer", "minimum": 0, "description": "0 means \"use the process default\"; any other value must be at least 60 seconds."},
+          "absolute_timeout_seconds": {"type": "integer", "minimum": 0, "description": "0 means \"use the process default\"; any other value must be at least 60 seconds and not less than idle_timeout_seconds when both are set."}
         }
       },
 `

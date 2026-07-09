@@ -6,6 +6,7 @@ package query
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"time"
@@ -93,6 +94,56 @@ type signInPolicyUpdateRequestBody struct {
 	AbsoluteTimeoutSeconds *int  `json:"absolute_timeout_seconds,omitempty"`
 }
 
+// signInPolicyMinNonZeroTimeoutSeconds is the smallest accepted non-zero
+// idle_timeout_seconds/absolute_timeout_seconds value on the admin PATCH
+// route. Zero is exempt (it means "use the process default"); any other
+// value below this floor is rejected rather than silently persisted, since
+// storage otherwise clamps out-of-range values only at read time
+// (resolveSessionTimeouts), letting an absurd or negative write sit
+// unnoticed until the next session is issued.
+const signInPolicyMinNonZeroTimeoutSeconds = 60
+
+// validateSignInPolicyTimeouts rejects a PATCH body's idle/absolute timeout
+// fields that would make a nonsensical or unusable session timeout: negative
+// values, a non-zero value below signInPolicyMinNonZeroTimeoutSeconds, or an
+// absolute timeout shorter than the idle timeout when both are set to
+// non-zero overrides in the same request. It intentionally does not compare
+// against a value already stored for the tenant (a partial update that only
+// sets one field cannot see the other without an extra read), matching the
+// scope of the write-time guardrail this closes.
+func validateSignInPolicyTimeouts(body signInPolicyUpdateRequestBody) error {
+	if body.IdleTimeoutSeconds != nil {
+		if err := validateSignInPolicyTimeoutSeconds(*body.IdleTimeoutSeconds); err != nil {
+			return fmt.Errorf("idle_timeout_seconds %w", err)
+		}
+	}
+	if body.AbsoluteTimeoutSeconds != nil {
+		if err := validateSignInPolicyTimeoutSeconds(*body.AbsoluteTimeoutSeconds); err != nil {
+			return fmt.Errorf("absolute_timeout_seconds %w", err)
+		}
+	}
+	if body.IdleTimeoutSeconds != nil && body.AbsoluteTimeoutSeconds != nil &&
+		*body.IdleTimeoutSeconds > 0 && *body.AbsoluteTimeoutSeconds > 0 &&
+		*body.AbsoluteTimeoutSeconds < *body.IdleTimeoutSeconds {
+		return errors.New("absolute_timeout_seconds must not be less than idle_timeout_seconds")
+	}
+	return nil
+}
+
+// validateSignInPolicyTimeoutSeconds validates one idle/absolute timeout
+// field value: 0 ("use the process default") and any value at or above
+// signInPolicyMinNonZeroTimeoutSeconds are valid; negative values and a
+// non-zero value below the floor are rejected.
+func validateSignInPolicyTimeoutSeconds(seconds int) error {
+	if seconds < 0 {
+		return errors.New("must not be negative")
+	}
+	if seconds > 0 && seconds < signInPolicyMinNonZeroTimeoutSeconds {
+		return fmt.Errorf("must be 0 or at least %d seconds", signInPolicyMinNonZeroTimeoutSeconds)
+	}
+	return nil
+}
+
 func (h *SignInPolicyMutationHandler) handleUpdate(w http.ResponseWriter, r *http.Request) {
 	if !h.storeReady(w, r) {
 		return
@@ -108,6 +159,11 @@ func (h *SignInPolicyMutationHandler) handleUpdate(w http.ResponseWriter, r *htt
 	if err := ReadJSON(r, &body); err != nil {
 		h.audit(r, governanceaudit.DecisionDenied, "sign_in_policy_invalid_request", "")
 		WriteError(w, http.StatusBadRequest, "invalid sign-in policy request")
+		return
+	}
+	if err := validateSignInPolicyTimeouts(body); err != nil {
+		h.audit(r, governanceaudit.DecisionDenied, "sign_in_policy_invalid_timeout", "")
+		WriteError(w, http.StatusBadRequest, "invalid sign-in policy request: "+err.Error())
 		return
 	}
 	update := SignInPolicyUpdateRequest(body)
