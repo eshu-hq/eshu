@@ -12,11 +12,15 @@ recorded tape drained by N concurrent workers feeding
 `ingestion -> fact_work_items -> reducer`. `Source` closes that gap: it wraps
 any `collector.Source` delegate behind a mutex and adds a one-shot drain latch,
 so the tape is delivered to concurrent callers safely and exactly once.
+`Driver` is the concurrent consumer of that wrapped `Source`: it runs a
+configurable number of worker goroutines, each looping `Source.Next` then
+`Committer.CommitScopeGeneration`, and fails fast — canceling the other
+workers — on the first error from either step.
 
-This package is net-new infrastructure. It wraps a delegate; it does not
-implement its own replay format, does not build the `fact_work_items` fan-out,
-and does not construct the reducer drain harness — those are later slices of
-#4395.
+This package is net-new infrastructure. It wraps a delegate and drives it
+concurrently; it does not implement its own replay format, does not build the
+`fact_work_items` fan-out, and does not construct the reducer drain harness —
+those are later slices of #4395.
 
 ## Why the delegate call is held under the lock
 
@@ -58,11 +62,20 @@ re-invoking a delegate that has already failed.
   `collector.CollectedGeneration` contract. It has no dependency on any
   specific replay flavor (`cassette`, `schedulereplay`, `parserfixture`, ...);
   any `collector.Source` implementation can be wrapped.
+- `Driver` speaks only the top-level `collector.Committer` contract for the
+  commit side. It has no dependency on any specific committer implementation
+  (Postgres-backed, in-memory, or otherwise).
 - This package MUST NOT import `internal/ifa`. The Ifá contract/fixture-pack
   system is a consumer of replayed facts, not a dependency of the replay
   plumbing.
 - No network calls, no credentials, no graph backend. Wrapping does not change
   what the delegate does — it only changes who is allowed to call it and when.
+  `Driver` does not change what the committer does either; it only runs more
+  callers of it concurrently against one shared `Source`.
+- `Driver` does not reduce its worker count in response to contention or
+  errors. Fewer workers as a stand-in for fixing a non-idempotent commit path
+  is the repository's Serialization-Is-Not-A-Fix anti-pattern, not a valid
+  Driver behavior.
 
 ## Verifying a change
 
@@ -77,16 +90,23 @@ this package.
 
 ## No-Regression Evidence
 
-This package is additive replay infrastructure. It wraps `collector.Source`;
-it does not modify `cassette.Source`, `collector.Service`, or any other
-existing package. The only shared mutable state introduced is the wrapper's
-own `mu`/`done`/`served` fields, guarded end-to-end by one mutex held across
-each `Next` call. Verified by `go test -race ./internal/replay/concurrentreplay/... -count=1`.
+This package is additive replay infrastructure. It wraps `collector.Source`
+and drives it with `Driver`; it does not modify `cassette.Source`,
+`collector.Service`, `collector.Committer` implementations, or any other
+existing package. The shared mutable state is: `Source`'s own
+`mu`/`done`/`served` fields, guarded end-to-end by one mutex held across each
+`Next` call, and `Driver.Run`'s own committed-count counter (accessed only via
+`sync/atomic`) and first-error latch (guarded by a `sync.Once`). Verified by
+`go test -race ./internal/replay/concurrentreplay/... -count=1`.
 
 ## No-Observability-Change
 
-No telemetry instruments, spans, logs, or status fields are added or modified
-by this package. `Source` returns `collector.CollectedGeneration` values
-unchanged from the delegate; the collector's existing telemetry (wired through
-`collector.Service`) records normally once this wrapper is used as a driver's
-source in a later slice.
+No new metric instruments are minted by this package. `Driver.Instruments`
+accepts the existing `*telemetry.Instruments` type but does not yet record
+through it — threading it is deferred to a later slice, once it is decided
+which existing `eshu_dp_*` instrument applies to a driver invocation.
+`Driver.Logger` is optional structured logging only (start, drain, and error
+records at Info/Error level via the standard `log/slog` package) — not a new
+metric or span. `Source` still returns `collector.CollectedGeneration` values
+unchanged from the delegate; the collector's existing telemetry (wired
+through `collector.Service`) is unaffected by this package.

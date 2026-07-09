@@ -2,8 +2,9 @@
 // Copyright (c) 2025-2026 eshu-hq
 
 // Package concurrentreplay provides a thread-safe wrapper around a
-// single-threaded collector.Source so it can be driven by the Ifá P2
-// concurrent replay driver (design doc 4102, issue #4395, parent epic #4389).
+// single-threaded collector.Source, plus a concurrent Driver that drains it,
+// so a recorded tape can be replayed by the Ifá P2 concurrent replay driver
+// (design doc 4102, issue #4395, parent epic #4389).
 //
 // cassette.Source is single-goroutine per collector.Service by design: its
 // Next has poll-restart semantics, and its internal scope cursor is
@@ -21,4 +22,12 @@
 // a semantic requirement to prevent the delegate's poll-restart from
 // double-replaying the tape under concurrent callers, not a concurrency-defect
 // workaround.
+//
+// Driver runs N concurrent workers against one Source, committing each
+// generation through a collector.Committer and failing fast — canceling the
+// other workers — on the first error from either the source or the
+// committer. It replaces collector.Service's single poll-loop consumption of
+// a collector.Source with a concurrent one; it does not build the
+// fact_work_items fan-out or the reducer drain harness those later slices of
+// #4395 still own.
 package concurrentreplay
