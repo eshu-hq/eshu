@@ -18,12 +18,13 @@ func main() {
 	}
 }
 
-// run dispatches to Ifá's subcommands. "coverage", "expectations", and
-// "drive" are full subcommands with their own flag sets (coverage.go,
-// expectations.go, drive.go); everything else falls through to the
-// top-level -version flag the P0 skeleton shipped, preserving that contract
-// unchanged. ctx is threaded through to "drive" only — the only subcommand
-// that performs live I/O (Postgres) a caller may need to cancel; the other
+// run dispatches to Ifá's subcommands. "coverage", "expectations", "drive",
+// and "graph-dump" are full subcommands with their own flag sets
+// (coverage.go, expectations.go, drive.go, graph_dump.go); everything else
+// falls through to the top-level -version flag the P0 skeleton shipped,
+// preserving that contract unchanged. ctx is threaded through to "drive" and
+// "graph-dump" — the two subcommands that perform live I/O (Postgres,
+// respectively the graph backend) a caller may need to cancel; the other
 // subcommands are pure disk-and-memory operations.
 func run(ctx context.Context, args []string, stdout io.Writer, stderr io.Writer) error {
 	if len(args) > 0 {
@@ -34,6 +35,8 @@ func run(ctx context.Context, args []string, stdout io.Writer, stderr io.Writer)
 			return runExpectationsCommand(args[1:], stdout, stderr)
 		case "drive":
 			return runDriveCommand(ctx, args[1:], stdout, stderr)
+		case "graph-dump":
+			return runGraphDumpCommand(ctx, args[1:], stdout, stderr)
 		}
 	}
 
@@ -49,7 +52,7 @@ func run(ctx context.Context, args []string, stdout io.Writer, stderr io.Writer)
 	}
 	if flags.NArg() > 0 {
 		flags.Usage()
-		return fmt.Errorf("ifa: unknown subcommand %q (want coverage, expectations, drive, or -version)", flags.Arg(0))
+		return fmt.Errorf("ifa: unknown subcommand %q (want coverage, expectations, drive, graph-dump, or -version)", flags.Arg(0))
 	}
 	flags.Usage()
 	return nil

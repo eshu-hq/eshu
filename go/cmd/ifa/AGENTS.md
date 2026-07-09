@@ -6,8 +6,12 @@
 2. `main.go` - subcommand dispatch and the P0 `-version` shell.
 3. `coverage.go`, `expectations.go` - P1 subcommand wrappers.
 4. `drive.go` - P2 concurrent replay driver verb (issue #4395).
-5. `go/internal/ifa/AGENTS.md` - library contract.
-6. `docs/internal/design/4389-ifa-conformance-platform.md` - the ADR; read its
+5. `graph_dump.go`, `graphdump_reader.go` - P3 graph-truth determinism verb
+   (issue #4396).
+6. `go/internal/ifa/AGENTS.md` - library contract.
+7. `go/internal/ifa/graphdump/AGENTS.md` - the canonicalization package
+   `graph_dump.go` calls into.
+8. `docs/internal/design/4389-ifa-conformance-platform.md` - the ADR; read its
    "Placement" section before touching this command's dependency graph.
 
 ## Invariants
@@ -54,12 +58,27 @@
   #4395 acceptance clause's N=1 mode. Do not special-case `-workers` values
   here beyond what `concurrentreplay.Driver.Run` already normalizes (<=0
   treated as 1); the Driver, not this CLI, owns that default.
+- `ifa graph-dump`'s Bolt-backed `Reader` (`boltGraphReader` in
+  `graphdump_reader.go`) belongs in this command, not in
+  `internal/ifa/graphdump`: that package is deliberately driver-free so its
+  canonicalization logic stays hermetically testable. Do not move
+  `boltGraphReader` (or any neo4j-go-driver import) into
+  `internal/ifa/graphdump` without re-deciding that boundary first.
+- `ifa graph-dump` parses flags before opening the graph backend (see
+  `runGraphDumpCommand` in `graph_dump.go`), the same ordering `runDriveCommand`
+  uses for `-cassette` before Postgres — a bad flag must fail without
+  requiring a live database, so hermetic tests can cover it without Docker or
+  a graph backend.
+- `ifa graph-dump` is read-only: it applies no schema DDL and issues only the
+  two `MATCH` reads in `graphdump_reader.go` (`boltNodesCypher`/
+  `boltEdgesCypher`). Do not add a write statement to this verb.
 
 ## Verification
 
 ```bash
 cd go && go test ./cmd/ifa -count=1
-cd go && go test -race ./internal/replay/concurrentreplay/... ./cmd/ifa/... -count=1
+cd go && go test -race ./internal/replay/concurrentreplay/... ./internal/ifa/graphdump/... ./cmd/ifa/... -count=1
 bash scripts/test-verify-ifa-replay-drive.sh
 bash scripts/verify-ifa-replay-drive.sh
+ESHU_PERFORMANCE_EVIDENCE_BASE=origin/main bash scripts/verify-performance-evidence.sh
 ```
