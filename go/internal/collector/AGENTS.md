@@ -195,3 +195,32 @@ No-Observability-Change: No new metric instrument, label, span, structured
   `eshu_dp_file_parse_duration_seconds` histogram and `collector snapshot stage
   completed` logs. The change is a pure structural optimization — same
   partitions, same parse output, fewer syscalls.
+
+### Carry the sync-resolved SHA to skip a redundant rev-parse HEAD (#4880)
+
+Performance Evidence: git-sync mode removes one `git rev-parse HEAD` subprocess
+per selected repository per cycle by carrying the SHA that the sync already
+resolved through `checkoutRemoteBranch`. Sync resolves the remote head via
+`gitRevParse("refs/remotes/origin/"+branch)` and then `git checkout -B <branch>
+refs/remotes/origin/<branch>`, so `git rev-parse HEAD` in the snapshot equals
+that already-known SHA. Measured before/after: `TestSnapshotHeadCommitSubprocessCount`
+counts `git rev-parse HEAD` invocations in the snapshot path through the
+`gitCommitSHAFn` seam and asserts 0 invocations when `SourceCommitSHA` is carried
+(sync mode) versus exactly 1 on the empty fallback path — a reduction of one
+subprocess per sync-mode repository per collection cycle. The carried
+`SourceCommitSHA` on `SelectedRepository` is empty for non-sync selectors
+(filesystem, clone, reconcile, or any path that did not run
+`checkoutRemoteBranch`), which keep the `gitCommitSHA` shell-out fallback
+unchanged. The first-time clone path intentionally does not carry the SHA: a
+fresh clone has no pre-resolved SHA to harvest (unlike sync's `remoteSHA`), so
+populating one would add an extra `git rev-parse HEAD` rather than remove one;
+that rare cold path keeps the fallback. Correctness proof:
+`go test ./internal/collector -run
+'Test(CheckoutRemoteBranchEquivalence|SnapshotUsesSourceCommitSHA|SnapshotFallsBackToGitCommitSHA|SnapshotHeadCommitSubprocessCount)'
+-count=1`.
+
+No-Observability-Change: the `logGitSyncCompleted` structured log, the git-sync
+operation span, and the snapshot stage telemetry (`collector snapshot stage
+completed` logs, `eshu_dp_collector_snapshot_stage_duration_seconds`) already
+diagnose the sync-and-snapshot path. No new metrics, spans, logs, or status
+fields were added; the `HeadCommitSHA` snapshot field is unchanged.

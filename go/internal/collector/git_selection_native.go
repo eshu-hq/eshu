@@ -111,7 +111,7 @@ func (s NativeRepositorySelector) SelectRepositories(
 		}
 		return SelectionBatch{
 			ObservedAt:   observedAt,
-			Repositories: buildSelectedRepositories(s.Config, repoPaths, nil, nil),
+			Repositories: buildSelectedRepositories(s.Config, repoPaths, nil, nil, nil),
 		}, nil
 	case "explicit", "githubOrg":
 		syncGitFn := s.SyncGit
@@ -136,6 +136,7 @@ func (s NativeRepositorySelector) SelectRepositories(
 				synced.SelectedRepoPaths,
 				synced.DeltaByRepoPath,
 				synced.ReconcileByRepoPath,
+				synced.SourceCommitSHAByRepoPath,
 				synced.RefsByRepoPath,
 			),
 		}, nil
@@ -149,6 +150,7 @@ func buildSelectedRepositories(
 	repoPaths []string,
 	deltaByRepoPath map[string]GitSyncDelta,
 	reconcileByRepoPath map[string]bool,
+	sourceCommitSHAByRepoPath map[string]string,
 	refsByRepoPath ...map[string][]GitRef,
 ) []SelectedRepository {
 	var refsByPath map[string][]GitRef
@@ -196,6 +198,11 @@ func buildSelectedRepositories(
 			repository.Delta = true
 			repository.FileTargets = sortUniquePathStrings(append(repository.FileTargets, delta.ChangedFileTargets...))
 			repository.DeletedRelativePaths = sortUniquePathStrings(delta.DeletedRelativePaths)
+		}
+		if sha, ok := sourceCommitSHAByRepoPath[repoPath]; ok {
+			repository.SourceCommitSHA = sha
+		} else if sha, ok := sourceCommitSHAByRepoPath[absolutePath]; ok {
+			repository.SourceCommitSHA = sha
 		}
 		if refs, ok := refsByPath[repoPath]; ok {
 			repository.GitRefs = cloneGitRefs(refs)

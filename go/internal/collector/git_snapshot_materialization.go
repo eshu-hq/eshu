@@ -205,6 +205,13 @@ func gitCommitSHA(ctx context.Context, repoPath string) string {
 	return strings.TrimSpace(string(output))
 }
 
+// gitCommitSHAFn is the seam the snapshot uses to resolve HEAD when a
+// repository carries no sync-resolved SourceCommitSHA. It exists so tests can
+// count how many `git rev-parse HEAD` subprocesses the snapshot path runs,
+// which is the measured before/after for the #4880 SourceCommitSHA carry
+// (1 invocation on the fallback path, 0 when the sync-resolved SHA is carried).
+var gitCommitSHAFn = gitCommitSHA
+
 func digestForBody(body string) string {
 	sum := sha1.Sum([]byte(body)) // #nosec G401 -- non-cryptographic content-addressing digest for snapshot deduplication, not a security primitive
 	return hex.EncodeToString(sum[:])
