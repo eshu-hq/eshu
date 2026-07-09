@@ -1526,9 +1526,15 @@ conditional `UPDATE` by primary key, which is a no-op after the bootstrap
 admin's first login (or always, for every other subject/mode); `Reset` is an
 explicit rare operator action. Concurrency is guarded by
 `pg_advisory_xact_lock(3456)`, a distinct key from `BootstrapLocalIdentity`'s
-own `pg_advisory_xact_lock(3455)` (`identity_local_sql.go`) — the two are
-never held by the same transaction, so they cannot deadlock each other. A real
-Postgres concurrency gate
+own `pg_advisory_xact_lock(3455)` (`identity_local_sql.go`).
+`GenerateBootstrapAdminWithCredential` acquires both in the same transaction,
+always in the fixed order 3455 then 3456; that same-session, fixed-order
+acquisition is what rules out a deadlock between the two keys — deadlock
+requires two *different* transactions each holding one lock and blocking on
+the other, which cannot happen when a single session takes both, in the same
+order, every time. Every other caller (`GenerateBootstrapCredential`,
+`ConsumeBootstrapCredential`, `ResetBootstrapCredential`) only ever takes
+3456 alone. A real Postgres concurrency gate
 (`identity_bootstrap_credential_concurrency_test.go`,
 `TestBootstrapCredentialConcurrencyGateGenerateConsumeReset`, `-race`, 5
 rounds, skipped without `ESHU_POSTGRES_DSN`/`ESHU_BOOTSTRAP_CREDENTIAL_PROOF_DSN`)

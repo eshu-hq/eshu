@@ -73,7 +73,7 @@ func TestOpenBootstrapCredentialPayloadDecryptFailureIsActionable(t *testing.T) 
 	db := &fakeAdminCredDB{sealed: sealed, keyID: "key-a", found: true}
 	store := pgstorage.NewIdentitySubjectStore(db)
 
-	_, err = openBootstrapCredentialPayload(context.Background(), store, wrongKeyring)
+	_, _, err = openBootstrapCredentialPayload(context.Background(), store, wrongKeyring)
 	if err == nil {
 		t.Fatal("openBootstrapCredentialPayload() error = nil, want decrypt-failure guidance")
 	}
@@ -90,7 +90,7 @@ func TestOpenBootstrapCredentialPayloadNotFoundIsActionable(t *testing.T) {
 	db := &fakeAdminCredDB{found: false}
 	store := pgstorage.NewIdentitySubjectStore(db)
 
-	_, err = openBootstrapCredentialPayload(context.Background(), store, keyring)
+	_, _, err = openBootstrapCredentialPayload(context.Background(), store, keyring)
 	if err == nil {
 		t.Fatal("openBootstrapCredentialPayload() error = nil, want not-found guidance")
 	}
@@ -171,9 +171,12 @@ func TestAdminInitialCredentialAndResetRoundTrip(t *testing.T) {
 
 	// initial-credential retrieves the seeded plaintext bundle.
 	var initialOut bytes.Buffer
-	payload, err := openBootstrapCredentialPayload(ctx, store, keyring)
+	payload, retrievedKeyID, err := openBootstrapCredentialPayload(ctx, store, keyring)
 	if err != nil {
 		t.Fatalf("openBootstrapCredentialPayload() error = %v", err)
+	}
+	if retrievedKeyID != keyID {
+		t.Fatalf("openBootstrapCredentialPayload() keyID = %q, want %q", retrievedKeyID, keyID)
 	}
 	fmt.Fprintf(&initialOut, "username:      %s\npassword:      %s\nrecovery code: %s\n",
 		payload.Username, payload.Password, payload.RecoveryCode)
@@ -223,9 +226,12 @@ func TestAdminInitialCredentialAndResetRoundTrip(t *testing.T) {
 	}
 
 	// Retrieval after reset returns the NEW bundle, not the original.
-	afterReset, err := openBootstrapCredentialPayload(ctx, store, keyring)
+	afterReset, afterResetKeyID, err := openBootstrapCredentialPayload(ctx, store, keyring)
 	if err != nil {
 		t.Fatalf("openBootstrapCredentialPayload() after reset error = %v", err)
+	}
+	if afterResetKeyID != newKeyID {
+		t.Fatalf("post-reset openBootstrapCredentialPayload() keyID = %q, want %q", afterResetKeyID, newKeyID)
 	}
 	if afterReset.Password != newPassword {
 		t.Fatalf("post-reset password = %q, want %q", afterReset.Password, newPassword)

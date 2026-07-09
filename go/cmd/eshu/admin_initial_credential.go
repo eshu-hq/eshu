@@ -85,10 +85,13 @@ func runAdminInitialCredential(cmd *cobra.Command, _ []string) error {
 	}
 
 	store := pgstorage.NewIdentitySubjectStore(pgstorage.SQLDB{DB: db})
-	payload, err := openBootstrapCredentialPayload(ctx, store, keyring)
+	payload, keyID, err := openBootstrapCredentialPayload(ctx, store, keyring)
 	if err != nil {
 		return err
 	}
+
+	auditAppender := newAdminCredentialAuditAppender(pgstorage.SQLDB{DB: db})
+	auditBootstrapCredentialRetrieved(ctx, auditAppender, keyID)
 
 	_, _ = fmt.Fprintf(cmd.OutOrStdout(),
 		"username:      %s\npassword:      %s\nrecovery code: %s\n",
@@ -113,7 +116,7 @@ func runAdminResetInitialCredential(cmd *cobra.Command, _ []string) error {
 	username, _ := cmd.Flags().GetString("username")
 	username = strings.TrimSpace(username)
 	if username == "" {
-		if existing, err := openBootstrapCredentialPayload(ctx, store, keyring); err == nil {
+		if existing, _, err := openBootstrapCredentialPayload(ctx, store, keyring); err == nil {
 			username = existing.Username
 		}
 	}
@@ -173,6 +176,9 @@ func runAdminResetInitialCredential(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("reset bootstrap credential: %w", err)
 	}
 
+	auditAppender := newAdminCredentialAuditAppender(pgstorage.SQLDB{DB: db})
+	auditBootstrapCredentialReset(ctx, auditAppender, keyID)
+
 	_, _ = fmt.Fprintf(cmd.OutOrStdout(),
 		"username:      %s\npassword:      %s\nrecovery code: %s\n",
 		username, password, recoveryCode)
@@ -181,18 +187,21 @@ func runAdminResetInitialCredential(cmd *cobra.Command, _ []string) error {
 
 // openBootstrapCredentialPayload retrieves and opens the sealed bootstrap
 // credential envelope, returning an actionable error on decrypt failure
-// rather than a bare secretcrypto.ErrDecrypt.
+// rather than a bare secretcrypto.ErrDecrypt. The returned keyID (safe to
+// record: epic #4962 "key_id OK on spans/logs", never the plaintext
+// credential) lets callers correlate a durable audit event with the
+// specific envelope that was opened.
 func openBootstrapCredentialPayload(
 	ctx context.Context,
 	store *pgstorage.IdentitySubjectStore,
 	keyring *secretcrypto.Keyring,
-) (bootstrapCredentialPayloadCLI, error) {
+) (bootstrapCredentialPayloadCLI, string, error) {
 	envelope, found, err := store.SelectBootstrapCredential(ctx, pgstorage.BootstrapAdminTenantID, pgstorage.BootstrapAdminWorkspaceID)
 	if err != nil {
-		return bootstrapCredentialPayloadCLI{}, fmt.Errorf("select bootstrap credential: %w", err)
+		return bootstrapCredentialPayloadCLI{}, "", fmt.Errorf("select bootstrap credential: %w", err)
 	}
 	if !found {
-		return bootstrapCredentialPayloadCLI{}, errors.New(
+		return bootstrapCredentialPayloadCLI{}, "", errors.New(
 			"no retrievable bootstrap credential: it was already consumed by a login, never generated (check ESHU_AUTH_BOOTSTRAP_MODE), or already reset; run `eshu admin reset-initial-credential` to regenerate one",
 		)
 	}
@@ -201,18 +210,18 @@ func openBootstrapCredentialPayload(
 	plaintext, err := keyring.Open(envelope.SealedCredential, aad)
 	if err != nil {
 		if errors.Is(err, secretcrypto.ErrDecrypt) {
-			return bootstrapCredentialPayloadCLI{}, errors.New(
+			return bootstrapCredentialPayloadCLI{}, "", errors.New(
 				"cannot decrypt the sealed bootstrap credential: the configured ESHU_AUTH_SECRET_ENC_KEY differs from the key that generated it; run `eshu admin reset-initial-credential` to regenerate the credential under the current key",
 			)
 		}
-		return bootstrapCredentialPayloadCLI{}, fmt.Errorf("open bootstrap credential: %w", err)
+		return bootstrapCredentialPayloadCLI{}, "", fmt.Errorf("open bootstrap credential: %w", err)
 	}
 
 	var payload bootstrapCredentialPayloadCLI
 	if err := json.Unmarshal(plaintext, &payload); err != nil {
-		return bootstrapCredentialPayloadCLI{}, fmt.Errorf("decode bootstrap credential payload: %w", err)
+		return bootstrapCredentialPayloadCLI{}, "", fmt.Errorf("decode bootstrap credential payload: %w", err)
 	}
-	return payload, nil
+	return payload, envelope.KeyID, nil
 }
 
 // openAdminCredentialDB opens a direct Postgres connection from

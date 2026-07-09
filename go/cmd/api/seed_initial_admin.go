@@ -272,12 +272,19 @@ func seedBootstrapAdminGenerated(
 	recordAuthBootstrapCredentialGenerated(ctx, instruments, inserted)
 	if !inserted {
 		// Extremely unlikely (the identity insert in the same transaction
-		// just proved this is a fresh identity), but fail loudly rather than
-		// silently discarding a freshly generated, unretrievable credential.
+		// just proved this is a fresh identity), but the password/recovery
+		// code generated above were never persisted into
+		// identity_bootstrap_credentials in this case — printing them would
+		// hand the operator a credential that cannot authenticate. A
+		// retrievable envelope already exists for this tenant/workspace slot
+		// (that is what "conflict" means here), so point the operator at it
+		// instead of printing the discarded, unpersisted generated value.
 		if logger != nil {
 			logger.Warn("bootstrap credential row already existed for a freshly bootstrapped admin",
 				telemetry.EventAttr("auth.bootstrap_seed.credential_conflict"))
 		}
+		logAlreadyProvisioned(logger)
+		return "generated", nil
 	}
 
 	printBootstrapBanner(bannerLines{

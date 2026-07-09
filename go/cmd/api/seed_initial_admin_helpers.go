@@ -86,7 +86,7 @@ func adminCredentialFromEnv(getenv func(string) string) (username, password stri
 			password = strings.TrimSpace(string(data))
 		}
 	} else {
-		password = getenv(adminPasswordEnv)
+		password = strings.TrimSpace(getenv(adminPasswordEnv))
 	}
 	return username, password, username != "" && password != ""
 }

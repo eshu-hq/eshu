@@ -139,6 +139,12 @@ jobs:
           ESHU_REPOS_DIR: /tmp/repos-${{ matrix.graph_backend }}
           ESHU_RUNTIME_ROLE: api
           ESHU_AUTO_GENERATE_API_KEY: "true"
+          # ESHU_AUTH_BOOTSTRAP_MODE defaults to "generated" (#4963), which
+          # requires a configured data-encryption key to seal the one-time
+          # admin credential; without it the API fails closed at startup and
+          # never binds :8080. Fixed, publicly-known, all-zero dev-only
+          # placeholder — never a real secret.
+          ESHU_AUTH_SECRET_ENC_KEY: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
         run: |
           eshu-api &
           API_PID=$!

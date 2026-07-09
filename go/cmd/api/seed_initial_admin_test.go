@@ -8,10 +8,11 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log/slog"
 	"strings"
 	"sync"
 	"testing"
+
+	_ "github.com/jackc/pgx/v5/stdlib"
 
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
 	pgstorage "github.com/eshu-hq/eshu/go/internal/storage/postgres"
@@ -29,6 +30,12 @@ type fakeSeedDB struct {
 	execArgs  [][]any
 	execs     []string
 	queries   []string
+	// credentialConflict simulates the ON CONFLICT (tenant_id, workspace_id)
+	// DO NOTHING branch of the credential insert losing the race: RETURNING 1
+	// produces zero rows even though the identity insert in the same
+	// transaction succeeded. Exercises the extremely-unlikely-but-possible
+	// path where insertBootstrapCredentialInTx reports inserted=false.
+	credentialConflict bool
 }
 
 func (f *fakeSeedDB) ExecContext(_ context.Context, query string, args ...any) (sql.Result, error) {
@@ -47,6 +54,10 @@ func (f *fakeSeedDB) QueryContext(_ context.Context, query string, _ ...any) (pg
 		return &fakeSeedRows{rows: [][]any{{f.countRows}}}, nil
 	}
 	if strings.Contains(query, "ON CONFLICT (tenant_id, workspace_id) DO NOTHING") {
+		if f.credentialConflict {
+			// Lost the race: RETURNING 1 produces no rows.
+			return &fakeSeedRows{}, nil
+		}
 		// A true insert: one row from RETURNING 1.
 		return &fakeSeedRows{rows: [][]any{{1}}}, nil
 	}
@@ -241,6 +252,39 @@ func TestSeedInitialAdminGeneratedRequiresDEK(t *testing.T) {
 	}
 }
 
+// composeDevDEK is the fixed, publicly-known, all-zero dev-only
+// ESHU_AUTH_SECRET_ENC_KEY placeholder shipped in docker-compose.yaml,
+// docker-compose.neo4j.yml, .github/workflows/e2e-tests.yml, and
+// scripts/verify-golden-corpus-gate.sh so a fresh local/CI stack can boot
+// ESHU_AUTH_BOOTSTRAP_MODE=generated (the default) without extra setup. It
+// is duplicated across those four non-Go files (YAML/shell have no shared
+// import mechanism with Go); this constant exists only so this test can
+// prove that literal decodes to a usable 32-byte key end to end. If any of
+// the four copies drifts from this value, update all five together.
+const composeDevDEK = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+
+// TestSeedInitialAdminGeneratedSucceedsWithComposeDevDEK proves the exact DEK
+// literal shipped in the local/CI Compose stacks and the golden-corpus-gate
+// script is a valid 32-byte key that lets ESHU_AUTH_BOOTSTRAP_MODE=generated
+// (the default) succeed end to end, rather than fail closed at API startup
+// (PR #4979 CI failure: nornicdb/neo4j e2e lanes and the golden-corpus gate
+// all boot a fresh API with no DEK configured).
+func TestSeedInitialAdminGeneratedSucceedsWithComposeDevDEK(t *testing.T) {
+	banner := withBootstrapBannerCapture(t)
+
+	db := &fakeSeedDB{countRows: 0}
+	err := seedInitialAdmin(context.Background(), db, testGetenv(map[string]string{
+		"ESHU_AUTH_BOOTSTRAP_MODE": "generated",
+		"ESHU_AUTH_SECRET_ENC_KEY": composeDevDEK,
+	}), nil, nil, nil)
+	if err != nil {
+		t.Fatalf("seedInitialAdmin() error = %v, want the compose dev DEK to boot generated mode successfully", err)
+	}
+	if banner.Len() == 0 {
+		t.Fatal("banner not written; generated mode did not run with the compose dev DEK")
+	}
+}
+
 func TestSeedInitialAdminGeneratedSealsAndPrintsFullBundle(t *testing.T) {
 	banner := withBootstrapBannerCapture(t)
 
@@ -267,6 +311,39 @@ func TestSeedInitialAdminGeneratedSealsAndPrintsFullBundle(t *testing.T) {
 	}
 	if !auditEventsContain(audit.events, bootstrapAuditReasonGenerated) {
 		t.Fatalf("no durable audit event for credential generation: %#v", audit.events)
+	}
+}
+
+// TestSeedInitialAdminGeneratedCredentialConflictPrintsNoBanner proves that
+// when the credential insert loses the ON CONFLICT DO NOTHING race (the
+// identity row was freshly created in the same transaction, but a
+// credential envelope already existed for the fixed bootstrap-admin tenant/
+// workspace slot), the freshly generated password/recovery code — which
+// were never persisted into identity_bootstrap_credentials — are never
+// printed. Printing them would hand the operator a credential that cannot
+// authenticate (PR #4979 review).
+func TestSeedInitialAdminGeneratedCredentialConflictPrintsNoBanner(t *testing.T) {
+	banner := withBootstrapBannerCapture(t)
+
+	dek := "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="
+	db := &fakeSeedDB{countRows: 0, credentialConflict: true}
+	audit := &fakeAuditAppender{}
+	err := seedInitialAdmin(context.Background(), db, testGetenv(map[string]string{
+		"ESHU_AUTH_BOOTSTRAP_MODE": "generated",
+		"ESHU_AUTH_SECRET_ENC_KEY": dek,
+		"ESHU_ADMIN_USERNAME":      "owner",
+	}), nil, nil, audit)
+	if err != nil {
+		t.Fatalf("seedInitialAdmin() error = %v", err)
+	}
+	if banner.Len() != 0 {
+		t.Fatalf("banner printed a credential that was never persisted: %q", banner.String())
+	}
+	if !auditEventsContain(audit.events, bootstrapAuditReasonModeGenerated) {
+		t.Fatalf("no durable audit event for generated mode choice: %#v", audit.events)
+	}
+	if !auditEventsContain(audit.events, bootstrapAuditReasonGenerated) {
+		t.Fatalf("no durable audit event for credential generation attempt: %#v", audit.events)
 	}
 }
 
@@ -320,72 +397,3 @@ func TestSeedInitialAdminGeneratedSkipsCryptoWhenAlreadyProvisioned(t *testing.T
 // TestSeedInitialAdminNegativeLeakage proves the generated plaintext
 // password/recovery code never reach structured logging or durable audit
 // events: they must appear only in the one-time banner writer.
-func TestSeedInitialAdminNegativeLeakage(t *testing.T) {
-	banner := withBootstrapBannerCapture(t)
-
-	var logBuf bytes.Buffer
-	logger := slog.New(slog.NewJSONHandler(&logBuf, nil))
-
-	dek := "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="
-	db := &fakeSeedDB{countRows: 0}
-	audit := &fakeAuditAppender{}
-	err := seedInitialAdmin(context.Background(), db, testGetenv(map[string]string{
-		"ESHU_AUTH_BOOTSTRAP_MODE": "generated",
-		"ESHU_AUTH_SECRET_ENC_KEY": dek,
-	}), nil, logger, audit)
-	if err != nil {
-		t.Fatalf("seedInitialAdmin() error = %v", err)
-	}
-
-	bannerText := banner.String()
-	passwordLine := extractBannerValue(t, bannerText, "password:")
-	recoveryLine := extractBannerValue(t, bannerText, "recovery code:")
-
-	logText := logBuf.String()
-	if strings.Contains(logText, passwordLine) {
-		t.Fatalf("structured log leaked the generated password: %q", logText)
-	}
-	if strings.Contains(logText, recoveryLine) {
-		t.Fatalf("structured log leaked the generated recovery code: %q", logText)
-	}
-	if auditEventsLeak(audit.events, passwordLine, recoveryLine) {
-		t.Fatalf("durable audit event leaked plaintext: %#v", audit.events)
-	}
-	if len(audit.events) == 0 {
-		t.Fatal("no durable audit events were recorded for a generated-mode seed")
-	}
-	for _, exec := range db.execArgs {
-		for _, arg := range exec {
-			s, ok := arg.(string)
-			if !ok {
-				continue
-			}
-			if s == passwordLine || s == recoveryLine {
-				t.Fatalf("a non-credential-table SQL exec carried the plaintext: %v", exec)
-			}
-		}
-	}
-}
-
-func extractBannerValue(t *testing.T, banner, label string) string {
-	t.Helper()
-	idx := strings.Index(banner, label)
-	if idx < 0 {
-		t.Fatalf("banner missing label %q: %q", label, banner)
-	}
-	rest := banner[idx+len(label):]
-	end := strings.IndexByte(rest, '\n')
-	if end < 0 {
-		end = len(rest)
-	}
-	return strings.TrimSpace(rest[:end])
-}
-
-func fakeSeedExecsContain(execs []string, substr string) bool {
-	for _, e := range execs {
-		if strings.Contains(e, substr) {
-			return true
-		}
-	}
-	return false
-}

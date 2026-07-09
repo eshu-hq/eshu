@@ -6,6 +6,7 @@ package main
 import (
 	"context"
 	"strings"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
 	"github.com/eshu-hq/eshu/go/internal/query"
@@ -14,13 +15,20 @@ import (
 
 // Bootstrap identity seeding durable audit events (issue #4963 acceptance
 // criterion: "Bootstrap mode choice, generation, retrieval, and reset are
-// durable audit events (values excluded)"). Every event below carries only
-// bounded metadata (event kind via ReasonCode, tenant/workspace, timestamp,
-// and key_id via CorrelationID) — never the generated plaintext password,
-// recovery code, or sealed ciphertext. Reason codes are the governanceaudit
-// package's own bounded, lowercase snake_case, <=64-char format
-// (governanceaudit.NormalizeEvent's validReasonCode); this file's constants
-// must stay within that contract.
+// durable audit events (values excluded)"). This file covers the two events
+// the API process itself observes at startup: mode choice and the
+// ESHU_AUTH_BOOTSTRAP_MODE=generated credential-generation attempt.
+// Retrieval and reset only ever happen through the `eshu admin
+// initial-credential` / `reset-initial-credential` CLI, never through the
+// API process, so those two events live in
+// go/cmd/eshu/admin_initial_credential_audit.go instead — cmd/api and
+// cmd/eshu are separate main packages and cannot share unexported code.
+// Every event below carries only bounded metadata (event kind via
+// ReasonCode, tenant/workspace, timestamp, and key_id via CorrelationID) —
+// never the generated plaintext password, recovery code, or sealed
+// ciphertext. Reason codes are the governanceaudit package's own bounded,
+// lowercase snake_case, <=64-char format (governanceaudit.NormalizeEvent's
+// validReasonCode); this file's constants must stay within that contract.
 const (
 	bootstrapAuditReasonModeGenerated  = "bootstrap_mode_generated"
 	bootstrapAuditReasonModeSeededEnv  = "bootstrap_mode_seeded_env"
@@ -50,6 +58,7 @@ func auditBootstrapModeChoice(ctx context.Context, appender query.GovernanceAudi
 		ScopeClass:  governanceaudit.ScopeClassAdmin,
 		Decision:    decision,
 		ReasonCode:  reason,
+		OccurredAt:  time.Now().UTC(),
 		TenantID:    pgstorage.BootstrapAdminTenantID,
 		WorkspaceID: pgstorage.BootstrapAdminWorkspaceID,
 	}})
@@ -81,6 +90,7 @@ func auditBootstrapCredentialGenerated(ctx context.Context, appender query.Gover
 		Decision:      decision,
 		ReasonCode:    reason,
 		CorrelationID: correlationID,
+		OccurredAt:    time.Now().UTC(),
 		TenantID:      pgstorage.BootstrapAdminTenantID,
 		WorkspaceID:   pgstorage.BootstrapAdminWorkspaceID,
 	}})

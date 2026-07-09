@@ -101,9 +101,12 @@ func (s *IdentitySubjectStore) HasBootstrappedLocalIdentity(ctx context.Context)
 // GenerateBootstrapCredential idempotently inserts the sealed one-time admin
 // credential envelope for one (tenant, workspace), guarded by
 // pg_advisory_xact_lock(3456) (3455 is BootstrapLocalIdentity's own
-// local-identity lock; the two never nest inside one transaction, so they
-// cannot deadlock each other). inserted is true only on a genuine first
-// insert; a conflict (already provisioned) returns inserted=false with no
+// local-identity lock; this method only ever takes 3456 alone).
+// GenerateBootstrapAdminWithCredential below takes both 3455 and 3456 in the
+// same transaction, always in that fixed order — see its doc comment for why
+// that ordering rules out a deadlock between the two keys. inserted is true
+// only on a genuine first insert; a conflict (already provisioned) returns
+// inserted=false with no
 // error, so a caller that races another instance at startup must not re-seal
 // or re-log the one-time banner in that case.
 //

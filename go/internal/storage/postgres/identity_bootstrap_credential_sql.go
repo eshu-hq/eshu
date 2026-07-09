@@ -5,8 +5,11 @@ package postgres
 
 // bootstrapCredentialLockQuery serializes Generate/Consume/Reset against the
 // identity_bootstrap_credentials table. 3455 is BootstrapLocalIdentity's own
-// local-identity advisory lock (identity_local_sql.go); the two keys never
-// nest inside one transaction, so they cannot deadlock each other.
+// local-identity advisory lock (identity_local_sql.go). The two keys are
+// held together in one transaction only by GenerateBootstrapAdminWithCredential
+// (identity_bootstrap_credential.go), always in the fixed order 3455 then
+// 3456; that fixed same-session ordering, not separation, is what rules out
+// a deadlock between them.
 // #nosec G101 -- SQL DML whose const name contains "Credential"; the value is a fully-parameterized query, not a credential literal
 const bootstrapCredentialLockQuery = `
 SELECT pg_advisory_xact_lock(3456)

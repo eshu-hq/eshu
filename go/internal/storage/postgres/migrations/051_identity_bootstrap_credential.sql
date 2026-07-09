@@ -1,4 +1,4 @@
--- 049_identity_bootstrap_credential.sql
+-- 051_identity_bootstrap_credential.sql
 --
 -- Stores the one-time generated admin bootstrap credential envelope
 -- (epic #4962, #4963) for the first local owner/admin identity created by
