@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/secretcrypto"
 	pgstorage "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
@@ -19,11 +20,12 @@ import (
 // query substrings, tailored to postgresSetupAdapter's read/write shapes
 // (string-valued columns, unlike fakeSeedDB's int-only fakeSeedRows).
 type fakeSetupAdapterDB struct {
-	credentialRow  []any // sealed_credential, key_id — nil means "not found"
-	subjectHashRow []any // subject_id_hash
-	ownerRow       []any // user_id
-	execs          []string
-	execArgs       [][]any
+	credentialRow    []any // sealed_credential, key_id — nil means "not found"
+	subjectHashRow   []any // subject_id_hash
+	ownerRow         []any // user_id
+	consumedStateRow []any // consumed_at IS NOT NULL (bool) — nil means "no matching row" (fails closed to consumed=true)
+	execs            []string
+	execArgs         [][]any
 }
 
 func (f *fakeSetupAdapterDB) ExecContext(_ context.Context, query string, args ...any) (sql.Result, error) {
@@ -32,8 +34,36 @@ func (f *fakeSetupAdapterDB) ExecContext(_ context.Context, query string, args .
 	return fakeSetupResult{}, nil
 }
 
+// Begin satisfies pgstorage.Beginner so CompleteSetupMFA's transaction-scoped
+// advisory-lock critical section can run against this fake: the transaction
+// just delegates Exec/Query to the same underlying fake so query routing and
+// exec-call recording stay in one place.
+func (f *fakeSetupAdapterDB) Begin(context.Context) (pgstorage.Transaction, error) {
+	return &fakeSetupAdapterTx{db: f}, nil
+}
+
+type fakeSetupAdapterTx struct {
+	db *fakeSetupAdapterDB
+}
+
+func (tx *fakeSetupAdapterTx) ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error) {
+	return tx.db.ExecContext(ctx, query, args...)
+}
+
+func (tx *fakeSetupAdapterTx) QueryContext(ctx context.Context, query string, args ...any) (pgstorage.Rows, error) {
+	return tx.db.QueryContext(ctx, query, args...)
+}
+
+func (tx *fakeSetupAdapterTx) Commit() error   { return nil }
+func (tx *fakeSetupAdapterTx) Rollback() error { return nil }
+
 func (f *fakeSetupAdapterDB) QueryContext(_ context.Context, query string, _ ...any) (pgstorage.Rows, error) {
 	switch {
+	case strings.Contains(query, "SELECT consumed_at IS NOT NULL"):
+		if f.consumedStateRow == nil {
+			return &fakeSetupRows{}, nil
+		}
+		return &fakeSetupRows{rows: [][]any{f.consumedStateRow}}, nil
 	case strings.Contains(query, "FROM identity_bootstrap_credentials") && strings.Contains(query, "sealed_credential, key_id"):
 		if f.credentialRow == nil {
 			return &fakeSetupRows{}, nil
@@ -69,8 +99,11 @@ func (r *fakeSetupRows) Next() bool { return r.index < len(r.rows) }
 func (r *fakeSetupRows) Scan(dest ...any) error {
 	row := r.rows[r.index]
 	for i := range dest {
-		if target, ok := dest[i].(*string); ok {
+		switch target := dest[i].(type) {
+		case *string:
 			*target = row[i].(string)
+		case *bool:
+			*target = row[i].(bool)
 		}
 	}
 	r.index++
@@ -181,7 +214,7 @@ func TestSetupAdapterVerifyBootstrapCredentialFailsClosedWithoutKeyring(t *testi
 	}
 }
 
-func TestSetupAdapterResolveSetupOwnerAndCompleteSetup(t *testing.T) {
+func TestSetupAdapterResolveSetupOwner(t *testing.T) {
 	t.Parallel()
 
 	db := &fakeSetupAdapterDB{
@@ -200,17 +233,50 @@ func TestSetupAdapterResolveSetupOwnerAndCompleteSetup(t *testing.T) {
 	if owner.TenantID != pgstorage.BootstrapAdminTenantID || owner.WorkspaceID != pgstorage.BootstrapAdminWorkspaceID {
 		t.Fatalf("owner tenant/workspace = %q/%q, want the fixed bootstrap slot", owner.TenantID, owner.WorkspaceID)
 	}
+}
 
-	if err := adapter.CompleteSetup(context.Background(), owner.SubjectIDHash, time.Now()); err != nil {
-		t.Fatalf("CompleteSetup() error = %v", err)
+// TestSetupAdapterCompleteSetupMFADelegatesToAtomicStoreMethod proves the
+// adapter forwards to the postgres store's atomic CompleteSetupMFA
+// (identity_setup_completion.go, #4990) rather than the old two-call
+// RotateSetupMFA/CompleteSetup split, and threads the completed bool back
+// to the caller unchanged.
+func TestSetupAdapterCompleteSetupMFADelegatesToAtomicStoreMethod(t *testing.T) {
+	t.Parallel()
+
+	db := &fakeSetupAdapterDB{
+		// selectBootstrapCredentialConsumedState (the first QueryContext
+		// inside CompleteSetupMFA's transaction, run under the advisory
+		// lock): not yet consumed.
+		consumedStateRow: []any{false},
 	}
-	found := false
+	adapter := &postgresSetupAdapter{store: pgstorage.NewIdentitySubjectStore(db)}
+
+	completed, err := adapter.CompleteSetupMFA(context.Background(), query.CompleteSetupMFAInput{
+		TenantID:           pgstorage.BootstrapAdminTenantID,
+		WorkspaceID:        pgstorage.BootstrapAdminWorkspaceID,
+		SubjectIDHash:      "sha256:owner-subject",
+		UserID:             "user-1",
+		MFAFactorID:        "mfa-factor-1",
+		MFAFactorKind:      "recovery_code",
+		RecoveryCodeHashes: []string{"sha256:code-a"},
+		Now:                time.Now(),
+	})
+	if err != nil {
+		t.Fatalf("CompleteSetupMFA() error = %v", err)
+	}
+	if !completed {
+		t.Fatal("CompleteSetupMFA() completed = false, want true")
+	}
+	foundLock, foundConsume := false, false
 	for _, exec := range db.execs {
+		if strings.Contains(exec, "pg_advisory_xact_lock(3456)") {
+			foundLock = true
+		}
 		if strings.Contains(exec, "UPDATE identity_bootstrap_credentials") {
-			found = true
+			foundConsume = true
 		}
 	}
-	if !found {
-		t.Fatalf("CompleteSetup did not issue the consume-credential update: execs = %#v", db.execs)
+	if !foundLock || !foundConsume {
+		t.Fatalf("CompleteSetupMFA did not run the expected lock+consume statements: execs = %#v", db.execs)
 	}
 }

@@ -66,12 +66,13 @@ func (h *SetupHandler) hashPassword(password string) (string, error) {
 	return string(hash), nil
 }
 
-func (h *SetupHandler) newID() string {
-	secret, err := h.newSecret()
-	if err != nil {
-		return ""
-	}
-	return secret
+// newID returns a fresh random identifier or the underlying crypto/rand (or
+// injected NewSecret) error. Callers MUST check the error and fail the
+// request rather than proceed with an empty id: an empty CredentialID or
+// MFAFactorID would still satisfy Go's zero-value defaults and silently
+// collide across requests instead of failing loudly (#4990 P2).
+func (h *SetupHandler) newID() (string, error) {
+	return h.newSecret()
 }
 
 func (h *SetupHandler) newSecret() (string, error) {

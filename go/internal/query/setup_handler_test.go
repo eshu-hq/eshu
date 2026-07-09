@@ -10,7 +10,6 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
 )
@@ -25,11 +24,16 @@ type fakeSetupStore struct {
 	resolveOwnerErr   error
 	rotatedPassword   LocalIdentityPasswordReset
 	rotatePasswordErr error
-	rotatedMFA        LocalIdentityMFAReset
-	rotateMFAErr      error
-	completedSubject  string
-	completedAt       time.Time
-	completeErr       error
+	// completeMFAInput/completeMFACalls capture every CompleteSetupMFA
+	// invocation for assertions. completeMFAResult is the completed bool
+	// CompleteSetupMFA returns — tests exercising the happy path MUST set
+	// this true explicitly (the zero value models a losing racer / already-
+	// consumed credential, matching CompleteSetupMFA's real "false with no
+	// error" contract for a concurrent completion, #4990).
+	completeMFAInput  CompleteSetupMFAInput
+	completeMFACalls  int
+	completeMFAResult bool
+	completeMFAErr    error
 }
 
 func (s *fakeSetupStore) SetupNeeded(_ context.Context) (bool, error) {
@@ -52,15 +56,13 @@ func (s *fakeSetupStore) RotateSetupPassword(_ context.Context, reset LocalIdent
 	return s.rotatePasswordErr
 }
 
-func (s *fakeSetupStore) RotateSetupMFA(_ context.Context, reset LocalIdentityMFAReset) error {
-	s.rotatedMFA = reset
-	return s.rotateMFAErr
-}
-
-func (s *fakeSetupStore) CompleteSetup(_ context.Context, subjectIDHash string, now time.Time) error {
-	s.completedSubject = subjectIDHash
-	s.completedAt = now
-	return s.completeErr
+func (s *fakeSetupStore) CompleteSetupMFA(_ context.Context, in CompleteSetupMFAInput) (bool, error) {
+	s.completeMFACalls++
+	s.completeMFAInput = in
+	if s.completeMFAErr != nil {
+		return false, s.completeMFAErr
+	}
+	return s.completeMFAResult, nil
 }
 
 func TestSetupStateReportsNeedsSetupAndBootstrapMode(t *testing.T) {
@@ -227,5 +229,35 @@ func TestSetupCreateAdminRequiresNewPassword(t *testing.T) {
 
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want %d: %s", rec.Code, http.StatusBadRequest, rec.Body.String())
+	}
+}
+
+// TestSetupCreateAdminRejectsShortPassword proves the server-side floor
+// (#4990 P2): the console's password-strength meter is UX-only guidance and
+// never blocks submission, so a direct API caller bypassing the console
+// must not be able to set new_password:"a". The server enforces the
+// minimum itself and never even reproves the bootstrap credential for an
+// input that is rejected on shape alone.
+func TestSetupCreateAdminRejectsShortPassword(t *testing.T) {
+	t.Parallel()
+
+	store := &fakeSetupStore{needsSetup: true, validUsername: "admin", validPassword: "generated-pw"}
+	handler := &SetupHandler{Store: store}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v0/auth/setup/admin",
+		bytes.NewBufferString(`{"username":"admin","password":"generated-pw","new_password":"short-1"}`))
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d: %s", rec.Code, http.StatusBadRequest, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "at least") {
+		t.Fatalf("body = %s, want a minimum-length message", rec.Body.String())
+	}
+	if store.rotatedPassword.UserID != "" {
+		t.Fatal("RotateSetupPassword must not run for a rejected new_password")
 	}
 }

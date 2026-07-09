@@ -10,7 +10,6 @@ import (
 	"encoding/json"
 	"errors"
 	"strings"
-	"time"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -136,22 +135,25 @@ func (a *postgresSetupAdapter) RotateSetupPassword(ctx context.Context, reset qu
 	})
 }
 
-func (a *postgresSetupAdapter) RotateSetupMFA(ctx context.Context, reset query.LocalIdentityMFAReset) error {
-	return a.store.ResetLocalIdentityMFA(ctx, pgstorage.LocalIdentityMFAReset{
-		UserID:              reset.UserID,
-		MFAFactorID:         reset.MFAFactorID,
-		MFAFactorKind:       reset.MFAFactorKind,
-		MFACredentialHandle: reset.MFACredentialHandle,
-		RecoveryCodeHashes:  append([]string(nil), reset.RecoveryCodeHashes...),
-		ResetAt:             reset.ResetAt,
+// CompleteSetupMFA delegates to the postgres store's atomic MFA-rotate +
+// credential-consume critical section (identity_setup_completion.go, #4990).
+// completed is false, with no error, when a concurrent caller already
+// completed setup first — callers MUST treat that as a clean rejection, not
+// a transport error, and MUST NOT retry the mutation.
+func (a *postgresSetupAdapter) CompleteSetupMFA(ctx context.Context, in query.CompleteSetupMFAInput) (bool, error) {
+	return a.store.CompleteSetupMFA(ctx, pgstorage.CompleteSetupMFAInput{
+		TenantID:      in.TenantID,
+		WorkspaceID:   in.WorkspaceID,
+		SubjectIDHash: in.SubjectIDHash,
+		MFA: pgstorage.LocalIdentityMFAReset{
+			UserID:              in.UserID,
+			MFAFactorID:         in.MFAFactorID,
+			MFAFactorKind:       in.MFAFactorKind,
+			MFACredentialHandle: in.MFACredentialHandle,
+			RecoveryCodeHashes:  append([]string(nil), in.RecoveryCodeHashes...),
+			ResetAt:             in.Now,
+		},
 	})
-}
-
-func (a *postgresSetupAdapter) CompleteSetup(ctx context.Context, subjectIDHash string, now time.Time) error {
-	_, err := a.store.ConsumeBootstrapCredential(
-		ctx, pgstorage.BootstrapAdminTenantID, pgstorage.BootstrapAdminWorkspaceID, subjectIDHash, now,
-	)
-	return err
 }
 
 // recordAuthSecretOpenResult records one eshu_dp_auth_secret_open_total

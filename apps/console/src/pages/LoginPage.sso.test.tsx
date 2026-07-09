@@ -106,7 +106,7 @@ describe("LoginPage SSO provider discovery (#3682)", () => {
 
     // Local form fields must always be visible even when SSO buttons appear.
     expect(screen.getByLabelText(/login/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/password/i)).toBeInTheDocument();
+    expect(screen.getByLabelText("Password")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /sign in/i })).toBeInTheDocument();
   });
 

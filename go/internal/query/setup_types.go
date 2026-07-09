@@ -34,13 +34,32 @@ type SetupStore interface {
 	// RotateSetupPassword replaces the owner's local password, revoking the
 	// prior credential in the same store-layer transaction.
 	RotateSetupPassword(ctx context.Context, reset LocalIdentityPasswordReset) error
-	// RotateSetupMFA replaces the owner's MFA recovery-code factor.
-	RotateSetupMFA(ctx context.Context, reset LocalIdentityMFAReset) error
-	// CompleteSetup permanently consumes the bootstrap credential envelope
-	// for the given owner subject, sealing the wizard shut. Subsequent
-	// SetupNeeded calls return false forever — the wizard cannot be
-	// re-entered.
-	CompleteSetup(ctx context.Context, subjectIDHash string, now time.Time) error
+	// CompleteSetupMFA atomically rotates the owner's MFA recovery-code
+	// factor and permanently consumes the bootstrap credential envelope in
+	// one transaction / advisory-locked critical section (#4990), so two
+	// concurrent completions for the same owner cannot both rotate MFA or
+	// both believe they sealed the wizard. completed is false, with no
+	// error, when a concurrent caller already completed setup first inside
+	// the same critical section — the caller's generated recovery codes
+	// were never persisted in that case and MUST be discarded; the caller
+	// MUST fail closed (never issue a session claiming success) rather than
+	// treat this as a normal completion.
+	CompleteSetupMFA(ctx context.Context, in CompleteSetupMFAInput) (completed bool, err error)
+}
+
+// CompleteSetupMFAInput carries the caller-hashed recovery codes and owner
+// identity CompleteSetupMFA needs to atomically rotate MFA and consume the
+// bootstrap credential.
+type CompleteSetupMFAInput struct {
+	TenantID            string
+	WorkspaceID         string
+	SubjectIDHash       string
+	UserID              string
+	MFAFactorID         string
+	MFAFactorKind       string
+	MFACredentialHandle string
+	RecoveryCodeHashes  []string
+	Now                 time.Time
 }
 
 // SetupOwner identifies the local identity the bootstrap credential belongs

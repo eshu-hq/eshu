@@ -20,14 +20,30 @@ const setupRecoveryCodeCount = 10
 const setupRecoveryCodeBytes = 20
 
 // handleCompleteMFA is the wizard's final step: reprove the bootstrap
-// credential, generate and persist a fresh set of MFA recovery codes,
-// permanently consume the bootstrap credential (sealing every setup route
-// shut per #4965), and issue a browser session so the operator lands
-// logged-in with no separate login step. The generated codes are returned
-// in the response body exactly once — the console must render them with
-// copy-all/download and gate navigation on the operator confirming they
-// saved them — and are never logged or persisted in clear text; only their
-// hashes reach storage (localIdentityHashes).
+// credential, generate a fresh set of MFA recovery codes, issue the browser
+// session, and only THEN atomically rotate MFA and permanently consume the
+// bootstrap credential (sealing every setup route shut per #4965). The
+// generated codes are returned in the response body exactly once — the
+// console must render them with copy-all/download and gate navigation on
+// the operator confirming they saved them — and are never logged or
+// persisted in clear text; only their hashes reach storage
+// (localIdentityHashes).
+//
+// Session issuance runs BEFORE the irreversible seal (#4990 P2): if it
+// fails, nothing has been persisted yet (MFA is untouched, the bootstrap
+// credential is still unconsumed, SetupNeeded still reports true), so the
+// operator can simply retry the call — no recovery codes are ever
+// generated, hashed, and then discarded behind a failed response the
+// operator never sees.
+//
+// The MFA rotation + credential consumption itself runs through
+// SetupStore.CompleteSetupMFA, one atomic transaction / advisory-locked
+// critical section (#4990 P1): two concurrent /setup/mfa calls for the same
+// owner can both reach this point (both already reproved the credential and
+// both already have a session), but only one of them can win the race
+// inside that critical section. The loser's generated codes were never
+// persisted — this handler fails closed with 409 rather than claim success
+// for codes nobody can use.
 func (h *SetupHandler) handleCompleteMFA(w http.ResponseWriter, r *http.Request) {
 	if !h.ready(w) || !h.requireSetupOpen(w, r) {
 		return
@@ -48,24 +64,6 @@ func (h *SetupHandler) handleCompleteMFA(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	now := h.now()
-	if err := h.Store.RotateSetupMFA(r.Context(), LocalIdentityMFAReset{
-		UserID:             owner.UserID,
-		MFAFactorID:        h.newID(),
-		MFAFactorKind:      "recovery_code",
-		RecoveryCodeHashes: localIdentityHashes(codes),
-		ResetAt:            now,
-	}); err != nil {
-		h.recordOutcome(r, "mfa_error")
-		WriteError(w, http.StatusInternalServerError, "failed to enroll recovery codes")
-		return
-	}
-	if err := h.Store.CompleteSetup(r.Context(), owner.SubjectIDHash, now); err != nil {
-		h.recordOutcome(r, "mfa_error")
-		WriteError(w, http.StatusInternalServerError, "failed to complete setup")
-		return
-	}
-	h.auditSetup(r, governanceaudit.DecisionAllowed, "setup_completed")
-	h.recordOutcome(r, "mfa_allowed")
 
 	issued, sessionOK := issueLocalSessionCookies(
 		w, r, h.Sessions, h.newSecret, now, h.idleTimeout(), h.absoluteTimeout(), h.cookieSecureMode(),
@@ -78,12 +76,51 @@ func (h *SetupHandler) handleCompleteMFA(w http.ResponseWriter, r *http.Request)
 		},
 	)
 	if !sessionOK {
-		// Setup itself is already complete and sealed by this point — only
-		// session issuance failed. issueLocalSessionCookies already wrote the
-		// error response; the operator can sign in normally with the
-		// password/recovery codes they just set.
+		// issueLocalSessionCookies already wrote the error response. Nothing
+		// was persisted yet — the wizard stays reachable and the operator
+		// can retry the whole call.
+		h.recordOutcome(r, "mfa_error")
 		return
 	}
+
+	mfaFactorID, err := h.newID()
+	if err != nil {
+		h.recordOutcome(r, "mfa_error")
+		WriteError(w, http.StatusInternalServerError, "failed to complete setup")
+		return
+	}
+
+	completed, err := h.Store.CompleteSetupMFA(r.Context(), CompleteSetupMFAInput{
+		TenantID:           owner.TenantID,
+		WorkspaceID:        owner.WorkspaceID,
+		SubjectIDHash:      owner.SubjectIDHash,
+		UserID:             owner.UserID,
+		MFAFactorID:        mfaFactorID,
+		MFAFactorKind:      "recovery_code",
+		RecoveryCodeHashes: localIdentityHashes(codes),
+		Now:                now,
+	})
+	if err != nil {
+		h.recordOutcome(r, "mfa_error")
+		WriteError(w, http.StatusInternalServerError, "failed to complete setup")
+		return
+	}
+	if !completed {
+		// A concurrent /setup/mfa call already won the advisory-locked race
+		// (#4990 P1). This caller's generated recovery codes were never
+		// persisted — fail closed rather than claim success for codes
+		// nobody can use. The session issued above is still valid (the
+		// operator legitimately reproved ownership), so this is a clean
+		// rejection, not a lockout: the operator can sign in with the
+		// credentials the WINNING request set.
+		h.auditSetup(r, governanceaudit.DecisionDenied, "setup_mfa_concurrent_completion")
+		h.recordOutcome(r, "mfa_denied")
+		WriteError(w, http.StatusConflict, "setup was already completed by a concurrent request")
+		return
+	}
+
+	h.auditSetup(r, governanceaudit.DecisionAllowed, "setup_completed")
+	h.recordOutcome(r, "mfa_allowed")
 	WriteJSON(w, http.StatusOK, SetupCompleteResponse{
 		Status:            "completed",
 		RecoveryCodes:     codes,

@@ -4,6 +4,8 @@
 package query
 
 import (
+	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -106,8 +108,8 @@ func (h *SetupHandler) handleCreateAdmin(w http.ResponseWriter, r *http.Request)
 		WriteError(w, http.StatusBadRequest, "invalid setup admin request")
 		return
 	}
-	if strings.TrimSpace(req.NewPassword) == "" {
-		WriteError(w, http.StatusBadRequest, "new_password is required")
+	if err := validateSetupNewPassword(req.NewPassword); err != nil {
+		WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	owner, ok := h.verifyAndResolveOwner(w, r, req.Username, req.Password, "admin")
@@ -119,10 +121,16 @@ func (h *SetupHandler) handleCreateAdmin(w http.ResponseWriter, r *http.Request)
 		WriteError(w, http.StatusBadRequest, "invalid new password")
 		return
 	}
+	credentialID, err := h.newID()
+	if err != nil {
+		h.recordOutcome(r, "admin_error")
+		WriteError(w, http.StatusInternalServerError, "failed to set administrator password")
+		return
+	}
 	now := h.now()
 	if err := h.Store.RotateSetupPassword(r.Context(), LocalIdentityPasswordReset{
 		UserID:                 owner.UserID,
-		CredentialID:           h.newID(),
+		CredentialID:           credentialID,
 		PasswordHash:           passwordHash,
 		PasswordAlgorithm:      "bcrypt",
 		PasswordParametersHash: localIdentityHash("bcrypt"),
@@ -191,3 +199,27 @@ func (h *SetupHandler) requireSetupOpen(w http.ResponseWriter, r *http.Request) 
 
 const setupInvalidCredentialMessage = "bootstrap credential is invalid or expired; " +
 	"retrieve it again with `eshu admin initial-credential` or regenerate it with `eshu admin reset-initial-credential`"
+
+// setupMinPasswordLength is the server-side floor for the wizard's new
+// administrator password (#4990 P2). The console's password-strength meter
+// (SetupPage.tsx) is UX-only guidance and never blocks submission — the
+// server is the actual trust boundary, so a direct API caller bypassing the
+// console must not be able to set new_password:"a". The minimum matches the
+// console's own displayed guidance ("Use 12+ characters..."). Deliberately
+// length-only, not composition rules (uppercase/digit/symbol mixes): NIST
+// SP 800-63B recommends length over composition, and a byte-length floor
+// also keeps this aligned with bcrypt's own 72-byte input limit
+// (h.hashPassword already surfaces bcrypt.ErrPasswordTooLong as a 400 for
+// the over-long case).
+const setupMinPasswordLength = 12
+
+// validateSetupNewPassword enforces the wizard's server-side password floor.
+func validateSetupNewPassword(newPassword string) error {
+	if strings.TrimSpace(newPassword) == "" {
+		return errors.New("new_password is required")
+	}
+	if len(newPassword) < setupMinPasswordLength {
+		return fmt.Errorf("new_password must be at least %d characters", setupMinPasswordLength)
+	}
+	return nil
+}
