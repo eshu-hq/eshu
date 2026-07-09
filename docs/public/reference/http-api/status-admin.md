@@ -506,9 +506,13 @@ nil-tolerant loader seam.
 Performance Evidence: the diff is bounded by the requested `sample_limit` and
 keyed by `(scope_id, generation_id, stable_fact_key)`. Counts come from one
 aggregate over `fact_records` filtered to the two generations of one scope, using
-the `fact_records_scope_generation_idx` and `fact_records_stable_key_idx`
-indexes; sample reads run only for non-empty classification buckets and each is
-`ORDER BY stable_fact_key LIMIT sample_limit+1`. Expected cardinality scales with
+the `fact_records_scope_generation_idx` index (`scope_id, generation_id`
+anchored) for each per-generation scan and a hash join on `stable_fact_key` to
+classify keys; sample reads run only for non-empty classification buckets and
+each is `ORDER BY stable_fact_key LIMIT sample_limit+1`. (The prior
+`fact_records_stable_key_idx` was dropped in #4859 — `EXPLAIN` on the live stack
+confirms this query anchors on `fact_records_scope_generation_idx` and hash-joins
+by `stable_fact_key` rather than probing a `stable_fact_key`-leading index.) Expected cardinality scales with
 the per-generation fact count of a single repository scope (files plus content
 entities plus facts), not the whole repository corpus; no whole-graph or
 cross-scope scan is performed. Live SQL is exercised by the CI integration gate

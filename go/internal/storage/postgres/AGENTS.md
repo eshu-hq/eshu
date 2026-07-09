@@ -638,3 +638,45 @@ domain, worker, lease, or runtime knob. Operators still diagnose the content
 write path through the existing `InstrumentedDB` Postgres exec/query spans and
 `eshu_dp_postgres_query_duration_seconds`, and the existing content-write stage
 timing logs.
+
+## #4859 — Drop unused fact_records_stable_key_idx
+
+Performance Evidence: `fact_records_stable_key_idx` on `(stable_fact_key,
+generation_id)` is the single biggest fact-insert write-amplification contributor
+and has no query reader. It is the only general/all-row `idx_scan=0` secondary
+index on `fact_records` (2132 MB on the live `e2e3586persist` stack, 22h uptime,
+`idx_scan=0`). Every other `idx_scan=0` index is a fact-kind/tombstone/expression
+partial that only writes for matching facts.
+
+No query filters `WHERE stable_fact_key = ...` (repo-wide `rg`: every
+`stable_fact_key` reference is an `EXCLUDED.stable_fact_key` upsert SET or a
+cypher graph-node property write — never a `fact_records` read/lookup). The
+fact upsert conflicts on `fact_id` (PK), not `stable_fact_key`, so the index
+is not needed for write dedup.
+
+Its only plausible reader, the changed-since diff (`changed_since_sql.go`),
+filters `WHERE scope_id=$ AND generation_id=$` and hash-joins CTEs by
+`stable_fact_key` — it uses `fact_records_scope_generation_idx`, NOT
+`stable_key_idx`. Proven by EXPLAIN both locally (all 82 indexes present →
+Bitmap Index Scan on `scope_generation_idx` + Hash Full Join) and on the live
+6.2M-row stack (Bitmap Index Scan on `fact_records_scope_generation_idx`).
+Structurally the index can't serve that query (it leads with `stable_fact_key`,
+which is never in a WHERE).
+
+Local write-amp test (`postgres:18-alpine`, 100k representative facts on the
+real 82-index schema):
+
+| metric | BEFORE (with stable_key_idx) | AFTER (dropped) | delta |
+| --- | --- | --- | --- |
+| INSERT 100k facts (real 82-index schema) | 3116.8 ms | 2035.8 ms | −34.7% |
+| index size reclaimed (live stack) | 2132 MB | 0 | reclaimed |
+| changed-since query plan | scope_generation_idx + hash join (NOT stable_key_idx) | identical | output-preserving |
+
+Dropping this ONE index captures 99% of the achievable insert win from all
+idx_scan=0 indexes (dropping ALL 77: 2024.3 ms; −35.0%).
+
+No-Observability-Change: dropping an unused index. No metric, span, log key,
+route, worker, queue domain, lease, graph write, or runtime knob changes. The
+`fact_records` upsert is still covered by the existing `InstrumentedDB` Postgres
+query spans and `eshu_dp_postgres_query_duration_seconds`. Changed-since and all
+reads are unaffected (they use `fact_records_scope_generation_idx`).

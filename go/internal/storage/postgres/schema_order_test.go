@@ -69,4 +69,5 @@ var orderedBootstrapDefinitionNames = []string{
 	"code_value_flow_backfill_state",
 	"projected_source_edge",
 	"drop_graph_projection_phase_state_lookup_idx",
+	"drop_fact_records_stable_key_idx",
 }
