@@ -20,4 +20,19 @@
 // unchanged. This package still does not import collector or parser
 // internals: the production extractor and SDK validator are its only
 // derivation seams into that layer.
+//
+// RoundTripTypedPayloads (roundtrip.go) is the P1 terminal "contract system
+// alive" proof (issue #4804): it decodes every fact in an Odù through its
+// kind's factschema Decode* function and re-encodes it, asserting the
+// re-encoded payload's canonical bytes exactly match the original — proving
+// the SDK's typed struct for that fact kind neither drops nor reshapes a
+// field the collector emitted, a stronger claim than payload-schema
+// conformance alone. demoOrgRoundtripOdu seeds the catalog with every fact
+// the demo-org synthetic GCP cassette (go/internal/synth/gcp) generates,
+// replayed through the production cassette.Source seam via
+// gcp.DemoOrgFactEnvelopes. Importing synth/gcp is boundary-legal: it is a
+// synthetic fixture generator that itself never imports collector internals
+// and emits only through the same typed factschema Encode* seam a real
+// collector would use, so this package still touches no collector or parser
+// internals directly.
 package ifa

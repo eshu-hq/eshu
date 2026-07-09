@@ -655,6 +655,26 @@ manifest using the
 uncovered; false-green case (kustomize vs ArgoCD) correctly fails; a
 schema-invalid payload fails conformance.
 
+**P1 terminal proof — typed round-trip Odù (#4804).** Payload-schema
+conformance (above) proves a payload's *shape* is valid JSON Schema; it does
+not prove the contract system's typed `sdk/go/factschema` structs preserve
+every field a collector actually emits. `odu:demo-org-roundtrip`
+(`go/internal/ifa/roundtrip.go`) closes that gap for the GCP fact family
+(`gcp_cloud_resource`, `gcp_cloud_relationship`, `gcp_collection_warning`,
+`gcp_dns_record`, `gcp_iam_policy_observation`): it carries every fact the
+demo-org synthetic GCP cassette (`go/internal/synth/gcp`) generates, replayed
+through the production `cassette.Source` seam rather than a hand-built
+mirror, and `RoundTripTypedPayloads` asserts each fact's typed
+Encode→Decode→re-Encode round trip is canonical-byte-identical to the
+original payload. A payload that fails typed decode surfaces the same
+classified `*factschema.DecodeError` a reducer handler would act on; a
+payload that decodes but loses or reshapes a field (for example an unmodeled
+key `gcpv1.DNSRecord` silently drops on re-encode, since it carries no
+`Attributes` pass-through remainder) reports a canonical-byte mismatch naming
+the fact. This is the "contract system alive" proof the epic's W6 milestone
+targets: the typed struct layer, not only its JSON Schema, is provably
+faithful for one full fact family end to end.
+
 **P2 — concurrent replay driver (net-new).**
 Build the thread-safe wrapper around `cassette.Source` (modeled on
 `inputtape.RoundTripper`/`schedulereplay.Source`), feeding ingestion → reducer.

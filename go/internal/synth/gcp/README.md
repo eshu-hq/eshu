@@ -64,6 +64,19 @@ answers depend on projected graph truth, not only cassette shape. The entry
 point is Go, not a shell generator script, so the `generate-*.sh` / `lib/` /
 `test-generate-*.sh` pattern is intentionally not introduced for this issue.
 
+## Fact-envelope replay helper
+
+`DemoOrgFactEnvelopes(DemoOrgProfile) ([]facts.Envelope, error)`
+(`demo_envelopes.go`) generates the demo-org cassette and replays it through
+the production `cassette.Source` seam (`go/internal/replay/cassette/
+source.go`) — the same `collector.Source` implementation `collector.Service`
+drives against a real cassette file — returning every fact envelope the
+generated cassette's scope carries. It exists so a consumer that needs the
+demo-org corpus as `facts.Envelope` values (for example `go/internal/ifa`'s
+`odu:demo-org-roundtrip`, issue #4804) drives the same replay path a real
+poll loop would, rather than hand-mirroring the generator's payload shapes
+and silently drifting from them.
+
 ## Determinism
 
 `Generate(Options{Seed: N, ...})` called twice with identical options produces
