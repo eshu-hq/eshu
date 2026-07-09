@@ -110,3 +110,59 @@ records at Info/Error level via the standard `log/slog` package) — not a new
 metric or span. `Source` still returns `collector.CollectedGeneration` values
 unchanged from the delegate; the collector's existing telemetry (wired
 through `collector.Service`) is unaffected by this package.
+
+## FactSliceSource: the git-collector replay path
+
+`collector-git` is live-only — it has no `cassette.File` tape format of its
+own, because git history is reproduced by re-walking a live repository, not
+by re-parsing a recorded fixture. `FactSliceSource` is the replay delegate for
+that case: instead of an in-memory tape, it replays git-derived facts back out
+of the `fact_records` rows a prior ingestion run already wrote, one
+`projector.ScopeGenerationWork` descriptor at a time, via a `FactLoader` —
+`postgres.FactStore.LoadFacts` in production. Each `Next` call loads one
+descriptor's envelopes and wraps them with `collector.FactsFromSlice`, so the
+resulting `CollectedGeneration` is built identically to a cassette-replayed
+one and downstream `Committer` semantics do not need to distinguish the two.
+
+`FactLoader` intentionally duplicates `ifa.FactLoader`
+(`go/internal/ifa/odu.go:21-23`) at the same method shape rather than
+importing it: this package's ownership boundary forbids a
+`concurrentreplay -> ifa` import, since Ifá is a consumer of replayed facts,
+not a dependency of the replay plumbing.
+
+Like `cassette.Source`, `FactSliceSource` is deliberately unsynchronized —
+its slice index is plain per-instance state. Wrap it in `NewSource` before
+handing it to concurrent `Driver` workers, exactly as
+`TestFactSliceSourceUnderDriver` does; the wrapper is this package's one
+synchronization point, not `FactSliceSource` itself.
+
+### Same-DB idempotency caveat (constraint for the drain harness, slice 6)
+
+Replaying `FactSliceSource` back into the **same** database it read from is
+close to a no-op, by design of the storage layer it depends on, not by
+anything `FactSliceSource` itself does:
+
+- `postgres.FactStore.LoadFacts` reads from the fact-record store.
+  `Committer.CommitScopeGeneration` implementations write to a fact-record
+  store (and enqueue projector work) through the same schema. When both point
+  at one database, a replayed generation's facts collide on their existing
+  `fact_id` primary key and its `fact_work_items` row collides on its existing
+  `work_item_id`.
+- Fact upserts resolve that collision via a fencing-token-guarded
+  `ON CONFLICT (fact_id) DO UPDATE` (`go/internal/storage/postgres/facts.go`):
+  replaying the same envelope with the same fencing token converges back to
+  the row that was already there rather than adding new graph truth.
+- `fact_work_items` enqueue uses
+  `ON CONFLICT (work_item_id) DO NOTHING`
+  (`go/internal/storage/postgres/projector_queue_sql.go`): replaying into the
+  same DB will not re-enqueue reducer work for a generation the original run
+  already enqueued.
+
+A same-DB replay is therefore a valid way to prove `FactSliceSource` and
+`Driver` wiring end-to-end (this package's own tests do exactly that with a
+fake `FactLoader` and `recordingCommitter`), but it is **not** a valid way to
+measure or prove reducer drain throughput: the writes it produces mostly
+collide with rows that already exist. A drain-throughput proof must replay
+into a **fresh target database** so the commit path actually performs new
+inserts and new enqueues. This is a constraint the later drain-harness slice
+of #4395 (slice 6) must honor, not something this slice implements.

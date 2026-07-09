@@ -3,9 +3,11 @@
 ## Owned surface
 
 - `go/internal/replay/concurrentreplay/` — the thread-safe `collector.Source`
-  wrapper (`Source`, in `source.go`) and the concurrent replay `Driver`
-  (`Driver`, `Report`, in `driver.go`) for the Ifá P2 concurrent replay driver
-  (issue #4395, parent epic #4389).
+  wrapper (`Source`, in `source.go`), the concurrent replay `Driver`
+  (`Driver`, `Report`, in `driver.go`), and the git-collector `LoadFacts`
+  replay delegate (`FactSliceSource`, `FactLoader`, in
+  `factslicesource.go`) for the Ifá P2 concurrent replay driver (issue #4395,
+  parent epic #4389).
 
 ## Key invariants
 
@@ -43,10 +45,24 @@
   reserved for a later slice to thread an existing `eshu_dp_*` instrument
   through; adding a new counter/histogram here without a design decision on
   which existing instrument applies is out of scope.
-- Do not add the `FactSliceSource`, the `fact_work_items` fan-out, or the
-  reducer drain harness to this package — those are later slices of #4395.
-  This package owns the `Source` wrapper and the `Driver` that drains it, not
-  the fan-out or DB harness around them.
+- `FactSliceSource` MUST stay deliberately unsynchronized, mirroring
+  `cassette.Source`: its slice index is plain per-instance state, not
+  guarded by its own mutex. `Source` (this package's wrapper) is still the
+  single synchronization point for concurrent callers — do not add locking
+  inside `FactSliceSource` itself.
+- `FactSliceSource` MUST NOT import `internal/ifa`. Its `FactLoader`
+  interface intentionally duplicates `ifa.FactLoader`
+  (`go/internal/ifa/odu.go:21-23`) at the same method shape rather than
+  importing it, for the same reason `Source` does not import `ifa`.
+- Do not add the `fact_work_items` fan-out or the reducer drain harness to
+  this package — those are later slices of #4395. This package owns the
+  `Source` wrapper, the `Driver` that drains it, and the `FactSliceSource`
+  git-replay delegate, not the fan-out or DB harness around them. In
+  particular, replaying `FactSliceSource` into the same database it read
+  from is a near-no-op (fact upserts and `fact_work_items` enqueue both
+  conflict-skip) — see README.md's same-DB idempotency caveat. Do not treat
+  a same-DB replay as a valid drain-throughput proof; the drain harness
+  slice must target a fresh database.
 
 ## Skill routing
 

@@ -30,4 +30,12 @@
 // a collector.Source with a concurrent one; it does not build the
 // fact_work_items fan-out or the reducer drain harness those later slices of
 // #4395 still own.
+//
+// FactSliceSource is the collector.Source delegate for the git-collector
+// replay path: collector-git is live-only and has no cassette tape format of
+// its own, so git-derived facts replay from the fact_records rows a prior
+// ingestion run already wrote, via a FactLoader (satisfied in production by
+// postgres.FactStore.LoadFacts). Like cassette.Source, FactSliceSource is
+// unsynchronized on its own; wrap it in NewSource before draining it with
+// concurrent Driver workers.
 package concurrentreplay
