@@ -125,7 +125,11 @@
 // reach handlers. Browser-session middleware hashes the HttpOnly session cookie
 // and the `X-Eshu-CSRF` header proof before resolver calls on unsafe methods,
 // then attaches the same scoped tenant/workspace/grant context for dashboard
-// cookie reads. Local identity routes hash login, invite, MFA recovery, and
+// cookie reads. The Secure cookie attribute follows CookieSecureMode (env
+// ESHU_AUTH_COOKIE_SECURE, default "auto"): every cookie-issuing handler keeps
+// Secure set except for a plain-HTTP loopback request, so a non-loopback
+// plain-HTTP deployment never receives a non-Secure cookie (#4964). Local
+// identity routes hash login, invite, MFA recovery, and
 // break-glass proofs before storage calls; bootstrap and break-glass enablement
 // stay behind shared-operator auth, while public login, invite acceptance, and
 // break-glass session creation succeed only after the storage layer validates

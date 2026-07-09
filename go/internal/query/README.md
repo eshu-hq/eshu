@@ -792,6 +792,18 @@ live in [evidence-notes.md](evidence-notes.md).
   Unsafe cookie-authenticated requests require `X-Eshu-CSRF`, and shared API
   keys stay on the bearer path because they do not carry tenant/workspace
   bounds for session creation.
+- `writeBrowserSessionCookies` (`browser_session_handler.go`) decides the
+  Secure cookie attribute per request via `browserSessionCookieSecure`
+  (`browser_session_cookie_secure.go`), gated by each cookie-issuing handler's
+  `CookieSecure` field (`CookieSecureMode`, env `ESHU_AUTH_COOKIE_SECURE`,
+  default `auto`). `auto` keeps Secure set for every request except a
+  plain-HTTP loopback origin (`localhost`, `127.0.0.0/8`, `::1`), which
+  relaxes it so local development without TLS keeps a persistent session; any
+  other plain-HTTP origin still gets `Secure=true`, so the browser drops the
+  cookie rather than this server ever issuing a non-Secure cookie outside
+  loopback. `always` restores the pre-#4964 always-Secure behavior.
+  `BrowserSessionHandler`, `LocalIdentityHandler`, and `SAMLHandler` all thread
+  the same `CookieSecure` value through to this decision (#4964).
 - SAML routes (`saml_handler.go`) are public only for metadata, login, and ACS.
   Login stores a RelayState hash with the AuthnRequest ID; ACS requires that
   RelayState, validates the SAML response through `crewjam/saml`, reserves a

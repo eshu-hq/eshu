@@ -128,9 +128,10 @@ func newOIDCLoginHandler(
 		fallbackOIDCGrantResolver{primary: store, fallback: staticResolver},
 		oidclogin.NewOIDCConnector,
 	)
+	cookieSecureMode := query.ParseCookieSecureMode(getenv(query.CookieSecureModeEnv))
 	return &query.OIDCLoginHandler{
 		Service:              oidcServiceAdapter{service},
-		SessionIssuer:        newBrowserSessionHandler(db, instruments),
+		SessionIssuer:        newBrowserSessionHandler(db, instruments, cookieSecureMode),
 		SessionRefreshWindow: sessionRefreshWindow,
 	}, nil
 }

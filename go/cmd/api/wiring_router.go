@@ -39,6 +39,7 @@ func newRouter(
 	governanceStatus query.GovernanceStatusConfig,
 	governanceAudit query.GovernanceAuditSummaryReader,
 	readImpactFromWinners bool,
+	cookieSecureMode query.CookieSecureMode,
 ) (*query.APIRouter, error) {
 	semanticSearchEmbedding, err := searchembedruntime.ConfigFromEnv(func(key string) string {
 		if key == envSemanticSearchLocalEmbedder {
@@ -65,6 +66,7 @@ func newRouter(
 		governanceStatus,
 		governanceAudit,
 		readImpactFromWinners,
+		cookieSecureMode,
 	)
 }
 
@@ -84,6 +86,7 @@ func newRouterWithSemanticEmbedding(
 	governanceStatus query.GovernanceStatusConfig,
 	governanceAudit query.GovernanceAuditSummaryReader,
 	readImpactFromWinners bool,
+	cookieSecureMode query.CookieSecureMode,
 ) (*query.APIRouter, error) {
 	if statusReader == nil {
 		statusReader = newStatusStore(pgstatus.SQLQueryer{DB: db}, instruments)
@@ -98,8 +101,8 @@ func newRouterWithSemanticEmbedding(
 		sbomAttachments = query.NewPostgresSBOMAttestationAttachmentStore(db)
 	}
 	router := &query.APIRouter{
-		LocalIdentity:          newLocalIdentityHandler(db, instruments, governanceAudit),
-		BrowserSessions:        newBrowserSessionHandler(db, instruments),
+		LocalIdentity:          newLocalIdentityHandler(db, instruments, governanceAudit, cookieSecureMode),
+		BrowserSessions:        newBrowserSessionHandler(db, instruments, cookieSecureMode),
 		SessionList:            newBrowserSessionListHandler(db, instruments),
 		AdminIdentityReads:     newAdminIdentityReadHandler(db, instruments, governanceAudit),
 		AdminIdentityMutations: newAdminIdentityMutationHandler(db, instruments, governanceAudit),

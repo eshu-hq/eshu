@@ -25,6 +25,9 @@ type LocalIdentityHandler struct {
 	PasswordCost    int
 	IdleTimeout     time.Duration
 	AbsoluteTimeout time.Duration
+	// CookieSecure selects the Secure-attribute policy for issued session
+	// and CSRF cookies. Empty defaults to CookieSecureAuto (#4964).
+	CookieSecure CookieSecureMode
 }
 
 // Mount registers local identity routes.

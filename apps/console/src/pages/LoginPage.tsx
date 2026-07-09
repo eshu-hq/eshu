@@ -7,8 +7,15 @@
 // On successful local login, calls onSuccess(session) — caller navigates.
 import { useState, useEffect, type FormEvent } from "react";
 
-import { loginLocal, listAuthProviders, beginOidcLogin, beginSamlLogin } from "../api/authSession";
-import type { AuthLoginProvider } from "../api/authSession";
+import {
+  loginLocal,
+  listAuthProviders,
+  beginOidcLogin,
+  beginSamlLogin,
+  isCookiePersistenceAtRiskOrigin,
+  INSECURE_COOKIE_ORIGIN_MESSAGE,
+} from "../api/authSession";
+import type { AuthLoginProvider, InsecureCookieOrigin } from "../api/authSession";
 import type { BrowserSessionResponse } from "../api/client";
 import type { EshuApiClient } from "../api/client";
 
@@ -21,6 +28,10 @@ export interface LoginPageProps {
   // redirectFn is called with the constructed SSO redirect URL. Defaults to
   // location.assign. Injected in tests to avoid real navigation.
   readonly redirectFn?: (url: string) => void;
+  // location is the origin used to detect an insecure, non-loopback plain-HTTP
+  // context where the session cookie will not persist (#4964). Defaults to
+  // globalThis.location. Injected in tests to avoid monkey-patching jsdom.
+  readonly location?: InsecureCookieOrigin;
 }
 
 type LoginPhase = "credentials" | "mfa";
@@ -30,6 +41,7 @@ export function LoginPage({
   onSuccess,
   baseUrl = "",
   redirectFn,
+  location = globalThis.location,
 }: LoginPageProps): React.JSX.Element {
   const [login, setLogin] = useState("");
   const [password, setPassword] = useState("");
@@ -38,6 +50,11 @@ export function LoginPage({
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [providers, setProviders] = useState<readonly AuthLoginProvider[]>([]);
+  // #4964: the backend's default cookie policy keeps Secure=true (and thus
+  // never persists the session) for any plain-HTTP origin outside loopback.
+  // Detect that case up front so the diagnostic banner is visible before the
+  // user ever submits credentials, not just after a confusing failed login.
+  const showInsecureOriginBanner = isCookiePersistenceAtRiskOrigin(location);
 
   // Fetch available SSO providers on mount. The tenant_id query param scopes
   // the request to a single tenant — without it the endpoint returns empty.
@@ -158,6 +175,12 @@ export function LoginPage({
           </span>
         </div>
         <h1 className="login-title">Sign in to Eshu</h1>
+
+        {showInsecureOriginBanner ? (
+          <div className="login-insecure-origin-warning" role="alert" aria-live="assertive">
+            {INSECURE_COOKIE_ORIGIN_MESSAGE}
+          </div>
+        ) : null}
 
         {errorMsg !== null ? (
           <div className="login-error" role="alert" aria-live="assertive">

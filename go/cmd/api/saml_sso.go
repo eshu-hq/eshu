@@ -53,6 +53,7 @@ func newSAMLHandler(
 	instruments *telemetry.Instruments,
 	getenv func(string) string,
 	sessions query.BrowserSessionStore,
+	cookieSecureMode query.CookieSecureMode,
 ) (*query.SAMLHandler, error) {
 	if strings.TrimSpace(getenv(envSAMLProvidersJSON)) == "" {
 		return nil, nil
@@ -81,9 +82,10 @@ func newSAMLHandler(
 		return nil, err
 	}
 	return &query.SAMLHandler{
-		Store:    store,
-		Sessions: sessions,
-		Verifier: query.CrewjamSAMLVerifier{},
+		Store:        store,
+		Sessions:     sessions,
+		Verifier:     query.CrewjamSAMLVerifier{},
+		CookieSecure: cookieSecureMode,
 	}, nil
 }
 

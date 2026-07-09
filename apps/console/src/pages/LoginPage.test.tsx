@@ -198,6 +198,53 @@ describe("LoginPage", () => {
     expect(onSuccess).toHaveBeenCalledTimes(1);
   });
 
+  // #4964: the backend's default ESHU_AUTH_COOKIE_SECURE=auto only relaxes
+  // the Secure cookie attribute for a plain-HTTP loopback origin. Any other
+  // plain-HTTP origin keeps Secure=true, so the browser drops the session
+  // cookie there. The login page must show an actionable banner rather than
+  // silently failing to keep the user signed in.
+  it("shows an insecure-origin banner over plain HTTP on a non-loopback host", () => {
+    render(
+      <MemoryRouter>
+        <LoginPage
+          client={makeClient()}
+          onSuccess={vi.fn()}
+          location={{ protocol: "http:", hostname: "console.internal.example.com" }}
+        />
+      </MemoryRouter>,
+    );
+    const banner = screen.getByRole("alert");
+    expect(banner.textContent).toMatch(/session will not stay signed in/i);
+    expect(banner.textContent).toMatch(/localhost/i);
+    expect(banner.textContent).toMatch(/https/i);
+  });
+
+  it("does NOT show the insecure-origin banner over plain HTTP on localhost", () => {
+    render(
+      <MemoryRouter>
+        <LoginPage
+          client={makeClient()}
+          onSuccess={vi.fn()}
+          location={{ protocol: "http:", hostname: "localhost" }}
+        />
+      </MemoryRouter>,
+    );
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("does NOT show the insecure-origin banner over https", () => {
+    render(
+      <MemoryRouter>
+        <LoginPage
+          client={makeClient()}
+          onSuccess={vi.fn()}
+          location={{ protocol: "https:", hostname: "console.internal.example.com" }}
+        />
+      </MemoryRouter>,
+    );
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
   it("disables the submit button while a login request is in flight", async () => {
     let resolve!: (v: unknown) => void;
     const client = makeClient({

@@ -75,6 +75,9 @@ type BrowserSessionHandler struct {
 	Now             func() time.Time
 	IdleTimeout     time.Duration
 	AbsoluteTimeout time.Duration
+	// CookieSecure selects the Secure-attribute policy for issued session
+	// and CSRF cookies. Empty defaults to CookieSecureAuto (#4964).
+	CookieSecure CookieSecureMode
 }
 
 // BrowserSessionResponse is returned by browser session routes.
@@ -206,6 +209,8 @@ func (h *BrowserSessionHandler) issueBrowserSessionWithExternalAuth(
 	sessionAuth.Mode = AuthModeBrowserSession
 	writeBrowserSessionCookies(
 		w,
+		r,
+		h.cookieSecureMode(),
 		sessionSecret,
 		csrfSecret,
 		absoluteExpiresAt,
@@ -254,7 +259,7 @@ func (h *BrowserSessionHandler) handleLogout(w http.ResponseWriter, r *http.Requ
 		WriteError(w, http.StatusInternalServerError, "failed to revoke browser session")
 		return
 	}
-	writeBrowserSessionCookies(w, "", "", time.Time{}, -1)
+	writeBrowserSessionCookies(w, r, h.cookieSecureMode(), "", "", time.Time{}, -1)
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -333,6 +338,11 @@ func (h *BrowserSessionHandler) absoluteTimeout() time.Duration {
 	return DefaultBrowserSessionAbsoluteTimeout
 }
 
+// cookieSecureMode normalizes h.CookieSecure, defaulting to CookieSecureAuto.
+func (h *BrowserSessionHandler) cookieSecureMode() CookieSecureMode {
+	return ParseCookieSecureMode(string(h.CookieSecure))
+}
+
 func (h *BrowserSessionHandler) newSecret() (string, error) {
 	if h.NewSecret != nil {
 		secret, err := h.NewSecret()
@@ -368,6 +378,8 @@ func requestUsesBrowserSession(r *http.Request) bool {
 
 func writeBrowserSessionCookies(
 	w http.ResponseWriter,
+	r *http.Request,
+	mode CookieSecureMode,
 	sessionSecret string,
 	csrfSecret string,
 	expiresAt time.Time,
@@ -377,6 +389,7 @@ func writeBrowserSessionCookies(
 	if maxAge > 0 {
 		expires = expiresAt.UTC()
 	}
+	secure := browserSessionCookieSecure(r, mode)
 	http.SetCookie(w, &http.Cookie{
 		Name:     BrowserSessionCookieName,
 		Value:    sessionSecret,
@@ -384,7 +397,7 @@ func writeBrowserSessionCookies(
 		MaxAge:   maxAge,
 		Expires:  expires,
 		HttpOnly: true,
-		Secure:   true,
+		Secure:   secure,
 		SameSite: http.SameSiteStrictMode,
 	})
 	http.SetCookie(w, &http.Cookie{
@@ -394,7 +407,7 @@ func writeBrowserSessionCookies(
 		MaxAge:   maxAge,
 		Expires:  expires,
 		HttpOnly: false,
-		Secure:   true,
+		Secure:   secure,
 		SameSite: http.SameSiteStrictMode,
 	})
 }

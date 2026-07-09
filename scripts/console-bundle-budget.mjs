@@ -34,8 +34,11 @@ export const BUDGETS = {
   // are reachable from the primary nav, so eager loading keeps navigation
   // instant. Heavy *dependencies* have been split out (d3 -> lazy workspace
   // route, react/icons -> vendor chunks, mermaid/cytoscape/wardley/katex ->
-  // lazy diagram chunks). Measured ~636 KiB; budget gives headroom for growth.
-  main: 720 * KIB,
+  // lazy diagram chunks). Measured ~720.2 KiB after #4964 added the login
+  // page's insecure-origin-cookie diagnostic banner (a small, necessary
+  // security-UX addition to the eagerly loaded LoginPage); budget keeps a
+  // small deliberate headroom over that.
+  main: 722 * KIB,
   // React/runtime vendor (react, react-dom, react-router-dom). Stable, cached
   // across deploys via its own manualChunk. Measured ~49 KiB.
   "react-vendor": 120 * KIB,

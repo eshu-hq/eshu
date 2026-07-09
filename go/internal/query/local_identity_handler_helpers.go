@@ -139,7 +139,7 @@ func (h *LocalIdentityHandler) issueLocalIdentitySession(
 		WriteError(w, http.StatusInternalServerError, "failed to create local identity session")
 		return
 	}
-	writeBrowserSessionCookies(w, sessionSecret, csrfSecret, absoluteExpiresAt, int(h.absoluteTimeout().Seconds()))
+	writeBrowserSessionCookies(w, r, h.cookieSecureMode(), sessionSecret, csrfSecret, absoluteExpiresAt, int(h.absoluteTimeout().Seconds()))
 	WriteJSON(w, http.StatusOK, LocalIdentitySessionResponse{
 		Status:            status,
 		Auth:              browserSessionAuthResponse(sessionAuth),
@@ -217,6 +217,11 @@ func (h *LocalIdentityHandler) absoluteTimeout() time.Duration {
 		return h.AbsoluteTimeout
 	}
 	return DefaultBrowserSessionAbsoluteTimeout
+}
+
+// cookieSecureMode normalizes h.CookieSecure, defaulting to CookieSecureAuto.
+func (h *LocalIdentityHandler) cookieSecureMode() CookieSecureMode {
+	return ParseCookieSecureMode(string(h.CookieSecure))
 }
 
 func (h *LocalIdentityHandler) hashPassword(password string) (string, error) {

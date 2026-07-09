@@ -204,3 +204,36 @@ export async function listAuthProviders(
 export async function logout(client: EshuApiClient): Promise<void> {
   await client.logoutBrowserSession();
 }
+
+// InsecureCookieOrigin is the subset of window.location this module reads to
+// classify an origin. Accepting this narrow shape (instead of the global
+// Location) lets tests pass a plain object without monkey-patching jsdom.
+export interface InsecureCookieOrigin {
+  readonly protocol: string;
+  readonly hostname: string;
+}
+
+// isCookiePersistenceAtRiskOrigin mirrors the backend's #4964 origin
+// classification exactly (go/internal/query/browser_session_cookie_secure.go):
+// the default ESHU_AUTH_COOKIE_SECURE=auto mode relaxes the Secure cookie
+// attribute only for a plain-HTTP loopback origin (localhost, 127.0.0.0/8,
+// ::1). Any other plain-HTTP origin still gets a Secure cookie, which the
+// browser refuses to store — the session silently would not persist there.
+// LoginPage uses this to show an actionable diagnostic banner instead of a
+// confusing "session lost" experience.
+export function isCookiePersistenceAtRiskOrigin(
+  loc: InsecureCookieOrigin = globalThis.location,
+): boolean {
+  if (loc.protocol === "https:") return false;
+  const hostname = loc.hostname.replace(/^\[|\]$/g, "").toLowerCase();
+  if (hostname === "localhost" || hostname === "::1") return false;
+  const isLoopbackIPv4 = /^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(hostname);
+  return !isLoopbackIPv4;
+}
+
+// INSECURE_COOKIE_ORIGIN_MESSAGE names the exact remediation for an origin
+// where the session cookie will not persist: switch to a loopback address,
+// front the console with a TLS-terminating tunnel/proxy, or serve it over
+// HTTPS directly.
+export const INSECURE_COOKIE_ORIGIN_MESSAGE =
+  "Your session will not stay signed in here — plain HTTP outside localhost cannot keep a session cookie. Use http://localhost, put a TLS tunnel/proxy in front, or serve this over HTTPS.";
