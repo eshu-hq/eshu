@@ -5,7 +5,10 @@
 - `go/internal/synth/gcp/` — `Generate(Options)`, the seeded GCP corpus
   generator, `assetTypeInventory` (`asset_types.go`), `DemoOrgFactEnvelopes`
   (`demo_envelopes.go`, the production `cassette.Source` replay seam for the
-  demo-org corpus), and the maintainer-run parity check (`parity_test.go`).
+  demo-org corpus), `GenerateMultiScope(MultiScopeOptions)`
+  (`multiscope.go`, issue #4396 slice 6b: K-independent-scope generation for
+  the Ifá P3 determinism matrix), and the maintainer-run parity check
+  (`parity_test.go`).
 
 ## Key invariants
 
@@ -40,6 +43,21 @@
   from `Options.Seed` and `Options.ProjectID`. Do not add any I/O to
   `Generate` beyond the parity check's own read of the recorded testdata
   cassette (which is test-only, gated, and unrelated to `Generate` itself).
+- **`GenerateMultiScope` MUST keep every scope's identity disjoint.** It
+  derives each scope's `ProjectID` from `scopeProjectID(i)`
+  (`"acme-demo-gcp-<NN>"`), never a value a caller supplies directly, and never
+  reuses `DefaultDemoOrgProfile`'s or the recorded demo-org cassette's own
+  project id. A change here that could let two scopes share a `ProjectID` (and
+  therefore a `full_resource_name`/CloudResource uid) breaks the whole reason
+  this function exists — re-read `multiscope.go`'s doc comment and
+  `TestGenerateMultiScopeScopesHaveDisjointFullResourceNames` before touching
+  the project-id derivation.
+- **`GenerateMultiScope` MUST stay deterministic** the same way `Generate`
+  must: the same `(Seed, Scopes, ResourceCount)` always produces byte-identical
+  output (`TestGenerateMultiScopeIsByteIdenticalForSameInputs`). It reuses
+  `Generate`'s own per-scope determinism; do not introduce per-scope
+  randomness (e.g. deriving each scope's seed from `time.Now()` or an
+  unseeded source) when adding scope variety.
 - **The parity check (`parity_test.go`) stays operator-gated, not CI.** Guard
   it with the `ESHU_SYNTH_GCP_PARITY` environment variable, mirroring
   `go/internal/collector/pagerduty/live_test.go`'s `ESHU_PAGERDUTY_LIVE`

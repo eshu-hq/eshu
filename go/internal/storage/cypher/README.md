@@ -1325,14 +1325,18 @@ No-Observability-Change: no metric, span, log, or status field is added or
 changed by the default (`!ifadeterminismteeth`) build.
 
 Only `go build -tags ifadeterminismteeth` (never a normal/CI/production
-build) links `cloud_resource_node_writer_teeth.go`'s one extra SET clause,
-persisting `go/internal/reducer`'s `ifaTeethStampCloudResourceRow` sequence
-number onto the committed node as `r.ifa_teeth_write_order` — issue #4396
-slice 6's deliberately non-idempotent write, which
-`scripts/verify-ifa-determinism.sh --teeth` uses to prove the graph-
-determinism matrix actually catches a real non-idempotent write. See
+build) links `cloud_resource_node_writer_teeth.go`'s two extra SET clauses,
+persisting `go/internal/reducer`'s `ifaTeethStampCloudResourceRow` values onto
+the committed node as `r.ifa_teeth_seq` (a process-global monotonic counter,
+reintroduced in issue #4396 slice 6b after slice 5 found it inert on the
+single-scope demo-org cassette alone — a multi-scope synthetic cassette now
+makes it interleaving-sensitive again) and `r.ifa_teeth_write_order`
+(wall-clock nanoseconds, the fault's guaranteed-red floor) —
+`scripts/verify-ifa-determinism.sh --teeth` uses at least one of these two
+deliberately non-idempotent values to prove the graph-determinism matrix
+actually catches a real non-idempotent write. See
 `go/internal/reducer/README.md`'s matching section for the fuller writeup of
-why this value diverges across worker counts.
+why these values diverge across worker counts.
 
 ## Related docs
 

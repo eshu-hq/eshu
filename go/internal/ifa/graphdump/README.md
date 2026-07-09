@@ -169,6 +169,67 @@ Evidence:` / `No-Observability-Change:`.)
       overhead, not drive/drain/dump work. Confirmed no leftover containers,
       volumes, or networks after the run (`docker ps -a` / `docker volume ls`
       / `docker network ls` filtered on the project name, all empty).
+  - **Multi-scope matrix (slice 6b, `scripts/verify-ifa-determinism.sh`,
+    unmodified — no `--teeth`):** the demo-org Odù alone gives
+    `concurrentreplay.Driver` exactly one work unit for ANY `-workers` count
+    (see the reducer README's teeth section), so the recorded slice-5 run
+    above proves repeatability, not a worker matrix. This run adds the
+    generated synth-multiscope cassette (`ifa synth-cassette -seed 4396
+    -projects 8 -resources 64`, `go/internal/synth/gcp.GenerateMultiScope`) as
+    a SECOND `eshu-ifa drive -cassette <synth> -workers N` into the SAME cell
+    stack, alongside the unmodified demo-org cassette, giving the driver 9
+    genuinely independent work units (1 demo-org + 8 synth scopes). Each cell
+    logged `fact_work_items enqueued (demo-org + synth-multiscope): 9` before
+    draining, proving both drives actually committed work (not a vacuous
+    drain). Recorded run (2026-07-09, project `eshu-ifa-determinism-15666`,
+    postgres:15636, neo4j-bolt:7793):
+    - N=1: digest
+      `e3b183cb9e20fba3c3a3bb0690681502fc444263bc4fc9cd883259ef4ddf8682`,
+      cell wall time 75s.
+    - N=2: digest
+      `e3b183cb9e20fba3c3a3bb0690681502fc444263bc4fc9cd883259ef4ddf8682`,
+      cell wall time 71s.
+    - N=4: digest
+      `e3b183cb9e20fba3c3a3bb0690681502fc444263bc4fc9cd883259ef4ddf8682`,
+      cell wall time 72s.
+    - All three digests byte-identical — matrix green, proving the 8 synth
+      scopes are disjoint by construction (no same-uid `MERGE` collision, no
+      `source_fact_id` last-writer-wins false-red) even though `-workers N`
+      now varies commit interleaving over 9 real work units instead of 1.
+      Confirmed no leftover containers, volumes, or networks after the run.
+    - **`--teeth` run (same cassette pair, `-tags ifadeterminismteeth`,
+      expected and required to go RED):** all three digests diverged from
+      each other:
+      - N=1: digest `96a68dfc3bfa89c8a59793cf2a51ec66e0265245f1c90128d1fbb3dbebe4ae5a`,
+        wall 72s.
+      - N=2: digest `0dacc0881163611f067e110cd38ba7d9dfd0a576093a58a0d4ebda14d75932e5`,
+        wall 69s.
+      - N=4: digest `af2f494f6676d0d6734c741020e6b08c393f0b440ea0e3bbd2ad45350681230b`,
+        wall 71s.
+      - `TEETH: CAUGHT` — the script's own acceptance branch fired (exit
+        non-zero is the expected --teeth pass). Inspecting the three kept
+        (`--keep`) canonical dumps confirms the divergence is NOT solely the
+        `ifa_teeth_write_order` wall-clock floor: correlating each
+        `CloudResource` node's stable `resource_id` across cells shows
+        `ifa_teeth_seq` itself differs for 591/622 nodes between N=1 and N=2,
+        558/622 between N=1 and N=4, and 488/622 between N=2 and N=4 (same
+        node identity, different process-relative sequence number) —
+        confirming the counter is genuinely interleaving-sensitive on this
+        9-work-unit fixture, unlike the single-scope run recorded in
+        `go/internal/reducer/README.md`'s teeth section where the counter
+        alone was measured INERT (identical digest across every N). Example:
+        `resource_id
+        //compute.googleapis.com/projects/acme-demo-gcp-00/computeName/synth-compute-30`
+        got `ifa_teeth_seq=340` at N=1 vs. `ifa_teeth_seq=57` at N=2 — the
+        same reducer-visible resource landed at a very different point in
+        this run's own commit/claim order purely because of the worker
+        count. `ifa_teeth_write_order` (wall-clock nanoseconds) also
+        differed for all 622/622 nodes across every pair, confirming it
+        still holds as the guaranteed-red floor alongside the now-restored
+        counter. Confirmed no leftover containers, volumes, or networks after
+        the run; the kept work dir (cassette + three canonical dumps) was
+        deleted after this analysis — no synth cassette or dump is ever
+        checked into `testdata/`.
 
 ## Verification
 

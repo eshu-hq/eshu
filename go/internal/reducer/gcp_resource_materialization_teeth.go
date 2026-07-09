@@ -7,10 +7,11 @@ package reducer
 
 import (
 	"strconv"
+	"sync/atomic"
 	"time"
 )
 
-// ifaTeethWriteOrderKey is the single row/property key
+// ifaTeethWriteOrderKey is the wall-clock row/property key
 // ifaTeethStampCloudResourceRow stamps. It exists ONLY under the
 // ifadeterminismteeth build tag (see scripts/verify-ifa-determinism.sh
 // --teeth and issue #4396's acceptance clause: "a deliberately
@@ -19,47 +20,70 @@ import (
 // !ifadeterminismteeth) gives ifaTeethStampCloudResourceRow the same
 // signature as a pure no-op for every other build, and
 // cloud_resource_node_writer_teeth_off.go (same tag, cypher package) drops
-// this key from the CloudResource upsert's SET clause entirely, so a stray
-// key in the row parameter map has no effect there either.
+// both this key and ifaTeethSequenceKey from the CloudResource upsert's SET
+// clause entirely, so stray keys in the row parameter map have no effect
+// there either.
 //
 // This is the ONE writer (CloudResourceNodeWriter.WriteCloudResourceNodes,
-// the sole canonical writer for gcp_cloud_resource-derived nodes) / ONE
-// property (ifa_teeth_write_order) the determinism matrix's --teeth mode
-// exercises. See cloud_resource_node_writer_teeth.go
+// the sole canonical writer for gcp_cloud_resource-derived nodes) the
+// determinism matrix's --teeth mode exercises, now stamping TWO properties.
+// See cloud_resource_node_writer_teeth.go
 // (go/internal/storage/cypher) for the Cypher-side half of this fault.
 const ifaTeethWriteOrderKey = "ifa_teeth_write_order"
 
-// ifaTeethStampCloudResourceRow stamps row with the current wall-clock time
-// in nanoseconds under the ifa_teeth_write_order key, unconditionally, for
-// every CloudResource row this reducer process builds.
+// ifaTeethSequenceKey is the process-global monotonic sequence-number
+// row/property key ifaTeethStampCloudResourceRow stamps alongside
+// ifaTeethWriteOrderKey (issue #4396 slice 6b). See ifaTeethSequenceCounter's
+// doc for why this counter was reintroduced after an earlier version proved
+// it inert on the single-scope demo-org cassette.
+const ifaTeethSequenceKey = "ifa_teeth_seq"
+
+// ifaTeethSequenceCounter is a process-global monotonic sequence number,
+// incremented once per CloudResource row this reducer process builds. It
+// records this reducer process's own relative processing order across every
+// gcp_cloud_resource fact it handles in this run.
 //
-// Why wall-clock nanos and not a per-process monotonic sequence number: an
-// earlier version of this fault used a process-global atomic counter tied
-// to this reducer's own processing order, on the theory that
-// `ifa drive -workers N` produces a different commit interleaving into
-// fact_work_items for N=1 vs. N=2 vs. N=4, which downstream reducer
-// processing would then reflect. Measured against the demo-org GCP
-// cassette (testdata/cassettes/gcpcloud/supply-chain-demo.json) that theory
-// was FALSE: the cassette has exactly one scope and one generation, so
-// `concurrentreplay.Driver` has exactly one work unit for ANY worker count
-// to drain — N never changes the commit order because there is only ever
-// one commit. All three N=1/N=2/N=4 cells produced the identical canonical
+// History: an earlier version of this fault used ONLY this counter (no
+// wall-clock companion), on the theory that `ifa drive -workers N` produces a
+// different commit interleaving into fact_work_items for N=1 vs. N=2 vs.
+// N=4, which downstream reducer processing would then reflect. Measured
+// against the demo-org GCP cassette
+// (testdata/cassettes/gcpcloud/supply-chain-demo.json) that theory was
+// FALSE: the cassette has exactly one scope and one generation, so
+// concurrentreplay.Driver has exactly one work unit for ANY worker count to
+// drain — N never changes the commit order because there is only ever one
+// commit. All three N=1/N=2/N=4 cells produced the identical canonical
 // digest (48f30267f1c0773d137d14c64ae008e7fe0a5a39db481f524ac07d8ddcb09310)
-// with the counter-based fault, proving it inert for this fixture rather
-// than proving anything about the matrix.
+// with the counter-based fault alone, proving it inert for that fixture.
 //
-// Wall-clock nanoseconds sidestep that: each of the three cells is an
-// independent, freshly-built reducer process reading the identical facts,
-// and a fresh `time.Now().UnixNano()` value is vanishingly unlikely to
-// repeat across separate process invocations, so the stamped property
-// differs between cells regardless of whether drive-side commit order also
-// differed. This is still the acceptance clause's real, build-tag-gated,
-// non-idempotent write reached by the actual runtime pipeline — not a
-// cassette-mutation stand-in — but the honest caveat is that the
-// divergence it proves is "the matrix catches a non-idempotent write,
-// full stop," not specifically "a write that is sensitive to the
-// `-workers N` interleaving" for this single-generation fixture. See
-// go/internal/reducer/README.md's matching section for the fuller writeup.
+// Issue #4396 slice 6b fixes the ROOT problem the counter's inertness
+// exposed — not the counter itself: scripts/verify-ifa-determinism.sh --teeth
+// now also drives a synthetic multi-scope cassette
+// (go/internal/synth/gcp.GenerateMultiScope via `ifa synth-cassette`) with K
+// disjoint GCP project scopes into the same cell, alongside the unmodified
+// demo-org cassette. With K+1 genuinely independent work units,
+// concurrentreplay.Driver's commit interleaving into fact_work_items DOES
+// vary with -workers N, and this reducer's own worker pool
+// (ESHU_REDUCER_WORKERS) races to claim and process those rows in an order
+// that also varies run to run — so this counter is no longer inert: it is
+// re-added as the fault's more diagnostic signal, sensitive specifically to
+// -workers N interleaving (not merely to being a fresh process), while
+// ifaTeethWriteOrderKey's wall-clock nanoseconds remain the fault's
+// guaranteed-red FLOOR: even if some future fixture change made this counter
+// inert again, two independent process invocations reading
+// time.Now().UnixNano() are vanishingly unlikely to collide, so --teeth can
+// never flake green. See go/internal/reducer/README.md's matching section
+// for the fuller writeup of both properties' roles.
+var ifaTeethSequenceCounter atomic.Int64
+
+// ifaTeethStampCloudResourceRow stamps row with two build-tag-gated debug
+// properties for every CloudResource row this reducer process builds:
+// ifaTeethSequenceKey (this process's monotonic per-row sequence number,
+// interleaving-sensitive on a multi-work-unit fixture) and
+// ifaTeethWriteOrderKey (wall-clock nanoseconds, the guaranteed-red floor
+// that stays sensitive to "a fresh process ran" even if the sequence number
+// were ever inert again).
 func ifaTeethStampCloudResourceRow(row map[string]any) {
+	row[ifaTeethSequenceKey] = strconv.FormatInt(ifaTeethSequenceCounter.Add(1), 10)
 	row[ifaTeethWriteOrderKey] = strconv.FormatInt(time.Now().UnixNano(), 10)
 }

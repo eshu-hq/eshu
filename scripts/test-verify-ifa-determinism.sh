@@ -81,6 +81,19 @@ require "gate binary" "eshu-golden-corpus-gate"
 require "drains phase" "-phase=drains"
 require "snapshot contract" "testdata/golden/e2e-20repo-snapshot.json"
 
+# Synth-multiscope cassette (issue #4396 slice 6b): generated ONCE before the
+# cell loop via `ifa synth-cassette`, then driven into every cell via a
+# SECOND `ifa drive` call alongside the unmodified demo-org cassette — this is
+# what makes -workers N non-inert (a single-scope cassette gives the driver
+# exactly one work unit for any N).
+require "synth-cassette verb invocation" '"${bin_dir}/eshu-ifa" synth-cassette'
+require "synth-cassette seed flag" "-seed \"\${SYNTH_MULTISCOPE_SEED}\""
+require "synth-cassette projects flag" "-projects \"\${SYNTH_MULTISCOPE_PROJECTS}\""
+require "synth-cassette resources flag" "-resources \"\${SYNTH_MULTISCOPE_RESOURCES}\""
+require "synth-cassette generated before the cell loop" "synth_cassette=\"\${work_dir}/synth-multiscope.json\""
+require "second drive invocation into the same cell" 'eshu-ifa" drive -cassette "${synth_cassette}" -workers "${n}"'
+require "combined-graph digest framing" "demo-org + synth-multiscope"
+
 # Populated-then-drained guard per cell: a 0/0 reading before anything was
 # ever enqueued would pass on a vacuous drain.
 require "drive-populated guard" "vacuous drain proof"

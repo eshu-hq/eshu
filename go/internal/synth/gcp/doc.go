@@ -63,4 +63,18 @@
 // so a consumer needing the demo-org corpus as fact envelopes (Ifá's
 // odu:demo-org-roundtrip, issue #4804) drives the same replay path a real
 // poll loop would, instead of hand-mirroring the generator's payload shapes.
+//
+// GenerateMultiScope(MultiScopeOptions) (multiscope.go, issue #4396 slice 6b)
+// builds a cassette with K independent GCP project scopes by calling Generate
+// K times with distinct deterministic ProjectIDs
+// ("acme-demo-gcp-00".."acme-demo-gcp-<K-1>") derived from one Seed, then
+// merges the resulting single-scope cassette.Scopes into one cassette.File
+// and re-runs the same canonicalize-then-fail-closed-reload sequence Generate
+// itself applies. It exists because a single-scope cassette gives
+// concurrentreplay.Driver exactly one work unit for ANY worker count, making
+// `ifa drive -workers N` inert; a multi-scope cassette gives the driver K
+// genuinely independent work units. Distinct ProjectIDs keep every scope's
+// full_resource_name (and therefore the reducer's CloudResource node uid,
+// which folds full_resource_name in) disjoint by construction, so no two
+// scopes can ever MERGE onto the same graph node.
 package gcp

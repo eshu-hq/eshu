@@ -12,10 +12,13 @@
    (ADR step 3a, issue #4396): wraps `go/internal/ifa.MutateCassette`.
 7. `dead_letters.go` - P3 failure-path-determinism read verb (ADR step 3a,
    issue #4396): reads the durable `fact_work_items` dead-letter set.
-8. `go/internal/ifa/AGENTS.md` - library contract.
-9. `go/internal/ifa/graphdump/AGENTS.md` - the canonicalization package
-   `graph_dump.go` calls into.
-10. `docs/internal/design/4389-ifa-conformance-platform.md` - the ADR; read its
+8. `synth_cassette.go` - P3 slice 6b multi-scope fixture generator verb
+   (issue #4396): wraps `go/internal/synth/gcp.GenerateMultiScope` so
+   `ifa drive -workers N` has more than one work unit to fan out across.
+9. `go/internal/ifa/AGENTS.md` - library contract.
+10. `go/internal/ifa/graphdump/AGENTS.md` - the canonicalization package
+    `graph_dump.go` calls into.
+11. `docs/internal/design/4389-ifa-conformance-platform.md` - the ADR; read its
     "Placement" section before touching this command's dependency graph, and
     step 3a for the failure-path-determinism requirement `mutate_cassette.go`/
     `dead_letters.go` serve.
@@ -89,6 +92,14 @@
   `cmd/golden-corpus-gate/drains.go`'s SQL: that gate's residual query counts
   `dead_letter` rows AS residual by design. Do not "fix" `dead-letters` to
   match that gate's semantics; they answer different questions.
+- `ifa synth-cassette` never writes to a committed `testdata/` path; every
+  caller (in particular `scripts/verify-ifa-determinism.sh`) regenerates its
+  output into a scratch/work directory per run and never checks it in. Do not
+  add a default `-out` that points inside `testdata/`.
+- `ifa synth-cassette`'s disjointness guarantee (distinct `ProjectID` per
+  scope, so no two scopes' `full_resource_name`/CloudResource uid collide) is
+  proven in `go/internal/synth/gcp`, not here — this verb is a thin wrapper
+  and must not add its own project-id derivation.
 
 ## Verification
 

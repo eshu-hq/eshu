@@ -76,6 +76,18 @@ session.
   one `SELECT`, no schema DDL or write. Deliberately does not reuse
   `cmd/golden-corpus-gate`'s drain SQL, which counts `dead_letter` rows AS
   residual by design; this verb's whole purpose is to read those rows.
+- `ifa synth-cassette -seed N [-projects K] [-resources R] -out FILE` (issue
+  #4396 slice 6b) - wraps `go/internal/synth/gcp.GenerateMultiScope`,
+  generating a deterministic cassette with `K` independent GCP project scopes
+  (`-projects`, default 4) of `R` resources each (`-resources`, default 16),
+  and writing its canonical bytes to `-out`. Exists to fix the finding that a
+  single-scope cassette gives `concurrentreplay.Driver` exactly one work unit
+  for ANY `-workers` count, making `ifa drive -workers N` inert; distinct
+  `ProjectID`s per scope (`acme-demo-gcp-00`, `acme-demo-gcp-01`, ...) keep
+  every scope's `full_resource_name`/CloudResource-uid disjoint by
+  construction. Never overwrites anything; no synth-cassette output is ever
+  checked into `testdata/` — every caller regenerates it into a scratch/work
+  directory per run.
 
 ## Dependencies
 
@@ -116,6 +128,11 @@ dependency: `mutate_cassette.go` uses `go/internal/ifa` (`MutateCassette`) and
 the already-imported `go/internal/replay/cassette`; `dead_letters.go` reuses
 `driveOpenPostgres` (unexported, defined in `drive.go`, same package) and
 `go/internal/ifa` (`DeadLetterRecord`, `SortDeadLetterRecords`).
+
+`ifa synth-cassette` (issue #4396 slice 6b) adds `go/internal/synth/gcp` as a
+dependency: `synth_cassette.go` is a thin flag/IO wrapper over
+`gcp.GenerateMultiScope`, performing no database or graph-backend I/O of its
+own.
 
 ## Telemetry
 

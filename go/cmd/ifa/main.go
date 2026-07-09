@@ -19,15 +19,15 @@ func main() {
 }
 
 // run dispatches to Ifá's subcommands. "coverage", "expectations", "drive",
-// "graph-dump", "mutate-cassette", and "dead-letters" are full subcommands
-// with their own flag sets (coverage.go, expectations.go, drive.go,
-// graph_dump.go, mutate_cassette.go, dead_letters.go); everything else falls
-// through to the top-level -version flag the P0 skeleton shipped, preserving
-// that contract unchanged. ctx is threaded through to "drive", "graph-dump",
-// and "dead-letters" — the subcommands that perform live I/O (Postgres,
-// respectively the graph backend) a caller may need to cancel;
-// "mutate-cassette" and the other subcommands are pure disk-and-memory
-// operations.
+// "graph-dump", "mutate-cassette", "dead-letters", and "synth-cassette" are
+// full subcommands with their own flag sets (coverage.go, expectations.go,
+// drive.go, graph_dump.go, mutate_cassette.go, dead_letters.go,
+// synth_cassette.go); everything else falls through to the top-level
+// -version flag the P0 skeleton shipped, preserving that contract unchanged.
+// ctx is threaded through to "drive", "graph-dump", and "dead-letters" — the
+// subcommands that perform live I/O (Postgres, respectively the graph
+// backend) a caller may need to cancel; "mutate-cassette", "synth-cassette",
+// and the other subcommands are pure disk-and-memory operations.
 func run(ctx context.Context, args []string, stdout io.Writer, stderr io.Writer) error {
 	if len(args) > 0 {
 		switch args[0] {
@@ -43,6 +43,8 @@ func run(ctx context.Context, args []string, stdout io.Writer, stderr io.Writer)
 			return runMutateCassetteCommand(args[1:], stdout, stderr)
 		case "dead-letters":
 			return runDeadLettersCommand(ctx, args[1:], stdout, stderr)
+		case "synth-cassette":
+			return runSynthCassetteCommand(args[1:], stdout, stderr)
 		}
 	}
 
@@ -58,7 +60,7 @@ func run(ctx context.Context, args []string, stdout io.Writer, stderr io.Writer)
 	}
 	if flags.NArg() > 0 {
 		flags.Usage()
-		return fmt.Errorf("ifa: unknown subcommand %q (want coverage, expectations, drive, graph-dump, mutate-cassette, dead-letters, or -version)", flags.Arg(0))
+		return fmt.Errorf("ifa: unknown subcommand %q (want coverage, expectations, drive, graph-dump, mutate-cassette, dead-letters, synth-cassette, or -version)", flags.Arg(0))
 	}
 	flags.Usage()
 	return nil
