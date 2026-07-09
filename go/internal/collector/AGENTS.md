@@ -172,3 +172,26 @@
   in `cmd/ingester`) breaks the bootstrap phase contract defined in CLAUDE.md.
   Empty-batch drain hooks must remain opt-in and edge-triggered so idle
   collectors do not run global maintenance on every poll.
+
+## Evidence
+
+### Thread FileWithSize from discovery to remove os.Stat re-walk (#4850)
+
+Performance Evidence: For a 5000-file repo, this reduces stat-family
+  syscalls from 2N to N per repo (one `os.Lstat` per file harvested from the
+  existing symlink-classification check in `classifyPath`, zero in partition
+  building). Included symlinks (rare) get one additional `os.Stat` follow for
+  the target size to preserve byte-identical partition balancing. The
+  output-equivalence test (`TestBuildParseSubtreePartitions_FileWithSize_MatchesStatPath`)
+  covers regular files, included symlinks (target size ≠ symlink size), and
+  the unstattable-file sentinel: old and new paths produce identical partition
+  keys, file indexes, and grouping. The size-harvest test
+  (`TestCollectSupportedFilesHarvestsSizeFromLstat`) proves discovery
+  populates non-zero sizes from the existing Lstat without an extra
+  `entry.Info()` call.
+No-Observability-Change: No new metric instrument, label, span, structured
+  log field, status field, queue domain, worker count, batch size, or runtime
+  knob is added. Operators still diagnose parse behavior through the existing
+  `eshu_dp_file_parse_duration_seconds` histogram and `collector snapshot stage
+  completed` logs. The change is a pure structural optimization — same
+  partitions, same parse output, fewer syscalls.

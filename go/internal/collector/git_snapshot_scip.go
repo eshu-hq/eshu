@@ -159,11 +159,11 @@ func (s NativeRepositorySnapshotter) buildParsedRepositoryFilesSequential(
 	scipFiles map[string]map[string]any,
 ) ([]shape.File, []map[string]any, []parseLanguageSummary, error) {
 	results := make([]parseResult, 0, len(fileSet.Files))
-	for index, filePath := range fileSet.Files {
+	for index, file := range fileSet.Files {
 		result := s.parseRepositoryFile(
 			ctx,
 			repoPath,
-			parseFileJob{index: index, path: filePath},
+			parseFileJob{index: index, path: file.Path},
 			engine,
 			commitSHA,
 			isDependency,
@@ -208,7 +208,7 @@ func (s NativeRepositorySnapshotter) trySCIPSnapshot(
 		return nil, nil, nil, false, nil
 	}
 
-	groups := parser.DetectSCIPProjectLanguageGroups(fileSet.Files, config.Languages)
+	groups := parser.DetectSCIPProjectLanguageGroups(fileSet.FilePaths(), config.Languages)
 	if len(groups) == 0 {
 		s.recordSCIPSnapshotAttempt(ctx, scipSnapshotLanguageUnknown, scipSnapshotResultNoLanguage)
 		return nil, nil, nil, false, nil

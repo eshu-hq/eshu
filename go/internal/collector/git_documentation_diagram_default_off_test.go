@@ -24,7 +24,7 @@ func TestStructuredDiagramDocumentationFormatsAreDocumentationFiles(t *testing.T
 	for _, relativePath := range relativePaths {
 		file := filepath.Join(repoPath, filepath.FromSlash(relativePath))
 		writeCollectorTestFile(t, file, "diagram placeholder")
-		parserFiles, documentationFiles := partitionNativeSnapshotFiles([]string{file}, parser.Registry{})
+		parserFiles, documentationFiles := partitionNativeSnapshotFiles(fileWithSizeSlice(file), parser.Registry{})
 		if got, want := len(parserFiles), 0; got != want {
 			t.Fatalf("partitionNativeSnapshotFiles(%q) parserFiles len = %d, want %d", file, got, want)
 		}

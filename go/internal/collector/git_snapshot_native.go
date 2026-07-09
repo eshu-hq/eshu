@@ -151,7 +151,7 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 	parserFileSet := fileSet
 	parserFileSet.Files = parserFiles
 	preScanFileSet := parserFileSet
-	preScanFileSet.Files = sortUniquePathStrings(append(
+	preScanFileSet.Files = sortUniqueFileWithSizeSlice(append(
 		parserPreScanFiles(fullParserFiles),
 		parserPreScanFiles(parserFileSet.Files)...,
 	))
@@ -185,7 +185,7 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 			repoPath,
 			s.now(),
 			discoveryStats,
-			fileSet.Files,
+			fileSet.FilePaths(),
 			nil,
 			nil,
 			commitSHA,
@@ -208,7 +208,7 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 	preScanStartedAt := time.Now()
 	importsMap, preScanFileStats, err := engine.PreScanRepositoryPathsWithWorkersStats(
 		repoPath,
-		legacyPreScanFiles,
+		collectorFilePaths(legacyPreScanFiles),
 		effectiveSnapshotParseWorkers(s.ParseWorkers),
 	)
 	if err != nil {
@@ -229,7 +229,7 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 		slog.Any("language_prescan_summary", preScanSummary),
 	)
 	goPackageSemanticPreScanStartedAt := time.Now()
-	goPackageTargets, err := engine.PreScanGoPackageSemanticRoots(repoPath, preScanFileSet.Files)
+	goPackageTargets, err := engine.PreScanGoPackageSemanticRoots(repoPath, preScanFileSet.FilePaths())
 	if err != nil {
 		return RepositorySnapshot{}, fmt.Errorf("pre-scan go package interface params for %q: %w", repoPath, err)
 	}
@@ -333,13 +333,13 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 	)
 	snapshot.FileData = parsedFiles
 	snapshot.ContentFileMetas = materializationRecordsToMetas(materialization.Records)
-	snapshot.DocumentationFileMetas = documentationFileMetasForPaths(repoPath, documentationFiles, commitSHA)
+	snapshot.DocumentationFileMetas = documentationFileMetasForPaths(repoPath, collectorFilePaths(documentationFiles), commitSHA)
 	snapshot.ContentEntities = materializationEntitiesToSnapshots(materialization.Entities, s.now())
 	snapshot.DiscoveryAdvisory = buildDiscoveryAdvisoryReport(
 		repoPath,
 		s.now(),
 		discoveryStats,
-		fileSet.Files,
+		fileSet.FilePaths(),
 		snapshot.ContentFileMetas,
 		snapshot.ContentEntities,
 		commitSHA,

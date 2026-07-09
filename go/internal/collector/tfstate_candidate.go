@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/discovery"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	tfstatev1 "github.com/eshu-hq/eshu/sdk/go/factschema/terraformstate/v1"
@@ -32,23 +33,23 @@ type TerraformStateCandidate struct {
 
 func extractTerraformStateCandidates(
 	repoPath string,
-	files []string,
-) ([]string, []TerraformStateCandidate) {
+	files []discovery.FileWithSize,
+) ([]discovery.FileWithSize, []TerraformStateCandidate) {
 	candidates := make([]TerraformStateCandidate, 0)
 	filtered := files[:0]
-	for _, path := range files {
-		if !isTerraformStateCandidateName(filepath.Base(path)) {
-			filtered = append(filtered, path)
+	for _, file := range files {
+		if !isTerraformStateCandidateName(filepath.Base(file.Path)) {
+			filtered = append(filtered, file)
 			continue
 		}
-		info, err := os.Lstat(path)
+		info, err := os.Lstat(file.Path)
 		if err != nil {
 			continue
 		}
 		if info.Mode()&os.ModeSymlink != 0 {
 			continue
 		}
-		relativePath, err := filepath.Rel(repoPath, path)
+		relativePath, err := filepath.Rel(repoPath, file.Path)
 		if err != nil {
 			continue
 		}

@@ -6,8 +6,6 @@ package discovery
 import (
 	"os"
 	"path/filepath"
-	"reflect"
-	"strings"
 	"testing"
 )
 
@@ -51,28 +49,28 @@ func TestResolveRepositoryFileSetsHonorsHiddenPolicySupportedMatcherAndOrdering(
 	want := []RepoFileSet{
 		{
 			RepoRoot: mustResolvePath(t, repoA),
-			Files: []string{
+			Files: fws(
 				mustResolvePath(t, filepath.Join(repoA, ".github", "workflows", "deploy.yaml")),
 				mustResolvePath(t, filepath.Join(repoA, "Dockerfile")),
 				mustResolvePath(t, filepath.Join(repoA, "ignored.py")),
 				mustResolvePath(t, filepath.Join(repoA, "kept.py")),
-			},
+			),
 		},
 		{
 			RepoRoot: mustResolvePath(t, nestedRepo),
-			Files: []string{
+			Files: fws(
 				mustResolvePath(t, filepath.Join(nestedRepo, "nested.py")),
-			},
+			),
 		},
 		{
 			RepoRoot: mustResolvePath(t, repoB),
-			Files: []string{
+			Files: fws(
 				mustResolvePath(t, filepath.Join(repoB, "b.py")),
-			},
+			),
 		},
 	}
 
-	if !reflect.DeepEqual(got, want) {
+	if !repoSetsEqual(got, want) {
 		t.Fatalf("ResolveRepositoryFileSets() = %#v, want %#v", got, want)
 	}
 }
@@ -112,14 +110,14 @@ func TestResolveRepositoryFileSetsHonorsRepoLocalGitignoreScopingAndNestedNegati
 	want := []RepoFileSet{
 		{
 			RepoRoot: mustResolvePath(t, repo),
-			Files: []string{
+			Files: fws(
 				mustResolvePath(t, filepath.Join(repo, "generated", "keep.py")),
 				mustResolvePath(t, filepath.Join(repo, "kept.py")),
-			},
+			),
 		},
 	}
 
-	if !reflect.DeepEqual(got, want) {
+	if !repoSetsEqual(got, want) {
 		t.Fatalf("ResolveRepositoryFileSets() = %#v, want %#v", got, want)
 	}
 }
@@ -159,14 +157,14 @@ func TestResolveRepositoryFileSetsHonorsRepoLocalEshuIgnoreScopingAndNestedNegat
 	want := []RepoFileSet{
 		{
 			RepoRoot: mustResolvePath(t, repo),
-			Files: []string{
+			Files: fws(
 				mustResolvePath(t, filepath.Join(repo, "generated", "keep.py")),
 				mustResolvePath(t, filepath.Join(repo, "kept.py")),
-			},
+			),
 		},
 	}
 
-	if !reflect.DeepEqual(got, want) {
+	if !repoSetsEqual(got, want) {
 		t.Fatalf("ResolveRepositoryFileSetsWithStats() = %#v, want %#v", got, want)
 	}
 	if got, want := stats.FilesSkippedEshuIgnore, 2; got != want {
@@ -217,19 +215,19 @@ func TestResolveRepositoryFileSetsSkipsSymlinkTargetsOutsideRepoRoot(t *testing.
 	want := []RepoFileSet{
 		{
 			RepoRoot: mustResolvePath(t, repo),
-			Files: []string{
+			Files: fws(
 				mustResolvePath(t, kept),
-			},
+			),
 		},
 		{
 			RepoRoot: mustResolvePath(t, nestedRepo),
-			Files: []string{
+			Files: fws(
 				mustResolvePath(t, filepath.Join(nestedRepo, "nested.py")),
-			},
+			),
 		},
 	}
 
-	if !reflect.DeepEqual(got, want) {
+	if !repoSetsEqual(got, want) {
 		t.Fatalf("ResolveRepositoryFileSets() = %#v, want %#v", got, want)
 	}
 }
@@ -482,16 +480,8 @@ func countFileSetFiles(fileSets []RepoFileSet) int {
 	return total
 }
 
-func repoFileSetsContainSuffix(fileSets []RepoFileSet, suffix string) bool {
-	for _, fileSet := range fileSets {
-		for _, file := range fileSet.Files {
-			if strings.HasSuffix(filepath.ToSlash(file), suffix) {
-				return true
-			}
-		}
-	}
-	return false
-}
+// repoSetsEqual compares two RepoFileSet slices by RepoRoot and file paths
+// only (sizes are not compared, since test expectations don't set sizes).
 
 func supportedPathMatcher(path string) bool {
 	switch filepath.Base(path) {

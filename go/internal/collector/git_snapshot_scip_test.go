@@ -158,7 +158,7 @@ func TestSCIPSnapshotExplicitEnableUsesSCIPWhenBinaryAvailable(t *testing.T) {
 	_, parsedFiles, _, err := snapshotter.buildParsedRepositoryFiles(
 		context.Background(),
 		repoRoot,
-		discovery.RepoFileSet{Files: []string{appPath}},
+		discovery.RepoFileSet{Files: fileWithSizeSlice(appPath)},
 		defaultCollectorTestEngine(t),
 		"commit-sha",
 		false,
@@ -202,7 +202,7 @@ func TestSCIPSnapshotExplicitDisableFallsBackToNative(t *testing.T) {
 	_, parsedFiles, _, err := snapshotter.buildParsedRepositoryFiles(
 		context.Background(),
 		repoRoot,
-		discovery.RepoFileSet{Files: []string{appPath}},
+		discovery.RepoFileSet{Files: fileWithSizeSlice(appPath)},
 		defaultCollectorTestEngine(t),
 		"commit-sha",
 		false,
@@ -241,7 +241,7 @@ func TestSCIPSnapshotUnavailableBinaryFallsBackToNative(t *testing.T) {
 	_, parsedFiles, _, err := snapshotter.buildParsedRepositoryFiles(
 		context.Background(),
 		repoRoot,
-		discovery.RepoFileSet{Files: []string{appPath}},
+		discovery.RepoFileSet{Files: fileWithSizeSlice(appPath)},
 		defaultCollectorTestEngine(t),
 		"commit-sha",
 		false,
@@ -285,7 +285,7 @@ func TestSCIPSnapshotLanguagesNarrowDominantSelection(t *testing.T) {
 	_, parsedFiles, _, err := snapshotter.buildParsedRepositoryFiles(
 		context.Background(),
 		repoRoot,
-		discovery.RepoFileSet{Files: []string{pythonPath, goPath}},
+		discovery.RepoFileSet{Files: fileWithSizeSlice(pythonPath, goPath)},
 		defaultCollectorTestEngine(t),
 		"commit-sha",
 		false,
@@ -356,7 +356,7 @@ func TestSCIPSnapshotKeepsSelectedFilesMissingFromIndex(t *testing.T) {
 	shapeFiles, parsedFiles, _, err := snapshotter.buildParsedRepositoryFiles(
 		context.Background(),
 		repoRoot,
-		discovery.RepoFileSet{Files: []string{appPath, helperPath}},
+		discovery.RepoFileSet{Files: fileWithSizeSlice(appPath, helperPath)},
 		engine,
 		"commit-sha",
 		false,

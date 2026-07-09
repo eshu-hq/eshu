@@ -48,7 +48,7 @@ the directory tree. For each directory entry the walker:
 4. Calls `SupportedFileMatcher` — the caller-supplied predicate backed by
    `parser.Registry.LookupByPath`. Files no parser claims are silently dropped.
 5. Applies `IgnoredPathGlobs` file-level rules (operator and repo-local).
-6. Skips symlinks that resolve outside the scan root via `isExternalSymlink`.
+6. Skips symlinks that resolve outside the scan root via `classifyPath`.
 
 After collection, `groupFilesByRepository` walks parent directories up from
 each file looking for a `.git` marker (directory, regular file, or symlink).
@@ -132,7 +132,7 @@ report built from `DiscoveryStats` is available via
 - `nearestRepositoryRoot` walks up the directory tree for every file and caches
   results. Files in deeply nested repos with many siblings produce `O(depth)`
   stat calls on first encounter; repeated encounters hit the cache.
-- `isExternalSymlink` skips symlinks that resolve outside `scanRoot`. This
+- `classifyPath` skips symlinks that resolve outside `scanRoot`. This
   prevents accidental traversal of system paths through symlinked directories
   inside a repo.
 - `HonorGitignore` and `HonorEshuIgnore` are applied after `sort.Strings`. The

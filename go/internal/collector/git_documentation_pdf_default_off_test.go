@@ -16,7 +16,7 @@ func TestPDFDocumentationFormatsRemainDefaultOff(t *testing.T) {
 	repoPath := t.TempDir()
 	relativePath := "docs/runbook.pdf"
 	file := filepath.Join(repoPath, filepath.FromSlash(relativePath))
-	parserFiles, documentationFiles := partitionNativeSnapshotFiles([]string{file}, parser.Registry{})
+	parserFiles, documentationFiles := partitionNativeSnapshotFiles(fileWithSizeSlice(file), parser.Registry{})
 	if len(documentationFiles) != 0 {
 		t.Fatalf("partitionNativeSnapshotFiles(%q) documentationFiles = %#v, want none", file, documentationFiles)
 	}

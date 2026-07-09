@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/discovery"
 	"github.com/eshu-hq/eshu/go/internal/parser"
 )
 
@@ -98,7 +99,7 @@ func TestResolveNativeSnapshotFileSetSkipsLargeWebpackBundles(t *testing.T) {
 	if got, want := len(fileSet.Files), 1; got != want {
 		t.Fatalf("file count = %d, want %d; files=%v", got, want, fileSet.Files)
 	}
-	if got, want := filepath.ToSlash(fileSet.Files[0]), "src/app.js"; !strings.HasSuffix(got, want) {
+	if got, want := filepath.ToSlash(fileSet.Files[0].Path), "src/app.js"; !strings.HasSuffix(got, want) {
 		t.Fatalf("indexed file = %q, want suffix %q", got, want)
 	}
 	if got := stats.FilesSkippedByContent["generated-webpack"]; got != 1 {
@@ -130,7 +131,7 @@ func TestResolveNativeSnapshotFileSetSkipsLargeGeneratedJavaScriptBundles(t *tes
 	if got, want := len(fileSet.Files), 1; got != want {
 		t.Fatalf("file count = %d, want %d; files=%v", got, want, fileSet.Files)
 	}
-	if got, want := filepath.ToSlash(fileSet.Files[0]), "src/app.js"; !strings.HasSuffix(got, want) {
+	if got, want := filepath.ToSlash(fileSet.Files[0].Path), "src/app.js"; !strings.HasSuffix(got, want) {
 		t.Fatalf("indexed file = %q, want suffix %q", got, want)
 	}
 	for reason, want := range map[string]int{
@@ -165,7 +166,7 @@ func TestResolveNativeSnapshotFileSetKeepsLargeAuthoredJavaScript(t *testing.T) 
 	if got, want := len(fileSet.Files), 1; got != want {
 		t.Fatalf("file count = %d, want %d; files=%v", got, want, fileSet.Files)
 	}
-	if got, want := filepath.ToSlash(fileSet.Files[0]), "src/big_authored.js"; !strings.HasSuffix(got, want) {
+	if got, want := filepath.ToSlash(fileSet.Files[0].Path), "src/big_authored.js"; !strings.HasSuffix(got, want) {
 		t.Fatalf("indexed file = %q, want suffix %q", got, want)
 	}
 	if got := len(stats.FilesSkippedByContent); got != 0 {
@@ -193,7 +194,7 @@ func TestResolveNativeSnapshotFileSetKeepsSmallBootstrapLikeJavaScript(t *testin
 	if got, want := len(fileSet.Files), 1; got != want {
 		t.Fatalf("file count = %d, want %d; files=%v", got, want, fileSet.Files)
 	}
-	if got, want := filepath.ToSlash(fileSet.Files[0]), "src/tiny_runtime.js"; !strings.HasSuffix(got, want) {
+	if got, want := filepath.ToSlash(fileSet.Files[0].Path), "src/tiny_runtime.js"; !strings.HasSuffix(got, want) {
 		t.Fatalf("indexed file = %q, want suffix %q", got, want)
 	}
 	if got := len(stats.FilesSkippedByContent); got != 0 {
@@ -417,9 +418,9 @@ func largeAuthoredJavaScriptFixture() string {
 	return header + strings.Repeat("export const authoredSymbol = 1;\n", 12000)
 }
 
-func fileSetContainsSuffix(files []string, suffix string) bool {
+func fileSetContainsSuffix(files []discovery.FileWithSize, suffix string) bool {
 	for _, file := range files {
-		if strings.HasSuffix(filepath.ToSlash(file), suffix) {
+		if strings.HasSuffix(filepath.ToSlash(file.Path), suffix) {
 			return true
 		}
 	}

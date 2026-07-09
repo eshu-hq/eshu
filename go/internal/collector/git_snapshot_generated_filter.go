@@ -16,17 +16,17 @@ const (
 	vendoredBrowserLibraryPrefixBytes = 16 * 1024
 )
 
-func filterGeneratedNativeSnapshotFiles(files []string, stats *discovery.DiscoveryStats) []string {
+func filterGeneratedNativeSnapshotFiles(files []discovery.FileWithSize, stats *discovery.DiscoveryStats) []discovery.FileWithSize {
 	filtered := files[:0]
-	for _, path := range files {
-		if reason, ok := generatedNativeSnapshotSkipReason(path); ok {
+	for _, file := range files {
+		if reason, ok := generatedNativeSnapshotSkipReason(file.Path); ok {
 			if stats.FilesSkippedByContent == nil {
 				stats.FilesSkippedByContent = make(map[string]int)
 			}
 			stats.FilesSkippedByContent[reason]++
 			continue
 		}
-		filtered = append(filtered, path)
+		filtered = append(filtered, file)
 	}
 	return filtered
 }

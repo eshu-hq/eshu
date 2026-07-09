@@ -25,7 +25,7 @@ func resolveNativeSnapshotFileSetForTargets(
 	fileTargets []string,
 	registry parser.Registry,
 ) (discovery.RepoFileSet, error) {
-	files := make([]string, 0, len(fileTargets))
+	files := make([]discovery.FileWithSize, 0, len(fileTargets))
 	for _, target := range fileTargets {
 		absoluteTarget, err := filepath.Abs(target)
 		if err != nil {
@@ -52,7 +52,7 @@ func resolveNativeSnapshotFileSetForTargets(
 				}
 			}
 		}
-		files = append(files, absoluteTarget)
+		files = append(files, discovery.FileWithSize{Path: absoluteTarget})
 	}
 	return discovery.RepoFileSet{
 		RepoRoot: repoPath,

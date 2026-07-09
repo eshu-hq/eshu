@@ -30,7 +30,7 @@ func TestTextDiagramDocumentationFormatsAreDocumentationFiles(t *testing.T) {
 		files = append(files, file)
 	}
 
-	parserFiles, documentationFiles := partitionNativeSnapshotFiles(files, parser.Registry{})
+	parserFiles, documentationFiles := partitionNativeSnapshotFiles(fileWithSizeSlice(files...), parser.Registry{})
 	if got := len(parserFiles); got != 0 {
 		t.Fatalf("parserFiles len = %d, want 0: %#v", got, parserFiles)
 	}
