@@ -118,6 +118,45 @@ func TestRoundTripTypedPayloadsDetectsSilentlyDroppedUnknownField(t *testing.T) 
 	}
 }
 
+// TestRoundTripTypedPayloadsNumberBoundary proves the "no extra number-type
+// normalization" decision holds at the edge of its assumption. A JSON-parsed
+// payload delivers whole numbers as float64, and RoundTripTypedPayloads
+// compares that original float64 against the int64 the typed struct re-encodes.
+// 2^53 is the largest integer float64 represents exactly, so it is the honest
+// upper bound of "encoding/json formats a whole-number float64 identically to
+// an int64": exercise a gcp_dns_record with ttl_seconds at 2^53 delivered as
+// float64 and require the direct CanonicalizeValue comparator still agrees.
+// Every realistic gcp count/ttl is far below this; a fact family that could
+// carry a value above 2^53 would need its own boundary proof before reusing
+// this comparator (see README's number-representation note).
+func TestRoundTripTypedPayloadsNumberBoundary(t *testing.T) {
+	t.Parallel()
+
+	const boundary = int64(1) << 53 // 9007199254740992, float64's exact-integer limit
+	odu := Odu{
+		Name: "odu:scratch-number-boundary",
+		Facts: []facts.Envelope{
+			{
+				FactKind:      factschema.FactKindGCPDNSRecord,
+				SchemaVersion: "1.0.0",
+				StableFactKey: "scratch:number-boundary",
+				Payload: map[string]any{
+					"managed_zone_full_resource_name": "//dns.googleapis.com/projects/scratch/managedZones/zone-0",
+					"record_type":                     "A",
+					"record_name_fingerprint":         "deadbeef",
+					// Delivered as float64, exactly as a JSON parse of the cassette
+					// would; decode coerces it into the *int64 field and re-encode
+					// emits an int64 — the two must canonicalize byte-identically.
+					"ttl_seconds": float64(boundary),
+				},
+			},
+		},
+	}
+	if err := RoundTripTypedPayloads(odu); err != nil {
+		t.Fatalf("RoundTripTypedPayloads with ttl_seconds=2^53 (float64) = %v, want nil: the direct comparator must agree at float64's exact-integer boundary", err)
+	}
+}
+
 // TestRoundTripTypedPayloadsUnregisteredKindFailsClosed proves a fact kind
 // with no entry in gcpRoundTripByKind reports an error naming the kind
 // instead of silently skipping it — a coverage gap in the caller's Odù must

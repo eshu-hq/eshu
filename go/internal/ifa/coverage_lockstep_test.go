@@ -144,15 +144,13 @@ func TestCoverageLockstepAgainstRealSpecs(t *testing.T) {
 		}
 	}
 
-	// Unlike the ifa-contract-layer rows above, golden-corpus-gate is blocking
-	// with a local command and a CI workflow (specs/ci-gates.v1.yaml), so the
-	// five odu:demo-org-roundtrip rows that name it must produce zero
-	// proof-gate validation errors, not the advisory "is not blocking" error.
-	for _, err := range replaycoverage.ValidateRequiredProofGates(ifaManifest, replaycoverage.AuthzProofLedger{}, proofGates) {
-		if strings.Contains(err.Error(), `"golden-corpus-gate"`) {
-			t.Errorf("unexpected golden-corpus-gate proof-gate validation error (want zero): %v", err)
-		}
-	}
+	// The five odu:demo-org-roundtrip rows use proof_gate: ifa-contract-layer
+	// like every other row, so they add no new proof-gate error beyond the
+	// single "ifa-contract-layer is not blocking" one already whitelisted above
+	// (ValidateRequiredProofGates dedupes by gate id). ifa-contract-layer's
+	// `go test ./internal/ifa` is what actually re-runs RoundTripTypedPayloads
+	// on an ifa/synth-gcp change; the golden-corpus gate does not trigger on
+	// those paths and replays the committed cassette, not the generator.
 
 	// Deliberate wrong-Odù false-green break (mirrors
 	// coverage_falsegreen_test.go's rc-29/argocd break): binding

@@ -79,13 +79,14 @@ var gcpRoundTripByKind = map[string]gcpRoundTripFunc{
 // fact's StableFactKey and FactKind and showing both canonical forms.
 //
 // The byte-equality check reuses replay.CanonicalizeValue directly with no
-// extra number-type normalization step: the #4804 T0 probe proved
-// encoding/json's own float64/int64 whole-number formatting already agrees
-// for every representative int64-typed GCP field (gcp_collection_warning's
-// hidden_count, gcp_dns_record's target_count/ttl_seconds) and for a
-// gcp_cloud_resource payload carrying an Attributes remainder, so comparing
-// each side's direct CanonicalizeValue output is sufficient — see
-// roundtrip_test.go's TestRoundTripTypedPayloadsNumberBoundary.
+// extra number-type normalization step. A JSON-parsed payload delivers whole
+// numbers as float64 and the typed struct re-encodes them as int64, but
+// encoding/json formats a whole-number float64 identically to an int64 up to
+// 2^53 (float64's exact-integer limit), which covers every realistic gcp
+// count/ttl. That boundary is proven by TestRoundTripTypedPayloadsNumberBoundary
+// (ttl_seconds at 2^53) and the demo corpus by the baseline case; a fact family
+// that could carry an int64 above 2^53 would need its own boundary proof before
+// reusing this comparator unchanged (see README's number-representation note).
 func RoundTripTypedPayloads(odu Odu) error {
 	for _, env := range odu.Facts {
 		roundTrip, ok := gcpRoundTripByKind[env.FactKind]
