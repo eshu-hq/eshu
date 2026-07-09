@@ -8,6 +8,7 @@ import (
 	"crypto/sha1" // #nosec G505 -- non-cryptographic content-addressing digest for snapshot deduplication, not a security primitive
 	"encoding/hex"
 	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
@@ -52,7 +53,16 @@ func resolveNativeSnapshotFileSetForTargets(
 				}
 			}
 		}
-		files = append(files, discovery.FileWithSize{Path: absoluteTarget})
+		// Carry the on-disk size so explicit --file-targets partitioning
+		// weights each file by its real byte size, byte-identical to the old
+		// os.Stat path (max(size, floor)). An unstattable target falls back to
+		// the SizeUnavailable sentinel (default weight), matching the old
+		// os.Stat-failure behavior.
+		fileEntry := discovery.FileWithSize{Path: absoluteTarget, Size: discovery.SizeUnavailable}
+		if info, statErr := os.Stat(absoluteTarget); statErr == nil {
+			fileEntry.Size = info.Size()
+		}
+		files = append(files, fileEntry)
 	}
 	return discovery.RepoFileSet{
 		RepoRoot: repoPath,

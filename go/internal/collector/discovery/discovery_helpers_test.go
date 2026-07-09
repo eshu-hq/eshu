@@ -79,11 +79,13 @@ func TestCollectSupportedFilesHarvestsSizeFromLstat(t *testing.T) {
 		"print('hello')\n",
 		"// a longer file with more bytes\nfunc foo() { return 42 }\n",
 	}
+	wantSize := make(map[string]int64, len(contents))
 	for i, body := range contents {
 		path := filepath.Join(repo, "file"+string(rune('0'+i))+".go")
 		if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
 			t.Fatal(err)
 		}
+		wantSize[path] = int64(len(body))
 	}
 
 	stats, fileSets, err := ResolveRepositoryFileSetsWithStats(
@@ -105,6 +107,13 @@ func TestCollectSupportedFilesHarvestsSizeFromLstat(t *testing.T) {
 			if f.Size <= 0 {
 				t.Errorf("file %q has size %d, want non-zero (Lstat harvest failed)", f.Path, f.Size)
 			}
+			// Byte-for-byte cross-check: the discovery-harvested size must
+			// exactly equal the file's real content length, closing the
+			// integration gap between the classifyPath Lstat harvest and the
+			// os.Stat sizes the partition equivalence proof relies on.
+			if want, ok := wantSize[f.Path]; ok && f.Size != want {
+				t.Errorf("file %q harvested size = %d, want %d (must match os.Stat/content length exactly)", f.Path, f.Size, want)
+			}
 		}
 	}
 	if totalFiles != len(contents) {
@@ -112,5 +121,5 @@ func TestCollectSupportedFilesHarvestsSizeFromLstat(t *testing.T) {
 	}
 	_ = stats
 
-	t.Logf("Discovered %d files, all with non-zero sizes (1 Lstat per file, 0 entry.Info calls)", totalFiles)
+	t.Logf("Discovered %d files, all sizes byte-for-byte equal to content length (1 Lstat per file, 0 entry.Info calls)", totalFiles)
 }
