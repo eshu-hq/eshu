@@ -413,11 +413,15 @@ func defaultRawPayloadExemptions() []RawPayloadExemption {
 		{Path: "go/internal/relationships/terraform_evidence.go", Accessor: "payloadString", Key: "source"},
 		{Path: "go/internal/relationships/terragrunt_helper_evidence.go", Accessor: "payloadString", Key: rawPayloadDynamicKey},
 		{Path: "go/internal/storage/postgres/incident_routing_evidence_loader.go", Accessor: "incidentRoutingPayloadMap", Key: "service"},
-		{Path: "go/internal/storage/postgres/ingestion_catalog_parse.go", Accessor: "catalogString", Key: "graph_id"},
-		{Path: "go/internal/storage/postgres/ingestion_catalog_parse.go", Accessor: "catalogString", Key: "name"},
-		{Path: "go/internal/storage/postgres/ingestion_catalog_parse.go", Accessor: "catalogString", Key: "repo_id"},
-		{Path: "go/internal/storage/postgres/ingestion_catalog_parse.go", Accessor: "catalogString", Key: "repo_name"},
-		{Path: "go/internal/storage/postgres/ingestion_catalog_parse.go", Accessor: "catalogString", Key: "repo_slug"},
+		// The repository-catalog payload parser moved from the Postgres ingestion
+		// path to relationships.RepositoryCatalogEntry so Ifá can derive the same
+		// catalog offline (#4394 T2). The reads are unchanged (still pre-typed
+		// repository payload keys); the exemption follows the code to its new home.
+		{Path: "go/internal/relationships/catalog.go", Accessor: "catalogPayloadString", Key: "graph_id"},
+		{Path: "go/internal/relationships/catalog.go", Accessor: "catalogPayloadString", Key: "name"},
+		{Path: "go/internal/relationships/catalog.go", Accessor: "catalogPayloadString", Key: "repo_id"},
+		{Path: "go/internal/relationships/catalog.go", Accessor: "catalogPayloadString", Key: "repo_name"},
+		{Path: "go/internal/relationships/catalog.go", Accessor: "catalogPayloadString", Key: "repo_slug"},
 		{Path: "go/internal/replay/offlinetier/delta.go", Accessor: rawPayloadIndexAccessor, Key: "path"},
 		{Path: "go/internal/replay/offlinetier/materialization.go", Accessor: "optionalString", Key: "needs"},
 		{Path: "go/internal/replay/offlinetier/materialization.go", Accessor: "requireInt", Key: "depth"},
