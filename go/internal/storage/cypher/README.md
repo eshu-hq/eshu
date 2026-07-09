@@ -1303,6 +1303,37 @@ Per-phase canonical-write logging (`canonical phase group completed`) and the
 existing write-duration/atomic-write telemetry are untouched; operators continue
 to attribute a slow or failed retract phase exactly as before.
 
+## Ifá P3 determinism-matrix teeth: `ifadeterminismteeth` build tag (#4396)
+
+`canonicalCloudResourceUpsertCypher` (cloud_resource_node_writer.go) is now
+`baseCloudResourceUpsertCypher + teethCloudResourceUpsertExtraSet`, both
+untyped string constants, so the concatenation is itself a compile-time
+constant. `teethCloudResourceUpsertExtraSet` is `""` in every normal, CI, and
+production build (build tag `!ifadeterminismteeth`,
+`cloud_resource_node_writer_teeth_off.go`), making
+`canonicalCloudResourceUpsertCypher` byte-identical to the statement this
+package executed before this change — see
+`TestCanonicalCloudResourceUpsertCypherExcludesTeethClauseByDefault`, which
+fails the default build if that ever stops being true.
+
+No-Regression Evidence: confirmed with
+`go test ./internal/storage/cypher -run TestCloudResourceNodeWriter -count=1`
+and the exclusion test above; `WriteCloudResourceNodes`'s executed Cypher,
+batching, and transaction shape are unchanged in every normal build.
+
+No-Observability-Change: no metric, span, log, or status field is added or
+changed by the default (`!ifadeterminismteeth`) build.
+
+Only `go build -tags ifadeterminismteeth` (never a normal/CI/production
+build) links `cloud_resource_node_writer_teeth.go`'s one extra SET clause,
+persisting `go/internal/reducer`'s `ifaTeethStampCloudResourceRow` sequence
+number onto the committed node as `r.ifa_teeth_write_order` — issue #4396
+slice 6's deliberately non-idempotent write, which
+`scripts/verify-ifa-determinism.sh --teeth` uses to prove the graph-
+determinism matrix actually catches a real non-idempotent write. See
+`go/internal/reducer/README.md`'s matching section for the fuller writeup of
+why this value diverges across worker counts.
+
 ## Related docs
 
 - `docs/public/architecture.md` — pipeline and ownership table

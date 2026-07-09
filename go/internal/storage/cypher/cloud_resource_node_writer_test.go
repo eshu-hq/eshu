@@ -113,6 +113,25 @@ func TestCloudResourceNodeWriterPersistsServiceAnchorFields(t *testing.T) {
 	}
 }
 
+// TestCanonicalCloudResourceUpsertCypherExcludesTeethClauseByDefault proves
+// the ifadeterminismteeth build tag's extra SET clause
+// (cloud_resource_node_writer_teeth.go) is absent from every normal build:
+// this test file carries no build tag, so it runs in the default `go test`
+// and CI lane, where teethCloudResourceUpsertExtraSet must resolve to the
+// empty string from cloud_resource_node_writer_teeth_off.go. It is the
+// regression guard for issue #4396's determinism-matrix "--teeth" fault
+// never leaking into a production build.
+func TestCanonicalCloudResourceUpsertCypherExcludesTeethClauseByDefault(t *testing.T) {
+	t.Parallel()
+
+	if strings.Contains(canonicalCloudResourceUpsertCypher, "ifa_teeth_write_order") {
+		t.Fatalf("canonicalCloudResourceUpsertCypher must not reference ifa_teeth_write_order outside the ifadeterminismteeth build tag:\n%s", canonicalCloudResourceUpsertCypher)
+	}
+	if canonicalCloudResourceUpsertCypher != baseCloudResourceUpsertCypher {
+		t.Fatalf("canonicalCloudResourceUpsertCypher must equal baseCloudResourceUpsertCypher outside the ifadeterminismteeth build tag")
+	}
+}
+
 func TestCloudResourceNodeWriterBatchesRows(t *testing.T) {
 	t.Parallel()
 

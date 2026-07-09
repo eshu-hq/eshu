@@ -325,6 +325,11 @@ func gcpCloudResourceNodeRow(env facts.Envelope) (map[string]any, string, bool, 
 		"source_confidence":   string(env.SourceConfidence),
 		"collector_kind":      env.CollectorKind,
 	}
+	// No-op in every normal build; under the ifadeterminismteeth build tag
+	// this stamps a process-order-dependent debug property the determinism
+	// matrix's --teeth mode uses to prove a non-idempotent write is caught.
+	// See gcp_resource_materialization_teeth.go's doc for the full picture.
+	ifaTeethStampCloudResourceRow(row)
 	return row, uid, true, nil
 }
 

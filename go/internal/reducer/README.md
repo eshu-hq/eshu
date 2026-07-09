@@ -3657,3 +3657,37 @@ by `eshu_dp_reducer_executions_total`, `eshu_dp_reducer_run_duration_seconds`,
 and the durable `reducer_package_*` facts. The typed payload helpers and decode
 wrappers emit no metric of their own because they do not add a new operational
 stage.
+
+## Ifá P3 determinism-matrix teeth: `ifadeterminismteeth` build tag (#4396)
+
+No-Regression Evidence: `gcpCloudResourceNodeRow` (gcp_resource_materialization.go)
+now calls `ifaTeethStampCloudResourceRow(row)` unconditionally before returning
+every GCP `CloudResource` row. In every normal, CI, and production build
+(build tag `!ifadeterminismteeth`, `gcp_resource_materialization_teeth_off.go`)
+that call is a compiled-in no-op — it neither mutates `row` nor allocates — so
+`ExtractGCPCloudResourceNodeRows`'s output, `WriteCloudResourceNodes`'s Cypher
+parameters, and the committed graph are byte-identical to before this change.
+Confirmed with the package's existing table-driven tests
+(`go test ./internal/reducer -run TestExtractGCPCloudResourceNodeRows -count=1`,
+`go test ./internal/storage/cypher -run TestCloudResourceNodeWriter -count=1`)
+and `TestCanonicalCloudResourceUpsertCypherExcludesTeethClauseByDefault`
+(go/internal/storage/cypher), which fails the build if the teeth clause ever
+leaks into the default Cypher constant. Only
+`go build -tags ifadeterminismteeth ./cmd/reducer` links the real stamp
+(`gcp_resource_materialization_teeth.go`): a process-global monotonic
+sequence number written to the row's `ifa_teeth_write_order` key, persisted
+by the matching build-tag-gated Cypher SET clause in
+`go/internal/storage/cypher/cloud_resource_node_writer_teeth.go`. This is
+issue #4396 slice 6's deliberately non-idempotent write: its value depends on
+this reducer process's own commit/processing order, so
+`scripts/verify-ifa-determinism.sh --teeth` sees the digest diverge across
+N=1/N=2/N=4 and fails on purpose, proving the graph-determinism matrix
+catches a real non-idempotent write instead of passing vacuously. Per
+Serialization-Is-Not-A-Fix, the correct response to that (or to any real)
+divergence is never to lower N, retry, or serialize workers.
+
+No-Observability-Change: the no-op path in every normal build adds no new
+metric, log, or span, and changes no existing one. The `ifadeterminismteeth`
+build only ever runs inside `scripts/verify-ifa-determinism.sh --teeth`
+against a scratch Compose stack that is torn down at the end of that run; it
+is not a runtime mode any deployed binary can reach.

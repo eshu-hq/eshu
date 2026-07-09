@@ -17,15 +17,29 @@
 #
 # Not sourced by scripts/verify-ifa-replay-drive.sh or
 # scripts/verify-ifa-dead-letter-determinism.sh: those slice 2/4 scripts stay
-# exactly as already proven; only scripts/verify-ifa-determinism.sh (slice 5)
-# sources this file.
+# exactly as already proven. scripts/verify-ifa-determinism.sh (slice 5, plus
+# its own --teeth mode from slice 6) and scripts/verify-ifa-dead-letter-
+# matrix.sh (slice 6's failure-path determinism leg) both source this file.
 
 # ifa_det_build_bin builds go/cmd/<cmd> into <bin_dir>/eshu-<cmd> with cgo
-# enabled (NornicDB's Bolt driver needs cgo). Returns non-zero on build
-# failure; the caller's own `go build` stderr already explains why.
+# enabled (NornicDB's Bolt driver needs cgo). An optional third argument
+# names one or more comma-separated Go build tags (passed to `go build
+# -tags`); the default (omitted or empty) builds exactly what every normal
+# and CI build links. verify-ifa-determinism.sh's own --teeth mode is the
+# only caller that ever passes a non-empty tags argument (build_tags=
+# ifadeterminismteeth), to compile in the build-tag-gated deliberately
+# non-idempotent CloudResource write (go/internal/reducer/gcp_resource_
+# materialization_teeth.go, go/internal/storage/cypher/cloud_resource_node_
+# writer_teeth.go) that lets --teeth prove the matrix catches a real
+# non-idempotent write. Returns non-zero on build failure; the caller's own
+# `go build` stderr already explains why.
 ifa_det_build_bin() {
-	local bin_dir="$1" cmd="$2"
-	CGO_ENABLED=1 go -C go build -o "${bin_dir}/eshu-${cmd}" "./cmd/${cmd}"
+	local bin_dir="$1" cmd="$2" tags="${3:-}"
+	local tag_args=()
+	if [[ -n "${tags}" ]]; then
+		tag_args=(-tags "${tags}")
+	fi
+	CGO_ENABLED=1 go -C go build "${tag_args[@]}" -o "${bin_dir}/eshu-${cmd}" "./cmd/${cmd}"
 }
 
 # ifa_det_start_bg starts "$@" as a background process, redirecting its

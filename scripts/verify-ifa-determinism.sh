@@ -29,14 +29,39 @@
 # must be root-caused, never normalized away by lowering N, retrying, or
 # reducing worker counts.
 #
-# Slice scope (#4396 slice 5): graph-truth determinism only, N ∈ {1, 2, 4} on
-# the clean (unmutated) demo-org Odù. Deliberately does NOT wire in the
-# malformed/dead-letter leg (scripts/verify-ifa-dead-letter-determinism.sh,
-# slice 4) or a "--teeth" fault-injection mode — both are a later slice
-# (design doc Layer 4).
+# Slice scope (#4396 slice 6, "the teeth"): this file also owns --teeth, the
+# acceptance clause's negative-path proof that the matrix actually catches "a
+# deliberately non-idempotent write" instead of passing vacuously. --teeth
+# builds every host binary with `-tags ifadeterminismteeth`, which links in
+# exactly one build-tag-gated fault: go/internal/reducer/gcp_resource_
+# materialization_teeth.go stamps a process-global monotonic sequence number
+# onto each CloudResource row (ifa_teeth_write_order), and go/internal/
+# storage/cypher/cloud_resource_node_writer_teeth.go appends the one matching
+# SET clause that persists it. That value depends on this run's own
+# commit/processing order, so it genuinely differs across independent N=1/
+# N=2/N=4 cells, changing `ifa graph-dump`'s canonical digest and failing the
+# SAME comparison this script already runs unmodified. No normal, CI, or
+# production build ever compiles that fault: cloud_resource_node_writer_
+# teeth_off.go and gcp_resource_materialization_teeth_off.go (tag
+# !ifadeterminismteeth) are its zero-cost, zero-behavior default.
+#
+# --teeth reuses every other line of this script's matrix logic unchanged;
+# the only difference is the build tag and the final message. Per the
+# acceptance clause, "exit non-zero = caught = teeth pass": a --teeth run
+# that reaches the existing "graph-determinism matrix FAILED" branch below
+# has done its job — do NOT read that failure as a real regression, and do
+# NOT respond to it (or to a real one) by lowering N, retrying, or shrinking
+# worker counts (Serialization-Is-Not-A-Fix). The one case --teeth treats as
+# its OWN failure is the opposite: if the fault fails to manifest and all
+# three digests still match, that is the teeth being broken, not the matrix
+# being healthy, and this script reports that distinctly.
+#
+# The failure-path leg (malformed Odù dead-lettering identically across N)
+# stays in scripts/verify-ifa-dead-letter-determinism.sh (slice 4); this
+# script does not duplicate it.
 #
 # Usage:
-#   scripts/verify-ifa-determinism.sh [--no-compose] [--keep]
+#   scripts/verify-ifa-determinism.sh [--no-compose] [--keep] [--teeth]
 #     --no-compose  assume Postgres + NornicDB are already running on the
 #                   configured ports; skip compose up/down here. Because
 #                   each cell still needs a FRESH database, --no-compose
@@ -44,6 +69,10 @@
 #                   between cells itself; this script cannot do that for you.
 #     --keep        leave the last cell's work dir (all three digests + full
 #                   canonical dumps, for a mismatch diff) in place on exit.
+#     --teeth       build every host binary with -tags ifadeterminismteeth
+#                   (see above) and expect the matrix to go RED, proving a
+#                   deliberately non-idempotent write is caught. Never pass
+#                   this in a normal verification run.
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -79,12 +108,14 @@ worker_counts=(1 2 4)
 
 use_compose=1
 keep=0
+teeth=0
 for arg in "$@"; do
 	case "${arg}" in
 	--no-compose) use_compose=0 ;;
 	--keep) keep=1 ;;
+	--teeth) teeth=1 ;;
 	-h | --help)
-		sed -n '2,40p' "${BASH_SOURCE[0]}"
+		sed -n '2,58p' "${BASH_SOURCE[0]}"
 		exit 0
 		;;
 	*)
@@ -93,6 +124,15 @@ for arg in "$@"; do
 		;;
 	esac
 done
+
+# build_tags is threaded through every ifa_det_build_bin call below. Empty
+# (the default) builds exactly what every normal/CI/production build links;
+# --teeth is the only thing that ever sets it, to compile in the
+# ifadeterminismteeth build-tag-gated fault described above.
+build_tags=""
+if [[ "${teeth}" -eq 1 ]]; then
+	build_tags="ifadeterminismteeth"
+fi
 
 [[ -f "${cassette}" ]] || { echo "verify-ifa-determinism: cassette not found: ${cassette}" >&2; exit 1; }
 
@@ -153,12 +193,16 @@ export ESHU_LISTEN_ADDR="127.0.0.1:0"
 export ESHU_METRICS_ADDR="127.0.0.1:0"
 unset ESHU_PPROF_ADDR || true
 
-log "build host binaries"
-ifa_det_build_bin "${bin_dir}" bootstrap-data-plane || die "build bootstrap-data-plane failed"
-ifa_det_build_bin "${bin_dir}" ifa || die "build ifa failed"
-ifa_det_build_bin "${bin_dir}" projector || die "build projector failed"
-ifa_det_build_bin "${bin_dir}" reducer || die "build reducer failed"
-ifa_det_build_bin "${bin_dir}" golden-corpus-gate || die "build golden-corpus-gate failed"
+if [[ "${teeth}" -eq 1 ]]; then
+	log "build host binaries (--teeth: -tags ${build_tags})"
+else
+	log "build host binaries"
+fi
+ifa_det_build_bin "${bin_dir}" bootstrap-data-plane "${build_tags}" || die "build bootstrap-data-plane failed"
+ifa_det_build_bin "${bin_dir}" ifa "${build_tags}" || die "build ifa failed"
+ifa_det_build_bin "${bin_dir}" projector "${build_tags}" || die "build projector failed"
+ifa_det_build_bin "${bin_dir}" reducer "${build_tags}" || die "build reducer failed"
+ifa_det_build_bin "${bin_dir}" golden-corpus-gate "${build_tags}" || die "build golden-corpus-gate failed"
 
 declare -A digests
 declare -A wall_times
@@ -242,6 +286,17 @@ for n in "${worker_counts[@]}"; do
 		diff -u "${work_dir}/graph-n${first_n}.dump" "${work_dir}/graph-n${n}.dump" >&2 || true
 	fi
 done
+
+if [[ "${teeth}" -eq 1 ]]; then
+	if [[ "${mismatch}" -eq 1 ]]; then
+		log "TEETH: CAUGHT — digests diverged across N=${worker_counts[*]} under -tags ${build_tags} (see the full-dump diff above). This is the EXPECTED outcome of --teeth, not a real regression: the deliberately non-idempotent CloudResource write (r.ifa_teeth_write_order) made the matrix go red, proving it actually catches a non-idempotent write instead of passing vacuously. Per the acceptance clause, exit non-zero here IS teeth pass."
+		for n in "${worker_counts[@]}"; do
+			printf '  N=%s digest=%s wall=%ss\n' "${n}" "${digests[${n}]}" "${wall_times[${n}]}"
+		done
+		die "graph-determinism matrix FAILED as --teeth expected (digests diverged under the ifadeterminismteeth build tag) — this exit is intentional; see the TEETH: CAUGHT line above. Do not lower N, retry, or otherwise normalize this away, in --teeth mode or in a real failure."
+	fi
+	die "TEETH FAILED: matrix stayed GREEN across N=${worker_counts[*]} even under -tags ${build_tags} (digests: ${digests[${worker_counts[0]}]}) — the deliberately non-idempotent CloudResource write did not manifest this run, so --teeth did not prove anything. This is the teeth being broken (or too weak to reach), not the matrix being healthy; do not treat this as a passing verification."
+fi
 
 [[ "${mismatch}" -eq 0 ]] || die "graph-determinism matrix FAILED: digests diverged across worker counts (see the full-dump diff above) — this is a real concurrency defect in the reducer/projector graph write path; do NOT lower N, retry, or otherwise normalize this away"
 

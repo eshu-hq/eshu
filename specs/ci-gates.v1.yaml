@@ -1082,19 +1082,48 @@ gates:
     ci_only_reason: ""
 
   - id: ifa-determinism
-    name: Ifa P3 graph-determinism matrix
+    name: Ifa P3 graph-determinism matrix (+ --teeth non-idempotent-write gate)
     category: exactness
     tier: pre-pr
     blocking: false
     triggers:
       - "go/internal/ifa/graphdump/**"
       - "go/cmd/ifa/**"
+      - "go/internal/reducer/gcp_resource_materialization.go"
+      - "go/internal/reducer/gcp_resource_materialization_teeth.go"
+      - "go/internal/reducer/gcp_resource_materialization_teeth_off.go"
+      - "go/internal/storage/cypher/cloud_resource_node_writer.go"
+      - "go/internal/storage/cypher/cloud_resource_node_writer_teeth.go"
+      - "go/internal/storage/cypher/cloud_resource_node_writer_teeth_off.go"
       - "scripts/verify-ifa-determinism.sh"
       - "scripts/test-verify-ifa-determinism.sh"
       - "scripts/lib/ifa_determinism_common.sh"
     local:
       command: "bash scripts/test-verify-ifa-determinism.sh"
       test_command: "bash scripts/test-verify-ifa-determinism.sh"
+    ci:
+      workflow: static-contract-gates.yml
+      job: "Verify Ifa graph-determinism gate"
+    requirements:
+      - go
+    ci_only_reason: ""
+
+  - id: ifa-dead-letter-matrix
+    name: Ifa P3 failure-path (dead-letter set) determinism matrix
+    category: exactness
+    tier: pre-pr
+    blocking: false
+    triggers:
+      - "go/internal/ifa/mutate.go"
+      - "go/internal/ifa/dead_letters.go"
+      - "go/cmd/ifa/mutate_cassette.go"
+      - "go/cmd/ifa/dead_letters.go"
+      - "scripts/verify-ifa-dead-letter-matrix.sh"
+      - "scripts/test-verify-ifa-dead-letter-matrix.sh"
+      - "scripts/lib/ifa_determinism_common.sh"
+    local:
+      command: "bash scripts/test-verify-ifa-dead-letter-matrix.sh"
+      test_command: "bash scripts/test-verify-ifa-dead-letter-matrix.sh"
     ci:
       workflow: static-contract-gates.yml
       job: "Verify Ifa graph-determinism gate"
