@@ -259,6 +259,12 @@ func scopedAuthProfileReadRoute(r *http.Request) bool {
 // tenant admin (AllScopes + TenantID, sees only own-tenant events). Listing
 // them here allows browser-session tenant admins to reach the handler; the
 // handler's auditScope gate enforces the correct scoping.
+//
+// The provider-config routes (#4966) are matched by scopedProviderConfigReadRoute
+// rather than a literal case here because they carry a {provider_config_id}
+// path parameter and a "/revisions" sub-resource (issue #5004 follow-up: this
+// whole family was missing from the allowlist, the same gap sign-in-policy
+// had).
 func scopedAuthAdminReadRoute(r *http.Request) bool {
 	if r.Method != http.MethodGet {
 		return false
@@ -274,9 +280,8 @@ func scopedAuthAdminReadRoute(r *http.Request) bool {
 		"/api/v0/auth/admin/audit/summary",
 		"/api/v0/auth/admin/sign-in-policy":
 		return true
-	default:
-		return false
 	}
+	return scopedProviderConfigReadRoute(r.URL.Path)
 }
 
 // scopedAuthAdminMutationRoute reports whether the request targets one of the
@@ -295,6 +300,12 @@ func scopedAuthAdminReadRoute(r *http.Request) bool {
 // CSRF — a cookie-session caller without a valid X-Eshu-CSRF header is rejected
 // with 403 ahead of the handler. Scoped bearer tokens are not subject to CSRF
 // and are still gated by the all-scope admin requirement in the handler.
+//
+// The provider-config POST routes (#4966) are matched by
+// scopedProviderConfigMutationRoute rather than a literal case here because
+// they carry a {provider_config_id} path parameter and the
+// /revert, /enable, /disable, /test-connection sub-resource actions (issue
+// #5004 follow-up).
 func scopedAuthAdminMutationRoute(r *http.Request) bool {
 	switch r.Method {
 	case http.MethodPost:
@@ -304,7 +315,10 @@ func scopedAuthAdminMutationRoute(r *http.Request) bool {
 			"/api/v0/auth/admin/idp-group-mappings":
 			return true
 		}
-		return scopedInvitationRevokeRoute(r.URL.Path)
+		if scopedInvitationRevokeRoute(r.URL.Path) {
+			return true
+		}
+		return scopedProviderConfigMutationRoute(r.URL.Path)
 	case http.MethodPatch:
 		return r.URL.Path == "/api/v0/auth/admin/sign-in-policy"
 	case http.MethodDelete:
@@ -335,6 +349,70 @@ func scopedIdPGroupMappingDeleteRoute(path string) bool {
 	}
 	mappingRef := strings.TrimPrefix(path, prefix)
 	return mappingRef != "" && !strings.Contains(mappingRef, "/")
+}
+
+// providerConfigsListPath is the admin provider-config collection path both
+// scopedProviderConfigReadRoute and scopedProviderConfigMutationRoute anchor
+// on: the bare path is the list (GET) / create (POST) route, and every other
+// matched route is a "/{provider_config_id}[/action]" path under it.
+const providerConfigsListPath = "/api/v0/auth/admin/provider-configs"
+
+// scopedProviderConfigReadRoute matches the admin provider-config GET routes:
+// the list (GET providerConfigsListPath), a single provider config
+// (GET .../{provider_config_id}), and its revision history
+// (GET .../{provider_config_id}/revisions). Uses the same
+// prefix-then-single-segment approach as scopedIdPGroupMappingDeleteRoute,
+// extended with strings.Cut to also recognize the one nested "/revisions"
+// sub-resource without a naive HasPrefix that would let any deeper path
+// through.
+func scopedProviderConfigReadRoute(path string) bool {
+	if path == providerConfigsListPath {
+		return true
+	}
+	const prefix = providerConfigsListPath + "/"
+	if !strings.HasPrefix(path, prefix) {
+		return false
+	}
+	remainder := strings.TrimPrefix(path, prefix)
+	providerConfigID, sub, hasSub := strings.Cut(remainder, "/")
+	if providerConfigID == "" {
+		return false
+	}
+	if !hasSub {
+		return true
+	}
+	return sub == "revisions"
+}
+
+// scopedProviderConfigMutationRoute matches the admin provider-config POST
+// routes: create (POST providerConfigsListPath), update
+// (POST .../{provider_config_id}), and the revert/enable/disable/
+// test-connection sub-resource actions
+// (POST .../{provider_config_id}/{action}). Same prefix-then-segment approach
+// as scopedProviderConfigReadRoute; the action segment is matched against the
+// closed set of implemented actions rather than accepted as a wildcard.
+func scopedProviderConfigMutationRoute(path string) bool {
+	if path == providerConfigsListPath {
+		return true
+	}
+	const prefix = providerConfigsListPath + "/"
+	if !strings.HasPrefix(path, prefix) {
+		return false
+	}
+	remainder := strings.TrimPrefix(path, prefix)
+	providerConfigID, action, hasAction := strings.Cut(remainder, "/")
+	if providerConfigID == "" {
+		return false
+	}
+	if !hasAction {
+		return true
+	}
+	switch action {
+	case "revert", "enable", "disable", "test-connection":
+		return true
+	default:
+		return false
+	}
 }
 
 func scopedBrowserSessionAuthRoute(r *http.Request) bool {
