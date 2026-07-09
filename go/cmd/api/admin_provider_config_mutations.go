@@ -88,6 +88,7 @@ func (a *providerConfigMutationAdapter) UpdateProviderConfig(
 	result, err := a.store.UpdateProviderConfig(ctx, pgstatus.ProviderConfigUpdate{
 		ProviderConfigID:  req.ProviderConfigID,
 		TenantID:          req.TenantID,
+		ProviderKind:      req.ProviderKind,
 		RevisionID:        req.RevisionID,
 		Configuration:     req.Configuration,
 		ConfigurationHash: req.ConfigurationHash,
@@ -161,6 +162,8 @@ func mapProviderConfigError(err error) error {
 		return query.ErrAdminProviderConfigKeyringUnavailable
 	case errors.Is(err, pgstatus.ErrProviderConfigRevisionNotFound):
 		return query.ErrAdminProviderConfigRevisionNotFound
+	case errors.Is(err, pgstatus.ErrProviderConfigKindMismatch):
+		return query.ErrAdminProviderConfigKindMismatch
 	default:
 		return err
 	}

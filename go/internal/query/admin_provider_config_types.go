@@ -192,8 +192,11 @@ type AdminProviderConfigCreateRequest struct {
 
 // AdminProviderConfigUpdateRequest is the store-facing update request.
 type AdminProviderConfigUpdateRequest struct {
-	ProviderConfigID  string
-	TenantID          string
+	ProviderConfigID string
+	TenantID         string
+	// ProviderKind must match the existing provider config's immutable kind;
+	// the store rejects a mismatch with ErrAdminProviderConfigKindMismatch.
+	ProviderKind      string
 	RevisionID        string
 	Configuration     string
 	ConfigurationHash string

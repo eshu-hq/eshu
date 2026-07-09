@@ -138,3 +138,4 @@ okta-saml-live-proof*.md
 # subset for their local render. Never commit it.
 skill-fragments/capabilities.local.yaml
 go/.gocache/
+go/.gocache2/

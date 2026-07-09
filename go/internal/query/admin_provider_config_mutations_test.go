@@ -189,6 +189,30 @@ func TestHandleUpdateAdminProviderConfigNotFound(t *testing.T) {
 	}
 }
 
+// TestHandleUpdateAdminProviderConfigKindMismatch proves the handler surfaces
+// ErrAdminProviderConfigKindMismatch as 400, and that the store still
+// received the request's actual ProviderKind (so a lower layer, not the
+// handler, is what enforces immutability — the handler must not silently drop
+// the field).
+func TestHandleUpdateAdminProviderConfigKindMismatch(t *testing.T) {
+	t.Parallel()
+	store := &fakeAdminProviderConfigMutationStore{forceErr: ErrAdminProviderConfigKindMismatch}
+	mux := newProviderConfigMutationMux(store, nil, &recordingAuditAppender{})
+
+	samlBody := `{"provider_kind":"saml","entity_id":"https://sp.example.test","metadata_xml":"<md/>","sp_private_key":"k","sp_certificate":"c"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v0/auth/admin/provider-configs/pc_1", strings.NewReader(samlBody))
+	req = req.WithContext(ContextWithAuthContext(req.Context(), providerConfigAdminAuth()))
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400: %s", rec.Code, rec.Body.String())
+	}
+	if store.gotUpdate.ProviderKind != "external_saml" {
+		t.Fatalf("store.gotUpdate.ProviderKind = %q, want external_saml", store.gotUpdate.ProviderKind)
+	}
+}
+
 func TestHandleRevertAdminProviderConfig(t *testing.T) {
 	t.Parallel()
 	store := &fakeAdminProviderConfigMutationStore{result: AdminProviderConfigWriteResult{

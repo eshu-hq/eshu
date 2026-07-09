@@ -5,6 +5,7 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"sync"
 	"testing"
@@ -132,6 +133,43 @@ func TestCreateProviderConfigWithoutKeyringFailsClosed(t *testing.T) {
 	}
 	if _, ok := db.configs["pc_3"]; ok {
 		t.Fatal("provider config row written despite keyring failure")
+	}
+}
+
+// TestUpdateProviderConfigRejectsProviderKindMismatch proves an update whose
+// ProviderKind disagrees with the existing provider config's immutable
+// provider_kind is rejected without writing a new revision — otherwise a SAML
+// configuration/secret JSON shape could land under an OIDC provider_kind (or
+// vice versa), which provider_kind-driven consumers (oidclogin.TestConnection,
+// samlauth.TestConnection) would then fail to parse.
+func TestUpdateProviderConfigRejectsProviderKindMismatch(t *testing.T) {
+	t.Parallel()
+	db := newProviderConfigFakeDB()
+	store := NewIdentitySubjectStore(db)
+	store.SetProviderSecretKeyring(testKeyring(t))
+	ctx := context.Background()
+
+	if _, err := store.CreateProviderConfig(ctx, ProviderConfigCreate{
+		ProviderConfigID: "pc_kind", TenantID: "tenant_a", ProviderKind: "external_oidc",
+		ProviderKeyHash: "hash_kind", RevisionID: "rev_1", ConfigurationHash: "h1",
+		PlaintextSecret: `{"client_secret":"first"}`, Now: time.Now(),
+	}); err != nil {
+		t.Fatalf("create: %v", err)
+	}
+
+	_, err := store.UpdateProviderConfig(ctx, ProviderConfigUpdate{
+		ProviderConfigID: "pc_kind", TenantID: "tenant_a", ProviderKind: "external_saml",
+		RevisionID: "rev_2", ConfigurationHash: "h2",
+		PlaintextSecret: `{"sp_private_key":"x","sp_certificate":"y"}`, Now: time.Now(),
+	})
+	if !errors.Is(err, ErrProviderConfigKindMismatch) {
+		t.Fatalf("UpdateProviderConfig() error = %v, want ErrProviderConfigKindMismatch", err)
+	}
+	if _, ok := db.revisions["pc_kind"]["rev_2"]; ok {
+		t.Fatal("a new revision was written despite the provider_kind mismatch")
+	}
+	if db.configs["pc_kind"].activeRevisionID != "rev_1" {
+		t.Fatalf("active revision changed to %q despite rejected update, want rev_1", db.configs["pc_kind"].activeRevisionID)
 	}
 }
 

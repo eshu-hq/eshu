@@ -30,6 +30,11 @@ var (
 	// postgres.ErrProviderConfigRevisionNotFound: a revert target revision
 	// does not belong to the provider config.
 	ErrAdminProviderConfigRevisionNotFound = errors.New("admin provider config: revision not found")
+	// ErrAdminProviderConfigKindMismatch mirrors
+	// postgres.ErrProviderConfigKindMismatch: an update request's
+	// provider_kind disagrees with the existing provider config's immutable
+	// kind.
+	ErrAdminProviderConfigKindMismatch = errors.New("admin provider config: provider_kind does not match the existing provider config")
 )
 
 // AdminProviderConfigMutationHandler serves the DB-backed identity
@@ -210,6 +215,7 @@ func (h *AdminProviderConfigMutationHandler) handleUpdate(w http.ResponseWriter,
 	result, err := h.Store.UpdateProviderConfig(r.Context(), AdminProviderConfigUpdateRequest{
 		ProviderConfigID:  providerConfigID,
 		TenantID:          tenantID,
+		ProviderKind:      built.kind,
 		RevisionID:        revisionID,
 		Configuration:     built.configurationJSON,
 		ConfigurationHash: localIdentityHash(built.configurationJSON),
@@ -447,6 +453,8 @@ func providerConfigWriteErrorReason(err error) string {
 		return "provider_config_keyring_unavailable"
 	case errors.Is(err, ErrAdminProviderConfigRevisionNotFound):
 		return "provider_config_revision_not_found"
+	case errors.Is(err, ErrAdminProviderConfigKindMismatch):
+		return "provider_config_kind_mismatch"
 	default:
 		return "provider_config_write_failed"
 	}
@@ -464,6 +472,8 @@ func writeProviderConfigWriteError(w http.ResponseWriter, err error) {
 		WriteError(w, http.StatusServiceUnavailable, "provider secret encryption is not configured on this deployment")
 	case errors.Is(err, ErrAdminProviderConfigRevisionNotFound):
 		WriteError(w, http.StatusNotFound, "revision not found")
+	case errors.Is(err, ErrAdminProviderConfigKindMismatch):
+		WriteError(w, http.StatusBadRequest, "provider_kind does not match the existing provider config")
 	default:
 		slog.Error("admin provider config write failed", "err", err)
 		WriteError(w, http.StatusInternalServerError, "failed to write provider config")
