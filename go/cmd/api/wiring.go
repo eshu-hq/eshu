@@ -156,6 +156,28 @@ func wireAPI(
 		return nil, nil, nil, fmt.Errorf("configure metrics time-series source: %w", err)
 	}
 	governanceAudit := newGovernanceAuditStore(db, instruments)
+
+	// Bootstrap identity seeding (epic #4962, issue #4963): seed the first
+	// local owner/admin identity exactly once before the router mounts any
+	// auth-gated route. Fails closed on any seeding error, matching every
+	// other wiring step in this function.
+	seedIdentityDB := pgstatus.ExecQueryer(pgstatus.SQLDB{DB: db})
+	if instruments != nil {
+		seedIdentityDB = &pgstatus.InstrumentedDB{
+			Inner:       seedIdentityDB,
+			Tracer:      otel.Tracer(telemetry.DefaultSignalName),
+			Instruments: instruments,
+			StoreName:   "identity_bootstrap_credential",
+		}
+	}
+	if err := seedInitialAdmin(ctx, seedIdentityDB, getenv, instruments, logger); err != nil {
+		_ = db.Close()
+		if driver != nil {
+			_ = driver.Close(ctx)
+		}
+		return nil, nil, nil, fmt.Errorf("seed initial admin: %w", err)
+	}
+
 	componentHome := strings.TrimSpace(getenv("ESHU_COMPONENT_HOME"))
 	componentPolicy := componentPolicyFromEnv(getenv)
 	readImpactFromWinners := query.SupplyChainImpactWinnersReadEnabled(getenv(query.SupplyChainImpactWinnersReadEnv))
