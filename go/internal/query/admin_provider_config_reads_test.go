@@ -60,7 +60,7 @@ func TestHandleListAdminProviderConfigs(t *testing.T) {
 	store := &fakeAdminProviderConfigReadStore{
 		list: map[string][]AdminProviderConfigDetail{
 			providerConfigAdminTenant: {
-				{ProviderConfigID: "pc_1", ProviderKind: "external_oidc", Status: "active", HasSecret: true, SecretFingerprint: "abc12345", SecretKeyID: "k1", Source: "database"},
+				{ProviderConfigID: "pc_1", ProviderKind: "external_oidc", Status: "active", HasSecret: true, SecretFingerprint: "abc12345", SecretKeyID: "k1", ManagedBy: "database"},
 			},
 		},
 	}
@@ -92,7 +92,7 @@ func TestHandleGetAdminProviderConfigFound(t *testing.T) {
 	t.Parallel()
 	store := &fakeAdminProviderConfigReadStore{
 		details: map[string]AdminProviderConfigDetail{
-			"pc_1": {ProviderConfigID: "pc_1", ProviderKind: "external_saml", Status: "draft", HasSecret: false, Source: "database"},
+			"pc_1": {ProviderConfigID: "pc_1", ProviderKind: "external_saml", Status: "draft", HasSecret: false, ManagedBy: "database"},
 		},
 	}
 	mux := newProviderConfigReadMux(store)

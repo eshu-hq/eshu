@@ -49,15 +49,28 @@ func newAdminProviderConfigReadHandler(
 // -registered OIDC/SAML providers (ESHU_AUTH_OIDC_CONFIG_FILE,
 // ESHU_SAML_PROVIDERS_JSON): env/file providers are authoritative, and a
 // DB row whose provider_config_id matches a registered env provider is
-// returned read-only with ShadowedByEnvironment=true — its sealed_secret is
-// never consulted for that determination (env config wins by construction:
-// this adapter never reads the DB row's own has_secret when a collision is
-// present is NOT true — it still surfaces has_secret metadata for admin
-// visibility, but the login/authn path (oidclogin, samlauth) never sources
-// the DB row's secret when it is shadowed; see wiring.go).
+// returned read-only with ShadowedByEnvironment=true and ManagedBy="environment"
+// — its sealed_secret is never consulted for that determination (env config
+// wins by construction: this adapter still surfaces the DB row's has_secret
+// metadata for admin visibility, but the login/authn path (oidclogin,
+// samlauth) never sources the DB row's secret when it is shadowed; see
+// wiring.go). A pure env-file-only OIDC provider — one with NO DB row at
+// all — is additionally synthesized into ListProviderConfigDetails so it is
+// visible to the admin console at all, also with ManagedBy="environment".
+//
+// SAML env-only providers are NOT synthesized: query.SAMLProviderIDLister
+// exposes provider_config_id only, with no tenant attribution (unlike
+// OIDCRegisteredProvider, which carries TenantID) — the pre-auth discovery
+// list works around this by checking a DB row's tenant via
+// HasActiveSAMLProviderConfigForTenant, which by definition does not exist
+// for a pure env-only provider. A pure env-only SAML provider therefore
+// remains invisible on this admin list until it gains a colliding DB row
+// (at which point it surfaces as a normal shadowed entry). Flagged as a
+// known gap rather than guessed at — see the #4966 executor report.
 type providerConfigReadAdapter struct {
-	store          *pgstatus.IdentitySubjectStore
-	envProviderIDs map[string]struct{}
+	store            *pgstatus.IdentitySubjectStore
+	envProviderIDs   map[string]struct{}
+	envOIDCProviders []query.OIDCRegisteredProvider
 }
 
 func newProviderConfigReadAdapter(
@@ -68,9 +81,14 @@ func newProviderConfigReadAdapter(
 	if db == nil {
 		return nil
 	}
+	var envOIDCProviders []query.OIDCRegisteredProvider
+	if oidcLoginHandler != nil {
+		envOIDCProviders = oidcLoginHandler.RegisteredProviders()
+	}
 	return &providerConfigReadAdapter{
-		store:          pgstatus.NewIdentitySubjectStore(pgstatus.ExecQueryer(pgstatus.SQLDB{DB: db})),
-		envProviderIDs: envRegisteredProviderIDs(oidcLoginHandler, samlHandler),
+		store:            pgstatus.NewIdentitySubjectStore(pgstatus.ExecQueryer(pgstatus.SQLDB{DB: db})),
+		envProviderIDs:   envRegisteredProviderIDs(oidcLoginHandler, samlHandler),
+		envOIDCProviders: envOIDCProviders,
 	}
 }
 
@@ -114,9 +132,30 @@ func (a *providerConfigReadAdapter) ListProviderConfigDetails(
 	if err != nil {
 		return nil, err
 	}
+	seen := make(map[string]struct{}, len(items))
 	out := make([]query.AdminProviderConfigDetail, 0, len(items))
 	for _, item := range items {
+		seen[item.ProviderConfigID] = struct{}{}
 		out = append(out, a.toAdminDetail(item))
+	}
+	// Synthesize entries for pure env-file-only OIDC providers (no DB row at
+	// all) so they are visible to the admin console — see the package doc
+	// comment on providerConfigReadAdapter for why SAML env-only providers
+	// cannot be synthesized the same way.
+	for _, p := range a.envOIDCProviders {
+		if p.TenantID != tenantID {
+			continue
+		}
+		if _, alreadyListed := seen[p.ProviderConfigID]; alreadyListed {
+			continue
+		}
+		seen[p.ProviderConfigID] = struct{}{}
+		out = append(out, query.AdminProviderConfigDetail{
+			ProviderConfigID: p.ProviderConfigID,
+			ProviderKind:     "oidc",
+			Status:           "active",
+			ManagedBy:        "environment",
+		})
 	}
 	return out, nil
 }
@@ -145,7 +184,11 @@ func (a *providerConfigReadAdapter) ListProviderConfigRevisions(
 
 func (a *providerConfigReadAdapter) toAdminDetail(detail pgstatus.ProviderConfigDetail) query.AdminProviderConfigDetail {
 	_, shadowed := a.envProviderIDs[detail.ProviderConfigID]
-	out := query.AdminProviderConfigDetail{
+	managedBy := "database"
+	if shadowed {
+		managedBy = "environment"
+	}
+	return query.AdminProviderConfigDetail{
 		ProviderConfigID:      detail.ProviderConfigID,
 		ProviderKind:          detail.ProviderKind,
 		Status:                detail.Status,
@@ -155,9 +198,8 @@ func (a *providerConfigReadAdapter) toAdminDetail(detail pgstatus.ProviderConfig
 		SecretFingerprint:     detail.SecretFingerprint,
 		SecretKeyID:           detail.SecretKeyID,
 		ShadowedByEnvironment: shadowed,
-		Source:                "database",
+		ManagedBy:             managedBy,
 		CreatedAt:             detail.CreatedAt,
 		UpdatedAt:             detail.UpdatedAt,
 	}
-	return out
 }

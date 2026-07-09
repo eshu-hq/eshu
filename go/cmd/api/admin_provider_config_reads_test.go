@@ -5,6 +5,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"testing"
 	"time"
 
@@ -87,22 +88,63 @@ func TestEnvProviderShadowsDBProvider(t *testing.T) {
 	shadowed := adapter.toAdminDetail(pgstatus.ProviderConfigDetail{
 		ProviderConfigID: "env_oidc_1", ProviderKind: "external_oidc", Status: "active",
 	})
-	if !shadowed.ShadowedByEnvironment {
-		t.Fatal("provider config sharing an id with an env-registered OIDC provider is not marked ShadowedByEnvironment")
+	if !shadowed.ShadowedByEnvironment || shadowed.ManagedBy != "environment" {
+		t.Fatalf("provider config sharing an id with an env-registered OIDC provider = %+v, want ShadowedByEnvironment=true ManagedBy=environment", shadowed)
 	}
 
 	samlShadowed := adapter.toAdminDetail(pgstatus.ProviderConfigDetail{
 		ProviderConfigID: "env_saml_1", ProviderKind: "external_saml", Status: "active",
 	})
-	if !samlShadowed.ShadowedByEnvironment {
-		t.Fatal("provider config sharing an id with an env-registered SAML provider is not marked ShadowedByEnvironment")
+	if !samlShadowed.ShadowedByEnvironment || samlShadowed.ManagedBy != "environment" {
+		t.Fatalf("provider config sharing an id with an env-registered SAML provider = %+v, want ShadowedByEnvironment=true ManagedBy=environment", samlShadowed)
 	}
 
 	notShadowed := adapter.toAdminDetail(pgstatus.ProviderConfigDetail{
 		ProviderConfigID: "pc_db_only", ProviderKind: "external_oidc", Status: "active",
 	})
-	if notShadowed.ShadowedByEnvironment {
-		t.Fatal("a DB-only provider config (no env id collision) must not be marked ShadowedByEnvironment")
+	if notShadowed.ShadowedByEnvironment || notShadowed.ManagedBy != "database" {
+		t.Fatalf("a DB-only provider config (no env id collision) = %+v, want ShadowedByEnvironment=false ManagedBy=database", notShadowed)
+	}
+}
+
+// TestListProviderConfigDetailsSynthesizesEnvOnlyOIDCProvider proves a pure
+// env-file-only OIDC provider (no DB row at all) is still visible on the
+// admin list, with ManagedBy="environment" (#4966 acceptance criteria: "env
+// -defined provider visible with managed_by: environment").
+func TestListProviderConfigDetailsSynthesizesEnvOnlyOIDCProvider(t *testing.T) {
+	t.Parallel()
+	oidcHandler := &query.OIDCLoginHandler{
+		Service: &fakeOIDCProviderListerService{
+			providers: []query.OIDCRegisteredProvider{
+				{ProviderConfigID: "env_only_oidc", TenantID: "tenant_a"},
+				{ProviderConfigID: "other_tenant_oidc", TenantID: "tenant_b"},
+			},
+		},
+	}
+	adapter := &providerConfigReadAdapter{
+		envProviderIDs:   envRegisteredProviderIDs(oidcHandler, nil),
+		envOIDCProviders: oidcHandler.RegisteredProviders(),
+	}
+
+	adapter.store = pgstatus.NewIdentitySubjectStore(&emptyProviderConfigListDB{})
+	items, err := adapter.ListProviderConfigDetails(context.Background(), "tenant_a")
+	if err != nil {
+		t.Fatalf("ListProviderConfigDetails() error = %v", err)
+	}
+	found := false
+	for _, item := range items {
+		if item.ProviderConfigID == "env_only_oidc" {
+			found = true
+			if item.ManagedBy != "environment" || item.ProviderKind != "oidc" {
+				t.Fatalf("synthesized env-only entry = %+v, want ManagedBy=environment ProviderKind=oidc", item)
+			}
+		}
+		if item.ProviderConfigID == "other_tenant_oidc" {
+			t.Fatal("a different tenant's env-registered provider must not appear in this tenant's list")
+		}
+	}
+	if !found {
+		t.Fatal("env_only_oidc missing from ListProviderConfigDetails() — a pure env-file-only provider must still be admin-visible")
 	}
 }
 
@@ -116,3 +158,24 @@ func TestEnvRegisteredProviderIDsHandlesNilHandlers(t *testing.T) {
 		t.Fatalf("envRegisteredProviderIDs(nil, nil) = %v, want empty", ids)
 	}
 }
+
+// emptyProviderConfigListDB is a minimal pgstatus.ExecQueryer returning zero
+// rows for ListProviderConfigs, so tests can exercise
+// providerConfigReadAdapter.ListProviderConfigDetails' synthesis/dedupe logic
+// without a real database.
+type emptyProviderConfigListDB struct{}
+
+func (emptyProviderConfigListDB) ExecContext(context.Context, string, ...any) (sql.Result, error) {
+	return nil, nil
+}
+
+func (emptyProviderConfigListDB) QueryContext(context.Context, string, ...any) (pgstatus.Rows, error) {
+	return &emptyProviderConfigListRows{}, nil
+}
+
+type emptyProviderConfigListRows struct{}
+
+func (*emptyProviderConfigListRows) Next() bool        { return false }
+func (*emptyProviderConfigListRows) Scan(...any) error { return nil }
+func (*emptyProviderConfigListRows) Err() error        { return nil }
+func (*emptyProviderConfigListRows) Close() error      { return nil }

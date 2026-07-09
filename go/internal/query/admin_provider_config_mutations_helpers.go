@@ -82,6 +82,8 @@ func providerConfigWriteErrorReason(err error) string {
 		return "provider_config_kind_mismatch"
 	case errors.Is(err, ErrAdminProviderConfigRevisionChanged):
 		return "provider_config_revision_changed"
+	case errors.Is(err, ErrAdminProviderConfigManagedByEnvironment):
+		return "provider_config_managed_by_environment"
 	default:
 		return "provider_config_write_failed"
 	}
@@ -103,6 +105,8 @@ func writeProviderConfigWriteError(w http.ResponseWriter, err error) {
 		WriteError(w, http.StatusBadRequest, "provider_kind does not match the existing provider config")
 	case errors.Is(err, ErrAdminProviderConfigRevisionChanged):
 		WriteError(w, http.StatusConflict, "the provider config's active revision changed since it was tested; run test-connection again and retry enable")
+	case errors.Is(err, ErrAdminProviderConfigManagedByEnvironment):
+		WriteError(w, http.StatusBadRequest, "managed by environment; edit in your IaC, not here")
 	default:
 		slog.Error("admin provider config write failed", "err", err)
 		WriteError(w, http.StatusInternalServerError, "failed to write provider config")

@@ -89,7 +89,13 @@ type adminProviderConfigRevertRequest struct {
 // are derived, non-reversible metadata. ShadowedByEnvironment is derived at
 // read time (never stored) — true when an env-file-backed provider already
 // occupies this identity key, making the DB row read-only and its
-// sealed_secret never consulted for login.
+// sealed_secret never consulted for login. ManagedBy is "environment" for
+// both a pure env-file-only provider (no DB row at all — synthesized by the
+// read adapter, see ListProviderConfigDetails) and a colliding, shadowed DB
+// row (ShadowedByEnvironment=true); it is "database" for a normal,
+// admin-editable DB-backed provider. Every "environment" provider — whether
+// synthesized or shadowed — rejects edit/delete with a clear error (see
+// AdminProviderConfigMutationStore's doc comment).
 type AdminProviderConfigDetail struct {
 	ProviderConfigID      string
 	ProviderKind          string
@@ -100,7 +106,7 @@ type AdminProviderConfigDetail struct {
 	SecretFingerprint     string
 	SecretKeyID           string
 	ShadowedByEnvironment bool
-	Source                string // "database" | "environment"
+	ManagedBy             string // "database" | "environment"
 	CreatedAt             time.Time
 	UpdatedAt             time.Time
 }

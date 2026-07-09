@@ -39,6 +39,16 @@ var (
 	// revision changed (via a concurrent Update/Revert) between the
 	// test-connection call and the Enable call.
 	ErrAdminProviderConfigRevisionChanged = errors.New("admin provider config: active revision changed since it was tested")
+	// ErrAdminProviderConfigManagedByEnvironment is returned by
+	// AdminProviderConfigMutationStore implementations (never by this
+	// package directly — go/internal/query has no knowledge of env/file
+	// registration) when the target provider_config_id is registered via
+	// env/file config (ESHU_AUTH_OIDC_CONFIG_FILE, ESHU_SAML_PROVIDERS_JSON),
+	// whether as a pure env-only provider or a DB row shadowed by one.
+	// Update, Revert, Enable, and Disable all reject with this; Create does
+	// not (see AdminProviderConfigCreateRequest's ProviderConfigID doc
+	// comment for why creating a shadow row is intentionally allowed).
+	ErrAdminProviderConfigManagedByEnvironment = errors.New("admin provider config: managed by environment; edit in your IaC, not here")
 )
 
 // AdminProviderConfigMutationHandler serves the DB-backed identity

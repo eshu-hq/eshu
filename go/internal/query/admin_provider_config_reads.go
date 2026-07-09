@@ -158,7 +158,7 @@ func providerConfigDetailJSON(detail AdminProviderConfigDetail) map[string]any {
 		"configuration":           detail.Configuration,
 		"has_secret":              detail.HasSecret,
 		"shadowed_by_environment": detail.ShadowedByEnvironment,
-		"source":                  detail.Source,
+		"managed_by":              detail.ManagedBy,
 		"created_at":              detail.CreatedAt,
 		"updated_at":              detail.UpdatedAt,
 	}

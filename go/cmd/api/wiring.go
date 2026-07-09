@@ -260,7 +260,7 @@ func wireAPI(
 
 	providerConfigTester := newProviderConfigConnectionTester(db, providerSecretKeyring)
 	router.AdminProviderConfigReads = newAdminProviderConfigReadHandler(db, oidcLoginHandler, samlHandler)
-	router.AdminProviderConfigMutations = newAdminProviderConfigMutationHandler(db, governanceAudit, providerSecretKeyring, providerConfigTester)
+	router.AdminProviderConfigMutations = newAdminProviderConfigMutationHandler(db, governanceAudit, providerSecretKeyring, providerConfigTester, oidcLoginHandler, samlHandler)
 
 	apiMux := http.NewServeMux()
 	router.Mount(apiMux)
