@@ -153,3 +153,21 @@ Standard library only (`crypto/aes`, `crypto/cipher`, `crypto/rand`,
 ## Telemetry
 
 None. See "What this package does not do" above.
+
+## Performance and observability evidence (PR-1)
+
+No-Regression Evidence: this PR adds a new pure-Go package with zero runtime
+callers and three new `VarString` entries to `go/internal/envregistry/entries.go`
+(`ESHU_AUTH_SECRET_ENC_KEY`, `_FILE`, `_ID`). No `cmd/api`, `cmd/mcp-server`,
+`cmd/reducer`, or other runtime process reads these variables or imports
+`secretcrypto` in this PR, so no existing code path changes behavior, latency,
+or resource use at runtime. `entries.go` is a shared registry file that also
+documents unrelated worker/batch-size/lease env vars elsewhere in the file,
+which is why a content-based hot-path scan flags it; this PR's own diff to
+that file adds only three plain config-string entries with no worker, batch,
+lease, or concurrency semantics.
+
+No-Observability-Change: this PR ships no runtime wiring, so it emits no new
+metric, span, log, or status field. Seal/Open telemetry
+(`eshu_dp_auth_secret_seal_total`/`..._open_total`) lands with the callers in
+#4963 and #4966, which is where the first operator-observable behavior exists.
