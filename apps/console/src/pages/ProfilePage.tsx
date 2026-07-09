@@ -8,11 +8,7 @@ import { useEffect, useState } from "react";
 
 import type { EshuApiClient } from "../api/client";
 import { loadProfile, loadSessions, loadTokens } from "../api/userProfile";
-import type {
-  ProfileData,
-  BrowserSessionItem,
-  APITokenItem
-} from "../api/userProfile";
+import type { ProfileData, BrowserSessionItem, APITokenItem } from "../api/userProfile";
 import { Panel, Badge } from "../components/atoms";
 import "./liveInventory.css";
 
@@ -48,7 +44,7 @@ function isExpired(iso: string | undefined): boolean {
 
 function IdentitySection({
   profile,
-  unavailable
+  unavailable,
 }: {
   readonly profile: ProfileData | null;
   readonly unavailable: boolean;
@@ -91,7 +87,7 @@ function IdentitySection({
 
 function ContextSection({
   profile,
-  unavailable
+  unavailable,
 }: {
   readonly profile: ProfileData | null;
   readonly unavailable: boolean;
@@ -154,12 +150,74 @@ function ContextSection({
 }
 
 // ---------------------------------------------------------------------------
+// Effective permissions section (issue #4969): self-serve "why can't I see
+// X" — each session's resolved roles and permission families, straight from
+// GET /api/v0/auth/profile. This is the same signal capabilityAccess.ts (nav)
+// and AdminPage's per-panel gating derive from server-side, so a user who is
+// missing a nav item or Admin panel can check here what they'd need.
+// ---------------------------------------------------------------------------
+
+function PermissionsSection({
+  profile,
+  unavailable,
+}: {
+  readonly profile: ProfileData | null;
+  readonly unavailable: boolean;
+}): React.JSX.Element {
+  if (unavailable) {
+    return (
+      <Panel title="Effective permissions">
+        <p className="unavailable-note">Permissions unavailable from this source.</p>
+      </Panel>
+    );
+  }
+  const roleIds = profile?.role_ids ?? [];
+  const families = profile?.allowed_permission_features ?? [];
+  const enforced = profile?.permission_catalog_enforced ?? false;
+  return (
+    <Panel
+      title="Effective permissions"
+      sub="Your resolved roles and permission families — the same signal that gates navigation and the Admin area."
+    >
+      <dl className="kv-list" aria-label="Effective permissions details">
+        <dt>Roles</dt>
+        <dd>
+          {roleIds.length > 0
+            ? roleIds.map((r) => (
+                <Badge key={r} tone="violet">
+                  {r}
+                </Badge>
+              ))
+            : "—"}
+        </dd>
+        <dt>Permission families</dt>
+        <dd>
+          {!enforced ? (
+            <span className="unavailable-note">
+              Catalog not enforced — every area is currently visible regardless of granted families.
+            </span>
+          ) : families.length > 0 ? (
+            families.map((f) => (
+              <Badge key={f} tone="teal">
+                {f}
+              </Badge>
+            ))
+          ) : (
+            <span className="unavailable-note">No permission families granted.</span>
+          )}
+        </dd>
+      </dl>
+    </Panel>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Sessions section
 // ---------------------------------------------------------------------------
 
 function SessionsSection({
   sessions,
-  unavailable
+  unavailable,
 }: {
   readonly sessions: readonly BrowserSessionItem[];
   readonly unavailable: boolean;
@@ -222,7 +280,7 @@ function SessionsSection({
 
 function TokensSection({
   tokens,
-  unavailable
+  unavailable,
 }: {
   readonly tokens: readonly APITokenItem[];
   readonly unavailable: boolean;
@@ -281,11 +339,7 @@ function TokensSection({
 // ProfilePage
 // ---------------------------------------------------------------------------
 
-export function ProfilePage({
-  client
-}: {
-  readonly client?: EshuApiClient;
-}): React.JSX.Element {
+export function ProfilePage({ client }: { readonly client?: EshuApiClient }): React.JSX.Element {
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [profileUnavailable, setProfileUnavailable] = useState(false);
   const [sessions, setSessions] = useState<readonly BrowserSessionItem[]>([]);
@@ -304,20 +358,18 @@ export function ProfilePage({
       return;
     }
 
-    void Promise.all([
-      loadProfile(client),
-      loadSessions(client),
-      loadTokens(client)
-    ]).then(([p, s, t]) => {
-      if (cancelled) return;
-      setProfile(p.data);
-      setProfileUnavailable(p.provenance === "unavailable");
-      setSessions(s.sessions);
-      setSessionsUnavailable(s.provenance === "unavailable");
-      setTokens(t.tokens);
-      setTokensUnavailable(t.provenance === "unavailable");
-      setLoading(false);
-    });
+    void Promise.all([loadProfile(client), loadSessions(client), loadTokens(client)]).then(
+      ([p, s, t]) => {
+        if (cancelled) return;
+        setProfile(p.data);
+        setProfileUnavailable(p.provenance === "unavailable");
+        setSessions(s.sessions);
+        setSessionsUnavailable(s.provenance === "unavailable");
+        setTokens(t.tokens);
+        setTokensUnavailable(t.provenance === "unavailable");
+        setLoading(false);
+      },
+    );
 
     return () => {
       cancelled = true;
@@ -339,6 +391,7 @@ export function ProfilePage({
       <div className="panel-grid">
         <IdentitySection profile={profile} unavailable={profileUnavailable} />
         <ContextSection profile={profile} unavailable={profileUnavailable} />
+        <PermissionsSection profile={profile} unavailable={profileUnavailable} />
         <SessionsSection sessions={sessions} unavailable={sessionsUnavailable} />
         <TokensSection tokens={tokens} unavailable={tokensUnavailable} />
       </div>

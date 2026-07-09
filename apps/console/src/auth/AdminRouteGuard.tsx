@@ -6,9 +6,9 @@
 // enforces authorization server-side regardless of what this guard renders.
 import type { ReactNode } from "react";
 
-import { AccessDeniedPage } from "../pages/AccessDeniedPage";
-import type { BrowserSessionAuth } from "../api/client";
 import { canAccessAdminRoute } from "./capabilityAccess";
+import type { BrowserSessionAuth } from "../api/client";
+import { AccessDeniedPage } from "../pages/AccessDeniedPage";
 
 export function AdminRouteGuard({
   auth,
