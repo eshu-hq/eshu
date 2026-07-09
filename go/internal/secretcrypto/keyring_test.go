@@ -4,6 +4,7 @@
 package secretcrypto_test
 
 import (
+	"encoding/base64"
 	"strings"
 	"testing"
 
@@ -75,16 +76,20 @@ func TestOpenRejectsTamperedCiphertext(t *testing.T) {
 	}
 
 	parts := strings.Split(envelope, ".")
-	// Flip the case of the last ciphertext character to corrupt the tag
-	// without changing the envelope's structural shape.
-	ct := []byte(parts[3])
-	last := ct[len(ct)-1]
-	if last >= 'a' && last <= 'z' {
-		ct[len(ct)-1] = last - 32
-	} else {
-		ct[len(ct)-1] = 'A'
+	// Flip a bit in the last *decoded* ciphertext byte, then re-encode, so
+	// the tamper always changes the real ciphertext/tag data. Mutating the
+	// base64url *text* directly is unsound: base64's last character in a
+	// partial group can carry padding bits that a non-strict decoder (Go's
+	// default) discards, so two different characters can decode to the same
+	// bytes -- that made the previous version of this test flaky (~1/16 of
+	// runs left the ciphertext unchanged and Open succeeded). XOR always
+	// flips the target byte, so this can never leave the envelope unchanged.
+	ciphertext, err := base64.RawURLEncoding.DecodeString(parts[3])
+	if err != nil {
+		t.Fatalf("decode ciphertext for tamper setup: %v", err)
 	}
-	parts[3] = string(ct)
+	ciphertext[len(ciphertext)-1] ^= 0x01
+	parts[3] = base64.RawURLEncoding.EncodeToString(ciphertext)
 	tampered := strings.Join(parts, ".")
 	if tampered == envelope {
 		t.Fatalf("tampering did not change envelope; test setup is broken")

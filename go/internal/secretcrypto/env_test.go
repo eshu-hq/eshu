@@ -135,6 +135,30 @@ func TestKeyringFromEnvFailsClosedOnMissingFile(t *testing.T) {
 	}
 }
 
+func TestKeyringFromEnvFailsClosedOnEmptyConfiguredFile(t *testing.T) {
+	dir := t.TempDir()
+	keyPath := filepath.Join(dir, "empty.b64")
+	if err := writeTestFile(t, keyPath, ""); err != nil {
+		t.Fatalf("write empty key file: %v", err)
+	}
+
+	getenv := envMap(map[string]string{
+		"ESHU_AUTH_SECRET_ENC_KEY_FILE": keyPath,
+	})
+
+	_, err := secretcrypto.KeyringFromEnv(getenv)
+	if err == nil {
+		t.Fatalf("KeyringFromEnv with an explicitly configured but empty key file succeeded, want error")
+	}
+	// An explicitly configured source that turns out empty is malformed key
+	// material, not "no DEK configured" -- those are different operator
+	// stories (a missing mount vs. a mounted-but-broken secret) and must not
+	// collapse into the same error.
+	if errors.Is(err, secretcrypto.ErrKeyNotConfigured) {
+		t.Fatalf("KeyringFromEnv with an empty configured file returned ErrKeyNotConfigured, want a distinct malformed-key error: %v", err)
+	}
+}
+
 func TestKeyringFromEnvDefaultKeyIDIsFingerprint(t *testing.T) {
 	key := testKey(t, 3)
 	getenv := envMap(map[string]string{

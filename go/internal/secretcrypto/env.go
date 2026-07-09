@@ -67,20 +67,20 @@ var ErrKeyNotConfigured = errors.New("secretcrypto: no DEK configured")
 // therefore surface as an explicit, fail-closed error for the caller to act
 // on, never a silently-working substitute key.
 func KeyringFromEnv(getenv func(string) string) (*Keyring, error) {
-	raw, err := resolveKeyMaterial(getenv)
+	raw, sourceVar, err := resolveKeyMaterial(getenv)
 	if err != nil {
 		return nil, err
 	}
-	if raw == "" {
+	if sourceVar == "" {
 		return nil, ErrKeyNotConfigured
 	}
 
 	key, err := base64.StdEncoding.DecodeString(strings.TrimSpace(raw))
 	if err != nil {
-		return nil, fmt.Errorf("secretcrypto: decode %s: %w", keyEnvVar, err)
+		return nil, fmt.Errorf("secretcrypto: decode %s: %w", sourceVar, err)
 	}
 	if len(key) != aes256KeySize {
-		return nil, fmt.Errorf("secretcrypto: %s must decode to %d bytes, got %d", keyEnvVar, aes256KeySize, len(key))
+		return nil, fmt.Errorf("secretcrypto: %s must decode to %d bytes, got %d", sourceVar, aes256KeySize, len(key))
 	}
 
 	id := strings.TrimSpace(getenv(keyIDEnvVar))
@@ -97,18 +97,31 @@ func KeyringFromEnv(getenv func(string) string) (*Keyring, error) {
 }
 
 // resolveKeyMaterial returns the raw (still base64-encoded, un-decoded) DEK
-// text from the file variable when set, else the inline variable. A
-// configured-but-unreadable file is a hard error: it never silently falls
-// back to the inline variable.
-func resolveKeyMaterial(getenv func(string) string) (string, error) {
+// text from the file variable when set, else the inline variable, along with
+// which env var the material came from. sourceVar is "" only when neither
+// variable is configured at all -- that is the sole case ErrKeyNotConfigured
+// applies to.
+//
+// Critically, an explicitly configured source that turns out empty (an
+// empty-but-mounted file, for example) still reports its sourceVar and a nil
+// error here: it is not "unconfigured," it is malformed key material, and
+// the caller's base64/length checks classify it as such. Collapsing that
+// case into ErrKeyNotConfigured would tell an operator "set a DEK" when the
+// real problem is "your mounted secret is empty" -- a materially different
+// fix. A configured-but-unreadable file is always a hard error and never
+// silently falls back to the inline variable.
+func resolveKeyMaterial(getenv func(string) string) (raw string, sourceVar string, err error) {
 	if path := strings.TrimSpace(getenv(keyFileEnvVar)); path != "" {
-		data, err := os.ReadFile(path) // #nosec G304 -- path is operator-controlled via ESHU_AUTH_SECRET_ENC_KEY_FILE, not request input
-		if err != nil {
-			return "", fmt.Errorf("secretcrypto: read %s: %w", keyFileEnvVar, err)
+		data, readErr := os.ReadFile(path) // #nosec G304 -- path is operator-controlled via ESHU_AUTH_SECRET_ENC_KEY_FILE, not request input
+		if readErr != nil {
+			return "", "", fmt.Errorf("secretcrypto: read %s: %w", keyFileEnvVar, readErr)
 		}
-		return string(data), nil
+		return string(data), keyFileEnvVar, nil
 	}
-	return getenv(keyEnvVar), nil
+	if inline := getenv(keyEnvVar); inline != "" {
+		return inline, keyEnvVar, nil
+	}
+	return "", "", nil
 }
 
 // fingerprint returns the default KeyID for a DEK: the first 8 hex
