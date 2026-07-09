@@ -224,3 +224,36 @@ operation span, and the snapshot stage telemetry (`collector snapshot stage
 completed` logs, `eshu_dp_collector_snapshot_stage_duration_seconds`) already
 diagnose the sync-and-snapshot path. No new metrics, spans, logs, or status
 fields were added; the `HeadCommitSHA` snapshot field is unchanged.
+### Eliminate double file read via shared pre-prime (#4851)
+
+Performance Evidence: For a 5000-file repo, the `parseRepositoryFile` path
+  previously issued 2N physical reads per snapshot call: one inside
+  `Engine.ParsePath` (which primes the shared single-read cache from disk) and
+  one explicit `os.ReadFile` in the collector for `shapeFileFromParsed`. The
+  fix reads the body once upfront, calls `shared.PrimeSource(absPath, body)` to
+  pre-seed the parser's shared single-read cache, defers `shared.ClearSource`,
+  and calls `engine.ParsePath` — which internally finds the primed entry via
+  `shared.ReadSource` and performs zero additional physical disk reads. The
+  same body is reused for `shapeFileFromParsed`. Total physical reads per file
+  drops from 2 to 1. The read-count proof
+  (`TestParseRepositoryFilePrePrimeEliminatesDoubleRead`) counts
+  `shared.ReadSource` physical hits via `SetReadSourceHookForTest`: 0 hits
+  during the pre-primed `ParsePath`, versus 1 without the pre-prime. The
+  cache-release proof (`TestPrePrimeCacheIsReleasedAfterParse`) confirms the
+  collector's `ClearSource` balances correctly: after the parse, a subsequent
+  `shared.ReadSource` triggers a fresh physical read (hook fires). The
+  concurrency proof
+  (`TestParseRepositoryFilesConcurrentPrePrimeRaceFree`, `-race`, 32 files,
+  8 workers) exercises `buildParsedRepositoryFilesConcurrent` — no data races,
+  all files parsed without skips, correct per-file output. The
+  `TestPartitionedConcurrentParseMatchesSequentialComposition` regression test
+  stays green (byte-identity proof: concurrent = sequential output). The
+  shape-body proof (`TestShapeBodyMatchesFileSystemAfterPrePrime`) confirms the
+  reused body matches a fresh `os.ReadFile`.
+No-Observability-Change: No new metric instrument, label, span, structured
+  log field, status field, queue domain, worker count, batch size, or runtime
+  knob is added. Operators still diagnose parse behavior through the existing
+  `eshu_dp_file_parse_duration_seconds` histogram and `collector snapshot stage
+  completed` logs. The change primes the parser's existing shared cache from
+  the collector side; no parser source files change, and parse payloads, shape
+  files, and SCIP merges are byte-identical.
