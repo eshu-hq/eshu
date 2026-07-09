@@ -11,7 +11,6 @@ import { AdminAssignmentsPanel } from "./AdminAssignmentsPanel";
 import { AdminAuditPanel } from "./AdminAuditPanel";
 import { AdminIdPGroupMappingsPanel } from "./AdminIdPGroupMappingsPanel";
 import { AdminInvitationsPanel } from "./AdminInvitationsPanel";
-import { AdminProvidersPanel } from "./AdminProvidersPanel";
 import { AdminRolesPanel } from "./AdminRolesPanel";
 import { AdminTokensPanel } from "./AdminTokensPanel";
 import type { EshuApiClient } from "../../api/client";
@@ -21,7 +20,10 @@ const NOW = "2026-06-24T10:00:00Z";
 
 beforeEach(() => {
   // confirm-then-call: auto-confirm so mutation tests proceed.
-  vi.stubGlobal("confirm", vi.fn(() => true));
+  vi.stubGlobal(
+    "confirm",
+    vi.fn(() => true),
+  );
 });
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -37,10 +39,13 @@ describe("stale-load guard", () => {
     // First client resolves slowly; second client resolves immediately with different data.
     let resolveFirst!: (v: unknown) => void;
     const slowGetJson = vi.fn(
-      () => new Promise((res) => { resolveFirst = res; })
+      () =>
+        new Promise((res) => {
+          resolveFirst = res;
+        }),
     );
     const fastGetJson = vi.fn(async () => ({
-      invitations: [{ invite_id: "inv-new", role_id: "admin", status: "pending" }]
+      invitations: [{ invite_id: "inv-new", role_id: "admin", status: "pending" }],
     }));
 
     const client1 = { getJson: slowGetJson } as unknown as EshuApiClient;
@@ -63,13 +68,18 @@ describe("stale-load guard", () => {
   it("AdminTokensPanel: load resolved after unmount does not commit rows", async () => {
     let resolveLoad!: (v: unknown) => void;
     const slowGetJson = vi.fn(
-      () => new Promise((res) => { resolveLoad = res; })
+      () =>
+        new Promise((res) => {
+          resolveLoad = res;
+        }),
     );
     const client = { getJson: slowGetJson } as unknown as EshuApiClient;
     const { unmount } = render(<AdminTokensPanel client={client} />);
     unmount();
     // Resolve after unmount — must not throw or commit state.
-    resolveLoad({ tokens: [{ token_id: "t-stale", token_class: "personal", status: "active", issued_at: NOW }] });
+    resolveLoad({
+      tokens: [{ token_id: "t-stale", token_class: "personal", status: "active", issued_at: NOW }],
+    });
     // No assertion needed beyond not throwing; but also confirm no stale DOM.
     expect(document.body.innerHTML).not.toContain("t-stale");
   });
@@ -77,10 +87,13 @@ describe("stale-load guard", () => {
   it("AdminAssignmentsPanel: load resolved after client change does not commit stale rows", async () => {
     let resolveFirst!: (v: unknown) => void;
     const slowGetJson = vi.fn(
-      () => new Promise((res) => { resolveFirst = res; })
+      () =>
+        new Promise((res) => {
+          resolveFirst = res;
+        }),
     );
     const fastGetJson = vi.fn(async () => ({
-      role_assignments: [{ user_id: "u-new", role_id: "admin", status: "active" }]
+      role_assignments: [{ user_id: "u-new", role_id: "admin", status: "active" }],
     }));
 
     const client1 = { getJson: slowGetJson } as unknown as EshuApiClient;
@@ -105,9 +118,9 @@ describe("AdminInvitationsPanel", () => {
     const client = {
       getJson: async () => ({
         invitations: [
-          { invite_id: "inv-1", role_id: "developer", status: "pending", expires_at: NOW }
-        ]
-      })
+          { invite_id: "inv-1", role_id: "developer", status: "pending", expires_at: NOW },
+        ],
+      }),
     } as unknown as EshuApiClient;
     render(<AdminInvitationsPanel client={client} />);
     expect(await screen.findByText("inv-1")).toBeInTheDocument();
@@ -115,10 +128,14 @@ describe("AdminInvitationsPanel", () => {
   });
 
   it("renders unavailable on load error", async () => {
-    const client = { getJson: async () => { throw new Error("503"); } } as unknown as EshuApiClient;
+    const client = {
+      getJson: async () => {
+        throw new Error("503");
+      },
+    } as unknown as EshuApiClient;
     render(<AdminInvitationsPanel client={client} />);
     expect(
-      await screen.findByText("Invitations unavailable from this source.")
+      await screen.findByText("Invitations unavailable from this source."),
     ).toBeInTheDocument();
   });
 
@@ -131,7 +148,7 @@ describe("AdminInvitationsPanel", () => {
         invitations:
           call === 1
             ? [{ invite_id: "inv-1", role_id: "developer", status: "pending" }]
-            : [{ invite_id: "inv-1", role_id: "developer", status: "revoked" }]
+            : [{ invite_id: "inv-1", role_id: "developer", status: "revoked" }],
       };
     });
     const client = { getJson, postJson } as unknown as EshuApiClient;
@@ -139,7 +156,7 @@ describe("AdminInvitationsPanel", () => {
     const btn = await screen.findByRole("button", { name: "Revoke" });
     fireEvent.click(btn);
     await waitFor(() =>
-      expect(postJson).toHaveBeenCalledWith("/api/v0/auth/local/invitations/inv-1/revoke", {})
+      expect(postJson).toHaveBeenCalledWith("/api/v0/auth/local/invitations/inv-1/revoke", {}),
     );
     // refetch ran (getJson called twice: initial + after mutation).
     await waitFor(() => expect(getJson).toHaveBeenCalledTimes(2));
@@ -155,7 +172,7 @@ describe("AdminAssignmentsPanel", () => {
   it("renders assignments and grants via the form to the right endpoint", async () => {
     const postJson = vi.fn(async () => ({ status: "active", changed: true }));
     const getJson = vi.fn(async () => ({
-      role_assignments: [{ user_id: "u-1", role_id: "viewer", status: "active" }]
+      role_assignments: [{ user_id: "u-1", role_id: "viewer", status: "active" }],
     }));
     const client = { getJson, postJson } as unknown as EshuApiClient;
     render(<AdminAssignmentsPanel client={client} />);
@@ -167,8 +184,8 @@ describe("AdminAssignmentsPanel", () => {
     await waitFor(() =>
       expect(postJson).toHaveBeenCalledWith("/api/v0/auth/admin/role-assignments", {
         user_id: "u-2",
-        role_id: "admin"
-      })
+        role_id: "admin",
+      }),
     );
     await waitFor(() => expect(getJson).toHaveBeenCalledTimes(2));
   });
@@ -176,7 +193,7 @@ describe("AdminAssignmentsPanel", () => {
   it("revoke posts to role-assignments/revoke", async () => {
     const postJson = vi.fn(async () => ({ status: "revoked", changed: true }));
     const getJson = vi.fn(async () => ({
-      role_assignments: [{ user_id: "u-1", role_id: "viewer", status: "active" }]
+      role_assignments: [{ user_id: "u-1", role_id: "viewer", status: "active" }],
     }));
     const client = { getJson, postJson } as unknown as EshuApiClient;
     render(<AdminAssignmentsPanel client={client} />);
@@ -185,16 +202,20 @@ describe("AdminAssignmentsPanel", () => {
     await waitFor(() =>
       expect(postJson).toHaveBeenCalledWith("/api/v0/auth/admin/role-assignments/revoke", {
         user_id: "u-1",
-        role_id: "viewer"
-      })
+        role_id: "viewer",
+      }),
     );
   });
 
   it("renders unavailable on load error", async () => {
-    const client = { getJson: async () => { throw new Error("503"); } } as unknown as EshuApiClient;
+    const client = {
+      getJson: async () => {
+        throw new Error("503");
+      },
+    } as unknown as EshuApiClient;
     render(<AdminAssignmentsPanel client={client} />);
     expect(
-      await screen.findByText("Role assignments unavailable from this source.")
+      await screen.findByText("Role assignments unavailable from this source."),
     ).toBeInTheDocument();
   });
 });
@@ -212,10 +233,12 @@ describe("AdminRolesPanel", () => {
             role_id: "admin",
             status: "active",
             built_in: true,
-            grants: [{ action: "read", feature: "ask_search", data_class: "public", scope_class: "all" }]
-          }
-        ]
-      })
+            grants: [
+              { action: "read", feature: "ask_search", data_class: "public", scope_class: "all" },
+            ],
+          },
+        ],
+      }),
     } as unknown as EshuApiClient;
     render(<AdminRolesPanel client={client} />);
     expect(await screen.findByText("admin")).toBeInTheDocument();
@@ -225,41 +248,20 @@ describe("AdminRolesPanel", () => {
   });
 
   it("renders unavailable on load error", async () => {
-    const client = { getJson: async () => { throw new Error("503"); } } as unknown as EshuApiClient;
+    const client = {
+      getJson: async () => {
+        throw new Error("503");
+      },
+    } as unknown as EshuApiClient;
     render(<AdminRolesPanel client={client} />);
     expect(await screen.findByText("Roles unavailable from this source.")).toBeInTheDocument();
   });
 });
 
 // ---------------------------------------------------------------------------
-// IdP providers (read-only)
+// IdP providers — see AdminProvidersPanel.test.tsx (#4967, full CRUD panel
+// against the #4966 provider-configs API).
 // ---------------------------------------------------------------------------
-
-describe("AdminProvidersPanel", () => {
-  it("renders providers (ids/kind/status only)", async () => {
-    const client = {
-      getJson: async () => ({
-        providers: [{ provider_config_id: "p-1", provider_kind: "oidc", status: "active" }]
-      })
-    } as unknown as EshuApiClient;
-    render(<AdminProvidersPanel client={client} />);
-    expect(await screen.findByText("p-1")).toBeInTheDocument();
-    expect(screen.getByText("oidc")).toBeInTheDocument();
-    // No issuer / metadata URL / client id ever rendered.
-    const body = document.body.innerHTML;
-    for (const f of ["issuer", "metadata_url", "client_id", "entity_id"]) {
-      expect(body).not.toContain(f);
-    }
-  });
-
-  it("renders unavailable on load error", async () => {
-    const client = { getJson: async () => { throw new Error("503"); } } as unknown as EshuApiClient;
-    render(<AdminProvidersPanel client={client} />);
-    expect(
-      await screen.findByText("IdP providers unavailable from this source.")
-    ).toBeInTheDocument();
-  });
-});
 
 // ---------------------------------------------------------------------------
 // IdP group mappings
@@ -274,10 +276,10 @@ describe("AdminIdPGroupMappingsPanel", () => {
             mapping_ref: "m-ref-1",
             provider_config_id: "p-1",
             role_id: "viewer",
-            status: "active"
-          }
-        ]
-      })
+            status: "active",
+          },
+        ],
+      }),
     } as unknown as EshuApiClient;
     render(<AdminIdPGroupMappingsPanel client={client} />);
     expect(await screen.findByText("m-ref-1")).toBeInTheDocument();
@@ -304,8 +306,8 @@ describe("AdminIdPGroupMappingsPanel", () => {
       expect(postJson).toHaveBeenCalledWith("/api/v0/auth/admin/idp-group-mappings", {
         provider_config_id: "p-1",
         external_group: "engineers",
-        role_id: "developer"
-      })
+        role_id: "developer",
+      }),
     );
     await waitFor(() => expect(getJson).toHaveBeenCalledTimes(2));
     // The raw external group input is cleared after submit (never retained).
@@ -315,14 +317,16 @@ describe("AdminIdPGroupMappingsPanel", () => {
   it("delete calls DELETE with the mapping_ref and refetches", async () => {
     const del = vi.fn(async () => undefined);
     const getJson = vi.fn(async () => ({
-      group_mappings: [{ mapping_ref: "m-ref-1", provider_config_id: "p-1", role_id: "v", status: "active" }]
+      group_mappings: [
+        { mapping_ref: "m-ref-1", provider_config_id: "p-1", role_id: "v", status: "active" },
+      ],
     }));
     const client = { getJson, delete: del } as unknown as EshuApiClient;
     render(<AdminIdPGroupMappingsPanel client={client} />);
     const btn = await screen.findByRole("button", { name: "Delete" });
     fireEvent.click(btn);
     await waitFor(() =>
-      expect(del).toHaveBeenCalledWith("/api/v0/auth/admin/idp-group-mappings/m-ref-1")
+      expect(del).toHaveBeenCalledWith("/api/v0/auth/admin/idp-group-mappings/m-ref-1"),
     );
     await waitFor(() => expect(getJson).toHaveBeenCalledTimes(2));
   });
@@ -336,8 +340,16 @@ describe("AdminTokensPanel", () => {
   it("renders tokens without token hashes", async () => {
     const client = {
       getJson: async () => ({
-        tokens: [{ token_id: "t-1", token_class: "personal", user_id: "u-1", status: "active", issued_at: NOW }]
-      })
+        tokens: [
+          {
+            token_id: "t-1",
+            token_class: "personal",
+            user_id: "u-1",
+            status: "active",
+            issued_at: NOW,
+          },
+        ],
+      }),
     } as unknown as EshuApiClient;
     render(<AdminTokensPanel client={client} />);
     expect(await screen.findByText("t-1")).toBeInTheDocument();
@@ -359,9 +371,9 @@ describe("AdminTokensPanel", () => {
             token_class: "personal",
             status: call === 1 ? "active" : "revoked",
             issued_at: NOW,
-            ...(call === 1 ? {} : { revoked_at: NOW })
-          }
-        ]
+            ...(call === 1 ? {} : { revoked_at: NOW }),
+          },
+        ],
       };
     });
     const client = { getJson, postNoContent } as unknown as EshuApiClient;
@@ -369,17 +381,19 @@ describe("AdminTokensPanel", () => {
     const btn = await screen.findByRole("button", { name: "Revoke" });
     fireEvent.click(btn);
     await waitFor(() =>
-      expect(postNoContent).toHaveBeenCalledWith("/api/v0/auth/local/api-tokens/t-1/revoke", {})
+      expect(postNoContent).toHaveBeenCalledWith("/api/v0/auth/local/api-tokens/t-1/revoke", {}),
     );
     await waitFor(() => expect(getJson).toHaveBeenCalledTimes(2));
   });
 
   it("renders unavailable on load error", async () => {
-    const client = { getJson: async () => { throw new Error("503"); } } as unknown as EshuApiClient;
+    const client = {
+      getJson: async () => {
+        throw new Error("503");
+      },
+    } as unknown as EshuApiClient;
     render(<AdminTokensPanel client={client} />);
-    expect(
-      await screen.findByText("API tokens unavailable from this source.")
-    ).toBeInTheDocument();
+    expect(await screen.findByText("API tokens unavailable from this source.")).toBeInTheDocument();
   });
 });
 
@@ -390,11 +404,13 @@ describe("AdminTokensPanel", () => {
 describe("AdminAuditPanel", () => {
   it("renders the operator-scope note (#3717) when audit returns 403", async () => {
     const client = {
-      getJson: async () => { throw new EshuApiHttpError(403); }
+      getJson: async () => {
+        throw new EshuApiHttpError(403);
+      },
     } as unknown as EshuApiClient;
     render(<AdminAuditPanel client={client} />);
     expect(
-      await screen.findByText(/Global operator audit — not available for tenant admins \(#3717\)/)
+      await screen.findByText(/Global operator audit — not available for tenant admins \(#3717\)/),
     ).toBeInTheDocument();
     // It must NOT show a generic error.
     expect(screen.queryByText("Audit unavailable from this source.")).not.toBeInTheDocument();
@@ -402,7 +418,9 @@ describe("AdminAuditPanel", () => {
 
   it("renders unavailable when audit fails with a non-403 error", async () => {
     const client = {
-      getJson: async () => { throw new EshuApiHttpError(503); }
+      getJson: async () => {
+        throw new EshuApiHttpError(503);
+      },
     } as unknown as EshuApiClient;
     render(<AdminAuditPanel client={client} />);
     expect(await screen.findByText("Audit unavailable from this source.")).toBeInTheDocument();
@@ -415,11 +433,9 @@ describe("AdminAuditPanel", () => {
           return { total: 5, allowed: 4, denied: 1, unavailable: 0, last_occurred_at: NOW };
         }
         return {
-          events: [
-            { event_type: "authz", decision: "allow", reason_code: "ok", occurred_at: NOW }
-          ]
+          events: [{ event_type: "authz", decision: "allow", reason_code: "ok", occurred_at: NOW }],
         };
-      }
+      },
     } as unknown as EshuApiClient;
     render(<AdminAuditPanel client={client} />);
     const table = await screen.findByRole("table", { name: "Audit events" });
