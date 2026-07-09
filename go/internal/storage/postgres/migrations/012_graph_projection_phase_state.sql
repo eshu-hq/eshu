@@ -9,7 +9,5 @@ CREATE TABLE IF NOT EXISTS graph_projection_phase_state (
     updated_at TIMESTAMPTZ NOT NULL,
     PRIMARY KEY (scope_id, acceptance_unit_id, source_run_id, generation_id, keyspace, phase)
 );
-CREATE INDEX IF NOT EXISTS graph_projection_phase_state_lookup_idx
-    ON graph_projection_phase_state (scope_id, acceptance_unit_id, source_run_id, generation_id, keyspace, phase);
 CREATE INDEX IF NOT EXISTS graph_projection_phase_state_updated_idx
     ON graph_projection_phase_state (updated_at DESC);

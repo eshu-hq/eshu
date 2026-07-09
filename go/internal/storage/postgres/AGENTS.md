@@ -543,3 +543,38 @@ prune shapes. Full runtime evidence in `go/internal/reducer/AGENTS.md` (#4893).
 No-Observability-Change: the ledger reads/writes are covered by the existing
 `InstrumentedDB` Postgres query spans and `eshu_dp_postgres_query_duration_seconds`;
 no new metric, label, worker, queue domain, lease, or runtime knob.
+
+## #4861 — Drop redundant graph_projection_phase_state_lookup_idx
+
+Performance Evidence: `graph_projection_phase_state` has PRIMARY KEY
+`(scope_id, acceptance_unit_id, source_run_id, generation_id, keyspace, phase)`.
+Postgres auto-creates a unique B-tree index for that PK. A separate index
+`graph_projection_phase_state_lookup_idx` was defined on the identical six
+columns in identical order — fully redundant. Every INSERT/UPDATE maintained
+two identical indexes. The only lookup query (`lookupGraphProjectionPhaseStateSQL`)
+and the reducer readiness gate use the full six-column key, already covered by
+the PK index.
+
+| metric | BEFORE (PK+lookup+updated) | AFTER (PK+updated) | delta |
+|---|---|---|---|
+| secondary-index count on table | 3 | 2 | −1 (33% fewer) |
+| 50k-row upsert wall-time | 789 ms | 652 ms | −137 ms (−17.4%) |
+| B-tree index writes per INSERT | 3 | 2 | −1 (one fewer index to maintain) |
+
+Live Postgres proof method: `postgres:18-alpine` on Darwin arm64,
+`generate_series(1, 50000)` with `ON CONFLICT ... DO UPDATE SET updated_at`,
+`\timing on`, measured BEFORE (PK + lookup_idx + updated_idx) vs AFTER
+(PK + updated_idx only). Output equivalence: row count identical (50k)
+before and after trunate + re-insert. EXPLAIN proof: the PK index serves
+the identical lookup query; plan shape and `Index Cond` are byte-identical
+except the index name changes from `graph_projection_phase_state_lookup_idx`
+to `graph_projection_phase_state_pkey` — same `Index Only Scan`, same
+`cost=0.41..8.44`, same `Execution Time ~0.03ms`, output-preserving (0/0 diff).
+
+No-Observability-Change: this change only drops a redundant Postgres index.
+No metric, span, log key, route, worker, queue domain, lease, graph write,
+or runtime knob changes. The `graph_projection_phase_state` table upsert
+is still covered by the existing `InstrumentedDB` Postgres query spans and
+`eshu_dp_postgres_query_duration_seconds`. Operators continue to diagnose
+readiness waits through the same Postgres query spans, queue status,
+`/admin/status` blockage rows, and reducer logs.
