@@ -82,7 +82,7 @@ type recording struct {
 // a fixture, not a steady-state ingest. A post-stream FactStreamErr aborts the
 // whole record so a partial cassette is never written.
 func (r *recording) capture(gen collector.CollectedGeneration) error {
-	envelopes := make([]facts.Envelope, 0, gen.FactCount)
+	envelopes := make([]facts.Envelope, 0, gen.FactCount())
 	for env := range gen.Facts {
 		envelopes = append(envelopes, env)
 	}

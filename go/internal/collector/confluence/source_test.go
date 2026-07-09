@@ -66,8 +66,8 @@ func TestSourceSyncsSpacePagesIntoDocumentationFacts(t *testing.T) {
 	assertFactCount(t, envelopes, facts.DocumentationDocumentFactKind, 2)
 	assertFactCount(t, envelopes, facts.DocumentationSectionFactKind, 2)
 	assertFactCount(t, envelopes, facts.DocumentationLinkFactKind, 1)
-	if collected.FactCount != len(envelopes) {
-		t.Fatalf("FactCount = %d, want %d", collected.FactCount, len(envelopes))
+	if collected.FactCount() != len(envelopes) {
+		t.Fatalf("FactCount = %d, want %d", collected.FactCount(), len(envelopes))
 	}
 
 	sourceFact := factsByKind(envelopes, facts.DocumentationSourceFactKind)[0]

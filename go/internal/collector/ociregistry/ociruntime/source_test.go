@@ -76,7 +76,7 @@ func TestSourceNextEmitsCollectedGenerationForRegistryTarget(t *testing.T) {
 	}
 
 	envelopes := drainFacts(t, collected)
-	if got, want := collected.FactCount, len(envelopes); got != want {
+	if got, want := collected.FactCount(), len(envelopes); got != want {
 		t.Fatalf("FactCount = %d, want %d", got, want)
 	}
 	kinds := make([]string, 0, len(envelopes))
@@ -362,7 +362,7 @@ func testManifestBody(t *testing.T) []byte {
 
 func drainFacts(t *testing.T, collected collector.CollectedGeneration) []facts.Envelope {
 	t.Helper()
-	envelopes := make([]facts.Envelope, 0, collected.FactCount)
+	envelopes := make([]facts.Envelope, 0, collected.FactCount())
 	for envelope := range collected.Facts {
 		envelopes = append(envelopes, envelope)
 	}

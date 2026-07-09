@@ -49,7 +49,7 @@ func TestBuildStreamingGenerationEmitsUnresolvedTerraformBackendExpressionWarnin
 
 	collected := buildStreamingGeneration(repoPath, repo, "run-backend-warning", observedAt, snapshot, false)
 	envelopes := drainFactChannel(collected.Facts)
-	if got, want := len(envelopes), collected.FactCount; got != want {
+	if got, want := len(envelopes), collected.FactCount(); got != want {
 		t.Fatalf("streamed facts = %d, FactCount = %d", got, want)
 	}
 	if got := len(factsByKind(envelopes, facts.TerraformStateCandidateFactKind)); got != 0 {

@@ -24,11 +24,11 @@ func TestPipelinedBootstrapProjectsDuringCollection(t *testing.T) {
 	// The projector should start processing items while the collector is still running.
 	source := &slowSource{
 		generations: []collector.CollectedGeneration{
-			{Scope: scope.IngestionScope{ScopeID: "s1"}, FactCount: 0},
-			{Scope: scope.IngestionScope{ScopeID: "s2"}, FactCount: 0},
-			{Scope: scope.IngestionScope{ScopeID: "s3"}, FactCount: 0},
-			{Scope: scope.IngestionScope{ScopeID: "s4"}, FactCount: 0},
-			{Scope: scope.IngestionScope{ScopeID: "s5"}, FactCount: 0},
+			{Scope: scope.IngestionScope{ScopeID: "s1"}, EstimatedFactCount: 0},
+			{Scope: scope.IngestionScope{ScopeID: "s2"}, EstimatedFactCount: 0},
+			{Scope: scope.IngestionScope{ScopeID: "s3"}, EstimatedFactCount: 0},
+			{Scope: scope.IngestionScope{ScopeID: "s4"}, EstimatedFactCount: 0},
+			{Scope: scope.IngestionScope{ScopeID: "s5"}, EstimatedFactCount: 0},
 		},
 		delay: 100 * time.Millisecond,
 	}

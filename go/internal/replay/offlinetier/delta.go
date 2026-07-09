@@ -131,7 +131,7 @@ func DeltaMaterializationFromGenerations(
 // drainGeneration consumes the fact channel from a CollectedGeneration and
 // returns all envelopes. It returns an error if the stream itself errored.
 func drainGeneration(gen collector.CollectedGeneration) ([]facts.Envelope, error) {
-	envs := make([]facts.Envelope, 0, gen.FactCount)
+	envs := make([]facts.Envelope, 0, gen.FactCount())
 	for env := range gen.Facts {
 		envs = append(envs, env)
 	}

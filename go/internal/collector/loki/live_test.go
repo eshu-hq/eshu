@@ -47,7 +47,7 @@ func TestLiveLokiObservedLogSignalEvidence(t *testing.T) {
 	}
 
 	envs := collectFacts(t, collected)
-	if got, want := collected.FactCount, len(envs); got != want {
+	if got, want := collected.FactCount(), len(envs); got != want {
 		t.Fatalf("FactCount = %d, want len(envelopes) %d", got, want)
 	}
 	liveLokiAssertObservedEvidence(t, envs, secrets)

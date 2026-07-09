@@ -210,13 +210,6 @@ func isGitDocumentationPath(filePath string) bool {
 	return ok
 }
 
-func isDocumentationPathOrStructuredAPIContractCandidate(relativePath string) bool {
-	if _, ok := gitDocumentationFormatForPath(relativePath); ok {
-		return true
-	}
-	return isPotentialStructuredAPIContractPath(relativePath)
-}
-
 func filepathToSourceURI(filePath string) string {
 	return path.Clean(strings.ReplaceAll(filePath, "\\", "/"))
 }

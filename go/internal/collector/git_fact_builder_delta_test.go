@@ -25,7 +25,7 @@ func TestBuildStreamingGenerationEmitsDeltaMetadataAndDeletedTombstones(t *testi
 
 	collected := buildStreamingGeneration(repoPath, repo, "run-delta", observedAt, snapshot, false)
 	envelopes := drainFactChannel(collected.Facts)
-	if got, want := len(envelopes), collected.FactCount; got != want {
+	if got, want := len(envelopes), collected.FactCount(); got != want {
 		t.Fatalf("streamed facts = %d, FactCount = %d", got, want)
 	}
 

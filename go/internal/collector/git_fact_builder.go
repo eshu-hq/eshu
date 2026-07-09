@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
@@ -77,6 +78,11 @@ func buildStreamingGenerationWithContext(
 	if snapshot.DataflowScanned && !snapshot.Delta {
 		dataflowScannedFactCount = 1
 	}
+	// factCount is a cheap pre-computed estimate from metadata counts only.
+	// The body-re-reading count passes (serviceCatalogFactCount,
+	// gitDocumentationFactCount, workflowImageEvidenceFactCount) have been
+	// removed; the exact count is derived from the emitted stream via the
+	// atomic counter populated by streamFacts.
 	factCount := 1 + len(snapshot.FileData) + contentFileCount +
 		len(snapshot.ContentEntities) + len(snapshot.TerraformStateCandidates) +
 		len(snapshot.TaintEvidence) + len(snapshot.InterprocTaintEvidence) +
@@ -86,11 +92,9 @@ func buildStreamingGenerationWithContext(
 		(2 * len(snapshot.DeletedRelativePaths)) +
 		observabilityFactCount(snapshot.FileData) +
 		terraformStateBackendExpressionWarningFactCount(repo.ID, snapshot.FileData) +
-		serviceCatalogFactCount(repoPath, scopeValue.ScopeID, generation.GenerationID, observedAt, snapshot) +
-		gitDocumentationFactCount(ctx, repoPath, repo, scopeValue.ScopeID, generation.GenerationID, observedAt, snapshot) +
-		workflowImageEvidenceFactCount(repoPath, snapshot) +
 		followupFactCount
 
+	factCountAtomic := new(atomic.Int64)
 	factCh := make(chan facts.Envelope, factStreamBuffer)
 	go streamFacts(
 		ctx,
@@ -103,14 +107,16 @@ func buildStreamingGenerationWithContext(
 		observedAt,
 		&snapshot,
 		isDependency,
+		factCountAtomic,
 	)
 
 	return CollectedGeneration{
-		Scope:             scopeValue,
-		Generation:        generation,
-		Facts:             factCh,
-		FactCount:         factCount,
-		DiscoveryAdvisory: snapshot.DiscoveryAdvisory,
+		Scope:              scopeValue,
+		Generation:         generation,
+		Facts:              factCh,
+		EstimatedFactCount: factCount,
+		factCountAtomic:    factCountAtomic,
+		DiscoveryAdvisory:  snapshot.DiscoveryAdvisory,
 	}
 }
 
@@ -123,6 +129,9 @@ func buildStreamingGenerationWithContext(
 //
 // Legacy path (ContentFiles populated): bodies are already in memory from
 // SnapshotRepository. Each entry is zeroed after sending.
+//
+// The count parameter is an atomic counter incremented on every send so the
+// caller can read the exact emitted count after the channel drains.
 func streamFacts(
 	ctx context.Context,
 	ch chan<- facts.Envelope,
@@ -134,41 +143,44 @@ func streamFacts(
 	observedAt time.Time,
 	snapshot *RepositorySnapshot,
 	isDependency bool,
+	count *atomic.Int64,
 ) {
 	defer close(ch)
 
+	w := factStreamWriter{ch: ch, count: count}
+
 	// Repository fact
-	ch <- repositoryFactEnvelope(
+	w.send(repositoryFactEnvelope(
 		repoPath, repo, sourceRunID, scopeID, generationID, observedAt,
 		snapshot.FileCount, snapshot.ImportsMap, isDependency,
 		snapshot.GitRefs,
 		snapshot.Delta, snapshot.DeltaRelativePaths, snapshot.DeletedRelativePaths,
 		snapshot.Reconcile,
-	)
+	))
 
 	// Terraform state candidate facts. These are metadata-only advisory facts;
 	// raw state bytes are never read or persisted by the Git collector.
 	for i, candidate := range snapshot.TerraformStateCandidates {
-		ch <- terraformStateCandidateFactEnvelope(repo.ID, scopeID, generationID, observedAt, candidate)
+		w.send(terraformStateCandidateFactEnvelope(repo.ID, scopeID, generationID, observedAt, candidate))
 		snapshot.TerraformStateCandidates[i] = TerraformStateCandidate{}
 	}
 	snapshot.TerraformStateCandidates = nil
 
-	emitTerraformStateBackendExpressionWarnings(ch, repo.ID, scopeID, generationID, observedAt, snapshot.FileData)
+	emitTerraformStateBackendExpressionWarnings(w, repo.ID, scopeID, generationID, observedAt, snapshot.FileData)
 
 	// File metadata facts
 	sourceRevisions := commitSHAByRelativePath(repoPath, snapshot)
 	for i, fileData := range snapshot.FileData {
-		ch <- fileFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt, fileData, isDependency)
+		w.send(fileFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt, fileData, isDependency))
 		relativePath := repositoryRelativePath(repoPath, payloadPath(fileData, "path"))
 		emitObservabilityFactsForFile(
-			ch, repoPath, repo.ID, scopeID, generationID, observedAt, fileData, sourceRevisions[relativePath],
+			w, repoPath, repo.ID, scopeID, generationID, observedAt, fileData, sourceRevisions[relativePath],
 		)
 		snapshot.FileData[i] = nil
 	}
 	snapshot.FileData = nil
 	for _, relativePath := range snapshot.DeletedRelativePaths {
-		ch <- fileTombstoneEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt, relativePath, isDependency)
+		w.send(fileTombstoneEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt, relativePath, isDependency))
 	}
 
 	// Content file facts — two-phase re-read path or legacy path.
@@ -184,7 +196,7 @@ func streamFacts(
 			}
 			bodyStr := string(body)
 
-			ch <- contentFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt, ContentFileSnapshot{
+			w.send(contentFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt, ContentFileSnapshot{
 				RelativePath:    meta.RelativePath,
 				Body:            bodyStr,
 				Digest:          meta.Digest,
@@ -193,10 +205,10 @@ func streamFacts(
 				TemplateDialect: meta.TemplateDialect,
 				IACRelevant:     meta.IACRelevant,
 				CommitSHA:       meta.CommitSHA,
-			})
-			emitServiceCatalogFactsForContentFile(ch, scopeID, generationID, observedAt, meta.RelativePath, bodyStr)
+			}))
+			emitServiceCatalogFactsForContentFile(w, scopeID, generationID, observedAt, meta.RelativePath, bodyStr)
 			emitWorkflowImageEvidenceFactsForContentFile(
-				ch,
+				w,
 				repo.ID,
 				scopeID,
 				generationID,
@@ -206,7 +218,7 @@ func streamFacts(
 			)
 			if !documentationPaths[meta.RelativePath] && emitGitDocumentationFactsForContentFile(
 				ctx,
-				ch,
+				w,
 				repoPath,
 				repo,
 				scopeID,
@@ -225,9 +237,9 @@ func streamFacts(
 		snapshot.ContentFileMetas = nil
 	} else {
 		for i, fileSnapshot := range snapshot.ContentFiles {
-			ch <- contentFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt, fileSnapshot)
+			w.send(contentFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt, fileSnapshot))
 			emitServiceCatalogFactsForContentFile(
-				ch,
+				w,
 				scopeID,
 				generationID,
 				observedAt,
@@ -235,7 +247,7 @@ func streamFacts(
 				fileSnapshot.Body,
 			)
 			emitWorkflowImageEvidenceFactsForContentFile(
-				ch,
+				w,
 				repo.ID,
 				scopeID,
 				generationID,
@@ -245,7 +257,7 @@ func streamFacts(
 			)
 			if !documentationPaths[fileSnapshot.RelativePath] && emitGitDocumentationFactsForContentFile(
 				ctx,
-				ch,
+				w,
 				repoPath,
 				repo,
 				scopeID,
@@ -271,7 +283,7 @@ func streamFacts(
 		}
 		if emitGitDocumentationFactsForContentFile(
 			ctx,
-			ch,
+			w,
 			repoPath,
 			repo,
 			scopeID,
@@ -289,12 +301,12 @@ func streamFacts(
 	}
 	snapshot.DocumentationFileMetas = nil
 	for _, relativePath := range snapshot.DeletedRelativePaths {
-		ch <- contentTombstoneEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt, relativePath)
+		w.send(contentTombstoneEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt, relativePath))
 	}
 
 	// Content entity facts
 	for i, entitySnapshot := range snapshot.ContentEntities {
-		ch <- contentEntityFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt, entitySnapshot)
+		w.send(contentEntityFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt, entitySnapshot))
 		snapshot.ContentEntities[i] = ContentEntitySnapshot{}
 	}
 	snapshot.ContentEntities = nil
@@ -302,11 +314,11 @@ func streamFacts(
 	// Value-flow taint evidence facts (opt-in via ESHU_EMIT_DATAFLOW; the slice is
 	// empty otherwise so this loop is a no-op when the gate is off).
 	for _, evidence := range snapshot.TaintEvidence {
-		ch <- taintEvidenceFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt, evidence)
+		w.send(taintEvidenceFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt, evidence))
 	}
 	snapshot.TaintEvidence = nil
 	for _, evidence := range snapshot.InterprocTaintEvidence {
-		ch <- interprocEvidenceFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt, evidence)
+		w.send(interprocEvidenceFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt, evidence))
 	}
 	snapshot.InterprocTaintEvidence = nil
 
@@ -316,7 +328,7 @@ func streamFacts(
 	// FunctionID, so a delta that only re-summarizes changed files refreshes those
 	// functions without disturbing the rest.
 	for _, summary := range snapshot.FunctionSummaries {
-		ch <- functionSummaryFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt, summary)
+		w.send(functionSummaryFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt, summary))
 	}
 	snapshot.FunctionSummaries = nil
 
@@ -324,17 +336,17 @@ func streamFacts(
 	// otherwise). Emitted on both delta and full generations: each upserts by its
 	// (FunctionID, param index) so a delta refreshes only changed files.
 	for _, fnSource := range snapshot.FunctionSources {
-		ch <- functionSourceFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt, fnSource)
+		w.send(functionSourceFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt, fnSource))
 	}
 	snapshot.FunctionSources = nil
 	for _, function := range snapshot.DataflowFunctions {
-		ch <- dataflowFunctionFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt, function)
+		w.send(dataflowFunctionFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt, function))
 	}
 	snapshot.DataflowFunctions = nil
 
 	// Reducer follow-up facts — trigger downstream materialization domains.
 	if snapshot.Delta {
-		ch <- shellExecMaterializationFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt)
+		w.send(shellExecMaterializationFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt))
 		return
 	}
 
@@ -347,19 +359,32 @@ func streamFacts(
 	// correct and stale edges/nodes are cleared when the finding set goes empty
 	// (#2919).
 	if snapshot.DataflowScanned {
-		ch <- dataflowScannedFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt)
+		w.send(dataflowScannedFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt))
 	}
 
-	ch <- workloadIdentityFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt)
-	ch <- deployableUnitCorrelationFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt)
-	ch <- workloadMaterializationFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt)
-	ch <- codeCallMaterializationFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt)
-	ch <- platformInfraMaterializationFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt)
-	ch <- deploymentMappingFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt)
-	ch <- sqlRelationshipMaterializationFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt)
-	ch <- shellExecMaterializationFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt)
-	ch <- inheritanceMaterializationFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt)
-	ch <- codeImportRepoEdgeFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt)
+	w.send(workloadIdentityFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt))
+	w.send(deployableUnitCorrelationFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt))
+	w.send(workloadMaterializationFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt))
+	w.send(codeCallMaterializationFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt))
+	w.send(platformInfraMaterializationFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt))
+	w.send(deploymentMappingFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt))
+	w.send(sqlRelationshipMaterializationFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt))
+	w.send(shellExecMaterializationFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt))
+	w.send(inheritanceMaterializationFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt))
+	w.send(codeImportRepoEdgeFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt))
+}
+
+// factStreamWriter wraps a fact channel with an atomic counter. Every send
+// through this writer increments the counter atomically so the stream
+// produces an exact post-drain count without pre-reading file bodies.
+type factStreamWriter struct {
+	ch    chan<- facts.Envelope
+	count *atomic.Int64
+}
+
+func (w factStreamWriter) send(env facts.Envelope) {
+	w.count.Add(1)
+	w.ch <- env
 }
 
 func repositoryFactEnvelope(

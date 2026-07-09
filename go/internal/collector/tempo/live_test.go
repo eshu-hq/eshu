@@ -48,7 +48,7 @@ func TestLiveTempoObservedTraceSignalEvidence(t *testing.T) {
 	}
 
 	envs := liveTempoCollectFacts(t, collected)
-	if got, want := collected.FactCount, len(envs); got != want {
+	if got, want := collected.FactCount(), len(envs); got != want {
 		t.Fatalf("FactCount = %d, want len(envelopes) %d", got, want)
 	}
 	liveTempoAssertObservedEvidence(t, envs, secrets)
@@ -164,7 +164,7 @@ func liveTempoSourceFetched(envelope facts.Envelope) bool {
 func liveTempoCollectFacts(t *testing.T, collected collector.CollectedGeneration) []facts.Envelope {
 	t.Helper()
 
-	envs := make([]facts.Envelope, 0, collected.FactCount)
+	envs := make([]facts.Envelope, 0, collected.FactCount())
 	for envelope := range collected.Facts {
 		envs = append(envs, envelope)
 	}

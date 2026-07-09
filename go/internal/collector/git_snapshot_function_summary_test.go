@@ -78,7 +78,7 @@ func TestFunctionSummaryFactEmittedAndCounted(t *testing.T) {
 	collected := buildStreamingGeneration(repoPath, repo, "run-1", observedAt, withSummaries, false)
 	envelopes := drainFactChannel(collected.Facts)
 
-	if got, want := len(envelopes), collected.FactCount; got != want {
+	if got, want := len(envelopes), collected.FactCount(); got != want {
 		t.Fatalf("streamed facts = %d, FactCount = %d (summary not counted)", got, want)
 	}
 	if got := len(envelopes) - len(baseFacts); got != 1 {

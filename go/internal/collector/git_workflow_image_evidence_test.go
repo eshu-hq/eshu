@@ -39,7 +39,7 @@ jobs:
 		false,
 	)
 	envelopes := drainCollectorFacts(t, collected)
-	if got, want := collected.FactCount, len(envelopes); got != want {
+	if got, want := collected.FactCount(), len(envelopes); got != want {
 		t.Fatalf("FactCount = %d, want emitted fact count %d", got, want)
 	}
 
@@ -81,7 +81,7 @@ jobs:
 
 func drainCollectorFacts(t *testing.T, collected CollectedGeneration) []facts.Envelope {
 	t.Helper()
-	envelopes := make([]facts.Envelope, 0, collected.FactCount)
+	envelopes := make([]facts.Envelope, 0, collected.FactCount())
 	for envelope := range collected.Facts {
 		envelopes = append(envelopes, envelope)
 	}

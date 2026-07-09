@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"sync/atomic"
 	"time"
 
 	"go.opentelemetry.io/otel/codes"
@@ -54,7 +55,14 @@ type CollectedGeneration struct {
 	Scope      scope.IngestionScope
 	Generation scope.ScopeGeneration
 	Facts      <-chan facts.Envelope
-	FactCount  int // estimated total for telemetry (may be approximate)
+	// EstimatedFactCount is a conservative pre-computed estimate from metadata
+	// counts. Use FactCount() for the best available count (exact after the
+	// stream drains).
+	EstimatedFactCount int
+	// factCountAtomic is set by streaming collectors that emit through a
+	// goroutine. The goroutine increments it per emitted envelope; after the
+	// Facts channel is drained, Load() returns the exact total.
+	factCountAtomic *atomic.Int64
 	// FactStreamErr reports asynchronous fact stream failures after Facts has
 	// closed. Committers that receive this callback must check it before
 	// committing durable state.
@@ -65,6 +73,21 @@ type CollectedGeneration struct {
 	// DiscoveryAdvisory is optional focused-run tuning evidence for the
 	// collected repository. It is not persisted with facts.
 	DiscoveryAdvisory *DiscoveryAdvisoryReport
+}
+
+// FactCount returns the best available fact count. When a streaming goroutine
+// is active, this returns the larger of the pre-computed estimate and the atomic
+// counter (which starts at 0 and is incremented per emitted envelope). Before
+// the goroutine sends its first envelope the estimate is returned; after the
+// Facts channel drains the atomic holds the exact total.
+func (cg CollectedGeneration) FactCount() int {
+	if cg.factCountAtomic != nil {
+		atomicVal := int(cg.factCountAtomic.Load())
+		if atomicVal > cg.EstimatedFactCount {
+			return atomicVal
+		}
+	}
+	return cg.EstimatedFactCount
 }
 
 // FactsFromSlice creates a CollectedGeneration with facts from a pre-built
@@ -81,7 +104,7 @@ func FactsFromSlice(
 		ch <- e
 	}
 	close(ch)
-	return CollectedGeneration{Scope: s, Generation: g, Facts: ch, FactCount: len(envs)}
+	return CollectedGeneration{Scope: s, Generation: g, Facts: ch, EstimatedFactCount: len(envs)}
 }
 
 // Committer owns the collector durable write boundary.
@@ -358,8 +381,6 @@ func (s Service) completeGenerationDeadLetterReplay(ctx context.Context, collect
 }
 
 func (s Service) commitWithTelemetry(ctx context.Context, collected CollectedGeneration, startedAt time.Time) error {
-	factCount := int64(collected.FactCount)
-
 	var err error
 	if collected.FactStreamErr != nil {
 		streamCommitter, ok := s.Committer.(StreamErrorCommitter)
@@ -385,6 +406,11 @@ func (s Service) commitWithTelemetry(ctx context.Context, collected CollectedGen
 			collected.Facts,
 		)
 	}
+
+	// After the commit drain, FactCount() returns the exact streamed count
+	// (via the atomic populated by the streaming goroutine) or the
+	// pre-computed estimate for non-streaming collectors.
+	factCount := int64(collected.FactCount())
 
 	duration := time.Since(startedAt).Seconds()
 
@@ -412,7 +438,7 @@ func (s Service) commitWithTelemetry(ctx context.Context, collected CollectedGen
 		for _, a := range scopeAttrs {
 			logAttrs = append(logAttrs, a)
 		}
-		logAttrs = append(logAttrs, slog.Int("fact_count", collected.FactCount))
+		logAttrs = append(logAttrs, slog.Int("fact_count", collected.FactCount()))
 		logAttrs = append(logAttrs, slog.Float64("duration_seconds", duration))
 
 		logAttrs = append(logAttrs, telemetry.PhaseAttr(telemetry.PhaseEmission))

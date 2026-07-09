@@ -27,7 +27,7 @@ func TestDataflowScannedMarkerEmittedWithoutFindings(t *testing.T) {
 	collected := buildStreamingGeneration(repoPath, repo, "run-1", observedAt, snapshot, false)
 	envelopes := drainFactChannel(collected.Facts)
 
-	if got, want := len(envelopes), collected.FactCount; got != want {
+	if got, want := len(envelopes), collected.FactCount(); got != want {
 		t.Fatalf("streamed facts = %d, FactCount = %d (marker not counted)", got, want)
 	}
 	markers := 0
@@ -56,7 +56,7 @@ func TestDataflowScannedMarkerAbsentWhenGateOff(t *testing.T) {
 	collected := buildStreamingGeneration(repoPath, repo, "run-1", observedAt, snapshot, false)
 	envelopes := drainFactChannel(collected.Facts)
 
-	if got, want := len(envelopes), collected.FactCount; got != want {
+	if got, want := len(envelopes), collected.FactCount(); got != want {
 		t.Fatalf("streamed facts = %d, FactCount = %d", got, want)
 	}
 	for _, e := range envelopes {
@@ -84,7 +84,7 @@ func TestDataflowScannedMarkerAbsentOnDelta(t *testing.T) {
 	collected := buildStreamingGeneration(repoPath, repo, "run-1", observedAt, snapshot, false)
 	envelopes := drainFactChannel(collected.Facts)
 
-	if got, want := len(envelopes), collected.FactCount; got != want {
+	if got, want := len(envelopes), collected.FactCount(); got != want {
 		t.Fatalf("streamed facts = %d, FactCount = %d", got, want)
 	}
 	for _, e := range envelopes {

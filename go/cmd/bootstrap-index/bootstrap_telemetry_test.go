@@ -45,9 +45,9 @@ func TestDrainCollectorEmitsContentEntityCounterByFileKind(t *testing.T) {
 
 	source := &fakeSource{generations: []collector.CollectedGeneration{
 		{
-			Scope:      scope.IngestionScope{ScopeID: "scope-noisy"},
-			Generation: scope.ScopeGeneration{GenerationID: "gen-1"},
-			FactCount:  0,
+			Scope:              scope.IngestionScope{ScopeID: "scope-noisy"},
+			Generation:         scope.ScopeGeneration{GenerationID: "gen-1"},
+			EstimatedFactCount: 0,
 			DiscoveryAdvisory: &collector.DiscoveryAdvisoryReport{
 				SchemaVersion: "discovery_advisory.v1",
 				Run:           collector.DiscoveryAdvisoryRun{RepoPath: "/repo"},
@@ -108,7 +108,7 @@ func TestRunPipelinedEmitsBootstrapPhaseTimings(t *testing.T) {
 	}
 
 	source := &fakeSource{generations: []collector.CollectedGeneration{
-		{Scope: scope.IngestionScope{ScopeID: "s1"}, FactCount: 0},
+		{Scope: scope.IngestionScope{ScopeID: "s1"}, EstimatedFactCount: 0},
 	}}
 	ws := &concurrentWorkSource{
 		items: []projector.ScopeGenerationWork{
@@ -165,7 +165,7 @@ func TestRunPipelinedRecordsPhaseDurationOnError(t *testing.T) {
 	}
 
 	source := &fakeSource{generations: []collector.CollectedGeneration{
-		{Scope: scope.IngestionScope{ScopeID: "s1"}, FactCount: 0},
+		{Scope: scope.IngestionScope{ScopeID: "s1"}, EstimatedFactCount: 0},
 	}}
 	ws := &concurrentWorkSource{
 		items: []projector.ScopeGenerationWork{

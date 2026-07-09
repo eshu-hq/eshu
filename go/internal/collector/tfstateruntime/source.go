@@ -295,11 +295,11 @@ func (s ClaimedSource) collectCandidate(
 	s.recordWarningFacts(ctx, sourceKey.BackendKind, safeLocatorHash, result.WarningsByKind)
 	s.recordRedactions(ctx, result.RedactionsApplied)
 	return collector.CollectedGeneration{
-		Scope:         scopeValue,
-		Generation:    generationValue,
-		Facts:         factStream,
-		FactStreamErr: factStreamErr,
-		FactCount:     factCount,
+		Scope:              scopeValue,
+		Generation:         generationValue,
+		Facts:              factStream,
+		FactStreamErr:      factStreamErr,
+		EstimatedFactCount: factCount,
 	}, true, nil
 }
 

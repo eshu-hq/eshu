@@ -116,7 +116,7 @@ func TestSourceDeduplicatesExactFactsBeforeCommit(t *testing.T) {
 	if !ok {
 		t.Fatal("NextClaimed() ok = false, want true")
 	}
-	if got, want := collected.FactCount, 1; got != want {
+	if got, want := collected.FactCount(), 1; got != want {
 		t.Fatalf("FactCount = %d, want %d", got, want)
 	}
 	envelopes := collectFacts(t, collected)

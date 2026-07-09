@@ -4,7 +4,6 @@
 package collector
 
 import (
-	"os"
 	"path"
 	"path/filepath"
 	"strings"
@@ -16,66 +15,8 @@ import (
 
 const gitServiceCatalogCollectorInstanceID = "git-service-catalog"
 
-func serviceCatalogFactCount(
-	repoPath string,
-	scopeID string,
-	generationID string,
-	observedAt time.Time,
-	snapshot RepositorySnapshot,
-) int {
-	total := 0
-	if len(snapshot.ContentFileMetas) > 0 {
-		for _, meta := range snapshot.ContentFileMetas {
-			total += serviceCatalogFactCountForFile(
-				repoPath,
-				scopeID,
-				generationID,
-				observedAt,
-				meta.RelativePath,
-				nil,
-			)
-		}
-		return total
-	}
-	for _, fileSnapshot := range snapshot.ContentFiles {
-		total += len(serviceCatalogManifestEnvelopes(
-			[]byte(fileSnapshot.Body),
-			scopeID,
-			generationID,
-			observedAt,
-			fileSnapshot.RelativePath,
-		))
-	}
-	return total
-}
-
-func serviceCatalogFactCountForFile(
-	repoPath string,
-	scopeID string,
-	generationID string,
-	observedAt time.Time,
-	relativePath string,
-	body []byte,
-) int {
-	sourceURI, ok := serviceCatalogSourceURI(relativePath)
-	if !ok {
-		return 0
-	}
-	if _, ok := serviceCatalogProviderForPath(sourceURI); !ok {
-		return 0
-	}
-	if body == nil {
-		raw, err := os.ReadFile(filepath.Join(repoPath, filepath.FromSlash(sourceURI))) // #nosec G304 -- reads indexed repo service-catalog file at a path derived from the scan target, not user-supplied input
-		if err != nil {
-			return 0
-		}
-		body = raw
-	}
-	return len(serviceCatalogManifestEnvelopes(body, scopeID, generationID, observedAt, sourceURI))
-}
-
 func emitServiceCatalogFactsForContentFile(
-	ch chan<- facts.Envelope,
+	w factStreamWriter,
 	scopeID string,
 	generationID string,
 	observedAt time.Time,
@@ -89,7 +30,7 @@ func emitServiceCatalogFactsForContentFile(
 		observedAt,
 		relativePath,
 	) {
-		ch <- envelope
+		w.send(envelope)
 	}
 }
 

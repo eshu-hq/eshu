@@ -74,7 +74,7 @@ func TestSnapshotSourceYieldsGenerationPerTarget(t *testing.T) {
 		if gen.Generation.Status != scope.GenerationStatusPending || gen.Generation.TriggerKind != scope.TriggerKindSnapshot {
 			t.Fatalf("Next[%d] generation = %+v", i, gen.Generation)
 		}
-		if gen.FactCount == 0 {
+		if gen.FactCount() == 0 {
 			t.Fatalf("Next[%d] emitted no facts", i)
 		}
 		var kinds int
