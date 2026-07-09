@@ -1,0 +1,471 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+package query
+
+import (
+	"errors"
+	"log/slog"
+	"net/http"
+	"strings"
+	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
+)
+
+// Sentinel errors an AdminProviderConfigMutationStore implementation (in
+// cmd/api, backed by the postgres package) may return so this handler can map
+// them to the right HTTP status without importing storage/postgres or
+// secretcrypto directly — this package stays layered above both.
+var (
+	// ErrAdminProviderConfigDuplicateKey mirrors
+	// postgres.ErrProviderConfigDuplicateKey: a live provider already exists
+	// for this tenant/kind/key.
+	ErrAdminProviderConfigDuplicateKey = errors.New("admin provider config: already exists for this tenant/kind/key")
+	// ErrAdminProviderConfigKeyringUnavailable mirrors
+	// postgres.ErrProviderSecretKeyringUnavailable: no DEK is configured, so a
+	// write carrying a secret cannot be sealed.
+	ErrAdminProviderConfigKeyringUnavailable = errors.New("admin provider config: encryption key is not configured")
+	// ErrAdminProviderConfigRevisionNotFound mirrors
+	// postgres.ErrProviderConfigRevisionNotFound: a revert target revision
+	// does not belong to the provider config.
+	ErrAdminProviderConfigRevisionNotFound = errors.New("admin provider config: revision not found")
+)
+
+// AdminProviderConfigMutationHandler serves the DB-backed identity
+// provider-config CRUD write endpoints under the identity_admin capability
+// family (#4966, epic #4962). Every route requires all-scope admin
+// authentication, writes strictly within the caller's own tenant, and emits a
+// governance audit event. Client secrets and SAML signing material are
+// write-only: the JSON request carries them in plaintext (over TLS, like
+// every other credential this API accepts), the handler builds a JSON secret
+// blob and passes it to the store to seal, and no response, log line, or
+// audit event ever carries the plaintext or the sealed ciphertext.
+type AdminProviderConfigMutationHandler struct {
+	Store  AdminProviderConfigMutationStore
+	Tester ProviderConfigConnectionTester
+	Audit  GovernanceAuditAppender
+	Now    func() time.Time
+}
+
+// Mount registers the admin provider-config mutation routes.
+func (h *AdminProviderConfigMutationHandler) Mount(mux *http.ServeMux) {
+	mux.HandleFunc("POST /api/v0/auth/admin/provider-configs", h.handleCreate)
+	mux.HandleFunc("POST /api/v0/auth/admin/provider-configs/{provider_config_id}", h.handleUpdate)
+	mux.HandleFunc("POST /api/v0/auth/admin/provider-configs/{provider_config_id}/revert", h.handleRevert)
+	mux.HandleFunc("POST /api/v0/auth/admin/provider-configs/{provider_config_id}/enable", h.handleEnable)
+	mux.HandleFunc("POST /api/v0/auth/admin/provider-configs/{provider_config_id}/disable", h.handleDisable)
+	mux.HandleFunc("POST /api/v0/auth/admin/provider-configs/{provider_config_id}/test-connection", h.handleTestConnection)
+}
+
+func (h *AdminProviderConfigMutationHandler) storeReady(w http.ResponseWriter) bool {
+	if h == nil || h.Store == nil {
+		WriteError(w, http.StatusServiceUnavailable, "admin provider config mutation store is unavailable")
+		return false
+	}
+	return true
+}
+
+func (h *AdminProviderConfigMutationHandler) now() time.Time {
+	if h.Now != nil {
+		return h.Now().UTC()
+	}
+	return time.Now().UTC()
+}
+
+func (h *AdminProviderConfigMutationHandler) adminScope(
+	w http.ResponseWriter,
+	r *http.Request,
+	eventType governanceaudit.EventType,
+) (tenantID string, ok bool) {
+	auth, found := AuthContextFromContext(r.Context())
+	auth = normalizeAuthContext(auth)
+	if !found || !auth.AllScopes {
+		h.audit(r, eventType, governanceaudit.DecisionDenied, "admin_scope_required", "")
+		WriteError(w, http.StatusForbidden, "all-scope admin authentication is required")
+		return "", false
+	}
+	if auth.TenantID == "" {
+		h.audit(r, eventType, governanceaudit.DecisionDenied, "admin_tenant_required", "")
+		WriteError(w, http.StatusForbidden, "admin tenant scope is required")
+		return "", false
+	}
+	return auth.TenantID, true
+}
+
+func (h *AdminProviderConfigMutationHandler) requirePermission(
+	w http.ResponseWriter, r *http.Request, eventType governanceaudit.EventType, capability string,
+) bool {
+	if authContextAllowsPermissionFeature(r.Context(), permissionFeatureIdentityAdmin) {
+		return true
+	}
+	h.audit(r, eventType, governanceaudit.DecisionDenied, "permission_catalog_denied", "")
+	writePermissionDeniedEnvelope(w, capability)
+	return false
+}
+
+func (h *AdminProviderConfigMutationHandler) handleCreate(w http.ResponseWriter, r *http.Request) {
+	if !h.storeReady(w) {
+		return
+	}
+	const eventType = governanceaudit.EventTypeIDPConfigChange
+	if !h.requirePermission(w, r, eventType, "identity_admin.provider_config_create") {
+		return
+	}
+	tenantID, ok := h.adminScope(w, r, eventType)
+	if !ok {
+		return
+	}
+	var body adminProviderConfigWriteRequest
+	if err := ReadJSON(r, &body); err != nil {
+		h.audit(r, eventType, governanceaudit.DecisionDenied, "provider_config_invalid_request", "")
+		WriteError(w, http.StatusBadRequest, "invalid provider config request")
+		return
+	}
+	built, err := buildProviderConfigWrite(body)
+	if err != nil {
+		h.audit(r, eventType, governanceaudit.DecisionDenied, "provider_config_validation_failed", "")
+		WriteError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	providerConfigID := strings.TrimSpace(body.ProviderConfigID)
+	if providerConfigID == "" {
+		var err error
+		providerConfigID, err = newProviderConfigID()
+		if err != nil {
+			h.audit(r, eventType, governanceaudit.DecisionDenied, "provider_config_id_generation_failed", "")
+			WriteError(w, http.StatusInternalServerError, "failed to generate provider config id")
+			return
+		}
+	}
+	revisionID, err := newProviderConfigRevisionID()
+	if err != nil {
+		h.audit(r, eventType, governanceaudit.DecisionDenied, "provider_config_revision_id_generation_failed", "")
+		WriteError(w, http.StatusInternalServerError, "failed to generate provider config revision id")
+		return
+	}
+
+	result, err := h.Store.CreateProviderConfig(r.Context(), AdminProviderConfigCreateRequest{
+		ProviderConfigID:  providerConfigID,
+		TenantID:          tenantID,
+		ProviderKind:      built.kind,
+		ProviderKeyHash:   built.keyHash,
+		IssuerHash:        built.issuerHash,
+		ClientIDHash:      built.clientIDHash,
+		MetadataURLHash:   built.metadataURLHash,
+		EntityIDHash:      built.entityIDHash,
+		RevisionID:        revisionID,
+		Configuration:     built.configurationJSON,
+		ConfigurationHash: localIdentityHash(built.configurationJSON),
+		MetadataHash:      localIdentityHash(built.metadataForHash),
+		PlaintextSecret:   built.secretJSON,
+		Now:               h.now(),
+	})
+	if err != nil {
+		h.audit(r, eventType, governanceaudit.DecisionDenied, providerConfigWriteErrorReason(err), "")
+		writeProviderConfigWriteError(w, err)
+		return
+	}
+	h.audit(r, eventType, governanceaudit.DecisionAllowed, "provider_config_created", "")
+	WriteJSON(w, http.StatusOK, providerConfigWriteResponse(result))
+}
+
+func (h *AdminProviderConfigMutationHandler) handleUpdate(w http.ResponseWriter, r *http.Request) {
+	if !h.storeReady(w) {
+		return
+	}
+	const eventType = governanceaudit.EventTypeIDPConfigChange
+	if !h.requirePermission(w, r, eventType, "identity_admin.provider_config_update") {
+		return
+	}
+	tenantID, ok := h.adminScope(w, r, eventType)
+	if !ok {
+		return
+	}
+	providerConfigID := strings.TrimSpace(PathParam(r, "provider_config_id"))
+	if providerConfigID == "" {
+		h.audit(r, eventType, governanceaudit.DecisionDenied, "provider_config_id_required", "")
+		WriteError(w, http.StatusBadRequest, "provider_config_id is required")
+		return
+	}
+	var body adminProviderConfigWriteRequest
+	if err := ReadJSON(r, &body); err != nil {
+		h.audit(r, eventType, governanceaudit.DecisionDenied, "provider_config_invalid_request", "")
+		WriteError(w, http.StatusBadRequest, "invalid provider config request")
+		return
+	}
+	built, err := buildProviderConfigWrite(body)
+	if err != nil {
+		h.audit(r, eventType, governanceaudit.DecisionDenied, "provider_config_validation_failed", "")
+		WriteError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	revisionID, err := newProviderConfigRevisionID()
+	if err != nil {
+		h.audit(r, eventType, governanceaudit.DecisionDenied, "provider_config_revision_id_generation_failed", "")
+		WriteError(w, http.StatusInternalServerError, "failed to generate provider config revision id")
+		return
+	}
+
+	result, err := h.Store.UpdateProviderConfig(r.Context(), AdminProviderConfigUpdateRequest{
+		ProviderConfigID:  providerConfigID,
+		TenantID:          tenantID,
+		RevisionID:        revisionID,
+		Configuration:     built.configurationJSON,
+		ConfigurationHash: localIdentityHash(built.configurationJSON),
+		MetadataHash:      localIdentityHash(built.metadataForHash),
+		PlaintextSecret:   built.secretJSON,
+		Now:               h.now(),
+	})
+	if err != nil {
+		h.audit(r, eventType, governanceaudit.DecisionDenied, providerConfigWriteErrorReason(err), "")
+		writeProviderConfigWriteError(w, err)
+		return
+	}
+	if !result.Found {
+		h.audit(r, eventType, governanceaudit.DecisionDenied, "provider_config_not_found", "")
+		WriteError(w, http.StatusNotFound, "provider config not found")
+		return
+	}
+	h.audit(r, eventType, governanceaudit.DecisionAllowed, "provider_config_updated", "")
+	WriteJSON(w, http.StatusOK, providerConfigWriteResponse(result))
+}
+
+func (h *AdminProviderConfigMutationHandler) handleRevert(w http.ResponseWriter, r *http.Request) {
+	if !h.storeReady(w) {
+		return
+	}
+	const eventType = governanceaudit.EventTypeIDPConfigChange
+	if !h.requirePermission(w, r, eventType, "identity_admin.provider_config_revert") {
+		return
+	}
+	tenantID, ok := h.adminScope(w, r, eventType)
+	if !ok {
+		return
+	}
+	providerConfigID := strings.TrimSpace(PathParam(r, "provider_config_id"))
+	var body adminProviderConfigRevertRequest
+	if err := ReadJSON(r, &body); err != nil {
+		h.audit(r, eventType, governanceaudit.DecisionDenied, "provider_config_revert_invalid_request", "")
+		WriteError(w, http.StatusBadRequest, "invalid revert request")
+		return
+	}
+	targetRevisionID := strings.TrimSpace(body.RevisionID)
+	if providerConfigID == "" || targetRevisionID == "" {
+		h.audit(r, eventType, governanceaudit.DecisionDenied, "provider_config_revert_missing_fields", "")
+		WriteError(w, http.StatusBadRequest, "provider_config_id and revision_id are required")
+		return
+	}
+	result, err := h.Store.RevertProviderConfig(r.Context(), AdminProviderConfigRevertRequest{
+		ProviderConfigID: providerConfigID,
+		TenantID:         tenantID,
+		TargetRevisionID: targetRevisionID,
+		Now:              h.now(),
+	})
+	if err != nil {
+		h.audit(r, eventType, governanceaudit.DecisionDenied, providerConfigWriteErrorReason(err), "")
+		writeProviderConfigWriteError(w, err)
+		return
+	}
+	if !result.Found {
+		h.audit(r, eventType, governanceaudit.DecisionDenied, "provider_config_not_found", "")
+		WriteError(w, http.StatusNotFound, "provider config not found")
+		return
+	}
+	reason := "provider_config_reverted"
+	if !result.Changed {
+		reason = "provider_config_revert_noop"
+	}
+	h.audit(r, eventType, governanceaudit.DecisionAllowed, reason, "")
+	WriteJSON(w, http.StatusOK, providerConfigWriteResponse(result))
+}
+
+func (h *AdminProviderConfigMutationHandler) handleEnable(w http.ResponseWriter, r *http.Request) {
+	h.handleStatusChange(w, r, "identity_admin.provider_config_enable", true)
+}
+
+func (h *AdminProviderConfigMutationHandler) handleDisable(w http.ResponseWriter, r *http.Request) {
+	h.handleStatusChange(w, r, "identity_admin.provider_config_disable", false)
+}
+
+// handleStatusChange implements enable/disable. Enable requires a passing
+// test-connection result for the CURRENT active revision, re-run
+// synchronously at enable time rather than trusted from a prior call — this
+// is the "provider cannot be enabled without a passing test" gate, enforced
+// here rather than by persisting a trust flag (see the package doc comment
+// on why no new column tracks test state).
+func (h *AdminProviderConfigMutationHandler) handleStatusChange(w http.ResponseWriter, r *http.Request, capability string, enable bool) {
+	if !h.storeReady(w) {
+		return
+	}
+	const eventType = governanceaudit.EventTypeIDPConfigChange
+	if !h.requirePermission(w, r, eventType, capability) {
+		return
+	}
+	tenantID, ok := h.adminScope(w, r, eventType)
+	if !ok {
+		return
+	}
+	providerConfigID := strings.TrimSpace(PathParam(r, "provider_config_id"))
+	if providerConfigID == "" {
+		h.audit(r, eventType, governanceaudit.DecisionDenied, "provider_config_id_required", "")
+		WriteError(w, http.StatusBadRequest, "provider_config_id is required")
+		return
+	}
+	if enable {
+		if h.Tester == nil {
+			h.audit(r, eventType, governanceaudit.DecisionDenied, "provider_config_connection_tester_unavailable", "")
+			WriteError(w, http.StatusServiceUnavailable, "connection test capability is unavailable")
+			return
+		}
+		testResult, err := h.Tester.TestProviderConnection(r.Context(), providerConfigID, tenantID)
+		if err != nil || !testResult.OK {
+			h.audit(r, eventType, governanceaudit.DecisionDenied, "provider_config_enable_test_failed", "")
+			WriteError(w, http.StatusBadRequest, "provider cannot be enabled: connection test did not pass")
+			return
+		}
+	}
+	var result AdminProviderConfigWriteResult
+	var err error
+	if enable {
+		result, err = h.Store.EnableProviderConfig(r.Context(), providerConfigID, tenantID)
+	} else {
+		result, err = h.Store.DisableProviderConfig(r.Context(), providerConfigID, tenantID)
+	}
+	if err != nil {
+		h.audit(r, eventType, governanceaudit.DecisionDenied, providerConfigWriteErrorReason(err), "")
+		writeProviderConfigWriteError(w, err)
+		return
+	}
+	if !result.Found {
+		h.audit(r, eventType, governanceaudit.DecisionDenied, "provider_config_not_found", "")
+		WriteError(w, http.StatusNotFound, "provider config not found")
+		return
+	}
+	reason := "provider_config_status_changed"
+	h.audit(r, eventType, governanceaudit.DecisionAllowed, reason, "")
+	WriteJSON(w, http.StatusOK, providerConfigWriteResponse(result))
+}
+
+func (h *AdminProviderConfigMutationHandler) handleTestConnection(w http.ResponseWriter, r *http.Request) {
+	const eventType = governanceaudit.EventTypeIDPConfigChange
+	if !h.requirePermission(w, r, eventType, "identity_admin.provider_config_test_connection") {
+		return
+	}
+	tenantID, ok := h.adminScope(w, r, eventType)
+	if !ok {
+		return
+	}
+	if h.Tester == nil {
+		WriteError(w, http.StatusServiceUnavailable, "connection test capability is unavailable")
+		return
+	}
+	providerConfigID := strings.TrimSpace(PathParam(r, "provider_config_id"))
+	if providerConfigID == "" {
+		WriteError(w, http.StatusBadRequest, "provider_config_id is required")
+		return
+	}
+	result, err := h.Tester.TestProviderConnection(r.Context(), providerConfigID, tenantID)
+	if err != nil {
+		h.audit(r, eventType, governanceaudit.DecisionDenied, "provider_config_test_connection_error", "")
+		WriteError(w, http.StatusInternalServerError, "connection test failed to run")
+		return
+	}
+	reason := "provider_config_test_connection_passed"
+	decision := governanceaudit.DecisionAllowed
+	if !result.OK {
+		reason = "provider_config_test_connection_failed"
+		decision = governanceaudit.DecisionDenied
+	}
+	h.audit(r, eventType, decision, reason, "")
+	WriteJSON(w, http.StatusOK, map[string]any{
+		"provider_config_id": providerConfigID,
+		"ok":                 result.OK,
+		"detail":             result.Detail,
+	})
+}
+
+func (h *AdminProviderConfigMutationHandler) audit(
+	r *http.Request,
+	eventType governanceaudit.EventType,
+	decision governanceaudit.Decision,
+	reasonCode string,
+	actorIDHash string,
+) {
+	if h == nil || h.Audit == nil {
+		return
+	}
+	auth, _ := AuthContextFromContext(r.Context())
+	auth = normalizeAuthContext(auth)
+	actorClass := localIdentityActorClass(auth)
+	if actorIDHash == "" {
+		actorIDHash = auth.SubjectIDHash
+	}
+	if actorIDHash == "" && actorClass == governanceaudit.ActorClassSharedToken {
+		actorIDHash = sharedAdminActorIDHash
+	}
+	event := governanceaudit.Event{
+		Type:               eventType,
+		ActorClass:         actorClass,
+		ActorIDHash:        actorIDHash,
+		ScopeClass:         governanceaudit.ScopeClassAdmin,
+		Decision:           decision,
+		ReasonCode:         strings.TrimSpace(reasonCode),
+		CorrelationID:      safeAuditCorrelationID(documentationCorrelationID(r)),
+		PolicyRevisionHash: auth.PolicyRevisionHash,
+		OccurredAt:         time.Now().UTC(),
+		TenantID:           auth.TenantID,
+		WorkspaceID:        auth.WorkspaceID,
+	}
+	if err := h.Audit.Append(r.Context(), []governanceaudit.Event{event}); err != nil {
+		slog.ErrorContext(
+			r.Context(), "governance audit append failed",
+			"err", err,
+			"event_type", string(eventType),
+			"decision", string(decision),
+			"reason_code", reasonCode,
+		)
+	}
+}
+
+func providerConfigWriteResponse(result AdminProviderConfigWriteResult) map[string]any {
+	return map[string]any{
+		"provider_config_id": result.ProviderConfigID,
+		"revision_id":        result.RevisionID,
+		"status":             result.Status,
+		"changed":            result.Changed,
+	}
+}
+
+// providerConfigWriteErrorReason maps a store error to a governance audit
+// reason code.
+func providerConfigWriteErrorReason(err error) string {
+	switch {
+	case errors.Is(err, ErrAdminProviderConfigDuplicateKey):
+		return "provider_config_duplicate_key"
+	case errors.Is(err, ErrAdminProviderConfigKeyringUnavailable):
+		return "provider_config_keyring_unavailable"
+	case errors.Is(err, ErrAdminProviderConfigRevisionNotFound):
+		return "provider_config_revision_not_found"
+	default:
+		return "provider_config_write_failed"
+	}
+}
+
+// writeProviderConfigWriteError maps a store error to an HTTP response. It
+// never includes the underlying error text in the response body (only in the
+// server log via the caller's slog.ErrorContext, which callers should add for
+// unmapped errors) — see individual handlers.
+func writeProviderConfigWriteError(w http.ResponseWriter, err error) {
+	switch {
+	case errors.Is(err, ErrAdminProviderConfigDuplicateKey):
+		WriteError(w, http.StatusConflict, "a provider config already exists for this tenant, kind, and identity key")
+	case errors.Is(err, ErrAdminProviderConfigKeyringUnavailable):
+		WriteError(w, http.StatusServiceUnavailable, "provider secret encryption is not configured on this deployment")
+	case errors.Is(err, ErrAdminProviderConfigRevisionNotFound):
+		WriteError(w, http.StatusNotFound, "revision not found")
+	default:
+		slog.Error("admin provider config write failed", "err", err)
+		WriteError(w, http.StatusInternalServerError, "failed to write provider config")
+	}
+}

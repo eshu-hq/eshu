@@ -1,0 +1,60 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+package query
+
+// openAPIComponentsProviderConfigs documents the DB-backed identity
+// provider-config CRUD schemas (#4966, epic #4962), included into
+// openAPIComponents' "schemas" object as a separate constant fragment to
+// keep openapi_components.go under the repository's file-size limit — same
+// pattern as openAPIComponentsReplatforming
+// (openapi_components_replatforming.go).
+const openAPIComponentsProviderConfigs = `      "AdminProviderConfig": {
+        "type": "object",
+        "description": "Metadata-only admin view of one identity provider config. Never carries a secret — has_secret, secret_fingerprint (a non-reversible short hash of the sealed envelope's ciphertext), and key_id are the only secret-adjacent fields.",
+        "properties": {
+          "provider_config_id": {"type": "string"},
+          "provider_kind": {"type": "string", "enum": ["external_oidc", "external_saml"]},
+          "status": {"type": "string", "enum": ["draft", "active"]},
+          "active_revision_id": {"type": "string"},
+          "configuration": {"type": "object", "description": "Non-secret settings: issuer/client_id/scopes/group_claim (oidc) or metadata_url/entity_id/group_attribute (saml)."},
+          "has_secret": {"type": "boolean"},
+          "secret_fingerprint": {"type": "string"},
+          "key_id": {"type": "string"},
+          "shadowed_by_environment": {"type": "boolean", "description": "True when an env/file-registered provider already occupies this provider_config_id; the env config is authoritative and this row's sealed secret is never consulted for login."},
+          "source": {"type": "string", "enum": ["database", "environment"]},
+          "created_at": {"type": "string", "format": "date-time"},
+          "updated_at": {"type": "string", "format": "date-time"}
+        }
+      },
+      "AdminProviderConfigWriteRequest": {
+        "type": "object",
+        "description": "Create/update request. Exactly one of the oidc or saml field groups applies, selected by provider_kind. Secret fields (client_secret, sp_private_key, sp_certificate) are write-only and are never echoed back.",
+        "required": ["provider_kind"],
+        "properties": {
+          "provider_kind": {"type": "string", "enum": ["oidc", "saml"]},
+          "provider_config_id": {"type": "string", "description": "Optional on create; when supplied, used verbatim (this is how a DB row is made to share an id with, and thereby be detected as shadowed by, an env-registered provider). Ignored on update."},
+          "issuer": {"type": "string"},
+          "client_id": {"type": "string"},
+          "client_secret": {"type": "string", "description": "Write-only. Required on every create and update."},
+          "scopes": {"type": "array", "items": {"type": "string"}},
+          "group_claim": {"type": "string"},
+          "redirect_url": {"type": "string"},
+          "metadata_url": {"type": "string"},
+          "metadata_xml": {"type": "string"},
+          "entity_id": {"type": "string"},
+          "group_attribute": {"type": "string"},
+          "sp_private_key": {"type": "string", "description": "Write-only PEM. Required on every create and update for saml."},
+          "sp_certificate": {"type": "string", "description": "Write-only PEM. Required on every create and update for saml."}
+        }
+      },
+      "AdminProviderConfigWriteResult": {
+        "type": "object",
+        "properties": {
+          "provider_config_id": {"type": "string"},
+          "revision_id": {"type": "string"},
+          "status": {"type": "string"},
+          "changed": {"type": "boolean"}
+        }
+      },
+`
