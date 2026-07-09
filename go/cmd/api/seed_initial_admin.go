@@ -43,8 +43,8 @@ const (
 
 	authBootstrapModeEnv       = "ESHU_AUTH_BOOTSTRAP_MODE"
 	adminUsernameEnv           = "ESHU_ADMIN_USERNAME"
-	adminPasswordEnv           = "ESHU_ADMIN_PASSWORD"
-	adminPasswordFileEnv       = "ESHU_ADMIN_PASSWORD_FILE"
+	adminPasswordEnv           = "ESHU_ADMIN_PASSWORD"      // #nosec G101 -- environment variable name, not a credential
+	adminPasswordFileEnv       = "ESHU_ADMIN_PASSWORD_FILE" // #nosec G101 -- environment variable name, not a credential
 	generatedPasswordBytes     = 24
 	generatedRecoveryCodeBytes = 20
 )
@@ -232,7 +232,7 @@ func seedBootstrapAdminGenerated(
 	}
 	record := newBootstrapLocalIdentityRecord(username, string(passwordHash), []string{recoveryHash}, now)
 
-	payload, err := json.Marshal(bootstrapCredentialPayload{
+	payload, err := json.Marshal(bootstrapCredentialPayload{ // #nosec G117 -- intentionally marshaling the bootstrap credential payload immediately before AEAD sealing (keyring.Seal below); the JSON never leaves this function unencrypted
 		Username:     username,
 		Password:     password,
 		RecoveryCode: recoveryCode,

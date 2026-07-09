@@ -39,7 +39,7 @@ import (
 // The generated plaintext is printed to stdout exactly once per invocation
 // and is never logged or written to any file by this command.
 const (
-	adminCredentialDSNEnv = "ESHU_POSTGRES_DSN"
+	adminCredentialDSNEnv = "ESHU_POSTGRES_DSN" // #nosec G101 -- environment variable name, not a credential
 	generatedPasswordSize = 24
 	generatedRecoverySize = 20
 )
@@ -136,7 +136,7 @@ func runAdminResetInitialCredential(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("hash replacement password: %w", err)
 	}
 
-	payload, err := json.Marshal(bootstrapCredentialPayloadCLI{
+	payload, err := json.Marshal(bootstrapCredentialPayloadCLI{ // #nosec G117 -- intentionally marshaling the replacement credential payload immediately before AEAD sealing (keyring.Seal below); the JSON never leaves this function unencrypted
 		Username:     username,
 		Password:     password,
 		RecoveryCode: recoveryCode,

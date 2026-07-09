@@ -7,6 +7,7 @@ package postgres
 // identity_bootstrap_credentials table. 3455 is BootstrapLocalIdentity's own
 // local-identity advisory lock (identity_local_sql.go); the two keys never
 // nest inside one transaction, so they cannot deadlock each other.
+// #nosec G101 -- SQL DML whose const name contains "Credential"; the value is a fully-parameterized query, not a credential literal
 const bootstrapCredentialLockQuery = `
 SELECT pg_advisory_xact_lock(3456)
 `
@@ -14,6 +15,7 @@ SELECT pg_advisory_xact_lock(3456)
 // generateBootstrapCredentialQuery idempotently inserts the sealed one-time
 // admin credential envelope. RETURNING 1 only produces a row on a genuine
 // insert; a conflict (already provisioned) returns zero rows.
+// #nosec G101 -- SQL DML whose const name contains "Credential"; the value is a fully-parameterized query, not a credential literal
 const generateBootstrapCredentialQuery = `
 INSERT INTO identity_bootstrap_credentials (
     tenant_id,
@@ -30,6 +32,7 @@ RETURNING 1
 
 // selectBootstrapCredentialQuery returns the retrievable sealed envelope: a
 // row consumed (or reset-then-never-regenerated to empty) never matches.
+// #nosec G101 -- SQL DML whose const name contains "Credential"; the value is a fully-parameterized query, not a credential literal
 const selectBootstrapCredentialQuery = `
 SELECT sealed_credential, key_id
 FROM identity_bootstrap_credentials
@@ -65,6 +68,7 @@ WHERE tenant_id = $1
 // selectBootstrapCredentialOwnerUserIDQuery resolves the active local user
 // that owns a bootstrap credential's subject, so Reset can rotate its bcrypt
 // hash in the same transaction as the envelope re-seal.
+// #nosec G101 -- SQL DML whose const name contains "Credential"; the value is a fully-parameterized query, not a credential literal
 const selectBootstrapCredentialOwnerUserIDQuery = `
 SELECT user_id
 FROM identity_users
