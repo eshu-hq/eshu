@@ -289,7 +289,10 @@ reducer/query adapter.
 **Schema bootstrap**
 
 - `BootstrapDefinitions`, `ApplyBootstrap`,
-  `ApplyBootstrapWithoutContentSearchIndexes`, `EnsureContentSearchIndexes`,
+  `ApplyBootstrapWithoutContentSearchIndexes`, `EnsureContentSearchIndexes`
+  (no-op as of #4862 — the content trigram GIN indexes were dropped as
+  unused write-tax; the hook is retained for IaC-reachability compatibility
+  until a follow-up refactor),
   `ValidateDefinitions`, `ApplyDefinitions`, `ApplyDefinitionsWithLockTimeout`
 - Per-table DDL helpers: `DecisionSchemaSQL`, `RelationshipSchemaSQL`,
   `SharedIntentSchemaSQL`, `SharedProjectionAcceptanceSchemaSQL`,

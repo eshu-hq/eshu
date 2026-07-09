@@ -160,11 +160,11 @@ func TestLocalBootstrapDefinitionsIncludeContentSearchIndexesByDefault(t *testin
 	if contentStoreSQL == "" {
 		t.Fatal("content_store definition missing")
 	}
-	if !strings.Contains(contentStoreSQL, "content_entities_source_trgm_idx") {
-		t.Fatal("content_store SQL missing entity search index")
+	if strings.Contains(contentStoreSQL, "content_entities_source_trgm_idx") {
+		t.Fatal("content_store SQL unexpectedly contains entity search index (removed in #4862)")
 	}
-	if !strings.Contains(contentStoreSQL, "content_files_content_trgm_idx") {
-		t.Fatal("content_store SQL missing file search index")
+	if strings.Contains(contentStoreSQL, "content_files_content_trgm_idx") {
+		t.Fatal("content_store SQL unexpectedly contains file search index (removed in #4862)")
 	}
 }
 

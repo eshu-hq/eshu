@@ -178,11 +178,19 @@ func ApplyBootstrapWithoutContentSearchIndexes(ctx context.Context, exec Executo
 	return ApplyDefinitions(ctx, exec, BootstrapDefinitionsWithoutContentSearchIndexes())
 }
 
-// EnsureContentSearchIndexes creates the trigram indexes that accelerate
-// content file and entity source search.
+// EnsureContentSearchIndexes is a no-op as of #4862: the content trigram
+// GIN indexes (content_files_content_trgm_idx, content_entities_source_trgm_idx)
+// were pure write-tax and the planner never selected them for repo-scoped
+// ILIKE search queries. contentStoreSearchIndexSchemaSQL is now empty.
+// The deferred-build hook is retained so the IaC-reachability drain-state
+// check (local_content_search_indexes.go) stays intact until a follow-up
+// refactor removes the now-inert deferred-build path cleanly.
 func EnsureContentSearchIndexes(ctx context.Context, exec Executor) error {
 	if exec == nil {
 		return fmt.Errorf("executor is required")
+	}
+	if strings.TrimSpace(contentStoreSearchIndexSchemaSQL) == "" {
+		return nil
 	}
 	if _, err := exec.ExecContext(ctx, contentStoreSearchIndexSchemaSQL); err != nil {
 		return fmt.Errorf("ensure content search indexes: %w", err)

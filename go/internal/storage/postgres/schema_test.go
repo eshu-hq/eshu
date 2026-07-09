@@ -149,11 +149,11 @@ func TestBootstrapDefinitionsIncludeContentStoreTables(t *testing.T) {
 	if !strings.Contains(contentStore.SQL, "metadata JSONB NOT NULL DEFAULT '{}'::jsonb") {
 		t.Fatal("content_store SQL missing content_entities metadata jsonb column")
 	}
-	if !strings.Contains(contentStore.SQL, "content_files_content_trgm_idx") {
-		t.Fatal("content_store SQL missing content_files trigram index")
+	if strings.Contains(contentStore.SQL, "content_files_content_trgm_idx") {
+		t.Fatal("content_store SQL unexpectedly contains content_files trigram index (removed in #4862)")
 	}
-	if !strings.Contains(contentStore.SQL, "content_entities_source_trgm_idx") {
-		t.Fatal("content_store SQL missing content_entities trigram index")
+	if strings.Contains(contentStore.SQL, "content_entities_source_trgm_idx") {
+		t.Fatal("content_store SQL unexpectedly contains content_entities trigram index (removed in #4862)")
 	}
 	if !strings.Contains(contentStore.SQL, "content_files_language_repo_idx") {
 		t.Fatal("content_store SQL missing language/repository inventory index")
@@ -225,24 +225,14 @@ func TestBootstrapDefinitionsWithoutContentSearchIndexesKeepsLookupIndexes(t *te
 	}
 }
 
-func TestEnsureContentSearchIndexesAppliesOnlyTrigramIndexes(t *testing.T) {
+func TestEnsureContentSearchIndexesIsNoOpAfterTrigramDrop(t *testing.T) {
 	t.Parallel()
 
 	exec := &recordingExecutor{}
 	if err := EnsureContentSearchIndexes(context.Background(), exec); err != nil {
 		t.Fatalf("EnsureContentSearchIndexes() error = %v, want nil", err)
 	}
-	if len(exec.statements) != 1 {
-		t.Fatalf("EnsureContentSearchIndexes() statements = %d, want 1", len(exec.statements))
-	}
-	statement := exec.statements[0]
-	if !strings.Contains(statement, "content_files_content_trgm_idx") {
-		t.Fatal("content search index SQL missing file trigram index")
-	}
-	if !strings.Contains(statement, "content_entities_source_trgm_idx") {
-		t.Fatal("content search index SQL missing entity trigram index")
-	}
-	if strings.Contains(statement, "CREATE TABLE") {
-		t.Fatal("content search index SQL unexpectedly creates tables")
+	if len(exec.statements) != 0 {
+		t.Fatalf("EnsureContentSearchIndexes() statements = %d, want 0 (no-op after #4862 trigram drop)", len(exec.statements))
 	}
 }

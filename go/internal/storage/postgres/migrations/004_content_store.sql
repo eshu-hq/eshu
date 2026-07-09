@@ -70,10 +70,6 @@ CREATE INDEX IF NOT EXISTS repository_refs_repo_idx
     ON repository_refs (repo_id, ref_kind, name);
 CREATE INDEX IF NOT EXISTS repository_refs_repo_default_idx
     ON repository_refs (repo_id, is_default, name);
-CREATE INDEX IF NOT EXISTS content_files_content_trgm_idx
-    ON content_files USING gin (content gin_trgm_ops);
-CREATE INDEX IF NOT EXISTS content_entities_source_trgm_idx
-    ON content_entities USING gin (source_cache gin_trgm_ops);
 CREATE INDEX IF NOT EXISTS content_files_artifact_type_idx
     ON content_files (artifact_type);
 CREATE INDEX IF NOT EXISTS content_files_template_dialect_idx

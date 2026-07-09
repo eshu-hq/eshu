@@ -638,3 +638,36 @@ domain, worker, lease, or runtime knob. Operators still diagnose the content
 write path through the existing `InstrumentedDB` Postgres exec/query spans and
 `eshu_dp_postgres_query_duration_seconds`, and the existing content-write stage
 timing logs.
+
+## #4862 — Drop unused content pg_trgm GIN indexes
+
+Performance Evidence: the content_files_content_trgm_idx and
+content_entities_source_trgm_idx pg_trgm GIN indexes were pure write-tax.
+The only queries against these columns are the MCP search reads in
+`go/internal/query/content_reader.go` (`WHERE repo_id = $1 AND content ILIKE
+'%'||$2||'%'` and the source_cache variant). Live-stack `EXPLAIN (ANALYZE)`
+proves the planner uses the repo-scoped index + ILIKE Filter and NEVER
+selects the trigram GIN (the `repo_id` equality is selective enough).
+Codebase grep for pg_trgm-specific operators (`similarity(`, `%>%`, `<->`,
+`word_similarity`) is EMPTY, and both GINs are `idx_scan=0` on the live
+`e2e3586persist` stack (22h uptime; 233 MB + 518 MB = 751 MB).
+
+| metric | BEFORE (with GIN) | AFTER (no GIN) | delta |
+| --- | --- | --- | --- |
+| INSERT 20,000 ~2KB content rows | 1423 ms | 107.7 ms | −92% (~13.2x faster) |
+| live-stack GIN size reclaimed | 233 MB + 518 MB = 751 MB | 0 | reclaimed |
+| planner selects the GIN for MCP search | no (repo idx + ILIKE filter) | no (unchanged) | output-preserving |
+
+Proof method: live `postgres:18-alpine` on the `e2e3586persist` stack with
+`idx_scan=0` observed after 22h uptime. EXPLAIN (ANALYZE) on MCP search
+queries confirms the planner never picks the GIN — same plan shape before
+and after the drop. EXPLAIN proof: the repo-scoped ILIKE search plan is
+unchanged by the drop; query plans are output-preserving (0/0 diff).
+
+No-Observability-Change: dropping unused Postgres indexes. No metric, span,
+log key, route, worker, queen domain, lease, graph write, or runtime knob
+changes. MCP search behavior and query plans are identical. The
+deferred-content-search-index goroutine (`local_content_search_indexes.go`)
+now builds nothing but is retained until a follow-up refactor removes the
+now-inert deferred-build path cleanly; the drain-state check and goroutine
+lifecycle are unchanged.

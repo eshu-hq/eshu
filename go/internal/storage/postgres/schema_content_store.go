@@ -84,11 +84,13 @@ CREATE INDEX IF NOT EXISTS repository_refs_repo_default_idx
     ON repository_refs (repo_id, is_default, name);
 `
 
-const contentStoreSearchIndexSchemaSQL = `CREATE INDEX IF NOT EXISTS content_files_content_trgm_idx
-    ON content_files USING gin (content gin_trgm_ops);
-CREATE INDEX IF NOT EXISTS content_entities_source_trgm_idx
-    ON content_entities USING gin (source_cache gin_trgm_ops);
-`
+// contentStoreSearchIndexSchemaSQL is intentionally empty as of #4862.
+// The content_files_content_trgm_idx and content_entities_source_trgm_idx
+// pg_trgm GIN indexes were pure write-tax — the repo-scoped ILIKE search
+// queries never selected them (the planner always used the repo index +
+// ILIKE Filter). Dropping them makes content inserts ~13x faster while
+// keeping MCP search query plans unchanged (output-preserving).
+const contentStoreSearchIndexSchemaSQL = ``
 
 const contentStoreFilterIndexSchemaSQL = `CREATE INDEX IF NOT EXISTS content_files_artifact_type_idx
     ON content_files (artifact_type);
