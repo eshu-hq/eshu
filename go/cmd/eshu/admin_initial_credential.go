@@ -6,10 +6,8 @@ package main
 import (
 	"context"
 	"crypto/rand"
-	"crypto/sha256"
 	"database/sql"
 	"encoding/base64"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -21,6 +19,7 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/crypto/bcrypt"
 
+	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/secretcrypto"
 	pgstorage "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
@@ -84,14 +83,13 @@ func runAdminInitialCredential(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("resolve data-encryption key: %w", err)
 	}
 
+	auditAppender := newAdminCredentialAuditAppender(pgstorage.SQLDB{DB: db})
 	store := pgstorage.NewIdentitySubjectStore(pgstorage.SQLDB{DB: db})
 	payload, keyID, err := openBootstrapCredentialPayload(ctx, store, keyring)
+	auditBootstrapCredentialRetrieved(ctx, auditAppender, keyID, err)
 	if err != nil {
 		return err
 	}
-
-	auditAppender := newAdminCredentialAuditAppender(pgstorage.SQLDB{DB: db})
-	auditBootstrapCredentialRetrieved(ctx, auditAppender, keyID)
 
 	_, _ = fmt.Fprintf(cmd.OutOrStdout(),
 		"username:      %s\npassword:      %s\nrecovery code: %s\n",
@@ -158,26 +156,26 @@ func runAdminResetInitialCredential(cmd *cobra.Command, _ []string) error {
 	}
 
 	now := time.Now().UTC()
-	if err := store.ResetBootstrapCredential(ctx, pgstorage.ResetBootstrapCredentialInput{
+	resetErr := store.ResetBootstrapCredential(ctx, pgstorage.ResetBootstrapCredentialInput{
 		TenantID:               pgstorage.BootstrapAdminTenantID,
 		WorkspaceID:            pgstorage.BootstrapAdminWorkspaceID,
 		SealedCredential:       sealed,
 		KeyID:                  keyID,
 		PasswordHash:           string(passwordHash),
 		PasswordAlgorithm:      "bcrypt",
-		PasswordParametersHash: localCredentialHash("bcrypt"),
+		PasswordParametersHash: query.IdentityHash("bcrypt"),
 		ResetAt:                now,
-	}); err != nil {
-		if errors.Is(err, pgstorage.ErrBootstrapCredentialNotFound) {
+	})
+	auditAppender := newAdminCredentialAuditAppender(pgstorage.SQLDB{DB: db})
+	auditBootstrapCredentialReset(ctx, auditAppender, keyID, resetErr)
+	if resetErr != nil {
+		if errors.Is(resetErr, pgstorage.ErrBootstrapCredentialNotFound) {
 			return errors.New(
 				"no bootstrap credential exists for this deployment (the admin was seeded from ESHU_ADMIN_USERNAME/PASSWORD and has no generated envelope, or ESHU_AUTH_BOOTSTRAP_MODE is sso-only/disabled); there is nothing to reset",
 			)
 		}
-		return fmt.Errorf("reset bootstrap credential: %w", err)
+		return fmt.Errorf("reset bootstrap credential: %w", resetErr)
 	}
-
-	auditAppender := newAdminCredentialAuditAppender(pgstorage.SQLDB{DB: db})
-	auditBootstrapCredentialReset(ctx, auditAppender, keyID)
 
 	_, _ = fmt.Fprintf(cmd.OutOrStdout(),
 		"username:      %s\npassword:      %s\nrecovery code: %s\n",
@@ -210,7 +208,11 @@ func openBootstrapCredentialPayload(
 	plaintext, err := keyring.Open(envelope.SealedCredential, aad)
 	if err != nil {
 		if errors.Is(err, secretcrypto.ErrDecrypt) {
-			return bootstrapCredentialPayloadCLI{}, "", errors.New(
+			// envelope.KeyID is already known from the SELECT above (Open
+			// never needed it to fail this way), so a failed-retrieval audit
+			// event can still correlate to which DEK the caller needed but
+			// didn't have.
+			return bootstrapCredentialPayloadCLI{}, envelope.KeyID, errors.New(
 				"cannot decrypt the sealed bootstrap credential: the configured ESHU_AUTH_SECRET_ENC_KEY differs from the key that generated it; run `eshu admin reset-initial-credential` to regenerate the credential under the current key",
 			)
 		}
@@ -250,12 +252,4 @@ func generateSecret(n int) (string, error) {
 		return "", fmt.Errorf("generate secret: %w", err)
 	}
 	return base64.RawURLEncoding.EncodeToString(buf), nil
-}
-
-// localCredentialHash mirrors go/internal/query/local_identity_handler_helpers.go's
-// unexported localIdentityHash ("sha256:<hex>") so PasswordParametersHash
-// stays consistent with every other hash-only identity field.
-func localCredentialHash(value string) string {
-	sum := sha256.Sum256([]byte(value))
-	return "sha256:" + hex.EncodeToString(sum[:])
 }

@@ -3,8 +3,12 @@
 
 package postgres
 
-// bootstrapCredentialLockQuery serializes Generate/Consume/Reset against the
-// identity_bootstrap_credentials table. 3455 is BootstrapLocalIdentity's own
+// bootstrapCredentialLockQuery serializes Generate and Reset against the
+// identity_bootstrap_credentials table. ConsumeBootstrapCredential
+// deliberately does not take this lock: its atomic conditional
+// UPDATE ... WHERE consumed_at IS NULL is itself the concurrency guard (see
+// ConsumeBootstrapCredential's doc comment in identity_bootstrap_credential.go).
+// 3455 is BootstrapLocalIdentity's own
 // local-identity advisory lock (identity_local_sql.go). The two keys are
 // held together in one transaction only by GenerateBootstrapAdminWithCredential
 // (identity_bootstrap_credential.go), always in the fixed order 3455 then

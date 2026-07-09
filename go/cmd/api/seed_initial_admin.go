@@ -255,7 +255,7 @@ func seedBootstrapAdminGenerated(
 		TenantID:         pgstorage.BootstrapAdminTenantID,
 		WorkspaceID:      pgstorage.BootstrapAdminWorkspaceID,
 		SubjectIDHash:    record.SubjectIDHash,
-		UsernameHash:     localIdentityHash(username),
+		UsernameHash:     query.IdentityHash(username),
 		SealedCredential: sealed,
 		KeyID:            keyID,
 		GeneratedAt:      now,

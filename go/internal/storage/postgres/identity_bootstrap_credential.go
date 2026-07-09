@@ -317,8 +317,14 @@ func (s *IdentitySubjectStore) ConsumeBootstrapCredential(
 // password and the sealed envelope can never diverge. It always clears
 // consumed_at (a reset re-arms retrieval regardless of prior consumption) and
 // increments reset_count. Guarded by the same pg_advisory_xact_lock(3456) as
-// Generate/Consume so a concurrent Generate/Consume/Reset on the same row
-// serializes correctly. Returns ErrBootstrapCredentialNotFound when no row
+// GenerateBootstrapCredential/GenerateBootstrapAdminWithCredential, so a
+// concurrent Generate/Reset on the same row serializes correctly.
+// ConsumeBootstrapCredential is deliberately lock-free (its atomic
+// conditional UPDATE WHERE consumed_at IS NULL is itself the concurrency
+// guard: a concurrent Consume racing a Reset either clears the row that
+// Reset is about to overwrite, or observes consumed_at already cleared by
+// Reset and correctly no-ops), so it never needs to take 3456. Returns
+// ErrBootstrapCredentialNotFound when no row
 // exists for the tenant/workspace (for example, the admin was seeded from
 // ESHU_ADMIN_USERNAME/PASSWORD and has no generated envelope to reset).
 func (s *IdentitySubjectStore) ResetBootstrapCredential(

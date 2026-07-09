@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
+	"github.com/eshu-hq/eshu/go/internal/query"
 	pgstorage "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
@@ -28,17 +29,11 @@ import (
 // governanceaudit package's own bounded, lowercase snake_case, <=64-char
 // format (governanceaudit.NormalizeEvent's validReasonCode).
 const (
-	bootstrapCredentialAuditReasonRetrieved = "bootstrap_credential_retrieved" // #nosec G101 -- audit reason-code label, not a credential value
-	bootstrapCredentialAuditReasonReset     = "bootstrap_credential_reset"     // #nosec G101 -- audit reason-code label, not a credential value
+	bootstrapCredentialAuditReasonRetrieved      = "bootstrap_credential_retrieved"       // #nosec G101 -- audit reason-code label, not a credential value
+	bootstrapCredentialAuditReasonRetrieveFailed = "bootstrap_credential_retrieve_failed" // #nosec G101 -- audit reason-code label, not a credential value
+	bootstrapCredentialAuditReasonReset          = "bootstrap_credential_reset"           // #nosec G101 -- audit reason-code label, not a credential value
+	bootstrapCredentialAuditReasonResetFailed    = "bootstrap_credential_reset_failed"    // #nosec G101 -- audit reason-code label, not a credential value
 )
-
-// governanceAuditAppender is the minimal Append contract this CLI needs. It
-// is declared locally, rather than importing internal/query (an API-focused
-// package this binary otherwise has no dependency on), so
-// pgstorage.GovernanceAuditStore satisfies it structurally.
-type governanceAuditAppender interface {
-	Append(context.Context, []governanceaudit.Event) error
-}
 
 // newAdminCredentialAuditAppender builds the durable governance-audit
 // appender from the CLI's own Postgres handle. appender is nil only when db
@@ -46,7 +41,11 @@ type governanceAuditAppender interface {
 // matching every other governance-audit call site in this codebase (see
 // go/cmd/api/seed_initial_admin_audit.go's auditBootstrapModeChoice), which
 // never fails the primary operation because audit wiring is unavailable.
-func newAdminCredentialAuditAppender(db pgstorage.ExecQueryer) governanceAuditAppender {
+// Returns query.GovernanceAuditAppender (this binary already depends on
+// internal/query elsewhere — see local_host_config.go and friends — so
+// reusing its interface here, rather than declaring a structurally-identical
+// local one, is not a new dependency edge).
+func newAdminCredentialAuditAppender(db pgstorage.ExecQueryer) query.GovernanceAuditAppender {
 	if db == nil {
 		return nil
 	}
@@ -54,34 +53,55 @@ func newAdminCredentialAuditAppender(db pgstorage.ExecQueryer) governanceAuditAp
 	return store
 }
 
-// auditBootstrapCredentialRetrieved records a retrieval of the one-time
-// bootstrap admin credential via `eshu admin initial-credential`. Retrieval
-// is repeatable until the credential's first login consumes it, so that it
-// happened — and when — must be durably recorded (epic #4962 acceptance
-// criterion). This CLI has no login/session of its own (it authenticates
-// directly with ESHU_POSTGRES_DSN + the DEK, the same trust boundary as the
-// API process itself), so there is no per-operator identity to attribute the
-// event to; ActorClassSystem below reflects that honestly rather than
-// fabricating an ActorIDHash NormalizeEvent would otherwise require for
-// ActorClassOperator.
-func auditBootstrapCredentialRetrieved(ctx context.Context, appender governanceAuditAppender, keyID string) {
-	auditBootstrapCredentialCLIEvent(ctx, appender, bootstrapCredentialAuditReasonRetrieved, keyID)
+// auditBootstrapCredentialRetrieved records a retrieval attempt of the
+// one-time bootstrap admin credential via `eshu admin initial-credential`,
+// success or failure — mirroring go/cmd/api/seed_initial_admin_audit.go's
+// auditBootstrapCredentialGenerated, which audits both outcomes of its own
+// operation, not only success. Retrieval is repeatable until the
+// credential's first login consumes it, so that an attempt happened, when,
+// and whether it succeeded must all be durably recorded (epic #4962
+// acceptance criterion) — a failed attempt (already consumed, wrong DEK) is
+// as security-relevant as a successful one. This CLI has no login/session of
+// its own (it authenticates directly with ESHU_POSTGRES_DSN + the DEK, the
+// same trust boundary as the API process itself), so there is no
+// per-operator identity to attribute the event to; ActorClassSystem below
+// reflects that honestly rather than fabricating an ActorIDHash
+// NormalizeEvent would otherwise require for ActorClassOperator. keyID is
+// "" on a failure that never resolved an envelope (not found, select error);
+// a decrypt failure still carries the envelope's own keyID, since that much
+// was read from the row before Open failed.
+func auditBootstrapCredentialRetrieved(ctx context.Context, appender query.GovernanceAuditAppender, keyID string, retrieveErr error) {
+	reason := bootstrapCredentialAuditReasonRetrieved
+	decision := governanceaudit.DecisionAllowed
+	if retrieveErr != nil {
+		reason = bootstrapCredentialAuditReasonRetrieveFailed
+		decision = governanceaudit.DecisionDenied
+	}
+	auditBootstrapCredentialCLIEvent(ctx, appender, reason, decision, keyID)
 }
 
-// auditBootstrapCredentialReset records a reset/regeneration of the
-// bootstrap admin credential via `eshu admin reset-initial-credential`.
-func auditBootstrapCredentialReset(ctx context.Context, appender governanceAuditAppender, keyID string) {
-	auditBootstrapCredentialCLIEvent(ctx, appender, bootstrapCredentialAuditReasonReset, keyID)
+// auditBootstrapCredentialReset records a reset/regeneration attempt of the
+// bootstrap admin credential via `eshu admin reset-initial-credential`,
+// success or failure (see auditBootstrapCredentialRetrieved's doc comment
+// for why both outcomes are audited). keyID is always the newly-sealed
+// replacement envelope's key id: Seal (and EnvelopeKeyID) already succeeded
+// before ResetBootstrapCredential's persistence call is attempted, so a
+// persistence failure still has a real key id to correlate against.
+func auditBootstrapCredentialReset(ctx context.Context, appender query.GovernanceAuditAppender, keyID string, resetErr error) {
+	reason := bootstrapCredentialAuditReasonReset
+	decision := governanceaudit.DecisionAllowed
+	if resetErr != nil {
+		reason = bootstrapCredentialAuditReasonResetFailed
+		decision = governanceaudit.DecisionDenied
+	}
+	auditBootstrapCredentialCLIEvent(ctx, appender, reason, decision, keyID)
 }
 
 // auditBootstrapCredentialCLIEvent appends one bounded, values-excluded
 // audit event. Best-effort, fire-and-forget: matches every other
 // governance-audit call site in this codebase, which never fails the
-// primary CLI operation on an audit-append error — the retrieved/reset
-// credential has already been printed or persisted by the time this runs,
-// so failing here would only hide a successful operation behind an
-// unrelated audit-store error.
-func auditBootstrapCredentialCLIEvent(ctx context.Context, appender governanceAuditAppender, reason, keyID string) {
+// primary CLI operation on an audit-append error.
+func auditBootstrapCredentialCLIEvent(ctx context.Context, appender query.GovernanceAuditAppender, reason string, decision governanceaudit.Decision, keyID string) {
 	if appender == nil {
 		return
 	}
@@ -93,7 +113,7 @@ func auditBootstrapCredentialCLIEvent(ctx context.Context, appender governanceAu
 		Type:          governanceaudit.EventTypeBootstrap,
 		ActorClass:    governanceaudit.ActorClassSystem,
 		ScopeClass:    governanceaudit.ScopeClassAdmin,
-		Decision:      governanceaudit.DecisionAllowed,
+		Decision:      decision,
 		ReasonCode:    reason,
 		CorrelationID: correlationID,
 		OccurredAt:    time.Now().UTC(),

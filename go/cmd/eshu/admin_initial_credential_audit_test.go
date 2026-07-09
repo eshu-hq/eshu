@@ -65,7 +65,7 @@ func auditEventsLeakCLI(events []governanceaudit.Event, plaintexts ...string) bo
 // pulled it must be recorded (epic #4962 acceptance criterion).
 func TestAuditBootstrapCredentialRetrievedRecordsEvent(t *testing.T) {
 	appender := &fakeCLIAuditAppender{}
-	auditBootstrapCredentialRetrieved(context.Background(), appender, "key-a")
+	auditBootstrapCredentialRetrieved(context.Background(), appender, "key-a", nil)
 
 	if !auditEventsContainReason(appender.events, bootstrapCredentialAuditReasonRetrieved) {
 		t.Fatalf("no durable audit event for credential retrieval: %#v", appender.events)
@@ -91,12 +91,32 @@ func TestAuditBootstrapCredentialRetrievedRecordsEvent(t *testing.T) {
 	}
 }
 
+// TestAuditBootstrapCredentialRetrievedFailureRecordsDeniedEvent proves a
+// failed retrieval attempt (already consumed, wrong DEK) is audited too, not
+// only a successful one — mirroring auditBootstrapCredentialGenerated's
+// success/failure symmetry in go/cmd/api/seed_initial_admin_audit.go.
+func TestAuditBootstrapCredentialRetrievedFailureRecordsDeniedEvent(t *testing.T) {
+	appender := &fakeCLIAuditAppender{}
+	auditBootstrapCredentialRetrieved(context.Background(), appender, "key-a", fmt.Errorf("decrypt failed"))
+
+	if !auditEventsContainReason(appender.events, bootstrapCredentialAuditReasonRetrieveFailed) {
+		t.Fatalf("no durable audit event for failed credential retrieval: %#v", appender.events)
+	}
+	got := appender.events[0]
+	if got.Decision != governanceaudit.DecisionDenied {
+		t.Fatalf("Decision = %q, want %q", got.Decision, governanceaudit.DecisionDenied)
+	}
+	if got.CorrelationID != "key:key-a" {
+		t.Fatalf("CorrelationID = %q, want %q (the envelope's key_id is known even when Open fails)", got.CorrelationID, "key:key-a")
+	}
+}
+
 // TestAuditBootstrapCredentialResetRecordsEvent proves `eshu admin
 // reset-initial-credential` records a durable, bounded reset event,
 // correlated to the newly sealed envelope's key_id.
 func TestAuditBootstrapCredentialResetRecordsEvent(t *testing.T) {
 	appender := &fakeCLIAuditAppender{}
-	auditBootstrapCredentialReset(context.Background(), appender, "key-b")
+	auditBootstrapCredentialReset(context.Background(), appender, "key-b", nil)
 
 	if !auditEventsContainReason(appender.events, bootstrapCredentialAuditReasonReset) {
 		t.Fatalf("no durable audit event for credential reset: %#v", appender.events)
@@ -106,6 +126,23 @@ func TestAuditBootstrapCredentialResetRecordsEvent(t *testing.T) {
 	}
 	if got := appender.events[0].CorrelationID; got != "key:key-b" {
 		t.Fatalf("CorrelationID = %q, want %q", got, "key:key-b")
+	}
+}
+
+// TestAuditBootstrapCredentialResetFailureRecordsDeniedEvent proves a failed
+// reset attempt (no bootstrap credential row to reset, or a persistence
+// error) is audited too, correlated to the replacement envelope's key_id
+// that was sealed before the persistence call failed.
+func TestAuditBootstrapCredentialResetFailureRecordsDeniedEvent(t *testing.T) {
+	appender := &fakeCLIAuditAppender{}
+	auditBootstrapCredentialReset(context.Background(), appender, "key-b", fmt.Errorf("no bootstrap credential row"))
+
+	if !auditEventsContainReason(appender.events, bootstrapCredentialAuditReasonResetFailed) {
+		t.Fatalf("no durable audit event for failed credential reset: %#v", appender.events)
+	}
+	got := appender.events[0]
+	if got.Decision != governanceaudit.DecisionDenied {
+		t.Fatalf("Decision = %q, want %q", got.Decision, governanceaudit.DecisionDenied)
 	}
 }
 
@@ -120,8 +157,10 @@ func TestAuditBootstrapCredentialEventsNoPlaintextLeak(t *testing.T) {
 	const plaintextRecoveryCode = "recovery-9f8e7d6c5b4a"
 
 	appender := &fakeCLIAuditAppender{}
-	auditBootstrapCredentialRetrieved(context.Background(), appender, "key-a")
-	auditBootstrapCredentialReset(context.Background(), appender, "key-b")
+	auditBootstrapCredentialRetrieved(context.Background(), appender, "key-a", nil)
+	auditBootstrapCredentialReset(context.Background(), appender, "key-b", nil)
+	auditBootstrapCredentialRetrieved(context.Background(), appender, "key-a", fmt.Errorf("decrypt failed"))
+	auditBootstrapCredentialReset(context.Background(), appender, "key-b", fmt.Errorf("reset failed"))
 
 	if auditEventsLeakCLI(appender.events, plaintextPassword, plaintextRecoveryCode) {
 		t.Fatalf("audit events leaked plaintext credential material: %#v", appender.events)
@@ -132,8 +171,10 @@ func TestAuditBootstrapCredentialEventsNoPlaintextLeak(t *testing.T) {
 // (defensive; every real call site always has an open DB handle) never
 // panics, matching every other governance-audit call site in this codebase.
 func TestAuditBootstrapCredentialEventsNilAppenderIsNoop(t *testing.T) {
-	auditBootstrapCredentialRetrieved(context.Background(), nil, "key-a")
-	auditBootstrapCredentialReset(context.Background(), nil, "key-b")
+	auditBootstrapCredentialRetrieved(context.Background(), nil, "key-a", nil)
+	auditBootstrapCredentialReset(context.Background(), nil, "key-b", nil)
+	auditBootstrapCredentialRetrieved(context.Background(), nil, "key-a", fmt.Errorf("decrypt failed"))
+	auditBootstrapCredentialReset(context.Background(), nil, "key-b", fmt.Errorf("reset failed"))
 }
 
 // TestAuditBootstrapCredentialEventsPersistToRealGovernanceAuditStore is a
@@ -172,8 +213,10 @@ func TestAuditBootstrapCredentialEventsPersistToRealGovernanceAuditStore(t *test
 	}
 
 	store := pgstorage.NewGovernanceAuditStore(pgstorage.SQLDB{DB: db})
-	auditBootstrapCredentialRetrieved(ctx, store, "key-real-a")
-	auditBootstrapCredentialReset(ctx, store, "key-real-b")
+	auditBootstrapCredentialRetrieved(ctx, store, "key-real-a", nil)
+	auditBootstrapCredentialReset(ctx, store, "key-real-b", nil)
+	auditBootstrapCredentialRetrieved(ctx, store, "key-real-a", fmt.Errorf("decrypt failed"))
+	auditBootstrapCredentialReset(ctx, store, "key-real-b", fmt.Errorf("reset failed"))
 
 	retrieved, err := store.List(ctx, pgstorage.GovernanceAuditQuery{
 		OperatorAuthorized: true,
@@ -192,6 +235,20 @@ func TestAuditBootstrapCredentialEventsPersistToRealGovernanceAuditStore(t *test
 		t.Fatal("persisted retrieval event OccurredAt is zero")
 	}
 
+	retrieveFailed, err := store.List(ctx, pgstorage.GovernanceAuditQuery{
+		OperatorAuthorized: true,
+		ReasonCode:         bootstrapCredentialAuditReasonRetrieveFailed,
+	})
+	if err != nil {
+		t.Fatalf("List() retrieve-failed events error = %v", err)
+	}
+	if len(retrieveFailed) != 1 {
+		t.Fatalf("persisted retrieve-failed events = %d, want 1", len(retrieveFailed))
+	}
+	if retrieveFailed[0].Decision != governanceaudit.DecisionDenied {
+		t.Fatalf("persisted retrieve-failed event Decision = %q, want %q", retrieveFailed[0].Decision, governanceaudit.DecisionDenied)
+	}
+
 	reset, err := store.List(ctx, pgstorage.GovernanceAuditQuery{
 		OperatorAuthorized: true,
 		ReasonCode:         bootstrapCredentialAuditReasonReset,
@@ -204,5 +261,19 @@ func TestAuditBootstrapCredentialEventsPersistToRealGovernanceAuditStore(t *test
 	}
 	if reset[0].CorrelationID != "key:key-real-b" {
 		t.Fatalf("persisted reset event CorrelationID = %q, want %q", reset[0].CorrelationID, "key:key-real-b")
+	}
+
+	resetFailed, err := store.List(ctx, pgstorage.GovernanceAuditQuery{
+		OperatorAuthorized: true,
+		ReasonCode:         bootstrapCredentialAuditReasonResetFailed,
+	})
+	if err != nil {
+		t.Fatalf("List() reset-failed events error = %v", err)
+	}
+	if len(resetFailed) != 1 {
+		t.Fatalf("persisted reset-failed events = %d, want 1", len(resetFailed))
+	}
+	if resetFailed[0].Decision != governanceaudit.DecisionDenied {
+		t.Fatalf("persisted reset-failed event Decision = %q, want %q", resetFailed[0].Decision, governanceaudit.DecisionDenied)
 	}
 }

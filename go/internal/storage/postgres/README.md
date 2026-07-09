@@ -1532,9 +1532,11 @@ always in the fixed order 3455 then 3456; that same-session, fixed-order
 acquisition is what rules out a deadlock between the two keys — deadlock
 requires two *different* transactions each holding one lock and blocking on
 the other, which cannot happen when a single session takes both, in the same
-order, every time. Every other caller (`GenerateBootstrapCredential`,
-`ConsumeBootstrapCredential`, `ResetBootstrapCredential`) only ever takes
-3456 alone. A real Postgres concurrency gate
+order, every time. `GenerateBootstrapCredential` and `ResetBootstrapCredential`
+each take 3456 alone. `ConsumeBootstrapCredential` deliberately takes no lock
+at all: its atomic conditional `UPDATE ... WHERE consumed_at IS NULL` is
+itself the concurrency guard, so it never contends with 3456 or 3455. A real
+Postgres concurrency gate
 (`identity_bootstrap_credential_concurrency_test.go`,
 `TestBootstrapCredentialConcurrencyGateGenerateConsumeReset`, `-race`, 5
 rounds, skipped without `ESHU_POSTGRES_DSN`/`ESHU_BOOTSTRAP_CREDENTIAL_PROOF_DSN`)

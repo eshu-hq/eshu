@@ -6,7 +6,6 @@ package main
 import (
 	"context"
 	"crypto/rand"
-	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
@@ -19,6 +18,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 
+	"github.com/eshu-hq/eshu/go/internal/query"
 	pgstorage "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -42,15 +42,15 @@ func newBootstrapLocalIdentityRecord(
 		TenantID:               pgstorage.BootstrapAdminTenantID,
 		WorkspaceID:            pgstorage.BootstrapAdminWorkspaceID,
 		UserID:                 userID,
-		SubjectIDHash:          localIdentityHash(username),
-		ProfileHandleHash:      localIdentityHash(username),
+		SubjectIDHash:          query.IdentityHash(username),
+		ProfileHandleHash:      query.IdentityHash(username),
 		PasswordHash:           passwordHash,
 		PasswordAlgorithm:      "bcrypt",
-		PasswordParametersHash: localIdentityHash("bcrypt"),
+		PasswordParametersHash: query.IdentityHash("bcrypt"),
 		MFAFactorID:            factorID,
 		MFAFactorKind:          bootstrapAdminMFAFactorKind,
 		RecoveryCodeHashes:     recoveryCodeHashes,
-		PolicyRevisionHash:     localIdentityHash(pgstorage.BootstrapAdminTenantID + ":" + pgstorage.BootstrapAdminWorkspaceID),
+		PolicyRevisionHash:     query.IdentityHash(pgstorage.BootstrapAdminTenantID + ":" + pgstorage.BootstrapAdminWorkspaceID),
 		CreatedAt:              now,
 	}
 }
@@ -92,30 +92,16 @@ func adminCredentialFromEnv(getenv func(string) string) (username, password stri
 }
 
 // generateBootstrapSecret returns a fresh crypto/rand base64url secret of n
-// raw bytes plus its "sha256:<hex>" hash, matching the hashing convention
-// go/internal/query/local_identity_handler_helpers.go's localIdentityHash
-// uses for every other hash-only identity field.
+// raw bytes plus its "sha256:<hex>" hash, via query.IdentityHash — the single
+// shared implementation every hash-only identity field this codebase writes
+// or compares uses.
 func generateBootstrapSecret(n int) (secret, hash string, err error) {
 	buf := make([]byte, n)
 	if _, err := rand.Read(buf); err != nil {
 		return "", "", fmt.Errorf("generate bootstrap secret: %w", err)
 	}
 	secret = base64.RawURLEncoding.EncodeToString(buf)
-	return secret, localIdentityHash(secret), nil
-}
-
-// localIdentityHash mirrors go/internal/query/local_identity_handler_helpers.go's
-// unexported localIdentityHash so every hash-only identity field this package
-// writes (subject_id_hash, profile_handle_hash, recovery-code hashes, policy
-// revision hash) uses the identical "sha256:<hex>" convention the rest of the
-// local-identity surface reads.
-func localIdentityHash(value string) string {
-	value = strings.TrimSpace(value)
-	if value == "" {
-		return ""
-	}
-	sum := sha256.Sum256([]byte(value))
-	return "sha256:" + hex.EncodeToString(sum[:])
+	return secret, query.IdentityHash(secret), nil
 }
 
 func newBootstrapID() string {

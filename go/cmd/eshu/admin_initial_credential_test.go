@@ -17,6 +17,7 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"golang.org/x/crypto/bcrypt"
 
+	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/secretcrypto"
 	pgstorage "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
@@ -60,12 +61,18 @@ func TestOpenBootstrapCredentialPayloadDecryptFailureIsActionable(t *testing.T) 
 	db := &fakeAdminCredDB{sealed: sealed, keyID: "key-a", found: true}
 	store := pgstorage.NewIdentitySubjectStore(db)
 
-	_, _, err = openBootstrapCredentialPayload(context.Background(), store, wrongKeyring)
+	_, gotKeyID, err := openBootstrapCredentialPayload(context.Background(), store, wrongKeyring)
 	if err == nil {
 		t.Fatal("openBootstrapCredentialPayload() error = nil, want decrypt-failure guidance")
 	}
 	if !strings.Contains(err.Error(), "reset-initial-credential") {
 		t.Fatalf("error = %q, want actionable reset guidance", err.Error())
+	}
+	// The envelope's own key_id is known from the row before Open ever runs;
+	// a failed-retrieval audit event should still be able to correlate
+	// against it (which DEK the caller needed but didn't have).
+	if gotKeyID != "key-a" {
+		t.Fatalf("openBootstrapCredentialPayload() keyID = %q, want %q even on decrypt failure", gotKeyID, "key-a")
 	}
 }
 
@@ -206,7 +213,7 @@ func TestAdminInitialCredentialAndResetRoundTrip(t *testing.T) {
 		KeyID:                  newKeyID,
 		PasswordHash:           newHash,
 		PasswordAlgorithm:      "bcrypt",
-		PasswordParametersHash: localCredentialHash("bcrypt"),
+		PasswordParametersHash: query.IdentityHash("bcrypt"),
 		ResetAt:                time.Now().UTC(),
 	}); err != nil {
 		t.Fatalf("ResetBootstrapCredential() error = %v", err)
