@@ -58,10 +58,25 @@ INSERT INTO identity_provider_config_revisions (
 `
 
 // activateProviderConfigActiveRevisionQuery points the provider config at its
-// newly created active revision.
+// newly created (Create/Update) or reactivated (Revert) active revision. It
+// ALSO resets status back to 'draft' unconditionally. This is deliberate, not
+// incidental: whenever the active revision changes, whatever secret/config
+// material is now live has never been proven by a test-connection call
+// against THIS revision — an already-'active' provider whose revision just
+// changed must go back to requiring Enable (whose mandatory synchronous
+// test-connection + compare-and-swap targets this exact revision id, see
+// EnableProviderConfig) before it can be trusted for login again. Without
+// this, an Update or Revert immediately after Enable would silently leave
+// status='active' pointed at a revision nothing ever tested — the same
+// invariant EnableProviderConfig's compare-and-swap protects, closed from the
+// other direction (a real bug this package's own concurrency test caught:
+// TestConcurrentUpdateDuringEnableRejectsStaleRevision). For
+// CreateProviderConfig this is a no-op — status is already 'draft' from the
+// INSERT moments earlier in the same transaction.
 const activateProviderConfigActiveRevisionQuery = `
 UPDATE identity_provider_configs
 SET active_revision_id = $3,
+    status = 'draft',
     updated_at = $4
 WHERE provider_config_id = $1 AND tenant_id = $2
 `

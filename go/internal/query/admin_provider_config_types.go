@@ -129,10 +129,15 @@ type AdminProviderConfigWriteResult struct {
 // AdminProviderConfigConnectionTestResult reports a test-connection outcome.
 // Detail never carries a secret or plaintext credential — only a bounded,
 // operator-safe diagnostic string (e.g. an HTTP status class or a parse
-// failure reason).
+// failure reason). RevisionID is the active revision that was actually
+// tested; the enable path passes it back to
+// AdminProviderConfigMutationStore.EnableProviderConfig as a
+// compare-and-swap guard so a concurrent Update/Revert cannot slip an
+// untested revision into "active" between the test and the enable call.
 type AdminProviderConfigConnectionTestResult struct {
-	OK     bool
-	Detail string
+	OK         bool
+	Detail     string
+	RevisionID string
 }
 
 // AdminProviderConfigMutationStore is the write surface the provider-config
@@ -146,7 +151,12 @@ type AdminProviderConfigMutationStore interface {
 	CreateProviderConfig(ctx context.Context, req AdminProviderConfigCreateRequest) (AdminProviderConfigWriteResult, error)
 	UpdateProviderConfig(ctx context.Context, req AdminProviderConfigUpdateRequest) (AdminProviderConfigWriteResult, error)
 	RevertProviderConfig(ctx context.Context, req AdminProviderConfigRevertRequest) (AdminProviderConfigWriteResult, error)
-	EnableProviderConfig(ctx context.Context, providerConfigID, tenantID string) (AdminProviderConfigWriteResult, error)
+	// EnableProviderConfig activates a provider config. expectedActiveRevisionID
+	// is REQUIRED — it must be the revision id a prior TestProviderConnection
+	// call actually tested. The implementation compares it against the
+	// provider config's CURRENT active revision under a row lock and rejects
+	// (ErrAdminProviderConfigRevisionChanged) if a concurrent write changed it.
+	EnableProviderConfig(ctx context.Context, providerConfigID, tenantID, expectedActiveRevisionID string) (AdminProviderConfigWriteResult, error)
 	DisableProviderConfig(ctx context.Context, providerConfigID, tenantID string) (AdminProviderConfigWriteResult, error)
 }
 

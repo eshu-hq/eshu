@@ -79,6 +79,11 @@ func (db *providerConfigFakeDB) ExecContext(_ context.Context, query string, arg
 			return affectedResult{affected: 0}, nil
 		}
 		row.activeRevisionID = revisionID
+		// Mirrors the real query: changing the active revision always resets
+		// status back to draft (see activateProviderConfigActiveRevisionQuery's
+		// doc comment) — a fresh Enable + test-connection is required before
+		// the provider is trusted again.
+		row.status = "draft"
 		return affectedResult{affected: 1}, nil
 	case supersedeProviderConfigRevisionQuery:
 		providerConfigID := args[0].(string)

@@ -44,6 +44,11 @@ func newAdminProviderConfigMutationHandler(
 // package.
 type providerConfigMutationAdapter struct {
 	store *pgstatus.IdentitySubjectStore
+	// now is the injectable clock for Enable/Disable, which build their own
+	// timestamp (Create/Update/Revert receive Now from the query-layer
+	// request instead). Defaults to time.Now in
+	// newProviderConfigMutationAdapter; tests override it for determinism.
+	now func() time.Time
 }
 
 func newProviderConfigMutationAdapter(db *sql.DB, keyring *secretcrypto.Keyring) *providerConfigMutationAdapter {
@@ -52,7 +57,7 @@ func newProviderConfigMutationAdapter(db *sql.DB, keyring *secretcrypto.Keyring)
 	}
 	store := pgstatus.NewIdentitySubjectStore(pgstatus.ExecQueryer(pgstatus.SQLDB{DB: db}))
 	store.SetProviderSecretKeyring(keyring)
-	return &providerConfigMutationAdapter{store: store}
+	return &providerConfigMutationAdapter{store: store, now: time.Now}
 }
 
 func (a *providerConfigMutationAdapter) CreateProviderConfig(
@@ -120,10 +125,13 @@ func (a *providerConfigMutationAdapter) RevertProviderConfig(
 
 func (a *providerConfigMutationAdapter) EnableProviderConfig(
 	ctx context.Context,
-	providerConfigID, tenantID string,
+	providerConfigID, tenantID, expectedActiveRevisionID string,
 ) (query.AdminProviderConfigWriteResult, error) {
 	result, err := a.store.EnableProviderConfig(ctx, pgstatus.ProviderConfigEnable{
-		ProviderConfigID: providerConfigID, TenantID: tenantID, Now: time.Now().UTC(),
+		ProviderConfigID:         providerConfigID,
+		TenantID:                 tenantID,
+		ExpectedActiveRevisionID: expectedActiveRevisionID,
+		Now:                      a.clock().UTC(),
 	})
 	if err != nil {
 		return query.AdminProviderConfigWriteResult{}, mapProviderConfigError(err)
@@ -136,12 +144,23 @@ func (a *providerConfigMutationAdapter) DisableProviderConfig(
 	providerConfigID, tenantID string,
 ) (query.AdminProviderConfigWriteResult, error) {
 	result, err := a.store.DisableProviderConfig(ctx, pgstatus.ProviderConfigDisable{
-		ProviderConfigID: providerConfigID, TenantID: tenantID, Now: time.Now().UTC(),
+		ProviderConfigID: providerConfigID, TenantID: tenantID, Now: a.clock().UTC(),
 	})
 	if err != nil {
 		return query.AdminProviderConfigWriteResult{}, mapProviderConfigError(err)
 	}
 	return toAdminWriteResult(result), nil
+}
+
+// clock returns the adapter's injectable clock, defaulting to time.Now for
+// an adapter constructed without one set explicitly (e.g. a zero-value
+// adapter built directly in a test that does not go through
+// newProviderConfigMutationAdapter).
+func (a *providerConfigMutationAdapter) clock() time.Time {
+	if a.now != nil {
+		return a.now()
+	}
+	return time.Now()
 }
 
 func toAdminWriteResult(result pgstatus.ProviderConfigWriteResult) query.AdminProviderConfigWriteResult {
@@ -164,6 +183,8 @@ func mapProviderConfigError(err error) error {
 		return query.ErrAdminProviderConfigRevisionNotFound
 	case errors.Is(err, pgstatus.ErrProviderConfigKindMismatch):
 		return query.ErrAdminProviderConfigKindMismatch
+	case errors.Is(err, pgstatus.ErrProviderConfigRevisionChanged):
+		return query.ErrAdminProviderConfigRevisionChanged
 	default:
 		return err
 	}

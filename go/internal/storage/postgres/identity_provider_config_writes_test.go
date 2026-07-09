@@ -323,3 +323,9 @@ func TestConcurrentUpdateAndRevertSerializeToOneActiveRevision(t *testing.T) {
 		t.Fatal("provider config has no active_revision_id after concurrent writes")
 	}
 }
+
+// See identity_provider_config_enable_test.go for the EnableProviderConfig
+// compare-and-swap tests (TestEnableProviderConfigRequiresExpectedRevision,
+// TestEnableProviderConfigSucceedsWhenRevisionMatches,
+// TestEnableProviderConfigFailsWhenRevisionChanged,
+// TestConcurrentUpdateDuringEnableRejectsStaleRevision).

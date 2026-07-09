@@ -17,11 +17,11 @@ import (
 // perform and returns a canned result, modeling the Postgres tenant filter so
 // handler-level behavior can be proven without a database.
 type fakeAdminProviderConfigMutationStore struct {
-	gotCreate                      AdminProviderConfigCreateRequest
-	gotUpdate                      AdminProviderConfigUpdateRequest
-	gotRevert                      AdminProviderConfigRevertRequest
-	gotEnableID, gotEnableTenant   string
-	gotDisableID, gotDisableTenant string
+	gotCreate                                                 AdminProviderConfigCreateRequest
+	gotUpdate                                                 AdminProviderConfigUpdateRequest
+	gotRevert                                                 AdminProviderConfigRevertRequest
+	gotEnableID, gotEnableTenant, gotEnableExpectedRevisionID string
+	gotDisableID, gotDisableTenant                            string
 
 	result   AdminProviderConfigWriteResult
 	forceErr error
@@ -51,8 +51,8 @@ func (f *fakeAdminProviderConfigMutationStore) RevertProviderConfig(_ context.Co
 	return f.result, nil
 }
 
-func (f *fakeAdminProviderConfigMutationStore) EnableProviderConfig(_ context.Context, providerConfigID, tenantID string) (AdminProviderConfigWriteResult, error) {
-	f.gotEnableID, f.gotEnableTenant = providerConfigID, tenantID
+func (f *fakeAdminProviderConfigMutationStore) EnableProviderConfig(_ context.Context, providerConfigID, tenantID, expectedActiveRevisionID string) (AdminProviderConfigWriteResult, error) {
+	f.gotEnableID, f.gotEnableTenant, f.gotEnableExpectedRevisionID = providerConfigID, tenantID, expectedActiveRevisionID
 	if f.forceErr != nil {
 		return AdminProviderConfigWriteResult{}, f.forceErr
 	}
@@ -256,10 +256,15 @@ func TestHandleEnableAdminProviderConfigRequiresPassingTest(t *testing.T) {
 	}
 }
 
+// TestHandleEnableAdminProviderConfigPassingTest also proves the handler
+// closes the test-connection/enable TOCTOU: the revision id the tester
+// reports as tested (testResult.RevisionID) must be exactly what reaches
+// Store.EnableProviderConfig's compare-and-swap parameter, not silently
+// dropped.
 func TestHandleEnableAdminProviderConfigPassingTest(t *testing.T) {
 	t.Parallel()
 	store := &fakeAdminProviderConfigMutationStore{result: AdminProviderConfigWriteResult{Found: true, Changed: true, Status: "active"}}
-	tester := &fakeProviderConfigConnectionTester{result: AdminProviderConfigConnectionTestResult{OK: true, Detail: "ok"}}
+	tester := &fakeProviderConfigConnectionTester{result: AdminProviderConfigConnectionTestResult{OK: true, Detail: "ok", RevisionID: "rev_tested_1"}}
 	mux := newProviderConfigMutationMux(store, tester, &recordingAuditAppender{})
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v0/auth/admin/provider-configs/pc_1/enable", nil)
@@ -272,6 +277,28 @@ func TestHandleEnableAdminProviderConfigPassingTest(t *testing.T) {
 	}
 	if store.gotEnableID != "pc_1" {
 		t.Fatalf("store.EnableProviderConfig id = %q, want pc_1", store.gotEnableID)
+	}
+	if store.gotEnableExpectedRevisionID != "rev_tested_1" {
+		t.Fatalf("store.EnableProviderConfig expectedActiveRevisionID = %q, want rev_tested_1 (the tested revision)", store.gotEnableExpectedRevisionID)
+	}
+}
+
+// TestHandleEnableAdminProviderConfigRevisionChanged proves a 409 surfaces
+// when the store rejects Enable because the active revision changed since it
+// was tested (ErrAdminProviderConfigRevisionChanged).
+func TestHandleEnableAdminProviderConfigRevisionChanged(t *testing.T) {
+	t.Parallel()
+	store := &fakeAdminProviderConfigMutationStore{forceErr: ErrAdminProviderConfigRevisionChanged}
+	tester := &fakeProviderConfigConnectionTester{result: AdminProviderConfigConnectionTestResult{OK: true, Detail: "ok", RevisionID: "rev_tested_1"}}
+	mux := newProviderConfigMutationMux(store, tester, &recordingAuditAppender{})
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v0/auth/admin/provider-configs/pc_1/enable", nil)
+	req = req.WithContext(ContextWithAuthContext(req.Context(), providerConfigAdminAuth()))
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("enable after a revision change status = %d, want 409: %s", rec.Code, rec.Body.String())
 	}
 }
 

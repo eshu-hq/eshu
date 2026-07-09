@@ -63,7 +63,10 @@ func (t *providerConfigConnectionTester) TestProviderConnection(
 		if err != nil {
 			return query.AdminProviderConfigConnectionTestResult{}, err
 		}
-		return query.AdminProviderConfigConnectionTestResult{OK: result.OK, Detail: result.Detail}, nil
+		// RevisionID is always the tested revision, on both pass and fail: the
+		// enable path only ever calls EnableProviderConfig after OK is true,
+		// but reporting it unconditionally keeps this result self-describing.
+		return query.AdminProviderConfigConnectionTestResult{OK: result.OK, Detail: result.Detail, RevisionID: material.RevisionID}, nil
 	case "external_saml":
 		var cfg struct {
 			EntityID    string `json:"entity_id"`
@@ -75,7 +78,7 @@ func (t *providerConfigConnectionTester) TestProviderConnection(
 		if err != nil {
 			return query.AdminProviderConfigConnectionTestResult{}, err
 		}
-		return query.AdminProviderConfigConnectionTestResult{OK: result.OK, Detail: result.Detail}, nil
+		return query.AdminProviderConfigConnectionTestResult{OK: result.OK, Detail: result.Detail, RevisionID: material.RevisionID}, nil
 	default:
 		return query.AdminProviderConfigConnectionTestResult{OK: false, Detail: "unknown provider kind"}, nil
 	}

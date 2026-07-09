@@ -5,7 +5,6 @@ package query
 
 import (
 	"errors"
-	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -35,6 +34,11 @@ var (
 	// provider_kind disagrees with the existing provider config's immutable
 	// kind.
 	ErrAdminProviderConfigKindMismatch = errors.New("admin provider config: provider_kind does not match the existing provider config")
+	// ErrAdminProviderConfigRevisionChanged mirrors
+	// postgres.ErrProviderConfigRevisionChanged: the provider config's active
+	// revision changed (via a concurrent Update/Revert) between the
+	// test-connection call and the Enable call.
+	ErrAdminProviderConfigRevisionChanged = errors.New("admin provider config: active revision changed since it was tested")
 )
 
 // AdminProviderConfigMutationHandler serves the DB-backed identity
@@ -301,17 +305,14 @@ func (h *AdminProviderConfigMutationHandler) handleDisable(w http.ResponseWriter
 // here rather than by persisting a trust flag (see the package doc comment
 // on why no new column tracks test state).
 //
-// KNOWN GAP (tracked, not fixed in this change): the test-connection call and
-// the EnableProviderConfig call are not atomic. A concurrent Update that
-// creates and activates a new revision between them would let Enable activate
-// that new, not-yet-tested revision rather than the one that just passed.
-// This requires two concurrent authenticated all-scope admin actions racing
-// on the same provider_config_id — not reachable by an unprivileged caller —
-// and the window is a single HTTP round trip. Closing it fully needs
-// EnableProviderConfig to accept an expected active-revision id and compare
-// -and-swap under the same row lock Update/Revert already use (see
-// identity_provider_config_writes.go's lockProviderConfig). Flagged for a
-// follow-up rather than implemented here to keep this change's diff focused.
+// The test-connection call and the EnableProviderConfig call are still two
+// separate calls, but they are no longer allowed to disagree: the tested
+// revision id (testResult.RevisionID) is passed to EnableProviderConfig as a
+// required compare-and-swap guard. EnableProviderConfig row-locks the
+// provider config and rejects (ErrAdminProviderConfigRevisionChanged, mapped
+// to 409) if a concurrent Update or Revert changed the active revision
+// between the test and this call — so Enable can never activate a revision
+// that was not the one just tested.
 func (h *AdminProviderConfigMutationHandler) handleStatusChange(w http.ResponseWriter, r *http.Request, capability string, enable bool) {
 	if !h.storeReady(w) {
 		return
@@ -330,6 +331,7 @@ func (h *AdminProviderConfigMutationHandler) handleStatusChange(w http.ResponseW
 		WriteError(w, http.StatusBadRequest, "provider_config_id is required")
 		return
 	}
+	var testedRevisionID string
 	if enable {
 		if h.Tester == nil {
 			h.audit(r, eventType, governanceaudit.DecisionDenied, "provider_config_connection_tester_unavailable", "")
@@ -342,11 +344,12 @@ func (h *AdminProviderConfigMutationHandler) handleStatusChange(w http.ResponseW
 			WriteError(w, http.StatusBadRequest, "provider cannot be enabled: connection test did not pass")
 			return
 		}
+		testedRevisionID = testResult.RevisionID
 	}
 	var result AdminProviderConfigWriteResult
 	var err error
 	if enable {
-		result, err = h.Store.EnableProviderConfig(r.Context(), providerConfigID, tenantID)
+		result, err = h.Store.EnableProviderConfig(r.Context(), providerConfigID, tenantID, testedRevisionID)
 	} else {
 		result, err = h.Store.DisableProviderConfig(r.Context(), providerConfigID, tenantID)
 	}
@@ -403,91 +406,6 @@ func (h *AdminProviderConfigMutationHandler) handleTestConnection(w http.Respons
 	})
 }
 
-func (h *AdminProviderConfigMutationHandler) audit(
-	r *http.Request,
-	eventType governanceaudit.EventType,
-	decision governanceaudit.Decision,
-	reasonCode string,
-	actorIDHash string,
-) {
-	if h == nil || h.Audit == nil {
-		return
-	}
-	auth, _ := AuthContextFromContext(r.Context())
-	auth = normalizeAuthContext(auth)
-	actorClass := localIdentityActorClass(auth)
-	if actorIDHash == "" {
-		actorIDHash = auth.SubjectIDHash
-	}
-	if actorIDHash == "" && actorClass == governanceaudit.ActorClassSharedToken {
-		actorIDHash = sharedAdminActorIDHash
-	}
-	event := governanceaudit.Event{
-		Type:               eventType,
-		ActorClass:         actorClass,
-		ActorIDHash:        actorIDHash,
-		ScopeClass:         governanceaudit.ScopeClassAdmin,
-		Decision:           decision,
-		ReasonCode:         strings.TrimSpace(reasonCode),
-		CorrelationID:      safeAuditCorrelationID(documentationCorrelationID(r)),
-		PolicyRevisionHash: auth.PolicyRevisionHash,
-		OccurredAt:         time.Now().UTC(),
-		TenantID:           auth.TenantID,
-		WorkspaceID:        auth.WorkspaceID,
-	}
-	if err := h.Audit.Append(r.Context(), []governanceaudit.Event{event}); err != nil {
-		slog.ErrorContext(
-			r.Context(), "governance audit append failed",
-			"err", err,
-			"event_type", string(eventType),
-			"decision", string(decision),
-			"reason_code", reasonCode,
-		)
-	}
-}
-
-func providerConfigWriteResponse(result AdminProviderConfigWriteResult) map[string]any {
-	return map[string]any{
-		"provider_config_id": result.ProviderConfigID,
-		"revision_id":        result.RevisionID,
-		"status":             result.Status,
-		"changed":            result.Changed,
-	}
-}
-
-// providerConfigWriteErrorReason maps a store error to a governance audit
-// reason code.
-func providerConfigWriteErrorReason(err error) string {
-	switch {
-	case errors.Is(err, ErrAdminProviderConfigDuplicateKey):
-		return "provider_config_duplicate_key"
-	case errors.Is(err, ErrAdminProviderConfigKeyringUnavailable):
-		return "provider_config_keyring_unavailable"
-	case errors.Is(err, ErrAdminProviderConfigRevisionNotFound):
-		return "provider_config_revision_not_found"
-	case errors.Is(err, ErrAdminProviderConfigKindMismatch):
-		return "provider_config_kind_mismatch"
-	default:
-		return "provider_config_write_failed"
-	}
-}
-
-// writeProviderConfigWriteError maps a store error to an HTTP response. It
-// never includes the underlying error text in the response body (only in the
-// server log via the caller's slog.ErrorContext, which callers should add for
-// unmapped errors) — see individual handlers.
-func writeProviderConfigWriteError(w http.ResponseWriter, err error) {
-	switch {
-	case errors.Is(err, ErrAdminProviderConfigDuplicateKey):
-		WriteError(w, http.StatusConflict, "a provider config already exists for this tenant, kind, and identity key")
-	case errors.Is(err, ErrAdminProviderConfigKeyringUnavailable):
-		WriteError(w, http.StatusServiceUnavailable, "provider secret encryption is not configured on this deployment")
-	case errors.Is(err, ErrAdminProviderConfigRevisionNotFound):
-		WriteError(w, http.StatusNotFound, "revision not found")
-	case errors.Is(err, ErrAdminProviderConfigKindMismatch):
-		WriteError(w, http.StatusBadRequest, "provider_kind does not match the existing provider config")
-	default:
-		slog.Error("admin provider config write failed", "err", err)
-		WriteError(w, http.StatusInternalServerError, "failed to write provider config")
-	}
-}
+// See admin_provider_config_mutations_helpers.go for audit,
+// providerConfigWriteResponse, providerConfigWriteErrorReason, and
+// writeProviderConfigWriteError.
