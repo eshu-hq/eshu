@@ -1,0 +1,51 @@
+# Ifá coverage manifest (P1, issue #4394, epic #4389).
+#
+# This is the curated, reviewable mapping from each derived Ifá surface to the
+# cataloged Odù that proves it. go/internal/ifa's RunCoverage enumerates the
+# derived surfaces from Derive's output (go/internal/ifa/expectations.go) —
+# one surface per fact-kind-registry entry, plus one per B-12
+# evidence-narrowed required correlation (an rc-* with a non-empty
+# evidence_kinds filter) — and reports any surface with no entry here as
+# UNCOVERED. That uncovered list is the P2+ backfill worklist; it is allowed
+# and expected for a first milestone, unlike UNRESOLVED or STALE.
+#
+# Surface keys are "<kind>:<name>":
+#   fact_kind:<kind>              (fact-kind-registry entry; every kind, not
+#                                  only ones with a read_surface)
+#   narrowed_correlation:<rc-id>  (B-12 required correlation carrying
+#                                  evidence_kinds)
+#
+# scenario is always "odu": every entry's ref must name an Odù returned by
+# Catalog()/CatalogByName() in go/internal/ifa/catalog_seed.go. Unlike the
+# replay-coverage manifest, no other scenario kind is valid here — RunCoverage
+# rejects any entry that isn't scenario: odu as a required finding regardless
+# of blocking mode.
+#
+# Resolution semantics (see go/internal/ifa/coverage.go's OduResolver):
+#   fact_kind:K            -> true iff ref names a cataloged Odù carrying at
+#                              least one fact of kind K AND that Odù's facts of
+#                              kind K validate against the fixturepack schema
+#                              named by the registry's payload_schema (kinds
+#                              with no payload_schema are registry-only and
+#                              validate on presence alone).
+#   narrowed_correlation:X -> true iff ref names a cataloged Odù AND
+#                              EvidenceSatisfies reports that Odù's
+#                              relationships.DiscoverEvidence output actually
+#                              carries every evidence kind rc X's
+#                              evidence_kinds filter names.
+#
+# Only seed a row here once the referenced Odù is genuinely green under those
+# rules (the C-1 seed-only-green-rows philosophy) — an aspirational binding
+# belongs on the uncovered worklist, never in this file. See
+# go/internal/ifa/coverage_falsegreen_test.go for the proof this file's
+# narrowed_correlation:rc-29 row cannot be satisfied by the wrong Odù or by an
+# unfiltered correlation.
+version: "v1"
+coverage:
+  - {surface: "fact_kind:repository", scenario: odu, scenario_type: baseline, ref: "odu:kustomize-deploys-from", proof_gate: ifa-contract-layer}
+  - {surface: "fact_kind:aws_resource", scenario: odu, scenario_type: baseline, ref: "odu:aws-pack", proof_gate: ifa-contract-layer}
+  - {surface: "fact_kind:aws_resource_policy_permission", scenario: odu, scenario_type: baseline, ref: "odu:aws-pack", proof_gate: ifa-contract-layer}
+  - {surface: "fact_kind:aws_security_group_rule", scenario: odu, scenario_type: baseline, ref: "odu:aws-pack", proof_gate: ifa-contract-layer}
+  - {surface: "fact_kind:aws_warning", scenario: odu, scenario_type: baseline, ref: "odu:aws-pack", proof_gate: ifa-contract-layer}
+  - {surface: "fact_kind:aws_tag_observation", scenario: odu, scenario_type: baseline, ref: "odu:aws-pack", proof_gate: ifa-contract-layer}
+  - {surface: "narrowed_correlation:rc-29", scenario: odu, scenario_type: baseline, ref: "odu:kustomize-deploys-from", proof_gate: ifa-contract-layer}
