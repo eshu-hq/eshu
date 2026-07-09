@@ -18,6 +18,7 @@ fast rebuilds without containers.
 | `docker-compose.tier2-tfstate-v25.yaml` | Layers MinIO, two generation-specific MinIO setup jobs, active workflow coordination, and two Terraform state collectors. | You are running the v2.5 Terraform state drift proof across two fixture generations. |
 | `docker-compose.remote-e2e.yaml` | Standalone remote proof stack with runtime services, preflight, workflow coordination, webhook listener, and cloud/package/registry collectors. | You are on an EC2 or VPN-attached host and need a full remote collector proof. |
 | `docker-compose.demo.yaml` | Standalone, credential-free demo stack: corpus staging, one-shot cassette collectors, a deferred-relationship maintenance orchestrator, API, and MCP. Answers the five `specs/demo-first-answers.v1.yaml` questions. | You want a working correlated-graph demo with zero credential env, or you are proving the first-five-minutes onboarding path. |
+| `docker-compose.e2e.yaml` | Standalone, minimal fresh-stack for the browser SSO auth E2E suite: NornicDB, Postgres, migration, workspace setup, the API, and a synthetic mock OIDC IdP. No ingester, reducer, projector, or collectors, and zero seeded local identities. | You are proving the SSO login flow against a fresh, zero-corpus stack (issue #4971). |
 
 ## Default Stack
 
@@ -554,6 +555,61 @@ send `Authorization: Bearer <key>`.
 For the proof gate and its no-regression / no-observability-change evidence,
 see
 [Demo Compose Stack Proof](../reference/local-testing.md#demo-compose-stack-proof).
+
+## SSO Auth E2E Stack
+
+Use `docker-compose.e2e.yaml` for the minimal fresh-stack the browser SSO auth
+E2E suite (issue #4971, epic #4962 closer) needs: proving Eshu's OIDC login
+flow against a real OIDC counterparty with zero corpus and zero seeded local
+identities.
+
+```bash
+docker compose -f docker-compose.e2e.yaml up -d --build --wait
+```
+
+The stack is standalone and defaults the Compose project to `eshu-e2e`.
+Reused services (`nornicdb`, `postgres`, `db-migrate`, `workspace-setup`,
+`eshu`) extend their `docker-compose.yaml` definitions; only the ports,
+volumes, and the Postgres/graph DSNs are overridden for stack isolation.
+
+| Service | Responsibility |
+| --- | --- |
+| `nornicdb` | Graph database. |
+| `postgres` | Facts, queues, status, content, and recovery state. |
+| `db-migrate` | One-shot Postgres and graph schema bootstrap. |
+| `workspace-setup` | One-shot `/data/.eshu` and `/data/repos` setup. |
+| `eshu` | HTTP API runtime. |
+| `mock-oidc-idp` | Synthetic OIDC Authorization Code identity provider (`go/cmd/mock-oidc-idp`): discovery, authorization, token, and JWKS endpoints backed by a static, non-secret RSA key and one configured synthetic `example.test` identity. |
+
+There is no `ingester`, `resolution-engine`/reducer, `projector`, or any
+collector in this stack: the suite this stack supports proves the login flow,
+not corpus content, so it needs zero repo facts.
+
+`ESHU_ADMIN_USERNAME`/`ESHU_ADMIN_PASSWORD` are never set, matching the base
+stack. With the inherited default `ESHU_AUTH_BOOTSTRAP_MODE=generated`, the
+API boots with `GET /api/v0/auth/setup-state` reporting `needs_setup: true`
+until an operator or test claims the sealed one-time bootstrap credential (see
+[Bootstrap Admin Credential](#bootstrap-admin-credential) above).
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `ESHU_E2E_PROJECT_NAME` | `eshu-e2e` | Compose project name. |
+| `ESHU_E2E_BIND_ADDR` | `127.0.0.1` | Host address the API and mock IdP ports publish on. |
+| `ESHU_E2E_API_PORT` | `28080` | HTTP API port. |
+| `ESHU_E2E_MOCK_OIDC_PORT` | `28090` | Mock OIDC IdP port. |
+| `ESHU_E2E_NORNICDB_HTTP_PORT` | `27474` | NornicDB HTTP port. |
+| `ESHU_E2E_NORNICDB_BOLT_PORT` | `27687` | NornicDB Bolt port. |
+| `ESHU_E2E_POSTGRES_PORT` | `28432` | Postgres port. |
+| `ESHU_E2E_POSTGRES_PASSWORD` | `change-me` | Postgres password for this stack's isolated `postgres` container. |
+| `ESHU_E2E_MOCK_OIDC_ISSUER_URL` | `http://mock-oidc-idp:8080` | The mock IdP's own issuer URL, as Eshu's server-side OIDC connector (on the same Compose network) reaches it. Reaching `/authorize` from a host-side or separately-networked browser needs its own resolvable path to this hostname; that wiring belongs to the browser-auth runner phase, not this foundation. |
+| `ESHU_E2E_MOCK_OIDC_SUBJECT` | `member-user-1` | Synthetic identity's `sub` claim. |
+| `ESHU_E2E_MOCK_OIDC_EMAIL` | `member.user@example.test` | Synthetic identity's `email` claim. |
+| `ESHU_E2E_MOCK_OIDC_GROUPS` | `member` | Comma-separated group claim values for the synthetic identity. |
+
+This foundation does not yet configure a DB-backed OIDC provider config
+pointing Eshu at the mock IdP, drive a browser through the login flow, or run
+in CI — see `go/cmd/mock-oidc-idp/README.md` for the mock IdP's endpoint
+contract and issue #4971 for the remaining phases.
 
 ## Point CLI Commands At Compose
 

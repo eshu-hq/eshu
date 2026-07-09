@@ -2328,6 +2328,11 @@
     },
     {
       "category": "command",
+      "name": "mock-oidc-idp",
+      "readiness": "implemented"
+    },
+    {
+      "category": "command",
       "name": "payload-usage-manifest",
       "readiness": "implemented"
     },

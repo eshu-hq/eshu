@@ -1,0 +1,141 @@
+# Minimal fresh-stack service set for the browser-based SSO auth E2E suite
+# (issue #4971, epic #4962 closer). Postgres + graph + one-shot schema/
+# workspace setup + the eshu API + a synthetic mock OIDC IdP — no ingester, no
+# resolution-engine/reducer, no projector, no collectors. This suite proves
+# the SSO login flow against a fresh, zero-corpus stack; it needs no repo
+# content.
+#
+# Zero seeded local identities: ESHU_ADMIN_USERNAME/PASSWORD are never set
+# here, matching the base stack (docker-compose.yaml). With the base eshu
+# service's inherited default ESHU_AUTH_BOOTSTRAP_MODE=generated, the API
+# boots with GET /api/v0/auth/setup-state reporting needs_setup: true until an
+# operator (or a later-phase test) claims the sealed one-time bootstrap
+# credential — see docs/public/run-locally/docker-compose.md#bootstrap-admin-credential.
+#
+# Phase 1 (issue #4971) builds only this compose plumbing and the mock IdP
+# binary (go/cmd/mock-oidc-idp): a health-gated stack that reaches a ready API
+# and a ready mock IdP over HTTP. It does NOT configure a DB-backed OIDC
+# provider config pointing Eshu at the mock IdP, drive a browser through the
+# login flow, or add a CI job — those are later phases.
+#
+# Reused base services (nornicdb, postgres, db-migrate, workspace-setup, eshu)
+# are pulled in via `extends`, mirroring docker-compose.demo.corpus.yaml /
+# docker-compose.demo.runtime.yaml. `extends` merges `environment` per key
+# (overrides here win) and fully replaces `ports`/`volumes` when redeclared;
+# `docker compose -f docker-compose.e2e.yaml config` is the way to check the
+# rendered result after editing this file.
+
+name: ${ESHU_E2E_PROJECT_NAME:-eshu-e2e}
+
+x-e2e-runtime-env: &e2e_runtime_env
+  ESHU_CONTENT_STORE_DSN: postgresql://eshu:${ESHU_E2E_POSTGRES_PASSWORD:-change-me}@postgres:5432/eshu
+  ESHU_POSTGRES_DSN: postgresql://eshu:${ESHU_E2E_POSTGRES_PASSWORD:-change-me}@postgres:5432/eshu
+  ESHU_DEPLOYMENT_ENVIRONMENT: local-compose-e2e
+
+services:
+  nornicdb:
+    extends:
+      file: docker-compose.yaml
+      service: nornicdb
+    ports: !override
+      - "${ESHU_E2E_NORNICDB_HTTP_PORT:-27474}:7474"
+      - "${ESHU_E2E_NORNICDB_BOLT_PORT:-27687}:7687"
+
+  postgres:
+    extends:
+      file: docker-compose.yaml
+      service: postgres
+    ports: !override
+      - "${ESHU_E2E_POSTGRES_PORT:-28432}:5432"
+    environment:
+      POSTGRES_PASSWORD: ${ESHU_E2E_POSTGRES_PASSWORD:-change-me}
+
+  db-migrate:
+    extends:
+      file: docker-compose.yaml
+      service: db-migrate
+    build:
+      args:
+        SOURCE_DATE_EPOCH: ${SOURCE_DATE_EPOCH:-0}
+    environment:
+      <<: *e2e_runtime_env
+
+  workspace-setup:
+    extends:
+      file: docker-compose.yaml
+      service: workspace-setup
+    build:
+      args:
+        SOURCE_DATE_EPOCH: ${SOURCE_DATE_EPOCH:-0}
+    volumes:
+      - type: volume
+        source: eshu_e2e_data
+        target: /data
+        volume:
+          nocopy: true
+      - ${ESHU_ESHUIGNORE_PATH:-/dev/null}:/tmp/eshuignore-source:ro
+
+  # HTTP API runtime. No ESHU_ADMIN_USERNAME/PASSWORD, no bootstrap-index, no
+  # ingester: this service starts with an empty graph/Postgres and zero local
+  # identities, gated only on schema migration and workspace setup (the same
+  # depends_on the base eshu service declares; `extends` merges it in).
+  eshu:
+    extends:
+      file: docker-compose.yaml
+      service: eshu
+    build:
+      args:
+        SOURCE_DATE_EPOCH: ${SOURCE_DATE_EPOCH:-0}
+    environment:
+      <<: *e2e_runtime_env
+    # Bind to loopback by default. This stack keeps normal (non-open) read
+    # auth, unlike docker-compose.demo.yaml, but there is still no reason to
+    # publish it beyond the host that started it.
+    ports: !override
+      - "${ESHU_E2E_BIND_ADDR:-127.0.0.1}:${ESHU_E2E_API_PORT:-28080}:8080"
+    volumes:
+      - type: volume
+        source: eshu_e2e_data
+        target: /data
+        volume:
+          nocopy: true
+
+  # Synthetic OIDC Authorization Code IdP (go/cmd/mock-oidc-idp). Serves
+  # discovery/authorize/token/jwks over the compose network at
+  # MOCK_OIDC_ISSUER_URL so Eshu's server-side OIDC connector
+  # (go/internal/oidclogin) can reach it once a later phase wires a DB-backed
+  # provider config pointing at it. The identity it hands back on every
+  # /authorize call is a non-admin, member-mapped-group synthetic user by
+  # default; override the MOCK_OIDC_* variables to test a different mapping.
+  #
+  # ESHU_E2E_MOCK_OIDC_ISSUER_URL intentionally defaults to the in-network
+  # service hostname, which is what Eshu (also on this network) resolves.
+  # Reaching /authorize from a host-side or separately-networked browser (the
+  # Phase 2 browser-auth runner) needs its own resolvable path to this
+  # hostname or an issuer override; that wiring is Phase 2's job, not this
+  # foundation.
+  mock-oidc-idp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SOURCE_DATE_EPOCH: ${SOURCE_DATE_EPOCH:-0}
+    command: ["/usr/local/bin/eshu-mock-oidc-idp"]
+    ports:
+      - "${ESHU_E2E_BIND_ADDR:-127.0.0.1}:${ESHU_E2E_MOCK_OIDC_PORT:-28090}:8080"
+    environment:
+      MOCK_OIDC_ISSUER_URL: ${ESHU_E2E_MOCK_OIDC_ISSUER_URL:-http://mock-oidc-idp:8080}
+      MOCK_OIDC_SUBJECT: ${ESHU_E2E_MOCK_OIDC_SUBJECT:-member-user-1}
+      MOCK_OIDC_EMAIL: ${ESHU_E2E_MOCK_OIDC_EMAIL:-member.user@example.test}
+      MOCK_OIDC_GROUPS: ${ESHU_E2E_MOCK_OIDC_GROUPS:-member}
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/.well-known/openid-configuration"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 5s
+
+volumes:
+  nornicdb_data:
+  postgres_data:
+  eshu_e2e_data:

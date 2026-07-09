@@ -44,14 +44,16 @@ repos:
         # correctly; a plain YAML decode would reject a valid config and force
         # `--no-verify` on any nav edit.
         #
-        # docker-compose.demo.*.yaml are excluded for the same reason: they use
-        # the Compose Spec `!override` merge tag (to replace the base stack's
-        # published-port list with the demo stack's non-colliding ports rather
-        # than append to it), which the generic SafeLoader cannot construct. The
-        # authoritative gate is `docker compose -f docker-compose.demo.yaml
-        # config`, which scripts/verify-demo-compose-answers.sh runs before every
-        # proof; a plain YAML decode would reject a valid Compose file.
-        exclude: '^tests/fixtures/|/testdata/|^testdata/|^docs/mkdocs\.yml$|^deploy/helm/eshu/templates/|^docker-compose\.demo\.'
+        # docker-compose.demo.*.yaml and docker-compose.e2e.yaml are excluded
+        # for the same reason: they use the Compose Spec `!override` merge tag
+        # (to replace the base stack's published-port/volume list with the
+        # override stack's non-colliding values rather than append to it),
+        # which the generic SafeLoader cannot construct. The authoritative
+        # gate is `docker compose -f <file> config` — verify-demo-compose-
+        # answers.sh runs it for the demo stack before every proof, and the
+        # e2e stack's own local proof (issue #4971) runs it the same way; a
+        # plain YAML decode would reject a valid Compose file.
+        exclude: '^tests/fixtures/|/testdata/|^testdata/|^docs/mkdocs\.yml$|^deploy/helm/eshu/templates/|^docker-compose\.demo\.|^docker-compose\.e2e\.yaml$'
       - id: check-added-large-files
         stages: [pre-commit]
         # Catches an accidentally-committed Go build artifact (e.g. a bare
