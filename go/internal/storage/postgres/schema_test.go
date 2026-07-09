@@ -246,3 +246,26 @@ func TestEnsureContentSearchIndexesAppliesOnlyTrigramIndexes(t *testing.T) {
 		t.Fatal("content search index SQL unexpectedly creates tables")
 	}
 }
+
+func TestContentStoreSearchIndexSchemaSQLKeepsTrigramGINsUntilRescope(t *testing.T) {
+	t.Parallel()
+
+	const dropDisproven = "dropping content pg_trgm GIN indexes disproven by live-audit (issue #4862): " +
+		"both indexes are load-bearing for all-repo/code-topic ILIKE search path; " +
+		"re-scope onto eshu_search_index_* and B-7 proof of no read regression required before any drop (issue #4980)"
+
+	sql := contentStoreSearchIndexSchemaSQL
+
+	if !strings.Contains(sql, "content_files_content_trgm_idx") {
+		t.Fatalf("contentStoreSearchIndexSchemaSQL missing content_files_content_trgm_idx: %s", dropDisproven)
+	}
+	if !strings.Contains(sql, "gin (content gin_trgm_ops)") {
+		t.Fatalf("contentStoreSearchIndexSchemaSQL missing gin (content gin_trgm_ops): %s", dropDisproven)
+	}
+	if !strings.Contains(sql, "content_entities_source_trgm_idx") {
+		t.Fatalf("contentStoreSearchIndexSchemaSQL missing content_entities_source_trgm_idx: %s", dropDisproven)
+	}
+	if !strings.Contains(sql, "gin (source_cache gin_trgm_ops)") {
+		t.Fatalf("contentStoreSearchIndexSchemaSQL missing gin (source_cache gin_trgm_ops): %s", dropDisproven)
+	}
+}
