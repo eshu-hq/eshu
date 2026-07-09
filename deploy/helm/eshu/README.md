@@ -46,6 +46,31 @@ guidance belong in the public Kubernetes docs.
   `ESHU_SCOPED_TOKENS_FILE` at the mounted path. Only set
   `ESHU_SCOPED_TOKENS_FILE` once the Secret exists: a missing file makes the API
   fail closed at startup.
+- Bootstrap identity seeding (epic #4962/#4963) reuses the same
+  `api.extraVolumes`/`api.extraVolumeMounts` + `api.env` convention above —
+  there is no dedicated chart value for it. Two operator-managed Secrets are
+  relevant, both referenced the same way:
+  - The data-encryption key (`ESHU_AUTH_SECRET_ENC_KEY`/`_FILE`/`_ID`, epic
+    #4962 PR-1): mount an operator-managed Secret (for example
+    `eshu-auth-secret-enc-key`) read-only via `extraVolumes`/
+    `extraVolumeMounts` and point `ESHU_AUTH_SECRET_ENC_KEY_FILE` at the
+    mounted path via `api.env`. Required only when
+    `ESHU_AUTH_BOOTSTRAP_MODE=generated` (the default); `sso-only` and
+    `disabled` never need it, and neither does an `ESHU_ADMIN_USERNAME`/
+    `ESHU_ADMIN_PASSWORD`-seeded deployment unless a later reset needs it.
+  - The bootstrap admin's own credential: for
+    `ESHU_ADMIN_USERNAME`/`ESHU_ADMIN_PASSWORD` env-seeding, create a Secret
+    named `eshu-initial-admin` holding the username and password, mount it
+    read-only the same way, and point `ESHU_ADMIN_USERNAME`/
+    `ESHU_ADMIN_PASSWORD_FILE` at it via `api.env`. For
+    `ESHU_AUTH_BOOTSTRAP_MODE=generated`, the credential is instead generated
+    at startup and sealed into Postgres; retrieve it with
+    `eshu admin initial-credential` (or `eshu admin reset-initial-credential`
+    to rotate it) and, if the deployment's runbook wants a
+    Kubernetes-native copy for audit or GitOps, store that CLI output into
+    the same `eshu-initial-admin` Secret name as a follow-up operator step —
+    the chart does not write to it automatically; the API process holds no
+    Kubernetes Secret-write RBAC.
 - `componentExtensionCollector` is off by default. When enabled, it renders the
   process/OCI component extension host and passes the same component registry,
   trust allowlist, and extension egress policy env to the workflow coordinator
