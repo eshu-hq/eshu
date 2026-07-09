@@ -5,6 +5,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"strings"
 	"testing"
 )
@@ -13,7 +14,7 @@ func TestRunVersionPrintsContractSkeleton(t *testing.T) {
 	t.Parallel()
 
 	var stdout, stderr bytes.Buffer
-	if err := run([]string{"-version"}, &stdout, &stderr); err != nil {
+	if err := run(context.Background(), []string{"-version"}, &stdout, &stderr); err != nil {
 		t.Fatalf("run(-version) error = %v, stderr=%s", err, stderr.String())
 	}
 	if got := stdout.String(); got != "ifa: contract-layer skeleton\n" {
@@ -25,7 +26,7 @@ func TestRunUnknownSubcommandPrintsUsageAndErrors(t *testing.T) {
 	t.Parallel()
 
 	var stdout, stderr bytes.Buffer
-	err := run([]string{"bogus-subcommand"}, &stdout, &stderr)
+	err := run(context.Background(), []string{"bogus-subcommand"}, &stdout, &stderr)
 	if err == nil {
 		t.Fatal("run(bogus-subcommand) = nil error, want an error naming the unknown subcommand")
 	}
