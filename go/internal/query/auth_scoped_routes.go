@@ -271,7 +271,8 @@ func scopedAuthAdminReadRoute(r *http.Request) bool {
 		"/api/v0/auth/admin/idp-group-mappings",
 		"/api/v0/auth/admin/api-tokens",
 		"/api/v0/auth/admin/audit/events",
-		"/api/v0/auth/admin/audit/summary":
+		"/api/v0/auth/admin/audit/summary",
+		"/api/v0/auth/admin/sign-in-policy":
 		return true
 	default:
 		return false
@@ -280,7 +281,7 @@ func scopedAuthAdminReadRoute(r *http.Request) bool {
 
 // scopedAuthAdminMutationRoute reports whether the request targets one of the
 // tenant-admin identity mutation endpoints (#3703 PR-2). These unsafe-method
-// (POST/DELETE) routes derive the tenant/workspace strictly from AuthContext and
+// (POST/PATCH/DELETE) routes derive the tenant/workspace strictly from AuthContext and
 // write only within the caller's own tenant. The handler additionally requires
 // all-scope admin auth, so a non-admin browser-session or scoped-token caller
 // that reaches here is still denied by adminScope. Admins drive the console with
@@ -304,6 +305,8 @@ func scopedAuthAdminMutationRoute(r *http.Request) bool {
 			return true
 		}
 		return scopedInvitationRevokeRoute(r.URL.Path)
+	case http.MethodPatch:
+		return r.URL.Path == "/api/v0/auth/admin/sign-in-policy"
 	case http.MethodDelete:
 		return scopedIdPGroupMappingDeleteRoute(r.URL.Path)
 	default:
