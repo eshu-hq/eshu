@@ -177,6 +177,14 @@ func (s *IdentitySubjectStore) AuthenticateLocalIdentity(
 	if _, err := s.db.ExecContext(ctx, clearLocalIdentityFailedAttemptsQuery, row.UserID); err != nil {
 		return LocalIdentityAuthenticationResult{}, fmt.Errorf("clear local identity failed attempts: %w", err)
 	}
+	// Destroy the one-time bootstrap credential envelope on this subject's
+	// first successful login (epic #4962/#4963). This is a no-op for every
+	// login except the bootstrap admin's very first one: no matching row
+	// (env-seeded or sso-only/disabled bootstrap mode), or a row already
+	// consumed by an earlier login, both leave affected=0.
+	if _, err := s.ConsumeBootstrapCredential(ctx, row.TenantID, row.WorkspaceID, row.SubjectIDHash, attempt.Now); err != nil {
+		return LocalIdentityAuthenticationResult{}, fmt.Errorf("consume bootstrap credential: %w", err)
+	}
 	auth := LocalIdentityAuthContext{
 		TenantID:           row.TenantID,
 		WorkspaceID:        row.WorkspaceID,
