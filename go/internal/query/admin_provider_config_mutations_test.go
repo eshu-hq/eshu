@@ -13,6 +13,10 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
 
+// See admin_provider_config_leakage_test.go for providerConfigSecretCanary
+// and assertNoCanaryInResponseAndAudit, shared negative-leakage helpers used
+// by both this file and that one.
+
 // fakeAdminProviderConfigMutationStore records the request it was asked to
 // perform and returns a canned result, modeling the Postgres tenant filter so
 // handler-level behavior can be proven without a database.
@@ -385,3 +389,7 @@ func TestProviderConfigMutationsRequireAllScope(t *testing.T) {
 		}
 	}
 }
+
+// See admin_provider_config_leakage_test.go for
+// TestProviderConfigMutationResponsesAndAuditNeverLeakCanary and
+// TestProviderConfigReadResponsesNeverLeakCanary.

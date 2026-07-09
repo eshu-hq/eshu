@@ -89,6 +89,43 @@ func TestProviderConfigReadSurfacesNeverLeakSecretCanary(t *testing.T) {
 		t.Fatalf("ListProviderConfigRevisions() error = %v", err)
 	}
 	assertNoCanary(t, "ListProviderConfigRevisions", revisions)
+
+	// Update and Revert results (the structs that flow directly into the
+	// admin API's write responses) must also never leak, even though this
+	// Update reseals the SAME canary under a new revision.
+	updateResult, err := store.UpdateProviderConfig(ctx, ProviderConfigUpdate{
+		ProviderConfigID: "pc_canary", TenantID: "tenant_a", RevisionID: "rev_2",
+		ConfigurationHash: "cfg_hash_canary_2",
+		PlaintextSecret:   `{"client_secret":"` + canary + `"}`, Now: time.Now(),
+	})
+	if err != nil {
+		t.Fatalf("UpdateProviderConfig() error = %v", err)
+	}
+	assertNoCanary(t, "UpdateProviderConfig result", updateResult)
+
+	revertResult, err := store.RevertProviderConfig(ctx, ProviderConfigRevert{
+		ProviderConfigID: "pc_canary", TenantID: "tenant_a", TargetRevisionID: "rev_1", Now: time.Now(),
+	})
+	if err != nil {
+		t.Fatalf("RevertProviderConfig() error = %v", err)
+	}
+	assertNoCanary(t, "RevertProviderConfig result", revertResult)
+
+	enableResult, err := store.EnableProviderConfig(ctx, ProviderConfigEnable{
+		ProviderConfigID: "pc_canary", TenantID: "tenant_a", ExpectedActiveRevisionID: "rev_1", Now: time.Now(),
+	})
+	if err != nil {
+		t.Fatalf("EnableProviderConfig() error = %v", err)
+	}
+	assertNoCanary(t, "EnableProviderConfig result", enableResult)
+
+	disableResult, err := store.DisableProviderConfig(ctx, ProviderConfigDisable{
+		ProviderConfigID: "pc_canary", TenantID: "tenant_a", Now: time.Now(),
+	})
+	if err != nil {
+		t.Fatalf("DisableProviderConfig() error = %v", err)
+	}
+	assertNoCanary(t, "DisableProviderConfig result", disableResult)
 }
 
 // TestGetProviderConfigConnectionTestMaterialCiphertextIsNotPlaintext proves
