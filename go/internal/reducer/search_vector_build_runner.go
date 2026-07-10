@@ -41,6 +41,10 @@ type SearchVectorBuildPendingScope struct {
 	ScopeID      string
 	GenerationID string
 	RepoID       string
+	// ProjectionRevision is the document-projection revision observed when the
+	// scope was listed as pending (#4233). The build runner uses it to finalize
+	// vector readiness with a revision/fence CAS.
+	ProjectionRevision int64
 }
 
 // SearchVectorBuildPendingRequest bounds pending vector build discovery.
@@ -70,6 +74,9 @@ type SearchVectorBuildRequest struct {
 	EmbeddingModelID   string
 	VectorIndexVersion string
 	Limit              int
+	// ProjectionRevision flows from the pending listing through the build runner
+	// so the vector scope state manager can CAS-finalize by revision (#4233).
+	ProjectionRevision int64
 }
 
 // SearchVectorBuildResult summarizes a vector build attempt.
@@ -157,6 +164,17 @@ type SearchVectorBuildReadyPublisher interface {
 	PublishSearchVectorReady(ctx context.Context, identity SearchVectorBuildIdentity) error
 }
 
+// SearchVectorScopeStateManager owns the vector-scope-state lifecycle:
+// BeginBuilding before build, ScopeVectorComplete to check per-scope readiness,
+// and FinalizeReady to CAS-publish the ready state. Nil disables the lifecycle
+// (keeps legacy/local wiring byte-identical). Define this consumer interface
+// in the reducer package so the reducer never imports storage/postgres.
+type SearchVectorScopeStateManager interface {
+	BeginBuilding(ctx context.Context, scopeID, generationID string, identity SearchVectorBuildIdentity, projectionRevision int64) (fence int64, err error)
+	ScopeVectorComplete(ctx context.Context, scopeID, generationID string, identity SearchVectorBuildIdentity) (bool, error)
+	FinalizeReady(ctx context.Context, scopeID, generationID string, identity SearchVectorBuildIdentity, projectionRevision, fence int64) (bool, error)
+}
+
 // SearchVectorBuildRunner builds derived vector rows beside normal
 // reducer work. It writes no graph truth and relies on the vector stores'
 // deterministic upsert identity for duplicate/replayed work convergence.
@@ -172,6 +190,11 @@ type SearchVectorBuildRunner struct {
 	// (legacy/local wiring without the Postgres-backed watermark) without
 	// affecting build behavior.
 	ReadyPublisher SearchVectorBuildReadyPublisher
+	// ScopeState optionally wires the #4233 per-scope vector-scope-state
+	// lifecycle: BeginBuilding before build, ScopeVectorComplete to gate
+	// readiness, and FinalizeReady to CAS-publish. Nil disables it, keeping
+	// legacy/local wiring byte-identical.
+	ScopeState SearchVectorScopeStateManager
 }
 
 // SearchVectorBuildRunnerResult summarizes one bounded sweep.
@@ -259,6 +282,25 @@ func (r *SearchVectorBuildRunner) RunOnce(ctx context.Context) (SearchVectorBuil
 		return SearchVectorBuildRunnerResult{}, fmt.Errorf("list pending search vector scopes: %w", err)
 	}
 	result := SearchVectorBuildRunnerResult{PendingScopes: len(scopes), SchedulingWaitDuration: schedulingWait}
+
+	// #4233: scope-state lifecycle — BeginBuilding before any mutation.
+	identity := SearchVectorBuildIdentity{
+		ProviderProfileID:  r.Config.ProviderProfileID,
+		SourceClass:        r.Config.SourceClass,
+		EmbeddingModelID:   r.Config.EmbeddingModelID,
+		VectorIndexVersion: r.Config.VectorIndexVersion,
+	}
+	fences := make(map[string]int64, len(scopes))
+	if r.ScopeState != nil && len(scopes) > 0 {
+		for _, scope := range scopes {
+			fence, err := r.ScopeState.BeginBuilding(ctx, scope.ScopeID, scope.GenerationID, identity, scope.ProjectionRevision)
+			if err != nil {
+				return result, fmt.Errorf("begin building vector scope state for scope %q generation %q: %w", scope.ScopeID, scope.GenerationID, err)
+			}
+			fences[vectorScopeStateKey(scope.ScopeID, scope.GenerationID)] = fence
+		}
+	}
+
 	if len(scopes) > 0 {
 		if batchBuilder, ok := r.Builder.(SearchVectorBatchBuilder); ok {
 			build, err := batchBuilder.BuildSearchVectorsBatch(ctx, r.buildRequests(scopes))
@@ -275,6 +317,8 @@ func (r *SearchVectorBuildRunner) RunOnce(ctx context.Context) (SearchVectorBuil
 			if err != nil {
 				return result, fmt.Errorf("build search vectors for %d scopes: %w", len(scopes), err)
 			}
+			// #4233: after build, per-scope completeness check + CAS-publish.
+			r.finalizeVectorScopeStates(ctx, scopes, identity, fences)
 			r.publishReadyIfCaughtUp(ctx)
 			return result, nil
 		}
@@ -290,6 +334,7 @@ func (r *SearchVectorBuildRunner) RunOnce(ctx context.Context) (SearchVectorBuil
 			EmbeddingModelID:   r.Config.EmbeddingModelID,
 			VectorIndexVersion: r.Config.VectorIndexVersion,
 			Limit:              r.Config.documentLimit(),
+			ProjectionRevision: pending.ProjectionRevision,
 		})
 		result.BuiltScopes++
 		result.DocumentCount += build.DocumentCount
@@ -305,6 +350,8 @@ func (r *SearchVectorBuildRunner) RunOnce(ctx context.Context) (SearchVectorBuil
 	}
 	r.logResult(ctx, result, started)
 	r.recordPhaseMetrics(ctx, result)
+	// #4233: after build, per-scope completeness check + CAS-publish (serial path).
+	r.finalizeVectorScopeStates(ctx, scopes, identity, fences)
 	buildErr := errors.Join(failures...)
 	if buildErr == nil {
 		r.publishReadyIfCaughtUp(ctx)
@@ -369,6 +416,7 @@ func (r *SearchVectorBuildRunner) buildRequests(scopes []SearchVectorBuildPendin
 			EmbeddingModelID:   r.Config.EmbeddingModelID,
 			VectorIndexVersion: r.Config.VectorIndexVersion,
 			Limit:              r.Config.documentLimit(),
+			ProjectionRevision: pending.ProjectionRevision,
 		})
 	}
 	return reqs

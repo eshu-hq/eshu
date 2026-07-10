@@ -261,3 +261,47 @@ func codeReachabilityProjectionRunnerFor(
 		Logger: logger,
 	}
 }
+
+// searchVectorSeedTimeout bounds the synchronous seeder call at startup so a
+// slow Postgres connection or large corpus never blocks the reducer
+// indefinitely before the build runner starts.
+const searchVectorSeedTimeout = 5 * time.Minute
+
+// seedSearchVectorScopeState seeds the #4233 versioned scope-state tables
+// exactly once at reducer startup, after schema apply. It gates on the same
+// condition that wires the runner (nil runner = vectors disabled). The caller
+// provides the startup context; this function wraps it with a bounded timeout.
+func seedSearchVectorScopeState(
+	seedCtx context.Context,
+	runner *reducer.SearchVectorBuildRunner,
+	database postgres.ExecQueryer,
+	logger *slog.Logger,
+) error {
+	if runner == nil {
+		return nil
+	}
+	identity := postgres.EshuSearchVectorIdentity{
+		ProviderProfileID:  runner.Config.ProviderProfileID,
+		SourceClass:        runner.Config.SourceClass,
+		EmbeddingModelID:   runner.Config.EmbeddingModelID,
+		VectorIndexVersion: runner.Config.VectorIndexVersion,
+	}
+	if logger != nil {
+		logger.Info("seeding search vector scope state",
+			"provider_profile_id", identity.ProviderProfileID,
+			"embedding_model_id", identity.EmbeddingModelID,
+		)
+	}
+	seedStart := time.Now()
+	seedCtx, seedCancel := context.WithTimeout(seedCtx, searchVectorSeedTimeout)
+	defer seedCancel()
+	if err := postgres.SeedSearchVectorScopeState(seedCtx, database, identity); err != nil {
+		return fmt.Errorf("seed search vector scope state: %w", err)
+	}
+	if logger != nil {
+		logger.Info("search vector scope state seeded",
+			"duration", time.Since(seedStart).String(),
+		)
+	}
+	return nil
+}

@@ -8,6 +8,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -64,6 +65,17 @@ type EshuSearchDocumentWriteResult struct {
 	Timings         EshuSearchDocumentWriteTimings
 }
 
+// SearchDocumentProjectionStateWriter owns the search-document projection-state
+// lifecycle: BeginBuilding before mutation, FinalizeReady after successful
+// completion, and MarkFailed on cancel. Nil disables the lifecycle (keeps every
+// existing test and local-profile wiring byte-identical). Define this consumer
+// interface in the reducer package so the reducer never imports storage/postgres.
+type SearchDocumentProjectionStateWriter interface {
+	BeginBuilding(ctx context.Context, scopeID, generationID string) (revision, fence int64, err error)
+	FinalizeReady(ctx context.Context, scopeID, generationID string, revision, fence, documentCount int64) (bool, error)
+	MarkFailed(ctx context.Context, scopeID, generationID string, revision, fence int64) (bool, error)
+}
+
 // PostgresEshuSearchDocumentWriter persists curated search documents into the
 // shared fact store as derived, generation-scoped records.
 type PostgresEshuSearchDocumentWriter struct {
@@ -72,6 +84,10 @@ type PostgresEshuSearchDocumentWriter struct {
 	Now              func() time.Time
 	Instruments      *telemetry.Instruments
 	Tracer           trace.Tracer
+	// ProjectionState optionally wires the #4233 per-scope projection-state
+	// lifecycle. Nil disables it, keeping every existing test and local-profile
+	// wiring byte-identical.
+	ProjectionState SearchDocumentProjectionStateWriter
 }
 
 // WriteEshuSearchDocuments upserts each curated document as a derived fact and
@@ -111,7 +127,7 @@ func (w PostgresEshuSearchDocumentWriter) WriteEshuSearchDocuments(
 // a single page while preserving the generation-authoritative retire semantics
 // of the prior single-shot writer (issue #3440).
 func (w PostgresEshuSearchDocumentWriter) BeginEshuSearchDocumentWrite(
-	_ context.Context,
+	ctx context.Context,
 	begin EshuSearchDocumentWriteBegin,
 ) (SearchDocumentWriteSession, error) {
 	if w.DB == nil {
@@ -122,16 +138,28 @@ func (w PostgresEshuSearchDocumentWriter) BeginEshuSearchDocumentWrite(
 	if scopeID == "" || generationID == "" {
 		return nil, fmt.Errorf("eshu search document write requires scope and generation")
 	}
+	// #4233: invalidate before mutate — BeginBuilding must succeed BEFORE any
+	// DELETE/INSERT mutation, so a failed begin does not leave partial rows.
+	var projRev, projFence int64
+	if w.ProjectionState != nil {
+		var err error
+		projRev, projFence, err = w.ProjectionState.BeginBuilding(ctx, scopeID, generationID)
+		if err != nil {
+			return nil, fmt.Errorf("begin building eshu search document projection state: %w", err)
+		}
+	}
 	return &eshuSearchDocumentWriteSession{
-		writer:       w,
-		scopeID:      scopeID,
-		generationID: generationID,
-		sourceSystem: strings.TrimSpace(begin.SourceSystem),
-		intentID:     strings.TrimSpace(begin.IntentID),
-		now:          reducerWriterNow(w.Now),
-		started:      time.Now(),
-		keepFactIDs:  make([]string, 0),
-		keepDocIDs:   make([]string, 0),
+		writer:             w,
+		scopeID:            scopeID,
+		generationID:       generationID,
+		sourceSystem:       strings.TrimSpace(begin.SourceSystem),
+		intentID:           strings.TrimSpace(begin.IntentID),
+		now:                reducerWriterNow(w.Now),
+		started:            time.Now(),
+		keepFactIDs:        make([]string, 0),
+		keepDocIDs:         make([]string, 0),
+		projectionRevision: projRev,
+		projectionFence:    projFence,
 	}, nil
 }
 
@@ -172,6 +200,12 @@ type eshuSearchDocumentWriteSession struct {
 	totalLength         int
 	timings             EshuSearchDocumentWriteTimings
 	didInitialTermClear bool
+
+	// projectionRevision / projectionFence hold the revision and fence values
+	// returned by SearchDocumentProjectionStateWriter.BeginBuilding at session
+	// start, for the FinalizeReady / MarkFailed CAS at session end (#4233).
+	projectionRevision int64
+	projectionFence    int64
 }
 
 // InsertPage upserts one page of curated documents and accumulates their keys.
@@ -221,6 +255,25 @@ func (s *eshuSearchDocumentWriteSession) Finalize(ctx context.Context) (EshuSear
 	if err != nil {
 		return EshuSearchDocumentWriteResult{}, err
 	}
+	// #4233: after the authoritative retire + stats succeed, publish the
+	// projection state as ready. A false CAS result (stale/superseded) must
+	// NOT fail the write — a superseding generation legitimately owns the row.
+	if s.writer.ProjectionState != nil {
+		ok, err := s.writer.ProjectionState.FinalizeReady(ctx, s.scopeID, s.generationID, s.projectionRevision, s.projectionFence, int64(s.written))
+		if err != nil {
+			return EshuSearchDocumentWriteResult{}, fmt.Errorf("finalize ready eshu search document projection state: %w", err)
+		}
+		if !ok {
+			// Structured log key for stale CAS — no new metric instrument.
+			slog.Warn("search document projection ready skipped stale",
+				"scope_id", s.scopeID,
+				"generation_id", s.generationID,
+				"projection_revision", s.projectionRevision,
+				"build_fence", s.projectionFence,
+				"document_count", s.written,
+			)
+		}
+	}
 	return EshuSearchDocumentWriteResult{CanonicalWrites: s.written, Retired: retired, Timings: s.timings}, nil
 }
 
@@ -232,6 +285,17 @@ func (s *eshuSearchDocumentWriteSession) Finalize(ctx context.Context) (EshuSear
 // for the (scope_id, generation_id) pair, which is the same operation performed
 // by Finalize when no documents are produced.
 func (s *eshuSearchDocumentWriteSession) Cancel(ctx context.Context) error {
+	// #4233: best-effort MarkFailed — log on error, do not mask the original
+	// cancel reason.
+	if s.writer.ProjectionState != nil {
+		if _, err := s.writer.ProjectionState.MarkFailed(ctx, s.scopeID, s.generationID, s.projectionRevision, s.projectionFence); err != nil {
+			slog.Warn("search document projection mark failed error",
+				"scope_id", s.scopeID,
+				"generation_id", s.generationID,
+				"error", err,
+			)
+		}
+	}
 	if _, err := s.writer.retireSearchDocumentFacts(ctx, s.scopeID, s.generationID, nil); err != nil {
 		return fmt.Errorf("cancel eshu search document partial write: %w", err)
 	}

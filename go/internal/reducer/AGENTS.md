@@ -2138,3 +2138,47 @@ spans/`eshu_dp_postgres_query_duration_seconds` covering the new ledger reads an
 writes. The change adds no new metric instrument, metric label, worker, queue
 domain, lease, runtime knob, or graph-write route; the two new ledger tables are
 reached through the existing Postgres store instrumentation.
+
+## #4233 — versioned search-vector scope readiness (evidence)
+
+Performance Evidence: the OLD corpus-wide active_docs CTE
+(`eshu_search_vector_pending.go`, `listPendingEshuSearchVectorScopesSQL`)
+materialised the entire corpus-wide `fact_records` + `eshu_search_vector_metadata`
+join (~2.58M facts, 831 active scopes) on every sweep, measuring 6141ms/18.5M
+buffers on the live `e2e3586persist` full-corpus stack. The NEW
+O(active scopes) versioned scope-state scan
+(`eshu_search_vector_scope_state.go`, `listPendingSearchVectorScopesScopedSQL`)
+joins `eshu_search_document_projection_state` → `ingestion_scopes` →
+`eshu_search_vector_scope_state` (at most one row per active scope), measuring
+0.591ms/1195 buffers on the same stack — a ~10,000× improvement in execution time
+and ~15,000× reduction in buffer reads. Live equivalence proof:
+`ESHU_SEARCH_VECTOR_SCOPE_STATE_LIVE=1 go test ./internal/storage/postgres
+-run SearchVectorScopeState -count=1` → exact equivalence 0/0 (old set equals
+new set, symmetric set-difference zero). The count-equal-but-stale trap stays
+pending: a scope with ready projection_state rows but vector_scope_state on a
+stale projection_revision is correctly returned as pending rather than
+incorrectly excluded by the old corpus-wide join.
+
+No-Observability-Change: the scope-state lifecycle adds no new metric instrument.
+The three new structured log keys — `search document projection ready skipped
+stale` (doc-writer false CAS), `search vector scope complete check failed`
+(scope-state probe error), and `search vector scope finalize skipped`
+(`reason=cas_rejected`) — are operator-facing WARN-level structured logs
+mirroring the #4885 no-progress-log precedent. The existing
+`eshu_dp_search_vector_build_phase_seconds` scheduling_wait histogram and the
+"search vector build sweep completed" structured log cover the scheduling and
+build phases. Doc-writer projection-state writes are covered by the existing
+`InstrumentedDB` Postgres query spans and
+`eshu_dp_postgres_query_duration_seconds`.
+
+Concurrency note (fence CAS): the `BeginBuilding` INSERT … ON CONFLICT DO UPDATE
+bumps `build_fence` atomically. Two concurrent workers each get their own fence
+value; the first to `FinalizeReady` wins (CAS succeeds because its fence is
+≤ the current fence), and the second's CAS fails (its fence was superseded by
+the first winner's higher fence). The second worker emits a structured WARN
+`search vector scope finalize skipped` with `reason=cas_rejected` and the sweep
+continues without error. The same fence-safe pattern governs the doc-writer
+projection-state: a false `FinalizeReady` CAS does not fail the write, only logs
+a structured warn. Both paths are covered by focused unit tests
+(`TestSearchVectorBuildRunnerScopeStateConcurrencyFenceSuperseded`,
+`TestSearchVectorBuildRunnerFalseCASSkipsWithoutFailure`).

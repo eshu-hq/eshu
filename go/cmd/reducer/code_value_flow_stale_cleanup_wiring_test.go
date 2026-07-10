@@ -4,6 +4,7 @@
 package main
 
 import (
+	"context"
 	"strings"
 	"testing"
 
@@ -15,6 +16,7 @@ func TestBuildReducerServiceWiresCodeValueFlowStaleCleanup(t *testing.T) {
 
 	db := &fakeReducerDB{}
 	service, err := buildReducerService(
+		context.Background(),
 		db,
 		stubGraphExecutor{},
 		stubCypherExecutor{},

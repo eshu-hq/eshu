@@ -45,7 +45,7 @@ The generator excludes Generated Go files (`*.pb.go`, `*.gen.go`, `zz_generated*
 | `github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/autoscaling/awssdk` | 34 | 131 | 26.0% |
 | `github.com/eshu-hq/eshu/go/cmd/collector-sbom-attestation` | 49 | 179 | 27.4% |
 | `github.com/eshu-hq/eshu/go/internal/parser/swift` | 157 | 571 | 27.5% |
-| `github.com/eshu-hq/eshu/go/internal/parser/javascript` | 1173 | 4167 | 28.1% |
+| `github.com/eshu-hq/eshu/go/internal/parser/javascript` | 1172 | 4167 | 28.1% |
 | `github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/elbv2/awssdk` | 64 | 222 | 28.8% |
 | `github.com/eshu-hq/eshu/go/internal/parser/java` | 531 | 1748 | 30.4% |
 | `github.com/eshu-hq/eshu/go/cmd/projector` | 56 | 181 | 30.9% |

@@ -75,4 +75,6 @@ var orderedBootstrapDefinitionNames = []string{
 	"identity_bootstrap_credential",
 	"identity_sign_in_policy",
 	"identity_local_credentials_must_change_password",
+	"eshu_search_document_projection_state",
+	"eshu_search_vector_scope_state",
 }

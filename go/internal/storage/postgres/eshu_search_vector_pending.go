@@ -78,20 +78,30 @@ type EshuSearchVectorPendingRequest struct {
 }
 
 // EshuSearchVectorPendingScope identifies one active scope that needs
-// vector rows for its curated search documents.
+// vector rows for its curated search documents. ProjectionRevision carries the
+// document-projection revision the scheduler observed (0 from the retired
+// corpus-wide store, which does not track scope state); the versioned
+// scope-state store (#4233) populates it so the build runner can finalize
+// vector readiness with a revision/fence CAS.
 type EshuSearchVectorPendingScope struct {
-	ScopeID      string
-	GenerationID string
-	RepoID       string
+	ScopeID            string
+	GenerationID       string
+	RepoID             string
+	ProjectionRevision int64
 }
 
-// EshuSearchVectorPendingStore lists active repository scopes whose curated
-// search documents do not yet have complete ready vector rows.
+// EshuSearchVectorPendingStore is the RETIRED corpus-wide pending lister. It is
+// no longer wired into any runtime path (#4233 replaced it with
+// EshuSearchVectorScopeStateStore.ListPendingSearchVectorScopes, an O(active
+// scopes) versioned scope-state scan). It is retained ONLY as the equivalence
+// reference the live regression test compares the new scheduler against, so the
+// two must return an identical pending set. Do not re-wire it into production.
 type EshuSearchVectorPendingStore struct {
 	db ExecQueryer
 }
 
-// NewEshuSearchVectorPendingStore builds a pending-vector lister.
+// NewEshuSearchVectorPendingStore builds the retired reference pending lister
+// used only by the #4233 equivalence regression test.
 func NewEshuSearchVectorPendingStore(db ExecQueryer) EshuSearchVectorPendingStore {
 	return EshuSearchVectorPendingStore{db: db}
 }

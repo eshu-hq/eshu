@@ -337,6 +337,7 @@ func TestBuildReducerServiceMaxInFlightWrapsAllWriters(t *testing.T) {
 	// and MAX_IN_FLIGHT=2. Before the fix, Wrap happened after other writers
 	// were built, so MAX_IN_FLIGHT had no effect on them.
 	_, err := buildReducerService(
+		context.Background(),
 		db,
 		stubGraphExecutor{},
 		stubCypherExecutor{},
@@ -373,6 +374,7 @@ func TestBuildReducerServiceMaxInFlightWithGroupedWritesEnabled(t *testing.T) {
 
 	db := &fakeReducerDB{}
 	_, err := buildReducerService(
+		context.Background(),
 		db,
 		stubGroupExecutor{},
 		stubCypherExecutor{},

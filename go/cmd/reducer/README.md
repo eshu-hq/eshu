@@ -314,6 +314,19 @@ document id. It does not write graph truth or mark an external vector store
 ready. API, MCP, and reducer must share the same selected provider profile or
 local override before reads can claim vector participation.
 
+**#4233 versioned scope readiness:** at startup the reducer seeds the
+`eshu_search_document_projection_state` and `eshu_search_vector_scope_state`
+tables via `postgres.SeedSearchVectorScopeState` — a one-time, idempotent
+exact-proof migration that seeds document-projection-state rows for every
+repository scope and vector-scope-state ready rows only for scopes the exact
+per-scope anti-join proves already complete. The seeder runs after schema
+apply and before the SearchVectorBuildRunner starts, gated on the same
+condition that wires the runner (disabled when vectors are off). The runner
+uses the versioned scope-state store (`EshuSearchVectorScopeStateStore`)
+instead of the retired corpus-wide `EshuSearchVectorPendingStore`, which is
+retained only as the equivalence-test reference and is no longer wired into
+any runtime path.
+
 Default wiring guard: `go test ./cmd/reducer -run
 TestProductionWiringConsumesCapabilityDefaults -count=1` asserts that
 production config consumes capability-owned defaults instead of duplicating

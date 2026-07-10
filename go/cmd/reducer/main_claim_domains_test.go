@@ -4,6 +4,7 @@
 package main
 
 import (
+	"context"
 	"strings"
 	"testing"
 
@@ -24,6 +25,7 @@ func TestBuildReducerServiceWiresReducerClaimDomains(t *testing.T) {
 
 	db := &fakeReducerDB{}
 	service, err := buildReducerService(
+		context.Background(),
 		db,
 		stubGraphExecutor{},
 		stubCypherExecutor{},
