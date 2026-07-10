@@ -29,7 +29,7 @@ both of these must be answered explicitly:
    files under `pkg/cypher/` and `pkg/storage/` in the current NornicDB-New
    checkout named by repo docs, session-local config, or the user (NOT an older
    `NornicDB` sibling). Always read
-   `docs/docs/reference/nornicdb-pitfalls.md` for known traps. If your
+   `docs/public/reference/nornicdb-pitfalls.md` for known traps. If your
    query uses a pattern you haven't validated against the pinned binary,
    that's research debt — close it with a focused test or `curl`-against-
    Bolt-HTTP probe in an isolated, uniquely-named Compose stack.
@@ -52,7 +52,7 @@ both of these must be answered explicitly:
 
 For the long-form workflow, backend research locations, anti-patterns, and
 the measurement protocol, see
-`docs/docs/reference/cypher-performance.md`. Pure correctness fixes can
+`docs/public/reference/cypher-performance.md`. Pure correctness fixes can
 trade a full bench for a "no measurable regression" check on the same input
 shape, but must state that decision explicitly in the PR.
 

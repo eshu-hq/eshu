@@ -3,8 +3,7 @@
 This document is the canon for **how Eshu work is executed across multiple
 harnesses and models without losing quality.** It applies whether the work
 runs in Claude Code, opencode, pi, or any future harness, and whether the
-model is a frontier model (Claude) or a cheaper executor (Codex, MiniMax,
-DeepSeek, OpenAI).
+model is a frontier model (Claude) or a cheaper executor (Codex, DeepSeek, OpenAI).
 
 It exists because Eshu is worked by a **tiered model economy**: frontier
 tokens are scarce and reserved for judgment (design and PR review), while
@@ -23,12 +22,12 @@ comes from two things a model cannot paraphrase away:
 1. **The gate floor** — CI (and local hooks) that pass or fail the same way no
    matter who wrote the code. See [Gate Floor](#the-gate-floor).
 2. **Scope and tool boxing** — a weak model receives a *narrow, pre-verified
-   task* and *restricted tools*, never trust. A coordinator scopes the work; a
-   reviewer checks the judgment; the gates catch the mechanics.
+   task* and *restricted tools*, never trust. The user or active primary agent
+   scopes the work; a reviewer checks the judgment; the gates catch the mechanics.
 
 Build for the assumption that the executor ignores half the prose. The agent
-prose only routes role → model → tools; it is not the thing that protects the
-codebase.
+prose only routes role → permissions → tools; it is not the thing that protects
+the codebase.
 
 ## Three layers
 
@@ -36,7 +35,7 @@ codebase.
 | --- | --- | --- |
 | **Constant floor** | CI workflows (`.github/workflows/`), local hooks | Runs identically for every harness and model. The only truly model-independent guarantee. |
 | **Shared brain** | `AGENTS.md` (≡ `CLAUDE.md`), `.agents/skills/` | One canon. Each harness points at it; rules are never re-stated per harness. |
-| **Role shims** | Per-harness agent configs (e.g. `.opencode/agent/*.md`) | Thin `(role + model + tools)` bundles. No rulebook copies. |
+| **Role shims** | Per-harness agent configs (e.g. `.opencode/agent/*.md`) | Thin `(role + permissions + prompt)` bundles. No rulebook copies. |
 
 The shared brain is loaded by every harness through its native mechanism:
 Claude reads `CLAUDE.md`; Codex and opencode read `AGENTS.md` (plus opencode's
@@ -46,35 +45,51 @@ by opencode's `skills.paths`.
 
 ## Roles, models, and tools
 
-An agent earns its existence when its **model, tools, or permissions** differ —
-not when only its prose flavor differs. Knowledge differences belong in skills.
-Under that test, the roster is:
+An agent earns its existence when its **tools or permissions** differ — not when
+only its prose flavor or model preference differs. Knowledge differences belong
+in skills. Model and provider selection is a user/runtime concern: use opencode's
+active model, `opencode run --model`, `/models`, `OPENCODE_CONFIG_CONTENT`, or a
+personal config directory to override the model without changing tracked role
+files. Under that test, the opencode roster is:
 
-| Role | Tier / model | Tools | Responsibility |
+| Role | Runtime model binding | Tools | Responsibility |
 | --- | --- | --- | --- |
-| **Coordinator** (`plan-eshu`) | Codex-class | read + run, **no code edits** | Decompose, design, and emit a scoped task spec (see [Handoff Contract](#the-handoff-contract)). Never assigns work it cannot define a gate for. |
-| **Executor** (`develop-eshu`) | MiniMax / DeepSeek-class | full write, **one surface at a time** | Implement one scoped task, TDD-first, run and paste the gates. |
-| **Debugger** (`debug-eshu`) | any (cheap acceptable) | **read + run, no write** | Diagnose to root cause. The no-write boxing physically prevents the "fix before you understand" failure mode. |
-| **Performance engineer** (`perf-eshu`) | Frontier / strong | **read + run + measure, no write** | Find bottlenecks and regressions, tune the graph/storage stack. Measures and recommends; routes code changes to the executor. Loads [`performance-map.md`](performance-map.md). |
-| **Reviewer** | Frontier (Claude) | full | Design review and PR review — judgment work. Token-expensive, used sparingly, after the cheap gates are green. |
+| **Executor** (`develop-eshu`) | user's selected implementation model | full write, **one surface at a time** | Implement one scoped task, TDD-first, run and paste the gates. |
+| **Debugger** (`debug-eshu`) | user's selected diagnostic model | **read + run, no write** | Diagnose to root cause. The no-write boxing physically prevents the "fix before you understand" failure mode. |
+| **Performance engineer** (`perf-eshu`) | user's selected performance model | **read + run + measure, no write** | Find bottlenecks and regressions, tune the graph/storage stack. Measures and recommends; routes code changes to the executor. Loads [`performance-map.md`](performance-map.md). |
+| **Reviewer** (`review-eshu`) | user's selected review model | **read + run, no write** | Run `eshu-code-review` against final diffs, PR updates, and merge-readiness claims. Keeps judgment separate from authorship. |
 
 `ask-eshu` (read-only Q&A) is intentionally **deferred**: it overlaps
 opencode's built-in `explore`/`plan` agents and its name collides with Eshu's
 own Ask product surface (`POST /api/v0/ask`). Add it only when a distinct need
 appears.
 
-The model assignment **is** the tiering. Pinning Codex to the coordinator and
-MiniMax/DeepSeek to the executor is the entire reason these are separate
-agents rather than one. The reviewer tier is normally a harness choice (run
-Claude Code), not an opencode agent.
+The repo does not pin personal model economics into tracked opencode role files.
+If a task needs a stronger or cheaper provider, choose it in the opencode
+session or with a higher-precedence local override. opencode does not provide
+credit-aware automatic provider failover; when a provider is exhausted, switch
+the active model or restart with another override.
+
+Examples, with placeholder model IDs that must be replaced by `opencode models`
+output from the local machine:
+
+```bash
+OPENCODE_CONFIG_CONTENT='{"agent":{"perf-eshu":{"model":"openai/<gpt-5.6-sol-id>","variant":"high"}}}' opencode
+OPENCODE_CONFIG_CONTENT='{"agent":{"perf-eshu":{"model":"anthropic/<opus-4.8-id>","variant":"high"}}}' opencode
+OPENCODE_CONFIG_CONTENT='{"agent":{"perf-eshu":{"model":"deepseek/<deepseek-pro-id>","variant":"high"}}}' opencode
+```
+
+The same override shape works for `develop-eshu`, `debug-eshu`, and
+`review-eshu`; change the agent key, not the tracked role file.
 
 ## The handoff contract
 
-This is where a multi-model pipeline lives or dies. The coordinator must hand
-the executor a **machine-followable task spec**, not prose. A loose handoff
-makes a weak executor flail; a tight one makes it reliable.
+This is where a multi-model pipeline lives or dies. The user, built-in planning
+agent, or any other coordinator must hand the executor a **machine-followable
+task spec**, not prose. A loose handoff makes a weak executor flail; a tight one
+makes it reliable.
 
-Every coordinator → executor handoff MUST contain:
+Every implementation handoff MUST contain:
 
 1. **Surface** — the exact file(s) to touch, one ownership boundary only.
 2. **Acceptance test** — the failing test that defines "done" (the TDD seed).
@@ -84,27 +99,24 @@ Every coordinator → executor handoff MUST contain:
 5. **Ownership / parallel-work note** — which other surfaces are active, read
    live (`gh pr list`, `git worktree list`); never hard-coded issue numbers.
 
-The raw material already exists: the `writing-plans` / `executing-plans`
-skills and `eshu-issue-driver`. The coordinator's job is to render that spec
-format on every handoff.
+The raw material already exists in the project skills and `eshu-issue-driver`.
+Render that spec format on every handoff before dispatching implementation.
 
 ## Dispatch
 
-The coordinator delegates through the harness's subagent mechanism (in
-opencode, the **Task tool**). The executor, debugger, and performance engineer
-are leaf agents — they run as `mode: all` (both directly selectable and
-dispatchable) and their own `task` permission is denied, so they cannot
-dispatch further. Aggregation and sequencing stay with the coordinator.
+The user or active primary agent delegates through the harness's subagent
+mechanism (in opencode, the **Task tool**) or invokes a role directly. The
+executor, debugger, performance engineer, and reviewer are leaf agents — they
+run as `mode: all` (both directly selectable and dispatchable) and their own
+`task` permission is denied, so they cannot dispatch further. Aggregation and
+sequencing stay with the user or primary agent.
 
 Routing: implementation → `develop-eshu`; unknown-cause failure → `debug-eshu`
-(returns a root cause, then the coordinator dispatches `develop-eshu` to fix);
-bottleneck / regression / tuning → `perf-eshu` (returns measurements, then any
-code change routes to `develop-eshu`). One surface per dispatch, always with the
-full handoff contract, sequenced accuracy-before-performance per the Life Motto.
-
-In opencode the coordinator's reach is pinned with `permission.task` (allowlist
-the three leaf agents, deny the rest). Other harnesses use their own delegation
-primitive over the same canon.
+(returns a root cause, then `develop-eshu` implements the fix); bottleneck /
+regression / tuning → `perf-eshu` (returns measurements, then any code change
+routes to `develop-eshu`); final diff / PR readiness → `review-eshu`. One
+surface per dispatch, always with the full handoff contract, sequenced
+accuracy-before-performance per the Life Motto.
 
 ## The gate floor
 
@@ -177,7 +189,8 @@ The pattern is identical for every harness — thin config pointing at the share
 brain and the same gate floor:
 
 - **opencode** — `.opencode/opencode.jsonc` (`instructions` → `AGENTS.md`;
-  `skills.paths` → `.agents/skills`) + `.opencode/agent/*.md` role shims.
+  `skills.paths` → `.agents/skills`) + `.opencode/agent/*.md` role/permission
+  shims. Tracked shims do not pin personal model choices.
 - **Codex** — root + per-directory `AGENTS.md`, `.codex/skills/`,
   `.codex/hooks.json`.
 - **Claude Code** — `CLAUDE.md`, `.claude/skills/`.
