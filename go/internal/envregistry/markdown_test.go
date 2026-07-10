@@ -22,3 +22,14 @@ func TestRenderMarkdownSingleTrailingNewline(t *testing.T) {
 		t.Fatalf("RenderMarkdown output ends with a blank line at EOF; the whitespace gate (git show --check) rejects it")
 	}
 }
+
+func TestRenderMarkdownGeneratedMarkerNamesWrapper(t *testing.T) {
+	got := Default().RenderMarkdown()
+	want := "regenerate with `bash scripts/generate-env-registry-doc.sh`"
+	if !strings.Contains(got, want) {
+		t.Fatalf("RenderMarkdown generated marker must name the wrapper script %q", want)
+	}
+	if strings.Contains(got, "ESHU_UPDATE_ENV_DOC=1 go test") {
+		t.Fatalf("RenderMarkdown generated marker must not expose the raw update-only test command")
+	}
+}

@@ -68,9 +68,15 @@ reference doc; emits no metrics, spans, or logs from any running service.
    split config file, add that file to `coreScanFiles` so the coverage test
    protects it.
 2. Regenerate the reference doc:
-   `ESHU_UPDATE_ENV_DOC=1 go test ./internal/envregistry -run TestEnvRegistryReferenceDocUpToDate`.
+   `bash scripts/generate-env-registry-doc.sh`.
 3. Run `go test ./internal/envregistry -count=1`. If you added a variable read
    in a `coreScanFiles` file, the coverage test enforces it is declared.
+
+The checked-in reference is also guarded by
+`bash scripts/verify-env-registry-doc.sh` and its hermetic mirror
+`bash scripts/test-generate-env-registry-doc.sh`. The verifier fails when
+`docs/public/reference/env-registry.md` is manually edited or stale relative to
+`go/internal/envregistry`.
 
 ## Runtime impact
 

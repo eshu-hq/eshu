@@ -674,6 +674,28 @@ gates:
       - go
     ci_only_reason: ""
 
+  - id: env-registry-doc
+    name: Generate Environment Variable Registry Reference
+    category: exactness
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "go/internal/envregistry/**"
+      - "docs/public/reference/env-registry.md"
+      - "go/internal/envregistry/README.md"
+      - "scripts/generate-env-registry-doc.sh"
+      - "scripts/verify-env-registry-doc.sh"
+      - "scripts/test-generate-env-registry-doc.sh"
+    local:
+      command: "bash scripts/verify-env-registry-doc.sh"
+      test_command: "bash scripts/test-generate-env-registry-doc.sh"
+    ci:
+      workflow: static-contract-gates.yml
+      job: "Verify environment registry reference gate"
+    requirements:
+      - go
+    ci_only_reason: ""
+
   # ─── RACE ──────────────────────────────────────────────────────────────────
 
   - id: race-graph-writes

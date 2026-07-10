@@ -17,8 +17,7 @@ func (r *Registry) RenderMarkdown() string {
 	var b strings.Builder
 	b.WriteString("# Environment Variable Reference\n\n")
 	b.WriteString("<!-- Generated from go/internal/envregistry. Do not edit by hand; ")
-	b.WriteString("regenerate with `ESHU_UPDATE_ENV_DOC=1 go test ./internal/envregistry ")
-	b.WriteString("-run TestEnvRegistryReferenceDocUpToDate`. -->\n\n")
+	b.WriteString("regenerate with `bash scripts/generate-env-registry-doc.sh`. -->\n\n")
 	b.WriteString("This reference is generated from the code-owned registry in ")
 	b.WriteString("`go/internal/envregistry`. It covers the core platform subsystems. ")
 	b.WriteString("Run `eshu config validate` to check the current environment against it.\n\n")

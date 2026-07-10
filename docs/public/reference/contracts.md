@@ -30,3 +30,10 @@ collector, reducer, query, API, MCP, or generated-reference boundaries.
 This area is for exact lookup, not first-run reading. Tutorials and how-to
 guides should link here for details instead of copying contract language into
 human onboarding pages.
+
+## Generated Reference Ownership
+
+`docs/public/reference/env-registry.md` is generated from
+`go/internal/envregistry`. Regenerate it with `bash
+scripts/generate-env-registry-doc.sh`; verify drift with `bash
+scripts/verify-env-registry-doc.sh`. Do not edit the generated page by hand.
