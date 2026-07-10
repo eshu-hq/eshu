@@ -184,23 +184,47 @@ func (s *IdentitySubjectStore) AuthenticateLocalIdentity(
 	// re-checked here at login. That gap only bit when require_sso=false
 	// (require_sso=true already blocks non-admin local login entirely via
 	// requireSSODecision in go/internal/query/local_identity_sign_in_policy_gate.go).
-	// The policy read below fails CLOSED: a read error denies the login rather
-	// than silently skipping the check, mirroring the require_sso fail-closed
-	// stance for non-admins.
-	requireMFAForAllUsers, err := signInPolicyRequiresMFAForUsers(ctx, s.db, row.TenantID)
-	if err != nil {
-		slog.ErrorContext(ctx, "local login mfa-for-all policy read failed; login denied",
-			"subject_class", "local_user", "tenant_id", row.TenantID, "error", err)
-		return LocalIdentityAuthenticationResult{}, err
+	//
+	// Admins NEVER read this policy: an admin always requires MFA regardless
+	// of its value, so reading it would only create a way for an
+	// identity_sign_in_policies outage to deny a local ADMIN login before the
+	// handler's documented policy_read_error_admin_allowed break-glass path
+	// ever gets a chance to apply (issue #5001 P1 review finding). The read
+	// happens only for a non-admin, and fails CLOSED there: a read error
+	// denies that login rather than silently skipping the check, mirroring
+	// the require_sso fail-closed stance for non-admins.
+	mfaRequiredAtLogin := row.HasAdminRole
+	if !row.HasAdminRole {
+		requireMFAForAllUsers, err := signInPolicyRequiresMFAForUsers(ctx, s.db, row.TenantID)
+		if err != nil {
+			slog.ErrorContext(ctx, "local login mfa-for-all policy read failed; login denied",
+				"subject_class", "local_user", "tenant_id", row.TenantID, "error", err)
+			return LocalIdentityAuthenticationResult{}, err
+		}
+		mfaRequiredAtLogin = requireMFAForAllUsers
 	}
-	// Admins always require MFA regardless of policy; non-admins require it
-	// only when require_mfa_for_all_users is on. Both cases share one
-	// enforcement block so the recovery-code consumption and failed-attempt
-	// handling never drift between them.
-	mfaRequiredAtLogin := row.HasAdminRole || requireMFAForAllUsers
+	// Admin and non-admin share one enforcement block so the recovery-code
+	// consumption and failed-attempt handling never drift between them.
 	if mfaRequiredAtLogin {
 		if !row.HasActiveMFA || attempt.MFARecoveryCodeHash == "" {
-			return LocalIdentityAuthenticationResult{Status: LocalIdentityAuthMFARequired}, nil
+			// Auth carries only the fields the caller's require_sso gate needs
+			// (go/internal/query handleLogin, issue #5001 P2 review finding):
+			// a non-admin can never satisfy an MFA challenge through local
+			// login when require_sso is ALSO on for the tenant, so the handler
+			// must be able to run requireSSODecision against this identity
+			// BEFORE surfacing mfa_required. The result stays unauthenticated
+			// (Authenticated is not set) — no session is implied.
+			return LocalIdentityAuthenticationResult{
+				Status: LocalIdentityAuthMFARequired,
+				Auth: LocalIdentityAuthContext{
+					TenantID:           row.TenantID,
+					WorkspaceID:        row.WorkspaceID,
+					SubjectIDHash:      row.SubjectIDHash,
+					SubjectClass:       "local_user",
+					PolicyRevisionHash: row.PolicyRevisionHash,
+					AllScopes:          row.HasAdminRole,
+				},
+			}, nil
 		}
 		if err := consumeLocalIdentityRecoveryCode(ctx, s.db, row.UserID, attempt); err != nil {
 			if errors.Is(err, errLocalIdentityRecoveryCodeInvalid) {

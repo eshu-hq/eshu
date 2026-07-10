@@ -14,11 +14,19 @@ import (
 )
 
 // requireSSODecision evaluates the tenant sign-in policy's require_sso
-// setting against an already-authenticated local identity (issue #4968,
+// setting against an already-password-verified local identity (issue #4968,
 // epic #4962). It is called ONLY after AuthenticateLocalIdentity has already
 // verified the password (and MFA, for an admin) — this function never
 // authenticates anyone; it only decides whether an already-proven identity
-// is allowed to receive a session.
+// is allowed to receive a session. Since issue #5001 (P2 review finding,
+// PR #5049), handleLogin also calls this for a password-verified, MFA-PENDING
+// non-admin (LocalIdentityAuthMFARequired, not yet Authenticated) to enforce
+// require_sso precedence: such a non-admin can never complete the pending MFA
+// challenge through local login when require_sso is also on, so the correct
+// response is the same 403 this function already drives for an authenticated
+// non-admin, not an mfa_required invitation to attempt a login that can never
+// succeed. The auth.AllScopes / auth.TenantID fields this function reads are
+// populated identically in both cases.
 //
 // Decision values (also used as the eshu_dp_auth_require_sso_login_gate_total
 // "decision" label):
