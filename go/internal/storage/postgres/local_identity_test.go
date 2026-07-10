@@ -213,7 +213,9 @@ func TestAuthenticateLocalIdentityAdminStaysFailOpen(t *testing.T) {
 			true, // has_active_mfa
 			"sha256:policy",
 		}}},
-		{rows: nil}, // signInPolicyRequiresMFAForUsers: off, irrelevant for an admin (issue #5001)
+		// No second entry: admins never read require_mfa_for_all_users (issue
+		// #5001 P1 review finding — admin login must survive a policy-read
+		// outage for break-glass).
 	}}
 	store := NewIdentitySubjectStore(db)
 

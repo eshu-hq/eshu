@@ -208,6 +208,95 @@ func TestLocalLoginAllowedForAdminBreakGlassWhenSignInPolicyReadErrors(t *testin
 	}
 }
 
+// TestLocalLoginDeniedForNonAdminMFARequiredWhenRequireSSOPolicyIsOn is the
+// P2 review-finding regression guard (PR #5049 Codex review): a non-admin
+// missing MFA under require_mfa_for_all_users can never complete that
+// challenge through local login when require_sso is ALSO on for the tenant —
+// require_sso already forbids issuing this identity a local session at all.
+// Before this fix, handleLogin short-circuited on `!result.Authenticated`
+// and returned 202 mfa_required without ever consulting require_sso, so this
+// non-admin was invited to attempt an MFA proof that could never succeed.
+// This asserts the corrected 403 (not 202) and that requireSSODecision's
+// authoritative policy read is the one consulted — no second, duplicate
+// read.
+func TestLocalLoginDeniedForNonAdminMFARequiredWhenRequireSSOPolicyIsOn(t *testing.T) {
+	t.Parallel()
+
+	store := &fakeLocalIdentityStore{
+		authResult: LocalIdentityAuthenticationResult{
+			Status: LocalIdentityAuthMFARequired,
+			Auth: LocalIdentityAuthContext{
+				TenantID:      "tenant_local",
+				SubjectIDHash: "sha256:dev-subject",
+				AllScopes:     false,
+			},
+		},
+	}
+	sessions := &fakeBrowserSessionStore{}
+	policy := &fakeSignInPolicyReadStore{policy: SignInPolicy{RequireSSO: true}}
+	handler := &LocalIdentityHandler{Store: store, Sessions: sessions, SignInPolicy: policy}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v0/auth/local/login",
+		bytes.NewBufferString(`{"login_id":"dev@example.test","password":"plaintext-password"}`),
+	)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want %d (a non-admin mfa_required can never be satisfied when require_sso is also on): %s", rec.Code, http.StatusForbidden, rec.Body.String())
+	}
+	if len(sessions.created) != 0 {
+		t.Fatalf("created sessions = %d, want 0", len(sessions.created))
+	}
+	if len(policy.tenantIDs) != 1 || policy.tenantIDs[0] != "tenant_local" {
+		t.Fatalf("policy reads = %#v, want exactly one read for tenant_local (requireSSODecision stays the single authoritative read)", policy.tenantIDs)
+	}
+}
+
+// TestLocalLoginMFARequiredAllowedForNonAdminWhenRequireSSOPolicyIsOff proves
+// the P2 fix does not regress the ordinary mfa_required path: when
+// require_sso is off, a non-admin mfa_required response still surfaces as
+// 202 (not swallowed into a 403), so the client can still prompt for the
+// recovery-code proof.
+func TestLocalLoginMFARequiredAllowedForNonAdminWhenRequireSSOPolicyIsOff(t *testing.T) {
+	t.Parallel()
+
+	store := &fakeLocalIdentityStore{
+		authResult: LocalIdentityAuthenticationResult{
+			Status: LocalIdentityAuthMFARequired,
+			Auth: LocalIdentityAuthContext{
+				TenantID:      "tenant_local",
+				SubjectIDHash: "sha256:dev-subject",
+				AllScopes:     false,
+			},
+		},
+	}
+	sessions := &fakeBrowserSessionStore{}
+	policy := &fakeSignInPolicyReadStore{policy: SignInPolicy{RequireSSO: false}}
+	handler := &LocalIdentityHandler{Store: store, Sessions: sessions, SignInPolicy: policy}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v0/auth/local/login",
+		bytes.NewBufferString(`{"login_id":"dev@example.test","password":"plaintext-password"}`),
+	)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("status = %d, want %d (mfa_required must still surface when require_sso is off): %s", rec.Code, http.StatusAccepted, rec.Body.String())
+	}
+	if len(sessions.created) != 0 {
+		t.Fatalf("created sessions = %d, want 0", len(sessions.created))
+	}
+}
+
 func TestCreateInvitationDeniedWhenAllowLocalUserCreationIsOff(t *testing.T) {
 	t.Parallel()
 
