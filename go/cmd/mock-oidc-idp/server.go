@@ -183,7 +183,14 @@ func (s *Server) handleAuthorize(w http.ResponseWriter, r *http.Request) {
 // string existing, without discarding any parameters redirect_uri already
 // carried.
 func mergeQuery(existing string, add url.Values) string {
-	values, _ := url.ParseQuery(existing)
+	values, err := url.ParseQuery(existing)
+	if err != nil {
+		// The existing query comes from an already-parsed redirect_uri, so a
+		// parse failure here is not expected; if it ever happens, return just
+		// the added callback params rather than silently dropping the code and
+		// state a malformed map would lose.
+		return add.Encode()
+	}
 	for key, vals := range add {
 		for _, v := range vals {
 			values.Add(key, v)
