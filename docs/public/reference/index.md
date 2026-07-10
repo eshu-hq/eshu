@@ -24,6 +24,7 @@ reference pages are optimized for lookup.
 | [Contract reference](contracts.md) | Durable source contracts for facts, collectors, reducers, evidence packets, security intelligence, and generated reference families. |
 | [Proof and validation](proof-and-validation.md) | Proof gates, validation matrices, local testing, replay coverage, security gates, and benchmark evidence. |
 | [Docs catalog metadata](docs-catalog.md) | Metadata schema and verifier contract for the human-first documentation IA. |
+| [Docs prose quality](prose-quality.md) | Advisory style contract for concise, task-focused human-facing docs. |
 | [Local host and capabilities](capability-catalog.md) | Capability catalogs, authorization, local-host lifecycle, graph backend behavior, and query playbooks. |
 | [Telemetry](telemetry/index.md) | Metrics, traces, logs, runtime signals, and cross-service correlation. |
 | [Languages](../languages/feature-matrix.md) | Parser and infrastructure-language support reference. |
