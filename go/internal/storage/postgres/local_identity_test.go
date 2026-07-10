@@ -150,6 +150,7 @@ func TestAuthenticateLocalIdentityNonAdminResolvesPermissionGrants(t *testing.T)
 			false, // has_active_mfa
 			"sha256:policy",
 		}}},
+		{rows: nil}, // signInPolicyRequiresMFAForUsers: off (regression guard, issue #5001)
 		{rows: [][]any{{"role_reader"}}},
 		{rows: [][]any{
 			{"ask_search", "ask_reasoning"},
@@ -212,6 +213,7 @@ func TestAuthenticateLocalIdentityAdminStaysFailOpen(t *testing.T) {
 			true, // has_active_mfa
 			"sha256:policy",
 		}}},
+		{rows: nil}, // signInPolicyRequiresMFAForUsers: off, irrelevant for an admin (issue #5001)
 	}}
 	store := NewIdentitySubjectStore(db)
 

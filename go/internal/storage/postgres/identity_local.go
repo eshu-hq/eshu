@@ -173,21 +173,32 @@ func (s *IdentitySubjectStore) AuthenticateLocalIdentity(
 	if bcrypt.CompareHashAndPassword([]byte(row.PasswordHash), []byte(attempt.Password)) != nil {
 		return s.recordFailedLocalIdentityAttempt(ctx, row, attempt.Now)
 	}
-	// MFA is gated on HasAdminRole only: admins always require MFA at login,
-	// regardless of the tenant's require_mfa_for_all_users sign-in policy
-	// (issue #4968). A non-admin whose tenant has require_mfa_for_all_users=true
-	// is only checked for MFA once, at invitation-accept time
+	// MFA at login is required unconditionally for every admin/owner, and for
+	// every other local user once the tenant's require_mfa_for_all_users
+	// sign-in policy is on (issue #5001, extending the invitation-accept-only
+	// check from issue #4968). Before this change a non-admin was only ever
+	// checked for MFA once, at invitation-accept time
 	// (signInPolicyRequiresMFAForUsers in identity_sign_in_policy.go, enforced
-	// in AcceptLocalIdentityInvitation above) — a pre-existing non-admin local
-	// user who never had an MFA factor is NOT re-checked here at login. This
-	// gap only bites when require_sso=false (require_sso=true already blocks
-	// non-admin local login entirely via requireSSODecision in
-	// go/internal/query/local_identity_sign_in_policy_gate.go). Extending
-	// login-time MFA enforcement to all users is a deliberate follow-up, not
-	// an oversight in this change: it needs its own design (e.g. what happens
-	// to an existing session with no MFA factor when policy flips to
-	// require_mfa_for_all_users=true after the user was created).
-	if row.HasAdminRole {
+	// in AcceptLocalIdentityInvitation above): a non-admin local user created
+	// before the policy turned on, or created while it was off, was never
+	// re-checked here at login. That gap only bit when require_sso=false
+	// (require_sso=true already blocks non-admin local login entirely via
+	// requireSSODecision in go/internal/query/local_identity_sign_in_policy_gate.go).
+	// The policy read below fails CLOSED: a read error denies the login rather
+	// than silently skipping the check, mirroring the require_sso fail-closed
+	// stance for non-admins.
+	requireMFAForAllUsers, err := signInPolicyRequiresMFAForUsers(ctx, s.db, row.TenantID)
+	if err != nil {
+		slog.ErrorContext(ctx, "local login mfa-for-all policy read failed; login denied",
+			"subject_class", "local_user", "tenant_id", row.TenantID, "error", err)
+		return LocalIdentityAuthenticationResult{}, err
+	}
+	// Admins always require MFA regardless of policy; non-admins require it
+	// only when require_mfa_for_all_users is on. Both cases share one
+	// enforcement block so the recovery-code consumption and failed-attempt
+	// handling never drift between them.
+	mfaRequiredAtLogin := row.HasAdminRole || requireMFAForAllUsers
+	if mfaRequiredAtLogin {
 		if !row.HasActiveMFA || attempt.MFARecoveryCodeHash == "" {
 			return LocalIdentityAuthenticationResult{Status: LocalIdentityAuthMFARequired}, nil
 		}
