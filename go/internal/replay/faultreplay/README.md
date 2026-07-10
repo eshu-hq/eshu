@@ -1,13 +1,24 @@
 # replay/faultreplay
 
-The Layer 4 (deterministic fault injection) **fault script** for the Ifá
-conformance platform (design doc
+The Layer 4 (deterministic fault injection) **fault script and hermetic
+runner** for the Ifá conformance platform (design doc
 `docs/internal/design/4389-ifa-conformance-platform.md`, #4580).
 
-This slice (S1) owns the fault-script schema only — versioned, fail-closed
-**data**. It does not run anything: no reducer wiring, no decorator, no
-backend restart logic. Those land in later slices (S2 runner, S4 decorators)
-that consume a `Script` this package has already validated.
+This package has two halves:
+
+- **S1 — the fault script** (`script.go`): versioned, fail-closed **data**
+  describing what to break and when. No reducer wiring, no decorator, no
+  backend restart logic lives here.
+- **S2 — the hermetic runner** (`source.go`, `executor.go`, `runner.go`):
+  drives a validated `Script` through the **real** `reducer.Service` loop, no
+  Docker/Postgres/graph backend, by decorating the two seams `service.go`
+  already exposes (`WorkSource`/`BatchWorkSource` and `Executor`,
+  `go/internal/reducer/service.go:27-56`).
+
+`restart-backend-between-phase-groups` needs a real graph backend to restart,
+so it cannot run hermetically; both `NewFaultingWorkSource` and
+`NewFaultingExecutor` reject it at construction (a later S4 slice owns it),
+rather than silently accepting a scripted fault that can never fire.
 
 ## What it is
 
@@ -81,23 +92,103 @@ script, err := faultreplay.Load(path)       // read file + Parse
 err := script.Validate()                    // re-check a Go-constructed Script
 ```
 
+## The hermetic runner (S2)
+
+`RunFault` mirrors `schedulereplay.RunScheduleReport` exactly: it drives the
+same in-memory `schedulereplay.Graph`/`WorkItem`/`Applier` model through the
+**real** `reducer.Service` claim/execute/ack loop, except the `WorkSource` and
+`Executor` it wires in are `FaultingWorkSource` and `FaultingExecutor` instead
+of the plain `schedulereplay` types.
+
+```go
+report, err := faultreplay.RunFault(ctx, faultreplay.Config{
+	Items:   schedulereplay.ScheduleInOrder(items), // same fixture as schedulereplay
+	Workers: 4,                                     // >= 2 required for expire-lease-mid-handler
+	Apply:   schedulereplay.ApplyCanonical,
+	Script:  faultreplay.Script{ /* ... */ },
+})
+// report.Snapshot        -- the converged canonical graph
+// report.Acked           -- successful completions, including recovered redeliveries
+// report.FailedIntentIDs -- the terminal/dead-letter set (only fail-terminal survives here)
+```
+
+Each fault kind is modeled as a decoration of one of the two seams
+`reducer.Service` already exposes for this purpose
+(`go/internal/reducer/service.go:27-56`) — never a hook inside the service
+loop, a handler, or a collector:
+
+- **`kill-worker-after-claim`** (`FaultingWorkSource`): on the Nth global
+  claim, the claimed intent is pushed onto an internal redelivery queue and
+  handed out again on a later `Claim`/`ClaimBatch` call. No goroutine is
+  actually killed — Go has no safe way to do that — so the observable effect
+  (a duplicate delivery) is what the fault exercises, exactly like
+  `schedulereplay.ScheduleWithDuplicates` but triggered by an ordinal instead
+  of being baked into the schedule up front.
+- **`expire-lease-mid-handler`** (`FaultingWorkSource` +
+  `FaultingExecutor`, coordinated through the small `redeliverer` interface):
+  when `FaultingExecutor.Execute` begins the one call for the targeted intent,
+  it calls `ArmMidHandlerDuplicate`, which enqueues a duplicate delivery and
+  returns a channel; the original call blocks on that channel (with a
+  `ctx.Done()` escape, never an unconditional wait) until some **other**
+  worker's `Claim` pops the duplicate and closes the channel. Because the
+  parked goroutine cannot itself call `Claim`, the duplicate is *provably*
+  claimed by a second, concurrently-running worker — this requires
+  `Config.Workers >= 2`; `RunFault` refuses a `Workers < 2` config with that
+  fault rather than deadlock. The eventual double-apply is real (T4): only its
+  *order* is serialized, by the same graph mutex `schedulereplay`'s executor
+  uses.
+- **`fail-graph-write-once-then-succeed`** (`FaultingExecutor`): on the
+  matching Execute call (by ordinal or `IntentID` substring — this hermetic
+  tier has no separate per-statement Cypher boundary, so `statement_ordinal`
+  counts `Execute` calls and `operation_match` matches the `IntentID`), fires
+  exactly once per `target.lane`:
+  - `executor-retry`: the injected failure is simulated and absorbed entirely
+    inside `Execute` — it never reaches the caller — so `reducer.Service`
+    observes exactly one successful call, mirroring
+    `internal/storage/cypher.RetryingExecutor`'s retry-inside-`Execute`
+    precedent.
+  - `queue-retry`: `Execute` calls `RedeliverOnce` (enqueuing a
+    fire-and-forget redelivery) and then returns a plain, non-`RetryableError`
+    error, which `reducer.Service` routes to `WorkSink.Fail` — the redelivered
+    attempt then succeeds normally.
+- **`fail-terminal`** (`FaultingExecutor`): the targeted intent fails, every
+  time it is delivered, without ever calling the inner executor. Nothing
+  re-arms a redelivery for it, so it is the one fault kind that survives in
+  `Report.FailedIntentIDs` to the end of the run.
+
+`Config.Workers < 2` is only rejected for `expire-lease-mid-handler`; the
+other three faults run correctly (and are exercised in tests) with
+`Workers = 1`, since none of them requires two workers to be genuinely
+in-flight at once.
+
 ## Verifying a change
 
 ```bash
 export GOCACHE="$(git rev-parse --show-toplevel)/.gocache"
-cd go && go test ./internal/replay/faultreplay/ -count=1
+cd go && go test ./internal/replay/faultreplay/ -race -count=1
 cd go && go vet ./internal/replay/faultreplay
 ```
 
-No Docker, no Postgres, no graph backend, no reducer wiring — this slice is
-pure schema and runs in the default `go test` pass.
+No Docker, no Postgres, no graph backend — the hermetic runner drives the real
+`reducer.Service` loop entirely in memory, so the whole package (schema and
+runner) runs in the default `go test` pass. `-race` is load-bearing for the
+runner: `expire-lease-mid-handler` deliberately puts two goroutines
+concurrently in-flight on the same intent, so the package's teeth depend on
+that path being race-clean, not merely green.
 
 ## Performance & observability evidence
 
 - **No-Regression Evidence:** net-new package; it is not imported by any
-  production runtime path yet (no edit under `go/internal/reducer`,
+  production runtime path (no edit under `go/internal/reducer`,
   `go/internal/storage`, `go/internal/queue`, or the service binaries), so
   there is no reducer throughput, queue-depth, or row-count regression to
-  measure.
+  measure. Conflict domain and worker settings mirror `schedulereplay`
+  exactly: one in-memory canonical graph mutated under one mutex, `Workers=1`
+  for the sequential-safe faults and `Workers=4` for
+  `expire-lease-mid-handler`. `go test -race` for the whole package completes
+  in ~2s.
 - **No-Observability-Change:** no telemetry instruments, spans, logs, or
-  status fields are added or modified. This slice is schema validation only.
+  status fields are added or modified. The runner asserts the canonical
+  graph-truth snapshot and the sink's acked/failed accounting directly, not a
+  runtime metric, and the reducer's existing claim/queue instrumentation is
+  untouched.
