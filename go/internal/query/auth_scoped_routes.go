@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query //nolint:filelength // 502 lines: scoped-token route allowlist. Per internal/query/AGENTS.md, this file is the per-issue allowlist gate; consolidating the per-route entries in one file is the intent so reviewers can audit the full allowlist in one diff.
+package query
 
 import (
 	"net/http"
@@ -259,6 +259,12 @@ func scopedAuthProfileReadRoute(r *http.Request) bool {
 // tenant admin (AllScopes + TenantID, sees only own-tenant events). Listing
 // them here allows browser-session tenant admins to reach the handler; the
 // handler's auditScope gate enforces the correct scoping.
+//
+// The provider-config routes (#4966) are matched by scopedProviderConfigReadRoute
+// rather than a literal case here because they carry a {provider_config_id}
+// path parameter and a "/revisions" sub-resource (issue #5004 follow-up: this
+// whole family was missing from the allowlist, the same gap sign-in-policy
+// had).
 func scopedAuthAdminReadRoute(r *http.Request) bool {
 	if r.Method != http.MethodGet {
 		return false
@@ -271,16 +277,16 @@ func scopedAuthAdminReadRoute(r *http.Request) bool {
 		"/api/v0/auth/admin/idp-group-mappings",
 		"/api/v0/auth/admin/api-tokens",
 		"/api/v0/auth/admin/audit/events",
-		"/api/v0/auth/admin/audit/summary":
+		"/api/v0/auth/admin/audit/summary",
+		"/api/v0/auth/admin/sign-in-policy":
 		return true
-	default:
-		return false
 	}
+	return scopedProviderConfigReadRoute(r.URL.Path)
 }
 
 // scopedAuthAdminMutationRoute reports whether the request targets one of the
 // tenant-admin identity mutation endpoints (#3703 PR-2). These unsafe-method
-// (POST/DELETE) routes derive the tenant/workspace strictly from AuthContext and
+// (POST/PATCH/DELETE) routes derive the tenant/workspace strictly from AuthContext and
 // write only within the caller's own tenant. The handler additionally requires
 // all-scope admin auth, so a non-admin browser-session or scoped-token caller
 // that reaches here is still denied by adminScope. Admins drive the console with
@@ -294,6 +300,12 @@ func scopedAuthAdminReadRoute(r *http.Request) bool {
 // CSRF — a cookie-session caller without a valid X-Eshu-CSRF header is rejected
 // with 403 ahead of the handler. Scoped bearer tokens are not subject to CSRF
 // and are still gated by the all-scope admin requirement in the handler.
+//
+// The provider-config POST routes (#4966) are matched by
+// scopedProviderConfigMutationRoute rather than a literal case here because
+// they carry a {provider_config_id} path parameter and the
+// /revert, /enable, /disable, /test-connection sub-resource actions (issue
+// #5004 follow-up).
 func scopedAuthAdminMutationRoute(r *http.Request) bool {
 	switch r.Method {
 	case http.MethodPost:
@@ -303,7 +315,12 @@ func scopedAuthAdminMutationRoute(r *http.Request) bool {
 			"/api/v0/auth/admin/idp-group-mappings":
 			return true
 		}
-		return scopedInvitationRevokeRoute(r.URL.Path)
+		if scopedInvitationRevokeRoute(r.URL.Path) {
+			return true
+		}
+		return scopedProviderConfigMutationRoute(r.URL.Path)
+	case http.MethodPatch:
+		return r.URL.Path == "/api/v0/auth/admin/sign-in-policy"
 	case http.MethodDelete:
 		return scopedIdPGroupMappingDeleteRoute(r.URL.Path)
 	default:
@@ -334,100 +351,76 @@ func scopedIdPGroupMappingDeleteRoute(path string) bool {
 	return mappingRef != "" && !strings.Contains(mappingRef, "/")
 }
 
+// providerConfigsListPath is the admin provider-config collection path both
+// scopedProviderConfigReadRoute and scopedProviderConfigMutationRoute anchor
+// on: the bare path is the list (GET) / create (POST) route, and every other
+// matched route is a "/{provider_config_id}[/action]" path under it.
+const providerConfigsListPath = "/api/v0/auth/admin/provider-configs"
+
+// scopedProviderConfigReadRoute matches the admin provider-config GET routes:
+// the list (GET providerConfigsListPath), a single provider config
+// (GET .../{provider_config_id}), and its revision history
+// (GET .../{provider_config_id}/revisions). Uses the same
+// prefix-then-single-segment approach as scopedIdPGroupMappingDeleteRoute,
+// extended with strings.Cut to also recognize the one nested "/revisions"
+// sub-resource without a naive HasPrefix that would let any deeper path
+// through.
+func scopedProviderConfigReadRoute(path string) bool {
+	if path == providerConfigsListPath {
+		return true
+	}
+	const prefix = providerConfigsListPath + "/"
+	if !strings.HasPrefix(path, prefix) {
+		return false
+	}
+	remainder := strings.TrimPrefix(path, prefix)
+	providerConfigID, sub, hasSub := strings.Cut(remainder, "/")
+	if providerConfigID == "" {
+		return false
+	}
+	if !hasSub {
+		return true
+	}
+	return sub == "revisions"
+}
+
+// scopedProviderConfigMutationRoute matches the admin provider-config POST
+// routes: create (POST providerConfigsListPath), update
+// (POST .../{provider_config_id}), and the revert/enable/disable/
+// test-connection sub-resource actions
+// (POST .../{provider_config_id}/{action}). Same prefix-then-segment approach
+// as scopedProviderConfigReadRoute; the action segment is matched against the
+// closed set of implemented actions rather than accepted as a wildcard.
+func scopedProviderConfigMutationRoute(path string) bool {
+	if path == providerConfigsListPath {
+		return true
+	}
+	const prefix = providerConfigsListPath + "/"
+	if !strings.HasPrefix(path, prefix) {
+		return false
+	}
+	remainder := strings.TrimPrefix(path, prefix)
+	providerConfigID, action, hasAction := strings.Cut(remainder, "/")
+	if providerConfigID == "" {
+		return false
+	}
+	if !hasAction {
+		return true
+	}
+	switch action {
+	case "revert", "enable", "disable", "test-connection":
+		return true
+	default:
+		return false
+	}
+}
+
 func scopedBrowserSessionAuthRoute(r *http.Request) bool {
 	switch {
 	case r.URL.Path == "/api/v0/auth/browser-session" &&
 		(r.Method == http.MethodGet || r.Method == http.MethodPost || r.Method == http.MethodDelete):
 		return true
 	case r.URL.Path == "/api/v0/auth/browser-session/context" && r.Method == http.MethodPatch:
-		return true
-	default:
-		return false
-	}
-}
-
-func scopedEntityContextRoute(path string) bool {
-	const (
-		prefix = "/api/v0/entities/"
-		suffix = "/context"
-	)
-	if !strings.HasPrefix(path, prefix) || !strings.HasSuffix(path, suffix) {
-		return false
-	}
-	entityID := strings.TrimSuffix(strings.TrimPrefix(path, prefix), suffix)
-	return entityID != "" && !strings.Contains(entityID, "/")
-}
-
-// scopedIncidentContextRoute reports whether the request targets the
-// single-incident context read GET /api/v0/incidents/{incident_id}/context. The
-// handler authorizes the read against the reducer-owned durable
-// incident→repository correlation edge (reducer_incident_repository_correlation,
-// exact/derived outcomes only): an incident whose durable owning repository is
-// outside the scoped grant, or that has no durable edge at all, is served as
-// not-found with no existence disclosure. Adjacent incident sub-resources stay
-// fail-closed for scoped tokens until each is separately proven tenant-filtered.
-func scopedIncidentContextRoute(path string) bool {
-	const (
-		prefix = "/api/v0/incidents/"
-		suffix = "/context"
-	)
-	if !strings.HasPrefix(path, prefix) || !strings.HasSuffix(path, suffix) {
-		return false
-	}
-	incidentID := strings.TrimSuffix(strings.TrimPrefix(path, prefix), suffix)
-	return incidentID != "" && !strings.Contains(incidentID, "/")
-}
-
-func scopedWorkloadContextRoute(path string) bool {
-	return scopedContextRoute(path, "/api/v0/workloads/")
-}
-
-func scopedServiceContextRoute(path string) bool {
-	return scopedContextRoute(path, "/api/v0/services/")
-}
-
-func scopedServiceInvestigationRoute(path string) bool {
-	const prefix = "/api/v0/investigations/services/"
-	if !strings.HasPrefix(path, prefix) {
-		return false
-	}
-	selector := strings.TrimPrefix(path, prefix)
-	return selector != "" && !strings.Contains(selector, "/")
-}
-
-// scopedServiceIntelligenceReportRoute matches the service intelligence report
-// route. The report composes the service-story dossier through the same scoped
-// access filter, so it qualifies for scoped-token tenant filtering exactly like
-// the service-story route.
-func scopedServiceIntelligenceReportRoute(path string) bool {
-	const prefix = "/api/v0/services/"
-	const suffix = "/intelligence-report"
-	if !strings.HasPrefix(path, prefix) {
-		return false
-	}
-	// CutSuffix (not TrimSuffix) so the suffix must be a distinct trailing
-	// segment: "/api/v0/services/intelligence-report" (no service segment) does
-	// not match because its remainder lacks the leading "/" of the suffix.
-	selector, ok := strings.CutSuffix(strings.TrimPrefix(path, prefix), suffix)
-	return ok && selector != "" && !strings.Contains(selector, "/")
-}
-
-func scopedQueryPlaybookRoute(r *http.Request) bool {
-	switch {
-	case r.Method == http.MethodGet && r.URL.Path == "/api/v0/query-playbooks":
-		return true
-	case r.Method == http.MethodPost && r.URL.Path == "/api/v0/query-playbooks/resolve":
-		return true
-	default:
-		return false
-	}
-}
-
-func scopedInvestigationWorkflowRoute(r *http.Request) bool {
-	switch {
-	case r.Method == http.MethodGet && r.URL.Path == "/api/v0/investigation-workflows":
-		return true
-	case r.Method == http.MethodPost && r.URL.Path == "/api/v0/investigation-workflows/resolve":
 		return true
 	default:
 		return false
