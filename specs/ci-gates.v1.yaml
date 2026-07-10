@@ -1102,11 +1102,12 @@ gates:
       command: "bash scripts/test-verify-ifa-determinism.sh"
       test_command: "bash scripts/test-verify-ifa-determinism.sh"
     ci:
-      workflow: static-contract-gates.yml
-      job: "Verify Ifa contract-layer gate"
+      workflow: ""
+      job: ""
     requirements:
       - go
     ci_only_reason: ""
+    local_only_reason: "The full N in {1,2,4} determinism matrix (verify-ifa-determinism.sh) needs Docker Compose (fresh Postgres + NornicDB per cell) and is operator-gated; the credential-free hermetic structural mirror runs in make pre-pr for the changed paths. Per-PR CI wiring lands with the P4 (#4397) advisory-to-blocking flip."
 
   - id: ifa-dead-letter-matrix
     name: Ifa P3 failure-path (dead-letter set) determinism matrix
@@ -1125,11 +1126,12 @@ gates:
       command: "bash scripts/test-verify-ifa-dead-letter-matrix.sh"
       test_command: "bash scripts/test-verify-ifa-dead-letter-matrix.sh"
     ci:
-      workflow: static-contract-gates.yml
-      job: "Verify Ifa contract-layer gate"
+      workflow: ""
+      job: ""
     requirements:
       - go
     ci_only_reason: ""
+    local_only_reason: "The dead-letter-set determinism matrix (verify-ifa-dead-letter-matrix.sh) needs Docker Compose (fresh Postgres + NornicDB per cell) and is operator-gated; the credential-free hermetic structural mirror runs in make pre-pr for the changed paths. Per-PR CI wiring lands with the P4 (#4397) advisory-to-blocking flip."
 
   - id: parserfixture-tests
     name: Parser Fixture Replay Tests
