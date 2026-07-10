@@ -11,10 +11,13 @@ import (
 	"testing"
 )
 
-// validScriptJSON is a fault script containing exactly one FaultOp of each of
-// the 5 supported kinds, each with a valid trigger (and target, where
-// required). It is the round-trip fixture shared by the parse and
-// determinism tests below.
+// validScriptJSON is a fault script covering every supported fault kind with
+// at least one valid trigger variant (and target, where required): the two
+// trigger variants of expire-lease-mid-handler (ordinal vs ID) and of
+// fail-graph-write-once-then-succeed (statement-ordinal vs operation-match)
+// each get their own FaultOp, so the fixture has more than five entries by
+// design. It is the round-trip fixture shared by the parse and determinism
+// tests below.
 const validScriptJSON = `{
   "version": 1,
   "faults": [
