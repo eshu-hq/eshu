@@ -24,6 +24,16 @@ var (
 	// unset). require_sso cannot be enabled until that has happened at least
 	// once, so a dead or misconfigured IdP can never lock the tenant out.
 	ErrSignInPolicyGuardrailNoSSOAdminProof = errors.New("sign-in policy: require_sso needs at least one admin to have signed in via SSO")
+	// ErrSignInPolicyTimeoutOrdering means the MERGED idle/absolute timeout
+	// pair — the incoming update applied on top of the row UpsertSignInPolicy
+	// just locked with FOR UPDATE — would leave a non-zero
+	// absolute_timeout_seconds shorter than a non-zero idle_timeout_seconds
+	// (issue #5002 part 2). Checked under the lock so two concurrent partial
+	// PATCHes (e.g. one setting only idle, one setting only absolute) can
+	// never both read the same stale stored value and both commit an
+	// inconsistent row: the second call serializes behind FOR UPDATE, sees
+	// the first call's committed value, and is rejected here.
+	ErrSignInPolicyTimeoutOrdering = errors.New("sign-in policy: absolute_timeout_seconds must not be less than idle_timeout_seconds")
 )
 
 // SignInPolicy is the tenant sign-in policy row. A tenant with no row yet

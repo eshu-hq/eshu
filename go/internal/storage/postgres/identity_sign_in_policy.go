@@ -59,6 +59,18 @@ func (s *IdentitySubjectStore) GetSignInPolicy(ctx context.Context, tenantID str
 // exists to make an intentional enable safe, not to fully serialize against
 // every unrelated concurrent write.
 //
+// Timeout ordering (issue #5002 part 2, codex PR #5053 review): the merged
+// idle/absolute timeout pair — the incoming update applied on top of the
+// FOR UPDATE-locked current row — is validated for absolute>=idle INSIDE this
+// transaction, after the lock is held. Validating a merged pair BEFORE the
+// lock (e.g. a handler-side read-then-validate) is racy: two concurrent
+// partial PATCHes (one setting only idle, one setting only absolute) could
+// each read the same stale stored value, each pass, and each commit a
+// row that is individually consistent with what it read but leaves the
+// final stored row with absolute<idle. Checking under the lock means the
+// second PATCH to acquire the lock sees the first PATCH's committed value
+// and is rejected here before it can write.
+//
 // Session revoke (issue #5002): whenever the RESULTING policy has
 // RequireSSO=true, the same transaction bulk-revokes every active
 // subject_class='local_user' browser session for the tenant (see
@@ -137,6 +149,14 @@ func (s *IdentitySubjectStore) UpsertSignInPolicy(
 	}
 	if update.AbsoluteTimeoutSeconds != nil {
 		next.AbsoluteTimeoutSeconds = *update.AbsoluteTimeoutSeconds
+	}
+
+	// Merged-under-lock timeout ordering check — see UpsertSignInPolicy's doc
+	// comment. next already reflects the locked current row with update
+	// applied, so this sees the value a concurrent racer would actually
+	// commit against, not a pre-lock snapshot.
+	if signInPolicyAbsoluteBeforeIdle(next.IdleTimeoutSeconds, next.AbsoluteTimeoutSeconds) {
+		return SignInPolicy{}, ErrSignInPolicyTimeoutOrdering
 	}
 
 	if next.RequireSSO {
@@ -222,6 +242,18 @@ func (s *IdentitySubjectStore) RecordSSOAdminVerification(
 		return fmt.Errorf("record sso admin verification: %w", err)
 	}
 	return nil
+}
+
+// signInPolicyAbsoluteBeforeIdle reports the one invalid session-timeout
+// ordering UpsertSignInPolicy rejects: a non-zero absolute timeout shorter
+// than a non-zero idle timeout. Zero means "use the process default" on
+// either field and never participates in the comparison, matching
+// go/internal/query's resolveSessionTimeouts zero-means-default convention.
+// storage/postgres cannot import go/internal/query (see the package
+// boundary in docs/internal/agent-guide.md), so this mirrors — rather than
+// shares — query's identically named same-purpose helper.
+func signInPolicyAbsoluteBeforeIdle(idleSeconds, absoluteSeconds int) bool {
+	return idleSeconds > 0 && absoluteSeconds > 0 && absoluteSeconds < idleSeconds
 }
 
 func countActiveProviderConfigs(ctx context.Context, db ExecQueryer, tenantID string) (int64, error) {

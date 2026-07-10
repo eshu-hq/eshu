@@ -6,9 +6,8 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
-	"os"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -60,6 +59,93 @@ func TestSignInPolicyConcurrencyGate(t *testing.T) {
 	t.Run("RequireSSOFlipRevokesOnlyLocalUserSessions", func(t *testing.T) {
 		testRequireSSOFlipRevokesOnlyLocalUserSessions(t, ctx, ownerDB)
 	})
+	t.Run("MergedTimeoutOrderingSerializesUnderLock", func(t *testing.T) {
+		testMergedTimeoutOrderingSerializesUnderLock(t, ctx, dsn, schemaName)
+	})
+}
+
+// testMergedTimeoutOrderingSerializesUnderLock proves issue #5002 part 2's
+// root-cause fix (codex PR #5053 review): two concurrent PATCH-equivalent
+// UpsertSignInPolicy calls against the SAME tenant — one setting ONLY
+// idle_timeout_seconds=3600, one setting ONLY absolute_timeout_seconds=1800
+// — can never both commit. Whichever call acquires the FOR UPDATE row lock
+// first commits (its own single field never conflicts with the still-unset
+// other field, so its merged pair is valid); the second call's locked read
+// sees the FIRST call's already-committed value and is rejected with
+// ErrSignInPolicyTimeoutOrdering. The final stored row NEVER has
+// absolute_timeout_seconds < idle_timeout_seconds — proving the race a
+// handler-side pre-transaction read could not close (both callers would read
+// the same stale stored row and both pass) is actually closed here.
+func testMergedTimeoutOrderingSerializesUnderLock(t *testing.T, ctx context.Context, dsn, schemaName string) {
+	t.Helper()
+	tenantID := "tenant-signin-timeout-race"
+	seedDB := openSignInPolicyConn(t, ctx, dsn, schemaName)
+	seedSignInPolicyTenant(t, ctx, seedDB, tenantID)
+
+	connA := openSignInPolicyConn(t, ctx, dsn, schemaName)
+	connB := openSignInPolicyConn(t, ctx, dsn, schemaName)
+	storeA := NewIdentitySubjectStore(SQLDB{DB: connA})
+	storeB := NewIdentitySubjectStore(SQLDB{DB: connB})
+
+	var wg sync.WaitGroup
+	results := make(chan error, 2)
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		idle := 3600
+		_, err := storeA.UpsertSignInPolicy(ctx, tenantID, SignInPolicyUpdate{
+			IdleTimeoutSeconds: &idle,
+			PolicyRevisionHash: "sha256:rev-timeout-a",
+			Now:                time.Now().UTC(),
+		})
+		results <- err
+	}()
+	go func() {
+		defer wg.Done()
+		absolute := 1800
+		_, err := storeB.UpsertSignInPolicy(ctx, tenantID, SignInPolicyUpdate{
+			AbsoluteTimeoutSeconds: &absolute,
+			PolicyRevisionHash:     "sha256:rev-timeout-b",
+			Now:                    time.Now().UTC(),
+		})
+		results <- err
+	}()
+	wg.Wait()
+	close(results)
+
+	var errs []error
+	for err := range results {
+		errs = append(errs, err)
+	}
+	if len(errs) != 2 {
+		t.Fatalf("got %d results, want 2", len(errs))
+	}
+	var nilCount, orderingCount int
+	for _, err := range errs {
+		switch {
+		case err == nil:
+			nilCount++
+		case errors.Is(err, ErrSignInPolicyTimeoutOrdering):
+			orderingCount++
+		default:
+			t.Fatalf("unexpected error: %v", err)
+		}
+	}
+	if nilCount != 1 || orderingCount != 1 {
+		t.Fatalf("nilCount=%d orderingCount=%d, want exactly one success and one ErrSignInPolicyTimeoutOrdering rejection (errs=%v)", nilCount, orderingCount, errs)
+	}
+
+	final, err := NewIdentitySubjectStore(SQLDB{DB: seedDB}).GetSignInPolicy(ctx, tenantID)
+	if err != nil {
+		t.Fatalf("GetSignInPolicy() error = %v", err)
+	}
+	if final.IdleTimeoutSeconds > 0 && final.AbsoluteTimeoutSeconds > 0 &&
+		final.AbsoluteTimeoutSeconds < final.IdleTimeoutSeconds {
+		t.Fatalf(
+			"final policy has absolute(%d) < idle(%d) — the race was NOT closed",
+			final.AbsoluteTimeoutSeconds, final.IdleTimeoutSeconds,
+		)
+	}
 }
 
 // testRequireSSOFlipRevokesOnlyLocalUserSessions proves issue #5002 part 1
@@ -349,99 +435,9 @@ func testAcceptInvitationRejectsMissingMFAAgainstRealPolicyRow(t *testing.T, ctx
 	}
 }
 
-func signInPolicyProofDSN() string {
-	if dsn := strings.TrimSpace(os.Getenv("ESHU_SIGN_IN_POLICY_PROOF_DSN")); dsn != "" {
-		return dsn
-	}
-	return strings.TrimSpace(os.Getenv("ESHU_POSTGRES_DSN"))
-}
-
-func openSignInPolicySchemaFixture(t *testing.T, ctx context.Context, dsn string) (*sql.DB, string) {
-	t.Helper()
-	schemaName := fmt.Sprintf("sign_in_policy_%d", time.Now().UnixNano())
-	db := openSignInPolicyConnRaw(t, dsn)
-	if _, err := db.ExecContext(ctx, "CREATE SCHEMA "+schemaName); err != nil {
-		t.Fatalf("create sign-in policy schema: %v", err)
-	}
-	t.Cleanup(func() {
-		_, _ = db.ExecContext(context.Background(), "DROP SCHEMA "+schemaName+" CASCADE")
-	})
-	if _, err := db.ExecContext(ctx, "SET search_path TO "+schemaName); err != nil {
-		t.Fatalf("set search_path: %v", err)
-	}
-	for _, stmt := range []string{
-		MigrationSQL("ingestion_scopes"),
-		MigrationSQL("tenant_workspace_grants"),
-		MigrationSQL("identity_subjects"),
-		MigrationSQL("identity_sign_in_policy"),
-		MigrationSQL("browser_sessions"),
-	} {
-		if _, err := db.ExecContext(ctx, stmt); err != nil {
-			t.Fatalf("apply sign-in policy fixture schema: %v", err)
-		}
-	}
-	return db, schemaName
-}
-
-func openSignInPolicyConnRaw(t *testing.T, dsn string) *sql.DB {
-	t.Helper()
-	db, err := sql.Open("pgx", dsn)
-	if err != nil {
-		t.Fatalf("open postgres: %v", err)
-	}
-	db.SetMaxOpenConns(1)
-	db.SetMaxIdleConns(1)
-	t.Cleanup(func() { _ = db.Close() })
-	return db
-}
-
-// openSignInPolicyConn opens an independent single-connection handle bound to
-// an already-created fixture schema, so concurrent goroutines each hold their
-// own live Postgres connection and their statements truly interleave at the
-// database rather than serializing behind one pooled connection.
-func openSignInPolicyConn(t *testing.T, ctx context.Context, dsn, schemaName string) *sql.DB {
-	t.Helper()
-	db := openSignInPolicyConnRaw(t, dsn)
-	if _, err := db.ExecContext(ctx, "SET search_path TO "+schemaName); err != nil {
-		t.Fatalf("set search_path: %v", err)
-	}
-	return db
-}
-
-func seedSignInPolicyTenant(t *testing.T, ctx context.Context, db *sql.DB, tenantID string) {
-	t.Helper()
-	now := time.Now().UTC()
-	if _, err := db.ExecContext(ctx, `
-INSERT INTO tenants (tenant_id, status, display_handle_hash, policy_revision_hash, created_at, updated_at, tombstoned_at)
-VALUES ($1, 'active', '', 'sha256:policy', $2, $2, NULL)
-ON CONFLICT (tenant_id) DO NOTHING
-`, tenantID, now); err != nil {
-		t.Fatalf("seed tenant: %v", err)
-	}
-}
-
-func seedSignInPolicyWorkspace(t *testing.T, ctx context.Context, db *sql.DB, tenantID, workspaceID string) {
-	t.Helper()
-	now := time.Now().UTC()
-	if _, err := db.ExecContext(ctx, `
-INSERT INTO workspaces (tenant_id, workspace_id, status, display_handle_hash, policy_revision_hash, created_at, updated_at, tombstoned_at)
-VALUES ($1, $2, 'active', '', 'sha256:policy', $3, $3, NULL)
-ON CONFLICT (tenant_id, workspace_id) DO NOTHING
-`, tenantID, workspaceID, now); err != nil {
-		t.Fatalf("seed workspace: %v", err)
-	}
-}
-
-func insertActiveProviderConfig(t *testing.T, ctx context.Context, db *sql.DB, tenantID, providerConfigID string) {
-	t.Helper()
-	now := time.Now().UTC()
-	if _, err := db.ExecContext(ctx, `
-INSERT INTO identity_provider_configs (
-    provider_config_id, tenant_id, provider_kind, provider_key_hash, status,
-    active_revision_id, created_at, updated_at
-)
-VALUES ($1, $2, 'oidc', $3, 'active', 'rev_seed', $4, $4)
-`, providerConfigID, tenantID, "sha256:"+providerConfigID, now); err != nil {
-		t.Fatalf("seed active provider config: %v", err)
-	}
-}
+// Shared DSN/schema fixture helpers (signInPolicyProofDSN,
+// openSignInPolicySchemaFixture, openSignInPolicyConnRaw,
+// openSignInPolicyConn, seedSignInPolicyTenant, seedSignInPolicyWorkspace,
+// insertActiveProviderConfig) live in
+// identity_sign_in_policy_concurrency_helpers_test.go, split out to keep
+// this file under the repository's 500-line cap.

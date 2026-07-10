@@ -111,6 +111,8 @@ func mapSignInPolicyGuardrailError(err error) error {
 		return query.ErrSignInPolicyGuardrailNoProvenProvider
 	case errors.Is(err, pgstatus.ErrSignInPolicyGuardrailNoSSOAdminProof):
 		return query.ErrSignInPolicyGuardrailNoSSOAdminProof
+	case errors.Is(err, pgstatus.ErrSignInPolicyTimeoutOrdering):
+		return query.ErrSignInPolicyTimeoutOrdering
 	default:
 		return err
 	}

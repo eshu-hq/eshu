@@ -107,10 +107,17 @@ const signInPolicyMinNonZeroTimeoutSeconds = 60
 // fields that would make a nonsensical or unusable session timeout: negative
 // values, a non-zero value below signInPolicyMinNonZeroTimeoutSeconds, or an
 // absolute timeout shorter than the idle timeout when both are set to
-// non-zero overrides in the same request. It intentionally does not compare
-// against a value already stored for the tenant (a partial update that only
-// sets one field cannot see the other without an extra read) — that
-// cross-request comparison is validateSignInPolicyMergedTimeouts's job.
+// non-zero overrides in the same request. This is a same-request fast-fail
+// only — it intentionally does not compare against a value already stored
+// for the tenant, because a handler-side pre-transaction read-then-validate
+// is racy: two concurrent partial PATCHes (one setting only idle, one
+// setting only absolute) could each read the same stale stored value, each
+// pass, and each commit a row that is individually consistent with what it
+// read but leaves the final stored row inconsistent. That cross-request
+// comparison is enforced instead where it is safe to enforce — INSIDE
+// UpsertSignInPolicy's FOR UPDATE-locked transaction (issue #5002 part 2,
+// codex PR #5053 review; see storage/postgres.IdentitySubjectStore.
+// UpsertSignInPolicy's doc comment and ErrSignInPolicyTimeoutOrdering).
 func validateSignInPolicyTimeouts(body signInPolicyUpdateRequestBody) error {
 	if body.IdleTimeoutSeconds != nil {
 		if err := validateSignInPolicyTimeoutSeconds(*body.IdleTimeoutSeconds); err != nil {
@@ -123,56 +130,9 @@ func validateSignInPolicyTimeouts(body signInPolicyUpdateRequestBody) error {
 		}
 	}
 	if body.IdleTimeoutSeconds != nil && body.AbsoluteTimeoutSeconds != nil &&
-		signInPolicyAbsoluteBeforeIdle(*body.IdleTimeoutSeconds, *body.AbsoluteTimeoutSeconds) {
+		*body.IdleTimeoutSeconds > 0 && *body.AbsoluteTimeoutSeconds > 0 &&
+		*body.AbsoluteTimeoutSeconds < *body.IdleTimeoutSeconds {
 		return errors.New("absolute_timeout_seconds must not be less than idle_timeout_seconds")
-	}
-	return nil
-}
-
-// signInPolicyAbsoluteBeforeIdle reports the one invalid session-timeout
-// ordering this route ever rejects: a non-zero absolute timeout shorter than
-// a non-zero idle timeout. Zero means "use the process default" on both
-// fields and never participates in the comparison, matching
-// resolveSessionTimeouts's zero-means-default convention. Shared by
-// validateSignInPolicyTimeouts (same-request pair) and
-// validateSignInPolicyMergedTimeouts (stored+incoming pair) so both checks
-// enforce the identical rule.
-func signInPolicyAbsoluteBeforeIdle(idleSeconds, absoluteSeconds int) bool {
-	return idleSeconds > 0 && absoluteSeconds > 0 && absoluteSeconds < idleSeconds
-}
-
-// mergedSignInPolicyTimeoutSeconds resolves the idle/absolute timeout pair
-// that would be persisted once body is applied on top of the tenant's
-// currently stored policy: the incoming value where the PATCH body sets the
-// field, the stored value otherwise.
-func mergedSignInPolicyTimeoutSeconds(body signInPolicyUpdateRequestBody, stored SignInPolicy) (idleSeconds, absoluteSeconds int) {
-	idleSeconds = stored.IdleTimeoutSeconds
-	if body.IdleTimeoutSeconds != nil {
-		idleSeconds = *body.IdleTimeoutSeconds
-	}
-	absoluteSeconds = stored.AbsoluteTimeoutSeconds
-	if body.AbsoluteTimeoutSeconds != nil {
-		absoluteSeconds = *body.AbsoluteTimeoutSeconds
-	}
-	return idleSeconds, absoluteSeconds
-}
-
-// validateSignInPolicyMergedTimeouts closes issue #5002 part 2: a stored
-// absolute_timeout_seconds < idle_timeout_seconds produced across two
-// separate PATCHes (idle=3600 in one request, absolute=1800 in a later one)
-// is invisible to validateSignInPolicyTimeouts, which only sees one request
-// body at a time. This merges body onto stored (mergedSignInPolicyTimeoutSeconds)
-// and applies the same absolute>=idle rule to the pair that would actually be
-// persisted. A no-op when neither timeout field is present in the body, so
-// callers only pay for a store read when a timeout field is actually being
-// changed.
-func validateSignInPolicyMergedTimeouts(body signInPolicyUpdateRequestBody, stored SignInPolicy) error {
-	if body.IdleTimeoutSeconds == nil && body.AbsoluteTimeoutSeconds == nil {
-		return nil
-	}
-	idleSeconds, absoluteSeconds := mergedSignInPolicyTimeoutSeconds(body, stored)
-	if signInPolicyAbsoluteBeforeIdle(idleSeconds, absoluteSeconds) {
-		return errors.New("absolute_timeout_seconds must not be less than idle_timeout_seconds (comparing against the currently stored value)")
 	}
 	return nil
 }
@@ -213,20 +173,6 @@ func (h *SignInPolicyMutationHandler) handleUpdate(w http.ResponseWriter, r *htt
 		WriteError(w, http.StatusBadRequest, "invalid sign-in policy request: "+err.Error())
 		return
 	}
-	if body.IdleTimeoutSeconds != nil || body.AbsoluteTimeoutSeconds != nil {
-		stored, err := h.Store.GetSignInPolicy(r.Context(), tenantID)
-		if err != nil {
-			slog.ErrorContext(r.Context(), "sign-in policy merged-timeout read failed", "err", err)
-			h.audit(r, governanceaudit.DecisionDenied, "sign_in_policy_read_failed", "")
-			WriteError(w, http.StatusInternalServerError, "failed to read sign-in policy")
-			return
-		}
-		if err := validateSignInPolicyMergedTimeouts(body, stored); err != nil {
-			h.audit(r, governanceaudit.DecisionDenied, "sign_in_policy_invalid_timeout", "")
-			WriteError(w, http.StatusBadRequest, "invalid sign-in policy request: "+err.Error())
-			return
-		}
-	}
 	update := SignInPolicyUpdateRequest(body)
 	policyRevisionHash := localIdentityPolicyRevision(tenantID, "")
 	now := h.now()
@@ -260,6 +206,9 @@ func (h *SignInPolicyMutationHandler) handleUpdateError(w http.ResponseWriter, r
 		}
 		h.audit(r, governanceaudit.DecisionDenied, "sign_in_policy_guardrail_no_sso_proof", "")
 		WriteError(w, http.StatusBadRequest, "require_sso cannot be enabled: no admin has signed in via SSO yet")
+	case errors.Is(err, ErrSignInPolicyTimeoutOrdering):
+		h.audit(r, governanceaudit.DecisionDenied, "sign_in_policy_invalid_timeout", "")
+		WriteError(w, http.StatusBadRequest, "invalid sign-in policy request: "+ErrSignInPolicyTimeoutOrdering.Error())
 	default:
 		slog.ErrorContext(r.Context(), "admin sign-in policy update failed", "err", err)
 		h.audit(r, governanceaudit.DecisionDenied, "sign_in_policy_update_failed", "")

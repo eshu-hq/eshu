@@ -22,6 +22,12 @@ var (
 	// postgres.ErrSignInPolicyGuardrailNoSSOAdminProof: no admin has ever
 	// completed an SSO sign-in for this tenant.
 	ErrSignInPolicyGuardrailNoSSOAdminProof = errors.New("sign-in policy: require_sso needs at least one admin to have signed in via SSO")
+	// ErrSignInPolicyTimeoutOrdering mirrors
+	// postgres.ErrSignInPolicyTimeoutOrdering: the merged (stored+incoming)
+	// idle/absolute timeout pair, validated INSIDE the store's row-locked
+	// transaction, would leave a non-zero absolute_timeout_seconds shorter
+	// than a non-zero idle_timeout_seconds (issue #5002 part 2).
+	ErrSignInPolicyTimeoutOrdering = errors.New("sign-in policy: absolute_timeout_seconds must not be less than idle_timeout_seconds")
 )
 
 // SignInPolicy is the tenant sign-in policy (issue #4968). A tenant with no
@@ -57,21 +63,19 @@ type SignInPolicyReadStore interface {
 }
 
 // SignInPolicyMutationStore is the write surface for tenant sign-in policy.
-// Implementations must apply the require_sso guardrail atomically with the
-// write (see storage/postgres.IdentitySubjectStore.UpsertSignInPolicy) and
-// return ErrSignInPolicyGuardrailNoProvenProvider /
-// ErrSignInPolicyGuardrailNoSSOAdminProof (or an error satisfying errors.Is
-// against the storage-layer sentinels) when the guardrail blocks the write.
-//
-// It embeds SignInPolicyReadStore (issue #5002 part 2) because
-// SignInPolicyMutationHandler.handleUpdate must read the tenant's currently
-// stored policy whenever a PATCH sets idle_timeout_seconds or
-// absolute_timeout_seconds, to validate the MERGED (stored+incoming) pair —
-// a single-field PATCH cannot otherwise see a conflict with a value a prior,
-// separate PATCH already persisted.
+// Implementations must apply the require_sso guardrail AND the merged
+// idle/absolute timeout-ordering check atomically with the write, INSIDE the
+// same row-locked transaction (see storage/postgres.IdentitySubjectStore.
+// UpsertSignInPolicy), and return ErrSignInPolicyGuardrailNoProvenProvider /
+// ErrSignInPolicyGuardrailNoSSOAdminProof / ErrSignInPolicyTimeoutOrdering
+// (or an error satisfying errors.Is against the storage-layer sentinels)
+// when a check blocks the write. A handler-side pre-transaction read of the
+// current policy is NOT part of this contract — issue #5002 part 2 (codex
+// PR #5053 review) found that racy: two concurrent partial PATCHes could
+// each read the same stale value and both pass, so the ordering check must
+// live under the lock this interface's implementation holds, not in the
+// caller.
 type SignInPolicyMutationStore interface {
-	SignInPolicyReadStore
-
 	UpsertSignInPolicy(
 		ctx context.Context,
 		tenantID string,

@@ -6,7 +6,6 @@ package query
 import (
 	"bytes"
 	"context"
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -22,12 +21,6 @@ type fakeSignInPolicyMutationStore struct {
 	calledTenantID string
 	calledUpdate   SignInPolicyUpdateRequest
 	upsertCalls    int
-
-	// getResult/getErr configure GetSignInPolicy, used by the merged
-	// idle/absolute timeout cross-field check (issue #5002 part 2).
-	getResult      SignInPolicy
-	getErr         error
-	getCalledCount int
 }
 
 func (s *fakeSignInPolicyMutationStore) UpsertSignInPolicy(
@@ -44,14 +37,6 @@ func (s *fakeSignInPolicyMutationStore) UpsertSignInPolicy(
 		return SignInPolicy{}, s.err
 	}
 	return s.result, nil
-}
-
-func (s *fakeSignInPolicyMutationStore) GetSignInPolicy(_ context.Context, _ string) (SignInPolicy, error) {
-	s.getCalledCount++
-	if s.getErr != nil {
-		return SignInPolicy{}, s.getErr
-	}
-	return s.getResult, nil
 }
 
 type fakeSignInPolicyAudit struct {
@@ -267,18 +252,20 @@ func TestAdminSignInPolicyUpdateRejectsAbsoluteLessThanIdle(t *testing.T) {
 	}
 }
 
-// TestAdminSignInPolicyUpdateRejectsAbsoluteBelowStoredIdle proves issue
-// #5002 part 2: a PATCH that sets ONLY absolute_timeout_seconds, which is
-// smaller than the tenant's currently STORED idle_timeout_seconds, is
-// rejected even though the request body alone (with no idle field present)
-// cannot see the conflict.
-func TestAdminSignInPolicyUpdateRejectsAbsoluteBelowStoredIdle(t *testing.T) {
+// TestAdminSignInPolicyUpdateTimeoutOrderingErrorReturns400AndAudits proves
+// issue #5002 part 2 (codex PR #5053 review, root-caused): the handler no
+// longer pre-reads the stored policy to validate a merged idle/absolute
+// pair (that read-then-validate was racy under concurrent PATCHes — see
+// storage/postgres.IdentitySubjectStore.UpsertSignInPolicy's doc comment).
+// Instead the STORE enforces the merged check under its row lock and
+// returns ErrSignInPolicyTimeoutOrdering, which this handler maps to 400,
+// exactly like the require_sso guardrail sentinels above.
+func TestAdminSignInPolicyUpdateTimeoutOrderingErrorReturns400AndAudits(t *testing.T) {
 	t.Parallel()
 
-	store := &fakeSignInPolicyMutationStore{
-		getResult: SignInPolicy{TenantID: "tenant_a", IdleTimeoutSeconds: 3600},
-	}
-	handler := &SignInPolicyMutationHandler{Store: store}
+	store := &fakeSignInPolicyMutationStore{err: ErrSignInPolicyTimeoutOrdering}
+	audit := &fakeSignInPolicyAudit{}
+	handler := &SignInPolicyMutationHandler{Store: store, Audit: audit}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -288,123 +275,14 @@ func TestAdminSignInPolicyUpdateRejectsAbsoluteBelowStoredIdle(t *testing.T) {
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want %d: %s", rec.Code, http.StatusBadRequest, rec.Body.String())
 	}
-	if store.getCalledCount != 1 {
-		t.Fatalf("GetSignInPolicy calls = %d, want 1", store.getCalledCount)
-	}
-	if store.upsertCalls != 0 {
-		t.Fatalf("UpsertSignInPolicy calls = %d, want 0 (rejected update must not reach the store write)", store.upsertCalls)
-	}
-}
-
-// TestAdminSignInPolicyUpdateRejectsSecondPATCHConflictingWithFirst drives
-// the exact two-PATCH sequence from issue #5002: idle_timeout_seconds=3600
-// is persisted by an earlier PATCH, then a later PATCH sets ONLY
-// absolute_timeout_seconds=1800. The second PATCH must be rejected once the
-// merged (stored+incoming) values are compared.
-func TestAdminSignInPolicyUpdateRejectsSecondPATCHConflictingWithFirst(t *testing.T) {
-	t.Parallel()
-
-	store := &fakeSignInPolicyMutationStore{
-		result: SignInPolicy{TenantID: "tenant_a", IdleTimeoutSeconds: 3600},
-	}
-	handler := &SignInPolicyMutationHandler{Store: store}
-	mux := http.NewServeMux()
-	handler.Mount(mux)
-
-	// First PATCH: idle_timeout_seconds=3600 only. No stored absolute yet, so
-	// the merged check is a no-op and the write succeeds.
-	rec := httptest.NewRecorder()
-	mux.ServeHTTP(rec, adminSignInPolicyRequest(`{"idle_timeout_seconds":3600}`))
-	if rec.Code != http.StatusOK {
-		t.Fatalf("first PATCH status = %d, want %d: %s", rec.Code, http.StatusOK, rec.Body.String())
-	}
-
-	// The fake store does not feed UpsertSignInPolicy's return value back into
-	// GetSignInPolicy; reflect what the first PATCH persisted, matching what a
-	// real GetSignInPolicy read would now return.
-	store.getResult = SignInPolicy{TenantID: "tenant_a", IdleTimeoutSeconds: 3600}
-
-	// Second PATCH: absolute_timeout_seconds=1800 only, below the idle stored
-	// by the first PATCH. Single-request (body-only) validation cannot see
-	// this; only the merged read-then-validate check catches it.
-	rec = httptest.NewRecorder()
-	mux.ServeHTTP(rec, adminSignInPolicyRequest(`{"absolute_timeout_seconds":1800}`))
-	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("second PATCH status = %d, want %d: %s", rec.Code, http.StatusBadRequest, rec.Body.String())
-	}
-	if store.upsertCalls != 1 {
-		t.Fatalf("UpsertSignInPolicy calls = %d, want 1 (only the first, accepted PATCH)", store.upsertCalls)
-	}
-}
-
-// TestAdminSignInPolicyUpdateAllowsIdleBelowStoredAbsolute proves a PATCH
-// lowering idle_timeout_seconds below the tenant's stored
-// absolute_timeout_seconds is accepted (the merged pair is still valid).
-func TestAdminSignInPolicyUpdateAllowsIdleBelowStoredAbsolute(t *testing.T) {
-	t.Parallel()
-
-	store := &fakeSignInPolicyMutationStore{
-		result:    SignInPolicy{TenantID: "tenant_a"},
-		getResult: SignInPolicy{TenantID: "tenant_a", AbsoluteTimeoutSeconds: 7200},
-	}
-	handler := &SignInPolicyMutationHandler{Store: store}
-	mux := http.NewServeMux()
-	handler.Mount(mux)
-
-	rec := httptest.NewRecorder()
-	mux.ServeHTTP(rec, adminSignInPolicyRequest(`{"idle_timeout_seconds":1800}`))
-
-	if rec.Code != http.StatusOK {
-		t.Fatalf("status = %d, want %d: %s", rec.Code, http.StatusOK, rec.Body.String())
-	}
+	// The single-field body reaches the store (no pre-read short-circuit) —
+	// the store is the one that rejects it.
 	if store.upsertCalls != 1 {
 		t.Fatalf("UpsertSignInPolicy calls = %d, want 1", store.upsertCalls)
 	}
-}
-
-// TestAdminSignInPolicyUpdateBothFieldsInOneBodyStillValidated proves the
-// same-request (body-only) check still rejects a single PATCH that sets a
-// conflicting idle/absolute pair together, independent of the merged check
-// and without needing a store read.
-func TestAdminSignInPolicyUpdateBothFieldsInOneBodyStillValidated(t *testing.T) {
-	t.Parallel()
-
-	store := &fakeSignInPolicyMutationStore{}
-	handler := &SignInPolicyMutationHandler{Store: store}
-	mux := http.NewServeMux()
-	handler.Mount(mux)
-
-	rec := httptest.NewRecorder()
-	mux.ServeHTTP(rec, adminSignInPolicyRequest(`{"idle_timeout_seconds":3600,"absolute_timeout_seconds":1800}`))
-
-	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("status = %d, want %d: %s", rec.Code, http.StatusBadRequest, rec.Body.String())
-	}
-	// The body-only check rejects before ever reading the store.
-	if store.getCalledCount != 0 {
-		t.Fatalf("GetSignInPolicy calls = %d, want 0 (body-only violation short-circuits)", store.getCalledCount)
-	}
-}
-
-// TestAdminSignInPolicyUpdateMergedTimeoutStoreReadFailureReturns500 proves a
-// GetSignInPolicy failure during the merged-timeout read surfaces as 500, not
-// a silent skip of the cross-field check.
-func TestAdminSignInPolicyUpdateMergedTimeoutStoreReadFailureReturns500(t *testing.T) {
-	t.Parallel()
-
-	store := &fakeSignInPolicyMutationStore{getErr: errors.New("read failed")}
-	handler := &SignInPolicyMutationHandler{Store: store}
-	mux := http.NewServeMux()
-	handler.Mount(mux)
-
-	rec := httptest.NewRecorder()
-	mux.ServeHTTP(rec, adminSignInPolicyRequest(`{"idle_timeout_seconds":3600}`))
-
-	if rec.Code != http.StatusInternalServerError {
-		t.Fatalf("status = %d, want %d: %s", rec.Code, http.StatusInternalServerError, rec.Body.String())
-	}
-	if store.upsertCalls != 0 {
-		t.Fatalf("UpsertSignInPolicy calls = %d, want 0", store.upsertCalls)
+	if len(audit.events) != 1 || audit.events[0].Decision != governanceaudit.DecisionDenied ||
+		audit.events[0].ReasonCode != "sign_in_policy_invalid_timeout" {
+		t.Fatalf("audit events = %#v, want exactly one denied invalid-timeout event", audit.events)
 	}
 }
 
