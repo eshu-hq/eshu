@@ -72,6 +72,7 @@ func plannerExcludedSurfaces() map[string]struct{} {
 		"POST /api/v0/auth/local/invitations/accept":             {}, // accepts a local-account invitation
 		"POST /api/v0/auth/local/invitations/{invite_id}/revoke": {}, // revokes a local-account invitation (admin mutation)
 		"POST /api/v0/auth/local/login":                          {}, // authenticates a local credential
+		"POST /api/v0/auth/local/password/rotate":                {}, // self-service forced password rotation (#4976)
 		"POST /api/v0/auth/local/users/{user_id}/disable":        {}, // disables a local user account
 		"POST /api/v0/auth/local/users/{user_id}/mfa-reset":      {}, // resets a local user's MFA enrollment
 		"POST /api/v0/auth/local/users/{user_id}/password":       {}, // rotates a local user's password
