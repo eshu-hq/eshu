@@ -20,6 +20,7 @@ type fakeSignInPolicyMutationStore struct {
 
 	calledTenantID string
 	calledUpdate   SignInPolicyUpdateRequest
+	upsertCalls    int
 }
 
 func (s *fakeSignInPolicyMutationStore) UpsertSignInPolicy(
@@ -29,6 +30,7 @@ func (s *fakeSignInPolicyMutationStore) UpsertSignInPolicy(
 	_ string,
 	_ time.Time,
 ) (SignInPolicy, error) {
+	s.upsertCalls++
 	s.calledTenantID = tenantID
 	s.calledUpdate = update
 	if s.err != nil {
@@ -247,6 +249,40 @@ func TestAdminSignInPolicyUpdateRejectsAbsoluteLessThanIdle(t *testing.T) {
 	}
 	if store.calledTenantID != "" {
 		t.Fatalf("store was called with a rejected update: tenant_id = %q", store.calledTenantID)
+	}
+}
+
+// TestAdminSignInPolicyUpdateTimeoutOrderingErrorReturns400AndAudits proves
+// issue #5002 part 2 (codex PR #5053 review, root-caused): the handler no
+// longer pre-reads the stored policy to validate a merged idle/absolute
+// pair (that read-then-validate was racy under concurrent PATCHes — see
+// storage/postgres.IdentitySubjectStore.UpsertSignInPolicy's doc comment).
+// Instead the STORE enforces the merged check under its row lock and
+// returns ErrSignInPolicyTimeoutOrdering, which this handler maps to 400,
+// exactly like the require_sso guardrail sentinels above.
+func TestAdminSignInPolicyUpdateTimeoutOrderingErrorReturns400AndAudits(t *testing.T) {
+	t.Parallel()
+
+	store := &fakeSignInPolicyMutationStore{err: ErrSignInPolicyTimeoutOrdering}
+	audit := &fakeSignInPolicyAudit{}
+	handler := &SignInPolicyMutationHandler{Store: store, Audit: audit}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, adminSignInPolicyRequest(`{"absolute_timeout_seconds":1800}`))
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d: %s", rec.Code, http.StatusBadRequest, rec.Body.String())
+	}
+	// The single-field body reaches the store (no pre-read short-circuit) —
+	// the store is the one that rejects it.
+	if store.upsertCalls != 1 {
+		t.Fatalf("UpsertSignInPolicy calls = %d, want 1", store.upsertCalls)
+	}
+	if len(audit.events) != 1 || audit.events[0].Decision != governanceaudit.DecisionDenied ||
+		audit.events[0].ReasonCode != "sign_in_policy_invalid_timeout" {
+		t.Fatalf("audit events = %#v, want exactly one denied invalid-timeout event", audit.events)
 	}
 }
 

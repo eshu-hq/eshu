@@ -91,6 +91,21 @@ func provenLockedSignInPolicyRow(verifiedAt time.Time) []any {
 	}
 }
 
+// alreadyRequireSSOLockedSignInPolicyRow returns the fake row shape for a
+// tenant that already has require_sso=true persisted (both guardrails
+// already proven), used to exercise an UpsertSignInPolicy call that edits an
+// unrelated field without touching RequireSSO.
+func alreadyRequireSSOLockedSignInPolicyRow(verifiedAt time.Time) []any {
+	return []any{
+		true, true, false,
+		sql.NullInt64{},
+		sql.NullInt64{},
+		sql.NullTime{Time: verifiedAt, Valid: true},
+		sql.NullString{String: "pc_proven", Valid: true},
+		"sha256:rev0", time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC),
+	}
+}
+
 func TestUpsertSignInPolicyLocksAndCommitsSimpleUpdate(t *testing.T) {
 	t.Parallel()
 
@@ -214,6 +229,11 @@ func TestUpsertSignInPolicyAllowsRequireSSOWhenBothGuardrailsProven(t *testing.T
 		t.Fatalf("committed=%t rolledBack=%t, want commit only", db.committed, db.rolledBack)
 	}
 }
+
+// Issue #5002 UpsertSignInPolicy unit tests (part 1 bulk-revoke, part 2
+// merged timeout-ordering under the lock) live in
+// identity_sign_in_policy_revoke_timeout_test.go, split out to keep this
+// file under the repository's 500-line cap.
 
 func TestRecordSSOAdminVerificationIssuesStickyUpsert(t *testing.T) {
 	t.Parallel()

@@ -107,10 +107,17 @@ const signInPolicyMinNonZeroTimeoutSeconds = 60
 // fields that would make a nonsensical or unusable session timeout: negative
 // values, a non-zero value below signInPolicyMinNonZeroTimeoutSeconds, or an
 // absolute timeout shorter than the idle timeout when both are set to
-// non-zero overrides in the same request. It intentionally does not compare
-// against a value already stored for the tenant (a partial update that only
-// sets one field cannot see the other without an extra read), matching the
-// scope of the write-time guardrail this closes.
+// non-zero overrides in the same request. This is a same-request fast-fail
+// only — it intentionally does not compare against a value already stored
+// for the tenant, because a handler-side pre-transaction read-then-validate
+// is racy: two concurrent partial PATCHes (one setting only idle, one
+// setting only absolute) could each read the same stale stored value, each
+// pass, and each commit a row that is individually consistent with what it
+// read but leaves the final stored row inconsistent. That cross-request
+// comparison is enforced instead where it is safe to enforce — INSIDE
+// UpsertSignInPolicy's FOR UPDATE-locked transaction (issue #5002 part 2,
+// codex PR #5053 review; see storage/postgres.IdentitySubjectStore.
+// UpsertSignInPolicy's doc comment and ErrSignInPolicyTimeoutOrdering).
 func validateSignInPolicyTimeouts(body signInPolicyUpdateRequestBody) error {
 	if body.IdleTimeoutSeconds != nil {
 		if err := validateSignInPolicyTimeoutSeconds(*body.IdleTimeoutSeconds); err != nil {
@@ -199,6 +206,9 @@ func (h *SignInPolicyMutationHandler) handleUpdateError(w http.ResponseWriter, r
 		}
 		h.audit(r, governanceaudit.DecisionDenied, "sign_in_policy_guardrail_no_sso_proof", "")
 		WriteError(w, http.StatusBadRequest, "require_sso cannot be enabled: no admin has signed in via SSO yet")
+	case errors.Is(err, ErrSignInPolicyTimeoutOrdering):
+		h.audit(r, governanceaudit.DecisionDenied, "sign_in_policy_invalid_timeout", "")
+		WriteError(w, http.StatusBadRequest, "invalid sign-in policy request: "+ErrSignInPolicyTimeoutOrdering.Error())
 	default:
 		slog.ErrorContext(r.Context(), "admin sign-in policy update failed", "err", err)
 		h.audit(r, governanceaudit.DecisionDenied, "sign_in_policy_update_failed", "")

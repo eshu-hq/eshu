@@ -35,10 +35,13 @@
 //      admin APIs 403.
 //   5. The require_sso guardrail rejects a premature enable (400) until a provider
 //      passes its test AND an admin has completed an SSO sign-in; enabling it then
-//      hides the local form on /login while break-glass /login?local=1 still works.
-//      The admin-SSO precondition needs a second, env/file-backed provider — a
+//      revokes item 2's still-open, pre-existing LOCAL admin session (issue #5002 —
+//      a 401 on that session proves the flip revoked an already-issued session, not
+//      merely blocked future ones), hides the local form on /login, while
+//      break-glass /login?local=1 still works (a NEW, untouched session). The
+//      admin-SSO precondition needs a second, env/file-backed provider — a
 //      DB-backed group mapping can never mint an AllScopes session; see
-//      authE2EOidcFlow.ts.
+//      authE2EOidcFlow.ts and authE2ERequireSSOFlow.ts.
 //   6. Negative-leakage scan (authE2ELeakage.ts): the flow's secrets (bootstrap
 //      password/recovery code, wizard password, enrolled MFA code, both client
 //      secrets) appear in NO audit trail, provider-config read, status/health,
@@ -47,7 +50,7 @@
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { chromium, type Browser, type Page } from "playwright";
+import { chromium, type Browser } from "playwright";
 
 import {
   buildPostgresDSN,
@@ -71,11 +74,17 @@ import {
   chromiumLaunchArgs,
   createMemberGroupRoleMapping,
   driveAddOidcProviderViaUI,
-  driveDirectOidcLogin,
-  driveLocalLogin,
   driveOidcLogin,
   findProviderConfigIdByIssuer,
 } from "./authE2EOidcFlow.ts";
+import {
+  assertBreakglassLocalLoginStillWorks,
+  assertGuardrailRejectsPrematureEnable,
+  assertLoginHidesLocalForm,
+  assertPreexistingLocalSessionRevoked,
+  completeAdminSSOLoginPrecondition,
+  enableRequireSSO,
+} from "./authE2ERequireSSOFlow.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const consoleDir = resolve(here, "..");
@@ -136,16 +145,6 @@ async function step(id: string, fn: () => Promise<string>): Promise<void> {
     process.stdout.write(`  FAIL ${id} (${Date.now() - start}ms): ${detail}\n`);
   }
 }
-
-// patchSignInPolicy drives PATCH /api/v0/auth/admin/sign-in-policy from
-// inside the page's own JS context via apiFetchInPage (authE2EOidcFlow.ts),
-// reusing the real browser session cookie and CSRF token the current page
-// holds.
-const patchSignInPolicy = async (
-  page: Page,
-  body: Record<string, unknown>,
-): Promise<{ status: number; text: string }> =>
-  apiFetchInPage(page, "PATCH", "/api/v0/auth/admin/sign-in-policy", body);
 
 // memberOidcIssuer/adminStaticProviderId/memberOidcGroup identify the two
 // mock IdPs and providers in play — see authE2EOidcFlow.ts's header comment
@@ -247,18 +246,9 @@ export async function runAuthE2E(): Promise<number> {
       return "POST /api/v0/auth/setup/claim now returns 410 Gone";
     });
 
-    await step("item5_guardrail_rejects_premature_enable", async () => {
-      const result = await patchSignInPolicy(page, { require_sso: true });
-      if (result.status !== 400) {
-        throw new Error(
-          `expected 400 from the require_sso guardrail with no proven provider/SSO admin, got ${result.status}: ${result.text}`,
-        );
-      }
-      if (!result.text.includes("require_sso cannot be enabled")) {
-        throw new Error(`400 body did not carry the expected guardrail message: ${result.text}`);
-      }
-      return `PATCH require_sso=true correctly rejected (400): ${result.text}`;
-    });
+    await step("item5_guardrail_rejects_premature_enable", () =>
+      assertGuardrailRejectsPrematureEnable(page),
+    );
 
     // item 3: configure the member-mapped OIDC provider through the real
     // Add-provider UI, on the ORIGINAL admin `page` (still the wizard
@@ -373,88 +363,66 @@ export async function runAuthE2E(): Promise<number> {
     // recording the guardrail's SSO-admin-proof precondition.
     let ssoAdminContext: Awaited<ReturnType<Browser["newContext"]>> | undefined;
     await step("item5_precondition_admin_sso_login", async () => {
-      ssoAdminContext = await browser!.newContext({ baseURL: devServer!.baseUrl });
-      const ssoAdminPage = await ssoAdminContext.newPage();
-      await driveDirectOidcLogin(ssoAdminPage, adminStaticProviderId);
-      return "admin-mapped identity completed SSO login, recording sso_admin_verified_at for the tenant";
-    });
-
-    await step("item5_enable_require_sso", async () => {
-      const ssoAdminPage = ssoAdminContext!.pages()[0]!;
-      const result = await apiFetchInPage(
-        ssoAdminPage,
-        "PATCH",
-        "/api/v0/auth/admin/sign-in-policy",
-        {
-          require_sso: true,
-        },
+      const { context, detail } = await completeAdminSSOLoginPrecondition(
+        browser!,
+        devServer!.baseUrl,
+        adminStaticProviderId,
       );
-      if (result.status !== 200) {
-        throw new Error(
-          `expected 200 from PATCH require_sso=true once both guardrail preconditions are proven, got ${result.status}: ${result.text}`,
-        );
-      }
-      return `PATCH require_sso=true accepted (200): ${result.text.slice(0, 160)}`;
+      ssoAdminContext = context;
+      return detail;
     });
 
-    await step("item5_login_hides_local_form", async () => {
-      const freshContext = await browser!.newContext({ baseURL: devServer!.baseUrl });
-      try {
-        const freshPage = await freshContext.newPage();
-        await freshPage.goto("/login?tenant_id=default", {
-          waitUntil: "domcontentloaded",
-          timeout: navTimeoutMs,
-        });
-        await freshPage.waitForSelector(".btn-sso", { timeout: navTimeoutMs });
-        const loginFieldCount = await freshPage.locator("#login-id").count();
-        if (loginFieldCount !== 0) {
-          throw new Error("#login-id is present on /login even though require_sso=true");
-        }
-        await freshPage.screenshot({
-          path: resolve(screenshotsDir, "5-require-sso-hides-local.png"),
-          fullPage: true,
-        });
-        return "local password form absent on /login with require_sso=true";
-      } finally {
-        await freshContext.close();
-      }
-    });
+    await step("item5_enable_require_sso", () => enableRequireSSO(ssoAdminContext!.pages()[0]!));
 
-    await step("item5_local_breakglass_still_works", async () => {
-      const breakglassContext = await browser!.newContext({ baseURL: devServer!.baseUrl });
-      try {
-        const breakglassPage = await breakglassContext.newPage();
-        await breakglassPage.goto("/login?tenant_id=default&local=1", {
-          waitUntil: "domcontentloaded",
-          timeout: navTimeoutMs,
-        });
-        await breakglassPage.waitForSelector("#login-id", { timeout: navTimeoutMs });
-        await driveLocalLogin(
-          breakglassPage,
-          credentialUsername,
-          wizardNewPassword,
-          breakglassRecoveryCode,
-        );
-        await breakglassPage.screenshot({
-          path: resolve(screenshotsDir, "5-breakglass-local-login.png"),
-          fullPage: true,
-        });
-        return `?local=1 rendered #login-id and admin '${credentialUsername}' signed in locally`;
-      } finally {
-        await breakglassContext.close();
-      }
-    });
+    // Proves issue #5002: the flip above must revoke item 2's still-open,
+    // pre-existing local admin session (subject_class='local_user'), not
+    // just block future local logins — see
+    // authE2ERequireSSOFlow.ts's doc comment.
+    await step("item5_require_sso_flip_revokes_preexisting_local_session", () =>
+      assertPreexistingLocalSessionRevoked(page),
+    );
 
-    // item 6: negative-leakage scan. Runs while the member and admin sessions
-    // are still open so both dashboards' DOM can be read. Proves none of the
-    // secrets the flow generated or handled — the one-time bootstrap password
-    // and its recovery code, the wizard's replacement password, the enrolled
-    // MFA recovery code, and both providers' client secrets — appear in the
-    // audit trail, provider-config reads, status/health endpoints, either
-    // dashboard's DOM, or the API container log.
+    await step("item5_login_hides_local_form", () =>
+      assertLoginHidesLocalForm(browser!, devServer!.baseUrl, navTimeoutMs, screenshotsDir),
+    );
+
+    await step("item5_local_breakglass_still_works", () =>
+      assertBreakglassLocalLoginStillWorks(
+        browser!,
+        devServer!.baseUrl,
+        navTimeoutMs,
+        screenshotsDir,
+        credentialUsername,
+        wizardNewPassword,
+        breakglassRecoveryCode,
+      ),
+    );
+
+    // item 6: negative-leakage scan. Runs while the member and SSO-admin
+    // sessions are still open so both dashboards' DOM can be read. Proves
+    // none of the secrets the flow generated or handled — the one-time
+    // bootstrap password and its recovery code, the wizard's replacement
+    // password, the enrolled MFA recovery code, and both providers' client
+    // secrets — appear in the audit trail, provider-config reads,
+    // status/health endpoints, either dashboard's DOM, or the API container
+    // log.
+    //
+    // adminPage is the SSO-admin session from item5_precondition_admin_sso_login
+    // (subject_class='external_oidc_user'), NOT the original wizard-admin
+    // `page` (subject_class='local_user') — item5's require_sso flip revokes
+    // every local_user session, `page` included, so reads through it would
+    // 401 and silently scan nothing (issue #5002 P2, codex PR #5053 review).
+    // runLeakageScan itself asserts every admin read returns 200, so a future
+    // regression that revokes ssoAdminContext's session too fails loudly
+    // here instead of hollowing out the scan again.
     await step("item6_no_secret_leakage", async () => {
       if (!memberContext) {
         throw new Error("item 6 requires the member session from item 4, but it was never opened");
+      }
+      if (!ssoAdminContext) {
+        throw new Error(
+          "item 6 requires the SSO admin session from item 5, but it was never opened",
+        );
       }
       const probes: SecretProbe[] = [
         { label: "bootstrap password", value: bootstrapPassword },
@@ -468,7 +436,7 @@ export async function runAuthE2E(): Promise<number> {
         },
       ];
       return runLeakageScan({
-        adminPage: page,
+        adminPage: ssoAdminContext.pages()[0]!,
         memberPage: memberContext.pages()[0]!,
         apiFetchInPage,
         apiBase,
