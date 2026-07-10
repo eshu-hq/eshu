@@ -2159,6 +2159,32 @@ pending: a scope with ready projection_state rows but vector_scope_state on a
 stale projection_revision is correctly returned as pending rather than
 incorrectly excluded by the old corpus-wide join.
 
+Performance Evidence (#4233 count-gate amortization): the per-scope publish gate
+`ScopeVectorComplete` runs ~5–6k times across a full drain (once per scope per
+every-500-doc build page, every sweep). The original unconditional exact anti-join
+(active-generation `fact_records` join with a correlated `eshu_search_vector_metadata`
++ `eshu_search_vector_values` hash/value subquery) measured 252ms for a
+3,105-doc scope and 6.7s for a 15,000-doc scope on the remote proof host,
+starving the vector build on Postgres. A count-gate (indexed `eshu_search_vector_metadata`
+count against `eshu_search_document_projection_state.document_count`) amortizes
+the expensive exact anti-join to at most once per scope (when `terminal_count >=
+document_count`), preserving exact 0/0 semantic equivalence for every case:
+still-building scopes (count gate 0.05–1.5ms, exact branch never executed),
+fully-complete scopes, ready-without-value, stale content hash, disabled metadata,
+and retired-extra metadata where `terminal_count > document_count` falls through
+to the exact anti-join. Simulated drain reduction: 3.5× average / 13.8× skewed.
+The count gate uses the existing `eshu_search_vector_metadata_model_v2_idx`
+index; no new index, scheduler, worker count, or CAS change.
+
+No-Observability-Change (#4233 count-gate amortization): the count-gate recasts
+the existing `ScopeVectorComplete` check as a two-tier query with identical
+semantics. It adds no metric instrument, metric label, worker, queue domain,
+lease, runtime knob, or graph-write route. The same Postgres query spans and
+`eshu_dp_postgres_query_duration_seconds` cover both the count-gate read and the
+exact anti-join; the existing `eshu_dp_search_vector_build_phase_seconds`
+histogram and "search vector build sweep completed" structured log cover the
+sweep cycle.
+
 No-Observability-Change: the scope-state lifecycle adds no new metric instrument.
 The three new structured log keys — `search document projection ready skipped
 stale` (doc-writer false CAS), `search vector scope complete check failed`

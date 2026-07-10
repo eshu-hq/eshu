@@ -79,8 +79,22 @@ func TestScopeVectorCompleteQueryShape(t *testing.T) {
 	t.Parallel()
 
 	q := scopeVectorCompleteSQL
+
+	// Count-gate guard (new — #4233 amortization).
 	for _, want := range []string{
-		"SELECT NOT EXISTS",
+		"completion_gate",
+		"terminal_count < document_count",
+		"eshu_search_document_projection_state",
+		"ps.state = 'ready'",
+		"meta.build_state IN ('ready', 'disabled')",
+	} {
+		if !strings.Contains(q, want) {
+			t.Fatalf("query missing count-gate %q:\n%s", want, q)
+		}
+	}
+
+	// Existing exact anti-join (preserved byte-for-byte).
+	for _, want := range []string{
 		"fact.scope_id = $1",
 		"fact.generation_id = $2",
 		"fact.fact_kind = $3",
@@ -94,7 +108,7 @@ func TestScopeVectorCompleteQueryShape(t *testing.T) {
 		"meta.embedding_content_hash = fact.payload->>'content_hash'",
 	} {
 		if !strings.Contains(q, want) {
-			t.Fatalf("query missing %q:\n%s", want, q)
+			t.Fatalf("query missing anti-join %q:\n%s", want, q)
 		}
 	}
 }
