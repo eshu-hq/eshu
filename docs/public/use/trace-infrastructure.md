@@ -1,3 +1,12 @@
+<!-- docs-catalog
+title: Trace Infrastructure
+description: Shows how to trace services, workloads, cloud resources, Terraform, and deployment evidence.
+type: how-to
+audience: platform-engineer, operator
+entrypoint: true
+landing: false
+-->
+
 # Trace Infrastructure
 
 Use this path when you need to understand what deploys a service, what

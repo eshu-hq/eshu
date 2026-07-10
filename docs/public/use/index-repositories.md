@@ -1,3 +1,12 @@
+<!-- docs-catalog
+title: Index Repositories
+description: Explains the local and Compose paths for indexing source, infrastructure, and docs repositories.
+type: how-to
+audience: practitioner
+entrypoint: true
+landing: false
+-->
+
 # Index Repositories
 
 Indexing turns source code, infrastructure files, docs, and deployment config

@@ -1,3 +1,12 @@
+<!-- docs-catalog
+title: Troubleshooting
+description: Starts from common symptoms and follows the runtime that owns each Eshu failure mode.
+type: operate
+audience: operator
+entrypoint: true
+landing: false
+-->
+
 # Troubleshooting
 
 Start with the symptom, then follow the runtime that owns it. Restarting the

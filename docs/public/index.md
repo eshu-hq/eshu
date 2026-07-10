@@ -1,3 +1,12 @@
+<!-- docs-catalog
+title: Docs Home
+description: Routes new readers to first-run, tutorials, how-to, concepts, reference, and operations paths.
+type: project
+audience: new-user, practitioner, operator
+entrypoint: false
+landing: true
+-->
+
 # Build an evidence graph for your engineering stack
 
 Start with one successful run, then connect code, dependencies,

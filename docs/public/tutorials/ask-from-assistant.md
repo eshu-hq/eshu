@@ -1,3 +1,13 @@
+<!-- docs-catalog
+title: Ask Eshu From An Assistant
+description: Connects an MCP-capable assistant and asks one bounded evidence-backed Eshu question.
+type: tutorial
+audience: practitioner
+time: 10 minutes
+entrypoint: true
+landing: false
+-->
+
 # Tutorial: Ask Eshu From An Assistant
 
 Use this tutorial when you want Codex, Claude, Cursor, VS Code, or another MCP

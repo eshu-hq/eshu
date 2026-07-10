@@ -1,3 +1,13 @@
+<!-- docs-catalog
+title: First Successful Run
+description: Gets a new reader to one working runtime, one indexed repository, and one useful answer.
+type: tutorial
+audience: new-user
+time: 5 minutes
+entrypoint: true
+landing: false
+-->
+
 # First Successful Run
 
 Use this guide for your first five minutes with Eshu: one working runtime, one

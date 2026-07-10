@@ -1,3 +1,12 @@
+<!-- docs-catalog
+title: Health Checks
+description: Separates process health, runtime status, and indexed-data completeness checks for Eshu operators.
+type: operate
+audience: operator
+entrypoint: true
+landing: false
+-->
+
 # Health Checks
 
 Health checks answer three different questions. Keep them separate.

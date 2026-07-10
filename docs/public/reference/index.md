@@ -1,3 +1,12 @@
+<!-- docs-catalog
+title: Reference
+description: Routes readers to exact Eshu commands, schemas, contracts, gates, and source-of-truth details.
+type: reference
+audience: practitioner, operator, maintainer
+entrypoint: false
+landing: true
+-->
+
 # Reference
 
 Use reference pages when you need exact commands, fields, schemas, routes,
@@ -14,6 +23,7 @@ reference pages are optimized for lookup.
 | [Configuration and runtime](configuration.md) | Environment variables, storage/runtime settings, readiness probes, and runtime admin behavior. |
 | [Contract reference](contracts.md) | Durable source contracts for facts, collectors, reducers, evidence packets, security intelligence, and generated reference families. |
 | [Proof and validation](proof-and-validation.md) | Proof gates, validation matrices, local testing, replay coverage, security gates, and benchmark evidence. |
+| [Docs catalog metadata](docs-catalog.md) | Metadata schema and verifier contract for the human-first documentation IA. |
 | [Local host and capabilities](capability-catalog.md) | Capability catalogs, authorization, local-host lifecycle, graph backend behavior, and query playbooks. |
 | [Telemetry](telemetry/index.md) | Metrics, traces, logs, runtime signals, and cross-service correlation. |
 | [Languages](../languages/feature-matrix.md) | Parser and infrastructure-language support reference. |

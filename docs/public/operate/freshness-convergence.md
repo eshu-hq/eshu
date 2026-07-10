@@ -1,3 +1,12 @@
+<!-- docs-catalog
+title: Freshness and Convergence
+description: Explains how operators tell whether the graph has converged on current source observations.
+type: operate
+audience: operator
+entrypoint: true
+landing: false
+-->
+
 # Freshness and Convergence
 
 Use this page when the operator question is "is the graph current?" rather than

@@ -1,3 +1,12 @@
+<!-- docs-catalog
+title: Operate Eshu
+description: Routes operators to health, freshness, telemetry, troubleshooting, and deployment operations pages.
+type: operate
+audience: operator
+entrypoint: false
+landing: true
+-->
+
 # Operate Eshu
 
 Use these docs when Eshu is running and you need to keep it healthy, validate a

@@ -1,3 +1,13 @@
+<!-- docs-catalog
+title: Deploy On Kubernetes
+description: Installs the core Eshu services with Helm and verifies the Kubernetes rollout.
+type: tutorial
+audience: operator
+time: 20-30 minutes
+entrypoint: true
+landing: false
+-->
+
 # Tutorial: Deploy On Kubernetes
 
 Use this tutorial when you want a small, supported Helm deployment of Eshu's

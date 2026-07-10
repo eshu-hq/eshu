@@ -1,3 +1,13 @@
+<!-- docs-catalog
+title: Index Repositories
+description: Shows how to ingest repository code, infrastructure, docs, and deployment configuration.
+type: tutorial
+audience: practitioner
+time: 10-20 minutes
+entrypoint: true
+landing: false
+-->
+
 # Tutorial: Index Repositories
 
 Use this tutorial when you want Eshu to ingest source code, infrastructure

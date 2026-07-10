@@ -1,3 +1,12 @@
+<!-- docs-catalog
+title: Use Eshu
+description: Routes readers to task-focused guides after Eshu is running locally or for a team.
+type: how-to
+audience: practitioner
+entrypoint: false
+landing: true
+-->
+
 # Use Eshu
 
 Use these pages after Eshu is running locally or deployed for a team.
