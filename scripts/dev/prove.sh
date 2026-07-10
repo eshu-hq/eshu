@@ -94,11 +94,13 @@ step_contract_layer() { (cd "${go_dir}" && go test ./internal/ifa ./cmd/ifa -cou
 step_determinism_mirror() { bash "${repo_root}/scripts/test-verify-ifa-determinism.sh"; }
 step_deadletter_mirror() { bash "${repo_root}/scripts/test-verify-ifa-dead-letter-matrix.sh"; }
 # step_coverage runs `ifa coverage` in its default advisory mode, without the
-# `-blocking` flag: the advisory-to-blocking flip is a separate P4 slice
-# (design doc, "advisory first then blocking, mirroring replaycoverage
-# progression"). This step still fails loudly on a real tooling error (an
-# unreadable manifest, a malformed registry) — it only tolerates advisory
-# coverage gaps, not a broken reconcile.
+# `-blocking` flag, on purpose: an uncovered surface is the expected P2+
+# backfill worklist (specs/ifa-coverage-manifest.v1.yaml's header), not a
+# defect, so make prove reports gaps without failing on them. The step still
+# fails loudly on a real tooling error (an unreadable manifest, a malformed
+# registry) — it tolerates advisory coverage gaps, not a broken reconcile. The
+# blocking Ifá contract gate is `ifa-contract-layer`'s `go test ./internal/ifa`
+# (step_contract_layer above), which make prove already runs.
 step_coverage() {
 	(cd "${go_dir}" && go run ./cmd/ifa coverage \
 		-specs-dir "${repo_root}/specs" \
