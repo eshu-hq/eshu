@@ -38,6 +38,20 @@ on:
       - 'scripts/verify-ifa-dead-letter-matrix.sh'
       - 'scripts/test-verify-ifa-dead-letter-matrix.sh'
       - 'scripts/lib/ifa_determinism_common.sh'
+      # P6 (#4580) deterministic fault-injection: the in-binary decorator, its
+      # build-tagged classification regression test, the reducer fault wiring,
+      # and the Docker gate that proves real recovery (zero dead letters, graph
+      # identical to the fault-free baseline). A change to any of these must
+      # re-run the fault matrix.
+      - 'go/internal/storage/cypher/fault_executor.go'
+      - 'go/internal/storage/cypher/fault_executor_off.go'
+      - 'go/internal/storage/cypher/fault_executor_classification_test.go'
+      - 'go/internal/replay/faultreplay/**'
+      - 'go/cmd/reducer/ifa_fault_wiring.go'
+      - 'go/cmd/reducer/ifa_fault_wiring_off.go'
+      - 'scripts/verify-ifa-fault-injection.sh'
+      - 'scripts/test-verify-ifa-fault-injection.sh'
+      - 'scripts/lib/ifa_fault_injection_common.sh'
       - '.github/workflows/ifa-determinism-gate.yml'
 
 concurrency:
@@ -61,6 +75,8 @@ jobs:
         run: bash scripts/test-verify-ifa-determinism.sh
       - name: Validate dead-letter matrix mirror
         run: bash scripts/test-verify-ifa-dead-letter-matrix.sh
+      - name: Validate fault-injection matrix mirror
+        run: bash scripts/test-verify-ifa-fault-injection.sh
 
   determinism-matrix:
     name: determinism-matrix
@@ -111,6 +127,46 @@ jobs:
           ESHU_NEO4J_PASSWORD: change-me
           ESHU_POSTGRES_PASSWORD: change-me
         run: bash scripts/verify-ifa-dead-letter-matrix.sh
+
+      - name: Dump service logs on failure
+        if: failure()
+        run: docker compose -f docker-compose.yaml logs --tail=200 || true
+
+      - name: Tear down Docker services
+        if: always()
+        run: docker compose -f docker-compose.yaml down -v || true
+
+  fault-injection:
+    name: fault-injection
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+
+      # The classification regression test that pins the P6 fault-error
+      # fidelity fix is behind the ifafaultinjection build tag, so a normal
+      # `go test ./...` never runs it. Run it explicitly here, alongside the
+      # tagged decorator and reducer-wiring tests, so a revert of the
+      # Retryable()/FailureClass() contract fails CI even before the Docker leg.
+      - name: Run tagged fault-classification unit tests
+        working-directory: go
+        run: go test -tags ifafaultinjection ./internal/storage/cypher ./internal/replay/faultreplay ./cmd/reducer -count=1
+
+      # No retry-to-green: a non-zero dead_letter count or a canonical graph
+      # digest that diverges from the fault-free baseline is a real recovery
+      # defect, never normalized away by retrying or lowering worker count.
+      - name: Run Ifa fault-injection matrix (5 cells, fresh stack per cell)
+        env:
+          ESHU_NEO4J_PASSWORD: change-me
+          ESHU_POSTGRES_PASSWORD: change-me
+        run: bash scripts/verify-ifa-fault-injection.sh
 
       - name: Dump service logs on failure
         if: failure()

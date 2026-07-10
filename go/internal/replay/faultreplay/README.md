@@ -53,11 +53,17 @@ run is scripted and replayable exactly like an ordering run.
 | `fail-terminal` | `intent_id` | — | names the intent expected to become a durable dead-letter |
 
 `fail-graph-write-once-then-succeed`'s `target.lane` is load-bearing, not
-decorative: it must be `executor-retry` (a transient-classified error retried
-in place by the reducer's `RetryingExecutor`) or `queue-retry` (a plain error
-that surfaces to `WorkSink.Fail` and is retried through the queue). A script
+decorative: it must be `executor-retry` (a transient error retried in place by
+the reducer's `RetryingExecutor`) or `queue-retry` (a transient error that
+surfaces to `WorkSink.Fail` and is re-queued as a retrying intent). A script
 that does not say which lane it expects cannot assert which recovery path
-actually ran (proven in P6 T1).
+actually ran (proven in P6 T1). The hermetic runner and the in-binary
+`cypher.FaultingExecutor` realize the lanes differently: the hermetic runner
+drives the re-queue with `RedeliverOnce` (its `queue-retry` error may be a plain
+non-`RetryableError`), while the in-binary decorator relies on the real reducer
+queue, so its `queue-retry` error is a retryable `graph_write_timeout` error
+like a real transient. Both assert a fault-free-identical drain with zero dead
+letters.
 
 ## The determinism invariant
 

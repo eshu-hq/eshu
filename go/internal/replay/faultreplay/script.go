@@ -46,18 +46,27 @@ const (
 
 // Lane identifiers for FaultOp.Target.Lane on
 // fail-graph-write-once-then-succeed. The lane is load-bearing, not
-// decorative: a transient-classified error is retried in place by the
-// reducer's RetryingExecutor (executor-retry), while a plain error surfaces to
-// WorkSink.Fail and is retried through the queue (queue-retry). A script that
-// does not say which lane it expects cannot assert which recovery path ran.
+// decorative, and it names WHERE the retry happens: executor-retry is retried
+// in place by the reducer's RetryingExecutor (the intent never leaves the
+// claim), while queue-retry surfaces to WorkSink.Fail and is re-queued as a
+// retrying intent. Both lanes model a real transient graph write; a script
+// that does not say which lane it expects cannot assert which recovery path
+// ran. The hermetic runner (faultreplay) and the in-binary decorator
+// (cypher.FaultingExecutor) realize the lanes differently -- see their type
+// docs -- but a fault-free-identical drain with zero dead letters is the shared
+// assertion.
 const (
 	// LaneExecutorRetry means the injected failure is classified transient and
 	// retried in place by the executor decorator, without the intent ever
 	// leaving the claim.
 	LaneExecutorRetry = "executor-retry"
-	// LaneQueueRetry means the injected failure surfaces as a plain error to
-	// WorkSink.Fail, and the retry happens by the intent becoming claimable
-	// again through the queue.
+	// LaneQueueRetry means the injected failure surfaces to WorkSink.Fail and
+	// the retry happens by the intent becoming claimable again through the
+	// queue. The hermetic runner drives that re-queue explicitly (RedeliverOnce),
+	// so its injected error may be a plain non-RetryableError; the in-binary
+	// decorator relies on the real reducer queue, so its injected error is a
+	// retryable graph_write_timeout error (the shape a real transient carries),
+	// which is what makes WorkSink.Fail re-enqueue it rather than dead-letter.
 	LaneQueueRetry = "queue-retry"
 )
 
