@@ -314,9 +314,8 @@ func gcpCloudResourceNodeRow(env facts.Envelope) (map[string]any, string, bool, 
 		"service_kind":  derefString(resource.AssetTypeFamily),
 		// Present for parity with the AWS node row and the shared writer's SET
 		// clause; GCP carries no correlation anchors today (relationship edges
-		// resolve on full_resource_name), so this is nil until a GCP anchor
-		// source exists. The service_anchor_* keys are intentionally omitted,
-		// matching the AWS row for a resource with no service-anchor decision.
+		// resolve on full_resource_name), so this is an empty slice until a GCP
+		// anchor source exists.
 		"correlation_anchors": uniqueSortedStrings(resource.CorrelationAnchors),
 		"source_fact_id":      env.FactID,
 		"stable_fact_key":     env.StableFactKey,
@@ -324,6 +323,33 @@ func gcpCloudResourceNodeRow(env facts.Envelope) (map[string]any, string, bool, 
 		"source_record_id":    env.SourceRef.SourceRecordID,
 		"source_confidence":   string(env.SourceConfidence),
 		"collector_kind":      env.CollectorKind,
+		// The 7 keys below are explicit empty-value parity fields for
+		// canonicalCloudResourceUpsertCypher's unconditional SET clause
+		// (go/internal/storage/cypher/cloud_resource_node_writer.go), which reads
+		// row.workload_id, row.service_name, row.service_anchor_status,
+		// row.service_anchor_source, row.service_anchor_reason,
+		// row.service_anchor_names, and row.service_anchor_name_tokens for every
+		// batch row. They must be PRESENT keys, not omitted ones (issue #4995):
+		// the pinned NornicDB backend does not evaluate a missing UNWIND row map
+		// key as null in a SET clause, it persists a stringified representation
+		// of the row expression instead (proved against
+		// timothyswt/nornicdb-cpu-bge:v1.1.9 — see
+		// TestExtractGCPCloudResourceNodeRowsSetsExplicitServiceAnchorParityKeys
+		// for the regression and this package's README "#4995" entry for the
+		// Cypher shim reproduction). The service_name gap was masked in the API
+		// read by a "row.service_name" placeholder drop in
+		// go/internal/query/cloud_resources.go, but the corrupted literal was
+		// still persisted to the graph. GCP has no service-anchor decision
+		// source today (mirrors the AWS row for a resource with no
+		// service-anchor decision, aws_resource_service_anchor.go), so these are
+		// the correct no-anchor values, just present rather than absent.
+		"workload_id":                "",
+		"service_name":               "",
+		"service_anchor_status":      "",
+		"service_anchor_source":      "",
+		"service_anchor_reason":      "",
+		"service_anchor_names":       []string{},
+		"service_anchor_name_tokens": "",
 	}
 	// No-op in every normal build; under the ifadeterminismteeth build tag
 	// this stamps a process-order-dependent debug property the determinism

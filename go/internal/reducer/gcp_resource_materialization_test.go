@@ -147,6 +147,77 @@ func TestExtractGCPCloudResourceNodeRowsBuildsStableUID(t *testing.T) {
 	}
 }
 
+// TestExtractGCPCloudResourceNodeRowsSetsExplicitServiceAnchorParityKeys proves
+// the regression for issue #4995: every GCP CloudResource row must carry an
+// explicit (present-key) empty value for the 7 anchor/identity keys
+// (workload_id, service_name, and the 5 service_anchor_* keys) the shared
+// canonicalCloudResourceUpsertCypher SET clause always reads (see
+// go/internal/reducer/README.md's "#4995" entry for the full NornicDB proof:
+// a missing UNWIND row map key does not evaluate to null in a SET clause on
+// the pinned backend, it stringifies the row expression instead). Checking
+// key presence with `_, ok := row[key]` (not just value equality) is
+// required: a missing key and an explicit "" both stringify to "" via
+// anyToString, so a value-only assertion would pass either way.
+func TestExtractGCPCloudResourceNodeRowsSetsExplicitServiceAnchorParityKeys(t *testing.T) {
+	t.Parallel()
+
+	envelopes := []facts.Envelope{
+		gcpResourceEnvelope(map[string]any{
+			"full_resource_name": "//compute.googleapis.com/projects/demo-proj/zones/us-central1-a/instances/app",
+			"asset_type":         "compute.googleapis.com/Instance",
+			"project_id":         "demo-proj",
+			"location":           "us-central1-a",
+		}),
+	}
+
+	rows, _, err := ExtractGCPCloudResourceNodeRows(envelopes)
+	if err != nil {
+		t.Fatalf("ExtractGCPCloudResourceNodeRows() error = %v, want nil", err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("len(rows) = %d, want 1", len(rows))
+	}
+	row := rows[0]
+
+	for _, key := range []string{
+		"workload_id",
+		"service_name",
+		"service_anchor_status",
+		"service_anchor_source",
+		"service_anchor_reason",
+	} {
+		value, ok := row[key]
+		if !ok {
+			t.Fatalf("row[%q] is absent; the shared upsert Cypher's row.%s reference "+
+				"would resolve against a missing map key on the pinned NornicDB backend "+
+				"and persist a stringified-row literal instead of an empty value", key, key)
+		}
+		if value != "" {
+			t.Fatalf("row[%q] = %#v, want empty string (GCP has no service-anchor source today)", key, value)
+		}
+	}
+
+	namesValue, ok := row["service_anchor_names"]
+	if !ok {
+		t.Fatal("row[\"service_anchor_names\"] is absent; must be an explicit empty value")
+	}
+	names, ok := namesValue.([]string)
+	if !ok {
+		t.Fatalf("row[\"service_anchor_names\"] type = %T, want []string", namesValue)
+	}
+	if len(names) != 0 {
+		t.Fatalf("row[\"service_anchor_names\"] = %#v, want empty slice", names)
+	}
+
+	tokensValue, ok := row["service_anchor_name_tokens"]
+	if !ok {
+		t.Fatal("row[\"service_anchor_name_tokens\"] is absent; must be an explicit empty value")
+	}
+	if tokensValue != "" {
+		t.Fatalf("row[\"service_anchor_name_tokens\"] = %#v, want empty string", tokensValue)
+	}
+}
+
 func TestExtractGCPCloudResourceNodeRowsSkipsNonResourceFacts(t *testing.T) {
 	t.Parallel()
 
