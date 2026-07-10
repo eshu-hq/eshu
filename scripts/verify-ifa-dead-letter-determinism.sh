@@ -31,6 +31,25 @@
 #
 # Usage:
 #   scripts/verify-ifa-dead-letter-determinism.sh -mutation schema-major|missing-field [--no-compose] [--keep]
+
+# Refuse to run under bash < 4.4 (or a non-bash shell). This gate relies on bash
+# 4.4's fix for expanding an empty array under `set -u` (bash 4.0-4.3 and 3.2
+# still raise "unbound variable"). Under a shell without that fix — notably
+# macOS's bundled bash 3.2 — a nounset abort during an array expansion is masked
+# by the EXIT trap below (whose `local status=$?` reads 0 from a prior success),
+# turning a real mid-script crash into a clean exit 0 — a FALSE PASS that
+# silently defeats this determinism gate. Fail loudly instead. This check runs
+# before `set -euo pipefail` so it can never itself trip nounset; BASH_VERSINFO[0]
+# and BASH_VERSINFO[1] are the running bash's major and minor version.
+if (( BASH_VERSINFO[0] < 4 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] < 4) )); then
+	printf '%s: requires bash >= 4.4 (running under %s).
+' "${0##*/}" "${BASH_VERSION:-non-bash shell}" >&2
+	printf '  On bash < 4.4 a nounset abort can be masked by the EXIT trap as a false PASS;
+' >&2
+	printf '  re-run under bash >= 4.4 (e.g. /opt/homebrew/bin/bash, or run `brew install bash`).
+' >&2
+	exit 3
+fi
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
