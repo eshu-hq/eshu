@@ -372,6 +372,26 @@ is otherwise unchanged.
   `resolution_method` provenance on materialized code-call rows without adding a
   new metric or span.
 
+Performance Evidence: #3624 cached the repository-wide normalized import-path
+set once per code-call extraction instead of rebuilding it for every unresolved
+JavaScript or Python call. On Linux amd64 with Go 1.26.2, the retained worst-case
+scope contained 12,403 input envelopes (one repository and 12,402 files), 46,424
+functions, and 1,123,223 generic calls. The completed baseline at `b49d9655d`
+spent 3,693.17 seconds in extraction; the prototype based on current-main commit
+`35443fd4d` completed the same extraction in 35.02 seconds. The candidate
+produced 76,832 rows and 61,603 intents. A comparison against the persisted
+baseline intents found zero missing, unexpected, or identity/payload-mismatched
+rows. The focused darwin/arm64 benchmark with 5,001 repository paths and 1,000
+unresolved calls dropped from 433-459 ms and about 681 MB/op to 7.27-7.66 ms and
+about 5.8 MB/op. Classification: handler win. The proof does not claim a new
+full-corpus queue-zero time.
+
+No-Observability-Change: the cache changes only in-memory call resolution. The
+existing `code call materialization completed` log still reports
+`extract_duration_seconds`, `code_call_row_count`, and `intent_row_count`, which
+show the handler cost and output cardinality without a new metric, span, label,
+queue, or runtime setting.
+
 ## Workload Signal Confidence Registry
 
 `ExtractWorkloadCandidates` (`candidate_loader.go`) scores whether a repository

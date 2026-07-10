@@ -83,7 +83,14 @@ func resolveGenericCallee(
 		return entityID, calleeFile, method
 	}
 	if codeCallPrefersImportedTargetBeforeRepoFallback(call, language) &&
-		codeCallHasRepositoryImportedTargetBinding(repositoryImports, rawPath, relativePath, fileData, call) {
+		codeCallHasRepositoryImportedTargetBinding(
+			repositoryImports,
+			codeCallRepositoryImportPathsForResolution(index, repositoryID, repositoryImports),
+			rawPath,
+			relativePath,
+			fileData,
+			call,
+		) {
 		return "", "", ""
 	}
 	if language == "python" &&

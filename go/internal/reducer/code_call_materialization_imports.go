@@ -92,6 +92,7 @@ func codeCallPrefersImportedTargetBeforeRepoFallback(call map[string]any, langua
 
 func codeCallHasRepositoryImportedTargetBinding(
 	repositoryImports map[string][]string,
+	repositoryPaths []string,
 	rawPath string,
 	relativePath string,
 	fileData map[string]any,
@@ -101,7 +102,6 @@ func codeCallHasRepositoryImportedTargetBinding(
 		return false
 	}
 	language := codeCallLanguage(call, rawPath, relativePath)
-	repositoryPaths := codeCallRepositoryImportPaths(repositoryImports)
 	for _, target := range codeCallImportedTargets(mapSlice(fileData["imports"]), call) {
 		if codeCallMatchImportedPath(
 			rawPath,
@@ -123,6 +123,37 @@ func codeCallHasRepositoryImportedTargetBinding(
 		}
 	}
 	return false
+}
+
+// cacheCodeCallRepositoryImportPaths flattens each repository's normalized
+// import map once before the per-call resolution loop.
+func cacheCodeCallRepositoryImportPaths(
+	index *codeEntityIndex,
+	repositoryImports map[string]map[string][]string,
+) {
+	if index.repositoryImportPathsByRepo == nil {
+		index.repositoryImportPathsByRepo = make(map[string][]string, len(repositoryImports))
+	}
+	for repositoryID, imports := range repositoryImports {
+		index.repositoryImportPathsByRepo[repositoryID] = codeCallRepositoryImportPaths(imports)
+	}
+}
+
+// codeCallRepositoryImportPathsForResolution returns the extraction cache when
+// available. The fallback preserves direct resolver callers that construct an
+// index without running extractCodeCallRowsWithIndex first.
+func codeCallRepositoryImportPathsForResolution(
+	index codeEntityIndex,
+	repositoryID string,
+	repositoryImports map[string][]string,
+) []string {
+	if len(repositoryImports) == 0 {
+		return nil
+	}
+	if paths, ok := index.repositoryImportPathsByRepo[repositoryID]; ok {
+		return paths
+	}
+	return codeCallRepositoryImportPaths(repositoryImports)
 }
 
 func codeCallRepositoryImportPaths(repositoryImports map[string][]string) []string {
