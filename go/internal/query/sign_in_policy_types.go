@@ -62,7 +62,16 @@ type SignInPolicyReadStore interface {
 // return ErrSignInPolicyGuardrailNoProvenProvider /
 // ErrSignInPolicyGuardrailNoSSOAdminProof (or an error satisfying errors.Is
 // against the storage-layer sentinels) when the guardrail blocks the write.
+//
+// It embeds SignInPolicyReadStore (issue #5002 part 2) because
+// SignInPolicyMutationHandler.handleUpdate must read the tenant's currently
+// stored policy whenever a PATCH sets idle_timeout_seconds or
+// absolute_timeout_seconds, to validate the MERGED (stored+incoming) pair —
+// a single-field PATCH cannot otherwise see a conflict with a value a prior,
+// separate PATCH already persisted.
 type SignInPolicyMutationStore interface {
+	SignInPolicyReadStore
+
 	UpsertSignInPolicy(
 		ctx context.Context,
 		tenantID string,

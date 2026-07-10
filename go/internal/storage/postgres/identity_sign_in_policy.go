@@ -58,6 +58,18 @@ func (s *IdentitySubjectStore) GetSignInPolicy(ctx context.Context, tenantID str
 // is unconditionally reachable regardless of RequireSSO — the guardrail
 // exists to make an intentional enable safe, not to fully serialize against
 // every unrelated concurrent write.
+//
+// Session revoke (issue #5002): whenever the RESULTING policy has
+// RequireSSO=true, the same transaction bulk-revokes every active
+// subject_class='local_user' browser session for the tenant (see
+// revokeLocalBrowserSessionsForTenantQuery in browser_sessions_schema.go),
+// so a password-authenticated session issued before a require_sso flip can
+// never be resolved after it. This runs unconditionally on the resulting
+// value, not the prior one, so it is idempotent and needs no "was it false
+// before" branch. subject_class='break_glass' sessions are never touched
+// (break-glass must stay reachable under lockdown); subject_class=
+// 'external_oidc_user' sessions are unaffected because SSO already satisfies
+// the policy being enabled.
 func (s *IdentitySubjectStore) UpsertSignInPolicy(
 	ctx context.Context,
 	tenantID string,
@@ -156,6 +168,17 @@ func (s *IdentitySubjectStore) UpsertSignInPolicy(
 		next.UpdatedAt,
 	); err != nil {
 		return SignInPolicy{}, fmt.Errorf("upsert sign-in policy: %w", err)
+	}
+
+	if next.RequireSSO {
+		if _, err := tx.ExecContext(
+			ctx,
+			revokeLocalBrowserSessionsForTenantQuery,
+			tenantID,
+			next.UpdatedAt,
+		); err != nil {
+			return SignInPolicy{}, fmt.Errorf("revoke local browser sessions on require_sso flip: %w", err)
+		}
 	}
 
 	if err := tx.Commit(); err != nil {

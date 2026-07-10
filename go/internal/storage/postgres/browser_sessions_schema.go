@@ -339,6 +339,33 @@ WHERE session_hash = $1
   AND revoked_at IS NULL
 `
 
+// revokeLocalBrowserSessionsForTenantQuery bulk-revokes every active
+// password-authenticated ("local_user") browser session for one tenant
+// (issue #5002). UpsertSignInPolicy
+// (go/internal/storage/postgres/identity_sign_in_policy.go) runs this inside
+// the SAME transaction as the require_sso flip whenever the RESULTING policy
+// has require_sso=true, so a session issued before the flip can never be
+// resolved after it — the policy write and the revoke commit or roll back
+// together. The predicate is unconditional on the prior require_sso value
+// (idempotent: re-running it against an already-true policy revokes nothing
+// new). subject_class='break_glass' is excluded by construction so the
+// unconditional local-admin break-glass path (/login?local=1) stays
+// reachable under lockdown, and subject_class='external_oidc_user' is
+// excluded because SSO sessions already satisfy the policy being enabled.
+//
+// No index targets (tenant_id, subject_class, revoked_at) here: this is an
+// admin-rate-limited configuration action (a sign-in policy PATCH), not a hot
+// path, so a bounded scan of one tenant's session rows is within budget
+// without a dedicated index — see evidence-notes.md.
+const revokeLocalBrowserSessionsForTenantQuery = `
+UPDATE browser_sessions
+SET revoked_at = $2,
+    updated_at = $2
+WHERE tenant_id = $1
+  AND subject_class = 'local_user'
+  AND revoked_at IS NULL
+`
+
 const switchBrowserSessionWorkspaceQuery = `
 UPDATE browser_sessions sess
 SET tenant_id = ws.tenant_id,

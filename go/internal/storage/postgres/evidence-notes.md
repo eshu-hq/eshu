@@ -811,3 +811,83 @@ mfa-for-all policy read failed; login denied"` with `subject_class`, `tenant_id`
 and `error` fields — emitted only on the fail-closed policy-read error path, so
 an operator can tell a sign-in-policy read outage from any other login 500. No
 `eshu_dp_*` metric shape, span name, or telemetry contract row changes.
+
+## Sign-In Policy require_sso Flip: Local Session Bulk Revoke (#5002)
+
+Deferred P2 design item from PR #5000 review: `ResolveSessionHash`
+(`browser_sessions.go`) checks hash/CSRF/idle/absolute expiry but never
+re-evaluates `require_sso`, so a password-authenticated (`subject_class=
+'local_user'`) browser session issued before a `require_sso` false->true flip
+kept working until it naturally expired — a break-glass-shaped window that
+stayed open after an admin locked a tenant down to SSO-only.
+
+The fix adds `revokeLocalBrowserSessionsForTenantQuery`
+(`browser_sessions_schema.go`) and runs it inside `UpsertSignInPolicy`'s
+existing row-locked transaction (`identity_sign_in_policy.go`) whenever the
+RESULTING policy has `require_sso=true`: `UPDATE browser_sessions SET
+revoked_at = $2, updated_at = $2 WHERE tenant_id = $1 AND subject_class =
+'local_user' AND revoked_at IS NULL`. `subject_class='break_glass'` is
+excluded by construction (break-glass must stay reachable under lockdown) and
+`subject_class='external_oidc_user'` is excluded because an SSO session
+already satisfies the policy being enabled. The predicate is unconditional on
+the resulting value, not the prior one, so it is idempotent under repeated
+or concurrent flips.
+
+No-Regression Evidence: `go test ./internal/storage/postgres -run
+'TestUpsertSignInPolicyRevokesLocalBrowserSessionsWhenRequireSSOBecomesTrue|TestUpsertSignInPolicyDoesNotRevokeSessionsWhenRequireSSOStaysFalse|TestUpsertSignInPolicyRevokeIsUnconditionalWhenRequireSSOAlreadyTrue'
+-count=1 -v` failed before the fix (missing bulk-revoke exec) and passed
+after: the false->true flip issues the revoke inside the same transaction
+after the policy upsert exec, a false->false update issues no revoke exec at
+all, and an already-true tenant still issues the (idempotent) revoke on an
+unrelated-field edit. Against real Postgres (a throwaway `postgres:18-alpine`
+container, schema-per-run fixture matching the package's other DSN-gated
+proofs), the new `TestSignInPolicyConcurrencyGate/RequireSSOFlipRevokesOnlyLocalUserSessions`
+subtest seeded one `local_user`, one `break_glass`, and one
+`external_oidc_user` session for the flipped tenant plus a `local_user`
+session for a DIFFERENT tenant, flipped `require_sso` to true, and asserted
+only the same-tenant `local_user` session's `revoked_at` was set — the
+break-glass, OIDC, and other-tenant rows were untouched. A second
+`UpsertSignInPolicy` call against the now-already-true policy (editing
+`require_mfa_for_all_users`) did not error and left the session revoked
+exactly once. Full run: `TestSignInPolicyConcurrencyGate` — 6/6 subtests
+passed in 0.26s (`ESHU_SIGN_IN_POLICY_PROOF_DSN` pointed at the throwaway
+container).
+
+Concurrency/transaction scope: the revoke and the policy write share one
+transaction opened by `beginLocalIdentityTx` and commit or roll back
+together — a store error on either statement rolls back both (proven by the
+existing `committed`/`rolledBack` assertions in the guardrail-rejection unit
+tests, which still pass and rollback on rejection before the revoke exec is
+ever reached). No new lease, queue, worker, or batching path is introduced;
+the write stays a single bounded UPDATE inside an existing transaction
+boundary.
+
+Index reasoning (no index added): `revokeLocalBrowserSessionsForTenantQuery`
+filters on `(tenant_id, subject_class, revoked_at IS NULL)`.
+`browser_sessions_active_idx` (`session_hash, tenant_id, workspace_id,
+updated_at DESC`) cannot serve this predicate — `session_hash` is not in the
+WHERE clause, so Postgres cannot use it as a leading-column index scan — and
+`browser_sessions_external_auth_stale_idx` is unrelated. This query is
+reached only from an admin sign-in-policy PATCH (`PATCH
+/api/v0/auth/admin/sign-in-policy`), an admin-rate-limited configuration
+action, not a request-path or worker hot path; per the Prove-The-Theory-First
+rule, no index is added on an unmeasured theory. A bounded scan of one
+self-hosted tenant's `browser_sessions` rows at admin frequency is within
+budget without a dedicated index. If a future corpus shows this table grown
+large enough to matter, a partial index on `(tenant_id, subject_class) WHERE
+revoked_at IS NULL` would directly serve this predicate — but that is a
+measured follow-up, not a speculative addition here.
+
+No-Observability-Change: the revoke reuses `browser_sessions`'s existing
+`revoked_at`/`updated_at` columns and the same "mark revoked" mechanism
+`RevokeSession` and `revokeStaleOIDCBrowserSessionQuery` already use — no new
+table, column, index, metric instrument, span name, log field, queue, worker,
+lease, or route is added. Operators can already diagnose a require_sso flip's
+effect by reading `browser_sessions.revoked_at`/`updated_at` for the tenant
+and by the existing `sign_in_policy_updated` governance audit event emitted
+by `SignInPolicyMutationHandler.handleUpdate`
+(`go/internal/query/sign_in_policy_mutations.go`); a per-revoke count metric
+was considered and rejected for this change — the audit event already records
+every successful flip, and revoke volume is bounded by session count for one
+tenant at admin frequency, not a rate an operator needs a dedicated counter
+to notice at 3 AM.
