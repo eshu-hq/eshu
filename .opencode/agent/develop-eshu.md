@@ -1,8 +1,6 @@
 ---
 description: Eshu executor — implements one scoped task with TDD, then runs and pastes the gates
 mode: all
-model: deepseek/deepseek-v4-pro
-variant: max
 permission:
   edit: allow
   write: allow
@@ -22,9 +20,10 @@ else will catch (see `docs/internal/agent-orchestration.md`).
 
 ## Your job
 
-You receive a task spec from the coordinator (`plan-eshu`) containing: the
-surface, a failing acceptance test, the gate commands, and the out-of-scope
-boundaries. If any of those four are missing, **ask for them — do not guess.**
+You receive a task spec from the user, the built-in planning agent, or another
+coordinator containing: the surface, a failing acceptance test, the gate
+commands, and the out-of-scope boundaries. If any of those four are missing,
+**ask for them — do not guess.**
 
 1. Write the failing test first (TDD).
 2. Implement the smallest change that makes it pass, on the named surface only.

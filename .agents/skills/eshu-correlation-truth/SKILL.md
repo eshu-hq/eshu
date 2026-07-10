@@ -55,9 +55,9 @@ Minimum repo families to think through:
 
 Read:
 
-- `docs/docs/reference/local-testing.md`
-- `docs/docs/deployment/docker-compose.md` when compose is involved
-- `docs/docs/reference/telemetry/index.md` when runtime observability changes
+- `docs/public/reference/local-testing.md`
+- `docs/public/run-locally/docker-compose.md` when compose is involved
+- `docs/public/reference/telemetry/index.md` when runtime observability changes
 
 ### 2. Write the failing proof first
 

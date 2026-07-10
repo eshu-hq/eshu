@@ -71,7 +71,7 @@ Anything that surprised someone the first time they touched this package:
 ordering, retry rules, transaction scope, idempotency keys, conflict domains.
 
 ## Related docs
-`docs/docs/...` pages, ADRs, runbooks. Skip when none exist.
+`docs/public/...` or `docs/internal/...` pages, ADRs, runbooks. Skip when none exist.
 ```
 
 ## Required doc.go shape
