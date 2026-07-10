@@ -24,7 +24,7 @@ at every hop.
 <li>
 <p><strong>Tutorials</strong></p>
 <p>Learn by doing with practical, end-to-end walkthroughs.</p>
-<p><a href="getting-started/first-successful-run/">View tutorials</a></p>
+<p><a href="tutorials/">View tutorials</a></p>
 </li>
 <li>
 <p><strong>Reference</strong></p>
@@ -84,22 +84,22 @@ at every hop.
 <li>
 <p><strong>Trace a vulnerable dependency</strong></p>
 <p>Follow evidence from an alert to the images, workloads, and source that own it.</p>
-<p><a href="guides/supply-chain-demo/">Open tutorial</a></p>
+<p><a href="tutorials/trace-vulnerable-dependency/">Open tutorial</a></p>
 </li>
 <li>
 <p><strong>Ask Eshu from Codex</strong></p>
 <p>Use natural language in an assistant to get evidence-backed answers from Eshu.</p>
-<p><a href="mcp/">Connect MCP</a></p>
+<p><a href="tutorials/ask-from-assistant/">Connect MCP</a></p>
 </li>
 <li>
 <p><strong>Index repositories</strong></p>
 <p>Connect Git providers and index code at scale.</p>
-<p><a href="use/index-repositories/">Start indexing</a></p>
+<p><a href="tutorials/index-repositories/">Start indexing</a></p>
 </li>
 <li>
 <p><strong>Deploy on Kubernetes</strong></p>
 <p>Deploy Eshu with Helm and validate the rollout.</p>
-<p><a href="deploy/kubernetes/helm-quickstart/">Deploy with Helm</a></p>
+<p><a href="tutorials/deploy-kubernetes/">Deploy with Helm</a></p>
 </li>
 <li>
 <p><strong>Find unmanaged AWS resources</strong></p>
@@ -109,7 +109,7 @@ at every hop.
 <li>
 <p><strong>Debug stale answers</strong></p>
 <p>Identify why an answer is outdated and fix the ingestion or reducer path.</p>
-<p><a href="operate/troubleshooting/">Troubleshooting</a></p>
+<p><a href="tutorials/debug-stale-answers/">Troubleshooting</a></p>
 </li>
 </ul>
 </div>
