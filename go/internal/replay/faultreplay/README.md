@@ -178,16 +178,19 @@ that path being race-clean, not merely green.
 
 ## Performance & observability evidence
 
-- **No-Regression Evidence:** net-new package; it is not imported by any
-  production runtime path (no edit under `go/internal/reducer`,
-  `go/internal/storage`, `go/internal/queue`, or the service binaries), so
-  there is no reducer throughput, queue-depth, or row-count regression to
-  measure. Conflict domain and worker settings mirror `schedulereplay`
-  exactly: one in-memory canonical graph mutated under one mutex, `Workers=1`
-  for the sequential-safe faults and `Workers=4` for
-  `expire-lease-mid-handler`. `go test -race` for the whole package completes
-  in ~2s.
-- **No-Observability-Change:** no telemetry instruments, spans, logs, or
+- No-Regression Evidence: the hermetic runner and schema are a net-new package
+  imported only by tests. The in-binary fault decorator
+  (`go/internal/storage/cypher/fault_executor.go`) and its reducer wiring
+  (`go/cmd/reducer/ifa_fault_wiring.go`, `main.go`) are gated behind the
+  `ifafaultinjection` build tag with no-op `_off.go` defaults, so the default
+  `eshu-reducer` binary is byte-free of them — `go tool nm` on the untagged
+  binary shows zero fault symbols. There is therefore no production reducer
+  throughput, queue-depth, or row-count regression to measure. Conflict domain
+  and worker settings mirror `schedulereplay`: one in-memory canonical graph
+  mutated under one mutex, `Workers=1` for the sequential-safe faults and
+  `Workers>=2` for `expire-lease-mid-handler`. `go test -race` for the whole
+  package completes in ~2s.
+- No-Observability-Change: no telemetry instruments, spans, logs, or
   status fields are added or modified. The runner asserts the canonical
   graph-truth snapshot and the sink's acked/failed accounting directly, not a
   runtime metric, and the reducer's existing claim/queue instrumentation is
