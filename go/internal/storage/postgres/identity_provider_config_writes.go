@@ -220,15 +220,41 @@ func (s *IdentitySubjectStore) UpdateProviderConfig(
 			return ProviderConfigWriteResult{}, fmt.Errorf("supersede prior provider config revision: %w", err)
 		}
 	}
-	if _, err := tx.ExecContext(
+	activateRows, err := tx.QueryContext(
 		ctx,
 		activateProviderConfigActiveRevisionQuery,
 		update.ProviderConfigID,
 		update.TenantID,
 		update.RevisionID,
 		update.Now.UTC(),
-	); err != nil {
+	)
+	if err != nil {
 		return ProviderConfigWriteResult{}, fmt.Errorf("activate provider config revision: %w", err)
+	}
+	// Read the status back from RETURNING rather than reusing current.status
+	// (captured under the row lock BEFORE this UPDATE ran): this statement
+	// unconditionally resets status to 'draft' (see the query's doc comment),
+	// so current.status is stale the instant this UPDATE commits (#4988).
+	var postUpdateStatus string
+	scannedStatus := activateRows.Next()
+	if scannedStatus {
+		if err := activateRows.Scan(&postUpdateStatus); err != nil {
+			_ = activateRows.Close()
+			return ProviderConfigWriteResult{}, fmt.Errorf("scan activated provider config status: %w", err)
+		}
+	}
+	rowsErr := activateRows.Err()
+	if err := activateRows.Close(); err != nil {
+		return ProviderConfigWriteResult{}, fmt.Errorf("close activated provider config status rows: %w", err)
+	}
+	if rowsErr != nil {
+		return ProviderConfigWriteResult{}, fmt.Errorf("activate provider config revision: %w", rowsErr)
+	}
+	if !scannedStatus {
+		// The row-locked read above (lockProviderConfig) found it; a
+		// concurrent tombstone between that lock and this UPDATE is the only
+		// way this branch is reached.
+		return ProviderConfigWriteResult{Found: false}, nil
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -238,7 +264,7 @@ func (s *IdentitySubjectStore) UpdateProviderConfig(
 	return ProviderConfigWriteResult{
 		ProviderConfigID: update.ProviderConfigID,
 		RevisionID:       update.RevisionID,
-		Status:           current.status,
+		Status:           postUpdateStatus,
 		Found:            true,
 		Changed:          true,
 	}, nil
