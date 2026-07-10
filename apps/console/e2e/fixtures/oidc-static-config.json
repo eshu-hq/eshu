@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "providers": [
+    {
+      "provider_config_id": "pc_e2e_admin_static",
+      "issuer_url": "http://mock-oidc-idp-admin:8080",
+      "client_id": "eshu-e2e-admin-static",
+      "client_secret_file": "/e2e/oidc-static-client-secret",
+      "redirect_url": "http://127.0.0.1:5185/eshu-api/api/v0/auth/oidc/callback",
+      "scopes": ["openid", "profile", "email", "groups"],
+      "tenant_id": "default",
+      "workspace_id": "default",
+      "groups_claim": "groups"
+    }
+  ],
+  "group_role_mappings": [
+    {
+      "group": "admin-e2e",
+      "role_ids": ["e2e_admin_role"]
+    }
+  ],
+  "role_grants": [
+    {
+      "role_id": "e2e_admin_role",
+      "policy_revision_hash": "sha256:e2e-admin-static-v1",
+      "all_scopes": true
+    }
+  ]
+}

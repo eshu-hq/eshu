@@ -88,6 +88,48 @@ services:
         SOURCE_DATE_EPOCH: ${SOURCE_DATE_EPOCH:-0}
     environment:
       <<: *e2e_runtime_env
+      # Phase 3 (issue #4971, epic #4962): a file-backed OIDC provider whose
+      # sole purpose is satisfying the require_sso guardrail's SECOND
+      # precondition — "an admin has completed one SSO sign-in"
+      # (identity_sign_in_policies.sso_admin_verified_at, set only from
+      # CreateBrowserSession when the resulting session is BOTH AllScopes AND
+      # externally authenticated — see go/cmd/api/browser_sessions.go's
+      # recordSSOAdminVerificationBestEffort). A DB-backed provider config
+      # (identity_provider_configs, created via the admin UI's Add-provider
+      # flow, #4966/#4967) can NEVER produce an AllScopes=true session no
+      # matter which role an IdP group is mapped to:
+      # postgresOIDCStoreAdapter.ResolveGroupGrants (go/cmd/api/oidc_login.go)
+      # always returns PermissionCatalogEnforced=true with AllScopes left at
+      # its zero value — a deliberate design boundary documented at that call
+      # site ("Database-resolved OIDC roles are always scoped (non-admin)").
+      # AllScopes can only come from this env/file-backed
+      # StaticGrantResolver's RoleGrant.AllScopes (go/internal/oidclogin/
+      # static_grants.go), which fallbackOIDCGrantResolver only consults when
+      # the DB-backed group-mapping lookup finds no match for the login's
+      # provider_config_id — true here because no identity_provider_group_role_mappings
+      # row is ever created for pc_e2e_admin_static.
+      #
+      # This env-config provider is authoritative for LOGIN (issuer, client
+      # secret, redirect URL, and the group->role->all_scopes grant), but the
+      # provider is only exposed on GET /api/v0/auth/providers, and only
+      # loginable at all, once an ACTIVE identity_provider_configs row shares
+      # its exact provider_config_id (authProviderListStore.ListLoginProviders
+      # / query.OIDCLoginHandler.provider() — env wins for auth material, but
+      # the DB row still gates whether the provider is "on"). The e2e runner
+      # creates+tests+enables that DB row directly via the admin API (not
+      # through the Add-provider UI, which item 3 already exercises against
+      # the OTHER, member-mapped provider) before driving this SSO login.
+      #
+      # tenant_id/workspace_id are the fixed ("default","default") bootstrap
+      # slot (pgstatus.BootstrapAdminTenantID/WorkspaceID) — this stack is
+      # single-tenant, so there is nothing else they could be. redirect_url is
+      # the fixed Vite dev-server port (authE2EDevServer.ts's devServerPort,
+      # 5185) the browser-auth runner always uses, prefixed with the
+      # /eshu-api proxy path so the mock IdP's post-authorize redirect is a
+      # same-origin top-level navigation the host browser can load directly
+      # with no CORS involved (see runAuthE2E.ts's apiBaseUrl comment).
+      ESHU_AUTH_OIDC_ENABLED: "true"
+      ESHU_AUTH_OIDC_CONFIG_FILE: /e2e/oidc-static-config.json
     # Bind to loopback by default. This stack keeps normal (non-open) read
     # auth, unlike docker-compose.demo.yaml, but there is still no reason to
     # publish it beyond the host that started it.
@@ -99,6 +141,8 @@ services:
         target: /data
         volume:
           nocopy: true
+      - ./apps/console/e2e/fixtures/oidc-static-config.json:/e2e/oidc-static-config.json:ro
+      - ./apps/console/e2e/fixtures/oidc-static-client-secret:/e2e/oidc-static-client-secret:ro
 
   # Synthetic OIDC Authorization Code IdP (go/cmd/mock-oidc-idp). Serves
   # discovery/authorize/token/jwks over the compose network at
@@ -116,10 +160,27 @@ services:
   #
   # ESHU_E2E_MOCK_OIDC_ISSUER_URL intentionally defaults to the in-network
   # service hostname, which is what Eshu (also on this network) resolves.
-  # Reaching /authorize from a host-side or separately-networked browser (the
-  # Phase 2 browser-auth runner) needs its own resolvable path to this
-  # hostname or an issuer override; that wiring is Phase 2's job, not this
-  # foundation.
+  #
+  # Phase 3 (issue #4971) reachability decision: the issuer stays the
+  # in-network hostname (never host.docker.internal, never a host-published
+  # address) for BOTH the eshu API container's server-side discovery/token
+  # exchange AND the host browser's /authorize navigation. The eshu container
+  # already resolves "mock-oidc-idp" natively via Compose's embedded DNS,
+  # zero config. For the host-side Playwright browser, runAuthE2E.ts launches
+  # Chromium with --host-resolver-rules="MAP mock-oidc-idp 127.0.0.1:<this
+  # service's host-published port>" (and the same for mock-oidc-idp-admin
+  # below) — a per-process DNS override scoped to that one Chromium instance,
+  # not a host OS /etc/hosts edit. This was chosen over (a) host.docker.internal
+  # as the issuer, which does NOT resolve on the host machine's own resolver by
+  # default on Docker Desktop or native Linux (verified: `ping
+  # host.docker.internal` fails from the host shell) and would require an
+  # invasive, undocumented host /etc/hosts mutation to fix, and (b) running the
+  # browser inside the Compose network, which would additionally require
+  # containerizing the Vite dev server and the `eshu` CLI credential retrieval
+  # (authE2ECredential.ts) for no behavioral gain over the Chromium flag. The
+  # chosen approach needs no host network/DNS mutation, and the
+  # --host-resolver-rules flag is identically available to Playwright on any
+  # Linux CI runner, so the same code path is what Phase 4's CI job will use.
   mock-oidc-idp:
     build:
       context: .
@@ -134,6 +195,35 @@ services:
       MOCK_OIDC_SUBJECT: ${ESHU_E2E_MOCK_OIDC_SUBJECT:-member-user-1}
       MOCK_OIDC_EMAIL: ${ESHU_E2E_MOCK_OIDC_EMAIL:-member.user@example.test}
       MOCK_OIDC_GROUPS: ${ESHU_E2E_MOCK_OIDC_GROUPS:-member}
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/.well-known/openid-configuration"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 5s
+
+  # Second synthetic IdP instance (issue #4971 phase 3), issuing tokens for a
+  # distinct "admin-e2e"-grouped synthetic identity. Its sole purpose is
+  # satisfying the require_sso guardrail's "an admin has completed one SSO
+  # sign-in" precondition — see the ESHU_AUTH_OIDC_CONFIG_FILE comment on the
+  # `eshu` service above for why a second, file-backed provider (rather than a
+  # DB-backed group mapping on the first mock IdP) is the only way to produce
+  # an AllScopes=true SSO session. Same image/target as mock-oidc-idp, a
+  # different host port and identity only.
+  mock-oidc-idp-admin:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: mock-oidc-idp
+      args:
+        SOURCE_DATE_EPOCH: ${SOURCE_DATE_EPOCH:-0}
+    ports:
+      - "${ESHU_E2E_BIND_ADDR:-127.0.0.1}:${ESHU_E2E_MOCK_OIDC_ADMIN_PORT:-28091}:8080"
+    environment:
+      MOCK_OIDC_ISSUER_URL: ${ESHU_E2E_MOCK_OIDC_ADMIN_ISSUER_URL:-http://mock-oidc-idp-admin:8080}
+      MOCK_OIDC_SUBJECT: ${ESHU_E2E_MOCK_OIDC_ADMIN_SUBJECT:-admin-user-1}
+      MOCK_OIDC_EMAIL: ${ESHU_E2E_MOCK_OIDC_ADMIN_EMAIL:-admin.user@example.test}
+      MOCK_OIDC_GROUPS: ${ESHU_E2E_MOCK_OIDC_ADMIN_GROUPS:-admin-e2e}
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8080/.well-known/openid-configuration"]
       interval: 5s

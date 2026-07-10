@@ -23,6 +23,8 @@ bind_addr="${ESHU_E2E_BIND_ADDR:-127.0.0.1}"
 api_port="${ESHU_E2E_API_PORT:-28080}"
 postgres_port="${ESHU_E2E_POSTGRES_PORT:-28432}"
 postgres_password="${ESHU_E2E_POSTGRES_PASSWORD:-change-me}"
+mock_oidc_port="${ESHU_E2E_MOCK_OIDC_PORT:-28090}"
+mock_oidc_admin_port="${ESHU_E2E_MOCK_OIDC_ADMIN_PORT:-28091}"
 keep_stack="${ESHU_KEEP_COMPOSE_STACK:-false}"
 
 export ESHU_E2E_PROJECT_NAME="$project"
@@ -30,6 +32,8 @@ export ESHU_E2E_BIND_ADDR="$bind_addr"
 export ESHU_E2E_API_PORT="$api_port"
 export ESHU_E2E_POSTGRES_PORT="$postgres_port"
 export ESHU_E2E_POSTGRES_PASSWORD="$postgres_password"
+export ESHU_E2E_MOCK_OIDC_PORT="$mock_oidc_port"
+export ESHU_E2E_MOCK_OIDC_ADMIN_PORT="$mock_oidc_admin_port"
 
 for tool in docker node go; do
   command -v "$tool" >/dev/null 2>&1 || {
@@ -69,4 +73,6 @@ ESHU_E2E_API_BASE="$api_base" \
   ESHU_E2E_POSTGRES_HOST="$bind_addr" \
   ESHU_E2E_POSTGRES_PORT="$postgres_port" \
   ESHU_E2E_POSTGRES_PASSWORD="$postgres_password" \
+  ESHU_E2E_MOCK_OIDC_PORT="$mock_oidc_port" \
+  ESHU_E2E_MOCK_OIDC_ADMIN_PORT="$mock_oidc_admin_port" \
   node scripts/console-auth-e2e-runtime.mjs
