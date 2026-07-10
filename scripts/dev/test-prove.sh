@@ -65,9 +65,10 @@ require "hermetic dead-letter-matrix mirror invocation" "scripts/test-verify-ifa
 require "ifa coverage reconcile invocation" "go run ./cmd/ifa coverage"
 require "coverage specs-dir passed as an absolute path" '-specs-dir "${repo_root}/specs"'
 require "coverage snapshot passed as an absolute path" '-snapshot "${repo_root}/testdata/golden/e2e-20repo-snapshot.json"'
-# The advisory->blocking flip is a separate P4 slice: this step must run in
-# ifa coverage's default advisory mode, not force -blocking (which would fail
-# every run today given the current, still-growing coverage baseline).
+# This step runs `ifa coverage` in its default advisory mode, never with
+# -blocking: an uncovered surface is the expected P2+ backfill worklist, not a
+# defect, so forcing -blocking would fail every run against the still-growing
+# coverage baseline. (The blocking Ifá contract gate is the `go test` above.)
 forbid "coverage must not pass -blocking" " -blocking"
 
 # Layer 2 selection: via `ci-gates select`, never `ci-gates run` (whose own
@@ -80,6 +81,19 @@ require "ifa-determinism gate id read from selection" '"ifa-determinism"'
 require "ifa-dead-letter-matrix gate id read from selection" '"ifa-dead-letter-matrix"'
 require "real determinism matrix invoked directly" "scripts/verify-ifa-determinism.sh"
 require "real dead-letter matrix invoked directly" "scripts/verify-ifa-dead-letter-matrix.sh"
+
+# Select-failure guard: if `ci-gates select` itself exits non-zero (e.g. a
+# shallow/fork checkout where origin/main shares no merge-base with HEAD), the
+# Layer 2 matrices must NOT be silently recorded as SKIP — that would let make
+# prove report green after the common path even though selection failed. prove.sh
+# captures the select exit status, and on failure records both matrices as a hard
+# FAIL and exits non-zero. Pin that contract so a refactor cannot regress it back
+# to the status-discarding `explain="$(...)"` shape.
+require "select exit status is captured, not discarded" 'if ! explain="$('
+require "select-failure sets the guard flag" "select_ok=0"
+require "Layer 2 run is guarded by select_ok" 'if [[ "${select_ok}" -eq 1 ]]'
+require "select failure records a hard FAIL, not SKIP" "FAIL (ci-gates select errored)"
+forbid "select failure must not be recorded as a SKIP" "SKIP (ci-gates select"
 
 # No new gate id is registered anywhere in this diff: prove.sh is a thin
 # composition over existing gates, not a new one (per the design brief).
