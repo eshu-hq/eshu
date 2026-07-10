@@ -13,7 +13,15 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/cigates"
 )
 
-func TestCommittedRegistrySelectsIfaAdvisoryGate(t *testing.T) {
+// TestCommittedRegistrySelectsIfaBlockingGate proves the P4 (#4397)
+// advisory->blocking flip landed for all three Ifa proof gates
+// (ifa-contract-layer, ifa-determinism, ifa-dead-letter-matrix): each must
+// still be selected for Ifa-owned paths at the pre-pr tier, and each must now
+// report blocking=true in the committed registry. Before the flip this test
+// asserted the opposite (blocking=false, "must start advisory") — see git
+// history for TestCommittedRegistrySelectsIfaAdvisoryGate, the P1-era name
+// this test replaces.
+func TestCommittedRegistrySelectsIfaBlockingGate(t *testing.T) {
 	t.Parallel()
 
 	bin := buildBinary(t)
@@ -50,9 +58,24 @@ func TestCommittedRegistrySelectsIfaAdvisoryGate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load committed registry: %v", err)
 	}
+	wantBlocking := map[string]bool{
+		"ifa-contract-layer":     false,
+		"ifa-determinism":        false,
+		"ifa-dead-letter-matrix": false,
+	}
+	seen := map[string]bool{}
 	for _, gate := range reg.Gates {
-		if gate.ID == "ifa-contract-layer" && gate.Blocking {
-			t.Fatal("ifa-contract-layer must start advisory, got blocking=true")
+		if _, tracked := wantBlocking[gate.ID]; !tracked {
+			continue
+		}
+		seen[gate.ID] = true
+		if !gate.Blocking {
+			t.Errorf("gate %q must be blocking after the P4 flip, got blocking=false", gate.ID)
+		}
+	}
+	for id := range wantBlocking {
+		if !seen[id] {
+			t.Errorf("gate %q not found in ci-gates registry", id)
 		}
 	}
 	if _, err := os.Stat(filepath.Join(root, "go", "cmd", "ifa")); err != nil {

@@ -39,7 +39,16 @@ ifa_det_build_bin() {
 	if [[ -n "${tags}" ]]; then
 		tag_args=(-tags "${tags}")
 	fi
-	CGO_ENABLED=1 go -C go build "${tag_args[@]}" -o "${bin_dir}/eshu-${cmd}" "./cmd/${cmd}"
+	# "${tag_args[@]:-}" (not "${tag_args[@]}"): on macOS's bundled bash 3.2,
+	# expanding an EMPTY array under `set -u` aborts the function with
+	# "unbound variable" instead of expanding to nothing — but the caller's own
+	# `trap cleanup EXIT` (which does `local status=$?`) reads a fresh 0 from
+	# that `local` builtin, not this aborted command's real nonzero status, so
+	# the matrix script would exit 0 on a real build crash (a false pass). bash
+	# >=4.4 (every CI runner) treats an empty array under `:-` and without it
+	# identically, so this guard is a no-op there and only matters on the
+	# default-build-tags (non---teeth) path on this class of machine.
+	CGO_ENABLED=1 go -C go build "${tag_args[@]:-}" -o "${bin_dir}/eshu-${cmd}" "./cmd/${cmd}"
 }
 
 # ifa_det_start_bg starts "$@" as a background process, redirecting its
