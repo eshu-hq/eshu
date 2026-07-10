@@ -129,6 +129,7 @@ nav:
     - Contract Reference:
       - Overview: reference/contracts.md
       - Docs Catalog Metadata: reference/docs-catalog.md
+      - Docs Prose Quality: reference/prose-quality.md
       - Documentation Updater Actuator Contract: reference/documentation-updater-actuator-contract.md
       - Component Package Manager: reference/component-package-manager.md
       - Fact Envelope Reference: reference/fact-envelope-reference.md
