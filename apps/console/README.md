@@ -203,16 +203,19 @@ form" regression behind a leftover admin session. Set
 The runner (`e2e/runAuthE2E.ts`) reuses the same console-reachability
 approach as `runConsoleLiveE2E.ts`: the host Vite dev server, proxying
 `/eshu-api` to the stack's host-mapped API port via `ESHU_DEV_PROXY_TARGET`.
-See that file's header comment for the full acceptance-item breakdown and
-for the phase-3 TODO markers (OIDC provider add/test/enable, non-admin SSO
-gating and `/admin` 403, and the negative-secret-leakage scan are out of
-scope here).
+See that file's header comment for the full acceptance-item breakdown. The
+gate now covers all six acceptance items on a fresh stack: first-run wizard,
+generated-credential claim/consumption, OIDC provider add/test/enable through
+the real UI, non-admin SSO login with `/admin` 403 gating, `require_sso`
+enforcement with local break-glass, and the negative-secret-leakage scan
+(`e2e/authE2ELeakage.ts`).
 
-As of this writing the `item5_guardrail_rejects_premature_enable` step fails
-by design — it caught a real, pre-existing gap (missing scoped-route
-allowlist entries for the sign-in-policy admin routes; see that file's header
-comment) rather than a runner bug. Do not "fix" that step to tolerate the
-403; fix the allowlist instead.
+The `item5_guardrail_rejects_premature_enable` step now passes: it asserts the
+guardrail correctly rejects (400) enabling `require_sso` before a provider has
+a passing test and an admin has completed an SSO sign-in. (Its earlier
+failure caught a real, pre-existing gap — missing scoped-route allowlist
+entries for the sign-in-policy admin routes — which was fixed in #5004/#5006;
+the E2E likewise surfaced and drove fixes for several other shipped bugs.)
 
 ```bash
 npm run console:e2e:auth

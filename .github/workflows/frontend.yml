@@ -47,14 +47,18 @@ on:
       - ".pre-commit-config.yaml"
       - ".github/workflows/frontend.yml"
       # SSO auth E2E (#4971) surfaces — the browser gate, its runtime, the
-      # Compose stack it owns, the mock OIDC IdP it drives, and the Go bootstrap
-      # banner whose exact markers authE2ELeakage.ts's stripBootstrapBanner
-      # matches (a marker rename must re-run this gate on that same PR).
+      # Compose stack it owns and the base stack it extends, the image it builds,
+      # the mock OIDC IdP it drives, and the backend auth/OIDC/session handlers
+      # it exercises end to end. A regression in any of these must re-run the
+      # fresh-stack browser gate on that same PR rather than merge false-green.
       - "scripts/run-auth-e2e.sh"
       - "scripts/console-auth-e2e-runtime.mjs"
       - "docker-compose.e2e.yaml"
+      - "docker-compose.yaml"
+      - "Dockerfile"
       - "go/cmd/mock-oidc-idp/**"
-      - "go/cmd/api/seed_initial_admin_helpers.go"
+      - "go/cmd/api/**"
+      - "go/internal/oidclogin/**"
   workflow_dispatch:
 
 concurrency:

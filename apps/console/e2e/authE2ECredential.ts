@@ -86,7 +86,16 @@ export async function retrieveInitialCredential(
     const password = passwordLine.exec(stdout)?.[1];
     const recoveryCode = recoveryLine.exec(stdout)?.[1];
     if (!username || !password || !recoveryCode) {
-      throw new Error(`unable to parse credential fields from CLI stdout: ${stdout}`);
+      // Report only WHICH fields were missing, never the raw stdout: on a fresh
+      // stack that stdout carries the one-time bootstrap password and recovery
+      // code, and this message flows into rawStderr which item 2 prints to the
+      // E2E log/report — embedding stdout would turn a CLI wording change into a
+      // real credential leak (the exact thing item 6 exists to prevent).
+      throw new Error(
+        `unable to parse credential fields from \`eshu admin initial-credential\` stdout ` +
+          `(username=${Boolean(username)}, password=${Boolean(password)}, recoveryCode=${Boolean(recoveryCode)}); ` +
+          `stdout omitted because it carries the one-time credential`,
+      );
     }
     return { credential: { username, password, recoveryCode }, rawStderr: "" };
   } catch (err) {
