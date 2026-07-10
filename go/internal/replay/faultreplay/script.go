@@ -82,7 +82,7 @@ type FaultOp struct {
 	Trigger Trigger `json:"trigger"`
 	// Target carries fault-kind-specific effect parameters. Only
 	// fail-graph-write-once-then-succeed uses it today (Target.Lane).
-	Target Target `json:"target,omitempty"`
+	Target Target `json:"target,omitzero"`
 }
 
 // Trigger names when a fault fires. Every populated field MUST be an ordinal
