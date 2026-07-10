@@ -233,7 +233,7 @@ func TestScopedAPITokenStoreResolvesIdentityPersonalTokenThroughActiveRoles(t *t
 			t.Fatalf("role query missing %q:\n%s", want, db.queries[1].query)
 		}
 	}
-	if !strings.Contains(db.queries[2].query, "FROM identity_role_grants grant") {
+	if !strings.Contains(db.queries[2].query, "FROM identity_role_grants role_grant") {
 		t.Fatalf("permission query missing identity_role_grants:\n%s", db.queries[2].query)
 	}
 	if fakeExecArgsContain(db.queries[0].args, "raw-personal-token") {
@@ -395,7 +395,7 @@ func TestScopedAPITokenStoreResolvePermissionGrantsForRoles(t *testing.T) {
 	if got, want := len(db.queries), 1; got != want {
 		t.Fatalf("query count = %d, want %d", got, want)
 	}
-	if !strings.Contains(db.queries[0].query, "FROM identity_role_grants grant") {
+	if !strings.Contains(db.queries[0].query, "FROM identity_role_grants role_grant") {
 		t.Fatalf("permission query missing identity_role_grants:\n%s", db.queries[0].query)
 	}
 }

@@ -148,6 +148,46 @@ func TestOIDCLoginStateStoreCreatesAndConsumesHashesOnly(t *testing.T) {
 	}
 }
 
+// TestOIDCLoginStateStoreRejectsBlankWorkspaceBeforeAnyDBWrite documents the
+// exact guard #5040 tripped on: identity_oidc_login_states.workspace_id is
+// TEXT NOT NULL with a (tenant_id, workspace_id) FK into workspaces
+// (oidc_login_schema.go), so a DB-backed OIDC provider config — tenant-scoped
+// only, so ResolveSealedProviderConfig always returns WorkspaceID == "" —
+// used to fail CreateState's validateOIDCLoginState check on every
+// login-start, surfacing as the login-start handler's 503
+// "oidc login is unavailable". CreateState must reject a blank workspace_id
+// here without ever touching the database (fail closed, not fail vague) —
+// the actual fix (#5040) is resolving a real workspace_id before CreateState
+// is ever called (see cmd/api's oidcDBProviderResolver.resolveWorkspace).
+func TestOIDCLoginStateStoreRejectsBlankWorkspaceBeforeAnyDBWrite(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 6, 22, 11, 0, 0, 0, time.UTC)
+	db := &fakeExecQueryer{}
+	store := NewOIDCLoginStore(db)
+
+	err := store.CreateState(context.Background(), OIDCLoginStateRecord{
+		StateHash:        "sha256:state",
+		NonceHash:        "sha256:nonce",
+		ProviderConfigID: "db-provider-1",
+		ProviderKeyHash:  "sha256:provider-key",
+		IssuerHash:       "sha256:issuer",
+		ClientIDHash:     "sha256:client",
+		TenantID:         "tenant_a",
+		WorkspaceID:      "", // the #5040 bug: a DB-backed provider resolved this blank
+		RedirectURIHash:  "sha256:redirect",
+		IssuedAt:         now,
+		ExpiresAt:        now.Add(10 * time.Minute),
+		UpdatedAt:        now,
+	})
+	if err == nil {
+		t.Fatal("CreateState() error = nil, want a validation error for blank workspace_id")
+	}
+	if len(db.execs) != 0 {
+		t.Fatalf("exec count = %d, want 0 — blank workspace_id must fail before any DB write", len(db.execs))
+	}
+}
+
 func TestOIDCLoginStoreResolvesGroupsThroughRolesToGrants(t *testing.T) {
 	t.Parallel()
 
@@ -196,7 +236,7 @@ func TestOIDCLoginStoreResolvesGroupsThroughRolesToGrants(t *testing.T) {
 	if len(db.queries) != 4 {
 		t.Fatalf("query count = %d, want 4", len(db.queries))
 	}
-	if !strings.Contains(db.queries[3].query, "FROM identity_role_grants grant") {
+	if !strings.Contains(db.queries[3].query, "FROM identity_role_grants role_grant") {
 		t.Fatalf("permission query missing identity_role_grants:\n%s", db.queries[3].query)
 	}
 	if strings.Contains(db.queries[0].query, "group_name") ||

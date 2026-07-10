@@ -123,21 +123,21 @@ LIMIT $3
 
 const resolveIdentityAPITokenPermissionsQuery = `
 SELECT DISTINCT
-    grant.feature,
-    grant.data_class
-FROM identity_role_grants grant
+    role_grant.feature,
+    role_grant.data_class
+FROM identity_role_grants role_grant
 JOIN identity_roles role
-    ON role.tenant_id = grant.tenant_id
-   AND role.role_id = grant.role_id
-WHERE grant.tenant_id = $1
-  AND grant.role_id = ANY($2::text[])
-  AND grant.status = 'active'
-  AND grant.tombstoned_at IS NULL
-  AND grant.effective_at <= $3
-  AND (grant.expires_at IS NULL OR grant.expires_at > $3)
+    ON role.tenant_id = role_grant.tenant_id
+   AND role.role_id = role_grant.role_id
+WHERE role_grant.tenant_id = $1
+  AND role_grant.role_id = ANY($2::text[])
+  AND role_grant.status = 'active'
+  AND role_grant.tombstoned_at IS NULL
+  AND role_grant.effective_at <= $3
+  AND (role_grant.expires_at IS NULL OR role_grant.expires_at > $3)
   AND role.status = 'active'
   AND role.tombstoned_at IS NULL
-ORDER BY grant.feature ASC, grant.data_class ASC
+ORDER BY role_grant.feature ASC, role_grant.data_class ASC
 LIMIT $4
 `
 

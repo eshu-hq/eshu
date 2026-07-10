@@ -233,6 +233,15 @@ func (s *Service) provider(ctx context.Context, providerConfigID, tenantID, work
 	if s.dbProviders != nil && providerConfigID != "" && tenantID != "" {
 		dbProvider, found, err := s.dbProviders.ResolveProvider(ctx, providerConfigID, tenantID, strings.TrimSpace(workspaceID))
 		if err != nil {
+			// A resolver that fails closed with an actionable, caller-facing
+			// reason (e.g. #5040: a tenant-scoped DB-backed provider whose
+			// tenant has no unambiguous workspace) surfaces as that error
+			// directly — ErrOIDCLoginInvalidRequest maps to 400, not the
+			// opaque 503 every other resolver failure (DB unavailable,
+			// decrypt failure, malformed configuration) maps to below.
+			if errors.Is(err, query.ErrOIDCLoginInvalidRequest) {
+				return ProviderConfig{}, err
+			}
 			return ProviderConfig{}, fmt.Errorf("%w: resolve db provider", query.ErrOIDCLoginUnavailable)
 		}
 		if found {

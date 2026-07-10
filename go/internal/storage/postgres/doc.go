@@ -196,7 +196,12 @@
 // bounds on reads, filters out inactive, tombstoned, not-yet-effective, and
 // expired rows inside SQL, and keeps repository grants joined to an active
 // scope grant so later read enforcement cannot widen beyond source-scope
-// truth.
+// truth. PrimaryWorkspaceForTenant resolves a tenant's single active
+// workspace_id for callers that hold a tenant-scoped record with no workspace
+// of its own (a DB-backed OIDC provider login-start); it fails closed with
+// ErrTenantWorkspaceAmbiguous when a tenant has more than one active workspace
+// and ErrTenantWorkspaceNotFound when it has none, so the caller must require
+// an explicit workspace_id rather than guess.
 // ScopedAPITokenStore adds the default-off hash-only token registry for that
 // control plane. It stores bearer-token digests, scoped subject hashes, expiry,
 // revocation, and policy revision hashes while relying on the tenant/workspace

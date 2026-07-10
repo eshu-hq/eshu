@@ -55,6 +55,20 @@ type ProviderConfig struct {
 // caller's env-file lookup already ran first and also missed, so this
 // becomes ErrOIDCLoginInvalidRequest at the Service.provider() call site,
 // same as an unknown env-file id.
+//
+// ResolveProvider is also responsible for filling in ProviderConfig.WorkspaceID
+// when ResolveSealedProviderConfig returns it blank (#5040): identity_provider_configs
+// is tenant-scoped only, so a DB-backed provider has no workspace of its own,
+// but identity_oidc_login_states.workspace_id is TEXT NOT NULL — a resolver
+// that returns a blank WorkspaceID makes every login-start for that provider
+// fail closed at CreateState. The workspaceID parameter carries the caller's
+// already-known workspace (blank at login-start's first resolve, non-blank on
+// every later resolve within the same login, since Service persists and
+// replays whatever this call returned); a resolver should default a blank
+// workspaceID to the provider's tenant's own workspace and fail with an
+// ErrOIDCLoginInvalidRequest-wrapped error (not silently pick one) when that
+// tenant has more than one active workspace. See cmd/api's
+// oidcDBProviderResolver.resolveWorkspace for the reference implementation.
 type DBProviderResolver interface {
 	ResolveProvider(ctx context.Context, providerConfigID, tenantID, workspaceID string) (ProviderConfig, bool, error)
 }
@@ -204,14 +218,17 @@ func safeReturnPath(path string) string {
 // workspaceID is only enforced when the provider itself is workspace-scoped
 // (provider.WorkspaceID != ""), which is always true for env-file providers.
 // DB-backed providers (#4966, epic #4962) have no workspace column in
-// identity_provider_configs — that table is tenant-scoped only — so
-// provider.WorkspaceID is always "" for them; the request's workspace (which
-// may itself be empty) passes through unchecked at this layer. The actual
-// RBAC boundary for a DB-backed provider is
-// identity_provider_group_role_mappings, which IS workspace-scoped and is
-// consulted later during grant resolution (GrantQuery.WorkspaceID) — so a
-// login still cannot obtain access outside its resolved workspace's grants,
-// even though this function does not gate it for DB-backed providers.
+// identity_provider_configs — that table is tenant-scoped only —
+// so ResolveSealedProviderConfig always returns WorkspaceID == "" for them.
+// Service.provider()'s DBProviderResolver call fills that in before this
+// function ever sees the ProviderConfig (#5040: defaulting to the tenant's
+// own workspace, or failing closed when the tenant has more than one), so in
+// practice provider.WorkspaceID is non-empty here for any DB-backed provider
+// that successfully resolved. The actual RBAC boundary for a DB-backed
+// provider remains identity_provider_group_role_mappings, which IS
+// workspace-scoped and is consulted later during grant resolution
+// (GrantQuery.WorkspaceID) — a login still cannot obtain access outside its
+// resolved workspace's grants regardless of this function's enforcement.
 func resolveProviderContext(provider ProviderConfig, tenantID string, workspaceID string) (string, string, error) {
 	tenantID = defaultString(strings.TrimSpace(tenantID), provider.TenantID)
 	if tenantID != provider.TenantID {

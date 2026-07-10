@@ -204,6 +204,24 @@ ORDER BY g.scope_id ASC
 LIMIT $6
 `
 
+// listActiveWorkspaceIDsForTenantQuery backs PrimaryWorkspaceForTenant
+// (#5040). It returns at most $2 active workspace_id rows so the caller can
+// distinguish "exactly one" from "more than one" (ambiguous) without ever
+// scanning a tenant's full workspace set — callers pass limit=2, since only
+// the 0/1/2+ distinction matters.
+const listActiveWorkspaceIDsForTenantQuery = `
+SELECT w.workspace_id
+FROM workspaces w
+JOIN tenants t ON t.tenant_id = w.tenant_id
+WHERE w.tenant_id = $1
+  AND w.status = 'active'
+  AND w.tombstoned_at IS NULL
+  AND t.status = 'active'
+  AND t.tombstoned_at IS NULL
+ORDER BY w.workspace_id ASC
+LIMIT $2
+`
+
 const listTenantRepositoryGrantsQuery = `
 SELECT
     g.tenant_id,

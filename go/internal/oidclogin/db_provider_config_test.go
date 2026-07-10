@@ -5,6 +5,7 @@ package oidclogin
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -225,4 +226,47 @@ func TestServicePrefersEnvProviderOverDBResolver(t *testing.T) {
 	if resolver.called {
 		t.Fatal("DBProviderResolver was consulted despite an env-file provider matching the same id — env must win without even calling the DB resolver")
 	}
+}
+
+// TestServicePropagatesDBResolverInvalidRequestInsteadOf503 proves Service.provider()
+// (#5040) surfaces a DBProviderResolver failure that is already an
+// ErrOIDCLoginInvalidRequest-style error (e.g. a tenant-scoped DB-backed
+// provider whose tenant has no unambiguous workspace to default to) as that
+// same 400-mapped error, rather than collapsing every resolver failure into
+// the opaque 503 ErrOIDCLoginUnavailable. A resolver failure with no such
+// wrapping (a genuine DB/decrypt failure) must still map to 503 — proven by
+// the second case below.
+func TestServicePropagatesDBResolverInvalidRequestInsteadOf503(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, 6, 22, 12, 0, 0, 0, time.UTC)
+	store := &fakeStateStore{}
+
+	t.Run("invalid request passes through", func(t *testing.T) {
+		resolver := &fakeDBProviderResolver{err: query.ErrOIDCLoginInvalidRequest}
+		service := NewService(Config{StateTTL: 10 * time.Minute}, store, StaticGrantResolver{}, fakeConnectorFactory(t),
+			WithNow(func() time.Time { return now }), WithDBProviderResolver(resolver))
+
+		_, err := service.StartOIDCLogin(context.Background(), query.OIDCLoginStartRequest{
+			ProviderConfigID: "db-provider-1", TenantID: "tenant_a",
+		})
+		if !errors.Is(err, query.ErrOIDCLoginInvalidRequest) {
+			t.Fatalf("StartOIDCLogin() error = %v, want errors.Is(err, query.ErrOIDCLoginInvalidRequest)", err)
+		}
+		if errors.Is(err, query.ErrOIDCLoginUnavailable) {
+			t.Fatalf("StartOIDCLogin() error = %v, want it NOT mapped to ErrOIDCLoginUnavailable", err)
+		}
+	})
+
+	t.Run("other resolver failure still maps to 503", func(t *testing.T) {
+		resolver := &fakeDBProviderResolver{err: errors.New("connection refused")}
+		service := NewService(Config{StateTTL: 10 * time.Minute}, store, StaticGrantResolver{}, fakeConnectorFactory(t),
+			WithNow(func() time.Time { return now }), WithDBProviderResolver(resolver))
+
+		_, err := service.StartOIDCLogin(context.Background(), query.OIDCLoginStartRequest{
+			ProviderConfigID: "db-provider-1", TenantID: "tenant_a",
+		})
+		if !errors.Is(err, query.ErrOIDCLoginUnavailable) {
+			t.Fatalf("StartOIDCLogin() error = %v, want errors.Is(err, query.ErrOIDCLoginUnavailable)", err)
+		}
+	})
 }
