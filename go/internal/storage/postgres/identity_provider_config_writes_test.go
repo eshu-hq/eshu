@@ -173,6 +173,53 @@ func TestUpdateProviderConfigRejectsProviderKindMismatch(t *testing.T) {
 	}
 }
 
+// TestUpdateProviderConfigReturnsPostUpdateStatusNotStaleActiveStatus proves
+// UpdateProviderConfig's returned Status reflects the row's status AFTER the
+// transaction commits, not the value read before it started. Update always
+// resets an existing active_revision_id pointer via
+// activateProviderConfigActiveRevisionQuery, which unconditionally sets
+// status='draft' in the same statement (see that query's doc comment: an
+// update invalidates the prior test-connection, so the provider must be
+// re-tested via Enable before it is trusted again). A caller that was
+// 'active' before this Update must see Status="draft" in the result, not the
+// stale pre-transaction "active" value — callers (#4967 admin UI) trust this
+// field directly.
+func TestUpdateProviderConfigReturnsPostUpdateStatusNotStaleActiveStatus(t *testing.T) {
+	t.Parallel()
+	db := newProviderConfigFakeDB()
+	store := NewIdentitySubjectStore(db)
+	store.SetProviderSecretKeyring(testKeyring(t))
+	ctx := context.Background()
+
+	if _, err := store.CreateProviderConfig(ctx, ProviderConfigCreate{
+		ProviderConfigID: "pc_status", TenantID: "tenant_a", ProviderKind: "external_oidc",
+		ProviderKeyHash: "hash_status", RevisionID: "rev_1", ConfigurationHash: "h1",
+		PlaintextSecret: `{"client_secret":"first"}`, Now: time.Now(),
+	}); err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	enableResult, err := store.EnableProviderConfig(ctx, ProviderConfigEnable{
+		ProviderConfigID: "pc_status", TenantID: "tenant_a", ExpectedActiveRevisionID: "rev_1", Now: time.Now(),
+	})
+	if err != nil || enableResult.Status != "active" {
+		t.Fatalf("EnableProviderConfig() = %+v, err = %v, want Status=active", enableResult, err)
+	}
+
+	result, err := store.UpdateProviderConfig(ctx, ProviderConfigUpdate{
+		ProviderConfigID: "pc_status", TenantID: "tenant_a", RevisionID: "rev_2",
+		ConfigurationHash: "h2", PlaintextSecret: `{"client_secret":"second"}`, Now: time.Now(),
+	})
+	if err != nil {
+		t.Fatalf("UpdateProviderConfig() error = %v", err)
+	}
+	if result.Status != "draft" {
+		t.Fatalf("UpdateProviderConfig() result.Status = %q, want %q (the post-transaction persisted status, not the pre-update active status)", result.Status, "draft")
+	}
+	if db.configs["pc_status"].status != "draft" {
+		t.Fatalf("persisted status = %q, want draft", db.configs["pc_status"].status)
+	}
+}
+
 // TestRevertProviderConfigRestoresPriorRevisionSecret proves reverting to a
 // prior revision restores exactly that revision's secret (by fingerprint —
 // the read path never opens either revision to compare plaintext), without
