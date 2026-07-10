@@ -70,6 +70,16 @@ func buildReducerService(
 	// other class's permits (head-of-line blocking). rawNeo4jExec is the
 	// unbounded base for the semantic path's outside-the-timeout permit;
 	// neo4jExec and cypherExec are wrapped with the canonical gate.
+	// ifa fault injection (issue #4580 P6 S4): wraps the base neo4jExec, the
+	// same value executeReducerCypherWithRetry re-wraps in a fresh
+	// RetryingExecutor on every call, BEFORE it feeds both the canonical/edge
+	// path (below) and the semantic path (via rawNeo4jExec). A no-op outside
+	// the ifafaultinjection build tag and whenever ESHU_IFA_FAULT_SCRIPT is
+	// unset; see ifa_fault_wiring.go / ifa_fault_wiring_off.go.
+	neo4jExec, err = wrapIfaFaultExecutor(neo4jExec, getenv, logger)
+	if err != nil {
+		return reducer.Service{}, err
+	}
 	graphWriteGate := newReducerGraphWriteGate(getenv, instruments)
 	rawNeo4jExec := neo4jExec
 	neo4jExec = graphWriteGate.boundExecutor(neo4jExec)

@@ -7,7 +7,8 @@
 //
 // Writers in this package emit Statements that any supported graph backend
 // can run through the Executor seam (InstrumentedExecutor, RetryingExecutor,
-// TimeoutExecutor, BackpressureExecutor, ExecuteOnlyExecutor). The
+// TimeoutExecutor, BackpressureExecutor, ExecuteOnlyExecutor, and — only under
+// the ifafaultinjection build tag — the test-only FaultingExecutor). The
 // BackpressureExecutor bounds concurrent writes to a configurable in-flight
 // ceiling so a slow backend slows intake instead of dead-lettering recoverable
 // work (issue #3560); it wraps the outermost retry/timeout layer so one permit
