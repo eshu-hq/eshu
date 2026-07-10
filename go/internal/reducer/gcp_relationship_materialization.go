@@ -335,6 +335,25 @@ func splitGCPFactEnvelopes(envelopes []facts.Envelope) (resources, relationships
 	return resources, relationships
 }
 
+// GCPRelationshipNodesNotReadyFailureClass identifies an in-handler
+// readiness-gate miss: the GCP relationship edge intent ran before
+// DomainGCPResourceMaterialization published its cloud_resource_uid
+// canonical-nodes-committed phase for the same acceptance unit. The durable
+// claim gate (reducerClaimReadinessRequirementsSQL in
+// go/internal/storage/postgres/reducer_queue_readiness_sql.go) normally holds
+// the intent until the phase commits, so this class is the defense-in-depth
+// path for a claim-gate / handler-derivation disagreement or a phase
+// retracted between claim and handle, not the common case. The reducer queue
+// treats it as a non-counting retry class so a readiness miss never erodes
+// the retry budget and dead-letters a still-pending edge intent the
+// succeeded-only reopen path would not reopen, mirroring
+// KubernetesCorrelationNodesNotReadyFailureClass and
+// SecretsIAMEndpointNotReadyFailureClass. Before this enrollment GCP
+// relationship intents had neither defense: a transient upstream graph-write
+// failure on the dependency permanently dead-lettered dependent GCP edge
+// work.
+const GCPRelationshipNodesNotReadyFailureClass = "gcp_relationship_nodes_not_ready"
+
 // gcpRelationshipNodesNotReadyError marks the readiness-gate miss as retryable
 // so the durable queue re-runs the intent once GCP nodes commit, instead of
 // failing terminally or writing edges against absent nodes.
@@ -354,7 +373,7 @@ func (e gcpRelationshipNodesNotReadyError) Error() string {
 func (gcpRelationshipNodesNotReadyError) Retryable() bool { return true }
 
 func (gcpRelationshipNodesNotReadyError) FailureClass() string {
-	return "gcp_relationship_nodes_not_ready"
+	return GCPRelationshipNodesNotReadyFailureClass
 }
 
 // gcpRelationshipMaterializationTiming groups stage durations and the resolution

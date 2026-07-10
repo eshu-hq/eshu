@@ -519,6 +519,89 @@ materialization completed` structured log carries `scope_id`, `generation_id`,
 durations, so an operator can answer at 3 AM which GCP relationship target types
 are losing edges and why.
 
+### Claim-Time Readiness Enrollment (Ifá P6)
+
+Before this enrollment, `gcp_relationship_materialization` was absent from
+BOTH reducer dependency-ordering defenses. The two defenses cover different
+sets of sibling domains today, so they are described separately:
+
+- The claim-time readiness CTE
+  (`reducerClaimReadinessRequirementsSQL` in
+  `go/internal/storage/postgres/reducer_queue_readiness_sql.go`) holds a
+  domain unclaimable until its upstream `canonical_nodes_committed` phase
+  publishes. The sibling cloud-relationship domains
+  (`aws_relationship_materialization`, `azure_relationship_materialization`,
+  `workload_cloud_relationship_materialization`) and
+  `kubernetes_correlation_materialization` already carry a row here; GCP did
+  not, so GCP relationship intents could claim and run before
+  `DomainGCPResourceMaterialization` committed the scope's CloudResource
+  nodes.
+- The non-counting retry-class exemption
+  (`nonCountingReducerRetryFailureClasses`, same file) keeps an in-handler
+  readiness-gate miss from eroding the reducer's attempt budget. Before this
+  change only `secrets_iam` (endpoint) and
+  `kubernetes_correlation_materialization` were exempt. The AWS, Azure, and
+  workload-cloud relationship siblings have an in-handler `ReadinessLookup`
+  miss whose class is NOT yet exempt — a narrower form of the same gap, since
+  their claim-time CTE row already blocks the common case (readiness is
+  monotonic, so a claimed intent's handler normally sees the same committed
+  phase); closing that defense-in-depth gap for them is tracked in #5046. For
+  GCP the gap was wide open: with no CTE row the claim gate never blocked, so
+  the handler's readiness miss fired on every attempt, and without the
+  exemption each `gcp_relationship_nodes_not_ready` retry consumed one of
+  `ESHU_REDUCER_MAX_ATTEMPTS` (default 3) — a transient upstream graph-write
+  delay on the GCP resource-node dependency then permanently dead-lettered the
+  dependent GCP relationship-edge intent instead of waiting for the dependency
+  to complete.
+
+The fix adds the missing `('gcp_relationship_materialization',
+'cloud_resource_uid', 'canonical_nodes_committed', 'payload_entity_key', '')`
+row (identical shape to the AWS/Azure/workload_cloud rows, since the GCP
+relationship intent's `EntityKey` already carries the GCP resource domain's
+acceptance unit — see [GCP Relationship Edge
+Materialization](#gcp-relationship-edge-materialization) above) and exports
+`GCPRelationshipNodesNotReadyFailureClass` (mirroring
+`KubernetesCorrelationNodesNotReadyFailureClass` and
+`SecretsIAMEndpointNotReadyFailureClass`) into
+`nonCountingReducerRetryFailureClasses`. This is dependency-ordering, not
+serialization: every reducer domain still claims concurrently; a dependent
+intent only waits on the specific upstream phase its own edges require to
+resolve correctly (accuracy: edges must not resolve against absent nodes).
+
+No-Regression Evidence: the added CTE row is a query-plan no-op for every
+other domain. `reducerClaimReadinessGateSQL`'s `NOT EXISTS` subquery
+correlates on `readiness_req.domain = work.domain`
+(`go/internal/storage/postgres/reducer_queue_readiness_sql.go`), so a new row
+for a domain a claim query is not evaluating never participates in that
+row's branch. Proven live: `EXPLAIN (ANALYZE, BUFFERS)` of the real
+`claimReducerWorkQuery` text (extracted verbatim from the built package)
+against Postgres 18 seeded with a representative 60,000-row reducer backlog
+(2,000 scopes x 15 domains x 2 statuses, no `graph_projection_phase_state`
+rows, i.e. the worst case where every readiness-gated domain must probe the
+CTE) filtered to `domain = 'aws_relationship_materialization'` produced
+byte-identical plan shape (same join order, same
+`fact_work_items_stage_domain_status_idx` bitmap index scan, same
+`shared hit=2426/2432` buffer counts) before and after the row addition; the
+only delta was the constant-VALUES `CTE Scan on
+reducer_claim_readiness_requirements` row/cost estimate moving from
+`rows=21 cost=0.42` to `rows=22 cost=0.44` — negligible against the query's
+~3024 total cost unit and not a measurable regression against the 896-repo
+performance contract. Behavior proof (failing-then-green):
+`go test ./internal/storage/postgres -run
+'TestReducerQueueClaimWaitsForGCPRelationshipReadinessBehavior|TestReducerQueueFailDefersGCPRelationshipReadinessPastAttemptBudget|TestReducerQueueClaimDoesNotCountGCPRelationshipReadinessDefers|TestClaimBatchDoesNotCountGCPRelationshipReadinessDefers'
+-count=1` fails red without the CTE row and the
+`nonCountingReducerRetryFailureClasses` enrollment (verified by temporarily
+reverting each), and passes green with both. `go test
+./internal/storage/postgres ./internal/reducer -race -count=1` stays green.
+
+Observability Evidence: a readiness miss surfaces as the retryable error's
+`FailureClass() = "gcp_relationship_nodes_not_ready"`, the same classified-
+execution log path as `aws_relationship_nodes_not_ready` and
+`kubernetes_correlation_nodes_not_ready`, so an operator can see GCP
+relationship intents waiting on GCP resource-node commit. No metric, span,
+worker, queue domain, or runtime knob is added or removed; this enrolls an
+existing domain into two existing mechanisms.
+
 ## Secrets/IAM Trust-Chain Read Model
 
 `DomainSecretsIAMTrustChain` owns the first reducer read model for
