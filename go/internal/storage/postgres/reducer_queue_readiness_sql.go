@@ -27,6 +27,7 @@ const (
 var nonCountingReducerRetryFailureClasses = []string{
 	reducer.SecretsIAMEndpointNotReadyFailureClass,
 	reducer.KubernetesCorrelationNodesNotReadyFailureClass,
+	reducer.GCPRelationshipNodesNotReadyFailureClass,
 }
 
 // reducerClaimAttemptCountCaseSQL renders the attempt_count assignment for the
@@ -67,6 +68,7 @@ func reducerClaimReadinessRequirementsSQL() string {
 	return `    VALUES
         ('aws_relationship_materialization', 'cloud_resource_uid', 'canonical_nodes_committed', 'payload_entity_key', ''),
         ('azure_relationship_materialization', 'cloud_resource_uid', 'canonical_nodes_committed', 'payload_entity_key', ''),
+        ('gcp_relationship_materialization', 'cloud_resource_uid', 'canonical_nodes_committed', 'payload_entity_key', ''),
         ('workload_cloud_relationship_materialization', 'cloud_resource_uid', 'canonical_nodes_committed', 'payload_entity_key', ''),
         ('observability_coverage_materialization', 'cloud_resource_uid', 'canonical_nodes_committed', 'payload_entity_key', ''),
         ('iam_can_assume_materialization', 'cloud_resource_uid', 'canonical_nodes_committed', 'payload_entity_key', ''),
