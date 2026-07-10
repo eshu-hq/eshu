@@ -34,7 +34,9 @@ type Config struct {
 	// schedulereplay.ApplyCanonical when nil.
 	Apply schedulereplay.Applier
 	// Script is the fault script to inject at the WorkSource/Executor seams.
-	// A zero-value Script (no faults) is a valid fault-free baseline run.
+	// An empty-faults script (Version: CurrentVersion, no Faults) is a valid
+	// fault-free baseline run; a zero-value Script is rejected by Validate
+	// because its Version is 0, not CurrentVersion.
 	Script Script
 }
 
