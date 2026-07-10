@@ -123,9 +123,10 @@ Existing diagnostics remain the `go test` suite (including
 - Ifá's own coverage manifest carries bindings (which Odù proves which
   surface), never expected values; see `coverage_falsegreen_test.go` for the
   proof that a wrong-Odù or wrong-correlation binding cannot pass.
-- The `ifa-contract-layer` CI gate stays advisory for P1 (the blocking flip is
-  a later milestone); `ifa coverage`'s own proof-gate validation surfaces that
-  as a `Required` finding without hard-failing the advisory default.
+- The `ifa-contract-layer` CI gate is CI-blocking as of P4 (#4397). `ifa
+  coverage` still defaults to a local advisory report and only hard-fails in
+  `-blocking` mode (what `make prove` and CI run); coverage and proof-gate
+  findings surface through its `goldengate.Report`.
 - `EvidenceSatisfies` checks a correlation's `evidence_kinds` half only, by
   design (#4959 resolved). It does not check `required_edge_properties` /
   `allowed_edge_property_values` (e.g. rc-29's `source_tool`): `source_tool` is
@@ -169,6 +170,16 @@ Existing diagnostics remain the `go test` suite (including
   assume a fixed `failure_class` literal for a mutation kind; compare full
   `DeadLetterRecord` sets with `DeadLetterSetsEqual` instead. See `mutate.go`'s
   `MutationKind` doc comment for the full path-by-path breakdown.
+
+## Adding an Odù
+
+A contributor adds a conformance case by dropping a v1 cassette (or a
+`LoadFacts`/synth descriptor) and letting expectations derive — there is no
+hand-written want-list. Register it in `catalog_seed.go`, bind the surfaces it
+proves in `specs/ifa-coverage-manifest.v1.yaml` only once green (C-1), and run
+`make prove` to validate coverage and determinism. The full step-by-step
+checklist (mirroring the parser package's "add a language" 7-step model) lives
+in `AGENTS.md`.
 
 ## Related Docs
 

@@ -46,9 +46,14 @@
 - Only seed a coverage-manifest row once it is genuinely green (the C-1
   seed-only-green-rows philosophy); an aspirational binding stays on the
   uncovered worklist.
-- The `ifa-contract-layer` CI gate stays advisory; do not flip it to blocking
-  without a follow-up milestone decision, and do not make `ifa coverage`
-  hard-fail on that gate's own "not blocking" proof-gate finding.
+- The `ifa-contract-layer`, `ifa-determinism`, and `ifa-dead-letter-matrix` CI
+  gates are CI-blocking as of P4 (#4397); do not revert them to advisory. The two
+  determinism-matrix gates run their real Docker matrix per-PR in
+  `.github/workflows/ifa-determinism-gate.yml`; keep their `local.command` in
+  `specs/ci-gates.v1.yaml` pointed at the hermetic `test-verify-*.sh` mirror (not
+  the Docker script) so `make pre-pr` stays credential-free. `make prove` reaches
+  past the registry to run the real Docker matrix locally when Docker is present,
+  and defers loudly (never a silent pass) when it is not.
 - `MutateCassette` never mutates its `src` argument; it always returns a
   cloned `cassette.File` (`cloneCassette`, a JSON round trip). Do not change it
   to mutate in place — callers pass the same in-memory cassette across
@@ -64,8 +69,46 @@
   the ADR's step 3a teeth test requires catching a divergent `failure_class`
   on an otherwise-matching work item.
 
+## Drop an Odù
+
+Adding a conformance case (an Odù) mirrors the parser package's "add a language"
+7-step model (`go/internal/parser/AGENTS.md`). Expectations *derive* from the
+fact-kind registry plus the B-12 snapshot; you never hand-write a want-list.
+
+1. **Declare the input.** Either drop a **v1 cassette** under
+   `testdata/cassettes/` (the format is fail-closed — a non-v1 cassette is
+   rejected, `go/internal/replay/format.go`) or add a `LoadFacts`/synth
+   descriptor that produces the Odù's `facts.Envelope` set (see
+   `demoOrgRoundtripOdu` and the `synth/gcp` generator for the two existing
+   patterns).
+2. **Redact by key name only.** Cassette redaction is key-name based and payloads
+   are opaque (`go/internal/replay/canonical.go`); a secret that is not removable
+   by its key name MUST NOT be in the fixture. Do not rely on value-content
+   masking — it does not exist.
+3. **Register the Odù** in `catalogSeed` (`catalog_seed.go`) as a
+   `CatalogOdu{Odu: Odu{Name: "odu:<name>", Facts: ...}}`. Prefer deriving the
+   facts from fixturepack valid-payload examples (like `awsPackOdu`) so the Odù
+   stays in lockstep with the contract schemas.
+4. **Do not hand-list expectations.** `Derive` enumerates the surfaces (one per
+   fact-kind-registry entry, one per B-12 evidence-narrowed correlation);
+   coverage is computed, never asserted by name — see `coverage_falsegreen_test.go`.
+5. **Bind the surfaces the Odù proves** in `specs/ifa-coverage-manifest.v1.yaml`
+   (`fact_kind:<kind>` / `narrowed_correlation:<rc>` → `scenario: odu`,
+   `ref: odu:<name>`). Seed a row ONLY once it is genuinely green (the C-1
+   seed-only-green-rows philosophy); an aspirational binding stays on the
+   uncovered worklist.
+6. **Run `make prove`.** It reconciles coverage against the manifest (so a new
+   fact kind or surface cannot land uncovered) and, when Docker is present, runs
+   the determinism matrix over the affected Odù. A nondeterministic failure is a
+   determinism defect — quarantine-by-issue and root-cause it; never retry to
+   green (the flake policy, `scripts/verify-ifa-determinism.sh`).
+7. **Document a new kind or surface** in the same change (the fact-kind registry
+   and the relevant package README), the way the parser model documents a new
+   language.
+
 ## Verification
 
 ```bash
 cd go && go test ./internal/ifa -count=1
+make prove   # credential-free coverage + determinism mirror (Docker matrix when present)
 ```
