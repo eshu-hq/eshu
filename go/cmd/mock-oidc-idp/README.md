@@ -67,6 +67,24 @@ the runtime OTEL bootstrap.
 - issued codes are one-time use, held in an in-memory map guarded by a mutex;
   restarting the process discards all outstanding codes
 
+## Performance & observability evidence
+
+This binary is a **test-only** mock OIDC IdP: it is built solely for the #4971
+auth E2E stack (`docker-compose.e2e.yaml`) and is deliberately kept out of the
+released production image. It carries no product-runtime performance or
+observability contract.
+
+- No-Regression Evidence: it serves a single, fixed synthetic identity from an
+  in-memory, mutex-guarded one-time-code map; there is no graph, queue, reducer,
+  Cypher, or Postgres path, no batching or lease behavior, and no repo-scale
+  data. Baseline and after are identical by construction — the change adds a new
+  test fixture binary, it does not alter any product hot path. The only consumer
+  is the browser E2E gate, whose end-to-end wall clock is ~11.5s for 17 steps on
+  a fresh stack (`e2e-artifacts/auth-e2e-report.json`).
+- No-Observability-Change: it emits only its own request logs to stdout for E2E
+  debugging; it adds no product metrics, spans, or status surfaces, and an
+  operator never runs it. No `eshu_*` instrument or dashboard is affected.
+
 ## Related docs
 
 - [Docker Compose deployment](../../../docs/public/run-locally/docker-compose.md)

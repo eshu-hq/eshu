@@ -26,6 +26,22 @@ export interface AuthE2EDevServer {
 
 const devServerReadyTimeoutMs = 120000;
 
+// eslint-disable-next-line no-control-regex -- ANSI CSI sequences are control chars by definition
+const ansiEscape = /\u001b\[[0-9;]*m/g;
+
+// parseViteLocalUrl extracts Vite's "Local:" origin from a stdout chunk, or
+// null if the chunk does not carry it. Vite colorizes that line when it thinks
+// it is attached to a TTY (it does under GitHub Actions), wrapping the port in
+// ANSI escapes — e.g. `http://127.0.0.1:[1m5185[22m/` — which a
+// naive `127\.0\.0\.1:\d+` regex fails to match, so the readiness wait times
+// out even though the server is up (the exact CI-only failure this guards
+// against). Stripping ANSI escapes first makes detection color-independent.
+export function parseViteLocalUrl(text: string): string | null {
+  const clean = text.replace(ansiEscape, "");
+  const match = clean.match(/Local:\s+(http:\/\/127\.0\.0\.1:\d+)\/?/);
+  return match ? match[1] : null;
+}
+
 // startAuthE2EDevServer launches Vite for the console, proxying /eshu-api to
 // apiBase, and resolves once it prints its local URL. Unlike
 // runConsoleLiveE2E's dev server, no VITE_ESHU_API_KEY is set: this gate
@@ -53,6 +69,11 @@ export async function startAuthE2EDevServer(
       env: {
         ...process.env,
         ESHU_DEV_PROXY_TARGET: apiBase,
+        // Belt-and-suspenders with parseViteLocalUrl's ANSI stripping: ask Vite
+        // not to colorize so the readiness match works even if the strip regex
+        // ever misses a sequence.
+        NO_COLOR: "1",
+        FORCE_COLOR: "0",
       },
       stdio: ["ignore", "pipe", "pipe"],
     },
@@ -66,10 +87,10 @@ export async function startAuthE2EDevServer(
     const onData = (chunk: Buffer): void => {
       const text = chunk.toString();
       process.stdout.write(`[vite] ${text}`);
-      const match = text.match(/Local:\s+(http:\/\/127\.0\.0\.1:\d+)\/?/);
-      if (match) {
+      const localUrl = parseViteLocalUrl(text);
+      if (localUrl) {
         clearTimeout(timer);
-        resolvePromise(match[1]);
+        resolvePromise(localUrl);
       }
     };
     child.stdout.on("data", onData);
