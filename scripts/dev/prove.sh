@@ -120,8 +120,23 @@ common_path_wall=$((SECONDS - common_path_start))
 # `ci-gates run` — see header. --explain prints one SELECTED/SKIPPED line per
 # registry gate id; only the two Layer 2 gate ids are read from it.
 # ---------------------------------------------------------------------------
-explain="$(go -C "${go_dir}" run ./cmd/ci-gates select \
-	--registry "${registry}" --base "${base}" --tier pre-pr --category exactness --explain 2>&1)"
+# Capture BOTH the output and the exit status. Without this guard a non-zero
+# `ci-gates select` (for example a shallow/fork checkout where origin/main exists
+# but shares no merge-base with HEAD) would land its error text in `explain`,
+# every `gate_selected` call would then find no SELECTED line, and the Layer 2
+# matrices would be silently recorded as SKIP — make prove would report green
+# even though gate selection failed. A selection failure is a real error, not an
+# expected "docker absent" condition, so fail loudly instead of skipping.
+select_ok=1
+if ! explain="$(go -C "${go_dir}" run ./cmd/ci-gates select \
+	--registry "${registry}" --base "${base}" --tier pre-pr --category exactness --explain 2>&1)"; then
+	printf '\nprove: `ci-gates select` FAILED — cannot determine Layer 2 gate selection.\n' >&2
+	printf '%s\n' "${explain}" >&2
+	printf 'prove: refusing to record the Docker matrices as SKIP when selection itself failed;\n' >&2
+	printf 'prove: fix the checkout (e.g. a non-shallow clone with a real origin/main merge-base) and re-run.\n' >&2
+	select_ok=0
+	explain=""
+fi
 
 gate_selected() {
 	# rg --quiet exits as soon as it confirms a match (it does not need to
@@ -197,8 +212,17 @@ run_layer2() {
 	fi
 }
 
-run_layer2 "ifa-determinism" "docker matrix: graph-determinism (Layer 2)" "scripts/verify-ifa-determinism.sh"
-run_layer2 "ifa-dead-letter-matrix" "docker matrix: dead-letter-set determinism (Layer 2)" "scripts/verify-ifa-dead-letter-matrix.sh"
+# When `ci-gates select` errored above, both Layer 2 matrices are recorded as a
+# hard FAIL (not SKIP) and run_layer2 is not called — we cannot honestly claim
+# either matrix was "not selected" when selection itself never produced output.
+if [[ "${select_ok}" -eq 1 ]]; then
+	run_layer2 "ifa-determinism" "docker matrix: graph-determinism (Layer 2)" "scripts/verify-ifa-determinism.sh"
+	run_layer2 "ifa-dead-letter-matrix" "docker matrix: dead-letter-set determinism (Layer 2)" "scripts/verify-ifa-dead-letter-matrix.sh"
+else
+	record_status "docker matrix: graph-determinism (Layer 2)" "FAIL (ci-gates select errored)"
+	record_status "docker matrix: dead-letter-set determinism (Layer 2)" "FAIL (ci-gates select errored)"
+	overall=1
+fi
 
 # ---------------------------------------------------------------------------
 # Deterministic report: fixed step order, fixed vocabulary, zero per-run

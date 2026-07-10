@@ -120,6 +120,7 @@ jobs:
               - '.github/workflows/static-contract-gates.yml'
               - 'specs/ci-gates.v1.yaml'
               - 'go/internal/ifa/**'
+              - 'go/internal/synth/gcp/**'
               - 'go/cmd/ifa/**'
               - 'docs/internal/design/4389-ifa-conformance-platform.md'
               - 'specs/ifa-coverage-manifest.v1.yaml'
