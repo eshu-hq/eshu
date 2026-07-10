@@ -163,6 +163,7 @@ func extractCodeCallRowsWithIndex(
 	repositoryImports map[string]map[string][]string,
 	reexportIndex codeCallReexportIndex,
 ) ([]string, []map[string]any) {
+	cacheCodeCallRepositoryImportPaths(&entityIndex, repositoryImports)
 	seenRows := make(map[string]struct{})
 	rows := make([]map[string]any, 0)
 

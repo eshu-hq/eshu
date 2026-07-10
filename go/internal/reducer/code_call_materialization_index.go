@@ -28,6 +28,7 @@ func buildCodeEntityIndex(envelopes []facts.Envelope) codeEntityIndex {
 		entityByStableSymbolKey: make(map[string]codeCallSymbolResolution),
 		javaScriptAliasesByPath: make(map[string][]javaScriptStaticAliasSpan),
 	}
+	index.repositoryImportPathsByRepo = make(map[string][]string)
 	nameCandidates := make(map[string]map[string]map[string]struct{})
 	repoNameCandidates := make(map[string]map[string]map[string]struct{})
 	repoDirNameCandidates := make(map[string]map[string]map[string]map[string]struct{})

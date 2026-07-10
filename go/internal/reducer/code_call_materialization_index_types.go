@@ -30,6 +30,10 @@ type codeEntityIndex struct {
 	// caller-visible import path, and each entry tracks the single resolvable
 	// entity plus a candidate count so ambiguity is detectable and rejected.
 	goExportByImportPath map[string]map[string]goCrossRepoExportEntry
+	// repositoryImportPathsByRepo caches the normalized, deduplicated path set
+	// used by unresolved JavaScript and Python import-binding barriers. Building
+	// it once per extraction avoids walking every repository import for each call.
+	repositoryImportPathsByRepo map[string][]string
 }
 
 // goCrossRepoExportEntry records the unique-resolution state for one exported Go
