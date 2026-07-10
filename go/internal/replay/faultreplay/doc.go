@@ -35,7 +35,9 @@
 // the same work items, and a non-draining or pre-canceled run must return an
 // error, never a green partial snapshot.
 //
-// S4 (a later slice) adds restart-backend-between-phase-groups, which needs a
-// real graph backend to restart and so cannot run hermetically; this package
-// rejects that fault kind at construction rather than silently ignoring it.
+// restart-backend-between-phase-groups needs a real graph backend to restart
+// and so cannot run hermetically; it is handled by the in-binary cypher
+// FaultingExecutor (behind the ifafaultinjection build tag) plus the operator
+// harness, not here. This package rejects that fault kind at construction
+// rather than silently ignoring it.
 package faultreplay
