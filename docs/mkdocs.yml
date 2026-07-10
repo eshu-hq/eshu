@@ -83,6 +83,7 @@ nav:
     - Why Eshu: why-eshu.md
     - Use Cases: use-cases.md
   - Reference:
+    - Overview: reference/index.md
     - API & MCP:
       - HTTP API:
         - Overview: reference/http-api.md
@@ -102,79 +103,111 @@ nav:
       - MCP Prompt Surface Audit: reference/mcp-prompt-surface-audit.md
       - MCP Cookbook: reference/mcp-cookbook.md
       - API Versioning: reference/api-versioning.md
-    - CLI Reference: reference/cli-reference.md
-    - First-Run Evidence: reference/first-run-evidence.md
-    - CLI Indexing: reference/cli-indexing.md
-    - CLI Analysis: reference/cli-analysis.md
-    - CLI System: reference/cli-system.md
-    - Assistant Guidance: reference/assistant-guidance.md
-    - Assistant Fast-Path Hooks: reference/assistant-fast-path-hooks.md
-    - CLI K.I.S.S.: reference/cli-kiss.md
-    - Configuration: reference/configuration.md
-    - Environment Variables: reference/environment-variables.md
-    - Environment Variable Registry (generated): reference/env-registry.md
-    - Runtime And Storage Environment: reference/environment-runtime-storage.md
-    - Postgres Tuning: reference/postgres-tuning.md
-    - Ingestion And Queue Environment: reference/environment-ingestion-queues.md
-    - Collector Environment: reference/environment-collectors.md
-    - Cassette And Replay Proof: reference/cassette-replay.md
-    - Compose And Test Environment: reference/environment-compose-tests.md
-    - Documentation Updater Actuator Contract: reference/documentation-updater-actuator-contract.md
-    - Component Package Manager: reference/component-package-manager.md
-    - Fact Envelope Reference: reference/fact-envelope-reference.md
-    - Reducer Guarantees: reference/reducer-guarantees.md
-    - Search Document Projection: reference/search-document-projection.md
-    - Search Benchmark Evidence: reference/search-benchmark-evidence.md
-    - Proof-of-Value Harness: reference/proof-of-value-harness.md
-    - Search Retrieval Contract: reference/search-retrieval-contract.md
-    - Search Decay Scoring: reference/search-decay-scoring.md
-    - Link Prediction Candidates: reference/link-prediction-candidates.md
-    - Fact Schema Versioning: reference/fact-schema-versioning.md
-    - Plugin Trust Model: reference/plugin-trust-model.md
-    - Language Query DSL: reference/language-query-dsl.md
-    - Source-Language Resolver Contract: reference/source-language-resolver-contract.md
-    - Collector Extraction Policy: reference/collector-extraction-policy.md
-    - Multi-Cloud Runtime Collector Contract: reference/multi-cloud-collector-contract.md
-    - GCP Cloud Collector Contract: reference/gcp-cloud-collector-contract.md
-    - Azure Cloud Collector Contract: reference/azure-cloud-collector-contract.md
-    - Secrets And IAM Posture Collector Contract: reference/secrets-iam-posture-collector-contract.md
-    - Vault Secrets/IAM Collector Read-Only Permissions: reference/vault-secrets-iam-permissions.md
-    - Health And Readiness Probes: reference/health-readiness.md
-    - Collector And Reducer Readiness: reference/collector-reducer-readiness.md
-    - All-Collector Readiness Proof Matrix: reference/collector-readiness-proof-matrix.md
-    - PagerDuty Evidence Contract: reference/pagerduty-evidence.md
-    - Jira Evidence Contract: reference/jira-evidence.md
-    - Observability Evidence Contract: reference/observability-evidence.md
-    - Accuracy Golden Gate: reference/accuracy-golden-gate.md
-    - Correlation Confidence Calibration: reference/confidence-calibration.md
-    - Vulnerability Parity Gate: reference/vulnerability-parity-gate.md
-    - Security Intelligence Release Gate: reference/security-intelligence-release-gate.md
-    - Security Intelligence: reference/security-intelligence.md
-    - Security Intelligence Provider Alert Parity: reference/security-intelligence-provider-alert-parity.md
-    - Security Intelligence API And MCP Contract: reference/security-intelligence-api-mcp-contract.md
-    - Security Intelligence CLI Contract: reference/security-intelligence-cli-contract.md
-    - Standalone Vulnerability Scanner Boundary: reference/standalone-vulnerability-scanner-boundary.md
-    - Vulnerability Scanner Confidence Matrix: reference/vulnerability-scanner-confidence.md
-    - Security Intelligence Source Coverage: reference/security-intelligence-source-coverage.md
-    - GitLab Gemnasium Integration: reference/gitlab-gemnasium-integration.md
-    - Vulnerability Scanner Read Contract: reference/vulnerability-scanner-read-contract.md
-    - Hardcoded Secrets Investigation: reference/hardcoded-secrets-investigation.md
-    - SARIF Export: reference/sarif-export.md
-    - Value-Flow Emission: reference/value-flow-emission.md
-    - Story Missing Evidence Alignment: reference/story-missing-evidence.md
-    - Dependency And Lockfile Coverage: reference/dependency-coverage.md
-    - Runtime Admin API: reference/runtime-admin-api.md
-    - Reducer Claim-Latency Gate: reference/reducer-claim-latency-gate.md
-    - Code-Graph Sub-Scope Partitioning: reference/code-graph-subscope-partitioning.md
-    - Incremental Freshness Model: reference/incremental-freshness-model.md
-    - Semantic Enrichment Posture: reference/semantic-enrichment-posture.md
-    - Incident Media Evidence Contract: reference/incident-media-evidence.md
-    - Semantic Hybrid Search Admission: reference/semantic-hybrid-search-admission.md
-    - Hosted Search Embedder Gate: reference/hosted-search-embedder-gate.md
-    - Hybrid Retrieval Production Gate: reference/hybrid-retrieval-production-gate.md
-    - Hosted Redaction Registry: reference/hosted-redaction-registry.md
-    - Hosted Retention And Deletion Policy: reference/hosted-retention-deletion-policy.md
-    - Tag Taxonomy: reference/tag-taxonomy.md
+    - CLI & Assistants:
+      - CLI Reference: reference/cli-reference.md
+      - First-Run Evidence: reference/first-run-evidence.md
+      - CLI Indexing: reference/cli-indexing.md
+      - CLI Analysis: reference/cli-analysis.md
+      - CLI System: reference/cli-system.md
+      - Assistant Guidance: reference/assistant-guidance.md
+      - Assistant Fast-Path Hooks: reference/assistant-fast-path-hooks.md
+      - CLI K.I.S.S.: reference/cli-kiss.md
+    - Configuration & Runtime:
+      - Configuration: reference/configuration.md
+      - Environment Variables: reference/environment-variables.md
+      - Environment Variable Registry (generated): reference/env-registry.md
+      - Runtime And Storage Environment: reference/environment-runtime-storage.md
+      - Postgres Tuning: reference/postgres-tuning.md
+      - Ingestion And Queue Environment: reference/environment-ingestion-queues.md
+      - Collector Environment: reference/environment-collectors.md
+      - Compose And Test Environment: reference/environment-compose-tests.md
+      - Health And Readiness Probes: reference/health-readiness.md
+      - Runtime Admin API: reference/runtime-admin-api.md
+      - Logging Standard: reference/logging.md
+      - Hosted Redaction Registry: reference/hosted-redaction-registry.md
+      - Hosted Retention And Deletion Policy: reference/hosted-retention-deletion-policy.md
+    - Contract Reference:
+      - Overview: reference/contracts.md
+      - Documentation Updater Actuator Contract: reference/documentation-updater-actuator-contract.md
+      - Component Package Manager: reference/component-package-manager.md
+      - Fact Envelope Reference: reference/fact-envelope-reference.md
+      - Fact Schema Versioning: reference/fact-schema-versioning.md
+      - Reducer Guarantees: reference/reducer-guarantees.md
+      - Search Document Projection: reference/search-document-projection.md
+      - Search Retrieval Contract: reference/search-retrieval-contract.md
+      - Search Decay Scoring: reference/search-decay-scoring.md
+      - Link Prediction Candidates: reference/link-prediction-candidates.md
+      - Plugin Trust Model: reference/plugin-trust-model.md
+      - Language Query DSL: reference/language-query-dsl.md
+      - Source-Language Resolver Contract: reference/source-language-resolver-contract.md
+      - Collector Extraction Policy: reference/collector-extraction-policy.md
+      - Multi-Cloud Runtime Collector Contract: reference/multi-cloud-collector-contract.md
+      - GCP Cloud Collector Contract: reference/gcp-cloud-collector-contract.md
+      - Azure Cloud Collector Contract: reference/azure-cloud-collector-contract.md
+      - Secrets And IAM Posture Collector Contract: reference/secrets-iam-posture-collector-contract.md
+      - Vault Secrets/IAM Collector Read-Only Permissions: reference/vault-secrets-iam-permissions.md
+      - Collector And Reducer Readiness: reference/collector-reducer-readiness.md
+      - PagerDuty Evidence Contract: reference/pagerduty-evidence.md
+      - Jira Evidence Contract: reference/jira-evidence.md
+      - Observability Evidence Contract: reference/observability-evidence.md
+      - Correlation Confidence Calibration: reference/confidence-calibration.md
+      - Security Intelligence: reference/security-intelligence.md
+      - Security Intelligence API And MCP Contract: reference/security-intelligence-api-mcp-contract.md
+      - Security Intelligence CLI Contract: reference/security-intelligence-cli-contract.md
+      - Standalone Vulnerability Scanner Boundary: reference/standalone-vulnerability-scanner-boundary.md
+      - Vulnerability Scanner Confidence Matrix: reference/vulnerability-scanner-confidence.md
+      - GitLab Gemnasium Integration: reference/gitlab-gemnasium-integration.md
+      - Vulnerability Scanner Read Contract: reference/vulnerability-scanner-read-contract.md
+      - Value-Flow Emission: reference/value-flow-emission.md
+      - Dependency And Lockfile Coverage: reference/dependency-coverage.md
+      - Incremental Freshness Model: reference/incremental-freshness-model.md
+      - Semantic Enrichment Posture: reference/semantic-enrichment-posture.md
+      - Incident Media Evidence Contract: reference/incident-media-evidence.md
+      - Semantic Hybrid Search Admission: reference/semantic-hybrid-search-admission.md
+      - Tag Taxonomy: reference/tag-taxonomy.md
+    - Proof & Validation:
+      - Overview: reference/proof-and-validation.md
+      - Cassette And Replay Proof: reference/cassette-replay.md
+      - Search Benchmark Evidence: reference/search-benchmark-evidence.md
+      - Proof-of-Value Harness: reference/proof-of-value-harness.md
+      - All-Collector Readiness Proof Matrix: reference/collector-readiness-proof-matrix.md
+      - Accuracy Golden Gate: reference/accuracy-golden-gate.md
+      - Vulnerability Parity Gate: reference/vulnerability-parity-gate.md
+      - Security Intelligence Release Gate: reference/security-intelligence-release-gate.md
+      - Security Intelligence Provider Alert Parity: reference/security-intelligence-provider-alert-parity.md
+      - Security Intelligence Source Coverage: reference/security-intelligence-source-coverage.md
+      - Hardcoded Secrets Investigation: reference/hardcoded-secrets-investigation.md
+      - SARIF Export: reference/sarif-export.md
+      - Story Missing Evidence Alignment: reference/story-missing-evidence.md
+      - Reducer Claim-Latency Gate: reference/reducer-claim-latency-gate.md
+      - Code-Graph Sub-Scope Partitioning: reference/code-graph-subscope-partitioning.md
+      - Hosted Search Embedder Gate: reference/hosted-search-embedder-gate.md
+      - Hybrid Retrieval Production Gate: reference/hybrid-retrieval-production-gate.md
+      - Replay Coverage Dashboard: reference/replay-coverage.md
+      - Code Coverage Report: reference/code-coverage.md
+      - Local Testing:
+        - Overview: reference/local-testing.md
+        - First Five Minutes Benchmark: reference/local-testing/first-five-minutes-benchmark.md
+        - Answer Quality Scorecard: reference/local-testing/answer-quality-scorecard.md
+        - Ask Eshu Local Proof: reference/local-testing/ask-eshu-local-proof.md
+        - Evidence Packet Dogfood Benchmark: reference/local-testing/evidence-packet-dogfood.md
+        - Competitive Parity Gate: reference/local-testing/competitive-parity-gate.md
+        - Remote Collector E2E: reference/local-testing/remote-collector-e2e.md
+        - Remote Remediation Benchmark: reference/local-testing/remote-remediation-benchmark.md
+        - Remote Collector Hosted Profiles: reference/local-testing/remote-collector-hosted-profiles.md
+        - Remote Compose Suite Harness: reference/local-testing/remote-compose-suite-harness.md
+        - Remote Representative Acceptance: reference/local-testing/remote-representative-acceptance.md
+        - Representative Corpus Suite: reference/local-testing/representative-corpus-suite.md
+        - Golden Corpus Gate (B-7): reference/local-testing/golden-corpus-gate.md
+        - Pre-commit Hooks: reference/local-testing/pre-commit-hooks.md
+        - Scale Benchmark Artifact: reference/local-testing/scale-benchmark-artifact.md
+        - Collector Live Smokes: reference/local-testing/collector-live-smokes.md
+        - Public Collector Proof: reference/local-testing/public-collector-proof.md
+        - Verification Gates: reference/local-testing/verification-gates.md
+        - Discovery Advisory: reference/local-testing/discovery-advisory.md
+        - Profiling And Concurrency: reference/local-testing/profiling-and-concurrency.md
+      - Cloud Validation: reference/cloud-validation.md
+      - Remote E2E Runtime State: reference/remote-e2e-runtime-state.md
     - Local Host & Capabilities:
       - Backend Conformance: reference/backend-conformance.md
       - Capability Conformance Spec: reference/capability-conformance-spec.md
@@ -219,33 +252,7 @@ nav:
     - Deployable-Unit Correlation: reference/deployable-unit-correlation.md
     - ".eshuignore": reference/eshuignore.md
     - Troubleshooting: reference/troubleshooting.md
-    - Logging Standard: reference/logging.md
     - Console Bundle Budget: reference/console-bundle-budget.md
-    - Replay Coverage Dashboard: reference/replay-coverage.md
-    - Code Coverage Report: reference/code-coverage.md
-    - Local Testing:
-      - Overview: reference/local-testing.md
-      - First Five Minutes Benchmark: reference/local-testing/first-five-minutes-benchmark.md
-      - Answer Quality Scorecard: reference/local-testing/answer-quality-scorecard.md
-      - Ask Eshu Local Proof: reference/local-testing/ask-eshu-local-proof.md
-      - Evidence Packet Dogfood Benchmark: reference/local-testing/evidence-packet-dogfood.md
-      - Competitive Parity Gate: reference/local-testing/competitive-parity-gate.md
-      - Remote Collector E2E: reference/local-testing/remote-collector-e2e.md
-      - Remote Remediation Benchmark: reference/local-testing/remote-remediation-benchmark.md
-      - Remote Collector Hosted Profiles: reference/local-testing/remote-collector-hosted-profiles.md
-      - Remote Compose Suite Harness: reference/local-testing/remote-compose-suite-harness.md
-      - Remote Representative Acceptance: reference/local-testing/remote-representative-acceptance.md
-      - Representative Corpus Suite: reference/local-testing/representative-corpus-suite.md
-      - Golden Corpus Gate (B-7): reference/local-testing/golden-corpus-gate.md
-      - Pre-commit Hooks: reference/local-testing/pre-commit-hooks.md
-      - Scale Benchmark Artifact: reference/local-testing/scale-benchmark-artifact.md
-      - Collector Live Smokes: reference/local-testing/collector-live-smokes.md
-      - Public Collector Proof: reference/local-testing/public-collector-proof.md
-      - Verification Gates: reference/local-testing/verification-gates.md
-      - Discovery Advisory: reference/local-testing/discovery-advisory.md
-      - Profiling And Concurrency: reference/local-testing/profiling-and-concurrency.md
-    - Cloud Validation: reference/cloud-validation.md
-    - Remote E2E Runtime State: reference/remote-e2e-runtime-state.md
     - Telemetry:
       - Overview: reference/telemetry/index.md
       - Runtime Signals: reference/telemetry/runtime-signals.md

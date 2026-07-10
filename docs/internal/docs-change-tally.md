@@ -118,6 +118,7 @@ branch. Regenerate them from
 | Public Reference Duplicate Cleanup | Collapsed duplicated HTTP envelope/truth tables, removed repeated component-package YAML from the fact envelope reference, and corrected component package manager state wording. |
 | Package README Mid-Size Compression | Reduced 15 more command/internal package READMEs while preserving package ownership, invariants, telemetry, focused tests, and links to canonical public docs. |
 | Troubleshooting Reference Compression | Replaced the stale troubleshooting reference with a compact symptom map that points to current local binaries, Compose, backend, workflow, and telemetry docs. |
+| GetEshu Audience Split | Added Reference, Contract Reference, and Proof And Validation landing pages; grouped contract/proof-heavy reference nav under named lookup areas while keeping existing page paths stable. |
 | Secrets/IAM Graph Proof Sync | Added the June 7 #1381 proof snapshot and updated graph-promotion gate docs so §11/§12/backend proof status is current while §14 remains blocking. |
 | Scoped AGENTS ADR Cleanup Batch B | Replaced stale ADR/current-tracker wording in 15 more scoped agent files with architecture-owner approval, migration, proof, telemetry, and package-doc requirements. |
 | Public Reference Duplicate Cleanup Batch B | Removed duplicate raw-query and backend-default detail from the MCP cookbook and NornicDB tuning page while preserving larger reference pages with distinct reader jobs. |

@@ -57,4 +57,4 @@ expected result, failure hints, and what to read next.
 - [How-to guides](../use/index.md) for task-focused instructions after a
   tutorial.
 - [Concepts](../concepts/how-it-works.md) for the evidence graph model.
-- [Reference](../reference/cli-reference.md) for exact commands and contracts.
+- [Reference](../reference/index.md) for exact commands and contracts.
