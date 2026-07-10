@@ -2328,6 +2328,16 @@
     },
     {
       "category": "command",
+      "name": "mock-oidc-idp",
+      "readiness": "fixture_only",
+      "owner": "cmd/mock-oidc-idp",
+      "docs": [
+        "run-locally/docker-compose.md"
+      ],
+      "notes": "Test-only synthetic OpenID Connect IdP built solely for the #4971 auth E2E stack (docker-compose.e2e.yaml). Deliberately excluded from the released production image; not a production command. Serves a single fixed synthetic identity with no real authentication."
+    },
+    {
+      "category": "command",
       "name": "payload-usage-manifest",
       "readiness": "implemented"
     },

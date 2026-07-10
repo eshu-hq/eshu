@@ -112,8 +112,15 @@ jobs:
           # runs as root by design to read the mounted docker socket), and the
           # replay parser-fixture source trees (synthetic Terraform/Kubernetes/
           # Dockerfile inputs that exist to exercise the parsers, not to deploy —
-          # Trivy misconfig findings on them are noise, like tests/fixtures).
-          skip-dirs: go/cmd/eshu/testdata/vuln_scan_repo_fixtures,go/internal/collector/vulnerabilityintelligence/testdata,go/internal/replay/parserfixture/testdata,tests/fixtures,examples,node_modules,apps/console/node_modules
+          # Trivy misconfig findings on them are noise, like tests/fixtures), and
+          # the mock OIDC IdP (#4971) whose keys.go embeds a fixed, committed,
+          # synthetic RSA signing key — a documented non-secret test constant
+          # (already `#nosec G101`) that Trivy's secret scanner flags HIGH
+          # (AsymmetricPrivateKey). The mock IdP is a test-only binary: its
+          # Dockerfile stage is never COPYed into the released final image (only
+          # docker-compose.e2e.yaml builds/runs it), so the image scan below
+          # never sees it.
+          skip-dirs: go/cmd/eshu/testdata/vuln_scan_repo_fixtures,go/internal/collector/vulnerabilityintelligence/testdata,go/internal/replay/parserfixture/testdata,tests/fixtures,examples,node_modules,apps/console/node_modules,go/cmd/mock-oidc-idp
 
       - name: Upload Trivy fs SARIF to GitHub Security tab
         if: always()

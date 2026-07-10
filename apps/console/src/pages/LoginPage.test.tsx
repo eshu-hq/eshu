@@ -338,4 +338,39 @@ describe("LoginPage", () => {
       expect(screen.queryByText(/requires single sign-on/i)).not.toBeInTheDocument();
     });
   });
+
+  // Regression: a real browser-auth E2E run captured GET /api/v0/auth/oidc/
+  // login returning 400 (ErrOIDCLoginInvalidRequest) after clicking the SSO
+  // button, because handleSSOClick built the redirect URL without tenant_id —
+  // go/internal/oidclogin/service.go's provider() requires a non-empty
+  // tenantID to resolve a DB-backed provider at all. This proves the page's
+  // own tenant_id query param (the same one the mount-time provider-discovery
+  // fetch already reads) is forwarded into the constructed OIDC redirect URL.
+  describe("SSO redirect URL construction", () => {
+    afterEach(() => {
+      window.history.pushState({}, "", "/");
+    });
+
+    it("forwards the page's tenant_id into the OIDC login redirect URL", async () => {
+      window.history.pushState({}, "", "/login?tenant_id=tenant_a");
+      const client = makeClientWithProvidersAndPolicy(
+        [{ provider_config_id: "pc_1", display_label: "Okta", provider_kind: "oidc" }],
+        false,
+      );
+      const redirectFn = vi.fn();
+      render(
+        <MemoryRouter>
+          <LoginPage client={client} onSuccess={vi.fn()} redirectFn={redirectFn} />
+        </MemoryRouter>,
+      );
+
+      const ssoButton = await screen.findByRole("button", { name: /continue with okta/i });
+      fireEvent.click(ssoButton);
+
+      expect(redirectFn).toHaveBeenCalledTimes(1);
+      const [url] = redirectFn.mock.calls[0] as [string];
+      expect(new URL(url, "http://localhost").searchParams.get("tenant_id")).toBe("tenant_a");
+      expect(new URL(url, "http://localhost").searchParams.get("provider_config_id")).toBe("pc_1");
+    });
+  });
 });
