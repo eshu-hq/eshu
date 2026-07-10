@@ -6,6 +6,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -242,6 +243,85 @@ func TestTenantWorkspaceGrantStoreRejectsUnboundedQueries(t *testing.T) {
 	}
 	if len(db.queries) != 0 {
 		t.Fatalf("query count after validation failure = %d, want 0", len(db.queries))
+	}
+}
+
+// TestTenantWorkspaceGrantStorePrimaryWorkspaceForTenantResolvesSingleWorkspace
+// proves PrimaryWorkspaceForTenant (#5040) returns the tenant's one active
+// workspace_id — the case a tenant-scoped DB-backed OIDC provider login-start
+// needs to default to when its own ProviderConfig carries no workspace.
+func TestTenantWorkspaceGrantStorePrimaryWorkspaceForTenantResolvesSingleWorkspace(t *testing.T) {
+	t.Parallel()
+
+	db := &fakeExecQueryer{
+		queryResponses: []queueFakeRows{{
+			rows: [][]any{{"workspace_a"}},
+		}},
+	}
+	store := NewTenantWorkspaceGrantStore(db)
+
+	workspaceID, err := store.PrimaryWorkspaceForTenant(ctxForTenantGrantTest(), "tenant_a")
+	if err != nil {
+		t.Fatalf("PrimaryWorkspaceForTenant() error = %v", err)
+	}
+	if workspaceID != "workspace_a" {
+		t.Fatalf("PrimaryWorkspaceForTenant() = %q, want workspace_a", workspaceID)
+	}
+	if len(db.queries) != 1 {
+		t.Fatalf("query count = %d, want 1", len(db.queries))
+	}
+	query := db.queries[0].query
+	for _, want := range []string{
+		"FROM workspaces",
+		"JOIN tenants",
+		"w.status = 'active'",
+		"w.tombstoned_at IS NULL",
+		"t.status = 'active'",
+		"t.tombstoned_at IS NULL",
+	} {
+		if !strings.Contains(query, want) {
+			t.Fatalf("primary workspace query missing %q:\n%s", want, query)
+		}
+	}
+	wantArgs := []any{"tenant_a", 2}
+	if !sameArgs(db.queries[0].args, wantArgs) {
+		t.Fatalf("primary workspace query args = %#v, want %#v", db.queries[0].args, wantArgs)
+	}
+}
+
+// TestTenantWorkspaceGrantStorePrimaryWorkspaceForTenantRejectsAmbiguity
+// proves a tenant with more than one active workspace fails closed with
+// ErrTenantWorkspaceAmbiguous rather than silently picking one (#5040 option
+// (a): a tenant-scoped DB-backed provider whose tenant is multi-workspace
+// cannot default a login-start workspace without an explicit workspace_id).
+func TestTenantWorkspaceGrantStorePrimaryWorkspaceForTenantRejectsAmbiguity(t *testing.T) {
+	t.Parallel()
+
+	db := &fakeExecQueryer{
+		queryResponses: []queueFakeRows{{
+			rows: [][]any{{"workspace_a"}, {"workspace_b"}},
+		}},
+	}
+	store := NewTenantWorkspaceGrantStore(db)
+
+	if _, err := store.PrimaryWorkspaceForTenant(ctxForTenantGrantTest(), "tenant_a"); !errors.Is(err, ErrTenantWorkspaceAmbiguous) {
+		t.Fatalf("PrimaryWorkspaceForTenant() error = %v, want ErrTenantWorkspaceAmbiguous", err)
+	}
+}
+
+// TestTenantWorkspaceGrantStorePrimaryWorkspaceForTenantRejectsNoWorkspace
+// proves a tenant with zero active workspaces fails closed rather than
+// returning an empty workspace_id a caller might mistake for "no constraint".
+func TestTenantWorkspaceGrantStorePrimaryWorkspaceForTenantRejectsNoWorkspace(t *testing.T) {
+	t.Parallel()
+
+	db := &fakeExecQueryer{
+		queryResponses: []queueFakeRows{{rows: [][]any{}}},
+	}
+	store := NewTenantWorkspaceGrantStore(db)
+
+	if _, err := store.PrimaryWorkspaceForTenant(ctxForTenantGrantTest(), "tenant_a"); !errors.Is(err, ErrTenantWorkspaceNotFound) {
+		t.Fatalf("PrimaryWorkspaceForTenant() error = %v, want ErrTenantWorkspaceNotFound", err)
 	}
 }
 
