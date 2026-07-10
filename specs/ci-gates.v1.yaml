@@ -1103,7 +1103,7 @@ gates:
       test_command: "bash scripts/test-verify-ifa-determinism.sh"
     ci:
       workflow: static-contract-gates.yml
-      job: "Verify Ifa graph-determinism gate"
+      job: "Verify Ifa contract-layer gate"
     requirements:
       - go
     ci_only_reason: ""
@@ -1126,7 +1126,7 @@ gates:
       test_command: "bash scripts/test-verify-ifa-dead-letter-matrix.sh"
     ci:
       workflow: static-contract-gates.yml
-      job: "Verify Ifa graph-determinism gate"
+      job: "Verify Ifa contract-layer gate"
     requirements:
       - go
     ci_only_reason: ""

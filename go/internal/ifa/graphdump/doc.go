@@ -28,6 +28,20 @@
 // Node and Edge never carry an element ID field — so a caller cannot
 // accidentally leak one in.
 //
+// Soundness of content-addressing rests on one assumption about the graph
+// being dumped: every distinct node must carry at least one property that
+// distinguishes it from any other node with the same labels. Two nodes with
+// identical labels and identical (post-denylist) properties collapse to the
+// same digest, and any edge touching either endpoint resolves to that shared
+// digest — so a race that swapped edges between two truly-identical,
+// identity-less nodes could hide behind equal digests (a false green). This
+// holds in Eshu because every canonical writer materializes its node with a
+// stable `uid` property (e.g. CloudResourceNodeWriter's `SET r.uid =
+// row.uid`, keyed by the MERGE identity), so genuinely distinct nodes never
+// share a digest. A future writer that materializes identity-less auxiliary
+// nodes would weaken this guarantee and must be given a stable identity
+// property before graphdump can soundly compare it.
+//
 // # Reused canonical JSON core
 //
 // graphdump reuses go/internal/replay's CanonicalizeValue for the actual
