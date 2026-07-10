@@ -4,7 +4,7 @@ mode: all
 permission:
   edit: deny
   write: deny
-  bash: allow
+  bash: ask
   task:
     "*": deny
 ---
