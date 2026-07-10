@@ -7,6 +7,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  assertAdminReadsSucceeded,
   assertProbesNonEmpty,
   findLeakedProbes,
   scanSurfacesForLeakage,
@@ -101,6 +102,27 @@ describe("assertProbesNonEmpty", () => {
 
   it("passes when every probe carries a real value", () => {
     expect(() => assertProbesNonEmpty([{ label: "pw", value: "hunter2" }])).not.toThrow();
+  });
+});
+
+describe("assertAdminReadsSucceeded", () => {
+  it("throws naming every admin read that did not return 200 (issue #5002 P2)", () => {
+    expect(() =>
+      assertAdminReadsSucceeded([
+        { name: "audit events API", status: 200 },
+        { name: "audit summary API", status: 401 },
+        { name: "provider-configs API", status: 401 },
+      ]),
+    ).toThrow(/audit summary API=401.*provider-configs API=401/s);
+  });
+
+  it("passes when every admin read returned 200", () => {
+    expect(() =>
+      assertAdminReadsSucceeded([
+        { name: "audit events API", status: 200 },
+        { name: "provider-configs API", status: 200 },
+      ]),
+    ).not.toThrow();
   });
 });
 

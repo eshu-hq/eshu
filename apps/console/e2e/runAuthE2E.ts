@@ -398,16 +398,31 @@ export async function runAuthE2E(): Promise<number> {
       ),
     );
 
-    // item 6: negative-leakage scan. Runs while the member and admin sessions
-    // are still open so both dashboards' DOM can be read. Proves none of the
-    // secrets the flow generated or handled — the one-time bootstrap password
-    // and its recovery code, the wizard's replacement password, the enrolled
-    // MFA recovery code, and both providers' client secrets — appear in the
-    // audit trail, provider-config reads, status/health endpoints, either
-    // dashboard's DOM, or the API container log.
+    // item 6: negative-leakage scan. Runs while the member and SSO-admin
+    // sessions are still open so both dashboards' DOM can be read. Proves
+    // none of the secrets the flow generated or handled — the one-time
+    // bootstrap password and its recovery code, the wizard's replacement
+    // password, the enrolled MFA recovery code, and both providers' client
+    // secrets — appear in the audit trail, provider-config reads,
+    // status/health endpoints, either dashboard's DOM, or the API container
+    // log.
+    //
+    // adminPage is the SSO-admin session from item5_precondition_admin_sso_login
+    // (subject_class='external_oidc_user'), NOT the original wizard-admin
+    // `page` (subject_class='local_user') — item5's require_sso flip revokes
+    // every local_user session, `page` included, so reads through it would
+    // 401 and silently scan nothing (issue #5002 P2, codex PR #5053 review).
+    // runLeakageScan itself asserts every admin read returns 200, so a future
+    // regression that revokes ssoAdminContext's session too fails loudly
+    // here instead of hollowing out the scan again.
     await step("item6_no_secret_leakage", async () => {
       if (!memberContext) {
         throw new Error("item 6 requires the member session from item 4, but it was never opened");
+      }
+      if (!ssoAdminContext) {
+        throw new Error(
+          "item 6 requires the SSO admin session from item 5, but it was never opened",
+        );
       }
       const probes: SecretProbe[] = [
         { label: "bootstrap password", value: bootstrapPassword },
@@ -421,7 +436,7 @@ export async function runAuthE2E(): Promise<number> {
         },
       ];
       return runLeakageScan({
-        adminPage: page,
+        adminPage: ssoAdminContext.pages()[0]!,
         memberPage: memberContext.pages()[0]!,
         apiFetchInPage,
         apiBase,

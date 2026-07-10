@@ -80,6 +80,24 @@ export function assertProbesNonEmpty(probes: readonly SecretProbe[]): void {
   }
 }
 
+// assertAdminReadsSucceeded fails closed if any admin-session API read this
+// scan collected did not return 200: a non-200 (e.g. 401 from a revoked
+// session — issue #5002 P2, codex PR #5053 review) means the read never
+// actually reached the surface it claims to scan, silently hollowing out the
+// leak check for that surface rather than proving it clean.
+export function assertAdminReadsSucceeded(
+  reads: readonly { readonly name: string; readonly status: number }[],
+): void {
+  const failed = reads.filter((read) => read.status !== 200);
+  if (failed.length > 0) {
+    throw new Error(
+      `leakage scan admin read(s) did not return 200 (session may be unauthenticated): ${failed
+        .map((read) => `${read.name}=${read.status}`)
+        .join(", ")}`,
+    );
+  }
+}
+
 // scanSurfacesForLeakage checks every surface against every probe and returns a
 // "<secret> leaked into <surface>" finding for each match, in surface-then-probe
 // order. An empty result means no secret reached any scanned surface.
@@ -147,14 +165,20 @@ export async function runLeakageScan(inputs: LeakageScanInputs): Promise<string>
 
   // Admin-session API reads: audit trail (events + summary), provider-config
   // list. None of these should ever echo a secret back to an admin caller.
+  const adminReads: { name: string; status: number }[] = [];
   for (const [name, path] of [
     ["audit events API", "/api/v0/auth/admin/audit/events"],
     ["audit summary API", "/api/v0/auth/admin/audit/summary"],
     ["provider-configs API", "/api/v0/auth/admin/provider-configs"],
   ] as const) {
     const res = await inputs.apiFetchInPage(inputs.adminPage, "GET", path);
+    adminReads.push({ name, status: res.status });
     surfaces.push({ name, body: res.text });
   }
+  // Fail closed BEFORE scanning bodies: a non-200 admin read (e.g. 401 from a
+  // revoked session) never actually reached the surface it claims to cover,
+  // so scanning its (error) body for secrets would silently prove nothing.
+  assertAdminReadsSucceeded(adminReads);
 
   // Unauthenticated status/health endpoints.
   for (const path of ["/healthz", "/readyz"] as const) {
