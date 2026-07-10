@@ -132,6 +132,7 @@ at every hop.
 | Platform engineer | [Trace infrastructure](use/trace-infrastructure.md) | [Deploy to Kubernetes](deploy/kubernetes/index.md) |
 | Security engineer | [Supply-chain traceability](supply-chain-traceability.md) | [Security intelligence](reference/security-intelligence.md) |
 | Operator | [Health checks](operate/health-checks.md) | [Tuning playbook](operate/tuning-playbook.md) |
+| Evaluator or contributor | [Roadmap](roadmap.md) | [Release log](releases/index.md) |
 
 ## Quick Start
 

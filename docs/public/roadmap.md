@@ -1,22 +1,86 @@
+<!-- docs-catalog
+title: Roadmap
+description: Shows the public GetEshu roadmap by committed, active, and later workstreams.
+type: project
+audience: evaluator, contributor, operator
+entrypoint: true
+landing: false
+-->
+
 # Roadmap
 
-Eshu's roadmap is organized around proof gates, not marketing dates. The
-current public artifact train is `v0.0.3-pre-release-*`; a stable `v0.0.3`
-release should only happen after the runtime, collector, API, MCP, and
-deployment evidence below agree.
+Eshu's roadmap is organized around proof gates and public GitHub issues, not
+private plans or delivery dates. Use this page to see what is committed now,
+what is next, and what remains deferred until the linked issue truth changes.
 
-GitHub remains the source of truth for detailed planning:
+GitHub stays the durable source of truth:
 
 - [Eshu Roadmap project](https://github.com/orgs/eshu-hq/projects/1)
 - [Open Eshu milestones](https://github.com/eshu-hq/eshu/milestones)
+- [Contract system epic #4566](https://github.com/eshu-hq/eshu/issues/4566)
+- [Ifa conformance epic #4389](https://github.com/eshu-hq/eshu/issues/4389)
+- [First-run epic #4592](https://github.com/eshu-hq/eshu/issues/4592)
+- [Docs restructure epic #4593](https://github.com/eshu-hq/eshu/issues/4593)
 
-## Current Release Train
+## Now
 
-`v0.0.3-pre-release-*` is the active line. The priority is getting the same
-Eshu behavior to work in local development, hosted Docker Compose, and
-Kubernetes before cutting a stable tag.
+Now means the work has landed or is the current public adoption lane. It is safe
+to describe as committed, but not as a finished stable release unless the linked
+gate says so.
 
-### Stable v0.0.3 Gates
+| Workstream | State | Public source of truth | What readers can use now |
+| --- | --- | --- | --- |
+| Versioned collector-to-reducer contracts | Closed | [#4566](https://github.com/eshu-hq/eshu/issues/4566) | Contracted fact shapes, generated reference families, and drift gates give docs and reducers a shared source of truth. |
+| Human-first docs architecture | Active | [#4593](https://github.com/eshu-hq/eshu/issues/4593) | The docs now route readers through Get Started, Tutorials, How-to Guides, Concepts, Reference, and Operate without removing the proof corpus. |
+| Generated reference and docs checks | Active | [#4593](https://github.com/eshu-hq/eshu/issues/4593) | OpenAPI, MCP, environment, catalog, and prose checks keep public docs tied to repo truth. |
+| First successful run path | Active | [#4592](https://github.com/eshu-hq/eshu/issues/4592) | [First Successful Run](getting-started/first-successful-run.md), [Start Here](start-here.md), and the tutorial set give evaluators a concrete first path. |
+
+## Next
+
+Next means the work is in the adoption sequence and has public acceptance
+criteria, but still needs issue closure or a stronger proof gate before it is
+described as complete.
+
+| Workstream | Planned outcome | Gate before calling it done |
+| --- | --- | --- |
+| First-run experience | A zero-credential path that gets a new user from install to one useful answer. | [#4592](https://github.com/eshu-hq/eshu/issues/4592) closes with local proof, UI/API agreement, and docs that match the shipped flow. |
+| Ifa conformance platform | One conformance surface for docs, contracts, fixtures, and CI evidence. | [#4389](https://github.com/eshu-hq/eshu/issues/4389) closes with reproducible gates instead of one-off proof notes. |
+| Docs restructure completion | The public docs become the default adoption route while maintainer/proof material remains searchable. | [#4593](https://github.com/eshu-hq/eshu/issues/4593) closes after every child issue is merged and the strict docs build stays green. |
+| Stable release train | A stable `v0.0.3` tag that reflects the same runtime behavior in local, Compose, and Kubernetes paths. | Runtime parity, full E2E proof, query truth, collector readiness, deployment safety, and performance evidence all agree. |
+
+## Later
+
+Later means the direction is public, but the work should not be sold as
+committed behavior until its issue or gate moves forward.
+
+| Workstream | Deferred until | Why it is later |
+| --- | --- | --- |
+| Broader conformance automation | Ifa has a stable contract for docs, generated reference, fixtures, and product claims. | The project needs one repeatable proof path before adding more surfaces. |
+| Additional generated reference families | Their source contracts have stable schemas and local drift gates. | Generated docs should only become canonical when stale output fails a gate. |
+| Expanded demo and hosted onboarding | First-run and hosted setup have matching API, UI, and operator proof. | The beginner path should not depend on private infrastructure or unpublished delivery assumptions. |
+| Promotion of gated cloud posture surfaces | Each collector proves source facts, reducer output, API/MCP readback, retries, and telemetry together. | A closed implementation issue does not automatically mean production readiness. |
+
+## How The Work Fits Together
+
+The adoption path is deliberately ordered:
+
+1. **Contracts first.** The contract system gives collectors, reducers,
+   generated reference, and docs one versioned source of truth.
+2. **Generated reference next.** OpenAPI, MCP, environment, fact, and payload
+   reference should be generated or checked from the repo instead of maintained
+   by hand.
+3. **Docs route humans.** The Diataxis docs split beginner paths from proof,
+   reference, and maintainer material while keeping all of it searchable.
+4. **First-run proves the promise.** The first-run lane must show a real
+   evaluator how to get one useful answer without reading the whole reference
+   corpus.
+5. **Ifa closes the loop.** Conformance gates turn those docs, contracts, and
+   examples into repeatable proof rather than screenshots or release notes.
+
+## Stable Release Gates
+
+`v0.0.3-pre-release-*` remains the active public train. A stable `v0.0.3`
+release should only happen after these gates agree:
 
 | Gate | What must be true before stable v0.0.3 |
 | --- | --- |
@@ -27,111 +91,44 @@ Kubernetes before cutting a stable tag.
 | Deployment safety | Public Helm values, image tags, schema-bootstrap behavior, resource requests, pprof/debug knobs, and upgrade/rollback docs match the tested runtime. |
 | Performance evidence | Large-corpus timing, queue drain, graph write behavior, memory, retry counts, and pprof evidence stay inside the documented performance envelope. |
 
-## Active Workstreams
-
-### Hosted Runtime Hardening
-
-This stream closes the gap between "works on a laptop" and "operators can run
-it safely". It covers bootstrap idempotency, workflow coordination, collector
-claiming, reducer recovery, queue visibility, pprof/debug access, and
-Kubernetes/Compose parity.
-
-### Search And Read Performance
-
-This stream keeps common API and MCP questions fast. Repository language counts,
-service lookup, deployment tracing, vulnerability findings, package evidence,
-and graph relationship reads should use bounded query shapes, indexed anchors,
-limits, timeouts, and explicit truncation.
-
-### Vulnerability And Supply-Chain Intelligence
-
-This stream is active, but it is not "done" just because vulnerability source
-facts exist. Eshu must prove the ladder from source advisory to owned evidence
-to user-facing impact:
-
-1. collect advisory source facts with provenance and freshness;
-2. normalize package, ecosystem, version range, CVE, GHSA, OSV, EPSS, KEV,
-   CVSS, CWE, and fixed-version evidence;
-3. join advisories only to owned package manifests, lockfiles, SBOMs, images,
-   services, workloads, or environments;
-4. expose API and MCP explanations with the exact evidence chain, priority,
-   remediation options, and uncertainty;
-5. compare results against provider alerts and fixtures before trusting the
-   scanner as a release gate.
-
-The target/capability model, local one-shot CLI direction, reducer ownership,
-readiness semantics, and provider-alert parity gate live in
-[Security Intelligence](reference/security-intelligence.md). The final proof
-ladder before cutting the next prerelease image with this work lives in
-[Security Intelligence Release Gate](reference/security-intelligence-release-gate.md).
-
-Important public tracking issues include:
-
-| Area | Issues |
-| --- | --- |
-| Source ingestion | [#588](https://github.com/eshu-hq/eshu/issues/588), [#597](https://github.com/eshu-hq/eshu/issues/597), [#603](https://github.com/eshu-hq/eshu/issues/603), [#607](https://github.com/eshu-hq/eshu/issues/607) |
-| Advisory model and matching | [#589](https://github.com/eshu-hq/eshu/issues/589), [#590](https://github.com/eshu-hq/eshu/issues/590), [#591](https://github.com/eshu-hq/eshu/issues/591), [#600](https://github.com/eshu-hq/eshu/issues/600), [#601](https://github.com/eshu-hq/eshu/issues/601) |
-| Owned evidence and impact | [#592](https://github.com/eshu-hq/eshu/issues/592), [#598](https://github.com/eshu-hq/eshu/issues/598), [#602](https://github.com/eshu-hq/eshu/issues/602), [#606](https://github.com/eshu-hq/eshu/issues/606) |
-| User-facing output | [#593](https://github.com/eshu-hq/eshu/issues/593), [#594](https://github.com/eshu-hq/eshu/issues/594), [#595](https://github.com/eshu-hq/eshu/issues/595), [#604](https://github.com/eshu-hq/eshu/issues/604), [#605](https://github.com/eshu-hq/eshu/issues/605), [#613](https://github.com/eshu-hq/eshu/issues/613) |
-| Quality and deployment | [#586](https://github.com/eshu-hq/eshu/issues/586), [#596](https://github.com/eshu-hq/eshu/issues/596), [#599](https://github.com/eshu-hq/eshu/issues/599), [#614](https://github.com/eshu-hq/eshu/issues/614) |
-
-### Cloud And Deployment Evidence
-
-AWS, OCI, Terraform-state, registry, SBOM, CI/CD, and service-catalog collectors
-should stay evidence-first. A collector is release-ready only when its source
-facts, reducer outputs, API/MCP reads, retry behavior, and observability have
-been proven together in the target runtime.
-
 ## Promotion Readiness
 
-Eshu sequences promotion by proof gate, not by calendar quarter. A surface is
-"production-promoted" only after it has a dedicated, idempotent, conflict-safe
-materialization path with remote and Kubernetes proof. The tables below state
-what is promoted today and what gate each remaining surface is blocked on, so a
-buyer never has to read [Collector And Reducer Readiness](reference/collector-reducer-readiness.md)
-to learn that a surface is still gated. The launch entry point for the
-supply-chain chain is [Supply-Chain Traceability](supply-chain-traceability.md).
+Eshu sequences promotion by proof gate. A surface is production-promoted only
+after it has a dedicated, idempotent, conflict-safe materialization path with
+remote and Kubernetes proof. The tables below state what is promoted today and
+what each remaining surface is blocked on, so a buyer does not need to read
+[Collector And Reducer Readiness](reference/collector-reducer-readiness.md) to
+learn that a surface is still gated.
 
-### Cloud Posture Production-Readiness
+### Cloud Posture Production Readiness
 
 State uses the canonical readiness lanes defined in
 [Collector And Reducer Readiness](reference/collector-reducer-readiness.md#readiness-vocabulary).
-`implemented` is the only lane that asserts production readiness; everything else
-is honest about being not-yet-live.
+`implemented` is the only lane that asserts production readiness.
 
 | Cloud posture surface | State | Gate before promotion |
 | --- | --- | --- |
-| AWS | `implemented` (production-promoted) | None. `aws_resource_materialization` is promoted to a versioned, hashed `cloud_resource_node` conflict family. |
+| AWS | `implemented` | None. `aws_resource_materialization` is promoted to a versioned, hashed `cloud_resource_node` conflict family. |
 | GCP | `gated` | Partition-filtered handler proof and a sanitized live smoke; currently a risky resource-scope fallback. |
 | Azure | `gated` | Partition-filtered handler proof and a live tenant smoke ([#3024](https://github.com/eshu-hq/eshu/issues/3024)); currently a risky resource-scope fallback. |
-| EC2-instance / security-group nodes | `partial` | Partition-filtered handler proof; risky resource-scope fallback today. |
+| EC2-instance and security-group nodes | `partial` | Partition-filtered handler proof; risky resource-scope fallback today. |
 | Kubernetes live posture | `foundation_only` | Dedicated materializer with conflict-family promotion and EKS proof. |
-
-The multi-cloud re-platforming surface follows the same line: AWS-side drift is
-`implemented`, and the Azure/GCP equivalent is `gated`. See the
-[`compose_replatforming_plan` contract](reference/replatforming-plan-contract.md).
 
 ### Value-Flow Reachability Rollout
 
 Reachability is a per-ecosystem capability, not a single switch.
 
-| Ecosystem | State | Gate / condition |
+| Ecosystem | State | Gate or condition |
 | --- | --- | --- |
 | Go | Production path | govulncheck reachability, always on. |
-| JVM (Maven, Gradle) | Partial | Bounded reducer family. |
+| JVM, Maven, and Gradle | Partial | Bounded reducer family. |
 | Python | Preview, opt-in | [`ESHU_EMIT_DATAFLOW`](reference/value-flow-emission.md) gate. |
-| TypeScript / JavaScript | Preview, opt-in | [`ESHU_EMIT_DATAFLOW`](reference/value-flow-emission.md) gate. |
+| TypeScript and JavaScript | Preview, opt-in | [`ESHU_EMIT_DATAFLOW`](reference/value-flow-emission.md) gate. |
 
-Value-flow emission ships as an explicitly-gated preview. Launch copy that
+Value-flow emission ships as an explicitly gated preview. Launch copy that
 mentions taint analysis or value-flow tracking must reference the gate; see
-[Value-Flow Emission](reference/value-flow-emission.md) for the decision record.
-
-### Scanner-Worker Analyzer Rollout
-
-The scanner-worker lane is implemented at the lane level; concrete analyzers
-(secret, license, source, misconfiguration) promote individually as each proves
-source facts, reducer outputs, and API/MCP reads. The standalone scanner
-service boundary is tracked separately from the lane.
+[Value-Flow Emission](reference/value-flow-emission.md) for the decision
+record.
 
 ### Retrieval And Graph Backend Evaluation
 
@@ -139,9 +136,7 @@ NornicDB remains the default graph backend for current Compose and Kubernetes
 work. Semantic retrieval, BM25, and vector search are separate evaluation
 tracks. They should only move into default runtime behavior after memory,
 startup, query latency, accuracy, and operator-debug evidence justify the
-trade-off. The canonical graph is not the default search corpus; retrieval work
-should project curated search documents and keep graph expansion bounded to
-candidate handles.
+trade-off.
 
 ## How To Read The Board
 
