@@ -580,6 +580,7 @@ volumes, and the Postgres/graph DSNs are overridden for stack isolation.
 | `workspace-setup` | One-shot `/data/.eshu` and `/data/repos` setup. |
 | `eshu` | HTTP API runtime. |
 | `mock-oidc-idp` | Synthetic OIDC Authorization Code identity provider (`go/cmd/mock-oidc-idp`): discovery, authorization, token, and JWKS endpoints backed by a static, non-secret RSA key and one configured synthetic `example.test` identity. |
+| `mock-oidc-idp-admin` | A second `mock-oidc-idp` instance with an admin-mapped group, backing the env/file OIDC provider whose SSO sign-in records the `require_sso` guardrail's admin-proof precondition (a DB-backed group mapping can never mint an AllScopes session — see `apps/console/e2e/authE2EOidcFlow.ts`). |
 
 There is no `ingester`, `resolution-engine`/reducer, `projector`, or any
 collector in this stack: the suite this stack supports proves the login flow,
@@ -597,6 +598,7 @@ until an operator or test claims the sealed one-time bootstrap credential (see
 | `ESHU_E2E_BIND_ADDR` | `127.0.0.1` | Host address the API and mock IdP ports publish on. |
 | `ESHU_E2E_API_PORT` | `28080` | HTTP API port. |
 | `ESHU_E2E_MOCK_OIDC_PORT` | `28090` | Mock OIDC IdP port. |
+| `ESHU_E2E_MOCK_OIDC_ADMIN_PORT` | `28091` | Admin-mapped mock OIDC IdP (`mock-oidc-idp-admin`) port. |
 | `ESHU_E2E_NORNICDB_HTTP_PORT` | `27474` | NornicDB HTTP port. |
 | `ESHU_E2E_NORNICDB_BOLT_PORT` | `27687` | NornicDB Bolt port. |
 | `ESHU_E2E_POSTGRES_PORT` | `28432` | Postgres port. |
