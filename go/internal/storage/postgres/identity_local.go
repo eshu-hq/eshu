@@ -173,23 +173,58 @@ func (s *IdentitySubjectStore) AuthenticateLocalIdentity(
 	if bcrypt.CompareHashAndPassword([]byte(row.PasswordHash), []byte(attempt.Password)) != nil {
 		return s.recordFailedLocalIdentityAttempt(ctx, row, attempt.Now)
 	}
-	// MFA is gated on HasAdminRole only: admins always require MFA at login,
-	// regardless of the tenant's require_mfa_for_all_users sign-in policy
-	// (issue #4968). A non-admin whose tenant has require_mfa_for_all_users=true
-	// is only checked for MFA once, at invitation-accept time
+	// MFA at login is required unconditionally for every admin/owner, and for
+	// every other local user once the tenant's require_mfa_for_all_users
+	// sign-in policy is on (issue #5001, extending the invitation-accept-only
+	// check from issue #4968). Before this change a non-admin was only ever
+	// checked for MFA once, at invitation-accept time
 	// (signInPolicyRequiresMFAForUsers in identity_sign_in_policy.go, enforced
-	// in AcceptLocalIdentityInvitation above) — a pre-existing non-admin local
-	// user who never had an MFA factor is NOT re-checked here at login. This
-	// gap only bites when require_sso=false (require_sso=true already blocks
-	// non-admin local login entirely via requireSSODecision in
-	// go/internal/query/local_identity_sign_in_policy_gate.go). Extending
-	// login-time MFA enforcement to all users is a deliberate follow-up, not
-	// an oversight in this change: it needs its own design (e.g. what happens
-	// to an existing session with no MFA factor when policy flips to
-	// require_mfa_for_all_users=true after the user was created).
-	if row.HasAdminRole {
+	// in AcceptLocalIdentityInvitation above): a non-admin local user created
+	// before the policy turned on, or created while it was off, was never
+	// re-checked here at login. That gap only bit when require_sso=false
+	// (require_sso=true already blocks non-admin local login entirely via
+	// requireSSODecision in go/internal/query/local_identity_sign_in_policy_gate.go).
+	//
+	// Admins NEVER read this policy: an admin always requires MFA regardless
+	// of its value, so reading it would only create a way for an
+	// identity_sign_in_policies outage to deny a local ADMIN login before the
+	// handler's documented policy_read_error_admin_allowed break-glass path
+	// ever gets a chance to apply (issue #5001 P1 review finding). The read
+	// happens only for a non-admin, and fails CLOSED there: a read error
+	// denies that login rather than silently skipping the check, mirroring
+	// the require_sso fail-closed stance for non-admins.
+	mfaRequiredAtLogin := row.HasAdminRole
+	if !row.HasAdminRole {
+		requireMFAForAllUsers, err := signInPolicyRequiresMFAForUsers(ctx, s.db, row.TenantID)
+		if err != nil {
+			slog.ErrorContext(ctx, "local login mfa-for-all policy read failed; login denied",
+				"subject_class", "local_user", "tenant_id", row.TenantID, "error", err)
+			return LocalIdentityAuthenticationResult{}, err
+		}
+		mfaRequiredAtLogin = requireMFAForAllUsers
+	}
+	// Admin and non-admin share one enforcement block so the recovery-code
+	// consumption and failed-attempt handling never drift between them.
+	if mfaRequiredAtLogin {
 		if !row.HasActiveMFA || attempt.MFARecoveryCodeHash == "" {
-			return LocalIdentityAuthenticationResult{Status: LocalIdentityAuthMFARequired}, nil
+			// Auth carries only the fields the caller's require_sso gate needs
+			// (go/internal/query handleLogin, issue #5001 P2 review finding):
+			// a non-admin can never satisfy an MFA challenge through local
+			// login when require_sso is ALSO on for the tenant, so the handler
+			// must be able to run requireSSODecision against this identity
+			// BEFORE surfacing mfa_required. The result stays unauthenticated
+			// (Authenticated is not set) — no session is implied.
+			return LocalIdentityAuthenticationResult{
+				Status: LocalIdentityAuthMFARequired,
+				Auth: LocalIdentityAuthContext{
+					TenantID:           row.TenantID,
+					WorkspaceID:        row.WorkspaceID,
+					SubjectIDHash:      row.SubjectIDHash,
+					SubjectClass:       "local_user",
+					PolicyRevisionHash: row.PolicyRevisionHash,
+					AllScopes:          row.HasAdminRole,
+				},
+			}, nil
 		}
 		if err := consumeLocalIdentityRecoveryCode(ctx, s.db, row.UserID, attempt); err != nil {
 			if errors.Is(err, errLocalIdentityRecoveryCodeInvalid) {

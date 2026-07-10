@@ -132,6 +132,30 @@ func (h *LocalIdentityHandler) handleLogin(w http.ResponseWriter, r *http.Reques
 		WriteError(w, http.StatusUnauthorized, "local identity authentication failed")
 		return
 	}
+	// require_sso must take precedence over an mfa_required response for a
+	// non-admin (issue #5001 P2 review finding, PR #5049 Codex review):
+	// AuthenticateLocalIdentity now returns mfa_required (not an error, no
+	// session) for a non-admin missing MFA under require_mfa_for_all_users,
+	// but when require_sso is ALSO on for this tenant that non-admin can
+	// never complete the MFA challenge through local login — require_sso
+	// already forbids issuing them a local session at all. This converts
+	// that doomed 202 mfa_required into the correct 403 require_sso denial
+	// instead of inviting an MFA proof attempt that could never succeed.
+	// requireSSODecision below remains the SINGLE authoritative require_sso
+	// read (called here instead of only after the Authenticated branch, not
+	// in addition to it), so there is no second read and no TOCTOU window.
+	// Store-side MFA enforcement is never skipped or altered based on
+	// require_sso — AuthenticateLocalIdentity is still the sole MFA
+	// authority. Admins (AllScopes=true) are excluded so an admin missing
+	// MFA still gets the ordinary 202 mfa_required break-glass challenge.
+	if result.Status == LocalIdentityAuthMFARequired && !result.Auth.AllScopes && result.Auth.TenantID != "" {
+		if allowed, decision := h.requireSSODecision(r.Context(), result.Auth); !allowed {
+			h.recordRequireSSOLoginGate(r.Context(), decision)
+			h.auditLocalIdentity(r, governanceaudit.EventTypeIdentityAuthentication, governanceaudit.DecisionDenied, "local_login_denied_require_sso_policy", result.Auth.SubjectIDHash)
+			WriteError(w, http.StatusForbidden, "local sign-in is disabled by tenant policy; sign in with SSO, or an admin may use break-glass local sign-in")
+			return
+		}
+	}
 	if !result.Authenticated {
 		h.writeLocalIdentityUnauthenticated(w, r, result)
 		return

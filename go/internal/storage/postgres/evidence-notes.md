@@ -767,3 +767,47 @@ called by `EshuSearchVectorPendingStore.ListPendingSearchVectorScopes` from the
 name, log field, wire-contract column, API route, CLI flag, or environment
 variable. The Go API surface, parameter order ($1..$6), scan columns, and return
 type are identical. No metric, span, trace, or log change is needed.
+
+## Login-Time require_mfa_for_all_users Enforcement (#5001)
+
+`AuthenticateLocalIdentity` now reads the tenant sign-in policy's
+`require_mfa_for_all_users` flag (via the existing
+`signInPolicyRequiresMFAForUsers` helper / `selectSignInPolicyRequireMFAQuery`)
+after the password compare, and folds the admin-only MFA gate and the new
+non-admin-under-policy gate into one shared enforcement block. A non-admin local
+user on a tenant with `require_mfa_for_all_users=true` is now MFA-challenged at
+login (previously only at invitation-accept), closing the pre-existing-user
+bypass that only bit when `require_sso=false`. The policy read fails CLOSED: a
+read error denies the login rather than silently skipping the check.
+
+### No-Regression Evidence
+
+Performance Evidence: the change adds exactly one bounded, indexed single-row
+read per local login attempt — `SELECT require_mfa_for_all_users FROM
+identity_sign_in_policies WHERE tenant_id = $1` (primary-key point lookup on
+`tenant_id`, ≤1 row). Baseline: the local-login path issued its credential
+select plus, for non-admins, the role/grant selects; after: the same path plus
+one PK-point read that admins previously skipped. Backend: Postgres (all
+supported versions); NornicDB/Cypher is not on this path — no graph read, graph
+write, queue claim, lease, batch, or worker knob is added or changed. Input
+shape: one `tenant_id` parameter; terminal row counts on every downstream query
+are unchanged. The added read is the same bounded lookup already performed at
+invitation-accept (`AcceptLocalIdentityInvitation`), so it introduces no new
+query class and no hot-path cost — local login is human-frequency, not a
+reducer/ingester hot path. No regression is possible from a single extra PK read
+on a non-hot path.
+
+### No-Observability-Change
+
+No-Observability-Change: the new denial reuses the existing
+`LocalIdentityAuthMFARequired` status, which
+`LocalIdentityHandler` already maps to a governance-audit MFALifecycle
+`DecisionDenied` event and to the existing `mfa_required` value in the wire
+`status` enum (`openapi_components_auth.go`) — so the widened population reaching
+`mfa_required` is already observable through the current audit and wire
+contract, with no new metric, span, or wire field required. The one added
+operator signal is a distinct `slog.ErrorContext` line — `"local login
+mfa-for-all policy read failed; login denied"` with `subject_class`, `tenant_id`,
+and `error` fields — emitted only on the fail-closed policy-read error path, so
+an operator can tell a sign-in-policy read outage from any other login 500. No
+`eshu_dp_*` metric shape, span name, or telemetry contract row changes.
