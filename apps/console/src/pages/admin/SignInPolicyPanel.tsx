@@ -12,11 +12,11 @@
 // provider-connection-test and SSO-admin-proof state).
 import { useEffect, useState, useCallback } from "react";
 
+import { fmt } from "./adminFormat";
 import { loadAdminSignInPolicy, updateAdminSignInPolicy } from "../../api/adminSignInPolicy";
 import type { AdminSignInPolicy, SignInPolicyUpdateInput } from "../../api/adminSignInPolicy";
 import type { EshuApiClient } from "../../api/client";
 import { Panel } from "../../components/atoms";
-import { fmt } from "./adminFormat";
 
 // secondsToMinutesInput/minutesInputToSeconds convert the wire's
 // idle/absolute *_timeout_seconds fields to a whole-minutes form field —

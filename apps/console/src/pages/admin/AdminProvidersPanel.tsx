@@ -29,7 +29,7 @@
 // Edit, so keeping it out of the eager main chunk matters for the console
 // bundle-budget gate (scripts/console-bundle-budget.mjs), the same pattern
 // WorkspacePage already uses in appRoutes.tsx.
-import { useEffect, useState, useCallback, lazy, Suspense } from "react";
+import { useEffect, useRef, useState, useCallback, lazy, Suspense } from "react";
 
 import { fmt, dash } from "./adminFormat";
 import { loadIdPGroupMappings } from "../../api/adminConsole";
@@ -83,6 +83,7 @@ export function AdminProvidersPanel({
   const [truncated, setTruncated] = useState(false);
   const [unavailable, setUnavailable] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loaded, setLoaded] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -91,8 +92,24 @@ export function AdminProvidersPanel({
     item?: AdminProviderConfigItem;
   } | null>(null);
 
+  const previousClientRef = useRef(client);
   useEffect(() => {
     let cancelled = false;
+    // A client (source) change must reset to the initial-load state. `loaded`
+    // is preserved across a same-client refreshKey bump so an open drawer
+    // survives a reload (#5033), but a NEW client's rows must not be shown from
+    // the previous source's `items` while the new load is in flight: the row
+    // actions bind to the new client, so a stale row could act on the wrong
+    // source's provider_config_id (#5034 review). Reset rows + `loaded` and
+    // close any open drawer (its client is now stale) on a real client change.
+    const clientChanged = previousClientRef.current !== client;
+    previousClientRef.current = client;
+    if (clientChanged) {
+      setLoaded(false);
+      setItems([]);
+      setMappingCounts(new Map());
+      setDrawer(null);
+    }
     if (!client) {
       setUnavailable(true);
       setLoading(false);
@@ -105,6 +122,7 @@ export function AdminProvidersPanel({
       setTruncated(r.truncated);
       setUnavailable(r.provenance === "unavailable");
       setLoading(false);
+      setLoaded(true);
     });
     void countMappingsByProvider(client).then((counts) => {
       if (cancelled) return;
@@ -149,7 +167,15 @@ export function AdminProvidersPanel({
     [client],
   );
 
-  if (loading) {
+  // Only the INITIAL load (loaded still false) renders the loading-only
+  // Panel, which omits the drawer JSX below. A refresh (refreshKey bump from
+  // a mutation or a drawer save — e.g. onRunTest's onSaved()) must not
+  // unmount an already-open drawer while it reloads: doing so wiped the
+  // admin's typed fields, including the write-only client secret, and
+  // remounted the drawer in create mode with Save permanently disabled
+  // (#5033). The table below keeps showing the previous rows during a
+  // refresh, which is also the better UX.
+  if (loading && !loaded) {
     return (
       <Panel title="Providers">
         <p className="empty-note">Loading providers…</p>

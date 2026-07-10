@@ -231,4 +231,113 @@ describe("AdminProvidersPanel", () => {
     fireEvent.click(screen.getByRole("button", { name: "Add provider" }));
     expect(await screen.findByRole("dialog", { name: "Add provider" })).toBeInTheDocument();
   });
+
+  it("survives a refresh triggered by Run test sign-in: the open drawer and its typed fields are not unmounted (regression #5033)", async () => {
+    // The refresh this test triggers (onSaved -> bumping refreshKey) must NOT
+    // unmount the open drawer while its reload is still in flight. Before the
+    // fix, AdminProvidersPanel's loading-only early return omitted the drawer
+    // JSX on every refresh (not just the initial load), so the drawer
+    // remounted in create mode, wiping the admin's typed fields (including
+    // the write-only client secret) and leaving Save permanently disabled.
+    let providerConfigsCalls = 0;
+    const secondLoadNeverResolves = new Promise<never>(() => {
+      // Intentionally never resolves — simulates a refresh still in flight
+      // while the admin is still looking at the open drawer.
+    });
+    const client = makeClient({
+      getJson: async (path: string) => {
+        if (path.includes("idp-group-mappings")) return { group_mappings: [] };
+        providerConfigsCalls += 1;
+        if (providerConfigsCalls > 1) {
+          return secondLoadNeverResolves;
+        }
+        return { provider_configs: [], truncated: false };
+      },
+      postJson: async (path: string) => {
+        if (path === "/api/v0/auth/admin/provider-configs") {
+          return {
+            provider_config_id: "pc_new",
+            revision_id: "rev_1",
+            status: "draft",
+            changed: true,
+          };
+        }
+        if (path.endsWith("/test-connection")) {
+          return { provider_config_id: "pc_new", ok: true, detail: "reachable" };
+        }
+        throw new Error(`unexpected path ${path}`);
+      },
+    });
+
+    render(<AdminProvidersPanel client={client} baseUrl="https://eshu.example.test" />);
+    await screen.findByText("No identity providers configured.");
+
+    fireEvent.click(screen.getByRole("button", { name: "Add provider" }));
+    await screen.findByRole("dialog", { name: "Add provider" });
+
+    fireEvent.change(screen.getByLabelText("Issuer"), {
+      target: { value: "https://idp.example.test" },
+    });
+    fireEvent.change(screen.getByLabelText("Client ID"), { target: { value: "client-1" } });
+    fireEvent.change(screen.getByLabelText("Client secret"), { target: { value: "s3cret" } });
+
+    fireEvent.click(screen.getByRole("button", { name: "Run test sign-in" }));
+    await screen.findByText(/Test sign-in passed/);
+
+    // The provider-configs refresh kicked off by onSaved() is now pending
+    // forever. The drawer must still be mounted with the typed value intact.
+    expect(screen.getByRole("dialog", { name: "Add provider" })).toBeInTheDocument();
+    expect((screen.getByLabelText("Issuer") as HTMLInputElement).value).toBe(
+      "https://idp.example.test",
+    );
+    expect(screen.getByRole("button", { name: "Save" })).not.toBeDisabled();
+  });
+
+  it("resets to the loading state on a client (source) change — never shows the previous source's rows while the new source loads (regression #5034)", async () => {
+    // The #5033 fix preserves `loaded` across a same-client refreshKey bump so
+    // an open drawer survives. But a NEW client (source switch, e.g.
+    // activateDemo) must NOT keep showing the previous source's rows during the
+    // new source's pending load: the row actions bind to the new client, so a
+    // stale row could act on the wrong source's provider_config_id.
+    const clientA = makeClient({
+      getJson: async (path: string) => {
+        if (path.includes("idp-group-mappings")) return { group_mappings: [] };
+        return {
+          provider_configs: [
+            {
+              provider_config_id: "pc_a",
+              provider_kind: "external_oidc",
+              status: "active",
+              configuration: { issuer: "https://idp-a.example.test" },
+              has_secret: true,
+              shadowed_by_environment: false,
+              managed_by: "database",
+            },
+          ],
+          truncated: false,
+        };
+      },
+    });
+    const pendingForever = new Promise<never>(() => {
+      // clientB's provider load stays in flight so the panel is mid-load.
+    });
+    const clientB = makeClient({
+      getJson: async (path: string) => {
+        if (path.includes("idp-group-mappings")) return { group_mappings: [] };
+        return pendingForever;
+      },
+    });
+
+    const { rerender } = render(
+      <AdminProvidersPanel client={clientA} baseUrl="https://eshu.example.test" />,
+    );
+    expect(await screen.findByText("https://idp-a.example.test")).toBeInTheDocument();
+
+    // Switch source. clientB's load is pending; clientA's rows must be cleared,
+    // not shown against the new client.
+    rerender(<AdminProvidersPanel client={clientB} baseUrl="https://eshu.example.test" />);
+    await waitFor(() =>
+      expect(screen.queryByText("https://idp-a.example.test")).not.toBeInTheDocument(),
+    );
+  });
 });
