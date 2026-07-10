@@ -84,28 +84,24 @@ func TestCoverageLockstepAgainstRealSpecs(t *testing.T) {
 
 	// ValidateRequiredProofGates requires every referenced proof_gate to be
 	// CI-blocking (replaycoverage/proof_gates.go's validateProofGate), because a
-	// non-blocking gate cannot be trusted to keep a "covered" claim green. The
-	// ifa-contract-layer gate is deliberately kept advisory for P1 (the
-	// blocking flip is P4, per the #4394 design), so every row in this
-	// manifest necessarily produces exactly that one "is not blocking" error
-	// and no other: the reference is otherwise well-formed (a real, known gate
-	// with a local command and a CI workflow). Asserting the error shape here
-	// — rather than asserting zero errors — still catches a typo'd gate id or a
-	// gate missing its local command, without contradicting the P1 decision to
-	// keep ifa-contract-layer non-blocking.
-	for _, err := range replaycoverage.ValidateRequiredProofGates(ifaManifest, replaycoverage.AuthzProofLedger{}, proofGates) {
-		msg := err.Error()
-		if !strings.Contains(msg, `proof_gate "ifa-contract-layer" is not blocking`) {
-			t.Errorf("unexpected proof-gate validation error (want only the known P1 advisory-gate error): %v", err)
-		}
+	// non-blocking gate cannot be trusted to keep a "covered" claim green. Post-P4
+	// (#4397) ifa-contract-layer is blocking, real, and well-formed (local command
+	// + CI workflow), so every referenced-proof_gate rule now holds and validation
+	// returns no errors. Assert exactly that: this is the stronger check the P1
+	// code could not make while the gate was deliberately advisory, and it fails
+	// on a typo'd gate id, a lost local command, or a regression that flips
+	// ifa-contract-layer back to advisory.
+	if errs := replaycoverage.ValidateRequiredProofGates(ifaManifest, replaycoverage.AuthzProofLedger{}, proofGates); len(errs) != 0 {
+		t.Errorf("ValidateRequiredProofGates = %v, want no errors now that ifa-contract-layer is blocking (#4397)", errs)
 	}
 
-	// validateProofGate returns the "is not blocking" error BEFORE it reaches
-	// the missing-command / missing-workflow checks, so the assertion above
-	// cannot, on its own, catch a gate that is both advisory AND missing its
-	// local command or CI workflow. Assert well-formedness directly against the
-	// registry so that compound breakage still fails here (#4959 tracks the
-	// shared precedence gap in replaycoverage/proof_gates.go).
+	// Assert ifa-contract-layer's well-formedness directly against the registry
+	// too, with clearer messages than the aggregate check above: after the P4 flip
+	// (#4397) the gate must be blocking and carry both a local command and a CI
+	// workflow. validateProofGate checks blocking before the command / workflow
+	// checks and the shared precedence gap (#4959) still exists in
+	// replaycoverage/proof_gates.go, so keeping these explicit invariants guards
+	// against a future ordering-dependent regression in the aggregate validator.
 	var ifaGate *cigates.Gate
 	for i := range proofGates.Gates {
 		if proofGates.Gates[i].ID == "ifa-contract-layer" {
@@ -115,11 +111,14 @@ func TestCoverageLockstepAgainstRealSpecs(t *testing.T) {
 	if ifaGate == nil {
 		t.Fatal("ifa-contract-layer gate not found in ci-gates registry")
 	}
+	if !ifaGate.Blocking {
+		t.Error("ifa-contract-layer must be CI-blocking after the P4 flip (#4397)")
+	}
 	if ifaGate.Local == nil || strings.TrimSpace(ifaGate.Local.Command) == "" {
-		t.Error("ifa-contract-layer gate has no local command; the advisory proof-gate assertion above would mask this")
+		t.Error("ifa-contract-layer gate has no local command")
 	}
 	if strings.TrimSpace(ifaGate.CI.Workflow) == "" {
-		t.Error("ifa-contract-layer gate has no CI workflow; the advisory proof-gate assertion above would mask this")
+		t.Error("ifa-contract-layer gate has no CI workflow")
 	}
 
 	rc29Coverage := findSurfaceCoverage(t, cov, NarrowedCorrelationSurfacePrefix+"rc-29")
@@ -145,9 +144,8 @@ func TestCoverageLockstepAgainstRealSpecs(t *testing.T) {
 	}
 
 	// The five odu:demo-org-roundtrip rows use proof_gate: ifa-contract-layer
-	// like every other row, so they add no new proof-gate error beyond the
-	// single "ifa-contract-layer is not blocking" one already whitelisted above
-	// (ValidateRequiredProofGates dedupes by gate id). ifa-contract-layer's
+	// like every other row, so they add no proof-gate validation error (the gate
+	// is blocking and well-formed, asserted above). ifa-contract-layer's
 	// `go test ./internal/ifa` is what actually re-runs RoundTripTypedPayloads
 	// on an ifa/synth-gcp change; the golden-corpus gate does not trigger on
 	// those paths and replays the committed cassette, not the generator.

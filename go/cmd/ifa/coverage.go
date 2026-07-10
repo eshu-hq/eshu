@@ -56,12 +56,13 @@ func parseCoverageFlags(args []string, stderr io.Writer) (coverageOptions, error
 }
 
 // runCoverageCommand implements `ifa coverage`. Unlike
-// cmd/replay-coverage-gate/main.go, it does not treat every ValidateRequiredProofGates
-// finding as an unconditional hard error: Ifá's own manifest deliberately
-// references the advisory ifa-contract-layer gate for P1 (the blocking flip
-// is P4, #4394), so that "not blocking" finding is surfaced through
-// ifa.RunCoverage's goldengate.Report (as a Required finding, visible in
-// -blocking mode) instead of hard-failing every advisory run.
+// cmd/replay-coverage-gate/main.go, it does not hard-fail on every finding: the
+// default is a local advisory report and only `-blocking` mode (what `make prove`
+// and CI use) returns a non-zero error. Coverage and proof-gate findings are
+// surfaced through ifa.RunCoverage's goldengate.Report so they are visible in the
+// report and fail the run only under -blocking. Post-P4 (#4397) the
+// ifa-contract-layer proof_gate is itself CI-blocking, so it no longer produces a
+// "not blocking" finding of its own.
 func runCoverageCommand(args []string, stdout, stderr io.Writer) error {
 	o, err := parseCoverageFlags(args, stderr)
 	if err != nil {

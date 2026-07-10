@@ -907,12 +907,24 @@ deliberately non-idempotent write; the malformed-fact leg
 dead-letter path the same way (regression tests first, per this platform's
 Evidence Rules).
 
-**P4 — `make prove`, drop-an-Odù docs, advisory→blocking.**
-Land the `make prove` entry point, the flake policy (no retry-to-green), the
-measured prove-latency budget, and the drop-an-Odù checklist (mirroring the
-parser 7-step model). Flip the Ifá gate from advisory to blocking following the
-`replaycoverage` progression. Evidence: `make prove` runs credential-free and
-mirrors CI; docs build gate passes; blocking flip recorded in
+**P4 — `make prove`, drop-an-Odù docs, advisory→blocking. Landed (#4397).**
+`make prove` (`scripts/dev/prove.sh`) is the credential-free entry point: it
+runs the contract-layer test, the hermetic structural mirrors, and the coverage
+reconcile always, then runs the real Docker determinism matrix when Docker is
+present and defers loudly otherwise (the `trivy-fs-local.sh` pattern — never a
+silent pass). The flake policy (no retry-to-green) is stated in the driver and
+enforced by zero retry logic in the CI workflow. The prove-latency budget for
+the common credential-free path is a `perfcontract.Threshold`
+(`EnforcementOperatorGated`): measured at 4s/4s/4s over three runs, recorded as
+5s (worst + ~25% headroom). The drop-an-Odù checklist lives in
+`go/internal/ifa/AGENTS.md`, mirroring the parser 7-step model. The three Ifá
+gates (`ifa-contract-layer`, `ifa-determinism`, `ifa-dead-letter-matrix`) are
+flipped to `blocking: true` in `specs/ci-gates.v1.yaml`; the two determinism-
+matrix gates run their real Docker matrix per-PR in
+`.github/workflows/ifa-determinism-gate.yml` (mirroring golden-corpus-gate),
+satisfying the line-517 rule that the blocking flip require the N-sensitive
+Tier-2 run. Evidence: `make prove` runs credential-free and mirrors CI; the docs
+build gate passes; the blocking flip and CI wiring are recorded in
 `specs/ci-gates.v1.yaml`.
 
 **P5 — load and saturation (Layer 3).**
@@ -943,11 +955,12 @@ with P1 so derivation has a fully synthetic case from the start.
   ADR if wanted, not an Ifá feature.
 - **Resolved for P3:** the worker-count matrix runs N ∈ {1, 2, 4}
   (`scripts/verify-ifa-determinism.sh`'s `worker_counts=(1 2 4)`), matching
-  the design's own illustrative "N ∈ {1, 2, 4, …}" set. Per-class timing
-  budgets for `make prove`'s common path remain open (P4, "at least three
-  measured runs," `perfcontract` `EnforcementOperatorGated`) — this bullet
-  narrows to that P4 budget question only; the upper bound itself is
-  decided.
+  the design's own illustrative "N ∈ {1, 2, 4, …}" set. **Resolved for P4
+  (#4397):** the `make prove` common-path timing budget is measured at 4s/4s/4s
+  over three runs and recorded as a 5s `perfcontract.Threshold`
+  (`EnforcementOperatorGated`, worst + ~25% headroom). The Docker determinism
+  matrix carries its own per-cell baselines and is reported informationally, not
+  budgeted, because it varies by machine and Docker state.
 - Layer 3 depends on the scale-lab corpus spec (#3170) moving from
   `gate_status: proposed` to accepted; if that spec changes shape during
   acceptance, the Layer 3 slot bindings follow it (anti-rewrite rule 9).
