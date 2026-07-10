@@ -83,6 +83,7 @@ export function AdminProvidersPanel({
   const [truncated, setTruncated] = useState(false);
   const [unavailable, setUnavailable] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loaded, setLoaded] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -105,6 +106,7 @@ export function AdminProvidersPanel({
       setTruncated(r.truncated);
       setUnavailable(r.provenance === "unavailable");
       setLoading(false);
+      setLoaded(true);
     });
     void countMappingsByProvider(client).then((counts) => {
       if (cancelled) return;
@@ -149,7 +151,15 @@ export function AdminProvidersPanel({
     [client],
   );
 
-  if (loading) {
+  // Only the INITIAL load (loaded still false) renders the loading-only
+  // Panel, which omits the drawer JSX below. A refresh (refreshKey bump from
+  // a mutation or a drawer save — e.g. onRunTest's onSaved()) must not
+  // unmount an already-open drawer while it reloads: doing so wiped the
+  // admin's typed fields, including the write-only client secret, and
+  // remounted the drawer in create mode with Save permanently disabled
+  // (#5033). The table below keeps showing the previous rows during a
+  // refresh, which is also the better UX.
+  if (loading && !loaded) {
     return (
       <Panel title="Providers">
         <p className="empty-note">Loading providers…</p>
