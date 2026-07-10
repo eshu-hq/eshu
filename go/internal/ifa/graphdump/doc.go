@@ -36,9 +36,9 @@
 // digest — so a race that swapped edges between two truly-identical,
 // identity-less nodes could hide behind equal digests (a false green). This
 // holds in Eshu because every canonical writer materializes its node with a
-// stable `uid` property (e.g. CloudResourceNodeWriter's `SET r.uid =
-// row.uid`, keyed by the MERGE identity), so genuinely distinct nodes never
-// share a digest. A future writer that materializes identity-less auxiliary
+// stable `uid` property (e.g. CloudResourceNodeWriter keys the node on it via
+// `MERGE (r:CloudResource {uid: row.uid})`), so genuinely distinct nodes
+// never share a digest. A future writer that materializes identity-less auxiliary
 // nodes would weaken this guarantee and must be given a stable identity
 // property before graphdump can soundly compare it.
 //

@@ -126,8 +126,13 @@ jobs:
               - 'specs/fact-kind-registry.v1.yaml'
               # Ifá P3 (#4396) determinism + dead-letter-matrix hermetic mirrors
               # run inside the "Verify Ifa contract-layer gate" job below.
+              # These mirror the ifa-determinism / ifa-dead-letter-matrix gate
+              # triggers in specs/ci-gates.v1.yaml, including the two base
+              # production files the matrix exists to guard.
+              - 'go/internal/reducer/gcp_resource_materialization.go'
               - 'go/internal/reducer/gcp_resource_materialization_teeth.go'
               - 'go/internal/reducer/gcp_resource_materialization_teeth_off.go'
+              - 'go/internal/storage/cypher/cloud_resource_node_writer.go'
               - 'go/internal/storage/cypher/cloud_resource_node_writer_teeth.go'
               - 'go/internal/storage/cypher/cloud_resource_node_writer_teeth_off.go'
               - 'scripts/verify-ifa-determinism.sh'
