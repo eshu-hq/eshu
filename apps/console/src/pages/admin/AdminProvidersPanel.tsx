@@ -29,7 +29,7 @@
 // Edit, so keeping it out of the eager main chunk matters for the console
 // bundle-budget gate (scripts/console-bundle-budget.mjs), the same pattern
 // WorkspacePage already uses in appRoutes.tsx.
-import { useEffect, useState, useCallback, lazy, Suspense } from "react";
+import { useEffect, useRef, useState, useCallback, lazy, Suspense } from "react";
 
 import { fmt, dash } from "./adminFormat";
 import { loadIdPGroupMappings } from "../../api/adminConsole";
@@ -92,8 +92,24 @@ export function AdminProvidersPanel({
     item?: AdminProviderConfigItem;
   } | null>(null);
 
+  const previousClientRef = useRef(client);
   useEffect(() => {
     let cancelled = false;
+    // A client (source) change must reset to the initial-load state. `loaded`
+    // is preserved across a same-client refreshKey bump so an open drawer
+    // survives a reload (#5033), but a NEW client's rows must not be shown from
+    // the previous source's `items` while the new load is in flight: the row
+    // actions bind to the new client, so a stale row could act on the wrong
+    // source's provider_config_id (#5034 review). Reset rows + `loaded` and
+    // close any open drawer (its client is now stale) on a real client change.
+    const clientChanged = previousClientRef.current !== client;
+    previousClientRef.current = client;
+    if (clientChanged) {
+      setLoaded(false);
+      setItems([]);
+      setMappingCounts(new Map());
+      setDrawer(null);
+    }
     if (!client) {
       setUnavailable(true);
       setLoading(false);
