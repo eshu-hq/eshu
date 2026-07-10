@@ -42,6 +42,12 @@ nav:
     - Windows Setup: getting-started/windows-setup.md
   - Tutorials:
     - Overview: tutorials/index.md
+    - First Successful Run: tutorials/first-successful-run.md
+    - Trace a Vulnerable Dependency: tutorials/trace-vulnerable-dependency.md
+    - Ask Eshu From An Assistant: tutorials/ask-from-assistant.md
+    - Index Repositories: tutorials/index-repositories.md
+    - Deploy on Kubernetes: tutorials/deploy-kubernetes.md
+    - Debug Stale Answers: tutorials/debug-stale-answers.md
   - How-to Guides:
     - Overview: use/index.md
     - Index Repositories: use/index-repositories.md
