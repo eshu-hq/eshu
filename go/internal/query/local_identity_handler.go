@@ -362,6 +362,19 @@ func (h *LocalIdentityHandler) handleRotatePassword(w http.ResponseWriter, r *ht
 		h.writeLocalIdentityUnauthenticated(w, r, result)
 		return
 	}
+	// require_sso gate (issue #4976, codex PR #5054 P1 review): rotation issues
+	// a browser session just like login, so it must honor the same tenant
+	// require_sso policy handleLogin enforces — otherwise a non-admin in a
+	// require_sso=true tenant could rotate their password with their current
+	// credential and obtain a local session, bypassing the SSO-only lockdown.
+	// Admins (AllScopes) pass this gate as break-glass, identical to login.
+	allowed, decision := h.requireSSODecision(r.Context(), result.Auth)
+	h.recordRequireSSOLoginGate(r.Context(), decision)
+	if !allowed {
+		h.auditLocalIdentity(r, governanceaudit.EventTypeIdentityAuthentication, governanceaudit.DecisionDenied, "local_password_rotation_denied_require_sso_policy", result.Auth.SubjectIDHash)
+		WriteError(w, http.StatusForbidden, "local sign-in is disabled by tenant policy; sign in with SSO, or an admin may use break-glass local sign-in")
+		return
+	}
 	h.auditLocalIdentity(r, governanceaudit.EventTypeIdentityAuthentication, governanceaudit.DecisionAllowed, "local_password_rotation_forced", result.Auth.SubjectIDHash)
 	h.issueLocalIdentitySession(w, r, result.Auth, string(result.Status), result.LockedUntil)
 }

@@ -139,6 +139,99 @@ func TestLocalIdentityRotatePasswordIssuesSessionAndForwardsHashedProof(t *testi
 	}
 }
 
+// TestLocalIdentityRotatePasswordDeniedForNonAdminWhenRequireSSO is the P1
+// regression guard (codex PR #5054 review): the rotation route issues a
+// browser session, so it must honor the same require_sso gate handleLogin
+// enforces. A non-admin in a require_sso=true tenant who proves their current
+// password must NOT obtain a local session by rotating — that would bypass the
+// tenant's SSO-only lockdown. Expect 403 and no session.
+func TestLocalIdentityRotatePasswordDeniedForNonAdminWhenRequireSSO(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 7, 10, 13, 30, 0, 0, time.UTC)
+	store := &fakeLocalIdentityStore{
+		rotationResult: LocalIdentityAuthenticationResult{
+			Status:        LocalIdentityAuthAuthenticated,
+			Authenticated: true,
+			Auth: LocalIdentityAuthContext{
+				TenantID:      "tenant_local",
+				SubjectIDHash: "sha256:member-subject",
+				SubjectClass:  "local_user",
+				AllScopes:     false,
+			},
+		},
+	}
+	sessions := &fakeBrowserSessionStore{}
+	policy := &fakeSignInPolicyReadStore{policy: SignInPolicy{RequireSSO: true}}
+	handler := &LocalIdentityHandler{
+		Store: store, Sessions: sessions, SignInPolicy: policy,
+		Now: func() time.Time { return now }, PasswordCost: bcrypt.MinCost,
+	}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v0/auth/local/password/rotate", bytes.NewBufferString(`{
+		"login_id":"member@example.test",
+		"current_password":"member-password",
+		"new_password":"new-strong-password"
+	}`))
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want %d (require_sso must block a non-admin rotation session): %s", rec.Code, http.StatusForbidden, rec.Body.String())
+	}
+	if len(sessions.created) != 0 {
+		t.Fatalf("created sessions = %d, want 0", len(sessions.created))
+	}
+}
+
+// TestLocalIdentityRotatePasswordAllowedForAdminBreakGlassWhenRequireSSO proves
+// the require_sso gate on rotation preserves admin break-glass: an admin
+// (AllScopes) in a require_sso=true tenant still rotates and receives a
+// session, exactly as handleLogin's break-glass path does.
+func TestLocalIdentityRotatePasswordAllowedForAdminBreakGlassWhenRequireSSO(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 7, 10, 13, 35, 0, 0, time.UTC)
+	store := &fakeLocalIdentityStore{
+		rotationResult: LocalIdentityAuthenticationResult{
+			Status:        LocalIdentityAuthAuthenticated,
+			Authenticated: true,
+			Auth: LocalIdentityAuthContext{
+				TenantID:      "tenant_local",
+				SubjectIDHash: "sha256:owner-subject",
+				SubjectClass:  "local_user",
+				AllScopes:     true,
+			},
+		},
+	}
+	sessions := &fakeBrowserSessionStore{}
+	policy := &fakeSignInPolicyReadStore{policy: SignInPolicy{RequireSSO: true}}
+	handler := &LocalIdentityHandler{
+		Store: store, Sessions: sessions, SignInPolicy: policy,
+		Now: func() time.Time { return now }, NewSecret: sequenceSecrets("credential-id", "session-secret", "csrf-secret"), PasswordCost: bcrypt.MinCost,
+	}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v0/auth/local/password/rotate", bytes.NewBufferString(`{
+		"login_id":"admin",
+		"current_password":"env-seeded-password",
+		"new_password":"new-strong-password",
+		"recovery_code":"one-time-a"
+	}`))
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d (admin break-glass rotation under require_sso): %s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	if len(sessions.created) != 1 {
+		t.Fatalf("created sessions = %d, want 1 (admin break-glass session issued)", len(sessions.created))
+	}
+}
+
 // TestLocalIdentityRotatePasswordRejectsWrongCurrentPassword proves a failed
 // rotation attempt does not issue a session.
 func TestLocalIdentityRotatePasswordRejectsWrongCurrentPassword(t *testing.T) {

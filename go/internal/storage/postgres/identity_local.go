@@ -173,6 +173,31 @@ func (s *IdentitySubjectStore) AuthenticateLocalIdentity(
 	if bcrypt.CompareHashAndPassword([]byte(row.PasswordHash), []byte(attempt.Password)) != nil {
 		return s.recordFailedLocalIdentityAttempt(ctx, row, attempt.Now)
 	}
+	// Forced password rotation (issue #4976): checked right after the password
+	// proves out and BEFORE the MFA gate below. A must-change credential can
+	// never obtain a session through this login path regardless of MFA, so
+	// consuming the MFA recovery code here would burn it for nothing — and the
+	// env-seeded admin is seeded with a SINGLE one-time recovery code, so a
+	// consume here left it unable to complete RotateLocalIdentityPassword,
+	// which demands that same code again (codex PR #5054 P1 review). Deferring
+	// the MFA proof to rotation costs no security: the session is issued only
+	// at rotation, after password AND MFA both prove there. No session and none
+	// of the tail's session-issuance side effects run here; they happen inside
+	// RotateLocalIdentityPassword (identity_local_rotate.go) once the caller
+	// actually rotates.
+	if row.MustChangePassword {
+		return LocalIdentityAuthenticationResult{
+			Status: LocalIdentityAuthMustChangePassword,
+			Auth: LocalIdentityAuthContext{
+				TenantID:           row.TenantID,
+				WorkspaceID:        row.WorkspaceID,
+				SubjectIDHash:      row.SubjectIDHash,
+				SubjectClass:       "local_user",
+				PolicyRevisionHash: row.PolicyRevisionHash,
+				AllScopes:          row.HasAdminRole,
+			},
+		}, nil
+	}
 	// MFA at login is required unconditionally for every admin/owner, and for
 	// every other local user once the tenant's require_mfa_for_all_users
 	// sign-in policy is on (issue #5001, extending the invitation-accept-only
@@ -232,29 +257,6 @@ func (s *IdentitySubjectStore) AuthenticateLocalIdentity(
 			}
 			return LocalIdentityAuthenticationResult{}, err
 		}
-	}
-	// Forced password rotation (issue #4976): the credential is checked ONLY
-	// after password and (when required) MFA both proved, so the caller has
-	// demonstrated real possession before rotation is required — this is not
-	// a way to probe whether an account needs rotation without the password.
-	// No session is issued and none of the tail's session-issuance side
-	// effects run (clearing lockout, consuming the bootstrap credential,
-	// resolving roles): those all happen inside
-	// RotateLocalIdentityPassword (identity_local_rotate.go) once the caller
-	// actually rotates, exactly mirroring what a normal authenticated login
-	// would have done.
-	if row.MustChangePassword {
-		return LocalIdentityAuthenticationResult{
-			Status: LocalIdentityAuthMustChangePassword,
-			Auth: LocalIdentityAuthContext{
-				TenantID:           row.TenantID,
-				WorkspaceID:        row.WorkspaceID,
-				SubjectIDHash:      row.SubjectIDHash,
-				SubjectClass:       "local_user",
-				PolicyRevisionHash: row.PolicyRevisionHash,
-				AllScopes:          row.HasAdminRole,
-			},
-		}, nil
 	}
 	return s.finishLocalIdentityAuthentication(ctx, row, attempt.Now)
 }

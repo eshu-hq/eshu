@@ -114,9 +114,11 @@ func mustChangePasswordAuthCredentialRow(t *testing.T, password string) []any {
 
 // TestAuthenticateLocalIdentityMustChangePasswordBlocksSessionAfterValidProof
 // proves the forced-rotation gate (issue #4976): a credential proven with the
-// correct password AND a valid MFA recovery code still does not receive a
-// session when must_change_password=true. This is the acceptance behavior
-// #4963 requires for the ESHU_ADMIN_USERNAME/PASSWORD-seeded admin.
+// correct password does not receive a session when must_change_password=true,
+// and — since the gate fires before the MFA block (codex PR #5054 P1 review) —
+// the account's one-time MFA recovery code is NOT consumed, so it survives for
+// the subsequent RotateLocalIdentityPassword call. This is the acceptance
+// behavior #4963 requires for the ESHU_ADMIN_USERNAME/PASSWORD-seeded admin.
 func TestAuthenticateLocalIdentityMustChangePasswordBlocksSessionAfterValidProof(t *testing.T) {
 	t.Parallel()
 
@@ -142,16 +144,14 @@ func TestAuthenticateLocalIdentityMustChangePasswordBlocksSessionAfterValidProof
 	if result.Auth.SubjectIDHash != "sha256:owner-subject" || !result.Auth.AllScopes {
 		t.Fatalf("must_change_password Auth = %#v, want subject/all-scopes populated for the handler", result.Auth)
 	}
-	// The MFA recovery-code consumption still runs (possession of the second
-	// factor must be proven before the caller learns rotation is required),
-	// but none of finishLocalIdentityAuthentication's tail writes do: no
-	// lockout clear and no bootstrap-credential consume. Exactly one exec
-	// (the recovery-code UPDATE) proves the tail never ran.
-	if got := len(db.execs); got != 1 {
-		t.Fatalf("must_change_password path exec count = %d, want exactly 1 (recovery code consumption only): %#v", got, db.execs)
-	}
-	if !strings.Contains(db.execs[0].query, "UPDATE identity_mfa_recovery_codes") {
-		t.Fatalf("must_change_password path's one exec = %#v, want recovery code consumption", db.execs[0])
+	// The gate now fires BEFORE the MFA block (codex PR #5054 P1 review), so the
+	// single one-time bootstrap recovery code is NOT consumed here — it is
+	// preserved for RotateLocalIdentityPassword, which the caller must reach
+	// next. Zero execs proves neither the recovery-code UPDATE nor any of
+	// finishLocalIdentityAuthentication's tail writes (lockout clear,
+	// bootstrap-credential consume) ran.
+	if got := len(db.execs); got != 0 {
+		t.Fatalf("must_change_password path exec count = %d, want 0 (recovery code preserved for rotation, tail never ran): %#v", got, db.execs)
 	}
 	if got := len(db.queries); got != 1 {
 		t.Fatalf("must_change_password path issued %d queries, want exactly 1 (credential select only): %#v", got, db.queries)
