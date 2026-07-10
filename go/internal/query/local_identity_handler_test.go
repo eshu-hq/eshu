@@ -300,6 +300,7 @@ func TestHandleAcceptInvitationHandleBreakGlassSessionLocalIdentityPublicPathsAr
 		"/api/v0/auth/local/login",
 		"/api/v0/auth/local/invitations/accept",
 		"/api/v0/auth/local/break-glass/session",
+		"/api/v0/auth/local/password/rotate",
 	} {
 		if !publicHTTPPaths[path] {
 			t.Fatalf("publicHTTPPaths[%q] = false, want true", path)
@@ -365,6 +366,9 @@ type fakeLocalIdentityStore struct {
 	createdAPIToken LocalIdentityAPITokenCreate
 	revokedAPIToken LocalIdentityAPITokenRevoke
 	rotatedAPIToken LocalIdentityAPITokenRotate
+	rotation        LocalIdentityPasswordRotation
+	rotationResult  LocalIdentityAuthenticationResult
+	rotationError   error
 }
 
 func (s *fakeLocalIdentityStore) BootstrapLocalIdentity(
@@ -405,6 +409,14 @@ func (s *fakeLocalIdentityStore) ResetLocalIdentityPassword(
 ) error {
 	s.passwordReset = reset
 	return nil
+}
+
+func (s *fakeLocalIdentityStore) RotateLocalIdentityPassword(
+	_ context.Context,
+	rotation LocalIdentityPasswordRotation,
+) (LocalIdentityAuthenticationResult, error) {
+	s.rotation = rotation
+	return s.rotationResult, s.rotationError
 }
 
 func (s *fakeLocalIdentityStore) ResetLocalIdentityMFA(_ context.Context, reset LocalIdentityMFAReset) error {

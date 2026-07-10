@@ -213,6 +213,14 @@ func (h *LocalIdentityHandler) writeLocalIdentityUnauthenticated(
 	case LocalIdentityAuthMFARequired:
 		h.auditLocalIdentity(r, governanceaudit.EventTypeMFALifecycle, governanceaudit.DecisionDenied, "mfa_required", "")
 		WriteJSON(w, http.StatusAccepted, LocalIdentitySessionResponse{Status: string(result.Status)})
+	case LocalIdentityAuthMustChangePassword:
+		// Distinct from the generic "invalid" fallback below (issue #4976):
+		// the password and any required MFA both proved, but the credential
+		// must be rotated through POST /api/v0/auth/local/password/rotate
+		// before a session is issued. 202 Accepted, no session — mirrors
+		// mfa_required's "more proof needed" shape rather than a rejection.
+		h.auditLocalIdentity(r, governanceaudit.EventTypeIdentityAuthentication, governanceaudit.DecisionDenied, "must_change_password", result.Auth.SubjectIDHash)
+		WriteJSON(w, http.StatusAccepted, LocalIdentitySessionResponse{Status: string(result.Status)})
 	case LocalIdentityAuthLocked:
 		h.auditLocalIdentity(r, governanceaudit.EventTypeIdentityAuthentication, governanceaudit.DecisionDenied, "local_login_locked", "")
 		WriteJSON(w, http.StatusLocked, LocalIdentitySessionResponse{Status: string(result.Status), LockedUntil: result.LockedUntil})

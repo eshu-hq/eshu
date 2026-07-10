@@ -891,3 +891,55 @@ was considered and rejected for this change — the audit event already records
 every successful flip, and revoke volume is bounded by session count for one
 tenant at admin frequency, not a rate an operator needs a dedicated counter
 to notice at 3 AM.
+
+## Forced Password Rotation On First Login (#4976)
+
+Adds `identity_local_credentials.must_change_password BOOLEAN NOT NULL
+DEFAULT false` via a new additive migration
+(`migrations/053_identity_local_credentials_must_change_password.sql`,
+`ALTER TABLE ... ADD COLUMN IF NOT EXISTS`, idempotent on every startup like
+every other bootstrap definition). Set true only for the
+`ESHU_ADMIN_USERNAME`/`ESHU_ADMIN_PASSWORD[_FILE]`-seeded bootstrap admin
+(`cmd/api/seed_initial_admin.go` `seedBootstrapAdminFromEnv`); the
+`ESHU_AUTH_BOOTSTRAP_MODE=generated` path and invitation acceptance both stay
+false. `AuthenticateLocalIdentity` checks the column after password and MFA
+both verify and before issuing a session, returning the new
+`must_change_password` status instead. The self-service `POST
+/api/v0/auth/local/password/rotate` route re-verifies the current password
+(and MFA, when the account has one) and rotates the credential — revoke old +
+insert new (with `must_change_password=false`) — inside one transaction using
+a `FOR UPDATE OF c` row lock on the credential row
+(`selectLocalIdentityCredentialForUpdateQuery`), so a concurrent second
+rotation attempt against the same credential blocks on the row lock and, under
+Read Committed's EvalPlanQual recheck, sees the row already revoked once the
+first rotation commits — a stale password can never be accepted twice.
+
+### No-Regression Evidence
+
+Performance Evidence: the added column is read as one extra scalar in the
+existing single-row `selectLocalIdentityCredentialQuery`
+(`identity_local_credentials`, PK/unique-scoped join already returning ≤1 row)
+— no new query, no new join, no new index. The row-locked
+`selectLocalIdentityCredentialForUpdateQuery` variant is used only by the new
+low-frequency (human-rate, not reducer/ingester hot-path) rotation endpoint,
+never by login. `go test ./internal/storage/postgres/ -run
+'LocalIdentity|Bootstrap|MustChangePassword|RotateLocalIdentityPassword' -count=1`
+and the full `go test ./internal/storage/postgres/... -count=1` (1401 tests)
+both pass, proving the existing credential-select/insert/authenticate paths
+are unchanged for `must_change_password=false` (every credential before this
+issue, and the `generated`-mode bootstrap admin).
+
+### No-Observability-Change
+
+The new `must_change_password` wire status reuses the existing local-identity
+governance-audit event type (`governanceaudit.EventTypeIdentityAuthentication`,
+already used by login) with a distinct `reason_code` (`"must_change_password"`
+for the blocked-login denial, `"local_password_rotation_forced"` for a
+successful rotation), and a new value in the existing `status` enum
+(`LocalIdentitySessionResponse.status`, `openapi_components_auth.go`) that the
+console already knows how to render generically (it is the same response
+shape `mfa_required` already uses). No new `eshu_dp_*` metric, span name, or
+telemetry contract row: the rotation endpoint's writes (revoke, insert, clear
+lockout, consume bootstrap credential) reuse the exact same instrumented
+`ExecQueryer`/`InstrumentedDB` paths login and admin password-reset already go
+through.

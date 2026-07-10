@@ -47,6 +47,13 @@ type LocalIdentityBootstrapRecord struct {
 	RecoveryCodeHashes     []string
 	PolicyRevisionHash     string
 	CreatedAt              time.Time
+	// MustChangePassword forces a rotation before this credential can ever
+	// obtain a full session (issue #4976). Set true only for the
+	// ESHU_ADMIN_USERNAME/PASSWORD[_FILE]-seeded bootstrap admin
+	// (go/cmd/api/seed_initial_admin.go seedBootstrapAdminFromEnv); the
+	// ESHU_AUTH_BOOTSTRAP_MODE=generated path sets it false because the
+	// first-run setup wizard (#4965) already achieves effective rotation.
+	MustChangePassword bool
 }
 
 // LocalIdentityInvitationRecord stores one hash-only invite and role assignment.
@@ -105,6 +112,12 @@ const (
 	LocalIdentityAuthLocked LocalIdentityAuthStatus = "locked"
 	// LocalIdentityAuthDisabled means the local identity is disabled.
 	LocalIdentityAuthDisabled LocalIdentityAuthStatus = "disabled"
+	// LocalIdentityAuthMustChangePassword means the password and any required
+	// MFA proof both passed, but the credential is flagged
+	// must_change_password=true (issue #4976): no session is issued until the
+	// caller rotates the password through
+	// IdentitySubjectStore.RotateLocalIdentityPassword.
+	LocalIdentityAuthMustChangePassword LocalIdentityAuthStatus = "must_change_password"
 )
 
 // LocalIdentityAuthContext is the authorization context returned after login.
@@ -230,6 +243,27 @@ type localIdentityCredentialRow struct {
 	HasAdminRole       bool
 	HasActiveMFA       bool
 	PolicyRevisionHash string
+	MustChangePassword bool
+}
+
+// LocalIdentityPasswordRotation is a self-service credential rotation: the
+// caller proves the CURRENT password (and MFA recovery-code proof, if the
+// account has an active MFA factor) before the new password is accepted.
+// Unlike LocalIdentityPasswordReset (admin-only, requires an existing
+// all-scope session), rotation never depends on the caller already holding a
+// session -- it is the only path a must-change-password credential (issue
+// #4976) can use to ever obtain one. On success the new credential always has
+// must_change_password=false, whether or not it was true before.
+type LocalIdentityPasswordRotation struct {
+	SubjectIDHash             string
+	CurrentPassword           string
+	NewPasswordHash           string
+	NewPasswordAlgorithm      string
+	NewPasswordParametersHash string
+	CredentialID              string
+	MFARecoveryCodeHash       string
+	ConsumeRecoveryCodeAt     time.Time
+	Now                       time.Time
 }
 
 type localIdentityInvitationRow struct {

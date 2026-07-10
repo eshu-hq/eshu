@@ -74,4 +74,5 @@ var orderedBootstrapDefinitionNames = []string{
 	"provider_config_sealed_secret",
 	"identity_bootstrap_credential",
 	"identity_sign_in_policy",
+	"identity_local_credentials_must_change_password",
 }

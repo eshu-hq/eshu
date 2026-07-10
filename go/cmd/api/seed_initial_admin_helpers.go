@@ -31,10 +31,17 @@ import (
 // recovery-code hash: AuthenticateLocalIdentity requires MFA proof for every
 // admin-role login regardless of how the admin was seeded (see
 // seedInitialAdmin's doc comment).
+//
+// mustChangePassword forces rotation before this credential can ever obtain a
+// session (issue #4976): seedBootstrapAdminFromEnv passes true (the operator
+// already knows the ESHU_ADMIN_PASSWORD value, so it must be rotated before
+// use); seedBootstrapAdminGenerated passes false (the first-run setup wizard,
+// #4965, already achieves effective rotation for that path).
 func newBootstrapLocalIdentityRecord(
 	username, passwordHash string,
 	recoveryCodeHashes []string,
 	now time.Time,
+	mustChangePassword bool,
 ) pgstorage.LocalIdentityBootstrapRecord {
 	userID := newBootstrapID()
 	factorID := newBootstrapID()
@@ -52,6 +59,7 @@ func newBootstrapLocalIdentityRecord(
 		RecoveryCodeHashes:     recoveryCodeHashes,
 		PolicyRevisionHash:     query.IdentityHash(pgstorage.BootstrapAdminTenantID + ":" + pgstorage.BootstrapAdminWorkspaceID),
 		CreatedAt:              now,
+		MustChangePassword:     mustChangePassword,
 	}
 }
 

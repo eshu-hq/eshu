@@ -150,6 +150,7 @@ func TestOpenAPIIncludesLocalIdentityRoutes(t *testing.T) {
 		"/api/v0/auth/local/invitations",
 		"/api/v0/auth/local/invitations/accept",
 		"/api/v0/auth/local/users/{user_id}/password",
+		"/api/v0/auth/local/password/rotate",
 		"/api/v0/auth/local/users/{user_id}/mfa-reset",
 		"/api/v0/auth/local/users/{user_id}/disable",
 		"/api/v0/auth/local/api-tokens",
@@ -187,12 +188,19 @@ func TestOpenAPIIncludesLocalIdentityRoutes(t *testing.T) {
 		!strings.Contains(apiTokenDescription, "storage persists only token_hash") {
 		t.Fatalf("api token description missing one-time/hash-only contract: %v", apiTokens["description"])
 	}
+	rotate := mustMapField(t, mustMapField(t, paths, "/api/v0/auth/local/password/rotate"), "post")
+	rotateDescription, ok := rotate["description"].(string)
+	if !ok || !strings.Contains(rotateDescription, "Public pre-session route") ||
+		!strings.Contains(rotateDescription, "must_change_password") {
+		t.Fatalf("rotate description missing public/must_change_password contract: %v", rotate["description"])
+	}
 
 	components := mustMapField(t, spec, "components")
 	schemas := mustMapField(t, components, "schemas")
 	for _, schema := range []string{
 		"LocalIdentityBootstrapRequest",
 		"LocalIdentityLoginRequest",
+		"LocalIdentityPasswordRotationRequest",
 		"LocalIdentitySessionResponse",
 		"LocalIdentityAPITokenCreateRequest",
 		"LocalIdentityAPITokenResponse",

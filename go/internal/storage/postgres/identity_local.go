@@ -173,6 +173,31 @@ func (s *IdentitySubjectStore) AuthenticateLocalIdentity(
 	if bcrypt.CompareHashAndPassword([]byte(row.PasswordHash), []byte(attempt.Password)) != nil {
 		return s.recordFailedLocalIdentityAttempt(ctx, row, attempt.Now)
 	}
+	// Forced password rotation (issue #4976): checked right after the password
+	// proves out and BEFORE the MFA gate below. A must-change credential can
+	// never obtain a session through this login path regardless of MFA, so
+	// consuming the MFA recovery code here would burn it for nothing — and the
+	// env-seeded admin is seeded with a SINGLE one-time recovery code, so a
+	// consume here left it unable to complete RotateLocalIdentityPassword,
+	// which demands that same code again (codex PR #5054 P1 review). Deferring
+	// the MFA proof to rotation costs no security: the session is issued only
+	// at rotation, after password AND MFA both prove there. No session and none
+	// of the tail's session-issuance side effects run here; they happen inside
+	// RotateLocalIdentityPassword (identity_local_rotate.go) once the caller
+	// actually rotates.
+	if row.MustChangePassword {
+		return LocalIdentityAuthenticationResult{
+			Status: LocalIdentityAuthMustChangePassword,
+			Auth: LocalIdentityAuthContext{
+				TenantID:           row.TenantID,
+				WorkspaceID:        row.WorkspaceID,
+				SubjectIDHash:      row.SubjectIDHash,
+				SubjectClass:       "local_user",
+				PolicyRevisionHash: row.PolicyRevisionHash,
+				AllScopes:          row.HasAdminRole,
+			},
+		}, nil
+	}
 	// MFA at login is required unconditionally for every admin/owner, and for
 	// every other local user once the tenant's require_mfa_for_all_users
 	// sign-in policy is on (issue #5001, extending the invitation-accept-only
@@ -233,53 +258,7 @@ func (s *IdentitySubjectStore) AuthenticateLocalIdentity(
 			return LocalIdentityAuthenticationResult{}, err
 		}
 	}
-	if _, err := s.db.ExecContext(ctx, clearLocalIdentityFailedAttemptsQuery, row.UserID); err != nil {
-		return LocalIdentityAuthenticationResult{}, fmt.Errorf("clear local identity failed attempts: %w", err)
-	}
-	// Destroy the one-time bootstrap credential envelope on this subject's
-	// first successful login (epic #4962/#4963). This is a no-op for every
-	// login except the bootstrap admin's very first one: no matching row
-	// (env-seeded or sso-only/disabled bootstrap mode), or a row already
-	// consumed by an earlier login, both leave affected=0.
-	if _, err := s.ConsumeBootstrapCredential(ctx, row.TenantID, row.WorkspaceID, row.SubjectIDHash, attempt.Now); err != nil {
-		return LocalIdentityAuthenticationResult{}, fmt.Errorf("consume bootstrap credential: %w", err)
-	}
-	auth := LocalIdentityAuthContext{
-		TenantID:           row.TenantID,
-		WorkspaceID:        row.WorkspaceID,
-		SubjectIDHash:      row.SubjectIDHash,
-		SubjectClass:       "local_user",
-		PolicyRevisionHash: row.PolicyRevisionHash,
-		AllScopes:          row.HasAdminRole,
-	}
-	// All-scope (admin/owner) sessions stay fail-open exactly as before: no
-	// enforcement snapshot is attached. Only non-admin sessions carry the
-	// permission-catalog grant snapshot so the catalog enforces them.
-	if !auth.AllScopes {
-		roles, err := s.resolveLocalIdentityRoles(ctx, row.TenantID, row.WorkspaceID, row.UserID, attempt.Now)
-		if err != nil {
-			// Fails closed (no session issued). Log distinctly so an operator can
-			// tell a permission-catalog resolution outage from any other login 500.
-			slog.ErrorContext(ctx, "local session role resolution failed; login denied",
-				"subject_class", "local_user", "tenant_id", row.TenantID, "error", err)
-			return LocalIdentityAuthenticationResult{}, err
-		}
-		features, dataClasses, err := resolvePermissionGrantsForRoles(ctx, s.db, row.TenantID, roles, attempt.Now)
-		if err != nil {
-			slog.ErrorContext(ctx, "local session permission grant resolution failed; login denied",
-				"subject_class", "local_user", "tenant_id", row.TenantID, "role_count", len(roles), "error", err)
-			return LocalIdentityAuthenticationResult{}, err
-		}
-		auth.RoleIDs = roles
-		auth.PermissionCatalogEnforced = true
-		auth.AllowedPermissionFeatures = features
-		auth.AllowedPermissionDataClasses = dataClasses
-	}
-	return LocalIdentityAuthenticationResult{
-		Status:        LocalIdentityAuthAuthenticated,
-		Authenticated: true,
-		Auth:          auth,
-	}, nil
+	return s.finishLocalIdentityAuthentication(ctx, row, attempt.Now)
 }
 
 // resolveLocalIdentityRoles returns the active membership role IDs for one local
@@ -418,6 +397,7 @@ func insertBootstrapLocalIdentity(
 		PasswordAlgorithm:      record.PasswordAlgorithm,
 		PasswordParametersHash: record.PasswordParametersHash,
 		CreatedAt:              record.CreatedAt,
+		MustChangePassword:     record.MustChangePassword,
 	}); err != nil {
 		return err
 	}

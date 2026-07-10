@@ -50,6 +50,7 @@ func (h *LocalIdentityHandler) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v0/auth/local/invitations", h.handleCreateInvitation)
 	mux.HandleFunc("POST /api/v0/auth/local/invitations/accept", h.handleAcceptInvitation)
 	mux.HandleFunc("POST /api/v0/auth/local/users/{user_id}/password", h.handleResetPassword)
+	mux.HandleFunc("POST /api/v0/auth/local/password/rotate", h.handleRotatePassword)
 	mux.HandleFunc("POST /api/v0/auth/local/users/{user_id}/mfa-reset", h.handleResetMFA)
 	mux.HandleFunc("POST /api/v0/auth/local/users/{user_id}/disable", h.handleDisableUser)
 	mux.HandleFunc("POST /api/v0/auth/local/break-glass", h.handleEnableBreakGlass)
@@ -315,6 +316,67 @@ func (h *LocalIdentityHandler) handleResetPassword(w http.ResponseWriter, r *htt
 	}
 	h.auditLocalIdentity(r, governanceaudit.EventTypeIdentityAuthentication, governanceaudit.DecisionAllowed, "local_password_reset", "")
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// handleRotatePassword is the self-service forced-rotation surface (issue
+// #4976): unlike handleResetPassword (admin-only, requires an existing
+// all-scope session), this is public and re-proves the caller's identity
+// itself — current_password (and recovery_code, when the account has an
+// active MFA factor) — so a must-change-password credential (the
+// ESHU_ADMIN_USERNAME/PASSWORD[_FILE]-seeded bootstrap admin) can rotate and
+// obtain a session without ever having held one. Any local user may use this
+// route to voluntarily rotate their own password; success always clears
+// must_change_password regardless of its prior value.
+func (h *LocalIdentityHandler) handleRotatePassword(w http.ResponseWriter, r *http.Request) {
+	if !h.ready(w) {
+		return
+	}
+	var req localIdentityPasswordRotationRequest
+	if err := ReadJSON(r, &req); err != nil {
+		WriteError(w, http.StatusBadRequest, "invalid local identity password rotation request")
+		return
+	}
+	passwordHash, err := h.hashPassword(req.NewPassword)
+	if err != nil {
+		WriteError(w, http.StatusBadRequest, "invalid local identity password")
+		return
+	}
+	now := h.now()
+	result, err := h.Store.RotateLocalIdentityPassword(r.Context(), LocalIdentityPasswordRotation{
+		SubjectIDHash:             localIdentityHash(req.LoginID),
+		CurrentPassword:           req.CurrentPassword,
+		NewPasswordHash:           passwordHash,
+		NewPasswordAlgorithm:      "bcrypt",
+		NewPasswordParametersHash: localIdentityHash("bcrypt"),
+		CredentialID:              h.newID(),
+		MFARecoveryCodeHash:       localIdentityHash(req.RecoveryCode),
+		ConsumeRecoveryCodeAt:     now,
+		Now:                       now,
+	})
+	if err != nil {
+		h.auditLocalIdentity(r, governanceaudit.EventTypeIdentityAuthentication, governanceaudit.DecisionDenied, "local_password_rotation_error", "")
+		WriteError(w, http.StatusUnauthorized, "local identity password rotation failed")
+		return
+	}
+	if !result.Authenticated {
+		h.writeLocalIdentityUnauthenticated(w, r, result)
+		return
+	}
+	// require_sso gate (issue #4976, codex PR #5054 P1 review): rotation issues
+	// a browser session just like login, so it must honor the same tenant
+	// require_sso policy handleLogin enforces — otherwise a non-admin in a
+	// require_sso=true tenant could rotate their password with their current
+	// credential and obtain a local session, bypassing the SSO-only lockdown.
+	// Admins (AllScopes) pass this gate as break-glass, identical to login.
+	allowed, decision := h.requireSSODecision(r.Context(), result.Auth)
+	h.recordRequireSSOLoginGate(r.Context(), decision)
+	if !allowed {
+		h.auditLocalIdentity(r, governanceaudit.EventTypeIdentityAuthentication, governanceaudit.DecisionDenied, "local_password_rotation_denied_require_sso_policy", result.Auth.SubjectIDHash)
+		WriteError(w, http.StatusForbidden, "local sign-in is disabled by tenant policy; sign in with SSO, or an admin may use break-glass local sign-in")
+		return
+	}
+	h.auditLocalIdentity(r, governanceaudit.EventTypeIdentityAuthentication, governanceaudit.DecisionAllowed, "local_password_rotation_forced", result.Auth.SubjectIDHash)
+	h.issueLocalIdentitySession(w, r, result.Auth, string(result.Status), result.LockedUntil)
 }
 
 func (h *LocalIdentityHandler) handleResetMFA(w http.ResponseWriter, r *http.Request) {

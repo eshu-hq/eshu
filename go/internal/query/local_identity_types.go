@@ -19,6 +19,7 @@ type LocalIdentityStore interface {
 	CreateLocalIdentityInvitation(context.Context, LocalIdentityInvitationRecord) error
 	AcceptLocalIdentityInvitation(context.Context, LocalIdentityInvitationAcceptance) error
 	ResetLocalIdentityPassword(context.Context, LocalIdentityPasswordReset) error
+	RotateLocalIdentityPassword(context.Context, LocalIdentityPasswordRotation) (LocalIdentityAuthenticationResult, error)
 	ResetLocalIdentityMFA(context.Context, LocalIdentityMFAReset) error
 	DisableLocalIdentityUser(context.Context, LocalIdentityDisableUser) error
 	EnableLocalIdentityBreakGlass(context.Context, LocalIdentityBreakGlassWindow) error
@@ -101,6 +102,10 @@ const (
 	LocalIdentityAuthLocked LocalIdentityAuthStatus = "locked"
 	// LocalIdentityAuthDisabled means the local identity is disabled.
 	LocalIdentityAuthDisabled LocalIdentityAuthStatus = "disabled"
+	// LocalIdentityAuthMustChangePassword means the password and any required
+	// MFA proof both passed, but the credential must be rotated (issue #4976)
+	// through RotateLocalIdentityPassword before a session is issued.
+	LocalIdentityAuthMustChangePassword LocalIdentityAuthStatus = "must_change_password"
 )
 
 // LocalIdentityAuthContext is the query-layer auth context returned by storage.
@@ -138,6 +143,23 @@ type LocalIdentityPasswordReset struct {
 	PasswordAlgorithm      string
 	PasswordParametersHash string
 	ResetAt                time.Time
+}
+
+// LocalIdentityPasswordRotation is a self-service credential rotation: the
+// caller proves the CURRENT password (and MFA recovery-code proof, if the
+// account has an active MFA factor) before the new password is accepted and
+// a session is issued. Issue #4976's forced-rotation surface: it never
+// depends on the caller already holding a session.
+type LocalIdentityPasswordRotation struct {
+	SubjectIDHash             string
+	CurrentPassword           string
+	NewPasswordHash           string
+	NewPasswordAlgorithm      string
+	NewPasswordParametersHash string
+	CredentialID              string
+	MFARecoveryCodeHash       string
+	ConsumeRecoveryCodeAt     time.Time
+	Now                       time.Time
 }
 
 // LocalIdentityMFAReset replaces active MFA factors and recovery hashes.

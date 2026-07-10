@@ -51,6 +51,16 @@ const openAPIComponentsLocalIdentity = `
           "recovery_codes": {"type": "array", "items": {"type": "string"}}
         }
       },
+      "LocalIdentityPasswordRotationRequest": {
+        "type": "object",
+        "required": ["login_id", "current_password", "new_password"],
+        "properties": {
+          "login_id": {"type": "string"},
+          "current_password": {"type": "string", "format": "password"},
+          "new_password": {"type": "string", "format": "password"},
+          "recovery_code": {"type": "string", "format": "password", "description": "Required only when the account has an active MFA factor."}
+        }
+      },
       "LocalIdentityBreakGlassRequest": {
         "type": "object",
         "required": ["tenant_id", "workspace_id", "subject_id"],
@@ -91,7 +101,7 @@ const openAPIComponentsLocalIdentity = `
       "LocalIdentitySessionResponse": {
         "type": "object",
         "properties": {
-          "status": {"type": "string", "enum": ["authenticated", "mfa_required", "locked", "disabled", "invalid", "break_glass_authenticated"]},
+          "status": {"type": "string", "enum": ["authenticated", "mfa_required", "must_change_password", "locked", "disabled", "invalid", "break_glass_authenticated"]},
           "auth": {"$ref": "#/components/schemas/BrowserSessionAuth"},
           "csrf_token": {"type": "string"},
           "idle_expires_at": {"type": "string", "format": "date-time"},

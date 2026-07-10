@@ -1,0 +1,25 @@
+-- 053_identity_local_credentials_must_change_password.sql
+--
+-- Forced password rotation on first login (issue #4976, epic #4962/#4963).
+-- #4963's acceptance criterion requires the ESHU_ADMIN_USERNAME/PASSWORD[_FILE]
+-- -seeded bootstrap admin (go/cmd/api/seed_initial_admin.go
+-- seedBootstrapAdminFromEnv) to be forced to change its password on first
+-- login. The ESHU_AUTH_BOOTSTRAP_MODE=generated path already achieves
+-- effective forced rotation through the first-run setup wizard (#4965), so it
+-- sets this column false.
+--
+-- must_change_password is a dedicated column, deliberately not overloaded
+-- onto the pre-existing expires_at column: expiry and forced-rotation are
+-- different semantics (a credential can expire without ever having been
+-- force-rotated, and vice versa).
+--
+-- AuthenticateLocalIdentity (identity_local.go) checks this column AFTER
+-- password and MFA verification succeed and BEFORE issuing a session: a true
+-- value returns LocalIdentityAuthMustChangePassword instead of a session, so
+-- the credential is proven (not merely guessed) before rotation is required.
+-- The self-service POST /api/v0/auth/local/password/rotate endpoint clears it
+-- in the same transaction that revokes the old credential and inserts the
+-- rotated one, so a must-change credential can never be left in a state where
+-- the flag is cleared but the password was not actually rotated.
+ALTER TABLE identity_local_credentials
+    ADD COLUMN IF NOT EXISTS must_change_password BOOLEAN NOT NULL DEFAULT false;

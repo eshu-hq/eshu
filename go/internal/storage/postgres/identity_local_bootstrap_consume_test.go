@@ -35,6 +35,7 @@ func TestAuthenticateLocalIdentityConsumesBootstrapCredentialOnSuccessfulLogin(t
 		true, // has_admin_role
 		true, // has_active_mfa
 		"sha256:policy",
+		false, // must_change_password
 	})
 	// Admin login order: consume recovery code, clear failed attempts,
 	// consume bootstrap credential. The default fakeResult (RowsAffected=1)
@@ -94,6 +95,7 @@ func TestAuthenticateLocalIdentityConsumeIsNoOpForNonBootstrapSubject(t *testing
 		false, // has_admin_role: not the bootstrap subject, no MFA required
 		false,
 		"sha256:policy",
+		false, // must_change_password
 	})
 	// Non-admin exec order: clear failed attempts, then consume bootstrap
 	// credential. Queue the first with the harmless default and target the

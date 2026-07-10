@@ -49,6 +49,19 @@ type localIdentityPasswordResetRequest struct {
 	Password string `json:"password"`
 }
 
+// localIdentityPasswordRotationRequest is the self-service rotation body
+// (issue #4976): unlike localIdentityPasswordResetRequest (admin-only, path
+// carries the target user_id), this identifies the caller by login_id and
+// re-proves possession of the account with current_password (and
+// recovery_code, when the account has an active MFA factor) instead of
+// relying on an existing session.
+type localIdentityPasswordRotationRequest struct {
+	LoginID         string `json:"login_id"`
+	CurrentPassword string `json:"current_password"`
+	NewPassword     string `json:"new_password"`
+	RecoveryCode    string `json:"recovery_code"`
+}
+
 type localIdentityMFAResetRequest struct {
 	MFAFactorKind       string   `json:"mfa_factor_kind"`
 	MFACredentialHandle string   `json:"mfa_credential_handle"`
