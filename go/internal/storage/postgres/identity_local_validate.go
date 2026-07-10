@@ -148,6 +148,40 @@ func validatePasswordReset(reset LocalIdentityPasswordReset) error {
 	return nil
 }
 
+func normalizePasswordRotation(rotation LocalIdentityPasswordRotation) LocalIdentityPasswordRotation {
+	rotation.SubjectIDHash = strings.TrimSpace(rotation.SubjectIDHash)
+	rotation.NewPasswordHash = strings.TrimSpace(rotation.NewPasswordHash)
+	rotation.NewPasswordAlgorithm = strings.TrimSpace(rotation.NewPasswordAlgorithm)
+	rotation.NewPasswordParametersHash = strings.TrimSpace(rotation.NewPasswordParametersHash)
+	rotation.CredentialID = strings.TrimSpace(rotation.CredentialID)
+	rotation.MFARecoveryCodeHash = strings.TrimSpace(rotation.MFARecoveryCodeHash)
+	if rotation.Now.IsZero() {
+		rotation.Now = time.Now().UTC()
+	} else {
+		rotation.Now = rotation.Now.UTC()
+	}
+	if !rotation.ConsumeRecoveryCodeAt.IsZero() {
+		rotation.ConsumeRecoveryCodeAt = rotation.ConsumeRecoveryCodeAt.UTC()
+	}
+	return rotation
+}
+
+// validatePasswordRotation checks only the handler-controlled fields
+// (credential id, new-password hash/algorithm/parameters hash): these come
+// from server-side ID generation and bcrypt hashing, so an empty value means
+// a caller wiring bug, not a bad end-user request, and is a hard error.
+// SubjectIDHash and CurrentPassword are attacker-controlled request input;
+// RotateLocalIdentityPassword checks those itself and returns
+// LocalIdentityAuthInvalid (no error) for an empty value, mirroring
+// AuthenticateLocalIdentity's convention for malformed login proof.
+func validatePasswordRotation(rotation LocalIdentityPasswordRotation) error {
+	if rotation.NewPasswordHash == "" || rotation.NewPasswordAlgorithm == "" ||
+		rotation.NewPasswordParametersHash == "" || rotation.CredentialID == "" {
+		return errors.New("local identity password rotation is incomplete")
+	}
+	return nil
+}
+
 func normalizeMFAReset(reset LocalIdentityMFAReset) LocalIdentityMFAReset {
 	reset.UserID = strings.TrimSpace(reset.UserID)
 	reset.MFAFactorID = strings.TrimSpace(reset.MFAFactorID)

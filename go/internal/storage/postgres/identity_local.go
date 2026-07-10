@@ -233,53 +233,30 @@ func (s *IdentitySubjectStore) AuthenticateLocalIdentity(
 			return LocalIdentityAuthenticationResult{}, err
 		}
 	}
-	if _, err := s.db.ExecContext(ctx, clearLocalIdentityFailedAttemptsQuery, row.UserID); err != nil {
-		return LocalIdentityAuthenticationResult{}, fmt.Errorf("clear local identity failed attempts: %w", err)
+	// Forced password rotation (issue #4976): the credential is checked ONLY
+	// after password and (when required) MFA both proved, so the caller has
+	// demonstrated real possession before rotation is required — this is not
+	// a way to probe whether an account needs rotation without the password.
+	// No session is issued and none of the tail's session-issuance side
+	// effects run (clearing lockout, consuming the bootstrap credential,
+	// resolving roles): those all happen inside
+	// RotateLocalIdentityPassword (identity_local_rotate.go) once the caller
+	// actually rotates, exactly mirroring what a normal authenticated login
+	// would have done.
+	if row.MustChangePassword {
+		return LocalIdentityAuthenticationResult{
+			Status: LocalIdentityAuthMustChangePassword,
+			Auth: LocalIdentityAuthContext{
+				TenantID:           row.TenantID,
+				WorkspaceID:        row.WorkspaceID,
+				SubjectIDHash:      row.SubjectIDHash,
+				SubjectClass:       "local_user",
+				PolicyRevisionHash: row.PolicyRevisionHash,
+				AllScopes:          row.HasAdminRole,
+			},
+		}, nil
 	}
-	// Destroy the one-time bootstrap credential envelope on this subject's
-	// first successful login (epic #4962/#4963). This is a no-op for every
-	// login except the bootstrap admin's very first one: no matching row
-	// (env-seeded or sso-only/disabled bootstrap mode), or a row already
-	// consumed by an earlier login, both leave affected=0.
-	if _, err := s.ConsumeBootstrapCredential(ctx, row.TenantID, row.WorkspaceID, row.SubjectIDHash, attempt.Now); err != nil {
-		return LocalIdentityAuthenticationResult{}, fmt.Errorf("consume bootstrap credential: %w", err)
-	}
-	auth := LocalIdentityAuthContext{
-		TenantID:           row.TenantID,
-		WorkspaceID:        row.WorkspaceID,
-		SubjectIDHash:      row.SubjectIDHash,
-		SubjectClass:       "local_user",
-		PolicyRevisionHash: row.PolicyRevisionHash,
-		AllScopes:          row.HasAdminRole,
-	}
-	// All-scope (admin/owner) sessions stay fail-open exactly as before: no
-	// enforcement snapshot is attached. Only non-admin sessions carry the
-	// permission-catalog grant snapshot so the catalog enforces them.
-	if !auth.AllScopes {
-		roles, err := s.resolveLocalIdentityRoles(ctx, row.TenantID, row.WorkspaceID, row.UserID, attempt.Now)
-		if err != nil {
-			// Fails closed (no session issued). Log distinctly so an operator can
-			// tell a permission-catalog resolution outage from any other login 500.
-			slog.ErrorContext(ctx, "local session role resolution failed; login denied",
-				"subject_class", "local_user", "tenant_id", row.TenantID, "error", err)
-			return LocalIdentityAuthenticationResult{}, err
-		}
-		features, dataClasses, err := resolvePermissionGrantsForRoles(ctx, s.db, row.TenantID, roles, attempt.Now)
-		if err != nil {
-			slog.ErrorContext(ctx, "local session permission grant resolution failed; login denied",
-				"subject_class", "local_user", "tenant_id", row.TenantID, "role_count", len(roles), "error", err)
-			return LocalIdentityAuthenticationResult{}, err
-		}
-		auth.RoleIDs = roles
-		auth.PermissionCatalogEnforced = true
-		auth.AllowedPermissionFeatures = features
-		auth.AllowedPermissionDataClasses = dataClasses
-	}
-	return LocalIdentityAuthenticationResult{
-		Status:        LocalIdentityAuthAuthenticated,
-		Authenticated: true,
-		Auth:          auth,
-	}, nil
+	return s.finishLocalIdentityAuthentication(ctx, row, attempt.Now)
 }
 
 // resolveLocalIdentityRoles returns the active membership role IDs for one local
@@ -418,6 +395,7 @@ func insertBootstrapLocalIdentity(
 		PasswordAlgorithm:      record.PasswordAlgorithm,
 		PasswordParametersHash: record.PasswordParametersHash,
 		CreatedAt:              record.CreatedAt,
+		MustChangePassword:     record.MustChangePassword,
 	}); err != nil {
 		return err
 	}

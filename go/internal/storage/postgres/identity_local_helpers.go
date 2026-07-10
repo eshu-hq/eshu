@@ -43,7 +43,35 @@ func selectLocalIdentityCredential(
 	subjectIDHash string,
 	asOf time.Time,
 ) (localIdentityCredentialRow, bool, error) {
-	rows, err := db.QueryContext(ctx, selectLocalIdentityCredentialQuery, subjectIDHash, asOf)
+	return scanLocalIdentityCredential(ctx, db, selectLocalIdentityCredentialQuery, subjectIDHash, asOf)
+}
+
+// selectLocalIdentityCredentialForUpdate is selectLocalIdentityCredential
+// against the row-locking query variant (see
+// selectLocalIdentityCredentialForUpdateQuery); it must be called inside a
+// transaction.
+func selectLocalIdentityCredentialForUpdate(
+	ctx context.Context,
+	tx ExecQueryer,
+	subjectIDHash string,
+	asOf time.Time,
+) (localIdentityCredentialRow, bool, error) {
+	return scanLocalIdentityCredential(ctx, tx, selectLocalIdentityCredentialForUpdateQuery, subjectIDHash, asOf)
+}
+
+// scanLocalIdentityCredential runs one credential-select query variant and
+// scans its single-row result. Shared by selectLocalIdentityCredential (plain
+// read, used by login) and selectLocalIdentityCredentialForUpdate (row-locked
+// read, used by RotateLocalIdentityPassword) so the column list and scan order
+// can never drift between the two query texts.
+func scanLocalIdentityCredential(
+	ctx context.Context,
+	db ExecQueryer,
+	query string,
+	subjectIDHash string,
+	asOf time.Time,
+) (localIdentityCredentialRow, bool, error) {
+	rows, err := db.QueryContext(ctx, query, subjectIDHash, asOf)
 	if err != nil {
 		return localIdentityCredentialRow{}, false, fmt.Errorf("select local identity credential: %w", err)
 	}
@@ -67,6 +95,7 @@ func selectLocalIdentityCredential(
 		&row.HasAdminRole,
 		&row.HasActiveMFA,
 		&row.PolicyRevisionHash,
+		&row.MustChangePassword,
 	); err != nil {
 		return localIdentityCredentialRow{}, false, fmt.Errorf("select local identity credential: %w", err)
 	}
@@ -136,6 +165,9 @@ type localIdentityUserCredentialRecord struct {
 	PasswordAlgorithm      string
 	PasswordParametersHash string
 	CreatedAt              time.Time
+	// MustChangePassword forces rotation before this credential can obtain a
+	// session (issue #4976). See LocalIdentityBootstrapRecord.MustChangePassword.
+	MustChangePassword bool
 }
 
 type localIdentityRoleAssignment struct {
@@ -165,6 +197,7 @@ func insertLocalIdentityUserCredential(
 		record.PasswordAlgorithm,
 		record.PasswordParametersHash,
 		record.CreatedAt,
+		record.MustChangePassword,
 	); err != nil {
 		return fmt.Errorf("insert local identity credential: %w", err)
 	}

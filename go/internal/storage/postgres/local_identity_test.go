@@ -31,6 +31,7 @@ func TestAuthenticateLocalIdentityRequiresMFAForOwner(t *testing.T) {
 		true,
 		true,
 		"sha256:policy",
+		false, // must_change_password
 	})
 	store := NewIdentitySubjectStore(db)
 
@@ -64,6 +65,7 @@ func TestAuthenticateLocalIdentityConsumesRecoveryCode(t *testing.T) {
 		true,
 		true,
 		"sha256:policy",
+		false, // must_change_password
 	})
 	store := NewIdentitySubjectStore(db)
 
@@ -114,6 +116,7 @@ func TestAuthenticateLocalIdentityPreservesPasswordWhitespace(t *testing.T) {
 		false,
 		false,
 		"sha256:policy",
+		false, // must_change_password
 	})
 	store := NewIdentitySubjectStore(db)
 
@@ -149,6 +152,7 @@ func TestAuthenticateLocalIdentityNonAdminResolvesPermissionGrants(t *testing.T)
 			false, // has_admin_role
 			false, // has_active_mfa
 			"sha256:policy",
+			false, // must_change_password
 		}}},
 		{rows: nil}, // signInPolicyRequiresMFAForUsers: off (regression guard, issue #5001)
 		{rows: [][]any{{"role_reader"}}},
@@ -212,6 +216,7 @@ func TestAuthenticateLocalIdentityAdminStaysFailOpen(t *testing.T) {
 			true, // has_admin_role
 			true, // has_active_mfa
 			"sha256:policy",
+			false, // must_change_password
 		}}},
 		// No second entry: admins never read require_mfa_for_all_users (issue
 		// #5001 P1 review finding — admin login must survive a policy-read
@@ -259,6 +264,7 @@ func TestAuthenticateLocalIdentityLocksAfterFailedPassword(t *testing.T) {
 		true,
 		true,
 		"sha256:policy",
+		false, // must_change_password
 	})
 	store := NewIdentitySubjectStore(db)
 
@@ -298,6 +304,7 @@ func TestAuthenticateLocalIdentityLocksAfterFailedMFARecoveryCode(t *testing.T) 
 		true,
 		true,
 		"sha256:policy",
+		false, // must_change_password
 	})
 	db.execResults = []sql.Result{fakeRowsAffected{n: 0}}
 	store := NewIdentitySubjectStore(db)

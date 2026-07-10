@@ -41,6 +41,7 @@ func (s *IdentitySubjectStore) ResetLocalIdentityPassword(
 		reset.PasswordAlgorithm,
 		reset.PasswordParametersHash,
 		reset.ResetAt,
+		false, // an admin-driven reset always clears must_change_password too
 	); err != nil {
 		return fmt.Errorf("insert reset local identity credential: %w", err)
 	}

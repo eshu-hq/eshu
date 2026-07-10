@@ -34,6 +34,7 @@ func nonAdminAuthCredentialRow(t *testing.T, password string, hasActiveMFA bool,
 		false, // has_admin_role
 		hasActiveMFA,
 		"sha256:policy",
+		false, // must_change_password
 	}
 }
 
@@ -243,6 +244,7 @@ func TestAuthenticateLocalIdentityAdminAuthenticatesWithoutPolicyReadEvenIfItWou
 			true, // has_admin_role
 			true, // has_active_mfa
 			"sha256:policy",
+			false, // must_change_password
 		}}},
 		// Deliberately no second entry: an admin login must not issue a
 		// signInPolicyRequiresMFAForUsers query at all.

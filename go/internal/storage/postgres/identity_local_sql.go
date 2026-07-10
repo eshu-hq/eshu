@@ -41,8 +41,9 @@ INSERT INTO identity_local_credentials (
     created_at,
     rotated_at,
     expires_at,
-    revoked_at
-) VALUES ($1, $2, $3, $4, $5, 'active', $6, $6, NULL, NULL)
+    revoked_at,
+    must_change_password
+) VALUES ($1, $2, $3, $4, $5, 'active', $6, $6, NULL, NULL, $7)
 `
 
 const insertLocalIdentityMFAFactorQuery = `
@@ -229,7 +230,8 @@ SELECT
           AND f.status = 'active'
           AND f.revoked_at IS NULL
     ) AS has_active_mfa,
-    m.policy_revision_hash
+    m.policy_revision_hash,
+    c.must_change_password
 FROM identity_users u
 JOIN identity_local_credentials c ON c.user_id = u.user_id
 JOIN identity_tenant_memberships m ON m.user_id = u.user_id
@@ -245,6 +247,20 @@ WHERE u.subject_id_hash = $1
   AND (m.expires_at IS NULL OR m.expires_at > $2)
 ORDER BY m.effective_at DESC, c.rotated_at DESC
 LIMIT 1
+`
+
+// selectLocalIdentityCredentialForUpdateQuery is selectLocalIdentityCredentialQuery
+// plus a row lock scoped to the identity_local_credentials row only (FOR
+// UPDATE OF c). RotateLocalIdentityPassword (identity_local_rotate.go) uses
+// this inside a transaction so a concurrent second rotation attempt against
+// the same credential blocks on the row lock, then re-evaluates
+// "c.status = 'active'" against the first rotation's committed result under
+// Read Committed's EvalPlanQual recheck: the second transaction sees the
+// credential already revoked and returns no row, rather than accepting a
+// stale password a second time (issue #4976 concurrency requirement).
+// #nosec G101 -- SQL SELECT whose const name contains "Credential"; the value is a fully-parameterized query selecting the password_hash column, not a credential literal
+const selectLocalIdentityCredentialForUpdateQuery = selectLocalIdentityCredentialQuery + `
+FOR UPDATE OF c
 `
 
 const upsertLocalIdentityFailedAttemptQuery = `

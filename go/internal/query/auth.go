@@ -30,6 +30,13 @@ var publicHTTPPaths = map[string]bool{
 	"/api/v0/auth/local/login":               true,
 	"/api/v0/auth/local/invitations/accept":  true,
 	"/api/v0/auth/local/break-glass/session": true,
+	// Self-service forced password rotation (issue #4976): a
+	// must-change-password credential (the ESHU_ADMIN_USERNAME/PASSWORD
+	// [_FILE]-seeded bootstrap admin) never has a session, so this route must
+	// bypass AuthMiddleware and rely entirely on RotateLocalIdentityPassword's
+	// own current-password (and MFA, when the account has an active factor)
+	// re-proof, exactly like /api/v0/auth/local/login above.
+	"/api/v0/auth/local/password/rotate": true,
 	// First-run setup wizard (#4965): a fresh deployment has no session,
 	// bearer token, or prior credential, so these routes must bypass
 	// AuthMiddleware and rely entirely on their own bootstrap-credential

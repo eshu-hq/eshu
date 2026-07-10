@@ -110,6 +110,43 @@ func (a *postgresLocalIdentityAdapter) AuthenticateLocalIdentity(
 	}, nil
 }
 
+func (a *postgresLocalIdentityAdapter) RotateLocalIdentityPassword(
+	ctx context.Context,
+	rotation query.LocalIdentityPasswordRotation,
+) (query.LocalIdentityAuthenticationResult, error) {
+	result, err := a.store.RotateLocalIdentityPassword(ctx, pgstatus.LocalIdentityPasswordRotation{
+		SubjectIDHash:             rotation.SubjectIDHash,
+		CurrentPassword:           rotation.CurrentPassword,
+		NewPasswordHash:           rotation.NewPasswordHash,
+		NewPasswordAlgorithm:      rotation.NewPasswordAlgorithm,
+		NewPasswordParametersHash: rotation.NewPasswordParametersHash,
+		CredentialID:              rotation.CredentialID,
+		MFARecoveryCodeHash:       rotation.MFARecoveryCodeHash,
+		ConsumeRecoveryCodeAt:     rotation.ConsumeRecoveryCodeAt,
+		Now:                       rotation.Now,
+	})
+	if err != nil {
+		return query.LocalIdentityAuthenticationResult{}, err
+	}
+	return query.LocalIdentityAuthenticationResult{
+		Status:        query.LocalIdentityAuthStatus(result.Status),
+		Authenticated: result.Authenticated,
+		Auth: query.LocalIdentityAuthContext{
+			TenantID:                     result.Auth.TenantID,
+			WorkspaceID:                  result.Auth.WorkspaceID,
+			SubjectIDHash:                result.Auth.SubjectIDHash,
+			SubjectClass:                 result.Auth.SubjectClass,
+			PolicyRevisionHash:           result.Auth.PolicyRevisionHash,
+			AllScopes:                    result.Auth.AllScopes,
+			RoleIDs:                      append([]string(nil), result.Auth.RoleIDs...),
+			PermissionCatalogEnforced:    result.Auth.PermissionCatalogEnforced,
+			AllowedPermissionFeatures:    append([]string(nil), result.Auth.AllowedPermissionFeatures...),
+			AllowedPermissionDataClasses: append([]string(nil), result.Auth.AllowedPermissionDataClasses...),
+		},
+		LockedUntil: result.LockedUntil,
+	}, nil
+}
+
 func (a *postgresLocalIdentityAdapter) CreateLocalIdentityInvitation(
 	ctx context.Context,
 	record query.LocalIdentityInvitationRecord,

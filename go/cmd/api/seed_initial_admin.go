@@ -150,7 +150,10 @@ func seedBootstrapAdminFromEnv(
 		return "error", fmt.Errorf("hash bootstrap admin password: %w", err)
 	}
 
-	record := newBootstrapLocalIdentityRecord(username, string(passwordHash), []string{recoveryHash}, now)
+	// mustChangePassword=true (issue #4976): the operator supplied this
+	// password directly via ESHU_ADMIN_PASSWORD[_FILE], so it must be rotated
+	// before the admin obtains a session.
+	record := newBootstrapLocalIdentityRecord(username, string(passwordHash), []string{recoveryHash}, now, true)
 	if err := store.BootstrapLocalIdentity(ctx, record); err != nil {
 		if errors.Is(err, pgstorage.ErrLocalIdentityBootstrapCompleted) {
 			logAlreadyProvisioned(logger)
@@ -230,7 +233,10 @@ func seedBootstrapAdminGenerated(
 	if err != nil {
 		return "error", fmt.Errorf("hash bootstrap admin password: %w", err)
 	}
-	record := newBootstrapLocalIdentityRecord(username, string(passwordHash), []string{recoveryHash}, now)
+	// mustChangePassword=false (issue #4976): the generated path already
+	// achieves effective forced rotation through the first-run setup wizard
+	// (#4965), so this credential does not additionally require it.
+	record := newBootstrapLocalIdentityRecord(username, string(passwordHash), []string{recoveryHash}, now, false)
 
 	payload, err := json.Marshal(bootstrapCredentialPayload{ // #nosec G117 -- intentionally marshaling the bootstrap credential payload immediately before AEAD sealing (keyring.Seal below); the JSON never leaves this function unencrypted
 		Username:     username,

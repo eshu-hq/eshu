@@ -375,6 +375,32 @@ const openAPIPathsAuth = `
         }
       }
     },
+    "/api/v0/auth/local/password/rotate": {
+      "post": {
+        "tags": ["auth"],
+        "summary": "Self-service local identity password rotation",
+        "description": "Public pre-session route (issue #4976). Re-proves the caller's current_password (and recovery_code, when the account has an active MFA factor) instead of relying on an existing session, then stores a new bcrypt password hash and clears must_change_password. This is the only way a must_change_password=true credential -- the ESHU_ADMIN_USERNAME/PASSWORD[_FILE]-seeded bootstrap admin -- can ever obtain a session; any local user may also use it to voluntarily rotate their own password. Returns the same LocalIdentitySessionResponse shape as login: mfa_required (202) when the account has an active MFA factor and no recovery_code was submitted, locked (423) after too many failed attempts, or invalid (401) for a wrong current_password.",
+        "operationId": "rotateLocalIdentityPassword",
+        "requestBody": {
+          "required": true,
+          "content": {"application/json": {"schema": {"$ref": "#/components/schemas/LocalIdentityPasswordRotationRequest"}}}
+        },
+        "responses": {
+          "200": {
+            "description": "Password rotated; browser session issued.",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/LocalIdentitySessionResponse"}}}
+          },
+          "202": {
+            "description": "Credential proof accepted but more proof (MFA recovery code) or another rotation is still required.",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/LocalIdentitySessionResponse"}}}
+          },
+          "400": {"$ref": "#/components/responses/BadRequest"},
+          "401": {"description": "Wrong current_password or unknown login_id."},
+          "423": {"description": "Local login is temporarily locked after repeated failed proof attempts."},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"}
+        }
+      }
+    },
     "/api/v0/auth/local/users/{user_id}/mfa-reset": {
       "post": {
         "tags": ["auth"],
