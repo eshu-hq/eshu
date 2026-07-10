@@ -29,7 +29,7 @@ at every hop.
 <li>
 <p><strong>Reference</strong></p>
 <p>Look up API, MCP, CLI, environment, and contract details.</p>
-<p><a href="reference/cli-reference/">See reference</a></p>
+<p><a href="reference/">See reference</a></p>
 </li>
 </ul>
 </div>
