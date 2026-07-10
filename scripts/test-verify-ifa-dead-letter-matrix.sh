@@ -34,6 +34,17 @@ require() {
 # Strict mode and self-cleanup, shared with every sibling verify-ifa-*.sh.
 require "strict mode" "set -euo pipefail"
 require "exit trap" "trap cleanup EXIT"
+# The bash>=4.4 precondition guard MUST stay: under bash 3.2 a nounset abort is
+# masked by the exit trap above as a false PASS. Pin the exact check so a
+# refactor cannot silently drop it.
+require "bash>=4.4 guard (masking-safe)" "requires bash >= 4.4"
+# verify-ifa-dead-letter-determinism.sh is the single-N failure-classification
+# sibling this matrix reuses (its mutation + terminal-condition SQL). It has no
+# test mirror of its own but shares the same masking-capable set -u + EXIT-trap
+# pattern, so assert its bash>=4 guard here too.
+dld_sibling="${repo_root}/scripts/verify-ifa-dead-letter-determinism.sh"
+rg --fixed-strings --quiet -- 'requires bash >= 4.4' "${dld_sibling}" \
+	|| fail "verify-ifa-dead-letter-determinism.sh missing the bash>=4 guard"
 require "sources shared lib" "scripts/lib/ifa_determinism_common.sh"
 require "failure log dump" "host binary logs (failure)"
 require "--no-compose flag" "--no-compose"

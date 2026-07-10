@@ -27,6 +27,10 @@ require() {
 # Strict mode and self-cleanup.
 require "strict mode" "set -euo pipefail"
 require "exit trap" "trap cleanup EXIT"
+# The bash>=4.4 precondition guard MUST stay: under bash 3.2 a nounset abort is
+# masked by the exit trap above as a false PASS. Pin the exact check so a
+# refactor cannot silently drop it.
+require "bash>=4.4 guard (masking-safe)" "requires bash >= 4.4"
 # Background pids must be recorded in the PARENT shell (printf -v), or the
 # cleanup trap reaps nothing on a failure path and leaks host processes.
 require "parent-shell pid capture" "printf -v"
