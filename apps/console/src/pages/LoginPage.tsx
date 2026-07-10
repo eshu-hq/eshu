@@ -32,6 +32,7 @@ import {
 import { useState, useEffect, type FormEvent } from "react";
 
 import { AuthBrandMark } from "./AuthBrandMark";
+import { loadPublicRequireSSO } from "../api/adminSignInPolicy";
 import {
   loginLocal,
   listAuthProviders,
@@ -41,7 +42,6 @@ import {
   INSECURE_COOKIE_ORIGIN_MESSAGE,
 } from "../api/authSession";
 import type { AuthLoginProvider, InsecureCookieOrigin } from "../api/authSession";
-import { loadPublicRequireSSO } from "../api/adminSignInPolicy";
 import type { BrowserSessionResponse } from "../api/client";
 import type { EshuApiClient } from "../api/client";
 import "./authFlow.css";
