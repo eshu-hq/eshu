@@ -606,24 +606,25 @@ until an operator or test claims the sealed one-time bootstrap credential (see
 | `ESHU_E2E_MOCK_OIDC_EMAIL` | `member.user@example.test` | Synthetic identity's `email` claim. |
 | `ESHU_E2E_MOCK_OIDC_GROUPS` | `member` | Comma-separated group claim values for the synthetic identity. |
 
-This foundation does not yet configure a DB-backed OIDC provider config
-pointing Eshu at the mock IdP or run in CI — see
-`go/cmd/mock-oidc-idp/README.md` for the mock IdP's endpoint contract and
-issue #4971 for the remaining phases.
-
-Phase 2 adds a browser-auth runner that drives this stack end to end for the
-non-OIDC acceptance items: `npm run console:e2e:auth`
+A browser-auth runner drives this stack end to end for all six #4971
+acceptance items: `npm run console:e2e:auth`
 (`apps/console/e2e/runAuthE2E.ts`, wrapped by `scripts/run-auth-e2e.sh`,
-documented in `apps/console/README.md#browser-auth-e2e-gate`). It proves the
-first-run setup wizard and bootstrap-credential consumption end to end. Its
-`require_sso` guardrail-rejection assertion currently fails: it uncovered a
-pre-existing gap where `GET`/`PATCH /api/v0/auth/admin/sign-in-policy` are
-missing from `go/internal/query/auth_scoped_routes.go`'s browser-session
-route allowlist, so a real admin's browser-session cookie gets 403 before the
-guardrail logic in `sign_in_policy_mutations.go` ever runs — tracked as a
-follow-up fix, not a phase-3 item. This runner does not yet drive a browser
-through the OIDC login flow itself — that needs the mock IdP reachable from
-both the API container and the host browser, which is issue #4971 phase 3.
+documented in `apps/console/README.md#browser-auth-e2e-gate`). On a fresh,
+zero-identity stack it proves the first-run setup wizard and
+bootstrap-credential consumption; configures a DB-backed OIDC provider config
+pointing Eshu at the mock IdP through the real Admin UI (add → test → enable);
+completes a full browser OIDC redirect → mock IdP → callback login as a
+non-admin member and asserts `/admin` 403 gating; enables `require_sso` with
+local break-glass; and runs a negative-secret-leakage scan
+(`apps/console/e2e/authE2ELeakage.ts`). The `require_sso` guardrail-rejection
+assertion passes (its earlier failure caught a real, since-fixed gap — missing
+`GET`/`PATCH /api/v0/auth/admin/sign-in-policy` entries in
+`go/internal/query/auth_scoped_routes.go`'s browser-session allowlist, fixed
+in #5004/#5006). The gate also runs in CI as the `auth-sso-e2e` job in
+`.github/workflows/frontend.yml`. The mock IdP is reachable from both the API
+container (Compose network) and the host browser (via Chromium
+`--host-resolver-rules`); see `go/cmd/mock-oidc-idp/README.md` for its endpoint
+contract.
 
 ## Point CLI Commands At Compose
 
