@@ -156,6 +156,66 @@ func TestFaultingWorkSourceMidHandlerRendezvousBlocksUntilClaimed(t *testing.T) 
 	}
 }
 
+// TestFaultingWorkSourceUnfiredFaults proves UnfiredFaults reports a
+// kill-worker-after-claim fault whose after_claims ordinal is never reached
+// (the schedule never generates that many claims) and reports nothing once
+// the scripted ordinal is actually reached -- the P1 regression's decorator-
+// level proof for this fault kind.
+func TestFaultingWorkSourceUnfiredFaults(t *testing.T) {
+	t.Parallel()
+
+	t.Run("never fires", func(t *testing.T) {
+		t.Parallel()
+		schedule := []reducer.Intent{{IntentID: "a"}, {IntentID: "b"}}
+		inner := schedulereplay.NewScheduledWorkSource(schedule)
+		src, err := faultreplay.NewFaultingWorkSource(inner, afterClaimsScript(50))
+		if err != nil {
+			t.Fatalf("NewFaultingWorkSource: %v", err)
+		}
+		for i := 0; ; i++ {
+			if i > 10 {
+				t.Fatal("Claim loop did not terminate")
+			}
+			_, ok, err := src.Claim(context.Background())
+			if err != nil {
+				t.Fatalf("Claim: %v", err)
+			}
+			if !ok {
+				break
+			}
+		}
+		unfired := src.UnfiredFaults()
+		if len(unfired) != 1 {
+			t.Fatalf("UnfiredFaults() = %v, want exactly one entry for the never-reached after_claims=50 fault", unfired)
+		}
+	})
+
+	t.Run("fires", func(t *testing.T) {
+		t.Parallel()
+		schedule := []reducer.Intent{{IntentID: "a"}, {IntentID: "b"}}
+		inner := schedulereplay.NewScheduledWorkSource(schedule)
+		src, err := faultreplay.NewFaultingWorkSource(inner, afterClaimsScript(1))
+		if err != nil {
+			t.Fatalf("NewFaultingWorkSource: %v", err)
+		}
+		for i := 0; ; i++ {
+			if i > 10 {
+				t.Fatal("Claim loop did not terminate")
+			}
+			_, ok, err := src.Claim(context.Background())
+			if err != nil {
+				t.Fatalf("Claim: %v", err)
+			}
+			if !ok {
+				break
+			}
+		}
+		if unfired := src.UnfiredFaults(); len(unfired) != 0 {
+			t.Fatalf("UnfiredFaults() = %v, want none (the after_claims=1 fault fired)", unfired)
+		}
+	})
+}
+
 // TestFaultingWorkSourceRejectsUnsupportedFaultKinds proves construction
 // fails loudly for faults this hermetic tier cannot honor
 // (restart-backend-between-phase-groups) and for more than one

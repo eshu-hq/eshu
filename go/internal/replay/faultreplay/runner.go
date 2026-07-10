@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -49,10 +50,13 @@ type Report struct {
 	// Acked is the number of successful intent completions, including any
 	// fault-scripted redelivery that eventually succeeded.
 	Acked int64
-	// FailedIntentIDs lists every intent ID that landed in the sink's terminal
-	// failed set, in the order Fail was observed. A correct fail-terminal
-	// script produces exactly one entry naming the scripted intent; every
-	// other fault class in this package always recovers, producing none.
+	// FailedIntentIDs is the durable/terminal SET of intent IDs that never
+	// recovered, in first-Fail order, with each ID appearing at most once even
+	// if its intent was delivered (and failed) more than once -- a duplicate
+	// schedule or a redelivery fault targeting an already-failed intent must
+	// not multiply the same dead letter. A correct fail-terminal script
+	// produces exactly one entry naming the scripted intent; every other
+	// fault class in this package always recovers, producing none.
 	FailedIntentIDs []string
 }
 
@@ -148,6 +152,9 @@ func RunFault(ctx context.Context, cfg Config) (Report, error) {
 	if execErr := applyExec.firstErr(); execErr != nil {
 		return Report{}, execErr
 	}
+	if err := verifyAllFaultsFired(source, faultExec); err != nil {
+		return Report{}, err
+	}
 
 	snap, err := graph.Canonical()
 	if err != nil {
@@ -181,6 +188,32 @@ func extraDrainCount(s Script) int {
 		}
 	}
 	return extra
+}
+
+// verifyAllFaultsFired ensures every scripted fault actually fired at least
+// once before RunFault reports success. A scripted fault that never fires --
+// an after_claims or statement_ordinal ordinal the run never reached, an
+// intent_id that never matched a real scheduled intent, or an
+// operation_match that never matched -- is a broken or inert fault script:
+// without this check the run converges on the fault-free graph and the
+// Layer 4 acceptance passes vacuously (the measured-inert false-green class
+// this platform exists to catch). It aggregates the per-fault firing state
+// both decorators track: FaultingWorkSource owns kill-worker-after-claim;
+// FaultingExecutor owns expire-lease-mid-handler, both lanes of
+// fail-graph-write-once-then-succeed, and fail-terminal. This check runs for
+// every fault kind uniformly -- it does not special-case the lane or kind
+// that first surfaced the bug.
+func verifyAllFaultsFired(source *FaultingWorkSource, exec *FaultingExecutor) error {
+	var unfired []string
+	unfired = append(unfired, source.UnfiredFaults()...)
+	unfired = append(unfired, exec.UnfiredFaults()...)
+	if len(unfired) == 0 {
+		return nil
+	}
+	return fmt.Errorf(
+		"fault replay: scripted fault(s) never fired -- inert script, not a valid fault-free pass: %s",
+		strings.Join(unfired, "; "),
+	)
 }
 
 // awaitFaultDrain blocks until every scripted intent (plus every fault-
@@ -307,13 +340,16 @@ func (e *canonicalApplyExecutor) firstErr() error {
 //     never decreases, so awaitFaultDrain's "has every scripted completion,
 //     including every fault-injected redelivery, happened yet" check is safe
 //     against a Fail-then-later-Ack sequence for the same intent; and
-//   - the reconciled terminalFailed set: an intent added on Fail is removed
+//   - the reconciled terminalFailed SET: an intent added on Fail is removed
 //     again if a later Ack lands for the same intent ID (the queue-retry lane
-//     fails once, transiently, then recovers -- that is not a dead letter).
+//     fails once, transiently, then recovers -- that is not a dead letter),
+//     and a repeated Fail for an ID already in the set does not add a second
+//     copy (a redelivered or duplicate-scheduled fail-terminal intent fails on
+//     every delivery, but must still surface as exactly one dead letter).
 //     Only an intent that fails and never later acks (fail-terminal) survives
 //     in terminalFailed to the end of the run, which is what Report.
 //     FailedIntentIDs must reflect: "dead letters appear only where the
-//     script injected a terminal failure."
+//     script injected a terminal failure," each listed once.
 //
 // Unlike schedulereplay's countingSink, a non-zero terminalFailed set is not
 // itself an error here -- see awaitFaultDrain's doc comment.
@@ -341,7 +377,19 @@ func (s *faultingSink) Ack(_ context.Context, intent reducer.Intent, _ reducer.R
 func (s *faultingSink) Fail(_ context.Context, intent reducer.Intent, _ error) error {
 	s.failedEventCount.Add(1)
 	s.mu.Lock()
-	s.terminalFailed = append(s.terminalFailed, intent.IntentID)
+	// terminalFailed is a SET, not a raw Fail-event log: a redelivered or
+	// duplicate-scheduled intent that fails on every delivery (fail-terminal)
+	// must still surface exactly one dead-letter ID, not one per delivery.
+	alreadyFailed := false
+	for _, id := range s.terminalFailed {
+		if id == intent.IntentID {
+			alreadyFailed = true
+			break
+		}
+	}
+	if !alreadyFailed {
+		s.terminalFailed = append(s.terminalFailed, intent.IntentID)
+	}
 	s.mu.Unlock()
 	return nil
 }

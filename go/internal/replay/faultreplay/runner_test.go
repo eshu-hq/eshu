@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -225,6 +226,137 @@ func TestFaultReplayFailsWhenContextCanceledBeforeDrain(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatalf("expected an error when the context is canceled before drain, got nil snapshot of %d bytes (would mask a non-draining replay)", len(report.Snapshot))
+	}
+}
+
+// TestFaultReplayFailsOnInertExecutorRetryFault is the P1 regression: an
+// executor-retry-lane fail-graph-write-once-then-succeed fault whose
+// statement_ordinal never matches any Execute call (out of range for this
+// schedule) never fires. This lane contributes nothing to the drain-total
+// accounting (see extraDrainCount's doc comment), so the run drains cleanly
+// on the normal items alone and, before this fix, RunFault would snapshot the
+// fault-free graph and report success -- the Layer 4 acceptance would pass
+// with an inert, unproven fault. RunFault MUST instead return an error naming
+// the fault that never fired.
+func TestFaultReplayFailsOnInertExecutorRetryFault(t *testing.T) {
+	t.Parallel()
+
+	items := loadItems(t)
+	// callOrdinal only ever reaches len(items) for this Workers=1 schedule, so
+	// this ordinal can never match.
+	ordinal := len(items) + 1000
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	report, err := faultreplay.RunFault(ctx, faultreplay.Config{
+		Items:   schedulereplay.ScheduleInOrder(items),
+		Workers: 1,
+		Apply:   schedulereplay.ApplyCanonical,
+		Script: faultreplay.Script{
+			Version: faultreplay.CurrentVersion,
+			Faults: []faultreplay.FaultOp{{
+				Kind:    faultreplay.KindFailGraphWriteOnceThenSucceed,
+				Trigger: faultreplay.Trigger{StatementOrdinal: &ordinal},
+				Target:  faultreplay.Target{Lane: faultreplay.LaneExecutorRetry},
+			}},
+		},
+	})
+	if err == nil {
+		t.Fatalf("RunFault(inert executor-retry fault) = nil error, snapshot len=%d; want an error (measured-inert false-green)", len(report.Snapshot))
+	}
+	if !strings.Contains(err.Error(), "never fired") {
+		t.Fatalf("error = %q, want it to mention the fault never fired", err.Error())
+	}
+
+	// Control: the identical fault with an in-range ordinal must still fire and
+	// pass, proving the check does not reject every executor-retry script.
+	valid := 1
+	report, err = faultreplay.RunFault(ctx, faultreplay.Config{
+		Items:   schedulereplay.ScheduleInOrder(items),
+		Workers: 1,
+		Apply:   schedulereplay.ApplyCanonical,
+		Script: faultreplay.Script{
+			Version: faultreplay.CurrentVersion,
+			Faults: []faultreplay.FaultOp{{
+				Kind:    faultreplay.KindFailGraphWriteOnceThenSucceed,
+				Trigger: faultreplay.Trigger{StatementOrdinal: &valid},
+				Target:  faultreplay.Target{Lane: faultreplay.LaneExecutorRetry},
+			}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("RunFault(valid executor-retry fault): %v", err)
+	}
+	if len(report.Snapshot) == 0 {
+		t.Fatal("RunFault(valid executor-retry fault): empty snapshot")
+	}
+}
+
+// TestFaultReplayFailsOnInertFailTerminalFault proves the same class of bug
+// for fail-terminal: an intent_id that never matches any scheduled intent
+// never fires (fail-terminal also contributes nothing to the drain-total
+// accounting), so the run would otherwise drain cleanly and report every
+// intent acked -- a green pass for a script that asserted nothing.
+func TestFaultReplayFailsOnInertFailTerminalFault(t *testing.T) {
+	t.Parallel()
+
+	items := loadItems(t)
+	bogusID := "intent-id-that-does-not-exist-in-the-schedule"
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	_, err := faultreplay.RunFault(ctx, faultreplay.Config{
+		Items:   schedulereplay.ScheduleInOrder(items),
+		Workers: 1,
+		Apply:   schedulereplay.ApplyCanonical,
+		Script: faultreplay.Script{
+			Version: faultreplay.CurrentVersion,
+			Faults: []faultreplay.FaultOp{{
+				Kind:    faultreplay.KindFailTerminal,
+				Trigger: faultreplay.Trigger{IntentID: &bogusID},
+			}},
+		},
+	})
+	if err == nil {
+		t.Fatal("RunFault(inert fail-terminal fault) = nil error, want an error (measured-inert false-green)")
+	}
+	if !strings.Contains(err.Error(), "never fired") {
+		t.Fatalf("error = %q, want it to mention the fault never fired", err.Error())
+	}
+}
+
+// TestFaultReplayFailedIntentIDsDedupedOnDuplicateTerminalDelivery proves
+// Report.FailedIntentIDs is a durable SET: when the same fail-terminal-
+// targeted intent is delivered more than once (here, via a duplicate
+// schedule -- schedulereplay.ScheduleWithDuplicates re-delivers the first and
+// last items -- a fault-injected redelivery targeting the same intent has the
+// identical effect), each Fail must not add a second copy of the same
+// dead-letter ID.
+func TestFaultReplayFailedIntentIDsDedupedOnDuplicateTerminalDelivery(t *testing.T) {
+	t.Parallel()
+
+	items := loadItems(t)
+	targetID := items[0].IntentID // ScheduleWithDuplicates re-delivers items[0]
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	report, err := faultreplay.RunFault(ctx, faultreplay.Config{
+		Items:   schedulereplay.ScheduleWithDuplicates(items),
+		Workers: 1,
+		Apply:   schedulereplay.ApplyCanonical,
+		Script: faultreplay.Script{
+			Version: faultreplay.CurrentVersion,
+			Faults: []faultreplay.FaultOp{{
+				Kind:    faultreplay.KindFailTerminal,
+				Trigger: faultreplay.Trigger{IntentID: &targetID},
+			}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("RunFault(fail-terminal, duplicate schedule): %v", err)
+	}
+	if len(report.FailedIntentIDs) != 1 || report.FailedIntentIDs[0] != targetID {
+		t.Fatalf("FailedIntentIDs = %v, want exactly one entry [%q] (must be a deduped set)", report.FailedIntentIDs, targetID)
 	}
 }
 

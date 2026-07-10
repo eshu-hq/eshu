@@ -6,6 +6,7 @@ package faultreplay
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 	"sync/atomic"
 
@@ -89,9 +90,11 @@ type FaultingExecutor struct {
 
 	onceThenSucceed *onceThenSucceedFault
 
-	// terminal names every intent ID a fail-terminal fault targets. Built once
-	// at construction; read-only for the run's lifetime.
-	terminal map[string]struct{}
+	// terminal maps every intent ID a fail-terminal fault targets to a
+	// fire-tracking flag. The map's keys are built once at construction and
+	// never mutated afterward; only the *atomic.Bool values are written, on
+	// the first Execute call that matches that intent ID (see UnfiredFaults).
+	terminal map[string]*atomic.Bool
 
 	callOrdinal atomic.Int64
 }
@@ -106,7 +109,7 @@ func NewFaultingExecutor(inner reducer.Executor, script Script, items []schedule
 	e := &FaultingExecutor{
 		inner:       inner,
 		redeliverer: redeliv,
-		terminal:    map[string]struct{}{},
+		terminal:    map[string]*atomic.Bool{},
 	}
 	for _, f := range script.Faults {
 		switch f.Kind {
@@ -131,7 +134,10 @@ func NewFaultingExecutor(inner reducer.Executor, script Script, items []schedule
 			}
 			e.onceThenSucceed = ots
 		case KindFailTerminal:
-			e.terminal[*f.Trigger.IntentID] = struct{}{}
+			id := *f.Trigger.IntentID
+			if _, exists := e.terminal[id]; !exists {
+				e.terminal[id] = new(atomic.Bool)
+			}
 		case KindKillWorkerAfterClaim:
 			// WorkSource-seam fault; NewFaultingWorkSource owns it.
 		case KindRestartBackendBetweenPhaseGroups:
@@ -175,7 +181,8 @@ func resolveIntentID(t Trigger, items []schedulereplay.WorkItem) (string, error)
 func (e *FaultingExecutor) Execute(ctx context.Context, intent reducer.Intent) (reducer.Result, error) {
 	callOrdinal := int(e.callOrdinal.Add(1))
 
-	if _, terminal := e.terminal[intent.IntentID]; terminal {
+	if fired, terminal := e.terminal[intent.IntentID]; terminal {
+		fired.Store(true)
 		return reducer.Result{}, &terminalFailure{intentID: intent.IntentID}
 	}
 
@@ -217,4 +224,40 @@ func (e *FaultingExecutor) Execute(ctx context.Context, intent reducer.Intent) (
 // this to prove the fault actually ran rather than silently no-op'ing.
 func (e *FaultingExecutor) ExecutorRetryFired() bool {
 	return e.onceThenSucceed != nil && e.onceThenSucceed.lane == LaneExecutorRetry && e.onceThenSucceed.fired.Load()
+}
+
+// UnfiredFaults reports every fault this executor owns that was scripted but
+// never fired: a fail-terminal intent ID that was never delivered, an
+// expire-lease-mid-handler target never reached, or a
+// fail-graph-write-once-then-succeed fault (either lane) whose
+// statement_ordinal/operation_match never matched an Execute call. RunFault
+// calls this after the run has fully drained; a non-empty result means the
+// script is inert for that fault -- the run must not be reported as a clean
+// pass (see RunFault's verifyAllFaultsFired), because a bad or non-matching
+// trigger would otherwise let the fault-free graph snapshot through
+// unnoticed (the measured-inert false-green class this platform exists to
+// catch).
+func (e *FaultingExecutor) UnfiredFaults() []string {
+	var out []string
+
+	ids := make([]string, 0, len(e.terminal))
+	for id := range e.terminal {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	for _, id := range ids {
+		if !e.terminal[id].Load() {
+			out = append(out, fmt.Sprintf("%s(intent_id=%q)", KindFailTerminal, id))
+		}
+	}
+
+	if e.midHandlerIntentID != "" && !e.midHandlerFired.Load() {
+		out = append(out, fmt.Sprintf("%s(intent_id=%q)", KindExpireLeaseMidHandler, e.midHandlerIntentID))
+	}
+
+	if e.onceThenSucceed != nil && !e.onceThenSucceed.fired.Load() {
+		out = append(out, fmt.Sprintf("%s(lane=%s)", KindFailGraphWriteOnceThenSucceed, e.onceThenSucceed.lane))
+	}
+
+	return out
 }

@@ -139,6 +139,34 @@ func TestParse_Rejects(t *testing.T) {
 			json:    `{"version":1,"faults":[{"kind":"kill-worker-after-claim","trigger":{"after_claims":1}}],"schedule":"nightly"}`,
 			wantErr: "unknown field",
 		},
+		"trailing JSON after a valid script": {
+			json:    `{"version":1,"faults":[{"kind":"kill-worker-after-claim","trigger":{"after_claims":1}}]} {"trailing":true}`,
+			wantErr: "trailing content",
+		},
+		"trailing junk after a valid script": {
+			json:    `{"version":1,"faults":[]}garbage`,
+			wantErr: "trailing content",
+		},
+		"kill-worker-after-claim with cross-kind statement_ordinal": {
+			json:    `{"version":1,"faults":[{"kind":"kill-worker-after-claim","trigger":{"after_claims":1,"statement_ordinal":2}}]}`,
+			wantErr: "does not accept trigger field",
+		},
+		"expire-lease-mid-handler with cross-kind after_claims": {
+			json:    `{"version":1,"faults":[{"kind":"expire-lease-mid-handler","trigger":{"intent_id":"dir:/x","after_claims":1}}]}`,
+			wantErr: "does not accept trigger field",
+		},
+		"fail-graph-write-once-then-succeed with cross-kind intent_id": {
+			json:    `{"version":1,"faults":[{"kind":"fail-graph-write-once-then-succeed","trigger":{"statement_ordinal":1,"intent_id":"dir:/x"},"target":{"lane":"executor-retry"}}]}`,
+			wantErr: "does not accept trigger field",
+		},
+		"restart-backend-between-phase-groups with cross-kind after_claims": {
+			json:    `{"version":1,"faults":[{"kind":"restart-backend-between-phase-groups","trigger":{"after_phase_groups":1,"after_claims":1}}]}`,
+			wantErr: "does not accept trigger field",
+		},
+		"fail-terminal with cross-kind intent_ordinal": {
+			json:    `{"version":1,"faults":[{"kind":"fail-terminal","trigger":{"intent_id":"dir:/x","intent_ordinal":1}}]}`,
+			wantErr: "does not accept trigger field",
+		},
 	}
 
 	for name, tc := range tests {

@@ -30,6 +30,16 @@
   make it optional or free-form.
 - `Parse` MUST keep `json.Decoder.DisallowUnknownFields()` so an unrecognized
   or misspelled script field fails loudly instead of being silently dropped.
+  `Parse` MUST also keep rejecting trailing content after the script's single
+  JSON value (`json.Decoder.Decode` only reads the first value off a stream) —
+  do not let a second appended document silently parse as if only the first
+  existed.
+- `Validate` MUST reject a trigger field that is a real field name belonging
+  to a DIFFERENT fault kind (`allowedTriggerFields` in `script.go`), not just
+  an unrecognized JSON key. `DisallowUnknownFields` only catches a field name
+  the schema has never heard of; it cannot catch `kill-worker-after-claim`
+  setting `statement_ordinal`. Keep `allowedTriggerFields` in lockstep with any
+  new `Kind*`/`Trigger` field pairing.
 
 ### S2 — hermetic runner (`source.go`, `executor.go`, `runner.go`)
 
@@ -68,15 +78,29 @@
   partial run as fully drained.
 - `faultingSink`'s reconciliation (an intent recorded on `Fail` is removed from
   `terminalFailed` if a later `Ack` lands for the same intent ID) MUST stay:
-  `Report.FailedIntentIDs` is the DURABLE/terminal set, not a raw Fail-event
+  `Report.FailedIntentIDs` is the DURABLE/terminal SET, not a raw Fail-event
   log. Only `fail-terminal` may legitimately survive to the end of a run;
   regressing this would make the queue-retry lane's transient (recovering)
-  failure look identical to a real dead letter.
+  failure look identical to a real dead letter. `faultingSink.Fail` MUST also
+  keep deduping: a repeated Fail for an intent ID already in `terminalFailed`
+  (a duplicate schedule, or a redelivery fault targeting an
+  already-fail-terminal-targeted intent) MUST NOT add a second copy of the
+  same ID — `FailedIntentIDs` is a set, not an event log.
 - Keep proving the fault fired, not merely that the run stayed green:
   `FaultingWorkSource.InjectedRedeliveries()` and
   `FaultingExecutor.ExecutorRetryFired()` exist so a test can assert a
   scripted fault actually took its intended path instead of silently
   no-op'ing. Do not remove these without an equivalent teeth-proof.
+- `RunFault` MUST verify, after the run drains and before it reports success,
+  that EVERY scripted fault fired at least once
+  (`FaultingWorkSource.UnfiredFaults()` / `FaultingExecutor.UnfiredFaults()`,
+  aggregated by `verifyAllFaultsFired`). A fault whose trigger never matches
+  anything real (a bad ordinal, a stale intent ID, a non-matching
+  `operation_match`) is an inert script, not a valid fault-free pass; without
+  this check the run would converge on the fault-free graph and the Layer 4
+  acceptance would pass vacuously. Adding a new fault kind or a new trigger
+  field MUST come with an equivalent addition to whichever decorator's
+  `UnfiredFaults` — do not let a new fault silently bypass this gate.
 
 ## Skill routing
 

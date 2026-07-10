@@ -264,6 +264,136 @@ func TestFaultingExecutorMidHandlerRespectsContextCancellation(t *testing.T) {
 	}
 }
 
+// TestFaultingExecutorUnfiredFaults proves UnfiredFaults reports every
+// executor-owned fault kind (fail-terminal, expire-lease-mid-handler, and
+// fail-graph-write-once-then-succeed in both lanes) as unfired when its
+// trigger never matches an Execute call, and reports nothing once it does --
+// the P1 regression's decorator-level proof for these fault kinds.
+func TestFaultingExecutorUnfiredFaults(t *testing.T) {
+	t.Parallel()
+
+	t.Run("fail-terminal never delivered", func(t *testing.T) {
+		t.Parallel()
+		bogus := "never-delivered"
+		items := []schedulereplay.WorkItem{{IntentID: "x"}}
+		exec, err := faultreplay.NewFaultingExecutor(&countingInner{}, faultreplay.Script{
+			Version: faultreplay.CurrentVersion,
+			Faults: []faultreplay.FaultOp{{
+				Kind:    faultreplay.KindFailTerminal,
+				Trigger: faultreplay.Trigger{IntentID: &bogus},
+			}},
+		}, items, &stubRedeliverer{})
+		if err != nil {
+			t.Fatalf("NewFaultingExecutor: %v", err)
+		}
+		if _, err := exec.Execute(context.Background(), reducer.Intent{IntentID: "x"}); err != nil {
+			t.Fatalf("Execute(x): unexpected error %v", err)
+		}
+		if unfired := exec.UnfiredFaults(); len(unfired) != 1 {
+			t.Fatalf("UnfiredFaults() = %v, want exactly one entry for the never-delivered fail-terminal target", unfired)
+		}
+	})
+
+	t.Run("fail-terminal delivered fires", func(t *testing.T) {
+		t.Parallel()
+		id := "dead-letter-me"
+		items := []schedulereplay.WorkItem{{IntentID: id}}
+		exec, err := faultreplay.NewFaultingExecutor(&countingInner{}, faultreplay.Script{
+			Version: faultreplay.CurrentVersion,
+			Faults: []faultreplay.FaultOp{{
+				Kind:    faultreplay.KindFailTerminal,
+				Trigger: faultreplay.Trigger{IntentID: &id},
+			}},
+		}, items, &stubRedeliverer{})
+		if err != nil {
+			t.Fatalf("NewFaultingExecutor: %v", err)
+		}
+		if _, err := exec.Execute(context.Background(), reducer.Intent{IntentID: id}); err == nil {
+			t.Fatal("Execute: expected the terminal failure, got nil")
+		}
+		if unfired := exec.UnfiredFaults(); len(unfired) != 0 {
+			t.Fatalf("UnfiredFaults() = %v, want none (the fail-terminal fault fired)", unfired)
+		}
+	})
+
+	t.Run("expire-lease-mid-handler never delivered", func(t *testing.T) {
+		t.Parallel()
+		bogus := "never-delivered"
+		items := []schedulereplay.WorkItem{{IntentID: "x"}}
+		exec, err := faultreplay.NewFaultingExecutor(&countingInner{}, faultreplay.Script{
+			Version: faultreplay.CurrentVersion,
+			Faults: []faultreplay.FaultOp{{
+				Kind:    faultreplay.KindExpireLeaseMidHandler,
+				Trigger: faultreplay.Trigger{IntentID: &bogus},
+			}},
+		}, items, &stubRedeliverer{})
+		if err != nil {
+			t.Fatalf("NewFaultingExecutor: %v", err)
+		}
+		if _, err := exec.Execute(context.Background(), reducer.Intent{IntentID: "x"}); err != nil {
+			t.Fatalf("Execute(x): unexpected error %v", err)
+		}
+		if unfired := exec.UnfiredFaults(); len(unfired) != 1 {
+			t.Fatalf("UnfiredFaults() = %v, want exactly one entry for the never-delivered mid-handler target", unfired)
+		}
+	})
+
+	t.Run("expire-lease-mid-handler delivered fires", func(t *testing.T) {
+		t.Parallel()
+		id := "parked"
+		armCh := make(chan struct{})
+		close(armCh)
+		items := []schedulereplay.WorkItem{{IntentID: id}}
+		exec, err := faultreplay.NewFaultingExecutor(&countingInner{}, faultreplay.Script{
+			Version: faultreplay.CurrentVersion,
+			Faults: []faultreplay.FaultOp{{
+				Kind:    faultreplay.KindExpireLeaseMidHandler,
+				Trigger: faultreplay.Trigger{IntentID: &id},
+			}},
+		}, items, &stubRedeliverer{armCh: armCh})
+		if err != nil {
+			t.Fatalf("NewFaultingExecutor: %v", err)
+		}
+		if _, err := exec.Execute(context.Background(), reducer.Intent{IntentID: id}); err != nil {
+			t.Fatalf("Execute: unexpected error %v", err)
+		}
+		if unfired := exec.UnfiredFaults(); len(unfired) != 0 {
+			t.Fatalf("UnfiredFaults() = %v, want none (the mid-handler fault fired)", unfired)
+		}
+	})
+
+	t.Run("fail-graph-write-once-then-succeed queue-retry never matched", func(t *testing.T) {
+		t.Parallel()
+		outOfRange := 99
+		items := []schedulereplay.WorkItem{{IntentID: "x"}}
+		exec, err := faultreplay.NewFaultingExecutor(&countingInner{}, statementOrdinalScript(outOfRange, faultreplay.LaneQueueRetry), items, &stubRedeliverer{})
+		if err != nil {
+			t.Fatalf("NewFaultingExecutor: %v", err)
+		}
+		if _, err := exec.Execute(context.Background(), reducer.Intent{IntentID: "x"}); err != nil {
+			t.Fatalf("Execute(x): unexpected error %v", err)
+		}
+		if unfired := exec.UnfiredFaults(); len(unfired) != 1 {
+			t.Fatalf("UnfiredFaults() = %v, want exactly one entry for the never-matched queue-retry fault", unfired)
+		}
+	})
+
+	t.Run("fail-graph-write-once-then-succeed queue-retry matched fires", func(t *testing.T) {
+		t.Parallel()
+		items := []schedulereplay.WorkItem{{IntentID: "y"}}
+		exec, err := faultreplay.NewFaultingExecutor(&countingInner{}, statementOrdinalScript(1, faultreplay.LaneQueueRetry), items, &stubRedeliverer{})
+		if err != nil {
+			t.Fatalf("NewFaultingExecutor: %v", err)
+		}
+		if _, err := exec.Execute(context.Background(), reducer.Intent{IntentID: "y"}); err == nil {
+			t.Fatal("Execute: expected the queue-retry error, got nil")
+		}
+		if unfired := exec.UnfiredFaults(); len(unfired) != 0 {
+			t.Fatalf("UnfiredFaults() = %v, want none (the queue-retry fault fired)", unfired)
+		}
+	})
+}
+
 // TestFaultingExecutorRejectsMultipleOnceThenSucceedFaults proves
 // construction fails loudly for a script naming more than one
 // fail-graph-write-once-then-succeed fault.

@@ -6,6 +6,7 @@ package faultreplay
 import (
 	"context"
 	"fmt"
+	"sort"
 	"sync"
 	"sync/atomic"
 
@@ -192,6 +193,31 @@ func (s *FaultingWorkSource) Drained() bool {
 	pendingEmpty := len(s.pending) == 0
 	s.mu.Unlock()
 	return pendingEmpty && s.inner.Drained()
+}
+
+// UnfiredFaults reports every kill-worker-after-claim fault that was
+// scripted but never fired: its after_claims ordinal was never reached by an
+// actual claim before the run drained. RunFault calls this after the run has
+// fully drained; a non-empty result means the script is inert for that
+// fault -- an after_claims ordinal beyond the number of claims a schedule
+// ever generates would otherwise let the fault-free graph snapshot through
+// unnoticed.
+func (s *FaultingWorkSource) UnfiredFaults() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if len(s.killAfterClaims) == 0 {
+		return nil
+	}
+	ordinals := make([]int, 0, len(s.killAfterClaims))
+	for ordinal := range s.killAfterClaims {
+		ordinals = append(ordinals, ordinal)
+	}
+	sort.Ints(ordinals)
+	out := make([]string, 0, len(ordinals))
+	for _, ordinal := range ordinals {
+		out = append(out, fmt.Sprintf("%s(after_claims=%d)", KindKillWorkerAfterClaim, ordinal))
+	}
+	return out
 }
 
 // InjectedRedeliveries reports how many fault-scripted redeliveries this

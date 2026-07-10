@@ -33,7 +33,12 @@
 // graph and asserts, exactly like schedulereplay: the converged snapshot after
 // a fault-scripted run must be byte-identical to the fault-free baseline of
 // the same work items, and a non-draining or pre-canceled run must return an
-// error, never a green partial snapshot.
+// error, never a green partial snapshot. RunFault also verifies, after the
+// run drains and before it reports success, that every scripted fault
+// actually fired at least once: a trigger that never matches anything real
+// (a bad ordinal, a stale intent ID, a non-matching operation_match) is an
+// inert script, and RunFault returns an error naming it rather than
+// snapshotting the accidentally fault-free graph.
 //
 // restart-backend-between-phase-groups needs a real graph backend to restart
 // and so cannot run hermetically; it is handled by the in-binary cypher

@@ -79,10 +79,19 @@ assertion the wider Layer 4 gate makes. `Script.Validate` enforces this:
   field is rejected outright — these fields exist in the schema only so
   `Validate` has something concrete to reject; no real fault kind ever sets
   them.
+- A trigger field that is a real field name but belongs to a *different* fault
+  kind (e.g. `kill-worker-after-claim` setting `statement_ordinal`, which
+  belongs to `fail-graph-write-once-then-succeed`) is rejected. This is the one
+  class `DisallowUnknownFields` cannot catch on its own, since the field name
+  is real — just wrong for this kind.
 
 `Parse` also rejects any JSON field the schema does not know about
 (`json.Decoder.DisallowUnknownFields`), so a typo or a made-up field fails
-loudly at parse time rather than being silently ignored.
+loudly at parse time rather than being silently ignored. It also rejects any
+trailing content after the script's single JSON value — `json.Decoder.Decode`
+only reads the first value off a stream, so a second document (or any other
+JSON) appended after a valid script would otherwise parse as if only the first
+object existed.
 
 ## Codec
 
@@ -160,6 +169,32 @@ loop, a handler, or a collector:
 other three faults run correctly (and are exercised in tests) with
 `Workers = 1`, since none of them requires two workers to be genuinely
 in-flight at once.
+
+### Inert-script detection
+
+A scripted fault whose trigger never matches anything real -- a
+`statement_ordinal` or `after_claims` ordinal the run never reaches, an
+`intent_id` that never appears in the schedule, an `operation_match` that
+never matches -- is a broken or inert script, not a valid fault-free pass.
+`RunFault` verifies, after the run drains and before it reports success, that
+**every** scripted fault actually fired at least once; if any did not, it
+returns an error naming the unfired fault kind and trigger instead of
+snapshotting the (accidentally fault-free) graph. This closes the
+"measured-inert false-green" gap the wider Ifá conformance platform exists to
+catch: without it, a typo'd ordinal or a stale intent ID would let the Layer 4
+acceptance pass on a script that asserted nothing.
+
+The two decorators expose this per-fault firing state directly, so a test can
+assert it without running a full `RunFault`:
+
+- `FaultingWorkSource.UnfiredFaults()` -- `kill-worker-after-claim`.
+- `FaultingExecutor.UnfiredFaults()` -- `expire-lease-mid-handler`, both lanes
+  of `fail-graph-write-once-then-succeed`, and `fail-terminal`.
+
+(`FaultingWorkSource.InjectedRedeliveries()` and
+`FaultingExecutor.ExecutorRetryFired()` remain for the narrower
+"did this one redelivery/lane happen" checks predating this generic
+per-fault gate.)
 
 ## Verifying a change
 

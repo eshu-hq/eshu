@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 )
@@ -148,6 +149,18 @@ func Parse(data []byte) (Script, error) {
 	if err := dec.Decode(&s); err != nil {
 		return Script{}, fmt.Errorf("parse fault script: unknown field or malformed JSON: %w", err)
 	}
+	// json.Decoder.Decode reads only the first JSON value off the stream;
+	// anything after it is silently ignored unless the stream is explicitly
+	// checked for EOF. Without this check, a second script (or any other
+	// trailing JSON) appended after a valid one would parse as if only the
+	// first object existed -- fail closed instead of silently truncating.
+	var trailing json.RawMessage
+	if err := dec.Decode(&trailing); !errors.Is(err, io.EOF) {
+		if err == nil {
+			return Script{}, errors.New("parse fault script: trailing content after fault script")
+		}
+		return Script{}, fmt.Errorf("parse fault script: malformed trailing content after fault script: %w", err)
+	}
 	if err := s.Validate(); err != nil {
 		return Script{}, fmt.Errorf("invalid fault script: %w", err)
 	}
@@ -187,9 +200,30 @@ func (s Script) Validate() error {
 	return nil
 }
 
+// allowedTriggerFields maps each fault kind to the trigger field name(s) it is
+// allowed to populate. validate rejects a populated field outside this set
+// even when the field is a legitimate name for a DIFFERENT kind (e.g.
+// kill-worker-after-claim setting statement_ordinal, which belongs to
+// fail-graph-write-once-then-succeed): DisallowUnknownFields only catches an
+// unrecognized JSON key, not a known key used on the wrong fault kind.
+var allowedTriggerFields = map[string]map[string]bool{
+	KindKillWorkerAfterClaim:             {"after_claims": true},
+	KindExpireLeaseMidHandler:            {"intent_ordinal": true, "intent_id": true},
+	KindFailGraphWriteOnceThenSucceed:    {"statement_ordinal": true, "operation_match": true},
+	KindRestartBackendBetweenPhaseGroups: {"after_phase_groups": true},
+	KindFailTerminal:                     {"intent_id": true},
+}
+
 // validate checks one fault op's kind, trigger, and target.
 func (f FaultOp) validate() error {
 	if err := f.Trigger.validateOrdinalOnly(); err != nil {
+		return err
+	}
+	allowed, ok := allowedTriggerFields[f.Kind]
+	if !ok {
+		return fmt.Errorf("unknown fault kind %q", f.Kind)
+	}
+	if err := f.Trigger.rejectFieldsOutsideKind(f.Kind, allowed); err != nil {
 		return err
 	}
 	switch f.Kind {
@@ -206,6 +240,51 @@ func (f FaultOp) validate() error {
 	default:
 		return fmt.Errorf("unknown fault kind %q", f.Kind)
 	}
+}
+
+// populatedOrdinalFields lists, by JSON field name, every ordinal/ID trigger
+// field this Trigger has set. Used both to detect a cross-kind field (a known
+// field name that does not belong to this FaultOp's kind) and to build a
+// clear error naming exactly which field is out of place.
+func (t Trigger) populatedOrdinalFields() []string {
+	var out []string
+	if t.AfterClaims != nil {
+		out = append(out, "after_claims")
+	}
+	if t.IntentOrdinal != nil {
+		out = append(out, "intent_ordinal")
+	}
+	if t.IntentID != nil {
+		out = append(out, "intent_id")
+	}
+	if t.StatementOrdinal != nil {
+		out = append(out, "statement_ordinal")
+	}
+	if t.OperationMatch != nil {
+		out = append(out, "operation_match")
+	}
+	if t.AfterPhaseGroups != nil {
+		out = append(out, "after_phase_groups")
+	}
+	return out
+}
+
+// rejectFieldsOutsideKind returns an error naming every populated trigger
+// field kind does not accept. A field with a legitimate name for a DIFFERENT
+// kind (e.g. kill-worker-after-claim setting statement_ordinal) is exactly
+// the class DisallowUnknownFields cannot catch, since the field name is
+// real -- just wrong for this kind.
+func (t Trigger) rejectFieldsOutsideKind(kind string, allowed map[string]bool) error {
+	var bad []string
+	for _, name := range t.populatedOrdinalFields() {
+		if !allowed[name] {
+			bad = append(bad, name)
+		}
+	}
+	if len(bad) == 0 {
+		return nil
+	}
+	return fmt.Errorf("kind %q does not accept trigger field(s) %s", kind, strings.Join(bad, ", "))
 }
 
 // validateOrdinalOnly rejects any populated non-ordinal trigger field. See the
