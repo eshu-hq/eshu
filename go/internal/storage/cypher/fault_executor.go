@@ -57,21 +57,25 @@ var (
 // Execute method -- below this decorator in the call chain, not above it.
 // Consequently, for fail-graph-write-once-then-succeed:
 //
-//   - target.lane = queue-retry returns a plain error without ever calling
-//     the inner executor for the targeted call, so the failure genuinely
-//     surfaces to reducer.Service's WorkSink.Fail: the queue-retry path
-//     this lane claims to exercise, proven for real.
+//   - target.lane = queue-retry returns a retryable, self-classifying
+//     graph_write_timeout error (ifaFaultQueueRetryError, matching a real
+//     *neo4jRetryableError) without ever calling the inner executor for the
+//     targeted call, so the failure genuinely surfaces to reducer.Service's
+//     WorkSink.Fail and is re-enqueued as 'retrying': the queue-retry path
+//     this lane claims to exercise, proven for real, recovering on the next
+//     claim exactly as a real fail-once transient does.
 //   - target.lane = executor-retry shapes its injected error to contain
 //     "TransientError" (satisfying isTransientNeo4jError, and therefore
 //     isRetryableGraphWriteError/isRetryableGraphWriteGroupError). But
 //     because this decorator sits ABOVE the per-call RetryingExecutor
 //     rather than below it, no RetryingExecutor ever observes this error:
 //     it short-circuits before inner.Execute is called at all, so it
-//     surfaces to WorkSink.Fail exactly like the queue-retry lane. This is
-//     the honest limitation T1 already established: reaching the real
-//     executor-retry lane would require restructuring
-//     executeReducerCypherWithRetry to accept an injectable inner runner,
-//     which is out of scope for this slice. See
+//     surfaces to WorkSink.Fail and recovers via queue-retry exactly like
+//     the queue-retry lane (it carries the same retryable graph_write_timeout
+//     contract). This is the honest limitation T1 established: reaching the
+//     real in-place executor-retry loop in the reducer binary would require
+//     restructuring executeReducerCypherWithRetry to accept an injectable
+//     inner runner, tracked in #5048 and out of scope for this slice. See
 //     TestFaultingExecutorExecutorRetryLaneIsShapedTransientButNeverRetriedAboveTheSeam
 //     for the regression proof (wrapping a real RetryingExecutor as inner
 //     and asserting its own inner is never called for the fired attempt).
@@ -304,10 +308,19 @@ func (fe *FaultingExecutor) maybeRestartAfterGroup(ctx context.Context, groupOrd
 }
 
 // ifaFaultQueueRetryError is returned once for the queue-retry lane of a
-// fail-graph-write-once-then-succeed fault. It is a plain error: no
-// Retryable() method, and its message avoids every substring
-// isTransientNeo4jError checks for, so it surfaces unchanged to
-// reducer.Service's WorkSink.Fail -- the queue-retry path this lane names.
+// fail-graph-write-once-then-succeed fault. It carries the same contract a
+// real exhausted-transient graph write surfaces to reducer.Service's
+// WorkSink.Fail: Retryable() true and FailureClass() graph_write_timeout,
+// matching *neo4jRetryableError (the shape WrapRetryableNeo4jError produces for
+// a driver TransactionExecutionLimit or ConnectivityError). That makes
+// WorkSink.Fail re-enqueue the intent as 'retrying' -- the queue-retry path
+// this lane names -- so the once-fault is consumed on the first attempt and the
+// intent succeeds on the next claim, exactly as a real fail-once transient
+// recovers. A plain error without this contract would instead be non-retryable:
+// reducer.IsRetryable would be false, the intent would dead-letter at attempt 1,
+// and the dead-letter triage default (projector.ClassifyFailure) would mislabel
+// a reducer graph write as projection_bug. The fault must model the real
+// transient, not an opaque error no real transient resembles.
 type ifaFaultQueueRetryError struct{ ordinal int }
 
 func (e *ifaFaultQueueRetryError) Error() string {
@@ -315,20 +328,52 @@ func (e *ifaFaultQueueRetryError) Error() string {
 		faultreplay.KindFailGraphWriteOnceThenSucceed, e.ordinal)
 }
 
+// Retryable reports the fault error as retryable so reducer.IsRetryable (an
+// errors.As probe for exactly this method) routes it to WorkSink.Fail's
+// queue-retry branch instead of a dead letter, as a real transient graph write
+// would be routed.
+func (*ifaFaultQueueRetryError) Retryable() bool { return true }
+
+// FailureClass records the graph-write-timeout class a real exhausted-transient
+// graph write carries (see *neo4jRetryableError.FailureClass), so the retrying
+// row is labeled honestly rather than defaulting to projection_bug.
+func (*ifaFaultQueueRetryError) FailureClass() string { return GraphWriteTimeoutFailureClass }
+
 // ifaFaultExecutorRetryShapedError is returned once for the executor-retry
 // lane. Its message contains "TransientError" so isTransientNeo4jError (and
 // therefore isRetryableGraphWriteError/isRetryableGraphWriteGroupError) would
 // classify it as retryable IF a RetryingExecutor sat below this decorator in
-// the call chain. See the FaultingExecutor type doc for why, in
-// go/cmd/reducer's actual wiring, it does not: this decorator wraps the same
-// base executor executeReducerCypherWithRetry re-wraps in a fresh
-// RetryingExecutor per call, so this decorator sits above that
-// RetryingExecutor, not below it, and this error surfaces to WorkSink.Fail
-// exactly like the queue-retry lane instead of being retried in place.
+// the call chain. In go/cmd/reducer's actual wiring it does not: this decorator
+// wraps the same base executor executeReducerCypherWithRetry re-wraps in a
+// fresh RetryingExecutor per call, so it sits above that RetryingExecutor and
+// the error surfaces to WorkSink.Fail exactly like the queue-retry lane rather
+// than being retried in place. It therefore carries the SAME retryable
+// graph_write_timeout contract as the queue-retry lane (via Retryable() and
+// FailureClass() below) so the intent recovers via queue-retry with zero dead
+// letters instead of dead-lettering as projection_bug. The message still names
+// the executor-retry lane and a TransientError shape so a genuine below-the-seam
+// RetryingExecutor -- the hermetic tier's FaultingExecutor -- classifies it
+// transient and retries it in place. Reaching the real in-place retry loop in
+// the reducer binary needs executeReducerCypherWithRetry restructured to accept
+// an injectable inner runner; that is tracked in #5048 and out of this slice's
+// scope.
 type ifaFaultExecutorRetryShapedError struct{ ordinal int }
 
 func (e *ifaFaultExecutorRetryShapedError) Error() string {
 	return fmt.Sprintf(
 		"ifa fault: %s (executor-retry, Neo.TransientError.Transaction.LockClientStopped-shaped) injected one failure for graph-write call #%d",
 		faultreplay.KindFailGraphWriteOnceThenSucceed, e.ordinal)
+}
+
+// Retryable reports the fault error as retryable so that, at the wrap point
+// above the reducer's per-call RetryingExecutor, WorkSink.Fail queue-retries it
+// (issue #5048 tracks moving the decorator below RetryingExecutor for true
+// in-place retry).
+func (*ifaFaultExecutorRetryShapedError) Retryable() bool { return true }
+
+// FailureClass records the graph-write-timeout class so the retrying row is
+// labeled identically to the queue-retry lane and to a real transient graph
+// write.
+func (*ifaFaultExecutorRetryShapedError) FailureClass() string {
+	return GraphWriteTimeoutFailureClass
 }

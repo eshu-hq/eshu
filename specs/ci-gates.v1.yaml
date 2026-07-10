@@ -1196,6 +1196,31 @@ gates:
       - go
     ci_only_reason: ""
 
+  - id: ifa-fault-injection
+    name: Ifa P6 deterministic fault-injection matrix (in-binary decorator, real recovery)
+    category: exactness
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "go/internal/storage/cypher/fault_executor.go"
+      - "go/internal/storage/cypher/fault_executor_off.go"
+      - "go/internal/storage/cypher/fault_executor_classification_test.go"
+      - "go/internal/replay/faultreplay/**"
+      - "go/cmd/reducer/ifa_fault_wiring.go"
+      - "go/cmd/reducer/ifa_fault_wiring_off.go"
+      - "scripts/verify-ifa-fault-injection.sh"
+      - "scripts/test-verify-ifa-fault-injection.sh"
+      - "scripts/lib/ifa_fault_injection_common.sh"
+    local:
+      command: "bash scripts/test-verify-ifa-fault-injection.sh"
+      test_command: "bash scripts/test-verify-ifa-fault-injection.sh"
+    ci:
+      workflow: ifa-determinism-gate.yml
+      job: "fault-injection"
+    requirements:
+      - go
+    ci_only_reason: ""
+
   - id: parserfixture-tests
     name: Parser Fixture Replay Tests
     category: exactness
