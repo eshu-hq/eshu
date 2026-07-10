@@ -144,7 +144,7 @@ func TestResolveSAMLExternalSubjectNonAdminEnforcesCatalog(t *testing.T) {
 	if got, want := auth.AllowedPermissionDataClasses, []string{"ask_reasoning", "source_content"}; !equalStringSlices(got, want) {
 		t.Fatalf("AllowedPermissionDataClasses = %#v, want %#v", got, want)
 	}
-	if !fakeQueriesContain(db.queries, "FROM identity_role_grants grant") {
+	if !fakeQueriesContain(db.queries, "FROM identity_role_grants role_grant") {
 		t.Fatalf("non-admin SAML resolution must derive permission grants from roles: %#v", db.queries)
 	}
 }

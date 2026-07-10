@@ -236,7 +236,7 @@ func TestOIDCLoginStoreResolvesGroupsThroughRolesToGrants(t *testing.T) {
 	if len(db.queries) != 4 {
 		t.Fatalf("query count = %d, want 4", len(db.queries))
 	}
-	if !strings.Contains(db.queries[3].query, "FROM identity_role_grants grant") {
+	if !strings.Contains(db.queries[3].query, "FROM identity_role_grants role_grant") {
 		t.Fatalf("permission query missing identity_role_grants:\n%s", db.queries[3].query)
 	}
 	if strings.Contains(db.queries[0].query, "group_name") ||
