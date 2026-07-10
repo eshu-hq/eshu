@@ -57,6 +57,101 @@ func TestSignInPolicyConcurrencyGate(t *testing.T) {
 	t.Run("AcceptInvitationRejectsMissingMFAAgainstRealPolicyRow", func(t *testing.T) {
 		testAcceptInvitationRejectsMissingMFAAgainstRealPolicyRow(t, ctx, ownerDB)
 	})
+	t.Run("RequireSSOFlipRevokesOnlyLocalUserSessions", func(t *testing.T) {
+		testRequireSSOFlipRevokesOnlyLocalUserSessions(t, ctx, ownerDB)
+	})
+}
+
+// testRequireSSOFlipRevokesOnlyLocalUserSessions proves issue #5002 part 1
+// against real Postgres: a require_sso false->true flip bulk-revokes every
+// active subject_class='local_user' browser session for the SAME tenant,
+// leaves subject_class='break_glass' and 'external_oidc_user' sessions (and
+// another tenant's local_user session) untouched, and a second call against
+// an already-true policy is idempotent (no error, no double-toggle).
+func testRequireSSOFlipRevokesOnlyLocalUserSessions(t *testing.T, ctx context.Context, db *sql.DB) {
+	t.Helper()
+	tenantID := "tenant-signin-revoke"
+	otherTenantID := "tenant-signin-revoke-other"
+	workspaceID := "workspace-signin-revoke"
+	seedSignInPolicyTenant(t, ctx, db, tenantID)
+	seedSignInPolicyWorkspace(t, ctx, db, tenantID, workspaceID)
+	seedSignInPolicyTenant(t, ctx, db, otherTenantID)
+	seedSignInPolicyWorkspace(t, ctx, db, otherTenantID, workspaceID)
+
+	sessions := NewBrowserSessionStore(SQLDB{DB: db})
+	now := time.Now().UTC()
+	localSession := browserSessionRevokeFixture("sess-local", tenantID, workspaceID, "local_user", now)
+	breakGlassSession := browserSessionRevokeFixture("sess-break-glass", tenantID, workspaceID, "break_glass", now)
+	oidcSession := browserSessionRevokeFixture("sess-oidc", tenantID, workspaceID, "external_oidc_user", now)
+	otherTenantLocalSession := browserSessionRevokeFixture("sess-other-tenant-local", otherTenantID, workspaceID, "local_user", now)
+	for _, record := range []BrowserSessionRecord{localSession, breakGlassSession, oidcSession, otherTenantLocalSession} {
+		if err := sessions.CreateSession(ctx, record); err != nil {
+			t.Fatalf("seed browser session %s: %v", record.SessionHash, err)
+		}
+	}
+
+	insertActiveProviderConfig(t, ctx, db, tenantID, "pc_revoke")
+	store := NewIdentitySubjectStore(SQLDB{DB: db})
+	if err := store.RecordSSOAdminVerification(ctx, tenantID, "pc_revoke", now); err != nil {
+		t.Fatalf("RecordSSOAdminVerification() error = %v", err)
+	}
+
+	requireSSO := true
+	if _, err := store.UpsertSignInPolicy(ctx, tenantID, SignInPolicyUpdate{
+		RequireSSO:         &requireSSO,
+		PolicyRevisionHash: "sha256:rev-revoke",
+		Now:                time.Now().UTC(),
+	}); err != nil {
+		t.Fatalf("UpsertSignInPolicy() error = %v", err)
+	}
+
+	assertBrowserSessionRevoked(t, ctx, db, localSession.SessionHash, true)
+	assertBrowserSessionRevoked(t, ctx, db, breakGlassSession.SessionHash, false)
+	assertBrowserSessionRevoked(t, ctx, db, oidcSession.SessionHash, false)
+	assertBrowserSessionRevoked(t, ctx, db, otherTenantLocalSession.SessionHash, false)
+
+	// Idempotent re-run: editing an unrelated field on an already-true policy
+	// must not error, and the already-revoked session must stay revoked (not
+	// re-toggled by the unconditional revoke running again).
+	requireMFA := true
+	if _, err := store.UpsertSignInPolicy(ctx, tenantID, SignInPolicyUpdate{
+		RequireMFAForAllUsers: &requireMFA,
+		PolicyRevisionHash:    "sha256:rev-revoke-2",
+		Now:                   time.Now().UTC(),
+	}); err != nil {
+		t.Fatalf("UpsertSignInPolicy() second call error = %v", err)
+	}
+	assertBrowserSessionRevoked(t, ctx, db, localSession.SessionHash, true)
+}
+
+func browserSessionRevokeFixture(hash, tenantID, workspaceID, subjectClass string, now time.Time) BrowserSessionRecord {
+	return BrowserSessionRecord{
+		SessionHash:        "sha256:" + hash,
+		CSRFTokenHash:      "sha256:csrf-" + hash,
+		TenantID:           tenantID,
+		WorkspaceID:        workspaceID,
+		SubjectIDHash:      "sha256:subject-" + hash,
+		SubjectClass:       subjectClass,
+		PolicyRevisionHash: "sha256:policy",
+		AllScopes:          true,
+		IssuedAt:           now,
+		LastSeenAt:         now,
+		IdleExpiresAt:      now.Add(time.Hour),
+		AbsoluteExpiresAt:  now.Add(24 * time.Hour),
+		UpdatedAt:          now,
+	}
+}
+
+func assertBrowserSessionRevoked(t *testing.T, ctx context.Context, db *sql.DB, sessionHash string, wantRevoked bool) {
+	t.Helper()
+	var revokedAt sql.NullTime
+	row := db.QueryRowContext(ctx, `SELECT revoked_at FROM browser_sessions WHERE session_hash = $1`, sessionHash)
+	if err := row.Scan(&revokedAt); err != nil {
+		t.Fatalf("read browser session %s: %v", sessionHash, err)
+	}
+	if revokedAt.Valid != wantRevoked {
+		t.Fatalf("browser session %s revoked = %t, want %t", sessionHash, revokedAt.Valid, wantRevoked)
+	}
 }
 
 func testGuardrailReflectsRealActiveProviderRow(t *testing.T, ctx context.Context, db *sql.DB) {
@@ -279,6 +374,7 @@ func openSignInPolicySchemaFixture(t *testing.T, ctx context.Context, dsn string
 		MigrationSQL("tenant_workspace_grants"),
 		MigrationSQL("identity_subjects"),
 		MigrationSQL("identity_sign_in_policy"),
+		MigrationSQL("browser_sessions"),
 	} {
 		if _, err := db.ExecContext(ctx, stmt); err != nil {
 			t.Fatalf("apply sign-in policy fixture schema: %v", err)

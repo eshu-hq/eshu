@@ -91,6 +91,21 @@ func provenLockedSignInPolicyRow(verifiedAt time.Time) []any {
 	}
 }
 
+// alreadyRequireSSOLockedSignInPolicyRow returns the fake row shape for a
+// tenant that already has require_sso=true persisted (both guardrails
+// already proven), used to exercise an UpsertSignInPolicy call that edits an
+// unrelated field without touching RequireSSO.
+func alreadyRequireSSOLockedSignInPolicyRow(verifiedAt time.Time) []any {
+	return []any{
+		true, true, false,
+		sql.NullInt64{},
+		sql.NullInt64{},
+		sql.NullTime{Time: verifiedAt, Valid: true},
+		sql.NullString{String: "pc_proven", Valid: true},
+		"sha256:rev0", time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC),
+	}
+}
+
 func TestUpsertSignInPolicyLocksAndCommitsSimpleUpdate(t *testing.T) {
 	t.Parallel()
 
@@ -212,6 +227,131 @@ func TestUpsertSignInPolicyAllowsRequireSSOWhenBothGuardrailsProven(t *testing.T
 	}
 	if !db.committed || db.rolledBack {
 		t.Fatalf("committed=%t rolledBack=%t, want commit only", db.committed, db.rolledBack)
+	}
+}
+
+// TestUpsertSignInPolicyRevokesLocalBrowserSessionsWhenRequireSSOBecomesTrue
+// proves issue #5002 part 1: a require_sso false->true flip must bulk-revoke
+// every active password-authenticated ("local_user") browser session for the
+// tenant, in the SAME transaction as the policy write, so a session issued
+// before the flip can never be resolved after it.
+func TestUpsertSignInPolicyRevokesLocalBrowserSessionsWhenRequireSSOBecomesTrue(t *testing.T) {
+	t.Parallel()
+
+	verifiedAt := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
+	now := time.Date(2026, 7, 10, 9, 0, 0, 0, time.UTC)
+	db := &fakeBeginnerExecQueryer{
+		fakeExecQueryer: fakeExecQueryer{
+			queryResponses: []queueFakeRows{
+				{rows: [][]any{provenLockedSignInPolicyRow(verifiedAt)}}, // locked current row: SSO proven, RequireSSO currently false
+				{rows: [][]any{{int64(1)}}},                              // one active provider
+			},
+		},
+	}
+	store := NewIdentitySubjectStore(db)
+
+	requireSSO := true
+	_, err := store.UpsertSignInPolicy(context.Background(), "tenant_a", SignInPolicyUpdate{
+		RequireSSO:         &requireSSO,
+		PolicyRevisionHash: "sha256:rev1",
+		Now:                now,
+	})
+	if err != nil {
+		t.Fatalf("UpsertSignInPolicy() error = %v", err)
+	}
+	if !db.committed || db.rolledBack {
+		t.Fatalf("committed=%t rolledBack=%t, want commit only", db.committed, db.rolledBack)
+	}
+
+	upsertIdx, revokeIdx := -1, -1
+	for i, exec := range db.execs {
+		if strings.Contains(exec.query, "ON CONFLICT (tenant_id) DO UPDATE SET") {
+			upsertIdx = i
+		}
+		if strings.Contains(exec.query, "AND subject_class = 'local_user'") {
+			revokeIdx = i
+			if len(exec.args) != 2 {
+				t.Fatalf("revoke exec args = %#v, want [tenant_id, revoked_at]", exec.args)
+			}
+			if exec.args[0] != "tenant_a" {
+				t.Fatalf("revoke exec tenant_id arg = %v, want tenant_a", exec.args[0])
+			}
+			if exec.args[1] != now {
+				t.Fatalf("revoke exec revoked_at arg = %v, want %v", exec.args[1], now)
+			}
+		}
+	}
+	if upsertIdx == -1 {
+		t.Fatalf("execs missing policy upsert: %#v", db.execs)
+	}
+	if revokeIdx == -1 {
+		t.Fatalf("execs missing local-user bulk revoke: %#v", db.execs)
+	}
+	if revokeIdx < upsertIdx {
+		t.Fatalf("revoke exec (idx %d) ran before policy upsert (idx %d), want after: %#v", revokeIdx, upsertIdx, db.execs)
+	}
+}
+
+// TestUpsertSignInPolicyDoesNotRevokeSessionsWhenRequireSSOStaysFalse proves
+// an update that never sets require_sso true (e.g. editing an unrelated
+// field on a false->false tenant) issues no bulk revoke.
+func TestUpsertSignInPolicyDoesNotRevokeSessionsWhenRequireSSOStaysFalse(t *testing.T) {
+	t.Parallel()
+
+	db := &fakeBeginnerExecQueryer{
+		fakeExecQueryer: fakeExecQueryer{
+			queryResponses: []queueFakeRows{{rows: [][]any{defaultLockedSignInPolicyRow()}}},
+		},
+	}
+	store := NewIdentitySubjectStore(db)
+
+	allowLocal := false
+	_, err := store.UpsertSignInPolicy(context.Background(), "tenant_a", SignInPolicyUpdate{
+		AllowLocalUserCreation: &allowLocal,
+		PolicyRevisionHash:     "sha256:rev1",
+		Now:                    time.Now(),
+	})
+	if err != nil {
+		t.Fatalf("UpsertSignInPolicy() error = %v", err)
+	}
+	if fakeExecsContainQuery(db.execs, "AND subject_class = 'local_user'") {
+		t.Fatalf("execs unexpectedly contain local-user bulk revoke: %#v", db.execs)
+	}
+}
+
+// TestUpsertSignInPolicyRevokeIsUnconditionalWhenRequireSSOAlreadyTrue proves
+// the bulk revoke runs on the RESULTING require_sso=true regardless of the
+// PRIOR value: an update that edits an unrelated field on an already-true
+// tenant still issues the (idempotent) revoke, matching the "unconditional on
+// resulting value" design so no caller needs to special-case "already true".
+func TestUpsertSignInPolicyRevokeIsUnconditionalWhenRequireSSOAlreadyTrue(t *testing.T) {
+	t.Parallel()
+
+	verifiedAt := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
+	db := &fakeBeginnerExecQueryer{
+		fakeExecQueryer: fakeExecQueryer{
+			queryResponses: []queueFakeRows{
+				{rows: [][]any{alreadyRequireSSOLockedSignInPolicyRow(verifiedAt)}}, // locked current row: already require_sso=true
+				{rows: [][]any{{int64(1)}}},                                         // one active provider
+			},
+		},
+	}
+	store := NewIdentitySubjectStore(db)
+
+	requireMFA := true
+	_, err := store.UpsertSignInPolicy(context.Background(), "tenant_a", SignInPolicyUpdate{
+		RequireMFAForAllUsers: &requireMFA,
+		PolicyRevisionHash:    "sha256:rev2",
+		Now:                   time.Now(),
+	})
+	if err != nil {
+		t.Fatalf("UpsertSignInPolicy() error = %v", err)
+	}
+	if !db.committed || db.rolledBack {
+		t.Fatalf("committed=%t rolledBack=%t, want commit only", db.committed, db.rolledBack)
+	}
+	if !fakeExecsContainQuery(db.execs, "AND subject_class = 'local_user'") {
+		t.Fatalf("execs missing local-user bulk revoke on already-true policy: %#v", db.execs)
 	}
 }
 
