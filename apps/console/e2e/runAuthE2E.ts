@@ -23,53 +23,48 @@
 //
 // Console-reachability decision: see authE2EDevServer.ts's header comment.
 //
-// Acceptance coverage (issue #4971 phase 2 scope):
-//   1. Fresh stack, zero identities -> console shows SetupPage, not a
-//      dead-end LoginPage.
-//   2. Claim the generated credential, complete the 3-step wizard, land on
-//      the dashboard; the bootstrap credential is destroyed (a second
-//      retrieval returns nothing) and the setup routes now 410.
-//   5. require_sso enforcement. Only the guardrail-rejection half is
-//      provable without an OIDC provider: go/internal/query/
-//      sign_in_policy_mutations.go's handleUpdate rejects require_sso=true
-//      with 400 unless the tenant has (a) a provider config with a passing
-//      connection test AND (b) at least one admin who has completed an SSO
-//      sign-in (go/internal/storage/postgres/identity_sign_in_policy.go).
-//      Neither precondition is reachable in phase 2 (items 3/4 — OIDC
-//      provider add/test/enable and browser-reachable mock-IdP wiring — are
-//      explicitly phase 3). This runner proves the guardrail itself works
-//      (a real, meaningful assertion: an admin cannot lock the tenant into
-//      SSO-only before SSO is proven to work) and leaves the "require_sso
-//      actually enabled -> local form hidden -> break-glass ?local=1 still
-//      works" assertion as an explicit phase-3 TODO below, rather than
-//      seeding the guardrail's preconditions directly in Postgres to force a
-//      false pass — that would prove the login page's conditional rendering
-//      but nothing about the actual SSO-gating feature under test.
-//
-// Phase 3 (this revision) adds items 3, 4, and the item-5 break-glass half:
-//   3. Configure a member-mapped OIDC provider through the real Add-provider
-//      UI, run its test sign-in, save/enable it, and confirm it shows active
-//      and appears on the login page.
-//   4. Complete a real browser OIDC redirect -> mock IdP -> callback login as
-//      that member-mapped, non-admin identity; assert no Admin nav, a 403
-//      AccessDeniedPage on direct /admin navigation, and a 403 from an admin
-//      API call under that session.
-//   5. (completing the guardrail) after item 3's provider has a passing test
-//      AND a second, admin-mapped SSO login has proven the guardrail's other
-//      precondition (see authE2EOidcFlow.ts's header comment for why that
-//      needs a second, env/file-backed provider — a DB-backed group mapping
-//      can never produce an AllScopes session), enable require_sso and
-//      assert the local form disappears on /login and reappears (with local
-//      admin sign-in still working) on /login?local=1.
-//
-// Item 6 (negative-leakage scan) and the CI job remain phase 4 scope.
+// Acceptance coverage (issue #4971 — all six items, one fresh zero-identity stack):
+//   1. Fresh stack shows the SetupPage, not a dead-end LoginPage.
+//   2. Claim the generated one-time credential, complete the 3-step wizard, land
+//      on the dashboard; the credential is then destroyed (second retrieval empty)
+//      and the setup routes return 410.
+//   3. Configure a member-mapped OIDC provider through the real Add-provider UI
+//      (add -> test -> enable); it shows active and appears on /login.
+//   4. Complete a real browser OIDC redirect -> mock IdP -> callback as that
+//      member (non-admin): no Admin nav, /admin renders the 403 AccessDeniedPage,
+//      admin APIs 403.
+//   5. The require_sso guardrail rejects a premature enable (400) until a provider
+//      passes its test AND an admin has completed an SSO sign-in; enabling it then
+//      hides the local form on /login while break-glass /login?local=1 still works.
+//      The admin-SSO precondition needs a second, env/file-backed provider — a
+//      DB-backed group mapping can never mint an AllScopes session; see
+//      authE2EOidcFlow.ts.
+//   6. Negative-leakage scan (authE2ELeakage.ts): the flow's secrets (bootstrap
+//      password/recovery code, wizard password, enrolled MFA code, both client
+//      secrets) appear in NO audit trail, provider-config read, status/health,
+//      DOM, or API container log — bar epic #4962's one-time banner.
+// A CI job (frontend.yml's auth-sso-e2e) runs this whole gate on a fresh stack.
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium, type Browser, type Page } from "playwright";
 
-import { buildPostgresDSN, e2eDefaultAuthSecretEncKey, retrieveInitialCredential } from "./authE2ECredential.ts";
-import { startAuthE2EDevServer, stopAuthE2EDevServer, type AuthE2EDevServer } from "./authE2EDevServer.ts";
+import {
+  buildPostgresDSN,
+  e2eDefaultAuthSecretEncKey,
+  retrieveInitialCredential,
+} from "./authE2ECredential.ts";
+import {
+  startAuthE2EDevServer,
+  stopAuthE2EDevServer,
+  type AuthE2EDevServer,
+} from "./authE2EDevServer.ts";
+import { runLeakageScan, type SecretProbe } from "./authE2ELeakage.ts";
+import {
+  assertFreshStackShowsSetupWizard,
+  assertSetupRouteGone,
+  driveSetupWizard,
+} from "./authE2ESetupWizard.ts";
 import {
   apiFetchInPage,
   assertProviderRowActive,
@@ -99,7 +94,8 @@ const postgresDSN =
     password: (process.env.ESHU_E2E_POSTGRES_PASSWORD ?? "change-me").trim(),
     database: "eshu",
   });
-const authSecretEncKey = (process.env.ESHU_AUTH_SECRET_ENC_KEY ?? "").trim() || e2eDefaultAuthSecretEncKey;
+const authSecretEncKey =
+  (process.env.ESHU_AUTH_SECRET_ENC_KEY ?? "").trim() || e2eDefaultAuthSecretEncKey;
 // A distinct port from both the live corpus gate (5180) and the mock-mode
 // per-page harness (5190) so all three can run concurrently on one machine.
 // Fixed (not dynamically discovered): apps/console/e2e/fixtures/
@@ -151,93 +147,6 @@ const patchSignInPolicy = async (
 ): Promise<{ status: number; text: string }> =>
   apiFetchInPage(page, "PATCH", "/api/v0/auth/admin/sign-in-policy", body);
 
-async function assertFreshStackShowsSetupWizard(page: Page, baseUrl: string): Promise<void> {
-  // apiBaseUrl is the dev server's OWN absolute origin + "/eshu-api", not the
-  // bare relative "/eshu-api/" phase 2 used. Every fetch this makes is still
-  // same-origin (the page IS served from this origin), so nothing about
-  // normal API calls changes — but oidcRedirectUri()/samlAcsUrl()
-  // (apps/console/src/api/adminProviderConfig.ts) derive the OIDC/SAML
-  // redirect URIs registered with a provider directly from this value, and
-  // those values are sent to real external IdPs and become literal
-  // `Location:` redirect targets a real browser navigates to. A relative
-  // "/eshu-api/..." redirect_uri would resolve against the IdP's OWN origin
-  // once the mock IdP 302s the browser there (url.Parse+http.Redirect in
-  // go/cmd/mock-oidc-idp/server.go accepts it verbatim, same as any real
-  // OIDC/SAML provider), landing on a nonsense path on the wrong host. Making
-  // this absolute is what item 3/4/5's real browser OIDC round trip needs;
-  // item 1/2 (local-only, no external redirect) are unaffected.
-  await page.addInitScript(
-    ([base]: readonly string[]) => {
-      window.localStorage.setItem(
-        "eshu.console.environment",
-        JSON.stringify({ mode: "private", apiBaseUrl: base, recentApiBaseUrls: [base] }),
-      );
-    },
-    [`${baseUrl}/eshu-api`],
-  );
-  await page.goto(baseUrl, { waitUntil: "domcontentloaded", timeout: navTimeoutMs });
-  await page.waitForSelector(".setup-card", { timeout: navTimeoutMs });
-  const loginFieldCount = await page.locator("#login-id").count();
-  if (loginFieldCount !== 0) {
-    throw new Error("LoginPage's #login-id field is present alongside SetupPage — dead-end login form");
-  }
-}
-
-// driveSetupWizard completes the 3-step wizard and returns ONE of the real,
-// plaintext MFA recovery codes the wizard's step 3 generates and displays
-// (SetupPage.tsx's completeSetupMFA / SetupMFAStep.tsx's `ul.codes li`) —
-// scraped from the DOM before "Finish setup" is clicked, the same value a
-// real operator would copy/download to save. This is required because
-// enrolling recovery codes here makes MFA mandatory on every subsequent
-// local login for this account (verified live: a later plain login/password
-// POST /api/v0/auth/local/login for this account returns 202
-// {status:"mfa_required"}, not a session) — item5's break-glass local-login
-// assertion (driveLocalLogin) needs a genuine, working code to get past that
-// MFA step. Each code works once (SetupMFAStep.tsx), so callers must not
-// reuse the returned code for more than one login.
-async function driveSetupWizard(page: Page, username: string, password: string): Promise<string> {
-  await page.fill("#setup-username", username);
-  await page.fill("#setup-password", password);
-  await page.click('.card-foot button[type="submit"]');
-
-  await page.waitForSelector("#setup-new-password", { timeout: navTimeoutMs });
-  await page.fill("#setup-new-password", wizardNewPassword);
-  await page.fill("#setup-confirm-password", wizardNewPassword);
-  await page.click('.card-foot button[type="submit"]');
-
-  await page.waitForSelector("ul.codes li", { timeout: navTimeoutMs });
-  const recoveryCode = (await page.locator("ul.codes li").first().textContent())?.trim() ?? "";
-  if (recoveryCode === "") {
-    throw new Error("wizard step 3 rendered ul.codes but the first recovery code was empty");
-  }
-
-  // Click the <label> rather than the checkbox input directly.
-  // authFlow.css visually hides the native input (position: absolute;
-  // opacity: 0; width/height: 0) behind a styled `.checkbox` sibling span
-  // (the standard accessible-custom-checkbox pattern), so it has no visible,
-  // in-viewport bounding box for Playwright to click — even with
-  // force:true. The wrapping <label htmlFor="setup-codes-saved"> has real
-  // dimensions and toggles the input via the native label/input
-  // association, exactly like a real user clicking the visible row.
-  await page.waitForSelector("#setup-codes-saved", { timeout: navTimeoutMs, state: "attached" });
-  await page.click('label[for="setup-codes-saved"]');
-  await page.click('button:has-text("Finish setup")');
-
-  await page.waitForSelector(".source-pill.src-connected", { timeout: navTimeoutMs });
-  return recoveryCode;
-}
-
-async function assertSetupRouteGone(): Promise<void> {
-  const res = await fetch(`${apiBase}/api/v0/auth/setup/claim`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ username: "irrelevant", password: "irrelevant" }),
-  });
-  if (res.status !== 410) {
-    throw new Error(`expected 410 Gone from POST /api/v0/auth/setup/claim after setup, got ${res.status}`);
-  }
-}
-
 // memberOidcIssuer/adminStaticProviderId/memberOidcGroup identify the two
 // mock IdPs and providers in play — see authE2EOidcFlow.ts's header comment
 // for why item 5's guardrail precondition needs a SECOND, env/file-backed
@@ -273,8 +182,11 @@ export async function runAuthE2E(): Promise<number> {
     const page = await context.newPage();
 
     await step("item1_setup_wizard_renders", async () => {
-      await assertFreshStackShowsSetupWizard(page, devServer!.baseUrl);
-      await page.screenshot({ path: resolve(screenshotsDir, "1-setup-wizard.png"), fullPage: true });
+      await assertFreshStackShowsSetupWizard(page, devServer!.baseUrl, navTimeoutMs);
+      await page.screenshot({
+        path: resolve(screenshotsDir, "1-setup-wizard.png"),
+        fullPage: true,
+      });
       return "SetupPage rendered on first navigation; no #login-id field present";
     });
 
@@ -286,27 +198,52 @@ export async function runAuthE2E(): Promise<number> {
     // instead (module-level wizardNewPassword), plus the wizard's real,
     // single-use MFA recovery code (see driveSetupWizard's doc comment).
     let breakglassRecoveryCode = "";
+    // Captured for item 6's negative-leakage scan: the one-time bootstrap
+    // password and its sealed recovery code must never surface in logs, audit
+    // payloads, status endpoints, API responses, or the DOM.
+    let bootstrapPassword = "";
+    let bootstrapRecoveryCode = "";
     await step("item2_retrieve_initial_credential", async () => {
-      const { credential, rawStderr } = await retrieveInitialCredential(repoGoDir, postgresDSN, authSecretEncKey);
+      const { credential, rawStderr } = await retrieveInitialCredential(
+        repoGoDir,
+        postgresDSN,
+        authSecretEncKey,
+      );
       if (!credential) {
-        throw new Error(`eshu admin initial-credential returned nothing on a fresh stack: ${rawStderr}`);
+        throw new Error(
+          `eshu admin initial-credential returned nothing on a fresh stack: ${rawStderr}`,
+        );
       }
       credentialUsername = credential.username;
-      breakglassRecoveryCode = await driveSetupWizard(page, credential.username, credential.password);
+      bootstrapPassword = credential.password;
+      bootstrapRecoveryCode = credential.recoveryCode;
+      breakglassRecoveryCode = await driveSetupWizard(
+        page,
+        credential.username,
+        credential.password,
+        wizardNewPassword,
+        navTimeoutMs,
+      );
       await page.screenshot({ path: resolve(screenshotsDir, "2-dashboard.png"), fullPage: true });
       return `wizard completed as ${credential.username}; dashboard reached (.source-pill.src-connected)`;
     });
 
     await step("item2_credential_consumed", async () => {
-      const { credential, rawStderr } = await retrieveInitialCredential(repoGoDir, postgresDSN, authSecretEncKey);
+      const { credential, rawStderr } = await retrieveInitialCredential(
+        repoGoDir,
+        postgresDSN,
+        authSecretEncKey,
+      );
       if (credential) {
-        throw new Error("eshu admin initial-credential still returns a value after setup completed — not consumed");
+        throw new Error(
+          "eshu admin initial-credential still returns a value after setup completed — not consumed",
+        );
       }
       return `second retrieval correctly empty: ${rawStderr.trim().slice(0, 160)}`;
     });
 
     await step("item2_setup_routes_gone", async () => {
-      await assertSetupRouteGone();
+      await assertSetupRouteGone(apiBase);
       return "POST /api/v0/auth/setup/claim now returns 410 Gone";
     });
 
@@ -335,7 +272,10 @@ export async function runAuthE2E(): Promise<number> {
         groupClaim: "groups",
       });
       await assertProviderRowActive(page, memberOidcIssuer);
-      await page.screenshot({ path: resolve(screenshotsDir, "3-provider-active.png"), fullPage: true });
+      await page.screenshot({
+        path: resolve(screenshotsDir, "3-provider-active.png"),
+        fullPage: true,
+      });
       return `provider for issuer ${memberOidcIssuer} tested, saved, and shows active`;
     });
 
@@ -358,11 +298,16 @@ export async function runAuthE2E(): Promise<number> {
       const loginContext = await browser!.newContext({ baseURL: devServer!.baseUrl });
       const loginPage = await loginContext.newPage();
       try {
-        await loginPage.goto("/login?tenant_id=default", { waitUntil: "domcontentloaded", timeout: navTimeoutMs });
+        await loginPage.goto("/login?tenant_id=default", {
+          waitUntil: "domcontentloaded",
+          timeout: navTimeoutMs,
+        });
         await loginPage.waitForSelector(".btn-sso", { timeout: navTimeoutMs });
         const count = await loginPage.locator(".btn-sso").count();
         if (count < 1) {
-          throw new Error("no SSO button rendered on /login after enabling the member OIDC provider");
+          throw new Error(
+            "no SSO button rendered on /login after enabling the member OIDC provider",
+          );
         }
         return `${count} SSO button(s) rendered on /login`;
       } finally {
@@ -378,7 +323,10 @@ export async function runAuthE2E(): Promise<number> {
       memberContext = await browser!.newContext({ baseURL: devServer!.baseUrl });
       const memberPage = await memberContext.newPage();
       await driveOidcLogin(memberPage);
-      await memberPage.screenshot({ path: resolve(screenshotsDir, "4-member-dashboard.png"), fullPage: true });
+      await memberPage.screenshot({
+        path: resolve(screenshotsDir, "4-member-dashboard.png"),
+        fullPage: true,
+      });
       return "member identity completed OIDC redirect -> mock IdP -> callback -> dashboard";
     });
 
@@ -397,7 +345,9 @@ export async function runAuthE2E(): Promise<number> {
       await memberPage.waitForSelector(".access-denied-panel", { timeout: navTimeoutMs });
       const adminShellCount = await memberPage.locator(".panel-grid").count();
       if (adminShellCount !== 0) {
-        throw new Error("member session's /admin navigation rendered the admin shell, not AccessDeniedPage");
+        throw new Error(
+          "member session's /admin navigation rendered the admin shell, not AccessDeniedPage",
+        );
       }
       return "GET /admin rendered AccessDeniedPage (403 screen), not the admin shell";
     });
@@ -406,7 +356,9 @@ export async function runAuthE2E(): Promise<number> {
       const memberPage = memberContext!.pages()[0]!;
       const result = await apiFetchInPage(memberPage, "GET", "/api/v0/auth/admin/provider-configs");
       if (result.status !== 403) {
-        throw new Error(`expected 403 from an admin API call under the member session, got ${result.status}`);
+        throw new Error(
+          `expected 403 from an admin API call under the member session, got ${result.status}`,
+        );
       }
       return `GET /api/v0/auth/admin/provider-configs correctly returned 403: ${result.text.slice(0, 160)}`;
     });
@@ -429,9 +381,14 @@ export async function runAuthE2E(): Promise<number> {
 
     await step("item5_enable_require_sso", async () => {
       const ssoAdminPage = ssoAdminContext!.pages()[0]!;
-      const result = await apiFetchInPage(ssoAdminPage, "PATCH", "/api/v0/auth/admin/sign-in-policy", {
-        require_sso: true,
-      });
+      const result = await apiFetchInPage(
+        ssoAdminPage,
+        "PATCH",
+        "/api/v0/auth/admin/sign-in-policy",
+        {
+          require_sso: true,
+        },
+      );
       if (result.status !== 200) {
         throw new Error(
           `expected 200 from PATCH require_sso=true once both guardrail preconditions are proven, got ${result.status}: ${result.text}`,
@@ -444,13 +401,19 @@ export async function runAuthE2E(): Promise<number> {
       const freshContext = await browser!.newContext({ baseURL: devServer!.baseUrl });
       try {
         const freshPage = await freshContext.newPage();
-        await freshPage.goto("/login?tenant_id=default", { waitUntil: "domcontentloaded", timeout: navTimeoutMs });
+        await freshPage.goto("/login?tenant_id=default", {
+          waitUntil: "domcontentloaded",
+          timeout: navTimeoutMs,
+        });
         await freshPage.waitForSelector(".btn-sso", { timeout: navTimeoutMs });
         const loginFieldCount = await freshPage.locator("#login-id").count();
         if (loginFieldCount !== 0) {
           throw new Error("#login-id is present on /login even though require_sso=true");
         }
-        await freshPage.screenshot({ path: resolve(screenshotsDir, "5-require-sso-hides-local.png"), fullPage: true });
+        await freshPage.screenshot({
+          path: resolve(screenshotsDir, "5-require-sso-hides-local.png"),
+          fullPage: true,
+        });
         return "local password form absent on /login with require_sso=true";
       } finally {
         await freshContext.close();
@@ -461,9 +424,17 @@ export async function runAuthE2E(): Promise<number> {
       const breakglassContext = await browser!.newContext({ baseURL: devServer!.baseUrl });
       try {
         const breakglassPage = await breakglassContext.newPage();
-        await breakglassPage.goto("/login?tenant_id=default&local=1", { waitUntil: "domcontentloaded", timeout: navTimeoutMs });
+        await breakglassPage.goto("/login?tenant_id=default&local=1", {
+          waitUntil: "domcontentloaded",
+          timeout: navTimeoutMs,
+        });
         await breakglassPage.waitForSelector("#login-id", { timeout: navTimeoutMs });
-        await driveLocalLogin(breakglassPage, credentialUsername, wizardNewPassword, breakglassRecoveryCode);
+        await driveLocalLogin(
+          breakglassPage,
+          credentialUsername,
+          wizardNewPassword,
+          breakglassRecoveryCode,
+        );
         await breakglassPage.screenshot({
           path: resolve(screenshotsDir, "5-breakglass-local-login.png"),
           fullPage: true,
@@ -474,16 +445,45 @@ export async function runAuthE2E(): Promise<number> {
       }
     });
 
+    // item 6: negative-leakage scan. Runs while the member and admin sessions
+    // are still open so both dashboards' DOM can be read. Proves none of the
+    // secrets the flow generated or handled — the one-time bootstrap password
+    // and its recovery code, the wizard's replacement password, the enrolled
+    // MFA recovery code, and both providers' client secrets — appear in the
+    // audit trail, provider-config reads, status/health endpoints, either
+    // dashboard's DOM, or the API container log.
+    await step("item6_no_secret_leakage", async () => {
+      if (!memberContext) {
+        throw new Error("item 6 requires the member session from item 4, but it was never opened");
+      }
+      const probes: SecretProbe[] = [
+        { label: "bootstrap password", value: bootstrapPassword },
+        { label: "bootstrap recovery code", value: bootstrapRecoveryCode },
+        { label: "wizard replacement password", value: wizardNewPassword },
+        { label: "enrolled MFA recovery code", value: breakglassRecoveryCode },
+        { label: "member provider client secret", value: "unused-member-provider-secret-e2e" },
+        {
+          label: "admin static provider client secret",
+          value: "unused-static-provider-secret-e2e",
+        },
+      ];
+      return runLeakageScan({
+        adminPage: page,
+        memberPage: memberContext.pages()[0]!,
+        apiFetchInPage,
+        apiBase,
+        repoRoot,
+        project: (process.env.ESHU_E2E_PROJECT_NAME ?? "eshu-e2e-auth").trim(),
+        probes,
+      });
+    });
+
     if (memberContext) await memberContext.close();
     if (ssoAdminContext) await ssoAdminContext.close();
 
     const failed = results.filter((r) => r.status === "fail");
     const totalMs = Date.now() - runStart;
-    await writeFile(
-      reportPath,
-      JSON.stringify({ apiBase, totalMs, results }, null, 2),
-      "utf8",
-    );
+    await writeFile(reportPath, JSON.stringify({ apiBase, totalMs, results }, null, 2), "utf8");
     process.stdout.write(
       `auth-e2e: ${results.length - failed.length}/${results.length} steps passed in ${totalMs}ms; report ${reportPath}\n`,
     );

@@ -55,7 +55,7 @@ export default defineConfig({
         url: "http://localhost:5174/"
       }
     },
-    include: ["src/**/*.test.{ts,tsx}"],
+    include: ["src/**/*.test.{ts,tsx}", "e2e/**/*.test.ts"],
     globals: true,
     setupFiles: "src/test/setup.ts"
   }

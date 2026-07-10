@@ -46,6 +46,15 @@ on:
       - "scripts/verify-frontend-format-changed.sh"
       - ".pre-commit-config.yaml"
       - ".github/workflows/frontend.yml"
+      # SSO auth E2E (#4971) surfaces — the browser gate, its runtime, the
+      # Compose stack it owns, the mock OIDC IdP it drives, and the Go bootstrap
+      # banner whose exact markers authE2ELeakage.ts's stripBootstrapBanner
+      # matches (a marker rename must re-run this gate on that same PR).
+      - "scripts/run-auth-e2e.sh"
+      - "scripts/console-auth-e2e-runtime.mjs"
+      - "docker-compose.e2e.yaml"
+      - "go/cmd/mock-oidc-idp/**"
+      - "go/cmd/api/seed_initial_admin_helpers.go"
   workflow_dispatch:
 
 concurrency:
@@ -115,6 +124,51 @@ jobs:
 
       - name: Run per-page e2e (mocked)
         run: npm run console:e2e:mock
+
+  auth-sso-e2e:
+    name: SSO auth E2E (browser, fresh stack)
+    timeout-minutes: 30
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies (clean, lockfile-pinned)
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install chromium --with-deps
+
+      # scripts/run-auth-e2e.sh owns the docker-compose.e2e.yaml lifecycle
+      # (fresh `up --build --wait` then `down -v`), drives all 17 acceptance
+      # steps — first-run wizard, generated-credential claim/consumption,
+      # UI-configured OIDC provider, non-admin gating, require_sso + break-glass,
+      # and the item-6 negative-leakage scan — and exits non-zero on any failure.
+      # It reuses the existing browser gate rather than duplicating the console
+      # lane's mock-mode harness (#4971 acceptance; extends the #3326/#3328 lane).
+      - name: Run the fresh-stack SSO auth E2E
+        run: bash scripts/run-auth-e2e.sh
+
+      - name: Upload auth E2E artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: auth-sso-e2e-artifacts
+          path: e2e-artifacts/
+          if-no-files-found: ignore
 
   console-a11y:
     name: Console a11y audit (axe-core)
