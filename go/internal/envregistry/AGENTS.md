@@ -18,7 +18,7 @@
   non-strict mode; only invalid values for known variables are errors. Keep it
   this way so `eshu config validate` stays trustworthy and noise-free.
 - **The reference doc is generated, never hand-edited.** Regenerate with
-  `ESHU_UPDATE_ENV_DOC=1 go test ./internal/envregistry -run TestEnvRegistryReferenceDocUpToDate`.
+  `bash scripts/generate-env-registry-doc.sh`.
   `docs/public/reference/env-registry.md` carries a "do not edit by hand" banner.
 
 ## Common changes and how to scope them

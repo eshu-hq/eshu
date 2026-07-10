@@ -1,6 +1,6 @@
 # Environment Variable Reference
 
-<!-- Generated from go/internal/envregistry. Do not edit by hand; regenerate with `ESHU_UPDATE_ENV_DOC=1 go test ./internal/envregistry -run TestEnvRegistryReferenceDocUpToDate`. -->
+<!-- Generated from go/internal/envregistry. Do not edit by hand; regenerate with `bash scripts/generate-env-registry-doc.sh`. -->
 
 This reference is generated from the code-owned registry in `go/internal/envregistry`. It covers the core platform subsystems. Run `eshu config validate` to check the current environment against it.
 

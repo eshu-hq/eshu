@@ -16,7 +16,7 @@ const envReferenceDocRelPath = "docs/public/reference/env-registry.md"
 // TestEnvRegistryReferenceDocUpToDate fails when the committed reference doc
 // drifts from the registry. Regenerate with:
 //
-//	ESHU_UPDATE_ENV_DOC=1 go test ./internal/envregistry -run TestEnvRegistryReferenceDocUpToDate
+//	bash scripts/generate-env-registry-doc.sh
 func TestEnvRegistryReferenceDocUpToDate(t *testing.T) {
 	docPath := filepath.Join(repositoryRoot(t), envReferenceDocRelPath)
 	want := Default().RenderMarkdown()
@@ -31,10 +31,10 @@ func TestEnvRegistryReferenceDocUpToDate(t *testing.T) {
 
 	got, err := os.ReadFile(docPath)
 	if err != nil {
-		t.Fatalf("read %s: %v (regenerate with ESHU_UPDATE_ENV_DOC=1)", envReferenceDocRelPath, err)
+		t.Fatalf("read %s: %v (regenerate with bash scripts/generate-env-registry-doc.sh)", envReferenceDocRelPath, err)
 	}
 	if string(got) != want {
-		t.Fatalf("%s is out of date; regenerate with ESHU_UPDATE_ENV_DOC=1 go test ./internal/envregistry -run TestEnvRegistryReferenceDocUpToDate", envReferenceDocRelPath)
+		t.Fatalf("%s is out of date; regenerate with bash scripts/generate-env-registry-doc.sh", envReferenceDocRelPath)
 	}
 }
 
