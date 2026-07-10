@@ -72,7 +72,7 @@ BEGIN
     FROM eshu_search_index_terms
     ORDER BY scope_id, generation_id, term_key, document_id;
 
-    LOCK TABLE eshu_search_index_terms IN ACCESS EXCLUSIVE MODE;
+    LOCK TABLE eshu_search_index_terms IN SHARE MODE;
 
     SELECT count(*)
     INTO diff_count
@@ -95,49 +95,7 @@ BEGIN
     ) diff;
 
     IF diff_count <> 0 THEN
-        TRUNCATE TABLE eshu_search_index_terms_shadow;
-
-        INSERT INTO eshu_search_index_terms_shadow (
-            scope_id,
-            generation_id,
-            document_id,
-            term_key,
-            term,
-            term_frequency
-        )
-        SELECT
-            scope_id,
-            generation_id,
-            document_id,
-            term_key,
-            term,
-            term_frequency
-        FROM eshu_search_index_terms
-        ORDER BY scope_id, generation_id, term_key, document_id;
-
-        SELECT count(*)
-        INTO diff_count
-        FROM (
-            (
-                SELECT scope_id, generation_id, document_id, term_key, term, term_frequency
-                FROM eshu_search_index_terms
-                EXCEPT ALL
-                SELECT scope_id, generation_id, document_id, term_key, term, term_frequency
-                FROM eshu_search_index_terms_shadow
-            )
-            UNION ALL
-            (
-                SELECT scope_id, generation_id, document_id, term_key, term, term_frequency
-                FROM eshu_search_index_terms_shadow
-                EXCEPT ALL
-                SELECT scope_id, generation_id, document_id, term_key, term, term_frequency
-                FROM eshu_search_index_terms
-            )
-        ) locked_diff;
-
-        IF diff_count <> 0 THEN
-            RAISE EXCEPTION 'eshu_search_index_terms partition cutover diff_count=%', diff_count;
-        END IF;
+        RAISE EXCEPTION 'eshu_search_index_terms partition cutover diff_count=%; retry when search term writers are quiet', diff_count;
     END IF;
 
     IF EXISTS (

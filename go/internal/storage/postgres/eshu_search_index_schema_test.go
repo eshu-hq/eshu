@@ -52,6 +52,21 @@ func TestBootstrapDefinitionsHashPartitionSearchIndexTerms(t *testing.T) {
 	}
 }
 
+func TestBootstrapDefinitionsSkipPartitionedSearchTermPKeyRebuild(t *testing.T) {
+	t.Parallel()
+
+	marker := mustBootstrapDefinition(t, "eshu_search_index")
+	for _, want := range []string{
+		"pkey_exists BOOLEAN",
+		"IF NOT pkey_exists THEN",
+		"ELSIF terms_relkind <> 'p' THEN",
+	} {
+		if !strings.Contains(marker.SQL, want) {
+			t.Fatalf("eshu_search_index SQL missing partitioned PK rebuild guard %q:\n%s", want, marker.SQL)
+		}
+	}
+}
+
 func TestDataPlaneSearchIndexSchemaHashPartitionSearchIndexTerms(t *testing.T) {
 	t.Parallel()
 
@@ -74,6 +89,26 @@ func TestDataPlaneSearchIndexSchemaHashPartitionSearchIndexTerms(t *testing.T) {
 	}
 }
 
+func TestDataPlaneSearchIndexSchemaSkipsPartitionedSearchTermPKeyRebuild(t *testing.T) {
+	t.Parallel()
+
+	schemaPath := filepath.Join("..", "..", "..", "..", "schema", "data-plane", "postgres", "003b_eshu_search_index.sql")
+	schema, err := os.ReadFile(schemaPath)
+	if err != nil {
+		t.Fatalf("read data-plane search-index schema: %v", err)
+	}
+	sql := string(schema)
+	for _, want := range []string{
+		"pkey_exists BOOLEAN",
+		"IF NOT pkey_exists THEN",
+		"ELSIF terms_relkind <> 'p' THEN",
+	} {
+		if !strings.Contains(sql, want) {
+			t.Fatalf("data-plane search-index schema missing partitioned PK rebuild guard %q:\n%s", want, sql)
+		}
+	}
+}
+
 func TestBootstrapDefinitionsMigrateSearchTermsToHashPartitions(t *testing.T) {
 	t.Parallel()
 
@@ -89,6 +124,22 @@ func TestBootstrapDefinitionsMigrateSearchTermsToHashPartitions(t *testing.T) {
 		if !strings.Contains(migration.SQL, want) {
 			t.Fatalf("partition migration missing %q:\n%s", want, migration.SQL)
 		}
+	}
+}
+
+func TestBootstrapDefinitionsSearchTermCutoverAvoidsExclusiveReCopy(t *testing.T) {
+	t.Parallel()
+
+	migration := mustBootstrapDefinition(t, "partition_eshu_search_index_terms")
+	if strings.Contains(migration.SQL, "ACCESS EXCLUSIVE") {
+		t.Fatalf("partition migration should not hold ACCESS EXCLUSIVE during diff proof:\n%s", migration.SQL)
+	}
+	if strings.Contains(migration.SQL, "TRUNCATE TABLE eshu_search_index_terms_shadow") {
+		t.Fatalf("partition migration should not full-recopy the shadow while locked:\n%s", migration.SQL)
+	}
+	const want = "LOCK TABLE eshu_search_index_terms IN SHARE MODE"
+	if !strings.Contains(migration.SQL, want) {
+		t.Fatalf("partition migration missing writer-blocking/read-allowing lock %q:\n%s", want, migration.SQL)
 	}
 }
 

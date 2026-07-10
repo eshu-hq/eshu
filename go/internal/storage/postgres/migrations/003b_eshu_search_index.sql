@@ -134,12 +134,37 @@ WHERE term_key IS NULL OR term_key = '';
 ALTER TABLE eshu_search_index_terms
     ALTER COLUMN term_key SET NOT NULL;
 
-ALTER TABLE eshu_search_index_terms
-    DROP CONSTRAINT IF EXISTS eshu_search_index_terms_pkey;
+DO $$
+DECLARE
+    terms_relkind "char";
+    pkey_exists BOOLEAN;
+BEGIN
+    SELECT c.relkind
+    INTO terms_relkind
+    FROM pg_class c
+    WHERE c.oid = to_regclass('eshu_search_index_terms');
 
-ALTER TABLE eshu_search_index_terms
-    ADD CONSTRAINT eshu_search_index_terms_pkey
-    PRIMARY KEY (scope_id, generation_id, term_key, document_id);
+    SELECT EXISTS (
+        SELECT 1
+        FROM pg_constraint
+        WHERE conrelid = 'eshu_search_index_terms'::regclass
+          AND conname = 'eshu_search_index_terms_pkey'
+    )
+    INTO pkey_exists;
+
+    IF NOT pkey_exists THEN
+        ALTER TABLE eshu_search_index_terms
+            ADD CONSTRAINT eshu_search_index_terms_pkey
+            PRIMARY KEY (scope_id, generation_id, term_key, document_id);
+    ELSIF terms_relkind <> 'p' THEN
+        ALTER TABLE eshu_search_index_terms
+            DROP CONSTRAINT eshu_search_index_terms_pkey;
+
+        ALTER TABLE eshu_search_index_terms
+            ADD CONSTRAINT eshu_search_index_terms_pkey
+            PRIMARY KEY (scope_id, generation_id, term_key, document_id);
+    END IF;
+END $$;
 
 CREATE INDEX IF NOT EXISTS eshu_search_index_documents_repo_idx
     ON eshu_search_index_documents (scope_id, generation_id, repo_id, source_kind);
