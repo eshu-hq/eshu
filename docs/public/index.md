@@ -1,65 +1,137 @@
-# Eshu
+# Build an evidence graph for your engineering stack
 
-Eshu connects code, dependencies, container images, infrastructure, workloads,
-deployment topology, external collector facts, and documentation into one
-queryable graph. It is the durable institutional-knowledge layer engineers and
-AI assistants query instead of re-deriving an answer from several repositories,
-dashboards, Terraform modules, and Helm charts by hand.
+Start with one successful run, then connect code, dependencies,
+infrastructure, runtime, and assistants into one queryable graph with evidence
+at every hop.
 
-The launch beachhead is supply-chain traceability: trace a vulnerable dependency
-through the images that ship it, the workloads that run them, and the source and
-Terraform that own them — with evidence at every hop.
-
-[First Successful Run](getting-started/first-successful-run.md){ .md-button .md-button--primary }
-[Start Here](start-here.md){ .md-button }
-[Run Locally](run-locally/index.md){ .md-button }
+[First successful run](getting-started/first-successful-run.md){ .md-button .md-button--primary }
 [Connect MCP](mcp/index.md){ .md-button }
-[Deploy](deploy/kubernetes/index.md){ .md-button }
 
-## Start With The Job You Have
+## Docs At A Glance
 
-| Job | Best first page |
-| --- | --- |
-| Get one working local run | [First successful run](getting-started/first-successful-run.md) |
-| Try Eshu on a laptop | [Run locally](run-locally/index.md) |
-| Connect an AI assistant | [Connect MCP](mcp/index.md) |
-| Index repositories and ask questions | [Use Eshu](use/index.md) |
-| Deploy a shared service for a team | [Deploy to Kubernetes](deploy/kubernetes/index.md) |
-| Deploy on EKS | [Deploy to EKS](deploy/eks/index.md) |
-| Operate or troubleshoot Eshu | [Operate Eshu](operate/index.md) |
-| Understand the architecture | [Understand Eshu](understand/index.md) |
-| Extend collectors or language support | [Extend Eshu](extend/index.md) |
-| Code with an AI agent | [Code with agents](guides/coding-with-agents.md) |
+<div class="grid cards">
+<ul>
+<li>
+<p><strong>Concepts</strong></p>
+<p>Understand Eshu's data model, evidence graph, and core ideas.</p>
+<p><a href="concepts/how-it-works/">Explore concepts</a></p>
+</li>
+<li>
+<p><strong>How-to guides</strong></p>
+<p>Complete focused tasks after Eshu is running.</p>
+<p><a href="use/">Browse guides</a></p>
+</li>
+<li>
+<p><strong>Tutorials</strong></p>
+<p>Learn by doing with practical, end-to-end walkthroughs.</p>
+<p><a href="getting-started/first-successful-run/">View tutorials</a></p>
+</li>
+<li>
+<p><strong>Reference</strong></p>
+<p>Look up API, MCP, CLI, environment, and contract details.</p>
+<p><a href="reference/cli-reference/">See reference</a></p>
+</li>
+</ul>
+</div>
 
-## What Eshu Helps You Do
+## Get Started
 
-| Ability | Example question |
-| --- | --- |
-| Supply-chain traceability | "Which deployed images contain this vulnerable package, and what owns them?" |
-| Code intelligence | "Who calls `process_payment` across indexed repos?" |
-| Deployment tracing | "What deploys this service into QA and prod?" |
-| Infrastructure ownership | "Trace this cloud resource back to the Terraform that defines it." |
-| Shared dependency discovery | "Which workloads share this database, queue, or secret?" |
-| Security and IAM posture | "What secrets and IAM roles can this workload reach?" |
-| Change-risk analysis | "What breaks if I change this shared client?" |
-| Assistant context | "Use Eshu to explain this service with source and deployment evidence." |
+<div class="grid cards">
+<ul>
+<li>
+<p><strong>New to Eshu</strong></p>
+<p>Get from zero to one indexed repository, then choose the next path.</p>
+<ul>
+<li><a href="getting-started/first-successful-run/">First successful run</a></li>
+<li><a href="start-here/">Start here</a></li>
+<li><a href="use-cases/">What Eshu helps with</a></li>
+</ul>
+</li>
+<li>
+<p><strong>Using Eshu</strong></p>
+<p>Index repositories, ask code questions, and connect an assistant through MCP.</p>
+<ul>
+<li><a href="use/index-repositories/">Index repositories</a></li>
+<li><a href="use/code-questions/">Ask code questions</a></li>
+<li><a href="mcp/">Connect MCP</a></li>
+</ul>
+</li>
+<li>
+<p><strong>Deploying Eshu</strong></p>
+<p>Move from a local run to a shared Kubernetes service.</p>
+<ul>
+<li><a href="deploy/kubernetes/">Deployment options</a></li>
+<li><a href="deploy/kubernetes/helm-quickstart/">Helm quickstart</a></li>
+<li><a href="deploy/kubernetes/manifests/">Kubernetes manifests</a></li>
+</ul>
+</li>
+<li>
+<p><strong>Operating Eshu</strong></p>
+<p>Check health, watch freshness, tune slow paths, and troubleshoot stale answers.</p>
+<ul>
+<li><a href="operate/health-checks/">Monitor health</a></li>
+<li><a href="operate/freshness-convergence/">Manage data and indexes</a></li>
+<li><a href="operate/troubleshooting/">Troubleshoot issues</a></li>
+</ul>
+</li>
+</ul>
+</div>
 
-## First Concepts
+## Popular Tutorials
 
-Eshu has three user-facing interfaces:
+<div class="grid cards">
+<ul>
+<li>
+<p><strong>Trace a vulnerable dependency</strong></p>
+<p>Follow evidence from an alert to the images, workloads, and source that own it.</p>
+<p><a href="guides/supply-chain-demo/">Open tutorial</a></p>
+</li>
+<li>
+<p><strong>Ask Eshu from Codex</strong></p>
+<p>Use natural language in an assistant to get evidence-backed answers from Eshu.</p>
+<p><a href="mcp/">Connect MCP</a></p>
+</li>
+<li>
+<p><strong>Index repositories</strong></p>
+<p>Connect Git providers and index code at scale.</p>
+<p><a href="use/index-repositories/">Start indexing</a></p>
+</li>
+<li>
+<p><strong>Deploy on Kubernetes</strong></p>
+<p>Deploy Eshu with Helm and validate the rollout.</p>
+<p><a href="deploy/kubernetes/helm-quickstart/">Deploy with Helm</a></p>
+</li>
+<li>
+<p><strong>Find unmanaged AWS resources</strong></p>
+<p>Discover cloud inventory and trace resources back to owners.</p>
+<p><a href="use/trace-infrastructure/">Trace infrastructure</a></p>
+</li>
+<li>
+<p><strong>Debug stale answers</strong></p>
+<p>Identify why an answer is outdated and fix the ingestion or reducer path.</p>
+<p><a href="operate/troubleshooting/">Troubleshooting</a></p>
+</li>
+</ul>
+</div>
 
-- **CLI:** local setup, indexing, analysis, and operator commands.
-- **MCP:** assistant-facing tools for Codex, Claude, Cursor, VS Code, and other
-  MCP clients.
-- **HTTP API:** automation and internal platform integration.
+## Explore By Role
 
-For local setup, start with [Run locally](run-locally/index.md). It explains
-when to use Docker Compose and when to use local binaries from a checkout.
+| Role | Start here | Then read |
+| --- | --- | --- |
+| New engineer | [First successful run](getting-started/first-successful-run.md) | [How Eshu works](concepts/how-it-works.md) |
+| Software engineer | [Ask code questions](use/code-questions.md) | [Starter prompts](guides/starter-prompts.md) |
+| Platform engineer | [Trace infrastructure](use/trace-infrastructure.md) | [Deploy to Kubernetes](deploy/kubernetes/index.md) |
+| Security engineer | [Supply-chain traceability](supply-chain-traceability.md) | [Security intelligence](reference/security-intelligence.md) |
+| Operator | [Health checks](operate/health-checks.md) | [Tuning playbook](operate/tuning-playbook.md) |
 
-## Read Next
+## Quick Start
 
-1. [First Successful Run](getting-started/first-successful-run.md) to start,
-   index, check status, and ask one useful question.
-2. [Start Here](start-here.md) to choose a path.
-3. [Starter Prompts](guides/starter-prompts.md) for high-value questions once
-   Eshu has indexed data.
+Run Eshu's first successful run, then connect an assistant through MCP:
+
+```bash
+eshu first-run
+```
+
+Read the [quick start guide](getting-started/first-successful-run.md), then
+open [Connect MCP](mcp/index.md) when you are ready to ask questions from
+Codex, Claude, Cursor, VS Code, or another MCP client.
