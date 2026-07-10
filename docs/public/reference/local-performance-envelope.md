@@ -60,6 +60,34 @@ default-selection change only, not a change to either profile's runtime path.
   timed against the `local_authoritative` row. Stop and profile if cold start
   exceeds the `15s` envelope by more than `10%`.
 
+### `make prove` credential-free common path budget (#4397)
+
+`make prove` (`scripts/dev/prove.sh`) is the credential-free local mirror of
+the Ifá CI gate: the Ifá contract-layer test, both Docker-matrix hermetic
+structural mirrors, and the `ifa coverage` reconcile. This is its own
+prove-latency budget, distinct from every row above — it bounds `make prove`'s
+common path only, not the path-selected Docker matrix (Layer 2), whose wall
+time varies by machine/Docker state and is reported informationally, never
+budgeted.
+
+- Affected stage: `make prove`'s credential-free common path (Ifá
+  contract-layer test, both hermetic determinism/dead-letter-matrix
+  structural mirrors, `ifa coverage` reconcile). The Docker matrix itself is
+  out of scope for this budget.
+- Method: at least three measured runs on the same box, per this platform's
+  P4 prove-latency-budget policy. Budget is `max(the three runs)` plus about
+  `25%` headroom (worst-case, per this repo's performance-envelope doctrine).
+  Measured on an Apple Silicon dev laptop with a warm Go build cache (the
+  realistic repeated-local-run shape, not a from-scratch clone): `4s`, `4s`,
+  `4s` across three consecutive runs, so `max = 4s`, budget = `4s * 1.25 = 5s`.
+- Enforcement: operator-gated (`EnforcementOperatorGated`,
+  `go/internal/perfcontract`'s `localEnvelopeThresholds`). `make prove` prints
+  its own measured wall time against this budget and WARNS, but does not
+  fail, when the budget is exceeded — a prove-latency regression is a bug to
+  root-cause, not a hermetic gate failure, per the design doc's flake and
+  prove-latency policies.
+- Target: the `make prove` credential-free common path stays under `5s`.
+
 ### Compose local hash semantic-search default (#3324)
 
 Docker Compose now defaults API, MCP, and reducer to

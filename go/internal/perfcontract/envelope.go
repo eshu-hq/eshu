@@ -63,5 +63,11 @@ func localEnvelopeThresholds() []Threshold {
 		{Name: "authoritative_dead_code_scan", Doc: doc, Phrase: "active-repo dead-code scan under `10s`", Token: "10s", Value: 10, Unit: "s", Enforcement: EnforcementOperatorGated},
 		{Name: "authoritative_reducer_bulk_write", Doc: doc, Phrase: "reducer bulk write batch under `10s` for `50K` facts", Token: "10s", Value: 10, Unit: "s", Enforcement: EnforcementOperatorGated},
 		{Name: "authoritative_single_file_reindex", Doc: doc, Phrase: "single-file reindex to visible graph update under `5s`", Token: "5s", Value: 5, Unit: "s", Enforcement: EnforcementOperatorGated},
+		// `make prove` (issue #4397, P4) credential-free common path budget: the
+		// Ifá contract-layer test, both determinism/dead-letter-matrix hermetic
+		// structural mirrors, and the `ifa coverage` reconcile. The Docker matrix
+		// (Layer 2) is excluded — its wall time varies by machine/Docker state and
+		// is reported informationally, never budgeted.
+		{Name: "prove_common_path_wall_time", Doc: doc, Phrase: "the `make prove` credential-free common path stays under `5s`", Token: "5s", Value: 5, Unit: "s", Enforcement: EnforcementOperatorGated},
 	}
 }
