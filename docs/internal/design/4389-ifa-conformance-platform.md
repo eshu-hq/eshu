@@ -361,32 +361,188 @@ Design:
    into the ingestion → `fact_work_items` → reducer path
    (`ingestion.go:239-241`,`:308-312`; `reducer` as a library from the main
    module).
-2. **Worker matrix.** Replay the same Odù at N ∈ {1, 2, 4, …}. Mode selection
-   for any recording-capable collector uses `-mode`/`-cassette-file`
-   (`collector-kubernetes-live/main.go:72-95`); git-derived facts come from the
-   `LoadFacts` replay path (`collector-git/main.go` is live-only).
-3. **Assertion.** After each N, canonicalize the projected graph with the
-   existing canonicalizer and assert byte-identical output across all N. Because
-   canonicalization is idempotent and normalizes volatile/derived keys
-   (`canonical.go:105-125`,`:180-181`), a difference across N is a real
-   concurrency defect, not a timestamp/ordering artifact.
+2. **Worker matrix.** Replay the same Odù at N ∈ {1, 2, 4, …}, each cell
+   against a **fresh** Postgres + fresh graph backend (`docker compose down
+   -v` between cells; mandatory, not a hygiene nicety — see below).
+   **Correction (P3 measured; supersedes the collector `-mode` claim above).**
+   The design's original text pointed at `-mode`/`-cassette-file` on
+   recording-capable collectors (`collector-kubernetes-live/main.go:72-95`) as
+   the matrix's own drive mechanism. P3 built something narrower that does
+   not go through any collector binary at all: the matrix
+   (`scripts/verify-ifa-determinism.sh`) is a loop over the `ifa drive
+   -cassette <file> -workers N` verb (`go/cmd/ifa/drive.go`), which loads the
+   cassette through `cassette.NewSource` (`drive.go:81-84`), wraps it in
+   `concurrentreplay.NewSource`/`concurrentreplay.Driver{Workers: N}`
+   (`drive.go:98-103`), and commits straight into a
+   `postgres.IngestionStore` (`drive.go:94-96`) — the same durable commit
+   boundary a live collector uses, reached without compiling or invoking
+   collector `-mode` selection at all. Git-derived facts still come from the
+   `LoadFacts` replay path where a live-only collector applies
+   (`collector-git/main.go` is live-only); that half of the original claim is
+   unaffected by the correction. **Fresh DB per cell is mandatory:** the
+   ingestion upsert path resolves cross-run duplicates by fencing token via
+   `ON CONFLICT (fact_id) DO UPDATE`
+   (`go/internal/storage/postgres/facts_streaming.go:149,189`), so re-driving
+   the identical cassette into a Postgres/graph pair that already holds that
+   generation is a near-no-op — a determinism cell that reused a DB across N
+   would pass vacuously, not because the write path is deterministic but
+   because the second and third drives would have (almost) nothing left to
+   do.
+3. **Assertion.** After each N, canonicalize the projected graph and assert
+   byte-identical output across all N. **Correction (P3 measured; the
+   design's original claim here was FALSE).** The design said this step
+   reuses "the existing canonicalizer" (`canonical.go:105-125`,`:180-181`)
+   against "the projected graph." That canonicalizer never touched graph
+   state — it normalizes fact-envelope/cassette JSON only — and no full-graph
+   serializer existed anywhere in the tree before P3. P3 built one:
+   `go/internal/ifa/graphdump` (`Canonicalize(ctx, Reader) ([]byte, error)`)
+   reads every node and edge over a narrow `Reader` seam and produces a
+   **content-addressed** byte form — edges reference their endpoints by the
+   sha256 digest of each endpoint's own canonical node bytes
+   (`go/internal/ifa/graphdump/README.md`), never by internal element ID or
+   backend UID, so the comparison is genuinely order-independent and
+   backend-ID-independent. It reuses rather than reimplements the
+   canonicalization primitive: its only internal dependency is
+   `internal/replay`'s shared canonical-JSON core
+   (`CanonicalizeValue`/`CanonicalOptions`), not a second hand-rolled JSON
+   walker (see anti-rewrite rule 1's amendment below). Measured proof this
+   cannot pass vacuously (`go/internal/ifa/graphdump/README.md`'s Benchmark
+   Evidence): an unmutated cassette produced byte-identical digests at
+   N=1/N=4 on independent fresh stacks, and a single mutated payload value
+   changed the digest.
 3a. **Failure-path determinism.** The typed-decode contract (#4566) made
-   malformed-fact -> `input_invalid` dead-letter a designed outcome, so the
-   failure path can race invisibly under a graph-only comparison. At least one
-   Odù is seeded with deliberately-malformed facts, and the matrix asserts the
-   **identical dead-letter set** (same work items, same `failure_class`) across
-   all N, alongside the graph identity. Teeth test: a deliberately racy
-   dead-letter path must be caught, mirroring the schedulereplay divergence
-   test.
+   malformed-fact dead-lettering a designed outcome, so the failure path can
+   race invisibly under a graph-only comparison. **Correction (P3 measured;
+   the design's `input_invalid` dead-letter illustration does not describe
+   the mutation that actually reaches a comparable dead-letter row).** Two
+   distinct malformed-fact mechanisms exist
+   (`go/internal/ifa/mutate.go`'s `MutationKind`), and only one of them is
+   durable and comparable:
+
+   - A **missing required field** (`ifa mutate-cassette -kind
+     missing-field`) passes every earlier admission gate untouched and is
+     **PER-FACT QUARANTINED** once a canonical extractor or reducer handler
+     decodes it — `go/internal/projector/factschema_quarantine.go` and its
+     reducer twin (`go/internal/reducer/factschema_decode.go`) skip the one
+     fact, increment a metric, and log a structured error, but the
+     surrounding `fact_work_items` row still **succeeds**. This is
+     metric-and-log-only: no dead-letter row is ever written, so there is
+     nothing a `fact_work_items` query can compare across N. Measured
+     empirically: driving a missing-field-mutated cassette produced 0
+     `dead_letter` rows.
+   - A **schema-major mismatch** (`ifa mutate-cassette -kind schema-major`)
+     is caught earlier, at the **projector's own admission gate**
+     (`go/internal/projector/schema_version_admission.go`'s
+     `validateFactSchemaVersion`), before canonicalization even starts. That
+     gate fails the **whole** projector work item for the scope/generation —
+     not a per-fact skip — so the reducer's own follow-on materialization
+     intents are never enqueued. The projector work item then dead-letters
+     durably (`fact_work_items.status='dead_letter'`, `stage='projector'`),
+     with `failure_class='projection_bug'` (measured empirically) — **not**
+     the reducer's `input_invalid` this section originally illustrated.
+
+   Step 3a's Odù therefore uses the schema-major mutation
+   (`MutationSchemaMajor`, `go/internal/ifa/mutate.go:73-83`), the only one of
+   the two that produces a durable, cross-N-comparable row. The matrix
+   asserts the **identical dead-letter set**
+   (`ifa.DeadLetterSetsEqual`, comparing `work_item_id`, `stage`, `domain`,
+   and `failure_class` — `go/internal/ifa/dead_letters.go`) across all N,
+   alongside the graph identity, scoped to the **durable** `fact_work_items`
+   queue with its **own terminal condition**: `status NOT IN
+   ('succeeded','superseded','dead_letter') = 0` — distinct from the B-12
+   drain gate's `factWorkItemsResidualSQL`
+   (`go/cmd/golden-corpus-gate/drains.go:27-29`), which deliberately counts a
+   `dead_letter` row **as residual** ("a drained pipeline has no dead
+   letters"). Polling the B-12 residual condition on a deliberately
+   dead-lettering Odù would never reach zero; the failure-path leg needs its
+   own terminal state that treats `dead_letter` as an expected outcome, not
+   residual. Teeth test: a deliberately racy dead-letter path must be caught,
+   mirroring the schedulereplay divergence test.
 4. **Drain and timing** reuse the B-12 drain assertions
    (`fact_work_items.residual_max:0`) and perfcontract enforcement classes
    (`contract.go:6-19`) so a determinism run also proves the queue fully drained
-   within the operator-gated or hermetic budget for its class.
+   within the operator-gated or hermetic budget for its class. Confirmed:
+   `scripts/verify-ifa-determinism.sh` already reports each cell's own
+   wall-clock time in its PASS line (`N=<n> digest=<digest> wall=<seconds>s`),
+   not only an aggregate — the per-cell instrumentation an operator-gated
+   timing budget (P4) will need is already in place; P4 still owns setting an
+   actual threshold from at least three measured runs (no number is added
+   here).
 
 This layer directly honors the repo's "Serialization Is Not A Fix" rule: it is
 the gate that would *catch* a MERGE race being papered over by dropping worker
 count, because a serialized workaround changes the worker-count matrix behavior
 Ifá asserts on.
+
+#### Layer 2 addendum — the single-generation finding and the tiered fixture strategy (P3 measured)
+
+**Correction (P3 measured): varying N over the demo-org cassette alone proves
+nothing about concurrency.** `testdata/cassettes/gcpcloud/supply-chain-demo.json`
+is one scope, one generation, so `concurrentreplay.Driver` has exactly **one**
+work unit for any `-workers N` — the worker-interleaving counter teeth
+(`ifa_teeth_seq`, see below) was measured **byte-identical across every N** on
+that fixture alone (digest
+`48f30267f1c0773d137d14c64ae008e7fe0a5a39db481f524ac07d8ddcb09310` at
+N=1/N=2/N=4, `go/internal/reducer/gcp_resource_materialization_teeth.go`'s doc
+comment), meaning N was inert until a second work source was added. This
+platform's original Layer 2 text (and the P3 phasing entry below) did not
+anticipate this: a single-Odù determinism run proves **repeatability** (same
+input, same output, every run), not that the matrix is actually sensitive to
+worker-count interleaving.
+
+P3 resolves this with a **tiered fixture strategy**, not a bigger single Odù:
+
+- **Tier 1 — smoke.** The demo-org cassette alone, N ∈ {1, 2, 4}. Its
+  single-generation nature is a **documented feature, not a bug**: it proves
+  the matrix is repeatable and change-sensitive (a single mutated payload
+  value changes the digest — the Benchmark Evidence Run A/B/C in
+  `go/internal/ifa/graphdump/README.md`), cheaply and fast, before a
+  contributor pays for a heavier multi-scope run.
+- **Tier 2 — worker matrix.** The demo-org cassette **plus** a generated
+  synth multi-scope cassette (`ifa synth-cassette`,
+  `go/internal/synth/gcp.GenerateMultiScope`, K=8 distinct GCP projects,
+  added in #4396 slice 6b) driven into the same cell. Each generated
+  resource's `full_resource_name` embeds its own project's distinct
+  `ProjectID`, so the K scopes are disjoint **by construction** at the
+  payload-identity level — giving `concurrentreplay.Driver` 9 genuinely
+  independent work units, so `-workers N` actually varies commit
+  interleaving where Tier 1 cannot. This is the tier that is N-sensitive
+  (measured: `ifa_teeth_seq` differs for 591/622, 558/622, and 488/622
+  `CloudResource` nodes across the N=1/N=2, N=1/N=4, and N=2/N=4 pairs
+  respectively under `--teeth`).
+- **Tier 3 — load.** P5's load/saturation harness (Layer 3) reuses the same
+  synth-multiscope seam at scale-lab corpus size rather than inventing a new
+  amplification mechanism (see the P5 amplifier landmine in Layer 3 below).
+
+**Rule:** P4's (#4397) advisory-to-blocking flip for the Ifá gate MUST require
+the N-sensitive Tier 2 run, not Tier 1 alone — a gate that only ever runs the
+single-generation demo-org cassette can stay green forever without ever
+exercising a genuine worker-count race, which is exactly the false confidence
+this platform exists to prevent.
+
+**Teeth taxonomy (build tag `ifadeterminismteeth`).** The matrix's negative
+control stamps two build-tag-gated properties onto each GCP `CloudResource`
+row (`go/internal/reducer/gcp_resource_materialization_teeth.go`,
+`go/internal/storage/cypher/cloud_resource_node_writer_teeth.go`), read by
+`scripts/verify-ifa-determinism.sh --teeth`:
+
+- `r.ifa_teeth_write_order` — wall-clock nanoseconds
+  (`time.Now().UnixNano()`). Two independent process starts are vanishingly
+  unlikely to collide, so this is the **guaranteed-red floor**: `--teeth` can
+  never flake green for lack of a divergent signal, on any fixture.
+- `r.ifa_teeth_seq` — a process-global monotonic counter. This is the
+  **interleaving-sensitivity signal**, and it is meaningful only on a
+  multi-generation/multi-scope fixture: on the single-generation demo-org
+  cassette alone it was measured INERT (identical across every N); on the
+  Tier 2 multi-scope fixture it is genuinely interleaving-sensitive (the
+  591/622, 558/622, 488/622 measurement above,
+  `go/internal/reducer/README.md`'s teeth section).
+
+Both stamps compile to a zero-cost, zero-behavior no-op in every normal, CI,
+and production build (`!ifadeterminismteeth`: empty-string const concat plus
+an inlined no-op function, confirmed by
+`TestCanonicalCloudResourceUpsertCypherExcludesTeethClauseByDefault`); only
+`scripts/verify-ifa-determinism.sh --teeth` ever links the real stamp.
 
 ### Layer 3 — load and saturation (adopts the scale-lab taxonomy)
 
@@ -410,6 +566,37 @@ Design:
    500-scope load run with zero new recordings and zero credentials. Amplified
    scopes reuse the Layer 2 driver; the fan-out is data, not new concurrency
    machinery.
+
+   **Landmine identified in P3 (correction before P5 builds this).** Generic
+   `scope_id`/`stable_fact_key` rewriting, as described above, is
+   **determinism-unsafe** for cloud-resource families and must not be built
+   as-is. Graph nodes key on **payload identity**, not scope: the GCP
+   `CloudResource` node UID is derived from the resource's own
+   `full_resource_name` (`uid := cloudResourceUID(projectID, location,
+   assetType, fullResourceName)`,
+   `go/internal/reducer/gcp_resource_materialization.go:304`), and the row's
+   `source_fact_id` is stamped from the incoming fact envelope
+   (`go/internal/reducer/gcp_resource_materialization.go:321`) as a plain
+   last-writer-wins `SET`. If an amplifier rewrites only `scope_id`/
+   `stable_fact_key` and leaves the payload (`full_resource_name`, etc.)
+   untouched, K amplified scopes carrying the same underlying payload MERGE
+   onto the identical node UID, and whichever scope's write commits last wins
+   `source_fact_id` — legitimately order-dependent, which the determinism
+   matrix would then report as a **false red** caused by the load-generation
+   mechanism itself, not a real concurrency defect. #4396 slice 6b's
+   multi-scope fixture (`go/internal/synth/gcp.GenerateMultiScope`) avoids
+   this the correct way: every generated resource's `full_resource_name`
+   embeds its own scope's distinct `ProjectID`
+   (`go/internal/synth/gcp/README.md`, "Multi-scope generation"), so the K
+   scopes are disjoint **by construction** at the payload-identity level, not
+   only at the `scope_id` level. P5's amplifier MUST produce disjoint payload
+   identities per amplified scope (family-aware, not a generic
+   `scope_id`/`stable_fact_key` rewrite); where a family-native synth
+   generator already exists (GCP today), P5 should prefer amplifying through
+   that generator over a generic post-hoc rewrite. The genuinely different
+   question — cross-scope contention where two scopes legitimately claim the
+   SAME real-world resource UID — is a product-truth question, deferred to
+   issue #5007, not something this amplifier note tries to resolve.
 2. **Throughput Odù.** Run an amplified Odù at a named scale slot and assert
    the perfcontract thresholds for that slot's class. Smoke/small slots run
    hermetic (`EnforcementHermeticGate`); medium and above run operator-gated
@@ -596,8 +783,21 @@ obfuscation stays out of Ifá.
 These are hard constraints. Ifá reuses; it does not reimplement.
 
 1. **Do not write a new canonicalizer.** Use `internal/replay/canonical.go`
-   (idempotent, `:180-181`). A second canonicalizer would drift from the golden
-   gate's normalization and create false greens.
+   (idempotent, `:180-181`) for the fact-envelope/cassette canonical form —
+   the form the golden-corpus gate, the B-12 snapshot, and Odù expectations
+   all normalize against. A second FACT-ENVELOPE canonicalizer would drift
+   from that normalization and create false greens. **Amendment (P3): this
+   rule governs the fact-envelope/cassette canonical form specifically, not
+   "any graph-shaped output."** A graph-STATE dumper is legitimate net-new
+   work when no full-graph serializer exists to reuse:
+   `go/internal/ifa/graphdump` canonicalizes live NornicDB/Neo4j reads
+   (content-addressed, node/edge properties, no internal IDs) by reusing
+   `internal/replay`'s shared canonical-JSON core rather than forking a
+   second JSON-canonicalization implementation. The constraint this rule
+   actually protects — one canonical-JSON core, reused everywhere a canonical
+   byte form is needed — holds; only the surface (fact envelopes vs. live
+   graph reads) differs, because the design's original text conflated the
+   two.
 2. **Do not write a new cassette codec.** Use the v1 fail-closed codec
    (`format.go:19`,`:179-180`). Do not add a v2 without a migration and gate.
 3. **Do not fork the fact seam.** Assert on `facts.Envelope`
@@ -682,13 +882,30 @@ Add the git-collector `LoadFacts` replay path (live-only —
 `collector-git/main.go`). Evidence: driver passes `-race`; same Odù drains
 (`fact_work_items.residual_max:0`) at N=1.
 
-**P3 — determinism matrix + timing (determinism coverage generalized).**
-Run each Odù at N ∈ {1,2,4,…} and assert byte-identical canonical graph across
-N; enforce drain and perfcontract class. Also assert failure-path determinism:
-a malformed-fact Odù produces the identical dead-letter set across all N (step
-3a). Evidence: matrix green on a known-good Odù; a deliberately non-idempotent
-write is caught AND a deliberately racy dead-letter path is caught (regression
-tests first).
+**P3 — determinism matrix + timing (determinism coverage generalized;
+shipped — see the Layer 2 addendum above for the measured tiered-fixture
+correction).** Run each Odù at N ∈ {1, 2, 4} via `ifa drive -cassette <file>
+-workers N` (`go/cmd/ifa/drive.go`) against a fresh Postgres + graph backend
+per cell, and assert byte-identical canonical graph across N using the
+net-new `go/internal/ifa/graphdump` content-addressed graph dumper (not the
+fact-envelope canonicalizer — see the corrected Layer 2 item 3 above); enforce
+drain via the existing B-12 gate. Also assert failure-path determinism: a
+schema-major-mutated Odù (`ifa mutate-cassette -kind schema-major`) produces
+the identical durable dead-letter set across all N against its own terminal
+condition (step 3a, corrected above). Evidence (recorded 2026-07-09,
+`go/internal/ifa/graphdump/README.md` and `go/internal/reducer/README.md`):
+Tier 1 (demo-org alone) matrix green, digest
+`f692b33c72b99bb2ca44f25ca08804be425c96324186acd48995a6d59ccbc873` at N=1/2/4;
+Tier 2 (demo-org + 8-project synth-multiscope cassette, slice 6b) matrix
+green, digest
+`e3b183cb9e20fba3c3a3bb0690681502fc444263bc4fc9cd883259ef4ddf8682` at N=1/2/4,
+proving the 9-work-unit combination is genuinely N-sensitive: the SAME
+cassette pair under `-tags ifadeterminismteeth` diverges across all three
+cells (`TEETH: CAUGHT`) while the normal build stays green, catching a
+deliberately non-idempotent write; the malformed-fact leg
+(`scripts/verify-ifa-dead-letter-determinism.sh`) catches a deliberately racy
+dead-letter path the same way (regression tests first, per this platform's
+Evidence Rules).
 
 **P4 — `make prove`, drop-an-Odù docs, advisory→blocking.**
 Land the `make prove` entry point, the flake policy (no retry-to-green), the
@@ -724,11 +941,25 @@ with P1 so derivation has a fully synthetic case from the start.
 
 - Unified gate identity across the independent gates is unproposed — a separate
   ADR if wanted, not an Ifá feature.
-- Worker-count matrix upper bound and per-class timing budgets for the
-  determinism gate need operator-gated measurement on consistent hardware
-  (`perfcontract` `EnforcementOperatorGated`).
+- **Resolved for P3:** the worker-count matrix runs N ∈ {1, 2, 4}
+  (`scripts/verify-ifa-determinism.sh`'s `worker_counts=(1 2 4)`), matching
+  the design's own illustrative "N ∈ {1, 2, 4, …}" set. Per-class timing
+  budgets for `make prove`'s common path remain open (P4, "at least three
+  measured runs," `perfcontract` `EnforcementOperatorGated`) — this bullet
+  narrows to that P4 budget question only; the upper bound itself is
+  decided.
 - Layer 3 depends on the scale-lab corpus spec (#3170) moving from
   `gate_status: proposed` to accepted; if that spec changes shape during
   acceptance, the Layer 3 slot bindings follow it (anti-rewrite rule 9).
 - Saturation budgets (how far past the permit pool, for how long) need
   operator-gated calibration before the saturation Odù can be blocking.
+- **Deferred, filed during P3:** cross-scope same-uid contention (two scopes
+  legitimately claiming the same real-world resource UID) is a product-truth
+  question, not a P5 amplifier bug — issue
+  [#5007](https://github.com/eshu-hq/eshu/issues/5007). Nightly
+  B-12-corpus-scale determinism composition via `FactSliceSource` (N ∈
+  {1, 4}) is deferred to issue
+  [#5008](https://github.com/eshu-hq/eshu/issues/5008). An audit of
+  `graphdump`'s canonicalizer for streaming/pagination behavior, needed
+  before medium+ scale-lab slots exercise it at corpus scale, is deferred to
+  issue [#5009](https://github.com/eshu-hq/eshu/issues/5009).

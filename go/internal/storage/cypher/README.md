@@ -1303,6 +1303,41 @@ Per-phase canonical-write logging (`canonical phase group completed`) and the
 existing write-duration/atomic-write telemetry are untouched; operators continue
 to attribute a slow or failed retract phase exactly as before.
 
+## Ifá P3 determinism-matrix teeth: `ifadeterminismteeth` build tag (#4396)
+
+`canonicalCloudResourceUpsertCypher` (cloud_resource_node_writer.go) is now
+`baseCloudResourceUpsertCypher + teethCloudResourceUpsertExtraSet`, both
+untyped string constants, so the concatenation is itself a compile-time
+constant. `teethCloudResourceUpsertExtraSet` is `""` in every normal, CI, and
+production build (build tag `!ifadeterminismteeth`,
+`cloud_resource_node_writer_teeth_off.go`), making
+`canonicalCloudResourceUpsertCypher` byte-identical to the statement this
+package executed before this change — see
+`TestCanonicalCloudResourceUpsertCypherExcludesTeethClauseByDefault`, which
+fails the default build if that ever stops being true.
+
+No-Regression Evidence: confirmed with
+`go test ./internal/storage/cypher -run TestCloudResourceNodeWriter -count=1`
+and the exclusion test above; `WriteCloudResourceNodes`'s executed Cypher,
+batching, and transaction shape are unchanged in every normal build.
+
+No-Observability-Change: no metric, span, log, or status field is added or
+changed by the default (`!ifadeterminismteeth`) build.
+
+Only `go build -tags ifadeterminismteeth` (never a normal/CI/production
+build) links `cloud_resource_node_writer_teeth.go`'s two extra SET clauses,
+persisting `go/internal/reducer`'s `ifaTeethStampCloudResourceRow` values onto
+the committed node as `r.ifa_teeth_seq` (a process-global monotonic counter,
+reintroduced in issue #4396 slice 6b after slice 5 found it inert on the
+single-scope demo-org cassette alone — a multi-scope synthetic cassette now
+makes it interleaving-sensitive again) and `r.ifa_teeth_write_order`
+(wall-clock nanoseconds, the fault's guaranteed-red floor) —
+`scripts/verify-ifa-determinism.sh --teeth` uses at least one of these two
+deliberately non-idempotent values to prove the graph-determinism matrix
+actually catches a real non-idempotent write. See
+`go/internal/reducer/README.md`'s matching section for the fuller writeup of
+why these values diverge across worker counts.
+
 ## Related docs
 
 - `docs/public/architecture.md` — pipeline and ownership table

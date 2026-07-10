@@ -12,13 +12,13 @@ import (
 // phase for grouped-backend statement metadata and diagnostics.
 const canonicalPhaseCloudResource = "cloud_resource"
 
-// canonicalCloudResourceUpsertCypher batches CloudResource node upserts. MERGE
+// baseCloudResourceUpsertCypher batches CloudResource node upserts. MERGE
 // is on the stable uid identity only; mutable properties are SET separately so
 // duplicate input rows and reducer retries converge on one node rather than
 // fabricating or duplicating graph state. The shape mirrors the proven
 // TerraformResource canonical writer so it engages the same NornicDB
 // schema-backed uid lookup and Neo4j planner path.
-const canonicalCloudResourceUpsertCypher = `UNWIND $rows AS row
+const baseCloudResourceUpsertCypher = `UNWIND $rows AS row
 MERGE (r:CloudResource {uid: row.uid})
 SET r.id = row.uid,
     r.arn = row.arn,
@@ -44,6 +44,16 @@ SET r.id = row.uid,
     r.source_confidence = row.source_confidence,
     r.collector_kind = row.collector_kind,
     r.evidence_source = row.evidence_source`
+
+// canonicalCloudResourceUpsertCypher is the statement WriteCloudResourceNodes
+// actually executes: baseCloudResourceUpsertCypher plus
+// teethCloudResourceUpsertExtraSet, which is the empty string in every
+// normal build (cloud_resource_node_writer_teeth_off.go) and exactly one
+// extra SET clause under the ifadeterminismteeth build tag
+// (cloud_resource_node_writer_teeth.go) — see that file's doc for why. Both
+// operands are untyped string constants, so this concatenation is itself a
+// compile-time constant; no normal build pays a runtime cost for the split.
+const canonicalCloudResourceUpsertCypher = baseCloudResourceUpsertCypher + teethCloudResourceUpsertExtraSet
 
 // CloudResourceNodeWriter materializes aws_resource facts into canonical
 // CloudResource graph nodes. It satisfies the reducer-owned

@@ -6,9 +6,22 @@
 2. `main.go` - subcommand dispatch and the P0 `-version` shell.
 3. `coverage.go`, `expectations.go` - P1 subcommand wrappers.
 4. `drive.go` - P2 concurrent replay driver verb (issue #4395).
-5. `go/internal/ifa/AGENTS.md` - library contract.
-6. `docs/internal/design/4389-ifa-conformance-platform.md` - the ADR; read its
-   "Placement" section before touching this command's dependency graph.
+5. `graph_dump.go`, `graphdump_reader.go` - P3 graph-truth determinism verb
+   (issue #4396).
+6. `mutate_cassette.go` - P3 failure-path-determinism fixture generator verb
+   (ADR step 3a, issue #4396): wraps `go/internal/ifa.MutateCassette`.
+7. `dead_letters.go` - P3 failure-path-determinism read verb (ADR step 3a,
+   issue #4396): reads the durable `fact_work_items` dead-letter set.
+8. `synth_cassette.go` - P3 slice 6b multi-scope fixture generator verb
+   (issue #4396): wraps `go/internal/synth/gcp.GenerateMultiScope` so
+   `ifa drive -workers N` has more than one work unit to fan out across.
+9. `go/internal/ifa/AGENTS.md` - library contract.
+10. `go/internal/ifa/graphdump/AGENTS.md` - the canonicalization package
+    `graph_dump.go` calls into.
+11. `docs/internal/design/4389-ifa-conformance-platform.md` - the ADR; read its
+    "Placement" section before touching this command's dependency graph, and
+    step 3a for the failure-path-determinism requirement `mutate_cassette.go`/
+    `dead_letters.go` serve.
 
 ## Invariants
 
@@ -54,12 +67,48 @@
   #4395 acceptance clause's N=1 mode. Do not special-case `-workers` values
   here beyond what `concurrentreplay.Driver.Run` already normalizes (<=0
   treated as 1); the Driver, not this CLI, owns that default.
+- `ifa graph-dump`'s Bolt-backed `Reader` (`boltGraphReader` in
+  `graphdump_reader.go`) belongs in this command, not in
+  `internal/ifa/graphdump`: that package is deliberately driver-free so its
+  canonicalization logic stays hermetically testable. Do not move
+  `boltGraphReader` (or any neo4j-go-driver import) into
+  `internal/ifa/graphdump` without re-deciding that boundary first.
+- `ifa graph-dump` parses flags before opening the graph backend (see
+  `runGraphDumpCommand` in `graph_dump.go`), the same ordering `runDriveCommand`
+  uses for `-cassette` before Postgres — a bad flag must fail without
+  requiring a live database, so hermetic tests can cover it without Docker or
+  a graph backend.
+- `ifa graph-dump` is read-only: it applies no schema DDL and issues only the
+  two `MATCH` reads in `graphdump_reader.go` (`boltNodesCypher`/
+  `boltEdgesCypher`). Do not add a write statement to this verb.
+- `ifa mutate-cassette` NEVER overwrites `-cassette`; it always writes to
+  `-out`, a separate path. Never point `-out` at a committed `testdata/`
+  cassette in a script or CI job.
+- `ifa mutate-cassette`'s `-kind` values do not map onto a single fixed durable
+  outcome — see this directory's `README.md` "Gotchas / Invariants" and
+  `go/internal/ifa/mutate.go`'s `MutationKind` doc comment before writing a
+  new caller that assumes a specific `failure_class` string for either kind.
+- `ifa dead-letters` deliberately does not reuse
+  `cmd/golden-corpus-gate/drains.go`'s SQL: that gate's residual query counts
+  `dead_letter` rows AS residual by design. Do not "fix" `dead-letters` to
+  match that gate's semantics; they answer different questions.
+- `ifa synth-cassette` never writes to a committed `testdata/` path; every
+  caller (in particular `scripts/verify-ifa-determinism.sh`) regenerates its
+  output into a scratch/work directory per run and never checks it in. Do not
+  add a default `-out` that points inside `testdata/`.
+- `ifa synth-cassette`'s disjointness guarantee (distinct `ProjectID` per
+  scope, so no two scopes' `full_resource_name`/CloudResource uid collide) is
+  proven in `go/internal/synth/gcp`, not here — this verb is a thin wrapper
+  and must not add its own project-id derivation.
 
 ## Verification
 
 ```bash
 cd go && go test ./cmd/ifa -count=1
-cd go && go test -race ./internal/replay/concurrentreplay/... ./cmd/ifa/... -count=1
+cd go && go test -race ./internal/replay/concurrentreplay/... ./internal/ifa/graphdump/... ./cmd/ifa/... -count=1
 bash scripts/test-verify-ifa-replay-drive.sh
 bash scripts/verify-ifa-replay-drive.sh
+bash scripts/verify-ifa-dead-letter-determinism.sh -mutation schema-major
+bash scripts/verify-ifa-dead-letter-determinism.sh -mutation missing-field
+ESHU_PERFORMANCE_EVIDENCE_BASE=origin/main bash scripts/verify-performance-evidence.sh
 ```

@@ -55,6 +55,15 @@ authoring; it does not build a second coverage framework.
 - `EnumerateSurfaces`, `OduResolver`, `CoverageInputs`, `RunCoverage` - Ifá's
   own coverage reconciliation, mirroring `go/internal/replaycoverage`'s gate
   shape.
+- `MutateCassette`, `MutationKind`, `MutateOptions`, `MutatedFact` (`mutate.go`)
+  - the P3 failure-path-determinism fixture generator (ADR step 3a, issue
+    #4396): deterministically corrupts K facts of a cassette (selected by
+    ascending `StableFactKey`) to produce input that fails typed decode, never
+    mutating the source cassette.
+- `DeadLetterRecord`, `SortDeadLetterRecords`, `DeadLetterSetsEqual`
+  (`dead_letters.go`) - the durable `fact_work_items` dead-letter set shape and
+  its cross-run comparator, which `cmd/ifa`'s `ifa dead-letters` verb reads and
+  renders.
 
 ## Dependencies
 
@@ -83,6 +92,18 @@ No-Observability-Change: P1 adds no runtime path, worker, queue, graph write,
 or deployed service. Existing diagnostics remain the `go test` suite and
 CI-gate selection output; `ifa coverage`'s JSON report and stdout summary are
 the P1 operator-facing artifacts.
+
+No-Observability-Change: P3's `MutateCassette` (`mutate.go`) and
+`DeadLetterRecord`/`SortDeadLetterRecords`/`DeadLetterSetsEqual`
+(`dead_letters.go`) also add no runtime path, worker, queue, or graph write.
+`MutateCassette` is a pure in-memory cassette transform (JSON in, JSON out,
+no I/O of its own — the CLI wrapper does the disk I/O). The dead-letter
+helpers are pure Go values and a comparator; the one Postgres `SELECT` this
+slice adds lives in `cmd/ifa/dead_letters.go`, a diagnostic CLI read path, not
+a deployed service — see that command's own README "Telemetry" section.
+Existing diagnostics remain the `go test` suite (including
+`scripts/verify-ifa-dead-letter-determinism.sh`'s docker-backed proof) and the
+`ifa mutate-cassette`/`ifa dead-letters` command output.
 
 ## Gotchas / Invariants
 
@@ -133,6 +154,21 @@ the P1 operator-facing artifacts.
   `roundtrip_test.go`'s baseline and teeth cases); a future fact family with a
   genuinely divergent number representation would need to prove that
   assumption again before reusing this comparator unchanged.
+- `MutateCassette`'s two `MutationKind` values do NOT map onto one fixed
+  durable outcome. Proven empirically against a real Postgres + NornicDB stack
+  (`scripts/verify-ifa-dead-letter-determinism.sh`), not just by reading the
+  decode seam: `MutationMissingField` is QUARANTINED per fact
+  (`go/internal/reducer/factschema_decode.go`'s `partitionDecodeFailures`) —
+  metric + log, no durable `fact_work_items` row. `MutationSchemaMajor`, for a
+  fact kind core registers a schema version for, trips the projector's OWN
+  admission-time schema-version gate
+  (`go/internal/projector/schema_version_admission.go`) BEFORE the reducer's
+  typed-decode seam is ever reached — a whole-work-item failure, not a
+  per-fact one — and the durable row's `failure_class` came back
+  `"projection_bug"` in that run, not the reducer's `"input_invalid"`. Do not
+  assume a fixed `failure_class` literal for a mutation kind; compare full
+  `DeadLetterRecord` sets with `DeadLetterSetsEqual` instead. See `mutate.go`'s
+  `MutationKind` doc comment for the full path-by-path breakdown.
 
 ## Related Docs
 

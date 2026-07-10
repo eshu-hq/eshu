@@ -13,7 +13,12 @@ expectations against `specs/ifa-coverage-manifest.v1.yaml`, and
 it drives `go/internal/replay/concurrentreplay.Driver` over a recorded
 cassette against a real Postgres `IngestionStore`, proving the acceptance
 clause "driver passes -race; same Odù drains (`fact_work_items.residual_max:0`)
-at N=1" end to end.
+at N=1" end to end. P3 (`graph_dump.go`, `graphdump_reader.go`, issue #4396)
+adds `ifa graph-dump`, the graph-truth half of the P3 determinism matrix: it
+reads the live graph backend through `go/internal/ifa/graphdump.Reader` and
+prints the graph's stable canonical byte form (or, with `-digest`, its sha256
+hex digest), so a follow-on determinism-matrix slice can compare the graph
+produced at different worker counts for exact equality.
 
 ## Ownership Boundary
 
@@ -23,7 +28,12 @@ conformance, derivation, and coverage logic lives in `go/internal/ifa`;
 inputs from disk and call into that library. `drive.go` is a thin wrapper the
 same way: cassette parsing and concurrent-safe draining live in
 `go/internal/replay/cassette` and `go/internal/replay/concurrentreplay`, not
-here.
+here. `graph_dump.go` follows the same shape: canonicalization logic lives in
+`go/internal/ifa/graphdump`, which is deliberately driver-free (see that
+package's README "Ownership Boundary"); `graphdump_reader.go` is this
+command's own Bolt-backed `graphdump.Reader` implementation, the one place in
+the repo allowed to bridge that hermetic package to a live NornicDB/Neo4j
+session.
 
 ## Exported Surface
 
@@ -43,6 +53,41 @@ here.
   reducer itself — draining the `fact_work_items` rows it enqueues requires
   `cmd/projector`/`cmd/reducer` running separately against the same database,
   exactly as `scripts/verify-ifa-replay-drive.sh` orchestrates.
+- `ifa graph-dump [-out FILE] [-digest]` - opens a live Bolt connection to the
+  configured graph backend (`ESHU_GRAPH_BACKEND`/`NEO4J_URI`/
+  `NEO4J_USERNAME`/`NEO4J_PASSWORD`/`NEO4J_DATABASE`, the same env contract
+  every Bolt-backed Eshu binary honours via `runtime.OpenNeo4jDriver`), reads
+  every node and relationship, and writes
+  `go/internal/ifa/graphdump.Canonicalize`'s stable canonical byte form to
+  `-out` or stdout; with `-digest`, it writes the sha256 hex digest instead.
+  It is a read-only diagnostic verb: it applies no schema DDL and performs no
+  write.
+- `ifa mutate-cassette -cassette FILE -out FILE -fact-kind KIND -kind
+  missing-field|schema-major [-field F] [-schema-major V] [-count N]` -
+  Ifá P3 failure-path-determinism fixture generator (ADR step 3a): loads
+  `-cassette` through the production `cassette.LoadFile` seam, corrupts `-count`
+  facts of `-fact-kind` via `go/internal/ifa.MutateCassette`, and writes the
+  result to `-out` — a new file, never the source. It performs no I/O beyond
+  reading `-cassette` and writing `-out`.
+- `ifa dead-letters [-out FILE] [-postgres-dsn]` - reads the durable
+  `fact_work_items` dead-letter set (`status='dead_letter'`) from Postgres
+  (same DSN precedence as `ifa drive`) and prints it as deterministic sorted
+  JSON via `go/internal/ifa.DeadLetterRecord`/`SortDeadLetterRecords`. Read-only:
+  one `SELECT`, no schema DDL or write. Deliberately does not reuse
+  `cmd/golden-corpus-gate`'s drain SQL, which counts `dead_letter` rows AS
+  residual by design; this verb's whole purpose is to read those rows.
+- `ifa synth-cassette -seed N [-projects K] [-resources R] -out FILE` (issue
+  #4396 slice 6b) - wraps `go/internal/synth/gcp.GenerateMultiScope`,
+  generating a deterministic cassette with `K` independent GCP project scopes
+  (`-projects`, default 4) of `R` resources each (`-resources`, default 16),
+  and writing its canonical bytes to `-out`. Exists to fix the finding that a
+  single-scope cassette gives `concurrentreplay.Driver` exactly one work unit
+  for ANY `-workers` count, making `ifa drive -workers N` inert; distinct
+  `ProjectID`s per scope (`acme-demo-gcp-00`, `acme-demo-gcp-01`, ...) keep
+  every scope's `full_resource_name`/CloudResource-uid disjoint by
+  construction. Never overwrites anything; no synth-cassette output is ever
+  checked into `testdata/` — every caller regenerates it into a scratch/work
+  directory per run.
 
 ## Dependencies
 
@@ -70,12 +115,56 @@ depend on collector or parser internals" line as forbidding Postgres; the ADR
 is explicit that Postgres and reducer-as-library are in scope for the replay
 slice.
 
+`ifa graph-dump` (P3) adds `go/internal/ifa/graphdump` (canonicalization,
+driver-free) and, in this command only, `github.com/neo4j/neo4j-go-driver/v5`
+via `graphdump_reader.go`'s `boltGraphReader` — the same shared
+`runtime.OpenNeo4jDriver` seam `cmd/golden-corpus-gate` already uses, not a
+new driver dependency for the repo. `internal/ifa/graphdump` itself takes on
+no new dependency: it stays driver-free by design (see its README's
+"Ownership Boundary").
+
+`ifa mutate-cassette` and `ifa dead-letters` (P3, ADR step 3a) add no new
+dependency: `mutate_cassette.go` uses `go/internal/ifa` (`MutateCassette`) and
+the already-imported `go/internal/replay/cassette`; `dead_letters.go` reuses
+`driveOpenPostgres` (unexported, defined in `drive.go`, same package) and
+`go/internal/ifa` (`DeadLetterRecord`, `SortDeadLetterRecords`).
+
+`ifa synth-cassette` (issue #4396 slice 6b) adds `go/internal/synth/gcp` as a
+dependency: `synth_cassette.go` is a thin flag/IO wrapper over
+`gcp.GenerateMultiScope`, performing no database or graph-backend I/O of its
+own.
+
 ## Telemetry
 
 No runtime telemetry is emitted. This is not a deployed service; the coverage
-report and stdout summary are the operator-facing artifacts.
+report, drive report, graph-dump canonical output/digest, mutate-cassette
+report, and dead-letters JSON are the operator-facing artifacts.
+
+## Gotchas / Invariants
+
+- `ifa mutate-cassette`'s two `-kind` values reach very different runtime
+  failure paths for a fact kind core registers a schema version for (proven
+  empirically with `scripts/verify-ifa-dead-letter-determinism.sh` against a
+  real Postgres + NornicDB stack, not just by reading the decode seam):
+  `missing-field` is QUARANTINED per fact (metric + log, no durable
+  `fact_work_items` row); `schema-major` trips the projector's own
+  admission-time schema-version gate
+  (`go/internal/projector/schema_version_admission.go`) BEFORE the reducer's
+  typed-decode seam is ever reached, dead-lettering the whole projector work
+  item durably. The durable row's `failure_class` came back `"projection_bug"`
+  in that run, not the reducer's `"input_invalid"` — do not assume a fixed
+  `failure_class` literal for a given `-kind`; assert on `status='dead_letter'`
+  and compare full rows (`ifa.DeadLetterSetsEqual`) instead. See
+  `go/internal/ifa/mutate.go`'s `MutationKind` doc comment for the full
+  path-by-path breakdown.
 
 ## Related Docs
 
 - `go/internal/ifa/README.md`
+- `go/internal/ifa/graphdump/README.md`
 - `docs/internal/design/4389-ifa-conformance-platform.md`
+- `scripts/verify-ifa-determinism.sh` - the P3 determinism-matrix gate (slice
+  5, #4396): drives `ifa graph-dump` at N ∈ {1, 2, 4} against independent
+  fresh Postgres + NornicDB stacks and asserts the resulting canonical graphs
+  are byte-identical. See `go/internal/ifa/graphdump/README.md`'s "Benchmark
+  Evidence" section for a recorded run.

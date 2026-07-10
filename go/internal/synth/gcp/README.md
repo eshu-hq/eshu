@@ -95,6 +95,53 @@ can be replayed into one store as independent corpora rather than the later run
 fencing or overwriting the earlier one
 (`TestSameProjectDifferentSeedsHaveDisjointReplayIdentities`).
 
+## Multi-scope generation (issue #4396 slice 6b)
+
+`GenerateMultiScope(MultiScopeOptions{Seed, Scopes, ResourceCount})`
+(`multiscope.go`) builds a cassette containing `Scopes` (K) independent GCP
+project scopes instead of `Generate`'s single scope. It calls `Generate` K
+times — once per `scopeProjectID(i)` for `i` in `[0, K)`, each a deterministic
+`"acme-demo-gcp-<NN>"` id — holding `Seed`, `ResourceCount`, and
+`CollectorLabel` fixed across every call, merges the K resulting
+`cassette.Scope` values into one `cassette.File`, and re-runs the same
+marshal -> `replay.Canonicalize` -> `cassette.ParseAndValidate` sequence
+`Generate` applies to its own single-scope output.
+
+Why this exists: the Ifá P3 determinism matrix
+(`scripts/verify-ifa-determinism.sh`) drives a cassette through
+`ifa drive -workers N` for N in {1, 2, 4}, but the recorded demo-org cassette
+(`testdata/cassettes/gcpcloud/supply-chain-demo.json`) has exactly one scope
+and one generation — `concurrentreplay.Driver` has exactly one work unit for
+ANY worker count to drain, so N never changes commit interleaving and the
+matrix proves repeatability, not a worker matrix. `GenerateMultiScope` gives
+the driver K genuinely independent work units to fan out across.
+
+**Disjointness is the correctness constraint, not a nice-to-have.** The
+reducer's CloudResource node uid keys on `full_resource_name` (folded together
+with asset type, project, and location -
+`go/internal/reducer/gcp_resource_materialization.go`'s `cloudResourceUID`),
+NOT on `scope_id`. `resources.go`'s `buildOneResource` embeds
+`Options.ProjectID` directly into every generated resource's
+`full_resource_name`, so K scopes with K distinct `ProjectID`s give K disjoint
+`full_resource_name` sets, and therefore K disjoint CloudResource node uids,
+by construction — proven by
+`TestGenerateMultiScopeScopesHaveDisjointFullResourceNames`. If two scopes
+instead carried the SAME resource payload, they would MERGE onto the same
+graph node and race on last-writer-wins scope-derived properties (e.g.
+`source_fact_id`), making the determinism matrix red for a reason that is not
+a concurrency bug.
+
+`GenerateMultiScope` is deterministic the same way `Generate` is: the same
+`(Seed, Scopes, ResourceCount)` always derives the same K project ids in the
+same order and produces byte-identical merged output
+(`TestGenerateMultiScopeIsByteIdenticalForSameInputs`).
+
+`go/cmd/ifa`'s `ifa synth-cassette -seed -projects -resources -out` verb
+(`go/cmd/ifa/synth_cassette.go`) is the CLI wrapper
+`scripts/verify-ifa-determinism.sh` calls to generate a scratch multi-scope
+cassette per matrix run; no synth-cassette output is ever checked into
+`testdata/`.
+
 ## Conformance and schema validity
 
 `TestGeneratedCassettePassesConformance` and

@@ -9,10 +9,12 @@
    derivation join and coverage reconciliation.
 5. `roundtrip.go` - `RoundTripTypedPayloads` and `demoOrgRoundtripOdu`, the P1
    terminal typed-payload round-trip proof (issue #4804).
-6. `go/internal/replay/AGENTS.md` - canonicalization invariants reused here.
-7. `go/internal/replaycoverage/AGENTS.md` - the coverage machinery Ifá reuses
+6. `mutate.go`, `dead_letters.go` - the P3 failure-path-determinism fixture
+   generator and dead-letter-set comparator (ADR step 3a, issue #4396).
+7. `go/internal/replay/AGENTS.md` - canonicalization invariants reused here.
+8. `go/internal/replaycoverage/AGENTS.md` - the coverage machinery Ifá reuses
    wholesale.
-8. `go/internal/synth/gcp/AGENTS.md` - the synthetic GCP corpus generator
+9. `go/internal/synth/gcp/AGENTS.md` - the synthetic GCP corpus generator
    `demoOrgRoundtripOdu` depends on.
 
 ## Invariants
@@ -47,6 +49,20 @@
 - The `ifa-contract-layer` CI gate stays advisory; do not flip it to blocking
   without a follow-up milestone decision, and do not make `ifa coverage`
   hard-fail on that gate's own "not blocking" proof-gate finding.
+- `MutateCassette` never mutates its `src` argument; it always returns a
+  cloned `cassette.File` (`cloneCassette`, a JSON round trip). Do not change it
+  to mutate in place — callers pass the same in-memory cassette across
+  multiple `MutateCassette` calls in tests and expect the source untouched.
+- `MutateCassette`'s two `MutationKind` values reach very different runtime
+  outcomes for a fact kind core registers a schema version for — see
+  `mutate.go`'s `MutationKind` doc comment (proven empirically, not just by
+  reading the decode seam, via `scripts/verify-ifa-dead-letter-determinism.sh`)
+  before assuming either kind's failure_class or which stage's dead-letter
+  path fires.
+- `DeadLetterSetsEqual` compares on every field of `DeadLetterRecord`,
+  including `FailureClass`. Do not narrow it to `WorkItemID`-only equality —
+  the ADR's step 3a teeth test requires catching a divergent `failure_class`
+  on an otherwise-matching work item.
 
 ## Verification
 
