@@ -1088,6 +1088,7 @@ gates:
     blocking: true
     triggers:
       - "go/internal/ifa/graphdump/**"
+      - "go/internal/synth/gcp/**"
       - "go/cmd/ifa/**"
       - "go/internal/reducer/gcp_resource_materialization.go"
       - "go/internal/reducer/gcp_resource_materialization_teeth.go"
