@@ -1,3 +1,12 @@
+<!-- docs-catalog
+title: Understand Eshu
+description: Introduces the system model, runtime pipeline, and concepts readers should keep separate.
+type: concept
+audience: practitioner, operator
+entrypoint: false
+landing: true
+-->
+
 # Understand Eshu
 
 Use this section when you want the system model, not the setup path.

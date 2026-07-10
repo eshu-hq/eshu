@@ -1,3 +1,13 @@
+<!-- docs-catalog
+title: Trace A Vulnerable Dependency
+description: Walks through Eshu supply-chain evidence from package observation to workload impact.
+type: tutorial
+audience: security-engineer, practitioner
+time: 15 minutes
+entrypoint: true
+landing: false
+-->
+
 # Tutorial: Trace A Vulnerable Dependency
 
 Use this tutorial to see how Eshu follows supply-chain evidence from a package

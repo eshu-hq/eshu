@@ -1,3 +1,12 @@
+<!-- docs-catalog
+title: Proof And Validation
+description: Groups local gates, replay evidence, benchmarks, security checks, and runtime acceptance proof.
+type: proof
+audience: maintainer, operator
+entrypoint: true
+landing: false
+-->
+
 # Proof And Validation
 
 Proof and validation pages preserve the evidence gates that make Eshu safe to

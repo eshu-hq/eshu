@@ -1,3 +1,13 @@
+<!-- docs-catalog
+title: Debug Stale Answers
+description: Diagnoses why an Eshu answer is missing, stale, or less complete than expected.
+type: tutorial
+audience: operator, practitioner
+time: 10 minutes
+entrypoint: true
+landing: false
+-->
+
 # Tutorial: Debug Stale Answers
 
 Use this tutorial when Eshu is reachable but an answer is missing, stale, or

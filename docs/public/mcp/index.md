@@ -1,3 +1,12 @@
+<!-- docs-catalog
+title: Connect MCP
+description: Shows how to connect Eshu to Codex, Claude, Cursor, VS Code, or another MCP client.
+type: how-to
+audience: practitioner
+entrypoint: true
+landing: false
+-->
+
 # Connect MCP
 
 MCP is the assistant-facing path into Eshu. Use it when Claude, Codex, Cursor,

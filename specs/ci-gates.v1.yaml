@@ -717,6 +717,27 @@ gates:
 
   # ─── DOCS ──────────────────────────────────────────────────────────────────
 
+  - id: docs-catalog-metadata
+    name: Docs catalog metadata
+    category: exactness
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "docs/public/**"
+      - "docs/mkdocs.yml"
+      - "scripts/verify-docs-catalog.sh"
+      - "scripts/test-verify-docs-catalog.sh"
+      - "specs/ci-gates.v1.yaml"
+    local:
+      command: "bash scripts/verify-docs-catalog.sh"
+      test_command: "bash scripts/test-verify-docs-catalog.sh"
+    ci:
+      workflow: ""
+      job: ""
+    requirements: []
+    ci_only_reason: ""
+    local_only_reason: "First #5015 local/pre-pr metadata ratchet; CI wiring can follow once the required subset stabilizes."
+
   - id: docs-build-changed
     name: Verify Docs Build (changed)
     category: docs

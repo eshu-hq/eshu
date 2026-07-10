@@ -1,3 +1,12 @@
+<!-- docs-catalog
+title: How It Works
+description: Explains Eshu's fact-based pipeline from discovery through graph projection and query.
+type: concept
+audience: new-user, practitioner
+entrypoint: true
+landing: false
+-->
+
 # How It Works
 
 Eshu turns your repositories and external sources into a queryable graph through

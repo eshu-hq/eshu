@@ -1,3 +1,12 @@
+<!-- docs-catalog
+title: Contract Reference
+description: Groups durable source contracts for facts, collectors, reducers, query surfaces, and generated references.
+type: reference
+audience: maintainer, practitioner
+entrypoint: true
+landing: false
+-->
+
 # Contract Reference
 
 Contract reference pages define durable Eshu interfaces and source-of-truth
@@ -12,6 +21,7 @@ collector, reducer, query, API, MCP, or generated-reference boundaries.
 | Reducer delivery and graph projection guarantees | [Reducer Guarantees](reducer-guarantees.md) |
 | API and MCP contracts | [HTTP API](http-api.md), [MCP Reference](mcp-reference.md), and [MCP Tool Contract Matrix](mcp-tool-contract-matrix.md) |
 | Environment source of truth | [Environment Variables](environment-variables.md) and [Environment Variable Registry](env-registry.md) |
+| Documentation IA metadata | [Docs Catalog Metadata](docs-catalog.md) |
 | Collector contracts | [Collector Extraction Policy](collector-extraction-policy.md), [Multi-Cloud Runtime Collector Contract](multi-cloud-collector-contract.md), and provider-specific collector contracts |
 | Evidence and answer contracts | [Portable Evidence Bundle](evidence-bundle.md), [Evidence Citation Handle Contract](evidence-citation-handles.md), and [Answer Packet Contract](answer-packets.md) |
 

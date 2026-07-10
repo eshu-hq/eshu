@@ -1,3 +1,12 @@
+<!-- docs-catalog
+title: Tutorials
+description: Lists the hands-on tutorials that teach Eshu through complete reader outcomes.
+type: tutorial
+audience: new-user, practitioner, operator
+entrypoint: false
+landing: true
+-->
+
 # Tutorials
 
 Use tutorials when you want to learn Eshu by completing a real outcome from

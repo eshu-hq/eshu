@@ -1,3 +1,12 @@
+<!-- docs-catalog
+title: Start Here
+description: Helps first-time readers choose the right Eshu setup, usage, operations, or reference path.
+type: how-to
+audience: new-user
+entrypoint: true
+landing: false
+-->
+
 # Start here
 
 Use this page to choose your first Eshu doc without reading the whole site.
