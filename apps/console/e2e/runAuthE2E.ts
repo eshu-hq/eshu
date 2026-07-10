@@ -183,7 +183,19 @@ async function assertFreshStackShowsSetupWizard(page: Page, baseUrl: string): Pr
   }
 }
 
-async function driveSetupWizard(page: Page, username: string, password: string): Promise<void> {
+// driveSetupWizard completes the 3-step wizard and returns ONE of the real,
+// plaintext MFA recovery codes the wizard's step 3 generates and displays
+// (SetupPage.tsx's completeSetupMFA / SetupMFAStep.tsx's `ul.codes li`) —
+// scraped from the DOM before "Finish setup" is clicked, the same value a
+// real operator would copy/download to save. This is required because
+// enrolling recovery codes here makes MFA mandatory on every subsequent
+// local login for this account (verified live: a later plain login/password
+// POST /api/v0/auth/local/login for this account returns 202
+// {status:"mfa_required"}, not a session) — item5's break-glass local-login
+// assertion (driveLocalLogin) needs a genuine, working code to get past that
+// MFA step. Each code works once (SetupMFAStep.tsx), so callers must not
+// reuse the returned code for more than one login.
+async function driveSetupWizard(page: Page, username: string, password: string): Promise<string> {
   await page.fill("#setup-username", username);
   await page.fill("#setup-password", password);
   await page.click('.card-foot button[type="submit"]');
@@ -192,6 +204,12 @@ async function driveSetupWizard(page: Page, username: string, password: string):
   await page.fill("#setup-new-password", wizardNewPassword);
   await page.fill("#setup-confirm-password", wizardNewPassword);
   await page.click('.card-foot button[type="submit"]');
+
+  await page.waitForSelector("ul.codes li", { timeout: navTimeoutMs });
+  const recoveryCode = (await page.locator("ul.codes li").first().textContent())?.trim() ?? "";
+  if (recoveryCode === "") {
+    throw new Error("wizard step 3 rendered ul.codes but the first recovery code was empty");
+  }
 
   // Click the <label> rather than the checkbox input directly.
   // authFlow.css visually hides the native input (position: absolute;
@@ -206,6 +224,7 @@ async function driveSetupWizard(page: Page, username: string, password: string):
   await page.click('button:has-text("Finish setup")');
 
   await page.waitForSelector(".source-pill.src-connected", { timeout: navTimeoutMs });
+  return recoveryCode;
 }
 
 async function assertSetupRouteGone(): Promise<void> {
@@ -264,14 +283,16 @@ export async function runAuthE2E(): Promise<number> {
     // #setup-new-password/#setup-confirm-password), so the credential this
     // captures is the ONE-TIME bootstrap password — item 5's break-glass
     // local-login assertion below uses the wizard's chosen replacement
-    // instead (module-level wizardNewPassword).
+    // instead (module-level wizardNewPassword), plus the wizard's real,
+    // single-use MFA recovery code (see driveSetupWizard's doc comment).
+    let breakglassRecoveryCode = "";
     await step("item2_retrieve_initial_credential", async () => {
       const { credential, rawStderr } = await retrieveInitialCredential(repoGoDir, postgresDSN, authSecretEncKey);
       if (!credential) {
         throw new Error(`eshu admin initial-credential returned nothing on a fresh stack: ${rawStderr}`);
       }
       credentialUsername = credential.username;
-      await driveSetupWizard(page, credential.username, credential.password);
+      breakglassRecoveryCode = await driveSetupWizard(page, credential.username, credential.password);
       await page.screenshot({ path: resolve(screenshotsDir, "2-dashboard.png"), fullPage: true });
       return `wizard completed as ${credential.username}; dashboard reached (.source-pill.src-connected)`;
     });
@@ -337,7 +358,7 @@ export async function runAuthE2E(): Promise<number> {
       const loginContext = await browser!.newContext({ baseURL: devServer!.baseUrl });
       const loginPage = await loginContext.newPage();
       try {
-        await loginPage.goto("/login", { waitUntil: "domcontentloaded", timeout: navTimeoutMs });
+        await loginPage.goto("/login?tenant_id=default", { waitUntil: "domcontentloaded", timeout: navTimeoutMs });
         await loginPage.waitForSelector(".btn-sso", { timeout: navTimeoutMs });
         const count = await loginPage.locator(".btn-sso").count();
         if (count < 1) {
@@ -423,7 +444,7 @@ export async function runAuthE2E(): Promise<number> {
       const freshContext = await browser!.newContext({ baseURL: devServer!.baseUrl });
       try {
         const freshPage = await freshContext.newPage();
-        await freshPage.goto("/login", { waitUntil: "domcontentloaded", timeout: navTimeoutMs });
+        await freshPage.goto("/login?tenant_id=default", { waitUntil: "domcontentloaded", timeout: navTimeoutMs });
         await freshPage.waitForSelector(".btn-sso", { timeout: navTimeoutMs });
         const loginFieldCount = await freshPage.locator("#login-id").count();
         if (loginFieldCount !== 0) {
@@ -440,9 +461,9 @@ export async function runAuthE2E(): Promise<number> {
       const breakglassContext = await browser!.newContext({ baseURL: devServer!.baseUrl });
       try {
         const breakglassPage = await breakglassContext.newPage();
-        await breakglassPage.goto("/login?local=1", { waitUntil: "domcontentloaded", timeout: navTimeoutMs });
+        await breakglassPage.goto("/login?tenant_id=default&local=1", { waitUntil: "domcontentloaded", timeout: navTimeoutMs });
         await breakglassPage.waitForSelector("#login-id", { timeout: navTimeoutMs });
-        await driveLocalLogin(breakglassPage, credentialUsername, wizardNewPassword);
+        await driveLocalLogin(breakglassPage, credentialUsername, wizardNewPassword, breakglassRecoveryCode);
         await breakglassPage.screenshot({
           path: resolve(screenshotsDir, "5-breakglass-local-login.png"),
           fullPage: true,

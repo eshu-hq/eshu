@@ -184,9 +184,22 @@ export function LoginPage({
   function handleSSOClick(provider: AuthLoginProvider): void {
     const returnTo = safeSSOReturnPath(globalThis.location?.pathname);
     if (provider.provider_kind === "oidc") {
+      // tenant_id must be forwarded from the page's own URL (the same param
+      // the mount-time useEffect above reads for listAuthProviders /
+      // loadPublicRequireSSO): a DB-backed provider's OIDC login-start
+      // resolution (go/internal/oidclogin/service.go's provider()) requires
+      // a non-empty tenantID to consult dbProviders at all, and returns
+      // ErrOIDCLoginInvalidRequest (400) without it — verified live via a
+      // real run's captured network response. An env/file-backed provider's
+      // tenantID defaults from its own config either way
+      // (resolveProviderContext), so this is a no-op for that case, but a
+      // required fix for the DB-backed one this button is normally rendered
+      // for.
+      const tenantId =
+        new URLSearchParams(globalThis.location?.search ?? "").get("tenant_id") ?? undefined;
       beginOidcLogin(
         baseUrl,
-        { providerConfigId: provider.provider_config_id, returnTo },
+        { providerConfigId: provider.provider_config_id, tenantId, returnTo },
         redirectFn ?? safeNavigate,
       );
     } else {

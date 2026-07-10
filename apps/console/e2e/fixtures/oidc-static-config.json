@@ -22,7 +22,8 @@
   "role_grants": [
     {
       "role_id": "e2e_admin_role",
-      "policy_revision_hash": "sha256:e2e-admin-static-v1",
+      "_comment_policy_revision_hash": "Must equal query.IdentityHash(tenant_id + \":\" + workspace_id) = sha256(\"default:default\") — the deterministic policy-epoch value go/cmd/api/seed_initial_admin_helpers.go's newBootstrapLocalIdentityRecord seeds onto the tenants/workspaces rows once at first-run setup claim (identity_local.go's insertBootstrapLocalIdentity) and never changes again for this single-tenant bootstrap deployment. go/internal/storage/postgres/browser_sessions_schema.go's resolveBrowserSessionQuery requires sess.policy_revision_hash = ws.policy_revision_hash on every authenticated read (issued_at not just at login) — a mismatch here silently produces a session that appears to log in successfully (the 303 redirect happens) but then 401s on every subsequent request. Verified live: SELECT policy_revision_hash FROM workspaces WHERE tenant_id='default' against a fresh e2e stack.",
+      "policy_revision_hash": "sha256:265db573b8e128c231453ecca9b0ce50211b2fc08d57eca80e06de5d0fc4bb5f",
       "all_scopes": true
     }
   ]

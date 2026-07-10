@@ -34,6 +34,13 @@ export ESHU_E2E_POSTGRES_PORT="$postgres_port"
 export ESHU_E2E_POSTGRES_PASSWORD="$postgres_password"
 export ESHU_E2E_MOCK_OIDC_PORT="$mock_oidc_port"
 export ESHU_E2E_MOCK_OIDC_ADMIN_PORT="$mock_oidc_admin_port"
+# Pin this e2e stack's NornicDB to v1.1.11 (carries every fix v1.1.9 has plus
+# a fix for the under-disk-pressure image-eviction flake that intermittently
+# surfaced as "No such image" for v1.1.9 mid-run). Scoped to this script only,
+# via the same NORNICDB_IMAGE override docker-compose.yaml already exposes —
+# NOT a change to that file's default, which is a repo-wide backend bump for a
+# separate PR.
+export NORNICDB_IMAGE="timothyswt/nornicdb-cpu-bge:v1.1.11@sha256:51b6174ae65e4ce54a158ac2f9eace7d36a1971545824d22add0fe06d94c1090"
 
 for tool in docker node go; do
   command -v "$tool" >/dev/null 2>&1 || {

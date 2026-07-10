@@ -327,18 +327,77 @@ export async function createMemberGroupRoleMapping(
   }
 }
 
+// capturePageDiagnostics wires up console/pageerror/response/requestfailed
+// listeners on page and returns a dump() function rendering whatever was
+// captured into one string. Generalizes the inline capture
+// driveAddOidcProviderViaUI already uses (originally written to debug the
+// #5033 drawer bug) for reuse by every OIDC login driver below, so a "why
+// did this navigation not reach X" failure always carries live
+// network/console evidence in its thrown error instead of forcing a
+// re-run under a debugger.
+function capturePageDiagnostics(page: Page): { stop: () => void; dump: () => string } {
+  const captured: string[] = [];
+  const onConsole = (msg: { type: () => string; text: () => string }): void => {
+    captured.push(`console.${msg.type()}: ${msg.text()}`);
+  };
+  const onPageError = (err: Error): void => {
+    captured.push(`pageerror: ${err.message}`);
+  };
+  const onResponse = (resp: { url: () => string; status: () => number }): void => {
+    if (resp.url().includes("/oidc/") || resp.url().includes("/auth/") || resp.status() >= 400) {
+      captured.push(`response: ${resp.status()} ${resp.url()}`);
+    }
+  };
+  const onRequestFailed = (req: { url: () => string; failure: () => { errorText: string } | null }): void => {
+    captured.push(`requestfailed: ${req.url()} — ${req.failure()?.errorText ?? "unknown"}`);
+  };
+  page.on("console", onConsole);
+  page.on("pageerror", onPageError);
+  page.on("response", onResponse);
+  page.on("requestfailed", onRequestFailed);
+  return {
+    stop: () => {
+      page.off("console", onConsole);
+      page.off("pageerror", onPageError);
+      page.off("response", onResponse);
+      page.off("requestfailed", onRequestFailed);
+    },
+    dump: () => (captured.length > 0 ? captured.join(" | ") : "(no console/network/error events captured at all)"),
+  };
+}
+
 // driveOidcLogin navigates to /login and clicks the (only) `.btn-sso`
-// button, then waits for the post-login dashboard to render — proving the
-// full redirect -> mock IdP -> callback -> session round trip completed.
-// Only ever one provider is listed at the point this is used (the
-// member-mapped one); the admin-mapped provider is driven directly via
-// driveDirectOidcLogin instead (see this module's header comment for why it
-// has no on-page button to click).
+// button, then waits for the post-login shell to render — proving the full
+// redirect -> mock IdP -> callback -> session round trip completed. Only
+// ever one provider is listed at the point this is used (the member-mapped
+// one); the admin-mapped provider is driven directly via driveDirectOidcLogin
+// instead (see this module's header comment for why it has no on-page button
+// to click).
+//
+// Anchors on `nav.sidebar`, NOT `.source-pill.src-connected`. This member
+// identity is a zero-admin-feature, permission-catalog-enforced session
+// (createMemberGroupRoleMapping's doc comment): App.tsx's bootFromSession
+// model/status fetches 403 for it, so `source.status` never reaches
+// "connected" and `.source-pill.src-connected` (App.tsx line ~330) never
+// renders — even though the session itself is genuinely valid. `nav.sidebar`
+// (AppSidebar, rendered unconditionally in App.tsx's shell div regardless of
+// `source.status`) is the anchor that actually reflects "the authenticated
+// shell rendered," matching how item4_member_has_no_admin_nav already probes
+// this same session via `nav.sidebar a[aria-label="Admin"]`.
 export async function driveOidcLogin(page: Page): Promise<void> {
-  await page.goto("/login", { waitUntil: "domcontentloaded", timeout: navTimeoutMs });
+  const diag = capturePageDiagnostics(page);
+  await page.goto("/login?tenant_id=default", { waitUntil: "domcontentloaded", timeout: navTimeoutMs });
   await page.locator(".btn-sso").first().waitFor({ state: "visible", timeout: navTimeoutMs });
   await page.locator(".btn-sso").first().click();
-  await page.waitForSelector(".source-pill.src-connected", { timeout: navTimeoutMs });
+  try {
+    await page.waitForSelector("nav.sidebar", { timeout: navTimeoutMs });
+  } catch (err) {
+    diag.stop();
+    throw new Error(
+      `nav.sidebar never rendered after clicking .btn-sso (final url: ${page.url()}): ${err instanceof Error ? err.message : String(err)}. captured: ${diag.dump()}`,
+    );
+  }
+  diag.stop();
 }
 
 // driveDirectOidcLogin navigates straight to GET /api/v0/auth/oidc/login for
@@ -350,16 +409,60 @@ export async function driveOidcLogin(page: Page): Promise<void> {
 // the mock IdP's /authorize; page.goto follows the whole
 // authorize -> callback redirect chain as one top-level navigation.
 export async function driveDirectOidcLogin(page: Page, providerConfigId: string): Promise<void> {
+  const diag = capturePageDiagnostics(page);
   const url = `/eshu-api/api/v0/auth/oidc/login?provider_config_id=${encodeURIComponent(providerConfigId)}&return_to=%2F`;
   await page.goto(url, { waitUntil: "domcontentloaded", timeout: navTimeoutMs });
-  await page.waitForSelector(".source-pill.src-connected", { timeout: navTimeoutMs });
+  try {
+    await page.waitForSelector(".source-pill.src-connected", { timeout: navTimeoutMs });
+  } catch (err) {
+    diag.stop();
+    throw new Error(
+      `.source-pill.src-connected never rendered after driving ${url} (final url: ${page.url()}): ${err instanceof Error ? err.message : String(err)}. captured: ${diag.dump()}`,
+    );
+  }
+  diag.stop();
 }
 
 // driveLocalLogin fills and submits the local password form (#login-id /
-// #login-password), for the break-glass ?local=1 assertion.
-export async function driveLocalLogin(page: Page, login: string, password: string): Promise<void> {
+// #login-password), for the break-glass ?local=1 assertion. The break-glass
+// admin account enrolled a REAL recovery code during the setup wizard
+// (SetupPage.tsx step 3 — MFA recovery codes are the only working MFA
+// control today), so POST /api/v0/auth/local/login for that account now
+// returns 202 {status:"mfa_required"} on every subsequent login (verified
+// live: a plain login/password submit against this account gets 202, not
+// 200/303) — mirroring LoginPage.tsx's handleSubmit "mfa_required" branch,
+// which reveals #login-mfa and re-submits. recoveryCode is optional so
+// non-MFA-enrolled accounts (none currently use this helper) still work
+// with a plain submit.
+export async function driveLocalLogin(
+  page: Page,
+  login: string,
+  password: string,
+  recoveryCode?: string,
+): Promise<void> {
+  const diag = capturePageDiagnostics(page);
   await page.fill("#login-id", login);
   await page.fill("#login-password", password);
   await page.click('button[type="submit"].btn-primary');
-  await page.waitForSelector(".source-pill.src-connected", { timeout: navTimeoutMs });
+  if (recoveryCode !== undefined) {
+    try {
+      await page.waitForSelector("#login-mfa", { timeout: navTimeoutMs });
+    } catch (err) {
+      diag.stop();
+      throw new Error(
+        `#login-mfa never rendered after local login submit (final url: ${page.url()}): ${err instanceof Error ? err.message : String(err)}. captured: ${diag.dump()}`,
+      );
+    }
+    await page.fill("#login-mfa", recoveryCode);
+    await page.click('button[type="submit"].btn-primary');
+  }
+  try {
+    await page.waitForSelector(".source-pill.src-connected", { timeout: navTimeoutMs });
+  } catch (err) {
+    diag.stop();
+    throw new Error(
+      `.source-pill.src-connected never rendered after local login submit (final url: ${page.url()}): ${err instanceof Error ? err.message : String(err)}. captured: ${diag.dump()}`,
+    );
+  }
+  diag.stop();
 }
