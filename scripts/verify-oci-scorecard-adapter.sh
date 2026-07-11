@@ -56,14 +56,17 @@ fact_families=(
 forbidden_patterns=('/Users/' '/home/' 'BEGIN [A-Z ]*PRIVATE KEY' '[Bb]earer [A-Za-z0-9._-]{8,}' '([0-9]{1,3}\.){3}[0-9]{1,3}')
 
 print_checks() {
-	cat <<CHECKS
-oci scorecard adapter proof checks:
-  1. build: reference image builds from Dockerfile.oci (pure-Go, distroless nonroot)
-  2. publish: image pushes to ${registry} and resolves an immutable repo@sha256 digest
-  3. isolation: digest-pinned artifact runs with --network none --read-only --user 65532:65532 --cap-drop ALL --security-opt no-new-privileges
-  4. facts: stdout carries the families ${fact_families[*]}
-  5. redaction canary: stdout has no host path, private key, bearer token, or raw IP
-CHECKS
+	# printf (a builtin, no pipe) instead of a heredoc: the unquoted CHECKS
+	# heredoc expanded ${registry} / ${fact_families[*]} past 512 bytes at
+	# runtime and deadlocked under Homebrew bash 5.3.15 even though its literal
+	# source was under budget (#5074; the static gate cannot see expansion size).
+	printf '%s\n' \
+		'oci scorecard adapter proof checks:' \
+		'  1. build: reference image builds from Dockerfile.oci (pure-Go, distroless nonroot)' \
+		"  2. publish: image pushes to ${registry} and resolves an immutable repo@sha256 digest" \
+		'  3. isolation: digest-pinned artifact runs with --network none --read-only --user 65532:65532 --cap-drop ALL --security-opt no-new-privileges' \
+		"  4. facts: stdout carries the families ${fact_families[*]}" \
+		'  5. redaction canary: stdout has no host path, private key, bearer token, or raw IP'
 }
 
 if [[ "${list_only}" == true ]]; then print_checks; exit 0; fi
