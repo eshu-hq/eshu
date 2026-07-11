@@ -355,15 +355,35 @@ func (s *IdentitySubjectStore) RevertProviderConfig(
 	); err != nil {
 		return ProviderConfigWriteResult{}, fmt.Errorf("activate target provider config revision: %w", err)
 	}
-	if _, err := tx.ExecContext(
+	// Read the post-UPDATE status back from RETURNING rather than reusing
+	// current.status: activateProviderConfigActiveRevisionQuery unconditionally
+	// resets status to 'draft' whenever the active revision changes, so
+	// current.status is stale the instant this UPDATE commits. Same defect and
+	// same fix as UpdateProviderConfig above (#4988, PR #5057 self-review P1).
+	revertRows, err := tx.QueryContext(
 		ctx,
 		activateProviderConfigActiveRevisionQuery,
 		revert.ProviderConfigID,
 		revert.TenantID,
 		revert.TargetRevisionID,
 		revert.Now.UTC(),
-	); err != nil {
+	)
+	if err != nil {
 		return ProviderConfigWriteResult{}, fmt.Errorf("point provider config at reverted revision: %w", err)
+	}
+	var revertedStatus string
+	if revertRows.Next() {
+		if err := revertRows.Scan(&revertedStatus); err != nil {
+			_ = revertRows.Close()
+			return ProviderConfigWriteResult{}, fmt.Errorf("scan reverted provider config status: %w", err)
+		}
+	}
+	rowsErr := revertRows.Err()
+	if err := revertRows.Close(); err != nil {
+		return ProviderConfigWriteResult{}, fmt.Errorf("close reverted provider config status rows: %w", err)
+	}
+	if rowsErr != nil {
+		return ProviderConfigWriteResult{}, fmt.Errorf("point provider config at reverted revision: %w", rowsErr)
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -373,7 +393,7 @@ func (s *IdentitySubjectStore) RevertProviderConfig(
 	return ProviderConfigWriteResult{
 		ProviderConfigID: revert.ProviderConfigID,
 		RevisionID:       revert.TargetRevisionID,
-		Status:           current.status,
+		Status:           revertedStatus,
 		Found:            true,
 		Changed:          true,
 	}, nil

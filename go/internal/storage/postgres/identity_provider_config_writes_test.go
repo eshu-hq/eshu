@@ -220,6 +220,56 @@ func TestUpdateProviderConfigReturnsPostUpdateStatusNotStaleActiveStatus(t *test
 	}
 }
 
+// TestRevertProviderConfigReturnsPostRevertStatusNotStaleActiveStatus is the
+// P1 regression guard (PR #5057 self-review): RevertProviderConfig shares the
+// active-revision reset query with UpdateProviderConfig, which resets the
+// config status to draft, but Revert returned the stale pre-revert
+// current.status. The config is enabled to ACTIVE immediately before the
+// revert so the stale value (active) and the correct post-transaction value
+// (draft) differ — otherwise the test could not distinguish them.
+func TestRevertProviderConfigReturnsPostRevertStatusNotStaleActiveStatus(t *testing.T) {
+	t.Parallel()
+	db := newProviderConfigFakeDB()
+	store := NewIdentitySubjectStore(db)
+	store.SetProviderSecretKeyring(testKeyring(t))
+	ctx := context.Background()
+
+	if _, err := store.CreateProviderConfig(ctx, ProviderConfigCreate{
+		ProviderConfigID: "pc_revstatus", TenantID: "tenant_a", ProviderKind: "external_oidc",
+		ProviderKeyHash: "hash_revstatus", RevisionID: "rev_1", ConfigurationHash: "h1",
+		PlaintextSecret: `{"client_secret":"first"}`, Now: time.Now(),
+	}); err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	if _, err := store.UpdateProviderConfig(ctx, ProviderConfigUpdate{
+		ProviderConfigID: "pc_revstatus", TenantID: "tenant_a", RevisionID: "rev_2",
+		ConfigurationHash: "h2", PlaintextSecret: `{"client_secret":"second"}`, Now: time.Now(),
+	}); err != nil {
+		t.Fatalf("update: %v", err)
+	}
+	if _, err := store.EnableProviderConfig(ctx, ProviderConfigEnable{
+		ProviderConfigID: "pc_revstatus", TenantID: "tenant_a", ExpectedActiveRevisionID: "rev_2", Now: time.Now(),
+	}); err != nil {
+		t.Fatalf("enable rev_2: %v", err)
+	}
+	if db.configs["pc_revstatus"].status != "active" {
+		t.Fatalf("precondition: config status = %q, want active before revert", db.configs["pc_revstatus"].status)
+	}
+
+	result, err := store.RevertProviderConfig(ctx, ProviderConfigRevert{
+		ProviderConfigID: "pc_revstatus", TenantID: "tenant_a", TargetRevisionID: "rev_1", Now: time.Now(),
+	})
+	if err != nil {
+		t.Fatalf("RevertProviderConfig() error = %v", err)
+	}
+	if result.Status != "draft" {
+		t.Fatalf("RevertProviderConfig() result.Status = %q, want %q (post-transaction persisted status, not the pre-revert active status)", result.Status, "draft")
+	}
+	if db.configs["pc_revstatus"].status != "draft" {
+		t.Fatalf("persisted status after revert = %q, want draft", db.configs["pc_revstatus"].status)
+	}
+}
+
 // TestRevertProviderConfigRestoresPriorRevisionSecret proves reverting to a
 // prior revision restores exactly that revision's secret (by fingerprint —
 // the read path never opens either revision to compare plaintext), without
