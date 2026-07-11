@@ -1,0 +1,20 @@
+{
+  "proof_mode": "partial",
+  "proof_mode_reason": "live artifact bridge evidence intentionally absent from this representative proof",
+  "target_repository_id": "repo://example/api",
+  "minimums": {
+    "impact_findings": 0,
+    "security_alert_reconciliations": 0,
+    "container_image_identities": 0,
+    "sbom_attachments": 0,
+    "service_catalog_correlations": 0,
+    "ci_cd_run_correlations": 0,
+    "cloud_resources": 0
+  },
+  "expected_container_image_missing_evidence": [
+    "source_to_image_correlation_missing"
+  ],
+  "expected_sbom_missing_evidence": [
+    "repository_to_image_evidence_missing"
+  ]
+}

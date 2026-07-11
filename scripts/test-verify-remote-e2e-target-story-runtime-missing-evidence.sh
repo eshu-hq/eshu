@@ -14,28 +14,10 @@ mkdir -p "${fake_bin}" "${state_dir}"
 cp "${repo_root}/scripts/lib/remote_e2e_target_story_fake_curl.sh" "${fake_bin}/curl"
 chmod +x "${fake_bin}/curl"
 
-cat >"${state_dir}/target-story.json" <<'JSON'
-{
-  "proof_mode": "partial",
-  "proof_mode_reason": "live artifact bridge evidence intentionally absent from this representative proof",
-  "target_repository_id": "repo://example/api",
-  "minimums": {
-    "impact_findings": 0,
-    "security_alert_reconciliations": 0,
-    "container_image_identities": 0,
-    "sbom_attachments": 0,
-    "service_catalog_correlations": 0,
-    "ci_cd_run_correlations": 0,
-    "cloud_resources": 0
-  },
-  "expected_container_image_missing_evidence": [
-    "source_to_image_correlation_missing"
-  ],
-  "expected_sbom_missing_evidence": [
-    "repository_to_image_evidence_missing"
-  ]
-}
-JSON
+# Body lives in scripts/lib/ (not a heredoc): Homebrew bash >= 5.1 writes
+# the entire heredoc body to a pipe before forking the reader, and macOS's
+# 512-byte pipe buffer deadlocks on any body over that size (#5074).
+cat "${repo_root}/scripts/lib/test-verify-remote-e2e-target-story-runtime-missing-evidence-target-story.json" >"${state_dir}/target-story.json"
 
 cat >"${state_dir}/repo-story.json" <<'JSON'
 {"data":{"repository":{"id":"repo://example/api","name":"api"}},"truth":{"level":"exact","freshness":{"state":"fresh"}},"error":null}
@@ -45,17 +27,19 @@ cat >"${state_dir}/image-count.json" <<'JSON'
 {"data":{"total_identities":0,"by_outcome":{},"by_identity_strength":{},"source_bridge":{"source_repository_id":"repo://example/api","missing_evidence":["deployment_image_reference_missing","image_registry_observation_missing","source_to_image_correlation_missing"]},"scope":{"source_repository_id":"repo://example/api"}},"truth":{"level":"exact","freshness":{"state":"fresh"}},"error":null}
 JSON
 
-cat >"${state_dir}/mcp-image-count.json" <<'JSON'
-{"jsonrpc":"2.0","id":1,"result":{"content":[{"type":"text","text":"Returned count."},{"type":"resource","resource":{"uri":"eshu://tool-result/envelope","mimeType":"application/eshu.envelope+json","text":"{\"data\":{\"total_identities\":0,\"by_outcome\":{},\"by_identity_strength\":{},\"source_bridge\":{\"source_repository_id\":\"repo://example/api\",\"missing_evidence\":[\"deployment_image_reference_missing\",\"image_registry_observation_missing\",\"source_to_image_correlation_missing\"]},\"scope\":{\"source_repository_id\":\"repo://example/api\"}},\"truth\":{\"level\":\"exact\",\"freshness\":{\"state\":\"fresh\"}},\"error\":null}"}}],"isError":false}}
-JSON
+# Body lives in scripts/lib/ (not a heredoc): Homebrew bash >= 5.1 writes
+# the entire heredoc body to a pipe before forking the reader, and macOS's
+# 512-byte pipe buffer deadlocks on any body over that size (#5074).
+cat "${repo_root}/scripts/lib/test-verify-remote-e2e-target-story-runtime-missing-evidence-mcp-image-count.json" >"${state_dir}/mcp-image-count.json"
 
 cat >"${state_dir}/sbom-count.json" <<'JSON'
 {"data":{"total_attachments":0,"by_attachment_status":{},"by_artifact_kind":{},"missing_evidence":["repository_to_image_evidence_missing"],"scope":{"repository_id":"repo://example/api"}},"truth":{"level":"exact","freshness":{"state":"fresh"}},"error":null}
 JSON
 
-cat >"${state_dir}/mcp-sbom-count.json" <<'JSON'
-{"jsonrpc":"2.0","id":1,"result":{"content":[{"type":"text","text":"Returned count."},{"type":"resource","resource":{"uri":"eshu://tool-result/envelope","mimeType":"application/eshu.envelope+json","text":"{\"data\":{\"total_attachments\":0,\"by_attachment_status\":{},\"by_artifact_kind\":{},\"missing_evidence\":[\"repository_to_image_evidence_missing\"],\"scope\":{\"repository_id\":\"repo://example/api\"}},\"truth\":{\"level\":\"exact\",\"freshness\":{\"state\":\"fresh\"}},\"error\":null}"}}],"isError":false}}
-JSON
+# Body lives in scripts/lib/ (not a heredoc): Homebrew bash >= 5.1 writes
+# the entire heredoc body to a pipe before forking the reader, and macOS's
+# 512-byte pipe buffer deadlocks on any body over that size (#5074).
+cat "${repo_root}/scripts/lib/test-verify-remote-e2e-target-story-runtime-missing-evidence-mcp-sbom-count.json" >"${state_dir}/mcp-sbom-count.json"
 
 ESHU_REMOTE_E2E_TEST_STATE="${state_dir}" \
   PATH="${fake_bin}:${PATH}" \

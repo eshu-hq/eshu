@@ -13,60 +13,10 @@ install_fake_tools() {
     local dir="$1"
     mkdir -p "${dir}/_bin"
 
-    cat >"${dir}/_bin/helm" <<'SH'
-#!/usr/bin/env bash
-set -euo pipefail
-cmd="$1"
-shift
-case "${cmd}" in
-  lint)
-    printf 'lint ok\n'
-    ;;
-  template)
-    cat <<'YAML'
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: eshu-api
-spec:
-  template:
-    spec:
-      containers:
-        - name: api
-          image: "ghcr.io/eshu-hq/eshu:v9.9.9"
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: eshu-mcp-server
----
-apiVersion: apps/v1
-kind: StatefulSet
-metadata:
-  name: eshu
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: eshu-resolution-engine
----
-apiVersion: batch/v1
-kind: Job
-metadata:
-  name: eshu-schema-bootstrap
-  annotations:
-    "helm.sh/hook": pre-install,pre-upgrade
-YAML
-    ;;
-  upgrade)
-    printf 'DRY RUN\n'
-    ;;
-  *)
-    printf 'unexpected helm command: %s\n' "${cmd}" >&2
-    exit 1
-    ;;
-esac
-SH
+    # Body lives in scripts/lib/ (not a heredoc): Homebrew bash >= 5.1 writes
+    # the entire heredoc body to a pipe before forking the reader, and macOS's
+    # 512-byte pipe buffer deadlocks on any body over that size (#5074).
+    cp "${repo_root}/scripts/lib/test-verify-hosted-helm-rollout-proof-fake-helm.sh" "${dir}/_bin/helm"
     chmod +x "${dir}/_bin/helm"
 
     cat >"${dir}/_bin/curl" <<'SH'
@@ -95,27 +45,10 @@ esac
 SH
     chmod +x "${dir}/_bin/curl"
 
-    cat >"${dir}/_bin/kubectl" <<'SH'
-#!/usr/bin/env bash
-set -euo pipefail
-case "$*" in
-  "-n eshu rollout status deployment/eshu-api --timeout=120s" | \
-  "-n eshu rollout status deployment/eshu-mcp-server --timeout=120s" | \
-  "-n eshu rollout status statefulset/eshu --timeout=120s" | \
-  "-n eshu rollout status deployment/eshu-resolution-engine --timeout=120s")
-    printf 'rolled out\n'
-    ;;
-  "-n eshu get job/eshu-schema-bootstrap -o json")
-    cat <<'JSON'
-{"status":{"succeeded":1,"failed":0,"conditions":[{"type":"Complete","status":"True"}]}}
-JSON
-    ;;
-  *)
-    printf 'unexpected kubectl args: %s\n' "$*" >&2
-    exit 1
-    ;;
-esac
-SH
+    # Body lives in scripts/lib/ (not a heredoc): Homebrew bash >= 5.1 writes
+    # the entire heredoc body to a pipe before forking the reader, and macOS's
+    # 512-byte pipe buffer deadlocks on any body over that size (#5074).
+    cp "${repo_root}/scripts/lib/test-verify-hosted-helm-rollout-proof-fake-kubectl.sh" "${dir}/_bin/kubectl"
     chmod +x "${dir}/_bin/kubectl"
 }
 

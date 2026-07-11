@@ -1,0 +1,18 @@
+{
+  "proof_mode": "code_to_cloud",
+  "target_repository_id": "repo://example/api",
+  "expected_source_repository_id": "repo://example/api",
+  "expected_service_id": "service:api",
+  "expected_oci_repository_id": "oci-registry://registry.example/team/api",
+  "expected_image_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "expected_source_revision": "0123456789abcdef0123456789abcdef01234567",
+  "minimums": {
+    "impact_findings": 0,
+    "security_alert_reconciliations": 0,
+    "container_image_identities": 1,
+    "sbom_attachments": 1,
+    "service_catalog_correlations": 0,
+    "ci_cd_run_correlations": 0,
+    "cloud_resources": 0
+  }
+}

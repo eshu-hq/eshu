@@ -11,48 +11,18 @@ trap 'rm -rf "${tmp_root}" 2>/dev/null || true' EXIT
 
 write_summary() {
 	local file="$1"
-	cat >"${file}" <<'JSON'
-{
-  "ingestion": {"fact_rows": 24000, "elapsed_seconds": 20},
-  "queue": {
-    "claim_latency_ms_samples": [9, 11, 12, 13, 14, 17, 18, 21, 23, 25, 27, 29, 31, 35, 37, 40, 42, 45, 47, 50],
-    "retry_count": 0,
-    "dead_letter_count": 0
-  },
-  "reducer": {"drain_seconds": 120},
-  "graph": {"write_latency_ms_samples": [40, 44, 48, 52, 56, 60, 64, 68, 72, 76, 80, 82, 84, 86, 88, 90, 92, 94, 96, 98]},
-  "api": {"latency_ms_samples": [55, 58, 60, 63, 67, 70, 73, 77, 80, 84, 88, 91, 94, 97, 101, 106, 112, 119, 130, 141]},
-  "mcp": {"latency_ms_samples": [57, 61, 64, 69, 72, 76, 79, 83, 86, 90, 94, 99, 103, 108, 112, 117, 121, 126, 132, 145]},
-  "runtime": {"memory_high_water_mb": 512},
-  "backend_matrix": {
-    "nornicdb": {"status": "pass", "artifact": "scale-benchmark-nornicdb"}
-  },
-  "observability": {
-    "pprof_status": "pass",
-    "logs_status": "pass",
-    "resource_snapshot_status": "pass"
-  }
-}
-JSON
+	# Body lives in scripts/lib/ (not a heredoc): Homebrew bash >= 5.1 writes
+	# the entire heredoc body to a pipe before forking the reader, and macOS's
+	# 512-byte pipe buffer deadlocks on any body over that size (#5074).
+	cat "${repo_root}/scripts/lib/test-run-scale-benchmark-measurements-runtime-summary.json" >"${file}"
 }
 
 write_thresholds() {
 	local file="$1"
-	cat >"${file}" <<'JSON'
-{
-  "metrics": {
-    "fact_rows_per_second": {"threshold": 1000, "direction": "min"},
-    "queue_claim_latency_p95_ms": {"threshold": 55, "direction": "max"},
-    "reducer_drain_seconds": {"threshold": 180, "direction": "max"},
-    "graph_write_p95_ms": {"threshold": 100, "direction": "max"},
-    "api_p95_ms": {"threshold": 150, "direction": "max"},
-    "mcp_p95_ms": {"threshold": 150, "direction": "max"},
-    "retry_count": {"threshold": 0, "direction": "max"},
-    "dead_letter_count": {"threshold": 0, "direction": "max"},
-    "memory_high_water_mb": {"threshold": 1024, "direction": "max"}
-  }
-}
-JSON
+	# Body lives in scripts/lib/ (not a heredoc): Homebrew bash >= 5.1 writes
+	# the entire heredoc body to a pipe before forking the reader, and macOS's
+	# 512-byte pipe buffer deadlocks on any body over that size (#5074).
+	cat "${repo_root}/scripts/lib/test-run-scale-benchmark-measurements-thresholds.json" >"${file}"
 }
 
 expect_fail() {
