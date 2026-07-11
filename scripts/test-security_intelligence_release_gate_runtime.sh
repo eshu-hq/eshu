@@ -39,40 +39,11 @@ exit 0
 SH
     chmod +x "${dir}/scripts/verify_remote_e2e_runtime_state.sh"
 
-    cat >"${dir}/_bin/curl" <<'SH'
-#!/usr/bin/env bash
-set -euo pipefail
-url="${@: -1}"
-case "${url}" in
-  */debug/pprof/)
-    printf 'pprof index\n'
-    ;;
-  */api/v0/index-status)
-    if [ "${ESHU_FAKE_INDEX_STATUS_NON_TERMINAL:-0}" = "1" ]; then
-      cat <<'JSON'
-{"status":"degraded","queue":{"outstanding":0,"pending":1,"in_flight":0,"retrying":1,"failed":0,"dead_letter":1},"health":{"state":"degraded"}}
-JSON
-      exit 0
-    fi
-    cat <<'JSON'
-{"status":"healthy","queue":{"outstanding":0,"pending":0,"in_flight":0,"retrying":0,"failed":0,"dead_letter":0},"health":{"state":"healthy"}}
-JSON
-    ;;
-  */api/v0/*)
-    if [ "${ESHU_FAKE_RUNTIME_PRIVATE_READBACK:-0}" = "1" ]; then
-      cat <<'JSON'
-{"repo":"example/private-service","package":"private-package","url":"https://example.invalid/private","token":"ghp_exampletoken","path":"/Users/example/repos/private-service"}
-JSON
-      exit 0
-    fi
-    printf '{"count":1,"total_findings":1,"total_reconciliations":1,"total_attachments":1,"total_identities":1}\n'
-    ;;
-  *)
-    printf 'unexpected curl url: %s\n' "${url}" >&2
-    exit 1
-    ;;
-esac
-SH
+    # Body lives in scripts/lib/ (not a heredoc): Homebrew bash >= 5.1 writes
+    # the entire heredoc body to a pipe before forking the reader, and
+    # macOS's 512-byte pipe buffer deadlocks on any body over that size
+    # (#5074).
+    cat "${repo_root}/scripts/lib/test-security_intelligence_release_gate_runtime-fake-curl.sh" >"${dir}/_bin/curl"
     chmod +x "${dir}/_bin/curl"
 
     cat >"${dir}/_bin/docker" <<'SH'

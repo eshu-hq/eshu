@@ -53,28 +53,10 @@ git_init() {
 fake_uv() {
   local bin_dir="$1"
   mkdir -p "${bin_dir}"
-  cat >"${bin_dir}/uv" <<'SCRIPT'
-#!/usr/bin/env bash
-set -euo pipefail
-# Capture the full command for assertion
-echo "[fake-uv] $*" >&2
-# Verify the docs command contains the expected mkdocs build flags
-# (the config-file path is absolute from the verifier's repo_root)
-case "$*" in
-  *"mkdocs build --strict --clean --config-file"*)
-    if [[ -n "${ESHU_FAKE_UV_FAIL:-}" ]]; then
-      echo "[fake-uv] simulating mkdocs build failure" >&2
-      exit 1
-    fi
-    echo "[fake-uv] mkdocs build SUCCESS" >&2
-    exit 0
-    ;;
-  *)
-    echo "[fake-uv] unexpected command: $*" >&2
-    exit 1
-    ;;
-esac
-SCRIPT
+  # Body lives in scripts/lib/ (not a heredoc): Homebrew bash >= 5.1 writes
+  # the entire heredoc body to a pipe before forking the reader, and macOS's
+  # 512-byte pipe buffer deadlocks on any body over that size (#5074).
+  cat "${repo_root}/scripts/lib/test-verify-docs-build-changed-fake-uv.sh" >"${bin_dir}/uv"
   chmod +x "${bin_dir}/uv"
 }
 

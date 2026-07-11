@@ -1,0 +1,20 @@
+services:
+  eshu:
+  mcp-server:
+  ingester:
+  resolution-engine:
+  workflow-coordinator:
+  collector-terraform-state:
+  collector-oci-registry:
+  collector-package-registry:
+  collector-sbom-attestation:
+  collector-vulnerability-intelligence:
+  collector-aws-cloud:
+  scanner-worker:
+    environment:
+      ESHU_SCANNER_WORKER_CPU_MILLIS: 4000
+      ESHU_SCANNER_WORKER_MEMORY_BYTES: 4294967296
+      ESHU_SCANNER_WORKER_TIMEOUT: 10m
+      ESHU_SCANNER_WORKER_MAX_INPUT_BYTES: 2147483648
+      ESHU_SCANNER_WORKER_MAX_FILES: 250000
+      ESHU_SCANNER_WORKER_MAX_FACTS: 50000
