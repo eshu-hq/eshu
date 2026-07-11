@@ -23,7 +23,7 @@ bash -n "${verifier}" || die "verifier failed bash syntax check"
 # --list names the OCI-specific proof checks without running anything.
 list_log="$(bash "${verifier}" --list)"
 for needle in "adapter=oci" "digest-pinned" "redaction canary:"; do
-	rg --fixed-strings --quiet "${needle}" <<<"${list_log}" \
+	rg --fixed-strings --quiet "${needle}" < <(printf '%s\n' "${list_log}") \
 		|| die "--list output missing ${needle}"
 done
 

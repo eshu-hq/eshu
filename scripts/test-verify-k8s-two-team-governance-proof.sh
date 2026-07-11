@@ -28,7 +28,7 @@ list_log="$(bash "${verifier}" --list)"
 for needle in "unauthenticated:" "admin:" "team-a allowed:" "team-a denied:" \
 	"team-b allowed:" "team-b denied:" "parity:" "network policy:" "provenance:" \
 	"redaction canary:"; do
-	rg --fixed-strings --quiet "${needle}" <<<"${list_log}" \
+	rg --fixed-strings --quiet "${needle}" < <(printf '%s\n' "${list_log}") \
 		|| die "--list output missing ${needle}"
 done
 
