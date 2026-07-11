@@ -26,6 +26,7 @@ import { ExplorerPage } from "./pages/ExplorerPage";
 import { ExposurePathPage } from "./pages/ExposurePathPage";
 import { FindingsPage } from "./pages/FindingsPage";
 import { FreshnessCausalityPage } from "./pages/FreshnessCausalityPage";
+import { GuidedQuestionsPage } from "./pages/GuidedQuestionsPage";
 import { IacPage } from "./pages/IacPage";
 import { ImagesPage } from "./pages/ImagesPage";
 import { ImpactPage } from "./pages/ImpactPage";
@@ -105,6 +106,10 @@ export function AppRoutes({
         }
       />
       <Route path="/ask" element={<AskPage source={source} />} />
+      <Route
+        path="/guided-questions"
+        element={<GuidedQuestionsPage client={client} source={source} />}
+      />
       <Route path="/impact" element={<ImpactPage model={model} client={client} />} />
       <Route path="/exposure" element={<ExposurePathPage client={client} />} />
       <Route path="/changed-since" element={<ChangedSincePage client={client} model={model} />} />
