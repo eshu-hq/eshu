@@ -73,7 +73,10 @@ also bounded relative to the requested limit.
 
 When an embedder is configured, each document is embedded once and cached by the
 SHA-256 of its searchable text, so identical or unchanged documents are not
-re-embedded.
+re-embedded. `DocumentText` converts invalid UTF-8 bytes to the same Unicode
+replacement characters used by JSON persistence before hashing or embedding.
+The hash therefore stays stable when a projected document is written to
+Postgres and read back.
 
 ## Vector retrieval
 
@@ -104,6 +107,9 @@ design-430 operator metrics without high-cardinality labels.
 
 - Search rank and score are derived retrieval evidence; this package never writes
   the canonical graph or promotes a score to canonical truth.
+- Searchable text must be valid UTF-8 before it crosses the persistence and
+  embedding boundary. Use `DocumentText` and `DocumentContentHash`; do not
+  rebuild that normalization in a caller.
 - `Embedder` implementations must be deterministic for fixed input; this package
   never calls hosted services directly.
 - Semantic mode requires an embedder; hybrid without one is BM25-only.

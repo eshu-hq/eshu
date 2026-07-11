@@ -16,7 +16,10 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
-const defaultBuildLimit = 500
+const (
+	defaultBuildLimit  = 500
+	maxBatchBuildLimit = 10000
+)
 
 const (
 	// FailureClassEmbedder records a bounded embedder failure.
@@ -82,6 +85,8 @@ type BuildRequest struct {
 	EmbeddingModelID   string
 	VectorIndexVersion string
 	Limit              int
+	ProjectionRevision int64
+	BuildFence         int64
 }
 
 // BuildResult summarizes a vector build attempt.
@@ -218,11 +223,13 @@ func (b Builder) buildDocumentRows(
 			SourceClass:          req.SourceClass,
 			EmbeddingModelID:     req.EmbeddingModelID,
 			EmbeddingDimensions:  b.Embedder.Dimensions(),
-			EmbeddingContentHash: searchhybrid.DocumentContentHash(row.Document),
+			EmbeddingContentHash: embeddingContentHash(row),
 			VectorIndexVersion:   req.VectorIndexVersion,
 			VectorValues:         vector,
 			CreatedAt:            now,
 			UpdatedAt:            now,
+			ProjectionRevision:   req.ProjectionRevision,
+			BuildFence:           req.BuildFence,
 		})
 		metadataBatch = append(metadataBatch, b.metadataRow(req, row, now, postgres.EshuSearchVectorBuildStateReady, "", &now))
 		result.VectorCount++
@@ -343,14 +350,26 @@ func (b Builder) metadataRow(
 		SourceClass:          req.SourceClass,
 		EmbeddingModelID:     req.EmbeddingModelID,
 		EmbeddingDimensions:  b.Embedder.Dimensions(),
-		EmbeddingContentHash: searchhybrid.DocumentContentHash(row.Document),
+		EmbeddingContentHash: embeddingContentHash(row),
 		VectorIndexVersion:   req.VectorIndexVersion,
 		BuildState:           state,
 		FailureClass:         failureClass,
 		CreatedAt:            now,
 		UpdatedAt:            now,
 		LastSuccessAt:        lastSuccessAt,
+		ProjectionRevision:   req.ProjectionRevision,
+		BuildFence:           req.BuildFence,
 	}
+}
+
+// embeddingContentHash returns the projection-owned content token used by the
+// pending selector. Legacy/test stores that do not supply it fall back to the
+// shared searchable-text hash.
+func embeddingContentHash(row postgres.EshuSearchDocumentRow) string {
+	if hash := strings.TrimSpace(row.ContentHash); hash != "" {
+		return hash
+	}
+	return searchhybrid.DocumentContentHash(row.Document)
 }
 
 func (b Builder) validate(req BuildRequest) error {
@@ -395,6 +414,10 @@ func (b Builder) now() time.Time {
 }
 
 func normalizeBuildRequest(req BuildRequest) BuildRequest {
+	return normalizeBuildRequestWithLimit(req, defaultBuildLimit)
+}
+
+func normalizeBuildRequestWithLimit(req BuildRequest, maxLimit int) BuildRequest {
 	req.ScopeID = strings.TrimSpace(req.ScopeID)
 	req.GenerationID = strings.TrimSpace(req.GenerationID)
 	req.RepoID = strings.TrimSpace(req.RepoID)
@@ -402,8 +425,10 @@ func normalizeBuildRequest(req BuildRequest) BuildRequest {
 	req.SourceClass = strings.TrimSpace(req.SourceClass)
 	req.EmbeddingModelID = strings.TrimSpace(req.EmbeddingModelID)
 	req.VectorIndexVersion = strings.TrimSpace(req.VectorIndexVersion)
-	if req.Limit <= 0 || req.Limit > defaultBuildLimit {
+	if req.Limit <= 0 {
 		req.Limit = defaultBuildLimit
+	} else if req.Limit > maxLimit {
+		req.Limit = maxLimit
 	}
 	return req
 }

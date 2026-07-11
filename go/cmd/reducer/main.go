@@ -22,6 +22,7 @@ import (
 )
 
 func buildReducerService(
+	ctx context.Context,
 	database postgres.ExecQueryer,
 	neo4jExec sourcecypher.Executor,
 	cypherExec reducer.CypherExecutor,
@@ -47,6 +48,12 @@ func buildReducerService(
 	codeValueFlowStaleCleanupCfg := loadCodeValueFlowStaleCleanupConfig(getenv)
 	searchVectorBuildRunner, err := searchVectorBuildRunnerFor(database, getenv, logger, instruments)
 	if err != nil {
+		return reducer.Service{}, err
+	}
+	// #4233: seed search vector scope state exactly once at startup, after
+	// schema apply and before the SearchVectorBuildRunner starts. Gated on the
+	// same condition that wires the runner (disabled when vectors are off).
+	if err := seedSearchVectorScopeState(ctx, searchVectorBuildRunner, database, logger); err != nil {
 		return reducer.Service{}, err
 	}
 	codeCallEdgeBatchSize, codeCallEdgeGroupBatchSize := loadCodeCallEdgeWriterTuning(getenv)

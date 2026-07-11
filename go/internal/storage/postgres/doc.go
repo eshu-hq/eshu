@@ -103,9 +103,14 @@
 // state and vector value rows persist derived numeric embeddings by active
 // generation, model, content hash, and index version without changing API/MCP
 // query behavior.
-// EshuSearchVectorPendingStore lists active curated search-document scopes whose
-// model/version-specific ready vector metadata and payload rows are incomplete;
-// it does not build vectors itself.
+// EshuSearchVectorScopeStateStore lists active curated search-document scopes
+// from versioned projection/scope state and exact-checks readiness against the
+// persisted search-index projection. Vector metadata and value batch writes
+// carrying a projection revision and build fence are accepted only for the
+// current active generation, ready projection, building vector scope, and
+// projected document content hash. EshuSearchVectorPendingStore retains the
+// retired corpus-wide fact scan only as an equivalence-test reference; neither
+// store builds vectors itself.
 // CodeReachabilityStore persists reducer-materialized code reachable-set rows
 // keyed by active generation plus per-repository completion watermarks so
 // dead-code reads can use a standing lookup before falling back to completed

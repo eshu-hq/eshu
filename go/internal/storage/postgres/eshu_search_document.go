@@ -47,6 +47,7 @@ type EshuSearchDocumentRow struct {
 	GenerationID string
 	SourceSystem string
 	ObservedAt   time.Time
+	ContentHash  string
 	Document     searchdocs.Document
 }
 
@@ -111,13 +112,17 @@ func (s EshuSearchDocumentStore) ListActiveDocuments(
 }
 
 type eshuSearchDocumentPayload struct {
-	Document searchdocs.Document `json:"document"`
+	ContentHash string              `json:"content_hash"`
+	Document    searchdocs.Document `json:"document"`
 }
 
 func decodeEshuSearchDocumentPayload(payload []byte, row *EshuSearchDocumentRow) error {
 	var decoded eshuSearchDocumentPayload
 	if err := json.Unmarshal(payload, &decoded); err != nil {
 		return fmt.Errorf("decode eshu search document payload: %w", err)
+	}
+	if decoded.ContentHash != "" {
+		row.ContentHash = decoded.ContentHash
 	}
 	row.Document = decoded.Document
 	return nil

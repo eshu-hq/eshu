@@ -9,8 +9,9 @@
 // retrieval through the searchretrieval.Backend port, with no hosted API
 // dependency in this package. Embeddings are optional and supplied through the
 // Embedder port by callers; when no embedder is configured the index serves BM25
-// only and hybrid fusion degenerates to the BM25 ranking. Embeddings are cached
-// by content hash so an unchanged document is not re-embedded.
+// only and hybrid fusion degenerates to the BM25 ranking. Searchable text is
+// normalized to valid UTF-8 before hashing or embedding, and embeddings are
+// cached by content hash so an unchanged document is not re-embedded.
 //
 // Semantic retrieval is served through an index-owned vector retriever. Exact
 // cosine remains the deterministic zero-value correctness baseline. The

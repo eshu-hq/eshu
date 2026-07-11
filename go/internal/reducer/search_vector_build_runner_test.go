@@ -205,6 +205,14 @@ func TestSearchVectorBuildRunnerBacksOffOnNoProgressSweep(t *testing.T) {
 	require.Equal(t, 1, builder.callCount(), "runner must not hot-loop on a no-progress pending set")
 }
 
+func TestSearchVectorBuildRunnerTreatsScopeFinalizationAsProgress(t *testing.T) {
+	t.Parallel()
+
+	result := SearchVectorBuildRunnerResult{PendingScopes: 1, FinalizedScopes: 1}
+
+	require.True(t, searchVectorBuildSweepMadeProgress(result))
+}
+
 func TestSearchVectorBuildRunnerValidation(t *testing.T) {
 	t.Parallel()
 

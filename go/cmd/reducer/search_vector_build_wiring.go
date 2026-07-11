@@ -36,8 +36,9 @@ func searchVectorBuildRunnerFor(
 	vectorConfig.SourceClass = embeddingConfig.SourceClass
 	vectorConfig.EmbeddingModelID = embeddingConfig.EmbeddingModelID
 	vectorConfig.VectorIndexVersion = embeddingConfig.VectorIndexVersion
+	scopeStateStore := postgres.NewEshuSearchVectorScopeStateStore(database)
 	return &reducer.SearchVectorBuildRunner{
-		Pending: searchVectorPendingAdapter{store: postgres.NewEshuSearchVectorPendingStore(database)},
+		Pending: searchVectorScopeStatePendingAdapter{store: scopeStateStore},
 		Builder: searchVectorBuilderAdapter{builder: searchvector.Builder{
 			Documents: postgres.NewEshuSearchDocumentStore(database),
 			Metadata:  postgres.NewEshuSearchVectorMetadataStore(database),
@@ -59,6 +60,7 @@ func searchVectorBuildRunnerFor(
 		Logger:         logger,
 		Instruments:    instruments,
 		ReadyPublisher: searchVectorReadyPublisherAdapter{store: postgres.NewEshuSearchVectorBuildReadyStore(database)},
+		ScopeState:     searchVectorScopeStateManagerAdapter{store: scopeStateStore},
 	}, nil
 }
 
@@ -95,6 +97,8 @@ func (a searchVectorBuilderAdapter) BuildSearchVectors(
 		EmbeddingModelID:   req.EmbeddingModelID,
 		VectorIndexVersion: req.VectorIndexVersion,
 		Limit:              req.Limit,
+		ProjectionRevision: req.ProjectionRevision,
+		BuildFence:         req.BuildFence,
 	})
 	return reducer.SearchVectorBuildResult{
 		DocumentCount:       result.DocumentCount,
@@ -122,6 +126,8 @@ func (a searchVectorBuilderAdapter) BuildSearchVectorsBatch(
 			EmbeddingModelID:   req.EmbeddingModelID,
 			VectorIndexVersion: req.VectorIndexVersion,
 			Limit:              req.Limit,
+			ProjectionRevision: req.ProjectionRevision,
+			BuildFence:         req.BuildFence,
 		})
 	}
 	result, err := a.builder.BuildBatch(ctx, buildReqs)
@@ -136,11 +142,15 @@ func (a searchVectorBuilderAdapter) BuildSearchVectorsBatch(
 	}, err
 }
 
-type searchVectorPendingAdapter struct {
-	store postgres.EshuSearchVectorPendingStore
+// searchVectorScopeStatePendingAdapter wraps the #4233
+// EshuSearchVectorScopeStateStore as the reducer's
+// SearchVectorBuildPendingLister, mapping ProjectionRevision through so the
+// build runner can CAS-finalize by revision.
+type searchVectorScopeStatePendingAdapter struct {
+	store postgres.EshuSearchVectorScopeStateStore
 }
 
-func (a searchVectorPendingAdapter) ListPendingSearchVectorScopes(
+func (a searchVectorScopeStatePendingAdapter) ListPendingSearchVectorScopes(
 	ctx context.Context,
 	req reducer.SearchVectorBuildPendingRequest,
 ) ([]reducer.SearchVectorBuildPendingScope, error) {
@@ -157,10 +167,59 @@ func (a searchVectorPendingAdapter) ListPendingSearchVectorScopes(
 	out := make([]reducer.SearchVectorBuildPendingScope, 0, len(scopes))
 	for _, scope := range scopes {
 		out = append(out, reducer.SearchVectorBuildPendingScope{
-			ScopeID:      scope.ScopeID,
-			GenerationID: scope.GenerationID,
-			RepoID:       scope.RepoID,
+			ScopeID:            scope.ScopeID,
+			GenerationID:       scope.GenerationID,
+			RepoID:             scope.RepoID,
+			ProjectionRevision: scope.ProjectionRevision,
 		})
 	}
 	return out, nil
+}
+
+// searchVectorScopeStateManagerAdapter wraps EshuSearchVectorScopeStateStore
+// as the reducer's SearchVectorScopeStateManager, mapping
+// reducer.SearchVectorBuildIdentity ↔ postgres.EshuSearchVectorIdentity.
+type searchVectorScopeStateManagerAdapter struct {
+	store postgres.EshuSearchVectorScopeStateStore
+}
+
+func (a searchVectorScopeStateManagerAdapter) BeginBuilding(
+	ctx context.Context,
+	scopeID, generationID string,
+	identity reducer.SearchVectorBuildIdentity,
+	projectionRevision int64,
+) (int64, error) {
+	return a.store.BeginBuilding(ctx, scopeID, generationID, postgres.EshuSearchVectorIdentity{
+		ProviderProfileID:  identity.ProviderProfileID,
+		SourceClass:        identity.SourceClass,
+		EmbeddingModelID:   identity.EmbeddingModelID,
+		VectorIndexVersion: identity.VectorIndexVersion,
+	}, projectionRevision)
+}
+
+func (a searchVectorScopeStateManagerAdapter) ScopeVectorComplete(
+	ctx context.Context,
+	scopeID, generationID string,
+	identity reducer.SearchVectorBuildIdentity,
+) (bool, error) {
+	return a.store.ScopeVectorComplete(ctx, scopeID, generationID, postgres.EshuSearchVectorIdentity{
+		ProviderProfileID:  identity.ProviderProfileID,
+		SourceClass:        identity.SourceClass,
+		EmbeddingModelID:   identity.EmbeddingModelID,
+		VectorIndexVersion: identity.VectorIndexVersion,
+	})
+}
+
+func (a searchVectorScopeStateManagerAdapter) FinalizeReady(
+	ctx context.Context,
+	scopeID, generationID string,
+	identity reducer.SearchVectorBuildIdentity,
+	projectionRevision, fence int64,
+) (bool, error) {
+	return a.store.FinalizeReady(ctx, scopeID, generationID, postgres.EshuSearchVectorIdentity{
+		ProviderProfileID:  identity.ProviderProfileID,
+		SourceClass:        identity.SourceClass,
+		EmbeddingModelID:   identity.EmbeddingModelID,
+		VectorIndexVersion: identity.VectorIndexVersion,
+	}, projectionRevision, fence)
 }

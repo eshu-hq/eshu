@@ -4,6 +4,7 @@
 package main
 
 import (
+	"context"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query"
@@ -15,6 +16,7 @@ func TestBuildReducerServiceRejectsDisabledGenerationRetentionInProduction(t *te
 
 	db := &fakeReducerDB{}
 	_, err := buildReducerService(
+		context.Background(),
 		db,
 		stubGraphExecutor{},
 		stubCypherExecutor{},
@@ -50,6 +52,7 @@ func TestBuildReducerServiceAllowsDisabledGenerationRetentionForLocalProfiles(t 
 
 			db := &fakeReducerDB{}
 			service, err := buildReducerService(
+				context.Background(),
 				db,
 				stubGraphExecutor{},
 				stubCypherExecutor{},
@@ -85,6 +88,7 @@ func TestBuildReducerServiceRejectsDisabledGenerationRetentionWithProductionProf
 
 	db := &fakeReducerDB{}
 	_, err := buildReducerService(
+		context.Background(),
 		db,
 		stubGraphExecutor{},
 		stubCypherExecutor{},
@@ -115,6 +119,7 @@ func TestBuildReducerServiceRejectsDisabledGenerationRetentionWithInvalidProfile
 
 	db := &fakeReducerDB{}
 	_, err := buildReducerService(
+		context.Background(),
 		db,
 		stubGraphExecutor{},
 		stubCypherExecutor{},

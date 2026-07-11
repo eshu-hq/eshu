@@ -164,6 +164,10 @@ type EshuSearchVectorValue struct {
 	VectorValues         []float64
 	CreatedAt            time.Time
 	UpdatedAt            time.Time
+	// ProjectionRevision and BuildFence are write guards used by fenced batch
+	// upserts. They are not persisted in this table.
+	ProjectionRevision int64
+	BuildFence         int64
 }
 
 // EshuSearchVectorValueFilter bounds active vector value reads.
@@ -245,13 +249,24 @@ func (s EshuSearchVectorValueStore) UpsertBatch(ctx context.Context, rows []Eshu
 		}
 		normalized[i] = row
 	}
+	fenced, err := valueBatchFenceMode(normalized)
+	if err != nil {
+		return err
+	}
 
 	for start := 0; start < len(normalized); start += eshuSearchVectorValueBatchSize {
 		end := start + eshuSearchVectorValueBatchSize
 		if end > len(normalized) {
 			end = len(normalized)
 		}
-		if err := upsertEshuSearchVectorValueBatch(ctx, s.db, normalized[start:end]); err != nil {
+		batch := normalized[start:end]
+		var err error
+		if fenced {
+			err = upsertEshuSearchVectorValueBatchFenced(ctx, s.db, batch)
+		} else {
+			err = upsertEshuSearchVectorValueBatch(ctx, s.db, batch)
+		}
+		if err != nil {
 			return err
 		}
 	}

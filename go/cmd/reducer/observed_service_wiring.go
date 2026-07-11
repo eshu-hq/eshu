@@ -4,6 +4,7 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"log/slog"
 	"sync/atomic"
@@ -18,6 +19,7 @@ import (
 )
 
 func buildObservedReducerService(
+	ctx context.Context,
 	db *sql.DB,
 	neo4jExecutor sourcecypher.Executor,
 	cypherExecutor reducer.CypherExecutor,
@@ -43,6 +45,7 @@ func buildObservedReducerService(
 	}
 	intentStore := postgres.NewSharedIntentStore(instrumentedDB)
 	serviceRunner, err := buildReducerService(
+		ctx,
 		instrumentedDB,
 		instrumentedNeo4j,
 		cypherExecutor,

@@ -28,6 +28,7 @@ func TestEshuSearchDocumentStoreListsActiveDocuments(t *testing.T) {
 					"reducer_domain":"eshu_search_document",
 					"scope_id":"scope-1",
 					"generation_id":"gen-1",
+					"content_hash":"projected-hash",
 					"repo_id":"repo-1",
 					"source_kind":"code_entity",
 					"document":{
@@ -66,6 +67,9 @@ func TestEshuSearchDocumentStoreListsActiveDocuments(t *testing.T) {
 	}
 	if row.GenerationID != "gen-1" {
 		t.Errorf("generation = %q, want gen-1", row.GenerationID)
+	}
+	if row.ContentHash != "projected-hash" {
+		t.Errorf("content hash = %q, want projected-hash", row.ContentHash)
 	}
 
 	// Verify the query bounds to the active generation and applies filters.
@@ -121,6 +125,7 @@ func TestEshuSearchDocumentStoreListsPendingVectorDocuments(t *testing.T) {
 				"gen-1",
 				"content_entities",
 				observedAt,
+				"projected-hash",
 				[]byte(`{
 					"document":{
 						"ID":"searchdoc:content_entity:e-pending",
@@ -157,12 +162,16 @@ func TestEshuSearchDocumentStoreListsPendingVectorDocuments(t *testing.T) {
 	if got, want := rows[0].Document.ID, "searchdoc:content_entity:e-pending"; got != want {
 		t.Fatalf("document id = %q, want %q", got, want)
 	}
+	if got, want := rows[0].ContentHash, "projected-hash"; got != want {
+		t.Fatalf("content hash = %q, want %q", got, want)
+	}
 	if len(db.queries) != 1 {
 		t.Fatalf("queries = %d, want 1", len(db.queries))
 	}
 	q := db.queries[0].query
 	for _, fragment := range []string{
 		"FROM eshu_search_index_documents AS doc",
+		"doc.content_hash",
 		"scope.active_generation_id = doc.generation_id",
 		"scope.scope_kind = 'repository'",
 		"WHERE meta.scope_id = doc.scope_id",

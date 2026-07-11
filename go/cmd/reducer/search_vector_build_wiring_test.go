@@ -4,6 +4,7 @@
 package main
 
 import (
+	"context"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/searchembedruntime"
@@ -15,6 +16,7 @@ func TestBuildReducerServiceWiresSearchVectorBuildRunnerWhenLocalHashConfigured(
 
 	db := &fakeReducerDB{}
 	service, err := buildReducerService(
+		context.Background(),
 		db,
 		stubGraphExecutor{},
 		stubCypherExecutor{},
@@ -55,6 +57,7 @@ func TestBuildReducerServiceWiresSearchVectorBuildRunnerWhenProviderProfileConfi
 	raw := `{"profiles":[{"profile_id":"semantic-search-default","provider_kind":"openai_compatible","credential_source":{"kind":"cloud_workload_identity"},"model_id":"search-embed-v1","embedding_dimensions":3,"endpoint_profile_id":"https://provider.example","source_classes":["search_documents"],"source_policy_configured":true}]}`
 	db := &fakeReducerDB{}
 	service, err := buildReducerService(
+		context.Background(),
 		db,
 		stubGraphExecutor{},
 		stubCypherExecutor{},

@@ -66,13 +66,24 @@ func (s EshuSearchVectorMetadataStore) UpsertBatch(ctx context.Context, rows []E
 		}
 		normalized[i] = row
 	}
+	fenced, err := metadataBatchFenceMode(normalized)
+	if err != nil {
+		return err
+	}
 
 	for start := 0; start < len(normalized); start += eshuSearchVectorMetadataBatchSize {
 		end := start + eshuSearchVectorMetadataBatchSize
 		if end > len(normalized) {
 			end = len(normalized)
 		}
-		if err := upsertEshuSearchVectorMetadataBatch(ctx, s.db, normalized[start:end]); err != nil {
+		batch := normalized[start:end]
+		var err error
+		if fenced {
+			err = upsertEshuSearchVectorMetadataBatchFenced(ctx, s.db, batch)
+		} else {
+			err = upsertEshuSearchVectorMetadataBatch(ctx, s.db, batch)
+		}
+		if err != nil {
 			return err
 		}
 	}

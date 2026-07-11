@@ -12,6 +12,7 @@ import (
 	"sort"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 
 	"github.com/eshu-hq/eshu/go/internal/searchdocs"
 )
@@ -270,7 +271,14 @@ func tokenCounts(text string) map[string]int {
 func documentText(doc searchdocs.Document) string {
 	parts := []string{doc.Title, doc.ContextText, doc.Path}
 	parts = append(parts, doc.Labels...)
-	return strings.Join(parts, " ")
+	text := strings.Join(parts, " ")
+	if utf8.ValidString(text) {
+		return text
+	}
+	// encoding/json persists each invalid input byte as one Unicode
+	// replacement character. Canonicalize the searchable text the same way so
+	// its hash remains stable after a document is written and read back.
+	return string([]rune(text))
 }
 
 func contentHash(text string) string {

@@ -76,6 +76,34 @@ func TestSearchVectorBuildRunnerUsesBatchBuilderForPendingScopes(t *testing.T) {
 	}, builder.batchRequests[0])
 }
 
+// TestSearchVectorBuildRunnerExpandsDefaultLimitForTailScope proves the batch
+// runner spends its bounded document budget on the last large scope instead of
+// retaining the 500-row per-scope cap that caused repeated full-scope scans.
+func TestSearchVectorBuildRunnerExpandsDefaultLimitForTailScope(t *testing.T) {
+	t.Parallel()
+
+	pending := &fakeSearchVectorPendingLister{scopes: []SearchVectorBuildPendingScope{{
+		ScopeID: "scope-tail", GenerationID: "gen-tail", RepoID: "repo-tail",
+	}}}
+	builder := &fakeSearchVectorBatchBuilder{}
+	runner := &SearchVectorBuildRunner{
+		Pending: pending,
+		Builder: builder,
+		Config: SearchVectorBuildRunnerConfig{
+			ProviderProfileID:  "local",
+			SourceClass:        "search_documents",
+			EmbeddingModelID:   "local-hash-v1",
+			VectorIndexVersion: "vector-v1",
+		},
+	}
+
+	_, err := runner.RunOnce(context.Background())
+
+	require.NoError(t, err)
+	require.Len(t, builder.batchRequests, 1)
+	require.Equal(t, 10000, builder.batchRequests[0][0].Limit)
+}
+
 // TestSearchVectorBuildRunnerBatchPathPublishesReadyAfterDrainingLastPendingScopes
 // proves the search_vector_ready signal fires on the production FAST PATH
 // (SearchVectorBatchBuilder, used by searchVectorBuilderAdapter in

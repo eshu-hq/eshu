@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/searchhybrid"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
@@ -78,7 +77,7 @@ func (b Builder) buildBatchPendingDocuments(
 		return result, fmt.Errorf("list batched pending search documents for vector build: %w", err)
 	}
 	var failures []error
-	if err := b.buildDocumentRowsAcrossScopes(ctx, reqs[0], now, rows, &result, &failures); err != nil {
+	if err := b.buildDocumentRowsAcrossScopes(ctx, reqs, now, rows, &result, &failures); err != nil {
 		return result, err
 	}
 	return result, errors.Join(failures...)
@@ -86,16 +85,24 @@ func (b Builder) buildBatchPendingDocuments(
 
 func (b Builder) buildDocumentRowsAcrossScopes(
 	ctx context.Context,
-	req BuildRequest,
+	reqs []BuildRequest,
 	now time.Time,
 	rows []postgres.EshuSearchDocumentRow,
 	result *BuildResult,
 	failures *[]error,
 ) error {
+	requests := make(map[string]BuildRequest, len(reqs))
+	for _, req := range reqs {
+		requests[req.ScopeID+"\x00"+req.GenerationID] = req
+	}
 	generations := make(map[string]string, len(rows))
 	metadataBatch := make([]postgres.EshuSearchVectorMetadata, 0, len(rows))
 	valueBatch := make([]postgres.EshuSearchVectorValue, 0, len(rows))
 	for _, row := range rows {
+		req, ok := requests[row.ScopeID+"\x00"+row.GenerationID]
+		if !ok {
+			return fmt.Errorf("batched vector document has no build fence for scope %q generation %q", row.ScopeID, row.GenerationID)
+		}
 		if existing, ok := generations[row.ScopeID]; ok && existing != row.GenerationID {
 			return fmt.Errorf("active search document generation for scope %q changed from %q to %q", row.ScopeID, existing, row.GenerationID)
 		}
@@ -134,7 +141,7 @@ func (b Builder) buildDocumentRowsAcrossScopes(
 func normalizeBatchBuildRequests(reqs []BuildRequest) ([]BuildRequest, error) {
 	out := make([]BuildRequest, 0, len(reqs))
 	for _, req := range reqs {
-		req = normalizeBuildRequest(req)
+		req = normalizeBuildRequestWithLimit(req, maxBatchBuildLimit)
 		if len(out) > 0 {
 			first := out[0]
 			if !buildRequestsShareBatchTuple(req, first) {
@@ -199,10 +206,12 @@ func (b Builder) buildBatchedValueRow(
 		SourceClass:          req.SourceClass,
 		EmbeddingModelID:     req.EmbeddingModelID,
 		EmbeddingDimensions:  b.Embedder.Dimensions(),
-		EmbeddingContentHash: searchhybrid.DocumentContentHash(row.Document),
+		EmbeddingContentHash: embeddingContentHash(row),
 		VectorIndexVersion:   req.VectorIndexVersion,
 		VectorValues:         vector,
 		CreatedAt:            now,
 		UpdatedAt:            now,
+		ProjectionRevision:   req.ProjectionRevision,
+		BuildFence:           req.BuildFence,
 	}
 }

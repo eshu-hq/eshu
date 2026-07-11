@@ -18,21 +18,47 @@ type searchVectorReadyQueryer interface {
 
 // selectSearchVectorReadyWatermarkQuery reads the search-vector build
 // sweep's watermark for one vector-identity tuple from
-// search_vector_build_materialization. The row is upserted only when
-// SearchVectorBuildRunner.RunOnce's post-build re-check finds zero pending
-// scopes for that identity (see
-// go/internal/reducer/search_vector_build_runner.go), so its absence means
-// the sweep has never caught up for this identity and its age means how long
-// ago it last did. The row is keyed by the full identity tuple (not a
-// singleton), so a ready publish for one identity never satisfies a
-// freshness probe for a different identity — required during a provider,
-// model, or vector-index-version rollout, or when two reducer/API configs
-// share one Postgres.
+// search_vector_build_materialization. A prior ready row is necessary but not
+// sufficient: document projection can create a newer revision after the
+// watermark was published. The NOT EXISTS guard rechecks the versioned
+// per-scope readiness state so an old row fails closed while any active
+// projection is building/failed or any non-empty ready projection has missing,
+// building, failed, or stale-revision vector state. The row and
+// readiness check are keyed by the full identity tuple (not a singleton), so
+// one provider/model/version cannot satisfy another identity's probe.
 const selectSearchVectorReadyWatermarkQuery = `
-SELECT materialized_at
-FROM search_vector_build_materialization
-WHERE provider_profile_id = $1 AND source_class = $2
-  AND embedding_model_id = $3 AND vector_index_version = $4
+SELECT materialization.materialized_at
+FROM search_vector_build_materialization materialization
+WHERE materialization.provider_profile_id = $1
+  AND materialization.source_class = $2
+  AND materialization.embedding_model_id = $3
+  AND materialization.vector_index_version = $4
+  AND NOT EXISTS (
+    SELECT 1
+    FROM eshu_search_document_projection_state projection
+    JOIN ingestion_scopes scope
+      ON scope.scope_id = projection.scope_id
+     AND scope.active_generation_id = projection.generation_id
+    LEFT JOIN eshu_search_vector_scope_state vector_scope
+      ON vector_scope.scope_id = projection.scope_id
+     AND vector_scope.generation_id = projection.generation_id
+     AND vector_scope.provider_profile_id = materialization.provider_profile_id
+     AND vector_scope.source_class = materialization.source_class
+     AND vector_scope.embedding_model_id = materialization.embedding_model_id
+     AND vector_scope.vector_index_version = materialization.vector_index_version
+    WHERE scope.scope_kind = 'repository'
+      AND (
+        projection.state <> 'ready'
+        OR (
+          projection.document_count > 0
+          AND (
+            vector_scope.state IS NULL
+            OR vector_scope.state <> 'ready'
+            OR vector_scope.projection_revision <> projection.projection_revision
+          )
+        )
+      )
+  )
 LIMIT 1`
 
 // SearchVectorBuildIdentity names the vector-identity tuple the query side's

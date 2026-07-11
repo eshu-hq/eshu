@@ -43,6 +43,8 @@ type EshuSearchVectorDocumentBatchFilter struct {
 	Limit              int
 }
 
+const eshuSearchVectorDocumentBatchMaxLimit = 10000
+
 // ListPendingVectorDocuments returns one bounded page of active search
 // documents that still need vector rows for the requested embedding tuple.
 func (s EshuSearchDocumentStore) ListPendingVectorDocuments(
@@ -74,6 +76,7 @@ func (s EshuSearchDocumentStore) ListPendingVectorDocuments(
 			&row.GenerationID,
 			&row.SourceSystem,
 			&row.ObservedAt,
+			&row.ContentHash,
 			&payload,
 		); err != nil {
 			return nil, fmt.Errorf("scan pending eshu search vector document: %w", err)
@@ -120,6 +123,7 @@ func (s EshuSearchDocumentStore) ListPendingVectorDocumentsForScopes(
 			&row.GenerationID,
 			&row.SourceSystem,
 			&row.ObservedAt,
+			&row.ContentHash,
 			&payload,
 		); err != nil {
 			return nil, fmt.Errorf("scan batched pending eshu search vector document: %w", err)
@@ -174,7 +178,7 @@ func buildEshuSearchVectorDocumentQuery(filter EshuSearchVectorDocumentFilter) (
 	versionArg := addArg(filter.VectorIndexVersion)
 
 	var builder strings.Builder
-	builder.WriteString("SELECT\n    doc.fact_id,\n    doc.scope_id,\n    doc.generation_id,\n    scope.source_system,\n    doc.updated_at,\n    jsonb_build_object('document', doc.document)\n")
+	builder.WriteString("SELECT\n    doc.fact_id,\n    doc.scope_id,\n    doc.generation_id,\n    scope.source_system,\n    doc.updated_at,\n    doc.content_hash,\n    jsonb_build_object('document', doc.document)\n")
 	builder.WriteString("FROM eshu_search_index_documents AS doc\n")
 	builder.WriteString("JOIN ingestion_scopes AS scope\n")
 	builder.WriteString("  ON scope.scope_id = doc.scope_id\n")
@@ -237,7 +241,7 @@ func buildEshuSearchVectorDocumentBatchQuery(filter EshuSearchVectorDocumentBatc
 	builder.WriteString("WITH selected(scope_id, generation_id, repo_id) AS (VALUES ")
 	builder.WriteString(strings.Join(scopeRows, ", "))
 	builder.WriteString(")\n")
-	builder.WriteString("SELECT pending.fact_id, pending.scope_id, pending.generation_id, pending.source_system, pending.updated_at, pending.payload\n")
+	builder.WriteString("SELECT pending.fact_id, pending.scope_id, pending.generation_id, pending.source_system, pending.updated_at, pending.content_hash, pending.payload\n")
 	builder.WriteString("FROM selected\n")
 	builder.WriteString("JOIN LATERAL (\n")
 	builder.WriteString("  SELECT\n")
@@ -246,6 +250,7 @@ func buildEshuSearchVectorDocumentBatchQuery(filter EshuSearchVectorDocumentBatc
 	builder.WriteString("      doc.generation_id,\n")
 	builder.WriteString("      scope.source_system,\n")
 	builder.WriteString("      doc.updated_at,\n")
+	builder.WriteString("      doc.content_hash,\n")
 	builder.WriteString("      jsonb_build_object('document', doc.document) AS payload\n")
 	builder.WriteString("  FROM eshu_search_index_documents AS doc\n")
 	builder.WriteString("  JOIN ingestion_scopes AS scope\n")
@@ -316,8 +321,10 @@ func normalizeEshuSearchVectorDocumentBatchFilter(filter EshuSearchVectorDocumen
 	normalized.SourceClass = strings.TrimSpace(filter.SourceClass)
 	normalized.EmbeddingModelID = strings.TrimSpace(filter.EmbeddingModelID)
 	normalized.VectorIndexVersion = strings.TrimSpace(filter.VectorIndexVersion)
-	if normalized.Limit <= 0 || normalized.Limit > eshuSearchDocumentMaxLimit {
+	if normalized.Limit <= 0 {
 		normalized.Limit = eshuSearchDocumentMaxLimit
+	} else if normalized.Limit > eshuSearchVectorDocumentBatchMaxLimit {
+		normalized.Limit = eshuSearchVectorDocumentBatchMaxLimit
 	}
 	normalized.Scopes = make([]EshuSearchVectorDocumentScope, 0, len(filter.Scopes))
 	for _, scope := range filter.Scopes {

@@ -4,6 +4,7 @@
 package main
 
 import (
+	"context"
 	"log/slog"
 	"testing"
 
@@ -16,7 +17,7 @@ func TestBuildReducerServiceWiresNornicDBProjectorDrainGate(t *testing.T) {
 	t.Parallel()
 
 	db := &fakeReducerDB{}
-	service, err := buildReducerService(db, stubGraphExecutor{}, stubCypherExecutor{}, postgres.NewSharedIntentStore(db), stubCypherReader{}, stubCypherReader{}, func(name string) string {
+	service, err := buildReducerService(context.Background(), db, stubGraphExecutor{}, stubCypherExecutor{}, postgres.NewSharedIntentStore(db), stubCypherReader{}, stubCypherReader{}, func(name string) string {
 		switch name {
 		case "ESHU_GRAPH_BACKEND":
 			return string(runtimecfg.GraphBackendNornicDB)
@@ -46,7 +47,7 @@ func TestBuildReducerServiceWiresExpectedSourceLocalProjectors(t *testing.T) {
 	t.Parallel()
 
 	db := &fakeReducerDB{}
-	service, err := buildReducerService(db, stubGraphExecutor{}, stubCypherExecutor{}, postgres.NewSharedIntentStore(db), stubCypherReader{}, stubCypherReader{}, func(name string) string {
+	service, err := buildReducerService(context.Background(), db, stubGraphExecutor{}, stubCypherExecutor{}, postgres.NewSharedIntentStore(db), stubCypherReader{}, stubCypherReader{}, func(name string) string {
 		switch name {
 		case "ESHU_GRAPH_BACKEND":
 			return string(runtimecfg.GraphBackendNornicDB)
@@ -75,7 +76,7 @@ func TestBuildReducerServiceWiresSemanticEntityClaimLimit(t *testing.T) {
 	t.Parallel()
 
 	db := &fakeReducerDB{}
-	service, err := buildReducerService(db, stubGraphExecutor{}, stubCypherExecutor{}, postgres.NewSharedIntentStore(db), stubCypherReader{}, stubCypherReader{}, func(name string) string {
+	service, err := buildReducerService(context.Background(), db, stubGraphExecutor{}, stubCypherExecutor{}, postgres.NewSharedIntentStore(db), stubCypherReader{}, stubCypherReader{}, func(name string) string {
 		switch name {
 		case "ESHU_GRAPH_BACKEND":
 			return string(runtimecfg.GraphBackendNornicDB)

@@ -78,9 +78,10 @@ func buildReducerSearchDocumentHandlers(
 	return reducer.SearchDocumentHandlers{
 		EshuSearchDocumentSourceLoader: postgres.NewEshuSearchDocumentSourceLoader(database),
 		EshuSearchDocumentWriter: reducer.PostgresEshuSearchDocumentWriter{
-			DB:          database,
-			Instruments: instruments,
-			Tracer:      tracer,
+			DB:              database,
+			Instruments:     instruments,
+			Tracer:          tracer,
+			ProjectionState: postgres.NewEshuSearchDocumentProjectionStateStore(database),
 		},
 		EshuSearchDocumentLogger: logger,
 	}

@@ -160,12 +160,20 @@ High-signal invariants for this package:
   payloads by active generation, provider profile, source class, model, content
   hash, and index version without promoting vector similarity to graph truth.
   The pending sweeper re-enqueues scopes whose active search documents exist but
-  stats are missing.
-  `EshuSearchVectorPendingStore` lists active repository scopes whose curated
-  search documents do not yet have ready vector metadata/value rows for the
-  configured provider profile, source class, model id, and vector index
-  version, allowing reducer vector builds to converge without request-time
-  scans.
+  stats are missing. `EshuSearchVectorScopeStateStore` schedules vector work
+  from versioned projection state rather than a corpus-wide fact scan. Its
+  completion gate rejects unequal counts cheaply, then performs one exact
+  materialized set difference over the scope's index documents, metadata, and
+  values. Each bounded relation is scanned once, avoiding a nested value lookup
+  for every document in a complete scope. The retired
+  `EshuSearchVectorPendingStore` remains only as an equivalence reference.
+  The startup seeder also counts this projection and inserts conservative
+  `building` vector-scope rows in tens of milliseconds; exact readiness stays
+  in the bounded scheduler instead of blocking reducer startup. Production
+  vector metadata and value batches are write-time fenced by active generation,
+  ready projection revision, current building vector-scope fence, and projected
+  document content hash. Legacy callers without scope-state ownership retain
+  the unfenced batch path.
 - Relationship evidence backfill stays bounded to latest active repository
   facts, file/content facts, and `gcp_cloud_relationship` facts. GCP
   relationship facts are included explicitly because they are provider-resource
@@ -339,9 +347,10 @@ Primary groups:
 - `EshuSearchDocumentStore` reads curated design-430 search documents
   (`reducer_eshu_search_document`) for a scope's active generation, bounded by
   repository, source kind, and a capped page.
-- `EshuSearchVectorPendingStore` reads only active repository scopes with
-  unbuilt or stale vector sidecar rows for active search documents, bounded by
-  scope limit and vector identity.
+- `EshuSearchVectorScopeStateStore` reads only ready active projection scopes
+  whose vector state is missing, building, failed, or on an older projection
+  revision. The scope list stays bounded by the requested limit and vector
+  identity.
 - `FunctionSummaryStore`, `FunctionSourceStore`, `FunctionGraphIDStore`, and
   `ValueFlowFixpointComponentStore` persist the durable value-flow inputs and
   solved component results used by the reducer's post-summary fixpoint.
