@@ -59,26 +59,29 @@ type graphNodeOwnerLocker interface {
 // observes the same posture fact for the same underlying resource, so there is
 // no "winner" to resolve, only a single deterministic value to stamp. Giving
 // them an owner-ledger row would be a category error (they are not
-// order-resolved), but writing them with NO coordination at all leaves a real
-// gap: issue #5062 proved NornicDB does not reliably detect a concurrent
-// property-write conflict on a shared EXISTING node — even a race between two
-// writers touching the exact same two properties silently drops the loser's
-// write at a measured, non-negligible rate (5-6/100 trials on v1.1.9..v1.1.11,
-// see docs/internal/design/5007-cross-scope-node-ownership.md). An ungated
-// posture write racing a Gate-gated base-property write on the SAME uid can
-// therefore silently revert the ledger-decided base properties, undermining
-// the #5066 gate even though the posture writer never touches a base property
-// itself — the loss happens at NornicDB's storage layer, not at the Cypher
-// property-name level.
+// order-resolved).
 //
-// LockOnlyGate closes that gap with a pure critical section: acquire the
+// This gate is NOT a data-loss fix — prove-theory disproved that premise for
+// these writers. Their write shape is an UNCONDITIONAL SET (no WHERE
+// compare-and-swap), which NornicDB's OCC handles safely: a concurrent same-uid
+// conflict is aborted with Outdated and the production RetryingExecutor
+// re-applies it, so a measured 0/100 trials silently lost an update (v1.1.11,
+// see docs/internal/design/5007-cross-scope-node-ownership.md). The silent-loss
+// NornicDB defect #5062 proved (5-6/100 on v1.1.9..v1.1.11) is specific to the
+// WHERE-CONDITIONAL compare-and-swap shape, which these posture writers do not
+// use. What the ungated path DOES incur is abort-retry CHURN: two writers
+// racing the same uid repeatedly hit the abort-and-retry cycle, measured at
+// 3.6-30x per-write latency under forced contention.
+//
+// LockOnlyGate removes that churn with a pure critical section: acquire the
 // uid's advisory lock (the SAME key ResolveOwnedUIDs would acquire for a
 // contending base-property write), run the posture writer's graph write while
-// holding it, then commit (releasing the lock). This forces the posture write
-// and any concurrent Gate-gated base-property write on the same uid to run in
-// non-overlapping NornicDB transactions — the actual precondition NornicDB's
-// conflict detection needs to not silently drop either side. No ledger row is
-// written and no ownership is resolved; a lock-only writer always writes its
+// holding it, then commit (releasing the lock). This serializes the posture
+// write and any concurrent Gate-gated base-property write on the same uid into
+// non-overlapping NornicDB transactions, so neither side hits the OCC
+// abort-retry cycle, and every writer to a shared CloudResource node uses one
+// coordination primitive (matching the #5066 base-property gate). No ledger row
+// is written and no ownership is resolved; a lock-only writer always writes its
 // own rows.
 //
 // A nil LockOnlyGate (or one with no db wired) writes through unchanged,

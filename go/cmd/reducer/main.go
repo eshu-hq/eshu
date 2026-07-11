@@ -100,8 +100,7 @@ func buildReducerService(
 	// expose a transaction beginner yields a pass-through gate (prior behavior).
 	ownerGate := graphowner.NewGate(reducerBeginner(database))
 	ownerGate.Instruments = instruments
-	// #5062: lockGate serializes the posture/exposure writers against ownerGate's
-	// base-property writes on the same uid via the SAME advisory lock, no ledger row.
+	// #5062: lockGate serializes posture/exposure writers against ownerGate's same-uid base-property writes (same advisory lock, no ledger row).
 	lockGate := graphowner.NewLockOnlyGate(reducerBeginner(database))
 	graphWriters := newCanonicalGraphWriters(neo4jExec, neo4jBatchSize(getenv), ownerGate, lockGate)
 	secretsIAMGraphWriter, err := secretsIAMGraphProjectionWriter(getenv, neo4jExec, neo4jBatchSize(getenv), logger)

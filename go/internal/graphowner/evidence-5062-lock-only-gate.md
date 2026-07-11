@@ -37,6 +37,17 @@ v1.1.11 (`timothyswt/nornicdb-cpu-bge:v1.1.11`, `bolt://localhost:27687`):
   10.44-11.34ms (**1.46-1.47x, ~6.5-7.2us/row**) across two runs — cheaper
   than the sibling owner-ledger `Gate`'s 2.28x/~15-25us/row because there is
   no ledger upsert or winner read-back, only the advisory lock.
+- **Repo-scale aggregate / break-even.** The overhead is one Postgres advisory-lock
+  round-trip per `lockChunkSize` (500-uid) chunk, amortized to ~6.5-7.2us/row, and
+  applies only to the 4 posture/exposure writers (a narrow, low-volume slice of
+  total reducer writes). It buys nothing in the common non-overlapping topology —
+  the standard corpus has 0 cross-scope shared CloudResource uids (per-service
+  scopes → disjoint uids); cross-scope overlap arises only under overlapping-scope
+  deployments (the #5007 scenario the merged #5066 base-property gate already gates
+  for). Break-even is ~0.013% (per-write overhead ÷ the ~50ms `RetryingExecutor`
+  base delay saved per avoided abort), so any real same-uid contention makes the
+  gate net-positive; where there is none, the aggregate cost is a negligible
+  per-chunk round-trip.
 - **Contention proof** (`lock_only_gate_prove_theory_live_test.go`, 100
   trials/scenario, two independent runs, widened 5ms transaction-gap shim):
   0/100 silent property loss in both the ungated and the `LockOnlyGate`
