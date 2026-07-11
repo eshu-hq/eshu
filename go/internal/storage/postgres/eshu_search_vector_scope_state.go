@@ -70,20 +70,21 @@ ORDER BY ps.scope_id
 LIMIT $5
 `
 
-// scopeVectorCompleteSQL checks whether every active non-tombstone
-// eshu_search_document fact for one scope+generation already has a
+// scopeVectorCompleteSQL checks whether every persisted search-index document
+// for one active scope+generation already has a
 // complete vector row (metadata with matching hash plus a value row, or
-// metadata in disabled state).  It returns true when no incomplete fact
+// metadata in disabled state). It returns true when no incomplete document
 // remains — the per-scope gate the reducer calls before publishing ready.
 //
 // #4233 amortization: a cheap indexed count-gate (completion_gate CTE)
 // checks whether the terminal metadata count is at least the projection
 // document count.  When terminal_count < document_count, the scope is
 // still building and we return false without running the expensive exact
-// anti-join.  When the count is satisfied, we fall through to the exact
-// anti-join for correctness (stale-hash detection, ready-without-value,
-// retired-extra metadata).  This reduces the drain cost 3.5x–13.8x while
-// preserving exact 0/0 equivalence.
+// anti-join. When the count is satisfied, the exact check reads
+// eshu_search_index_documents, the same one-row-per-document projection the
+// vector builder consumes, rather than rescanning fact_records JSON. This
+// preserves stale-hash, ready-without-value, and retired-extra correctness
+// while keeping the final proof index-bounded at large scope cardinalities.
 const scopeVectorCompleteSQL = `
 WITH completion_gate AS MATERIALIZED (
     SELECT
@@ -93,10 +94,10 @@ WITH completion_gate AS MATERIALIZED (
             FROM eshu_search_vector_metadata meta
             WHERE meta.scope_id = $1
               AND meta.generation_id = $2
-              AND meta.provider_profile_id = $4
-              AND meta.source_class = $5
-              AND meta.embedding_model_id = $6
-              AND meta.vector_index_version = $7
+              AND meta.provider_profile_id = $3
+              AND meta.source_class = $4
+              AND meta.embedding_model_id = $5
+              AND meta.vector_index_version = $6
               AND meta.build_state IN ('ready', 'disabled')
         ) AS terminal_count
     FROM eshu_search_document_projection_state ps
@@ -109,14 +110,14 @@ SELECT CASE
     THEN FALSE
     ELSE NOT EXISTS (
         SELECT 1
-        FROM fact_records fact
-        JOIN ingestion_scopes scope
-          ON scope.scope_id = fact.scope_id
-         AND scope.active_generation_id = fact.generation_id
-        WHERE fact.scope_id = $1
-          AND fact.generation_id = $2
-          AND fact.fact_kind = $3
-          AND fact.is_tombstone = FALSE
+        FROM eshu_search_index_documents doc
+        WHERE doc.scope_id = $1
+          AND doc.generation_id = $2
+          AND doc.generation_id = (
+              SELECT active_generation_id
+              FROM ingestion_scopes
+              WHERE scope_id = $1
+          )
           AND NOT EXISTS (
             SELECT 1
             FROM eshu_search_vector_metadata meta
@@ -129,14 +130,14 @@ SELECT CASE
              AND value.embedding_model_id = meta.embedding_model_id
              AND value.vector_index_version = meta.vector_index_version
              AND value.embedding_content_hash = meta.embedding_content_hash
-            WHERE meta.scope_id = fact.scope_id
-              AND meta.generation_id = fact.generation_id
-              AND meta.document_id = fact.payload->>'document_id'
-              AND meta.provider_profile_id = $4
-              AND meta.source_class = $5
-              AND meta.embedding_model_id = $6
-              AND meta.vector_index_version = $7
-              AND meta.embedding_content_hash = fact.payload->>'content_hash'
+            WHERE meta.scope_id = doc.scope_id
+              AND meta.generation_id = doc.generation_id
+              AND meta.document_id = doc.document_id
+              AND meta.provider_profile_id = $3
+              AND meta.source_class = $4
+              AND meta.embedding_model_id = $5
+              AND meta.vector_index_version = $6
+              AND meta.embedding_content_hash = doc.content_hash
               AND (meta.build_state = 'disabled'
                    OR (meta.build_state = 'ready' AND value.document_id IS NOT NULL))
           )
@@ -335,8 +336,8 @@ func (s EshuSearchVectorScopeStateStore) ListPendingSearchVectorScopes(
 	return scopes, nil
 }
 
-// ScopeVectorComplete returns true iff every active non-tombstone
-// eshu_search_document fact for the given scope+generation already has a
+// ScopeVectorComplete returns true iff every active persisted search document
+// for the given scope+generation already has a
 // complete vector row: metadata with matching content hash and either
 // build_state='disabled' or ('ready' with a matching value row). This is
 // the per-scope correctness gate the reducer calls before publishing ready.
@@ -360,7 +361,6 @@ func (s EshuSearchVectorScopeStateStore) ScopeVectorComplete(
 		scopeVectorCompleteSQL,
 		scopeID,
 		generationID,
-		EshuSearchDocumentFactKind,
 		identity.ProviderProfileID,
 		identity.SourceClass,
 		identity.EmbeddingModelID,

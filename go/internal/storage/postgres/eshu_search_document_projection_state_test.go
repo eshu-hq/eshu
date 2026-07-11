@@ -90,30 +90,35 @@ func TestEshuSearchDocumentProjectionStateFinalizeReadyCAS(t *testing.T) {
 	for _, want := range []string{
 		"UPDATE eshu_search_document_projection_state",
 		"SET state = 'ready'",
-		"document_count = $4",
+		"document_count = $5",
+		"generation_id = $2",
 		"generation_id = (SELECT active_generation_id FROM ingestion_scopes WHERE scope_id = $1)",
-		"projection_revision = $2",
-		"build_fence <= $3",
+		"projection_revision = $3",
+		"build_fence <= $4",
 	} {
 		if !strings.Contains(q, want) {
 			t.Fatalf("query missing %q:\n%s", want, q)
 		}
 	}
-	// args: $1=scopeID, $2=revision, $3=fence, $4=documentCount, $5=now
+	// args: $1=scopeID, $2=generationID, $3=revision, $4=fence,
+	// $5=documentCount, $6=now
 	if got, want := db.execs[0].args[0], "scope-1"; got != want {
 		t.Fatalf("$1 = %v, want %v", got, want)
 	}
-	if got, want := db.execs[0].args[1], int64(1); got != want {
-		t.Fatalf("$2 (revision) = %v, want %v", got, want)
+	if got, want := db.execs[0].args[1], "gen-1"; got != want {
+		t.Fatalf("$2 (generation) = %v, want %v", got, want)
 	}
 	if got, want := db.execs[0].args[2], int64(1); got != want {
-		t.Fatalf("$3 (fence) = %v, want %v", got, want)
+		t.Fatalf("$3 (revision) = %v, want %v", got, want)
 	}
-	if got, want := db.execs[0].args[3], int64(42); got != want {
-		t.Fatalf("$4 (docCount) = %v, want %v", got, want)
+	if got, want := db.execs[0].args[3], int64(1); got != want {
+		t.Fatalf("$4 (fence) = %v, want %v", got, want)
 	}
-	if len(db.execs[0].args) != 5 {
-		t.Fatalf("arg count = %d, want 5", len(db.execs[0].args))
+	if got, want := db.execs[0].args[4], int64(42); got != want {
+		t.Fatalf("$5 (docCount) = %v, want %v", got, want)
+	}
+	if len(db.execs[0].args) != 6 {
+		t.Fatalf("arg count = %d, want 6", len(db.execs[0].args))
 	}
 }
 
@@ -159,12 +164,16 @@ func TestEshuSearchDocumentProjectionStateMarkFailedCAS(t *testing.T) {
 	for _, want := range []string{
 		"UPDATE eshu_search_document_projection_state",
 		"SET state = 'failed'",
+		"generation_id = $2",
 		"generation_id = (SELECT active_generation_id FROM ingestion_scopes WHERE scope_id = $1)",
-		"projection_revision = $2",
-		"build_fence <= $3",
+		"projection_revision = $3",
+		"build_fence <= $4",
 	} {
 		if !strings.Contains(q, want) {
 			t.Fatalf("query missing %q:\n%s", want, q)
 		}
+	}
+	if got, want := db.execs[0].args[1], "gen-1"; got != want {
+		t.Fatalf("$2 (generation) = %v, want %v", got, want)
 	}
 }

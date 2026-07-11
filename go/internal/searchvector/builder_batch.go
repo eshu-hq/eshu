@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/searchhybrid"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
@@ -134,7 +133,7 @@ func (b Builder) buildDocumentRowsAcrossScopes(
 func normalizeBatchBuildRequests(reqs []BuildRequest) ([]BuildRequest, error) {
 	out := make([]BuildRequest, 0, len(reqs))
 	for _, req := range reqs {
-		req = normalizeBuildRequest(req)
+		req = normalizeBuildRequestWithLimit(req, maxBatchBuildLimit)
 		if len(out) > 0 {
 			first := out[0]
 			if !buildRequestsShareBatchTuple(req, first) {
@@ -199,7 +198,7 @@ func (b Builder) buildBatchedValueRow(
 		SourceClass:          req.SourceClass,
 		EmbeddingModelID:     req.EmbeddingModelID,
 		EmbeddingDimensions:  b.Embedder.Dimensions(),
-		EmbeddingContentHash: searchhybrid.DocumentContentHash(row.Document),
+		EmbeddingContentHash: embeddingContentHash(row),
 		VectorIndexVersion:   req.VectorIndexVersion,
 		VectorValues:         vector,
 		CreatedAt:            now,

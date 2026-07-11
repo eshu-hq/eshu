@@ -182,6 +182,7 @@ func TestSearchVectorBuildRunnerFinalizeReadyOnlyWhenComplete(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Equal(t, 2, result.BuiltScopes)
+	require.Equal(t, 1, result.FinalizedScopes)
 
 	scopeState.mu.Lock()
 	defer scopeState.mu.Unlock()

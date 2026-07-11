@@ -317,11 +317,14 @@ local override before reads can claim vector participation.
 **#4233 versioned scope readiness:** at startup the reducer seeds the
 `eshu_search_document_projection_state` and `eshu_search_vector_scope_state`
 tables via `postgres.SeedSearchVectorScopeState` — a one-time, idempotent
-exact-proof migration that seeds document-projection-state rows for every
-repository scope and vector-scope-state ready rows only for scopes the exact
-per-scope anti-join proves already complete. The seeder runs after schema
-apply and before the SearchVectorBuildRunner starts, gated on the same
-condition that wires the runner (disabled when vectors are off). The runner
+migration that counts the persisted search-index projection and records
+existing non-empty vector scopes conservatively as `building`. Startup never
+runs a corpus-wide exact-ready proof; the bounded scheduler verifies each
+scope and CAS-publishes `ready`. Successful scope finalization counts as sweep
+progress, so an upgrade with already-present vectors does not wait on the
+no-progress backoff between batches. The seeder runs after schema apply and
+before the SearchVectorBuildRunner starts, gated on the same condition that
+wires the runner (disabled when vectors are off). The runner
 uses the versioned scope-state store (`EshuSearchVectorScopeStateStore`)
 instead of the retired corpus-wide `EshuSearchVectorPendingStore`, which is
 retained only as the equivalence-test reference and is no longer wired into

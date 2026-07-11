@@ -17,11 +17,9 @@ SELECT s.scope_id,
        1,
        'ready',
        (SELECT count(*)
-          FROM fact_records f
-         WHERE f.scope_id = s.scope_id
-           AND f.generation_id = s.active_generation_id
-           AND f.fact_kind = $1
-           AND f.is_tombstone = FALSE),
+          FROM eshu_search_index_documents doc
+         WHERE doc.scope_id = s.scope_id
+           AND doc.generation_id = s.active_generation_id),
        NOW()
 FROM ingestion_scopes s
 WHERE s.scope_kind = 'repository'
@@ -45,41 +43,14 @@ SELECT ps.scope_id,
        $4,
        ps.projection_revision,
        1,
-       'ready',
+       'building',
        NOW()
 FROM eshu_search_document_projection_state ps
-WHERE ps.document_count > 0
-  AND NOT EXISTS (
-    SELECT 1
-    FROM fact_records fact
-    WHERE fact.scope_id = ps.scope_id
-      AND fact.generation_id = ps.generation_id
-      AND fact.fact_kind = $5
-      AND fact.is_tombstone = FALSE
-      AND NOT EXISTS (
-        SELECT 1
-        FROM eshu_search_vector_metadata meta
-        LEFT JOIN eshu_search_vector_values value
-          ON value.scope_id = meta.scope_id
-         AND value.generation_id = meta.generation_id
-         AND value.document_id = meta.document_id
-         AND value.provider_profile_id = meta.provider_profile_id
-         AND value.source_class = meta.source_class
-         AND value.embedding_model_id = meta.embedding_model_id
-         AND value.vector_index_version = meta.vector_index_version
-         AND value.embedding_content_hash = meta.embedding_content_hash
-        WHERE meta.scope_id = fact.scope_id
-          AND meta.generation_id = fact.generation_id
-          AND meta.document_id = fact.payload->>'document_id'
-          AND meta.provider_profile_id = $1
-          AND meta.source_class = $2
-          AND meta.embedding_model_id = $3
-          AND meta.vector_index_version = $4
-          AND meta.embedding_content_hash = fact.payload->>'content_hash'
-          AND (meta.build_state = 'disabled'
-               OR (meta.build_state = 'ready' AND value.document_id IS NOT NULL))
-      )
-  )
+JOIN ingestion_scopes scope
+  ON scope.scope_id = ps.scope_id
+ AND scope.active_generation_id = ps.generation_id
+WHERE ps.state = 'ready'
+  AND ps.document_count > 0
   AND NOT EXISTS (
     SELECT 1
     FROM eshu_search_vector_scope_state vs
@@ -94,10 +65,9 @@ WHERE ps.document_count > 0
 
 // SeedSearchVectorScopeState is the one-time exact-proof migration seeder
 // (#4233). It populates eshu_search_document_projection_state rows for every
-// repository scope (idempotent) and then seeds eshu_search_vector_scope_state
-// ready rows only for scopes the exact per-scope anti-join proves complete.
-// It never backfills from row counts — every vector_scope_state row is gated
-// by the exact content-hash and value-row anti-join the pending lister uses.
+// active repository scope (idempotent) and then records conservative building
+// vector-scope rows. Startup never performs a corpus-wide exact-ready proof;
+// the bounded scheduler verifies each scope and CAS-publishes ready state.
 func SeedSearchVectorScopeState(
 	ctx context.Context,
 	db ExecQueryer,
@@ -120,12 +90,12 @@ func SeedSearchVectorScopeState(
 	}
 
 	// Step 1: seed projection_state rows for every repository scope.
-	if _, err := db.ExecContext(ctx, seedProjectionStateSQL, EshuSearchDocumentFactKind); err != nil {
+	if _, err := db.ExecContext(ctx, seedProjectionStateSQL); err != nil {
 		return fmt.Errorf("seed eshu search document projection state: %w", err)
 	}
 
-	// Step 2: seed vector_scope_state ready rows only for scopes the exact
-	// per-scope anti-join proves complete.
+	// Step 2: seed conservative building rows. Exact readiness is deliberately
+	// deferred to the bounded scheduler so reducer startup stays index-bounded.
 	if _, err := db.ExecContext(
 		ctx,
 		seedVectorScopeStateSQL,
@@ -133,7 +103,6 @@ func SeedSearchVectorScopeState(
 		identity.SourceClass,
 		identity.EmbeddingModelID,
 		identity.VectorIndexVersion,
-		EshuSearchDocumentFactKind,
 	); err != nil {
 		return fmt.Errorf("seed eshu search vector scope state: %w", err)
 	}

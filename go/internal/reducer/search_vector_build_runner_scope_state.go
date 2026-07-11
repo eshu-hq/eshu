@@ -21,10 +21,11 @@ func (r *SearchVectorBuildRunner) finalizeVectorScopeStates(
 	scopes []SearchVectorBuildPendingScope,
 	identity SearchVectorBuildIdentity,
 	fences map[string]int64,
-) {
+) int {
 	if r.ScopeState == nil {
-		return
+		return 0
 	}
+	finalized := 0
 	for _, scope := range scopes {
 		complete, err := r.ScopeState.ScopeVectorComplete(ctx, scope.ScopeID, scope.GenerationID, identity)
 		if err != nil {
@@ -54,6 +55,9 @@ func (r *SearchVectorBuildRunner) finalizeVectorScopeStates(
 				"generation_id", scope.GenerationID,
 				"reason", "cas_rejected",
 			)
+			continue
 		}
+		finalized++
 	}
+	return finalized
 }

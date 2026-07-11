@@ -93,23 +93,26 @@ func TestScopeVectorCompleteQueryShape(t *testing.T) {
 		}
 	}
 
-	// Existing exact anti-join (preserved byte-for-byte).
+	// The exact anti-join must use the persisted search-document projection,
+	// which is the same one-row-per-document source consumed by the builder.
 	for _, want := range []string{
-		"fact.scope_id = $1",
-		"fact.generation_id = $2",
-		"fact.fact_kind = $3",
-		"fact.is_tombstone = FALSE",
+		"FROM eshu_search_index_documents doc",
+		"doc.scope_id = $1",
+		"doc.generation_id = $2",
 		"eshu_search_vector_metadata",
 		"eshu_search_vector_values",
-		"meta.provider_profile_id = $4",
-		"meta.source_class = $5",
-		"meta.embedding_model_id = $6",
-		"meta.vector_index_version = $7",
-		"meta.embedding_content_hash = fact.payload->>'content_hash'",
+		"meta.provider_profile_id = $3",
+		"meta.source_class = $4",
+		"meta.embedding_model_id = $5",
+		"meta.vector_index_version = $6",
+		"meta.embedding_content_hash = doc.content_hash",
 	} {
 		if !strings.Contains(q, want) {
 			t.Fatalf("query missing anti-join %q:\n%s", want, q)
 		}
+	}
+	if strings.Contains(q, "fact_records") || strings.Contains(q, "fact.payload") {
+		t.Fatalf("exact completeness query must not rescan fact_records JSON:\n%s", q)
 	}
 }
 

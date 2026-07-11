@@ -24,6 +24,7 @@ func (r *SearchVectorBuildRunner) logResult(ctx context.Context, result SearchVe
 		ctx, "search vector build sweep completed",
 		slog.Int("pending_scopes", result.PendingScopes),
 		slog.Int("built_scopes", result.BuiltScopes),
+		slog.Int("finalized_scopes", result.FinalizedScopes),
 		slog.Int("document_count", result.DocumentCount),
 		slog.Int("vector_count", result.VectorCount),
 		slog.Int("disabled_count", result.DisabledCount),
@@ -100,7 +101,7 @@ func (r *SearchVectorBuildRunner) logPublishFailure(ctx context.Context, err err
 // reuses the sweep's existing telemetry fields; no new metric instrument is
 // introduced. Operators can alert on this WARN (stall_reason=no_durable_output)
 // or on the existing completion log showing a non-zero pending_scopes with a
-// zero document_count/vector_count.
+// zero finalized_scopes/document_count/vector_count.
 func (r *SearchVectorBuildRunner) logNoProgress(ctx context.Context, result SearchVectorBuildRunnerResult) {
 	if r.Logger == nil {
 		return
@@ -109,6 +110,7 @@ func (r *SearchVectorBuildRunner) logNoProgress(ctx context.Context, result Sear
 		ctx, "search vector build sweep made no progress; backing off",
 		slog.Int("pending_scopes", result.PendingScopes),
 		slog.Int("built_scopes", result.BuiltScopes),
+		slog.Int("finalized_scopes", result.FinalizedScopes),
 		slog.Int("document_count", result.DocumentCount),
 		slog.Int("vector_count", result.VectorCount),
 		slog.Int("disabled_count", result.DisabledCount),

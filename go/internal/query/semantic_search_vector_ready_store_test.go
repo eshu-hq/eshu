@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"strings"
 	"testing"
 )
 
@@ -53,6 +54,16 @@ func TestPostgresSearchVectorReadyStoreIssuesWatermarkProbe(t *testing.T) {
 	}
 	if rec.lastQuery != selectSearchVectorReadyWatermarkQuery {
 		t.Fatalf("issued the wrong probe query: %q", rec.lastQuery)
+	}
+	for _, fragment := range []string{
+		"NOT EXISTS",
+		"eshu_search_document_projection_state",
+		"eshu_search_vector_scope_state",
+		"vector_scope.projection_revision <> projection.projection_revision",
+	} {
+		if !strings.Contains(rec.lastQuery, fragment) {
+			t.Fatalf("watermark probe does not fail closed on pending versioned scope state; missing %q in:\n%s", fragment, rec.lastQuery)
+		}
 	}
 	if len(rec.lastArgs) != 4 {
 		t.Fatalf("probe args = %d, want 4 (identity tuple)", len(rec.lastArgs))

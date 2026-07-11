@@ -15,6 +15,42 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
+const scopeVectorCompleteFactReferenceSQL = `
+SELECT NOT EXISTS (
+    SELECT 1
+    FROM fact_records fact
+    JOIN ingestion_scopes scope
+      ON scope.scope_id = fact.scope_id
+     AND scope.active_generation_id = fact.generation_id
+    WHERE fact.scope_id = $1
+      AND fact.generation_id = $2
+      AND fact.fact_kind = $3
+      AND fact.is_tombstone = FALSE
+      AND NOT EXISTS (
+        SELECT 1
+        FROM eshu_search_vector_metadata meta
+        LEFT JOIN eshu_search_vector_values value
+          ON value.scope_id = meta.scope_id
+         AND value.generation_id = meta.generation_id
+         AND value.document_id = meta.document_id
+         AND value.provider_profile_id = meta.provider_profile_id
+         AND value.source_class = meta.source_class
+         AND value.embedding_model_id = meta.embedding_model_id
+         AND value.vector_index_version = meta.vector_index_version
+         AND value.embedding_content_hash = meta.embedding_content_hash
+        WHERE meta.scope_id = fact.scope_id
+          AND meta.generation_id = fact.generation_id
+          AND meta.document_id = fact.payload->>'document_id'
+          AND meta.provider_profile_id = $4
+          AND meta.source_class = $5
+          AND meta.embedding_model_id = $6
+          AND meta.vector_index_version = $7
+          AND meta.embedding_content_hash = fact.payload->>'content_hash'
+          AND (meta.build_state = 'disabled'
+               OR (meta.build_state = 'ready' AND value.document_id IS NOT NULL))
+      )
+) AS complete`
+
 // TestScopeVectorCompleteCountGateAmortizationLive proves the #4233 count-gate
 // amortization returns identical verdicts as the unconditional exact anti-join
 // for every semantic case, and that the EXPLAIN plan shows the exact anti-join
@@ -35,6 +71,15 @@ func TestScopeVectorCompleteCountGateAmortizationLive(t *testing.T) {
 	defer func() { _ = sqlDB.Close() }()
 	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
+	var ingestionScopesTable sql.NullString
+	if err := sqlDB.QueryRowContext(ctx, `SELECT to_regclass('public.ingestion_scopes')`).Scan(&ingestionScopesTable); err != nil {
+		t.Fatalf("probe bootstrap schema: %v", err)
+	}
+	if !ingestionScopesTable.Valid {
+		if err := ApplyBootstrap(ctx, SQLDB{DB: sqlDB}); err != nil {
+			t.Fatalf("apply bootstrap schema: %v", err)
+		}
+	}
 
 	prefix := fmt.Sprintf("4233-cg-%d", time.Now().UnixNano())
 	providerProfileID := "semantic-search-default"
@@ -86,6 +131,17 @@ func TestScopeVectorCompleteCountGateAmortizationLive(t *testing.T) {
 			ON CONFLICT (fact_id) DO NOTHING`,
 			factID, scopeID, genID, EshuSearchDocumentFactKind, factID, now, tombstone, payload); err != nil {
 			t.Fatalf("insert fact %s: %v", factID, err)
+		}
+		if tombstone {
+			return
+		}
+		if _, err := sqlDB.ExecContext(ctx, `
+			INSERT INTO eshu_search_index_documents
+			  (scope_id,generation_id,document_id,fact_id,repo_id,source_kind,content_hash,document,document_length,updated_at)
+			VALUES ($1,$2,$3,$4,$1,'code_entity',$5,jsonb_build_object('ID',$3::text),1,$6)
+			ON CONFLICT (scope_id,generation_id,document_id) DO NOTHING`,
+			scopeID, genID, docID, factID, contentHash, now); err != nil {
+			t.Fatalf("insert search index document %s: %v", factID, err)
 		}
 	}
 	insertMeta := func(scopeID, genID, docID, contentHash, buildState string) {
@@ -188,13 +244,29 @@ func TestScopeVectorCompleteCountGateAmortizationLive(t *testing.T) {
 		if complete != c.want {
 			t.Errorf("%s: ScopeVectorComplete = %v, want %v", c.label, complete, c.want)
 		}
+		var referenceComplete bool
+		if err := sqlDB.QueryRowContext(
+			ctx,
+			scopeVectorCompleteFactReferenceSQL,
+			c.scopeID,
+			c.genID,
+			EshuSearchDocumentFactKind,
+			providerProfileID,
+			sourceClass,
+			modelID,
+			vectorVersion,
+		).Scan(&referenceComplete); err != nil {
+			t.Fatalf("%s: fact reference completeness: %v", c.label, err)
+		}
+		if complete != referenceComplete {
+			t.Errorf("%s: projected-document completeness = %v, fact reference = %v", c.label, complete, referenceComplete)
+		}
 	}
 
 	// EXPLAIN proof: still-building scope's count gate rejects; exact subplan never executed.
 	explainSQL := "EXPLAIN (ANALYZE, BUFFERS, FORMAT TEXT) " + scopeVectorCompleteSQL
 	rows, err := sqlDB.QueryContext(ctx, explainSQL,
-		sbScope, sbGen, EshuSearchDocumentFactKind,
-		providerProfileID, sourceClass, modelID, vectorVersion)
+		sbScope, sbGen, providerProfileID, sourceClass, modelID, vectorVersion)
 	if err != nil {
 		t.Fatalf("EXPLAIN: %v", err)
 	}

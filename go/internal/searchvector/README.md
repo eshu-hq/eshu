@@ -43,6 +43,9 @@ operator-facing signals described in the telemetry docs.
 - The document store must already enforce active-generation visibility.
 - Builds page through active documents until a short or empty page; a successful
   build must not silently cover only the first 500-document slice.
+- The batch-capable path accepts a bounded limit up to 10,000 documents so the
+  reducer can spend its tail budget on a few large scopes. Metadata and value
+  stores still split writes into 500-row SQL statements.
 - Paged builds anchor to the first observed generation so active-generation
   changes cannot mix rows from different generations in one build.
 - Provider-backed builds may supply a per-document admission function. Denied
@@ -51,8 +54,10 @@ operator-facing signals described in the telemetry docs.
 - Provider profile, source class, model, dimensions, and vector index version
   are part of the persisted vector identity; local hash builds use the `local`
   profile and `search_documents` source class.
-- Embedding text and content hashes must stay byte-identical to
-  `searchhybrid` retrieval indexing.
+- Embedding text comes from `searchhybrid.DocumentText`. Vector metadata and
+  values carry the persisted search-document `content_hash` token because the
+  pending selector compares that exact token. Legacy or test stores that omit
+  it fall back to `searchhybrid.DocumentContentHash`.
 - Embedder error text is not persisted; only bounded failure classes are stored.
 - This package is not a queue worker, ANN index, or public semantic-search
   adapter.

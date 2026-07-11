@@ -48,14 +48,13 @@ func TestSeedSearchVectorScopeStateRequiresIdentityFields(t *testing.T) {
 func TestSeedSearchVectorScopeStateSQLShapes(t *testing.T) {
 	t.Parallel()
 
-	// Projection state seeder: uses exact count from fact_records.
+	// Projection state seeder counts the persisted search-index projection, the
+	// same source consumed by the vector builder.
 	for _, want := range []string{
 		"INSERT INTO eshu_search_document_projection_state",
 		"SELECT count(*)",
-		"FROM fact_records",
+		"FROM eshu_search_index_documents",
 		"WHERE s.scope_kind = 'repository'",
-		"f.fact_kind = $1",
-		"f.is_tombstone = FALSE",
 		"NOT EXISTS",
 		"eshu_search_document_projection_state",
 	} {
@@ -63,22 +62,33 @@ func TestSeedSearchVectorScopeStateSQLShapes(t *testing.T) {
 			t.Fatalf("seedProjectionStateSQL missing %q", want)
 		}
 	}
+	if strings.Contains(seedProjectionStateSQL, "fact_records") {
+		t.Fatalf("seedProjectionStateSQL must not rescan fact_records JSON:\n%s", seedProjectionStateSQL)
+	}
 
-	// Vector scope state seeder: uses exact anti-join matching the OLD pending query.
+	// Vector scope state seeder records conservative building rows only. Exact
+	// completeness belongs to the bounded scheduler, not synchronous startup.
 	for _, want := range []string{
 		"INSERT INTO eshu_search_vector_scope_state",
-		"WHERE ps.document_count > 0",
+		"JOIN ingestion_scopes scope",
+		"ps.state = 'ready'",
+		"ps.document_count > 0",
+		"'building'",
 		"NOT EXISTS",
-		"eshu_search_vector_metadata",
-		"LEFT JOIN eshu_search_vector_values value",
-		"meta.embedding_content_hash = fact.payload->>'content_hash'",
-		"meta.build_state = 'disabled'",
-		"meta.build_state = 'ready'",
-		"value.document_id IS NOT NULL",
 		"eshu_search_vector_scope_state vs",
 	} {
 		if !strings.Contains(seedVectorScopeStateSQL, want) {
 			t.Fatalf("seedVectorScopeStateSQL missing %q", want)
+		}
+	}
+	for _, forbidden := range []string{
+		"fact_records",
+		"eshu_search_index_documents",
+		"eshu_search_vector_metadata",
+		"eshu_search_vector_values",
+	} {
+		if strings.Contains(seedVectorScopeStateSQL, forbidden) {
+			t.Fatalf("seedVectorScopeStateSQL contains synchronous exact-ready shape %q:\n%s", forbidden, seedVectorScopeStateSQL)
 		}
 	}
 }

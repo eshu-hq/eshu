@@ -36,20 +36,22 @@ RETURNING projection_revision, build_fence
 
 const finalizeReadyProjectionStateSQL = `
 UPDATE eshu_search_document_projection_state
-SET state = 'ready', document_count = $4, updated_at = $5
+SET state = 'ready', document_count = $5, updated_at = $6
 WHERE scope_id = $1
+  AND generation_id = $2
   AND generation_id = (SELECT active_generation_id FROM ingestion_scopes WHERE scope_id = $1)
-  AND projection_revision = $2
-  AND build_fence <= $3
+  AND projection_revision = $3
+  AND build_fence <= $4
 `
 
 const markFailedProjectionStateSQL = `
 UPDATE eshu_search_document_projection_state
-SET state = 'failed', updated_at = $4
+SET state = 'failed', updated_at = $5
 WHERE scope_id = $1
+  AND generation_id = $2
   AND generation_id = (SELECT active_generation_id FROM ingestion_scopes WHERE scope_id = $1)
-  AND projection_revision = $2
-  AND build_fence <= $3
+  AND projection_revision = $3
+  AND build_fence <= $4
 `
 
 // EshuSearchDocumentProjectionState records the projection lifecycle of
@@ -145,6 +147,7 @@ func (s EshuSearchDocumentProjectionStateStore) FinalizeReady(
 		ctx,
 		finalizeReadyProjectionStateSQL,
 		scopeID,
+		generationID,
 		revision,
 		fence,
 		documentCount,
@@ -183,6 +186,7 @@ func (s EshuSearchDocumentProjectionStateStore) MarkFailed(
 		ctx,
 		markFailedProjectionStateSQL,
 		scopeID,
+		generationID,
 		revision,
 		fence,
 		now,

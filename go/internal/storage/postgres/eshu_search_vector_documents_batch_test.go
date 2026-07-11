@@ -24,6 +24,7 @@ func TestEshuSearchDocumentStoreListsPendingVectorDocumentsForScopes(t *testing.
 				"gen-a",
 				"content_entities",
 				observedAt,
+				"projected-hash",
 				[]byte(`{"document":{"ID":"doc-a","RepoID":"repo-a","SourceKind":"code_entity","Title":"Handler","TruthScope":{"Level":"derived"},"Freshness":{"State":"fresh"}}}`),
 			}}},
 		},
@@ -51,12 +52,16 @@ func TestEshuSearchDocumentStoreListsPendingVectorDocumentsForScopes(t *testing.
 	if got, want := rows[0].Document.ID, "doc-a"; got != want {
 		t.Fatalf("document id = %q, want %q", got, want)
 	}
+	if got, want := rows[0].ContentHash, "projected-hash"; got != want {
+		t.Fatalf("content hash = %q, want %q", got, want)
+	}
 
 	q := db.queries[0].query
 	for _, fragment := range []string{
 		"WITH selected(scope_id, generation_id, repo_id) AS (VALUES",
 		"JOIN LATERAL",
 		"FROM eshu_search_index_documents AS doc",
+		"doc.content_hash",
 		"scope.active_generation_id = doc.generation_id",
 		"doc.scope_id = selected.scope_id",
 		"doc.generation_id = selected.generation_id",
@@ -111,5 +116,16 @@ func TestEshuSearchDocumentStoreBatchFilterDoesNotMutateCallerScopes(t *testing.
 	}
 	if got, want := filter.Scopes[0].RepoID, " repo-a "; got != want {
 		t.Fatalf("caller repo id mutated to %q, want %q", got, want)
+	}
+}
+
+func TestEshuSearchDocumentStoreBatchFilterAllowsBoundedTailLimit(t *testing.T) {
+	t.Parallel()
+
+	filter := normalizeEshuSearchVectorDocumentBatchFilter(EshuSearchVectorDocumentBatchFilter{
+		Limit: eshuSearchVectorDocumentBatchMaxLimit + 1,
+	})
+	if got, want := filter.Limit, eshuSearchVectorDocumentBatchMaxLimit; got != want {
+		t.Fatalf("limit = %d, want bounded tail limit %d", got, want)
 	}
 }

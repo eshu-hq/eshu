@@ -1043,6 +1043,13 @@ through independent scope failures while returning a joined error for operator
 visibility. The runner writes no graph truth and has no external vector-store
 surface.
 
+The production batch path keeps the ordinary 500-document per-scope limit while
+20 or more scopes are pending. As the tail narrows, it divides a 10,000-document
+budget across the remaining scopes, capped at 10,000 for one scope. Explicit
+non-default limits remain fixed. This avoids rescanning a large final scope for
+hundreds of 500-row sweeps without increasing the earlier multi-scope batch
+cardinality.
+
 SearchVectorBuildRunner Evidence: `go test ./internal/reducer -run
 'TestSearchVectorBuildRunner|TestServiceStartsSearchVectorBuildRunner'
 -count=1` proves bounded pending-scope consumption, per-scope build calls,
@@ -1106,6 +1113,12 @@ vector-backed modes (`semantic`/`hybrid`, via `searchVectorBackedMode` in
 `go/internal/query/semantic_search.go`) — an explicit `mode:"keyword"`
 request is served entirely by the deterministic lexical index and is never
 downgraded by a pending search-vector build.
+
+The reader does not trust an old watermark row by itself. It also checks the
+current document projection revision against the identity-scoped vector scope
+state and reports the signal absent while any active repository is missing,
+building, failed, or ready for an older revision. This closes the interval in
+which a previously caught-up watermark survives a later projection.
 
 Observability Evidence: before this change an outstanding search-vector build
 had no attributable freshness cause on the search read path and no completion

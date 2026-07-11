@@ -17,6 +17,7 @@ const (
 	defaultSearchVectorBuildPollInterval  = 30 * time.Second
 	defaultSearchVectorBuildScopeLimit    = 100
 	defaultSearchVectorBuildDocumentLimit = 500
+	searchVectorBuildTailDocumentBudget   = 10000
 )
 
 // DomainSearchVectorBuild tags the search-vector build sweep's split-timing
@@ -138,6 +139,18 @@ func (c SearchVectorBuildRunnerConfig) documentLimit() int {
 	return c.DocumentLimit
 }
 
+func (c SearchVectorBuildRunnerConfig) batchDocumentLimit(scopeCount int) int {
+	base := c.documentLimit()
+	if base != defaultSearchVectorBuildDocumentLimit || scopeCount <= 0 {
+		return base
+	}
+	limit := searchVectorBuildTailDocumentBudget / scopeCount
+	if limit < base {
+		return base
+	}
+	return limit
+}
+
 // SearchVectorBuildIdentity names the vector-identity tuple a search_vector_ready
 // signal is scoped to: the same (provider profile, source class, embedding
 // model, vector index version) tuple ListPendingSearchVectorScopes and the
@@ -201,10 +214,14 @@ type SearchVectorBuildRunner struct {
 type SearchVectorBuildRunnerResult struct {
 	PendingScopes int
 	BuiltScopes   int
-	DocumentCount int
-	VectorCount   int
-	DisabledCount int
-	FailedCount   int
+	// FinalizedScopes counts successful vector-scope readiness CAS writes.
+	// It is durable progress even when an upgrade sweep finds all vector rows
+	// already present and therefore embeds no documents.
+	FinalizedScopes int
+	DocumentCount   int
+	VectorCount     int
+	DisabledCount   int
+	FailedCount     int
 	// QueryLoadDuration sums per-scope active-document listing time.
 	QueryLoadDuration time.Duration
 	// EmbedBuildDuration sums per-scope document-embedding time.
@@ -239,7 +256,8 @@ func (r *SearchVectorBuildRunner) Run(ctx context.Context) error {
 		if result.PendingScopes > 0 {
 			if !searchVectorBuildSweepMadeProgress(result) {
 				// Pending scopes remain but the sweep produced no durable
-				// output (no documents, vectors, or disabled rows). Re-looping
+				// output (no finalized scopes, documents, vectors, or disabled
+				// rows). Re-looping
 				// immediately would hot-loop on a never-draining pending set
 				// (#4885) and pin Postgres with useless query load. Back off on
 				// the poll interval and surface the stall so an operator can
@@ -303,7 +321,7 @@ func (r *SearchVectorBuildRunner) RunOnce(ctx context.Context) (SearchVectorBuil
 
 	if len(scopes) > 0 {
 		if batchBuilder, ok := r.Builder.(SearchVectorBatchBuilder); ok {
-			build, err := batchBuilder.BuildSearchVectorsBatch(ctx, r.buildRequests(scopes))
+			build, err := batchBuilder.BuildSearchVectorsBatch(ctx, r.buildRequests(scopes, r.Config.batchDocumentLimit(len(scopes))))
 			result.BuiltScopes = len(scopes)
 			result.DocumentCount += build.DocumentCount
 			result.VectorCount += build.VectorCount
@@ -312,13 +330,15 @@ func (r *SearchVectorBuildRunner) RunOnce(ctx context.Context) (SearchVectorBuil
 			result.QueryLoadDuration += build.QueryLoadDuration
 			result.EmbedBuildDuration += build.EmbedBuildDuration
 			result.WriteUpsertDuration += build.WriteUpsertDuration
-			r.logResult(ctx, result, started)
-			r.recordPhaseMetrics(ctx, result)
 			if err != nil {
+				r.logResult(ctx, result, started)
+				r.recordPhaseMetrics(ctx, result)
 				return result, fmt.Errorf("build search vectors for %d scopes: %w", len(scopes), err)
 			}
 			// #4233: after build, per-scope completeness check + CAS-publish.
-			r.finalizeVectorScopeStates(ctx, scopes, identity, fences)
+			result.FinalizedScopes = r.finalizeVectorScopeStates(ctx, scopes, identity, fences)
+			r.logResult(ctx, result, started)
+			r.recordPhaseMetrics(ctx, result)
 			r.publishReadyIfCaughtUp(ctx)
 			return result, nil
 		}
@@ -348,10 +368,10 @@ func (r *SearchVectorBuildRunner) RunOnce(ctx context.Context) (SearchVectorBuil
 			failures = append(failures, fmt.Errorf("build search vectors for scope %q generation %q: %w", pending.ScopeID, pending.GenerationID, err))
 		}
 	}
+	// #4233: after build, per-scope completeness check + CAS-publish (serial path).
+	result.FinalizedScopes = r.finalizeVectorScopeStates(ctx, scopes, identity, fences)
 	r.logResult(ctx, result, started)
 	r.recordPhaseMetrics(ctx, result)
-	// #4233: after build, per-scope completeness check + CAS-publish (serial path).
-	r.finalizeVectorScopeStates(ctx, scopes, identity, fences)
 	buildErr := errors.Join(failures...)
 	if buildErr == nil {
 		r.publishReadyIfCaughtUp(ctx)
@@ -404,7 +424,7 @@ func (r *SearchVectorBuildRunner) publishReadyIfCaughtUp(ctx context.Context) {
 	}
 }
 
-func (r *SearchVectorBuildRunner) buildRequests(scopes []SearchVectorBuildPendingScope) []SearchVectorBuildRequest {
+func (r *SearchVectorBuildRunner) buildRequests(scopes []SearchVectorBuildPendingScope, documentLimit int) []SearchVectorBuildRequest {
 	reqs := make([]SearchVectorBuildRequest, 0, len(scopes))
 	for _, pending := range scopes {
 		reqs = append(reqs, SearchVectorBuildRequest{
@@ -415,7 +435,7 @@ func (r *SearchVectorBuildRunner) buildRequests(scopes []SearchVectorBuildPendin
 			SourceClass:        r.Config.SourceClass,
 			EmbeddingModelID:   r.Config.EmbeddingModelID,
 			VectorIndexVersion: r.Config.VectorIndexVersion,
-			Limit:              r.Config.documentLimit(),
+			Limit:              documentLimit,
 			ProjectionRevision: pending.ProjectionRevision,
 		})
 	}
@@ -453,13 +473,13 @@ func (r *SearchVectorBuildRunner) wait(ctx context.Context, d time.Duration) err
 }
 
 // searchVectorBuildSweepMadeProgress reports whether a bounded sweep produced
-// any durable change: at least one built document, vector, or disabled-marked
-// row. A sweep that selected pending scopes but produced none of these changed
-// nothing, so re-running it immediately would hot-loop on a never-draining
-// pending set (#4885). Failures are handled by the RunOnce error path, so this
-// only distinguishes a silent no-op sweep from a productive one.
+// any durable change: at least one finalized scope, built document, vector, or
+// disabled-marked row. A sweep that selected pending scopes but produced none
+// of these changed nothing, so re-running it immediately would hot-loop on a
+// never-draining pending set (#4885). Failures are handled by the RunOnce error
+// path, so this only distinguishes a silent no-op sweep from a productive one.
 func searchVectorBuildSweepMadeProgress(result SearchVectorBuildRunnerResult) bool {
-	return result.DocumentCount > 0 || result.VectorCount > 0 || result.DisabledCount > 0
+	return result.FinalizedScopes > 0 || result.DocumentCount > 0 || result.VectorCount > 0 || result.DisabledCount > 0
 }
 
 func searchVectorBuildContextDone(ctx context.Context, err error) bool {
