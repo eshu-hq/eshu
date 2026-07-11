@@ -16,20 +16,25 @@ list_only=false
 artifacts_dir=""
 
 usage() {
-	cat <<USAGE
-Usage: $(basename "$0") --artifacts <dir> [--list]
-
-Verifies recorded Scorecard component-extension proof artifacts:
-  inventory.json        component-extensions API readback
-  workflow-items.json   component workflow item terminal states
-  facts.json            committed dev.eshu.examples.scorecard.* fact counts
-  provenance.json       Eshu commit, digest, SDK/core versions, backend, telemetry
-
-The artifacts directory is produced by running the component-extension Compose
-harness against a stack (see docs/public/extend/reference-scorecard-extension.md).
-
-  --list   print the proof checks without running them
-USAGE
+	# printf, not a heredoc: Homebrew bash >= 5.1 writes an entire heredoc
+	# body to a pipe before forking the reader, and macOS's 512-byte pipe
+	# buffer deadlocks on any body over that size (#5074). This body expands
+	# "$(basename "$0")", so it cannot move to a static scripts/lib/ data
+	# file; each literal line is single-quoted and the one expanding line is
+	# double-quoted to preserve the original heredoc's expansion behavior.
+	printf '%s\n' \
+		"Usage: $(basename "$0") --artifacts <dir> [--list]" \
+		'' \
+		'Verifies recorded Scorecard component-extension proof artifacts:' \
+		'  inventory.json        component-extensions API readback' \
+		'  workflow-items.json   component workflow item terminal states' \
+		'  facts.json            committed dev.eshu.examples.scorecard.* fact counts' \
+		'  provenance.json       Eshu commit, digest, SDK/core versions, backend, telemetry' \
+		'' \
+		'The artifacts directory is produced by running the component-extension Compose' \
+		'harness against a stack (see docs/public/extend/reference-scorecard-extension.md).' \
+		'' \
+		'  --list   print the proof checks without running them'
 }
 
 die() {
