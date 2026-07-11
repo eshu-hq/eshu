@@ -78,6 +78,9 @@ type SearchVectorBuildRequest struct {
 	// ProjectionRevision flows from the pending listing through the build runner
 	// so the vector scope state manager can CAS-finalize by revision (#4233).
 	ProjectionRevision int64
+	// BuildFence is the vector-scope fence returned immediately before this
+	// build. Postgres batch upserts reject rows whose fence is no longer current.
+	BuildFence int64
 }
 
 // SearchVectorBuildResult summarizes a vector build attempt.
@@ -321,7 +324,7 @@ func (r *SearchVectorBuildRunner) RunOnce(ctx context.Context) (SearchVectorBuil
 
 	if len(scopes) > 0 {
 		if batchBuilder, ok := r.Builder.(SearchVectorBatchBuilder); ok {
-			build, err := batchBuilder.BuildSearchVectorsBatch(ctx, r.buildRequests(scopes, r.Config.batchDocumentLimit(len(scopes))))
+			build, err := batchBuilder.BuildSearchVectorsBatch(ctx, r.buildRequests(scopes, r.Config.batchDocumentLimit(len(scopes)), fences))
 			result.BuiltScopes = len(scopes)
 			result.DocumentCount += build.DocumentCount
 			result.VectorCount += build.VectorCount
@@ -355,6 +358,7 @@ func (r *SearchVectorBuildRunner) RunOnce(ctx context.Context) (SearchVectorBuil
 			VectorIndexVersion: r.Config.VectorIndexVersion,
 			Limit:              r.Config.documentLimit(),
 			ProjectionRevision: pending.ProjectionRevision,
+			BuildFence:         fences[vectorScopeStateKey(pending.ScopeID, pending.GenerationID)],
 		})
 		result.BuiltScopes++
 		result.DocumentCount += build.DocumentCount
@@ -422,24 +426,6 @@ func (r *SearchVectorBuildRunner) publishReadyIfCaughtUp(ctx context.Context) {
 	if err := r.ReadyPublisher.PublishSearchVectorReady(ctx, identity); err != nil {
 		r.logPublishFailure(ctx, err)
 	}
-}
-
-func (r *SearchVectorBuildRunner) buildRequests(scopes []SearchVectorBuildPendingScope, documentLimit int) []SearchVectorBuildRequest {
-	reqs := make([]SearchVectorBuildRequest, 0, len(scopes))
-	for _, pending := range scopes {
-		reqs = append(reqs, SearchVectorBuildRequest{
-			ScopeID:            pending.ScopeID,
-			GenerationID:       pending.GenerationID,
-			RepoID:             pending.RepoID,
-			ProviderProfileID:  r.Config.ProviderProfileID,
-			SourceClass:        r.Config.SourceClass,
-			EmbeddingModelID:   r.Config.EmbeddingModelID,
-			VectorIndexVersion: r.Config.VectorIndexVersion,
-			Limit:              documentLimit,
-			ProjectionRevision: pending.ProjectionRevision,
-		})
-	}
-	return reqs
 }
 
 func (r *SearchVectorBuildRunner) validate() error {

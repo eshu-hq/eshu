@@ -85,6 +85,8 @@ type BuildRequest struct {
 	EmbeddingModelID   string
 	VectorIndexVersion string
 	Limit              int
+	ProjectionRevision int64
+	BuildFence         int64
 }
 
 // BuildResult summarizes a vector build attempt.
@@ -226,6 +228,8 @@ func (b Builder) buildDocumentRows(
 			VectorValues:         vector,
 			CreatedAt:            now,
 			UpdatedAt:            now,
+			ProjectionRevision:   req.ProjectionRevision,
+			BuildFence:           req.BuildFence,
 		})
 		metadataBatch = append(metadataBatch, b.metadataRow(req, row, now, postgres.EshuSearchVectorBuildStateReady, "", &now))
 		result.VectorCount++
@@ -353,6 +357,8 @@ func (b Builder) metadataRow(
 		CreatedAt:            now,
 		UpdatedAt:            now,
 		LastSuccessAt:        lastSuccessAt,
+		ProjectionRevision:   req.ProjectionRevision,
+		BuildFence:           req.BuildFence,
 	}
 }
 

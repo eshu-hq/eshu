@@ -13,6 +13,29 @@ func vectorScopeStateKey(scopeID, generationID string) string {
 	return scopeID + "\x00" + generationID
 }
 
+func (r *SearchVectorBuildRunner) buildRequests(
+	scopes []SearchVectorBuildPendingScope,
+	documentLimit int,
+	fences map[string]int64,
+) []SearchVectorBuildRequest {
+	reqs := make([]SearchVectorBuildRequest, 0, len(scopes))
+	for _, pending := range scopes {
+		reqs = append(reqs, SearchVectorBuildRequest{
+			ScopeID:            pending.ScopeID,
+			GenerationID:       pending.GenerationID,
+			RepoID:             pending.RepoID,
+			ProviderProfileID:  r.Config.ProviderProfileID,
+			SourceClass:        r.Config.SourceClass,
+			EmbeddingModelID:   r.Config.EmbeddingModelID,
+			VectorIndexVersion: r.Config.VectorIndexVersion,
+			Limit:              documentLimit,
+			ProjectionRevision: pending.ProjectionRevision,
+			BuildFence:         fences[vectorScopeStateKey(pending.ScopeID, pending.GenerationID)],
+		})
+	}
+	return reqs
+}
+
 // finalizeVectorScopeStates checks per-scope vector completeness and
 // CAS-publishes ready state for scopes that are fully built. It is called
 // from both the batch fast path and the serial per-scope path.

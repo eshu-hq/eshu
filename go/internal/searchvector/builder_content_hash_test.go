@@ -36,6 +36,8 @@ func TestBuilderPersistsTheProjectedDocumentContentHash(t *testing.T) {
 		context.Background(),
 		BuildRequest{
 			ScopeID:            "repo-1",
+			ProjectionRevision: 7,
+			BuildFence:         9,
 			ProviderProfileID:  "local",
 			SourceClass:        "search_documents",
 			EmbeddingModelID:   "local-hash-v1",
@@ -50,5 +52,17 @@ func TestBuilderPersistsTheProjectedDocumentContentHash(t *testing.T) {
 	}
 	if got := metadata.rows[0].EmbeddingContentHash; got != projectedContentHash {
 		t.Fatalf("metadata content hash = %q, want persisted projection hash %q", got, projectedContentHash)
+	}
+	if got := values.rows[0].ProjectionRevision; got != 7 {
+		t.Fatalf("value projection revision = %d, want 7", got)
+	}
+	if got := values.rows[0].BuildFence; got != 9 {
+		t.Fatalf("value build fence = %d, want 9", got)
+	}
+	if got := metadata.rows[0].ProjectionRevision; got != 7 {
+		t.Fatalf("metadata projection revision = %d, want 7", got)
+	}
+	if got := metadata.rows[0].BuildFence; got != 9 {
+		t.Fatalf("metadata build fence = %d, want 9", got)
 	}
 }

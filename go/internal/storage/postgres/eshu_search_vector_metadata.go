@@ -170,6 +170,10 @@ type EshuSearchVectorMetadata struct {
 	CreatedAt            time.Time
 	UpdatedAt            time.Time
 	LastSuccessAt        *time.Time
+	// ProjectionRevision and BuildFence are write guards used by fenced batch
+	// upserts. They are not persisted in this table.
+	ProjectionRevision int64
+	BuildFence         int64
 }
 
 // EshuSearchVectorMetadataFilter bounds active vector metadata reads.

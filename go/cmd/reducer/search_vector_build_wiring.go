@@ -97,6 +97,8 @@ func (a searchVectorBuilderAdapter) BuildSearchVectors(
 		EmbeddingModelID:   req.EmbeddingModelID,
 		VectorIndexVersion: req.VectorIndexVersion,
 		Limit:              req.Limit,
+		ProjectionRevision: req.ProjectionRevision,
+		BuildFence:         req.BuildFence,
 	})
 	return reducer.SearchVectorBuildResult{
 		DocumentCount:       result.DocumentCount,
@@ -124,6 +126,8 @@ func (a searchVectorBuilderAdapter) BuildSearchVectorsBatch(
 			EmbeddingModelID:   req.EmbeddingModelID,
 			VectorIndexVersion: req.VectorIndexVersion,
 			Limit:              req.Limit,
+			ProjectionRevision: req.ProjectionRevision,
+			BuildFence:         req.BuildFence,
 		})
 	}
 	result, err := a.builder.BuildBatch(ctx, buildReqs)

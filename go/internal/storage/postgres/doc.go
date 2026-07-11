@@ -105,7 +105,10 @@
 // query behavior.
 // EshuSearchVectorScopeStateStore lists active curated search-document scopes
 // from versioned projection/scope state and exact-checks readiness against the
-// persisted search-index projection. EshuSearchVectorPendingStore retains the
+// persisted search-index projection. Vector metadata and value batch writes
+// carrying a projection revision and build fence are accepted only for the
+// current active generation, ready projection, building vector scope, and
+// projected document content hash. EshuSearchVectorPendingStore retains the
 // retired corpus-wide fact scan only as an equivalence-test reference; neither
 // store builds vectors itself.
 // CodeReachabilityStore persists reducer-materialized code reachable-set rows

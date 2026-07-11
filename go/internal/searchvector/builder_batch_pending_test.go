@@ -57,6 +57,8 @@ func TestBuilderBatchUsesBatchedPendingVectorDocumentsWhenAvailable(t *testing.T
 		{
 			ScopeID:            "scope-a",
 			GenerationID:       "gen-a",
+			ProjectionRevision: 3,
+			BuildFence:         7,
 			RepoID:             "repo-a",
 			ProviderProfileID:  "local",
 			SourceClass:        "search_documents",
@@ -67,6 +69,8 @@ func TestBuilderBatchUsesBatchedPendingVectorDocumentsWhenAvailable(t *testing.T
 		{
 			ScopeID:            "scope-b",
 			GenerationID:       "gen-b",
+			ProjectionRevision: 5,
+			BuildFence:         11,
 			RepoID:             "repo-b",
 			ProviderProfileID:  "local",
 			SourceClass:        "search_documents",
@@ -107,9 +111,11 @@ func TestBuilderBatchUsesBatchedPendingVectorDocumentsWhenAvailable(t *testing.T
 		scopeID      string
 		generationID string
 		documentID   string
+		revision     int64
+		fence        int64
 	}{
-		{scopeID: "scope-a", generationID: "gen-a", documentID: "shared-doc"},
-		{scopeID: "scope-b", generationID: "gen-b", documentID: "shared-doc"},
+		{scopeID: "scope-a", generationID: "gen-a", documentID: "shared-doc", revision: 3, fence: 7},
+		{scopeID: "scope-b", generationID: "gen-b", documentID: "shared-doc", revision: 5, fence: 11},
 	} {
 		row, ok := rowByScopeAndDocument[want.scopeID+"/"+want.documentID]
 		if !ok {
@@ -118,6 +124,20 @@ func TestBuilderBatchUsesBatchedPendingVectorDocumentsWhenAvailable(t *testing.T
 		if row.GenerationID != want.generationID {
 			t.Fatalf("vector row generation for scope %q document %q = %q, want %q", want.scopeID, want.documentID, row.GenerationID, want.generationID)
 		}
+		if row.ProjectionRevision != want.revision || row.BuildFence != want.fence {
+			t.Fatalf("vector row guard for scope %q = revision %d fence %d, want revision %d fence %d",
+				want.scopeID, row.ProjectionRevision, row.BuildFence, want.revision, want.fence)
+		}
+	}
+	metadataByScope := make(map[string]postgres.EshuSearchVectorMetadata, len(metadata.rows))
+	for _, row := range metadata.rows {
+		metadataByScope[row.ScopeID] = row
+	}
+	if row := metadataByScope["scope-a"]; row.ProjectionRevision != 3 || row.BuildFence != 7 {
+		t.Fatalf("scope-a metadata guard = revision %d fence %d, want revision 3 fence 7", row.ProjectionRevision, row.BuildFence)
+	}
+	if row := metadataByScope["scope-b"]; row.ProjectionRevision != 5 || row.BuildFence != 11 {
+		t.Fatalf("scope-b metadata guard = revision %d fence %d, want revision 5 fence 11", row.ProjectionRevision, row.BuildFence)
 	}
 }
 

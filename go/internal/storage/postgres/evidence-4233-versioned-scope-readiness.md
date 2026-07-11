@@ -5,7 +5,7 @@
 The original scheduler derived pending vector scopes by scanning active search
 document facts across the corpus. The versioned scope-state candidate removed
 that scheduler scan and added a terminal-count shortcut, but the preserved
-896-repository run exposed five remaining failures:
+896-repository run exposed six remaining failures:
 
 1. Once terminal metadata count reached document count, the exact completion
    branch returned to `fact_records` JSON. A 3,121-document scope was still
@@ -23,6 +23,9 @@ that scheduler scan and added a terminal-count shortcut, but the preserved
    index walk hundreds of times after the pending set narrowed to one scope.
 5. The one-time upgrade seeder retained a corpus-wide exact-ready proof over
    `fact_records`, making reducer startup inherit the disproven query shape.
+6. Scope finalization used revision/fence CAS, but vector metadata and value
+   writes did not re-check those tokens. A delayed worker could therefore
+   overwrite rows after a newer worker had advanced the scope fence.
 
 ## Theory proof
 
@@ -51,6 +54,11 @@ The theory was measured before the production changes:
   A correlated synchronous exact-ready seed was cancelled at 2 minutes 24
   seconds, and a global aggregate alternative hit its 120-second timeout. A
   conservative `building` seed inserted all 831 non-empty scopes in 45.6 ms.
+- A rolled-back stale-worker shim advanced a vector scope to a newer ready
+  build and then applied an older worker's metadata write. The scope remained
+  ready while the exact completion audit found one incomplete document and the
+  readiness watermark still returned a row. This proved that finalization CAS
+  alone did not fence the underlying writes.
 
 ## Fix
 
@@ -74,6 +82,10 @@ The theory was measured before the production changes:
   as durable progress, avoiding the no-progress sleep during upgrade catch-up.
 - Projection ready/failed CAS statements match the caller's generation ID as
   well as the active generation, revision, and build fence.
+- The runner carries the `BeginBuilding` fence into every vector metadata and
+  value row. Both batch statements independently join the active ingestion
+  generation, ready projection revision, current building vector-scope fence,
+  and projected document content hash before inserting or updating a row.
 
 ## Accuracy and concurrency proof
 
@@ -86,9 +98,12 @@ count is below document count.
 Focused race coverage runs the search, vector, Postgres, query, reducer, and
 reducer-command packages with `-race`. Existing revision and build-fence tests
 continue to cover generation advance, stale projection revision, retry, and
-concurrent finalize behavior; the change adds no worker, lease, runtime knob,
-or lock-order setting. Vector metadata and value stores retain their 500-row
-SQL statement boundaries.
+concurrent finalize behavior. A live Postgres regression first writes value and
+metadata rows with the current fence, advances the fence, and then attempts to
+overwrite both rows with the stale fence. The current writes land and both stale
+writes affect zero rows; the original vector, metadata failure class, and update
+timestamps remain unchanged. Vector metadata and value stores retain their
+500-row SQL statement boundaries.
 
 ## Finished-work proof
 

@@ -168,7 +168,11 @@ High-signal invariants for this package:
   `EshuSearchVectorPendingStore` remains only as an equivalence reference.
   The startup seeder also counts this projection and inserts conservative
   `building` vector-scope rows in tens of milliseconds; exact readiness stays
-  in the bounded scheduler instead of blocking reducer startup.
+  in the bounded scheduler instead of blocking reducer startup. Production
+  vector metadata and value batches are write-time fenced by active generation,
+  ready projection revision, current building vector-scope fence, and projected
+  document content hash. Legacy callers without scope-state ownership retain
+  the unfenced batch path.
 - Relationship evidence backfill stays bounded to latest active repository
   facts, file/content facts, and `gcp_cloud_relationship` facts. GCP
   relationship facts are included explicitly because they are provider-resource

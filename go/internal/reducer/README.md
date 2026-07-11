@@ -1050,6 +1050,12 @@ non-default limits remain fixed. This avoids rescanning a large final scope for
 hundreds of 500-row sweeps without increasing the earlier multi-scope batch
 cardinality.
 
+Before each production build, the runner advances the vector-scope build fence
+and carries that fence plus the observed document-projection revision through
+the builder. Postgres checks those tokens again when each metadata and value
+batch is written, so a delayed worker cannot overwrite a newer build after
+ownership changes.
+
 SearchVectorBuildRunner Evidence: `go test ./internal/reducer -run
 'TestSearchVectorBuildRunner|TestServiceStartsSearchVectorBuildRunner'
 -count=1` proves bounded pending-scope consumption, per-scope build calls,

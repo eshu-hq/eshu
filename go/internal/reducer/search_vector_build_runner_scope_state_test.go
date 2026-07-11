@@ -144,6 +144,10 @@ func TestSearchVectorBuildRunnerBeginBuildingBeforeBuild(t *testing.T) {
 
 	// Builder was called (BeginBuilding happens BEFORE build in RunOnce).
 	require.Equal(t, 2, builder.callCount())
+	require.Equal(t, int64(3), builder.requests[0].ProjectionRevision)
+	require.Equal(t, int64(1), builder.requests[0].BuildFence)
+	require.Equal(t, int64(5), builder.requests[1].ProjectionRevision)
+	require.Equal(t, int64(2), builder.requests[1].BuildFence)
 }
 
 // TestSearchVectorBuildRunnerFinalizeReadyOnlyWhenComplete proves that
