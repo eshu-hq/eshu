@@ -25,13 +25,10 @@
 // indistinguishable 403. Item 5 flips require_sso=true for the rest of the
 // run and never reverts it, so runAuthE2E.ts calls this module strictly
 // AFTER item 4 (member OIDC login) and BEFORE item 5's admin-SSO
-// precondition/enable. Within that window every member is created (invited
-// + accepted) and, for Flow B, logs in and enrolls TOTP, BEFORE
-// require_mfa_for_all_users flips true: AcceptLocalIdentityInvitation
-// rejects a no-recovery-codes acceptance once that policy is already on,
-// and Flow B's enrollment login would itself demand an MFA proof the
-// member lacks yet if the flip happened first. Flow C's member carries
-// recovery codes at acceptance so it runs after the flip too.
+// precondition/enable. Within that window every member is invited+accepted
+// and Flow B enrolls TOTP BEFORE require_mfa_for_all_users flips true —
+// AcceptLocalIdentityInvitation rejects a no-recovery-codes accept once the
+// policy is on, and Flow B's enroll login would itself demand MFA it lacks.
 import { createHash, randomUUID } from "node:crypto";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
@@ -167,7 +164,10 @@ async function createLocalInvitationDirect(
   const inviteCode = `e2e-invite-${randomUUID()}`;
   const inviteId = `e2e-inv-${randomUUID()}`;
   const inviteCodeHash = localIdentityHash(inviteCode);
-  // policy_revision_hash is read inline (COALESCE '' if none); accept never validates it.
+  // SAFE: inviteId/inviteCodeHash are randomUUID() + sha256 hex — no
+  // user-controlled characters reach this template; do NOT interpolate
+  // external input here. policy_revision_hash is read inline (COALESCE '');
+  // accept never validates it.
   const sql =
     "INSERT INTO identity_invitations (invite_id, tenant_id, workspace_id, invite_code_hash, " +
     "invitee_handle_hash, inviter_subject_id_hash, role_id, status, policy_revision_hash, " +

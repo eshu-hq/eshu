@@ -40,4 +40,20 @@ describe("generateTotpCode", () => {
     const next = generateTotpCode(rfc6238Sha1Secret, 1111111109 + 30);
     expect(next).not.toBe(first);
   });
+
+  // Custom digits=8 exercises the non-default padStart width and the full,
+  // un-truncated RFC 6238 Appendix B SHA1 answers, catching a digits-handling
+  // transcription bug the 6-digit rows above would silently pass.
+  it("honors a custom digit count against the 8-digit RFC 6238 vectors", () => {
+    expect(generateTotpCode(rfc6238Sha1Secret, 59, 8)).toBe("94287082");
+    expect(generateTotpCode(rfc6238Sha1Secret, 1111111109, 8)).toBe("07081804");
+  });
+
+  // A custom period changes the time-step counter, so the same instant yields
+  // a different code under a 60s step than under the default 30s step.
+  it("honors a custom period length", () => {
+    const thirty = generateTotpCode(rfc6238Sha1Secret, 1111111109, 6, 30);
+    const sixty = generateTotpCode(rfc6238Sha1Secret, 1111111109, 6, 60);
+    expect(sixty).not.toBe(thirty);
+  });
 });
