@@ -62,6 +62,49 @@ if [ -d "$skills_root" ]; then
     done
   done
   printf 'verify-agent-canon: shared skill discovery links are complete.\n'
+
+  performance_skill="$skills_root/eshu-performance-rigor/SKILL.md"
+  performance_manifest="$skills_root/eshu-performance-rigor/references/run-manifest.md"
+  if [ -f "$performance_skill" ]; then
+    performance_skill_tokens=(
+      '## Target Contribution Budget'
+      'required_saving_seconds'
+      'maximum_recoverable_seconds'
+      'expected_saving_seconds'
+      '## Baseline Promotion'
+      '## Retention Modes'
+      'stop-and-preserve'
+      'git merge-base --is-ancestor'
+    )
+    for token in "${performance_skill_tokens[@]}"; do
+      if ! rg -Fq "$token" "$performance_skill"; then
+        printf 'verify-agent-canon: performance skill missing workflow contract token: %s\n' \
+          "$token" >&2
+        exit 1
+      fi
+    done
+
+    if [ ! -f "$performance_manifest" ]; then
+      printf 'verify-agent-canon: performance skill missing run manifest reference: %s\n' \
+        "$performance_manifest" >&2
+      exit 1
+    fi
+    performance_manifest_tokens=(
+      'target_contribution'
+      'phase_durations_seconds'
+      'retention'
+      'accepted_commit'
+      'hardware_class'
+    )
+    for token in "${performance_manifest_tokens[@]}"; do
+      if ! rg -Fq "$token" "$performance_manifest"; then
+        printf 'verify-agent-canon: run manifest missing workflow contract token: %s\n' \
+          "$token" >&2
+        exit 1
+      fi
+    done
+    printf 'verify-agent-canon: performance workflow contract is complete.\n'
+  fi
 fi
 
 opencode_agents="$repo_root/.opencode/agent"

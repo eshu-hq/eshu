@@ -22,10 +22,21 @@ pass `scripts/verify-scale-benchmark-artifact.sh`.
     "primary_metric": "launch_to_api_ready_seconds",
     "start_event": "controller_launch",
     "terminal_event": "api_representative_query_success",
-    "target_seconds": 1800
+    "target_seconds": 1800,
+    "target_contribution": {
+      "current_total_seconds": 1869,
+      "required_saving_seconds": 69,
+      "candidate_stage": "relationship_backfill",
+      "candidate_stage_seconds": 555.188,
+      "maximum_recoverable_seconds": 555.188,
+      "minimum_worthwhile_saving_seconds": 120,
+      "expected_saving_seconds": 180,
+      "expected_margin_seconds": 111
+    }
   },
   "code": {
     "eshu_commit": "full-commit-id",
+    "accepted_commit": "merged-equivalent-commit-or-empty",
     "stable_patch_id": "stable-patch-id-or-empty",
     "base_commit": "full-base-commit-id",
     "worktree_clean": true
@@ -35,6 +46,9 @@ pass `scripts/verify-scale-benchmark-artifact.sh`.
     "commit": "full-backend-commit-or-empty",
     "image_id": "immutable-image-id",
     "platform": "linux/amd64"
+  },
+  "environment": {
+    "hardware_class": "stable-non-sensitive-hardware-class"
   },
   "topology": {
     "profile_name": "named-known-good-profile",
@@ -68,6 +82,11 @@ pass `scripts/verify-scale-benchmark-artifact.sh`.
     "mcp_ready": 0,
     "representative_query_success": 0
   },
+  "phase_durations_seconds": {
+    "collection": 0,
+    "relationship_backfill": 0,
+    "post_drain_finalization": 0
+  },
   "truth": {
     "queue_total": 0,
     "queue_succeeded": 0,
@@ -93,6 +112,11 @@ pass `scripts/verify-scale-benchmark-artifact.sh`.
     "io_sample_artifact": "basename-or-empty",
     "pprof_artifacts": []
   },
+  "retention": {
+    "mode": "stop-and-preserve",
+    "compose_project": "issue-run-project",
+    "decided_at": "YYYY-MM-DDTHH:MM:SSZ"
+  },
   "cleanup": {
     "containers_removed": true,
     "volumes_removed": true,
@@ -101,6 +125,29 @@ pass `scripts/verify-scale-benchmark-artifact.sh`.
   "caveats": []
 }
 ```
+
+Use `null` plus a caveat for a value that was not captured. Do not write `0`
+for an unknown count or timestamp; zero is an observed result.
+
+`eshu_commit` is the commit that produced the evidence. Set `accepted_commit`
+only when a later merged or rebased commit is proven equivalent through the
+stable patch-ID carry-forward contract.
+
+## Target Contribution
+
+The target budget belongs in the manifest before the expensive run. Calculate:
+
+- `required_saving_seconds = max(current_total_seconds - target_seconds, 0)`;
+- `maximum_recoverable_seconds` from the measured candidate stage;
+- `expected_saving_seconds` from the theory shim or bounded replay; and
+- `expected_margin_seconds = expected_saving_seconds - required_saving_seconds`.
+
+Do not escalate a candidate whose stage is too small to recover the target gap
+unless it serves a separately named SLO or resource objective.
+
+Milestones are elapsed from the declared start event. Phase durations are the
+measured work inside a phase. Keep both when they differ; a phase duration must
+not be substituted for launch-to-milestone elapsed time.
 
 ## Duration Rendering
 
@@ -121,3 +168,18 @@ differs, list it and mark the end-to-end comparison non-comparable.
 Matching sub-phases may still be compared when their boundaries and inputs are
 identical. State explicitly that the narrower comparison does not prove the
 overall target.
+
+## Promotion And Retention
+
+Promote a manifest to the operator-local accepted baseline registry only after
+the worktree/commit, queue, readiness, API, MCP, and representative readback are
+clean. A target-missed run can still be the truthful current baseline.
+
+Use one of these retention values:
+
+- `stop-and-preserve` while expensive data may be needed for review;
+- `keep-live` only with explicit user intent; or
+- `destroy` after merge or final disposition.
+
+The Compose project must be unique to the issue/run. Cleanup acts only on that
+label and records the resulting container, volume, and controller state.

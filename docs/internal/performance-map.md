@@ -123,4 +123,7 @@ conflict key or make the write idempotent.
 Remote full-corpus validation is a **user-local** skill (`eshu-remote-validation`),
 not committed to this repo — the user authorizes it and supplies local
 configuration. In-repo, use the proof harnesses above; do not assume a remote
-host, key, checkout, or corpus path is available to a committed agent.
+host, key, checkout, or corpus path is available to a committed agent. The
+operator-local workflow owns accepted baseline state, manifest scaffolding and
+comparison, stall snapshots, and label-scoped retention/cleanup; none of that
+machine-specific state belongs in this repository.

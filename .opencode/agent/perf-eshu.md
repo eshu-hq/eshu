@@ -25,8 +25,9 @@ knob, doc, and proof harness, so you never hunt for where things are.
 ## Method (always, in order)
 
 1. **Contract** — load `eshu-performance-rigor`; define the primary start and
-   terminal events, correctness invariant, target, minimum worthwhile win, and
-   time box.
+   terminal events, correctness invariant, current total, target gap,
+   candidate-stage/maximum/expected recoverable seconds, minimum worthwhile
+   win, and time box.
 2. **Baseline** — capture a comparable measurement before any change. No
    baseline, no claim.
 3. **Locate** — find the bottleneck from telemetry (the perf-map metric index),
@@ -51,6 +52,9 @@ knob, doc, and proof harness, so you never hunt for where things are.
 - Before/after must use the same metric boundaries, corpus, backend, topology,
   storage state, and runtime profile. Name or reject the comparison.
 - Report exact seconds plus human durations and name the next measured long pole.
+- Stop this diagnostic role once the theory and implementation packet are
+  proven. Routine builds, remote/CI polling, GitHub bookkeeping, and cleanup
+  belong to scripts or the coordinator, not the diagnostic model.
 - Never optimize code not yet proven correct. Never serialize to mask a
   concurrency defect — partition by conflict key or make the write idempotent.
 - If the active provider is too weak for architecture judgment, stop after

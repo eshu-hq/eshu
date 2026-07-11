@@ -35,6 +35,33 @@ Before implementation, write down:
 Do not dispatch implementation or run the full corpus until the cheapest
 representative shim proves the theory.
 
+## Target Contribution Budget
+
+Before prioritizing or dispatching a candidate, calculate and record:
+
+- `current_total_seconds`: the accepted baseline's primary metric;
+- `target_seconds` and `required_saving_seconds` (`max(current - target, 0)`);
+- the candidate stage and its measured seconds;
+- `maximum_recoverable_seconds`: the theoretical ceiling for that stage;
+- `expected_saving_seconds`: the realistic win supported by the shim;
+- `minimum_worthwhile_saving_seconds`; and
+- the expected margin above or below the required target gap.
+
+Do not prioritize a candidate that cannot theoretically recover the target gap
+when another measured critical-path candidate can. Do not spend an
+operator-scale run on an expected saving below the worthwhile threshold. A
+small optimization may still proceed for a separately stated SLO or resource
+goal, but it must not be presented as the path to the end-to-end target.
+
+## Cost-Aware Diagnostic Dispatch
+
+Reserve the strongest diagnostic model for bottleneck localization, hypothesis
+design, profile/query-plan interpretation, and proof judgment. Once the theory
+and implementation packet are complete, stop that diagnostic task. Use an
+execution-focused model for bounded TDD implementation, and use scripts or the
+coordinator for builds, routine polling, CI watching, GitHub bookkeeping, and
+cleanup. Do not spend frontier reasoning tokens babysitting a long run.
+
 ## Skill Routing
 
 - `eshu-diagnostic-rigor`: instrumentation, attribution, and unknown bottlenecks.
@@ -73,8 +100,8 @@ not implement it. A rejected hypothesis is a valid result.
 
 Keep a durable table in the issue, ADR, or package evidence note:
 
-| candidate | cheapest proof | old | new | accuracy | concurrency | disposition |
-| --- | --- | ---: | ---: | --- | --- | --- |
+| candidate | stage seconds | expected saving | cheapest proof | old | new | accuracy | concurrency | disposition |
+| --- | ---: | ---: | --- | ---: | ---: | --- | --- | --- |
 
 Use these dispositions: `proven`, `rejected`, `diagnostic-only`, `blocked`, or
 `superseded`. Record no-win experiments so another agent does not repeat them.
@@ -98,6 +125,16 @@ Add tests for every distinct path class. Do not rely on final hostile review to
 discover bypasses.
 
 ## Remote Preflight
+
+Before reading recently merged skills, evidence, or code, refresh Git truth:
+
+```bash
+git fetch origin
+git merge-base --is-ancestor <merge-commit> origin/main
+```
+
+Read from refreshed `origin/main`, the merge commit, or the dedicated worktree.
+Do not treat a stale local main checkout as merged truth.
 
 Before a scaled or full-corpus run, capture and compare:
 
@@ -160,6 +197,22 @@ Public evidence may include only a run basename. Never publish a hostname, IP,
 user, private key path, workstation path, remote checkout path, credential, or
 secret-bearing DSN.
 
+## Baseline Promotion
+
+Keep one named accepted manifest for each proof profile in operator-local state.
+Promote a replacement only when:
+
+- the tested source is clean and its exact/equivalent commit is recorded;
+- the primary metric boundaries and topology are explicit;
+- the queue is non-empty, fully succeeded, and has zero failed/dead-letter work;
+- required scope/readiness truth is terminal; and
+- API, MCP, index status, and representative reads pass.
+
+An accepted baseline may honestly classify the performance target as missed; it
+is the current truthful comparison point, not a claim of success. Retain the
+prior entry until promotion succeeds. Artifact-backed terminal counts override
+earlier controller summaries when post-drain work reopens the queue.
+
 ## Comparability Gate
 
 Before calculating a speedup, verify that old and new agree on:
@@ -186,6 +239,23 @@ of a comparison.
   floor; state the expected duration before launch.
 - Do not merge a local-path win as an end-to-end target win when the target was
   missed.
+- Run the full corpus at most once per proven candidate unless a documented
+  comparability or proof failure requires a rerun.
+
+## Retention Modes
+
+Declare one mode in the run manifest before closeout:
+
+- `stop-and-preserve`: stop readers, workers, controllers, and containers while
+  retaining labeled data for likely review follow-up.
+- `keep-live`: retain an interactive stack only when the user explicitly asks.
+- `destroy`: remove the proof's labeled containers, volumes, networks,
+  controllers, and temporary credentials after merge or final disposition.
+
+Use a unique issue/run Compose project label and act only on that label. Never
+use broad Docker pruning. For expensive proofs, `stop-and-preserve` avoids a
+needless rerun while review is active; promotion or preservation does not waive
+eventual cleanup.
 
 ## Evidence Carry-Forward After Rebase
 
@@ -225,5 +295,5 @@ Before push or merge-readiness:
 5. Capture live CI and review-thread truth after push.
 6. Update the issue and PR with the hypothesis ledger, manifest-derived proof,
    exact and human durations, target result, and next long pole.
-7. Remove proof containers, volumes, controllers, and temporary credentials
-   unless the user explicitly asks to preserve the stack.
+7. Apply the manifest's declared retention mode, verify its resulting resource
+   state, and destroy retained proof resources after merge/final disposition.

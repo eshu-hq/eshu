@@ -99,8 +99,9 @@ Every implementation handoff MUST contain:
 5. **Ownership / parallel-work note** — which other surfaces are active, read
    live (`gh pr list`, `git worktree list`); never hard-coded issue numbers.
 6. **Performance packet when applicable** — primary metric boundaries,
-   baseline manifest, proven hypothesis, exactness/concurrency evidence, target,
-   and minimum worthwhile win.
+   baseline manifest, proven hypothesis, exactness/concurrency evidence, current
+   total, target gap, candidate-stage seconds, maximum/expected recoverable
+   seconds, and minimum worthwhile win.
 
 The raw material already exists in the project skills and `eshu-issue-driver`.
 Render that spec format on every handoff before dispatching implementation.
@@ -177,6 +178,12 @@ spends tokens catching a lint error or a missing test. The order is:
    judgment on mechanically green code, never as a substitute for local proof.
 
 This maximizes the value of every frontier token: judgment, not janitorial.
+
+For performance work, the strongest diagnostic model stops after it localizes
+the bottleneck, proves or rejects the theory, interprets the evidence, and
+writes the implementation packet. An execution-focused model owns bounded TDD
+implementation. Scripts or the coordinator own builds, remote/CI polling,
+GitHub bookkeeping, and cleanup. Long waits are not frontier-model work.
 
 ## Per-harness wiring
 
