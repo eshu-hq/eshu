@@ -93,7 +93,7 @@ func TestLiveOwnerLedgerProveTheory(t *testing.T) {
 	}
 	maxKey, maxValue := "4000-d", "vd"
 
-	for _, design := range []string{"a_lockfree", "a_widened_window", "b_advisory_lock"} {
+	for _, design := range []string{"a_lockfree", "a_widened_window", "b_advisory_lock", "b_gated_own_row"} {
 		design := design
 		t.Run(design, func(t *testing.T) {
 			const trials = 100
@@ -118,6 +118,8 @@ func TestLiveOwnerLedgerProveTheory(t *testing.T) {
 							// the ledger-read -> graph-write gap to expose the
 							// stale-write race the coordinator flagged.
 							errs[i] = ownerWriteLockFree(ctx, db, driver, cfg.DatabaseName, uid, w.key, w.value, 3*time.Millisecond)
+						case "b_gated_own_row":
+							errs[i] = ownerWriteGatedOwnRow(ctx, db, driver, cfg.DatabaseName, uid, w.key, w.value)
 						default:
 							errs[i] = ownerWriteAdvisoryLock(ctx, db, driver, cfg.DatabaseName, uid, w.key, w.value)
 						}
@@ -134,7 +136,7 @@ func TestLiveOwnerLedgerProveTheory(t *testing.T) {
 					// masks a lost update, which the graph read below still
 					// catches). Hard-fail writer errors only for the adopted
 					// design (b), which must have none.
-					if design == "b_advisory_lock" {
+					if design == "b_advisory_lock" || design == "b_gated_own_row" {
 						t.Errorf("trial %d writer %d: %v", trial, i, e)
 					}
 				}
@@ -165,8 +167,8 @@ func TestLiveOwnerLedgerProveTheory(t *testing.T) {
 			// TestLiveOwnerLedgerDeterministicWorstCase proves that window is a
 			// REAL race under a forced interleaving. Asserting 0 on (a) here
 			// would be a flaky false-green.
-			if design == "b_advisory_lock" && graphLost > 0 {
-				t.Errorf("design (b): GRAPH is NOT lost-update-free: %d/%d trials lost the max winner", graphLost, trials)
+			if (design == "b_advisory_lock" || design == "b_gated_own_row") && graphLost > 0 {
+				t.Errorf("design %s: GRAPH is NOT lost-update-free: %d/%d trials lost the max winner", design, graphLost, trials)
 			}
 		})
 	}
@@ -362,6 +364,53 @@ func ownerWriteAdvisoryLock(ctx context.Context, db *sql.DB, driver neo4jdriver.
 		"uid": uid, "order_key": winKey, "value": winValue,
 	}); err != nil {
 		return fmt.Errorf("graph write under lock: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit lock tx: %w", err)
+	}
+	committed = true
+	return nil
+}
+
+// ownerWriteGatedOwnRow implements the REFINED production mechanic (the one the
+// decorator actually ships): under a per-uid advisory lock, upsert the ledger
+// (order-key max resolution), read back the winning order key, and write to the
+// graph ONLY when THIS writer is the current max — writing THIS writer's OWN
+// row (its original Go-typed value), never a value round-tripped through the
+// ledger. A writer that lost skips the graph write entirely (the max holder
+// already wrote, or will write, its own row under the same lock). This
+// converges to the max exactly like ownerWriteAdvisoryLock, but it never mangles
+// the winner's value types through JSON, so a non-contended uid's graph write is
+// byte-identical to origin/main and a contended uid's final value is always the
+// max writer's own row regardless of interleaving.
+func ownerWriteGatedOwnRow(ctx context.Context, db *sql.DB, driver neo4jdriver.DriverWithContext, database, uid, orderKey, value string) error {
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin lock tx: %w", err)
+	}
+	committed := false
+	defer func() {
+		if !committed {
+			_ = tx.Rollback()
+		}
+	}()
+	if _, err := tx.ExecContext(ctx, "SELECT pg_advisory_xact_lock($1::bigint)", ownerAdvisoryKey(uid)); err != nil {
+		return fmt.Errorf("advisory lock: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, ownerLedgerUpsert, uid, orderKey, value); err != nil {
+		return fmt.Errorf("ledger upsert: %w", err)
+	}
+	var winKey, winValue string
+	if err := tx.QueryRowContext(ctx, ownerLedgerSelect, uid).Scan(&winKey, &winValue); err != nil {
+		return fmt.Errorf("read ledger winner: %w", err)
+	}
+	// Only write when THIS writer is the current max; write my OWN value.
+	if winKey == orderKey {
+		if err := runLiveGuardWriteLedger(ctx, driver, database, ownerGraphWrite, map[string]any{
+			"uid": uid, "order_key": orderKey, "value": value,
+		}); err != nil {
+			return fmt.Errorf("graph write under lock: %w", err)
+		}
 	}
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("commit lock tx: %w", err)

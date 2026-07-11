@@ -624,9 +624,24 @@ perf differential on the real writer before merge, as already required above.
   schema), plus `updated_at`. Migration adds the table with a PK on `uid`.
 - The reducer node-write path, for each batch: sort the batch uids, acquire all
   per-uid advisory locks in one sorted statement, batch-upsert the ledger
-  (atomic max), read back the winners, write the winner values to the graph,
-  commit (releasing the locks). The graph write is the existing plain
-  `MERGE + SET` (no CASE) writing the ledger-winner values.
+  (atomic max), read back the winning order key per uid, and write to the graph
+  ONLY the uids where THIS writer is the current max — writing THIS writer's
+  OWN (Go-typed) row via the existing plain `MERGE + SET` (no CASE), skipping
+  the uids it lost. Commit (releasing the locks).
+  - **Refinement (byte-identity):** the graph write uses the current-max
+    writer's OWN row, NOT a value round-tripped out of the ledger. Round-tripping
+    the winning scope-derived values through JSONB would mangle Go types
+    (`[]string`→`[]any`, the EC2 `imds_http_put_hop_limit` `int64`→`float64`),
+    which would change the graph node's property representation and BREAK the
+    byte-identity requirement for non-contended nodes. Writing the current-max
+    writer's own row keeps non-contended writes byte-identical to origin/main
+    and keeps contended nodes deterministic (only the max writer's own row ever
+    lands, regardless of interleaving). Proven by the `b_gated_own_row` design
+    in the shim (0 lost / 100 trials N=4). The ledger still stores the winning
+    row as JSONB for the Stage 2 provenance foundation, but Stage 1's graph
+    write does not read those values back.
+  - `RETURNING` on the upsert is **rejected** per the perf finding (~2-3% win,
+    within noise); the plain read-back / gated-own-row path ships.
 - All five families (CloudResource AWS/GCP/Azure, EC2-instance, K8s-workload)
   route their node writes through this owner-ledger gate. The within-scope
   extractor tie-break (max order key over duplicate uids in one generation) is
