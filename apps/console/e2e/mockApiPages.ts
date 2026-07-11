@@ -214,10 +214,14 @@ export async function handlePageRoute(
 
   // ── Page-level: relationships edges ──
   if (method === "POST" && path.includes("/relationships/edges")) {
-    const body = (await route
-      .request()
-      .postDataJSON()
-      .catch(() => ({}))) as Record<string, unknown>;
+    // postDataJSON() is synchronous in Playwright (returns null | Serializable,
+    // not a Promise), so it must be guarded with a try/catch, not `.catch()`.
+    let body: Record<string, unknown> = {};
+    try {
+      body = (route.request().postDataJSON() ?? {}) as Record<string, unknown>;
+    } catch {
+      body = {};
+    }
     const sourceTool = typeof body?.source_tool === "string" ? body.source_tool : "";
     const baseEdges = [
       {
