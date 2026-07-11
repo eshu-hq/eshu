@@ -49,9 +49,15 @@ export function SemanticSearchPage({
   const hasLiveClient = client !== undefined;
   const isBounded = request.repoId.trim().length > 0 && request.query.trim().length > 0;
 
+  // latestLoad sequences concurrent searches: rapid facet toggles or query
+  // resubmits fire overlapping requests, and responses can arrive out of order.
+  // Only the newest request is allowed to commit its result, so a slow earlier
+  // response can never overwrite a newer one with stale (wrong-facet) results.
+  const latestLoad = useRef(0);
   const load = useCallback(
     async (next: { repoId: string; query: string; languages: readonly string[] }) => {
       if (!client) return;
+      const seq = ++latestLoad.current;
       setResult({ status: "loading" });
       try {
         const data = await searchSemantic(client, {
@@ -59,12 +65,14 @@ export function SemanticSearchPage({
           query: next.query,
           languages: next.languages,
         });
-        setResult({ status: "ready", data });
+        if (seq === latestLoad.current) setResult({ status: "ready", data });
       } catch (error) {
-        setResult({
-          status: "error",
-          message: error instanceof Error ? error.message : "semantic search failed",
-        });
+        if (seq === latestLoad.current) {
+          setResult({
+            status: "error",
+            message: error instanceof Error ? error.message : "semantic search failed",
+          });
+        }
       }
     },
     [client],
