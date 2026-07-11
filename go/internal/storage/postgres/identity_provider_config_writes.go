@@ -372,7 +372,8 @@ func (s *IdentitySubjectStore) RevertProviderConfig(
 		return ProviderConfigWriteResult{}, fmt.Errorf("point provider config at reverted revision: %w", err)
 	}
 	var revertedStatus string
-	if revertRows.Next() {
+	scanned := revertRows.Next()
+	if scanned {
 		if err := revertRows.Scan(&revertedStatus); err != nil {
 			_ = revertRows.Close()
 			return ProviderConfigWriteResult{}, fmt.Errorf("scan reverted provider config status: %w", err)
@@ -384,6 +385,12 @@ func (s *IdentitySubjectStore) RevertProviderConfig(
 	}
 	if rowsErr != nil {
 		return ProviderConfigWriteResult{}, fmt.Errorf("point provider config at reverted revision: %w", rowsErr)
+	}
+	if !scanned {
+		// The row-locked read above (lockProviderConfig) found it; a concurrent
+		// tombstone between that lock and this UPDATE is the only way this
+		// branch is reached. Mirror UpdateProviderConfig's defensive guard.
+		return ProviderConfigWriteResult{Found: false}, nil
 	}
 
 	if err := tx.Commit(); err != nil {
