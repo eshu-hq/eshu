@@ -1,7 +1,7 @@
 // qrCodeMasking.ts — data-mask application and the standard penalty-based
 // automatic mask selection scoring (ISO/IEC 18004 Section 8.8.2, Table 11:
 // rules N1-N4). Part of a trimmed, byte-mode-only TypeScript port of the
-// public-domain "QR Code generator library" by Project Nayuki
+// MIT-licensed "QR Code generator library" by Project Nayuki
 // (https://www.nayuki.io/page/qr-code-generator-library,
 // https://github.com/nayuki/QR-Code-generator, MIT License). See
 // qrCodeEncoder.ts for the full attribution header and scope notes.

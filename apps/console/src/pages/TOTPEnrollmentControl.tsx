@@ -10,12 +10,11 @@
 // the primary enrollment path from the setup wizard (SetupMFAStep.tsx);
 // this is the ADDITIONAL self-service factor a signed-in user may enable
 // for themselves at any time.
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import type { EshuApiClient } from "../api/client";
 import { beginTOTPEnrollment, confirmTOTPEnrollment } from "../api/totpEnrollment";
 import type { TOTPBeginResult } from "../api/totpEnrollment";
-import { encodeQrMatrix, qrMatrixToSvg } from "../lib/qrCode";
 
 import "./totpEnrollment.css";
 
@@ -24,28 +23,54 @@ type TOTPEnrollmentPhase = "idle" | "provisioning" | "confirming" | "activated";
 // TOTPEnrollmentQr renders a scannable QR code of the otpauth:// URI. The
 // QR is decorative-with-text-alternative: the aria-label names it, and the
 // caller keeps the Provisioning URI / Manual entry key inputs as the full
-// non-visual fallback (screen reader, no camera). Only rendered when
-// otpauthUri is a non-empty string; the secret itself is never logged —
-// otpauthUri already carries it and only ever lives in memory from the
-// begin response.
+// non-visual fallback (screen reader, no camera). The secret itself is never
+// logged — otpauthUri already carries it and only ever lives in memory from
+// the begin response.
+//
+// The ~900-line vendored QR encoder is loaded via a dynamic import() so Vite
+// splits it into its own async chunk instead of the eagerly loaded main
+// bundle (it is only ever needed here, on the rare enrollment action). Until
+// that chunk resolves — and if encoding fails (a pathological, oversized URI
+// that cannot fit a version-40 ECC-M symbol) — this renders nothing and the
+// caller's URI/key text inputs remain the fallback.
 function TOTPEnrollmentQr({
   otpauthUri,
 }: {
   readonly otpauthUri: string;
 }): React.JSX.Element | null {
-  if (otpauthUri.length === 0) return null;
-  // encodeQrMatrix throws if the URI cannot fit a version-40 symbol at ECC-M
-  // (unreachable for a normal otpauth URI, but a pathological account label
-  // could in principle overflow). Fall back to the text URI + manual key
-  // rather than crashing the enrollment panel — that text fallback is the
-  // whole point of keeping the URI/key inputs, so degrade to it gracefully.
-  let path: string;
-  let size: number;
-  try {
-    ({ path, size } = qrMatrixToSvg(encodeQrMatrix(otpauthUri)));
-  } catch {
-    return null;
-  }
+  const [svg, setSvg] = useState<{ path: string; size: number } | null>(null);
+
+  useEffect(() => {
+    if (otpauthUri.length === 0) {
+      setSvg(null);
+      return;
+    }
+    let cancelled = false;
+    void import("../lib/qrCode")
+      .then(({ encodeQrMatrix, qrMatrixToSvg }) => {
+        if (cancelled) return;
+        try {
+          setSvg(qrMatrixToSvg(encodeQrMatrix(otpauthUri)));
+        } catch (err) {
+          // encodeQrMatrix only throws for a URI too large to fit a
+          // version-40 ECC-M symbol (unreachable for a normal otpauth URI).
+          // Log for diagnosis and fall back to the text URI/key.
+          console.warn("TOTP QR: could not encode otpauth URI; showing text fallback", err);
+          setSvg(null);
+        }
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        console.warn("TOTP QR: encoder chunk failed to load; showing text fallback", err);
+        setSvg(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [otpauthUri]);
+
+  if (!svg) return null;
+  const { path, size } = svg;
   return (
     <svg
       className="totp-enroll-qr"

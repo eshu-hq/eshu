@@ -1,6 +1,6 @@
 // qrCodeReedSolomon.ts — GF(256) Reed-Solomon arithmetic for QR Code error
 // correction. Part of a trimmed, byte-mode-only TypeScript port of the
-// public-domain "QR Code generator library" by Project Nayuki
+// MIT-licensed "QR Code generator library" by Project Nayuki
 // (https://www.nayuki.io/page/qr-code-generator-library,
 // https://github.com/nayuki/QR-Code-generator, MIT License). See
 // qrCodeEncoder.ts for the full attribution header and scope notes.

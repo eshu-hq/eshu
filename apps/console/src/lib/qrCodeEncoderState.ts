@@ -1,7 +1,7 @@
 // qrCodeEncoderState.ts — the mutable module grid shared by qrCodeEncoder.ts
 // (function-pattern + codeword drawing) and qrCodeMasking.ts (masking +
 // penalty scoring), split out to avoid a circular import between the two.
-// Part of a trimmed, byte-mode-only TypeScript port of the public-domain
+// Part of a trimmed, byte-mode-only TypeScript port of the MIT-licensed
 // "QR Code generator library" by Project Nayuki
 // (https://www.nayuki.io/page/qr-code-generator-library,
 // https://github.com/nayuki/QR-Code-generator, MIT License). See

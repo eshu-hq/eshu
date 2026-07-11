@@ -1,6 +1,6 @@
 // qrCodeTables.ts — per-version constants and formulas for QR Code
 // error-correction level M (Medium). Part of a trimmed, byte-mode-only
-// TypeScript port of the public-domain "QR Code generator library" by
+// TypeScript port of the MIT-licensed "QR Code generator library" by
 // Project Nayuki (https://www.nayuki.io/page/qr-code-generator-library,
 // https://github.com/nayuki/QR-Code-generator, MIT License). See
 // qrCodeEncoder.ts for the full attribution header and scope notes.
@@ -28,11 +28,22 @@ const NUM_ERROR_CORRECTION_BLOCKS_M: readonly number[] = [
   26, 28, 29, 31, 33, 35, 37, 38, 40, 43, 45, 47, 49,
 ];
 
+// assertVersionInRange guards the per-version table accessors so an
+// out-of-range version fails loudly (a RangeError) rather than silently
+// returning the sentinel -1 or undefined and corrupting the ECC layout.
+function assertVersionInRange(version: number, fn: string): void {
+  if (version < MIN_VERSION || version > MAX_VERSION) {
+    throw new RangeError(`${fn}: version out of range: ${version}`);
+  }
+}
+
 export function eccCodewordsPerBlockM(version: number): number {
+  assertVersionInRange(version, "eccCodewordsPerBlockM");
   return ECC_CODEWORDS_PER_BLOCK_M[version];
 }
 
 export function numErrorCorrectionBlocksM(version: number): number {
+  assertVersionInRange(version, "numErrorCorrectionBlocksM");
   return NUM_ERROR_CORRECTION_BLOCKS_M[version];
 }
 

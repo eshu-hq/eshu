@@ -1,6 +1,6 @@
 // qrCode.ts — public entry point for the vendored byte-mode QR encoder
 // (issue #5072). No new npm dependency was added for this: the encoder is a
-// trimmed TypeScript port of the public-domain "QR Code generator library"
+// trimmed TypeScript port of the MIT-licensed "QR Code generator library"
 // by Project Nayuki
 // (https://www.nayuki.io/page/qr-code-generator-library,
 // https://github.com/nayuki/QR-Code-generator, MIT License). See
