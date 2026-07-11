@@ -31,6 +31,17 @@ type synthCassetteOptions struct {
 	projects  int
 	resources int
 	out       string
+	// overlap selects the #5007 contention fixture
+	// (gcpsynth.GenerateOverlappingScope) instead of the default
+	// disjoint-by-construction multi-scope fixture: K scopes that all fold to
+	// the SAME CloudResource node uids, so the reducer's cross-scope writers
+	// contend on one shared node.
+	overlap bool
+	// divergent, meaningful only with -overlap, mutates each contending scope's
+	// OBSERVED STATE so the shared-uid scopes carry different payloads (the
+	// divergent-payload contention case) rather than byte-identical payloads
+	// (the pure envelope-contention case).
+	divergent bool
 }
 
 func parseSynthCassetteFlags(args []string, stderr io.Writer) (synthCassetteOptions, error) {
@@ -38,14 +49,19 @@ func parseSynthCassetteFlags(args []string, stderr io.Writer) (synthCassetteOpti
 	fs.SetOutput(stderr)
 	var o synthCassetteOptions
 	fs.Uint64Var(&o.seed, "seed", 0, "deterministic PRNG seed (required)")
-	fs.IntVar(&o.projects, "projects", synthCassetteDefaultProjects, "number K of independent GCP project scopes to generate")
+	fs.IntVar(&o.projects, "projects", synthCassetteDefaultProjects, "number K of GCP project scopes to generate (disjoint by default; shared-identity under -overlap)")
 	fs.IntVar(&o.resources, "resources", synthCassetteDefaultResources, "number of gcp_cloud_resource facts to generate per scope")
 	fs.StringVar(&o.out, "out", "", "path to write the generated cassette JSON file (required)")
+	fs.BoolVar(&o.overlap, "overlap", false, "generate the #5007 contention fixture: K scopes sharing one resource-identity set (cross-scope same-uid contention) instead of disjoint scopes")
+	fs.BoolVar(&o.divergent, "divergent", false, "with -overlap, mutate each scope's observed state so the shared-uid scopes carry divergent payloads")
 	if err := fs.Parse(args); err != nil {
 		return synthCassetteOptions{}, err //nolint:wrapcheck // flag errors are self-describing.
 	}
 	if o.out == "" {
 		return synthCassetteOptions{}, errors.New("ifa synth-cassette: -out is required")
+	}
+	if o.divergent && !o.overlap {
+		return synthCassetteOptions{}, errors.New("ifa synth-cassette: -divergent is only meaningful with -overlap")
 	}
 	return o, nil
 }
@@ -68,11 +84,21 @@ func runSynthCassetteCommand(args []string, stdout, stderr io.Writer) error {
 		return err
 	}
 
-	out, err := gcpsynth.GenerateMultiScope(gcpsynth.MultiScopeOptions{
-		Seed:          o.seed,
-		Scopes:        o.projects,
-		ResourceCount: o.resources,
-	})
+	var out []byte
+	if o.overlap {
+		out, err = gcpsynth.GenerateOverlappingScope(gcpsynth.OverlappingScopeOptions{
+			Seed:          o.seed,
+			Scopes:        o.projects,
+			ResourceCount: o.resources,
+			Divergent:     o.divergent,
+		})
+	} else {
+		out, err = gcpsynth.GenerateMultiScope(gcpsynth.MultiScopeOptions{
+			Seed:          o.seed,
+			Scopes:        o.projects,
+			ResourceCount: o.resources,
+		})
+	}
 	if err != nil {
 		return fmt.Errorf("ifa synth-cassette: generate: %w", err)
 	}
@@ -110,7 +136,15 @@ func printSynthCassetteReport(w io.Writer, o synthCassetteOptions, raw []byte) e
 	for _, scope := range report.Scopes {
 		totalFacts += len(scope.Facts)
 	}
-	_, err := fmt.Fprintf(w, "ifa synth-cassette: seed=%d projects=%d resources=%d out=%s scopes=%d facts=%d\n",
+	mode := "multiscope"
+	if o.overlap {
+		mode = "overlap"
+		if o.divergent {
+			mode = "overlap-divergent"
+		}
+	}
+	_, err := fmt.Fprintf(w, "ifa synth-cassette: mode=%s seed=%d projects=%d resources=%d out=%s scopes=%d facts=%d\n",
+		mode,
 		o.seed, o.projects, o.resources, o.out, len(report.Scopes), totalFacts)
 	if err != nil {
 		return fmt.Errorf("ifa synth-cassette: write report: %w", err)
