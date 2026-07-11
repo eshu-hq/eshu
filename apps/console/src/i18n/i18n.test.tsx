@@ -23,11 +23,12 @@ describe("console i18n framework", () => {
     expect(intl.formatMessage({ id: overview.messageId })).toBe("Overview");
     expect(Object.hasOwn(overview, "label")).toBe(false);
 
-    const firstOverviewItems = overview.items.slice(0, 7);
+    const firstOverviewItems = overview.items.slice(0, 8);
     expect(firstOverviewItems.map((item) => item.messageId)).toEqual([
       "app.nav.item.status",
       "app.nav.item.dashboard",
       "app.nav.item.ask",
+      "app.nav.item.semanticSearch",
       "app.nav.item.guidedQuestions",
       "app.nav.item.impact",
       "app.nav.item.exposurePath",
@@ -41,11 +42,13 @@ describe("console i18n framework", () => {
       false,
       false,
       false,
+      false,
     ]);
     expect(firstOverviewItems.map((item) => intl.formatMessage({ id: item.messageId }))).toEqual([
       "Status",
       "Dashboard",
       "Ask Eshu",
+      "Semantic Search",
       "Guided Questions",
       "Impact",
       "Exposure Path",

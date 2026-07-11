@@ -1,0 +1,125 @@
+/* pages/semanticSearchPage.css
+   Styling for the Semantic Search page. Reuses shared console tokens
+   (popover-input, btn-ghost, panel, badges) and only adds the query form,
+   language facet chips, and result rows. */
+
+.semantic-search-page {
+  min-width: 0;
+}
+
+.semantic-search-form {
+  align-items: end;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)) auto;
+  margin-top: 18px;
+}
+
+.semantic-search-form label {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.semantic-search-form label span {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.sem-result-announce {
+  color: var(--muted);
+  font-size: 0.8rem;
+  margin: 10px 0 0;
+}
+
+.sem-lang-facet {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 14px 0;
+}
+
+.sem-lang-facet-label {
+  font-size: 0.78rem;
+  margin-right: 4px;
+}
+
+.sem-lang-chip {
+  align-items: center;
+  background: transparent;
+  border: 1px solid var(--line, rgba(255, 255, 255, 0.12));
+  border-radius: 20px;
+  color: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 0.76rem;
+  gap: 6px;
+  padding: 3px 10px;
+  transition: border-color 0.12s, background 0.12s;
+}
+
+.sem-lang-chip:hover {
+  border-color: rgba(255, 255, 255, 0.28);
+}
+
+.sem-lang-chip.active {
+  background: rgba(20, 184, 166, 0.12);
+  border-color: var(--teal);
+  color: var(--teal);
+}
+
+.sem-result-list {
+  display: grid;
+  gap: 14px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.sem-result-row {
+  border: 1px solid var(--line, rgba(255, 255, 255, 0.1));
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+
+.sem-result-head {
+  align-items: baseline;
+  display: flex;
+  gap: 10px;
+}
+
+.sem-result-rank {
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+
+.sem-result-title {
+  flex: 1;
+  font-size: 0.94rem;
+  margin: 0;
+  min-width: 0;
+}
+
+.sem-result-tags {
+  display: flex;
+  gap: 8px;
+}
+
+.sem-result-path {
+  color: var(--muted);
+  font-size: 0.76rem;
+  margin: 4px 0 0;
+}
+
+.sem-result-snippet {
+  font-size: 0.84rem;
+  margin: 6px 0 0;
+}
+
+.sem-result-meta {
+  font-size: 0.72rem;
+  margin: 8px 0 0;
+}

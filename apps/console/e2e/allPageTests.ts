@@ -57,6 +57,7 @@ import { pageTest as pt_repoSourceLedger } from "./pages/repoSourceLedger.e2e.ts
 import { pageTest as pt_repoSourcePayments } from "./pages/repoSourcePayments.e2e.ts";
 import { pageTest as pt_sbom } from "./pages/sbom.e2e.ts";
 import { pageTest as pt_secretsIam } from "./pages/secretsIam.e2e.ts";
+import { pageTest as pt_semanticSearch } from "./pages/semanticSearch.e2e.ts";
 import { pageTest as pt_serviceAtlasEvidence } from "./pages/serviceAtlasEvidence.e2e.ts";
 import { pageTest as pt_serviceChangeSurface } from "./pages/serviceChangeSurface.e2e.ts";
 import { pageTest as pt_serviceCodeInvestigation } from "./pages/serviceCodeInvestigation.e2e.ts";
@@ -143,6 +144,7 @@ export const allTests: readonly PageTest[] = [
   pt_repoSourcePayments,
   pt_sbom,
   pt_secretsIam,
+  pt_semanticSearch,
   pt_serviceAtlasEvidence,
   pt_serviceChangeSurface,
   pt_serviceCodeInvestigation,
