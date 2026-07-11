@@ -93,7 +93,14 @@ seed_repo() {
 run_verifier() {
   local root="$1"
   local out="$2"
-  ESHU_DOCS_CATALOG_REPO_ROOT="${root}" bash "${verifier}" >"${out}" 2>&1
+  # Use $BASH (the interpreter actually running this test script), not the
+  # bare "bash" token: an unqualified "bash" resolves via PATH, which on
+  # macOS finds /bin/bash 3.2 first even when this test itself was invoked
+  # with a bash >= 4.4 (e.g. /opt/homebrew/bin/bash). verify-docs-catalog.sh
+  # requires bash >= 4.4 for `declare -A`, so a PATH-resolved inner "bash"
+  # would spuriously fail every case here with the version guard's error
+  # instead of exercising the verifier's actual logic (#5050).
+  ESHU_DOCS_CATALOG_REPO_ROOT="${root}" "${BASH:-bash}" "${verifier}" >"${out}" 2>&1
 }
 
 test_valid_catalog_passes() {

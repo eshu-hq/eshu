@@ -18,6 +18,19 @@
 # .eshu-doc-state/stale.jsonl and prints a short reminder to stderr. Exit code
 # is 0 (the script never blocks edits or commits — it only signals).
 
+# Requires bash >= 4.4: this script uses `declare -A` associative arrays (a
+# bash 4.0+ feature) to track the newest source mtime per directory. On macOS
+# the default /bin/bash is 3.2.57, which lacks `declare -A` and fails with a
+# cryptic "declare: -A: invalid option" followed by a syntax error deep in the
+# script instead of a clear message. Check the running bash's version before
+# `set -u` so BASH_VERSINFO can never itself trip nounset (#5050).
+if (( BASH_VERSINFO[0] < 4 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] < 4) )); then
+  printf '%s: requires bash >= 4.4 (running under %s); this script uses `declare -A`\n' \
+    "${0##*/}" "${BASH_VERSION:-non-bash shell}" >&2
+  printf '  re-run under bash >= 4.4 (e.g. /opt/homebrew/bin/bash, or `brew install bash`).\n' >&2
+  exit 1
+fi
+
 set -u
 set -o pipefail
 
