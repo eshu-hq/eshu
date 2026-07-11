@@ -71,18 +71,11 @@ fi
 
 # --- Functional: benchstat regression parser ---------------------------------
 tmp="$(mktemp -d)"; trap 'rm -rf "${tmp}" 2>/dev/null || true' EXIT
-# A baseline with one benchmark at ~100ns, count=6.
-cat >"${tmp}/base.txt" <<'TXT'
-goos: linux
-goarch: amd64
-pkg: example/bench
-BenchmarkWidget-8   	1000000	       100.0 ns/op	      0 B/op	      0 allocs/op
-BenchmarkWidget-8   	1000000	       100.0 ns/op	      0 B/op	      0 allocs/op
-BenchmarkWidget-8   	1000000	       100.0 ns/op	      0 B/op	      0 allocs/op
-BenchmarkWidget-8   	1000000	       100.0 ns/op	      0 B/op	      0 allocs/op
-BenchmarkWidget-8   	1000000	       100.0 ns/op	      0 B/op	      0 allocs/op
-BenchmarkWidget-8   	1000000	       100.0 ns/op	      0 B/op	      0 allocs/op
-TXT
+# A baseline with one benchmark at ~100ns, count=6. The body lives in
+# scripts/lib/ (not a heredoc): Homebrew bash >= 5.1 writes the entire
+# heredoc body to a pipe before forking the reader, and macOS's 512-byte
+# pipe buffer deadlocks on any body over that size (#5074).
+cat "${repo_root}/scripts/lib/test-verify-bench-regression-base.txt" >"${tmp}/base.txt"
 # A regressed current: ~130ns (+30%).
 sed 's/100.0 ns\/op/130.0 ns\/op/' "${tmp}/base.txt" >"${tmp}/cur_regress.txt"
 # A near-flat current: ~101ns.
