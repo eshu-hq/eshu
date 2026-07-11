@@ -40,6 +40,7 @@ import { RepositoriesPage } from "./pages/RepositoriesPage";
 import { RepoSourcePage } from "./pages/RepoSourcePage";
 import { SbomPage } from "./pages/SbomPage";
 import { SecretsIamPage } from "./pages/SecretsIamPage";
+import { SemanticSearchPage } from "./pages/SemanticSearchPage";
 import { ServiceEvidenceGraphPage } from "./pages/ServiceEvidenceGraphPage";
 import { ServiceReportPage } from "./pages/ServiceReportPage";
 import { StatusPage } from "./pages/StatusPage";
@@ -105,6 +106,7 @@ export function AppRoutes({
         }
       />
       <Route path="/ask" element={<AskPage source={source} />} />
+      <Route path="/semantic-search" element={<SemanticSearchPage client={client} />} />
       <Route path="/impact" element={<ImpactPage model={model} client={client} />} />
       <Route path="/exposure" element={<ExposurePathPage client={client} />} />
       <Route path="/changed-since" element={<ChangedSincePage client={client} model={model} />} />

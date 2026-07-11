@@ -31,6 +31,7 @@ const ALWAYS_ALLOWED_ROUTES: ReadonlySet<string> = new Set(["/", "/dashboard", "
 const NAV_ROUTE_TO_FAMILY: ReadonlyMap<string, string> = new Map([
   // ask_search: natural language search over the graph
   ["/ask", "ask_search"],
+  ["/semantic-search", "ask_search"],
   // repository_content: source code, file trees, code graph, dead code
   ["/repositories", "repository_content"],
   ["/code-graph", "repository_content"],
