@@ -3,16 +3,23 @@
 
 package main
 
-import sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+import (
+	"github.com/eshu-hq/eshu/go/internal/graphowner"
+	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+)
 
 type canonicalGraphWriters struct {
-	cloudResourceNode             *sourcecypher.CloudResourceNodeWriter
-	ec2InstanceNode               *sourcecypher.EC2InstanceNodeWriter
+	// cloudResourceNode / ec2InstanceNode / kubernetesWorkloadNode are wrapped
+	// in the #5007 owner-ledger gate (graphowner) so a shared cross-scope node's
+	// scope-derived properties resolve deterministically to the max-order-key
+	// contributor. A nil-ledger gate writes through unchanged.
+	cloudResourceNode             *graphowner.CloudResourceGatedWriter
+	ec2InstanceNode               *graphowner.EC2InstanceGatedWriter
 	cloudResourceEdge             *sourcecypher.CloudResourceEdgeWriter
 	gcpCloudResourceEdge          *sourcecypher.GCPCloudResourceEdgeWriter
 	azureCloudResourceEdge        *sourcecypher.AzureCloudResourceEdgeWriter
 	workloadCloudRelationshipEdge *sourcecypher.WorkloadCloudRelationshipWriter
-	kubernetesWorkloadNode        *sourcecypher.KubernetesWorkloadNodeWriter
+	kubernetesWorkloadNode        *graphowner.KubernetesWorkloadGatedWriter
 	securityGroupEndpointNode     *sourcecypher.SecurityGroupEndpointNodeWriter
 	securityGroupReachability     *sourcecypher.SecurityGroupReachabilityWriter
 	kubernetesCorrelationEdge     *sourcecypher.KubernetesCorrelationEdgeWriter
@@ -33,15 +40,18 @@ type canonicalGraphWriters struct {
 	s3InternetExposureNode        *sourcecypher.S3InternetExposureNodeWriter
 }
 
-func newCanonicalGraphWriters(exec sourcecypher.Executor, batchSize int) canonicalGraphWriters {
+func newCanonicalGraphWriters(exec sourcecypher.Executor, batchSize int, ownerGate *graphowner.Gate) canonicalGraphWriters {
+	rawCloudResourceNode := sourcecypher.NewCloudResourceNodeWriter(exec, batchSize)
+	rawEC2InstanceNode := sourcecypher.NewEC2InstanceNodeWriter(exec, batchSize)
+	rawKubernetesWorkloadNode := sourcecypher.NewKubernetesWorkloadNodeWriter(exec, batchSize)
 	return canonicalGraphWriters{
-		cloudResourceNode:             sourcecypher.NewCloudResourceNodeWriter(exec, batchSize),
-		ec2InstanceNode:               sourcecypher.NewEC2InstanceNodeWriter(exec, batchSize),
+		cloudResourceNode:             graphowner.NewCloudResourceGatedWriter(ownerGate, rawCloudResourceNode.WriteCloudResourceNodes),
+		ec2InstanceNode:               graphowner.NewEC2InstanceGatedWriter(ownerGate, rawEC2InstanceNode.WriteEC2InstanceNodes),
 		cloudResourceEdge:             sourcecypher.NewCloudResourceEdgeWriter(exec, batchSize),
 		gcpCloudResourceEdge:          sourcecypher.NewGCPCloudResourceEdgeWriter(exec, batchSize),
 		azureCloudResourceEdge:        sourcecypher.NewAzureCloudResourceEdgeWriter(exec, batchSize),
 		workloadCloudRelationshipEdge: sourcecypher.NewWorkloadCloudRelationshipWriter(exec, batchSize),
-		kubernetesWorkloadNode:        sourcecypher.NewKubernetesWorkloadNodeWriter(exec, batchSize),
+		kubernetesWorkloadNode:        graphowner.NewKubernetesWorkloadGatedWriter(ownerGate, rawKubernetesWorkloadNode.WriteKubernetesWorkloadNodes),
 		securityGroupEndpointNode:     sourcecypher.NewSecurityGroupEndpointNodeWriter(exec, batchSize),
 		securityGroupReachability:     sourcecypher.NewSecurityGroupReachabilityWriter(exec, batchSize),
 		kubernetesCorrelationEdge:     sourcecypher.NewKubernetesCorrelationEdgeWriter(exec, batchSize),

@@ -13,6 +13,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/clock"
+	"github.com/eshu-hq/eshu/go/internal/graphowner"
 	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
@@ -93,7 +94,12 @@ func buildReducerService(
 	cypherExec = graphWriteGate.boundCypherExecutor(cypherExec)
 
 	edgeWriterForHandlers := newHandlerEdgeWriter(neo4jExec, neo4jBatchSize(getenv), instruments, logger, inheritanceEdgeGroupBatchSize, sqlRelationshipEdgeGroupBatchSize)
-	graphWriters := newCanonicalGraphWriters(neo4jExec, neo4jBatchSize(getenv))
+	// #5007: gate the canonical cloud/EC2/K8s node writers on the Postgres owner
+	// ledger so cross-scope same-uid nodes resolve deterministically to the
+	// max-(observed_at, source_fact_id) contributor. A database that does not
+	// expose a transaction beginner yields a pass-through gate (prior behavior).
+	ownerGate := graphowner.NewGate(reducerBeginner(database))
+	graphWriters := newCanonicalGraphWriters(neo4jExec, neo4jBatchSize(getenv), ownerGate)
 	secretsIAMGraphWriter, err := secretsIAMGraphProjectionWriter(getenv, neo4jExec, neo4jBatchSize(getenv), logger)
 	if err != nil {
 		return reducer.Service{}, err
