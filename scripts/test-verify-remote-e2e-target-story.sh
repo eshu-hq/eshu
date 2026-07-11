@@ -17,28 +17,10 @@ cp "${repo_root}/scripts/lib/remote_e2e_target_story_fake_curl.sh" "${fake_bin}/
 chmod +x "${fake_bin}/curl"
 
 write_manifest() {
-  cat >"${state_dir}/target-story.json" <<'JSON'
-{
-  "proof_mode": "code_to_cloud",
-  "target_repository_id": "repo://example/api",
-  "expected_security_alert_repository": "example/api",
-  "expected_source_repository_id": "repo://example/api",
-  "expected_service_id": "service:api",
-  "expected_oci_repository_id": "oci-registry://registry.example/team/api",
-  "expected_image_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-  "expected_sbom_subject_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-  "expected_cloud_resource_id": "arn:aws:lambda:us-east-1:111122223333:function:example-api",
-  "minimums": {
-    "impact_findings": 1,
-    "security_alert_reconciliations": 1,
-    "container_image_identities": 1,
-    "sbom_attachments": 1,
-    "service_catalog_correlations": 1,
-    "ci_cd_run_correlations": 1,
-    "cloud_resources": 1
-  }
-}
-JSON
+  # Body lives in scripts/lib/ (not a heredoc): Homebrew bash >= 5.1 writes
+  # the entire heredoc body to a pipe before forking the reader, and macOS's
+  # 512-byte pipe buffer deadlocks on any body over that size (#5074).
+  cat "${repo_root}/scripts/lib/test-verify-remote-e2e-target-story-target-story.json" >"${state_dir}/target-story.json"
 }
 
 reset_state() {
@@ -51,40 +33,10 @@ JSON
   cat >"${state_dir}/impact-count.json" <<'JSON'
 {"data":{"total_findings":5,"affected_findings":5},"truth":{"level":"exact","freshness":{"state":"fresh"}},"error":null}
 JSON
-  cat >"${state_dir}/security-alert-count.json" <<'JSON'
-{
-  "data": {
-    "count": 1,
-    "reconciliations": [
-      {
-        "reconciliation_id": "rec-1",
-        "provider_alert": {
-          "provider_alert_id": "github_dependabot:security-alert:github:example/api:42",
-          "provider_alert_number": 42,
-          "provider": "github_dependabot",
-          "provider_state": "open",
-          "repository_id": "repository:r_example_api",
-          "ecosystem": "npm",
-          "package_name": "left-pad",
-          "manifest_path": "package-lock.json",
-          "vulnerable_range": "<1.2.3",
-          "patched_version": "1.2.3"
-        },
-        "eshu_package": {
-          "observed_version": "1.2.0",
-          "requested_range": "^1.0.0",
-          "dependency_evidence_id": "consume-1"
-        },
-        "reconciliation_status": "matched",
-        "reason": "provider alert matched package evidence",
-        "evidence_fact_ids": ["fact-security-alert-42"]
-      }
-    ]
-  },
-  "truth": {"level": "exact", "freshness": {"state": "fresh"}},
-  "error": null
-}
-JSON
+  # Body lives in scripts/lib/ (not a heredoc): Homebrew bash >= 5.1 writes
+  # the entire heredoc body to a pipe before forking the reader, and macOS's
+  # 512-byte pipe buffer deadlocks on any body over that size (#5074).
+  cat "${repo_root}/scripts/lib/test-verify-remote-e2e-target-story-security-alert-count.json" >"${state_dir}/security-alert-count.json"
   cat >"${state_dir}/image-count.json" <<'JSON'
 {"data":{"total_identities":1},"truth":{"level":"exact","freshness":{"state":"fresh"}},"error":null}
 JSON
@@ -100,24 +52,29 @@ JSON
   cat >"${state_dir}/cicd-count.json" <<'JSON'
 {"data":{"total_correlations":1},"truth":{"level":"exact","freshness":{"state":"fresh"}},"error":null}
 JSON
-  cat >"${state_dir}/cicd-list.json" <<'JSON'
-{"data":{"count":1,"correlations":[{"correlation_id":"cicd-1","repository_id":"repo://example/api","artifact_digest":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","image_ref":"registry.example.com/team/api:prod","provider":"github_actions","run_id":"run-1","outcome":"exact","provenance_only":false,"canonical_writes":1}],"limit":1,"truncated":false,"evidence_summary":{"static_workflow_artifacts":{"state":"present","count":1,"paths":[".github/workflows/deploy.yml"]},"live_run_correlations":{"state":"present","count":1}}},"truth":{"level":"exact","freshness":{"state":"fresh"}},"error":null}
-JSON
+  # Body lives in scripts/lib/ (not a heredoc): Homebrew bash >= 5.1 writes
+  # the entire heredoc body to a pipe before forking the reader, and macOS's
+  # 512-byte pipe buffer deadlocks on any body over that size (#5074).
+  cat "${repo_root}/scripts/lib/test-verify-remote-e2e-target-story-cicd-list.json" >"${state_dir}/cicd-list.json"
   cat >"${state_dir}/cloud-resources.json" <<'JSON'
 {"data":{"count":1,"results":[{"id":"cloud-resource:api","resource_id":"arn:aws:lambda:us-east-1:111122223333:function:example-api","arn":"arn:aws:lambda:us-east-1:111122223333:function:example-api","provider":"aws"}],"truncated":false},"truth":{"level":"exact","freshness":{"state":"fresh"}},"error":null}
 JSON
-  cat >"${state_dir}/mcp-service-catalog.json" <<'JSON'
-{"jsonrpc":"2.0","id":1,"result":{"content":[{"type":"text","text":"Returned 1 result(s)."},{"type":"resource","resource":{"uri":"eshu://tool-result/envelope","mimeType":"application/eshu.envelope+json","text":"{\"data\":{\"count\":1,\"correlations\":[{\"correlation_id\":\"corr-1\",\"service_id\":\"service:api\"}],\"truncated\":false,\"evidence_summary\":{\"local_descriptors\":{\"state\":\"present\",\"count\":1,\"providers\":[\"backstage\"],\"source_uris\":[\"file://repo/catalog-info.yaml\"]},\"external_catalog_confirmation\":{\"state\":\"present\",\"count\":1,\"reason\":\"catalog_match\"}}},\"truth\":{\"level\":\"exact\",\"freshness\":{\"state\":\"fresh\"}},\"error\":null}"}}],"isError":false}}
-JSON
-  cat >"${state_dir}/mcp-cicd.json" <<'JSON'
-{"jsonrpc":"2.0","id":1,"result":{"content":[{"type":"text","text":"Returned 1 result(s)."},{"type":"resource","resource":{"uri":"eshu://tool-result/envelope","mimeType":"application/eshu.envelope+json","text":"{\"data\":{\"count\":1,\"correlations\":[{\"correlation_id\":\"cicd-1\",\"repository_id\":\"repo://example/api\",\"artifact_digest\":\"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"image_ref\":\"registry.example.com/team/api:prod\",\"provider\":\"github_actions\",\"run_id\":\"run-1\",\"outcome\":\"exact\",\"provenance_only\":false,\"canonical_writes\":1}],\"limit\":1,\"truncated\":false,\"evidence_summary\":{\"static_workflow_artifacts\":{\"state\":\"present\",\"count\":1,\"paths\":[\".github/workflows/deploy.yml\"]},\"live_run_correlations\":{\"state\":\"present\",\"count\":1}}},\"truth\":{\"level\":\"exact\",\"freshness\":{\"state\":\"fresh\"}},\"error\":null}"}}],"isError":false}}
-JSON
-  cat >"${state_dir}/mcp-service-story.json" <<'JSON'
-{"jsonrpc":"2.0","id":1,"result":{"content":[{"type":"text","text":"Returned service story."},{"type":"resource","resource":{"uri":"eshu://tool-result/envelope","mimeType":"application/eshu.envelope+json","text":"{\"data\":{\"code_to_runtime_trace\":{\"segments\":[{\"name\":\"image_package\",\"status\":\"exact\",\"basis\":\"container_image_identity_and_sbom_attachment\",\"evidence\":[{\"image_ref\":\"registry.example.com/team/api:prod\",\"digest\":\"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"sbom_attachment_id\":\"sbom-attachment-1\",\"sbom_attachment_status\":\"attached_verified\"}]}]}},\"truth\":{\"level\":\"exact\",\"freshness\":{\"state\":\"fresh\"}},\"error\":null}"}}],"isError":false}}
-JSON
-  cat >"${state_dir}/mcp-cloud-resources.json" <<'JSON'
-{"jsonrpc":"2.0","id":1,"result":{"content":[{"type":"text","text":"Returned 1 result(s)."},{"type":"resource","resource":{"uri":"eshu://tool-result/envelope","mimeType":"application/eshu.envelope+json","text":"{\"data\":{\"count\":1,\"results\":[{\"id\":\"cloud-resource:api\",\"resource_id\":\"arn:aws:lambda:us-east-1:111122223333:function:example-api\",\"arn\":\"arn:aws:lambda:us-east-1:111122223333:function:example-api\",\"provider\":\"aws\"}],\"truncated\":false},\"truth\":{\"level\":\"exact\",\"freshness\":{\"state\":\"fresh\"}},\"error\":null}"}}],"isError":false}}
-JSON
+  # Body lives in scripts/lib/ (not a heredoc): Homebrew bash >= 5.1 writes
+  # the entire heredoc body to a pipe before forking the reader, and macOS's
+  # 512-byte pipe buffer deadlocks on any body over that size (#5074).
+  cat "${repo_root}/scripts/lib/test-verify-remote-e2e-target-story-mcp-service-catalog.json" >"${state_dir}/mcp-service-catalog.json"
+  # Body lives in scripts/lib/ (not a heredoc): Homebrew bash >= 5.1 writes
+  # the entire heredoc body to a pipe before forking the reader, and macOS's
+  # 512-byte pipe buffer deadlocks on any body over that size (#5074).
+  cat "${repo_root}/scripts/lib/test-verify-remote-e2e-target-story-mcp-cicd.json" >"${state_dir}/mcp-cicd.json"
+  # Body lives in scripts/lib/ (not a heredoc): Homebrew bash >= 5.1 writes
+  # the entire heredoc body to a pipe before forking the reader, and macOS's
+  # 512-byte pipe buffer deadlocks on any body over that size (#5074).
+  cat "${repo_root}/scripts/lib/test-verify-remote-e2e-target-story-mcp-service-story.json" >"${state_dir}/mcp-service-story.json"
+  # Body lives in scripts/lib/ (not a heredoc): Homebrew bash >= 5.1 writes
+  # the entire heredoc body to a pipe before forking the reader, and macOS's
+  # 512-byte pipe buffer deadlocks on any body over that size (#5074).
+  cat "${repo_root}/scripts/lib/test-verify-remote-e2e-target-story-mcp-cloud-resources.json" >"${state_dir}/mcp-cloud-resources.json"
 }
 
 run_verifier() {
@@ -242,9 +199,10 @@ JSON
 expect_fail_with 'target ci_cd_run_correlations=0 below required minimum 1'
 
 reset_state
-cat >"${state_dir}/mcp-cicd.json" <<'JSON'
-{"jsonrpc":"2.0","id":1,"result":{"content":[{"type":"text","text":"Returned 1 result(s)."},{"type":"resource","resource":{"uri":"eshu://tool-result/envelope","mimeType":"application/eshu.envelope+json","text":"{\"data\":{\"count\":1,\"correlations\":[{\"correlation_id\":\"cicd-other\",\"artifact_digest\":\"sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"image_ref\":\"registry.example.com/team/other:prod\"}],\"truncated\":false},\"truth\":{\"level\":\"exact\",\"freshness\":{\"state\":\"fresh\"}},\"error\":null}"}}],"isError":false}}
-JSON
+# Body lives in scripts/lib/ (not a heredoc): Homebrew bash >= 5.1 writes
+# the entire heredoc body to a pipe before forking the reader, and macOS's
+# 512-byte pipe buffer deadlocks on any body over that size (#5074).
+cat "${repo_root}/scripts/lib/test-verify-remote-e2e-target-story-mcp-cicd-other.json" >"${state_dir}/mcp-cicd.json"
 expect_fail_with 'target mcp_ci_cd_run_correlations=0 below required minimum 1'
 
 reset_state
@@ -360,9 +318,10 @@ JSON
 expect_fail_with 'target service_story_image_package=0 below required minimum 1'
 
 reset_state
-cat >"${state_dir}/mcp-service-story.json" <<'JSON'
-{"jsonrpc":"2.0","id":1,"result":{"content":[{"type":"text","text":"Returned service story."},{"type":"resource","resource":{"uri":"eshu://tool-result/envelope","mimeType":"application/eshu.envelope+json","text":"{\"data\":{\"code_to_runtime_trace\":{\"segments\":[{\"name\":\"image_package\",\"status\":\"missing_evidence\",\"basis\":\"container_image_identity_and_sbom_attachment\",\"missing_evidence\":[\"container_image_identity_ambiguous\"],\"evidence\":[]}] }},\"truth\":{\"level\":\"exact\",\"freshness\":{\"state\":\"fresh\"}},\"error\":null}"}}],"isError":false}}
-JSON
+# Body lives in scripts/lib/ (not a heredoc): Homebrew bash >= 5.1 writes
+# the entire heredoc body to a pipe before forking the reader, and macOS's
+# 512-byte pipe buffer deadlocks on any body over that size (#5074).
+cat "${repo_root}/scripts/lib/test-verify-remote-e2e-target-story-mcp-service-story-missing-evidence.json" >"${state_dir}/mcp-service-story.json"
 expect_fail_with 'target mcp_service_story_image_package=0 below required minimum 1'
 
 reset_state
@@ -464,9 +423,10 @@ JSON
 expect_fail_with 'target cloud_resources=0 below required minimum 1'
 
 reset_state
-cat >"${state_dir}/mcp-cloud-resources.json" <<'JSON'
-{"jsonrpc":"2.0","id":1,"result":{"content":[{"type":"text","text":"Returned 1 result(s)."},{"type":"resource","resource":{"uri":"eshu://tool-result/envelope","mimeType":"application/eshu.envelope+json","text":"{\"data\":{\"count\":1,\"results\":[{\"id\":\"cloud-resource:other\",\"resource_id\":\"arn:aws:lambda:us-east-1:111122223333:function:other-api\",\"arn\":\"arn:aws:lambda:us-east-1:111122223333:function:other-api\",\"provider\":\"aws\"}],\"truncated\":false},\"truth\":{\"level\":\"exact\",\"freshness\":{\"state\":\"fresh\"}},\"error\":null}"}}],"isError":false}}
-JSON
+# Body lives in scripts/lib/ (not a heredoc): Homebrew bash >= 5.1 writes
+# the entire heredoc body to a pipe before forking the reader, and macOS's
+# 512-byte pipe buffer deadlocks on any body over that size (#5074).
+cat "${repo_root}/scripts/lib/test-verify-remote-e2e-target-story-mcp-cloud-resources-other.json" >"${state_dir}/mcp-cloud-resources.json"
 expect_fail_with 'target mcp_cloud_resources=0 below required minimum 1'
 
 reset_state

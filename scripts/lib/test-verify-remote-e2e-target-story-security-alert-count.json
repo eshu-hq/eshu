@@ -1,0 +1,32 @@
+{
+  "data": {
+    "count": 1,
+    "reconciliations": [
+      {
+        "reconciliation_id": "rec-1",
+        "provider_alert": {
+          "provider_alert_id": "github_dependabot:security-alert:github:example/api:42",
+          "provider_alert_number": 42,
+          "provider": "github_dependabot",
+          "provider_state": "open",
+          "repository_id": "repository:r_example_api",
+          "ecosystem": "npm",
+          "package_name": "left-pad",
+          "manifest_path": "package-lock.json",
+          "vulnerable_range": "<1.2.3",
+          "patched_version": "1.2.3"
+        },
+        "eshu_package": {
+          "observed_version": "1.2.0",
+          "requested_range": "^1.0.0",
+          "dependency_evidence_id": "consume-1"
+        },
+        "reconciliation_status": "matched",
+        "reason": "provider alert matched package evidence",
+        "evidence_fact_ids": ["fact-security-alert-42"]
+      }
+    ]
+  },
+  "truth": {"level": "exact", "freshness": {"state": "fresh"}},
+  "error": null
+}
