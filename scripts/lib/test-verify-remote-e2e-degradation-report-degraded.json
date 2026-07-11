@@ -1,0 +1,55 @@
+{
+  "run": {
+    "id": "remote-full-corpus-2026-06-29",
+    "commit": "b514d2f395f9c2edc25e010c32229e2f6f0005de",
+    "nornicdb_image": "timothyswt/nornicdb-cpu-bge:v1.1.9",
+    "nornicdb_digest": "sha256:9a5126d306a48c01869809da47a869a4521b9328a7ab1c855327f5fd7541e4cd"
+  },
+  "startup": {
+    "schema_bootstrap": "passed",
+    "bootstrap_index": "passed",
+    "hosted_profile_startup": "passed"
+  },
+  "services": [
+    {"name": "eshu", "state": "running", "health": "healthy"},
+    {"name": "projector", "state": "running", "health": "healthy"},
+    {"name": "workflow-coordinator", "state": "running", "health": "healthy"}
+  ],
+  "index_status": {
+    "status": "progressing",
+    "queue": {
+      "outstanding": 2405,
+      "in_flight": 6,
+      "pending": 2380,
+      "retrying": 19,
+      "failed": 0,
+      "dead_letter": 0
+    },
+    "coordinator": {
+      "run_status_counts": [{"name": "running", "count": 3}],
+      "completeness_counts": [{"name": "incomplete", "count": 3}]
+    }
+  },
+  "work": {
+    "retrying_by_failure_class": [
+      {"failure_class": "graph_canonical_retract_timeout", "count": 19}
+    ],
+    "pending_domains": [
+      {"domain": "search_document_readiness", "pending": 2187, "oldest_age_seconds": 3540}
+    ]
+  },
+  "postgres": {
+    "active_queries": [
+      {"age_seconds": 3540, "query_shape": "WITH active_docs AS MATERIALIZED SELECT document_key FROM eshu_search_documents"},
+      {"age_seconds": 936, "query_shape": "canonical source-local retract transaction waiting on graph write"}
+    ],
+    "ungranted_locks": 0,
+    "relation_sizes": [
+      {"name": "fact_records", "bytes": 7516192768},
+      {"name": "eshu_search_index_terms", "bytes": 3328599654}
+    ]
+  },
+  "logs": [
+    {"service": "projector", "message": "canonical source-local retract timed out after retry budget"}
+  ]
+}

@@ -254,6 +254,9 @@ func (s IngestionStore) commitScopeGeneration(
 		scopeValue.ScopeID,
 		generation.GenerationID,
 		func(batch []facts.Envelope) error {
+			if err := refreshRelationshipReferenceCandidateKeys(ctx, tx, batch); err != nil {
+				return err
+			}
 			for _, envelope := range batch {
 				if envelope.FactKind != "repository" {
 					continue

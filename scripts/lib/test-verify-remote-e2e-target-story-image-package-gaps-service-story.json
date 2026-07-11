@@ -1,0 +1,25 @@
+{
+  "data": {
+    "code_to_runtime_trace": {
+      "segments": [
+        {
+          "name": "image_package",
+          "status": "missing_evidence",
+          "basis": "container_image_identity_and_sbom_attachment",
+          "missing_evidence": ["oci_registry_target_outside_scope"],
+          "missing_evidence_details": [
+            {
+              "reason": "oci_registry_target_outside_scope",
+              "collector_scope": "outside_configured_targets",
+              "operator_action": "add an OCI registry collector target for oci-registry://registry.example/team/api",
+              "candidate_repository_id": "oci-registry://registry.example/team/api"
+            }
+          ],
+          "evidence": []
+        }
+      ]
+    }
+  },
+  "truth": {"level": "exact", "freshness": {"state": "fresh"}},
+  "error": null
+}

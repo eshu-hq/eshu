@@ -74,6 +74,30 @@ func CatalogRepoIDValues(catalog []CatalogEntry) []string {
 	return values
 }
 
+// CatalogReferenceKey returns the boundary-aware token key used to compare a
+// catalog repo_id against precomputed relationship reference streams. It uses
+// the same tokenization as catalogMatcher, so prefix collisions such as
+// "github.com/org/app" versus "github.com/org/app-config" do not collapse.
+func CatalogReferenceKey(value string) string {
+	tokens := catalogMatchTokens(value)
+	if len(tokens) == 0 {
+		return ""
+	}
+	return strings.Join(tokens, "|")
+}
+
+// CatalogReferenceTokenStream returns a delimiter-wrapped token stream for a
+// relationship candidate payload. Callers can test for
+// "|" + CatalogReferenceKey(repo_id) + "|" to get the same whole-token
+// containment semantics catalogMatcher applies after SQL has selected a fact.
+func CatalogReferenceTokenStream(value string) string {
+	key := CatalogReferenceKey(value)
+	if key == "" {
+		return ""
+	}
+	return "|" + key + "|"
+}
+
 // CatalogPayloadAnchors derives the set of lowercase payload-substring anchors
 // that a content-scoped SQL fact load must test so its result is a provable
 // superset of the facts the in-memory catalogMatcher would match against the

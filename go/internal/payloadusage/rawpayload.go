@@ -18,7 +18,7 @@ import (
 const (
 	rawPayloadIndexAccessor  = "payload_index"
 	rawPayloadDynamicKey     = "*"
-	rawPayloadExemptionLimit = 50
+	rawPayloadExemptionLimit = 51
 )
 
 // RawPayloadAccess is one direct read of a fact payload map outside an approved
@@ -434,6 +434,11 @@ func defaultRawPayloadExemptions() []RawPayloadExemption {
 		{Path: "go/internal/replay/offlinetier/materialization.go", Accessor: "requireString", Key: "relative_path"},
 		{Path: "go/internal/replay/offlinetier/materialization.go", Accessor: "requireString", Key: "repo_id"},
 		{Path: "go/internal/replay/offlinetier/materialization.go", Accessor: "requireString", Key: "uid"},
+		// The relationship-reference side table records the source repo_id for
+		// candidate content/file/cloud-relationship facts so the deferred
+		// backfill can keep exact self-exclusion semantics while avoiding
+		// per-candidate regex scans.
+		{Path: "go/internal/storage/postgres/relationship_reference_keys.go", Accessor: rawPayloadIndexAccessor, Key: "repo_id"},
 		{Path: "go/internal/storage/postgres/service_vulnerability_advisory_loader.go", Accessor: "payloadString", Key: "advisory_id"},
 		{Path: "go/internal/storage/postgres/service_vulnerability_advisory_loader.go", Accessor: "payloadString", Key: "confidence"},
 		{Path: "go/internal/storage/postgres/service_vulnerability_advisory_loader.go", Accessor: "payloadString", Key: "cve_id"},

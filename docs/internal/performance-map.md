@@ -104,7 +104,17 @@ NornicDB is the **default** canonical backend; Neo4j is compatibility only.
 
 Performance work MUST have **before/after measurements on the same backend**,
 using the same metric boundaries, corpus, topology, storage state, and runtime
-profile. Name the baseline, render seconds plus human durations, and carry a
+profile. Record the measured CPU, memory, storage, OS, and container limits.
+Name the human machine profile too, such as the EC2 instance type and RAM tier
+or the MacBook Pro RAM tier.
+Capture configured Compose replicas and resource limits as comparison inputs,
+then report phase-tagged per-service peak CPU, memory, block I/O, restarts, OOM
+state, and host pressure as outcomes. A single final `docker stats` snapshot is
+not representative.
+Absolute targets apply only to their named reference profile; different or
+smaller contributor machines can prove same-machine relative improvements but
+must not be classified as regressions for missing the reference duration. Name
+the baseline, render seconds plus human durations, and carry a
 `Performance`/`No-Regression Evidence:` marker plus an observability marker —
 `verify-performance-evidence.sh` enforces this in CI for hot-path changes.
 Never claim a speedup without pasted numbers. Never "optimize" code not yet
@@ -123,4 +133,7 @@ conflict key or make the write idempotent.
 Remote full-corpus validation is a **user-local** skill (`eshu-remote-validation`),
 not committed to this repo — the user authorizes it and supplies local
 configuration. In-repo, use the proof harnesses above; do not assume a remote
-host, key, checkout, or corpus path is available to a committed agent.
+host, key, checkout, or corpus path is available to a committed agent. The
+operator-local workflow owns accepted baseline state, manifest scaffolding and
+comparison, stall snapshots, and label-scoped retention/cleanup; none of that
+machine-specific state belongs in this repository.

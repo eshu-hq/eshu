@@ -125,8 +125,13 @@ gates:
     triggers:
       - "go/**"
       - ".agents/**"
+      - ".claude/skills/**"
+      - ".codex/skills/**"
+      - ".opencode/agent/**"
       - "AGENTS.md"
       - "CLAUDE.md"
+      - "scripts/verify-agent-canon.sh"
+      - "scripts/test-verify-agent-hygiene.sh"
     local:
       command: "bash scripts/verify-agent-canon.sh"
       test_command: "bash scripts/test-verify-agent-hygiene.sh"

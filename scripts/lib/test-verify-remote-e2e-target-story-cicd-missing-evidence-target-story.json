@@ -1,0 +1,18 @@
+{
+  "proof_mode": "partial",
+  "proof_mode_reason": "live CI provider evidence intentionally absent from this representative proof",
+  "target_repository_id": "repo://example/api",
+  "minimums": {
+    "impact_findings": 0,
+    "security_alert_reconciliations": 0,
+    "container_image_identities": 0,
+    "sbom_attachments": 0,
+    "service_catalog_correlations": 0,
+    "ci_cd_run_correlations": 0,
+    "cloud_resources": 0
+  },
+  "expected_ci_cd_missing_evidence": [
+    "ci_run_to_image_artifact_evidence_missing",
+    "source_to_ci_run_evidence_missing"
+  ]
+}
