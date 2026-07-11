@@ -442,6 +442,32 @@ synth cassette (overlapping-identity, the inverse of `GenerateMultiScope`), and
 the determinism regression tests are all reusable once the coordination
 primitive is chosen; only the graph write path changes.
 
+### Re-confirmation on NornicDB v1.1.11 (issue #5062)
+
+The graph-side disproof was re-run on **NornicDB v1.1.11** ("Black Hole Sun",
+2026-07-09 — the release that carries the #259 Cypher/Bolt fixes), against
+**v1.1.9** as a control, using the same pure graph-side mechanic
+(`go/internal/storage/cypher/graph_guard_prove_theory_live_test.go`,
+`TestLiveGraphGuardProveTheory`, gated by `ESHU_GRAPH_GUARD_PROVE_LIVE=1`). Each
+writer holds one explicit transaction across a 5ms read-modify-write gap so the
+two writers' windows overlap; two writers race one pre-seeded uid, retry on
+`Outdated`, 100 trials:
+
+- **v1.1.9 (control): 5/100 silently lost** the max winner.
+- **v1.1.11: 6/100 silently lost** — statistically identical.
+
+The rate is lower than the ADR's original 26/100 because this shim is gentler
+than the original RetryingExecutor two-statement-group harness (2 writers, one
+tx, 5ms gap); the point is the qualitative verdict, which is firm and matched by
+a source read (the node-property conflict-detection path in NornicDB
+`pkg/storage/badger_transaction.go` is byte-identical across v1.1.9..v1.1.11 —
+the #259 fix is parser/Bolt only). **v1.1.11 does NOT fix the concurrent
+shared-existing-node property-write loss.** The Postgres coordination primitive
+below remains required on the default backend. (First measured with a
+too-narrow single-statement shim that reported 0/100 on BOTH versions — a false
+negative; only widening the transaction window reproduced the loss, and only
+then did the control confirm the shim was valid.)
+
 ### Owner-ledger prove-theory result: design (b) is safe
 
 The maintainer approved the Postgres owner-ledger redesign. The mandatory
