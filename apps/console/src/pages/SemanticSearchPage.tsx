@@ -83,6 +83,10 @@ export function SemanticSearchPage({
     if (client && isBounded) {
       void load(request);
     } else {
+      // Leaving bounded state (e.g. back-navigating to an unbounded URL) must
+      // also invalidate any in-flight search, or its late response would still
+      // match latestLoad and overwrite this idle state with stale results.
+      latestLoad.current += 1;
       setResult({ status: "idle" });
     }
   }, [client, isBounded, load, request]);
