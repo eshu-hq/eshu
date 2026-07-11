@@ -1,0 +1,16 @@
+{
+  "proof_mode": "partial",
+  "proof_mode_reason": "runtime image target intentionally outside this focused proof",
+  "target_repository_id": "repo://example/api",
+  "expected_service_id": "service:api",
+  "expected_image_package_missing_evidence": ["oci_registry_target_outside_scope"],
+  "minimums": {
+    "impact_findings": 1,
+    "security_alert_reconciliations": 0,
+    "container_image_identities": 0,
+    "sbom_attachments": 0,
+    "service_catalog_correlations": 0,
+    "ci_cd_run_correlations": 0,
+    "cloud_resources": 0
+  }
+}

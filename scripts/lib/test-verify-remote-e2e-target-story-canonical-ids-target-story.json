@@ -1,0 +1,16 @@
+{
+  "proof_mode": "code_to_cloud",
+  "target_repository_id": "repository:r_8f14e45f",
+  "expected_workload_id": "workload:api",
+  "expected_image_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "expected_sbom_subject_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "minimums": {
+    "impact_findings": 0,
+    "security_alert_reconciliations": 0,
+    "container_image_identities": 1,
+    "sbom_attachments": 1,
+    "service_catalog_correlations": 1,
+    "ci_cd_run_correlations": 0,
+    "cloud_resources": 0
+  }
+}

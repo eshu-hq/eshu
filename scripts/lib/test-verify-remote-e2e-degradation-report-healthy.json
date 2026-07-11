@@ -1,0 +1,32 @@
+{
+  "run": {
+    "id": "remote-smoke",
+    "commit": "b514d2f395f9c2edc25e010c32229e2f6f0005de",
+    "nornicdb_image": "timothyswt/nornicdb-cpu-bge:v1.1.9"
+  },
+  "startup": {
+    "schema_bootstrap": "passed",
+    "bootstrap_index": "passed"
+  },
+  "services": [
+    {"name": "eshu", "state": "running", "health": "healthy"}
+  ],
+  "index_status": {
+    "status": "healthy",
+    "queue": {
+      "outstanding": 0,
+      "in_flight": 0,
+      "pending": 0,
+      "retrying": 0,
+      "failed": 0,
+      "dead_letter": 0
+    }
+  },
+  "postgres": {
+    "active_queries": [],
+    "ungranted_locks": 0,
+    "relation_sizes": [
+      {"name": "eshu_search_index_terms", "bytes": 3328599654}
+    ]
+  }
+}

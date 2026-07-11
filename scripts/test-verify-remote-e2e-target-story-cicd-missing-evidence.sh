@@ -15,26 +15,10 @@ cp "${repo_root}/scripts/lib/remote_e2e_target_story_fake_curl.sh" "${fake_bin}/
 chmod +x "${fake_bin}/curl"
 
 write_manifest() {
-  cat >"${state_dir}/target-story.json" <<'JSON'
-{
-  "proof_mode": "partial",
-  "proof_mode_reason": "live CI provider evidence intentionally absent from this representative proof",
-  "target_repository_id": "repo://example/api",
-  "minimums": {
-    "impact_findings": 0,
-    "security_alert_reconciliations": 0,
-    "container_image_identities": 0,
-    "sbom_attachments": 0,
-    "service_catalog_correlations": 0,
-    "ci_cd_run_correlations": 0,
-    "cloud_resources": 0
-  },
-  "expected_ci_cd_missing_evidence": [
-    "ci_run_to_image_artifact_evidence_missing",
-    "source_to_ci_run_evidence_missing"
-  ]
-}
-JSON
+  # Body lives in scripts/lib/ (not a heredoc): Homebrew bash >= 5.1 writes
+  # the entire heredoc body to a pipe before forking the reader, and macOS's
+  # 512-byte pipe buffer deadlocks on any body over that size (#5074).
+  cat "${repo_root}/scripts/lib/test-verify-remote-e2e-target-story-cicd-missing-evidence-target-story.json" >"${state_dir}/target-story.json"
 }
 
 write_repo_story() {
@@ -44,15 +28,17 @@ JSON
 }
 
 write_cicd_api_missing() {
-  cat >"${state_dir}/cicd-list.json" <<'JSON'
-{"data":{"count":0,"correlations":[],"limit":1,"truncated":false,"evidence_summary":{"static_workflow_artifacts":{"state":"present","count":1,"paths":[".github/workflows/deploy.yml"]},"live_run_correlations":{"state":"missing","count":0,"reason":"workflow_image_ref_static_only"},"run_artifact_evidence":{"state":"missing","count":0,"artifact_digest_count":0,"image_ref_count":0,"ambiguous_count":0,"reason":"workflow_image_ref_static_only"},"missing_evidence":["ci_run_to_image_artifact_evidence_missing","source_to_ci_run_evidence_missing"],"reason":"workflow_image_ref_static_only"}},"truth":{"level":"exact","freshness":{"state":"fresh"}},"error":null}
-JSON
+  # Body lives in scripts/lib/ (not a heredoc): Homebrew bash >= 5.1 writes
+  # the entire heredoc body to a pipe before forking the reader, and macOS's
+  # 512-byte pipe buffer deadlocks on any body over that size (#5074).
+  cat "${repo_root}/scripts/lib/test-verify-remote-e2e-target-story-cicd-missing-evidence-cicd-list.json" >"${state_dir}/cicd-list.json"
 }
 
 write_cicd_mcp_missing() {
-  cat >"${state_dir}/mcp-cicd.json" <<'JSON'
-{"jsonrpc":"2.0","id":1,"result":{"content":[{"type":"text","text":"Returned 0 result(s)."},{"type":"resource","resource":{"uri":"eshu://tool-result/envelope","mimeType":"application/eshu.envelope+json","text":"{\"data\":{\"count\":0,\"correlations\":[],\"limit\":1,\"truncated\":false,\"evidence_summary\":{\"static_workflow_artifacts\":{\"state\":\"present\",\"count\":1,\"paths\":[\".github/workflows/deploy.yml\"]},\"live_run_correlations\":{\"state\":\"missing\",\"count\":0,\"reason\":\"workflow_image_ref_static_only\"},\"run_artifact_evidence\":{\"state\":\"missing\",\"count\":0,\"artifact_digest_count\":0,\"image_ref_count\":0,\"ambiguous_count\":0,\"reason\":\"workflow_image_ref_static_only\"},\"missing_evidence\":[\"ci_run_to_image_artifact_evidence_missing\",\"source_to_ci_run_evidence_missing\"],\"reason\":\"workflow_image_ref_static_only\"}},\"truth\":{\"level\":\"exact\",\"freshness\":{\"state\":\"fresh\"}},\"error\":null}"}}],"isError":false}}
-JSON
+  # Body lives in scripts/lib/ (not a heredoc): Homebrew bash >= 5.1 writes
+  # the entire heredoc body to a pipe before forking the reader, and macOS's
+  # 512-byte pipe buffer deadlocks on any body over that size (#5074).
+  cat "${repo_root}/scripts/lib/test-verify-remote-e2e-target-story-cicd-missing-evidence-mcp-cicd.json" >"${state_dir}/mcp-cicd.json"
 }
 
 reset_state() {

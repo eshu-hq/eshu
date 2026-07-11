@@ -11,88 +11,16 @@ fake_bin="${tmp_root}/bin"
 state_dir="${tmp_root}/state"
 mkdir -p "${fake_bin}" "${state_dir}"
 
-cat >"${fake_bin}/docker" <<'SH'
-#!/usr/bin/env bash
-set -euo pipefail
-
-state_dir="${ESHU_REMOTE_E2E_TEST_STATE:?set ESHU_REMOTE_E2E_TEST_STATE}"
-
-if [[ "${1:-}" == "inspect" ]]; then
-  shift
-  while [[ "${1:-}" == -* ]]; do
-    shift
-    if [[ "${1:-}" == "{{"* ]]; then
-      shift
-    fi
-  done
-  cat "${state_dir}/containers/${1:?container id required}"
-  exit 0
-fi
-
-if [[ "${1:-}" != "compose" ]]; then
-  echo "unexpected docker command: $*" >&2
-  exit 2
-fi
-
-shift
-while (($# > 0)); do
-  case "${1}" in
-    --env-file|-f|-p|--project-name)
-      shift 2
-      ;;
-    --profile)
-      shift 2
-      ;;
-    *)
-      break
-      ;;
-  esac
-done
-
-subcommand="${1:-}"
-shift || true
-case "${subcommand}" in
-  config)
-    cat "${state_dir}/services"
-    ;;
-  ps)
-    service="${*: -1}"
-    if [[ -f "${state_dir}/service_ids/${service}" ]]; then
-      cat "${state_dir}/service_ids/${service}"
-    fi
-    ;;
-  port)
-    printf '0.0.0.0:18080\n'
-    ;;
-  exec)
-    printf 'test-api-key\n'
-    ;;
-  *)
-    echo "unexpected compose subcommand: ${subcommand}" >&2
-    exit 2
-    ;;
-esac
-SH
+# Body lives in scripts/lib/ (not a heredoc): Homebrew bash >= 5.1 writes
+# the entire heredoc body to a pipe before forking the reader, and macOS's
+# 512-byte pipe buffer deadlocks on any body over that size (#5074).
+cat "${repo_root}/scripts/lib/test-verify-remote-e2e-finite-completion-fake-docker.sh" >"${fake_bin}/docker"
 chmod +x "${fake_bin}/docker"
 
-cat >"${fake_bin}/curl" <<'SH'
-#!/usr/bin/env bash
-set -euo pipefail
-
-state_dir="${ESHU_REMOTE_E2E_TEST_STATE:?set ESHU_REMOTE_E2E_TEST_STATE}"
-printf '%s\n' "$*" >>"${state_dir}/curl-targets"
-case "$*" in
-  *"/api/v0/index-status"*) cat "${state_dir}/index-status.json" ;;
-  *"/api/v0/status/index"*) cat "${state_dir}/status-index.json" ;;
-  *"/api/v0/package-registry/packages/count"*) cat "${state_dir}/package-count.json" ;;
-  *"/api/v0/supply-chain/advisories/evidence"*) cat "${state_dir}/advisory-evidence.json" ;;
-  *"/api/v0/supply-chain/impact/findings/count"*) cat "${state_dir}/impact-count.json" ;;
-  *"/api/v0/supply-chain/security-alerts/reconciliations/count"*) cat "${state_dir}/security-alert-count.json" ;;
-  *"/api/v0/supply-chain/sbom-attestations/attachments/count"*) cat "${state_dir}/sbom-count.json" ;;
-  *"/api/v0/supply-chain/container-images/identities/count"*) cat "${state_dir}/container-image-count.json" ;;
-  *) echo "unexpected curl target: $*" >&2; exit 2 ;;
-esac
-SH
+# Body lives in scripts/lib/ (not a heredoc): Homebrew bash >= 5.1 writes
+# the entire heredoc body to a pipe before forking the reader, and macOS's
+# 512-byte pipe buffer deadlocks on any body over that size (#5074).
+cat "${repo_root}/scripts/lib/test-verify-remote-e2e-finite-completion-fake-curl.sh" >"${fake_bin}/curl"
 chmod +x "${fake_bin}/curl"
 
 reset_state() {

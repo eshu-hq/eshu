@@ -1,0 +1,12 @@
+{
+  "run": {"id": "private-numeric", "commit": "b514d2f395f9c2edc25e010c32229e2f6f0005de"},
+  "startup": {"schema_bootstrap": "passed"},
+  "services": [{"name": "eshu", "state": "running", "health": "healthy"}],
+  "index_status": {"status": "healthy", "queue": {"outstanding": 0}},
+  "work": {
+    "pending_domains": [
+      {"domain": "search_document_readiness", "pending": 0, "oldest_age_seconds": 0, "account_id": 123456789012}
+    ]
+  },
+  "postgres": {"active_queries": [], "ungranted_locks": 0, "relation_sizes": []}
+}

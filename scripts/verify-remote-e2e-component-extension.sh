@@ -16,20 +16,25 @@ list_only=false
 artifacts_dir=""
 
 usage() {
-	cat <<USAGE
-Usage: $(basename "$0") --artifacts <dir> [--list]
-
-Verifies recorded Scorecard component-extension proof artifacts:
-  inventory.json        component-extensions API readback
-  workflow-items.json   component workflow item terminal states
-  facts.json            committed dev.eshu.examples.scorecard.* fact counts
-  provenance.json       Eshu commit, digest, SDK/core versions, backend, telemetry
-
-The artifacts directory is produced by running the component-extension Compose
-harness against a stack (see docs/public/extend/reference-scorecard-extension.md).
-
-  --list   print the proof checks without running them
-USAGE
+	# printf, not a heredoc: Homebrew bash >= 5.1 writes an entire heredoc
+	# body to a pipe before forking the reader, and macOS's 512-byte pipe
+	# buffer deadlocks on any body over that size (#5074). This body expands
+	# "$(basename "$0")", so it cannot move to a static scripts/lib/ data
+	# file; each literal line is single-quoted and the one expanding line is
+	# double-quoted to preserve the original heredoc's expansion behavior.
+	printf '%s\n' \
+		"Usage: $(basename "$0") --artifacts <dir> [--list]" \
+		'' \
+		'Verifies recorded Scorecard component-extension proof artifacts:' \
+		'  inventory.json        component-extensions API readback' \
+		'  workflow-items.json   component workflow item terminal states' \
+		'  facts.json            committed dev.eshu.examples.scorecard.* fact counts' \
+		'  provenance.json       Eshu commit, digest, SDK/core versions, backend, telemetry' \
+		'' \
+		'The artifacts directory is produced by running the component-extension Compose' \
+		'harness against a stack (see docs/public/extend/reference-scorecard-extension.md).' \
+		'' \
+		'  --list   print the proof checks without running them'
 }
 
 die() {
@@ -66,14 +71,20 @@ readonly forbidden_patterns=(
 )
 
 print_checks() {
-	cat <<CHECKS
-component-extension proof checks:
-  1. inventory: ${component_id} reads back installed=true, enabled=true, trusted=true
-  2. workflow: component workflow item terminal success; no retrying/failed/dead-letter
-  3. facts: at least one committed fact for ${fact_families[*]}
-  4. provenance: records eshu_commit, component_digest, core/sdk versions, backend, queue terminal state, telemetry handle
-  5. redaction canary: no host paths, private keys, bearer tokens, or raw IPs in artifacts
-CHECKS
+	# printf, not a heredoc: the expanded body is 585 bytes, inside the
+	# 512-byte-plus deadlock window that Homebrew bash 5.1+ hits on macOS
+	# (#5074). The source stays under 512 bytes, so the heredoc-budget gate
+	# never flagged it; the deadlock only shows at runtime once "${component_id}"
+	# and "${fact_families[*]}" expand. Literal lines are single-quoted; the two
+	# expanding lines are double-quoted to preserve the original output byte for
+	# byte.
+	printf '%s\n' \
+		'component-extension proof checks:' \
+		"  1. inventory: ${component_id} reads back installed=true, enabled=true, trusted=true" \
+		'  2. workflow: component workflow item terminal success; no retrying/failed/dead-letter' \
+		"  3. facts: at least one committed fact for ${fact_families[*]}" \
+		'  4. provenance: records eshu_commit, component_digest, core/sdk versions, backend, queue terminal state, telemetry handle' \
+		'  5. redaction canary: no host paths, private keys, bearer tokens, or raw IPs in artifacts'
 }
 
 if [[ "${list_only}" == true ]]; then
