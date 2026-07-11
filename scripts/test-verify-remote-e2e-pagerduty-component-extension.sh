@@ -124,20 +124,10 @@ cp "${tmp_dir}/inventory.json" "${tmp_dir}/api-inventory.json" "${tmp_dir}/mcp-i
 	"${tmp_dir}/workflow-items.json" "${tmp_dir}/facts.json" "${tmp_dir}/parity.json" \
 	"${tmp_dir}/provenance.json" "${tmp_dir}/disable.json" "${tmp_dir}/post-disable-inventory.json" \
 	"${tmp_dir}/uninstall.json" "${tmp_dir}/post-uninstall-inventory.json" "${leaky}/"
-cat >"${leaky}/parity.json" <<'JSON'
-{
-  "fixture_parity": "passed",
-  "run_id": "run-pagerduty-reference",
-  "source_run_id": "source-run-pagerduty-reference",
-  "generation_id": "generation-pagerduty-reference",
-  "work_item_id": "work-pagerduty-reference",
-  "expected_fact_signature": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
-  "extension_fact_signature": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
-  "in_tree_fact_count": 6,
-  "extension_fact_count": 6,
-  "leak": "Bearer exampletoken123"
-}
-JSON
+# Body lives in scripts/lib/ (not a heredoc): Homebrew bash >= 5.1 writes
+# the entire heredoc body to a pipe before forking the reader, and macOS's
+# 512-byte pipe buffer deadlocks on any body over that size (#5074).
+cat "${repo_root}/scripts/lib/test-verify-remote-e2e-pagerduty-component-extension-leaky-parity.json" >"${leaky}/parity.json"
 if "${verifier}" --artifacts "${leaky}" >/tmp/pagerduty-component-proof-leak.out 2>/tmp/pagerduty-component-proof-leak.err; then
 	die "expected verifier to fail when proof artifacts contain forbidden material"
 fi

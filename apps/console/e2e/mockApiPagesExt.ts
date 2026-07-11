@@ -254,6 +254,61 @@ export async function handlePageRouteExt(
     return true;
   }
 
+  // ── Page-level: semantic search ──
+  if (method === "POST" && path.includes("/search/semantic")) {
+    // postDataJSON() is synchronous (returns null|Serializable, not a
+    // Promise) — no .catch() to chain, so guard with try/catch instead.
+    let body: Record<string, unknown> = {};
+    try {
+      body = (route.request().postDataJSON() ?? {}) as Record<string, unknown>;
+    } catch {
+      body = {};
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(
+        envelope(
+          {
+            query: typeof body?.query === "string" ? body.query : "",
+            repo_id: typeof body?.repo_id === "string" ? body.repo_id : "",
+            mode: "hybrid",
+            search_mode: "hybrid",
+            limit: 20,
+            timeout_ms: 8000,
+            results: [
+              {
+                rank: 1,
+                score: 0.87,
+                search_method: "hybrid",
+                document: {
+                  id: "doc-1",
+                  repo_id: "acme/checkout-service",
+                  source_kind: "repository_file",
+                  title: "retry.go",
+                  path: "internal/checkout/retry.go",
+                  context_text: "Implements exponential backoff for checkout retries.",
+                  labels: ["language:go"],
+                  updated_at: "2026-06-01T00:00:00Z",
+                },
+                truth_scope: { level: "derived", basis: "content_index" },
+                freshness: { state: "fresh" },
+              },
+            ],
+            truncated: false,
+            indexed_document_count: 512,
+            corpus_limit: 1000,
+            corpus_may_be_truncated: false,
+            retrieval_state: "ready",
+            facets: { languages: { go: 1 } },
+          },
+          "search.semantic",
+        ),
+      ),
+    });
+    return true;
+  }
+
   // ── Page-level: SBOM inventory/attachments ──
   if (path.includes("/supply-chain/sbom-attestations/attachments")) {
     await route.fulfill({

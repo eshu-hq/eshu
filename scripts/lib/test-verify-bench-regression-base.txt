@@ -1,0 +1,9 @@
+goos: linux
+goarch: amd64
+pkg: example/bench
+BenchmarkWidget-8   	1000000	       100.0 ns/op	      0 B/op	      0 allocs/op
+BenchmarkWidget-8   	1000000	       100.0 ns/op	      0 B/op	      0 allocs/op
+BenchmarkWidget-8   	1000000	       100.0 ns/op	      0 B/op	      0 allocs/op
+BenchmarkWidget-8   	1000000	       100.0 ns/op	      0 B/op	      0 allocs/op
+BenchmarkWidget-8   	1000000	       100.0 ns/op	      0 B/op	      0 allocs/op
+BenchmarkWidget-8   	1000000	       100.0 ns/op	      0 B/op	      0 allocs/op

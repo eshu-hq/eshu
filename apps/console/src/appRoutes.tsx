@@ -54,6 +54,14 @@ const WorkspacePage = lazy(() =>
   import("./pages/WorkspacePage").then((module) => ({ default: module.WorkspacePage })),
 );
 
+// SemanticSearchPage is code-split via React.lazy (issue #4024) so its
+// search surface stays out of the eagerly loaded main bundle.
+const SemanticSearchPage = lazy(() =>
+  import("./pages/SemanticSearchPage").then((module) => ({
+    default: module.SemanticSearchPage,
+  })),
+);
+
 // GuidedQuestionsPage is code-split via React.lazy (issue #4746) so its
 // query-playbooks live surface stays out of the eagerly loaded main bundle.
 const GuidedQuestionsPage = lazy(() =>
@@ -113,6 +121,21 @@ export function AppRoutes({
         }
       />
       <Route path="/ask" element={<AskPage source={source} />} />
+      <Route
+        path="/semantic-search"
+        element={
+          <Suspense
+            fallback={
+              <section className="page-shell">
+                <h1>Loading semantic search</h1>
+                <p>Loading live data.</p>
+              </section>
+            }
+          >
+            <SemanticSearchPage client={client} />
+          </Suspense>
+        }
+      />
       <Route
         path="/guided-questions"
         element={

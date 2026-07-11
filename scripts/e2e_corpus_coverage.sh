@@ -23,32 +23,11 @@ forbidden_keys='[
 private_value_pattern='ghp_|github_pat_|glpat-|AKIA|ASIA|xox[baprs]-|https?://|/security/dependabot|arn:(aws|aws-us-gov|aws-cn):|/(Users|home|private|var|tmp|Volumes|workspace|workspaces|repos|personal-repos)/|(^|[^0-9])[0-9]{12}([^0-9]|$)|([0-9]{1,3}\.){3}[0-9]{1,3}|[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}|(^|[[:space:]"'\''])[-A-Za-z0-9_.]+/[-A-Za-z0-9_.]+($|[[:space:]"'\'',])'
 
 usage() {
-	cat >&2 <<'USAGE'
-Usage: scripts/e2e_corpus_coverage.sh --input PATH --output PATH [options]
-
-Options:
-  --mode smoke|representative|full
-  --missing-reason TEXT
-  --issue-ref #NNNN
-  --min-repository-count N
-  --max-repository-count N
-
-Input is an operator-local aggregate JSON file:
-{
-  "schema_version": 1,
-  "mode": "representative",
-  "repository_count": 29,
-  "ecosystems": {"npm": 87},
-  "evidence_families": {
-    "terraform_iac": 89,
-    "relationship_evidence": 4
-  }
-}
-
-Output is public-safe aggregate coverage with every required E2E slot present.
-Positive counts become pass rows. Missing or zero counts become fail rows with
-the configured reason and public issue reference.
-USAGE
+	# Body lives in scripts/lib/ (not a heredoc): Homebrew bash >= 5.1 writes
+	# the entire heredoc body to a pipe before forking the reader, and
+	# macOS's 512-byte pipe buffer deadlocks on any body over that size
+	# (#5074).
+	cat "$(dirname "$0")/lib/e2e_corpus_coverage-usage.txt" >&2
 }
 
 die() {

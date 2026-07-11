@@ -31,6 +31,7 @@ const ALWAYS_ALLOWED_ROUTES: ReadonlySet<string> = new Set(["/", "/dashboard", "
 const NAV_ROUTE_TO_FAMILY: ReadonlyMap<string, string> = new Map([
   // ask_search: natural language search over the graph
   ["/ask", "ask_search"],
+  ["/semantic-search", "ask_search"],
   // guided questions runs bounded query-playbooks — the same query/search
   // surface as /ask, so it is gated by the same family (and, like /ask, must
   // be listed here or AppSidebar filters it out of the nav even fail-open).
