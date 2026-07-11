@@ -9,7 +9,9 @@ that scheduler scan and added a terminal-count shortcut, but the preserved
 
 1. Once terminal metadata count reached document count, the exact completion
    branch returned to `fact_records` JSON. A 3,121-document scope was still
-   active after 159 seconds.
+   active after 159 seconds. The first index-document rewrite improved an
+   incomplete scope but retained a nested complete-scope plan; the final image
+   exposed that residual for more than 112 seconds on 3,164 documents.
 2. The vector builder recomputed `embedding_content_hash` after loading a JSON
    document instead of retaining the projected document's `content_hash`.
    Invalid UTF-8 is replaced during JSON persistence, so those tokens differed
@@ -37,9 +39,15 @@ The theory was measured before the production changes:
 - Preserved remote state: all 98 hash mismatches contained `U+FFFD`.
 - OLD exact completion query: more than 159 seconds for 3,121 documents before
   cancellation.
-- NEW exact completion query over `eshu_search_index_documents`: 29.020 ms for
-  the same scope, 150.184 ms for an incomplete 253,206-document scope, and
-  938.760 ms for a complete 99,877-document scope.
+- The first index-document candidate took 29.020 ms for an incomplete
+  3,121-document scope, 150.184 ms for an incomplete 253,206-document scope,
+  and 938.760 ms for a complete 99,877-document scope. Rebuilding the finished
+  image against retained terminal state disproved that shape: its nested value
+  lookup exceeded 112 seconds on a complete 3,164-document scope.
+- The final materialized set difference took 38.610 ms on that same complete
+  3,164-document scope. On the complete 253,206-document maximum, the first
+  EXCEPT candidate took 4.148 seconds; materializing each scope-bounded
+  document, metadata, and value range once reduced it to 1.530 seconds.
 - OLD watermark probe returned one row while vector scopes were pending. The
   guarded probe returned zero rows in 0.590 ms with 158 shared-buffer hits.
 - With one current projection changed transactionally from `ready` to
@@ -67,9 +75,10 @@ The theory was measured before the production changes:
 - `EshuSearchDocumentRow` carries the persisted projection `ContentHash`.
   Vector metadata and values retain that token, including for data written by
   older binaries.
-- `ScopeVectorComplete` keeps the terminal-count shortcut and runs its exact
-  branch over `eshu_search_index_documents`, the same persisted projection the
-  builder reads.
+- `ScopeVectorComplete` keeps the terminal-count shortcut. Its exact branch
+  materializes the scope's projected documents, terminal metadata, and vector
+  values once, then uses `EXCEPT` to prove there is no missing document/hash
+  pair.
 - The query-side watermark probe returns a row only when no active ready
   document projection has missing, non-ready, or stale-revision vector scope
   state for the configured identity.
@@ -95,11 +104,11 @@ The theory was measured before the production changes:
 
 ## Accuracy and concurrency proof
 
-The live Postgres semantic matrix compares the new exact branch with the old
-fact reference for still-building, complete, ready-without-value, stale-hash,
-disabled, and retired-extra cases. The verdicts match for every case. The
-count-gate EXPLAIN shows the exact branch is never executed while terminal
-count is below document count.
+The live Postgres semantic matrix compares the materialized set difference with
+the old fact reference for still-building, complete, ready-without-value,
+stale-hash, disabled, and retired-extra cases. The verdicts match for every
+case. The count-gate EXPLAIN shows all exact input CTEs and the EXCEPT branch
+are never executed while terminal count is below document count.
 
 Focused race coverage runs the search, vector, Postgres, query, reducer, and
 reducer-command packages with `-race`. Existing revision and build-fence tests

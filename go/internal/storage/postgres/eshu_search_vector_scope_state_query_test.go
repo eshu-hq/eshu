@@ -93,9 +93,14 @@ func TestScopeVectorCompleteQueryShape(t *testing.T) {
 		}
 	}
 
-	// The exact anti-join must use the persisted search-document projection,
-	// which is the same one-row-per-document source consumed by the builder.
+	// The exact set difference must materialize each scope-bounded relation once
+	// before EXCEPT. This prevents the nested per-document value lookup that took
+	// more than 112 seconds for a complete 3,164-document scope.
 	for _, want := range []string{
+		"projected_docs AS MATERIALIZED",
+		"terminal_metadata AS MATERIALIZED",
+		"vector_values AS MATERIALIZED",
+		"EXCEPT",
 		"FROM eshu_search_index_documents doc",
 		"doc.scope_id = $1",
 		"doc.generation_id = $2",
@@ -105,7 +110,8 @@ func TestScopeVectorCompleteQueryShape(t *testing.T) {
 		"meta.source_class = $4",
 		"meta.embedding_model_id = $5",
 		"meta.vector_index_version = $6",
-		"meta.embedding_content_hash = doc.content_hash",
+		"meta.embedding_content_hash",
+		"value.embedding_content_hash = meta.embedding_content_hash",
 	} {
 		if !strings.Contains(q, want) {
 			t.Fatalf("query missing anti-join %q:\n%s", want, q)

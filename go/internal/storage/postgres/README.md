@@ -163,8 +163,9 @@ High-signal invariants for this package:
   stats are missing. `EshuSearchVectorScopeStateStore` schedules vector work
   from versioned projection state rather than a corpus-wide fact scan. Its
   completion gate rejects unequal counts cheaply, then performs one exact
-  anti-join over `eshu_search_index_documents`, the same one-row-per-document
-  projection consumed by the vector builder. The retired
+  materialized set difference over the scope's index documents, metadata, and
+  values. Each bounded relation is scanned once, avoiding a nested value lookup
+  for every document in a complete scope. The retired
   `EshuSearchVectorPendingStore` remains only as an equivalence reference.
   The startup seeder also counts this projection and inserts conservative
   `building` vector-scope rows in tens of milliseconds; exact readiness stays

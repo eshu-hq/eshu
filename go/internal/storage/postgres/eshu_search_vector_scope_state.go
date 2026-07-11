@@ -101,11 +101,11 @@ LIMIT $5
 // checks whether the terminal metadata count is at least the projection
 // document count.  When terminal_count < document_count, the scope is
 // still building and we return false without running the expensive exact
-// anti-join. When the count is satisfied, the exact check reads
-// eshu_search_index_documents, the same one-row-per-document projection the
-// vector builder consumes, rather than rescanning fact_records JSON. This
-// preserves stale-hash, ready-without-value, and retired-extra correctness
-// while keeping the final proof index-bounded at large scope cardinalities.
+// branch. When the count is satisfied, the exact check materializes the
+// scope-bounded projected documents, terminal metadata, and vector values
+// once, then compares document/hash pairs with EXCEPT. This avoids a nested
+// value lookup per document while preserving stale-hash, ready-without-value,
+// and retired-extra correctness.
 const scopeVectorCompleteSQL = `
 WITH completion_gate AS MATERIALIZED (
     SELECT
@@ -125,44 +125,59 @@ WITH completion_gate AS MATERIALIZED (
     WHERE ps.scope_id = $1
       AND ps.generation_id = $2
       AND ps.state = 'ready'
+),
+projected_docs AS MATERIALIZED (
+    SELECT doc.document_id, doc.content_hash
+    FROM eshu_search_index_documents doc
+    WHERE doc.scope_id = $1
+      AND doc.generation_id = $2
+      AND doc.generation_id = (
+          SELECT active_generation_id
+          FROM ingestion_scopes
+          WHERE scope_id = $1
+      )
+),
+terminal_metadata AS MATERIALIZED (
+    SELECT meta.document_id, meta.embedding_content_hash, meta.build_state
+    FROM eshu_search_vector_metadata meta
+    WHERE meta.scope_id = $1
+      AND meta.generation_id = $2
+      AND meta.provider_profile_id = $3
+      AND meta.source_class = $4
+      AND meta.embedding_model_id = $5
+      AND meta.vector_index_version = $6
+      AND meta.build_state IN ('ready', 'disabled')
+),
+vector_values AS MATERIALIZED (
+    SELECT value.document_id, value.embedding_content_hash
+    FROM eshu_search_vector_values value
+    WHERE value.scope_id = $1
+      AND value.generation_id = $2
+      AND value.provider_profile_id = $3
+      AND value.source_class = $4
+      AND value.embedding_model_id = $5
+      AND value.vector_index_version = $6
+),
+terminal_documents AS (
+    SELECT meta.document_id, meta.embedding_content_hash
+    FROM terminal_metadata meta
+    LEFT JOIN vector_values value
+      ON value.document_id = meta.document_id
+     AND value.embedding_content_hash = meta.embedding_content_hash
+    WHERE meta.build_state = 'disabled'
+       OR (meta.build_state = 'ready' AND value.document_id IS NOT NULL)
+),
+missing_documents AS (
+    SELECT document_id, content_hash
+    FROM projected_docs
+    EXCEPT
+    SELECT document_id, embedding_content_hash
+    FROM terminal_documents
 )
 SELECT CASE
     WHEN EXISTS (SELECT 1 FROM completion_gate WHERE terminal_count < document_count)
     THEN FALSE
-    ELSE NOT EXISTS (
-        SELECT 1
-        FROM eshu_search_index_documents doc
-        WHERE doc.scope_id = $1
-          AND doc.generation_id = $2
-          AND doc.generation_id = (
-              SELECT active_generation_id
-              FROM ingestion_scopes
-              WHERE scope_id = $1
-          )
-          AND NOT EXISTS (
-            SELECT 1
-            FROM eshu_search_vector_metadata meta
-            LEFT JOIN eshu_search_vector_values value
-              ON value.scope_id = meta.scope_id
-             AND value.generation_id = meta.generation_id
-             AND value.document_id = meta.document_id
-             AND value.provider_profile_id = meta.provider_profile_id
-             AND value.source_class = meta.source_class
-             AND value.embedding_model_id = meta.embedding_model_id
-             AND value.vector_index_version = meta.vector_index_version
-             AND value.embedding_content_hash = meta.embedding_content_hash
-            WHERE meta.scope_id = doc.scope_id
-              AND meta.generation_id = doc.generation_id
-              AND meta.document_id = doc.document_id
-              AND meta.provider_profile_id = $3
-              AND meta.source_class = $4
-              AND meta.embedding_model_id = $5
-              AND meta.vector_index_version = $6
-              AND meta.embedding_content_hash = doc.content_hash
-              AND (meta.build_state = 'disabled'
-                   OR (meta.build_state = 'ready' AND value.document_id IS NOT NULL))
-          )
-    )
+    ELSE NOT EXISTS (SELECT 1 FROM missing_documents)
 END AS complete
 `
 
