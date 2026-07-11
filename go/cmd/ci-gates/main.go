@@ -480,9 +480,15 @@ func executeGates(w io.Writer, sels []cigates.Selection, repoRoot string) error 
 // runShellCommand executes a shell command string via /bin/sh -c from repoRoot
 // (the registry's commands are repo-root-relative) and returns any non-zero exit
 // as an error.
+//
+// Gate commands that shell out to "bash scripts/verify-*.sh" get PATH
+// steered toward a bash >= 4.4 when one is available, so the inner "bash"
+// token does not silently resolve to macOS's bash 3.2. See
+// resolveBash44Dir's doc comment for the full rationale (#5050).
 func runShellCommand(command, repoRoot string) error {
 	cmd := exec.Command("/bin/sh", "-c", command) // #nosec G204 -- command comes from the operator-controlled gate registry
 	cmd.Dir = repoRoot
+	cmd.Env = gateSubprocessEnv()
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()

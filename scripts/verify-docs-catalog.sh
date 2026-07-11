@@ -1,6 +1,21 @@
 #!/usr/bin/env bash
 #
 # verify-docs-catalog.sh - validate the first GetEshu docs metadata subset.
+#
+# Requires bash >= 4.4: this script uses `declare -A` associative arrays
+# (a bash 4.0+ feature) to track required pages and landing-page links, and it
+# expands possibly-empty arrays under `set -u`, which aborts on bash < 4.4
+# (that empty-array-expansion bug was fixed in 4.4), so 4.4 — not merely 4.0 —
+# is the correct floor. On macOS the default /bin/bash is 3.2.57, which lacks
+# `declare -A` and fails with a cryptic "declare: -A: invalid option" deep in
+# the script. Check the running bash's version before `set -u` so BASH_VERSINFO
+# can never itself trip nounset, and fail with a clear message instead (#5050).
+if (( BASH_VERSINFO[0] < 4 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] < 4) )); then
+  printf '%s: requires bash >= 4.4 (running under %s); this script uses `declare -A`\n' \
+    "${0##*/}" "${BASH_VERSION:-non-bash shell}" >&2
+  printf '  re-run under bash >= 4.4 (e.g. /opt/homebrew/bin/bash, or `brew install bash`).\n' >&2
+  exit 1
+fi
 set -euo pipefail
 
 repo_root="${ESHU_DOCS_CATALOG_REPO_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"

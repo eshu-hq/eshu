@@ -56,6 +56,18 @@ results (does not stop at the first failure), and exits non-zero if any
 blocking gate failed. Advisory failures are printed but do not affect the exit
 code. CI-only gates are printed as `CI-ONLY` and never executed.
 
+For a `command` shape of `bash scripts/verify-*.sh`, the inner `bash` token
+resolves via PATH, and on macOS that finds the system `/bin/bash` (3.2.57)
+ahead of any Homebrew install. Bash 3.2 lacks bash 4.0+ features
+(`declare -A`) that some `verify-*.sh` gates use, which used to false-fail a
+blocking gate like `docs-catalog-metadata` on a developer's Mac even though
+the script passes under bash >= 4.4 and CI's Linux `bash` is already >= 4.x
+([#5050](https://github.com/eshu-hq/eshu/issues/5050)). `run` now resolves a
+qualifying bash (PATH, then `/opt/homebrew/bin/bash`, then
+`/usr/local/bin/bash`) and prepends its directory to the subprocess PATH, so
+the common case passes outright; each such script also carries its own
+bash >= 4.4 precondition guard as defense-in-depth.
+
 ### validate
 
 ```bash
