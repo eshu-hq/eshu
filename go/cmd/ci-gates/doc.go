@@ -41,6 +41,13 @@
 // filter as select, so a caller such as `make pre-pr` can run only the
 // exactness/telemetry contract lane (#4214).
 //
+// When a gate command shells out to "bash scripts/verify-*.sh", run resolves
+// a bash >= 4.4 (checking PATH, then /opt/homebrew/bin/bash, then
+// /usr/local/bin/bash) and prepends its directory to the subprocess's PATH
+// so the inner "bash" token does not silently resolve to macOS's bash 3.2,
+// which lacks bash 4.0+ features such as `declare -A` (#5050). If no
+// candidate qualifies, PATH is left unchanged.
+//
 // # validate
 //
 // Loads the registry and calls (*cigates.Registry).Validate against the repo
