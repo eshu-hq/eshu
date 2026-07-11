@@ -1,8 +1,11 @@
 # Cross-scope same-uid node ownership — deterministic merge for scope-derived properties
 
-Status: Accepted. Stage 1 enforcement = the Postgres **owner-ledger with a
-per-uid advisory lock** (design (b) below). The original graph-side guard was
-disproven on NornicDB by the mandatory prove-theory shim
+Status: Accepted and implemented. Stage 1 enforcement = the Postgres
+**owner-ledger with a per-uid advisory lock** (design (b) below), shipped as the
+`graph_node_owner` table (migration 053), the `postgres.GraphNodeOwnerStore`,
+and the `internal/graphowner` gate wrapping the five families' node writers in
+`cmd/reducer`. The original graph-side guard was disproven on NornicDB by the
+mandatory prove-theory shim
 (see [Prove-theory result](#prove-theory-result-stage-1-graph-side-guard-is-not-viable-on-nornicdb)),
 and the lock-free ledger variant (design (a)) was disproven by a forced
 worst-case interleaving; the advisory-lock variant (design (b)) is proven
@@ -616,12 +619,16 @@ already costs.** CloudResource-family batches are low-cardinality relative to
 File/Function, so the per-scope impact is small; the final gate remains the
 perf differential on the real writer before merge, as already required above.
 
-### Stage 1 owner-ledger mechanic (decided)
+### Stage 1 owner-ledger mechanic (decided and implemented)
 
-- A Postgres `cloud_resource_owner` table keyed on node `uid`, holding the
-  current max `source_order_key` and the winning scope-derived values (a JSONB
-  column, so all ~19 scope-derived properties are carried without a wide
-  schema), plus `updated_at`. Migration adds the table with a PK on `uid`.
+- A Postgres `graph_node_owner` table keyed on node `uid`, holding the current
+  max `source_order_key`, the winning node row as a `winning_row` JSONB column
+  (so all ~19 scope-derived properties are carried without a wide schema), plus
+  `updated_at`. Migration `053_graph_node_owner.sql` adds the table with a PK on
+  `uid`. (Named `graph_node_owner`, not `cloud_resource_owner`: canonical uids
+  are globally unique across labels, so one table serves the CloudResource
+  AWS/GCP/Azure + EC2-instance family and the KubernetesWorkload family.) The
+  store is `postgres.GraphNodeOwnerStore`; the gate is `internal/graphowner`.
 - The reducer node-write path, for each batch: sort the batch uids, acquire all
   per-uid advisory locks in one sorted statement, batch-upsert the ledger
   (atomic max), read back the winning order key per uid, and write to the graph
