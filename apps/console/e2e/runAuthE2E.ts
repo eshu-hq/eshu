@@ -1,52 +1,43 @@
 // Browser-auth E2E runner (issue #4971 phase 2, epic #4962 closer).
 //
-// Drives a REAL browser through the console's first-run setup wizard and the
-// require_sso guardrail against a freshly booted, zero-corpus
+// Drives a REAL browser through the console's first-run setup wizard and
+// the require_sso guardrail against a freshly booted, zero-corpus
 // docker-compose.e2e.yaml stack (see that file and
 // docs/public/run-locally/docker-compose.md#sso-auth-e2e-stack). Unlike
-// e2e/runConsoleLiveE2E.ts (which authenticates with a pre-shared API key
-// against a corpus-bearing stack), this runner authenticates the way a real
-// operator does on first boot: no local identities exist yet, so it recovers
-// the generated one-time admin credential straight out of Postgres via the
-// `eshu` CLI (authE2ECredential.ts) and drives the browser session that
-// results from claiming it.
+// e2e/runConsoleLiveE2E.ts (pre-shared API key against a corpus-bearing
+// stack), this authenticates like a real first-boot operator: no local
+// identities exist yet, so it recovers the one-time admin credential from
+// Postgres via the `eshu` CLI (authE2ECredential.ts) and drives the browser
+// session that results from claiming it.
 //
 // Stack lifecycle: this runner does NOT start or stop the Compose stack.
-// scripts/run-auth-e2e.sh owns `docker compose -f docker-compose.e2e.yaml up
-// --wait` before invoking this runner and `down -v` after, mirroring
-// scripts/run-console-live-e2e.sh's "the gate does not manage Docker"
-// convention but going one step further: because this stack must start from
-// truly zero identities for the acceptance items to mean anything, the
-// wrapper always brings up a FRESH stack (never reuses a long-lived one) and
-// always tears it down, rather than leaving stack lifecycle "explicit and
-// operator-controlled" the way the live corpus gate does.
+// scripts/run-auth-e2e.sh owns `up --wait`/`down -v` around it, going one
+// step further than run-console-live-e2e.sh's "gate does not manage Docker"
+// convention: since zero identities matter here, the wrapper always brings
+// up a FRESH stack and always tears it down. Console-reachability decision:
+// see authE2EDevServer.ts's header comment.
 //
-// Console-reachability decision: see authE2EDevServer.ts's header comment.
-//
-// Acceptance coverage (issue #4971 — all six items, one fresh zero-identity stack):
+// Acceptance coverage (issue #4971 items 1-6, issue #5073 items 7-9, one
+// fresh zero-identity stack):
 //   1. Fresh stack shows the SetupPage, not a dead-end LoginPage.
-//   2. Claim the generated one-time credential, complete the 3-step wizard, land
-//      on the dashboard; the credential is then destroyed (second retrieval empty)
-//      and the setup routes return 410.
-//   3. Configure a member-mapped OIDC provider through the real Add-provider UI
-//      (add -> test -> enable); it shows active and appears on /login.
-//   4. Complete a real browser OIDC redirect -> mock IdP -> callback as that
-//      member (non-admin): no Admin nav, /admin renders the 403 AccessDeniedPage,
-//      admin APIs 403.
-//   5. The require_sso guardrail rejects a premature enable (400) until a provider
-//      passes its test AND an admin has completed an SSO sign-in; enabling it then
-//      revokes item 2's still-open, pre-existing LOCAL admin session (issue #5002 —
-//      a 401 on that session proves the flip revoked an already-issued session, not
-//      merely blocked future ones), hides the local form on /login, while
-//      break-glass /login?local=1 still works (a NEW, untouched session). The
-//      admin-SSO precondition needs a second, env/file-backed provider — a
-//      DB-backed group mapping can never mint an AllScopes session; see
-//      authE2EOidcFlow.ts and authE2ERequireSSOFlow.ts.
-//   6. Negative-leakage scan (authE2ELeakage.ts): the flow's secrets (bootstrap
-//      password/recovery code, wizard password, enrolled MFA code, both client
-//      secrets) appear in NO audit trail, provider-config read, status/health,
-//      DOM, or API container log — bar epic #4962's one-time banner.
-// A CI job (frontend.yml's auth-sso-e2e) runs this whole gate on a fresh stack.
+//   2. Claim the one-time credential, complete the 3-step wizard, land on the
+//      dashboard; the credential is destroyed and the setup routes return 410.
+//   3. Configure a member-mapped OIDC provider via the real Add-provider UI
+//      (add -> test -> enable); shows active and appears on /login.
+//   4. Complete a real OIDC redirect -> mock IdP -> callback as that member
+//      (non-admin): no Admin nav, /admin renders AccessDeniedPage, admin APIs 403.
+//   5. require_sso rejects a premature enable (400) until a provider passes
+//      its test AND an admin completes an SSO sign-in; enabling it then
+//      revokes item 2's still-open LOCAL admin session (#5002 — a 401 there
+//      proves the flip revoked an issued session, not just blocked future
+//      ones), hides the local form on /login, while break-glass
+//      /login?local=1 still works. The admin-SSO precondition needs a second,
+//      env/file-backed provider; see authE2EOidcFlow.ts/authE2ERequireSSOFlow.ts.
+//   6. Negative-leakage scan (authE2ELeakage.ts): the flow's secrets never
+//      appear in any audit trail, provider-config read, status/health, DOM, or
+//      API container log — bar epic #4962's one-time banner.
+//   7-9. Three LOCAL non-admin member flows (#5073) — see authE2ELocalMemberFlow.ts.
+// A CI job (frontend.yml's auth-sso-e2e) runs this gate on a fresh stack.
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -63,6 +54,17 @@ import {
   type AuthE2EDevServer,
 } from "./authE2EDevServer.ts";
 import { runLeakageScan, type SecretProbe } from "./authE2ELeakage.ts";
+import {
+  assertMustChangePasswordLogin,
+  assertNoFactorMemberMfaRequired,
+  assertRotateClearsMustChangeAndRecoveryLoginWorks,
+  assertTotpLoginRejectsInvalidCode,
+  assertTotpLoginSucceeds,
+  provisionLocalMemberFlows,
+  seedMustChangePassword,
+  setRequireMfaForAllUsers,
+  type ProvisionedLocalMembers,
+} from "./authE2ELocalMemberFlow.ts";
 import {
   assertFreshStackShowsSetupWizard,
   assertSetupRouteGone,
@@ -95,6 +97,7 @@ const screenshotsDir = resolve(artifactsDir, "auth-e2e-screenshots");
 const reportPath = resolve(artifactsDir, "auth-e2e-report.json");
 
 const apiBase = (process.env.ESHU_E2E_API_BASE ?? "http://127.0.0.1:28080").trim();
+const composeProject = (process.env.ESHU_E2E_PROJECT_NAME ?? "eshu-e2e-auth").trim();
 const postgresDSN =
   (process.env.ESHU_E2E_POSTGRES_DSN ?? "").trim() ||
   buildPostgresDSN({
@@ -351,6 +354,35 @@ export async function runAuthE2E(): Promise<number> {
         );
       }
       return `GET /api/v0/auth/admin/provider-configs correctly returned 403: ${result.text.slice(0, 160)}`;
+    });
+
+    // items 7-9 (#5073): 3 LOCAL member flows (#5001/#4986/#4976). Must run
+    // HERE, after item4 / before item5's require_sso=true flip (which would
+    // 403 every non-admin local login) — see authE2ELocalMemberFlow.ts.
+    const baseUrl = devServer!.baseUrl;
+    const localCtx = { browser: browser!, baseUrl, navTimeoutMs };
+    let localMembers: ProvisionedLocalMembers | undefined;
+    await step("item7_flowA_provisioned_and_mfa_required", async () => {
+      localMembers = await provisionLocalMemberFlows(repoRoot, composeProject, localCtx);
+      const flip = await setRequireMfaForAllUsers(page);
+      const blocked = await assertNoFactorMemberMfaRequired(localCtx, localMembers.flowA);
+      return `${localMembers.detail}; ${flip}; ${blocked}`;
+    });
+    await step("item8_flowB_totp_login", async () => {
+      const ok = await assertTotpLoginSucceeds(localCtx, localMembers!.flowB);
+      const rejected = await assertTotpLoginRejectsInvalidCode(localCtx, localMembers!.flowB);
+      return `${ok}; ${rejected}`;
+    });
+    await step("item9_flowC_must_change_seed_login_and_rotate", async () => {
+      const flowC = localMembers!.flowC;
+      const seeded = await seedMustChangePassword(repoRoot, composeProject, flowC.loginId);
+      const blocked = await assertMustChangePasswordLogin(localCtx, flowC);
+      const rotated = await assertRotateClearsMustChangeAndRecoveryLoginWorks(
+        localCtx,
+        flowC,
+        "E2E-local-member-c-rotated-P@ssw0rd-2",
+      );
+      return `${seeded}; ${blocked}; ${rotated}`;
     });
 
     // item 5 (completing the break-glass half): complete an SSO login
