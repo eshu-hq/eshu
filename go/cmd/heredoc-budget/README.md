@@ -74,6 +74,14 @@ This command owns heredoc scanning and baseline comparison only. It does not
 rewrite any offending script — that is left to the follow-on slices of #5074
 that convert individual files.
 
+## Known limitations
+
+The scanner is a line-based approximation, not a full shell lexer. It ignores a
+`<<IDENT` written in a full-line `#` comment and never mis-closes on a delimiter
+word inside another heredoc body. Two fail-open edge cases remain — a `<<IDENT`
+inside a string literal, and two openers on one line (`cmd <<A <<B`) — neither
+present in the tree today; hardening is tracked in #5079.
+
 ## Tests
 
 ```bash

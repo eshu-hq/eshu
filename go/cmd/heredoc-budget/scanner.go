@@ -69,6 +69,17 @@ func ScanContent(src string) []Heredoc {
 			bodySize += len(line) + 1
 			continue
 		}
+		// A full-line shell comment cannot open a heredoc. Skipping it keeps a
+		// `<<IDENT` written inside a comment (e.g. "# see the <<EOF below")
+		// from phantom-opening the scanner and desyncing it so a later real
+		// oversized heredoc is missed — the dangerous fail-open case for this
+		// gate. This applies only outside a heredoc body; a comment-looking
+		// line inside a body is body content, already handled above.
+		// A `<<IDENT` inside a string literal or a second opener on one line
+		// are known limitations (see the "Known limitations" note in doc.go).
+		if strings.HasPrefix(strings.TrimLeft(line, " \t"), "#") {
+			continue
+		}
 		if o, ok := findOpener(line); ok {
 			inBody = true
 			current = o

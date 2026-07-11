@@ -57,4 +57,14 @@
 //	           determines the scan root, which is the baseline's directory)
 //	-update    regenerate the baseline instead of checking it
 //	-budget    byte budget per heredoc body (default 512)
+//
+// # Known limitations
+//
+// The scanner is a line-based approximation, not a full shell lexer. It
+// correctly ignores a `<<IDENT` written in a full-line `#` comment and does
+// not mis-close a heredoc on a delimiter word appearing inside another body.
+// Two fail-open edge cases remain (a real oversized heredoc could be missed):
+// a `<<IDENT` inside a string literal, and two heredoc openers on one line
+// (`cmd <<A <<B`, only the first is measured). Neither occurs in the tree
+// today; hardening is tracked in #5079.
 package main

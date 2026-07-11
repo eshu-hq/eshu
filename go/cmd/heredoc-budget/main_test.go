@@ -30,6 +30,28 @@ func TestScanContent_OverBudgetHeredocFlagged(t *testing.T) {
 	}
 }
 
+// TestScanContent_CommentOpenerDoesNotHideRealHeredoc guards the #5074 review
+// false-negative: a `<<IDENT` inside a full-line comment must not phantom-open
+// the scanner and desync it so a later real oversized heredoc is missed (the
+// fail-open case — the gate would pass while make pre-pr still hangs).
+func TestScanContent_CommentOpenerDoesNotHideRealHeredoc(t *testing.T) {
+	body := strings.Repeat("a", 600) + "\n" // 601 bytes, over budget
+	// A comment mentioning `<<DONE` precedes a real oversized heredoc.
+	src := "#!/usr/bin/env bash\n# see the <<DONE marker used elsewhere\ncat <<EOF\n" + body + "EOF\n"
+
+	heredocs := ScanContent(src)
+
+	if len(heredocs) != 1 {
+		t.Fatalf("expected the real heredoc to be detected despite the comment opener, got %d: %+v", len(heredocs), heredocs)
+	}
+	if heredocs[0].Size <= defaultBudget {
+		t.Fatalf("expected body size > %d, got %d", defaultBudget, heredocs[0].Size)
+	}
+	if heredocs[0].Line != 3 {
+		t.Fatalf("expected the real opener on line 3, got line %d", heredocs[0].Line)
+	}
+}
+
 func TestScanContent_UnderBudgetHeredocNotFlagged(t *testing.T) {
 	body := strings.Repeat("a", 100) + "\n" // 101 bytes, under the 512 budget
 	src := "cat <<EOF\n" + body + "EOF\n"
