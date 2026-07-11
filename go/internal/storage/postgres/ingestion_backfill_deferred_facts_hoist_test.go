@@ -6,6 +6,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"os"
 	"sort"
@@ -286,34 +287,29 @@ VALUES ($1, $2, $3, $4, $5, 'git', $5, $6, $6, $7::jsonb)`,
 			t.Fatalf("seed fact %q: %v", row.factID, err)
 		}
 	}
-	if _, err := db.ExecContext(ctx, `
-INSERT INTO relationship_reference_candidate_keys (
-    fact_id, scope_id, generation_id, source_repo_id, reference_key
-)
-SELECT
-    fact_id,
-    scope_id,
-    generation_id,
-    COALESCE(NULLIF(LOWER(TRIM(payload->>'repo_id')), ''), ''),
-    '|' ||
-    REGEXP_REPLACE(
-        REGEXP_REPLACE(
-            REGEXP_REPLACE(LOWER(payload::text), '[^a-z0-9._-]+', '|', 'g'),
-            '\.git(\||$)',
-            '\1',
-            'g'
-        ),
-        '\.(yaml|yml|json|tfvars|tf|hcl)(\||$)',
-        '\2',
-        'g'
-    ) ||
-    '|'
-FROM fact_records
-WHERE fact_kind IN ('content', 'file', 'gcp_cloud_relationship')
-  AND is_tombstone = FALSE`); err != nil {
+	if err := refreshRelationshipReferenceCandidateKeys(ctx, SQLDB{DB: db}, deferredHoistFixtureEnvelopes(t, rows)); err != nil {
 		t.Fatalf("seed relationship reference keys: %v", err)
 	}
 	return rows
+}
+
+func deferredHoistFixtureEnvelopes(t *testing.T, rows []deferredHoistFixtureRow) []facts.Envelope {
+	t.Helper()
+	envelopes := make([]facts.Envelope, 0, len(rows))
+	for _, row := range rows {
+		var payload map[string]any
+		if err := json.Unmarshal([]byte(row.payload), &payload); err != nil {
+			t.Fatalf("decode fixture payload %q: %v", row.factID, err)
+		}
+		envelopes = append(envelopes, facts.Envelope{
+			FactID:       row.factID,
+			ScopeID:      row.scopeID,
+			GenerationID: row.genID,
+			FactKind:     row.kind,
+			Payload:      payload,
+		})
+	}
+	return envelopes
 }
 
 // runPreHoistDeferredScopedQuery executes the frozen pre-hoist ($1..$4) query
