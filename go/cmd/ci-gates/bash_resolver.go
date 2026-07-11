@@ -54,3 +54,21 @@ func resolveBash44Dir() string {
 	}
 	return ""
 }
+
+// gateSubprocessEnv returns the environment a gate subprocess should run with:
+// os.Environ() with a bash >= 4.4 directory prepended to PATH when
+// resolveBash44Dir finds one, so a gate command that shells out to
+// "bash scripts/*.sh" resolves the inner bash to a working interpreter instead
+// of macOS's 3.2. It returns nil when no qualifying bash is found, which
+// os/exec treats as "inherit the current process environment unchanged" — the
+// deliberate no-op path (CI Linux already has a >= 4.4 bash on PATH; a host
+// with only an old bash then relies on the per-script BASH_VERSINFO guard).
+// This is split out from runShellCommand so the PATH-steering wiring is
+// unit-testable rather than only reachable through a live gate run (#5050).
+func gateSubprocessEnv() []string {
+	dir := resolveBash44Dir()
+	if dir == "" {
+		return nil
+	}
+	return append(os.Environ(), "PATH="+dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+}

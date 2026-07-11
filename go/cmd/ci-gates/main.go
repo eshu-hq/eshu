@@ -488,9 +488,7 @@ func executeGates(w io.Writer, sels []cigates.Selection, repoRoot string) error 
 func runShellCommand(command, repoRoot string) error {
 	cmd := exec.Command("/bin/sh", "-c", command) // #nosec G204 -- command comes from the operator-controlled gate registry
 	cmd.Dir = repoRoot
-	if dir := resolveBash44Dir(); dir != "" {
-		cmd.Env = append(os.Environ(), "PATH="+dir+string(os.PathListSeparator)+os.Getenv("PATH"))
-	}
+	cmd.Env = gateSubprocessEnv()
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()

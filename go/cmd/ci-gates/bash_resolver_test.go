@@ -6,6 +6,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -85,5 +86,43 @@ func TestResolveBash44Dir_FallsBackCleanly(t *testing.T) {
 	}
 	if !bashAtLeast44(resolved) {
 		t.Errorf("resolveBash44Dir returned %q, but %q does not itself qualify as bash >= 4.4", dir, resolved)
+	}
+}
+
+// TestGateSubprocessEnvPrependsResolvedBashDir proves the PATH-steering wiring
+// runShellCommand depends on: when a bash >= 4.4 resolves, gateSubprocessEnv
+// must return an environment whose effective PATH begins with that bash's
+// directory, so a gate command's inner `bash scripts/*.sh` token resolves to
+// it. When none resolves it must return nil ("inherit unchanged"). This closes
+// the false-green gap the review flagged — deleting the prepend leaves the
+// resolver tests green but fails this one (#5050 review P2).
+func TestGateSubprocessEnvPrependsResolvedBashDir(t *testing.T) {
+	dir := resolveBash44Dir()
+	env := gateSubprocessEnv()
+
+	if dir == "" {
+		if env != nil {
+			t.Fatalf("no qualifying bash resolved, but gateSubprocessEnv returned non-nil env %v; want nil (inherit unchanged)", env)
+		}
+		return
+	}
+
+	// os/exec keeps the LAST PATH= entry, so the effective value is the last one.
+	pathVal := ""
+	seen := false
+	for _, kv := range env {
+		if strings.HasPrefix(kv, "PATH=") {
+			pathVal = strings.TrimPrefix(kv, "PATH=")
+			seen = true
+		}
+	}
+	if !seen {
+		t.Fatal("gateSubprocessEnv returned an env with no PATH entry")
+	}
+	// Assert the exact prepend, not just "starts with dir": an exact match can
+	// never false-green on a host where dir already happens to be first in PATH.
+	want := dir + string(os.PathListSeparator) + os.Getenv("PATH")
+	if pathVal != want {
+		t.Fatalf("effective PATH is not the resolved bash dir prepended\n  want: %q\n  got:  %q", want, pathVal)
 	}
 }
