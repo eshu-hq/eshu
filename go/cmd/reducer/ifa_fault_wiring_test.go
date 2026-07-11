@@ -113,3 +113,62 @@ func TestWrapIfaFaultExecutorWrapsWithFaultingExecutorForValidScript(t *testing.
 		t.Fatal("expected OnceThenSucceedFired() to report true")
 	}
 }
+
+// TestWrapIfaFaultExecutorExecutorRetryLaneRetriesInPlaceBelowTheRetryingExecutor
+// is the #5048 fix proof against the reducer's REAL executor chain (a
+// reducerNeo4jExecutor wrapped in sourcecypher.InstrumentedExecutor, exactly
+// as go/cmd/reducer/observed_service_wiring.go builds it before
+// buildReducerService's wrapIfaFaultExecutor call). With the persistent
+// RetryingExecutor introduced by #5048 (newReducerNeo4jExecutor) and this
+// wiring's below-the-seam arming, the executor-retry lane's scripted failure
+// is absorbed by RetryingExecutor IN PLACE: attempt 1 fails (armed,
+// short-circuited before the real session write), attempt 2 reaches the
+// real session runner and succeeds -- so the caller observes a single
+// logical success and the fake session runner records exactly ONE real
+// write, never a queue-retry-shaped error.
+func TestWrapIfaFaultExecutorExecutorRetryLaneRetriesInPlaceBelowTheRetryingExecutor(t *testing.T) {
+	t.Parallel()
+
+	session := &fakeNeo4jSession{}
+	instrumented := &sourcecypher.InstrumentedExecutor{Inner: newReducerNeo4jExecutor(session, nil)}
+
+	ordinal := 1
+	script := faultreplay.Script{
+		Version: faultreplay.CurrentVersion,
+		Faults: []faultreplay.FaultOp{
+			{
+				Kind:    faultreplay.KindFailGraphWriteOnceThenSucceed,
+				Trigger: faultreplay.Trigger{StatementOrdinal: &ordinal},
+				Target:  faultreplay.Target{Lane: faultreplay.LaneExecutorRetry},
+			},
+		},
+	}
+	raw, err := json.Marshal(script)
+	if err != nil {
+		t.Fatalf("marshal fixture script: %v", err)
+	}
+	path := filepath.Join(t.TempDir(), "fault.json")
+	if err := os.WriteFile(path, raw, 0o600); err != nil {
+		t.Fatalf("write fixture: %v", err)
+	}
+
+	env := getenvMap(map[string]string{ifaFaultScriptEnv: path})
+	wrapped, err := wrapIfaFaultExecutor(instrumented, env, nil)
+	if err != nil {
+		t.Fatalf("wrapIfaFaultExecutor: %v", err)
+	}
+	fe, ok := wrapped.(*sourcecypher.FaultingExecutor)
+	if !ok {
+		t.Fatalf("expected *sourcecypher.FaultingExecutor, got %T", wrapped)
+	}
+
+	if err := fe.Execute(context.Background(), sourcecypher.Statement{Cypher: "MERGE (a) RETURN a"}); err != nil {
+		t.Fatalf("Execute() error = %v, want nil (executor-retry lane must retry in place and succeed)", err)
+	}
+	if !fe.OnceThenSucceedFired() {
+		t.Fatal("expected OnceThenSucceedFired() to report true")
+	}
+	if got, want := len(session.calls), 1; got != want {
+		t.Fatalf("session calls = %d, want %d (only the retried, successful attempt reaches the real session)", got, want)
+	}
+}

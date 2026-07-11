@@ -125,7 +125,7 @@ func TestReducerNeo4jExecutorExecutesStatement(t *testing.T) {
 	t.Parallel()
 
 	session := &fakeNeo4jSession{}
-	executor := reducerNeo4jExecutor{session: session}
+	executor := newReducerNeo4jExecutor(session, nil)
 
 	stmt := sourcecypher.Statement{
 		Operation:  sourcecypher.OperationCanonicalUpsert,
@@ -152,7 +152,7 @@ func TestReducerNeo4jExecutorPropagatesError(t *testing.T) {
 	t.Parallel()
 
 	session := &fakeNeo4jSession{err: errors.New("neo4j timeout")}
-	executor := reducerNeo4jExecutor{session: session}
+	executor := newReducerNeo4jExecutor(session, nil)
 
 	err := executor.Execute(context.Background(), sourcecypher.Statement{
 		Cypher: "MERGE (w:Workload {id: $id})",
@@ -166,7 +166,7 @@ func TestReducerCypherExecutorExecutesCypher(t *testing.T) {
 	t.Parallel()
 
 	session := &fakeNeo4jSession{}
-	executor := reducerCypherExecutor{session: session}
+	executor := newReducerCypherExecutor(session, nil)
 
 	err := executor.ExecuteCypher(
 		context.Background(),
@@ -188,7 +188,7 @@ func TestReducerCypherExecutorPropagatesError(t *testing.T) {
 	t.Parallel()
 
 	session := &fakeNeo4jSession{err: errors.New("connection refused")}
-	executor := reducerCypherExecutor{session: session}
+	executor := newReducerCypherExecutor(session, nil)
 
 	err := executor.ExecuteCypher(context.Background(), "MERGE (w:Workload)", nil)
 	if err == nil {
@@ -205,7 +205,7 @@ func TestReducerCypherExecutorRetriesTransientDeadlock(t *testing.T) {
 			nil,
 		},
 	}
-	executor := reducerCypherExecutor{session: session}
+	executor := newReducerCypherExecutor(session, nil)
 
 	err := executor.ExecuteCypher(context.Background(), "MERGE (w:Workload {id: $id})", map[string]any{"id": "workload:retry"})
 	if err != nil {

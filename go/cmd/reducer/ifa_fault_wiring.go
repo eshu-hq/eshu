@@ -6,9 +6,11 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"strings"
+	"sync/atomic"
 
 	"github.com/eshu-hq/eshu/go/internal/replay/faultreplay"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
@@ -50,6 +52,17 @@ func wrapIfaFaultExecutor(inner sourcecypher.Executor, getenv func(string) strin
 	if err != nil {
 		return nil, fmt.Errorf("build ifa faulting executor from %s=%q: %w", ifaFaultScriptEnv, path, err)
 	}
+	// #5048: wire the below-the-seam armer so the executor-retry lane
+	// retries in place through the reducer's real persistent
+	// RetryingExecutor instead of surfacing above it. armExecutorRetrySeam
+	// returns nil when inner is not the reducer's own executor chain (for
+	// example a test stub), in which case the fault decorator keeps its
+	// pre-#5048 fallback behavior for every lane.
+	if fe, ok := faulting.(*sourcecypher.FaultingExecutor); ok {
+		if armed := armExecutorRetrySeam(inner); armed != nil {
+			fe.SetExecutorRetryArmer(armed)
+		}
+	}
 	if logger != nil {
 		logger.Warn(
 			"ifa fault injection enabled for reducer graph writes",
@@ -58,4 +71,95 @@ func wrapIfaFaultExecutor(inner sourcecypher.Executor, getenv func(string) strin
 		)
 	}
 	return faulting, nil
+}
+
+// armExecutorRetrySeam locates the reducer's persistent
+// *sourcecypher.RetryingExecutor inside inner -- unwrapping a
+// sourcecypher.InstrumentedExecutor when present, matching how
+// go/cmd/reducer/observed_service_wiring.go wraps neo4jExecutor before
+// buildReducerService ever sees it -- and installs an armed decorator
+// directly below it, replacing retry.Inner. FaultingExecutor calls Arm() on
+// the returned value (via SetExecutorRetryArmer) instead of returning the
+// executor-retry lane's shaped error itself, so the reducer's real per-call
+// retry loop absorbs the scripted failure in place (#5048) rather than the
+// failure surfacing above RetryingExecutor and collapsing to queue-retry.
+//
+// retry.Inner is a pointer-field mutation: reducerNeo4jExecutor is a value
+// type, but its retry field is *sourcecypher.RetryingExecutor, so mutating
+// rne.retry.Inner here mutates the SAME RetryingExecutor the original
+// executor (buried inside inner, e.g. under InstrumentedExecutor.Inner)
+// already holds a pointer to -- no need to reconstruct or reassign inner.
+//
+// Returns nil when inner is not the reducer's own executor chain, in which
+// case the caller must not call SetExecutorRetryArmer and the fault
+// decorator keeps its pre-#5048 fallback for the executor-retry lane.
+func armExecutorRetrySeam(inner sourcecypher.Executor) *ifaExecutorRetryArmedExecutor {
+	target := inner
+	if instrumented, ok := target.(*sourcecypher.InstrumentedExecutor); ok {
+		target = instrumented.Inner
+	}
+	rne, ok := target.(reducerNeo4jExecutor)
+	if !ok || rne.retry == nil {
+		return nil
+	}
+	armed := &ifaExecutorRetryArmedExecutor{inner: rne.retry.Inner}
+	rne.retry.Inner = armed
+	return armed
+}
+
+// ifaExecutorRetryArmedExecutor decorates the cypher seam directly below the
+// reducer's persistent RetryingExecutor (retry.Inner, normally a
+// cypherRunnerStatementExecutor wrapping the real Neo4j session). When
+// armed, the NEXT Execute call fails once with a Neo.TransientError-shaped
+// error -- without calling inner, mirroring FaultingExecutor's own
+// short-circuit-on-fire behavior -- and disarms itself via CompareAndSwap so
+// concurrent callers cannot double-fire. RetryingExecutor sits directly
+// above this decorator (it IS retry.Inner's caller), so it observes that
+// failure and retries in place; attempt 2 then reaches inner for real. This
+// is the "fire below" half of the P6 executor-retry lane fix (#5048):
+// FaultingExecutor (fault_executor.go) stays the ordinal/trigger owner and
+// calls Arm() instead of returning the error itself.
+//
+// Caveat: the armed decorator is shared across the persistent RetryingExecutor,
+// so under concurrent projection workers the goroutine that reaches Execute
+// first after Arm() absorbs the single induced failure -- not necessarily the
+// same logical statement whose maybeFailOnce armed it. The onceFired/armed CAS
+// gates still guarantee exactly one fault fires in total (no double-fire, no
+// correctness hazard); the arm-statement == fire-statement identity only holds
+// strictly under the single-worker/Docker fault gate this seam is exercised by
+// today. Revisit this note when the concurrent-worker fault e2e gate lands.
+type ifaExecutorRetryArmedExecutor struct {
+	inner sourcecypher.Executor
+	armed atomic.Bool
+}
+
+// Arm implements sourcecypher.ExecutorRetryArmer: it schedules exactly one
+// failure on the next Execute call.
+func (a *ifaExecutorRetryArmedExecutor) Arm() {
+	a.armed.Store(true)
+}
+
+// Execute fires the armed failure at most once (CompareAndSwap-gated), then
+// delegates to inner on every other call.
+func (a *ifaExecutorRetryArmedExecutor) Execute(ctx context.Context, stmt sourcecypher.Statement) error {
+	if a.armed.CompareAndSwap(true, false) {
+		return &ifaExecutorRetryArmedError{}
+	}
+	return a.inner.Execute(ctx, stmt)
+}
+
+// ifaExecutorRetryArmedError is the below-the-seam counterpart of
+// sourcecypher's unexported ifaFaultExecutorRetryShapedError: its message
+// contains "TransientError" (specifically
+// "Neo.TransientError.Transaction.LockClientStopped-shaped") so the
+// reducer's persistent sourcecypher.RetryingExecutor classifies it as
+// retryable (isTransientNeo4jError matches on message content, not type, so
+// no cross-package type assertion is needed) and retries in place.
+type ifaExecutorRetryArmedError struct{}
+
+func (e *ifaExecutorRetryArmedError) Error() string {
+	return fmt.Sprintf(
+		"ifa fault: %s (executor-retry, Neo.TransientError.Transaction.LockClientStopped-shaped) armed below the reducer's persistent RetryingExecutor",
+		faultreplay.KindFailGraphWriteOnceThenSucceed,
+	)
 }
