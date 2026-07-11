@@ -218,6 +218,40 @@ describe("loginLocal", () => {
     >;
     expect(body).not.toHaveProperty("recovery_code");
   });
+
+  it("sends a 6-digit mfaCode as totp_code, not recovery_code (issue #4986)", async () => {
+    const client = makeClient();
+    await loginLocal(client, { login: "user@example.com", password: "s3cr3t", mfaCode: "123456" });
+    expect(client.postJson).toHaveBeenCalledWith("/api/v0/auth/local/login", {
+      login_id: "user@example.com",
+      password: "s3cr3t",
+      totp_code: "123456",
+    });
+  });
+
+  it("sends a non-6-digit mfaCode as recovery_code even if it contains digits", async () => {
+    const client = makeClient();
+    await loginLocal(client, { login: "user@example.com", password: "s3cr3t", mfaCode: "12345" });
+    expect(client.postJson).toHaveBeenCalledWith("/api/v0/auth/local/login", {
+      login_id: "user@example.com",
+      password: "s3cr3t",
+      recovery_code: "12345",
+    });
+  });
+
+  it("trims a whitespace-padded 6-digit mfaCode before classifying it", async () => {
+    const client = makeClient();
+    await loginLocal(client, {
+      login: "user@example.com",
+      password: "s3cr3t",
+      mfaCode: "  123456  ",
+    });
+    expect(client.postJson).toHaveBeenCalledWith("/api/v0/auth/local/login", {
+      login_id: "user@example.com",
+      password: "s3cr3t",
+      totp_code: "123456",
+    });
+  });
 });
 
 describe("beginOidcLogin", () => {

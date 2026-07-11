@@ -116,6 +116,8 @@ func TestKnownAuthFlowRoutesArePlannerExcluded(t *testing.T) {
 		"POST /api/v0/auth/local/invitations",
 		"POST /api/v0/auth/local/invitations/accept",
 		"POST /api/v0/auth/local/login",
+		"POST /api/v0/auth/local/mfa/totp/begin",
+		"POST /api/v0/auth/local/mfa/totp/confirm",
 		"POST /api/v0/auth/local/password/rotate",
 		"POST /api/v0/auth/local/users/{user_id}/disable",
 		"POST /api/v0/auth/local/users/{user_id}/mfa-reset",

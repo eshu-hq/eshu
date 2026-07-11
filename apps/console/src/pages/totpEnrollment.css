@@ -1,0 +1,55 @@
+/* totpEnrollment.css — minimal styling for the self-service authenticator
+   app (TOTP) enrollment control (issue #4986). Scoped under .totp-enroll so
+   it never leaks into unrelated panels. */
+
+.totp-enroll {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border, #2a2f3a);
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.totp-enroll label {
+  font-size: 0.8rem;
+  opacity: 0.8;
+}
+
+.totp-enroll input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.4rem 0.6rem;
+  border-radius: 6px;
+  border: 1px solid var(--border, #2a2f3a);
+  background: var(--panel-bg, transparent);
+  color: inherit;
+  font-family: inherit;
+}
+
+.totp-enroll button {
+  align-self: flex-start;
+  padding: 0.4rem 0.9rem;
+  border-radius: 6px;
+  border: 1px solid var(--teal, #2dd4bf);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.totp-enroll button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.totp-enroll-error {
+  color: var(--crit, #f0506e);
+  font-size: 0.85rem;
+  margin: 0;
+}
+
+.totp-enroll-success {
+  color: var(--teal, #2dd4bf);
+  font-size: 0.85rem;
+  margin: 0;
+}

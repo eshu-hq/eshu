@@ -229,9 +229,10 @@ func (s *IdentitySubjectStore) AuthenticateLocalIdentity(
 		mfaRequiredAtLogin = requireMFAForAllUsers
 	}
 	// Admin and non-admin share one enforcement block so the recovery-code
-	// consumption and failed-attempt handling never drift between them.
+	// consumption, TOTP verification, and failed-attempt handling never
+	// drift between them.
 	if mfaRequiredAtLogin {
-		if !row.HasActiveMFA || attempt.MFARecoveryCodeHash == "" {
+		if !row.HasActiveMFA || (attempt.MFARecoveryCodeHash == "" && attempt.MFATOTPCode == "") {
 			// Auth carries only the fields the caller's require_sso gate needs
 			// (go/internal/query handleLogin, issue #5001 P2 review finding):
 			// a non-admin can never satisfy an MFA challenge through local
@@ -251,7 +252,19 @@ func (s *IdentitySubjectStore) AuthenticateLocalIdentity(
 				},
 			}, nil
 		}
-		if err := consumeLocalIdentityRecoveryCode(ctx, s.db, row.UserID, attempt); err != nil {
+		// TOTP is checked first when both a TOTP code and a recovery code
+		// hash are submitted (issue #4986): a recovery code is single-use, so
+		// preferring the non-consuming TOTP proof whenever one is present
+		// avoids burning a one-time code the caller did not need to spend.
+		if attempt.MFATOTPCode != "" {
+			verified, _, err := s.verifyLocalIdentityTOTPCode(ctx, row.UserID, attempt.MFATOTPCode, attempt.Now)
+			if err != nil {
+				return LocalIdentityAuthenticationResult{}, err
+			}
+			if !verified {
+				return s.recordFailedLocalIdentityAttempt(ctx, row, attempt.Now)
+			}
+		} else if err := consumeLocalIdentityRecoveryCode(ctx, s.db, row.UserID, attempt); err != nil {
 			if errors.Is(err, errLocalIdentityRecoveryCodeInvalid) {
 				return s.recordFailedLocalIdentityAttempt(ctx, row, attempt.Now)
 			}

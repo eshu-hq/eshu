@@ -24,6 +24,9 @@ type localIdentityLoginRequest struct {
 	LoginID      string `json:"login_id"`
 	Password     string `json:"password"`
 	RecoveryCode string `json:"recovery_code"`
+	// TOTPCode is the authenticator-app code (issue #4986), checked before
+	// RecoveryCode when both are submitted.
+	TOTPCode string `json:"totp_code"`
 }
 
 type localIdentityInvitationRequest struct {
@@ -60,6 +63,9 @@ type localIdentityPasswordRotationRequest struct {
 	CurrentPassword string `json:"current_password"`
 	NewPassword     string `json:"new_password"`
 	RecoveryCode    string `json:"recovery_code"`
+	// TOTPCode is the authenticator-app code re-proved at rotation time
+	// (issue #4986), checked before RecoveryCode when both are submitted.
+	TOTPCode string `json:"totp_code"`
 }
 
 type localIdentityMFAResetRequest struct {

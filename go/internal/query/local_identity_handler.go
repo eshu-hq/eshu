@@ -56,6 +56,7 @@ func (h *LocalIdentityHandler) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v0/auth/local/break-glass", h.handleEnableBreakGlass)
 	mux.HandleFunc("POST /api/v0/auth/local/break-glass/session", h.handleBreakGlassSession)
 	h.mountAPITokenRoutes(mux)
+	h.mountTOTPRoutes(mux)
 }
 
 func (h *LocalIdentityHandler) handleBootstrap(w http.ResponseWriter, r *http.Request) {
@@ -126,6 +127,7 @@ func (h *LocalIdentityHandler) handleLogin(w http.ResponseWriter, r *http.Reques
 		Password:              req.Password,
 		MFARecoveryCodeHash:   localIdentityHash(req.RecoveryCode),
 		ConsumeRecoveryCodeAt: now,
+		MFATOTPCode:           req.TOTPCode,
 		Now:                   now,
 	})
 	if err != nil {
@@ -351,6 +353,7 @@ func (h *LocalIdentityHandler) handleRotatePassword(w http.ResponseWriter, r *ht
 		CredentialID:              h.newID(),
 		MFARecoveryCodeHash:       localIdentityHash(req.RecoveryCode),
 		ConsumeRecoveryCodeAt:     now,
+		MFATOTPCode:               req.TOTPCode,
 		Now:                       now,
 	})
 	if err != nil {

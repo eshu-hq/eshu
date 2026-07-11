@@ -7,10 +7,13 @@
 import { useEffect, useState } from "react";
 
 import type { EshuApiClient } from "../api/client";
+import { beginTOTPEnrollment, confirmTOTPEnrollment } from "../api/totpEnrollment";
+import type { TOTPBeginResult } from "../api/totpEnrollment";
 import { loadProfile, loadSessions, loadTokens } from "../api/userProfile";
 import type { ProfileData, BrowserSessionItem, APITokenItem } from "../api/userProfile";
 import { Panel, Badge } from "../components/atoms";
 import "./liveInventory.css";
+import "./totpEnrollment.css";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -45,9 +48,13 @@ function isExpired(iso: string | undefined): boolean {
 function IdentitySection({
   profile,
   unavailable,
+  client,
+  onEnrolled,
 }: {
   readonly profile: ProfileData | null;
   readonly unavailable: boolean;
+  readonly client?: EshuApiClient;
+  readonly onEnrolled: () => void;
 }): React.JSX.Element {
   if (unavailable) {
     return (
@@ -77,7 +84,134 @@ function IdentitySection({
           </>
         ) : null}
       </dl>
+      {client ? <TOTPEnrollmentControl client={client} onEnrolled={onEnrolled} /> : null}
     </Panel>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// TOTP (authenticator app) enrollment (issue #4986)
+// ---------------------------------------------------------------------------
+
+type TOTPEnrollmentPhase = "idle" | "provisioning" | "confirming" | "activated";
+
+// TOTPEnrollmentControl is the self-service authenticator-app enrollment
+// flow: begin -> render the otpauth URI + manual key (never re-fetchable
+// after this render) -> submit the first code -> confirm. No QR image is
+// rendered client-side (no new frontend dependency was added for this) —
+// the otpauth:// URI is shown as copyable text for a password manager /
+// authenticator app that accepts a pasted URI, alongside the manual-entry
+// secret. Recovery codes remain the primary enrollment path from the setup
+// wizard (SetupMFAStep.tsx); this is the ADDITIONAL self-service factor a
+// signed-in user may enable for themselves at any time.
+function TOTPEnrollmentControl({
+  client,
+  onEnrolled,
+}: {
+  readonly client: EshuApiClient;
+  readonly onEnrolled: () => void;
+}): React.JSX.Element {
+  const [phase, setPhase] = useState<TOTPEnrollmentPhase>("idle");
+  const [begin, setBegin] = useState<TOTPBeginResult | null>(null);
+  const [code, setCode] = useState("");
+  const [message, setMessage] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function handleBegin(): Promise<void> {
+    setBusy(true);
+    setMessage(null);
+    try {
+      const result = await beginTOTPEnrollment(client);
+      setBegin(result);
+      setPhase("confirming");
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Failed to start authenticator app setup.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleConfirm(): Promise<void> {
+    if (!begin) return;
+    setBusy(true);
+    setMessage(null);
+    try {
+      const result = await confirmTOTPEnrollment(client, begin.factor_id, code);
+      if (result.status === "activated") {
+        setPhase("activated");
+        onEnrolled();
+      } else if (result.status === "invalid_code") {
+        setMessage("That code did not match. Check the time on your device and try again.");
+      } else {
+        setMessage(result.message);
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (phase === "activated") {
+    return (
+      <div className="totp-enroll">
+        <p className="totp-enroll-success">Authenticator app enabled.</p>
+      </div>
+    );
+  }
+
+  if (phase === "idle") {
+    return (
+      <div className="totp-enroll">
+        {message ? <p className="totp-enroll-error">{message}</p> : null}
+        <button
+          type="button"
+          className="totp-enroll-start"
+          disabled={busy}
+          onClick={() => void handleBegin()}
+        >
+          {busy ? "Starting…" : "Set up authenticator app"}
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="totp-enroll">
+      <p>Scan or paste this into your authenticator app, or enter the key manually.</p>
+      <label htmlFor="totp-uri">Provisioning URI</label>
+      <input
+        id="totp-uri"
+        type="text"
+        readOnly
+        value={begin?.otpauth_uri ?? ""}
+        onFocus={(e) => e.currentTarget.select()}
+      />
+      <label htmlFor="totp-secret">Manual entry key</label>
+      <input
+        id="totp-secret"
+        type="text"
+        readOnly
+        value={begin?.secret ?? ""}
+        onFocus={(e) => e.currentTarget.select()}
+      />
+      <label htmlFor="totp-code">Enter the 6-digit code from your app</label>
+      <input
+        id="totp-code"
+        type="text"
+        inputMode="numeric"
+        autoComplete="one-time-code"
+        value={code}
+        disabled={busy}
+        onChange={(e) => setCode(e.target.value)}
+      />
+      {message ? <p className="totp-enroll-error">{message}</p> : null}
+      <button
+        type="button"
+        disabled={busy || code.trim().length === 0}
+        onClick={() => void handleConfirm()}
+      >
+        {busy ? "Verifying…" : "Activate"}
+      </button>
+    </div>
   );
 }
 
@@ -376,6 +510,17 @@ export function ProfilePage({ client }: { readonly client?: EshuApiClient }): Re
     };
   }, [client]);
 
+  // reloadProfile refreshes only the MFA-status-bearing profile panel after
+  // a successful TOTP enrollment (issue #4986), so "MFA active" flips to
+  // enabled without a full page reload.
+  function reloadProfile(): void {
+    if (!client) return;
+    void loadProfile(client).then((p) => {
+      setProfile(p.data);
+      setProfileUnavailable(p.provenance === "unavailable");
+    });
+  }
+
   if (loading) {
     return (
       <section className="page-shell">
@@ -389,7 +534,12 @@ export function ProfilePage({ client }: { readonly client?: EshuApiClient }): Re
     <section className="page-shell">
       <h1>Profile</h1>
       <div className="panel-grid">
-        <IdentitySection profile={profile} unavailable={profileUnavailable} />
+        <IdentitySection
+          profile={profile}
+          unavailable={profileUnavailable}
+          client={client}
+          onEnrolled={reloadProfile}
+        />
         <ContextSection profile={profile} unavailable={profileUnavailable} />
         <PermissionsSection profile={profile} unavailable={profileUnavailable} />
         <SessionsSection sessions={sessions} unavailable={sessionsUnavailable} />

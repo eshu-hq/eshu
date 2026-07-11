@@ -241,6 +241,21 @@ func wireAPI(
 		}
 	}
 
+	// TOTP MFA secret keyring (#4986). Reuses providerSecretKeyring — same
+	// ESHU_AUTH_SECRET_ENC_KEY(_FILE) DEK source, distinct AAD scheme (see
+	// identity_local_totp.go's totpSecretAAD) — so a nil keyring here (DEK
+	// unconfigured) is not fatal; TOTP enrollment and login-time
+	// verification both fail closed with ErrLocalIdentityTOTPKeyringUnavailable.
+	// Wired via a type assertion on router.LocalIdentity.Store rather than a
+	// newLocalIdentityHandler parameter because that handler is constructed
+	// by newRouterWithSemanticEmbedding above, before providerSecretKeyring
+	// exists — the same reason router.Setup and newOIDCLoginHandler below
+	// are wired post-construction instead of threaded through the router
+	// constructor's parameter list.
+	if adapter, ok := router.LocalIdentity.Store.(*postgresLocalIdentityAdapter); ok {
+		adapter.setTOTPSecretKeyring(providerSecretKeyring)
+	}
+
 	// First-run setup wizard (#4965). Reuses providerSecretKeyring — the same
 	// ESHU_AUTH_SECRET_ENC_KEY(_FILE) material seed_initial_admin.go sealed
 	// the bootstrap credential envelope with — so a nil keyring here (DEK

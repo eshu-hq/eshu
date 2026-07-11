@@ -115,6 +115,7 @@ func normalizeAuthenticationAttempt(
 ) LocalIdentityAuthenticationAttempt {
 	attempt.SubjectIDHash = strings.TrimSpace(attempt.SubjectIDHash)
 	attempt.MFARecoveryCodeHash = strings.TrimSpace(attempt.MFARecoveryCodeHash)
+	attempt.MFATOTPCode = strings.TrimSpace(attempt.MFATOTPCode)
 	if attempt.Now.IsZero() {
 		attempt.Now = time.Now().UTC()
 	} else {
@@ -155,6 +156,7 @@ func normalizePasswordRotation(rotation LocalIdentityPasswordRotation) LocalIden
 	rotation.NewPasswordParametersHash = strings.TrimSpace(rotation.NewPasswordParametersHash)
 	rotation.CredentialID = strings.TrimSpace(rotation.CredentialID)
 	rotation.MFARecoveryCodeHash = strings.TrimSpace(rotation.MFARecoveryCodeHash)
+	rotation.MFATOTPCode = strings.TrimSpace(rotation.MFATOTPCode)
 	if rotation.Now.IsZero() {
 		rotation.Now = time.Now().UTC()
 	} else {

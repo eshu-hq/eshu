@@ -11,6 +11,20 @@ import (
 func scopedHTTPRouteSupportsTenantFilter(r *http.Request) bool {
 	// Only add routes here after the handler filters counts, limits,
 	// truncation, ambiguity, and not-found metadata from AuthContext.
+	//
+	// Self-service TOTP MFA enrollment (issue #4986, PR #5065 review): these
+	// are auth mutations, not tenant-filtered reads, but they require an
+	// authenticated identity and this allowlist is what AuthMiddleware checks
+	// before admitting a browser-session (and scoped-token) request. The
+	// handlers resolve the acting user from the AuthContext session subject and
+	// never accept a body-supplied target user, so a caller with no resolvable
+	// local identity is rejected in the handler. Without this, AuthMiddleware
+	// rejects the profile-page enrollment before the handler runs.
+	if r.Method == http.MethodPost &&
+		(r.URL.Path == "/api/v0/auth/local/mfa/totp/begin" ||
+			r.URL.Path == "/api/v0/auth/local/mfa/totp/confirm") {
+		return true
+	}
 	if r.Method == http.MethodGet && r.URL.Path == "/api/v0/repositories" {
 		return true
 	}

@@ -11,6 +11,7 @@ import (
 	"go.opentelemetry.io/otel"
 
 	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/secretcrypto"
 	pgstatus "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -86,6 +87,7 @@ func (a *postgresLocalIdentityAdapter) AuthenticateLocalIdentity(
 		Password:              attempt.Password,
 		MFARecoveryCodeHash:   attempt.MFARecoveryCodeHash,
 		ConsumeRecoveryCodeAt: attempt.ConsumeRecoveryCodeAt,
+		MFATOTPCode:           attempt.MFATOTPCode,
 		Now:                   attempt.Now,
 	})
 	if err != nil {
@@ -123,6 +125,7 @@ func (a *postgresLocalIdentityAdapter) RotateLocalIdentityPassword(
 		CredentialID:              rotation.CredentialID,
 		MFARecoveryCodeHash:       rotation.MFARecoveryCodeHash,
 		ConsumeRecoveryCodeAt:     rotation.ConsumeRecoveryCodeAt,
+		MFATOTPCode:               rotation.MFATOTPCode,
 		Now:                       rotation.Now,
 	})
 	if err != nil {
@@ -351,4 +354,55 @@ func (a *postgresLocalIdentityAdapter) GetLocalIdentityMFAStatus(
 		HasActiveMFA: status.HasActiveMFA,
 		FactorKind:   status.FactorKind,
 	}, nil
+}
+
+// ResolveLocalIdentityUserID resolves the internal user_id for a session's
+// subjectIDHash (issue #4986). Self-service TOTP enrollment endpoints only
+// ever hold a session's subjectIDHash.
+func (a *postgresLocalIdentityAdapter) ResolveLocalIdentityUserID(
+	ctx context.Context,
+	subjectIDHash string,
+) (string, bool, error) {
+	return a.store.ResolveLocalIdentityUserIDBySubjectHash(ctx, subjectIDHash)
+}
+
+// BeginLocalIdentityTOTPEnrollment seals and persists a PENDING TOTP factor
+// (issue #4986).
+func (a *postgresLocalIdentityAdapter) BeginLocalIdentityTOTPEnrollment(
+	ctx context.Context,
+	begin query.LocalIdentityTOTPEnrollmentBegin,
+) error {
+	return a.store.BeginLocalIdentityTOTPEnrollment(ctx, pgstatus.LocalIdentityTOTPEnrollmentBegin{
+		UserID:          begin.UserID,
+		FactorID:        begin.FactorID,
+		SecretPlaintext: begin.SecretPlaintext,
+		CreatedAt:       begin.CreatedAt,
+	})
+}
+
+// ConfirmLocalIdentityTOTPEnrollment verifies the first submitted TOTP code
+// and activates the pending factor on match (issue #4986).
+func (a *postgresLocalIdentityAdapter) ConfirmLocalIdentityTOTPEnrollment(
+	ctx context.Context,
+	confirm query.LocalIdentityTOTPEnrollmentConfirm,
+) error {
+	return a.store.ConfirmLocalIdentityTOTPEnrollment(ctx, pgstatus.LocalIdentityTOTPEnrollmentConfirm{
+		UserID:   confirm.UserID,
+		FactorID: confirm.FactorID,
+		Code:     confirm.Code,
+		Now:      confirm.Now,
+	})
+}
+
+// setTOTPSecretKeyring wires the keyring the underlying store uses to seal
+// and open TOTP secrets (issue #4986). Package-internal: wiring.go calls
+// this once, after the shared secretcrypto keyring is built, via a type
+// assertion on the LocalIdentityHandler's Store field — mirroring how
+// router.Setup / newOIDCLoginHandler are wired with the same keyring
+// instance after router construction (see wiring.go).
+func (a *postgresLocalIdentityAdapter) setTOTPSecretKeyring(k *secretcrypto.Keyring) {
+	if a == nil || a.store == nil {
+		return
+	}
+	a.store.SetTOTPSecretKeyring(k)
 }

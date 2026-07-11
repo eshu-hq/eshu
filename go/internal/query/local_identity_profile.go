@@ -32,7 +32,8 @@ type LocalIdentityMFAStatus struct {
 }
 
 // LocalIdentityProfileLister is the read surface for per-subject profile
-// aggregation. It extends LocalIdentityStore with list and MFA status queries.
+// aggregation. It extends LocalIdentityStore with list, MFA status, and
+// TOTP enrollment operations.
 type LocalIdentityProfileLister interface {
 	LocalIdentityStore
 	// ListAPITokensBySubject returns metadata-only token rows owned by the
@@ -41,4 +42,35 @@ type LocalIdentityProfileLister interface {
 	// GetLocalIdentityMFAStatus returns the safe MFA state for the subject.
 	// The result never includes credential handles or recovery hashes.
 	GetLocalIdentityMFAStatus(ctx context.Context, subjectIDHash string, asOf time.Time) (LocalIdentityMFAStatus, error)
+	// ResolveLocalIdentityUserID resolves the internal user_id for a
+	// session's subjectIDHash (issue #4986). Self-service TOTP enrollment
+	// only ever holds a session's subjectIDHash; ok is false, with no error,
+	// when no live user matches.
+	ResolveLocalIdentityUserID(ctx context.Context, subjectIDHash string) (userID string, ok bool, err error)
+	// BeginLocalIdentityTOTPEnrollment seals and persists a PENDING TOTP
+	// factor for begin.UserID (issue #4986). The factor cannot satisfy MFA
+	// login until ConfirmLocalIdentityTOTPEnrollment activates it.
+	BeginLocalIdentityTOTPEnrollment(ctx context.Context, begin LocalIdentityTOTPEnrollmentBegin) error
+	// ConfirmLocalIdentityTOTPEnrollment verifies the first submitted code
+	// against a pending TOTP factor and activates it on match.
+	ConfirmLocalIdentityTOTPEnrollment(ctx context.Context, confirm LocalIdentityTOTPEnrollmentConfirm) error
+}
+
+// LocalIdentityTOTPEnrollmentBegin starts TOTP enrollment for one user
+// (issue #4986). SecretPlaintext is sealed immediately by the store and
+// never returned, logged, or persisted unsealed.
+type LocalIdentityTOTPEnrollmentBegin struct {
+	UserID          string
+	FactorID        string
+	SecretPlaintext []byte
+	CreatedAt       time.Time
+}
+
+// LocalIdentityTOTPEnrollmentConfirm verifies the first submitted TOTP code
+// against a pending enrollment (issue #4986).
+type LocalIdentityTOTPEnrollmentConfirm struct {
+	UserID   string
+	FactorID string
+	Code     string
+	Now      time.Time
 }
