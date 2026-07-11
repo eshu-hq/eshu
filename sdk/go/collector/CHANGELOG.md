@@ -43,6 +43,13 @@ entry — until a maintainer actually cuts the tag, per the convention below.
 - `payloadSchemaRef` on conformance manifest fact families, letting a
   namespaced component fact declare the fixture-pack payload schema shape the
   host and CI should validate before publication or activation.
+- `IsSensitiveKeyName` and `ValidateShareSafeKeys` — thin, behavior-preserving
+  exports over the fail-closed sensitive-key-name predicate and recursive walk
+  `validatePayloadKeys` already applies to `Fact.Payload`
+  (`sdk/go/collector/validation.go`). They let a caller outside a collector
+  (for example `go/internal/reportbundle`'s wrong-answer report bundle) reuse
+  the exact same redaction/validation rule instead of duplicating or drifting
+  from it.
 
 ### Changed
 
