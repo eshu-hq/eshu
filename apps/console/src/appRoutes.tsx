@@ -40,7 +40,6 @@ import { RepositoriesPage } from "./pages/RepositoriesPage";
 import { RepoSourcePage } from "./pages/RepoSourcePage";
 import { SbomPage } from "./pages/SbomPage";
 import { SecretsIamPage } from "./pages/SecretsIamPage";
-import { SemanticSearchPage } from "./pages/SemanticSearchPage";
 import { ServiceEvidenceGraphPage } from "./pages/ServiceEvidenceGraphPage";
 import { ServiceReportPage } from "./pages/ServiceReportPage";
 import { StatusPage } from "./pages/StatusPage";
@@ -53,6 +52,14 @@ import { VulnerabilitiesPage } from "./pages/VulnerabilitiesPage";
 // extra dynamic-import hop before its content renders. See App.tsx for details.
 const WorkspacePage = lazy(() =>
   import("./pages/WorkspacePage").then((module) => ({ default: module.WorkspacePage })),
+);
+
+// SemanticSearchPage is code-split via React.lazy (issue #4024) so its
+// search surface stays out of the eagerly loaded main bundle.
+const SemanticSearchPage = lazy(() =>
+  import("./pages/SemanticSearchPage").then((module) => ({
+    default: module.SemanticSearchPage,
+  })),
 );
 
 export interface AppRoutesProps {
@@ -106,7 +113,21 @@ export function AppRoutes({
         }
       />
       <Route path="/ask" element={<AskPage source={source} />} />
-      <Route path="/semantic-search" element={<SemanticSearchPage client={client} />} />
+      <Route
+        path="/semantic-search"
+        element={
+          <Suspense
+            fallback={
+              <section className="page-shell">
+                <h1>Loading semantic search</h1>
+                <p>Loading live data.</p>
+              </section>
+            }
+          >
+            <SemanticSearchPage client={client} />
+          </Suspense>
+        }
+      />
       <Route path="/impact" element={<ImpactPage model={model} client={client} />} />
       <Route path="/exposure" element={<ExposurePathPage client={client} />} />
       <Route path="/changed-since" element={<ChangedSincePage client={client} model={model} />} />

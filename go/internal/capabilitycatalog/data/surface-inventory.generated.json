@@ -2558,6 +2558,11 @@
     },
     {
       "category": "console_page",
+      "name": "SemanticSearchPage",
+      "readiness": "implemented"
+    },
+    {
+      "category": "console_page",
       "name": "ServiceEvidenceGraphPage",
       "readiness": "implemented"
     },
