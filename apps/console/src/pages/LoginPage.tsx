@@ -127,7 +127,7 @@ export function LoginPage({
           break;
         case "mfa_required":
           setPhase("mfa");
-          setErrorMsg("Enter your recovery code to continue.");
+          setErrorMsg("Enter your authenticator app code or a recovery code to continue.");
           break;
         case "locked":
           setErrorMsg(
@@ -295,12 +295,13 @@ export function LoginPage({
             </div>
             {phase === "mfa" ? (
               <div className="field">
-                <label htmlFor="login-mfa">Recovery code</label>
+                <label htmlFor="login-mfa">Authenticator code or recovery code</label>
                 <div className="input-shell">
                   <input
                     id="login-mfa"
                     type="text"
                     autoComplete="one-time-code"
+                    placeholder="6-digit code or recovery code"
                     value={mfaCode}
                     disabled={submitting}
                     onChange={(e) => setMfaCode(e.target.value)}

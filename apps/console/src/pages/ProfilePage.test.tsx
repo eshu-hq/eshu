@@ -4,7 +4,7 @@
 //   - renders identity / context / sessions / tokens from mocked data
 //   - renders unavailable state on error for each section
 //   - NEVER renders session_hash, token_hash, csrf, or credential handles
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { render, screen, waitFor, within, fireEvent } from "@testing-library/react";
 import { describe, it, expect } from "vitest";
 
 import { ProfilePage } from "./ProfilePage";
@@ -274,5 +274,72 @@ describe("ProfilePage", () => {
     } as unknown as EshuApiClient;
     render(<ProfilePage client={client} />);
     await waitFor(() => expect(screen.getByText("none")).toBeInTheDocument());
+  });
+});
+
+// ---------------------------------------------------------------------------
+// TOTP (authenticator app) enrollment (issue #4986)
+// ---------------------------------------------------------------------------
+
+describe("ProfilePage TOTP enrollment", () => {
+  function totpClient(overrides: { begin?: unknown; confirmError?: Error }): EshuApiClient {
+    return {
+      getJson: async (path: string) => {
+        if (path === "/api/v0/auth/profile") return profileFixture;
+        if (path === "/api/v0/auth/sessions") return sessionsFixture;
+        return tokensFixture;
+      },
+      postJson: async () =>
+        overrides.begin ?? {
+          factor_id: "factor-totp-1",
+          otpauth_uri: "otpauth://totp/Eshu:account?secret=JBSWY3DPEHPK3PXP",
+          secret: "JBSWY3DPEHPK3PXP",
+          issuer: "Eshu",
+          digits: 6,
+          period_seconds: 30,
+        },
+      postNoContent: async () => {
+        if (overrides.confirmError) throw overrides.confirmError;
+      },
+    } as unknown as EshuApiClient;
+  }
+
+  it("starts enrollment and shows the provisioning URI and manual key", async () => {
+    const client = totpClient({});
+    render(<ProfilePage client={client} />);
+    const startButton = await screen.findByRole("button", { name: "Set up authenticator app" });
+    fireEvent.click(startButton);
+    await waitFor(() =>
+      expect(screen.getByLabelText("Provisioning URI")).toHaveValue(
+        "otpauth://totp/Eshu:account?secret=JBSWY3DPEHPK3PXP",
+      ),
+    );
+    expect(screen.getByLabelText("Manual entry key")).toHaveValue("JBSWY3DPEHPK3PXP");
+  });
+
+  it("activates on a valid code and shows the success message", async () => {
+    const client = totpClient({});
+    render(<ProfilePage client={client} />);
+    const startButton = await screen.findByRole("button", { name: "Set up authenticator app" });
+    fireEvent.click(startButton);
+    const codeInput = await screen.findByLabelText("Enter the 6-digit code from your app");
+    fireEvent.change(codeInput, { target: { value: "123456" } });
+    const activateButton = await screen.findByRole("button", { name: "Activate" });
+    fireEvent.click(activateButton);
+    await waitFor(() => expect(screen.getByText("Authenticator app enabled.")).toBeInTheDocument());
+  });
+
+  it("shows a retry message on an invalid code without leaving the enrollment flow", async () => {
+    const { EshuApiHttpError } = await import("../api/client");
+    const client = totpClient({ confirmError: new EshuApiHttpError(400) });
+    render(<ProfilePage client={client} />);
+    const startButton = await screen.findByRole("button", { name: "Set up authenticator app" });
+    fireEvent.click(startButton);
+    const codeInput = await screen.findByLabelText("Enter the 6-digit code from your app");
+    fireEvent.change(codeInput, { target: { value: "000000" } });
+    const activateButton = await screen.findByRole("button", { name: "Activate" });
+    fireEvent.click(activateButton);
+    await waitFor(() => expect(screen.getByText(/did not match/)).toBeInTheDocument());
+    expect(screen.getByLabelText("Provisioning URI")).toBeInTheDocument();
   });
 });
