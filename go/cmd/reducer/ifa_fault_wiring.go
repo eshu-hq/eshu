@@ -119,6 +119,15 @@ func armExecutorRetrySeam(inner sourcecypher.Executor) *ifaExecutorRetryArmedExe
 // is the "fire below" half of the P6 executor-retry lane fix (#5048):
 // FaultingExecutor (fault_executor.go) stays the ordinal/trigger owner and
 // calls Arm() instead of returning the error itself.
+//
+// Caveat: the armed decorator is shared across the persistent RetryingExecutor,
+// so under concurrent projection workers the goroutine that reaches Execute
+// first after Arm() absorbs the single induced failure -- not necessarily the
+// same logical statement whose maybeFailOnce armed it. The onceFired/armed CAS
+// gates still guarantee exactly one fault fires in total (no double-fire, no
+// correctness hazard); the arm-statement == fire-statement identity only holds
+// strictly under the single-worker/Docker fault gate this seam is exercised by
+// today. Revisit this note when the concurrent-worker fault e2e gate lands.
 type ifaExecutorRetryArmedExecutor struct {
 	inner sourcecypher.Executor
 	armed atomic.Bool
