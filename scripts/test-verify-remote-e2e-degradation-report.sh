@@ -64,63 +64,10 @@ assert_markdown_contains() {
 }
 
 degraded_input="${tmp_root}/degraded.json"
-cat >"${degraded_input}" <<'JSON'
-{
-  "run": {
-    "id": "remote-full-corpus-2026-06-29",
-    "commit": "b514d2f395f9c2edc25e010c32229e2f6f0005de",
-    "nornicdb_image": "timothyswt/nornicdb-cpu-bge:v1.1.9",
-    "nornicdb_digest": "sha256:9a5126d306a48c01869809da47a869a4521b9328a7ab1c855327f5fd7541e4cd"
-  },
-  "startup": {
-    "schema_bootstrap": "passed",
-    "bootstrap_index": "passed",
-    "hosted_profile_startup": "passed"
-  },
-  "services": [
-    {"name": "eshu", "state": "running", "health": "healthy"},
-    {"name": "projector", "state": "running", "health": "healthy"},
-    {"name": "workflow-coordinator", "state": "running", "health": "healthy"}
-  ],
-  "index_status": {
-    "status": "progressing",
-    "queue": {
-      "outstanding": 2405,
-      "in_flight": 6,
-      "pending": 2380,
-      "retrying": 19,
-      "failed": 0,
-      "dead_letter": 0
-    },
-    "coordinator": {
-      "run_status_counts": [{"name": "running", "count": 3}],
-      "completeness_counts": [{"name": "incomplete", "count": 3}]
-    }
-  },
-  "work": {
-    "retrying_by_failure_class": [
-      {"failure_class": "graph_canonical_retract_timeout", "count": 19}
-    ],
-    "pending_domains": [
-      {"domain": "search_document_readiness", "pending": 2187, "oldest_age_seconds": 3540}
-    ]
-  },
-  "postgres": {
-    "active_queries": [
-      {"age_seconds": 3540, "query_shape": "WITH active_docs AS MATERIALIZED SELECT document_key FROM eshu_search_documents"},
-      {"age_seconds": 936, "query_shape": "canonical source-local retract transaction waiting on graph write"}
-    ],
-    "ungranted_locks": 0,
-    "relation_sizes": [
-      {"name": "fact_records", "bytes": 7516192768},
-      {"name": "eshu_search_index_terms", "bytes": 3328599654}
-    ]
-  },
-  "logs": [
-    {"service": "projector", "message": "canonical source-local retract timed out after retry budget"}
-  ]
-}
-JSON
+# Body lives in scripts/lib/ (not a heredoc): Homebrew bash >= 5.1 writes
+# the entire heredoc body to a pipe before forking the reader, and macOS's
+# 512-byte pipe buffer deadlocks on any body over that size (#5074).
+cat "${repo_root}/scripts/lib/test-verify-remote-e2e-degradation-report-degraded.json" >"${degraded_input}"
 
 expect_pass "${degraded_input}"
 assert_json_equals '.schema_version' '1'
@@ -159,20 +106,10 @@ JSON
 expect_fail_with "${private_input}" 'public-safe'
 
 private_numeric_input="${tmp_root}/private-numeric.json"
-cat >"${private_numeric_input}" <<'JSON'
-{
-  "run": {"id": "private-numeric", "commit": "b514d2f395f9c2edc25e010c32229e2f6f0005de"},
-  "startup": {"schema_bootstrap": "passed"},
-  "services": [{"name": "eshu", "state": "running", "health": "healthy"}],
-  "index_status": {"status": "healthy", "queue": {"outstanding": 0}},
-  "work": {
-    "pending_domains": [
-      {"domain": "search_document_readiness", "pending": 0, "oldest_age_seconds": 0, "account_id": 123456789012}
-    ]
-  },
-  "postgres": {"active_queries": [], "ungranted_locks": 0, "relation_sizes": []}
-}
-JSON
+# Body lives in scripts/lib/ (not a heredoc): Homebrew bash >= 5.1 writes
+# the entire heredoc body to a pipe before forking the reader, and macOS's
+# 512-byte pipe buffer deadlocks on any body over that size (#5074).
+cat "${repo_root}/scripts/lib/test-verify-remote-e2e-degradation-report-private-numeric.json" >"${private_numeric_input}"
 
 expect_fail_with "${private_numeric_input}" 'public-safe'
 
@@ -215,40 +152,10 @@ JSON
 expect_fail_with "${private_mixed_case_hostname_input}" 'public-safe'
 
 healthy_input="${tmp_root}/healthy.json"
-cat >"${healthy_input}" <<'JSON'
-{
-  "run": {
-    "id": "remote-smoke",
-    "commit": "b514d2f395f9c2edc25e010c32229e2f6f0005de",
-    "nornicdb_image": "timothyswt/nornicdb-cpu-bge:v1.1.9"
-  },
-  "startup": {
-    "schema_bootstrap": "passed",
-    "bootstrap_index": "passed"
-  },
-  "services": [
-    {"name": "eshu", "state": "running", "health": "healthy"}
-  ],
-  "index_status": {
-    "status": "healthy",
-    "queue": {
-      "outstanding": 0,
-      "in_flight": 0,
-      "pending": 0,
-      "retrying": 0,
-      "failed": 0,
-      "dead_letter": 0
-    }
-  },
-  "postgres": {
-    "active_queries": [],
-    "ungranted_locks": 0,
-    "relation_sizes": [
-      {"name": "eshu_search_index_terms", "bytes": 3328599654}
-    ]
-  }
-}
-JSON
+# Body lives in scripts/lib/ (not a heredoc): Homebrew bash >= 5.1 writes
+# the entire heredoc body to a pipe before forking the reader, and macOS's
+# 512-byte pipe buffer deadlocks on any body over that size (#5074).
+cat "${repo_root}/scripts/lib/test-verify-remote-e2e-degradation-report-healthy.json" >"${healthy_input}"
 
 expect_pass "${healthy_input}"
 assert_json_equals '.summary.status' 'passed'
