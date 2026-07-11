@@ -1,13 +1,21 @@
 # Cross-scope same-uid node ownership — deterministic merge for scope-derived properties
 
-Status: Accepted (semantics) / BLOCKED on Stage 1 enforcement mechanic — the
-graph-side guard is disproven on the default NornicDB backend by the mandatory
-prove-theory shim (see [Prove-theory result](#prove-theory-result-stage-1-graph-side-guard-is-not-viable-on-nornicdb)).
-No write-path change has landed. Stage 1 needs the maintainer to choose the
-application-level coordination fallback before implementation resumes.
+Status: Accepted. Stage 1 enforcement = the Postgres **owner-ledger with a
+per-uid advisory lock** (design (b) below). The original graph-side guard was
+disproven on NornicDB by the mandatory prove-theory shim
+(see [Prove-theory result](#prove-theory-result-stage-1-graph-side-guard-is-not-viable-on-nornicdb)),
+and the lock-free ledger variant (design (a)) was disproven by a forced
+worst-case interleaving; the advisory-lock variant (design (b)) is proven
+lost-update-free and convergent in BOTH the ledger and the graph
+(see [Owner-ledger prove-theory result](#owner-ledger-prove-theory-result-design-b-is-safe)).
+The underlying NornicDB concurrent-property-write limitation is tracked
+separately as **#5062**.
 Audience: Eshu maintainers
 Companion issue: #5007 (filed during Ifá P3, #4396; prerequisite for P6
 fault injection over overlapping-identity inputs, #4580)
+Related issue: #5062 (NornicDB does not reliably detect concurrent
+property-write conflicts on a shared existing node — the root limitation that
+forces the owner-ledger design)
 Parent design: [Ifá conformance platform](4389-ifa-conformance-platform.md)
 
 Every structural claim below cites `file:line` against `origin/main`
@@ -430,6 +438,85 @@ implementation resumes. The within-scope order-key computation, the contention
 synth cassette (overlapping-identity, the inverse of `GenerateMultiScope`), and
 the determinism regression tests are all reusable once the coordination
 primitive is chosen; only the graph write path changes.
+
+### Owner-ledger prove-theory result: design (b) is safe
+
+The maintainer approved the Postgres owner-ledger redesign. The mandatory
+prove-theory gate was re-run for the END-TO-END owner-ledger path (Postgres
+ledger + NornicDB graph) against the pinned standalone Postgres 18 + NornicDB
+v1.1.9. Two designs were measured; the numbers pick design (b):
+
+**Design (a) — lock-free ledger-derived graph write.** Each writer upserts the
+owner ledger (`INSERT … ON CONFLICT (uid) DO UPDATE … WHERE
+excluded.source_order_key > owner.source_order_key`, which Postgres row-locking
+makes an atomic max resolution), reads back the current ledger winner, then
+writes the winner's values to the graph. Theory: concurrent graph writes are
+idempotent because they all write the ledger-winning values.
+
+- Random N=4 concurrent trials: 0/100 ledger lost, 0/100 graph lost — BUT this
+  passes only because the race window is narrow.
+- **Forced worst-case interleaving: the graph lost the update deterministically
+  (100%).** With `low` reading the ledger (=low), then `high` completing its
+  full upsert+read+graph-write, then `low` writing its stale read to the graph,
+  the graph is left at the LOSING value. The stale-read window between the
+  ledger read and the graph write is a REAL race, not merely rare. Design (a)
+  is rejected.
+
+**Design (b) — per-uid advisory-lock serialized (adopted).** The same steps
+wrapped in a `pg_advisory_xact_lock(hash(uid))` held across the ledger-decide +
+graph write, so writers to the same uid serialize and the last lock holder
+reads the converged ledger and writes it. This also eliminates the concurrent
+graph-MERGE-create race as a bonus (only one writer touches a uid at a time).
+
+- Random N=4 concurrent trials: **0/100 ledger lost, 0/100 graph lost, 0 writer
+  errors.**
+- **Forced worst-case interleaving: converges to the max** — the lock makes the
+  design-(a) interleaving impossible.
+- This is `partition by conflict key`, not a global worker reduction, so it is
+  permitted under Serialization-Is-Not-A-Fix.
+
+**Perf.** Naively acquiring one advisory lock per uid cost 14.3x (500
+round-trips). Acquiring ALL per-uid locks in ONE sorted statement
+(`SELECT pg_advisory_xact_lock(k) FROM (SELECT DISTINCT k FROM unnest($1) ORDER
+BY k) s` — sorted so overlapping batches cannot deadlock) drops it to **2.28x**
+(flat graph-only 6.0ms vs ledger+lock+graph 13.7ms for a 500-uid batch,
+15µs/row). The non-contended common case can be optimized further with
+`RETURNING` on the upsert to skip the winner read-back. CloudResource is
+low-cardinality relative to File/Function, so the absolute per-scope impact is
+small; the perf differential on the real writer is measured before merge.
+
+Shim commands (recorded evidence,
+`go/internal/storage/cypher/owner_ledger_prove_theory_live_test.go`):
+
+```
+docker run -d --name eshu5007-pg -p 15636:5432 -e POSTGRES_DB=eshu \
+  -e POSTGRES_USER=eshu -e POSTGRES_PASSWORD=change-me postgres:18-alpine
+docker run -d --name eshu5007-nornicdb -p 17687:7687 ... nornicdb-cpu-bge:v1.1.9
+ESHU_OWNER_LEDGER_PROVE_LIVE=1 ESHU_OWNER_LEDGER_PG_DSN=postgresql://... \
+ESHU_GRAPH_BACKEND=nornicdb ESHU_NEO4J_URI=bolt://localhost:17687 ... \
+go test ./internal/storage/cypher -run 'TestLiveOwnerLedger' -v
+#   a_lockfree/a_widened_window: 0/100 random; FORCED worst-case = 100% graph loss
+#   b_advisory_lock:            0/100 random; FORCED worst-case = converges
+#   batch perf: flat 6.0ms vs design(b) 13.7ms (2.28x) for 500 uids
+```
+
+### Stage 1 owner-ledger mechanic (decided)
+
+- A Postgres `cloud_resource_owner` table keyed on node `uid`, holding the
+  current max `source_order_key` and the winning scope-derived values (a JSONB
+  column, so all ~19 scope-derived properties are carried without a wide
+  schema), plus `updated_at`. Migration adds the table with a PK on `uid`.
+- The reducer node-write path, for each batch: sort the batch uids, acquire all
+  per-uid advisory locks in one sorted statement, batch-upsert the ledger
+  (atomic max), read back the winners, write the winner values to the graph,
+  commit (releasing the locks). The graph write is the existing plain
+  `MERGE + SET` (no CASE) writing the ledger-winner values.
+- All five families (CloudResource AWS/GCP/Azure, EC2-instance, K8s-workload)
+  route their node writes through this owner-ledger gate. The within-scope
+  extractor tie-break (max order key over duplicate uids in one generation) is
+  applied in the `Extract*NodeRows` functions.
+- Stage 2 (per-scope provenance satellites) still trails; the JSONB owner row is
+  a natural foundation for it.
 
 ### Golden-corpus / B-12 impact
 
