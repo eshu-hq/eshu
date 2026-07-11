@@ -123,6 +123,15 @@ type GrantQuery struct {
 
 // GrantResolution is the Eshu-owned role and concrete grant result.
 //
+// PolicyRevisionHash is populated only by a resolver backed by a live
+// authority for the workspace's current policy revision (the DB-backed
+// group-mapping resolver). StaticGrantResolver (file-backed, #5038) always
+// leaves it empty: the caller's session-create write defaults an empty value
+// to the live workspace hash (see browser_sessions_schema.go's
+// createBrowserSessionQuery COALESCE), so a stale or wrong hash hand-set in a
+// static config file can never silently make every subsequent authenticated
+// request 401 after a successful login.
+//
 // AllowedPermissionFeatures and AllowedPermissionDataClasses carry the
 // permission-catalog grants for the resolved roles so the issued cookie session
 // enforces identically to a scoped token for the same roles.
