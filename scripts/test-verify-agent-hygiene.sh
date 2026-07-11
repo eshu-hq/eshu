@@ -94,6 +94,27 @@ accepted_commit
 hardware_class
 PERF_MANIFEST
 if ESHU_AGENT_CANON_REPO_ROOT="$tmp/perf-contract" "$canon" >/dev/null 2>&1; then
+  no "agent-canon should fail when the performance resource envelope is missing"
+else
+  ok "agent-canon fails when the performance resource envelope is missing"
+fi
+
+cat >>"$tmp/perf-contract/.agents/skills/eshu-performance-rigor/SKILL.md" <<'PERF_RESOURCES'
+## Resource-Qualified Claims
+absolute_target_applicable
+same-machine relative
+PERF_RESOURCES
+cat >>"$tmp/perf-contract/.agents/skills/eshu-performance-rigor/references/run-manifest.md" <<'PERF_RESOURCE_MANIFEST'
+reference_profile
+machine_profile
+resource_envelope
+memory_bytes
+container_memory_limit_bytes
+absolute_target_applicable
+compose_service_limits
+service_usage_summary
+PERF_RESOURCE_MANIFEST
+if ESHU_AGENT_CANON_REPO_ROOT="$tmp/perf-contract" "$canon" >/dev/null 2>&1; then
   ok "agent-canon passes when the performance workflow contract is complete"
 else
   no "agent-canon should pass when the performance workflow contract is complete"

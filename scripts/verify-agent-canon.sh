@@ -71,6 +71,9 @@ if [ -d "$skills_root" ]; then
       'required_saving_seconds'
       'maximum_recoverable_seconds'
       'expected_saving_seconds'
+      '## Resource-Qualified Claims'
+      'absolute_target_applicable'
+      'same-machine relative'
       '## Baseline Promotion'
       '## Retention Modes'
       'stop-and-preserve'
@@ -95,6 +98,14 @@ if [ -d "$skills_root" ]; then
       'retention'
       'accepted_commit'
       'hardware_class'
+      'machine_profile'
+      'reference_profile'
+      'resource_envelope'
+      'memory_bytes'
+      'container_memory_limit_bytes'
+      'absolute_target_applicable'
+      'compose_service_limits'
+      'service_usage_summary'
     )
     for token in "${performance_manifest_tokens[@]}"; do
       if ! rg -Fq "$token" "$performance_manifest"; then

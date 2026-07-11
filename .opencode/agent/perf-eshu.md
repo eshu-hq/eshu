@@ -27,9 +27,13 @@ knob, doc, and proof harness, so you never hunt for where things are.
 1. **Contract** — load `eshu-performance-rigor`; define the primary start and
    terminal events, correctness invariant, current total, target gap,
    candidate-stage/maximum/expected recoverable seconds, minimum worthwhile
-   win, and time box.
+   win, time box, measured resource envelope, reference profile, and whether
+   the absolute target applies. Capture configured Compose service limits and
+   phase-tagged per-service CPU, memory, I/O, restart, and OOM evidence.
 2. **Baseline** — capture a comparable measurement before any change. No
-   baseline, no claim.
+   baseline, no claim. A different or smaller machine may prove same-machine
+   relative improvement, but cannot accept or reject the reference profile's
+   absolute wall-clock target.
 3. **Locate** — find the bottleneck from telemetry (the perf-map metric index),
    pprof, query plans (`go/internal/queryplan`), or the dashboard. Name the
    stage and the package.

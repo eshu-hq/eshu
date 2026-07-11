@@ -101,7 +101,8 @@ Every implementation handoff MUST contain:
 6. **Performance packet when applicable** — primary metric boundaries,
    baseline manifest, proven hypothesis, exactness/concurrency evidence, current
    total, target gap, candidate-stage seconds, maximum/expected recoverable
-   seconds, and minimum worthwhile win.
+   seconds, minimum worthwhile win, measured resource envelope, reference
+   profile, and absolute-target applicability.
 
 The raw material already exists in the project skills and `eshu-issue-driver`.
 Render that spec format on every handoff before dispatching implementation.

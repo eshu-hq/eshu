@@ -48,7 +48,25 @@ pass `scripts/verify-scale-benchmark-artifact.sh`.
     "platform": "linux/amd64"
   },
   "environment": {
-    "hardware_class": "stable-non-sensitive-hardware-class"
+    "hardware_class": "stable-non-sensitive-hardware-class",
+    "machine_profile": {
+      "category": "cloud_vm",
+      "provider": "aws",
+      "model": "ec2",
+      "instance_type": "provider-instance-type-or-empty",
+      "display_name": "AWS EC2 provider-instance-type, 128 GiB"
+    },
+    "reference_profile": "named-reference-profile-or-empty",
+    "absolute_target_applicable": true,
+    "resource_envelope": {
+      "cpu_architecture": "amd64",
+      "logical_cpu_count": 0,
+      "memory_bytes": 0,
+      "storage_kind": "local-ssd",
+      "os_class": "linux",
+      "container_cpu_limit": null,
+      "container_memory_limit_bytes": null
+    }
   },
   "topology": {
     "profile_name": "named-known-good-profile",
@@ -56,6 +74,14 @@ pass `scripts/verify-scale-benchmark-artifact.sh`.
     "clean_volumes": true,
     "schema_ready": true,
     "pprof_enabled": true,
+    "compose_service_limits": {
+      "postgres": {
+        "replicas": 1,
+        "cpu_limit": null,
+        "memory_limit_bytes": null,
+        "memory_reservation_bytes": null
+      }
+    },
     "effective_knobs": {
       "parse_workers": 0,
       "projection_workers": 0,
@@ -108,6 +134,22 @@ pass `scripts/verify-scale-benchmark-artifact.sh`.
     "representative_mcp_query": "pass"
   },
   "resources": {
+    "sampling_interval_seconds": 5,
+    "compose_service_config_artifact": "compose-service-config.json",
+    "compose_service_usage_artifact": "compose-service-usage.jsonl",
+    "host_pressure_artifact": "host-pressure.jsonl",
+    "service_usage_summary": [
+      {
+        "service": "postgres",
+        "peak_cpu_percent": 0,
+        "peak_memory_bytes": 0,
+        "peak_memory_percent": 0,
+        "block_read_bytes": 0,
+        "block_write_bytes": 0,
+        "restart_count": 0,
+        "oom_killed": false
+      }
+    ],
     "cpu_sample_artifact": "basename-or-empty",
     "io_sample_artifact": "basename-or-empty",
     "pprof_artifacts": []
@@ -128,6 +170,14 @@ pass `scripts/verify-scale-benchmark-artifact.sh`.
 
 Use `null` plus a caveat for a value that was not captured. Do not write `0`
 for an unknown count or timestamp; zero is an observed result.
+
+The example uses zero only as a shape placeholder. A real evidence manifest
+must record observed positive CPU and memory values or use `null` with a caveat.
+
+Resource sampling must span the measured run and tag samples with the current
+pipeline phase. `compose_service_limits` is an input to comparability;
+`service_usage_summary` is measured output. Report before/after resource deltas
+per service rather than requiring observed consumption to be identical.
 
 `eshu_commit` is the commit that produced the evidence. Set `accepted_commit`
 only when a later merged or rebased commit is proven equivalent through the
@@ -162,8 +212,26 @@ and a human value:
 
 Before computing a delta, compare the two manifests' start event, terminal
 event, corpus, repository count, backend image, platform, profile, services,
-clean-volume state, effective knobs, and terminal truth. If a required field
-differs, list it and mark the end-to-end comparison non-comparable.
+clean-volume state, effective knobs, measured resource envelope, absolute-target
+applicability, and terminal truth. If a required field differs, list it and
+mark the end-to-end comparison non-comparable.
+
+Compare configured Compose replicas, CPU limits, and memory limits/reservations
+as inputs. Separately compare per-service peaks and host pressure as outcomes;
+differences there may explain the speedup or reveal a capacity regression.
+
+Use `machine_profile.display_name` in human reports. Examples include
+`AWS EC2 <instance type>, 128 GiB`, `MacBook Pro, 16 GiB`,
+`MacBook Pro, 32 GiB`, and `MacBook Pro, 128 GiB`. Compare the structured
+profile and measured resource envelope, not the display string alone.
+
+An absolute target such as a full-corpus wall-clock threshold applies only when
+`reference_profile` names the accepted profile,
+`absolute_target_applicable` is true, and the measured resource envelope is
+comparable. A smaller contributor machine can still supply valid correctness
+and same-machine relative before/after proof; it must not be classified as a
+product regression merely because it misses the reference machine's absolute
+duration.
 
 Matching sub-phases may still be compared when their boundaries and inputs are
 identical. State explicitly that the narrower comparison does not prove the

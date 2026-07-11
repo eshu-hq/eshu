@@ -53,6 +53,50 @@ operator-scale run on an expected saving below the worthwhile threshold. A
 small optimization may still proceed for a separately stated SLO or resource
 goal, but it must not be presented as the path to the end-to-end target.
 
+## Resource-Qualified Claims
+
+An absolute wall-clock target is valid only for its named reference profile;
+it is not a hardware-independent product guarantee. Before using a run to
+accept or reject an absolute target, record a non-sensitive measured resource
+envelope: CPU architecture and logical CPU count, physical memory bytes,
+storage kind, operating-system class, and any container CPU or memory limits.
+Set `absolute_target_applicable` explicitly in the manifest.
+
+Also record a human-readable `machine_profile`: category, provider or vendor,
+model, cloud instance type when applicable, and a display name such as
+`AWS EC2 <instance type>, 128 GiB` or `MacBook Pro, 32 GiB`. This makes evidence
+understandable to contributors, while the measured resource envelope remains
+the authority for comparability.
+
+The resource envelope must be comparable to the accepted reference profile for
+`absolute_target_applicable` to be true. A free-form `hardware_class` label is
+useful for routing but is not sufficient evidence by itself. Differences in
+CPU generation, throttling, storage latency, memory pressure, virtualization,
+or container limits can invalidate an absolute-duration comparison even when
+the nominal memory size matches.
+
+Contributor runs on smaller or different machines remain useful. They may
+prove correctness and a same-machine relative before/after improvement when
+both runs use the same resource envelope and workload. Classify those results
+as non-comparable to the reference profile and do not report a missed absolute
+target as an Eshu regression. Do not publish a minimum hardware recommendation
+from a single machine; establish it from repeated measurements across named
+resource classes.
+
+Machine capacity is only the supply side. Capture the Compose process demand as
+well: configured replicas, CPU limits, memory limits/reservations, and a
+phase-tagged time series for every service. Summarize peak CPU, peak working-set
+memory, memory percentage, block I/O, restart count, and OOM state per service,
+plus host memory pressure, load, swap, and I/O wait. A final `docker stats`
+snapshot is not sufficient; it can miss the peak and cannot attribute pressure
+to a pipeline phase.
+
+Configured service limits are inputs and must match for a wall-clock comparison.
+Observed service usage is an outcome: report its before/after delta, but do not
+require it to be identical because reducing resource demand may be the intended
+win. Missing usage evidence makes capacity/efficiency conclusions incomplete,
+even when otherwise comparable wall-clock evidence remains usable with a caveat.
+
 ## Cost-Aware Diagnostic Dispatch
 
 Reserve the strongest diagnostic model for bottleneck localization, hypothesis
@@ -146,6 +190,10 @@ Before a scaled or full-corpus run, capture and compare:
 - schema/bootstrap state;
 - effective worker, queue, timeout, connection-pool, and memory knobs;
 - pprof and resource sampling state;
+- the measured resource envelope and whether the reference-profile target is
+  applicable;
+- configured Compose service limits and phase-tagged per-service resource
+  sampling;
 - controller terminal condition and expected minimum runtime.
 
 Remote source must come from Git: push the reviewed feature branch, then fetch
@@ -223,7 +271,9 @@ Before calculating a speedup, verify that old and new agree on:
 - topology and service ownership;
 - worker and connection knobs;
 - clean or warm storage state;
-- hardware class; and
+- hardware class and the measured resource envelope;
+- configured Compose replicas and resource limits;
+- absolute-target applicability; and
 - correctness/terminal counts.
 
 If any load-bearing field differs, label the total non-comparable. Compare only
