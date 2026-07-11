@@ -1,0 +1,104 @@
+{
+  "language": "git",
+  "schema_version": "1",
+  "scope": {
+    "collector_kind": "git",
+    "facts": [
+      {
+        "collector_kind": "git",
+        "fact_kind": "file",
+        "payload": {
+          "graph_id": "kotlin:OrderService.kt",
+          "graph_kind": "file",
+          "is_dependency": false,
+          "language": "kotlin",
+          "parsed_file_data": {
+            "classes": [
+              {
+                "end_line": 3,
+                "lang": "kotlin",
+                "line_number": 3,
+                "name": "OrderService"
+              }
+            ],
+            "function_calls": [
+              {
+                "full_name": "repository.create",
+                "inferred_obj_type": "OrderRepository",
+                "lang": "kotlin",
+                "line_number": 6,
+                "name": "create"
+              },
+              {
+                "full_name": "order.addLine",
+                "lang": "kotlin",
+                "line_number": 8,
+                "name": "addLine"
+              },
+              {
+                "full_name": "repository.save",
+                "inferred_obj_type": "OrderRepository",
+                "lang": "kotlin",
+                "line_number": 10,
+                "name": "save"
+              },
+              {
+                "full_name": "repository.byId",
+                "inferred_obj_type": "OrderRepository",
+                "lang": "kotlin",
+                "line_number": 13,
+                "name": "byId"
+              }
+            ],
+            "functions": [
+              {
+                "class_context": "OrderService",
+                "cyclomatic_complexity": 2,
+                "decorators": [],
+                "end_line": 11,
+                "lang": "kotlin",
+                "line_number": 5,
+                "name": "place"
+              },
+              {
+                "class_context": "OrderService",
+                "cyclomatic_complexity": 1,
+                "decorators": [],
+                "end_line": 13,
+                "lang": "kotlin",
+                "line_number": 13,
+                "name": "find"
+              }
+            ],
+            "iac_relevant": false,
+            "imports": [],
+            "interfaces": [],
+            "is_dependency": false,
+            "lang": "kotlin",
+            "path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/kotlin/OrderService.kt",
+            "repo_path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/kotlin",
+            "variables": [
+              {
+                "end_line": 6,
+                "lang": "kotlin",
+                "line_number": 6,
+                "name": "order"
+              }
+            ]
+          },
+          "relative_path": "OrderService.kt",
+          "repo_id": "kotlin"
+        },
+        "source_confidence": "observed",
+        "source_uri": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/kotlin/OrderService.kt",
+        "stable_fact_key": "file:kotlin:OrderService.kt"
+      }
+    ],
+    "generation_id": "canonical-generation-ed5c214b171ae114",
+    "observed_at": "2000-01-01T00:00:00Z",
+    "repo_id": "kotlin",
+    "scope_id": "parser_fixture:kotlin",
+    "scope_kind": "repository",
+    "source_system": "git"
+  }
+}

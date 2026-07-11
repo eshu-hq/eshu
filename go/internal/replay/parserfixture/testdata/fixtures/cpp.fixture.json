@@ -1,0 +1,116 @@
+{
+  "language": "git",
+  "schema_version": "1",
+  "scope": {
+    "collector_kind": "git",
+    "facts": [
+      {
+        "collector_kind": "git",
+        "fact_kind": "file",
+        "payload": {
+          "graph_id": "cpp:orders.cpp",
+          "graph_kind": "file",
+          "is_dependency": false,
+          "language": "cpp",
+          "parsed_file_data": {
+            "classes": [
+              {
+                "end_line": 21,
+                "lang": "cpp",
+                "line_number": 6,
+                "name": "OrderService"
+              }
+            ],
+            "enums": [],
+            "framework_semantics": {
+              "frameworks": []
+            },
+            "function_calls": [
+              {
+                "lang": "cpp",
+                "line_number": 13,
+                "name": "addLine"
+              }
+            ],
+            "functions": [
+              {
+                "class_context": "OrderService",
+                "cyclomatic_complexity": 1,
+                "decorators": [],
+                "end_line": 8,
+                "lang": "cpp",
+                "line_number": 8,
+                "name": "OrderService"
+              },
+              {
+                "class_context": "OrderService",
+                "cyclomatic_complexity": 2,
+                "decorators": [],
+                "end_line": 16,
+                "lang": "cpp",
+                "line_number": 10,
+                "name": "place"
+              },
+              {
+                "class_context": "OrderService",
+                "cyclomatic_complexity": 2,
+                "decorators": [],
+                "end_line": 19,
+                "lang": "cpp",
+                "line_number": 19,
+                "name": "addLine"
+              }
+            ],
+            "iac_relevant": false,
+            "imports": [
+              {
+                "full_import_name": "#include <string>",
+                "include_kind": "system",
+                "lang": "cpp",
+                "line_number": 1,
+                "name": "string",
+                "source": "string"
+              },
+              {
+                "full_import_name": "#include <vector>",
+                "include_kind": "system",
+                "lang": "cpp",
+                "line_number": 2,
+                "name": "vector",
+                "source": "vector"
+              }
+            ],
+            "is_dependency": false,
+            "lang": "cpp",
+            "macros": [],
+            "path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/cpp/orders.cpp",
+            "repo_path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/cpp",
+            "structs": [],
+            "typedefs": [
+              {
+                "end_line": 11,
+                "lang": "cpp",
+                "line_number": 11,
+                "name": "lines",
+                "type": "int"
+              }
+            ],
+            "unions": [],
+            "variables": []
+          },
+          "relative_path": "orders.cpp",
+          "repo_id": "cpp"
+        },
+        "source_confidence": "observed",
+        "source_uri": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/cpp/orders.cpp",
+        "stable_fact_key": "file:cpp:orders.cpp"
+      }
+    ],
+    "generation_id": "canonical-generation-4aa785a866c01c3d",
+    "observed_at": "2000-01-01T00:00:00Z",
+    "repo_id": "cpp",
+    "scope_id": "parser_fixture:cpp",
+    "scope_kind": "repository",
+    "source_system": "git"
+  }
+}

@@ -1,0 +1,242 @@
+{
+  "language": "git",
+  "schema_version": "1",
+  "scope": {
+    "collector_kind": "git",
+    "facts": [
+      {
+        "collector_kind": "git",
+        "fact_kind": "file",
+        "payload": {
+          "graph_id": "elixir:order_service.ex",
+          "graph_kind": "file",
+          "is_dependency": false,
+          "language": "elixir",
+          "parsed_file_data": {
+            "classes": [],
+            "function_calls": [
+              {
+                "args": [
+                  "customer_id"
+                ],
+                "class_context": "Example.OrderService",
+                "context": [
+                  "place",
+                  "function",
+                  6
+                ],
+                "full_name": "OrderRepository.create",
+                "inferred_obj_type": "OrderRepository",
+                "is_dependency": false,
+                "lang": "elixir",
+                "line_number": 7,
+                "name": "create"
+              },
+              {
+                "args": [
+                  "skus",
+                  "order",
+                  "fn sku, acc ->\n        add_line(acc, sku)\n      end"
+                ],
+                "class_context": "Example.OrderService",
+                "context": [
+                  "place",
+                  "function",
+                  6
+                ],
+                "full_name": "Enum.reduce",
+                "inferred_obj_type": "Enum",
+                "is_dependency": false,
+                "lang": "elixir",
+                "line_number": 10,
+                "name": "reduce"
+              },
+              {
+                "args": [
+                  "acc",
+                  "sku"
+                ],
+                "class_context": "Example.OrderService",
+                "context": [
+                  "place",
+                  "function",
+                  6
+                ],
+                "full_name": "add_line",
+                "inferred_obj_type": null,
+                "is_dependency": false,
+                "lang": "elixir",
+                "line_number": 11,
+                "name": "add_line"
+              },
+              {
+                "args": [
+                  "order"
+                ],
+                "class_context": "Example.OrderService",
+                "context": [
+                  "place",
+                  "function",
+                  6
+                ],
+                "full_name": "OrderRepository.save",
+                "inferred_obj_type": "OrderRepository",
+                "is_dependency": false,
+                "lang": "elixir",
+                "line_number": 14,
+                "name": "save"
+              },
+              {
+                "args": [
+                  "order_id"
+                ],
+                "class_context": "Example.OrderService",
+                "context": [
+                  "find",
+                  "function",
+                  17
+                ],
+                "full_name": "OrderRepository.by_id",
+                "inferred_obj_type": "OrderRepository",
+                "is_dependency": false,
+                "lang": "elixir",
+                "line_number": 18,
+                "name": "by_id"
+              },
+              {
+                "args": [
+                  "order",
+                  ":lines",
+                  "[sku]",
+                  "&[sku | &1]"
+                ],
+                "class_context": "Example.OrderService",
+                "context": [
+                  "add_line",
+                  "function",
+                  21
+                ],
+                "full_name": "Map.update",
+                "inferred_obj_type": "Map",
+                "is_dependency": false,
+                "lang": "elixir",
+                "line_number": 22,
+                "name": "update"
+              }
+            ],
+            "functions": [
+              {
+                "args": [
+                  "customer_id",
+                  "skus"
+                ],
+                "class_context": "Example.OrderService",
+                "context": [
+                  "Example.OrderService",
+                  "module",
+                  1
+                ],
+                "context_type": "module",
+                "cyclomatic_complexity": 1,
+                "decorators": [],
+                "end_line": 15,
+                "is_dependency": false,
+                "lang": "elixir",
+                "line_number": 6,
+                "name": "place",
+                "semantic_kind": "function",
+                "type": "def",
+                "visibility": "public"
+              },
+              {
+                "args": [
+                  "order_id"
+                ],
+                "class_context": "Example.OrderService",
+                "context": [
+                  "Example.OrderService",
+                  "module",
+                  1
+                ],
+                "context_type": "module",
+                "cyclomatic_complexity": 1,
+                "decorators": [],
+                "end_line": 19,
+                "is_dependency": false,
+                "lang": "elixir",
+                "line_number": 17,
+                "name": "find",
+                "semantic_kind": "function",
+                "type": "def",
+                "visibility": "public"
+              },
+              {
+                "args": [
+                  "order",
+                  "sku"
+                ],
+                "class_context": "Example.OrderService",
+                "context": [
+                  "Example.OrderService",
+                  "module",
+                  1
+                ],
+                "context_type": "module",
+                "cyclomatic_complexity": 1,
+                "decorators": [],
+                "end_line": 23,
+                "is_dependency": false,
+                "lang": "elixir",
+                "line_number": 21,
+                "name": "add_line",
+                "semantic_kind": "function",
+                "type": "defp",
+                "visibility": "private"
+              }
+            ],
+            "iac_relevant": false,
+            "imports": [
+              {
+                "alias": "OrderRepository",
+                "full_import_name": "alias Example.OrderRepository",
+                "import_type": "alias",
+                "is_dependency": false,
+                "lang": "elixir",
+                "line_number": 4,
+                "name": "Example.OrderRepository"
+              }
+            ],
+            "is_dependency": false,
+            "lang": "elixir",
+            "modules": [
+              {
+                "end_line": 24,
+                "is_dependency": false,
+                "lang": "elixir",
+                "line_number": 1,
+                "module_kind": "module",
+                "name": "Example.OrderService",
+                "type": "defmodule"
+              }
+            ],
+            "path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/elixir/order_service.ex",
+            "protocols": [],
+            "repo_path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/elixir",
+            "variables": []
+          },
+          "relative_path": "order_service.ex",
+          "repo_id": "elixir"
+        },
+        "source_confidence": "observed",
+        "source_uri": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/elixir/order_service.ex",
+        "stable_fact_key": "file:elixir:order_service.ex"
+      }
+    ],
+    "generation_id": "canonical-generation-e56d06e881d2abf3",
+    "observed_at": "2000-01-01T00:00:00Z",
+    "repo_id": "elixir",
+    "scope_id": "parser_fixture:elixir",
+    "scope_kind": "repository",
+    "source_system": "git"
+  }
+}

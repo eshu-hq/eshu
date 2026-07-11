@@ -1,0 +1,98 @@
+{
+  "language": "git",
+  "schema_version": "1",
+  "scope": {
+    "collector_kind": "git",
+    "facts": [
+      {
+        "collector_kind": "git",
+        "fact_kind": "file",
+        "payload": {
+          "graph_id": "crossplane:composition.yaml",
+          "graph_kind": "file",
+          "is_dependency": false,
+          "language": "yaml",
+          "parsed_file_data": {
+            "argocd_applications": [],
+            "argocd_applicationsets": [],
+            "atlantis_projects": [],
+            "atlantis_workflows": [],
+            "classes": [],
+            "cloudformation_conditions": [],
+            "cloudformation_cross_stack_exports": [],
+            "cloudformation_cross_stack_imports": [],
+            "cloudformation_outputs": [],
+            "cloudformation_parameters": [],
+            "cloudformation_resources": [],
+            "crossplane_claims": [],
+            "crossplane_compositions": [
+              {
+                "composite_api_version": "database.example.org/v1alpha1",
+                "composite_kind": "XPostgreSQLInstance",
+                "lang": "yaml",
+                "line_number": 18,
+                "name": "xpostgresqlinstances.aws.database.example.org",
+                "path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/crossplane/composition.yaml",
+                "resource_count": 1,
+                "resource_names": "rdsinstance"
+              }
+            ],
+            "crossplane_xrds": [
+              {
+                "claim_kind": "PostgreSQLInstance",
+                "claim_plural": "postgresqlinstances",
+                "group": "database.example.org",
+                "kind": "XPostgreSQLInstance",
+                "lang": "yaml",
+                "line_number": 1,
+                "name": "xpostgresqlinstances.database.example.org",
+                "path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/crossplane/composition.yaml",
+                "plural": "xpostgresqlinstances"
+              }
+            ],
+            "function_calls": [],
+            "functions": [],
+            "gitlab_jobs": [],
+            "gitlab_pipelines": [],
+            "helm_charts": [],
+            "helm_template_value_usages": [],
+            "helm_value_definitions": [],
+            "helm_values": [],
+            "iac_relevant": false,
+            "imports": [],
+            "is_dependency": false,
+            "k8s_resources": [],
+            "kustomize_overlays": [],
+            "lang": "yaml",
+            "observability_applied_resources": [],
+            "observability_applied_sync_states": [],
+            "observability_coverage_warnings": [],
+            "observability_declared_alert_rules": [],
+            "observability_declared_dashboards": [],
+            "observability_declared_datasources": [],
+            "observability_declared_folders": [],
+            "observability_declared_log_routes": [],
+            "observability_declared_metric_routes": [],
+            "observability_declared_metric_rules": [],
+            "observability_declared_scrape_configs": [],
+            "observability_declared_trace_routes": [],
+            "path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/crossplane/composition.yaml",
+            "repo_path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/crossplane",
+            "variables": []
+          },
+          "relative_path": "composition.yaml",
+          "repo_id": "crossplane"
+        },
+        "source_confidence": "observed",
+        "source_uri": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/crossplane/composition.yaml",
+        "stable_fact_key": "file:crossplane:composition.yaml"
+      }
+    ],
+    "generation_id": "canonical-generation-32bd74793f2dabc6",
+    "observed_at": "2000-01-01T00:00:00Z",
+    "repo_id": "crossplane",
+    "scope_id": "parser_fixture:crossplane",
+    "scope_kind": "repository",
+    "source_system": "git"
+  }
+}

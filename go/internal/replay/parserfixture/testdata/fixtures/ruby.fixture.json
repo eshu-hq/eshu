@@ -1,0 +1,201 @@
+{
+  "language": "git",
+  "schema_version": "1",
+  "scope": {
+    "collector_kind": "git",
+    "facts": [
+      {
+        "collector_kind": "git",
+        "fact_kind": "file",
+        "payload": {
+          "graph_id": "ruby:order_service.rb",
+          "graph_kind": "file",
+          "is_dependency": false,
+          "language": "ruby",
+          "parsed_file_data": {
+            "classes": [
+              {
+                "end_line": 16,
+                "lang": "ruby",
+                "line_number": 2,
+                "name": "OrderService",
+                "type": "class"
+              }
+            ],
+            "framework_semantics": {
+              "frameworks": []
+            },
+            "function_calls": [
+              {
+                "args": [],
+                "class_context": "OrderService",
+                "context": "initialize",
+                "context_type": "def",
+                "full_name": "repository",
+                "inferred_obj_type": null,
+                "is_dependency": false,
+                "lang": "ruby",
+                "line_number": 4,
+                "name": "repository"
+              },
+              {
+                "args": [],
+                "class_context": "OrderService",
+                "context": "place",
+                "context_type": "def",
+                "full_name": "@repository.create",
+                "inferred_obj_type": null,
+                "is_dependency": false,
+                "lang": "ruby",
+                "line_number": 8,
+                "name": "create"
+              },
+              {
+                "args": [],
+                "class_context": "OrderService",
+                "context": "place",
+                "context_type": "def",
+                "full_name": "order.add_line",
+                "inferred_obj_type": null,
+                "is_dependency": false,
+                "lang": "ruby",
+                "line_number": 9,
+                "name": "add_line"
+              },
+              {
+                "args": [],
+                "class_context": "OrderService",
+                "context": "place",
+                "context_type": "def",
+                "full_name": "skus.each",
+                "inferred_obj_type": null,
+                "is_dependency": false,
+                "lang": "ruby",
+                "line_number": 9,
+                "name": "each"
+              },
+              {
+                "args": [],
+                "class_context": "OrderService",
+                "context": "place",
+                "context_type": "def",
+                "full_name": "@repository.save",
+                "inferred_obj_type": null,
+                "is_dependency": false,
+                "lang": "ruby",
+                "line_number": 10,
+                "name": "save"
+              },
+              {
+                "args": [],
+                "class_context": "OrderService",
+                "context": "find",
+                "context_type": "def",
+                "full_name": "@repository.by_id",
+                "inferred_obj_type": null,
+                "is_dependency": false,
+                "lang": "ruby",
+                "line_number": 14,
+                "name": "by_id"
+              }
+            ],
+            "functions": [
+              {
+                "args": [
+                  "repository"
+                ],
+                "class_context": "OrderService",
+                "context": "OrderService",
+                "context_type": "class",
+                "cyclomatic_complexity": 1,
+                "decorators": [],
+                "end_line": 5,
+                "lang": "ruby",
+                "line_number": 3,
+                "name": "initialize",
+                "type": "instance"
+              },
+              {
+                "args": [
+                  "customer_id",
+                  "skus"
+                ],
+                "class_context": "OrderService",
+                "context": "OrderService",
+                "context_type": "class",
+                "cyclomatic_complexity": 1,
+                "decorators": [],
+                "end_line": 11,
+                "lang": "ruby",
+                "line_number": 7,
+                "name": "place",
+                "type": "instance"
+              },
+              {
+                "args": [
+                  "order_id"
+                ],
+                "class_context": "OrderService",
+                "context": "OrderService",
+                "context_type": "class",
+                "cyclomatic_complexity": 1,
+                "decorators": [],
+                "end_line": 15,
+                "lang": "ruby",
+                "line_number": 13,
+                "name": "find",
+                "type": "instance"
+              }
+            ],
+            "iac_relevant": false,
+            "imports": [],
+            "is_dependency": false,
+            "lang": "ruby",
+            "module_inclusions": [],
+            "modules": [
+              {
+                "end_line": 17,
+                "lang": "ruby",
+                "line_number": 1,
+                "name": "Example"
+              }
+            ],
+            "path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/ruby/order_service.rb",
+            "repo_path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/ruby",
+            "variables": [
+              {
+                "context": "initialize",
+                "context_type": "def",
+                "end_line": 4,
+                "lang": "ruby",
+                "line_number": 4,
+                "name": "@repository",
+                "type": "repository"
+              },
+              {
+                "context": "place",
+                "context_type": "def",
+                "end_line": 8,
+                "lang": "ruby",
+                "line_number": 8,
+                "name": "order",
+                "type": "@repository.create(customer_id)"
+              }
+            ]
+          },
+          "relative_path": "order_service.rb",
+          "repo_id": "ruby"
+        },
+        "source_confidence": "observed",
+        "source_uri": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/ruby/order_service.rb",
+        "stable_fact_key": "file:ruby:order_service.rb"
+      }
+    ],
+    "generation_id": "canonical-generation-9401218d6797a4e9",
+    "observed_at": "2000-01-01T00:00:00Z",
+    "repo_id": "ruby",
+    "scope_id": "parser_fixture:ruby",
+    "scope_kind": "repository",
+    "source_system": "git"
+  }
+}

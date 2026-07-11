@@ -162,6 +162,24 @@ coverage:
   # without expanding the blocking parser-backing-ledger denominator.
   - {surface: "parser:json", scenario: parser_fixture, scenario_type: baseline, ref: "go/internal/replay/parserfixture/testdata/fixtures/json.fixture.json", proof_gate: parserfixture-tests}
   - {surface: "parser:sql", scenario: parser_fixture, scenario_type: baseline, ref: "go/internal/replay/parserfixture/testdata/fixtures/sql.fixture.json", proof_gate: parserfixture-tests}
+  - {surface: "parser:c", scenario: parser_fixture, scenario_type: baseline, ref: "go/internal/replay/parserfixture/testdata/fixtures/c.fixture.json", proof_gate: parserfixture-tests}
+  - {surface: "parser:cpp", scenario: parser_fixture, scenario_type: baseline, ref: "go/internal/replay/parserfixture/testdata/fixtures/cpp.fixture.json", proof_gate: parserfixture-tests}
+  - {surface: "parser:crossplane", scenario: parser_fixture, scenario_type: baseline, ref: "go/internal/replay/parserfixture/testdata/fixtures/crossplane.fixture.json", proof_gate: parserfixture-tests}
+  - {surface: "parser:csharp", scenario: parser_fixture, scenario_type: baseline, ref: "go/internal/replay/parserfixture/testdata/fixtures/csharp.fixture.json", proof_gate: parserfixture-tests}
+  - {surface: "parser:dart", scenario: parser_fixture, scenario_type: baseline, ref: "go/internal/replay/parserfixture/testdata/fixtures/dart.fixture.json", proof_gate: parserfixture-tests}
+  - {surface: "parser:elixir", scenario: parser_fixture, scenario_type: baseline, ref: "go/internal/replay/parserfixture/testdata/fixtures/elixir.fixture.json", proof_gate: parserfixture-tests}
+  - {surface: "parser:haskell", scenario: parser_fixture, scenario_type: baseline, ref: "go/internal/replay/parserfixture/testdata/fixtures/haskell.fixture.json", proof_gate: parserfixture-tests}
+  - {surface: "parser:java", scenario: parser_fixture, scenario_type: baseline, ref: "go/internal/replay/parserfixture/testdata/fixtures/java.fixture.json", proof_gate: parserfixture-tests}
+  - {surface: "parser:javascript", scenario: parser_fixture, scenario_type: baseline, ref: "go/internal/replay/parserfixture/testdata/fixtures/javascript.fixture.json", proof_gate: parserfixture-tests}
+  - {surface: "parser:kotlin", scenario: parser_fixture, scenario_type: baseline, ref: "go/internal/replay/parserfixture/testdata/fixtures/kotlin.fixture.json", proof_gate: parserfixture-tests}
+  - {surface: "parser:perl", scenario: parser_fixture, scenario_type: baseline, ref: "go/internal/replay/parserfixture/testdata/fixtures/perl.fixture.json", proof_gate: parserfixture-tests}
+  - {surface: "parser:php", scenario: parser_fixture, scenario_type: baseline, ref: "go/internal/replay/parserfixture/testdata/fixtures/php.fixture.json", proof_gate: parserfixture-tests}
+  - {surface: "parser:ruby", scenario: parser_fixture, scenario_type: baseline, ref: "go/internal/replay/parserfixture/testdata/fixtures/ruby.fixture.json", proof_gate: parserfixture-tests}
+  - {surface: "parser:rust", scenario: parser_fixture, scenario_type: baseline, ref: "go/internal/replay/parserfixture/testdata/fixtures/rust.fixture.json", proof_gate: parserfixture-tests}
+  - {surface: "parser:scala", scenario: parser_fixture, scenario_type: baseline, ref: "go/internal/replay/parserfixture/testdata/fixtures/scala.fixture.json", proof_gate: parserfixture-tests}
+  - {surface: "parser:swift", scenario: parser_fixture, scenario_type: baseline, ref: "go/internal/replay/parserfixture/testdata/fixtures/swift.fixture.json", proof_gate: parserfixture-tests}
+  - {surface: "parser:typescript", scenario: parser_fixture, scenario_type: baseline, ref: "go/internal/replay/parserfixture/testdata/fixtures/typescript.fixture.json", proof_gate: parserfixture-tests}
+  - {surface: "parser:typescriptjsx", scenario: parser_fixture, scenario_type: baseline, ref: "go/internal/replay/parserfixture/testdata/fixtures/typescriptjsx.fixture.json", proof_gate: parserfixture-tests}
 
   # C-4 (#4176): correlation-backed capability claims. These map only the
   # capabilities whose claim is directly exercised by a B-12 required

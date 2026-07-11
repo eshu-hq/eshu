@@ -1,0 +1,158 @@
+{
+  "language": "git",
+  "schema_version": "1",
+  "scope": {
+    "collector_kind": "git",
+    "facts": [
+      {
+        "collector_kind": "git",
+        "fact_kind": "file",
+        "payload": {
+          "graph_id": "java:OrderService.java",
+          "graph_kind": "file",
+          "is_dependency": false,
+          "language": "java",
+          "parsed_file_data": {
+            "annotations": [],
+            "classes": [
+              {
+                "end_line": 24,
+                "lang": "java",
+                "line_number": 6,
+                "name": "OrderService"
+              }
+            ],
+            "enums": [],
+            "framework_semantics": {
+              "frameworks": []
+            },
+            "function_calls": [
+              {
+                "argument_count": 1,
+                "argument_types": [
+                  "String"
+                ],
+                "full_name": "repository.create",
+                "inferred_obj_type": "OrderRepository",
+                "lang": "java",
+                "line_number": 14,
+                "name": "create"
+              },
+              {
+                "argument_count": 1,
+                "argument_types": [
+                  "String"
+                ],
+                "full_name": "order.addLine",
+                "inferred_obj_type": "Order",
+                "lang": "java",
+                "line_number": 16,
+                "name": "addLine"
+              },
+              {
+                "argument_count": 1,
+                "argument_types": [
+                  "Order"
+                ],
+                "full_name": "repository.save",
+                "inferred_obj_type": "OrderRepository",
+                "lang": "java",
+                "line_number": 18,
+                "name": "save"
+              },
+              {
+                "argument_count": 1,
+                "argument_types": [
+                  "String"
+                ],
+                "full_name": "repository.byId",
+                "inferred_obj_type": "OrderRepository",
+                "lang": "java",
+                "line_number": 22,
+                "name": "byId"
+              }
+            ],
+            "functions": [
+              {
+                "class_context": "OrderService",
+                "cyclomatic_complexity": 1,
+                "dead_code_root_kinds": [
+                  "java.constructor"
+                ],
+                "end_line": 11,
+                "lang": "java",
+                "line_number": 9,
+                "name": "OrderService",
+                "parameter_count": 1,
+                "parameter_types": [
+                  "OrderRepository"
+                ]
+              },
+              {
+                "class_context": "OrderService",
+                "cyclomatic_complexity": 2,
+                "end_line": 19,
+                "lang": "java",
+                "line_number": 13,
+                "name": "place",
+                "parameter_count": 2,
+                "parameter_types": [
+                  "String",
+                  "List"
+                ]
+              },
+              {
+                "class_context": "OrderService",
+                "cyclomatic_complexity": 1,
+                "end_line": 23,
+                "lang": "java",
+                "line_number": 21,
+                "name": "find",
+                "parameter_count": 1,
+                "parameter_types": [
+                  "String"
+                ]
+              }
+            ],
+            "iac_relevant": false,
+            "imports": [
+              {
+                "alias": "List",
+                "full_import_name": "import java.util.List;",
+                "import_type": "import",
+                "lang": "java",
+                "line_number": 3,
+                "name": "java.util.List",
+                "source": "java.util.List"
+              }
+            ],
+            "interfaces": [],
+            "is_dependency": false,
+            "lang": "java",
+            "path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/java/OrderService.java",
+            "repo_path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/java",
+            "variables": [
+              {
+                "end_line": 7,
+                "lang": "java",
+                "line_number": 7,
+                "name": "repository"
+              }
+            ]
+          },
+          "relative_path": "OrderService.java",
+          "repo_id": "java"
+        },
+        "source_confidence": "observed",
+        "source_uri": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/java/OrderService.java",
+        "stable_fact_key": "file:java:OrderService.java"
+      }
+    ],
+    "generation_id": "canonical-generation-202d962b9479dc65",
+    "observed_at": "2000-01-01T00:00:00Z",
+    "repo_id": "java",
+    "scope_id": "parser_fixture:java",
+    "scope_kind": "repository",
+    "source_system": "git"
+  }
+}
