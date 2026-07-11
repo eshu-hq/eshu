@@ -367,6 +367,21 @@ type IdentitySubjectStore struct {
 	// (*secretcrypto.Keyring).Open — only Seal. Open is confined to
 	// login/authn packages (oidclogin, samlauth), never this storage package.
 	providerSecretKeyring *secretcrypto.Keyring
+	// totpSecretKeyring seals AND opens TOTP authenticator-app MFA shared
+	// secrets (#4986). Unlike providerSecretKeyring, this store DOES call
+	// (*secretcrypto.Keyring).Open for TOTP secrets: enrollment confirmation
+	// and login-time verification both happen inside this package (never in
+	// go/internal/query — see query/secretcrypto_open_boundary_test.go for
+	// the epic #4962 boundary that package enforces), so the open call site
+	// has to live here rather than in a login/authn package. It is nil when
+	// no DEK is configured; TOTP enrollment and verification fail closed in
+	// that case (see identity_local_totp.go). Callers typically wire the
+	// same *secretcrypto.Keyring instance used for SetProviderSecretKeyring
+	// — both AAD schemes share one DEK source (ESHU_AUTH_SECRET_ENC_KEY) but
+	// bind different AAD prefixes, so an envelope sealed for one can never
+	// decrypt under the other's AAD even though the underlying key is
+	// shared.
+	totpSecretKeyring *secretcrypto.Keyring
 }
 
 // NewIdentitySubjectStore constructs a Postgres identity subject store.
@@ -381,6 +396,17 @@ func NewIdentitySubjectStore(db ExecQueryer) *IdentitySubjectStore {
 // without a configured DEK) may leave it unset.
 func (s *IdentitySubjectStore) SetProviderSecretKeyring(k *secretcrypto.Keyring) {
 	s.providerSecretKeyring = k
+}
+
+// SetTOTPSecretKeyring wires the keyring used to seal and open TOTP
+// authenticator-app MFA shared secrets (#4986). See the totpSecretKeyring
+// field doc for why this store opens TOTP secrets (unlike provider-config
+// secrets, which this store only ever seals). Callers that never enroll or
+// verify a TOTP factor (or run without a configured DEK) may leave it unset;
+// TOTP enrollment and verification fail closed with
+// ErrLocalIdentityTOTPKeyringUnavailable in that case.
+func (s *IdentitySubjectStore) SetTOTPSecretKeyring(k *secretcrypto.Keyring) {
+	s.totpSecretKeyring = k
 }
 
 // IdentitySubjectSchemaSQL returns the additive identity subject DDL.

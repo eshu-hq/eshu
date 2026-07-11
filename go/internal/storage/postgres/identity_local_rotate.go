@@ -88,7 +88,7 @@ func (s *IdentitySubjectStore) RotateLocalIdentityPassword(
 	// factor: rotation's purpose is proving possession of what the account
 	// already has, not enrolling a new one.
 	if row.HasActiveMFA {
-		if rotation.MFARecoveryCodeHash == "" {
+		if rotation.MFARecoveryCodeHash == "" && rotation.MFATOTPCode == "" {
 			return LocalIdentityAuthenticationResult{
 				Status: LocalIdentityAuthMFARequired,
 				Auth: LocalIdentityAuthContext{
@@ -101,7 +101,23 @@ func (s *IdentitySubjectStore) RotateLocalIdentityPassword(
 				},
 			}, nil
 		}
-		if err := consumeLocalIdentityRecoveryCode(ctx, tx, row.UserID, LocalIdentityAuthenticationAttempt{
+		// Same TOTP-first ordering as AuthenticateLocalIdentity (issue
+		// #4986): prefer the non-consuming TOTP proof over spending a
+		// single-use recovery code when both are submitted. verifyLocalIdentityTOTPCode
+		// reads through s.db directly (not tx) — it is a read-mostly
+		// verification with one same-row last_used_at stamp on success, and
+		// running it outside the row-locked credential transaction does not
+		// change what it proves: it authenticates possession of the TOTP
+		// secret independent of the password-rotation row lock above.
+		if rotation.MFATOTPCode != "" {
+			verified, _, err := s.verifyLocalIdentityTOTPCode(ctx, row.UserID, rotation.MFATOTPCode, rotation.Now)
+			if err != nil {
+				return LocalIdentityAuthenticationResult{}, err
+			}
+			if !verified {
+				return s.recordFailedLocalIdentityAttempt(ctx, row, rotation.Now)
+			}
+		} else if err := consumeLocalIdentityRecoveryCode(ctx, tx, row.UserID, LocalIdentityAuthenticationAttempt{
 			MFARecoveryCodeHash:   rotation.MFARecoveryCodeHash,
 			ConsumeRecoveryCodeAt: rotation.ConsumeRecoveryCodeAt,
 			Now:                   rotation.Now,

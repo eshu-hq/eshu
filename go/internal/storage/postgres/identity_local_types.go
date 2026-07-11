@@ -89,13 +89,21 @@ type LocalIdentityInvitationAcceptance struct {
 }
 
 // LocalIdentityAuthenticationAttempt contains the raw password proof and
-// hash-only MFA recovery proof used to authenticate one local user.
+// MFA proof used to authenticate one local user. Exactly one MFA proof
+// field is expected when the account requires MFA: MFATOTPCode is checked
+// first when both are set (see AuthenticateLocalIdentity), so a recovery
+// code is never consumed when a TOTP code was also submitted.
 type LocalIdentityAuthenticationAttempt struct {
 	SubjectIDHash         string
 	Password              string
 	MFARecoveryCodeHash   string
 	ConsumeRecoveryCodeAt time.Time
-	Now                   time.Time
+	// MFATOTPCode is the raw (unhashed) authenticator-app code submitted at
+	// login (issue #4986). Unlike MFARecoveryCodeHash, this is never hashed
+	// by the caller — it is verified against the user's sealed TOTP secret
+	// inside AuthenticateLocalIdentity via verifyLocalIdentityTOTPCode.
+	MFATOTPCode string
+	Now         time.Time
 }
 
 // LocalIdentityAuthStatus is the bounded result of local credential validation.
@@ -263,7 +271,11 @@ type LocalIdentityPasswordRotation struct {
 	CredentialID              string
 	MFARecoveryCodeHash       string
 	ConsumeRecoveryCodeAt     time.Time
-	Now                       time.Time
+	// MFATOTPCode is the raw authenticator-app code re-proved at rotation
+	// time (issue #4986), checked before MFARecoveryCodeHash when both are
+	// set — see RotateLocalIdentityPassword.
+	MFATOTPCode string
+	Now         time.Time
 }
 
 type localIdentityInvitationRow struct {
