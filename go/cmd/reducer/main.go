@@ -99,6 +99,7 @@ func buildReducerService(
 	// max-(observed_at, source_fact_id) contributor. A database that does not
 	// expose a transaction beginner yields a pass-through gate (prior behavior).
 	ownerGate := graphowner.NewGate(reducerBeginner(database))
+	ownerGate.Instruments = instruments
 	graphWriters := newCanonicalGraphWriters(neo4jExec, neo4jBatchSize(getenv), ownerGate)
 	secretsIAMGraphWriter, err := secretsIAMGraphProjectionWriter(getenv, neo4jExec, neo4jBatchSize(getenv), logger)
 	if err != nil {

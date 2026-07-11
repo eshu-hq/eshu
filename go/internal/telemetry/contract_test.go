@@ -72,6 +72,7 @@ func TestMetricDimensionKeys(t *testing.T) {
 		"resource_type",
 		"relationship_type",
 		"join_mode",
+		"family",
 		"coverage_signal",
 		"resolution_mode",
 		"endpoint_kind",

@@ -29,6 +29,17 @@ is the family cypher writers in `internal/storage/cypher`); it composes them.
 - Serialization-Is-Not-A-Fix: the per-uid advisory lock is partition-by-conflict-
   key, not a global worker reduction. Do not "fix" a contention symptom by
   lowering reducer workers.
+- **`Gate.write` chunks the critical section at `lockChunkSize`
+  (`cypher.DefaultBatchSize`) — do not go back to one transaction per intent.**
+  #5007 P2-1 proved an unbounded per-intent transaction exhausts Postgres's
+  shared advisory-lock table (~6400 slots on stock defaults) at ~20000 uids
+  (`out of shared memory`); see
+  `docs/internal/design/5007-cross-scope-node-ownership.md`. If you change the
+  chunking loop, re-run the RED→GREEN unit proof
+  (`gated_writer_chunk_test.go`) and the live 20000-row proof
+  (`gated_writer_chunk_live_test.go`, `ESHU_GRAPH_NODE_OWNER_LIVE=1` +
+  `ESHU_POSTGRES_DSN`) before landing. Do not raise `lockChunkSize` without a
+  fresh lock-exhaustion measurement at the new size under concurrent workers.
 
 ## When you change the mechanic
 

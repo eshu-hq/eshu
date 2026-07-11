@@ -217,6 +217,12 @@ const (
 	// found. It lets an operator answer "which join mode is losing edges, and is
 	// it because the target service was not scanned in this scope?" at 3 AM.
 	MetricDimensionJoinMode = "join_mode"
+	// MetricDimensionOwnershipFamily labels the #5007 cross-scope ownership
+	// contention counter (eshu_dp_cross_scope_ownership_contended_rows_total)
+	// with the closed enum of graphowner node-writer families: cloud_resource,
+	// ec2_instance, kubernetes_workload. It lets an operator answer "which node
+	// family is losing cross-scope contention, and how often?" at 3 AM.
+	MetricDimensionOwnershipFamily = "family"
 	// MetricDimensionCoverageSignal labels the observability coverage correlation
 	// counter (eshu_dp_observability_coverage_correlations_total) with the closed
 	// enum of coverage signal classes: alarm, composite_alarm, dashboard,
