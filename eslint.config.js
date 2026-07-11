@@ -52,6 +52,13 @@ export default tseslint.config(
       // languages and runtimes, so the no-undef / no-console gates cannot
       // be made happy without lying about the test data.
       "tests/fixtures/**",
+      // go/internal/replay/parserfixture/testdata/ is the same kind of parser
+      // test corpora as tests/fixtures/ — sample source trees the Go replay
+      // parser fixtures exercise against (e.g. CommonJS orderService.js with
+      // require/module.exports). It is parser INPUT, not code we ship or lint,
+      // so no-undef / no-unused-vars cannot be satisfied without lying about
+      // the test data.
+      "go/internal/replay/parserfixture/testdata/**",
       "examples/**",
       "tests/lint-fixture/**",
     ],
