@@ -18,9 +18,10 @@ import (
 // TestEshuSearchVectorScopeStateSeederEquivalenceLive proves:
 //
 //  1. The seeder populates eshu_search_document_projection_state rows correctly.
-//  2. The seeder seeds eshu_search_vector_scope_state ready rows only for
-//     scopes the exact anti-join proves complete.
-//  3. EXACT EQUIVALENCE: the OLD pending lister and the NEW pending lister
+//  2. The seeder records conservative building vector-scope rows, then the
+//     scheduler's exact check/CAS marks only complete scopes ready.
+//  3. EXACT EQUIVALENCE: after scheduler finalization, the OLD pending lister
+//     and the NEW pending lister
 //     produce the same set of pending scopes (symmetric diff 0/0).
 //  4. A count-equal-but-stale scope IS pending (regression against a count
 //     shortcut).
@@ -80,6 +81,21 @@ func TestEshuSearchVectorScopeStateSeederEquivalenceLive(t *testing.T) {
 			now, tombstone, payload,
 		); err != nil {
 			t.Fatalf("insert fact %s: %v", factID, err)
+		}
+		if tombstone {
+			return
+		}
+		if _, err := sqlDB.ExecContext(
+			ctx, `
+			INSERT INTO eshu_search_index_documents
+			  (scope_id, generation_id, document_id, fact_id, repo_id, source_kind,
+			   content_hash, document, document_length, updated_at)
+			VALUES ($1,$2,$3,$4,$1,'code_entity',$5,
+			        jsonb_build_object('ID',$3::text),1,$6)
+			ON CONFLICT (scope_id,generation_id,document_id) DO NOTHING`,
+			scopeID, genID, docID, factID, contentHash, now,
+		); err != nil {
+			t.Fatalf("insert search index document %s: %v", factID, err)
 		}
 	}
 
@@ -259,21 +275,43 @@ func TestEshuSearchVectorScopeStateSeederEquivalenceLive(t *testing.T) {
 		}
 	}
 
-	// --- Assert vector_scope_state rows: scopes A and F are complete ---
-	completeScopes := map[string]bool{scopeA: true, scopeF: true}
+	// --- Assert conservative vector_scope_state seed rows. ---
 	for _, scopeID := range []string{scopeA, scopeB, scopeC, scopeD, scopeE, scopeF} {
 		var count int
 		if err := sqlDB.QueryRowContext(ctx, `
 			SELECT count(*) FROM eshu_search_vector_scope_state
-			WHERE scope_id = $1 AND state = 'ready'`, scopeID).Scan(&count); err != nil {
+			WHERE scope_id = $1 AND state = 'building'`, scopeID).Scan(&count); err != nil {
 			t.Fatalf("query vector_scope_state for %s: %v", scopeID, err)
 		}
-		want := 0
-		if completeScopes[scopeID] {
-			want = 1
+		want := 1
+		if scopeID == scopeE {
+			want = 0
 		}
 		if count != want {
-			t.Errorf("%s vector_scope_state ready rows = %d, want %d", scopeID, count, want)
+			t.Errorf("%s vector_scope_state building rows = %d, want %d", scopeID, count, want)
+		}
+	}
+
+	// Simulate the bounded scheduler's exact completion check and ready CAS for
+	// the two complete scopes before comparing pending-set semantics.
+	newStore := NewEshuSearchVectorScopeStateStore(db)
+	for _, completeScope := range []struct{ scopeID, generationID string }{
+		{scopeA, genA},
+		{scopeF, genF},
+	} {
+		complete, err := newStore.ScopeVectorComplete(ctx, completeScope.scopeID, completeScope.generationID, identity)
+		if err != nil {
+			t.Fatalf("ScopeVectorComplete %s: %v", completeScope.scopeID, err)
+		}
+		if !complete {
+			t.Fatalf("ScopeVectorComplete %s = false, want true", completeScope.scopeID)
+		}
+		ok, err := newStore.FinalizeReady(ctx, completeScope.scopeID, completeScope.generationID, identity, 1, 1)
+		if err != nil {
+			t.Fatalf("FinalizeReady %s: %v", completeScope.scopeID, err)
+		}
+		if !ok {
+			t.Fatalf("FinalizeReady %s = false, want true", completeScope.scopeID)
 		}
 	}
 
@@ -293,7 +331,6 @@ func TestEshuSearchVectorScopeStateSeederEquivalenceLive(t *testing.T) {
 	}
 
 	t.Log("computing new pending set...")
-	newStore := NewEshuSearchVectorScopeStateStore(db)
 	newReq := EshuSearchVectorPendingRequest{
 		ProviderProfileID:  providerProfileID,
 		SourceClass:        sourceClass,

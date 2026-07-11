@@ -63,7 +63,7 @@ WHERE ps.state = 'ready'
   )
 `
 
-// SeedSearchVectorScopeState is the one-time exact-proof migration seeder
+// SeedSearchVectorScopeState is the one-time fail-closed migration seeder
 // (#4233). It populates eshu_search_document_projection_state rows for every
 // active repository scope (idempotent) and then records conservative building
 // vector-scope rows. Startup never performs a corpus-wide exact-ready proof;
