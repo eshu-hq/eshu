@@ -34,8 +34,21 @@ lib_dir="$(dirname "$0")/lib"
 # shellcheck source=scripts/lib/operator-dashboard-panels-2.sh
 . "${lib_dir}/operator-dashboard-panels-2.sh"
 
-panels_1=$(operator_dashboard_panels_1)
-panels_2=$(operator_dashboard_panels_2)
+# Emit each panel block's large `cat <<EOF` heredoc to a temp file (its stdout
+# redirected to a real file, NOT captured inside a `$(...)`), then read the file
+# back with the `$(<file)` builtin — which uses no `cat` subprocess. Capturing a
+# 300+-line heredoc directly via `panels_N=$(operator_dashboard_panels_N)` is the
+# large-input-in-command-substitution construct that hangs on Homebrew bash
+# 5.3.15 (issue #5019, same class as the `<<<` here-string fixed in #4718). Both
+# `$(func)` and `$(<file)` strip trailing newlines identically, so the assembled
+# output below is byte-for-byte unchanged.
+panels_1_file=$(mktemp "${TMPDIR:-/tmp}/eshu-operator-panels-1.XXXXXX")
+panels_2_file=$(mktemp "${TMPDIR:-/tmp}/eshu-operator-panels-2.XXXXXX")
+trap 'rm -f "$panels_1_file" "$panels_2_file"' EXIT
+operator_dashboard_panels_1 >"$panels_1_file"
+operator_dashboard_panels_2 >"$panels_2_file"
+panels_1=$(<"$panels_1_file")
+panels_2=$(<"$panels_2_file")
 
 mkdir -p "$(dirname "$output_path")"
 
