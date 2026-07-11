@@ -166,7 +166,7 @@ func Capture(input CaptureInput) (Bundle, error) {
 		Payloads: payloads,
 		Validation: Validation{
 			Status: "passed",
-			Checks: []string{"schema_version", "share_safe_keys"},
+			Checks: append([]string(nil), ValidationChecks...),
 		},
 	}
 

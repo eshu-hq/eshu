@@ -108,3 +108,59 @@ func TestValidate_PrivateTriageWithoutPayloadsIsRejected(t *testing.T) {
 		t.Fatalf("Validate(private-triage profile + nil Payloads) error = nil, want rejection")
 	}
 }
+
+// TestValidationChecksMatchValidateBehavior guards the P2 from the #5060 review:
+// Bundle.Validation.Checks must not drift from Validate's actual checks. It
+// asserts Capture records exactly ValidationChecks, that a bundle satisfying
+// every listed check passes Validate (each listed name maps to a real gate,
+// not a no-op), and that each listed check rejects when its precondition is
+// violated. The len(cases)==len(ValidationChecks) guard forces a new entry to
+// arrive with its own rejection case; it cannot prove the absence of an
+// unlisted always-run check, so adding a check to Validate still requires
+// adding its name here by hand (the doc contract on ValidationChecks).
+func TestValidationChecksMatchValidateBehavior(t *testing.T) {
+	valid := minimalPublicBundle(t)
+
+	if len(valid.Validation.Checks) != len(ValidationChecks) {
+		t.Fatalf("Capture recorded %d checks, want %d (ValidationChecks)", len(valid.Validation.Checks), len(ValidationChecks))
+	}
+	for i, name := range ValidationChecks {
+		if valid.Validation.Checks[i] != name {
+			t.Fatalf("Capture recorded Checks[%d]=%q, want %q from ValidationChecks", i, valid.Validation.Checks[i], name)
+		}
+	}
+	if err := Validate(valid, ValidateOptions{}); err != nil {
+		t.Fatalf("valid bundle failed Validate: %v (an always-run check may be missing from ValidationChecks)", err)
+	}
+
+	cases := []struct {
+		check  string
+		mutate func(*Bundle)
+	}{
+		{"schema_version", func(b *Bundle) { b.SchemaVersion = "report/vX" }},
+		{"bundle_id", func(b *Bundle) { b.BundleID = "" }},
+		{"profile_payloads_consistency", func(b *Bundle) { b.Payloads = &PayloadAttachment{Warning: "x"} }},
+		{"share_safe_keys", func(b *Bundle) { b.Query.Params = map[string]any{"api_key": "leak"} }},
+	}
+	for _, tc := range cases {
+		found := false
+		for _, n := range ValidationChecks {
+			if n == tc.check {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatalf("check %q is exercised here but absent from ValidationChecks", tc.check)
+		}
+		b := minimalPublicBundle(t)
+		tc.mutate(&b)
+		if err := Validate(b, ValidateOptions{}); err == nil {
+			t.Fatalf("Validate accepted a bundle violating %q, want rejection", tc.check)
+		}
+	}
+
+	if len(ValidationChecks) != len(cases) {
+		t.Fatalf("ValidationChecks has %d entries but %d are behavior-guarded here — add the new check's rejection case when extending Validate", len(ValidationChecks), len(cases))
+	}
+}

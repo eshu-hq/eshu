@@ -51,7 +51,7 @@ func TestBundle_SchemaRoundTrip(t *testing.T) {
 		},
 		Validation: Validation{
 			Status: "passed",
-			Checks: []string{"schema_version", "share_safe_keys"},
+			Checks: append([]string(nil), ValidationChecks...),
 		},
 	}
 

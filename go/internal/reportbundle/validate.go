@@ -19,6 +19,21 @@ type ValidateOptions struct {
 	RequirePublic bool
 }
 
+// ValidationChecks names, in order, the checks Validate runs on every bundle
+// under default ValidateOptions — exactly as Capture invokes it. It is the
+// single source of truth for the Bundle.Validation.Checks metadata so that
+// recorded list cannot silently drift from Validate's actual behavior: add a
+// check to Validate and add its name here in the same change (guarded by
+// TestValidationChecksMatchValidateBehavior). The caller-side --require-public
+// posture (opts.RequirePublic) is a conditional gate a producer does not run,
+// so it is intentionally not part of the capture-time record.
+var ValidationChecks = []string{
+	"schema_version",
+	"bundle_id",
+	"profile_payloads_consistency",
+	"share_safe_keys",
+}
+
 // Validate checks a finished Bundle: schema_version fail-closed (mirroring
 // evidencebundle/validate.go:14-15), a required bundle_id, profile↔payloads
 // consistency, the --require-public posture when requested, and the share-safe
