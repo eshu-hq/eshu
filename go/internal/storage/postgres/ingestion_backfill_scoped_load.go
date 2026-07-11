@@ -332,8 +332,9 @@ func (s IngestionStore) loadDeferredScopedFactsAcrossPartitions(
 			envelopes, err := loadDeferredScopedRelationshipFactsForPartition(
 				groupCtx, queryer, task.params, task.partition.ScopeID, task.partition.GenerationID,
 			)
+			duration := time.Since(started)
 			if instruments != nil {
-				instruments.DeferredBackfillPartitionLoadDuration.Record(groupCtx, time.Since(started).Seconds())
+				instruments.DeferredBackfillPartitionLoadDuration.Record(groupCtx, duration.Seconds())
 			}
 			if err != nil {
 				mu.Lock()
@@ -354,6 +355,11 @@ func (s IngestionStore) loadDeferredScopedFactsAcrossPartitions(
 				mu.Unlock()
 				return
 			}
+			log.Printf(
+				"deferred_backfill_fact_load_task_completed task=%d query_tasks=%d scope_id=%q repo_terms=%d non_repo_terms=%d loaded_facts=%d duration_s=%.2f workers=%d",
+				index+1, len(tasks), task.partition.ScopeID, len(task.params.repoIDValues), len(task.params.nonRepoIDLike),
+				len(envelopes), duration.Seconds(), workers,
+			)
 			perTask[index] = envelopes
 		}(i, task)
 	}
