@@ -179,6 +179,16 @@ function PlaybookRunner({
     capability: string;
   } | null>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
+  // Gate the in-flight resolvePlaybook callbacks so collapsing the panel
+  // ("Hide") or navigating away mid-request does not set state on an unmounted
+  // component (mirrors GuidedQuestionsLive's cancelled-flag pattern).
+  const mountedRef = useRef(true);
+  useEffect(
+    () => () => {
+      mountedRef.current = false;
+    },
+    [],
+  );
 
   useEffect(() => {
     if (phase === "resolved") {
@@ -209,6 +219,7 @@ function PlaybookRunner({
     }
     void resolvePlaybook(client, { playbookId: playbook.id, inputs })
       .then((resolution) => {
+        if (!mountedRef.current) return;
         setResolved(resolution.resolved);
         setTruth(
           resolution.truth
@@ -222,6 +233,7 @@ function PlaybookRunner({
         setPhase("resolved");
       })
       .catch((runError: unknown) => {
+        if (!mountedRef.current) return;
         setError(runError instanceof Error ? runError.message : "failed to resolve playbook");
         setPhase("error");
       });

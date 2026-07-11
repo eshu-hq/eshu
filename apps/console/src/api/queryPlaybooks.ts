@@ -251,7 +251,11 @@ export async function listPlaybooks(client: EshuApiClient): Promise<PlaybookCata
       truth: env.truth ?? null,
       provenance: playbooks.length > 0 ? "live" : "empty",
     };
-  } catch {
+  } catch (err) {
+    // Degrade to a truthful "unavailable" state rather than crash, but leave a
+    // browser-console signal so an operator can tell a network failure from a
+    // server-side internal_error or a malformed envelope.
+    console.warn("listPlaybooks degraded to unavailable", err);
     return { playbooks: [], versions: [], count: 0, truth: null, provenance: "unavailable" };
   }
 }
