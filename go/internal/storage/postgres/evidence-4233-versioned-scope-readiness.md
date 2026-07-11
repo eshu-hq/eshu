@@ -16,7 +16,9 @@ that scheduler scan and added a terminal-count shortcut, but the preserved
    permanently. All 98 live mismatches contained the Unicode replacement
    character.
 3. A `search_vector_ready` row published before later document projections
-   remained visible even while 28 vector scopes were building.
+   remained visible while 28 vector scopes were building; the first guard also
+   missed the earlier interval where an active document projection itself was
+   `building` or `failed`.
 4. The fixed 500-document per-scope selector cap repeated the same large-scope
    index walk hundreds of times after the pending set narrowed to one scope.
 5. The one-time upgrade seeder retained a corpus-wide exact-ready proof over
@@ -37,6 +39,10 @@ The theory was measured before the production changes:
   938.760 ms for a complete 99,877-document scope.
 - OLD watermark probe returned one row while vector scopes were pending. The
   guarded probe returned zero rows in 0.590 ms with 158 shared-buffer hits.
+- With one current projection changed transactionally from `ready` to
+  `building`, the first guard still returned the old watermark in 5.538 ms;
+  the corrected predicate returned zero rows in 2.535 ms. The transaction was
+  rolled back.
 - On the remaining 253,206-document scope, a 500-row pending read took
   1.491 seconds and a 10,000-row read took 1.544 seconds. The larger page did
   20 times the useful work for 3.6 percent more query time. Its document JSON

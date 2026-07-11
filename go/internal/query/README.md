@@ -97,9 +97,10 @@ about truth level. Graph reads go through `GraphQuery`, content reads go through
 `ContentStore`, and response models keep provenance-only evidence separate from
 canonical graph or reducer truth.
 Semantic and hybrid search freshness reads require both an identity-scoped
-`search_vector_ready` watermark and no pending versioned vector scope. A stale
-watermark from an earlier projection therefore fails closed; keyword mode does
-not consult the vector signal.
+`search_vector_ready` watermark, no active document projection in a non-ready
+state, and no pending versioned vector scope for a non-empty ready projection.
+A stale watermark from an earlier projection therefore fails closed; keyword
+mode does not consult the vector signal.
 Repository relationship rows and relationship evidence drilldown normalize
 correlation confidence provenance with `confidence_basis`. The value is
 `evidence_constant` for a single extractor weight, `evidence_aggregate` for

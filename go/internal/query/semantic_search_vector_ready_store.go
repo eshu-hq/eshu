@@ -21,8 +21,9 @@ type searchVectorReadyQueryer interface {
 // search_vector_build_materialization. A prior ready row is necessary but not
 // sufficient: document projection can create a newer revision after the
 // watermark was published. The NOT EXISTS guard rechecks the versioned
-// per-scope readiness state so an old row fails closed while any active scope
-// is missing, building, or ready for an older projection revision. The row and
+// per-scope readiness state so an old row fails closed while any active
+// projection is building/failed or any non-empty ready projection has missing,
+// building, failed, or stale-revision vector state. The row and
 // readiness check are keyed by the full identity tuple (not a singleton), so
 // one provider/model/version cannot satisfy another identity's probe.
 const selectSearchVectorReadyWatermarkQuery = `
@@ -46,12 +47,16 @@ WHERE materialization.provider_profile_id = $1
      AND vector_scope.embedding_model_id = materialization.embedding_model_id
      AND vector_scope.vector_index_version = materialization.vector_index_version
     WHERE scope.scope_kind = 'repository'
-      AND projection.state = 'ready'
-      AND projection.document_count > 0
       AND (
-        vector_scope.state IS NULL
-        OR vector_scope.state <> 'ready'
-        OR vector_scope.projection_revision <> projection.projection_revision
+        projection.state <> 'ready'
+        OR (
+          projection.document_count > 0
+          AND (
+            vector_scope.state IS NULL
+            OR vector_scope.state <> 'ready'
+            OR vector_scope.projection_revision <> projection.projection_revision
+          )
+        )
       )
   )
 LIMIT 1`

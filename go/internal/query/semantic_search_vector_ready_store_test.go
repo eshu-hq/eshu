@@ -59,6 +59,7 @@ func TestPostgresSearchVectorReadyStoreIssuesWatermarkProbe(t *testing.T) {
 		"NOT EXISTS",
 		"eshu_search_document_projection_state",
 		"eshu_search_vector_scope_state",
+		"projection.state <> 'ready'",
 		"vector_scope.projection_revision <> projection.projection_revision",
 	} {
 		if !strings.Contains(rec.lastQuery, fragment) {

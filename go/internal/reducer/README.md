@@ -1116,9 +1116,10 @@ downgraded by a pending search-vector build.
 
 The reader does not trust an old watermark row by itself. It also checks the
 current document projection revision against the identity-scoped vector scope
-state and reports the signal absent while any active repository is missing,
-building, failed, or ready for an older revision. This closes the interval in
-which a previously caught-up watermark survives a later projection.
+state and reports the signal absent while any active document projection is
+building or failed, or while a non-empty ready projection's vector state is
+missing, building, failed, or ready for an older revision. This closes the
+interval in which a previously caught-up watermark survives a later projection.
 
 Observability Evidence: before this change an outstanding search-vector build
 had no attributable freshness cause on the search read path and no completion
