@@ -17,7 +17,7 @@ func TestListPendingSearchVectorScopesQueryShape(t *testing.T) {
 	t.Parallel()
 
 	db := &fakeExecQueryer{
-		queryResponses: []queueFakeRows{{rows: [][]any{}}},
+		queryResponses: []queueFakeRows{{rows: [][]any{{"scope-1", "gen-1", "repo-1", int64(4), "doc-009"}}}},
 	}
 	store := NewEshuSearchVectorScopeStateStore(db)
 
@@ -31,8 +31,8 @@ func TestListPendingSearchVectorScopesQueryShape(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListPendingSearchVectorScopes error = %v", err)
 	}
-	if len(scopes) != 0 {
-		t.Fatalf("scopes = %d, want 0", len(scopes))
+	if len(scopes) != 1 || scopes[0].DocumentCursor != "doc-009" {
+		t.Fatalf("scopes = %#v, want cursor-bearing scope", scopes)
 	}
 
 	if len(db.queries) != 1 {
@@ -47,6 +47,7 @@ func TestListPendingSearchVectorScopesQueryShape(t *testing.T) {
 		"state='ready'",
 		"document_count",
 		"vs.state IS NULL",
+		"CASE WHEN vs.projection_revision = ps.projection_revision THEN vs.document_cursor ELSE '' END",
 		"ORDER BY ps.scope_id",
 		"LIMIT $5",
 	} {
@@ -83,7 +84,7 @@ func TestScopeVectorCompleteQueryShape(t *testing.T) {
 	// Count-gate guard (new — #4233 amortization).
 	for _, want := range []string{
 		"completion_gate",
-		"terminal_count < document_count",
+		"gate.terminal_count < gate.document_count",
 		"eshu_search_document_projection_state",
 		"ps.state = 'ready'",
 		"meta.build_state IN ('ready', 'disabled')",
@@ -93,17 +94,14 @@ func TestScopeVectorCompleteQueryShape(t *testing.T) {
 		}
 	}
 
-	// The exact set difference must materialize each scope-bounded relation once
-	// before EXCEPT. This prevents the nested per-document value lookup that took
-	// more than 112 seconds for a complete 3,164-document scope.
+	// The exact branch must reuse the indexed pending-document predicate. The
+	// retired materialized EXCEPT branch reached 178 seconds for a complete
+	// 76,553-document scope under ingestion pressure (#5063).
 	for _, want := range []string{
-		"projected_docs AS MATERIALIZED",
-		"terminal_metadata AS MATERIALIZED",
-		"vector_values AS MATERIALIZED",
-		"EXCEPT",
 		"FROM eshu_search_index_documents doc",
 		"doc.scope_id = $1",
 		"doc.generation_id = $2",
+		"NOT EXISTS",
 		"eshu_search_vector_metadata",
 		"eshu_search_vector_values",
 		"meta.provider_profile_id = $3",
@@ -112,9 +110,21 @@ func TestScopeVectorCompleteQueryShape(t *testing.T) {
 		"meta.vector_index_version = $6",
 		"meta.embedding_content_hash",
 		"value.embedding_content_hash = meta.embedding_content_hash",
+		"-- OFFSET 0 prevents the planner from un-nesting this NOT EXISTS into a full-scope anti-join (#5063).",
+		"OFFSET 0",
 	} {
 		if !strings.Contains(q, want) {
 			t.Fatalf("query missing anti-join %q:\n%s", want, q)
+		}
+	}
+	for _, forbidden := range []string{
+		"projected_docs AS MATERIALIZED",
+		"terminal_metadata AS MATERIALIZED",
+		"vector_values AS MATERIALIZED",
+		"EXCEPT",
+	} {
+		if strings.Contains(q, forbidden) {
+			t.Fatalf("query retains retired exact branch %q:\n%s", forbidden, q)
 		}
 	}
 	if strings.Contains(q, "fact_records") || strings.Contains(q, "fact.payload") {

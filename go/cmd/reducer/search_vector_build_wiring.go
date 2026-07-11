@@ -92,6 +92,7 @@ func (a searchVectorBuilderAdapter) BuildSearchVectors(
 		ScopeID:            req.ScopeID,
 		GenerationID:       req.GenerationID,
 		RepoID:             req.RepoID,
+		AfterDocumentID:    req.AfterDocumentID,
 		ProviderProfileID:  req.ProviderProfileID,
 		SourceClass:        req.SourceClass,
 		EmbeddingModelID:   req.EmbeddingModelID,
@@ -108,6 +109,7 @@ func (a searchVectorBuilderAdapter) BuildSearchVectors(
 		QueryLoadDuration:   result.QueryLoadDuration,
 		EmbedBuildDuration:  result.EmbedBuildDuration,
 		WriteUpsertDuration: result.WriteUpsertDuration,
+		ScopeProgress:       adaptSearchVectorBuildScopeProgress(result.ScopeProgress),
 	}, err
 }
 
@@ -121,6 +123,7 @@ func (a searchVectorBuilderAdapter) BuildSearchVectorsBatch(
 			ScopeID:            req.ScopeID,
 			GenerationID:       req.GenerationID,
 			RepoID:             req.RepoID,
+			AfterDocumentID:    req.AfterDocumentID,
 			ProviderProfileID:  req.ProviderProfileID,
 			SourceClass:        req.SourceClass,
 			EmbeddingModelID:   req.EmbeddingModelID,
@@ -139,6 +142,7 @@ func (a searchVectorBuilderAdapter) BuildSearchVectorsBatch(
 		QueryLoadDuration:   result.QueryLoadDuration,
 		EmbedBuildDuration:  result.EmbedBuildDuration,
 		WriteUpsertDuration: result.WriteUpsertDuration,
+		ScopeProgress:       adaptSearchVectorBuildScopeProgress(result.ScopeProgress),
 	}, err
 }
 
@@ -170,10 +174,22 @@ func (a searchVectorScopeStatePendingAdapter) ListPendingSearchVectorScopes(
 			ScopeID:            scope.ScopeID,
 			GenerationID:       scope.GenerationID,
 			RepoID:             scope.RepoID,
+			DocumentCursor:     scope.DocumentCursor,
 			ProjectionRevision: scope.ProjectionRevision,
 		})
 	}
 	return out, nil
+}
+
+func adaptSearchVectorBuildScopeProgress(progress []searchvector.BuildScopeProgress) []reducer.SearchVectorBuildScopeProgress {
+	out := make([]reducer.SearchVectorBuildScopeProgress, 0, len(progress))
+	for _, item := range progress {
+		out = append(out, reducer.SearchVectorBuildScopeProgress{
+			ScopeID: item.ScopeID, GenerationID: item.GenerationID,
+			DocumentCount: item.DocumentCount, LastDocumentID: item.LastDocumentID,
+		})
+	}
+	return out
 }
 
 // searchVectorScopeStateManagerAdapter wraps EshuSearchVectorScopeStateStore
@@ -208,6 +224,31 @@ func (a searchVectorScopeStateManagerAdapter) ScopeVectorComplete(
 		EmbeddingModelID:   identity.EmbeddingModelID,
 		VectorIndexVersion: identity.VectorIndexVersion,
 	})
+}
+
+func (a searchVectorScopeStateManagerAdapter) AdvanceDocumentCursor(
+	ctx context.Context,
+	scopeID, generationID string,
+	identity reducer.SearchVectorBuildIdentity,
+	projectionRevision, fence int64,
+	documentID string,
+) (bool, error) {
+	return a.store.AdvanceDocumentCursor(ctx, scopeID, generationID, postgres.EshuSearchVectorIdentity{
+		ProviderProfileID: identity.ProviderProfileID, SourceClass: identity.SourceClass,
+		EmbeddingModelID: identity.EmbeddingModelID, VectorIndexVersion: identity.VectorIndexVersion,
+	}, projectionRevision, fence, documentID)
+}
+
+func (a searchVectorScopeStateManagerAdapter) ResetDocumentCursor(
+	ctx context.Context,
+	scopeID, generationID string,
+	identity reducer.SearchVectorBuildIdentity,
+	projectionRevision, fence int64,
+) (bool, error) {
+	return a.store.ResetDocumentCursor(ctx, scopeID, generationID, postgres.EshuSearchVectorIdentity{
+		ProviderProfileID: identity.ProviderProfileID, SourceClass: identity.SourceClass,
+		EmbeddingModelID: identity.EmbeddingModelID, VectorIndexVersion: identity.VectorIndexVersion,
+	}, projectionRevision, fence)
 }
 
 func (a searchVectorScopeStateManagerAdapter) FinalizeReady(

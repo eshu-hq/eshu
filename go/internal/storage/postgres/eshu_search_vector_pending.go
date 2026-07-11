@@ -88,6 +88,7 @@ type EshuSearchVectorPendingScope struct {
 	GenerationID       string
 	RepoID             string
 	ProjectionRevision int64
+	DocumentCursor     string
 }
 
 // EshuSearchVectorPendingStore is the RETIRED corpus-wide pending lister. It is

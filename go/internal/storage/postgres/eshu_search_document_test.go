@@ -185,17 +185,14 @@ func TestEshuSearchDocumentStoreListsPendingVectorDocuments(t *testing.T) {
 		"meta.build_state = 'disabled'",
 		"meta.build_state = 'ready'",
 		"value.document_id IS NOT NULL",
+		"-- OFFSET 0 prevents the planner from un-nesting this NOT EXISTS into a full-scope anti-join (#5063).",
+		"OFFSET 0",
+		"ORDER BY doc.document_id",
 		"LIMIT",
 	} {
 		if !strings.Contains(q, fragment) {
 			t.Errorf("query missing %q:\n%s", fragment, q)
 		}
-	}
-	if strings.Contains(q, "OFFSET") {
-		t.Fatalf("pending vector document query must not OFFSET a shrinking pending set:\n%s", q)
-	}
-	if strings.Contains(q, "ORDER BY") {
-		t.Fatalf("pending vector document query should stay limit-driven instead of sorting full scopes:\n%s", q)
 	}
 	if strings.Contains(q, "fact_records") || strings.Contains(q, "fact.payload") {
 		t.Fatalf("pending vector document query should use the persisted search index, not fact_records payload scans:\n%s", q)

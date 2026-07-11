@@ -18,7 +18,7 @@ import (
 
 const (
 	defaultBuildLimit  = 500
-	maxBatchBuildLimit = 10000
+	maxBatchBuildLimit = 50000
 )
 
 const (
@@ -79,6 +79,7 @@ type BuildRequest struct {
 	ScopeID            string
 	GenerationID       string
 	RepoID             string
+	AfterDocumentID    string
 	SourceKinds        []searchdocs.SourceKind
 	ProviderProfileID  string
 	SourceClass        string
@@ -89,12 +90,22 @@ type BuildRequest struct {
 	BuildFence         int64
 }
 
+// BuildScopeProgress records the durable keyset progress produced for one
+// scope by a successful bounded build.
+type BuildScopeProgress struct {
+	ScopeID        string
+	GenerationID   string
+	DocumentCount  int
+	LastDocumentID string
+}
+
 // BuildResult summarizes a vector build attempt.
 type BuildResult struct {
 	DocumentCount int
 	VectorCount   int
 	DisabledCount int
 	FailedCount   int
+	ScopeProgress []BuildScopeProgress
 	// QueryLoadDuration is time spent listing active search documents.
 	QueryLoadDuration time.Duration
 	// EmbedBuildDuration is time spent embedding document text.
@@ -132,6 +143,7 @@ func (b Builder) Build(ctx context.Context, req BuildRequest) (BuildResult, erro
 			SourceClass:        req.SourceClass,
 			EmbeddingModelID:   req.EmbeddingModelID,
 			VectorIndexVersion: req.VectorIndexVersion,
+			AfterDocumentID:    req.AfterDocumentID,
 		})
 		result.QueryLoadDuration += time.Since(loadStart)
 		if err != nil {
@@ -140,6 +152,7 @@ func (b Builder) Build(ctx context.Context, req BuildRequest) (BuildResult, erro
 		if _, err := b.buildDocumentRows(ctx, req, now, rows, "", &result, &failures); err != nil {
 			return result, err
 		}
+		result.ScopeProgress = append(result.ScopeProgress, buildScopeProgress(req, rows))
 		return result, errors.Join(failures...)
 	}
 
@@ -421,6 +434,7 @@ func normalizeBuildRequestWithLimit(req BuildRequest, maxLimit int) BuildRequest
 	req.ScopeID = strings.TrimSpace(req.ScopeID)
 	req.GenerationID = strings.TrimSpace(req.GenerationID)
 	req.RepoID = strings.TrimSpace(req.RepoID)
+	req.AfterDocumentID = strings.TrimSpace(req.AfterDocumentID)
 	req.ProviderProfileID = strings.TrimSpace(req.ProviderProfileID)
 	req.SourceClass = strings.TrimSpace(req.SourceClass)
 	req.EmbeddingModelID = strings.TrimSpace(req.EmbeddingModelID)
@@ -431,6 +445,20 @@ func normalizeBuildRequestWithLimit(req BuildRequest, maxLimit int) BuildRequest
 		req.Limit = maxLimit
 	}
 	return req
+}
+
+func buildScopeProgress(req BuildRequest, rows []postgres.EshuSearchDocumentRow) BuildScopeProgress {
+	progress := BuildScopeProgress{
+		ScopeID:       req.ScopeID,
+		GenerationID:  req.GenerationID,
+		DocumentCount: len(rows),
+	}
+	for _, row := range rows {
+		if row.Document.ID > progress.LastDocumentID {
+			progress.LastDocumentID = row.Document.ID
+		}
+	}
+	return progress
 }
 
 func validateVector(vector []float64, dimensions int) error {

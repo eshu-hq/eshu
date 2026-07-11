@@ -51,10 +51,10 @@ SELECT NOT EXISTS (
       )
 ) AS complete`
 
-// TestScopeVectorCompleteCountGateAmortizationLive proves the #4233 count-gate
-// amortization returns identical verdicts as the unconditional exact anti-join
-// for every semantic case, and that the EXPLAIN plan shows the exact anti-join
-// branch never executed when the count gate rejects early.
+// TestScopeVectorCompleteCountGateAmortizationLive proves the count-gated
+// indexed pending probe returns identical verdicts as the fact reference for
+// every semantic case, and that the probe is not executed when the count gate
+// rejects early.
 func TestScopeVectorCompleteCountGateAmortizationLive(t *testing.T) {
 	if os.Getenv("ESHU_SEARCH_VECTOR_SCOPE_STATE_LIVE") != "1" {
 		t.Skip("set ESHU_SEARCH_VECTOR_SCOPE_STATE_LIVE=1 and ESHU_POSTGRES_DSN to run")
@@ -263,7 +263,8 @@ func TestScopeVectorCompleteCountGateAmortizationLive(t *testing.T) {
 		}
 	}
 
-	// EXPLAIN proof: still-building scope's count gate rejects; exact subplan never executed.
+	// EXPLAIN proof: still-building scope's count gate rejects; indexed pending
+	// probe never executes.
 	explainSQL := "EXPLAIN (ANALYZE, BUFFERS, FORMAT TEXT) " + scopeVectorCompleteSQL
 	rows, err := sqlDB.QueryContext(ctx, explainSQL,
 		sbScope, sbGen, providerProfileID, sourceClass, modelID, vectorVersion)

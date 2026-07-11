@@ -6,6 +6,7 @@ package searchvector
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -57,6 +58,7 @@ func TestBuilderBatchUsesBatchedPendingVectorDocumentsWhenAvailable(t *testing.T
 		{
 			ScopeID:            "scope-a",
 			GenerationID:       "gen-a",
+			AfterDocumentID:    "scope-a-cursor",
 			ProjectionRevision: 3,
 			BuildFence:         7,
 			RepoID:             "repo-a",
@@ -69,6 +71,7 @@ func TestBuilderBatchUsesBatchedPendingVectorDocumentsWhenAvailable(t *testing.T
 		{
 			ScopeID:            "scope-b",
 			GenerationID:       "gen-b",
+			AfterDocumentID:    "scope-b-cursor",
 			ProjectionRevision: 5,
 			BuildFence:         11,
 			RepoID:             "repo-b",
@@ -99,6 +102,15 @@ func TestBuilderBatchUsesBatchedPendingVectorDocumentsWhenAvailable(t *testing.T
 	}
 	if got, want := len(store.batchFilters[0].Scopes), 2; got != want {
 		t.Fatalf("batch scope count = %d, want %d", got, want)
+	}
+	if got, want := store.batchFilters[0].Scopes[0].AfterDocumentID, "scope-a-cursor"; got != want {
+		t.Fatalf("scope-a document cursor = %q, want %q", got, want)
+	}
+	if got, want := result.ScopeProgress, []BuildScopeProgress{
+		{ScopeID: "scope-a", GenerationID: "gen-a", DocumentCount: 2, LastDocumentID: "shared-doc"},
+		{ScopeID: "scope-b", GenerationID: "gen-b", DocumentCount: 2, LastDocumentID: "shared-doc"},
+	}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("ScopeProgress = %#v, want %#v", got, want)
 	}
 	if got, want := len(values.rows), 4; got != want {
 		t.Fatalf("vector rows = %d, want %d", got, want)
@@ -217,5 +229,31 @@ func TestBuilderBatchRejectsMissingGenerationForBatchedPendingStore(t *testing.T
 	}
 	if got := len(store.batchFilters); got != 0 {
 		t.Fatalf("batch pending reads = %d, want 0 after validation rejection", got)
+	}
+}
+
+func TestBuilderBatchCapsTailPageAtFiftyThousandDocuments(t *testing.T) {
+	t.Parallel()
+
+	store := &recordingBatchPendingDocumentStore{}
+	_, err := Builder{
+		Documents: store,
+		Metadata:  &recordingVectorMetadataStore{},
+		Values:    &recordingVectorValueStore{},
+		Embedder:  &recordingEmbedder{dims: 2},
+	}.BuildBatch(context.Background(), []BuildRequest{{
+		ScopeID:            "scope-a",
+		GenerationID:       "gen-a",
+		ProviderProfileID:  "local",
+		SourceClass:        "search_documents",
+		EmbeddingModelID:   "local-hash-v1",
+		VectorIndexVersion: "vector-v1",
+		Limit:              100000,
+	}})
+	if err != nil {
+		t.Fatalf("BuildBatch error = %v", err)
+	}
+	if got, want := store.batchFilters[0].Limit, 50000; got != want {
+		t.Fatalf("batch filter limit = %d, want %d", got, want)
 	}
 }

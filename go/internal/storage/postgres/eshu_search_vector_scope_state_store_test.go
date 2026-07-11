@@ -53,6 +53,8 @@ func TestEshuSearchVectorScopeStateBeginBuilding(t *testing.T) {
 		"EXCLUDED.projection_revision > eshu_search_vector_scope_state.projection_revision",
 		"eshu_search_vector_scope_state.state <> 'ready'",
 		"state = 'building'",
+		"document_cursor = CASE",
+		"EXCLUDED.projection_revision > eshu_search_vector_scope_state.projection_revision",
 		"RETURNING build_fence",
 	} {
 		if !strings.Contains(q, want) {
@@ -147,5 +149,64 @@ func TestEshuSearchVectorScopeStateFinalizeReadyStaleReturnsFalse(t *testing.T) 
 	}
 	if ok {
 		t.Fatal("FinalizeReady = true, want false (rows affected = 0)")
+	}
+}
+
+func TestEshuSearchVectorScopeStateAdvancesCursorWithFenceCAS(t *testing.T) {
+	t.Parallel()
+
+	db := &fakeExecQueryer{}
+	store := NewEshuSearchVectorScopeStateStore(db)
+	identity := EshuSearchVectorIdentity{
+		ProviderProfileID: "local", SourceClass: "search_documents",
+		EmbeddingModelID: "m1", VectorIndexVersion: "v1",
+	}
+	ok, err := store.AdvanceDocumentCursor(context.Background(), "scope-1", "gen-1", identity, 2, 3, "doc-009")
+	if err != nil {
+		t.Fatalf("AdvanceDocumentCursor error = %v", err)
+	}
+	if !ok {
+		t.Fatal("AdvanceDocumentCursor = false, want true")
+	}
+	q := db.execs[0].query
+	for _, want := range []string{
+		"UPDATE eshu_search_vector_scope_state",
+		"document_cursor = GREATEST(document_cursor, $9)",
+		"projection_revision = $7",
+		"build_fence = $8",
+		"state = 'building'",
+	} {
+		if !strings.Contains(q, want) {
+			t.Fatalf("advance query missing %q:\n%s", want, q)
+		}
+	}
+}
+
+func TestEshuSearchVectorScopeStateResetsCursorWithFenceCAS(t *testing.T) {
+	t.Parallel()
+
+	db := &fakeExecQueryer{execResults: []sql.Result{zeroRowsResult{}}}
+	store := NewEshuSearchVectorScopeStateStore(db)
+	identity := EshuSearchVectorIdentity{
+		ProviderProfileID: "local", SourceClass: "search_documents",
+		EmbeddingModelID: "m1", VectorIndexVersion: "v1",
+	}
+	ok, err := store.ResetDocumentCursor(context.Background(), "scope-1", "gen-1", identity, 2, 2)
+	if err != nil {
+		t.Fatalf("ResetDocumentCursor error = %v", err)
+	}
+	if ok {
+		t.Fatal("ResetDocumentCursor = true, want stale-fence rejection")
+	}
+	q := db.execs[0].query
+	for _, want := range []string{
+		"document_cursor = ''",
+		"projection_revision = $7",
+		"build_fence = $8",
+		"state = 'building'",
+	} {
+		if !strings.Contains(q, want) {
+			t.Fatalf("reset query missing %q:\n%s", want, q)
+		}
 	}
 }
