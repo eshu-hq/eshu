@@ -24,24 +24,26 @@ required_domains=(
 forbidden_keys='["repository","repositories","repository_name","repository_id","repo","repo_name","repo_id","package","packages","package_name","package_id","provider_url","alert_url","installation","provider_repository","url","host","hostname","ip","path","file","token","payload","description","cve_description","transcript","stdout","stderr","request","response","body","account_id","account"]'
 
 usage() {
-	cat <<USAGE
-Usage: $(basename "$0") --input <summary.json> --output <readback-proof.json>
-
-The input is an operator-local aggregate summary with:
-  schema_version: 1
-  proof_id: public-safe id
-  transcript_status: "captured"
-  queue: {retrying, failed, dead_letters}
-  checks[]: {
-    domain, name, limit, timeout_seconds,
-    surfaces: {api, mcp, cli}
-  }
-
-Each surface must include status, truth_level, truth_profile, readiness_state,
-count, truncated, missing_evidence, unsupported, and ambiguous. The runner
-compares API/MCP/CLI for each check and writes the aggregate readback-proof JSON
-accepted by security_intelligence_release_gate.sh --phases readback-proof.
-USAGE
+	# printf (a builtin, no pipe) instead of a heredoc: this body is over 512
+	# bytes and would deadlock under Homebrew bash >= 5.1's pipe-buffer
+	# heredoc write (#5074).
+	printf '%s\n' \
+		"Usage: $(basename "$0") --input <summary.json> --output <readback-proof.json>" \
+		"" \
+		"The input is an operator-local aggregate summary with:" \
+		"  schema_version: 1" \
+		"  proof_id: public-safe id" \
+		'  transcript_status: "captured"' \
+		"  queue: {retrying, failed, dead_letters}" \
+		"  checks[]: {" \
+		"    domain, name, limit, timeout_seconds," \
+		"    surfaces: {api, mcp, cli}" \
+		"  }" \
+		"" \
+		"Each surface must include status, truth_level, truth_profile, readiness_state," \
+		"count, truncated, missing_evidence, unsupported, and ambiguous. The runner" \
+		"compares API/MCP/CLI for each check and writes the aggregate readback-proof JSON" \
+		"accepted by security_intelligence_release_gate.sh --phases readback-proof."
 }
 
 die() {
