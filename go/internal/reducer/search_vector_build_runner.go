@@ -17,7 +17,7 @@ const (
 	defaultSearchVectorBuildPollInterval  = 30 * time.Second
 	defaultSearchVectorBuildScopeLimit    = 100
 	defaultSearchVectorBuildDocumentLimit = 500
-	searchVectorBuildTailDocumentBudget   = 10000
+	searchVectorBuildTailDocumentBudget   = 50000
 )
 
 // DomainSearchVectorBuild tags the search-vector build sweep's split-timing
@@ -39,9 +39,10 @@ const (
 // SearchVectorBuildPendingScope identifies one active scope that needs
 // vector rows for its curated search documents.
 type SearchVectorBuildPendingScope struct {
-	ScopeID      string
-	GenerationID string
-	RepoID       string
+	ScopeID        string
+	GenerationID   string
+	RepoID         string
+	DocumentCursor string
 	// ProjectionRevision is the document-projection revision observed when the
 	// scope was listed as pending (#4233). The build runner uses it to finalize
 	// vector readiness with a revision/fence CAS.
@@ -70,6 +71,7 @@ type SearchVectorBuildRequest struct {
 	ScopeID            string
 	GenerationID       string
 	RepoID             string
+	AfterDocumentID    string
 	ProviderProfileID  string
 	SourceClass        string
 	EmbeddingModelID   string
@@ -89,6 +91,7 @@ type SearchVectorBuildResult struct {
 	VectorCount   int
 	DisabledCount int
 	FailedCount   int
+	ScopeProgress []SearchVectorBuildScopeProgress
 	// QueryLoadDuration is time spent listing active search documents.
 	QueryLoadDuration time.Duration
 	// EmbedBuildDuration is time spent embedding document text.
@@ -187,6 +190,8 @@ type SearchVectorBuildReadyPublisher interface {
 // in the reducer package so the reducer never imports storage/postgres.
 type SearchVectorScopeStateManager interface {
 	BeginBuilding(ctx context.Context, scopeID, generationID string, identity SearchVectorBuildIdentity, projectionRevision int64) (fence int64, err error)
+	AdvanceDocumentCursor(ctx context.Context, scopeID, generationID string, identity SearchVectorBuildIdentity, projectionRevision, fence int64, documentID string) (bool, error)
+	ResetDocumentCursor(ctx context.Context, scopeID, generationID string, identity SearchVectorBuildIdentity, projectionRevision, fence int64) (bool, error)
 	ScopeVectorComplete(ctx context.Context, scopeID, generationID string, identity SearchVectorBuildIdentity) (bool, error)
 	FinalizeReady(ctx context.Context, scopeID, generationID string, identity SearchVectorBuildIdentity, projectionRevision, fence int64) (bool, error)
 }
@@ -339,7 +344,7 @@ func (r *SearchVectorBuildRunner) RunOnce(ctx context.Context) (SearchVectorBuil
 				return result, fmt.Errorf("build search vectors for %d scopes: %w", len(scopes), err)
 			}
 			// #4233: after build, per-scope completeness check + CAS-publish.
-			result.FinalizedScopes = r.finalizeVectorScopeStates(ctx, scopes, identity, fences)
+			result.FinalizedScopes = r.finalizeVectorScopeStates(ctx, scopes, identity, fences, build.ScopeProgress, r.Config.batchDocumentLimit(len(scopes)))
 			r.logResult(ctx, result, started)
 			r.recordPhaseMetrics(ctx, result)
 			r.publishReadyIfCaughtUp(ctx)
@@ -347,11 +352,13 @@ func (r *SearchVectorBuildRunner) RunOnce(ctx context.Context) (SearchVectorBuil
 		}
 	}
 	var failures []error
+	var progress []SearchVectorBuildScopeProgress
 	for _, pending := range scopes {
 		build, err := r.Builder.BuildSearchVectors(ctx, SearchVectorBuildRequest{
 			ScopeID:            pending.ScopeID,
 			GenerationID:       pending.GenerationID,
 			RepoID:             pending.RepoID,
+			AfterDocumentID:    pending.DocumentCursor,
 			ProviderProfileID:  r.Config.ProviderProfileID,
 			SourceClass:        r.Config.SourceClass,
 			EmbeddingModelID:   r.Config.EmbeddingModelID,
@@ -370,10 +377,12 @@ func (r *SearchVectorBuildRunner) RunOnce(ctx context.Context) (SearchVectorBuil
 		result.WriteUpsertDuration += build.WriteUpsertDuration
 		if err != nil {
 			failures = append(failures, fmt.Errorf("build search vectors for scope %q generation %q: %w", pending.ScopeID, pending.GenerationID, err))
+		} else {
+			progress = append(progress, build.ScopeProgress...)
 		}
 	}
 	// #4233: after build, per-scope completeness check + CAS-publish (serial path).
-	result.FinalizedScopes = r.finalizeVectorScopeStates(ctx, scopes, identity, fences)
+	result.FinalizedScopes = r.finalizeVectorScopeStates(ctx, scopes, identity, fences, progress, r.Config.documentLimit())
 	r.logResult(ctx, result, started)
 	r.recordPhaseMetrics(ctx, result)
 	buildErr := errors.Join(failures...)

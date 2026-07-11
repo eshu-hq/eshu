@@ -33,7 +33,7 @@ func TestEshuSearchDocumentStoreListsPendingVectorDocumentsForScopes(t *testing.
 
 	rows, err := store.ListPendingVectorDocumentsForScopes(context.Background(), EshuSearchVectorDocumentBatchFilter{
 		Scopes: []EshuSearchVectorDocumentScope{
-			{ScopeID: "scope-a", GenerationID: "gen-a", RepoID: "repo-a"},
+			{ScopeID: "scope-a", GenerationID: "gen-a", RepoID: "repo-a", AfterDocumentID: "doc-cursor-a"},
 			{ScopeID: "scope-b", GenerationID: "gen-b", RepoID: "repo-b"},
 		},
 		SourceKinds:        []searchdocs.SourceKind{searchdocs.SourceKindCodeEntity},
@@ -58,13 +58,14 @@ func TestEshuSearchDocumentStoreListsPendingVectorDocumentsForScopes(t *testing.
 
 	q := db.queries[0].query
 	for _, fragment := range []string{
-		"WITH selected(scope_id, generation_id, repo_id) AS (VALUES",
+		"WITH selected(scope_id, generation_id, repo_id, after_document_id) AS (VALUES",
 		"JOIN LATERAL",
 		"FROM eshu_search_index_documents AS doc",
 		"doc.content_hash",
 		"scope.active_generation_id = doc.generation_id",
 		"doc.scope_id = selected.scope_id",
 		"doc.generation_id = selected.generation_id",
+		"doc.document_id > selected.after_document_id",
 		"doc.repo_id = selected.repo_id",
 		"scope.scope_kind = 'repository'",
 		"doc.source_kind IN",
@@ -73,13 +74,15 @@ func TestEshuSearchDocumentStoreListsPendingVectorDocumentsForScopes(t *testing.
 		"meta.build_state = 'disabled'",
 		"meta.build_state = 'ready'",
 		"value.document_id IS NOT NULL",
+		"OFFSET 0",
+		"ORDER BY doc.document_id",
 		"LIMIT",
 	} {
 		if !strings.Contains(q, fragment) {
 			t.Errorf("query missing %q:\n%s", fragment, q)
 		}
 	}
-	for _, forbidden := range []string{"ORDER BY", "OFFSET", "fact_records", "fact.payload"} {
+	for _, forbidden := range []string{"fact_records", "fact.payload"} {
 		if strings.Contains(q, forbidden) {
 			t.Fatalf("batched pending vector document query contains forbidden fragment %q:\n%s", forbidden, q)
 		}
@@ -95,7 +98,7 @@ func TestEshuSearchDocumentStoreBatchFilterDoesNotMutateCallerScopes(t *testing.
 	store := NewEshuSearchDocumentStore(db)
 	filter := EshuSearchVectorDocumentBatchFilter{
 		Scopes: []EshuSearchVectorDocumentScope{
-			{ScopeID: " scope-a ", GenerationID: " gen-a ", RepoID: " repo-a "},
+			{ScopeID: " scope-a ", GenerationID: " gen-a ", RepoID: " repo-a ", AfterDocumentID: " doc-9 "},
 		},
 		ProviderProfileID:  " local ",
 		SourceClass:        " search_documents ",
@@ -117,15 +120,18 @@ func TestEshuSearchDocumentStoreBatchFilterDoesNotMutateCallerScopes(t *testing.
 	if got, want := filter.Scopes[0].RepoID, " repo-a "; got != want {
 		t.Fatalf("caller repo id mutated to %q, want %q", got, want)
 	}
+	if got, want := filter.Scopes[0].AfterDocumentID, " doc-9 "; got != want {
+		t.Fatalf("caller document cursor mutated to %q, want %q", got, want)
+	}
 }
 
 func TestEshuSearchDocumentStoreBatchFilterAllowsBoundedTailLimit(t *testing.T) {
 	t.Parallel()
 
 	filter := normalizeEshuSearchVectorDocumentBatchFilter(EshuSearchVectorDocumentBatchFilter{
-		Limit: eshuSearchVectorDocumentBatchMaxLimit + 1,
+		Limit: 50001,
 	})
-	if got, want := filter.Limit, eshuSearchVectorDocumentBatchMaxLimit; got != want {
+	if got, want := filter.Limit, 50000; got != want {
 		t.Fatalf("limit = %d, want bounded tail limit %d", got, want)
 	}
 }

@@ -128,6 +128,18 @@ VALUES ($1,$2,$3,$4,$5,$6,2,2,'building',$7)`,
 	write(2, 2, []float64{1, 0}, "", currentUpdatedAt)
 	assertFencedVectorRowLive(t, ctx, sqlDB, scopeID, generationID, documentID,
 		[]float64{1, 0}, "", currentUpdatedAt)
+	identity := EshuSearchVectorIdentity{
+		ProviderProfileID: providerProfileID, SourceClass: sourceClass,
+		EmbeddingModelID: modelID, VectorIndexVersion: vectorVersion,
+	}
+	scopeStore := NewEshuSearchVectorScopeStateStore(db)
+	if ok, err := scopeStore.AdvanceDocumentCursor(ctx, scopeID, generationID, identity, 2, 2, "doc-010"); err != nil || !ok {
+		t.Fatalf("advance current document cursor = %v, %v, want true, nil", ok, err)
+	}
+	if ok, err := scopeStore.AdvanceDocumentCursor(ctx, scopeID, generationID, identity, 2, 2, "doc-009"); err != nil || !ok {
+		t.Fatalf("monotonic document cursor retry = %v, %v, want true, nil", ok, err)
+	}
+	assertSearchVectorDocumentCursorLive(t, ctx, sqlDB, scopeID, generationID, "doc-010")
 
 	if _, err := sqlDB.ExecContext(ctx, `
 UPDATE eshu_search_vector_scope_state
@@ -139,6 +151,10 @@ WHERE scope_id = $2 AND generation_id = $3`, now.Add(2*time.Second), scopeID, ge
 	write(2, 2, []float64{0, 1}, "stale-worker", staleUpdatedAt)
 	assertFencedVectorRowLive(t, ctx, sqlDB, scopeID, generationID, documentID,
 		[]float64{1, 0}, "", currentUpdatedAt)
+	if ok, err := scopeStore.AdvanceDocumentCursor(ctx, scopeID, generationID, identity, 2, 2, "doc-011"); err != nil || ok {
+		t.Fatalf("stale document cursor advance = %v, %v, want false, nil", ok, err)
+	}
+	assertSearchVectorDocumentCursorLive(t, ctx, sqlDB, scopeID, generationID, "doc-010")
 
 	if _, err := sqlDB.ExecContext(ctx, `
 UPDATE eshu_search_document_projection_state
@@ -152,11 +168,7 @@ SET projection_revision = 3, build_fence = 4, state = 'ready', updated_at = $1
 WHERE scope_id = $2 AND generation_id = $3`, now.Add(4*time.Second), scopeID, generationID); err != nil {
 		t.Fatalf("publish newer vector state: %v", err)
 	}
-	identity := EshuSearchVectorIdentity{
-		ProviderProfileID: providerProfileID, SourceClass: sourceClass,
-		EmbeddingModelID: modelID, VectorIndexVersion: vectorVersion,
-	}
-	if fence, err := NewEshuSearchVectorScopeStateStore(db).BeginBuilding(
+	if fence, err := scopeStore.BeginBuilding(
 		ctx, scopeID, generationID, identity, 2,
 	); err == nil {
 		t.Fatalf("stale BeginBuilding fence = %d, want rejection after revision 3 won", fence)
@@ -173,10 +185,50 @@ WHERE scope_id = $1 AND generation_id = $2`, scopeID, generationID).Scan(&revisi
 		t.Fatalf("vector scope after stale BeginBuilding = revision %d fence %d state %q, want 3/4/ready",
 			revision, fence, state)
 	}
-	if duplicateFence, err := NewEshuSearchVectorScopeStateStore(db).BeginBuilding(
+	if duplicateFence, err := scopeStore.BeginBuilding(
 		ctx, scopeID, generationID, identity, 3,
 	); err == nil {
 		t.Fatalf("duplicate BeginBuilding fence = %d, want rejection after revision 3 is ready", duplicateFence)
+	}
+	if _, err := sqlDB.ExecContext(ctx, `
+UPDATE eshu_search_document_projection_state
+SET projection_revision = 4, build_fence = 4, state = 'ready', updated_at = $1
+WHERE scope_id = $2 AND generation_id = $3`, now.Add(5*time.Second), scopeID, generationID); err != nil {
+		t.Fatalf("publish revision 4 projection state: %v", err)
+	}
+	currentFence, err := scopeStore.BeginBuilding(ctx, scopeID, generationID, identity, 4)
+	if err != nil {
+		t.Fatalf("BeginBuilding revision 4: %v", err)
+	}
+	assertSearchVectorDocumentCursorLive(t, ctx, sqlDB, scopeID, generationID, "")
+	if ok, err := scopeStore.AdvanceDocumentCursor(ctx, scopeID, generationID, identity, 4, currentFence, "doc-020"); err != nil || !ok {
+		t.Fatalf("advance revision 4 document cursor = %v, %v, want true, nil", ok, err)
+	}
+	if ok, err := scopeStore.ResetDocumentCursor(ctx, scopeID, generationID, identity, 4, currentFence-1); err != nil || ok {
+		t.Fatalf("stale document cursor reset = %v, %v, want false, nil", ok, err)
+	}
+	if ok, err := scopeStore.ResetDocumentCursor(ctx, scopeID, generationID, identity, 4, currentFence); err != nil || !ok {
+		t.Fatalf("current document cursor reset = %v, %v, want true, nil", ok, err)
+	}
+	assertSearchVectorDocumentCursorLive(t, ctx, sqlDB, scopeID, generationID, "")
+}
+
+func assertSearchVectorDocumentCursorLive(
+	t *testing.T,
+	ctx context.Context,
+	db *sql.DB,
+	scopeID, generationID, want string,
+) {
+	t.Helper()
+	var got string
+	if err := db.QueryRowContext(ctx, `
+SELECT document_cursor
+FROM eshu_search_vector_scope_state
+WHERE scope_id = $1 AND generation_id = $2`, scopeID, generationID).Scan(&got); err != nil {
+		t.Fatalf("read search vector document cursor: %v", err)
+	}
+	if got != want {
+		t.Fatalf("search vector document cursor = %q, want %q", got, want)
 	}
 }
 

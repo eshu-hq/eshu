@@ -101,7 +101,31 @@ func TestSearchVectorBuildRunnerExpandsDefaultLimitForTailScope(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Len(t, builder.batchRequests, 1)
-	require.Equal(t, 10000, builder.batchRequests[0][0].Limit)
+	require.Equal(t, 50000, builder.batchRequests[0][0].Limit)
+}
+
+func TestSearchVectorBuildRunnerDistributesBoundedTailBudgetAcrossScopes(t *testing.T) {
+	t.Parallel()
+
+	config := SearchVectorBuildRunnerConfig{}
+	for _, test := range []struct {
+		name       string
+		scopeCount int
+		want       int
+	}{
+		{name: "one large scope", scopeCount: 1, want: 50000},
+		{name: "two scopes", scopeCount: 2, want: 25000},
+		{name: "ten scopes", scopeCount: 10, want: 5000},
+		{name: "full scope page", scopeCount: 100, want: 500},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, test.want, config.batchDocumentLimit(test.scopeCount))
+		})
+	}
+
+	explicit := SearchVectorBuildRunnerConfig{DocumentLimit: 750}
+	require.Equal(t, 750, explicit.batchDocumentLimit(1), "operator override must remain authoritative")
 }
 
 // TestSearchVectorBuildRunnerBatchPathPublishesReadyAfterDrainingLastPendingScopes

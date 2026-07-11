@@ -20,6 +20,16 @@ type fakeSearchVectorScopeStateManager struct {
 	completeErrs    []error
 	finalizeResults []bool
 	finalizeErrs    []error
+	advanceCalls    []scopeStateCursorCall
+	resetCalls      []scopeStateCursorCall
+}
+
+type scopeStateCursorCall struct {
+	ScopeID            string
+	GenerationID       string
+	ProjectionRevision int64
+	Fence              int64
+	DocumentCursor     string
 }
 
 type scopeStateBeginCall struct {
@@ -87,6 +97,101 @@ func (f *fakeSearchVectorScopeStateManager) FinalizeReady(
 		f.finalizeErrs = f.finalizeErrs[1:]
 	}
 	return ok, err
+}
+
+func (f *fakeSearchVectorScopeStateManager) AdvanceDocumentCursor(
+	_ context.Context,
+	scopeID, generationID string,
+	_ SearchVectorBuildIdentity,
+	projectionRevision, fence int64,
+	documentCursor string,
+) (bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.advanceCalls = append(f.advanceCalls, scopeStateCursorCall{
+		ScopeID: scopeID, GenerationID: generationID,
+		ProjectionRevision: projectionRevision, Fence: fence,
+		DocumentCursor: documentCursor,
+	})
+	return true, nil
+}
+
+func (f *fakeSearchVectorScopeStateManager) ResetDocumentCursor(
+	_ context.Context,
+	scopeID, generationID string,
+	_ SearchVectorBuildIdentity,
+	projectionRevision, fence int64,
+) (bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.resetCalls = append(f.resetCalls, scopeStateCursorCall{
+		ScopeID: scopeID, GenerationID: generationID,
+		ProjectionRevision: projectionRevision, Fence: fence,
+	})
+	return true, nil
+}
+
+func TestSearchVectorBuildRunnerAdvancesCursorAndWrapsExhaustedIncompleteScope(t *testing.T) {
+	t.Parallel()
+
+	scopeState := &fakeSearchVectorScopeStateManager{completeResults: []bool{false}}
+	pending := &fakeSearchVectorPendingLister{scopes: []SearchVectorBuildPendingScope{{
+		ScopeID: "scope-a", GenerationID: "gen-a", RepoID: "repo-a",
+		ProjectionRevision: 4, DocumentCursor: "doc-050",
+	}}}
+	builder := &fakeSearchVectorBatchBuilder{result: SearchVectorBuildResult{
+		DocumentCount: 1, VectorCount: 1,
+		ScopeProgress: []SearchVectorBuildScopeProgress{{
+			ScopeID: "scope-a", GenerationID: "gen-a",
+			DocumentCount: 1, LastDocumentID: "doc-051",
+		}},
+	}}
+	runner := &SearchVectorBuildRunner{
+		Pending: pending, Builder: builder, ScopeState: scopeState,
+		Config: SearchVectorBuildRunnerConfig{
+			DocumentLimit: 50, ProviderProfileID: "local",
+			SourceClass: "search_documents", EmbeddingModelID: "local-hash-v1",
+			VectorIndexVersion: "vector-v1",
+		},
+	}
+
+	_, err := runner.RunOnce(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, "doc-050", builder.batchRequests[0][0].AfterDocumentID)
+	require.Equal(t, []scopeStateCursorCall{{
+		ScopeID: "scope-a", GenerationID: "gen-a", ProjectionRevision: 4,
+		Fence: 1, DocumentCursor: "doc-051",
+	}}, scopeState.advanceCalls)
+	require.Len(t, scopeState.resetCalls, 1, "short terminal page plus incomplete exact gate must wrap")
+}
+
+func TestSearchVectorBuildRunnerDoesNotWrapFullIncompletePage(t *testing.T) {
+	t.Parallel()
+
+	scopeState := &fakeSearchVectorScopeStateManager{completeResults: []bool{false}}
+	pending := &fakeSearchVectorPendingLister{scopes: []SearchVectorBuildPendingScope{{
+		ScopeID: "scope-a", GenerationID: "gen-a", ProjectionRevision: 2,
+	}}}
+	builder := &fakeSearchVectorBatchBuilder{result: SearchVectorBuildResult{
+		DocumentCount: 50, VectorCount: 50,
+		ScopeProgress: []SearchVectorBuildScopeProgress{{
+			ScopeID: "scope-a", GenerationID: "gen-a",
+			DocumentCount: 50, LastDocumentID: "doc-050",
+		}},
+	}}
+	runner := &SearchVectorBuildRunner{
+		Pending: pending, Builder: builder, ScopeState: scopeState,
+		Config: SearchVectorBuildRunnerConfig{
+			DocumentLimit: 50, ProviderProfileID: "local",
+			SourceClass: "search_documents", EmbeddingModelID: "local-hash-v1",
+			VectorIndexVersion: "vector-v1",
+		},
+	}
+
+	_, err := runner.RunOnce(context.Background())
+	require.NoError(t, err)
+	require.Len(t, scopeState.advanceCalls, 1)
+	require.Empty(t, scopeState.resetCalls, "full page has more keyspace; wrapping would rescan completed rows")
 }
 
 // TestSearchVectorBuildRunnerBeginBuildingBeforeBuild proves that

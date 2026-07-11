@@ -17,6 +17,7 @@ import (
 // tuple.
 type EshuSearchVectorDocumentFilter struct {
 	EshuSearchDocumentFilter
+	AfterDocumentID    string
 	ProviderProfileID  string
 	SourceClass        string
 	EmbeddingModelID   string
@@ -26,9 +27,10 @@ type EshuSearchVectorDocumentFilter struct {
 // EshuSearchVectorDocumentScope identifies one selected active scope for a
 // batched pending-vector document read.
 type EshuSearchVectorDocumentScope struct {
-	ScopeID      string
-	GenerationID string
-	RepoID       string
+	ScopeID         string
+	GenerationID    string
+	RepoID          string
+	AfterDocumentID string
 }
 
 // EshuSearchVectorDocumentBatchFilter bounds pending-vector document reads
@@ -43,7 +45,7 @@ type EshuSearchVectorDocumentBatchFilter struct {
 	Limit              int
 }
 
-const eshuSearchVectorDocumentBatchMaxLimit = 10000
+const eshuSearchVectorDocumentBatchMaxLimit = 50000
 
 // ListPendingVectorDocuments returns one bounded page of active search
 // documents that still need vector rows for the requested embedding tuple.
@@ -60,11 +62,11 @@ func (s EshuSearchDocumentStore) ListPendingVectorDocuments(
 	}
 
 	query, args := buildEshuSearchVectorDocumentQuery(filter)
-	rows, err := s.db.QueryContext(ctx, query, args...)
+	rows, err := beginSearchVectorDocumentQuery(ctx, s.db, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("list pending eshu search vector documents: %w", err)
 	}
-	defer func() { _ = rows.Close() }()
+	defer rows.Rollback()
 
 	var documents []EshuSearchDocumentRow
 	for rows.Next() {
@@ -89,6 +91,9 @@ func (s EshuSearchDocumentStore) ListPendingVectorDocuments(
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("iterate pending eshu search vector documents: %w", err)
 	}
+	if err := rows.Commit(); err != nil {
+		return nil, fmt.Errorf("commit pending eshu search vector document read: %w", err)
+	}
 	return documents, nil
 }
 
@@ -107,11 +112,11 @@ func (s EshuSearchDocumentStore) ListPendingVectorDocumentsForScopes(
 	}
 
 	query, args := buildEshuSearchVectorDocumentBatchQuery(filter)
-	rows, err := s.db.QueryContext(ctx, query, args...)
+	rows, err := beginSearchVectorDocumentQuery(ctx, s.db, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("list batched pending eshu search vector documents: %w", err)
 	}
-	defer func() { _ = rows.Close() }()
+	defer rows.Rollback()
 
 	var documents []EshuSearchDocumentRow
 	for rows.Next() {
@@ -136,6 +141,9 @@ func (s EshuSearchDocumentStore) ListPendingVectorDocumentsForScopes(
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("iterate batched pending eshu search vector documents: %w", err)
 	}
+	if err := rows.Commit(); err != nil {
+		return nil, fmt.Errorf("commit batched pending eshu search vector document read: %w", err)
+	}
 	return documents, nil
 }
 
@@ -152,6 +160,9 @@ func buildEshuSearchVectorDocumentQuery(filter EshuSearchVectorDocumentFilter) (
 	}
 	if filter.RepoID != "" {
 		conditions = append(conditions, "doc.repo_id = "+addArg(filter.RepoID))
+	}
+	if filter.AfterDocumentID != "" {
+		conditions = append(conditions, "doc.document_id > "+addArg(filter.AfterDocumentID))
 	}
 	if len(filter.SourceKinds) > 0 {
 		placeholders := make([]string, 0, len(filter.SourceKinds))
@@ -204,7 +215,9 @@ func buildEshuSearchVectorDocumentQuery(filter EshuSearchVectorDocumentFilter) (
 	builder.WriteString("      AND meta.vector_index_version = " + versionArg + "\n")
 	builder.WriteString("      AND meta.embedding_content_hash = doc.content_hash\n")
 	builder.WriteString("      AND (meta.build_state = 'disabled' OR (meta.build_state = 'ready' AND value.document_id IS NOT NULL))\n")
+	builder.WriteString("    OFFSET 0\n")
 	builder.WriteString("  )\n")
+	builder.WriteString("ORDER BY doc.document_id\n")
 	limit := addArg(filter.Limit)
 	_, _ = fmt.Fprintf(&builder, "LIMIT %s\n", limit)
 	return builder.String(), args
@@ -219,7 +232,7 @@ func buildEshuSearchVectorDocumentBatchQuery(filter EshuSearchVectorDocumentBatc
 
 	scopeRows := make([]string, 0, len(filter.Scopes))
 	for _, scope := range filter.Scopes {
-		scopeRows = append(scopeRows, fmt.Sprintf("(%s, %s, %s)", addArg(scope.ScopeID), addArg(scope.GenerationID), addArg(scope.RepoID)))
+		scopeRows = append(scopeRows, fmt.Sprintf("(%s, %s, %s, %s)", addArg(scope.ScopeID), addArg(scope.GenerationID), addArg(scope.RepoID), addArg(scope.AfterDocumentID)))
 	}
 
 	providerArg := addArg(filter.ProviderProfileID)
@@ -238,7 +251,7 @@ func buildEshuSearchVectorDocumentBatchQuery(filter EshuSearchVectorDocumentBatc
 	}
 
 	var builder strings.Builder
-	builder.WriteString("WITH selected(scope_id, generation_id, repo_id) AS (VALUES ")
+	builder.WriteString("WITH selected(scope_id, generation_id, repo_id, after_document_id) AS (VALUES ")
 	builder.WriteString(strings.Join(scopeRows, ", "))
 	builder.WriteString(")\n")
 	builder.WriteString("SELECT pending.fact_id, pending.scope_id, pending.generation_id, pending.source_system, pending.updated_at, pending.content_hash, pending.payload\n")
@@ -258,6 +271,7 @@ func buildEshuSearchVectorDocumentBatchQuery(filter EshuSearchVectorDocumentBatc
 	builder.WriteString("   AND scope.active_generation_id = doc.generation_id\n")
 	builder.WriteString("  WHERE doc.scope_id = selected.scope_id\n")
 	builder.WriteString("    AND doc.generation_id = selected.generation_id\n")
+	builder.WriteString("    AND doc.document_id > selected.after_document_id\n")
 	builder.WriteString("    AND (selected.repo_id = '' OR doc.repo_id = selected.repo_id)\n")
 	builder.WriteString("    AND scope.scope_kind = 'repository'")
 	builder.WriteString(sourceKindCondition)
@@ -279,7 +293,9 @@ func buildEshuSearchVectorDocumentBatchQuery(filter EshuSearchVectorDocumentBatc
 	builder.WriteString("        AND meta.vector_index_version = " + versionArg + "\n")
 	builder.WriteString("        AND meta.embedding_content_hash = doc.content_hash\n")
 	builder.WriteString("        AND (meta.build_state = 'disabled' OR (meta.build_state = 'ready' AND value.document_id IS NOT NULL))\n")
+	builder.WriteString("      OFFSET 0\n")
 	builder.WriteString("    )\n")
+	builder.WriteString("  ORDER BY doc.document_id\n")
 	builder.WriteString("  LIMIT " + limitArg + "\n")
 	builder.WriteString(") pending ON TRUE\n")
 	return builder.String(), args
@@ -291,6 +307,7 @@ func normalizeEshuSearchVectorDocumentFilter(filter EshuSearchVectorDocumentFilt
 	filter.SourceClass = strings.TrimSpace(filter.SourceClass)
 	filter.EmbeddingModelID = strings.TrimSpace(filter.EmbeddingModelID)
 	filter.VectorIndexVersion = strings.TrimSpace(filter.VectorIndexVersion)
+	filter.AfterDocumentID = strings.TrimSpace(filter.AfterDocumentID)
 	filter.Offset = 0
 	return filter
 }
@@ -331,6 +348,7 @@ func normalizeEshuSearchVectorDocumentBatchFilter(filter EshuSearchVectorDocumen
 		scope.ScopeID = strings.TrimSpace(scope.ScopeID)
 		scope.GenerationID = strings.TrimSpace(scope.GenerationID)
 		scope.RepoID = strings.TrimSpace(scope.RepoID)
+		scope.AfterDocumentID = strings.TrimSpace(scope.AfterDocumentID)
 		normalized.Scopes = append(normalized.Scopes, scope)
 	}
 	return normalized

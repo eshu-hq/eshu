@@ -47,6 +47,7 @@ func TestEshuSearchVectorScopeStateSchemaSQL(t *testing.T) {
 		"vector_index_version TEXT NOT NULL",
 		"projection_revision BIGINT NOT NULL",
 		"build_fence BIGINT NOT NULL",
+		"document_cursor TEXT NOT NULL DEFAULT ''",
 		"state TEXT NOT NULL CHECK (state IN ('building','ready','failed'))",
 		"updated_at TIMESTAMPTZ NOT NULL",
 		"PRIMARY KEY (scope_id, generation_id, provider_profile_id, source_class, embedding_model_id, vector_index_version)",
@@ -100,5 +101,8 @@ func TestBootstrapDefinitionsIncludeEshuSearchVectorScopeState(t *testing.T) {
 	}
 	if !strings.Contains(found.SQL, "CREATE TABLE IF NOT EXISTS eshu_search_vector_scope_state") {
 		t.Fatalf("definition SQL missing table:\n%s", found.SQL)
+	}
+	if !strings.Contains(found.SQL, "ADD COLUMN IF NOT EXISTS document_cursor TEXT NOT NULL DEFAULT ''") {
+		t.Fatalf("definition SQL missing cursor upgrade:\n%s", found.SQL)
 	}
 }

@@ -49,6 +49,7 @@ func (b Builder) buildBatchSerial(ctx context.Context, reqs []BuildRequest) (Bui
 		result.QueryLoadDuration += build.QueryLoadDuration
 		result.EmbedBuildDuration += build.EmbedBuildDuration
 		result.WriteUpsertDuration += build.WriteUpsertDuration
+		result.ScopeProgress = append(result.ScopeProgress, build.ScopeProgress...)
 		if err != nil {
 			failures = append(failures, err)
 		}
@@ -80,6 +81,7 @@ func (b Builder) buildBatchPendingDocuments(
 	if err := b.buildDocumentRowsAcrossScopes(ctx, reqs, now, rows, &result, &failures); err != nil {
 		return result, err
 	}
+	result.ScopeProgress = buildBatchScopeProgress(reqs, rows)
 	return result, errors.Join(failures...)
 }
 
@@ -184,12 +186,33 @@ func buildPendingDocumentScopes(reqs []BuildRequest) []postgres.EshuSearchVector
 	scopes := make([]postgres.EshuSearchVectorDocumentScope, 0, len(reqs))
 	for _, req := range reqs {
 		scopes = append(scopes, postgres.EshuSearchVectorDocumentScope{
-			ScopeID:      req.ScopeID,
-			GenerationID: req.GenerationID,
-			RepoID:       req.RepoID,
+			ScopeID:         req.ScopeID,
+			GenerationID:    req.GenerationID,
+			RepoID:          req.RepoID,
+			AfterDocumentID: req.AfterDocumentID,
 		})
 	}
 	return scopes
+}
+
+func buildBatchScopeProgress(reqs []BuildRequest, rows []postgres.EshuSearchDocumentRow) []BuildScopeProgress {
+	progressByScope := make(map[string]*BuildScopeProgress, len(reqs))
+	progress := make([]BuildScopeProgress, 0, len(reqs))
+	for _, req := range reqs {
+		progress = append(progress, BuildScopeProgress{ScopeID: req.ScopeID, GenerationID: req.GenerationID})
+		progressByScope[req.ScopeID+"\x00"+req.GenerationID] = &progress[len(progress)-1]
+	}
+	for _, row := range rows {
+		item := progressByScope[row.ScopeID+"\x00"+row.GenerationID]
+		if item == nil {
+			continue
+		}
+		item.DocumentCount++
+		if row.Document.ID > item.LastDocumentID {
+			item.LastDocumentID = row.Document.ID
+		}
+	}
+	return progress
 }
 
 func (b Builder) buildBatchedValueRow(

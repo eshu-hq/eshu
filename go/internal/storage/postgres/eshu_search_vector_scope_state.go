@@ -19,17 +19,20 @@ CREATE TABLE IF NOT EXISTS eshu_search_vector_scope_state (
     vector_index_version TEXT NOT NULL,
     projection_revision BIGINT NOT NULL,
     build_fence BIGINT NOT NULL,
+	document_cursor TEXT NOT NULL DEFAULT '',
     state TEXT NOT NULL CHECK (state IN ('building','ready','failed')),
     updated_at TIMESTAMPTZ NOT NULL,
     PRIMARY KEY (scope_id, generation_id, provider_profile_id, source_class, embedding_model_id, vector_index_version)
 );
+ALTER TABLE eshu_search_vector_scope_state
+    ADD COLUMN IF NOT EXISTS document_cursor TEXT NOT NULL DEFAULT '';
 `
 
 const beginBuildingVectorScopeStateSQL = `
 INSERT INTO eshu_search_vector_scope_state
   (scope_id, generation_id, provider_profile_id, source_class, embedding_model_id,
-   vector_index_version, projection_revision, build_fence, state, updated_at)
-SELECT $1, $2, $3, $4, $5, $6, $7, 1, 'building', $8
+   vector_index_version, projection_revision, build_fence, document_cursor, state, updated_at)
+SELECT $1, $2, $3, $4, $5, $6, $7, 1, '', 'building', $8
 FROM eshu_search_document_projection_state projection
 JOIN ingestion_scopes scope
   ON scope.scope_id = projection.scope_id
@@ -41,6 +44,10 @@ WHERE projection.scope_id = $1
 ON CONFLICT (scope_id, generation_id, provider_profile_id, source_class, embedding_model_id, vector_index_version) DO UPDATE SET
   projection_revision = EXCLUDED.projection_revision,
   build_fence = COALESCE(eshu_search_vector_scope_state.build_fence, 0) + 1,
+  document_cursor = CASE
+    WHEN EXCLUDED.projection_revision > eshu_search_vector_scope_state.projection_revision THEN ''
+    ELSE eshu_search_vector_scope_state.document_cursor
+  END,
   state = 'building',
   updated_at = $8
 WHERE EXCLUDED.projection_revision > eshu_search_vector_scope_state.projection_revision
@@ -79,7 +86,8 @@ WHERE scope_id = $1
 // anti-joining eshu_search_vector_scope_state to find ready projection
 // scopes whose vector rows are missing, stale, or on a different revision.
 const listPendingSearchVectorScopesScopedSQL = `
-SELECT ps.scope_id, ps.generation_id, COALESCE(s.payload->>'repo_id','') AS repo_id, ps.projection_revision
+SELECT ps.scope_id, ps.generation_id, COALESCE(s.payload->>'repo_id','') AS repo_id, ps.projection_revision,
+       CASE WHEN vs.projection_revision = ps.projection_revision THEN vs.document_cursor ELSE '' END AS document_cursor
 FROM eshu_search_document_projection_state ps
 JOIN ingestion_scopes s ON s.scope_id=ps.scope_id AND s.active_generation_id=ps.generation_id
 LEFT JOIN eshu_search_vector_scope_state vs
@@ -97,15 +105,11 @@ LIMIT $5
 // metadata in disabled state). It returns true when no incomplete document
 // remains — the per-scope gate the reducer calls before publishing ready.
 //
-// #4233 amortization: a cheap indexed count-gate (completion_gate CTE)
-// checks whether the terminal metadata count is at least the projection
-// document count.  When terminal_count < document_count, the scope is
-// still building and we return false without running the expensive exact
-// branch. When the count is satisfied, the exact check materializes the
-// scope-bounded projected documents, terminal metadata, and vector values
-// once, then compares document/hash pairs with EXCEPT. This avoids a nested
-// value lookup per document while preserving stale-hash, ready-without-value,
-// and retired-extra correctness.
+// A cheap indexed count gate returns false while terminal metadata is still
+// below the projection count. Once the count can be complete, the exact branch
+// reuses the indexed pending-document predicate and stops on the first gap.
+// This preserves stale-hash, ready-without-value, disabled, and retired-extra
+// correctness without materializing and sorting three scope relations (#5063).
 const scopeVectorCompleteSQL = `
 WITH completion_gate AS MATERIALIZED (
     SELECT
@@ -125,60 +129,44 @@ WITH completion_gate AS MATERIALIZED (
     WHERE ps.scope_id = $1
       AND ps.generation_id = $2
       AND ps.state = 'ready'
-),
-projected_docs AS MATERIALIZED (
-    SELECT doc.document_id, doc.content_hash
-    FROM eshu_search_index_documents doc
-    WHERE doc.scope_id = $1
-      AND doc.generation_id = $2
-      AND doc.generation_id = (
-          SELECT active_generation_id
-          FROM ingestion_scopes
-          WHERE scope_id = $1
-      )
-),
-terminal_metadata AS MATERIALIZED (
-    SELECT meta.document_id, meta.embedding_content_hash, meta.build_state
-    FROM eshu_search_vector_metadata meta
-    WHERE meta.scope_id = $1
-      AND meta.generation_id = $2
-      AND meta.provider_profile_id = $3
-      AND meta.source_class = $4
-      AND meta.embedding_model_id = $5
-      AND meta.vector_index_version = $6
-      AND meta.build_state IN ('ready', 'disabled')
-),
-vector_values AS MATERIALIZED (
-    SELECT value.document_id, value.embedding_content_hash
-    FROM eshu_search_vector_values value
-    WHERE value.scope_id = $1
-      AND value.generation_id = $2
-      AND value.provider_profile_id = $3
-      AND value.source_class = $4
-      AND value.embedding_model_id = $5
-      AND value.vector_index_version = $6
-),
-terminal_documents AS (
-    SELECT meta.document_id, meta.embedding_content_hash
-    FROM terminal_metadata meta
-    LEFT JOIN vector_values value
-      ON value.document_id = meta.document_id
-     AND value.embedding_content_hash = meta.embedding_content_hash
-    WHERE meta.build_state = 'disabled'
-       OR (meta.build_state = 'ready' AND value.document_id IS NOT NULL)
-),
-missing_documents AS (
-    SELECT document_id, content_hash
-    FROM projected_docs
-    EXCEPT
-    SELECT document_id, embedding_content_hash
-    FROM terminal_documents
 )
 SELECT CASE
-    WHEN EXISTS (SELECT 1 FROM completion_gate WHERE terminal_count < document_count)
-    THEN FALSE
-    ELSE NOT EXISTS (SELECT 1 FROM missing_documents)
+    WHEN gate.terminal_count < gate.document_count THEN FALSE
+    ELSE NOT EXISTS (
+        SELECT 1
+        FROM eshu_search_index_documents doc
+        JOIN ingestion_scopes scope
+          ON scope.scope_id = doc.scope_id
+         AND scope.active_generation_id = doc.generation_id
+        WHERE doc.scope_id = $1
+          AND doc.generation_id = $2
+          AND NOT EXISTS (
+              SELECT 1
+              FROM eshu_search_vector_metadata meta
+              LEFT JOIN eshu_search_vector_values value
+                ON value.scope_id = meta.scope_id
+               AND value.generation_id = meta.generation_id
+               AND value.document_id = meta.document_id
+               AND value.provider_profile_id = meta.provider_profile_id
+               AND value.source_class = meta.source_class
+               AND value.embedding_model_id = meta.embedding_model_id
+               AND value.vector_index_version = meta.vector_index_version
+               AND value.embedding_content_hash = meta.embedding_content_hash
+              WHERE meta.scope_id = doc.scope_id
+                AND meta.generation_id = doc.generation_id
+                AND meta.document_id = doc.document_id
+                AND meta.provider_profile_id = $3
+                AND meta.source_class = $4
+                AND meta.embedding_model_id = $5
+                AND meta.vector_index_version = $6
+                AND meta.embedding_content_hash = doc.content_hash
+                AND (meta.build_state = 'disabled'
+                     OR (meta.build_state = 'ready' AND value.document_id IS NOT NULL))
+              OFFSET 0
+          )
+    )
 END AS complete
+FROM completion_gate gate
 `
 
 // EshuSearchVectorIdentity groups the four non-scope attributes that
@@ -204,6 +192,7 @@ type EshuSearchVectorScopeState struct {
 	VectorIndexVersion string
 	ProjectionRevision int64
 	BuildFence         int64
+	DocumentCursor     string
 	State              string
 	UpdatedAt          time.Time
 }
@@ -362,7 +351,7 @@ func (s EshuSearchVectorScopeStateStore) ListPendingSearchVectorScopes(
 	var scopes []EshuSearchVectorPendingScope
 	for rows.Next() {
 		var pending EshuSearchVectorPendingScope
-		if err := rows.Scan(&pending.ScopeID, &pending.GenerationID, &pending.RepoID, &pending.ProjectionRevision); err != nil {
+		if err := rows.Scan(&pending.ScopeID, &pending.GenerationID, &pending.RepoID, &pending.ProjectionRevision, &pending.DocumentCursor); err != nil {
 			return nil, fmt.Errorf("scan pending eshu search vector scope: %w", err)
 		}
 		scopes = append(scopes, pending)
@@ -393,8 +382,9 @@ func (s EshuSearchVectorScopeStateStore) ScopeVectorComplete(
 		return false, fmt.Errorf("eshu search vector scope state scope vector complete requires generation id")
 	}
 
-	rows, err := s.db.QueryContext(
+	rows, err := beginSearchVectorDocumentQuery(
 		ctx,
+		s.db,
 		scopeVectorCompleteSQL,
 		scopeID,
 		generationID,
@@ -406,7 +396,7 @@ func (s EshuSearchVectorScopeStateStore) ScopeVectorComplete(
 	if err != nil {
 		return false, fmt.Errorf("scope vector complete: %w", err)
 	}
-	defer func() { _ = rows.Close() }()
+	defer rows.Rollback()
 	if !rows.Next() {
 		return false, rows.Err()
 	}
@@ -414,5 +404,11 @@ func (s EshuSearchVectorScopeStateStore) ScopeVectorComplete(
 	if err := rows.Scan(&complete); err != nil {
 		return false, fmt.Errorf("scope vector complete: %w", err)
 	}
-	return complete, rows.Err()
+	if err := rows.Err(); err != nil {
+		return false, err
+	}
+	if err := rows.Commit(); err != nil {
+		return false, fmt.Errorf("commit scope vector complete read: %w", err)
+	}
+	return complete, nil
 }
