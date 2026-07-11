@@ -65,10 +65,10 @@ repos:
       # Agent-hygiene gates (mirrors verify-agent-hygiene.yml). Fast, non-Go,
       # so they run at commit time. CI re-checks them (the non-bypassable gate).
       - id: agent-canon
-        name: AGENTS.md/CLAUDE.md lockstep
+        name: shared agent canon and skill contract
         entry: scripts/verify-agent-canon.sh
         language: script
-        files: '^(AGENTS\.md|CLAUDE\.md)$'
+        files: '^((AGENTS|CLAUDE)\.md|\.agents/.*|\.claude/skills/.*|\.codex/skills/.*|\.opencode/agent/.*|scripts/verify-agent-canon\.sh|scripts/test-verify-agent-hygiene\.sh)$'
         pass_filenames: false
 
       - id: no-ai-attribution-content
