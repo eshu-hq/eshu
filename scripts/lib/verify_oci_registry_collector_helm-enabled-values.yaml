@@ -1,0 +1,49 @@
+serviceAccount:
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/eshu-oci-registry-collector
+contentStore:
+  dsn: postgresql://eshu:secret@postgres:5432/eshu
+neo4j:
+  auth:
+    secretName: ""
+observability:
+  prometheus:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+ociRegistryCollector:
+  enabled: true
+  instanceId: oci-registry-primary
+  pollInterval: 10m
+  aws:
+    region: us-east-1
+  targets:
+    - provider: ecr
+      registry_id: "123456789012"
+      region: us-east-1
+      repository: team/api
+      references:
+        - latest
+      tag_limit: 10
+    - provider: dockerhub
+      repository: library/busybox
+      references:
+        - latest
+      tag_limit: 5
+    - provider: jfrog
+      base_url: https://artifacts.example.test
+      repository_key: docker-local
+      repository: team/app
+      username_env: JFROG_USERNAME
+      password_env: JFROG_PASSWORD
+  extraEnv:
+    - name: JFROG_USERNAME
+      valueFrom:
+        secretKeyRef:
+          name: jfrog-oci-credentials
+          key: username
+    - name: JFROG_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: jfrog-oci-credentials
+          key: password

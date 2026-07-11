@@ -26,57 +26,10 @@ if ! rg -q "ociRegistryCollector.targets|minItems" "${empty_targets_stderr}"; th
   exit 1
 fi
 
-cat >"${enabled_values}" <<'YAML'
-serviceAccount:
-  annotations:
-    eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/eshu-oci-registry-collector
-contentStore:
-  dsn: postgresql://eshu:secret@postgres:5432/eshu
-neo4j:
-  auth:
-    secretName: ""
-observability:
-  prometheus:
-    enabled: true
-    serviceMonitor:
-      enabled: true
-ociRegistryCollector:
-  enabled: true
-  instanceId: oci-registry-primary
-  pollInterval: 10m
-  aws:
-    region: us-east-1
-  targets:
-    - provider: ecr
-      registry_id: "123456789012"
-      region: us-east-1
-      repository: team/api
-      references:
-        - latest
-      tag_limit: 10
-    - provider: dockerhub
-      repository: library/busybox
-      references:
-        - latest
-      tag_limit: 5
-    - provider: jfrog
-      base_url: https://artifacts.example.test
-      repository_key: docker-local
-      repository: team/app
-      username_env: JFROG_USERNAME
-      password_env: JFROG_PASSWORD
-  extraEnv:
-    - name: JFROG_USERNAME
-      valueFrom:
-        secretKeyRef:
-          name: jfrog-oci-credentials
-          key: username
-    - name: JFROG_PASSWORD
-      valueFrom:
-        secretKeyRef:
-          name: jfrog-oci-credentials
-          key: password
-YAML
+# Body lives in scripts/lib/ (not a heredoc): Homebrew bash >= 5.1 writes the
+# entire heredoc body to a pipe before forking the reader, and macOS's
+# 512-byte pipe buffer deadlocks on any body over that size (#5074).
+cat "${ROOT_DIR}/scripts/lib/verify_oci_registry_collector_helm-enabled-values.yaml" >"${enabled_values}"
 
 helm template eshu "${CHART_DIR}" -f "${enabled_values}" >"${enabled_render}"
 
