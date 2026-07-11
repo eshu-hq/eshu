@@ -77,6 +77,33 @@ describe("buildAllowedNavSet", () => {
     expect(allowed.has("/secrets-iam")).toBe(false); // secrets_iam ✗
   });
 
+  // Issue #4746: /guided-questions is a query-playbooks surface gated by
+  // ask_search, exactly like /ask. It must be in the nav allow set (else
+  // AppSidebar filters it out and the page is unreachable) whenever ask_search
+  // is granted or auth fails open, and hidden when ask_search is withheld.
+  it("gates /guided-questions by ask_search like /ask", () => {
+    expect(buildAllowedNavSet(makeAuth({ all_scopes: true })).has("/guided-questions")).toBe(true);
+    expect(buildAllowedNavSet(null).has("/guided-questions")).toBe(true); // fail-open
+    expect(
+      buildAllowedNavSet(
+        makeAuth({
+          all_scopes: false,
+          permission_catalog_enforced: true,
+          allowed_permission_features: ["ask_search"],
+        }),
+      ).has("/guided-questions"),
+    ).toBe(true);
+    expect(
+      buildAllowedNavSet(
+        makeAuth({
+          all_scopes: false,
+          permission_catalog_enforced: true,
+          allowed_permission_features: ["supply_chain"],
+        }),
+      ).has("/guided-questions"),
+    ).toBe(false);
+  });
+
   it("always allows core navigation (/, /status, /dashboard) regardless of scopes", () => {
     const auth = makeAuth({
       all_scopes: false,

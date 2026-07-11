@@ -7,7 +7,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log/slog"
 	"strconv"
 	"strings"
 	"time"
@@ -18,6 +17,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 const (
@@ -27,137 +27,6 @@ const (
 	nornicDBCanonicalGroupedWritesEnv    = "ESHU_NORNICDB_CANONICAL_GROUPED_WRITES"
 	nornicDBSemanticEntityLabelBatchEnv  = "ESHU_NORNICDB_SEMANTIC_ENTITY_LABEL_BATCH_SIZES"
 )
-
-// cypherRunner is the narrow interface shared by both executor adapters.
-type cypherRunner interface {
-	RunCypher(ctx context.Context, cypher string, params map[string]any) error
-	RunCypherGroup(ctx context.Context, stmts []sourcecypher.Statement) error
-}
-
-// reducerNeo4jExecutor adapts a cypherRunner to the sourcecypher.Executor
-// interface used by EdgeWriter.
-type reducerNeo4jExecutor struct {
-	session cypherRunner
-}
-
-func (e reducerNeo4jExecutor) Execute(ctx context.Context, stmt sourcecypher.Statement) error {
-	return executeReducerCypherWithRetry(ctx, e.session, stmt)
-}
-
-// ExecuteGroup runs all statements in a single Neo4j transaction with
-// automatic retry on transient errors (deadlocks, leader switches).
-func (e reducerNeo4jExecutor) ExecuteGroup(ctx context.Context, stmts []sourcecypher.Statement) error {
-	return e.session.RunCypherGroup(ctx, stmts)
-}
-
-// reducerCypherExecutor adapts a cypherRunner to the reducer.CypherExecutor
-// interface used by WorkloadMaterializer.
-type reducerCypherExecutor struct {
-	session cypherRunner
-}
-
-func (e reducerCypherExecutor) ExecuteCypher(ctx context.Context, cypher string, params map[string]any) error {
-	return executeReducerCypherWithRetry(ctx, e.session, sourcecypher.Statement{
-		Operation:  sourcecypher.OperationCanonicalUpsert,
-		Cypher:     cypher,
-		Parameters: params,
-	})
-}
-
-type cypherRunnerStatementExecutor struct {
-	runner cypherRunner
-}
-
-func (e cypherRunnerStatementExecutor) Execute(ctx context.Context, stmt sourcecypher.Statement) error {
-	return e.runner.RunCypher(ctx, stmt.Cypher, stmt.Parameters)
-}
-
-type nornicDBSemanticObservedExecutor struct {
-	inner sourcecypher.Executor
-}
-
-func (e nornicDBSemanticObservedExecutor) Execute(ctx context.Context, stmt sourcecypher.Statement) error {
-	if e.inner == nil {
-		return nil
-	}
-	start := time.Now()
-	err := e.inner.Execute(ctx, stmt)
-	duration := time.Since(start)
-	attrs := []any{
-		"graph_backend", string(runtimecfg.GraphBackendNornicDB),
-		"label", semanticStatementLabel(stmt),
-		"rows", semanticStatementRows(stmt),
-		"duration_s", duration.Seconds(),
-		"operation", string(stmt.Operation),
-		"statement", semanticStatementSummary(stmt),
-	}
-	if err != nil {
-		attrs = append(attrs, "error", err.Error())
-		slog.Warn("nornicdb semantic statement failed", attrs...)
-		return err
-	}
-	slog.Info("nornicdb semantic statement completed", attrs...)
-	return nil
-}
-
-func semanticStatementLabel(stmt sourcecypher.Statement) string {
-	label, _ := stmt.Parameters[sourcecypher.StatementMetadataEntityLabelKey].(string)
-	label = strings.TrimSpace(label)
-	if label != "" {
-		return label
-	}
-	if stmt.Operation == sourcecypher.OperationCanonicalRetract {
-		return "semantic_retract"
-	}
-	return "unknown"
-}
-
-func semanticStatementRows(stmt sourcecypher.Statement) int {
-	if rows, ok := stmt.Parameters["rows"].([]map[string]any); ok {
-		return len(rows)
-	}
-	if rows, ok := stmt.Parameters["rows"].([]any); ok {
-		return len(rows)
-	}
-	if repoIDs, ok := stmt.Parameters["repo_ids"].([]string); ok {
-		return len(repoIDs)
-	}
-	if _, ok := stmt.Parameters["entity_id"]; ok {
-		return 1
-	}
-	return 0
-}
-
-func semanticStatementSummary(stmt sourcecypher.Statement) string {
-	if summary, ok := stmt.Parameters[sourcecypher.StatementMetadataSummaryKey].(string); ok {
-		if summary = strings.TrimSpace(summary); summary != "" {
-			return summary
-		}
-	}
-	return summarizeReducerCypher(stmt.Cypher)
-}
-
-func summarizeReducerCypher(cypher string) string {
-	fields := strings.Fields(cypher)
-	if len(fields) == 0 {
-		return ""
-	}
-	if len(fields) > 16 {
-		fields = fields[:16]
-	}
-	return strings.Join(fields, " ")
-}
-
-func executeReducerCypherWithRetry(
-	ctx context.Context,
-	runner cypherRunner,
-	stmt sourcecypher.Statement,
-) error {
-	retrying := sourcecypher.RetryingExecutor{
-		Inner: cypherRunnerStatementExecutor{runner: runner},
-	}
-	return retrying.Execute(ctx, stmt)
-}
 
 // neo4jSessionRunner wraps a Neo4j driver into the cypherRunner interface,
 // opening a write session per call.
@@ -313,10 +182,16 @@ func (c reducerNeo4jDriverCloser) Close() error {
 // openReducerNeo4jAdapters opens a Neo4j driver and returns the executor
 // adapters needed by the reducer: one for EdgeWriter (sourcecypher.Executor),
 // one for WorkloadMaterializer (reducer.CypherExecutor), and one for
-// pre-flight canonical node checks (sourcecypher.CypherReader).
+// pre-flight canonical node checks (sourcecypher.CypherReader). Both
+// executor adapters hold a persistent *sourcecypher.RetryingExecutor built
+// once here (#5048) rather than a fresh one per call (the removed
+// executeReducerCypherWithRetry); instruments is wired onto both so
+// Neo4jDeadlockRetries is actually recorded -- the per-call construction
+// this replaces omitted it entirely.
 func openReducerNeo4jAdapters(
 	parent context.Context,
 	getenv func(string) string,
+	instruments *telemetry.Instruments,
 ) (sourcecypher.Executor, reducer.CypherExecutor, sourcecypher.CypherReader, query.GraphQuery, io.Closer, error) {
 	graphBackend, err := runtimecfg.LoadGraphBackend(getenv)
 	if err != nil {
@@ -333,8 +208,8 @@ func openReducerNeo4jAdapters(
 		TxTimeout:    reducerTransactionTimeout(graphBackend, getenv),
 	}
 
-	return reducerNeo4jExecutor{session: runner},
-		reducerCypherExecutor{session: runner},
+	return newReducerNeo4jExecutor(runner, instruments),
+		newReducerCypherExecutor(runner, instruments),
 		runner,
 		runner,
 		reducerNeo4jDriverCloser{Driver: driver},

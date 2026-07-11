@@ -14,7 +14,7 @@ import (
 func TestReducerNeo4jExecutorRunsBackendConformanceWriteCorpus(t *testing.T) {
 	t.Parallel()
 
-	executor := reducerNeo4jExecutor{session: &fakeNeo4jSession{}}
+	executor := newReducerNeo4jExecutor(&fakeNeo4jSession{}, nil)
 	report, err := backendconformance.RunWriteCorpus(context.Background(), executor, backendconformance.DefaultWriteCorpus())
 	if err != nil {
 		t.Fatalf("RunWriteCorpus() error = %v", err)

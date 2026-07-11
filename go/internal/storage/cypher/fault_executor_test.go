@@ -150,17 +150,21 @@ func TestFaultingExecutorQueueRetryLaneFiresOnceThenDelegates(t *testing.T) {
 	}
 }
 
-// TestFaultingExecutorExecutorRetryLaneIsShapedTransientButNeverRetriedAboveTheSeam
-// is the honest T1 regression: this decorator wraps ABOVE any RetryingExecutor
-// sitting below it (go/cmd/reducer's executeReducerCypherWithRetry constructs
-// a fresh RetryingExecutor INSIDE the base executor's Execute call, which is
-// this decorator's inner -- not its caller). So even though the
-// executor-retry lane's error is shaped to satisfy isTransientNeo4jError,
-// wrapping a RetryingExecutor as inner here proves that RetryingExecutor
-// never sees or retries it: the fault short-circuits before inner.Execute is
-// ever called, so RetryingExecutor.Execute is never invoked for the failing
-// attempt.
-func TestFaultingExecutorExecutorRetryLaneIsShapedTransientButNeverRetriedAboveTheSeam(t *testing.T) {
+// TestFaultingExecutorExecutorRetryLaneWithoutArmerFallsBackAboveTheSeam
+// proves the pre-#5048 fallback still applies whenever no
+// ExecutorRetryArmer is wired (SetExecutorRetryArmer never called, the zero
+// value): this decorator wraps ABOVE any RetryingExecutor sitting below it,
+// so even though the executor-retry lane's error is shaped to satisfy
+// isTransientNeo4jError, wrapping a RetryingExecutor as inner here proves
+// that RetryingExecutor never sees or retries it -- the fault
+// short-circuits before inner.Execute is ever called. This is the honest
+// remaining limitation for callers that never wire an armer; go/cmd/reducer's
+// wrapIfaFaultExecutor does wire one for the real reducer binary. See
+// fault_executor_armed_retry_test.go for the armed-path proofs and
+// go/cmd/reducer's
+// TestWrapIfaFaultExecutorExecutorRetryLaneRetriesInPlaceBelowTheRetryingExecutor
+// for the full end-to-end proof.
+func TestFaultingExecutorExecutorRetryLaneWithoutArmerFallsBackAboveTheSeam(t *testing.T) {
 	t.Parallel()
 
 	base := &faultRecordingExecutor{}
