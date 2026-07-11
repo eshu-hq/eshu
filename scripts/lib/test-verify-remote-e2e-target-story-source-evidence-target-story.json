@@ -1,0 +1,23 @@
+{
+  "proof_mode": "partial",
+  "proof_mode_reason": "source evidence target proof only",
+  "target_repository_id": "repo://example/api",
+  "expected_service_id": "service:api",
+  "expected_provider_incident_id": "PABC123",
+  "expected_incident_provider": "pagerduty",
+  "expected_incident_scope_id": "pagerduty-prod",
+  "expected_work_item_key": "OPS-123",
+  "expected_work_item_scope_id": "jira-prod",
+  "minimums": {
+    "documentation_findings": 1,
+    "incident_contexts": 1,
+    "work_item_evidence": 1,
+    "impact_findings": 0,
+    "security_alert_reconciliations": 0,
+    "container_image_identities": 0,
+    "sbom_attachments": 0,
+    "service_catalog_correlations": 0,
+    "ci_cd_run_correlations": 0,
+    "cloud_resources": 0
+  }
+}

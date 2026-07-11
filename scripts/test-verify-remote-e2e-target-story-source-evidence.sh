@@ -11,93 +11,17 @@ fake_bin="${tmp_root}/bin"
 state_dir="${tmp_root}/state"
 mkdir -p "${fake_bin}" "${state_dir}"
 
-cat >"${fake_bin}/curl" <<'SH'
-#!/usr/bin/env bash
-set -euo pipefail
-
-state_dir="${ESHU_REMOTE_E2E_TEST_STATE:?set ESHU_REMOTE_E2E_TEST_STATE}"
-printf '%s\n' "$*" >>"${state_dir}/curl-targets"
-if [[ "$*" == *"test-api-key"* ]]; then
-  echo "curl arguments leaked API key" >&2
-  exit 2
-fi
-
-payload_file=""
-args=("$@")
-for ((i = 0; i < ${#args[@]}; i++)); do
-  if [[ "${args[$i]}" == "--data-binary" || "${args[$i]}" == "--data" || "${args[$i]}" == "-d" ]]; then
-    payload_file="${args[$((i + 1))]:-}"
-    payload_file="${payload_file#@}"
-  fi
-done
-
-if [[ "$*" == *"/mcp/message"* ]]; then
-  tool_name="$(jq -r '.params.name // ""' "${payload_file}")"
-  case "${tool_name}" in
-    list_documentation_findings)
-      cat "${state_dir}/mcp-documentation-findings.json"
-      ;;
-    get_incident_context)
-      cat "${state_dir}/mcp-incident-context.json"
-      ;;
-    list_work_item_evidence)
-      cat "${state_dir}/mcp-work-item-evidence.json"
-      ;;
-    *)
-      echo "unexpected mcp tool: ${tool_name}" >&2
-      exit 2
-      ;;
-  esac
-  exit 0
-fi
-
-case "$*" in
-  *"/api/v0/repositories/repo%3A%2F%2Fexample%2Fapi/story"*)
-    cat "${state_dir}/repo-story.json"
-    ;;
-  *"/api/v0/documentation/findings?repo=repo%3A%2F%2Fexample%2Fapi&limit=1"*)
-    cat "${state_dir}/documentation-findings.json"
-    ;;
-  *"/api/v0/incidents/PABC123/context?provider=pagerduty&scope_id=pagerduty-prod&service_id=service%3Aapi&limit=1"*)
-    cat "${state_dir}/incident-context.json"
-    ;;
-  *"/api/v0/work-items/evidence?scope_id=jira-prod&work_item_key=OPS-123&limit=1"*)
-    cat "${state_dir}/work-item-evidence.json"
-    ;;
-  *)
-    echo "unexpected curl target: $*" >&2
-    exit 2
-    ;;
-esac
-SH
+# Body lives in scripts/lib/ (not a heredoc): Homebrew bash >= 5.1 writes
+# the entire heredoc body to a pipe before forking the reader, and macOS's
+# 512-byte pipe buffer deadlocks on any body over that size (#5074).
+cp "${repo_root}/scripts/lib/test-verify-remote-e2e-target-story-source-evidence-fake-curl.sh" "${fake_bin}/curl"
 chmod +x "${fake_bin}/curl"
 
 write_manifest() {
-  cat >"${state_dir}/target-story.json" <<'JSON'
-{
-  "proof_mode": "partial",
-  "proof_mode_reason": "source evidence target proof only",
-  "target_repository_id": "repo://example/api",
-  "expected_service_id": "service:api",
-  "expected_provider_incident_id": "PABC123",
-  "expected_incident_provider": "pagerduty",
-  "expected_incident_scope_id": "pagerduty-prod",
-  "expected_work_item_key": "OPS-123",
-  "expected_work_item_scope_id": "jira-prod",
-  "minimums": {
-    "documentation_findings": 1,
-    "incident_contexts": 1,
-    "work_item_evidence": 1,
-    "impact_findings": 0,
-    "security_alert_reconciliations": 0,
-    "container_image_identities": 0,
-    "sbom_attachments": 0,
-    "service_catalog_correlations": 0,
-    "ci_cd_run_correlations": 0,
-    "cloud_resources": 0
-  }
-}
-JSON
+  # Body lives in scripts/lib/ (not a heredoc): Homebrew bash >= 5.1 writes
+  # the entire heredoc body to a pipe before forking the reader, and macOS's
+  # 512-byte pipe buffer deadlocks on any body over that size (#5074).
+  cat "${repo_root}/scripts/lib/test-verify-remote-e2e-target-story-source-evidence-target-story.json" >"${state_dir}/target-story.json"
 }
 
 reset_state() {
@@ -118,12 +42,14 @@ JSON
   cat >"${state_dir}/mcp-documentation-findings.json" <<'JSON'
 {"jsonrpc":"2.0","id":1,"result":{"content":[{"type":"resource","resource":{"uri":"eshu://tool-result/envelope","mimeType":"application/eshu.envelope+json","text":"{\"data\":{\"findings\":[{\"finding_id\":\"doc-finding-1\",\"repo\":\"repo://example/api\",\"status\":\"supported\"}],\"next_cursor\":\"\"},\"truth\":{\"level\":\"exact\",\"freshness\":{\"state\":\"fresh\"}},\"error\":null}"}}],"isError":false}}
 JSON
-  cat >"${state_dir}/mcp-incident-context.json" <<'JSON'
-{"jsonrpc":"2.0","id":1,"result":{"content":[{"type":"resource","resource":{"uri":"eshu://tool-result/envelope","mimeType":"application/eshu.envelope+json","text":"{\"data\":{\"query\":{\"provider\":\"pagerduty\",\"provider_incident_id\":\"PABC123\",\"scope_id\":\"pagerduty-prod\",\"service_id\":\"service:api\",\"limit\":1},\"incident\":{\"provider\":\"pagerduty\",\"provider_incident_id\":\"PABC123\",\"scope_id\":\"pagerduty-prod\",\"service\":{\"id\":\"service:api\"}},\"timeline\":[],\"related_changes\":[],\"evidence_path\":[],\"missing_evidence\":[],\"ambiguous_evidence\":[],\"truncated\":false},\"truth\":{\"level\":\"exact\",\"freshness\":{\"state\":\"fresh\"}},\"error\":null}"}}],"isError":false}}
-JSON
-  cat >"${state_dir}/mcp-work-item-evidence.json" <<'JSON'
-{"jsonrpc":"2.0","id":1,"result":{"content":[{"type":"resource","resource":{"uri":"eshu://tool-result/envelope","mimeType":"application/eshu.envelope+json","text":"{\"data\":{\"evidence\":[{\"fact_id\":\"fact-work-1\",\"fact_kind\":\"work_item.record\",\"scope_id\":\"jira-prod\",\"work_item_key\":\"OPS-123\",\"evidence_state\":\"exact_provider_fact\"}],\"count\":1,\"limit\":1,\"truncated\":false,\"missing_evidence\":false,\"states\":[\"exact_provider_fact\"]},\"truth\":{\"level\":\"exact\",\"freshness\":{\"state\":\"fresh\"}},\"error\":null}"}}],"isError":false}}
-JSON
+  # Body lives in scripts/lib/ (not a heredoc): Homebrew bash >= 5.1 writes
+  # the entire heredoc body to a pipe before forking the reader, and macOS's
+  # 512-byte pipe buffer deadlocks on any body over that size (#5074).
+  cat "${repo_root}/scripts/lib/test-verify-remote-e2e-target-story-source-evidence-mcp-incident-context.json" >"${state_dir}/mcp-incident-context.json"
+  # Body lives in scripts/lib/ (not a heredoc): Homebrew bash >= 5.1 writes
+  # the entire heredoc body to a pipe before forking the reader, and macOS's
+  # 512-byte pipe buffer deadlocks on any body over that size (#5074).
+  cat "${repo_root}/scripts/lib/test-verify-remote-e2e-target-story-source-evidence-mcp-work-item-evidence.json" >"${state_dir}/mcp-work-item-evidence.json"
 }
 
 run_verifier() {
