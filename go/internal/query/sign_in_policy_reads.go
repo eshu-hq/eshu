@@ -22,6 +22,20 @@ import (
 //     full policy, including SSO-admin-proof metadata (a hash-free
 //     provider_config_id and timestamp — never a secret) needed for the
 //     console guardrail-state display.
+//
+// Neither route emits a governance audit event. Issue #4968's acceptance
+// criterion is "all policy changes are durable audit events" — reads are
+// deliberately out of scope. This matches the sibling read-handler
+// convention (AdminProviderConfigReadHandler also does not audit reads):
+// a read exposes no secret (the admin route strips every credential field;
+// the public route exposes only the require_sso boolean) and auditing every
+// read would be volume noise with no operator value. Governance audit
+// coverage for sign-in policy lives on the mutation path
+// (SignInPolicyMutationHandler.audit in sign_in_policy_mutations.go) and on
+// the require-SSO login gate's allow/deny decision
+// (LocalIdentityHandler.auditLocalIdentity, reason
+// local_login_denied_require_sso_policy, in local_identity_handler.go) —
+// not on this handler's reads.
 type SignInPolicyReadHandler struct {
 	Store SignInPolicyReadStore
 }
