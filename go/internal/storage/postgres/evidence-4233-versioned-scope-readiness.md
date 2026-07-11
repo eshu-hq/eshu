@@ -86,6 +86,12 @@ The theory was measured before the production changes:
   value row. Both batch statements independently join the active ingestion
   generation, ready projection revision, current building vector-scope fence,
   and projected document content hash before inserting or updating a row.
+- `BeginBuilding` itself selects only the active ready projection revision and
+  cannot regress a newer or already-ready vector scope. Ready publication uses
+  exact fence equality and rechecks the current ready projection revision.
+- Projection publication counts unique document IDs rather than attempted
+  writes, so duplicate IDs cannot inflate `document_count` and hold the count
+  gate permanently below completion.
 
 ## Accuracy and concurrency proof
 
@@ -102,8 +108,11 @@ concurrent finalize behavior. A live Postgres regression first writes value and
 metadata rows with the current fence, advances the fence, and then attempts to
 overwrite both rows with the stale fence. The current writes land and both stale
 writes affect zero rows; the original vector, metadata failure class, and update
-timestamps remain unchanged. Vector metadata and value stores retain their
-500-row SQL statement boundaries.
+timestamps remain unchanged. The same live test publishes a newer ready scope,
+then proves that both an older projection revision and a delayed duplicate of
+the already-ready revision are rejected without changing its revision, fence,
+or state. Vector metadata and value stores retain their 500-row SQL statement
+boundaries.
 
 ## Finished-work proof
 

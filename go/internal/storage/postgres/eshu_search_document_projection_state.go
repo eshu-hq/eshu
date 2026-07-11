@@ -41,7 +41,7 @@ WHERE scope_id = $1
   AND generation_id = $2
   AND generation_id = (SELECT active_generation_id FROM ingestion_scopes WHERE scope_id = $1)
   AND projection_revision = $3
-  AND build_fence <= $4
+  AND build_fence = $4
 `
 
 const markFailedProjectionStateSQL = `
@@ -51,7 +51,7 @@ WHERE scope_id = $1
   AND generation_id = $2
   AND generation_id = (SELECT active_generation_id FROM ingestion_scopes WHERE scope_id = $1)
   AND projection_revision = $3
-  AND build_fence <= $4
+  AND build_fence = $4
 `
 
 // EshuSearchDocumentProjectionState records the projection lifecycle of

@@ -163,6 +163,30 @@ func TestSearchDocWriterFinalizeCallsProjectionStateFinalizeReady(t *testing.T) 
 	}
 }
 
+func TestSearchDocWriterProjectionCountDeduplicatesDocumentIDs(t *testing.T) {
+	t.Parallel()
+
+	projState := &fakeSearchDocumentProjectionStateWriter{finalizeReadyOK: true}
+	writer := PostgresEshuSearchDocumentWriter{
+		DB:              &fakeSearchDocExecer{},
+		ProjectionState: projState,
+	}
+	document := sampleSearchDoc("searchdoc:content_entity:duplicate")
+	result, err := writer.WriteEshuSearchDocuments(context.Background(), EshuSearchDocumentWrite{
+		ScopeID: "scope-1", GenerationID: "gen-1", SourceSystem: "content_entities",
+		Documents: []searchdocs.Document{document, document},
+	})
+	if err != nil {
+		t.Fatalf("WriteEshuSearchDocuments error = %v", err)
+	}
+	if result.CanonicalWrites != 2 {
+		t.Fatalf("canonical writes = %d, want 2 attempted rows", result.CanonicalWrites)
+	}
+	if got := projState.finalizeReadyCalls[0].documentCount; got != 1 {
+		t.Fatalf("projection document count = %d, want 1 unique document id", got)
+	}
+}
+
 func TestSearchDocWriterFinalizeFalseCASDoesNotFailWrite(t *testing.T) {
 	t.Parallel()
 

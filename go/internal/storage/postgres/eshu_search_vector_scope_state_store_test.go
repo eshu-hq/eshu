@@ -44,8 +44,14 @@ func TestEshuSearchVectorScopeStateBeginBuilding(t *testing.T) {
 	q := db.queries[0].query
 	for _, want := range []string{
 		"INSERT INTO eshu_search_vector_scope_state",
+		"FROM eshu_search_document_projection_state projection",
+		"projection.state = 'ready'",
+		"projection.projection_revision = $7",
+		"scope.active_generation_id = projection.generation_id",
 		"ON CONFLICT (scope_id, generation_id, provider_profile_id, source_class, embedding_model_id, vector_index_version) DO UPDATE",
 		"build_fence = COALESCE(eshu_search_vector_scope_state.build_fence, 0) + 1",
+		"EXCLUDED.projection_revision > eshu_search_vector_scope_state.projection_revision",
+		"eshu_search_vector_scope_state.state <> 'ready'",
 		"state = 'building'",
 		"RETURNING build_fence",
 	} {
@@ -98,7 +104,9 @@ func TestEshuSearchVectorScopeStateFinalizeReadyCAS(t *testing.T) {
 		"SET state = 'ready'",
 		"generation_id = (SELECT active_generation_id FROM ingestion_scopes WHERE scope_id = $1)",
 		"projection_revision = $7",
-		"build_fence <= $8",
+		"build_fence = $8",
+		"projection.state = 'ready'",
+		"projection.projection_revision = $7",
 	} {
 		if !strings.Contains(q, want) {
 			t.Fatalf("query missing %q:\n%s", want, q)

@@ -259,7 +259,8 @@ func (s *eshuSearchDocumentWriteSession) Finalize(ctx context.Context) (EshuSear
 	// projection state as ready. A false CAS result (stale/superseded) must
 	// NOT fail the write — a superseding generation legitimately owns the row.
 	if s.writer.ProjectionState != nil {
-		ok, err := s.writer.ProjectionState.FinalizeReady(ctx, s.scopeID, s.generationID, s.projectionRevision, s.projectionFence, int64(s.written))
+		documentCount := int64(len(uniqueSortedStrings(s.keepDocIDs)))
+		ok, err := s.writer.ProjectionState.FinalizeReady(ctx, s.scopeID, s.generationID, s.projectionRevision, s.projectionFence, documentCount)
 		if err != nil {
 			return EshuSearchDocumentWriteResult{}, fmt.Errorf("finalize ready eshu search document projection state: %w", err)
 		}

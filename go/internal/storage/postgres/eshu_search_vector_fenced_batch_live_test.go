@@ -17,7 +17,8 @@ import (
 
 // TestEshuSearchVectorFencedBatchRejectsStaleWorkerLive proves that vector
 // value and metadata upserts accept the current build owner while rejecting a
-// stale worker after the scope fence advances. Set
+// stale worker after the scope fence advances. It also proves BeginBuilding
+// cannot regress a newer or already-ready vector scope. Set
 // ESHU_SEARCH_VECTOR_SCOPE_STATE_LIVE=1 and ESHU_POSTGRES_DSN to run.
 func TestEshuSearchVectorFencedBatchRejectsStaleWorkerLive(t *testing.T) {
 	if os.Getenv("ESHU_SEARCH_VECTOR_SCOPE_STATE_LIVE") != "1" {
@@ -138,6 +139,45 @@ WHERE scope_id = $2 AND generation_id = $3`, now.Add(2*time.Second), scopeID, ge
 	write(2, 2, []float64{0, 1}, "stale-worker", staleUpdatedAt)
 	assertFencedVectorRowLive(t, ctx, sqlDB, scopeID, generationID, documentID,
 		[]float64{1, 0}, "", currentUpdatedAt)
+
+	if _, err := sqlDB.ExecContext(ctx, `
+UPDATE eshu_search_document_projection_state
+SET projection_revision = 3, build_fence = 3, state = 'ready', updated_at = $1
+WHERE scope_id = $2 AND generation_id = $3`, now.Add(4*time.Second), scopeID, generationID); err != nil {
+		t.Fatalf("publish newer projection state: %v", err)
+	}
+	if _, err := sqlDB.ExecContext(ctx, `
+UPDATE eshu_search_vector_scope_state
+SET projection_revision = 3, build_fence = 4, state = 'ready', updated_at = $1
+WHERE scope_id = $2 AND generation_id = $3`, now.Add(4*time.Second), scopeID, generationID); err != nil {
+		t.Fatalf("publish newer vector state: %v", err)
+	}
+	identity := EshuSearchVectorIdentity{
+		ProviderProfileID: providerProfileID, SourceClass: sourceClass,
+		EmbeddingModelID: modelID, VectorIndexVersion: vectorVersion,
+	}
+	if fence, err := NewEshuSearchVectorScopeStateStore(db).BeginBuilding(
+		ctx, scopeID, generationID, identity, 2,
+	); err == nil {
+		t.Fatalf("stale BeginBuilding fence = %d, want rejection after revision 3 won", fence)
+	}
+	var revision, fence int64
+	var state string
+	if err := sqlDB.QueryRowContext(ctx, `
+SELECT projection_revision, build_fence, state
+FROM eshu_search_vector_scope_state
+WHERE scope_id = $1 AND generation_id = $2`, scopeID, generationID).Scan(&revision, &fence, &state); err != nil {
+		t.Fatalf("read vector scope after stale BeginBuilding: %v", err)
+	}
+	if revision != 3 || fence != 4 || state != "ready" {
+		t.Fatalf("vector scope after stale BeginBuilding = revision %d fence %d state %q, want 3/4/ready",
+			revision, fence, state)
+	}
+	if duplicateFence, err := NewEshuSearchVectorScopeStateStore(db).BeginBuilding(
+		ctx, scopeID, generationID, identity, 3,
+	); err == nil {
+		t.Fatalf("duplicate BeginBuilding fence = %d, want rejection after revision 3 is ready", duplicateFence)
+	}
 }
 
 func assertFencedVectorRowLive(

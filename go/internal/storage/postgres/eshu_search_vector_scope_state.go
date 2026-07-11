@@ -29,12 +29,25 @@ const beginBuildingVectorScopeStateSQL = `
 INSERT INTO eshu_search_vector_scope_state
   (scope_id, generation_id, provider_profile_id, source_class, embedding_model_id,
    vector_index_version, projection_revision, build_fence, state, updated_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, 1, 'building', $8)
+SELECT $1, $2, $3, $4, $5, $6, $7, 1, 'building', $8
+FROM eshu_search_document_projection_state projection
+JOIN ingestion_scopes scope
+  ON scope.scope_id = projection.scope_id
+ AND scope.active_generation_id = projection.generation_id
+WHERE projection.scope_id = $1
+  AND projection.generation_id = $2
+  AND projection.state = 'ready'
+  AND projection.projection_revision = $7
 ON CONFLICT (scope_id, generation_id, provider_profile_id, source_class, embedding_model_id, vector_index_version) DO UPDATE SET
-  projection_revision = $7,
+  projection_revision = EXCLUDED.projection_revision,
   build_fence = COALESCE(eshu_search_vector_scope_state.build_fence, 0) + 1,
   state = 'building',
   updated_at = $8
+WHERE EXCLUDED.projection_revision > eshu_search_vector_scope_state.projection_revision
+   OR (
+     EXCLUDED.projection_revision = eshu_search_vector_scope_state.projection_revision
+     AND eshu_search_vector_scope_state.state <> 'ready'
+   )
 RETURNING build_fence
 `
 
@@ -49,7 +62,15 @@ WHERE scope_id = $1
   AND vector_index_version = $6
   AND generation_id = (SELECT active_generation_id FROM ingestion_scopes WHERE scope_id = $1)
   AND projection_revision = $7
-  AND build_fence <= $8
+  AND build_fence = $8
+  AND EXISTS (
+    SELECT 1
+    FROM eshu_search_document_projection_state projection
+    WHERE projection.scope_id = $1
+      AND projection.generation_id = $2
+      AND projection.state = 'ready'
+      AND projection.projection_revision = $7
+  )
 `
 
 // listPendingSearchVectorScopesScopedSQL is the #4233 replacement for the
@@ -190,8 +211,9 @@ func NewEshuSearchVectorScopeStateStore(db ExecQueryer) EshuSearchVectorScopeSta
 }
 
 // BeginBuilding starts or re-starts a vector build for the given
-// scope+generation+identity. It bumps build_fence on conflict and returns
-// the resulting fence value.
+// scope+generation+identity. It accepts only the active ready projection,
+// rejects older or already-ready revisions, bumps build_fence for a current
+// retry, and returns the resulting fence value.
 func (s EshuSearchVectorScopeStateStore) BeginBuilding(
 	ctx context.Context,
 	scopeID, generationID string,

@@ -94,7 +94,7 @@ func TestEshuSearchDocumentProjectionStateFinalizeReadyCAS(t *testing.T) {
 		"generation_id = $2",
 		"generation_id = (SELECT active_generation_id FROM ingestion_scopes WHERE scope_id = $1)",
 		"projection_revision = $3",
-		"build_fence <= $4",
+		"build_fence = $4",
 	} {
 		if !strings.Contains(q, want) {
 			t.Fatalf("query missing %q:\n%s", want, q)
@@ -167,7 +167,7 @@ func TestEshuSearchDocumentProjectionStateMarkFailedCAS(t *testing.T) {
 		"generation_id = $2",
 		"generation_id = (SELECT active_generation_id FROM ingestion_scopes WHERE scope_id = $1)",
 		"projection_revision = $3",
-		"build_fence <= $4",
+		"build_fence = $4",
 	} {
 		if !strings.Contains(q, want) {
 			t.Fatalf("query missing %q:\n%s", want, q)
