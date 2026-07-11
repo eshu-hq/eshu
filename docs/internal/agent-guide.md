@@ -260,7 +260,7 @@ logs, not metric labels.
 
 ## Cypher And NornicDB
 
-For non-trivial Cypher work, read the current NornicDB-New hot-path cookbook,
+For non-trivial Cypher work, read the current NornicDB hot-path cookbook,
 failing query shapes, and relevant `pkg/cypher/*hotpath*_test.go` files before
 proposing a change. State the production executor path or fast path and how the
 change engages it.

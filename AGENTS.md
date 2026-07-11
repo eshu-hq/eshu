@@ -154,6 +154,9 @@ fixture corpora or offline tooling.
   is for push only (the pre-push gosec/e2e gates are slow). CI re-checks every
   gate regardless and is the non-bypassable source of truth.
 - MUST NOT push to `main` or `master`.
+- MUST synchronize source to remote test machines through Git fetch and
+  checkout/fast-forward of the reviewed branch. MUST NOT use `rsync` or copy an
+  unreviewed worktree as performance evidence.
 - MUST create git worktrees before executing plans or PRDs.
 - MUST verify `pwd` matches the intended feature worktree before any Edit or
   Write operation. Run `pwd` and confirm it is the feature worktree path, not
@@ -233,8 +236,11 @@ Skipping an applicable skill is a rule violation. If more than one skill
 applies, use the minimal set that covers the touched surface and state which
 skills are active.
 
-- MUST use `eshu-diagnostic-rigor` for runtime diagnostics, reducer throughput,
-  graph backend performance, queue behavior, local/CI proof runs, and evidence.
+- MUST use `eshu-diagnostic-rigor` for runtime diagnosis, reducer/queue
+  attribution, graph backend diagnosis, local/CI proof runs, and evidence.
+- MUST add `eshu-performance-rigor` for benchmarks, query/index optimization,
+  throughput or bootstrap changes, scaled/remote performance proof, and every
+  before/after latency or wall-time claim.
 - MUST add `eshu-postgres-rigor` for Postgres SQL, schema DDL, indexes,
   migrations, queue/liveness/status queries, transactions, locks, or relational
   performance diagnostics.
@@ -280,10 +286,14 @@ skills are active.
 
 - Bug fixes MUST have a failing regression test first.
 - Performance work MUST have before/after measurements.
+- Performance comparisons MUST use the same primary start and terminal events,
+  corpus/profile/topology, and storage state. Report exact seconds plus a human
+  duration and label non-comparable totals instead of manufacturing a speedup.
 - End-to-end and collector runs MUST be compared against the last known-good
-  baseline timing (e.g. the ~15-minute git-collector E2E). A large regression
-  from that baseline is a bug to root-cause, not an acceptable cost, and no
-  long run may be launched without a stated time bound.
+  named baseline manifest with matching metric boundaries, corpus, profile,
+  topology, and storage state. A large regression from that baseline is a bug
+  to root-cause, not an acceptable cost, and no long run may be launched
+  without a stated time bound.
 - Queue/concurrency work MUST have contention, retry, idempotency, ordering, and
   dead-letter proof.
 - Performance rewrites that touch a lock/claim/lease/queue path MUST include a

@@ -10,8 +10,10 @@ matters, read it from the cited source — never trust a copy.
 
 Used by the `perf-eshu` agent (see
 [Agent Orchestration Model](agent-orchestration.md)). The discipline is always
-the same: **measure → locate → hypothesize → tune one knob → re-measure →
-prove no regression.** Accuracy, performance, concurrency — in that order.
+the same: **define comparable metric boundaries → measure → locate → prove one
+hypothesis with the cheapest shim → tune one knob → re-measure → prove no
+regression.** Accuracy, performance, concurrency — in that order. The binding
+workflow is the `eshu-performance-rigor` skill.
 
 ## Pipeline → owning packages → where time goes
 
@@ -76,9 +78,14 @@ NornicDB is the **default** canonical backend; Neo4j is compatibility only.
   `storage/postgres`. Owning package: `go/internal/storage/postgres` (+ its
   `README.md`); design inventory:
   `docs/internal/design/1286-postgres-ownership-inventory.md`.
-- **Diagnostic doctrine** → skill `eshu-diagnostic-rigor`: the evidence ladder,
-  "queue wait ≠ need more concurrency", conflict-domain correctness, NornicDB
-  query-shape sensitivity. Concurrency surfaces → `concurrency-deadlock-rigor`.
+- **Performance doctrine** → skill `eshu-performance-rigor`: theory-first proof,
+  exactness/concurrency, built-binary and corpus ladder, remote preflight,
+  comparable operator-local manifests, metric boundaries, and honest target
+  classification.
+- **Diagnostic doctrine** → skill `eshu-diagnostic-rigor`: attribution,
+  instrumentation, "queue wait ≠ need more concurrency", conflict-domain
+  correctness, and NornicDB query-shape sensitivity. Concurrency surfaces →
+  `concurrency-deadlock-rigor`.
 
 ## Proof harnesses — prove it, no regression
 
@@ -96,11 +103,13 @@ NornicDB is the **default** canonical backend; Neo4j is compatibility only.
 ## Evidence rules (binding)
 
 Performance work MUST have **before/after measurements on the same backend**,
-name the baseline, and carry a `Performance`/`No-Regression Evidence:` marker
-plus an observability marker — `verify-performance-evidence.sh` enforces this in
-CI for hot-path changes. Never claim a speedup without pasted numbers. Never
-"optimize" code not yet proven correct. Never serialize to hide a concurrency
-defect — partition by conflict key or make the write idempotent.
+using the same metric boundaries, corpus, topology, storage state, and runtime
+profile. Name the baseline, render seconds plus human durations, and carry a
+`Performance`/`No-Regression Evidence:` marker plus an observability marker —
+`verify-performance-evidence.sh` enforces this in CI for hot-path changes.
+Never claim a speedup without pasted numbers. Never "optimize" code not yet
+proven correct. Never serialize to hide a concurrency defect — partition by
+conflict key or make the write idempotent.
 
 ## Known gaps (honest — these are where you propose new docs)
 
@@ -112,5 +121,6 @@ defect — partition by conflict key or make the write idempotent.
 ## Operator-only
 
 Remote full-corpus validation is a **user-local** skill (`eshu-remote-validation`),
-not committed to this repo — the operator triggers it. In-repo, use the proof
-harnesses above; do not assume the remote path is available to a committed agent.
+not committed to this repo — the user authorizes it and supplies local
+configuration. In-repo, use the proof harnesses above; do not assume a remote
+host, key, checkout, or corpus path is available to a committed agent.

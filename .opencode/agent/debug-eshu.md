@@ -46,6 +46,8 @@ understood. Your output is a diagnosis and a proposed fix, handed to
 ## Skills
 
 Always load `eshu-diagnostic-rigor` (the default investigation skill). Add
+`eshu-performance-rigor` when the diagnosis includes latency, throughput,
+resource, or wall-time claims,
 `concurrency-deadlock-rigor` for races/leases/queues,
 `eshu-correlation-truth` for materialization/correlation truth, and
 `cypher-query-rigor` for graph read/write performance.

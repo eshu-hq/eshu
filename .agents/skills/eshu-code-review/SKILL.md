@@ -31,6 +31,8 @@ water them down:
 - `eshu-correlation-truth` for projected graph/query/API/MCP truth.
 - `eshu-diagnostic-rigor` for runtime, reducer, queue, performance, or proof
   evidence.
+- `eshu-performance-rigor` for benchmarks, optimization, scaled/remote proof,
+  comparable run manifests, or before/after performance claims.
 - `eshu-golden-corpus-rigor` for cassettes, golden snapshots, replay gates, or
   query/MCP response shapes.
 - `eshu-mcp-call-rigor` for API/MCP tool contracts or graph-backed query calls.

@@ -1,8 +1,10 @@
 name: Verify Agent Hygiene
 
-# The non-bypassable gate for two repo rules that previously had no CI check:
+# The non-bypassable gate for shared agent guidance:
 #   1. AGENTS.md and CLAUDE.md must stay byte-identical (the shared agent canon).
 #   2. No AI attribution in commit messages or added content.
+#   3. Every repository skill is discoverable by Claude and Codex.
+#   4. OpenCode role shims do not override the root Git policy.
 # Local pre-commit hooks mirror these for fast feedback, but they are bypassable
 # with --no-verify; this workflow is the enforcement.
 
@@ -50,7 +52,7 @@ jobs:
       - name: Install ripgrep
         run: scripts/ci/install-apt-packages.sh ripgrep
 
-      - name: AGENTS.md / CLAUDE.md lockstep
+      - name: Shared agent canon and harness discovery
         run: scripts/verify-agent-canon.sh
 
       - name: No AI attribution

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# verify-agent-canon.sh — fail if the root agent rule canon drifts.
+# verify-agent-canon.sh — fail if shared agent guidance drifts or conflicts.
 #
 # AGENTS.md and CLAUDE.md MUST stay byte-identical: AGENTS.md is read by Codex
 # and opencode, CLAUDE.md by Claude Code, and the repo rule requires the two to
@@ -41,3 +41,35 @@ if [ -n "$diff_out" ]; then
 fi
 
 printf 'verify-agent-canon: AGENTS.md and CLAUDE.md are byte-identical.\n'
+
+skills_root="$repo_root/.agents/skills"
+if [ -d "$skills_root" ]; then
+  for skill_file in "$skills_root"/*/SKILL.md; do
+    [ -f "$skill_file" ] || continue
+    skill_name="$(basename "$(dirname "$skill_file")")"
+    for harness in .claude .codex; do
+      link="$repo_root/$harness/skills/$skill_name"
+      if [ ! -L "$link" ]; then
+        printf 'verify-agent-canon: %s cannot discover shared skill %s; missing symlink %s\n' \
+          "$harness" "$skill_name" "$link" >&2
+        exit 1
+      fi
+      if [ ! -f "$link/SKILL.md" ] || ! cmp -s "$skill_file" "$link/SKILL.md"; then
+        printf 'verify-agent-canon: %s skill link %s does not resolve to %s\n' \
+          "$harness" "$link" "$skill_file" >&2
+        exit 1
+      fi
+    done
+  done
+  printf 'verify-agent-canon: shared skill discovery links are complete.\n'
+fi
+
+opencode_agents="$repo_root/.opencode/agent"
+if [ -d "$opencode_agents" ]; then
+  conflict_pattern='Push over HTTPS|Always .*--no-verify|https://github[.]com/eshu-hq/eshu[.]git'
+  if rg -n "$conflict_pattern" "$opencode_agents" >&2; then
+    printf 'verify-agent-canon: OpenCode role shim contradicts root Git policy.\n' >&2
+    exit 1
+  fi
+  printf 'verify-agent-canon: OpenCode role shims do not override root Git policy.\n'
+fi

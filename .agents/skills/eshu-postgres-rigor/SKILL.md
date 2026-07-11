@@ -9,6 +9,9 @@ Use this skill for Eshu's relational truth: facts, queues, leases, status,
 content, recovery, decisions, and schema. Postgres evidence must explain the
 exact slow layer before any SQL, index, or transaction change.
 
+Add `eshu-performance-rigor` for any measured SQL/index optimization or
+before/after latency, throughput, bootstrap, or drain claim.
+
 ## Required Classification
 
 Before proposing a fix, classify the symptom as one or more of:
