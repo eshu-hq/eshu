@@ -194,6 +194,30 @@ offline from the same facts. Do not re-implement repository-alias derivation in
 an extractor; use this helper so alias-drift detection compares consistently
 shaped aliases.
 
+### Boundary-aware repository reference keys
+
+Deferred relationship backfill loads candidate `content`, `file`, and
+`gcp_cloud_relationship` facts by comparing their payload text against the
+repository catalog. That comparison must be a superset of the in-memory
+relationship matcher without collapsing overlapping repository names such as
+`github.com/org/app` and `github.com/org/app-config`.
+
+`relationships.CatalogReferenceKey` and
+`relationships.CatalogReferenceTokenStream` provide that contract. They reuse the
+same tokenization as the catalog matcher, then wrap tokens with `|` delimiters so
+SQL can test whole-token containment instead of using unbounded substring
+matches. The Postgres `relationship_reference_candidate_keys` side table stores
+those token streams for accepted relationship-candidate facts; the deferred load
+query uses the side table first and falls back to the legacy payload predicate
+for unkeyed rows.
+
+Any migration or repair path that backfills reference keys must preserve the
+same token-boundary behavior: split first, trim `.git` and supported config-file
+suffixes only at token boundaries, and keep source-repository self-exclusion in
+lockstep with the runtime helper. Add positive and negative proof for prefix
+overlap, `.github` repositories, file-suffixed references, and empty `repo_id`
+fallbacks before changing this matcher.
+
 ## Interpreting Code Relationship Truth In API And MCP Responses
 
 Code relationship reads (`POST /api/v0/code/relationships/story` and the
