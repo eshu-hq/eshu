@@ -36,52 +36,10 @@ expect_fail_with() {
 expect_pass published_contract "${verifier}" --spec "${spec}"
 
 missing_pathological="${tmp_root}/missing-pathological.yaml"
-cat >"${missing_pathological}" <<'YAML'
-version: scale-lab-corpus/v1
-parent_issue: 3169
-issue: 3170
-gate_status: proposed
-corpus_slots:
-  - id: smoke/synthetic_contracts
-  - id: small/single_repo_multidomain
-  - id: medium/representative_20_50
-  - id: large/full_corpus_release
-domains:
-  - id: code_relationships
-  - id: supply_chain_evidence
-  - id: cloud_iac_runtime_correlation
-  - id: docs
-  - id: incidents
-  - id: observability
-privacy_rules:
-  - id: no_private_identifiers
-  - id: aggregate_public_outputs
-  - id: fixture_sanitization
-  - id: local_private_manifest_only
-metrics:
-  - id: fact_rows_per_second
-  - id: queue_claim_latency_p95_ms
-  - id: reducer_drain_seconds
-  - id: graph_write_p95_ms
-  - id: api_p95_ms
-  - id: mcp_p95_ms
-  - id: retry_count
-  - id: dead_letter_count
-  - id: memory_high_water_mb
-  - id: correlation_fanout_candidates_p95
-  - id: graph_query_plan_regression_count
-thresholds:
-  - id: queue_terminal_state
-  - id: runtime_no_regression
-  - id: query_plan_regression
-  - id: privacy_public_evidence
-  - id: truth_surface_agreement
-acceptance:
-  required_before:
-    - issue: 3171
-    - issue: 3172
-    - issue: 3173
-YAML
+# Body lives in scripts/lib/ (not a heredoc): Homebrew bash >= 5.1 writes the
+# entire heredoc body to a pipe before forking the reader, and macOS's
+# 512-byte pipe buffer deadlocks on any body over that size (#5074).
+cat "${repo_root}/scripts/lib/test-verify-scale-corpus-suite-missing-pathological.yaml" >"${missing_pathological}"
 expect_fail_with missing_pathological \
 	"missing required corpus slot: pathological/fanout_correlation" \
 	"${verifier}" --spec "${missing_pathological}"
