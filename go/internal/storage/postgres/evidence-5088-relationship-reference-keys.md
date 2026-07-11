@@ -33,10 +33,12 @@ TestPayloadUsageManifest -count=1`,
 `scripts/test-verify-performance-evidence.sh` passed after the side-table
 writer, migration, scoped-load query, and payload-usage exemption were added.
 
-Observability Evidence: the change adds no metric instrument, metric label,
-span name, worker, queue domain, lease, route, runtime knob, or status surface.
-Operators continue to diagnose relationship backfill through the existing
-`deferred_backfill_fact_load_task_completed`,
+Observability Evidence: the change adds one bounded per-task structured log,
+`deferred_backfill_fact_load_task_completed`, with task index, query task count,
+scope ID, repo-term count, non-repo-term count, loaded-fact count, duration, and
+worker count. It adds no metric instrument, metric label, span name, worker,
+queue domain, lease, route, runtime knob, or status surface. Operators continue
+to diagnose relationship backfill through that new log, the existing
 `deferred_backfill_fact_load_completed`, `deferred_backfill_batch_committed`,
 and `deferred_backfill_completed` structured logs, plus existing Postgres query
 instrumentation when the store is wrapped by the standard Postgres adapter. The

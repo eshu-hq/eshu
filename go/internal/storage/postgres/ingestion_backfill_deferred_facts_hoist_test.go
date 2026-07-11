@@ -220,6 +220,17 @@ func seedDeferredHoistFixture(t *testing.T, ctx context.Context, db *sql.DB) []d
 			payload: `{"repo_id":"github.com/org/app","artifact_type":"argocd","relative_path":"app.yaml","content":"kind: Application\nspec:\n  source:\n    repoURL: https://example.invalid/org/payments-service.git\n"}`,
 		},
 		{
+			// Common GitHub metadata repo: ".github" must remain one token in the
+			// precomputed reference-key stream. A global ".git" rewrite would turn
+			// "github.com/org/.github" into "github.com/orghub" and make the fast
+			// path under-select this row while the pre-hoist LIKE arm still loads it.
+			factID:  "fact-app-refs-dot-github",
+			scopeID: gitScope,
+			genID:   "gen-hoist",
+			kind:    "content",
+			payload: `{"repo_id":"github.com/org/app","artifact_type":"github_actions_workflow","relative_path":".github/workflows/reuse.yaml","content":"jobs:\n  reuse:\n    uses: github.com/org/.github/.github/workflows/reusable.yaml@main\n"}`,
+		},
+		{
 			// cloud-scope fact with EMPTY repo_id: own_repo_id resolves to the empty
 			// string via the COALESCE, and this partition's derived $6 is also the
 			// empty string (not a git-repository-scope shape), so the FAST arm
@@ -276,9 +287,9 @@ SELECT
     COALESCE(NULLIF(LOWER(TRIM(payload->>'repo_id')), ''), ''),
     '|' ||
     REGEXP_REPLACE(
-        REGEXP_REPLACE(LOWER(payload::text), '\.git', '', 'g'),
-        '[^a-z0-9._-]+',
-        '|',
+        REGEXP_REPLACE(LOWER(payload::text), '[^a-z0-9._-]+', '|', 'g'),
+        '\.git(\||$)',
+        '\1',
         'g'
     ) ||
     '|'
@@ -302,6 +313,7 @@ func deferredHoistCatalog() []relationships.CatalogEntry {
 		{RepoID: "repo-payments", Aliases: []string{"repo-payments", "payments-service"}},
 		{RepoID: "repo-gcp-source", Aliases: []string{"repo-gcp-source", "order-gateway"}},
 		{RepoID: "deploy-toolkit", Aliases: []string{"deploy-toolkit"}},
+		{RepoID: "github.com/org/.github", Aliases: []string{"github.com/org/.github"}},
 		{RepoID: "repo-noise-target", Aliases: []string{"repo-noise-target"}},
 	}
 }
@@ -435,6 +447,7 @@ func TestDeferredScopedFactLoadHoistExactlyEquivalentToPreHoistShape(t *testing.
 	// Every carve-out named in the fix's acceptance criteria must survive.
 	wantPresent := []string{
 		"fact-app-refs-app-config",            // prefix-overlap cross-repo repo_id reference
+		"fact-app-refs-dot-github",            // .github common-repo token must not be collapsed by .git trimming
 		"fact-argocd-application",             // ArgoCD unconditional over-select marker
 		"fact-gcp-empty-repo-id",              // cloud-scope fact with empty repo_id
 		"fact-orphan-repo-references-catalog", // repo_id mismatched to any catalog entry, still references a real target
@@ -468,30 +481,4 @@ func TestDeferredScopedFactLoadHoistExactlyEquivalentToPreHoistShape(t *testing.
 	if len(newEvidence) == 0 {
 		t.Fatal("expected non-empty discovered evidence from the representative fixture")
 	}
-}
-
-func evidenceSetsEqual(a, b []relationships.EvidenceFact) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	key := func(f relationships.EvidenceFact) string {
-		return string(f.EvidenceKind) + "|" + f.SourceRepoID + "|" + f.TargetRepoID + "|" + fmt.Sprint(f.Details["path"]) + "|" + fmt.Sprint(f.Details["matched_value"])
-	}
-	seenA := make(map[string]int, len(a))
-	for _, f := range a {
-		seenA[key(f)]++
-	}
-	for _, f := range b {
-		k := key(f)
-		if seenA[k] == 0 {
-			return false
-		}
-		seenA[k]--
-	}
-	for _, count := range seenA {
-		if count != 0 {
-			return false
-		}
-	}
-	return true
 }

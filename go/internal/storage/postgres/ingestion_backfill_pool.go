@@ -135,5 +135,5 @@ const (
 	// deferredBackfillMaxWorkers is the hard ceiling for the default and for an
 	// operator opt-up via ESHU_DEFERRED_BACKFILL_CONCURRENCY, matching the
 	// content-writer batch cap.
-	deferredBackfillMaxWorkers = 16
+	deferredBackfillMaxWorkers = 8
 )
