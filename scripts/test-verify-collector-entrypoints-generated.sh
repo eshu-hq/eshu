@@ -6,39 +6,10 @@ tmp_root="$(mktemp -d)"
 trap 'rm -rf "$tmp_root"' EXIT
 
 manifest="${tmp_root}/collector_entrypoints.yaml"
-cat >"$manifest" <<'YAML'
-schema_version: 1
-collectors:
-  - command_dir: go/cmd/collector-demo
-    runtime_name: collector-demo
-    binary_name: eshu-collector-demo
-    collector_label: demo collector
-    go_name: Demo
-    env:
-      collector_instances: ESHU_COLLECTOR_INSTANCES_JSON
-      instance_id: ESHU_DEMO_COLLECTOR_INSTANCE_ID
-      poll_interval: ESHU_DEMO_POLL_INTERVAL
-      claim_lease_ttl: ESHU_DEMO_CLAIM_LEASE_TTL
-      heartbeat_interval: ESHU_DEMO_HEARTBEAT_INTERVAL
-      owner_id: ESHU_DEMO_COLLECTOR_OWNER_ID
-      owner_id_const_name: envCollectorOwnerID
-    store_name: collector_demo
-    claim_id_prefix: demo-claim
-    collector_kind_expr: scope.CollectorKind("demo")
-    scope_kind: demo
-    auth_mode: token_env
-    target_list_field: targets
-    target_identity_fields: [scope_id]
-    target_auth_fields: [token_env]
-    source:
-      import_path: github.com/eshu-hq/eshu/go/internal/collector/demo
-      package_name: demo
-      config_type: demo.SourceConfig
-      constructor: demo.NewClaimedSource
-      config_loader: loadDemoSourceConfig
-      config_attacher: attachDemoRuntimeSignals
-      runtime_config_type: demoRuntimeConfiguration
-YAML
+# Body lives in scripts/lib/ (not a heredoc): Homebrew bash >= 5.1 writes the
+# entire heredoc body to a pipe before forking the reader, and macOS's
+# 512-byte pipe buffer deadlocks on any body over that size (#5074).
+cat "${repo_root}/scripts/lib/test-verify-collector-entrypoints-generated-manifest.yaml" >"$manifest"
 
 ESHU_COLLECTOR_ENTRYPOINTS_REPO_ROOT="$tmp_root" \
   ESHU_COLLECTOR_ENTRYPOINTS_GO_DIR="${repo_root}/go" \
