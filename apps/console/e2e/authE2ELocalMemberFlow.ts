@@ -104,26 +104,26 @@ interface LocalLoginResponse {
   readonly status: string;
 }
 
-// assertNoSessionResult is the shared shape behind Flow A's and Flow C's
-// "blocked, no session" checks: mfa_required and must_change_password both
-// return the same LocalIdentitySessionResponse{Status} envelope with no
-// session issued (writeLocalIdentityUnauthenticated) — only the expected
-// HTTP status and status string differ.
+// assertNoSessionResult backs the "blocked, no session" checks. mfa_required /
+// must_change_password return the {Status} envelope (callers pass wantBody); a
+// rejected wrong-TOTP proof returns a generic 401 with no {status} (pass null).
 async function assertNoSessionResult(
   page: Page,
   result: { readonly status: number; readonly text: string },
   wantStatus: number,
-  wantBody: string,
+  wantBody: string | null,
 ): Promise<void> {
   if (result.status !== wantStatus) {
     throw new Error(`expected ${wantStatus} ${wantBody}, got ${result.status}: ${result.text}`);
   }
-  const body: LocalLoginResponse = JSON.parse(result.text || "{}");
-  if (body.status !== wantBody) {
-    throw new Error(`expected status "${wantBody}", got ${JSON.stringify(body)}`);
+  if (wantBody !== null) {
+    const body: LocalLoginResponse = JSON.parse(result.text || "{}");
+    if (body.status !== wantBody) {
+      throw new Error(`expected status "${wantBody}", got ${JSON.stringify(body)}`);
+    }
   }
   if (await hasSessionCsrfCookie(page)) {
-    throw new Error(`a session CSRF cookie was set despite ${wantBody} — no session issued`);
+    throw new Error(`a session CSRF cookie was set despite ${wantStatus} — no session issued`);
   }
 }
 
@@ -387,7 +387,7 @@ export async function assertTotpLoginRejectsInvalidCode(
       password: member.password,
       totp_code: staleCode,
     });
-    await assertNoSessionResult(page, result, 401, "invalid");
+    await assertNoSessionResult(page, result, 401, null);
     return `TOTP login with a stale/out-of-window code correctly rejected (401), no session issued`;
   } finally {
     await context.close();
