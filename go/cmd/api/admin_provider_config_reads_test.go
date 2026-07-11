@@ -151,6 +151,43 @@ func TestListProviderConfigDetailsSynthesizesEnvOnlyOIDCProvider(t *testing.T) {
 	}
 }
 
+// TestListProviderConfigDetailsSynthesizesEnvOnlySAMLProvider proves a pure
+// env-file-only SAML provider (no DB row at all) is admin-visible with
+// ManagedBy="environment" (closes the #4978 gap: SAML env config carries no
+// tenant_id, unlike OIDC's config file, so a synthesized SAML entry is
+// tenant-agnostic — it must appear for every tenant's admin list, matching
+// GetSAMLProvider's own tenant-agnostic env lookup in saml_sso.go).
+func TestListProviderConfigDetailsSynthesizesEnvOnlySAMLProvider(t *testing.T) {
+	t.Parallel()
+	samlHandler := &query.SAMLHandler{
+		Store: &fakeSAMLProviderListerStore{providerIDs: []string{"env_only_saml"}},
+	}
+	adapter := &providerConfigReadAdapter{
+		envProviderIDs:     envRegisteredProviderIDs(nil, samlHandler),
+		envSAMLProviderIDs: samlHandler.RegisteredProviderIDs(),
+	}
+	adapter.store = pgstatus.NewIdentitySubjectStore(&emptyProviderConfigListDB{})
+
+	for _, tenantID := range []string{"tenant_a", "tenant_b"} {
+		items, err := adapter.ListProviderConfigDetails(context.Background(), tenantID)
+		if err != nil {
+			t.Fatalf("ListProviderConfigDetails(%q) error = %v", tenantID, err)
+		}
+		found := false
+		for _, item := range items {
+			if item.ProviderConfigID == "env_only_saml" {
+				found = true
+				if item.ManagedBy != "environment" || item.ProviderKind != "saml" {
+					t.Fatalf("synthesized env-only SAML entry = %+v, want ManagedBy=environment ProviderKind=saml", item)
+				}
+			}
+		}
+		if !found {
+			t.Fatalf("env_only_saml missing from ListProviderConfigDetails(%q) — a pure env-file-only SAML provider must be admin-visible for every tenant (tenant-agnostic)", tenantID)
+		}
+	}
+}
+
 // TestEnvRegisteredProviderIDsHandlesNilHandlers proves the merge helper
 // degrades to an empty set rather than panicking when OIDC/SAML are not
 // configured.

@@ -29,7 +29,8 @@ func decodeProviderConfiguration(ctx context.Context, logger *slog.Logger, provi
 	var out map[string]any
 	if err := json.Unmarshal([]byte(configurationJSON), &out); err != nil {
 		if logger != nil {
-			logger.WarnContext(ctx,
+			logger.WarnContext(
+				ctx,
 				"provider config: stored configuration failed to parse as JSON",
 				"provider_config_id", providerConfigID,
 				"err", err,
@@ -71,19 +72,22 @@ func newAdminProviderConfigReadHandler(
 // all — is additionally synthesized into ListProviderConfigDetails so it is
 // visible to the admin console at all, also with ManagedBy="environment".
 //
-// SAML env-only providers are NOT synthesized: query.SAMLProviderIDLister
-// exposes provider_config_id only, with no tenant attribution (unlike
-// OIDCRegisteredProvider, which carries TenantID) — the pre-auth discovery
-// list works around this by checking a DB row's tenant via
-// HasActiveSAMLProviderConfigForTenant, which by definition does not exist
-// for a pure env-only provider. A pure env-only SAML provider therefore
-// remains invisible on this admin list until it gains a colliding DB row
-// (at which point it surfaces as a normal shadowed entry). Flagged as a
-// known gap rather than guessed at — tracked in #4978.
+// A pure env-file-only SAML provider is synthesized the same way, but
+// tenant-agnostically: query.SAMLProviderIDLister exposes provider_config_id
+// only, with no tenant attribution (unlike OIDCRegisteredProvider, which
+// carries TenantID, because ESHU_SAML_PROVIDERS_JSON has no tenant_id field —
+// GetSAMLProvider's env-file lookup is documented as "tenant-agnostic lookup
+// by id" in saml_sso.go for the same reason). A synthesized env-only SAML
+// entry therefore appears on every tenant's admin list rather than being
+// filtered to one owning tenant; this matches the pre-auth discovery list's
+// own tenant-agnostic treatment of env SAML ids (auth_providers.go checks a
+// requested tenant's own DB-row activity, not a fixed owning tenant, for the
+// same reason). #4978.
 type providerConfigReadAdapter struct {
-	store            *pgstatus.IdentitySubjectStore
-	envProviderIDs   map[string]struct{}
-	envOIDCProviders []query.OIDCRegisteredProvider
+	store              *pgstatus.IdentitySubjectStore
+	envProviderIDs     map[string]struct{}
+	envOIDCProviders   []query.OIDCRegisteredProvider
+	envSAMLProviderIDs []string
 	// logger receives a warning when a stored configuration column fails to
 	// parse as JSON (see decodeProviderConfiguration). May be nil.
 	logger *slog.Logger
@@ -102,11 +106,16 @@ func newProviderConfigReadAdapter(
 	if oidcLoginHandler != nil {
 		envOIDCProviders = oidcLoginHandler.RegisteredProviders()
 	}
+	var envSAMLProviderIDs []string
+	if samlHandler != nil {
+		envSAMLProviderIDs = samlHandler.RegisteredProviderIDs()
+	}
 	return &providerConfigReadAdapter{
-		store:            pgstatus.NewIdentitySubjectStore(pgstatus.ExecQueryer(pgstatus.SQLDB{DB: db})),
-		envProviderIDs:   envRegisteredProviderIDs(oidcLoginHandler, samlHandler),
-		envOIDCProviders: envOIDCProviders,
-		logger:           logger,
+		store:              pgstatus.NewIdentitySubjectStore(pgstatus.ExecQueryer(pgstatus.SQLDB{DB: db})),
+		envProviderIDs:     envRegisteredProviderIDs(oidcLoginHandler, samlHandler),
+		envOIDCProviders:   envOIDCProviders,
+		envSAMLProviderIDs: envSAMLProviderIDs,
+		logger:             logger,
 	}
 }
 
@@ -157,9 +166,7 @@ func (a *providerConfigReadAdapter) ListProviderConfigDetails(
 		out = append(out, a.toAdminDetail(ctx, item))
 	}
 	// Synthesize entries for pure env-file-only OIDC providers (no DB row at
-	// all) so they are visible to the admin console — see the package doc
-	// comment on providerConfigReadAdapter for why SAML env-only providers
-	// cannot be synthesized the same way.
+	// all) so they are visible to the admin console.
 	for _, p := range a.envOIDCProviders {
 		if p.TenantID != tenantID {
 			continue
@@ -171,6 +178,22 @@ func (a *providerConfigReadAdapter) ListProviderConfigDetails(
 		out = append(out, query.AdminProviderConfigDetail{
 			ProviderConfigID: p.ProviderConfigID,
 			ProviderKind:     "oidc",
+			Status:           "active",
+			ManagedBy:        "environment",
+		})
+	}
+	// Synthesize entries for pure env-file-only SAML providers (no DB row at
+	// all), tenant-agnostically — see the package doc comment on
+	// providerConfigReadAdapter for why a SAML env id has no owning tenant to
+	// filter by, unlike the OIDC loop above.
+	for _, providerID := range a.envSAMLProviderIDs {
+		if _, alreadyListed := seen[providerID]; alreadyListed {
+			continue
+		}
+		seen[providerID] = struct{}{}
+		out = append(out, query.AdminProviderConfigDetail{
+			ProviderConfigID: providerID,
+			ProviderKind:     "saml",
 			Status:           "active",
 			ManagedBy:        "environment",
 		})
