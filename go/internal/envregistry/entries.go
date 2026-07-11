@@ -24,6 +24,7 @@ func Default() *Registry {
 // doc. Keep entries grouped by subsystem and sorted within a group.
 var coreEntries = []Entry{
 	// postgres
+	{Name: "ESHU_DEFER_CONTENT_SEARCH_INDEXES", Type: VarBool, Default: "false", Subsystem: "postgres", Description: "Cold-bootstrap schema mode. When true, schema bootstrap creates the content tables without the two exact substring trigram GIN indexes; bootstrap-index restores and validates them after source-local content projection drains. Existing indexes are never dropped. Keep false unless bootstrap-index is guaranteed to run to successful finalization."},
 	{Name: "ESHU_POSTGRES_DSN", Type: VarDSN, Subsystem: "postgres", Aliases: []string{"ESHU_FACT_STORE_DSN", "ESHU_CONTENT_STORE_DSN"}, Description: "Postgres connection string. DSN precedence is ESHU_FACT_STORE_DSN, then ESHU_CONTENT_STORE_DSN, then ESHU_POSTGRES_DSN."},
 	{Name: "ESHU_POSTGRES_MAX_OPEN_CONNS", Type: VarInt, Default: "30", Subsystem: "postgres", Description: "Maximum open Postgres connections."},
 	{Name: "ESHU_POSTGRES_MAX_IDLE_CONNS", Type: VarInt, Default: "10", Subsystem: "postgres", Description: "Maximum idle Postgres connections (capped at max open)."},

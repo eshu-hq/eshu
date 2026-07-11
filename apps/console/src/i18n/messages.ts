@@ -10,6 +10,7 @@ export const defaultMessages = {
   "app.nav.item.dashboard": "Dashboard",
   "app.nav.item.ask": "Ask Eshu",
   "app.nav.item.semanticSearch": "Semantic Search",
+  "app.nav.item.guidedQuestions": "Guided Questions",
   "app.nav.item.impact": "Impact",
   "app.nav.item.exposurePath": "Exposure Path",
   "app.nav.item.changedSince": "Changed Since",

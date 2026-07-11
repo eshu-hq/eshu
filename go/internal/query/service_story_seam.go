@@ -74,6 +74,9 @@ func (h *EntityHandler) BuildServiceStoryEnvelope(
 		Logger:                    h.Logger,
 		Operation:                 operation,
 	}); err != nil {
+		if errors.Is(err, ErrContentSubstringIndexesNotReady) {
+			return nil, nil, http.StatusServiceUnavailable, serviceStoryBackendUnavailableError(err)
+		}
 		return nil, nil, http.StatusInternalServerError, serviceStoryInternalError("enrich service story", err)
 	}
 
@@ -166,6 +169,14 @@ func serviceStoryInternalError(prefix string, err error) *ErrorEnvelope {
 	return &ErrorEnvelope{
 		Code:       ErrorCodeInternalError,
 		Message:    fmt.Sprintf("%s: %v", prefix, err),
+		Capability: "platform_impact.context_overview",
+	}
+}
+
+func serviceStoryBackendUnavailableError(err error) *ErrorEnvelope {
+	return &ErrorEnvelope{
+		Code:       ErrorCodeBackendUnavailable,
+		Message:    err.Error(),
 		Capability: "platform_impact.context_overview",
 	}
 }

@@ -105,6 +105,9 @@ services:
       NEO4J_USERNAME: neo4j
       NEO4J_PASSWORD: ${ESHU_NEO4J_PASSWORD:-change-me}
       ESHU_POSTGRES_DSN: postgresql://eshu:${ESHU_POSTGRES_PASSWORD:-change-me}@postgres:5432/eshu
+      # Fresh Compose deployments let bootstrap-index bulk-load content before
+      # restoring the exact trigram indexes. Existing indexes are never dropped.
+      ESHU_DEFER_CONTENT_SEARCH_INDEXES: "true"
     depends_on:
       nornicdb:
         condition: service_healthy

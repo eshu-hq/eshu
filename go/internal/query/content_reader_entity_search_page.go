@@ -41,7 +41,7 @@ func (cr *ContentReader) searchEntityContentAnyRepoPage(
 	limit int,
 	offset int,
 ) ([]EntityContent, error) {
-	return cr.searchEntityContentScoped(ctx, "search_entity_content_any_repo_page", "source_cache ILIKE '%' || $1 || '%'", []any{pattern}, limit, offset)
+	return cr.searchEntityContentScoped(ctx, "search_entity_content_any_repo_page", "eshu_require_content_substring_indexes_ready() AND source_cache ILIKE '%' || $1 || '%'", []any{pattern}, limit, offset)
 }
 
 // searchEntityContentScoped executes a bounded entity-content query using a
@@ -79,6 +79,7 @@ func (cr *ContentReader) searchEntityContentScoped(
 	args = append(args, limit, offset)
 	rows, err := cr.db.QueryContext(ctx, query, args...)
 	if err != nil {
+		err = contentSubstringIndexReadError(err)
 		span.RecordError(err)
 		return nil, fmt.Errorf("search paged entity content: %w", err)
 	}

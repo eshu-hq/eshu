@@ -1168,8 +1168,9 @@ type Instruments struct {
 
 	// BootstrapPipelinePhaseDuration records the wall time of each named
 	// bootstrap pipeline phase (collection, projection, relationship_backfill,
-	// iac_reachability, config_state_drift) so operators can see the long
-	// pole in a full-corpus run from the metrics port without strace.
+	// iac_reachability, config_state_drift, content_index_finalization) so
+	// operators can see the long pole in a full-corpus run from the metrics port
+	// without strace.
 	BootstrapPipelinePhaseDuration metric.Float64Histogram
 
 	// WorkflowClaimRunDuration records the wall time of one claimed-service
@@ -4158,7 +4159,7 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	bootstrapPhaseBuckets := []float64{1, 5, 15, 30, 60, 120, 300, 600, 1200, 1800, 3600}
 	inst.BootstrapPipelinePhaseDuration, err = meter.Float64Histogram(
 		"eshu_dp_bootstrap_pipeline_phase_seconds",
-		metric.WithDescription("Wall time of each named bootstrap pipeline phase (collection, projection, relationship_backfill, iac_reachability, config_state_drift). Use to find the long pole in a full-corpus run."),
+		metric.WithDescription("Wall time of each named bootstrap pipeline phase (collection, projection, relationship_backfill, iac_reachability, config_state_drift, content_index_finalization). Use to find the long pole in a full-corpus run."),
 		metric.WithUnit("s"),
 		metric.WithExplicitBucketBoundaries(bootstrapPhaseBuckets...),
 	)
@@ -5089,6 +5090,9 @@ const (
 	// BootstrapPhaseConfigStateDrift is the config-state drift intent
 	// enqueue phase (EnqueueConfigStateDriftIntents).
 	BootstrapPhaseConfigStateDrift = "config_state_drift"
+	// BootstrapPhaseContentIndexFinalization is the post-drain exact content
+	// substring index build, validation, and ANALYZE phase.
+	BootstrapPhaseContentIndexFinalization = "content_index_finalization"
 )
 
 // AttrBootstrapPhase returns a bootstrap_phase attribute for metric recording.

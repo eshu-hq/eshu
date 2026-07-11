@@ -38,6 +38,7 @@ func TestRunEnsuresGraphSchemaBeforeOpeningGraph(t *testing.T) {
 			schemaApplied = true
 			return nil
 		},
+		func(context.Context, bootstrapDB) error { return nil },
 		func(context.Context, bootstrapDB, func(string) string, *slog.Logger) error {
 			if !schemaApplied {
 				t.Fatal("graph schema check ran before postgres schema")
@@ -99,6 +100,10 @@ func TestRunReturnsGraphSchemaErrorBeforeOpeningGraph(t *testing.T) {
 			return db, nil
 		},
 		func(context.Context, bootstrapDB) error {
+			return nil
+		},
+		func(context.Context, bootstrapDB) error {
+			t.Fatal("content index finalizer should not run after graph schema error")
 			return nil
 		},
 		func(context.Context, bootstrapDB, func(string) string, *slog.Logger) error {

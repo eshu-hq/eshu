@@ -90,7 +90,8 @@ func (h *CodeHandler) handleStructuralInventory(w http.ResponseWriter, r *http.R
 
 	data, err := h.structuralInventoryData(r.Context(), req)
 	if err != nil {
-		if errors.Is(err, errStructuralInventoryUnavailable) {
+		if errors.Is(err, errStructuralInventoryUnavailable) ||
+			errors.Is(err, ErrContentSubstringIndexesNotReady) {
 			WriteError(w, http.StatusServiceUnavailable, err.Error())
 			return
 		}

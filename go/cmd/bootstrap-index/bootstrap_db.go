@@ -33,7 +33,7 @@ func openBootstrapDB(ctx context.Context, getenv func(string) string) (bootstrap
 }
 
 func applySchema(ctx context.Context, db bootstrapDB) error {
-	return postgres.ApplyBootstrap(ctx, db)
+	return postgres.ApplyBootstrapWithoutContentSearchIndexes(ctx, db)
 }
 
 func openBootstrapGraph(ctx context.Context, getenv func(string) string, tracer trace.Tracer, instruments *telemetry.Instruments) (graphDeps, error) {

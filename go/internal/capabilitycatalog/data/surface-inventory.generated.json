@@ -2328,6 +2328,11 @@
     },
     {
       "category": "command",
+      "name": "heredoc-budget",
+      "readiness": "implemented"
+    },
+    {
+      "category": "command",
       "name": "ifa",
       "readiness": "implemented"
     },
@@ -2484,6 +2489,11 @@
     {
       "category": "console_page",
       "name": "FreshnessCausalityPage",
+      "readiness": "implemented"
+    },
+    {
+      "category": "console_page",
+      "name": "GuidedQuestionsPage",
       "readiness": "implemented"
     },
     {

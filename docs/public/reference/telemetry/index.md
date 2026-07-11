@@ -164,6 +164,19 @@ no new worker, queue, lease, or graph write. Backend: PostgreSQL via the existin
 reducer pool. Verified by `go test ./internal/storage/postgres ./cmd/reducer
 ./internal/telemetry -count=1` (and `-race` on the worker-gauge test).
 
+## Content substring index finalization
+
+Cold Compose bootstrap persists one `content_substring_index_state` row with a
+bounded state: `not_built`, `building`, `ready`, or `failed`. Bootstrap-index
+logs the finalization start and terminal state with `index_state` and
+`duration_seconds`; failures also carry
+`failure_class=content_substring_index_build_failure`. Pair those logs with
+`eshu_dp_bootstrap_pipeline_phase_seconds{bootstrap_phase="content_index_finalization",collector_kind="bootstrap-index"}`
+to identify the total exact-index build, validation, and `ANALYZE` phase as a
+bootstrap long pole. All-repository substring reads fail closed until the
+durable state is `ready` and both catalog indexes validate; repository-scoped
+reads do not depend on this cold-build lifecycle.
+
 ## Cross-repo activation fence counter
 
 The reducer publishes `eshu_dp_cross_repo_activation_fenced_total` (label

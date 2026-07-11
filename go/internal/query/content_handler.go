@@ -191,6 +191,9 @@ func (h *ContentHandler) searchFiles(w http.ResponseWriter, r *http.Request) {
 
 	results, truncated, err := h.searchFilesByScope(r.Context(), req)
 	if err != nil {
+		if writeContentSubstringIndexUnavailable(w, err) {
+			return
+		}
 		if errors.Is(err, errUnsupportedPagedFileSearch) {
 			WriteError(w, http.StatusBadRequest, err.Error())
 			return
@@ -225,6 +228,9 @@ func (h *ContentHandler) searchEntities(w http.ResponseWriter, r *http.Request) 
 
 	results, truncated, err := h.searchEntitiesByScope(r.Context(), req)
 	if err != nil {
+		if writeContentSubstringIndexUnavailable(w, err) {
+			return
+		}
 		if errors.Is(err, errUnsupportedPagedEntitySearch) {
 			WriteError(w, http.StatusBadRequest, err.Error())
 			return

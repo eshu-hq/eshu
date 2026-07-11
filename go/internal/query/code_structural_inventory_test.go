@@ -12,6 +12,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 func TestCodeHandlerStructuralInventoryReturnsBoundedDataclasses(t *testing.T) {
@@ -98,6 +100,32 @@ func TestCodeHandlerStructuralInventoryReturnsBoundedDataclasses(t *testing.T) {
 	}
 	if got, want := sourceHandle["relative_path"], "src/models.py"; got != want {
 		t.Fatalf("source_handle.relative_path = %#v, want %#v", got, want)
+	}
+}
+
+func TestCodeHandlerStructuralInventoryReturns503UntilSubstringIndexesReady(t *testing.T) {
+	t.Parallel()
+
+	db, _ := openRecordingContentReaderDB(t, []recordingContentReaderQueryResult{{
+		err: &pgconn.PgError{
+			Code:    "55000",
+			Message: "content substring indexes are not ready",
+		},
+	}})
+	handler := &CodeHandler{Content: NewContentReader(db), Profile: ProfileLocalAuthoritative}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v0/code/structure/inventory",
+		bytes.NewBufferString(`{"language":"go","inventory_kind":"super_call"}`),
+	)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusServiceUnavailable; got != want {
+		t.Fatalf("status = %d, want %d body=%s", got, want, w.Body.String())
 	}
 }
 
@@ -282,6 +310,20 @@ func TestStructuralInventoryWhereUsesLanguageVariants(t *testing.T) {
 	}
 	if got, want := args, []any{"typescript", "tsx"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("args = %#v, want %#v", got, want)
+	}
+}
+
+func TestStructuralInventoryWhereGuardsUnscopedSuperCallSearch(t *testing.T) {
+	t.Parallel()
+
+	where, _ := structuralInventoryWhere(structuralInventoryRequest{
+		Language:      "go",
+		InventoryKind: "super_call",
+	})
+
+	joined := strings.Join(where, " AND ")
+	if !strings.Contains(joined, "eshu_require_content_substring_indexes_ready()") {
+		t.Fatalf("where = %q, want durable substring-index readiness gate", joined)
 	}
 }
 

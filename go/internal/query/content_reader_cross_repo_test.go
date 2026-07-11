@@ -7,13 +7,28 @@ import (
 	"context"
 	"database/sql"
 	"database/sql/driver"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
+
+	"github.com/jackc/pgx/v5/pgconn"
 )
+
+func TestContentSubstringIndexReadErrorClassifiesLifecycleGuard(t *testing.T) {
+	t.Parallel()
+
+	err := contentSubstringIndexReadError(&pgconn.PgError{
+		Code:    "55000",
+		Message: "content substring indexes are not ready",
+	})
+	if err != ErrContentSubstringIndexesNotReady {
+		t.Fatalf("contentSubstringIndexReadError() = %v, want sentinel", err)
+	}
+}
 
 func TestContentReaderSearchFileContentAnyRepo(t *testing.T) {
 	t.Parallel()
@@ -60,6 +75,9 @@ func TestContentReaderSearchFileContentAnyRepo(t *testing.T) {
 	if strings.Contains(recorder.queries[0], "repo_id =") {
 		t.Fatalf("query = %q, want cross-repo query without repo filter", recorder.queries[0])
 	}
+	if !strings.Contains(recorder.queries[0], "eshu_require_content_substring_indexes_ready()") {
+		t.Fatalf("query = %q, want durable substring-index readiness gate", recorder.queries[0])
+	}
 }
 
 func TestContentReaderSearchFileContentAnyRepoExactCaseUsesCaseSensitiveLike(t *testing.T) {
@@ -88,6 +106,83 @@ func TestContentReaderSearchFileContentAnyRepoExactCaseUsesCaseSensitiveLike(t *
 	}
 	if strings.Contains(recorder.queries[0], "ILIKE") {
 		t.Fatalf("query = %q, must not use ILIKE for exact-case hostname search", recorder.queries[0])
+	}
+	if !strings.Contains(recorder.queries[0], "eshu_require_content_substring_indexes_ready()") {
+		t.Fatalf("query = %q, want durable substring-index readiness gate", recorder.queries[0])
+	}
+}
+
+func TestContentReaderSearchEntityContentAnyRepoRequiresSubstringIndexesReady(t *testing.T) {
+	t.Parallel()
+
+	db, recorder := openRecordingContentReaderDB(t, []recordingContentReaderQueryResult{{
+		columns: []string{
+			"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
+			"start_line", "end_line", "language", "source_cache", "metadata",
+		},
+	}})
+	reader := NewContentReader(db)
+
+	if _, err := reader.SearchEntityContentAnyRepo(context.Background(), "render", 10); err != nil {
+		t.Fatalf("SearchEntityContentAnyRepo() error = %v, want nil", err)
+	}
+	if !strings.Contains(recorder.queries[0], "eshu_require_content_substring_indexes_ready()") {
+		t.Fatalf("query = %q, want durable substring-index readiness gate", recorder.queries[0])
+	}
+}
+
+func TestContentReaderSearchEntityContentAnyRepoPageRequiresSubstringIndexesReady(t *testing.T) {
+	t.Parallel()
+
+	db, recorder := openRecordingContentReaderDB(t, []recordingContentReaderQueryResult{{
+		columns: []string{
+			"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
+			"start_line", "end_line", "language", "source_cache", "metadata",
+		},
+	}})
+	reader := NewContentReader(db)
+
+	if _, err := reader.searchEntityContentAnyRepoPage(context.Background(), "render", 10, 0); err != nil {
+		t.Fatalf("searchEntityContentAnyRepoPage() error = %v, want nil", err)
+	}
+	if !strings.Contains(recorder.queries[0], "eshu_require_content_substring_indexes_ready()") {
+		t.Fatalf("query = %q, want durable substring-index readiness gate", recorder.queries[0])
+	}
+}
+
+func TestContentReaderSearchFileContentAnyRepoPageRequiresSubstringIndexesReady(t *testing.T) {
+	t.Parallel()
+
+	db, recorder := openRecordingContentReaderDB(t, []recordingContentReaderQueryResult{{
+		columns: []string{
+			"repo_id", "relative_path", "commit_sha", "content_hash",
+			"line_count", "language", "artifact_type",
+		},
+	}})
+	reader := NewContentReader(db)
+
+	if _, err := reader.searchFileContentAnyRepoPage(context.Background(), "render", 10, 0); err != nil {
+		t.Fatalf("searchFileContentAnyRepoPage() error = %v, want nil", err)
+	}
+	if !strings.Contains(recorder.queries[0], "eshu_require_content_substring_indexes_ready()") {
+		t.Fatalf("query = %q, want durable substring-index readiness gate", recorder.queries[0])
+	}
+}
+
+func TestContentReaderSearchFileContentAnyRepoPageClassifiesReadinessFailure(t *testing.T) {
+	t.Parallel()
+
+	db, _ := openRecordingContentReaderDB(t, []recordingContentReaderQueryResult{{
+		err: &pgconn.PgError{
+			Code:    "55000",
+			Message: "content substring indexes are not ready",
+		},
+	}})
+	reader := NewContentReader(db)
+
+	_, err := reader.searchFileContentAnyRepoPage(context.Background(), "render", 10, 0)
+	if !errors.Is(err, ErrContentSubstringIndexesNotReady) {
+		t.Fatalf("searchFileContentAnyRepoPage() error = %v, want readiness sentinel", err)
 	}
 }
 

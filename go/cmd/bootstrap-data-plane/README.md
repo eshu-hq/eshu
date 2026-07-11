@@ -32,6 +32,11 @@ Resolved through `runtime.OpenPostgres`, `runtime.OpenNeo4jDriver`, and
 `runtime.LoadGraphBackend`:
 
 - ESHU_POSTGRES_DSN
+- ESHU_DEFER_CONTENT_SEARCH_INDEXES — defaults to false. When true, applies the
+  Postgres schema without the two content substring trigram indexes so a
+  guaranteed subsequent `bootstrap-index` run can build them after the cold
+  content load. It never drops existing indexes and must not be enabled for a
+  deployment topology that omits bootstrap-index finalization.
 - ESHU_GRAPH_BACKEND — `neo4j` or `nornicdb`
 - ESHU_GRAPH_SCHEMA_STATEMENT_TIMEOUT — per graph DDL statement timeout,
   default `2m`

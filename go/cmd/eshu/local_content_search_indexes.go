@@ -79,7 +79,16 @@ func runDeferredContentSearchIndexes(ctx context.Context, db localContentSearchI
 		if ready {
 			start := time.Now()
 			buildCtx, cancel := context.WithTimeout(context.Background(), deferredContentSearchIndexBuildTimeout)
-			err := pgstorage.EnsureContentSearchIndexes(buildCtx, db)
+			beginner, ok := db.(pgstorage.Beginner)
+			if !ok {
+				rawDB, rawOK := db.(*sql.DB)
+				if !rawOK {
+					cancel()
+					return fmt.Errorf("deferred content search index database does not support transactions")
+				}
+				beginner = pgstorage.SQLDB{DB: rawDB}
+			}
+			err := pgstorage.EnsureContentSearchIndexes(buildCtx, beginner)
 			cancel()
 			if err != nil {
 				return err

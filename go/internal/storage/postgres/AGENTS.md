@@ -716,17 +716,20 @@ SET enable_indexscan=off`):
 | `content_files.content ILIKE '%authenticate%'` | 4203 ms | 5388 ms | ~1.3× slower |
 | planner cost (files) | 138 | 15108 | ~100× |
 
-The seq-scan penalty scales with table size, so it widens on larger corpora. The
-replacement surface `eshu_search_index_documents` (2,596,903 rows) and
-`eshu_search_index_terms` (70,625,586 rows) exists and is populated, but the
-all-repo / code-topic read path is not yet wired to it. Re-scoping that path
-onto the search-index tables, then dropping the GINs, is tracked as issue #4980.
-Until #4980 lands and B-7 proves no read regression, neither GIN may be dropped.
+The seq-scan penalty scales with table size, so it widens on larger corpora.
+Issue #4980 disproved replacing these reads with the curated BM25 tables:
+search documents cap context at 4,096 bytes, omit governed rows, and implement
+token rather than arbitrary-substring semantics. The accuracy-preserving fix
+keeps the exact GINs but defers their initial creation until cold content
+projection drains. `content_substring_index_state` fences unscoped reads until
+both exact indexes validate and bootstrap-index has run `ANALYZE`. Existing
+indexes are never dropped during restart, upgrade, or steady-state ingestion.
+See `evidence-4980-deferred-content-gin.md` for the before/after, exactness,
+plan, restart, failure, and lock-exclusion proof.
 
-No-Observability-Change: this change adds no metric, span, log key, route, worker,
-queue domain, lease, graph write, or runtime knob. Operators still diagnose
-content search through the existing `postgres.query` spans with
-`db.operation=investigate_code_topic|search_file_content|search_entity_content`
-and `eshu_dp_postgres_query_duration_seconds`. The schema-constant guard test
-(`TestContentStoreSearchIndexSchemaSQLKeepsTrigramGINsUntilRescope`) is a
-compile-time and unit-test safety lock with no runtime footprint.
+Issue #4980 adds the bounded `content_index_finalization` value to the existing
+bootstrap phase histogram, start/terminal logs with state, duration, and failure
+class, and the durable lifecycle row. Operators still diagnose content reads
+through the existing `postgres.query` spans. The schema-constant guard test
+(`TestContentStoreSearchIndexSchemaSQLKeepsExactTrigramGINs`) remains the
+compile-time safety lock that prevents an inaccurate BM25 substitution.
