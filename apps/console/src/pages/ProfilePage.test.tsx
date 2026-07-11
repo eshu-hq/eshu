@@ -342,4 +342,27 @@ describe("ProfilePage TOTP enrollment", () => {
     await waitFor(() => expect(screen.getByText(/did not match/)).toBeInTheDocument());
     expect(screen.getByLabelText("Provisioning URI")).toBeInTheDocument();
   });
+
+  // issue #5072: the confirming phase must render a scannable QR of the
+  // otpauth:// URI ABOVE the existing text fallback, without removing or
+  // altering that fallback (a11y: text alternative + non-visual fallback
+  // both reachable — screen reader users and users without a camera still
+  // have the URI/key inputs).
+  it("renders a scannable QR alongside the provisioning URI and manual key fallbacks (#5072)", async () => {
+    const client = totpClient({});
+    render(<ProfilePage client={client} />);
+    const startButton = await screen.findByRole("button", { name: "Set up authenticator app" });
+    fireEvent.click(startButton);
+
+    const qr = await screen.findByRole("img", { name: /QR code/i });
+    expect(qr.tagName.toLowerCase()).toBe("svg");
+    const path = qr.querySelector("path");
+    expect(path).not.toBeNull();
+    expect(path?.getAttribute("d")?.length).toBeGreaterThan(0);
+
+    expect(screen.getByLabelText("Provisioning URI")).toHaveValue(
+      "otpauth://totp/Eshu:account?secret=JBSWY3DPEHPK3PXP",
+    );
+    expect(screen.getByLabelText("Manual entry key")).toHaveValue("JBSWY3DPEHPK3PXP");
+  });
 });
