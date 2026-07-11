@@ -89,6 +89,7 @@ func (cr *ContentReader) investigateCodeTopic(
 
 	rows, err := cr.db.QueryContext(ctx, query, args...)
 	if err != nil {
+		err = contentSubstringIndexReadError(err)
 		span.RecordError(err)
 		return nil, fmt.Errorf("investigate code topic: %w", err)
 	}
@@ -132,6 +133,8 @@ func codeTopicFilters(req codeTopicInvestigationRequest) ([]string, []any, int) 
 		filters = append(filters, fmt.Sprintf("repo_id = $%d", nextArg))
 		args = append(args, strings.TrimSpace(req.RepoID))
 		nextArg++
+	} else {
+		filters = append(filters, "eshu_require_content_substring_indexes_ready()")
 	}
 	if strings.TrimSpace(req.Language) != "" {
 		filters = append(filters, fmt.Sprintf("coalesce(language, '') = $%d", nextArg))

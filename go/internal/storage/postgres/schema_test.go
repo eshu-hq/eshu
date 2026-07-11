@@ -163,6 +163,32 @@ func TestBootstrapDefinitionsIncludeContentStoreTables(t *testing.T) {
 	}
 }
 
+func TestBootstrapDefinitionsIncludeContentSubstringIndexLifecycle(t *testing.T) {
+	t.Parallel()
+
+	var lifecycle Definition
+	for _, def := range BootstrapDefinitions() {
+		if def.Name == "content_substring_index_state" {
+			lifecycle = def
+			break
+		}
+	}
+	if lifecycle.Name == "" {
+		t.Fatal("content_substring_index_state definition missing")
+	}
+	for _, want := range []string{
+		"CREATE TABLE IF NOT EXISTS content_substring_index_state",
+		"CHECK (state IN ('not_built', 'building', 'ready', 'failed'))",
+		"eshu_content_substring_indexes_valid",
+		"eshu_require_content_substring_indexes_ready",
+		"ERRCODE = '55000'",
+	} {
+		if !strings.Contains(lifecycle.SQL, want) {
+			t.Fatalf("content substring index lifecycle SQL missing %q", want)
+		}
+	}
+}
+
 func TestBootstrapDefinitionsIncludeFactContractColumns(t *testing.T) {
 	t.Parallel()
 
@@ -228,14 +254,11 @@ func TestBootstrapDefinitionsWithoutContentSearchIndexesKeepsLookupIndexes(t *te
 func TestEnsureContentSearchIndexesAppliesOnlyTrigramIndexes(t *testing.T) {
 	t.Parallel()
 
-	exec := &recordingExecutor{}
+	exec := &contentSearchIndexScriptExecutor{rowsAffected: []int64{1, 1, 1, 1, 1, 1, 1, 1}}
 	if err := EnsureContentSearchIndexes(context.Background(), exec); err != nil {
 		t.Fatalf("EnsureContentSearchIndexes() error = %v, want nil", err)
 	}
-	if len(exec.statements) != 1 {
-		t.Fatalf("EnsureContentSearchIndexes() statements = %d, want 1", len(exec.statements))
-	}
-	statement := exec.statements[0]
+	statement := strings.Join(exec.statements, "\n")
 	if !strings.Contains(statement, "content_files_content_trgm_idx") {
 		t.Fatal("content search index SQL missing file trigram index")
 	}
@@ -247,12 +270,11 @@ func TestEnsureContentSearchIndexesAppliesOnlyTrigramIndexes(t *testing.T) {
 	}
 }
 
-func TestContentStoreSearchIndexSchemaSQLKeepsTrigramGINsUntilRescope(t *testing.T) {
+func TestContentStoreSearchIndexSchemaSQLKeepsExactTrigramGINs(t *testing.T) {
 	t.Parallel()
 
-	const dropDisproven = "dropping content pg_trgm GIN indexes disproven by live-audit (issue #4862): " +
-		"both indexes are load-bearing for all-repo/code-topic ILIKE search path; " +
-		"re-scope onto eshu_search_index_* and B-7 proof of no read regression required before any drop (issue #4980)"
+	const dropDisproven = "dropping or replacing content pg_trgm GIN indexes is inaccurate (issues #4862/#4980): " +
+		"both exact indexes are load-bearing for full-content all-repo substring reads"
 
 	sql := contentStoreSearchIndexSchemaSQL
 
@@ -267,5 +289,20 @@ func TestContentStoreSearchIndexSchemaSQLKeepsTrigramGINsUntilRescope(t *testing
 	}
 	if !strings.Contains(sql, "gin (source_cache gin_trgm_ops)") {
 		t.Fatalf("contentStoreSearchIndexSchemaSQL missing gin (source_cache gin_trgm_ops): %s", dropDisproven)
+	}
+}
+
+func TestContentSubstringIndexCatalogValidationRequiresFullExactIndexes(t *testing.T) {
+	t.Parallel()
+
+	sql := MigrationSQL("content_substring_index_state")
+	for _, required := range []string{
+		"index_state.indnatts = 1",
+		"index_state.indpred IS NULL",
+		"index_state.indexprs IS NULL",
+	} {
+		if got := strings.Count(sql, required); got != 2 {
+			t.Fatalf("catalog validation count for %q = %d, want 2 exact indexes", required, got)
+		}
 	}
 }

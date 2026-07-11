@@ -100,7 +100,7 @@ func (h *CodeHandler) handleTopicInvestigation(w http.ResponseWriter, r *http.Re
 	req.Terms = codeTopicSearchTerms(req.Topic, req.Intent, req.Terms)
 	results, err := h.codeTopicRows(r.Context(), req)
 	if err != nil {
-		if errors.Is(err, errCodeTopicBackendUnavailable) {
+		if errors.Is(err, errCodeTopicBackendUnavailable) || errors.Is(err, ErrContentSubstringIndexesNotReady) {
 			WriteError(w, http.StatusServiceUnavailable, err.Error())
 			return
 		}

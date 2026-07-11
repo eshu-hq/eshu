@@ -54,7 +54,8 @@ flowchart TD
     F --> G["IaC reachability: MaterializeIaCReachability\n(bootstrap_pipeline.go)\ncorpus-wide active-generation classification"]
     G --> H["Phase 4: ReopenDeploymentMappingWorkItems\n(bootstrap_pipeline.go)\nreopens succeeded deployment_mapping rows\nreducer creates resolved_relationships"]
     H --> H2["Phase 3.5: EnqueueConfigStateDriftIntents\n(bootstrap_pipeline.go)\nenqueues config_state_drift intents for\nactive state_snapshot scopes"]
-    H2 --> I["exit 0"]
+    H2 --> I["finalize exact content substring indexes\nANALYZE + durable ready state"]
+    I --> J["exit 0"]
 ```
 
 ### Phase 1 — collection and first-pass reduction
@@ -142,6 +143,7 @@ main -> run
   buildBootstrapProjector (projector.Runtime + queue deps)
   projectionWorkerCount (ESHU_PROJECTION_WORKERS or min(NumCPU,8))
   runPipelined → phases 1–4
+  postgres.EnsureContentSearchIndexes → exact GIN build + ANALYZE + ready state
   exit 0 on success, exit 1 on any error
 ```
 
@@ -267,6 +269,15 @@ completion log for that phase.
 
 Enable OTEL export by setting OTEL_EXPORTER_OTLP_ENDPOINT. When unset, a
 noop exporter is used and only local structured logs flow.
+
+Content substring index finalization emits start and terminal structured logs
+with the bounded `index_state` (`building`, `ready`, or `failed`) and terminal
+`duration_seconds`. Failures also carry
+`failure_class=content_substring_index_build_failure`. The durable
+`content_substring_index_state` row distinguishes `not_built`, `building`,
+`ready`, and `failed` across process crashes. The existing bootstrap phase
+histogram records the total build, validation, and `ANALYZE` duration under
+`bootstrap_phase=content_index_finalization`.
 
 Failure-class log keys emitted via `telemetry.FailureClassAttr`:
 

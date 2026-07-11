@@ -43,6 +43,8 @@ func TestRunAppliesSchemaAndDrainsCollectorAndProjector(t *testing.T) {
 
 	db := &fakeBootstrapDB{}
 	schemaApplied := false
+	contentIndexesFinalized := false
+	committer := &fakeCommitter{}
 
 	err := run(
 		context.Background(),
@@ -52,6 +54,13 @@ func TestRunAppliesSchemaAndDrainsCollectorAndProjector(t *testing.T) {
 		},
 		func(ctx context.Context, database bootstrapDB) error {
 			schemaApplied = true
+			return nil
+		},
+		func(context.Context, bootstrapDB) error {
+			if got := committer.snapshotCalls(); len(got) == 0 || got[len(got)-1] != "enqueue_drift" {
+				t.Fatalf("content index finalizer ran before bootstrap pipeline completed: calls=%v", got)
+			}
+			contentIndexesFinalized = true
 			return nil
 		},
 		func(context.Context, bootstrapDB, func(string) string, *slog.Logger) error {
@@ -70,7 +79,7 @@ func TestRunAppliesSchemaAndDrainsCollectorAndProjector(t *testing.T) {
 						},
 					},
 				},
-				committer: &fakeCommitter{},
+				committer: committer,
 			}, nil
 		},
 		func(ctx context.Context, database bootstrapDB, graphWriter projector.CanonicalWriter, getenv func(string) string, _ trace.Tracer, _ *telemetry.Instruments, _ *slog.Logger) (projectorDeps, error) {
@@ -92,6 +101,9 @@ func TestRunAppliesSchemaAndDrainsCollectorAndProjector(t *testing.T) {
 	if !schemaApplied {
 		t.Fatal("run() did not apply schema")
 	}
+	if !contentIndexesFinalized {
+		t.Fatal("run() did not finalize content substring indexes after the pipeline")
+	}
 	if !db.closed {
 		t.Fatal("run() did not close database")
 	}
@@ -111,6 +123,10 @@ func TestRunReturnsSchemaError(t *testing.T) {
 		},
 		func(ctx context.Context, database bootstrapDB) error {
 			return schemaErr
+		},
+		func(context.Context, bootstrapDB) error {
+			t.Fatal("content index finalizer should not run after schema error")
+			return nil
 		},
 		func(context.Context, bootstrapDB, func(string) string, *slog.Logger) error {
 			t.Fatal("graph schema check should not run after postgres schema error")
@@ -150,6 +166,10 @@ func TestRunReturnsCollectorError(t *testing.T) {
 			return db, nil
 		},
 		func(ctx context.Context, database bootstrapDB) error {
+			return nil
+		},
+		func(context.Context, bootstrapDB) error {
+			t.Fatal("content index finalizer should not run after collector build error")
 			return nil
 		},
 		func(context.Context, bootstrapDB, func(string) string, *slog.Logger) error {

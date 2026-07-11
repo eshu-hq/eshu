@@ -189,6 +189,7 @@ func TestBootstrapPipelinePhaseDurationHistogramRecords(t *testing.T) {
 		BootstrapPhaseIaCReachability,
 		BootstrapPhaseDeploymentReopen,
 		BootstrapPhaseConfigStateDrift,
+		BootstrapPhaseContentIndexFinalization,
 	}
 	for _, phase := range phases {
 		inst.BootstrapPipelinePhaseDuration.Record(ctx, 1.5, metric.WithAttributes(

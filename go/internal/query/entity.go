@@ -340,6 +340,9 @@ func (h *EntityHandler) getServiceContext(w http.ResponseWriter, r *http.Request
 		Logger:                    h.Logger,
 		Operation:                 "service_context",
 	}); err != nil {
+		if writeContentSubstringIndexUnavailable(w, err) {
+			return
+		}
 		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("enrich service context: %v", err))
 		return
 	}

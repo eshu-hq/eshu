@@ -16,7 +16,8 @@ package telemetry
 //     without manual SQL.
 //   - eshu_dp_bootstrap_pipeline_phase_seconds (bootstrap_phase) — shows the
 //     long pole in a full-corpus run (collection vs. projection vs. backfill
-//     vs. iac_reachability vs. config_state_drift) from the metrics port.
+//     vs. iac_reachability vs. config_state_drift vs. content index
+//     finalization) from the metrics port.
 //
 // The SpanBootstrapCollectorCycle span name wraps each drainCollector iteration
 // so individual repo collection cycles are trace-visible.

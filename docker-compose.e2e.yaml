@@ -59,6 +59,8 @@ services:
         SOURCE_DATE_EPOCH: ${SOURCE_DATE_EPOCH:-0}
     environment:
       <<: *e2e_runtime_env
+      # This auth-only topology intentionally has no bootstrap-index finalizer.
+      ESHU_DEFER_CONTENT_SEARCH_INDEXES: "false"
 
   workspace-setup:
     extends:

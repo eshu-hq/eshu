@@ -107,6 +107,47 @@ func TestRunAppliesPostgresAndDefaultGraphSchema(t *testing.T) {
 	}
 }
 
+func TestApplyPostgresSchemaDefersOnlyContentSubstringIndexesWhenEnabled(t *testing.T) {
+	t.Parallel()
+
+	db := &fakeBootstrapDB{}
+	err := applyPostgresSchema(context.Background(), db, func(key string) string {
+		if key == deferContentSearchIndexesEnv {
+			return "true"
+		}
+		return ""
+	})
+	if err != nil {
+		t.Fatalf("applyPostgresSchema() error = %v, want nil", err)
+	}
+	var combined strings.Builder
+	for _, call := range db.execs {
+		combined.WriteString(call.query)
+	}
+	sqlText := combined.String()
+	if strings.Contains(sqlText, "CREATE INDEX IF NOT EXISTS content_files_content_trgm_idx") ||
+		strings.Contains(sqlText, "CREATE INDEX IF NOT EXISTS content_entities_source_trgm_idx") {
+		t.Fatal("deferred schema unexpectedly creates content substring indexes")
+	}
+	if !strings.Contains(sqlText, "CREATE TABLE IF NOT EXISTS content_substring_index_state") {
+		t.Fatal("deferred schema omitted durable content substring index lifecycle")
+	}
+}
+
+func TestApplyPostgresSchemaRejectsInvalidDeferSetting(t *testing.T) {
+	t.Parallel()
+
+	err := applyPostgresSchema(context.Background(), &fakeBootstrapDB{}, func(key string) string {
+		if key == deferContentSearchIndexesEnv {
+			return "sometimes"
+		}
+		return ""
+	})
+	if err == nil || !strings.Contains(err.Error(), deferContentSearchIndexesEnv) {
+		t.Fatalf("applyPostgresSchema() error = %v, want named invalid boolean error", err)
+	}
+}
+
 func TestRunPassesNeo4jBackendToSchemaApplicator(t *testing.T) {
 	t.Parallel()
 

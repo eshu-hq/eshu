@@ -14,6 +14,7 @@ import (
 	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
+	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/buildinfo"
@@ -76,13 +77,16 @@ type projectorDeps struct {
 }
 
 type (
-	openBootstrapDBFn     func(context.Context, func(string) string) (bootstrapDB, error)
-	applyBootstrapFn      func(context.Context, bootstrapDB) error
-	openGraphFn           func(context.Context, func(string) string, trace.Tracer, *telemetry.Instruments) (graphDeps, error)
-	buildCollectorFn      func(context.Context, bootstrapDB, func(string) string, trace.Tracer, *telemetry.Instruments, *slog.Logger) (collectorDeps, error)
-	buildProjectorFn      func(context.Context, bootstrapDB, projector.CanonicalWriter, func(string) string, trace.Tracer, *telemetry.Instruments, *slog.Logger) (projectorDeps, error)
-	discoveryAdvisorySink func(collector.DiscoveryAdvisoryReport) error
+	openBootstrapDBFn              func(context.Context, func(string) string) (bootstrapDB, error)
+	applyBootstrapFn               func(context.Context, bootstrapDB) error
+	finalizeContentSearchIndexesFn func(context.Context, bootstrapDB) error
+	openGraphFn                    func(context.Context, func(string) string, trace.Tracer, *telemetry.Instruments) (graphDeps, error)
+	buildCollectorFn               func(context.Context, bootstrapDB, func(string) string, trace.Tracer, *telemetry.Instruments, *slog.Logger) (collectorDeps, error)
+	buildProjectorFn               func(context.Context, bootstrapDB, projector.CanonicalWriter, func(string) string, trace.Tracer, *telemetry.Instruments, *slog.Logger) (projectorDeps, error)
+	discoveryAdvisorySink          func(collector.DiscoveryAdvisoryReport) error
 )
+
+const contentSearchIndexFinalizationTimeout = 15 * time.Minute
 
 func main() {
 	if handled, err := printBootstrapIndexVersionFlag(os.Args[1:], os.Stdout); handled {
@@ -98,6 +102,13 @@ func main() {
 		os.Getenv,
 		openBootstrapDB,
 		applySchema,
+		func(ctx context.Context, db bootstrapDB) error {
+			beginner, ok := db.(postgres.Beginner)
+			if !ok {
+				return fmt.Errorf("bootstrap database does not support transactions")
+			}
+			return postgres.EnsureContentSearchIndexes(ctx, beginner)
+		},
 		ensureBootstrapGraphSchema,
 		openBootstrapGraph,
 		buildBootstrapCollector,
@@ -117,6 +128,7 @@ func run(
 	getenv func(string) string,
 	openDBFn openBootstrapDBFn,
 	schemaFn applyBootstrapFn,
+	finalizeContentSearchIndexesFn finalizeContentSearchIndexesFn,
 	graphSchemaFn ensureBootstrapGraphSchemaFn,
 	graphFn openGraphFn,
 	collectorFn buildCollectorFn,
@@ -226,5 +238,49 @@ func run(
 			return errors.Join(pipelineErr, writeErr)
 		}
 	}
-	return pipelineErr
+	if pipelineErr != nil {
+		return pipelineErr
+	}
+
+	finalizeStart := time.Now()
+	logger.InfoContext(ctx, "content substring index finalization started", "index_state", "building")
+	finalizeCtx, cancelFinalize := context.WithTimeout(ctx, contentSearchIndexFinalizationTimeout)
+	defer cancelFinalize()
+	if err := finalizeContentSearchIndexesFn(finalizeCtx, db); err != nil {
+		logger.ErrorContext(
+			ctx,
+			"content substring index finalization failed",
+			"index_state", "failed",
+			"duration_seconds", recordContentSearchIndexFinalizationDuration(ctx, instruments, finalizeStart),
+			telemetry.FailureClassAttr("content_substring_index_build_failure"),
+			"error", err,
+		)
+		return err
+	}
+	logger.InfoContext(
+		ctx,
+		"content substring index finalization complete",
+		"index_state", "ready",
+		"duration_seconds", recordContentSearchIndexFinalizationDuration(ctx, instruments, finalizeStart),
+	)
+	return nil
+}
+
+func recordContentSearchIndexFinalizationDuration(
+	ctx context.Context,
+	instruments *telemetry.Instruments,
+	start time.Time,
+) float64 {
+	duration := time.Since(start).Seconds()
+	if instruments != nil {
+		instruments.BootstrapPipelinePhaseDuration.Record(
+			ctx,
+			duration,
+			metric.WithAttributes(
+				telemetry.AttrBootstrapPhase(telemetry.BootstrapPhaseContentIndexFinalization),
+				telemetry.AttrCollectorKind("bootstrap-index"),
+			),
+		)
+	}
+	return duration
 }

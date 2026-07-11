@@ -18,6 +18,7 @@ type topicInvestigationContentStore struct {
 	fakePortContentStore
 	rows     []codeTopicEvidenceRow
 	requests []codeTopicInvestigationRequest
+	err      error
 }
 
 func (s *topicInvestigationContentStore) investigateCodeTopic(
@@ -25,7 +26,31 @@ func (s *topicInvestigationContentStore) investigateCodeTopic(
 	req codeTopicInvestigationRequest,
 ) ([]codeTopicEvidenceRow, error) {
 	s.requests = append(s.requests, req)
+	if s.err != nil {
+		return nil, s.err
+	}
 	return append([]codeTopicEvidenceRow(nil), s.rows...), nil
+}
+
+func TestHandleCodeTopicInvestigationReturns503UntilSubstringIndexesReady(t *testing.T) {
+	t.Parallel()
+
+	handler := &CodeHandler{
+		Content: &topicInvestigationContentStore{err: ErrContentSubstringIndexesNotReady},
+		Profile: ProfileLocalAuthoritative,
+	}
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v0/code/topics/investigate",
+		bytes.NewBufferString(`{"topic":"auth"}`),
+	)
+	rec := httptest.NewRecorder()
+
+	handler.handleTopicInvestigation(rec, req)
+
+	if got, want := rec.Code, http.StatusServiceUnavailable; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
+	}
 }
 
 func TestHandleCodeTopicInvestigationReturnsRankedEvidenceAndHandles(t *testing.T) {
@@ -252,6 +277,32 @@ func TestContentReaderInvestigateCodeTopicUsesOneScoredQuery(t *testing.T) {
 	}
 	if got, want := recorder.args[0][1], "repo\x1fsync\x1fauth\x1fgithub"; got != want {
 		t.Fatalf("terms arg = %#v, want %#v", got, want)
+	}
+	if strings.Contains(recorder.queries[0], "eshu_require_content_substring_indexes_ready()") {
+		t.Fatalf("repo-scoped query = %q, must remain available during global index finalization", recorder.queries[0])
+	}
+}
+
+func TestInvestigateCodeTopicUnscopedRequiresSubstringIndexesReady(t *testing.T) {
+	t.Parallel()
+
+	db, recorder := openRecordingContentReaderDB(t, []recordingContentReaderQueryResult{{
+		columns: []string{
+			"source_kind", "repo_id", "relative_path", "entity_id", "entity_name",
+			"entity_type", "language", "start_line", "end_line", "matched_terms", "score",
+		},
+	}})
+	reader := NewContentReader(db)
+
+	_, err := reader.investigateCodeTopic(context.Background(), codeTopicInvestigationRequest{
+		Terms: []string{"auth"},
+		Limit: 26,
+	})
+	if err != nil {
+		t.Fatalf("investigateCodeTopic() error = %v, want nil", err)
+	}
+	if !strings.Contains(recorder.queries[0], "eshu_require_content_substring_indexes_ready()") {
+		t.Fatalf("query = %q, want durable unscoped substring-index readiness gate", recorder.queries[0])
 	}
 }
 

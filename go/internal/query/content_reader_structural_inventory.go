@@ -49,6 +49,7 @@ func (cr *ContentReader) InspectStructuralInventory(
 
 	rows, err := cr.db.QueryContext(ctx, query, args...)
 	if err != nil {
+		err = contentSubstringIndexReadError(err)
 		span.RecordError(err)
 		return nil, fmt.Errorf("inspect structural inventory: %w", err)
 	}
@@ -180,6 +181,9 @@ func structuralInventoryWhere(req structuralInventoryRequest) ([]string, []any) 
 			parts = append(parts, "language = "+addArg(variant))
 		}
 		where = append(where, "("+strings.Join(parts, " OR ")+")")
+	}
+	if req.kind() == "super_call" && strings.TrimSpace(req.RepoID) == "" {
+		where = append(where, "eshu_require_content_substring_indexes_ready()")
 	}
 	where = append(where, structuralInventoryKindPredicates(req, addArg)...)
 	if len(where) == 0 {

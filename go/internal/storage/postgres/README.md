@@ -67,6 +67,13 @@ in `internal/reducer`.
 High-signal invariants for this package:
 
 - Bootstrap DDL is idempotent and ordered through `BootstrapDefinitions`.
+- Cold-bootstrap content search indexing has a separate durable lifecycle in
+  `content_substring_index_state`. Deferred schema creates the content tables
+  without the two exact trigram GINs; bootstrap-index builds the identical
+  indexes after source-local projection drains, runs `ANALYZE`, verifies their
+  catalog shape, and only then publishes `ready`. Normal schema bootstrap and
+  upgrades retain the indexes and initialize the lifecycle from their actual
+  validity; no steady-state path drops them.
 - `code_reachability_rows` stores reducer-materialized code reachable-set rows
   by active source generation, and `code_reachability_repository_watermarks`
   records the completed intent timestamp covered by each repository snapshot so

@@ -78,4 +78,5 @@ var orderedBootstrapDefinitionNames = []string{
 	"eshu_search_document_projection_state",
 	"eshu_search_vector_scope_state",
 	"graph_node_owner",
+	"content_substring_index_state",
 }

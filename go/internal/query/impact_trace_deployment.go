@@ -63,6 +63,9 @@ func (h *ImpactHandler) traceDeploymentChain(w http.ResponseWriter, r *http.Requ
 	traceOptions := traceEnrichmentOptions(req)
 	ctx, err := fetchServiceTraceContext(r.Context(), h.Neo4j, h.Content, h.Logger, req.ServiceName, traceOptions)
 	if err != nil {
+		if writeContentSubstringIndexUnavailable(w, err) {
+			return
+		}
 		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query failed: %v", err))
 		return
 	}
