@@ -234,6 +234,42 @@ func (s *IdentitySubjectStore) verifyLocalIdentityTOTPCode(
 	return false, "", nil
 }
 
+// ResolveLocalIdentityUserIDBySubjectHash resolves the internal user_id for
+// a session's subject_id_hash. Self-service TOTP enrollment endpoints
+// (go/internal/query) only ever hold the session's subject_id_hash — never
+// the internal user_id every other identity_mfa_factors write in this
+// package is keyed by — so callers use this to resolve it once before
+// calling BeginLocalIdentityTOTPEnrollment / ConfirmLocalIdentityTOTPEnrollment.
+// ok is false, with no error, when no live (non-tombstoned) user matches.
+func (s *IdentitySubjectStore) ResolveLocalIdentityUserIDBySubjectHash(
+	ctx context.Context,
+	subjectIDHash string,
+) (string, bool, error) {
+	if s.db == nil {
+		return "", false, errors.New("identity subject store database is required")
+	}
+	subjectIDHash = strings.TrimSpace(subjectIDHash)
+	if subjectIDHash == "" {
+		return "", false, errors.New("resolve local identity user id requires subject_id_hash")
+	}
+	rows, err := s.db.QueryContext(ctx, selectLocalIdentityUserIDBySubjectHashQuery, subjectIDHash)
+	if err != nil {
+		return "", false, fmt.Errorf("resolve local identity user id: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	if !rows.Next() {
+		if err := rows.Err(); err != nil {
+			return "", false, fmt.Errorf("resolve local identity user id: %w", err)
+		}
+		return "", false, nil
+	}
+	var userID string
+	if err := rows.Scan(&userID); err != nil {
+		return "", false, fmt.Errorf("scan local identity user id: %w", err)
+	}
+	return userID, true, rows.Err()
+}
+
 func (s *IdentitySubjectStore) selectPendingTOTPSecret(ctx context.Context, userID, factorID string) (string, bool, error) {
 	rows, err := s.db.QueryContext(ctx, selectLocalIdentityPendingTOTPSecretQuery, userID, factorID)
 	if err != nil {

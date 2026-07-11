@@ -81,3 +81,15 @@ WHERE user_id = $1
   AND status = 'active'
   AND revoked_at IS NULL
 `
+
+// selectLocalIdentityUserIDBySubjectHashQuery resolves the internal user_id
+// for a session's subject_id_hash, for self-service TOTP enrollment
+// endpoints (go/internal/query) that only ever hold the session's
+// subject_id_hash, never the internal user_id. Mirrors the subject-hash
+// join getLocalIdentityMFAStatusQuery already uses.
+const selectLocalIdentityUserIDBySubjectHashQuery = `
+SELECT user_id
+FROM identity_users
+WHERE subject_id_hash = $1
+  AND tombstoned_at IS NULL
+`

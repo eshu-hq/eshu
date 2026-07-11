@@ -298,6 +298,49 @@ func TestVerifyLocalIdentityTOTPCode_EmptyCodeReturnsFalseNoQuery(t *testing.T) 
 	}
 }
 
+func TestResolveLocalIdentityUserIDBySubjectHash_Found(t *testing.T) {
+	t.Parallel()
+
+	db := &fakeExecQueryer{queryResponses: []queueFakeRows{
+		{rows: [][]any{{"user_owner"}}},
+	}}
+	store := NewIdentitySubjectStore(db)
+
+	userID, ok, err := store.ResolveLocalIdentityUserIDBySubjectHash(context.Background(), "sha256:owner-subject")
+	if err != nil {
+		t.Fatalf("ResolveLocalIdentityUserIDBySubjectHash() error = %v", err)
+	}
+	if !ok || userID != "user_owner" {
+		t.Fatalf("ResolveLocalIdentityUserIDBySubjectHash() = (%q, %v), want (user_owner, true)", userID, ok)
+	}
+}
+
+func TestResolveLocalIdentityUserIDBySubjectHash_NotFound(t *testing.T) {
+	t.Parallel()
+
+	db := &fakeExecQueryer{queryResponses: []queueFakeRows{
+		{rows: [][]any{}},
+	}}
+	store := NewIdentitySubjectStore(db)
+
+	userID, ok, err := store.ResolveLocalIdentityUserIDBySubjectHash(context.Background(), "sha256:missing")
+	if err != nil {
+		t.Fatalf("ResolveLocalIdentityUserIDBySubjectHash() error = %v", err)
+	}
+	if ok || userID != "" {
+		t.Fatalf("ResolveLocalIdentityUserIDBySubjectHash() = (%q, %v), want (\"\", false)", userID, ok)
+	}
+}
+
+func TestResolveLocalIdentityUserIDBySubjectHash_RejectsEmptyInput(t *testing.T) {
+	t.Parallel()
+
+	store := NewIdentitySubjectStore(&fakeExecQueryer{})
+	if _, _, err := store.ResolveLocalIdentityUserIDBySubjectHash(context.Background(), "   "); err == nil {
+		t.Fatalf("ResolveLocalIdentityUserIDBySubjectHash(\"   \") = nil error, want error")
+	}
+}
+
 // TestTOTPSecretAAD_BindsToUserAndFactor proves an envelope sealed for one
 // (user_id, factor_id) fails closed (ErrDecrypt) when opened under a
 // different pair's AAD — the cut-and-paste / confused-deputy defense

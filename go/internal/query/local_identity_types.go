@@ -85,7 +85,10 @@ type LocalIdentityAuthenticationAttempt struct {
 	Password              string
 	MFARecoveryCodeHash   string
 	ConsumeRecoveryCodeAt time.Time
-	Now                   time.Time
+	// MFATOTPCode is the raw authenticator-app code submitted at login
+	// (issue #4986), checked before MFARecoveryCodeHash when both are set.
+	MFATOTPCode string
+	Now         time.Time
 }
 
 // LocalIdentityAuthStatus is the bounded result of local credential validation.
@@ -159,7 +162,11 @@ type LocalIdentityPasswordRotation struct {
 	CredentialID              string
 	MFARecoveryCodeHash       string
 	ConsumeRecoveryCodeAt     time.Time
-	Now                       time.Time
+	// MFATOTPCode is the raw authenticator-app code re-proved at rotation
+	// time (issue #4986), checked before MFARecoveryCodeHash when both are
+	// set.
+	MFATOTPCode string
+	Now         time.Time
 }
 
 // LocalIdentityMFAReset replaces active MFA factors and recovery hashes.

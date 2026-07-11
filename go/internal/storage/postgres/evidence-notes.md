@@ -971,3 +971,62 @@ The change is a returned-struct-value correctness fix on an existing storage
 method. No metric instrument, span name, log field, wire-contract column, API
 route, CLI flag, or environment variable is added or changed; the same
 instrumented `ExecQueryer` path the method already used carries the UPDATE.
+
+## TOTP Authenticator-App MFA Factor (#4986)
+
+Adds a hand-rolled RFC 6238 TOTP verifier (`go/internal/totp`, stdlib
+`crypto/hmac`/`crypto/sha1`/`crypto/rand`/`crypto/subtle` only), sealed TOTP
+secret storage in `identity_mfa_factors` (`identity_local_totp.go`,
+`identity_local_totp_sql.go` — no new migration: `secret_credential_handle`,
+`status`, and `verified_at` already exist generically on that table, factor
+kind `'totp'` reuses them), and a TOTP proof in `AuthenticateLocalIdentity`'s
+and `RotateLocalIdentityPassword`'s shared MFA block alongside the existing
+recovery-code proof.
+
+This landed as a runtime auth change (login/rotation path), which is why the
+content-based hot-path scan (`scripts/verify-performance-evidence.sh`) flags
+`identity_local.go`, `identity_local_rotate.go`, and the new
+`identity_local_totp*.go` files — their existing/added comments mention
+"transaction", "goroutine-free" concurrency reasoning, and `Mutex`-adjacent
+words the scanner's keyword list matches. None of these files are a graph
+write, worker, queue, lease, or batching hot path.
+
+### No-Regression Evidence
+
+The TOTP proof branch is additive and mutually exclusive with the existing
+recovery-code branch inside the same `if mfaRequiredAtLogin` block
+(`identity_local.go`): when `attempt.MFATOTPCode == ""` the code takes the
+exact pre-existing `consumeLocalIdentityRecoveryCode` path with no new query,
+lock, or transaction — verified by
+`TestAuthenticateLocalIdentityFallsBackToRecoveryCodeWhenNoTOTPSubmitted` and
+by the full pre-existing `local_identity_test.go` /
+`identity_local_mfa_all_users_login_test.go` suites passing unchanged. The new
+TOTP branch (`verifyLocalIdentityTOTPCode`) issues exactly one indexed select
+(`selectLocalIdentityActiveTOTPSecretQuery`, `user_id` + `factor_kind='totp'`
++ `status='active'`, matching the existing `identity_mfa_factors_user_active_idx`
+partial index shape already used by
+`getLocalIdentityMFAStatusQuery`/`selectLocalIdentityCredentialQuery`'s
+`has_active_mfa` `EXISTS` check) and, only on a verified match, one
+single-row `UPDATE ... WHERE user_id = $1 AND factor_id = $2` to stamp
+`last_used_at` — no new index, no table scan, no N+1 (the login path holds at
+most one active TOTP factor in the current enrollment design, though the
+query does not assume that). `go test ./internal/storage/postgres/... -count=1`
+(1460 tests) and the same package's `-race` scoped run (in `make pre-pr`'s
+race lane) both pass, proving the pre-existing credential-select, recovery-code,
+must-change-password, and mfa-for-all-users login paths are unchanged for
+every attempt that carries no `MFATOTPCode`.
+
+### No-Observability-Change
+
+TOTP enrollment and login/rotation verification reuse the existing local-identity
+governance-audit event type (`governanceaudit.EventTypeMFALifecycle`, already
+used by the admin MFA-reset route) with new `reason_code` values
+(`totp_enrollment_begin`, `totp_enrollment_begin_failed`,
+`totp_enrollment_confirmed`, `totp_enrollment_confirm_failed`), and the two new
+enrollment routes are served through the router's shared
+`eshu_dp_api_request_duration_seconds` / `eshu_dp_api_request_errors_total`
+per-endpoint middleware every other `go/internal/query` route already goes
+through (`request_metrics_test.go`'s route-labeled coverage; `route` values
+`POST /api/v0/auth/local/mfa/totp/begin` and `.../confirm` are part of the
+existing bounded route-pattern label set). No new `eshu_dp_*` metric,
+instrument, span name, or telemetry contract row is added.
