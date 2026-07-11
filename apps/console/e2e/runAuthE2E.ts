@@ -363,7 +363,7 @@ export async function runAuthE2E(): Promise<number> {
     const localCtx = { browser: browser!, baseUrl, navTimeoutMs };
     let localMembers: ProvisionedLocalMembers | undefined;
     await step("item7_flowA_provisioned_and_mfa_required", async () => {
-      localMembers = await provisionLocalMemberFlows(page, localCtx);
+      localMembers = await provisionLocalMemberFlows(repoRoot, composeProject, localCtx);
       const flip = await setRequireMfaForAllUsers(page);
       const blocked = await assertNoFactorMemberMfaRequired(localCtx, localMembers.flowA);
       return `${localMembers.detail}; ${flip}; ${blocked}`;

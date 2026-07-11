@@ -2,9 +2,9 @@
 // for the browser-auth E2E runner (issue #5073, extending issue #4971's
 // browser-auth gate). Extracted from runAuthE2E.ts to keep that runner under
 // the repository's 500-line cap; see its header comment for the overall
-// acceptance-item map. Three real, browser-observable LOCAL member flows,
-// all created through the real invitation-accept flow (never seeded
-// directly) except where noted:
+// acceptance-item map. Three real, browser-observable LOCAL member flows:
+// each invitation is seeded directly on Postgres (HTTP-unreachable here —
+// see createLocalInvitationDirect) and run through the real accept endpoint:
 //
 //   Flow A (#5001): a member accepted with NO MFA factor, once the tenant
 //   turns on require_mfa_for_all_users, is blocked at LOGIN TIME (not merely
@@ -32,7 +32,7 @@
 // and Flow B's enrollment login would itself demand an MFA proof the
 // member lacks yet if the flip happened first. Flow C's member carries
 // recovery codes at acceptance so it runs after the flip too.
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import type { Browser, Page } from "playwright";
@@ -147,34 +147,53 @@ async function assertSessionIssuedResult(
   }
 }
 
-interface LocalInvitationCreateResponse {
-  readonly invite_code: string;
-}
-
 interface LocalMemberAcceptInput {
   readonly loginId: string;
   readonly password: string;
   readonly recoveryCodes: readonly string[];
 }
 
-// createAndAcceptLocalMember drives the real invitation-create (admin,
-// all-scope) + invitation-accept (public) routes end to end. role_id is left
-// unset so the handler's own default applies: "developer", a NON-admin role.
+// createLocalInvitationDirect seeds an ACTIVE identity_invitations row
+// directly on Postgres in place of POST .../invitations, reachable only via
+// AuthModeShared (unset in this zero-shared-key stack) per
+// scopedAuthAdminMutationRoute; the console has no create-invitation UI
+// either. Seeds it like seedMustChangePassword below (compose "postgres"'s
+// psql). role_id fixed "developer" (non-admin); ACCEPT below stays real.
+async function createLocalInvitationDirect(
+  repoRoot: string,
+  project: string,
+  loginId: string,
+): Promise<string> {
+  const inviteCode = `e2e-invite-${randomUUID()}`;
+  const inviteId = `e2e-inv-${randomUUID()}`;
+  const inviteCodeHash = localIdentityHash(inviteCode);
+  // policy_revision_hash is read inline (COALESCE '' if none); accept never validates it.
+  const sql =
+    "INSERT INTO identity_invitations (invite_id, tenant_id, workspace_id, invite_code_hash, " +
+    "invitee_handle_hash, inviter_subject_id_hash, role_id, status, policy_revision_hash, " +
+    "expires_at, accepted_by_user_id, accepted_at, revoked_at, tombstoned_at, created_at, updated_at) " +
+    `VALUES ('${inviteId}', 'default', 'default', '${inviteCodeHash}', NULL, NULL, 'developer', ` +
+    "'active', COALESCE((SELECT policy_revision_hash FROM tenants WHERE tenant_id = 'default'), ''), " +
+    "now() + interval '1 hour', NULL, NULL, NULL, NULL, now(), now()) RETURNING invite_id;";
+  const composeArgs = ["compose", "-p", project, "-f", "docker-compose.e2e.yaml"];
+  const psqlArgs = ["exec", "-T", "postgres", "psql", "-U", "eshu", "-d", "eshu", "-tA", "-c", sql];
+  const { stdout } = await execFileAsync("docker", [...composeArgs, ...psqlArgs], {
+    cwd: repoRoot,
+  });
+  if (stdout.trim() === "") {
+    throw new Error(`invitation seed insert for ${loginId} returned no invite_id`);
+  }
+  return inviteCode;
+}
+
+// createAndAcceptLocalMember seeds the invitation, then drives the real public accept route.
 async function createAndAcceptLocalMember(
-  adminPage: Page,
+  repoRoot: string,
+  project: string,
   ctx: LocalFlowContext,
   opts: LocalMemberAcceptInput,
 ): Promise<void> {
-  const created = await apiFetchInPage(adminPage, "POST", "/api/v0/auth/local/invitations", {});
-  if (created.status !== 201) {
-    throw new Error(`invitation create failed for ${opts.loginId} (${created.status})`);
-  }
-  const createdBody: LocalInvitationCreateResponse = JSON.parse(created.text || "{}");
-  const inviteCode = createdBody.invite_code;
-  if (!inviteCode) {
-    throw new Error(`invitation create response for ${opts.loginId} carried no invite_code`);
-  }
-
+  const inviteCode = await createLocalInvitationDirect(repoRoot, project, opts.loginId);
   const { context, page } = await openFreshMemberPage(ctx);
   try {
     const accepted = await apiFetchInPage(page, "POST", "/api/v0/auth/local/invitations/accept", {
@@ -184,7 +203,9 @@ async function createAndAcceptLocalMember(
       recovery_codes: opts.recoveryCodes,
     });
     if (accepted.status !== 201) {
-      throw new Error(`invitation accept failed for ${opts.loginId} (${accepted.status})`);
+      throw new Error(
+        `invitation accept failed for ${opts.loginId} (${accepted.status}): ${accepted.text}`,
+      );
     }
   } finally {
     await context.close();
@@ -248,11 +269,10 @@ async function enrollTotpForFlowB(
 // provisionLocalMemberFlows creates the three non-admin LOCAL members Flows
 // A/B/C need (see header comment for why all three precede the policy flip)
 // and, for the Flow B member only, completes TOTP enrollment while a plain
-// password login still works. adminPage is the wizard admin's still-open,
-// still-local, all-scope session (item 2 in runAuthE2E.ts) — invitation
-// creation requires exactly that.
+// password login still works.
 export async function provisionLocalMemberFlows(
-  adminPage: Page,
+  repoRoot: string,
+  project: string,
   ctx: LocalFlowContext,
 ): Promise<ProvisionedLocalMembers> {
   const flowA: LocalMemberCredential = {
@@ -269,16 +289,9 @@ export async function provisionLocalMemberFlows(
     recoveryCodes: ["e2e-flowc-recovery-code-one", "e2e-flowc-recovery-code-two"],
   };
 
-  // handleCreateInvitation gates on the tenant sign-in policy's
-  // allow_local_user_creation (#4968): earlier items write a policy row
-  // (item5's require_sso probe, item3's provider enable) whose unset fields
-  // default false, so invitation create would 403 here. Enabling it is a
-  // real precondition for inviting local members, not a gate workaround.
-  await enableLocalUserCreation(adminPage);
-
-  await createAndAcceptLocalMember(adminPage, ctx, { ...flowA, recoveryCodes: [] });
-  await createAndAcceptLocalMember(adminPage, ctx, { ...flowBBase, recoveryCodes: [] });
-  await createAndAcceptLocalMember(adminPage, ctx, {
+  await createAndAcceptLocalMember(repoRoot, project, ctx, { ...flowA, recoveryCodes: [] });
+  await createAndAcceptLocalMember(repoRoot, project, ctx, { ...flowBBase, recoveryCodes: [] });
+  await createAndAcceptLocalMember(repoRoot, project, ctx, {
     loginId: flowC.loginId,
     password: flowC.password,
     recoveryCodes: flowC.recoveryCodes,
@@ -291,19 +304,6 @@ export async function provisionLocalMemberFlows(
     flowC,
     detail: `provisioned 3 local non-admin members via real invitation-accept (developer role): ${flowA.loginId} (no MFA factor), ${flowBBase.loginId} (TOTP enrolled), ${flowC.loginId} (2 recovery codes)`,
   };
-}
-
-// enableLocalUserCreation turns the tenant sign-in policy's
-// allow_local_user_creation back on before any invitation is created;
-// require_sso=false keeps the policy out of an SSO-only state.
-async function enableLocalUserCreation(adminPage: Page): Promise<void> {
-  const result = await apiFetchInPage(adminPage, "PATCH", "/api/v0/auth/admin/sign-in-policy", {
-    allow_local_user_creation: true,
-    require_sso: false,
-  });
-  if (result.status !== 200) {
-    throw new Error(`allow_local_user_creation PATCH failed (${result.status}): ${result.text}`);
-  }
 }
 
 // setRequireMfaForAllUsers flips the single tenant policy Flows A and B both
