@@ -74,30 +74,11 @@ MCP_BASE_URL=""
 API_KEY=""
 
 usage() {
-	cat <<'USAGE'
-Usage: verify_local_public_collector_proof.sh [--check|--dry-run] [--keep-stack] [--help]
-
-No-credential, public-endpoint collector proof gate (issue #3347).
-
-Proves the vulnerability-intelligence (CISA KEV, FIRST EPSS, OSV) and
-package-registry (public npm) lanes live on the default local Compose stack,
-claim-driven through the workflow-coordinator, with no operator credentials.
-
-Options:
-  --check, --dry-run   Validate required tooling and exit. No Docker, no network.
-  --keep-stack         Leave the Compose stack running after the proof.
-  --help               Show this help and exit.
-
-Environment overrides (all bounded, public-safe):
-  ESHU_PUBLIC_PROOF_EPSS_CVE_ID        Public CVE id used as the EPSS/KEV probe.
-  ESHU_PUBLIC_PROOF_NPM_PACKAGE        Public npm package name to collect.
-  ESHU_PUBLIC_PROOF_NPM_VERSION_LIMIT  Max npm versions to fetch.
-  ESHU_PUBLIC_PROOF_DRAIN_ATTEMPTS     Reducer drain poll attempts.
-  ESHU_PUBLIC_PROOF_DRAIN_SLEEP_SECONDS Seconds between drain polls.
-  ESHU_KEEP_COMPOSE_STACK=true         Same as --keep-stack.
-
-Output is aggregate-only and public-safe: no targets, tokens, or paths.
-USAGE
+	# Body lives in scripts/lib/ (not a heredoc): Homebrew bash >= 5.1 writes
+	# the entire heredoc body to a pipe before forking the reader, and
+	# macOS's 512-byte pipe buffer deadlocks on any body over that size
+	# (#5074).
+	cat "${REPO_ROOT}/scripts/lib/verify_local_public_collector_proof-usage.txt"
 }
 
 for arg in "$@"; do

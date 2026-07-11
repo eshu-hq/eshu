@@ -189,32 +189,11 @@ call_mcp_tool() {
 	response="$(curl -fsS -X POST "${mcp_base}/mcp/message" \
 		-H 'Content-Type: application/json' \
 		-d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"${tool_name}\",\"arguments\":${arguments_json}}}")"
-	python3 - "$response" <<'PYEOF'
-import json
-import sys
-
-doc = json.loads(sys.argv[1])
-if doc.get("error"):
-	sys.stderr.write(f"tools/call rpc error: {doc['error']}\n")
-	sys.exit(1)
-result = doc.get("result") or {}
-structured = result.get("structuredContent")
-if structured is None:
-	for entry in result.get("content", []):
-		if entry.get("type") == "text":
-			structured = json.loads(entry["text"])
-			break
-if structured is None:
-	sys.stderr.write("tools/call: no structuredContent or text content\n")
-	sys.exit(1)
-if result.get("isError") or (isinstance(structured, dict) and structured.get("error")):
-	sys.stderr.write(f"tools/call: tool reported error: {json.dumps(structured)[:400]}\n")
-	sys.exit(1)
-# Unwrap the canonical { data, truth, error } envelope to the answer body.
-if isinstance(structured, dict) and "data" in structured and "truth" in structured:
-	structured = structured["data"]
-print(json.dumps(structured))
-PYEOF
+	# Body lives in scripts/lib/ (not a heredoc): Homebrew bash >= 5.1 writes
+	# the entire heredoc body to a pipe before forking the reader, and
+	# macOS's 512-byte pipe buffer deadlocks on any body over that size
+	# (#5074).
+	python3 "${repo_root}/scripts/lib/verify-demo-compose-answers-call-mcp-tool.py" "$response"
 }
 
 # assert_fields_present checks each field name is a top-level JSON key in body.

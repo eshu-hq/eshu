@@ -20,31 +20,11 @@ live_cluster=false
 values_files=()
 
 usage() {
-    cat <<'EOF'
-Usage: scripts/verify-hosted-helm-rollout-proof.sh [options]
-
-Options:
-  --mode install|upgrade|rollback|all
-  --out-dir PATH
-  --chart PATH
-  --release NAME
-  --namespace NAME
-  -f, --values FILE
-  --api-base-url URL
-  --mcp-base-url URL
-  --first-query-path PATH
-  --api-token-env ENV_NAME
-  --mcp-token-env ENV_NAME
-  --upgrade-state FILE
-  --rollback-state FILE
-  --live-cluster
-
-The script renders and lints the Helm chart, runs a client-side dry-run, and
-writes hosted-helm-rollout-proof.json plus hosted-helm-rollout-proof.md. Live
-API/MCP readback is captured only when base URLs are provided. Upgrade and
-rollback proof modes fail unless their state declaration files explicitly name
-durable-state, queue-state, Postgres restore, and graph rebuild decisions.
-EOF
+    # Body lives in scripts/lib/ (not a heredoc): Homebrew bash >= 5.1 writes
+    # the entire heredoc body to a pipe before forking the reader, and
+    # macOS's 512-byte pipe buffer deadlocks on any body over that size
+    # (#5074).
+    cat "${repo_root}/scripts/lib/verify-hosted-helm-rollout-proof-usage.txt"
 }
 
 die() {
