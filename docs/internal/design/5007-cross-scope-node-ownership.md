@@ -2,7 +2,7 @@
 
 Status: Accepted and implemented. Stage 1 enforcement = the Postgres
 **owner-ledger with a per-uid advisory lock** (design (b) below), shipped as the
-`graph_node_owner` table (migration 053), the `postgres.GraphNodeOwnerStore`,
+`graph_node_owner` table (migration 056), the `postgres.GraphNodeOwnerStore`,
 and the `internal/graphowner` gate wrapping the five families' node writers in
 `cmd/reducer`. The original graph-side guard was disproven on NornicDB by the
 mandatory prove-theory shim
@@ -624,7 +624,7 @@ perf differential on the real writer before merge, as already required above.
 - A Postgres `graph_node_owner` table keyed on node `uid`, holding the current
   max `source_order_key`, the winning node row as a `winning_row` JSONB column
   (so all ~19 scope-derived properties are carried without a wide schema), plus
-  `updated_at`. Migration `053_graph_node_owner.sql` adds the table with a PK on
+  `updated_at`. Migration `056_graph_node_owner.sql` adds the table with a PK on
   `uid`. (Named `graph_node_owner`, not `cloud_resource_owner`: canonical uids
   are globally unique across labels, so one table serves the CloudResource
   AWS/GCP/Azure + EC2-instance family and the KubernetesWorkload family.) The
@@ -655,6 +655,82 @@ perf differential on the real writer before merge, as already required above.
   applied in the `Extract*NodeRows` functions.
 - Stage 2 (per-scope provenance satellites) still trails; the JSONB owner row is
   a natural foundation for it.
+
+### P2-1: chunked critical section (per-tx advisory-lock bound)
+
+The mechanic above was originally shipped as **one Postgres transaction per
+reducer node-write batch**, and that batch is the entire materialization
+intent's rows: `loadFactsForKinds` → `ListFactsByKind` carries no `LIMIT`, so
+the batch size is however many `aws_resource` (or GCP/Azure/EC2/K8s) facts
+exist for one `(scope_id, generation_id)`. A large cloud-account scope is
+thousands to tens of thousands of distinct resource uids, and
+`ResolveOwnedUIDs` acquires one `pg_advisory_xact_lock` per distinct uid in
+that single transaction — so the per-tx advisory-lock count was unbounded.
+
+**Proven failure (prove-theory-first, cheapest shim):** against a throwaway
+Postgres 18 instance on stock defaults (`max_locks_per_transaction=64`,
+`max_connections=100`, `max_prepared_transactions=0` — an approximate
+6400-slot shared advisory-lock table cluster-wide), one transaction
+acquiring N `pg_advisory_xact_lock` calls:
+
+```
+N=1000..8000   -> ok
+N=20000        -> ERROR: out of shared memory
+                  HINT: You might need to increase "max_locks_per_transaction"
+```
+
+This was re-proven directly against the live gated writer (`Gate.write`, real
+`*sql.DB`, no NornicDB — a no-op graph writer) on the same class of instance:
+20000 distinct-uid rows through the pre-fix single-transaction code failed
+with the identical `out of shared memory (SQLSTATE 53200)` error. Under
+concurrent reducer workers sharing the cluster-wide slot budget, exhaustion
+occurs far below 20000 (e.g. a 5000-uid scope × 2 concurrent workers already
+approaches 10000).
+
+**Fix:** `Gate.write` now loops over `rows` in chunks of at most
+`lockChunkSize` (`internal/graphowner`, set to `cypher.DefaultBatchSize` = 500)
+distinct uids. Each chunk gets its own Begin → `ResolveOwnedUIDs` (≤500 lock
+acquisitions) → graph write of that chunk's owned rows → Commit, exactly the
+same per-uid critical section as before, just bounded per transaction instead
+of unbounded per intent. `write` accumulates the owned/contended totals across
+chunks and emits one aggregated contention log line (and the
+`eshu_dp_cross_scope_ownership_contended_rows_total` counter) for the whole
+intent, so the operator-facing signal did not change shape.
+
+**Correctness argument (why chunking is safe, not a serialization
+workaround):**
+
+- **Per-uid independence.** Rows arrive already deduped to one row per uid by
+  the upstream `Extract*NodeRows` `byUID` map, so slicing the row slice into
+  chunks never splits a single uid's lock+upsert+winner resolution across two
+  transactions — each uid's critical section still runs whole, inside exactly
+  one chunk's transaction. Every uid's ownership decision is independent of
+  every other uid's (the ledger upsert is keyed and locked per-uid), so
+  resolving different uids under different transactions changes nothing about
+  which contributor wins each uid: converge-to-max holds identically whether
+  the whole intent runs in one transaction or many.
+- **Idempotent retry convergence.** A failure partway through the chunk loop
+  leaves earlier chunks committed and returns the error to the reducer, which
+  retries the whole intent. The ledger's max-upsert is monotonic (a lower
+  order key can never overwrite a higher one, by the
+  `WHERE EXCLUDED.source_order_key > graph_node_owner.source_order_key`
+  guard) and the graph MERGE is idempotent, so replaying already-owned uids on
+  retry reconverges to the same result — partial progress from a mid-intent
+  failure is safe, not a correctness hazard.
+- **Concurrency improves, not reduces.** Each uid's advisory lock is now held
+  only for its own chunk's transaction (released at that chunk's commit)
+  instead of for the whole intent's transaction. Total lock hold time per uid
+  drops, and cross-scope concurrency is preserved and improved — this is
+  explicitly not a `Serialization Is Not A Fix` violation: the chunk bound is
+  a partition-by-batch-size on an already per-uid-partitioned critical
+  section, not a worker-count reduction or a single-threaded drain.
+
+Proof (unit + live, before/after): `go/internal/graphowner/gated_writer_chunk_test.go`
+(fake store + fake `Beginner`, 1201 rows, asserts ≤`lockChunkSize` entries per
+`ResolveOwnedUIDs` call and `ceil(1201/lockChunkSize)` transactions, RED on the
+pre-chunking code) and `gated_writer_chunk_live_test.go` (20000 rows against a
+live Postgres, no NornicDB — fails unchunked with `out of shared memory`,
+succeeds chunked in well under a second).
 
 ### Golden-corpus / B-12 impact
 
