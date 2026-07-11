@@ -26,7 +26,6 @@ import { ExplorerPage } from "./pages/ExplorerPage";
 import { ExposurePathPage } from "./pages/ExposurePathPage";
 import { FindingsPage } from "./pages/FindingsPage";
 import { FreshnessCausalityPage } from "./pages/FreshnessCausalityPage";
-import { GuidedQuestionsPage } from "./pages/GuidedQuestionsPage";
 import { IacPage } from "./pages/IacPage";
 import { ImagesPage } from "./pages/ImagesPage";
 import { ImpactPage } from "./pages/ImpactPage";
@@ -53,6 +52,14 @@ import { VulnerabilitiesPage } from "./pages/VulnerabilitiesPage";
 // extra dynamic-import hop before its content renders. See App.tsx for details.
 const WorkspacePage = lazy(() =>
   import("./pages/WorkspacePage").then((module) => ({ default: module.WorkspacePage })),
+);
+
+// GuidedQuestionsPage is code-split via React.lazy (issue #4746) so its
+// query-playbooks live surface stays out of the eagerly loaded main bundle.
+const GuidedQuestionsPage = lazy(() =>
+  import("./pages/GuidedQuestionsPage").then((module) => ({
+    default: module.GuidedQuestionsPage,
+  })),
 );
 
 export interface AppRoutesProps {
@@ -108,7 +115,18 @@ export function AppRoutes({
       <Route path="/ask" element={<AskPage source={source} />} />
       <Route
         path="/guided-questions"
-        element={<GuidedQuestionsPage client={client} source={source} />}
+        element={
+          <Suspense
+            fallback={
+              <section className="page-shell">
+                <h1>Loading guided questions</h1>
+                <p>Loading live data.</p>
+              </section>
+            }
+          >
+            <GuidedQuestionsPage client={client} source={source} />
+          </Suspense>
+        }
       />
       <Route path="/impact" element={<ImpactPage model={model} client={client} />} />
       <Route path="/exposure" element={<ExposurePathPage client={client} />} />
