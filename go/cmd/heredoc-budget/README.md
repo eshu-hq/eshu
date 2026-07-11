@@ -76,11 +76,14 @@ that convert individual files.
 
 ## Known limitations
 
-The scanner is a line-based approximation, not a full shell lexer. It ignores a
-`<<IDENT` written in a full-line `#` comment and never mis-closes on a delimiter
-word inside another heredoc body. Two fail-open edge cases remain — a `<<IDENT`
-inside a string literal, and two openers on one line (`cmd <<A <<B`) — neither
-present in the tree today; hardening is tracked in #5079.
+The scanner is a line-based approximation, not a full shell lexer. It handles
+blanks before the delimiter (`cat << EOF`), ignores a `<<IDENT` written in a
+full-line `#` comment, and never mis-closes on a delimiter word inside another
+heredoc body. A few edge cases remain, none present in the tree today and all
+tracked in #5079: a `<<IDENT` in a string literal, two openers on one line
+(`cmd <<A <<B`), a numeric-first delimiter (`cat <<123`, rejected so a
+`$(( x << 2 ))` shift is not mistaken for a heredoc), and a `<<IDENT` in an
+inline comment after a command (`echo x # <<EOF`, a false positive).
 
 ## Tests
 

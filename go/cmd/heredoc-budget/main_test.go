@@ -52,6 +52,25 @@ func TestScanContent_CommentOpenerDoesNotHideRealHeredoc(t *testing.T) {
 	}
 }
 
+// TestScanContent_WhitespaceBeforeDelimHandled guards the #5074 review P1
+// fail-open: bash accepts blanks between `<<`/`<<-` and the delimiter
+// (`cat << EOF`, `cat <<- 'EOF'`), and such a >512B heredoc must still be
+// detected or it slips past the gate and hangs make pre-pr.
+func TestScanContent_WhitespaceBeforeDelimHandled(t *testing.T) {
+	body := strings.Repeat("a", 600) + "\n" // 601 bytes, over budget
+	for _, opener := range []string{"cat << EOF", "cat <<  EOF", "cat <<- 'EOF'", "cat << \"EOF\""} {
+		src := opener + "\n" + body + "EOF\n"
+		heredocs := ScanContent(src)
+		if len(heredocs) != 1 || heredocs[0].Size <= defaultBudget {
+			t.Fatalf("opener %q: expected one over-budget heredoc, got %+v", opener, heredocs)
+		}
+	}
+	// An arithmetic left-shift must NOT be mistaken for a heredoc opener.
+	if h := ScanContent("x=$(( a << 2 ))\n"); len(h) != 0 {
+		t.Fatalf("arithmetic `<< 2` wrongly parsed as a heredoc: %+v", h)
+	}
+}
+
 func TestScanContent_UnderBudgetHeredocNotFlagged(t *testing.T) {
 	body := strings.Repeat("a", 100) + "\n" // 101 bytes, under the 512 budget
 	src := "cat <<EOF\n" + body + "EOF\n"

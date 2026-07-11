@@ -61,10 +61,13 @@
 // # Known limitations
 //
 // The scanner is a line-based approximation, not a full shell lexer. It
-// correctly ignores a `<<IDENT` written in a full-line `#` comment and does
-// not mis-close a heredoc on a delimiter word appearing inside another body.
-// Two fail-open edge cases remain (a real oversized heredoc could be missed):
-// a `<<IDENT` inside a string literal, and two heredoc openers on one line
-// (`cmd <<A <<B`, only the first is measured). Neither occurs in the tree
-// today; hardening is tracked in #5079.
+// handles blanks between `<<`/`<<-` and the delimiter (`cat << EOF`), ignores
+// a `<<IDENT` written in a full-line `#` comment, and does not mis-close a
+// heredoc on a delimiter word appearing inside another body. A few edge cases
+// remain and are tracked in #5079: a `<<IDENT` inside a string literal, two
+// heredoc openers on one line (`cmd <<A <<B`, only the first is measured), a
+// numeric-first delimiter (`cat <<123`, rejected to avoid mistaking a
+// `$(( x << 2 ))` shift for a heredoc), and a `<<IDENT` in an inline comment
+// after a command (`echo x # <<EOF`, a false positive). None occurs in the
+// scanned tree today.
 package main

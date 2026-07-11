@@ -169,6 +169,13 @@ func findOpener(line string) (opener, bool) {
 		if tabStrip {
 			rest = rest[1:]
 		}
+		// Bash allows optional blanks between `<<`/`<<-` and the delimiter
+		// (`cat << EOF`, `cat <<- 'EOF'`). Trim them so a whitespace-separated
+		// heredoc is not missed — a fail-open the gate exists to block. The
+		// delimiter must still start with a letter or `_` (parseDelim), so an
+		// arithmetic left-shift like `$(( x << 2 ))` is not mistaken for a
+		// heredoc opener.
+		rest = strings.TrimLeft(rest, " \t")
 		if delim, ok := parseDelim(rest); ok {
 			return opener{delim: delim, tabStrip: tabStrip}, true
 		}
