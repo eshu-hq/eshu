@@ -943,3 +943,31 @@ telemetry contract row: the rotation endpoint's writes (revoke, insert, clear
 lockout, consume bootstrap credential) reuse the exact same instrumented
 `ExecQueryer`/`InstrumentedDB` paths login and admin password-reset already go
 through.
+
+## UpdateProviderConfig Returns Post-Transaction Status (#4988)
+
+`UpdateProviderConfig` (`identity_provider_config_writes.go`) resets the active
+provider-config row to `draft` in the same transaction as a config revision
+(an update invalidates the prior test-connection, so the provider must be
+re-tested + re-enabled), but returned `current.status` — the pre-update value —
+so callers saw a stale status. The fix adds `RETURNING status` to the existing
+active-revision reset UPDATE (`activateProviderConfigActiveRevisionQuery`) and
+scans it back inside the same transaction, returning the actual persisted
+post-update status (`draft`).
+
+### No-Regression Evidence
+
+Performance Evidence: no new query, join, index, or round-trip. `RETURNING
+status` reads one column of the row the UPDATE already writes, in the same
+statement — the reset UPDATE was already executed; this only surfaces its
+result. The write path, transaction scope, and row cardinality are unchanged.
+`go test ./internal/storage/postgres/ -run 'ProviderConfig|UpdateProvider'
+-count=1` passes, and the RED-before/GREEN-after regression test proves the
+returned status now equals the persisted status after an update.
+
+### No-Observability-Change
+
+The change is a returned-struct-value correctness fix on an existing storage
+method. No metric instrument, span name, log field, wire-contract column, API
+route, CLI flag, or environment variable is added or changed; the same
+instrumented `ExecQueryer` path the method already used carries the UPDATE.
