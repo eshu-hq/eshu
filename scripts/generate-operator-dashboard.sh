@@ -5,10 +5,10 @@
 # The script is the source of truth for the dashboard; the generated
 # file is the committed artifact. To change a panel, metric
 # expression, or title, edit the metric registry
-# (scripts/lib/operator-dashboard-metrics.sh) or the panel lib
-# (scripts/lib/operator-dashboard-panels-{1,2}.sh), re-run this
-# script, and commit the regenerated output. The test mirror
-# scripts/test-generate-operator-dashboard.sh asserts that the
+# (scripts/lib/operator-dashboard-metrics.sh) or a template body
+# (scripts/lib/operator-dashboard-{head,panels-1,panels-2,tail}.json.tmpl),
+# re-run this script, and commit the regenerated output. The test
+# mirror scripts/test-generate-operator-dashboard.sh asserts that the
 # committed artifact is well-formed, matches what this script
 # produces (idempotency), and contains the headline panels.
 #
@@ -16,6 +16,37 @@
 # telemetry coverage discipline. It covers the headline eshu_dp_*
 # families listed in docs/public/reference/telemetry/index.md and
 # docs/public/observability/telemetry-coverage.md.
+#
+# Panel provenance (originally split across scripts/lib/operator-dashboard-
+# panels-{1,2}.sh, now scripts/lib/operator-dashboard-panels-{1,2}.json.tmpl):
+#
+# panels-1 covers panel IDs 1-13 ("Is Eshu Healthy?" + "Queue and Worker
+# Pool" + "Generation and Graph Health" rows). Variables referenced:
+# ACTIVE_GENERATIONS, GENERATION_LIVENESS_FAILURES,
+# GENERATION_LIVENESS_RECOVERED, GENERATION_LIVENESS_SUPERSEDED,
+# QUEUE_DEPTH, QUEUE_OLDEST_AGE, WORKER_POOL_ACTIVE,
+# SHARED_ACCEPTANCE_ROWS, GRAPH_ORPHAN_NODES, REDUCER_INPUT_INVALID_FACTS,
+# PROJECTOR_INPUT_INVALID_FACTS.
+#
+# panels-2 covers panel IDs 14-26 ("API Request Latency and Errors" +
+# "Cross-Repo and Collector Pressure" rows). Variables referenced:
+# API_REQUEST_DURATION, API_REQUEST_ERRORS, CROSS_REPO_FENCED,
+# COLLECTOR_RECONCILIATION_FULL, COLLECTOR_RECONCILIATION_DRIFT,
+# COLLECTOR_RECONCILIATION_CONVERGENCE, COLLECTOR_BACKPRESSURE,
+# COLLECTOR_RETRIES, COLLECTOR_DEAD_LETTER, EDGES_BY_SOURCE_TOOL,
+# FILES_BY_LANGUAGE.
+#
+# HEREDOC-FREE BY DESIGN (issue #5019, reopened after #5068): bash 5.1+
+# delivers a `<<EOF` heredoc body to its reader by writing the ENTIRE body
+# to a pipe before the reader is spawned. macOS's pipe buffer is 512 bytes,
+# so any heredoc body strictly between 512 bytes and the 64KB pipe-buffer
+# ceiling deadlocks under Homebrew bash (observed as bash >=5.3.15 hanging
+# where /bin/bash 3.2.57 does not). The panel bodies here are 10-13KB, well
+# inside the hang zone. The fix is to never route a large body through a
+# heredoc: the JSON bodies live in scripts/lib/*.json.tmpl DATA FILES, read
+# with the `$(<file)` builtin (no subprocess, no pipe) and emitted with the
+# `printf` builtin (also no subprocess, no pipe). Neither construct touches
+# the heredoc pipe, so this generator does not hang under any bash version.
 set -euo pipefail
 
 repo_root="${ESHU_OPERATOR_DASHBOARD_REPO_ROOT:-}"
@@ -29,148 +60,46 @@ output_path="${ESHU_OPERATOR_DASHBOARD_OUTPUT_PATH:-${repo_root}/docs/public/obs
 lib_dir="$(dirname "$0")/lib"
 # shellcheck source=scripts/lib/operator-dashboard-metrics.sh
 . "${lib_dir}/operator-dashboard-metrics.sh"
-# shellcheck source=scripts/lib/operator-dashboard-panels-1.sh
-. "${lib_dir}/operator-dashboard-panels-1.sh"
-# shellcheck source=scripts/lib/operator-dashboard-panels-2.sh
-. "${lib_dir}/operator-dashboard-panels-2.sh"
 
-# Emit each panel block's large `cat <<EOF` heredoc to a temp file (its stdout
-# redirected to a real file, NOT captured inside a `$(...)`), then read the file
-# back with the `$(<file)` builtin — which uses no `cat` subprocess. Capturing a
-# 300+-line heredoc directly via `panels_N=$(operator_dashboard_panels_N)` is the
-# large-input-in-command-substitution construct that hangs on Homebrew bash
-# 5.3.15 (issue #5019, same class as the `<<<` here-string fixed in #4718). Both
-# `$(func)` and `$(<file)` strip trailing newlines identically, so the assembled
-# output below is byte-for-byte unchanged.
-panels_1_file=$(mktemp "${TMPDIR:-/tmp}/eshu-operator-panels-1.XXXXXX")
-panels_2_file=$(mktemp "${TMPDIR:-/tmp}/eshu-operator-panels-2.XXXXXX")
-trap 'rm -f "$panels_1_file" "$panels_2_file"' EXIT
-operator_dashboard_panels_1 >"$panels_1_file"
-operator_dashboard_panels_2 >"$panels_2_file"
-panels_1=$(<"$panels_1_file")
-panels_2=$(<"$panels_2_file")
+# render_template reads a .json.tmpl DATA FILE (never a heredoc) via the
+# `$(<file)` builtin and substitutes every ${NAME} token named in the
+# OPERATOR_DASHBOARD_METRIC_VARS allowlist (scripts/lib/operator-dashboard-
+# metrics.sh) with that variable's value. Anything not on the allowlist —
+# notably the literal Grafana ${DS_PROMETHEUS} token (53 occurrences) and
+# $__all — is never looked up and so passes through unchanged, by
+# construction.
+#
+# The replacement is deliberately UNQUOTED in the ${content//pattern/value}
+# expansion: quoting it makes bash 3.2 emit literal quote characters into
+# the JSON output instead of substituting the bare value.
+render_template() {
+  local content name value pattern
+  content="$(<"$1")"
+  for name in ${OPERATOR_DASHBOARD_METRIC_VARS}; do
+    value="${!name}"
+    pattern='${'"$name"'}'
+    content="${content//"$pattern"/$value}"
+  done
+  printf '%s' "$content"
+}
 
 mkdir -p "$(dirname "$output_path")"
 
-cat >"$output_path" <<EOF
+# Sequential emission: head, panels_1, a literal comma, panels_2, tail. Each
+# piece is written with its own printf so the panel bodies (which contain
+# literal \" sequences) are never routed through the ${var//...} substitution
+# above — only render_template's own local `content` variable is substituted.
+# `$(<file)` strips the file's trailing newline, so the newlines below
+# reconstruct the exact byte layout of the previously heredoc-emitted file.
 {
-  "__inputs": [
-    {
-      "name": "DS_PROMETHEUS",
-      "label": "Prometheus",
-      "description": "",
-      "type": "datasource",
-      "pluginId": "prometheus",
-      "pluginName": "Prometheus"
-    }
-  ],
-  "__requires": [
-    {
-      "type": "grafana",
-      "id": "grafana",
-      "name": "Grafana",
-      "version": "10.0.0"
-    },
-    {
-      "type": "datasource",
-      "id": "prometheus",
-      "name": "Prometheus",
-      "version": "1.0.0"
-    },
-    {
-      "type": "panel",
-      "id": "stat",
-      "name": "Stat",
-      "version": ""
-    },
-    {
-      "type": "panel",
-      "id": "timeseries",
-      "name": "Time series",
-      "version": ""
-    }
-  ],
-  "annotations": {
-    "list": []
-  },
-  "description": "Eshu operator overview. Surfaces the headline eshu_dp_* metric families for the queue, worker pool, generation liveness, graph pressure, cross-repo activation, API latency and errors, and per-collector backpressure. Imported via docs/public/observability/dashboards/eshu-operator-overview.json. The metric source of truth is go/internal/telemetry/instruments.go and docs/public/observability/telemetry-coverage.md.",
-  "editable": true,
-  "fiscalYearStartMonth": 0,
-  "graphTooltip": 1,
-  "id": null,
-  "links": [],
-  "liveNow": false,
-  "panels": [
-${panels_1},
-${panels_2}
-  ],
-  "refresh": "30s",
-  "schemaVersion": 39,
-  "tags": ["eshu", "operator", "overview", "epic-x"],
-  "templating": {
-    "list": [
-      {
-        "name": "datasource",
-        "label": "Data source",
-        "type": "datasource",
-        "query": "prometheus",
-        "current": {"selected": false, "text": "Prometheus", "value": "Prometheus"},
-        "hide": 0
-      },
-      {
-        "name": "pool",
-        "label": "Worker pool",
-        "type": "query",
-        "datasource": {"type": "prometheus", "uid": "\${DS_PROMETHEUS}"},
-        "query": "label_values(${WORKER_POOL_ACTIVE}, pool)",
-        "refresh": 2,
-        "includeAll": true,
-        "multi": true,
-        "current": {"selected": false, "text": "All", "value": "\$__all"}
-      },
-      {
-        "name": "queue",
-        "label": "Queue",
-        "type": "query",
-        "datasource": {"type": "prometheus", "uid": "\${DS_PROMETHEUS}"},
-        "query": "label_values(${QUEUE_DEPTH}, queue)",
-        "refresh": 2,
-        "includeAll": true,
-        "multi": true,
-        "current": {"selected": false, "text": "All", "value": "\$__all"}
-      },
-      {
-        "name": "route",
-        "label": "API route",
-        "type": "query",
-        "datasource": {"type": "prometheus", "uid": "\${DS_PROMETHEUS}"},
-        "query": "label_values(${API_REQUEST_DURATION}, route)",
-        "refresh": 2,
-        "includeAll": true,
-        "multi": true,
-        "current": {"selected": false, "text": "All", "value": "\$__all"}
-      },
-      {
-        "name": "scope_id",
-        "label": "Scope ID",
-        "type": "query",
-        "datasource": {"type": "prometheus", "uid": "\${DS_PROMETHEUS}"},
-        "query": "label_values(${CROSS_REPO_FENCED}, scope_id)",
-        "refresh": 2,
-        "includeAll": true,
-        "multi": true,
-        "current": {"selected": false, "text": "All", "value": "\$__all"}
-      }
-    ]
-  },
-  "time": {"from": "now-1h", "to": "now"},
-  "timepicker": {},
-  "timezone": "",
-  "title": "Eshu Operator Overview",
-  "uid": "eshu-operator-overview",
-  "version": 1,
-  "weekStart": ""
-}
-EOF
+  render_template "${lib_dir}/operator-dashboard-head.json.tmpl"
+  printf '\n'
+  render_template "${lib_dir}/operator-dashboard-panels-1.json.tmpl"
+  printf ',\n'
+  render_template "${lib_dir}/operator-dashboard-panels-2.json.tmpl"
+  printf '\n'
+  render_template "${lib_dir}/operator-dashboard-tail.json.tmpl"
+  printf '\n'
+} >"$output_path"
 
 printf 'generate-operator-dashboard: wrote %s\n' "$output_path"
