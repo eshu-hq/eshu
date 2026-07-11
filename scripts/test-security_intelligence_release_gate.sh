@@ -54,28 +54,12 @@ services:
 YAML
 
     if [ "${with_scanner}" -eq 1 ]; then
-        cat >"${dir}/docker-compose.remote-e2e.yaml" <<'YAML'
-services:
-  eshu:
-  mcp-server:
-  ingester:
-  resolution-engine:
-  workflow-coordinator:
-  collector-terraform-state:
-  collector-oci-registry:
-  collector-package-registry:
-  collector-sbom-attestation:
-  collector-vulnerability-intelligence:
-  collector-aws-cloud:
-  scanner-worker:
-    environment:
-      ESHU_SCANNER_WORKER_CPU_MILLIS: 4000
-      ESHU_SCANNER_WORKER_MEMORY_BYTES: 4294967296
-      ESHU_SCANNER_WORKER_TIMEOUT: 10m
-      ESHU_SCANNER_WORKER_MAX_INPUT_BYTES: 2147483648
-      ESHU_SCANNER_WORKER_MAX_FILES: 250000
-      ESHU_SCANNER_WORKER_MAX_FACTS: 50000
-YAML
+        # Body lives in scripts/lib/ (not a heredoc): Homebrew bash >= 5.1
+        # writes the entire heredoc body to a pipe before forking the reader,
+        # and macOS's 512-byte pipe buffer deadlocks on any body over that
+        # size (#5074).
+        cat "${repo_root}/scripts/lib/test-security_intelligence_release_gate-docker-compose-remote-e2e.yaml" \
+            >"${dir}/docker-compose.remote-e2e.yaml"
     fi
 
     for i in 001 002 003 004; do
