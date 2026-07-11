@@ -6,8 +6,8 @@
 //   - reloading with ?languages=... in the URL restores the selection
 //   - empty query / zero results / API error states render honestly
 //   - language chips are real buttons with aria-pressed (a11y)
-import { render, screen, fireEvent } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { MemoryRouter, useNavigate } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 
 import { SemanticSearchPage } from "./SemanticSearchPage";
@@ -236,5 +236,52 @@ describe("SemanticSearchPage", () => {
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent("repository not found");
     expect(alert).toHaveFocus();
+  });
+  it("ignores a stale in-flight response after leaving bounded state (#4024)", async () => {
+    let resolvePost: ((value: unknown) => void) | undefined;
+    const client = {
+      post: vi.fn(
+        () =>
+          new Promise((resolve) => {
+            resolvePost = resolve;
+          }),
+      ),
+    } as unknown as EshuApiClient;
+
+    function BackToUnbounded(): React.JSX.Element {
+      const navigate = useNavigate();
+      return (
+        <button type="button" onClick={() => navigate("/semantic-search")}>
+          leave-bounded
+        </button>
+      );
+    }
+
+    render(
+      <MemoryRouter
+        initialEntries={["/semantic-search?repo=acme%2Fcheckout-service&q=retry+logic"]}
+      >
+        <BackToUnbounded />
+        <SemanticSearchPage client={client} />
+      </MemoryRouter>,
+    );
+
+    // The bounded URL fires a search that stays in flight (its resolver is captured).
+    await waitFor(() => expect(resolvePost).toBeDefined());
+
+    // Navigate to the unbounded URL while that search is still in flight.
+    fireEvent.click(screen.getByRole("button", { name: "leave-bounded" }));
+    expect(
+      await screen.findByText("Enter a repository and a query to search."),
+    ).toBeInTheDocument();
+
+    // The stale response resolves AFTER leaving bounded state; the latestLoad
+    // bump in the else branch must keep it from overwriting the idle page with
+    // results for the previous query.
+    resolvePost?.(envelope(resultsResponse()));
+    await waitFor(() =>
+      expect(screen.getByText("Enter a repository and a query to search.")).toBeInTheDocument(),
+    );
+    expect(screen.queryByText("retry.go")).not.toBeInTheDocument();
   });
 });
