@@ -9,72 +9,11 @@ trap 'rm -rf "${tmp_root}" 2>/dev/null || true' EXIT
 
 write_valid_artifact() {
 	local file="$1"
-	cat >"${file}" <<'JSON'
-{
-  "schema_version": "scale-benchmark-artifact/v1",
-  "status": "pass",
-  "run": {
-    "id": "scale-bench-20260620T000000Z",
-    "kind": "baseline",
-    "commit": "0123456789abcdef0123456789abcdef01234567",
-    "issue": 3171,
-    "gate": "remote-compose",
-    "metadata_recorded": true,
-    "backend": {
-      "kind": "nornicdb",
-      "version": "fixture-v1"
-    }
-  },
-  "corpus": {
-    "contract_version": "scale-lab-corpus/v1",
-    "slot": "medium/representative_20_50",
-    "mode": "representative",
-    "repository_count": 24,
-    "privacy_status": "public_safe"
-  },
-  "backend_matrix": {
-    "nornicdb": {
-      "status": "pass",
-      "artifact": "scale-bench-nornicdb"
-    },
-    "compatibility": {
-      "status": "unsupported",
-      "reason": "not configured for this public proof"
-    }
-  },
-  "comparison": {
-    "optimization_claimed": false,
-    "baseline_commit": null,
-    "baseline_artifact": null,
-    "result": "not_applicable"
-  },
-  "artifacts": {
-    "results": "scale-benchmark-results.json",
-    "thresholds": "scale-benchmark-thresholds.json",
-    "pprof": "scale-benchmark-pprof.txt",
-    "logs": "scale-benchmark-logs.txt"
-  },
-  "metrics": {
-    "fact_rows_per_second": {"stage": "ingestion", "unit": "rows_per_second", "value": 1200, "threshold": 1000, "threshold_result": "pass"},
-    "queue_claim_latency_p95_ms": {"stage": "queue", "unit": "milliseconds", "value": 40, "threshold": 50, "threshold_result": "pass"},
-    "reducer_drain_seconds": {"stage": "reducer", "unit": "seconds", "value": 120, "threshold": 180, "threshold_result": "pass"},
-    "graph_write_p95_ms": {"stage": "graph", "unit": "milliseconds", "value": 65, "threshold": 80, "threshold_result": "pass"},
-    "api_p95_ms": {"stage": "api", "unit": "milliseconds", "value": 90, "threshold": 150, "threshold_result": "pass"},
-    "mcp_p95_ms": {"stage": "mcp", "unit": "milliseconds", "value": 95, "threshold": 150, "threshold_result": "pass"},
-    "retry_count": {"stage": "queue", "unit": "count", "value": 0, "threshold": 0, "threshold_result": "pass"},
-    "dead_letter_count": {"stage": "queue", "unit": "count", "value": 0, "threshold": 0, "threshold_result": "pass"},
-    "memory_high_water_mb": {"stage": "runtime", "unit": "mebibytes", "value": 512, "threshold": 1024, "threshold_result": "pass"}
-  },
-  "observability": {
-    "pprof_status": "pass",
-    "logs_status": "pass",
-    "resource_snapshot_status": "pass"
-  },
-  "privacy": {
-    "status": "pass"
-  }
-}
-JSON
+	# Body lives in scripts/lib/ (not a heredoc): Homebrew bash >= 5.1 writes
+	# the entire heredoc body to a pipe before forking the reader, and
+	# macOS's 512-byte pipe buffer deadlocks on any body over that size
+	# (#5074).
+	cat "${repo_root}/scripts/lib/test-verify-scale-benchmark-artifact-valid.json" >"${file}"
 }
 
 run_verifier() {
