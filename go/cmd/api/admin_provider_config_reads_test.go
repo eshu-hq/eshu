@@ -188,6 +188,34 @@ func TestListProviderConfigDetailsSynthesizesEnvOnlySAMLProvider(t *testing.T) {
 	}
 }
 
+// TestListProviderConfigDetailsDoesNotSynthesizeSAMLIDOwnedByAnotherTenant is
+// the P1 regression guard (codex PR #5064): an env SAML id that is ALSO backed
+// by an active DB provider_config row (owned by some tenant) must NOT be
+// synthesized onto a different tenant's admin list — that would advertise
+// another tenant's SAML provider. This tenant has no DB rows of its own (empty
+// list) but HasActiveSAMLProviderConfig reports the id active somewhere.
+func TestListProviderConfigDetailsDoesNotSynthesizeSAMLIDOwnedByAnotherTenant(t *testing.T) {
+	t.Parallel()
+	samlHandler := &query.SAMLHandler{
+		Store: &fakeSAMLProviderListerStore{providerIDs: []string{"shadowed_saml"}},
+	}
+	adapter := &providerConfigReadAdapter{
+		envProviderIDs:     envRegisteredProviderIDs(nil, samlHandler),
+		envSAMLProviderIDs: samlHandler.RegisteredProviderIDs(),
+	}
+	adapter.store = pgstatus.NewIdentitySubjectStore(collisionSAMLProviderConfigDB{activeSAMLID: "shadowed_saml"})
+
+	items, err := adapter.ListProviderConfigDetails(context.Background(), "tenant_b")
+	if err != nil {
+		t.Fatalf("ListProviderConfigDetails() error = %v", err)
+	}
+	for _, item := range items {
+		if item.ProviderConfigID == "shadowed_saml" {
+			t.Fatalf("shadowed_saml synthesized onto tenant_b's admin list = %+v; an env SAML id with an active DB row (owned by another tenant) must not be advertised cross-tenant", item)
+		}
+	}
+}
+
 // TestEnvRegisteredProviderIDsHandlesNilHandlers proves the merge helper
 // degrades to an empty set rather than panicking when OIDC/SAML are not
 // configured.
@@ -271,3 +299,47 @@ func (*emptyProviderConfigListRows) Next() bool        { return false }
 func (*emptyProviderConfigListRows) Scan(...any) error { return nil }
 func (*emptyProviderConfigListRows) Err() error        { return nil }
 func (*emptyProviderConfigListRows) Close() error      { return nil }
+
+// collisionSAMLProviderConfigDB returns an empty tenant provider-config list
+// but reports one id active via selectActiveSAMLProviderConfigQuery — modeling
+// an env SAML id that a DIFFERENT tenant owns via an active DB row (codex
+// PR #5064 P1).
+type collisionSAMLProviderConfigDB struct{ activeSAMLID string }
+
+func (collisionSAMLProviderConfigDB) ExecContext(context.Context, string, ...any) (sql.Result, error) {
+	return nil, nil
+}
+
+func (d collisionSAMLProviderConfigDB) QueryContext(_ context.Context, query string, args ...any) (pgstatus.Rows, error) {
+	if strings.Contains(query, "pc.provider_kind = 'external_saml'") && len(args) == 1 {
+		if id, ok := args[0].(string); ok && id == d.activeSAMLID {
+			return &singleStringRows{value: d.activeSAMLID}, nil
+		}
+	}
+	return &emptyProviderConfigListRows{}, nil
+}
+
+type singleStringRows struct {
+	value string
+	done  bool
+}
+
+func (r *singleStringRows) Next() bool {
+	if r.done {
+		return false
+	}
+	r.done = true
+	return true
+}
+
+func (r *singleStringRows) Scan(dest ...any) error {
+	if len(dest) > 0 {
+		if p, ok := dest[0].(*string); ok {
+			*p = r.value
+		}
+	}
+	return nil
+}
+
+func (*singleStringRows) Err() error   { return nil }
+func (*singleStringRows) Close() error { return nil }

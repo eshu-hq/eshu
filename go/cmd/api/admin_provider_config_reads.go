@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 
 	"github.com/eshu-hq/eshu/go/internal/query"
@@ -188,6 +189,21 @@ func (a *providerConfigReadAdapter) ListProviderConfigDetails(
 	// filter by, unlike the OIDC loop above.
 	for _, providerID := range a.envSAMLProviderIDs {
 		if _, alreadyListed := seen[providerID]; alreadyListed {
+			continue
+		}
+		// Only synthesize a GENUINELY env-only SAML id: one with no active DB
+		// provider_config row in ANY tenant (codex PR #5064 P1). A SAML env id
+		// carries no tenant attribution, so synthesizing an id that a DIFFERENT
+		// tenant owns via a DB row would advertise that tenant's provider on
+		// this admin list. The current tenant's own DB rows are already in
+		// `seen`; HasActiveSAMLProviderConfig is the non-tenant-scoped check
+		// that also catches a DB row owned by another tenant. A colliding id is
+		// surfaced only via the DB path on its owning tenant's list.
+		hasDBRow, err := a.store.HasActiveSAMLProviderConfig(ctx, providerID)
+		if err != nil {
+			return nil, fmt.Errorf("check active saml provider config for env-only synthesis: %w", err)
+		}
+		if hasDBRow {
 			continue
 		}
 		seen[providerID] = struct{}{}
