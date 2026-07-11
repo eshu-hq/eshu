@@ -14,6 +14,19 @@ type searchVectorTuningDB struct {
 	tx *searchVectorTuningTx
 }
 
+type searchVectorFallbackDB struct {
+	queries int
+}
+
+func (d *searchVectorFallbackDB) QueryContext(context.Context, string, ...any) (Rows, error) {
+	d.queries++
+	return &queueFakeRows{}, nil
+}
+
+func (d *searchVectorFallbackDB) ExecContext(context.Context, string, ...any) (sql.Result, error) {
+	panic("search vector fallback must not execute query tuning")
+}
+
 func (d *searchVectorTuningDB) Begin(context.Context) (Transaction, error) {
 	return d.tx, nil
 }
@@ -62,6 +75,23 @@ func TestSearchVectorDocumentQueryRollsBackAfterCommitFailure(t *testing.T) {
 	}
 	if tx.commits != 1 || tx.rollbacks != 1 {
 		t.Fatalf("transaction completion = commits %d rollbacks %d, want 1/1", tx.commits, tx.rollbacks)
+	}
+}
+
+func TestSearchVectorDocumentQueryFallsBackWithoutBeginner(t *testing.T) {
+	t.Parallel()
+
+	db := &searchVectorFallbackDB{}
+	rows, err := beginSearchVectorDocumentQuery(context.Background(), db, "SELECT 1")
+	if err != nil {
+		t.Fatalf("beginSearchVectorDocumentQuery fallback error = %v", err)
+	}
+	if err := rows.Commit(); err != nil {
+		t.Fatalf("fallback rows Commit error = %v", err)
+	}
+	rows.Rollback() // A transaction-less committed result remains safe to clean up.
+	if db.queries != 1 {
+		t.Fatalf("fallback queries = %d, want 1", db.queries)
 	}
 }
 
