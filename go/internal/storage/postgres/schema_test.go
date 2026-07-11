@@ -189,6 +189,43 @@ func TestBootstrapDefinitionsIncludeContentSubstringIndexLifecycle(t *testing.T)
 	}
 }
 
+func TestBootstrapDefinitionsIncludeRelationshipReferenceCandidateKeys(t *testing.T) {
+	t.Parallel()
+
+	var referenceKeys Definition
+	for _, def := range BootstrapDefinitions() {
+		if def.Name == "relationship_reference_candidate_keys" {
+			referenceKeys = def
+			break
+		}
+	}
+	if referenceKeys.Name == "" {
+		t.Fatal("relationship_reference_candidate_keys definition missing")
+	}
+	for _, want := range []string{
+		"CREATE TABLE IF NOT EXISTS relationship_reference_candidate_keys",
+		"REFERENCES fact_records(fact_id) ON DELETE CASCADE",
+		"relationship_reference_candidate_keys_partition_idx",
+		"REGEXP_REPLACE(LOWER(payload::text), '[^a-z0-9._-]+', '|', 'g')",
+		"'\\.git(\\||$)'",
+		"'\\1'",
+		"'\\.(yaml|yml|json|tfvars|tf|hcl)(\\||$)'",
+		"'\\2'",
+		"fact_kind IN ('content', 'file', 'gcp_cloud_relationship')",
+	} {
+		if !strings.Contains(referenceKeys.SQL, want) {
+			t.Fatalf("relationship_reference_candidate_keys SQL missing %q", want)
+		}
+	}
+	for _, forbidden := range []string{
+		"REGEXP_REPLACE(LOWER(payload::text), '\\.git', '', 'g')",
+	} {
+		if strings.Contains(referenceKeys.SQL, forbidden) {
+			t.Fatalf("relationship_reference_candidate_keys SQL still uses unsafe token rewrite %q", forbidden)
+		}
+	}
+}
+
 func TestBootstrapDefinitionsIncludeFactContractColumns(t *testing.T) {
 	t.Parallel()
 

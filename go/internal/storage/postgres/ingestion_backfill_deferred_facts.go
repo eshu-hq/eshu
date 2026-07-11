@@ -16,7 +16,7 @@ import (
 
 // listDeferredScopedRelationshipFactRecordsQuery is the self-exclusion variant
 // of listOnboardedRepoScopedRelationshipFactRecordsQuery used exclusively by the
-// corpus-wide deferred backfill (issue #3659). It accepts six parameters:
+// corpus-wide deferred backfill (issue #3659). It accepts seven parameters:
 //
 //	$1 pq.StringArray — LIKE terms derived from non-repo_id aliases (name,
 //	   slug tokens) and the unconditional ArgoCD over-select markers. A fact
@@ -50,6 +50,13 @@ import (
 //	   scopes resolve to <repo_id>; every other scope shape (GCP cloud-relationship
 //	   scopes included) resolves to "". $6 is NOT a correctness input — see the
 //	   "$5/$6 performance-hint" section below.
+//
+//	$7 pq.StringArray — boundary-aware token keys corresponding 1:1 with $2.
+//	   The precomputed relationship_reference_candidate_keys table stores each
+//	   accepted content/file/GCP fact's payload as the same delimiter-wrapped token
+//	   stream. Joining $7 against that stream replaces the steady-state
+//	   facts × catalog payload predicate while preserving whole-token
+//	   self-exclusion semantics.
 //
 // Why EXISTS, not blind replace(): replace() corrupts overlap cases where the
 // own repo_id is a prefix of another repo's repo_id (for example app vs
@@ -201,17 +208,34 @@ matched_facts AS MATERIALIZED (
     ) AS fact
     WHERE
         fact.payload_lower LIKE ANY($1)
-        OR (fact.own_repo_id = $6 AND $5::text IS NOT NULL AND fact.payload_lower ~ $5)
+        OR EXISTS (
+          SELECT 1
+          FROM relationship_reference_candidate_keys AS ref
+          JOIN unnest($2::text[], $7::text[]) AS catalog_repo_id(value, reference_key)
+            ON catalog_repo_id.value <> ref.source_repo_id
+           AND position('|' || catalog_repo_id.reference_key || '|' in ref.reference_key) > 0
+          WHERE ref.fact_id = fact.fact_id
+        )
         OR (
-          fact.own_repo_id <> $6
-          AND EXISTS (
+          NOT EXISTS (
             SELECT 1
-            FROM unnest($2::text[]) AS catalog_repo_id(value)
-            WHERE catalog_repo_id.value <> fact.own_repo_id
-              AND fact.payload_lower LIKE
-                '%' ||
-                replace(replace(replace(catalog_repo_id.value, '\', '\\'), '%', '\%'), '_', '\_') ||
-                '%' ESCAPE '\'
+            FROM relationship_reference_candidate_keys AS ref
+            WHERE ref.fact_id = fact.fact_id
+          )
+          AND (
+            (fact.own_repo_id = $6 AND $5::text IS NOT NULL AND fact.payload_lower ~ $5)
+            OR (
+              fact.own_repo_id <> $6
+              AND EXISTS (
+                SELECT 1
+                FROM unnest($2::text[]) AS catalog_repo_id(value)
+                WHERE catalog_repo_id.value <> fact.own_repo_id
+                  AND fact.payload_lower LIKE
+                    '%' ||
+                    replace(replace(replace(catalog_repo_id.value, '\', '\\'), '%', '\%'), '_', '\_') ||
+                    '%' ESCAPE '\'
+              )
+            )
           )
         )
 )
@@ -246,8 +270,9 @@ ORDER BY fact.observed_at ASC, fact.fact_id ASC
 // catalog and reused across partitions, so the per-scope fan-out does not rebuild
 // them per query.
 type deferredScopedFactQueryParams struct {
-	nonRepoIDLike pq.StringArray
-	repoIDValues  pq.StringArray
+	nonRepoIDLike      pq.StringArray
+	repoIDValues       pq.StringArray
+	repoIDReferenceKey pq.StringArray
 }
 
 // buildDeferredScopedFactQueryParams derives the shared $1/$2 parameters from the
@@ -265,10 +290,12 @@ func buildDeferredScopedFactQueryParams(
 
 	nonRepoIDLike := buildPayloadAnchorLikeTerms(nonRepoIDTerms)
 	repoIDRaw := make([]string, 0, len(repoIDValues))
+	repoIDReferenceKeys := make([]string, 0, len(repoIDValues))
 	for _, value := range repoIDValues {
 		value = strings.ToLower(strings.TrimSpace(value))
 		if value != "" {
 			repoIDRaw = append(repoIDRaw, value)
+			repoIDReferenceKeys = append(repoIDReferenceKeys, relationships.CatalogReferenceKey(value))
 		}
 	}
 
@@ -280,10 +307,14 @@ func buildDeferredScopedFactQueryParams(
 	if repoIDRaw == nil {
 		repoIDRaw = []string{}
 	}
+	if repoIDReferenceKeys == nil {
+		repoIDReferenceKeys = []string{}
+	}
 
 	return deferredScopedFactQueryParams{
-		nonRepoIDLike: pq.StringArray(nonRepoIDLike),
-		repoIDValues:  pq.StringArray(repoIDRaw),
+		nonRepoIDLike:      pq.StringArray(nonRepoIDLike),
+		repoIDValues:       pq.StringArray(repoIDRaw),
+		repoIDReferenceKey: pq.StringArray(repoIDReferenceKeys),
 	}, true
 }
 
@@ -310,6 +341,7 @@ func loadDeferredScopedRelationshipFactsForPartition(
 ) ([]facts.Envelope, error) {
 	ownRepoID := deferredScopedFactOwnRepoIDFromScope(scopeID)
 	regex, ok := buildDeferredRepoIDRegex([]string(params.repoIDValues), ownRepoID)
+	repoIDReferenceKeys := deferredRepoIDReferenceKeys(params.repoIDValues, params.repoIDReferenceKey)
 	var regexParam sql.NullString
 	if ok {
 		regexParam = sql.NullString{String: regex, Valid: true}
@@ -324,6 +356,7 @@ func loadDeferredScopedRelationshipFactsForPartition(
 		generationID,
 		regexParam,
 		ownRepoID,
+		repoIDReferenceKeys,
 	)
 	if err != nil {
 		return nil, err
@@ -342,4 +375,15 @@ func loadDeferredScopedRelationshipFactsForPartition(
 		return nil, err
 	}
 	return loaded, nil
+}
+
+func deferredRepoIDReferenceKeys(repoIDValues, repoIDReferenceKeys pq.StringArray) pq.StringArray {
+	if len(repoIDReferenceKeys) == len(repoIDValues) {
+		return repoIDReferenceKeys
+	}
+	keys := make([]string, 0, len(repoIDValues))
+	for _, value := range repoIDValues {
+		keys = append(keys, relationships.CatalogReferenceKey(value))
+	}
+	return pq.StringArray(keys)
 }

@@ -79,4 +79,5 @@ var orderedBootstrapDefinitionNames = []string{
 	"eshu_search_vector_scope_state",
 	"graph_node_owner",
 	"content_substring_index_state",
+	"relationship_reference_candidate_keys",
 }

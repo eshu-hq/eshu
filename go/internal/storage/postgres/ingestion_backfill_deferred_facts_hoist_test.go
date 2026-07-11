@@ -6,6 +6,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"os"
 	"sort"
@@ -13,7 +14,6 @@ import (
 	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
-	"github.com/lib/pq"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
@@ -202,6 +202,16 @@ func seedDeferredHoistFixture(t *testing.T, ctx context.Context, db *sql.DB) []d
 			payload: `{"repo_id":"github.com/org/app","artifact_type":"terraform","relative_path":"main.tf","content":"app_repo = \"github.com/org/app-config\""}`,
 		},
 		{
+			// File-suffixed repo reference: Go tokenization trims known file
+			// extensions after the token is split. Migration backfill must do the
+			// same because a migrated key row disables the legacy LIKE fallback.
+			factID:  "fact-app-refs-app-config-yaml",
+			scopeID: gitScope,
+			genID:   "gen-hoist",
+			kind:    "content",
+			payload: `{"repo_id":"github.com/org/app","artifact_type":"argocd","relative_path":"app.yaml","content":"spec:\n  source:\n    repoURL: github.com/org/app-config.yaml\n"}`,
+		},
+		{
 			// own-repo self-mention only: must be excluded by both old and new SQL,
 			// the in-memory matcher would drop it anyway. own_repo_id = $6, so this
 			// is also resolved by the fast arm ($5 excludes exactly this value).
@@ -219,6 +229,17 @@ func seedDeferredHoistFixture(t *testing.T, ctx context.Context, db *sql.DB) []d
 			genID:   "gen-hoist",
 			kind:    "content",
 			payload: `{"repo_id":"github.com/org/app","artifact_type":"argocd","relative_path":"app.yaml","content":"kind: Application\nspec:\n  source:\n    repoURL: https://example.invalid/org/payments-service.git\n"}`,
+		},
+		{
+			// Common GitHub metadata repo: ".github" must remain one token in the
+			// precomputed reference-key stream. A global ".git" rewrite would turn
+			// "github.com/org/.github" into "github.com/orghub" and make the fast
+			// path under-select this row while the pre-hoist LIKE arm still loads it.
+			factID:  "fact-app-refs-dot-github",
+			scopeID: gitScope,
+			genID:   "gen-hoist",
+			kind:    "content",
+			payload: `{"repo_id":"github.com/org/app","artifact_type":"github_actions_workflow","relative_path":".github/workflows/reuse.yaml","content":"jobs:\n  reuse:\n    uses: github.com/org/.github/.github/workflows/reusable.yaml@main\n"}`,
 		},
 		{
 			// cloud-scope fact with EMPTY repo_id: own_repo_id resolves to the empty
@@ -266,23 +287,29 @@ VALUES ($1, $2, $3, $4, $5, 'git', $5, $6, $6, $7::jsonb)`,
 			t.Fatalf("seed fact %q: %v", row.factID, err)
 		}
 	}
+	if err := refreshRelationshipReferenceCandidateKeys(ctx, SQLDB{DB: db}, deferredHoistFixtureEnvelopes(t, rows)); err != nil {
+		t.Fatalf("seed relationship reference keys: %v", err)
+	}
 	return rows
 }
 
-// deferredHoistCatalog is the full catalog the differential proof discovers
-// evidence against; it must include every repo_id referenced by the fixture
-// above (including targets that never appear as a fact source themselves).
-func deferredHoistCatalog() []relationships.CatalogEntry {
-	return []relationships.CatalogEntry{
-		{RepoID: "github.com/org/app", Aliases: []string{"github.com/org/app", "edge-app"}},
-		{RepoID: "github.com/org/app-config", Aliases: []string{"github.com/org/app-config"}},
-		{RepoID: "repo-vault", Aliases: []string{"repo-vault", "secret-store"}},
-		{RepoID: "repo-gitops", Aliases: []string{"repo-gitops", "gitops-controller"}},
-		{RepoID: "repo-payments", Aliases: []string{"repo-payments", "payments-service"}},
-		{RepoID: "repo-gcp-source", Aliases: []string{"repo-gcp-source", "order-gateway"}},
-		{RepoID: "deploy-toolkit", Aliases: []string{"deploy-toolkit"}},
-		{RepoID: "repo-noise-target", Aliases: []string{"repo-noise-target"}},
+func deferredHoistFixtureEnvelopes(t *testing.T, rows []deferredHoistFixtureRow) []facts.Envelope {
+	t.Helper()
+	envelopes := make([]facts.Envelope, 0, len(rows))
+	for _, row := range rows {
+		var payload map[string]any
+		if err := json.Unmarshal([]byte(row.payload), &payload); err != nil {
+			t.Fatalf("decode fixture payload %q: %v", row.factID, err)
+		}
+		envelopes = append(envelopes, facts.Envelope{
+			FactID:       row.factID,
+			ScopeID:      row.scopeID,
+			GenerationID: row.genID,
+			FactKind:     row.kind,
+			Payload:      payload,
+		})
 	}
+	return envelopes
 }
 
 // runPreHoistDeferredScopedQuery executes the frozen pre-hoist ($1..$4) query
@@ -306,7 +333,7 @@ func runPreHoistDeferredScopedQuery(
 	return collectDeferredScopedRows(t, rows)
 }
 
-// runHoistedDeferredScopedQuery executes the production ($1..$6) hoisted query
+// runHoistedDeferredScopedQuery executes the production ($1..$7) hoisted query
 // shape — building $5/$6 exactly as loadDeferredScopedRelationshipFactsForPartition
 // does — and returns the loaded fact_id set.
 func runHoistedDeferredScopedQuery(
@@ -319,6 +346,7 @@ func runHoistedDeferredScopedQuery(
 	t.Helper()
 	ownRepoID := deferredScopedFactOwnRepoIDFromScope(scopeID)
 	regex, ok := buildDeferredRepoIDRegex([]string(params.repoIDValues), ownRepoID)
+	repoIDReferenceKeys := deferredRepoIDReferenceKeys(params.repoIDValues, params.repoIDReferenceKey)
 	var regexParam sql.NullString
 	if ok {
 		regexParam = sql.NullString{String: regex, Valid: true}
@@ -326,7 +354,7 @@ func runHoistedDeferredScopedQuery(
 	rows, err := db.QueryContext(
 		ctx,
 		listDeferredScopedRelationshipFactRecordsQuery,
-		params.nonRepoIDLike, params.repoIDValues, scopeID, generationID, regexParam, ownRepoID,
+		params.nonRepoIDLike, params.repoIDValues, scopeID, generationID, regexParam, ownRepoID, repoIDReferenceKeys,
 	)
 	if err != nil {
 		t.Fatalf("query (hoisted): %v", err)
@@ -413,6 +441,8 @@ func TestDeferredScopedFactLoadHoistExactlyEquivalentToPreHoistShape(t *testing.
 	// Every carve-out named in the fix's acceptance criteria must survive.
 	wantPresent := []string{
 		"fact-app-refs-app-config",            // prefix-overlap cross-repo repo_id reference
+		"fact-app-refs-app-config-yaml",       // file-extension suffix must not block migrated reference-key rows
+		"fact-app-refs-dot-github",            // .github common-repo token must not be collapsed by .git trimming
 		"fact-argocd-application",             // ArgoCD unconditional over-select marker
 		"fact-gcp-empty-repo-id",              // cloud-scope fact with empty repo_id
 		"fact-orphan-repo-references-catalog", // repo_id mismatched to any catalog entry, still references a real target
@@ -447,32 +477,3 @@ func TestDeferredScopedFactLoadHoistExactlyEquivalentToPreHoistShape(t *testing.
 		t.Fatal("expected non-empty discovered evidence from the representative fixture")
 	}
 }
-
-func evidenceSetsEqual(a, b []relationships.EvidenceFact) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	key := func(f relationships.EvidenceFact) string {
-		return string(f.EvidenceKind) + "|" + f.SourceRepoID + "|" + f.TargetRepoID + "|" + fmt.Sprint(f.Details["path"]) + "|" + fmt.Sprint(f.Details["matched_value"])
-	}
-	seenA := make(map[string]int, len(a))
-	for _, f := range a {
-		seenA[key(f)]++
-	}
-	for _, f := range b {
-		k := key(f)
-		if seenA[k] == 0 {
-			return false
-		}
-		seenA[k]--
-	}
-	for _, count := range seenA {
-		if count != 0 {
-			return false
-		}
-	}
-	return true
-}
-
-// keep pq import referenced for the shared param type used across this file.
-var _ = pq.StringArray(nil)
