@@ -46,11 +46,13 @@ the same way.
 Every generator in this repo should land as three files:
 
 1. **`scripts/generate-<name>.sh`** — the entry point. Sources the lib,
-   invokes a function (or runs a `cat <<EOF` heredoc), writes to the
-   output path. Should be the *slimmest* of the three files; under
-   100 lines if possible.
-2. **`scripts/lib/<name>-*.sh`** — the data registry and the panel /
-   fragment / template definitions. Multiple files if the data is
+   renders template data files (see the heredoc warning below), writes
+   to the output path. Should be the *slimmest* of the three files;
+   under 100 lines if possible.
+2. **`scripts/lib/<name>-*.sh`** (data registry) and
+   **`scripts/lib/<name>-*.json.tmpl`** (or `.yaml.tmpl`, etc. — large
+   template bodies) — the data and the fragment / template
+   definitions the generator assembles. Multiple files if the data is
    large. Each file under the 500-line cap.
 3. **`scripts/test-generate-<name>.sh`** — the test mirror. Asserts
    idempotency, asserts the output is well-formed, asserts the
@@ -95,20 +97,59 @@ This catches timestamp embedding, hostname leaks, unkeyed `map`
 iteration in templating languages, and any other non-determinism that
 would otherwise only show up when CI runs.
 
+## Heredocs Deadlock On Large Bodies (bash >= 5.1) — Never Emit Data Through One
+
+Issue #5019 (reopened after #5068 only patched the symptom): bash 5.1+
+delivers a `<<EOF` heredoc body to its reader by writing the ENTIRE
+body to a pipe before the reader process is even spawned. macOS's pipe
+buffer is 512 bytes, so any heredoc body strictly between 512 bytes
+and the ~64KB pipe-buffer ceiling deadlocks under Homebrew bash (5.1+)
+while the same script runs fine under macOS's stock `/bin/bash`
+(3.2.57, which never had this heredoc-writer change). A 10-13KB JSON
+panel body — routine for a Grafana dashboard generator — sits
+squarely in the hang zone. This is the same class of bug as the `<<<`
+here-string hang fixed in #4718; treat both as "large body through a
+shell here-construct" and route around it the same way.
+
+**Rule: any generator whose body content exceeds a couple hundred
+bytes MUST NOT use a `cat <<EOF` heredoc (or a `<<<` here-string) to
+emit or capture it.** Use one of:
+
+- A **template DATA FILE** (`scripts/lib/<name>-<part>.json.tmpl`)
+  read with the `$(<file)` builtin and emitted with `printf '%s'`.
+  Neither construct touches a pipe, so neither can hang. This is the
+  pattern the operator dashboard generator now uses: `${NAME}` tokens
+  in the template are substituted via an explicit allowlist loop
+  (`scripts/lib/operator-dashboard-metrics.sh`'s
+  `OPERATOR_DASHBOARD_METRIC_VARS`), and the literal Grafana
+  `${DS_PROMETHEUS}` / `$__all` tokens pass through untouched because
+  they are never looked up.
+- If a function must still assemble the body in-process, redirect its
+  `cat <<EOF ... EOF` output straight to a real file (never capture it
+  via `$(function_name)`, which is the large-input-in-command-
+  substitution construct that also hangs), then read the file back
+  with `$(<file)`.
+
+A generator that still uses a heredoc for a small (well under 512
+bytes), fixed, non-data body — a one-line usage message, for example
+— is fine; the hang only bites past the pipe-buffer threshold.
+
 ## The 500-Line Cap Is Real, Plan The Split Up Front
 
 The repo's `AGENTS.md` requires every file under 500 lines. A
 generator that emits a Grafana dashboard with 20 panels will exceed
 500 lines on the first draft. **Plan the lib/ split before writing
-the heredoc.** The split has two natural axes:
+any template body.** The split has two natural axes:
 
 - **Data** vs **structure**: a `lib/<name>-metrics.sh` (or
   `lib/<name>-fragments.yaml`) holds the data; the main script holds
   the structure that consumes it.
 - **By row / by section**: a Grafana dashboard with 5 rows splits as
-  `lib/<name>-panels-{1,2}.sh`, where each file emits the panels for
-  one or two rows. The main script concatenates with `,` between
-  functions.
+  `lib/<name>-panels-{1,2}.json.tmpl`, where each file holds the panel
+  JSON for one or two rows as template data (see the heredoc warning
+  above — not as a sourced shell function). The main script emits
+  each rendered template in sequence, joined by a literal `,` between
+  panel groups.
 
 The split should be visible in the directory listing before the
 generator reaches 200 lines, not after it crosses 500.
@@ -197,7 +238,8 @@ so the reviewer can see what changed.
 | --- | --- |
 | `jq` not installed | Add `sudo apt-get install -y jq` to the workflow step. `jq` is the standard for shell-side JSON validation in this repo. |
 | `mkdocs build --strict` rejects a link to a generated JSON | The JSON is not a documentation page. Reference it by prose, not by markdown link. The X4 dashboard is the worked example. |
-| The 500-line cap blocks the script | Pre-plan the lib/ split. The dashboard generator split 3 ways: data (`lib/operator-dashboard-metrics.sh`) + 2 panel chunks (`lib/operator-dashboard-panels-{1,2}.sh`). |
+| The 500-line cap blocks the script | Pre-plan the lib/ split. The dashboard generator split 4 ways: data (`lib/operator-dashboard-metrics.sh`) + head/tail + 2 panel template files (`lib/operator-dashboard-{head,tail,panels-1,panels-2}.json.tmpl`). |
 | Test mirror passes locally but fails in CI | Probably a `PATH` or `LANG` issue. Use `LC_ALL=C` and absolute paths in the test mirror. |
 | Generator produces different bytes on every run | Idempotency violation. The likely culprits are timestamps, unkeyed map iteration, or `sort | uniq` without a stable order. Add a stable sort, remove the timestamp, or move the generator to a language that sorts deterministically. |
 | The committed artifact is out of date with the generator | The PR author regenerated locally but forgot to commit. The CI gate catches this; the fix is to run the generator and commit the result. |
+| Generator hangs (or times out at exit 124) only under Homebrew/Linuxbrew bash, not the OS-stock bash | A `cat <<EOF` heredoc body (or a `<<<` here-string) in the 512-byte-to-64KB range deadlocked on bash >= 5.1's pipe-buffer behavior (issue #5019). Move the body to a `.json.tmpl` data file read with `$(<file)` and emitted with `printf`; see "Heredocs Deadlock On Large Bodies" above. Add a `timeout`/background-watchdog wrapper around the generator call in the test mirror so a regression fails in seconds, not by hanging `make pre-pr` silently. |
