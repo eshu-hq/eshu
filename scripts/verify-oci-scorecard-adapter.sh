@@ -43,9 +43,10 @@ command -v rg >/dev/null 2>&1 || die "rg is required"
 # The bounded SDK request the host sends on stdin. config.source.input is the
 # IN-IMAGE fixture path baked by Dockerfile.oci — never a host path — so the
 # read-only, network-less container resolves it without any mount or leak.
-read -r -d '' sdk_request <<'JSON' || true
-{"protocol_version":"collector-sdk/v1alpha1","claim":{"component_id":"dev.eshu.examples.scorecard","instance_id":"scorecard-oci","collector_kind":"scorecard","source_system":"openssf-scorecard","scope":{"id":"github.com/example/widgets","kind":"repository"},"source_run_id":"oci-adapter-proof","generation_id":"oci-adapter-proof"},"contract":{"protocol_version":"collector-sdk/v1alpha1","facts":[{"kind":"dev.eshu.examples.scorecard.snapshot","schema_versions":["1.0.0"],"source_confidence":["reported"]}]},"config":{"source":{"input":"/var/lib/scorecard/complete.json"}}}
-JSON
+# The body lives in scripts/lib/ (not a heredoc): Homebrew bash >= 5.1
+# writes the entire heredoc body to a pipe before forking the reader, and
+# macOS's 512-byte pipe buffer deadlocks on any body over that size (#5074).
+read -r -d '' sdk_request <"${repo_root}/scripts/lib/verify-oci-scorecard-adapter-sdk-request.json" || true
 
 fact_families=(
 	"dev.eshu.examples.scorecard.snapshot"
