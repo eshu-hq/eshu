@@ -1,0 +1,72 @@
+# heredoc-budget-baseline.txt
+#
+# Burn-down baseline for scripts/**/*.sh heredoc bodies over the byte budget
+# (#5074). Homebrew bash >= 5.1 writes an entire heredoc body to a pipe
+# before forking the reader; macOS's 512-byte pipe buffer means any body
+# strictly between 512 bytes and the ~64 KB pipe-buffer ceiling deadlocks
+# under that bash even though the same script runs fine under macOS's stock
+# /bin/bash 3.2. The heredoc-budget gate (go/cmd/heredoc-budget) fails a
+# change that adds a NEW file with an over-budget heredoc, or that INCREASES
+# an already-baselined file's over-budget heredoc count. A file's count may
+# stay the same or decrease (burn-down progress) without failing the gate.
+#
+# Regenerate with:
+#   cd go && go run ./cmd/heredoc-budget -baseline ../scripts/heredoc-budget-baseline.txt -update
+#
+# <relative/path> <count-of-heredocs-over-budget>
+scripts/e2e_corpus_coverage.sh 1
+scripts/e2e_readback_parity.sh 1
+scripts/e2e_remote_compose_suite.sh 2
+scripts/k8s-two-team-governance-manifests.sh 2
+scripts/run-remote-e2e-pagerduty-component-extension.sh 2
+scripts/security_intelligence_release_gate.sh 1
+scripts/test-e2e-remote-compose-suite.sh 3
+scripts/test-run-scale-benchmark-artifact.sh 2
+scripts/test-run-scale-benchmark-measurements.sh 2
+scripts/test-security_intelligence_release_gate.sh 1
+scripts/test-security_intelligence_release_gate_k8s.sh 3
+scripts/test-security_intelligence_release_gate_proof_matrix.sh 1
+scripts/test-security_intelligence_release_gate_runtime.sh 1
+scripts/test-verify-ask-eshu-local-proof.sh 1
+scripts/test-verify-bench-regression.sh 1
+scripts/test-verify-capability-budget-proof.sh 1
+scripts/test-verify-collector-entrypoints-generated.sh 1
+scripts/test-verify-compose-helm-runtime-parity.sh 2
+scripts/test-verify-dashboard-metrics.sh 1
+scripts/test-verify-docs-build-changed.sh 1
+scripts/test-verify-gitops-rendered-diff-preflight.sh 1
+scripts/test-verify-hosted-governance-helm-proof.sh 2
+scripts/test-verify-hosted-helm-rollout-proof.sh 2
+scripts/test-verify-parser-relationship-kit.sh 9
+scripts/test-verify-remote-e2e-degradation-report.sh 3
+scripts/test-verify-remote-e2e-finite-completion.sh 2
+scripts/test-verify-remote-e2e-pagerduty-component-extension.sh 1
+scripts/test-verify-remote-e2e-remediation-benchmark.sh 7
+scripts/test-verify-remote-e2e-runtime-state-hosted-services.sh 1
+scripts/test-verify-remote-e2e-runtime-state.sh 3
+scripts/test-verify-remote-e2e-target-story-artifact-anchors.sh 4
+scripts/test-verify-remote-e2e-target-story-canonical-ids.sh 3
+scripts/test-verify-remote-e2e-target-story-cicd-missing-evidence.sh 3
+scripts/test-verify-remote-e2e-target-story-image-package-gaps.sh 3
+scripts/test-verify-remote-e2e-target-story-runtime-missing-evidence.sh 3
+scripts/test-verify-remote-e2e-target-story-source-evidence.sh 4
+scripts/test-verify-remote-e2e-target-story.sh 10
+scripts/test-verify-remote-e2e-tfstate-warnings.sh 4
+scripts/test-verify-remote-e2e-vulnerability-readbacks.sh 2
+scripts/test-verify-scale-benchmark-artifact.sh 1
+scripts/test-verify-scale-corpus-suite.sh 1
+scripts/test-verify-telemetry-coverage.sh 3
+scripts/verify-ask-eshu-local-proof.sh 1
+scripts/verify-demo-compose-answers.sh 1
+scripts/verify-hosted-helm-rollout-proof.sh 1
+scripts/verify-k8s-two-team-governance-proof.sh 2
+scripts/verify-oci-scorecard-adapter.sh 1
+scripts/verify-remote-e2e-component-extension.sh 1
+scripts/verify-remote-e2e-pagerduty-component-extension.sh 2
+scripts/verify-two-team-governance-proof.sh 2
+scripts/verify_incremental_refresh_compose.sh 1
+scripts/verify_local_public_collector_proof.sh 1
+scripts/verify_oci_registry_collector_helm.sh 1
+scripts/verify_projector_runtime_compose.sh 1
+scripts/verify_reducer_runtime_compose.sh 1
+scripts/verify_vulnerability_intelligence_collector_helm.sh 2
