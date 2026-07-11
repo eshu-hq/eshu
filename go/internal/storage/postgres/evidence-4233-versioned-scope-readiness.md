@@ -125,6 +125,14 @@ boundaries.
 
 ## Finished-work proof
 
+The final image was also restarted against the preserved 896-repository
+terminal corpus after an earlier image had stalled for more than 112 seconds
+on its fourth exact completion check. The final image seeded no new state in
+9.1 ms and finalized all 828 remaining building scopes in 52.3 seconds. It
+processed eight 100-scope pages in 4.1 to 10.6 seconds and one 28-scope page in
+1.0 second; the next sweep found zero pending scopes in 3.2 ms. No completion
+query remained active for five seconds after convergence.
+
 The rebuilt reducer was restarted against the preserved worst-case remote tail
 with one 253,206-document scope and 105,737 vectors remaining. It drained the
 tail in 47.5 seconds. Full pages built 10,000 vectors per sweep in 4.0 to 6.6
@@ -142,6 +150,26 @@ The terminal audit reported:
 - 13,034 succeeded queue items and no other queue status;
 - a newly published readiness watermark after convergence; and
 - no residual long-running completion query.
+
+A clean-volume run then rebuilt the full 896-repository corpus from the final
+Git commit. All 896 source projections and the initial 11,934 queue items were
+terminal in 1,350 seconds. Search-vector convergence followed at
+`02:12:18.868Z`, 2,172.9 seconds (36 minutes 12.9 seconds) after launch. That
+missed the 35-minute-45-second acceptance target by 27.9 seconds and the
+sub-30-minute stretch target by 6 minutes 12.9 seconds; it did not reproduce
+the unbounded completion-query tail. The last 253,206-document scope built
+10,000-vector pages in 4.4 to 5.9 seconds and finalized its last 119 documents
+in 3.3 seconds. The immediately following zero-pending sweep took 3.2 ms.
+
+The clean-run terminal audit again found 2,583,358 documents, metadata rows,
+and vector values; 831 ready and zero building vector scopes; zero content-hash
+mismatches; zero ready metadata rows without a matching value; 13,034
+succeeded queue items with no other status; and no completion query active for
+five seconds. API and MCP health checks passed. `/api/v0/index-status` reported
+896 repositories and the same terminal queue, the API relationship-evidence
+drilldown returned its requested resolved ID, MCP listed 157 tools, and the
+matching MCP evidence drilldown plus an exact/fresh indexed-repository page
+both succeeded.
 
 The focused package tests, live Postgres semantic matrix, and scoped race tests
 passed before the rebuilt-binary proof. `make pre-pr` then exercised the
