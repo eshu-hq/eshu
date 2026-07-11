@@ -70,9 +70,10 @@ else
   record_fail "generator output is not valid JSON"
 fi
 
-# Case 2: the generator is idempotent — re-running with the same
-# inputs produces the same bytes. (Deterministic output is the load-
-# bearing property of the gate.)
+# Case 2: no drift — a fresh generator run reproduces the committed
+# artifact byte-for-byte. (Deterministic, drift-free output is the
+# load-bearing property of the gate; this is stronger than a re-run
+# idempotency check.)
 if cmp -s "${out_path}" "${expected_path}"; then
   record_pass "generator output matches the committed artifact"
 else

@@ -122,8 +122,8 @@ Use this runbook when adding a new `eshu_dp_*` metric or a new pipeline stage.
    emits it with `printf`, neither of which touches a pipe. The dashboard
    generator has its own test mirror
    (`scripts/test-generate-operator-dashboard.sh`, which wraps the generator
-   call in a watchdog so a future regression fails in seconds) and CI
-   workflow (`.github/workflows/generate-operator-dashboard.yml`).
+   call in a watchdog so a future regression fails in seconds) and the
+   `dashboard` gate job in `.github/workflows/static-contract-gates.yml`.
 
 ## Verifying The Discipline End To End
 

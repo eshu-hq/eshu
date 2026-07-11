@@ -664,6 +664,8 @@ gates:
       - "go/internal/mcp/**"
       - "docs/public/observability/**"
       - "scripts/generate-operator-dashboard.sh"
+      - "scripts/lib/operator-dashboard-*.json.tmpl"
+      - "scripts/lib/operator-dashboard-metrics.sh"
     local:
       command: "bash scripts/generate-operator-dashboard.sh"
       test_command: "bash scripts/test-generate-operator-dashboard.sh"
