@@ -4,6 +4,7 @@
 // UX-only signal: the server enforces authorization on every admin API
 // route regardless of what this screen shows or hides.
 import { ShieldAlert } from "lucide-react";
+import { useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 
 import { ADMIN_ROUTE_FAMILIES } from "../auth/capabilityAccess";
@@ -11,6 +12,15 @@ import { Badge, Panel } from "../components/atoms";
 import "./accessDenied.css";
 
 export function AccessDeniedPage(): React.JSX.Element {
+  // Move focus to the denial heading on mount so keyboard/screen-reader users
+  // land on the 403 message immediately after a route-level redirect instead
+  // of staying wherever focus was (often the document body), which silently
+  // strands assistive-tech users on the previous page's context (issue #4996).
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    headingRef.current?.focus();
+  }, []);
+
   return (
     <section className="page-shell">
       <div className="access-denied-wrap" role="alert" aria-labelledby="access-denied-title">
@@ -18,7 +28,9 @@ export function AccessDeniedPage(): React.JSX.Element {
           <div className="access-denied-icon" aria-hidden>
             <ShieldAlert />
           </div>
-          <h1 id="access-denied-title">You don't have access to this area</h1>
+          <h1 id="access-denied-title" ref={headingRef} tabIndex={-1}>
+            You don't have access to this area
+          </h1>
           <p>
             This area needs one of the identity, roles, tokens, or audit admin permissions, and your
             current session doesn't hold any of them.
