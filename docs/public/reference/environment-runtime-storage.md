@@ -167,3 +167,36 @@ the active fingerprint and any explicitly compatible older writer fingerprints.
 | Variable | Default | Read by | Purpose |
 | --- | --- | --- | --- |
 | `ESHU_TERRAFORM_SCHEMA_DIR` | packaged/default schema dir | Terraform schema loader | Overrides Terraform provider schema directory for local schema development or newly generated provider schemas. |
+
+## Static OIDC Config `policy_revision_hash` Deprecation (#5038)
+
+No-Regression Evidence: this change edits only the `Description` string of the
+existing `ESHU_AUTH_OIDC_CONFIG_FILE` entry in
+`go/internal/envregistry/entries.go` (a data-only Go file: a slice of struct
+literals with no control flow) and the corresponding doc rows above and in
+`env-registry.md`. `scripts/dev/precommit-go.sh perf-evidence`'s
+content-based hot-path scan flags any changed file under `go/internal` that
+contains a whole-word match for `Heartbeat` (among other worker/queue/lease
+keywords) anywhere in the file, not only in the diff; `entries.go` already
+contained `ESHU_WORKFLOW_COORDINATOR_HEARTBEAT_INTERVAL`'s unrelated
+"Heartbeat interval for claim owners" description before this change, so
+editing any other line in the file trips the gate as a false positive. The
+behavior change for #5038 is entirely in `go/internal/oidclogin` (the
+`StaticGrantResolver` no longer reads `role_grants[].policy_revision_hash`)
+and `go/cmd/api` (a startup WARN log), both non-hot-path packages by this
+gate's own location and content rules — no Cypher, graph write, worker claim,
+lease, batch, queue, or concurrency knob changed. Verification:
+`cd go && go test ./internal/envregistry ./internal/oidclogin ./internal/storage/postgres ./cmd/api -count=1`.
+
+No-Observability-Change: no metric, metric label, span, or runtime knob
+changed, and this file's env-var/runtime-config surface is unaffected. The one
+new startup WARN this issue adds
+(`auth.oidc.static_config.policy_revision_hash_ignored`, emitted from
+`go/cmd/api/oidc_login.go`'s `newOIDCLoginHandler`) is a plain structured log
+event, following the same ad-hoc `slog.Logger` + `telemetry.EventAttr("auth.*")`
+pattern already used by the neighboring
+`auth.provider_config.keyring_unconfigured` and `auth.oidc.session_refresh.*`
+startup/runtime logs in the same file (`go/cmd/api/wiring.go`,
+`go/cmd/api/oidc_session_refresh.go`) — none of those are individually
+enumerated in a docs page either; operators read them from the existing
+structured JSON log stream.
