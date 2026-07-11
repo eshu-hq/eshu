@@ -13,7 +13,6 @@ import (
 	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
-	"github.com/lib/pq"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
@@ -266,6 +265,28 @@ VALUES ($1, $2, $3, $4, $5, 'git', $5, $6, $6, $7::jsonb)`,
 			t.Fatalf("seed fact %q: %v", row.factID, err)
 		}
 	}
+	if _, err := db.ExecContext(ctx, `
+INSERT INTO relationship_reference_candidate_keys (
+    fact_id, scope_id, generation_id, source_repo_id, reference_key
+)
+SELECT
+    fact_id,
+    scope_id,
+    generation_id,
+    COALESCE(NULLIF(LOWER(TRIM(payload->>'repo_id')), ''), ''),
+    '|' ||
+    REGEXP_REPLACE(
+        REGEXP_REPLACE(LOWER(payload::text), '\.git', '', 'g'),
+        '[^a-z0-9._-]+',
+        '|',
+        'g'
+    ) ||
+    '|'
+FROM fact_records
+WHERE fact_kind IN ('content', 'file', 'gcp_cloud_relationship')
+  AND is_tombstone = FALSE`); err != nil {
+		t.Fatalf("seed relationship reference keys: %v", err)
+	}
 	return rows
 }
 
@@ -306,7 +327,7 @@ func runPreHoistDeferredScopedQuery(
 	return collectDeferredScopedRows(t, rows)
 }
 
-// runHoistedDeferredScopedQuery executes the production ($1..$6) hoisted query
+// runHoistedDeferredScopedQuery executes the production ($1..$7) hoisted query
 // shape — building $5/$6 exactly as loadDeferredScopedRelationshipFactsForPartition
 // does — and returns the loaded fact_id set.
 func runHoistedDeferredScopedQuery(
@@ -319,6 +340,7 @@ func runHoistedDeferredScopedQuery(
 	t.Helper()
 	ownRepoID := deferredScopedFactOwnRepoIDFromScope(scopeID)
 	regex, ok := buildDeferredRepoIDRegex([]string(params.repoIDValues), ownRepoID)
+	repoIDReferenceKeys := deferredRepoIDReferenceKeys(params.repoIDValues, params.repoIDReferenceKey)
 	var regexParam sql.NullString
 	if ok {
 		regexParam = sql.NullString{String: regex, Valid: true}
@@ -326,7 +348,7 @@ func runHoistedDeferredScopedQuery(
 	rows, err := db.QueryContext(
 		ctx,
 		listDeferredScopedRelationshipFactRecordsQuery,
-		params.nonRepoIDLike, params.repoIDValues, scopeID, generationID, regexParam, ownRepoID,
+		params.nonRepoIDLike, params.repoIDValues, scopeID, generationID, regexParam, ownRepoID, repoIDReferenceKeys,
 	)
 	if err != nil {
 		t.Fatalf("query (hoisted): %v", err)
@@ -473,6 +495,3 @@ func evidenceSetsEqual(a, b []relationships.EvidenceFact) bool {
 	}
 	return true
 }
-
-// keep pq import referenced for the shared param type used across this file.
-var _ = pq.StringArray(nil)

@@ -59,6 +59,18 @@ CREATE TABLE fact_records (
 
 CREATE INDEX fact_records_scope_generation_idx
     ON fact_records (scope_id, generation_id, fact_kind, observed_at DESC);
+
+CREATE TABLE relationship_reference_candidate_keys (
+    fact_id TEXT NOT NULL,
+    scope_id TEXT NOT NULL,
+    generation_id TEXT NOT NULL,
+    source_repo_id TEXT NOT NULL,
+    reference_key TEXT NOT NULL,
+    PRIMARY KEY (fact_id)
+);
+
+CREATE INDEX relationship_reference_candidate_keys_partition_idx
+    ON relationship_reference_candidate_keys (scope_id, generation_id, fact_id);
 `
 
 // TestDeferredBackfillPartitionSourceCoversAllScopes is the #3710 partition-source

@@ -6,6 +6,7 @@ package relationships
 import (
 	"reflect"
 	"sort"
+	"strings"
 	"testing"
 )
 
@@ -248,5 +249,27 @@ func TestCatalogRepoIDValuesExcludesNonRepoIDAliases(t *testing.T) {
 	}
 	if len(values) != 1 || values[0] != "my-repo-id" {
 		t.Errorf("CatalogRepoIDValues = %v, want [my-repo-id]", values)
+	}
+}
+
+func TestCatalogReferenceKeyUsesMatcherTokens(t *testing.T) {
+	t.Parallel()
+
+	got := CatalogReferenceKey("https://github.com/acme/app-config.git")
+	want := "https|github.com|acme|app-config"
+	if got != want {
+		t.Fatalf("CatalogReferenceKey() = %q, want %q", got, want)
+	}
+}
+
+func TestCatalogReferenceTokenStreamKeepsBoundaries(t *testing.T) {
+	t.Parallel()
+
+	stream := CatalogReferenceTokenStream("uses: github.com/acme/app-config/.github/workflows/deploy.yaml@main")
+	if !strings.Contains(stream, "|github.com|acme|app-config|") {
+		t.Fatalf("token stream %q missing target repo key", stream)
+	}
+	if strings.Contains(stream, "|github.com|acme|app|") {
+		t.Fatalf("token stream %q must not make prefix repo github.com/acme/app look present", stream)
 	}
 }

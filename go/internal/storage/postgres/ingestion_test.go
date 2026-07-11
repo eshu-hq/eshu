@@ -92,20 +92,21 @@ func TestIngestionStoreCommitScopeGenerationPersistsProjectionInput(t *testing.T
 	// fact_id), not a plain exec, so upsertFactBatchReturningAccepted can learn
 	// which fact_ids the fencing_token guard actually accepted (issue #4444
 	// review, codex P1). It no longer appears in commitTx.execs.
-	if got, want := len(commitTx.execs), 4; got != want {
+	if got, want := len(commitTx.execs), 5; got != want {
 		t.Fatalf("exec count = %d, want %d", got, want)
 	}
 	for index, want := range []string{
 		"pg_advisory_xact_lock_shared",
 		"INSERT INTO ingestion_scopes",
 		"INSERT INTO scope_generations",
+		"DELETE FROM relationship_reference_candidate_keys",
 		"INSERT INTO fact_work_items",
 	} {
 		if !strings.Contains(commitTx.execs[index].query, want) {
 			t.Fatalf("exec[%d] query = %q, want substring %q", index, commitTx.execs[index].query, want)
 		}
 	}
-	if got, want := commitTx.execs[3].args[3], "source_local"; got != want {
+	if got, want := commitTx.execs[4].args[3], "source_local"; got != want {
 		t.Fatalf("projector domain arg = %v, want %v", got, want)
 	}
 	foundFactRecordsQuery := false
@@ -303,7 +304,7 @@ func TestIngestionStoreCommitClaimedScopeGenerationFencesClaimInTransaction(t *t
 	// The fact_records upsert now runs as a query (INSERT ... RETURNING
 	// fact_id), not a plain exec (issue #4444 review, codex P1), so it no
 	// longer appears in db.tx.execs.
-	if got, want := len(db.tx.execs), 5; got != want {
+	if got, want := len(db.tx.execs), 6; got != want {
 		t.Fatalf("exec count = %d, want %d", got, want)
 	}
 	if got := db.tx.execs[0].query; !strings.Contains(got, "WITH candidate AS") || !strings.Contains(got, "workflow_claims") || !strings.Contains(got, "status = 'active'") {

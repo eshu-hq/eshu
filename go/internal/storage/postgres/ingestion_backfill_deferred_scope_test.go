@@ -110,17 +110,18 @@ func TestBackfillDeferredPassExcludesSelfRepoIDMatch(t *testing.T) {
 }
 
 // assertDeferredSelfExclusionArgs confirms the deferred query was parameterised
-// with six arguments (issue #3624 payload-hoist rewrite): $1 non-repo_id LIKE
+// with seven arguments (issue #3624 payload-hoist rewrite): $1 non-repo_id LIKE
 // terms, $2 raw lowercase repo_id values for exact self-exclusion, $3 scope_id
 // partition, $4 generation_id partition, $5 the nullable $6-excluded regex
 // alternation (buildDeferredRepoIDRegex), and $6 the scope_id-derived own-repo_id
-// performance hint (deferredScopedFactOwnRepoIDFromScope). The query uses the
+// performance hint (deferredScopedFactOwnRepoIDFromScope), and $7 repo_id
+// reference token keys for the side-table fast path. The query uses the
 // raw repo_id values for exact self-exclusion before literal substring matching,
 // so repo_id args must not be %-wrapped LIKE terms.
 func assertDeferredSelfExclusionArgs(t *testing.T, args []any) {
 	t.Helper()
-	if len(args) != 6 {
-		t.Fatalf("deferred fact query args count = %d, want 6 (non-repo_id anchors, repo_id values, scope_id, generation_id, own-excluded regex, own repo_id)", len(args))
+	if len(args) != 7 {
+		t.Fatalf("deferred fact query args count = %d, want 7 (non-repo_id anchors, repo_id values, scope_id, generation_id, own-excluded regex, own repo_id, repo_id reference keys)", len(args))
 	}
 	nonRepoIDTerms, ok := args[0].(pq.StringArray)
 	if !ok {
@@ -141,6 +142,13 @@ func assertDeferredSelfExclusionArgs(t *testing.T, args []any) {
 	}
 	if _, ok := args[5].(string); !ok {
 		t.Fatalf("deferred query arg[5] ($6 own repo_id hint) type = %T, want string", args[5])
+	}
+	repoIDKeys, ok := args[6].(pq.StringArray)
+	if !ok {
+		t.Fatalf("deferred query arg[6] ($7 repo_id reference keys) type = %T, want pq.StringArray", args[6])
+	}
+	if len(repoIDKeys) != len(repoIDTerms) {
+		t.Fatalf("deferred query arg[6] keys = %d, want one key per repo_id term (%d)", len(repoIDKeys), len(repoIDTerms))
 	}
 	// non-repo_id terms must be LIKE-wrapped
 	for _, term := range nonRepoIDTerms {

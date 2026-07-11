@@ -417,6 +417,7 @@ func buildDeferredScopedFactLoadTasks(
 	tasks := make([]deferredScopedFactLoadTask, 0, len(partitions))
 	for _, partition := range partitions {
 		repoIDValues := []string(params.repoIDValues)
+		repoIDReferenceKeys := []string(deferredRepoIDReferenceKeys(params.repoIDValues, params.repoIDReferenceKey))
 		if len(repoIDValues) == 0 {
 			tasks = append(tasks, deferredScopedFactLoadTask{partition: partition, params: params})
 			continue
@@ -427,7 +428,8 @@ func buildDeferredScopedFactLoadTasks(
 				end = len(repoIDValues)
 			}
 			taskParams := deferredScopedFactQueryParams{
-				repoIDValues: pq.StringArray(repoIDValues[start:end]),
+				repoIDValues:       pq.StringArray(repoIDValues[start:end]),
+				repoIDReferenceKey: pq.StringArray(repoIDReferenceKeys[start:end]),
 			}
 			if start == 0 {
 				taskParams.nonRepoIDLike = params.nonRepoIDLike
