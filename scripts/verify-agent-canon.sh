@@ -65,7 +65,12 @@ if [ -d "$skills_root" ]; then
 
   performance_skill="$skills_root/eshu-performance-rigor/SKILL.md"
   performance_manifest="$skills_root/eshu-performance-rigor/references/run-manifest.md"
-  if [ -f "$performance_skill" ]; then
+  if [ ! -f "$performance_skill" ]; then
+    printf 'verify-agent-canon: missing mandatory performance skill: %s\n' \
+      "$performance_skill" >&2
+    exit 1
+  fi
+
     performance_skill_tokens=(
       '## Target Contribution Budget'
       'required_saving_seconds'
@@ -115,7 +120,6 @@ if [ -d "$skills_root" ]; then
       fi
     done
     printf 'verify-agent-canon: performance workflow contract is complete.\n'
-  fi
 fi
 
 opencode_agents="$repo_root/.opencode/agent"

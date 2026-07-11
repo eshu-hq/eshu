@@ -38,6 +38,7 @@ else
 fi
 
 mkdir -p "$tmp/skill-links/.agents/skills/example" \
+  "$tmp/skill-links/.agents/skills/eshu-performance-rigor/references" \
   "$tmp/skill-links/.claude/skills" \
   "$tmp/skill-links/.codex/skills"
 printf 'shared canon\n' >"$tmp/skill-links/AGENTS.md"
@@ -46,6 +47,25 @@ printf '%s\n' '---' 'name: example' 'description: example' '---' \
   >"$tmp/skill-links/.agents/skills/example/SKILL.md"
 ln -s ../../.agents/skills/example "$tmp/skill-links/.claude/skills/example"
 ln -s ../../.agents/skills/example "$tmp/skill-links/.codex/skills/example"
+cat >"$tmp/skill-links/.agents/skills/eshu-performance-rigor/SKILL.md" <<'LINK_PERF_SKILL'
+## Target Contribution Budget
+required_saving_seconds maximum_recoverable_seconds expected_saving_seconds
+## Resource-Qualified Claims
+absolute_target_applicable same-machine relative
+## Baseline Promotion
+## Retention Modes
+stop-and-preserve git merge-base --is-ancestor
+LINK_PERF_SKILL
+cat >"$tmp/skill-links/.agents/skills/eshu-performance-rigor/references/run-manifest.md" <<'LINK_PERF_MANIFEST'
+target_contribution phase_durations_seconds retention accepted_commit
+hardware_class machine_profile reference_profile resource_envelope memory_bytes
+container_memory_limit_bytes absolute_target_applicable compose_service_limits
+service_usage_summary
+LINK_PERF_MANIFEST
+ln -s ../../.agents/skills/eshu-performance-rigor \
+  "$tmp/skill-links/.claude/skills/eshu-performance-rigor"
+ln -s ../../.agents/skills/eshu-performance-rigor \
+  "$tmp/skill-links/.codex/skills/eshu-performance-rigor"
 if ESHU_AGENT_CANON_REPO_ROOT="$tmp/skill-links" "$canon" >/dev/null 2>&1; then
   ok "agent-canon passes when shared skill discovery links are complete"
 else
@@ -119,6 +139,16 @@ if ESHU_AGENT_CANON_REPO_ROOT="$tmp/perf-contract" "$canon" >/dev/null 2>&1; the
 else
   no "agent-canon should pass when the performance workflow contract is complete"
 fi
+
+mv "$tmp/perf-contract/.agents/skills/eshu-performance-rigor/SKILL.md" \
+  "$tmp/perf-contract/performance-skill.saved"
+if ESHU_AGENT_CANON_REPO_ROOT="$tmp/perf-contract" "$canon" >/dev/null 2>&1; then
+  no "agent-canon should fail when the mandatory performance skill is missing"
+else
+  ok "agent-canon fails when the mandatory performance skill is missing"
+fi
+mv "$tmp/perf-contract/performance-skill.saved" \
+  "$tmp/perf-contract/.agents/skills/eshu-performance-rigor/SKILL.md"
 
 mkdir -p "$tmp/opencode-conflict/.opencode/agent"
 printf 'shared canon\n' >"$tmp/opencode-conflict/AGENTS.md"

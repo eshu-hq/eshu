@@ -60,8 +60,8 @@ pass `scripts/verify-scale-benchmark-artifact.sh`.
     "absolute_target_applicable": true,
     "resource_envelope": {
       "cpu_architecture": "amd64",
-      "logical_cpu_count": 0,
-      "memory_bytes": 0,
+      "logical_cpu_count": 16,
+      "memory_bytes": 137438953472,
       "storage_kind": "local-ssd",
       "os_class": "linux",
       "container_cpu_limit": null,
@@ -141,11 +141,11 @@ pass `scripts/verify-scale-benchmark-artifact.sh`.
     "service_usage_summary": [
       {
         "service": "postgres",
-        "peak_cpu_percent": 0,
-        "peak_memory_bytes": 0,
-        "peak_memory_percent": 0,
-        "block_read_bytes": 0,
-        "block_write_bytes": 0,
+        "peak_cpu_percent": 72.5,
+        "peak_memory_bytes": 2147483648,
+        "peak_memory_percent": 1.56,
+        "block_read_bytes": 104857600,
+        "block_write_bytes": 52428800,
         "restart_count": 0,
         "oom_killed": false
       }
@@ -171,8 +171,10 @@ pass `scripts/verify-scale-benchmark-artifact.sh`.
 Use `null` plus a caveat for a value that was not captured. Do not write `0`
 for an unknown count or timestamp; zero is an observed result.
 
-The example uses zero only as a shape placeholder. A real evidence manifest
-must record observed positive CPU and memory values or use `null` with a caveat.
+A real evidence manifest must record observed positive CPU and memory values or
+use `null` with a caveat. For configured limits, `null` means a verified absence
+of an explicit Compose limit; an unknown limit also uses `null` but must carry a
+caveat stating that comparability is incomplete.
 
 Resource sampling must span the measured run and tag samples with the current
 pipeline phase. `compose_service_limits` is an input to comparability;
