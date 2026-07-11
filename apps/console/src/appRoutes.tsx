@@ -54,6 +54,14 @@ const WorkspacePage = lazy(() =>
   import("./pages/WorkspacePage").then((module) => ({ default: module.WorkspacePage })),
 );
 
+// GuidedQuestionsPage is code-split via React.lazy (issue #4746) so its
+// query-playbooks live surface stays out of the eagerly loaded main bundle.
+const GuidedQuestionsPage = lazy(() =>
+  import("./pages/GuidedQuestionsPage").then((module) => ({
+    default: module.GuidedQuestionsPage,
+  })),
+);
+
 export interface AppRoutesProps {
   readonly model: ConsoleModel;
   readonly client: EshuApiClient | undefined;
@@ -105,6 +113,21 @@ export function AppRoutes({
         }
       />
       <Route path="/ask" element={<AskPage source={source} />} />
+      <Route
+        path="/guided-questions"
+        element={
+          <Suspense
+            fallback={
+              <section className="page-shell">
+                <h1>Loading guided questions</h1>
+                <p>Loading live data.</p>
+              </section>
+            }
+          >
+            <GuidedQuestionsPage client={client} source={source} />
+          </Suspense>
+        }
+      />
       <Route path="/impact" element={<ImpactPage model={model} client={client} />} />
       <Route path="/exposure" element={<ExposurePathPage client={client} />} />
       <Route path="/changed-since" element={<ChangedSincePage client={client} model={model} />} />

@@ -2493,6 +2493,11 @@
     },
     {
       "category": "console_page",
+      "name": "GuidedQuestionsPage",
+      "readiness": "implemented"
+    },
+    {
+      "category": "console_page",
       "name": "IacPage",
       "readiness": "implemented"
     },

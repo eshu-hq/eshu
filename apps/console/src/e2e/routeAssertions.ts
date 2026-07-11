@@ -152,7 +152,8 @@ export const consoleRoutes: readonly ConsoleRoute[] = [
   { path: "/changed-since", label: "Changed Since", area: "graph" },
   { path: "/replatforming", label: "Replatforming", area: "service" },
   { path: "/ci-cd/run-correlations", label: "CI/CD Run Correlations", area: "operations" },
-  { path: "/ask", label: "Ask Eshu", area: "ask" }
+  { path: "/ask", label: "Ask Eshu", area: "ask" },
+  { path: "/guided-questions", label: "Guided Questions", area: "ask" },
 ];
 
 // defaultNetworkAllowList holds the only justified non-2xx responses. Each entry
@@ -167,10 +168,7 @@ function isOkStatus(status: number): boolean {
   return status >= 200 && status < 400;
 }
 
-function matchAllowRule(
-  observation: NetworkObservation,
-  rule: NetworkAllowRule
-): boolean {
+function matchAllowRule(observation: NetworkObservation, rule: NetworkAllowRule): boolean {
   return (
     observation.method.toUpperCase() === rule.method.toUpperCase() &&
     observation.status === rule.status &&
@@ -183,7 +181,7 @@ function matchAllowRule(
 // array means the route passed.
 export function evaluateRoute(
   signals: RouteSignals,
-  allowList: readonly NetworkAllowRule[] = defaultNetworkAllowList
+  allowList: readonly NetworkAllowRule[] = defaultNetworkAllowList,
 ): RouteResult {
   const failures: RouteFailure[] = [];
   const allowedNonOk: AllowedNonOk[] = [];
@@ -191,28 +189,28 @@ export function evaluateRoute(
   if (!signals.connected) {
     failures.push({
       code: "not_connected",
-      detail: `route ${signals.route.path} did not reach a connected live source (mode=${signals.sourceMode})`
+      detail: `route ${signals.route.path} did not reach a connected live source (mode=${signals.sourceMode})`,
     });
   }
 
   if (signals.sourceMode === "demo" || signals.demoBannerPresent) {
     failures.push({
       code: "demo_fallback",
-      detail: `route ${signals.route.path} fell back to demo data (mode=${signals.sourceMode}, demoBanner=${String(signals.demoBannerPresent)})`
+      detail: `route ${signals.route.path} fell back to demo data (mode=${signals.sourceMode}, demoBanner=${String(signals.demoBannerPresent)})`,
     });
   }
 
   if (signals.mainContentChars < minMainContentChars) {
     failures.push({
       code: "blank_render",
-      detail: `route ${signals.route.path} rendered ${signals.mainContentChars} chars of main content (< ${minMainContentChars}); expected real data or an explicit empty/unavailable state`
+      detail: `route ${signals.route.path} rendered ${signals.mainContentChars} chars of main content (< ${minMainContentChars}); expected real data or an explicit empty/unavailable state`,
     });
   }
 
   for (const message of signals.consoleErrors) {
     failures.push({
       code: "console_error",
-      detail: `route ${signals.route.path} logged a browser console error: ${message}`
+      detail: `route ${signals.route.path} logged a browser console error: ${message}`,
     });
   }
 
@@ -226,16 +224,17 @@ export function evaluateRoute(
         url: observation.url,
         method: observation.method,
         status: observation.status,
-        reason: rule.reason
+        reason: rule.reason,
       });
       continue;
     }
-    const failureSuffix = observation.failureText === null
-      ? `status ${observation.status}`
-      : `network failure ${observation.failureText}`;
+    const failureSuffix =
+      observation.failureText === null
+        ? `status ${observation.status}`
+        : `network failure ${observation.failureText}`;
     failures.push({
       code: "unexpected_network",
-      detail: `route ${signals.route.path} issued an unexpected request: ${observation.method} ${observation.url} (${failureSuffix})`
+      detail: `route ${signals.route.path} issued an unexpected request: ${observation.method} ${observation.url} (${failureSuffix})`,
     });
   }
 
@@ -243,7 +242,7 @@ export function evaluateRoute(
     route: signals.route,
     passed: failures.length === 0,
     failures,
-    allowedNonOk
+    allowedNonOk,
   };
 }
 
@@ -265,6 +264,6 @@ export function summarizeGate(results: readonly RouteResult[]): GateSummary {
     total: results.length,
     passedCount,
     failedCount: results.length - passedCount,
-    results
+    results,
   };
 }
