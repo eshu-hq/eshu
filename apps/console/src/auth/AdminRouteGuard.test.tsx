@@ -44,6 +44,20 @@ describe("AdminRouteGuard (#4969)", () => {
     warnSpy.mockRestore();
   });
 
+  it("moves focus to the denial heading on mount so keyboard/screen-reader users land on it (#4996)", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const auth = makeAuth({
+      all_scopes: false,
+      permission_catalog_enforced: true,
+      allowed_permission_features: ["ask_search"],
+    });
+    renderGuard(auth);
+    const heading = screen.getByRole("heading", { name: "You don't have access to this area" });
+    expect(heading).toHaveAttribute("tabIndex", "-1");
+    expect(heading).toHaveFocus();
+    warnSpy.mockRestore();
+  });
+
   it("renders children unchanged for a full admin session (all_scopes)", () => {
     renderGuard(makeAuth({ all_scopes: true }));
     expect(screen.getByText("admin page content")).toBeInTheDocument();
