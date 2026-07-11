@@ -43,9 +43,10 @@ command -v rg >/dev/null 2>&1 || die "rg is required"
 # The bounded SDK request the host sends on stdin. config.source.input is the
 # IN-IMAGE fixture path baked by Dockerfile.oci — never a host path — so the
 # read-only, network-less container resolves it without any mount or leak.
-read -r -d '' sdk_request <<'JSON' || true
-{"protocol_version":"collector-sdk/v1alpha1","claim":{"component_id":"dev.eshu.examples.scorecard","instance_id":"scorecard-oci","collector_kind":"scorecard","source_system":"openssf-scorecard","scope":{"id":"github.com/example/widgets","kind":"repository"},"source_run_id":"oci-adapter-proof","generation_id":"oci-adapter-proof"},"contract":{"protocol_version":"collector-sdk/v1alpha1","facts":[{"kind":"dev.eshu.examples.scorecard.snapshot","schema_versions":["1.0.0"],"source_confidence":["reported"]}]},"config":{"source":{"input":"/var/lib/scorecard/complete.json"}}}
-JSON
+# The body lives in scripts/lib/ (not a heredoc): Homebrew bash >= 5.1
+# writes the entire heredoc body to a pipe before forking the reader, and
+# macOS's 512-byte pipe buffer deadlocks on any body over that size (#5074).
+read -r -d '' sdk_request <"${repo_root}/scripts/lib/verify-oci-scorecard-adapter-sdk-request.json" || true
 
 fact_families=(
 	"dev.eshu.examples.scorecard.snapshot"
@@ -55,14 +56,17 @@ fact_families=(
 forbidden_patterns=('/Users/' '/home/' 'BEGIN [A-Z ]*PRIVATE KEY' '[Bb]earer [A-Za-z0-9._-]{8,}' '([0-9]{1,3}\.){3}[0-9]{1,3}')
 
 print_checks() {
-	cat <<CHECKS
-oci scorecard adapter proof checks:
-  1. build: reference image builds from Dockerfile.oci (pure-Go, distroless nonroot)
-  2. publish: image pushes to ${registry} and resolves an immutable repo@sha256 digest
-  3. isolation: digest-pinned artifact runs with --network none --read-only --user 65532:65532 --cap-drop ALL --security-opt no-new-privileges
-  4. facts: stdout carries the families ${fact_families[*]}
-  5. redaction canary: stdout has no host path, private key, bearer token, or raw IP
-CHECKS
+	# printf (a builtin, no pipe) instead of a heredoc: the unquoted CHECKS
+	# heredoc expanded ${registry} / ${fact_families[*]} past 512 bytes at
+	# runtime and deadlocked under Homebrew bash 5.3.15 even though its literal
+	# source was under budget (#5074; the static gate cannot see expansion size).
+	printf '%s\n' \
+		'oci scorecard adapter proof checks:' \
+		'  1. build: reference image builds from Dockerfile.oci (pure-Go, distroless nonroot)' \
+		"  2. publish: image pushes to ${registry} and resolves an immutable repo@sha256 digest" \
+		'  3. isolation: digest-pinned artifact runs with --network none --read-only --user 65532:65532 --cap-drop ALL --security-opt no-new-privileges' \
+		"  4. facts: stdout carries the families ${fact_families[*]}" \
+		'  5. redaction canary: stdout has no host path, private key, bearer token, or raw IP'
 }
 
 if [[ "${list_only}" == true ]]; then print_checks; exit 0; fi
