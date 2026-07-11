@@ -124,11 +124,18 @@ emit or capture it.** Use one of:
   `OPERATOR_DASHBOARD_METRIC_VARS`), and the literal Grafana
   `${DS_PROMETHEUS}` / `$__all` tokens pass through untouched because
   they are never looked up.
-- If a function must still assemble the body in-process, redirect its
-  `cat <<EOF ... EOF` output straight to a real file (never capture it
-  via `$(function_name)`, which is the large-input-in-command-
-  substitution construct that also hangs), then read the file back
-  with `$(<file)`.
+- If a function must still assemble the body in-process, emit it with
+  `printf` — a builtin, so no pipe and no fork — either one `printf`
+  per fragment or a single `printf '%s'` over a variable built by
+  concatenation. Do NOT reach for `cat <<EOF` here: the bash 5.1+
+  deadlock is in how the heredoc body is delivered to `cat` (the whole
+  body is written to a pipe before `cat` is forked), so redirecting
+  `cat`'s stdout to a real file (`cat <<EOF >file`) does not help — the
+  body still traverses the pipe and hangs in the 512 B–64 KB range.
+  That redirect-to-file shape is exactly what #5068 shipped for the
+  operator dashboard, and it still hung. Capturing via
+  `$(function_name)` is also out (large-input-in-command-substitution
+  hangs the same way).
 
 A generator that still uses a heredoc for a small (well under 512
 bytes), fixed, non-data body — a one-line usage message, for example
