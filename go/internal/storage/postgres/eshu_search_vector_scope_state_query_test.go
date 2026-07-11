@@ -110,6 +110,7 @@ func TestScopeVectorCompleteQueryShape(t *testing.T) {
 		"meta.vector_index_version = $6",
 		"meta.embedding_content_hash",
 		"value.embedding_content_hash = meta.embedding_content_hash",
+		"-- OFFSET 0 prevents the planner from un-nesting this NOT EXISTS into a full-scope anti-join (#5063).",
 		"OFFSET 0",
 	} {
 		if !strings.Contains(q, want) {

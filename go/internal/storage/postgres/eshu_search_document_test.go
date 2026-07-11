@@ -185,6 +185,7 @@ func TestEshuSearchDocumentStoreListsPendingVectorDocuments(t *testing.T) {
 		"meta.build_state = 'disabled'",
 		"meta.build_state = 'ready'",
 		"value.document_id IS NOT NULL",
+		"-- OFFSET 0 prevents the planner from un-nesting this NOT EXISTS into a full-scope anti-join (#5063).",
 		"OFFSET 0",
 		"ORDER BY doc.document_id",
 		"LIMIT",

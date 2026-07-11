@@ -162,6 +162,7 @@ SELECT CASE
                 AND meta.embedding_content_hash = doc.content_hash
                 AND (meta.build_state = 'disabled'
                      OR (meta.build_state = 'ready' AND value.document_id IS NOT NULL))
+              -- OFFSET 0 prevents the planner from un-nesting this NOT EXISTS into a full-scope anti-join (#5063).
               OFFSET 0
           )
     )
