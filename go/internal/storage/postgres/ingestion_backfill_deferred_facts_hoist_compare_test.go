@@ -19,7 +19,14 @@ SELECT
     fact_id,
     scope_id,
     generation_id,
-    COALESCE(NULLIF(LOWER(TRIM(payload->>'repo_id')), ''), ''),
+    COALESCE(
+        NULLIF(LOWER(TRIM(payload->>'repo_id')), ''),
+        CASE
+            WHEN scope_id LIKE 'git-repository-scope:%'
+                THEN LOWER(TRIM(SUBSTRING(scope_id FROM LENGTH('git-repository-scope:') + 1)))
+            ELSE ''
+        END
+    ),
     '|' ||
     REGEXP_REPLACE(
         REGEXP_REPLACE(
