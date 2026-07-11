@@ -255,3 +255,33 @@ func TestCapture_FactRefsDefaultToUnavailable(t *testing.T) {
 		t.Fatalf("Evidence.FactRefsReason is empty, want an explicit reason")
 	}
 }
+
+// TestCapture_NilResponseDataYieldsNullWithDigest proves the empty-state edge:
+// a response envelope with nil Data must still produce a valid bundle whose
+// Response.Data is the JSON null literal (redactValue(nil) -> nil ->
+// json.Marshal -> "null") and whose DataDigest is a non-empty canonical
+// digest of that null, not an error or an empty string.
+func TestCapture_NilResponseDataYieldsNullWithDigest(t *testing.T) {
+	t.Parallel()
+
+	bundle, err := Capture(CaptureInput{
+		Surface: "api",
+		Target:  "/api/v0/services/checkout/story",
+		Envelope: query.ResponseEnvelope{
+			Data:  nil,
+			Truth: &query.TruthEnvelope{Level: query.TruthLevelExact},
+		},
+	})
+	if err != nil {
+		t.Fatalf("Capture(nil Data) error = %v, want nil", err)
+	}
+	if got := string(bundle.Response.Data); got != "null" {
+		t.Fatalf("Response.Data = %q, want %q for nil response data", got, "null")
+	}
+	if strings.TrimSpace(bundle.Response.DataDigest) == "" {
+		t.Fatalf("Response.DataDigest is empty, want a canonical digest of the null value")
+	}
+	if err := Validate(bundle, ValidateOptions{RequirePublic: true}); err != nil {
+		t.Fatalf("Validate(nil-data bundle, RequirePublic) error = %v, want nil", err)
+	}
+}

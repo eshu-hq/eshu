@@ -85,7 +85,14 @@ var nowRFC3339UTC = func() string {
 // bundle that trips its own share-safe gate.
 func Capture(input CaptureInput) (Bundle, error) {
 	redactedParams, paramRules := redactValue(copyParams(input.Params))
-	redactedParamsMap, _ := redactedParams.(map[string]any)
+	// copyParams always yields a map[string]any and redactValue's map branch
+	// returns a map[string]any, so this holds by construction; the checked
+	// assertion fails loudly rather than silently substituting nil params if a
+	// future change to either function ever breaks that invariant.
+	redactedParamsMap, ok := redactedParams.(map[string]any)
+	if !ok {
+		return Bundle{}, fmt.Errorf("internal: redacted params are %T, want map[string]any", redactedParams)
+	}
 
 	redactedData, dataRules := redactValue(input.Envelope.Data)
 	dataRaw, err := json.Marshal(redactedData)

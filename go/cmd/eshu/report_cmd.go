@@ -30,20 +30,17 @@ issue or share it outside your own local triage workflow. Run without
 "eshu report validate --require-public" to confirm before sharing.
 `
 
-func init() {
-	rootCmd.AddCommand(newReportCommand())
-}
-
-func newReportCommand() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:           "report",
-		Short:         "Capture and validate wrong-answer report bundles",
-		SilenceUsage:  true,
-		SilenceErrors: true,
-	}
-	cmd.AddCommand(newReportCaptureCommand())
-	cmd.AddCommand(newReportValidateCommand())
-	return cmd
+// addReportBundleSubcommands attaches the wrong-answer report bundle
+// subcommands (`capture`, `validate`) to the existing top-level `report`
+// command built by newOperatorDigestCommand (operator_digest_cmd.go). There
+// is exactly one root-level `report` command: registering a second here would
+// silently shadow the operator-digest report in cobra's name lookup and make
+// one of the two features unreachable. Instead both features share the one
+// report parent — `eshu report` renders the operator digest, `eshu report
+// capture`/`eshu report validate` handle report bundles.
+func addReportBundleSubcommands(report *cobra.Command) {
+	report.AddCommand(newReportCaptureCommand())
+	report.AddCommand(newReportValidateCommand())
 }
 
 func newReportCaptureCommand() *cobra.Command {
