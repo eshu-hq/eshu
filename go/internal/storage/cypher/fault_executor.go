@@ -48,14 +48,15 @@ var (
 // use to inject faults into the real eshu-reducer binary; building and unit
 // testing this decorator needs no Docker at all.
 //
-// # Placement and lane honesty (T1, proven before this slice)
+// # Placement and lane honesty (T1, then fixed by #5048)
 //
-// This decorator wraps the reducer's BASE cypher.Executor: the exact value
-// go/cmd/reducer's executeReducerCypherWithRetry re-wraps, on every single
-// call, in a brand-new sourcecypher.RetryingExecutor around the real
-// session runner. That RetryingExecutor lives INSIDE the base executor's
-// Execute method -- below this decorator in the call chain, not above it.
-// Consequently, for fail-graph-write-once-then-succeed:
+// This decorator wraps the reducer's BASE cypher.Executor -- go/cmd/reducer's
+// reducerNeo4jExecutor, which since #5048 holds a PERSISTENT
+// sourcecypher.RetryingExecutor constructed once at startup (previously a
+// fresh RetryingExecutor was rebuilt on every call by the now-removed
+// executeReducerCypherWithRetry). That RetryingExecutor lives INSIDE the
+// base executor's Execute method -- below this decorator in the call chain,
+// not above it. Consequently, for fail-graph-write-once-then-succeed:
 //
 //   - target.lane = queue-retry returns a retryable, self-classifying
 //     graph_write_timeout error (ifaFaultQueueRetryError, matching a real
@@ -64,21 +65,28 @@ var (
 //     WorkSink.Fail and is re-enqueued as 'retrying': the queue-retry path
 //     this lane claims to exercise, proven for real, recovering on the next
 //     claim exactly as a real fail-once transient does.
-//   - target.lane = executor-retry shapes its injected error to contain
-//     "TransientError" (satisfying isTransientNeo4jError, and therefore
-//     isRetryableGraphWriteError/isRetryableGraphWriteGroupError). But
-//     because this decorator sits ABOVE the per-call RetryingExecutor
-//     rather than below it, no RetryingExecutor ever observes this error:
-//     it short-circuits before inner.Execute is called at all, so it
-//     surfaces to WorkSink.Fail and recovers via queue-retry exactly like
-//     the queue-retry lane (it carries the same retryable graph_write_timeout
-//     contract). This is the honest limitation T1 established: reaching the
-//     real in-place executor-retry loop in the reducer binary would require
-//     restructuring executeReducerCypherWithRetry to accept an injectable
-//     inner runner, tracked in #5048 and out of scope for this slice. See
-//     TestFaultingExecutorExecutorRetryLaneIsShapedTransientButNeverRetriedAboveTheSeam
-//     for the regression proof (wrapping a real RetryingExecutor as inner
-//     and asserting its own inner is never called for the fired attempt).
+//   - target.lane = executor-retry, for the single-statement Execute path,
+//     now reaches the real in-place retry loop when the caller has wired an
+//     ExecutorRetryArmer via SetExecutorRetryArmer (go/cmd/reducer's
+//     wrapIfaFaultExecutor does this for the real reducer binary): instead of
+//     returning the shaped error itself, maybeFailOnce arms the below-the-
+//     seam decorator and delegates, so the persistent RetryingExecutor sees
+//     the injected TransientError-shaped failure on attempt 1 and retries in
+//     place, reaching the real session write on attempt 2. WorkSink.Fail is
+//     never called for this lane when armed -- zero queue-retries, one
+//     logical success. When no armer is wired (the pre-#5048 default), the
+//     lane falls back to its original behavior: the shaped error surfaces
+//     here and recovers via queue-retry exactly like the queue-retry lane.
+//     The ExecuteGroup and ExecutePhaseGroup paths always use the fallback
+//     (no arming): go/cmd/reducer's grouped canonical writers bypass
+//     RetryingExecutor entirely today, so there is no in-place retry loop
+//     below those paths to arm (group-write retry parity is tracked
+//     separately, out of #5048's scope). See
+//     TestFaultingExecutorExecutorRetryLaneWithoutArmerFallsBackAboveTheSeam
+//     and TestFaultingExecutorExecutorRetryLaneArmsBelowTheSeamAndDelegatesWhenWired
+//     for the regression proofs, and go/cmd/reducer's
+//     TestWrapIfaFaultExecutorExecutorRetryLaneRetriesInPlaceBelowTheRetryingExecutor
+//     for the full end-to-end proof against the real reducer wiring.
 //
 // # Capability passthrough
 //
@@ -109,6 +117,38 @@ type FaultingExecutor struct {
 
 	callOrdinal  atomic.Int64 // shared across Execute/ExecuteGroup/ExecutePhaseGroup.
 	groupOrdinal atomic.Int64 // advances once per completed ExecuteGroup/ExecutePhaseGroup.
+
+	// executorRetryArm is armed (see SetExecutorRetryArmer) instead of
+	// maybeFailOnce returning the executor-retry lane's shaped error
+	// directly, for the single-statement Execute path only (#5048). Nil
+	// preserves the pre-#5048 above-the-seam fallback for every path.
+	executorRetryArm ExecutorRetryArmer
+}
+
+// ExecutorRetryArmer is armed by FaultingExecutor's executor-retry lane
+// (Execute path only) instead of the shaped fault error surfacing here
+// directly, so a decorator sitting below the reducer's persistent
+// RetryingExecutor injects exactly one TransientError-shaped failure on its
+// next call and RetryingExecutor retries it in place. Implementations MUST
+// make the fire-once behavior safe under concurrent callers (for example,
+// atomic.CompareAndSwap on the consuming side). See SetExecutorRetryArmer and
+// issue #5048.
+type ExecutorRetryArmer interface {
+	// Arm schedules exactly one failure on the next call to the armed seam.
+	Arm()
+}
+
+// SetExecutorRetryArmer wires the below-the-seam decorator this
+// FaultingExecutor arms instead of returning the executor-retry lane's
+// shaped error itself (see maybeFailOnce and issue #5048). Only the
+// single-statement Execute path arms below the seam; ExecuteGroup and
+// ExecutePhaseGroup keep returning the shaped error directly because no
+// retry loop sits below those grouped-write paths yet (group-write retry
+// parity is tracked separately, out of #5048's scope). Never calling this
+// setter (arm stays nil, the zero value) preserves the pre-#5048 behavior
+// for every call path.
+func (fe *FaultingExecutor) SetExecutorRetryArmer(arm ExecutorRetryArmer) {
+	fe.executorRetryArm = arm
 }
 
 // NewFaultingExecutor wraps inner with the fail-graph-write-once-then-succeed
@@ -187,7 +227,7 @@ func (fe *FaultingExecutor) RestartFired() bool {
 // delegating to inner. See the type doc for which lane this actually reaches.
 func (fe *FaultingExecutor) Execute(ctx context.Context, stmt Statement) error {
 	ordinal := int(fe.callOrdinal.Add(1))
-	if err := fe.maybeFailOnce(ordinal, []Statement{stmt}); err != nil {
+	if err := fe.maybeFailOnce(ordinal, []Statement{stmt}, true); err != nil {
 		return err
 	}
 	return fe.inner.Execute(ctx, stmt)
@@ -204,7 +244,7 @@ func (fe *FaultingExecutor) ExecuteGroup(ctx context.Context, stmts []Statement)
 		return errFaultingExecutorInnerNoGroup
 	}
 	ordinal := int(fe.callOrdinal.Add(1))
-	if err := fe.maybeFailOnce(ordinal, stmts); err != nil {
+	if err := fe.maybeFailOnce(ordinal, stmts, false); err != nil {
 		return err
 	}
 	if err := ge.ExecuteGroup(ctx, stmts); err != nil {
@@ -222,7 +262,7 @@ func (fe *FaultingExecutor) ExecutePhaseGroup(ctx context.Context, stmts []State
 		return errFaultingExecutorInnerNoPhaseGroup
 	}
 	ordinal := int(fe.callOrdinal.Add(1))
-	if err := fe.maybeFailOnce(ordinal, stmts); err != nil {
+	if err := fe.maybeFailOnce(ordinal, stmts, false); err != nil {
 		return err
 	}
 	if err := pge.ExecutePhaseGroup(ctx, stmts); err != nil {
@@ -233,10 +273,20 @@ func (fe *FaultingExecutor) ExecutePhaseGroup(ctx context.Context, stmts []State
 
 // maybeFailOnce fires the scripted fail-graph-write-once-then-succeed fault
 // the first time ordinal (or any statement in stmts, for an operation-match
-// trigger) matches, returning a lane-shaped error instead of delegating. A
-// sync/atomic CompareAndSwap gate makes this safe under concurrent callers:
-// exactly one caller observes the fired error, even if many match.
-func (fe *FaultingExecutor) maybeFailOnce(ordinal int, stmts []Statement) error {
+// trigger) matches. A sync/atomic CompareAndSwap gate makes firing safe under
+// concurrent callers: exactly one caller observes the fired attempt, even if
+// many match.
+//
+// allowArm is true only from the single-statement Execute path (#5048).
+// When the fired fault targets lane=executor-retry AND allowArm is true AND
+// an ExecutorRetryArmer is wired (SetExecutorRetryArmer), this arms the
+// below-the-seam decorator and returns nil so Execute delegates to inner
+// normally -- the persistent RetryingExecutor sitting inside inner then
+// observes and retries the injected failure in place. Every other case
+// (queue-retry, an unarmed executor-retry, or allowArm=false from
+// ExecuteGroup/ExecutePhaseGroup) returns the lane-shaped error directly,
+// exactly as before #5048.
+func (fe *FaultingExecutor) maybeFailOnce(ordinal int, stmts []Statement, allowArm bool) error {
 	if fe.onceLane == "" || !fe.onceMatches(ordinal, stmts) {
 		return nil
 	}
@@ -247,6 +297,10 @@ func (fe *FaultingExecutor) maybeFailOnce(ordinal int, stmts []Statement) error 
 	case faultreplay.LaneQueueRetry:
 		return &ifaFaultQueueRetryError{ordinal: ordinal}
 	case faultreplay.LaneExecutorRetry:
+		if allowArm && fe.executorRetryArm != nil {
+			fe.executorRetryArm.Arm()
+			return nil
+		}
 		return &ifaFaultExecutorRetryShapedError{ordinal: ordinal}
 	default:
 		return fmt.Errorf("faulting executor: unknown target.lane %q", fe.onceLane)
@@ -340,23 +394,27 @@ func (*ifaFaultQueueRetryError) Retryable() bool { return true }
 func (*ifaFaultQueueRetryError) FailureClass() string { return GraphWriteTimeoutFailureClass }
 
 // ifaFaultExecutorRetryShapedError is returned once for the executor-retry
-// lane. Its message contains "TransientError" so isTransientNeo4jError (and
-// therefore isRetryableGraphWriteError/isRetryableGraphWriteGroupError) would
-// classify it as retryable IF a RetryingExecutor sat below this decorator in
-// the call chain. In go/cmd/reducer's actual wiring it does not: this decorator
-// wraps the same base executor executeReducerCypherWithRetry re-wraps in a
-// fresh RetryingExecutor per call, so it sits above that RetryingExecutor and
-// the error surfaces to WorkSink.Fail exactly like the queue-retry lane rather
-// than being retried in place. It therefore carries the SAME retryable
-// graph_write_timeout contract as the queue-retry lane (via Retryable() and
-// FailureClass() below) so the intent recovers via queue-retry with zero dead
-// letters instead of dead-lettering as projection_bug. The message still names
-// the executor-retry lane and a TransientError shape so a genuine below-the-seam
+// lane's fallback path: ExecuteGroup/ExecutePhaseGroup always, or the
+// single-statement Execute path when no ExecutorRetryArmer is wired (see
+// maybeFailOnce). Its message contains "TransientError" so
+// isTransientNeo4jError (and therefore
+// isRetryableGraphWriteError/isRetryableGraphWriteGroupError) would classify
+// it as retryable IF a RetryingExecutor sat below this decorator in the call
+// chain. On this fallback path it does not: the error surfaces to
+// WorkSink.Fail exactly like the queue-retry lane rather than being retried
+// in place. It therefore carries the SAME retryable graph_write_timeout
+// contract as the queue-retry lane (via Retryable() and FailureClass()
+// below) so the intent recovers via queue-retry with zero dead letters
+// instead of dead-lettering as projection_bug. The message still names the
+// executor-retry lane and a TransientError shape so a genuine below-the-seam
 // RetryingExecutor -- the hermetic tier's FaultingExecutor -- classifies it
-// transient and retries it in place. Reaching the real in-place retry loop in
-// the reducer binary needs executeReducerCypherWithRetry restructured to accept
-// an injectable inner runner; that is tracked in #5048 and out of this slice's
-// scope.
+// transient and retries it in place. Since #5048, go/cmd/reducer's
+// wrapIfaFaultExecutor wires an ExecutorRetryArmer for the Execute path in
+// the real reducer binary, so this fallback error is no longer what fires
+// there; it remains reachable directly (SetExecutorRetryArmer never called)
+// and via ExecuteGroup/ExecutePhaseGroup, whose grouped writes still bypass
+// RetryingExecutor entirely (group-write retry parity is tracked separately,
+// out of #5048's scope).
 type ifaFaultExecutorRetryShapedError struct{ ordinal int }
 
 func (e *ifaFaultExecutorRetryShapedError) Error() string {

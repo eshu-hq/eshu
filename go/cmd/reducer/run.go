@@ -65,7 +65,7 @@ func run(parent context.Context) error {
 		return err
 	}
 
-	neo4jExecutor, cypherExecutor, neo4jReader, graphReader, neo4jCloser, err := openReducerNeo4jAdapters(parent, os.Getenv)
+	neo4jExecutor, cypherExecutor, neo4jReader, graphReader, neo4jCloser, err := openReducerNeo4jAdapters(parent, os.Getenv, instruments)
 	if err != nil {
 		return err
 	}
