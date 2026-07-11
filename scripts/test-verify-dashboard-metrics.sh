@@ -46,7 +46,7 @@ init_fixture() {
   # the entire heredoc body to a pipe before forking the reader, and
   # macOS's 512-byte pipe buffer deadlocks on any body over that size
   # (#5074).
-  cat "${repo_root}/scripts/lib/test-verify-dashboard-metrics-instruments.go" >"${dir}/go/internal/telemetry/instruments.go"
+  cat "${repo_root}/scripts/lib/test-verify-dashboard-metrics-instruments.go.tmpl" >"${dir}/go/internal/telemetry/instruments.go"
 
   printf '%s\n' "${dir}"
 }
