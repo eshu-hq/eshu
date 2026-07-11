@@ -193,6 +193,10 @@ func (s *IdentitySubjectStore) verifyLocalIdentityTOTPCode(
 	if err != nil {
 		return false, "", fmt.Errorf("select active local identity totp secrets: %w", err)
 	}
+	// defer Close so a rows.Scan panic cannot leak the row set, matching
+	// selectPendingTOTPSecret / ResolveLocalIdentityUserIDBySubjectHash in this
+	// file (self-review P2, PR #5065).
+	defer func() { _ = rows.Close() }()
 	type factorSecret struct {
 		factorID string
 		sealed   string
@@ -201,16 +205,13 @@ func (s *IdentitySubjectStore) verifyLocalIdentityTOTPCode(
 	for rows.Next() {
 		var fs factorSecret
 		if err := rows.Scan(&fs.factorID, &fs.sealed); err != nil {
-			_ = rows.Close()
 			return false, "", fmt.Errorf("scan active local identity totp secret: %w", err)
 		}
 		factors = append(factors, fs)
 	}
 	if err := rows.Err(); err != nil {
-		_ = rows.Close()
 		return false, "", fmt.Errorf("select active local identity totp secrets: %w", err)
 	}
-	_ = rows.Close()
 
 	for _, fs := range factors {
 		plaintext, err := s.openTOTPSecret(userID, fs.factorID, fs.sealed)

@@ -7,10 +7,10 @@
 import { useEffect, useState } from "react";
 
 import type { EshuApiClient } from "../api/client";
-import { loadProfile, loadSessions, loadTokens } from "../api/userProfile";
-import type { ProfileData, BrowserSessionItem, APITokenItem } from "../api/userProfile";
 import { beginTOTPEnrollment, confirmTOTPEnrollment } from "../api/totpEnrollment";
 import type { TOTPBeginResult } from "../api/totpEnrollment";
+import { loadProfile, loadSessions, loadTokens } from "../api/userProfile";
+import type { ProfileData, BrowserSessionItem, APITokenItem } from "../api/userProfile";
 import { Panel, Badge } from "../components/atoms";
 import "./liveInventory.css";
 import "./totpEnrollment.css";
