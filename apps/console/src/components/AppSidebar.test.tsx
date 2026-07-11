@@ -10,8 +10,8 @@ import { describe, expect, it } from "vitest";
 
 import { AppSidebar } from "./AppSidebar";
 import type { SourceState } from "./SourceControls";
-import { buildAllowedNavSet } from "../auth/capabilityAccess";
 import type { BrowserSessionAuth } from "../api/client";
+import { buildAllowedNavSet } from "../auth/capabilityAccess";
 import { demoModel } from "../console/demoModel";
 import { ConsoleI18nProvider } from "../i18n/provider";
 
