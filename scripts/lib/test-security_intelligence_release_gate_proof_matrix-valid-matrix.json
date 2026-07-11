@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "matrix_id": "representative-security-intelligence-v1",
+  "mode": "representative",
+  "repository_count": 24,
+  "required_repository_count": {"min": 20, "max": 50},
+  "ecosystems": {
+    "npm": {"repository_count": 3, "affected_rows": 1, "ready_zero_or_incomplete_rows": 1},
+    "gomod": {"repository_count": 3, "affected_rows": 1, "ready_zero_or_incomplete_rows": 1},
+    "pypi": {"repository_count": 3, "affected_rows": 1, "ready_zero_or_incomplete_rows": 1},
+    "maven": {"repository_count": 3, "affected_rows": 1, "ready_zero_or_incomplete_rows": 1},
+    "composer": {"repository_count": 2, "affected_rows": 1, "ready_zero_or_incomplete_rows": 1},
+    "rubygems": {"repository_count": 2, "affected_rows": 1, "ready_zero_or_incomplete_rows": 1},
+    "cargo": {"repository_count": 2, "affected_rows": 1, "ready_zero_or_incomplete_rows": 1},
+    "nuget": {"repository_count": 1, "affected_rows": 1, "ready_zero_or_incomplete_rows": 1}
+  },
+  "evidence_families": {
+    "terraform_iac": {"repository_count": 2, "evidence_rows": 5},
+    "image_sbom": {"repository_count": 1, "evidence_rows": 2},
+    "deployment": {"repository_count": 1, "evidence_rows": 1},
+    "relationship_evidence": {"repository_count": 1, "evidence_rows": 2}
+  },
+  "readback": {
+    "package_fact_count": 220,
+    "dependency_fact_count": 190,
+    "advisory_fact_count": 72,
+    "finding_count": 17,
+    "ready_state_counts": {"ready": 20, "evidence_incomplete": 4},
+    "retrying": 0,
+    "failed": 0,
+    "dead_letters": 0,
+    "wall_time_seconds": 840,
+    "cpu_memory_snapshot": "captured",
+    "pprof_status": "reachable",
+    "logs_status": "captured"
+  },
+  "mismatch_classes": {
+    "target_collection": 0,
+    "advisory_ingestion": 1,
+    "version_matching": 1,
+    "unsupported_ecosystem": 0,
+    "provider_only_behavior": 0,
+    "stale_provider_alert": 0,
+    "reducer_bug": 0
+  },
+  "follow_up_issues": [
+    {"class": "advisory_ingestion", "issue_ref": "#1234"},
+    {"class": "version_matching", "issue_ref": "#1235"}
+  ]
+}
