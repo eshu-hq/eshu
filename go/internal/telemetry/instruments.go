@@ -514,6 +514,14 @@ type Instruments struct {
 	// materialize an edge because their endpoint node was not scanned in this
 	// scope; resolved modes count materialized edges.
 	AWSRelationshipEdges metric.Int64Counter
+	// CrossScopeOwnershipContendedRows counts #5007 owner-ledger node rows a
+	// graphowner Gate batch lost to a higher-order-key contributor from
+	// another scope (cross-scope same-uid contention, resolved
+	// deterministically by the Postgres owner ledger). Labels: family
+	// (cloud_resource / ec2_instance / kubernetes_workload). Zero is the
+	// common, healthy case; a sustained non-zero rate is the 3 AM signal that
+	// two ingestion scopes are racing the same canonical node uid.
+	CrossScopeOwnershipContendedRows metric.Int64Counter
 	// ReducerInputInvalidFacts counts reducer facts quarantined during typed
 	// payload decode because a required identity field was missing or null
 	// (issue #4568, input_invalid). Labels: domain (the reducer domain that
@@ -2609,6 +2617,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register AWSRelationshipEdges counter: %w", err)
+	}
+
+	inst.CrossScopeOwnershipContendedRows, err = meter.Int64Counter(
+		"eshu_dp_cross_scope_ownership_contended_rows_total",
+		metric.WithDescription("Total #5007 owner-ledger node rows a graphowner batch lost to a higher-order-key cross-scope contributor, by family"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register CrossScopeOwnershipContendedRows counter: %w", err)
 	}
 
 	inst.ReducerInputInvalidFacts, err = meter.Int64Counter(
@@ -4740,6 +4756,13 @@ func AttrRelationshipType(v string) attribute.KeyValue {
 // projection counter (arn / bare_id / correlation_anchor / unresolved).
 func AttrJoinMode(v string) attribute.KeyValue {
 	return attribute.String(MetricDimensionJoinMode, v)
+}
+
+// AttrOwnershipFamily returns a family attribute for the #5007 cross-scope
+// ownership contention counter (cloud_resource / ec2_instance /
+// kubernetes_workload).
+func AttrOwnershipFamily(v string) attribute.KeyValue {
+	return attribute.String(MetricDimensionOwnershipFamily, v)
 }
 
 // AttrCoverageSignal returns a coverage_signal attribute for the observability

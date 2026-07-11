@@ -160,9 +160,13 @@ func ExtractAzureCloudResourceNodeRows(envelopes []facts.Envelope) ([]map[string
 		if !ok {
 			continue
 		}
-		// Last fact for a uid wins; identity is stable so the choice only
-		// affects mutable properties, and idempotent MERGE makes it safe.
-		byUID[uid] = row
+		// #5007 Stage 1: the max-source_order_key contributor wins (latest
+		// observation, source_fact_id tie-break), not the last fact by slice
+		// order, so within-scope duplicate-uid resolution uses the identical
+		// rule the owner ledger applies across scopes.
+		if preferMaxSourceOrderKey(byUID[uid], row) {
+			byUID[uid] = row
+		}
 	}
 	if len(byUID) == 0 {
 		return nil, quarantined, nil
@@ -221,6 +225,7 @@ func azureCloudResourceNodeRow(env facts.Envelope) (row map[string]any, uid stri
 		"source_record_id":    env.SourceRef.SourceRecordID,
 		"source_confidence":   string(env.SourceConfidence),
 		"collector_kind":      env.CollectorKind,
+		sourceOrderKeyField:   sourceOrderKey(env),
 	}
 	return row, uid, resourceID, true, nil
 }

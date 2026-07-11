@@ -129,6 +129,65 @@ func TestRunSynthCassetteCommandDifferentSeedsProduceDifferentOutput(t *testing.
 	}
 }
 
+// TestRunSynthCassetteCommandOverlapGeneratesContentionFixture proves the
+// -overlap flag routes to GenerateOverlappingScope and produces a cassette
+// whose K scopes share resource identity (the #5007 contention Odù fixture).
+func TestRunSynthCassetteCommandOverlapGeneratesContentionFixture(t *testing.T) {
+	t.Parallel()
+
+	out := filepath.Join(t.TempDir(), "overlap.json")
+	var stdout, stderr bytes.Buffer
+	if err := runSynthCassetteCommand([]string{
+		"-seed", "5007", "-projects", "3", "-resources", "6", "-overlap", "-out", out,
+	}, &stdout, &stderr); err != nil {
+		t.Fatalf("runSynthCassetteCommand(-overlap) error = %v", err)
+	}
+	if !strings.Contains(stdout.String(), "mode=overlap") {
+		t.Errorf("stdout = %q, want it to report mode=overlap", stdout.String())
+	}
+
+	file, err := cassette.LoadFile(out)
+	if err != nil {
+		t.Fatalf("load overlap cassette: %v", err)
+	}
+	if len(file.Scopes) != 3 {
+		t.Fatalf("len(file.Scopes) = %d, want 3", len(file.Scopes))
+	}
+	firstName := func(sc cassette.Scope) string {
+		if len(sc.Facts) == 0 {
+			return ""
+		}
+		name, _ := sc.Facts[0].Payload["full_resource_name"].(string)
+		return name
+	}
+	base := firstName(file.Scopes[0])
+	if base == "" {
+		t.Fatal("overlap cassette scope 0 has no resource identity")
+	}
+	for i := 1; i < len(file.Scopes); i++ {
+		if got := firstName(file.Scopes[i]); got != base {
+			t.Fatalf("overlap scope[%d] identity %q != scope[0] %q — scopes must share identity", i, got, base)
+		}
+		if file.Scopes[i].ScopeID == file.Scopes[0].ScopeID {
+			t.Fatalf("overlap scope[%d] reuses scope[0]'s scope_id — contending scopes must be distinct", i)
+		}
+	}
+}
+
+// TestParseSynthCassetteFlagsRejectsDivergentWithoutOverlap proves -divergent
+// requires -overlap.
+func TestParseSynthCassetteFlagsRejectsDivergentWithoutOverlap(t *testing.T) {
+	t.Parallel()
+
+	_, err := parseSynthCassetteFlags([]string{"-out", "x.json", "-divergent"}, &bytes.Buffer{})
+	if err == nil {
+		t.Fatal("parseSynthCassetteFlags(-divergent without -overlap) = nil error, want an error")
+	}
+	if !strings.Contains(err.Error(), "-overlap") {
+		t.Errorf("error = %v, want it to name -overlap", err)
+	}
+}
+
 // TestRunSynthCassetteCommandRejectsNonPositiveProjects proves a bad
 // -projects value fails fast with no file written, mirroring
 // GenerateMultiScope's own fail-closed validation.

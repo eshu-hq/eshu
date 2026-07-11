@@ -96,6 +96,14 @@
 #                   (see above) and expect the matrix to go RED, proving a
 #                   deliberately non-idempotent write is caught. Never pass
 #                   this in a normal verification run.
+#     --contention  ALSO drive the #5007 overlapping-identity cassette
+#                   (gcpsynth.GenerateOverlappingScope via `ifa synth-cassette
+#                   -overlap -divergent`) into every cell. Its K scopes share
+#                   one CloudResource uid set, so the cross-scope writers
+#                   contend on one node; the #5007 owner ledger must keep the
+#                   digest identical across N=1/2/4. A digest divergence that
+#                   appears ONLY under --contention is a real owner-ledger
+#                   regression (the graph-level contention Odù).
 
 # Refuse to run under bash < 4.4 (or a non-bash shell). This gate relies on bash
 # 4.4's fix for expanding an empty array under `set -u` (bash 4.0-4.3 and 3.2
@@ -157,16 +165,30 @@ worker_counts=(1 2 4)
 : "${SYNTH_MULTISCOPE_PROJECTS:=8}"
 : "${SYNTH_MULTISCOPE_RESOURCES:=64}"
 
+# #5007 contention cassette settings (opt-in via --contention). Unlike the
+# disjoint synth-multiscope cassette above, these scopes deliberately SHARE one
+# resource-identity set (gcpsynth.GenerateOverlappingScope): all
+# SYNTH_CONTENTION_PROJECTS scopes fold to the SAME CloudResource node uids, so
+# the reducer's cross-scope writers contend on one shared node, which the #5007
+# owner ledger must resolve to the max-(observed_at, source_fact_id) contributor
+# identically across N=1/2/4 (GREEN); without the ledger the contended node is
+# last-writer-wins by commit order and the digest diverges (RED).
+: "${SYNTH_CONTENTION_SEED:=5007}"
+: "${SYNTH_CONTENTION_PROJECTS:=4}"
+: "${SYNTH_CONTENTION_RESOURCES:=32}"
+
 use_compose=1
 keep=0
 teeth=0
+contention=0
 for arg in "$@"; do
 	case "${arg}" in
 	--no-compose) use_compose=0 ;;
 	--keep) keep=1 ;;
 	--teeth) teeth=1 ;;
+	--contention) contention=1 ;;
 	-h | --help)
-		sed -n '2,98p' "${BASH_SOURCE[0]}"
+		sed -n '2,106p' "${BASH_SOURCE[0]}"
 		exit 0
 		;;
 	*)
@@ -270,6 +292,24 @@ synth_cassette="${work_dir}/synth-multiscope.json"
 	|| die "ifa synth-cassette failed"
 [[ -s "${synth_cassette}" ]] || die "ifa synth-cassette produced an empty or missing file: ${synth_cassette}"
 
+# #5007 contention cassette (opt-in): K scopes sharing one resource-identity
+# set, so the reducer's cross-scope writers contend on the same CloudResource
+# node. -divergent gives the shared-uid scopes divergent observed state.
+# Generated ONCE, like the synth-multiscope cassette, and driven into every cell.
+contention_cassette=""
+if [[ "${contention}" -eq 1 ]]; then
+	log "generate #5007 contention cassette (seed=${SYNTH_CONTENTION_SEED} projects=${SYNTH_CONTENTION_PROJECTS} resources=${SYNTH_CONTENTION_RESOURCES} -overlap -divergent)"
+	contention_cassette="${work_dir}/contention.json"
+	"${bin_dir}/eshu-ifa" synth-cassette \
+		-overlap -divergent \
+		-seed "${SYNTH_CONTENTION_SEED}" \
+		-projects "${SYNTH_CONTENTION_PROJECTS}" \
+		-resources "${SYNTH_CONTENTION_RESOURCES}" \
+		-out "${contention_cassette}" \
+		|| die "ifa synth-cassette -overlap failed"
+	[[ -s "${contention_cassette}" ]] || die "ifa synth-cassette -overlap produced an empty or missing file: ${contention_cassette}"
+fi
+
 declare -A digests
 declare -A wall_times
 
@@ -313,6 +353,21 @@ for n in "${worker_counts[@]}"; do
 		die "N=${n}: eshu-ifa drive (synth-multiscope) failed"
 	fi
 	cat "${log_dir}/ifa-drive-synth-n${n}.log"
+
+	# Third drive (opt-in --contention): the #5007 overlapping-identity cassette.
+	# Its K scopes all contend on the same CloudResource nodes; the owner ledger
+	# must make the contended node's final state identical across N=1/2/4. A
+	# digest divergence that appears ONLY with --contention is a real ledger
+	# regression, not a scan-order artifact.
+	if [[ "${contention}" -eq 1 ]]; then
+		log "N=${n}: drive #5007 contention cassette through eshu-ifa drive -workers ${n}"
+		if ! "${bin_dir}/eshu-ifa" drive -cassette "${contention_cassette}" -workers "${n}" \
+			>"${log_dir}/ifa-drive-contention-n${n}.log" 2>&1; then
+			tail -40 "${log_dir}/ifa-drive-contention-n${n}.log" >&2 || true
+			die "N=${n}: eshu-ifa drive (#5007 contention) failed"
+		fi
+		cat "${log_dir}/ifa-drive-contention-n${n}.log"
+	fi
 
 	# Prove both drives actually enqueued something before the drain runs: a
 	# residual=0 reading over a queue nothing was ever put in would be a

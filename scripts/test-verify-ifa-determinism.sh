@@ -98,6 +98,19 @@ require "synth-cassette generated before the cell loop" "synth_cassette=\"\${wor
 require "second drive invocation into the same cell" 'eshu-ifa" drive -cassette "${synth_cassette}" -workers "${n}"'
 require "combined-graph digest framing" "demo-org + synth-multiscope"
 
+# #5007 contention cassette (opt-in --contention): the overlapping-identity
+# fixture whose K scopes share one CloudResource uid set, so the cross-scope
+# writers contend and the owner ledger must keep the digest identical across
+# N=1/2/4. Generated via `ifa synth-cassette -overlap -divergent` and driven as
+# a THIRD drive, behind --contention so it can never break the default matrix.
+require "--contention flag" "--contention"
+require "contention overlap generation" '-overlap -divergent'
+require "contention seed flag" "-seed \"\${SYNTH_CONTENTION_SEED}\""
+require "contention projects flag" "-projects \"\${SYNTH_CONTENTION_PROJECTS}\""
+require "contention cassette generated once" 'contention_cassette="${work_dir}/contention.json"'
+require "third drive of the contention cassette" 'eshu-ifa" drive -cassette "${contention_cassette}" -workers "${n}"'
+require "contention ledger-regression framing" "graph-level contention"
+
 # Populated-then-drained guard per cell: a 0/0 reading before anything was
 # ever enqueued would pass on a vacuous drain.
 require "drive-populated guard" "vacuous drain proof"

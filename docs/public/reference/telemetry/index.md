@@ -224,6 +224,14 @@ locate the exact fact and the field the collector dropped.
   `oci_registry_canonical`), `fact_kind`. The projector-side counterpart to the
   reducer counter; the two are separate instruments so an operator can tell
   which pipeline stage quarantined a fact.
+- `eshu_dp_cross_scope_ownership_contended_rows_total` — owner-ledger node rows
+  (#5007) a graphowner batch lost to a higher-order-key contributor from another
+  scope. Label: `family` (`cloud_resource`, `ec2_instance`, or
+  `kubernetes_workload`). A nonzero rate means two scopes are writing the same
+  canonical node uid and the ledger is deterministically resolving the winner by
+  `max (observed_at, source_fact_id)`; a sustained high rate points at
+  overlapping-identity ingestion worth investigating, not data loss (the losing
+  rows are intentionally skipped so the winning contributor's row stands).
 
 Both label sets are closed and bounded (a domain/stage name and a fact-kind
 string); repository ids, resource names, and generation ids stay out of

@@ -60,6 +60,7 @@ var metricDimensionKeys = []string{
 	MetricDimensionResourceType,
 	MetricDimensionRelationshipType,
 	MetricDimensionJoinMode,
+	MetricDimensionOwnershipFamily,
 	MetricDimensionCoverageSignal,
 	MetricDimensionResolutionMode,
 	MetricDimensionEndpointKind,

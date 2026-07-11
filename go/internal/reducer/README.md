@@ -236,6 +236,20 @@ and per-label counts, marks, deletes, duration, `phase=reduction`, and
 the metric is labeled only by closed `node_label` values and uses the configured
 per-label count cap.
 
+## Cross-scope node ownership (#5007)
+
+The AWS/GCP/Azure CloudResource, EC2-instance, and Kubernetes-workload node row
+builders stamp `source_order_key` on every node row — a fixed-width
+`(observed_at, source_fact_id)` encoding whose lexicographic order matches the
+intended "latest observation, source_fact_id tie-break" order (`sourceOrderKey`
+in `source_order_key.go`). Within a scope generation, duplicate-uid rows resolve
+to the max order key (`preferMaxSourceOrderKey`) rather than last-fact-by-slice.
+Across scopes, `cmd/reducer` wraps these three node writers in the
+`internal/graphowner` owner-ledger gate, which resolves the shared node to the
+max-order-key contributor via a Postgres advisory-lock + `graph_node_owner`
+ledger (NornicDB cannot resolve the concurrent property-write conflict itself,
+#5062). See `docs/internal/design/5007-cross-scope-node-ownership.md`.
+
 ## Domain catalog
 
 All reducer domains are declared in `domain.go` and registered via
