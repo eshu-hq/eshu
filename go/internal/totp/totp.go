@@ -58,6 +58,10 @@ func GenerateCode(secret []byte, t time.Time, step time.Duration, digits int) (s
 	if _, ok := digitModulus[digits]; !ok {
 		return "", fmt.Errorf("totp: digits must be %d-%d, got %d", minDigits, maxDigits, digits)
 	}
+	// #nosec G115 -- t.Unix() is a positive wall-clock timestamp and step is
+	// validated positive above, so the RFC 6238 time-step counter is
+	// non-negative for any real authenticator time; a pre-1970 t is not a
+	// valid TOTP input, and Verify separately skips any negative candidate step.
 	counter := uint64(t.Unix() / int64(step.Seconds()))
 	return hotp(secret, counter, digits)
 }
