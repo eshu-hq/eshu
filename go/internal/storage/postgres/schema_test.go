@@ -209,6 +209,8 @@ func TestBootstrapDefinitionsIncludeRelationshipReferenceCandidateKeys(t *testin
 		"REGEXP_REPLACE(LOWER(payload::text), '[^a-z0-9._-]+', '|', 'g')",
 		"'\\.git(\\||$)'",
 		"'\\1'",
+		"'\\.(yaml|yml|json|tfvars|tf|hcl)(\\||$)'",
+		"'\\2'",
 		"fact_kind IN ('content', 'file', 'gcp_cloud_relationship')",
 	} {
 		if !strings.Contains(referenceKeys.SQL, want) {

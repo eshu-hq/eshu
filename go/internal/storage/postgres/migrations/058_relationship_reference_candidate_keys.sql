@@ -31,9 +31,14 @@ SELECT
     ) AS source_repo_id,
     '|' ||
     REGEXP_REPLACE(
-        REGEXP_REPLACE(LOWER(payload::text), '[^a-z0-9._-]+', '|', 'g'),
-        '\.git(\||$)',
-        '\1',
+        REGEXP_REPLACE(
+            REGEXP_REPLACE(LOWER(payload::text), '[^a-z0-9._-]+', '|', 'g'),
+            '\.git(\||$)',
+            '\1',
+            'g'
+        ),
+        '\.(yaml|yml|json|tfvars|tf|hcl)(\||$)',
+        '\2',
         'g'
     ) ||
     '|' AS reference_key

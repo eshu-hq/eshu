@@ -201,6 +201,16 @@ func seedDeferredHoistFixture(t *testing.T, ctx context.Context, db *sql.DB) []d
 			payload: `{"repo_id":"github.com/org/app","artifact_type":"terraform","relative_path":"main.tf","content":"app_repo = \"github.com/org/app-config\""}`,
 		},
 		{
+			// File-suffixed repo reference: Go tokenization trims known file
+			// extensions after the token is split. Migration backfill must do the
+			// same because a migrated key row disables the legacy LIKE fallback.
+			factID:  "fact-app-refs-app-config-yaml",
+			scopeID: gitScope,
+			genID:   "gen-hoist",
+			kind:    "content",
+			payload: `{"repo_id":"github.com/org/app","artifact_type":"argocd","relative_path":"app.yaml","content":"spec:\n  source:\n    repoURL: github.com/org/app-config.yaml\n"}`,
+		},
+		{
 			// own-repo self-mention only: must be excluded by both old and new SQL,
 			// the in-memory matcher would drop it anyway. own_repo_id = $6, so this
 			// is also resolved by the fast arm ($5 excludes exactly this value).
@@ -287,9 +297,14 @@ SELECT
     COALESCE(NULLIF(LOWER(TRIM(payload->>'repo_id')), ''), ''),
     '|' ||
     REGEXP_REPLACE(
-        REGEXP_REPLACE(LOWER(payload::text), '[^a-z0-9._-]+', '|', 'g'),
-        '\.git(\||$)',
-        '\1',
+        REGEXP_REPLACE(
+            REGEXP_REPLACE(LOWER(payload::text), '[^a-z0-9._-]+', '|', 'g'),
+            '\.git(\||$)',
+            '\1',
+            'g'
+        ),
+        '\.(yaml|yml|json|tfvars|tf|hcl)(\||$)',
+        '\2',
         'g'
     ) ||
     '|'
@@ -299,23 +314,6 @@ WHERE fact_kind IN ('content', 'file', 'gcp_cloud_relationship')
 		t.Fatalf("seed relationship reference keys: %v", err)
 	}
 	return rows
-}
-
-// deferredHoistCatalog is the full catalog the differential proof discovers
-// evidence against; it must include every repo_id referenced by the fixture
-// above (including targets that never appear as a fact source themselves).
-func deferredHoistCatalog() []relationships.CatalogEntry {
-	return []relationships.CatalogEntry{
-		{RepoID: "github.com/org/app", Aliases: []string{"github.com/org/app", "edge-app"}},
-		{RepoID: "github.com/org/app-config", Aliases: []string{"github.com/org/app-config"}},
-		{RepoID: "repo-vault", Aliases: []string{"repo-vault", "secret-store"}},
-		{RepoID: "repo-gitops", Aliases: []string{"repo-gitops", "gitops-controller"}},
-		{RepoID: "repo-payments", Aliases: []string{"repo-payments", "payments-service"}},
-		{RepoID: "repo-gcp-source", Aliases: []string{"repo-gcp-source", "order-gateway"}},
-		{RepoID: "deploy-toolkit", Aliases: []string{"deploy-toolkit"}},
-		{RepoID: "github.com/org/.github", Aliases: []string{"github.com/org/.github"}},
-		{RepoID: "repo-noise-target", Aliases: []string{"repo-noise-target"}},
-	}
 }
 
 // runPreHoistDeferredScopedQuery executes the frozen pre-hoist ($1..$4) query
@@ -447,6 +445,7 @@ func TestDeferredScopedFactLoadHoistExactlyEquivalentToPreHoistShape(t *testing.
 	// Every carve-out named in the fix's acceptance criteria must survive.
 	wantPresent := []string{
 		"fact-app-refs-app-config",            // prefix-overlap cross-repo repo_id reference
+		"fact-app-refs-app-config-yaml",       // file-extension suffix must not block migrated reference-key rows
 		"fact-app-refs-dot-github",            // .github common-repo token must not be collapsed by .git trimming
 		"fact-argocd-application",             // ArgoCD unconditional over-select marker
 		"fact-gcp-empty-repo-id",              // cloud-scope fact with empty repo_id

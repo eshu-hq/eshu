@@ -9,6 +9,23 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
 
+// deferredHoistCatalog is the full catalog the differential proof discovers
+// evidence against; it must include every repo_id referenced by the fixture
+// above (including targets that never appear as a fact source themselves).
+func deferredHoistCatalog() []relationships.CatalogEntry {
+	return []relationships.CatalogEntry{
+		{RepoID: "github.com/org/app", Aliases: []string{"github.com/org/app", "edge-app"}},
+		{RepoID: "github.com/org/app-config", Aliases: []string{"github.com/org/app-config"}},
+		{RepoID: "repo-vault", Aliases: []string{"repo-vault", "secret-store"}},
+		{RepoID: "repo-gitops", Aliases: []string{"repo-gitops", "gitops-controller"}},
+		{RepoID: "repo-payments", Aliases: []string{"repo-payments", "payments-service"}},
+		{RepoID: "repo-gcp-source", Aliases: []string{"repo-gcp-source", "order-gateway"}},
+		{RepoID: "deploy-toolkit", Aliases: []string{"deploy-toolkit"}},
+		{RepoID: "github.com/org/.github", Aliases: []string{"github.com/org/.github"}},
+		{RepoID: "repo-noise-target", Aliases: []string{"repo-noise-target"}},
+	}
+}
+
 func evidenceSetsEqual(a, b []relationships.EvidenceFact) bool {
 	if len(a) != len(b) {
 		return false
