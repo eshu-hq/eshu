@@ -441,7 +441,8 @@ Each row maps a lifecycle stage to the metric that diagnoses it at 3 AM.
 | api shutdown | go/cmd/api/main.go:100 | `eshu_dp_shutdown_duration_seconds` | api lifecycle |
 | bootstrap identity seeding (epic #4962/#4963) | go/cmd/api/seed_initial_admin.go:1 | `eshu_dp_auth_bootstrap_seed_total`, `eshu_dp_auth_bootstrap_credential_generated_total`, `eshu_dp_auth_secret_seal_total`, `eshu_dp_auth_secret_open_total`, `eshu_dp_postgres_query_duration_seconds` | api lifecycle |
 | first-run setup wizard (#4965) | go/internal/query/setup_handler.go:1 | `eshu_dp_auth_setup_wizard_total`, `eshu_dp_auth_secret_open_total`, `eshu_dp_postgres_query_duration_seconds` | api lifecycle |
-| sign-in policy guardrail + require-SSO login gate (epic #4962/#4968) | go/internal/query/sign_in_policy_mutations.go:159 | `eshu_dp_auth_sign_in_policy_guardrail_total`, `eshu_dp_auth_require_sso_login_gate_total`, `eshu_dp_postgres_query_duration_seconds` | api lifecycle |
+| sign-in policy guardrail (epic #4962/#4968) | go/internal/query/sign_in_policy_mutations.go:159 | `eshu_dp_auth_sign_in_policy_guardrail_total`, `eshu_dp_postgres_query_duration_seconds` | api lifecycle |
+| require-SSO login gate (epic #4962/#4968) | go/internal/query/local_identity_sign_in_policy_gate.go:102 | `eshu_dp_auth_require_sso_login_gate_total`, `eshu_dp_postgres_query_duration_seconds` | api lifecycle |
 
 <!-- eshu:metric:section=graph-write-statement-metadata -->
 ## Graph-Write Statement Metadata
