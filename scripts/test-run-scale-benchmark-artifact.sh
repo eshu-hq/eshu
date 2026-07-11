@@ -10,51 +10,18 @@ trap 'rm -rf "${tmp_root}" 2>/dev/null || true' EXIT
 
 write_measurements() {
 	local file="$1"
-	cat >"${file}" <<'JSON'
-{
-  "metrics": {
-    "fact_rows_per_second": 1200,
-    "queue_claim_latency_p95_ms": 40,
-    "reducer_drain_seconds": 120,
-    "graph_write_p95_ms": 65,
-    "api_p95_ms": 90,
-    "mcp_p95_ms": 95,
-    "retry_count": 0,
-    "dead_letter_count": 0,
-    "memory_high_water_mb": 512
-  },
-  "backend_matrix": {
-    "nornicdb": {
-      "status": "pass",
-      "artifact": "scale-benchmark-nornicdb"
-    }
-  },
-  "observability": {
-    "pprof_status": "pass",
-    "logs_status": "pass",
-    "resource_snapshot_status": "pass"
-  }
-}
-JSON
+	# Body lives in scripts/lib/ (not a heredoc): Homebrew bash >= 5.1 writes
+	# the entire heredoc body to a pipe before forking the reader, and macOS's
+	# 512-byte pipe buffer deadlocks on any body over that size (#5074).
+	cat "${repo_root}/scripts/lib/test-run-scale-benchmark-artifact-measurements.json" >"${file}"
 }
 
 write_thresholds() {
 	local file="$1"
-	cat >"${file}" <<'JSON'
-{
-  "metrics": {
-    "fact_rows_per_second": {"threshold": 1000, "direction": "min"},
-    "queue_claim_latency_p95_ms": {"threshold": 50, "direction": "max"},
-    "reducer_drain_seconds": {"threshold": 180, "direction": "max"},
-    "graph_write_p95_ms": {"threshold": 80, "direction": "max"},
-    "api_p95_ms": {"threshold": 150, "direction": "max"},
-    "mcp_p95_ms": {"threshold": 150, "direction": "max"},
-    "retry_count": {"threshold": 0, "direction": "max"},
-    "dead_letter_count": {"threshold": 0, "direction": "max"},
-    "memory_high_water_mb": {"threshold": 1024, "direction": "max"}
-  }
-}
-JSON
+	# Body lives in scripts/lib/ (not a heredoc): Homebrew bash >= 5.1 writes
+	# the entire heredoc body to a pipe before forking the reader, and macOS's
+	# 512-byte pipe buffer deadlocks on any body over that size (#5074).
+	cat "${repo_root}/scripts/lib/test-run-scale-benchmark-artifact-thresholds.json" >"${file}"
 }
 
 run_producer() {

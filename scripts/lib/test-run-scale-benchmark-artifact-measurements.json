@@ -1,0 +1,24 @@
+{
+  "metrics": {
+    "fact_rows_per_second": 1200,
+    "queue_claim_latency_p95_ms": 40,
+    "reducer_drain_seconds": 120,
+    "graph_write_p95_ms": 65,
+    "api_p95_ms": 90,
+    "mcp_p95_ms": 95,
+    "retry_count": 0,
+    "dead_letter_count": 0,
+    "memory_high_water_mb": 512
+  },
+  "backend_matrix": {
+    "nornicdb": {
+      "status": "pass",
+      "artifact": "scale-benchmark-nornicdb"
+    }
+  },
+  "observability": {
+    "pprof_status": "pass",
+    "logs_status": "pass",
+    "resource_snapshot_status": "pass"
+  }
+}
