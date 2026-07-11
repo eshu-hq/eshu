@@ -65,40 +65,10 @@ require_tool helm
 require_tool rg
 
 valid_values="${tmp_root}/valid-values.yaml"
-cat >"${valid_values}" <<'YAML'
-image:
-  tag: "v9.9.9"
-
-contentStore:
-  dsn: postgresql://postgres.platform.svc.cluster.local:5432/eshu
-
-neo4j:
-  uri: bolt://nornicdb.platform.svc.cluster.local:7687
-
-repoSync:
-  source:
-    mode: githubOrg
-    githubOrg: eshu-hq
-    rules:
-      - type: exact
-        value: eshu-hq/eshu
-
-exposure:
-  ingress:
-    enabled: true
-    className: internal
-    hosts:
-      - host: eshu.internal.invalid
-        paths:
-          - path: /
-            pathType: Prefix
-
-observability:
-  prometheus:
-    enabled: true
-    serviceMonitor:
-      enabled: true
-YAML
+# Body lives in scripts/lib/ (not a heredoc): Homebrew bash >= 5.1 writes
+# the entire heredoc body to a pipe before forking the reader, and macOS's
+# 512-byte pipe buffer deadlocks on any body over that size (#5074).
+cat "${repo_root}/scripts/lib/test-verify-gitops-rendered-diff-preflight-valid-values.yaml" >"${valid_values}"
 
 pass_output="${tmp_root}/pass.out"
 expect_pass "${pass_output}" --values "${valid_values}"

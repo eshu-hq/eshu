@@ -1,0 +1,32 @@
+image:
+  tag: "v9.9.9"
+
+contentStore:
+  dsn: postgresql://postgres.platform.svc.cluster.local:5432/eshu
+
+neo4j:
+  uri: bolt://nornicdb.platform.svc.cluster.local:7687
+
+repoSync:
+  source:
+    mode: githubOrg
+    githubOrg: eshu-hq
+    rules:
+      - type: exact
+        value: eshu-hq/eshu
+
+exposure:
+  ingress:
+    enabled: true
+    className: internal
+    hosts:
+      - host: eshu.internal.invalid
+        paths:
+          - path: /
+            pathType: Prefix
+
+observability:
+  prometheus:
+    enabled: true
+    serviceMonitor:
+      enabled: true
