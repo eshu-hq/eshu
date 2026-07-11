@@ -269,6 +269,13 @@ export async function provisionLocalMemberFlows(
     recoveryCodes: ["e2e-flowc-recovery-code-one", "e2e-flowc-recovery-code-two"],
   };
 
+  // handleCreateInvitation gates on the tenant sign-in policy's
+  // allow_local_user_creation (#4968): earlier items write a policy row
+  // (item5's require_sso probe, item3's provider enable) whose unset fields
+  // default false, so invitation create would 403 here. Enabling it is a
+  // real precondition for inviting local members, not a gate workaround.
+  await enableLocalUserCreation(adminPage);
+
   await createAndAcceptLocalMember(adminPage, ctx, { ...flowA, recoveryCodes: [] });
   await createAndAcceptLocalMember(adminPage, ctx, { ...flowBBase, recoveryCodes: [] });
   await createAndAcceptLocalMember(adminPage, ctx, {
@@ -284,6 +291,19 @@ export async function provisionLocalMemberFlows(
     flowC,
     detail: `provisioned 3 local non-admin members via real invitation-accept (developer role): ${flowA.loginId} (no MFA factor), ${flowBBase.loginId} (TOTP enrolled), ${flowC.loginId} (2 recovery codes)`,
   };
+}
+
+// enableLocalUserCreation turns the tenant sign-in policy's
+// allow_local_user_creation back on before any invitation is created;
+// require_sso=false keeps the policy out of an SSO-only state.
+async function enableLocalUserCreation(adminPage: Page): Promise<void> {
+  const result = await apiFetchInPage(adminPage, "PATCH", "/api/v0/auth/admin/sign-in-policy", {
+    allow_local_user_creation: true,
+    require_sso: false,
+  });
+  if (result.status !== 200) {
+    throw new Error(`allow_local_user_creation PATCH failed (${result.status}): ${result.text}`);
+  }
 }
 
 // setRequireMfaForAllUsers flips the single tenant policy Flows A and B both
