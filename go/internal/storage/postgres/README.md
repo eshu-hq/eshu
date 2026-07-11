@@ -306,6 +306,30 @@ pins the Azure-only case-fold. No new storage telemetry shape is added; reducer
 spans, `postgres.query` child spans, publication counters, and redaction-aware
 decode/unresolved warning logs carry the operator signal.
 
+### Graph node owner ledger (#5007)
+
+`GraphNodeOwnerStore` (migration `053_graph_node_owner.sql`) is the
+Postgres-atomic resolver for cross-scope same-uid node ownership. When two
+ingestion scopes carry the same resource identity, both project the same
+canonical node uid and race to write its scope-derived properties; NornicDB does
+not reliably detect concurrent property-write conflicts on a shared existing
+node (#5062), so the graph write alone cannot pick a deterministic winner.
+`ResolveOwnedUIDs` runs the per-uid critical section against a caller
+transaction: it acquires all per-uid transaction-scoped advisory locks in one
+sorted statement (deadlock-free), batch-upserts the `graph_node_owner` ledger
+keeping the max `(observed_at, source_fact_id)` order key
+(`ON CONFLICT (uid) DO UPDATE ... WHERE excluded.source_order_key >
+graph_node_owner.source_order_key`), reads the winning order key back, and
+returns the uid set the batch currently owns plus a contended-lost count. The
+caller (`internal/graphowner`) writes only the owned rows to the graph and
+commits to release the locks. The table is keyed on uid alone (canonical uids
+are globally unique across labels) and stores the winning row as JSONB for the
+Stage 2 provenance foundation.
+
+Evidence: `TestGraphNodeOwner*` unit tests (dedup, advisory-key namespacing, SQL
+shape, fail-closed guards) and `TestGraphNodeOwnerStoreIntegration`
+(single-writer owns, cross-batch max resolution, concurrent-converges-to-max).
+
 ## Exported surface
 
 The full exported store inventory lives in
