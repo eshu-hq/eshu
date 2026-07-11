@@ -91,6 +91,11 @@ claiming reducer work, or calling providers.`,
 	cmd.Flags().Int("question-limit", operatorDigestDefaultQuestionMax, "Maximum suggested questions to emit (0-25)")
 	cmd.Flags().Bool("json", false, "Emit the digest as JSON")
 	cmd.Flags().String("artifact-out", "", "Write a shareable operator_digest_artifact.v1 JSON file")
+	// `report` is a single shared parent: running it renders the operator
+	// digest, while the wrong-answer report bundle verbs live under it as
+	// `report capture` / `report validate` (see report_cmd.go). Registering a
+	// second root-level `report` would shadow this one in cobra's lookup.
+	addReportBundleSubcommands(cmd)
 	return cmd
 }
 
