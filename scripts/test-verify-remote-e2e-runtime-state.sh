@@ -11,160 +11,16 @@ fake_bin="${tmp_root}/bin"
 state_dir="${tmp_root}/state"
 mkdir -p "${fake_bin}" "${state_dir}"
 
-cat >"${fake_bin}/docker" <<'SH'
-#!/usr/bin/env bash
-set -euo pipefail
-
-state_dir="${ESHU_REMOTE_E2E_TEST_STATE:?set ESHU_REMOTE_E2E_TEST_STATE}"
-
-if [[ "${1:-}" == "inspect" ]]; then
-  shift
-  while [[ "${1:-}" == -* ]]; do
-    shift
-    if [[ "${1:-}" == "{{"* ]]; then
-      shift
-    fi
-  done
-  container_id="${1:?container id required}"
-  state_file="${state_dir}/containers/${container_id}"
-  if [[ ! -f "${state_file}" ]]; then
-    exit 1
-  fi
-  cat "${state_file}"
-  exit 0
-fi
-
-if [[ "${1:-}" != "compose" ]]; then
-  echo "unexpected docker command: $*" >&2
-  exit 2
-fi
-
-shift
-while (($# > 0)); do
-  case "${1}" in
-    --env-file|-f|-p|--project-name)
-      shift 2
-      ;;
-    *)
-      break
-      ;;
-  esac
-done
-
-subcommand="${1:-}"
-shift || true
-case "${subcommand}" in
-  config)
-    if [[ "${1:-}" != "--services" ]]; then
-      echo "unexpected compose config args: $*" >&2
-      exit 2
-    fi
-    cat "${state_dir}/services"
-    ;;
-  ps)
-    include_all=false
-    quiet=false
-    service=""
-    while (($# > 0)); do
-      case "${1}" in
-        -a|--all)
-          include_all=true
-          shift
-          ;;
-        -q|--quiet)
-          quiet=true
-          shift
-          ;;
-        *)
-          service="${1}"
-          shift
-          ;;
-      esac
-    done
-    if [[ "${quiet}" != "true" || -z "${service}" ]]; then
-      echo "unexpected compose ps args" >&2
-      exit 2
-    fi
-    if [[ -f "${state_dir}/service_ids/${service}" ]]; then
-      container_id="$(cat "${state_dir}/service_ids/${service}")"
-      runtime_state="$(cut -d " " -f 1 "${state_dir}/containers/${container_id}")"
-      if [[ "${include_all}" == "true" || "${runtime_state}" == "running" ]]; then
-        printf '%s\n' "${container_id}"
-      fi
-    fi
-    ;;
-  port)
-    service="${1:?service required}"
-    port="${2:?port required}"
-    if [[ "${service}:${port}" == "eshu:8080" ]]; then
-      printf '0.0.0.0:18080\n'
-      exit 0
-    fi
-    echo "unexpected compose port target: ${service}:${port}" >&2
-    exit 2
-    ;;
-  exec)
-    printf 'test-api-key\n'
-    ;;
-  *)
-    echo "unexpected compose subcommand: ${subcommand}" >&2
-    exit 2
-    ;;
-esac
-SH
+# Body lives in scripts/lib/ (not a heredoc): Homebrew bash >= 5.1 writes
+# the entire heredoc body to a pipe before forking the reader, and macOS's
+# 512-byte pipe buffer deadlocks on any body over that size (#5074).
+cp "${repo_root}/scripts/lib/test-verify-remote-e2e-runtime-state-fake-docker.sh" "${fake_bin}/docker"
 chmod +x "${fake_bin}/docker"
 
-cat >"${fake_bin}/curl" <<'SH'
-#!/usr/bin/env bash
-set -euo pipefail
-
-state_dir="${ESHU_REMOTE_E2E_TEST_STATE:?set ESHU_REMOTE_E2E_TEST_STATE}"
-if [[ -f "${state_dir}/curl-fails" ]]; then
-  exit 7
-fi
-printf '%s\n' "$*" >>"${state_dir}/curl-targets"
-if [[ "$*" == *"test-api-key"* ]]; then
-  echo "curl arguments leaked API key" >&2
-  exit 2
-fi
-if [[ "$*" != *"--max-time"* ]]; then
-  echo "curl call is missing max-time" >&2
-  exit 2
-fi
-case "$*" in
-  *"/api/v0/index-status"*)
-    cat "${state_dir}/index-status.json"
-    ;;
-  *"/api/v0/status/index"*)
-    cat "${state_dir}/status-index.json"
-    ;;
-  *"/api/v0/package-registry/packages/count"*)
-    cat "${state_dir}/package-count.json"
-    ;;
-  *"/api/v0/supply-chain/advisories/evidence"*)
-    cat "${state_dir}/advisory-evidence.json"
-    ;;
-  *"/api/v0/supply-chain/impact/findings/count"*)
-    cat "${state_dir}/impact-count.json"
-    ;;
-  *"/api/v0/supply-chain/impact/findings?package_id=npm://registry.npmjs.org/oversized&limit=1"*)
-    cat "${state_dir}/package-registry-gap-readiness.json"
-    ;;
-  *"/api/v0/supply-chain/security-alerts/reconciliations/count"*)
-    cat "${state_dir}/security-alert-count.json"
-    ;;
-  *"/api/v0/supply-chain/sbom-attestations/attachments/count"*)
-    cat "${state_dir}/sbom-count.json"
-    ;;
-  *"/api/v0/supply-chain/container-images/identities/count"*)
-    cat "${state_dir}/container-image-count.json"
-    ;;
-  *)
-    echo "unexpected curl target: $*" >&2
-    exit 2
-    ;;
-esac
-SH
+# Body lives in scripts/lib/ (not a heredoc): Homebrew bash >= 5.1 writes
+# the entire heredoc body to a pipe before forking the reader, and macOS's
+# 512-byte pipe buffer deadlocks on any body over that size (#5074).
+cp "${repo_root}/scripts/lib/test-verify-remote-e2e-runtime-state-fake-curl.sh" "${fake_bin}/curl"
 chmod +x "${fake_bin}/curl"
 
 reset_state() {
@@ -335,29 +191,10 @@ if ! rg -q 'remote E2E aggregate proof counts: package_registry_packages=3 advis
 fi
 reset_state
 set_all_services_healthy
-cat >"${state_dir}/index-status.json" <<'JSON'
-{
-  "status": "progressing",
-  "queue": {
-    "outstanding": 8,
-    "in_flight": 2,
-    "pending": 6,
-    "retrying": 0,
-    "failed": 0,
-    "dead_letter": 0
-  },
-  "coordinator": {
-    "run_status_counts": [
-      {"name": "complete", "count": 12},
-      {"name": "collection_active", "count": 2},
-      {"name": "collection_pending", "count": 1},
-      {"name": "reducer_converging", "count": 4}
-    ],
-    "work_item_status_counts": [{"name": "pending", "count": 6}, {"name": "claimed", "count": 2}],
-    "completeness_counts": [{"name": "pending", "count": 7}]
-  }
-}
-JSON
+# Body lives in scripts/lib/ (not a heredoc): Homebrew bash >= 5.1 writes
+# the entire heredoc body to a pipe before forking the reader, and macOS's
+# 512-byte pipe buffer deadlocks on any body over that size (#5074).
+cat "${repo_root}/scripts/lib/test-verify-remote-e2e-runtime-state-index-status-progressing.json" >"${state_dir}/index-status.json"
 export ESHU_REMOTE_E2E_CORPUS_MODE=representative ESHU_REMOTE_E2E_MIN_ADVISORY_EVIDENCE_COUNT=0
 expect_pass
 rg -q 'remote E2E representative proof safety state:' /tmp/eshu-remote-e2e-runtime.out || { printf 'expected representative proof safety state in verifier output\n' >&2; sed -n '1,260p' /tmp/eshu-remote-e2e-runtime.out >&2; exit 1; }
