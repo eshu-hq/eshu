@@ -1,0 +1,21 @@
+{
+  "status": "progressing",
+  "queue": {
+    "outstanding": 8,
+    "in_flight": 2,
+    "pending": 6,
+    "retrying": 0,
+    "failed": 0,
+    "dead_letter": 0
+  },
+  "coordinator": {
+    "run_status_counts": [
+      {"name": "complete", "count": 12},
+      {"name": "collection_active", "count": 2},
+      {"name": "collection_pending", "count": 1},
+      {"name": "reducer_converging", "count": 4}
+    ],
+    "work_item_status_counts": [{"name": "pending", "count": 6}, {"name": "claimed", "count": 2}],
+    "completeness_counts": [{"name": "pending", "count": 7}]
+  }
+}

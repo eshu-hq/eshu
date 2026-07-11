@@ -1,0 +1,13 @@
+{
+  "metrics": {
+    "fact_rows_per_second": {"threshold": 1000, "direction": "min"},
+    "queue_claim_latency_p95_ms": {"threshold": 55, "direction": "max"},
+    "reducer_drain_seconds": {"threshold": 180, "direction": "max"},
+    "graph_write_p95_ms": {"threshold": 100, "direction": "max"},
+    "api_p95_ms": {"threshold": 150, "direction": "max"},
+    "mcp_p95_ms": {"threshold": 150, "direction": "max"},
+    "retry_count": {"threshold": 0, "direction": "max"},
+    "dead_letter_count": {"threshold": 0, "direction": "max"},
+    "memory_high_water_mb": {"threshold": 1024, "direction": "max"}
+  }
+}

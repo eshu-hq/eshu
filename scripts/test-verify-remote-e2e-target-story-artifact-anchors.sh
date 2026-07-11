@@ -14,26 +14,10 @@ mkdir -p "${fake_bin}" "${state_dir}"
 cp "${repo_root}/scripts/lib/remote_e2e_target_story_fake_curl.sh" "${fake_bin}/curl"
 chmod +x "${fake_bin}/curl"
 
-cat >"${state_dir}/target-story.json" <<'JSON'
-{
-  "proof_mode": "code_to_cloud",
-  "target_repository_id": "repo://example/api",
-  "expected_source_repository_id": "repo://example/api",
-  "expected_service_id": "service:api",
-  "expected_oci_repository_id": "oci-registry://registry.example/team/api",
-  "expected_image_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-  "expected_source_revision": "0123456789abcdef0123456789abcdef01234567",
-  "minimums": {
-    "impact_findings": 0,
-    "security_alert_reconciliations": 0,
-    "container_image_identities": 1,
-    "sbom_attachments": 1,
-    "service_catalog_correlations": 0,
-    "ci_cd_run_correlations": 0,
-    "cloud_resources": 0
-  }
-}
-JSON
+# Body lives in scripts/lib/ (not a heredoc): Homebrew bash >= 5.1 writes
+# the entire heredoc body to a pipe before forking the reader, and macOS's
+# 512-byte pipe buffer deadlocks on any body over that size (#5074).
+cat "${repo_root}/scripts/lib/test-verify-remote-e2e-target-story-artifact-anchors-target-story.json" >"${state_dir}/target-story.json"
 
 cat >"${state_dir}/repo-story.json" <<'JSON'
 {"data":{"repository":{"id":"repo://example/api","name":"api"}},"truth":{"level":"exact","freshness":{"state":"fresh"}},"error":null}
@@ -59,17 +43,20 @@ cat >"${state_dir}/service-story.json" <<'JSON'
 {"data":{"code_to_runtime_trace":{"segments":[{"name":"image_package","status":"exact","basis":"container_image_identity_and_sbom_attachment","evidence":[{"digest":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","sbom_attachment_id":"sbom-attachment-1","sbom_attachment_status":"attached_verified"}]}]}},"truth":{"level":"exact","freshness":{"state":"fresh"}},"error":null}
 JSON
 
-cat >"${state_dir}/mcp-service-story.json" <<'JSON'
-{"jsonrpc":"2.0","id":1,"result":{"content":[{"type":"text","text":"Returned service story."},{"type":"resource","resource":{"uri":"eshu://tool-result/envelope","mimeType":"application/eshu.envelope+json","text":"{\"data\":{\"code_to_runtime_trace\":{\"segments\":[{\"name\":\"image_package\",\"status\":\"exact\",\"basis\":\"container_image_identity_and_sbom_attachment\",\"evidence\":[{\"digest\":\"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"sbom_attachment_id\":\"sbom-attachment-1\",\"sbom_attachment_status\":\"attached_verified\"}]}]}},\"truth\":{\"level\":\"exact\",\"freshness\":{\"state\":\"fresh\"}},\"error\":null}"}}],"isError":false}}
-JSON
+# Body lives in scripts/lib/ (not a heredoc): Homebrew bash >= 5.1 writes
+# the entire heredoc body to a pipe before forking the reader, and macOS's
+# 512-byte pipe buffer deadlocks on any body over that size (#5074).
+cat "${repo_root}/scripts/lib/test-verify-remote-e2e-target-story-artifact-anchors-mcp-service-story.json" >"${state_dir}/mcp-service-story.json"
 
-cat >"${state_dir}/mcp-image-list.json" <<'JSON'
-{"jsonrpc":"2.0","id":1,"result":{"content":[{"type":"text","text":"Returned 1 result(s)."},{"type":"resource","resource":{"uri":"eshu://tool-result/envelope","mimeType":"application/eshu.envelope+json","text":"{\"data\":{\"identities\":[{\"identity_id\":\"identity-1\",\"digest\":\"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"image_ref\":\"registry.example.com/team/api:prod\",\"repository_id\":\"oci-registry://registry.example/team/api\",\"source_repository_ids\":[\"repo://example/api\"],\"source_revision\":\"0123456789abcdef0123456789abcdef01234567\",\"outcome\":\"exact_digest\"}],\"count\":1,\"limit\":1,\"truncated\":false},\"truth\":{\"level\":\"exact\",\"freshness\":{\"state\":\"fresh\"}},\"error\":null}"}}],"isError":false}}
-JSON
+# Body lives in scripts/lib/ (not a heredoc): Homebrew bash >= 5.1 writes
+# the entire heredoc body to a pipe before forking the reader, and macOS's
+# 512-byte pipe buffer deadlocks on any body over that size (#5074).
+cat "${repo_root}/scripts/lib/test-verify-remote-e2e-target-story-artifact-anchors-mcp-image-list.json" >"${state_dir}/mcp-image-list.json"
 
-cat >"${state_dir}/mcp-sbom-list.json" <<'JSON'
-{"jsonrpc":"2.0","id":1,"result":{"content":[{"type":"text","text":"Returned 1 result(s)."},{"type":"resource","resource":{"uri":"eshu://tool-result/envelope","mimeType":"application/eshu.envelope+json","text":"{\"data\":{\"attachments\":[{\"attachment_id\":\"sbom-attachment-1\",\"subject_digest\":\"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"repository_ids\":[\"repo://example/api\"],\"attachment_status\":\"attached_verified\"}],\"count\":1,\"limit\":1,\"truncated\":false},\"truth\":{\"level\":\"exact\",\"freshness\":{\"state\":\"fresh\"}},\"error\":null}"}}],"isError":false}}
-JSON
+# Body lives in scripts/lib/ (not a heredoc): Homebrew bash >= 5.1 writes
+# the entire heredoc body to a pipe before forking the reader, and macOS's
+# 512-byte pipe buffer deadlocks on any body over that size (#5074).
+cat "${repo_root}/scripts/lib/test-verify-remote-e2e-target-story-artifact-anchors-mcp-sbom-list.json" >"${state_dir}/mcp-sbom-list.json"
 
 ESHU_REMOTE_E2E_TEST_STATE="${state_dir}" \
   PATH="${fake_bin}:${PATH}" \
