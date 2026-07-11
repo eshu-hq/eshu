@@ -11,5 +11,12 @@ export const pageTest: PageTest = {
       () => document.querySelector(".page-shell")?.textContent?.trim().length ?? 0,
     );
     if (len < 40) throw new Error(`page rendered only ${len} chars`);
+    // Selecting a verb issues POST /relationships/edges — the path that hit the
+    // mock handler's `postDataJSON().catch()` crash (postDataJSON is synchronous
+    // in Playwright, so `.catch` threw a TypeError). Exercise it so a regression
+    // fails here instead of staying latent: the first verb tile must load its
+    // concrete edge slice.
+    await page.click(".rel-verb-row");
+    await page.waitForSelector(".rel-edge-row", { timeout: 10000 });
   },
 };
