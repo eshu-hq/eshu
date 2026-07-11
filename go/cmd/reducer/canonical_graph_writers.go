@@ -32,18 +32,28 @@ type canonicalGraphWriters struct {
 	iamCanAssumeEdge              *sourcecypher.IAMCanAssumeEdgeWriter
 	s3LogsToEdge                  *sourcecypher.S3LogsToEdgeWriter
 	s3ExternalPrincipalGrant      *sourcecypher.S3ExternalPrincipalGrantWriter
-	rdsPostureNode                *sourcecypher.RDSPostureNodeWriter
-	ec2UsesProfileEdge            *sourcecypher.EC2UsesProfileEdgeWriter
-	iamInstanceProfileRoleEdge    *sourcecypher.IAMInstanceProfileRoleEdgeWriter
-	ec2InternetExposureNode       *sourcecypher.EC2InternetExposureNodeWriter
-	ec2BlockDeviceKMSPostureNode  *sourcecypher.EC2BlockDeviceKMSPostureNodeWriter
-	s3InternetExposureNode        *sourcecypher.S3InternetExposureNodeWriter
+	// rdsPostureNode / ec2InternetExposureNode / ec2BlockDeviceKMSPostureNode /
+	// s3InternetExposureNode are wrapped in the #5062 lock-only gate
+	// (graphowner.LockOnlyGate) so their SET/REMOVE writes to shared
+	// CloudResource nodes serialize against the #5007/#5066 owner-ledger gate's
+	// base-property writes on the SAME uid, under the identical Postgres
+	// advisory-lock key. A nil-ledger gate writes through unchanged.
+	rdsPostureNode               *graphowner.RDSPostureLockedWriter
+	ec2UsesProfileEdge           *sourcecypher.EC2UsesProfileEdgeWriter
+	iamInstanceProfileRoleEdge   *sourcecypher.IAMInstanceProfileRoleEdgeWriter
+	ec2InternetExposureNode      *graphowner.EC2InternetExposureLockedWriter
+	ec2BlockDeviceKMSPostureNode *graphowner.EC2BlockDeviceKMSPostureLockedWriter
+	s3InternetExposureNode       *graphowner.S3InternetExposureLockedWriter
 }
 
-func newCanonicalGraphWriters(exec sourcecypher.Executor, batchSize int, ownerGate *graphowner.Gate) canonicalGraphWriters {
+func newCanonicalGraphWriters(exec sourcecypher.Executor, batchSize int, ownerGate *graphowner.Gate, lockGate *graphowner.LockOnlyGate) canonicalGraphWriters {
 	rawCloudResourceNode := sourcecypher.NewCloudResourceNodeWriter(exec, batchSize)
 	rawEC2InstanceNode := sourcecypher.NewEC2InstanceNodeWriter(exec, batchSize)
 	rawKubernetesWorkloadNode := sourcecypher.NewKubernetesWorkloadNodeWriter(exec, batchSize)
+	rawRDSPostureNode := sourcecypher.NewRDSPostureNodeWriter(exec, batchSize)
+	rawEC2InternetExposureNode := sourcecypher.NewEC2InternetExposureNodeWriter(exec, batchSize)
+	rawEC2BlockDeviceKMSPostureNode := sourcecypher.NewEC2BlockDeviceKMSPostureNodeWriter(exec, batchSize)
+	rawS3InternetExposureNode := sourcecypher.NewS3InternetExposureNodeWriter(exec, batchSize)
 	return canonicalGraphWriters{
 		cloudResourceNode:             graphowner.NewCloudResourceGatedWriter(ownerGate, rawCloudResourceNode.WriteCloudResourceNodes),
 		ec2InstanceNode:               graphowner.NewEC2InstanceGatedWriter(ownerGate, rawEC2InstanceNode.WriteEC2InstanceNodes),
@@ -64,11 +74,19 @@ func newCanonicalGraphWriters(exec sourcecypher.Executor, batchSize int, ownerGa
 		iamCanAssumeEdge:              sourcecypher.NewIAMCanAssumeEdgeWriter(exec, batchSize),
 		s3LogsToEdge:                  sourcecypher.NewS3LogsToEdgeWriter(exec, batchSize),
 		s3ExternalPrincipalGrant:      sourcecypher.NewS3ExternalPrincipalGrantWriter(exec, batchSize),
-		rdsPostureNode:                sourcecypher.NewRDSPostureNodeWriter(exec, batchSize),
-		ec2UsesProfileEdge:            sourcecypher.NewEC2UsesProfileEdgeWriter(exec, batchSize),
-		iamInstanceProfileRoleEdge:    sourcecypher.NewIAMInstanceProfileRoleEdgeWriter(exec, batchSize),
-		ec2InternetExposureNode:       sourcecypher.NewEC2InternetExposureNodeWriter(exec, batchSize),
-		ec2BlockDeviceKMSPostureNode:  sourcecypher.NewEC2BlockDeviceKMSPostureNodeWriter(exec, batchSize),
-		s3InternetExposureNode:        sourcecypher.NewS3InternetExposureNodeWriter(exec, batchSize),
+		rdsPostureNode: graphowner.NewRDSPostureLockedWriter(
+			lockGate, rawRDSPostureNode.WriteRDSPostureNodes, rawRDSPostureNode.RetractRDSPostureNodes,
+		),
+		ec2UsesProfileEdge:         sourcecypher.NewEC2UsesProfileEdgeWriter(exec, batchSize),
+		iamInstanceProfileRoleEdge: sourcecypher.NewIAMInstanceProfileRoleEdgeWriter(exec, batchSize),
+		ec2InternetExposureNode: graphowner.NewEC2InternetExposureLockedWriter(
+			lockGate, rawEC2InternetExposureNode.WriteEC2InternetExposureNodes, rawEC2InternetExposureNode.RetractEC2InternetExposureNodes,
+		),
+		ec2BlockDeviceKMSPostureNode: graphowner.NewEC2BlockDeviceKMSPostureLockedWriter(
+			lockGate, rawEC2BlockDeviceKMSPostureNode.WriteEC2BlockDeviceKMSPostureNodes, rawEC2BlockDeviceKMSPostureNode.RetractEC2BlockDeviceKMSPostureNodes,
+		),
+		s3InternetExposureNode: graphowner.NewS3InternetExposureLockedWriter(
+			lockGate, rawS3InternetExposureNode.WriteS3InternetExposureNodes, rawS3InternetExposureNode.RetractS3InternetExposureNodes,
+		),
 	}
 }

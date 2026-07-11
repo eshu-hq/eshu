@@ -162,6 +162,73 @@ func TestResolveOwnedUIDsEmptyEntriesIsNoOp(t *testing.T) {
 	}
 }
 
+// TestLockUIDsUsesSameAdvisoryKeyAsResolveOwnedUIDs proves LockUIDs (the
+// #5062 lock-only path for posture/exposure writers) acquires the identical
+// pg_advisory_xact_lock keyspace ResolveOwnedUIDs uses: it must issue the same
+// graphNodeOwnerAcquireLocksSQL statement, keyed by the same
+// graphNodeOwnerAdvisoryKey derivation, so a lock-only caller genuinely
+// serializes against a concurrent ResolveOwnedUIDs critical section on the same
+// uid rather than acquiring an unrelated lock that provides no coordination.
+func TestLockUIDsUsesSameAdvisoryKeyAsResolveOwnedUIDs(t *testing.T) {
+	t.Parallel()
+
+	store := NewGraphNodeOwnerStore()
+	rec := &recordingExecQueryer{}
+	if err := store.LockUIDs(t.Context(), rec, []string{"cloud:aws:vpc-1", "cloud:aws:vpc-2"}); err != nil {
+		t.Fatalf("LockUIDs error = %v", err)
+	}
+	if len(rec.execs) != 1 {
+		t.Fatalf("LockUIDs issued %d exec statements, want 1 (one round-trip)", len(rec.execs))
+	}
+	call := rec.execs[0]
+	if call.query != graphNodeOwnerAcquireLocksSQL {
+		t.Fatalf("LockUIDs query = %q, want the SAME acquire-locks statement ResolveOwnedUIDs uses:\n%s", call.query, graphNodeOwnerAcquireLocksSQL)
+	}
+	if len(call.args) != 1 {
+		t.Fatalf("LockUIDs args = %v, want exactly one []int64 key slice", call.args)
+	}
+	keys, ok := call.args[0].([]int64)
+	if !ok {
+		t.Fatalf("LockUIDs key arg type = %T, want []int64", call.args[0])
+	}
+	want := []int64{
+		graphNodeOwnerAdvisoryKey("cloud:aws:vpc-1"),
+		graphNodeOwnerAdvisoryKey("cloud:aws:vpc-2"),
+	}
+	if len(keys) != len(want) || keys[0] != want[0] || keys[1] != want[1] {
+		t.Fatalf("LockUIDs keys = %v, want %v (graphNodeOwnerAdvisoryKey per uid, same derivation as acquireLocks)", keys, want)
+	}
+}
+
+// TestLockUIDsEmptyOrBlankIsNoOp proves an empty or all-blank uid set never
+// touches the database, matching ResolveOwnedUIDs's empty-batch behavior.
+func TestLockUIDsEmptyOrBlankIsNoOp(t *testing.T) {
+	t.Parallel()
+
+	store := NewGraphNodeOwnerStore()
+	rec := &recordingExecQueryer{}
+	if err := store.LockUIDs(t.Context(), rec, nil); err != nil {
+		t.Fatalf("LockUIDs(nil) error = %v", err)
+	}
+	if err := store.LockUIDs(t.Context(), rec, []string{"  ", ""}); err != nil {
+		t.Fatalf("LockUIDs(blank) error = %v", err)
+	}
+	if len(rec.execs) != 0 {
+		t.Fatalf("LockUIDs touched the database for an empty/blank uid set: %d execs", len(rec.execs))
+	}
+}
+
+// TestLockUIDsRejectsNilTx proves the fail-closed guard matches
+// ResolveOwnedUIDs's nil-tx rejection.
+func TestLockUIDsRejectsNilTx(t *testing.T) {
+	t.Parallel()
+
+	store := NewGraphNodeOwnerStore()
+	if err := store.LockUIDs(t.Context(), nil, []string{"a"}); err == nil {
+		t.Fatal("LockUIDs(nil tx) = nil error, want error")
+	}
+}
+
 // TestGraphNodeOwnerEntryWinningRowIsJSON proves the entry carries JSON-encoded
 // rows (the Stage 2 foundation) without the store needing to interpret them.
 func TestGraphNodeOwnerEntryWinningRowIsJSON(t *testing.T) {

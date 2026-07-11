@@ -166,13 +166,54 @@ func (s GraphNodeOwnerStore) ResolveOwnedUIDs(
 	return owned, contendedLost, nil
 }
 
-func (GraphNodeOwnerStore) acquireLocks(ctx context.Context, tx ExecQueryer, entries []GraphNodeOwnerEntry) error {
-	keys := make([]int64, 0, len(entries))
+func (s GraphNodeOwnerStore) acquireLocks(ctx context.Context, tx ExecQueryer, entries []GraphNodeOwnerEntry) error {
+	uids := make([]string, 0, len(entries))
 	for _, entry := range entries {
-		keys = append(keys, graphNodeOwnerAdvisoryKey(entry.UID))
+		uids = append(uids, entry.UID)
+	}
+	return s.LockUIDs(ctx, tx, uids)
+}
+
+// LockUIDs acquires the transaction-scoped advisory lock for every uid, using
+// the IDENTICAL graphNodeOwnerAdvisoryKey derivation and graphNodeOwnerAcquireLocksSQL
+// statement acquireLocks uses on ResolveOwnedUIDs's path (acquireLocks now
+// delegates to this method, so the two can never drift). It performs NO ledger
+// upsert and NO ownership resolution.
+//
+// This exists for #5062 lock-only callers (go/internal/graphowner.LockOnlyGate,
+// wrapping the RDS/EC2/S3 posture and internet-exposure property writers): those
+// writers are not order-resolved owner-ledger contributors — every scope
+// observes the same posture fact for the same underlying resource, so there is
+// no "winner" to converge to — but their graph write still touches a uid the
+// #5007 owner ledger may be concurrently resolving for a DIFFERENT (cross-scope)
+// base-property contributor. NornicDB does not reliably detect that overlap
+// (issue #5062: even a same-property race can silently drop the loser's write),
+// so the posture writer must hold the SAME per-uid advisory lock across its own
+// graph write to serialize against a concurrent ResolveOwnedUIDs critical
+// section on that uid. Acquiring an unrelated lock key would provide zero
+// coordination, so key reuse (not merely a similarly-shaped lock) is the
+// correctness requirement here.
+//
+// Blank/whitespace-only uids are dropped (they cannot correspond to a real
+// graph node); an empty or all-blank input is a no-op that never touches the
+// database, matching ResolveOwnedUIDs's empty-batch behavior.
+func (GraphNodeOwnerStore) LockUIDs(ctx context.Context, tx ExecQueryer, uids []string) error {
+	if tx == nil {
+		return fmt.Errorf("graph node owner store transaction is required")
+	}
+	keys := make([]int64, 0, len(uids))
+	for _, uid := range uids {
+		uid = strings.TrimSpace(uid)
+		if uid == "" {
+			continue
+		}
+		keys = append(keys, graphNodeOwnerAdvisoryKey(uid))
+	}
+	if len(keys) == 0 {
+		return nil
 	}
 	if _, err := tx.ExecContext(ctx, graphNodeOwnerAcquireLocksSQL, keys); err != nil {
-		return fmt.Errorf("acquire graph node owner advisory locks: %w", err)
+		return fmt.Errorf("acquire graph node owner advisory locks (lock-only): %w", err)
 	}
 	return nil
 }

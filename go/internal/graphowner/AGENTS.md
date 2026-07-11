@@ -53,3 +53,48 @@ go test ./internal/graphowner -run TestLiveGatedWriterEndToEnd -v
 
 It must show non-contended writes landing byte-for-byte and concurrent
 cross-scope writers converging to the max with zero lost updates.
+
+## LockOnlyGate (#5062 P1) — separate mechanic, do not conflate with Gate
+
+`LockOnlyGate` (`lock_only_gate.go`, `posture_locked_writers.go`) is a
+**different** primitive from `Gate`, for a **different** class of writer. It
+exists for the RDS/EC2/S3 posture and internet-exposure property writers,
+which `SET`/`REMOVE` properties on the SAME `CloudResource` nodes `Gate`
+resolves ownership for, but are NOT order-resolved owner-ledger contributors
+(every scope observes the same posture fact for the same resource — there is
+no "winner").
+
+- `LockOnlyGate` MUST reuse the exact same advisory-lock keyspace `Gate` uses:
+  `postgres.GraphNodeOwnerStore.LockUIDs` calls the SAME
+  `graphNodeOwnerAdvisoryKey` derivation `acquireLocks`/`ResolveOwnedUIDs`
+  uses (verified in `graph_node_owner_store_test.go`,
+  `TestLockUIDsUsesSameAdvisoryKeyAsResolveOwnedUIDs`, which asserts the exact
+  SQL and key values match). If you ever add a second lock-only primitive or
+  change the key derivation, that test is the trip-wire — a different key
+  provides ZERO coordination and silently reintroduces the #5062 gap.
+- `LockOnlyGate` MUST NOT write a ledger row or resolve ownership. It is
+  lock-only by design: giving a posture writer an order key would be a
+  category error (nothing determines which scope's posture fact should "win" —
+  they are all the same fact).
+- `LockOnlyGate` does NOT wrap `Retract*`. Retraction targets a scope
+  (`WHERE r.<x>_scope_id IN $scope_ids`), not an explicit uid list, so there
+  is no row-level uid set to lock ahead of the write. Do not try to make
+  Retract* lock-gated without first adding a bounded pre-query to discover the
+  affected uids — that is a real design change, not a small tweak.
+- Chunking mirrors `Gate.write` (`lockChunkSize` = `cypher.DefaultBatchSize`)
+  for the same Postgres shared-advisory-lock-budget reason documented on
+  `lockChunkSize`. Keep the two chunk bounds in sync if you ever change one.
+- **Measured result, recorded so it is not re-litigated from scratch:**
+  `lock_only_gate_prove_theory_live_test.go` raced an ungated posture write
+  against a Gate-gated base write on the same uid (widened 5ms transaction
+  gap, the same technique `graph_guard_prove_theory_live_test.go` uses) and
+  did NOT reproduce silent property loss for this writer pair's unconditional
+  `SET` shape — that specific "silent revert" framing is a disproven
+  sub-theory for THIS writer pair, not a confirmed one. What it DID prove: the
+  ungated race repeatedly hit NornicDB's
+  `Neo.TransientError.Transaction.Outdated` and retried at a 3.6x-30x
+  per-trial latency cost (two runs) that `LockOnlyGate` eliminates by removing
+  the conflict entirely. Read that test's full doc comment before assuming
+  this package prevents silent corruption for every possible writer pairing —
+  it demonstrably does for the graph_guard conditional-SET shape, and it
+  removes retry-storm contention for this unconditional-SET shape.
