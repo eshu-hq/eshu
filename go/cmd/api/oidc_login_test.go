@@ -4,7 +4,9 @@
 package main
 
 import (
+	"bytes"
 	"database/sql"
+	"log/slog"
 	"os"
 	"strings"
 	"testing"
@@ -16,7 +18,7 @@ import (
 func TestNewOIDCLoginHandlerDisabledByDefault(t *testing.T) {
 	t.Parallel()
 
-	handler, err := newOIDCLoginHandler(func(string) string { return "" }, nil, nil, nil)
+	handler, err := newOIDCLoginHandler(func(string) string { return "" }, nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("newOIDCLoginHandler() error = %v, want nil", err)
 	}
@@ -41,12 +43,12 @@ func TestNewOIDCLoginHandlerEnabledWithoutConfigFileRequiresDatabase(t *testing.
 		return ""
 	}
 
-	_, err := newOIDCLoginHandler(envOnly, nil, nil, nil)
+	_, err := newOIDCLoginHandler(envOnly, nil, nil, nil, nil)
 	if err == nil || !strings.Contains(err.Error(), "postgres") {
 		t.Fatalf("newOIDCLoginHandler() error = %v, want a postgres-required error when enabled with no config file and no db", err)
 	}
 
-	handler, err := newOIDCLoginHandler(envOnly, &sql.DB{}, nil, nil)
+	handler, err := newOIDCLoginHandler(envOnly, &sql.DB{}, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("newOIDCLoginHandler() error = %v, want nil when a database is available", err)
 	}
@@ -104,7 +106,7 @@ func TestNewOIDCLoginHandlerParsesEnabledWithVarBoolSemantics(t *testing.T) {
 				default:
 					return ""
 				}
-			}, nil, nil, nil)
+			}, nil, nil, nil, nil)
 			if tt.wantErr != "" {
 				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
 					t.Fatalf("newOIDCLoginHandler() error = %v, want %s failure", err, tt.wantErr)
@@ -146,6 +148,8 @@ func TestNewOIDCLoginHandlerLoadsFileBackedConfig(t *testing.T) {
   }]
 }`)
 	db := &sql.DB{}
+	var logBuf bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&logBuf, nil))
 	handler, err := newOIDCLoginHandler(func(key string) string {
 		switch key {
 		case envAuthOIDCConfigFile:
@@ -155,7 +159,7 @@ func TestNewOIDCLoginHandlerLoadsFileBackedConfig(t *testing.T) {
 		default:
 			return ""
 		}
-	}, db, nil, nil)
+	}, db, nil, nil, logger)
 	if err != nil {
 		t.Fatalf("newOIDCLoginHandler() error = %v, want nil", err)
 	}
@@ -164,6 +168,12 @@ func TestNewOIDCLoginHandlerLoadsFileBackedConfig(t *testing.T) {
 	}
 	if handler.SessionRefreshWindow != query.DefaultOIDCSessionRefreshWindow {
 		t.Fatalf("refresh window = %v, want default %v", handler.SessionRefreshWindow, query.DefaultOIDCSessionRefreshWindow)
+	}
+	// #5038: the config above still sets the deprecated, ignored
+	// role_grants[].policy_revision_hash — startup must warn once instead of
+	// silently dropping it or hard-failing.
+	if !strings.Contains(logBuf.String(), "auth.oidc.static_config.policy_revision_hash_ignored") {
+		t.Fatalf("startup log = %q, want a one-time policy_revision_hash-ignored WARN", logBuf.String())
 	}
 }
 
@@ -190,7 +200,7 @@ func TestNewOIDCLoginHandlerParsesSessionRefreshWindow(t *testing.T) {
 		default:
 			return ""
 		}
-	}, &sql.DB{}, nil, nil)
+	}, &sql.DB{}, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("newOIDCLoginHandler() error = %v, want nil", err)
 	}
@@ -227,7 +237,7 @@ func TestNewOIDCLoginHandlerInvalidSessionRefreshWindowFailsStartup(t *testing.T
 				default:
 					return ""
 				}
-			}, &sql.DB{}, nil, nil)
+			}, &sql.DB{}, nil, nil, nil)
 			if err == nil || !strings.Contains(err.Error(), envAuthOIDCSessionRefreshWindow) {
 				t.Fatalf("newOIDCLoginHandler() error = %v, want refresh window failure", err)
 			}
@@ -258,7 +268,7 @@ func TestNewOIDCLoginHandlerInvalidProviderOverrideFailsStartup(t *testing.T) {
 		default:
 			return ""
 		}
-	}, &sql.DB{}, nil, nil)
+	}, &sql.DB{}, nil, nil, nil)
 	if err == nil || !strings.Contains(err.Error(), "validate oidc login config") {
 		t.Fatalf("newOIDCLoginHandler() error = %v, want invalid provider override", err)
 	}

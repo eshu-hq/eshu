@@ -41,5 +41,11 @@ and `doc.go` before editing.
 group-to-role-to-grant mapping. `refresher_test.go` covers revoke-on-lost-grant,
 extend-when-authorized, disabled-subject revocation, provider-unavailable
 deferral, batch bounding, idempotent concurrent passes, and empty-queue no-op.
+`static_grants_test.go` covers `StaticGrantResolver`: it must never populate
+`GrantResolution.PolicyRevisionHash` from a config file's (deprecated,
+ignored) `role_grants[].policy_revision_hash`, regardless of what value is
+set (#5038) — the real-Postgres end-to-end proof for this contract lives in
+`internal/storage/postgres`'s
+`browser_sessions_static_grant_policy_hash_live_test.go` (DSN-gated).
 Add a focused test for any new claim, provider, grant, or refresh behavior
 before changing production code.

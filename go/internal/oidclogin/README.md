@@ -57,6 +57,15 @@ state, or policy revision resolution fails.
 Group claims are never permissions. They map to Eshu role IDs first; roles then
 resolve to explicit scope and repository grants.
 
+`StaticGrantResolver` never populates `GrantResolution.PolicyRevisionHash`
+(#5038), even when a static config file's `role_grants[].policy_revision_hash`
+is set. That field is deprecated and ignored: an operator-supplied value could
+silently drift from the live workspace policy revision hash, and every
+subsequent authenticated request for that session would 401 even though login
+itself succeeded. Leaving the field empty lets the browser-session store
+default it to the live workspace hash at session-create time, matching the
+DB-backed group-mapping resolver's already-safe behavior.
+
 Login-time grant resolution is not an IdP polling loop. OIDC-backed browser
 sessions store hash-only provider proof metadata and force provider
 reauthentication after the configured stale window; the login package only

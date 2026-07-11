@@ -126,6 +126,23 @@ func (db *providerConfigFakeDB) QueryContext(_ context.Context, query string, ar
 			status:          "draft",
 		}
 		return &scalarRows{data: [][]any{{providerConfigID}}}, nil
+	case activateProviderConfigActiveRevisionQuery:
+		providerConfigID := args[0].(string)
+		revisionID := args[2].(string)
+		row := db.configs[providerConfigID]
+		if row == nil {
+			return &scalarRows{}, nil
+		}
+		row.activeRevisionID = revisionID
+		// Mirrors the real query: changing the active revision always resets
+		// status back to draft (see activateProviderConfigActiveRevisionQuery's
+		// doc comment) — a fresh Enable + test-connection is required before
+		// the provider is trusted again. UpdateProviderConfig reads this back
+		// via RETURNING status (#4988) instead of trusting a pre-transaction
+		// value, so this QueryContext case must mirror the real RETURNING
+		// clause's post-write value.
+		row.status = "draft"
+		return &scalarRows{data: [][]any{{row.status}}}, nil
 	case selectProviderConfigForUpdateQuery:
 		providerConfigID := args[0].(string)
 		tenantID := args[1].(string)

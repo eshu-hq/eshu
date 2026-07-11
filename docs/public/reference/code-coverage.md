@@ -62,8 +62,8 @@ The generator excludes Generated Go files (`*.pb.go`, `*.gen.go`, `zz_generated*
 | `github.com/eshu-hq/eshu/go/cmd/mcp-server` | 85 | 210 | 40.5% |
 | `github.com/eshu-hq/eshu/go/internal/parser/elixir` | 307 | 744 | 41.3% |
 | `github.com/eshu-hq/eshu/go/cmd/collector-vulnerability-intelligence` | 95 | 226 | 42.0% |
-| `github.com/eshu-hq/eshu/go/cmd/api` | 618 | 1457 | 42.4% |
 | `github.com/eshu-hq/eshu/go/cmd/fact-kind-registry` | 104 | 245 | 42.4% |
+| `github.com/eshu-hq/eshu/go/cmd/api` | 620 | 1459 | 42.5% |
 | `github.com/eshu-hq/eshu/go/cmd/collector-grafana` | 84 | 193 | 43.5% |
 | `github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/ec2/awssdk` | 112 | 251 | 44.6% |
 | `github.com/eshu-hq/eshu/go/cmd/collector-jira` | 89 | 197 | 45.2% |

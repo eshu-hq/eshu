@@ -73,12 +73,19 @@ INSERT INTO identity_provider_config_revisions (
 // TestProviderConfigConcurrentUpdateDuringEnableRejectsStaleRevision). For
 // CreateProviderConfig this is a no-op — status is already 'draft' from the
 // INSERT moments earlier in the same transaction.
+//
+// RETURNING status lets UpdateProviderConfig report the row's actual
+// post-transaction status (always 'draft' here) instead of the caller having
+// to assume it from the pre-transaction row lock read (#4988: the prior
+// status read under the lock, before this statement ran, went stale the
+// moment this UPDATE committed).
 const activateProviderConfigActiveRevisionQuery = `
 UPDATE identity_provider_configs
 SET active_revision_id = $3,
     status = 'draft',
     updated_at = $4
 WHERE provider_config_id = $1 AND tenant_id = $2
+RETURNING status
 `
 
 // selectProviderConfigForUpdateQuery row-locks the provider config for the

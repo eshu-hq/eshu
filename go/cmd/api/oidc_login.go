@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log/slog"
 	"strconv"
 	"strings"
 	"time"
@@ -69,6 +70,7 @@ func newOIDCLoginHandler(
 	db *sql.DB,
 	instruments *telemetry.Instruments,
 	providerSecretKeyring *secretcrypto.Keyring,
+	logger *slog.Logger,
 ) (*query.OIDCLoginHandler, error) {
 	enabled := false
 	if rawEnabled := strings.TrimSpace(getenv(envAuthOIDCEnabled)); rawEnabled != "" {
@@ -96,13 +98,24 @@ func newOIDCLoginHandler(
 	}
 
 	var config oidclogin.Config
-	var staticResolver oidclogin.GrantResolver = oidclogin.StaticGrantResolver{}
+	staticResolver := oidclogin.StaticGrantResolver{}
 	if configPath != "" {
 		loaded, resolver, err := oidclogin.LoadConfigFile(configPath)
 		if err != nil {
 			return nil, err
 		}
 		config, staticResolver = loaded, resolver
+	}
+	// #5038: role_grants[].policy_revision_hash is deprecated and ignored —
+	// StaticGrantResolver never reads it — but a config file written before
+	// this change may still set it. Warn once at startup instead of silently
+	// dropping it or hard-failing an existing deployment's config.
+	if logger != nil && staticResolver.HasIgnoredPolicyRevisionHash() {
+		logger.Warn(
+			"static OIDC config role_grants[].policy_revision_hash is deprecated and ignored; "+
+				"Eshu always resolves the live workspace policy revision hash at session-create time",
+			telemetry.EventAttr("auth.oidc.static_config.policy_revision_hash_ignored"),
+		)
 	}
 	if providerID := strings.TrimSpace(getenv(envAuthOIDCProviderID)); providerID != "" {
 		config.DefaultProviderID = providerID
