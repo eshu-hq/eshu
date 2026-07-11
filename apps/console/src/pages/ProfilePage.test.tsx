@@ -365,4 +365,32 @@ describe("ProfilePage TOTP enrollment", () => {
     );
     expect(screen.getByLabelText("Manual entry key")).toHaveValue("JBSWY3DPEHPK3PXP");
   });
+
+  // issue #5072: if the otpauth URI cannot be encoded as a QR (too large for
+  // a version-40 symbol at ECC-M — unreachable for a normal URI, but a
+  // pathological account label could overflow), the panel must degrade to
+  // the text URI + manual key fallback instead of crashing. Proves the QR
+  // render is a graceful enhancement, never a hard dependency.
+  it("falls back to the URI and manual key when the QR cannot be encoded (#5072)", async () => {
+    const oversizedUri = `otpauth://totp/Eshu:account?secret=${"A".repeat(4000)}`;
+    const client = totpClient({
+      begin: {
+        factor_id: "factor-totp-1",
+        otpauth_uri: oversizedUri,
+        secret: "JBSWY3DPEHPK3PXP",
+        issuer: "Eshu",
+        digits: 6,
+        period_seconds: 30,
+      },
+    });
+    render(<ProfilePage client={client} />);
+    const startButton = await screen.findByRole("button", { name: "Set up authenticator app" });
+    fireEvent.click(startButton);
+
+    await waitFor(() =>
+      expect(screen.getByLabelText("Provisioning URI")).toHaveValue(oversizedUri),
+    );
+    expect(screen.getByLabelText("Manual entry key")).toHaveValue("JBSWY3DPEHPK3PXP");
+    expect(screen.queryByRole("img", { name: /QR code/i })).toBeNull();
+  });
 });

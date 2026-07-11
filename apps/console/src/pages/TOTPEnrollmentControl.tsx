@@ -34,8 +34,18 @@ function TOTPEnrollmentQr({
   readonly otpauthUri: string;
 }): React.JSX.Element | null {
   if (otpauthUri.length === 0) return null;
-  const matrix = encodeQrMatrix(otpauthUri);
-  const { path, size } = qrMatrixToSvg(matrix);
+  // encodeQrMatrix throws if the URI cannot fit a version-40 symbol at ECC-M
+  // (unreachable for a normal otpauth URI, but a pathological account label
+  // could in principle overflow). Fall back to the text URI + manual key
+  // rather than crashing the enrollment panel — that text fallback is the
+  // whole point of keeping the URI/key inputs, so degrade to it gracefully.
+  let path: string;
+  let size: number;
+  try {
+    ({ path, size } = qrMatrixToSvg(encodeQrMatrix(otpauthUri)));
+  } catch {
+    return null;
+  }
   return (
     <svg
       className="totp-enroll-qr"
