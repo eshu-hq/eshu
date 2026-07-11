@@ -480,10 +480,13 @@ round-trips). Acquiring ALL per-uid locks in ONE sorted statement
 (`SELECT pg_advisory_xact_lock(k) FROM (SELECT DISTINCT k FROM unnest($1) ORDER
 BY k) s` — sorted so overlapping batches cannot deadlock) drops it to **2.28x**
 (flat graph-only 6.0ms vs ledger+lock+graph 13.7ms for a 500-uid batch,
-15µs/row). The non-contended common case can be optimized further with
-`RETURNING` on the upsert to skip the winner read-back. CloudResource is
-low-cardinality relative to File/Function, so the absolute per-scope impact is
-small; the perf differential on the real writer is measured before merge.
+15µs/row). The `RETURNING`-on-the-upsert idea (skip the winner read-back on the
+non-contended case) was subsequently measured and rejected as a material win —
+see [Perf optimization (RETURNING)](#perf-optimization-returning-measured-rejected-as-a-win),
+which also re-frames this 2.28x against a realistic value-changing graph floor
+(~1.3x). CloudResource is low-cardinality relative to File/Function, so the
+absolute per-scope impact is small; the perf differential on the real writer is
+measured before merge.
 
 Shim commands (recorded evidence,
 `go/internal/storage/cypher/owner_ledger_prove_theory_live_test.go`):
@@ -499,6 +502,119 @@ go test ./internal/storage/cypher -run 'TestLiveOwnerLedger' -v
 #   b_advisory_lock:            0/100 random; FORCED worst-case = converges
 #   batch perf: flat 6.0ms vs design(b) 13.7ms (2.28x) for 500 uids
 ```
+
+### Perf optimization (RETURNING): measured, rejected as a win
+
+The maintainer asked for the write path to be cheaper before the 5-family
+build, starting with the `RETURNING` idea from the section above. The
+prove-theory gate was re-run for the RETURNING variants against the same pinned
+standalone Postgres 18 + NornicDB v1.1.9 (fresh isolated containers,
+`eshu5007ret-pg` on 15637, `eshu5007ret-nornicdb` on 17689). Result:
+**rejected hypothesis as a perf win, but the measurement corrected the cost
+model** — the honest write-path number for the full build is below.
+
+**Exact Postgres RETURNING semantics (proven, not assumed).** Two upsert
+mechanics were probed
+(`owner_ledger_returning_semantics_live_test.go`):
+
+```sql
+-- (i) WHERE-guarded + RETURNING: identical semantics to the proven upsert
+INSERT INTO cloud_resource_owner (uid, source_order_key, value, updated_at)
+VALUES ($1, $2, $3, now())
+ON CONFLICT (uid) DO UPDATE
+    SET source_order_key = EXCLUDED.source_order_key, value = EXCLUDED.value, updated_at = EXCLUDED.updated_at
+    WHERE EXCLUDED.source_order_key > cloud_resource_owner.source_order_key
+RETURNING uid, source_order_key, value
+```
+
+Proven on Postgres 18: when the `DO UPDATE ... WHERE` is false (losing or
+equal-key writer), the row is **not** updated and `RETURNING` yields **no row**
+— the losing writer learns nothing about the current winner from the statement
+alone and still needs a fallback read for the omitted uids.
+
+```sql
+-- (ii) CASE-always-update + RETURNING: the conflict arm always fires
+INSERT INTO cloud_resource_owner (uid, source_order_key, value, updated_at)
+VALUES ($1, $2, $3, now())
+ON CONFLICT (uid) DO UPDATE
+    SET source_order_key = CASE WHEN EXCLUDED.source_order_key > cloud_resource_owner.source_order_key
+            THEN EXCLUDED.source_order_key ELSE cloud_resource_owner.source_order_key END,
+        value = CASE WHEN EXCLUDED.source_order_key > cloud_resource_owner.source_order_key
+            THEN EXCLUDED.value ELSE cloud_resource_owner.value END,
+        updated_at = now()
+RETURNING uid, source_order_key, value
+```
+
+Proven: `RETURNING` **always** yields the post-update row — the current winner
+— even for a losing writer, eliminating every read-back; the cost is a
+self-overwrite heap-tuple version on losing/equal-key rows.
+
+**Correctness re-proof (the optimization must not buy speed with a race).**
+`owner_ledger_returning_correctness_live_test.go`:
+
+- N=4 concurrent writers × 100 trials, advisory lock + CASE-RETURNING upsert +
+  graph write: **0/100 ledger lost, 0/100 graph lost, 0 writer errors** — same
+  as proven design (b).
+- Forced worst-case interleaving WITH the lock: converges to the max.
+- Forced worst-case interleaving WITHOUT the lock (the tempting "the upsert
+  already told me the winner, drop the lock" shortcut): **deterministically
+  loses** — low captures its RETURNING winner, high completes upsert+graph
+  write, low then writes its captured (stale) winner to the graph. RETURNING
+  does not shrink the ledger-decide → graph-write window; **the advisory lock
+  stays**. Skipping the lock on "no-overlap" batches is likewise unsound:
+  overlap potential is a property of *concurrent* batches from other scopes and
+  is unknowable to the local batch.
+
+**Perf differential** (`owner_ledger_returning_perf_live_test.go`, 500 uids ×
+20 warm iters, per-stage split; ranges over two independent runs on a fresh
+store — the shim's order keys derive from a per-invocation nanosecond nonce so
+repeat runs stay in the intended winning/losing regime):
+
+| Case | flat floor | baseline (b) | (b)+RET-WHERE | (b)+RET-CASE |
+|---|---|---|---|---|
+| non-contended, value-changing (newer key per iter — the common real case) | 35.8–39.8ms | 48.0–50.8ms (1.27–1.34x) | 49.3–49.7ms (1.25–1.37x) | 50.2–51.8ms (1.26–1.45x) |
+| all-losers (warm duplicate/lower-key replay) | 9.4–10.7ms | 16.3–17.8ms (1.66–1.72x) | 15.8–17.6ms (1.64–1.67x) | 17.7–17.9ms (1.67–1.88x) |
+
+Stage split for the non-contended baseline: lock 0.7–1.2ms, upsert 4.2–5.5ms,
+winner read-back **0.9–1.6ms**, graph 36.2–41.2ms, commit 2.8–3.2ms. The
+read-back that RETURNING eliminates is ~2–3% of the batch; both RETURNING
+mechanics land within run-to-run noise of the baseline (their ranges overlap
+the baseline's in both cases). **RETURNING is a rejected hypothesis as a perf
+win** — the overhead lives in the ledger upsert + commit + lock, which *are*
+the mechanism.
+
+The measurement did correct the cost model. The earlier 2.28x/2.46x was taken
+against an idempotent same-value graph floor (6.0ms — NornicDB re-`SET`ting
+identical values). A real newer-observation batch changes property values, and
+that flat floor is ~36–40ms; the ledger overhead is roughly constant in
+absolute terms (~7–12ms per 500-uid batch, ~14–25µs/row), so the realistic
+multiple for the common case is **~1.3x**, and the 2.46x headline was an
+artifact of the cheap floor, not the ledger. Two fully-overlapping concurrent
+batches serialize on the per-uid locks by design (measured 78ms wall for two
+~49ms batches, converging to the max in both stores every iteration);
+disjoint-uid batches do not contend.
+
+Performance Evidence: `TestLiveOwnerLedgerReturningBatchPerf` on pinned
+Postgres 18 (`postgres:18-alpine`) + NornicDB v1.1.9
+(`timothyswt/nornicdb-cpu-bge:v1.1.9`), 500-uid batches × 20 warm iterations,
+two independent runs — flat 35.8–39.8ms vs design (b) 48.0–50.8ms (1.27–1.34x,
+~22–25µs/row) non-contended value-changing; flat 9.4–10.7ms vs 16.3–17.8ms
+(1.66–1.72x) all-losers; RETURNING variants within noise of the baseline in
+every run; read-back stage 0.9–1.6ms of ~48–51ms. Correctness: 0/100 ledger
+lost, 0/100 graph lost, 0 writer errors at N=4; forced no-lock interleaving
+loses deterministically.
+No-Observability-Change: measurement shims (env-gated live tests) and ADR text
+only; no production code path, telemetry, or wire contract changes.
+
+**Recommendation: GO on plain design (b), skip the RETURNING variant.** The
+proven upsert + winner read-back shape stays; RETURNING adds semantics
+complexity (WHERE-false row suppression / self-overwrite churn) for a ~1ms
+saving that noise absorbs. The write-path budget the 5-family build should be
+held to is the absolute one: **~7–12ms of Postgres work per 500-uid batch
+(~14–25µs/row), fully overlapped-safe, on top of whatever the graph write
+already costs.** CloudResource-family batches are low-cardinality relative to
+File/Function, so the per-scope impact is small; the final gate remains the
+perf differential on the real writer before merge, as already required above.
 
 ### Stage 1 owner-ledger mechanic (decided)
 
