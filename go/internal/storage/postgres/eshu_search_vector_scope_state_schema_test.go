@@ -74,7 +74,7 @@ func TestBootstrapDefinitionsIncludeEshuSearchDocumentProjectionState(t *testing
 	if found.Name == "" {
 		t.Fatal("BootstrapDefinitions missing eshu_search_document_projection_state")
 	}
-	if found.Path != "go/internal/storage/postgres/migrations/053_eshu_search_document_projection_state.sql" {
+	if found.Path != "go/internal/storage/postgres/migrations/054_eshu_search_document_projection_state.sql" {
 		t.Fatalf("Path = %q", found.Path)
 	}
 	if !strings.Contains(found.SQL, "CREATE TABLE IF NOT EXISTS eshu_search_document_projection_state") {
@@ -95,7 +95,7 @@ func TestBootstrapDefinitionsIncludeEshuSearchVectorScopeState(t *testing.T) {
 	if found.Name == "" {
 		t.Fatal("BootstrapDefinitions missing eshu_search_vector_scope_state")
 	}
-	if found.Path != "go/internal/storage/postgres/migrations/054_eshu_search_vector_scope_state.sql" {
+	if found.Path != "go/internal/storage/postgres/migrations/055_eshu_search_vector_scope_state.sql" {
 		t.Fatalf("Path = %q", found.Path)
 	}
 	if !strings.Contains(found.SQL, "CREATE TABLE IF NOT EXISTS eshu_search_vector_scope_state") {
