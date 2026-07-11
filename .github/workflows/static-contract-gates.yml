@@ -108,6 +108,8 @@ jobs:
               - 'go/internal/mcp/**'
               - 'docs/public/observability/**'
               - 'scripts/*generate-operator-dashboard*.sh'
+              - 'scripts/lib/operator-dashboard-*.json.tmpl'
+              - 'scripts/lib/operator-dashboard-metrics.sh'
             envdoc:
               - '.github/workflows/static-contract-gates.yml'
               - 'specs/ci-gates.v1.yaml'

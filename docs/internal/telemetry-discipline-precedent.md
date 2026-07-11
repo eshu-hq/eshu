@@ -110,12 +110,20 @@ Use this runbook when adding a new `eshu_dp_*` metric or a new pipeline stage.
    the doc, the code, or both drifted. The drift report is uploaded as the
    `telemetry-coverage-drift-report` artifact.
 8. **If the new metric should appear on the operator overview dashboard**, add
-   the metric name to `scripts/lib/operator-dashboard-metrics.sh` and either
-   edit the panel in `scripts/lib/operator-dashboard-panels-{1,2}.sh` or
-   re-run `scripts/generate-operator-dashboard.sh` to update the committed
-   artifact. The dashboard generator has its own test mirror
-   (`scripts/test-generate-operator-dashboard.sh`) and CI workflow
-   (`.github/workflows/generate-operator-dashboard.yml`).
+   the metric name to `scripts/lib/operator-dashboard-metrics.sh` (and, if it
+   is substituted into a template, its variable name to that file's
+   `OPERATOR_DASHBOARD_METRIC_VARS` allowlist) and either edit the panel body
+   in `scripts/lib/operator-dashboard-panels-{1,2}.json.tmpl` or re-run
+   `scripts/generate-operator-dashboard.sh` to update the committed artifact.
+   The panel bodies are template DATA FILES, not sourced shell functions,
+   because bash >= 5.1 deadlocks writing a heredoc body over roughly 512
+   bytes to its reader through macOS's small pipe buffer (issue #5019); the
+   generator reads each `.json.tmpl` file with the `$(<file)` builtin and
+   emits it with `printf`, neither of which touches a pipe. The dashboard
+   generator has its own test mirror
+   (`scripts/test-generate-operator-dashboard.sh`, which wraps the generator
+   call in a watchdog so a future regression fails in seconds) and the
+   `dashboard` gate job in `.github/workflows/static-contract-gates.yml`.
 
 ## Verifying The Discipline End To End
 

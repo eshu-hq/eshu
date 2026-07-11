@@ -52,3 +52,20 @@ COLLECTOR_RECONCILIATION_CONVERGENCE='eshu_dp_reconciliation_convergence_total'
 COLLECTOR_BACKPRESSURE='eshu_dp_workflow_claim_provider_throttle_total'
 COLLECTOR_RETRIES='eshu_dp_workflow_claim_retries_total'
 COLLECTOR_DEAD_LETTER='eshu_dp_workflow_claim_attempt_budget_exhausted_total'
+
+# Explicit allowlist of ${NAME} tokens the generator substitutes into the
+# .json.tmpl template files under scripts/lib/. A space-separated string
+# (not a bash array) so it stays safe under bash 3.2 with `set -u` — an
+# empty-array expansion aborts under `set -u` on macOS's bash 3.2, and a
+# string has no such trap. Every name here must be one of the metric
+# variables defined above. Anything NOT in this list (the literal Grafana
+# ${DS_PROMETHEUS} token and $__all) passes through the templates
+# untouched, by construction, because it is never looked up.
+OPERATOR_DASHBOARD_METRIC_VARS="ACTIVE_GENERATIONS GENERATION_LIVENESS_FAILURES \
+GENERATION_LIVENESS_RECOVERED GENERATION_LIVENESS_SUPERSEDED QUEUE_DEPTH \
+QUEUE_OLDEST_AGE WORKER_POOL_ACTIVE SHARED_ACCEPTANCE_ROWS GRAPH_ORPHAN_NODES \
+CROSS_REPO_FENCED REDUCER_INPUT_INVALID_FACTS PROJECTOR_INPUT_INVALID_FACTS \
+EDGES_BY_SOURCE_TOOL FILES_BY_LANGUAGE API_REQUEST_DURATION \
+API_REQUEST_ERRORS COLLECTOR_RECONCILIATION_FULL \
+COLLECTOR_RECONCILIATION_DRIFT COLLECTOR_RECONCILIATION_CONVERGENCE \
+COLLECTOR_BACKPRESSURE COLLECTOR_RETRIES COLLECTOR_DEAD_LETTER"

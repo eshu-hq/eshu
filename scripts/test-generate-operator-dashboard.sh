@@ -28,20 +28,52 @@ require_jq() {
 
 require_jq
 
+# run_with_watchdog runs "$@" in the background and kills it if it has not
+# finished within the given timeout. This is a portable (bash 3.2 and
+# Homebrew bash alike, no GNU coreutils `timeout` required) substitute for
+# `timeout N cmd`. It exists so a future regression that reintroduces a
+# >512-byte heredoc body (issue #5019: bash >=5.1 writes the whole heredoc
+# body to a pipe before spawning the reader, which deadlocks past macOS's
+# 512-byte pipe buffer) fails this test mirror in seconds instead of
+# hanging `make pre-pr` silently.
+run_with_watchdog() {
+  local timeout_secs="$1"
+  shift
+  "$@" &
+  local pid=$!
+  local waited=0
+  while kill -0 "${pid}" 2>/dev/null; do
+    sleep 1
+    waited=$((waited + 1))
+    if [ "${waited}" -ge "${timeout_secs}" ]; then
+      kill -9 "${pid}" 2>/dev/null || true
+      wait "${pid}" 2>/dev/null || true
+      return 124
+    fi
+  done
+  wait "${pid}"
+}
+
 # Case 1: the generator runs and produces a well-formed JSON.
 out_path="${tmp_root}/case-1.json"
-ESHU_OPERATOR_DASHBOARD_REPO_ROOT="${repo_root}" \
+if ! run_with_watchdog 20 env \
+  ESHU_OPERATOR_DASHBOARD_REPO_ROOT="${repo_root}" \
   ESHU_OPERATOR_DASHBOARD_OUTPUT_PATH="${out_path}" \
-  "${generator}" >/dev/null
+  "${generator}" >/dev/null; then
+  record_fail "generator did not complete within the 20s watchdog (see issue #5019)"
+  printf 'generate-operator-dashboard tests FAILED: watchdog triggered\n' >&2
+  exit 1
+fi
 if jq -e . "${out_path}" >/dev/null 2>&1; then
   record_pass "generator produces a well-formed JSON"
 else
   record_fail "generator output is not valid JSON"
 fi
 
-# Case 2: the generator is idempotent — re-running with the same
-# inputs produces the same bytes. (Deterministic output is the load-
-# bearing property of the gate.)
+# Case 2: no drift — a fresh generator run reproduces the committed
+# artifact byte-for-byte. (Deterministic, drift-free output is the
+# load-bearing property of the gate; this is stronger than a re-run
+# idempotency check.)
 if cmp -s "${out_path}" "${expected_path}"; then
   record_pass "generator output matches the committed artifact"
 else

@@ -1,21 +1,3 @@
-# operator-dashboard-panels-1.sh — emits the first chunk of the
-# Eshu operator overview Grafana dashboard panels (IDs 1-13:
-# "Is Eshu Healthy?" + "Queue and Worker Pool" + "Generation and
-# Graph Health" rows). Sourced by scripts/generate-operator-dashboard.sh.
-# The function prints the JSON array elements (without the surrounding
-# [ ]) to stdout, comma-separated. The main script concatenates the
-# output of panels-1 and panels-2 into the dashboard's "panels" array.
-# This file is split from panels-2 to keep each shell file under the
-# 500-line limit.
-#
-# Variables in scope (sourced from operator-dashboard-metrics.sh):
-# ACTIVE_GENERATIONS, GENERATION_LIVENESS_FAILURES,
-# GENERATION_LIVENESS_RECOVERED, GENERATION_LIVENESS_SUPERSEDED,
-# QUEUE_DEPTH, QUEUE_OLDEST_AGE, WORKER_POOL_ACTIVE,
-# SHARED_ACCEPTANCE_ROWS, GRAPH_ORPHAN_NODES, REDUCER_INPUT_INVALID_FACTS.
-
-operator_dashboard_panels_1() {
-  cat <<EOF
     {
       "id": 1,
       "type": "row",
@@ -29,11 +11,11 @@ operator_dashboard_panels_1() {
       "type": "stat",
       "title": "Stuck Generations (alarm)",
       "description": "Number of active scope generations currently in the 'stuck' age bucket. Any non-zero value is a 3 AM alarm: a generation is alive but not advancing. Cross-reference ${GENERATION_LIVENESS_FAILURES} for the recovery counter.",
-      "datasource": {"type": "prometheus", "uid": "\${DS_PROMETHEUS}"},
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
       "gridPos": {"h": 4, "w": 6, "x": 0, "y": 1},
       "targets": [
         {
-          "datasource": {"type": "prometheus", "uid": "\${DS_PROMETHEUS}"},
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
           "expr": "max(${ACTIVE_GENERATIONS}{age_bucket=\"stuck\"})",
           "legendFormat": "stuck",
           "refId": "A"
@@ -64,11 +46,11 @@ operator_dashboard_panels_1() {
       "type": "stat",
       "title": "Generation Liveness Failures",
       "description": "Total generation liveness sweep failures since process start. Counter; treat any non-zero rate as a recovery-loop alert.",
-      "datasource": {"type": "prometheus", "uid": "\${DS_PROMETHEUS}"},
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
       "gridPos": {"h": 4, "w": 6, "x": 6, "y": 1},
       "targets": [
         {
-          "datasource": {"type": "prometheus", "uid": "\${DS_PROMETHEUS}"},
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
           "expr": "sum(rate(${GENERATION_LIVENESS_FAILURES}[5m]))",
           "legendFormat": "rate",
           "refId": "A"
@@ -99,12 +81,12 @@ operator_dashboard_panels_1() {
       "type": "stat",
       "title": "Worker Pool Saturation",
       "description": "Current active worker count per pool. Use pool=~'reducer|projector|collector' to see the hot paths.",
-      "datasource": {"type": "prometheus", "uid": "\${DS_PROMETHEUS}"},
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
       "gridPos": {"h": 4, "w": 6, "x": 12, "y": 1},
       "targets": [
         {
-          "datasource": {"type": "prometheus", "uid": "\${DS_PROMETHEUS}"},
-          "expr": "sum(${WORKER_POOL_ACTIVE}{pool=~\"\$pool\"})",
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "expr": "sum(${WORKER_POOL_ACTIVE}{pool=~\"$pool\"})",
           "legendFormat": "active",
           "refId": "A"
         }
@@ -128,11 +110,11 @@ operator_dashboard_panels_1() {
       "type": "stat",
       "title": "Queue Depth",
       "description": "Current queue depth summed across all queues and statuses. Sustained non-zero is backpressure; pair with ${QUEUE_OLDEST_AGE} for staleness.",
-      "datasource": {"type": "prometheus", "uid": "\${DS_PROMETHEUS}"},
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
       "gridPos": {"h": 4, "w": 6, "x": 18, "y": 1},
       "targets": [
         {
-          "datasource": {"type": "prometheus", "uid": "\${DS_PROMETHEUS}"},
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
           "expr": "sum(${QUEUE_DEPTH})",
           "legendFormat": "depth",
           "refId": "A"
@@ -165,12 +147,12 @@ operator_dashboard_panels_1() {
       "type": "timeseries",
       "title": "Queue Depth by Status",
       "description": "Per-status queue depth (pending / claimed / done / failed). Pair with Queue Oldest Age below for staleness.",
-      "datasource": {"type": "prometheus", "uid": "\${DS_PROMETHEUS}"},
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
       "gridPos": {"h": 8, "w": 12, "x": 0, "y": 6},
       "targets": [
         {
-          "datasource": {"type": "prometheus", "uid": "\${DS_PROMETHEUS}"},
-          "expr": "sum(${QUEUE_DEPTH}{queue=~\"\$queue\"}) by (status)",
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "expr": "sum(${QUEUE_DEPTH}{queue=~\"$queue\"}) by (status)",
           "legendFormat": "{{status}}",
           "refId": "A"
         }
@@ -186,12 +168,12 @@ operator_dashboard_panels_1() {
       "type": "timeseries",
       "title": "Queue Oldest Age (seconds)",
       "description": "Age of the oldest item in the queue, in seconds. Stale queues grow this even when depth is bounded.",
-      "datasource": {"type": "prometheus", "uid": "\${DS_PROMETHEUS}"},
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
       "gridPos": {"h": 8, "w": 12, "x": 12, "y": 6},
       "targets": [
         {
-          "datasource": {"type": "prometheus", "uid": "\${DS_PROMETHEUS}"},
-          "expr": "max(${QUEUE_OLDEST_AGE}{queue=~\"\$queue\"})",
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "expr": "max(${QUEUE_OLDEST_AGE}{queue=~\"$queue\"})",
           "legendFormat": "{{queue}}",
           "refId": "A"
         }
@@ -215,11 +197,11 @@ operator_dashboard_panels_1() {
       "type": "timeseries",
       "title": "Active Generations by Age Bucket",
       "description": "Current active scope generation count by closed activation-age bucket. Sustained 'stuck' value is a 3 AM alarm.",
-      "datasource": {"type": "prometheus", "uid": "\${DS_PROMETHEUS}"},
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
       "gridPos": {"h": 8, "w": 12, "x": 0, "y": 15},
       "targets": [
         {
-          "datasource": {"type": "prometheus", "uid": "\${DS_PROMETHEUS}"},
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
           "expr": "${ACTIVE_GENERATIONS}",
           "legendFormat": "{{age_bucket}}",
           "refId": "A"
@@ -236,23 +218,23 @@ operator_dashboard_panels_1() {
       "type": "timeseries",
       "title": "Generation Liveness Recovery / Supersede / Failure",
       "description": "Per-second rate of generation liveness sweep outcomes. Recovered + superseded should dwarf failures on a healthy runtime.",
-      "datasource": {"type": "prometheus", "uid": "\${DS_PROMETHEUS}"},
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
       "gridPos": {"h": 8, "w": 12, "x": 12, "y": 15},
       "targets": [
         {
-          "datasource": {"type": "prometheus", "uid": "\${DS_PROMETHEUS}"},
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
           "expr": "sum(rate(${GENERATION_LIVENESS_RECOVERED}[5m]))",
           "legendFormat": "recovered",
           "refId": "A"
         },
         {
-          "datasource": {"type": "prometheus", "uid": "\${DS_PROMETHEUS}"},
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
           "expr": "sum(rate(${GENERATION_LIVENESS_SUPERSEDED}[5m]))",
           "legendFormat": "superseded",
           "refId": "B"
         },
         {
-          "datasource": {"type": "prometheus", "uid": "\${DS_PROMETHEUS}"},
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
           "expr": "sum(rate(${GENERATION_LIVENESS_FAILURES}[5m]))",
           "legendFormat": "failures",
           "refId": "C"
@@ -269,11 +251,11 @@ operator_dashboard_panels_1() {
       "type": "timeseries",
       "title": "Graph Orphan Nodes (current)",
       "description": "Current bounded zero-relationship graph node count by closed node label. Sustained non-zero is cleanup pressure.",
-      "datasource": {"type": "prometheus", "uid": "\${DS_PROMETHEUS}"},
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
       "gridPos": {"h": 8, "w": 12, "x": 0, "y": 23},
       "targets": [
         {
-          "datasource": {"type": "prometheus", "uid": "\${DS_PROMETHEUS}"},
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
           "expr": "${GRAPH_ORPHAN_NODES}",
           "legendFormat": "{{node_label}}",
           "refId": "A"
@@ -290,11 +272,11 @@ operator_dashboard_panels_1() {
       "type": "timeseries",
       "title": "Shared Acceptance Rows (current)",
       "description": "Current durable shared-projection acceptance row count. Steady state is bounded by source surface; growth indicates a stuck acceptance.",
-      "datasource": {"type": "prometheus", "uid": "\${DS_PROMETHEUS}"},
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
       "gridPos": {"h": 8, "w": 12, "x": 12, "y": 23},
       "targets": [
         {
-          "datasource": {"type": "prometheus", "uid": "\${DS_PROMETHEUS}"},
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
           "expr": "${SHARED_ACCEPTANCE_ROWS}",
           "legendFormat": "rows",
           "refId": "A"
@@ -311,11 +293,11 @@ operator_dashboard_panels_1() {
       "type": "timeseries",
       "title": "Reducer input_invalid Facts (rate)",
       "description": "Rate of facts the reducer quarantined because their payload was missing a required identity field (input_invalid). Non-zero means the graph is under-projecting for that domain/fact_kind until the collector defect is fixed; a sustained spike is an accuracy alarm.",
-      "datasource": {"type": "prometheus", "uid": "\${DS_PROMETHEUS}"},
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
       "gridPos": {"h": 8, "w": 12, "x": 0, "y": 31},
       "targets": [
         {
-          "datasource": {"type": "prometheus", "uid": "\${DS_PROMETHEUS}"},
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
           "expr": "sum(rate(${REDUCER_INPUT_INVALID_FACTS}[5m])) by (domain, fact_kind)",
           "legendFormat": "{{domain}} / {{fact_kind}}",
           "refId": "A"
@@ -332,11 +314,11 @@ operator_dashboard_panels_1() {
       "type": "timeseries",
       "title": "Projector input_invalid Facts (rate)",
       "description": "Rate of facts a projector canonical extractor quarantined because their payload was missing a required identity field (input_invalid). Non-zero means the graph is under-projecting for that stage/fact_kind until the collector defect is fixed; a sustained spike is an accuracy alarm. The projector-side counterpart to the reducer panel above.",
-      "datasource": {"type": "prometheus", "uid": "\${DS_PROMETHEUS}"},
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
       "gridPos": {"h": 8, "w": 12, "x": 12, "y": 31},
       "targets": [
         {
-          "datasource": {"type": "prometheus", "uid": "\${DS_PROMETHEUS}"},
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
           "expr": "sum(rate(${PROJECTOR_INPUT_INVALID_FACTS}[5m])) by (stage, fact_kind)",
           "legendFormat": "{{stage}} / {{fact_kind}}",
           "refId": "A"
@@ -348,5 +330,3 @@ operator_dashboard_panels_1() {
       },
       "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}}
     }
-EOF
-}

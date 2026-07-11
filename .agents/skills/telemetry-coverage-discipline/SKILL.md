@@ -105,10 +105,12 @@ check.
 7. **Watch the X3 CI gate** on the PR. The
    `Verify telemetry coverage gate` check must be green.
 8. **If the metric should appear on the operator dashboard**, add it to
-   `scripts/lib/operator-dashboard-metrics.sh` and either edit the panel
-   in `scripts/lib/operator-dashboard-panels-{1,2}.sh` or re-run
-   `scripts/generate-operator-dashboard.sh` to update the committed
-   artifact.
+   `scripts/lib/operator-dashboard-metrics.sh` (registering the metric
+   variable and, if it is a template token, adding its name to the
+   `OPERATOR_DASHBOARD_METRIC_VARS` allowlist) and either edit the panel
+   body in `scripts/lib/operator-dashboard-panels-{1,2}.json.tmpl` or
+   re-run `scripts/generate-operator-dashboard.sh` to update the
+   committed artifact.
 
 ## What The X2 Verifier Catches And Does Not Catch
 
