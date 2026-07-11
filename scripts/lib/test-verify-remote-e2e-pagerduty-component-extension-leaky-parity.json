@@ -1,0 +1,12 @@
+{
+  "fixture_parity": "passed",
+  "run_id": "run-pagerduty-reference",
+  "source_run_id": "source-run-pagerduty-reference",
+  "generation_id": "generation-pagerduty-reference",
+  "work_item_id": "work-pagerduty-reference",
+  "expected_fact_signature": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+  "extension_fact_signature": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+  "in_tree_fact_count": 6,
+  "extension_fact_count": 6,
+  "leak": "Bearer exampletoken123"
+}
