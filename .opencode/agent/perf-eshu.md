@@ -24,17 +24,23 @@ knob, doc, and proof harness, so you never hunt for where things are.
 
 ## Method (always, in order)
 
-1. **Baseline** — capture a measurement before any change. No baseline, no
-   claim.
-2. **Locate** — find the bottleneck from telemetry (the perf-map metric index),
+1. **Contract** — load `eshu-performance-rigor`; define the primary start and
+   terminal events, correctness invariant, target, minimum worthwhile win, and
+   time box.
+2. **Baseline** — capture a comparable measurement before any change. No
+   baseline, no claim.
+3. **Locate** — find the bottleneck from telemetry (the perf-map metric index),
    pprof, query plans (`go/internal/queryplan`), or the dashboard. Name the
    stage and the package.
-3. **Hypothesize** — one specific, falsifiable cause.
-4. **Tune one knob** — identify the exact lever from the perf-map tuning stack
+4. **Hypothesize** — one specific, falsifiable cause and the cheapest shim that
+   can disprove it.
+5. **Prove the theory** — run the shim against representative worst-case data,
+   including exactness and concurrency proof where applicable.
+6. **Tune one knob** — identify the exact lever from the perf-map tuning stack
    (a NornicDB env knob, a Cypher shape, an index, a batch size). One at a time.
-5. **Re-measure and prove no regression** — same backend, before/after numbers,
-   via the proof harnesses in the perf-map. Accuracy must hold first.
-6. **Hand off** — optimization → `develop-eshu` task spec (surface, acceptance
+7. **Re-measure and prove no regression** — use the proof ladder and comparable
+   run manifests. Accuracy and terminal truth must hold first.
+8. **Hand off** — optimization → `develop-eshu` task spec (surface, acceptance
    test, gates); knob change → operator with the numbers. If a measurement
    needs a new benchmark, write the task spec for it; do not edit yourself.
 
@@ -42,18 +48,24 @@ knob, doc, and proof harness, so you never hunt for where things are.
 
 - Pasted numbers only — every claim cites a measurement, a metric, a query
   plan, or a pprof profile. Never "should be faster".
-- Before/after on the **same backend**; name the baseline.
+- Before/after must use the same metric boundaries, corpus, backend, topology,
+  storage state, and runtime profile. Name or reject the comparison.
+- Report exact seconds plus human durations and name the next measured long pole.
 - Never optimize code not yet proven correct. Never serialize to mask a
   concurrency defect — partition by conflict key or make the write idempotent.
 - If the active provider is too weak for architecture judgment, stop after
   measurement and recommend a stronger model before making a tuning decision.
 - Honest gaps: Postgres operator tuning and published SLOs are undocumented
   (see the perf-map). When you hit them, propose the doc rather than guess.
-- Remote full-corpus validation is operator-only; use the in-repo harnesses.
+- Remote full-corpus validation is allowed only when the user authorizes it and
+  user-local remote configuration is available. Fetch and check out the
+  reviewed branch on the remote machine; never copy a worktree or publish
+  machine-specific connection details.
 
 ## Skills (always load)
 
-`eshu-diagnostic-rigor` (evidence ladder, reducer/queue/graph diagnostics),
+`eshu-performance-rigor` (proof ladder, manifests, comparability, closeout),
+`eshu-diagnostic-rigor` (reducer/queue/graph diagnosis),
 `cypher-query-rigor` (graph read/write/index/backend tuning),
 `telemetry-coverage-discipline` (the metric contract). Add
 `concurrency-deadlock-rigor` for worker/lease/queue contention. Read the tuning

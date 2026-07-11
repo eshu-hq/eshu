@@ -308,6 +308,7 @@ This reference is generated from the code-owned registry in `go/internal/envregi
 
 | Variable | Type | Default | Notes |
 | --- | --- | --- | --- |
+| `ESHU_DEFER_CONTENT_SEARCH_INDEXES` | bool | `false` | Cold-bootstrap schema mode. When true, schema bootstrap creates the content tables without the two exact substring trigram GIN indexes; bootstrap-index restores and validates them after source-local content projection drains. Existing indexes are never dropped. Keep false unless bootstrap-index is guaranteed to run to successful finalization. |
 | `ESHU_POSTGRES_CONN_MAX_IDLE_TIME` | duration | `10m` | Idle timeout before a connection is closed. |
 | `ESHU_POSTGRES_CONN_MAX_LIFETIME` | duration | `30m` | Connection lifetime before recycling. |
 | `ESHU_POSTGRES_DSN` | dsn | — | Postgres connection string. DSN precedence is ESHU_FACT_STORE_DSN, then ESHU_CONTENT_STORE_DSN, then ESHU_POSTGRES_DSN. Aliases: `ESHU_FACT_STORE_DSN`, `ESHU_CONTENT_STORE_DSN`. |

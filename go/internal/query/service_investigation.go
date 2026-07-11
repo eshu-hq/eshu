@@ -108,6 +108,9 @@ func (h *EntityHandler) investigateService(w http.ResponseWriter, r *http.Reques
 		Logger:                    h.Logger,
 		Operation:                 "service_investigation",
 	}); err != nil {
+		if writeContentSubstringIndexUnavailable(w, err) {
+			return
+		}
 		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("enrich service investigation: %v", err))
 		return
 	}

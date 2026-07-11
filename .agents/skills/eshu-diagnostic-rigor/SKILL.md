@@ -2,10 +2,10 @@
 name: eshu-diagnostic-rigor
 description: |
   Use for Eshu runtime diagnostics, reducer throughput work,
-  graph backend performance, local or CI proof runs, queue/shared projection
-  analysis, or ADR evidence updates. This is the default Eshu project skill for
-  performance and correctness investigations; add Go, Cypher, concurrency, or
-  correlation skills only when editing those specific surfaces.
+  graph backend diagnosis, local or CI proof runs, queue/shared projection
+  analysis, or ADR evidence updates. Add `eshu-performance-rigor` whenever the
+  work makes or validates a latency, throughput, resource, or wall-time claim;
+  add Go, Cypher, concurrency, or correlation skills for those surfaces.
 ---
 
 # Eshu Diagnostic Rigor
@@ -18,13 +18,14 @@ NornicDB, or runtime performance work.
 Start with this skill for Eshu diagnostic work. Add other skills only when the
 change needs their domain:
 
+- `eshu-performance-rigor`: benchmarks, optimization, scaled/remote proof, or
+  any before/after performance claim.
 - `golang-engineering`: Go code edits or Go tests.
 - `eshu-postgres-rigor`: Postgres SQL, schema, indexes, locks, transactions,
   queue/liveness/status queries, or relational performance diagnostics.
 - `cypher-query-rigor`: graph query, write shape, indexes, or backend dialect.
 - `concurrency-deadlock-rigor`: workers, leases, retries, conflict keys, or queue ordering.
 - `eshu-correlation-truth`: correlation, materialization truth, or query truth.
-- `skill-creator`: creating or updating skills.
 
 ## Operating Rules
 

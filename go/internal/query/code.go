@@ -115,6 +115,9 @@ func (h *CodeHandler) handleSearch(w http.ResponseWriter, r *http.Request) {
 	// Search graph entities by name pattern
 	graphResults, err := h.searchGraphEntitiesWithExact(ctx, req.RepoID, req.Query, req.Language, req.Limit, req.Exact)
 	if err != nil {
+		if writeContentSubstringIndexUnavailable(w, err) {
+			return
+		}
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -135,6 +138,9 @@ func (h *CodeHandler) handleSearch(w http.ResponseWriter, r *http.Request) {
 	// Fall back to content-based search if no graph results
 	contentResults, err := h.searchEntityContentWithExact(ctx, req.RepoID, req.Query, req.Language, req.Limit, req.Exact)
 	if err != nil {
+		if writeContentSubstringIndexUnavailable(w, err) {
+			return
+		}
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}

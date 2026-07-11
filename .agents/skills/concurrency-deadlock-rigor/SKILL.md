@@ -8,6 +8,9 @@ description: Use when designing, debugging, refactoring, or reviewing Eshu worke
 Use this skill when correctness depends on ordering, isolation, coordination, or
 shared-state access. Do not change concurrent behavior from intuition.
 
+Add `eshu-performance-rigor` when changing concurrency to improve throughput,
+queue drain, bootstrap wall time, or resource use.
+
 ## Mandatory Reasoning
 
 Before proposing or implementing a non-trivial change, MUST identify:

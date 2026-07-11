@@ -36,6 +36,7 @@ const openAPIPathsCode = `
             }
           },
           "400": {"$ref": "#/components/responses/BadRequest"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"},
           "500": {"$ref": "#/components/responses/InternalError"}
         }
       }

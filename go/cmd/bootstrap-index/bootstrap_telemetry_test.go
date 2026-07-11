@@ -21,6 +21,30 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
+func TestRecordContentSearchIndexFinalizationDurationPublishesBootstrapPhase(t *testing.T) {
+	t.Parallel()
+
+	reader := sdkmetric.NewManualReader()
+	provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
+	instruments, err := telemetry.NewInstruments(provider.Meter("content-index-finalization-test"))
+	if err != nil {
+		t.Fatalf("NewInstruments() error = %v", err)
+	}
+	recordContentSearchIndexFinalizationDuration(
+		context.Background(),
+		instruments,
+		time.Now().Add(-time.Second),
+	)
+
+	var rm metricdata.ResourceMetrics
+	if err := reader.Collect(context.Background(), &rm); err != nil {
+		t.Fatalf("Collect() error = %v", err)
+	}
+	if !bootstrapPhaseRecorded(t, rm, telemetry.BootstrapPhaseContentIndexFinalization) {
+		t.Fatal("bootstrap phase histogram missing content index finalization")
+	}
+}
+
 // TestDrainCollectorEmitsContentEntityCounterByFileKind covers ONLY the
 // advisory -> metric wiring layer: given a collected DiscoveryAdvisory whose
 // EntityCounts.BySourceFileKind is already populated (the collector builds it

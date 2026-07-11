@@ -26,6 +26,9 @@ Prefer summary/count/handle calls before payload-heavy drilldowns. MUST NOT fetc
 large source bodies, relationship expansions, or whole-graph result sets until a
 cheap first call proves they are needed.
 
+Add `eshu-performance-rigor` when the call is part of a latency benchmark,
+scaled read proof, or before/after performance claim.
+
 ## Response Shape (truth envelope)
 
 Eshu MCP tool results wrap the payload in a truth envelope: the `tools/call`

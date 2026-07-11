@@ -12,6 +12,8 @@ import (
 	"log/slog"
 	"os"
 	"slices"
+	"strconv"
+	"strings"
 	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
@@ -75,7 +77,7 @@ func main() {
 		logger,
 		openBootstrapDB,
 		func(ctx context.Context, exec bootstrapExecutor) error {
-			return postgres.ApplyBootstrap(ctx, exec)
+			return applyPostgresSchema(ctx, exec, os.Getenv)
 		},
 		openNeo4j,
 		graph.EnsureSchemaWithBackendStrict,
@@ -83,6 +85,23 @@ func main() {
 		logger.Error("bootstrap-data-plane failed", telemetry.EventAttr("runtime.startup.failed"), "error", err)
 		os.Exit(1)
 	}
+}
+
+const deferContentSearchIndexesEnv = "ESHU_DEFER_CONTENT_SEARCH_INDEXES"
+
+func applyPostgresSchema(ctx context.Context, exec bootstrapExecutor, getenv func(string) string) error {
+	raw := strings.TrimSpace(getenv(deferContentSearchIndexesEnv))
+	if raw == "" {
+		return postgres.ApplyBootstrap(ctx, exec)
+	}
+	deferred, err := strconv.ParseBool(raw)
+	if err != nil {
+		return fmt.Errorf("%s must be a boolean: %w", deferContentSearchIndexesEnv, err)
+	}
+	if deferred {
+		return postgres.ApplyBootstrapWithoutContentSearchIndexes(ctx, exec)
+	}
+	return postgres.ApplyBootstrap(ctx, exec)
 }
 
 func newLogger(bootstrap telemetry.Bootstrap, writer io.Writer) *slog.Logger {

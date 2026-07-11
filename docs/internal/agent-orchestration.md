@@ -2,20 +2,20 @@
 
 This document is the canon for **how Eshu work is executed across multiple
 harnesses and models without losing quality.** It applies whether the work
-runs in Claude Code, opencode, pi, or any future harness, and whether the
-model is a frontier model (Claude) or a cheaper executor (Codex, DeepSeek, OpenAI).
+runs in Claude Code, Codex, opencode, pi, or any future harness, and regardless
+of provider, model family, or reasoning tier.
 
-It exists because Eshu is worked by a **tiered model economy**: frontier
-tokens are scarce and reserved for judgment (design and PR review), while
-high-volume implementation is delegated to cheaper models. The workflow must
-hold the same quality bar regardless of who or what is doing the work.
+It exists because Eshu is worked through a **tiered model economy**: expensive
+reasoning is reserved for decisions that need it, while bounded implementation
+can use an execution-focused model. The workflow must hold the same quality bar
+regardless of provider or price tier.
 
 > This is a design contract, not a tutorial. Harness-specific wiring lives in
 > each harness's config; the binding rules live in `AGENTS.md`.
 
 ## The one principle
 
-**With weak executors, prose is never the quality mechanism.** A cheaper model
+**With execution-focused agents, prose is never the quality mechanism.** A model
 will paraphrase, skim, or ignore parts of any rule file. Quality therefore
 comes from two things a model cannot paraphrase away:
 
@@ -25,7 +25,7 @@ comes from two things a model cannot paraphrase away:
    task* and *restricted tools*, never trust. The user or active primary agent
    scopes the work; a reviewer checks the judgment; the gates catch the mechanics.
 
-Build for the assumption that the executor ignores half the prose. The agent
+Build for the assumption that an executor may miss half the prose. The agent
 prose only routes role → permissions → tools; it is not the thing that protects
 the codebase.
 
@@ -56,7 +56,7 @@ files. Under that test, the opencode roster is:
 | --- | --- | --- | --- |
 | **Executor** (`develop-eshu`) | user's selected implementation model | full write, **one surface at a time** | Implement one scoped task, TDD-first, run and paste the gates. |
 | **Debugger** (`debug-eshu`) | user's selected diagnostic model | **read + run, no write** | Diagnose to root cause. The no-write boxing physically prevents the "fix before you understand" failure mode. |
-| **Performance engineer** (`perf-eshu`) | user's selected performance model | **read + run + measure, no write** | Find bottlenecks and regressions, tune the graph/storage stack. Measures and recommends; routes code changes to the executor. Loads [`performance-map.md`](performance-map.md). |
+| **Performance engineer** (`perf-eshu`) | user's selected performance model | **read + run + measure, no write** | Prove bottlenecks and candidate fixes through `eshu-performance-rigor`; routes proven code changes to the executor. Loads [`performance-map.md`](performance-map.md). |
 | **Reviewer** (`review-eshu`) | user's selected review model | **read + run, no write** | Run `eshu-code-review` against final diffs, PR updates, and merge-readiness claims. Keeps judgment separate from authorship. |
 
 `ask-eshu` (read-only Q&A) is intentionally **deferred**: it overlaps
@@ -86,7 +86,7 @@ The same override shape works for `develop-eshu`, `debug-eshu`, and
 
 This is where a multi-model pipeline lives or dies. The user, built-in planning
 agent, or any other coordinator must hand the executor a **machine-followable
-task spec**, not prose. A loose handoff makes a weak executor flail; a tight one
+task spec**, not prose. A loose handoff makes an executor flail; a tight one
 makes it reliable.
 
 Every implementation handoff MUST contain:
@@ -98,6 +98,9 @@ Every implementation handoff MUST contain:
 4. **Out of scope** — explicit boundaries the executor must not cross.
 5. **Ownership / parallel-work note** — which other surfaces are active, read
    live (`gh pr list`, `git worktree list`); never hard-coded issue numbers.
+6. **Performance packet when applicable** — primary metric boundaries,
+   baseline manifest, proven hypothesis, exactness/concurrency evidence, target,
+   and minimum worthwhile win.
 
 The raw material already exists in the project skills and `eshu-issue-driver`.
 Render that spec format on every handoff before dispatching implementation.
@@ -140,18 +143,11 @@ discipline.
   (`test.yml`).
 - Frontend typecheck / lint / test / e2e-mock (`frontend.yml`, path-filtered).
 
-**Conclusion: it is safe to let a weak executor produce Go/backend/structural
-code**, because CI is the backstop. Two gaps remain where a weak model could
-merge a defect with no automated catch — these are exactly the rules a cheaper
-model is most likely to break, and they are the next gates to add:
-
-| Gap | Risk | Planned gate |
-| --- | --- | --- |
-| **`AGENTS.md` ⇄ `CLAUDE.md` lockstep** | The mandated byte-for-byte parity is enforced only by a local pre-commit hook, not CI. A drifted commit merges. | A CI step asserting `diff AGENTS.md CLAUDE.md` is empty. |
-| **No-AI-attribution** | No gate at all. Cheaper models routinely add "Generated by …" / `Co-Authored-By` footers. | A CI grep over the diff / commit trailers for AI-attribution markers. |
-
-Until those land, the reviewer (Claude) and the pre-commit hooks are the only
-catch for these two dimensions.
+CI is the mechanical backstop, not proof that an implementation is
+architecturally or semantically correct. `verify-agent-hygiene.yml` now blocks
+root-canon drift, AI attribution, missing shared-skill discovery links, and
+OpenCode Git-policy contradictions. The mandatory independent
+`eshu-code-review` remains the judgment gate for final diffs.
 
 ## Where rules live
 
@@ -161,25 +157,24 @@ multiplies with every new agent.
 
 There is one deliberate exception, governed by a single rule:
 
-> **Inline only the non-negotiables that have no CI gate. Everything CI
-> enforces, let CI enforce.**
+> **Inline only role boundaries or actions whose ambiguity can mutate external
+> state before CI runs. Everything CI enforces, let CI enforce.**
 
-CI already hammers `rg`-not-`grep`, the 500-line cap, formatting, and tests, so
-those need no inline repetition. The rules CI *cannot* catch — no AI
-attribution, the push mechanism, never-push-to-main, worktree discipline,
-ask-when-unclear — are the only ones worth inlining in the executor shim, and
-only because they are the actual gaps. This keeps the inline set small (less
-drift) and focuses weak-model attention exactly where the floor is thin.
+CI already hammers `rg`-not-`grep`, the 500-line cap, formatting, tests, root
+canon, skill discovery, and attribution, so those need no inline repetition.
+Push target/transport, worktree discipline, external writes, and
+ask-when-unclear remain worth inlining because a wrong action happens before
+CI can reject it.
 
 ## Token-budget optimization
 
-Push **mechanical** quality down to the cheap gates so a frontier review never
+Push **mechanical** quality down to the automated gates so independent review never
 spends tokens catching a lint error or a missing test. The order is:
 
 1. Executor runs local gates + opens a PR.
 2. CI must be green (mechanical correctness proven for free).
-3. *Only then* request a Claude review — for **design** judgment, on
-   correct-but-maybe-wrong code, never on broken code.
+3. *Only then* run an independent full `eshu-code-review` — for **design**
+   judgment on mechanically green code, never as a substitute for local proof.
 
 This maximizes the value of every frontier token: judgment, not janitorial.
 

@@ -1,0 +1,229 @@
+---
+name: eshu-performance-rigor
+description: |
+  Use for Eshu performance investigations, benchmarks, query or index
+  optimization, queue/reducer throughput changes, cold-bootstrap timing,
+  scaled replays, full-corpus proofs, and before/after performance claims.
+  Enforces a staged proof ladder, comparable run manifests, correctness and
+  concurrency proof, remote preflight, and honest end-to-end classification.
+---
+
+# Eshu Performance Rigor
+
+Use this skill for any change whose acceptance depends on latency, throughput,
+resource cost, queue drain, bootstrap duration, or a performance target. Add
+`eshu-diagnostic-rigor` when the bottleneck is not yet localized. Add the
+storage, concurrency, Go, Cypher, correlation, or golden-corpus skills required
+by the touched surface.
+
+## Non-Negotiable Contract
+
+Accuracy comes first, performance second, and concurrency third. A faster
+wrong answer, unsafe claim path, incomplete drain, hidden fallback, or
+serialized workaround is a failure.
+
+Before implementation, write down:
+
+- the primary metric and its exact start and terminal events;
+- the correctness invariant or intended behavior delta;
+- the baseline run and known-normal band;
+- the expected cardinality and worst-case partition;
+- the minimum worthwhile improvement and stop threshold;
+- the proof ladder and the conditions that permit escalation;
+- the operator signal that will identify the same path in production.
+
+Do not dispatch implementation or run the full corpus until the cheapest
+representative shim proves the theory.
+
+## Skill Routing
+
+- `eshu-diagnostic-rigor`: instrumentation, attribution, and unknown bottlenecks.
+- `eshu-postgres-rigor`: SQL, indexes, DDL, transactions, locks, or Postgres plans.
+- `cypher-query-rigor`: Cypher, graph indexes, graph writes, or backend dialect.
+- `concurrency-deadlock-rigor`: workers, claims, leases, retries, locks, or ordering.
+- `golang-engineering`: Go production code and tests.
+- `eshu-golden-corpus-rigor`: result shapes, reducer graph truth, cassettes, or B-7/B-12.
+- `eshu-code-review`: the final reviewed diff before every push and readiness claim.
+
+## Proof Ladder
+
+Every rung must preserve the same input semantics and record its result before
+the next rung begins.
+
+1. **Theory shim.** Use `EXPLAIN (ANALYZE, BUFFERS)`, Cypher `PROFILE`, a
+   microbenchmark, or a throwaway query against representative worst-case data.
+2. **Exactness.** For output-preserving work, prove bidirectional set difference
+   0/0, identical ordered output, or equivalent counts. For a behavior fix,
+   prove the explicit expected delta.
+3. **Concurrency.** For claims, locks, leases, queues, DDL, or shared writers,
+   prove contention, retry, idempotency, ordering, and failure recovery. Set
+   equivalence alone is insufficient.
+4. **Built-binary bounded replay.** Rebuild the production binary and run the
+   worst-case repository, partition, scope, or backlog. Query-shape proof does
+   not establish wall time.
+5. **Small corpus.** Run the credential-free 20-25 repository or equivalent
+   bounded corpus and verify graph/content/API truth.
+6. **Full corpus.** Run once only after the previous rungs pass and the remote
+   preflight matches a named baseline profile.
+
+If a rung disproves the hypothesis, record it in the hypothesis ledger and do
+not implement it. A rejected hypothesis is a valid result.
+
+## Hypothesis Ledger
+
+Keep a durable table in the issue, ADR, or package evidence note:
+
+| candidate | cheapest proof | old | new | accuracy | concurrency | disposition |
+| --- | --- | ---: | ---: | --- | --- | --- |
+
+Use these dispositions: `proven`, `rejected`, `diagnostic-only`, `blocked`, or
+`superseded`. Record no-win experiments so another agent does not repeat them.
+
+## Caller And Route Inventory
+
+Before changing an index, readiness gate, cache, fallback, queue fence, or
+shared state, inventory every caller and user-visible route. Search interfaces,
+direct calls, indirect enrichment paths, pagination helpers, CLI, API, MCP,
+background jobs, and recovery paths.
+
+For each path state whether it:
+
+- remains available;
+- fails closed with a documented bounded error;
+- uses a different exact index or scope;
+- retries safely; or
+- is intentionally outside the change.
+
+Add tests for every distinct path class. Do not rely on final hostile review to
+discover bypasses.
+
+## Remote Preflight
+
+Before a scaled or full-corpus run, capture and compare:
+
+- local and remote Eshu commit, stable patch ID when rebased, and clean state;
+- graph backend commit, image digest or immutable image ID;
+- Compose files, service topology, and owner process count;
+- corpus identity and repository count;
+- clean-volume versus preserved-volume state;
+- schema/bootstrap state;
+- effective worker, queue, timeout, connection-pool, and memory knobs;
+- pprof and resource sampling state;
+- controller terminal condition and expected minimum runtime.
+
+Remote source must come from Git: push the reviewed feature branch, then fetch
+and check out or fast-forward it on the remote machine. Do not use `rsync` or
+copy an unreviewed worktree. Keep hosts, users, IPs, key paths, and remote
+checkout paths in user-local configuration, never in this repository.
+
+Stop the run before launch if the intended topology or profile differs from the
+baseline without an explicit experimental reason.
+
+## Milestones And Terminal Truth
+
+Capture these as separate timestamps and elapsed seconds where applicable:
+
+- launch;
+- schema/bootstrap ready;
+- collection complete;
+- source-local projection complete;
+- queue terminal;
+- shared materialization complete;
+- vector/search readiness complete;
+- post-drain finalizers complete;
+- bootstrap process exit;
+- API ready;
+- MCP ready;
+- first representative query success.
+
+Never compare queue terminal with process exit or query readiness as if they
+were the same metric. The primary terminal event must be identical between old
+and new runs.
+
+Report every duration as exact seconds plus a human-readable value, for example
+`1205.924s (20m05.924s)`.
+
+## Run Manifest
+
+Every scaled or remote run used as evidence must produce a machine-readable run
+manifest following [references/run-manifest.md](references/run-manifest.md).
+The manifest records identity, topology, workload, milestones, truth counts,
+resource evidence, readback, cleanup, and caveats.
+
+The detailed manifest is operator-local and must not be committed. If the PR
+needs a committed public aggregate, render it through
+`specs/scale-benchmark-artifact.v1.yaml` and validate it with
+`scripts/verify-scale-benchmark-artifact.sh`; do not invent a second public
+artifact schema.
+
+Public evidence may include only a run basename. Never publish a hostname, IP,
+user, private key path, workstation path, remote checkout path, credential, or
+secret-bearing DSN.
+
+## Comparability Gate
+
+Before calculating a speedup, verify that old and new agree on:
+
+- primary start and terminal events;
+- corpus identity and cardinality;
+- Eshu behavior profile and backend build;
+- topology and service ownership;
+- worker and connection knobs;
+- clean or warm storage state;
+- hardware class; and
+- correctness/terminal counts.
+
+If any load-bearing field differs, label the total non-comparable. Compare only
+the matching phase or rerun the baseline. Never hide setup time inside one side
+of a comparison.
+
+## Stop Conditions
+
+- Stop and profile when a healthy run regresses by more than 10% or 60 seconds.
+- Stop a remote run at the declared time box unless it is making bounded,
+  observable progress toward an operator-scale terminal proof.
+- Do not launch with a time box shorter than the measured inherent cold-start
+  floor; state the expected duration before launch.
+- Do not merge a local-path win as an end-to-end target win when the target was
+  missed.
+
+## Evidence Carry-Forward After Rebase
+
+An expensive remote result may carry forward across a base-only rebase only
+when the old and new commits have identical stable patch IDs and the incoming
+base diff does not touch the measured runtime, schema, topology, fixtures, or
+proof harness. Record both commits and the patch ID. This does not waive
+`make pre-pr`, the mandatory final `eshu-code-review`, or targeted local proof
+on the rebased head.
+
+## Final Classification
+
+Classify each result as one or more of:
+
+- `Rejected hypothesis`
+- `Diagnostic win`
+- `Correctness win`
+- `Handler win`
+- `Scheduling win`
+- `Phase wall-clock win`
+- `End-to-end wall-clock win`
+- `Target achieved`
+- `Target missed`
+
+Always name the next measured long pole. Do not claim the overall target when
+only a component improved.
+
+## Required Closeout
+
+Before push or merge-readiness:
+
+1. Run the focused reproduction and appropriate local integration/golden gates.
+2. Run `make pre-pr`.
+3. Run `scripts/test-verify-performance-evidence.sh` and
+   `scripts/verify-performance-evidence.sh` when not already selected.
+4. Run the full `eshu-code-review` on the final diff.
+5. Capture live CI and review-thread truth after push.
+6. Update the issue and PR with the hypothesis ledger, manifest-derived proof,
+   exact and human durations, target result, and next long pole.
+7. Remove proof containers, volumes, controllers, and temporary credentials
+   unless the user explicitly asks to preserve the stack.

@@ -70,7 +70,7 @@ func (cr *ContentReader) searchFileContentAnyRepoPage(
 	limit int,
 	offset int,
 ) ([]FileContent, error) {
-	return cr.searchFileContentScoped(ctx, "search_file_content_any_repo_page", "content ILIKE '%' || $1 || '%'", []any{pattern}, limit, offset)
+	return cr.searchFileContentScoped(ctx, "search_file_content_any_repo_page", "eshu_require_content_substring_indexes_ready() AND content ILIKE '%' || $1 || '%'", []any{pattern}, limit, offset)
 }
 
 // searchFileContentScoped executes a bounded file-content query using a fixed
@@ -108,6 +108,7 @@ func (cr *ContentReader) searchFileContentScoped(
 	args = append(args, limit, offset)
 	rows, err := cr.db.QueryContext(ctx, query, args...)
 	if err != nil {
+		err = contentSubstringIndexReadError(err)
 		span.RecordError(err)
 		return nil, fmt.Errorf("search paged file content: %w", err)
 	}

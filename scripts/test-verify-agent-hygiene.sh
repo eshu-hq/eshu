@@ -37,6 +37,39 @@ else
   ok "agent-canon fails when the two files drift"
 fi
 
+mkdir -p "$tmp/skill-links/.agents/skills/example" \
+  "$tmp/skill-links/.claude/skills" \
+  "$tmp/skill-links/.codex/skills"
+printf 'shared canon\n' >"$tmp/skill-links/AGENTS.md"
+printf 'shared canon\n' >"$tmp/skill-links/CLAUDE.md"
+printf '%s\n' '---' 'name: example' 'description: example' '---' \
+  >"$tmp/skill-links/.agents/skills/example/SKILL.md"
+ln -s ../../.agents/skills/example "$tmp/skill-links/.claude/skills/example"
+ln -s ../../.agents/skills/example "$tmp/skill-links/.codex/skills/example"
+if ESHU_AGENT_CANON_REPO_ROOT="$tmp/skill-links" "$canon" >/dev/null 2>&1; then
+  ok "agent-canon passes when shared skill discovery links are complete"
+else
+  no "agent-canon should pass when shared skill discovery links are complete"
+fi
+
+rm "$tmp/skill-links/.codex/skills/example"
+if ESHU_AGENT_CANON_REPO_ROOT="$tmp/skill-links" "$canon" >/dev/null 2>&1; then
+  no "agent-canon should fail when one harness cannot discover a shared skill"
+else
+  ok "agent-canon fails when a shared skill discovery link is missing"
+fi
+
+mkdir -p "$tmp/opencode-conflict/.opencode/agent"
+printf 'shared canon\n' >"$tmp/opencode-conflict/AGENTS.md"
+printf 'shared canon\n' >"$tmp/opencode-conflict/CLAUDE.md"
+printf '%s\n' 'Push over HTTPS and always use --no-verify.' \
+  >"$tmp/opencode-conflict/.opencode/agent/develop-eshu.md"
+if ESHU_AGENT_CANON_REPO_ROOT="$tmp/opencode-conflict" "$canon" >/dev/null 2>&1; then
+  no "agent-canon should fail on OpenCode instructions that contradict root Git policy"
+else
+  ok "agent-canon fails on contradictory OpenCode Git instructions"
+fi
+
 # --- verify-no-ai-attribution --message ---
 printf 'feat: a clean message\n' >"$tmp/msg-clean"
 if "$attr" --message "$tmp/msg-clean" >/dev/null 2>&1; then

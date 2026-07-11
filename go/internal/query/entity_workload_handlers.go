@@ -41,6 +41,9 @@ func (h *EntityHandler) getWorkloadContext(w http.ResponseWriter, r *http.Reques
 		Logger:                    h.Logger,
 		Operation:                 "workload_context",
 	}); err != nil {
+		if writeContentSubstringIndexUnavailable(w, err) {
+			return
+		}
 		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("enrich workload context: %v", err))
 		return
 	}
@@ -83,6 +86,9 @@ func (h *EntityHandler) getWorkloadStory(w http.ResponseWriter, r *http.Request)
 		Logger:                    h.Logger,
 		Operation:                 "workload_story",
 	}); err != nil {
+		if writeContentSubstringIndexUnavailable(w, err) {
+			return
+		}
 		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("enrich workload story: %v", err))
 		return
 	}

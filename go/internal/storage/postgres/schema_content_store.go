@@ -88,14 +88,19 @@ CREATE INDEX IF NOT EXISTS repository_refs_repo_default_idx
 // for the all-repo / code-topic ILIKE '%term%' search read path (investigateCodeTopic
 // and the *AnyRepo content readers). The live-audit on an 838-repo drained stack confirmed
 // the planner selects both via Bitmap Index Scan. Forcing a sequential scan is ~4.9× slower
-// on content_entities, and the gap widens on larger corpora. These indexes are not droppable until the all-repo path is
-// re-homed onto eshu_search_index_* (#4980) and B-7 proves no read regression.
-// See #4862 for the full keep-vs-drop audit.
-const contentStoreSearchIndexSchemaSQL = `CREATE INDEX IF NOT EXISTS content_files_content_trgm_idx
+// on content_entities, and the gap widens on larger corpora. Issue #4980 disproved replacing
+// these exact full-content reads with the curated/tokenized eshu_search_index_* surface.
+// Cold bootstrap may defer creation, but steady-state schema must keep both exact indexes.
+// See #4862 and evidence-4980-deferred-content-gin.md.
+const contentFilesSearchIndexSchemaSQL = `CREATE INDEX IF NOT EXISTS content_files_content_trgm_idx
     ON content_files USING gin (content gin_trgm_ops);
-CREATE INDEX IF NOT EXISTS content_entities_source_trgm_idx
+`
+
+const contentEntitiesSearchIndexSchemaSQL = `CREATE INDEX IF NOT EXISTS content_entities_source_trgm_idx
     ON content_entities USING gin (source_cache gin_trgm_ops);
 `
+
+const contentStoreSearchIndexSchemaSQL = contentFilesSearchIndexSchemaSQL + contentEntitiesSearchIndexSchemaSQL
 
 const contentStoreFilterIndexSchemaSQL = `CREATE INDEX IF NOT EXISTS content_files_artifact_type_idx
     ON content_files (artifact_type);

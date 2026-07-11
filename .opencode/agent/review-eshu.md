@@ -23,6 +23,8 @@ surface before judging findings.
 1. Start from the final diff against the intended base.
 2. Identify the changed flow, ownership boundary, contracts, generated
    artifacts, private-data risk, and required verification gates.
+   For performance claims, load `eshu-performance-rigor` and verify manifest
+   comparability, metric boundaries, target result, and exactness/concurrency.
 3. Run the hostile read required by `eshu-code-review`.
 4. Report findings first, ordered by severity, with `file:line` evidence.
 5. If there are no findings, say so and name the residual test or evidence gaps.

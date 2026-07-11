@@ -44,6 +44,16 @@ state, facts, queues, status, content, and recovery data.
 | `resolution-engine` | Reducer queue drain, graph projection, repair, and shared materialization. |
 | `projector` | Always-on source-local projector, gated only on schema + workspace setup (NOT bootstrap-index). Drains stranded `retrying` projector work items that bootstrap-index leaves behind on a canonical-write failure, so a failed bootstrap cannot permanently wedge convergence (#4727). Matches the Helm ungated-ingester topology. |
 
+On a fresh Compose database, `db-migrate` sets
+`ESHU_DEFER_CONTENT_SEARCH_INDEXES=true`. It creates the content tables without
+the two exact substring-search trigram GIN indexes, and `bootstrap-index`
+restores those indexes after source-local content projection drains. API and
+MCP all-repository substring searches return `503` while the durable lifecycle
+is `not_built`, `building`, or `failed`; repository-scoped content reads remain
+available. Existing indexes are never dropped, so preserved-volume restarts
+and upgrades keep their steady-state read path. A failed or interrupted final
+build is retried idempotently by the next `bootstrap-index` run.
+
 ## Bootstrap Admin Credential
 
 `ESHU_AUTH_BOOTSTRAP_MODE` defaults to `generated` (#4963): on first boot, with

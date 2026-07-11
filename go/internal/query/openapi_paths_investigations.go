@@ -161,6 +161,7 @@ const openAPIPathsInvestigations = `
           },
           "400": {"$ref": "#/components/responses/BadRequest"},
           "404": {"$ref": "#/components/responses/NotFound"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"},
           "500": {"$ref": "#/components/responses/InternalError"}
         }
       }

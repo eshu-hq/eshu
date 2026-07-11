@@ -17,6 +17,9 @@ distribution, and effect on the surrounding system. Optimize in this order:
 correctness, then query selectivity and write safety, then backend-specific
 performance.
 
+Add `eshu-performance-rigor` for any measured Cypher/index optimization,
+scaled replay, or before/after latency or throughput claim.
+
 ## Mandatory Pre-Implementation Discipline
 
 Before designing or merging a Cypher statement that lives in a hot path
@@ -26,9 +29,9 @@ both of these must be answered explicitly:
 1. **Research first.** Read the relevant backend behavior in source before
    writing the query. For Neo4j: the Cypher manual for the pinned version
    and the changelog up to the latest release. For NornicDB: the relevant
-   files under `pkg/cypher/` and `pkg/storage/` in the current NornicDB-New
-   checkout named by repo docs, session-local config, or the user (NOT an older
-   `NornicDB` sibling). Always read
+   files under `pkg/cypher/` and `pkg/storage/` in the current NornicDB checkout
+   named by repo docs, user-local configuration, or the user. Do not guess a
+   sibling directory or reuse an older checkout. Always read
    `docs/public/reference/nornicdb-pitfalls.md` for known traps. If your
    query uses a pattern you haven't validated against the pinned binary,
    that's research debt — close it with a focused test or `curl`-against-

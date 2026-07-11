@@ -164,12 +164,14 @@ func (cr *ContentReader) searchFileContentAnyRepo(
 		       '', content_hash, line_count, coalesce(language, ''),
 		       coalesce(artifact_type, '')
 		FROM content_files
-		WHERE content %s '%%' || $1 || '%%'
+		WHERE eshu_require_content_substring_indexes_ready()
+		  AND content %s '%%' || $1 || '%%'
 		ORDER BY repo_id, relative_path
 		LIMIT $2
 	`, operator)
 	rows, err := cr.db.QueryContext(ctx, query, pattern, limit)
 	if err != nil {
+		err = contentSubstringIndexReadError(err)
 		span.RecordError(err)
 		return nil, fmt.Errorf("search file content across repos: %w", err)
 	}
@@ -310,11 +312,13 @@ func (cr *ContentReader) SearchEntityContentAnyRepo(
 		       start_line, end_line, coalesce(language, ''), coalesce(source_cache, ''),
 		       metadata
 		FROM content_entities
-		WHERE source_cache ILIKE '%' || $1 || '%'
+		WHERE eshu_require_content_substring_indexes_ready()
+		  AND source_cache ILIKE '%' || $1 || '%'
 		ORDER BY repo_id, relative_path, start_line
 		LIMIT $2
 	`, pattern, limit)
 	if err != nil {
+		err = contentSubstringIndexReadError(err)
 		span.RecordError(err)
 		return nil, fmt.Errorf("search entity content across repos: %w", err)
 	}
