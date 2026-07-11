@@ -308,7 +308,7 @@ decode/unresolved warning logs carry the operator signal.
 
 ### Graph node owner ledger (#5007)
 
-`GraphNodeOwnerStore` (migration `053_graph_node_owner.sql`) is the
+`GraphNodeOwnerStore` (migration `056_graph_node_owner.sql`) is the
 Postgres-atomic resolver for cross-scope same-uid node ownership. When two
 ingestion scopes carry the same resource identity, both project the same
 canonical node uid and race to write its scope-derived properties; NornicDB does

@@ -110,7 +110,6 @@ func ownerEntry(uid, orderKey, value string) GraphNodeOwnerEntry {
 func ownerTestUID(t *testing.T, tag string) string {
 	t.Helper()
 	uid := fmt.Sprintf("owner-int-%s-%d", tag, time.Now().UnixNano())
-	t.Cleanup(func() {})
 	return uid
 }
 
