@@ -26,39 +26,11 @@ YAML
 
 write_valid_artifact() {
 	local file="$1"
-	cat >"${file}" <<'JSON'
-{
-  "schema_version": "capability-budget-proof/v1",
-  "status": "pass",
-  "run": {
-    "issue": 4062,
-    "commit": "0123456789abcdef0123456789abcdef01234567",
-    "backend": {"kind": "nornicdb", "version": "fixture-v1"}
-  },
-  "measurements": [{
-    "capability": "code_search.exact_symbol",
-    "profile": "production",
-    "mcp_tools": ["find_code"],
-    "corpus_slot": "medium/representative_20_50",
-    "backend": {"kind": "nornicdb", "version": "fixture-v1"},
-    "latency": {"p50_ms": 120, "p95_ms": 700, "p99_ms": 760},
-    "scope": {
-      "declared_max_scope_size": "multi_repo_platform",
-      "result_scope": "multi_repo_platform",
-      "limit_enforced": true,
-      "truncation_proof": "limit-plus-one",
-      "truncation_invariant": "pass"
-    },
-    "artifact_handle": "capability-budget-code-search",
-    "commit": "0123456789abcdef0123456789abcdef01234567",
-    "freshness": {"measured_at": "2026-06-28T00:00:00Z", "expires_at": "2026-07-28T00:00:00Z"},
-    "surface_parity": {"status": "pass"},
-    "retry_count": 0,
-    "dead_letter_count": 0,
-    "status": "pass"
-  }]
-}
-JSON
+	# Body lives in scripts/lib/ (not a heredoc): Homebrew bash >= 5.1 writes
+	# the entire heredoc body to a pipe before forking the reader, and
+	# macOS's 512-byte pipe buffer deadlocks on any body over that size
+	# (#5074).
+	cat "${repo_root}/scripts/lib/test-verify-capability-budget-proof-valid-artifact.json" >"${file}"
 }
 
 expect_pass() {
