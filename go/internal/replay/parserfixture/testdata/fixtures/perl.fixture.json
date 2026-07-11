@@ -1,0 +1,149 @@
+{
+  "language": "git",
+  "schema_version": "1",
+  "scope": {
+    "collector_kind": "git",
+    "facts": [
+      {
+        "collector_kind": "git",
+        "fact_kind": "file",
+        "payload": {
+          "graph_id": "perl:order_service.pl",
+          "graph_kind": "file",
+          "is_dependency": false,
+          "language": "perl",
+          "parsed_file_data": {
+            "classes": [],
+            "framework_semantics": {
+              "frameworks": []
+            },
+            "function_calls": [
+              {
+                "full_name": "create",
+                "lang": "perl",
+                "line_number": 7,
+                "name": "create"
+              },
+              {
+                "full_name": "add_line",
+                "lang": "perl",
+                "line_number": 9,
+                "name": "add_line"
+              },
+              {
+                "full_name": "save",
+                "lang": "perl",
+                "line_number": 11,
+                "name": "save"
+              },
+              {
+                "full_name": "push",
+                "lang": "perl",
+                "line_number": 16,
+                "name": "push"
+              },
+              {
+                "full_name": "by_id",
+                "lang": "perl",
+                "line_number": 22,
+                "name": "by_id"
+              }
+            ],
+            "functions": [
+              {
+                "cyclomatic_complexity": 2,
+                "decorators": [],
+                "end_line": 12,
+                "lang": "perl",
+                "line_number": 5,
+                "name": "place_order"
+              },
+              {
+                "cyclomatic_complexity": 1,
+                "decorators": [],
+                "end_line": 18,
+                "lang": "perl",
+                "line_number": 14,
+                "name": "add_line"
+              },
+              {
+                "cyclomatic_complexity": 1,
+                "decorators": [],
+                "end_line": 23,
+                "lang": "perl",
+                "line_number": 20,
+                "name": "find_order"
+              }
+            ],
+            "iac_relevant": false,
+            "imports": [
+              {
+                "lang": "perl",
+                "line_number": 2,
+                "name": "strict"
+              },
+              {
+                "lang": "perl",
+                "line_number": 3,
+                "name": "warnings"
+              }
+            ],
+            "is_dependency": false,
+            "lang": "perl",
+            "path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/perl/order_service.pl",
+            "repo_path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/perl",
+            "variables": [
+              {
+                "end_line": 6,
+                "lang": "perl",
+                "line_number": 6,
+                "name": "customer_id"
+              },
+              {
+                "end_line": 6,
+                "lang": "perl",
+                "line_number": 6,
+                "name": "repository"
+              },
+              {
+                "end_line": 6,
+                "lang": "perl",
+                "line_number": 6,
+                "name": "skus"
+              },
+              {
+                "end_line": 7,
+                "lang": "perl",
+                "line_number": 7,
+                "name": "order"
+              },
+              {
+                "end_line": 15,
+                "lang": "perl",
+                "line_number": 15,
+                "name": "sku"
+              },
+              {
+                "end_line": 21,
+                "lang": "perl",
+                "line_number": 21,
+                "name": "order_id"
+              }
+            ]
+          },
+          "relative_path": "order_service.pl",
+          "repo_id": "perl"
+        },
+        "source_confidence": "observed",
+        "source_uri": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/perl/order_service.pl",
+        "stable_fact_key": "file:perl:order_service.pl"
+      }
+    ],
+    "generation_id": "canonical-generation-10060442ee229997",
+    "observed_at": "2000-01-01T00:00:00Z",
+    "repo_id": "perl",
+    "scope_id": "parser_fixture:perl",
+    "scope_kind": "repository",
+    "source_system": "git"
+  }
+}

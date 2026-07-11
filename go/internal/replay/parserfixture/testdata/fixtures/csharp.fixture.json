@@ -1,0 +1,101 @@
+{
+  "language": "git",
+  "schema_version": "1",
+  "scope": {
+    "collector_kind": "git",
+    "facts": [
+      {
+        "collector_kind": "git",
+        "fact_kind": "file",
+        "payload": {
+          "graph_id": "csharp:OrderService.cs",
+          "graph_kind": "file",
+          "is_dependency": false,
+          "language": "c_sharp",
+          "parsed_file_data": {
+            "classes": [
+              {
+                "end_line": 23,
+                "lang": "c_sharp",
+                "line_number": 5,
+                "name": "OrderService"
+              }
+            ],
+            "enums": [],
+            "framework_semantics": {
+              "frameworks": []
+            },
+            "function_calls": [
+              {
+                "lang": "c_sharp",
+                "line_number": 16,
+                "name": "Create"
+              },
+              {
+                "lang": "c_sharp",
+                "line_number": 19,
+                "name": "AddLine"
+              },
+              {
+                "lang": "c_sharp",
+                "line_number": 21,
+                "name": "Save"
+              }
+            ],
+            "functions": [
+              {
+                "class_context": "OrderService",
+                "cyclomatic_complexity": 1,
+                "dead_code_root_kinds": [
+                  "csharp.constructor"
+                ],
+                "decorators": [],
+                "end_line": 12,
+                "lang": "c_sharp",
+                "line_number": 9,
+                "name": "OrderService"
+              },
+              {
+                "class_context": "OrderService",
+                "cyclomatic_complexity": 2,
+                "decorators": [],
+                "end_line": 22,
+                "lang": "c_sharp",
+                "line_number": 14,
+                "name": "Place"
+              }
+            ],
+            "iac_relevant": false,
+            "imports": [
+              {
+                "lang": "c_sharp",
+                "line_number": 1,
+                "name": "System.Collections.Generic"
+              }
+            ],
+            "interfaces": [],
+            "is_dependency": false,
+            "lang": "c_sharp",
+            "path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/csharp/OrderService.cs",
+            "properties": [],
+            "records": [],
+            "repo_path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/csharp",
+            "structs": [],
+            "variables": []
+          },
+          "relative_path": "OrderService.cs",
+          "repo_id": "csharp"
+        },
+        "source_confidence": "observed",
+        "source_uri": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/csharp/OrderService.cs",
+        "stable_fact_key": "file:csharp:OrderService.cs"
+      }
+    ],
+    "generation_id": "canonical-generation-2b6321f42d610638",
+    "observed_at": "2000-01-01T00:00:00Z",
+    "repo_id": "csharp",
+    "scope_id": "parser_fixture:csharp",
+    "scope_kind": "repository",
+    "source_system": "git"
+  }
+}

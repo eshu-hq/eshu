@@ -1,0 +1,72 @@
+{
+  "language": "git",
+  "schema_version": "1",
+  "scope": {
+    "collector_kind": "git",
+    "facts": [
+      {
+        "collector_kind": "git",
+        "fact_kind": "file",
+        "payload": {
+          "graph_id": "scala:OrderService.scala",
+          "graph_kind": "file",
+          "is_dependency": false,
+          "language": "scala",
+          "parsed_file_data": {
+            "classes": [
+              {
+                "end_line": 13,
+                "lang": "scala",
+                "line_number": 3,
+                "name": "OrderService"
+              }
+            ],
+            "framework_semantics": {
+              "frameworks": []
+            },
+            "function_calls": [],
+            "functions": [
+              {
+                "class_context": "OrderService",
+                "cyclomatic_complexity": 1,
+                "decorators": [],
+                "end_line": 9,
+                "lang": "scala",
+                "line_number": 5,
+                "name": "place"
+              },
+              {
+                "class_context": "OrderService",
+                "cyclomatic_complexity": 1,
+                "decorators": [],
+                "end_line": 13,
+                "lang": "scala",
+                "line_number": 11,
+                "name": "find"
+              }
+            ],
+            "iac_relevant": false,
+            "imports": [],
+            "is_dependency": false,
+            "lang": "scala",
+            "path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/scala/OrderService.scala",
+            "repo_path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/scala",
+            "traits": [],
+            "variables": []
+          },
+          "relative_path": "OrderService.scala",
+          "repo_id": "scala"
+        },
+        "source_confidence": "observed",
+        "source_uri": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/scala/OrderService.scala",
+        "stable_fact_key": "file:scala:OrderService.scala"
+      }
+    ],
+    "generation_id": "canonical-generation-f7f777f0dc97494f",
+    "observed_at": "2000-01-01T00:00:00Z",
+    "repo_id": "scala",
+    "scope_id": "parser_fixture:scala",
+    "scope_kind": "repository",
+    "source_system": "git"
+  }
+}

@@ -1,0 +1,158 @@
+{
+  "language": "git",
+  "schema_version": "1",
+  "scope": {
+    "collector_kind": "git",
+    "facts": [
+      {
+        "collector_kind": "git",
+        "fact_kind": "file",
+        "payload": {
+          "graph_id": "rust:order_service.rs",
+          "graph_kind": "file",
+          "is_dependency": false,
+          "language": "rust",
+          "parsed_file_data": {
+            "annotations": [],
+            "classes": [
+              {
+                "dead_code_root_kinds": [
+                  "rust.public_api_item"
+                ],
+                "end_line": 5,
+                "lang": "rust",
+                "line_number": 3,
+                "name": "OrderService",
+                "visibility": "pub"
+              }
+            ],
+            "framework_semantics": {
+              "frameworks": []
+            },
+            "function_calls": [
+              {
+                "full_name": "self.repository.create",
+                "lang": "rust",
+                "line_number": 13,
+                "name": "create"
+              },
+              {
+                "full_name": "order.add_line",
+                "lang": "rust",
+                "line_number": 15,
+                "name": "add_line"
+              },
+              {
+                "full_name": "self.repository.save",
+                "lang": "rust",
+                "line_number": 17,
+                "name": "save"
+              },
+              {
+                "full_name": "self.repository.by_id",
+                "lang": "rust",
+                "line_number": 21,
+                "name": "by_id"
+              }
+            ],
+            "functions": [
+              {
+                "cyclomatic_complexity": 1,
+                "dead_code_root_kinds": [
+                  "rust.public_api_item"
+                ],
+                "decorators": [],
+                "end_line": 10,
+                "impl_context": "OrderService",
+                "impl_kind": "inherent_impl",
+                "lang": "rust",
+                "line_number": 8,
+                "name": "new",
+                "visibility": "pub"
+              },
+              {
+                "cyclomatic_complexity": 2,
+                "dead_code_root_kinds": [
+                  "rust.public_api_item"
+                ],
+                "decorators": [],
+                "end_line": 18,
+                "impl_context": "OrderService",
+                "impl_kind": "inherent_impl",
+                "lang": "rust",
+                "line_number": 12,
+                "name": "place",
+                "visibility": "pub"
+              },
+              {
+                "cyclomatic_complexity": 1,
+                "dead_code_root_kinds": [
+                  "rust.public_api_item"
+                ],
+                "decorators": [],
+                "end_line": 22,
+                "impl_context": "OrderService",
+                "impl_kind": "inherent_impl",
+                "lang": "rust",
+                "line_number": 20,
+                "name": "find",
+                "visibility": "pub"
+              }
+            ],
+            "iac_relevant": false,
+            "impl_blocks": [
+              {
+                "end_line": 23,
+                "kind": "inherent_impl",
+                "lang": "rust",
+                "line_number": 7,
+                "name": "OrderService",
+                "target": "OrderService"
+              }
+            ],
+            "imports": [
+              {
+                "alias": "Order",
+                "full_import_name": "use crate::repository::{Order, OrderRepository};",
+                "import_type": "use",
+                "lang": "rust",
+                "line_number": 1,
+                "name": "crate::repository::Order",
+                "source": "crate::repository::Order"
+              },
+              {
+                "alias": "OrderRepository",
+                "full_import_name": "use crate::repository::{Order, OrderRepository};",
+                "import_type": "use",
+                "lang": "rust",
+                "line_number": 1,
+                "name": "crate::repository::OrderRepository",
+                "source": "crate::repository::OrderRepository"
+              }
+            ],
+            "is_dependency": false,
+            "lang": "rust",
+            "macros": [],
+            "modules": [],
+            "path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/rust/order_service.rs",
+            "repo_path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/rust",
+            "traits": [],
+            "type_aliases": [],
+            "variables": []
+          },
+          "relative_path": "order_service.rs",
+          "repo_id": "rust"
+        },
+        "source_confidence": "observed",
+        "source_uri": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/rust/order_service.rs",
+        "stable_fact_key": "file:rust:order_service.rs"
+      }
+    ],
+    "generation_id": "canonical-generation-eeb7dac5ed1dafea",
+    "observed_at": "2000-01-01T00:00:00Z",
+    "repo_id": "rust",
+    "scope_id": "parser_fixture:rust",
+    "scope_kind": "repository",
+    "source_system": "git"
+  }
+}

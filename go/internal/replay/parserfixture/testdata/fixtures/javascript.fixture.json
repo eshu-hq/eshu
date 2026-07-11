@@ -1,0 +1,184 @@
+{
+  "language": "git",
+  "schema_version": "1",
+  "scope": {
+    "collector_kind": "git",
+    "facts": [
+      {
+        "collector_kind": "git",
+        "fact_kind": "file",
+        "payload": {
+          "graph_id": "javascript:orderService.js",
+          "graph_kind": "file",
+          "is_dependency": false,
+          "language": "javascript",
+          "parsed_file_data": {
+            "classes": [
+              {
+                "end_line": 17,
+                "lang": "javascript",
+                "line_number": 3,
+                "name": "OrderService"
+              }
+            ],
+            "components": [],
+            "embedded_shell_commands": [],
+            "framework_semantics": {
+              "frameworks": []
+            },
+            "function_calls": [
+              {
+                "call_kind": "function_call",
+                "full_name": "require",
+                "lang": "javascript",
+                "line_number": 1,
+                "name": "require"
+              },
+              {
+                "call_kind": "function_call",
+                "class_context": "OrderService",
+                "full_name": "this.repository.create",
+                "lang": "javascript",
+                "line_number": 9,
+                "name": "create"
+              },
+              {
+                "call_kind": "javascript.function_value_reference",
+                "full_name": "customerId",
+                "lang": "javascript",
+                "line_number": 9,
+                "name": "customerId"
+              },
+              {
+                "call_kind": "function_call",
+                "full_name": "order.addLine",
+                "lang": "javascript",
+                "line_number": 10,
+                "name": "addLine"
+              },
+              {
+                "call_kind": "function_call",
+                "full_name": "skus.forEach",
+                "lang": "javascript",
+                "line_number": 10,
+                "name": "forEach"
+              },
+              {
+                "call_kind": "javascript.function_value_reference",
+                "full_name": "sku",
+                "lang": "javascript",
+                "line_number": 10,
+                "name": "sku"
+              },
+              {
+                "call_kind": "javascript.function_value_reference",
+                "full_name": "sku",
+                "lang": "javascript",
+                "line_number": 10,
+                "name": "sku"
+              },
+              {
+                "call_kind": "javascript.function_value_reference",
+                "full_name": "order",
+                "lang": "javascript",
+                "line_number": 11,
+                "name": "order"
+              },
+              {
+                "call_kind": "function_call",
+                "class_context": "OrderService",
+                "full_name": "this.repository.save",
+                "lang": "javascript",
+                "line_number": 11,
+                "name": "save"
+              },
+              {
+                "call_kind": "function_call",
+                "class_context": "OrderService",
+                "full_name": "this.repository.byId",
+                "lang": "javascript",
+                "line_number": 15,
+                "name": "byId"
+              },
+              {
+                "call_kind": "javascript.function_value_reference",
+                "full_name": "orderId",
+                "lang": "javascript",
+                "line_number": 15,
+                "name": "orderId"
+              }
+            ],
+            "functions": [
+              {
+                "class_context": "OrderService",
+                "decorators": [],
+                "end_line": 6,
+                "lang": "javascript",
+                "line_number": 4,
+                "name": "constructor",
+                "parameter_count": 1,
+                "type_parameters": []
+              },
+              {
+                "class_context": "OrderService",
+                "decorators": [],
+                "end_line": 12,
+                "lang": "javascript",
+                "line_number": 8,
+                "name": "place",
+                "parameter_count": 2,
+                "type_parameters": []
+              },
+              {
+                "class_context": "OrderService",
+                "decorators": [],
+                "end_line": 16,
+                "lang": "javascript",
+                "line_number": 14,
+                "name": "find",
+                "parameter_count": 1,
+                "type_parameters": []
+              }
+            ],
+            "iac_relevant": false,
+            "imports": [
+              {
+                "full_import_name": "const { OrderRepository } = require(\"./orderRepository\")",
+                "import_type": "require",
+                "lang": "javascript",
+                "line_number": 1,
+                "name": "OrderRepository",
+                "source": "./orderRepository"
+              }
+            ],
+            "is_dependency": false,
+            "js_parse_bounded": [],
+            "lang": "javascript",
+            "modules": null,
+            "path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/javascript/orderService.js",
+            "repo_path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/javascript",
+            "variables": [
+              {
+                "end_line": 1,
+                "lang": "javascript",
+                "line_number": 1,
+                "name": "{ OrderRepository }"
+              }
+            ]
+          },
+          "relative_path": "orderService.js",
+          "repo_id": "javascript"
+        },
+        "source_confidence": "observed",
+        "source_uri": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/javascript/orderService.js",
+        "stable_fact_key": "file:javascript:orderService.js"
+      }
+    ],
+    "generation_id": "canonical-generation-aa9c7486bfbbabb0",
+    "observed_at": "2000-01-01T00:00:00Z",
+    "repo_id": "javascript",
+    "scope_id": "parser_fixture:javascript",
+    "scope_kind": "repository",
+    "source_system": "git"
+  }
+}

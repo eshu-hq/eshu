@@ -1,0 +1,144 @@
+{
+  "language": "git",
+  "schema_version": "1",
+  "scope": {
+    "collector_kind": "git",
+    "facts": [
+      {
+        "collector_kind": "git",
+        "fact_kind": "file",
+        "payload": {
+          "graph_id": "typescriptjsx:OrderPanel.tsx",
+          "graph_kind": "file",
+          "is_dependency": false,
+          "language": "tsx",
+          "parsed_file_data": {
+            "classes": [],
+            "components": [
+              {
+                "end_line": 21,
+                "lang": "tsx",
+                "line_number": 8,
+                "name": "OrderPanel"
+              }
+            ],
+            "embedded_shell_commands": [],
+            "enums": [],
+            "framework_semantics": {
+              "frameworks": [
+                "react"
+              ],
+              "react": {
+                "boundary": "shared",
+                "component_exports": [
+                  "OrderPanel"
+                ],
+                "hooks_used": []
+              }
+            },
+            "function_calls": [
+              {
+                "call_kind": "typescript.type_reference",
+                "full_name": "JSX.Element",
+                "lang": "tsx",
+                "line_number": 8,
+                "name": "Element"
+              },
+              {
+                "call_kind": "typescript.type_reference",
+                "full_name": "Element",
+                "lang": "tsx",
+                "line_number": 8,
+                "name": "Element"
+              },
+              {
+                "call_kind": "typescript.type_reference",
+                "full_name": "OrderPanelProps",
+                "lang": "tsx",
+                "line_number": 8,
+                "name": "OrderPanelProps"
+              },
+              {
+                "call_kind": "function_call",
+                "full_name": "skus.map",
+                "lang": "tsx",
+                "line_number": 14,
+                "name": "map"
+              },
+              {
+                "call_kind": "javascript.function_value_reference",
+                "full_name": "sku",
+                "lang": "tsx",
+                "line_number": 14,
+                "name": "sku"
+              },
+              {
+                "call_kind": "javascript.function_value_reference",
+                "full_name": "li",
+                "lang": "tsx",
+                "line_number": 15,
+                "name": "li"
+              },
+              {
+                "call_kind": "javascript.function_value_reference",
+                "full_name": "sku",
+                "lang": "tsx",
+                "line_number": 15,
+                "name": "sku"
+              }
+            ],
+            "functions": [
+              {
+                "decorators": [],
+                "end_line": 21,
+                "lang": "tsx",
+                "line_number": 8,
+                "name": "OrderPanel",
+                "parameter_count": 1,
+                "type_parameters": []
+              }
+            ],
+            "iac_relevant": false,
+            "imports": [
+              {
+                "alias": "React",
+                "lang": "tsx",
+                "line_number": 1,
+                "name": "default",
+                "source": "react"
+              }
+            ],
+            "interfaces": [
+              {
+                "end_line": 6,
+                "lang": "tsx",
+                "line_number": 3,
+                "name": "OrderPanelProps",
+                "type_parameters": []
+              }
+            ],
+            "is_dependency": false,
+            "js_parse_bounded": [],
+            "lang": "tsx",
+            "modules": null,
+            "path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/typescriptjsx/OrderPanel.tsx",
+            "repo_path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/typescriptjsx",
+            "type_aliases": [],
+            "variables": []
+          },
+          "relative_path": "OrderPanel.tsx",
+          "repo_id": "typescriptjsx"
+        },
+        "source_confidence": "observed",
+        "source_uri": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/typescriptjsx/OrderPanel.tsx",
+        "stable_fact_key": "file:typescriptjsx:OrderPanel.tsx"
+      }
+    ],
+    "generation_id": "canonical-generation-40ba198ef532f9c2",
+    "observed_at": "2000-01-01T00:00:00Z",
+    "repo_id": "typescriptjsx",
+    "scope_id": "parser_fixture:typescriptjsx",
+    "scope_kind": "repository",
+    "source_system": "git"
+  }
+}

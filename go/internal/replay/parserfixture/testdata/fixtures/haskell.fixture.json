@@ -1,0 +1,128 @@
+{
+  "language": "git",
+  "schema_version": "1",
+  "scope": {
+    "collector_kind": "git",
+    "facts": [
+      {
+        "collector_kind": "git",
+        "fact_kind": "file",
+        "payload": {
+          "graph_id": "haskell:OrderService.hs",
+          "graph_kind": "file",
+          "is_dependency": false,
+          "language": "haskell",
+          "parsed_file_data": {
+            "classes": [],
+            "function_calls": [
+              {
+                "call_kind": "haskell.function_call",
+                "context": "placeOrder",
+                "full_name": "addLine",
+                "lang": "haskell",
+                "line_number": 10,
+                "name": "addLine"
+              },
+              {
+                "call_kind": "haskell.function_call",
+                "context": "placeOrder",
+                "full_name": "createOrder",
+                "lang": "haskell",
+                "line_number": 10,
+                "name": "createOrder"
+              },
+              {
+                "call_kind": "haskell.function_call",
+                "context": "placeOrder",
+                "full_name": "foldr",
+                "lang": "haskell",
+                "line_number": 10,
+                "name": "foldr"
+              },
+              {
+                "call_kind": "haskell.function_call",
+                "context": "placeOrder",
+                "full_name": "saveOrder",
+                "lang": "haskell",
+                "line_number": 10,
+                "name": "saveOrder"
+              },
+              {
+                "call_kind": "haskell.function_call",
+                "context": "findOrder",
+                "full_name": "byId",
+                "lang": "haskell",
+                "line_number": 16,
+                "name": "byId"
+              }
+            ],
+            "functions": [
+              {
+                "cyclomatic_complexity": 1,
+                "dead_code_root_kinds": [
+                  "haskell.module_export"
+                ],
+                "decorators": [],
+                "end_line": 10,
+                "lang": "haskell",
+                "line_number": 9,
+                "name": "placeOrder"
+              },
+              {
+                "cyclomatic_complexity": 1,
+                "decorators": [],
+                "end_line": 13,
+                "lang": "haskell",
+                "line_number": 13,
+                "name": "addLine"
+              },
+              {
+                "cyclomatic_complexity": 1,
+                "dead_code_root_kinds": [
+                  "haskell.module_export"
+                ],
+                "decorators": [],
+                "end_line": 16,
+                "lang": "haskell",
+                "line_number": 16,
+                "name": "findOrder"
+              }
+            ],
+            "iac_relevant": false,
+            "imports": [
+              {
+                "lang": "haskell",
+                "line_number": 6,
+                "name": "Example.OrderRepository"
+              }
+            ],
+            "is_dependency": false,
+            "lang": "haskell",
+            "modules": [
+              {
+                "end_line": 4,
+                "lang": "haskell",
+                "line_number": 1,
+                "name": "Example.OrderService"
+              }
+            ],
+            "path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/haskell/OrderService.hs",
+            "repo_path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/haskell",
+            "variables": []
+          },
+          "relative_path": "OrderService.hs",
+          "repo_id": "haskell"
+        },
+        "source_confidence": "observed",
+        "source_uri": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/haskell/OrderService.hs",
+        "stable_fact_key": "file:haskell:OrderService.hs"
+      }
+    ],
+    "generation_id": "canonical-generation-6fc7f4a96c72323e",
+    "observed_at": "2000-01-01T00:00:00Z",
+    "repo_id": "haskell",
+    "scope_id": "parser_fixture:haskell",
+    "scope_kind": "repository",
+    "source_system": "git"
+  }
+}

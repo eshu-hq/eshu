@@ -61,6 +61,24 @@ func languageFixtureCases() []fixtureCase {
 	return []fixtureCase{
 		{parser: "json", treeDir: "json", language: "json", signatureArray: "variables"},
 		{parser: "sql", treeDir: "sql", language: "sql", signatureArray: "sql_tables"},
+		{parser: "c", treeDir: "c", language: "c", signatureArray: "functions"},
+		{parser: "cpp", treeDir: "cpp", language: "cpp", signatureArray: "functions"},
+		{parser: "crossplane", treeDir: "crossplane", language: "yaml", signatureArray: "crossplane_xrds"},
+		{parser: "csharp", treeDir: "csharp", language: "c_sharp", signatureArray: "functions"},
+		{parser: "dart", treeDir: "dart", language: "dart", signatureArray: "functions"},
+		{parser: "elixir", treeDir: "elixir", language: "elixir", signatureArray: "functions"},
+		{parser: "haskell", treeDir: "haskell", language: "haskell", signatureArray: "functions"},
+		{parser: "java", treeDir: "java", language: "java", signatureArray: "functions"},
+		{parser: "javascript", treeDir: "javascript", language: "javascript", signatureArray: "functions"},
+		{parser: "kotlin", treeDir: "kotlin", language: "kotlin", signatureArray: "functions"},
+		{parser: "perl", treeDir: "perl", language: "perl", signatureArray: "functions"},
+		{parser: "php", treeDir: "php", language: "php", signatureArray: "functions"},
+		{parser: "ruby", treeDir: "ruby", language: "ruby", signatureArray: "functions"},
+		{parser: "rust", treeDir: "rust", language: "rust", signatureArray: "functions"},
+		{parser: "scala", treeDir: "scala", language: "scala", signatureArray: "functions"},
+		{parser: "swift", treeDir: "swift", language: "swift", signatureArray: "functions"},
+		{parser: "typescript", treeDir: "typescript", language: "typescript", signatureArray: "functions"},
+		{parser: "typescriptjsx", treeDir: "typescriptjsx", language: "tsx", signatureArray: "functions"},
 	}
 }
 

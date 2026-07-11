@@ -1,0 +1,116 @@
+{
+  "language": "git",
+  "schema_version": "1",
+  "scope": {
+    "collector_kind": "git",
+    "facts": [
+      {
+        "collector_kind": "git",
+        "fact_kind": "file",
+        "payload": {
+          "graph_id": "c:orders.c",
+          "graph_kind": "file",
+          "is_dependency": false,
+          "language": "c",
+          "parsed_file_data": {
+            "classes": [],
+            "enums": [],
+            "framework_semantics": {
+              "frameworks": []
+            },
+            "function_calls": [
+              {
+                "full_name": "malloc",
+                "lang": "c",
+                "line_number": 5,
+                "name": "malloc"
+              }
+            ],
+            "functions": [
+              {
+                "cyclomatic_complexity": 1,
+                "decorators": [],
+                "end_line": 9,
+                "lang": "c",
+                "line_number": 4,
+                "name": "order_create"
+              },
+              {
+                "cyclomatic_complexity": 2,
+                "decorators": [],
+                "end_line": 17,
+                "lang": "c",
+                "line_number": 11,
+                "name": "order_add_line"
+              }
+            ],
+            "iac_relevant": false,
+            "imports": [
+              {
+                "full_import_name": "#include <stdlib.h>",
+                "include_kind": "system",
+                "lang": "c",
+                "line_number": 1,
+                "name": "stdlib.h",
+                "source": "stdlib.h"
+              },
+              {
+                "full_import_name": "#include \"orders.h\"",
+                "include_kind": "local",
+                "lang": "c",
+                "line_number": 2,
+                "name": "orders.h",
+                "source": "orders.h"
+              }
+            ],
+            "is_dependency": false,
+            "lang": "c",
+            "macros": [],
+            "path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/c/orders.c",
+            "repo_path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/c",
+            "structs": [
+              {
+                "end_line": 4,
+                "lang": "c",
+                "line_number": 4,
+                "name": "order"
+              },
+              {
+                "end_line": 5,
+                "lang": "c",
+                "line_number": 5,
+                "name": "order"
+              },
+              {
+                "end_line": 5,
+                "lang": "c",
+                "line_number": 5,
+                "name": "order"
+              },
+              {
+                "end_line": 11,
+                "lang": "c",
+                "line_number": 11,
+                "name": "order"
+              }
+            ],
+            "typedefs": [],
+            "unions": [],
+            "variables": []
+          },
+          "relative_path": "orders.c",
+          "repo_id": "c"
+        },
+        "source_confidence": "observed",
+        "source_uri": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/c/orders.c",
+        "stable_fact_key": "file:c:orders.c"
+      }
+    ],
+    "generation_id": "canonical-generation-80c1bde68b6368f0",
+    "observed_at": "2000-01-01T00:00:00Z",
+    "repo_id": "c",
+    "scope_id": "parser_fixture:c",
+    "scope_kind": "repository",
+    "source_system": "git"
+  }
+}

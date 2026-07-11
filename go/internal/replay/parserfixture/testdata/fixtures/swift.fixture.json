@@ -1,0 +1,171 @@
+{
+  "language": "git",
+  "schema_version": "1",
+  "scope": {
+    "collector_kind": "git",
+    "facts": [
+      {
+        "collector_kind": "git",
+        "fact_kind": "file",
+        "payload": {
+          "graph_id": "swift:OrderService.swift",
+          "graph_kind": "file",
+          "is_dependency": false,
+          "language": "swift",
+          "parsed_file_data": {
+            "classes": [
+              {
+                "bases": null,
+                "end_line": 21,
+                "lang": "swift",
+                "line_number": 3,
+                "name": "OrderService"
+              }
+            ],
+            "enums": [],
+            "function_calls": [
+              {
+                "args": [
+                  "customerId: customerId"
+                ],
+                "full_name": "repository.create",
+                "inferred_obj_type": "OrderRepository",
+                "is_dependency": false,
+                "lang": "swift",
+                "line_number": 11,
+                "name": "create"
+              },
+              {
+                "args": [
+                  "sku"
+                ],
+                "full_name": "order.addLine",
+                "inferred_obj_type": "",
+                "is_dependency": false,
+                "lang": "swift",
+                "line_number": 13,
+                "name": "addLine"
+              },
+              {
+                "args": [
+                  "order"
+                ],
+                "full_name": "repository.save",
+                "inferred_obj_type": "OrderRepository",
+                "is_dependency": false,
+                "lang": "swift",
+                "line_number": 15,
+                "name": "save"
+              },
+              {
+                "args": [
+                  "orderId"
+                ],
+                "full_name": "repository.byId",
+                "inferred_obj_type": "OrderRepository",
+                "is_dependency": false,
+                "lang": "swift",
+                "line_number": 19,
+                "name": "byId"
+              }
+            ],
+            "functions": [
+              {
+                "args": [
+                  "repository"
+                ],
+                "class_context": "OrderService",
+                "context": "OrderService",
+                "cyclomatic_complexity": 1,
+                "dead_code_root_kinds": [
+                  "swift.constructor"
+                ],
+                "decorators": [],
+                "end_line": 8,
+                "lang": "swift",
+                "line_number": 6,
+                "name": "init"
+              },
+              {
+                "args": [
+                  "customerId",
+                  "skus"
+                ],
+                "class_context": "OrderService",
+                "context": "OrderService",
+                "cyclomatic_complexity": 2,
+                "decorators": [],
+                "end_line": 16,
+                "lang": "swift",
+                "line_number": 10,
+                "name": "place"
+              },
+              {
+                "args": [
+                  "orderId"
+                ],
+                "class_context": "OrderService",
+                "context": "OrderService",
+                "cyclomatic_complexity": 1,
+                "decorators": [],
+                "end_line": 20,
+                "lang": "swift",
+                "line_number": 18,
+                "name": "find"
+              }
+            ],
+            "iac_relevant": false,
+            "imports": [
+              {
+                "alias": null,
+                "context": null,
+                "full_import_name": "Foundation",
+                "is_dependency": false,
+                "lang": "swift",
+                "line_number": 1,
+                "name": "Foundation"
+              }
+            ],
+            "is_dependency": false,
+            "lang": "swift",
+            "path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/swift/OrderService.swift",
+            "protocols": [],
+            "repo_path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/swift",
+            "structs": [],
+            "variables": [
+              {
+                "class_context": "OrderService",
+                "context": "OrderService",
+                "end_line": 4,
+                "lang": "swift",
+                "line_number": 4,
+                "name": "repository",
+                "type": "OrderRepository"
+              },
+              {
+                "class_context": "OrderService",
+                "context": "OrderService",
+                "end_line": 11,
+                "lang": "swift",
+                "line_number": 11,
+                "name": "order",
+                "type": ""
+              }
+            ]
+          },
+          "relative_path": "OrderService.swift",
+          "repo_id": "swift"
+        },
+        "source_confidence": "observed",
+        "source_uri": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/swift/OrderService.swift",
+        "stable_fact_key": "file:swift:OrderService.swift"
+      }
+    ],
+    "generation_id": "canonical-generation-221c038bd0f7ca17",
+    "observed_at": "2000-01-01T00:00:00Z",
+    "repo_id": "swift",
+    "scope_id": "parser_fixture:swift",
+    "scope_kind": "repository",
+    "source_system": "git"
+  }
+}

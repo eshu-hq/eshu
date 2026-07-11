@@ -1,0 +1,143 @@
+{
+  "language": "git",
+  "schema_version": "1",
+  "scope": {
+    "collector_kind": "git",
+    "facts": [
+      {
+        "collector_kind": "git",
+        "fact_kind": "file",
+        "payload": {
+          "graph_id": "dart:order_service.dart",
+          "graph_kind": "file",
+          "is_dependency": false,
+          "language": "dart",
+          "parsed_file_data": {
+            "classes": [
+              {
+                "end_line": 17,
+                "lang": "dart",
+                "line_number": 3,
+                "name": "OrderService"
+              }
+            ],
+            "function_calls": [
+              {
+                "full_name": "OrderService",
+                "lang": "dart",
+                "line_number": 6,
+                "name": "OrderService"
+              },
+              {
+                "full_name": "place",
+                "lang": "dart",
+                "line_number": 8,
+                "name": "place"
+              },
+              {
+                "full_name": "create",
+                "lang": "dart",
+                "line_number": 9,
+                "name": "create"
+              },
+              {
+                "full_name": "addLine",
+                "lang": "dart",
+                "line_number": 11,
+                "name": "addLine"
+              },
+              {
+                "full_name": "save",
+                "lang": "dart",
+                "line_number": 13,
+                "name": "save"
+              },
+              {
+                "full_name": "byId",
+                "lang": "dart",
+                "line_number": 16,
+                "name": "byId"
+              },
+              {
+                "full_name": "find",
+                "lang": "dart",
+                "line_number": 16,
+                "name": "find"
+              }
+            ],
+            "functions": [
+              {
+                "class_context": "OrderService",
+                "cyclomatic_complexity": 1,
+                "dead_code_root_kinds": [
+                  "dart.constructor"
+                ],
+                "decorators": [],
+                "end_line": 6,
+                "lang": "dart",
+                "line_number": 6,
+                "name": "OrderService"
+              },
+              {
+                "class_context": "OrderService",
+                "cyclomatic_complexity": 2,
+                "decorators": [],
+                "end_line": 13,
+                "lang": "dart",
+                "line_number": 8,
+                "name": "place"
+              },
+              {
+                "class_context": "OrderService",
+                "cyclomatic_complexity": 1,
+                "decorators": [],
+                "end_line": 16,
+                "lang": "dart",
+                "line_number": 16,
+                "name": "find"
+              }
+            ],
+            "iac_relevant": false,
+            "imports": [
+              {
+                "import_type": "import",
+                "lang": "dart",
+                "line_number": 1,
+                "name": "order_repository.dart"
+              }
+            ],
+            "is_dependency": false,
+            "lang": "dart",
+            "path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/dart/order_service.dart",
+            "repo_path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/dart",
+            "variables": [
+              {
+                "end_line": 4,
+                "lang": "dart",
+                "line_number": 4,
+                "name": "repository"
+              },
+              {
+                "end_line": 9,
+                "lang": "dart",
+                "line_number": 9,
+                "name": "order"
+              }
+            ]
+          },
+          "relative_path": "order_service.dart",
+          "repo_id": "dart"
+        },
+        "source_confidence": "observed",
+        "source_uri": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/dart/order_service.dart",
+        "stable_fact_key": "file:dart:order_service.dart"
+      }
+    ],
+    "generation_id": "canonical-generation-24ee31f3e0b15246",
+    "observed_at": "2000-01-01T00:00:00Z",
+    "repo_id": "dart",
+    "scope_id": "parser_fixture:dart",
+    "scope_kind": "repository",
+    "source_system": "git"
+  }
+}

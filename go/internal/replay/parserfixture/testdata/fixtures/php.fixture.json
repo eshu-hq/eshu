@@ -1,0 +1,234 @@
+{
+  "language": "git",
+  "schema_version": "1",
+  "scope": {
+    "collector_kind": "git",
+    "facts": [
+      {
+        "collector_kind": "git",
+        "fact_kind": "file",
+        "payload": {
+          "graph_id": "php:OrderService.php",
+          "graph_kind": "file",
+          "is_dependency": false,
+          "language": "php",
+          "parsed_file_data": {
+            "classes": [
+              {
+                "end_line": 5,
+                "lang": "php",
+                "line_number": 5,
+                "name": "OrderService"
+              }
+            ],
+            "function_calls": [
+              {
+                "args": [
+                  "$customerId"
+                ],
+                "class_context": [
+                  null,
+                  null
+                ],
+                "context": [
+                  "place",
+                  "method_declaration",
+                  14
+                ],
+                "full_name": "$this->repository.create",
+                "inferred_obj_type": "OrderRepository",
+                "is_dependency": false,
+                "lang": "php",
+                "line_number": 16,
+                "name": "create"
+              },
+              {
+                "args": [
+                  "$sku"
+                ],
+                "class_context": [
+                  null,
+                  null
+                ],
+                "context": [
+                  "place",
+                  "method_declaration",
+                  14
+                ],
+                "full_name": "$order.addLine",
+                "inferred_obj_type": null,
+                "is_dependency": false,
+                "lang": "php",
+                "line_number": 18,
+                "name": "addLine"
+              },
+              {
+                "args": [
+                  "$order"
+                ],
+                "class_context": [
+                  null,
+                  null
+                ],
+                "context": [
+                  "place",
+                  "method_declaration",
+                  14
+                ],
+                "full_name": "$this->repository.save",
+                "inferred_obj_type": "OrderRepository",
+                "is_dependency": false,
+                "lang": "php",
+                "line_number": 20,
+                "name": "save"
+              },
+              {
+                "args": [
+                  "$orderId"
+                ],
+                "class_context": [
+                  null,
+                  null
+                ],
+                "context": [
+                  "find",
+                  "method_declaration",
+                  23
+                ],
+                "full_name": "$this->repository.byId",
+                "inferred_obj_type": "OrderRepository",
+                "is_dependency": false,
+                "lang": "php",
+                "line_number": 25,
+                "name": "byId"
+              }
+            ],
+            "functions": [
+              {
+                "class_context": "OrderService",
+                "cyclomatic_complexity": 1,
+                "dead_code_root_kinds": [
+                  "php.constructor",
+                  "php.magic_method"
+                ],
+                "decorators": [],
+                "end_line": 9,
+                "lang": "php",
+                "line_number": 9,
+                "name": "__construct",
+                "parameters": [
+                  "$repository"
+                ],
+                "semantic_kind": "magic_method"
+              },
+              {
+                "class_context": "OrderService",
+                "cyclomatic_complexity": 2,
+                "decorators": [],
+                "end_line": 14,
+                "lang": "php",
+                "line_number": 14,
+                "name": "place",
+                "parameters": [
+                  "$customerId",
+                  "$skus"
+                ],
+                "return_type": "Order"
+              },
+              {
+                "class_context": "OrderService",
+                "cyclomatic_complexity": 1,
+                "decorators": [],
+                "end_line": 23,
+                "lang": "php",
+                "line_number": 23,
+                "name": "find",
+                "parameters": [
+                  "$orderId"
+                ],
+                "return_type": "Order"
+              }
+            ],
+            "iac_relevant": false,
+            "imports": [],
+            "interfaces": [],
+            "is_dependency": false,
+            "lang": "php",
+            "namespace": "Example\\Orders",
+            "path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/php/OrderService.php",
+            "php_parse_bounded": [],
+            "repo_path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/php",
+            "traits": [],
+            "variables": [
+              {
+                "class_context": "OrderService",
+                "context": "OrderService",
+                "end_line": 7,
+                "lang": "php",
+                "line_number": 7,
+                "name": "$repository",
+                "type": "OrderRepository"
+              },
+              {
+                "class_context": null,
+                "context": "place",
+                "end_line": 14,
+                "lang": "php",
+                "line_number": 14,
+                "name": "$customerId",
+                "type": "string"
+              },
+              {
+                "class_context": null,
+                "context": "place",
+                "end_line": 14,
+                "lang": "php",
+                "line_number": 14,
+                "name": "$skus",
+                "type": "array"
+              },
+              {
+                "class_context": null,
+                "context": "place",
+                "end_line": 16,
+                "lang": "php",
+                "line_number": 16,
+                "name": "$order",
+                "type": "mixed"
+              },
+              {
+                "class_context": null,
+                "context": "place",
+                "end_line": 17,
+                "lang": "php",
+                "line_number": 17,
+                "name": "$sku",
+                "type": "mixed"
+              },
+              {
+                "class_context": null,
+                "context": "find",
+                "end_line": 23,
+                "lang": "php",
+                "line_number": 23,
+                "name": "$orderId",
+                "type": "string"
+              }
+            ]
+          },
+          "relative_path": "OrderService.php",
+          "repo_id": "php"
+        },
+        "source_confidence": "observed",
+        "source_uri": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/php/OrderService.php",
+        "stable_fact_key": "file:php:OrderService.php"
+      }
+    ],
+    "generation_id": "canonical-generation-85d55cd7ec5a6ee7",
+    "observed_at": "2000-01-01T00:00:00Z",
+    "repo_id": "php",
+    "scope_id": "parser_fixture:php",
+    "scope_kind": "repository",
+    "source_system": "git"
+  }
+}

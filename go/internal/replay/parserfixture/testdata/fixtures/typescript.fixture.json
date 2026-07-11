@@ -1,0 +1,191 @@
+{
+  "language": "git",
+  "schema_version": "1",
+  "scope": {
+    "collector_kind": "git",
+    "facts": [
+      {
+        "collector_kind": "git",
+        "fact_kind": "file",
+        "payload": {
+          "graph_id": "typescript:orderService.ts",
+          "graph_kind": "file",
+          "is_dependency": false,
+          "language": "typescript",
+          "parsed_file_data": {
+            "classes": [
+              {
+                "decorators": [],
+                "end_line": 17,
+                "lang": "typescript",
+                "line_number": 3,
+                "name": "OrderService",
+                "type_parameters": []
+              }
+            ],
+            "components": [],
+            "embedded_shell_commands": [],
+            "enums": [],
+            "framework_semantics": {
+              "frameworks": []
+            },
+            "function_calls": [
+              {
+                "call_kind": "typescript.type_reference",
+                "full_name": "OrderRepository",
+                "lang": "typescript",
+                "line_number": 4,
+                "name": "OrderRepository"
+              },
+              {
+                "call_kind": "typescript.type_reference",
+                "full_name": "Order",
+                "lang": "typescript",
+                "line_number": 6,
+                "name": "Order"
+              },
+              {
+                "call_kind": "function_call",
+                "class_context": "OrderService",
+                "full_name": "this.repository.create",
+                "inferred_obj_type": "OrderRepository",
+                "lang": "typescript",
+                "line_number": 7,
+                "name": "create"
+              },
+              {
+                "call_kind": "javascript.function_value_reference",
+                "full_name": "customerId",
+                "lang": "typescript",
+                "line_number": 7,
+                "name": "customerId"
+              },
+              {
+                "call_kind": "function_call",
+                "full_name": "order.addLine",
+                "lang": "typescript",
+                "line_number": 9,
+                "name": "addLine"
+              },
+              {
+                "call_kind": "javascript.function_value_reference",
+                "full_name": "sku",
+                "lang": "typescript",
+                "line_number": 9,
+                "name": "sku"
+              },
+              {
+                "call_kind": "javascript.function_value_reference",
+                "full_name": "order",
+                "lang": "typescript",
+                "line_number": 11,
+                "name": "order"
+              },
+              {
+                "call_kind": "function_call",
+                "class_context": "OrderService",
+                "full_name": "this.repository.save",
+                "inferred_obj_type": "OrderRepository",
+                "lang": "typescript",
+                "line_number": 11,
+                "name": "save"
+              },
+              {
+                "call_kind": "typescript.type_reference",
+                "full_name": "Order",
+                "lang": "typescript",
+                "line_number": 14,
+                "name": "Order"
+              },
+              {
+                "call_kind": "function_call",
+                "class_context": "OrderService",
+                "full_name": "this.repository.byId",
+                "inferred_obj_type": "OrderRepository",
+                "lang": "typescript",
+                "line_number": 15,
+                "name": "byId"
+              },
+              {
+                "call_kind": "javascript.function_value_reference",
+                "full_name": "orderId",
+                "lang": "typescript",
+                "line_number": 15,
+                "name": "orderId"
+              }
+            ],
+            "functions": [
+              {
+                "class_context": "OrderService",
+                "decorators": [],
+                "end_line": 4,
+                "lang": "typescript",
+                "line_number": 4,
+                "name": "constructor",
+                "parameter_count": 1,
+                "type_parameters": []
+              },
+              {
+                "class_context": "OrderService",
+                "decorators": [],
+                "end_line": 12,
+                "lang": "typescript",
+                "line_number": 6,
+                "name": "place",
+                "parameter_count": 2,
+                "type_parameters": []
+              },
+              {
+                "class_context": "OrderService",
+                "decorators": [],
+                "end_line": 16,
+                "lang": "typescript",
+                "line_number": 14,
+                "name": "find",
+                "parameter_count": 1,
+                "type_parameters": []
+              }
+            ],
+            "iac_relevant": false,
+            "imports": [
+              {
+                "alias": "",
+                "lang": "typescript",
+                "line_number": 1,
+                "name": "Order",
+                "source": "./orderRepository"
+              },
+              {
+                "alias": "",
+                "lang": "typescript",
+                "line_number": 1,
+                "name": "OrderRepository",
+                "source": "./orderRepository"
+              }
+            ],
+            "interfaces": [],
+            "is_dependency": false,
+            "js_parse_bounded": [],
+            "lang": "typescript",
+            "modules": null,
+            "path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/typescript/orderService.ts",
+            "repo_path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/typescript",
+            "type_aliases": [],
+            "variables": []
+          },
+          "relative_path": "orderService.ts",
+          "repo_id": "typescript"
+        },
+        "source_confidence": "observed",
+        "source_uri": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/typescript/orderService.ts",
+        "stable_fact_key": "file:typescript:orderService.ts"
+      }
+    ],
+    "generation_id": "canonical-generation-143946c03f99bd04",
+    "observed_at": "2000-01-01T00:00:00Z",
+    "repo_id": "typescript",
+    "scope_id": "parser_fixture:typescript",
+    "scope_kind": "repository",
+    "source_system": "git"
+  }
+}
