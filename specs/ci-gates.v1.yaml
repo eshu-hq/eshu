@@ -519,6 +519,25 @@ gates:
       - go
     ci_only_reason: ""
 
+  - id: heredoc-budget
+    name: Heredoc Budget (bash 5.1+ pipe-buffer deadlock guard)
+    category: exactness
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "scripts/**/*.sh"
+      - "scripts/heredoc-budget-baseline.txt"
+      - "go/cmd/heredoc-budget/**"
+    local:
+      command: "cd go && go run ./cmd/heredoc-budget -baseline ../scripts/heredoc-budget-baseline.txt"
+      test_command: "cd go && go test ./cmd/heredoc-budget -count=1"
+    ci:
+      workflow: static-contract-gates.yml
+      job: "Verify heredoc budget gate"
+    requirements:
+      - go
+    ci_only_reason: ""
+
   - id: query-plan-regression
     name: Verify Query Plan Regression
     category: exactness

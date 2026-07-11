@@ -2328,6 +2328,11 @@
     },
     {
       "category": "command",
+      "name": "heredoc-budget",
+      "readiness": "implemented"
+    },
+    {
+      "category": "command",
       "name": "ifa",
       "readiness": "implemented"
     },
