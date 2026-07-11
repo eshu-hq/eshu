@@ -255,7 +255,7 @@ func wireAPI(
 	}
 	router.Setup = newSetupHandler(db, providerSecretKeyring, instruments, governanceAudit, cookieSecureMode, bootstrapMode)
 
-	oidcLoginHandler, err := newOIDCLoginHandler(getenv, db, instruments, providerSecretKeyring)
+	oidcLoginHandler, err := newOIDCLoginHandler(getenv, db, instruments, providerSecretKeyring, logger)
 	if err != nil {
 		_ = db.Close()
 		if driver != nil {

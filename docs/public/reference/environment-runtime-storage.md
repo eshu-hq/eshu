@@ -17,7 +17,7 @@ local installer.
 | `ESHU_PPROF_ADDR` | unset | API, MCP, ingester, reducer, bootstrap-index, workflow coordinator, hosted collectors | Opt-in `net/http/pprof` endpoint. A bare port binds to `127.0.0.1`; include a host to expose elsewhere. |
 | `ESHU_API_ADDR` | `:8080` for `eshu-api` | API CLI service wrapper | API listen address for scripted service helpers. Prefer CLI flags for direct use. |
 | `ESHU_AUTH_OIDC_ENABLED` | `false` | API | Optional backend OIDC login switch. Set `true` with `ESHU_AUTH_OIDC_CONFIG_FILE` to require file-backed provider config at startup; set `false` to disable OIDC even when a config path is present. |
-| `ESHU_AUTH_OIDC_CONFIG_FILE` | unset | API | Operator-managed OIDC login config file. The file carries issuer URL, client id, redirect URL, optional client-secret file handle, provider defaults, and group-to-role/grant mappings. Do not store raw provider tokens or private deployment identifiers in repository files. |
+| `ESHU_AUTH_OIDC_CONFIG_FILE` | unset | API | Operator-managed OIDC login config file. The file carries issuer URL, client id, redirect URL, optional client-secret file handle, provider defaults, and group-to-role/grant mappings. Do not store raw provider tokens or private deployment identifiers in repository files. `role_grants[].policy_revision_hash` is deprecated and ignored (#5038): Eshu always resolves the live workspace policy revision hash server-side at session-create time, so a stale or wrong hand-set hash can no longer make login silently fail on every subsequent request. Startup logs one WARN when a config file still sets it. |
 | `ESHU_AUTH_OIDC_PROVIDER_ID` | unset | API | Optional default provider config id override. Startup fails closed if the id does not reference a provider in `ESHU_AUTH_OIDC_CONFIG_FILE`. |
 | `ESHU_AUTH_OIDC_STATE_TTL` | `10m` | API | Lifetime for backend OIDC state and nonce records. Invalid durations fail API startup closed. |
 | `ESHU_MCP_TRANSPORT` | `http` | MCP server | MCP transport, `http` or `stdio`. |
@@ -167,3 +167,36 @@ the active fingerprint and any explicitly compatible older writer fingerprints.
 | Variable | Default | Read by | Purpose |
 | --- | --- | --- | --- |
 | `ESHU_TERRAFORM_SCHEMA_DIR` | packaged/default schema dir | Terraform schema loader | Overrides Terraform provider schema directory for local schema development or newly generated provider schemas. |
+
+## Static OIDC Config `policy_revision_hash` Deprecation (#5038)
+
+No-Regression Evidence: this change edits only the `Description` string of the
+existing `ESHU_AUTH_OIDC_CONFIG_FILE` entry in
+`go/internal/envregistry/entries.go` (a data-only Go file: a slice of struct
+literals with no control flow) and the corresponding doc rows above and in
+`env-registry.md`. `scripts/dev/precommit-go.sh perf-evidence`'s
+content-based hot-path scan flags any changed file under `go/internal` that
+contains a whole-word match for `Heartbeat` (among other worker/queue/lease
+keywords) anywhere in the file, not only in the diff; `entries.go` already
+contained `ESHU_WORKFLOW_COORDINATOR_HEARTBEAT_INTERVAL`'s unrelated
+"Heartbeat interval for claim owners" description before this change, so
+editing any other line in the file trips the gate as a false positive. The
+behavior change for #5038 is entirely in `go/internal/oidclogin` (the
+`StaticGrantResolver` no longer reads `role_grants[].policy_revision_hash`)
+and `go/cmd/api` (a startup WARN log), both non-hot-path packages by this
+gate's own location and content rules — no Cypher, graph write, worker claim,
+lease, batch, queue, or concurrency knob changed. Verification:
+`cd go && go test ./internal/envregistry ./internal/oidclogin ./internal/storage/postgres ./cmd/api -count=1`.
+
+No-Observability-Change: no metric, metric label, span, or runtime knob
+changed, and this file's env-var/runtime-config surface is unaffected. The one
+new startup WARN this issue adds
+(`auth.oidc.static_config.policy_revision_hash_ignored`, emitted from
+`go/cmd/api/oidc_login.go`'s `newOIDCLoginHandler`) is a plain structured log
+event, following the same ad-hoc `slog.Logger` + `telemetry.EventAttr("auth.*")`
+pattern already used by the neighboring
+`auth.provider_config.keyring_unconfigured` and `auth.oidc.session_refresh.*`
+startup/runtime logs in the same file (`go/cmd/api/wiring.go`,
+`go/cmd/api/oidc_session_refresh.go`) — none of those are individually
+enumerated in a docs page either; operators read them from the existing
+structured JSON log stream.

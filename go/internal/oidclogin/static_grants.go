@@ -17,8 +17,20 @@ type GroupRoleMapping struct {
 
 // RoleGrant maps an Eshu role to concrete session grants.
 type RoleGrant struct {
-	RoleID               string   `json:"role_id"`
-	PolicyRevisionHash   string   `json:"policy_revision_hash"`
+	RoleID string `json:"role_id"`
+	// PolicyRevisionHash is deprecated and ignored (#5038). Eshu always
+	// resolves the live workspace policy revision hash server-side at
+	// session-create time (the same COALESCE(NULLIF($7,''),
+	// ws.policy_revision_hash) contract the DB-backed group-mapping path
+	// already uses — see browser_sessions_schema.go's
+	// createBrowserSessionQuery), so a hand-set operator value here can never
+	// be trusted: a stale or mistyped hash used to silently 401 every
+	// subsequent authenticated request even though login itself succeeded.
+	// The field is retained only so existing config files keep parsing
+	// without a hard failure; StaticGrantResolver.ResolveGroupGrants never
+	// reads it, and HasIgnoredPolicyRevisionHash reports when a config still
+	// sets it so callers can emit a one-time startup WARN.
+	PolicyRevisionHash   string   `json:"policy_revision_hash,omitempty"`
 	AllScopes            bool     `json:"all_scopes,omitempty"`
 	AllowedScopeIDs      []string `json:"allowed_scope_ids,omitempty"`
 	AllowedRepositoryIDs []string `json:"allowed_repository_ids,omitempty"`
@@ -58,20 +70,17 @@ func (r StaticGrantResolver) ResolveGroupGrants(
 		if !ok {
 			return GrantResolution{}, false, errors.New("role grant is missing")
 		}
-		if resolution.PolicyRevisionHash == "" {
-			resolution.PolicyRevisionHash = grant.PolicyRevisionHash
-		} else if resolution.PolicyRevisionHash != grant.PolicyRevisionHash {
-			return GrantResolution{}, false, errors.New("role grants have conflicting policy revisions")
-		}
+		// PolicyRevisionHash is intentionally never read here (#5038): Eshu
+		// always resolves the live workspace policy revision hash
+		// server-side at session-create time instead of trusting an
+		// operator-supplied value. See RoleGrant.PolicyRevisionHash's doc
+		// comment.
 		resolution.AllScopes = resolution.AllScopes || grant.AllScopes
 		resolution.AllowedScopeIDs = append(resolution.AllowedScopeIDs, grant.AllowedScopeIDs...)
 		resolution.AllowedRepositoryIDs = append(resolution.AllowedRepositoryIDs, grant.AllowedRepositoryIDs...)
 	}
 	resolution.AllowedScopeIDs = cleanStrings(resolution.AllowedScopeIDs)
 	resolution.AllowedRepositoryIDs = cleanStrings(resolution.AllowedRepositoryIDs)
-	if resolution.PolicyRevisionHash == "" {
-		return GrantResolution{}, false, errors.New("role grant policy revision is required")
-	}
 	// A file-backed RoleGrant carries only scopes/repositories, never a
 	// permission-catalog snapshot. Leave PermissionCatalogEnforced false so the
 	// issued session is bounded by the operator-declared scopes/repositories
@@ -103,8 +112,8 @@ func (r StaticGrantResolver) roleGrantIndex() (map[string]RoleGrant, error) {
 		grant.PolicyRevisionHash = cleanScalar(grant.PolicyRevisionHash)
 		grant.AllowedScopeIDs = cleanStrings(grant.AllowedScopeIDs)
 		grant.AllowedRepositoryIDs = cleanStrings(grant.AllowedRepositoryIDs)
-		if grant.RoleID == "" || grant.PolicyRevisionHash == "" {
-			return nil, errors.New("role grant requires role id and policy revision")
+		if grant.RoleID == "" {
+			return nil, errors.New("role grant requires role id")
 		}
 		if _, exists := index[grant.RoleID]; exists {
 			return nil, errors.New("role grant role ids must be unique")
@@ -112,6 +121,20 @@ func (r StaticGrantResolver) roleGrantIndex() (map[string]RoleGrant, error) {
 		index[grant.RoleID] = grant
 	}
 	return index, nil
+}
+
+// HasIgnoredPolicyRevisionHash reports whether any RoleGrant still sets the
+// deprecated, ignored PolicyRevisionHash field (#5038). Callers that load a
+// static config file should check this once at startup and emit a one-time
+// WARN so operators know the value in their config no longer has any effect,
+// without hard-failing configs written before this change.
+func (r StaticGrantResolver) HasIgnoredPolicyRevisionHash() bool {
+	for _, grant := range r.RoleGrants {
+		if cleanScalar(grant.PolicyRevisionHash) != "" {
+			return true
+		}
+	}
+	return false
 }
 
 func cleanScalar(value string) string {

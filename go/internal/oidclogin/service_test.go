@@ -139,9 +139,15 @@ func TestServiceCompleteValidatesNonceAndMapsGroupsThroughRoles(t *testing.T) {
 		auth.TenantID != "tenant_a" ||
 		auth.WorkspaceID != "workspace_a" ||
 		auth.SubjectClass != "external_oidc_user" ||
-		auth.SubjectIDHash != SHA256Hash("okta-dev:external-subject") ||
-		auth.PolicyRevisionHash != "sha256:policy" {
+		auth.SubjectIDHash != SHA256Hash("okta-dev:external-subject") {
 		t.Fatalf("auth = %#v, want scoped OIDC subject", auth)
+	}
+	// #5038: the static resolver's role grant sets a (now-ignored)
+	// PolicyRevisionHash of "sha256:policy" above; auth.PolicyRevisionHash
+	// must stay empty so the browser-session create defaults it to the live
+	// workspace hash instead of trusting the operator-supplied value.
+	if auth.PolicyRevisionHash != "" {
+		t.Fatalf("auth.PolicyRevisionHash = %q, want empty (server-resolved, not operator-supplied)", auth.PolicyRevisionHash)
 	}
 	if got := auth.RoleIDs; len(got) != 1 || got[0] != "developer" {
 		t.Fatalf("RoleIDs = %#v, want [developer]", got)
@@ -439,85 +445,7 @@ func TestServiceCompleteHonorsResolverDeclaredCatalogEnforcement(t *testing.T) {
 	}
 }
 
-func fakeConnectorFactory(t *testing.T) ConnectorFactory {
-	t.Helper()
-	return func(context.Context, ProviderConfig) (Connector, error) {
-		return &fakeConnector{}, nil
-	}
-}
-
-type fakeStateStore struct {
-	created      []StateRecord
-	consume      StateRecord
-	consumeOK    bool
-	consumedHash string
-}
-
-func (s *fakeStateStore) CreateState(_ context.Context, record StateRecord) error {
-	s.created = append(s.created, record)
-	return nil
-}
-
-func (s *fakeStateStore) ConsumeState(
-	_ context.Context,
-	stateHash string,
-	_ time.Time,
-) (StateRecord, bool, error) {
-	s.consumedHash = stateHash
-	return s.consume, s.consumeOK, nil
-}
-
-type failingGrantResolver struct {
-	called bool
-}
-
-func (r *failingGrantResolver) ResolveGroupGrants(
-	context.Context,
-	GrantQuery,
-) (GrantResolution, bool, error) {
-	r.called = true
-	return GrantResolution{}, false, errors.New("grant resolver should not be called")
-}
-
-type fixedGrantResolver struct {
-	resolution GrantResolution
-}
-
-func (r fixedGrantResolver) ResolveGroupGrants(
-	context.Context,
-	GrantQuery,
-) (GrantResolution, bool, error) {
-	return r.resolution, true, nil
-}
-
-type fakeConnector struct {
-	claims          VerifiedClaims
-	exchangedCode   string
-	verifiedIDToken string
-}
-
-func (c *fakeConnector) AuthCodeURL(state string, nonce string) string {
-	return "https://idp.example.test/authorize?state=" + state + "&nonce=" + nonce
-}
-
-func (c *fakeConnector) Exchange(_ context.Context, code string) (TokenSet, error) {
-	c.exchangedCode = code
-	return TokenSet{IDToken: "id-token"}, nil
-}
-
-func (c *fakeConnector) VerifyIDToken(_ context.Context, rawIDToken string) (VerifiedClaims, error) {
-	c.verifiedIDToken = rawIDToken
-	if c.claims.Subject == "" {
-		return VerifiedClaims{Subject: "external-subject", Nonce: "nonce-secret", Groups: []string{"Eshu Developers"}}, nil
-	}
-	return c.claims, nil
-}
-
-func sequenceOIDCSecrets(values ...string) func() (string, error) {
-	index := 0
-	return func() (string, error) {
-		value := values[index]
-		index++
-		return value, nil
-	}
-}
+// Shared fakes (fakeStateStore, failingGrantResolver, fixedGrantResolver,
+// fakeConnector, fakeConnectorFactory, sequenceOIDCSecrets) live in
+// service_test_helpers_test.go — split out to keep this file under the
+// repo's 500-line cap.
