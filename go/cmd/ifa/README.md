@@ -56,7 +56,8 @@ session.
 - `ifa drive -from-facts -facts-source-dsn <src> -postgres-dsn <target>
   [-workers N]` (issue #5008) - the same driver, but the source is the
   `fact_records` already persisted in `<src>` rather than a cassette. It
-  enumerates every scope generation via `FactStore.ListScopeGenerationWork` and
+  enumerates the active generation of every fact-bearing scope via
+  `FactStore.ListScopeGenerationWork` and
   re-drains their recorded facts through `concurrentreplay.FactSliceSource` into
   the **distinct** commit target `<target>`. The two DSNs must differ — a
   re-drain into the source database is a no-op — and `-from-facts` is mutually
