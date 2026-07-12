@@ -80,8 +80,9 @@ func buildBootstrapCollector(
 	committer.SkipRelationshipBackfill = true
 
 	return collectorDeps{
-		source:    source,
-		committer: committer,
+		source:      source,
+		committer:   committer,
+		commitLanes: commitLaneCount(getenv),
 	}, nil
 }
 

@@ -32,7 +32,7 @@ func TestDrainCollectorWithTelemetry(t *testing.T) {
 	err := drainCollector(
 		context.Background(),
 		source, &fakeCommitter{},
-		nil, nil, nil,
+		nil, nil, nil, 1,
 	)
 	if err != nil {
 		t.Fatalf("drainCollector() error = %v, want nil", err)
@@ -57,7 +57,7 @@ func TestDrainCollectorCollectsDiscoveryAdvisoryReports(t *testing.T) {
 	}}}
 	var reports []collector.DiscoveryAdvisoryReport
 
-	err := drainCollector(context.Background(), source, &fakeCommitter{}, nil, nil, nil, func(report collector.DiscoveryAdvisoryReport) error {
+	err := drainCollector(context.Background(), source, &fakeCommitter{}, nil, nil, nil, 1, func(report collector.DiscoveryAdvisoryReport) error {
 		reports = append(reports, report)
 		return nil
 	})

@@ -93,6 +93,7 @@ func TestDrainCollectorEmitsContentEntityCounterByFileKind(t *testing.T) {
 		nil,
 		instruments,
 		nil,
+		1,
 	); err != nil {
 		t.Fatalf("drainCollector() error = %v, want nil", err)
 	}

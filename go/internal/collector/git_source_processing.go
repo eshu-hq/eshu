@@ -194,6 +194,13 @@ func (s *GitSource) processRepo(
 	select {
 	case s.stream <- gen:
 	case <-ctx.Done():
+		// The generation was built but never handed to the stream: its fact
+		// producer started eagerly and sends unconditionally, so it must be
+		// drained here or it blocks forever once the channel fills (#5135).
+		if gen.Facts != nil {
+			for range gen.Facts {
+			}
+		}
 	}
 }
 
