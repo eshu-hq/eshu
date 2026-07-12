@@ -11,10 +11,119 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
-func TestEdgeWriterRetractEdgesSQLRelationshipUsesSequentialLabelScopedStatements(t *testing.T) {
+// sqlSequentialRecordingExecutor records both single-statement Execute calls
+// and ExecuteGroup calls. The SQL retract must run its per-label statements
+// sequentially even when the executor CAN group (the SQL sibling of #5116: on
+// NornicDB v1.1.11 multiple DELETE statements in one managed transaction do
+// not all apply), so the retract tests need a double that would accept a
+// grouped call in order to prove the writer never issues one.
+type sqlSequentialRecordingExecutor struct {
+	calls      []Statement
+	groupCalls [][]Statement
+}
+
+func (r *sqlSequentialRecordingExecutor) Execute(_ context.Context, stmt Statement) error {
+	r.calls = append(r.calls, stmt)
+	return nil
+}
+
+func (r *sqlSequentialRecordingExecutor) ExecuteGroup(_ context.Context, stmts []Statement) error {
+	cloned := make([]Statement, len(stmts))
+	copy(cloned, stmts)
+	r.groupCalls = append(r.groupCalls, cloned)
+	return nil
+}
+
+// TestSQLRelationshipRetractCoversEveryWriteEndpointLabel links the retract's
+// per-source-label set (sqlRelationshipRetractSourceLabels) to every label the
+// WRITE path can create a SQL relationship edge from
+// (sqlRelationshipEntityLabels, the independent source of truth). Without this
+// link, a label added to the write set but not the retract set would let edges
+// from that label be written yet never retracted — the replay-coverage
+// dashboard would stay green while production kept stale edges. It mirrors
+// TestInheritanceRetractCoversEveryWriteEndpointLabel (#5120 review).
+func TestSQLRelationshipRetractCoversEveryWriteEndpointLabel(t *testing.T) {
 	t.Parallel()
 
-	executor := &recordingGroupExecutor{}
+	retractSet := make(map[string]bool, len(sqlRelationshipRetractSourceLabels))
+	for _, label := range sqlRelationshipRetractSourceLabels {
+		retractSet[label] = true
+	}
+	for label := range sqlRelationshipEntityLabels {
+		if !retractSet[label] {
+			t.Errorf("write-path SQL endpoint label %q has no retract statement: add it to sqlRelationshipRetractSourceLabels, or its edges are written but never retracted", label)
+		}
+	}
+}
+
+// TestSQLRelationshipRetractCoversEveryWriteRelationshipType links the
+// retract's relationship-type disjunction (sqlRelationshipRetractRelTypes) to
+// every relationship type the WRITE path accepts
+// (sqlRelationshipWriteReasons, the single source of truth both write
+// templates gate on). Without this link, a relationship type added to the
+// write set but not the retract disjunction would let its edges be written yet
+// never retracted, and the shape tests would stay green because they derive
+// their expectations from the shipped retract constant.
+func TestSQLRelationshipRetractCoversEveryWriteRelationshipType(t *testing.T) {
+	t.Parallel()
+
+	retractSet := make(map[string]bool)
+	for _, relType := range strings.Split(sqlRelationshipRetractRelTypes, "|") {
+		retractSet[relType] = true
+	}
+	for relType := range sqlRelationshipWriteReasons {
+		if !retractSet[relType] {
+			t.Errorf("write-path SQL relationship type %q is not in the retract disjunction: add it to sqlRelationshipRetractRelTypes, or its edges are written but never retracted", relType)
+		}
+	}
+}
+
+// TestSQLRelationshipRetractStatementsUseSingleSourceLabel guards the SQL
+// sibling of the #5116 fix: the retract must emit one statement per source
+// label with a single-label source anchor. On NornicDB a node-label
+// disjunction matches zero rows, and on v1.1.11 an unlabeled `(source)` scan
+// silently drops some source labels, so a single combined statement
+// under-deletes. The live proof is
+// TestReducerSQLRelationshipRetractGraphTruth in internal/replay/offlinetier.
+func TestSQLRelationshipRetractStatementsUseSingleSourceLabel(t *testing.T) {
+	t.Parallel()
+
+	for _, build := range []struct {
+		name   string
+		stmts  []Statement
+		anchor string
+	}{
+		{"repo", BuildRetractSQLRelationshipEdgeStatements([]string{"r"}, "reducer/sql-relationships"), "{repo_id: repo_id}"},
+		{"file", BuildRetractSQLRelationshipEdgeStatementsByFilePath([]string{"p"}, "reducer/sql-relationships"), "{path: file_path}"},
+	} {
+		if len(build.stmts) != len(sqlRelationshipRetractSourceLabels) {
+			t.Fatalf("%s: %d statements, want %d (one per source label)", build.name, len(build.stmts), len(sqlRelationshipRetractSourceLabels))
+		}
+		for _, label := range sqlRelationshipRetractSourceLabels {
+			want := "MATCH (source:" + label + " " + build.anchor + ")-[rel:" + sqlRelationshipRetractRelTypes + "]->()"
+			found := false
+			for _, stmt := range build.stmts {
+				if strings.Contains(stmt.Cypher, want) {
+					found = true
+					break
+				}
+			}
+			if !found {
+				t.Errorf("%s: no per-label retract statement for source label %q (want %q)", build.name, label, want)
+			}
+		}
+		for _, stmt := range build.stmts {
+			if strings.Contains(stmt.Cypher, "(source)-[rel:") {
+				t.Errorf("%s: unlabeled source scan reintroduced (#5116 sibling): %q", build.name, stmt.Cypher)
+			}
+		}
+	}
+}
+
+func TestEdgeWriterRetractEdgesSQLRelationshipRunsPerLabelStatementsSequentially(t *testing.T) {
+	t.Parallel()
+
+	executor := &sqlSequentialRecordingExecutor{}
 	writer := NewEdgeWriter(executor, 0)
 
 	rows := []reducer.SharedProjectionIntentRow{
@@ -25,24 +134,17 @@ func TestEdgeWriterRetractEdgesSQLRelationshipUsesSequentialLabelScopedStatement
 	if err != nil {
 		t.Fatalf("RetractEdges() error = %v", err)
 	}
+	// The SQL sibling of #5116: on NornicDB v1.1.11 multiple DELETE statements
+	// in one managed transaction under-apply, so the retract must never group
+	// even when the executor supports it.
 	if got := len(executor.groupCalls); got != 0 {
-		t.Fatalf("ExecuteGroup calls = %d, want 0", got)
+		t.Fatalf("ExecuteGroup calls = %d, want 0 (grouped DELETEs under-apply on NornicDB v1.1.11)", got)
 	}
-	stmts := executor.calls
-	if got, want := len(stmts), 6; got != want {
-		t.Fatalf("sequential statement count = %d, want %d", got, want)
+	if got, want := len(executor.calls), len(sqlRelationshipRetractSourceLabels); got != want {
+		t.Fatalf("Execute calls = %d, want %d (one per source label)", got, want)
 	}
-
-	assertSQLRetractStatement(t, stmts[0], "Function", "QUERIES_TABLE")
-	assertSQLRetractStatement(t, stmts[1], "SqlView", "REFERENCES_TABLE")
-	assertSQLRetractStatement(t, stmts[2], "SqlFunction", "REFERENCES_TABLE")
-	assertSQLRetractStatement(t, stmts[3], "SqlTable", "HAS_COLUMN")
-	assertSQLRetractStatement(t, stmts[4], "SqlTrigger", "TRIGGERS")
-	assertSQLRetractStatement(t, stmts[5], "SqlTrigger", "EXECUTES")
-	for _, stmt := range stmts {
-		if strings.Contains(stmt.Cypher, "QUERIES_TABLE|REFERENCES_TABLE|HAS_COLUMN|TRIGGERS|EXECUTES") {
-			t.Fatalf("cypher uses broad relationship alternation: %s", stmt.Cypher)
-		}
+	for i, label := range sqlRelationshipRetractSourceLabels {
+		assertSQLRetractStatement(t, executor.calls[i], label)
 	}
 }
 
@@ -50,7 +152,7 @@ func TestBuildRetractSQLRelationshipEdgeStatementsUsesSharedParameters(t *testin
 	t.Parallel()
 
 	stmts := BuildRetractSQLRelationshipEdgeStatements([]string{"repo-a", "repo-b"}, "reducer/sql-relationships")
-	if got, want := len(stmts), 6; got != want {
+	if got, want := len(stmts), len(sqlRelationshipRetractSourceLabels); got != want {
 		t.Fatalf("statement count = %d, want %d", got, want)
 	}
 
@@ -71,39 +173,10 @@ func TestBuildRetractSQLRelationshipEdgeStatementsUsesSharedParameters(t *testin
 	}
 }
 
-func TestEdgeWriterRetractEdgesSQLRelationshipFallbackIncludesQueriesTable(t *testing.T) {
+func TestEdgeWriterRetractEdgesSQLRelationshipDeltaScopesToFilePaths(t *testing.T) {
 	t.Parallel()
 
-	executor := &recordingExecutor{}
-	writer := NewEdgeWriter(executor, 0)
-
-	rows := []reducer.SharedProjectionIntentRow{
-		{IntentID: "i1", RepositoryID: "repo-a", Payload: map[string]any{"repo_id": "repo-a"}},
-	}
-
-	err := writer.RetractEdges(context.Background(), reducer.DomainSQLRelationships, rows, "reducer/sql-relationships")
-	if err != nil {
-		t.Fatalf("RetractEdges() error = %v", err)
-	}
-	if got, want := len(executor.calls), 1; got != want {
-		t.Fatalf("Execute calls = %d, want %d", got, want)
-	}
-	stmt := executor.calls[0]
-	if !strings.Contains(stmt.Cypher, "QUERIES_TABLE") {
-		t.Fatalf("fallback retract cypher missing QUERIES_TABLE: %s", stmt.Cypher)
-	}
-	if !strings.Contains(stmt.Cypher, "source.repo_id IN $repo_ids") {
-		t.Fatalf("fallback retract cypher missing repo_id predicate: %s", stmt.Cypher)
-	}
-	if got, want := stmt.Parameters["evidence_source"], "reducer/sql-relationships"; got != want {
-		t.Fatalf("evidence_source = %v, want %v", got, want)
-	}
-}
-
-func TestEdgeWriterRetractEdgesSQLRelationshipDeltaUsesSequentialFileScopedStatements(t *testing.T) {
-	t.Parallel()
-
-	executor := &recordingGroupExecutor{}
+	executor := &sqlSequentialRecordingExecutor{}
 	writer := NewEdgeWriter(executor, 0)
 
 	rows := []reducer.SharedProjectionIntentRow{
@@ -123,13 +196,12 @@ func TestEdgeWriterRetractEdgesSQLRelationshipDeltaUsesSequentialFileScopedState
 		t.Fatalf("RetractEdges() error = %v", err)
 	}
 	if got := len(executor.groupCalls); got != 0 {
-		t.Fatalf("ExecuteGroup calls = %d, want 0", got)
+		t.Fatalf("ExecuteGroup calls = %d, want 0 (grouped DELETEs under-apply on NornicDB v1.1.11)", got)
 	}
-	stmts := executor.calls
-	if got, want := len(stmts), 6; got != want {
-		t.Fatalf("sequential statement count = %d, want %d", got, want)
+	if got, want := len(executor.calls), len(sqlRelationshipRetractSourceLabels); got != want {
+		t.Fatalf("Execute calls = %d, want %d (one per source label)", got, want)
 	}
-	for _, stmt := range stmts {
+	for _, stmt := range executor.calls {
 		if strings.Contains(stmt.Cypher, "source.repo_id IN $repo_ids") {
 			t.Fatalf("delta retract cypher = %q, want no repo-wide source filter", stmt.Cypher)
 		}
@@ -162,7 +234,7 @@ func TestEdgeWriterRetractEdgesSQLRelationshipDeltaUsesSequentialFileScopedState
 func TestEdgeWriterRetractEdgesSQLRelationshipRejectsDeltaWithoutFilePaths(t *testing.T) {
 	t.Parallel()
 
-	executor := &recordingGroupExecutor{}
+	executor := &sqlSequentialRecordingExecutor{}
 	writer := NewEdgeWriter(executor, 0)
 
 	rows := []reducer.SharedProjectionIntentRow{
@@ -180,8 +252,8 @@ func TestEdgeWriterRetractEdgesSQLRelationshipRejectsDeltaWithoutFilePaths(t *te
 	if err == nil {
 		t.Fatal("RetractEdges() error = nil, want malformed delta scope error")
 	}
-	if got := len(executor.groupCalls); got != 0 {
-		t.Fatalf("ExecuteGroup calls = %d, want 0 for malformed delta scope", got)
+	if got := len(executor.calls) + len(executor.groupCalls); got != 0 {
+		t.Fatalf("executor calls = %d, want 0 for malformed delta scope", got)
 	}
 }
 
@@ -189,7 +261,6 @@ func assertSQLRetractStatement(
 	t *testing.T,
 	stmt Statement,
 	sourceLabel string,
-	relationshipType string,
 ) {
 	t.Helper()
 
@@ -202,8 +273,8 @@ func assertSQLRetractStatement(
 	if !strings.Contains(stmt.Cypher, "UNWIND $repo_ids AS repo_id") {
 		t.Fatalf("cypher missing UNWIND of $repo_ids: %s", stmt.Cypher)
 	}
-	if !strings.Contains(stmt.Cypher, "MATCH (source:"+sourceLabel+" {repo_id: repo_id})-[rel:"+relationshipType+"]->()") {
-		t.Fatalf("cypher missing inline-anchored scoped match for %s/%s: %s", sourceLabel, relationshipType, stmt.Cypher)
+	if !strings.Contains(stmt.Cypher, "MATCH (source:"+sourceLabel+" {repo_id: repo_id})-[rel:"+sqlRelationshipRetractRelTypes+"]->()") {
+		t.Fatalf("cypher missing inline-anchored per-label match for %s: %s", sourceLabel, stmt.Cypher)
 	}
 	if strings.Contains(stmt.Cypher, "source.repo_id IN") {
 		t.Fatalf("cypher still uses the slow source.repo_id IN predicate: %s", stmt.Cypher)

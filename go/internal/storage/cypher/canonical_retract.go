@@ -151,19 +151,10 @@ func BuildRetractCodeCallEdgeStatementsByFilePath(filePaths []string, evidenceSo
 	return buildCodeCallRetractStatements("path", "file_paths", filePaths, evidenceSource)
 }
 
-// BuildRetractSQLRelationshipEdges builds a SQL relationship edge retraction
-// statement for SQL table query, table reference, containment, trigger, and
-// routine execution edges.
-func BuildRetractSQLRelationshipEdges(repoIDs []string, evidenceSource string) Statement {
-	return Statement{
-		Operation: OperationCanonicalRetract,
-		Cypher:    retractSQLRelationshipEdgesCypher,
-		Parameters: map[string]any{
-			"repo_ids":        repoIDs,
-			"evidence_source": evidenceSource,
-		},
-	}
-}
+// SQL relationship edge retraction is built per source label by
+// BuildRetractSQLRelationshipEdgeStatements[ByFilePath] in edge_writer_sql.go
+// (the SQL sibling of #5116); the old single-statement unlabeled-scan builder
+// silently under-deleted on NornicDB v1.1.11 and was removed.
 
 // BuildDeleteOrphanPlatformNodes builds an orphan Platform node cleanup
 // statement.

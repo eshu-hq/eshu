@@ -632,14 +632,14 @@ repository fact, carries them into SQL retract rows, handles deleted-only delta
 generations without writes, preserves bounded SQL content-entity loading, and
 does not silently downgrade malformed delta scope to repo-wide cleanup. `go test
 ./internal/storage/cypher -run
-'TestEdgeWriterRetractEdgesSQLRelationship(DeltaUsesFileScopedGroup|RejectsDeltaWithoutFilePaths|Dispatch|UsesLabelScopedGroup)|TestBuildRetractSQLRelationshipEdgeStatementsUsesSharedParameters'
--count=1` proves valid delta rows dispatch the five label-scoped SQL retract
-statements with `source.path IN $file_paths`, malformed delta rows execute no
-Cypher, and non-delta SQL retracts keep their existing repo-wide dispatch
-behavior for non-group executors. The input cardinality is the delta file-path
-count for one repository generation; the changed Cypher keeps static source
-labels and relationship tokens, binds only a positive `$file_paths` list, and
-does not add a traversal or backend-specific branch.
+'TestEdgeWriterRetractEdgesSQLRelationship(DeltaScopesToFilePaths|RejectsDeltaWithoutFilePaths|Dispatch|RunsPerLabelStatementsSequentially)|TestSQLRelationshipRetractCoversEveryWrite(EndpointLabel|RelationshipType)|TestSQLRelationshipRetractStatementsUseSingleSourceLabel|TestBuildRetractSQLRelationshipEdgeStatementsUsesSharedParameters'
+-count=1` proves valid delta rows dispatch one file-scoped retract statement per
+source label (anchored inline on `{path: file_path}`), malformed delta rows
+execute no Cypher, and non-delta SQL retracts dispatch the same per-label
+statements sequentially for every executor. The input cardinality is the delta
+file-path count for one repository generation; the changed Cypher keeps static
+source labels and relationship tokens, binds only a positive `$file_paths`
+list, and does not add a traversal or backend-specific branch.
 
 No-Observability-Change: SQL delta retraction uses the existing
 `EdgeWriter.RetractEdges` executor path, SQL materialization completion log
