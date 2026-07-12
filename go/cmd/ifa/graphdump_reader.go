@@ -64,8 +64,14 @@ func openBoltGraphReader(ctx context.Context, getenv func(string) string) (*bolt
 // with graphdump.Canonicalize's own streaming, this keeps peak memory at the
 // canonical record set rather than the full node struct set (issue #5009).
 func (b *boltGraphReader) StreamNodes(ctx context.Context, yield func(graphdump.Node) error) error {
+	// AccessModeWrite, not Read: on a Neo4j-compatible cluster AccessMode is a
+	// ROUTING control, and a read-only graph dump for a determinism digest must
+	// read the authoritative writer, never a possibly-replication-lagged reader
+	// member. This matches the routing of the neo4j.ExecuteQuery (default
+	// RoutingControl=Write) call this replaced, and cmd/golden-corpus-gate's
+	// boltGraphCounter. Against single-instance NornicDB it is a no-op.
 	session := b.driver.NewSession(ctx, neo4j.SessionConfig{
-		AccessMode:   neo4j.AccessModeRead,
+		AccessMode:   neo4j.AccessModeWrite,
 		DatabaseName: b.db,
 	})
 	defer func() { _ = session.Close(ctx) }()
@@ -96,8 +102,14 @@ func (b *boltGraphReader) StreamNodes(ctx context.Context, yield func(graphdump.
 // (see Edge's doc for why the endpoint is repeated rather than referenced by
 // index or backend ID).
 func (b *boltGraphReader) StreamEdges(ctx context.Context, yield func(graphdump.Edge) error) error {
+	// AccessModeWrite, not Read: on a Neo4j-compatible cluster AccessMode is a
+	// ROUTING control, and a read-only graph dump for a determinism digest must
+	// read the authoritative writer, never a possibly-replication-lagged reader
+	// member. This matches the routing of the neo4j.ExecuteQuery (default
+	// RoutingControl=Write) call this replaced, and cmd/golden-corpus-gate's
+	// boltGraphCounter. Against single-instance NornicDB it is a no-op.
 	session := b.driver.NewSession(ctx, neo4j.SessionConfig{
-		AccessMode:   neo4j.AccessModeRead,
+		AccessMode:   neo4j.AccessModeWrite,
 		DatabaseName: b.db,
 	})
 	defer func() { _ = session.Close(ctx) }()
