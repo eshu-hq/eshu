@@ -19,7 +19,7 @@ import (
 //
 //   - RetractEdges: if ANY row carries delta_projection=true, delete only the
 //     edges whose child_path is in the union of those rows' delta_file_paths
-//     (mirrors BuildRetractInheritanceEdgesByFilePath, which keys on
+//     (mirrors BuildRetractInheritanceEdgeStatementsByFilePath, which keys on
 //     child.path). Otherwise (repo-wide) delete every edge for the rows' repos
 //     (mirrors the child.repo_id repo-wide retract).
 //   - WriteEdges: add each row's edge under its repo, keyed by

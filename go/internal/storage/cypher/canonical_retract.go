@@ -151,18 +151,6 @@ func BuildRetractCodeCallEdgeStatementsByFilePath(filePaths []string, evidenceSo
 	return buildCodeCallRetractStatements("path", "file_paths", filePaths, evidenceSource)
 }
 
-// BuildRetractInheritanceEdges builds an INHERITS edge retraction statement.
-func BuildRetractInheritanceEdges(repoIDs []string, evidenceSource string) Statement {
-	return Statement{
-		Operation: OperationCanonicalRetract,
-		Cypher:    retractInheritanceEdgesCypher,
-		Parameters: map[string]any{
-			"repo_ids":        repoIDs,
-			"evidence_source": evidenceSource,
-		},
-	}
-}
-
 // BuildRetractSQLRelationshipEdges builds a SQL relationship edge retraction
 // statement for SQL table query, table reference, containment, trigger, and
 // routine execution edges.

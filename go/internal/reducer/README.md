@@ -3212,7 +3212,7 @@ graph query-duration metrics expose the writes with no new metric or label.
 name-resolution `entityIndex`, and the same inheritance edge-write domain as
 `INHERITS`/`OVERRIDES`/`ALIASES`. An implemented interface that does not resolve
 to a known `Interface`/`Protocol` entity creates no edge. The inheritance retract
-(`retractInheritanceEdgesCypher`) was extended to clean stale `IMPLEMENTS` edges
+(`buildInheritanceRetractStatements`) was extended to clean stale `IMPLEMENTS` edges
 so re-projection stays idempotent.
 
 No-Regression Evidence: `go test ./internal/reducer -run 'Inheritance|Implements' -count=1`,

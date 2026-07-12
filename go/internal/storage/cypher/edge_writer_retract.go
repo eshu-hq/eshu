@@ -44,8 +44,8 @@ func (w *EdgeWriter) RetractEdges(
 			return err
 		}
 		if hasDeltaScope {
-			stmt := BuildRetractInheritanceEdgesByFilePath(filePaths, evidenceSource)
-			return WrapRetryableNeo4jError(w.executor.Execute(ctx, stmt))
+			stmts := BuildRetractInheritanceEdgeStatementsByFilePath(filePaths, evidenceSource)
+			return w.executeInheritanceRetractStatements(ctx, stmts)
 		}
 	}
 
@@ -84,6 +84,10 @@ func (w *EdgeWriter) RetractEdges(
 	if domain == reducer.DomainCodeCalls {
 		stmts := BuildRetractCodeCallEdgeStatements(repoIDs, evidenceSource)
 		return w.executeCodeCallRetractStatements(ctx, stmts)
+	}
+	if domain == reducer.DomainInheritanceEdges {
+		stmts := BuildRetractInheritanceEdgeStatements(repoIDs, evidenceSource)
+		return w.executeInheritanceRetractStatements(ctx, stmts)
 	}
 	if domain == reducer.DomainSQLRelationships {
 		filePaths, hasDeltaScope, err := collectDeltaFilePaths(rows)
@@ -144,6 +148,21 @@ func (w *EdgeWriter) executeCodeCallRetractStatements(ctx context.Context, stmts
 	return nil
 }
 
+// executeInheritanceRetractStatements runs the per-child-label inheritance
+// retract statements (#5116/#4367) sequentially, each in its own transaction —
+// deliberately NOT grouped through ExecuteGroup, for the same NornicDB v1.1.11
+// managed-transaction reason documented on executeCodeCallRetractStatements.
+// Each statement is independently scoped and idempotent, so sequential execution
+// is safe.
+func (w *EdgeWriter) executeInheritanceRetractStatements(ctx context.Context, stmts []Statement) error {
+	for _, stmt := range stmts {
+		if err := w.executor.Execute(ctx, stmt); err != nil {
+			return WrapRetryableNeo4jError(err)
+		}
+	}
+	return nil
+}
+
 func (w *EdgeWriter) executeSQLRelationshipRetractStatements(ctx context.Context, stmts []Statement) error {
 	if ge, ok := w.executor.(GroupExecutor); ok {
 		return WrapRetryableNeo4jError(ge.ExecuteGroup(ctx, stmts))
@@ -191,8 +210,9 @@ func buildRetractStatement(
 	// DomainCodeCalls is handled before this shared repo-id path in RetractEdges
 	// because its retract fans out to one per-source-label statement (#5116) and
 	// must never reach this single-statement builder.
-	case reducer.DomainInheritanceEdges:
-		return BuildRetractInheritanceEdges(repoIDs, evidenceSource), nil
+	// DomainInheritanceEdges is handled before this shared repo-id path in
+	// RetractEdges because its retract fans out to one per-child-label statement
+	// (#5116/#4367) and must never reach this single-statement builder.
 	// DomainDocumentationEdges is handled before this shared repo-id path in
 	// RetractEdges because documentation retracts anchor on section.scope_id, not
 	// a repository id. It must never reach this repo-id-bound builder.

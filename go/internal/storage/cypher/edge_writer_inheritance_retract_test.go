@@ -12,35 +12,91 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
-func TestBuildRetractInheritanceEdgesByFilePath(t *testing.T) {
+// TestInheritanceRetractStatementsUseSingleChildLabel guards the #5116/#4367 fix:
+// the inheritance retract must emit one statement per child label with a
+// single-label `(child:Label)` anchor. On NornicDB a node-label disjunction
+// matches zero rows, and on v1.1.11 an unlabeled `(child)` scan drops some
+// labels, so a single combined statement under-deletes. The live proof is
+// TestReducerInheritanceEdgeRetractGraphTruth in internal/replay/offlinetier.
+func TestInheritanceRetractStatementsUseSingleChildLabel(t *testing.T) {
 	t.Parallel()
 
-	stmt := BuildRetractInheritanceEdgesByFilePath([]string{"/repo/src/child.go"}, "reducer/inheritance")
-	if !strings.Contains(stmt.Cypher, "UNWIND $file_paths AS file_path") {
-		t.Fatalf("cypher = %q, want file path unwind", stmt.Cypher)
+	for _, build := range []struct {
+		name  string
+		stmts []Statement
+	}{
+		{"repo", BuildRetractInheritanceEdgeStatements([]string{"r"}, "reducer/inheritance")},
+		{"file", BuildRetractInheritanceEdgeStatementsByFilePath([]string{"p"}, "reducer/inheritance")},
+	} {
+		if len(build.stmts) != len(inheritanceRetractChildLabels) {
+			t.Fatalf("%s: %d statements, want %d (one per child label)", build.name, len(build.stmts), len(inheritanceRetractChildLabels))
+		}
+		for _, label := range inheritanceRetractChildLabels {
+			want := "MATCH (child:" + label + ")-[rel:INHERITS|OVERRIDES|ALIASES|IMPLEMENTS]->()"
+			found := false
+			for _, stmt := range build.stmts {
+				if strings.Contains(stmt.Cypher, want) {
+					found = true
+					break
+				}
+			}
+			if !found {
+				t.Errorf("%s: no per-label retract statement for child label %q (want %q)", build.name, label, want)
+			}
+		}
+		for _, stmt := range build.stmts {
+			if strings.Contains(stmt.Cypher, "(child)-[rel:") {
+				t.Errorf("%s: unlabeled child scan reintroduced (#5116): %q", build.name, stmt.Cypher)
+			}
+		}
 	}
-	if !strings.Contains(stmt.Cypher, "MATCH (child:Function|Class|Interface|Trait|Struct|Enum|Protocol {path: file_path})") {
-		t.Fatalf("cypher = %q, want label-scoped path child anchor", stmt.Cypher)
+}
+
+func TestBuildRetractInheritanceEdgeStatements(t *testing.T) {
+	t.Parallel()
+
+	stmts := BuildRetractInheritanceEdgeStatements([]string{"repo-1"}, "reducer/inheritance")
+	if len(stmts) != len(inheritanceRetractChildLabels) {
+		t.Fatalf("statements = %d, want %d", len(stmts), len(inheritanceRetractChildLabels))
 	}
-	if strings.HasPrefix(strings.TrimSpace(stmt.Cypher), "MATCH (child)-[rel:") {
-		t.Fatalf("cypher starts from unbound relationship scan: %q", stmt.Cypher)
+	for _, stmt := range stmts {
+		if stmt.Operation != OperationCanonicalRetract {
+			t.Fatalf("Operation = %q, want %q", stmt.Operation, OperationCanonicalRetract)
+		}
+		if !strings.Contains(stmt.Cypher, "child.repo_id IN $repo_ids") {
+			t.Fatalf("cypher = %q, want repo_id filter", stmt.Cypher)
+		}
+		if strings.Contains(stmt.Cypher, "child.path IN $file_paths") {
+			t.Fatalf("cypher = %q, want no file-path filter", stmt.Cypher)
+		}
+		gotRepos, ok := stmt.Parameters["repo_ids"].([]string)
+		if !ok || !reflect.DeepEqual(gotRepos, []string{"repo-1"}) {
+			t.Fatalf("repo_ids = %#v", stmt.Parameters["repo_ids"])
+		}
 	}
-	if strings.Contains(stmt.Cypher, "child.repo_id IN $repo_ids") {
-		t.Fatalf("cypher = %q, want no repo-wide child filter", stmt.Cypher)
+}
+
+func TestBuildRetractInheritanceEdgeStatementsByFilePath(t *testing.T) {
+	t.Parallel()
+
+	stmts := BuildRetractInheritanceEdgeStatementsByFilePath([]string{"/repo/src/child.go"}, "reducer/inheritance")
+	if len(stmts) != len(inheritanceRetractChildLabels) {
+		t.Fatalf("statements = %d, want %d", len(stmts), len(inheritanceRetractChildLabels))
 	}
-	if !strings.Contains(stmt.Cypher, "IMPLEMENTS") {
-		t.Fatalf("cypher = %q, want IMPLEMENTS cleanup", stmt.Cypher)
-	}
-	if got, want := stmt.Parameters["evidence_source"], "reducer/inheritance"; got != want {
-		t.Fatalf("evidence_source = %#v, want %#v", got, want)
-	}
-	gotPaths, ok := stmt.Parameters["file_paths"].([]string)
-	if !ok {
-		t.Fatalf("file_paths parameter type = %T, want []string", stmt.Parameters["file_paths"])
-	}
-	wantPaths := []string{"/repo/src/child.go"}
-	if !reflect.DeepEqual(gotPaths, wantPaths) {
-		t.Fatalf("file_paths = %#v, want %#v", gotPaths, wantPaths)
+	for _, stmt := range stmts {
+		if !strings.Contains(stmt.Cypher, "child.path IN $file_paths") {
+			t.Fatalf("cypher = %q, want child.path file-scope filter", stmt.Cypher)
+		}
+		if strings.Contains(stmt.Cypher, "child.repo_id IN $repo_ids") {
+			t.Fatalf("cypher = %q, want no repo-wide child filter", stmt.Cypher)
+		}
+		if _, ok := stmt.Parameters["repo_ids"]; ok {
+			t.Fatalf("repo_ids unexpectedly present: %#v", stmt.Parameters)
+		}
+		gotPaths, ok := stmt.Parameters["file_paths"].([]string)
+		if !ok || !reflect.DeepEqual(gotPaths, []string{"/repo/src/child.go"}) {
+			t.Fatalf("file_paths = %#v", stmt.Parameters["file_paths"])
+		}
 	}
 }
 
@@ -66,31 +122,52 @@ func TestEdgeWriterRetractEdgesInheritanceDeltaUsesFileScope(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RetractEdges() error = %v", err)
 	}
-	if got, want := len(executor.calls), 1; got != want {
-		t.Fatalf("executor calls = %d, want %d", got, want)
+	// One statement per child label (#5116/#4367), each in its own call (the
+	// recordingExecutor is not a GroupExecutor, so they run sequentially).
+	if got, want := len(executor.calls), len(inheritanceRetractChildLabels); got != want {
+		t.Fatalf("executor calls = %d, want %d (one per child label)", got, want)
 	}
-	stmt := executor.calls[0]
-	if strings.Contains(stmt.Cypher, "child.repo_id IN $repo_ids") {
-		t.Fatalf("delta retract cypher = %q, want no repo-wide child filter", stmt.Cypher)
+	for _, stmt := range executor.calls {
+		if strings.Contains(stmt.Cypher, "child.repo_id IN $repo_ids") {
+			t.Fatalf("delta retract cypher = %q, want no repo-wide child filter", stmt.Cypher)
+		}
+		if !strings.Contains(stmt.Cypher, "child.path IN $file_paths") {
+			t.Fatalf("delta retract cypher = %q, want child.path file-scope filter", stmt.Cypher)
+		}
+		if strings.Contains(stmt.Cypher, "(child)-[rel:") {
+			t.Fatalf("delta retract cypher uses unlabeled child scan: %q", stmt.Cypher)
+		}
+		if _, ok := stmt.Parameters["repo_ids"]; ok {
+			t.Fatalf("repo_ids unexpectedly present in delta retract parameters: %#v", stmt.Parameters)
+		}
+		filePaths, ok := stmt.Parameters["file_paths"].([]string)
+		if !ok || strings.Join(filePaths, ",") != "/repo/src/child.go" {
+			t.Fatalf("file_paths = %#v", stmt.Parameters["file_paths"])
+		}
 	}
-	if !strings.Contains(stmt.Cypher, "UNWIND $file_paths AS file_path") {
-		t.Fatalf("delta retract cypher = %q, want file path unwind", stmt.Cypher)
+}
+
+func TestEdgeWriterRetractEdgesInheritanceRepoScope(t *testing.T) {
+	t.Parallel()
+
+	executor := &recordingExecutor{}
+	writer := NewEdgeWriter(executor, 0)
+
+	rows := []reducer.SharedProjectionIntentRow{
+		{IntentID: "i1", RepositoryID: "repo-a", Payload: map[string]any{"repo_id": "repo-a"}},
 	}
-	if !strings.Contains(stmt.Cypher, "MATCH (child:Function|Class|Interface|Trait|Struct|Enum|Protocol {path: file_path})") {
-		t.Fatalf("delta retract cypher = %q, want label-scoped path child anchor", stmt.Cypher)
+
+	err := writer.RetractEdges(context.Background(), reducer.DomainInheritanceEdges, rows, "reducer/inheritance")
+	if err != nil {
+		t.Fatalf("RetractEdges() error = %v", err)
 	}
-	if strings.HasPrefix(strings.TrimSpace(stmt.Cypher), "MATCH (child)-[rel:") {
-		t.Fatalf("delta retract cypher starts from unbound relationship scan: %q", stmt.Cypher)
+	if got, want := len(executor.calls), len(inheritanceRetractChildLabels); got != want {
+		t.Fatalf("executor calls = %d, want %d (one per child label)", got, want)
 	}
-	if _, ok := stmt.Parameters["repo_ids"]; ok {
-		t.Fatalf("repo_ids unexpectedly present in delta retract parameters: %#v", stmt.Parameters)
-	}
-	filePaths, ok := stmt.Parameters["file_paths"].([]string)
-	if !ok {
-		t.Fatalf("file_paths parameter type = %T, want []string", stmt.Parameters["file_paths"])
-	}
-	if got, want := strings.Join(filePaths, ","), "/repo/src/child.go"; got != want {
-		t.Fatalf("file_paths = %q, want %q", got, want)
+	for _, stmt := range executor.calls {
+		if !strings.Contains(stmt.Cypher, "child.repo_id IN $repo_ids") {
+			t.Fatalf("repo retract cypher = %q, want repo_id filter", stmt.Cypher)
+		}
 	}
 }
 
