@@ -21,28 +21,12 @@ write_required_docs() {
     "${dir}/go/internal/query" \
     "${dir}/specs"
 
-  cat >"${dir}/docs/public/contributing-language-support.md" <<'MD'
-# Contributing Parser Support
-
-## Parser And Language Contribution Checklist
-
-Parse-only behavior is not supported query behavior. Parser claims need parser
-tests and a language page update.
-
-## Query DSL And Language Page Updates
-
-Update the language page and Language Query DSL when a query language or entity
-type changes.
-
-## Support-Maturity Promotion Rules
-
-Unsupported, partial, and supported claims need matching evidence.
-
-## Dynamic And Framework Guardrails
-
-Dynamic imports, plugin loading, reflection, generated code, and framework roots
-stay unclaimed without focused proof.
-MD
+  # Delivered from a sibling fixture file, not a heredoc: Homebrew bash >= 5.1
+  # writes an entire heredoc body to a pipe before forking the reader, and
+  # macOS's 512-byte pipe buffer deadlocks on this ~588B body (#5074). The
+  # body is fully static (was a quoted heredoc, no shell expansion), so the
+  # file is byte-identical to the original heredoc body.
+  cat "${repo_root}/scripts/lib/test-verify-parser-relationship-kit-contributing-language-support.md" >"${dir}/docs/public/contributing-language-support.md"
 
   cat >"${dir}/docs/public/reference/language-query-dsl.md" <<'MD'
 # Language Query DSL
@@ -71,19 +55,12 @@ MD
 | JSON Config | `DefaultEngine (json)` | - | - | unsupported | JSON metadata only | - | - | - |
 MD
 
-  cat >>"${dir}/docs/public/languages/support-maturity.md" <<'MD'
-
-## Parser Backing Ledger
-
-See `specs/parser-backing-ledger.v1.yaml`.
-
-| Parser Key | Implementation Class | Decision | Evidence |
-| --- | --- | --- | --- |
-| cloudformation | `structured-parser-backed-exception` | Decoded YAML/JSON plus bounded CloudFormation evaluation is the canonical parser. | `specs/parser-backing-ledger.v1.yaml` |
-| dockerfile | `structured-parser-backed-exception` | Dockerfile instruction scanning is the canonical build-manifest parser. | `specs/parser-backing-ledger.v1.yaml` |
-| hcl | `structured-parser-backed-exception` | HashiCorp HCL v2 is the canonical Terraform/Terragrunt parser. | `specs/parser-backing-ledger.v1.yaml` |
-| yaml | `structured-parser-backed-exception` | YAML v3 document decoding is the canonical declarative-data parser. | `specs/parser-backing-ledger.v1.yaml` |
-MD
+  # Delivered from a sibling fixture file, not a heredoc: Homebrew bash >= 5.1
+  # writes an entire heredoc body to a pipe before forking the reader, and
+  # macOS's 512-byte pipe buffer deadlocks on this ~817B body (#5074). The
+  # body is fully static (was a quoted heredoc, no shell expansion), so the
+  # file is byte-identical to the original heredoc body.
+  cat "${repo_root}/scripts/lib/test-verify-parser-relationship-kit-support-maturity-parser-backing-append.md" >>"${dir}/docs/public/languages/support-maturity.md"
 
   cat >>"${dir}/docs/public/languages/support-maturity.md" <<'MD'
 
@@ -92,46 +69,12 @@ MD
 See `specs/language-feature-parity-ledger.v1.yaml`.
 MD
 
-  cat >"${dir}/specs/parser-backing-ledger.v1.yaml" <<'YAML'
-version: 1
-parser_backing:
-  - parser: cloudformation
-    implementation_class: structured-parser-backed-exception
-    no_provider_required: true
-    source_files:
-      - go/internal/parser/cloudformation/parser.go
-    test_files:
-      - go/internal/parser/cloudformation/parser_test.go
-    docs:
-      - docs/public/languages/cloudformation.md
-  - parser: dockerfile
-    implementation_class: structured-parser-backed-exception
-    no_provider_required: true
-    source_files:
-      - go/internal/parser/dockerfile/metadata.go
-    test_files:
-      - go/internal/parser/dockerfile/metadata_test.go
-    docs:
-      - docs/public/languages/support-maturity.md
-  - parser: hcl
-    implementation_class: structured-parser-backed-exception
-    no_provider_required: true
-    source_files:
-      - go/internal/parser/hcl/parser.go
-    test_files:
-      - go/internal/parser/hcl/parser_test.go
-    docs:
-      - docs/public/languages/terraform.md
-  - parser: yaml
-    implementation_class: structured-parser-backed-exception
-    no_provider_required: true
-    source_files:
-      - go/internal/parser/yaml/language.go
-    test_files:
-      - go/internal/parser/yaml/language_test.go
-    docs:
-      - docs/public/languages/kubernetes.md
-YAML
+  # Delivered from a sibling fixture file, not a heredoc: Homebrew bash >= 5.1
+  # writes an entire heredoc body to a pipe before forking the reader, and
+  # macOS's 512-byte pipe buffer deadlocks on this ~1233B body (#5074). The
+  # body is fully static (was a quoted heredoc, no shell expansion), so the
+  # file is byte-identical to the original heredoc body.
+  cat "${repo_root}/scripts/lib/test-verify-parser-relationship-kit-parser-backing-ledger.yaml" >"${dir}/specs/parser-backing-ledger.v1.yaml"
 
   cat >"${dir}/specs/language-feature-parity-ledger.v1.yaml" <<'YAML'
 version: 1
@@ -153,14 +96,12 @@ language_features:
       - execute_language_query
 YAML
 
-  cat >"${dir}/docs/public/languages/python.md" <<'MD'
-# Python Parser
-
-| Capability | ID | Status | Extracted Bucket/Key | Required Fields | Graph Surface | Unit Coverage | Integration Coverage | Rationale |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Functions | `functions` | supported | `functions` | `name, line_number` | `node:Function` | `go/internal/parser/python_language_test.go::TestPythonFunctions` | Compose-backed fixture verification | - |
-| Django/DRF routes | `django-drf-routes` | partial | - | - | - | `go/internal/parser/python_language_test.go::TestPythonFunctions` | Explicit unsupported-route wording | Not audited as route_entries or HANDLES_ROUTE truth. |
-MD
+  # Delivered from a sibling fixture file, not a heredoc: Homebrew bash >= 5.1
+  # writes an entire heredoc body to a pipe before forking the reader, and
+  # macOS's 512-byte pipe buffer deadlocks on this ~640B body (#5074). The
+  # body is fully static (was a quoted heredoc, no shell expansion), so the
+  # file is byte-identical to the original heredoc body.
+  cat "${repo_root}/scripts/lib/test-verify-parser-relationship-kit-python.md" >"${dir}/docs/public/languages/python.md"
 
   for path in \
     go/internal/parser/cloudformation/parser.go \
@@ -308,16 +249,12 @@ expect_fail "${missing_language_proof_repo}"
 
 parser_backing_missing_repo="$(init_repo parser-backing-missing)"
 rm -f "${parser_backing_missing_repo}/specs/parser-backing-ledger.v1.yaml"
-cat >"${parser_backing_missing_repo}/docs/public/languages/support-maturity.md" <<'MD'
-# Parser Support Matrix
-
-| Parser | Parser Class | Grammar Routing | Normalization | Framework Or Root Evidence | Modeled Evidence | Query Surfacing | Real-Repo Validation | End-to-End Indexing |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| CloudFormation | `DefaultEngine (yaml)` | - | - | unsupported | template/resource evidence only | - | - | - |
-| Dockerfile | `DefaultEngine (dockerfile)` | - | - | unsupported | build-manifest evidence only | - | - | - |
-| HCL | `DefaultEngine (hcl)` | supported | supported | non-code evidence | Terraform and Terragrunt evidence | supported | supported | supported |
-| YAML | `DefaultEngine (yaml)` | - | - | unsupported | declarative-data evidence only | - | - | - |
-MD
+# Delivered from a sibling fixture file, not a heredoc: Homebrew bash >= 5.1
+# writes an entire heredoc body to a pipe before forking the reader, and
+# macOS's 512-byte pipe buffer deadlocks on this ~724B body (#5074). The
+# body is fully static (was a quoted heredoc, no shell expansion), so the
+# file is byte-identical to the original heredoc body.
+cat "${repo_root}/scripts/lib/test-verify-parser-relationship-kit-support-maturity-missing-ledger.md" >"${parser_backing_missing_repo}/docs/public/languages/support-maturity.md"
 git -C "${parser_backing_missing_repo}" add .
 git -C "${parser_backing_missing_repo}" commit -q -m 'missing parser backing ledger'
 expect_fail "${parser_backing_missing_repo}"
@@ -337,69 +274,23 @@ parser_backing:
     docs:
       - docs/public/languages/cloudformation.md
 YAML
-cat >"${parser_backing_incomplete_repo}/docs/public/languages/support-maturity.md" <<'MD'
-# Parser Support Matrix
-
-| Parser | Parser Class | Grammar Routing | Normalization | Framework Or Root Evidence | Modeled Evidence | Query Surfacing | Real-Repo Validation | End-to-End Indexing |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| CloudFormation | `DefaultEngine (yaml)` | - | - | unsupported | template/resource evidence only | - | - | - |
-| Dockerfile | `DefaultEngine (dockerfile)` | - | - | unsupported | build-manifest evidence only | - | - | - |
-| HCL | `DefaultEngine (hcl)` | supported | supported | non-code evidence | Terraform and Terragrunt evidence | supported | supported | supported |
-| YAML | `DefaultEngine (yaml)` | - | - | unsupported | declarative-data evidence only | - | - | - |
-
-## Parser Backing Ledger
-
-See `specs/parser-backing-ledger.v1.yaml`.
-
-| Parser | Implementation Class | Decision | Evidence |
-| --- | --- | --- | --- |
-| cloudformation | `structured-parser-backed-exception` | Decoded YAML/JSON plus bounded CloudFormation evaluation is the canonical parser. | `specs/parser-backing-ledger.v1.yaml` |
-MD
+# Delivered from a sibling fixture file, not a heredoc: Homebrew bash >= 5.1
+# writes an entire heredoc body to a pipe before forking the reader, and
+# macOS's 512-byte pipe buffer deadlocks on this ~1059B body (#5074). The
+# body is fully static (was a quoted heredoc, no shell expansion), so the
+# file is byte-identical to the original heredoc body.
+cat "${repo_root}/scripts/lib/test-verify-parser-relationship-kit-support-maturity-incomplete-ledger.md" >"${parser_backing_incomplete_repo}/docs/public/languages/support-maturity.md"
 git -C "${parser_backing_incomplete_repo}" add .
 git -C "${parser_backing_incomplete_repo}" commit -q -m 'incomplete parser backing ledger'
 expect_fail "${parser_backing_incomplete_repo}"
 
 parser_backing_bad_path_repo="$(init_repo parser-backing-bad-path)"
-cat >"${parser_backing_bad_path_repo}/specs/parser-backing-ledger.v1.yaml" <<'YAML'
-version: 1
-parser_backing:
-  - parser: cloudformation
-    implementation_class: structured-parser-backed-exception
-    no_provider_required: true
-    source_files:
-      - go/internal/parser/cloudformation/parser.go
-    test_files:
-      - go/internal/parser/cloudformation/parser_test.go
-    docs:
-      - docs/public/languages/cloudformation.md
-  - parser: dockerfile
-    implementation_class: structured-parser-backed-exception
-    no_provider_required: true
-    source_files:
-      - go/internal/parser/dockerfile/does_not_exist.go
-    test_files:
-      - go/internal/parser/dockerfile/metadata_test.go
-    docs:
-      - docs/public/languages/support-maturity.md
-  - parser: hcl
-    implementation_class: structured-parser-backed-exception
-    no_provider_required: true
-    source_files:
-      - go/internal/parser/hcl/parser.go
-    test_files:
-      - go/internal/parser/hcl/parser_test.go
-    docs:
-      - docs/public/languages/terraform.md
-  - parser: yaml
-    implementation_class: structured-parser-backed-exception
-    no_provider_required: true
-    source_files:
-      - go/internal/parser/yaml/language.go
-    test_files:
-      - go/internal/parser/yaml/language_test.go
-    docs:
-      - docs/public/languages/kubernetes.md
-YAML
+# Delivered from a sibling fixture file, not a heredoc: Homebrew bash >= 5.1
+# writes an entire heredoc body to a pipe before forking the reader, and
+# macOS's 512-byte pipe buffer deadlocks on this ~1239B body (#5074). The
+# body is fully static (was a quoted heredoc, no shell expansion), so the
+# file is byte-identical to the original heredoc body.
+cat "${repo_root}/scripts/lib/test-verify-parser-relationship-kit-parser-backing-ledger-bad-path.yaml" >"${parser_backing_bad_path_repo}/specs/parser-backing-ledger.v1.yaml"
 git -C "${parser_backing_bad_path_repo}" add .
 git -C "${parser_backing_bad_path_repo}" commit -q -m 'stale parser backing ledger path'
 expect_fail "${parser_backing_bad_path_repo}"
@@ -426,71 +317,18 @@ expect_fail "${language_ledger_bad_path_repo}"
 
 parser_backing_complete_repo="$(init_repo parser-backing-complete)"
 mkdir -p "${parser_backing_complete_repo}/specs"
-cat >"${parser_backing_complete_repo}/specs/parser-backing-ledger.v1.yaml" <<'YAML'
-version: 1
-parser_backing:
-  - parser: cloudformation
-    implementation_class: structured-parser-backed-exception
-    no_provider_required: true
-    source_files:
-      - go/internal/parser/cloudformation/parser.go
-    test_files:
-      - go/internal/parser/cloudformation/parser_test.go
-    docs:
-      - docs/public/languages/cloudformation.md
-  - parser: dockerfile
-    implementation_class: structured-parser-backed-exception
-    no_provider_required: true
-    source_files:
-      - go/internal/parser/dockerfile/metadata.go
-    test_files:
-      - go/internal/parser/dockerfile/metadata_test.go
-    docs:
-      - docs/public/languages/support-maturity.md
-  - parser: hcl
-    implementation_class: structured-parser-backed-exception
-    no_provider_required: true
-    source_files:
-      - go/internal/parser/hcl/parser.go
-    test_files:
-      - go/internal/parser/hcl/parser_test.go
-    docs:
-      - docs/public/languages/terraform.md
-  - parser: yaml
-    implementation_class: structured-parser-backed-exception
-    no_provider_required: true
-    source_files:
-      - go/internal/parser/yaml/language.go
-    test_files:
-      - go/internal/parser/yaml/language_test.go
-    docs:
-      - docs/public/languages/kubernetes.md
-YAML
-cat >"${parser_backing_complete_repo}/docs/public/languages/support-maturity.md" <<'MD'
-# Parser Support Matrix
-
-| Parser | Parser Class | Grammar Routing | Normalization | Framework Or Root Evidence | Modeled Evidence | Query Surfacing | Real-Repo Validation | End-to-End Indexing |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| CloudFormation | `DefaultEngine (yaml)` | - | - | unsupported | template/resource evidence only | - | - | - |
-| Dockerfile | `DefaultEngine (dockerfile)` | - | - | unsupported | build-manifest evidence only | - | - | - |
-| HCL | `DefaultEngine (hcl)` | supported | supported | non-code evidence | Terraform and Terragrunt evidence | supported | supported | supported |
-| YAML | `DefaultEngine (yaml)` | - | - | unsupported | declarative-data evidence only | - | - | - |
-
-## Parser Backing Ledger
-
-See `specs/parser-backing-ledger.v1.yaml`.
-
-| Parser | Implementation Class | Decision | Evidence |
-| --- | --- | --- | --- |
-| cloudformation | `structured-parser-backed-exception` | Decoded YAML/JSON plus bounded CloudFormation evaluation is the canonical parser. | `specs/parser-backing-ledger.v1.yaml` |
-| dockerfile | `structured-parser-backed-exception` | Dockerfile instruction scanning is the canonical build-manifest parser. | `specs/parser-backing-ledger.v1.yaml` |
-| hcl | `structured-parser-backed-exception` | HashiCorp HCL v2 is the canonical Terraform/Terragrunt parser. | `specs/parser-backing-ledger.v1.yaml` |
-| yaml | `structured-parser-backed-exception` | YAML v3 document decoding is the canonical declarative-data parser. | `specs/parser-backing-ledger.v1.yaml` |
-
-## Language Feature Parity Ledger
-
-See `specs/language-feature-parity-ledger.v1.yaml`.
-MD
+# Delivered from a sibling fixture file, not a heredoc: Homebrew bash >= 5.1
+# writes an entire heredoc body to a pipe before forking the reader, and
+# macOS's 512-byte pipe buffer deadlocks on this ~1233B body (#5074). The
+# body is fully static (was a quoted heredoc, no shell expansion), so the
+# file is byte-identical to the original heredoc body.
+cat "${repo_root}/scripts/lib/test-verify-parser-relationship-kit-parser-backing-ledger-complete.yaml" >"${parser_backing_complete_repo}/specs/parser-backing-ledger.v1.yaml"
+# Delivered from a sibling fixture file, not a heredoc: Homebrew bash >= 5.1
+# writes an entire heredoc body to a pipe before forking the reader, and
+# macOS's 512-byte pipe buffer deadlocks on this ~1625B body (#5074). The
+# body is fully static (was a quoted heredoc, no shell expansion), so the
+# file is byte-identical to the original heredoc body.
+cat "${repo_root}/scripts/lib/test-verify-parser-relationship-kit-support-maturity-complete.md" >"${parser_backing_complete_repo}/docs/public/languages/support-maturity.md"
 git -C "${parser_backing_complete_repo}" add .
 git -C "${parser_backing_complete_repo}" commit -q -m 'complete parser backing ledger'
 expect_pass "${parser_backing_complete_repo}"

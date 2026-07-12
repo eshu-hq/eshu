@@ -1,0 +1,38 @@
+version: 1
+parser_backing:
+  - parser: cloudformation
+    implementation_class: structured-parser-backed-exception
+    no_provider_required: true
+    source_files:
+      - go/internal/parser/cloudformation/parser.go
+    test_files:
+      - go/internal/parser/cloudformation/parser_test.go
+    docs:
+      - docs/public/languages/cloudformation.md
+  - parser: dockerfile
+    implementation_class: structured-parser-backed-exception
+    no_provider_required: true
+    source_files:
+      - go/internal/parser/dockerfile/metadata.go
+    test_files:
+      - go/internal/parser/dockerfile/metadata_test.go
+    docs:
+      - docs/public/languages/support-maturity.md
+  - parser: hcl
+    implementation_class: structured-parser-backed-exception
+    no_provider_required: true
+    source_files:
+      - go/internal/parser/hcl/parser.go
+    test_files:
+      - go/internal/parser/hcl/parser_test.go
+    docs:
+      - docs/public/languages/terraform.md
+  - parser: yaml
+    implementation_class: structured-parser-backed-exception
+    no_provider_required: true
+    source_files:
+      - go/internal/parser/yaml/language.go
+    test_files:
+      - go/internal/parser/yaml/language_test.go
+    docs:
+      - docs/public/languages/kubernetes.md

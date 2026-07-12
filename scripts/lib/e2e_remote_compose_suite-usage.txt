@@ -1,0 +1,28 @@
+Usage: scripts/e2e_remote_compose_suite.sh --run-kind clean|preserved --manifest PATH \
+  --api-base-url URL --pprof-base-url URL --runtime-volume-proof PATH \
+  --corpus-coverage PATH [--previous-manifest PATH] [options]
+
+Options:
+  --api-key TOKEN
+  --out-dir DIR
+  --corpus-mode smoke|representative|full
+  --repository-count N
+  --image-tag-candidate TAG
+  --commit COMMIT
+  --backend-kind KIND
+  --compose-files FILE[:FILE...]
+  --compose-env-file PATH
+  --readback-proof PATH
+
+Environment:
+  ESHU_REMOTE_E2E_READBACK_PROOF
+    Public-safe aggregate API/MCP/CLI readback proof. If omitted, reducer rows
+    with source and reducer evidence are still classified as failed readback.
+  ESHU_REMOTE_E2E_UNSUPPORTED_HOSTED_COLLECTORS
+    Comma-separated hosted collector rows to classify as unsupported instead
+    of skipped when the remote Compose profile intentionally cannot run them.
+    Valid row names are pagerduty,jira,grafana,prometheus_mimir,loki,tempo.
+  ESHU_REMOTE_E2E_UNSUPPORTED_REDUCERS
+    Comma-separated reducer rows to classify as unsupported when that path is
+    intentionally outside the remote Compose proof. Leave blank for prerelease
+    gates. Valid row names match the manifest reducers keys.
