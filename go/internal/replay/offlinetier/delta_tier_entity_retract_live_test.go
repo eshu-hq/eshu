@@ -140,6 +140,10 @@ func TestDeltaEntityRetractGraphTruth(t *testing.T) {
 // surviving instance in the base cassette, so a bare-label count is exact.
 func assertEntityLabelCount(ctx context.Context, t *testing.T, exec liveExecutor, label string, want int64, msg string) {
 	t.Helper()
+	// Labels come from the enumerated projector.EntityTypeLabel vocabulary (no
+	// Cypher metacharacters). Backtick-quoting the label defeats the match on
+	// NornicDB (verified: `MATCH (n:` + "`" + `Label` + "`" + `)` returns 0 for an
+	// existing node), so the label is interpolated unquoted.
 	got, err := exec.count(ctx, fmt.Sprintf("MATCH (n:%s) RETURN count(n)", label), nil)
 	if err != nil {
 		t.Fatalf("%s: count %s: %v", msg, label, err)
