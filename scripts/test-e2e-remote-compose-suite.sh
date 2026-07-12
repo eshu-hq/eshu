@@ -13,20 +13,128 @@ fake_bin="${TMP_DIR}/bin"
 state_dir="${TMP_DIR}/state"
 mkdir -p "${fake_bin}" "${state_dir}/logs"
 
-# Delivered from a sibling fixture file, not a heredoc: Homebrew bash >= 5.1
-# writes an entire heredoc body to a pipe before forking the reader, and
-# macOS's 512-byte pipe buffer deadlocks on this ~1.8KB body (#5074). The
-# body is fully static (was a quoted <<'SH', no shell expansion), so the
-# copied file is byte-identical to the original heredoc body.
-cp "${REPO_ROOT}/scripts/lib/test-e2e-remote-compose-suite-fake-docker.sh" "${fake_bin}/docker"
+cat >"${fake_bin}/docker" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+
+state_dir="${ESHU_REMOTE_COMPOSE_SUITE_TEST_STATE:?set ESHU_REMOTE_COMPOSE_SUITE_TEST_STATE}"
+
+if [[ "${1:-}" == "stats" ]]; then
+  cat "${state_dir}/docker-stats.jsonl"
+  exit 0
+fi
+
+if [[ "${1:-}" != "compose" ]]; then
+  echo "unexpected docker command: $*" >&2
+  exit 2
+fi
+
+shift
+while (($# > 0)); do
+  case "${1}" in
+    --env-file|-f|-p|--project-name)
+      shift 2
+      ;;
+    *)
+      break
+      ;;
+  esac
+done
+
+subcommand="${1:-}"
+shift || true
+case "${subcommand}" in
+  config)
+    [[ "${1:-}" == "--services" ]] || { echo "unexpected config args: $*" >&2; exit 2; }
+    cat "${state_dir}/services"
+    ;;
+  logs)
+    while (($# > 0)); do
+      case "${1}" in
+        --no-color|--timestamps)
+          shift
+          ;;
+        --tail)
+          shift 2
+          ;;
+        *)
+          service="${1}"
+          shift
+          if [[ -f "${state_dir}/logs/${service}.log" ]]; then
+            cat "${state_dir}/logs/${service}.log"
+          else
+            printf '%s started cleanly\n' "${service}"
+          fi
+          ;;
+      esac
+    done
+    ;;
+  exec)
+    while (($# > 0)); do
+      case "${1}" in
+        -T)
+          shift
+          ;;
+        postgres)
+          shift
+          ;;
+        *)
+          break
+          ;;
+      esac
+    done
+    query="$*"
+    case "${query}" in
+      *"fact_records"*)
+        cat "${state_dir}/fact-counts.tsv"
+        ;;
+      *"workflow_work_items"*)
+        cat "${state_dir}/workflow-counts.tsv"
+        ;;
+      *"relationship_evidence_facts"*)
+        cat "${state_dir}/reducer-relationship-counts.tsv"
+        ;;
+      *)
+        echo "unexpected postgres query: ${query}" >&2
+        exit 2
+        ;;
+    esac
+    ;;
+  *)
+    echo "unexpected compose subcommand: ${subcommand}" >&2
+    exit 2
+    ;;
+esac
+SH
 chmod +x "${fake_bin}/docker"
 
-# Delivered from a sibling fixture file, not a heredoc: Homebrew bash >= 5.1
-# writes an entire heredoc body to a pipe before forking the reader, and
-# macOS's 512-byte pipe buffer deadlocks on this ~601B body (#5074). The
-# body is fully static (was a quoted <<'SH', no shell expansion), so the
-# copied file is byte-identical to the original heredoc body.
-cp "${REPO_ROOT}/scripts/lib/test-e2e-remote-compose-suite-fake-curl.sh" "${fake_bin}/curl"
+cat >"${fake_bin}/curl" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+
+state_dir="${ESHU_REMOTE_COMPOSE_SUITE_TEST_STATE:?set ESHU_REMOTE_COMPOSE_SUITE_TEST_STATE}"
+printf '%s\n' "$*" >>"${state_dir}/curl-targets"
+if [[ "$*" == *"test-api-key"* ]]; then
+  echo "curl arguments leaked API key" >&2
+  exit 2
+fi
+if [[ "$*" != *"--max-time"* && "$*" != *"-m"* ]]; then
+  echo "curl call is missing timeout" >&2
+  exit 2
+fi
+case "$*" in
+  *"/debug/pprof/"*)
+    printf 'pprof index\n'
+    ;;
+  *"/api/v0/index-status"*)
+    cat "${state_dir}/index-status.json"
+    ;;
+  *)
+    echo "unexpected curl target: $*" >&2
+    exit 2
+    ;;
+esac
+SH
 chmod +x "${fake_bin}/curl"
 
 runtime_verifier="${TMP_DIR}/runtime-verifier"
@@ -164,12 +272,33 @@ JSON
 {"Name":"eshu","CPUPerc":"12.5%","MemUsage":"128MiB / 1GiB"}
 {"Name":"resolution-engine","CPUPerc":"22.0%","MemUsage":"256MiB / 2GiB"}
 JSONL
-  # Delivered from a sibling fixture file, not a heredoc: Homebrew bash >= 5.1
-  # writes an entire heredoc body to a pipe before forking the reader, and
-  # macOS's 512-byte pipe buffer deadlocks on this ~1KB body (#5074). The
-  # body is fully static (was a quoted <<'TSV', no shell expansion), so the
-  # copied file is byte-identical to the original heredoc body.
-  cp "${REPO_ROOT}/scripts/lib/test-e2e-remote-compose-suite-fact-counts.tsv" "${state_dir}/fact-counts.tsv"
+  cat >"${state_dir}/fact-counts.tsv" <<'TSV'
+git	repository	10
+terraform_state	terraform_state.resource	5
+aws	aws_resource	7
+oci_registry	oci_registry.image_manifest	4
+package_registry	package_registry.package_version	6
+sbom_document	sbom.component	2
+security_alert	security_alert.repository_alert	4
+vulnerability_intelligence	vulnerability.affected_package	8
+scanner_worker	scanner_worker.vulnerability	3
+confluence	documentation_source	1
+pagerduty	incident.record	1
+jira	work_item.record	1
+grafana	observability.observed_dashboard	1
+prometheus_mimir	observability.observed_target	1
+loki	observability.observed_log_signal	1
+tempo	observability.observed_trace_signal	1
+reducer	reducer_package_correlation	10
+reducer	reducer_aws_cloud_relationship	5
+reducer	reducer_container_image_identity	3
+reducer	reducer_sbom_attestation_attachment	3
+reducer	reducer_security_alert_reconciliation	4
+reducer	reducer_supply_chain_impact_finding	4
+reducer	reducer_deployment_correlation	2
+reducer	reducer_observability_correlation	1
+reducer	reducer_incident_work_item_correlation	1
+TSV
   cat >"${state_dir}/reducer-relationship-counts.tsv" <<'TSV'
 terraform_iac_relationships	5	5
 TSV
