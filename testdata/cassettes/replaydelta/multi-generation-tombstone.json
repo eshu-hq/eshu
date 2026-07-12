@@ -1701,6 +1701,66 @@
             "relative_path": ".gitlab-ci.yml",
             "repo_id": "replay-delta-tombstone"
           }
+        },
+        {
+          "fact_kind": "git.gitlab_pipeline",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:gitlab:pipeline:a",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "uid": "replay-delta-tombstone:gitlab:pipeline:a",
+            "name": ".gitlab-ci-a.yml",
+            "file_path": "/repos/replay-delta-tombstone/.gitlab-ci-a.yml",
+            "relative_path": ".gitlab-ci-a.yml",
+            "repo_id": "replay-delta-tombstone"
+          }
+        },
+        {
+          "fact_kind": "git.gitlab_pipeline",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:gitlab:pipeline:b",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "uid": "replay-delta-tombstone:gitlab:pipeline:b",
+            "name": ".gitlab-ci-b.yml",
+            "file_path": "/repos/replay-delta-tombstone/.gitlab-ci-b.yml",
+            "relative_path": ".gitlab-ci-b.yml",
+            "repo_id": "replay-delta-tombstone"
+          }
+        },
+        {
+          "fact_kind": "git.gitlab_job",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:gitlab:job:mover",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "uid": "replay-delta-tombstone:gitlab:job:mover",
+            "name": "mover",
+            "file_path": "/repos/replay-delta-tombstone/.gitlab-ci-a.yml",
+            "relative_path": ".gitlab-ci-a.yml",
+            "repo_id": "replay-delta-tombstone"
+          }
+        },
+        {
+          "fact_kind": "git.gitlab_job",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:gitlab:job:stayer",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "uid": "replay-delta-tombstone:gitlab:job:stayer",
+            "name": "stayer",
+            "file_path": "/repos/replay-delta-tombstone/.gitlab-ci-a.yml",
+            "relative_path": ".gitlab-ci-a.yml",
+            "repo_id": "replay-delta-tombstone"
+          }
         }
       ]
     },
@@ -1911,6 +1971,66 @@
             "name": "deploy",
             "file_path": "/repos/replay-delta-tombstone/.gitlab-ci.yml",
             "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone"
+          }
+        },
+        {
+          "fact_kind": "git.gitlab_pipeline",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:gitlab:pipeline:a",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "uid": "replay-delta-tombstone:gitlab:pipeline:a",
+            "name": ".gitlab-ci-a.yml",
+            "file_path": "/repos/replay-delta-tombstone/.gitlab-ci-a.yml",
+            "relative_path": ".gitlab-ci-a.yml",
+            "repo_id": "replay-delta-tombstone"
+          }
+        },
+        {
+          "fact_kind": "git.gitlab_pipeline",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:gitlab:pipeline:b",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "uid": "replay-delta-tombstone:gitlab:pipeline:b",
+            "name": ".gitlab-ci-b.yml",
+            "file_path": "/repos/replay-delta-tombstone/.gitlab-ci-b.yml",
+            "relative_path": ".gitlab-ci-b.yml",
+            "repo_id": "replay-delta-tombstone"
+          }
+        },
+        {
+          "fact_kind": "git.gitlab_job",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:gitlab:job:mover",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "uid": "replay-delta-tombstone:gitlab:job:mover",
+            "name": "mover",
+            "file_path": "/repos/replay-delta-tombstone/.gitlab-ci-b.yml",
+            "relative_path": ".gitlab-ci-b.yml",
+            "repo_id": "replay-delta-tombstone"
+          }
+        },
+        {
+          "fact_kind": "git.gitlab_job",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:gitlab:job:stayer",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "uid": "replay-delta-tombstone:gitlab:job:stayer",
+            "name": "stayer",
+            "file_path": "/repos/replay-delta-tombstone/.gitlab-ci-a.yml",
+            "relative_path": ".gitlab-ci-a.yml",
             "repo_id": "replay-delta-tombstone"
           }
         }

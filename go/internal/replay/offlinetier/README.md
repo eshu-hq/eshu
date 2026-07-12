@@ -144,6 +144,31 @@ metrics, and phase-group logs (`phase=entity_retract`); no metric name, label,
 span, worker, lease, batch, or status field is added. Operators diagnose entity
 retract through the existing canonical phase-group telemetry.
 
+### Edge-retract coverage (C-14 #4367)
+
+`delta_tier_edge_retract_live_test.go` proves DIRECT DEFINES_JOB (GitlabPipeline
+-> GitlabJob) edge retraction between endpoints that both survive — the same
+standard CONTAINS/NEEDS hold. A mover job reparents from pipeline A's file to
+pipeline B's file across generations while both pipelines and the job survive
+(pipeline A keeps a stayer job so it stays a reconciled DEFINES_JOB source); the
+DEFINES_JOB(A -> mover) edge retracts and DEFINES_JOB(B -> mover) is written. A
+probe confirmed DEFINES_JOB is the only still-uncovered edge type the offline
+canonical writer creates (CONTAINS/NEEDS already covered); every other
+retractable edge type is reducer-materialized (code-call, inheritance,
+repository-relationship, cloud, IAM, SQL, taint) and is not reachable through the
+offline canonical-writer tier, so covering those needs a reducer delta-replay
+harness, tracked separately.
+
+No-Regression Evidence: this change adds cassette gitlab facts, a `go` live test,
+and its `-run` wiring only — no production projection code. On the pinned
+NornicDB `timothyswt/nornicdb-cpu-bge:v1.1.9`, `scripts/verify-replay-tier.sh`
+proved DEFINES_JOB(pipelineA -> mover) retracts to count=0 while pipelineA,
+pipelineB, and the mover job all survive (count=1) and DEFINES_JOB(pipelineB ->
+mover) is written (count=1), all live tests green.
+
+No-Observability-Change: no metric, span, log, worker, lease, or status field is
+added; the tier reuses the existing canonical writer phase-group telemetry.
+
 ## Cassette fact-kind decode disposition
 
 `materialization.go`'s `rowFromPayload` helpers read the cassette's synthetic
