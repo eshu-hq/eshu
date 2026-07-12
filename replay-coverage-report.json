@@ -3,11 +3,11 @@
   "blocking": true,
   "totals": {
     "total": 400,
-    "covered": 216,
-    "uncovered": 175,
+    "covered": 228,
+    "uncovered": 163,
     "unresolved": 0,
     "exempt": 9,
-    "percent_satisfied": 56.25
+    "percent_satisfied": 59.25
   },
   "registry_summaries": [
     {
@@ -103,11 +103,11 @@
     {
       "registry": "surface_inventory",
       "total": 34,
-      "covered": 14,
-      "uncovered": 12,
+      "covered": 26,
+      "uncovered": 0,
       "unresolved": 0,
       "exempt": 8,
-      "percent_satisfied": 64.71
+      "percent_satisfied": 100
     }
   ],
   "scenario_type_summaries": [
@@ -150,11 +150,11 @@
     {
       "scenario_type": "fault",
       "total": 17,
-      "covered": 1,
-      "uncovered": 12,
+      "covered": 13,
+      "uncovered": 0,
       "unresolved": 0,
       "exempt": 4,
-      "percent_satisfied": 29.41
+      "percent_satisfied": 100
     },
     {
       "scenario_type": "ordering",
@@ -3397,8 +3397,11 @@
       "registry": "surface_inventory",
       "key": "collector:grafana",
       "scenario_type": "fault",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type fault"
+      "status": "covered",
+      "scenario": "go_test",
+      "ref": "go/internal/replay/inputtape/fault_collectors_test.go",
+      "proof_gate": "go-test-race",
+      "detail": "artifact present: go/internal/replay/inputtape/fault_collectors_test.go"
     },
     {
       "registry": "surface_inventory",
@@ -3414,8 +3417,11 @@
       "registry": "surface_inventory",
       "key": "collector:jira",
       "scenario_type": "fault",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type fault"
+      "status": "covered",
+      "scenario": "go_test",
+      "ref": "go/internal/replay/inputtape/fault_collectors_incident_test.go",
+      "proof_gate": "go-test-race",
+      "detail": "artifact present: go/internal/replay/inputtape/fault_collectors_incident_test.go"
     },
     {
       "registry": "surface_inventory",
@@ -3431,8 +3437,11 @@
       "registry": "surface_inventory",
       "key": "collector:loki",
       "scenario_type": "fault",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type fault"
+      "status": "covered",
+      "scenario": "go_test",
+      "ref": "go/internal/replay/inputtape/fault_collectors_test.go",
+      "proof_gate": "go-test-race",
+      "detail": "artifact present: go/internal/replay/inputtape/fault_collectors_test.go"
     },
     {
       "registry": "surface_inventory",
@@ -3448,8 +3457,11 @@
       "registry": "surface_inventory",
       "key": "collector:oci_registry",
       "scenario_type": "fault",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type fault"
+      "status": "covered",
+      "scenario": "go_test",
+      "ref": "go/internal/replay/inputtape/fault_collectors_supplychain_test.go",
+      "proof_gate": "go-test-race",
+      "detail": "artifact present: go/internal/replay/inputtape/fault_collectors_supplychain_test.go"
     },
     {
       "registry": "surface_inventory",
@@ -3465,8 +3477,11 @@
       "registry": "surface_inventory",
       "key": "collector:package_registry",
       "scenario_type": "fault",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type fault"
+      "status": "covered",
+      "scenario": "go_test",
+      "ref": "go/internal/replay/inputtape/fault_collectors_supplychain_test.go",
+      "proof_gate": "go-test-race",
+      "detail": "artifact present: go/internal/replay/inputtape/fault_collectors_supplychain_test.go"
     },
     {
       "registry": "surface_inventory",
@@ -3482,8 +3497,11 @@
       "registry": "surface_inventory",
       "key": "collector:pagerduty",
       "scenario_type": "fault",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type fault"
+      "status": "covered",
+      "scenario": "go_test",
+      "ref": "go/internal/replay/inputtape/fault_collectors_incident_test.go",
+      "proof_gate": "go-test-race",
+      "detail": "artifact present: go/internal/replay/inputtape/fault_collectors_incident_test.go"
     },
     {
       "registry": "surface_inventory",
@@ -3499,8 +3517,11 @@
       "registry": "surface_inventory",
       "key": "collector:prometheus_mimir",
       "scenario_type": "fault",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type fault"
+      "status": "covered",
+      "scenario": "go_test",
+      "ref": "go/internal/replay/inputtape/fault_collectors_test.go",
+      "proof_gate": "go-test-race",
+      "detail": "artifact present: go/internal/replay/inputtape/fault_collectors_test.go"
     },
     {
       "registry": "surface_inventory",
@@ -3516,8 +3537,11 @@
       "registry": "surface_inventory",
       "key": "collector:sbom_attestation",
       "scenario_type": "fault",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type fault"
+      "status": "covered",
+      "scenario": "go_test",
+      "ref": "go/internal/replay/inputtape/fault_collectors_supplychain_test.go",
+      "proof_gate": "go-test-race",
+      "detail": "artifact present: go/internal/replay/inputtape/fault_collectors_supplychain_test.go"
     },
     {
       "registry": "surface_inventory",
@@ -3547,8 +3571,11 @@
       "registry": "surface_inventory",
       "key": "collector:security_alert",
       "scenario_type": "fault",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type fault"
+      "status": "covered",
+      "scenario": "go_test",
+      "ref": "go/internal/replay/inputtape/fault_collectors_incident_test.go",
+      "proof_gate": "go-test-race",
+      "detail": "artifact present: go/internal/replay/inputtape/fault_collectors_incident_test.go"
     },
     {
       "registry": "surface_inventory",
@@ -3564,8 +3591,11 @@
       "registry": "surface_inventory",
       "key": "collector:tempo",
       "scenario_type": "fault",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type fault"
+      "status": "covered",
+      "scenario": "go_test",
+      "ref": "go/internal/replay/inputtape/fault_collectors_test.go",
+      "proof_gate": "go-test-race",
+      "detail": "artifact present: go/internal/replay/inputtape/fault_collectors_test.go"
     },
     {
       "registry": "surface_inventory",
@@ -3581,8 +3611,11 @@
       "registry": "surface_inventory",
       "key": "collector:terraform_state",
       "scenario_type": "fault",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type fault"
+      "status": "covered",
+      "scenario": "go_test",
+      "ref": "go/internal/replay/inputtape/fault_collectors_supplychain_test.go",
+      "proof_gate": "go-test-race",
+      "detail": "artifact present: go/internal/replay/inputtape/fault_collectors_supplychain_test.go"
     },
     {
       "registry": "surface_inventory",
@@ -3598,8 +3631,11 @@
       "registry": "surface_inventory",
       "key": "collector:vulnerability_intelligence",
       "scenario_type": "fault",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type fault"
+      "status": "covered",
+      "scenario": "go_test",
+      "ref": "go/internal/replay/inputtape/fault_collectors_supplychain_test.go",
+      "proof_gate": "go-test-race",
+      "detail": "artifact present: go/internal/replay/inputtape/fault_collectors_supplychain_test.go"
     },
     {
       "registry": "surface_inventory",
@@ -3617,18 +3653,6 @@
     }
   ],
   "gaps": [
-    "collector:grafana|fault",
-    "collector:jira|fault",
-    "collector:loki|fault",
-    "collector:oci_registry|fault",
-    "collector:package_registry|fault",
-    "collector:pagerduty|fault",
-    "collector:prometheus_mimir|fault",
-    "collector:sbom_attestation|fault",
-    "collector:security_alert|fault",
-    "collector:tempo|fault",
-    "collector:terraform_state|fault",
-    "collector:vulnerability_intelligence|fault",
     "projection:aws_cloud_runtime_drift|cost",
     "projection:azure_resource_materialization|cost",
     "projection:ci_cd_run_correlation|cost",
@@ -3797,9 +3821,9 @@
   "language_scoreboard": {
     "total": 32,
     "exempt": 11,
-    "fixture": 3,
-    "uncovered": 18,
-    "percent_satisfied": 43.75,
+    "fixture": 21,
+    "uncovered": 0,
+    "percent_satisfied": 100,
     "languages": [
       {
         "language": "argocd",
@@ -3813,7 +3837,8 @@
       },
       {
         "language": "c",
-        "status": "uncovered"
+        "status": "fixture",
+        "reason": "parser fixture replay scenario go/internal/replay/parserfixture/testdata/fixtures/c.fixture.json proven by parserfixture-tests"
       },
       {
         "language": "cloudformation",
@@ -3822,23 +3847,28 @@
       },
       {
         "language": "cpp",
-        "status": "uncovered"
+        "status": "fixture",
+        "reason": "parser fixture replay scenario go/internal/replay/parserfixture/testdata/fixtures/cpp.fixture.json proven by parserfixture-tests"
       },
       {
         "language": "crossplane",
-        "status": "uncovered"
+        "status": "fixture",
+        "reason": "parser fixture replay scenario go/internal/replay/parserfixture/testdata/fixtures/crossplane.fixture.json proven by parserfixture-tests"
       },
       {
         "language": "csharp",
-        "status": "uncovered"
+        "status": "fixture",
+        "reason": "parser fixture replay scenario go/internal/replay/parserfixture/testdata/fixtures/csharp.fixture.json proven by parserfixture-tests"
       },
       {
         "language": "dart",
-        "status": "uncovered"
+        "status": "fixture",
+        "reason": "parser fixture replay scenario go/internal/replay/parserfixture/testdata/fixtures/dart.fixture.json proven by parserfixture-tests"
       },
       {
         "language": "elixir",
-        "status": "uncovered"
+        "status": "fixture",
+        "reason": "parser fixture replay scenario go/internal/replay/parserfixture/testdata/fixtures/elixir.fixture.json proven by parserfixture-tests"
       },
       {
         "language": "gitlab-ci",
@@ -3857,7 +3887,8 @@
       },
       {
         "language": "haskell",
-        "status": "uncovered"
+        "status": "fixture",
+        "reason": "parser fixture replay scenario go/internal/replay/parserfixture/testdata/fixtures/haskell.fixture.json proven by parserfixture-tests"
       },
       {
         "language": "helm",
@@ -3866,11 +3897,13 @@
       },
       {
         "language": "java",
-        "status": "uncovered"
+        "status": "fixture",
+        "reason": "parser fixture replay scenario go/internal/replay/parserfixture/testdata/fixtures/java.fixture.json proven by parserfixture-tests"
       },
       {
         "language": "javascript",
-        "status": "uncovered"
+        "status": "fixture",
+        "reason": "parser fixture replay scenario go/internal/replay/parserfixture/testdata/fixtures/javascript.fixture.json proven by parserfixture-tests"
       },
       {
         "language": "json",
@@ -3879,7 +3912,8 @@
       },
       {
         "language": "kotlin",
-        "status": "uncovered"
+        "status": "fixture",
+        "reason": "parser fixture replay scenario go/internal/replay/parserfixture/testdata/fixtures/kotlin.fixture.json proven by parserfixture-tests"
       },
       {
         "language": "kubernetes",
@@ -3893,11 +3927,13 @@
       },
       {
         "language": "perl",
-        "status": "uncovered"
+        "status": "fixture",
+        "reason": "parser fixture replay scenario go/internal/replay/parserfixture/testdata/fixtures/perl.fixture.json proven by parserfixture-tests"
       },
       {
         "language": "php",
-        "status": "uncovered"
+        "status": "fixture",
+        "reason": "parser fixture replay scenario go/internal/replay/parserfixture/testdata/fixtures/php.fixture.json proven by parserfixture-tests"
       },
       {
         "language": "python",
@@ -3906,15 +3942,18 @@
       },
       {
         "language": "ruby",
-        "status": "uncovered"
+        "status": "fixture",
+        "reason": "parser fixture replay scenario go/internal/replay/parserfixture/testdata/fixtures/ruby.fixture.json proven by parserfixture-tests"
       },
       {
         "language": "rust",
-        "status": "uncovered"
+        "status": "fixture",
+        "reason": "parser fixture replay scenario go/internal/replay/parserfixture/testdata/fixtures/rust.fixture.json proven by parserfixture-tests"
       },
       {
         "language": "scala",
-        "status": "uncovered"
+        "status": "fixture",
+        "reason": "parser fixture replay scenario go/internal/replay/parserfixture/testdata/fixtures/scala.fixture.json proven by parserfixture-tests"
       },
       {
         "language": "sql",
@@ -3923,7 +3962,8 @@
       },
       {
         "language": "swift",
-        "status": "uncovered"
+        "status": "fixture",
+        "reason": "parser fixture replay scenario go/internal/replay/parserfixture/testdata/fixtures/swift.fixture.json proven by parserfixture-tests"
       },
       {
         "language": "terraform",
@@ -3937,11 +3977,13 @@
       },
       {
         "language": "typescript",
-        "status": "uncovered"
+        "status": "fixture",
+        "reason": "parser fixture replay scenario go/internal/replay/parserfixture/testdata/fixtures/typescript.fixture.json proven by parserfixture-tests"
       },
       {
         "language": "typescriptjsx",
-        "status": "uncovered"
+        "status": "fixture",
+        "reason": "parser fixture replay scenario go/internal/replay/parserfixture/testdata/fixtures/typescriptjsx.fixture.json proven by parserfixture-tests"
       }
     ]
   }

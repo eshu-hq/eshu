@@ -343,6 +343,25 @@ coverage:
   # coverage gate verifies they are wired, while the named proof gates execute
   # the scenarios.
   - {surface: collector:aws, scenario: go_test, scenario_type: fault, ref: go/internal/replay/inputtape/fault_timeout_test.go, proof_gate: go-test-race}
+  # C-14 (#4367) fault backfill: the 12 HTTP-polling collector boundaries each
+  # get a genuine timeout-fault proof. Each row maps to a go-test-race test in
+  # go/internal/replay/inputtape/ that records the REAL collector, injects a
+  # timeout Fault on the tape, replays through the same real collector, and
+  # asserts the collector surfaces a classified timeout (not a swallowed error
+  # or a hang). The go-test-race gate runs the inputtape package, so the proof
+  # gate executes these tests — the coverage row is not a ref-only bulk map.
+  - {surface: collector:grafana, scenario: go_test, scenario_type: fault, ref: go/internal/replay/inputtape/fault_collectors_test.go, proof_gate: go-test-race}
+  - {surface: collector:loki, scenario: go_test, scenario_type: fault, ref: go/internal/replay/inputtape/fault_collectors_test.go, proof_gate: go-test-race}
+  - {surface: collector:prometheus_mimir, scenario: go_test, scenario_type: fault, ref: go/internal/replay/inputtape/fault_collectors_test.go, proof_gate: go-test-race}
+  - {surface: collector:tempo, scenario: go_test, scenario_type: fault, ref: go/internal/replay/inputtape/fault_collectors_test.go, proof_gate: go-test-race}
+  - {surface: collector:jira, scenario: go_test, scenario_type: fault, ref: go/internal/replay/inputtape/fault_collectors_incident_test.go, proof_gate: go-test-race}
+  - {surface: collector:pagerduty, scenario: go_test, scenario_type: fault, ref: go/internal/replay/inputtape/fault_collectors_incident_test.go, proof_gate: go-test-race}
+  - {surface: collector:security_alert, scenario: go_test, scenario_type: fault, ref: go/internal/replay/inputtape/fault_collectors_incident_test.go, proof_gate: go-test-race}
+  - {surface: collector:vulnerability_intelligence, scenario: go_test, scenario_type: fault, ref: go/internal/replay/inputtape/fault_collectors_supplychain_test.go, proof_gate: go-test-race}
+  - {surface: collector:oci_registry, scenario: go_test, scenario_type: fault, ref: go/internal/replay/inputtape/fault_collectors_supplychain_test.go, proof_gate: go-test-race}
+  - {surface: collector:package_registry, scenario: go_test, scenario_type: fault, ref: go/internal/replay/inputtape/fault_collectors_supplychain_test.go, proof_gate: go-test-race}
+  - {surface: collector:sbom_attestation, scenario: go_test, scenario_type: fault, ref: go/internal/replay/inputtape/fault_collectors_supplychain_test.go, proof_gate: go-test-race}
+  - {surface: collector:terraform_state, scenario: go_test, scenario_type: fault, ref: go/internal/replay/inputtape/fault_collectors_supplychain_test.go, proof_gate: go-test-race}
   - {surface: capability:platform_impact.relationships_catalog, scenario: go_test, scenario_type: ordering, ref: go/internal/replay/schedulereplay/scenario_test.go, proof_gate: go-test-race}
   - {surface: capability:platform_impact.relationships_catalog, scenario: go_test, scenario_type: crash, ref: go/internal/replay/crashreplay/scenario_test.go, proof_gate: go-test-race}
   - {surface: capability:freshness.changed_since, scenario: cassette, scenario_type: delta_tombstone, ref: testdata/cassettes/replaydelta/multi-generation-tombstone.json, proof_gate: replay-tier}
