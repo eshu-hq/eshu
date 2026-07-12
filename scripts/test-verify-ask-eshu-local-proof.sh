@@ -60,40 +60,10 @@ fi
 
 fake_bin="${tmp_dir}/bin"
 mkdir -p "${fake_bin}"
-cat >"${fake_bin}/curl" <<'FAKE_CURL'
-#!/usr/bin/env bash
-set -euo pipefail
-printf '%s\n' "$*" >>"${FAKE_CURL_LOG:?}"
-if [[ "${FAKE_CURL_FAIL:-}" == "status" && "$*" == *"/api/v0/status/answer-narration"* ]]; then
-	exit 22
-fi
-if [[ "${FAKE_CURL_FAIL:-}" == "json" && "$*" == *"/api/v0/ask"* && "$*" != *"text/event-stream"* ]]; then
-	exit 22
-fi
-if [[ "${FAKE_CURL_FAIL:-}" == "sse" && "$*" == *"text/event-stream"* ]]; then
-	exit 22
-fi
-if [[ "$*" == *"/api/v0/status/answer-narration"* ]]; then
-	printf '{"provider_configured":true,"state":"available"}\n'
-elif [[ "$*" == *"text/event-stream"* ]]; then
-	if [[ "${FAKE_CURL_BAD_SSE:-}" == "true" ]]; then
-		printf 'event: token\ndata: {"delta":"missing done"}\n\n'
-	elif [[ "${FAKE_CURL_LEAK:-}" == "true" ]]; then
-		printf 'event: token\ndata: {"delta":"AKIAIOSFODNN7EXAMPLE"}\n\nevent: done\ndata: {}\n\n'
-	else
-		printf 'event: token\ndata: {"delta":"governed"}\n\nevent: answer\ndata: {"answer_prose":"governed answer","evidence_handles":["citation:redacted-demo"],"truth":{"level":"code_hint"}}\n\nevent: done\ndata: {}\n\n'
-	fi
-elif [[ "$*" == *"/api/v0/ask"* ]]; then
-	if [[ "${FAKE_CURL_LEAK:-}" == "true" ]]; then
-		printf '{"answer_prose":"AKIAIOSFODNN7EXAMPLE","evidence_handles":["citation:redacted-demo"],"truth":{"level":"code_hint"}}\n'
-	else
-		printf '{"answer_prose":"governed answer","evidence_handles":["citation:redacted-demo"],"truth":{"level":"code_hint"}}\n'
-	fi
-else
-	printf 'unexpected curl call: %s\n' "$*" >&2
-	exit 2
-fi
-FAKE_CURL
+# Body lives in scripts/lib/ (not a heredoc): Homebrew bash >= 5.1 writes the
+# entire heredoc body to a pipe before forking the reader, and macOS's
+# 512-byte pipe buffer deadlocks on any body over that size (#5074).
+cat "${repo_root}/scripts/lib/test-verify-ask-eshu-local-proof-fake-curl.sh" >"${fake_bin}/curl"
 cat >"${fake_bin}/go" <<'FAKE_GO'
 #!/usr/bin/env bash
 set -euo pipefail

@@ -7,30 +7,32 @@ deepseek=false
 live_tmp_dir=""
 
 usage() {
-	cat <<USAGE
-Usage: $(basename "$0") [--deepseek] [--list]
-
-Runs the Ask Eshu local proof gate (issue #3332). By default this is fully
-offline and secret-safe: it drives the real Ask Eshu runtime path (router mux,
-scoped-auth middleware, ask wiring, ask engine, openai-compatible provider
-adapter against a local stub, runtime answer guardrail, and both the JSON and
-SSE handlers) through CI-runnable Go integration tests, then scores the
-committed redacted answer-quality scorecard fixture.
-
-It proves these states without live DeepSeek credentials or a graph/Postgres
-backend: ask disabled (503), missing provider (503), bad provider (503), the
-scoped-token allowlist admitting POST /api/v0/ask, GET
-/api/v0/status/answer-narration gate state, a clean cited answer succeeding on
-JSON and SSE, and AKIA-key / Bearer-token / raw-address / uncited-claim
-suppression on both JSON and SSE.
-
-Pass --deepseek ONLY from a private operator environment that exports real
-DeepSeek credentials. That section runs the live hosted end-to-end rerun and is
-never executed in CI. It refuses to run unless the operator credential
-environment variables are present, and it must never echo their values.
-
-Use --list to print the proof commands without running them.
-USAGE
+	# printf (a builtin, no pipe) instead of a heredoc: this body is over 512
+	# bytes and would deadlock under Homebrew bash >= 5.1's pipe-buffer
+	# heredoc write (#5074).
+	printf '%s\n' \
+		"Usage: $(basename "$0") [--deepseek] [--list]" \
+		"" \
+		"Runs the Ask Eshu local proof gate (issue #3332). By default this is fully" \
+		"offline and secret-safe: it drives the real Ask Eshu runtime path (router mux," \
+		"scoped-auth middleware, ask wiring, ask engine, openai-compatible provider" \
+		"adapter against a local stub, runtime answer guardrail, and both the JSON and" \
+		"SSE handlers) through CI-runnable Go integration tests, then scores the" \
+		"committed redacted answer-quality scorecard fixture." \
+		"" \
+		"It proves these states without live DeepSeek credentials or a graph/Postgres" \
+		"backend: ask disabled (503), missing provider (503), bad provider (503), the" \
+		"scoped-token allowlist admitting POST /api/v0/ask, GET" \
+		"/api/v0/status/answer-narration gate state, a clean cited answer succeeding on" \
+		"JSON and SSE, and AKIA-key / Bearer-token / raw-address / uncited-claim" \
+		"suppression on both JSON and SSE." \
+		"" \
+		"Pass --deepseek ONLY from a private operator environment that exports real" \
+		"DeepSeek credentials. That section runs the live hosted end-to-end rerun and is" \
+		"never executed in CI. It refuses to run unless the operator credential" \
+		"environment variables are present, and it must never echo their values." \
+		"" \
+		"Use --list to print the proof commands without running them."
 }
 
 die() {

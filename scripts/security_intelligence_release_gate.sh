@@ -32,35 +32,37 @@ if [ -z "${repo_root}" ]; then
 fi
 
 usage() {
-    cat <<USAGE
-Usage: $(basename "$0") [options]
-
-Phases (default: ${phases_default}; "all" enables every phase):
-  state, focused, fixtures, proof-matrix, runtime, readback-proof, k8s, provider
-
-Options:
-  --phases <list>               Comma-separated phases.
-  --out-dir <path>              Evidence dir (default \${TMPDIR:-/tmp}/eshu-security-intel-release-gate/<ts>).
-  --image-tag-candidate <tag>   Image tag this gate is judging. Recorded in evidence.
-  --provider-compare <file>     Aggregate-only provider parity JSON (provider phase).
-  --proof-matrix <file>         Aggregate-only representative corpus proof matrix JSON.
-  --readback-proof <file>       Aggregate-only API/MCP/CLI readback proof JSON.
-  --api-base-url <url>          Base URL for runtime and k8s phase readback.
-  --api-key <token>             Bearer token for runtime/k8s API readback.
-  --pprof-base-url <url>        Base URL for the runtime/k8s pprof probe.
-                                Pprof is exposed via a separate listener and is
-                                required for runtime/k8s release proof.
-  --runtime-run-kind <kind>     Runtime proof kind: clean or preserved.
-  --previous-runtime-evidence <file>
-                                Prior clean evidence.json for preserved runtime proof.
-  --runtime-volume-proof <file> Aggregate-only clean/preserved Compose volume proof JSON.
-  --k8s-namespace <name>        Namespace for k8s phase snapshots.
-  --helm-release <name>         Helm release name (default: ${helm_release}).
-  -h, --help                    Show this help and exit.
-
-Override repo root with ESHU_RELEASE_GATE_REPO_ROOT. Set
-ESHU_RELEASE_GATE_SKIP_GO_TESTS=1 to skip Go test invocations.
-USAGE
+    # printf (a builtin, no pipe) instead of a heredoc: this body is over 512
+    # bytes and would deadlock under Homebrew bash >= 5.1's pipe-buffer
+    # heredoc write (#5074).
+    printf '%s\n' \
+        "Usage: $(basename "$0") [options]" \
+        "" \
+        "Phases (default: ${phases_default}; \"all\" enables every phase):" \
+        "  state, focused, fixtures, proof-matrix, runtime, readback-proof, k8s, provider" \
+        "" \
+        "Options:" \
+        "  --phases <list>               Comma-separated phases." \
+        '  --out-dir <path>              Evidence dir (default ${TMPDIR:-/tmp}/eshu-security-intel-release-gate/<ts>).' \
+        "  --image-tag-candidate <tag>   Image tag this gate is judging. Recorded in evidence." \
+        "  --provider-compare <file>     Aggregate-only provider parity JSON (provider phase)." \
+        "  --proof-matrix <file>         Aggregate-only representative corpus proof matrix JSON." \
+        "  --readback-proof <file>       Aggregate-only API/MCP/CLI readback proof JSON." \
+        "  --api-base-url <url>          Base URL for runtime and k8s phase readback." \
+        "  --api-key <token>             Bearer token for runtime/k8s API readback." \
+        "  --pprof-base-url <url>        Base URL for the runtime/k8s pprof probe." \
+        "                                Pprof is exposed via a separate listener and is" \
+        "                                required for runtime/k8s release proof." \
+        "  --runtime-run-kind <kind>     Runtime proof kind: clean or preserved." \
+        "  --previous-runtime-evidence <file>" \
+        "                                Prior clean evidence.json for preserved runtime proof." \
+        "  --runtime-volume-proof <file> Aggregate-only clean/preserved Compose volume proof JSON." \
+        "  --k8s-namespace <name>        Namespace for k8s phase snapshots." \
+        "  --helm-release <name>         Helm release name (default: ${helm_release})." \
+        "  -h, --help                    Show this help and exit." \
+        "" \
+        "Override repo root with ESHU_RELEASE_GATE_REPO_ROOT. Set" \
+        "ESHU_RELEASE_GATE_SKIP_GO_TESTS=1 to skip Go test invocations."
 }
 
 die() {
