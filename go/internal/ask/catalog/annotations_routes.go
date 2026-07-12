@@ -94,6 +94,7 @@ func askRouteAnnotations() map[string]Annotation {
 		"GET /api/v0/status/index":                                           {Backend: BackendBoth, Cost: CostLow},
 		"GET /api/v0/status/ingesters":                                       {Backend: BackendPostgres, Cost: CostLow},
 		"GET /api/v0/status/ingesters/{ingester}":                            {Backend: BackendPostgres, Cost: CostLow},
+		"GET /api/v0/status/operations":                                      {Backend: BackendPostgres, Cost: CostLow},
 		"GET /api/v0/status/operator-control-plane":                          {Backend: BackendPostgres, Cost: CostLow},
 		"GET /api/v0/status/pipeline":                                        {Backend: BackendPostgres, Cost: CostLow},
 		"GET /api/v0/status/semantic-extraction":                             {Backend: BackendPostgres, Cost: CostLow},

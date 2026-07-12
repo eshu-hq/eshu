@@ -119,6 +119,7 @@ func OpenAPISpec() string {
 			openAPIPathsFreshnessServiceChangedSince+
 			openAPIPathsHostedReadiness+
 			openAPIPathsOperatorControlPlane+
+			openAPIPathsOperations+
 			openAPIPathsFreshnessCausality+
 			openAPIPathsCollectorReadiness+
 			openAPIPathsGovernanceStatus+

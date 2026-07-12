@@ -879,6 +879,14 @@ type Instruments struct {
 	// lightweight profile).
 	DependencyListErrors metric.Int64Counter
 
+	// LiveActivityQueryErrors counts failed executions of the bounded
+	// live-activity Postgres query backing GET /api/v0/status/operations
+	// (#5137: the live operations board's in-flight work-item read model).
+	//
+	// Owned by postgres.LiveActivityStore. Nil-tolerant so the store stays
+	// operable when telemetry is not wired.
+	LiveActivityQueryErrors metric.Int64Counter
+
 	// Histograms track distributions
 	CollectorObserveDuration        metric.Float64Histogram
 	WorkflowClaimWaitDuration       metric.Float64Histogram
@@ -890,7 +898,11 @@ type Instruments struct {
 	// DependencyListDuration measures GET /api/v0/dependencies graph read
 	// latency in seconds, labeled by the bounded `direction` (forward or
 	// reverse). Owned by query.DependenciesHandler; nil-tolerant.
-	DependencyListDuration                 metric.Float64Histogram
+	DependencyListDuration metric.Float64Histogram
+	// LiveActivityQueryDuration measures the bounded live-activity Postgres
+	// query duration in seconds for GET /api/v0/status/operations (#5137).
+	// Owned by postgres.LiveActivityStore; nil-tolerant.
+	LiveActivityQueryDuration              metric.Float64Histogram
 	PackageRegistryObserveDuration         metric.Float64Histogram
 	PackageRegistryGenerationLag           metric.Float64Histogram
 	VulnerabilityIntelligenceFetchDuration metric.Float64Histogram
@@ -3022,6 +3034,29 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register DependencyListErrors counter: %w", err)
+	}
+
+	// liveActivityQueryBuckets matches the documented postgres-query-seconds
+	// bucket set (docs/public/observability/telemetry-coverage.md); the
+	// bounded live-activity query's own proof evidence (6.1ms normal shape,
+	// 12.3ms pathological shape) sits comfortably inside it.
+	liveActivityQueryBuckets := []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5}
+	inst.LiveActivityQueryDuration, err = meter.Float64Histogram(
+		"eshu_dp_status_operations_live_activity_query_duration_seconds",
+		metric.WithDescription("GET /api/v0/status/operations bounded live-activity Postgres query duration"),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(liveActivityQueryBuckets...),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register LiveActivityQueryDuration histogram: %w", err)
+	}
+
+	inst.LiveActivityQueryErrors, err = meter.Int64Counter(
+		"eshu_dp_status_operations_live_activity_query_errors_total",
+		metric.WithDescription("Failed GET /api/v0/status/operations bounded live-activity Postgres queries"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register LiveActivityQueryErrors counter: %w", err)
 	}
 
 	packageRegistryBuckets := []float64{0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60}

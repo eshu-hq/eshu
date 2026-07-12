@@ -119,6 +119,9 @@ func scopedHTTPRouteSupportsTenantFilter(r *http.Request) bool {
 	if scopedOperatorControlPlaneRoute(r) {
 		return true
 	}
+	if scopedOperationsRoute(r) {
+		return true
+	}
 	if scopedDeadLetterListRoute(r) {
 		return true
 	}

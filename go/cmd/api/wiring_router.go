@@ -219,6 +219,7 @@ func newRouterWithSemanticEmbedding(
 			GovernanceAudit: governanceAudit,
 			Profile:         queryProfile,
 			Governance:      governanceStatus,
+			LiveActivity:    pgstatus.NewInstrumentedLiveActivityStore(pgstatus.SQLQueryer{DB: db}, instruments),
 		},
 		ComponentExtensions: &query.ComponentExtensionsHandler{
 			ComponentHome: componentHome,

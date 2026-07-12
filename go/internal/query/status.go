@@ -21,6 +21,10 @@ type StatusHandler struct {
 	GovernanceAudit GovernanceAuditSummaryReader
 	Profile         QueryProfile
 	Governance      GovernanceStatusConfig
+	// LiveActivity reads the bounded in-flight work-item read model for GET
+	// /api/v0/status/operations (#5137). Nil is treated as not-configured
+	// (503), matching the StatusReader-nil check on every other status route.
+	LiveActivity LiveActivityReader
 	// NarrationPosture is an optional func that returns the current governed
 	// answer-narration posture. When non-nil it overrides the DB-derived
 	// AnswerNarration field from the status report, so that GET
@@ -39,6 +43,7 @@ type StatusHandler struct {
 func (h *StatusHandler) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v0/status/pipeline", h.getPipelineStatus)
 	mux.HandleFunc("GET /api/v0/status/operator-control-plane", h.getOperatorControlPlane)
+	mux.HandleFunc("GET /api/v0/status/operations", h.getOperations)
 	mux.HandleFunc("GET /api/v0/status/freshness-causality", h.getFreshnessCausality)
 	mux.HandleFunc("GET /api/v0/status/collectors", h.listCollectors)
 	mux.HandleFunc("GET /api/v0/status/ingesters", h.listIngesters)
