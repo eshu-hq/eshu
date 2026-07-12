@@ -3,11 +3,11 @@
   "blocking": true,
   "totals": {
     "total": 400,
-    "covered": 325,
-    "uncovered": 66,
+    "covered": 328,
+    "uncovered": 63,
     "unresolved": 0,
     "exempt": 9,
-    "percent_satisfied": 83.5
+    "percent_satisfied": 84.25
   },
   "registry_summaries": [
     {
@@ -85,11 +85,11 @@
     {
       "registry": "retractable_edge_type",
       "total": 52,
-      "covered": 14,
-      "uncovered": 38,
+      "covered": 17,
+      "uncovered": 35,
       "unresolved": 0,
       "exempt": 0,
-      "percent_satisfied": 26.92
+      "percent_satisfied": 32.69
     },
     {
       "registry": "retractable_type",
@@ -141,11 +141,11 @@
     {
       "scenario_type": "delta_tombstone",
       "total": 140,
-      "covered": 101,
-      "uncovered": 39,
+      "covered": 104,
+      "uncovered": 36,
       "unresolved": 0,
       "exempt": 0,
-      "percent_satisfied": 72.14
+      "percent_satisfied": 74.29
     },
     {
       "scenario_type": "fault",
@@ -2357,8 +2357,11 @@
       "registry": "retractable_edge_type",
       "key": "retractable_edge:ALIASES",
       "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+      "status": "covered",
+      "scenario": "go_test",
+      "ref": "go/internal/replay/offlinetier/delta_tier_reducer_inheritance_edge_retract_live_test.go",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: go/internal/replay/offlinetier/delta_tier_reducer_inheritance_edge_retract_live_test.go"
     },
     {
       "registry": "retractable_edge_type",
@@ -2618,8 +2621,11 @@
       "registry": "retractable_edge_type",
       "key": "retractable_edge:OVERRIDES",
       "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+      "status": "covered",
+      "scenario": "go_test",
+      "ref": "go/internal/replay/offlinetier/delta_tier_reducer_inheritance_edge_retract_live_test.go",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: go/internal/replay/offlinetier/delta_tier_reducer_inheritance_edge_retract_live_test.go"
     },
     {
       "registry": "retractable_edge_type",
@@ -2735,8 +2741,11 @@
       "registry": "retractable_edge_type",
       "key": "retractable_edge:USES_METACLASS",
       "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+      "status": "covered",
+      "scenario": "go_test",
+      "ref": "go/internal/replay/offlinetier/delta_tier_reducer_metaclass_edge_retract_live_test.go",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: go/internal/replay/offlinetier/delta_tier_reducer_metaclass_edge_retract_live_test.go"
     },
     {
       "registry": "retractable_edge_type",
@@ -3971,7 +3980,6 @@
     "projection:service_catalog_correlation|cost",
     "projection:supply_chain_impact|cost",
     "projection:supply_chain_impact|ordering",
-    "retractable_edge:ALIASES|delta_tombstone",
     "retractable_edge:ALLOWS_EGRESS|delta_tombstone",
     "retractable_edge:ALLOWS_INGRESS|delta_tombstone",
     "retractable_edge:ATLANTIS_DEPENDS_ON|delta_tombstone",
@@ -3994,7 +4002,6 @@
     "retractable_edge:INVOKES_CLOUD_ACTION|delta_tombstone",
     "retractable_edge:LOGS_TO|delta_tombstone",
     "retractable_edge:MANAGES|delta_tombstone",
-    "retractable_edge:OVERRIDES|delta_tombstone",
     "retractable_edge:PROVISIONS_DEPENDENCY_FOR|delta_tombstone",
     "retractable_edge:READS_CONFIG_FROM|delta_tombstone",
     "retractable_edge:RUNS_IMAGE|delta_tombstone",
@@ -4004,7 +4011,6 @@
     "retractable_edge:TAINT_FLOWS_TO|delta_tombstone",
     "retractable_edge:TARGETS_ENVIRONMENT|delta_tombstone",
     "retractable_edge:TO|delta_tombstone",
-    "retractable_edge:USES_METACLASS|delta_tombstone",
     "retractable_edge:USES_MODULE|delta_tombstone",
     "retractable_edge:USES_PROFILE|delta_tombstone",
     "retractable_edge:USES_WORKFLOW|delta_tombstone",
