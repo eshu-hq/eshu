@@ -353,11 +353,24 @@ export function freshnessCopy(
 ): RepositoryFreshnessCopy {
   switch (verdict) {
     case "current":
-      return {
-        tone: "teal",
-        headline: `Current through ${shortSha(snapshot.observedCommit)}`,
-        detail: `Answers include your latest indexed push (${relativeFromNow(snapshot.observedAt, now)}).`,
-      };
+      // "current" is a build-completeness verdict (own stages drained, no
+      // shared-enrichment backlog), not a commit receipt. Snapshot-trigger
+      // and non-git generations can be fully built with no observed_commit
+      // at all -- render that honestly instead of "Current through —" /
+      // claiming a push that was never observed (mirrors the "unknown"
+      // branch's empty-commit honesty below).
+      return snapshot.observedCommit === ""
+        ? {
+            tone: "teal",
+            headline: "Build complete",
+            detail:
+              "This repo's evidence is fully built for its current generation. No commit receipt is recorded for this indexing mode.",
+          }
+        : {
+            tone: "teal",
+            headline: `Current through ${shortSha(snapshot.observedCommit)}`,
+            detail: `Answers include your latest indexed push (${relativeFromNow(snapshot.observedAt, now)}).`,
+          };
     case "building":
       return {
         tone: "violet",

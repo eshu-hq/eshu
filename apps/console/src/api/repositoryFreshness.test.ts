@@ -87,6 +87,30 @@ describe("loadRepositoryFreshness", () => {
     });
   });
 
+  it("does not fabricate a commit receipt for a current verdict with an empty observed_commit", async () => {
+    // Regression: snapshot-trigger / non-git generations can be fully built
+    // (verdict "current") with no commit SHA at all. The backend contract is
+    // build completeness, not a commit receipt -- copy must never claim a
+    // "push" or render a fake "through —" headline in this case.
+    const client = mockClient({
+      data: baseWire({ observed_commit: "", observed_at: null }),
+    });
+    const freshness = await loadRepositoryFreshness(client, "repository:checkout-service", {
+      clock,
+    });
+
+    expect(freshness.verdict).toBe("current");
+    expect(freshness.observedCommit).toBe("");
+    expect(freshness.copy).toEqual({
+      tone: "teal",
+      headline: "Build complete",
+      detail:
+        "This repo's evidence is fully built for its current generation. No commit receipt is recorded for this indexing mode.",
+    });
+    expect(freshness.copy.headline).not.toMatch(/through/i);
+    expect(freshness.copy.detail).not.toMatch(/push/i);
+  });
+
   it("maps the building verdict using the first outstanding stage with a nonzero count", async () => {
     const client = mockClient({
       data: baseWire({

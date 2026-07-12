@@ -41,6 +41,27 @@ describe("RepositoryFreshnessRow", () => {
     expect(client.calls).toEqual(["/api/v0/repositories/repository%3Acheckout-service/freshness"]);
   });
 
+  it("renders 'Build complete' with no fabricated push/sha wording when current has an empty observed_commit", async () => {
+    const client = freshnessClient({
+      verdict: "current",
+      observed_commit: "",
+      observed_at: null,
+      generation: null,
+      stages: { collected: true, reduced: true, projected: true, materialized: true },
+      outstanding_by_stage: [],
+      shared_enrichment: { pending: false, pending_domains: [] },
+      unobserved_push: null,
+      as_of: new Date().toISOString(),
+      scoped: false,
+    });
+
+    render(<RepositoryFreshnessRow client={client} repoId="repository:snapshot-scope" />);
+
+    expect(await screen.findByText("Build complete")).toBeInTheDocument();
+    expect(screen.queryByText(/through/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/push/i)).not.toBeInTheDocument();
+  });
+
   it("renders nothing when the freshness read is unavailable", async () => {
     const client = {
       get: async () => {

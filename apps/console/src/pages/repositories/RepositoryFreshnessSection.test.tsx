@@ -141,6 +141,24 @@ describe("RepositoryFreshnessSection", () => {
     expect(client.calls).toBe(callsAfterFirst);
   });
 
+  it("renders 'Build complete' with no fabricated push/sha wording when current has an empty observed_commit", async () => {
+    const client = sequencedClient([
+      freshnessWire({ verdict: "current", observed_commit: "", observed_at: null }),
+    ]);
+
+    render(
+      <RepositoryFreshnessSection
+        client={client}
+        repoId="repository:snapshot-scope"
+        pollMs={50000}
+      />,
+    );
+
+    expect(await screen.findByText("Build complete")).toBeInTheDocument();
+    expect(screen.queryByText(/through/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/push/i)).not.toBeInTheDocument();
+  });
+
   it("shows an explicit unavailable message and does not render stale content", async () => {
     const client = {
       get: async () => {
