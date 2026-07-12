@@ -228,7 +228,17 @@ func buildProjection(scopeValue scope.IngestionScope, generation scope.ScopeGene
 
 	intents := make([]ReducerIntent, 0, len(inputFacts))
 	for i := range inputFacts {
-		fact := inputFacts[i].Clone()
+		// fact borrows inputFacts[i] instead of deep-cloning it: every consumer
+		// below (validateFactBoundary, validateFactSchemaVersion,
+		// buildContentRecord, buildContentEntityRecord, buildRepositoryRefs,
+		// buildSemanticEntityReducerIntent, buildReducerIntent) only reads
+		// fact.Payload/fact.SourceRef, so it is safe to share the caller's
+		// Payload map read-only across this loop. Consumers in this loop MUST
+		// NOT mutate fact.Payload (or retain a long-lived alias into it) — doing
+		// so would corrupt the caller's inputFacts. See
+		// TestBuildProjectionDoesNotMutateInputFactPayloads for the regression
+		// guard.
+		fact := inputFacts[i]
 		if err := validateFactBoundary(scopeValue, generation, fact); err != nil {
 			return projection{}, err
 		}
