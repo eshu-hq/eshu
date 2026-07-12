@@ -3,11 +3,11 @@
   "blocking": true,
   "totals": {
     "total": 400,
-    "covered": 309,
-    "uncovered": 82,
+    "covered": 312,
+    "uncovered": 79,
     "unresolved": 0,
     "exempt": 9,
-    "percent_satisfied": 79.5
+    "percent_satisfied": 80.25
   },
   "registry_summaries": [
     {
@@ -94,11 +94,11 @@
     {
       "registry": "retractable_type",
       "total": 87,
-      "covered": 82,
-      "uncovered": 5,
+      "covered": 85,
+      "uncovered": 2,
       "unresolved": 0,
       "exempt": 0,
-      "percent_satisfied": 94.25
+      "percent_satisfied": 97.7
     },
     {
       "registry": "surface_inventory",
@@ -141,11 +141,11 @@
     {
       "scenario_type": "delta_tombstone",
       "total": 140,
-      "covered": 85,
-      "uncovered": 55,
+      "covered": 88,
+      "uncovered": 52,
       "unresolved": 0,
       "exempt": 0,
-      "percent_satisfied": 60.71
+      "percent_satisfied": 62.86
     },
     {
       "scenario_type": "fault",
@@ -3004,15 +3004,21 @@
       "registry": "retractable_type",
       "key": "retractable_node:GitlabJob",
       "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
     },
     {
       "registry": "retractable_type",
       "key": "retractable_node:GitlabPipeline",
       "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
     },
     {
       "registry": "retractable_type",
@@ -3078,8 +3084,11 @@
       "registry": "retractable_type",
       "key": "retractable_node:K8sResource",
       "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
     },
     {
       "registry": "retractable_type",
@@ -3974,9 +3983,6 @@
     "retractable_edge:USES_WORKFLOW|delta_tombstone",
     "retractable_edge:USES|delta_tombstone",
     "retractable_node:File|delta_tombstone",
-    "retractable_node:GitlabJob|delta_tombstone",
-    "retractable_node:GitlabPipeline|delta_tombstone",
-    "retractable_node:K8sResource|delta_tombstone",
     "retractable_node:Variable|delta_tombstone"
   ],
   "stale_manifest_surfaces": null,

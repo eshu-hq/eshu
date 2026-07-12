@@ -1653,6 +1653,54 @@
             "end_line": 5,
             "entity_id": "replay-delta-tombstone:union:probe"
           }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:k8s_resource:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "k8s_resource",
+            "entity_name": "retractProbe_k8s_resource",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "yaml",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:k8s_resource:probe"
+          }
+        },
+        {
+          "fact_kind": "git.gitlab_job",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:gitlab:job:doomed",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "uid": "replay-delta-tombstone:gitlab:job:doomed",
+            "name": "doomed",
+            "file_path": "/repos/replay-delta-tombstone/.gitlab-ci.yml",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone"
+          }
+        },
+        {
+          "fact_kind": "git.gitlab_pipeline",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:gitlab:pipeline:doomed",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "uid": "replay-delta-tombstone:gitlab:pipeline:doomed",
+            "name": "doomed-pipeline",
+            "file_path": "/repos/replay-delta-tombstone/.gitlab-ci.yml",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone"
+          }
         }
       ]
     },

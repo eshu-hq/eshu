@@ -110,6 +110,24 @@ gen1 and retracted (count=0) after gen2 against real NornicDB.
 replay-coverage manifest's `retractable_node` delta_tombstone rows, so a
 cassette/manifest drift fails without a backend.
 
+Residual labels with base-cassette survivors (GitlabJob, GitlabPipeline) get a
+doomed instance in gen1 absent from gen2; `delta_tier_survivor_retract_live_test.go`
+proves the doomed instance is retracted (count=0 by uid) while a same-label
+survivor remains, so the retract is scoped, not a label wipe. K8sResource is
+covered through the content_entity batch. File (structural file-retract path the
+offline delta tier does not yet drive) and Variable (reducer-owned semantic
+graph subset, skipped by the canonical entity phase) remain follow-ups.
+
+No-Regression Evidence: this change adds cassette facts and offline-tier live
+tests only; no production projection code changes. On the pinned NornicDB
+`timothyswt/nornicdb-cpu-bge:v1.1.9`, `scripts/verify-replay-tier.sh` proved the
+new K8sResource label and the doomed GitlabJob/GitlabPipeline instances retract
+to count=0 (survivor GitlabJob remains count=1) in a 4s tier run, all live tests
+green. No queue or row-count contract applies to the single-writer offline tier.
+
+No-Observability-Change: no metric, span, log, worker, lease, or status field is
+added; the tier reuses the existing canonical writer phase-group telemetry.
+
 No-Regression Evidence: `projector.ExtractEntityRows` is a thin exported wrapper
 over the existing unexported `extractEntities`; it adds no new production
 projection logic and is called only by this offline test tier, so the
