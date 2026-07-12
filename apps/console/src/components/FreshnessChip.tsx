@@ -4,8 +4,8 @@
 // The title tooltip carries the fuller detail copy plus the full (untruncated)
 // observed commit SHA, so a shortened headline never hides the real value
 // from an operator who wants to copy it.
-import type { RepositoryFreshness } from "../api/repositoryFreshness";
 import { Badge } from "./atoms";
+import type { RepositoryFreshness } from "../api/repositoryFreshness";
 
 export function FreshnessChip({
   freshness,
