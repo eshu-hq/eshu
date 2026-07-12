@@ -499,6 +499,27 @@ coverage:
   # the parser/python-metaclass evidence source, proven by its own live
   # EdgeWriter write+retract against a real NornicDB.
   - {surface: retractable_edge:USES_METACLASS, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_metaclass_edge_retract_live_test.go, proof_gate: replay-tier}
+  # Repository relationship, RUNS_ON, and evidence-artifact edges (#4367): the
+  # repo-dependency retract ran its three statements grouped through one
+  # managed transaction, which under-applies on NornicDB v1.1.11, and the
+  # RUNS_ON templates used a direction-reversing path chain that matches zero
+  # rows; both fixed and live-proven by a full-family write+retract against a
+  # real NornicDB.
+  - {surface: retractable_edge:DEPENDS_ON, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_repo_dependency_retract_live_test.go, proof_gate: replay-tier}
+  - {surface: retractable_edge:DEPLOYS_FROM, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_repo_dependency_retract_live_test.go, proof_gate: replay-tier}
+  - {surface: retractable_edge:DISCOVERS_CONFIG_IN, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_repo_dependency_retract_live_test.go, proof_gate: replay-tier}
+  - {surface: retractable_edge:PROVISIONS_DEPENDENCY_FOR, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_repo_dependency_retract_live_test.go, proof_gate: replay-tier}
+  - {surface: retractable_edge:USES_MODULE, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_repo_dependency_retract_live_test.go, proof_gate: replay-tier}
+  - {surface: retractable_edge:READS_CONFIG_FROM, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_repo_dependency_retract_live_test.go, proof_gate: replay-tier}
+  - {surface: retractable_edge:RUNS_ON, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_repo_dependency_retract_live_test.go, proof_gate: replay-tier}
+  - {surface: retractable_edge:HAS_DEPLOYMENT_EVIDENCE, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_repo_dependency_retract_live_test.go, proof_gate: replay-tier}
+  - {surface: retractable_edge:EVIDENCES_REPOSITORY_RELATIONSHIP, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_repo_dependency_retract_live_test.go, proof_gate: replay-tier}
+  - {surface: retractable_edge:TARGETS_ENVIRONMENT, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_repo_dependency_retract_live_test.go, proof_gate: replay-tier}
+  # Symbol->runtime edges (#4367): single-label single-statement retracts,
+  # live-proven by a write+retract per domain against a real NornicDB.
+  - {surface: retractable_edge:HANDLES_ROUTE, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_runtime_edge_retract_live_test.go, proof_gate: replay-tier}
+  - {surface: retractable_edge:RUNS_IN, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_runtime_edge_retract_live_test.go, proof_gate: replay-tier}
+  - {surface: retractable_edge:INVOKES_CLOUD_ACTION, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_runtime_edge_retract_live_test.go, proof_gate: replay-tier}
   # Reducer-materialized SQL relationships (#5116): all six source-label query
   # shapes are proven through the live production EdgeWriter for both repository
   # and delta-file retract scopes. REFERENCES_TABLE is exercised from SqlView

@@ -86,17 +86,19 @@ that grouped duration before claiming full-corpus wall-clock improvement.
 
 ## Observability evidence
 
-Observability Evidence: `repo_dependency` retracts now emit
-`shared edge retract group completed` on grouped execution with `domain`,
-`evidence_source`, `execution_mode=group`, `repo_count`, `statement_count`,
-`duration_seconds`, and `statement_summaries`. Each summary names the
-relationship family:
-`repository_relationship_edges`,
-`runs_on_relationships`, or `evidence_artifacts`. Sequential fallback execution
-emits `shared edge retract statement completed` with `statement_role`,
-`repo_count`, `statement_count=1`, `duration_seconds`, and the same statement
-summary. With `ESHU_REPO_DEPENDENCY_RETRACT_STATEMENT_TIMING=true`, diagnostic
-execution logs the same three statement roles separately.
+Observability Evidence: `repo_dependency` retracts emit
+`shared edge retract statement completed` per statement with `statement_role`,
+`repo_count`, `statement_count=1`, `duration_seconds`, and a statement summary
+naming the relationship family: `repository_relationship_edges`,
+`runs_on_relationships`, or `evidence_artifacts`.
+
+Update (#4367): the grouped execution mode this note originally described
+(`shared edge retract group completed`, `execution_mode=group`) was removed —
+grouped DELETEs under-apply on NornicDB v1.1.11, so the three statements now
+always run sequentially and the per-statement log above is the only execution
+mode; `ESHU_REPO_DEPENDENCY_RETRACT_STATEMENT_TIMING` is retained for
+compatibility but no longer changes behavior. See
+`evidence-4367-repo-dependency-retract-sequential.md`.
 
 The grouped log intentionally records one duration for the atomic group instead
 of splitting production execution into separate transactions. That preserves

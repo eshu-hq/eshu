@@ -4,7 +4,7 @@
 
 Every surface Eshu claims to support should have a green, credential-free, Docker-free replay scenario. This dashboard is generated from the C-1 coverage manifest and the source-of-truth registries (epic [#4172](https://github.com/eshu-hq/eshu/issues/4172)); it is refreshed by the replay-coverage gate so the gap is reviewable in a PR diff.
 
-**Overall: 337/400 surfaces satisfied (84.25%)** — mode: blocking.
+**Overall: 350/400 surfaces satisfied (87.50%)** — mode: blocking.
 
 ## Coverage by axis
 
@@ -18,10 +18,10 @@ Every surface Eshu claims to support should have a green, credential-free, Docke
 | Product claims | 11 | 11 | 100.00% | 0 | 0 |
 | Projections (cost/ordering) | 0 | 27 | 0.00% | 27 | 0 |
 | Reducer drain (crash) | 1 | 1 | 100.00% | 0 | 0 |
-| Retractable edge types (delta) | 17 | 52 | 32.69% | 35 | 0 |
+| Retractable edge types (delta) | 30 | 52 | 57.69% | 22 | 0 |
 | Retractable node types (delta) | 86 | 87 | 98.85% | 1 | 0 |
 | Collectors | 34 | 34 | 100.00% | 0 | 8 |
-| **Total** | **337** | **400** | **84.25%** | **63** | **9** |
+| **Total** | **350** | **400** | **87.50%** | **50** | **9** |
 
 ## Coverage by scenario type
 
@@ -30,7 +30,7 @@ Every surface Eshu claims to support should have a green, credential-free, Docke
 | baseline | 212 | 212 | 100.00% | 0 | 5 |
 | cost | 1 | 26 | 3.85% | 25 | 0 |
 | crash | 2 | 2 | 100.00% | 0 | 0 |
-| delta_tombstone | 104 | 140 | 74.29% | 36 | 0 |
+| delta_tombstone | 117 | 140 | 83.57% | 23 | 0 |
 | fault | 17 | 17 | 100.00% | 0 | 4 |
 | ordering | 1 | 3 | 33.33% | 2 | 0 |
 
@@ -44,7 +44,7 @@ Every ledger language is satisfied by corpus or parser fixture coverage.
 
 ## Gaps — surfaces still needing a replay scenario
 
-63 surface(s) uncovered or unresolved:
+50 surface(s) uncovered or unresolved:
 
 ### Projections (cost/ordering) (27)
 
@@ -76,7 +76,7 @@ Every ledger language is satisfied by corpus or parser fixture coverage.
 - `projection:supply_chain_impact` (ordering)
 - `projection:supply_chain_impact` (cost)
 
-### Retractable edge types (delta) (35)
+### Retractable edge types (delta) (22)
 
 - `retractable_edge:ALLOWS_EGRESS` (delta_tombstone)
 - `retractable_edge:ALLOWS_INGRESS` (delta_tombstone)
@@ -85,32 +85,19 @@ Every ledger language is satisfied by corpus or parser fixture coverage.
 - `retractable_edge:CAN_ESCALATE_TO` (delta_tombstone)
 - `retractable_edge:CAN_PERFORM` (delta_tombstone)
 - `retractable_edge:CORRELATES_DEPLOYABLE_UNIT` (delta_tombstone)
-- `retractable_edge:DEPENDS_ON` (delta_tombstone)
-- `retractable_edge:DEPLOYS_FROM` (delta_tombstone)
-- `retractable_edge:DISCOVERS_CONFIG_IN` (delta_tombstone)
 - `retractable_edge:DOCUMENTS` (delta_tombstone)
-- `retractable_edge:EVIDENCES_REPOSITORY_RELATIONSHIP` (delta_tombstone)
 - `retractable_edge:EXECUTES_SHELL` (delta_tombstone)
 - `retractable_edge:GRANTS_ACCESS_TO` (delta_tombstone)
-- `retractable_edge:HANDLES_ROUTE` (delta_tombstone)
-- `retractable_edge:HAS_DEPLOYMENT_EVIDENCE` (delta_tombstone)
 - `retractable_edge:HAS_ROLE` (delta_tombstone)
 - `retractable_edge:HELM_VALUE_REFERENCE` (delta_tombstone)
 - `retractable_edge:IMPORTS` (delta_tombstone)
-- `retractable_edge:INVOKES_CLOUD_ACTION` (delta_tombstone)
 - `retractable_edge:LOGS_TO` (delta_tombstone)
 - `retractable_edge:MANAGES` (delta_tombstone)
-- `retractable_edge:PROVISIONS_DEPENDENCY_FOR` (delta_tombstone)
-- `retractable_edge:READS_CONFIG_FROM` (delta_tombstone)
 - `retractable_edge:RUNS_IMAGE` (delta_tombstone)
-- `retractable_edge:RUNS_IN` (delta_tombstone)
-- `retractable_edge:RUNS_ON` (delta_tombstone)
 - `retractable_edge:SECRETS_IAM_USES_SERVICE_ACCOUNT` (delta_tombstone)
 - `retractable_edge:TAINT_FLOWS_TO` (delta_tombstone)
-- `retractable_edge:TARGETS_ENVIRONMENT` (delta_tombstone)
 - `retractable_edge:TO` (delta_tombstone)
 - `retractable_edge:USES` (delta_tombstone)
-- `retractable_edge:USES_MODULE` (delta_tombstone)
 - `retractable_edge:USES_PROFILE` (delta_tombstone)
 - `retractable_edge:USES_WORKFLOW` (delta_tombstone)
 
@@ -118,7 +105,7 @@ Every ledger language is satisfied by corpus or parser fixture coverage.
 
 - `retractable_node:Variable` (delta_tombstone)
 
-## Covered surfaces (337)
+## Covered surfaces (350)
 
 | Surface | Scenario type | Scenario | Proof gate | Artifact |
 | --- | --- | --- | --- | --- |
@@ -326,19 +313,32 @@ Every ledger language is satisfied by corpus or parser fixture coverage.
 | `retractable_edge:CALLS` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_edge_retract_live_test.go` |
 | `retractable_edge:CONTAINS` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
 | `retractable_edge:DEFINES_JOB` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
+| `retractable_edge:DEPENDS_ON` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_repo_dependency_retract_live_test.go` |
+| `retractable_edge:DEPLOYS_FROM` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_repo_dependency_retract_live_test.go` |
+| `retractable_edge:DISCOVERS_CONFIG_IN` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_repo_dependency_retract_live_test.go` |
+| `retractable_edge:EVIDENCES_REPOSITORY_RELATIONSHIP` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_repo_dependency_retract_live_test.go` |
 | `retractable_edge:EXECUTES` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_sql_relationship_retract_live_test.go` |
 | `retractable_edge:EXPLAINS` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_rationale_edge_retract_live_test.go` |
+| `retractable_edge:HANDLES_ROUTE` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_runtime_edge_retract_live_test.go` |
 | `retractable_edge:HAS_COLUMN` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_sql_relationship_retract_live_test.go` |
+| `retractable_edge:HAS_DEPLOYMENT_EVIDENCE` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_repo_dependency_retract_live_test.go` |
 | `retractable_edge:IMPLEMENTS` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_inheritance_edge_retract_live_test.go` |
 | `retractable_edge:INHERITS` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_inheritance_edge_retract_live_test.go` |
 | `retractable_edge:INSTANTIATES` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_edge_retract_live_test.go` |
+| `retractable_edge:INVOKES_CLOUD_ACTION` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_runtime_edge_retract_live_test.go` |
 | `retractable_edge:NEEDS` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
 | `retractable_edge:OVERRIDES` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_inheritance_edge_retract_live_test.go` |
+| `retractable_edge:PROVISIONS_DEPENDENCY_FOR` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_repo_dependency_retract_live_test.go` |
 | `retractable_edge:QUERIES_TABLE` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_sql_relationship_retract_live_test.go` |
+| `retractable_edge:READS_CONFIG_FROM` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_repo_dependency_retract_live_test.go` |
 | `retractable_edge:REFERENCES` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_edge_retract_live_test.go` |
 | `retractable_edge:REFERENCES_TABLE` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_sql_relationship_retract_live_test.go` |
+| `retractable_edge:RUNS_IN` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_runtime_edge_retract_live_test.go` |
+| `retractable_edge:RUNS_ON` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_repo_dependency_retract_live_test.go` |
+| `retractable_edge:TARGETS_ENVIRONMENT` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_repo_dependency_retract_live_test.go` |
 | `retractable_edge:TRIGGERS` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_sql_relationship_retract_live_test.go` |
 | `retractable_edge:USES_METACLASS` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_metaclass_edge_retract_live_test.go` |
+| `retractable_edge:USES_MODULE` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_repo_dependency_retract_live_test.go` |
 | `retractable_node:AnalyticsModel` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
 | `retractable_node:Annotation` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
 | `retractable_node:ArgoCDApplication` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |

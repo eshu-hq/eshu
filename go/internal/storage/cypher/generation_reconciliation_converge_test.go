@@ -142,7 +142,7 @@ func TestReconciliationDriftDrivesRepoScopedRetract(t *testing.T) {
 		t.Fatalf("expected 1 retract row, got %d", len(retractRows))
 	}
 
-	executor := &recordingGroupExecutor{}
+	executor := &sqlSequentialRecordingExecutor{}
 	writer := NewEdgeWriter(executor, 0)
 	if err := writer.RetractEdges(
 		context.Background(),
@@ -153,10 +153,10 @@ func TestReconciliationDriftDrivesRepoScopedRetract(t *testing.T) {
 		t.Fatalf("RetractEdges() error = %v", err)
 	}
 
-	if len(executor.groupCalls) != 1 {
-		t.Fatalf("expected 1 grouped retract call, got %d", len(executor.groupCalls))
+	if len(executor.calls) == 0 {
+		t.Fatal("expected sequential retract statements, got none")
 	}
-	stmts := executor.groupCalls[0]
+	stmts := executor.calls
 	if len(stmts) == 0 {
 		t.Fatal("retract issued no statements")
 	}

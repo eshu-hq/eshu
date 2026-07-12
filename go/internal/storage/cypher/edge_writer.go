@@ -26,9 +26,11 @@ type EdgeWriter struct {
 	CodeCallGroupBatchSize        int
 	InheritanceGroupBatchSize     int
 	SQLRelationshipGroupBatchSize int
-	// RepoDependencyRetractStatementTiming splits repo_dependency retracts into
-	// per-statement executions for diagnostic timing. Leave false for the
-	// production grouped transaction boundary.
+	// RepoDependencyRetractStatementTiming is retained for environment
+	// compatibility (ESHU_REPO_DEPENDENCY_RETRACT_STATEMENT_TIMING) but no
+	// longer changes behavior: repo_dependency retracts always run their three
+	// statements sequentially with per-statement timing logs, because grouped
+	// DELETEs under-apply on NornicDB v1.1.11 (#4367).
 	RepoDependencyRetractStatementTiming bool
 	Instruments                          *telemetry.Instruments
 	Logger                               *slog.Logger
