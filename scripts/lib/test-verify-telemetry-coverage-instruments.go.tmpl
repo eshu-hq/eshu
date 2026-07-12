@@ -1,0 +1,23 @@
+// Package telemetry holds the metric instruments for the test repo.
+package telemetry
+
+import "go.opentelemetry.io/otel/metric"
+
+type Inits struct{}
+
+// InitInstruments registers all metrics referenced by the X1 doc.
+func InitInstruments(meter metric.Meter) (*Inits, error) {
+	if _, err := meter.Int64Histogram(
+		"eshu_dp_queue_claim_duration_seconds",
+		metric.WithDescription("queue claim duration"),
+	); err != nil {
+		return nil, err
+	}
+	if _, err := meter.Float64Histogram(
+		"eshu_dp_reducer_run_duration_seconds",
+		metric.WithDescription("reducer run duration"),
+	); err != nil {
+		return nil, err
+	}
+	return &Inits{}, nil
+}

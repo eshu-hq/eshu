@@ -42,45 +42,19 @@ init_repo() {
   git -C "${dir}" config user.email "test@example.invalid"
   git -C "${dir}" config user.name "Eshu Telemetry Coverage Test"
   mkdir -p "${dir}/docs/public/observability" "${dir}/go/internal/telemetry" "${dir}/go/internal/reducer"
-  cat >"${dir}/docs/public/observability/telemetry-coverage.md" <<'MD'
-# Telemetry Coverage Contract
-
-This page enumerates every observable stage in the Eshu data plane and the
-metric, span, or log key it must emit. The CI coverage script (X2) diffs
-against it.
-
-## Reducer Stages
-
-| stage | file:line | required metric name(s) | category |
-| --- | --- | --- | --- |
-| queue claim | go/internal/reducer/service.go:1 | `eshu_dp_queue_claim_duration_seconds` | reducer runtime |
-| reducer run | go/internal/reducer/service.go:2 | `eshu_dp_reducer_run_duration_seconds` | reducer runtime |
-MD
-  cat >"${dir}/go/internal/telemetry/instruments.go" <<'GO'
-// Package telemetry holds the metric instruments for the test repo.
-package telemetry
-
-import "go.opentelemetry.io/otel/metric"
-
-type Inits struct{}
-
-// InitInstruments registers all metrics referenced by the X1 doc.
-func InitInstruments(meter metric.Meter) (*Inits, error) {
-	if _, err := meter.Int64Histogram(
-		"eshu_dp_queue_claim_duration_seconds",
-		metric.WithDescription("queue claim duration"),
-	); err != nil {
-		return nil, err
-	}
-	if _, err := meter.Float64Histogram(
-		"eshu_dp_reducer_run_duration_seconds",
-		metric.WithDescription("reducer run duration"),
-	); err != nil {
-		return nil, err
-	}
-	return &Inits{}, nil
-}
-GO
+  # Delivered from a sibling fixture file, not a heredoc: Homebrew bash >= 5.1
+  # writes an entire heredoc body to a pipe before forking the reader, and
+  # macOS's 512-byte pipe buffer deadlocks on this ~516B body (#5074). The
+  # body is fully static (was a quoted <<'MD', no shell expansion), so
+  # the file is byte-identical to the original heredoc body.
+  cat "${repo_root}/scripts/lib/test-verify-telemetry-coverage-telemetry-coverage.md" >"${dir}/docs/public/observability/telemetry-coverage.md"
+  # Delivered from a sibling fixture file, not a heredoc: Homebrew bash >= 5.1
+  # writes an entire heredoc body to a pipe before forking the reader, and
+  # macOS's 512-byte pipe buffer deadlocks on this ~635B body (#5074). The
+  # body is fully static (was a quoted <<'GO', no shell expansion), so
+  # the file is byte-identical to the original heredoc body. Named .go.tmpl (not
+  # .go) so this fixture data is never mistaken for a real repo source file.
+  cat "${repo_root}/scripts/lib/test-verify-telemetry-coverage-instruments.go.tmpl" >"${dir}/go/internal/telemetry/instruments.go"
   printf 'package reducer\n' >"${dir}/go/internal/reducer/service.go"
   git -C "${dir}" add .
   git -C "${dir}" commit -q -m initial
@@ -170,21 +144,12 @@ expect_pass "ignores new non-.go files under stage-owner directories" "${case_ne
 # underlying counters are intentionally not registered. The verifier must
 # accept the marker and exit 0.
 case_no_change="$(init_repo case-no-change)"
-cat >"${case_no_change}/docs/public/observability/telemetry-coverage.md" <<'MD'
-# Telemetry Coverage Contract
-
-This page enumerates every observable stage in the Eshu data plane and the
-metric, span, or log key it must emit. The CI coverage script (X2) diffs
-against it.
-
-## Reducer Stages
-
-| stage | file:line | required metric name(s) | category |
-| --- | --- | --- | --- |
-| queue claim | go/internal/reducer/service.go:1 | `eshu_dp_queue_claim_duration_seconds` | reducer runtime |
-| reducer run | go/internal/reducer/service.go:2 | `eshu_dp_reducer_run_duration_seconds` | reducer runtime |
-| content re-read | go/internal/telemetry/instruments.go:1 | `No-Observability-Change: eshu_dp_content_rereads_total and eshu_dp_content_reread_skips_total counters are registered but no longer emit; facts emitted/fact batches committed cover the path` | reducer fact commit |
-MD
+# Delivered from a sibling fixture file, not a heredoc: Homebrew bash >= 5.1
+# writes an entire heredoc body to a pipe before forking the reader, and
+# macOS's 512-byte pipe buffer deadlocks on this ~793B body (#5074). The
+# body is fully static (was a quoted <<'MD', no shell expansion), so
+# the file is byte-identical to the original heredoc body.
+cat "${repo_root}/scripts/lib/test-verify-telemetry-coverage-no-change-telemetry-coverage.md" >"${case_no_change}/docs/public/observability/telemetry-coverage.md"
 git -C "${case_no_change}" add .
 git -C "${case_no_change}" commit -q -m "add No-Observability-Change marker"
 expect_pass "accepts No-Observability-Change marker in doc row" "${case_no_change}"
