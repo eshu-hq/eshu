@@ -176,6 +176,16 @@ func TestAtlantisEdgeStatementsRetractsStaleEdgesBeforeMerge(t *testing.T) {
 		if stmt.Operation != OperationCanonicalRetract {
 			t.Fatalf("statement %d Operation = %q, want %q", i, stmt.Operation, OperationCanonicalRetract)
 		}
+		// #4367/#4476 sibling: an UNWIND relationship DELETE silently no-ops when
+		// grouped inside the mixed structural_edges ExecuteWrite transaction
+		// alongside the sibling MERGE upserts, exactly like the Helm and GitLab
+		// structural edge retracts (retractHelmTemplateValueReferenceEdgesCypher,
+		// retractGitlabDefinesJobEdgesCypher). The statement must carry
+		// Drain=true so the NornicDB phase-group executor runs it as its own
+		// standalone autocommit statement.
+		if !stmt.Drain {
+			t.Fatalf("%s retract statement has Drain = false, want true (grouped UNWIND relationship DELETE no-ops on NornicDB, #4476)", relType)
+		}
 		if !strings.Contains(stmt.Cypher, "AtlantisProject {uid: uid}") ||
 			!strings.Contains(stmt.Cypher, "[r:"+relType+"]") ||
 			!strings.Contains(stmt.Cypher, "r.evidence_source = 'projector/canonical'") ||

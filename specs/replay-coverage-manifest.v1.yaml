@@ -558,6 +558,34 @@ coverage:
   # deletes nothing on NornicDB v1.1.11; proven by a live EdgeWriter
   # write+retract covering the delta and whole-repo paths.
   - {surface: retractable_edge:EXPLAINS, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_rationale_edge_retract_live_test.go, proof_gate: replay-tier}
+  # Parser/canonical governance and structural edges (#4367 retract-depth
+  # backfill, C-14). IMPORTS runs in the CanonicalNodeWriter all-retract
+  # "retract" phase, which the NornicDB phase-group executor already
+  # dispatches as sequential autocommit Execute calls, and
+  # HELM_VALUE_REFERENCE was already Drain-marked (#4476) — both were already
+  # safe shapes and are live-claimed here without a production fix. MANAGES,
+  # ATLANTIS_DEPENDS_ON, and USES_WORKFLOW were NOT Drain-marked: their UNWIND
+  # relationship DELETE ran grouped inside the mixed structural_edges
+  # ExecuteWrite transaction alongside the sibling MERGE upserts, which
+  # silently no-ops on NornicDB v1.1.11 (the same class already fixed for the
+  # Helm and GitLab structural edges); fixed by Drain-marking all three
+  # Atlantis retract statements.
+  - {surface: retractable_edge:IMPORTS, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_canonical_governance_edge_retract_live_test.go, proof_gate: replay-tier}
+  - {surface: retractable_edge:HELM_VALUE_REFERENCE, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_canonical_governance_edge_retract_live_test.go, proof_gate: replay-tier}
+  - {surface: retractable_edge:MANAGES, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_canonical_governance_edge_retract_live_test.go, proof_gate: replay-tier}
+  - {surface: retractable_edge:ATLANTIS_DEPENDS_ON, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_canonical_governance_edge_retract_live_test.go, proof_gate: replay-tier}
+  - {surface: retractable_edge:USES_WORKFLOW, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_canonical_governance_edge_retract_live_test.go, proof_gate: replay-tier}
+  # Workload/cloud usage edges (#4367 sibling, #5152): both
+  # WorkloadCloudRelationshipWriter.RetractWorkloadCloudRelationshipEdges (USES)
+  # and EC2UsesProfileEdgeWriter.RetractEC2UsesProfileEdges (USES_PROFILE)
+  # dispatched their single retract DELETE through the same dispatch() the
+  # MERGE-shaped write uses, which groups whenever the executor supports it —
+  # a single DELETE inside a managed transaction can under-apply on NornicDB
+  # v1.1.11 even ungrouped from siblings. Fixed by adding a dispatchRetract
+  # method to each writer (sequential Execute, never ExecuteGroup), mirroring
+  # CodeInterprocEvidenceWriter.dispatchRetract.
+  - {surface: retractable_edge:USES, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_workload_uses_edge_retract_live_test.go, proof_gate: replay-tier}
+  - {surface: retractable_edge:USES_PROFILE, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_workload_uses_edge_retract_live_test.go, proof_gate: replay-tier}
   - {surface: reducer_drain:reducer-projection-drain, scenario: go_test, scenario_type: crash, ref: go/internal/replay/crashreplay/scenario_test.go, proof_gate: go-test-race}
 
 scenario_requirements:

@@ -171,7 +171,7 @@ func (w *EC2UsesProfileEdgeWriter) RetractEC2UsesProfileEdges(
 		},
 	}
 
-	return w.dispatch(ctx, []Statement{stmt})
+	return w.dispatchRetract(ctx, []Statement{stmt})
 }
 
 // validateEC2UsesProfileRelationshipType screens a row's relationship_type against
@@ -196,7 +196,8 @@ func ec2UsesProfileRelationshipType() string {
 // dispatch runs the prepared statements as one atomic group when the executor
 // supports grouping, otherwise sequentially. Transient backend errors are
 // classified retryable so the durable reducer queue can re-run the idempotent
-// batch.
+// batch. Only the MERGE-shaped write path uses this: grouping is safe (and
+// desirable for throughput) for idempotent MERGE upserts.
 func (w *EC2UsesProfileEdgeWriter) dispatch(ctx context.Context, stmts []Statement) error {
 	if len(stmts) == 0 {
 		return nil
@@ -205,6 +206,27 @@ func (w *EC2UsesProfileEdgeWriter) dispatch(ctx context.Context, stmts []Stateme
 		if err := ge.ExecuteGroup(ctx, stmts); err != nil {
 			return WrapRetryableNeo4jError(err)
 		}
+		return nil
+	}
+	for _, stmt := range stmts {
+		if err := w.executor.Execute(ctx, stmt); err != nil {
+			return WrapRetryableNeo4jError(err)
+		}
+	}
+	return nil
+}
+
+// dispatchRetract runs retract statements sequentially through Execute, each
+// in its own auto-commit transaction — never ExecuteGroup. On NornicDB
+// v1.1.11 a DELETE inside a managed transaction can under-apply even as a
+// single statement (measured for the TAINT_FLOWS_TO retract in
+// CodeInterprocEvidenceWriter.dispatchRetract and the SQL-relationship and
+// repo-dependency retracts, #4367/#5128/#5146/#5152): the grouped DELETE
+// leaves the edge in place while the same statement auto-committed deletes
+// it. RetractEC2UsesProfileEdges routes through this so the USES_PROFILE
+// retract is never batched with a sibling write via ExecuteGroup.
+func (w *EC2UsesProfileEdgeWriter) dispatchRetract(ctx context.Context, stmts []Statement) error {
+	if len(stmts) == 0 {
 		return nil
 	}
 	for _, stmt := range stmts {
