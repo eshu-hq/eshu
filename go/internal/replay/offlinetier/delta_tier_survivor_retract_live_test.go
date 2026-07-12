@@ -29,9 +29,9 @@ const (
 	survivingGitlabPipeUID = deltaRepoID + ":gitlab:pipeline"
 )
 
-// TestDeltaSurvivorScopedRetractGraphTruth proves File, GitlabJob, and
-// GitlabPipeline instances present in gen1 and absent from gen2 are retracted to
-// count=0, while a same-label survivor remains, on a real NornicDB.
+// TestDeltaSurvivorScopedRetractGraphTruth proves GitlabJob and GitlabPipeline
+// instances present in gen1 and absent from gen2 are retracted to count=0, while
+// a same-label survivor remains, on a real NornicDB.
 func TestDeltaSurvivorScopedRetractGraphTruth(t *testing.T) {
 	if !liveTierEnabled() {
 		t.Skipf("set %s=1 (and ESHU_GRAPH_BACKEND/NEO4J_URI/ESHU_NEO4J_DATABASE) to run the survivor-scoped retract tier against a real NornicDB", liveTierEnv)
