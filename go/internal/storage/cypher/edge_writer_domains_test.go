@@ -390,10 +390,12 @@ func TestBatchedWriteEdgesUsesUNWINDCypherIncludesNewDomains(t *testing.T) {
 }
 
 type recordingGroupExecutor struct {
+	calls      []Statement
 	groupCalls [][]Statement
 }
 
-func (r *recordingGroupExecutor) Execute(context.Context, Statement) error {
+func (r *recordingGroupExecutor) Execute(_ context.Context, stmt Statement) error {
+	r.calls = append(r.calls, stmt)
 	return nil
 }
 
