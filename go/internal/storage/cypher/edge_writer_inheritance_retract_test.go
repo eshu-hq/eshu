@@ -12,6 +12,29 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
+// TestInheritanceRetractCoversEveryWriteEndpointLabel closes a coverage gap
+// raised in review on #5120: the retract's per-child-label set
+// (inheritanceRetractChildLabels) must include every label the WRITE path can
+// create an inheritance edge from (inheritanceEndpointLabels, the independent
+// source of truth). Without this link, a label added to the write set but not
+// the retract set would let edges from that label be written yet never retracted,
+// and neither the (self-referential) single-label guard nor the Class-only live
+// test would catch it — the replay-coverage dashboard would stay green while
+// production kept stale edges.
+func TestInheritanceRetractCoversEveryWriteEndpointLabel(t *testing.T) {
+	t.Parallel()
+
+	retractSet := make(map[string]bool, len(inheritanceRetractChildLabels))
+	for _, label := range inheritanceRetractChildLabels {
+		retractSet[label] = true
+	}
+	for label := range inheritanceEndpointLabels {
+		if !retractSet[label] {
+			t.Errorf("write-path inheritance endpoint label %q has no retract statement: add it to inheritanceRetractChildLabels, or its edges are written but never retracted", label)
+		}
+	}
+}
+
 // TestInheritanceRetractStatementsUseSingleChildLabel guards the #5116/#4367 fix:
 // the inheritance retract must emit one statement per child label with a
 // single-label `(child:Label)` anchor. On NornicDB a node-label disjunction
