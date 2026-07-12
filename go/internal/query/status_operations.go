@@ -21,8 +21,22 @@ import (
 // from status.Reader, because the query is bounded by an operator-supplied
 // limit rather than the fixed RawSnapshot shape the rest of the status
 // surface composes.
+//
+// Access scoping (#5137 cold-review P1-1): allScopes selects the
+// admin/all-scopes path (no row filtering). When allScopes is false, rows
+// must be restricted to allowedRepositoryIDs/allowedScopeIDs; an
+// implementation MUST return zero rows without querying when both are empty
+// -- see postgres.LiveActivityStore.ReadLiveActivity for the reference
+// implementation and getOperations below for the caller-side short-circuit
+// that avoids invoking this method at all in that case.
 type LiveActivityReader interface {
-	ReadLiveActivity(ctx context.Context, limit int) ([]status.LiveActivityRow, bool, error)
+	ReadLiveActivity(
+		ctx context.Context,
+		limit int,
+		allScopes bool,
+		allowedRepositoryIDs []string,
+		allowedScopeIDs []string,
+	) ([]status.LiveActivityRow, bool, error)
 }
 
 // operationsDefaultLimit and operationsMaxLimit bound the `limit` query
@@ -35,10 +49,12 @@ const (
 )
 
 // scopedOperationsRoute reports whether the request targets the live
-// operations board. The handler redacts repo identity (source_key,
-// source_display) and worker identity (lease_owner) from live_activity rows
-// for scoped tokens and collapses collector detail to aggregate counts, so
-// the route is tenant-filter safe.
+// operations board. The handler restricts live_activity rows to the caller's
+// granted repositories/ingestion scopes (returning zero rows without
+// querying when a scoped caller holds no grants, #5137 cold-review P1-1) and
+// redacts repo identity (source_key, source_display) and worker identity
+// (lease_owner) on every row it does return; collector detail collapses to
+// aggregate counts. All three together make the route tenant-filter safe.
 func scopedOperationsRoute(r *http.Request) bool {
 	return r.Method == http.MethodGet && r.URL.Path == "/api/v0/status/operations"
 }
@@ -49,6 +65,17 @@ func scopedOperationsRoute(r *http.Request) bool {
 // the status surface uses -- composed with live_activity, a bounded,
 // separately-queried list of in-flight work items joined to their
 // originating repo and worker.
+//
+// Access scoping (#5137 cold-review P1-1): live_activity rows are restricted
+// to the caller's granted repositories/ingestion scopes
+// (repositoryAccessFilterFromContext, the same access.grantedRepositoryIDs/
+// grantedScopeIDs port admin_dead_letters.go uses over the same two tables).
+// A scoped caller with NO grants (access.empty()) never reaches the reader
+// at all -- live_activity renders as an empty array without a query, so a
+// misbehaving or nil-checked-only reader implementation can never leak
+// another tenant's in-flight work by accident. Admin/shared tokens are
+// unaffected (access.empty() is always false for them) and see every
+// in-flight row, matching the pre-fix behavior.
 //
 // Scoped tokens receive the same aggregate sections; live_activity rows keep
 // every field except source_key/source_display (repo identity, raw and
@@ -76,10 +103,24 @@ func (h *StatusHandler) getOperations(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	activity, truncated, err := h.LiveActivity.ReadLiveActivity(r.Context(), limit)
-	if err != nil {
-		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("read live activity: %v", err))
-		return
+	// A scoped caller with no granted repository or ingestion scope must
+	// never reach the reader: even with identity redacted below, one row per
+	// in-flight work item across every tenant would leak existence, volume,
+	// domain, and timing. Skip the call entirely rather than pass empty
+	// grants through (mirrors admin_dead_letters.go's access.empty() guard).
+	access := repositoryAccessFilterFromContext(r.Context())
+	var (
+		activity  []status.LiveActivityRow
+		truncated bool
+	)
+	if !access.empty() {
+		activity, truncated, err = h.LiveActivity.ReadLiveActivity(
+			r.Context(), limit, !access.scoped(), access.grantedRepositoryIDs(), access.grantedScopeIDs(),
+		)
+		if err != nil {
+			WriteError(w, http.StatusInternalServerError, fmt.Sprintf("read live activity: %v", err))
+			return
+		}
 	}
 
 	ops := status.Operations(report, activity, truncated, limit)

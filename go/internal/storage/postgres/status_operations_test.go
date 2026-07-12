@@ -6,25 +6,29 @@ package postgres
 import (
 	"context"
 	"errors"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/lib/pq"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
-// TestLiveActivityQueryUsesIndexedStatusFilterAndBoundedLimit asserts the
-// query shape backing the #5137 operations board matches the proven,
-// benchmarked shape: a status IN filter that engages
-// fact_work_items_status_idx, deterministic ordering, and a placeholder
-// LIMIT (the caller passes limit+1 so ReadLiveActivity can compute
-// `truncated` without a second COUNT query).
-func TestLiveActivityQueryUsesIndexedStatusFilterAndBoundedLimit(t *testing.T) {
+// TestBuildLiveActivityQueryAllScopesMatchesOriginalShape asserts that the
+// admin/all-scopes path (#5137 cold-review P1-1) produces the exact query
+// shape backing the #5137 operations board proof: a status IN filter that
+// engages fact_work_items_status_idx, deterministic ordering, and a
+// placeholder LIMIT (the caller passes limit+1 so ReadLiveActivity can
+// compute `truncated` without a second COUNT query) -- with NO access-scope
+// predicate, so the admin plan shape is unchanged from before this fix.
+func TestBuildLiveActivityQueryAllScopesMatchesOriginalShape(t *testing.T) {
 	t.Parallel()
 
+	query, args := buildLiveActivityQuery(101, true, nil, nil)
 	for _, want := range []string{
 		"FROM fact_work_items w",
 		"JOIN ingestion_scopes s ON s.scope_id = w.scope_id",
@@ -34,9 +38,40 @@ func TestLiveActivityQueryUsesIndexedStatusFilterAndBoundedLimit(t *testing.T) {
 		"COALESCE(w.lease_owner, '') AS lease_owner",
 		"COALESCE(NULLIF(BTRIM(s.payload->>'repo_slug'), ''), NULLIF(BTRIM(s.payload->>'repo_name'), ''), s.source_key) AS source_display",
 	} {
-		if !strings.Contains(liveActivityQuery, want) {
-			t.Fatalf("liveActivityQuery missing %q:\n%s", want, liveActivityQuery)
+		if !strings.Contains(query, want) {
+			t.Fatalf("buildLiveActivityQuery(allScopes=true) missing %q:\n%s", want, query)
 		}
+	}
+	if strings.Contains(query, "ANY(") {
+		t.Fatalf("buildLiveActivityQuery(allScopes=true) must carry no access-scope predicate, got:\n%s", query)
+	}
+	if !reflect.DeepEqual(args, []any{101}) {
+		t.Fatalf("buildLiveActivityQuery(allScopes=true) args = %#v, want [101] (limit only)", args)
+	}
+}
+
+// TestBuildLiveActivityQueryAppliesScopePredicateForGrantedAccess is the
+// cold-review P1-1 regression: a scoped caller with granted repository/scope
+// ids must get an additional AND clause restricting rows to those grants,
+// matching admin_store_dead_letters.go's buildListDeadLetterWorkItemsQuery
+// shape over the same two tables (fact_work_items/ingestion_scopes).
+func TestBuildLiveActivityQueryAppliesScopePredicateForGrantedAccess(t *testing.T) {
+	t.Parallel()
+
+	query, args := buildLiveActivityQuery(101, false, []string{"repo-a"}, []string{"scope-a"})
+	const wantPredicate = "AND ((s.scope_kind = 'repository' AND s.source_key = ANY($2)) OR w.scope_id = ANY($3))"
+	if !strings.Contains(query, wantPredicate) {
+		t.Fatalf("buildLiveActivityQuery(allScopes=false) missing %q:\n%s", wantPredicate, query)
+	}
+	// The predicate must appear before ORDER BY/LIMIT so it constrains the
+	// scanned row set, not just decorate the tail of the query.
+	if strings.Index(query, wantPredicate) > strings.Index(query, "ORDER BY") {
+		t.Fatalf("access-scope predicate must precede ORDER BY, got:\n%s", query)
+	}
+
+	wantArgs := []any{101, pq.Array([]string{"repo-a"}), pq.Array([]string{"scope-a"})}
+	if !reflect.DeepEqual(args, wantArgs) {
+		t.Fatalf("buildLiveActivityQuery(allScopes=false) args = %#v, want %#v", args, wantArgs)
 	}
 }
 
@@ -82,7 +117,7 @@ func TestReadLiveActivityScansRowsAndJoinsScopeIdentity(t *testing.T) {
 	}
 
 	store := NewLiveActivityStore(queryer)
-	rows, truncated, err := store.ReadLiveActivity(context.Background(), 100)
+	rows, truncated, err := store.ReadLiveActivity(context.Background(), 100, true, nil, nil)
 	if err != nil {
 		t.Fatalf("ReadLiveActivity() error = %v, want nil", err)
 	}
@@ -139,7 +174,7 @@ func TestReadLiveActivityHandlesNullClaimUntil(t *testing.T) {
 	}
 
 	store := NewLiveActivityStore(queryer)
-	rows, _, err := store.ReadLiveActivity(context.Background(), 100)
+	rows, _, err := store.ReadLiveActivity(context.Background(), 100, true, nil, nil)
 	if err != nil {
 		t.Fatalf("ReadLiveActivity() error = %v, want nil", err)
 	}
@@ -177,7 +212,7 @@ func TestReadLiveActivityMarksTruncatedWhenMoreRowsThanLimit(t *testing.T) {
 	queryer := &fakeQueryer{responses: []fakeRows{{rows: rawRows}}}
 	store := NewLiveActivityStore(queryer)
 
-	rows, truncated, err := store.ReadLiveActivity(context.Background(), 2)
+	rows, truncated, err := store.ReadLiveActivity(context.Background(), 2, true, nil, nil)
 	if err != nil {
 		t.Fatalf("ReadLiveActivity() error = %v, want nil", err)
 	}
@@ -200,7 +235,7 @@ func TestReadLiveActivityNotTruncatedWhenFewerRowsThanLimit(t *testing.T) {
 	}}}}
 
 	store := NewLiveActivityStore(queryer)
-	rows, truncated, err := store.ReadLiveActivity(context.Background(), 5)
+	rows, truncated, err := store.ReadLiveActivity(context.Background(), 5, true, nil, nil)
 	if err != nil {
 		t.Fatalf("ReadLiveActivity() error = %v, want nil", err)
 	}
@@ -233,7 +268,7 @@ func TestReadLiveActivityDefaultsNonPositiveLimitTo100(t *testing.T) {
 	queryer := &fakeQueryer{responses: []fakeRows{{rows: rawRows}}}
 	store := NewLiveActivityStore(queryer)
 
-	rows, truncated, err := store.ReadLiveActivity(context.Background(), 0)
+	rows, truncated, err := store.ReadLiveActivity(context.Background(), 0, true, nil, nil)
 	if err != nil {
 		t.Fatalf("ReadLiveActivity() error = %v, want nil", err)
 	}
@@ -255,7 +290,7 @@ func TestReadLiveActivityPropagatesQueryError(t *testing.T) {
 	queryer := &fakeQueryer{responses: []fakeRows{{err: wantErr}}}
 	store := NewLiveActivityStore(queryer)
 
-	rows, truncated, err := store.ReadLiveActivity(context.Background(), 100)
+	rows, truncated, err := store.ReadLiveActivity(context.Background(), 100, true, nil, nil)
 	if err == nil {
 		t.Fatal("ReadLiveActivity() error = nil, want wrapped queryer error")
 	}
@@ -274,8 +309,66 @@ func TestReadLiveActivityRequiresQueryer(t *testing.T) {
 	t.Parallel()
 
 	var store LiveActivityStore
-	if _, _, err := store.ReadLiveActivity(context.Background(), 100); err == nil {
+	if _, _, err := store.ReadLiveActivity(context.Background(), 100, true, nil, nil); err == nil {
 		t.Fatal("ReadLiveActivity() error = nil, want error for a nil queryer")
+	}
+}
+
+// TestReadLiveActivityScopedWithGrantsIssuesFilteredQuery is the #5137
+// cold-review P1-1 regression at the ReadLiveActivity boundary: a scoped
+// caller with granted repository/scope ids must dispatch the access-scope
+// predicate all the way down to the queryer, not just build it in isolation.
+func TestReadLiveActivityScopedWithGrantsIssuesFilteredQuery(t *testing.T) {
+	t.Parallel()
+
+	updatedAt := time.Date(2026, 7, 12, 3, 0, 0, 0, time.UTC)
+	queryer := &fakeQueryer{responses: []fakeRows{{rows: [][]any{
+		liveActivityFakeRow("wi-1", "reducer", "claimed", "domain", "worker", nil, 1, updatedAt, updatedAt, "repository", "github", "github.com", "org/repo", "org/repo"),
+	}}}}
+	store := NewLiveActivityStore(queryer)
+
+	rows, _, err := store.ReadLiveActivity(context.Background(), 100, false, []string{"repo-a"}, []string{"scope-a"})
+	if err != nil {
+		t.Fatalf("ReadLiveActivity() error = %v, want nil", err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("len(rows) = %d, want 1", len(rows))
+	}
+	if len(queryer.queries) != 1 {
+		t.Fatalf("queryer received %d queries, want exactly 1", len(queryer.queries))
+	}
+	const wantPredicate = "AND ((s.scope_kind = 'repository' AND s.source_key = ANY($2)) OR w.scope_id = ANY($3))"
+	if !strings.Contains(queryer.queries[0], wantPredicate) {
+		t.Fatalf("dispatched query missing access-scope predicate %q:\n%s", wantPredicate, queryer.queries[0])
+	}
+}
+
+// TestReadLiveActivityScopedEmptyGrantsShortCircuitsWithoutQuerying is the
+// #5137 cold-review P1-1 core regression: a scoped caller with NO granted
+// repository or ingestion scope must see zero in-flight rows and must never
+// reach Postgres at all -- existence, volume, domain, and timing of another
+// tenant's work items must never leak, even with identity fields already
+// redacted at the query-handler layer. This is defense in depth alongside
+// the query handler's own repositoryAccessFilter.empty() short-circuit (see
+// getOperations in go/internal/query/status_operations.go).
+func TestReadLiveActivityScopedEmptyGrantsShortCircuitsWithoutQuerying(t *testing.T) {
+	t.Parallel()
+
+	queryer := &fakeQueryer{}
+	store := NewLiveActivityStore(queryer)
+
+	rows, truncated, err := store.ReadLiveActivity(context.Background(), 100, false, nil, nil)
+	if err != nil {
+		t.Fatalf("ReadLiveActivity() error = %v, want nil", err)
+	}
+	if rows != nil {
+		t.Fatalf("rows = %#v, want nil for a scoped caller with no grants", rows)
+	}
+	if truncated {
+		t.Fatal("truncated = true, want false for a scoped caller with no grants")
+	}
+	if len(queryer.queries) != 0 {
+		t.Fatalf("queryer received %d queries, want 0 -- a scoped, grant-empty caller must never reach Postgres", len(queryer.queries))
 	}
 }
 
@@ -312,13 +405,13 @@ func TestReadLiveActivityRecordsDurationAndErrorMetrics(t *testing.T) {
 		liveActivityFakeRow("wi-1", "reducer", "claimed", "domain", "worker", nil, 1, updatedAt, updatedAt, "repository", "github", "github.com", "org/repo", "org/repo"),
 	}}}}
 	okStore := NewInstrumentedLiveActivityStore(okQueryer, instruments)
-	if _, _, err := okStore.ReadLiveActivity(context.Background(), 100); err != nil {
+	if _, _, err := okStore.ReadLiveActivity(context.Background(), 100, true, nil, nil); err != nil {
 		t.Fatalf("ReadLiveActivity() error = %v, want nil", err)
 	}
 
 	failQueryer := &fakeQueryer{responses: []fakeRows{{err: errors.New("boom")}}}
 	failStore := NewInstrumentedLiveActivityStore(failQueryer, instruments)
-	if _, _, err := failStore.ReadLiveActivity(context.Background(), 100); err == nil {
+	if _, _, err := failStore.ReadLiveActivity(context.Background(), 100, true, nil, nil); err == nil {
 		t.Fatal("ReadLiveActivity() error = nil, want the queryer failure")
 	}
 

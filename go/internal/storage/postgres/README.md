@@ -1986,16 +1986,51 @@ for repo identity, ordered by `updated_at DESC, work_item_id`, fetched at
 resolves the operator-facing repo name from scope payload
 (`repo_slug` → `repo_name` → `source_key`).
 
+Access scoping (#5137 cold-review P1-1): a scoped caller's granted
+repositories/ingestion scopes restrict `live_activity` at the query layer.
+`buildLiveActivityQuery` adds `AND ((s.scope_kind = 'repository' AND
+s.source_key = ANY($n)) OR w.scope_id = ANY($n+1))` only when the caller is
+not `allScopes`, mirroring `admin_store_dead_letters.go`'s
+`buildListDeadLetterWorkItemsQuery` over the same two tables. A scoped
+caller with no grants never reaches this query at all — both
+`ReadLiveActivity` and the query handler (`getOperations`) short-circuit to
+zero rows first.
+
 Performance Evidence: prove-theory shim on a disposable Postgres 16-alpine
-with migrations 001/002/005 and a synthetic corpus above current QA scale
-(20,000 `ingestion_scopes`, 150,000 `fact_work_items`). Normal shape
-(~1.9k in-flight rows): 6.1ms via Bitmap Index Scan on
-`fact_work_items_status_idx` + top-N heapsort under `LIMIT 200`
-(2,062 shared buffer hits). Pathological shape (61,123 in-flight/retrying
-rows after flooding `retrying`): 12.3ms. Both well inside the console's 12s
-poll budget; no new index needed. The `source_display` follow-up adds one
-JSONB extraction per returned row only (bounded by `LIMIT`), no new join —
-no regression to the measured shapes.
+(`docker run -d --name eshu-perf-5137 -e POSTGRES_PASSWORD=postgres -e
+POSTGRES_DB=eshu_perf -p 15437:5432 postgres:16-alpine`), migrations
+001/002/005 applied via `psql`, and a synthetic corpus above current QA scale
+(20,000 `ingestion_scopes`, 150,000 `fact_work_items`; in-flight rows use
+`status='retrying'` only, to stay clear of the reducer's one-live-lease
+partial unique index while still exercising the identical `status IN
+('claimed','running','retrying')` filter and index).
+
+- Normal shape (3,380 in-flight rows): **allScopes** (unfiltered, pre-fix
+  query text) 7.2ms via a Parallel Bitmap Heap Scan feeding a `Gather Merge`
+  under `LIMIT 200` (2,561 shared buffer hits); **granted set** (10 granted
+  scope ids out of 20,000, 10 matching in-flight rows) 3.2ms via
+  `fact_work_items_scope_generation_idx` into a `Hash Join` (1,104 shared
+  buffer hits) — the access-scope predicate makes the granted-caller path
+  *faster* than the unfiltered admin path, not slower.
+- Pathological shape (52,254 in-flight rows after flooding `retrying`):
+  **allScopes** 11.0ms — the planner switches to a `Parallel Seq Scan`
+  once in-flight rows are ~35% of the table (correct, expected planner
+  behavior, not a regression) (4,306 shared buffer hits); **granted set**
+  (10 granted scope ids, 33 matching in-flight rows) 3.4ms, unaffected by
+  the flood because the scope-id predicate bounds the matched row count
+  regardless of total in-flight volume (800 shared buffer hits, 312 read).
+
+All four shapes are well inside the console's 12s poll budget; no new index
+needed for the access-scope predicate — `fact_work_items_scope_generation_idx`
+and `fact_work_items_status_idx` already cover it. The `source_display`
+follow-up adds one JSONB extraction per returned row only (bounded by
+`LIMIT`), no new join — no regression to the measured shapes.
+
+Known limitation (P2-1, tracked separately): the board renders raw queue
+rows regardless of generation liveness, so a `retrying` work item belonging
+to a superseded/stale `scope_generations` row can still render as "live"
+until the reducer's retention sweep clears it; this is a display accuracy
+gap tracked as a follow-up issue, not an access-control issue.
 
 Observability Evidence: every `ReadLiveActivity` call records
 `eshu_dp_status_operations_live_activity_query_duration_seconds` and failures

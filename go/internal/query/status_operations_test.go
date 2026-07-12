@@ -17,19 +17,33 @@ import (
 )
 
 // fakeLiveActivityReader is a test double for LiveActivityReader. It records
-// the limit it was called with so tests can assert the handler forwards the
-// validated/defaulted limit through to the reader.
+// every argument it was called with so tests can assert the handler forwards
+// the validated/defaulted limit and the caller's access grants through to the
+// reader (#5137 cold-review P1-1).
 type fakeLiveActivityReader struct {
-	rows        []statuspkg.LiveActivityRow
-	truncated   bool
-	err         error
-	calledLimit int
-	calledCount int
+	rows      []statuspkg.LiveActivityRow
+	truncated bool
+	err       error
+
+	calledLimit                int
+	calledCount                int
+	calledAllScopes            bool
+	calledAllowedRepositoryIDs []string
+	calledAllowedScopeIDs      []string
 }
 
-func (f *fakeLiveActivityReader) ReadLiveActivity(_ context.Context, limit int) ([]statuspkg.LiveActivityRow, bool, error) {
+func (f *fakeLiveActivityReader) ReadLiveActivity(
+	_ context.Context,
+	limit int,
+	allScopes bool,
+	allowedRepositoryIDs []string,
+	allowedScopeIDs []string,
+) ([]statuspkg.LiveActivityRow, bool, error) {
 	f.calledLimit = limit
 	f.calledCount++
+	f.calledAllScopes = allScopes
+	f.calledAllowedRepositoryIDs = allowedRepositoryIDs
+	f.calledAllowedScopeIDs = allowedScopeIDs
 	if f.err != nil {
 		return nil, false, f.err
 	}
@@ -143,13 +157,60 @@ func TestGetOperationsComposesHealthCollectorsQueueAndLiveActivity(t *testing.T)
 	if reader.calledLimit != operationsDefaultLimit {
 		t.Fatalf("reader called with limit = %d, want default %d", reader.calledLimit, operationsDefaultLimit)
 	}
+	// (c) Admin/shared tokens see all rows: the handler must call the reader
+	// with allScopes=true and no grant restriction (#5137 cold-review P1-1).
+	if !reader.calledAllScopes {
+		t.Fatal("reader called with allScopes = false, want true for an unscoped/admin request")
+	}
+	if len(reader.calledAllowedRepositoryIDs) != 0 || len(reader.calledAllowedScopeIDs) != 0 {
+		t.Fatalf("reader called with grants %#v/%#v, want none for an admin request",
+			reader.calledAllowedRepositoryIDs, reader.calledAllowedScopeIDs)
+	}
 }
 
-// TestGetOperationsScopedRedactsRepoAndWorkerIdentity verifies scoped tokens
-// see the same aggregate sections and every live_activity field except
-// source_key/source_display (repo identity, raw and human-readable) and
-// lease_owner (worker identity), which are withheld.
-func TestGetOperationsScopedRedactsRepoAndWorkerIdentity(t *testing.T) {
+// scopedOperationsRequest issues a GET to /api/v0/status/operations through
+// AuthMiddlewareWithScopedTokens so the handler observes a real scoped
+// AuthContext (matching how a scoped bearer token reaches the handler in
+// production), rather than injecting the AuthContext directly.
+func scopedOperationsRequest(
+	t *testing.T,
+	reader *fakeLiveActivityReader,
+	snapshot statuspkg.RawSnapshot,
+	allowedRepositoryIDs, allowedScopeIDs []string,
+) *httptest.ResponseRecorder {
+	t.Helper()
+	handler := &StatusHandler{
+		StatusReader: fakeStatusReader{snapshot: snapshot},
+		LiveActivity: reader,
+	}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+	resolver := &fakeScopedTokenResolver{
+		context: AuthContext{
+			Mode:                 AuthModeScoped,
+			TenantID:             "tenant-a",
+			WorkspaceID:          "workspace-a",
+			AllowedRepositoryIDs: allowedRepositoryIDs,
+			AllowedScopeIDs:      allowedScopeIDs,
+		},
+		ok: true,
+	}
+	authed := AuthMiddlewareWithScopedTokens("", resolver, mux)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/status/operations", nil)
+	req.Header.Set("Authorization", "Bearer scoped-token")
+	rec := httptest.NewRecorder()
+	authed.ServeHTTP(rec, req)
+	return rec
+}
+
+// TestGetOperationsScopedWithGrantsSeesOnlyGrantedRowsIdentityRedacted is
+// case (a) of the #5137 cold-review P1-1 fix: a scoped caller with a granted
+// repository/scope forwards exactly that grant to the reader (so Postgres,
+// not the handler, restricts which rows come back -- proven separately by
+// the storage-layer query-shape tests and the EXPLAIN ANALYZE re-proof), and
+// still redacts source_key/source_display/lease_owner exactly as before.
+func TestGetOperationsScopedWithGrantsSeesOnlyGrantedRowsIdentityRedacted(t *testing.T) {
 	t.Parallel()
 
 	const secretSourceKey = "repository:r_secret_scoped"
@@ -161,26 +222,27 @@ func TestGetOperationsScopedRedactsRepoAndWorkerIdentity(t *testing.T) {
 			liveActivityTestRow("wi-1", secretSourceKey, secretRepo, secretWorker, asOf.Add(-5*time.Second)),
 		},
 	}
-	handler := &StatusHandler{
-		StatusReader: fakeStatusReader{snapshot: statuspkg.RawSnapshot{AsOf: asOf}},
-		LiveActivity: reader,
-	}
-	mux := http.NewServeMux()
-	handler.Mount(mux)
-	resolver := &fakeScopedTokenResolver{
-		context: AuthContext{Mode: AuthModeScoped, TenantID: "tenant-a", WorkspaceID: "workspace-a"},
-		ok:      true,
-	}
-	authed := AuthMiddlewareWithScopedTokens("", resolver, mux)
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v0/status/operations", nil)
-	req.Header.Set("Authorization", "Bearer scoped-token")
-	rec := httptest.NewRecorder()
-	authed.ServeHTTP(rec, req)
-
+	rec := scopedOperationsRequest(t, reader, statuspkg.RawSnapshot{AsOf: asOf}, []string{"repo-a"}, []string{"scope-a"})
 	if got, want := rec.Code, http.StatusOK; got != want {
 		t.Fatalf("scoped status = %d, want %d; body=%s", got, want, rec.Body.String())
 	}
+
+	// The handler forwarded the granted-scope caller through to the reader:
+	// allScopes=false and the exact grants from the AuthContext.
+	if reader.calledCount != 1 {
+		t.Fatalf("reader called %d times, want 1 for a scoped caller with grants", reader.calledCount)
+	}
+	if reader.calledAllScopes {
+		t.Fatal("reader called with allScopes = true, want false for a scoped caller")
+	}
+	if got, want := reader.calledAllowedRepositoryIDs, []string{"repo-a"}; !equalStringSlices(got, want) {
+		t.Fatalf("reader called with AllowedRepositoryIDs = %#v, want %#v", got, want)
+	}
+	if got, want := reader.calledAllowedScopeIDs, []string{"scope-a"}; !equalStringSlices(got, want) {
+		t.Fatalf("reader called with AllowedScopeIDs = %#v, want %#v", got, want)
+	}
+
 	body := rec.Body.String()
 	for _, secret := range []string{secretSourceKey, secretRepo, secretWorker, "tenant-a", "workspace-a"} {
 		if strings.Contains(body, secret) {
@@ -194,7 +256,7 @@ func TestGetOperationsScopedRedactsRepoAndWorkerIdentity(t *testing.T) {
 	}
 	activity := payload["live_activity"].([]any)
 	if len(activity) != 1 {
-		t.Fatalf("live_activity = %#v, want 1 row (scoped callers still see the row, minus identity)", activity)
+		t.Fatalf("live_activity = %#v, want 1 row (the reader's row for the granted scope, minus identity)", activity)
 	}
 	row := activity[0].(map[string]any)
 	if row["source_key"] != "" {
@@ -209,6 +271,48 @@ func TestGetOperationsScopedRedactsRepoAndWorkerIdentity(t *testing.T) {
 	// Non-identity fields stay visible for scoped callers.
 	if row["work_item_id"] != "wi-1" || row["stage"] != "reducer" || row["domain"] != "workload_materialization" {
 		t.Fatalf("scoped live_activity[0] over-redacted: %#v", row)
+	}
+}
+
+// TestGetOperationsScopedWithNoGrantsSeesZeroRowsWithoutQuerying is case (b)
+// of the #5137 cold-review P1-1 fix: a scoped caller holding no granted
+// repository or ingestion scope must see zero live_activity rows -- empty
+// [], not null -- and the handler must never call the reader at all, so
+// existence/volume/domain/timing of another tenant's in-flight work can
+// never leak even through a buggy or misconfigured reader implementation.
+func TestGetOperationsScopedWithNoGrantsSeesZeroRowsWithoutQuerying(t *testing.T) {
+	t.Parallel()
+
+	asOf := time.Date(2026, 7, 12, 3, 0, 0, 0, time.UTC)
+	reader := &fakeLiveActivityReader{
+		rows: []statuspkg.LiveActivityRow{
+			liveActivityTestRow("wi-1", "repository:r_other_tenant", "other-org/other-repo", "reducer-worker-x", asOf.Add(-5*time.Second)),
+		},
+	}
+
+	rec := scopedOperationsRequest(t, reader, statuspkg.RawSnapshot{AsOf: asOf}, nil, nil)
+	if got, want := rec.Code, http.StatusOK; got != want {
+		t.Fatalf("scoped status = %d, want %d; body=%s", got, want, rec.Body.String())
+	}
+	if reader.calledCount != 0 {
+		t.Fatalf("reader called %d times, want 0 for a scoped caller with no grants", reader.calledCount)
+	}
+
+	body := rec.Body.String()
+	if strings.Contains(body, "other-org/other-repo") || strings.Contains(body, "other_tenant") {
+		t.Fatalf("scoped, grant-empty caller observed another tenant's row: %s", body)
+	}
+
+	payload := decodeOperationsPayload(t, rec)
+	activity, ok := payload["live_activity"].([]any)
+	if !ok {
+		t.Fatalf("live_activity = %#v (%T), want a JSON array, not null", payload["live_activity"], payload["live_activity"])
+	}
+	if len(activity) != 0 {
+		t.Fatalf("live_activity = %#v, want empty for a scoped caller with no grants", activity)
+	}
+	if payload["truncated"] != false {
+		t.Fatalf("truncated = %#v, want false", payload["truncated"])
 	}
 }
 
