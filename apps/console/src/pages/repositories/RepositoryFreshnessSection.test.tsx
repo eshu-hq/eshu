@@ -1,0 +1,168 @@
+import { render, screen, waitFor } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+import { RepositoryFreshnessSection } from "./RepositoryFreshnessSection";
+import type { EshuApiClient } from "../../api/client";
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
+function freshnessWire(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    verdict: "current",
+    observed_commit: "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
+    observed_at: new Date().toISOString(),
+    generation: null,
+    stages: { collected: true, reduced: true, projected: true, materialized: true },
+    outstanding_by_stage: [],
+    shared_enrichment: { pending: false, pending_domains: [] },
+    unobserved_push: null,
+    as_of: new Date().toISOString(),
+    scoped: false,
+    ...overrides,
+  };
+}
+
+// sequencedClient answers the freshness GET with the next entry in
+// `responses` on each call, repeating the last entry once exhausted --
+// mirrors OperationsPage.test.tsx's opsClient convention.
+function sequencedClient(responses: readonly Record<string, unknown>[]): EshuApiClient & {
+  calls: number;
+} {
+  let call = 0;
+  const client = {
+    get calls() {
+      return call;
+    },
+    get: async (path: string) => {
+      if (!path.includes("/freshness")) throw new Error(`unexpected get ${path}`);
+      const idx = Math.min(call, responses.length - 1);
+      call += 1;
+      return { data: responses[idx], error: null, truth: null };
+    },
+  };
+  return client as unknown as EshuApiClient & { calls: number };
+}
+
+describe("RepositoryFreshnessSection", () => {
+  it("renders the stage checklist and outstanding work while building", async () => {
+    const client = sequencedClient([
+      freshnessWire({
+        verdict: "building",
+        stages: { collected: true, reduced: true, projected: false, materialized: false },
+        outstanding_by_stage: [{ stage: "project", status: "running", count: 5 }],
+      }),
+    ]);
+
+    render(
+      <RepositoryFreshnessSection
+        client={client}
+        repoId="repository:payments-api"
+        pollMs={50000}
+      />,
+    );
+
+    expect(await screen.findByText(/Indexing a1b2c3d4e5/)).toBeInTheDocument();
+    expect(screen.getByText("projecting — 5 items left")).toBeInTheDocument();
+    expect(screen.getByText("Collected")).toBeInTheDocument();
+    expect(screen.getByText("project · running: 5")).toBeInTheDocument();
+  });
+
+  it("renders the shared-enrichment note when own stages are done but shared work is pending", async () => {
+    const client = sequencedClient([
+      freshnessWire({
+        verdict: "building",
+        stages: { collected: true, reduced: true, projected: true, materialized: false },
+        shared_enrichment: {
+          pending: true,
+          pending_domains: [{ domain: "package_registry", count: 2 }],
+        },
+      }),
+    ]);
+
+    render(
+      <RepositoryFreshnessSection
+        client={client}
+        repoId="repository:payments-api"
+        pollMs={50000}
+      />,
+    );
+
+    expect(
+      await screen.findByText(/Cross-repo enrichment still running: package_registry \(2\)/),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps polling while the verdict is building, then stops once it reaches current", async () => {
+    const client = sequencedClient([
+      freshnessWire({
+        verdict: "building",
+        stages: { collected: true, reduced: true, projected: false, materialized: false },
+        outstanding_by_stage: [{ stage: "project", status: "running", count: 2 }],
+      }),
+      freshnessWire({ verdict: "current" }),
+    ]);
+
+    render(
+      <RepositoryFreshnessSection client={client} repoId="repository:payments-api" pollMs={30} />,
+    );
+
+    expect(await screen.findByText(/Indexing a1b2c3d4e5/)).toBeInTheDocument();
+
+    await waitFor(
+      () => expect(screen.getByText(/Current through a1b2c3d4e5/)).toBeInTheDocument(),
+      {
+        timeout: 2000,
+      },
+    );
+
+    // Verdict is now "current" -- a stable state -- so no further poll should
+    // fire. Wait several poll intervals and confirm the call count holds.
+    const callsAfterCurrent = client.calls;
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    expect(client.calls).toBe(callsAfterCurrent);
+  });
+
+  it("does not poll again once the verdict reaches current on the very first fetch", async () => {
+    const client = sequencedClient([freshnessWire({ verdict: "current" })]);
+
+    render(
+      <RepositoryFreshnessSection
+        client={client}
+        repoId="repository:checkout-service"
+        pollMs={30}
+      />,
+    );
+
+    expect(await screen.findByText(/Current through a1b2c3d4e5/)).toBeInTheDocument();
+    const callsAfterFirst = client.calls;
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    expect(client.calls).toBe(callsAfterFirst);
+  });
+
+  it("shows an explicit unavailable message and does not render stale content", async () => {
+    const client = {
+      get: async () => {
+        throw new Error("offline");
+      },
+    } as unknown as EshuApiClient;
+
+    render(
+      <RepositoryFreshnessSection
+        client={client}
+        repoId="repository:checkout-service"
+        pollMs={50000}
+      />,
+    );
+
+    expect(await screen.findByText("Freshness unavailable from this source.")).toBeInTheDocument();
+  });
+
+  it("renders nothing when no client is connected", () => {
+    const { container } = render(
+      <RepositoryFreshnessSection repoId="repository:checkout-service" />,
+    );
+    expect(container).toBeEmptyDOMElement();
+  });
+});

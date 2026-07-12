@@ -87,7 +87,7 @@ regression does.
 
 | Budget key     | Threshold | What it covers                                              |
 | -------------- | --------- | ----------------------------------------------------------- |
-| `main`         | 724 KiB   | Main entry chunk: app shell, router, eagerly loaded pages   |
+| `main`         | 726 KiB   | Main entry chunk: app shell, router, eagerly loaded pages   |
 | `react-vendor` | 120 KiB   | `react`, `react-dom`, `react-router-dom`                    |
 | `d3`           | 200 KiB   | d3 (lazy, loaded with the workspace route)                  |
 | `icons`        | 80 KiB    | `lucide-react` icon set                                     |
@@ -97,7 +97,7 @@ regression does.
 | `katex`        | 400 KiB   | KaTeX math rendering (lazy, pulled in by Mermaid)           |
 | _(default)_    | 700 KiB   | Any other async chunk (e.g. an individual lazy diagram)     |
 
-Vite's generic 500 kB chunk-size warning is raised to `724` (the main-chunk
+Vite's generic 500 kB chunk-size warning is raised to `726` (the main-chunk
 budget) in `apps/console/vite.config.ts` so the build log is not noisy about the
 intentionally eager main chunk and the lazy diagram libraries. The bundle budget
 script is the authoritative gate, not the Vite warning.

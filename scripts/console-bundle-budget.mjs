@@ -37,8 +37,16 @@ export const BUDGETS = {
   // lazy diagram chunks). Measured ~722.1 KiB after #4746 (guided-questions)
   // and #4024 (semantic-search) each added a routed page whose eager nav entry
   // (icon, message, route, capability mapping) lands here even though both page
-  // bodies are lazy-loaded; budget keeps a small deliberate headroom over that.
-  main: 724 * KIB,
+  // bodies are lazy-loaded. Measured ~724.8 KiB after #5143 (per-repo
+  // freshness verdict): the freshness UI itself (adapter, chip, stage
+  // checklist) is fully lazy-loaded off RepositoriesPage.tsx and
+  // RepoSourcePage.tsx (mirrors OperationsLiveBoard), and its demo fixture is
+  // dynamically imported from demoClient.ts rather than statically, so none
+  // of that code lands here -- the ~0.8 KiB growth is only the two new
+  // `lazy(() => import(...))` + `Suspense` call sites and the small demo
+  // dispatch branch, which cannot shrink further without dropping a required
+  // integration point. Budget keeps a small deliberate headroom over that.
+  main: 726 * KIB,
   // React/runtime vendor (react, react-dom, react-router-dom). Stable, cached
   // across deploys via its own manualChunk. Measured ~49 KiB.
   "react-vendor": 120 * KIB,

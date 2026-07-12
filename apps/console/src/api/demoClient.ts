@@ -45,6 +45,19 @@ const demoFetcher: EshuFetcher = async (input, init) => {
   const url = new URL(request.url);
   const path = stripDemoBase(url.pathname);
   const body = await requestBody(request);
+  // /freshness (issue #5143) is dispatched separately, via a dynamic import
+  // of demoFreshnessFixture.ts, rather than through the synchronous
+  // demoResponse() below: demoClient.ts and demoFixtures.ts are imported
+  // eagerly from App.tsx, so a static import of this fixture would add its
+  // weight to the console's tightly budgeted main bundle
+  // (scripts/console-bundle-budget.mjs) even though most demo sessions never
+  // request it.
+  if (request.method === "GET" && path.endsWith("/freshness")) {
+    const { demoFreshnessWire } = await import("./demoFreshnessFixture");
+    return Response.json(
+      envelope(demoFreshnessWire(repoIdFromFreshnessPath(path)), "repositories.freshness"),
+    );
+  }
   const result = demoResponse(path, request.method, url.searchParams, body);
   if (result === null) {
     return Response.json(
@@ -425,6 +438,10 @@ function repoNameFromStatsPath(path: string): string {
 
 function repoIdFromStoryPath(path: string): string {
   return decodeURIComponent(path.replace("/api/v0/repositories/", "").replace("/story", ""));
+}
+
+function repoIdFromFreshnessPath(path: string): string {
+  return decodeURIComponent(path.replace("/api/v0/repositories/", "").replace("/freshness", ""));
 }
 
 function repoNameFromStoryPath(path: string): string {

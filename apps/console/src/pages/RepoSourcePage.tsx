@@ -2,7 +2,7 @@
 // File-tree + code-viewer for a repository, wired to the merged tree (#1431) and
 // content (#1432) endpoints plus source-backed branch refs (#1433). No
 // fabricated tree, refs, or contents.
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 
 import type { EshuApiClient } from "../api/client";
@@ -10,6 +10,12 @@ import { loadRepoLanguages, loadRepositoryNameMap } from "../api/repoCatalog";
 import { decodeRepoFile, loadRepoBranches, loadRepoFile, loadRepoTree } from "../api/repoSource";
 import type { RepoBranch, RepoBranches, RepoFile, RepoTree } from "../api/repoSource";
 import { Panel, Badge } from "../components/atoms";
+
+// RepositoryFreshnessSection (issue #5143) is lazy-loaded so its code and the
+// repositoryFreshness adapter ship in their own chunk rather than growing
+// this eagerly loaded page past the console's main-bundle budget (mirrors
+// OperationsLiveBoard in OperationsPage.tsx).
+const RepositoryFreshnessSection = lazy(() => import("./repositories/RepositoryFreshnessSection"));
 
 export function RepoSourcePage({ client }: { readonly client?: EshuApiClient }): React.JSX.Element {
   const { id = "" } = useParams<{ id: string }>();
@@ -218,6 +224,10 @@ export function RepoSourcePage({ client }: { readonly client?: EshuApiClient }):
           {branchesErr ? <span className="t-mut">ref list unavailable: {branchesErr}</span> : null}
         </div>
       </div>
+
+      <Suspense fallback={null}>
+        <RepositoryFreshnessSection client={client} repoId={id} />
+      </Suspense>
 
       <div className="explorer-filters" style={{ gap: 4 }}>
         <button className="link-btn" onClick={() => setPath("")}>
