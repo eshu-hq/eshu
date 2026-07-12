@@ -46,8 +46,11 @@ func TestScaleSlotsAdoptSpecIDs(t *testing.T) {
 		t.Fatal("ScaleSlots() returned no slots")
 	}
 	for _, slot := range slots {
-		if !strings.Contains(spec, "id: "+slot.ID) {
-			t.Errorf("slot id %q not found in specs/scale-lab-corpus.v1.yaml; the adopted taxonomy drifted from the spec", slot.ID)
+		// Anchor to the full "- id: <id>\n" list line so a slot id that is a
+		// substring prefix of another (e.g. "small/x" vs "small/x_extra") cannot
+		// false-green the lockstep.
+		if !strings.Contains(spec, "- id: "+slot.ID+"\n") {
+			t.Errorf("slot id %q not found as a corpus_slots entry in specs/scale-lab-corpus.v1.yaml; the adopted taxonomy drifted from the spec", slot.ID)
 		}
 	}
 }
