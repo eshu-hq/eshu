@@ -23,9 +23,10 @@ import (
 )
 
 const (
-	doomedGitlabJobUID    = deltaRepoID + ":gitlab:job:doomed"
-	doomedGitlabPipeUID   = deltaRepoID + ":gitlab:pipeline:doomed"
-	survivingGitlabJobUID = deltaRepoID + ":gitlab:job:build"
+	doomedGitlabJobUID     = deltaRepoID + ":gitlab:job:doomed"
+	doomedGitlabPipeUID    = deltaRepoID + ":gitlab:pipeline:doomed"
+	survivingGitlabJobUID  = deltaRepoID + ":gitlab:job:build"
+	survivingGitlabPipeUID = deltaRepoID + ":gitlab:pipeline"
 )
 
 // TestDeltaSurvivorScopedRetractGraphTruth proves File, GitlabJob, and
@@ -72,8 +73,10 @@ func TestDeltaSurvivorScopedRetractGraphTruth(t *testing.T) {
 	}
 	assertScopedCount(ctx, t, exec, "MATCH (n:GitlabJob {uid: $v}) RETURN count(n)", doomedGitlabJobUID, 0, "gen2: doomed GitlabJob retracted")
 	assertScopedCount(ctx, t, exec, "MATCH (n:GitlabPipeline {uid: $v}) RETURN count(n)", doomedGitlabPipeUID, 0, "gen2: doomed GitlabPipeline retracted")
-	// A same-label survivor must remain — this is a scoped retract, not a label wipe.
+	// Same-label survivors must remain — this is a scoped retract, not a label
+	// wipe — for both labels the doomed instances belong to.
 	assertScopedCount(ctx, t, exec, "MATCH (n:GitlabJob {uid: $v}) RETURN count(n)", survivingGitlabJobUID, 1, "gen2: surviving GitlabJob present")
+	assertScopedCount(ctx, t, exec, "MATCH (n:GitlabPipeline {uid: $v}) RETURN count(n)", survivingGitlabPipeUID, 1, "gen2: surviving GitlabPipeline present")
 }
 
 // assertScopedCount asserts a single-parameter count query returns want.
