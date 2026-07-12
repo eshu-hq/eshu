@@ -53,6 +53,41 @@ session.
   reducer itself — draining the `fact_work_items` rows it enqueues requires
   `cmd/projector`/`cmd/reducer` running separately against the same database,
   exactly as `scripts/verify-ifa-replay-drive.sh` orchestrates.
+- `ifa drive -from-facts -facts-source-dsn <src> -postgres-dsn <target>
+  [-workers N]` (issue #5008) - the same driver, but the source is the
+  `fact_records` already persisted in `<src>` rather than a cassette. It
+  enumerates the active generation of every fact-bearing scope via
+  `FactStore.ListScopeGenerationWork` and
+  re-drains their recorded facts through `concurrentreplay.FactSliceSource` into
+  the **distinct** commit target `<target>`. The two DSNs must differ — a
+  re-drain into the source database is a no-op — and `-from-facts` is mutually
+  exclusive with `-cassette`. This is the source half of the B-12 corpus
+  determinism composition (re-drain the golden corpus at N in {1,4} into fresh
+  graph DBs, assert a byte-identical canonical graph across N).
+
+#### `-from-facts` re-drain performance & observability (#5008)
+
+- No-Regression Evidence: the `-from-facts` re-drain and its
+  `FactStore.ListScopeGenerationWork` enumeration are new code off every runtime
+  hot path — the enumeration is invoked only by this operator/CI verb, once per
+  re-drain, never per-fact, per-request, or per-reduce. The query is
+  `SELECT DISTINCT scope_id, generation_id FROM fact_records` (bounded by the
+  corpus: the B-12 golden corpus is ~20 scope generations) joined to
+  `ingestion_scopes`/`scope_generations` for hydration; the DISTINCT keys are the
+  two leading columns of the existing `fact_records_scope_generation_idx
+  (scope_id, generation_id, …)` composite index. No existing
+  ingest/query/reducer path is altered, and the commit half reuses the same
+  `postgres.IngestionStore` path cassette-mode `ifa drive` already exercises;
+  the `cmd/ifa`, `internal/storage/postgres`, and `internal/replay/concurrentreplay`
+  exactness lanes stay green (1562 tests). Baseline vs after: the enumeration is
+  a new read with no prior shape to regress; wall time is dominated by the
+  unchanged `Driver.Run` commit path, whose worker-count behavior part 2 measures
+  across N.
+- No-Observability-Change: the re-drain adds no runtime stage. `ifa drive` emits
+  its existing one-line `Report` (source label, workers, generations committed,
+  duration) through the JSON slog logger, and the commit path's spans/metrics are
+  the already-instrumented `IngestionStore` ones; the enumeration is a single
+  bounded read with no new telemetry surface.
 - `ifa graph-dump [-out FILE] [-digest]` - opens a live Bolt connection to the
   configured graph backend (`ESHU_GRAPH_BACKEND`/`NEO4J_URI`/
   `NEO4J_USERNAME`/`NEO4J_PASSWORD`/`NEO4J_DATABASE`, the same env contract

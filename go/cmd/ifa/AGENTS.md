@@ -5,7 +5,10 @@
 1. `README.md` - command purpose and subcommand behavior.
 2. `main.go` - subcommand dispatch and the P0 `-version` shell.
 3. `coverage.go`, `expectations.go` - P1 subcommand wrappers.
-4. `drive.go` - P2 concurrent replay driver verb (issue #4395).
+4. `drive.go` - P2 concurrent replay driver verb (issue #4395); also carries
+   the `-from-facts` re-drain mode (issue #5008) that sources
+   `concurrentreplay.FactSliceSource` from persisted `fact_records` (enumerated
+   by `postgres.FactStore.ListScopeGenerationWork`) instead of a cassette.
 5. `graph_dump.go`, `graphdump_reader.go` - P3 graph-truth determinism verb
    (issue #4396).
 6. `mutate_cassette.go` - P3 failure-path-determinism fixture generator verb

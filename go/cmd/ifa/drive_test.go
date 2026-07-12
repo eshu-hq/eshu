@@ -45,6 +45,107 @@ func TestParseDriveFlagsDefaultsWorkersToOne(t *testing.T) {
 	}
 }
 
+// TestParseDriveFlagsFromFactsRequiresSourceDSN proves -from-facts without a
+// -facts-source-dsn fails during parsing: the re-drain source is the persisted
+// fact_records, so a source DSN is mandatory.
+func TestParseDriveFlagsFromFactsRequiresSourceDSN(t *testing.T) {
+	t.Parallel()
+
+	var stderr bytes.Buffer
+	_, err := parseDriveFlags([]string{"-from-facts", "-postgres-dsn", "postgres://target"}, &stderr)
+	if err == nil {
+		t.Fatal("parseDriveFlags(-from-facts without -facts-source-dsn) = nil error, want an error naming -facts-source-dsn")
+	}
+	if !strings.Contains(err.Error(), "facts-source-dsn") {
+		t.Fatalf("error = %q, want it to name -facts-source-dsn", err.Error())
+	}
+}
+
+// TestParseDriveFlagsFromFactsMutuallyExclusiveWithCassette proves a run may
+// name exactly one source: a cassette or the persisted fact_records, not both.
+func TestParseDriveFlagsFromFactsMutuallyExclusiveWithCassette(t *testing.T) {
+	t.Parallel()
+
+	var stderr bytes.Buffer
+	_, err := parseDriveFlags([]string{
+		"-from-facts",
+		"-facts-source-dsn", "postgres://source",
+		"-postgres-dsn", "postgres://target",
+		"-cassette", "testdata/example.json",
+	}, &stderr)
+	if err == nil {
+		t.Fatal("parseDriveFlags(-from-facts with -cassette) = nil error, want a mutual-exclusion error")
+	}
+	if !strings.Contains(err.Error(), "mutually exclusive") {
+		t.Fatalf("error = %q, want it to say the sources are mutually exclusive", err.Error())
+	}
+}
+
+// TestParseDriveFlagsFromFactsRequiresExplicitTarget proves -from-facts demands
+// an explicit -postgres-dsn commit target: an env-derived target could silently
+// equal the source DSN, and re-draining into the same database is a no-op.
+func TestParseDriveFlagsFromFactsRequiresExplicitTarget(t *testing.T) {
+	t.Parallel()
+
+	var stderr bytes.Buffer
+	_, err := parseDriveFlags([]string{"-from-facts", "-facts-source-dsn", "postgres://source"}, &stderr)
+	if err == nil {
+		t.Fatal("parseDriveFlags(-from-facts without -postgres-dsn) = nil error, want an error naming -postgres-dsn")
+	}
+	if !strings.Contains(err.Error(), "postgres-dsn") {
+		t.Fatalf("error = %q, want it to require an explicit -postgres-dsn", err.Error())
+	}
+}
+
+// TestParseDriveFlagsFromFactsRequiresDistinctTarget proves the source and
+// commit DSNs must differ: re-draining fact_records into the same database
+// they were read from collides on the ON CONFLICT keys and reprojects nothing.
+func TestParseDriveFlagsFromFactsRequiresDistinctTarget(t *testing.T) {
+	t.Parallel()
+
+	var stderr bytes.Buffer
+	_, err := parseDriveFlags([]string{
+		"-from-facts",
+		"-facts-source-dsn", "postgres://same",
+		"-postgres-dsn", "postgres://same",
+	}, &stderr)
+	if err == nil {
+		t.Fatal("parseDriveFlags(-from-facts with equal source/target) = nil error, want a distinct-DSN error")
+	}
+	if !strings.Contains(err.Error(), "differ") {
+		t.Fatalf("error = %q, want it to require the source and target DSNs differ", err.Error())
+	}
+}
+
+// TestParseDriveFlagsFromFactsPlumbsSourceDSN proves a valid -from-facts run
+// parses into the fact re-drain mode with both DSNs plumbed through.
+func TestParseDriveFlagsFromFactsPlumbsSourceDSN(t *testing.T) {
+	t.Parallel()
+
+	var stderr bytes.Buffer
+	o, err := parseDriveFlags([]string{
+		"-from-facts",
+		"-facts-source-dsn", "postgres://source",
+		"-postgres-dsn", "postgres://target",
+		"-workers", "4",
+	}, &stderr)
+	if err != nil {
+		t.Fatalf("parseDriveFlags: %v", err)
+	}
+	if !o.fromFacts {
+		t.Error("fromFacts = false, want true")
+	}
+	if o.factsSourceDSN != "postgres://source" {
+		t.Errorf("factsSourceDSN = %q, want the flag value plumbed through", o.factsSourceDSN)
+	}
+	if o.postgresDSN != "postgres://target" {
+		t.Errorf("postgresDSN = %q, want the flag value plumbed through", o.postgresDSN)
+	}
+	if o.workers != 4 {
+		t.Errorf("workers = %d, want 4", o.workers)
+	}
+}
+
 // TestParseDriveFlagsPlumbsWorkersAndDSN proves -workers and -postgres-dsn
 // reach the returned options unchanged.
 func TestParseDriveFlagsPlumbsWorkersAndDSN(t *testing.T) {

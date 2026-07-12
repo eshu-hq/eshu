@@ -19,6 +19,16 @@
 // state requires cmd/projector and cmd/reducer running separately against the
 // same database, exactly as scripts/verify-ifa-replay-drive.sh orchestrates.
 //
+// `ifa drive -from-facts -facts-source-dsn <src> -postgres-dsn <target>
+// [-workers N]` (issue #5008) re-drains the fact_records already persisted in
+// <src> — enumerated via FactStore.ListScopeGenerationWork and replayed through
+// concurrentreplay.FactSliceSource — into the distinct commit target <target>,
+// instead of a cassette. The two DSNs MUST differ: re-draining fact_records
+// into the same database they were read from is a no-op. This is the source
+// half of the B-12 corpus determinism composition, which re-drains the same
+// golden corpus at N in {1,4} into fresh graph DBs and asserts a byte-identical
+// canonical graph across N.
+//
 // `ifa graph-dump [-out FILE] [-digest]` (issue #4396, parent epic #4389) is
 // the graph-truth half of Ifá's P3 determinism matrix. It opens a live Bolt
 // connection to the configured graph backend via graphdump_reader.go's
