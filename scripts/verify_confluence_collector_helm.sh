@@ -24,6 +24,7 @@ contentStore:
 neo4j:
   auth:
     secretName: ""
+    password: "Neo4jTestPass123"
 observability:
   prometheus:
     enabled: true
@@ -91,6 +92,7 @@ contentStore:
 neo4j:
   auth:
     secretName: ""
+    password: "Neo4jTestPass123"
 confluenceCollector:
   enabled: true
   baseUrl: https://example.atlassian.net/wiki

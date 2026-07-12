@@ -6,6 +6,7 @@ contentStore:
 neo4j:
   auth:
     secretName: ""
+    password: "Neo4jTestPass123"
 observability:
   prometheus:
     enabled: true
