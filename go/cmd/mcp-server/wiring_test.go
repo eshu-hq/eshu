@@ -202,6 +202,17 @@ func TestNewMCPQueryRouterMountsMCPBackedHandlers(t *testing.T) {
 	if router.Freshness.ServiceChangedSince == nil {
 		t.Fatal("newMCPQueryRouter().Freshness.ServiceChangedSince = nil, want service changed-since reader")
 	}
+	// #5143 regression: get_repository_freshness dispatched a 503 on the
+	// standalone MCP server because Repositories.Freshness stayed nil here
+	// while cmd/api/wiring_router.go wired it -- the two entrypoints
+	// duplicate this struct literal and drifted. Guard both fields so a
+	// future handler addition can't ship half-wired the same way.
+	if router.Repositories == nil {
+		t.Fatal("newMCPQueryRouter().Repositories = nil, want repository routes mounted")
+	}
+	if router.Repositories.Freshness == nil {
+		t.Fatal("newMCPQueryRouter().Repositories.Freshness = nil, want repository freshness reader wired (get_repository_freshness would 503)")
+	}
 	if router.Admin != nil {
 		t.Fatal("newMCPQueryRouter().Admin != nil, want MCP server to avoid mutating admin surface")
 	}

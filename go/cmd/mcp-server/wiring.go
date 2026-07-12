@@ -281,7 +281,15 @@ func newMCPQueryRouterWithSemanticEmbedding(
 			Content:                    contentReader,
 			CICDRunCorrelations:        query.NewPostgresCICDRunCorrelationStore(db),
 			ServiceCatalogCorrelations: query.NewPostgresServiceCatalogCorrelationStore(db),
-			Profile:                    queryProfile,
+			// Freshness backs get_repository_freshness (#5143). It must be
+			// wired here (mirroring cmd/api/wiring_router.go) or the
+			// advertised MCP tool 503s with "repository freshness reader
+			// not configured" on the standalone MCP server, even though
+			// GET /api/v0/repositories/{id}/freshness works on cmd/api --
+			// the B-7 golden-corpus gate's MCP query-truth phase asserts
+			// this tool live against this binary.
+			Freshness: pgstatus.NewInstrumentedRepositoryFreshnessStore(pgstatus.SQLQueryer{DB: db}, instruments),
+			Profile:   queryProfile,
 		},
 		Entities: &query.EntityHandler{
 			Neo4j:                    neo4jReader,
