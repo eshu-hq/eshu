@@ -558,6 +558,11 @@
     },
     {
       "category": "api_route",
+      "name": "GET /api/v0/status/operations",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
       "name": "GET /api/v0/status/operator-control-plane",
       "readiness": "implemented"
     },
