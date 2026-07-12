@@ -92,7 +92,11 @@ func checkJobNamesResolve(repoRoot string, reg *Registry) []error {
 		}
 		names, cached := cache[g.CI.Workflow]
 		if !cached {
-			raw, err := os.ReadFile(filepath.Join(wfDir, g.CI.Workflow))
+			// filepath.Base strips any path component so the read is confined to
+			// wfDir; the filename itself comes from the committed ci-gates.v1.yaml
+			// registry, not runtime input.
+			wfPath := filepath.Join(wfDir, filepath.Base(g.CI.Workflow))
+			raw, err := os.ReadFile(wfPath) // #nosec G304 -- wfDir-confined path; filename is registry-controlled, not runtime input
 			if err != nil {
 				// Missing/unreadable workflow is reported by
 				// checkWorkflowCompleteness; do not double-report here.
