@@ -339,7 +339,13 @@ func (w *SecurityGroupReachabilityWriter) RetractSecurityGroupReachability(
 		})
 	}
 
-	return w.dispatch(ctx, stmts)
+	// Routed through dispatchRetract (sequential Execute, never ExecuteGroup):
+	// on the pinned NornicDB v1.1.11 a DELETE dispatched through ExecuteGroup
+	// under-applies even for two statements sharing one managed transaction.
+	// dispatchRetract already exists on this type for the ledger-anchored
+	// retract path (security_group_reachability_edge_writer_ledger.go); this
+	// whole-scope retract now shares it instead of going through dispatch.
+	return w.dispatchRetract(ctx, stmts)
 }
 
 // validateSecurityGroupAllowsRelType screens a row's relationship_type against

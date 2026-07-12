@@ -167,16 +167,28 @@ func TestSecurityGroupToEdgeWriterRejectsUnknownTargetLabel(t *testing.T) {
 func TestSecurityGroupReachabilityRetractScopesByEvidenceAndScope(t *testing.T) {
 	t.Parallel()
 
-	executor := &recordingGroupExecutor{}
+	// Retract statements run through sequential Execute calls, never
+	// ExecuteGroup: on the pinned NornicDB v1.1.11 a DELETE dispatched through
+	// ExecuteGroup under-applies even for two statements sharing one managed
+	// transaction (docs/public/reference/nornicdb-pitfalls.md).
+	// sqlSequentialRecordingExecutor implements GroupExecutor and records
+	// group calls, so a revert to the grouped dispatch fails here. A plain
+	// recordingExecutor cannot detect a revert: without GroupExecutor the old
+	// grouped dispatch takes its sequential fallback and produces identical
+	// Execute calls.
+	executor := &sqlSequentialRecordingExecutor{}
 	writer := NewSecurityGroupReachabilityWriter(executor, 500)
 	if err := writer.RetractSecurityGroupReachability(context.Background(), []string{"scope-1"}, "gen-2", sgReachabilityEvidence); err != nil {
 		t.Fatalf("RetractSecurityGroupReachability returned error: %v", err)
 	}
-	if len(executor.groupCalls) != 1 {
-		t.Fatalf("expected one atomic retract group, got %v", executor.groupCalls)
+	if got := len(executor.groupCalls); got != 0 {
+		t.Fatalf("ExecuteGroup calls = %d, want 0 (grouped DELETEs under-apply on NornicDB v1.1.11)", got)
+	}
+	if len(executor.calls) != 2 {
+		t.Fatalf("expected two sequential retract statements (SG->rule, rule->endpoint), got %v", executor.calls)
 	}
 	var joined string
-	for _, stmt := range executor.groupCalls[0] {
+	for _, stmt := range executor.calls {
 		joined += stmt.Cypher + "\n"
 	}
 	// Retract must scope by the edge's own scope_id + evidence_source (the
@@ -227,12 +239,12 @@ func TestSecurityGroupRuleNodeWriterSetsNameProperty(t *testing.T) {
 func TestSecurityGroupReachabilityRetractEmptyScopesIsNoOp(t *testing.T) {
 	t.Parallel()
 
-	executor := &recordingGroupExecutor{}
+	executor := &sqlSequentialRecordingExecutor{}
 	writer := NewSecurityGroupReachabilityWriter(executor, 500)
 	if err := writer.RetractSecurityGroupReachability(context.Background(), nil, "gen-2", sgReachabilityEvidence); err != nil {
 		t.Fatalf("RetractSecurityGroupReachability returned error: %v", err)
 	}
-	if len(executor.groupCalls) != 0 {
-		t.Fatalf("empty scope set must be a no-op, got %v", executor.groupCalls)
+	if len(executor.calls) != 0 || len(executor.groupCalls) != 0 {
+		t.Fatalf("empty scope set must be a no-op, got calls=%v groupCalls=%v", executor.calls, executor.groupCalls)
 	}
 }
