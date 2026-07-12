@@ -503,6 +503,11 @@ coverage:
   - {surface: retractable_edge:HAS_COLUMN, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_sql_relationship_retract_live_test.go, proof_gate: replay-tier}
   - {surface: retractable_edge:TRIGGERS, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_sql_relationship_retract_live_test.go, proof_gate: replay-tier}
   - {surface: retractable_edge:EXECUTES, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_sql_relationship_retract_live_test.go, proof_gate: replay-tier}
+  # Reducer-materialized rationale EXPLAINS edges (#5116 sibling): the delta
+  # (by-file) retract anchored its target on a node-label disjunction, which
+  # deletes nothing on NornicDB v1.1.11; proven by a live EdgeWriter
+  # write+retract covering the delta and whole-repo paths.
+  - {surface: retractable_edge:EXPLAINS, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_rationale_edge_retract_live_test.go, proof_gate: replay-tier}
   - {surface: reducer_drain:reducer-projection-drain, scenario: go_test, scenario_type: crash, ref: go/internal/replay/crashreplay/scenario_test.go, proof_gate: go-test-race}
 
 scenario_requirements:

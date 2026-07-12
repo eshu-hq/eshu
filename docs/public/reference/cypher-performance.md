@@ -695,10 +695,12 @@ repository fact, carries them into rationale retract rows, handles deleted-only
 delta generations without writes, preserves one legacy fallback fact load, and
 keeps malformed delta scope scoped instead of silently downgrading to repo-wide
 cleanup. `go test ./internal/storage/cypher -run
-'Test(BuildRetractRationaleEdgesByFilePath|EdgeWriterRetractEdgesRationale(DeltaUsesFileScope|RejectsDeltaWithoutFilePaths))'
--count=1` proves valid delta rows dispatch the file-scoped rationale retract
-statement with `target.path IN $file_paths`, malformed delta rows execute no
-Cypher, and non-delta rationale retracts keep the existing repo-wide dispatch.
+'Test(BuildRetractRationaleEdgeStatementsByFilePath|RationaleRetractCoversEveryWriteTargetLabel|EdgeWriterRetractEdgesRationale(DeltaRunsPerLabelStatementsSequentially|RejectsDeltaWithoutFilePaths))'
+-count=1` proves valid delta rows dispatch one file-scoped rationale retract
+statement per target label with `target.path IN $file_paths` (a single
+target-label disjunction matches zero rows on NornicDB v1.1.11), malformed
+delta rows execute no Cypher, and non-delta rationale retracts keep the
+existing repo-wide dispatch.
 The input cardinality is the delta file-path count for one repository
 generation; the changed Cypher keeps static target labels and the `EXPLAINS`
 relationship token, binds only a positive `$file_paths` list, and does not add

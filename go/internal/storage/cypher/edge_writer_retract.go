@@ -55,8 +55,10 @@ func (w *EdgeWriter) RetractEdges(
 			return err
 		}
 		if hasDeltaScope {
-			stmt := BuildRetractRationaleEdgesByFilePath(filePaths, evidenceSource)
-			return WrapRetryableNeo4jError(w.executor.Execute(ctx, stmt))
+			// Per-target-label statements run sequentially (#5116 sibling): a
+			// target-label disjunction matches zero rows on NornicDB v1.1.11.
+			stmts := BuildRetractRationaleEdgeStatementsByFilePath(filePaths, evidenceSource)
+			return w.executeSequentialRetractStatements(ctx, stmts)
 		}
 	}
 

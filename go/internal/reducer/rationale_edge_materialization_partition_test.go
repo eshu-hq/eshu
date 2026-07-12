@@ -19,7 +19,8 @@ import (
 //
 //   - RetractEdges: if ANY row carries delta_projection=true, delete only the
 //     edges whose target_path is in the union of those rows' delta_file_paths
-//     (mirrors retractRationaleEdgesByFileCypher, which keys on target.path).
+//     (mirrors BuildRetractRationaleEdgeStatementsByFilePath, whose per-label
+//     statements key on target.path).
 //     Otherwise (repo-wide) delete every edge for the rows' repos (mirrors the
 //     rationale.repo_id repo-wide retract).
 //   - WriteEdges: add each row's edge under its repo, keyed by
