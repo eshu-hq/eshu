@@ -25,10 +25,13 @@
 #      in the repo it is resolvable. This accepts the implied-cd convention
 #      the extension docs use ("From the package directory: bash
 #      scripts/foo.sh"). Deliberate leniency: a blocking gate that cries wolf
-#      gets baselined around instead of trusted. The cost is that a bare
-#      citation of a deleted root script whose NAME still exists under some
-#      nested scripts/ dir is not flagged — precision over recall, on
-#      purpose.
+#      gets baselined around instead of trusted. The cost is that a dead BARE
+#      citation is masked whenever ANY directory in the tree carries a
+#      scripts/ file with the same relative path — generic basenames like
+#      scripts/run.sh or scripts/test.sh in unrelated packages collide, so
+#      the fallback can resolve a citation to a script the author never
+#      meant. Precision over recall, on purpose; full-path citations do not
+#      have this ambiguity and are the recommended form.
 #   3. A citation that resolves nowhere is DEAD.
 #
 # Exclusions:
