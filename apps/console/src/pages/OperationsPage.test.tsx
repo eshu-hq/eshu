@@ -149,6 +149,20 @@ describe("OperationsPage", () => {
 // The live operations board (issue #5137) polls GET /api/v0/status/operations
 // independently of the model prop. These tests mirror StatusPage.test.tsx's
 // path-switching mock client + small injected pollMs + waitFor convention.
+//
+// OperationsLiveBoard is React.lazy + Suspense (bundle-budget code-split, see
+// OperationsPage.tsx). Every test below renders <OperationsPage>, so the
+// FIRST render in this file to reach that Suspense boundary pays a one-time
+// dynamic-import module-transform cost before the component (and its first
+// poll) can resolve. Locally that's sub-millisecond, but PR #5140 CI reported
+// a flake on a constrained runner where it exceeded findByText's default 1s
+// timeout (reproduced locally by injecting an artificial delay into the
+// dynamic import — the same assertion times out, and passes again once the
+// timeout below is applied). Every first suspense-crossing assertion in this
+// describe block therefore uses an explicit generous timeout instead of the
+// default, so CI resource contention cannot make this file flaky.
+const suspenseCrossingTimeout = { timeout: 5000 };
+
 describe("OperationsPage live operations board", () => {
   beforeEach(() => {
     vi.useRealTimers();
@@ -235,7 +249,9 @@ describe("OperationsPage live operations board", () => {
     render(<OperationsPage model={demoModel} client={client} pollMs={50} />);
 
     // Renders the human-readable source_display, not the raw source_key.
-    expect(await screen.findByText("acme/checkout-service")).toBeInTheDocument();
+    expect(
+      await screen.findByText("acme/checkout-service", {}, suspenseCrossingTimeout),
+    ).toBeInTheDocument();
     expect(screen.queryByText("repository:r_ea78e8bb")).not.toBeInTheDocument();
 
     await waitFor(() => expect(screen.getByText("acme/payments-api")).toBeInTheDocument(), {
@@ -252,7 +268,9 @@ describe("OperationsPage live operations board", () => {
     ]);
     render(<OperationsPage model={demoModel} client={client} pollMs={50000} />);
 
-    expect(await screen.findByText("repository:r_ea78e8bb")).toBeInTheDocument();
+    expect(
+      await screen.findByText("repository:r_ea78e8bb", {}, suspenseCrossingTimeout),
+    ).toBeInTheDocument();
   });
 
   it("renders scoped rows safely with an em dash for redacted repo/worker identity", async () => {
@@ -264,7 +282,7 @@ describe("OperationsPage live operations board", () => {
     ]);
     render(<OperationsPage model={demoModel} client={client} pollMs={50000} />);
 
-    await screen.findByText("running");
+    await screen.findByText("running", {}, suspenseCrossingTimeout);
     expect(screen.getAllByText("—").length).toBeGreaterThan(0);
   });
 
@@ -272,7 +290,9 @@ describe("OperationsPage live operations board", () => {
     const client = opsClient([operationsWire()]);
     render(<OperationsPage model={demoModel} client={client} pollMs={50000} />);
 
-    expect(await screen.findByText("No in-flight work — pipeline idle")).toBeInTheDocument();
+    expect(
+      await screen.findByText("No in-flight work — pipeline idle", {}, suspenseCrossingTimeout),
+    ).toBeInTheDocument();
   });
 
   it("degrades the live board gracefully but keeps rendering the rest of the page when the endpoint is unavailable", async () => {
@@ -283,7 +303,9 @@ describe("OperationsPage live operations board", () => {
     } as unknown as EshuApiClient;
     render(<OperationsPage model={demoModel} client={client} pollMs={50000} />);
 
-    expect(await screen.findByText(/Live operations board is unavailable/i)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/Live operations board is unavailable/i, {}, suspenseCrossingTimeout),
+    ).toBeInTheDocument();
     expect(screen.getByText("GET /api/v0/repositories/language-inventory")).toBeInTheDocument();
   });
 });
