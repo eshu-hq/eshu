@@ -487,6 +487,13 @@ coverage:
   - {surface: retractable_edge:CALLS, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_edge_retract_live_test.go, proof_gate: replay-tier}
   - {surface: retractable_edge:REFERENCES, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_edge_retract_live_test.go, proof_gate: replay-tier}
   - {surface: retractable_edge:INSTANTIATES, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_edge_retract_live_test.go, proof_gate: replay-tier}
+  # Reducer-materialized inheritance edges (#4367): same node-label-disjunction
+  # retract bug as the code-call edges, proven by a live EdgeWriter write+retract
+  # against a real NornicDB. Only the two rel-types the live test exercises are
+  # claimed (INHERITS, IMPLEMENTS); OVERRIDES/ALIASES ride the same fix but are
+  # not live-claimed here.
+  - {surface: retractable_edge:INHERITS, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_inheritance_edge_retract_live_test.go, proof_gate: replay-tier}
+  - {surface: retractable_edge:IMPLEMENTS, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_inheritance_edge_retract_live_test.go, proof_gate: replay-tier}
   - {surface: reducer_drain:reducer-projection-drain, scenario: go_test, scenario_type: crash, ref: go/internal/replay/crashreplay/scenario_test.go, proof_gate: go-test-race}
 
 scenario_requirements:

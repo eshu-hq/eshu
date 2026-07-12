@@ -664,7 +664,7 @@ repository fact, carries them into inheritance retract rows, handles
 deleted-only delta generations without writes, preserves bounded content-entity
 loading, and keeps malformed delta scope scoped instead of silently downgrading
 to repo-wide cleanup. `go test ./internal/storage/cypher -run
-'TestEdgeWriterRetractEdgesInheritance(DeltaUsesFileScope|RejectsDeltaWithoutFilePaths|Dispatch)|TestEdgeWriterRetractEdgesInheritanceIncludesOverrides|TestBuildRetractInheritanceEdgesByFilePath'
+'TestEdgeWriterRetractEdgesInheritance(DeltaUsesFileScope|RejectsDeltaWithoutFilePaths|Dispatch)|TestEdgeWriterRetractEdgesInheritanceIncludesOverrides|TestBuildRetractInheritanceEdgeStatementsByFilePath'
 -count=1` proves valid delta rows dispatch the file-scoped inheritance retract
 statement with `child.path IN $file_paths`, malformed delta rows execute no
 Cypher, and non-delta inheritance retracts keep the existing repo-wide dispatch.

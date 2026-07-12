@@ -260,10 +260,11 @@ passes on v1.1.9 but silently under-deletes on v1.1.11), and do not group the
 per-label statements into one transaction. Sibling instances of the same
 anti-pattern are still open and tracked in #5116: the write-path fallback
 templates (`batchCanonicalCodeCallUpsertCypher` and friends) silently write
-nothing for unresolved-label endpoints; the inheritance retract still uses a
-node-label disjunction; and the SQL-relationship retract uses an unlabeled
-`(source)` scan (fine on v1.1.9, under-deletes on v1.1.11). Each needs the same
-per-label + sequential rework with its own live proof.
+nothing for unresolved-label endpoints, and the SQL-relationship retract uses an
+unlabeled `(source)` scan (fine on v1.1.9, under-deletes on v1.1.11). The
+inheritance retract carried the same node-label disjunction and was fixed the
+same way in #4367 (`buildInheritanceRetractStatements`). Each remaining instance
+needs the same per-label + sequential rework with its own live proof.
 
 ### Validation
 

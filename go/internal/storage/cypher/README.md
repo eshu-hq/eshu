@@ -803,7 +803,7 @@ backend-specific branch.
   `BuildRetractInfrastructurePlatformEdges`, `BuildRetractRepoDependencyEdges`,
   `BuildRetractWorkloadDependencyEdges`, `BuildRetractCodeCallEdgeStatements`,
   `BuildRetractCodeCallEdgeStatementsByFilePath`,
-  `BuildRetractInheritanceEdges`, `BuildRetractSQLRelationshipEdges`,
+  `BuildRetractInheritanceEdgeStatements`, `BuildRetractInheritanceEdgeStatementsByFilePath`, `BuildRetractSQLRelationshipEdges`,
   `BuildRetractSQLRelationshipEdgeStatements`, `BuildDeleteOrphanPlatformNodes`
 
 **Read / check**

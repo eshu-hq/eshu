@@ -47,7 +47,15 @@ func TestBuildInheritanceRowMapRoutesImplementsCanonicalFallback(t *testing.T) {
 }
 
 func TestRetractInheritanceEdgesCoversImplements(t *testing.T) {
-	if !strings.Contains(retractInheritanceEdgesCypher, "IMPLEMENTS") {
+	stmts := BuildRetractInheritanceEdgeStatements([]string{"r"}, "reducer/inheritance")
+	found := false
+	for _, stmt := range stmts {
+		if strings.Contains(stmt.Cypher, "IMPLEMENTS") {
+			found = true
+			break
+		}
+	}
+	if !found {
 		t.Error("inheritance retract does not clean stale IMPLEMENTS edges")
 	}
 }

@@ -179,10 +179,13 @@ func TestEdgeWriterRetractEdgesInheritanceIncludesOverrides(t *testing.T) {
 	if err := writer.RetractEdges(context.Background(), reducer.DomainInheritanceEdges, rows, "reducer/inheritance"); err != nil {
 		t.Fatalf("RetractEdges() error = %v", err)
 	}
-	if got, want := len(executor.calls), 1; got != want {
-		t.Fatalf("executor calls = %d, want %d", got, want)
+	// One statement per child label (#5116/#4367).
+	if got, want := len(executor.calls), len(inheritanceRetractChildLabels); got != want {
+		t.Fatalf("executor calls = %d, want %d (one per child label)", got, want)
 	}
-	if !strings.Contains(executor.calls[0].Cypher, "INHERITS|OVERRIDES|ALIASES") {
-		t.Fatalf("cypher missing INHERITS|OVERRIDES|ALIASES: %s", executor.calls[0].Cypher)
+	for _, stmt := range executor.calls {
+		if !strings.Contains(stmt.Cypher, "INHERITS|OVERRIDES|ALIASES") {
+			t.Fatalf("cypher missing INHERITS|OVERRIDES|ALIASES: %s", stmt.Cypher)
+		}
 	}
 }

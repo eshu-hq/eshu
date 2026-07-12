@@ -298,26 +298,23 @@ func TestEdgeWriterRetractEdgesInheritanceDispatch(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RetractEdges() error = %v", err)
 	}
-	if got, want := len(executor.calls), 1; got != want {
-		t.Fatalf("executor calls = %d, want %d", got, want)
+	// One statement per child label (#5116/#4367), each single-label + repo-scoped.
+	if got, want := len(executor.calls), len(inheritanceRetractChildLabels); got != want {
+		t.Fatalf("executor calls = %d, want %d (one per child label)", got, want)
 	}
-	if !strings.Contains(executor.calls[0].Cypher, "INHERITS") {
-		t.Fatalf("cypher missing INHERITS: %s", executor.calls[0].Cypher)
-	}
-	if !strings.Contains(executor.calls[0].Cypher, "UNWIND $repo_ids AS repo_id") {
-		t.Fatalf("cypher missing repo_id unwind: %s", executor.calls[0].Cypher)
-	}
-	if !strings.Contains(executor.calls[0].Cypher, "MATCH (child:Function|Class|Interface|Trait|Struct|Enum|Protocol {repo_id: repo_id})") {
-		t.Fatalf("cypher missing label-scoped repo_id child anchor: %s", executor.calls[0].Cypher)
-	}
-	if !strings.Contains(executor.calls[0].Cypher, "MATCH (child)-[rel:INHERITS|OVERRIDES|ALIASES|IMPLEMENTS]->()") {
-		t.Fatalf("cypher missing child-bound relationship expansion: %s", executor.calls[0].Cypher)
-	}
-	if strings.HasPrefix(strings.TrimSpace(executor.calls[0].Cypher), "MATCH (child)-[rel:") {
-		t.Fatalf("cypher starts from unbound relationship scan: %s", executor.calls[0].Cypher)
-	}
-	if !strings.Contains(executor.calls[0].Cypher, "DELETE rel") {
-		t.Fatalf("cypher missing DELETE: %s", executor.calls[0].Cypher)
+	for _, stmt := range executor.calls {
+		if !strings.Contains(stmt.Cypher, "INHERITS|OVERRIDES|ALIASES|IMPLEMENTS") {
+			t.Fatalf("cypher missing inheritance rel types: %s", stmt.Cypher)
+		}
+		if !strings.Contains(stmt.Cypher, "child.repo_id IN $repo_ids") {
+			t.Fatalf("cypher missing repo_id filter: %s", stmt.Cypher)
+		}
+		if strings.Contains(stmt.Cypher, "(child)-[rel:") {
+			t.Fatalf("cypher uses unlabeled child scan (#5116): %s", stmt.Cypher)
+		}
+		if !strings.Contains(stmt.Cypher, "DELETE rel") {
+			t.Fatalf("cypher missing DELETE: %s", stmt.Cypher)
+		}
 	}
 }
 

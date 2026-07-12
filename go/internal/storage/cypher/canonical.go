@@ -200,11 +200,11 @@ SET rel.confidence = 0.95,
 
 // --- Retraction Cypher ---
 
-const retractInheritanceEdgesCypher = `UNWIND $repo_ids AS repo_id
-MATCH (child:Function|Class|Interface|Trait|Struct|Enum|Protocol {repo_id: repo_id})
-MATCH (child)-[rel:INHERITS|OVERRIDES|ALIASES|IMPLEMENTS]->()
-WHERE rel.evidence_source = $evidence_source
-DELETE rel`
+// Inheritance edge retraction (INHERITS/OVERRIDES/ALIASES/IMPLEMENTS) is built
+// per child label by buildInheritanceRetractStatements in
+// canonical_inheritance_retract.go, not as a single constant: NornicDB matches
+// neither a node-label disjunction nor (on v1.1.11) an unlabeled child scan
+// reliably (#5116/#4367).
 
 const retractSQLRelationshipEdgesCypher = `MATCH (source)-[rel:QUERIES_TABLE|REFERENCES_TABLE|HAS_COLUMN|TRIGGERS|EXECUTES]->()
 WHERE source.repo_id IN $repo_ids
