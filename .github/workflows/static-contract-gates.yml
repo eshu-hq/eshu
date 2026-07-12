@@ -39,6 +39,7 @@ jobs:
       envdoc: ${{ steps.filter.outputs.envdoc }}
       contract: ${{ steps.filter.outputs.contract }}
       ifa: ${{ steps.filter.outputs.ifa }}
+      ifaload: ${{ steps.filter.outputs.ifaload }}
       heredoc: ${{ steps.filter.outputs.heredoc }}
       matrix: ${{ steps.gate-matrix.outputs.matrix }}
       any: ${{ steps.gate-matrix.outputs.any }}
@@ -137,6 +138,14 @@ jobs:
               - 'specs/fact-kind-registry.v1.yaml'
               - 'specs/replay-coverage-manifest.v1.yaml'
               - 'testdata/golden/e2e-20repo-snapshot.json'
+            ifaload:
+              - '.github/workflows/static-contract-gates.yml'
+              - 'specs/ci-gates.v1.yaml'
+              - 'go/internal/ifa/amplify.go'
+              - 'go/internal/ifa/slots.go'
+              - 'go/internal/ifa/saturation/**'
+              - 'go/internal/ifa/throughput/**'
+              - 'specs/scale-lab-corpus.v1.yaml'
             heredoc:
               - '.github/workflows/static-contract-gates.yml'
               - 'specs/ci-gates.v1.yaml'
@@ -177,6 +186,7 @@ jobs:
           append_gate "${{ steps.filter.outputs.envdoc }}" "envdoc" "Verify environment registry reference gate" "scripts/test-generate-env-registry-doc.sh" "scripts/verify-env-registry-doc.sh"
           append_gate "${{ steps.filter.outputs.contract }}" "contract" "Verify contract source-of-truth gate" "scripts/test-verify-contracttest.sh && scripts/test-verify-fact-kind-registry.sh" "scripts/generate-contracttest.sh && scripts/generate-fact-kind-registry.sh && git diff --exit-code -- go/internal/collector/contracttest/contract_data.go go/internal/facts/fact_kind_registry.generated.go go/internal/facts/FACT_KIND_REGISTRIES.md"
           append_gate "${{ steps.filter.outputs.ifa }}" "ifa" "Verify Ifa contract-layer gate" "cd go && go test ./internal/ifa ./cmd/ifa -count=1" "cd go && go test ./internal/ifa ./cmd/ifa -count=1"
+          append_gate "${{ steps.filter.outputs.ifaload }}" "ifaload" "Verify Ifa P5 load/saturation gate" "cd go && go test ./internal/ifa/saturation/ ./internal/ifa/throughput/ -race -count=1" "cd go && go test ./internal/ifa/saturation/ ./internal/ifa/throughput/ -race -count=1"
           append_gate "${{ steps.filter.outputs.heredoc }}" "heredoc" "Verify heredoc budget gate" "cd go && go test ./cmd/heredoc-budget -count=1" "cd go && go run ./cmd/heredoc-budget -baseline ../scripts/heredoc-budget-baseline.txt"
 
           printf 'matrix={"include":[%s]}\n' "${matrix_items}" >>"${GITHUB_OUTPUT}"

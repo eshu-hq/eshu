@@ -1253,6 +1253,8 @@ gates:
     tier: pre-pr
     blocking: true
     triggers:
+      - ".github/workflows/static-contract-gates.yml"
+      - "specs/ci-gates.v1.yaml"
       - "go/internal/ifa/amplify.go"
       - "go/internal/ifa/slots.go"
       - "go/internal/ifa/saturation/**"
