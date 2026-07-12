@@ -38,8 +38,15 @@ func (c *laneRecordingCommitter) CommitScopeGeneration(
 	_ context.Context,
 	scopeValue scope.IngestionScope,
 	_ scope.ScopeGeneration,
-	_ <-chan facts.Envelope,
+	factStream <-chan facts.Envelope,
 ) error {
+	// Production commits always consume the fact stream (upsert on success,
+	// drainFacts on every error path); the fake must too, or producer-drain
+	// assertions would fail on committed generations.
+	if factStream != nil {
+		for range factStream {
+		}
+	}
 	cur := c.inFlight.Add(1)
 	for {
 		hw := c.highWater.Load()

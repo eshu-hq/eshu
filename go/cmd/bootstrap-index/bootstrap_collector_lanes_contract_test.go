@@ -194,55 +194,55 @@ func TestDrainCollectorLaneFailureLetsAdmittedSiblingsFinish(t *testing.T) {
 	}
 }
 
-// producerSource mirrors production fact emission: each generation's Facts
-// channel is fed by a producer goroutine whose blocking sends select on the
-// context of the FIRST Next call — exactly GitSource's snapshot workers,
-// which derive their worker context from the stream-starting Next context.
-// Producers therefore unblock either by being drained to exhaustion or when
-// admission stops, and never otherwise.
-type producerSource struct {
-	gens      []collector.CollectedGeneration
-	factCount int
+// prebufferedProducerSource mirrors production GitSource exactly where it
+// matters for the drain invariant: generations are built and BUFFERED ahead
+// of consumption (the stream buffer is sized to the snapshot worker count),
+// every generation's fact producer starts EAGERLY at build time, and its
+// sends are UNCONDITIONAL — they do not observe any cancellation, exactly
+// like factStreamWriter.send. A producer exits only when its channel is
+// drained to exhaustion.
+type prebufferedProducerSource struct {
+	stream    chan collector.CollectedGeneration
 	producers *sync.WaitGroup
-	index     int
-	streamCtx context.Context
 }
 
-func (s *producerSource) Next(ctx context.Context) (collector.CollectedGeneration, bool, error) {
-	if s.streamCtx == nil {
-		s.streamCtx = ctx
+func newPrebufferedProducerSource(genCount, factCount int, producers *sync.WaitGroup) *prebufferedProducerSource {
+	s := &prebufferedProducerSource{
+		stream:    make(chan collector.CollectedGeneration, genCount),
+		producers: producers,
 	}
-	if err := ctx.Err(); err != nil {
-		return collector.CollectedGeneration{}, false, err
-	}
-	if s.index >= len(s.gens) {
-		return collector.CollectedGeneration{}, false, nil
-	}
-	gen := s.gens[s.index]
-	i := s.index
-	s.index++
-
-	ch := make(chan facts.Envelope)
-	streamCtx := s.streamCtx
-	s.producers.Add(1)
-	go func() {
-		defer s.producers.Done()
-		defer close(ch)
-		for f := 0; f < s.factCount; f++ {
-			select {
-			case ch <- facts.Envelope{
-				FactID:       fmt.Sprintf("fact-%03d-%03d", i, f),
-				ScopeID:      gen.Scope.ScopeID,
-				GenerationID: gen.Generation.GenerationID,
-				FactKind:     "code_entity",
-			}:
-			case <-streamCtx.Done():
-				return
+	gens := laneTestGenerations(genCount)
+	for i := range gens {
+		ch := make(chan facts.Envelope)
+		gen := gens[i]
+		producers.Add(1)
+		go func(idx int, scopeID, genID string) {
+			defer producers.Done()
+			defer close(ch)
+			for f := 0; f < factCount; f++ {
+				// UNCONDITIONAL send, like production factStreamWriter.send.
+				ch <- facts.Envelope{
+					FactID:       fmt.Sprintf("fact-%03d-%03d", idx, f),
+					ScopeID:      scopeID,
+					GenerationID: genID,
+					FactKind:     "code_entity",
+				}
 			}
-		}
-	}()
-	gen.Facts = ch
-	return gen, true, nil
+		}(i, gen.Scope.ScopeID, gen.Generation.GenerationID)
+		gen.Facts = ch
+		s.stream <- gen
+	}
+	close(s.stream)
+	return s
+}
+
+func (s *prebufferedProducerSource) Next(ctx context.Context) (collector.CollectedGeneration, bool, error) {
+	select {
+	case gen, ok := <-s.stream:
+		return gen, ok, nil
+	case <-ctx.Done():
+		return collector.CollectedGeneration{}, false, ctx.Err()
+	}
 }
 
 // TestDrainCollectorDrainsUndispatchedGenerationsOnFailure pins P1 finding 2
@@ -254,11 +254,7 @@ func TestDrainCollectorDrainsUndispatchedGenerationsOnFailure(t *testing.T) {
 	t.Parallel()
 
 	var producers sync.WaitGroup
-	source := &producerSource{
-		gens:      laneTestGenerations(8),
-		factCount: 50,
-		producers: &producers,
-	}
+	source := newPrebufferedProducerSource(8, 50, &producers)
 	committer := &laneRecordingCommitter{
 		commitDelay: 5 * time.Millisecond,
 		failScope:   "scope-000",
@@ -348,4 +344,110 @@ func TestEffectiveCommitLanes(t *testing.T) {
 				tc.requested, tc.maxConns, tc.projWorkers, got, tc.want)
 		}
 	}
+}
+
+// TestDrainCollectorSerializesSharedPartitionAcrossScopes pins the #5135 P2
+// proof gap: generations with DIFFERENT ScopeIDs sharing one PartitionKey
+// must serialize (the partition is the repo-level conflict domain).
+func TestDrainCollectorSerializesSharedPartitionAcrossScopes(t *testing.T) {
+	t.Parallel()
+
+	gens := laneTestGenerations(12)
+	for i := range gens {
+		if i%3 == 0 {
+			// Distinct scope ids, one shared partition.
+			gens[i].Scope.PartitionKey = "repo-shared-partition"
+		}
+	}
+	source := &fakeSource{generations: gens}
+	committer := &partitionTrackingCommitter{commitDelay: 5 * time.Millisecond}
+	if err := drainCollector(context.Background(), source, committer, nil, nil, nil, 4); err != nil {
+		t.Fatalf("drainCollector() error = %v, want nil", err)
+	}
+	if committer.partitionOverlap.Load() {
+		t.Fatal("two generations sharing a PartitionKey (different ScopeIDs) committed concurrently")
+	}
+	if got := committer.total.Load(); got != 12 {
+		t.Fatalf("completed %d commits, want 12", got)
+	}
+}
+
+// TestDrainCollectorBlankPartitionKeysDoNotSerialize pins the blank-key
+// contract: a blank PartitionKey is NOT a shared conflict domain — two
+// unrelated scopes with blank partitions keep full lane concurrency (blank
+// never matches blank), while ScopeID uniqueness still guards each scope.
+func TestDrainCollectorBlankPartitionKeysDoNotSerialize(t *testing.T) {
+	t.Parallel()
+
+	gens := laneTestGenerations(12)
+	for i := range gens {
+		gens[i].Scope.PartitionKey = ""
+	}
+	source := &fakeSource{generations: gens}
+	committer := &partitionTrackingCommitter{commitDelay: 5 * time.Millisecond}
+	if err := drainCollector(context.Background(), source, committer, nil, nil, nil, 4); err != nil {
+		t.Fatalf("drainCollector() error = %v, want nil", err)
+	}
+	if got := committer.total.Load(); got != 12 {
+		t.Fatalf("completed %d commits, want 12", got)
+	}
+	if hw := committer.maxInFlight.Load(); hw < 2 {
+		t.Fatalf("max in-flight = %d with blank partitions, want >= 2 (blank keys must not serialize unrelated scopes)", hw)
+	}
+}
+
+// partitionTrackingCommitter tracks concurrent commits per PartitionKey.
+type partitionTrackingCommitter struct {
+	fakeCommitter
+
+	commitDelay time.Duration
+
+	mu               sync.Mutex
+	partitionCounts  map[string]int
+	partitionOverlap atomic.Bool
+
+	inFlight    atomic.Int64
+	maxInFlight atomic.Int64
+	total       atomic.Int64
+}
+
+func (c *partitionTrackingCommitter) CommitScopeGeneration(
+	_ context.Context,
+	scopeValue scope.IngestionScope,
+	_ scope.ScopeGeneration,
+	factStream <-chan facts.Envelope,
+) error {
+	if factStream != nil {
+		for range factStream {
+		}
+	}
+	cur := c.inFlight.Add(1)
+	defer c.inFlight.Add(-1)
+	for {
+		hw := c.maxInFlight.Load()
+		if cur <= hw || c.maxInFlight.CompareAndSwap(hw, cur) {
+			break
+		}
+	}
+	if key := scopeValue.PartitionKey; key != "" {
+		c.mu.Lock()
+		if c.partitionCounts == nil {
+			c.partitionCounts = map[string]int{}
+		}
+		c.partitionCounts[key]++
+		if c.partitionCounts[key] > 1 {
+			c.partitionOverlap.Store(true)
+		}
+		c.mu.Unlock()
+		defer func() {
+			c.mu.Lock()
+			c.partitionCounts[key]--
+			c.mu.Unlock()
+		}()
+	}
+	if c.commitDelay > 0 {
+		time.Sleep(c.commitDelay)
+	}
+	c.total.Add(1)
+	return nil
 }

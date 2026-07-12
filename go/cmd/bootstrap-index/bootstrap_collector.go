@@ -267,8 +267,49 @@ func drainCollector(
 		}
 	}
 	close(work)
-	wg.Wait()
+	// Teardown must keep draining laneDone while waiting for the workers:
+	// between the dispatcher's last per-iteration drain and loop exit, the
+	// outstanding completion signals can reach commitLanes+1 (every worker
+	// in flight at the drain plus one admission that reused a freed worker),
+	// which overflows the commitLanes-sized buffer and would deadlock a
+	// worker on its final send against a dispatcher stuck in Wait.
+	workersDone := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(workersDone)
+	}()
+teardown:
+	for {
+		select {
+		case key := <-laneDone:
+			releaseKey(key)
+		case <-workersDone:
+			break teardown
+		}
+	}
 	drainReleasedKeys()
+
+	// After a failure stops admission, the GitSource stream may still hold
+	// buffered generations (buffer is sized to the snapshot worker count)
+	// whose fact producers started eagerly and send UNCONDITIONALLY — they
+	// do not observe cancellation and would block forever on a full channel
+	// if never consumed (#5135 review). Consume the source to exact
+	// exhaustion under the parent context and drain each generation's fact
+	// stream so no producer is stranded. Parent cancellation is the one
+	// path that cannot drain (Next fails immediately); that is process
+	// teardown, and the error below already reports the partial collection.
+	if state.firstError() != nil || dispatchErr != nil {
+		for {
+			collected, ok, err := source.Next(ctx)
+			if err != nil || !ok {
+				break
+			}
+			if collected.Facts != nil {
+				for range collected.Facts {
+				}
+			}
+		}
+	}
 
 	if err := errors.Join(dispatchErr, state.firstError()); err != nil {
 		return err
@@ -311,10 +352,7 @@ func effectiveCommitLanes(requested, maxOpenConns, projectionWorkers int) int {
 	if lanes > defaultCommitLanes {
 		lanes = defaultCommitLanes
 	}
-	reserved := projectionWorkers + 1
-	if reserved < 2 {
-		reserved = 2
-	}
+	reserved := commitLaneReserve(projectionWorkers)
 	budget := maxOpenConns - reserved
 	if budget < 1 {
 		budget = 1
@@ -334,4 +372,15 @@ func postgresMaxOpenConns(getenv func(string) string) int {
 		}
 	}
 	return 30
+}
+
+// commitLaneReserve is the number of shared-pool connections held back from
+// commit lanes for the concurrent projector and maintenance work: the
+// projection workers plus one, and never fewer than two.
+func commitLaneReserve(projectionWorkers int) int {
+	reserved := projectionWorkers + 1
+	if reserved < 2 {
+		reserved = 2
+	}
+	return reserved
 }

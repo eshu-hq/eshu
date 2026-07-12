@@ -96,3 +96,42 @@ fixed and pinned by deterministic barrier tests (all -race, stable across
  `ESHU_BOOTSTRAP_COMMIT_LANES=1` — 416 pass / 0 fail (32s) — and at `=4` —
  416 pass / 0 fail (34s) — identical B-12 snapshot and terminal queue
  drain on the reworked coordinator.
+
+Second review round (P1: production drain invariant) — the reviewer was
+right that the prior producer test was a FALSE GREEN: it modeled fact sends
+as cancellation-aware, but production `factStreamWriter.send` is
+unconditional and every generation's producer starts eagerly at build time,
+with the stream buffering up to the snapshot worker count. Fixes:
+
+- After a failure stops admission, `drainCollector` consumes the source to
+  exact exhaustion under the parent context and drains every remaining
+  generation's fact stream (parent cancellation is the one non-drainable
+  path — process teardown, already reported as an error).
+- `GitSource` snapshot workers that abandon a stream hand-off on
+  cancellation now drain their own generation's facts instead of dropping
+  a stuck producer (pre-existing leak on the serial failure path too).
+- The regression test now models production honestly: PREBUFFERED
+  generations whose producers start eagerly and send UNCONDITIONALLY.
+  Negative proof recorded: with the exhaustion drain disabled the test
+  fails with stranded producers; restored, it is green under -race.
+- Hardening this surfaced a real teardown deadlock in the lane
+  coordinator itself: outstanding completion signals can reach
+  commitLanes+1 (in-flight at the last per-iteration drain plus one
+  admission that reused a freed worker), overflowing the laneDone buffer
+  exactly at exit — a worker blocked on its final send against a
+  dispatcher stuck in Wait. Teardown now drains laneDone concurrently
+  with the worker wait. Reproduced deterministically at -count=20 -race
+  before the fix; green at -count=100 -race after.
+
+P2 proof gaps closed: generations with different ScopeIDs sharing one
+PartitionKey serialize
+(`TestDrainCollectorSerializesSharedPartitionAcrossScopes`); blank
+PartitionKeys are never treated as a shared conflict domain — unrelated
+scopes keep concurrency (`TestDrainCollectorBlankPartitionKeysDoNotSerialize`);
+the startup log now reports `commit_lanes_requested`, effective
+`commit_lanes`, `postgres_max_open_conns`, and `commit_lane_reserve`.
+
+ No-Regression Evidence (post-drain-hardening rerun): golden corpus gate at
+ `ESHU_BOOTSTRAP_COMMIT_LANES=1` and `=4` — see the run logs cited in the
+ PR (416-check suite, identical B-12 snapshot and terminal drain expected
+ and required for merge).
