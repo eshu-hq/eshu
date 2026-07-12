@@ -8,7 +8,7 @@ owners:
   - graph-backend
   - api-mcp
   - collector
-gate_status: proposed
+gate_status: accepted
 purpose: >
   Define the public-safe corpus and measurement contract that must be accepted
   before reducer-scale, graph-write, API/MCP p95, and correlation-fanout

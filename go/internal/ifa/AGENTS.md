@@ -106,9 +106,24 @@ fact-kind registry plus the B-12 snapshot; you never hand-write a want-list.
    and the relevant package README), the way the parser model documents a new
    language.
 
+## P5 — load and saturation (Layer 3)
+
+- Amplify only through `AmplifyAtSlot` (`amplify.go`). It is family-aware and
+  delegates to `synth/gcp.GenerateMultiScope`. Do NOT add a generic
+  `scope_id`/`stable_fact_key` rewrite — the ADR Layer 3 landmine proves it is
+  determinism-unsafe for cloud-resource families (shared payload identity MERGEs
+  onto one node and races last-writer-wins). A new family needs its own
+  disjoint-by-construction generator or `AmplifyAtSlot` returns an error.
+- `ScaleSlot` (`slots.go`) ADOPTS `specs/scale-lab-corpus.v1.yaml`; the lockstep
+  test asserts every bound id is present in the spec. Do not invent a second
+  taxonomy or a second perf contract — reuse `perfcontract`'s enforcement split.
+- The runtime scenario runners are in `saturation/` and `throughput/`
+  subpackages (see their `AGENTS.md`), kept out of this pure core. The
+  `ifa-load-saturation` CI gate runs them with `-race`.
+
 ## Verification
 
 ```bash
-cd go && go test ./internal/ifa -count=1
+cd go && go test ./internal/ifa/... -count=1   # core + saturation + throughput
 make prove   # credential-free coverage + determinism mirror (Docker matrix when present)
 ```

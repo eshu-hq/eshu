@@ -90,7 +90,7 @@ run_common_step() {
 	fi
 }
 
-step_contract_layer() { (cd "${go_dir}" && go test ./internal/ifa ./cmd/ifa -count=1); }
+step_contract_layer() { (cd "${go_dir}" && go test ./internal/ifa/... ./cmd/ifa -count=1); }
 step_determinism_mirror() { bash "${repo_root}/scripts/test-verify-ifa-determinism.sh"; }
 step_deadletter_mirror() { bash "${repo_root}/scripts/test-verify-ifa-dead-letter-matrix.sh"; }
 # step_coverage runs `ifa coverage` in its default advisory mode, without the

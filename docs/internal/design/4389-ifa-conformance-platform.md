@@ -549,8 +549,8 @@ an inlined no-op function, confirmed by
 Layer 2 varies worker count to catch race defects; it never varies **load**.
 Layer 3 closes that gap without inventing a taxonomy, because the taxonomy
 already exists: `specs/scale-lab-corpus.v1.yaml` (issue #3170, now CLOSED;
-the spec's own `gate_status: proposed` field is stale and gets reconciled
-when Layer 3 adopts it) defines the smoke/small/medium/large/pathological
+the spec's `gate_status` is reconciled from `proposed` to `accepted` by P5
+(#4579), which adopts it) defines the smoke/small/medium/large/pathological
 corpus slots and the measurement contract (fact rows/sec, queue-claim p95,
 reducer drain, graph-write p95, API/MCP p95). Ifá **adopts** that spec as its
 load vocabulary; accepting #3170 becomes a Layer 3 dependency, not a parallel
@@ -927,14 +927,22 @@ Tier-2 run. Evidence: `make prove` runs credential-free and mirrors CI; the docs
 build gate passes; the blocking flip and CI wiring are recorded in
 `specs/ci-gates.v1.yaml`.
 
-**P5 — load and saturation (Layer 3).**
-Build the corpus amplifier and the throughput/saturation Odù classes over the
-P2 driver. Depends on scale-lab corpus acceptance (#3170) for slot definitions
-and on P3 for the determinism baseline. Smoke/small slots register hermetic;
-medium+ register operator-gated. Evidence: one amplified Odù at a small slot
-holds its perfcontract thresholds; the saturation Odù reproduces the #3560
-failure shape against a permit-starved backend and drains clean after release
-(regression test first for the dead-letter-flood assertion).
+**P5 — load and saturation (Layer 3). Delivered (#4579).**
+The corpus amplifier and the throughput/saturation Odù classes are built over the
+P2 driver. `go/internal/ifa`'s `AmplifyAtSlot` replays one base Odù across a
+scale-lab slot's disjoint synthetic scopes through the family-native
+`synth/gcp.GenerateMultiScope` (rejecting the generic-rewrite landmine), and
+`ScaleSlot` adopts `specs/scale-lab-corpus.v1.yaml`'s slots, binding each to a
+`perfcontract` enforcement class: smoke/small hermetic, medium+ operator-gated.
+The runtime runners live in `go/internal/ifa/throughput` (worker-count-invariant
+hermetic drain over the P2 driver) and `go/internal/ifa/saturation` (the #3560
+regression). Evidence, TDD-first: `TestUngatedBackendFloodsDeadLetters` proves
+the pre-fix flood shape and the gated tests prove the bounded gate eliminates it —
+backpressure engages, work retries, nothing dead-letters, and the queue drains to
+the B-12 residual — all `-race` clean; the small-slot throughput Odù drains every
+scope hermetically with identical committed totals at 1/2/4 workers. Registered
+as the `ifa-load-saturation` CI gate; `specs/scale-lab-corpus.v1.yaml`'s
+`gate_status` is reconciled to `accepted`.
 
 **P6 — deterministic fault injection (Layer 4).**
 Add the fault-script schema and injection decorators at the executor, claim
@@ -961,11 +969,14 @@ with P1 so derivation has a fully synthetic case from the start.
   (`EnforcementOperatorGated`, worst + ~25% headroom). The Docker determinism
   matrix carries its own per-cell baselines and is reported informationally, not
   budgeted, because it varies by machine and Docker state.
-- Layer 3 depends on the scale-lab corpus spec (#3170) moving from
-  `gate_status: proposed` to accepted; if that spec changes shape during
-  acceptance, the Layer 3 slot bindings follow it (anti-rewrite rule 9).
+- **Resolved for P5 (#4579):** the scale-lab corpus spec (#3170) `gate_status`
+  is reconciled from `proposed` to `accepted`, and Layer 3's `ScaleSlot` bindings
+  adopt its slot ids in lockstep (a test fails if the spec renames or drops a
+  slot; anti-rewrite rule 9).
 - Saturation budgets (how far past the permit pool, for how long) need
-  operator-gated calibration before the saturation Odù can be blocking.
+  operator-gated calibration before the saturation Odù can be blocking at
+  medium+ scale. P5 ships the hermetic shape regression (`ifa-load-saturation`);
+  the operator-gated scaled calibration remains open.
 - **Deferred, filed during P3:** cross-scope same-uid contention (two scopes
   legitimately claiming the same real-world resource UID) is a product-truth
   question, not a P5 amplifier bug — issue

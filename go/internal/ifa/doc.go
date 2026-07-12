@@ -35,4 +35,17 @@
 // and emits only through the same typed factschema Encode* seam a real
 // collector would use, so this package still touches no collector or parser
 // internals directly.
+//
+// P5 adds the Layer 3 load vocabulary. AmplifyAtSlot (amplify.go) replays one
+// base Odù across a scale-lab slot's disjoint synthetic scopes through the
+// family-native generator (go/internal/synth/gcp.GenerateMultiScope),
+// deliberately rejecting the determinism-unsafe generic scope_id/stable_fact_key
+// rewrite the ADR's Layer 3 landmine warns against. ScaleSlot (slots.go) adopts
+// specs/scale-lab-corpus.v1.yaml's corpus slots as the load taxonomy, binding
+// each to a fan-out and a perfcontract enforcement class (smoke/small hermetic,
+// medium+ operator-gated) rather than inventing a second taxonomy or perf
+// contract. The runtime scenario runners over these — the throughput Odù and the
+// #3560 saturation regression — live in the sibling subpackages
+// go/internal/ifa/throughput and go/internal/ifa/saturation, keeping this core
+// package pure and deterministic (no wall-clock, concurrency, or storage seams).
 package ifa

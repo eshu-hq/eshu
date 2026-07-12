@@ -30,6 +30,18 @@ var nonCountingReducerRetryFailureClasses = []string{
 	reducer.GCPRelationshipNodesNotReadyFailureClass,
 }
 
+// IsNonCountingReducerRetryFailureClass reports whether failureClass is exempt
+// from the reducer retry budget — a readiness-gate miss that is deferred until
+// its upstream phase commits rather than failing on its own merits. It exposes
+// the same predicate the internal claim path uses so a caller can assert, in
+// lockstep, that a failure class it models as counting (for example
+// cypher.GraphWriteTimeoutFailureClass in the Ifá saturation regression) has not
+// been accidentally added to the exempt set — a drift that would make the real
+// queue retry forever while a counting-assumption model dead-letters.
+func IsNonCountingReducerRetryFailureClass(failureClass string) bool {
+	return isNonCountingReducerRetryFailureClass(failureClass)
+}
+
 // reducerClaimAttemptCountCaseSQL renders the attempt_count assignment for the
 // claim UPDATE: a retrying row whose failure_class is a non-counting readiness
 // class keeps its attempt_count; every other claim increments it. Both the
