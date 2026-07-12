@@ -14,4 +14,3 @@
 #   cd go && go run ./cmd/heredoc-budget -baseline ../scripts/heredoc-budget-baseline.txt -update
 #
 # <relative/path> <count-of-heredocs-over-budget>
-scripts/test-e2e-remote-compose-suite.sh 3
