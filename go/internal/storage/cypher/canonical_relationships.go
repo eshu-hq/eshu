@@ -274,9 +274,15 @@ MERGE (artifact)-[env_rel:TARGETS_ENVIRONMENT]->(env)
 SET env_rel.evidence_source = row.evidence_source,
     env_rel.resolved_id = row.resolved_id`
 
+// The Repository->Workload<-WorkloadInstance traversal is split into two
+// single-hop MATCHes sharing the workload variable: on NornicDB v1.1.11 a
+// multi-hop path pattern with a direction reversal
+// ((repo)-[:DEFINES]->(:Workload)<-[:INSTANCE_OF]-(i)) matches zero rows
+// (probed — the chained shape wrote nothing while the split shape writes),
+// so the chained template silently wrote no RUNS_ON edge.
 const canonicalRunsOnUpsertCypher = `UNWIND $rows AS row
-MATCH (repo:Repository {id: row.repo_id})
-MATCH (repo)-[:DEFINES]->(:Workload)<-[:INSTANCE_OF]-(i:WorkloadInstance)
+MATCH (repo:Repository {id: row.repo_id})-[:DEFINES]->(w:Workload)
+MATCH (i:WorkloadInstance)-[:INSTANCE_OF]->(w)
 MATCH (p:Platform {id: row.platform_id})
 MERGE (i)-[rel:RUNS_ON]->(p)
 SET rel.confidence = 0.97,
@@ -300,14 +306,20 @@ MATCH (source_repo)-[rel:` + repoDependencyRelationshipEdgeTypes + `]->(:Reposit
 WHERE rel.evidence_source = $evidence_source
 DELETE rel`
 
+// Split single-hop MATCHes for the same NornicDB v1.1.11 reason as the
+// RUNS_ON write template above: the chained direction-reversing path deletes
+// nothing (probed), so the retract fans the traversal into shared-variable
+// hops.
 const retractRepoRunsOnEdgesCypher = `UNWIND $repo_ids AS repo_id
-MATCH (repo:Repository {id: repo_id})
-MATCH (repo)-[:DEFINES]->(:Workload)<-[:INSTANCE_OF]-(i:WorkloadInstance)-[rel:RUNS_ON]->(:Platform)
+MATCH (repo:Repository {id: repo_id})-[:DEFINES]->(w:Workload)
+MATCH (i:WorkloadInstance)-[:INSTANCE_OF]->(w)
+MATCH (i)-[rel:RUNS_ON]->(:Platform)
 WHERE rel.evidence_source = $evidence_source
 DELETE rel`
 
-const retractSingleRepoRunsOnEdgesCypher = `MATCH (repo:Repository {id: $repo_id})
-MATCH (repo)-[:DEFINES]->(:Workload)<-[:INSTANCE_OF]-(i:WorkloadInstance)-[rel:RUNS_ON]->(:Platform)
+const retractSingleRepoRunsOnEdgesCypher = `MATCH (repo:Repository {id: $repo_id})-[:DEFINES]->(w:Workload)
+MATCH (i:WorkloadInstance)-[:INSTANCE_OF]->(w)
+MATCH (i)-[rel:RUNS_ON]->(:Platform)
 WHERE rel.evidence_source = $evidence_source
 DELETE rel`
 

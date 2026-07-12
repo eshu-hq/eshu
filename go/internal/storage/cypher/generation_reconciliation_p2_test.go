@@ -55,7 +55,7 @@ func TestRepairAnchorsYieldDomainRetractAnchorsNotEdgeKeys(t *testing.T) {
 			Payload:      map[string]any{"repo_id": anchor},
 		})
 	}
-	executor := &recordingGroupExecutor{}
+	executor := &sqlSequentialRecordingExecutor{}
 	writer := NewEdgeWriter(executor, 0)
 	if err := writer.RetractEdges(
 		context.Background(),
@@ -65,11 +65,11 @@ func TestRepairAnchorsYieldDomainRetractAnchorsNotEdgeKeys(t *testing.T) {
 	); err != nil {
 		t.Fatalf("RetractEdges() error = %v", err)
 	}
-	if len(executor.groupCalls) != 1 {
-		t.Fatalf("expected 1 grouped retract call, got %d", len(executor.groupCalls))
+	if len(executor.calls) == 0 {
+		t.Fatalf("expected sequential retract statements, got none")
 	}
 	foundRepoA := false
-	for _, stmt := range executor.groupCalls[0] {
+	for _, stmt := range executor.calls {
 		for _, id := range statementRepoAnchorIDs(stmt) {
 			if id == "edge-gen1" {
 				t.Fatalf("retract keyed on opaque edge key edge-gen1: %#v", stmt.Parameters)

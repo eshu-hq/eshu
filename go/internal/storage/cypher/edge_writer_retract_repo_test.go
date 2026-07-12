@@ -128,12 +128,12 @@ func TestEdgeWriterRetractEdgesRepoDependencyLogsStatementDurations(t *testing.T
 	}
 }
 
-func TestEdgeWriterRetractEdgesRepoDependencyLogsGroupedStatementRoles(t *testing.T) {
+func TestEdgeWriterRetractEdgesRepoDependencyLogsSequentialStatementRoles(t *testing.T) {
 	t.Parallel()
 
 	var logs bytes.Buffer
 	logger := slog.New(slog.NewJSONHandler(&logs, nil))
-	executor := &recordingGroupExecutor{}
+	executor := &sqlSequentialRecordingExecutor{}
 	writer := NewEdgeWriter(executor, 0)
 	writer.Logger = logger
 
@@ -145,29 +145,32 @@ func TestEdgeWriterRetractEdgesRepoDependencyLogsGroupedStatementRoles(t *testin
 	if err != nil {
 		t.Fatalf("RetractEdges() error = %v", err)
 	}
-	if got, want := len(executor.groupCalls), 1; got != want {
-		t.Fatalf("group calls = %d, want %d", got, want)
+	// The repo-dependency retract runs its three statements sequentially, each
+	// in its own transaction: grouped DELETEs under-apply on NornicDB v1.1.11.
+	if got := len(executor.groupCalls); got != 0 {
+		t.Fatalf("ExecuteGroup calls = %d, want 0 (grouped DELETEs under-apply on NornicDB v1.1.11)", got)
 	}
-	for i, stmt := range executor.groupCalls[0] {
+	if got, want := len(executor.calls), 3; got != want {
+		t.Fatalf("Execute calls = %d, want %d", got, want)
+	}
+	for i, stmt := range executor.calls {
 		if _, ok := stmt.Parameters[StatementMetadataSummaryKey]; ok {
-			t.Fatalf("group statement %d passed diagnostic statement summary to backend: %#v", i, stmt.Parameters)
+			t.Fatalf("statement %d passed diagnostic statement summary to backend: %#v", i, stmt.Parameters)
 		}
 	}
 
 	entries := decodeJSONLogEntries(t, logs.Bytes())
-	if got, want := len(entries), 1; got != want {
+	if got, want := len(entries), 3; got != want {
 		t.Fatalf("log entries = %d, want %d\nlogs:\n%s", got, want, logs.String())
 	}
-	entry := entries[0]
-	if got, want := entry["msg"], "shared edge retract group completed"; got != want {
-		t.Fatalf("msg = %v, want %v", got, want)
-	}
-	if got, want := entry["execution_mode"], "group"; got != want {
-		t.Fatalf("execution_mode = %v, want %v", got, want)
-	}
-	rawSummaries, ok := entry["statement_summaries"].([]any)
-	if !ok || len(rawSummaries) != 3 {
-		t.Fatalf("statement_summaries = %#v, want three statement roles", entry["statement_summaries"])
+	var summaries []string
+	for _, entry := range entries {
+		if got, want := entry["msg"], "shared edge retract statement completed"; got != want {
+			t.Fatalf("msg = %v, want %v", got, want)
+		}
+		if summary, _ := entry["statement_summary"].(string); summary != "" {
+			summaries = append(summaries, summary)
+		}
 	}
 	for _, want := range []string{
 		"role=repository_relationship_edges",
@@ -180,23 +183,22 @@ func TestEdgeWriterRetractEdgesRepoDependencyLogsGroupedStatementRoles(t *testin
 		"role=evidence_artifacts",
 	} {
 		found := false
-		for _, raw := range rawSummaries {
-			summary, _ := raw.(string)
+		for _, summary := range summaries {
 			if strings.Contains(summary, want) {
 				found = true
 				break
 			}
 		}
 		if !found {
-			t.Fatalf("statement_summaries = %#v, missing %q", rawSummaries, want)
+			t.Fatalf("statement summaries = %#v, missing %q", summaries, want)
 		}
 	}
 }
 
-func TestEdgeWriterRetractEdgesRepoDependencySingleRepoGroupUsesBoundDeleteShape(t *testing.T) {
+func TestEdgeWriterRetractEdgesRepoDependencySingleRepoUsesBoundDeleteShape(t *testing.T) {
 	t.Parallel()
 
-	executor := &recordingGroupExecutor{}
+	executor := &sqlSequentialRecordingExecutor{}
 	writer := NewEdgeWriter(executor, 0)
 
 	rows := []reducer.SharedProjectionIntentRow{
@@ -207,12 +209,12 @@ func TestEdgeWriterRetractEdgesRepoDependencySingleRepoGroupUsesBoundDeleteShape
 	if err != nil {
 		t.Fatalf("RetractEdges() error = %v", err)
 	}
-	if got, want := len(executor.groupCalls), 1; got != want {
-		t.Fatalf("group calls = %d, want %d", got, want)
+	if got := len(executor.groupCalls); got != 0 {
+		t.Fatalf("ExecuteGroup calls = %d, want 0 (grouped DELETEs under-apply on NornicDB v1.1.11)", got)
 	}
-	group := executor.groupCalls[0]
+	group := executor.calls
 	if got, want := len(group), 3; got != want {
-		t.Fatalf("grouped repo dependency statements = %d, want %d", got, want)
+		t.Fatalf("sequential repo dependency statements = %d, want %d", got, want)
 	}
 	repoRelationships := group[0]
 	if strings.Contains(repoRelationships.Cypher, "UNWIND") {

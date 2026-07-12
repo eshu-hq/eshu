@@ -103,32 +103,18 @@ func repoDependencyRetractParameters(repoIDs []string, evidenceSource string, su
 	return params
 }
 
+// executeRepoDependencyRetractStatements runs the three repo-dependency
+// retract statements sequentially, each in its own transaction — deliberately
+// NOT grouped through ExecuteGroup, for the same NornicDB v1.1.11
+// managed-transaction reason documented on executeCodeCallRetractStatements
+// (measured here too: the grouped path left the first statement's typed
+// relationship edges undeleted). Each statement is independently scoped and
+// idempotent, so sequential execution is safe.
 func (w *EdgeWriter) executeRepoDependencyRetractStatements(ctx context.Context, repoIDs []string, evidenceSource string) error {
 	items := buildRepoDependencyRetractStatements(repoIDs, evidenceSource)
 	if w.RepoDependencyRetractStatementTiming {
 		items = buildRepoDependencyDiagnosticRetractStatements(repoIDs, evidenceSource)
 	}
-	if ge, ok := w.executor.(GroupExecutor); ok && !w.RepoDependencyRetractStatementTiming {
-		executableStmts := make([]Statement, 0, len(items))
-		logStmts := make([]Statement, 0, len(items))
-		for _, item := range items {
-			executableStmts = append(executableStmts, SanitizeStatement(item.stmt))
-			logStmts = append(logStmts, item.stmt)
-		}
-		start := time.Now()
-		if err := ge.ExecuteGroup(ctx, executableStmts); err != nil {
-			return WrapRetryableNeo4jError(err)
-		}
-		w.logSharedEdgeRetractGroup(
-			reducer.DomainRepoDependency,
-			evidenceSource,
-			len(repoIDs),
-			time.Since(start).Seconds(),
-			logStmts,
-		)
-		return nil
-	}
-
 	return w.executeRepoDependencyRetractStatementsSequential(ctx, items, repoIDs, evidenceSource)
 }
 

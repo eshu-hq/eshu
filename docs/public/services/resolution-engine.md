@@ -85,12 +85,13 @@ The partitioned runner handles `platform_infra`, `workload_dependency`,
   shared projection is the bottleneck.
 - The main loop, shared projection runner, code-call runner, and
   repo-dependency runner run as concurrent goroutines inside `Service.Run()`.
-- `ESHU_REPO_DEPENDENCY_RETRACT_STATEMENT_TIMING` is a diagnostic-only switch
-  for bounded proof runs. Leave it off for normal operation; grouped production
-  execution still uses the same three role statements in one transaction. When
-  enabled it executes those statements separately and times
-  `repository_relationship_edges`, `runs_on_relationships`, and
-  `evidence_artifacts` roles so logs show which cleanup owns the cost.
+- `ESHU_REPO_DEPENDENCY_RETRACT_STATEMENT_TIMING` is retained for
+  compatibility but no longer changes behavior: repo-dependency retracts
+  always execute their three role statements
+  (`repository_relationship_edges`, `runs_on_relationships`,
+  `evidence_artifacts`) sequentially, each in its own transaction with a
+  per-statement timing log, because grouped DELETEs under-apply on NornicDB
+  v1.1.11.
 - The generation-retention runner runs beside those loops and relies on
   Postgres row locks plus bounded batch and row limits. Do not reduce reducer
   worker counts to make retention safe.
