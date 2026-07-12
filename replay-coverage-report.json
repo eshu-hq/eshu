@@ -3419,9 +3419,9 @@
       "scenario_type": "fault",
       "status": "covered",
       "scenario": "go_test",
-      "ref": "go/internal/replay/inputtape/fault_collectors_incident_test.go",
+      "ref": "go/internal/replay/inputtape/fault_collectors_test.go",
       "proof_gate": "go-test-race",
-      "detail": "artifact present: go/internal/replay/inputtape/fault_collectors_incident_test.go"
+      "detail": "artifact present: go/internal/replay/inputtape/fault_collectors_test.go"
     },
     {
       "registry": "surface_inventory",
@@ -3459,9 +3459,9 @@
       "scenario_type": "fault",
       "status": "covered",
       "scenario": "go_test",
-      "ref": "go/internal/replay/inputtape/fault_collectors_supplychain_test.go",
+      "ref": "go/internal/replay/inputtape/fault_collectors_test.go",
       "proof_gate": "go-test-race",
-      "detail": "artifact present: go/internal/replay/inputtape/fault_collectors_supplychain_test.go"
+      "detail": "artifact present: go/internal/replay/inputtape/fault_collectors_test.go"
     },
     {
       "registry": "surface_inventory",
@@ -3479,9 +3479,9 @@
       "scenario_type": "fault",
       "status": "covered",
       "scenario": "go_test",
-      "ref": "go/internal/replay/inputtape/fault_collectors_supplychain_test.go",
+      "ref": "go/internal/replay/inputtape/fault_collectors_test.go",
       "proof_gate": "go-test-race",
-      "detail": "artifact present: go/internal/replay/inputtape/fault_collectors_supplychain_test.go"
+      "detail": "artifact present: go/internal/replay/inputtape/fault_collectors_test.go"
     },
     {
       "registry": "surface_inventory",
@@ -3499,9 +3499,9 @@
       "scenario_type": "fault",
       "status": "covered",
       "scenario": "go_test",
-      "ref": "go/internal/replay/inputtape/fault_collectors_incident_test.go",
+      "ref": "go/internal/replay/inputtape/fault_collectors_test.go",
       "proof_gate": "go-test-race",
-      "detail": "artifact present: go/internal/replay/inputtape/fault_collectors_incident_test.go"
+      "detail": "artifact present: go/internal/replay/inputtape/fault_collectors_test.go"
     },
     {
       "registry": "surface_inventory",
@@ -3539,9 +3539,9 @@
       "scenario_type": "fault",
       "status": "covered",
       "scenario": "go_test",
-      "ref": "go/internal/replay/inputtape/fault_collectors_supplychain_test.go",
+      "ref": "go/internal/replay/inputtape/fault_collectors_test.go",
       "proof_gate": "go-test-race",
-      "detail": "artifact present: go/internal/replay/inputtape/fault_collectors_supplychain_test.go"
+      "detail": "artifact present: go/internal/replay/inputtape/fault_collectors_test.go"
     },
     {
       "registry": "surface_inventory",
@@ -3573,9 +3573,9 @@
       "scenario_type": "fault",
       "status": "covered",
       "scenario": "go_test",
-      "ref": "go/internal/replay/inputtape/fault_collectors_incident_test.go",
+      "ref": "go/internal/replay/inputtape/fault_collectors_test.go",
       "proof_gate": "go-test-race",
-      "detail": "artifact present: go/internal/replay/inputtape/fault_collectors_incident_test.go"
+      "detail": "artifact present: go/internal/replay/inputtape/fault_collectors_test.go"
     },
     {
       "registry": "surface_inventory",
@@ -3613,9 +3613,9 @@
       "scenario_type": "fault",
       "status": "covered",
       "scenario": "go_test",
-      "ref": "go/internal/replay/inputtape/fault_collectors_supplychain_test.go",
+      "ref": "go/internal/replay/inputtape/fault_collectors_test.go",
       "proof_gate": "go-test-race",
-      "detail": "artifact present: go/internal/replay/inputtape/fault_collectors_supplychain_test.go"
+      "detail": "artifact present: go/internal/replay/inputtape/fault_collectors_test.go"
     },
     {
       "registry": "surface_inventory",
@@ -3633,9 +3633,9 @@
       "scenario_type": "fault",
       "status": "covered",
       "scenario": "go_test",
-      "ref": "go/internal/replay/inputtape/fault_collectors_supplychain_test.go",
+      "ref": "go/internal/replay/inputtape/fault_collectors_test.go",
       "proof_gate": "go-test-race",
-      "detail": "artifact present: go/internal/replay/inputtape/fault_collectors_supplychain_test.go"
+      "detail": "artifact present: go/internal/replay/inputtape/fault_collectors_test.go"
     },
     {
       "registry": "surface_inventory",
