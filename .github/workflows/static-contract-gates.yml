@@ -102,6 +102,7 @@ jobs:
               - 'go/cmd/**'
               - 'docs/public/observability/telemetry-coverage.md'
               - 'scripts/*verify-telemetry-coverage*.sh'
+              - 'scripts/lib/test-verify-telemetry-coverage-*'
             dashboard:
               - '.github/workflows/static-contract-gates.yml'
               - 'specs/ci-gates.v1.yaml'
