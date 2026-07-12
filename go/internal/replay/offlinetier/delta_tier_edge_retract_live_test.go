@@ -39,6 +39,7 @@ const (
 	edgePipelineOneUID = deltaRepoID + ":gitlab:pipeline:a"
 	edgePipelineTwoUID = deltaRepoID + ":gitlab:pipeline:b"
 	edgeMoverJobUID    = deltaRepoID + ":gitlab:job:mover"
+	edgeStayerJobUID   = deltaRepoID + ":gitlab:job:stayer"
 )
 
 // TestDeltaEdgeRetractGraphTruth proves direct DEFINES_JOB edge retraction
@@ -90,6 +91,9 @@ func TestDeltaEdgeRetractGraphTruth(t *testing.T) {
 	// Direct edge retraction: the mover and both pipelines survive, only the edge moved.
 	assertEdgeCount(ctx, t, exec, definesQ, fromOne, 0, "gen2: DEFINES_JOB(pipelineOne->mover) retracted")
 	assertEdgeCount(ctx, t, exec, definesQ, fromTwo, 1, "gen2: DEFINES_JOB(pipelineTwo->mover) present")
+	// Scoped reconciliation: pipelineOne's OTHER edge (to the stayer) must survive,
+	// proving the retract removed only the stale mover edge, not all of A's edges.
+	assertEdgeCount(ctx, t, exec, definesQ, map[string]any{"p": edgePipelineOneUID, "j": edgeStayerJobUID}, 1, "gen2: DEFINES_JOB(pipelineOne->stayer) survives")
 	assertEdgeCount(ctx, t, exec, nodeQ, map[string]any{"u": edgePipelineOneUID}, 1, "gen2: pipelineOne survives")
 	assertEdgeCount(ctx, t, exec, nodeQ, map[string]any{"u": edgePipelineTwoUID}, 1, "gen2: pipelineTwo survives")
 	assertEdgeCount(ctx, t, exec, nodeQ, map[string]any{"u": edgeMoverJobUID}, 1, "gen2: mover job survives")
