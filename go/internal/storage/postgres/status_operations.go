@@ -23,16 +23,31 @@ import (
 // be genuinely NULL (for example a retrying item not currently leased), so it
 // scans into sql.NullTime.
 //
+// source_display resolves the operator-facing repo name (#5137 follow-up: raw
+// source_key is an opaque hash like "repository:r_ea78e8bb" for git scopes).
+// Git collectors carry the human-readable identity in the scope payload as
+// repo_slug ("acme/orders-api") or, on older payload shapes, repo_name;
+// COALESCE/NULLIF/BTRIM falls back through both before landing on source_key
+// so every row always has a display value, never NULL or blank.
+//
 // Performance Evidence: scratch Postgres 16 + migrations 001/002/005,
 // synthetic corpus of 20k ingestion_scopes / 150k fact_work_items rows --
 // normal shape (~1.9k in-flight rows) ran in 6.1ms via a Bitmap Index Scan on
 // fact_work_items_status_idx (status, visible_at, updated_at) feeding a top-N
 // heapsort under LIMIT; pathological shape (61k in-flight/retrying rows) ran
 // in 12.3ms. Both are well inside the console's 10-12s poll budget.
+//
+// No-Regression Evidence: the source_display expression is a JSONB key
+// extraction (->>' ') plus two NULLIF/BTRIM calls, evaluated only on the rows
+// the LIMIT already returns (at most limit+1, capped at LiveActivityMaxLimit
+// 500). It adds no join, no new index requirement, and no per-row cost that
+// scales with corpus size, so it does not change the query's plan shape or
+// the 6.1ms/12.3ms proof above.
 const liveActivityQuery = `
 SELECT w.work_item_id, w.stage, w.status, w.domain, COALESCE(w.lease_owner, '') AS lease_owner,
        w.claim_until, w.attempt_count, w.updated_at, w.created_at,
-       s.scope_kind, s.collector_kind, s.source_system, s.source_key
+       s.scope_kind, s.collector_kind, s.source_system, s.source_key,
+       COALESCE(NULLIF(BTRIM(s.payload->>'repo_slug'), ''), NULLIF(BTRIM(s.payload->>'repo_name'), ''), s.source_key) AS source_display
 FROM fact_work_items w
 JOIN ingestion_scopes s ON s.scope_id = w.scope_id
 WHERE w.status IN ('claimed', 'running', 'retrying')
@@ -128,6 +143,7 @@ func (s LiveActivityStore) readLiveActivity(ctx context.Context, limit int) ([]s
 			&row.CollectorKind,
 			&row.SourceSystem,
 			&row.SourceKey,
+			&row.SourceDisplay,
 		); scanErr != nil {
 			return nil, false, fmt.Errorf("read live activity: %w", scanErr)
 		}

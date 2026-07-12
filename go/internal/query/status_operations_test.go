@@ -60,7 +60,7 @@ func decodeOperationsPayload(t *testing.T, rec *httptest.ResponseRecorder) map[s
 	return payload
 }
 
-func liveActivityTestRow(workItemID, sourceKey, leaseOwner string, updatedAt time.Time) statuspkg.LiveActivityRow {
+func liveActivityTestRow(workItemID, sourceKey, sourceDisplay, leaseOwner string, updatedAt time.Time) statuspkg.LiveActivityRow {
 	return statuspkg.LiveActivityRow{
 		WorkItemID:    workItemID,
 		Stage:         "reducer",
@@ -74,6 +74,7 @@ func liveActivityTestRow(workItemID, sourceKey, leaseOwner string, updatedAt tim
 		CollectorKind: "github",
 		SourceSystem:  "github.com",
 		SourceKey:     sourceKey,
+		SourceDisplay: sourceDisplay,
 	}
 }
 
@@ -87,7 +88,7 @@ func TestGetOperationsComposesHealthCollectorsQueueAndLiveActivity(t *testing.T)
 	asOf := time.Date(2026, 7, 12, 3, 0, 0, 0, time.UTC)
 	reader := &fakeLiveActivityReader{
 		rows: []statuspkg.LiveActivityRow{
-			liveActivityTestRow("wi-1", "eshu-hq/eshu", "reducer-worker-1", asOf.Add(-5*time.Second)),
+			liveActivityTestRow("wi-1", "repository:r_ea78e8bb", "eshu-hq/eshu", "reducer-worker-1", asOf.Add(-5*time.Second)),
 		},
 	}
 	snapshot := statuspkg.RawSnapshot{
@@ -126,7 +127,8 @@ func TestGetOperationsComposesHealthCollectorsQueueAndLiveActivity(t *testing.T)
 		t.Fatalf("live_activity = %#v, want 1 row", payload["live_activity"])
 	}
 	row := activity[0].(map[string]any)
-	if row["work_item_id"] != "wi-1" || row["source_key"] != "eshu-hq/eshu" || row["lease_owner"] != "reducer-worker-1" {
+	if row["work_item_id"] != "wi-1" || row["source_key"] != "repository:r_ea78e8bb" ||
+		row["source_display"] != "eshu-hq/eshu" || row["lease_owner"] != "reducer-worker-1" {
 		t.Fatalf("live_activity[0] = %#v, want unredacted repo/worker identity for an unscoped caller", row)
 	}
 	if row["age_seconds"].(float64) < 4 || row["age_seconds"].(float64) > 6 {
@@ -145,17 +147,18 @@ func TestGetOperationsComposesHealthCollectorsQueueAndLiveActivity(t *testing.T)
 
 // TestGetOperationsScopedRedactsRepoAndWorkerIdentity verifies scoped tokens
 // see the same aggregate sections and every live_activity field except
-// source_key (repo identity) and lease_owner (worker identity), which are
-// withheld.
+// source_key/source_display (repo identity, raw and human-readable) and
+// lease_owner (worker identity), which are withheld.
 func TestGetOperationsScopedRedactsRepoAndWorkerIdentity(t *testing.T) {
 	t.Parallel()
 
+	const secretSourceKey = "repository:r_secret_scoped"
 	const secretRepo = "eshu-hq/secret-scoped-repo"
 	const secretWorker = "reducer-worker-secret-scoped"
 	asOf := time.Date(2026, 7, 12, 3, 0, 0, 0, time.UTC)
 	reader := &fakeLiveActivityReader{
 		rows: []statuspkg.LiveActivityRow{
-			liveActivityTestRow("wi-1", secretRepo, secretWorker, asOf.Add(-5*time.Second)),
+			liveActivityTestRow("wi-1", secretSourceKey, secretRepo, secretWorker, asOf.Add(-5*time.Second)),
 		},
 	}
 	handler := &StatusHandler{
@@ -179,7 +182,7 @@ func TestGetOperationsScopedRedactsRepoAndWorkerIdentity(t *testing.T) {
 		t.Fatalf("scoped status = %d, want %d; body=%s", got, want, rec.Body.String())
 	}
 	body := rec.Body.String()
-	for _, secret := range []string{secretRepo, secretWorker, "tenant-a", "workspace-a"} {
+	for _, secret := range []string{secretSourceKey, secretRepo, secretWorker, "tenant-a", "workspace-a"} {
 		if strings.Contains(body, secret) {
 			t.Fatalf("scoped operations read model leaked %q: %s", secret, body)
 		}
@@ -196,6 +199,9 @@ func TestGetOperationsScopedRedactsRepoAndWorkerIdentity(t *testing.T) {
 	row := activity[0].(map[string]any)
 	if row["source_key"] != "" {
 		t.Fatalf("scoped live_activity[0].source_key = %#v, want redacted empty string", row["source_key"])
+	}
+	if row["source_display"] != "" {
+		t.Fatalf("scoped live_activity[0].source_display = %#v, want redacted empty string", row["source_display"])
 	}
 	if row["lease_owner"] != "" {
 		t.Fatalf("scoped live_activity[0].lease_owner = %#v, want redacted empty string", row["lease_owner"])

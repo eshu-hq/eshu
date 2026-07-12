@@ -35,10 +35,10 @@ const (
 )
 
 // scopedOperationsRoute reports whether the request targets the live
-// operations board. The handler redacts repo identity (source_key) and
-// worker identity (lease_owner) from live_activity rows for scoped tokens
-// and collapses collector detail to aggregate counts, so the route is
-// tenant-filter safe.
+// operations board. The handler redacts repo identity (source_key,
+// source_display) and worker identity (lease_owner) from live_activity rows
+// for scoped tokens and collapses collector detail to aggregate counts, so
+// the route is tenant-filter safe.
 func scopedOperationsRoute(r *http.Request) bool {
 	return r.Method == http.MethodGet && r.URL.Path == "/api/v0/status/operations"
 }
@@ -51,9 +51,10 @@ func scopedOperationsRoute(r *http.Request) bool {
 // originating repo and worker.
 //
 // Scoped tokens receive the same aggregate sections; live_activity rows keep
-// every field except source_key (repo identity) and lease_owner (worker
-// identity), which are withheld, and collectors collapse to the existing
-// aggregate-only projection used by the collector-status route.
+// every field except source_key/source_display (repo identity, raw and
+// human-readable) and lease_owner (worker identity), which are withheld, and
+// collectors collapse to the existing aggregate-only projection used by the
+// collector-status route.
 func (h *StatusHandler) getOperations(w http.ResponseWriter, r *http.Request) {
 	if h.StatusReader == nil {
 		WriteError(w, http.StatusServiceUnavailable, "status reader not configured")
@@ -102,8 +103,9 @@ func operationsLimit(w http.ResponseWriter, r *http.Request) (int, bool) {
 }
 
 // operationsToMap renders the operations-board read model to a JSON-friendly
-// map. When scoped is true, live_activity rows withhold source_key and
-// lease_owner and collectors collapse to the aggregate-only projection.
+// map. When scoped is true, live_activity rows withhold source_key,
+// source_display, and lease_owner, and collectors collapse to the
+// aggregate-only projection.
 func operationsToMap(ops status.OperationsReport, scoped bool) map[string]any {
 	collectors := collectorRuntimeStatusesToSlice(ops.Collectors)
 	if scoped {
@@ -127,17 +129,20 @@ func operationsToMap(ops status.OperationsReport, scoped bool) map[string]any {
 
 // liveActivityRowsToSlice converts []status.LiveActivityRow to the wire
 // shape, adding an as-of-relative age. Scoped callers never see source_key
-// (repo identity) or lease_owner (worker identity); every other field
-// (stage, status, domain, attempt count, age, scope/collector kind) stays
-// visible since it carries no cross-tenant identity.
+// or source_display (repo identity, raw and human-readable) or lease_owner
+// (worker identity); every other field (stage, status, domain, attempt
+// count, age, scope/collector kind) stays visible since it carries no
+// cross-tenant identity.
 func liveActivityRowsToSlice(rows []status.LiveActivityRow, asOf time.Time, scoped bool) []map[string]any {
 	result := make([]map[string]any, 0, len(rows))
 	for _, row := range rows {
 		leaseOwner := row.LeaseOwner
 		sourceKey := row.SourceKey
+		sourceDisplay := row.SourceDisplay
 		if scoped {
 			leaseOwner = ""
 			sourceKey = ""
+			sourceDisplay = ""
 		}
 		result = append(result, map[string]any{
 			"work_item_id":   row.WorkItemID,
@@ -154,6 +159,7 @@ func liveActivityRowsToSlice(rows []status.LiveActivityRow, asOf time.Time, scop
 			"collector_kind": row.CollectorKind,
 			"source_system":  row.SourceSystem,
 			"source_key":     sourceKey,
+			"source_display": sourceDisplay,
 		})
 	}
 	return result

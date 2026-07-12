@@ -41,6 +41,13 @@ type LiveActivityRow struct {
 	// SourceKey is the originating ingestion_scopes.source_key (repository
 	// identity); redacted for scoped callers by the query-layer projection.
 	SourceKey string
+	// SourceDisplay is the operator-facing repo name (#5137 follow-up):
+	// ingestion_scopes.payload's repo_slug or repo_name for git scopes,
+	// falling back to SourceKey when the payload carries neither. SourceKey
+	// alone is an opaque hash for git scopes (e.g. "repository:r_ea78e8bb"),
+	// not a name an operator can recognize. Redacted for scoped callers by
+	// the query-layer projection, exactly like SourceKey.
+	SourceDisplay string
 }
 
 // Age returns how long ago the row last changed, relative to asOf. It

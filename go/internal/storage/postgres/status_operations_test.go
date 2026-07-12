@@ -32,6 +32,7 @@ func TestLiveActivityQueryUsesIndexedStatusFilterAndBoundedLimit(t *testing.T) {
 		"ORDER BY w.updated_at DESC, w.work_item_id",
 		"LIMIT $1",
 		"COALESCE(w.lease_owner, '') AS lease_owner",
+		"COALESCE(NULLIF(BTRIM(s.payload->>'repo_slug'), ''), NULLIF(BTRIM(s.payload->>'repo_name'), ''), s.source_key) AS source_display",
 	} {
 		if !strings.Contains(liveActivityQuery, want) {
 			t.Fatalf("liveActivityQuery missing %q:\n%s", want, liveActivityQuery)
@@ -44,12 +45,12 @@ func liveActivityFakeRow(
 	claimUntil any,
 	attemptCount int64,
 	updatedAt, createdAt time.Time,
-	scopeKind, collectorKind, sourceSystem, sourceKey string,
+	scopeKind, collectorKind, sourceSystem, sourceKey, sourceDisplay string,
 ) []any {
 	return []any{
 		workItemID, stage, status, domain, leaseOwner,
 		claimUntil, attemptCount, updatedAt, createdAt,
-		scopeKind, collectorKind, sourceSystem, sourceKey,
+		scopeKind, collectorKind, sourceSystem, sourceKey, sourceDisplay,
 	}
 }
 
@@ -64,13 +65,17 @@ func TestReadLiveActivityScansRowsAndJoinsScopeIdentity(t *testing.T) {
 	createdAt := updatedAt.Add(-5 * time.Minute)
 	claimUntil := updatedAt.Add(90 * time.Second)
 
+	const (
+		opaqueSourceKey = "repository:r_ea78e8bb"
+		repoDisplayName = "eshu-hq/eshu"
+	)
 	queryer := &fakeQueryer{
 		responses: []fakeRows{
 			{rows: [][]any{
 				liveActivityFakeRow(
 					"wi-1", "reducer", "claimed", "workload_materialization", "reducer-worker-1",
 					claimUntil, 2, updatedAt, createdAt,
-					"repository", "github", "github.com", "eshu-hq/eshu",
+					"repository", "github", "github.com", opaqueSourceKey, repoDisplayName,
 				),
 			}},
 		},
@@ -90,15 +95,16 @@ func TestReadLiveActivityScansRowsAndJoinsScopeIdentity(t *testing.T) {
 
 	got := rows[0]
 	want := struct {
-		workItemID, stage, status, domain, leaseOwner     string
-		attemptCount                                      int
-		scopeKind, collectorKind, sourceSystem, sourceKey string
-	}{"wi-1", "reducer", "claimed", "workload_materialization", "reducer-worker-1", 2, "repository", "github", "github.com", "eshu-hq/eshu"}
+		workItemID, stage, status, domain, leaseOwner                    string
+		attemptCount                                                     int
+		scopeKind, collectorKind, sourceSystem, sourceKey, sourceDisplay string
+	}{"wi-1", "reducer", "claimed", "workload_materialization", "reducer-worker-1", 2, "repository", "github", "github.com", opaqueSourceKey, repoDisplayName}
 
 	if got.WorkItemID != want.workItemID || got.Stage != want.stage || got.Status != want.status ||
 		got.Domain != want.domain || got.LeaseOwner != want.leaseOwner || got.AttemptCount != want.attemptCount ||
 		got.ScopeKind != want.scopeKind || got.CollectorKind != want.collectorKind ||
-		got.SourceSystem != want.sourceSystem || got.SourceKey != want.sourceKey {
+		got.SourceSystem != want.sourceSystem || got.SourceKey != want.sourceKey ||
+		got.SourceDisplay != want.sourceDisplay {
 		t.Fatalf("scanned row = %+v, want %+v", got, want)
 	}
 	if !got.ClaimUntil.Equal(claimUntil) {
@@ -111,10 +117,14 @@ func TestReadLiveActivityScansRowsAndJoinsScopeIdentity(t *testing.T) {
 
 // TestReadLiveActivityHandlesNullClaimUntil verifies a retrying item with no
 // live lease (claim_until NULL) scans to a zero ClaimUntil rather than
-// erroring, since retrying rows are not required to hold a claim.
+// erroring, since retrying rows are not required to hold a claim. It doubles
+// as the payload-fallback case: source_display equals source_key here,
+// simulating what the query's COALESCE/NULLIF chain produces when the scope
+// payload carries neither repo_slug nor repo_name.
 func TestReadLiveActivityHandlesNullClaimUntil(t *testing.T) {
 	t.Parallel()
 
+	const sourceKeyNoPayloadName = "eshu-hq/other"
 	updatedAt := time.Date(2026, 7, 12, 3, 0, 0, 0, time.UTC)
 	queryer := &fakeQueryer{
 		responses: []fakeRows{
@@ -122,7 +132,7 @@ func TestReadLiveActivityHandlesNullClaimUntil(t *testing.T) {
 				liveActivityFakeRow(
 					"wi-2", "reducer", "retrying", "deployable_unit_correlation", "",
 					nil, 3, updatedAt, updatedAt,
-					"repository", "github", "github.com", "eshu-hq/other",
+					"repository", "github", "github.com", sourceKeyNoPayloadName, sourceKeyNoPayloadName,
 				),
 			}},
 		},
@@ -142,6 +152,9 @@ func TestReadLiveActivityHandlesNullClaimUntil(t *testing.T) {
 	if rows[0].LeaseOwner != "" {
 		t.Fatalf("LeaseOwner = %q, want empty for an unclaimed retrying item", rows[0].LeaseOwner)
 	}
+	if rows[0].SourceDisplay != sourceKeyNoPayloadName {
+		t.Fatalf("SourceDisplay = %q, want it to fall back to SourceKey (%q) when the payload carries no repo name", rows[0].SourceDisplay, sourceKeyNoPayloadName)
+	}
 }
 
 // TestReadLiveActivityMarksTruncatedWhenMoreRowsThanLimit verifies that when
@@ -157,7 +170,7 @@ func TestReadLiveActivityMarksTruncatedWhenMoreRowsThanLimit(t *testing.T) {
 		rawRows = append(rawRows, liveActivityFakeRow(
 			"wi", "reducer", "claimed", "domain", "worker",
 			nil, 1, updatedAt, updatedAt,
-			"repository", "github", "github.com", "org/repo",
+			"repository", "github", "github.com", "org/repo", "org/repo",
 		))
 	}
 
@@ -183,7 +196,7 @@ func TestReadLiveActivityNotTruncatedWhenFewerRowsThanLimit(t *testing.T) {
 
 	updatedAt := time.Date(2026, 7, 12, 3, 0, 0, 0, time.UTC)
 	queryer := &fakeQueryer{responses: []fakeRows{{rows: [][]any{
-		liveActivityFakeRow("wi-1", "reducer", "claimed", "domain", "worker", nil, 1, updatedAt, updatedAt, "repository", "github", "github.com", "org/repo"),
+		liveActivityFakeRow("wi-1", "reducer", "claimed", "domain", "worker", nil, 1, updatedAt, updatedAt, "repository", "github", "github.com", "org/repo", "org/repo"),
 	}}}}
 
 	store := NewLiveActivityStore(queryer)
@@ -213,7 +226,7 @@ func TestReadLiveActivityDefaultsNonPositiveLimitTo100(t *testing.T) {
 		rawRows = append(rawRows, liveActivityFakeRow(
 			"wi", "reducer", "claimed", "domain", "worker",
 			nil, 1, updatedAt, updatedAt,
-			"repository", "github", "github.com", "org/repo",
+			"repository", "github", "github.com", "org/repo", "org/repo",
 		))
 	}
 
@@ -296,7 +309,7 @@ func TestReadLiveActivityRecordsDurationAndErrorMetrics(t *testing.T) {
 
 	updatedAt := time.Date(2026, 7, 12, 3, 0, 0, 0, time.UTC)
 	okQueryer := &fakeQueryer{responses: []fakeRows{{rows: [][]any{
-		liveActivityFakeRow("wi-1", "reducer", "claimed", "domain", "worker", nil, 1, updatedAt, updatedAt, "repository", "github", "github.com", "org/repo"),
+		liveActivityFakeRow("wi-1", "reducer", "claimed", "domain", "worker", nil, 1, updatedAt, updatedAt, "repository", "github", "github.com", "org/repo", "org/repo"),
 	}}}}
 	okStore := NewInstrumentedLiveActivityStore(okQueryer, instruments)
 	if _, _, err := okStore.ReadLiveActivity(context.Background(), 100); err != nil {
