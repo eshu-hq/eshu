@@ -13,8 +13,9 @@ import (
 
 // DeltaMaterialization is the result of applying one generation on top of another.
 // It carries the CanonicalMaterialization for writing gen2 into the graph (which
-// retract logic will fire because FirstGeneration=false) plus the set of directory
-// paths that gen2 removes (tombstoned) so callers can assert post-delta graph truth.
+// retract logic will fire because FirstGeneration=false) plus the sets of
+// directory and file paths that gen2 removes (tombstoned) so callers can assert
+// post-delta graph truth.
 type DeltaMaterialization struct {
 	// Gen1 is the canonical materialization for the baseline (first) generation.
 	// The caller writes it first to establish graph state before gen2 retracts.
@@ -32,6 +33,10 @@ type DeltaMaterialization struct {
 	// the gen2 write. This is the retraction assertion contract: the caller
 	// proves removal by reading back count=0 for every path in this set.
 	TombstonedDirectoryPaths []string
+	// TombstonedFilePaths is the set of file paths tombstoned in gen2, which the
+	// delta file retract removes; the caller proves removal by reading back
+	// count=0 for every path in this set while surviving files remain.
+	TombstonedFilePaths []string
 }
 
 // DeltaMaterializationFromGenerations builds the delta materialization for a
@@ -40,9 +45,10 @@ type DeltaMaterialization struct {
 // drains gen2 to build the canonical projection input for the second generation.
 //
 // The gen2 CanonicalMaterialization is returned with FirstGeneration=false so
-// the production retract phase fires: directories absent from gen2 (including
-// tombstoned ones) are DETACH DELETE'd from the graph by the production
-// canonicalNodeRetractDirectoriesCypher Cypher template.
+// the production retract phase fires: directories and files absent from gen2
+// (including tombstoned ones) are DETACH DELETE'd from the graph by the
+// production canonicalNodeRetractDirectoriesCypher and
+// canonicalNodeRetractDeltaDeletedFilesCypher templates.
 //
 // It returns an error when either generation's fact stream errors, when gen1
 // has no repository fact (bad baseline cassette), or when gen2's surviving
@@ -77,13 +83,23 @@ func DeltaMaterializationFromGenerations(
 	}
 
 	// Split gen2 facts: surviving (non-tombstoned) go into the materialization;
-	// tombstoned directory facts yield the TombstonedDirectoryPaths list.
+	// tombstoned directory and file facts yield the deleted-path lists that drive
+	// the delta directory/file retract.
 	var tombstonedDirPaths []string
+	var tombstonedFilePaths []string
 	for _, env := range gen2Envs {
-		if env.IsTombstone && env.FactKind == factKindDirectory {
-			if p, ok := env.Payload["path"].(string); ok && p != "" {
-				tombstonedDirPaths = append(tombstonedDirPaths, p)
-			}
+		if !env.IsTombstone {
+			continue
+		}
+		p, ok := env.Payload["path"].(string)
+		if !ok || p == "" {
+			continue
+		}
+		switch env.FactKind {
+		case factKindDirectory:
+			tombstonedDirPaths = append(tombstonedDirPaths, p)
+		case factKindFile:
+			tombstonedFilePaths = append(tombstonedFilePaths, p)
 		}
 	}
 
@@ -120,11 +136,13 @@ func DeltaMaterializationFromGenerations(
 	gen2Mat.FirstGeneration = false
 	gen2Mat.DeltaProjection = true
 	gen2Mat.DeltaDeletedDirectoryPaths = append([]string(nil), tombstonedDirPaths...)
+	gen2Mat.DeltaDeletedFilePaths = append([]string(nil), tombstonedFilePaths...)
 
 	return DeltaMaterialization{
 		Gen1:                     gen1Mat,
 		Gen2:                     gen2Mat,
 		TombstonedDirectoryPaths: tombstonedDirPaths,
+		TombstonedFilePaths:      tombstonedFilePaths,
 	}, nil
 }
 

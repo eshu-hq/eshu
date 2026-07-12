@@ -392,6 +392,7 @@ coverage:
   # changing the test job from NEEDS build to NEEDS deploy, and the replay-tier
   # live test reads back old=0/new=1 on the real graph backend after gen2.
   - {surface: retractable_node:Directory, scenario: cassette, scenario_type: delta_tombstone, ref: testdata/cassettes/replaydelta/multi-generation-tombstone.json, proof_gate: replay-tier}
+  - {surface: retractable_node:File, scenario: cassette, scenario_type: delta_tombstone, ref: testdata/cassettes/replaydelta/multi-generation-tombstone.json, proof_gate: replay-tier}
   - {surface: retractable_node:GitlabJob, scenario: cassette, scenario_type: delta_tombstone, ref: testdata/cassettes/replaydelta/multi-generation-tombstone.json, proof_gate: replay-tier}
   - {surface: retractable_node:GitlabPipeline, scenario: cassette, scenario_type: delta_tombstone, ref: testdata/cassettes/replaydelta/multi-generation-tombstone.json, proof_gate: replay-tier}
   - {surface: retractable_node:AnalyticsModel, scenario: cassette, scenario_type: delta_tombstone, ref: testdata/cassettes/replaydelta/multi-generation-tombstone.json, proof_gate: replay-tier}

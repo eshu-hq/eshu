@@ -190,6 +190,7 @@ func TestEntityRetractManifestBinding(t *testing.T) {
 	// removing a content_entity fact while its row remains is caught.
 	nonContentEntityRows := map[string]struct{}{
 		"Directory":      {}, // structural, proven by delta_tier_live_test.go
+		"File":           {}, // structural, proven by delta_tier_file_retract_live_test.go
 		"GitlabJob":      {}, // git.gitlab_job, proven by delta_tier_survivor_retract_live_test.go
 		"GitlabPipeline": {}, // git.gitlab_pipeline, proven by delta_tier_survivor_retract_live_test.go
 	}

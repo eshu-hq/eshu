@@ -4,7 +4,7 @@
 
 Every surface Eshu claims to support should have a green, credential-free, Docker-free replay scenario. This dashboard is generated from the C-1 coverage manifest and the source-of-truth registries (epic [#4172](https://github.com/eshu-hq/eshu/issues/4172)); it is refreshed by the replay-coverage gate so the gap is reviewable in a PR diff.
 
-**Overall: 322/400 surfaces satisfied (80.50%)** — mode: blocking.
+**Overall: 323/400 surfaces satisfied (80.75%)** — mode: blocking.
 
 ## Coverage by axis
 
@@ -19,9 +19,9 @@ Every surface Eshu claims to support should have a green, credential-free, Docke
 | Projections (cost/ordering) | 0 | 27 | 0.00% | 27 | 0 |
 | Reducer drain (crash) | 1 | 1 | 100.00% | 0 | 0 |
 | Retractable edge types (delta) | 3 | 52 | 5.77% | 49 | 0 |
-| Retractable node types (delta) | 85 | 87 | 97.70% | 2 | 0 |
+| Retractable node types (delta) | 86 | 87 | 98.85% | 1 | 0 |
 | Collectors | 34 | 34 | 100.00% | 0 | 8 |
-| **Total** | **322** | **400** | **80.50%** | **78** | **9** |
+| **Total** | **323** | **400** | **80.75%** | **77** | **9** |
 
 ## Coverage by scenario type
 
@@ -30,7 +30,7 @@ Every surface Eshu claims to support should have a green, credential-free, Docke
 | baseline | 212 | 212 | 100.00% | 0 | 5 |
 | cost | 1 | 26 | 3.85% | 25 | 0 |
 | crash | 2 | 2 | 100.00% | 0 | 0 |
-| delta_tombstone | 89 | 140 | 63.57% | 51 | 0 |
+| delta_tombstone | 90 | 140 | 64.29% | 50 | 0 |
 | fault | 17 | 17 | 100.00% | 0 | 4 |
 | ordering | 1 | 3 | 33.33% | 2 | 0 |
 
@@ -44,7 +44,7 @@ Every ledger language is satisfied by corpus or parser fixture coverage.
 
 ## Gaps — surfaces still needing a replay scenario
 
-78 surface(s) uncovered or unresolved:
+77 surface(s) uncovered or unresolved:
 
 ### Projections (cost/ordering) (27)
 
@@ -128,12 +128,11 @@ Every ledger language is satisfied by corpus or parser fixture coverage.
 - `retractable_edge:USES_PROFILE` (delta_tombstone)
 - `retractable_edge:USES_WORKFLOW` (delta_tombstone)
 
-### Retractable node types (delta) (2)
+### Retractable node types (delta) (1)
 
-- `retractable_node:File` (delta_tombstone)
 - `retractable_node:Variable` (delta_tombstone)
 
-## Covered surfaces (322)
+## Covered surfaces (323)
 
 | Surface | Scenario type | Scenario | Proof gate | Artifact |
 | --- | --- | --- | --- | --- |
@@ -366,6 +365,7 @@ Every ledger language is satisfied by corpus or parser fixture coverage.
 | `retractable_node:DataQualityCheck` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
 | `retractable_node:Directory` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
 | `retractable_node:Enum` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
+| `retractable_node:File` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
 | `retractable_node:Function` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
 | `retractable_node:GitlabJob` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
 | `retractable_node:GitlabPipeline` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |

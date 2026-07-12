@@ -144,6 +144,25 @@ metrics, and phase-group logs (`phase=entity_retract`); no metric name, label,
 span, worker, lease, batch, or status field is added. Operators diagnose entity
 retract through the existing canonical phase-group telemetry.
 
+### File-retract coverage (C-14 #4367)
+
+`DeltaMaterializationFromGenerations` now collects gen2 tombstoned `git.file`
+facts into `DeltaDeletedFilePaths` (mirroring the directory-tombstone path), so
+the production delta file retract (`canonicalNodeRetractDeltaDeletedFilesCypher`)
+removes them. `delta_tier_file_retract_live_test.go` proves a File present in
+gen1 and tombstoned in gen2 is retracted (count=0) while a surviving File
+remains.
+
+No-Regression Evidence: the delta materialization change only adds a
+`DeltaDeletedFilePaths` population that mirrors the existing
+`DeltaDeletedDirectoryPaths` one; the file retract Cypher it drives is unchanged
+production code. On the pinned NornicDB `timothyswt/nornicdb-cpu-bge:v1.1.9`,
+`scripts/verify-replay-tier.sh` proved the tombstoned File retracts to count=0
+while the surviving File stays count=1, all live tests green in a 5s tier run.
+
+No-Observability-Change: no metric, span, log, worker, lease, or status field is
+added; the tier reuses the existing canonical writer phase-group telemetry.
+
 ### Edge-retract coverage (C-14 #4367)
 
 `delta_tier_edge_retract_live_test.go` proves DIRECT DEFINES_JOB (GitlabPipeline
