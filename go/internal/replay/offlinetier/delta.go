@@ -32,6 +32,10 @@ type DeltaMaterialization struct {
 	// the gen2 write. This is the retraction assertion contract: the caller
 	// proves removal by reading back count=0 for every path in this set.
 	TombstonedDirectoryPaths []string
+	// TombstonedFilePaths is the set of file paths tombstoned in gen2, which the
+	// delta file retract removes; the caller proves removal by reading back
+	// count=0 for every path in this set while surviving files remain.
+	TombstonedFilePaths []string
 }
 
 // DeltaMaterializationFromGenerations builds the delta materialization for a
@@ -77,13 +81,23 @@ func DeltaMaterializationFromGenerations(
 	}
 
 	// Split gen2 facts: surviving (non-tombstoned) go into the materialization;
-	// tombstoned directory facts yield the TombstonedDirectoryPaths list.
+	// tombstoned directory and file facts yield the deleted-path lists that drive
+	// the delta directory/file retract.
 	var tombstonedDirPaths []string
+	var tombstonedFilePaths []string
 	for _, env := range gen2Envs {
-		if env.IsTombstone && env.FactKind == factKindDirectory {
-			if p, ok := env.Payload["path"].(string); ok && p != "" {
-				tombstonedDirPaths = append(tombstonedDirPaths, p)
-			}
+		if !env.IsTombstone {
+			continue
+		}
+		p, ok := env.Payload["path"].(string)
+		if !ok || p == "" {
+			continue
+		}
+		switch env.FactKind {
+		case factKindDirectory:
+			tombstonedDirPaths = append(tombstonedDirPaths, p)
+		case factKindFile:
+			tombstonedFilePaths = append(tombstonedFilePaths, p)
 		}
 	}
 
@@ -120,11 +134,13 @@ func DeltaMaterializationFromGenerations(
 	gen2Mat.FirstGeneration = false
 	gen2Mat.DeltaProjection = true
 	gen2Mat.DeltaDeletedDirectoryPaths = append([]string(nil), tombstonedDirPaths...)
+	gen2Mat.DeltaDeletedFilePaths = append([]string(nil), tombstonedFilePaths...)
 
 	return DeltaMaterialization{
 		Gen1:                     gen1Mat,
 		Gen2:                     gen2Mat,
 		TombstonedDirectoryPaths: tombstonedDirPaths,
+		TombstonedFilePaths:      tombstonedFilePaths,
 	}, nil
 }
 

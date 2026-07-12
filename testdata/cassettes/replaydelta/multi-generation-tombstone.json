@@ -1761,6 +1761,22 @@
             "relative_path": ".gitlab-ci-a.yml",
             "repo_id": "replay-delta-tombstone"
           }
+        },
+        {
+          "fact_kind": "git.file",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:file:doomed",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "path": "/repos/replay-delta-tombstone/doomed.txt",
+            "relative_path": "doomed.txt",
+            "name": "doomed.txt",
+            "language": "text",
+            "repo_id": "replay-delta-tombstone",
+            "dir_path": "/repos/replay-delta-tombstone"
+          }
         }
       ]
     },
@@ -2032,6 +2048,23 @@
             "file_path": "/repos/replay-delta-tombstone/.gitlab-ci-a.yml",
             "relative_path": ".gitlab-ci-a.yml",
             "repo_id": "replay-delta-tombstone"
+          }
+        },
+        {
+          "fact_kind": "git.file",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:file:doomed",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 2,
+          "source_confidence": "observed",
+          "is_tombstone": true,
+          "payload": {
+            "path": "/repos/replay-delta-tombstone/doomed.txt",
+            "relative_path": "doomed.txt",
+            "name": "doomed.txt",
+            "language": "text",
+            "repo_id": "replay-delta-tombstone",
+            "dir_path": "/repos/replay-delta-tombstone"
           }
         }
       ]
