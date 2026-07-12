@@ -278,6 +278,22 @@ label, sequential, live proof `TestReducerRationaleEdgeRetractGraphTruth`).
 Each remaining instance needs the same per-label + sequential rework with its
 own live proof.
 
+Further managed-transaction refinement (probed while fixing the
+TAINT_FLOWS_TO retract): even a SINGLE `DELETE` statement dispatched through a
+managed transaction (`ExecuteGroup`) can fail to apply on v1.1.11 — the same
+statement auto-committed deletes the edge. Treat every retract `DELETE` as
+auto-commit-only; grouped dispatch is safe only for MERGE-shaped writes.
+
+Two orphan-cleanup shapes are also broken on v1.1.11 (probed while fixing the
+shell-exec cleanup): a negated pattern predicate (`WHERE NOT (n)--()`) matches
+nothing, so cleanups guarded by it silently keep every orphan; and an
+`OPTIONAL MATCH (n)-[link]-() WITH n, link WHERE link IS NULL DELETE n`
+pipeline returns the filtered row but does not apply the trailing `DELETE`
+when the node previously had (since-deleted) relationships. A
+`COUNT { (n)--() } = 0` predicate deletes the orphan correctly on both
+v1.1.11 and the pinned Neo4j lane. The orphan-sweep subsystem still carries
+the negated-pattern shape and is tracked separately.
+
 Scope refinement (probed on v1.1.11 while fixing the rationale retract): the
 zero-row behavior applies to a bare `MATCH` whose disjunction-labeled node is
 filtered by a `WHERE` predicate, on either end of the pattern. A row-driven

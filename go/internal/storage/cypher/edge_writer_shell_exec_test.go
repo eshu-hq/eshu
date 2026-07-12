@@ -157,10 +157,10 @@ func TestBuildCleanupOrphanShellCommandsByFilePathUsesPathAnchor(t *testing.T) {
 	assertShellExecCleanupStatement(t, stmt, "file_paths", "MATCH (target:ShellCommand {path: file_path})")
 }
 
-func TestEdgeWriterRetractEdgesShellExecUsesAtomicGroupForCleanup(t *testing.T) {
+func TestEdgeWriterRetractEdgesShellExecRunsSequentialOrderedCleanup(t *testing.T) {
 	t.Parallel()
 
-	executor := &recordingGroupExecutor{}
+	executor := &sqlSequentialRecordingExecutor{}
 	writer := NewEdgeWriter(executor, 0)
 
 	rows := []reducer.SharedProjectionIntentRow{
@@ -175,12 +175,15 @@ func TestEdgeWriterRetractEdgesShellExecUsesAtomicGroupForCleanup(t *testing.T) 
 	if err := writer.RetractEdges(context.Background(), reducer.DomainShellExec, rows, "reducer/shell-exec"); err != nil {
 		t.Fatalf("RetractEdges() error = %v", err)
 	}
-	if got, want := len(executor.groupCalls), 1; got != want {
-		t.Fatalf("ExecuteGroup calls = %d, want %d", got, want)
+	// The shell-exec retract runs its two statements sequentially, edge retract
+	// first so the orphan cleanup sees the detached ShellCommand nodes: grouped
+	// DELETEs under-apply on NornicDB v1.1.11.
+	if got := len(executor.groupCalls); got != 0 {
+		t.Fatalf("ExecuteGroup calls = %d, want 0 (grouped DELETEs under-apply on NornicDB v1.1.11)", got)
 	}
-	stmts := executor.groupCalls[0]
+	stmts := executor.calls
 	if got, want := len(stmts), 2; got != want {
-		t.Fatalf("group statement count = %d, want %d", got, want)
+		t.Fatalf("sequential statement count = %d, want %d", got, want)
 	}
 	if !strings.Contains(stmts[0].Cypher, "MATCH ()-[rel:EXECUTES_SHELL]->(target)") {
 		t.Fatalf("first statement should retract EXECUTES_SHELL relationships: %s", stmts[0].Cypher)
@@ -211,7 +214,7 @@ func assertShellExecCleanupStatement(t *testing.T, stmt Statement, scopeParam st
 	for _, want := range []string{
 		anchor,
 		"target.evidence_source = $evidence_source",
-		"NOT (target)--()",
+		"COUNT { (target)--() } = 0",
 		"DELETE target",
 	} {
 		if !strings.Contains(stmt.Cypher, want) {

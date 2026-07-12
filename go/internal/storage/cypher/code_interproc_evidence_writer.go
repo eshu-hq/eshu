@@ -163,7 +163,7 @@ func (w *CodeInterprocEvidenceWriter) RetractCodeInterprocEvidence(
 			),
 		},
 	}
-	return w.dispatch(ctx, []Statement{stmt})
+	return w.dispatchRetract(ctx, []Statement{stmt})
 }
 
 // RetractCodeInterprocEvidenceSource removes all reducer-owned TAINT_FLOWS_TO
@@ -193,7 +193,7 @@ func (w *CodeInterprocEvidenceWriter) RetractCodeInterprocEvidenceSource(
 			),
 		},
 	}
-	return w.dispatch(ctx, []Statement{stmt})
+	return w.dispatchRetract(ctx, []Statement{stmt})
 }
 
 // RetractStaleCodeInterprocEvidence removes one bounded batch of TAINT_FLOWS_TO
@@ -232,7 +232,7 @@ func (w *CodeInterprocEvidenceWriter) RetractStaleCodeInterprocEvidence(
 			),
 		},
 	}
-	return w.dispatch(ctx, []Statement{stmt})
+	return w.dispatchRetract(ctx, []Statement{stmt})
 }
 
 // RetractCodeInterprocEvidenceByUIDs removes reducer-owned TAINT_FLOWS_TO edges
@@ -359,14 +359,16 @@ func (w *CodeInterprocEvidenceWriter) dispatch(ctx context.Context, stmts []Stat
 	return nil
 }
 
-// dispatchRetract routes retract statements through sequential Execute calls,
-// never ExecuteGroup. This avoids a NornicDB v1.1.9 bolt driver bug where
+// dispatchRetract runs retract statements sequentially through Execute, each
+// in its own auto-commit transaction — never ExecuteGroup. Two measured
+// NornicDB behaviors require this: on v1.1.9 a bolt driver bug made
 // UNWIND … MATCH … -[rel]-> … DELETE rel inside session.ExecuteWrite / tx.Run
-// returns zero rows (the MATCH on the relationship finds nothing), even though
-// the same statement via session.Run (autocommit) produces correct results.
-// Routing retracts through Execute (which the reducer's cypherRunnerStatement-
-// Executor maps to session.Run) keeps the uid-anchored delete path correct on
-// all supported backends.
+// match nothing while the same statement via session.Run (autocommit) worked,
+// and on v1.1.11 a DELETE inside a managed transaction under-applies even as
+// a single statement (measured here: the scope retract's grouped DELETE left
+// the edge in place while the same statement auto-committed deletes it;
+// #5128/#5146 measured the same for multi-statement groups). Every
+// TAINT_FLOWS_TO retract routes through this.
 func (w *CodeInterprocEvidenceWriter) dispatchRetract(ctx context.Context, stmts []Statement) error {
 	if len(stmts) == 0 {
 		return nil

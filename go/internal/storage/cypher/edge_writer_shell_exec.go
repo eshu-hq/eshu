@@ -31,16 +31,23 @@ MATCH ()-[rel:EXECUTES_SHELL]->(target)
 WHERE rel.evidence_source = $evidence_source
 DELETE rel`
 
+// The orphan check uses a COUNT subquery instead of a negated pattern
+// predicate: on NornicDB v1.1.11 `NOT (target)--()` matches nothing (probed —
+// the negated-pattern cleanup deleted no orphan), so the cleanup silently kept
+// every orphan ShellCommand. An OPTIONAL MATCH + null-filter pipeline also
+// fails there when the node previously had edges (probed: the filtered row is
+// returned but the trailing DELETE does not apply). `COUNT { ... } = 0`
+// deletes the orphan on both v1.1.11 and the pinned Neo4j lane.
 const cleanupOrphanShellCommandsCypher = `UNWIND $repo_ids AS repo_id
 MATCH (target:ShellCommand {repo_id: repo_id})
 WHERE target.evidence_source = $evidence_source
-  AND NOT (target)--()
+  AND COUNT { (target)--() } = 0
 DELETE target`
 
 const cleanupOrphanShellCommandsByFileCypher = `UNWIND $file_paths AS file_path
 MATCH (target:ShellCommand {path: file_path})
 WHERE target.evidence_source = $evidence_source
-  AND NOT (target)--()
+  AND COUNT { (target)--() } = 0
 DELETE target`
 
 func buildShellExecRowMap(
