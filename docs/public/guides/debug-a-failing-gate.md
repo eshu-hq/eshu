@@ -1,6 +1,6 @@
 <!-- docs-catalog
 title: Debug A Failing Ifá Gate
-description: Per-gate triage for the five Ifá CI gates, with the exact local command to reproduce each one.
+description: Per-gate triage for the six Ifá CI gates, with the exact local command to reproduce each one.
 type: how-to
 audience: practitioner
 entrypoint: true
@@ -91,6 +91,22 @@ dead-letter count above zero, or a residual queue after the pressure round
 releases. A throughput failure means the committed scope or fact totals
 differ across worker counts, which means the concurrent driver dropped or
 double-counted work.
+
+## `ifa-replay-drive`
+
+```bash
+bash scripts/test-verify-ifa-replay-drive.sh
+```
+
+This is the hermetic structural mirror for the Docker-backed
+`verify-ifa-replay-drive.sh`, which drives the demo-org GCP cassette through
+`eshu-ifa drive` and proves the drive enqueued real work before draining. The
+mirror pins the parts of that contract that could drift silently: strict
+mode, a unique Compose project on non-default ports, the drive-then-drain
+ordering, and the exact drain SQL. A red mirror means the verifier's
+structure changed out from under one of those pins — read the failing
+assertion, then diff `scripts/verify-ifa-replay-drive.sh` against what the
+mirror expects.
 
 ## General triage order
 

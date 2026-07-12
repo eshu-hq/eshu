@@ -48,7 +48,7 @@ flowchart TD
     B --> D[Determinism under load -- concurrency]
     B --> E[Load and saturation -- perf + concurrency]
     B --> F[Fault injection -- concurrency]
-    C --> G[Five hermetic CI gates, blocking]
+    C --> G[Six hermetic CI gates, blocking]
     D --> G
     E --> G
     F --> G
@@ -145,7 +145,7 @@ report ever becomes its own named component, that is the name it gets.
 - [Add an Odù](../guides/add-an-odu.md) — the seven-step checklist for
   contributing a new conformance case.
 - [Debug a failing gate](../guides/debug-a-failing-gate.md) — per-gate triage
-  for all five Ifá CI gates.
+  for all six Ifá CI gates.
 - [CI gates reference](../reference/ci-gates.md) — every registered gate,
   generated from `specs/ci-gates.v1.yaml`.
 - [Ifá CLI reference](../reference/ifa-cli.md) — the seven `ifa` verbs, their

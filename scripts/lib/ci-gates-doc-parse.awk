@@ -167,7 +167,7 @@ section == "local" && /^      command: / && have_record {
 	command = $0; sub(/^      command: /, "", command); gsub(/^"|"$/, "", command); next
 }
 section == "ci" && /^      workflow: / && have_record {
-	workflow = $0; sub(/^      workflow: /, "", workflow); next
+	workflow = $0; sub(/^      workflow: /, "", workflow); gsub(/^"|"$/, "", workflow); next
 }
 section == "ci" && /^      job: / && have_record {
 	job = $0; sub(/^      job: /, "", job); gsub(/^"|"$/, "", job); next

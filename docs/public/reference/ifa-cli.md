@@ -17,7 +17,9 @@ subcommand's `-h` output.
 ## `coverage`
 
 Reconciles derived Ifá coverage against `specs/ifa-coverage-manifest.v1.yaml`.
-Advisory by default; `-blocking` is the mode `make prove` and CI use.
+Advisory by default, and that is also how `make prove` runs it: uncovered
+surfaces are reported as the expected backfill worklist, not a failure. Pass
+`-blocking` to fail on any uncovered, unresolved, or stale surface.
 
 | Flag | Default | Meaning |
 | --- | --- | --- |
