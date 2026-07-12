@@ -4,7 +4,7 @@
 
 Every surface Eshu claims to support should have a green, credential-free, Docker-free replay scenario. This dashboard is generated from the C-1 coverage manifest and the source-of-truth registries (epic [#4172](https://github.com/eshu-hq/eshu/issues/4172)); it is refreshed by the replay-coverage gate so the gap is reviewable in a PR diff.
 
-**Overall: 225/400 surfaces satisfied (56.25%)** — mode: blocking.
+**Overall: 237/400 surfaces satisfied (59.25%)** — mode: blocking.
 
 ## Coverage by axis
 
@@ -20,8 +20,8 @@ Every surface Eshu claims to support should have a green, credential-free, Docke
 | Reducer drain (crash) | 1 | 1 | 100.00% | 0 | 0 |
 | Retractable edge types (delta) | 2 | 52 | 3.85% | 50 | 0 |
 | Retractable node types (delta) | 1 | 87 | 1.15% | 86 | 0 |
-| Collectors | 22 | 34 | 64.71% | 12 | 8 |
-| **Total** | **225** | **400** | **56.25%** | **175** | **9** |
+| Collectors | 34 | 34 | 100.00% | 0 | 8 |
+| **Total** | **237** | **400** | **59.25%** | **163** | **9** |
 
 ## Coverage by scenario type
 
@@ -31,7 +31,7 @@ Every surface Eshu claims to support should have a green, credential-free, Docke
 | cost | 1 | 26 | 3.85% | 25 | 0 |
 | crash | 2 | 2 | 100.00% | 0 | 0 |
 | delta_tombstone | 4 | 140 | 2.86% | 136 | 0 |
-| fault | 5 | 17 | 29.41% | 12 | 4 |
+| fault | 17 | 17 | 100.00% | 0 | 4 |
 | ordering | 1 | 3 | 33.33% | 2 | 0 |
 
 ## Language parser coverage
@@ -44,7 +44,7 @@ Every ledger language is satisfied by corpus or parser fixture coverage.
 
 ## Gaps — surfaces still needing a replay scenario
 
-175 surface(s) uncovered or unresolved:
+163 surface(s) uncovered or unresolved:
 
 ### Projections (cost/ordering) (27)
 
@@ -218,22 +218,7 @@ Every ledger language is satisfied by corpus or parser fixture coverage.
 - `retractable_node:Union` (delta_tombstone)
 - `retractable_node:Variable` (delta_tombstone)
 
-### Collectors (12)
-
-- `collector:grafana` (fault)
-- `collector:jira` (fault)
-- `collector:loki` (fault)
-- `collector:oci_registry` (fault)
-- `collector:package_registry` (fault)
-- `collector:pagerduty` (fault)
-- `collector:prometheus_mimir` (fault)
-- `collector:sbom_attestation` (fault)
-- `collector:security_alert` (fault)
-- `collector:tempo` (fault)
-- `collector:terraform_state` (fault)
-- `collector:vulnerability_intelligence` (fault)
-
-## Covered surfaces (225)
+## Covered surfaces (237)
 
 | Surface | Scenario type | Scenario | Proof gate | Artifact |
 | --- | --- | --- | --- | --- |
@@ -447,18 +432,30 @@ Every ledger language is satisfied by corpus or parser fixture coverage.
 | `collector:git` | baseline | exempt | — | — |
 | `collector:git` | fault | exempt | — | — |
 | `collector:grafana` | baseline | cassette | golden-corpus-gate | `testdata/cassettes/grafana/supply-chain-demo.json` |
+| `collector:grafana` | fault | go_test | go-test-race | `go/internal/replay/inputtape/fault_collectors_test.go` |
 | `collector:jira` | baseline | cassette | golden-corpus-gate | `testdata/cassettes/jira/supply-chain-demo.json` |
+| `collector:jira` | fault | go_test | go-test-race | `go/internal/replay/inputtape/fault_collectors_test.go` |
 | `collector:loki` | baseline | cassette | golden-corpus-gate | `testdata/cassettes/loki/supply-chain-demo.json` |
+| `collector:loki` | fault | go_test | go-test-race | `go/internal/replay/inputtape/fault_collectors_test.go` |
 | `collector:oci_registry` | baseline | cassette | golden-corpus-gate | `testdata/cassettes/ociregistry/supply-chain-demo.json` |
+| `collector:oci_registry` | fault | go_test | go-test-race | `go/internal/replay/inputtape/fault_collectors_test.go` |
 | `collector:package_registry` | baseline | cassette | golden-corpus-gate | `testdata/cassettes/packageregistry/supply-chain-demo.json` |
+| `collector:package_registry` | fault | go_test | go-test-race | `go/internal/replay/inputtape/fault_collectors_test.go` |
 | `collector:pagerduty` | baseline | cassette | golden-corpus-gate | `testdata/cassettes/pagerduty/supply-chain-demo.json` |
+| `collector:pagerduty` | fault | go_test | go-test-race | `go/internal/replay/inputtape/fault_collectors_test.go` |
 | `collector:prometheus_mimir` | baseline | cassette | golden-corpus-gate | `testdata/cassettes/prometheusmimir/supply-chain-demo.json` |
+| `collector:prometheus_mimir` | fault | go_test | go-test-race | `go/internal/replay/inputtape/fault_collectors_test.go` |
 | `collector:sbom_attestation` | baseline | cassette | golden-corpus-gate | `testdata/cassettes/sbomattestation/supply-chain-demo.json` |
+| `collector:sbom_attestation` | fault | go_test | go-test-race | `go/internal/replay/inputtape/fault_collectors_test.go` |
 | `collector:scanner_worker` | baseline | exempt | — | — |
 | `collector:scanner_worker` | fault | exempt | — | — |
 | `collector:security_alert` | baseline | cassette | golden-corpus-gate | `testdata/cassettes/securityalerts/supply-chain-demo.json` |
+| `collector:security_alert` | fault | go_test | go-test-race | `go/internal/replay/inputtape/fault_collectors_test.go` |
 | `collector:tempo` | baseline | cassette | golden-corpus-gate | `testdata/cassettes/tempo/supply-chain-demo.json` |
+| `collector:tempo` | fault | go_test | go-test-race | `go/internal/replay/inputtape/fault_collectors_test.go` |
 | `collector:terraform_state` | baseline | cassette | golden-corpus-gate | `testdata/cassettes/terraformstate/supply-chain-demo.json` |
+| `collector:terraform_state` | fault | go_test | go-test-race | `go/internal/replay/inputtape/fault_collectors_test.go` |
 | `collector:vulnerability_intelligence` | baseline | cassette | golden-corpus-gate | `testdata/cassettes/vulnerabilityintelligence/supply-chain-demo.json` |
+| `collector:vulnerability_intelligence` | fault | go_test | go-test-race | `go/internal/replay/inputtape/fault_collectors_test.go` |
 | `collector:webhook` | baseline | exempt | — | — |
 | `collector:webhook` | fault | exempt | — | — |
