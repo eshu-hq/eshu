@@ -25,7 +25,7 @@ package offlinetier_test
 // tier, so those need a reducer delta-replay harness, tracked separately.
 //
 // Skills active: golang-engineering, eshu-golden-corpus-rigor,
-// cypher-query-rigor, concurrency-deadlock-rigor.
+// cypher-query-rigor.
 
 import (
 	"context"
