@@ -189,7 +189,9 @@ func TestEntityRetractManifestBinding(t *testing.T) {
 	// manifest label absent from the cassette-derived set is a drift failure, so
 	// removing a content_entity fact while its row remains is caught.
 	nonContentEntityRows := map[string]struct{}{
-		"Directory": {},
+		"Directory":      {}, // structural, proven by delta_tier_live_test.go
+		"GitlabJob":      {}, // git.gitlab_job, proven by delta_tier_survivor_retract_live_test.go
+		"GitlabPipeline": {}, // git.gitlab_pipeline, proven by delta_tier_survivor_retract_live_test.go
 	}
 	manifestSet := map[string]struct{}{}
 	for _, e := range manifest.Coverage {
