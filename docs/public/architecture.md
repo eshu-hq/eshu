@@ -169,6 +169,7 @@ Focused references own the details:
 | Component packages and activation | [Component Package Manager](reference/component-package-manager.md) |
 | Fact schema and plugin trust | [Fact Schema Versioning](reference/fact-schema-versioning.md), [Plugin Trust Model](reference/plugin-trust-model.md) |
 | Optional hosted semantic enrichment posture | [Semantic Enrichment Posture](reference/semantic-enrichment-posture.md) |
+| Conformance, determinism, load, and fault-injection proof (Ifá) | [How Eshu Proves Itself](concepts/how-eshu-proves-itself.md), [The Ifá Conformance Platform](concepts/ifa-conformance-platform.md) |
 
 ## Backend Seam
 

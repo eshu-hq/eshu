@@ -9,6 +9,11 @@ Use the smallest gate that proves the touched behavior, then run the hygiene
 checks required by the files you changed. Do not call work ready without citing
 the commands you actually ran.
 
+Changing `go/internal/ifa`, `go/cmd/ifa`, or anything else the conformance
+platform covers? See [Run the proof suite](../guides/run-the-proof-suite.md)
+and [The Ifá conformance platform](../concepts/ifa-conformance-platform.md)
+for that platform's own commands and layers.
+
 ## Before You Push
 
 **The contributor standard: run `make pre-pr` before opening or updating any
