@@ -155,7 +155,7 @@ JSON
 {"Name":"eshu","CPUPerc":"12.5%","MemUsage":"128MiB / 1GiB"}
 {"Name":"resolution-engine","CPUPerc":"22.0%","MemUsage":"256MiB / 2GiB"}
 JSONL
-  cp "${REPO_ROOT}/scripts/lib/test-e2e-remote-compose-suite-fact-counts.sh" "${state_dir}/fact-counts.tsv"
+  cp "${REPO_ROOT}/scripts/lib/test-e2e-remote-compose-suite-fact-counts.tsv" "${state_dir}/fact-counts.tsv"
   cat >"${state_dir}/reducer-relationship-counts.tsv" <<'TSV'
 terraform_iac_relationships	5	5
 TSV
