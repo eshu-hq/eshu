@@ -46,6 +46,11 @@ var appendGateDisplayRE = regexp.MustCompile(`append_gate\s+"[^"]*"\s+"[^"]*"\s+
 //     non_gate_workflows. A file in neither is an error. A non_gate_workflows
 //     entry whose file is missing on disk is a stale-entry error. A workflow
 //     file present in both a gate ci.workflow AND non_gate_workflows is an error.
+//
+//  4. ci.job → workflow check-name resolution (#5010): every gate's ci.job must
+//     name a real check in its ci.workflow — a job `name:`, a job key, or an
+//     append_gate display — not the workflow title. See checkJobNamesResolve for
+//     the membership-vs-correspondence and matrix-job caveats.
 func DriftCheck(repoRoot string, reg *Registry) []error {
 	var errs []error
 
