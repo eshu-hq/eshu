@@ -14,12 +14,4 @@
 #
 # <doc-page-relpath> <missing-script-path>
 extend/community-extension-authoring.md scripts/verify-local.sh
-extend/reference-pagerduty-extension.md scripts/test-local-component-lifecycle.sh
-extend/reference-scorecard-extension.md scripts/pin-published-digest.sh
-extend/reference-scorecard-extension.md scripts/publish-reference-image.sh
-extend/reference-scorecard-extension.md scripts/test-local-component-lifecycle.sh
-guides/supply-chain-demo.md scripts/full-chain-proof.sh
-guides/supply-chain-demo.md scripts/run-image-identity-proof.sh
-guides/supply-chain-demo.md scripts/run-oci-localtls-identity-proof.sh
 reference/component-package-manager.md scripts/verify-local.sh
-tutorials/trace-vulnerable-dependency.md scripts/full-chain-proof.sh

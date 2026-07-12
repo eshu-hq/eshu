@@ -818,6 +818,7 @@ gates:
       - "scripts/verify-docs-refs.sh"
       - "scripts/test-verify-docs-refs.sh"
       - "scripts/docs-refs-baseline.txt"
+      - "specs/ci-gates.v1.yaml"
     local:
       command: "bash scripts/verify-docs-refs.sh"
       test_command: "bash scripts/test-verify-docs-refs.sh"

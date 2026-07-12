@@ -208,6 +208,47 @@ test_real_baseline_matches_fresh_regeneration() {
   fi
 }
 
+# Case 9: resolution semantics (#5125 review P1-1). A citation is checked at
+# its FULL cited path, not truncated to the scripts/ suffix; a bare
+# scripts/NAME citation that misses at repo root falls back to tree-wide
+# resolution (the implied-cd convention extension docs use); a citation is
+# dead only when it resolves nowhere.
+test_resolution_semantics() {
+  local root="${tmp_root}/case9"
+  local out="${tmp_root}/case9.out"
+  write_script "${root}" "examples/demo/scripts/live-nested.sh"
+  write_script "${root}" "examples/pkg/scripts/pkg-local.sh"
+  write_doc "${root}" "guides/example.md" \
+    '# Example' \
+    '' \
+    'Nested live: `examples/demo/scripts/live-nested.sh`.' \
+    'Nested dead: `examples/demo/scripts/gone-nested.sh`.' \
+    'From the package directory run `scripts/pkg-local.sh`.' \
+    'Bare dead: `scripts/resolves-nowhere.sh`.'
+  if run_verifier "${root}" "${out}"; then
+    record_fail "case9: two dead citations must fail the gate (exited zero)"
+    cat "${out}" >&2
+  else
+    record_pass "case9: dead citations still fail the gate"
+  fi
+  assert_contains "examples/demo/scripts/gone-nested.sh" "${out}" \
+    "case9: nested citation missing everywhere is flagged"
+  assert_contains "scripts/resolves-nowhere.sh" "${out}" \
+    "case9: bare citation resolving nowhere is flagged"
+  if rg -q --fixed-strings "live-nested.sh" "${out}"; then
+    record_fail "case9: nested citation whose file exists must not be flagged"
+    cat "${out}" >&2
+  else
+    record_pass "case9: nested live citation resolves at its full path"
+  fi
+  if rg -q --fixed-strings "pkg-local.sh" "${out}"; then
+    record_fail "case9: bare citation resolvable in-tree must not be flagged"
+    cat "${out}" >&2
+  else
+    record_pass "case9: bare citation resolves tree-wide (implied-cd convention)"
+  fi
+}
+
 # Case 8: fail-closed on an unreadable or garbage baseline — never silently
 # treat either as an empty baseline.
 test_fails_closed_on_bad_baseline() {
@@ -250,6 +291,7 @@ test_update_is_idempotent
 test_real_tree_passes_with_committed_baseline
 test_real_baseline_matches_fresh_regeneration
 test_fails_closed_on_bad_baseline
+test_resolution_semantics
 
 if [[ "${FAIL}" -ne 0 ]]; then
   printf 'test-verify-docs-refs FAILED: %d/%d\n' "${FAIL}" "$((PASS + FAIL))" >&2

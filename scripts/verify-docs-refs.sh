@@ -7,22 +7,40 @@
 # env-var checking inside the cited script — precision first, since false
 # positives are how a gate gets muted/ignored instead of trusted.
 #
-# Discovery regex: \bscripts/[A-Za-z0-9_./-]+\.(sh|py|awk)\b, run against
-# every docs/public/**/*.md file, matched over the raw line text so it finds
-# a citation whether it sits inside inline code (`scripts/foo.sh`) or plain
-# prose. A fenced code block that is clearly EXAMPLE OUTPUT rather than an
-# instruction still counts — a cited path is a cited path regardless of
-# which markdown construct it sits in, so this script does NOT special-case
-# ``` fences.
+# Discovery regex: [A-Za-z0-9_./-]*scripts/[A-Za-z0-9_./-]+\.(sh|py|awk)\b,
+# run against every docs/public/**/*.md file, matched over the raw line text
+# so it finds a citation whether it sits inside inline code
+# (`scripts/foo.sh`) or plain prose. The leading path class captures the FULL
+# cited path (`examples/demo/scripts/foo.sh`), never just the `scripts/`
+# suffix — truncating to the suffix and checking at repo root wrongly flags
+# live nested scripts (#5125 review finding). A fenced code block that is
+# clearly EXAMPLE OUTPUT rather than an instruction still counts — a cited
+# path is a cited path regardless of which markdown construct it sits in, so
+# this script does NOT special-case ``` fences.
 #
-# Placeholder exclusion: a candidate containing <, >, *, or the ellipsis
-# character (…) is skipped — patterns like `scripts/<name>.sh`,
-# `scripts/*.sh`, or `scripts/verify-*.sh` are documentation shorthand, not a
-# citation of a real path. The discovery regex's own character class already
-# excludes all four of those characters from ever appearing inside a match
-# (none of them is in [A-Za-z0-9_./-]), so this check is normally a no-op;
-# it is kept explicit so the exclusion rule survives if the discovery regex
-# is ever loosened to catch quoted or bracketed citations.
+# Resolution rules, in order:
+#   1. The full cited path, joined to the repo root, exists -> resolvable.
+#   2. Otherwise a BARE citation (path starts with `scripts/`, no parent
+#      prefix) falls back to tree-wide resolution: if any `**/<path>` exists
+#      in the repo it is resolvable. This accepts the implied-cd convention
+#      the extension docs use ("From the package directory: bash
+#      scripts/foo.sh"). Deliberate leniency: a blocking gate that cries wolf
+#      gets baselined around instead of trusted. The cost is that a bare
+#      citation of a deleted root script whose NAME still exists under some
+#      nested scripts/ dir is not flagged — precision over recall, on
+#      purpose.
+#   3. A citation that resolves nowhere is DEAD.
+#
+# Exclusions:
+#   - a candidate containing <, >, *, or the ellipsis character (…) is
+#     documentation shorthand (`scripts/<name>.sh`, `scripts/*.sh`), not a
+#     citation. The regex class already excludes those characters; the guard
+#     is kept explicit so the rule survives if the regex is ever loosened.
+#   - a candidate containing `..` is skipped: the existence check joins the
+#     path to the repo root, and a parent-escape must never read outside it.
+#   - a candidate starting with `/` is an absolute path (or the tail of a
+#     URL like https://host/scripts/x.sh, whose match begins at the `//`),
+#     not a repo-relative citation.
 #
 # Burn-down baseline: scripts/docs-refs-baseline.txt lists known dead
 # references as "<doc-relpath> <missing-script-path>" pairs (mirroring the
@@ -72,31 +90,48 @@ command -v rg >/dev/null 2>&1 || {
   exit 1
 }
 
-# scan_citations emits one "<doc-relpath> <script-path>" line per unique
+# scan_citations emits one "<doc-relpath> <full-cited-path>" line per unique
 # citation found across every docs/public/**/*.md page, sorted for
-# determinism. Reads never use a heredoc or here-string; the inner loop is
-# fed by process substitution so no pipe-body-size limit ever applies.
+# determinism. One rg pass over the whole docs tree feeds one awk pass — no
+# per-file loop, no nested process substitution, no heredoc/here-string —
+# then a single LC_ALL=C sort -u. The flat single-process pipeline is
+# deliberate: the earlier per-file while-read structure showed a rare
+# nondeterministic dropped line under macOS bash 3.2 (#5125 review P1-2).
 scan_citations() {
-  (cd "${docs_root}" && rg --files -g '*.md') | LC_ALL=C sort | while IFS= read -r rel; do
-    [ -z "${rel}" ] && continue
-    file="${docs_root}/${rel}"
-    while IFS= read -r match; do
-      [ -z "${match}" ] && continue
-      case "${match}" in
-        *'<'* | *'>'* | *'*'* | *'…'*) continue ;;
-      esac
-      printf '%s %s\n' "${rel}" "${match}"
-    done < <(rg -o --no-filename '\bscripts/[A-Za-z0-9_./-]+\.(sh|py|awk)\b' "${file}" 2>/dev/null || true)
-  done | LC_ALL=C sort -u
+  (cd "${docs_root}" && rg --no-heading --no-line-number -o -g '*.md' \
+    '[A-Za-z0-9_./-]*scripts/[A-Za-z0-9_./-]+\.(sh|py|awk)\b' . 2>/dev/null || true) \
+    | LC_ALL=C awk '{
+        idx = index($0, ":"); if (idx == 0) next
+        rel = substr($0, 1, idx - 1); m = substr($0, idx + 1)
+        sub(/^\.\//, "", rel)
+        if (m == "" || rel == "") next
+        if (m ~ /\.\./) next
+        if (m ~ /^\//) next
+        if (index(m, "<") || index(m, ">") || index(m, "*") || index(m, "\xe2\x80\xa6")) next
+        print rel " " m
+      }' \
+    | LC_ALL=C sort -u
 }
 
-# dead_citations filters scan_citations down to pairs whose script path does
-# not exist in the repo.
+# dead_citations filters a citations file down to pairs that resolve nowhere:
+# not at the full cited path from the repo root, and — for bare scripts/NAME
+# citations only — not at any **/scripts/NAME in the tree (the implied-cd
+# fallback documented in the header). Fed from a regular file, not a pipe.
 dead_citations() {
+  local citations_file="$1"
+  local rel path
   while IFS=' ' read -r rel path; do
     [ -z "${rel}" ] && continue
-    [[ -f "${repo_root}/${path}" ]] || printf '%s %s\n' "${rel}" "${path}"
-  done < <(scan_citations)
+    [[ -f "${repo_root}/${path}" ]] && continue
+    case "${path}" in
+      scripts/*)
+        if [ -n "$(cd "${repo_root}" && rg --files -g "**/${path}" 2>/dev/null | head -1)" ]; then
+          continue
+        fi
+        ;;
+    esac
+    printf '%s %s\n' "${rel}" "${path}"
+  done <"${citations_file}"
 }
 
 # validate_baseline fails closed: a baseline that exists but cannot be read,
@@ -155,10 +190,11 @@ baseline_header() {
 }
 
 cmd_update() {
+  scan_citations >"${tmp_dir}/citations.txt"
   local tmp="${tmp_dir}/new-baseline.txt"
   {
     baseline_header
-    dead_citations
+    dead_citations "${tmp_dir}/citations.txt"
   } >"${tmp}"
   mkdir -p "$(dirname "${baseline_path}")"
   cp "${tmp}" "${baseline_path}"
@@ -170,7 +206,8 @@ cmd_update() {
 cmd_check() {
   validate_baseline "${baseline_path}" || exit 1
 
-  dead_citations >"${tmp_dir}/dead.txt"
+  scan_citations >"${tmp_dir}/citations.txt"
+  dead_citations "${tmp_dir}/citations.txt" >"${tmp_dir}/dead.txt"
   baseline_pairs "${baseline_path}" >"${tmp_dir}/baseline.txt"
   comm -23 "${tmp_dir}/dead.txt" "${tmp_dir}/baseline.txt" >"${tmp_dir}/new.txt" || true
 
@@ -186,7 +223,7 @@ cmd_check() {
   fi
 
   local citation_count dead_count
-  citation_count="$(scan_citations | awk 'NF' | wc -l | tr -d ' ')"
+  citation_count="$(awk 'NF' "${tmp_dir}/citations.txt" | wc -l | tr -d ' ')"
   dead_count="$(awk 'NF' "${tmp_dir}/dead.txt" | wc -l | tr -d ' ')"
   log "OK: ${citation_count} script citation(s) checked, ${dead_count} baselined dead reference(s)"
   return 0
