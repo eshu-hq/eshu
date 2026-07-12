@@ -6,11 +6,15 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
@@ -28,6 +32,18 @@ import (
 // Each cycle is wrapped in a collector.observe span with metric and log output
 // so operators can trace collection throughput during bootstrap.
 //
+// Commit lanes (#5130): the source is polled by a single dispatcher (the
+// GitSource stream contract is single-consumer), while commits run on
+// commitLanes concurrent workers. The accepted 896-repo run measured the
+// commit chain busy 99.66% of the collection span with upsert_facts strictly
+// serialized (max_concurrency=1, 921.1s — #5122); scopes are independent
+// conflict domains (per-scope transactions, per-repo shared-lock keys, a
+// concurrency-safe catalog cache), and the scope-partitioned lane shim on
+// the real fact distribution measured 1.95x at 2 lanes with a 2.22x plateau
+// at 4. The work channel is unbuffered so backpressure semantics are
+// unchanged: the dispatcher hands a generation to the next free lane or
+// blocks, exactly as the serial loop blocked on its own commit.
+//
 // Per-repo instrumentation added by #3678:
 //   - eshu_dp_content_entity_emitted_total (source_file_kind, collector_kind):
 //     incremented per entity by bounded file kind so lockfile/config explosions
@@ -43,23 +59,57 @@ func drainCollector(
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 	logger *slog.Logger,
+	commitLanes int,
 	advisorySinks ...discoveryAdvisorySink,
 ) error {
-	var (
-		total           int
-		totalFacts      int64
-		totalEntities   int64
-		collectionStart = time.Now()
-	)
-	advisorySink := firstDiscoveryAdvisorySink(advisorySinks)
-	for {
+	if commitLanes < 1 {
+		commitLanes = 1
+	}
+	state := &collectorDrainState{
+		committer:       committer,
+		instruments:     instruments,
+		logger:          logger,
+		advisorySink:    firstDiscoveryAdvisorySink(advisorySinks),
+		collectionStart: time.Now(),
+	}
+
+	laneCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	type collectCycle struct {
+		collected  collector.CollectedGeneration
+		cycleCtx   context.Context
+		span       trace.Span
+		cycleStart time.Time
+	}
+	work := make(chan collectCycle)
+	var wg sync.WaitGroup
+	for lane := 0; lane < commitLanes; lane++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for cycle := range work {
+				if err := state.commitCollectedGeneration(
+					cycle.cycleCtx, cycle.collected, cycle.span, cycle.cycleStart,
+				); err != nil {
+					state.recordError(err)
+					cancel()
+				}
+			}
+		}()
+	}
+
+	// Dispatcher: single consumer of the source stream. It stops on source
+	// exhaustion, source error, or the first lane failure (laneCtx canceled).
+	var dispatchErr error
+	for dispatchErr == nil && laneCtx.Err() == nil {
 		cycleStart := time.Now()
 
 		var span trace.Span
-		cycleCtx := ctx
+		cycleCtx := laneCtx
 		if tracer != nil {
 			cycleCtx, span = tracer.Start(
-				ctx, telemetry.SpanCollectorObserve,
+				laneCtx, telemetry.SpanCollectorObserve,
 				trace.WithAttributes(attribute.String("component", "bootstrap-index")),
 			)
 		}
@@ -70,150 +120,232 @@ func drainCollector(
 				span.RecordError(err)
 				span.End()
 			}
-			return fmt.Errorf("bootstrap collector: %w", err)
+			// A canceled lane context after a commit failure is that failure's
+			// consequence, not an independent source error; the lane error is
+			// joined below.
+			if laneCtx.Err() != nil && errors.Is(err, laneCtx.Err()) {
+				break
+			}
+			dispatchErr = fmt.Errorf("bootstrap collector: %w", err)
+			break
 		}
 		if !ok {
 			if span != nil {
 				span.End()
 			}
-			if logger != nil {
-				logger.InfoContext(
-					ctx, "bootstrap collection complete",
-					slog.Int("scopes_collected", total),
-					slog.Int64("total_facts_emitted", totalFacts),
-					slog.Int64("total_entities_emitted", totalEntities),
-					slog.Float64("collection_duration_seconds", time.Since(collectionStart).Seconds()),
-					telemetry.PhaseAttr(telemetry.PhaseEmission),
-				)
-			}
-			return nil
+			break
 		}
 
-		factCountPre := collected.FactCount()
 		if instruments != nil {
-			instruments.FactsEmitted.Add(cycleCtx, int64(factCountPre), metric.WithAttributes(
+			instruments.FactsEmitted.Add(cycleCtx, int64(collected.FactCount()), metric.WithAttributes(
 				telemetry.AttrScopeKind(string(collected.Scope.ScopeKind)),
 				telemetry.AttrCollectorKind("bootstrap-index"),
 			))
 		}
 
-		if err := committer.CommitScopeGeneration(
-			cycleCtx,
-			collected.Scope,
-			collected.Generation,
-			collected.Facts,
-		); err != nil {
+		select {
+		case work <- collectCycle{collected: collected, cycleCtx: cycleCtx, span: span, cycleStart: cycleStart}:
+		case <-laneCtx.Done():
+			if span != nil {
+				span.End()
+			}
+		}
+	}
+	close(work)
+	wg.Wait()
+
+	if err := errors.Join(dispatchErr, state.firstError()); err != nil {
+		return err
+	}
+
+	if logger != nil {
+		logger.InfoContext(
+			ctx, "bootstrap collection complete",
+			slog.Int("scopes_collected", int(state.total.Load())),
+			slog.Int64("total_facts_emitted", state.totalFacts.Load()),
+			slog.Int64("total_entities_emitted", state.totalEntities.Load()),
+			slog.Float64("collection_duration_seconds", time.Since(state.collectionStart).Seconds()),
+			slog.Int("commit_lanes", commitLanes),
+			telemetry.PhaseAttr(telemetry.PhaseEmission),
+		)
+	}
+	return nil
+}
+
+// collectorDrainState carries the shared counters, advisory sink, and
+// first-error slot for the concurrent commit lanes. Counters are atomics; the
+// advisory sink call is serialized behind a mutex because sink
+// implementations append to a plain slice.
+type collectorDrainState struct {
+	committer   collector.Committer
+	instruments *telemetry.Instruments
+	logger      *slog.Logger
+
+	advisoryMu   sync.Mutex
+	advisorySink discoveryAdvisorySink
+
+	errMu    sync.Mutex
+	firstErr error
+
+	total           atomic.Int64
+	totalFacts      atomic.Int64
+	totalEntities   atomic.Int64
+	collectionStart time.Time
+}
+
+// recordError keeps the first commit-lane error; later errors from lanes that
+// were already in flight when the first failure canceled the drain are
+// dropped in its favor.
+func (s *collectorDrainState) recordError(err error) {
+	s.errMu.Lock()
+	defer s.errMu.Unlock()
+	if s.firstErr == nil {
+		s.firstErr = err
+	}
+}
+
+// firstError returns the first recorded commit-lane error, if any.
+func (s *collectorDrainState) firstError() error {
+	s.errMu.Lock()
+	defer s.errMu.Unlock()
+	return s.firstErr
+}
+
+// commitCollectedGeneration commits one collected generation and emits its
+// per-repo metrics, advisory report, logs, and span attributes. It is the
+// body of one commit-lane iteration; every log message and metric it emits is
+// byte-compatible with the pre-#5130 serial loop.
+func (s *collectorDrainState) commitCollectedGeneration(
+	cycleCtx context.Context,
+	collected collector.CollectedGeneration,
+	span trace.Span,
+	cycleStart time.Time,
+) error {
+	factCountPre := collected.FactCount()
+	if err := s.committer.CommitScopeGeneration(
+		cycleCtx,
+		collected.Scope,
+		collected.Generation,
+		collected.Facts,
+	); err != nil {
+		if span != nil {
+			span.RecordError(err)
+			span.End()
+		}
+		if s.logger != nil {
+			s.logger.ErrorContext(
+				cycleCtx, "bootstrap collector commit failed",
+				log.ScopeID(collected.Scope.ScopeID),
+				slog.Int("fact_count", factCountPre),
+				log.Err(err),
+				telemetry.PhaseAttr(telemetry.PhaseEmission),
+				telemetry.FailureClassAttr("commit_failure"),
+			)
+		}
+		return fmt.Errorf("bootstrap collector commit: %w", err)
+	}
+
+	// After commit drains the stream, FactCount() returns the exact
+	// streamed count.
+	factCount := collected.FactCount()
+
+	// Emit per-file-kind content_entity counters from the discovery advisory.
+	// The advisory classifies each entity into a bounded source_file_kind
+	// (telemetry.ContentEntitySourceFileKind: code, package_manifest, config,
+	// other) — package_manifest comes from dependency entity metadata, the same
+	// signal the reducer admits. Iterate the bounded constant set (not the map
+	// keys) so both the metric label space and the log field space are
+	// statically bounded and a stray advisory key can never leak a new
+	// dimension. These counters let operators distinguish a lockfile explosion
+	// (package_manifest) from normal code growth without querying fact_records.
+	var entityCount int
+	entityByKind := map[string]int{}
+	if collected.DiscoveryAdvisory != nil {
+		for _, kind := range telemetry.SourceFileKinds() {
+			n := collected.DiscoveryAdvisory.EntityCounts.BySourceFileKind[kind]
+			entityByKind[kind] = n
+			entityCount += n
+			if s.instruments != nil && n > 0 {
+				s.instruments.ContentEntityEmitted.Add(cycleCtx, int64(n), metric.WithAttributes(
+					telemetry.AttrSourceFileKind(kind),
+					telemetry.AttrCollectorKind("bootstrap-index"),
+				))
+			}
+		}
+	}
+	if collected.DiscoveryAdvisory != nil && s.advisorySink != nil {
+		report := *collected.DiscoveryAdvisory
+		if report.Run.ScopeID == "" {
+			report.Run.ScopeID = collected.Scope.ScopeID
+		}
+		if report.Run.GenerationID == "" {
+			report.Run.GenerationID = collected.Generation.GenerationID
+		}
+		s.advisoryMu.Lock()
+		err := s.advisorySink(report)
+		s.advisoryMu.Unlock()
+		if err != nil {
 			if span != nil {
 				span.RecordError(err)
 				span.End()
 			}
-			if logger != nil {
-				logger.ErrorContext(
-					ctx, "bootstrap collector commit failed",
-					log.ScopeID(collected.Scope.ScopeID),
-					slog.Int("fact_count", factCountPre),
-					log.Err(err),
-					telemetry.PhaseAttr(telemetry.PhaseEmission),
-					telemetry.FailureClassAttr("commit_failure"),
-				)
-			}
-			return fmt.Errorf("bootstrap collector commit: %w", err)
-		}
-
-		// After commit drains the stream, FactCount() returns the exact
-		// streamed count.
-		factCount := collected.FactCount()
-
-		// Emit per-file-kind content_entity counters from the discovery advisory.
-		// The advisory classifies each entity into a bounded source_file_kind
-		// (telemetry.ContentEntitySourceFileKind: code, package_manifest, config,
-		// other) — package_manifest comes from dependency entity metadata, the same
-		// signal the reducer admits. Iterate the bounded constant set (not the map
-		// keys) so both the metric label space and the log field space are
-		// statically bounded and a stray advisory key can never leak a new
-		// dimension. These counters let operators distinguish a lockfile explosion
-		// (package_manifest) from normal code growth without querying fact_records.
-		var entityCount int
-		entityByKind := map[string]int{}
-		if collected.DiscoveryAdvisory != nil {
-			for _, kind := range telemetry.SourceFileKinds() {
-				n := collected.DiscoveryAdvisory.EntityCounts.BySourceFileKind[kind]
-				entityByKind[kind] = n
-				entityCount += n
-				if instruments != nil && n > 0 {
-					instruments.ContentEntityEmitted.Add(cycleCtx, int64(n), metric.WithAttributes(
-						telemetry.AttrSourceFileKind(kind),
-						telemetry.AttrCollectorKind("bootstrap-index"),
-					))
-				}
-			}
-		}
-		if collected.DiscoveryAdvisory != nil && advisorySink != nil {
-			report := *collected.DiscoveryAdvisory
-			if report.Run.ScopeID == "" {
-				report.Run.ScopeID = collected.Scope.ScopeID
-			}
-			if report.Run.GenerationID == "" {
-				report.Run.GenerationID = collected.Generation.GenerationID
-			}
-			if err := advisorySink(report); err != nil {
-				return fmt.Errorf("record discovery advisory: %w", err)
-			}
-		}
-
-		duration := time.Since(cycleStart).Seconds()
-		if instruments != nil {
-			instruments.FactsCommitted.Add(cycleCtx, int64(factCount), metric.WithAttributes(
-				telemetry.AttrScopeKind(string(collected.Scope.ScopeKind)),
-			))
-			instruments.CollectorObserveDuration.Record(cycleCtx, duration, metric.WithAttributes(
-				telemetry.AttrCollectorKind("bootstrap-index"),
-			))
-		}
-
-		totalFacts += int64(factCount)
-		totalEntities += int64(entityCount)
-		total++
-
-		if logger != nil {
-			// Per-repo log: include content_entity count and per-file-kind breakdown
-			// so log grep surfaces the noisy sources without DB queries.
-			logAttrs := []any{
-				log.ScopeID(collected.Scope.ScopeID),
-				slog.Int("fact_count", factCount),
-				slog.Int("content_entity_count", entityCount),
-				slog.Float64("duration_seconds", duration),
-				telemetry.PhaseAttr(telemetry.PhaseEmission),
-			}
-			// Iterate the bounded constant set so the log field set is static and
-			// ordered (entity_kind_code, entity_kind_package_manifest, ...).
-			for _, kind := range telemetry.SourceFileKinds() {
-				logAttrs = append(logAttrs, slog.Int("entity_kind_"+kind, entityByKind[kind]))
-			}
-			logger.InfoContext(cycleCtx, "bootstrap scope collected", logAttrs...)
-
-			// Periodic progress: every bootstrapProgressInterval repos emit a
-			// summary so a 70-min run does not look silent.
-			if total%bootstrapProgressInterval == 0 {
-				logger.InfoContext(
-					ctx, "bootstrap collection progress",
-					slog.Int("scopes_done", total),
-					slog.Int64("total_facts_emitted", totalFacts),
-					slog.Int64("total_entities_emitted", totalEntities),
-					log.ElapsedSeconds(time.Since(collectionStart).Seconds()),
-					telemetry.PhaseAttr(telemetry.PhaseEmission),
-				)
-			}
-		}
-		if span != nil {
-			span.SetAttributes(
-				attribute.String("scope_id", collected.Scope.ScopeID),
-				attribute.Int("fact_count", factCount),
-				attribute.Int("content_entity_count", entityCount),
-			)
-			span.End()
+			return fmt.Errorf("record discovery advisory: %w", err)
 		}
 	}
+
+	duration := time.Since(cycleStart).Seconds()
+	if s.instruments != nil {
+		s.instruments.FactsCommitted.Add(cycleCtx, int64(factCount), metric.WithAttributes(
+			telemetry.AttrScopeKind(string(collected.Scope.ScopeKind)),
+		))
+		s.instruments.CollectorObserveDuration.Record(cycleCtx, duration, metric.WithAttributes(
+			telemetry.AttrCollectorKind("bootstrap-index"),
+		))
+	}
+
+	totalFacts := s.totalFacts.Add(int64(factCount))
+	totalEntities := s.totalEntities.Add(int64(entityCount))
+	total := s.total.Add(1)
+
+	if s.logger != nil {
+		// Per-repo log: include content_entity count and per-file-kind breakdown
+		// so log grep surfaces the noisy sources without DB queries.
+		logAttrs := []any{
+			log.ScopeID(collected.Scope.ScopeID),
+			slog.Int("fact_count", factCount),
+			slog.Int("content_entity_count", entityCount),
+			slog.Float64("duration_seconds", duration),
+			telemetry.PhaseAttr(telemetry.PhaseEmission),
+		}
+		// Iterate the bounded constant set so the log field set is static and
+		// ordered (entity_kind_code, entity_kind_package_manifest, ...).
+		for _, kind := range telemetry.SourceFileKinds() {
+			logAttrs = append(logAttrs, slog.Int("entity_kind_"+kind, entityByKind[kind]))
+		}
+		s.logger.InfoContext(cycleCtx, "bootstrap scope collected", logAttrs...)
+
+		// Periodic progress: every bootstrapProgressInterval repos emit a
+		// summary so a 70-min run does not look silent.
+		if total%bootstrapProgressInterval == 0 {
+			s.logger.InfoContext(
+				cycleCtx, "bootstrap collection progress",
+				slog.Int("scopes_done", int(total)),
+				slog.Int64("total_facts_emitted", totalFacts),
+				slog.Int64("total_entities_emitted", totalEntities),
+				log.ElapsedSeconds(time.Since(s.collectionStart).Seconds()),
+				telemetry.PhaseAttr(telemetry.PhaseEmission),
+			)
+		}
+	}
+	if span != nil {
+		span.SetAttributes(
+			attribute.String("scope_id", collected.Scope.ScopeID),
+			attribute.Int("fact_count", factCount),
+			attribute.Int("content_entity_count", entityCount),
+		)
+		span.End()
+	}
+	return nil
 }
 
 func firstDiscoveryAdvisorySink(sinks []discoveryAdvisorySink) discoveryAdvisorySink {
@@ -242,4 +374,23 @@ func writeDiscoveryAdvisoryReports(path string, reports []collector.DiscoveryAdv
 		return fmt.Errorf("write discovery advisory report %q: %w", path, err)
 	}
 	return nil
+}
+
+// defaultCommitLanes is the measured commit-throughput plateau from the
+// #5122 scope-partitioned lane shim (1 lane 107.9s -> 2 lanes 1.95x -> 4
+// lanes 2.22x -> 8 lanes flat on the accepted run's real 896-scope fact
+// distribution). It is deliberately NOT derived from CPU count: the plateau
+// is bounded by Postgres WAL/disk and the largest-scope tail, not by cores.
+const defaultCommitLanes = 4
+
+// commitLaneCount returns the number of concurrent bootstrap commit lanes.
+// ESHU_BOOTSTRAP_COMMIT_LANES overrides when it parses as a positive
+// integer; anything else uses the measured-plateau default.
+func commitLaneCount(getenv func(string) string) int {
+	if raw := strings.TrimSpace(getenv("ESHU_BOOTSTRAP_COMMIT_LANES")); raw != "" {
+		if n, err := strconv.Atoi(raw); err == nil && n > 0 {
+			return n
+		}
+	}
+	return defaultCommitLanes
 }

@@ -65,6 +65,10 @@ type bootstrapCommitter interface {
 type collectorDeps struct {
 	source    collector.Source
 	committer bootstrapCommitter
+	// commitLanes is the number of concurrent commit lanes drainCollector
+	// runs (#5130). Sized by commitLaneCount from
+	// ESHU_BOOTSTRAP_COMMIT_LANES with a measured-plateau default.
+	commitLanes int
 }
 
 type projectorDeps struct {

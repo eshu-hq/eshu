@@ -115,7 +115,7 @@ func runPipelined(
 	collectionStart := time.Now()
 	go func() {
 		defer close(collectorDone)
-		err := drainCollector(ctx, cd.source, cd.committer, tracer, instruments, logger, firstDiscoveryAdvisorySink(advisorySinks))
+		err := drainCollector(ctx, cd.source, cd.committer, tracer, instruments, logger, cd.commitLanes, firstDiscoveryAdvisorySink(advisorySinks))
 		errc <- err
 	}()
 
