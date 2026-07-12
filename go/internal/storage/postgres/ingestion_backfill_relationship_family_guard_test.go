@@ -80,6 +80,19 @@ func TestDeferredRelationshipFamilyGuardKeepsExtractorFamilies(t *testing.T) {
 	}
 }
 
+func TestDeferredRelationshipFamilyGuardKeepsDockerfileAndJenkinsfilePrefixes(t *testing.T) {
+	t.Parallel()
+
+	for _, want := range []string{
+		"dockerfile(\\.[^/]*)?",
+		"jenkinsfile(\\.[^/]*)?",
+	} {
+		if !strings.Contains(deferredRelationshipFamilyCandidatePredicateSQL, want) {
+			t.Fatalf("relationship-family predicate missing prefix basename fragment %q", want)
+		}
+	}
+}
+
 func TestDeferredRelationshipFamilyGuardKeepsArgoCDCarveOuts(t *testing.T) {
 	t.Parallel()
 
@@ -94,6 +107,19 @@ func TestDeferredRelationshipFamilyGuardKeepsArgoCDCarveOuts(t *testing.T) {
 	} {
 		if !strings.Contains(deferredRelationshipFamilyCandidatePredicateSQL, want) {
 			t.Fatalf("relationship-family predicate missing ArgoCD/ApplicationSet carve-out %q", want)
+		}
+	}
+}
+
+func TestDeferredRelationshipFamilyGuardKeepsSaltGitfsFallback(t *testing.T) {
+	t.Parallel()
+
+	for _, want := range []string{
+		"gitfs_remotes",
+		"(^|\\n)gitfs_remotes[[:space:]]*:",
+	} {
+		if !strings.Contains(deferredRelationshipFamilyCandidatePredicateSQL, want) {
+			t.Fatalf("relationship-family predicate missing Salt gitfs fallback fragment %q", want)
 		}
 	}
 }

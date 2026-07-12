@@ -23,9 +23,10 @@ import (
 //	   intentionally guarded by deferredRelationshipFamilyCandidatePredicateSQL:
 //	   a content/file fact must first look like a relationship extractor family
 //	   before the broad alias substring scan can select it. That preserves
-//	   evidence-producing Terraform/Helm/ArgoCD/Docker/GitHub Actions/Ansible/GCP
-//	   rows while preventing generic content partitions from being loaded only
-//	   because they contain noisy short aliases such as "s3" or "robots".
+//	   evidence-producing Terraform/Helm/ArgoCD/Docker/GitHub Actions/Ansible/
+//	   Salt/GCP rows while preventing generic content partitions from being
+//	   loaded only because they contain noisy short aliases such as "s3" or
+//	   "robots".
 //
 //	$2 pq.StringArray — raw lowercase repo_id values. The repo_id fallback arm
 //	   uses EXISTS to load a fact only when its payload contains a catalog
@@ -207,6 +208,20 @@ const deferredRelationshipFamilyArgoCDContentMarkerSQL = `(CASE
             ELSE false
           END)`
 
+const deferredRelationshipFamilySaltGitfsContentMarkerSQL = `(CASE
+            WHEN COALESCE(
+              fact.payload->>'content',
+              fact.payload->>'content_body',
+              ''
+            ) LIKE '%gitfs_remotes:%'
+            THEN COALESCE(
+              fact.payload->>'content',
+              fact.payload->>'content_body',
+              ''
+            ) ~ E'(^|\n)gitfs_remotes[[:space:]]*:'
+            ELSE false
+          END)`
+
 const deferredRelationshipFamilyCandidatePredicateSQL = `(
           fact.fact_kind = 'gcp_cloud_relationship'
           OR ` + deferredRelationshipFamilyArtifactTypeSQL + ` IN (
@@ -221,8 +236,9 @@ const deferredRelationshipFamilyCandidatePredicateSQL = `(
             'github_actions_workflow'
           )
           OR ` + deferredRelationshipFamilyArtifactTypeSQL + ` LIKE 'ansible_%'
-          OR ` + deferredRelationshipFamilyPathSQL + ` ~ '(^|/)(dockerfile|jenkinsfile|puppetfile|berksfile)$|(^|/)docker-compose\.ya?ml$|(^|/)compose\.ya?ml$|(^|/)\.github/workflows/[^/]+\.ya?ml$|(^|/)applicationsets?/.*\.ya?ml$|(^|/)argocd/.*\.ya?ml$|(^|/)values([^/]*)\.ya?ml$|(^|/)chart\.ya?ml$|(^|/)kustomization\.ya?ml$|(^|/)(playbooks|roles|group_vars|host_vars|inventories)/|(^|/)inventory($|/)|\.(tf|tf\.json|tfvars|tfvars\.json|hcl|tpl)$'
+          OR ` + deferredRelationshipFamilyPathSQL + ` ~ '(^|/)(dockerfile(\.[^/]*)?|jenkinsfile(\.[^/]*)?|puppetfile|berksfile)$|(^|/)docker-compose\.ya?ml$|(^|/)compose\.ya?ml$|(^|/)\.github/workflows/[^/]+\.ya?ml$|(^|/)applicationsets?/.*\.ya?ml$|(^|/)argocd/.*\.ya?ml$|(^|/)values([^/]*)\.ya?ml$|(^|/)chart\.ya?ml$|(^|/)kustomization\.ya?ml$|(^|/)(playbooks|roles|group_vars|host_vars|inventories)/|(^|/)inventory($|/)|\.(tf|tf\.json|tfvars|tfvars\.json|hcl|tpl)$'
           OR ` + deferredRelationshipFamilyArgoCDContentMarkerSQL + `
+          OR ` + deferredRelationshipFamilySaltGitfsContentMarkerSQL + `
         )`
 
 const deferredRelationshipFamilyPayloadFactsFilterSQL = `WHERE ` + deferredRelationshipFamilyCandidatePredicateSQL
