@@ -221,14 +221,17 @@ func (o *countingObserver) ObserveBackpressureWait(_ context.Context, _ string, 
 	o.engaged.Add(1)
 }
 
-// engagementGrace is how long a gated round waits, after every goroutine has
-// reached the gate, for the over-pool surplus to block on Acquire before the
-// pinned permit-holders release. It only guarantees the wait observer fires
-// (backpressure engagement); the pass/fail assertions depend on the structural
-// PermitPool-vs-capacity bound, not on this duration, so it is not a
-// correctness race. It mirrors the channel-plus-deadline idiom the repo's own
+// engagementGrace bounds only the microscopic window between a surplus
+// goroutine signaling (surplusArrived) that it is about to call Acquire and its
+// reaching the blocking send. The pool is already provably full when the surplus
+// contends (the holder cohort is confirmed pinned via held.Wait first), so every
+// surplus is guaranteed onto the slow, observed path regardless of this
+// duration; the grace only reduces the chance a straggler reaches Acquire after
+// holdCh closes. The pass/fail assertions depend on the structural
+// PermitPool-vs-capacity bound, not on this value, so it is not a correctness
+// race. It mirrors the channel-plus-deadline idiom the repo's own
 // graph_write_permit_split_test.go uses to prove gate blocking.
-const engagementGrace = 25 * time.Millisecond
+const engagementGrace = 50 * time.Millisecond
 
 // capacityBackend models a graph backend that serves up to `capacity`
 // concurrent writes and returns a real cypher.GraphWriteTimeoutError for the
@@ -308,54 +311,79 @@ func (b *capacityBackend) runUngatedRound(ctx context.Context, gate *sourcecyphe
 	return outcomes, nil
 }
 
-// runGatedRound drives the pending items through the real permit gate. The
-// first cohort of permit-holders pins its permits on holdCh so the over-pool
-// surplus blocks on Acquire (its wait observer fires); after every goroutine has
-// reached the gate and the surplus has had engagementGrace to block, holdCh
-// closes and the holders release, letting the surplus drain in later cohorts.
+// runGatedRound drives the pending items through the real permit gate so the
+// wait observer fires WITHOUT a scheduler race. It launches the first cohort of
+// permit-holders and waits (held) until every one of them actually holds a
+// permit, so the pool is provably full before any surplus goroutine attempts
+// Acquire. Each surplus goroutine therefore cannot take the fast path — the pool
+// stays full until holdCh closes — so it is guaranteed onto the slow (observed)
+// path: which path a caller takes is decided at attempt time, when the pool is
+// full, not at the timing of the later release. The short grace only covers the
+// microscopic window between a surplus signaling it is about to Acquire and its
+// reaching the blocking send; the pass/fail assertions depend on the structural
+// PermitPool<=capacity bound, never on this duration.
+//
 // Because the gate never admits more than PermitPool concurrent writers and
 // PermitPool <= capacity for a fixed configuration, no write is ever
 // oversubscribed, so none times out from capacity.
 func (b *capacityBackend) runGatedRound(ctx context.Context, gate *sourcecypher.BackpressureGate, pending []*workItem) ([]error, error) {
 	outcomes := make([]error, len(pending))
+	holders := gate.MaxInFlight()
+	if holders > len(pending) {
+		holders = len(pending)
+	}
 	holdCh := make(chan struct{})
-	var arrived sync.WaitGroup
-	arrived.Add(len(pending))
+	var held sync.WaitGroup // holders signal once they hold a permit
+	held.Add(holders)
+	var surplusArrived sync.WaitGroup // surplus signal right before contending
+	surplusArrived.Add(len(pending) - holders)
 
-	var wg sync.WaitGroup
-	for i, item := range pending {
-		wg.Add(1)
-		go func(i int, item *workItem) {
-			defer wg.Done()
-			arrived.Done()
-			release, err := gate.Acquire(ctx, sourcecypher.GraphWriteTimeoutFailureClass)
-			if err != nil {
-				outcomes[i] = err
-				return
-			}
-			defer release()
-			// Pin the permit until the surplus has blocked, then execute.
+	run := func(wg *sync.WaitGroup, i int, item *workItem, isHolder bool) {
+		defer wg.Done()
+		if !isHolder {
+			surplusArrived.Done()
+		}
+		release, err := gate.Acquire(ctx, sourcecypher.GraphWriteTimeoutFailureClass)
+		if err != nil {
+			outcomes[i] = err
+			return
+		}
+		defer release()
+		if isHolder {
+			held.Done()
+			// Pin the permit so the pool stays full while the surplus contends.
 			select {
 			case <-holdCh:
 			case <-ctx.Done():
 				outcomes[i] = fmt.Errorf("saturation: write canceled: %w", ctx.Err())
 				return
 			}
-			n := b.inFlight.Add(1)
-			b.recordPeak(n)
-			outcomes[i] = b.settle(ctx, item, n)
-			b.inFlight.Add(-1)
-		}(i, item)
+		}
+		n := b.inFlight.Add(1)
+		b.recordPeak(n)
+		outcomes[i] = b.settle(ctx, item, n)
+		b.inFlight.Add(-1)
 	}
 
-	arrived.Wait()
-	// Let the over-pool goroutines reach the blocking Acquire before the pinned
-	// holders release, so the wait observer fires deterministically.
-	select {
-	case <-time.After(engagementGrace):
-	case <-ctx.Done():
+	var wg sync.WaitGroup
+	for i := 0; i < holders; i++ {
+		wg.Add(1)
+		go run(&wg, i, pending[i], true)
 	}
-	close(holdCh)
+	held.Wait() // pool is now provably full
+
+	for i := holders; i < len(pending); i++ {
+		wg.Add(1)
+		go run(&wg, i, pending[i], false)
+	}
+	if holders < len(pending) {
+		surplusArrived.Wait()
+		select {
+		case <-time.After(engagementGrace):
+		case <-ctx.Done():
+		}
+	}
+	close(holdCh) // release holders; the already-contending surplus drains via the slow path
 	wg.Wait()
 
 	if err := ctx.Err(); err != nil {

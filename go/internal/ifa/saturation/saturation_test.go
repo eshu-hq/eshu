@@ -38,6 +38,16 @@ func TestUngatedBackendFloodsDeadLetters(t *testing.T) {
 	if len(report.DeadLetters) == 0 {
 		t.Fatalf("ungated saturation produced no dead letters; the #3560 flood shape did not reproduce (report=%+v)", report)
 	}
+	// The flood cardinality is deterministic: items whose concurrent ordinal
+	// exceeds capacity time out every round until their attempt budget is spent,
+	// so exactly WorkItems - MaxAttempts*BackendCapacity items dead-letter. Pin
+	// the exact count so a future counting-retry change that shifts the flood
+	// cardinality cannot slip through with a still-positive but wrong count.
+	wantDL := cfg.WorkItems - cfg.MaxAttempts*cfg.BackendCapacity
+	if len(report.DeadLetters) != wantDL {
+		t.Fatalf("DeadLetters count = %d, want %d (WorkItems=%d, MaxAttempts=%d, BackendCapacity=%d)",
+			len(report.DeadLetters), wantDL, cfg.WorkItems, cfg.MaxAttempts, cfg.BackendCapacity)
+	}
 	// The whole point of #3560: these dead letters are graph_write_timeout —
 	// recoverable work thrown away purely because the backend was oversubscribed.
 	for _, dl := range report.DeadLetters {

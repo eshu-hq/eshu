@@ -1260,6 +1260,11 @@ gates:
       - "go/internal/ifa/saturation/**"
       - "go/internal/ifa/throughput/**"
       - "specs/scale-lab-corpus.v1.yaml"
+      - "go/internal/storage/cypher/backpressure_executor.go"
+      - "go/internal/storage/cypher/timeout_executor.go"
+      - "go/internal/storage/postgres/reducer_queue_helpers.go"
+      - "go/internal/storage/postgres/reducer_queue_readiness_sql.go"
+      - "go/internal/reducer/intent.go"
     local:
       command: "cd go && go test ./internal/ifa/saturation/ ./internal/ifa/throughput/ -race -count=1"
       test_command: "cd go && go test ./internal/ifa/saturation/ ./internal/ifa/throughput/ -race -count=1"

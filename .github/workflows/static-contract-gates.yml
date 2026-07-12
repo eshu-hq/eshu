@@ -146,6 +146,11 @@ jobs:
               - 'go/internal/ifa/saturation/**'
               - 'go/internal/ifa/throughput/**'
               - 'specs/scale-lab-corpus.v1.yaml'
+              - 'go/internal/storage/cypher/backpressure_executor.go'
+              - 'go/internal/storage/cypher/timeout_executor.go'
+              - 'go/internal/storage/postgres/reducer_queue_helpers.go'
+              - 'go/internal/storage/postgres/reducer_queue_readiness_sql.go'
+              - 'go/internal/reducer/intent.go'
             heredoc:
               - '.github/workflows/static-contract-gates.yml'
               - 'specs/ci-gates.v1.yaml'

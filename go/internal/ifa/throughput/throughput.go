@@ -79,10 +79,21 @@ func Run(ctx context.Context, family ifa.OduFamily, slot ifa.ScaleSlot, seed uin
 		return Report{}, fmt.Errorf("ifa throughput: drive slot %q: %w", slot.ID, err)
 	}
 
+	// The driver's GenerationsCommitted and the committer's own drained-scope
+	// tally must agree: they count the same commit boundary from two sides. A
+	// mismatch means the driver reported a commit the committer never drained (or
+	// vice versa) — a real drop/double-count under concurrency — so fail loudly
+	// rather than trust one count silently.
+	if committed := committer.scopes.Load(); committed != int64(report.GenerationsCommitted) {
+		return Report{}, fmt.Errorf(
+			"ifa throughput: committed-scope count disagreement for slot %q: driver reported %d generations, committer drained %d scopes",
+			slot.ID, report.GenerationsCommitted, committed)
+	}
+
 	return Report{
 		Slot:            slot.ID,
 		Workers:         report.Workers,
-		ScopesCommitted: report.GenerationsCommitted,
+		ScopesCommitted: int(committer.scopes.Load()),
 		FactsCommitted:  committer.facts.Load(),
 		Duration:        report.Duration,
 	}, nil
