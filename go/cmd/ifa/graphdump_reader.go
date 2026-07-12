@@ -97,10 +97,12 @@ func (b *boltGraphReader) StreamNodes(ctx context.Context, yield func(graphdump.
 	return nil
 }
 
-// Edges implements graphdump.Reader: it runs boltEdgesCypher and maps every
-// row into a graphdump.Edge, including each endpoint's labels/props snapshot
-// (see Edge's doc for why the endpoint is repeated rather than referenced by
-// index or backend ID).
+// StreamEdges implements graphdump.Reader: it runs boltEdgesCypher on a
+// read-only session and yields every edge straight off the Bolt result cursor
+// (result.Next), never collecting the whole result set. Each yielded edge
+// carries both endpoints' labels/props snapshot (see Edge's doc for why the
+// endpoint is repeated rather than referenced by index or backend ID). Same
+// streaming, no-materialization contract as StreamNodes (issue #5009).
 func (b *boltGraphReader) StreamEdges(ctx context.Context, yield func(graphdump.Edge) error) error {
 	// AccessModeWrite, not Read: on a Neo4j-compatible cluster AccessMode is a
 	// ROUTING control, and a read-only graph dump for a determinism digest must

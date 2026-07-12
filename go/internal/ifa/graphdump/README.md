@@ -86,13 +86,15 @@ Evidence:` / `No-Observability-Change:`.)
   see `go/cmd/ifa/graph_dump.go`) and this package's own tests; no production
   ingester, reducer, API, or MCP path calls them, so no existing hot path
   changes behavior or timing. `graphdump_reader.go`'s Bolt-backed `Reader`
-  (`boltGraphReader`) issues two plain, unbounded `MATCH` reads
+  (`boltGraphReader`) streams two plain, unbounded `MATCH` reads
   (`MATCH (n) RETURN labels(n), properties(n)` and the one-hop edge
-  equivalent) against the graph backend and performs no write of any kind;
-  `neo4j.ExecuteQuery`'s default routing (`RoutingControl = Write`, the same
-  default `cmd/golden-corpus-gate/graph.go`'s `boltGraphCounter` uses
-  unchanged) sends the read to the same instance a write would, so this verb
-  adds no new read-replica routing behavior either. This gate-worthy Cypher
+  equivalent) off the Bolt cursor via `session.Run` + `result.Next` (issue
+  #5009) and performs no write of any kind. The session uses `AccessModeWrite`,
+  so on a Neo4j-compatible cluster the scan routes to the authoritative writer
+  (a determinism digest must not read a replication-lagged reader) — the same
+  instance the old `neo4j.ExecuteQuery` default routing (`RoutingControl=Write`)
+  targeted, matching `cmd/golden-corpus-gate/graph.go`'s `boltGraphCounter`, so
+  this verb adds no new read-replica routing behavior. This gate-worthy Cypher
   surface has no prior baseline to regress against: it is new, additive, and
   off the ingest/reducer/query hot path entirely.
 - No-Observability-Change: this slice mints no new metric instrument, span,
