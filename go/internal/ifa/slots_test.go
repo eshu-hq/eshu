@@ -66,14 +66,17 @@ func TestScaleSlotEnforcementClasses(t *testing.T) {
 		"large/full_corpus_release":       perfcontract.EnforcementOperatorGated,
 		"pathological/fanout_correlation": perfcontract.EnforcementOperatorGated,
 	}
-	for id, wantClass := range want {
-		slot, ok := ifa.ScaleSlotByID(id)
+	// Drive the assertion from ScaleSlots(), not the want map, so a slot added
+	// to scaleSlots without an enforcement-class assertion here fails loudly
+	// (false-green guard) instead of going silently unverified.
+	for _, slot := range ifa.ScaleSlots() {
+		wantClass, ok := want[slot.ID]
 		if !ok {
-			t.Errorf("ScaleSlotByID(%q) not found", id)
+			t.Errorf("slot %q has no enforcement-class assertion; add it to want", slot.ID)
 			continue
 		}
 		if slot.Enforcement != wantClass {
-			t.Errorf("slot %q Enforcement = %q, want %q", id, slot.Enforcement, wantClass)
+			t.Errorf("slot %q Enforcement = %q, want %q", slot.ID, slot.Enforcement, wantClass)
 		}
 	}
 }
