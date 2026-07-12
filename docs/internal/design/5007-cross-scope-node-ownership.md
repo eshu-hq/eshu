@@ -442,6 +442,32 @@ synth cassette (overlapping-identity, the inverse of `GenerateMultiScope`), and
 the determinism regression tests are all reusable once the coordination
 primitive is chosen; only the graph write path changes.
 
+### Re-confirmation on NornicDB v1.1.11 (issue #5062)
+
+The graph-side disproof was re-run on **NornicDB v1.1.11** ("Black Hole Sun",
+2026-07-09 — the release that carries the #259 Cypher/Bolt fixes), against
+**v1.1.9** as a control, using the same pure graph-side mechanic
+(`go/internal/storage/cypher/graph_guard_prove_theory_live_test.go`,
+`TestLiveGraphGuardProveTheory`, gated by `ESHU_GRAPH_GUARD_PROVE_LIVE=1`). Each
+writer holds one explicit transaction across a 5ms read-modify-write gap so the
+two writers' windows overlap; two writers race one pre-seeded uid, retry on
+`Outdated`, 100 trials:
+
+- **v1.1.9 (control): 5/100 silently lost** the max winner.
+- **v1.1.11: 6/100 silently lost** — statistically identical.
+
+The rate is lower than the ADR's original 26/100 because this shim is gentler
+than the original RetryingExecutor two-statement-group harness (2 writers, one
+tx, 5ms gap); the point is the qualitative verdict, which is firm and matched by
+a source read (the node-property conflict-detection path in NornicDB
+`pkg/storage/badger_transaction.go` is byte-identical across v1.1.9..v1.1.11 —
+the #259 fix is parser/Bolt only). **v1.1.11 does NOT fix the concurrent
+shared-existing-node property-write loss.** The Postgres coordination primitive
+below remains required on the default backend. (First measured with a
+too-narrow single-statement shim that reported 0/100 on BOTH versions — a false
+negative; only widening the transaction window reproduced the loss, and only
+then did the control confirm the shim was valid.)
+
 ### Owner-ledger prove-theory result: design (b) is safe
 
 The maintainer approved the Postgres owner-ledger redesign. The mandatory
@@ -731,6 +757,88 @@ Proof (unit + live, before/after): `go/internal/graphowner/gated_writer_chunk_te
 pre-chunking code) and `gated_writer_chunk_live_test.go` (20000 rows against a
 live Postgres, no NornicDB — fails unchunked with `out of shared memory`,
 succeeds chunked in well under a second).
+
+### #5062 P1: LockOnlyGate for the posture/exposure property writers
+
+A deep-research audit flagged a gap in the Stage 1 gate: the RDS/EC2/S3
+posture and internet-exposure property writers
+(`RDSPostureNodeWriter`/`EC2InternetExposureNodeWriter`/
+`EC2BlockDeviceKMSPostureNodeWriter`/`S3InternetExposureNodeWriter` in
+`go/internal/storage/cypher`) `SET`/`REMOVE` reducer-owned properties on the
+SAME `CloudResource` nodes `Gate` resolves ownership for, but ran completely
+unfenced against a concurrent Gate-resolved base-property write to the same
+uid. They cannot be given an owner-ledger row (every scope observes the same
+posture fact for the same resource — there is no order-key "winner" to
+resolve), so the fix is a lock-only critical section
+(`go/internal/graphowner.LockOnlyGate`): acquire the SAME per-uid
+`pg_advisory_xact_lock` key `Gate`/`ResolveOwnedUIDs` uses
+(`postgres.GraphNodeOwnerStore.LockUIDs`, added by refactoring
+`acquireLocks` to delegate to it so the two key derivations cannot drift)
+across the posture writer's graph write, with no ledger upsert. `Retract*` is
+NOT lock-gated: it targets a scope (`WHERE r.<x>_scope_id IN $scope_ids`), not
+an explicit uid list, so there is no row-level uid set to lock ahead of the
+write.
+
+**Prove-theory-first result — partially disproven, and that is the useful
+outcome.** The literal theory ("an ungated posture write racing a gated
+base-property write can silently revert the ledger-decided base properties")
+was tested with the SAME widened-transaction-window shim that proved the
+graph-side guard's 26%/5-6% loss rate above
+(`lock_only_gate_prove_theory_live_test.go`: two writers hold an explicit
+NornicDB transaction across a 5ms read-modify-write gap, base writer through
+the real `Gate` + a real Postgres ledger, posture writer either ungated or
+`LockOnlyGate`-wrapped, 100 trials, seeded/warm existing node). Two
+independent runs measured **0/100 silent property loss in BOTH the ungated and
+the locked scenario.** This is a materially different result from the
+graph-side guard's proven loss, and the reason is now understood: this writer
+pair's Cypher is an UNCONDITIONAL `MATCH`/`MERGE ... SET` (no `WHERE`-based
+compare-and-swap), whereas the guard's proven-lossy mechanic is specifically a
+`WHERE`-conditional compare-and-swap SET racing itself. NornicDB's OCC does
+correctly abort a concurrent unconditional-SET conflict with
+`Neo.TransientError.Transaction.Outdated`, and production's
+`cypher.RetryingExecutor` already retries that transient error to safe
+convergence — the silent-loss defect measured elsewhere in this ADR is real,
+but it did not reproduce for this specific writer pairing's Cypher shape.
+
+**What DID reproduce, and is this change's actual justification:** the ungated
+scenario's concurrent transactions repeatedly triggered that same
+`Outdated` abort-and-retry cycle, at a **3.6x-30x per-trial latency cost**
+(two runs: 2310ms/trial vs 647ms/trial, and separately 1995ms/trial vs
+67ms/trial) versus the locked scenario, because the two writers retry-thrashed
+against each other instead of serializing. `LockOnlyGate` eliminates that
+retry storm by removing the conflict opportunity entirely — a genuine
+concurrency-deadlock-rigor contention proof (the fix removes unsafe overlap)
+even though it is not an accuracy proof for this writer pair. It remains
+defense-in-depth against the conditional-SET-shaped defect class this ADR
+already proved is real on this NornicDB version line, for any future writer
+that adds a conditional SET to a shared node.
+
+On a non-contended batch, `LockOnlyGate` is provably invisible: 500/500 rows
+identical between a flat (ungated) write and a `LockOnlyGate`-wrapped write of
+the same rows (`lock_only_gate_perf_live_test.go`,
+`non_contended_equivalence`).
+
+Performance Evidence: `lock_only_gate_perf_live_test.go` `batch_perf`, pinned
+Postgres 16 (throwaway container) + NornicDB v1.1.11
+(`timothyswt/nornicdb-cpu-bge:v1.1.11`), 500-uid batches × 20 warm iterations:
+flat graph-only avg 7.17-7.71ms vs lock-only-gated avg 10.44-11.34ms
+(1.46-1.47x, ~6.5-7.2µs/row) — cheaper than design (b)'s 2.28x/~15-25µs/row
+because there is no ledger upsert or winner read-back, only the lock. Under
+forced contention (`lock_only_gate_prove_theory_live_test.go`), the locked
+path is 3.6x-30x FASTER than the ungated path across two independent runs
+(647ms/trial and 67ms/trial locked vs 2310ms/trial and 1995ms/trial ungated,
+100 trials each), because it eliminates NornicDB `Outdated`-abort retry
+thrash. Correctness: 0/100 silent property loss in both scenarios across two
+runs (see the prove-theory discussion above for why this disproves the
+literal silent-loss framing for this writer pair while confirming the
+contention/latency hazard).
+Observability Evidence: `LockOnlyGate.writeChunk` emits a "graph node owner
+lock-only advisory locks acquired slowly" structured log
+(`family`, `uid_count`, `wait_seconds`) when lock acquisition takes
+≥100ms, mirroring `packageRegistryIdentitySlowLockWait`'s convention for the
+same advisory-lock primitive — the operator-facing signal that a lock-only
+chunk is contending with a concurrent Gate-resolved write on an overlapping
+uid set.
 
 ### Golden-corpus / B-12 impact
 

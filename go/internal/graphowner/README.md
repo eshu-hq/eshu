@@ -92,3 +92,59 @@ is silent on both signals.
 CloudResource (AWS/GCP/Azure), EC2-instance, and KubernetesWorkload canonical
 node writers. The row builders in `internal/reducer` stamp `source_order_key` on
 every node row, which the gate reads.
+
+## LockOnlyGate (#5062 P1): posture/exposure writers on the same shared nodes
+
+The RDS/EC2/S3 posture and internet-exposure property writers
+(`RDSPostureNodeWriter`, `EC2InternetExposureNodeWriter`,
+`EC2BlockDeviceKMSPostureNodeWriter`, `S3InternetExposureNodeWriter` in
+`internal/storage/cypher`) `SET`/`REMOVE` reducer-owned properties on the SAME
+`CloudResource` nodes `Gate` resolves ownership for, but they are not
+order-resolved contributors themselves — every scope observes the same posture
+fact for the same underlying resource, so there is no "winner" to converge to,
+only a single deterministic value to stamp. Giving them an owner-ledger row
+would be a category error; writing them with no coordination at all leaves a
+gap, because their graph write can still overlap a concurrent Gate-resolved
+base-property write to the same uid.
+
+`LockOnlyGate` closes that gap with a pure critical section, reusing
+`postgres.GraphNodeOwnerStore.LockUIDs` — the IDENTICAL
+`pg_advisory_xact_lock` key `ResolveOwnedUIDs` acquires for the SAME uid, so a
+lock-only writer genuinely serializes against a concurrent `Gate`-resolved
+write, not an unrelated lock:
+
+1. opens a Postgres transaction for the chunk (chunked at `lockChunkSize`,
+   same bound as `Gate.write`);
+2. acquires the chunk's per-uid advisory locks (`LockUIDs`) — no ledger upsert,
+   no ownership resolution;
+3. runs the posture writer's graph write while those locks are held;
+4. commits, releasing the locks.
+
+`RDSPostureLockedWriter`, `EC2InternetExposureLockedWriter`,
+`EC2BlockDeviceKMSPostureLockedWriter`, and `S3InternetExposureLockedWriter`
+adapt `LockOnlyGate` to the four writer consumer interfaces in
+`internal/reducer`. `Retract*` is forwarded to the underlying writer
+unwrapped: retraction removes properties by scope (`WHERE
+r.<x>_scope_id IN $scope_ids`), not by an explicit uid list, so there is no
+row-level uid set to lock ahead of the write the way there is for `Write*`.
+
+**Measured proof (`lock_only_gate_prove_theory_live_test.go`,
+`lock_only_gate_perf_live_test.go`):** for this writer pair's actual Cypher
+shape — both sides are unconditional `MATCH`/`MERGE ... SET`, matching
+`cloud_resource_node_writer.go` and `rds_posture_node_writer.go` — 100 trials
+at a widened 5ms transaction gap did not reproduce silent property loss in
+either the ungated or the locked scenario (unlike
+`graph_guard_prove_theory_live_test.go`'s WHERE-conditional compare-and-swap
+shape, which loses 5-6/100). What the same run DID show: the ungated scenario
+repeatedly hit NornicDB's `Neo.TransientError.Transaction.Outdated` conflict
+abort and absorbed it via retry, at a measured 3.6x-30x per-trial latency cost
+versus the locked scenario (two independent runs), because the two writers'
+transactions retry-thrashed against each other instead of serializing.
+`LockOnlyGate` eliminates that retry storm by removing the conflict
+opportunity entirely — the actual proof this package asserts on for the
+lock-only path — while remaining defense-in-depth against the
+conditional-SET-shaped defect class `graph_guard` already proved is real on
+this NornicDB version line. On a non-contended batch, `LockOnlyGate` is
+provably invisible (500/500 identical rows) at ~1.46x/6.5µs-per-row overhead
+(cheaper than `Gate`'s 2.28x/15µs-per-row, since there is no ledger upsert or
+winner read-back).

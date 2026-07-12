@@ -31,4 +31,21 @@
 // consumer interfaces. A nil or ledger-less Gate writes through unchanged, so a
 // backend without Postgres keeps prior behavior (cross-scope determinism then
 // depends on the ledger being wired, which the Postgres-backed reducer does).
+//
+// LockOnlyGate is the #5062 P1 companion primitive for writers that are NOT
+// order-resolved owner-ledger contributors: the RDS/EC2/S3 posture and
+// internet-exposure property writers SET/REMOVE reducer-owned properties on
+// the SAME CloudResource nodes Gate resolves ownership for, but every scope
+// observes the same posture fact for the same resource, so there is no
+// "winner" to converge to. LockOnlyGate acquires the IDENTICAL per-uid
+// pg_advisory_xact_lock key Gate uses (postgres.GraphNodeOwnerStore.LockUIDs,
+// the same key derivation ResolveOwnedUIDs uses) across the posture writer's
+// graph write, with no ledger upsert, so that write can never overlap a
+// concurrent Gate-resolved base-property write on the same uid. A nil or
+// db-less LockOnlyGate writes through unchanged, matching Gate.
+// RDSPostureLockedWriter, EC2InternetExposureLockedWriter,
+// EC2BlockDeviceKMSPostureLockedWriter, and S3InternetExposureLockedWriter
+// adapt it to the four reducer posture/exposure node-writer consumer
+// interfaces; Retract* is forwarded unwrapped (retraction targets a scope, not
+// an explicit uid list, so there is nothing to lock ahead of it).
 package graphowner
