@@ -129,12 +129,16 @@ func TestDeferredRelationshipFamilyGuardPathGatesSaltGitfsFallback(t *testing.T)
 
 	for _, want := range []string{
 		deferredRelationshipFamilyPathSQL + ` ~ `,
+		"~ '\\.ya?ml$'",
 		"ya?ml$",
 		"AND COALESCE",
 	} {
 		if !strings.Contains(deferredRelationshipFamilySaltGitfsContentMarkerSQL, want) {
 			t.Fatalf("Salt gitfs fallback is not path-gated before content scan; missing %q", want)
 		}
+	}
+	if strings.Contains(deferredRelationshipFamilySaltGitfsContentMarkerSQL, "~ '\\\\.ya?ml$'") {
+		t.Fatal("Salt gitfs fallback escaped the YAML extension regex as a literal backslash path")
 	}
 }
 

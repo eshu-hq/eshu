@@ -209,7 +209,7 @@ const deferredRelationshipFamilyArgoCDContentMarkerSQL = `(CASE
           END)`
 
 const deferredRelationshipFamilySaltGitfsContentMarkerSQL = `(CASE
-            WHEN ` + deferredRelationshipFamilyPathSQL + ` ~ '\\.ya?ml$'
+            WHEN ` + deferredRelationshipFamilyPathSQL + ` ~ '\.ya?ml$'
               AND COALESCE(
               fact.payload->>'content',
               fact.payload->>'content_body',
