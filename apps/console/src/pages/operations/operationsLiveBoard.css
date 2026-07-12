@@ -1,0 +1,40 @@
+/* operationsLiveBoard.css — live sections of the Operations page (issue #5137). */
+
+.ops-stage-tiles {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.ops-health-reasons {
+  margin: 0;
+  padding-left: 1.1rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.ops-activity-table td.num,
+.ops-activity-table th.num,
+.ops-collector-table td.num,
+.ops-collector-table th.num {
+  text-align: right;
+}
+
+.ops-board-footer {
+  margin: 0.85rem 0 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+@media (max-width: 900px) {
+  .ops-stage-tiles {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 480px) {
+  .ops-stage-tiles {
+    grid-template-columns: 1fr;
+  }
+}

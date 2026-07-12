@@ -252,7 +252,7 @@ export function AppRoutes({
           />
         }
       />
-      <Route path="/operations" element={<OperationsPage model={model} />} />
+      <Route path="/operations" element={<OperationsPage model={model} client={client} />} />
       <Route path="/freshness-causality" element={<FreshnessCausalityPage client={client} />} />
       <Route path="/profile" element={<ProfilePage client={client} />} />
       <Route
