@@ -107,9 +107,15 @@ LIMIT 1;
 SQL
 )"
 [[ -n "${work_item_row}" ]] || die "no completed PagerDuty component workflow item with committed facts found for instance ${instance_id}"
-IFS='|' read -r work_item_id run_id source_run_id generation_id scope_id workflow_status fencing_token attempt_count <<ROW
-${work_item_row}
-ROW
+# Process substitution, not a heredoc: even though "${work_item_row}" is the
+# only source text (well under the 512B heredoc-budget threshold), Homebrew
+# bash >= 5.1 still writes whatever this expands to onto a pipe before
+# forking the reader, and macOS's 512-byte pipe buffer can deadlock if a wide
+# row (long scope/run identifiers) pushes it over that size (#5074, #5085
+# expansion-trap class). `read` must stay in the current shell (a pipe would
+# fork a subshell and lose the variables), so use `< <(...)` instead of a
+# heredoc or here-string.
+IFS='|' read -r work_item_id run_id source_run_id generation_id scope_id workflow_status fencing_token attempt_count < <(printf '%s\n' "${work_item_row}")
 [[ -n "${work_item_id}" && -n "${run_id}" && -n "${source_run_id}" && -n "${generation_id}" && -n "${scope_id}" ]] \
 	|| die "PagerDuty component workflow item is missing run/source/generation identity"
 [[ -n "${fencing_token}" ]] || fencing_token=0
@@ -146,86 +152,76 @@ SQL
 
 extension_fact_count="$(printf '%s\n' "${fact_rows}" | rg -c '^dev\.eshu\.examples\.pagerduty\.' || true)"
 [[ -n "${extension_fact_count}" ]] || extension_fact_count=0
+# The query body moves to a sibling data file, not a heredoc: Homebrew bash
+# >= 5.1 writes an entire heredoc body to a pipe before forking the reader,
+# and macOS's 512-byte pipe buffer deadlocks on this 646-byte body (#5074).
+# It is fully static (quoted <<'SQL', no shell expansion), so it is
+# byte-identical to the original heredoc body.
 actual_fact_json="$(docker exec -i "${postgres}" psql -U eshu -d eshu -tA \
 	-v ON_ERROR_STOP=1 \
 	-v scope_id="${scope_id}" \
 	-v generation_id="${generation_id}" \
-	-v component_like="${component_id}.%" <<'SQL'
-SELECT COALESCE(
-	jsonb_agg(
-		jsonb_build_object(
-			'kind', fact_kind,
-			'schema_version', schema_version,
-			'stable_key', stable_fact_key,
-			'source_confidence', source_confidence,
-			'source_ref', jsonb_build_object(
-				'source_system', source_system,
-				'scope_id', scope_id,
-				'generation_id', generation_id,
-				'fact_key', source_fact_key,
-				'uri', COALESCE(source_uri, ''),
-				'record_id', COALESCE(source_record_id, '')
-			),
-			'payload', payload
-		)
-		ORDER BY fact_kind, stable_fact_key
-	)::text,
-	'[]'
-)
-FROM fact_records
-WHERE scope_id=:'scope_id' AND generation_id=:'generation_id' AND fact_kind LIKE :'component_like';
-SQL
+	-v component_like="${component_id}.%" < "${repo_root}/scripts/lib/run-remote-e2e-pagerduty-component-extension-actual-facts.sql"
 )"
 extension_fact_signature="$(printf '%s' "${actual_fact_json}" | docker exec -i "${collector}" pagerduty-reference --proof-digest-json)"
-expected_request="$(cat <<JSON
-{
-  "protocol_version": "collector-sdk/v1alpha1",
-  "claim": {
-    "component_id": "${component_id}",
-    "instance_id": "${instance_id}",
-    "collector_kind": "pagerduty",
-    "source_system": "pagerduty",
-    "scope": {
-      "id": "${scope_id}",
-      "kind": "pagerduty_account"
-    },
-    "source_run_id": "${source_run_id}",
-    "generation_id": "${generation_id}",
-    "work_item_id": "${work_item_id}",
-    "fencing_token": "${fencing_token}",
-    "attempt": ${attempt_count},
-    "deadline": "2026-06-14T15:00:00Z",
-    "config_handle": "component-config:${instance_id}"
-  },
-  "contract": {
-    "protocol_version": "collector-sdk/v1alpha1"
-  },
-  "config": {
-    "source": {
-      "input": "/opt/pagerduty/testdata/complete.json"
-    }
-  }
-}
-JSON
-)"
+# printf, not a heredoc: this 753-byte body sits in the 512B-64KB
+# Homebrew-bash-5.1+ pipe-deadlock zone (#5074). It expands several
+# variables, so it cannot move to a static scripts/lib/ data file; lines
+# with expansion are double-quoted (embedded JSON double-quotes escaped),
+# literal lines stay single-quoted, preserving the exact original body.
+expected_request="$(printf '%s\n' \
+	'{' \
+	'  "protocol_version": "collector-sdk/v1alpha1",' \
+	'  "claim": {' \
+	"    \"component_id\": \"${component_id}\"," \
+	"    \"instance_id\": \"${instance_id}\"," \
+	'    "collector_kind": "pagerduty",' \
+	'    "source_system": "pagerduty",' \
+	'    "scope": {' \
+	"      \"id\": \"${scope_id}\"," \
+	'      "kind": "pagerduty_account"' \
+	'    },' \
+	"    \"source_run_id\": \"${source_run_id}\"," \
+	"    \"generation_id\": \"${generation_id}\"," \
+	"    \"work_item_id\": \"${work_item_id}\"," \
+	"    \"fencing_token\": \"${fencing_token}\"," \
+	"    \"attempt\": ${attempt_count}," \
+	'    "deadline": "2026-06-14T15:00:00Z",' \
+	"    \"config_handle\": \"component-config:${instance_id}\"" \
+	'  },' \
+	'  "contract": {' \
+	'    "protocol_version": "collector-sdk/v1alpha1"' \
+	'  },' \
+	'  "config": {' \
+	'    "source": {' \
+	'      "input": "/opt/pagerduty/testdata/complete.json"' \
+	'    }' \
+	'  }' \
+	'}')"
 expected_fact_signature="$(printf '%s' "${expected_request}" | docker exec -i "${collector}" pagerduty-reference --sdk-stdio --proof-digest)"
 fixture_parity="failed"
 if [[ "${extension_fact_signature}" == "${expected_fact_signature}" ]]; then
 	fixture_parity="passed"
 fi
-cat >"${artifacts_dir}/parity.json" <<JSON
-{
-  "fixture_parity": "${fixture_parity}",
-  "run_id": "${run_id}",
-  "source_run_id": "${source_run_id}",
-  "generation_id": "${generation_id}",
-  "work_item_id": "${work_item_id}",
-  "expected_fact_signature": "${expected_fact_signature}",
-  "extension_fact_signature": "${extension_fact_signature}",
-  "in_tree_fact_count": 6,
-  "extension_fact_count": ${extension_fact_count}
-}
-JSON
+# printf, not a heredoc: this 382-byte source is under the 512B heredoc-budget
+# gate, but the run_id/source_run_id/generation_id/work_item_id and both
+# sha256 signature fields can expand well past that once real values are
+# substituted (#5085 expansion-trap class on top of #5074's pipe deadlock),
+# so it moves to printf as a precaution rather than waiting for a live-cluster
+# hang to prove it. Expanding lines are double-quoted (JSON double-quotes
+# escaped); literal lines stay single-quoted.
+printf '%s\n' \
+	'{' \
+	"  \"fixture_parity\": \"${fixture_parity}\"," \
+	"  \"run_id\": \"${run_id}\"," \
+	"  \"source_run_id\": \"${source_run_id}\"," \
+	"  \"generation_id\": \"${generation_id}\"," \
+	"  \"work_item_id\": \"${work_item_id}\"," \
+	"  \"expected_fact_signature\": \"${expected_fact_signature}\"," \
+	"  \"extension_fact_signature\": \"${extension_fact_signature}\"," \
+	'  "in_tree_fact_count": 6,' \
+	"  \"extension_fact_count\": ${extension_fact_count}" \
+	'}' >"${artifacts_dir}/parity.json"
 
 eshu_commit="$(git -C "${repo_root}" rev-parse --short HEAD 2>/dev/null || echo "unknown")"
 backend="$(docker exec "${collector}" printenv ESHU_GRAPH_BACKEND 2>/dev/null || echo "nornicdb")"
