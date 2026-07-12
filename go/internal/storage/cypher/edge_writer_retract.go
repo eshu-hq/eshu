@@ -98,9 +98,12 @@ func (w *EdgeWriter) RetractEdges(
 			stmts := BuildRetractSQLRelationshipEdgeStatementsByFilePath(filePaths, evidenceSource)
 			return w.executeSQLRelationshipRetractStatements(ctx, stmts)
 		}
-		if ge, ok := w.executor.(GroupExecutor); ok {
+		// Route GroupExecutor-capable backends to the label-specific retract
+		// statements. The capability check selects the query shape only; the
+		// statements still execute sequentially in separate transactions.
+		if _, ok := w.executor.(GroupExecutor); ok {
 			stmts := BuildRetractSQLRelationshipEdgeStatements(repoIDs, evidenceSource)
-			return WrapRetryableNeo4jError(ge.ExecuteGroup(ctx, stmts))
+			return w.executeSQLRelationshipRetractStatements(ctx, stmts)
 		}
 	}
 	if domain == reducer.DomainShellExec {
@@ -140,12 +143,7 @@ func (w *EdgeWriter) RetractEdges(
 // per-label transactions instead of one. Do not "optimize" this back into
 // ExecuteGroup without re-proving the grouped path against v1.1.11.
 func (w *EdgeWriter) executeCodeCallRetractStatements(ctx context.Context, stmts []Statement) error {
-	for _, stmt := range stmts {
-		if err := w.executor.Execute(ctx, stmt); err != nil {
-			return WrapRetryableNeo4jError(err)
-		}
-	}
-	return nil
+	return w.executeSequentialRetractStatements(ctx, stmts)
 }
 
 // executeInheritanceRetractStatements runs the per-child-label inheritance
@@ -155,18 +153,21 @@ func (w *EdgeWriter) executeCodeCallRetractStatements(ctx context.Context, stmts
 // Each statement is independently scoped and idempotent, so sequential execution
 // is safe.
 func (w *EdgeWriter) executeInheritanceRetractStatements(ctx context.Context, stmts []Statement) error {
-	for _, stmt := range stmts {
-		if err := w.executor.Execute(ctx, stmt); err != nil {
-			return WrapRetryableNeo4jError(err)
-		}
-	}
-	return nil
+	return w.executeSequentialRetractStatements(ctx, stmts)
 }
 
 func (w *EdgeWriter) executeSQLRelationshipRetractStatements(ctx context.Context, stmts []Statement) error {
-	if ge, ok := w.executor.(GroupExecutor); ok {
-		return WrapRetryableNeo4jError(ge.ExecuteGroup(ctx, stmts))
-	}
+	// NornicDB v1.1.11 acknowledges these label-specific DELETE statements in
+	// one managed transaction but applies none of them. Each statement is
+	// independently scoped and idempotent, so execute them as separate
+	// auto-commit transactions. Do not regroup without re-proving graph truth
+	// against the pinned runtime.
+	return w.executeSequentialRetractStatements(ctx, stmts)
+}
+
+// executeSequentialRetractStatements runs independently scoped, idempotent
+// retract statements in separate auto-commit transactions.
+func (w *EdgeWriter) executeSequentialRetractStatements(ctx context.Context, stmts []Statement) error {
 	for _, stmt := range stmts {
 		if err := w.executor.Execute(ctx, stmt); err != nil {
 			return WrapRetryableNeo4jError(err)

@@ -32,6 +32,7 @@ from zero to one indexed repository, a status check, and a first useful answer.
 | Debug slow indexing, stale answers, or graph timeouts | [Tuning Playbook](operate/tuning-playbook.md) |
 | Understand the architecture and graph model | [Understand Eshu](understand/index.md) |
 | Work on Eshu with an AI agent | [Code with agents](guides/coding-with-agents.md) |
+| Prove a change works before opening a PR | [How Eshu proves itself](concepts/how-eshu-proves-itself.md) |
 | See what is planned before the next stable release | [Roadmap](roadmap.md) |
 | Look up exact commands or flags | [CLI Reference](reference/cli-reference.md) |
 
