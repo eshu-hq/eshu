@@ -38,17 +38,20 @@ const (
 	rtMarker  = "replay-runtime-edge"
 	rtSource  = "finalization/workloads"
 
-	rtFnRoute    = "runtime-edge:fn:route"
-	rtFnRun      = "runtime-edge:fn:run"
-	rtFnInvoke   = "runtime-edge:fn:invoke"
-	rtFnOutRoute = "runtime-edge:fn:route-out"
-	rtRoutePath  = "/api/v0/replay-runtime"
-	rtWorkloadIn = "runtime-edge:wl:in"
-	rtWorkloadA  = "runtime-edge:wl:a"
-	rtWorkloadB  = "runtime-edge:wl:b"
-	rtWorkloadC  = "runtime-edge:wl:out-c"
-	rtWorkloadD  = "runtime-edge:wl:out-d"
-	rtActionID   = "runtime-edge:action:s3-get"
+	rtFnRoute     = "runtime-edge:fn:route"
+	rtFnRun       = "runtime-edge:fn:run"
+	rtFnInvoke    = "runtime-edge:fn:invoke"
+	rtFnOutRoute  = "runtime-edge:fn:route-out"
+	rtFnOutRun    = "runtime-edge:fn:run-out"
+	rtFnOutInvoke = "runtime-edge:fn:invoke-out"
+	rtRoutePath   = "/api/v0/replay-runtime"
+	rtWorkloadIn  = "runtime-edge:wl:in"
+	rtWorkloadA   = "runtime-edge:wl:a"
+	rtWorkloadB   = "runtime-edge:wl:b"
+	rtWorkloadC   = "runtime-edge:wl:out-c"
+	rtWorkloadD   = "runtime-edge:wl:out-d"
+	rtWorkloadEx  = "runtime-edge:wl:out-run"
+	rtActionID    = "runtime-edge:action:s3-get"
 )
 
 // TestReducerRuntimeEdgeRetractGraphTruth proves the HANDLES_ROUTE, RUNS_IN,
@@ -92,10 +95,16 @@ func TestReducerRuntimeEdgeRetractGraphTruth(t *testing.T) {
 		{IntentID: "runs-in", RepositoryID: rtInRepo, Payload: map[string]any{
 			"function_id": rtFnRun, "repo_id": rtInRepo,
 		}},
+		{IntentID: "runs-out", RepositoryID: rtOutRepo, Payload: map[string]any{
+			"function_id": rtFnOutRun, "repo_id": rtOutRepo,
+		}},
 	})
 	inRows(reducer.DomainInvokesCloudAction, []reducer.SharedProjectionIntentRow{
 		{IntentID: "invoke-in", RepositoryID: rtInRepo, Payload: map[string]any{
 			"function_id": rtFnInvoke, "cloud_action": "s3:GetObject", "action_id": rtActionID,
+		}},
+		{IntentID: "invoke-out", RepositoryID: rtOutRepo, Payload: map[string]any{
+			"function_id": rtFnOutInvoke, "cloud_action": "s3:GetObject", "action_id": rtActionID,
 		}},
 	})
 	inRows(reducer.DomainWorkloadDependency, []reducer.SharedProjectionIntentRow{
@@ -115,14 +124,18 @@ func TestReducerRuntimeEdgeRetractGraphTruth(t *testing.T) {
 	inRoute := map[string]any{"f": rtFnRoute, "repo": rtInRepo, "p": rtRoutePath}
 	outRoute := map[string]any{"f": rtFnOutRoute, "repo": rtOutRepo, "p": rtRoutePath}
 	inRun := map[string]any{"f": rtFnRun, "w": rtWorkloadIn}
+	outRun := map[string]any{"f": rtFnOutRun, "w": rtWorkloadEx}
 	inInvoke := map[string]any{"f": rtFnInvoke, "a": rtActionID}
+	outInvoke := map[string]any{"f": rtFnOutInvoke, "a": rtActionID}
 	inWlDep := map[string]any{"s": rtWorkloadA, "t": rtWorkloadB}
 	outWlDep := map[string]any{"s": rtWorkloadC, "t": rtWorkloadD}
 
 	assertEdgeCount(ctx, t, exec, routeQ, inRoute, 1, "write: in-scope HANDLES_ROUTE present")
 	assertEdgeCount(ctx, t, exec, routeQ, outRoute, 1, "write: out-of-scope HANDLES_ROUTE present")
 	assertEdgeCount(ctx, t, exec, runsInQ, inRun, 1, "write: in-scope RUNS_IN present")
+	assertEdgeCount(ctx, t, exec, runsInQ, outRun, 1, "write: out-of-scope RUNS_IN present")
 	assertEdgeCount(ctx, t, exec, invokeQ, inInvoke, 1, "write: in-scope INVOKES_CLOUD_ACTION present")
+	assertEdgeCount(ctx, t, exec, invokeQ, outInvoke, 1, "write: out-of-scope INVOKES_CLOUD_ACTION present")
 	assertEdgeCount(ctx, t, exec, wlDepQ, inWlDep, 1, "write: in-scope workload DEPENDS_ON present")
 	assertEdgeCount(ctx, t, exec, wlDepQ, outWlDep, 1, "write: out-of-scope workload DEPENDS_ON present")
 
@@ -146,6 +159,8 @@ func TestReducerRuntimeEdgeRetractGraphTruth(t *testing.T) {
 	assertEdgeCount(ctx, t, exec, wlDepQ, inWlDep, 0, "retract: in-scope workload DEPENDS_ON gone")
 	// Scoped retracts, not wipes: the out-of-scope edges survive.
 	assertEdgeCount(ctx, t, exec, routeQ, outRoute, 1, "retract: out-of-scope HANDLES_ROUTE survives")
+	assertEdgeCount(ctx, t, exec, runsInQ, outRun, 1, "retract: out-of-scope RUNS_IN survives")
+	assertEdgeCount(ctx, t, exec, invokeQ, outInvoke, 1, "retract: out-of-scope INVOKES_CLOUD_ACTION survives")
 	assertEdgeCount(ctx, t, exec, wlDepQ, outWlDep, 1, "retract: out-of-scope workload DEPENDS_ON survives")
 	// Edge retract must never delete endpoint nodes (the CloudAction node is
 	// deliberately shared and stays).
@@ -176,21 +191,27 @@ func seedRuntimeEdgeNodes(ctx context.Context, t *testing.T, exec liveExecutor) 
        (:Function {uid: $fnRun, repo_id: $in, marker: $marker}),
        (:Function {uid: $fnInvoke, repo_id: $in, marker: $marker}),
        (:Function {uid: $fnOutRoute, repo_id: $out, marker: $marker}),
+       (:Function {uid: $fnOutRun, repo_id: $out, marker: $marker}),
+       (:Function {uid: $fnOutInvoke, repo_id: $out, marker: $marker}),
        (:Endpoint {repo_id: $in, path: $route, marker: $marker}),
        (:Endpoint {repo_id: $out, path: $route, marker: $marker}),
        (repoIn:Repository {id: $in, marker: $marker}),
+       (repoOut:Repository {id: $out, marker: $marker}),
        (wlIn:Workload {id: $wlIn, repo_id: $in, marker: $marker}),
+       (wlEx:Workload {id: $wlEx, repo_id: $out, marker: $marker}),
        (:Workload {id: $wlA, repo_id: $in, marker: $marker}),
        (:Workload {id: $wlB, repo_id: $in, marker: $marker}),
        (:Workload {id: $wlC, repo_id: $out, marker: $marker}),
        (:Workload {id: $wlD, repo_id: $out, marker: $marker}),
-       (repoIn)-[:DEFINES]->(wlIn)`,
+       (repoIn)-[:DEFINES]->(wlIn),
+       (repoOut)-[:DEFINES]->(wlEx)`,
 		Parameters: map[string]any{
 			"fnRoute": rtFnRoute, "fnRun": rtFnRun, "fnInvoke": rtFnInvoke,
-			"fnOutRoute": rtFnOutRoute, "route": rtRoutePath,
+			"fnOutRoute": rtFnOutRoute, "fnOutRun": rtFnOutRun,
+			"fnOutInvoke": rtFnOutInvoke, "route": rtRoutePath,
 			"in": rtInRepo, "out": rtOutRepo,
 			"wlIn": rtWorkloadIn, "wlA": rtWorkloadA, "wlB": rtWorkloadB,
-			"wlC": rtWorkloadC, "wlD": rtWorkloadD,
+			"wlC": rtWorkloadC, "wlD": rtWorkloadD, "wlEx": rtWorkloadEx,
 			"marker": rtMarker,
 		},
 	}
