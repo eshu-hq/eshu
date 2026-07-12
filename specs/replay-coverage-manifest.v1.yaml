@@ -520,6 +520,15 @@ coverage:
   - {surface: retractable_edge:HANDLES_ROUTE, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_runtime_edge_retract_live_test.go, proof_gate: replay-tier}
   - {surface: retractable_edge:RUNS_IN, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_runtime_edge_retract_live_test.go, proof_gate: replay-tier}
   - {surface: retractable_edge:INVOKES_CLOUD_ACTION, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_runtime_edge_retract_live_test.go, proof_gate: replay-tier}
+  # Content/runtime edges (#4367): the shell-exec, documentation-delta, and
+  # TAINT_FLOWS_TO retracts dispatched DELETEs through managed transactions,
+  # which under-apply on NornicDB v1.1.11, and the orphan ShellCommand cleanup
+  # used a negated pattern predicate that matches nothing there; all fixed and
+  # live-proven by write+retract regressions against a real NornicDB.
+  - {surface: retractable_edge:EXECUTES_SHELL, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_content_edge_retract_live_test.go, proof_gate: replay-tier}
+  - {surface: retractable_edge:DOCUMENTS, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_content_edge_retract_live_test.go, proof_gate: replay-tier}
+  - {surface: retractable_edge:CORRELATES_DEPLOYABLE_UNIT, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_content_edge_retract_live_test.go, proof_gate: replay-tier}
+  - {surface: retractable_edge:TAINT_FLOWS_TO, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_content_edge_retract_live_test.go, proof_gate: replay-tier}
   # Reducer-materialized SQL relationships (#5116): all six source-label query
   # shapes are proven through the live production EdgeWriter for both repository
   # and delta-file retract scopes. REFERENCES_TABLE is exercised from SqlView

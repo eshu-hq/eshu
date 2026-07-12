@@ -173,28 +173,25 @@ func (w *EdgeWriter) executeSequentialRetractStatements(ctx context.Context, stm
 	return nil
 }
 
+// executeShellExecRetractStatements runs the shell-exec retract statements
+// (edge DELETE plus orphan ShellCommand cleanup) sequentially, each in its own
+// transaction — deliberately NOT grouped through ExecuteGroup, for the same
+// NornicDB v1.1.11 managed-transaction reason documented on
+// executeCodeCallRetractStatements (measured here: the grouped path left the
+// in-scope EXECUTES_SHELL edge undeleted). Each statement is independently
+// scoped and idempotent, so sequential execution is safe.
 func (w *EdgeWriter) executeShellExecRetractStatements(ctx context.Context, stmts []Statement) error {
-	if ge, ok := w.executor.(GroupExecutor); ok {
-		return WrapRetryableNeo4jError(ge.ExecuteGroup(ctx, stmts))
-	}
-	for _, stmt := range stmts {
-		if err := w.executor.Execute(ctx, stmt); err != nil {
-			return WrapRetryableNeo4jError(err)
-		}
-	}
-	return nil
+	return w.executeSequentialRetractStatements(ctx, stmts)
 }
 
+// executeDocumentationRetractStatements runs the documentation delta retract
+// statements (section-uid and document-id scoped) sequentially, each in its
+// own transaction — deliberately NOT grouped through ExecuteGroup, for the
+// same NornicDB v1.1.11 managed-transaction reason documented on
+// executeCodeCallRetractStatements. Each statement is independently scoped and
+// idempotent, so sequential execution is safe.
 func (w *EdgeWriter) executeDocumentationRetractStatements(ctx context.Context, stmts []Statement) error {
-	if ge, ok := w.executor.(GroupExecutor); ok {
-		return WrapRetryableNeo4jError(ge.ExecuteGroup(ctx, stmts))
-	}
-	for _, stmt := range stmts {
-		if err := w.executor.Execute(ctx, stmt); err != nil {
-			return WrapRetryableNeo4jError(err)
-		}
-	}
-	return nil
+	return w.executeSequentialRetractStatements(ctx, stmts)
 }
 
 func buildRetractStatement(
