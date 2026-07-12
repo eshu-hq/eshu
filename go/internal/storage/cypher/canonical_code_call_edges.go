@@ -12,19 +12,23 @@ package cypher
 // from the previous hard-coded form, so the graph-write hot path keeps its batch
 // semantics; only the SET clause now reads per-edge provenance.
 
-// KNOWN-BROKEN ON NORNICDB (#5116): the three batchCanonical*UpsertCypher
-// fallback templates below anchor their MATCH on a node-label disjunction
-// (source:Function|Class|File|...). On the pinned NornicDB a node-label
-// disjunction in a MATCH returns zero rows even when the node exists, so these
-// fallbacks silently write NO edge. They are reached only when an endpoint's
-// label is unresolved: buildCodeCallRowMap routes resolved endpoints to the
-// exact-label templates in edge_writer_code_call_labels.go, which NornicDB
-// matches, so the common path is unaffected. The retract-side instance of this
-// same disjunction bug is fixed per source label by buildCodeCallRetractStatements
-// in canonical_retract.go; the write-side silent-drop for unresolved-label
-// endpoints (and every USES_METACLASS write, whose only template is the
-// disjunction below) is tracked in #5116 and needs its own write-side live proof
-// before it is fixed here.
+// NornicDB disjunction status (#5116, refined by measurement): the
+// batchCanonical*UpsertCypher templates below anchor their MATCH on a
+// node-label disjunction with an inline {uid: ...} property. Probed on the
+// pinned v1.1.11 (see docs/public/reference/nornicdb-pitfalls.md and the
+// #5141 evidence): this row-driven UNWIND + inline-anchor disjunction shape
+// DOES match and write correctly — the USES_METACLASS template is live-proven
+// end to end by TestReducerMetaclassEdgeRetractGraphTruth in
+// internal/replay/offlinetier. The zero-row disjunction failure applies to
+// bare MATCH + WHERE shapes (the retract-side instance, fixed per source label
+// by buildCodeCallRetractStatements in canonical_retract.go). For the
+// plain-anchor templates (REFERENCES and USES_METACLASS), what remains tracked
+// in #5116 is a data concern, not a Cypher-shape one: unresolved-label
+// endpoints route here and can reference nodes that do not exist or carry
+// labels outside the disjunction, in which case the row still writes nothing.
+// The CALLS template is different: its coalesce(row.caller_entity_id,
+// row.source_entity_id) anchor is a function-expression variant no probe has
+// measured on v1.1.11, so it keeps its own #5116 write-side proof obligation.
 const batchCanonicalCodeCallUpsertCypher = `UNWIND $rows AS row
 MATCH (source:Function|Class|File {uid: coalesce(row.caller_entity_id, row.source_entity_id)})
 MATCH (target:Function|Class|File {uid: coalesce(row.callee_entity_id, row.target_entity_id)})
