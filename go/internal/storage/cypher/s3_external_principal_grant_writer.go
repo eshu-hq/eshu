@@ -140,7 +140,7 @@ func (w *S3ExternalPrincipalGrantWriter) RetractS3ExternalPrincipalGrants(
 		},
 	}
 
-	return w.dispatch(ctx, []Statement{stmt})
+	return w.dispatchRetract(ctx, []Statement{stmt})
 }
 
 func validateS3ExternalPrincipalGrantRelationshipType(row map[string]any) (string, error) {
@@ -162,6 +162,26 @@ func (w *S3ExternalPrincipalGrantWriter) dispatch(ctx context.Context, stmts []S
 		if err := ge.ExecuteGroup(ctx, stmts); err != nil {
 			return WrapRetryableNeo4jError(err)
 		}
+		return nil
+	}
+	for _, stmt := range stmts {
+		if err := w.executor.Execute(ctx, stmt); err != nil {
+			return WrapRetryableNeo4jError(err)
+		}
+	}
+	return nil
+}
+
+// dispatchRetract routes retract statements through sequential Execute calls,
+// never ExecuteGroup. On the pinned NornicDB v1.1.11 a DELETE dispatched
+// through ExecuteGroup / a managed transaction under-applies — even a single
+// statement — while the identical statement run as an auto-commit transaction
+// (Execute) deletes correctly. See
+// docs/public/reference/nornicdb-pitfalls.md and
+// CodeInterprocEvidenceWriter.dispatchRetract for the same rationale applied
+// to the code-interproc evidence retract.
+func (w *S3ExternalPrincipalGrantWriter) dispatchRetract(ctx context.Context, stmts []Statement) error {
+	if len(stmts) == 0 {
 		return nil
 	}
 	for _, stmt := range stmts {

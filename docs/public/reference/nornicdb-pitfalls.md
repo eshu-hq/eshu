@@ -302,6 +302,36 @@ anchor DOES match and write correctly (the rationale EXPLAINS write template is
 exactly this shape and creates every edge). Do not "fix" working UNWIND
 inline-anchor writes; do fix every bare-MATCH disjunction retract or read.
 
+Scope refinement (probed while backfilling the C-14 #4367 cloud-correlation
+retracts): the managed-transaction-DELETE under-application is not limited to
+multiple grouped statements. A **single** retract `DELETE` dispatched through
+`ExecuteGroup` also under-applies on v1.1.11 — the same failure shape, just
+with a group size of one. `KubernetesCorrelationEdgeWriter`,
+`S3LogsToEdgeWriter`, `S3ExternalPrincipalGrantWriter`, and
+`IAMInstanceProfileRoleEdgeWriter` each routed their single retract statement
+through a shared `dispatch()` helper that used `ExecuteGroup` whenever the
+executor implemented `GroupExecutor` — the shape `cmd/reducer` wires
+unconditionally for every graph backend including NornicDB
+(`reducerNeo4jExecutor.ExecuteGroup`). Fixed the same way as the per-label
+retracts: each writer gained (or, for `SecurityGroupReachabilityWriter`,
+reused) a `dispatchRetract` helper that always runs `Execute` sequentially,
+never `ExecuteGroup`, live-proven in
+`go/internal/storage/cypher/evidence-4367-cloud-edge-retract.md`. Do not
+assume a single-statement group is safe from this class; the safe rule is
+"retract DELETEs run through `Execute`, never `ExecuteGroup`," independent of
+statement count.
+
+That same backfill also resolved an open question about
+`retractSecurityGroupSGRuleEdgesCypher`'s untyped relationship expansion
+(`MATCH (sg:CloudResource)-[rel]->(rule:SecurityGroupRule) WHERE ... DELETE
+rel`, anchoring on an unbound `[rel]` rather than a typed or disjunction
+relationship pattern): probed directly over the HTTP `tx/commit` auto-commit
+endpoint against a lean v1.1.11 container, seeding one
+`CloudResource-[:ALLOWS_INGRESS]->SecurityGroupRule` edge and running the
+exact retract statement as a single auto-commit statement deleted it (count 1
+-> 0). The untyped-expansion shape itself is sound on this pinned version; it
+was never the anchor pattern at fault, only the `ExecuteGroup` dispatch above.
+
 ### Validation
 
 Run the static shape guard (no backend) and the backend-required retract proof

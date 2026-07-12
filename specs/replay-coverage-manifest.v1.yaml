@@ -529,6 +529,21 @@ coverage:
   - {surface: retractable_edge:DOCUMENTS, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_content_edge_retract_live_test.go, proof_gate: replay-tier}
   - {surface: retractable_edge:CORRELATES_DEPLOYABLE_UNIT, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_content_edge_retract_live_test.go, proof_gate: replay-tier}
   - {surface: retractable_edge:TAINT_FLOWS_TO, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_content_edge_retract_live_test.go, proof_gate: replay-tier}
+  # Cloud-correlation edges (C-14 #4367 retract-depth backfill): each writer
+  # dispatched its single (or double, for SG reachability) retract statement
+  # through ExecuteGroup whenever the executor implements GroupExecutor -- the
+  # executor shape cmd/reducer wires in production -- which under-applies on
+  # NornicDB v1.1.11 even for one statement. Fixed by routing every retract
+  # through sequential Execute (a per-writer dispatchRetract helper, reusing
+  # SecurityGroupReachabilityWriter's existing ledger-anchored one), live-proven
+  # by a full write+retract per writer against a real NornicDB.
+  - {surface: retractable_edge:RUNS_IMAGE, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_cloud_edge_retract_live_test.go, proof_gate: replay-tier}
+  - {surface: retractable_edge:LOGS_TO, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_cloud_edge_retract_live_test.go, proof_gate: replay-tier}
+  - {surface: retractable_edge:GRANTS_ACCESS_TO, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_cloud_edge_retract_live_test.go, proof_gate: replay-tier}
+  - {surface: retractable_edge:HAS_ROLE, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_cloud_edge_retract_live_test.go, proof_gate: replay-tier}
+  - {surface: retractable_edge:ALLOWS_INGRESS, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_security_group_reachability_retract_live_test.go, proof_gate: replay-tier}
+  - {surface: retractable_edge:ALLOWS_EGRESS, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_security_group_reachability_retract_live_test.go, proof_gate: replay-tier}
+  - {surface: retractable_edge:TO, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_security_group_reachability_retract_live_test.go, proof_gate: replay-tier}
   # Reducer-materialized SQL relationships (#5116): all six source-label query
   # shapes are proven through the live production EdgeWriter for both repository
   # and delta-file retract scopes. REFERENCES_TABLE is exercised from SqlView
