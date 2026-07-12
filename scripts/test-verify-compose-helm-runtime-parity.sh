@@ -13,171 +13,24 @@ install_fake_tools() {
     local dir="$1"
     mkdir -p "${dir}/_bin"
 
-    cat >"${dir}/_bin/docker" <<'SH'
-#!/usr/bin/env bash
-set -euo pipefail
-args="$*"
-if [[ "${args}" == *"docker-compose.remote-e2e.observability.yaml"* && "${args}" == *"config --services"* ]]; then
-    cat <<'EOF'
-collector-grafana
-collector-prometheus-mimir
-collector-loki
-collector-tempo
-EOF
-    exit 0
-fi
-if [[ "${args}" == *"docker-compose.remote-e2e.yaml"* && "${args}" == *"config --services"* ]]; then
-    cat <<'EOF'
-eshu
-mcp-server
-ingester
-projector
-resolution-engine
-workflow-coordinator
-webhook-listener
-collector-terraform-state
-collector-oci-registry
-collector-package-registry
-collector-sbom-attestation
-collector-security-alerts
-collector-vulnerability-intelligence
-collector-aws-cloud
-scanner-worker
-EOF
-    if [ "${ESHU_FAKE_PARITY_MISSING_REMOTE:-0}" = "1" ]; then
-        exit 0
-    fi
-    printf 'collector-confluence\ncollector-jira\ncollector-pagerduty\n'
-    exit 0
-fi
-if [[ "${args}" == *"docker-compose.remote-e2e.yaml config"* ]]; then
-    cat <<'EOF'
-services:
-  eshu:
-    healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://localhost:8080/healthz"]
-    environment:
-      ESHU_GRAPH_BACKEND: nornicdb
-      ESHU_POSTGRES_DSN: postgresql://eshu:change-me@postgres:5432/eshu
-      NEO4J_URI: bolt://nornicdb:7687
-      ESHU_PROMETHEUS_METRICS_PORT: "9464"
-  mcp-server:
-    healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://localhost:8080/healthz"]
-    environment:
-      ESHU_GRAPH_BACKEND: nornicdb
-      ESHU_POSTGRES_DSN: postgresql://eshu:change-me@postgres:5432/eshu
-      NEO4J_URI: bolt://nornicdb:7687
-      ESHU_PROMETHEUS_METRICS_PORT: "9464"
-EOF
-    exit 0
-fi
-if [[ "${args}" == *"docker-compose.yaml config --services"* ]]; then
-    cat <<'EOF'
-nornicdb
-postgres
-db-migrate
-workspace-setup
-bootstrap-index
-eshu
-mcp-server
-ingester
-resolution-engine
-EOF
-    exit 0
-fi
-if [[ "${args}" == *"docker-compose.yaml config"* ]]; then
-    cat <<'EOF'
-services:
-  eshu:
-    healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://localhost:8080/health"]
-    environment:
-      ESHU_GRAPH_BACKEND: nornicdb
-      ESHU_POSTGRES_DSN: postgresql://eshu:change-me@postgres:5432/eshu
-      NEO4J_URI: bolt://nornicdb:7687
-      ESHU_PROMETHEUS_METRICS_PORT: "9464"
-  mcp-server:
-    healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://localhost:8080/healthz"]
-    environment:
-      ESHU_GRAPH_BACKEND: nornicdb
-      ESHU_POSTGRES_DSN: postgresql://eshu:change-me@postgres:5432/eshu
-      NEO4J_URI: bolt://nornicdb:7687
-      ESHU_PROMETHEUS_METRICS_PORT: "9464"
-EOF
-    exit 0
-fi
-printf 'unexpected docker args: %s\n' "${args}" >&2
-exit 1
-SH
+    # Delivered from a sibling fixture file, not a heredoc: Homebrew bash >= 5.1
+    # writes an entire heredoc body to a pipe before forking the reader, and
+    # macOS's 512-byte pipe buffer deadlocks on this ~2.5KB body (#5074). The
+    # body is fully static (was a quoted <<'SH', no shell expansion), so the
+    # copied file is byte-identical to the original heredoc body (its own two
+    # over-budget inner heredocs were converted to printf so the copied
+    # fixture itself stays under the gate budget).
+    cp "${repo_root}/scripts/lib/test-verify-compose-helm-runtime-parity-fake-docker.sh" "${dir}/_bin/docker"
     chmod +x "${dir}/_bin/docker"
 
-    cat >"${dir}/_bin/helm" <<'SH'
-#!/usr/bin/env bash
-set -euo pipefail
-cat <<'YAML'
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: eshu-api
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: eshu-mcp-server
----
-apiVersion: apps/v1
-kind: StatefulSet
-metadata:
-  name: eshu
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: eshu-resolution-engine
----
-apiVersion: batch/v1
-kind: Job
-metadata:
-  name: eshu-schema-bootstrap
----
-apiVersion: monitoring.coreos.com/v1
-kind: ServiceMonitor
-metadata:
-  name: eshu-api-metrics
-  labels:
-    app.kubernetes.io/component: api
----
-apiVersion: monitoring.coreos.com/v1
-kind: ServiceMonitor
-metadata:
-  name: eshu-mcp-server-metrics
-  labels:
-    app.kubernetes.io/component: mcp-server
----
-apiVersion: monitoring.coreos.com/v1
-kind: ServiceMonitor
-metadata:
-  name: eshu-ingester-metrics
-  labels:
-    app.kubernetes.io/component: ingester
----
-apiVersion: monitoring.coreos.com/v1
-kind: ServiceMonitor
-metadata:
-  name: eshu-resolution-engine-metrics
-  labels:
-    app.kubernetes.io/component: resolution-engine
----
-apiVersion: monitoring.coreos.com/v1
-kind: ServiceMonitor
-metadata:
-  name: eshu-gcp-cloud-collector-metrics
-  labels:
-    app.kubernetes.io/component: gcp-cloud-collector
-YAML
-SH
+    # Delivered from a sibling fixture file, not a heredoc: Homebrew bash >= 5.1
+    # writes an entire heredoc body to a pipe before forking the reader, and
+    # macOS's 512-byte pipe buffer deadlocks on this ~1.2KB body (#5074). The
+    # body is fully static (was a quoted <<'SH', no shell expansion), so the
+    # copied file is byte-identical to the original heredoc body (its own
+    # over-budget inner heredoc was converted to printf so the copied
+    # fixture itself stays under the gate budget).
+    cp "${repo_root}/scripts/lib/test-verify-compose-helm-runtime-parity-fake-helm.sh" "${dir}/_bin/helm"
     chmod +x "${dir}/_bin/helm"
 }
 
