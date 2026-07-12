@@ -40,15 +40,32 @@ package's hermetic test guarantee.
 - `Edge{Type string, FromLabels/FromProps, ToLabels/ToProps, Props}` - a
   relationship's canonicalizable identity; endpoints are repeated by
   labels+props, never referenced by index or backend ID.
-- `Reader` - the narrow `Nodes(ctx)`/`Edges(ctx)` read seam `Canonicalize`
-  needs; production callers implement it over a live Cypher session (see
-  `go/cmd/ifa/graphdump_reader.go`), tests implement it over a plain slice.
+- `Reader` - the narrow streaming read seam `Canonicalize` needs:
+  `StreamNodes(ctx, yield)` / `StreamEdges(ctx, yield)`. Production callers
+  implement it over a live Cypher session yielding straight off the Bolt cursor
+  (see `go/cmd/ifa/graphdump_reader.go`); tests implement it over a plain slice.
 - `Canonicalize(ctx, Reader) ([]byte, error)` - returns the graph's stable
   canonical byte form: content-addressed, order-independent, and idempotent.
 - `Digest(ctx, Reader) (string, error)` - the sha256 hex digest of
   `Canonicalize`'s output.
 - `Equal(ctx, a, b Reader) (bool, error)` - convenience wrapper comparing two
   Readers' digests.
+
+## Memory (issue #5009)
+
+`Canonicalize` streams: each node/edge is canonicalized to bytes inside the
+reader's `yield` callback and the struct is then discarded, so peak memory holds
+the canonical record set (`[][]byte`), not the full `Node`/`Edge` struct graph —
+which is far larger, because every `Edge` duplicates both endpoints' property
+maps. The final document is assembled directly from the sorted record bytes
+(re-indented to their nested position), avoiding a decode-back-to-`map` round
+trip. Measured on a synthetic Function/CALLS graph, this cut peak heap for a
+medium scale-lab slot (~190k nodes / 760k edges) from ~4.9 GiB to ~1.36 GiB with
+byte-identical output (the `ifamemaudit`-tagged `TestMemAuditCanonicalizeScale`
+and the `TestCanonicalizeGoldenDigests` byte-identity regression; see the
+Performance Evidence marker below). The remaining levers for large/pathological
+slots — streaming the output into the sha256 hash and an external merge-sort of
+the record set — are deferred until those slots run routinely.
 
 ## Dependencies
 
@@ -69,13 +86,15 @@ Evidence:` / `No-Observability-Change:`.)
   see `go/cmd/ifa/graph_dump.go`) and this package's own tests; no production
   ingester, reducer, API, or MCP path calls them, so no existing hot path
   changes behavior or timing. `graphdump_reader.go`'s Bolt-backed `Reader`
-  (`boltGraphReader`) issues two plain, unbounded `MATCH` reads
+  (`boltGraphReader`) streams two plain, unbounded `MATCH` reads
   (`MATCH (n) RETURN labels(n), properties(n)` and the one-hop edge
-  equivalent) against the graph backend and performs no write of any kind;
-  `neo4j.ExecuteQuery`'s default routing (`RoutingControl = Write`, the same
-  default `cmd/golden-corpus-gate/graph.go`'s `boltGraphCounter` uses
-  unchanged) sends the read to the same instance a write would, so this verb
-  adds no new read-replica routing behavior either. This gate-worthy Cypher
+  equivalent) off the Bolt cursor via `session.Run` + `result.Next` (issue
+  #5009) and performs no write of any kind. The session uses `AccessModeWrite`,
+  so on a Neo4j-compatible cluster the scan routes to the authoritative writer
+  (a determinism digest must not read a replication-lagged reader) — the same
+  instance the old `neo4j.ExecuteQuery` default routing (`RoutingControl=Write`)
+  targeted, matching `cmd/golden-corpus-gate/graph.go`'s `boltGraphCounter`, so
+  this verb adds no new read-replica routing behavior. This gate-worthy Cypher
   surface has no prior baseline to regress against: it is new, additive, and
   off the ingest/reducer/query hot path entirely.
 - No-Observability-Change: this slice mints no new metric instrument, span,

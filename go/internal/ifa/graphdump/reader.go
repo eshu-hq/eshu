@@ -52,20 +52,34 @@ type Edge struct {
 // Reader is the narrow read surface Canonicalize needs from a graph backend.
 // It exists so graphdump's canonicalization logic is unit-testable against an
 // in-memory fake, with no NornicDB/Neo4j/Docker dependency: production
-// callers (the `ifa graph-dump` verb, added in a follow-on slice) implement
-// Reader over a live Cypher session — a bare
-// `MATCH (n) RETURN labels(n) AS labels, properties(n) AS props` for Nodes,
-// and `MATCH (a)-[r]->(b) RETURN labels(a), properties(a), type(r),
-// properties(r), labels(b), properties(b)` for Edges — while tests implement
-// it over a plain slice.
+// callers (the `ifa graph-dump` verb) implement Reader over a live Cypher
+// session — a bare
+// `MATCH (n) RETURN labels(n) AS labels, properties(n) AS props` for
+// StreamNodes, and `MATCH (a)-[r]->(b) RETURN labels(a), properties(a),
+// type(r), properties(r), labels(b), properties(b)` for StreamEdges, yielding
+// each row straight off the Bolt result cursor — while tests implement it over
+// a plain slice.
 //
-// Reader must never expose a backend element ID, and callers must not rely
-// on any particular iteration order from either method: Canonicalize sorts
-// its own output, so a Reader that returns nodes/edges in a different order
-// on every call is exactly as valid as one that returns a fixed order.
+// The read surface is a STREAMING one (StreamNodes/StreamEdges with a yield
+// callback) rather than one that returns whole slices, so a live reader never
+// holds the entire node/edge set in memory at once: Canonicalize converts each
+// record to bytes and discards the struct (issue #5009). Reader must never
+// expose a backend element ID, and callers must not rely on any particular
+// iteration order: Canonicalize sorts its own output, so a Reader that yields
+// nodes/edges in a different order on every call is exactly as valid as one
+// that yields a fixed order.
 type Reader interface {
-	// Nodes returns every node in the graph, in any order.
-	Nodes(ctx context.Context) ([]Node, error)
-	// Edges returns every relationship in the graph, in any order.
-	Edges(ctx context.Context) ([]Edge, error)
+	// StreamNodes calls yield for every node in the graph, in any order, and
+	// returns the first error yield returns (which stops iteration) or the
+	// first backend read error. A streaming implementation (the live Bolt
+	// reader) never materializes the whole node set: Canonicalize converts each
+	// node to its canonical bytes inside yield and retains only those bytes, so
+	// peak memory is the canonical record set, not the full Node struct graph
+	// (issue #5009 — the Node/Edge structs, with each Edge duplicating both
+	// endpoints' property maps, are the dominant cost at medium+ scale-lab
+	// slots).
+	StreamNodes(ctx context.Context, yield func(Node) error) error
+	// StreamEdges calls yield for every relationship in the graph, in any
+	// order, with the same streaming contract as StreamNodes.
+	StreamEdges(ctx context.Context, yield func(Edge) error) error
 }

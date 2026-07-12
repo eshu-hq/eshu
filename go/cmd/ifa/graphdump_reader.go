@@ -58,38 +58,70 @@ func openBoltGraphReader(ctx context.Context, getenv func(string) string) (*bolt
 	return &boltGraphReader{driver: driver, db: cfg.DatabaseName}, closeFn, nil
 }
 
-// Nodes implements graphdump.Reader: it runs boltNodesCypher and maps every
-// row into a graphdump.Node.
-func (b *boltGraphReader) Nodes(ctx context.Context) ([]graphdump.Node, error) {
-	result, err := neo4j.ExecuteQuery(ctx, b.driver, boltNodesCypher, nil,
-		neo4j.EagerResultTransformer, neo4j.ExecuteQueryWithDatabase(b.db))
+// StreamNodes implements graphdump.Reader: it runs boltNodesCypher on a
+// read-only session and yields every node straight off the Bolt result cursor
+// (result.Next), never collecting the whole result set into a slice. Combined
+// with graphdump.Canonicalize's own streaming, this keeps peak memory at the
+// canonical record set rather than the full node struct set (issue #5009).
+func (b *boltGraphReader) StreamNodes(ctx context.Context, yield func(graphdump.Node) error) error {
+	// AccessModeWrite, not Read: on a Neo4j-compatible cluster AccessMode is a
+	// ROUTING control, and a read-only graph dump for a determinism digest must
+	// read the authoritative writer, never a possibly-replication-lagged reader
+	// member. This matches the routing of the neo4j.ExecuteQuery (default
+	// RoutingControl=Write) call this replaced, and cmd/golden-corpus-gate's
+	// boltGraphCounter. Against single-instance NornicDB it is a no-op.
+	session := b.driver.NewSession(ctx, neo4j.SessionConfig{
+		AccessMode:   neo4j.AccessModeWrite,
+		DatabaseName: b.db,
+	})
+	defer func() { _ = session.Close(ctx) }()
+
+	result, err := session.Run(ctx, boltNodesCypher, nil)
 	if err != nil {
-		return nil, fmt.Errorf("execute node dump query: %w", err)
+		return fmt.Errorf("execute node dump query: %w", err)
 	}
-	nodes := make([]graphdump.Node, 0, len(result.Records))
-	for _, rec := range result.Records {
+	for result.Next(ctx) {
+		rec := result.Record()
 		labelsRaw, _ := rec.Get("labels")
 		propsRaw, _ := rec.Get("props")
-		nodes = append(nodes, graphdump.Node{
+		if err := yield(graphdump.Node{
 			Labels: boltStringSlice(labelsRaw),
 			Props:  boltPropsMap(propsRaw),
-		})
+		}); err != nil {
+			return err
+		}
 	}
-	return nodes, nil
+	if err := result.Err(); err != nil {
+		return fmt.Errorf("stream node dump rows: %w", err)
+	}
+	return nil
 }
 
-// Edges implements graphdump.Reader: it runs boltEdgesCypher and maps every
-// row into a graphdump.Edge, including each endpoint's labels/props snapshot
-// (see Edge's doc for why the endpoint is repeated rather than referenced by
-// index or backend ID).
-func (b *boltGraphReader) Edges(ctx context.Context) ([]graphdump.Edge, error) {
-	result, err := neo4j.ExecuteQuery(ctx, b.driver, boltEdgesCypher, nil,
-		neo4j.EagerResultTransformer, neo4j.ExecuteQueryWithDatabase(b.db))
+// StreamEdges implements graphdump.Reader: it runs boltEdgesCypher on a
+// read-only session and yields every edge straight off the Bolt result cursor
+// (result.Next), never collecting the whole result set. Each yielded edge
+// carries both endpoints' labels/props snapshot (see Edge's doc for why the
+// endpoint is repeated rather than referenced by index or backend ID). Same
+// streaming, no-materialization contract as StreamNodes (issue #5009).
+func (b *boltGraphReader) StreamEdges(ctx context.Context, yield func(graphdump.Edge) error) error {
+	// AccessModeWrite, not Read: on a Neo4j-compatible cluster AccessMode is a
+	// ROUTING control, and a read-only graph dump for a determinism digest must
+	// read the authoritative writer, never a possibly-replication-lagged reader
+	// member. This matches the routing of the neo4j.ExecuteQuery (default
+	// RoutingControl=Write) call this replaced, and cmd/golden-corpus-gate's
+	// boltGraphCounter. Against single-instance NornicDB it is a no-op.
+	session := b.driver.NewSession(ctx, neo4j.SessionConfig{
+		AccessMode:   neo4j.AccessModeWrite,
+		DatabaseName: b.db,
+	})
+	defer func() { _ = session.Close(ctx) }()
+
+	result, err := session.Run(ctx, boltEdgesCypher, nil)
 	if err != nil {
-		return nil, fmt.Errorf("execute edge dump query: %w", err)
+		return fmt.Errorf("execute edge dump query: %w", err)
 	}
-	edges := make([]graphdump.Edge, 0, len(result.Records))
-	for _, rec := range result.Records {
+	for result.Next(ctx) {
+		rec := result.Record()
 		fromLabelsRaw, _ := rec.Get("fl")
 		fromPropsRaw, _ := rec.Get("fp")
 		relTypeRaw, _ := rec.Get("rel")
@@ -97,16 +129,21 @@ func (b *boltGraphReader) Edges(ctx context.Context) ([]graphdump.Edge, error) {
 		toLabelsRaw, _ := rec.Get("tl")
 		toPropsRaw, _ := rec.Get("tp")
 		relType, _ := relTypeRaw.(string)
-		edges = append(edges, graphdump.Edge{
+		if err := yield(graphdump.Edge{
 			Type:       relType,
 			FromLabels: boltStringSlice(fromLabelsRaw),
 			FromProps:  boltPropsMap(fromPropsRaw),
 			ToLabels:   boltStringSlice(toLabelsRaw),
 			ToProps:    boltPropsMap(toPropsRaw),
 			Props:      boltPropsMap(relPropsRaw),
-		})
+		}); err != nil {
+			return err
+		}
 	}
-	return edges, nil
+	if err := result.Err(); err != nil {
+		return fmt.Errorf("stream edge dump rows: %w", err)
+	}
+	return nil
 }
 
 // boltStringSlice coerces a Bolt-decoded Cypher list value into []string. The
