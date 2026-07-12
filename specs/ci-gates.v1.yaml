@@ -1275,6 +1275,25 @@ gates:
       - go
     ci_only_reason: ""
 
+  - id: ifa-replay-drive
+    name: Ifa P2 replay-drive mirror (bash>=4.4 guard + drive/drain contract)
+    category: exactness
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - ".github/workflows/static-contract-gates.yml"
+      - "specs/ci-gates.v1.yaml"
+      - "scripts/verify-ifa-replay-drive.sh"
+      - "scripts/test-verify-ifa-replay-drive.sh"
+    local:
+      command: "bash scripts/test-verify-ifa-replay-drive.sh"
+      test_command: "bash scripts/test-verify-ifa-replay-drive.sh"
+    ci:
+      workflow: static-contract-gates.yml
+      job: "Verify Ifa replay-drive mirror gate"
+    requirements: []
+    ci_only_reason: ""
+
   - id: parserfixture-tests
     name: Parser Fixture Replay Tests
     category: exactness
