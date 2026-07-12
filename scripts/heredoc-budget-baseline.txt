@@ -15,20 +15,12 @@
 #
 # <relative/path> <count-of-heredocs-over-budget>
 scripts/e2e_remote_compose_suite.sh 2
-scripts/k8s-two-team-governance-manifests.sh 2
-scripts/run-remote-e2e-pagerduty-component-extension.sh 2
 scripts/test-e2e-remote-compose-suite.sh 3
-scripts/test-security_intelligence_release_gate_k8s.sh 3
 scripts/test-verify-compose-helm-runtime-parity.sh 2
-scripts/test-verify-hosted-governance-helm-proof.sh 2
 scripts/test-verify-parser-relationship-kit.sh 9
 scripts/test-verify-remote-e2e-remediation-benchmark.sh 7
 scripts/test-verify-remote-e2e-tfstate-warnings.sh 4
 scripts/test-verify-telemetry-coverage.sh 3
-scripts/verify-k8s-two-team-governance-proof.sh 2
-scripts/verify-remote-e2e-pagerduty-component-extension.sh 2
-scripts/verify-two-team-governance-proof.sh 2
 scripts/verify_incremental_refresh_compose.sh 1
 scripts/verify_projector_runtime_compose.sh 1
 scripts/verify_reducer_runtime_compose.sh 1
-scripts/verify_vulnerability_intelligence_collector_helm.sh 2
