@@ -2,8 +2,8 @@
 # generate-ci-gates-doc.sh - regenerate docs/public/reference/ci-gates.md from
 # specs/ci-gates.v1.yaml, the single source of truth for Eshu's CI gate
 # registry. To change a gate's documented shape, edit the registry (or, for
-# rendering only, scripts/lib/ci-gates-doc-render.sh), re-run this script, and
-# commit the regenerated output. The test mirror
+# parsing and rendering, scripts/lib/ci-gates-doc-parse.awk), re-run this
+# script, and commit the regenerated output. The test mirror
 # scripts/test-generate-ci-gates-doc.sh asserts the committed file is
 # byte-identical to a fresh run (idempotency/drift) and carries the expected
 # headline gates and row count.

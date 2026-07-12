@@ -38,8 +38,9 @@ Four systems cover the three-part motto:
   committed snapshot (`testdata/golden/e2e-20repo-snapshot.json`) naming the
   node/edge counts and required correlations that corpus must produce; the
   B-7 gate drives the cassettes through the real pipeline and asserts the
-  projected graph, the API, the MCP surface, and the CLI all agree with that
-  snapshot. This is Eshu's oldest and broadest end-to-end proof.
+  projected graph, the HTTP API, the MCP surface, and the pinned playbook
+  answers all agree with that snapshot. This is Eshu's oldest and broadest
+  end-to-end proof.
 - **perfcontract** binds every published performance number in the docs to the
   code that measures it, so a doc claim ("queue claim latency stays under
   50&nbsp;ms p95") cannot drift silently from what the system actually does.
