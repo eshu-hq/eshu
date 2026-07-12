@@ -11,102 +11,20 @@ fake_bin="${tmp_root}/bin"
 state_dir="${tmp_root}/state"
 mkdir -p "${fake_bin}" "${state_dir}/containers" "${state_dir}/service_ids"
 
-cat >"${fake_bin}/docker" <<'SH'
-#!/usr/bin/env bash
-set -euo pipefail
-
-state_dir="${ESHU_REMOTE_E2E_TEST_STATE:?set ESHU_REMOTE_E2E_TEST_STATE}"
-
-if [[ "${1:-}" == "inspect" ]]; then
-  shift
-  while [[ "${1:-}" == -* ]]; do
-    shift
-    if [[ "${1:-}" == "{{"* ]]; then
-      shift
-    fi
-  done
-  cat "${state_dir}/containers/${1:?container id required}"
-  exit 0
-fi
-
-if [[ "${1:-}" != "compose" ]]; then
-  echo "unexpected docker command: $*" >&2
-  exit 2
-fi
-
-shift
-while (($# > 0)); do
-  case "${1}" in
-    --env-file|-f|-p|--project-name) shift 2 ;;
-    *) break ;;
-  esac
-done
-
-subcommand="${1:-}"
-shift || true
-case "${subcommand}" in
-  config)
-    if [[ "${1:-}" == "--services" ]]; then
-      printf '%s\n' \
-        eshu mcp-server ingester projector resolution-engine workflow-coordinator \
-        collector-terraform-state collector-oci-registry collector-package-registry \
-        collector-sbom-attestation collector-security-alerts \
-        collector-vulnerability-intelligence collector-aws-cloud scanner-worker
-      exit 0
-    fi
-    echo "unexpected compose config args: $*" >&2
-    exit 2
-    ;;
-  ps)
-    service="${@: -1}"
-    if [[ -f "${state_dir}/service_ids/${service}" ]]; then
-      cat "${state_dir}/service_ids/${service}"
-    fi
-    ;;
-  port)
-    printf '0.0.0.0:18080\n'
-    ;;
-  exec)
-    printf 'test-api-key\n'
-    ;;
-  *)
-    echo "unexpected compose subcommand: ${subcommand}" >&2
-    exit 2
-    ;;
-esac
-SH
+# Delivered from a sibling fixture file, not a heredoc: Homebrew bash >= 5.1
+# writes an entire heredoc body to a pipe before forking the reader, and
+# macOS's 512-byte pipe buffer deadlocks on this ~1413B body (#5074). The
+# body is fully static (was a quoted <<'SH', no shell expansion), so
+# the file is byte-identical to the original heredoc body.
+cp "${repo_root}/scripts/lib/test-verify-remote-e2e-tfstate-warnings-fake-docker.sh" "${fake_bin}/docker"
 chmod +x "${fake_bin}/docker"
 
-cat >"${fake_bin}/curl" <<'SH'
-#!/usr/bin/env bash
-set -euo pipefail
-
-state_dir="${ESHU_REMOTE_E2E_TEST_STATE:?set ESHU_REMOTE_E2E_TEST_STATE}"
-printf '%s\n' "$*" >>"${state_dir}/curl-targets"
-if [[ "$*" == *"test-api-key"* ]]; then
-  echo "curl arguments leaked API key" >&2
-  exit 2
-fi
-if [[ "$*" != *"--max-time"* ]]; then
-  echo "curl call is missing max-time" >&2
-  exit 2
-fi
-
-case "$*" in
-  *"/api/v0/index-status"*) cat "${state_dir}/index-status.json" ;;
-  *"/api/v0/status/index"*) cat "${state_dir}/status-index.json" ;;
-  *"/api/v0/package-registry/packages/count"*) cat "${state_dir}/package-count.json" ;;
-  *"/api/v0/supply-chain/advisories/evidence"*) cat "${state_dir}/advisory-evidence.json" ;;
-  *"/api/v0/supply-chain/impact/findings/count"*) cat "${state_dir}/impact-count.json" ;;
-  *"/api/v0/supply-chain/security-alerts/reconciliations/count"*) cat "${state_dir}/security-alert-count.json" ;;
-  *"/api/v0/supply-chain/sbom-attestations/attachments/count"*) cat "${state_dir}/sbom-count.json" ;;
-  *"/api/v0/supply-chain/container-images/identities/count"*) cat "${state_dir}/container-image-count.json" ;;
-  *)
-    echo "unexpected curl target: $*" >&2
-    exit 2
-    ;;
-esac
-SH
+# Delivered from a sibling fixture file, not a heredoc: Homebrew bash >= 5.1
+# writes an entire heredoc body to a pipe before forking the reader, and
+# macOS's 512-byte pipe buffer deadlocks on this ~1168B body (#5074). The
+# body is fully static (was a quoted <<'SH', no shell expansion), so
+# the file is byte-identical to the original heredoc body.
+cp "${repo_root}/scripts/lib/test-verify-remote-e2e-tfstate-warnings-fake-curl.sh" "${fake_bin}/curl"
 chmod +x "${fake_bin}/curl"
 
 write_service_state() {
@@ -186,20 +104,12 @@ JSON
 expect_fail_with 'Terraform-state warning summary missing from status readback'
 
 write_common_state
-cat >"${state_dir}/status-index.json" <<'JSON'
-{
-  "terraform_state": {
-    "warning_summary": [
-      {"warning_kind":"state_missing","reason":"s3_not_found","scope_class":"s3","count":2},
-      {"warning_kind":"state_too_large","reason":"size_limit","scope_class":"local","count":1}
-    ],
-    "recent_warnings": [
-      {"safe_locator_hash":"hash-a","warning_kind":"state_missing","reason":"s3_not_found","source":"graph","source_handle":"state_snapshot:s3:hash-a"},
-      {"safe_locator_hash":"hash-b","warning_kind":"state_missing","reason":"s3_not_found","source":"graph","source_handle":"state_snapshot:s3:hash-b"}
-    ]
-  }
-}
-JSON
+# Delivered from a sibling fixture file, not a heredoc: Homebrew bash >= 5.1
+# writes an entire heredoc body to a pipe before forking the reader, and
+# macOS's 512-byte pipe buffer deadlocks on this ~587B body (#5074). The
+# body is fully static (was a quoted <<'JSON', no shell expansion), so
+# the file is byte-identical to the original heredoc body.
+cat "${repo_root}/scripts/lib/test-verify-remote-e2e-tfstate-warnings-status-index-exceeded.json" >"${state_dir}/status-index.json"
 expect_fail_with 'Terraform-state state_missing warnings exceeded'
 
 write_common_state
@@ -218,36 +128,12 @@ expect_fail_with 'Terraform-state state_missing warning detail missing from stat
 unset ESHU_REMOTE_E2E_TFSTATE_STATE_MISSING_MAX
 
 write_common_state
-cat >"${state_dir}/status-index.json" <<'JSON'
-{
-  "terraform_state": {
-    "last_serials": [
-      {
-        "safe_locator_hash": "hash-ok",
-        "backend_kind": "s3",
-        "serial": 42,
-        "generation_id": "terraform_state:state_snapshot:s3:hash-ok:lineage-ok:serial:42"
-      }
-    ],
-    "warning_summary": [
-      {"warning_kind":"state_missing","reason":"s3_not_found","scope_class":"s3","count":1}
-    ],
-    "recent_warnings": [
-      {
-        "safe_locator_hash":"hash-missing",
-        "warning_kind":"state_missing",
-        "reason":"s3_not_found",
-        "source":"graph",
-        "source_handle":"state_snapshot:s3:hash-missing",
-        "raw_bucket":"tfstate-prod",
-        "raw_key":"services/deleted/terraform.tfstate",
-        "account_id":"123456789012",
-        "path":"/secure/local/terraform.tfstate"
-      }
-    ]
-  }
-}
-JSON
+# Delivered from a sibling fixture file, not a heredoc: Homebrew bash >= 5.1
+# writes an entire heredoc body to a pipe before forking the reader, and
+# macOS's 512-byte pipe buffer deadlocks on this ~809B body (#5074). The
+# body is fully static (was a quoted <<'JSON', no shell expansion), so
+# the file is byte-identical to the original heredoc body.
+cat "${repo_root}/scripts/lib/test-verify-remote-e2e-tfstate-warnings-status-index-pass.json" >"${state_dir}/status-index.json"
 export ESHU_REMOTE_E2E_TFSTATE_STATE_MISSING_MAX=2
 expect_pass
 if ! rg -q 'Terraform-state proof summary: configured_targets=2 attempted_reads=2 successful_snapshots=1 missing_states=1' /tmp/eshu-remote-e2e-tfstate.out; then

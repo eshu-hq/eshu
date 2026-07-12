@@ -1,0 +1,12 @@
+{
+  "terraform_state": {
+    "warning_summary": [
+      {"warning_kind":"state_missing","reason":"s3_not_found","scope_class":"s3","count":2},
+      {"warning_kind":"state_too_large","reason":"size_limit","scope_class":"local","count":1}
+    ],
+    "recent_warnings": [
+      {"safe_locator_hash":"hash-a","warning_kind":"state_missing","reason":"s3_not_found","source":"graph","source_handle":"state_snapshot:s3:hash-a"},
+      {"safe_locator_hash":"hash-b","warning_kind":"state_missing","reason":"s3_not_found","source":"graph","source_handle":"state_snapshot:s3:hash-b"}
+    ]
+  }
+}

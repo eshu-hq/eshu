@@ -1,0 +1,28 @@
+{
+  "terraform_state": {
+    "last_serials": [
+      {
+        "safe_locator_hash": "hash-ok",
+        "backend_kind": "s3",
+        "serial": 42,
+        "generation_id": "terraform_state:state_snapshot:s3:hash-ok:lineage-ok:serial:42"
+      }
+    ],
+    "warning_summary": [
+      {"warning_kind":"state_missing","reason":"s3_not_found","scope_class":"s3","count":1}
+    ],
+    "recent_warnings": [
+      {
+        "safe_locator_hash":"hash-missing",
+        "warning_kind":"state_missing",
+        "reason":"s3_not_found",
+        "source":"graph",
+        "source_handle":"state_snapshot:s3:hash-missing",
+        "raw_bucket":"tfstate-prod",
+        "raw_key":"services/deleted/terraform.tfstate",
+        "account_id":"123456789012",
+        "path":"/secure/local/terraform.tfstate"
+      }
+    ]
+  }
+}
