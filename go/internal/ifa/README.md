@@ -171,6 +171,32 @@ Existing diagnostics remain the `go test` suite (including
   `DeadLetterRecord` sets with `DeadLetterSetsEqual` instead. See `mutate.go`'s
   `MutationKind` doc comment for the full path-by-path breakdown.
 
+## Layer 3 — load and saturation (P5)
+
+P5 ([#4579](https://github.com/eshu-hq/eshu/issues/4579)) adds the load
+vocabulary without inventing a taxonomy. `ScaleSlot` (`slots.go`) adopts
+`specs/scale-lab-corpus.v1.yaml`'s corpus slots and binds each to an
+amplification fan-out and a `perfcontract` enforcement class — smoke and small
+run hermetically, medium and above are operator-gated. A lockstep test asserts
+every bound slot id is present in the spec.
+
+`AmplifyAtSlot` (`amplify.go`) is the corpus amplifier: it replays one base Odù
+across a slot's disjoint synthetic scopes through the family-native
+`synth/gcp.GenerateMultiScope`. It is family-aware by construction and rejects
+the generic `scope_id`/`stable_fact_key` rewrite the ADR's Layer 3 landmine
+flags as determinism-unsafe (K scopes sharing a payload identity would MERGE
+onto one graph node and race last-writer-wins — a false red from the load
+generator itself). A family without a disjoint-by-construction generator, or the
+schema-only smoke slot, fails closed.
+
+The runtime scenario runners live in sibling subpackages so this core package
+stays pure: `go/internal/ifa/throughput` drives an amplified slot through the P2
+concurrent driver and proves worker-count-invariant drain hermetically;
+`go/internal/ifa/saturation` drives more writes than a permit pool admits and is
+the permanent regression for the #3560 dead-letter-flood class (backpressure
+engages, work retries, nothing dead-letters, the queue drains to the B-12
+residual). Both are registered as the `ifa-load-saturation` CI gate.
+
 ## Adding an Odù
 
 A contributor adds a conformance case by dropping a v1 cassette (or a

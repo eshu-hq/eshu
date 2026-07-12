@@ -50,7 +50,7 @@ require_fixed() {
 require_fixed "version" "version: scale-lab-corpus/v1"
 require_fixed "parent epic" "parent_issue: 3169"
 require_fixed "owner issue" "issue: 3170"
-require_fixed "approval gate" "gate_status: proposed"
+require_fixed "approval gate" "gate_status: accepted"
 
 required_slots=(
 	"smoke/synthetic_contracts"

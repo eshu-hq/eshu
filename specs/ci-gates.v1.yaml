@@ -1247,6 +1247,27 @@ gates:
       - go
     ci_only_reason: ""
 
+  - id: ifa-load-saturation
+    name: Ifa P5 load/saturation Odù (corpus amplifier + throughput + #3560 saturation regression)
+    category: exactness
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "go/internal/ifa/amplify.go"
+      - "go/internal/ifa/slots.go"
+      - "go/internal/ifa/saturation/**"
+      - "go/internal/ifa/throughput/**"
+      - "specs/scale-lab-corpus.v1.yaml"
+    local:
+      command: "cd go && go test ./internal/ifa/saturation/ ./internal/ifa/throughput/ -race -count=1"
+      test_command: "cd go && go test ./internal/ifa/saturation/ ./internal/ifa/throughput/ -race -count=1"
+    ci:
+      workflow: static-contract-gates.yml
+      job: "Static contract gates"
+    requirements:
+      - go
+    ci_only_reason: ""
+
   - id: parserfixture-tests
     name: Parser Fixture Replay Tests
     category: exactness
