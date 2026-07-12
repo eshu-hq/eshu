@@ -90,7 +90,13 @@ inline anchor cannot select an index — measured 5.3s).
 
 The non-GroupExecutor fallback retract const (`retractSQLRelationshipEdgesCypher`
 in `canonical.go`, a single labelless `MATCH (source)` with rel-type alternation
-and `WHERE source.repo_id IN`) is intentionally left unchanged: it is reached
-only when the executor is not a GroupExecutor, which is not the production
-reducer path (`cmd/reducer/main.go` wires a GroupExecutor). Rewriting that seam
-is a separate follow-up on #4708.
+and `WHERE source.repo_id IN`) was intentionally left unchanged at the time: it
+was reached only when the executor is not a GroupExecutor, which is not the
+production reducer path (`cmd/reducer/main.go` wires a GroupExecutor).
+
+Update: the grouped execution this note assumed was itself a defect — on
+NornicDB v1.1.11 multiple DELETEs in one managed transaction under-apply — and
+was sequenced in #5128 (`evidence-5116-sql-retract.md`). The fallback const was
+then removed entirely in #4367, when the retract moved to one statement per
+write-capable source label for every executor type; see
+`evidence-4367-sql-retract-per-label.md`.

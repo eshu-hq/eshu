@@ -332,20 +332,21 @@ func TestEdgeWriterRetractEdgesSQLRelationshipDispatch(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RetractEdges() error = %v", err)
 	}
-	if got, want := len(executor.calls), 1; got != want {
-		t.Fatalf("executor calls = %d, want %d", got, want)
+	// One statement per source label (the SQL sibling of #5116), each
+	// single-label + repo-scoped, run sequentially.
+	if got, want := len(executor.calls), len(sqlRelationshipRetractSourceLabels); got != want {
+		t.Fatalf("executor calls = %d, want %d (one per source label)", got, want)
 	}
-	if !strings.Contains(executor.calls[0].Cypher, "REFERENCES_TABLE") {
-		t.Fatalf("cypher missing REFERENCES_TABLE: %s", executor.calls[0].Cypher)
-	}
-	if !strings.Contains(executor.calls[0].Cypher, "HAS_COLUMN") {
-		t.Fatalf("cypher missing HAS_COLUMN: %s", executor.calls[0].Cypher)
-	}
-	if !strings.Contains(executor.calls[0].Cypher, "TRIGGERS") {
-		t.Fatalf("cypher missing TRIGGERS: %s", executor.calls[0].Cypher)
-	}
-	if !strings.Contains(executor.calls[0].Cypher, "DELETE rel") {
-		t.Fatalf("cypher missing DELETE: %s", executor.calls[0].Cypher)
+	for _, stmt := range executor.calls {
+		if !strings.Contains(stmt.Cypher, sqlRelationshipRetractRelTypes) {
+			t.Fatalf("cypher missing SQL relationship rel types: %s", stmt.Cypher)
+		}
+		if strings.Contains(stmt.Cypher, "(source)-[rel:") {
+			t.Fatalf("cypher uses unlabeled source scan (#5116 sibling): %s", stmt.Cypher)
+		}
+		if !strings.Contains(stmt.Cypher, "DELETE rel") {
+			t.Fatalf("cypher missing DELETE: %s", stmt.Cypher)
+		}
 	}
 }
 
@@ -390,12 +391,10 @@ func TestBatchedWriteEdgesUsesUNWINDCypherIncludesNewDomains(t *testing.T) {
 }
 
 type recordingGroupExecutor struct {
-	calls      []Statement
 	groupCalls [][]Statement
 }
 
-func (r *recordingGroupExecutor) Execute(_ context.Context, stmt Statement) error {
-	r.calls = append(r.calls, stmt)
+func (r *recordingGroupExecutor) Execute(context.Context, Statement) error {
 	return nil
 }
 

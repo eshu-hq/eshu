@@ -50,6 +50,29 @@
   NornicDB) and updating the README's performance/observability evidence
   section in the same change.
 
+## Memory + byte-identity invariants (issue #5009)
+
+- The canonical OUTPUT is byte-identical and is the determinism matrix's whole
+  comparison basis. Any change to record shape, sort, indentation, or framing
+  MUST keep `TestCanonicalizeGoldenDigests` green — those pinned digests are the
+  regression, captured from the pre-streaming implementation.
+- `Reader` is STREAMING (`StreamNodes`/`StreamEdges` with a yield callback). Do
+  not reintroduce whole-slice `Nodes()`/`Edges()`: a live reader must never
+  materialize the entire node/edge set (each `Edge` duplicates both endpoints'
+  property maps, so the struct set dwarfs the byte set at scale).
+- `Canonicalize` assembles the final document directly from the sorted record
+  bytes (`assembleGraph`), NOT by decoding them back into `map[string]any`. The
+  decode round trip re-exploded memory; do not restore it. If you change the
+  shared canonicalizer's indentation, `assembleGraph` must follow (the digest
+  test catches drift either way).
+- `scale_memaudit_test.go`'s `TestMemAuditCanonicalizeScale` (behind the
+  `ifamemaudit` build tag, so it runs in NO ordinary CI lane — it allocates
+  ~1.4 GiB) is the before/after memory evidence. Run it explicitly with
+  `go test -tags ifamemaudit -run TestMemAuditCanonicalizeScale ./internal/ifa/graphdump/`;
+  keep it runnable for any further memory work (output streaming into the hash,
+  external merge-sort). Do NOT re-gate it on `testing.Short()` — no repo lane
+  passes `-short`, so it would run unguarded in the authoritative `-race` shard.
+
 ## Verification
 
 ```bash

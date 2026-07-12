@@ -98,13 +98,8 @@ func (w *EdgeWriter) RetractEdges(
 			stmts := BuildRetractSQLRelationshipEdgeStatementsByFilePath(filePaths, evidenceSource)
 			return w.executeSQLRelationshipRetractStatements(ctx, stmts)
 		}
-		// Route GroupExecutor-capable backends to the label-specific retract
-		// statements. The capability check selects the query shape only; the
-		// statements still execute sequentially in separate transactions.
-		if _, ok := w.executor.(GroupExecutor); ok {
-			stmts := BuildRetractSQLRelationshipEdgeStatements(repoIDs, evidenceSource)
-			return w.executeSQLRelationshipRetractStatements(ctx, stmts)
-		}
+		stmts := BuildRetractSQLRelationshipEdgeStatements(repoIDs, evidenceSource)
+		return w.executeSQLRelationshipRetractStatements(ctx, stmts)
 	}
 	if domain == reducer.DomainShellExec {
 		filePaths, hasDeltaScope, err := collectDeltaFilePaths(rows)
@@ -219,8 +214,11 @@ func buildRetractStatement(
 	// a repository id. It must never reach this repo-id-bound builder.
 	case reducer.DomainRationaleEdges:
 		return BuildRetractRationaleEdges(repoIDs, evidenceSource), nil
-	case reducer.DomainSQLRelationships:
-		return BuildRetractSQLRelationshipEdges(repoIDs, evidenceSource), nil
+	// DomainSQLRelationships is handled before this shared repo-id path in
+	// RetractEdges because its retract fans out to one per-source-label
+	// statement run sequentially (the SQL sibling of #5116) and must never
+	// reach this single-statement builder; the old unlabeled-scan fallback
+	// silently under-deleted on NornicDB v1.1.11.
 	case reducer.DomainShellExec:
 		return BuildRetractShellExecEdges(repoIDs, evidenceSource), nil
 	case reducer.DomainDeployableUnitEdges:

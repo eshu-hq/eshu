@@ -19,65 +19,55 @@ import "fmt"
 // predicate. Either way the identical edge set is deleted (proven 0/0 on live
 // data).
 
-const retractSQLFunctionQueriesTableEdgesCypher = `UNWIND $repo_ids AS repo_id
-MATCH (source:Function {repo_id: repo_id})-[rel:QUERIES_TABLE]->()
-WHERE rel.evidence_source = $evidence_source
-DELETE rel`
+// sqlRelationshipRetractRelTypes is the relationship-type disjunction every
+// per-label SQL retract statement deletes. Relationship-type disjunction is
+// supported on NornicDB; node-label disjunction is not (#5116). The scope
+// predicate (source label + repo/path anchor + rel.evidence_source) already
+// bounds each statement to this domain's edges, so the broad rel-type list
+// cannot over-delete — it exists so every (source label, relationship type)
+// pair the write path can create is retractable.
+const sqlRelationshipRetractRelTypes = "QUERIES_TABLE|REFERENCES_TABLE|HAS_COLUMN|TRIGGERS|EXECUTES"
 
-const retractSQLFunctionQueriesTableEdgesByFileCypher = `UNWIND $file_paths AS file_path
-MATCH (source:Function {path: file_path})-[rel:QUERIES_TABLE]->()
-WHERE rel.evidence_source = $evidence_source
-DELETE rel`
+// sqlRelationshipRetractSourceLabels lists the source node labels a SQL
+// relationship edge retract must cover. It MUST include every label the write
+// path accepts as an edge source (sqlRelationshipEntityLabels) — guarded by
+// TestSQLRelationshipRetractCoversEveryWriteEndpointLabel — because an edge
+// written from a label missing here would survive every reprojection.
+var sqlRelationshipRetractSourceLabels = []string{
+	"Function", "SqlColumn", "SqlFunction", "SqlIndex", "SqlTable", "SqlTrigger", "SqlView",
+}
 
-const retractSQLViewReferencesTableEdgesCypher = `UNWIND $repo_ids AS repo_id
-MATCH (source:SqlView {repo_id: repo_id})-[rel:REFERENCES_TABLE]->()
-WHERE rel.evidence_source = $evidence_source
-DELETE rel`
-
-const retractSQLViewReferencesTableEdgesByFileCypher = `UNWIND $file_paths AS file_path
-MATCH (source:SqlView {path: file_path})-[rel:REFERENCES_TABLE]->()
-WHERE rel.evidence_source = $evidence_source
-DELETE rel`
-
-const retractSQLFunctionReferencesTableEdgesCypher = `UNWIND $repo_ids AS repo_id
-MATCH (source:SqlFunction {repo_id: repo_id})-[rel:REFERENCES_TABLE]->()
-WHERE rel.evidence_source = $evidence_source
-DELETE rel`
-
-const retractSQLFunctionReferencesTableEdgesByFileCypher = `UNWIND $file_paths AS file_path
-MATCH (source:SqlFunction {path: file_path})-[rel:REFERENCES_TABLE]->()
-WHERE rel.evidence_source = $evidence_source
-DELETE rel`
-
-const retractSQLTableHasColumnEdgesCypher = `UNWIND $repo_ids AS repo_id
-MATCH (source:SqlTable {repo_id: repo_id})-[rel:HAS_COLUMN]->()
-WHERE rel.evidence_source = $evidence_source
-DELETE rel`
-
-const retractSQLTableHasColumnEdgesByFileCypher = `UNWIND $file_paths AS file_path
-MATCH (source:SqlTable {path: file_path})-[rel:HAS_COLUMN]->()
-WHERE rel.evidence_source = $evidence_source
-DELETE rel`
-
-const retractSQLTriggerEdgesCypher = `UNWIND $repo_ids AS repo_id
-MATCH (source:SqlTrigger {repo_id: repo_id})-[rel:TRIGGERS]->()
-WHERE rel.evidence_source = $evidence_source
-DELETE rel`
-
-const retractSQLTriggerEdgesByFileCypher = `UNWIND $file_paths AS file_path
-MATCH (source:SqlTrigger {path: file_path})-[rel:TRIGGERS]->()
-WHERE rel.evidence_source = $evidence_source
-DELETE rel`
-
-const retractSQLTriggerExecutesEdgesCypher = `UNWIND $repo_ids AS repo_id
-MATCH (source:SqlTrigger {repo_id: repo_id})-[rel:EXECUTES]->()
-WHERE rel.evidence_source = $evidence_source
-DELETE rel`
-
-const retractSQLTriggerExecutesEdgesByFileCypher = `UNWIND $file_paths AS file_path
-MATCH (source:SqlTrigger {path: file_path})-[rel:EXECUTES]->()
-WHERE rel.evidence_source = $evidence_source
-DELETE rel`
+// buildSQLRelationshipRetractStatements emits one retract statement per source
+// label.
+//
+// A single statement cannot bind all source labels on NornicDB: a node-label
+// disjunction MATCH (source:SqlTable|SqlView|...) matches zero rows, and on
+// NornicDB v1.1.11 an unlabeled MATCH (source) scan is unreliable — it
+// silently drops some source labels, inconsistently by internal
+// label-iteration state (#5116). Single-label MATCH is the only shape that
+// reliably matches every source on both pinned versions, so the retract fans
+// out to one statement per label. unwindParam is the Cypher parameter carrying
+// scopeValues ("repo_ids" or "file_paths"), alias its per-row UNWIND name, and
+// anchorProp the source property the inline anchor binds ("repo_id" or
+// "path"); see the #4708 note above for why the anchor is inline.
+func buildSQLRelationshipRetractStatements(unwindParam, alias, anchorProp string, scopeValues []string, evidenceSource string) []Statement {
+	stmts := make([]Statement, 0, len(sqlRelationshipRetractSourceLabels))
+	for _, label := range sqlRelationshipRetractSourceLabels {
+		cypher := fmt.Sprintf(
+			"UNWIND $%s AS %s\nMATCH (source:%s {%s: %s})-[rel:%s]->()\nWHERE rel.evidence_source = $evidence_source\nDELETE rel",
+			unwindParam, alias, label, anchorProp, alias, sqlRelationshipRetractRelTypes,
+		)
+		stmts = append(stmts, Statement{
+			Operation: OperationCanonicalRetract,
+			Cypher:    cypher,
+			Parameters: map[string]any{
+				unwindParam:       scopeValues,
+				"evidence_source": evidenceSource,
+			},
+		})
+	}
+	return stmts
+}
 
 var sqlRelationshipEntityLabels = map[string]struct{}{
 	"Function":    {},
@@ -87,6 +77,21 @@ var sqlRelationshipEntityLabels = map[string]struct{}{
 	"SqlTable":    {},
 	"SqlTrigger":  {},
 	"SqlView":     {},
+}
+
+// sqlRelationshipWriteReasons is the single source of truth for the
+// relationship types the SQL write path accepts, mapping each to the MERGE
+// reason its edge carries. Both the label-scoped and fallback write templates
+// gate on membership here, and every type MUST appear in
+// sqlRelationshipRetractRelTypes — guarded by
+// TestSQLRelationshipRetractCoversEveryWriteRelationshipType — or its edges
+// would be written but never retracted.
+var sqlRelationshipWriteReasons = map[string]string{
+	"QUERIES_TABLE":    "Parser embedded SQL evidence resolved a function table query edge",
+	"REFERENCES_TABLE": "SQL entity metadata resolved a table reference edge",
+	"HAS_COLUMN":       "SQL entity metadata resolved a table-column containment edge",
+	"TRIGGERS":         "SQL entity metadata resolved a trigger edge",
+	"EXECUTES":         "SQL trigger metadata resolved a routine execution edge",
 }
 
 func buildSQLRelationshipRowMap(
@@ -99,6 +104,9 @@ func buildSQLRelationshipRowMap(
 		return "", nil, false
 	}
 	relationshipType := payloadString(payload, "relationship_type")
+	if _, ok := sqlRelationshipWriteReasons[relationshipType]; !ok {
+		return "", nil, false
+	}
 	rowMap := map[string]any{
 		"source_entity_id":  sourceEntityID,
 		"target_entity_id":  targetEntityID,
@@ -140,45 +148,11 @@ func labelScopedSQLRelationshipCypher(
 	sourceLabel string,
 	targetLabel string,
 ) (string, bool) {
-	switch relationshipType {
-	case "QUERIES_TABLE":
-		return buildLabelScopedSQLRelationshipCypher(
-			sourceLabel,
-			targetLabel,
-			"QUERIES_TABLE",
-			"Parser embedded SQL evidence resolved a function table query edge",
-		), true
-	case "REFERENCES_TABLE":
-		return buildLabelScopedSQLRelationshipCypher(
-			sourceLabel,
-			targetLabel,
-			"REFERENCES_TABLE",
-			"SQL entity metadata resolved a table reference edge",
-		), true
-	case "HAS_COLUMN":
-		return buildLabelScopedSQLRelationshipCypher(
-			sourceLabel,
-			targetLabel,
-			"HAS_COLUMN",
-			"SQL entity metadata resolved a table-column containment edge",
-		), true
-	case "TRIGGERS":
-		return buildLabelScopedSQLRelationshipCypher(
-			sourceLabel,
-			targetLabel,
-			"TRIGGERS",
-			"SQL entity metadata resolved a trigger edge",
-		), true
-	case "EXECUTES":
-		return buildLabelScopedSQLRelationshipCypher(
-			sourceLabel,
-			targetLabel,
-			"EXECUTES",
-			"SQL trigger metadata resolved a routine execution edge",
-		), true
-	default:
+	reason, ok := sqlRelationshipWriteReasons[relationshipType]
+	if !ok {
 		return "", false
 	}
+	return buildLabelScopedSQLRelationshipCypher(sourceLabel, targetLabel, relationshipType, reason), true
 }
 
 func buildLabelScopedSQLRelationshipCypher(
@@ -196,52 +170,16 @@ SET rel.confidence = 0.95,
     rel.evidence_source = row.evidence_source`, sourceLabel, targetLabel, relationshipType, reason)
 }
 
-// BuildRetractSQLRelationshipEdgeStatements builds label-scoped SQL
-// relationship retraction statements for grouped reducer execution.
+// BuildRetractSQLRelationshipEdgeStatements builds per-source-label SQL
+// relationship edge retraction statements for all source entities owned by the
+// given repositories.
 func BuildRetractSQLRelationshipEdgeStatements(repoIDs []string, evidenceSource string) []Statement {
-	cyphers := []string{
-		retractSQLFunctionQueriesTableEdgesCypher,
-		retractSQLViewReferencesTableEdgesCypher,
-		retractSQLFunctionReferencesTableEdgesCypher,
-		retractSQLTableHasColumnEdgesCypher,
-		retractSQLTriggerEdgesCypher,
-		retractSQLTriggerExecutesEdgesCypher,
-	}
-	stmts := make([]Statement, 0, len(cyphers))
-	for _, cypher := range cyphers {
-		stmts = append(stmts, Statement{
-			Operation: OperationCanonicalRetract,
-			Cypher:    cypher,
-			Parameters: map[string]any{
-				"repo_ids":        repoIDs,
-				"evidence_source": evidenceSource,
-			},
-		})
-	}
-	return stmts
+	return buildSQLRelationshipRetractStatements("repo_ids", "repo_id", "repo_id", repoIDs, evidenceSource)
 }
 
-// BuildRetractSQLRelationshipEdgeStatementsByFilePath builds label-scoped SQL
-// relationship retraction statements for repo-qualified source file paths.
+// BuildRetractSQLRelationshipEdgeStatementsByFilePath builds per-source-label
+// SQL relationship edge retraction statements for source entities owned by the
+// given repo-qualified file paths.
 func BuildRetractSQLRelationshipEdgeStatementsByFilePath(filePaths []string, evidenceSource string) []Statement {
-	cyphers := []string{
-		retractSQLFunctionQueriesTableEdgesByFileCypher,
-		retractSQLViewReferencesTableEdgesByFileCypher,
-		retractSQLFunctionReferencesTableEdgesByFileCypher,
-		retractSQLTableHasColumnEdgesByFileCypher,
-		retractSQLTriggerEdgesByFileCypher,
-		retractSQLTriggerExecutesEdgesByFileCypher,
-	}
-	stmts := make([]Statement, 0, len(cyphers))
-	for _, cypher := range cyphers {
-		stmts = append(stmts, Statement{
-			Operation: OperationCanonicalRetract,
-			Cypher:    cypher,
-			Parameters: map[string]any{
-				"file_paths":      filePaths,
-				"evidence_source": evidenceSource,
-			},
-		})
-	}
-	return stmts
+	return buildSQLRelationshipRetractStatements("file_paths", "file_path", "path", filePaths, evidenceSource)
 }
