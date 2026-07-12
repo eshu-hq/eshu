@@ -131,7 +131,25 @@ scopes keep concurrency (`TestDrainCollectorBlankPartitionKeysDoNotSerialize`);
 the startup log now reports `commit_lanes_requested`, effective
 `commit_lanes`, `postgres_max_open_conns`, and `commit_lane_reserve`.
 
- No-Regression Evidence (post-drain-hardening rerun): golden corpus gate at
- `ESHU_BOOTSTRAP_COMMIT_LANES=1` and `=4` — see the run logs cited in the
- PR (416-check suite, identical B-12 snapshot and terminal drain expected
- and required for merge).
+ No-Regression Evidence (post-drain-hardening rerun): golden corpus gate
+ at `ESHU_BOOTSTRAP_COMMIT_LANES=1` — 416 pass / 0 required-fail / 0
+ advisory-warn (34s) — and at `=4` — 416 pass / 0 required-fail / 0
+ advisory-warn (34s) — identical B-12 snapshot and terminal queue drain.
+ One earlier lanes=4 attempt failed in the cassette-replay settle stage
+ ("only 7 credentialed collector source(s) landed facts" after the 20s
+ settle window) — that stage runs standalone cassette collectors after
+ bootstrap-index has already completed and is independent of commit
+ lanes; the rerun passed clean and both counts are recorded here rather
+ than deferred to PR logs.
+
+Round-3 review caught a real P1 in the round-2 exhaustion drain: its guard
+also fired on the SOURCE-error path, where the stream has already closed
+and GitSource has reset itself for the next discovery cycle — so the
+drain's first Next call would relaunch full corpus discovery and
+re-snapshot during error cleanup. The guard is now gated on the
+commit-failure path only (the sole path with a still-open stream holding
+buffered generations); GitSource's own cancel plus the processRepo
+hand-off drain unwind an errored stream's in-flight producers. Pinned by
+`TestDrainCollectorSourceErrorDoesNotReinvokeSource` with a recorded
+negative proof: with the broad guard restored, the test fails with
+"source.Next called 2 times"; narrowed, it is green under -race.

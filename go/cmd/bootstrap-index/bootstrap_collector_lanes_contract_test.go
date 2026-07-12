@@ -6,6 +6,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -450,4 +451,42 @@ func (c *partitionTrackingCommitter) CommitScopeGeneration(
 	}
 	c.total.Add(1)
 	return nil
+}
+
+// errorThenClosedSource returns a source error on its first Next call and
+// records any further Next invocation. Production GitSource RESETS itself
+// when its stream closes (including an errored close), so a post-error Next
+// call would launch a full corpus re-discovery and re-snapshot — the #5135
+// round-3 P1.
+type errorThenClosedSource struct {
+	nextCalls atomic.Int64
+}
+
+func (s *errorThenClosedSource) Next(context.Context) (collector.CollectedGeneration, bool, error) {
+	if s.nextCalls.Add(1) == 1 {
+		return collector.CollectedGeneration{}, false, fmt.Errorf("boom: stream failed")
+	}
+	return collector.CollectedGeneration{}, false, nil
+}
+
+// TestDrainCollectorSourceErrorDoesNotReinvokeSource pins the #5135 round-3
+// P1: after the source stream fails (and the source has reset itself for a
+// future discovery cycle), the drain must NOT call Next again — doing so
+// would re-run discovery and re-snapshot the whole corpus during error
+// cleanup. The exhaustion drain applies only to the commit-failure path,
+// where the stream is still open.
+func TestDrainCollectorSourceErrorDoesNotReinvokeSource(t *testing.T) {
+	t.Parallel()
+
+	source := &errorThenClosedSource{}
+	err := drainCollector(context.Background(), source, &laneRecordingCommitter{}, nil, nil, nil, 4)
+	if err == nil {
+		t.Fatal("drainCollector() error = nil, want propagated source error")
+	}
+	if !strings.Contains(err.Error(), "stream failed") {
+		t.Fatalf("drainCollector() error = %v, want source stream failure", err)
+	}
+	if calls := source.nextCalls.Load(); calls != 1 {
+		t.Fatalf("source.Next called %d times, want exactly 1 (a post-error call re-runs full corpus discovery)", calls)
+	}
 }

@@ -289,16 +289,23 @@ teardown:
 	}
 	drainReleasedKeys()
 
-	// After a failure stops admission, the GitSource stream may still hold
-	// buffered generations (buffer is sized to the snapshot worker count)
-	// whose fact producers started eagerly and send UNCONDITIONALLY — they
-	// do not observe cancellation and would block forever on a full channel
-	// if never consumed (#5135 review). Consume the source to exact
-	// exhaustion under the parent context and drain each generation's fact
-	// stream so no producer is stranded. Parent cancellation is the one
-	// path that cannot drain (Next fails immediately); that is process
-	// teardown, and the error below already reports the partial collection.
-	if state.firstError() != nil || dispatchErr != nil {
+	// After a COMMIT failure stops admission, the GitSource stream is still
+	// open and may hold buffered generations (buffer is sized to the
+	// snapshot worker count) whose fact producers started eagerly and send
+	// UNCONDITIONALLY — they do not observe cancellation and would block
+	// forever on a full channel if never consumed (#5135 review). Consume
+	// the source to exact exhaustion under the parent context and drain
+	// each generation's fact stream so no producer is stranded.
+	//
+	// This is gated on the commit-failure path ONLY. On a source error the
+	// stream has already closed and GitSource resets itself for the next
+	// discovery cycle — calling Next again would launch a full corpus
+	// re-discovery and re-snapshot during error cleanup (#5135 round-3
+	// review); GitSource's own cancel plus the hand-off drain in
+	// processRepo unwind that stream's in-flight producers. On parent
+	// cancellation Next fails immediately (process teardown), and the
+	// error below already reports the partial collection.
+	if state.firstError() != nil {
 		for {
 			collected, ok, err := source.Next(ctx)
 			if err != nil || !ok {
