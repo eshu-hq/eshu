@@ -195,3 +195,37 @@ func TestCommitLaneCountFromEnv(t *testing.T) {
 		}
 	}
 }
+
+// cancelAwareSource returns ctx.Err() from Next once the context is
+// canceled, mirroring GitSource's stream select.
+type cancelAwareSource struct {
+	fakeSource
+}
+
+func (s *cancelAwareSource) Next(ctx context.Context) (collector.CollectedGeneration, bool, error) {
+	if err := ctx.Err(); err != nil {
+		return collector.CollectedGeneration{}, false, err
+	}
+	return s.fakeSource.Next(ctx)
+}
+
+// TestDrainCollectorParentCancelIsAnError pins the review finding on #5130:
+// a PARENT-driven cancellation (deadline/signal wiring) must surface as a
+// collector error, never as a silent partial-collection success. Only the
+// self-induced cancel after a lane commit failure may be swallowed (its
+// commit error is joined instead).
+func TestDrainCollectorParentCancelIsAnError(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	source := &cancelAwareSource{fakeSource{generations: laneTestGenerations(3)}}
+
+	err := drainCollector(ctx, source, &laneRecordingCommitter{}, nil, nil, nil, 4)
+	if err == nil {
+		t.Fatal("drainCollector() error = nil on parent cancellation, want context error (partial collection must not report success)")
+	}
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("drainCollector() error = %v, want context.Canceled", err)
+	}
+}

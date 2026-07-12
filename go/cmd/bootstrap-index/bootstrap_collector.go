@@ -120,10 +120,12 @@ func drainCollector(
 				span.RecordError(err)
 				span.End()
 			}
-			// A canceled lane context after a commit failure is that failure's
-			// consequence, not an independent source error; the lane error is
-			// joined below.
-			if laneCtx.Err() != nil && errors.Is(err, laneCtx.Err()) {
+			// A canceled lane context is only swallowed when a commit lane
+			// already recorded the failure that triggered the cancel — that
+			// error is joined below. Parent-driven cancellation (deadline or
+			// signal wiring) must stay a visible collector error, never a
+			// silent partial-collection success.
+			if laneCtx.Err() != nil && errors.Is(err, laneCtx.Err()) && state.firstError() != nil {
 				break
 			}
 			dispatchErr = fmt.Errorf("bootstrap collector: %w", err)
@@ -156,6 +158,13 @@ func drainCollector(
 
 	if err := errors.Join(dispatchErr, state.firstError()); err != nil {
 		return err
+	}
+	// Parent-driven cancellation (deadline or signal wiring) with no lane
+	// failure must stay a visible collector error: the collection is partial
+	// and must never be reported as complete. Only ctx — not laneCtx, which a
+	// failed lane cancels itself — distinguishes the parent case.
+	if err := ctx.Err(); err != nil {
+		return fmt.Errorf("bootstrap collector: %w", err)
 	}
 
 	if logger != nil {

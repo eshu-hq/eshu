@@ -39,8 +39,14 @@ contract) feeding `ESHU_BOOTSTRAP_COMMIT_LANES` concurrent commit workers.
  `commit_lanes` attribute; every pre-existing per-repo log message and
  metric ("bootstrap scope collected", "bootstrap collection progress",
  FactsEmitted/FactsCommitted/CollectorObserveDuration,
- ContentEntityEmitted) is emitted byte-compatibly from the lane workers. No
- new metric instruments or pipeline stages.
+ ContentEntityEmitted) is emitted attribute-compatibly from the lane
+ workers — same message names and structured fields; the commit-failure
+ and progress logs now additionally carry the cycle span's trace
+ correlation (they previously logged on the root context). Discovery
+ advisory reports are appended in commit-completion order rather than
+ source order: each report self-identifies by scope and generation id and
+ the discovery-advisory playbook filters by repository, so ordering is
+ not a consumer contract. No new metric instruments or pipeline stages.
 
 Concurrency contract: scopes are independent conflict domains — one
 transaction per scope, per-repo deferred-maintenance shared-lock keys, a
