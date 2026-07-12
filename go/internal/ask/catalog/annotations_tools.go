@@ -87,6 +87,7 @@ func askToolAnnotations() map[string]Annotation {
 		"get_repo_story":                                  {Backend: BackendBoth, Cost: CostHigh},
 		"get_repo_summary":                                {Backend: BackendBoth, Cost: CostModerate},
 		"get_repository_coverage":                         {Backend: BackendBoth, Cost: CostModerate},
+		"get_repository_freshness":                        {Backend: BackendPostgres, Cost: CostLow},
 		"get_repository_language_inventory":               {Backend: BackendPostgres, Cost: CostModerate},
 		"get_repository_stats":                            {Backend: BackendBoth, Cost: CostModerate},
 		"get_sbom_attestation_attachment_inventory":       {Backend: BackendPostgres, Cost: CostModerate},
