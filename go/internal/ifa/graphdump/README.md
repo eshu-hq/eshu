@@ -40,15 +40,32 @@ package's hermetic test guarantee.
 - `Edge{Type string, FromLabels/FromProps, ToLabels/ToProps, Props}` - a
   relationship's canonicalizable identity; endpoints are repeated by
   labels+props, never referenced by index or backend ID.
-- `Reader` - the narrow `Nodes(ctx)`/`Edges(ctx)` read seam `Canonicalize`
-  needs; production callers implement it over a live Cypher session (see
-  `go/cmd/ifa/graphdump_reader.go`), tests implement it over a plain slice.
+- `Reader` - the narrow streaming read seam `Canonicalize` needs:
+  `StreamNodes(ctx, yield)` / `StreamEdges(ctx, yield)`. Production callers
+  implement it over a live Cypher session yielding straight off the Bolt cursor
+  (see `go/cmd/ifa/graphdump_reader.go`); tests implement it over a plain slice.
 - `Canonicalize(ctx, Reader) ([]byte, error)` - returns the graph's stable
   canonical byte form: content-addressed, order-independent, and idempotent.
 - `Digest(ctx, Reader) (string, error)` - the sha256 hex digest of
   `Canonicalize`'s output.
 - `Equal(ctx, a, b Reader) (bool, error)` - convenience wrapper comparing two
   Readers' digests.
+
+## Memory (issue #5009)
+
+`Canonicalize` streams: each node/edge is canonicalized to bytes inside the
+reader's `yield` callback and the struct is then discarded, so peak memory holds
+the canonical record set (`[][]byte`), not the full `Node`/`Edge` struct graph —
+which is far larger, because every `Edge` duplicates both endpoints' property
+maps. The final document is assembled directly from the sorted record bytes
+(re-indented to their nested position), avoiding a decode-back-to-`map` round
+trip. Measured on a synthetic Function/CALLS graph, this cut peak heap for a
+medium scale-lab slot (~190k nodes / 760k edges) from ~4.9 GiB to ~1.36 GiB with
+byte-identical output (the `ifamemaudit`-tagged `TestMemAuditCanonicalizeScale`
+and the `TestCanonicalizeGoldenDigests` byte-identity regression; see the
+Performance Evidence marker below). The remaining levers for large/pathological
+slots — streaming the output into the sha256 hash and an external merge-sort of
+the record set — are deferred until those slots run routinely.
 
 ## Dependencies
 

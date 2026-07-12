@@ -18,8 +18,23 @@ type fakeReader struct {
 	edges []Edge
 }
 
-func (f fakeReader) Nodes(_ context.Context) ([]Node, error) { return f.nodes, nil }
-func (f fakeReader) Edges(_ context.Context) ([]Edge, error) { return f.edges, nil }
+func (f fakeReader) StreamNodes(_ context.Context, yield func(Node) error) error {
+	for _, n := range f.nodes {
+		if err := yield(n); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (f fakeReader) StreamEdges(_ context.Context, yield func(Edge) error) error {
+	for _, e := range f.edges {
+		if err := yield(e); err != nil {
+			return err
+		}
+	}
+	return nil
+}
 
 // cloneProps returns a shallow copy of m so tests can mutate one graph's
 // property map without aliasing another graph's "identical" input.

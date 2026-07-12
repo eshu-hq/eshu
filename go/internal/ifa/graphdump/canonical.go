@@ -8,7 +8,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"sort"
 
@@ -83,24 +82,6 @@ func canonicalBytesOf(value any, ctx string) ([]byte, error) {
 	return bs, nil
 }
 
-// decodeCanonical decodes each record's canonical JSON bytes back into a
-// generic value, using json.Number for numeric literals (matching replay's
-// own Canonicalize decode path) so a large integer property is not silently
-// rounded through a float64 round-trip before the final re-encoding pass.
-func decodeCanonical(records [][]byte) ([]any, error) {
-	out := make([]any, len(records))
-	for i, bs := range records {
-		dec := json.NewDecoder(bytes.NewReader(bs))
-		dec.UseNumber()
-		var v any
-		if err := dec.Decode(&v); err != nil {
-			return nil, fmt.Errorf("decode canonical record %d: %w", i, err)
-		}
-		out[i] = v
-	}
-	return out, nil
-}
-
 // byCanonicalBytes sorts canonical record byte slices lexicographically, the
 // same tiebreak rule replay's own sortArray uses for its array elements. This
 // is graphdump's whole-array sort key — unlike replay's SortArrays (which
@@ -122,53 +103,103 @@ func byCanonicalBytes(records [][]byte) {
 // genuine difference in graph content (a changed property, a changed edge
 // type, an added/removed node or edge) changes the output.
 func Canonicalize(ctx context.Context, r Reader) ([]byte, error) {
-	nodes, err := r.Nodes(ctx)
-	if err != nil {
+	// Stream nodes and edges: each record is canonicalized to bytes inside the
+	// yield callback and the Node/Edge struct is then discarded, so peak memory
+	// holds only the canonical record set ([][]byte), never the full struct
+	// graph (issue #5009). An edge duplicates both endpoints' property maps, so
+	// the struct set is far larger than the byte set at scale-lab-slot scale.
+	var nodeBytes [][]byte
+	nodeIdx := 0
+	if err := r.StreamNodes(ctx, func(n Node) error {
+		bs, err := canonicalBytesOf(nodeRecord(n), fmt.Sprintf("node %d", nodeIdx))
+		nodeIdx++
+		if err != nil {
+			return err
+		}
+		nodeBytes = append(nodeBytes, bs)
+		return nil
+	}); err != nil {
 		return nil, fmt.Errorf("read nodes: %w", err)
 	}
-	edges, err := r.Edges(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("read edges: %w", err)
-	}
 
-	nodeBytes := make([][]byte, len(nodes))
-	for i, n := range nodes {
-		bs, err := canonicalBytesOf(nodeRecord(n), fmt.Sprintf("node %d", i))
-		if err != nil {
-			return nil, err
-		}
-		nodeBytes[i] = bs
-	}
-	edgeBytes := make([][]byte, len(edges))
-	for i, e := range edges {
+	var edgeBytes [][]byte
+	edgeIdx := 0
+	if err := r.StreamEdges(ctx, func(e Edge) error {
 		rec, err := edgeRecord(e)
 		if err != nil {
-			return nil, fmt.Errorf("build edge %d record: %w", i, err)
+			return fmt.Errorf("build edge %d record: %w", edgeIdx, err)
 		}
-		bs, err := canonicalBytesOf(rec, fmt.Sprintf("edge %d", i))
+		bs, err := canonicalBytesOf(rec, fmt.Sprintf("edge %d", edgeIdx))
+		edgeIdx++
 		if err != nil {
-			return nil, err
+			return err
 		}
-		edgeBytes[i] = bs
+		edgeBytes = append(edgeBytes, bs)
+		return nil
+	}); err != nil {
+		return nil, fmt.Errorf("read edges: %w", err)
 	}
 
 	byCanonicalBytes(nodeBytes)
 	byCanonicalBytes(edgeBytes)
 
-	sortedNodes, err := decodeCanonical(nodeBytes)
-	if err != nil {
-		return nil, fmt.Errorf("decode sorted node records: %w", err)
-	}
-	sortedEdges, err := decodeCanonical(edgeBytes)
-	if err != nil {
-		return nil, fmt.Errorf("decode sorted edge records: %w", err)
-	}
+	// Assemble the final {"edges":[...],"nodes":[...]} document directly from the
+	// already-canonical, already-sorted record bytes instead of decoding them
+	// back into map[string]any and re-canonicalizing (issue #5009): the decode
+	// round-trip rebuilt one map per record, re-exploding memory at scale. Each
+	// record is emitted verbatim, re-indented to its nested position, which
+	// reproduces the shared canonicalizer's byte-identical output — proven
+	// against pinned digests in graphdump_test.go.
+	return assembleGraph(nodeBytes, edgeBytes), nil
+}
 
-	graph := map[string]any{
-		"nodes": sortedNodes,
-		"edges": sortedEdges,
+// assembleGraph builds the canonical graph document from the sorted node and
+// edge record bytes. Keys are emitted in sorted order ("edges" < "nodes") and
+// each record is re-indented four spaces to its array-element depth, matching
+// exactly what replay.CanonicalizeValue produces for the equivalent
+// map[string]any (verified byte-for-byte by the digest tests).
+func assembleGraph(nodeBytes, edgeBytes [][]byte) []byte {
+	var b bytes.Buffer
+	b.WriteString("{\n  \"edges\": ")
+	writeRecordArray(&b, edgeBytes)
+	b.WriteString(",\n  \"nodes\": ")
+	writeRecordArray(&b, nodeBytes)
+	b.WriteString("\n}\n")
+	return b.Bytes()
+}
+
+// writeRecordArray writes a JSON array of canonical records at object-value
+// depth. An empty array is the compact "[]"; a non-empty array opens on its own
+// line with each record re-indented four spaces and separated by ",\n",
+// matching the shared canonicalizer's indentation.
+func writeRecordArray(b *bytes.Buffer, records [][]byte) {
+	if len(records) == 0 {
+		b.WriteString("[]")
+		return
 	}
-	return canonicalBytesOf(graph, "graph document")
+	b.WriteString("[\n")
+	for i, rec := range records {
+		if i > 0 {
+			b.WriteString(",\n")
+		}
+		writeIndentedRecord(b, rec)
+	}
+	b.WriteString("\n  ]")
+}
+
+// writeIndentedRecord writes a single canonical record (which carries a
+// trailing newline from the canonicalizer) at array-element depth, prefixing
+// every line with four spaces so its top-level "{" lands at the four-space
+// indent the enclosing array expects.
+func writeIndentedRecord(b *bytes.Buffer, rec []byte) {
+	rec = bytes.TrimSuffix(rec, []byte("\n"))
+	for i, line := range bytes.Split(rec, []byte("\n")) {
+		if i > 0 {
+			b.WriteByte('\n')
+		}
+		b.WriteString("    ")
+		b.Write(line)
+	}
 }
 
 // Digest returns the sha256 hex digest of Canonicalize's output for r.
