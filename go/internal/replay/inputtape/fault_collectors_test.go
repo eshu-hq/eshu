@@ -7,7 +7,7 @@ package inputtape_test
 //
 // The replay-coverage gate requires a `fault` depth scenario for every
 // implemented collector boundary. These tests satisfy that requirement
-// honestly: each one drives a REAL collector's poll with the inputtape timeout
+// honestly: each case drives a REAL collector's poll with the inputtape timeout
 // fault injected at its HTTP boundary, then asserts the collector surfaces the
 // fault as a classified timeout rather than swallowing it, mis-classifying it,
 // or hanging.
@@ -23,6 +23,13 @@ package inputtape_test
 // assert the COLLECTOR's reaction to a boundary fault, which is the C-14 grain
 // (fault -> every implemented collector boundary).
 //
+// The cases are table-driven off collectorFaultCases so the surface set is a
+// single source of truth. TestCollectorFaultManifestBinding then binds that set
+// to the replay-coverage manifest, so a deleted or renamed case (or a manifest
+// row added without a case) fails under the go-test-race gate — closing the gap
+// where an os.Stat-only ref check would leave the dashboard green after a
+// specific collector's proof was removed.
+//
 // Skills active: golang-engineering, eshu-golden-corpus-rigor,
 // concurrency-deadlock-rigor.
 
@@ -30,13 +37,26 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/grafana"
+	"github.com/eshu-hq/eshu/go/internal/collector/jira"
 	"github.com/eshu-hq/eshu/go/internal/collector/loki"
+	"github.com/eshu-hq/eshu/go/internal/collector/ociregistry/distribution"
+	"github.com/eshu-hq/eshu/go/internal/collector/packageregistry/packageruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/pagerduty"
 	"github.com/eshu-hq/eshu/go/internal/collector/prometheusmimir"
+	"github.com/eshu-hq/eshu/go/internal/collector/sbomruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/securityalerts"
 	"github.com/eshu-hq/eshu/go/internal/collector/tempo"
+	"github.com/eshu-hq/eshu/go/internal/collector/terraformstate"
+	"github.com/eshu-hq/eshu/go/internal/collector/vulnerabilityintelligence"
 	"github.com/eshu-hq/eshu/go/internal/replay/inputtape"
+	"gopkg.in/yaml.v3"
 )
 
 // timeoutFaultClient returns an *http.Client whose transport injects the
@@ -58,122 +78,318 @@ func (f faultTransport) RoundTrip(*http.Request) (*http.Response, error) {
 	return nil, f.err
 }
 
-// assertSurfacesInjectedTimeout asserts that a real collector's poll (collect)
-// surfaces an injected boundary timeout as a classified timeout on both paths
-// real SDKs use to gate retries: the context.DeadlineExceeded sentinel and the
-// net.Error Timeout() interface. A collector that returns nil (swallows the
-// fault) or an unclassified error fails the assertion.
-func assertSurfacesInjectedTimeout(t *testing.T, collect func() error) {
-	t.Helper()
+// faultS3ObjectClient injects the inputtape timeout fault at the terraform-state
+// collector's S3 read boundary — the narrow dependency interface the collector
+// reads remote state through — reproducing a transport timeout without a live
+// S3 backend.
+type faultS3ObjectClient struct{ err error }
 
-	err := collect()
-	if err == nil {
-		t.Fatalf("collector swallowed the injected timeout; want a surfaced error")
+// GetObject fails every read with the injected fault.
+func (f faultS3ObjectClient) GetObject(context.Context, terraformstate.S3GetObjectInput) (terraformstate.S3GetObjectOutput, error) {
+	return terraformstate.S3GetObjectOutput{}, f.err
+}
+
+// collectorFaultCase drives one real collector's poll into an injected boundary
+// timeout. surface is the replay-coverage surface id it proves (the single
+// source of truth the manifest binding checks).
+type collectorFaultCase struct {
+	surface string
+	collect func() error
+}
+
+// collectorFaultCases is the authoritative list of collector boundaries proven
+// against a timeout fault. Adding a collector here without a matching manifest
+// row (or vice versa) fails TestCollectorFaultManifestBinding.
+func collectorFaultCases() []collectorFaultCase {
+	return []collectorFaultCase{
+		{
+			surface: "collector:grafana",
+			collect: func() error {
+				client, err := grafana.NewHTTPClient(grafana.HTTPClientConfig{
+					BaseURL: "https://grafana.invalid",
+					Token:   "grafana-token",
+					Client:  timeoutFaultClient(),
+				})
+				if err != nil {
+					return err
+				}
+				_, err = client.CollectObservedMetadata(context.Background(), grafana.TargetConfig{
+					Provider:      grafana.ProviderGrafana,
+					ScopeID:       "grafana:instance:prod",
+					InstanceID:    "grafana-prod",
+					BaseURL:       "https://grafana.invalid",
+					Token:         "grafana-token",
+					ResourceLimit: 50,
+				})
+				return err
+			},
+		},
+		{
+			surface: "collector:loki",
+			collect: func() error {
+				client, err := loki.NewHTTPClient(loki.HTTPClientConfig{
+					BaseURL: "https://loki.invalid",
+					Client:  timeoutFaultClient(),
+				})
+				if err != nil {
+					return err
+				}
+				_, err = client.CollectObservedMetadata(context.Background(), loki.TargetConfig{
+					ScopeID:       "loki:tenant:prod",
+					InstanceID:    "loki-prod",
+					BaseURL:       "https://loki.invalid",
+					Token:         "loki-token",
+					TenantID:      "tenant-prod",
+					ResourceLimit: 50,
+				})
+				return err
+			},
+		},
+		{
+			surface: "collector:prometheus_mimir",
+			collect: func() error {
+				client, err := prometheusmimir.NewHTTPClient(prometheusmimir.HTTPClientConfig{
+					BaseURL: "https://prometheus.invalid",
+					Client:  timeoutFaultClient(),
+				})
+				if err != nil {
+					return err
+				}
+				_, err = client.CollectObservedMetadata(context.Background(), prometheusmimir.TargetConfig{
+					ScopeID:       "prom:cluster:prod",
+					InstanceID:    "prom-prod",
+					Provider:      prometheusmimir.ProviderPrometheus,
+					BaseURL:       "https://prometheus.invalid",
+					Token:         "prom-token",
+					ResourceLimit: 50,
+				})
+				return err
+			},
+		},
+		{
+			surface: "collector:tempo",
+			collect: func() error {
+				client, err := tempo.NewHTTPClient(tempo.HTTPClientConfig{
+					BaseURL: "https://tempo.invalid",
+					Client:  timeoutFaultClient(),
+				})
+				if err != nil {
+					return err
+				}
+				_, err = client.CollectObservedMetadata(context.Background(), tempo.TargetConfig{
+					ScopeID:       "tempo:cluster:prod",
+					InstanceID:    "tempo-prod",
+					BaseURL:       "https://tempo.invalid",
+					ResourceLimit: 50,
+				})
+				return err
+			},
+		},
+		{
+			surface: "collector:jira",
+			collect: func() error {
+				client, err := jira.NewHTTPClient(jira.HTTPClientConfig{
+					BaseURL: "https://jira.invalid",
+					Email:   "collector@example.com",
+					Token:   "jira-token",
+					Client:  timeoutFaultClient(),
+				})
+				if err != nil {
+					return err
+				}
+				_, err = client.CollectWorkItemEvidence(context.Background(), jira.TargetConfig{
+					Provider:   "jira",
+					ScopeID:    "jira:site:prod",
+					SiteID:     "site-prod",
+					BaseURL:    "https://jira.invalid",
+					Email:      "collector@example.com",
+					Token:      "jira-token",
+					JQL:        "project = OPS",
+					IssueLimit: 25,
+				}, jira.CollectionWindow{Until: time.Now().UTC()})
+				return err
+			},
+		},
+		{
+			surface: "collector:pagerduty",
+			collect: func() error {
+				client, err := pagerduty.NewHTTPClient(pagerduty.HTTPClientConfig{
+					BaseURL: "https://pagerduty.invalid",
+					Token:   "pagerduty-token",
+					Client:  timeoutFaultClient(),
+				})
+				if err != nil {
+					return err
+				}
+				_, err = client.CollectIncidentEvidence(context.Background(), pagerduty.TargetConfig{
+					Provider:      "pagerduty",
+					ScopeID:       "pagerduty:account:prod",
+					AccountID:     "account-prod",
+					Token:         "pagerduty-token",
+					APIBaseURL:    "https://pagerduty.invalid",
+					IncidentLimit: 25,
+				}, pagerduty.CollectionWindow{Until: time.Now().UTC()})
+				return err
+			},
+		},
+		{
+			surface: "collector:security_alert",
+			collect: func() error {
+				client := securityalerts.NewGitHubDependabotClient(securityalerts.GitHubDependabotClientConfig{
+					BaseURL:              "https://api.github.invalid",
+					Token:                "github-token",
+					AllowedRepositories:  []string{"octo-org/checkout"},
+					RepositoryAlertLimit: 25,
+					HTTPClient:           timeoutFaultClient(),
+				})
+				_, err := client.ListRepositoryAlerts(context.Background(), "octo-org/checkout")
+				return err
+			},
+		},
+		{
+			surface: "collector:vulnerability_intelligence",
+			collect: func() error {
+				client := vulnerabilityintelligence.NewOSVClient("https://osv.invalid", timeoutFaultClient())
+				_, err := client.GetVulnerability(context.Background(), "GHSA-0000-0000-0000")
+				return err
+			},
+		},
+		{
+			surface: "collector:oci_registry",
+			collect: func() error {
+				client, err := distribution.NewClient(distribution.ClientConfig{
+					BaseURL:     "https://registry.invalid",
+					BearerToken: "registry-token",
+					Client:      timeoutFaultClient(),
+				})
+				if err != nil {
+					return err
+				}
+				return client.Ping(context.Background())
+			},
+		},
+		{
+			surface: "collector:package_registry",
+			collect: func() error {
+				provider := packageruntime.HTTPMetadataProvider{Client: timeoutFaultClient()}
+				_, err := provider.FetchMetadata(context.Background(), packageruntime.TargetConfig{
+					MetadataURL: "https://packages.invalid/metadata.json",
+				})
+				return err
+			},
+		},
+		{
+			surface: "collector:sbom_attestation",
+			collect: func() error {
+				provider := sbomruntime.HTTPProvider{HTTPClient: timeoutFaultClient()}
+				_, err := provider.FetchDocument(context.Background(), sbomruntime.TargetConfig{
+					ScopeID:     "sbom:instance:prod",
+					SourceType:  sbomruntime.SourceTypeConfigured,
+					DocumentURL: "https://attestations.invalid/sbom.json",
+				})
+				return err
+			},
+		},
+		{
+			surface: "collector:terraform_state",
+			collect: func() error {
+				source, err := terraformstate.NewS3StateSource(terraformstate.S3SourceConfig{
+					Bucket: "tfstate-prod",
+					Key:    "env/prod/terraform.tfstate",
+					Region: "us-east-1",
+					Client: faultS3ObjectClient{err: inputtape.ErrFaultTimeout},
+				})
+				if err != nil {
+					return err
+				}
+				_, _, err = source.Open(context.Background())
+				return err
+			},
+		},
 	}
-	if !errors.Is(err, context.DeadlineExceeded) {
-		t.Fatalf("collector error not classified as context.DeadlineExceeded: %v", err)
+}
+
+// TestCollectorsSurfaceInjectedTimeout runs every collector fault case: the real
+// collector is driven into an injected boundary timeout and must surface a
+// classified timeout on both paths real SDKs gate retries on — the
+// context.DeadlineExceeded sentinel and the net.Error Timeout() interface. A
+// collector that returns nil (swallows the fault) or an unclassified error fails.
+func TestCollectorsSurfaceInjectedTimeout(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range collectorFaultCases() {
+		t.Run(tc.surface, func(t *testing.T) {
+			t.Parallel()
+
+			err := tc.collect()
+			if err == nil {
+				t.Fatalf("collector swallowed the injected timeout; want a surfaced error")
+			}
+			if !errors.Is(err, context.DeadlineExceeded) {
+				t.Fatalf("collector error not classified as context.DeadlineExceeded: %v", err)
+			}
+			var timeout interface{ Timeout() bool }
+			if !errors.As(err, &timeout) || !timeout.Timeout() {
+				t.Fatalf("collector error not reachable as a net timeout: %v", err)
+			}
+		})
 	}
-	var timeout interface{ Timeout() bool }
-	if !errors.As(err, &timeout) || !timeout.Timeout() {
-		t.Fatalf("collector error not reachable as a net timeout: %v", err)
+}
+
+// TestCollectorFaultManifestBinding binds the collectorFaultCases surface set to
+// the replay-coverage manifest's collector fault rows that point at this file.
+// It fails if a case is deleted or renamed without dropping its manifest row (or
+// a manifest row is added without a case), closing the os.Stat-only ref gap
+// where the fault dashboard could stay 17/17 after a specific collector's proof
+// was silently removed.
+func TestCollectorFaultManifestBinding(t *testing.T) {
+	t.Parallel()
+
+	const manifestRel = "../../../../specs/replay-coverage-manifest.v1.yaml"
+	const thisFileRef = "go/internal/replay/inputtape/fault_collectors_test.go"
+
+	raw, err := os.ReadFile(filepath.Clean(manifestRel))
+	if err != nil {
+		t.Fatalf("read manifest: %v", err)
 	}
-}
+	var manifest struct {
+		Coverage []struct {
+			Surface      string `yaml:"surface"`
+			ScenarioType string `yaml:"scenario_type"`
+			Ref          string `yaml:"ref"`
+		} `yaml:"coverage"`
+	}
+	if err := yaml.Unmarshal(raw, &manifest); err != nil {
+		t.Fatalf("parse manifest: %v", err)
+	}
 
-// TestGrafanaCollectorSurfacesInjectedTimeout drives the real Grafana REST
-// client into a boundary timeout and asserts it surfaces a classified timeout.
-func TestGrafanaCollectorSurfacesInjectedTimeout(t *testing.T) {
-	t.Parallel()
-
-	assertSurfacesInjectedTimeout(t, func() error {
-		client, err := grafana.NewHTTPClient(grafana.HTTPClientConfig{
-			BaseURL: "https://grafana.invalid",
-			Token:   "grafana-token",
-			Client:  timeoutFaultClient(),
-		})
-		if err != nil {
-			return err
+	manifestSurfaces := map[string]struct{}{}
+	for _, entry := range manifest.Coverage {
+		if entry.ScenarioType != "fault" || !strings.HasPrefix(entry.Surface, "collector:") {
+			continue
 		}
-		_, err = client.CollectObservedMetadata(context.Background(), grafana.TargetConfig{
-			Provider:      grafana.ProviderGrafana,
-			ScopeID:       "grafana:instance:prod",
-			InstanceID:    "grafana-prod",
-			BaseURL:       "https://grafana.invalid",
-			Token:         "grafana-token",
-			ResourceLimit: 50,
-		})
-		return err
-	})
-}
-
-// TestLokiCollectorSurfacesInjectedTimeout drives the real Loki metadata client
-// into a boundary timeout.
-func TestLokiCollectorSurfacesInjectedTimeout(t *testing.T) {
-	t.Parallel()
-
-	assertSurfacesInjectedTimeout(t, func() error {
-		client, err := loki.NewHTTPClient(loki.HTTPClientConfig{
-			BaseURL: "https://loki.invalid",
-			Client:  timeoutFaultClient(),
-		})
-		if err != nil {
-			return err
+		if entry.Ref != thisFileRef {
+			continue
 		}
-		_, err = client.CollectObservedMetadata(context.Background(), loki.TargetConfig{
-			ScopeID:       "loki:tenant:prod",
-			InstanceID:    "loki-prod",
-			BaseURL:       "https://loki.invalid",
-			Token:         "loki-token",
-			TenantID:      "tenant-prod",
-			ResourceLimit: 50,
-		})
-		return err
-	})
-}
+		manifestSurfaces[entry.Surface] = struct{}{}
+	}
 
-// TestPrometheusMimirCollectorSurfacesInjectedTimeout drives the real
-// Prometheus/Mimir metadata client into a boundary timeout.
-func TestPrometheusMimirCollectorSurfacesInjectedTimeout(t *testing.T) {
-	t.Parallel()
-
-	assertSurfacesInjectedTimeout(t, func() error {
-		client, err := prometheusmimir.NewHTTPClient(prometheusmimir.HTTPClientConfig{
-			BaseURL: "https://prometheus.invalid",
-			Client:  timeoutFaultClient(),
-		})
-		if err != nil {
-			return err
+	caseSurfaces := map[string]struct{}{}
+	for _, tc := range collectorFaultCases() {
+		if _, dup := caseSurfaces[tc.surface]; dup {
+			t.Fatalf("duplicate collector fault case surface %q", tc.surface)
 		}
-		_, err = client.CollectObservedMetadata(context.Background(), prometheusmimir.TargetConfig{
-			ScopeID:       "prom:cluster:prod",
-			InstanceID:    "prom-prod",
-			Provider:      prometheusmimir.ProviderPrometheus,
-			BaseURL:       "https://prometheus.invalid",
-			Token:         "prom-token",
-			ResourceLimit: 50,
-		})
-		return err
-	})
-}
+		caseSurfaces[tc.surface] = struct{}{}
+	}
 
-// TestTempoCollectorSurfacesInjectedTimeout drives the real Tempo metadata
-// client into a boundary timeout.
-func TestTempoCollectorSurfacesInjectedTimeout(t *testing.T) {
-	t.Parallel()
-
-	assertSurfacesInjectedTimeout(t, func() error {
-		client, err := tempo.NewHTTPClient(tempo.HTTPClientConfig{
-			BaseURL: "https://tempo.invalid",
-			Client:  timeoutFaultClient(),
-		})
-		if err != nil {
-			return err
+	for surface := range manifestSurfaces {
+		if _, ok := caseSurfaces[surface]; !ok {
+			t.Errorf("manifest row %q (fault -> %s) has no collectorFaultCases entry; the dashboard would count a collector with no running test", surface, thisFileRef)
 		}
-		_, err = client.CollectObservedMetadata(context.Background(), tempo.TargetConfig{
-			ScopeID:       "tempo:cluster:prod",
-			InstanceID:    "tempo-prod",
-			BaseURL:       "https://tempo.invalid",
-			ResourceLimit: 50,
-		})
-		return err
-	})
+	}
+	for surface := range caseSurfaces {
+		if _, ok := manifestSurfaces[surface]; !ok {
+			t.Errorf("collectorFaultCases entry %q has no fault manifest row referencing %s", surface, thisFileRef)
+		}
+	}
 }

@@ -354,14 +354,14 @@ coverage:
   - {surface: collector:loki, scenario: go_test, scenario_type: fault, ref: go/internal/replay/inputtape/fault_collectors_test.go, proof_gate: go-test-race}
   - {surface: collector:prometheus_mimir, scenario: go_test, scenario_type: fault, ref: go/internal/replay/inputtape/fault_collectors_test.go, proof_gate: go-test-race}
   - {surface: collector:tempo, scenario: go_test, scenario_type: fault, ref: go/internal/replay/inputtape/fault_collectors_test.go, proof_gate: go-test-race}
-  - {surface: collector:jira, scenario: go_test, scenario_type: fault, ref: go/internal/replay/inputtape/fault_collectors_incident_test.go, proof_gate: go-test-race}
-  - {surface: collector:pagerduty, scenario: go_test, scenario_type: fault, ref: go/internal/replay/inputtape/fault_collectors_incident_test.go, proof_gate: go-test-race}
-  - {surface: collector:security_alert, scenario: go_test, scenario_type: fault, ref: go/internal/replay/inputtape/fault_collectors_incident_test.go, proof_gate: go-test-race}
-  - {surface: collector:vulnerability_intelligence, scenario: go_test, scenario_type: fault, ref: go/internal/replay/inputtape/fault_collectors_supplychain_test.go, proof_gate: go-test-race}
-  - {surface: collector:oci_registry, scenario: go_test, scenario_type: fault, ref: go/internal/replay/inputtape/fault_collectors_supplychain_test.go, proof_gate: go-test-race}
-  - {surface: collector:package_registry, scenario: go_test, scenario_type: fault, ref: go/internal/replay/inputtape/fault_collectors_supplychain_test.go, proof_gate: go-test-race}
-  - {surface: collector:sbom_attestation, scenario: go_test, scenario_type: fault, ref: go/internal/replay/inputtape/fault_collectors_supplychain_test.go, proof_gate: go-test-race}
-  - {surface: collector:terraform_state, scenario: go_test, scenario_type: fault, ref: go/internal/replay/inputtape/fault_collectors_supplychain_test.go, proof_gate: go-test-race}
+  - {surface: collector:jira, scenario: go_test, scenario_type: fault, ref: go/internal/replay/inputtape/fault_collectors_test.go, proof_gate: go-test-race}
+  - {surface: collector:pagerduty, scenario: go_test, scenario_type: fault, ref: go/internal/replay/inputtape/fault_collectors_test.go, proof_gate: go-test-race}
+  - {surface: collector:security_alert, scenario: go_test, scenario_type: fault, ref: go/internal/replay/inputtape/fault_collectors_test.go, proof_gate: go-test-race}
+  - {surface: collector:vulnerability_intelligence, scenario: go_test, scenario_type: fault, ref: go/internal/replay/inputtape/fault_collectors_test.go, proof_gate: go-test-race}
+  - {surface: collector:oci_registry, scenario: go_test, scenario_type: fault, ref: go/internal/replay/inputtape/fault_collectors_test.go, proof_gate: go-test-race}
+  - {surface: collector:package_registry, scenario: go_test, scenario_type: fault, ref: go/internal/replay/inputtape/fault_collectors_test.go, proof_gate: go-test-race}
+  - {surface: collector:sbom_attestation, scenario: go_test, scenario_type: fault, ref: go/internal/replay/inputtape/fault_collectors_test.go, proof_gate: go-test-race}
+  - {surface: collector:terraform_state, scenario: go_test, scenario_type: fault, ref: go/internal/replay/inputtape/fault_collectors_test.go, proof_gate: go-test-race}
   - {surface: capability:platform_impact.relationships_catalog, scenario: go_test, scenario_type: ordering, ref: go/internal/replay/schedulereplay/scenario_test.go, proof_gate: go-test-race}
   - {surface: capability:platform_impact.relationships_catalog, scenario: go_test, scenario_type: crash, ref: go/internal/replay/crashreplay/scenario_test.go, proof_gate: go-test-race}
   - {surface: capability:freshness.changed_since, scenario: cassette, scenario_type: delta_tombstone, ref: testdata/cassettes/replaydelta/multi-generation-tombstone.json, proof_gate: replay-tier}
