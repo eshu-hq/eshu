@@ -209,7 +209,8 @@ const deferredRelationshipFamilyArgoCDContentMarkerSQL = `(CASE
           END)`
 
 const deferredRelationshipFamilySaltGitfsContentMarkerSQL = `(CASE
-            WHEN COALESCE(
+            WHEN ` + deferredRelationshipFamilyPathSQL + ` ~ '\\.ya?ml$'
+              AND COALESCE(
               fact.payload->>'content',
               fact.payload->>'content_body',
               ''
@@ -300,6 +301,8 @@ matched_fact_ids AS MATERIALIZED (
             SELECT 1
             FROM relationship_reference_candidate_keys AS ref
             WHERE ref.fact_id = fact.fact_id
+              AND ref.scope_id = $3
+              AND ref.generation_id = $4
           )
           AND (
             (fact.own_repo_id = $6 AND $5::text IS NOT NULL AND fact.payload_lower ~ $5)

@@ -61,14 +61,26 @@ Current production-query proof on this branch:
   `TestDeferredRelationshipFamilyGuardRetainedDBWorstPartitionLoad` loaded
   `new_facts=0` in `6.925268958s` after the Salt `gitfs_remotes` marker
   fallback and Dockerfile/Jenkinsfile prefix basename guard were added.
+- Review-fix refresh after adding the Salt YAML path gate and matching
+  scope/generation fences to both reference-key arms:
+  `TestDeferredRelationshipFamilyGuardRetainedDBWorstPartitionLoad` loaded
+  `new_facts=0` in `6.25738575s`.
+- Targeted retained evidence-equivalence refresh after the same review fixes:
+  `r_68db34ea` preserved exact evidence with `old_facts=37`,
+  `new_facts=34`, `old_evidence=238`, `new_evidence=238`,
+  `old_load=832.608959ms`, and `new_load=800.830375ms`.
 - Review regression tests:
   `TestDeferredRelationshipFamilyGuardKeepsSaltGitfsFallback` verifies the SQL
   family guard keeps top-level Salt `gitfs_remotes:` content, and
   `TestDeferredRelationshipFamilyGuardKeepsDockerfileAndJenkinsfilePrefixes`
   verifies the guard keeps `Dockerfile.*` / `Jenkinsfile.*` paths that
-  `relationships.DiscoverEvidence` recognizes. The relationships fixture test
-  `TestSaltFormulasB7FixtureResolves` verifies the fixture still produces
-  `SALT_FORMULA_REFERENCE` evidence.
+  `relationships.DiscoverEvidence` recognizes.
+  `TestDeferredRelationshipFamilyGuardPathGatesSaltGitfsFallback` verifies the
+  Salt content marker is gated by YAML paths before scanning content, and
+  `TestDeferredRelationshipFamilyGuardScopeFencesReferenceKeyArms` verifies both
+  reference-key side-table arms apply the same scope/generation fence. The
+  relationships fixture test `TestSaltFormulasB7FixtureResolves` verifies the
+  fixture still produces `SALT_FORMULA_REFERENCE` evidence.
 - Retained evidence scopes preserved exact evidence:
   - `r_d393ab02`: `old_facts=103`, `new_facts=100`, `old_evidence=788`,
     `new_evidence=788`, `old_load=2.72416375s`, `new_load=2.472079708s`.
@@ -99,6 +111,13 @@ Local proof on this branch:
 - `GOCACHE=<worktree>/.gocache go test ./internal/relationships -run 'TestSaltFormulasB7FixtureResolves|TestDiscoverSaltEvidence|TestIsSaltGitfsArtifact' -count=1`
 - `GOCACHE=<worktree>/.gocache ESHU_RELATIONSHIP_FAMILY_PROOF_DSN=<retained-clean-db> go test ./internal/storage/postgres -run '^TestDeferredRelationshipFamilyGuardRetainedDBWorstPartitionLoad$' -count=1 -timeout=3m -v`
 - `GOCACHE=<worktree>/.gocache ESHU_RELATIONSHIP_FAMILY_PROOF_DSN=<retained-clean-db> ESHU_RELATIONSHIP_FAMILY_PROOF_SCOPES=<retained-evidence-scopes> go test ./internal/storage/postgres -run '^TestDeferredRelationshipFamilyGuardRetainedDBEvidenceEquivalence$' -count=1 -timeout=15m -v`
+- Review-fix reruns:
+  `go test ./internal/storage/postgres -run 'TestDeferredRelationshipFamilyGuard(PathGatesSaltGitfsFallback|ScopeFencesReferenceKeyArms|KeepsSaltGitfsFallback|KeepsDockerfileAndJenkinsfilePrefixes|WrapsPayloadScanningArms)' -count=1`,
+  `go test ./internal/storage/postgres -run 'TestDeferredRelationshipFamilyGuard|TestBackfillDeferredPassExcludesSelfRepoIDMatch|TestDeferredScoped' -count=1`,
+  `go test ./internal/relationships -run 'TestSaltFormulasB7FixtureResolves|TestDiscoverSaltEvidence|TestIsSaltGitfsArtifact|TestDiscoverDockerfileSourceLabelEvidence|TestDiscoverJenkins' -count=1`,
+  `ESHU_RELATIONSHIP_FAMILY_PROOF_DSN=<retained-clean-db> go test ./internal/storage/postgres -run 'TestDeferredRelationshipFamilyGuardRetainedDBWorstPartitionLoad' -count=1 -v`,
+  and
+  `ESHU_RELATIONSHIP_FAMILY_PROOF_DSN=<retained-clean-db> ESHU_RELATIONSHIP_FAMILY_PROOF_SCOPES='git-repository-scope:repository:r_68db34ea' go test ./internal/storage/postgres -run 'TestDeferredRelationshipFamilyGuardRetainedDBEvidenceEquivalence' -count=1 -v`.
 
 The retained-DB production-query proof is codified as
 `TestDeferredRelationshipFamilyGuardRetainedDBEvidenceEquivalence`. It is gated

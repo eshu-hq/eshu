@@ -124,6 +124,31 @@ func TestDeferredRelationshipFamilyGuardKeepsSaltGitfsFallback(t *testing.T) {
 	}
 }
 
+func TestDeferredRelationshipFamilyGuardPathGatesSaltGitfsFallback(t *testing.T) {
+	t.Parallel()
+
+	for _, want := range []string{
+		deferredRelationshipFamilyPathSQL + ` ~ `,
+		"ya?ml$",
+		"AND COALESCE",
+	} {
+		if !strings.Contains(deferredRelationshipFamilySaltGitfsContentMarkerSQL, want) {
+			t.Fatalf("Salt gitfs fallback is not path-gated before content scan; missing %q", want)
+		}
+	}
+}
+
+func TestDeferredRelationshipFamilyGuardScopeFencesReferenceKeyArms(t *testing.T) {
+	t.Parallel()
+
+	if count := strings.Count(listDeferredScopedRelationshipFactRecordsQuery, "AND ref.scope_id = $3"); count != 2 {
+		t.Fatalf("reference-key arms should both fence ref rows by scope; got %d matching fences", count)
+	}
+	if count := strings.Count(listDeferredScopedRelationshipFactRecordsQuery, "AND ref.generation_id = $4"); count != 2 {
+		t.Fatalf("reference-key arms should both fence ref rows by generation; got %d matching fences", count)
+	}
+}
+
 func TestDeferredRelationshipFamilyGuardDoesNotAdmitGenericContentFamilies(t *testing.T) {
 	t.Parallel()
 
