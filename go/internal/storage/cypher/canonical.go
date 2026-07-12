@@ -222,35 +222,11 @@ WHERE source.repo_id IN $repo_ids
   AND rel.evidence_source = $evidence_source
 DELETE rel`
 
-const retractCodeCallParserEdgesCypher = `MATCH (source:Function|Class|Struct|Interface|TypeAlias|File)-[rel:CALLS|REFERENCES|INSTANTIATES]->()
-WHERE source.repo_id IN $repo_ids
-  AND rel.evidence_source = $evidence_source
-DELETE rel`
-
-const retractCodeCallParserEdgesByFileCypher = `MATCH (source:Function|Class|Struct|Interface|TypeAlias|File)-[rel:CALLS|REFERENCES|INSTANTIATES]->()
-WHERE source.path IN $file_paths
-  AND rel.evidence_source = $evidence_source
-DELETE rel`
-
-const retractCodeCallMetaclassEdgesCypher = `MATCH (source:Function|Class|File)-[rel:USES_METACLASS]->()
-WHERE source.repo_id IN $repo_ids
-  AND rel.evidence_source = $evidence_source
-DELETE rel`
-
-const retractCodeCallMetaclassEdgesByFileCypher = `MATCH (source:Function|Class|File)-[rel:USES_METACLASS]->()
-WHERE source.path IN $file_paths
-  AND rel.evidence_source = $evidence_source
-DELETE rel`
-
-const retractCodeCallFallbackEdgesCypher = `MATCH (source:Function|Class|Struct|Interface|TypeAlias|File)-[rel:CALLS|REFERENCES|USES_METACLASS|INSTANTIATES]->()
-WHERE source.repo_id IN $repo_ids
-  AND rel.evidence_source = $evidence_source
-DELETE rel`
-
-const retractCodeCallFallbackEdgesByFileCypher = `MATCH (source:Function|Class|Struct|Interface|TypeAlias|File)-[rel:CALLS|REFERENCES|USES_METACLASS|INSTANTIATES]->()
-WHERE source.path IN $file_paths
-  AND rel.evidence_source = $evidence_source
-DELETE rel`
+// Code-call edge retraction (CALLS/REFERENCES/INSTANTIATES/USES_METACLASS) is
+// built per source label by buildCodeCallRetractStatements in
+// canonical_retract.go, not as a single constant: NornicDB matches neither a
+// node-label disjunction nor (on v1.1.11) an unlabeled source scan reliably
+// (#5116).
 
 const deleteOrphanPlatformNodesCypher = `MATCH (p:Platform)
 WHERE p.evidence_source = $evidence_source

@@ -366,14 +366,18 @@ func TestEdgeWriterRetractEdgesCodeCallDispatch(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RetractEdges() error = %v", err)
 	}
-	if got, want := len(executor.calls), 1; got != want {
-		t.Fatalf("executor calls = %d, want %d", got, want)
+	// Retract fans out to one statement per source label (#5116); the
+	// recordingExecutor is not a GroupExecutor, so each runs as its own call.
+	if got, want := len(executor.calls), len(codeCallRetractSourceLabels); got != want {
+		t.Fatalf("executor calls = %d, want %d (one per source label)", got, want)
 	}
-	if !strings.Contains(executor.calls[0].Cypher, "CALLS|REFERENCES") {
-		t.Fatalf("cypher missing CALLS|REFERENCES retract: %s", executor.calls[0].Cypher)
-	}
-	if !strings.Contains(executor.calls[0].Cypher, "source.repo_id IN $repo_ids") {
-		t.Fatalf("cypher missing repo_id filter: %s", executor.calls[0].Cypher)
+	for _, call := range executor.calls {
+		if !strings.Contains(call.Cypher, "CALLS|REFERENCES") {
+			t.Fatalf("cypher missing CALLS|REFERENCES retract: %s", call.Cypher)
+		}
+		if !strings.Contains(call.Cypher, "source.repo_id IN $repo_ids") {
+			t.Fatalf("cypher missing repo_id filter: %s", call.Cypher)
+		}
 	}
 }
 
@@ -403,26 +407,29 @@ func TestEdgeWriterRetractEdgesCodeCallDeltaScopesToFilePaths(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RetractEdges() error = %v", err)
 	}
-	if got, want := len(executor.calls), 1; got != want {
-		t.Fatalf("executor calls = %d, want %d", got, want)
-	}
-	call := executor.calls[0]
-	if strings.Contains(call.Cypher, "source.repo_id IN $repo_ids") {
-		t.Fatalf("delta retract cypher = %q, want no repo-wide source filter", call.Cypher)
-	}
-	if !strings.Contains(call.Cypher, "source.path IN $file_paths") {
-		t.Fatalf("delta retract cypher = %q, want source.path file-scope filter", call.Cypher)
-	}
-	gotPaths, ok := call.Parameters["file_paths"].([]string)
-	if !ok {
-		t.Fatalf("file_paths type = %T, want []string", call.Parameters["file_paths"])
+	// Delta retract fans out to one statement per source label (#5116), each
+	// file-scoped.
+	if got, want := len(executor.calls), len(codeCallRetractSourceLabels); got != want {
+		t.Fatalf("executor calls = %d, want %d (one per source label)", got, want)
 	}
 	wantPaths := []string{"/repo/src/changed.go", "/repo/src/deleted.go"}
-	if !reflect.DeepEqual(gotPaths, wantPaths) {
-		t.Fatalf("file_paths = %#v, want %#v", gotPaths, wantPaths)
-	}
-	if _, ok := call.Parameters["repo_ids"]; ok {
-		t.Fatalf("repo_ids unexpectedly present in delta retract parameters: %#v", call.Parameters)
+	for _, call := range executor.calls {
+		if strings.Contains(call.Cypher, "source.repo_id IN $repo_ids") {
+			t.Fatalf("delta retract cypher = %q, want no repo-wide source filter", call.Cypher)
+		}
+		if !strings.Contains(call.Cypher, "source.path IN $file_paths") {
+			t.Fatalf("delta retract cypher = %q, want source.path file-scope filter", call.Cypher)
+		}
+		gotPaths, ok := call.Parameters["file_paths"].([]string)
+		if !ok {
+			t.Fatalf("file_paths type = %T, want []string", call.Parameters["file_paths"])
+		}
+		if !reflect.DeepEqual(gotPaths, wantPaths) {
+			t.Fatalf("file_paths = %#v, want %#v", gotPaths, wantPaths)
+		}
+		if _, ok := call.Parameters["repo_ids"]; ok {
+			t.Fatalf("repo_ids unexpectedly present in delta retract parameters: %#v", call.Parameters)
+		}
 	}
 }
 

@@ -3,6 +3,8 @@
 
 package cypher
 
+import "fmt"
+
 // BuildCanonicalWorkloadDependencyUpsert builds a Workload DEPENDS_ON edge
 // statement.
 func BuildCanonicalWorkloadDependencyUpsert(p CanonicalWorkloadDependencyParams, evidenceSource string) Statement {
@@ -72,52 +74,81 @@ func BuildRetractWorkloadDependencyEdges(repoIDs []string, evidenceSource string
 	}
 }
 
-// BuildRetractCodeCallEdges builds a code-intel edge retraction statement for
-// all source entities owned by the given repositories.
-func BuildRetractCodeCallEdges(repoIDs []string, evidenceSource string) Statement {
-	return Statement{
-		Operation: OperationCanonicalRetract,
-		Cypher:    retractCodeCallEdgesCypher(evidenceSource),
-		Parameters: map[string]any{
-			"repo_ids":        repoIDs,
-			"evidence_source": evidenceSource,
-		},
-	}
-}
+// codeCallRetractSourceLabels lists the source node labels a code-call edge
+// (CALLS/REFERENCES/INSTANTIATES) can originate from.
+var codeCallRetractSourceLabels = []string{"Function", "Class", "Struct", "Interface", "TypeAlias", "File"}
 
-// BuildRetractCodeCallEdgesByFilePath builds a code-intel edge retraction
-// statement for source entities owned by the given repo-qualified file paths.
-func BuildRetractCodeCallEdgesByFilePath(filePaths []string, evidenceSource string) Statement {
-	return Statement{
-		Operation: OperationCanonicalRetract,
-		Cypher:    retractCodeCallEdgesByFileCypher(evidenceSource),
-		Parameters: map[string]any{
-			"file_paths":      filePaths,
-			"evidence_source": evidenceSource,
-		},
-	}
-}
+// codeCallMetaclassRetractSourceLabels lists the source labels a USES_METACLASS
+// edge can originate from — a narrower set than the code-call edges.
+var codeCallMetaclassRetractSourceLabels = []string{"Function", "Class", "File"}
 
-func retractCodeCallEdgesCypher(evidenceSource string) string {
+// codeCallRetractRelTypes returns the relationship-type disjunction the retract
+// deletes for the given evidence source. Relationship-type disjunction is
+// supported on NornicDB; node-label disjunction is not (#5116).
+func codeCallRetractRelTypes(evidenceSource string) string {
 	switch evidenceSource {
 	case "parser/code-calls":
-		return retractCodeCallParserEdgesCypher
+		return "CALLS|REFERENCES|INSTANTIATES"
 	case "parser/python-metaclass":
-		return retractCodeCallMetaclassEdgesCypher
+		return "USES_METACLASS"
 	default:
-		return retractCodeCallFallbackEdgesCypher
+		return "CALLS|REFERENCES|USES_METACLASS|INSTANTIATES"
 	}
 }
 
-func retractCodeCallEdgesByFileCypher(evidenceSource string) string {
-	switch evidenceSource {
-	case "parser/code-calls":
-		return retractCodeCallParserEdgesByFileCypher
-	case "parser/python-metaclass":
-		return retractCodeCallMetaclassEdgesByFileCypher
-	default:
-		return retractCodeCallFallbackEdgesByFileCypher
+// codeCallRetractSourceLabelsFor returns the source labels the retract must
+// cover for the given evidence source.
+func codeCallRetractSourceLabelsFor(evidenceSource string) []string {
+	if evidenceSource == "parser/python-metaclass" {
+		return codeCallMetaclassRetractSourceLabels
 	}
+	return codeCallRetractSourceLabels
+}
+
+// buildCodeCallRetractStatements emits one retract statement per source label.
+//
+// A single statement cannot bind all source labels on NornicDB: a node-label
+// disjunction MATCH (source:Function|Class|...) matches zero rows, and on
+// NornicDB v1.1.11 an unlabeled MATCH (source) scan is unreliable — it silently
+// drops some source labels (e.g. File-sourced REFERENCES), inconsistently by
+// internal label-iteration state (#5116). Single-label MATCH is the only shape
+// that reliably matches every source on both pinned versions, so the retract
+// fans out to one statement per label. The relationship-type disjunction and the
+// scope predicate are unchanged per statement. scopeField is the source property
+// the retract binds ("repo_id" or "path"); scopeParam is the Cypher parameter
+// key carrying scopeValues.
+func buildCodeCallRetractStatements(scopeField, scopeParam string, scopeValues []string, evidenceSource string) []Statement {
+	relTypes := codeCallRetractRelTypes(evidenceSource)
+	labels := codeCallRetractSourceLabelsFor(evidenceSource)
+	stmts := make([]Statement, 0, len(labels))
+	for _, label := range labels {
+		cypher := fmt.Sprintf(
+			"MATCH (source:%s)-[rel:%s]->()\nWHERE source.%s IN $%s\n  AND rel.evidence_source = $evidence_source\nDELETE rel",
+			label, relTypes, scopeField, scopeParam,
+		)
+		stmts = append(stmts, Statement{
+			Operation: OperationCanonicalRetract,
+			Cypher:    cypher,
+			Parameters: map[string]any{
+				scopeParam:        scopeValues,
+				"evidence_source": evidenceSource,
+			},
+		})
+	}
+	return stmts
+}
+
+// BuildRetractCodeCallEdgeStatements builds per-source-label code-intel edge
+// retraction statements for all source entities owned by the given repositories.
+func BuildRetractCodeCallEdgeStatements(repoIDs []string, evidenceSource string) []Statement {
+	return buildCodeCallRetractStatements("repo_id", "repo_ids", repoIDs, evidenceSource)
+}
+
+// BuildRetractCodeCallEdgeStatementsByFilePath builds per-source-label code-intel
+// edge retraction statements for source entities owned by the given
+// repo-qualified file paths.
+func BuildRetractCodeCallEdgeStatementsByFilePath(filePaths []string, evidenceSource string) []Statement {
+	return buildCodeCallRetractStatements("path", "file_paths", filePaths, evidenceSource)
 }
 
 // BuildRetractInheritanceEdges builds an INHERITS edge retraction statement.

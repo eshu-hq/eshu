@@ -33,8 +33,8 @@ func (w *EdgeWriter) RetractEdges(
 			return err
 		}
 		if hasDeltaScope {
-			stmt := BuildRetractCodeCallEdgesByFilePath(filePaths, evidenceSource)
-			return WrapRetryableNeo4jError(w.executor.Execute(ctx, stmt))
+			stmts := BuildRetractCodeCallEdgeStatementsByFilePath(filePaths, evidenceSource)
+			return w.executeCodeCallRetractStatements(ctx, stmts)
 		}
 	}
 
@@ -81,6 +81,10 @@ func (w *EdgeWriter) RetractEdges(
 	}
 
 	repoIDs := collectRepoIDs(rows)
+	if domain == reducer.DomainCodeCalls {
+		stmts := BuildRetractCodeCallEdgeStatements(repoIDs, evidenceSource)
+		return w.executeCodeCallRetractStatements(ctx, stmts)
+	}
 	if domain == reducer.DomainSQLRelationships {
 		filePaths, hasDeltaScope, err := collectDeltaFilePaths(rows)
 		if err != nil {
@@ -117,6 +121,27 @@ func (w *EdgeWriter) RetractEdges(
 	}
 
 	return WrapRetryableNeo4jError(w.executor.Execute(ctx, stmt))
+}
+
+// executeCodeCallRetractStatements runs the per-source-label code-call retract
+// statements (#5116) sequentially, each in its own transaction — deliberately
+// NOT grouped through ExecuteGroup.
+//
+// On NornicDB v1.1.11 multiple DELETE statements sharing a single managed
+// transaction do not all apply: the grouped per-label retract leaves some edges
+// behind (measured — File/Function sources retract inconsistently), while the
+// same statements run as separate auto-commit transactions delete every edge.
+// Each per-label statement is independently scoped and idempotent, so sequential
+// execution is safe (a retry re-runs the same scoped DELETE); the only cost is
+// per-label transactions instead of one. Do not "optimize" this back into
+// ExecuteGroup without re-proving the grouped path against v1.1.11.
+func (w *EdgeWriter) executeCodeCallRetractStatements(ctx context.Context, stmts []Statement) error {
+	for _, stmt := range stmts {
+		if err := w.executor.Execute(ctx, stmt); err != nil {
+			return WrapRetryableNeo4jError(err)
+		}
+	}
+	return nil
 }
 
 func (w *EdgeWriter) executeSQLRelationshipRetractStatements(ctx context.Context, stmts []Statement) error {
@@ -163,8 +188,9 @@ func buildRetractStatement(
 	switch domain {
 	case reducer.DomainWorkloadDependency:
 		return BuildRetractWorkloadDependencyEdges(repoIDs, evidenceSource), nil
-	case reducer.DomainCodeCalls:
-		return BuildRetractCodeCallEdges(repoIDs, evidenceSource), nil
+	// DomainCodeCalls is handled before this shared repo-id path in RetractEdges
+	// because its retract fans out to one per-source-label statement (#5116) and
+	// must never reach this single-statement builder.
 	case reducer.DomainInheritanceEdges:
 		return BuildRetractInheritanceEdges(repoIDs, evidenceSource), nil
 	// DomainDocumentationEdges is handled before this shared repo-id path in

@@ -27,7 +27,7 @@ type callChainRequest struct {
 // codeCallChainAnchorLabelDisjunction is the label set the Neo4j-compat
 // call-chain builder seeds its start/end anchors with. It mirrors the
 // authoritative CALLS-source label set the canonical edge writer projects
-// (see retractCodeCallParserEdgesCypher in storage/cypher), so every node
+// (see codeCallRetractSourceLabels in storage/cypher), so every node
 // reachable as a call-chain endpoint still resolves while the planner seeds
 // from a label/index scan instead of an all-node scan. The prior unlabeled
 // `MATCH (start)` / `MATCH (end)` gave the Neo4j planner no label to anchor on,

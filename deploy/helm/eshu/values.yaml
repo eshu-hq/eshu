@@ -1094,7 +1094,7 @@ nornicdb:
   enabled: false
   image:
     repository: timothyswt/nornicdb-cpu-bge
-    tag: "v1.1.9@sha256:9a5126d306a48c01869809da47a869a4521b9328a7ab1c855327f5fd7541e4cd"
+    tag: "v1.1.11@sha256:51b6174ae65e4ce54a158ac2f9eace7d36a1971545824d22add0fe06d94c1090"
     pullPolicy: IfNotPresent
   ports:
     http: 7474
