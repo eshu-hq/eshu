@@ -257,14 +257,20 @@ scoped and idempotent, so sequential execution is safe. See
 
 Do not resolve this by dropping the label to an unlabeled `(source)` scan (it
 passes on v1.1.9 but silently under-deletes on v1.1.11), and do not group the
-per-label statements into one transaction. Sibling instances of the same
-anti-pattern are still open and tracked in #5116: the write-path fallback
+per-label statements into one transaction. A sibling instance of the same
+anti-pattern is still open and tracked in #5116: the write-path fallback
 templates (`batchCanonicalCodeCallUpsertCypher` and friends) silently write
-nothing for unresolved-label endpoints, and the SQL-relationship retract uses an
-unlabeled `(source)` scan (fine on v1.1.9, under-deletes on v1.1.11). The
-inheritance retract carried the same node-label disjunction and was fixed the
-same way in #4367 (`buildInheritanceRetractStatements`). Each remaining instance
-needs the same per-label + sequential rework with its own live proof.
+nothing for unresolved-label endpoints. The inheritance retract carried the
+same node-label disjunction and was fixed the same way in #4367
+(`buildInheritanceRetractStatements`). The SQL-relationship retract carried
+both remaining shapes: its per-label statements ran grouped through one
+managed transaction (measured on v1.1.11: the first DELETE never applied,
+deterministically across runs — sequenced in #5128, live proof
+`TestReducerSQLRelationshipRetractGraphTruth`), and its non-GroupExecutor
+fallback was an unlabeled `(source)` scan, removed in #4367 when the retract
+moved to one statement per write-capable source label
+(`buildSQLRelationshipRetractStatements`). Each remaining instance needs the
+same per-label + sequential rework with its own live proof.
 
 ### Validation
 
