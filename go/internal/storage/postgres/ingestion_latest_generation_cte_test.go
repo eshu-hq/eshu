@@ -23,6 +23,7 @@ var latestGenerationCTEQueries = map[string]string{
 	"listDeferredScopedRelationshipFactRecordsQuery":      listDeferredScopedRelationshipFactRecordsQuery,
 	"resolveRepoActiveGenerationsQuery":                   resolveRepoActiveGenerationsQuery,
 	"listArgoCDGeneratorConfigFactRecordsQuery":           listArgoCDGeneratorConfigFactRecordsQuery,
+	"listScopeGenerationWorkQuery":                        listScopeGenerationWorkQuery,
 }
 
 // TestLatestGenerationCTEHasNoCorrelatedSubquery is the #3704 regression gate.
