@@ -213,7 +213,7 @@ func (GraphNodeOwnerStore) LockUIDs(ctx context.Context, tx ExecQueryer, uids []
 		return nil
 	}
 	if _, err := tx.ExecContext(ctx, graphNodeOwnerAcquireLocksSQL, keys); err != nil {
-		return fmt.Errorf("acquire graph node owner advisory locks (lock-only): %w", err)
+		return fmt.Errorf("acquire graph node owner advisory locks: %w", err)
 	}
 	return nil
 }
