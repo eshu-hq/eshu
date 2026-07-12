@@ -2676,6 +2676,26 @@
           "repo_id": "orders-api"
         }
       },
+      "get_repository_freshness": {
+        "description": "MCP tool coverage shape for get_repository_freshness; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "as_of",
+          "generation",
+          "observed_commit",
+          "outstanding_by_stage",
+          "repository",
+          "scope_id",
+          "scoped",
+          "shared_enrichment",
+          "stages",
+          "unobserved_push",
+          "verdict"
+        ],
+        "minimum_results": 0,
+        "arguments": {
+          "repo_id": "orders-api"
+        }
+      },
       "trace_resource_to_code": {
         "description": "MCP tool coverage shape for trace_resource_to_code; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
         "required_response_fields": [

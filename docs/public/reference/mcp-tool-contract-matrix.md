@@ -123,6 +123,7 @@ Cypher.
 | `get_sbom_attestation_attachment_inventory` | optional subject digest, document id, document digest, repository id or selector, workload, service, attachment_status, or artifact_kind scope; `group_by` selects dimension | `limit` default 100, max 500, deterministic ordering, `next_offset` on truncation | yes | prompt-ready; paginated grouped count of reducer-owned attachments along one dimension (attachment_status, artifact_kind, subject_digest) |
 | `get_repo_story` | repository selector required | singleton story | yes | prompt-ready |
 | `get_repository_coverage` | repository selector required | singleton coverage | yes | prompt-ready |
+| `get_repository_freshness` | repository selector required; optional `expected_commit` | singleton verdict | yes | prompt-ready; reports `current`/`building`/`behind`/`unobserved`/`unknown` per repository, separating the repo's own reducer/projector drain from cross-repo `shared_enrichment` backlog so one repository's freshness never blames another's cross-repo materialization |
 | `trace_resource_to_code` | resource id or selector required | `max_depth` and `limit` | yes | prompt-ready; returns `truncated` |
 | `explain_dependency_path` | source and target required | bounded path search | yes | prompt-ready |
 | `trace_exposure_path` | `source` (with `repo_id`) or `source_entity_id` required | `max_depth` (1-10) | yes | derived (symbol-level reachability, never value-flow); reports `unresolved` when a code-to-cloud bridge edge is not materialized, never fabricates a path |

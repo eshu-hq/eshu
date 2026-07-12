@@ -16,6 +16,7 @@ ingester status, and indexed bundle candidate search.
 - `GET /api/v0/repositories/{repo_id}/content`
 - `GET /api/v0/repositories/{repo_id}/branches`
 - `GET /api/v0/repositories/{repo_id}/coverage`
+- `GET /api/v0/repositories/{repo_id}/freshness`
 
 Repository routes accept a repository selector in `{repo_id}`. The selector may
 be the canonical repository ID, repository name, repository slug, or indexed
@@ -215,6 +216,40 @@ with `stage=repository_lookup` and `stage=content_coverage`, including
 `postgres.query` span with
 `db.operation=repository_coverage` and
 `db.sql.table=content_files,content_entities`.
+
+`GET /api/v0/repositories/{repo_id}/freshness` (#5143) answers two questions
+for one repository: did eshu pick up its latest commit, and is the evidence
+for that commit fully built. The response carries `verdict` (one of
+`current`, `building`, `behind`, `unobserved`, or `unknown`),
+`observed_commit` (the active generation's source commit SHA -- legitimately
+empty for non-git scopes and pre-delta-baseline generations, and represented
+explicitly rather than fabricated), `generation` (id, status, trigger_kind,
+is_delta, activated_at), `stages` (collected/reduced/projected/materialized
+booleans), `outstanding_by_stage` (per-stage/status counts), and
+`shared_enrichment` (cross-repo materialization backlog referencing this
+repository's generation, kept as a separate axis so one repository's
+freshness never blames another repository's shared backlog). An optional
+`expected_commit` query parameter asks whether a specific commit SHA is
+reflected; a mismatch always renders `behind`, whether or not a generation is
+actively progressing. `unobserved_push` reports a queued or claimed webhook
+refresh trigger for this repository whose target commit does not match the
+observed commit. Scoped tokens receive the same shape; a repository outside
+the caller's grant 404s like every other repository route.
+
+Performance Evidence: the single-scope composite read (resolve scope,
+generation lookup, stage counts, shared-projection pending) is proven at
+2.5ms full shape against a 20,000-scope/150,000-work-item/60,000-shared-intent
+synthetic corpus, with the shared-projection lookup keyed on `repository_id`
+(0.018ms) rather than `generation_id` alone (2.3ms, degrades with the global
+pending backlog); see
+`go/internal/storage/postgres/README.md#repo-freshness-single-scope-composite-read-5143`
+for the full evidence.
+
+Observability Evidence: every read records
+`eshu_dp_repository_freshness_query_duration_seconds` and
+`eshu_dp_repository_freshness_query_errors_total` (X1 row in
+`docs/public/observability/telemetry-coverage.md`), proven by an OTEL
+SDK-backed test in `go/internal/storage/postgres/repository_freshness_test.go`.
 
 `GET /api/v0/repositories/{repo_id}/tree` reconstructs the repository directory
 layout from the content-store file index (`content_files`). It resolves the
