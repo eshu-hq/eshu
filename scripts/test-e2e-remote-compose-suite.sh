@@ -201,6 +201,7 @@ write_corpus_coverage() {
       kubernetes_iac: {status: "pass", count: 2},
       image_sbom: {status: "pass", count: 2},
       deployment: {status: "pass", count: 2},
+      relationship_evidence: {status: "pass", count: 2},
       vulnerability: {status: "pass", count: 4},
       observability: {status: "pass", count: 3},
       incident: {status: "pass", count: 1},
