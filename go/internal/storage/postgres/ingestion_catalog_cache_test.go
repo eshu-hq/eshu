@@ -15,6 +15,11 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
+// catalogFakeObservedAt is the shared observed_at column value test fakes
+// attach to staged repository catalog rows: the catalog loader scans the
+// freshness key alongside the payload (#5134 review).
+var catalogFakeObservedAt = time.Date(2026, time.June, 22, 11, 0, 0, 0, time.UTC)
+
 // countingCatalogDB is a transactional fake that serves the repository catalog
 // query and records how many times it executed. The catalog load now runs on
 // the open ingestion transaction's connection (issue #3481 P1 fix: the cold
@@ -52,12 +57,15 @@ func (f *countingCatalogDB) ExecContext(context.Context, string, ...any) (sql.Re
 }
 
 // catalogRows builds the configured catalog rows and increments the shared load
-// counter. The caller holds f.mu.
+// counter. The caller holds f.mu. Each row carries an observed_at column
+// (descending with slice position, mirroring the query ORDER BY) because the
+// catalog loader scans the freshness key alongside the payload (#5134).
 func (f *countingCatalogDB) catalogRows() Rows {
 	f.catalogQueries++
+	base := time.Date(2026, time.June, 22, 11, 0, 0, 0, time.UTC)
 	rows := make([][]any, 0, len(f.catalogPayloads))
-	for _, payload := range f.catalogPayloads {
-		rows = append(rows, []any{payload})
+	for i, payload := range f.catalogPayloads {
+		rows = append(rows, []any{payload, base.Add(-time.Duration(i) * time.Minute)})
 	}
 	return &queueFakeRows{rows: rows}
 }

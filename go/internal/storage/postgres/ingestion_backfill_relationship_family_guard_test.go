@@ -175,7 +175,7 @@ func TestDeferredRelationshipFamilyGuardRetainedDBEvidenceEquivalence(t *testing
 	defer cancel()
 
 	db := openDeferredHoistProofDB(t, dsn)
-	catalog, err := loadRepositoryCatalog(ctx, SQLDB{DB: db})
+	catalog, _, err := loadRepositoryCatalog(ctx, SQLDB{DB: db})
 	if err != nil {
 		t.Fatalf("load repository catalog: %v", err)
 	}
@@ -240,7 +240,7 @@ func TestDeferredRelationshipFamilyGuardRetainedDBWorstPartitionLoad(t *testing.
 	defer cancel()
 
 	db := openDeferredHoistProofDB(t, dsn)
-	catalog, err := loadRepositoryCatalog(ctx, SQLDB{DB: db})
+	catalog, _, err := loadRepositoryCatalog(ctx, SQLDB{DB: db})
 	if err != nil {
 		t.Fatalf("load repository catalog: %v", err)
 	}

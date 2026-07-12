@@ -243,12 +243,13 @@ func (s IngestionStore) commitScopeGeneration(
 	// its computed catalog identity (RepoID plus aliases). The full identity —
 	// not just the id — is needed so the shared catalog cache can detect when
 	// an already-known repo's slug/name aliases drift, not only when a new id
-	// appears (issue #3521). If one generation streams multiple repository
-	// facts for the same id with conflicting identities, the last-streamed one
-	// wins here, whereas a fresh reload orders by observed_at DESC; the
-	// deferred backfill's own uncached reload corrects any such transient
-	// divergence (#5129).
+	// appears (issue #3521). currentGenerationRepoObservedAt carries each
+	// identity's observation time: within a generation the newest observed_at
+	// wins (matching reload's ORDER BY observed_at DESC dedup), and the cache
+	// uses it as the freshness key so a replayed older generation cannot
+	// regress a newer cached identity (#5134 review).
 	currentGenerationRepos := make(map[string]relationships.CatalogEntry)
+	currentGenerationRepoObservedAt := make(map[string]time.Time)
 	relationshipStore := NewRelationshipStore(tx)
 	stageStart = time.Now()
 	factStats, err := upsertStreamingFacts(
@@ -267,7 +268,11 @@ func (s IngestionStore) commitScopeGeneration(
 				}
 				entry, ok := repositoryCatalogEntryFromMap(envelope.Payload)
 				if ok {
-					currentGenerationRepos[entry.RepoID] = entry
+					previousObservedAt, seen := currentGenerationRepoObservedAt[entry.RepoID]
+					if !seen || !envelope.ObservedAt.Before(previousObservedAt) {
+						currentGenerationRepos[entry.RepoID] = entry
+						currentGenerationRepoObservedAt[entry.RepoID] = envelope.ObservedAt
+					}
 				}
 			}
 			if !shouldDiscoverStreamingRelationshipEvidence(scopeValue) || len(catalog) == 0 {
@@ -332,7 +337,7 @@ func (s IngestionStore) commitScopeGeneration(
 	// eviction forced a full serialized reload per onboarding commit).
 	// Commits over known repositories with unchanged identity leave the cache
 	// untouched (the steady-state hot path).
-	if s.mergeCatalogForChangedRepositories(currentGenerationRepos) {
+	if s.mergeCatalogForChangedRepositories(currentGenerationRepos, currentGenerationRepoObservedAt) {
 		s.logCommitStage(
 			ctx,
 			scopeValue,
@@ -377,8 +382,9 @@ func (s IngestionStore) repositoryCatalog(ctx context.Context, queryer Queryer) 
 // merge-vs-evict rationale and equivalence contract.
 func (s IngestionStore) mergeCatalogForChangedRepositories(
 	currentGenerationRepos map[string]relationships.CatalogEntry,
+	currentGenerationObservedAt map[string]time.Time,
 ) bool {
-	return s.catalogCache.mergeChangedRepositories(currentGenerationRepos)
+	return s.catalogCache.mergeChangedRepositories(currentGenerationRepos, currentGenerationObservedAt)
 }
 
 // catalogEntryIDSet projects a repo-id-to-CatalogEntry map down to the set of

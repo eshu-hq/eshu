@@ -99,8 +99,8 @@ func TestBackfillDeferredSpanRecordsFanOutAttributes(t *testing.T) {
 		queryResponses: []queueFakeRows{
 			{
 				rows: [][]any{
-					{[]byte(`{"repo_id":"repo-infra","name":"infra-repo"}`)},
-					{[]byte(`{"repo_id":"repo-app","name":"app-repo"}`)},
+					{[]byte(`{"repo_id":"repo-infra","name":"infra-repo"}`), catalogFakeObservedAt},
+					{[]byte(`{"repo_id":"repo-app","name":"app-repo"}`), catalogFakeObservedAt},
 				},
 			},
 			{rows: scopeGenPartitions},

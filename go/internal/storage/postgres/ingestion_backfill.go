@@ -80,7 +80,7 @@ func (s IngestionStore) backfillAllRelationshipEvidence(
 		defer span.End()
 	}
 
-	catalog, err := loadRepositoryCatalog(ctx, s.db)
+	catalog, _, err := loadRepositoryCatalog(ctx, s.db)
 	if err != nil {
 		return nil, fmt.Errorf("load repository catalog for deferred relationship backfill: %w", err)
 	}

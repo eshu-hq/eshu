@@ -46,6 +46,18 @@ generation's repository identities into the cached catalog in place.
  process during bootstrap onboarding instead of climbing per commit. No new
  metric instruments or pipeline stages.
 
+PR #5134 review (codex) surfaced a real freshness gap in the first merge
+shape: a dead-letter replay of an OLDER generation could regress the cached
+identity to a stale alias, where reload's `ORDER BY observed_at DESC` dedup
+would have kept the newest row. The merge now carries the same freshness key:
+`loadRepositoryCatalog` scans `observed_at` per kept row, the commit loop
+keeps the newest identity within a generation, and
+`mergeChangedRepositories` skips committed identities older than the cached
+observation (zero-timestamp identities keep replace behavior). Pinned by
+`TestIngestionStoreMergeIgnoresStaleGenerationIdentity`, written
+failing-first against the unguarded merge (reproduced the exact regression)
+and green after the guard.
+
 Cross-process visibility is unchanged by design: under eviction the cache
 reloaded only when THIS process onboarded or renamed a repository, so other
 processes' commits were never a reload trigger; corpus-wide catalog

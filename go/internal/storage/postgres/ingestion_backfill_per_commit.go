@@ -160,7 +160,7 @@ func backfillRelationshipEvidenceForNewRepositories(
 		return nil
 	}
 
-	refreshedCatalog, err := loadRepositoryCatalog(ctx, queryer)
+	refreshedCatalog, _, err := loadRepositoryCatalog(ctx, queryer)
 	if err != nil {
 		return fmt.Errorf("reload repository catalog for relationship backfill: %w", err)
 	}

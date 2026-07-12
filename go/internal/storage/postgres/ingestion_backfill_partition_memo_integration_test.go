@@ -250,7 +250,7 @@ func TestDeferredBackfillPartitionMemoBootstrapUnchangedFullLoad(t *testing.T) {
 	if err != nil {
 		t.Fatalf("loadActiveScopeGenerationPartitions: %v", err)
 	}
-	catalog, err := loadRepositoryCatalog(ctx, adapter)
+	catalog, _, err := loadRepositoryCatalog(ctx, adapter)
 	if err != nil {
 		t.Fatalf("loadRepositoryCatalog: %v", err)
 	}

@@ -7,6 +7,7 @@ import (
 	"context"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
@@ -41,6 +42,13 @@ type repositoryCatalogCache struct {
 	// new-repo detection and alias-drift detection (issue #3521) without
 	// rescanning the slice, and its key set is the cached repository id set.
 	entryByID map[string]relationships.CatalogEntry
+	// observedAtByID tracks the newest observed_at seen for each cached
+	// repository identity — from the initial load and every merge. It is the
+	// freshness key that stops a replayed OLDER generation (dead-letter
+	// replay) from regressing a newer cached identity, mirroring reload's
+	// ORDER BY observed_at DESC dedup (#5134 review). It is never published
+	// in snapshots, so in-place mutation under the mutex is safe.
+	observedAtByID map[string]time.Time
 
 	// loads and hits are operator-facing counters for the cache effectiveness
 	// on the commit hot path. They are read for structured logging, so they use
@@ -79,7 +87,7 @@ func (c *repositoryCatalogCache) get(
 	queryer Queryer,
 ) (catalogSnapshot, error) {
 	if c == nil {
-		entries, err := loadRepositoryCatalog(ctx, queryer)
+		entries, _, err := loadRepositoryCatalog(ctx, queryer)
 		if err != nil {
 			return catalogSnapshot{}, err
 		}
@@ -94,12 +102,13 @@ func (c *repositoryCatalogCache) get(
 		return catalogSnapshot{Entries: c.entries, RepoIDs: c.snapshotRepoIDsLocked(), CacheHit: true}, nil
 	}
 
-	entries, err := loadRepositoryCatalog(ctx, queryer)
+	entries, observedAt, err := loadRepositoryCatalog(ctx, queryer)
 	if err != nil {
 		return catalogSnapshot{}, err
 	}
 	c.entries = entries
 	c.entryByID = catalogEntryByID(entries)
+	c.observedAtByID = observedAt
 	c.loaded = true
 	c.loads.Add(1)
 
@@ -146,6 +155,7 @@ func (c *repositoryCatalogCache) snapshotRepoIDsLocked() map[string]struct{} {
 // snapshot are unaffected.
 func (c *repositoryCatalogCache) mergeChangedRepositories(
 	currentGenerationRepos map[string]relationships.CatalogEntry,
+	currentGenerationObservedAt map[string]time.Time,
 ) bool {
 	if c == nil || len(currentGenerationRepos) == 0 {
 		return false
@@ -157,16 +167,41 @@ func (c *repositoryCatalogCache) mergeChangedRepositories(
 	if !c.loaded {
 		return false
 	}
+	if c.observedAtByID == nil {
+		c.observedAtByID = make(map[string]time.Time, len(c.entryByID))
+	}
+
+	// staleLocked reports whether the committed identity for repoID is OLDER
+	// than the cached one. A fresh reload keeps the newest row (ORDER BY
+	// observed_at DESC), so a dead-letter replay of an earlier generation
+	// must not overwrite a newer cached identity (#5134 review). A zero
+	// committed timestamp is treated as not-stale to preserve replace
+	// behavior for identity facts that carry no observation time.
+	staleLocked := func(repoID string) bool {
+		committedAt, hasCommitted := currentGenerationObservedAt[repoID]
+		if !hasCommitted || committedAt.IsZero() {
+			return false
+		}
+		cachedAt, hasCached := c.observedAtByID[repoID]
+		return hasCached && committedAt.Before(cachedAt)
+	}
 
 	changed := false
 	for repoID, committed := range currentGenerationRepos {
 		cached, known := c.entryByID[repoID]
-		if !known || !catalogAliasesEqual(cached.Aliases, committed.Aliases) {
+		if !known || (!catalogAliasesEqual(cached.Aliases, committed.Aliases) && !staleLocked(repoID)) {
 			changed = true
 			break
 		}
 	}
 	if !changed {
+		// Even without an identity change, remember the newest observation
+		// time so a later stale replay is still detected as stale.
+		for repoID := range currentGenerationRepos {
+			if ts := currentGenerationObservedAt[repoID]; !ts.IsZero() && ts.After(c.observedAtByID[repoID]) {
+				c.observedAtByID[repoID] = ts
+			}
+		}
 		return false
 	}
 
@@ -183,13 +218,18 @@ func (c *repositoryCatalogCache) mergeChangedRepositories(
 		}
 	}
 	for _, entry := range c.entries {
-		if replacement, fromGeneration := currentGenerationRepos[entry.RepoID]; fromGeneration {
+		if replacement, fromGeneration := currentGenerationRepos[entry.RepoID]; fromGeneration && !staleLocked(entry.RepoID) {
 			merged = append(merged, replacement)
 			mergedByID[entry.RepoID] = replacement
 			continue
 		}
 		merged = append(merged, entry)
 		mergedByID[entry.RepoID] = entry
+	}
+	for repoID := range currentGenerationRepos {
+		if ts := currentGenerationObservedAt[repoID]; !ts.IsZero() && ts.After(c.observedAtByID[repoID]) {
+			c.observedAtByID[repoID] = ts
+		}
 	}
 	c.entries = merged
 	c.entryByID = mergedByID

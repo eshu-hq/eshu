@@ -117,6 +117,66 @@ func TestIngestionStoreMergesCatalogInsteadOfReloadingOnNewRepository(t *testing
 	}
 }
 
+// TestIngestionStoreMergeIgnoresStaleGenerationIdentity pins the freshness
+// contract raised in PR #5134 review: a replayed/reconciled OLDER generation
+// (dead-letter replay commits an earlier observed_at repository fact after a
+// newer identity is already cached) must NOT regress the cached aliases. A
+// fresh reload keeps the newest row (ORDER BY observed_at DESC); the merge
+// must honor the same freshness key and skip the stale identity.
+func TestIngestionStoreMergeIgnoresStaleGenerationIdentity(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.July, 12, 12, 0, 0, 0, time.UTC)
+	db := &countingCatalogDB{
+		catalogPayloads: [][]byte{
+			[]byte(`{"graph_id":"repo-known","repo_slug":"new-slug"}`),
+		},
+	}
+	store := NewIngestionStore(db)
+	store.Now = func() time.Time { return now }
+
+	// Commit 1: current identity (new-slug), observed now-1m. Warm cache.
+	if err := store.CommitScopeGeneration(
+		context.Background(),
+		catalogTestScope("scope-known", "repo-known"),
+		catalogTestGeneration("scope-known", "gen-current", now),
+		testFactChannel([]facts.Envelope{
+			catalogRepositoryFactWithSlug("scope-known", "gen-current", "repo-known", "new-slug", now.Add(-time.Minute)),
+		}),
+	); err != nil {
+		t.Fatalf("current commit: CommitScopeGeneration() error = %v, want nil", err)
+	}
+
+	// Commit 2: dead-letter replay of an OLDER generation carrying the stale
+	// slug, observed an hour earlier. The durable table keeps both rows and a
+	// reload would still pick new-slug; the merged cache must too.
+	staleFact := catalogRepositoryFactWithSlug(
+		"scope-known", "gen-stale-replay", "repo-known", "old-slug", now.Add(-time.Hour),
+	)
+	if err := store.CommitScopeGeneration(
+		context.Background(),
+		catalogTestScope("scope-known", "repo-known"),
+		catalogTestGeneration("scope-known", "gen-stale-replay", now),
+		testFactChannel([]facts.Envelope{staleFact}),
+	); err != nil {
+		t.Fatalf("stale replay commit: CommitScopeGeneration() error = %v, want nil", err)
+	}
+
+	aliases := cachedCatalogAliases(t, store, "repo-known")
+	hasNew := false
+	for _, a := range aliases {
+		if a == "new-slug" {
+			hasNew = true
+		}
+		if a == "old-slug" {
+			t.Fatalf("stale replay regressed cached aliases to %q: %v (reload would keep new-slug)", a, aliases)
+		}
+	}
+	if !hasNew {
+		t.Fatalf("cached catalog lost current alias new-slug after stale replay: %v", aliases)
+	}
+}
+
 // TestIngestionStoreMergesAliasDriftWithoutReload pins the #3521 P2 accuracy
 // contract under the #5129 merge: when a known repository's identity aliases
 // drift (slug rename), the cached entry is REPLACED in place — the next

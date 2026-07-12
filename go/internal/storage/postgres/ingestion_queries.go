@@ -4,7 +4,7 @@
 package postgres
 
 const listRepositoryCatalogQuery = `
-SELECT payload
+SELECT payload, observed_at
 FROM fact_records
 WHERE fact_kind = 'repository'
 ORDER BY observed_at DESC, fact_id DESC
