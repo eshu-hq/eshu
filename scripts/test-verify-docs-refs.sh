@@ -271,16 +271,23 @@ test_fails_closed_on_bad_baseline() {
   fi
   assert_contains "malformed" "${out_garbage}" "case8: garbage baseline names the problem"
 
-  printf 'how-to/example.md scripts/does-not-exist.sh\n' \
-    >"${root}/scripts/docs-refs-baseline.txt"
-  chmod 000 "${root}/scripts/docs-refs-baseline.txt"
-  if run_verifier "${root}" "${out_unreadable}"; then
-    record_fail "case8: unreadable baseline fails closed (verifier exited zero)"
-    cat "${out_unreadable}" >&2
+  # chmod 000 is no barrier to uid 0: root reads the file anyway, the
+  # verifier correctly exits zero, and this assertion would false-fail in a
+  # containerized run. Skip it as root rather than fake a denial.
+  if [[ "${EUID:-$(id -u)}" -eq 0 ]]; then
+    record_pass "case8: unreadable-baseline assertion skipped as root (chmod 000 cannot deny uid 0)"
   else
-    record_pass "case8: unreadable baseline fails closed"
+    printf 'how-to/example.md scripts/does-not-exist.sh\n' \
+      >"${root}/scripts/docs-refs-baseline.txt"
+    chmod 000 "${root}/scripts/docs-refs-baseline.txt"
+    if run_verifier "${root}" "${out_unreadable}"; then
+      record_fail "case8: unreadable baseline fails closed (verifier exited zero)"
+      cat "${out_unreadable}" >&2
+    else
+      record_pass "case8: unreadable baseline fails closed"
+    fi
+    chmod 644 "${root}/scripts/docs-refs-baseline.txt"
   fi
-  chmod 644 "${root}/scripts/docs-refs-baseline.txt"
 }
 
 test_existing_citation_passes
