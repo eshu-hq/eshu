@@ -226,6 +226,40 @@ func TestBootstrapDefinitionsIncludeRelationshipReferenceCandidateKeys(t *testin
 	}
 }
 
+func TestBootstrapDefinitionsIncludeRelationshipFamilyCandidateFactIDs(t *testing.T) {
+	t.Parallel()
+
+	var familyIDs Definition
+	for _, def := range BootstrapDefinitions() {
+		if def.Name == "relationship_family_candidate_fact_ids" {
+			familyIDs = def
+			break
+		}
+	}
+	if familyIDs.Name == "" {
+		t.Fatal("relationship_family_candidate_fact_ids definition missing")
+	}
+	for _, want := range []string{
+		"CREATE TABLE IF NOT EXISTS relationship_family_candidate_fact_ids",
+		"REFERENCES fact_records(fact_id) ON DELETE CASCADE",
+		"relationship_family_candidate_fact_ids_partition_idx",
+		"fact_kind = 'gcp_cloud_relationship'",
+		"'terraform'",
+		"'helm'",
+		"'argocd'",
+		"'docker_compose'",
+		"'github_actions_workflow'",
+		"LIKE 'ansible_%'",
+		"applicationsets?/.*\\.ya?ml",
+		"kind: application",
+		"fact_kind IN ('content', 'file', 'gcp_cloud_relationship')",
+	} {
+		if !strings.Contains(familyIDs.SQL, want) {
+			t.Fatalf("relationship_family_candidate_fact_ids SQL missing %q", want)
+		}
+	}
+}
+
 func TestBootstrapDefinitionsIncludeFactContractColumns(t *testing.T) {
 	t.Parallel()
 

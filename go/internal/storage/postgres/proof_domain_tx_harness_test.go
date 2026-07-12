@@ -138,6 +138,10 @@ func (tx *proofDomainTx) ExecContext(ctx context.Context, query string, args ...
 		}
 		tx.state.workItems[workItem.workItemID] = workItem
 		return proofResult{}, nil
+	case strings.Contains(query, "DELETE FROM relationship_family_candidate_fact_ids"):
+		return proofResult{}, nil
+	case strings.Contains(query, "INSERT INTO relationship_family_candidate_fact_ids"):
+		return proofResult{}, nil
 	case strings.Contains(query, "DELETE FROM relationship_reference_candidate_keys"):
 		return proofResult{}, nil
 	case strings.Contains(query, "INSERT INTO relationship_reference_candidate_keys"):

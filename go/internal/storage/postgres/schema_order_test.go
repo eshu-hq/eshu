@@ -80,4 +80,5 @@ var orderedBootstrapDefinitionNames = []string{
 	"graph_node_owner",
 	"content_substring_index_state",
 	"relationship_reference_candidate_keys",
+	"relationship_family_candidate_fact_ids",
 }

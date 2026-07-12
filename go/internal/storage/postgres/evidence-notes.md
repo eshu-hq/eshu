@@ -1030,3 +1030,46 @@ through (`request_metrics_test.go`'s route-labeled coverage; `route` values
 `POST /api/v0/auth/local/mfa/totp/begin` and `.../confirm` are part of the
 existing bounded route-pattern label set). No new `eshu_dp_*` metric,
 instrument, span name, or telemetry contract row is added.
+
+## Relationship family fact-id deferred backfill (#5092)
+
+The corpus-wide deferred relationship backfill now selects full fact payloads
+through `relationship_family_candidate_fact_ids`, a compact accepted-fact
+surface containing only relationship extractor families. The hot query uses the
+family surface plus the existing non-repo alias/path terms before it fetches
+payload rows; it does not reintroduce the rejected family-scoped
+reference-key/no-key fallback arms.
+
+### Performance Evidence
+
+Retained clean DB run `3624-reference-keys-clean-20260711T235901Z` showed the
+pre-fix task777 partition loaded `16,361` facts, produced `0` evidence rows, and
+took `6m09.877s` in the current production query shape. A temp relationship
+family fact-id surface built `61,123` rows in `46.097s`; the alias-only family-ID
+candidate then loaded task777 in `123.451ms` with `0/0` evidence diff. Sampled
+high-evidence scopes and the ApplicationSet cross-scope case also preserved
+`relationships.DiscoverEvidence` exactly (`old - new = 0`, `new - old = 0`).
+
+The production migration/backfill shape created
+`relationship_family_candidate_fact_ids` with the same `61,123` retained-DB rows.
+The DSN-gated production-equivalence proof
+`TestDeferredRelationshipFamilyIDSurfaceProof` compared the implemented
+production query against the temp alias-only candidate on task777 plus 11
+retained evidence scopes. It passed in `70.375s`: task777 production load was
+`104.20025ms` with `0` facts and `0` evidence, and all sampled scopes preserved
+identical fact/evidence counts against the temp candidate, including
+`r_415c2ca3` (`1,123` facts / `210` evidence, `2.039246833s`) and the
+ApplicationSet cross-scope `r_d737ae8e` (`271` facts / `123` evidence,
+`689.17575ms`). This is a bounded retained-DB proof rung, not an end-to-end
+896-repository acceptance run.
+
+### No-Observability-Change
+
+The change adds one maintained Postgres read surface and one indexed
+scope/generation lookup, but no metric, span, log key, route, worker, lease,
+batch size, retry policy, queue state, graph write, runtime default, or external
+dependency. Operators continue to diagnose the path through the existing
+relationship-backfill stage timing, deferred fact-load task logs, persisted
+relationship evidence/readiness rows, and instrumented Postgres query spans /
+`eshu_dp_postgres_query_duration_seconds` when the store is wrapped by the
+existing Postgres instrumentation.

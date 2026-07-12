@@ -182,12 +182,17 @@ High-signal invariants for this package:
   document content hash. Legacy callers without scope-state ownership retain
   the unfenced batch path.
 - Relationship evidence backfill stays bounded to latest active repository
-  facts, file/content facts, and `gcp_cloud_relationship` facts. GCP
-  relationship facts are included explicitly because they are provider-resource
-  facts without repository file content, while the resolver still requires
-  distinct catalog matches before evidence is persisted. Streaming commit-time
-  evidence discovery remains repository-scope only; cloud-scope relationship
-  facts enter repository generations through deferred backfill.
+  facts, file/content facts, and `gcp_cloud_relationship` facts, then narrows
+  the corpus-wide deferred load through `relationship_family_candidate_fact_ids`
+  before shipping payloads to Go. That side table is maintained from accepted
+  fact commits and keeps only relationship extractor families (Terraform,
+  Helm/Kustomize, ArgoCD/ApplicationSet, Docker/Compose, GitHub Actions,
+  Ansible, and GCP relationship facts). GCP relationship facts are included
+  explicitly because they are provider-resource facts without repository file
+  content, while the resolver still requires distinct catalog matches before
+  evidence is persisted. Streaming commit-time evidence discovery remains
+  repository-scope only; cloud-scope relationship facts enter repository
+  generations through deferred backfill.
 - Deferred relationship maintenance coordinates sharded ingesters through
   `deferred_maintenance_barriers` and
   `deferred_maintenance_barrier_arrivals`. Each shard records its local batch
