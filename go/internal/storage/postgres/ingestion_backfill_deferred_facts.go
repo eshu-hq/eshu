@@ -91,8 +91,8 @@ SELECT
     fact.source_confidence,
     fact.source_system,
     fact.source_fact_key,
-    fact.source_uri,
-    fact.source_record_id,
+    COALESCE(fact.source_uri, '') AS source_uri,
+    COALESCE(fact.source_record_id, '') AS source_record_id,
     fact.observed_at,
     fact.is_tombstone,
     fact.payload

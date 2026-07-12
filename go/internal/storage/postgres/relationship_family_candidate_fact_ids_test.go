@@ -127,6 +127,8 @@ func TestDeferredRelationshipFamilyIDQueryUsesAliasOnlySurface(t *testing.T) {
 		"family.scope_id = $3",
 		"family.generation_id = $4",
 		"lower(fact.payload::text) LIKE ANY($1)",
+		"COALESCE(fact.source_uri, '') AS source_uri",
+		"COALESCE(fact.source_record_id, '') AS source_record_id",
 	} {
 		if !strings.Contains(listDeferredScopedRelationshipFactRecordsQuery, want) {
 			t.Fatalf("deferred scoped query missing family-ID alias-only fragment %q", want)
