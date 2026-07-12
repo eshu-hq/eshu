@@ -199,7 +199,7 @@ jobs:
         run: npm run console:a11y
 
   lint:
-    name: ESLint flat config (issue #3763)
+    name: "ESLint flat config (issue #3763)"
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -222,7 +222,7 @@ jobs:
         run: scripts/test-eslint-config.sh
 
   format:
-    name: Prettier format check (issue #3763)
+    name: "Prettier format check (issue #3763)"
     # The O3 acceptance contract is "the scan/lint runs in CI and fails on
     # violation" — that contract is met by the `lint` job above. Prettier
     # is wired up as `npm run format` / `format:check` for local use and

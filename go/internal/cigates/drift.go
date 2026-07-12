@@ -7,10 +7,18 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"gopkg.in/yaml.v3"
 )
+
+// appendGateDisplayRE captures the display argument (3rd positional) of an
+// append_gate call in a matrix-dispatch workflow such as
+// static-contract-gates.yml: append_gate "<selected>" "<key>" "<display>" ...
+// The display is the concrete GitHub check name for a matrix job whose own
+// name is a ${{ matrix.display }} expression.
+var appendGateDisplayRE = regexp.MustCompile(`append_gate\s+"[^"]*"\s+"[^"]*"\s+"([^"]*)"`)
 
 // DriftCheck validates that .pre-commit-config.yaml and .github/workflows/ are
 // consistent with the gate registry. It accumulates all errors rather than
@@ -51,8 +59,91 @@ func DriftCheck(repoRoot string, reg *Registry) []error {
 	errs = append(errs, checkHookRegistration(hooks, reg)...)
 	errs = append(errs, checkGateHookIDs(hooks, reg)...)
 	errs = append(errs, checkWorkflowCompleteness(repoRoot, reg)...)
+	errs = append(errs, checkJobNamesResolve(repoRoot, reg)...)
 
 	return errs
+}
+
+// checkJobNamesResolve validates that every gate's ci.job names a real check in
+// its ci.workflow — either a job's `name:` (or job key) or an append_gate
+// display in a matrix-dispatch workflow. It closes the gap that let a gate name
+// the workflow TITLE instead of the check name (issue #5010): the completeness
+// check only verifies the workflow FILE exists, so a title/check mismatch passed
+// the drift gate silently. A workflow whose check names cannot be resolved (parse
+// failure, no jobs, no append_gate) is skipped rather than reported, so this
+// never false-positives on a workflow shape it does not understand.
+//
+// Two limitations are intentional and out of #5010's scope. (1) It proves
+// MEMBERSHIP, not CORRESPONDENCE: a gate cross-wired to the wrong-but-existing
+// check in the same workflow still passes — it catches "names the workflow
+// title / a step / a non-existent job", not "names a sibling gate's job".
+// (2) For a matrix job whose name is a ${{ matrix.* }} expression (e.g.
+// go-race, corpus-gate), the real per-cell checks are "go-race (1)",
+// "corpus-gate (nornicdb)", etc.; ci.job is validated against the job id by
+// convention (the umbrella/prefix), so a gate should name the stable umbrella
+// job (go-race-complete) or the job id, not a per-cell name.
+func checkJobNamesResolve(repoRoot string, reg *Registry) []error {
+	wfDir := filepath.Join(repoRoot, ".github", "workflows")
+	cache := make(map[string]map[string]struct{})
+	var errs []error
+	for _, g := range reg.Gates {
+		if g.CI.Workflow == "" || g.CI.Job == "" {
+			continue
+		}
+		names, cached := cache[g.CI.Workflow]
+		if !cached {
+			raw, err := os.ReadFile(filepath.Join(wfDir, g.CI.Workflow))
+			if err != nil {
+				// Missing/unreadable workflow is reported by
+				// checkWorkflowCompleteness; do not double-report here.
+				names = nil
+			} else {
+				names = workflowCheckNames(raw)
+			}
+			cache[g.CI.Workflow] = names
+		}
+		if names == nil {
+			continue
+		}
+		if _, ok := names[g.CI.Job]; !ok {
+			errs = append(errs, fmt.Errorf(
+				"drift: gate %q ci.job %q is not a job name or append_gate display in workflow %q; "+
+					"set ci.job to the real GitHub check name (a job `name:` value or the append_gate display), not the workflow title",
+				g.ID, g.CI.Job, g.CI.Workflow,
+			))
+		}
+	}
+	return errs
+}
+
+// workflowCheckNames returns the set of GitHub check names a workflow can
+// produce: each job's `name:` (or its key when name is absent or a
+// ${{ matrix.* }} expression) plus every append_gate display. It returns nil
+// when it can resolve no names, so a caller can skip an unparseable workflow
+// rather than reject every gate that references it.
+func workflowCheckNames(raw []byte) map[string]struct{} {
+	names := make(map[string]struct{})
+	var wf struct {
+		Jobs map[string]struct {
+			Name string `yaml:"name"`
+		} `yaml:"jobs"`
+	}
+	if err := yaml.Unmarshal(raw, &wf); err == nil {
+		for key, job := range wf.Jobs {
+			if job.Name != "" && !strings.Contains(job.Name, "${{") {
+				names[job.Name] = struct{}{}
+			} else {
+				names[key] = struct{}{}
+			}
+		}
+	}
+	for _, m := range appendGateDisplayRE.FindAllSubmatch(raw, -1) {
+		names[string(m[1])] = struct{}{}
+	}
+	if len(names) == 0 {
+		return nil
+	}
+	return names
 }
 
 // ─── pre-commit hook parsing ────────────────────────────────────────────────

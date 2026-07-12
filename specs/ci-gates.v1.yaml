@@ -137,7 +137,7 @@ gates:
       test_command: "bash scripts/test-verify-agent-hygiene.sh"
     ci:
       workflow: verify-agent-hygiene.yml
-      job: "Verify agent hygiene"
+      job: "Agent hygiene gate"
     requirements:
       - go
     ci_only_reason: ""
@@ -741,7 +741,7 @@ gates:
       test_command: ""
     ci:
       workflow: race-graph-writes.yml
-      job: "Run graph-write tests with race detector"
+      job: "race"
     requirements:
       - go
     ci_only_reason: ""
@@ -1092,7 +1092,7 @@ gates:
       test_command: "bash scripts/test-verify-golden-corpus-gate.sh"
     ci:
       workflow: golden-corpus-gate.yml
-      job: "Golden corpus gate"
+      job: "corpus-gate"
     requirements:
       - go
       - docker
@@ -1141,7 +1141,7 @@ gates:
       test_command: "bash scripts/test-verify-replay-coverage-gate.sh"
     ci:
       workflow: replay-coverage-gate.yml
-      job: "Replay coverage gate"
+      job: "coverage-gate (blocking)"
     requirements:
       - go
     ci_only_reason: ""
@@ -1166,7 +1166,7 @@ gates:
       test_command: "cd go && go test ./internal/ifa ./cmd/ifa -count=1"
     ci:
       workflow: static-contract-gates.yml
-      job: "Static contract gates"
+      job: "Verify Ifa contract-layer gate"
     requirements:
       - go
     ci_only_reason: ""
@@ -1270,7 +1270,7 @@ gates:
       test_command: "cd go && go test ./internal/ifa/saturation/ ./internal/ifa/throughput/ -race -count=1"
     ci:
       workflow: static-contract-gates.yml
-      job: "Static contract gates"
+      job: "Verify Ifa P5 load/saturation gate"
     requirements:
       - go
     ci_only_reason: ""
@@ -1288,7 +1288,7 @@ gates:
       test_command: ""
     ci:
       workflow: test.yml
-      job: "Run Go tests with race detector"
+      job: "go-race-complete"
     requirements:
       - go
     ci_only_reason: ""
@@ -1382,7 +1382,7 @@ gates:
       - "deploy/helm/**"
     ci:
       workflow: docker-publish.yml
-      job: "Build and push Docker image"
+      job: "build-and-push-image"
     requirements:
       - credentials
       - release_token
@@ -1397,7 +1397,7 @@ gates:
       - "go/**"
     ci:
       workflow: macos.yml
-      job: "macOS build"
+      job: "macos"
     requirements:
       - go
     ci_only_reason: "requires macOS hosted runner"
@@ -1442,7 +1442,7 @@ gates:
       test_command: ""
     ci:
       workflow: product-claim-ledger.yml
-      job: "Run deterministic product-claim verify"
+      job: "Verify product claim ledger"
     requirements:
       - go
     ci_only_reason: ""
@@ -1466,7 +1466,7 @@ gates:
       test_command: ""
     ci:
       workflow: verify-replay-tier.yml
-      job: "Verify replay tier"
+      job: "Offline replay tier vs real NornicDB"
     requirements:
       - go
       - docker
@@ -1488,7 +1488,7 @@ gates:
       test_command: ""
     ci:
       workflow: test.yml
-      job: "go-race"
+      job: "go-race-complete"
     requirements:
       - go
     ci_only_reason: ""
