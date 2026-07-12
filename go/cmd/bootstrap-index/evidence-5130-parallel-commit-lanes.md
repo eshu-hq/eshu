@@ -58,3 +58,41 @@ before (bootstrap has no retry/dead-letter path). The collector Service.Run
 loop (ingester runtime) is intentionally untouched: its commit serialization
 was not measured as a bottleneck and it carries different retry/dead-letter
 semantics.
+
+PR #5135 review (P1, four findings) hardened the coordinator; all four are
+fixed and pinned by deterministic barrier tests (all -race, stable across
+-count=20):
+
+1. Admitted siblings finish atomically: a lane failure cancels only the
+   ADMISSION context (source pulls + dispatch); admitted commits run under
+   the parent context and are never canceled mid-transaction
+   (`TestDrainCollectorLaneFailureLetsAdmittedSiblingsFinish`, barrier-
+   coordinated: fails one lane while three siblings are held mid-commit,
+   asserts zero mid-commit cancellations, all three complete, no
+   post-failure admissions).
+2. No stranded producers: a generation received but never dispatched has
+   its fact stream drained to exhaustion, and lanes reject-and-drain any
+   cycle handed off in the same instant admission stopped (closing the
+   send-versus-cancel race). Source-side producers unwind through the
+   admission context exactly as GitSource's snapshot workers do
+   (`TestDrainCollectorDrainsUndispatchedGenerationsOnFailure`, real
+   blocking-send producer goroutines, asserts every producer exits).
+3. Keyed conflict admission: the dispatcher holds active ScopeID and
+   PartitionKey sets and admits a generation only when both are free,
+   preserving full concurrency for independent domains
+   (`TestDrainCollectorSerializesConflictingScopeKeys`: interleaved
+   same-scope generations never overlap per key, all commit, independent
+   scopes still overlap). Bootstrap emits unique scopes, so this is a
+   guard for future sources, not a hot path.
+4. Pool-aware lane bound: `effectiveCommitLanes` clamps requested lanes to
+   the measured 4-lane plateau AND to `ESHU_POSTGRES_MAX_OPEN_CONNS`
+   headroom after reserving max(2, projectionWorkers+1) connections for
+   the concurrent projector, never below one lane
+   (`TestEffectiveCommitLanes`, incl. the pg96 reference profile, the
+   30-conn default, and starved-pool shapes). Snapshot, parser, projector,
+   content, and graph concurrency are untouched.
+
+ No-Regression Evidence (post-hardening rerun): golden corpus gate at
+ `ESHU_BOOTSTRAP_COMMIT_LANES=1` — 416 pass / 0 fail (32s) — and at `=4` —
+ 416 pass / 0 fail (34s) — identical B-12 snapshot and terminal queue
+ drain on the reworked coordinator.

@@ -220,9 +220,14 @@ func run(
 	}
 
 	workers := projectionWorkerCount(getenv)
+	// Bound commit lanes by the shared Postgres pool AFTER the projection
+	// worker count is known: every lane holds an open transaction on the
+	// pool it shares with the concurrent projector (#5135 review).
+	cd.commitLanes = effectiveCommitLanes(cd.commitLanes, postgresMaxOpenConns(getenv), workers)
 	logger.Info(
 		"starting pipelined bootstrap",
 		slog.Int("projection_workers", workers),
+		slog.Int("commit_lanes", cd.commitLanes),
 		telemetry.PhaseAttr(telemetry.PhaseEmission),
 	)
 

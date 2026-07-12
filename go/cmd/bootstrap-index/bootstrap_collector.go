@@ -5,16 +5,12 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
-	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
@@ -24,8 +20,6 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
-
-	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
 // drainCollector runs the collector source until no more work is available.
@@ -73,8 +67,14 @@ func drainCollector(
 		collectionStart: time.Now(),
 	}
 
-	laneCtx, cancel := context.WithCancel(ctx)
-	defer cancel()
+	// admissionCtx gates the SOURCE and NEW admission only. A lane commit
+	// failure cancels it to stop pulling and dispatching further generations
+	// (and to unwind the snapshot pipeline's blocking sends), but commits
+	// already admitted to a lane run under the PARENT context so they finish
+	// atomically — only parent cancellation cancels admitted work (#5135
+	// review, finding 1).
+	admissionCtx, stopAdmission := context.WithCancel(ctx)
+	defer stopAdmission()
 
 	type collectCycle struct {
 		collected  collector.CollectedGeneration
@@ -82,50 +82,118 @@ func drainCollector(
 		span       trace.Span
 		cycleStart time.Time
 	}
+	// admissionKey serializes conflicting generations: two generations
+	// sharing a ScopeID or PartitionKey must never commit concurrently
+	// (#5135 review, finding 3). Bootstrap emits unique scopes, so this is a
+	// guard for future sources, not a hot path.
+	type admissionKey struct {
+		scopeID      string
+		partitionKey string
+	}
 	work := make(chan collectCycle)
+	laneDone := make(chan admissionKey, commitLanes)
 	var wg sync.WaitGroup
 	for lane := 0; lane < commitLanes; lane++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			for cycle := range work {
-				if err := state.commitCollectedGeneration(
-					cycle.cycleCtx, cycle.collected, cycle.span, cycle.cycleStart,
-				); err != nil {
-					state.recordError(err)
-					cancel()
+				key := admissionKey{
+					scopeID:      cycle.collected.Scope.ScopeID,
+					partitionKey: cycle.collected.Scope.PartitionKey,
 				}
+				// A cycle handed off in the same instant a sibling failure
+				// stopped admission is rejected, not committed: drain its
+				// fact stream so the producer is not stranded, and release
+				// its key. This closes the send-versus-cancel race where one
+				// extra cycle could slip past the admission stop.
+				if state.firstError() != nil {
+					if cycle.collected.Facts != nil {
+						for range cycle.collected.Facts {
+						}
+					}
+					if cycle.span != nil {
+						cycle.span.End()
+					}
+					laneDone <- key
+					continue
+				}
+				err := state.commitCollectedGeneration(
+					cycle.cycleCtx, cycle.collected, cycle.span, cycle.cycleStart,
+				)
+				if err != nil {
+					// Record the failure and stop admission BEFORE releasing
+					// the key, so the dispatcher observes the stop no later
+					// than the release.
+					state.recordError(err)
+					stopAdmission()
+				}
+				laneDone <- key
 			}
 		}()
 	}
 
+	activeScopes := make(map[string]struct{}, commitLanes)
+	activePartitions := make(map[string]struct{}, commitLanes)
+	releaseKey := func(key admissionKey) {
+		delete(activeScopes, key.scopeID)
+		if key.partitionKey != "" {
+			delete(activePartitions, key.partitionKey)
+		}
+	}
+	drainReleasedKeys := func() {
+		for {
+			select {
+			case key := <-laneDone:
+				releaseKey(key)
+			default:
+				return
+			}
+		}
+	}
+	keyBusy := func(key admissionKey) bool {
+		if _, busy := activeScopes[key.scopeID]; busy {
+			return true
+		}
+		if key.partitionKey != "" {
+			if _, busy := activePartitions[key.partitionKey]; busy {
+				return true
+			}
+		}
+		return false
+	}
+
 	// Dispatcher: single consumer of the source stream. It stops on source
-	// exhaustion, source error, or the first lane failure (laneCtx canceled).
+	// exhaustion, source error, or the first lane failure (admission stop).
 	var dispatchErr error
-	for dispatchErr == nil && laneCtx.Err() == nil {
+	for dispatchErr == nil && admissionCtx.Err() == nil {
 		cycleStart := time.Now()
 
 		var span trace.Span
-		cycleCtx := laneCtx
+		// The observe span parents on admissionCtx so the SOURCE read is
+		// admission-gated; the span context handed to the lane is re-rooted
+		// on the parent below so an admitted commit is not canceled by an
+		// admission stop.
+		sourceCtx := admissionCtx
 		if tracer != nil {
-			cycleCtx, span = tracer.Start(
-				laneCtx, telemetry.SpanCollectorObserve,
+			sourceCtx, span = tracer.Start(
+				admissionCtx, telemetry.SpanCollectorObserve,
 				trace.WithAttributes(attribute.String("component", "bootstrap-index")),
 			)
 		}
 
-		collected, ok, err := source.Next(cycleCtx)
+		collected, ok, err := source.Next(sourceCtx)
 		if err != nil {
 			if span != nil {
 				span.RecordError(err)
 				span.End()
 			}
-			// A canceled lane context is only swallowed when a commit lane
-			// already recorded the failure that triggered the cancel — that
-			// error is joined below. Parent-driven cancellation (deadline or
-			// signal wiring) must stay a visible collector error, never a
-			// silent partial-collection success.
-			if laneCtx.Err() != nil && errors.Is(err, laneCtx.Err()) && state.firstError() != nil {
+			// An admission stop after a commit failure is that failure's
+			// consequence, not an independent source error — the lane error
+			// is joined below. Parent-driven cancellation must stay a
+			// visible collector error, never a silent partial-collection
+			// success.
+			if admissionCtx.Err() != nil && errors.Is(err, admissionCtx.Err()) && state.firstError() != nil {
 				break
 			}
 			dispatchErr = fmt.Errorf("bootstrap collector: %w", err)
@@ -139,15 +207,60 @@ func drainCollector(
 		}
 
 		if instruments != nil {
-			instruments.FactsEmitted.Add(cycleCtx, int64(collected.FactCount()), metric.WithAttributes(
+			instruments.FactsEmitted.Add(sourceCtx, int64(collected.FactCount()), metric.WithAttributes(
 				telemetry.AttrScopeKind(string(collected.Scope.ScopeKind)),
 				telemetry.AttrCollectorKind("bootstrap-index"),
 			))
 		}
 
-		select {
-		case work <- collectCycle{collected: collected, cycleCtx: cycleCtx, span: span, cycleStart: cycleStart}:
-		case <-laneCtx.Done():
+		// The admitted commit runs under the parent context: re-root the
+		// span context so a later admission stop cannot cancel it (#5135
+		// review, finding 1). Trace correlation is preserved via the span.
+		cycleCtx := ctx
+		if span != nil {
+			cycleCtx = trace.ContextWithSpan(ctx, span)
+		}
+
+		key := admissionKey{scopeID: collected.Scope.ScopeID, partitionKey: collected.Scope.PartitionKey}
+		drainReleasedKeys()
+		admitted := false
+		for {
+			for keyBusy(key) && admissionCtx.Err() == nil {
+				// Wait for a lane to release a key, then re-check.
+				select {
+				case done := <-laneDone:
+					releaseKey(done)
+				case <-admissionCtx.Done():
+				}
+			}
+			if admissionCtx.Err() != nil {
+				break
+			}
+			select {
+			case work <- collectCycle{collected: collected, cycleCtx: cycleCtx, span: span, cycleStart: cycleStart}:
+				activeScopes[key.scopeID] = struct{}{}
+				if key.partitionKey != "" {
+					activePartitions[key.partitionKey] = struct{}{}
+				}
+				admitted = true
+			case done := <-laneDone:
+				// A lane freed up (and possibly failed) while we were
+				// blocked on hand-off; release and retry the admission
+				// check so a post-failure cycle is never dispatched.
+				releaseKey(done)
+				continue
+			case <-admissionCtx.Done():
+			}
+			break
+		}
+		if !admitted {
+			// Received from the source but never dispatched: drain the fact
+			// stream to exhaustion so its blocking-send producer goroutine
+			// is not stranded (#5135 review, finding 2).
+			if collected.Facts != nil {
+				for range collected.Facts {
+				}
+			}
 			if span != nil {
 				span.End()
 			}
@@ -155,6 +268,7 @@ func drainCollector(
 	}
 	close(work)
 	wg.Wait()
+	drainReleasedKeys()
 
 	if err := errors.Join(dispatchErr, state.firstError()); err != nil {
 		return err
@@ -181,236 +295,43 @@ func drainCollector(
 	return nil
 }
 
-// collectorDrainState carries the shared counters, advisory sink, and
-// first-error slot for the concurrent commit lanes. Counters are atomics; the
-// advisory sink call is serialized behind a mutex because sink
-// implementations append to a plain slice.
-type collectorDrainState struct {
-	committer   collector.Committer
-	instruments *telemetry.Instruments
-	logger      *slog.Logger
-
-	advisoryMu   sync.Mutex
-	advisorySink discoveryAdvisorySink
-
-	errMu    sync.Mutex
-	firstErr error
-
-	total           atomic.Int64
-	totalFacts      atomic.Int64
-	totalEntities   atomic.Int64
-	collectionStart time.Time
+// effectiveCommitLanes bounds the requested commit-lane count by the measured
+// throughput plateau AND by shared Postgres pool headroom (#5135 review,
+// finding 4). The #5122 lane shim measured the plateau at 4 lanes (8 was
+// flat), so more than 4 is never a throughput win; and because every lane
+// holds an open transaction on the pool it shares with the concurrent
+// projector, max(2, projectionWorkers+1) connections stay reserved for
+// projection and maintenance before commit concurrency is granted. Never
+// returns less than one lane.
+func effectiveCommitLanes(requested, maxOpenConns, projectionWorkers int) int {
+	lanes := requested
+	if lanes < 1 {
+		lanes = 1
+	}
+	if lanes > defaultCommitLanes {
+		lanes = defaultCommitLanes
+	}
+	reserved := projectionWorkers + 1
+	if reserved < 2 {
+		reserved = 2
+	}
+	budget := maxOpenConns - reserved
+	if budget < 1 {
+		budget = 1
+	}
+	if lanes > budget {
+		lanes = budget
+	}
+	return lanes
 }
 
-// recordError keeps the first commit-lane error; later errors from lanes that
-// were already in flight when the first failure canceled the drain are
-// dropped in its favor.
-func (s *collectorDrainState) recordError(err error) {
-	s.errMu.Lock()
-	defer s.errMu.Unlock()
-	if s.firstErr == nil {
-		s.firstErr = err
-	}
-}
-
-// firstError returns the first recorded commit-lane error, if any.
-func (s *collectorDrainState) firstError() error {
-	s.errMu.Lock()
-	defer s.errMu.Unlock()
-	return s.firstErr
-}
-
-// commitCollectedGeneration commits one collected generation and emits its
-// per-repo metrics, advisory report, logs, and span attributes. It is the
-// body of one commit-lane iteration; every log message and metric it emits is
-// byte-compatible with the pre-#5130 serial loop.
-func (s *collectorDrainState) commitCollectedGeneration(
-	cycleCtx context.Context,
-	collected collector.CollectedGeneration,
-	span trace.Span,
-	cycleStart time.Time,
-) error {
-	factCountPre := collected.FactCount()
-	if err := s.committer.CommitScopeGeneration(
-		cycleCtx,
-		collected.Scope,
-		collected.Generation,
-		collected.Facts,
-	); err != nil {
-		if span != nil {
-			span.RecordError(err)
-			span.End()
-		}
-		if s.logger != nil {
-			s.logger.ErrorContext(
-				cycleCtx, "bootstrap collector commit failed",
-				log.ScopeID(collected.Scope.ScopeID),
-				slog.Int("fact_count", factCountPre),
-				log.Err(err),
-				telemetry.PhaseAttr(telemetry.PhaseEmission),
-				telemetry.FailureClassAttr("commit_failure"),
-			)
-		}
-		return fmt.Errorf("bootstrap collector commit: %w", err)
-	}
-
-	// After commit drains the stream, FactCount() returns the exact
-	// streamed count.
-	factCount := collected.FactCount()
-
-	// Emit per-file-kind content_entity counters from the discovery advisory.
-	// The advisory classifies each entity into a bounded source_file_kind
-	// (telemetry.ContentEntitySourceFileKind: code, package_manifest, config,
-	// other) — package_manifest comes from dependency entity metadata, the same
-	// signal the reducer admits. Iterate the bounded constant set (not the map
-	// keys) so both the metric label space and the log field space are
-	// statically bounded and a stray advisory key can never leak a new
-	// dimension. These counters let operators distinguish a lockfile explosion
-	// (package_manifest) from normal code growth without querying fact_records.
-	var entityCount int
-	entityByKind := map[string]int{}
-	if collected.DiscoveryAdvisory != nil {
-		for _, kind := range telemetry.SourceFileKinds() {
-			n := collected.DiscoveryAdvisory.EntityCounts.BySourceFileKind[kind]
-			entityByKind[kind] = n
-			entityCount += n
-			if s.instruments != nil && n > 0 {
-				s.instruments.ContentEntityEmitted.Add(cycleCtx, int64(n), metric.WithAttributes(
-					telemetry.AttrSourceFileKind(kind),
-					telemetry.AttrCollectorKind("bootstrap-index"),
-				))
-			}
-		}
-	}
-	if collected.DiscoveryAdvisory != nil && s.advisorySink != nil {
-		report := *collected.DiscoveryAdvisory
-		if report.Run.ScopeID == "" {
-			report.Run.ScopeID = collected.Scope.ScopeID
-		}
-		if report.Run.GenerationID == "" {
-			report.Run.GenerationID = collected.Generation.GenerationID
-		}
-		s.advisoryMu.Lock()
-		err := s.advisorySink(report)
-		s.advisoryMu.Unlock()
-		if err != nil {
-			if span != nil {
-				span.RecordError(err)
-				span.End()
-			}
-			return fmt.Errorf("record discovery advisory: %w", err)
-		}
-	}
-
-	duration := time.Since(cycleStart).Seconds()
-	if s.instruments != nil {
-		s.instruments.FactsCommitted.Add(cycleCtx, int64(factCount), metric.WithAttributes(
-			telemetry.AttrScopeKind(string(collected.Scope.ScopeKind)),
-		))
-		s.instruments.CollectorObserveDuration.Record(cycleCtx, duration, metric.WithAttributes(
-			telemetry.AttrCollectorKind("bootstrap-index"),
-		))
-	}
-
-	totalFacts := s.totalFacts.Add(int64(factCount))
-	totalEntities := s.totalEntities.Add(int64(entityCount))
-	total := s.total.Add(1)
-
-	if s.logger != nil {
-		// Per-repo log: include content_entity count and per-file-kind breakdown
-		// so log grep surfaces the noisy sources without DB queries.
-		logAttrs := []any{
-			log.ScopeID(collected.Scope.ScopeID),
-			slog.Int("fact_count", factCount),
-			slog.Int("content_entity_count", entityCount),
-			slog.Float64("duration_seconds", duration),
-			telemetry.PhaseAttr(telemetry.PhaseEmission),
-		}
-		// Iterate the bounded constant set so the log field set is static and
-		// ordered (entity_kind_code, entity_kind_package_manifest, ...).
-		for _, kind := range telemetry.SourceFileKinds() {
-			logAttrs = append(logAttrs, slog.Int("entity_kind_"+kind, entityByKind[kind]))
-		}
-		s.logger.InfoContext(cycleCtx, "bootstrap scope collected", logAttrs...)
-
-		// Periodic progress: every bootstrapProgressInterval repos emit a
-		// summary so a 70-min run does not look silent.
-		if total%bootstrapProgressInterval == 0 {
-			s.logger.InfoContext(
-				cycleCtx, "bootstrap collection progress",
-				slog.Int("scopes_done", int(total)),
-				slog.Int64("total_facts_emitted", totalFacts),
-				slog.Int64("total_entities_emitted", totalEntities),
-				log.ElapsedSeconds(time.Since(s.collectionStart).Seconds()),
-				telemetry.PhaseAttr(telemetry.PhaseEmission),
-			)
-		}
-	}
-	if span != nil {
-		span.SetAttributes(
-			attribute.String("scope_id", collected.Scope.ScopeID),
-			attribute.Int("fact_count", factCount),
-			attribute.Int("content_entity_count", entityCount),
-		)
-		span.End()
-	}
-	return nil
-}
-
-func firstDiscoveryAdvisorySink(sinks []discoveryAdvisorySink) discoveryAdvisorySink {
-	for _, sink := range sinks {
-		if sink != nil {
-			return sink
-		}
-	}
-	return nil
-}
-
-func writeDiscoveryAdvisoryReports(path string, reports []collector.DiscoveryAdvisoryReport) error {
-	path = strings.TrimSpace(path)
-	if path == "" {
-		return nil
-	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
-		return fmt.Errorf("create discovery advisory report directory: %w", err)
-	}
-	contents, err := json.MarshalIndent(reports, "", "  ")
-	if err != nil {
-		return fmt.Errorf("marshal discovery advisory report: %w", err)
-	}
-	contents = append(contents, '\n')
-	if err := os.WriteFile(path, contents, 0o600); err != nil {
-		return fmt.Errorf("write discovery advisory report %q: %w", path, err)
-	}
-	return nil
-}
-
-// defaultCommitLanes is the measured commit-throughput plateau from the
-// #5122 scope-partitioned lane shim (1 lane 107.9s -> 2 lanes 1.95x -> 4
-// lanes 2.22x -> 8 lanes flat on the accepted run's real 896-scope fact
-// distribution). It is deliberately NOT derived from CPU count: the plateau
-// is bounded by Postgres WAL/disk and the largest-scope tail, not by cores.
-const defaultCommitLanes = 4
-
-// maxCommitLanes bounds operator tuning. Every lane holds an open
-// transaction, so a runaway value (for example a fat-fingered
-// ESHU_BOOTSTRAP_COMMIT_LANES=10000) would exhaust the Postgres connection
-// pool; the measured plateau is 4, so anything beyond a generous multiple
-// is never a throughput win.
-const maxCommitLanes = 64
-
-// commitLaneCount returns the number of concurrent bootstrap commit lanes.
-// ESHU_BOOTSTRAP_COMMIT_LANES overrides when it parses as a positive
-// integer, clamped to maxCommitLanes; anything else uses the
-// measured-plateau default.
-func commitLaneCount(getenv func(string) string) int {
-	if raw := strings.TrimSpace(getenv("ESHU_BOOTSTRAP_COMMIT_LANES")); raw != "" {
+// postgresMaxOpenConns reads ESHU_POSTGRES_MAX_OPEN_CONNS with the platform
+// default (30, see internal/envregistry), for the commit-lane pool budget.
+func postgresMaxOpenConns(getenv func(string) string) int {
+	if raw := strings.TrimSpace(getenv("ESHU_POSTGRES_MAX_OPEN_CONNS")); raw != "" {
 		if n, err := strconv.Atoi(raw); err == nil && n > 0 {
-			if n > maxCommitLanes {
-				return maxCommitLanes
-			}
 			return n
 		}
 	}
-	return defaultCommitLanes
+	return 30
 }
