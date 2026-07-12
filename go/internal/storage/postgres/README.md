@@ -1975,3 +1975,31 @@ backs was already wrapped in `eshu_dp_queue_claim_duration_seconds`
 existing call site in `internal/reducer/service_batch.go`'s claimer goroutine,
 so a future claim-cost regression on this query remains visible on both
 existing series without any wiring change.
+
+## Live operations activity read (#5137)
+
+`status_operations.go` adds `LiveActivityStore.ReadLiveActivity`, the bounded
+read behind `GET /api/v0/status/operations`: in-flight `fact_work_items`
+(`status IN ('claimed','running','retrying')`) joined to `ingestion_scopes`
+for repo identity, ordered by `updated_at DESC, work_item_id`, fetched at
+`limit+1` to report `truncated` (default 100, max 500). `source_display`
+resolves the operator-facing repo name from scope payload
+(`repo_slug` → `repo_name` → `source_key`).
+
+Performance Evidence: prove-theory shim on a disposable Postgres 16-alpine
+with migrations 001/002/005 and a synthetic corpus above current QA scale
+(20,000 `ingestion_scopes`, 150,000 `fact_work_items`). Normal shape
+(~1.9k in-flight rows): 6.1ms via Bitmap Index Scan on
+`fact_work_items_status_idx` + top-N heapsort under `LIMIT 200`
+(2,062 shared buffer hits). Pathological shape (61,123 in-flight/retrying
+rows after flooding `retrying`): 12.3ms. Both well inside the console's 12s
+poll budget; no new index needed. The `source_display` follow-up adds one
+JSONB extraction per returned row only (bounded by `LIMIT`), no new join —
+no regression to the measured shapes.
+
+Observability Evidence: every `ReadLiveActivity` call records
+`eshu_dp_status_operations_live_activity_query_duration_seconds` and failures
+increment `eshu_dp_status_operations_live_activity_query_errors_total`
+(registered in `go/internal/telemetry/instruments.go`, X1 row in
+`docs/public/observability/telemetry-coverage.md`); both are proven by an
+OTEL SDK-backed test in `status_operations_test.go`.
