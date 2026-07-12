@@ -25,8 +25,9 @@ import (
 // `SELECT payload FROM fact_records WHERE fact_kind = 'repository'` inside every
 // transaction, making onboarding and per-commit cost O(all repositories). The
 // catalog only carries repository identity (RepoID plus aliases) and changes
-// solely when a repository-identity fact is committed, so it is safe to load
-// once and reuse until a commit introduces a repository the cache has not seen.
+// solely when a repository-identity fact is committed, so it is loaded once
+// and kept current by merging each committed generation's repository
+// identities in place (#5129); it never reloads while the process runs.
 //
 // A single IngestionStore value is shared (by interface copy) across concurrent
 // collector commit goroutines, so the cache guards its state with a mutex. The
@@ -116,15 +117,34 @@ func (c *repositoryCatalogCache) snapshotRepoIDsLocked() map[string]struct{} {
 	return ids
 }
 
-// invalidateForChangedRepositories clears the cache when a committed generation
-// introduced a repository id the cache had not seen, or changed a known
-// repository's identity aliases (slug/name drift). DiscoverEvidence matches via
-// CatalogEntry.Aliases, so a stale alias would silently drop cross-repo evidence
-// for the renamed repository until an unrelated change evicted the cache (issue
-// #3521 P2). It returns true when an invalidation occurred. Generations over
-// known repositories with unchanged identity leave the cache intact, which is
-// the common hot-path case.
-func (c *repositoryCatalogCache) invalidateForChangedRepositories(
+// mergeChangedRepositories merges a committed generation's repository
+// identities into the cached catalog: a repository id the cache had not seen
+// is added, and a known repository whose identity aliases drifted (slug/name
+// rename) has its entry replaced. DiscoverEvidence matches via
+// CatalogEntry.Aliases, so a stale alias would silently drop cross-repo
+// evidence for the renamed repository (issue #3521 P2). It returns true when
+// the cache changed. Generations over known repositories with unchanged
+// identity leave the cache untouched, which is the steady-state hot path.
+//
+// Merging replaces the pre-#5129 whole-cache eviction: during bootstrap every
+// scope onboards a new repository, so eviction forced a full catalog reload
+// on every commit — 382.6s of strictly serialized commit-chain time on the
+// accepted 896-repo run (#5122). The committed entry and a reloaded row
+// derive from the same payload through relationships.RepositoryCatalogEntry
+// (#4394 T2), and reload's newest-wins dedup matches replace-on-drift, so the
+// merged catalog is set-identical to a fresh reload (equivalence proof
+// recorded on #5122 and pinned by TestIngestionStoreMerges*).
+//
+// Cross-process visibility is unchanged: under eviction the cache reloaded
+// only when THIS process onboarded or renamed a repository, so other
+// processes' commits were never a reload trigger; corpus-wide catalog
+// completeness remains owned by the deferred BackfillAllRelationshipEvidence
+// pass, which always reloads fresh.
+//
+// Published snapshots stay immutable: the merge builds fresh slice and index
+// values and swaps them in under the mutex; readers holding an earlier
+// snapshot are unaffected.
+func (c *repositoryCatalogCache) mergeChangedRepositories(
 	currentGenerationRepos map[string]relationships.CatalogEntry,
 ) bool {
 	if c == nil || len(currentGenerationRepos) == 0 {
@@ -137,17 +157,43 @@ func (c *repositoryCatalogCache) invalidateForChangedRepositories(
 	if !c.loaded {
 		return false
 	}
+
+	changed := false
 	for repoID, committed := range currentGenerationRepos {
 		cached, known := c.entryByID[repoID]
 		if !known || !catalogAliasesEqual(cached.Aliases, committed.Aliases) {
-			c.loaded = false
-			c.entries = nil
-			c.entryByID = nil
-			return true
+			changed = true
+			break
 		}
 	}
+	if !changed {
+		return false
+	}
 
-	return false
+	merged := make([]relationships.CatalogEntry, 0, len(c.entries)+len(currentGenerationRepos))
+	mergedByID := make(map[string]relationships.CatalogEntry, len(c.entryByID)+len(currentGenerationRepos))
+	// New repositories first: reload orders newest-first (observed_at DESC)
+	// and the committed generation is the newest identity source. Matcher
+	// results are order-insensitive as a set (proof on #5122); this ordering
+	// just keeps the slice shape close to what a reload would produce.
+	for repoID, committed := range currentGenerationRepos {
+		if _, known := c.entryByID[repoID]; !known {
+			merged = append(merged, committed)
+			mergedByID[repoID] = committed
+		}
+	}
+	for _, entry := range c.entries {
+		if replacement, fromGeneration := currentGenerationRepos[entry.RepoID]; fromGeneration {
+			merged = append(merged, replacement)
+			mergedByID[entry.RepoID] = replacement
+			continue
+		}
+		merged = append(merged, entry)
+		mergedByID[entry.RepoID] = entry
+	}
+	c.entries = merged
+	c.entryByID = mergedByID
+	return true
 }
 
 // catalogEntryByID indexes catalog entries by repository id. loadRepositoryCatalog

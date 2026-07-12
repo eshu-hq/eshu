@@ -537,9 +537,12 @@ existing `serviceintel.incident_load_error` log.
 `commitScopeGeneration` uses a per-store `repositoryCatalogCache` instead of
 reloading the whole repository fact catalog on every commit. The cache contains
 repository identity and aliases, is shared safely across commit goroutines, and
-invalidates when a generation introduces a new repository or changes a known
-repository's slug/name. Cold loads run on the open ingestion transaction's
-connection to avoid pool self-deadlock at `ESHU_POSTGRES_MAX_OPEN_CONNS=1`.
+merges a committed generation's repository identities in place when the
+generation introduces a new repository or changes a known repository's
+slug/name (#5129 — the pre-merge whole-cache eviction forced a full serialized
+reload per onboarding commit, 382.6s on the accepted 896-repo bootstrap). Cold
+loads run on the open ingestion transaction's connection to avoid pool
+self-deadlock at `ESHU_POSTGRES_MAX_OPEN_CONNS=1`.
 
 Accuracy and concurrency are pinned by
 `TestIngestionStoreLoadsCatalogOnOpenTransaction`,
@@ -550,7 +553,7 @@ flows. `BenchmarkIngestionStoreCatalogLoadsPerCommit` showed a 1000-repo/200-com
 harness dropping from 1.000 to 0.005 catalog loads per commit, with about 3.25x
 faster runtime and lower memory/allocations. Operator proof is in
 `load_repository_catalog` (`catalog_cache_hit`, `catalog_loads_total`) and
-`repository_catalog_invalidated` structured logs.
+`repository_catalog_merged` structured logs.
 
 ## Scope-bounded relationship backfill catalog (#3500)
 

@@ -201,7 +201,8 @@ func TestIngestionStoreReusesRepositoryCatalogAcrossCommits(t *testing.T) {
 
 // TestIngestionStoreReloadsRepositoryCatalogAfterNewRepository proves the cache
 // stays accurate: when a commit introduces a repository the cached catalog has
-// not seen, the cache invalidates so the next commit observes the new repo.
+// not seen, the identity is merged into the cache (#5129) so the next commit
+// observes the new repo without a shared-cache reload.
 func TestIngestionStoreReloadsRepositoryCatalogAfterNewRepository(t *testing.T) {
 	t.Parallel()
 
@@ -255,16 +256,21 @@ func TestIngestionStoreReloadsRepositoryCatalogAfterNewRepository(t *testing.T) 
 		t.Fatalf("commit 3: CommitScopeGeneration() error = %v, want nil", err)
 	}
 
-	// Three loads: the initial shared-cache load (commit 1), the post-commit
+	// Two loads: the initial shared-cache load (commit 1) and the post-commit
 	// relationship backfill's own uncached reload for the new repo onboarded in
 	// commit 2 (issue #4451, § T8 — the backfill needs the catalog including
 	// the row this generation just committed, so it always reloads fresh
-	// rather than reusing the shared cache), and the shared cache's own reload
-	// for commit 3 after commit 2 invalidated it. Commit 3 reuses the
-	// now-refreshed cache and triggers no further backfill load since
-	// repo-known is no longer new.
-	if got := db.catalogQueries; got != 3 {
-		t.Fatalf("repository catalog loads = %d, want 3 (initial + backfill reload + one shared-cache reload after onboarding)", got)
+	// rather than reusing the shared cache). The shared cache itself never
+	// reloads: commit 2 merges the new identity in place (#5129 — the
+	// pre-merge eviction forced a third, shared-cache reload here), and
+	// commit 3 reuses the merged cache.
+	if got := db.catalogQueries; got != 2 {
+		t.Fatalf("repository catalog loads = %d, want 2 (initial + backfill-only reload; shared cache merges, never reloads)", got)
+	}
+
+	// Accuracy: the merged cache carries the onboarded repo for later commits.
+	if aliases := cachedCatalogAliases(t, store, "repo-new"); aliases == nil {
+		t.Fatal("repo-new missing from merged catalog cache after onboarding commit")
 	}
 }
 
@@ -374,11 +380,11 @@ func catalogRepositoryFactWithSlug(scopeID, generationID, repoID, slug string, o
 }
 
 // TestIngestionStoreReloadsCatalogWhenKnownRepoAliasDrifts is the #3521 P2
-// regression test: invalidation must trigger when an already-known repo's
-// identity aliases (slug/name) change, not only when a new repo id appears.
+// regression test: the cache must react when an already-known repo's identity
+// aliases (slug/name) change, not only when a new repo id appears.
 // DiscoverEvidence matches via CatalogEntry.Aliases, so a stale alias silently
-// drops cross-repo evidence for the renamed slug until an unrelated new repo
-// evicts the cache.
+// drops cross-repo evidence for the renamed slug. Under #5129 the reaction is
+// an in-place entry replacement (merge), not an eviction+reload.
 func TestIngestionStoreReloadsCatalogWhenKnownRepoAliasDrifts(t *testing.T) {
 	t.Parallel()
 
@@ -434,10 +440,22 @@ func TestIngestionStoreReloadsCatalogWhenKnownRepoAliasDrifts(t *testing.T) {
 		t.Fatalf("commit 3: CommitScopeGeneration() error = %v, want nil", err)
 	}
 
-	// Two loads: the initial cache fill, then one reload after the slug drift in
-	// commit 2. If alias drift did not invalidate, this stays at 1 and the test
-	// fails (the pre-fix behavior).
-	if got := db.catalogQueries; got != 2 {
-		t.Fatalf("repository catalog loads = %d, want 2 (initial + one reload after alias drift)", got)
+	// One load: the initial cache fill. The slug drift in commit 2 merges the
+	// replacement entry in place (#5129) — no reload. The #3521 P2 accuracy
+	// contract (the drifted alias becomes visible to later commits) is
+	// asserted on the cache content below and in
+	// TestIngestionStoreMergesAliasDriftWithoutReload.
+	if got := db.catalogQueries; got != 1 {
+		t.Fatalf("repository catalog loads = %d, want 1 (initial fill; alias drift merges in place)", got)
+	}
+	aliases := cachedCatalogAliases(t, store, "repo-known")
+	hasNew := false
+	for _, a := range aliases {
+		if a == "new-slug" {
+			hasNew = true
+		}
+	}
+	if !hasNew {
+		t.Fatalf("cached catalog missing drifted alias new-slug after merge: %v", aliases)
 	}
 }
