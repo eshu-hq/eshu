@@ -1,0 +1,24 @@
+{
+  "proof_mode": "code_to_cloud",
+  "target_repository_id": "repo://example/api",
+  "expected_security_alert_repository": "example/api",
+  "expected_source_repository_id": "repo://example/api",
+  "expected_service_id": "service:api",
+  "expected_oci_repository_id": "oci-registry://registry.example/team/api",
+  "expected_image_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "expected_sbom_subject_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "expected_cloud_resource_id": "arn:aws:lambda:us-east-1:111122223333:function:example-api",
+  "remediation_benchmark": {
+    "cve_id": "CVE-2026-0001",
+    "package_id": "pkg:npm/left-pad"
+  },
+  "minimums": {
+    "impact_findings": 1,
+    "security_alert_reconciliations": 1,
+    "container_image_identities": 1,
+    "sbom_attachments": 1,
+    "service_catalog_correlations": 1,
+    "ci_cd_run_correlations": 1,
+    "cloud_resources": 1
+  }
+}

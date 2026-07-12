@@ -16,32 +16,12 @@ cp "${repo_root}/scripts/lib/remote_e2e_target_story_fake_curl.sh" "${fake_bin}/
 chmod +x "${fake_bin}/curl"
 
 write_manifest() {
-  cat >"${state_dir}/target-story.json" <<'JSON'
-{
-  "proof_mode": "code_to_cloud",
-  "target_repository_id": "repo://example/api",
-  "expected_security_alert_repository": "example/api",
-  "expected_source_repository_id": "repo://example/api",
-  "expected_service_id": "service:api",
-  "expected_oci_repository_id": "oci-registry://registry.example/team/api",
-  "expected_image_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-  "expected_sbom_subject_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-  "expected_cloud_resource_id": "arn:aws:lambda:us-east-1:111122223333:function:example-api",
-  "remediation_benchmark": {
-    "cve_id": "CVE-2026-0001",
-    "package_id": "pkg:npm/left-pad"
-  },
-  "minimums": {
-    "impact_findings": 1,
-    "security_alert_reconciliations": 1,
-    "container_image_identities": 1,
-    "sbom_attachments": 1,
-    "service_catalog_correlations": 1,
-    "ci_cd_run_correlations": 1,
-    "cloud_resources": 1
-  }
-}
-JSON
+  # Delivered from a sibling fixture file, not a heredoc: Homebrew bash >= 5.1
+  # writes an entire heredoc body to a pipe before forking the reader, and
+  # macOS's 512-byte pipe buffer deadlocks on this ~968B body (#5074). The
+  # body is fully static (was a quoted heredoc, no shell expansion), so the
+  # file is byte-identical to the original heredoc body.
+  cat "${repo_root}/scripts/lib/test-verify-remote-e2e-remediation-benchmark-target-story.json" >"${state_dir}/target-story.json"
 }
 
 reset_state() {
@@ -71,9 +51,12 @@ JSON
   cat >"${state_dir}/cicd-count.json" <<'JSON'
 {"data":{"total_correlations":1},"truth":{"level":"exact","freshness":{"state":"fresh"}},"error":null}
 JSON
-  cat >"${state_dir}/cicd-list.json" <<'JSON'
-{"data":{"count":1,"correlations":[{"correlation_id":"cicd-1","repository_id":"repo://example/api","artifact_digest":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","image_ref":"registry.example.com/team/api:prod","provider":"github_actions","run_id":"run-1","outcome":"exact","provenance_only":false,"canonical_writes":1}],"limit":1,"truncated":false,"evidence_summary":{"static_workflow_artifacts":{"state":"present","count":1},"live_run_correlations":{"state":"present","count":1}}},"truth":{"level":"exact","freshness":{"state":"fresh"}},"error":null}
-JSON
+  # Delivered from a sibling fixture file, not a heredoc: Homebrew bash >= 5.1
+  # writes an entire heredoc body to a pipe before forking the reader, and
+  # macOS's 512-byte pipe buffer deadlocks on this ~582B body (#5074). The
+  # body is fully static (was a quoted heredoc, no shell expansion), so the
+  # file is byte-identical to the original heredoc body.
+  cat "${repo_root}/scripts/lib/test-verify-remote-e2e-remediation-benchmark-cicd-list.json" >"${state_dir}/cicd-list.json"
   cat >"${state_dir}/cloud-resources.json" <<'JSON'
 {"data":{"count":1,"results":[{"id":"cloud-resource:api","resource_id":"arn:aws:lambda:us-east-1:111122223333:function:example-api","arn":"arn:aws:lambda:us-east-1:111122223333:function:example-api","provider":"aws"}],"truncated":false},"truth":{"level":"exact","freshness":{"state":"fresh"}},"error":null}
 JSON
@@ -83,27 +66,42 @@ JSON
   cat >"${state_dir}/mcp-sbom-count.json" <<'JSON'
 {"jsonrpc":"2.0","id":1,"result":{"content":[{"type":"text","text":"Returned 1 result(s)."},{"type":"resource","resource":{"uri":"eshu://tool-result/envelope","mimeType":"application/eshu.envelope+json","text":"{\"data\":{\"total_attachments\":1},\"truth\":{\"level\":\"exact\",\"freshness\":{\"state\":\"fresh\"}},\"error\":null}"}}],"isError":false}}
 JSON
-  cat >"${state_dir}/mcp-service-catalog.json" <<'JSON'
-{"jsonrpc":"2.0","id":1,"result":{"content":[{"type":"text","text":"Returned 1 result(s)."},{"type":"resource","resource":{"uri":"eshu://tool-result/envelope","mimeType":"application/eshu.envelope+json","text":"{\"data\":{\"count\":1,\"correlations\":[{\"correlation_id\":\"corr-1\",\"service_id\":\"service:api\"}],\"truncated\":false,\"evidence_summary\":{\"local_descriptors\":{\"state\":\"present\",\"count\":1},\"external_catalog_confirmation\":{\"state\":\"present\",\"count\":1,\"reason\":\"catalog_match\"}}},\"truth\":{\"level\":\"exact\",\"freshness\":{\"state\":\"fresh\"}},\"error\":null}"}}],"isError":false}}
-JSON
-  cat >"${state_dir}/mcp-service-story.json" <<'JSON'
-{"jsonrpc":"2.0","id":1,"result":{"content":[{"type":"text","text":"Returned service story."},{"type":"resource","resource":{"uri":"eshu://tool-result/envelope","mimeType":"application/eshu.envelope+json","text":"{\"data\":{\"code_to_runtime_trace\":{\"segments\":[{\"name\":\"image_package\",\"status\":\"exact\",\"basis\":\"container_image_identity_and_sbom_attachment\",\"evidence\":[{\"image_ref\":\"registry.example.com/team/api:prod\",\"digest\":\"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"sbom_attachment_id\":\"sbom-attachment-1\",\"sbom_attachment_status\":\"attached_verified\"}]}]}},\"truth\":{\"level\":\"exact\",\"freshness\":{\"state\":\"fresh\"}},\"error\":null}"}}],"isError":false}}
-JSON
-  cat >"${state_dir}/mcp-cicd.json" <<'JSON'
-{"jsonrpc":"2.0","id":1,"result":{"content":[{"type":"text","text":"Returned 1 result(s)."},{"type":"resource","resource":{"uri":"eshu://tool-result/envelope","mimeType":"application/eshu.envelope+json","text":"{\"data\":{\"count\":1,\"correlations\":[{\"correlation_id\":\"cicd-1\",\"repository_id\":\"repo://example/api\",\"artifact_digest\":\"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"image_ref\":\"registry.example.com/team/api:prod\",\"provider\":\"github_actions\",\"run_id\":\"run-1\",\"outcome\":\"exact\",\"provenance_only\":false,\"canonical_writes\":1}],\"limit\":1,\"truncated\":false,\"evidence_summary\":{\"static_workflow_artifacts\":{\"state\":\"present\",\"count\":1},\"live_run_correlations\":{\"state\":\"present\",\"count\":1}}},\"truth\":{\"level\":\"exact\",\"freshness\":{\"state\":\"fresh\"}},\"error\":null}"}}],"isError":false}}
-JSON
-  cat >"${state_dir}/mcp-cloud-resources.json" <<'JSON'
-{"jsonrpc":"2.0","id":1,"result":{"content":[{"type":"text","text":"Returned 1 result(s)."},{"type":"resource","resource":{"uri":"eshu://tool-result/envelope","mimeType":"application/eshu.envelope+json","text":"{\"data\":{\"count\":1,\"results\":[{\"id\":\"cloud-resource:api\",\"resource_id\":\"arn:aws:lambda:us-east-1:111122223333:function:example-api\",\"arn\":\"arn:aws:lambda:us-east-1:111122223333:function:example-api\",\"provider\":\"aws\"}],\"truncated\":false},\"truth\":{\"level\":\"exact\",\"freshness\":{\"state\":\"fresh\"}},\"error\":null}"}}],"isError":false}}
-JSON
+  # Delivered from a sibling fixture file, not a heredoc: Homebrew bash >= 5.1
+  # writes an entire heredoc body to a pipe before forking the reader, and
+  # macOS's 512-byte pipe buffer deadlocks on this ~623B body (#5074). The
+  # body is fully static (was a quoted heredoc, no shell expansion), so the
+  # file is byte-identical to the original heredoc body.
+  cat "${repo_root}/scripts/lib/test-verify-remote-e2e-remediation-benchmark-mcp-service-catalog.json" >"${state_dir}/mcp-service-catalog.json"
+  # Delivered from a sibling fixture file, not a heredoc: Homebrew bash >= 5.1
+  # writes an entire heredoc body to a pipe before forking the reader, and
+  # macOS's 512-byte pipe buffer deadlocks on this ~734B body (#5074). The
+  # body is fully static (was a quoted heredoc, no shell expansion), so the
+  # file is byte-identical to the original heredoc body.
+  cat "${repo_root}/scripts/lib/test-verify-remote-e2e-remediation-benchmark-mcp-service-story.json" >"${state_dir}/mcp-service-story.json"
+  # Delivered from a sibling fixture file, not a heredoc: Homebrew bash >= 5.1
+  # writes an entire heredoc body to a pipe before forking the reader, and
+  # macOS's 512-byte pipe buffer deadlocks on this ~889B body (#5074). The
+  # body is fully static (was a quoted heredoc, no shell expansion), so the
+  # file is byte-identical to the original heredoc body.
+  cat "${repo_root}/scripts/lib/test-verify-remote-e2e-remediation-benchmark-mcp-cicd.json" >"${state_dir}/mcp-cicd.json"
+  # Delivered from a sibling fixture file, not a heredoc: Homebrew bash >= 5.1
+  # writes an entire heredoc body to a pipe before forking the reader, and
+  # macOS's 512-byte pipe buffer deadlocks on this ~578B body (#5074). The
+  # body is fully static (was a quoted heredoc, no shell expansion), so the
+  # file is byte-identical to the original heredoc body.
+  cat "${repo_root}/scripts/lib/test-verify-remote-e2e-remediation-benchmark-mcp-cloud-resources.json" >"${state_dir}/mcp-cloud-resources.json"
   cat >"${state_dir}/index-status.json" <<'JSON'
 {"status":"healthy","queue":{"outstanding":0,"pending":0,"in_flight":0,"retrying":0,"failed":0,"dead_letter":0},"coordinator":{"run_status_counts":[{"name":"complete","count":4}],"completeness_counts":[]},"fact_counts":{"fact_records":42,"supply_chain":7},"graph_writes":{"total":9,"relationship_edges":4}}
 JSON
   cat >"${state_dir}/impact-explain.json" <<'JSON'
 {"data":{"finding":{"finding_id":"finding-1","impact_status":"affected_exact"},"package":{"ecosystem":"npm"},"readiness":{"state":"ready","missing_evidence":[]},"remediation_packet":{"owner":{"state":"known"},"actions":[{"kind":"upgrade","state":"available"}]}},"truth":{"level":"exact","freshness":{"state":"fresh"}},"error":null}
 JSON
-  cat >"${state_dir}/mcp-impact-explain.json" <<'JSON'
-{"jsonrpc":"2.0","id":1,"result":{"content":[{"type":"text","text":"Returned remediation packet."},{"type":"resource","resource":{"uri":"eshu://tool-result/envelope","mimeType":"application/eshu.envelope+json","text":"{\"data\":{\"finding\":{\"finding_id\":\"finding-1\",\"impact_status\":\"affected_exact\"},\"package\":{\"ecosystem\":\"npm\"},\"readiness\":{\"state\":\"ready\",\"missing_evidence\":[]},\"remediation_packet\":{\"owner\":{\"state\":\"known\"},\"actions\":[{\"kind\":\"upgrade\",\"state\":\"available\"}]}},\"truth\":{\"level\":\"exact\",\"freshness\":{\"state\":\"fresh\"}},\"error\":null}"}}],"isError":false}}
-JSON
+  # Delivered from a sibling fixture file, not a heredoc: Homebrew bash >= 5.1
+  # writes an entire heredoc body to a pipe before forking the reader, and
+  # macOS's 512-byte pipe buffer deadlocks on this ~630B body (#5074). The
+  # body is fully static (was a quoted heredoc, no shell expansion), so the
+  # file is byte-identical to the original heredoc body.
+  cat "${repo_root}/scripts/lib/test-verify-remote-e2e-remediation-benchmark-mcp-impact-explain.json" >"${state_dir}/mcp-impact-explain.json"
 }
 
 run_verifier() {
