@@ -13,22 +13,27 @@ artifacts_dir=""
 list_only=false
 
 usage() {
-	cat <<USAGE
-Usage: $(basename "$0") --artifacts <dir> [--list]
-
-Required artifacts:
-  inventory.json        component readback for dev.eshu.examples.pagerduty
-  api-inventory.json    API component-extension inventory readback
-  mcp-inventory.json    MCP-hosted component-extension inventory readback
-  workflow-items.json   component workflow item terminal states
-  facts.json            committed dev.eshu.examples.pagerduty.* fact counts
-  parity.json           in-tree/reference fixture parity summary
-  provenance.json       commit, digest, backend, queue state, telemetry handle
-  disable.json          CLI disable result for the reference activation
-  post-disable-inventory.json API inventory after disable
-  uninstall.json        CLI uninstall result for the inactive package
-  post-uninstall-inventory.json API inventory after uninstall
-USAGE
+	# printf, not a heredoc: Homebrew bash >= 5.1 writes an entire heredoc
+	# body to a pipe before forking the reader, and macOS's 512-byte pipe
+	# buffer deadlocks on any body over that size (#5074). This body expands
+	# "$(basename "$0")", so it cannot move to a static scripts/lib/ data
+	# file; that line is double-quoted and every other line is
+	# single-quoted to preserve the original heredoc's expansion behavior.
+	printf '%s\n' \
+		"Usage: $(basename "$0") --artifacts <dir> [--list]" \
+		'' \
+		'Required artifacts:' \
+		'  inventory.json        component readback for dev.eshu.examples.pagerduty' \
+		'  api-inventory.json    API component-extension inventory readback' \
+		'  mcp-inventory.json    MCP-hosted component-extension inventory readback' \
+		'  workflow-items.json   component workflow item terminal states' \
+		'  facts.json            committed dev.eshu.examples.pagerduty.* fact counts' \
+		'  parity.json           in-tree/reference fixture parity summary' \
+		'  provenance.json       commit, digest, backend, queue state, telemetry handle' \
+		'  disable.json          CLI disable result for the reference activation' \
+		'  post-disable-inventory.json API inventory after disable' \
+		'  uninstall.json        CLI uninstall result for the inactive package' \
+		'  post-uninstall-inventory.json API inventory after uninstall'
 }
 
 die() {
@@ -65,17 +70,21 @@ readonly forbidden_patterns=(
 )
 
 print_checks() {
-	cat <<CHECKS
-pagerduty component-extension proof checks:
-  1. inventory: ${component_id} reads back installed=true, enabled=true, trusted=true
-  2. API/MCP: hosted component-extension inventory sees installed, enabled, claim-capable state
-  3. workflow: pagerduty component workflow item terminal success; no retrying/failed/dead-letter
-  4. facts: all ${component_id} fact families have committed counts
-  5. parity: reference fixture parity is recorded as passed and expected/extension fact signatures match
-  6. lifecycle: disable removes claim-capable state and uninstall removes package readback
-  7. provenance: records commit, digest, backend, queue state, and telemetry handle
-  8. redaction canary: no host paths, private keys, bearer tokens, or raw IPs in artifacts
-CHECKS
+	# printf, not a heredoc: see usage() above for the #5074 pipe-deadlock
+	# rationale. This body expands "${component_id}" twice, so it cannot
+	# move to a static scripts/lib/ data file; those lines are
+	# double-quoted and every other line is single-quoted to preserve the
+	# original heredoc's expansion behavior.
+	printf '%s\n' \
+		'pagerduty component-extension proof checks:' \
+		"  1. inventory: ${component_id} reads back installed=true, enabled=true, trusted=true" \
+		'  2. API/MCP: hosted component-extension inventory sees installed, enabled, claim-capable state' \
+		'  3. workflow: pagerduty component workflow item terminal success; no retrying/failed/dead-letter' \
+		"  4. facts: all ${component_id} fact families have committed counts" \
+		'  5. parity: reference fixture parity is recorded as passed and expected/extension fact signatures match' \
+		'  6. lifecycle: disable removes claim-capable state and uninstall removes package readback' \
+		'  7. provenance: records commit, digest, backend, queue state, and telemetry handle' \
+		'  8. redaction canary: no host paths, private keys, bearer tokens, or raw IPs in artifacts'
 }
 
 if [[ "${list_only}" == true ]]; then

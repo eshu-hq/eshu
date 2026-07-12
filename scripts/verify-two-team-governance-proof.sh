@@ -27,22 +27,27 @@ list_only=false
 artifacts_dir=""
 
 usage() {
-	cat <<USAGE
-Usage: $(basename "$0") --artifacts <dir> [--list]
-
-Verifies recorded two-team governance cross-scope denial proof artifacts:
-  admin.json        admin (all-scopes) repository enumeration
-  team-a.json       team-A scoped allowed/denied repository reads (API + MCP)
-  team-b.json       team-B scoped allowed/denied repository reads (API + MCP)
-  unauth.json       unauthenticated rejection states
-  provenance.json   Eshu commit, backend, registry token count, port handle
-
-The artifacts directory is produced by running the two-team governance Compose
-harness (scripts/run-two-team-governance-proof.sh) against a stack built from
-docs/public/run-locally/docker-compose.governance-two-team.yaml.
-
-  --list   print the proof checks without running them
-USAGE
+	# printf, not a heredoc: Homebrew bash >= 5.1 writes an entire heredoc
+	# body to a pipe before forking the reader, and macOS's 512-byte pipe
+	# buffer deadlocks on any body over that size (#5074). This body expands
+	# "$(basename "$0")", so it cannot move to a static scripts/lib/ data
+	# file; each literal line is single-quoted and the one expanding line is
+	# double-quoted to preserve the original heredoc's expansion behavior.
+	printf '%s\n' \
+		"Usage: $(basename "$0") --artifacts <dir> [--list]" \
+		'' \
+		'Verifies recorded two-team governance cross-scope denial proof artifacts:' \
+		'  admin.json        admin (all-scopes) repository enumeration' \
+		'  team-a.json       team-A scoped allowed/denied repository reads (API + MCP)' \
+		'  team-b.json       team-B scoped allowed/denied repository reads (API + MCP)' \
+		'  unauth.json       unauthenticated rejection states' \
+		'  provenance.json   Eshu commit, backend, registry token count, port handle' \
+		'' \
+		'The artifacts directory is produced by running the two-team governance Compose' \
+		'harness (scripts/run-two-team-governance-proof.sh) against a stack built from' \
+		'docs/public/run-locally/docker-compose.governance-two-team.yaml.' \
+		'' \
+		'  --list   print the proof checks without running them'
 }
 
 die() {
@@ -75,18 +80,23 @@ readonly forbidden_patterns=(
 )
 
 print_checks() {
-	cat <<CHECKS
-two-team governance cross-scope denial proof checks:
-  1. unauthenticated: API and MCP repository reads return 401 with no body
-  2. admin: all-scopes token enumerates at least two repositories
-  3. team-a allowed: team-A scoped token API+MCP list includes only its own repo (count==1)
-  4. team-a denied: team-A list excludes team-B's repo; context selector for it returns 403
-  5. team-b allowed: team-B scoped token API+MCP list includes only its own repo (count==1)
-  6. team-b denied: team-B list excludes team-A's repo; context selector for it returns 403
-  7. parity: API and MCP scoped readbacks agree per team (same allowed/denied verdicts)
-  8. provenance: records eshu_commit, backend, registry token count, metrics handle
-  9. redaction canary: no bearer tokens, token hashes, host paths, keys, or raw IPs
-CHECKS
+	# printf, not a heredoc: see usage() above for the #5074 pipe-deadlock
+	# rationale. This body has no variable expansion but its 818-byte source
+	# exceeds the 512-byte heredoc-budget threshold, so it moves to printf
+	# too. Two lines carry a literal apostrophe ("team-B's" / "team-A's");
+	# those are double-quoted only to avoid escaping the apostrophe inside a
+	# single-quoted string — neither line expands anything.
+	printf '%s\n' \
+		'two-team governance cross-scope denial proof checks:' \
+		'  1. unauthenticated: API and MCP repository reads return 401 with no body' \
+		'  2. admin: all-scopes token enumerates at least two repositories' \
+		'  3. team-a allowed: team-A scoped token API+MCP list includes only its own repo (count==1)' \
+		"  4. team-a denied: team-A list excludes team-B's repo; context selector for it returns 403" \
+		'  5. team-b allowed: team-B scoped token API+MCP list includes only its own repo (count==1)' \
+		"  6. team-b denied: team-B list excludes team-A's repo; context selector for it returns 403" \
+		'  7. parity: API and MCP scoped readbacks agree per team (same allowed/denied verdicts)' \
+		'  8. provenance: records eshu_commit, backend, registry token count, metrics handle' \
+		'  9. redaction canary: no bearer tokens, token hashes, host paths, keys, or raw IPs'
 }
 
 if [[ "${list_only}" == true ]]; then
