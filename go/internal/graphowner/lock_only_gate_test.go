@@ -84,6 +84,38 @@ func TestLockOnlyGateEmptyRowsWritesThroughNoTx(t *testing.T) {
 	}
 }
 
+// TestLockOnlyGateRejectsRowWithoutUID proves a chunk containing a row with a
+// missing or blank uid fails loud BEFORE any lock or write, so a posture row is
+// never written without acquiring its advisory lock (which would silently
+// defeat the gate).
+func TestLockOnlyGateRejectsRowWithoutUID(t *testing.T) {
+	t.Parallel()
+
+	beginner := &fakeChunkBeginner{}
+	store := &fakeLockOnlyStore{}
+	gate := &LockOnlyGate{db: beginner, store: store}
+	underlyingCalled := false
+	underlying := func(_ context.Context, _ []map[string]any, _, _, _ string) error {
+		underlyingCalled = true
+		return nil
+	}
+	w := NewS3InternetExposureLockedWriter(gate, underlying, nil)
+	rows := []map[string]any{{"uid": "cloud:aws:s3-1"}, {"uid": ""}}
+	err := w.WriteS3InternetExposureNodes(context.Background(), rows, "scope-1", "gen-1", "reducer/s3-internet-exposure")
+	if err == nil {
+		t.Fatal("expected an error for a row with a blank uid, got nil")
+	}
+	if underlyingCalled {
+		t.Fatal("underlying must not run when a row has no uid (it would write unlocked)")
+	}
+	if n := beginner.calls(); n != 0 {
+		t.Fatalf("a blank-uid chunk opened %d transactions, want 0 (reject before Begin)", n)
+	}
+	if n := len(store.calls); n != 0 {
+		t.Fatalf("LockUIDs called %d times, want 0 (reject before locking)", n)
+	}
+}
+
 // fakeLockOnlyStore records every LockUIDs call's uid set (order-independent)
 // for assertion, and always succeeds.
 type fakeLockOnlyStore struct {

@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
@@ -153,7 +154,12 @@ func (g *LockOnlyGate) writeChunk(
 	scopeID, generationID, evidenceSource string,
 	underlying postureNodeWriteFunc,
 ) error {
-	uids := rowUIDs(chunk)
+	uids, err := rowUIDs(chunk)
+	if err != nil {
+		// Fail loud rather than silently write a row without acquiring its lock:
+		// a posture write that skipped the advisory lock would defeat the gate.
+		return fmt.Errorf("graphowner: lock-only %s: %w", family, err)
+	}
 
 	tx, err := g.db.Begin(ctx)
 	if err != nil {
@@ -195,11 +201,16 @@ func (g *LockOnlyGate) writeChunk(
 // rowUIDs extracts the "uid" string field from each row, preserving order and
 // duplicates — postgres.GraphNodeOwnerStore.LockUIDs dedupes and drops blanks
 // itself, so the lock-only path does not need to repeat that work here.
-func rowUIDs(rows []map[string]any) []string {
+func rowUIDs(rows []map[string]any) ([]string, error) {
 	uids := make([]string, 0, len(rows))
-	for _, row := range rows {
-		uid, _ := row["uid"].(string)
+	for i, row := range rows {
+		uid, ok := row["uid"].(string)
+		if !ok || strings.TrimSpace(uid) == "" {
+			// A row with no usable uid cannot be locked, and writing it unlocked
+			// would silently defeat the gate. Reject the whole chunk instead.
+			return nil, fmt.Errorf("row %d has a missing or non-string uid (%T); every posture row must carry a uid", i, row["uid"])
+		}
 		uids = append(uids, uid)
 	}
-	return uids
+	return uids, nil
 }
