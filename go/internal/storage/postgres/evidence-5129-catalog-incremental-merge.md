@@ -22,8 +22,11 @@ generation's repository identities into the cached catalog in place.
  allocs/op — 100× fewer shared-cache loads, 2.24× faster, 2.5× fewer
  allocations on the harness. On the accepted production run shape (1.0
  evict-driven reload per onboarding commit) the merge removes all 895
- post-warm serialized reloads (~382s of commit-chain wall time); reference-
- machine confirmation lands with the next full-corpus acceptance run.
+ post-warm serialized reloads (~382s of commit-chain wall time,
+ extrapolated from the measured 0.427s median load); the reference-machine
+ full-corpus wall-clock confirmation is tracked by issue #5122, whose
+ acceptance criteria require re-measuring the collection stage boundaries
+ on the accepted machine/profile after its candidates land.
  Steady-state behavior is unchanged: `cached` bench stays at 0.005
  loads/commit, and unchanged-identity commits skip the merge entirely.
 

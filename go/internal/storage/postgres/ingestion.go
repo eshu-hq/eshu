@@ -241,9 +241,13 @@ func (s IngestionStore) commitScopeGeneration(
 	)
 	// currentGenerationRepos maps each repository id this generation commits to
 	// its computed catalog identity (RepoID plus aliases). The full identity —
-	// not just the id — is needed so the shared catalog cache can invalidate when
+	// not just the id — is needed so the shared catalog cache can detect when
 	// an already-known repo's slug/name aliases drift, not only when a new id
-	// appears (issue #3521).
+	// appears (issue #3521). If one generation streams multiple repository
+	// facts for the same id with conflicting identities, the last-streamed one
+	// wins here, whereas a fresh reload orders by observed_at DESC; the
+	// deferred backfill's own uncached reload corrects any such transient
+	// divergence (#5129).
 	currentGenerationRepos := make(map[string]relationships.CatalogEntry)
 	relationshipStore := NewRelationshipStore(tx)
 	stageStart = time.Now()
