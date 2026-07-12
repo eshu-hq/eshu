@@ -3,11 +3,11 @@
   "blocking": true,
   "totals": {
     "total": 400,
-    "covered": 319,
-    "uncovered": 72,
+    "covered": 324,
+    "uncovered": 67,
     "unresolved": 0,
     "exempt": 9,
-    "percent_satisfied": 82
+    "percent_satisfied": 83.25
   },
   "registry_summaries": [
     {
@@ -85,11 +85,11 @@
     {
       "registry": "retractable_edge_type",
       "total": 52,
-      "covered": 8,
-      "uncovered": 44,
+      "covered": 13,
+      "uncovered": 39,
       "unresolved": 0,
       "exempt": 0,
-      "percent_satisfied": 15.38
+      "percent_satisfied": 25
     },
     {
       "registry": "retractable_type",
@@ -141,11 +141,11 @@
     {
       "scenario_type": "delta_tombstone",
       "total": 140,
-      "covered": 95,
-      "uncovered": 45,
+      "covered": 100,
+      "uncovered": 40,
       "unresolved": 0,
       "exempt": 0,
-      "percent_satisfied": 67.86
+      "percent_satisfied": 71.43
     },
     {
       "scenario_type": "fault",
@@ -2478,8 +2478,11 @@
       "registry": "retractable_edge_type",
       "key": "retractable_edge:EXECUTES",
       "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+      "status": "covered",
+      "scenario": "go_test",
+      "ref": "go/internal/replay/offlinetier/delta_tier_reducer_sql_relationship_retract_live_test.go",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: go/internal/replay/offlinetier/delta_tier_reducer_sql_relationship_retract_live_test.go"
     },
     {
       "registry": "retractable_edge_type",
@@ -2513,8 +2516,11 @@
       "registry": "retractable_edge_type",
       "key": "retractable_edge:HAS_COLUMN",
       "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+      "status": "covered",
+      "scenario": "go_test",
+      "ref": "go/internal/replay/offlinetier/delta_tier_reducer_sql_relationship_retract_live_test.go",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: go/internal/replay/offlinetier/delta_tier_reducer_sql_relationship_retract_live_test.go"
     },
     {
       "registry": "retractable_edge_type",
@@ -2623,8 +2629,11 @@
       "registry": "retractable_edge_type",
       "key": "retractable_edge:QUERIES_TABLE",
       "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+      "status": "covered",
+      "scenario": "go_test",
+      "ref": "go/internal/replay/offlinetier/delta_tier_reducer_sql_relationship_retract_live_test.go",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: go/internal/replay/offlinetier/delta_tier_reducer_sql_relationship_retract_live_test.go"
     },
     {
       "registry": "retractable_edge_type",
@@ -2647,8 +2656,11 @@
       "registry": "retractable_edge_type",
       "key": "retractable_edge:REFERENCES_TABLE",
       "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+      "status": "covered",
+      "scenario": "go_test",
+      "ref": "go/internal/replay/offlinetier/delta_tier_reducer_sql_relationship_retract_live_test.go",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: go/internal/replay/offlinetier/delta_tier_reducer_sql_relationship_retract_live_test.go"
     },
     {
       "registry": "retractable_edge_type",
@@ -2703,8 +2715,11 @@
       "registry": "retractable_edge_type",
       "key": "retractable_edge:TRIGGERS",
       "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+      "status": "covered",
+      "scenario": "go_test",
+      "ref": "go/internal/replay/offlinetier/delta_tier_reducer_sql_relationship_retract_live_test.go",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: go/internal/replay/offlinetier/delta_tier_reducer_sql_relationship_retract_live_test.go"
     },
     {
       "registry": "retractable_edge_type",
@@ -3967,11 +3982,9 @@
     "retractable_edge:DOCUMENTS|delta_tombstone",
     "retractable_edge:EVIDENCES_REPOSITORY_RELATIONSHIP|delta_tombstone",
     "retractable_edge:EXECUTES_SHELL|delta_tombstone",
-    "retractable_edge:EXECUTES|delta_tombstone",
     "retractable_edge:EXPLAINS|delta_tombstone",
     "retractable_edge:GRANTS_ACCESS_TO|delta_tombstone",
     "retractable_edge:HANDLES_ROUTE|delta_tombstone",
-    "retractable_edge:HAS_COLUMN|delta_tombstone",
     "retractable_edge:HAS_DEPLOYMENT_EVIDENCE|delta_tombstone",
     "retractable_edge:HAS_ROLE|delta_tombstone",
     "retractable_edge:HELM_VALUE_REFERENCE|delta_tombstone",
@@ -3981,9 +3994,7 @@
     "retractable_edge:MANAGES|delta_tombstone",
     "retractable_edge:OVERRIDES|delta_tombstone",
     "retractable_edge:PROVISIONS_DEPENDENCY_FOR|delta_tombstone",
-    "retractable_edge:QUERIES_TABLE|delta_tombstone",
     "retractable_edge:READS_CONFIG_FROM|delta_tombstone",
-    "retractable_edge:REFERENCES_TABLE|delta_tombstone",
     "retractable_edge:RUNS_IMAGE|delta_tombstone",
     "retractable_edge:RUNS_IN|delta_tombstone",
     "retractable_edge:RUNS_ON|delta_tombstone",
@@ -3991,7 +4002,6 @@
     "retractable_edge:TAINT_FLOWS_TO|delta_tombstone",
     "retractable_edge:TARGETS_ENVIRONMENT|delta_tombstone",
     "retractable_edge:TO|delta_tombstone",
-    "retractable_edge:TRIGGERS|delta_tombstone",
     "retractable_edge:USES_METACLASS|delta_tombstone",
     "retractable_edge:USES_MODULE|delta_tombstone",
     "retractable_edge:USES_PROFILE|delta_tombstone",

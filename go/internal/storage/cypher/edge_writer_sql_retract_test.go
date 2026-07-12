@@ -11,7 +11,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
-func TestEdgeWriterRetractEdgesSQLRelationshipUsesLabelScopedGroup(t *testing.T) {
+func TestEdgeWriterRetractEdgesSQLRelationshipUsesSequentialLabelScopedStatements(t *testing.T) {
 	t.Parallel()
 
 	executor := &recordingGroupExecutor{}
@@ -25,12 +25,12 @@ func TestEdgeWriterRetractEdgesSQLRelationshipUsesLabelScopedGroup(t *testing.T)
 	if err != nil {
 		t.Fatalf("RetractEdges() error = %v", err)
 	}
-	if got, want := len(executor.groupCalls), 1; got != want {
-		t.Fatalf("ExecuteGroup calls = %d, want %d", got, want)
+	if got := len(executor.groupCalls); got != 0 {
+		t.Fatalf("ExecuteGroup calls = %d, want 0", got)
 	}
-	stmts := executor.groupCalls[0]
+	stmts := executor.calls
 	if got, want := len(stmts), 6; got != want {
-		t.Fatalf("group statement count = %d, want %d", got, want)
+		t.Fatalf("sequential statement count = %d, want %d", got, want)
 	}
 
 	assertSQLRetractStatement(t, stmts[0], "Function", "QUERIES_TABLE")
@@ -100,7 +100,7 @@ func TestEdgeWriterRetractEdgesSQLRelationshipFallbackIncludesQueriesTable(t *te
 	}
 }
 
-func TestEdgeWriterRetractEdgesSQLRelationshipDeltaUsesFileScopedGroup(t *testing.T) {
+func TestEdgeWriterRetractEdgesSQLRelationshipDeltaUsesSequentialFileScopedStatements(t *testing.T) {
 	t.Parallel()
 
 	executor := &recordingGroupExecutor{}
@@ -122,12 +122,12 @@ func TestEdgeWriterRetractEdgesSQLRelationshipDeltaUsesFileScopedGroup(t *testin
 	if err != nil {
 		t.Fatalf("RetractEdges() error = %v", err)
 	}
-	if got, want := len(executor.groupCalls), 1; got != want {
-		t.Fatalf("ExecuteGroup calls = %d, want %d", got, want)
+	if got := len(executor.groupCalls); got != 0 {
+		t.Fatalf("ExecuteGroup calls = %d, want 0", got)
 	}
-	stmts := executor.groupCalls[0]
+	stmts := executor.calls
 	if got, want := len(stmts), 6; got != want {
-		t.Fatalf("group statement count = %d, want %d", got, want)
+		t.Fatalf("sequential statement count = %d, want %d", got, want)
 	}
 	for _, stmt := range stmts {
 		if strings.Contains(stmt.Cypher, "source.repo_id IN $repo_ids") {

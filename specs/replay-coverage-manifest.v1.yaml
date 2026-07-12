@@ -494,6 +494,15 @@ coverage:
   # not live-claimed here.
   - {surface: retractable_edge:INHERITS, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_inheritance_edge_retract_live_test.go, proof_gate: replay-tier}
   - {surface: retractable_edge:IMPLEMENTS, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_inheritance_edge_retract_live_test.go, proof_gate: replay-tier}
+  # Reducer-materialized SQL relationships (#5116): all six source-label query
+  # shapes are proven through the live production EdgeWriter for both repository
+  # and delta-file retract scopes. REFERENCES_TABLE is exercised from SqlView
+  # and SqlFunction sources by the same test.
+  - {surface: retractable_edge:QUERIES_TABLE, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_sql_relationship_retract_live_test.go, proof_gate: replay-tier}
+  - {surface: retractable_edge:REFERENCES_TABLE, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_sql_relationship_retract_live_test.go, proof_gate: replay-tier}
+  - {surface: retractable_edge:HAS_COLUMN, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_sql_relationship_retract_live_test.go, proof_gate: replay-tier}
+  - {surface: retractable_edge:TRIGGERS, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_sql_relationship_retract_live_test.go, proof_gate: replay-tier}
+  - {surface: retractable_edge:EXECUTES, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_sql_relationship_retract_live_test.go, proof_gate: replay-tier}
   - {surface: reducer_drain:reducer-projection-drain, scenario: go_test, scenario_type: crash, ref: go/internal/replay/crashreplay/scenario_test.go, proof_gate: go-test-race}
 
 scenario_requirements:
