@@ -286,6 +286,10 @@ skills are active.
 
 - Bug fixes MUST have a failing regression test first.
 - Performance work MUST have before/after measurements.
+- Performance issue priority MUST be based on the latest accepted measured
+  bottleneck and target contribution budget, not on issue title, old backlog
+  severity, or a real-but-small local optimization. Re-rank stale performance
+  issues before implementing them.
 - Performance comparisons MUST use the same primary start and terminal events,
   corpus/profile/topology, and storage state. Report exact seconds plus a human
   duration and label non-comparable totals instead of manufacturing a speedup.
