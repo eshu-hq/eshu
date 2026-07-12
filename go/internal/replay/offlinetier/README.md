@@ -97,11 +97,41 @@ entities absent from gen2 — it never resurrects a tombstoned node by writing i
   removes it. This is the retraction proof; the offline half cannot delete a
   node without a backend.
 
+### Entity-label retract coverage (C-14 #4367)
+
+The cassette's gen1 also carries a `content_entity` fact per retractable graph
+entity label (Function, Class, HelmChart, ArgoCDApplication, Terraform*, ...),
+absent from gen2. `materialization.go` routes these through the production
+`projector.ExtractEntityRows` mapping, so the offline tier drives real entity
+nodes of each label. `delta_tier_entity_retract_live_test.go` derives the label
+set from the cassette itself and asserts each label is created (count=1) after
+gen1 and retracted (count=0) after gen2 against real NornicDB.
+`TestEntityRetractManifestBinding` binds that cassette-derived set to the
+replay-coverage manifest's `retractable_node` delta_tombstone rows, so a
+cassette/manifest drift fails without a backend.
+
+No-Regression Evidence: `projector.ExtractEntityRows` is a thin exported wrapper
+over the existing unexported `extractEntities`; it adds no new production
+projection logic and is called only by this offline test tier, so the
+reducer/projector graph-write path is byte-unchanged. The offline tier's new
+`content_entity` case routes those facts through that same mapping. Proof on the
+pinned NornicDB `timothyswt/nornicdb-cpu-bge:v1.1.9`: `scripts/verify-replay-tier.sh`
+wrote gen1 (81 content_entity labels present, count=1 each) then gen2, and the
+production `entity_retract` phase removed all 81 (count=0 each) in 0.11s over 85
+statements; total tier wall-clock 5s, all four live tests green. No queue or
+row-count contract applies because the tier is a single-writer offline replay.
+
+No-Observability-Change: the tier reuses the existing canonical writer spans,
+metrics, and phase-group logs (`phase=entity_retract`); no metric name, label,
+span, worker, lease, batch, or status field is added. Operators diagnose entity
+retract through the existing canonical phase-group telemetry.
+
 ## Cassette fact-kind decode disposition
 
-`materialization.go`'s `rowFromPayload` helpers read the cassette's five
-synthetic fact kinds (`git.repository`, `git.directory`, `git.file`,
-`git.gitlab_pipeline`, `git.gitlab_job`) as raw `map[string]any` payloads
+`materialization.go`'s `rowFromPayload` helpers read the cassette's synthetic
+fact kinds (`git.repository`, `git.directory`, `git.file`,
+`git.gitlab_pipeline`, `git.gitlab_job`, and `content_entity`) as raw
+`map[string]any` payloads
 rather than through the `sdk/go/factschema` typed-decode seam other
 consumers migrated to under epic #4783 (Contract System — Full Integration).
 This is deliberate, not deferred debt: those fact kinds have no real

@@ -45,6 +45,7 @@ const (
 	factKindFile           = "git.file"
 	factKindGitlabPipeline = "git.gitlab_pipeline"
 	factKindGitlabJob      = "git.gitlab_job"
+	factKindContentEntity  = "content_entity"
 )
 
 // materializationFromEnvelopes builds the canonical projection input for one
@@ -67,8 +68,15 @@ func materializationFromEnvelopes(
 		FirstGeneration: true,
 	}
 
+	// content_entity facts are projected together through the production entity
+	// mapping after the repository fact establishes repoID/repoPath, so entity
+	// rows carry the correct repo scope and qualified file path.
+	var entityEnvelopes []facts.Envelope
+
 	for i, env := range envelopes {
 		switch env.FactKind {
+		case factKindContentEntity:
+			entityEnvelopes = append(entityEnvelopes, env)
 		case factKindRepository:
 			repo, err := repositoryRowFromPayload(env.Payload)
 			if err != nil {
@@ -111,6 +119,14 @@ func materializationFromEnvelopes(
 
 	if mat.Repository == nil {
 		return projector.CanonicalMaterialization{}, fmt.Errorf("cassette generation %q has no repository fact", generationID)
+	}
+
+	// Project content_entity facts through the production entity mapping now that
+	// repoID/repoPath are known. This drives real Function/Class/HelmChart/... etc.
+	// entity nodes through the same extractEntities path the projector uses, so
+	// the tier proves their create-then-retract on the real backend.
+	if len(entityEnvelopes) > 0 {
+		mat.Entities = append(mat.Entities, projector.ExtractEntityRows(entityEnvelopes, mat.RepoID, mat.RepoPath)...)
 	}
 
 	// Canonical directory writes are ordered root-first by depth so a parent node

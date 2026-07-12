@@ -139,6 +139,16 @@ func buildDirectoryChain(files []FileRow, repoPath string, repoID string) []Dire
 	return dirs
 }
 
+// ExtractEntityRows builds the canonical EntityRow set from content_entity
+// (ParsedEntityObserved) fact envelopes using the exact production entity
+// projection. It exists so the offline replay tier can drive real entity nodes
+// through the same mapping the reducer/projector uses in production, rather than
+// reimplementing the entity_type -> label and uid derivation. repoID and
+// repoPath default the per-entity repo scope and qualified file path.
+func ExtractEntityRows(envelopes []facts.Envelope, repoID, repoPath string) []EntityRow {
+	return extractEntities(envelopes, repoID, repoPath)
+}
+
 // extractEntities builds EntityRow entries from ParsedEntityObserved fact
 // envelopes. Entities with unmapped types or tombstoned facts are skipped.
 // FilePath is set to the repo-qualified full path (repoPath/relative_path) so

@@ -3,11 +3,11 @@
   "blocking": true,
   "totals": {
     "total": 400,
-    "covered": 228,
-    "uncovered": 163,
+    "covered": 309,
+    "uncovered": 82,
     "unresolved": 0,
     "exempt": 9,
-    "percent_satisfied": 59.25
+    "percent_satisfied": 79.5
   },
   "registry_summaries": [
     {
@@ -94,11 +94,11 @@
     {
       "registry": "retractable_type",
       "total": 87,
-      "covered": 1,
-      "uncovered": 86,
+      "covered": 82,
+      "uncovered": 5,
       "unresolved": 0,
       "exempt": 0,
-      "percent_satisfied": 1.15
+      "percent_satisfied": 94.25
     },
     {
       "registry": "surface_inventory",
@@ -141,11 +141,11 @@
     {
       "scenario_type": "delta_tombstone",
       "total": 140,
-      "covered": 4,
-      "uncovered": 136,
+      "covered": 85,
+      "uncovered": 55,
       "unresolved": 0,
       "exempt": 0,
-      "percent_satisfied": 2.86
+      "percent_satisfied": 60.71
     },
     {
       "scenario_type": "fault",
@@ -2727,169 +2727,241 @@
       "registry": "retractable_type",
       "key": "retractable_node:AnalyticsModel",
       "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
     },
     {
       "registry": "retractable_type",
       "key": "retractable_node:Annotation",
       "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
     },
     {
       "registry": "retractable_type",
       "key": "retractable_node:ArgoCDApplication",
       "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
     },
     {
       "registry": "retractable_type",
       "key": "retractable_node:ArgoCDApplicationSet",
       "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
     },
     {
       "registry": "retractable_type",
       "key": "retractable_node:AtlantisProject",
       "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
     },
     {
       "registry": "retractable_type",
       "key": "retractable_node:AtlantisWorkflow",
       "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
     },
     {
       "registry": "retractable_type",
       "key": "retractable_node:Class",
       "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
     },
     {
       "registry": "retractable_type",
       "key": "retractable_node:CloudFormationOutput",
       "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
     },
     {
       "registry": "retractable_type",
       "key": "retractable_node:CloudFormationParameter",
       "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
     },
     {
       "registry": "retractable_type",
       "key": "retractable_node:CloudFormationResource",
       "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
     },
     {
       "registry": "retractable_type",
       "key": "retractable_node:Component",
       "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
     },
     {
       "registry": "retractable_type",
       "key": "retractable_node:ContainerImage",
       "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
     },
     {
       "registry": "retractable_type",
       "key": "retractable_node:ContainerImageDescriptor",
       "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
     },
     {
       "registry": "retractable_type",
       "key": "retractable_node:ContainerImageIndex",
       "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
     },
     {
       "registry": "retractable_type",
       "key": "retractable_node:ContainerImageTagObservation",
       "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
     },
     {
       "registry": "retractable_type",
       "key": "retractable_node:CrossplaneClaim",
       "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
     },
     {
       "registry": "retractable_type",
       "key": "retractable_node:CrossplaneComposition",
       "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
     },
     {
       "registry": "retractable_type",
       "key": "retractable_node:CrossplaneXRD",
       "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
     },
     {
       "registry": "retractable_type",
       "key": "retractable_node:DashboardAsset",
       "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
     },
     {
       "registry": "retractable_type",
       "key": "retractable_node:DataAsset",
       "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
     },
     {
       "registry": "retractable_type",
       "key": "retractable_node:DataColumn",
       "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
     },
     {
       "registry": "retractable_type",
       "key": "retractable_node:DataContract",
       "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
     },
     {
       "registry": "retractable_type",
       "key": "retractable_node:DataOwner",
       "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
     },
     {
       "registry": "retractable_type",
       "key": "retractable_node:DataQualityCheck",
       "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
     },
     {
       "registry": "retractable_type",
@@ -2905,8 +2977,11 @@
       "registry": "retractable_type",
       "key": "retractable_node:Enum",
       "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
     },
     {
       "registry": "retractable_type",
@@ -2919,8 +2994,11 @@
       "registry": "retractable_type",
       "key": "retractable_node:Function",
       "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
     },
     {
       "registry": "retractable_type",
@@ -2940,43 +3018,61 @@
       "registry": "retractable_type",
       "key": "retractable_node:HelmChart",
       "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
     },
     {
       "registry": "retractable_type",
       "key": "retractable_node:HelmTemplateValueUsage",
       "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
     },
     {
       "registry": "retractable_type",
       "key": "retractable_node:HelmValueDefinition",
       "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
     },
     {
       "registry": "retractable_type",
       "key": "retractable_node:HelmValues",
       "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
     },
     {
       "registry": "retractable_type",
       "key": "retractable_node:ImplBlock",
       "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
     },
     {
       "registry": "retractable_type",
       "key": "retractable_node:Interface",
       "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
     },
     {
       "registry": "retractable_type",
@@ -2989,344 +3085,491 @@
       "registry": "retractable_type",
       "key": "retractable_node:KustomizeOverlay",
       "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
     },
     {
       "registry": "retractable_type",
       "key": "retractable_node:Macro",
       "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
     },
     {
       "registry": "retractable_type",
       "key": "retractable_node:OciImageDescriptor",
       "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
     },
     {
       "registry": "retractable_type",
       "key": "retractable_node:OciImageIndex",
       "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
     },
     {
       "registry": "retractable_type",
       "key": "retractable_node:OciImageManifest",
       "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
     },
     {
       "registry": "retractable_type",
       "key": "retractable_node:OciImageReferrer",
       "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
     },
     {
       "registry": "retractable_type",
       "key": "retractable_node:OciImageTagObservation",
       "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
     },
     {
       "registry": "retractable_type",
       "key": "retractable_node:OciRegistryRepository",
       "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
     },
     {
       "registry": "retractable_type",
       "key": "retractable_node:Package",
       "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
     },
     {
       "registry": "retractable_type",
       "key": "retractable_node:PackageDependency",
       "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
     },
     {
       "registry": "retractable_type",
       "key": "retractable_node:PackageRegistryPackage",
       "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
     },
     {
       "registry": "retractable_type",
       "key": "retractable_node:PackageRegistryPackageDependency",
       "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
     },
     {
       "registry": "retractable_type",
       "key": "retractable_node:PackageRegistryPackageVersion",
       "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
     },
     {
       "registry": "retractable_type",
       "key": "retractable_node:PackageVersion",
       "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
     },
     {
       "registry": "retractable_type",
       "key": "retractable_node:Property",
       "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
     },
     {
       "registry": "retractable_type",
       "key": "retractable_node:Protocol",
       "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
     },
     {
       "registry": "retractable_type",
       "key": "retractable_node:ProtocolImplementation",
       "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
     },
     {
       "registry": "retractable_type",
       "key": "retractable_node:QueryExecution",
       "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
     },
     {
       "registry": "retractable_type",
       "key": "retractable_node:Record",
       "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
     },
     {
       "registry": "retractable_type",
       "key": "retractable_node:ShellCommand",
       "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
     },
     {
       "registry": "retractable_type",
       "key": "retractable_node:SqlColumn",
       "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
     },
     {
       "registry": "retractable_type",
       "key": "retractable_node:SqlFunction",
       "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
     },
     {
       "registry": "retractable_type",
       "key": "retractable_node:SqlIndex",
       "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
     },
     {
       "registry": "retractable_type",
       "key": "retractable_node:SqlTable",
       "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
     },
     {
       "registry": "retractable_type",
       "key": "retractable_node:SqlTrigger",
       "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
     },
     {
       "registry": "retractable_type",
       "key": "retractable_node:SqlView",
       "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
     },
     {
       "registry": "retractable_type",
       "key": "retractable_node:Struct",
       "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
     },
     {
       "registry": "retractable_type",
       "key": "retractable_node:TerraformBackend",
       "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
     },
     {
       "registry": "retractable_type",
       "key": "retractable_node:TerraformCheck",
       "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
     },
     {
       "registry": "retractable_type",
       "key": "retractable_node:TerraformDataSource",
       "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
     },
     {
       "registry": "retractable_type",
       "key": "retractable_node:TerraformImport",
       "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
     },
     {
       "registry": "retractable_type",
       "key": "retractable_node:TerraformLocal",
       "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
     },
     {
       "registry": "retractable_type",
       "key": "retractable_node:TerraformLockProvider",
       "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
     },
     {
       "registry": "retractable_type",
       "key": "retractable_node:TerraformModule",
       "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
     },
     {
       "registry": "retractable_type",
       "key": "retractable_node:TerraformMovedBlock",
       "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
     },
     {
       "registry": "retractable_type",
       "key": "retractable_node:TerraformOutput",
       "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
     },
     {
       "registry": "retractable_type",
       "key": "retractable_node:TerraformProvider",
       "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
     },
     {
       "registry": "retractable_type",
       "key": "retractable_node:TerraformRemovedBlock",
       "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
     },
     {
       "registry": "retractable_type",
       "key": "retractable_node:TerraformResource",
       "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
     },
     {
       "registry": "retractable_type",
       "key": "retractable_node:TerraformVariable",
       "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
     },
     {
       "registry": "retractable_type",
       "key": "retractable_node:TerragruntConfig",
       "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
     },
     {
       "registry": "retractable_type",
       "key": "retractable_node:TerragruntDependency",
       "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
     },
     {
       "registry": "retractable_type",
       "key": "retractable_node:TerragruntInput",
       "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
     },
     {
       "registry": "retractable_type",
       "key": "retractable_node:TerragruntLocal",
       "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
     },
     {
       "registry": "retractable_type",
       "key": "retractable_node:Trait",
       "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
     },
     {
       "registry": "retractable_type",
       "key": "retractable_node:TypeAlias",
       "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
     },
     {
       "registry": "retractable_type",
       "key": "retractable_node:TypeAnnotation",
       "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
     },
     {
       "registry": "retractable_type",
       "key": "retractable_node:Typedef",
       "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
     },
     {
       "registry": "retractable_type",
       "key": "retractable_node:Union",
       "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
     },
     {
       "registry": "retractable_type",
@@ -3730,91 +3973,10 @@
     "retractable_edge:USES_PROFILE|delta_tombstone",
     "retractable_edge:USES_WORKFLOW|delta_tombstone",
     "retractable_edge:USES|delta_tombstone",
-    "retractable_node:AnalyticsModel|delta_tombstone",
-    "retractable_node:Annotation|delta_tombstone",
-    "retractable_node:ArgoCDApplicationSet|delta_tombstone",
-    "retractable_node:ArgoCDApplication|delta_tombstone",
-    "retractable_node:AtlantisProject|delta_tombstone",
-    "retractable_node:AtlantisWorkflow|delta_tombstone",
-    "retractable_node:Class|delta_tombstone",
-    "retractable_node:CloudFormationOutput|delta_tombstone",
-    "retractable_node:CloudFormationParameter|delta_tombstone",
-    "retractable_node:CloudFormationResource|delta_tombstone",
-    "retractable_node:Component|delta_tombstone",
-    "retractable_node:ContainerImageDescriptor|delta_tombstone",
-    "retractable_node:ContainerImageIndex|delta_tombstone",
-    "retractable_node:ContainerImageTagObservation|delta_tombstone",
-    "retractable_node:ContainerImage|delta_tombstone",
-    "retractable_node:CrossplaneClaim|delta_tombstone",
-    "retractable_node:CrossplaneComposition|delta_tombstone",
-    "retractable_node:CrossplaneXRD|delta_tombstone",
-    "retractable_node:DashboardAsset|delta_tombstone",
-    "retractable_node:DataAsset|delta_tombstone",
-    "retractable_node:DataColumn|delta_tombstone",
-    "retractable_node:DataContract|delta_tombstone",
-    "retractable_node:DataOwner|delta_tombstone",
-    "retractable_node:DataQualityCheck|delta_tombstone",
-    "retractable_node:Enum|delta_tombstone",
     "retractable_node:File|delta_tombstone",
-    "retractable_node:Function|delta_tombstone",
     "retractable_node:GitlabJob|delta_tombstone",
     "retractable_node:GitlabPipeline|delta_tombstone",
-    "retractable_node:HelmChart|delta_tombstone",
-    "retractable_node:HelmTemplateValueUsage|delta_tombstone",
-    "retractable_node:HelmValueDefinition|delta_tombstone",
-    "retractable_node:HelmValues|delta_tombstone",
-    "retractable_node:ImplBlock|delta_tombstone",
-    "retractable_node:Interface|delta_tombstone",
     "retractable_node:K8sResource|delta_tombstone",
-    "retractable_node:KustomizeOverlay|delta_tombstone",
-    "retractable_node:Macro|delta_tombstone",
-    "retractable_node:OciImageDescriptor|delta_tombstone",
-    "retractable_node:OciImageIndex|delta_tombstone",
-    "retractable_node:OciImageManifest|delta_tombstone",
-    "retractable_node:OciImageReferrer|delta_tombstone",
-    "retractable_node:OciImageTagObservation|delta_tombstone",
-    "retractable_node:OciRegistryRepository|delta_tombstone",
-    "retractable_node:PackageDependency|delta_tombstone",
-    "retractable_node:PackageRegistryPackageDependency|delta_tombstone",
-    "retractable_node:PackageRegistryPackageVersion|delta_tombstone",
-    "retractable_node:PackageRegistryPackage|delta_tombstone",
-    "retractable_node:PackageVersion|delta_tombstone",
-    "retractable_node:Package|delta_tombstone",
-    "retractable_node:Property|delta_tombstone",
-    "retractable_node:ProtocolImplementation|delta_tombstone",
-    "retractable_node:Protocol|delta_tombstone",
-    "retractable_node:QueryExecution|delta_tombstone",
-    "retractable_node:Record|delta_tombstone",
-    "retractable_node:ShellCommand|delta_tombstone",
-    "retractable_node:SqlColumn|delta_tombstone",
-    "retractable_node:SqlFunction|delta_tombstone",
-    "retractable_node:SqlIndex|delta_tombstone",
-    "retractable_node:SqlTable|delta_tombstone",
-    "retractable_node:SqlTrigger|delta_tombstone",
-    "retractable_node:SqlView|delta_tombstone",
-    "retractable_node:Struct|delta_tombstone",
-    "retractable_node:TerraformBackend|delta_tombstone",
-    "retractable_node:TerraformCheck|delta_tombstone",
-    "retractable_node:TerraformDataSource|delta_tombstone",
-    "retractable_node:TerraformImport|delta_tombstone",
-    "retractable_node:TerraformLocal|delta_tombstone",
-    "retractable_node:TerraformLockProvider|delta_tombstone",
-    "retractable_node:TerraformModule|delta_tombstone",
-    "retractable_node:TerraformMovedBlock|delta_tombstone",
-    "retractable_node:TerraformOutput|delta_tombstone",
-    "retractable_node:TerraformProvider|delta_tombstone",
-    "retractable_node:TerraformRemovedBlock|delta_tombstone",
-    "retractable_node:TerraformResource|delta_tombstone",
-    "retractable_node:TerraformVariable|delta_tombstone",
-    "retractable_node:TerragruntConfig|delta_tombstone",
-    "retractable_node:TerragruntDependency|delta_tombstone",
-    "retractable_node:TerragruntInput|delta_tombstone",
-    "retractable_node:TerragruntLocal|delta_tombstone",
-    "retractable_node:Trait|delta_tombstone",
-    "retractable_node:TypeAlias|delta_tombstone",
-    "retractable_node:TypeAnnotation|delta_tombstone",
-    "retractable_node:Typedef|delta_tombstone",
-    "retractable_node:Union|delta_tombstone",
     "retractable_node:Variable|delta_tombstone"
   ],
   "stale_manifest_surfaces": null,
