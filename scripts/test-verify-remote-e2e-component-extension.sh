@@ -22,7 +22,7 @@ bash -n "${verifier}" || die "verifier failed bash syntax check"
 # --list names every proof check without running anything.
 list_log="$(bash "${verifier}" --list)"
 for needle in "inventory:" "workflow:" "facts:" "provenance:" "redaction canary:"; do
-	rg --fixed-strings --quiet "${needle}" <<<"${list_log}" \
+	rg --fixed-strings --quiet "${needle}" < <(printf '%s\n' "${list_log}") \
 		|| die "--list output missing ${needle}"
 done
 
