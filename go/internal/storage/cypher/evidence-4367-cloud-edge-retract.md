@@ -160,7 +160,7 @@ baseline to regress against.
 Claimed in `specs/replay-coverage-manifest.v1.yaml`:
 RUNS_IMAGE, LOGS_TO, GRANTS_ACCESS_TO, HAS_ROLE, ALLOWS_INGRESS,
 ALLOWS_EGRESS, TO — all seven proven live+retract above. `retractable_edge_type`
-coverage moves from 30/52 to 37/52 (`bash scripts/verify-replay-coverage-gate.sh`).
+coverage moves from 34/52 to 41/52 (`bash scripts/verify-replay-coverage-gate.sh`).
 
 **USES and MANAGES are explicitly NOT claimed here.** They are owned by
 different writers, not the five cloud writers this backfill covers:
