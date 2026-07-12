@@ -168,7 +168,7 @@ The three reads and their new anchors:
   `MATCH (start:Function|Class|Struct|Interface|TypeAlias|File)` /
   `MATCH (end:...)`. The label disjunction mirrors the authoritative CALLS-source
   label set the canonical edge writer projects
-  (`retractCodeCallParserEdgesCypher` in `internal/storage/cypher`), so every
+  (`codeCallRetractSourceLabels` in `internal/storage/cypher`), so every
   call-chain endpoint still resolves. The id/uid and name predicates, the repo
   scoping, the `(start)-[:CALLS*1..N]->(end)` shortestPath, the projection, and
   the `LIMIT 5` are byte-identical; only the anchor label moved into the MATCH.

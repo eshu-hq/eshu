@@ -5,7 +5,7 @@ stabilization is implemented in Compose, Helm, runtime contract tests, and
 operator docs. The curated search projection remains design- and
 benchmark-gated before any public API, MCP, schema, or graph-write change.
 
-Phase-1 stabilization status: Compose and Helm now pin NornicDB `v1.1.9` and
+Phase-1 stabilization status: Compose and Helm now pin NornicDB `v1.1.11` and
 set the canonical graph lane to graph-only startup controls. Runtime contract
 tests enforce the graph-only NornicDB controls in Compose, Helm, and the public
 environment reference.
@@ -51,10 +51,10 @@ For NornicDB deployments, the canonical graph lane should not build BM25 or
 vector indexes over every graph node and property unless a specific proof says
 that deployment also serves a curated Eshu search lane from the same database.
 
-Eshu pins NornicDB `v1.1.9` for Compose graph startup. The per-database
+Eshu pins NornicDB `v1.1.11` for Compose graph startup. The per-database
 BM25/vector enable and warming controls Eshu depends on shipped in v1.1.2
 ([orneryd/NornicDB#177](https://github.com/orneryd/NornicDB/pull/177)) and are
-preserved in later releases; v1.1.9 is the latest published multi-arch Docker Hub
+preserved in later releases; v1.1.11 is the latest published multi-arch Docker Hub
 manifest for the `nornicdb-cpu-bge` image line. Releases v1.1.4–v1.1.6 are
 maintenance/compatibility releases (Cypher/Bolt correctness, storage resilience,
 vector-search performance, Neo4j/Graphiti compatibility) with no on-disk format
@@ -319,7 +319,7 @@ one shadow-read and shadow-write comparison.
 
 No-Regression Evidence: the phase-1 stabilization is a graph backend runtime
 contract change, not a fact, reducer, Cypher, schema, OpenAPI, MCP, or query
-truth change. Compose and Helm now pin NornicDB `v1.1.9`, disable BM25/vector
+truth change. Compose and Helm now pin NornicDB `v1.1.11`, disable BM25/vector
 search and embedding generation for the canonical graph lane, leave BM25/vector
 warming lazy for deliberate proof runs, and disable search-index persistence.
 Runtime package tests enforce those defaults and the public environment

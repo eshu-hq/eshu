@@ -93,10 +93,23 @@ func TestBuildCodeCallRowMapRoutesInstantiatesCanonicalFallback(t *testing.T) {
 }
 
 func TestRetractCodeCallEdgesCoversInstantiates(t *testing.T) {
-	if !strings.Contains(retractCodeCallParserEdgesCypher, "INSTANTIATES") {
-		t.Error("parser code-call retract does not clean stale INSTANTIATES edges")
-	}
-	if !strings.Contains(retractCodeCallFallbackEdgesCypher, "INSTANTIATES") {
-		t.Error("fallback code-call retract does not clean stale INSTANTIATES edges")
+	for _, tc := range []struct {
+		name           string
+		evidenceSource string
+	}{
+		{"parser", "parser/code-calls"},
+		{"fallback", "other/source"},
+	} {
+		stmts := BuildRetractCodeCallEdgeStatements([]string{"r"}, tc.evidenceSource)
+		found := false
+		for _, stmt := range stmts {
+			if strings.Contains(stmt.Cypher, "INSTANTIATES") {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("%s code-call retract does not clean stale INSTANTIATES edges", tc.name)
+		}
 	}
 }

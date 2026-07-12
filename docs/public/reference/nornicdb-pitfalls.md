@@ -209,6 +209,84 @@ Supported response:
 Do not delete Postgres unless the accepted recovery plan is full source
 recollection. Do not make Eshu silently delete graph data at startup.
 
+## Pitfall: Node-Label Disjunction In A `MATCH` Matches Zero Rows
+
+### Observed shape
+
+Two related matching quirks make an all-source-labels retract unreliable.
+Measured on the canonical `timothyswt/nornicdb-cpu-bge:v1.1.11` (and, for the
+disjunction, `v1.1.9`):
+
+```cypher
+-- 1. Node-label disjunction matches zero rows (v1.1.9 and v1.1.11):
+MATCH (s:Function)-[r:CALLS]->() RETURN count(r)         // 1
+MATCH (s:Function|Class)-[r:CALLS]->() RETURN count(r)   // 0  (broken)
+MATCH (s:Function|Class {uid: $u}) RETURN count(s)       // 0  (broken, even with a property key)
+
+-- 2. Unlabeled source scan is unreliable on v1.1.11 (regression from v1.1.9):
+MATCH (s)-[r:CALLS|REFERENCES|INSTANTIATES]->() WHERE s.repo_id IN $ids RETURN count(r)
+--   drops some source labels (e.g. a File-sourced REFERENCES), inconsistently
+--   by internal label-iteration state. On v1.1.9 the same query is complete.
+```
+
+Relationship-type disjunction (`-[r:CALLS|REFERENCES]->`) works on both. Only the
+source **node** anchor is affected. A third quirk compounds it: on v1.1.11
+multiple `DELETE` statements sharing a single managed Bolt transaction do not all
+apply — a grouped per-label retract leaves some edges behind, while the same
+statements run as separate auto-commit transactions delete every edge.
+
+### Eshu implications
+
+A retract that anchors its source on a label disjunction, or on an unlabeled
+`(source)` scan, silently under-deletes on NornicDB. Issue #5116 was exactly
+this: the code-call edge retract matched
+`(source:Function|Class|Struct|Interface|TypeAlias|File)`, so it deleted zero
+edges and stale `CALLS`/`REFERENCES`/`INSTANTIATES` edges survived every
+reprojection.
+
+The only shape that reliably retracts every source on both pinned versions is a
+**single label per statement**, so the fix fans the retract out to one statement
+per source label (`MATCH (source:Function)-[rel:CALLS|REFERENCES|INSTANTIATES]->()
+WHERE source.repo_id IN $repo_ids AND rel.evidence_source = $evidence_source
+DELETE rel`, repeated for `Class`/`Struct`/`Interface`/`TypeAlias`/`File`). The
+statements run **sequentially** (each in its own transaction), not grouped,
+because of the managed-transaction quirk above. Each statement is independently
+scoped and idempotent, so sequential execution is safe. See
+`buildCodeCallRetractStatements` and `executeCodeCallRetractStatements` in
+`go/internal/storage/cypher`.
+
+Do not resolve this by dropping the label to an unlabeled `(source)` scan (it
+passes on v1.1.9 but silently under-deletes on v1.1.11), and do not group the
+per-label statements into one transaction. Sibling instances of the same
+anti-pattern are still open and tracked in #5116: the write-path fallback
+templates (`batchCanonicalCodeCallUpsertCypher` and friends) silently write
+nothing for unresolved-label endpoints; the inheritance retract still uses a
+node-label disjunction; and the SQL-relationship retract uses an unlabeled
+`(source)` scan (fine on v1.1.9, under-deletes on v1.1.11). Each needs the same
+per-label + sequential rework with its own live proof.
+
+### Validation
+
+Run the static shape guard (no backend) and the backend-required retract proof
+against the canonical v1.1.11 pin:
+
+```bash
+cd go
+go test ./internal/storage/cypher -run TestCodeCallRetractStatementsUseSingleSourceLabel -count=1
+ESHU_REPLAY_TIER_LIVE=1 bash ../scripts/verify-replay-tier.sh   # TestReducerCodeCallEdgeRetractGraphTruth, v1.1.11
+```
+
+No-Regression Evidence: the broken retract was a no-op (deleted nothing), so the
+#5116 fix has no slower prior path to regress; the fix makes the intended scoped
+retract work. `TestReducerCodeCallEdgeRetractGraphTruth` proves the in-scope
+`CALLS`/`REFERENCES`/`INSTANTIATES` edges retract to zero while an out-of-scope
+repo's edge and every endpoint node survive, on a real v1.1.11 NornicDB. The
+per-label fan-out runs a bounded, fixed number of scoped deletes per retract.
+
+No-Observability-Change: no runtime metric, span, log field, queue stage, worker
+knob, or schema phase changes. The existing canonical retract spans and
+graph-write failure/retry telemetry continue to expose retract behavior.
+
 ## When To Patch NornicDB
 
 Patch NornicDB only when evidence supports one of these:

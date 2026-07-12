@@ -801,7 +801,8 @@ backend-specific branch.
   `BuildCanonicalRepoRelationshipUpsert`, `BuildCanonicalRunsOnUpsert`
 - Statement retraction builders — produce edge and node retraction statements:
   `BuildRetractInfrastructurePlatformEdges`, `BuildRetractRepoDependencyEdges`,
-  `BuildRetractWorkloadDependencyEdges`, `BuildRetractCodeCallEdges`,
+  `BuildRetractWorkloadDependencyEdges`, `BuildRetractCodeCallEdgeStatements`,
+  `BuildRetractCodeCallEdgeStatementsByFilePath`,
   `BuildRetractInheritanceEdges`, `BuildRetractSQLRelationshipEdges`,
   `BuildRetractSQLRelationshipEdgeStatements`, `BuildDeleteOrphanPlatformNodes`
 

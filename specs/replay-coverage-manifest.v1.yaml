@@ -480,6 +480,13 @@ coverage:
   - {surface: retractable_edge:CONTAINS, scenario: cassette, scenario_type: delta_tombstone, ref: testdata/cassettes/replaydelta/multi-generation-tombstone.json, proof_gate: replay-tier}
   - {surface: retractable_edge:NEEDS, scenario: cassette, scenario_type: delta_tombstone, ref: testdata/cassettes/replaydelta/multi-generation-tombstone.json, proof_gate: replay-tier}
   - {surface: retractable_edge:DEFINES_JOB, scenario: cassette, scenario_type: delta_tombstone, ref: testdata/cassettes/replaydelta/multi-generation-tombstone.json, proof_gate: replay-tier}
+  # Reducer-materialized code-call edges (#5116): the offline canonical writer
+  # does not create these, so they are proven by a live EdgeWriter write+retract
+  # against a real NornicDB rather than a delta cassette. The retract-depth class
+  # is still delta_tombstone (create-then-retract-then-verify-gone).
+  - {surface: retractable_edge:CALLS, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_edge_retract_live_test.go, proof_gate: replay-tier}
+  - {surface: retractable_edge:REFERENCES, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_edge_retract_live_test.go, proof_gate: replay-tier}
+  - {surface: retractable_edge:INSTANTIATES, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_edge_retract_live_test.go, proof_gate: replay-tier}
   - {surface: reducer_drain:reducer-projection-drain, scenario: go_test, scenario_type: crash, ref: go/internal/replay/crashreplay/scenario_test.go, proof_gate: go-test-race}
 
 scenario_requirements:

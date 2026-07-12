@@ -12,6 +12,19 @@ package cypher
 // from the previous hard-coded form, so the graph-write hot path keeps its batch
 // semantics; only the SET clause now reads per-edge provenance.
 
+// KNOWN-BROKEN ON NORNICDB (#5116): the three batchCanonical*UpsertCypher
+// fallback templates below anchor their MATCH on a node-label disjunction
+// (source:Function|Class|File|...). On the pinned NornicDB a node-label
+// disjunction in a MATCH returns zero rows even when the node exists, so these
+// fallbacks silently write NO edge. They are reached only when an endpoint's
+// label is unresolved: buildCodeCallRowMap routes resolved endpoints to the
+// exact-label templates in edge_writer_code_call_labels.go, which NornicDB
+// matches, so the common path is unaffected. The retract-side instance of this
+// same disjunction bug is fixed per source label by buildCodeCallRetractStatements
+// in canonical_retract.go; the write-side silent-drop for unresolved-label
+// endpoints (and every USES_METACLASS write, whose only template is the
+// disjunction below) is tracked in #5116 and needs its own write-side live proof
+// before it is fixed here.
 const batchCanonicalCodeCallUpsertCypher = `UNWIND $rows AS row
 MATCH (source:Function|Class|File {uid: coalesce(row.caller_entity_id, row.source_entity_id)})
 MATCH (target:Function|Class|File {uid: coalesce(row.callee_entity_id, row.target_entity_id)})
