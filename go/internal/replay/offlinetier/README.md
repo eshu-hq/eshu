@@ -118,6 +118,26 @@ covered through the content_entity batch. File (structural file-retract path the
 offline delta tier does not yet drive) and Variable (reducer-owned semantic
 graph subset, skipped by the canonical entity phase) remain follow-ups.
 
+### Edge-retract coverage (C-14 #4367)
+
+`delta_tier_edge_retract_live_test.go` proves DEFINES_JOB (GitlabPipeline ->
+GitlabJob): the doomed gitlab job's incoming DEFINES_JOB edge is retracted with
+the job node on gen2 while surviving jobs keep theirs. A probe confirmed
+DEFINES_JOB is the only still-uncovered edge type the offline canonical writer
+creates (CONTAINS/NEEDS already covered); every other retractable edge type is
+reducer-materialized (code-call, inheritance, repository-relationship, cloud,
+IAM, SQL, taint) and is not reachable through the offline canonical-writer tier,
+so covering those needs a reducer delta-replay harness, tracked separately.
+
+No-Regression Evidence: this change adds a manifest row, a `go` live test, and
+its `-run` wiring only — no production projection code. On the pinned NornicDB
+`timothyswt/nornicdb-cpu-bge:v1.1.9`, `scripts/verify-replay-tier.sh` proved the
+doomed DEFINES_JOB edge retracts to count=0 (surviving DEFINES_JOB stays
+count=1) in a 5s tier run, all live tests green.
+
+No-Observability-Change: no metric, span, log, worker, lease, or status field is
+added; the tier reuses the existing canonical writer phase-group telemetry.
+
 No-Regression Evidence: this change adds cassette facts and offline-tier live
 tests only; no production projection code changes. On the pinned NornicDB
 `timothyswt/nornicdb-cpu-bge:v1.1.9`, `scripts/verify-replay-tier.sh` proved the

@@ -4,7 +4,7 @@
 
 Every surface Eshu claims to support should have a green, credential-free, Docker-free replay scenario. This dashboard is generated from the C-1 coverage manifest and the source-of-truth registries (epic [#4172](https://github.com/eshu-hq/eshu/issues/4172)); it is refreshed by the replay-coverage gate so the gap is reviewable in a PR diff.
 
-**Overall: 321/400 surfaces satisfied (80.25%)** — mode: blocking.
+**Overall: 322/400 surfaces satisfied (80.50%)** — mode: blocking.
 
 ## Coverage by axis
 
@@ -18,10 +18,10 @@ Every surface Eshu claims to support should have a green, credential-free, Docke
 | Product claims | 11 | 11 | 100.00% | 0 | 0 |
 | Projections (cost/ordering) | 0 | 27 | 0.00% | 27 | 0 |
 | Reducer drain (crash) | 1 | 1 | 100.00% | 0 | 0 |
-| Retractable edge types (delta) | 2 | 52 | 3.85% | 50 | 0 |
+| Retractable edge types (delta) | 3 | 52 | 5.77% | 49 | 0 |
 | Retractable node types (delta) | 85 | 87 | 97.70% | 2 | 0 |
 | Collectors | 34 | 34 | 100.00% | 0 | 8 |
-| **Total** | **321** | **400** | **80.25%** | **79** | **9** |
+| **Total** | **322** | **400** | **80.50%** | **78** | **9** |
 
 ## Coverage by scenario type
 
@@ -30,7 +30,7 @@ Every surface Eshu claims to support should have a green, credential-free, Docke
 | baseline | 212 | 212 | 100.00% | 0 | 5 |
 | cost | 1 | 26 | 3.85% | 25 | 0 |
 | crash | 2 | 2 | 100.00% | 0 | 0 |
-| delta_tombstone | 88 | 140 | 62.86% | 52 | 0 |
+| delta_tombstone | 89 | 140 | 63.57% | 51 | 0 |
 | fault | 17 | 17 | 100.00% | 0 | 4 |
 | ordering | 1 | 3 | 33.33% | 2 | 0 |
 
@@ -44,7 +44,7 @@ Every ledger language is satisfied by corpus or parser fixture coverage.
 
 ## Gaps — surfaces still needing a replay scenario
 
-79 surface(s) uncovered or unresolved:
+78 surface(s) uncovered or unresolved:
 
 ### Projections (cost/ordering) (27)
 
@@ -76,7 +76,7 @@ Every ledger language is satisfied by corpus or parser fixture coverage.
 - `projection:supply_chain_impact` (ordering)
 - `projection:supply_chain_impact` (cost)
 
-### Retractable edge types (delta) (50)
+### Retractable edge types (delta) (49)
 
 - `retractable_edge:ALIASES` (delta_tombstone)
 - `retractable_edge:ALLOWS_EGRESS` (delta_tombstone)
@@ -87,7 +87,6 @@ Every ledger language is satisfied by corpus or parser fixture coverage.
 - `retractable_edge:CAN_ESCALATE_TO` (delta_tombstone)
 - `retractable_edge:CAN_PERFORM` (delta_tombstone)
 - `retractable_edge:CORRELATES_DEPLOYABLE_UNIT` (delta_tombstone)
-- `retractable_edge:DEFINES_JOB` (delta_tombstone)
 - `retractable_edge:DEPENDS_ON` (delta_tombstone)
 - `retractable_edge:DEPLOYS_FROM` (delta_tombstone)
 - `retractable_edge:DISCOVERS_CONFIG_IN` (delta_tombstone)
@@ -134,7 +133,7 @@ Every ledger language is satisfied by corpus or parser fixture coverage.
 - `retractable_node:File` (delta_tombstone)
 - `retractable_node:Variable` (delta_tombstone)
 
-## Covered surfaces (321)
+## Covered surfaces (322)
 
 | Surface | Scenario type | Scenario | Proof gate | Artifact |
 | --- | --- | --- | --- | --- |
@@ -339,6 +338,7 @@ Every ledger language is satisfied by corpus or parser fixture coverage.
 | `product_claim:readme.supply-chain.default-gated` | baseline | product_claim | capability-inventory-docs | `readme.supply-chain.default-gated` |
 | `reducer_drain:reducer-projection-drain` | crash | go_test | go-test-race | `go/internal/replay/crashreplay/scenario_test.go` |
 | `retractable_edge:CONTAINS` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
+| `retractable_edge:DEFINES_JOB` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
 | `retractable_edge:NEEDS` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
 | `retractable_node:AnalyticsModel` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
 | `retractable_node:Annotation` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
