@@ -19,9 +19,14 @@ import (
 // corpus-wide deferred backfill (issue #3659). It accepts seven parameters:
 //
 //	$1 pq.StringArray — LIKE terms derived from non-repo_id aliases (name,
-//	   slug tokens) and the unconditional ArgoCD over-select markers. A fact
-//	   matching $1 carries a cross-repo reference that is NOT keyed on its own
-//	   repo_id, so loading it can produce evidence and it is always loaded.
+//	   slug tokens) and the unconditional ArgoCD over-select markers. This arm is
+//	   intentionally guarded by deferredRelationshipFamilyCandidatePredicateSQL:
+//	   a content/file fact must first look like a relationship extractor family
+//	   before the broad alias substring scan can select it. That preserves
+//	   evidence-producing Terraform/Helm/ArgoCD/Docker/GitHub Actions/Ansible/
+//	   Salt/GCP rows while preventing generic content partitions from being
+//	   loaded only because they contain noisy short aliases such as "s3" or
+//	   "robots".
 //
 //	$2 pq.StringArray — raw lowercase repo_id values. The repo_id fallback arm
 //	   uses EXISTS to load a fact only when its payload contains a catalog
@@ -177,8 +182,70 @@ import (
 //     filters on the bounded candidate set, and the $2 EXISTS fallback arm — a
 //     per-fact correlated loop that is un-indexable — runs only for rows the
 //     fast arm did not already resolve, also bounded by the per-scope partition.
+const deferredRelationshipFamilyPathSQL = `lower(COALESCE(
+            fact.payload->>'relative_path',
+            fact.payload->>'content_path',
+            fact.payload->>'file_path',
+            fact.payload->>'path',
+            ''
+          ))`
+
+const deferredRelationshipFamilyArtifactTypeSQL = `lower(COALESCE(fact.payload->>'artifact_type', ''))`
+
+const deferredRelationshipFamilyArgoCDContentMarkerSQL = `(CASE
+            WHEN ` + deferredRelationshipFamilyArtifactTypeSQL + ` = 'argocd'
+              OR ` + deferredRelationshipFamilyPathSQL + ` ~ '\.ya?ml$'
+            THEN lower(COALESCE(
+              fact.payload->>'content',
+              fact.payload->>'content_body',
+              ''
+            )) LIKE '%kind: application%'
+              OR lower(COALESCE(
+                fact.payload->>'content',
+                fact.payload->>'content_body',
+                ''
+              )) LIKE '%kind: applicationset%'
+            ELSE false
+          END)`
+
+const deferredRelationshipFamilySaltGitfsContentMarkerSQL = `(CASE
+            WHEN ` + deferredRelationshipFamilyPathSQL + ` ~ '\.ya?ml$'
+              AND COALESCE(
+              fact.payload->>'content',
+              fact.payload->>'content_body',
+              ''
+            ) LIKE '%gitfs_remotes:%'
+            THEN COALESCE(
+              fact.payload->>'content',
+              fact.payload->>'content_body',
+              ''
+            ) ~ E'(^|\n)gitfs_remotes[[:space:]]*:'
+            ELSE false
+          END)`
+
+const deferredRelationshipFamilyCandidatePredicateSQL = `(
+          fact.fact_kind = 'gcp_cloud_relationship'
+          OR ` + deferredRelationshipFamilyArtifactTypeSQL + ` IN (
+            'terraform',
+            'terraform_hcl',
+            'terraform_template_text',
+            'terragrunt',
+            'helm',
+            'argocd',
+            'dockerfile',
+            'docker_compose',
+            'github_actions_workflow'
+          )
+          OR ` + deferredRelationshipFamilyArtifactTypeSQL + ` LIKE 'ansible_%'
+          OR ` + deferredRelationshipFamilyPathSQL + ` ~ '(^|/)(dockerfile(\.[^/]*)?|jenkinsfile(\.[^/]*)?|puppetfile|berksfile)$|(^|/)docker-compose\.ya?ml$|(^|/)compose\.ya?ml$|(^|/)\.github/workflows/[^/]+\.ya?ml$|(^|/)applicationsets?/.*\.ya?ml$|(^|/)argocd/.*\.ya?ml$|(^|/)values([^/]*)\.ya?ml$|(^|/)chart\.ya?ml$|(^|/)kustomization\.ya?ml$|(^|/)(playbooks|roles|group_vars|host_vars|inventories)/|(^|/)inventory($|/)|\.(tf|tf\.json|tfvars|tfvars\.json|hcl|tpl)$'
+          OR ` + deferredRelationshipFamilyArgoCDContentMarkerSQL + `
+          OR ` + deferredRelationshipFamilySaltGitfsContentMarkerSQL + `
+        )`
+
+const deferredRelationshipFamilyPayloadFactsFilterSQL = `WHERE ` + deferredRelationshipFamilyCandidatePredicateSQL
+
 const listDeferredScopedRelationshipFactRecordsQuery = latestGenerationCTE + `,
-matched_facts AS MATERIALIZED (
+source_facts AS MATERIALIZED (
     SELECT
         fact.fact_id,
         fact.scope_id,
@@ -195,32 +262,47 @@ matched_facts AS MATERIALIZED (
         COALESCE(fact.source_record_id, '') AS source_record_id,
         fact.observed_at,
         fact.is_tombstone,
-        fact.payload
-    FROM (
-      SELECT
-          inner_fact.*,
-          lower(inner_fact.payload::text) AS payload_lower,
-          lower(COALESCE(inner_fact.payload->>'repo_id', '')) AS own_repo_id
-      FROM fact_records AS inner_fact
-      WHERE inner_fact.scope_id = $3
-        AND inner_fact.generation_id = $4
-        AND inner_fact.fact_kind IN ('content', 'file', 'gcp_cloud_relationship')
-    ) AS fact
-    WHERE
-        fact.payload_lower LIKE ANY($1)
-        OR EXISTS (
+        fact.payload,
+        lower(COALESCE(fact.payload->>'repo_id', '')) AS own_repo_id
+    FROM fact_records AS fact
+    WHERE fact.scope_id = $3
+      AND fact.generation_id = $4
+      AND fact.fact_kind IN ('content', 'file', 'gcp_cloud_relationship')
+),
+relationship_family_payload_facts AS MATERIALIZED (
+    SELECT
+        fact.fact_id,
+        fact.own_repo_id,
+        lower(fact.payload::text) AS payload_lower
+    FROM source_facts AS fact
+    ` + deferredRelationshipFamilyPayloadFactsFilterSQL + `
+),
+matched_fact_ids AS MATERIALIZED (
+        SELECT fact.fact_id
+        FROM relationship_family_payload_facts AS fact
+        WHERE fact.payload_lower LIKE ANY($1)
+        UNION
+        SELECT fact.fact_id
+        FROM relationship_family_payload_facts AS fact
+        WHERE EXISTS (
           SELECT 1
           FROM relationship_reference_candidate_keys AS ref
           JOIN unnest($2::text[], $7::text[]) AS catalog_repo_id(value, reference_key)
             ON catalog_repo_id.value <> ref.source_repo_id
            AND position('|' || catalog_repo_id.reference_key || '|' in ref.reference_key) > 0
           WHERE ref.fact_id = fact.fact_id
+            AND ref.scope_id = $3
+            AND ref.generation_id = $4
         )
-        OR (
-          NOT EXISTS (
+        UNION
+        SELECT fact.fact_id
+        FROM relationship_family_payload_facts AS fact
+        WHERE NOT EXISTS (
             SELECT 1
             FROM relationship_reference_candidate_keys AS ref
             WHERE ref.fact_id = fact.fact_id
+              AND ref.scope_id = $3
+              AND ref.generation_id = $4
           )
           AND (
             (fact.own_repo_id = $6 AND $5::text IS NOT NULL AND fact.payload_lower ~ $5)
@@ -237,7 +319,6 @@ matched_facts AS MATERIALIZED (
               )
             )
           )
-        )
 )
 SELECT
     fact.fact_id,
@@ -256,7 +337,9 @@ SELECT
     fact.observed_at,
     fact.is_tombstone,
     fact.payload
-FROM matched_facts AS fact
+FROM source_facts AS fact
+JOIN matched_fact_ids AS matched
+  ON matched.fact_id = fact.fact_id
 JOIN latest_generations AS latest
   ON latest.scope_id = fact.scope_id
  AND latest.generation_id = fact.generation_id
