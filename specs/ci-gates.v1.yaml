@@ -807,6 +807,27 @@ gates:
     ci_only_reason: ""
     local_only_reason: "Advisory baseline for #5016; flip DOCS_PROSE_ENFORCE=true and blocking=true after the human-doc baseline is clean."
 
+  - id: docs-refs
+    name: Docs script reference existence
+    category: exactness
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "docs/public/**"
+      - "docs/mkdocs.yml"
+      - "scripts/verify-docs-refs.sh"
+      - "scripts/test-verify-docs-refs.sh"
+      - "scripts/docs-refs-baseline.txt"
+      - "specs/ci-gates.v1.yaml"
+    local:
+      command: "bash scripts/verify-docs-refs.sh"
+      test_command: "bash scripts/test-verify-docs-refs.sh"
+    ci:
+      workflow: static-contract-gates.yml
+      job: "Verify docs-refs gate"
+    requirements: []
+    ci_only_reason: ""
+
   - id: docs-build-changed
     name: Verify Docs Build (changed)
     category: docs

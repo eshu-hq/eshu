@@ -1,0 +1,17 @@
+# scripts/docs-refs-baseline.txt
+#
+# Burn-down baseline for scripts/verify-docs-refs.sh (#5125 workstream 3).
+# Every docs/public/**/*.md page is scanned for a cited scripts/*.sh,
+# *.py, or *.awk path; a citation whose path does not exist in the repo
+# is a dead reference. The gate fails a dead reference that is NOT listed
+# below, passes one that is, and treats a baselined pair whose script
+# later gets created as burn-down progress (shrinking the file is fine;
+# growing it past the current dead-reference count for an existing pair
+# is not possible — a pair is either dead or it is removed).
+#
+# Regenerate with:
+#   bash scripts/verify-docs-refs.sh -update
+#
+# <doc-page-relpath> <missing-script-path>
+extend/community-extension-authoring.md scripts/verify-local.sh
+reference/component-package-manager.md scripts/verify-local.sh

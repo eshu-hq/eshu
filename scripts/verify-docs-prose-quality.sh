@@ -112,10 +112,17 @@ check_banned_filler() {
   local matches
   matches="$(rg -n -i '\b(cutting-edge|easy to use|game-changing|leverage|powerful|robust|seamless|unlock|world-class)\b' "${file}" || true)"
   if [[ -n "${matches}" ]]; then
+    # Process substitution + printf '%s\n', not a `<<<` here-string: bash
+    # 5.1+ writes the whole here-string body to a pipe before forking the
+    # reader, and a body strictly between 512 bytes and macOS's pipe-buffer
+    # ceiling deadlocks under that bash (#5098; same class as #4718/#5074).
+    # printf '%s\n' restores the trailing newline `<<<` would have added, so
+    # the last match line is still read after matches was captured via
+    # command substitution (which strips it).
     while IFS= read -r match; do
       [[ -z "${match}" ]] && continue
       report "${rel}" "${match%%:*}" "banned-filler" "replace vague launch prose with concrete task language"
-    done <<<"${matches}"
+    done < <(printf '%s\n' "${matches}")
   fi
 }
 
@@ -126,10 +133,12 @@ check_command_formatting() {
   local bare_fences
   prompt_matches="$(rg -n '^[[:space:]]*\$ ' "${file}" || true)"
   if [[ -n "${prompt_matches}" ]]; then
+    # See the comment in check_banned_filler: process substitution +
+    # printf '%s\n' avoids the bash 5.1+ here-string pipe deadlock (#5098).
     while IFS= read -r match; do
       [[ -z "${match}" ]] && continue
       report "${rel}" "${match%%:*}" "prompt-prefix" "commands should omit shell prompts and live in bash fences"
-    done <<<"${prompt_matches}"
+    done < <(printf '%s\n' "${prompt_matches}")
   fi
 
   bare_fences="$(
@@ -143,10 +152,12 @@ check_command_formatting() {
     ' "${file}"
   )"
   if [[ -n "${bare_fences}" ]]; then
+    # See the comment in check_banned_filler: process substitution +
+    # printf '%s\n' avoids the bash 5.1+ here-string pipe deadlock (#5098).
     while IFS= read -r match; do
       [[ -z "${match}" ]] && continue
       report "${rel}" "${match%%:*}" "code-fence-language" "code fences should name a language such as bash, text, json, or yaml"
-    done <<<"${bare_fences}"
+    done < <(printf '%s\n' "${bare_fences}")
   fi
 }
 
@@ -184,10 +195,12 @@ check_readability() {
   )"
 
   if [[ -n "${matches}" ]]; then
+    # See the comment in check_banned_filler: process substitution +
+    # printf '%s\n' avoids the bash 5.1+ here-string pipe deadlock (#5098).
     while IFS=: read -r line words; do
       [[ -z "${line}" ]] && continue
       report "${rel}" "${line}" "long-line" "tutorial/how-to prose line has ${words} words; split dense guidance"
-    done <<<"${matches}"
+    done < <(printf '%s\n' "${matches}")
   fi
 }
 

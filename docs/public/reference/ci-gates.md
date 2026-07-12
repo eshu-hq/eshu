@@ -8,7 +8,7 @@ of truth mapping a changed path to the local and CI checks it requires. See
 and `make prove` select from this table, and
 [Local Testing](local-testing.md) for the full verification map.
 
-The registry currently defines 76 gates. A row with no local command is
+The registry currently defines 77 gates. A row with no local command is
 CI-only (it needs a credential, a service container, or hosted infrastructure
 a laptop does not have); a row marked as an alias shares its check with the
 gate its reason names, under a different git hook stage.
@@ -53,6 +53,7 @@ gate its reason names, under a different git hook stage.
 | `reducer-contention` | Reducer Contention Gate (real Postgres) | race | pre-pr | true | — (CI-only: needs Postgres service container (GitHub Actions)) | reducer-contention-gate.yml / reducer contention gate | 3 path(s): go/internal/storage/postgres/**, go/internal/reducer/**, schema/data-plane/postgres/** |
 | `docs-catalog-metadata` | Docs catalog metadata | exactness | pre-pr | true | `bash scripts/verify-docs-catalog.sh` | — | 5 path(s): docs/public/**, docs/mkdocs.yml, scripts/verify-docs-catalog.sh, … |
 | `docs-prose-quality` | Docs prose quality advisory | docs | pre-pr | false | `bash scripts/verify-docs-prose-quality.sh` | — | 5 path(s): docs/public/**, docs/mkdocs.yml, scripts/verify-docs-prose-quality.sh, … |
+| `docs-refs` | Docs script reference existence | exactness | pre-pr | true | `bash scripts/verify-docs-refs.sh` | static-contract-gates.yml / Verify docs-refs gate | 6 path(s): docs/public/**, docs/mkdocs.yml, scripts/verify-docs-refs.sh, … |
 | `docs-build-changed` | Verify Docs Build (changed) | docs | pre-push | true | `bash scripts/verify-docs-build-changed.sh` | test.yml / docs-helm-hygiene | 5 path(s): docs/**, specs/**, AGENTS.md, … |
 | `frontend-format-changed` | Verify Frontend Format (changed) | frontend | pre-push | false | `bash scripts/verify-frontend-format-changed.sh` | frontend.yml / Prettier format check (issue #3763) | 11 path(s): src/**, apps/console/**, index.html, … |
 | `console-e2e` | Console e2e (mocked) | frontend | pre-push | true | `bash scripts/dev/precommit-console.sh e2e` | frontend.yml / Console (apps/console) | 2 path(s): apps/console/**, src/** |

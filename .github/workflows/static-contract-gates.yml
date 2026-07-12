@@ -42,6 +42,7 @@ jobs:
       ifaload: ${{ steps.filter.outputs.ifaload }}
       ifareplaydrive: ${{ steps.filter.outputs.ifareplaydrive }}
       heredoc: ${{ steps.filter.outputs.heredoc }}
+      docsrefs: ${{ steps.filter.outputs.docsrefs }}
       matrix: ${{ steps.gate-matrix.outputs.matrix }}
       any: ${{ steps.gate-matrix.outputs.any }}
     steps:
@@ -164,6 +165,14 @@ jobs:
               - 'scripts/**/*.sh'
               - 'scripts/heredoc-budget-baseline.txt'
               - 'go/cmd/heredoc-budget/**'
+            docsrefs:
+              - '.github/workflows/static-contract-gates.yml'
+              - 'specs/ci-gates.v1.yaml'
+              - 'docs/public/**'
+              - 'docs/mkdocs.yml'
+              - 'scripts/verify-docs-refs.sh'
+              - 'scripts/test-verify-docs-refs.sh'
+              - 'scripts/docs-refs-baseline.txt'
       - name: Build selected gate matrix
         id: gate-matrix
         run: |
@@ -201,6 +210,7 @@ jobs:
           append_gate "${{ steps.filter.outputs.ifaload }}" "ifaload" "Verify Ifa P5 load/saturation gate" "cd go && go test ./internal/ifa/saturation/ ./internal/ifa/throughput/ -race -count=1" "cd go && go test ./internal/ifa/saturation/ ./internal/ifa/throughput/ -race -count=1"
           append_gate "${{ steps.filter.outputs.ifareplaydrive }}" "ifareplaydrive" "Verify Ifa replay-drive mirror gate" "bash scripts/test-verify-ifa-replay-drive.sh" "bash scripts/test-verify-ifa-replay-drive.sh"
           append_gate "${{ steps.filter.outputs.heredoc }}" "heredoc" "Verify heredoc budget gate" "cd go && go test ./cmd/heredoc-budget -count=1" "cd go && go run ./cmd/heredoc-budget -baseline ../scripts/heredoc-budget-baseline.txt"
+          append_gate "${{ steps.filter.outputs.docsrefs }}" "docsrefs" "Verify docs-refs gate" "bash scripts/test-verify-docs-refs.sh" "bash scripts/verify-docs-refs.sh"
 
           printf 'matrix={"include":[%s]}\n' "${matrix_items}" >>"${GITHUB_OUTPUT}"
           printf 'any=%s\n' "${any}" >>"${GITHUB_OUTPUT}"

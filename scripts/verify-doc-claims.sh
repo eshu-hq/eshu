@@ -223,6 +223,15 @@ verify_package() {
       source_window=$(sed -n "${lo},${hi}p" "$cite_path" 2>/dev/null)
 
       local anchor_found=0
+      # Feed the loop via process substitution rather than a `<<<` here-string:
+      # bash 5.1+ writes an entire heredoc/here-string body to a pipe before
+      # forking the reader, and macOS's 512-byte pipe buffer means any body
+      # strictly between 512 bytes and the pipe-buffer ceiling deadlocks under
+      # that bash even though the same script runs fine under macOS's stock
+      # /bin/bash 3.2 (#5098; same class as #4718/#5019/#5074). printf '%s\n'
+      # restores the trailing newline `<<<` would have added, so the last
+      # identifier is still read even though idents_in_para was captured via
+      # command substitution (which strips it).
       while IFS= read -r tok; do
         [ -z "$tok" ] && continue
         is_allowlisted "$tok" && continue
@@ -230,7 +239,7 @@ verify_package() {
           anchor_found=1
           break
         fi
-      done <<<"$idents_in_para"
+      done < <(printf '%s\n' "$idents_in_para")
 
       if [ "$anchor_found" -eq 0 ]; then
         printf '%s: file cite `%s` — no paragraph identifier found within ±10 lines of %s:%s\n' \
@@ -245,12 +254,16 @@ verify_package() {
       [ -z "$tok" ] && continue
       is_allowlisted "$tok" && continue
       local found=0
+      # See the comment above the idents_in_para loop: process substitution
+      # + printf '%s\n' avoids the bash 5.1+ here-string pipe-buffer deadlock
+      # (#5098) that a `<<<` here-string risks once source_haystack crosses
+      # 512 bytes (routine for a package with a dozen-plus .go files).
       while IFS= read -r f; do
         if rg -q --no-messages "\b$tok\b" "$f" 2>/dev/null; then
           found=1
           break
         fi
-      done <<<"$source_haystack"
+      done < <(printf '%s\n' "$source_haystack")
       if [ "$found" -eq 0 ]; then
         printf '%s: backticked `%s` not found in %s/*.go\n' \
           "$doc" "$tok" "$pkg_dir" >&2
