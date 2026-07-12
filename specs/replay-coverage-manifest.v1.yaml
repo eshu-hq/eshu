@@ -489,11 +489,16 @@ coverage:
   - {surface: retractable_edge:INSTANTIATES, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_edge_retract_live_test.go, proof_gate: replay-tier}
   # Reducer-materialized inheritance edges (#4367): same node-label-disjunction
   # retract bug as the code-call edges, proven by a live EdgeWriter write+retract
-  # against a real NornicDB. Only the two rel-types the live test exercises are
-  # claimed (INHERITS, IMPLEMENTS); OVERRIDES/ALIASES ride the same fix but are
-  # not live-claimed here.
+  # against a real NornicDB. The live test writes and retracts all four
+  # rel-types (INHERITS, IMPLEMENTS, OVERRIDES, ALIASES).
   - {surface: retractable_edge:INHERITS, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_inheritance_edge_retract_live_test.go, proof_gate: replay-tier}
   - {surface: retractable_edge:IMPLEMENTS, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_inheritance_edge_retract_live_test.go, proof_gate: replay-tier}
+  - {surface: retractable_edge:OVERRIDES, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_inheritance_edge_retract_live_test.go, proof_gate: replay-tier}
+  - {surface: retractable_edge:ALIASES, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_inheritance_edge_retract_live_test.go, proof_gate: replay-tier}
+  # USES_METACLASS rides the per-source-label code-call retract (#5116) under
+  # the parser/python-metaclass evidence source, proven by its own live
+  # EdgeWriter write+retract against a real NornicDB.
+  - {surface: retractable_edge:USES_METACLASS, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_metaclass_edge_retract_live_test.go, proof_gate: replay-tier}
   # Reducer-materialized SQL relationships (#5116): all six source-label query
   # shapes are proven through the live production EdgeWriter for both repository
   # and delta-file retract scopes. REFERENCES_TABLE is exercised from SqlView
