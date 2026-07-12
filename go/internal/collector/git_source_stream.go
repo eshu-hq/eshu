@@ -51,10 +51,22 @@ func (s *GitSource) startStream(ctx context.Context) error {
 	// Phase 2: Resolve paths, order largest-first, and compute stable source
 	// run ID. resolvedCounts is aligned 1:1 with resolved so the small/large
 	// lane classification below reuses the file count walked here instead of
-	// re-walking each repository tree.
+	// re-walking each repository tree. This phase blocks snapshot worker
+	// launch, so its duration is logged for operator visibility (#4878).
+	resolveStart := time.Now()
 	resolved, resolvedCounts, sourceRunID, err := s.resolveRepositories(batch)
 	if err != nil {
 		return err
+	}
+	if s.Logger != nil {
+		s.Logger.InfoContext(
+			ctx, "collector scheduling scan complete",
+			log.CollectorKind("git"),
+			log.Component(s.componentName()),
+			slog.Int("repository_count", len(resolved)),
+			slog.Duration("scheduling_scan_duration", time.Since(resolveStart)),
+			telemetry.PhaseAttr(telemetry.PhaseDiscovery),
+		)
 	}
 
 	// Phase 3: Launch background snapshot workers
