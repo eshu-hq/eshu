@@ -167,8 +167,10 @@ func TestDrainCollectorLanesCommitFailureIsFatal(t *testing.T) {
 
 // TestCommitLaneCountFromEnv pins the ESHU_BOOTSTRAP_COMMIT_LANES contract:
 // default 4 (the measured throughput plateau from the #5122 lane shim — NOT
-// CPU count), explicit override honored, invalid/zero/negative fall back to
-// the default.
+// CPU count), explicit override honored up to the maxCommitLanes clamp
+// (every lane holds an open transaction, so a runaway value would exhaust
+// the Postgres connection pool), invalid/zero/negative fall back to the
+// default.
 func TestCommitLaneCountFromEnv(t *testing.T) {
 	t.Parallel()
 
@@ -179,6 +181,8 @@ func TestCommitLaneCountFromEnv(t *testing.T) {
 		{"", 4},
 		{"1", 1},
 		{"8", 8},
+		{"64", 64},
+		{"10000", 64},
 		{"0", 4},
 		{"-3", 4},
 		{"nope", 4},

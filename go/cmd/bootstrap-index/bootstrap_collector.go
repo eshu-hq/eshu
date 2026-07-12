@@ -392,12 +392,23 @@ func writeDiscoveryAdvisoryReports(path string, reports []collector.DiscoveryAdv
 // is bounded by Postgres WAL/disk and the largest-scope tail, not by cores.
 const defaultCommitLanes = 4
 
+// maxCommitLanes bounds operator tuning. Every lane holds an open
+// transaction, so a runaway value (for example a fat-fingered
+// ESHU_BOOTSTRAP_COMMIT_LANES=10000) would exhaust the Postgres connection
+// pool; the measured plateau is 4, so anything beyond a generous multiple
+// is never a throughput win.
+const maxCommitLanes = 64
+
 // commitLaneCount returns the number of concurrent bootstrap commit lanes.
 // ESHU_BOOTSTRAP_COMMIT_LANES overrides when it parses as a positive
-// integer; anything else uses the measured-plateau default.
+// integer, clamped to maxCommitLanes; anything else uses the
+// measured-plateau default.
 func commitLaneCount(getenv func(string) string) int {
 	if raw := strings.TrimSpace(getenv("ESHU_BOOTSTRAP_COMMIT_LANES")); raw != "" {
 		if n, err := strconv.Atoi(raw); err == nil && n > 0 {
+			if n > maxCommitLanes {
+				return maxCommitLanes
+			}
 			return n
 		}
 	}
