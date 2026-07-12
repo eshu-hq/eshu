@@ -372,7 +372,7 @@ func TestIngestionStoreBackfillAllRelationshipEvidenceSkipsUnknownTargetGenerati
 			// catalog
 			{
 				rows: [][]any{
-					{[]byte(`{"repo_id":"repo-app","name":"app-repo"}`)},
+					{[]byte(`{"repo_id":"repo-app","name":"app-repo"}`), catalogFakeObservedAt},
 				},
 			},
 			// scope-generation partition snapshot (fact-load partitioning, #3710)
@@ -450,8 +450,8 @@ func TestIngestionStoreBackfillAllRelationshipEvidencePersistsBySourceGeneration
 			// catalog
 			{
 				rows: [][]any{
-					{[]byte(`{"repo_id":"repo-infra","name":"infra-repo"}`)},
-					{[]byte(`{"repo_id":"repo-app","name":"app-repo"}`)},
+					{[]byte(`{"repo_id":"repo-infra","name":"infra-repo"}`), catalogFakeObservedAt},
+					{[]byte(`{"repo_id":"repo-app","name":"app-repo"}`), catalogFakeObservedAt},
 				},
 			},
 			// scope-generation partition snapshot (fact-load partitioning, #3710)

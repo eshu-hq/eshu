@@ -7,27 +7,38 @@ import (
 	"context"
 	"encoding/json"
 	"strings"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
 
-func loadRepositoryCatalog(ctx context.Context, queryer Queryer) ([]relationships.CatalogEntry, error) {
+// loadRepositoryCatalog loads the deduplicated repository identity catalog
+// (newest row per repository wins via the query ORDER BY) plus each kept
+// entry's observed_at, which the shared cache uses as the freshness key so a
+// replayed older generation cannot regress a newer cached identity (#5134
+// review).
+func loadRepositoryCatalog(
+	ctx context.Context,
+	queryer Queryer,
+) ([]relationships.CatalogEntry, map[string]time.Time, error) {
 	if queryer == nil {
-		return nil, nil
+		return nil, nil, nil
 	}
 
 	rows, err := queryer.QueryContext(ctx, listRepositoryCatalogQuery)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer func() { _ = rows.Close() }()
 
 	seen := make(map[string]struct{})
 	catalog := make([]relationships.CatalogEntry, 0)
+	observedAt := make(map[string]time.Time)
 	for rows.Next() {
 		var rawPayload []byte
-		if err := rows.Scan(&rawPayload); err != nil {
-			return nil, err
+		var rowObservedAt time.Time
+		if err := rows.Scan(&rawPayload, &rowObservedAt); err != nil {
+			return nil, nil, err
 		}
 		entry, ok := repositoryCatalogEntryFromPayload(rawPayload)
 		if !ok {
@@ -38,12 +49,13 @@ func loadRepositoryCatalog(ctx context.Context, queryer Queryer) ([]relationship
 		}
 		seen[entry.RepoID] = struct{}{}
 		catalog = append(catalog, entry)
+		observedAt[entry.RepoID] = rowObservedAt
 	}
 	if err := rows.Err(); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	return catalog, nil
+	return catalog, observedAt, nil
 }
 
 func catalogRepoIDs(catalog []relationships.CatalogEntry) map[string]struct{} {

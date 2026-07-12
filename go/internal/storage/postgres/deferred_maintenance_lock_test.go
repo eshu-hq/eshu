@@ -93,8 +93,8 @@ func TestMaintenanceTakesPerRepoExclusiveLocksInOrder(t *testing.T) {
 		queryResponses: []queueFakeRows{
 			// Snapshot reads on the store db: catalog, latest facts, active generations.
 			{rows: [][]any{
-				{[]byte(`{"repo_id":"repo-zeta","name":"zeta"}`)},
-				{[]byte(`{"repo_id":"repo-alpha","name":"alpha"}`)},
+				{[]byte(`{"repo_id":"repo-zeta","name":"zeta"}`), catalogFakeObservedAt},
+				{[]byte(`{"repo_id":"repo-alpha","name":"alpha"}`), catalogFakeObservedAt},
 			}},
 			{rows: [][]any{}},
 			{rows: activeGenerations},

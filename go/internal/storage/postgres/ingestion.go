@@ -241,10 +241,15 @@ func (s IngestionStore) commitScopeGeneration(
 	)
 	// currentGenerationRepos maps each repository id this generation commits to
 	// its computed catalog identity (RepoID plus aliases). The full identity —
-	// not just the id — is needed so the shared catalog cache can invalidate when
+	// not just the id — is needed so the shared catalog cache can detect when
 	// an already-known repo's slug/name aliases drift, not only when a new id
-	// appears (issue #3521).
+	// appears (issue #3521). currentGenerationRepoObservedAt carries each
+	// identity's observation time: within a generation the newest observed_at
+	// wins (matching reload's ORDER BY observed_at DESC dedup), and the cache
+	// uses it as the freshness key so a replayed older generation cannot
+	// regress a newer cached identity (#5134 review).
 	currentGenerationRepos := make(map[string]relationships.CatalogEntry)
+	currentGenerationRepoObservedAt := make(map[string]time.Time)
 	relationshipStore := NewRelationshipStore(tx)
 	stageStart = time.Now()
 	factStats, err := upsertStreamingFacts(
@@ -263,7 +268,11 @@ func (s IngestionStore) commitScopeGeneration(
 				}
 				entry, ok := repositoryCatalogEntryFromMap(envelope.Payload)
 				if ok {
-					currentGenerationRepos[entry.RepoID] = entry
+					previousObservedAt, seen := currentGenerationRepoObservedAt[entry.RepoID]
+					if !seen || !envelope.ObservedAt.Before(previousObservedAt) {
+						currentGenerationRepos[entry.RepoID] = entry
+						currentGenerationRepoObservedAt[entry.RepoID] = envelope.ObservedAt
+					}
 				}
 			}
 			if !shouldDiscoverStreamingRelationshipEvidence(scopeValue) || len(catalog) == 0 {
@@ -319,19 +328,21 @@ func (s IngestionStore) commitScopeGeneration(
 	s.logCommitStage(ctx, scopeValue, generation, "commit_transaction", stageStart)
 	s.recordSharedLockHoldDuration(ctx, time.Since(sharedLockAcquiredAt))
 
-	// Invalidate the shared catalog only after the generation is durably
-	// committed, so a rolled-back transaction never evicts a valid snapshot. A
-	// generation that introduces a previously unknown repository id, or that
-	// changes a known repository's identity aliases (slug/name), forces the next
-	// commit to reload a catalog that reflects the change. Commits over known
-	// repositories with unchanged identity leave the cache intact (the common
-	// hot-path case).
-	if s.invalidateCatalogForChangedRepositories(currentGenerationRepos) {
+	// Merge the committed repository identities into the shared catalog only
+	// after the generation is durably committed, so a rolled-back transaction
+	// never alters a valid snapshot. A generation that introduces a previously
+	// unknown repository id, or that changes a known repository's identity
+	// aliases (slug/name), is merged in place so the next commit observes the
+	// change without reloading the whole catalog (#5129 — the pre-merge
+	// eviction forced a full serialized reload per onboarding commit).
+	// Commits over known repositories with unchanged identity leave the cache
+	// untouched (the steady-state hot path).
+	if s.mergeCatalogForChangedRepositories(currentGenerationRepos, currentGenerationRepoObservedAt) {
 		s.logCommitStage(
 			ctx,
 			scopeValue,
 			generation,
-			"repository_catalog_invalidated",
+			"repository_catalog_merged",
 			stageStart,
 			slog.Int("current_generation_repo_count", len(currentGenerationRepos)),
 		)
@@ -363,14 +374,17 @@ func (s IngestionStore) repositoryCatalog(ctx context.Context, queryer Queryer) 
 	return s.catalogCache.get(ctx, queryer)
 }
 
-// invalidateCatalogForChangedRepositories evicts the shared catalog when a
-// committed generation introduced a repository the cache had not seen or changed
-// a known repository's identity aliases. It returns true when an eviction
-// occurred.
-func (s IngestionStore) invalidateCatalogForChangedRepositories(
+// mergeCatalogForChangedRepositories merges a committed generation's
+// repository identities into the shared catalog cache when the generation
+// introduced a repository the cache had not seen or changed a known
+// repository's identity aliases. It returns true when the cache changed.
+// See repositoryCatalogCache.mergeChangedRepositories for the #5129
+// merge-vs-evict rationale and equivalence contract.
+func (s IngestionStore) mergeCatalogForChangedRepositories(
 	currentGenerationRepos map[string]relationships.CatalogEntry,
+	currentGenerationObservedAt map[string]time.Time,
 ) bool {
-	return s.catalogCache.invalidateForChangedRepositories(currentGenerationRepos)
+	return s.catalogCache.mergeChangedRepositories(currentGenerationRepos, currentGenerationObservedAt)
 }
 
 // catalogEntryIDSet projects a repo-id-to-CatalogEntry map down to the set of

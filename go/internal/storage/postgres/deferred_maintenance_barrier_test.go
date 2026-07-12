@@ -81,7 +81,7 @@ func TestIngestionStoreRunDeferredRelationshipMaintenanceTakesPerRepoExclusiveBa
 		txs: []*fakeTx{batchTx, reopenTx},
 		queryResponses: []queueFakeRows{
 			// Snapshot reads: catalog, latest facts, active generations.
-			{rows: [][]any{{[]byte(`{"repo_id":"repo-infra","name":"infra-repo"}`)}}},
+			{rows: [][]any{{[]byte(`{"repo_id":"repo-infra","name":"infra-repo"}`), catalogFakeObservedAt}}},
 			{rows: [][]any{}},
 			{rows: [][]any{{"repo-infra", "scope-infra", "gen-infra"}}},
 		},
@@ -208,7 +208,7 @@ func TestIngestionStoreShardDrainBarrierLeaderRunsMaintenanceAfterAllShardsArriv
 		txs: []*fakeTx{barrierTx, batchTx, reopenTx, completionTx},
 		queryResponses: []queueFakeRows{
 			// Backfill snapshot reads on the store db: catalog, facts, active gens.
-			{rows: [][]any{{[]byte(`{"repo_id":"repo-infra","name":"infra-repo"}`)}}},
+			{rows: [][]any{{[]byte(`{"repo_id":"repo-infra","name":"infra-repo"}`), catalogFakeObservedAt}}},
 			{rows: [][]any{}},
 			{rows: [][]any{{"repo-infra", "scope-infra", "gen-infra"}}},
 		},
@@ -288,7 +288,7 @@ func TestIngestionStoreShardDrainBarrierLeaderReentryRerunsMaintenance(t *testin
 	db := &fakeTransactionalDB{
 		txs: []*fakeTx{barrierTx, batchTx, reopenTx, completionTx},
 		queryResponses: []queueFakeRows{
-			{rows: [][]any{{[]byte(`{"repo_id":"repo-infra","name":"infra-repo"}`)}}},
+			{rows: [][]any{{[]byte(`{"repo_id":"repo-infra","name":"infra-repo"}`), catalogFakeObservedAt}}},
 			{rows: [][]any{}},
 			{rows: [][]any{{"repo-infra", "scope-infra", "gen-infra"}}},
 		},

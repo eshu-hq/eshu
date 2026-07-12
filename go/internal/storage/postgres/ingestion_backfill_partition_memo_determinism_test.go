@@ -122,7 +122,7 @@ func TestDeferredBackfillPartitionMemoCatalogChangeInvalidatesAll(t *testing.T) 
 	if err != nil {
 		t.Fatalf("loadActiveScopeGenerationPartitions: %v", err)
 	}
-	catalog, err := loadRepositoryCatalog(ctx, adapter)
+	catalog, _, err := loadRepositoryCatalog(ctx, adapter)
 	if err != nil {
 		t.Fatalf("loadRepositoryCatalog: %v", err)
 	}
@@ -209,7 +209,7 @@ VALUES ($1, $2, $3, 'content', $1, 'git', $1, $4, $4, $5::jsonb)`,
 	if err != nil {
 		t.Fatalf("loadActiveScopeGenerationPartitions: %v", err)
 	}
-	catalog, err := loadRepositoryCatalog(ctx, adapter)
+	catalog, _, err := loadRepositoryCatalog(ctx, adapter)
 	if err != nil {
 		t.Fatalf("loadRepositoryCatalog: %v", err)
 	}

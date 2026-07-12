@@ -21,8 +21,8 @@ func TestIngestionStoreCommitScopeGenerationSkipsStreamingGCPRelationshipEvidenc
 		tx: &fakeTx{
 			queryResponses: []queueFakeRows{{
 				rows: [][]any{
-					{[]byte(`{"repo_id":"repo-orders","name":"order-gateway"}`)},
-					{[]byte(`{"repo_id":"repo-payments","name":"payments-service"}`)},
+					{[]byte(`{"repo_id":"repo-orders","name":"order-gateway"}`), catalogFakeObservedAt},
+					{[]byte(`{"repo_id":"repo-payments","name":"payments-service"}`), catalogFakeObservedAt},
 				},
 			}},
 		},

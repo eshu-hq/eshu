@@ -100,10 +100,10 @@ func TestWholeCorpusMaintenanceNeverHoldsFleetWideLockSet(t *testing.T) {
 		mgr: newAdvisoryLockManager(),
 		snapshotRows: []*queueFakeRows{
 			{rows: [][]any{
-				{[]byte(`{"repo_id":"repo-a","name":"a"}`)},
-				{[]byte(`{"repo_id":"repo-b","name":"b"}`)},
-				{[]byte(`{"repo_id":"repo-c","name":"c"}`)},
-				{[]byte(`{"repo_id":"repo-d","name":"d"}`)},
+				{[]byte(`{"repo_id":"repo-a","name":"a"}`), catalogFakeObservedAt},
+				{[]byte(`{"repo_id":"repo-b","name":"b"}`), catalogFakeObservedAt},
+				{[]byte(`{"repo_id":"repo-c","name":"c"}`), catalogFakeObservedAt},
+				{[]byte(`{"repo_id":"repo-d","name":"d"}`), catalogFakeObservedAt},
 			}},
 			{rows: [][]any{}},  // latest facts: none.
 			{rows: activeGens}, // active generations snapshot.
@@ -155,7 +155,7 @@ func TestConcurrentBackfillBatchesBoundPeakHeldLocks(t *testing.T) {
 	activeGens := make([][]any, 0, repoCount)
 	for i := 0; i < repoCount; i++ {
 		id := "repo-" + string(rune('a'+i))
-		catalogRows = append(catalogRows, []any{[]byte(`{"repo_id":"` + id + `","name":"` + id + `"}`)})
+		catalogRows = append(catalogRows, []any{[]byte(`{"repo_id":"` + id + `","name":"` + id + `"}`), catalogFakeObservedAt})
 		activeGens = append(activeGens, []any{id, "scope-" + id, "gen-" + id})
 	}
 	const (

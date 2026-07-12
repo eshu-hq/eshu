@@ -54,6 +54,26 @@ func BenchmarkIngestionStoreCatalogLoadsPerCommit(b *testing.B) {
 		}
 	})
 
+	// onboarding models the bootstrap shape that motivated #5129: every commit
+	// introduces a brand-new repository. Pre-merge, each onboarding commit
+	// evicted the shared cache and the next commit reloaded the full catalog
+	// (~1 shared load per commit — 382.6s of serialized commit-chain time on
+	// the accepted 896-repo run, #5122). With the in-place merge the shared
+	// cache loads once and stays warm (loads/commit -> ~1/commits).
+	// SkipRelationshipBackfill mirrors bootstrap-index wiring so the metric
+	// isolates the shared cache from the backfill's deliberately uncached
+	// reads.
+	b.Run("onboarding", func(b *testing.B) {
+		for n := 0; n < b.N; n++ {
+			db := &countingCatalogDB{catalogPayloads: benchCatalogPayloads(1)}
+			store := NewIngestionStore(db)
+			store.SkipRelationshipBackfill = true
+			store.Now = func() time.Time { return now }
+			runOnboardingCommits(b, db, store, catalogBenchCommits, now)
+			reportCatalogLoads(b, db.catalogQueries, catalogBenchCommits)
+		}
+	})
+
 	b.Run("per_commit_baseline", func(b *testing.B) {
 		for n := 0; n < b.N; n++ {
 			db := &countingCatalogDB{catalogPayloads: benchCatalogPayloads(catalogBenchRepoCount)}
@@ -84,6 +104,30 @@ func runKnownRepoCommits(b *testing.B, store IngestionStore, commits int, now ti
 		)
 		if err != nil {
 			b.Fatalf("commit %d: CommitScopeGeneration() error = %v", i, err)
+		}
+	}
+}
+
+// runOnboardingCommits commits the requested number of generations, each
+// introducing a repository the catalog has not seen (the bootstrap shape).
+func runOnboardingCommits(b *testing.B, db *countingCatalogDB, store IngestionStore, commits int, now time.Time) {
+	b.Helper()
+	for i := 0; i < commits; i++ {
+		repoID := fmt.Sprintf("repo-onboard-%d", i)
+		db.mu.Lock()
+		db.catalogPayloads = append(db.catalogPayloads, []byte(fmt.Sprintf(`{"graph_id":%q}`, repoID)))
+		db.mu.Unlock()
+		generationID := fmt.Sprintf("gen-onboard-%d", i)
+		err := store.CommitScopeGeneration(
+			context.Background(),
+			catalogTestScope("scope-"+repoID, repoID),
+			catalogTestGeneration("scope-"+repoID, generationID, now),
+			testFactChannel([]facts.Envelope{
+				catalogRepositoryFact("scope-"+repoID, generationID, repoID, now.Add(-time.Minute)),
+			}),
+		)
+		if err != nil {
+			b.Fatalf("onboarding commit %d: CommitScopeGeneration() error = %v", i, err)
 		}
 	}
 }

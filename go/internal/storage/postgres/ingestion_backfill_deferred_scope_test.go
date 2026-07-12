@@ -67,8 +67,8 @@ func TestBackfillDeferredPassExcludesSelfRepoIDMatch(t *testing.T) {
 			// catalog: two repos, each with repo_id as first alias
 			{
 				rows: [][]any{
-					{[]byte(`{"repo_id":"repo-infra","name":"infra-repo"}`)},
-					{[]byte(`{"repo_id":"repo-app","name":"app-repo"}`)},
+					{[]byte(`{"repo_id":"repo-infra","name":"infra-repo"}`), catalogFakeObservedAt},
+					{[]byte(`{"repo_id":"repo-app","name":"app-repo"}`), catalogFakeObservedAt},
 				},
 			},
 			// scope-generation partition snapshot (fact-load partitioning, #3710)
@@ -231,8 +231,8 @@ func TestBackfillDeferredFactLoadPartitionsOnScopeGenerationNotRepository(t *tes
 			// catalog: two repos, each with repo_id as first alias
 			{
 				rows: [][]any{
-					{[]byte(`{"repo_id":"repo-infra","name":"infra-repo"}`)},
-					{[]byte(`{"repo_id":"repo-app","name":"app-repo"}`)},
+					{[]byte(`{"repo_id":"repo-infra","name":"infra-repo"}`), catalogFakeObservedAt},
+					{[]byte(`{"repo_id":"repo-app","name":"app-repo"}`), catalogFakeObservedAt},
 				},
 			},
 			// scope-generation partition snapshot (fact-load partitioning, #3710)
@@ -327,8 +327,8 @@ func TestBackfillAllRelationshipEvidenceUsesScopedFactQuery(t *testing.T) {
 			// catalog
 			{
 				rows: [][]any{
-					{[]byte(`{"repo_id":"repo-infra","name":"infra-repo"}`)},
-					{[]byte(`{"repo_id":"repo-app","name":"app-repo"}`)},
+					{[]byte(`{"repo_id":"repo-infra","name":"infra-repo"}`), catalogFakeObservedAt},
+					{[]byte(`{"repo_id":"repo-app","name":"app-repo"}`), catalogFakeObservedAt},
 				},
 			},
 			// scope-generation partition snapshot (fact-load partitioning, #3710)
@@ -390,7 +390,7 @@ func TestBackfillAllRelationshipEvidenceShortCircuitsWithoutAnchors(t *testing.T
 			// catalog rows with no decodable repo identity -> no anchors
 			{
 				rows: [][]any{
-					{[]byte(`{"unrelated":"value"}`)},
+					{[]byte(`{"unrelated":"value"}`), catalogFakeObservedAt},
 				},
 			},
 			// active repository generations snapshot

@@ -55,7 +55,9 @@ func proofRepositoryCatalogRows(input map[string]facts.Envelope) [][]any {
 		}
 		seen[entry.RepoID] = struct{}{}
 		payload, _ := json.Marshal(envelope.Payload)
-		rows = append(rows, []any{payload})
+		// Two columns: the catalog loader scans observed_at alongside the
+		// payload as the cache freshness key (#5134 review).
+		rows = append(rows, []any{payload, envelope.ObservedAt})
 	}
 	return rows
 }
