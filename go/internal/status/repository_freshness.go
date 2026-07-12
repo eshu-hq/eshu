@@ -110,9 +110,14 @@ type RepositoryFreshnessSnapshot struct {
 	HasGeneration bool
 	Generation    RepositoryFreshnessGeneration
 	// ObservedCommit is the resolved generation's source commit SHA. Empty
-	// is legitimate for non-git scopes and for pre-delta-baseline git
-	// generations that predate the source_commit_sha column; represent it
-	// explicitly rather than fabricating a value.
+	// is legitimate for non-git scopes, for pre-delta-baseline git
+	// generations that predate the source_commit_sha column, and for
+	// snapshot-trigger git generations (trigger_kind="snapshot": a
+	// cassette-replayed or otherwise non-live-git-sync source with no
+	// commit to report, as opposed to a push/delta-triggered sync). A
+	// snapshot-trigger generation can still be fully built -- verdict
+	// "current" there means build completeness, not a commit receipt;
+	// represent the empty SHA explicitly rather than fabricating a value.
 	ObservedCommit   string
 	ObservedAt       time.Time
 	Stages           RepositoryFreshnessStages
@@ -146,7 +151,11 @@ type RepositoryFreshnessSnapshot struct {
 //     outstanding work, or shared cross-repo enrichment referencing this
 //     generation is still pending.
 //  5. current: own stages drained, no shared pending, and (no
-//     expected_commit was supplied, or it matches observed_commit).
+//     expected_commit was supplied, or it matches observed_commit). This
+//     speaks to BUILD COMPLETENESS, not necessarily a commit receipt:
+//     observed_commit may be empty (non-git scopes, pre-delta-baseline
+//     generations, or snapshot-trigger git generations) while the verdict is
+//     still honestly "current" for that generation's own evidence.
 func ComputeRepositoryFreshnessVerdict(snapshot RepositoryFreshnessSnapshot, expectedCommit string) RepositoryFreshnessVerdict {
 	expectedCommit = strings.TrimSpace(expectedCommit)
 

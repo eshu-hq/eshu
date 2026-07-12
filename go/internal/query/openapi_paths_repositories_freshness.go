@@ -11,7 +11,7 @@ const openAPIPathsRepositoriesFreshness = `
       "get": {
         "tags": ["repositories"],
         "summary": "Get per-repository commit receipt and build-completeness verdict",
-        "description": "Answers two questions for one repository: did eshu pick up its latest commit, and is the evidence for that commit fully built. verdict is one of current, building, behind, unobserved, or unknown. observed_commit may be an empty string -- this is legitimate for non-git scopes and for pre-delta-baseline git generations that predate the source_commit_sha column, and is represented explicitly rather than fabricated. The optional expected_commit query parameter is compared as an opaque string (no format validation); when it does not match observed_commit the verdict is behind regardless of whether a generation is actively progressing. shared_enrichment reports cross-repo materialization backlog referencing this repository's generation as a separate axis from stages, so a different repository's shared backlog is never attributed here. Scoped tokens receive the same shape; a repository outside the caller's grant 404s like sibling repository routes.",
+        "description": "Answers two questions for one repository: did eshu pick up its latest commit, and is the evidence for that commit fully built. verdict is one of current, building, behind, unobserved, or unknown. verdict=current speaks to BUILD COMPLETENESS for the resolved generation, not necessarily a commit receipt: observed_commit may be an empty string while verdict is still honestly current. An empty observed_commit is legitimate for non-git scopes, for pre-delta-baseline git generations that predate the source_commit_sha column, and for snapshot-trigger git generations (trigger_kind=snapshot: a cassette-replayed or otherwise non-live-git-sync source with no commit to report, as opposed to a push/delta-triggered sync) -- represented explicitly rather than fabricated. The optional expected_commit query parameter is compared as an opaque string (no format validation); when it does not match observed_commit the verdict is behind regardless of whether a generation is actively progressing. shared_enrichment reports cross-repo materialization backlog referencing this repository's generation as a separate axis from stages, so a different repository's shared backlog is never attributed here. Scoped tokens receive the same shape; a repository outside the caller's grant 404s like sibling repository routes.",
         "operationId": "getRepositoryFreshness",
         "parameters": [
           {"$ref": "#/components/parameters/RepoId"},
@@ -34,7 +34,7 @@ const openAPIPathsRepositoriesFreshness = `
                     "repository": {"$ref": "#/components/schemas/RepositoryRef"},
                     "scope_id": {"type": "string"},
                     "verdict": {"type": "string", "enum": ["current", "building", "behind", "unobserved", "unknown"]},
-                    "observed_commit": {"type": "string", "description": "May be empty for non-git scopes or pre-delta-baseline generations."},
+                    "observed_commit": {"type": "string", "description": "May be empty for non-git scopes, pre-delta-baseline generations, or snapshot-trigger git generations (trigger_kind=snapshot). An empty value with verdict=current means build completeness for this generation, not a commit receipt."},
                     "observed_at": {"type": "string", "nullable": true},
                     "generation": {
                       "type": "object",

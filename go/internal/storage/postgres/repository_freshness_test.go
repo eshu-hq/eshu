@@ -6,6 +6,7 @@ package postgres
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -27,7 +28,10 @@ func TestReadRepositoryFreshnessFullyBuiltGeneration(t *testing.T) {
 	queryer := &fakeQueryer{responses: []fakeRows{
 		{rows: [][]any{{"scope-1", "gen-1"}}},
 		{rows: [][]any{{"gen-1", "active", "push", false, activatedAt, "abc123", observedAt, "repository", "acme/orders-api"}}},
-		{rows: [][]any{{"reducer", "succeeded", int64(3)}, {"projector", "succeeded", int64(1)}}},
+		// A correctly-filtered stage-counts query returns zero rows once every
+		// work item has succeeded (#5143 live-proof regression: the query used
+		// to omit the status filter and leaked succeeded rows here).
+		{rows: [][]any{}},
 		{rows: [][]any{}},
 		{rows: [][]any{}},
 	}}
@@ -52,11 +56,71 @@ func TestReadRepositoryFreshnessFullyBuiltGeneration(t *testing.T) {
 	if !snapshot.Stages.Collected || !snapshot.Stages.Reduced || !snapshot.Stages.Projected || !snapshot.Stages.Materialized {
 		t.Fatalf("Stages = %+v, want all true", snapshot.Stages)
 	}
+	if len(snapshot.Outstanding) != 0 {
+		t.Fatalf("Outstanding = %+v, want empty for a fully-succeeded generation", snapshot.Outstanding)
+	}
 	if snapshot.SharedEnrichment.Pending {
 		t.Fatalf("SharedEnrichment.Pending = true, want false")
 	}
 	if snapshot.UnobservedPush != nil {
 		t.Fatalf("UnobservedPush = %+v, want nil", snapshot.UnobservedPush)
+	}
+}
+
+// TestRepositoryFreshnessStageCountsQueryExcludesSucceededStatus is the
+// #5143 live Compose proof regression: outstanding_by_stage must list
+// outstanding work only. Before this fix,
+// repositoryFreshnessStageCountsQuery carried no status predicate at all, so
+// a fully-built repository's succeeded fact_work_items rows (for example
+// {reducer, succeeded, 15}, {projector, succeeded, 1} -- the exact shape
+// observed in the live proof) leaked into the response, which would make a
+// still-building repo's UI copy count already-finished items as "items
+// left". The contract is the same "not yet succeeded" status set
+// generation_liveness_sql.go's drain predicates use.
+func TestRepositoryFreshnessStageCountsQueryExcludesSucceededStatus(t *testing.T) {
+	t.Parallel()
+
+	query := repositoryFreshnessStageCountsQuery
+	const wantPredicate = "AND status IN ('pending', 'claimed', 'running', 'retrying', 'failed', 'dead_letter')"
+	if !strings.Contains(query, wantPredicate) {
+		t.Fatalf("repositoryFreshnessStageCountsQuery missing %q; outstanding_by_stage would leak succeeded rows:\n%s", wantPredicate, query)
+	}
+	if strings.Contains(query, "'succeeded'") {
+		t.Fatalf("repositoryFreshnessStageCountsQuery must not reference 'succeeded' directly, got:\n%s", query)
+	}
+	if idx := strings.Index(query, wantPredicate); idx < 0 || idx > strings.Index(query, "GROUP BY") {
+		t.Fatalf("status filter must precede GROUP BY so succeeded rows are excluded from the grouped counts, got:\n%s", query)
+	}
+}
+
+// TestReadRepositoryFreshnessDispatchesRealStageCountsQuery guards against a
+// regression where readStageCounts stops using the shipped
+// repositoryFreshnessStageCountsQuery constant (for example a hand-inlined
+// copy that drifts from the reviewed, tested query text). Combined with
+// TestRepositoryFreshnessStageCountsQueryExcludesSucceededStatus above, this
+// closes the loop: the store must dispatch the real constant, and that real
+// constant must exclude succeeded rows.
+func TestReadRepositoryFreshnessDispatchesRealStageCountsQuery(t *testing.T) {
+	t.Parallel()
+
+	observedAt := time.Date(2026, 7, 12, 3, 0, 0, 0, time.UTC)
+	queryer := &fakeQueryer{responses: []fakeRows{
+		{rows: [][]any{{"scope-1", "gen-1"}}},
+		{rows: [][]any{{"gen-1", "active", "push", false, observedAt, "abc123", observedAt, "repository", "acme/orders-api"}}},
+		{rows: [][]any{}},
+		{rows: [][]any{}},
+		{rows: [][]any{}},
+	}}
+
+	store := NewRepositoryFreshnessStore(queryer)
+	if _, err := store.ReadRepositoryFreshness(context.Background(), "repo-1"); err != nil {
+		t.Fatalf("ReadRepositoryFreshness() error = %v, want nil", err)
+	}
+	if len(queryer.queries) < 3 {
+		t.Fatalf("queryer received %d queries, want at least 3 (resolve, generation, stage counts)", len(queryer.queries))
+	}
+	if queryer.queries[2] != repositoryFreshnessStageCountsQuery {
+		t.Fatalf("stage-counts query dispatched =\n%s\nwant the shipped repositoryFreshnessStageCountsQuery constant", queryer.queries[2])
 	}
 }
 

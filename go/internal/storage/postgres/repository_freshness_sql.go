@@ -69,17 +69,36 @@ WHERE g.scope_id = $1
   AND g.generation_id = $2
 `
 
-// repositoryFreshnessStageCountsQuery groups outstanding fact_work_items rows
+// repositoryFreshnessStageCountsQuery groups OUTSTANDING fact_work_items rows
 // by (stage, status) for the resolved (scope, generation), mirroring
 // stageCountsQuery's shape (status_queries.go) scoped to a single
 // generation. fact_work_items_scope_generation_idx (scope_id, generation_id,
 // status, updated_at DESC) makes this an index-only bounded read (Performance
 // Evidence: see this package's README).
+//
+// The status filter is load-bearing, not cosmetic (#5143 live Compose proof
+// regression): outstanding_by_stage is contractually outstanding work only.
+// Without it, a fully-built repository's succeeded rows leak into the
+// response (observed live as {reducer, succeeded, 15}, {projector,
+// succeeded, 1} for a repo whose verdict was already "current"), which would
+// make a still-building repo's UI copy count already-finished items as
+// "items left". The status set mirrors the "not yet succeeded" set
+// generation_liveness_sql.go's drain predicates use (pending, claimed,
+// running, retrying, failed, dead_letter) -- everything except succeeded.
+//
+// deriveRepositoryFreshnessStages (repository_freshness.go) also skips a
+// 'succeeded' row when deriving the Reduced/Projected booleans; that is
+// deliberate defense in depth, not redundant with this filter. It kept the
+// derived verdict/stages correct even while this predicate was missing
+// (verdict rendered "current" correctly in the live proof despite the
+// outstanding_by_stage leak) and continues to guard the booleans if this
+// predicate ever regresses again.
 const repositoryFreshnessStageCountsQuery = `
 SELECT stage, status, COUNT(*) AS count
 FROM fact_work_items
 WHERE scope_id = $1
   AND generation_id = $2
+  AND status IN ('pending', 'claimed', 'running', 'retrying', 'failed', 'dead_letter')
 GROUP BY stage, status
 ORDER BY stage, status
 `

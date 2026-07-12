@@ -219,18 +219,24 @@ with `stage=repository_lookup` and `stage=content_coverage`, including
 
 `GET /api/v0/repositories/{repo_id}/freshness` (#5143) answers two questions
 for one repository: did eshu pick up its latest commit, and is the evidence
-for that commit fully built. The response carries `verdict` (one of
-`current`, `building`, `behind`, `unobserved`, or `unknown`),
-`observed_commit` (the active generation's source commit SHA -- legitimately
-empty for non-git scopes and pre-delta-baseline generations, and represented
-explicitly rather than fabricated), `generation` (id, status, trigger_kind,
+for that commit fully built. `verdict=current` speaks to build completeness
+for the resolved generation, not necessarily a commit receipt. The response
+carries `verdict` (one of `current`, `building`, `behind`, `unobserved`, or
+`unknown`), `observed_commit` (the active generation's source commit SHA --
+legitimately empty for non-git scopes, pre-delta-baseline generations, and
+snapshot-trigger git generations (`trigger_kind=snapshot`, for example a
+cassette-replayed source with no commit to report, as opposed to a
+push/delta-triggered sync) -- represented explicitly rather than fabricated,
+even when `verdict=current`), `generation` (id, status, trigger_kind,
 is_delta, activated_at), `stages` (collected/reduced/projected/materialized
-booleans), `outstanding_by_stage` (per-stage/status counts), and
-`shared_enrichment` (cross-repo materialization backlog referencing this
-repository's generation, kept as a separate axis so one repository's
-freshness never blames another repository's shared backlog). An optional
-`expected_commit` query parameter asks whether a specific commit SHA is
-reflected; a mismatch always renders `behind`, whether or not a generation is
+booleans), `outstanding_by_stage` (per-stage/status counts of OUTSTANDING
+work only -- pending, claimed, running, retrying, failed, or dead_letter;
+succeeded rows are never listed here), and `shared_enrichment` (cross-repo
+materialization backlog referencing this repository's generation, kept as a
+separate axis so one repository's freshness never blames another
+repository's shared backlog). An optional `expected_commit` query parameter
+asks whether a specific commit SHA is reflected; a mismatch always renders
+`behind`, whether or not a generation is
 actively progressing. `unobserved_push` reports a queued or claimed webhook
 refresh trigger for this repository whose target commit does not match the
 observed commit. Scoped tokens receive the same shape; a repository outside

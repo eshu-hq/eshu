@@ -2053,6 +2053,28 @@ by `(stage, status)`, group outstanding `shared_projection_intents` by
 `webhook_refresh_triggers` for the repo's display identity. Four
 tightly-scoped SQL statements, one instrumented Go-level composite read.
 
+Accuracy fix: a live Compose proof caught `repositoryFreshnessStageCountsQuery`
+returning `succeeded` rows in `outstanding_by_stage` for a fully-drained
+repository (observed live as `{reducer, succeeded, 15}`,
+`{projector, succeeded, 1}` for a repo whose verdict was already `current`).
+`outstanding_by_stage` is contractually outstanding work only; the query now
+adds `AND status IN ('pending', 'claimed', 'running', 'retrying', 'failed',
+'dead_letter')`, mirroring `generation_liveness_sql.go`'s drain predicates.
+Reproduced against the exact live corpus scope/generation that exhibited the
+leak (`git-repository-scope:repository:r_d5318f0f`): the unfiltered query
+returned the two succeeded rows above; the filtered query returns zero rows
+for the same scope/generation, confirmed via `EXPLAIN (ANALYZE, BUFFERS)`
+(sub-millisecond, index-backed). `deriveRepositoryFreshnessStages`
+(`repository_freshness.go`) already skipped `succeeded` rows when deriving
+the `Reduced`/`Projected` booleans, which is why the rendered `verdict` was
+correct in the same live proof despite the `outstanding_by_stage` leak; that
+Go-side skip is kept as defense in depth alongside the SQL fix, not removed.
+Regression tests:
+`TestRepositoryFreshnessStageCountsQueryExcludesSucceededStatus` (fails
+without the predicate) and
+`TestReadRepositoryFreshnessDispatchesRealStageCountsQuery` (proves the store
+dispatches the real, reviewed constant) in `repository_freshness_test.go`.
+
 Performance Evidence (prove-theory-first, inherited from the #5143 design
 brief and built on rather than re-derived): scratch Postgres 16 seeded with
 migrations 001/002/005/008 and a synthetic corpus of 20,000
