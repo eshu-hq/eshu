@@ -43,6 +43,27 @@ the first cohort of permit-holders until the surplus has blocked on `Acquire`, s
 the gate's wait observer fires without a scheduler race; the pass/fail assertions
 depend on the structural `PermitPool`-vs-capacity bound, not on timing.
 
+## Evidence
+
+- No-Regression Evidence: `go/internal/ifa/saturation` and
+  `go/internal/ifa/throughput` are hermetic conformance scenario runners
+  exercised only by `go test` and the `ifa-load-saturation` gate; no runtime
+  binary (ingester, reducer, api, mcp, bootstrap) imports them, so they add no
+  production Cypher, graph-write, queue, lease, or worker path. The hot-path gate
+  flags them only for concurrency vocabulary (permit gate, retries,
+  backpressure); the real `cypher.BackpressureGate`, `cypher.GraphWriteTimeoutError`,
+  and `reducer.IsRetryable` seams they call are unchanged by this PR. Baseline vs
+  after, in-memory backend model (no NornicDB/Postgres), input shape 8 work items
+  / capacity 2 / permit pool 2: with the gate the queue drains to dead-letter=0,
+  residual=0; without it exactly `WorkItems − MaxAttempts·BackendCapacity` = 2
+  items dead-letter — deterministic and stable 80/80 over `-count=20 -race`. The
+  throughput Odù commits identical scope/fact totals at 1/2/4 workers over a
+  4-scope amplified GCP corpus.
+- No-Observability-Change: no new `eshu_dp_*` metric, span, or log is added.
+  The `countingObserver` is a test-local `cypher.BackpressureObserver` used only
+  inside this hermetic scenario to assert the gate engaged; it is never wired
+  into a runtime service's telemetry.
+
 ## Boundaries
 
 This package models a queue; it does not run the real reducer queue or Postgres.
