@@ -45,6 +45,10 @@ change needs their domain:
   then the 20-25 repo corpus, then full corpus.
 - MUST NOT increase worker defaults without evidence of safe conflict domains and
   backend headroom.
+- MUST re-rank open diagnostic or performance issues against the latest accepted
+  measured bottleneck before implementation. If live phase evidence makes an
+  issue stale, superseded, or merely hygiene, update the issue framing instead
+  of implementing from the old title/body.
 - For remote or full-corpus proof, enable pprof and capture the effective
   runtime environment from the containers before interpreting slowness.
 - Keep machine-specific hostnames, keys, paths, and IPs out of repo docs.

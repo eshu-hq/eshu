@@ -123,6 +123,20 @@ routes to `develop-eshu`); final diff / PR readiness → `review-eshu`. One
 surface per dispatch, always with the full handoff contract, sequenced
 accuracy-before-performance per the Life Motto.
 
+For performance investigation and debugging, the coordinator MUST use subagents
+or role agents when the work can be safely split into bounded lanes: live issue
+state, caller inventory, old/new query-shape proof, test discovery, and log or
+CI review are good splits. Do not delegate implementation until the cheap proof
+has proven the theory and the handoff packet names the exact surface, failing
+test, gate commands, required project skills, and out-of-scope boundary.
+
+Judgment-heavy performance and debugging work MUST escalate to the strongest
+available diagnostic/performance model. For current Eshu planning, use 5.6 Sol
+when available; if it is unavailable, use the nearest high-reasoning
+performance/debug model and record the substitution in the handoff. Long waits,
+build polling, and GitHub bookkeeping remain coordinator or script work, not
+frontier-model work.
+
 ## The gate floor
 
 The floor is **strong**: the following dimensions are enforced by a blocking CI
