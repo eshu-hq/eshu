@@ -14,11 +14,15 @@ set -euo pipefail
 # Four remote-e2e / governance self-tests captured a verifier's multi-hundred-
 # byte `--list` output into `${list_log}` and probed it with
 # `rg --fixed-strings --quiet "${needle}" <<<"${list_log}"` inside a loop. Every
-# iteration deadlocked under bash 5.3.15. The fix pipes the content with
-# `printf '%s\n' "${list_log}" | rg ...` instead. This guard runs each self-test
-# under a hard timeout and fails if any of them hangs (or otherwise does not
-# pass), so a reverted `<<<` is caught on a macOS developer run rather than
-# discovered by hand months later.
+# iteration deadlocked under bash 5.3.15. The fix reads the content via process
+# substitution (`rg ... < <(printf '%s\n' "${list_log}")`) instead. A plain
+# `printf '%s\n' "${list_log}" | rg ...` pipe was rejected: rg -q closes the pipe
+# on first match, printf then takes SIGPIPE, and `set -o pipefail` turns that into
+# a false "needle missing" failure. Process substitution makes rg's exit
+# authoritative and the printf's SIGPIPE invisible. This guard runs each
+# self-test under a hard timeout and fails if any of them hangs (or otherwise
+# does not pass), so a reverted `<<<` is caught on a macOS developer run rather
+# than discovered by hand months later.
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
