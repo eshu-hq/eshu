@@ -48,6 +48,7 @@ nav:
     - Index Repositories: tutorials/index-repositories.md
     - Deploy on Kubernetes: tutorials/deploy-kubernetes.md
     - Debug Stale Answers: tutorials/debug-stale-answers.md
+    - Prove a Change: tutorials/prove-a-change.md
   - How-to Guides:
     - Overview: use/index.md
     - Index Repositories: use/index-repositories.md
@@ -56,6 +57,10 @@ nav:
       - Overview: mcp/index.md
       - MCP Guide: guides/mcp-guide.md
     - Trace Infrastructure: use/trace-infrastructure.md
+    - Prove Your Changes:
+      - Run The Proof Suite: guides/run-the-proof-suite.md
+      - Add An Odù: guides/add-an-odu.md
+      - Debug A Failing Gate: guides/debug-a-failing-gate.md
     - Supply-Chain Traceability: supply-chain-traceability.md
     - Supply-Chain Demo Runbook: guides/supply-chain-demo.md
     - Starter Prompts: guides/starter-prompts.md
@@ -82,6 +87,9 @@ nav:
     - Service Workflows: reference/service-workflows.md
     - Why Eshu: why-eshu.md
     - Use Cases: use-cases.md
+    - Testing & Conformance:
+      - How Eshu Proves Itself: concepts/how-eshu-proves-itself.md
+      - The Ifá Conformance Platform: concepts/ifa-conformance-platform.md
   - Reference:
     - Overview: reference/index.md
     - API & MCP:
@@ -167,6 +175,10 @@ nav:
       - Incident Media Evidence Contract: reference/incident-media-evidence.md
       - Semantic Hybrid Search Admission: reference/semantic-hybrid-search-admission.md
       - Tag Taxonomy: reference/tag-taxonomy.md
+    - Testing:
+      - CI Gates Reference: reference/ci-gates.md
+      - Ifá CLI Reference: reference/ifa-cli.md
+      - Scale Slots And The Perf Contract: reference/scale-slots-and-perf-contract.md
     - Proof & Validation:
       - Overview: reference/proof-and-validation.md
       - Cassette And Replay Proof: reference/cassette-replay.md
