@@ -183,16 +183,21 @@ func TestEntityRetractManifestBinding(t *testing.T) {
 		t.Fatalf("parse manifest: %v", err)
 	}
 
+	// retractable_node rows that reference this cassette but are NOT created via
+	// content_entity (they use a dedicated fact path) are out of this binding's
+	// scope. This is an explicit allowlist, not a skip-if-absent: any other
+	// manifest label absent from the cassette-derived set is a drift failure, so
+	// removing a content_entity fact while its row remains is caught.
+	nonContentEntityRows := map[string]struct{}{
+		"Directory": {},
+	}
 	manifestSet := map[string]struct{}{}
 	for _, e := range manifest.Coverage {
 		if e.ScenarioType != "delta_tombstone" || !strings.HasPrefix(e.Surface, "retractable_node:") || e.Ref != cassetteRef {
 			continue
 		}
 		label := strings.TrimPrefix(e.Surface, "retractable_node:")
-		if _, ok := cassetteSet[label]; !ok {
-			// A retractable_node row referencing this cassette that the cassette
-			// does not create via content_entity (e.g. Directory) is out of this
-			// binding's scope.
+		if _, allowed := nonContentEntityRows[label]; allowed {
 			continue
 		}
 		manifestSet[label] = struct{}{}
