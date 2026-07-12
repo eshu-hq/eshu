@@ -269,8 +269,22 @@ deterministically across runs — sequenced in #5128, live proof
 `TestReducerSQLRelationshipRetractGraphTruth`), and its non-GroupExecutor
 fallback was an unlabeled `(source)` scan, removed in #4367 when the retract
 moved to one statement per write-capable source label
-(`buildSQLRelationshipRetractStatements`). Each remaining instance needs the
-same per-label + sequential rework with its own live proof.
+(`buildSQLRelationshipRetractStatements`). The rationale EXPLAINS delta
+retract carried the disjunction on its TARGET node
+(`...->(target:Function|Class|...|File) WHERE target.path IN ...`) — probed on
+v1.1.11: it deletes nothing — and was fixed the same way in #4367
+(`BuildRetractRationaleEdgeStatementsByFilePath`, one statement per target
+label, sequential, live proof `TestReducerRationaleEdgeRetractGraphTruth`).
+Each remaining instance needs the same per-label + sequential rework with its
+own live proof.
+
+Scope refinement (probed on v1.1.11 while fixing the rationale retract): the
+zero-row behavior applies to a bare `MATCH` whose disjunction-labeled node is
+filtered by a `WHERE` predicate, on either end of the pattern. A row-driven
+`UNWIND $rows AS row MATCH (n:A|B|C {prop: row.value})` with an inline property
+anchor DOES match and write correctly (the rationale EXPLAINS write template is
+exactly this shape and creates every edge). Do not "fix" working UNWIND
+inline-anchor writes; do fix every bare-MATCH disjunction retract or read.
 
 ### Validation
 

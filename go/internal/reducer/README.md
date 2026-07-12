@@ -3263,7 +3263,7 @@ fail before the domain exists and pass after. For #2257 delta retraction,
 `go test ./internal/reducer -run
 'TestRationaleMaterializationHandler(ScopesDeltaRetractToFiles|DeletedOnlyDeltaRetractsWithoutWrites)|TestBuildRationaleRetractRowsKeepsMalformedDeltaScoped|TestLoadRationaleMaterializationFactsUsesSingleLegacyFallback'
 -count=1` and `go test ./internal/storage/cypher -run
-'Test(BuildRetractRationaleEdgesByFilePath|EdgeWriterRetractEdgesRationale(DeltaUsesFileScope|RejectsDeltaWithoutFilePaths))'
+'Test(BuildRetractRationaleEdgeStatementsByFilePath|RationaleRetractCoversEveryWriteTargetLabel|EdgeWriterRetractEdgesRationale(DeltaRunsPerLabelStatementsSequentially|RejectsDeltaWithoutFilePaths))'
 -count=1` prove deleted-only delta cleanup, file-path-scoped graph retraction,
 and fail-closed malformed delta rows. The handler runs one repository plus
 content-entity fact-kind load when the backing store supports kind filters, or
