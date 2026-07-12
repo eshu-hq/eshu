@@ -13,8 +13,9 @@ import (
 
 // DeltaMaterialization is the result of applying one generation on top of another.
 // It carries the CanonicalMaterialization for writing gen2 into the graph (which
-// retract logic will fire because FirstGeneration=false) plus the set of directory
-// paths that gen2 removes (tombstoned) so callers can assert post-delta graph truth.
+// retract logic will fire because FirstGeneration=false) plus the sets of
+// directory and file paths that gen2 removes (tombstoned) so callers can assert
+// post-delta graph truth.
 type DeltaMaterialization struct {
 	// Gen1 is the canonical materialization for the baseline (first) generation.
 	// The caller writes it first to establish graph state before gen2 retracts.
@@ -44,9 +45,10 @@ type DeltaMaterialization struct {
 // drains gen2 to build the canonical projection input for the second generation.
 //
 // The gen2 CanonicalMaterialization is returned with FirstGeneration=false so
-// the production retract phase fires: directories absent from gen2 (including
-// tombstoned ones) are DETACH DELETE'd from the graph by the production
-// canonicalNodeRetractDirectoriesCypher Cypher template.
+// the production retract phase fires: directories and files absent from gen2
+// (including tombstoned ones) are DETACH DELETE'd from the graph by the
+// production canonicalNodeRetractDirectoriesCypher and
+// canonicalNodeRetractDeltaDeletedFilesCypher templates.
 //
 // It returns an error when either generation's fact stream errors, when gen1
 // has no repository fact (bad baseline cassette), or when gen2's surviving
