@@ -41,171 +41,25 @@ install_fake_cluster_tools() {
     local dir="$1"
     mkdir -p "${dir}/_bin"
 
-    cat >"${dir}/_bin/kubectl" <<'SH'
-#!/usr/bin/env bash
-set -euo pipefail
-args="$*"
-case "${args}" in
-  "-n eshu get pods -o json")
-    cat <<'JSON'
-{"items":[
-  {"metadata":{"name":"eshu-api-6bd9f-private","labels":{"app.kubernetes.io/name":"eshu","app.kubernetes.io/instance":"private-release","app.kubernetes.io/component":"api"}},"spec":{"nodeName":"node.private.internal","containers":[{"name":"api","image":"registry.private.example.com/eshu/api:dev","resources":{"requests":{"cpu":"250m","memory":"256Mi"},"limits":{"cpu":"1","memory":"1Gi"}}}]},"status":{"phase":"Running","podIP":"10.42.0.15","hostIP":"172.20.1.11","containerStatuses":[{"name":"api","ready":true,"restartCount":1}]}},
-  {"metadata":{"name":"eshu-reducer-77dd-private","labels":{"app.kubernetes.io/name":"eshu","app.kubernetes.io/instance":"private-release","app.kubernetes.io/component":"reducer"}},"spec":{"nodeName":"node.private.internal","containers":[{"name":"reducer","resources":{"requests":{"cpu":"500m","memory":"512Mi"},"limits":{"cpu":"2","memory":"2Gi"}}}]},"status":{"phase":"Running","podIP":"10.42.0.16","hostIP":"172.20.1.11","containerStatuses":[{"name":"reducer","ready":true,"restartCount":0}]}}
-]}
-JSON
-    ;;
-  "-n eshu top pods --no-headers")
-    printf 'eshu-api-6bd9f-private 12m 190Mi\n'
-    printf 'eshu-reducer-77dd-private 80m 512Mi\n'
-    ;;
-  "-n eshu get servicemonitors -o json")
-    if [ "${ESHU_FAKE_K8S_NO_SERVICE_MONITOR:-0}" = "1" ]; then
-      printf '{"items":[]}\n'
-      exit 0
-    fi
-    cat <<'JSON'
-{"items":[
-  {"metadata":{"name":"private-release-api","labels":{"app.kubernetes.io/instance":"private-release","app.kubernetes.io/component":"api"}},"spec":{"endpoints":[{"path":"/metrics","port":"metrics"}],"selector":{"matchLabels":{"app.kubernetes.io/component":"api"}}}},
-  {"metadata":{"name":"private-release-reducer","labels":{"app.kubernetes.io/instance":"private-release","app.kubernetes.io/component":"reducer"}},"spec":{"endpoints":[{"path":"/metrics","port":"metrics"}],"selector":{"matchLabels":{"app.kubernetes.io/component":"reducer"}}}}
-]}
-JSON
-    ;;
-  "-n eshu get networkpolicies -o json")
-    cat <<'JSON'
-{"items":[
-  {"metadata":{"name":"private-release-network","labels":{"app.kubernetes.io/instance":"private-release"}},"spec":{"podSelector":{"matchLabels":{"app.kubernetes.io/name":"eshu"}},"policyTypes":["Ingress","Egress"]}}
-]}
-JSON
-    ;;
-  "-n eshu get poddisruptionbudgets -o json")
-    cat <<'JSON'
-{"items":[
-  {"metadata":{"name":"private-release-api","labels":{"app.kubernetes.io/component":"api"}},"status":{"currentHealthy":1,"desiredHealthy":1,"disruptionsAllowed":0}}
-]}
-JSON
-    ;;
-  "-n eshu get jobs -o json")
-    if [ "${ESHU_FAKE_K8S_BAD_BOOTSTRAP:-0}" = "1" ]; then
-      cat <<'JSON'
-{"items":[
-  {"metadata":{"name":"private-release-schema-bootstrap","labels":{"app.kubernetes.io/component":"schema-bootstrap"}},"status":{"active":0,"succeeded":0,"failed":1,"conditions":[{"type":"Failed","status":"True"}]}}
-]}
-JSON
-      exit 0
-    fi
-    cat <<'JSON'
-{"items":[
-  {"metadata":{"name":"private-release-schema-bootstrap","labels":{"app.kubernetes.io/component":"schema-bootstrap"}},"status":{"active":0,"succeeded":1,"failed":0,"conditions":[{"type":"Complete","status":"True"}]}}
-]}
-JSON
-    ;;
-  "-n eshu logs eshu-api-6bd9f-private --all-containers --tail=200")
-    printf 'level=info repository=private/repo package_name=private-package provider_url=https://provider.private.example.com/path token=ghp_abcdef path=/Users/alice/private/repo host=api.private.example.com ip=10.42.0.15 PASSWORD: hunter2 AWS_SECRET_ACCESS_KEY: aws-secret apiKey: api-key-secret client_secret: client-secret Authorization: Bearer bearer-secret role_arn=arn:aws:iam::123456789012:role/private-role\n'
-    ;;
-  "-n eshu logs eshu-reducer-77dd-private --all-containers --tail=200")
-    printf '{"level":"warn","repo":"private/repo","package":"private-package","url":"https://provider.private.example.com/path","message":"retrying queue item","host":"reducer.private.example.com","path":"/home/alice/private/repo","PASSWORD":"hunter2","AWS_SECRET_ACCESS_KEY":"aws-secret","apiKey":"api-key-secret","client_secret":"client-secret","authorization":"Bearer bearer-secret","role_arn":"arn:aws:iam::123456789012:role/private-role"}\n'
-    ;;
-  *)
-    printf 'unexpected kubectl args: %s\n' "${args}" >&2
-    exit 1
-    ;;
-esac
-SH
+    # Each fake tool implementation lives in a sibling data file, not a
+    # heredoc: Homebrew bash >= 5.1 writes an entire heredoc body to a pipe
+    # before forking the reader, and macOS's 512-byte pipe buffer deadlocks
+    # on these outer bodies (kubectl 4334B, helm 1173B, curl 1399B) (#5074).
+    # None of the three has expansion (all were quoted <<'SH'), so copying
+    # each file is behavior-identical. The kubectl fixture's own inner pods
+    # (1046B) and servicemonitors (557B) heredocs, and the helm fixture's
+    # own inner manifest heredoc (516B), are #5074 NESTED-heredoc cases --
+    # they re-trip the deadlock when the fixture itself runs as a
+    # subprocess -- so those three are converted to printf inside their
+    # lib files too. curl's inner heredocs all stay under 512 bytes and are
+    # left as heredocs.
+    cat "${repo_root}/scripts/lib/test-security_intelligence_release_gate_k8s-fake-kubectl.sh" >"${dir}/_bin/kubectl"
     chmod +x "${dir}/_bin/kubectl"
 
-    cat >"${dir}/_bin/helm" <<'SH'
-#!/usr/bin/env bash
-set -euo pipefail
-if [ "$*" != "get values eshu -n eshu" ]; then
-    if [ "$*" = "get manifest eshu -n eshu" ]; then
-        cat <<'YAML'
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: private-release-api
-spec:
-  template:
-    spec:
-      containers:
-        - name: api
-          image: registry.private.example.com/eshu/api:dev
----
-apiVersion: monitoring.coreos.com/v1
-kind: ServiceMonitor
-metadata:
-  name: private-release-api
-spec:
-  endpoints:
-    - path: /metrics
----
-apiVersion: policy/v1
-kind: PodDisruptionBudget
-metadata:
-  name: private-release-api
----
-apiVersion: batch/v1
-kind: Job
-metadata:
-  name: private-release-schema-bootstrap
-YAML
-        exit 0
-    fi
-    printf 'unexpected helm args: %s\n' "$*" >&2
-    exit 1
-fi
-cat <<'YAML'
-api:
-  env:
-    PROVIDER_URL: https://provider.private.example.com/path
-    TOKEN: github_pat_secret
-    WORKSPACE: /Users/alice/private/repo
-    PASSWORD: hunter2
-    AWS_SECRET_ACCESS_KEY: aws-secret
-    apiKey: api-key-secret
-    client_secret: client-secret
-    Authorization: Bearer bearer-secret
-    ROLE_ARN: arn:aws:iam::123456789012:role/private-role
-    ACCOUNT_ID: "123456789012"
-YAML
-SH
+    cat "${repo_root}/scripts/lib/test-security_intelligence_release_gate_k8s-fake-helm.sh" >"${dir}/_bin/helm"
     chmod +x "${dir}/_bin/helm"
 
-    cat >"${dir}/_bin/curl" <<'SH'
-#!/usr/bin/env bash
-set -euo pipefail
-url="${@: -1}"
-case "${url}" in
-  */debug/pprof/)
-    printf 'pprof index\n'
-    ;;
-  */admin/status?format=json)
-    if [ "${ESHU_FAKE_QUEUE_STATE:-terminal}" = "nonterminal" ]; then
-        cat <<'JSON'
-{"queue":{"outstanding":3,"pending":2,"in_flight":1,"retrying":1,"failed":0,"dead_letter":0,"overdue_claims":0},"retry_policies":[{"stage":"reducer","retry_delay":"1m"}],"vulnerability_sources":[{"source":"osv","terminal_status":"running","result_count":4,"warning_count":0}]}
-JSON
-        exit 0
-    fi
-    cat <<'JSON'
-{"queue":{"outstanding":0,"pending":0,"in_flight":0,"retrying":0,"failed":0,"dead_letter":0,"overdue_claims":0},"retry_policies":[{"stage":"reducer","retry_delay":"1m"}],"vulnerability_sources":[{"source":"osv","terminal_status":"succeeded","result_count":4,"warning_count":0}]}
-JSON
-    ;;
-  */api/v0/index-status)
-    if [ "${ESHU_FAKE_QUEUE_STATE:-terminal}" = "nonterminal" ]; then
-        cat <<'JSON'
-{"status":"progressing","queue":{"outstanding":3,"pending":2,"in_flight":1,"retrying":1,"failed":0,"dead_letter":0},"health":{"state":"progressing"}}
-JSON
-        exit 0
-    fi
-    cat <<'JSON'
-{"status":"healthy","queue":{"outstanding":0,"pending":0,"in_flight":0,"retrying":0,"failed":0,"dead_letter":0},"health":{"state":"healthy"}}
-JSON
-    ;;
-  *)
-    printf 'unexpected curl url: %s\n' "${url}" >&2
-    exit 1
-    ;;
-esac
-SH
+    cat "${repo_root}/scripts/lib/test-security_intelligence_release_gate_k8s-fake-curl.sh" >"${dir}/_bin/curl"
     chmod +x "${dir}/_bin/curl"
 }
 
