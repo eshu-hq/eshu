@@ -58,8 +58,9 @@ export interface OperationsActivityRow {
   readonly stage: string;
   readonly status: string;
   readonly domain: string;
-  // leaseOwner and sourceKey are null when the route is scoped (redacted
-  // worker/repo identity for a tenant-scoped token) or absent on the wire.
+  // leaseOwner, sourceKey, and sourceDisplay are null when the route is
+  // scoped (redacted worker/repo identity for a tenant-scoped token) or
+  // absent on the wire.
   readonly leaseOwner: string | null;
   readonly claimUntil: string | null;
   readonly attemptCount: number;
@@ -69,7 +70,13 @@ export interface OperationsActivityRow {
   readonly scopeKind: string;
   readonly collectorKind: string;
   readonly sourceSystem: string;
+  // sourceKey is the raw, possibly-opaque repo identity (e.g.
+  // "repository:r_ea78e8bb" for git scopes). Kept for a secondary/tooltip
+  // use; prefer repoLabel() for the primary display value.
   readonly sourceKey: string | null;
+  // sourceDisplay is the operator-facing repo name (#5137 follow-up), e.g.
+  // "acme/orders-api", resolved server-side from the scope payload.
+  readonly sourceDisplay: string | null;
 }
 
 export interface OperationsBoard {
@@ -132,6 +139,7 @@ interface LiveActivityWire {
   readonly collector_kind?: string;
   readonly source_system?: string;
   readonly source_key?: string | null;
+  readonly source_display?: string | null;
 }
 interface OperationsWire {
   readonly version?: string;
@@ -283,7 +291,18 @@ function activityRowFromWire(row: LiveActivityWire): OperationsActivityRow {
     collectorKind: clean(row.collector_kind) || "—",
     sourceSystem: clean(row.source_system) || "—",
     sourceKey: clean(row.source_key ?? undefined) || null,
+    sourceDisplay: clean(row.source_display ?? undefined) || null,
   };
+}
+
+// repoLabel resolves the "Now processing" repo column: the operator-facing
+// source_display when present, falling back to the raw source_key, and
+// finally an em dash when both are redacted (scoped token) or absent.
+export function repoLabel(row: {
+  readonly sourceDisplay: string | null;
+  readonly sourceKey: string | null;
+}): string {
+  return row.sourceDisplay ?? row.sourceKey ?? "—";
 }
 
 // humanizeAge renders a work item's age_seconds into a compact duration such

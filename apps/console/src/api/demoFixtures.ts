@@ -604,7 +604,10 @@ function demoActivityWire(
     scope_kind: "repository",
     collector_kind: collectorKind,
     source_system: sourceSystem,
-    source_key: `sample/${repo}`,
+    // source_key: opaque hash like the live backend (#5137 follow-up).
+    // source_display: operator-facing name from the scope payload.
+    source_key: `r_${workItemId}`,
+    source_display: `acme/${repo}`,
   };
 }
 

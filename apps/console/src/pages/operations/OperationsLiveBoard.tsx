@@ -15,6 +15,7 @@ import type { EshuApiClient } from "../../api/client";
 import {
   humanizeAge,
   loadOperationsBoard,
+  repoLabel,
   type OperationsBoard,
   type OperationsCollectorRow,
   type OperationsActivityRow,
@@ -271,9 +272,16 @@ function LiveActivityTable({ board }: { readonly board: OperationsBoard }): Reac
 }
 
 function LiveActivityRowView({ row }: { readonly row: OperationsActivityRow }): React.JSX.Element {
+  const repo = repoLabel(row);
+  // Show the raw source_key as a tooltip when it differs from the rendered
+  // label (i.e. source_display resolved to a human name) — cheap secondary
+  // identity for an operator who wants the opaque key.
+  const repoTitle = row.sourceKey && row.sourceKey !== repo ? row.sourceKey : undefined;
   return (
     <tr>
-      <td className="mono">{row.sourceKey ?? "—"}</td>
+      <td className="mono" title={repoTitle}>
+        {repo}
+      </td>
       <td className="mono">{row.stage}</td>
       <td>
         <Badge tone={STATUS_TONE[row.status] ?? "neutral"} dot>

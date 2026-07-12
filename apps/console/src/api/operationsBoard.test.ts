@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { EshuApiClient } from "./client";
-import { humanizeAge, loadOperationsBoard } from "./operationsBoard";
+import { humanizeAge, loadOperationsBoard, repoLabel } from "./operationsBoard";
 
 // mockClient answers GET /api/v0/status/operations with a fixed wire payload,
 // or throws/errors to exercise the degrade-to-unavailable path.
@@ -81,7 +81,8 @@ const wirePayload = {
       scope_kind: "repository",
       collector_kind: "git",
       source_system: "github",
-      source_key: "sample/checkout-service",
+      source_key: "repository:r_ea78e8bb",
+      source_display: "acme/checkout-service",
     },
   ],
   truncated: false,
@@ -172,23 +173,32 @@ describe("loadOperationsBoard", () => {
         scopeKind: "repository",
         collectorKind: "git",
         sourceSystem: "github",
-        sourceKey: "sample/checkout-service",
+        sourceKey: "repository:r_ea78e8bb",
+        sourceDisplay: "acme/checkout-service",
       },
     ]);
   });
 
-  it("renders scoped rows safely with null lease_owner and source_key", async () => {
+  it("renders scoped rows safely with null lease_owner, source_key, and source_display", async () => {
     const client = mockClient({
       data: {
         ...wirePayload,
         scoped: true,
-        live_activity: [{ ...wirePayload.live_activity[0], lease_owner: null, source_key: null }],
+        live_activity: [
+          {
+            ...wirePayload.live_activity[0],
+            lease_owner: null,
+            source_key: null,
+            source_display: null,
+          },
+        ],
       },
     });
     const board = await loadOperationsBoard(client);
     expect(board.scoped).toBe(true);
     expect(board.liveActivity[0]?.leaseOwner).toBeNull();
     expect(board.liveActivity[0]?.sourceKey).toBeNull();
+    expect(board.liveActivity[0]?.sourceDisplay).toBeNull();
   });
 
   it("degrades to an unavailable board when the endpoint throws", async () => {
@@ -219,5 +229,26 @@ describe("humanizeAge", () => {
     expect(humanizeAge(125)).toBe("2m");
     expect(humanizeAge(7290)).toBe("2h 1m");
     expect(humanizeAge(90000)).toBe("1d");
+  });
+});
+
+// repoLabel resolves the "Now processing" repo column: source_display (the
+// operator-facing repo name, #5137 follow-up) when non-empty, else source_key
+// as a fallback, else an em dash when both are redacted/absent (scoped token).
+describe("repoLabel", () => {
+  it("prefers the human-readable source_display over the raw source_key", () => {
+    expect(
+      repoLabel({ sourceDisplay: "acme/orders-api", sourceKey: "repository:r_ea78e8bb" }),
+    ).toBe("acme/orders-api");
+  });
+
+  it("falls back to source_key when source_display is missing", () => {
+    expect(repoLabel({ sourceDisplay: null, sourceKey: "repository:r_ea78e8bb" })).toBe(
+      "repository:r_ea78e8bb",
+    );
+  });
+
+  it("falls back to an em dash when both are redacted or absent", () => {
+    expect(repoLabel({ sourceDisplay: null, sourceKey: null })).toBe("—");
   });
 });

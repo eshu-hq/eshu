@@ -64,8 +64,10 @@ describe("demoClient", () => {
     expect(env.truth?.basis).toBe("demo_fixture");
     expect(Array.isArray(env.data?.collectors)).toBe(true);
     expect(Array.isArray(env.data?.live_activity)).toBe(true);
-    expect((env.data?.live_activity as readonly Record<string, unknown>[])[0]?.source_key).toBe(
-      "sample/checkout-service",
-    );
+    const firstRow = (env.data?.live_activity as readonly Record<string, unknown>[])[0];
+    // source_display is the operator-facing repo name (#5137 follow-up),
+    // distinct from the opaque source_key the live backend stores.
+    expect(firstRow?.source_display).toBe("acme/checkout-service");
+    expect(firstRow?.source_key).not.toBe(firstRow?.source_display);
   });
 });

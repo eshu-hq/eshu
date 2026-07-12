@@ -197,7 +197,8 @@ describe("OperationsPage live operations board", () => {
       scope_kind: "repository",
       collector_kind: "git",
       source_system: "github",
-      source_key: "sample/checkout-service",
+      source_key: "repository:r_ea78e8bb",
+      source_display: "acme/checkout-service",
       ...overrides,
     };
   }
@@ -224,7 +225,8 @@ describe("OperationsPage live operations board", () => {
           status: "claimed",
           domain: "repository:payments-api",
           lease_owner: "projector-2",
-          source_key: "sample/payments-api",
+          source_key: "repository:r_1a2b3c4d",
+          source_display: "acme/payments-api",
         }),
       ],
     });
@@ -232,19 +234,32 @@ describe("OperationsPage live operations board", () => {
 
     render(<OperationsPage model={demoModel} client={client} pollMs={50} />);
 
-    expect(await screen.findByText("sample/checkout-service")).toBeInTheDocument();
+    // Renders the human-readable source_display, not the raw source_key.
+    expect(await screen.findByText("acme/checkout-service")).toBeInTheDocument();
+    expect(screen.queryByText("repository:r_ea78e8bb")).not.toBeInTheDocument();
 
-    await waitFor(() => expect(screen.getByText("sample/payments-api")).toBeInTheDocument(), {
+    await waitFor(() => expect(screen.getByText("acme/payments-api")).toBeInTheDocument(), {
       timeout: 2000,
     });
-    expect(screen.queryByText("sample/checkout-service")).not.toBeInTheDocument();
+    expect(screen.queryByText("acme/checkout-service")).not.toBeInTheDocument();
+  });
+
+  it("falls back to the raw source_key when source_display is absent", async () => {
+    const client = opsClient([
+      operationsWire({
+        live_activity: [activityRow({ source_display: null })],
+      }),
+    ]);
+    render(<OperationsPage model={demoModel} client={client} pollMs={50000} />);
+
+    expect(await screen.findByText("repository:r_ea78e8bb")).toBeInTheDocument();
   });
 
   it("renders scoped rows safely with an em dash for redacted repo/worker identity", async () => {
     const client = opsClient([
       operationsWire({
         scoped: true,
-        live_activity: [activityRow({ lease_owner: null, source_key: null })],
+        live_activity: [activityRow({ lease_owner: null, source_key: null, source_display: null })],
       }),
     ]);
     render(<OperationsPage model={demoModel} client={client} pollMs={50000} />);
