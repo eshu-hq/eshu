@@ -318,6 +318,45 @@ describe("loadOperationsBoard domain_backlogs (#5172)", () => {
     ]);
   });
 
+  // #5172 cold-review P2-3: the backend keeps a domain row whose only
+  // pressure is dead-lettered/failed work even after outstanding, pending,
+  // and in_flight have all drained to zero (domainBacklogQuery). The adapter
+  // must still map deadLetter/failed through rather than losing them.
+  it("maps a terminal-only row's dead_letter and failed counts even when outstanding/pending/in_flight are zero", async () => {
+    const client = mockClient({
+      data: {
+        ...wirePayload,
+        domain_backlogs: [
+          {
+            domain: "repository:legacy-importer",
+            outstanding: 0,
+            pending: 0,
+            in_flight: 0,
+            blocked: 0,
+            retrying: 0,
+            dead_letter: 3,
+            failed: 2,
+            oldest_age: 5400,
+          },
+        ],
+      },
+    });
+    const board = await loadOperationsBoard(client);
+    expect(board.domainBacklogs).toEqual([
+      {
+        domain: "repository:legacy-importer",
+        outstanding: 0,
+        pending: 0,
+        inFlight: 0,
+        blocked: 0,
+        retrying: 0,
+        deadLetter: 3,
+        failed: 2,
+        oldestAgeSeconds: 5400,
+      },
+    ]);
+  });
+
   it("defaults to an empty array when domain_backlogs is absent from the wire (backward compat)", async () => {
     const client = mockClient({ data: wirePayload });
     const board = await loadOperationsBoard(client);

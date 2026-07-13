@@ -239,6 +239,14 @@ function CollectorHeartbeatTable({
 // progressing condition holds) and from "Now processing" below (a per-item
 // list of in-flight work only, with no per-domain pending/outstanding
 // rollup).
+//
+// Includes Dead-letter and Failed columns (#5172 cold-review P2-3): the
+// backend's domainBacklogQuery keeps a row whose only pressure is dead-letter
+// or failed counts even when outstanding/pending/in_flight have all drained
+// to zero, and the adapter already parses those fields. Dropping the columns
+// would render such a row as all-zero and indistinguishable from "no
+// pressure", hiding exactly the work that needs a replay. Surfacing them is
+// the operator-honest choice over filtering the row out.
 function DomainBacklogTable({
   rows,
 }: {
@@ -261,16 +269,26 @@ function DomainBacklogTable({
                 <th className="num">Outstanding</th>
                 <th className="num">Pending</th>
                 <th className="num">In flight</th>
+                <th className="num">Dead-letter</th>
+                <th className="num">Failed</th>
                 <th>Oldest</th>
               </tr>
             </thead>
             <tbody>
-              {rows.map((row) => (
-                <tr key={row.domain}>
+              {rows.map((row, i) => (
+                // Composite key (#5172 cold-review P2-1): `domain` alone can
+                // collide -- an empty/unparseable wire domain cleans to the
+                // same "—" fallback on more than one row -- so every row key
+                // includes its position in the server's already-deduplicated
+                // order, not only the fallback rows, for one consistent
+                // keying rule instead of a conditional one.
+                <tr key={`${row.domain}-${i}`}>
                   <td className="mono">{row.domain}</td>
                   <td className="num mono">{fmt(row.outstanding)}</td>
                   <td className="num mono">{fmt(row.pending)}</td>
                   <td className="num mono">{fmt(row.inFlight)}</td>
+                  <td className="num mono">{fmt(row.deadLetter)}</td>
+                  <td className="num mono">{fmt(row.failed)}</td>
                   <td className="mono">{humanizeAge(row.oldestAgeSeconds)}</td>
                 </tr>
               ))}
