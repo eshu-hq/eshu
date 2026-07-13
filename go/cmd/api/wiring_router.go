@@ -112,6 +112,7 @@ func newRouterWithSemanticEmbedding(
 			Content:                    contentReader,
 			CICDRunCorrelations:        query.NewPostgresCICDRunCorrelationStore(db),
 			ServiceCatalogCorrelations: query.NewPostgresServiceCatalogCorrelationStore(db),
+			Freshness:                  pgstatus.NewInstrumentedRepositoryFreshnessStore(pgstatus.SQLQueryer{DB: db}, instruments),
 			Profile:                    queryProfile,
 			Logger:                     logger,
 		},

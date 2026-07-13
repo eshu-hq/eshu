@@ -887,6 +887,15 @@ type Instruments struct {
 	// operable when telemetry is not wired.
 	LiveActivityQueryErrors metric.Int64Counter
 
+	// RepositoryFreshnessQueryErrors counts failed executions of the
+	// bounded repository-freshness Postgres composite read backing GET
+	// /api/v0/repositories/{id}/freshness (#5143: per-repo commit receipt
+	// and build-completeness verdict).
+	//
+	// Owned by postgres.RepositoryFreshnessStore. Nil-tolerant so the store
+	// stays operable when telemetry is not wired.
+	RepositoryFreshnessQueryErrors metric.Int64Counter
+
 	// Histograms track distributions
 	CollectorObserveDuration        metric.Float64Histogram
 	WorkflowClaimWaitDuration       metric.Float64Histogram
@@ -902,7 +911,12 @@ type Instruments struct {
 	// LiveActivityQueryDuration measures the bounded live-activity Postgres
 	// query duration in seconds for GET /api/v0/status/operations (#5137).
 	// Owned by postgres.LiveActivityStore; nil-tolerant.
-	LiveActivityQueryDuration              metric.Float64Histogram
+	LiveActivityQueryDuration metric.Float64Histogram
+	// RepositoryFreshnessQueryDuration measures the bounded
+	// repository-freshness Postgres composite read duration in seconds for
+	// GET /api/v0/repositories/{id}/freshness (#5143). Owned by
+	// postgres.RepositoryFreshnessStore; nil-tolerant.
+	RepositoryFreshnessQueryDuration       metric.Float64Histogram
 	PackageRegistryObserveDuration         metric.Float64Histogram
 	PackageRegistryGenerationLag           metric.Float64Histogram
 	VulnerabilityIntelligenceFetchDuration metric.Float64Histogram
@@ -3057,6 +3071,30 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register LiveActivityQueryErrors counter: %w", err)
+	}
+
+	// repositoryFreshnessQueryBuckets matches the documented
+	// postgres-query-seconds bucket set (docs/public/observability/telemetry-coverage.md);
+	// the #5143 prove-theory-first single-scope composite read measured
+	// 2.5ms full shape against a 20k-scope/150k-work-item synthetic corpus,
+	// sitting comfortably inside it.
+	repositoryFreshnessQueryBuckets := []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5}
+	inst.RepositoryFreshnessQueryDuration, err = meter.Float64Histogram(
+		"eshu_dp_repository_freshness_query_duration_seconds",
+		metric.WithDescription("GET /api/v0/repositories/{id}/freshness bounded composite Postgres read duration"),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(repositoryFreshnessQueryBuckets...),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register RepositoryFreshnessQueryDuration histogram: %w", err)
+	}
+
+	inst.RepositoryFreshnessQueryErrors, err = meter.Int64Counter(
+		"eshu_dp_repository_freshness_query_errors_total",
+		metric.WithDescription("Failed GET /api/v0/repositories/{id}/freshness bounded composite Postgres reads"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register RepositoryFreshnessQueryErrors counter: %w", err)
 	}
 
 	packageRegistryBuckets := []float64{0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60}

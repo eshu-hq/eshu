@@ -232,6 +232,17 @@ func TestNewRouterMountsPostgresBackedHandlers(t *testing.T) {
 	if router.LocalIdentity.Sessions != nil {
 		t.Fatal("newRouter().LocalIdentity.Sessions != nil with nil db, want unavailable session store")
 	}
+	// #5143 regression: cmd/mcp-server/wiring.go duplicates this struct
+	// literal and once shipped without Repositories.Freshness wired, 503ing
+	// get_repository_freshness on the standalone MCP server even though
+	// cmd/api was correct. Guard both entrypoints so a future handler
+	// addition can't ship half-wired the same way.
+	if router.Repositories == nil {
+		t.Fatal("newRouter().Repositories = nil, want repository routes mounted")
+	}
+	if router.Repositories.Freshness == nil {
+		t.Fatal("newRouter().Repositories.Freshness = nil, want repository freshness reader wired (get_repository_freshness would 503)")
+	}
 }
 
 func TestNewRouterUsesSuppliedStatusReader(t *testing.T) {

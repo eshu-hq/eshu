@@ -28,6 +28,9 @@ func scopedHTTPRouteSupportsTenantFilter(r *http.Request) bool {
 	if r.Method == http.MethodGet && r.URL.Path == "/api/v0/repositories" {
 		return true
 	}
+	if r.Method == http.MethodGet && scopedRepositoryFreshnessRoute(r.URL.Path) {
+		return true
+	}
 	if r.Method == http.MethodPost && r.URL.Path == "/api/v0/code/search" {
 		return true
 	}

@@ -2038,3 +2038,72 @@ increment `eshu_dp_status_operations_live_activity_query_errors_total`
 (registered in `go/internal/telemetry/instruments.go`, X1 row in
 `docs/public/observability/telemetry-coverage.md`); both are proven by an
 OTEL SDK-backed test in `status_operations_test.go`.
+
+## Repo freshness single-scope composite read (#5143)
+
+`repository_freshness.go` adds `RepositoryFreshnessStore.ReadRepositoryFreshness`,
+the bounded read behind `GET /api/v0/repositories/{id}/freshness`: resolve a
+canonical repository id to its `(scope_id, generation_id)` via the shared
+`latestGenerationCTE` join (mirroring `activeRepositoryGenerationsQuery`,
+bounded to one repository via a `WHERE` filter over the existing
+`fact_records_active_repository_idx` partial index rather than a new index),
+then read the generation lifecycle row, group outstanding `fact_work_items`
+by `(stage, status)`, group outstanding `shared_projection_intents` by
+`projection_domain`, and separately look up queued/claimed
+`webhook_refresh_triggers` for the repo's display identity. Four
+tightly-scoped SQL statements, one instrumented Go-level composite read.
+
+Accuracy fix: a live Compose proof caught `repositoryFreshnessStageCountsQuery`
+returning `succeeded` rows in `outstanding_by_stage` for a fully-drained
+repository (observed live as `{reducer, succeeded, 15}`,
+`{projector, succeeded, 1}` for a repo whose verdict was already `current`).
+`outstanding_by_stage` is contractually outstanding work only; the query now
+adds `AND status IN ('pending', 'claimed', 'running', 'retrying', 'failed',
+'dead_letter')`, mirroring `generation_liveness_sql.go`'s drain predicates.
+Reproduced against the exact live corpus scope/generation that exhibited the
+leak (`git-repository-scope:repository:r_d5318f0f`): the unfiltered query
+returned the two succeeded rows above; the filtered query returns zero rows
+for the same scope/generation, confirmed via `EXPLAIN (ANALYZE, BUFFERS)`
+(sub-millisecond, index-backed). `deriveRepositoryFreshnessStages`
+(`repository_freshness.go`) already skipped `succeeded` rows when deriving
+the `Reduced`/`Projected` booleans, which is why the rendered `verdict` was
+correct in the same live proof despite the `outstanding_by_stage` leak; that
+Go-side skip is kept as defense in depth alongside the SQL fix, not removed.
+Regression tests:
+`TestRepositoryFreshnessStageCountsQueryExcludesSucceededStatus` (fails
+without the predicate) and
+`TestReadRepositoryFreshnessDispatchesRealStageCountsQuery` (proves the store
+dispatches the real, reviewed constant) in `repository_freshness_test.go`.
+
+Performance Evidence (prove-theory-first, inherited from the #5143 design
+brief and built on rather than re-derived): scratch Postgres 16 seeded with
+migrations 001/002/005/008 and a synthetic corpus of 20,000
+`ingestion_scopes`, 150,000 `fact_work_items`, and 60,000
+`shared_projection_intents` rows.
+
+- Single-scope composite read (active generation via the `ingestion_scopes`
+  primary key plus `scope_generations_scope_generation_idx`; stage counts via
+  `fact_work_items_scope_generation_idx`): 2.5ms full shape; the scope- and
+  stage-count arms individually resolve in microseconds.
+- Shared-projection pending lookup: keying `WHERE repository_id = $1` (the
+  leading column of the existing `shared_projection_intents_repo_run_idx`
+  `(repository_id, source_run_id, projection_domain, created_at)` index),
+  with `generation_id` and `completed_at IS NULL` as residual filters,
+  measured 0.018ms — versus 2.3ms for a `generation_id`-only shape, which has
+  no supporting index and degrades linearly with the *global* pending
+  backlog (proven under a 14,000-row pending flood) rather than this one
+  repository's. `readSharedPending` in `repository_freshness.go` MUST NOT be
+  rewritten to filter on `generation_id` alone.
+
+The webhook-trigger lookup (`repositoryFreshnessWebhookQuery`) is bounded by
+`webhook_refresh_triggers_status_idx` (`status, updated_at`) and a `LIMIT 5`;
+it was not part of the above proof because it runs against a separate,
+independently small table (queued/claimed rows only) with no join to the
+20k/150k/60k corpus above.
+
+Observability Evidence: every `ReadRepositoryFreshness` call records
+`eshu_dp_repository_freshness_query_duration_seconds` and failures increment
+`eshu_dp_repository_freshness_query_errors_total` (registered in
+`go/internal/telemetry/instruments.go`, X1 row in
+`docs/public/observability/telemetry-coverage.md`); both are proven by an
+OTEL SDK-backed test in `repository_freshness_test.go`.

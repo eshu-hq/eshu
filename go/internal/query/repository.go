@@ -25,8 +25,14 @@ type RepositoryHandler struct {
 	// declared in service-catalog manifests (Backstage, Cortex, OpsLevel).
 	// When nil the catalog endpoint still works but those fields are omitted.
 	ServiceCatalogCorrelations ServiceCatalogCorrelationStore
-	Profile                    QueryProfile
-	Logger                     *slog.Logger
+	// Freshness reads the per-repository commit-receipt and
+	// build-completeness evidence for GET
+	// /api/v0/repositories/{id}/freshness (#5143). Nil is treated as
+	// not-configured (503), matching the sibling nil-reader checks on the
+	// status routes.
+	Freshness RepositoryFreshnessReader
+	Profile   QueryProfile
+	Logger    *slog.Logger
 }
 
 // Mount registers all repository routes on the given mux.
@@ -42,6 +48,7 @@ func (h *RepositoryHandler) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v0/repositories/{repo_id}/tree", h.getRepositoryTree)
 	mux.HandleFunc("GET /api/v0/repositories/{repo_id}/content", h.getRepositoryContent)
 	mux.HandleFunc("GET /api/v0/repositories/{repo_id}/branches", h.getRepositoryBranches)
+	mux.HandleFunc("GET /api/v0/repositories/{repo_id}/freshness", h.getRepositoryFreshness)
 }
 
 func (h *RepositoryHandler) profile() QueryProfile {

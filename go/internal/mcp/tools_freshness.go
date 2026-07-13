@@ -79,6 +79,24 @@ func freshnessTools() []ToolDefinition {
 			},
 		},
 		{
+			Name:        "get_repository_freshness",
+			Description: "Get the per-repository commit receipt and build-completeness verdict for one repository selector (#5143): did eshu pick up its latest commit, and is the evidence for that commit fully built. verdict is one of current, building, behind, unobserved, or unknown. verdict=current speaks to build completeness for the resolved generation, not necessarily a commit receipt: observed_commit may be empty -- legitimate for non-git scopes, pre-delta-baseline generations, and snapshot-trigger git generations (trigger_kind=snapshot, for example a cassette-replayed source with no commit to report) -- represented explicitly rather than fabricated. shared_enrichment reports cross-repo materialization backlog referencing this repository's generation as a separate axis from stages, so a different repository's shared backlog is never attributed here. Optionally supply expected_commit to ask whether a specific commit SHA is reflected; a mismatch always renders behind, whether or not a generation is actively progressing.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"repo_id": map[string]any{
+						"type":        "string",
+						"description": "Repository selector: canonical ID, name, repo slug, or indexed path",
+					},
+					"expected_commit": map[string]any{
+						"type":        "string",
+						"description": "Optional commit SHA the caller expects to be observed. A mismatch renders verdict=behind.",
+					},
+				},
+				"required": []string{"repo_id"},
+			},
+		},
+		{
 			Name:        "get_service_changed_since",
 			Description: "Summarize what changed for a service since a prior service materialization generation. Diffs the prior service generation's evidence snapshot set against the current active generation's set, keyed by a generation-independent service_evidence_key, into per-family counts (ownership, deployment, runtime, dependencies, docs, incidents, vulnerabilities) for added, updated, unchanged, retired, and superseded keys plus bounded sample handles. Supply service_id and since_generation_id. An unknown service_id returns service_not_found; a since reference that matches no service generation returns not_found; a service with no current active generation returns an explicit unavailable diff rather than zero deltas. Retired and superseded are never collapsed into unchanged.",
 			InputSchema: map[string]any{

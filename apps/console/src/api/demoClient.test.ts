@@ -70,4 +70,49 @@ describe("demoClient", () => {
     expect(firstRow?.source_display).toBe("acme/checkout-service");
     expect(firstRow?.source_key).not.toBe(firstRow?.source_display);
   });
+
+  it("serves a wire-shaped current freshness fixture for checkout-service (issue #5143)", async () => {
+    const client = createDemoApiClient();
+
+    const env = await client.get<Record<string, unknown>>(
+      "/api/v0/repositories/repository%3Acheckout-service/freshness",
+    );
+
+    expect(env.error).toBeNull();
+    expect(env.truth?.basis).toBe("demo_fixture");
+    expect(env.data?.verdict).toBe("current");
+    expect(env.data?.observed_commit).not.toBe("");
+    expect(env.data?.stages).toEqual({
+      collected: true,
+      reduced: true,
+      projected: true,
+      materialized: true,
+    });
+  });
+
+  it("serves a wire-shaped building freshness fixture for payments-api (issue #5143)", async () => {
+    const client = createDemoApiClient();
+
+    const env = await client.get<Record<string, unknown>>(
+      "/api/v0/repositories/repository%3Apayments-api/freshness",
+    );
+
+    expect(env.data?.verdict).toBe("building");
+    expect(Array.isArray(env.data?.outstanding_by_stage)).toBe(true);
+    expect((env.data?.outstanding_by_stage as readonly Record<string, unknown>[])[0]?.stage).toBe(
+      "project",
+    );
+  });
+
+  it("serves a wire-shaped unobserved freshness fixture for repos outside the demo corpus (issue #5143)", async () => {
+    const client = createDemoApiClient();
+
+    const env = await client.get<Record<string, unknown>>(
+      "/api/v0/repositories/repository%3Alegacy-batch/freshness",
+    );
+
+    expect(env.data?.verdict).toBe("unobserved");
+    expect(env.data?.observed_commit).toBe("");
+    expect(env.data?.unobserved_push).not.toBeNull();
+  });
 });

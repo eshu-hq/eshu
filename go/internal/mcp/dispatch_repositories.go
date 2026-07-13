@@ -135,6 +135,10 @@ func repositoryRoute(toolName string, args map[string]any) (*route, bool, error)
 		return &route{method: "GET", path: "/api/v0/repositories/" + url.PathEscape(selector) + "/stats"}, true, nil
 	case "get_repository_coverage":
 		return &route{method: "GET", path: "/api/v0/repositories/" + url.PathEscape(str(args, "repo_id")) + "/coverage"}, true, nil
+	case "get_repository_freshness":
+		return &route{method: "GET", path: "/api/v0/repositories/" + url.PathEscape(str(args, "repo_id")) + "/freshness", query: map[string]string{
+			"expected_commit": str(args, "expected_commit"),
+		}}, true, nil
 	default:
 		return nil, false, nil
 	}

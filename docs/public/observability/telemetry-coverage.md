@@ -482,6 +482,7 @@ catalog; per-route variants share the same `route` label dimension.
 | IaC resources | go/internal/query/iac_resources.go | `eshu_dp_iac_resource_list_duration_seconds`, `eshu_dp_iac_resource_list_errors_total`, `eshu_dp_api_request_duration_seconds` | query IaC |
 | Dependencies | go/internal/query/dependencies.go | `eshu_dp_dependency_list_duration_seconds`, `eshu_dp_dependency_list_errors_total`, `eshu_dp_api_request_duration_seconds` | query dependencies |
 | Live operations board (#5137) | go/internal/storage/postgres/status_operations.go | `eshu_dp_status_operations_live_activity_query_duration_seconds`, `eshu_dp_status_operations_live_activity_query_errors_total`, `eshu_dp_api_request_duration_seconds` | query status |
+| Repository freshness verdict (#5143) | go/internal/storage/postgres/repository_freshness.go | `eshu_dp_repository_freshness_query_duration_seconds`, `eshu_dp_repository_freshness_query_errors_total`, `eshu_dp_api_request_duration_seconds` | query status |
 | Documentation findings/facts | go/internal/query/documentation_*.go | `eshu_dp_api_request_duration_seconds`, `eshu_dp_api_request_errors_total` | query docs |
 | Evidence citations | go/internal/query/evidence_citation.go | `eshu_dp_api_request_duration_seconds`, `eshu_dp_api_request_errors_total` | query evidence |
 | Status and admin | go/internal/query/admin.go:182 | `eshu_dp_api_request_duration_seconds`, `eshu_dp_api_request_errors_total` | query admin |

@@ -443,6 +443,11 @@
     },
     {
       "category": "api_route",
+      "name": "GET /api/v0/repositories/{repo_id}/freshness",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
       "name": "GET /api/v0/repositories/{repo_id}/stats",
       "readiness": "implemented"
     },
@@ -3009,6 +3014,11 @@
     {
       "category": "mcp_tool",
       "name": "get_repository_coverage",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "get_repository_freshness",
       "readiness": "implemented"
     },
     {

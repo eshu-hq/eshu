@@ -2,7 +2,7 @@
 // Repository-centric browser: live repo list (GET /api/v0/repositories) with a
 // filter, and per-repo detail (stats + story highlights). No fabricated file
 // tree or contents here — source browsing is the separate code-viewer page.
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
 import type { EshuApiClient } from "../api/client";
@@ -12,6 +12,13 @@ import { Panel, StatTile, Badge } from "../components/atoms";
 import type { ConsoleModel } from "../console/types";
 import "./repositories.css";
 import "./liveInventory.css";
+
+// RepositoryFreshnessRow (issue #5143) is lazy-loaded so its code and the
+// repositoryFreshness adapter ship in their own chunk rather than growing
+// this eagerly loaded page past the console's main-bundle budget (mirrors
+// OperationsLiveBoard in OperationsPage.tsx). It fetches on demand for the
+// single selected repository only -- never for every row on page load.
+const RepositoryFreshnessRow = lazy(() => import("./repositories/RepositoryFreshnessChip"));
 
 type RepoView = "groups" | "grid";
 
@@ -24,7 +31,10 @@ interface RepoGroup {
   readonly repositories: readonly RepoListItem[];
 }
 
-export function RepositoriesPage({ client, model }: {
+export function RepositoriesPage({
+  client,
+  model,
+}: {
   readonly client?: EshuApiClient;
   readonly model?: ConsoleModel;
 }): React.JSX.Element {
@@ -38,22 +48,42 @@ export function RepositoriesPage({ client, model }: {
 
   useEffect(() => {
     let cancelled = false;
-    if (!client) { setRepos([]); return; }
+    if (!client) {
+      setRepos([]);
+      return;
+    }
     setErr("");
     void loadRepositories(client)
-      .then((r) => { if (!cancelled) setRepos(r); })
-      .catch((e) => { if (!cancelled) { setRepos([]); setErr(e instanceof Error ? e.message : "failed"); } });
-    return () => { cancelled = true; };
+      .then((r) => {
+        if (!cancelled) setRepos(r);
+      })
+      .catch((e) => {
+        if (!cancelled) {
+          setRepos([]);
+          setErr(e instanceof Error ? e.message : "failed");
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [client]);
 
   useEffect(() => {
     let cancelled = false;
-    if (!client || !selected) { setDetail(null); return; }
+    if (!client || !selected) {
+      setDetail(null);
+      return;
+    }
     setDetailBusy(true);
     void loadRepositoryDetail(client, selected).then((d) => {
-      if (!cancelled) { setDetail(d); setDetailBusy(false); }
+      if (!cancelled) {
+        setDetail(d);
+        setDetailBusy(false);
+      }
     });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [client, selected]);
 
   const query = q.trim().toLowerCase();
@@ -67,84 +97,205 @@ export function RepositoriesPage({ client, model }: {
     <div className="page">
       <div className="page-intro">
         <h2>Repositories</h2>
-        <p>Groups use source-backed repository grouping evidence from the live repository inventory. Rows without grouping evidence stay explicit. Grid browses repositories like a Git host.</p>
+        <p>
+          Groups use source-backed repository grouping evidence from the live repository inventory.
+          Rows without grouping evidence stay explicit. Grid browses repositories like a Git host.
+        </p>
       </div>
 
       <div className="repo-toolbar">
         <div className="searchbox repo-search">
-          <input aria-label="Find a group or repository" placeholder="Find a group or repository…" value={q} onChange={(e) => setQ(e.target.value)} />
+          <input
+            aria-label="Find a group or repository"
+            placeholder="Find a group or repository…"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+          />
         </div>
         <div className="seg" role="group" aria-label="Repository view">
-          <button className={view === "groups" ? "active" : ""} onClick={() => setView("groups")}>Groups</button>
-          <button className={view === "grid" ? "active" : ""} onClick={() => setView("grid")}>Grid</button>
+          <button className={view === "groups" ? "active" : ""} onClick={() => setView("groups")}>
+            Groups
+          </button>
+          <button className={view === "grid" ? "active" : ""} onClick={() => setView("grid")}>
+            Grid
+          </button>
         </div>
       </div>
 
       <div className="grid g-4">
-        <StatTile label="Repository groups" value={groups.length} color="var(--teal)" sub="source-backed grouping" />
+        <StatTile
+          label="Repository groups"
+          value={groups.length}
+          color="var(--teal)"
+          sub="source-backed grouping"
+        />
         <StatTile label="Repositories" value={rows.length} color="var(--blue)" sub={sourceLabel} />
-        <Link to="/dependencies" className="repo-dependency-tile" aria-label="View dependency chains in the Dependencies view">
-          <StatTile label="Dependency repos" value={dependencyCount} color="var(--ember)" sub="depended on by other repos →" />
+        <Link
+          to="/dependencies"
+          className="repo-dependency-tile"
+          aria-label="View dependency chains in the Dependencies view"
+        >
+          <StatTile
+            label="Dependency repos"
+            value={dependencyCount}
+            color="var(--ember)"
+            sub="depended on by other repos →"
+          />
         </Link>
-        <StatTile label="Most populated" value={mostPopulated} color="var(--violet)" sub="largest live group" />
+        <StatTile
+          label="Most populated"
+          value={mostPopulated}
+          color="var(--violet)"
+          sub="largest live group"
+        />
       </div>
 
       {repos === null ? (
-        <div className="conn-state compact"><div className="conn-spinner" aria-hidden /><p>Loading repositories…</p></div>
+        <div className="conn-state compact">
+          <div className="conn-spinner" aria-hidden />
+          <p>Loading repositories…</p>
+        </div>
       ) : view === "groups" ? (
         <div className="repo-group-grid mt" aria-label="Repository group workbench">
           {groups.map((group, index) => (
             <RepositoryGroupCard key={group.key} group={group} accent={groupAccent(index)} />
           ))}
-          {groups.length === 0 ? <Panel><p className="empty">{err ? `Failed to load: ${err}` : "No repositories from this source."}</p></Panel> : null}
+          {groups.length === 0 ? (
+            <Panel>
+              <p className="empty">
+                {err ? `Failed to load: ${err}` : "No repositories from this source."}
+              </p>
+            </Panel>
+          ) : null}
         </div>
       ) : (
-        <div className="evidence-workbench evidence-workbench-wide mt" aria-label="Repository grid workbench">
+        <div
+          className="evidence-workbench evidence-workbench-wide mt"
+          aria-label="Repository grid workbench"
+        >
           <Panel className="flush" title={`${rows.length} repositories`} sub="live">
             <div className="table-scroll">
               <table className="tbl wide">
-                <thead><tr><th>Repository</th><th>Group</th><th>Slug</th><th>Kind</th></tr></thead>
+                <thead>
+                  <tr>
+                    <th>Repository</th>
+                    <th>Group</th>
+                    <th>Slug</th>
+                    <th>Kind</th>
+                  </tr>
+                </thead>
                 <tbody>
                   {rows.map((r) => (
-                    <tr key={r.id} className={selected === r.id ? "is-sel" : undefined} onClick={() => setSelected(r.id)}>
+                    <tr
+                      key={r.id}
+                      className={selected === r.id ? "is-sel" : undefined}
+                      onClick={() => setSelected(r.id)}
+                    >
                       <td className="t-name">{r.name}</td>
-                      <td className="t-mut mono" style={{ fontSize: ".76rem" }}>{repositoryGroupKey(r)}</td>
-                      <td className="t-mut mono" style={{ fontSize: ".76rem" }}>{r.repoSlug || "—"}</td>
-                      <td>{r.isDependency ? <Badge tone="neutral">dependency</Badge> : <Badge tone="teal">source</Badge>}</td>
+                      <td className="t-mut mono" style={{ fontSize: ".76rem" }}>
+                        {repositoryGroupKey(r)}
+                      </td>
+                      <td className="t-mut mono" style={{ fontSize: ".76rem" }}>
+                        {r.repoSlug || "—"}
+                      </td>
+                      <td>
+                        {r.isDependency ? (
+                          <Badge tone="neutral">dependency</Badge>
+                        ) : (
+                          <Badge tone="teal">source</Badge>
+                        )}
+                      </td>
                     </tr>
                   ))}
-                  {rows.length === 0 ? <tr><td colSpan={4} className="empty">{err ? `Failed to load: ${err}` : "No repositories from this source."}</td></tr> : null}
+                  {rows.length === 0 ? (
+                    <tr>
+                      <td colSpan={4} className="empty">
+                        {err ? `Failed to load: ${err}` : "No repositories from this source."}
+                      </td>
+                    </tr>
+                  ) : null}
                 </tbody>
               </table>
             </div>
           </Panel>
 
-          <Panel title="Repository detail" sub={detail ? detail.name : "select a repository"}>
+          <Panel
+            title="Repository detail"
+            sub={detail ? detail.name : "select a repository"}
+            action={
+              selected ? (
+                <Suspense fallback={null}>
+                  <RepositoryFreshnessRow client={client} repoId={selected} />
+                </Suspense>
+              ) : undefined
+            }
+          >
             {!selected ? (
               <p className="empty">Select a repository to see its stats and story.</p>
             ) : detailBusy || !detail ? (
-              <div className="conn-state compact"><div className="conn-spinner" aria-hidden /><p>Loading detail…</p></div>
+              <div className="conn-state compact">
+                <div className="conn-spinner" aria-hidden />
+                <p>Loading detail…</p>
+              </div>
             ) : detail.provenance === "unavailable" ? (
               <p className="empty">Repository detail unavailable from this source.</p>
             ) : (
               <>
                 <div className="grid g-2">
-                  <StatTile label="Files" value={detail.stats.fileCount ?? "—"} color="var(--teal)" sub={detail.stats.coverageState} />
-                  <StatTile label="Entities" value={detail.stats.entityCount ?? "—"} color="var(--blue)" sub={`${detail.stats.entityTypes.length} types`} />
+                  <StatTile
+                    label="Files"
+                    value={detail.stats.fileCount ?? "—"}
+                    color="var(--teal)"
+                    sub={detail.stats.coverageState}
+                  />
+                  <StatTile
+                    label="Entities"
+                    value={detail.stats.entityCount ?? "—"}
+                    color="var(--blue)"
+                    sub={`${detail.stats.entityTypes.length} types`}
+                  />
                 </div>
-                <div className="section-label" style={{ marginTop: 14 }}>Languages</div>
+                <div className="section-label" style={{ marginTop: 14 }}>
+                  Languages
+                </div>
                 <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>
-                  {detail.stats.languages.length ? detail.stats.languages.map((l) => <Badge key={l} tone="neutral">{l}</Badge>) : <span className="t-mut">—</span>}
+                  {detail.stats.languages.length ? (
+                    detail.stats.languages.map((l) => (
+                      <Badge key={l} tone="neutral">
+                        {l}
+                      </Badge>
+                    ))
+                  ) : (
+                    <span className="t-mut">—</span>
+                  )}
                 </div>
                 {detail.highlights.length ? (
                   <>
-                    <div className="section-label" style={{ marginTop: 14 }}>Story highlights</div>
-                    <ul className="plain-list">{detail.highlights.slice(0, 8).map((h, i) => <li key={i} className="t-mut">{h}</li>)}</ul>
+                    <div className="section-label" style={{ marginTop: 14 }}>
+                      Story highlights
+                    </div>
+                    <ul className="plain-list">
+                      {detail.highlights.slice(0, 8).map((h, i) => (
+                        <li key={i} className="t-mut">
+                          {h}
+                        </li>
+                      ))}
+                    </ul>
                   </>
                 ) : null}
                 <div className="row" style={{ marginTop: 14, gap: 8, flexWrap: "wrap" }}>
-                  <Link to={`/repositories/${encodeURIComponent(detail.id)}/source`} className="btn-ghost active">Browse source →</Link>
-                  <Link to={`/dependencies?repo=${encodeURIComponent(detail.id)}`} className="btn-ghost">Dependency chains →</Link>
+                  <Link
+                    to={`/repositories/${encodeURIComponent(detail.id)}/source`}
+                    className="btn-ghost active"
+                  >
+                    Browse source →
+                  </Link>
+                  <Link
+                    to={`/dependencies?repo=${encodeURIComponent(detail.id)}`}
+                    className="btn-ghost"
+                  >
+                    Dependency chains →
+                  </Link>
                 </div>
               </>
             )}
@@ -155,7 +306,10 @@ export function RepositoriesPage({ client, model }: {
   );
 }
 
-function RepositoryGroupCard({ group, accent }: {
+function RepositoryGroupCard({
+  group,
+  accent,
+}: {
   readonly group: RepoGroup;
   readonly accent: string;
 }): React.JSX.Element {
@@ -174,7 +328,9 @@ function RepositoryGroupCard({ group, accent }: {
         {group.repositories.slice(0, 8).map((repo) => (
           <Link key={repo.id} className="repo-chip" to={repositorySourcePath(repo.id)}>
             <span>{repo.name}</span>
-            <Badge tone={repo.isDependency ? "neutral" : "teal"}>{repo.isDependency ? "dep" : "src"}</Badge>
+            <Badge tone={repo.isDependency ? "neutral" : "teal"}>
+              {repo.isDependency ? "dep" : "src"}
+            </Badge>
           </Link>
         ))}
       </div>
@@ -202,7 +358,7 @@ function repositoryGroups(repositories: readonly RepoListItem[]): readonly RepoG
       truth: repositoryGroupTruth(groupRepos),
       kind: repositoryGroupKind(groupRepos),
       reason: repositoryGroupReason(groupRepos),
-      repositories: groupRepos
+      repositories: groupRepos,
     }))
     .sort((a, b) => b.repositories.length - a.repositories.length || a.key.localeCompare(b.key));
 }
@@ -215,7 +371,9 @@ function filterRepositoryGroups(groups: readonly RepoGroup[], query: string): re
       filtered.push(group);
       continue;
     }
-    const repositories = group.repositories.filter((repository) => repositoryMatchesQuery(repository, query));
+    const repositories = group.repositories.filter((repository) =>
+      repositoryMatchesQuery(repository, query),
+    );
     if (repositories.length > 0) filtered.push({ ...group, repositories });
   }
   return filtered;
@@ -230,7 +388,9 @@ function repositoryGroupKey(repository: RepoListItem): string {
 }
 
 function repositoryGroupSource(repositories: readonly RepoListItem[]): string {
-  return firstGroupField(repositories, (repository) => repository.groupSource) || "missing_evidence";
+  return (
+    firstGroupField(repositories, (repository) => repository.groupSource) || "missing_evidence"
+  );
 }
 
 function repositoryGroupTruth(repositories: readonly RepoListItem[]): string {
@@ -242,10 +402,16 @@ function repositoryGroupKind(repositories: readonly RepoListItem[]): string {
 }
 
 function repositoryGroupReason(repositories: readonly RepoListItem[]): string {
-  return firstGroupField(repositories, (repository) => repository.groupReason) || "No source-backed grouping evidence is available.";
+  return (
+    firstGroupField(repositories, (repository) => repository.groupReason) ||
+    "No source-backed grouping evidence is available."
+  );
 }
 
-function firstGroupField(repositories: readonly RepoListItem[], select: (repository: RepoListItem) => string): string {
+function firstGroupField(
+  repositories: readonly RepoListItem[],
+  select: (repository: RepoListItem) => string,
+): string {
   for (const repository of repositories) {
     const value = select(repository).trim();
     if (value !== "") return value;
