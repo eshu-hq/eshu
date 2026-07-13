@@ -88,6 +88,11 @@ High-signal invariants for this package:
   atomically ack by superseding stale active generation, superseding older
   terminal same-scope generations, activating the target generation, updating
   the scope pointer, and marking work succeeded.
+- Generation liveness reopens `source_local` only for blockage that replay can
+  advance. Exact cross-repository `repo_dependency` source runs stay owned by
+  the shared resolver before and after backward evidence commits; the stuck-age
+  gauge uses the same exclusion. Other domains and lookalike source runs remain
+  recoverable.
 - Reducer claims share the lease/retry contract and add domain filters plus the
   NornicDB semantic gate for `semantic_entity_materialization` while
   source-local projection is in flight. A reducer claim also supersedes

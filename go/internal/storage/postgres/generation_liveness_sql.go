@@ -63,9 +63,9 @@ RETURNING generation.scope_id, generation.generation_id
 // "has been active", see generation_projected_commit.go) with no outstanding
 // work, and re-driving those on every poll would burn the liveness budget and
 // raise false alarms. During a large bootstrap, shared intents may legitimately
-// sit behind reducer backlog or behind deferred backward-evidence readiness;
+// sit behind reducer backlog or the cross-repository resolver's own queue;
 // re-driving source-local projection at that point creates duplicate projector
-// work while upstream work is still progress. A succeeded source-local projector
+// work while downstream work is still progressing. A succeeded source-local projector
 // row is the normal activation lifecycle state, so it remains eligible for the
 // bounded upsert below to reopen when the generation is still wedged after
 // reducer work drains and readiness prerequisites are met. The in-flight guard
@@ -118,25 +118,16 @@ WITH wedged AS (
           FROM shared_projection_intents AS intent
           WHERE intent.generation_id = generation.generation_id
             AND intent.completed_at IS NULL
-            -- Cross-repo repo_dependency intents are not actionable until the
-            -- deferred relationship backfill publishes backward evidence for the
-            -- scope generation. Before that phase, the outstanding intent is a
-            -- readiness wait, not a source-local wedge to re-drive.
-            AND (
-                intent.projection_domain <> 'repo_dependency'
-                OR (
-                    intent.source_run_id <> 'repo_dependency'
-                    AND intent.source_run_id NOT LIKE 'repo_dependency:%'
-                )
-                OR EXISTS (
-                    SELECT 1
-                    FROM graph_projection_phase_state AS backward_phase
-                    WHERE backward_phase.scope_id = generation.scope_id
-                      AND backward_phase.acceptance_unit_id = generation.scope_id
-                      AND backward_phase.source_run_id = generation.generation_id
-                      AND backward_phase.generation_id = generation.generation_id
-                      AND backward_phase.keyspace = 'cross_repo_evidence'
-                      AND backward_phase.phase = 'backward_evidence_committed'
+            -- Exact cross-repo repo_dependency work is owned by the shared
+            -- resolver before and after backward evidence commits. Reopening
+            -- source_local cannot advance that queue and can instead launch an
+            -- obsolete full canonical replay while the resolver is progressing.
+            -- Keep lookalike source runs and other domains actionable.
+            AND NOT (
+                intent.projection_domain = 'repo_dependency'
+                AND (
+                    intent.source_run_id = 'repo_dependency'
+                    OR starts_with(intent.source_run_id, 'repo_dependency:')
                 )
             )
       )
@@ -291,8 +282,9 @@ SELECT scope_id, generation_id FROM re_enqueued ORDER BY scope_id, generation_id
 //
 // The stuck bucket is the wedged-generation alarm and must match the recovery
 // gate: a generation is only stuck when it has aged past the deadline AND has
-// real, ready downstream blockage (an outstanding shared_projection_intents row,
-// completed_at IS NULL, whose readiness prerequisite is satisfied) after reducer
+// real downstream blockage owned by source-local replay (an outstanding
+// shared_projection_intents row, completed_at IS NULL, excluding exact
+// cross-repo repo_dependency work) after reducer
 // fact-work for the same generation has drained, with no source-local projector
 // row already in flight. A healthy quiet projected scope that merely aged or a
 // busy full-corpus bootstrap scope still moving through reducer work/readiness
@@ -313,21 +305,11 @@ SELECT
             FROM shared_projection_intents AS intent
             WHERE intent.generation_id = generation.generation_id
               AND intent.completed_at IS NULL
-              AND (
-                  intent.projection_domain <> 'repo_dependency'
-                  OR (
-                      intent.source_run_id <> 'repo_dependency'
-                      AND intent.source_run_id NOT LIKE 'repo_dependency:%'
-                  )
-                  OR EXISTS (
-                      SELECT 1
-                      FROM graph_projection_phase_state AS backward_phase
-                      WHERE backward_phase.scope_id = generation.scope_id
-                        AND backward_phase.acceptance_unit_id = generation.scope_id
-                        AND backward_phase.source_run_id = generation.generation_id
-                        AND backward_phase.generation_id = generation.generation_id
-                        AND backward_phase.keyspace = 'cross_repo_evidence'
-                        AND backward_phase.phase = 'backward_evidence_committed'
+              AND NOT (
+                  intent.projection_domain = 'repo_dependency'
+                  AND (
+                      intent.source_run_id = 'repo_dependency'
+                      OR starts_with(intent.source_run_id, 'repo_dependency:')
                   )
               )
         ) AND NOT EXISTS (
