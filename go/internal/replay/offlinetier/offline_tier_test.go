@@ -17,6 +17,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/replay/offlinetier"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	storagenornicdb "github.com/eshu-hq/eshu/go/internal/storage/nornicdb"
 )
 
 // liveTierEnv gates the real-backend offline replay tier. The companion
@@ -121,7 +122,10 @@ func TestOfflineReplayTierGraphTruth(t *testing.T) {
 	// Drive the REAL production canonical projection writer over the cassette,
 	// through the NornicDB phase-group write path (per-phase transactions) so the
 	// directory CONTAINS edges resolve exactly as they do in production.
-	writer := cypher.NewCanonicalNodeWriter(livePhaseGroupExecutor{inner: exec}, 500, nil)
+	writer := storagenornicdb.ConfigureCanonicalWriter(
+		cypher.NewCanonicalNodeWriter(livePhaseGroupExecutor(exec), 500, nil),
+		storagenornicdb.DefaultWriterConfig(),
+	)
 	if err := writer.Write(ctx, mat); err != nil {
 		t.Fatalf("canonical node writer Write: %v", err)
 	}

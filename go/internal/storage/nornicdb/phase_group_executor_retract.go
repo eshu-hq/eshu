@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package main
+package nornicdb
 
 import (
 	"context"
@@ -29,7 +29,7 @@ import (
 // drain reader is wired: grouping the relationship DELETE with its sibling
 // upsert inside one ExecuteWrite transaction is exactly the no-op this PR fixes.
 // executeAutocommitRetract runs it outside the group in every case.
-func (e nornicDBPhaseGroupExecutor) executeGroupedChunksWithDrain(
+func (e PhaseGroupExecutor) executeGroupedChunksWithDrain(
 	ctx context.Context,
 	ge sourcecypher.GroupExecutor,
 	stmts []sourcecypher.Statement,
@@ -48,7 +48,7 @@ func (e nornicDBPhaseGroupExecutor) executeGroupedChunksWithDrain(
 	if len(remaining) == 0 {
 		return nil
 	}
-	return e.executeGroupedChunks(ctx, ge, remaining, e.phaseGroupStatementLimit(remaining))
+	return e.executeGroupedChunks(ctx, ge, remaining, e.PhaseGroupStatementLimit(remaining))
 }
 
 // executeAutocommitRetract runs a Drain-marked mixed-phase retract as a single
@@ -64,22 +64,25 @@ func (e nornicDBPhaseGroupExecutor) executeGroupedChunksWithDrain(
 // sanitize contract warns those unreferenced keys can make NornicDB deletes
 // no-op. The original (unsanitized) statement is retained for the drift-retract
 // telemetry, which reads that metadata to classify the statement.
-func (e nornicDBPhaseGroupExecutor) executeAutocommitRetract(
+func (e PhaseGroupExecutor) executeAutocommitRetract(
 	ctx context.Context,
 	stmt sourcecypher.Statement,
 	stmtIdx, stmtTotal int,
 	statementSummary string,
 ) error {
 	sanitized := sanitizedStatement(stmt)
-	if e.drainReader == nil {
+	if e.DrainReader == nil {
 		// No RunWrite-capable executor is wired (some tests / non-Bolt
 		// executors). Run the retract as its own statement through the inner
 		// executor so it is still never batched with the sibling upsert;
-		// correctness does not depend on drainReader being present.
-		return e.inner.Execute(ctx, sanitized)
+		// correctness does not depend on DrainReader being present.
+		if err := e.Inner.Execute(ctx, sanitized); err != nil {
+			return fmt.Errorf("execute autocommit retract: %w", err)
+		}
+		return nil
 	}
 	start := time.Now()
-	result, err := e.drainReader.RunWrite(ctx, sanitized.Cypher, sanitized.Parameters)
+	result, err := e.DrainReader.RunWrite(ctx, sanitized.Cypher, sanitized.Parameters)
 	if err != nil {
 		return fmt.Errorf(
 			"phase-group autocommit retract statement %d/%d (duration=%s, first_statement=%q): %w",
@@ -88,7 +91,7 @@ func (e nornicDBPhaseGroupExecutor) executeAutocommitRetract(
 	}
 	sourcecypher.RecordReconciliationDriftRetractions(
 		ctx,
-		e.instruments,
+		e.Instruments,
 		stmt,
 		result.NodesDeleted,
 		result.RelationshipsDeleted,

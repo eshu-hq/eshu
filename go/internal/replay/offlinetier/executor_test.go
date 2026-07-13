@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/graph"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	storagenornicdb "github.com/eshu-hq/eshu/go/internal/storage/nornicdb"
 )
 
 // liveExecutor adapts a Bolt driver to the storage/cypher.Executor and
@@ -27,85 +28,29 @@ import (
 // transaction once the schema's uid lookup indexes exist. Driving the writer
 // through the full-atomic GroupExecutor path would silently drop the directory
 // CONTAINS edges (the #4019 bug class). The tier therefore drives the writer
-// through livePhaseGroupExecutor below, which mirrors the production NornicDB
-// phase-group path: per-phase ExecuteGroup transactions over this same driver.
+// through the shared storage/nornicdb PhaseGroupExecutor below: bounded
+// per-phase ExecuteGroup transactions over this same driver.
 type liveExecutor struct {
 	driver   neo4jdriver.DriverWithContext
 	database string
 }
 
-// livePhaseGroupExecutor mirrors the production NornicDB phase-group write path
-// (cmd/ingester nornicDBPhaseGroupExecutor): it exposes Execute and
-// ExecutePhaseGroup — but NOT ExecuteGroup — so storage/cypher.CanonicalNodeWriter
-// routes through its PhaseGroupExecutor branch, running each canonical phase as
-// its own transaction. Each phase is dispatched to the inner liveExecutor's real
-// ExecuteGroup, so directory nodes commit before the directory-edge phase MATCHes
-// them, exactly as in production. This is the real backend write path; it is not
-// a fake.
-//
-// To stay faithful to production it reproduces two behaviors of the real
-// nornicDBPhaseGroupExecutor that are load-bearing on NornicDB:
-//
-//  1. It strips the `_eshu_*` diagnostic parameters that
-//     annotateCanonicalWritePhases injects (via cypher.SanitizeStatement) before
-//     any statement reaches the driver. Production strips them with
-//     sanitizedStatement; passing them through is not just wasteful — on NornicDB
-//     an unreferenced parameter on a grouped DETACH DELETE makes the delete
-//     silently no-op, which previously masked correct gen2 directory retraction
-//     and failed TestDeltaTombstoneGraphTruth (#4186).
-//  2. It runs an all-retract phase SEQUENTIALLY as per-statement auto-commit
-//     Execute (mirroring executeSequentialRetractPhase), not as one managed
-//     ExecuteGroup transaction. NornicDB does not reliably apply a multi-statement
-//     grouped DETACH DELETE; production therefore never groups retracts.
-//
-// Non-retract phases still run as one grouped transaction so the directory-edge
-// MATCH sees the directory nodes MERGE'd earlier in the same group — the #4019
-// single-label read-your-writes contract.
-type livePhaseGroupExecutor struct {
-	inner liveExecutor
-}
-
-// Execute runs a singleton statement through the inner driver-backed executor,
-// stripping diagnostic metadata params first, exactly as production does.
-func (e livePhaseGroupExecutor) Execute(ctx context.Context, stmt cypher.Statement) error {
-	return e.inner.Execute(ctx, cypher.SanitizeStatement(stmt))
-}
-
-// ExecutePhaseGroup runs one canonical write phase. An all-retract phase runs as
-// sequential per-statement auto-commit Execute (mirroring production's
-// executeSequentialRetractPhase); a mixed phase first runs any Drain-marked
-// relationship retracts as standalone autocommit statements, then groups the
-// remaining upserts. It does NOT span phases, which is the production NornicDB
-// contract the #4019 directory phase-split depends on. Every statement is
-// sanitized of `_eshu_*` diagnostic params before it reaches the driver.
-func (e livePhaseGroupExecutor) ExecutePhaseGroup(ctx context.Context, stmts []cypher.Statement) error {
-	// Pure-retract phases run sequentially. Mixed structural phases keep
-	// Drain-marked relationship retracts out of the grouped transaction, matching
-	// production's autocommit retract path, then group the remaining upserts.
-	if cypher.StatementsAllUseOperation(stmts, cypher.OperationCanonicalRetract) {
-		for _, stmt := range stmts {
-			for _, chunk := range cypher.ChunkPositiveStringSliceRetractStatement(
-				stmt, cypher.DefaultPositiveRetractStringSliceBatchSize,
-			) {
-				if err := e.inner.Execute(ctx, cypher.SanitizeStatement(chunk)); err != nil {
-					return err
-				}
-			}
-		}
-		return nil
+// livePhaseGroupExecutor returns the exact production NornicDB adapter with
+// production defaults over the live Bolt executor. The returned type exposes
+// PhaseGroupExecutor but not GroupExecutor, so the tier cannot silently drift
+// back to a private mirror or whole-materialization transaction.
+func livePhaseGroupExecutor(inner liveExecutor) storagenornicdb.PhaseGroupExecutor {
+	return storagenornicdb.PhaseGroupExecutor{
+		Inner:                    inner,
+		MaxStatements:            storagenornicdb.DefaultPhaseGroupStatements,
+		DirectoryMaxStatements:   storagenornicdb.DefaultDirectoryPhaseStatements,
+		FileMaxStatements:        storagenornicdb.DefaultFilePhaseStatements,
+		EntityMaxStatements:      storagenornicdb.DefaultEntityPhaseStatements,
+		EntityLabelMaxStatements: storagenornicdb.DefaultEntityLabelPhaseStatements(storagenornicdb.DefaultEntityPhaseStatements),
+		EntityPhaseConcurrency:   storagenornicdb.DefaultEntityPhaseConcurrency(),
+		DrainReader:              inner,
+		RetractBatchSize:         storagenornicdb.DefaultCanonicalRetractBatchSize,
 	}
-
-	remaining := make([]cypher.Statement, 0, len(stmts))
-	for _, stmt := range stmts {
-		if !stmt.Drain {
-			remaining = append(remaining, stmt)
-			continue
-		}
-		if err := e.inner.Execute(ctx, cypher.SanitizeStatement(stmt)); err != nil {
-			return err
-		}
-	}
-	return e.inner.ExecuteGroup(ctx, cypher.SanitizeStatements(remaining))
 }
 
 // Execute runs one write statement in its own auto-commit session.
@@ -156,6 +101,47 @@ func (e liveExecutor) ExecuteGroup(ctx context.Context, stmts []cypher.Statement
 		return fmt.Errorf("execute write group: %w", err)
 	}
 	return nil
+}
+
+// RunWrite executes one bounded retract-drain iteration and returns its rows
+// and delete counters through the production NornicDB DrainReader contract.
+func (e liveExecutor) RunWrite(
+	ctx context.Context,
+	cypherText string,
+	parameters map[string]any,
+) (storagenornicdb.DrainWriteResult, error) {
+	session := e.driver.NewSession(ctx, neo4jdriver.SessionConfig{
+		AccessMode:   neo4jdriver.AccessModeWrite,
+		DatabaseName: e.database,
+	})
+	defer func() { _ = session.Close(ctx) }()
+
+	result, err := session.Run(ctx, cypherText, parameters)
+	if err != nil {
+		return storagenornicdb.DrainWriteResult{}, fmt.Errorf("execute drain write: %w", err)
+	}
+	rows := make([]map[string]any, 0)
+	for result.Next(ctx) {
+		record := result.Record()
+		row := make(map[string]any, len(record.Keys))
+		for _, key := range record.Keys {
+			value, _ := record.Get(key)
+			row[key] = value
+		}
+		rows = append(rows, row)
+	}
+	if err := result.Err(); err != nil {
+		return storagenornicdb.DrainWriteResult{}, fmt.Errorf("iterate drain write: %w", err)
+	}
+	summary, err := result.Consume(ctx)
+	if err != nil {
+		return storagenornicdb.DrainWriteResult{}, fmt.Errorf("consume drain write: %w", err)
+	}
+	return storagenornicdb.DrainWriteResult{
+		Rows:                 rows,
+		NodesDeleted:         int64(summary.Counters().NodesDeleted()),
+		RelationshipsDeleted: int64(summary.Counters().RelationshipsDeleted()),
+	}, nil
 }
 
 // ExecuteCypher satisfies graph.CypherExecutor so EnsureSchemaWithBackendStrict

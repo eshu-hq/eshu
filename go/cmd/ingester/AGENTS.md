@@ -125,11 +125,11 @@
 
 - **Raising ESHU_NORNICDB_ENTITY_PHASE_CONCURRENCY without measuring NornicDB
   commit headroom** — the streaming dispatcher in
-  `wiring_nornicdb_phase_group_streaming.go` keeps one Bolt session per
+  `internal/storage/nornicdb/phase_group_executor_streaming.go` keeps one Bolt session per
   worker open for the lifetime of an entity-phase call, so peak Bolt session
   demand is `ESHU_PROJECTOR_WORKERS * ESHU_NORNICDB_ENTITY_PHASE_CONCURRENCY`
   and the cap of 16 still applies. The legacy per-flush path lives in
-  `wiring_nornicdb_phase_group.go` (`executeEntityPhaseGroup`) and runs only
+  `internal/storage/nornicdb/phase_group_executor.go` (`executeEntityPhaseGroup`) and runs only
   when concurrency is at most one. Raise the knob only after a focused run
   names the canonical entities phase as the wall-clock bottleneck and
   NornicDB structured logs show no contention on parallel commits.

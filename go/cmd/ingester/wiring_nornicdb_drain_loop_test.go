@@ -60,10 +60,10 @@ func TestNornicDBPhaseGroupExecutorDrainLoopIteratesUntilZero(t *testing.T) {
 	reader := &drainCountReader{counts: []int64{2000, 2000, 500}}
 	inner := &recordingGroupChunkExecutor{}
 	executor := nornicDBPhaseGroupExecutor{
-		inner:            inner,
-		maxStatements:    100,
-		retractBatchSize: 2000,
-		drainReader:      reader,
+		Inner:            inner,
+		MaxStatements:    100,
+		RetractBatchSize: 2000,
+		DrainReader:      reader,
 	}
 
 	stmts := []sourcecypher.Statement{
@@ -100,10 +100,10 @@ func TestNornicDBPhaseGroupExecutorDrainLoopStopsImmediatelyOnZero(t *testing.T)
 	reader := &drainCountReader{counts: []int64{}} // always returns 0
 	inner := &recordingGroupChunkExecutor{}
 	executor := nornicDBPhaseGroupExecutor{
-		inner:            inner,
-		maxStatements:    100,
-		retractBatchSize: 2000,
-		drainReader:      reader,
+		Inner:            inner,
+		MaxStatements:    100,
+		RetractBatchSize: 2000,
+		DrainReader:      reader,
 	}
 
 	stmts := []sourcecypher.Statement{
@@ -144,10 +144,10 @@ func TestNornicDBPhaseGroupExecutorDrainLoopEnforcesSafetyCap(t *testing.T) {
 	}
 	inner := &recordingGroupChunkExecutor{}
 	executor := nornicDBPhaseGroupExecutor{
-		inner:            inner,
-		maxStatements:    100,
-		retractBatchSize: 2000,
-		drainReader:      reader,
+		Inner:            inner,
+		MaxStatements:    100,
+		RetractBatchSize: 2000,
+		DrainReader:      reader,
 	}
 
 	stmts := []sourcecypher.Statement{
@@ -187,10 +187,10 @@ func TestNornicDBPhaseGroupExecutorDrainLoopPropagatesReaderError(t *testing.T) 
 	}
 	inner := &recordingGroupChunkExecutor{}
 	executor := nornicDBPhaseGroupExecutor{
-		inner:            inner,
-		maxStatements:    100,
-		retractBatchSize: 2000,
-		drainReader:      reader,
+		Inner:            inner,
+		MaxStatements:    100,
+		RetractBatchSize: 2000,
+		DrainReader:      reader,
 	}
 
 	stmts := []sourcecypher.Statement{
@@ -226,10 +226,10 @@ func TestNornicDBPhaseGroupExecutorNoDrainFallsBackToExistingPath(t *testing.T) 
 	reader := &drainCountReader{}
 	inner := &recordingGroupChunkExecutor{}
 	executor := nornicDBPhaseGroupExecutor{
-		inner:            inner,
-		maxStatements:    100,
-		retractBatchSize: 2000,
-		drainReader:      reader,
+		Inner:            inner,
+		MaxStatements:    100,
+		RetractBatchSize: 2000,
+		DrainReader:      reader,
 	}
 
 	paths := []string{"/repo/a.go", "/repo/b.go"}
@@ -335,11 +335,11 @@ func TestNornicDBPhaseGroupExecutorDrainLoopRecordsDriftRetractions(t *testing.T
 	}
 
 	executor := nornicDBPhaseGroupExecutor{
-		inner:            inner,
-		maxStatements:    100,
-		retractBatchSize: 500,
-		drainReader:      reader,
-		instruments:      instruments,
+		Inner:            inner,
+		MaxStatements:    100,
+		RetractBatchSize: 500,
+		DrainReader:      reader,
+		Instruments:      instruments,
 	}
 
 	// Statement marked as a reconciliation-drift retract (mirrors what

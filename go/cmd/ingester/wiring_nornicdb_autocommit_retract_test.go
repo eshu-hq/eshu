@@ -24,10 +24,10 @@ func TestNornicDBPhaseGroupExecutorMixedPhaseRunsRetractAutocommitThenGroupsUpse
 	reader := &drainCountReader{counts: []int64{50}}
 	inner := &recordingGroupChunkExecutor{}
 	executor := nornicDBPhaseGroupExecutor{
-		inner:            inner,
-		maxStatements:    100,
-		retractBatchSize: 2000,
-		drainReader:      reader,
+		Inner:            inner,
+		MaxStatements:    100,
+		RetractBatchSize: 2000,
+		DrainReader:      reader,
 	}
 
 	stmts := []sourcecypher.Statement{
@@ -86,9 +86,9 @@ func TestNornicDBPhaseGroupExecutorMixedPhaseNilDrainReaderStillUngroupsRetract(
 
 	inner := &recordingGroupChunkExecutor{}
 	executor := nornicDBPhaseGroupExecutor{
-		inner:         inner,
-		maxStatements: 100,
-		drainReader:   nil, // no RunWrite-capable executor wired
+		Inner:         inner,
+		MaxStatements: 100,
+		DrainReader:   nil, // no RunWrite-capable executor wired
 	}
 
 	stmts := []sourcecypher.Statement{

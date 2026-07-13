@@ -15,9 +15,9 @@ func TestNornicDBPhaseGroupExecutorUsesDirectorySpecificStatementLimit(t *testin
 
 	inner := &recordingGroupChunkExecutor{}
 	executor := nornicDBPhaseGroupExecutor{
-		inner:                  inner,
-		maxStatements:          10,
-		directoryMaxStatements: 3,
+		Inner:                  inner,
+		MaxStatements:          10,
+		DirectoryMaxStatements: 3,
 	}
 
 	stmts := []sourcecypher.Statement{
@@ -47,9 +47,9 @@ func TestNornicDBPhaseGroupExecutorAppliesDirectoryLimitToDirectoryEdges(t *test
 
 	inner := &recordingGroupChunkExecutor{}
 	executor := nornicDBPhaseGroupExecutor{
-		inner:                  inner,
-		maxStatements:          10,
-		directoryMaxStatements: 3,
+		Inner:                  inner,
+		MaxStatements:          10,
+		DirectoryMaxStatements: 3,
 	}
 
 	stmts := []sourcecypher.Statement{

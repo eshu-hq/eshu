@@ -20,8 +20,8 @@ func TestNornicDBPhaseGroupExecutorWrapsChunkFailureDetails(t *testing.T) {
 		err:        errors.New("context canceled"),
 	}
 	executor := nornicDBPhaseGroupExecutor{
-		inner:         inner,
-		maxStatements: 2,
+		Inner:         inner,
+		MaxStatements: 2,
 	}
 
 	stmts := []sourcecypher.Statement{

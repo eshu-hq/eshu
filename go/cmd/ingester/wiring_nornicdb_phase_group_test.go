@@ -34,7 +34,7 @@ func TestCanonicalExecutorForGraphBackendUsesConfiguredNornicDBPhaseGroupStateme
 	if !ok {
 		t.Fatalf("executor type = %T, want nornicDBPhaseGroupExecutor", executor)
 	}
-	if got, want := pge.maxStatements, 777; got != want {
+	if got, want := pge.MaxStatements, 777; got != want {
 		t.Fatalf("phase-group max statements = %d, want %d", got, want)
 	}
 }
@@ -62,7 +62,7 @@ func TestCanonicalExecutorForGraphBackendUsesConfiguredNornicDBFilePhaseStatemen
 	if !ok {
 		t.Fatalf("executor type = %T, want nornicDBPhaseGroupExecutor", executor)
 	}
-	if got, want := pge.fileMaxStatements, 3; got != want {
+	if got, want := pge.FileMaxStatements, 3; got != want {
 		t.Fatalf("file phase max statements = %d, want %d", got, want)
 	}
 }
@@ -90,7 +90,7 @@ func TestCanonicalExecutorForGraphBackendUsesConfiguredNornicDBEntityPhaseStatem
 	if !ok {
 		t.Fatalf("executor type = %T, want nornicDBPhaseGroupExecutor", executor)
 	}
-	if got, want := pge.entityMaxStatements, 17; got != want {
+	if got, want := pge.EntityMaxStatements, 17; got != want {
 		t.Fatalf("entity phase max statements = %d, want %d", got, want)
 	}
 }
@@ -100,8 +100,8 @@ func TestNornicDBPhaseGroupExecutorSplitsChunksByConfiguredStatementLimit(t *tes
 
 	inner := &recordingGroupChunkExecutor{}
 	executor := nornicDBPhaseGroupExecutor{
-		inner:         inner,
-		maxStatements: 2,
+		Inner:         inner,
+		MaxStatements: 2,
 	}
 
 	stmts := []sourcecypher.Statement{
@@ -128,9 +128,9 @@ func TestNornicDBPhaseGroupExecutorUsesEntitySpecificStatementLimit(t *testing.T
 
 	inner := &recordingGroupChunkExecutor{}
 	executor := nornicDBPhaseGroupExecutor{
-		inner:               inner,
-		maxStatements:       5,
-		entityMaxStatements: 2,
+		Inner:               inner,
+		MaxStatements:       5,
+		EntityMaxStatements: 2,
 	}
 
 	stmts := []sourcecypher.Statement{
@@ -154,9 +154,9 @@ func TestNornicDBPhaseGroupExecutorUsesFileSpecificStatementLimit(t *testing.T) 
 
 	inner := &recordingGroupChunkExecutor{}
 	executor := nornicDBPhaseGroupExecutor{
-		inner:             inner,
-		maxStatements:     10,
-		fileMaxStatements: 3,
+		Inner:             inner,
+		MaxStatements:     10,
+		FileMaxStatements: 3,
 	}
 
 	stmts := []sourcecypher.Statement{
@@ -182,10 +182,10 @@ func TestNornicDBPhaseGroupExecutorUsesEntityLabelSpecificStatementLimit(t *test
 
 	inner := &recordingGroupChunkExecutor{}
 	executor := nornicDBPhaseGroupExecutor{
-		inner:               inner,
-		maxStatements:       5,
-		entityMaxStatements: 4,
-		entityLabelMaxStatements: map[string]int{
+		Inner:               inner,
+		MaxStatements:       5,
+		EntityMaxStatements: 4,
+		EntityLabelMaxStatements: map[string]int{
 			"Function": 2,
 		},
 	}
@@ -248,10 +248,10 @@ func TestNornicDBPhaseGroupExecutorUsesEntityLimitsForContainmentPhase(t *testin
 
 	inner := &recordingGroupChunkExecutor{}
 	executor := nornicDBPhaseGroupExecutor{
-		inner:               inner,
-		maxStatements:       5,
-		entityMaxStatements: 4,
-		entityLabelMaxStatements: map[string]int{
+		Inner:               inner,
+		MaxStatements:       5,
+		EntityMaxStatements: 4,
+		EntityLabelMaxStatements: map[string]int{
 			"Function": 2,
 		},
 	}
@@ -293,8 +293,8 @@ func TestNornicDBPhaseGroupExecutorExecutesRetractStatementsSequentially(t *test
 
 	inner := &recordingGroupChunkExecutor{}
 	executor := nornicDBPhaseGroupExecutor{
-		inner:         inner,
-		maxStatements: 5,
+		Inner:         inner,
+		MaxStatements: 5,
 	}
 
 	stmts := []sourcecypher.Statement{
@@ -330,8 +330,8 @@ func TestNornicDBPhaseGroupExecutorRequiresAllStatementsToBeRetracts(t *testing.
 
 	inner := &recordingGroupChunkExecutor{}
 	executor := nornicDBPhaseGroupExecutor{
-		inner:         inner,
-		maxStatements: 5,
+		Inner:         inner,
+		MaxStatements: 5,
 	}
 
 	stmts := []sourcecypher.Statement{
@@ -360,9 +360,9 @@ func TestNornicDBPhaseGroupExecutorExecutesEntitySingletonFallbackOutsideGroup(t
 
 	inner := &recordingGroupChunkExecutor{}
 	executor := nornicDBPhaseGroupExecutor{
-		inner:               inner,
-		maxStatements:       5,
-		entityMaxStatements: 2,
+		Inner:               inner,
+		MaxStatements:       5,
+		EntityMaxStatements: 2,
 	}
 
 	stmts := []sourcecypher.Statement{
@@ -414,9 +414,9 @@ func TestNornicDBPhaseGroupExecutorGroupsEligibleSingletonFallbacks(t *testing.T
 
 	inner := &recordingGroupChunkExecutor{}
 	executor := nornicDBPhaseGroupExecutor{
-		inner:               inner,
-		maxStatements:       5,
-		entityMaxStatements: 5,
+		Inner:               inner,
+		MaxStatements:       5,
+		EntityMaxStatements: 5,
 	}
 
 	stmts := []sourcecypher.Statement{

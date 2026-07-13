@@ -3,22 +3,30 @@ name: Race Graph Writes
 on:
   pull_request:
     paths:
+      - "go/cmd/ingester/**"
+      - "go/cmd/projector/**"
       - "go/internal/storage/cypher/**"
+      - "go/internal/storage/nornicdb/**"
       - "go/internal/reducer/**"
       - "go/internal/projector/**"
       - "go/internal/correlation/**"
       - "go/internal/content/shape/**"
       - "go/internal/relationships/**"
+      - ".github/workflows/race-graph-writes.yml"
   push:
     branches:
       - main
     paths:
+      - "go/cmd/ingester/**"
+      - "go/cmd/projector/**"
       - "go/internal/storage/cypher/**"
+      - "go/internal/storage/nornicdb/**"
       - "go/internal/reducer/**"
       - "go/internal/projector/**"
       - "go/internal/correlation/**"
       - "go/internal/content/shape/**"
       - "go/internal/relationships/**"
+      - ".github/workflows/race-graph-writes.yml"
   schedule:
     - cron: "30 18 * * *"
   workflow_dispatch:
@@ -47,4 +55,4 @@ jobs:
 
       - name: Run graph-write tests with race detector
         working-directory: go
-        run: go test -race -count=1 -timeout 600s ./internal/storage/cypher/... ./internal/reducer/... ./internal/projector/... ./internal/correlation/... ./internal/content/shape/... ./internal/relationships/...
+        run: go test -race -count=1 -timeout 600s ./cmd/ingester/... ./cmd/projector/... ./internal/storage/cypher/... ./internal/storage/nornicdb/... ./internal/reducer/... ./internal/projector/... ./internal/correlation/... ./internal/content/shape/... ./internal/relationships/...

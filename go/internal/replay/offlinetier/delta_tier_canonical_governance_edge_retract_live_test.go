@@ -82,9 +82,14 @@ func govScopeMaterialization(repoID, repoPath, generationID string, firstGenerat
 		Directories: []projector.DirectoryRow{
 			{Path: repoPath + "/dir-a", RepoID: repoID},
 			{Path: repoPath + "/dir-b", RepoID: repoID},
+			{Path: repoPath + "/chart", ParentPath: repoPath, RepoID: repoID},
+			{Path: repoPath + "/chart/templates", ParentPath: repoPath + "/chart", RepoID: repoID, Depth: 1},
 		},
 		Files: []projector.FileRow{
 			{Path: filePath, RelativePath: "main.py", Name: "main.py", RepoID: repoID},
+			{Path: atlantisFile, RelativePath: "atlantis.yaml", Name: "atlantis.yaml", RepoID: repoID},
+			{Path: chartValuesFile, RelativePath: "chart/values.yaml", Name: "values.yaml", RepoID: repoID, DirPath: repoPath + "/chart"},
+			{Path: chartTemplateFile, RelativePath: "chart/templates/deploy.yaml", Name: "deploy.yaml", RepoID: repoID, DirPath: repoPath + "/chart/templates"},
 		},
 		Modules: []projector.ModuleRow{
 			{Name: repoID + ":module-a"},
@@ -135,6 +140,11 @@ func govScopeMaterialization(repoID, repoPath, generationID string, firstGenerat
 			},
 		},
 	}
+}
+
+func TestGovScopeMaterializationEntitySourcesHaveFiles(t *testing.T) {
+	t.Parallel()
+	assertEntitySourceFiles(t, govScopeMaterialization(govInRepoID, govInRepoPath, "gen-1", true, "a"))
 }
 
 // govAtlantisTargetName maps a target suffix ("a"/"b") to the sibling
@@ -190,6 +200,7 @@ func TestReducerCanonicalGovernanceEdgeRetractGraphTruth(t *testing.T) {
 	if err := writer.Write(ctx, inGen1); err != nil {
 		t.Fatalf("write in-scope gen1: %v", err)
 	}
+	assertGovEndpointsSurvive(ctx, t, exec)
 	assertGovEdgeGraphTruth(ctx, t, exec, "a", 1, "gen1: \"a\"-targeted edges present")
 	assertGovEdgeGraphTruth(ctx, t, exec, "b", 0, "gen1: \"b\"-targeted edges absent")
 
@@ -305,6 +316,9 @@ func assertGovEndpointsSurvive(ctx context.Context, t *testing.T, exec liveExecu
 		key        string
 	}{
 		{"MATCH (n:File {path: $u}) RETURN count(n)", govInRepoPath + "/main.py"},
+		{"MATCH (n:File {path: $u}) RETURN count(n)", govInRepoPath + "/atlantis.yaml"},
+		{"MATCH (n:File {path: $u}) RETURN count(n)", govInRepoPath + "/chart/values.yaml"},
+		{"MATCH (n:File {path: $u}) RETURN count(n)", govInRepoPath + "/chart/templates/deploy.yaml"},
 		{"MATCH (n:Module {name: $u}) RETURN count(n)", repoID + ":module-a"},
 		{"MATCH (n:Module {name: $u}) RETURN count(n)", repoID + ":module-b"},
 		{"MATCH (n:Directory {path: $u}) RETURN count(n)", govInRepoPath + "/dir-a"},

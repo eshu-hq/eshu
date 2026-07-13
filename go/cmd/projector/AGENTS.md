@@ -24,7 +24,9 @@
   returned by `openProjectorCanonicalWriter` is always wrapped with
   `sourcecypher.RetryingExecutor` and `sourcecypher.InstrumentedExecutor`
   before being passed to the canonical node writer. NornicDB also gets the
-  canonical write timeout wrapper. Raw executor must not be exposed directly.
+  canonical write timeout wrapper, then the shared NornicDB phase-group adapter.
+  The graph-write gate wraps the adapter's inner executor so entity fan-out is
+  bounded without stripping `PhaseGroupExecutor`. Raw executor must not be exposed directly.
   Enforced in `runtime_wiring.go`.
 - **SIGINT/SIGTERM triggers clean shutdown** — `signal.NotifyContext` is the
   only mechanism for stopping `service.Run`; do not add `os.Exit` calls or

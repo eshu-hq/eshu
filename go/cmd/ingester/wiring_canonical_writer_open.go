@@ -155,7 +155,6 @@ func openIngesterCanonicalWriter(
 		instruments,
 	).WithTracer(tracer)
 	labelBatchSizes := map[string]int(nil)
-	orderedLabels := []string(nil)
 	if graphBackend == runtimecfg.GraphBackendNornicDB {
 		if nornicDBBatchedEntityContainment {
 			slog.Info("NornicDB batched entity containment enabled",
@@ -166,15 +165,13 @@ func openIngesterCanonicalWriter(
 		if err != nil {
 			return failAfterDriverOpen(err)
 		}
-		orderedLabels = orderedEntityBatchLabels(labelBatchSizes)
 	}
 	writer = configureIngesterCanonicalWriter(writer, ingesterCanonicalWriterConfig{
-		GraphBackend:                      graphBackend,
-		FileBatchSize:                     fileBatchSize,
-		EntityBatchSize:                   entityBatchSize,
-		EntityLabelBatchSizes:             labelBatchSizes,
-		NornicDBBatchedEntityContainment:  nornicDBBatchedEntityContainment,
-		OrderedEntityLabelBatchSizeLabels: orderedLabels,
+		GraphBackend:                     graphBackend,
+		FileBatchSize:                    fileBatchSize,
+		EntityBatchSize:                  entityBatchSize,
+		EntityLabelBatchSizes:            labelBatchSizes,
+		NornicDBBatchedEntityContainment: nornicDBBatchedEntityContainment,
 	})
 
 	return writer, ingesterNeo4jDriverCloser{Driver: driver}, nil

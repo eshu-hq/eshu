@@ -14,6 +14,7 @@ import (
 
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	storagenornicdb "github.com/eshu-hq/eshu/go/internal/storage/nornicdb"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -115,20 +116,14 @@ func ingesterStatementRetractionCounts(
 // one bounded drain step. The counters feed reconciliation-drift telemetry in
 // executeDrainLoop; they match the counters that Execute/ExecuteGroup capture via
 // ResultSummary.Counters() on the non-drain path.
-type DrainWriteResult struct {
-	Rows                 []map[string]any
-	NodesDeleted         int64
-	RelationshipsDeleted int64
-}
+type DrainWriteResult = storagenornicdb.DrainWriteResult
 
 // retractDrainReader executes a bounded drain step in a write session and
 // returns the collected records and graph-driver delete counters. It is
 // implemented by ingesterNeo4jExecutor and used by nornicDBPhaseGroupExecutor
 // to drive the drain loop for unbounded full-refresh DETACH DELETE statements
 // on NornicDB.
-type retractDrainReader interface {
-	RunWrite(ctx context.Context, cypher string, params map[string]any) (DrainWriteResult, error)
-}
+type retractDrainReader = storagenornicdb.DrainReader
 
 // RunWrite opens a write session, runs the supplied Cypher with the supplied
 // parameters, collects all result records and the graph-driver delete counters,

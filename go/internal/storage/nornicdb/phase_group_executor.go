@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package main
+package nornicdb
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
@@ -13,18 +14,24 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
-type nornicDBPhaseGroupExecutor struct {
-	inner                    sourcecypher.Executor
-	maxStatements            int
-	directoryMaxStatements   int
-	fileMaxStatements        int
-	entityMaxStatements      int
-	entityLabelMaxStatements map[string]int
-	// entityPhaseConcurrency caps how many canonical entity-phase grouped
+var errInnerExecutorRequired = errors.New("nornicdb phase-group inner executor is required")
+
+// PhaseGroupExecutor exposes NornicDB's bounded dependency-phase write path.
+// It intentionally implements cypher.PhaseGroupExecutor without implementing
+// cypher.GroupExecutor, because NornicDB does not provide read-your-writes for
+// the canonical writer's whole-materialization transaction shape.
+type PhaseGroupExecutor struct {
+	Inner                    sourcecypher.Executor
+	MaxStatements            int
+	DirectoryMaxStatements   int
+	FileMaxStatements        int
+	EntityMaxStatements      int
+	EntityLabelMaxStatements map[string]int
+	// EntityPhaseConcurrency caps how many canonical entity-phase grouped
 	// chunks may run in parallel against the inner GroupExecutor. The
 	// runtime default is `cpubudget.UsableCPUs()` (cgroup-aware CPU count) clamped to
-	// `nornicDBEntityPhaseConcurrencyCap`, so most callers route through
-	// the streaming dispatcher in wiring_nornicdb_phase_group_streaming.go.
+	// `EntityPhaseConcurrencyCap`, so most callers route through
+	// the streaming dispatcher in phase_group_executor_streaming.go.
 	// A value of zero or one is an explicit serial override: it pins
 	// ExecutePhaseGroup to the legacy per-flush executeEntityPhaseGroup
 	// path so callers that need deterministic chunk ordering (or that are
@@ -33,58 +40,66 @@ type nornicDBPhaseGroupExecutor struct {
 	// plus the file_path MATCH-only contract; see
 	// executeGroupedChunksConcurrentlyObserved for the full safety
 	// argument.
-	entityPhaseConcurrency int
+	EntityPhaseConcurrency int
 
-	// drainReader drives the bounded drain loop for full-refresh DETACH DELETE
+	// DrainReader drives the bounded drain loop for full-refresh DETACH DELETE
 	// statements marked with Drain=true. When nil, Drain statements fall back
 	// to a single Execute call (backward-compatible with existing tests that
 	// do not wire a reader). In production, rawExecutor (ingesterNeo4jExecutor)
 	// is threaded here via retractDrainReader.
-	drainReader retractDrainReader
+	DrainReader DrainReader
 
-	// retractBatchSize is the LIMIT applied to each drain-loop iteration.
+	// RetractBatchSize is the LIMIT applied to each drain-loop iteration.
 	// Controlled by ESHU_CANONICAL_RETRACT_BATCH.
-	retractBatchSize int
+	RetractBatchSize int
 
-	// instruments carries the OTEL metric handles for recording reconciliation
+	// Instruments carries the OTEL metric handles for recording reconciliation
 	// drift retraction counters after each drain loop completes. May be nil in
 	// tests that do not wire telemetry; RecordReconciliationDriftRetractions
-	// is a no-op when instruments is nil.
-	instruments *telemetry.Instruments
+	// is a no-op when Instruments is nil.
+	Instruments *telemetry.Instruments
 }
 
-func (e nornicDBPhaseGroupExecutor) Execute(ctx context.Context, stmt sourcecypher.Statement) error {
-	if e.inner == nil {
-		return nil
+// Execute sanitizes and runs one canonical statement through the inner executor.
+func (e PhaseGroupExecutor) Execute(ctx context.Context, stmt sourcecypher.Statement) error {
+	if e.Inner == nil {
+		return errInnerExecutorRequired
 	}
-	return e.inner.Execute(ctx, sanitizedStatement(stmt))
+	if err := e.Inner.Execute(ctx, sanitizedStatement(stmt)); err != nil {
+		return fmt.Errorf("execute canonical statement: %w", err)
+	}
+	return nil
 }
 
-func (e nornicDBPhaseGroupExecutor) ExecutePhaseGroup(ctx context.Context, stmts []sourcecypher.Statement) error {
-	if len(stmts) == 0 || e.inner == nil {
+// ExecutePhaseGroup commits one dependency phase with bounded NornicDB transactions.
+func (e PhaseGroupExecutor) ExecutePhaseGroup(ctx context.Context, stmts []sourcecypher.Statement) error {
+	if len(stmts) == 0 {
 		return nil
 	}
-	if ge, ok := e.inner.(sourcecypher.GroupExecutor); ok {
+	if e.Inner == nil {
+		return errInnerExecutorRequired
+	}
+	if ge, ok := e.Inner.(sourcecypher.GroupExecutor); ok {
 		if allStatementsUseOperation(stmts, sourcecypher.OperationCanonicalRetract) {
 			return e.executeSequentialRetractPhase(ctx, stmts)
 		}
 		if statementPhaseUsesEntityLabelStats(statementPhase(stmts)) {
-			if e.entityPhaseConcurrency > 1 {
-				return e.executeEntityPhaseGroupStreaming(ctx, ge, stmts)
+			if e.EntityPhaseConcurrency > 1 {
+				return e.ExecuteEntityPhaseGroupStreaming(ctx, ge, stmts)
 			}
 			return e.executeEntityPhaseGroup(ctx, ge, stmts)
 		}
 		return e.executeGroupedChunksWithDrain(ctx, ge, stmts)
 	}
-	for _, stmt := range stmts {
-		if err := e.inner.Execute(ctx, sanitizedStatement(stmt)); err != nil {
-			return err
+	for i, stmt := range stmts {
+		if err := e.Inner.Execute(ctx, sanitizedStatement(stmt)); err != nil {
+			return fmt.Errorf("execute phase statement %d/%d: %w", i+1, len(stmts), err)
 		}
 	}
 	return nil
 }
 
-func (e nornicDBPhaseGroupExecutor) executeSequentialRetractPhase(
+func (e PhaseGroupExecutor) executeSequentialRetractPhase(
 	ctx context.Context,
 	stmts []sourcecypher.Statement,
 ) error {
@@ -108,7 +123,7 @@ func (e nornicDBPhaseGroupExecutor) executeSequentialRetractPhase(
 			}
 			continue
 		}
-		if stmt.Drain && e.drainReader != nil {
+		if stmt.Drain && e.DrainReader != nil {
 			statementSummary := summarizePhaseGroupChunk([]sourcecypher.Statement{stmt})
 			if err := e.executeDrainLoop(ctx, stmt, i+1, len(stmts), statementSummary); err != nil {
 				return err
@@ -122,7 +137,7 @@ func (e nornicDBPhaseGroupExecutor) executeSequentialRetractPhase(
 		for chunkIndex, chunk := range chunks {
 			statementStart := time.Now()
 			statementSummary := summarizePhaseGroupChunk([]sourcecypher.Statement{chunk})
-			if err := e.inner.Execute(ctx, sanitizedStatement(chunk)); err != nil {
+			if err := e.Inner.Execute(ctx, sanitizedStatement(chunk)); err != nil {
 				return fmt.Errorf(
 					"phase-group retract statement %d/%d part %d/%d (duration=%s, first_statement=%q): %w",
 					i+1,
@@ -139,135 +154,7 @@ func (e nornicDBPhaseGroupExecutor) executeSequentialRetractPhase(
 	return nil
 }
 
-// executeDrainLoop converts a Drain-marked full-refresh retract statement into
-// a bounded drain loop for NornicDB. It rewrites the trailing DETACH DELETE
-// clause to include a LIMIT and RETURN count(__drained), then repeats until
-// __drained == 0 or the safety cap is exceeded.
-//
-// Concurrency safety: the retract conflict_domain is scope (one worker per
-// scope). Deletes are idempotent — repeated deletes of already-absent nodes
-// return 0 without error. The loop is therefore concurrency-safe: no other
-// worker touches the same scope's prior-generation nodes during a retract.
-func (e nornicDBPhaseGroupExecutor) executeDrainLoop(
-	ctx context.Context,
-	stmt sourcecypher.Statement,
-	stmtIdx, stmtTotal int,
-	statementSummary string,
-) error {
-	batch := e.retractBatchSize
-	if batch <= 0 {
-		batch = defaultNornicDBCanonicalRetractBatchSize
-	}
-
-	drainCypher, err := sourcecypher.BuildBoundedRetractDrainCypher(stmt.Cypher, stmt.DrainVar, "__retract_batch")
-	if err != nil {
-		return fmt.Errorf(
-			"phase-group retract statement %d/%d (first_statement=%q): build drain cypher: %w",
-			stmtIdx, stmtTotal, statementSummary, err,
-		)
-	}
-
-	// Build parameter map with the batch limit appended.
-	params := make(map[string]any, len(stmt.Parameters)+1)
-	for k, v := range stmt.Parameters {
-		params[k] = v
-	}
-	params["__retract_batch"] = int64(batch)
-
-	// Safety cap: upper bound on total nodes that could exist in the worst case.
-	// We use a generous 5_000_000 node ceiling plus a margin of 2 iterations to
-	// account for nodes created by concurrent writes during the drain.
-	const drainNodeCeiling = 5_000_000
-	maxIterations := (drainNodeCeiling/batch + 2)
-
-	var totalDrained, totalNodesDeleted, totalRelsDeleted int64
-	phaseStart := time.Now()
-	for iteration := 1; ; iteration++ {
-		if iteration > maxIterations {
-			return fmt.Errorf(
-				"phase-group retract statement %d/%d drain loop safety cap exceeded after %d iterations (%d nodes drained, batch=%d, first_statement=%q): drain did not converge",
-				stmtIdx, stmtTotal, iteration-1, totalDrained, batch, statementSummary,
-			)
-		}
-
-		iterStart := time.Now()
-		result, runErr := e.drainReader.RunWrite(ctx, drainCypher, params)
-		iterDuration := time.Since(iterStart)
-		if runErr != nil {
-			return fmt.Errorf(
-				"phase-group retract statement %d/%d drain iteration %d (total_drained=%d, duration=%s, first_statement=%q): %w",
-				stmtIdx, stmtTotal, iteration, totalDrained, iterDuration, statementSummary, runErr,
-			)
-		}
-
-		drained := drainedCount(result.Rows)
-		totalDrained += drained
-		totalNodesDeleted += result.NodesDeleted
-		totalRelsDeleted += result.RelationshipsDeleted
-
-		slog.Debug(
-			"nornicdb retract drain iteration",
-			"statement_index", stmtIdx,
-			"statement_count", stmtTotal,
-			"iteration", iteration,
-			"drained", drained,
-			"total_drained", totalDrained,
-			"batch", batch,
-			"duration_s", iterDuration.Seconds(),
-		)
-
-		if drained == 0 {
-			break
-		}
-	}
-
-	// Record reconciliation-drift retraction counters so
-	// eshu_dp_reconciliation_drift_retractions_total accumulates the same
-	// total it would have under the old single-statement Execute path. The
-	// call is a no-op when instruments is nil or the statement is not marked
-	// as a drift-retract statement by annotateReconciliationDriftWritePhases.
-	sourcecypher.RecordReconciliationDriftRetractions(
-		ctx,
-		e.instruments,
-		stmt,
-		totalNodesDeleted,
-		totalRelsDeleted,
-	)
-
-	slog.Info(
-		"nornicdb retract drain completed",
-		"statement_index", stmtIdx,
-		"statement_count", stmtTotal,
-		"total_drained", totalDrained,
-		"batch", batch,
-		"duration_s", time.Since(phaseStart).Seconds(),
-		"first_statement", statementSummary,
-	)
-	return nil
-}
-
-// drainedCount reads the __drained int64 counter from the first result row.
-// It returns 0 if the row is absent or the key is missing.
-func drainedCount(rows []map[string]any) int64 {
-	if len(rows) == 0 {
-		return 0
-	}
-	v, ok := rows[0]["__drained"]
-	if !ok {
-		return 0
-	}
-	switch n := v.(type) {
-	case int64:
-		return n
-	case int:
-		return int64(n)
-	case float64:
-		return int64(n)
-	}
-	return 0
-}
-
-func (e nornicDBPhaseGroupExecutor) executeEntityPhaseGroup(
+func (e PhaseGroupExecutor) executeEntityPhaseGroup(
 	ctx context.Context,
 	ge sourcecypher.GroupExecutor,
 	stmts []sourcecypher.Statement,
@@ -280,12 +167,12 @@ func (e nornicDBPhaseGroupExecutor) executeEntityPhaseGroup(
 		if len(grouped) == 0 {
 			return nil
 		}
-		err := e.executeGroupedChunksConcurrentlyObserved(
+		err := e.ExecuteGroupedChunksConcurrentlyObserved(
 			ctx,
 			ge,
 			grouped,
-			e.phaseGroupStatementLimit(grouped),
-			e.entityPhaseConcurrency,
+			e.PhaseGroupStatementLimit(grouped),
+			e.EntityPhaseConcurrency,
 			func(chunk []sourcecypher.Statement, chunkDuration time.Duration) {
 				label := entityStatementLabel(chunk[0])
 				stats := ensureEntityPhaseLabelStats(labelStats, phase, label, chunk[0])
@@ -315,7 +202,7 @@ func (e nornicDBPhaseGroupExecutor) executeEntityPhaseGroup(
 				}
 				continue
 			}
-			if stmt.Drain && e.drainReader != nil {
+			if stmt.Drain && e.DrainReader != nil {
 				statementSummary := summarizePhaseGroupChunk([]sourcecypher.Statement{stmt})
 				if err := e.executeDrainLoop(ctx, stmt, i+1, len(stmts), statementSummary); err != nil {
 					return err
@@ -329,7 +216,7 @@ func (e nornicDBPhaseGroupExecutor) executeEntityPhaseGroup(
 			for chunkIndex, chunk := range chunks {
 				statementStart := time.Now()
 				statementSummary := summarizePhaseGroupChunk([]sourcecypher.Statement{chunk})
-				if err := e.inner.Execute(ctx, sanitizedStatement(chunk)); err != nil {
+				if err := e.Inner.Execute(ctx, sanitizedStatement(chunk)); err != nil {
 					return fmt.Errorf(
 						"phase-group retract statement %d/%d part %d/%d (phase=%s, duration=%s, first_statement=%q): %w",
 						i+1,
@@ -351,7 +238,7 @@ func (e nornicDBPhaseGroupExecutor) executeEntityPhaseGroup(
 			}
 			statementStart := time.Now()
 			statementSummary := summarizePhaseGroupChunk([]sourcecypher.Statement{stmt})
-			if err := e.inner.Execute(ctx, sanitizedStatement(stmt)); err != nil {
+			if err := e.Inner.Execute(ctx, sanitizedStatement(stmt)); err != nil {
 				return fmt.Errorf(
 					"phase-group singleton statement %d/%d (phase=%s, duration=%s, first_statement=%q): %w",
 					i+1,
@@ -387,7 +274,7 @@ func (e nornicDBPhaseGroupExecutor) executeEntityPhaseGroup(
 		if groupedLabel == "" {
 			groupedLabel = stmtLabel
 		}
-		if len(grouped) >= e.entityFlushTrigger(grouped) {
+		if len(grouped) >= e.EntityFlushTrigger(grouped) {
 			if err := flushGrouped(); err != nil {
 				return err
 			}
@@ -401,7 +288,7 @@ func (e nornicDBPhaseGroupExecutor) executeEntityPhaseGroup(
 	return nil
 }
 
-func (e nornicDBPhaseGroupExecutor) executeGroupedChunks(
+func (e PhaseGroupExecutor) executeGroupedChunks(
 	ctx context.Context,
 	ge sourcecypher.GroupExecutor,
 	stmts []sourcecypher.Statement,
@@ -410,7 +297,7 @@ func (e nornicDBPhaseGroupExecutor) executeGroupedChunks(
 	return e.executeGroupedChunksObserved(ctx, ge, stmts, maxStatements, nil)
 }
 
-func (e nornicDBPhaseGroupExecutor) executeGroupedChunksObserved(
+func (e PhaseGroupExecutor) executeGroupedChunksObserved(
 	ctx context.Context,
 	ge sourcecypher.GroupExecutor,
 	stmts []sourcecypher.Statement,

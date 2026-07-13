@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	storagenornicdb "github.com/eshu-hq/eshu/go/internal/storage/nornicdb"
 )
 
 const (
@@ -16,7 +18,7 @@ const (
 	// statements on NornicDB. At 2000 nodes a full-refresh File retract of
 	// 5000 files takes ~3 iterations at ~9s each, well under the 2m timeout.
 	// Override with ESHU_CANONICAL_RETRACT_BATCH.
-	defaultNornicDBCanonicalRetractBatchSize = 2000
+	defaultNornicDBCanonicalRetractBatchSize = storagenornicdb.DefaultCanonicalRetractBatchSize
 
 	// nornicDBCanonicalRetractBatchSizeMin and nornicDBCanonicalRetractBatchSizeMax
 	// clamp the env override to a safe operating range.
