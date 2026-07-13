@@ -10,6 +10,7 @@ const openAPIPathsEntities = `
         "summary": "Resolve entity",
         "description": "Resolves an entity by name with optional type and repository filters.",
         "operationId": "resolveEntity",
+        "x-scoped-token-support": true,
         "requestBody": {
           "required": true,
           "content": {
@@ -58,6 +59,7 @@ const openAPIPathsEntities = `
         "summary": "Get entity context",
         "description": "Returns context and relationships for a specific entity.",
         "operationId": "getEntityContext",
+        "x-scoped-token-support": true,
         "parameters": [
           {"$ref": "#/components/parameters/EntityId"}
         ],
@@ -102,6 +104,7 @@ const openAPIPathsEntities = `
         "summary": "Get workload context",
         "description": "Returns context and deployment instances for a workload.",
         "operationId": "getWorkloadContext",
+        "x-scoped-token-support": true,
         "parameters": [
           {"$ref": "#/components/parameters/WorkloadId"}
         ],
@@ -127,6 +130,7 @@ const openAPIPathsEntities = `
         "summary": "Get workload story",
         "description": "Returns a narrative summary for the workload.",
         "operationId": "getWorkloadStory",
+        "x-scoped-token-support": true,
         "parameters": [
           {"$ref": "#/components/parameters/WorkloadId"}
         ],
@@ -161,6 +165,7 @@ const openAPIPathsEntities = `
         "summary": "Get service context",
         "description": "Returns context for a service by name.",
         "operationId": "getServiceContext",
+        "x-scoped-token-support": true,
         "parameters": [
           {"$ref": "#/components/parameters/ServiceName"}
         ],
@@ -186,6 +191,7 @@ const openAPIPathsEntities = `
         "summary": "Get service story",
         "description": "Returns the one-call service dossier for the service.",
         "operationId": "getServiceStory",
+        "x-scoped-token-support": true,
         "parameters": [
           {"$ref": "#/components/parameters/ServiceName"},
           {"name": "service_id", "in": "query", "description": "Exact workload or service id selector. When supplied, the route resolves this id before service-name candidates.", "schema": {"type": "string"}},

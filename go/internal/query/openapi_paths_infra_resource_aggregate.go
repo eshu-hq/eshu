@@ -8,6 +8,7 @@ const openAPIPathsInfraResourceAggregate = `
       "get": {
         "summary": "Count graph-backed infrastructure resources without paging the search endpoint",
         "operationId": "countInfraResources",
+        "x-scoped-token-support": true,
         "parameters": [
           {"name": "category", "in": "query", "schema": {"type": "string", "enum": ["k8s", "terraform", "argocd", "crossplane", "helm", "cloud"]}},
           {"name": "kind", "in": "query", "schema": {"type": "string"}},
@@ -42,6 +43,7 @@ const openAPIPathsInfraResourceAggregate = `
       "get": {
         "summary": "Group graph-backed infrastructure resources by one dimension without paging the search endpoint",
         "operationId": "getInfraResourceInventory",
+        "x-scoped-token-support": true,
         "parameters": [
           {"name": "group_by", "in": "query", "schema": {"type": "string", "enum": ["provider", "environment", "resource_category", "resource_service", "label"], "default": "provider"}},
           {"name": "category", "in": "query", "schema": {"type": "string", "enum": ["k8s", "terraform", "argocd", "crossplane", "helm", "cloud"]}},

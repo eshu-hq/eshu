@@ -11,6 +11,7 @@ const openAPIPathsCapabilities = `
         "summary": "List the capability maturity catalog",
         "description": "Returns the reconciled capability catalog from the embedded, generated artifact: per-capability maturity, public surfaces, proof signals, owner package, known gaps, linked issues, and role/grant/data-class authorization metadata. The read is static, bounded, and exact in every profile, and backs the MCP get_capability_catalog tool and the console capability matrix. Supports optional maturity and owner_package filters with deterministic limit/offset paging.",
         "operationId": "listCapabilities",
+        "x-scoped-token-support": true,
         "parameters": [
           {"name": "maturity", "in": "query", "required": false, "schema": {"type": "string", "enum": ["general_availability", "experimental", "preview", "gated", "degraded", "not_implemented"]}, "description": "Optional maturity filter."},
           {"name": "owner", "in": "query", "required": false, "schema": {"type": "string"}, "description": "Optional owner_package filter (exact match)."},

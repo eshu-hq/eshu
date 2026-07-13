@@ -8,6 +8,7 @@ const openAPIPathsSupplyChainContainerImages = `
       "get": {
         "summary": "List container image identities",
         "operationId": "listContainerImageIdentities",
+        "x-scoped-token-support": true,
         "parameters": [
           {"name": "digest", "in": "query", "schema": {"type": "string"}},
           {"name": "image_ref", "in": "query", "schema": {"type": "string"}},

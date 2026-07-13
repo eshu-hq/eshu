@@ -42,6 +42,7 @@ const openAPIPathsAuthSignInPolicy = `
         "summary": "Get the tenant's full sign-in policy",
         "description": "All-scopes admin route. Includes SSO-admin-proof metadata (sso_admin_verified_at, sso_admin_verified_provider_config_id) used by the console to explain the require_sso guardrail state.",
         "operationId": "getAdminSignInPolicy",
+        "x-scoped-token-support": true,
         "responses": {
           "200": {
             "description": "The tenant's sign-in policy.",
@@ -61,6 +62,7 @@ const openAPIPathsAuthSignInPolicy = `
         "summary": "Update the tenant's sign-in policy",
         "description": "All-scopes admin route. Every field is optional; an absent field leaves the current value unchanged. Setting require_sso=true is guarded: it is rejected with 400 unless the tenant has at least one provider config with a passing connection test AND at least one admin has completed at least one SSO sign-in. Break-glass local admin sign-in (POST /api/v0/auth/local/login, evaluated the same way regardless of the console's /login?local=1 UI hint) always stays reachable regardless of require_sso, so this guardrail cannot lock a tenant out of its own dashboard. Emits a governance audit event for every allowed and denied attempt, including a guardrail rejection.",
         "operationId": "updateAdminSignInPolicy",
+        "x-scoped-token-support": true,
         "requestBody": {
           "required": true,
           "content": {

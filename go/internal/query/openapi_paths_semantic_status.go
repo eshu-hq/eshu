@@ -10,6 +10,7 @@ const openAPIPathsSemanticStatus = `
         "summary": "Get semantic extraction status",
         "description": "Returns optional semantic extraction capability status. No-provider mode is reported as unavailable without changing index, reducer, API, MCP, or documentation fact health.",
         "operationId": "getSemanticExtractionStatus",
+        "x-scoped-token-support": true,
         "responses": {
           "200": {
             "description": "Semantic extraction capability status",

@@ -10,6 +10,7 @@ const openAPIPathsAnswerNarrationStatus = `
         "summary": "Get answer narration status",
         "description": "Returns optional governed answer narration posture. The default is unavailable with deterministic answer packets still available as the canonical fallback; the response never includes prompts, provider responses, credentials, private paths, or source identifiers.",
         "operationId": "getAnswerNarrationStatus",
+        "x-scoped-token-support": true,
         "responses": {
           "200": {
             "description": "Answer narration status",

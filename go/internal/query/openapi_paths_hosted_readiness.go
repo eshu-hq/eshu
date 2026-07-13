@@ -10,6 +10,7 @@ const openAPIPathsHostedReadiness = `
         "summary": "Get hosted operator readiness",
         "description": "Returns a fail-closed hosted readiness report across status snapshot loading, queue drain, collector completion, shared projection backlog, and API/MCP query readback.",
         "operationId": "getHostedReadiness",
+        "x-scoped-token-support": true,
         "parameters": [
           {
             "name": "format",

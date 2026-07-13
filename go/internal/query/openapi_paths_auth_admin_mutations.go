@@ -23,6 +23,7 @@ const openAPIPathsAuthAdminMutations = `
         "summary": "Revoke an invitation",
         "description": "All-scopes admin route that soft-revokes one invitation within the caller's own tenant/workspace. Idempotent: an already revoked, accepted, or expired invitation is a safe no-op returning its current status. Never echoes the invite code. Emits a governance audit event.",
         "operationId": "revokeAdminInvitation",
+        "x-scoped-token-support": true,
         "parameters": [{"name": "invite_id", "in": "path", "required": true, "schema": {"type": "string"}}],
         "responses": {
           "200": {
@@ -54,6 +55,7 @@ const openAPIPathsAuthAdminMutations = `
         "summary": "Revoke a membership-role assignment",
         "description": "All-scopes admin route that tombstones a membership-role assignment for a user within the caller's own tenant/workspace. Idempotent: an already revoked assignment is a safe no-op. Optional workspace_id must match the caller's workspace. Emits a governance audit event.",
         "operationId": "revokeAdminRoleAssignment",
+        "x-scoped-token-support": true,
         "requestBody": {
           "required": true,
           "content": {
@@ -100,6 +102,7 @@ const openAPIPathsAuthAdminMutations = `
         "summary": "Delete an IdP group to role mapping",
         "description": "All-scopes admin route that tombstones one external group to role mapping resolved by its opaque mapping_ref within the caller's own tenant/workspace. Idempotent: an already-deleted or absent mapping is a safe no-op. The raw external group name is never needed or returned. Emits a governance audit event.",
         "operationId": "deleteAdminIdPGroupMapping",
+        "x-scoped-token-support": true,
         "parameters": [{"name": "mapping_ref", "in": "path", "required": true, "schema": {"type": "string"}}],
         "responses": {
           "200": {

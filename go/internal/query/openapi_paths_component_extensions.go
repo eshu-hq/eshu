@@ -10,6 +10,7 @@ const openAPIPathsComponentExtensions = `
         "summary": "List component extensions",
         "description": "Returns a bounded local component package inventory and policy diagnostics from the configured component registry without exposing server-local manifest or activation config paths.",
         "operationId": "listComponentExtensions",
+        "x-scoped-token-support": true,
         "parameters": [
           {
             "name": "limit",
@@ -86,6 +87,7 @@ const openAPIPathsComponentExtensions = `
         "summary": "Get component extension diagnostics",
         "description": "Returns one component extension's lifecycle and policy diagnostics from local registry readback. Local manifest paths and activation config paths are redacted.",
         "operationId": "getComponentExtensionDiagnostics",
+        "x-scoped-token-support": true,
         "parameters": [
           {
             "name": "component_id",

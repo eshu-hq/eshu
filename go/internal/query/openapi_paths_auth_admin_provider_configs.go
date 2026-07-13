@@ -20,6 +20,7 @@ const openAPIPathsAuthAdminProviderConfigs = `
         "summary": "List the tenant's DB-backed and env-registered identity provider configs",
         "description": "All-scopes admin route. Merges DB-backed provider configs with env/file-registered providers (env-file authoritative): a DB row whose provider_config_id matches an env-registered provider is returned with shadowed_by_environment=true and its sealed secret is never consulted for login. Never returns a secret — only has_secret, secret_fingerprint, and key_id.",
         "operationId": "listAdminProviderConfigs",
+        "x-scoped-token-support": true,
         "responses": {
           "200": {
             "description": "The tenant's provider configs.",
@@ -48,6 +49,7 @@ const openAPIPathsAuthAdminProviderConfigs = `
         "summary": "Create a DB-backed identity provider config",
         "description": "All-scopes admin route that creates a new draft provider config with one active revision carrying the sealed secret. client_secret (oidc) or sp_private_key/sp_certificate (saml) are write-only: never echoed back, never logged. The provider cannot be enabled until it passes a test-connection call. Emits a governance audit event.",
         "operationId": "createAdminProviderConfig",
+        "x-scoped-token-support": true,
         "requestBody": {
           "required": true,
           "content": {
@@ -79,6 +81,7 @@ const openAPIPathsAuthAdminProviderConfigs = `
         "summary": "Get one identity provider config",
         "description": "All-scopes admin route. Never returns a secret — only has_secret, secret_fingerprint, and key_id.",
         "operationId": "getAdminProviderConfig",
+        "x-scoped-token-support": true,
         "parameters": [{"name": "provider_config_id", "in": "path", "required": true, "schema": {"type": "string"}}],
         "responses": {
           "200": {
@@ -101,6 +104,7 @@ const openAPIPathsAuthAdminProviderConfigs = `
         "summary": "Update an identity provider config, creating a new active revision",
         "description": "All-scopes admin route. Every change creates a new audited revision superseding the current one. The full secret must be resupplied on every update — write-only secrets are never carried forward automatically (the AAD binds each sealed envelope to its own revision id specifically to prevent that). Emits a governance audit event.",
         "operationId": "updateAdminProviderConfig",
+        "x-scoped-token-support": true,
         "parameters": [{"name": "provider_config_id", "in": "path", "required": true, "schema": {"type": "string"}}],
         "requestBody": {
           "required": true,
@@ -133,6 +137,7 @@ const openAPIPathsAuthAdminProviderConfigs = `
         "summary": "List a provider config's revision history",
         "description": "All-scopes admin route. Never returns a secret — only has_secret per revision.",
         "operationId": "listAdminProviderConfigRevisions",
+        "x-scoped-token-support": true,
         "parameters": [{"name": "provider_config_id", "in": "path", "required": true, "schema": {"type": "string"}}],
         "responses": {
           "200": {
@@ -174,6 +179,7 @@ const openAPIPathsAuthAdminProviderConfigs = `
         "summary": "Revert a provider config to a prior revision",
         "description": "All-scopes admin route. Activates a prior revision, restoring its sealed secret automatically (no secret is transmitted or re-entered). Idempotent: reverting to the already-active revision is a safe no-op. Emits a governance audit event.",
         "operationId": "revertAdminProviderConfig",
+        "x-scoped-token-support": true,
         "parameters": [{"name": "provider_config_id", "in": "path", "required": true, "schema": {"type": "string"}}],
         "requestBody": {
           "required": true,
@@ -210,6 +216,7 @@ const openAPIPathsAuthAdminProviderConfigs = `
         "summary": "Enable a provider config",
         "description": "All-scopes admin route. Re-runs a test-connection for the current active revision synchronously and only transitions the provider to active if it passes; a draft provider without a passing test cannot be enabled. Emits a governance audit event.",
         "operationId": "enableAdminProviderConfig",
+        "x-scoped-token-support": true,
         "parameters": [{"name": "provider_config_id", "in": "path", "required": true, "schema": {"type": "string"}}],
         "responses": {
           "200": {
@@ -234,6 +241,7 @@ const openAPIPathsAuthAdminProviderConfigs = `
         "summary": "Disable a provider config",
         "description": "All-scopes admin route that transitions an active provider config back to draft. Idempotent. Emits a governance audit event.",
         "operationId": "disableAdminProviderConfig",
+        "x-scoped-token-support": true,
         "parameters": [{"name": "provider_config_id", "in": "path", "required": true, "schema": {"type": "string"}}],
         "responses": {
           "200": {
@@ -257,6 +265,7 @@ const openAPIPathsAuthAdminProviderConfigs = `
         "summary": "Test a provider config's connection",
         "description": "All-scopes admin route that validates OIDC discovery/JWKS reachability (or SAML IdP metadata) and that the stored secret decrypts to well-formed material. Does not perform a live OAuth2 authorization-code round trip or a live SAML SSO exchange — see the oidclogin/samlauth TestConnection doc comments for the exact, bounded scope. Emits a governance audit event.",
         "operationId": "testAdminProviderConfigConnection",
+        "x-scoped-token-support": true,
         "parameters": [{"name": "provider_config_id", "in": "path", "required": true, "schema": {"type": "string"}}],
         "responses": {
           "200": {

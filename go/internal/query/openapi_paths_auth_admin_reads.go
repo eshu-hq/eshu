@@ -15,6 +15,7 @@ const openAPIPathsAuthAdminReads = `
         "summary": "List the tenant's membership-role assignments",
         "description": "All-scopes admin route that lists membership-role assignments within the caller's own tenant/workspace, optionally filtered by user_id: user id, role id, assignment source, status, and effective/expiry timestamps. Returns no hashed secret.",
         "operationId": "listAdminRoleAssignments",
+        "x-scoped-token-support": true,
         "parameters": [{"name": "user_id", "in": "query", "required": false, "schema": {"type": "string"}}],
         "responses": {
           "200": {
@@ -55,6 +56,7 @@ const openAPIPathsAuthAdminReads = `
         "summary": "Grant a membership-role assignment",
         "description": "All-scopes admin route that idempotently activates a membership-role assignment for a user within the caller's own tenant/workspace. The role must exist and be active in the tenant. A repeated grant converges on one row. Optional workspace_id must match the caller's workspace. Emits a governance audit event.",
         "operationId": "grantAdminRoleAssignment",
+        "x-scoped-token-support": true,
         "requestBody": {
           "required": true,
           "content": {
@@ -101,6 +103,7 @@ const openAPIPathsAuthAdminReads = `
         "summary": "List the tenant's roles and grants",
         "description": "All-scopes admin route that lists the caller's own tenant's roles and the capability grants each role confers: role id, status, built-in flag, and per-grant action/feature/data class/scope class/status. Returns no role key hash, policy revision hash, or hashed scope selector.",
         "operationId": "listAdminRoles",
+        "x-scoped-token-support": true,
         "responses": {
           "200": {
             "description": "The tenant's roles and grants.",
@@ -151,6 +154,7 @@ const openAPIPathsAuthAdminReads = `
         "summary": "List the tenant's configured identity providers",
         "description": "All-scopes admin route that lists the caller's own tenant's configured identity providers: provider config id, provider kind, and status only. Never returns issuer, metadata URL, entity id, or client id hashes, and never returns credential handles.",
         "operationId": "listAdminIdPProviders",
+        "x-scoped-token-support": true,
         "responses": {
           "200": {
             "description": "The tenant's configured identity providers.",
@@ -187,6 +191,7 @@ const openAPIPathsAuthAdminReads = `
         "summary": "List the tenant's IdP group-to-role mappings",
         "description": "All-scopes admin route that lists the caller's own tenant/workspace external group-to-role mappings: an opaque mapping reference, provider config id, role id, status, and effective/expiry timestamps. Never returns the external group hash (the hashed group-name secret).",
         "operationId": "listAdminIdPGroupMappings",
+        "x-scoped-token-support": true,
         "responses": {
           "200": {
             "description": "The tenant's IdP group-to-role mappings.",
@@ -226,6 +231,7 @@ const openAPIPathsAuthAdminReads = `
         "summary": "Create an IdP group to role mapping",
         "description": "All-scopes admin route that idempotently activates an external group to role mapping within the caller's own tenant/workspace. The provider config and role must exist and be active in the tenant. The raw external_group name is hashed server-side with the same hash the OIDC login path uses to read mappings and is never stored or returned; only the opaque mapping_ref (an md5 over the composite key) is returned. Optional workspace_id must match the caller's workspace. Emits a governance audit event.",
         "operationId": "createAdminIdPGroupMapping",
+        "x-scoped-token-support": true,
         "requestBody": {
           "required": true,
           "content": {
@@ -274,6 +280,7 @@ const openAPIPathsAuthAdminReads = `
         "summary": "List the tenant's generated API tokens",
         "description": "All-scopes admin route that lists every user's generated API tokens within the caller's own tenant/workspace: token id, class, owning user or service principal, status, and issued/expires/revoked timestamps. Never returns the token hash or display label hash. Distinct from the self-scoped GET /api/v0/auth/local/api-tokens.",
         "operationId": "listAdminAPITokens",
+        "x-scoped-token-support": true,
         "responses": {
           "200": {
             "description": "The tenant's generated API tokens.",
@@ -317,6 +324,7 @@ const openAPIPathsAuthAdminReads = `
         "summary": "List governance audit events",
         "description": "All-scopes admin route that lists governance audit events for the caller's tenant context, filtered by event_type, decision, reason_code, and occurred_after/occurred_before, bounded by limit. Returns only audit-safe fields: event type, actor class, scope class, decision, reason code, occurred-at, and optional service principal id and correlation id. Never returns actor, scope, or policy revision hashes.",
         "operationId": "listAdminAuditEvents",
+        "x-scoped-token-support": true,
         "parameters": [
           {"name": "event_type", "in": "query", "required": false, "schema": {"type": "string"}},
           {"name": "decision", "in": "query", "required": false, "schema": {"type": "string"}},
@@ -366,6 +374,7 @@ const openAPIPathsAuthAdminReads = `
         "summary": "Summarize governance audit events",
         "description": "All-scopes admin route that returns aggregate-only governance audit counts: total, allowed, denied, unavailable, last-occurred-at, and low-cardinality counts by event type, decision, reason, actor class, and scope class. Returns no individual event identifiers.",
         "operationId": "summarizeAdminAuditEvents",
+        "x-scoped-token-support": true,
         "responses": {
           "200": {
             "description": "Aggregate governance audit counts.",

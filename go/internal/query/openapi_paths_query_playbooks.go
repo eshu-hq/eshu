@@ -10,6 +10,7 @@ const openAPIPathsQueryPlaybooks = `
         "summary": "List query playbooks",
         "description": "Returns the deterministic query playbook catalog. This is workflow-plan truth from static catalog data, not a live graph query.",
         "operationId": "listQueryPlaybooks",
+        "x-scoped-token-support": true,
         "responses": {
           "200": {
             "description": "Query playbook catalog",
@@ -36,6 +37,7 @@ const openAPIPathsQueryPlaybooks = `
         "summary": "Resolve a query playbook",
         "description": "Resolves one catalog playbook and declared inputs into an ordered, bounded call sequence. It does not execute the calls.",
         "operationId": "resolveQueryPlaybook",
+        "x-scoped-token-support": true,
         "requestBody": {
           "required": true,
           "content": {

@@ -11,6 +11,7 @@ const openAPIPathsSurfaceInventory = `
         "summary": "List the surface inventory readiness rows",
         "description": "Returns the generated surface inventory from the embedded artifact: every platform surface across six categories (command, collector, reducer_domain, api_route, mcp_tool, console_page) with its readiness lane, owner, promotion proof, docs, notes, and collector-only source provenance contracts. Collector contracts map emitted fact kinds to projection/read surfaces, proof gates, fixtures, and the truth profile that distinguishes deterministic, provider-gated, and optional semantic output. The read is static, bounded, and exact in every profile, and backs the MCP get_surface_inventory tool and the console surface inventory page. Supports optional category and readiness filters with deterministic limit/offset paging.",
         "operationId": "listSurfaceInventory",
+        "x-scoped-token-support": true,
         "parameters": [
           {"name": "category", "in": "query", "required": false, "schema": {"type": "string", "enum": ["command", "collector", "reducer_domain", "api_route", "mcp_tool", "console_page"]}, "description": "Optional surface category filter."},
           {"name": "readiness", "in": "query", "required": false, "schema": {"type": "string", "enum": ["implemented", "partial", "gated", "foundation_only", "fixture_only", "research_only", "not_implemented", "unsupported"]}, "description": "Optional readiness lane filter."},

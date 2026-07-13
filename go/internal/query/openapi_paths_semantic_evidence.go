@@ -10,6 +10,7 @@ const openAPIPathsSemanticEvidence = `
         "summary": "List semantic documentation observations",
         "description": "Lists opt-in LLM-assisted documentation observations from durable semantic evidence facts. Rows include truth basis, freshness, provider profile, prompt version, redaction version, and policy state without raw prompt payloads, credentials, or private provider responses.",
         "operationId": "listSemanticDocumentationObservations",
+        "x-scoped-token-support": true,
         "parameters": [
           {"name": "fact_id", "in": "query", "schema": {"type": "string"}},
           {"name": "scope_id", "in": "query", "schema": {"type": "string"}},
@@ -50,6 +51,7 @@ const openAPIPathsSemanticEvidence = `
         "summary": "List semantic code hints",
         "description": "Lists opt-in non-canonical code hints from durable semantic evidence facts. Code hints remain separate from deterministic code, graph, and relationship routes unless callers request this surface explicitly.",
         "operationId": "listSemanticCodeHints",
+        "x-scoped-token-support": true,
         "parameters": [
           {"name": "fact_id", "in": "query", "schema": {"type": "string"}},
           {"name": "scope_id", "in": "query", "schema": {"type": "string"}},

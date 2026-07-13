@@ -8,6 +8,7 @@ const openAPIPathsContainerImageIdentityAggregate = `
       "get": {
         "summary": "Count container image identities without paging the list endpoint",
         "operationId": "countContainerImageIdentities",
+        "x-scoped-token-support": true,
         "parameters": [
           {"name": "digest", "in": "query", "schema": {"type": "string"}},
           {"name": "image_ref", "in": "query", "schema": {"type": "string"}},
@@ -40,6 +41,7 @@ const openAPIPathsContainerImageIdentityAggregate = `
       "get": {
         "summary": "Group container image identities by one dimension without paging the list endpoint",
         "operationId": "getContainerImageIdentityInventory",
+        "x-scoped-token-support": true,
         "parameters": [
           {"name": "group_by", "in": "query", "schema": {"type": "string", "enum": ["outcome", "identity_strength", "repository_id"], "default": "outcome"}},
           {"name": "digest", "in": "query", "schema": {"type": "string"}},

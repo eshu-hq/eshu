@@ -10,6 +10,7 @@ const openAPIPathsInvestigations = `
         "summary": "Export supply-chain impact investigation packet",
         "description": "Returns an investigation_evidence_packet.v2 artifact for one bounded supply-chain impact investigation, using the same composer as the CLI export surface.",
         "operationId": "getSupplyChainImpactPacket",
+        "x-scoped-token-support": true,
         "parameters": [
           {"name": "finding_id", "in": "query", "required": false, "schema": {"type": "string"}, "description": "Exact reducer-owned finding id. Preferred when known."},
           {"name": "advisory_id", "in": "query", "required": false, "schema": {"type": "string"}, "description": "Advisory identifier such as GHSA, OSV, GLAD, vendor advisory, or CVE id."},
@@ -37,6 +38,7 @@ const openAPIPathsInvestigations = `
         "summary": "Export deployable-unit investigation packet",
         "description": "Returns an investigation_evidence_packet.v2 artifact for deployable-unit admission truth, using reducer-owned admission-decision readback.",
         "operationId": "getDeployableUnitPacket",
+        "x-scoped-token-support": true,
         "parameters": [
           {"name": "scope_id", "in": "query", "required": true, "schema": {"type": "string"}, "description": "Ingestion scope id that bounds the admission decision read."},
           {"name": "generation_id", "in": "query", "required": true, "schema": {"type": "string"}, "description": "Scope generation id that bounds the admission decision read."},
@@ -82,6 +84,7 @@ const openAPIPathsInvestigations = `
         "summary": "Investigate service",
         "description": "Returns a bounded service investigation packet with repositories considered, evidence coverage, findings, and recommended follow-up calls.",
         "operationId": "investigateService",
+        "x-scoped-token-support": true,
         "parameters": [
           {"$ref": "#/components/parameters/ServiceName"},
           {

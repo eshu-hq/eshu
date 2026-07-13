@@ -8,6 +8,7 @@ const openAPIPathsSupplyChainImpactAggregate = `
       "get": {
         "summary": "Count supply-chain impact findings without paging the list endpoint",
         "operationId": "countSupplyChainImpactFindings",
+        "x-scoped-token-support": true,
         "parameters": [
           {"name": "cve_id", "in": "query", "schema": {"type": "string"}},
           {"name": "advisory_id", "in": "query", "description": "Exact source advisory identifier such as GHSA, OSV, GLAD, vendor advisory, or CVE id.", "schema": {"type": "string"}},
@@ -59,6 +60,7 @@ const openAPIPathsSupplyChainImpactAggregate = `
       "get": {
         "summary": "Group supply-chain impact findings by one dimension without paging the list endpoint",
         "operationId": "getSupplyChainImpactInventory",
+        "x-scoped-token-support": true,
         "parameters": [
           {"name": "group_by", "in": "query", "schema": {"type": "string", "enum": ["impact_status", "priority_bucket", "severity", "repository_id", "ecosystem"], "default": "impact_status"}},
           {"name": "cve_id", "in": "query", "schema": {"type": "string"}},

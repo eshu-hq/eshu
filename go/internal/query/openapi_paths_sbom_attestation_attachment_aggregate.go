@@ -8,6 +8,7 @@ const openAPIPathsSBOMAttestationAttachmentAggregate = `
       "get": {
         "summary": "Count SBOM and attestation attachments without paging the list endpoint",
         "operationId": "countSBOMAttestationAttachments",
+        "x-scoped-token-support": true,
         "parameters": [
           {"name": "subject_digest", "in": "query", "schema": {"type": "string"}},
           {"name": "document_id", "in": "query", "schema": {"type": "string"}},
@@ -43,6 +44,7 @@ const openAPIPathsSBOMAttestationAttachmentAggregate = `
       "get": {
         "summary": "Group SBOM and attestation attachments by one dimension without paging the list endpoint",
         "operationId": "getSBOMAttestationAttachmentInventory",
+        "x-scoped-token-support": true,
         "parameters": [
           {"name": "group_by", "in": "query", "schema": {"type": "string", "enum": ["attachment_status", "artifact_kind", "subject_digest"], "default": "attachment_status"}},
           {"name": "subject_digest", "in": "query", "schema": {"type": "string"}},

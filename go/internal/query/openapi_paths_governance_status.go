@@ -10,6 +10,7 @@ const openAPIPathsGovernanceStatus = `
         "summary": "Get hosted governance status",
         "description": "Returns redacted hosted governance policy mode, state, readiness, and aggregate reason-code readbacks without raw policy bodies, subjects, tenants, source identifiers, credentials, provider endpoints, prompts, or provider responses.",
         "operationId": "getHostedGovernanceStatus",
+        "x-scoped-token-support": true,
         "responses": {
           "200": {
             "description": "Hosted governance status",

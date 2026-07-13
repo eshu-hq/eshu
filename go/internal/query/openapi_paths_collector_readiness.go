@@ -10,6 +10,7 @@ const openAPIPathsCollectorReadiness = `
         "summary": "Get collector family readiness",
         "description": "Returns per-collector-family promotion readiness across the full collector fleet: promotion state, reducer readback status, evidence counts, last proof time, blockers, and a recommended next action. Redacts credentials and raw provider payloads. The MCP tool get_collector_readiness returns the same shape.",
         "operationId": "getCollectorReadiness",
+        "x-scoped-token-support": true,
         "responses": {
           "200": {
             "description": "Collector family readiness",
@@ -65,6 +66,7 @@ const openAPIPathsCollectorReadiness = `
         "summary": "Get collector family readiness (alias)",
         "description": "Legacy compatibility alias for /api/v0/status/collector-readiness. Returns the same per-collector-family promotion readiness read model.",
         "operationId": "getCollectorReadinessLegacy",
+        "x-scoped-token-support": true,
         "responses": {
           "200": {
             "description": "Collector family readiness",

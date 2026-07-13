@@ -9,6 +9,7 @@ const openAPIPathsCode = `
         "tags": ["code"], "summary": "Search code entities",
         "description": "Searches code entities by name pattern or content.",
         "operationId": "searchCode",
+        "x-scoped-token-support": true,
         "requestBody": {
           "required": true,
           "content": {

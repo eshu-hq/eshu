@@ -142,6 +142,7 @@ const openAPIPathsAuth = `
         "summary": "Create a dashboard browser session",
         "description": "Exchanges an already-authenticated explicit API credential for a server-managed dashboard browser session. The raw session secret is only sent in the __Host-eshu_session cookie, which is HttpOnly, Secure, SameSite=Strict, Path=/. The server persists only SHA-256 hashes for the session and CSRF secrets. The response returns the CSRF secret and also sets __Host-eshu_csrf as a readable Secure SameSite=Strict cookie so browser clients can send X-Eshu-CSRF on unsafe cookie-authenticated requests. Existing browser sessions cannot mint new browser sessions from this route; CLI, MCP, and automation clients should keep using explicit bearer tokens.",
         "operationId": "createBrowserSession",
+        "x-scoped-token-support": true,
         "responses": {
           "201": {
             "description": "Browser session created; Set-Cookie includes __Host-eshu_session and __Host-eshu_csrf.",
@@ -168,6 +169,7 @@ const openAPIPathsAuth = `
         "summary": "Read the current dashboard browser session",
         "description": "Returns the auth context attached to the current browser session cookie. This route requires cookie authentication and does not reveal the raw session secret or CSRF secret.",
         "operationId": "getBrowserSession",
+        "x-browser-session-only": true,
         "responses": {
           "200": {
             "description": "Current browser session context.",
@@ -186,6 +188,7 @@ const openAPIPathsAuth = `
         "summary": "Revoke the current dashboard browser session",
         "description": "Revokes the current browser session by its server-side hash and clears both browser-session cookies. Because it is an unsafe cookie-authenticated request, callers must include X-Eshu-CSRF with the CSRF secret bound to the session.",
         "operationId": "deleteBrowserSession",
+        "x-browser-session-only": true,
         "responses": {
           "204": {
             "description": "Browser session revoked and cookies cleared.",
@@ -210,6 +213,7 @@ const openAPIPathsAuth = `
         "summary": "Switch the current dashboard session tenant/workspace",
         "description": "Moves the current active all-scopes browser session to another active tenant/workspace boundary. Scoped sessions cannot switch workspaces until the identity/grant UX can model cross-workspace grants explicitly. The session remains revocable by its original session hash. Because it is an unsafe cookie-authenticated request, callers must include X-Eshu-CSRF with the CSRF secret bound to the session.",
         "operationId": "switchBrowserSessionContext",
+        "x-browser-session-only": true,
         "requestBody": {
           "required": true,
           "content": {
@@ -302,6 +306,7 @@ const openAPIPathsAuth = `
         "summary": "List the tenant's invitations",
         "description": "All-scopes admin route that lists invitations within the caller's own tenant/workspace: invite id, role id, status, and lifecycle timestamps. Never returns the invite code, invitee handle, or inviter identity (all stored only as hashes).",
         "operationId": "listAdminInvitations",
+        "x-scoped-token-support": true,
         "responses": {
           "200": {
             "description": "The tenant's invitations.",
@@ -603,6 +608,7 @@ const openAPIPathsAuth = `
         "summary": "Read the caller's identity profile",
         "description": "Returns the authenticated caller's own profile: identity provider config id (absent for local identity), active tenant/workspace, role ids, permitted permission features, MFA status, and memberships. Cookie- or bearer-authenticated; never returns secrets, credential handles, or other subjects' data.",
         "operationId": "getAuthProfile",
+        "x-scoped-token-support": true,
         "responses": {
           "200": {
             "description": "Caller profile.",
@@ -651,6 +657,7 @@ const openAPIPathsAuth = `
         "summary": "List the caller's own browser sessions",
         "description": "Returns metadata for the authenticated caller's own active browser sessions: issued/last-seen/expiry timestamps, tenant/workspace, and which row is the current session. Never returns the session hash or secret, and never returns other subjects' sessions.",
         "operationId": "listAuthSessions",
+        "x-browser-session-only": true,
         "parameters": [
           {
             "name": "limit",

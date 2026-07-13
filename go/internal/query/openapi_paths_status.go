@@ -30,6 +30,7 @@ const openAPIPathsStatusAndCompare = `
         "summary": "List ingesters",
         "description": "Returns known ingesters with basic health info.",
         "operationId": "listIngesters",
+        "x-scoped-token-support": true,
         "responses": {
           "200": {
             "description": "List of ingesters",
@@ -55,6 +56,7 @@ const openAPIPathsStatusAndCompare = `
         "summary": "List collectors",
         "description": "Returns collector runtime status classified by workflow coordinator registration, direct status evidence, and persisted source or reducer fact evidence.",
         "operationId": "listCollectors",
+        "x-scoped-token-support": true,
         "responses": {
           "200": {
             "description": "List of collector runtimes",
@@ -107,6 +109,7 @@ const openAPIPathsStatusAndCompare = `
         "summary": "Get ingester status",
         "description": "Returns detailed status for a specific ingester.",
         "operationId": "getIngesterStatus",
+        "x-scoped-token-support": true,
         "parameters": [
           {
             "name": "ingester",

@@ -14,6 +14,7 @@ const openAPIPathsOperatorControlPlane = `
         "summary": "Get operator control-plane read model",
         "description": "Returns one operator read model combining queue depth with claim-latency and stuck-work signals, reducer-domain backlogs, collector-family promotion verdicts with the newest proof artifact, and dead-letter state classed by reducer domain and collector-generation commit. Correlation identifiers (scope_id, generation_id, domain, collector_kind, failure_class) match the runtime metric and span labels. Scoped tokens receive the same aggregate counts with raw work-item/scope/generation identifiers and instance-level labels withheld.",
         "operationId": "getOperatorControlPlane",
+        "x-scoped-token-support": true,
         "responses": {
           "200": {
             "description": "Operator control-plane read model",

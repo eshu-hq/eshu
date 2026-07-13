@@ -10,6 +10,7 @@ const openAPIPathsIncidentContext = `
         "summary": "Get incident context",
         "description": "Returns a bounded incident context packet from active incident source facts. The response includes provider incident state, timeline events, intended/applied/live PagerDuty routing evidence, fallback change candidates, explicit evidence-path slots, missing evidence for unproven hops, deployable/image/runtime artifact evidence only when explicit service-catalog and reducer-owned runtime facts prove those links, build/commit evidence only when reducer-owned CI/CD run correlations match the selected image digest or reference, and PR/work-item enrichment only when provider PR evidence or Jira work-item evidence proves those hops.",
         "operationId": "getIncidentContext",
+        "x-scoped-token-support": true,
         "parameters": [
           {"name": "incident_id", "in": "path", "required": true, "schema": {"type": "string"}},
           {"name": "provider", "in": "query", "schema": {"type": "string", "default": "pagerduty"}},

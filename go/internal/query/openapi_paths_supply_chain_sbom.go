@@ -8,6 +8,7 @@ const openAPIPathsSupplyChainSBOMAttestations = `
       "get": {
         "summary": "List SBOM and attestation attachments",
         "operationId": "listSBOMAttestationAttachments",
+        "x-scoped-token-support": true,
         "parameters": [
           {"name": "subject_digest", "in": "query", "schema": {"type": "string"}},
           {"name": "digest", "in": "query", "description": "Alias for subject_digest when the caller has an image digest.", "schema": {"type": "string"}},

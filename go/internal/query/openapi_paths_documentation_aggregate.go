@@ -8,6 +8,7 @@ const openAPIPathsDocumentationFindingAggregate = `
       "get": {
         "summary": "Count durable documentation findings without paging the list endpoint",
         "operationId": "countDocumentationFindings",
+        "x-scoped-token-support": true,
         "parameters": [
           {"name": "scope_id", "in": "query", "schema": {"type": "string"}},
           {"name": "finding_type", "in": "query", "schema": {"type": "string"}},
@@ -42,6 +43,7 @@ const openAPIPathsDocumentationFindingAggregate = `
       "get": {
         "summary": "Group durable documentation findings by one dimension without paging the list endpoint",
         "operationId": "getDocumentationFindingInventory",
+        "x-scoped-token-support": true,
         "parameters": [
           {"name": "group_by", "in": "query", "schema": {"type": "string", "enum": ["status", "truth_level", "freshness_state", "finding_type", "source_id"], "default": "status"}},
           {"name": "scope_id", "in": "query", "schema": {"type": "string"}},

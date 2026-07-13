@@ -10,6 +10,7 @@ const openAPIPathsInfrastructure = `
         "summary": "Search infrastructure resources",
         "description": "Searches graph-backed infrastructure resources by name, ID, resource type, cloud ARN, cloud resource ID, or bounded structured filters. Provide query or at least one structured filter.",
         "operationId": "searchInfraResources",
+        "x-scoped-token-support": true,
         "requestBody": {
           "required": true,
           "content": {
@@ -81,6 +82,7 @@ const openAPIPathsInfrastructure = `
         "summary": "Get infrastructure relationships",
         "description": "Returns the relationships for an infrastructure entity. relationship_type is optional: when omitted every relationship is returned in both directions; when set the read is bounded to the matching edge types. Accepts a semantic alias (what_deploys, what_provisions, who_consumes_xrd, module_consumers) or a canonical edge type (e.g. DEPLOYS_FROM, USES_MODULE). The what_deploys alias spans the full deployment topology (DEPLOYS_FROM, DEPLOYMENT_SOURCE, HAS_DEPLOYMENT_EVIDENCE) so runtime deployment-source edges are not dropped. An unrecognized value is rejected with 400.",
         "operationId": "getInfraRelationships",
+        "x-scoped-token-support": true,
         "requestBody": {
           "required": true,
           "content": {
