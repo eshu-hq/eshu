@@ -10,7 +10,6 @@ fast rebuilds without containers.
 | Compose file or profile | What it starts | Use it when |
 | --- | --- | --- |
 | `docker-compose.yaml` | Default stack: NornicDB, Postgres, migration, workspace setup, bootstrap indexing, API, MCP, ingester, reducer, and an always-on projector. | You want the normal local product stack. |
-| `docker-compose.nornicdb-pr261.yaml` | Overrides only NornicDB with an exact-source build of orneryd/NornicDB#261 commit `1492458852588c884c32f70d27ea2ee07086769c`. | You are validating #5122 before the upstream fix is released; always layer it over `docker-compose.yaml`. |
 | `docker-compose.neo4j.yml` | Neo4j compatibility stack. Includes the workflow-coordinator profile but not the default webhook-listener profile. | You need Neo4j compatibility checks. |
 | `docker-compose.telemetry.yml` | Jaeger, OpenTelemetry collector, and OTLP export settings. | You need local traces or metrics export. |
 | `--profile workflow-coordinator` | Adds the workflow coordinator to the default or Neo4j stack. | You are testing collector claims, scheduling, or control-plane behavior. |
@@ -170,40 +169,25 @@ classes. Provider-backed profiles additionally report redacted provider profile
 status. Compose adds no raw prompt, credential, endpoint, provider body, path,
 or document id to logs or metric labels.
 
-The NornicDB service defaults to a pinned multi-arch Docker manifest:
-`timothyswt/nornicdb-cpu-bge:v1.1.11@sha256:51b6174ae65e4ce54a158ac2f9eace7d36a1971545824d22add0fe06d94c1090`.
-Leave `NORNICDB_PLATFORM` unset for normal local runs. Docker selects the
-`linux/arm64` image on Apple Silicon and the `linux/amd64` image on x86 hosts.
+### Temporary exact NornicDB #261 default
 
-When testing a local NornicDB build, override image and platform together:
+Until further notice, the default Compose NornicDB service builds orneryd/
+NornicDB#261 from full source commit
+`1492458852588c884c32f70d27ea2ee07086769c`. Compose tags the local image
+`eshu-nornicdb-pr261:149245885258`, records the full revision as an OCI image
+label, and sets `pull_policy: never`. This makes the proven same-UID commit-lock
+fix the normal local path without publishing a temporary registry image.
 
-```bash
-NORNICDB_IMAGE=nornicdb-main-eshu:cb20824-arm64 \
-NORNICDB_PLATFORM=linux/arm64 \
-docker compose up --build bootstrap-index
-```
-
-### Temporary exact NornicDB #261 override
-
-Until orneryd/NornicDB#261 is released, #5122 validation uses
-`docker-compose.nornicdb-pr261.yaml`. The override builds from the full upstream
-commit SHA, tags the local image `eshu-nornicdb-pr261:149245885258`, records the
-full revision as an OCI image label, and sets `pull_policy: never`. It does not
-change the normal Compose default or publish a temporary image.
+Leave `NORNICDB_PLATFORM` unset for normal local runs so the build uses the host
+architecture.
 
 Build the pinned backend once, build the Eshu services from the current branch,
-then start the combined configuration without rebuilding either image:
+then start the stack without rebuilding either image:
 
 ```bash
-docker compose \
-  -f docker-compose.yaml \
-  -f docker-compose.nornicdb-pr261.yaml \
-  build
+docker compose build
 
-docker compose \
-  -f docker-compose.yaml \
-  -f docker-compose.nornicdb-pr261.yaml \
-  up -d --no-build
+docker compose up -d --no-build
 ```
 
 Confirm the cached image carries the expected source revision before treating
@@ -215,10 +199,9 @@ docker image inspect eshu-nornicdb-pr261:149245885258 \
 ```
 
 The expected output is
-`1492458852588c884c32f70d27ea2ee07086769c`. Keep using both Compose files for
-every command in that project. Remove this temporary override after a released
-NornicDB image containing #261 is pinned by digest and the bounded/full-corpus
-proof is repeated on that artifact.
+`1492458852588c884c32f70d27ea2ee07086769c`. Replace this temporary source pin
+only after a released NornicDB image containing #261 is pinned by digest and the
+bounded/full-corpus proof is repeated on that artifact.
 
 Eshu Compose sets these NornicDB graph-lane controls:
 

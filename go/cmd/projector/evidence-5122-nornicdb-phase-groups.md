@@ -115,19 +115,17 @@ bash scripts/verify-golden-corpus-gate.sh --keep
 ```
 
 Continued validation also built orneryd/NornicDB#261 directly from its full
-source commit through `docker-compose.nornicdb-pr261.yaml`. The built image
+source commit through the default `docker-compose.yaml`. The built image
 reported OCI revision `1492458852588c884c32f70d27ea2ee07086769c`; Compose
 resolved the same full source commit, `docker/Dockerfile.cpu-bge`, local tag,
 and `pull_policy: never`. A fresh isolated B-7 run used that cached image:
 
 ```bash
-docker compose -f docker-compose.yaml \
-  -f docker-compose.nornicdb-pr261.yaml build nornicdb
+docker compose -f docker-compose.yaml build nornicdb
 
 COMPOSE_PROJECT_NAME=eshu5122pr261proof3 \
 ESHU_POSTGRES_PORT=26434 NEO4J_HTTP_PORT=30474 NEO4J_BOLT_PORT=30687 \
 docker compose -f docker-compose.yaml \
-  -f docker-compose.nornicdb-pr261.yaml \
   up -d --no-build nornicdb postgres
 
 # --no-compose requires psql. This proof routed it through the retained
@@ -217,6 +215,13 @@ shasum -a 256 oracle-nodes.jsonl candidate-nodes.jsonl \
 | Final NornicDB candidate, populated graph, 120s | `28.680403666s` | `41.506617625s` | `42.940914458s` | idempotent success |
 | New NornicDB, partial graph recovery, 120s | `10.149351333s` | `15.450381125s` | `16.835510834s` | recovery success |
 | Old Neo4j correctness oracle, 120s | `10.340724375s` | `16.329392625s` | `17.875696875s` | success |
+
+| Direct comparison | Before | After | Saving |
+| --- | ---: | ---: | ---: |
+| Shipped attempt 1 total vs final candidate total | `121.744308125s` | `25.273791334s` | `96.470516791s` |
+| Shipped attempt 2 total vs final candidate total | `121.763630834s` | `25.273791334s` | `96.489839500s` |
+| 600s diagnostic total vs final candidate total | `602.880474083s` | `25.273791334s` | `577.606682749s` |
+| Observed three production timeout windows vs one success | `360.000000000s` | `25.273791334s` | `334.726208666s` |
 
 The immutable rebased fresh run saves at least `96.470516791s` against one
 shipped 120-second failed attempt. The accepted retained failure consumed three
@@ -360,14 +365,11 @@ Replacing the observed three-attempt terminal failure saves about `334.726s`,
 which covers that gap by about `176.726s`; this is the supported contribution
 claim.
 
-Production readiness remains blocked on orneryd/NornicDB#261 being merged,
-tagged, pinned by immutable Eshu artifact, and the candidate being rerun on that
-artifact. The fresh B-7 controls do not prove the absolute under-30 full-corpus
-target or make a source-built image equivalent to a future production tag. The
-exact-source override does let local and remote validation continue on one
-auditable upstream revision without reducing concurrency. After final review,
-the branch may be published for dependency-aware review and the reference
-remote full-corpus run, but it must not be marked merge-ready while Eshu still
-pins stock v1.1.11 by default.
+The upstream release no longer blocks this PR: default Compose is pinned to the
+exact source revision used by the successful proof. A future released image is
+not assumed equivalent; replacing the source pin requires an immutable digest
+and repetition of the bounded/full-corpus proof. The fresh B-7 controls do not
+prove the absolute under-30 full-corpus target. Reference remote full-corpus
+proof remains required before that target or final merge readiness is claimed.
 
 Refs #5122, #4207, orneryd/NornicDB#261.

@@ -5,7 +5,8 @@ stabilization is implemented in Compose, Helm, runtime contract tests, and
 operator docs. The curated search projection remains design- and
 benchmark-gated before any public API, MCP, schema, or graph-write change.
 
-Phase-1 stabilization status: Compose and Helm now pin NornicDB `v1.1.11` and
+Phase-1 stabilization status: Helm pins NornicDB `v1.1.11`; Compose temporarily
+pins the exact orneryd/NornicDB#261 source commit, and both runtime paths
 set the canonical graph lane to graph-only startup controls. Runtime contract
 tests enforce the graph-only NornicDB controls in Compose, Helm, and the public
 environment reference.
@@ -51,7 +52,8 @@ For NornicDB deployments, the canonical graph lane should not build BM25 or
 vector indexes over every graph node and property unless a specific proof says
 that deployment also serves a curated Eshu search lane from the same database.
 
-Eshu pins NornicDB `v1.1.11` for Compose graph startup. The per-database
+Eshu temporarily pins the exact orneryd/NornicDB#261 source commit for Compose
+graph startup. Helm remains on NornicDB `v1.1.11`. The per-database
 BM25/vector enable and warming controls Eshu depends on shipped in v1.1.2
 ([orneryd/NornicDB#177](https://github.com/orneryd/NornicDB/pull/177)) and are
 preserved in later releases; v1.1.11 is the latest published multi-arch Docker Hub
@@ -319,7 +321,8 @@ one shadow-read and shadow-write comparison.
 
 No-Regression Evidence: the phase-1 stabilization is a graph backend runtime
 contract change, not a fact, reducer, Cypher, schema, OpenAPI, MCP, or query
-truth change. Compose and Helm now pin NornicDB `v1.1.11`, disable BM25/vector
+truth change. Helm pins NornicDB `v1.1.11`, while Compose temporarily pins the
+exact orneryd/NornicDB#261 source commit; both disable BM25/vector
 search and embedding generation for the canonical graph lane, leave BM25/vector
 warming lazy for deliberate proof runs, and disable search-index persistence.
 Runtime package tests enforce those defaults and the public environment
