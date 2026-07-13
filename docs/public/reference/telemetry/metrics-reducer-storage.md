@@ -95,6 +95,7 @@ without repository paths, resource identifiers, or generation ids.
 | `eshu_dp_shared_edge_write_groups_total` | counter | Shared edge write group volume. |
 | `eshu_dp_shared_edge_write_group_duration_seconds` | histogram | Shared edge write group latency. |
 | `eshu_dp_shared_edge_write_group_statement_count` | histogram | Statements per shared edge write group. |
+| `eshu_dp_shared_edge_runs_on_retract_omissions_total` | counter | Impossible `RUNS_ON` retract roles omitted by bounded `domain` and `reason`; use the structured omission log for source and repository context. |
 | `eshu_dp_code_call_edge_batches_total` | counter | Isolated code-call edge batch volume. |
 | `eshu_dp_code_call_edge_batch_duration_seconds` | histogram | Isolated code-call edge batch latency. |
 
