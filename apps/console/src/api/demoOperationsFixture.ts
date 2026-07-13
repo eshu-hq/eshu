@@ -72,6 +72,34 @@ function demoActivityWire(
   };
 }
 
+// demoDomainBacklogWire mirrors go/internal/query/aws_materialization_status.go's
+// domainBacklogToMap wire shape (issue #5172). pending is derived the same
+// way the backend's pendingDomainWork helper computes it (outstanding minus
+// in-flight minus retrying, floored at zero) so the fixture stays internally
+// consistent with the real read model rather than picking an unrelated
+// number.
+function demoDomainBacklogWire(
+  domain: string,
+  outstanding: number,
+  inFlight: number,
+  retrying: number,
+  deadLetter: number,
+  failed: number,
+  oldestAgeSeconds: number,
+): Record<string, unknown> {
+  return {
+    domain,
+    outstanding,
+    pending: Math.max(0, outstanding - inFlight - retrying),
+    in_flight: inFlight,
+    blocked: 0,
+    retrying,
+    dead_letter: deadLetter,
+    failed,
+    oldest_age: oldestAgeSeconds,
+  };
+}
+
 export function operationsBoardWire(): Record<string, unknown> {
   const now = Date.now();
   const minutesAgo = (minutes: number): string => new Date(now - minutes * 60_000).toISOString();
@@ -115,6 +143,19 @@ export function operationsBoardWire(): Record<string, unknown> {
       failed: 0,
       overdue_claims: 0,
     },
+    // domain_backlogs (#5172 cold-review P2-2): kept coherent with the
+    // live_activity rows below and the queue totals above rather than a
+    // separate, contradictory picture -- checkout-service carries the
+    // in-flight running row (wi-demo-1), the stale retrying row (wi-demo-3,
+    // oldest_age matches its age_seconds), and the queue's one dead-letter
+    // item; payments-api carries the claimed row (wi-demo-2). Outstanding
+    // sums to 16, matching queue.outstanding, and dead_letter sums to 1,
+    // matching queue.dead_letter, so a demo session never shows a busy board
+    // next to an empty "Top domain backlogs" panel.
+    domain_backlogs: [
+      demoDomainBacklogWire("repository:checkout-service", 10, 1, 1, 1, 0, 360),
+      demoDomainBacklogWire("repository:payments-api", 6, 1, 0, 0, 0, 30),
+    ],
     live_activity: [
       demoActivityWire(
         "wi-demo-1",

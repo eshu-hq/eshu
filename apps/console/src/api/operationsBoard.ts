@@ -85,6 +85,24 @@ export interface OperationsActivityRow {
   readonly generationState: "active" | "stale";
 }
 
+// OperationsDomainBacklog is one row of the server's already-sorted,
+// already-bounded top-N reducer/projection domain backlog list (issue
+// #5172): go/internal/status's topDomainBacklogs sorts by outstanding desc
+// (then oldest age desc) and caps to status.Options.DomainLimit before the
+// operations endpoint ever serializes it, so the adapter trusts wire order
+// rather than re-sorting or re-limiting client-side.
+export interface OperationsDomainBacklog {
+  readonly domain: string;
+  readonly outstanding: number;
+  readonly pending: number;
+  readonly inFlight: number;
+  readonly blocked: number;
+  readonly retrying: number;
+  readonly deadLetter: number;
+  readonly failed: number;
+  readonly oldestAgeSeconds: number;
+}
+
 export interface OperationsBoard {
   readonly asOf: string | null;
   readonly scoped: boolean;
@@ -92,6 +110,7 @@ export interface OperationsBoard {
   readonly collectors: readonly OperationsCollectorRow[];
   readonly stageSummaries: readonly OperationsStageSummary[];
   readonly queue: OperationsQueue;
+  readonly domainBacklogs: readonly OperationsDomainBacklog[];
   readonly liveActivity: readonly OperationsActivityRow[];
   readonly truncated: boolean;
   readonly limit: number;
@@ -130,6 +149,19 @@ interface CollectorRuntimeWire {
   readonly health?: string;
   readonly last_observed_at?: string | null;
 }
+// DomainBacklogWire mirrors go/internal/query/aws_materialization_status.go's
+// domainBacklogToMap (issue #5172).
+interface DomainBacklogWire {
+  readonly domain?: string;
+  readonly outstanding?: number;
+  readonly pending?: number;
+  readonly in_flight?: number;
+  readonly blocked?: number;
+  readonly retrying?: number;
+  readonly dead_letter?: number;
+  readonly failed?: number;
+  readonly oldest_age?: number;
+}
 interface LiveActivityWire {
   readonly work_item_id?: string;
   readonly stage?: string;
@@ -156,6 +188,7 @@ interface OperationsWire {
   readonly collectors?: readonly CollectorRuntimeWire[];
   readonly stage_summaries?: readonly StageSummaryWire[];
   readonly queue?: QueueWire;
+  readonly domain_backlogs?: readonly DomainBacklogWire[];
   readonly live_activity?: readonly LiveActivityWire[];
   readonly truncated?: boolean;
   readonly limit?: number;
@@ -179,6 +212,7 @@ const unavailableBoard: OperationsBoard = {
     failed: 0,
     overdueClaims: 0,
   },
+  domainBacklogs: [],
   liveActivity: [],
   truncated: false,
   limit: 0,
@@ -209,6 +243,7 @@ export async function loadOperationsBoard(
     collectors: (wire.collectors ?? []).map((row) => collectorRowFromWire(row, now)),
     stageSummaries: (wire.stage_summaries ?? []).map(stageSummaryFromWire),
     queue: queueFromWire(wire.queue),
+    domainBacklogs: (wire.domain_backlogs ?? []).map(domainBacklogFromWire),
     liveActivity: (wire.live_activity ?? []).map(activityRowFromWire),
     truncated: wire.truncated === true,
     limit: finite(wire.limit),
@@ -251,6 +286,21 @@ function queueFromWire(queue: QueueWire | undefined): OperationsQueue {
     deadLetter: finite(queue?.dead_letter),
     failed: finite(queue?.failed),
     overdueClaims: finite(queue?.overdue_claims),
+  };
+}
+
+function domainBacklogFromWire(row: DomainBacklogWire): OperationsDomainBacklog {
+  return {
+    domain: clean(row.domain) || "—",
+    outstanding: finite(row.outstanding),
+    pending: finite(row.pending),
+    inFlight: finite(row.in_flight),
+    blocked: finite(row.blocked),
+    retrying: finite(row.retrying),
+    deadLetter: finite(row.dead_letter),
+    failed: finite(row.failed),
+    oldestAgeSeconds:
+      typeof row.oldest_age === "number" && Number.isFinite(row.oldest_age) ? row.oldest_age : 0,
   };
 }
 

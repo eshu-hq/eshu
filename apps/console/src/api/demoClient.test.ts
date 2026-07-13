@@ -104,6 +104,45 @@ describe("demoClient", () => {
     ]);
   });
 
+  // domain_backlogs (#5172 cold-review P2-2): the demo fixture's queue and
+  // live_activity already show a busy board (outstanding=16, a running row,
+  // a claimed row, a stale retrying row, one dead-lettered item). Before this
+  // fix domain_backlogs was absent, so the "Top domain backlogs" panel
+  // rendered its empty "pipeline idle" state right next to that visibly busy
+  // board -- a false-idle read. These rows must stay coherent with that
+  // picture, not just present.
+  it("serves domain_backlogs rows coherent with the live_activity/queue picture (issue #5172)", async () => {
+    const client = createDemoApiClient();
+
+    const env = await client.get<Record<string, unknown>>("/api/v0/status/operations?limit=25");
+
+    expect(env.error).toBeNull();
+    const rows = env.data?.domain_backlogs as readonly Record<string, unknown>[];
+    expect(Array.isArray(rows)).toBe(true);
+    expect(rows.length).toBeGreaterThan(0);
+    // Same two repository domains the live_activity fixture uses -- not an
+    // unrelated demo-only domain -- and server-sorted outstanding desc.
+    expect(rows.map((row) => row.domain)).toEqual([
+      "repository:checkout-service",
+      "repository:payments-api",
+    ]);
+    // outstanding sums to the queue's outstanding total, and dead_letter
+    // sums to the queue's dead_letter total, so the panel and the rest of
+    // the board never disagree about how much work is backlogged.
+    const queue = env.data?.queue as Record<string, number>;
+    const outstandingSum = rows.reduce((sum, row) => sum + (row.outstanding as number), 0);
+    const deadLetterSum = rows.reduce((sum, row) => sum + (row.dead_letter as number), 0);
+    expect(outstandingSum).toBe(queue.outstanding);
+    expect(deadLetterSum).toBe(queue.dead_letter);
+    // checkout-service is the domain carrying the dead-lettered item and the
+    // oldest outstanding age (its stale retrying row, wi-demo-3).
+    expect(rows[0]).toMatchObject({
+      domain: "repository:checkout-service",
+      dead_letter: 1,
+      oldest_age: 360,
+    });
+  });
+
   it("serves a wire-shaped current freshness fixture for checkout-service (issue #5143)", async () => {
     const client = createDemoApiClient();
 

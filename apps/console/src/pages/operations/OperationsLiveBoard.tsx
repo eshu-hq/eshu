@@ -21,6 +21,7 @@ import {
   type OperationsBoard,
   type OperationsCollectorRow,
   type OperationsActivityRow,
+  type OperationsDomainBacklog,
   type OperationsHealthState,
   type OperationsStageSummary,
 } from "../../api/operationsBoard";
@@ -141,6 +142,7 @@ export function OperationsLiveBoard({
             />
           </div>
           <CollectorHeartbeatTable rows={board.collectors} />
+          <DomainBacklogTable rows={board.domainBacklogs} />
           <LiveActivityTable board={board} />
           <p className="ops-board-footer t-mut">
             Last updated <span className="mono">{board.asOf ?? "—"}</span>
@@ -220,6 +222,74 @@ function CollectorHeartbeatTable({
                   <td>
                     <FreshDot state={row.freshness} />
                   </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </Panel>
+  );
+}
+
+// DomainBacklogTable (issue #5172) renders the server's already-sorted,
+// already-bounded top-N reducer/projection domain backlog list. It is a
+// compact aggregate view -- distinct from the health banner (which only
+// narrates a single dominant domain, and only while a specific stalled/
+// progressing condition holds) and from "Now processing" below (a per-item
+// list of in-flight work only, with no per-domain pending/outstanding
+// rollup).
+//
+// Includes Dead-letter and Failed columns (#5172 cold-review P2-3): the
+// backend's domainBacklogQuery keeps a row whose only pressure is dead-letter
+// or failed counts even when outstanding/pending/in_flight have all drained
+// to zero, and the adapter already parses those fields. Dropping the columns
+// would render such a row as all-zero and indistinguishable from "no
+// pressure", hiding exactly the work that needs a replay. Surfacing them is
+// the operator-honest choice over filtering the row out.
+function DomainBacklogTable({
+  rows,
+}: {
+  readonly rows: readonly OperationsDomainBacklog[];
+}): React.JSX.Element {
+  return (
+    <Panel
+      className="flush mt"
+      title="Top domain backlogs"
+      sub={`${rows.length} domain${rows.length === 1 ? "" : "s"}`}
+    >
+      {rows.length === 0 ? (
+        <p className="empty">No outstanding domain backlog — pipeline idle</p>
+      ) : (
+        <div className="table-scroll">
+          <table className="tbl wide ops-domain-backlog-table">
+            <thead>
+              <tr>
+                <th>Domain</th>
+                <th className="num">Outstanding</th>
+                <th className="num">Pending</th>
+                <th className="num">In flight</th>
+                <th className="num">Dead-letter</th>
+                <th className="num">Failed</th>
+                <th>Oldest</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row, i) => (
+                // Composite key (#5172 cold-review P2-1): `domain` alone can
+                // collide -- an empty/unparseable wire domain cleans to the
+                // same "—" fallback on more than one row -- so every row key
+                // includes its position in the server's already-deduplicated
+                // order, not only the fallback rows, for one consistent
+                // keying rule instead of a conditional one.
+                <tr key={`${row.domain}-${i}`}>
+                  <td className="mono">{row.domain}</td>
+                  <td className="num mono">{fmt(row.outstanding)}</td>
+                  <td className="num mono">{fmt(row.pending)}</td>
+                  <td className="num mono">{fmt(row.inFlight)}</td>
+                  <td className="num mono">{fmt(row.deadLetter)}</td>
+                  <td className="num mono">{fmt(row.failed)}</td>
+                  <td className="mono">{humanizeAge(row.oldestAgeSeconds)}</td>
                 </tr>
               ))}
             </tbody>

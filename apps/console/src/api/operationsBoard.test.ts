@@ -256,6 +256,114 @@ describe("loadOperationsBoard", () => {
   });
 });
 
+// domain_backlogs (#5172): the operations board never rendered this
+// already-fetched wire field. These tests cover the adapter half of the
+// render decision -- the board component tests in OperationsPage.test.tsx
+// cover the rendered empty/populated panel.
+describe("loadOperationsBoard domain_backlogs (#5172)", () => {
+  it("maps domain_backlogs rows from the wire shape, trusting the server's top-N sort/limit", async () => {
+    const client = mockClient({
+      data: {
+        ...wirePayload,
+        domain_backlogs: [
+          {
+            domain: "repository:checkout-service",
+            outstanding: 12,
+            pending: 9,
+            in_flight: 3,
+            blocked: 0,
+            retrying: 1,
+            dead_letter: 0,
+            failed: 0,
+            oldest_age: 305,
+          },
+          {
+            domain: "package_registry:npm",
+            outstanding: 4,
+            pending: 4,
+            in_flight: 0,
+            blocked: 0,
+            retrying: 0,
+            dead_letter: 0,
+            failed: 0,
+            oldest_age: 40,
+          },
+        ],
+      },
+    });
+    const board = await loadOperationsBoard(client);
+    expect(board.domainBacklogs).toEqual([
+      {
+        domain: "repository:checkout-service",
+        outstanding: 12,
+        pending: 9,
+        inFlight: 3,
+        blocked: 0,
+        retrying: 1,
+        deadLetter: 0,
+        failed: 0,
+        oldestAgeSeconds: 305,
+      },
+      {
+        domain: "package_registry:npm",
+        outstanding: 4,
+        pending: 4,
+        inFlight: 0,
+        blocked: 0,
+        retrying: 0,
+        deadLetter: 0,
+        failed: 0,
+        oldestAgeSeconds: 40,
+      },
+    ]);
+  });
+
+  // #5172 cold-review P2-3: the backend keeps a domain row whose only
+  // pressure is dead-lettered/failed work even after outstanding, pending,
+  // and in_flight have all drained to zero (domainBacklogQuery). The adapter
+  // must still map deadLetter/failed through rather than losing them.
+  it("maps a terminal-only row's dead_letter and failed counts even when outstanding/pending/in_flight are zero", async () => {
+    const client = mockClient({
+      data: {
+        ...wirePayload,
+        domain_backlogs: [
+          {
+            domain: "repository:legacy-importer",
+            outstanding: 0,
+            pending: 0,
+            in_flight: 0,
+            blocked: 0,
+            retrying: 0,
+            dead_letter: 3,
+            failed: 2,
+            oldest_age: 5400,
+          },
+        ],
+      },
+    });
+    const board = await loadOperationsBoard(client);
+    expect(board.domainBacklogs).toEqual([
+      {
+        domain: "repository:legacy-importer",
+        outstanding: 0,
+        pending: 0,
+        inFlight: 0,
+        blocked: 0,
+        retrying: 0,
+        deadLetter: 3,
+        failed: 2,
+        oldestAgeSeconds: 5400,
+      },
+    ]);
+  });
+
+  it("defaults to an empty array when domain_backlogs is absent from the wire (backward compat)", async () => {
+    const client = mockClient({ data: wirePayload });
+    const board = await loadOperationsBoard(client);
+    expect(board.domainBacklogs).toEqual([]);
+  });
+});
+
 describe("humanizeAge", () => {
   it("renders seconds, minutes, hours, and days compactly", () => {
     expect(humanizeAge(40)).toBe("40s");
