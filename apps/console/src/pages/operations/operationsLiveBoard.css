@@ -17,7 +17,9 @@
 .ops-activity-table td.num,
 .ops-activity-table th.num,
 .ops-collector-table td.num,
-.ops-collector-table th.num {
+.ops-collector-table th.num,
+.ops-domain-backlog-table td.num,
+.ops-domain-backlog-table th.num {
   text-align: right;
 }
 

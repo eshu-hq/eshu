@@ -219,6 +219,21 @@ describe("OperationsPage live operations board", () => {
     };
   }
 
+  function domainBacklogRow(overrides: Record<string, unknown> = {}): unknown {
+    return {
+      domain: "repository:checkout-service",
+      outstanding: 12,
+      pending: 9,
+      in_flight: 3,
+      blocked: 0,
+      retrying: 1,
+      dead_letter: 0,
+      failed: 0,
+      oldest_age: 305,
+      ...overrides,
+    };
+  }
+
   function opsClient(responses: readonly unknown[]): EshuApiClient {
     let call = 0;
     return {
@@ -384,6 +399,50 @@ describe("OperationsPage live operations board", () => {
 
     expect(
       await screen.findByText("No in-flight work — pipeline idle", {}, suspenseCrossingTimeout),
+    ).toBeInTheDocument();
+  });
+
+  // domain_backlogs (#5172): the wire field was already fetched into the
+  // status/operations response but never rendered. These two tests cover the
+  // populated and empty states of the resulting "Top domain backlogs" panel.
+  it("renders the top domain backlogs panel with the server's top-N sorted rows", async () => {
+    const client = opsClient([
+      operationsWire({
+        domain_backlogs: [
+          domainBacklogRow(),
+          domainBacklogRow({
+            domain: "package_registry:npm",
+            outstanding: 4,
+            pending: 4,
+            in_flight: 0,
+            oldest_age: 40,
+          }),
+        ],
+      }),
+    ]);
+    render(<OperationsPage model={demoModel} client={client} pollMs={50000} />, {
+      wrapper: MemoryRouter,
+    });
+
+    expect(
+      await screen.findByText("repository:checkout-service", {}, suspenseCrossingTimeout),
+    ).toBeInTheDocument();
+    expect(screen.getByText("package_registry:npm")).toBeInTheDocument();
+    expect(screen.getByText("Top domain backlogs")).toBeInTheDocument();
+  });
+
+  it("shows the explicit empty state when there is no outstanding domain backlog", async () => {
+    const client = opsClient([operationsWire()]);
+    render(<OperationsPage model={demoModel} client={client} pollMs={50000} />, {
+      wrapper: MemoryRouter,
+    });
+
+    expect(
+      await screen.findByText(
+        "No outstanding domain backlog — pipeline idle",
+        {},
+        suspenseCrossingTimeout,
+      ),
     ).toBeInTheDocument();
   });
 
