@@ -18,14 +18,29 @@ func TestNornicDBComposeDefaultPinsPR261ExactSourceCommit(t *testing.T) {
 	}
 
 	for _, want := range []string{
-		"image: eshu-nornicdb-pr261:149245885258",
-		"pull_policy: never",
+		"image: ${NORNICDB_IMAGE:-eshu-nornicdb-pr261:149245885258}",
+		"pull_policy: ${NORNICDB_PULL_POLICY:-build}",
 		"context: https://github.com/orneryd/NornicDB.git#1492458852588c884c32f70d27ea2ee07086769c",
 		"dockerfile: docker/Dockerfile.cpu-bge",
 		"org.opencontainers.image.revision: 1492458852588c884c32f70d27ea2ee07086769c",
 	} {
 		if !strings.Contains(content, want) {
 			t.Fatalf("docker-compose.yaml missing temporary exact NornicDB PR #261 pin %q", want)
+		}
+	}
+}
+
+func TestNornicDBComposeDocumentsImageAndPullPolicyOverrides(t *testing.T) {
+	t.Parallel()
+
+	docs := readRepositoryFile(t, "../../..", "docs/public/run-locally/docker-compose.md")
+	for _, want := range []string{
+		"NORNICDB_IMAGE",
+		"NORNICDB_PULL_POLICY",
+		"pull policy `build`",
+	} {
+		if !strings.Contains(docs, want) {
+			t.Fatalf("docker compose docs missing exact-source override guidance %q", want)
 		}
 	}
 }

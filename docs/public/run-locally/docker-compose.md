@@ -175,14 +175,22 @@ Until further notice, the default Compose NornicDB service builds orneryd/
 NornicDB#261 from full source commit
 `1492458852588c884c32f70d27ea2ee07086769c`. Compose tags the local image
 `eshu-nornicdb-pr261:149245885258`, records the full revision as an OCI image
-label, and sets `pull_policy: never`. This makes the proven same-UID commit-lock
-fix the normal local path without publishing a temporary registry image.
+label, and uses the default pull policy `build`. This makes a clean machine
+build the proven same-UID commit-lock fix instead of trying to pull the local
+tag from a registry.
+
+Controlled backend comparisons retain the existing override contract. Set
+`NORNICDB_IMAGE` and `NORNICDB_PULL_POLICY` together: use `always` for an
+immutable published image, `never` for a prebuilt local tag, or `build` to build
+the exact source below under a different local tag. Leaving both unset uses the
+exact PR #261 source pin.
 
 Leave `NORNICDB_PLATFORM` unset for normal local runs so the build uses the host
 architecture.
 
-Build the pinned backend once, build the Eshu services from the current branch,
-then start the stack without rebuilding either image:
+Normal `docker compose up --build` builds the pinned backend and Eshu services.
+To cache the backend first, build the stack once and then start without
+rebuilding either image:
 
 ```bash
 docker compose build

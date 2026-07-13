@@ -3,10 +3,11 @@ services:
     # Temporary exact-source default for the same-UID UNIQUE commit-lock fix in
     # orneryd/NornicDB#261. Keep this full commit pin until a released image
     # containing the fix is pinned by digest and the Eshu performance/correctness
-    # proof is repeated on that artifact. pull_policy=never prevents this local
-    # proof tag from resolving to registry content with a different revision.
-    image: eshu-nornicdb-pr261:149245885258
-    pull_policy: never
+    # proof is repeated on that artifact. The default build policy makes clean
+    # machines build this exact source. Controlled comparisons may set both
+    # NORNICDB_IMAGE and NORNICDB_PULL_POLICY explicitly.
+    image: ${NORNICDB_IMAGE:-eshu-nornicdb-pr261:149245885258}
+    pull_policy: ${NORNICDB_PULL_POLICY:-build}
     build:
       context: https://github.com/orneryd/NornicDB.git#1492458852588c884c32f70d27ea2ee07086769c
       dockerfile: docker/Dockerfile.cpu-bge

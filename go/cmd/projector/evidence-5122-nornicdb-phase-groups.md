@@ -21,22 +21,26 @@ reduction, batch-size-one fallback, or whole-route serialization is introduced.
 - Eshu old route: commit
   `340045d8f3f23dc2e87a91ff30ed537ee7026f7a`, binary SHA-256
   `ace6c12f926c1b96f58c63781706cb81eaafe60013e739a0430a5f5825c64b67`.
-- Eshu measured candidate code commit
-  `6aa32cba1517c4015740b3d54400dc08c43cad57`, binary SHA-256
+- Eshu measured candidate code commit before the final base rebase:
+  `6aa32cba1517c4015740b3d54400dc08c43cad57` (rebased equivalent
+  `fe5239e5cdb13dd377662991a22db525f77d1ff3`), binary SHA-256
   `b6510d21fe7efab12e58ac7f0491924c74fe9d508f590aca63398d1e2e0500b1`.
 - After the measured candidate, production Go commit
-  `92b62e930374e64e8a2eb7fc353930a64f8f1603` adds the drain-timeout retry
+  `92b62e930374e64e8a2eb7fc353930a64f8f1603` (rebased equivalent
+  `033069ec421432b828e9b83dbe2f97252ace0e03`) adds the drain-timeout retry
   classification and its focused tests. The only production Go delta changes
   the error returned after a drain timeout; successful phase execution does
   not enter that branch, so the measured candidate timing remains
   representative. Commit `4ff7ba3ec173700e3f0282cbca318f51bd85dbfe`
+  (rebased equivalent `f5e6b34aca90d928754d603f9f246f246c9c5539`)
   then adds the exact-source Compose validation, a file-content regression
   test, docs, and evidence. Final-head focused writer and queue lifecycle tests
   prove the timeout still reaches `projection_retryable`.
 - Representative retained-scope NornicDB: v1.1.11 plus the exact-key
-  transaction-lock patch from public PR orneryd/NornicDB#261. That patch is a
-  rollout dependency until it is merged, tagged, pinned by Eshu, and the
-  retained proof is rerun on the immutable production artifact.
+  transaction-lock patch from public PR orneryd/NornicDB#261. Default Compose
+  temporarily carries the exact proven source commit. An upstream release is
+  required only before replacing that source pin or making a Helm-wide rollout
+  claim, not before merging this bounded Compose/projector change.
 - Correctness oracle: `neo4j:2026-community`, image digest
   `sha256:6c162e2432f861f2c4e3da77a6ba478e7f10e2160b870541f85294532bc6ff5f`.
 - Same local machine, process resource envelope, copied Postgres facts, and
@@ -98,17 +102,20 @@ queue regressions prove the error reaches the existing `projection_retryable`
 lifecycle path instead of terminal-failing attempt one.
 
 The final B-7 controls used fresh Compose projects and volumes. The commands
-differed only in isolated project/port values and `NORNICDB_IMAGE`:
+differed only in isolated project/port values, `NORNICDB_IMAGE`, and its matching
+pull policy:
 
 ```bash
 /usr/bin/time -p env COMPOSE_PROJECT_NAME=eshu5122goldenstockfresh \
 NORNICDB_IMAGE='timothyswt/nornicdb-cpu-bge:v1.1.11@sha256:51b6174ae65e4ce54a158ac2f9eace7d36a1971545824d22add0fe06d94c1090' \
+NORNICDB_PULL_POLICY=always \
 ESHU_POSTGRES_PORT=25232 NEO4J_HTTP_PORT=27274 NEO4J_BOLT_PORT=27287 \
 GATE_API_PORT=28280 GATE_MCP_PORT=28291 \
 bash scripts/verify-golden-corpus-gate.sh --keep
 
 /usr/bin/time -p env COMPOSE_PROJECT_NAME=eshu5122goldenpatched \
 NORNICDB_IMAGE='nornicdb:5122-exact-lock-local' \
+NORNICDB_PULL_POLICY=never \
 ESHU_POSTGRES_PORT=25332 NEO4J_HTTP_PORT=27374 NEO4J_BOLT_PORT=27387 \
 GATE_API_PORT=28380 GATE_MCP_PORT=28391 \
 bash scripts/verify-golden-corpus-gate.sh --keep
@@ -118,7 +125,8 @@ Continued validation also built orneryd/NornicDB#261 directly from its full
 source commit through the default `docker-compose.yaml`. The built image
 reported OCI revision `1492458852588c884c32f70d27ea2ee07086769c`; Compose
 resolved the same full source commit, `docker/Dockerfile.cpu-bge`, local tag,
-and `pull_policy: never`. A fresh isolated B-7 run used that cached image:
+and the default `pull_policy: build`. A fresh isolated B-7 run used that cached
+image after the explicit build:
 
 ```bash
 docker compose -f docker-compose.yaml build nornicdb
@@ -370,6 +378,7 @@ exact source revision used by the successful proof. A future released image is
 not assumed equivalent; replacing the source pin requires an immutable digest
 and repetition of the bounded/full-corpus proof. The fresh B-7 controls do not
 prove the absolute under-30 full-corpus target. Reference remote full-corpus
-proof remains required before that target or final merge readiness is claimed.
+proof remains required before claiming that target or closing the wider #4207
+route; it is not a blocker for this bounded Compose/projector PR.
 
 Refs #5122, #4207, orneryd/NornicDB#261.
