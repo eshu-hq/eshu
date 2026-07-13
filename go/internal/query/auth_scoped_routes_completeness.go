@@ -21,36 +21,59 @@ package query
 // it; only a PR review caught it.
 //
 // The *actual* source of truth for "advertised" is not this ledger: it is
-// the "x-scoped-token-support": true marker declared in each route's own
-// openapi_paths_*.go operation entry (see openAPIScopedTokenSupportRoutes in
-// auth_scoped_routes_completeness_test.go), the same JSON object as the
-// route's prose "Scoped tokens receive ..." description. A cold-review
-// pass that compared only this ledger against scopedHTTPRouteSupportsTenantFilter
-// would have missed the verbatim #5150 recurrence: a route that advertises
-// scoped support in prose while never gaining a ledger entry, a matcher, or
-// the marker would pass a ledger-only gate silently. This ledger is instead
-// a secondary, human-curated cross-check kept in lockstep with the marker
-// (an editorial "yes, this route is meant to be scoped" declaration, the
-// same way latestGenerationCTEQueries -- go/internal/storage/postgres/ingestion_latest_generation_cte_test.go --
+// one of two mutually exclusive OpenAPI markers declared in each route's own
+// openapi_paths_*.go operation entry, the same JSON object as the route's
+// prose "Scoped tokens receive ..." description --
+// "x-scoped-token-support": true for a route a scoped BEARER TOKEN actually
+// works against, or "x-browser-session-only": true for a route that clears
+// scopedHTTPRouteSupportsTenantFilter but whose handler hard-requires an
+// actual browser-session cookie and rejects any bearer token (see
+// openAPIScopedTokenSupportRoutes and openAPIBrowserSessionOnlyRoutes in
+// auth_scoped_routes_completeness_test.go for both markers' full contracts,
+// including the codex PR #5185 review finding that motivated the split: the
+// browser-session-identity routes -- GET/DELETE /api/v0/auth/browser-session,
+// PATCH /api/v0/auth/browser-session/context, GET /api/v0/auth/sessions --
+// originally all carried the token-support marker even though their
+// handlers reject a scoped bearer, which would have lied to OpenAPI
+// consumers and to this gate). A cold-review pass that compared only this
+// ledger against scopedHTTPRouteSupportsTenantFilter would have missed the
+// verbatim #5150 recurrence: a route that advertises scoped support in
+// prose while never gaining a ledger entry, a matcher, or a marker would
+// pass a ledger-only gate silently. This ledger is instead a secondary,
+// human-curated cross-check kept in lockstep with the marker union (an
+// editorial "yes, this route is meant to be tenant-scoped, one way or the
+// other" declaration, the same way latestGenerationCTEQueries --
+// go/internal/storage/postgres/ingestion_latest_generation_cte_test.go --
 // hand-lists every production query that must satisfy a property rather
 // than grepping for one).
 //
 // TestScopedTokenAllowlistCompleteness (auth_scoped_routes_completeness_test.go)
-// fails when the OpenAPI marker and scopedHTTPRouteSupportsTenantFilter
-// disagree in either direction, and separately when the marker and this
-// ledger disagree in either direction. TestScopedTokenAdvertisedRoutesReachHandlerThroughRealAuthMiddleware
-// sources its route set from the marker (not this ledger) and proves every
-// one of those routes actually clears a real AuthMiddlewareWithScopedTokens
-// round trip, rather than relying on a per-route bare-mux handler test (the
-// #5150 false-green pattern for that specific failure shape) or a
-// hand-authored regression test someone forgot to add.
+// fails when a route carries both markers at once, when the marker union
+// and scopedHTTPRouteSupportsTenantFilter disagree in either direction, and
+// separately when the marker union and this ledger disagree in either
+// direction. TestScopedTokenAdvertisedRoutesReachHandlerThroughRealAuthMiddleware
+// sources its route set from the "x-scoped-token-support" marker only (not
+// this ledger) and proves every one of those routes actually clears a real
+// AuthMiddlewareWithScopedTokens round trip under a scoped bearer token,
+// rather than relying on a per-route bare-mux handler test (the #5150
+// false-green pattern for that specific failure shape) or a hand-authored
+// regression test someone forgot to add.
+// TestScopedBearerTokenRejectedByBrowserSessionOnlyRoutes is its inverse for
+// "x-browser-session-only" routes: it mounts the real production handler
+// (not a stub) and proves a scoped bearer token never gets a 2xx.
 //
 // To add a new scoped route: wire its matcher into
-// scopedHTTPRouteSupportsTenantFilter, add "x-scoped-token-support": true to
-// its operation entry in the relevant openapi_paths_*.go file, and add its
-// "METHOD /path" surface name here. Missing any one of the three fails
-// TestScopedTokenAllowlistCompleteness. Removing a route without deleting
-// its entry here fails the same test's staleness check.
+// scopedHTTPRouteSupportsTenantFilter, add the marker that matches the
+// handler's actual auth.Mode requirement ("x-scoped-token-support": true if
+// a scoped bearer token works, "x-browser-session-only": true if the
+// handler requires an actual browser-session cookie) to its operation entry
+// in the relevant openapi_paths_*.go file, and add its "METHOD /path"
+// surface name here. Missing any one of the three, or picking the wrong
+// marker for the handler's real auth.Mode requirement, fails
+// TestScopedTokenAllowlistCompleteness, TestScopedTokenAdvertisedRoutesReachHandlerThroughRealAuthMiddleware,
+// or TestScopedBearerTokenRejectedByBrowserSessionOnlyRoutes. Removing a
+// route without deleting its entry here fails the completeness test's
+// staleness check.
 var scopedTokenAdvertisedRoutes = map[string]struct{}{
 	"DELETE /api/v0/auth/admin/idp-group-mappings/{mapping_ref}":                    {},
 	"DELETE /api/v0/auth/browser-session":                                           {},

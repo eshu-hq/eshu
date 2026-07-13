@@ -45,20 +45,16 @@ func implementedAPIRouteSurfaces(t *testing.T) []string {
 	return names
 }
 
-// openAPIScopedTokenSupportRoutes parses the served OpenAPI spec
-// (OpenAPISpec()) and returns the "METHOD /path" surface name for every
-// operation carrying the "x-scoped-token-support": true marker declared
-// directly in its openapi_paths_*.go source (see, e.g., the "get" operation
-// in openapi_paths_repositories_freshness.go). This -- not the hand-maintained
-// scopedTokenAdvertisedRoutes ledger -- is the #5154 gate's actual "advertised"
-// signal: the marker sits in the same JSON operation object as the prose
-// "Scoped tokens receive ..." description a contributor writes, so declaring
-// scoped support in the description without adding the paired marker is a
-// same-file, same-diff-hunk omission a reviewer can catch, not a fact that
-// only lives in a separately hand-typed Go map that can drift unnoticed. A
-// route whose description merely says "scoped" without this marker is, by
-// design, NOT counted as advertised: prose is not proof.
-func openAPIScopedTokenSupportRoutes(t *testing.T) map[string]struct{} {
+// openAPIBoolMarkerRoutes parses the served OpenAPI spec (OpenAPISpec()) and
+// returns the "METHOD /path" surface name for every operation carrying
+// markerKey: true. Both #5154 tenant-scope markers
+// (openAPIScopedTokenSupportRoutes, openAPIBrowserSessionOnlyRoutes) share
+// this walk; only the marker key differs. Each operation is decoded into
+// map[string]json.RawMessage rather than map[string]bool: an operation
+// object's other fields (summary, parameters, responses, ...) are not
+// booleans, so only the one field named markerKey is decoded further, and
+// its absence is not an error -- most operations do not carry either marker.
+func openAPIBoolMarkerRoutes(t *testing.T, markerKey string) map[string]struct{} {
 	t.Helper()
 	var doc struct {
 		Paths map[string]map[string]json.RawMessage `json:"paths"`
@@ -72,18 +68,84 @@ func openAPIScopedTokenSupportRoutes(t *testing.T) map[string]struct{} {
 			if _, ok := httpOperationMethodNames[strings.ToLower(method)]; !ok {
 				continue
 			}
-			var op struct {
-				ScopedTokenSupport bool `json:"x-scoped-token-support"`
-			}
-			if err := json.Unmarshal(raw, &op); err != nil {
+			var fields map[string]json.RawMessage
+			if err := json.Unmarshal(raw, &fields); err != nil {
 				t.Fatalf("parse operation %s %s: %v", method, path, err)
 			}
-			if op.ScopedTokenSupport {
+			markerRaw, ok := fields[markerKey]
+			if !ok {
+				continue
+			}
+			var marked bool
+			if err := json.Unmarshal(markerRaw, &marked); err != nil {
+				t.Fatalf("parse marker %s on operation %s %s: %v", markerKey, method, path, err)
+			}
+			if marked {
 				routes[strings.ToUpper(method)+" "+path] = struct{}{}
 			}
 		}
 	}
 	return routes
+}
+
+// openAPIScopedTokenSupportRoutes returns the "METHOD /path" surface name for
+// every operation carrying the "x-scoped-token-support": true marker
+// declared directly in its openapi_paths_*.go source (see, e.g., the "get"
+// operation in openapi_paths_repositories_freshness.go). This -- not the
+// hand-maintained scopedTokenAdvertisedRoutes ledger -- is the #5154 gate's
+// actual "advertised" signal: the marker sits in the same JSON operation
+// object as the prose "Scoped tokens receive ..." description a contributor
+// writes, so declaring scoped support in the description without adding the
+// paired marker is a same-file, same-diff-hunk omission a reviewer can
+// catch, not a fact that only lives in a separately hand-typed Go map that
+// can drift unnoticed. A route whose description merely says "scoped"
+// without this marker is, by design, NOT counted as advertised: prose is not
+// proof.
+//
+// This marker asserts more than "scopedHTTPRouteSupportsTenantFilter admits
+// the request": it asserts a scoped BEARER token gets a working (non-403,
+// non-400-for-being-a-bearer-token) response from the handler. A route whose
+// handler requires an actual browser-session cookie despite clearing the
+// middleware allowlist (a scoped bearer is admitted, then rejected by the
+// handler itself) must use openAPIBrowserSessionOnlyRoutes's marker instead
+// -- see its doc comment for the codex PR #5185 review finding that
+// motivated the split.
+func openAPIScopedTokenSupportRoutes(t *testing.T) map[string]struct{} {
+	t.Helper()
+	return openAPIBoolMarkerRoutes(t, "x-scoped-token-support")
+}
+
+// openAPIBrowserSessionOnlyRoutes returns the "METHOD /path" surface name for
+// every operation carrying the "x-browser-session-only": true marker. These
+// routes clear scopedHTTPRouteSupportsTenantFilter (so a browser-session
+// cookie caller can reach them under the tenant-filter allowlist), but their
+// handler hard-requires AuthModeBrowserSession -- a real browser-session
+// cookie, not a scoped bearer token -- and rejects any other caller before
+// doing any tenant-scoped work: BrowserSessionHandler.handleCurrent/
+// handleLogout/handleSwitch (browser_session_handler.go) and
+// BrowserSessionListHandler.handleListSessions (browser_session_list.go)
+// each check auth.Mode == AuthModeBrowserSession (or the equivalent
+// requestUsesBrowserSession helper) and 400/401 otherwise.
+//
+// codex PR #5185 review (P2, valid): GET/DELETE /api/v0/auth/browser-session
+// and PATCH /api/v0/auth/browser-session/context originally carried
+// "x-scoped-token-support": true even though their handlers are cookie-only
+// -- a scoped bearer clears the allowlist and then fails in the handler, so
+// the marker lied to OpenAPI consumers and to TestScopedTokenAdvertisedRoutesReachHandlerThroughRealAuthMiddleware
+// would have (wrongly) asserted a 200. Auditing every other
+// "x-scoped-token-support" route for the same auth.Mode-exclusivity pattern
+// (grep for every auth.Mode ==/!= comparison in go/internal/query, excluding
+// AuthMiddleware's own gating logic in auth.go) found one more instance,
+// GET /api/v0/auth/sessions (BrowserSessionListHandler), which has the exact
+// same bug shape. All four routes were moved to this marker; every other
+// admin/all-scopes gate found in the same audit (admin_replay.go's
+// AllScopes-only replay gate, local_identity_handler_helpers.go's
+// requireSharedOperator, admin_identity_reads.go's auditScope) either gates
+// on privilege level rather than auth.Mode identity, or serves a route that
+// is not marked scoped-token-supported at all, so neither is a false claim.
+func openAPIBrowserSessionOnlyRoutes(t *testing.T) map[string]struct{} {
+	t.Helper()
+	return openAPIBoolMarkerRoutes(t, "x-browser-session-only")
 }
 
 // surfaceNameToRequest builds an *http.Request from a "METHOD /path" surface
@@ -103,14 +165,17 @@ func surfaceNameToRequest(t *testing.T, name string) *http.Request {
 }
 
 // TestScopedTokenAllowlistCompleteness is the #5154 CI gate. It anchors
-// "advertised scoped-token support" to the "x-scoped-token-support": true
-// OpenAPI marker (openAPIScopedTokenSupportRoutes) -- the structured,
-// machine-checkable fact issue #5154 requirement #1 demands -- and fails when
-// that marker disagrees in either direction with the derived behavior of
-// scopedHTTPRouteSupportsTenantFilter. It also cross-checks the
-// hand-maintained scopedTokenAdvertisedRoutes ledger (auth_scoped_routes_completeness.go)
-// against the same marker, so the ledger stays a reliable secondary audit
-// trail rather than an independent, driftable source of truth.
+// "advertised tenant-scope support" to the union of the two mutually
+// exclusive OpenAPI markers -- "x-scoped-token-support": true
+// (openAPIScopedTokenSupportRoutes) and "x-browser-session-only": true
+// (openAPIBrowserSessionOnlyRoutes) -- the structured, machine-checkable
+// facts issue #5154 requirement #1 demands, and fails when that union
+// disagrees in either direction with the derived behavior of
+// scopedHTTPRouteSupportsTenantFilter, or when a route carries both markers
+// at once. It also cross-checks the hand-maintained scopedTokenAdvertisedRoutes
+// ledger (auth_scoped_routes_completeness.go) against the same union, so the
+// ledger stays a reliable secondary audit trail rather than an independent,
+// driftable source of truth.
 //
 // The #5150 review retro P1 was exactly the marker-vs-wired direction below:
 // GET /api/v0/repositories/{repo_id}/freshness advertised scoped-token
@@ -122,29 +187,46 @@ func surfaceNameToRequest(t *testing.T, name string) *http.Request {
 // in prose -- never in the ledger, never wired -- would have passed a
 // ledger-only gate silently; anchoring to the marker instead means the
 // prose-adjacent structured fact is what the gate reads.
+//
+// This test only proves allowlist membership is honestly declared for
+// *some* form of tenant-scoped access. It does not by itself prove which
+// form (scoped bearer token vs browser-session cookie) actually works --
+// that is TestScopedTokenAdvertisedRoutesReachHandlerThroughRealAuthMiddleware's
+// job for "x-scoped-token-support" routes and
+// TestScopedBearerTokenRejectedByBrowserSessionOnlyRoutes's job (the inverse
+// assertion) for "x-browser-session-only" routes.
 func TestScopedTokenAllowlistCompleteness(t *testing.T) {
 	surfaces := implementedAPIRouteSurfaces(t)
 	surfaceSet := make(map[string]struct{}, len(surfaces))
-	advertised := openAPIScopedTokenSupportRoutes(t)
+	tokenAdvertised := openAPIScopedTokenSupportRoutes(t)
+	browserOnlyAdvertised := openAPIBrowserSessionOnlyRoutes(t)
+
+	for name := range tokenAdvertised {
+		if _, both := browserOnlyAdvertised[name]; both {
+			t.Errorf("%s: carries both \"x-scoped-token-support\": true and \"x-browser-session-only\": true -- exactly one tenant-scope marker must apply per route", name)
+		}
+	}
 
 	for _, name := range surfaces {
 		surfaceSet[name] = struct{}{}
 		req := surfaceNameToRequest(t, name)
 		wired := scopedHTTPRouteSupportsTenantFilter(req)
-		_, marked := advertised[name]
+		_, tokenMarked := tokenAdvertised[name]
+		_, browserOnlyMarked := browserOnlyAdvertised[name]
+		marked := tokenMarked || browserOnlyMarked
 		_, ledgered := scopedTokenAdvertisedRoutes[name]
 
 		switch {
 		case marked && !wired:
-			t.Errorf("%s: OpenAPI path entry carries \"x-scoped-token-support\": true, but scopedHTTPRouteSupportsTenantFilter(r) returns false -- wire a matcher for it (this is the #5150 P1 shape: an advertised-but-unwired route 403s every scoped/browser-session caller before the handler's own grant filtering runs)", name)
+			t.Errorf("%s: OpenAPI path entry carries a tenant-scope marker, but scopedHTTPRouteSupportsTenantFilter(r) returns false -- wire a matcher for it (this is the #5150 P1 shape: an advertised-but-unwired route 403s every scoped/browser-session caller before the handler's own grant filtering runs)", name)
 		case wired && !marked:
-			t.Errorf("%s: scopedHTTPRouteSupportsTenantFilter(r) returns true for this route, but its OpenAPI path entry has no \"x-scoped-token-support\": true marker -- add the marker next to the route's operation in its openapi_paths_*.go source so the served contract matches the wired behavior", name)
+			t.Errorf("%s: scopedHTTPRouteSupportsTenantFilter(r) returns true for this route, but its OpenAPI path entry has neither \"x-scoped-token-support\": true nor \"x-browser-session-only\": true -- add the marker that matches the handler's actual auth.Mode requirement next to the route's operation in its openapi_paths_*.go source so the served contract matches the wired behavior", name)
 		}
 		switch {
 		case marked && !ledgered:
-			t.Errorf("%s: OpenAPI path entry carries \"x-scoped-token-support\": true, but the route is missing from scopedTokenAdvertisedRoutes -- add it to the ledger (auth_scoped_routes_completeness.go)", name)
+			t.Errorf("%s: OpenAPI path entry carries a tenant-scope marker, but the route is missing from scopedTokenAdvertisedRoutes -- add it to the ledger (auth_scoped_routes_completeness.go)", name)
 		case ledgered && !marked:
-			t.Errorf("%s: scopedTokenAdvertisedRoutes declares this route scoped, but its OpenAPI path entry has no \"x-scoped-token-support\": true marker -- add the marker in its openapi_paths_*.go source, or remove the stale ledger entry", name)
+			t.Errorf("%s: scopedTokenAdvertisedRoutes declares this route scoped, but its OpenAPI path entry has neither tenant-scope marker -- add the marker that matches the handler's actual auth.Mode requirement in its openapi_paths_*.go source, or remove the stale ledger entry", name)
 		}
 	}
 
@@ -172,6 +254,12 @@ func TestScopedTokenAllowlistCompleteness(t *testing.T) {
 // alone -- that failure mode is covered separately by TestServeOpenAPI and
 // the surface-inventory drift gate, which both operate on the same served
 // OpenAPISpec() this test reads.
+//
+// This test deliberately does not cover "x-browser-session-only" routes: a
+// scoped bearer token is admitted past the middleware for those routes (by
+// design -- see openAPIBrowserSessionOnlyRoutes) but must NOT get a 2xx from
+// the handler. TestScopedBearerTokenRejectedByBrowserSessionOnlyRoutes
+// proves that inverse.
 func TestScopedTokenAdvertisedRoutesReachHandlerThroughRealAuthMiddleware(t *testing.T) {
 	advertised := openAPIScopedTokenSupportRoutes(t)
 	names := make([]string, 0, len(advertised))
@@ -209,6 +297,62 @@ func TestScopedTokenAdvertisedRoutesReachHandlerThroughRealAuthMiddleware(t *tes
 			}
 			if got, want := rec.Code, http.StatusOK; got != want {
 				t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
+			}
+		})
+	}
+}
+
+// TestScopedBearerTokenRejectedByBrowserSessionOnlyRoutes is the inverse of
+// TestScopedTokenAdvertisedRoutesReachHandlerThroughRealAuthMiddleware for
+// "x-browser-session-only" marked routes (codex PR #5185 review, P2 --
+// see openAPIBrowserSessionOnlyRoutes's doc comment for the finding). It
+// mounts the real production handlers (BrowserSessionHandler,
+// BrowserSessionListHandler), not a stub, behind the real
+// AuthMiddlewareWithScopedTokens, and proves a scoped bearer token that
+// clears the middleware allowlist still never gets a 2xx from the handler:
+// the handler's own auth.Mode == AuthModeBrowserSession requirement is what
+// actually protects these routes, not the allowlist. This is the honest
+// counterpart to the scoped-token-support round trip -- it is cheap because
+// these routes' fake stores never need seeded data: every rejection happens
+// before the handler touches its Store.
+func TestScopedBearerTokenRejectedByBrowserSessionOnlyRoutes(t *testing.T) {
+	advertised := openAPIBrowserSessionOnlyRoutes(t)
+	names := make([]string, 0, len(advertised))
+	for name := range advertised {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	if len(names) == 0 {
+		t.Fatal("openAPIBrowserSessionOnlyRoutes(t) returned no routes; expected getBrowserSession, deleteBrowserSession, switchBrowserSessionContext, and listAuthSessions to carry \"x-browser-session-only\": true")
+	}
+
+	for _, name := range names {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			store := &fakeBrowserSessionListStore{}
+			mux := http.NewServeMux()
+			(&BrowserSessionHandler{Store: store}).Mount(mux)
+			(&BrowserSessionListHandler{Store: store}).Mount(mux)
+
+			resolver := &fakeScopedTokenResolver{
+				context: AuthContext{
+					Mode:        AuthModeScoped,
+					TenantID:    "tenant_a",
+					WorkspaceID: "workspace_a",
+					AllScopes:   true,
+				},
+				ok: true,
+			}
+			handler := AuthMiddlewareWithScopedTokens("", resolver, mux)
+
+			req := surfaceNameToRequest(t, name)
+			req.Header.Set("Authorization", "Bearer scoped-token")
+			rec := httptest.NewRecorder()
+			handler.ServeHTTP(rec, req)
+
+			if rec.Code >= 200 && rec.Code < 300 {
+				t.Fatalf("status = %d, want a non-2xx rejection; a scoped bearer token cleared the middleware allowlist and then got a successful response from a browser-session-only handler, contradicting its \"x-browser-session-only\" marker; body = %s", rec.Code, rec.Body.String())
 			}
 		})
 	}
