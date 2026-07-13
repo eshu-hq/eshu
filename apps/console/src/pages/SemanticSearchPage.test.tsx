@@ -219,7 +219,17 @@ describe("SemanticSearchPage", () => {
 
     const announcement = await screen.findByRole("status");
     expect(announcement).toHaveTextContent('1 result for "retry logic".');
-    expect(announcement).toHaveFocus();
+    // announceRef.current?.focus() runs in a useEffect keyed on result.status
+    // (SemanticSearchPage.tsx), so it commits one tick after the "status" node
+    // itself lands in the DOM. findByRole above only waits for the node to
+    // appear, not for that follow-up effect to run, so a synchronous
+    // toHaveFocus() here races it. Locally that race never loses, but issue
+    // #5151 reproduced it flaking in CI on a constrained runner (same
+    // CI-slow-runner timing class as the OperationsPage Suspense flake fixed
+    // in #5140) — jsdom's focus-effect scheduling fell behind the assertion.
+    // waitFor with a generous timeout, scoped to this assertion only, lets
+    // the effect catch up instead of asserting focus synchronously.
+    await waitFor(() => expect(announcement).toHaveFocus(), { timeout: 5000 });
   });
 
   it("moves focus to the error alert once a search fails (a11y)", async () => {
