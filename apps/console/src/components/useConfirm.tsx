@@ -15,7 +15,7 @@
 // The returned promise resolves true when the user confirms, false when they
 // cancel (Cancel button, scrim click, or Escape). Rendering confirmDialog is
 // required for confirm() to surface UI; it is null while idle.
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 
 export interface ConfirmOptions {
   // danger styles the confirm button as destructive (revoke/delete/disable).
@@ -39,11 +39,19 @@ export function useConfirm(): UseConfirm {
   const [pending, setPending] = useState<PendingConfirm | null>(null);
   const confirmRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
+  const messageId = useId();
 
   const confirm = useCallback(
     (message: string, options: ConfirmOptions = {}) =>
       new Promise<boolean>((resolve) => {
-        setPending({ message, options, resolve });
+        setPending((current) => {
+          // If a dialog is already open, resolve its promise as cancelled so
+          // the prior caller's await never hangs forever (re-entrancy safety
+          // for panels that may open a second confirm before the first
+          // settles).
+          current?.resolve(false);
+          return { message, options, resolve };
+        });
       }),
     [],
   );
@@ -115,10 +123,13 @@ export function useConfirm(): UseConfirm {
         role="alertdialog"
         aria-modal="true"
         aria-label="Confirm action"
+        aria-describedby={messageId}
         onClick={(event) => event.stopPropagation()}
         onKeyDown={trapFocus}
       >
-        <p className="confirm-dialog-message">{pending.message}</p>
+        <p id={messageId} className="confirm-dialog-message">
+          {pending.message}
+        </p>
         <div className="confirm-dialog-actions">
           <button type="button" className="btn-ghost" onClick={() => settle(false)}>
             Cancel

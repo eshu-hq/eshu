@@ -1,9 +1,33 @@
 // components/useConfirm.test.tsx
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { useState } from "react";
 import { describe, it, expect } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 
 import { useConfirm } from "./useConfirm";
+
+// DoubleHost fires two confirm() calls back-to-back from a single handler so a
+// test can assert the re-entrancy contract: opening a second dialog while the
+// first is pending must resolve the first promise (as cancelled) rather than
+// leak it forever.
+function DoubleHost(): React.JSX.Element {
+  const { confirm, confirmDialog } = useConfirm();
+  const [log, setLog] = useState<string[]>([]);
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={() => {
+          void confirm("first?").then((r) => setLog((l) => [...l, `first:${r}`]));
+          void confirm("second?").then((r) => setLog((l) => [...l, `second:${r}`]));
+        }}
+      >
+        OpenTwo
+      </button>
+      <span data-testid="log">{log.join(",")}</span>
+      {confirmDialog}
+    </div>
+  );
+}
 
 // Host exercises the hook the way a panel does: a button opens the confirm,
 // and the resolved boolean is written to visible text so tests can assert it.
@@ -38,6 +62,11 @@ describe("useConfirm", () => {
     fireEvent.click(screen.getByRole("button", { name: "Open" }));
     const dialog = await screen.findByRole("alertdialog");
     expect(dialog).toHaveTextContent("Delete the thing?");
+    // The prompt is announced to assistive tech: aria-describedby points at the
+    // message element carrying the confirmation text.
+    const describedBy = dialog.getAttribute("aria-describedby");
+    expect(describedBy).toBeTruthy();
+    expect(document.getElementById(describedBy!)).toHaveTextContent("Delete the thing?");
     fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
     await waitFor(() => expect(screen.getByTestId("result")).toHaveTextContent("confirmed"));
     // Dialog closes after a decision.
@@ -58,6 +87,27 @@ describe("useConfirm", () => {
     await screen.findByRole("alertdialog");
     fireEvent.keyDown(window, { key: "Escape" });
     await waitFor(() => expect(screen.getByTestId("result")).toHaveTextContent("cancelled"));
+  });
+
+  it("resolves false when the scrim is clicked", async () => {
+    render(<Host />);
+    fireEvent.click(screen.getByRole("button", { name: "Open" }));
+    await screen.findByRole("alertdialog");
+    fireEvent.click(document.querySelector(".confirm-scrim")!);
+    await waitFor(() => expect(screen.getByTestId("result")).toHaveTextContent("cancelled"));
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+  });
+
+  it("resolves the prior promise as cancelled when a second confirm opens", async () => {
+    render(<DoubleHost />);
+    fireEvent.click(screen.getByRole("button", { name: "OpenTwo" }));
+    // The first promise settles false immediately; the second dialog is shown.
+    await waitFor(() => expect(screen.getByTestId("log")).toHaveTextContent("first:false"));
+    expect(await screen.findByRole("alertdialog")).toHaveTextContent("second?");
+    fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
+    await waitFor(() =>
+      expect(screen.getByTestId("log")).toHaveTextContent("first:false,second:true"),
+    );
   });
 
   it("focuses the confirm button on open", async () => {
