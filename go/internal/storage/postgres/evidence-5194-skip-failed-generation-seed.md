@@ -13,7 +13,7 @@ Prove-The-Theory-First behavior-change rule this proves the intended delta
 the old crashing query.
 
 No-Regression Evidence: measured against the real local stack's Postgres
-(`eshu-postgres-1`, port 15439, real ~900-repo Boats Group corpus, Postgres in
+(`eshu-postgres-1`, port 15439, real ~900-repo local corpus, Postgres in
 docker-compose), `EXPLAIN ANALYZE` on 2026-07-13:
 
 - `ingestion_scopes` repository-scope rows at proof time: `802` active/healthy,
