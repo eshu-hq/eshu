@@ -81,7 +81,13 @@ The old-route diagnostic changed only the timeout to `600s`; it did not change
 workers or graph permits. The partial-phase recovery proof used a fresh graph,
 ran the candidate once with `ESHU_CANONICAL_WRITE_TIMEOUT=10ms`, waited for the
 backend to return to idle, then reset only the projector lifecycle row and ran
-the same candidate at `120s` on that partially populated graph.
+the same candidate at `120s` on that partially populated graph. That manual
+reset proves graph-write idempotence after a late partial commit; it does not
+prove the production queue automatically classified the timeout as retryable.
+Review caught that the original drain-timeout wrapper returned a plain error.
+The final candidate returns `GraphWriteTimeoutError`, and focused writer and
+queue regressions prove the error reaches the existing `projection_retryable`
+lifecycle path instead of terminal-failing attempt one.
 
 The final B-7 controls used fresh Compose projects and volumes. The commands
 differed only in isolated project/port values and `NORNICDB_IMAGE`:
@@ -216,10 +222,13 @@ CPU until its server-side rollback finished, then returned to idle with the
 graph still empty. The candidate's forced directories-phase timeout returned in
 10.8 ms, after the repository phase had committed. NornicDB subsequently
 completed that small directories transaction, leaving 1 repository and 522
-directories but no relationships. The normal retry converged exactly, with the
-scope and generation active, projector status succeeded, no dead-letter row,
-and zero repair-queue rows. This is explicit partial-phase replay behavior, not
-an atomic-cancellation claim.
+directories but no relationships. The manually resumed run converged exactly,
+with the scope and generation active, projector status succeeded, no
+dead-letter row, and zero repair-queue rows. This is explicit partial-phase
+replay and graph-idempotence behavior, not an atomic-cancellation or automatic
+queue-retry claim. Automatic classification is covered by
+`TestProjectorCanonicalWriterDrainTimeoutRemainsQueueRetryable` and
+`TestProjectorQueueFailLifecycleRetriesGraphWriteTimeoutWithinAttemptBudget`.
 
 ## Concurrency contract
 
@@ -229,7 +238,9 @@ an atomic-cancellation claim.
   graph gate bounds actual transactions without removing dispatcher concurrency.
 - The outer executor does not expose `GroupExecutor`, preventing the canonical
   writer from collapsing all phases back into one transaction.
-- Queue heartbeat, lease, retry, ordering, and activation paths are unchanged.
+- Queue heartbeat, lease, ordering, and activation paths are unchanged. The
+  drain deadline now uses the queue's existing retryable graph-timeout contract
+  instead of bypassing it with a plain error.
 - A focused wiring proof configured entity fanout 7 and a three-permit graph
   gate. The raw grouped executor observed maximum concurrency exactly 3 and
   greater than 1. A simultaneous drain call could not enter while those three

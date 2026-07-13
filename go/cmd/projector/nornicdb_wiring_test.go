@@ -5,6 +5,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -151,8 +152,55 @@ func TestProjectorNornicDBDrainUsesPerIterationClientTimeout(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "drain timed out after 10ms") {
 		t.Fatalf("RunWrite() error = %v, want per-iteration client-timeout error", err)
 	}
+	var timeoutErr sourcecypher.GraphWriteTimeoutError
+	if !errors.As(err, &timeoutErr) {
+		t.Fatalf("RunWrite() error = %T, want GraphWriteTimeoutError", err)
+	}
+	if !projector.IsRetryable(err) {
+		t.Fatalf("projector.IsRetryable(%v) = false, want true", err)
+	}
 	if elapsed := time.Since(started); elapsed >= 80*time.Millisecond {
 		t.Fatalf("RunWrite() elapsed = %s, want client timeout before outer deadline", elapsed)
+	}
+}
+
+func TestProjectorCanonicalWriterDrainTimeoutRemainsQueueRetryable(t *testing.T) {
+	t.Parallel()
+
+	getenv := func(name string) string {
+		if name == canonicalWriteTimeoutEnv {
+			return "10ms"
+		}
+		return ""
+	}
+	executor := projectorCanonicalExecutorForGraphBackend(
+		blockingProjectorDrainExecutor{},
+		runtimecfg.GraphBackendNornicDB,
+		projectorNornicDBConfigForTest(t, getenv),
+		getenv,
+		nil,
+		nil,
+	)
+	writer := sourcecypher.NewCanonicalNodeWriter(executor, sourcecypher.DefaultBatchSize, nil)
+	err := writer.Write(context.Background(), projector.CanonicalMaterialization{
+		ScopeID:      "scope-drain-timeout",
+		GenerationID: "generation-2",
+		RepoID:       "repo-drain-timeout",
+		Repository: &projector.RepositoryRow{
+			RepoID: "repo-drain-timeout",
+			Name:   "drain-timeout",
+			Path:   "/repos/drain-timeout",
+		},
+	})
+	if err == nil {
+		t.Fatal("Write() error = nil, want drain timeout")
+	}
+	var timeoutErr sourcecypher.GraphWriteTimeoutError
+	if !errors.As(err, &timeoutErr) {
+		t.Fatalf("Write() error = %T, want GraphWriteTimeoutError", err)
+	}
+	if !projector.IsRetryable(err) {
+		t.Fatalf("projector.IsRetryable(%v) = false, want queue retry", err)
 	}
 }
 

@@ -39,12 +39,12 @@ func (r projectorTimeoutDrainReader) RunWrite(
 		return result, nil
 	}
 	if errors.Is(boundedCtx.Err(), context.DeadlineExceeded) && ctx.Err() == nil {
-		return storagenornicdb.DrainWriteResult{}, fmt.Errorf(
-			"nornicdb drain timed out after %s; adjust %s to tune the graph write budget: %w",
-			r.timeout,
-			r.timeoutHint,
-			err,
-		)
+		return storagenornicdb.DrainWriteResult{}, sourcecypher.GraphWriteTimeoutError{
+			Operation:   "nornicdb drain timed out",
+			Timeout:     r.timeout,
+			TimeoutHint: r.timeoutHint,
+			Cause:       context.DeadlineExceeded,
+		}
 	}
 	return storagenornicdb.DrainWriteResult{}, fmt.Errorf("run nornicdb drain: %w", err)
 }
