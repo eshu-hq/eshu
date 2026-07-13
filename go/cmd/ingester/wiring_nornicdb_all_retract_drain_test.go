@@ -67,10 +67,10 @@ func TestNornicDBPhaseGroupExecutorAllRetractPhaseRunsEmptyDrainVarAutocommit(t 
 	reader := &drainCountReader{counts: []int64{0, 0, 0}}
 	inner := &recordingGroupChunkExecutor{}
 	executor := nornicDBPhaseGroupExecutor{
-		inner:            inner,
-		maxStatements:    100,
-		retractBatchSize: 2000,
-		drainReader:      reader,
+		Inner:            inner,
+		MaxStatements:    100,
+		RetractBatchSize: 2000,
+		DrainReader:      reader,
 	}
 
 	stmts := atlantisShapedAllRetractPhase()
@@ -101,10 +101,10 @@ func TestNornicDBPhaseGroupExecutorAllRetractPhaseEmptyDrainVarNilReader(t *test
 
 	inner := &recordingGroupChunkExecutor{}
 	executor := nornicDBPhaseGroupExecutor{
-		inner:            inner,
-		maxStatements:    100,
-		retractBatchSize: 2000,
-		drainReader:      nil,
+		Inner:            inner,
+		MaxStatements:    100,
+		RetractBatchSize: 2000,
+		DrainReader:      nil,
 	}
 
 	stmts := atlantisShapedAllRetractPhase()
@@ -132,10 +132,10 @@ func TestNornicDBPhaseGroupExecutorAllRetractPhaseKeepsDrainLoopForDrainVar(t *t
 	reader := &drainCountReader{counts: []int64{5, 0}}
 	inner := &recordingGroupChunkExecutor{}
 	executor := nornicDBPhaseGroupExecutor{
-		inner:            inner,
-		maxStatements:    100,
-		retractBatchSize: 5,
-		drainReader:      reader,
+		Inner:            inner,
+		MaxStatements:    100,
+		RetractBatchSize: 5,
+		DrainReader:      reader,
 	}
 
 	stmts := []sourcecypher.Statement{{

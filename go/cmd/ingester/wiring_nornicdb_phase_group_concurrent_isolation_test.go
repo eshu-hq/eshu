@@ -43,7 +43,7 @@ func TestExecuteGroupedChunksConcurrentlyObservedIsolatesPerChunkTimeout(t *test
 		release:    make(chan struct{}),
 		failGate:   make(chan struct{}),
 	}
-	executor := nornicDBPhaseGroupExecutor{inner: inner}
+	executor := nornicDBPhaseGroupExecutor{Inner: inner}
 
 	const healthyChunks = 7
 	stmts := make([]sourcecypher.Statement, 0, healthyChunks+1)
@@ -54,7 +54,7 @@ func TestExecuteGroupedChunksConcurrentlyObservedIsolatesPerChunkTimeout(t *test
 
 	done := make(chan error, 1)
 	go func() {
-		done <- executor.executeGroupedChunksConcurrentlyObserved(
+		done <- executor.ExecuteGroupedChunksConcurrentlyObserved(
 			context.Background(), inner, stmts, 1, healthyChunks+1, nil,
 		)
 	}()

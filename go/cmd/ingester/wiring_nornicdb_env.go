@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	storagenornicdb "github.com/eshu-hq/eshu/go/internal/storage/nornicdb"
 )
 
 const (
@@ -16,12 +18,7 @@ const (
 	// statements on NornicDB. At 2000 nodes a full-refresh File retract of
 	// 5000 files takes ~3 iterations at ~9s each, well under the 2m timeout.
 	// Override with ESHU_CANONICAL_RETRACT_BATCH.
-	defaultNornicDBCanonicalRetractBatchSize = 2000
-
-	// nornicDBCanonicalRetractBatchSizeMin and nornicDBCanonicalRetractBatchSizeMax
-	// clamp the env override to a safe operating range.
-	nornicDBCanonicalRetractBatchSizeMin = 1
-	nornicDBCanonicalRetractBatchSizeMax = 10000
+	defaultNornicDBCanonicalRetractBatchSize = storagenornicdb.DefaultCanonicalRetractBatchSize
 
 	// nornicDBCanonicalRetractBatchSizeEnv controls the batch size used by the
 	// bounded drain loop that replaces unbounded full-refresh DETACH DELETE
@@ -159,8 +156,7 @@ func nornicDBEntityBatchSize(getenv func(string) string) (int, error) {
 
 // nornicDBCanonicalRetractBatchSize returns the batch size for the bounded
 // drain loop that replaces unbounded full-refresh DETACH DELETE statements on
-// NornicDB. The value is clamped between nornicDBCanonicalRetractBatchSizeMin
-// and nornicDBCanonicalRetractBatchSizeMax.
+// NornicDB. Values outside the shared safe range are rejected.
 func nornicDBCanonicalRetractBatchSize(getenv func(string) string) (int, error) {
 	raw := strings.TrimSpace(getenv(nornicDBCanonicalRetractBatchSizeEnv))
 	if raw == "" {
@@ -170,11 +166,15 @@ func nornicDBCanonicalRetractBatchSize(getenv func(string) string) (int, error) 
 	if err != nil || n <= 0 {
 		return 0, fmt.Errorf("parse %s=%q: must be a positive integer", nornicDBCanonicalRetractBatchSizeEnv, raw)
 	}
-	if n < nornicDBCanonicalRetractBatchSizeMin {
-		return nornicDBCanonicalRetractBatchSizeMin, nil
-	}
-	if n > nornicDBCanonicalRetractBatchSizeMax {
-		return nornicDBCanonicalRetractBatchSizeMax, nil
+	if n < storagenornicdb.MinCanonicalRetractBatchSize ||
+		n > storagenornicdb.MaxCanonicalRetractBatchSize {
+		return 0, fmt.Errorf(
+			"parse %s=%q: must be within %d..%d",
+			nornicDBCanonicalRetractBatchSizeEnv,
+			raw,
+			storagenornicdb.MinCanonicalRetractBatchSize,
+			storagenornicdb.MaxCanonicalRetractBatchSize,
+		)
 	}
 	return n, nil
 }

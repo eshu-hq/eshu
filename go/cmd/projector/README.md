@@ -28,7 +28,7 @@ flowchart LR
 flowchart TB
   A["main()"] --> B["telemetry.NewBootstrap\ntelemetry.NewProviders"]
   B --> C["runtime.OpenPostgres"]
-  C --> D["openProjectorCanonicalWriter\nOpenNeo4jDriver\nRetryingExecutor\nInstrumentedExecutor\nCanonicalNodeWriter"]
+  C --> D["openProjectorCanonicalWriter\nOpenNeo4jDriver\nRetryingExecutor\nInstrumentedExecutor\nNornicDB PhaseGroupExecutor\nCanonicalNodeWriter"]
   D --> E["buildProjectorService\nbuildProjectorRuntime"]
   E --> F["app.NewHostedWithStatusServer"]
   F --> G["service.Run\n(signal context)"]
@@ -44,8 +44,15 @@ via `runtimecfg.OpenPostgres` and the canonical graph writer is opened via
 in `sourcecypher.RetryingExecutor` and `sourcecypher.InstrumentedExecutor`. For
 NornicDB, the same path is also bounded by `sourcecypher.TimeoutExecutor` using
 `ESHU_CANONICAL_WRITE_TIMEOUT` so the standalone projector matches the
-retryable graph-write contract used by bootstrap and ingester. The function
-returns a
+retryable graph-write contract used by bootstrap and ingester. NornicDB writes
+then route through the shared NornicDB phase-group executor: dependency
+phases commit separately, entity chunks retain configured parallel fan-out,
+and the canonical graph-write gate wraps each inner transaction. The adapter
+does not expose the backend-neutral whole-group interface, preventing the unsupported whole-materialization
+atomic route. The same timeout is sent as a server-side Bolt transaction limit
+as well as a client deadline. NornicDB may finish a bounded phase after the
+client deadline, so phase writes stay idempotent and overlapping same-identity
+retries require the backend's exact-key transaction lock. The function returns a
 `sourcecypher.CanonicalNodeWriter`. `buildProjectorService` wires a
 `postgres.ProjectorQueue` as `WorkSource`, `WorkSink`, and `Heartbeater`, a
 `postgres.FactStore` for fact loading, and `buildProjectorRuntime` for
@@ -76,6 +83,8 @@ See `doc.go` for the package comment.
 - `internal/storage/cypher` — `sourcecypher.RetryingExecutor`,
   `sourcecypher.InstrumentedExecutor`, `sourcecypher.TimeoutExecutor`,
   `sourcecypher.CanonicalNodeWriter`; backend-neutral graph write surface
+- `internal/storage/nornicdb` — shared phase-group executor, production
+  NornicDB defaults, bounded retract contract, and canonical writer shape
 - `internal/storage/postgres` — `postgres.ProjectorQueue`, `postgres.FactStore`,
   `postgres.NewContentWriter`, `postgres.NewGraphProjectionPhaseStateStore`,
   `postgres.NewGraphProjectionPhaseRepairQueueStore`, `postgres.NewReducerQueue`;
@@ -117,9 +126,27 @@ package's telemetry section.
   default. Raising this without watching `eshu_dp_canonical_write_duration_seconds`
   can hit Neo4j transaction size limits.
 - `ESHU_CANONICAL_WRITE_TIMEOUT` bounds NornicDB canonical graph writes in the
-  standalone projector. Empty or invalid values use the built-in `30s` default.
+  standalone projector on both the client and server transaction. Empty or
+  invalid values use the built-in `30s` default.
   Retryable MERGE unique conflicts are handled before a queue failure is
   recorded; persistent failures still surface through projector queue metadata.
+- `ESHU_NORNICDB_PHASE_GROUP_STATEMENTS`,
+  `ESHU_NORNICDB_FILE_PHASE_GROUP_STATEMENTS`,
+  `ESHU_NORNICDB_ENTITY_PHASE_GROUP_STATEMENTS`,
+  `ESHU_NORNICDB_ENTITY_LABEL_PHASE_GROUP_STATEMENTS`, and
+  `ESHU_NORNICDB_ENTITY_PHASE_CONCURRENCY` tune the same bounded phase-group
+  adapter used by the ingester. Empty values use the measured defaults;
+  malformed or non-positive values fail startup. Entity concurrency remains
+  capped at 16.
+- `ESHU_NORNICDB_FILE_BATCH_SIZE`, `ESHU_NORNICDB_ENTITY_BATCH_SIZE`, and
+  `ESHU_NORNICDB_ENTITY_LABEL_BATCH_SIZES` tune canonical statement row caps.
+  `ESHU_NORNICDB_BATCHED_ENTITY_CONTAINMENT` defaults to `true`, keeping
+  containment in row-scoped entity upserts. Invalid values fail startup.
+- `ESHU_NORNICDB_CANONICAL_GROUPED_WRITES=true` is accepted only for
+  conformance diagnostics and logs a warning; NornicDB still commits by
+  dependency phase because whole-materialization atomic writes are unsupported.
+- `ESHU_CANONICAL_RETRACT_BATCH` bounds NornicDB full-refresh delete steps;
+  empty values use 2000, and values outside 1–10000 fail startup.
 - The projector lease duration for queue claims is one minute
   (`postgres.NewProjectorQueue(database, "projector", time.Minute)`). The
   service heartbeats each claimed row before lease expiry so large source-local

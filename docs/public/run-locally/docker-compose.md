@@ -169,18 +169,49 @@ classes. Provider-backed profiles additionally report redacted provider profile
 status. Compose adds no raw prompt, credential, endpoint, provider body, path,
 or document id to logs or metric labels.
 
-The NornicDB service defaults to a pinned multi-arch Docker manifest:
-`timothyswt/nornicdb-cpu-bge:v1.1.9@sha256:9a5126d306a48c01869809da47a869a4521b9328a7ab1c855327f5fd7541e4cd`.
-Leave `NORNICDB_PLATFORM` unset for normal local runs. Docker selects the
-`linux/arm64` image on Apple Silicon and the `linux/amd64` image on x86 hosts.
+### Temporary exact NornicDB #261 default
 
-When testing a local NornicDB build, override image and platform together:
+Until further notice, the default Compose NornicDB service builds orneryd/
+NornicDB#261 from full source commit
+`1492458852588c884c32f70d27ea2ee07086769c`. Compose tags the local image
+`eshu-nornicdb-pr261:149245885258`, records the full revision as an OCI image
+label, and uses the default pull policy `build`. This makes a clean machine
+build the proven same-UID commit-lock fix instead of trying to pull the local
+tag from a registry.
+
+Controlled backend comparisons retain the existing override contract. Set
+`NORNICDB_IMAGE` and `NORNICDB_PULL_POLICY` together: use `always` for an
+immutable published image, `never` for a prebuilt local tag, or `build` to build
+the exact source below under a different local tag. Leaving both unset uses the
+exact PR #261 source pin. Published-image and prebuilt-local comparisons must
+run `docker compose up` without `--build`; `--build` deliberately rebuilds the
+exact source and would defeat the image override.
+
+Leave `NORNICDB_PLATFORM` unset for normal local runs so the build uses the host
+architecture.
+
+Normal `docker compose up --build` builds the pinned backend and Eshu services.
+To cache the backend first, build the stack once and then start without
+rebuilding either image:
 
 ```bash
-NORNICDB_IMAGE=nornicdb-main-eshu:cb20824-arm64 \
-NORNICDB_PLATFORM=linux/arm64 \
-docker compose up --build bootstrap-index
+docker compose build
+
+docker compose up -d --no-build
 ```
+
+Confirm the cached image carries the expected source revision before treating
+the stack as evidence:
+
+```bash
+docker image inspect eshu-nornicdb-pr261:149245885258 \
+  --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}'
+```
+
+The expected output is
+`1492458852588c884c32f70d27ea2ee07086769c`. Replace this temporary source pin
+only after a released NornicDB image containing #261 is pinned by digest and the
+bounded/full-corpus proof is repeated on that artifact.
 
 Eshu Compose sets these NornicDB graph-lane controls:
 

@@ -18,6 +18,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/cpubudget"
 	"github.com/eshu-hq/eshu/go/internal/projector"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
+	storagenornicdb "github.com/eshu-hq/eshu/go/internal/storage/nornicdb"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -25,69 +26,69 @@ import (
 const (
 	ingesterCollectorPollInterval        = time.Second
 	ingesterConnectionTimeout            = 10 * time.Second
-	defaultNornicDBCanonicalWriteTimeout = 30 * time.Second
-	defaultNornicDBPhaseGroupStatements  = 500
+	defaultNornicDBCanonicalWriteTimeout = storagenornicdb.DefaultCanonicalWriteTimeout
+	defaultNornicDBPhaseGroupStatements  = storagenornicdb.DefaultPhaseGroupStatements
 	// Entity statements carry the heaviest canonical payloads on the current
 	// self-repo dogfood lane, so NornicDB needs a lower grouped-transaction cap
 	// here than on lighter canonical phases.
-	defaultNornicDBEntityPhaseStatements = 25
+	defaultNornicDBEntityPhaseStatements = storagenornicdb.DefaultEntityPhaseStatements
 	// File upserts are lighter than entity rows but huge repos can emit many
 	// 500-row file statements. Keep this phase narrow without lowering the
 	// global non-entity phase-group cap.
-	defaultNornicDBFilePhaseStatements = 5
+	defaultNornicDBFilePhaseStatements = storagenornicdb.DefaultFilePhaseStatements
 	// Some repos carry thousands of static/vendor files. Keep NornicDB file
 	// upsert row payloads bounded separately from the grouped-statement cap so
 	// one huge file statement cannot dominate a Bolt transaction.
-	defaultNornicDBFileBatchSize = 100
+	defaultNornicDBFileBatchSize = storagenornicdb.DefaultFileBatchSize
 	// Long-running labels such as Variable need cumulative visibility before
 	// the whole entities phase completes, otherwise tuning waits on hour-scale
 	// dogfood runs.
-	defaultNornicDBEntityLabelSummaryExecutions = 10
+	defaultNornicDBEntityLabelSummaryExecutions = storagenornicdb.DefaultEntityLabelSummaryExecutions
 	// Normal NornicDB entity upserts stay bounded to 100 rows so we do not send
 	// 500-row canonical entity statements through the slower Bolt path.
-	defaultNornicDBEntityBatchSize = 100
+	defaultNornicDBEntityBatchSize = storagenornicdb.DefaultEntityBatchSize
 	// Function entities remain the heaviest row shape inside the broader entity
 	// phase, so they get a narrower row cap than other entity labels.
 	// Function rows are the highest-cost entity family on the self-repo dogfood
 	// lane. The first narrowed 10-row default lowered per-statement cost, but it
 	// fragmented the lane too much; 15 rows keeps Function chunks bounded while
 	// still reaching Variable at the healthier ~20s band.
-	defaultNornicDBFunctionEntityBatchSize = 15
+	defaultNornicDBFunctionEntityBatchSize = storagenornicdb.DefaultFunctionEntityBatchSize
 	// Struct entities were the next heavy family on the self-repo dogfood lane
 	// once Function rows were narrowed, so they get the next smaller row cap.
-	defaultNornicDBStructEntityBatchSize = 50
+	defaultNornicDBStructEntityBatchSize = storagenornicdb.DefaultStructEntityBatchSize
 	// Variable is high-cardinality but not row-heavy after file-scoped entity
 	// batching. The 2026-04-27 php-large-repo-b ladder improved from
 	// 196.7s at 10 rows to 102.8s at 100 rows with no retries, no singleton
 	// fallbacks, and max grouped execution under one second.
-	defaultNornicDBVariableEntityBatchSize = 100
+	defaultNornicDBVariableEntityBatchSize = storagenornicdb.DefaultVariableEntityBatchSize
 	// K8sResource rows can cluster heavily in one Helm/Kustomize YAML file.
 	// File-scoped inline containment preserves NornicDB row binding correctness,
 	// and full-corpus timing showed even five same-file rows can exceed the
 	// 15s write budget under concurrent K8s-heavy projection.
-	defaultNornicDBK8sResourceEntityBatchSize = 1
+	defaultNornicDBK8sResourceEntityBatchSize = storagenornicdb.DefaultK8sResourceEntityBatchSize
 	// Function entity statements remain the slowest grouped transaction shape
 	// on the self-repo dogfood lane. Ten-statement groups still drifted into
 	// the high-30s seconds, so NornicDB now keeps that family on the same
 	// conservative grouped cap as Variable for the built-in default lane.
-	defaultNornicDBFunctionEntityPhaseStatements = 5
+	defaultNornicDBFunctionEntityPhaseStatements = storagenornicdb.DefaultFunctionEntityPhaseStatements
 	// Struct entity statements were the next slowest family after Function, but
 	// still lighter than Function rows, so they keep a slightly looser cap.
-	defaultNornicDBStructEntityPhaseStatements = 15
+	defaultNornicDBStructEntityPhaseStatements = storagenornicdb.DefaultStructEntityPhaseStatements
 	// Variable entities hit the first post-Function repo-scale timeout at the
 	// broader entity phase limit, so they need the same conservative grouped
 	// statement cap as Function for the current dogfood lane.
-	defaultNornicDBVariableEntityPhaseStatements = 5
+	defaultNornicDBVariableEntityPhaseStatements = storagenornicdb.DefaultVariableEntityPhaseStatements
 	// K8sResource rows are individually small, but Helm/Kustomize repos create
 	// dense same-label bursts. Keep grouped execution to one statement at a
 	// time so NornicDB proves correctness before we widen this hot family.
-	defaultNornicDBK8sResourceEntityPhaseStatements = 1
+	defaultNornicDBK8sResourceEntityPhaseStatements = storagenornicdb.DefaultK8sResourceEntityPhaseStatements
 	// nornicDBEntityPhaseConcurrencyCap is the hard upper bound for the
 	// ESHU_NORNICDB_ENTITY_PHASE_CONCURRENCY env override and for the
 	// CPU-derived default. Each worker holds one Bolt session against
 	// NornicDB while a grouped chunk runs, so the cap also bounds peak Bolt
 	// session demand from the canonical entity path.
-	nornicDBEntityPhaseConcurrencyCap          = 16
+	nornicDBEntityPhaseConcurrencyCap          = storagenornicdb.EntityPhaseConcurrencyCap
 	canonicalWriteTimeoutEnv                   = "ESHU_CANONICAL_WRITE_TIMEOUT"
 	nornicDBCanonicalGroupedWritesEnv          = "ESHU_NORNICDB_CANONICAL_GROUPED_WRITES"
 	nornicDBPhaseGroupStatementsEnv            = "ESHU_NORNICDB_PHASE_GROUP_STATEMENTS"

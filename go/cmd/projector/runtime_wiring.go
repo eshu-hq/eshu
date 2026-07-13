@@ -21,13 +21,14 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/projector"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	storagenornicdb "github.com/eshu-hq/eshu/go/internal/storage/nornicdb"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 const (
 	projectorConnectionTimeout           = 10 * time.Second
-	defaultNornicDBCanonicalWriteTimeout = 30 * time.Second
+	defaultNornicDBCanonicalWriteTimeout = storagenornicdb.DefaultCanonicalWriteTimeout
 	canonicalWriteTimeoutEnv             = "ESHU_CANONICAL_WRITE_TIMEOUT"
 )
 
@@ -147,6 +148,13 @@ func openProjectorCanonicalWriter(
 	if err != nil {
 		return nil, nil, err
 	}
+	nornicDBConfig := projectorNornicDBConfig{}
+	if graphBackend == runtimecfg.GraphBackendNornicDB {
+		nornicDBConfig, err = loadProjectorNornicDBConfig(getenv)
+		if err != nil {
+			return nil, nil, err
+		}
+	}
 	driver, cfg, err := runtimecfg.OpenNeo4jDriver(parent, getenv)
 	if err != nil {
 		return nil, nil, err
@@ -155,14 +163,30 @@ func openProjectorCanonicalWriter(
 	rawExecutor := projectorNeo4jExecutor{
 		Driver:       driver,
 		DatabaseName: cfg.DatabaseName,
+		TxTimeout:    projectorCanonicalTransactionTimeout(graphBackend, getenv),
 		Instruments:  instruments,
 	}
+	if nornicDBConfig.GroupedWritesRequested {
+		slog.Warn("NornicDB canonical grouped writes requested; committing per dependency phase — whole-materialization atomic is unsupported on NornicDB (#4027)",
+			"graph_backend", string(graphBackend),
+			"env_var", projectorNornicDBCanonicalGroupedWritesEnv)
+	}
+	executor := projectorCanonicalExecutorForGraphBackend(
+		rawExecutor,
+		graphBackend,
+		nornicDBConfig,
+		getenv,
+		tracer,
+		instruments,
+	)
+	writer := sourcecypher.NewCanonicalNodeWriter(
+		executor,
+		neo4jBatchSize(getenv),
+		instruments,
+	).WithTracer(tracer)
+	writer = configureProjectorCanonicalWriter(writer, graphBackend, nornicDBConfig)
 
-	return sourcecypher.NewCanonicalNodeWriter(
-			projectorCanonicalExecutorForGraphBackend(rawExecutor, graphBackend, getenv, tracer, instruments),
-			neo4jBatchSize(getenv),
-			instruments,
-		).WithTracer(tracer),
+	return writer,
 		projectorNeo4jDriverCloser{Driver: driver},
 		nil
 }
@@ -170,6 +194,7 @@ func openProjectorCanonicalWriter(
 func projectorCanonicalExecutorForGraphBackend(
 	rawExecutor sourcecypher.Executor,
 	graphBackend runtimecfg.GraphBackend,
+	nornicDBConfig projectorNornicDBConfig,
 	getenv func(string) string,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
@@ -185,10 +210,40 @@ func projectorCanonicalExecutorForGraphBackend(
 	}
 	var outer sourcecypher.Executor = instrumentedExecutor
 	if graphBackend == runtimecfg.GraphBackendNornicDB {
-		outer = sourcecypher.TimeoutExecutor{
+		canonicalTimeout := projectorNornicDBCanonicalWriteTimeout(getenv)
+		bounded := sourcecypher.TimeoutExecutor{
 			Inner:       instrumentedExecutor,
-			Timeout:     projectorNornicDBCanonicalWriteTimeout(getenv),
+			Timeout:     canonicalTimeout,
 			TimeoutHint: canonicalWriteTimeoutEnv,
+		}
+		gate := graphbackpressure.NewGate(
+			graphbackpressure.ClassMaxInFlight(getenv, graphbackpressure.CanonicalMaxInFlightEnv),
+			instruments,
+			graphbackpressure.CanonicalGateName,
+		)
+		inner := graphbackpressure.WrapExecutorWithGate(bounded, gate)
+		var drainReader storagenornicdb.DrainReader
+		if reader, ok := rawExecutor.(storagenornicdb.DrainReader); ok {
+			drainReader = projectorTimeoutDrainReader{
+				inner:       reader,
+				timeout:     canonicalTimeout,
+				timeoutHint: canonicalWriteTimeoutEnv,
+			}
+			if gate != nil {
+				drainReader = projectorGatedDrainReader{inner: drainReader, gate: gate}
+			}
+		}
+		return storagenornicdb.PhaseGroupExecutor{
+			Inner:                    inner,
+			MaxStatements:            nornicDBConfig.PhaseGroupStatements,
+			DirectoryMaxStatements:   storagenornicdb.DefaultDirectoryPhaseStatements,
+			FileMaxStatements:        nornicDBConfig.FilePhaseGroupStatements,
+			EntityMaxStatements:      nornicDBConfig.EntityPhaseGroupStatements,
+			EntityLabelMaxStatements: nornicDBConfig.EntityLabelPhaseStatements,
+			EntityPhaseConcurrency:   nornicDBConfig.EntityPhaseConcurrency,
+			DrainReader:              drainReader,
+			RetractBatchSize:         nornicDBConfig.CanonicalRetractBatchSize,
+			Instruments:              instruments,
 		}
 	}
 	// Bound concurrent canonical writes so a slow graph backend slows intake
@@ -218,6 +273,7 @@ func projectorNornicDBCanonicalWriteTimeout(getenv func(string) string) time.Dur
 type projectorNeo4jExecutor struct {
 	Driver       neo4jdriver.DriverWithContext
 	DatabaseName string
+	TxTimeout    time.Duration
 	Instruments  *telemetry.Instruments
 }
 
@@ -251,7 +307,7 @@ func (e projectorNeo4jExecutor) ExecuteGroup(ctx context.Context, stmts []source
 			counts = append(counts, statementRetractionCounts(stmt, summary))
 		}
 		return counts, nil
-	})
+	}, e.transactionConfigurers()...)
 	if err != nil {
 		return err
 	}
@@ -274,7 +330,7 @@ func (e projectorNeo4jExecutor) Execute(ctx context.Context, statement sourcecyp
 		_ = session.Close(ctx)
 	}()
 
-	result, err := session.Run(ctx, statement.Cypher, statement.Parameters)
+	result, err := session.Run(ctx, statement.Cypher, statement.Parameters, e.transactionConfigurers()...)
 	if err != nil {
 		return err
 	}
@@ -289,6 +345,67 @@ func (e projectorNeo4jExecutor) Execute(ctx context.Context, statement sourcecyp
 		)
 	}
 	return err
+}
+
+func (e projectorNeo4jExecutor) RunWrite(
+	ctx context.Context,
+	cypher string,
+	parameters map[string]any,
+) (storagenornicdb.DrainWriteResult, error) {
+	if e.Driver == nil {
+		return storagenornicdb.DrainWriteResult{}, fmt.Errorf("neo4j driver is required")
+	}
+	session := e.Driver.NewSession(ctx, neo4jdriver.SessionConfig{
+		AccessMode:   neo4jdriver.AccessModeWrite,
+		DatabaseName: e.DatabaseName,
+	})
+	defer func() {
+		_ = session.Close(ctx)
+	}()
+
+	result, err := session.Run(ctx, cypher, parameters, e.transactionConfigurers()...)
+	if err != nil {
+		return storagenornicdb.DrainWriteResult{}, err
+	}
+	rows := make([]map[string]any, 0)
+	for result.Next(ctx) {
+		record := result.Record()
+		row := make(map[string]any, len(record.Keys))
+		for _, key := range record.Keys {
+			value, _ := record.Get(key)
+			row[key] = value
+		}
+		rows = append(rows, row)
+	}
+	if err := result.Err(); err != nil {
+		return storagenornicdb.DrainWriteResult{}, err
+	}
+	summary, err := result.Consume(ctx)
+	if err != nil {
+		return storagenornicdb.DrainWriteResult{}, err
+	}
+	return storagenornicdb.DrainWriteResult{
+		Rows:                 rows,
+		NodesDeleted:         int64(summary.Counters().NodesDeleted()),
+		RelationshipsDeleted: int64(summary.Counters().RelationshipsDeleted()),
+	}, nil
+}
+
+func (e projectorNeo4jExecutor) transactionConfigurers() []func(*neo4jdriver.TransactionConfig) {
+	if e.TxTimeout <= 0 {
+		return nil
+	}
+	return []func(*neo4jdriver.TransactionConfig){neo4jdriver.WithTxTimeout(e.TxTimeout)}
+}
+
+func projectorCanonicalTransactionTimeout(
+	graphBackend runtimecfg.GraphBackend,
+	getenv func(string) string,
+) time.Duration {
+	if graphBackend != runtimecfg.GraphBackendNornicDB {
+		return 0
+	}
+	return projectorNornicDBCanonicalWriteTimeout(getenv)
 }
 
 func statementRetractionCounts(

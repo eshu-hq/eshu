@@ -91,12 +91,12 @@ func TestCanonicalExecutorGatesInnerLayerAndPreservesPhaseGroup(t *testing.T) {
 	// Its INNER layer (which every concurrent ExecuteGroup in the fan-out draws
 	// from) must be the backpressure-gated executor, so the ceiling bounds actual
 	// concurrent backend writes, not merely outer phase-group calls.
-	if _, gated := pge.inner.(*sourcecypher.BackpressureExecutor); !gated {
-		t.Fatalf("gated executor inner = %T, want *sourcecypher.BackpressureExecutor (fan-out not bounded)", pge.inner)
+	if _, gated := pge.Inner.(*sourcecypher.BackpressureExecutor); !gated {
+		t.Fatalf("gated executor inner = %T, want *sourcecypher.BackpressureExecutor (fan-out not bounded)", pge.Inner)
 	}
 	// The gated inner must still satisfy GroupExecutor so ExecuteGroup works.
-	if _, ok := pge.inner.(sourcecypher.GroupExecutor); !ok {
-		t.Fatalf("gated inner = %T, want a GroupExecutor (ExecuteGroup stripped)", pge.inner)
+	if _, ok := pge.Inner.(sourcecypher.GroupExecutor); !ok {
+		t.Fatalf("gated inner = %T, want a GroupExecutor (ExecuteGroup stripped)", pge.Inner)
 	}
 }
 
@@ -109,7 +109,7 @@ func TestCanonicalExecutorPassthroughWhenUnset(t *testing.T) {
 	if !ok {
 		t.Fatalf("executor type = %T, want nornicDBPhaseGroupExecutor", executor)
 	}
-	if _, gated := pge.inner.(*sourcecypher.BackpressureExecutor); gated {
+	if _, gated := pge.Inner.(*sourcecypher.BackpressureExecutor); gated {
 		t.Fatalf("unset ceiling: inner is backpressure-gated, want the ungated TimeoutExecutor passthrough")
 	}
 }
@@ -128,8 +128,8 @@ func TestCanonicalExecutorGatesViaCanonicalClassEnv(t *testing.T) {
 	if !ok {
 		t.Fatalf("executor type = %T, want nornicDBPhaseGroupExecutor", executor)
 	}
-	if _, gated := pge.inner.(*sourcecypher.BackpressureExecutor); !gated {
-		t.Fatalf("canonical-class ceiling: inner = %T, want *sourcecypher.BackpressureExecutor", pge.inner)
+	if _, gated := pge.Inner.(*sourcecypher.BackpressureExecutor); !gated {
+		t.Fatalf("canonical-class ceiling: inner = %T, want *sourcecypher.BackpressureExecutor", pge.Inner)
 	}
 }
 
@@ -149,8 +149,8 @@ func TestCanonicalExecutorGatesDrainWritesWhenConfigured(t *testing.T) {
 	if !ok {
 		t.Fatalf("executor type = %T, want nornicDBPhaseGroupExecutor", executor)
 	}
-	if _, gated := pge.drainReader.(gatedDrainReader); !gated {
-		t.Fatalf("gated drain reader = %T, want gatedDrainReader (drain writes bypass the gate)", pge.drainReader)
+	if _, gated := pge.DrainReader.(gatedDrainReader); !gated {
+		t.Fatalf("gated drain reader = %T, want gatedDrainReader (drain writes bypass the gate)", pge.DrainReader)
 	}
 }
 
@@ -162,7 +162,7 @@ func TestCanonicalExecutorDrainPassthroughWhenUnset(t *testing.T) {
 	if !ok {
 		t.Fatalf("executor type = %T, want nornicDBPhaseGroupExecutor", executor)
 	}
-	if _, gated := pge.drainReader.(gatedDrainReader); gated {
+	if _, gated := pge.DrainReader.(gatedDrainReader); gated {
 		t.Fatalf("unset ceiling: drain reader is gated, want the raw passthrough reader")
 	}
 }

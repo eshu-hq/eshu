@@ -19,9 +19,9 @@ import (
 func TestNornicDBPhaseGroupExecutorLogsEntityLabelSummaries(t *testing.T) {
 	inner := &recordingGroupChunkExecutor{}
 	executor := nornicDBPhaseGroupExecutor{
-		inner:               inner,
-		maxStatements:       5,
-		entityMaxStatements: 2,
+		Inner:               inner,
+		MaxStatements:       5,
+		EntityMaxStatements: 2,
 	}
 
 	stmts := []sourcecypher.Statement{
@@ -122,9 +122,9 @@ func TestNornicDBPhaseGroupExecutorLogsEntityLabelSummaries(t *testing.T) {
 func TestNornicDBPhaseGroupExecutorLogsEntityContainmentLabelSummaries(t *testing.T) {
 	inner := &recordingGroupChunkExecutor{}
 	executor := nornicDBPhaseGroupExecutor{
-		inner:               inner,
-		maxStatements:       5,
-		entityMaxStatements: 2,
+		Inner:               inner,
+		MaxStatements:       5,
+		EntityMaxStatements: 2,
 	}
 
 	stmts := []sourcecypher.Statement{
@@ -172,9 +172,9 @@ func TestNornicDBPhaseGroupExecutorLogsEntityContainmentLabelSummaries(t *testin
 func TestNornicDBPhaseGroupExecutorLogsRollingEntityLabelSummaries(t *testing.T) {
 	inner := &recordingGroupChunkExecutor{}
 	executor := nornicDBPhaseGroupExecutor{
-		inner:               inner,
-		maxStatements:       5,
-		entityMaxStatements: 1,
+		Inner:               inner,
+		MaxStatements:       5,
+		EntityMaxStatements: 1,
 	}
 
 	stmts := make([]sourcecypher.Statement, 0, defaultNornicDBEntityLabelSummaryExecutions+1)
@@ -222,8 +222,8 @@ func TestNornicDBPhaseGroupExecutorStripsDiagnosticStatementParamsBeforeDriver(t
 
 	inner := &recordingGroupChunkExecutor{}
 	executor := nornicDBPhaseGroupExecutor{
-		inner:         inner,
-		maxStatements: 2,
+		Inner:         inner,
+		MaxStatements: 2,
 	}
 
 	stmts := []sourcecypher.Statement{

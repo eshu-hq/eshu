@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-func TestNornicDBComposeDefaultUsesPinnedMultiArchImage(t *testing.T) {
+func TestNornicDBComposeDefaultPinsPR261ExactSourceCommit(t *testing.T) {
 	t.Parallel()
 
 	content := readRepositoryFile(t, "../../..", "docker-compose.yaml")
@@ -17,9 +17,31 @@ func TestNornicDBComposeDefaultUsesPinnedMultiArchImage(t *testing.T) {
 		t.Fatalf("docker-compose.yaml still defaults to stale amd64-only image %q", oldDefault)
 	}
 
-	want := "image: ${NORNICDB_IMAGE:-timothyswt/nornicdb-cpu-bge:v1.1.11@sha256:51b6174ae65e4ce54a158ac2f9eace7d36a1971545824d22add0fe06d94c1090}"
-	if !strings.Contains(content, want) {
-		t.Fatalf("docker-compose.yaml must default to a pinned multi-arch NornicDB image matching %q", want)
+	for _, want := range []string{
+		"image: ${NORNICDB_IMAGE:-eshu-nornicdb-pr261:149245885258}",
+		"pull_policy: ${NORNICDB_PULL_POLICY:-build}",
+		"context: https://github.com/orneryd/NornicDB.git#1492458852588c884c32f70d27ea2ee07086769c",
+		"dockerfile: docker/Dockerfile.cpu-bge",
+		"org.opencontainers.image.revision: 1492458852588c884c32f70d27ea2ee07086769c",
+	} {
+		if !strings.Contains(content, want) {
+			t.Fatalf("docker-compose.yaml missing temporary exact NornicDB PR #261 pin %q", want)
+		}
+	}
+}
+
+func TestNornicDBComposeDocumentsImageAndPullPolicyOverrides(t *testing.T) {
+	t.Parallel()
+
+	docs := readRepositoryFile(t, "../../..", "docs/public/run-locally/docker-compose.md")
+	for _, want := range []string{
+		"NORNICDB_IMAGE",
+		"NORNICDB_PULL_POLICY",
+		"pull policy `build`",
+	} {
+		if !strings.Contains(docs, want) {
+			t.Fatalf("docker compose docs missing exact-source override guidance %q", want)
+		}
 	}
 }
 
@@ -138,7 +160,7 @@ func TestNornicDBGraphSearchSplitDesignTracksImplementedStabilization(t *testing
 	normalizedDocs := strings.Join(strings.Fields(docs), " ")
 	for _, want := range []string{
 		"Phase-1 stabilization status:",
-		"Compose and Helm now pin NornicDB `v1.1.11`",
+		"Helm pins NornicDB `v1.1.11`; Compose temporarily pins the exact orneryd/NornicDB#261 source commit",
 		"Runtime contract tests enforce the graph-only NornicDB controls",
 	} {
 		if !strings.Contains(normalizedDocs, want) {

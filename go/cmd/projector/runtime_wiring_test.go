@@ -8,8 +8,10 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/graphbackpressure"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	storagenornicdb "github.com/eshu-hq/eshu/go/internal/storage/nornicdb"
 )
 
 func TestLoadProjectorRetryInjectorBuildsInjectorFromEnv(t *testing.T) {
@@ -67,6 +69,7 @@ func TestLoadProjectorRetryPolicyReadsSharedRetryConfig(t *testing.T) {
 
 func TestProjectorCanonicalExecutorRetriesNornicDBMergeUniqueConflict(t *testing.T) {
 	t.Parallel()
+	getenv := func(string) string { return "" }
 
 	raw := &projectorRetryRecordingExecutor{
 		failures: 1,
@@ -79,16 +82,17 @@ func TestProjectorCanonicalExecutorRetriesNornicDBMergeUniqueConflict(t *testing
 	executor := projectorCanonicalExecutorForGraphBackend(
 		raw,
 		runtimecfg.GraphBackendNornicDB,
-		func(string) string { return "" },
+		projectorNornicDBConfigForTest(t, getenv),
+		getenv,
 		nil,
 		nil,
 	)
-	group, ok := executor.(sourcecypher.GroupExecutor)
+	group, ok := executor.(sourcecypher.PhaseGroupExecutor)
 	if !ok {
-		t.Fatal("projector canonical executor does not expose grouped writes")
+		t.Fatal("projector canonical executor does not expose phase-group writes")
 	}
 
-	err := group.ExecuteGroup(context.Background(), []sourcecypher.Statement{{
+	err := group.ExecutePhaseGroup(context.Background(), []sourcecypher.Statement{{
 		Operation: sourcecypher.OperationCanonicalUpsert,
 		Cypher:    "UNWIND $rows AS row MERGE (p:Package:PackageRegistryPackage {uid: row.uid})",
 		Parameters: map[string]any{
@@ -105,22 +109,28 @@ func TestProjectorCanonicalExecutorRetriesNornicDBMergeUniqueConflict(t *testing
 
 func TestProjectorCanonicalExecutorWrapsNornicDBWithTimeoutHint(t *testing.T) {
 	t.Parallel()
+	getenv := func(name string) string {
+		if name == canonicalWriteTimeoutEnv {
+			return "3s"
+		}
+		return ""
+	}
 
 	executor := projectorCanonicalExecutorForGraphBackend(
 		&projectorRetryRecordingExecutor{},
 		runtimecfg.GraphBackendNornicDB,
-		func(name string) string {
-			if name == canonicalWriteTimeoutEnv {
-				return "3s"
-			}
-			return ""
-		},
+		projectorNornicDBConfigForTest(t, getenv),
+		getenv,
 		nil,
 		nil,
 	)
-	timeout, ok := executor.(sourcecypher.TimeoutExecutor)
+	phase, ok := executor.(storagenornicdb.PhaseGroupExecutor)
 	if !ok {
-		t.Fatalf("projector canonical executor type = %T, want TimeoutExecutor", executor)
+		t.Fatalf("projector canonical executor type = %T, want nornicdb.PhaseGroupExecutor", executor)
+	}
+	timeout, ok := phase.Inner.(sourcecypher.TimeoutExecutor)
+	if !ok {
+		t.Fatalf("projector inner canonical executor type = %T, want TimeoutExecutor", phase.Inner)
 	}
 	if got, want := timeout.Timeout.String(), "3s"; got != want {
 		t.Fatalf("timeout = %s, want %s", got, want)
@@ -130,12 +140,66 @@ func TestProjectorCanonicalExecutorWrapsNornicDBWithTimeoutHint(t *testing.T) {
 	}
 }
 
+func TestProjectorCanonicalExecutorUsesNornicDBPhaseGroups(t *testing.T) {
+	t.Parallel()
+	getenv := func(string) string { return "" }
+
+	executor := projectorCanonicalExecutorForGraphBackend(
+		&projectorRetryRecordingExecutor{},
+		runtimecfg.GraphBackendNornicDB,
+		projectorNornicDBConfigForTest(t, getenv),
+		getenv,
+		nil,
+		nil,
+	)
+	if _, ok := executor.(sourcecypher.PhaseGroupExecutor); !ok {
+		t.Fatalf("NornicDB projector executor type = %T, want PhaseGroupExecutor", executor)
+	}
+	if _, ok := executor.(sourcecypher.GroupExecutor); ok {
+		t.Fatalf("NornicDB projector executor type = %T, must not expose GroupExecutor", executor)
+	}
+}
+
+func TestProjectorCanonicalExecutorPreservesConfiguredNornicDBFanout(t *testing.T) {
+	t.Parallel()
+	getenv := func(name string) string {
+		switch name {
+		case projectorNornicDBEntityPhaseConcurrencyEnv:
+			return "7"
+		case graphbackpressure.CanonicalMaxInFlightEnv:
+			return "3"
+		default:
+			return ""
+		}
+	}
+
+	executor := projectorCanonicalExecutorForGraphBackend(
+		&projectorRetryRecordingExecutor{},
+		runtimecfg.GraphBackendNornicDB,
+		projectorNornicDBConfigForTest(t, getenv),
+		getenv,
+		nil,
+		nil,
+	)
+	phase, ok := executor.(storagenornicdb.PhaseGroupExecutor)
+	if !ok {
+		t.Fatalf("executor type = %T, want nornicdb.PhaseGroupExecutor", executor)
+	}
+	if got, want := phase.EntityPhaseConcurrency, 7; got != want {
+		t.Fatalf("entity phase concurrency = %d, want %d", got, want)
+	}
+	if _, ok := phase.Inner.(*sourcecypher.BackpressureExecutor); !ok {
+		t.Fatalf("inner executor type = %T, want gated GroupExecutor", phase.Inner)
+	}
+}
+
 func TestProjectorCanonicalExecutorKeepsNeo4jGroupedWithoutNornicDBTimeout(t *testing.T) {
 	t.Parallel()
 
 	executor := projectorCanonicalExecutorForGraphBackend(
 		&projectorRetryRecordingExecutor{},
 		runtimecfg.GraphBackendNeo4j,
+		projectorNornicDBConfig{},
 		func(string) string { return "" },
 		nil,
 		nil,
@@ -146,6 +210,18 @@ func TestProjectorCanonicalExecutorKeepsNeo4jGroupedWithoutNornicDBTimeout(t *te
 	if _, ok := executor.(sourcecypher.GroupExecutor); !ok {
 		t.Fatal("Neo4j projector executor does not expose grouped writes")
 	}
+}
+
+func projectorNornicDBConfigForTest(
+	t *testing.T,
+	getenv func(string) string,
+) projectorNornicDBConfig {
+	t.Helper()
+	config, err := loadProjectorNornicDBConfig(getenv)
+	if err != nil {
+		t.Fatalf("loadProjectorNornicDBConfig() error = %v", err)
+	}
+	return config
 }
 
 type projectorRetryRecordingExecutor struct {

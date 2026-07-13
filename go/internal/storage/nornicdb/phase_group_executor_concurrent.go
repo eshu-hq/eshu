@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package main
+package nornicdb
 
 import (
 	"context"
@@ -14,9 +14,9 @@ import (
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 )
 
-// entityFlushTrigger returns the per-label buffer size that
+// EntityFlushTrigger returns the per-label buffer size that
 // executeEntityPhaseGroup uses before calling flushGrouped. When the
-// configured entityPhaseConcurrency is at most one, the trigger collapses to
+// configured EntityPhaseConcurrency is at most one, the trigger collapses to
 // the existing per-chunk statement limit so flushGrouped sees the same
 // number of statements as before this change. When concurrency is greater
 // than one, the trigger grows to `limit * concurrency` so each flush feeds
@@ -24,15 +24,15 @@ import (
 // configured workers — without this, the inner chunker would split each
 // flush's buffer into exactly one chunk and the worker pool would never see
 // more than one in-flight statement at a time.
-func (e nornicDBPhaseGroupExecutor) entityFlushTrigger(stmts []sourcecypher.Statement) int {
-	limit := e.phaseGroupStatementLimit(stmts)
-	if e.entityPhaseConcurrency <= 1 {
+func (e PhaseGroupExecutor) EntityFlushTrigger(stmts []sourcecypher.Statement) int {
+	limit := e.PhaseGroupStatementLimit(stmts)
+	if e.EntityPhaseConcurrency <= 1 {
 		return limit
 	}
-	return limit * e.entityPhaseConcurrency
+	return limit * e.EntityPhaseConcurrency
 }
 
-// nornicDBDefaultEntityPhaseConcurrency returns the worker count used to
+// DefaultEntityPhaseConcurrency returns the worker count used to
 // dispatch canonical entity-phase grouped chunks when no explicit env
 // override is provided. The K8s dogfood run shipped in #173 surfaced the
 // canonical_write stage at ~518s, with the entities phase consuming 507s
@@ -43,7 +43,7 @@ func (e nornicDBPhaseGroupExecutor) entityFlushTrigger(stmts []sourcecypher.Stat
 // Bolt sessions.
 //
 // The default is `cpubudget.UsableCPUs()` clamped to
-// `nornicDBEntityPhaseConcurrencyCap` (16). The earlier auto-cap of 4 was
+// `EntityPhaseConcurrencyCap` (16). The earlier auto-cap of 4 was
 // conservative for a write path that turned out to scale sub-linearly
 // with worker count on the K8s dogfood lane (per-chunk CPU rose ~24%
 // when concurrency doubled from 4 to 8, while wall time still dropped),
@@ -51,10 +51,10 @@ func (e nornicDBPhaseGroupExecutor) entityFlushTrigger(stmts []sourcecypher.Stat
 // without changing peak Bolt session demand. Operators who want a smaller
 // or larger value can still set `ESHU_NORNICDB_ENTITY_PHASE_CONCURRENCY`;
 // the env path uses the same cap.
-func nornicDBDefaultEntityPhaseConcurrency() int {
+func DefaultEntityPhaseConcurrency() int {
 	n := cpubudget.UsableCPUs()
-	if n > nornicDBEntityPhaseConcurrencyCap {
-		n = nornicDBEntityPhaseConcurrencyCap
+	if n > EntityPhaseConcurrencyCap {
+		n = EntityPhaseConcurrencyCap
 	}
 	if n < 1 {
 		return 1
@@ -62,7 +62,7 @@ func nornicDBDefaultEntityPhaseConcurrency() int {
 	return n
 }
 
-// executeGroupedChunksConcurrentlyObserved fans grouped chunks out across a
+// ExecuteGroupedChunksConcurrentlyObserved fans grouped chunks out across a
 // bounded worker pool. The function is only safe to call for canonical
 // entity-phase statements (Phase E entities, Phase H entity_containment),
 // where the per-chunk MERGE keys are disjoint and the file_path MATCH is a
@@ -96,7 +96,7 @@ func nornicDBDefaultEntityPhaseConcurrency() int {
 // wrapper drains errCh and returns that wrapped worker error in preference to
 // dispatchCtx.Err(), so callers see the original ExecuteGroup failure class
 // rather than the cancellation that propagated from it.
-func (e nornicDBPhaseGroupExecutor) executeGroupedChunksConcurrentlyObserved(
+func (e PhaseGroupExecutor) ExecuteGroupedChunksConcurrentlyObserved(
 	ctx context.Context,
 	ge sourcecypher.GroupExecutor,
 	stmts []sourcecypher.Statement,
@@ -118,7 +118,7 @@ func (e nornicDBPhaseGroupExecutor) executeGroupedChunksConcurrentlyObserved(
 		// A canceled caller context is surfaced rather than treated as a
 		// successful no-op dispatch, matching the runConcurrentBatches
 		// contract in the postgres content_writer parallel path.
-		return err
+		return fmt.Errorf("dispatch grouped chunks: %w", err)
 	}
 
 	dispatchCtx, cancelDispatch := context.WithCancel(ctx)
@@ -217,14 +217,14 @@ dispatch:
 
 	select {
 	case err := <-errCh:
-		return err
+		return fmt.Errorf("grouped chunks parent context: %w", err)
 	default:
 	}
 	if err := ctx.Err(); err != nil {
 		// Parent cancellation mid-run surfaces as an error rather than a
 		// successful partial dispatch; the canonical writer relies on this
 		// to retry instead of treating the projection as complete.
-		return err
+		return fmt.Errorf("grouped chunks parent context: %w", err)
 	}
 	return nil
 }

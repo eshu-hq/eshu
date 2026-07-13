@@ -4,6 +4,9 @@ The R-5 offline replay gate tier (epic #4102, issue #4107): an env-gated
 `go test` that replays a committed cassette through the **real** canonical
 projection writer into a **real** single-container NornicDB — with no Docker
 Compose — then reads the graph back over Bolt and asserts node and edge truth.
+The live tier constructs the shared NornicDB phase-group executor and production
+writer defaults directly; it does not maintain a test-only mirror of NornicDB
+transaction or batching behavior.
 
 ## Why this exists
 
@@ -26,8 +29,9 @@ The committed cassette `testdata/cassettes/replayoffline/nested-directory-tree.j
 models the #4019 case: a repository with directories at depth 0, 1, and 2. The
 tier maps those facts to a `projector.CanonicalMaterialization` and drives the
 production `storage/cypher.CanonicalNodeWriter` over the **NornicDB phase-group
-write path** (each canonical phase is its own transaction — the same path the
-ingester/bootstrap-index wire in production). It then asserts:
+write path** (each canonical phase is its own transaction — the same shared
+adapter the ingester and standalone projector wire in production). It then
+asserts:
 
 - the `Repository` node and all three `Directory` nodes exist, and
 - the full `CONTAINS` chain exists: `Repository -> depth0`, `depth0 -> depth1`,

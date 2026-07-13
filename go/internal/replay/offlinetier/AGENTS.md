@@ -19,21 +19,15 @@
   unchanged. Do not reimplement projection logic here; the package only maps
   cassette facts to `projector.CanonicalMaterialization`.
 - The writer MUST be driven through the NornicDB phase-group write path
-  (`livePhaseGroupExecutor`, which exposes `ExecutePhaseGroup` but NOT
-  `ExecuteGroup`). Driving it through the full-atomic `GroupExecutor` path is
+  (`storage/nornicdb.PhaseGroupExecutor`, which exposes `ExecutePhaseGroup` but
+  NOT `ExecuteGroup`). Driving it through the full-atomic `GroupExecutor` path is
   the Neo4j path, not production NornicDB, and silently drops the directory
   CONTAINS edges once the schema's uid indexes exist — the #4019 bug class.
-- `livePhaseGroupExecutor` MUST stay a FAITHFUL mirror of the production
-  `cmd/ingester` `nornicDBPhaseGroupExecutor`, not just a thin `ExecuteGroup`
-  wrapper. Two production behaviors are load-bearing on NornicDB and MUST be
-  reproduced (see #4186): (1) strip the `_eshu_*` diagnostic params that
-  `annotateCanonicalWritePhases` injects (via `cypher.SanitizeStatement`) before
-  any statement reaches the driver — an unreferenced param on a grouped
-  `DETACH DELETE` makes the delete silently no-op; (2) run an all-retract phase
-  SEQUENTIALLY as per-statement auto-commit `Execute` (mirroring
-  `executeSequentialRetractPhase`), NEVER as one grouped transaction. Omitting
-  either masks correct gen2 directory retraction and reds
-  `TestDeltaTombstoneGraphTruth`.
+- The tier MUST construct the shared production `storage/nornicdb` executor and
+  writer configuration directly. Do not restore a private mirror. Statement
+  sanitization, sequential/all-retract routing, bounded drains, chunk limits,
+  entity fan-out, row caps, and batched containment are load-bearing and must
+  be exercised by the real-backend tier (see #4019 and #4186).
 - Cleanup MUST run before AND after the write (DETACH DELETE by repo identity)
   so re-runs are deterministic.
 - `materialization.go`'s cassette fact-kind mapping (`git.repository`,

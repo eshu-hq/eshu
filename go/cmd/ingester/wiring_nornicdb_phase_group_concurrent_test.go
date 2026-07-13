@@ -86,10 +86,10 @@ func TestNornicDBPhaseGroupExecutorDispatchesEntityChunksConcurrently(t *testing
 	const workers = 4
 	inner := &blockingGroupExecutor{release: make(chan struct{})}
 	executor := nornicDBPhaseGroupExecutor{
-		inner:                  inner,
-		maxStatements:          5,
-		entityMaxStatements:    1,
-		entityPhaseConcurrency: workers,
+		Inner:                  inner,
+		MaxStatements:          5,
+		EntityMaxStatements:    1,
+		EntityPhaseConcurrency: workers,
 	}
 
 	// Eight Function entity statements with entityMaxStatements=1 produces
@@ -138,9 +138,9 @@ func TestNornicDBPhaseGroupExecutorEntityPhaseFallsBackToSerialWhenConcurrencyUn
 
 	inner := &recordingGroupChunkExecutor{}
 	executor := nornicDBPhaseGroupExecutor{
-		inner:               inner,
-		maxStatements:       5,
-		entityMaxStatements: 1,
+		Inner:               inner,
+		MaxStatements:       5,
+		EntityMaxStatements: 1,
 		// entityPhaseConcurrency unset (zero) keeps the existing serial
 		// chunk loop so callers without an opt-in see no behavior change.
 	}
@@ -164,10 +164,10 @@ func TestNornicDBPhaseGroupExecutorEntityPhaseConcurrencyOneStaysSerial(t *testi
 
 	inner := &recordingGroupChunkExecutor{}
 	executor := nornicDBPhaseGroupExecutor{
-		inner:                  inner,
-		maxStatements:          5,
-		entityMaxStatements:    1,
-		entityPhaseConcurrency: 1,
+		Inner:                  inner,
+		MaxStatements:          5,
+		EntityMaxStatements:    1,
+		EntityPhaseConcurrency: 1,
 	}
 
 	stmts := []sourcecypher.Statement{
@@ -189,10 +189,10 @@ func TestNornicDBPhaseGroupExecutorEntityPhaseConcurrencyPropagatesFirstError(t 
 	failErr := errors.New("simulated NornicDB write failure")
 	inner := newFailingGroupChunkExecutor(2, failErr)
 	executor := nornicDBPhaseGroupExecutor{
-		inner:                  inner,
-		maxStatements:          5,
-		entityMaxStatements:    1,
-		entityPhaseConcurrency: 4,
+		Inner:                  inner,
+		MaxStatements:          5,
+		EntityMaxStatements:    1,
+		EntityPhaseConcurrency: 4,
 	}
 
 	stmts := make([]sourcecypher.Statement, 8)
@@ -263,7 +263,7 @@ func TestCanonicalExecutorForGraphBackendUsesConfiguredEntityPhaseConcurrency(t 
 	if !ok {
 		t.Fatalf("executor type = %T, want nornicDBPhaseGroupExecutor", executor)
 	}
-	if got, want := pge.entityPhaseConcurrency, 6; got != want {
+	if got, want := pge.EntityPhaseConcurrency, 6; got != want {
 		t.Fatalf("entity phase concurrency = %d, want %d", got, want)
 	}
 }
@@ -346,10 +346,10 @@ func TestNornicDBPhaseGroupExecutorEntityPhaseStreamsAcrossFlushBoundaries(t *te
 		deadline:       2 * time.Second,
 	}
 	executor := nornicDBPhaseGroupExecutor{
-		inner:                  inner,
-		maxStatements:          5,
-		entityMaxStatements:    1,
-		entityPhaseConcurrency: workers,
+		Inner:                  inner,
+		MaxStatements:          5,
+		EntityMaxStatements:    1,
+		EntityPhaseConcurrency: workers,
 	}
 
 	stmts := make([]sourcecypher.Statement, totalStmts)

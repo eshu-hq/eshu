@@ -167,7 +167,7 @@ For decision rules and evidence requirements, read [NornicDB Tuning](nornicdb-tu
 
 | Variable | Default | Read by | Purpose |
 | --- | --- | --- | --- |
-| `ESHU_CANONICAL_WRITE_TIMEOUT` | `30s` on NornicDB | ingester, reducer graph writers | Client context and Bolt transaction timeout for NornicDB writes. |
+| `ESHU_CANONICAL_WRITE_TIMEOUT` | `30s` on NornicDB | bootstrap-index, ingester, projector, reducer graph writers | Client context and Bolt transaction timeout for NornicDB writes. |
 | `ESHU_NORNICDB_PHASE_GROUP_STATEMENTS` | `500` | graph writer | Broad grouped statement cap for phases without a narrower cap. |
 | `ESHU_NORNICDB_FILE_PHASE_GROUP_STATEMENTS` | `5` | graph writer | Grouped statement cap for `phase=files`. |
 | `ESHU_NORNICDB_FILE_BATCH_SIZE` | `100` | graph writer | Rows per file-upsert statement. |
@@ -175,7 +175,7 @@ For decision rules and evidence requirements, read [NornicDB Tuning](nornicdb-tu
 | `ESHU_NORNICDB_ENTITY_BATCH_SIZE` | `100` | graph writer | Default rows per canonical entity statement. |
 | `ESHU_NORNICDB_ENTITY_LABEL_BATCH_SIZES` | `Function=15,K8sResource=1,Struct=50,Variable=100` | graph writer | Label-specific canonical entity row caps. |
 | `ESHU_NORNICDB_ENTITY_LABEL_PHASE_GROUP_STATEMENTS` | `Function=5,K8sResource=1,Struct=15,Variable=5` | graph writer | Label-specific grouped statement caps. |
-| `ESHU_NORNICDB_ENTITY_PHASE_CONCURRENCY` | `NumCPU` clamped to `16` | bootstrap-index / ingester graph writer | Worker count for parallel canonical entity-phase chunk dispatch. |
+| `ESHU_NORNICDB_ENTITY_PHASE_CONCURRENCY` | `NumCPU` clamped to `16` | bootstrap-index / ingester / projector graph writer | Worker count for parallel canonical entity-phase chunk dispatch. |
 | `ESHU_NORNICDB_SEMANTIC_ENTITY_LABEL_BATCH_SIZES` | `Annotation=5,Function=10,ImplBlock=10,Module=10,TypeAlias=5,TypeAnnotation=50,Variable=10` | reducer semantic writer | Label-specific semantic entity row caps. |
 | `ESHU_CODE_CALL_EDGE_BATCH_SIZE` | `1000` | reducer code-call edge writer | Rows per code-call edge write statement. |
 | `ESHU_CODE_CALL_EDGE_GROUP_BATCH_SIZE` | `1` | reducer code-call edge writer | Statements per grouped code-call edge execution. |
@@ -194,9 +194,9 @@ For decision rules and evidence requirements, read [NornicDB Tuning](nornicdb-tu
 | --- | --- | --- | --- |
 | `NORNICDB_ENABLE_PPROF` | `false` | NornicDB process | Enables NornicDB profiling. |
 | `NORNICDB_ADDRESS`, `NORNICDB_BOLT_PORT`, `NORNICDB_HTTP_PORT`, `NORNICDB_DATA_DIR`, `NORNICDB_AUTH`, `NORNICDB_DEFAULT_DATABASE`, `NORNICDB_HEADLESS`, `NORNICDB_MCP_ENABLED` | local Eshu service sets these in process mode | NornicDB process | External NornicDB process configuration. |
-| `NORNICDB_IMAGE` | pinned Compose image | Docker Compose | NornicDB image override. |
+| `NORNICDB_IMAGE` | `eshu-nornicdb-pr261:149245885258` in default Compose | Docker Compose | NornicDB image/tag override. Set with `NORNICDB_PULL_POLICY` for controlled comparisons. |
 | `NORNICDB_PLATFORM` | unset | Docker Compose | Optional platform override; unset lets Docker choose host architecture. |
-| `NORNICDB_PULL_POLICY` | Compose default or `missing` in tier-2 v25 proof | Docker Compose | Pull policy for local/proof NornicDB image selection. |
+| `NORNICDB_PULL_POLICY` | `build` in default Compose; `missing` in tier-2 v25 proof | Docker Compose | Builds the exact pinned source by default. Use `always` with an immutable published-image override or `never` with a prebuilt local tag. |
 | `NORNICDB_PERSIST_SEARCH_INDEXES` | `false` in Eshu Compose and Helm | NornicDB container | Keeps disabled BM25/vector search indexes from creating canonical graph restart artifacts. |
 | `NORNICDB_SEARCH_BM25_ENABLED` | `false` in Eshu Compose and Helm | NornicDB container | Keeps BM25 indexing off for the canonical graph lane. |
 | `NORNICDB_SEARCH_VECTOR_ENABLED` | `false` in Eshu Compose and Helm | NornicDB container | Keeps vector indexing off for the canonical graph lane. |

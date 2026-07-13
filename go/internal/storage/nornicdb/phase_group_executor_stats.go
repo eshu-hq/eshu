@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package main
+package nornicdb
 
 import (
 	"log/slog"
@@ -118,7 +118,7 @@ func logEntityPhaseLabelSummaryIfDue(summary *entityPhaseLabelStats, complete bo
 	if summary == nil {
 		return
 	}
-	if !complete && summary.executions-summary.loggedExecutions < defaultNornicDBEntityLabelSummaryExecutions {
+	if !complete && summary.executions-summary.loggedExecutions < DefaultEntityLabelSummaryExecutions {
 		return
 	}
 	logEntityPhaseLabelSummary(summary, complete)
@@ -199,41 +199,42 @@ func entityStatementRowCount(stmt sourcecypher.Statement) int {
 	return 0
 }
 
-func (e nornicDBPhaseGroupExecutor) phaseGroupStatementLimit(stmts []sourcecypher.Statement) int {
+// PhaseGroupStatementLimit returns the configured transaction cap for a phase or entity label.
+func (e PhaseGroupExecutor) PhaseGroupStatementLimit(stmts []sourcecypher.Statement) int {
 	phase := statementPhase(stmts)
 	// Phase-specific limits are intentionally evidence-driven. Keep the broad
 	// phase-group default until a measured repo-scale hotspot proves a narrower
 	// phase budget is safer for NornicDB without penalizing unrelated phases.
 	if phase == sourcecypher.CanonicalPhaseFiles {
-		if e.fileMaxStatements > 0 {
-			return e.fileMaxStatements
+		if e.FileMaxStatements > 0 {
+			return e.FileMaxStatements
 		}
-		return defaultNornicDBFilePhaseStatements
+		return DefaultFilePhaseStatements
 	}
 	if phase == sourcecypher.CanonicalPhaseDirectories || phase == sourcecypher.CanonicalPhaseDirectoryEdges {
 		// directory_edges carries the same directory row maps as the directory
 		// node phase, so it shares the directory request-size budget rather than
 		// falling back to the broad phase-group default.
-		if e.directoryMaxStatements > 0 {
-			return e.directoryMaxStatements
+		if e.DirectoryMaxStatements > 0 {
+			return e.DirectoryMaxStatements
 		}
-		return defaultNornicDBDirectoryPhaseStatements
+		return DefaultDirectoryPhaseStatements
 	}
 	if statementPhaseUsesEntityLabelStats(phase) {
-		if label := entityStatementLabel(stmts[0]); label != "" && e.entityLabelMaxStatements != nil {
-			if limit := e.entityLabelMaxStatements[label]; limit > 0 {
+		if label := entityStatementLabel(stmts[0]); label != "" && e.EntityLabelMaxStatements != nil {
+			if limit := e.EntityLabelMaxStatements[label]; limit > 0 {
 				return limit
 			}
 		}
-		if e.entityMaxStatements > 0 {
-			return e.entityMaxStatements
+		if e.EntityMaxStatements > 0 {
+			return e.EntityMaxStatements
 		}
-		return defaultNornicDBEntityPhaseStatements
+		return DefaultEntityPhaseStatements
 	}
-	if e.maxStatements > 0 {
-		return e.maxStatements
+	if e.MaxStatements > 0 {
+		return e.MaxStatements
 	}
-	return defaultNornicDBPhaseGroupStatements
+	return DefaultPhaseGroupStatements
 }
 
 func statementPhaseUsesEntityLabelStats(phase string) bool {

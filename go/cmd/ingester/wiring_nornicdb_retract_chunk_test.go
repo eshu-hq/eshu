@@ -15,8 +15,8 @@ func TestNornicDBPhaseGroupExecutorChunksPositiveRetractFilePaths(t *testing.T) 
 
 	inner := &recordingGroupChunkExecutor{}
 	executor := nornicDBPhaseGroupExecutor{
-		inner:         inner,
-		maxStatements: 5,
+		Inner:         inner,
+		MaxStatements: 5,
 	}
 	paths := make([]string, sourcecypher.DefaultPositiveRetractStringSliceBatchSize+1)
 	for i := range paths {
@@ -49,8 +49,8 @@ func TestNornicDBPhaseGroupExecutorChunksDeltaDeletedFileRetractPaths(t *testing
 
 	inner := &recordingGroupChunkExecutor{}
 	executor := nornicDBPhaseGroupExecutor{
-		inner:         inner,
-		maxStatements: 5,
+		Inner:         inner,
+		MaxStatements: 5,
 	}
 	paths := make([]string, sourcecypher.DefaultPositiveRetractStringSliceBatchSize+1)
 	for i := range paths {
@@ -92,8 +92,8 @@ func TestNornicDBPhaseGroupExecutorDoesNotChunkNegativeRetractFilePaths(t *testi
 
 	inner := &recordingGroupChunkExecutor{}
 	executor := nornicDBPhaseGroupExecutor{
-		inner:         inner,
-		maxStatements: 5,
+		Inner:         inner,
+		MaxStatements: 5,
 	}
 	paths := make([]string, sourcecypher.DefaultPositiveRetractStringSliceBatchSize+1)
 	for i := range paths {

@@ -96,6 +96,30 @@ func TestDeltaMaterializationGen1Baseline(t *testing.T) {
 	}
 }
 
+// TestDeltaMaterializationEntitySourcesHaveFiles guards the production
+// NornicDB writer invariant that every entity source path is materialized as a
+// File before batched entity containment runs.
+func TestDeltaMaterializationEntitySourcesHaveFiles(t *testing.T) {
+	t.Parallel()
+
+	src := loadDeltaCassette(t)
+	gen1, ok, err := src.Next(context.Background())
+	if err != nil || !ok {
+		t.Fatalf("read gen1: err=%v ok=%v", err, ok)
+	}
+	gen2, ok, err := src.Next(context.Background())
+	if err != nil || !ok {
+		t.Fatalf("read gen2: err=%v ok=%v", err, ok)
+	}
+	dm, err := offlinetier.DeltaMaterializationFromGenerations(gen1, gen2)
+	if err != nil {
+		t.Fatalf("DeltaMaterializationFromGenerations: %v", err)
+	}
+
+	assertEntitySourceFiles(t, dm.Gen1)
+	assertEntitySourceFiles(t, dm.Gen2)
+}
+
 // TestDeltaMaterializationGen2RetainsSupersededRepo verifies that gen2 carries
 // the updated repository name (supersession): the repo fact in gen2 changes the
 // name from "replay-delta-tombstone" to "replay-delta-tombstone-v2".
@@ -236,6 +260,19 @@ func loadDeltaCassette(t *testing.T) *cassette.Source {
 		t.Fatalf("load delta cassette %s: %v", deltaCassetteRelPath, err)
 	}
 	return src
+}
+
+func assertEntitySourceFiles(t *testing.T, materialization projector.CanonicalMaterialization) {
+	t.Helper()
+	files := make(map[string]struct{}, len(materialization.Files))
+	for _, file := range materialization.Files {
+		files[file.Path] = struct{}{}
+	}
+	for _, entity := range materialization.Entities {
+		if _, ok := files[entity.FilePath]; !ok {
+			t.Errorf("generation %q entity %q references missing file %q", materialization.GenerationID, entity.EntityID, entity.FilePath)
+		}
+	}
 }
 
 func assertDirectoryParentPath(t *testing.T, dirs []projector.DirectoryRow, childPath, wantParentPath string) {

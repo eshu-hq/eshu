@@ -361,7 +361,7 @@ depth tripped the gate, `high_water` when total outstanding depth tripped the
 original gate) plus a `failure_class` attribute naming the class that drove a
 graph-write-pressure deferral (`graph_write_timeout`). This lets an operator
 confirm at 3 AM that graph writes are timing out rather than a readiness backlog
-piling up. The deferral log was promoted from `Debug` to `Warn` and names
+piling up. The deferral log was moved from debug level to `Warn` and names
 `reason`, `failure_class`, `queue_depth`, `high_water_mark`,
 `retrying_high_water_mark`, `retrying_low_water_mark`, and `poll_interval`. The
 graph-write-timeout retrying depth is exposed by
@@ -418,7 +418,7 @@ worker, queue domain, or runtime surface is removed.
   worker pool sized by ESHU_NORNICDB_ENTITY_PHASE_CONCURRENCY. When the
   configured concurrency is greater than one the dispatch uses
   `executeEntityPhaseGroupStreaming` in
-  `wiring_nornicdb_phase_group_streaming.go`: the pool stays open for one
+  `go/internal/storage/nornicdb/phase_group_executor_streaming.go`: the pool stays open for one
   entity-phase call and pulls chunks from a long-lived channel as the
   producer buffers them, so the slowest chunk in one batch no longer stalls
   workers that have already finished their share. Within an entity label the
@@ -429,7 +429,8 @@ worker, queue domain, or runtime surface is removed.
   path) so callers without an opt-in see no behavior change.
 - `ESHU_CANONICAL_RETRACT_BATCH` controls the per-iteration delete limit for
   the bounded full-refresh retract drain loop on NornicDB. Default: 2000.
-  Accepted range: 1–10000. Each full-refresh retract statement (File removal,
+  Accepted range: 1–10000; values outside that range fail startup. Each
+  full-refresh retract statement (File removal,
   Directory removal, Entity removal) is rewritten at runtime into a loop that
   iterates until the graph reports zero nodes deleted, preventing the unbounded
   `DETACH DELETE` from timing out on large corpora (5000+ files, 10000+

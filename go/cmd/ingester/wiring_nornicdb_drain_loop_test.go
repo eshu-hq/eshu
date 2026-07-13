@@ -6,6 +6,7 @@ package main
 import (
 	"context"
 	"errors"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -60,10 +61,10 @@ func TestNornicDBPhaseGroupExecutorDrainLoopIteratesUntilZero(t *testing.T) {
 	reader := &drainCountReader{counts: []int64{2000, 2000, 500}}
 	inner := &recordingGroupChunkExecutor{}
 	executor := nornicDBPhaseGroupExecutor{
-		inner:            inner,
-		maxStatements:    100,
-		retractBatchSize: 2000,
-		drainReader:      reader,
+		Inner:            inner,
+		MaxStatements:    100,
+		RetractBatchSize: 2000,
+		DrainReader:      reader,
 	}
 
 	stmts := []sourcecypher.Statement{
@@ -100,10 +101,10 @@ func TestNornicDBPhaseGroupExecutorDrainLoopStopsImmediatelyOnZero(t *testing.T)
 	reader := &drainCountReader{counts: []int64{}} // always returns 0
 	inner := &recordingGroupChunkExecutor{}
 	executor := nornicDBPhaseGroupExecutor{
-		inner:            inner,
-		maxStatements:    100,
-		retractBatchSize: 2000,
-		drainReader:      reader,
+		Inner:            inner,
+		MaxStatements:    100,
+		RetractBatchSize: 2000,
+		DrainReader:      reader,
 	}
 
 	stmts := []sourcecypher.Statement{
@@ -144,10 +145,10 @@ func TestNornicDBPhaseGroupExecutorDrainLoopEnforcesSafetyCap(t *testing.T) {
 	}
 	inner := &recordingGroupChunkExecutor{}
 	executor := nornicDBPhaseGroupExecutor{
-		inner:            inner,
-		maxStatements:    100,
-		retractBatchSize: 2000,
-		drainReader:      reader,
+		Inner:            inner,
+		MaxStatements:    100,
+		RetractBatchSize: 2000,
+		DrainReader:      reader,
 	}
 
 	stmts := []sourcecypher.Statement{
@@ -187,10 +188,10 @@ func TestNornicDBPhaseGroupExecutorDrainLoopPropagatesReaderError(t *testing.T) 
 	}
 	inner := &recordingGroupChunkExecutor{}
 	executor := nornicDBPhaseGroupExecutor{
-		inner:            inner,
-		maxStatements:    100,
-		retractBatchSize: 2000,
-		drainReader:      reader,
+		Inner:            inner,
+		MaxStatements:    100,
+		RetractBatchSize: 2000,
+		DrainReader:      reader,
 	}
 
 	stmts := []sourcecypher.Statement{
@@ -226,10 +227,10 @@ func TestNornicDBPhaseGroupExecutorNoDrainFallsBackToExistingPath(t *testing.T) 
 	reader := &drainCountReader{}
 	inner := &recordingGroupChunkExecutor{}
 	executor := nornicDBPhaseGroupExecutor{
-		inner:            inner,
-		maxStatements:    100,
-		retractBatchSize: 2000,
-		drainReader:      reader,
+		Inner:            inner,
+		MaxStatements:    100,
+		RetractBatchSize: 2000,
+		DrainReader:      reader,
 	}
 
 	paths := []string{"/repo/a.go", "/repo/b.go"}
@@ -311,6 +312,48 @@ func TestNornicDBRetractBatchSizeEnvInvalid(t *testing.T) {
 	}
 }
 
+func TestNornicDBRetractBatchSizeEnvAboveMaximum(t *testing.T) {
+	t.Parallel()
+
+	_, err := nornicDBCanonicalRetractBatchSize(func(key string) string {
+		if key == nornicDBCanonicalRetractBatchSizeEnv {
+			return "10001"
+		}
+		return ""
+	})
+	if err == nil {
+		t.Fatal("nornicDBCanonicalRetractBatchSize() error = nil, want out-of-range error")
+	}
+	if !strings.Contains(err.Error(), nornicDBCanonicalRetractBatchSizeEnv) ||
+		!strings.Contains(err.Error(), "1..10000") {
+		t.Fatalf("error = %q, want env name and valid range", err)
+	}
+}
+
+func TestNornicDBRetractBatchSizeEnvBoundaries(t *testing.T) {
+	t.Parallel()
+
+	for _, value := range []string{"1", "10000"} {
+		value := value
+		t.Run(value, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := nornicDBCanonicalRetractBatchSize(func(key string) string {
+				if key == nornicDBCanonicalRetractBatchSizeEnv {
+					return value
+				}
+				return ""
+			})
+			if err != nil {
+				t.Fatalf("nornicDBCanonicalRetractBatchSize() error = %v, want nil", err)
+			}
+			if strconv.Itoa(got) != value {
+				t.Fatalf("retract batch size = %d, want %s", got, value)
+			}
+		})
+	}
+}
+
 // TestNornicDBPhaseGroupExecutorDrainLoopRecordsDriftRetractions verifies that
 // executeDrainLoop accumulates NodesDeleted and RelationshipsDeleted across
 // iterations and calls RecordReconciliationDriftRetractions with the totals for
@@ -335,11 +378,11 @@ func TestNornicDBPhaseGroupExecutorDrainLoopRecordsDriftRetractions(t *testing.T
 	}
 
 	executor := nornicDBPhaseGroupExecutor{
-		inner:            inner,
-		maxStatements:    100,
-		retractBatchSize: 500,
-		drainReader:      reader,
-		instruments:      instruments,
+		Inner:            inner,
+		MaxStatements:    100,
+		RetractBatchSize: 500,
+		DrainReader:      reader,
+		Instruments:      instruments,
 	}
 
 	// Statement marked as a reconciliation-drift retract (mirrors what

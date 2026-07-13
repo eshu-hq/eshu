@@ -730,14 +730,18 @@ gates:
     tier: pre-pr
     blocking: true
     triggers:
+      - "go/cmd/ingester/**"
+      - "go/cmd/projector/**"
       - "go/internal/storage/cypher/**"
+      - "go/internal/storage/nornicdb/**"
       - "go/internal/reducer/**"
       - "go/internal/projector/**"
       - "go/internal/correlation/**"
       - "go/internal/content/shape/**"
       - "go/internal/relationships/**"
+      - ".github/workflows/race-graph-writes.yml"
     local:
-      command: "cd go && go test -race -count=1 -timeout 600s ./internal/storage/cypher/... ./internal/reducer/... ./internal/projector/... ./internal/correlation/... ./internal/content/shape/... ./internal/relationships/..."
+      command: "cd go && go test -race -count=1 -timeout 600s ./cmd/ingester/... ./cmd/projector/... ./internal/storage/cypher/... ./internal/storage/nornicdb/... ./internal/reducer/... ./internal/projector/... ./internal/correlation/... ./internal/content/shape/... ./internal/relationships/..."
       test_command: ""
     ci:
       workflow: race-graph-writes.yml
@@ -1494,14 +1498,18 @@ gates:
     tier: ci-heavy
     blocking: true
     triggers:
+      - "go/cmd/ingester/**"
+      - "go/cmd/projector/**"
       - "go/internal/replay/**"
       - "go/internal/storage/cypher/**"
+      - "go/internal/storage/nornicdb/**"
       - "go/internal/projector/**"
       - "go/internal/graph/**"
       - "go/internal/runtime/**"
       - "testdata/cassettes/replayoffline/**"
       - "testdata/cassettes/replaydelta/**"
       - "scripts/verify-replay-tier.sh"
+      - ".github/workflows/verify-replay-tier.yml"
     local:
       command: "bash scripts/verify-replay-tier.sh"
       test_command: ""

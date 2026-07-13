@@ -93,10 +93,10 @@ func TestExecuteEntityPhaseGroupStreamingIsolatesPerChunkTimeout(t *testing.T) {
 	}
 	const healthyChunks = 7
 	executor := nornicDBPhaseGroupExecutor{
-		inner:                  inner,
-		maxStatements:          5,
-		entityMaxStatements:    1,
-		entityPhaseConcurrency: healthyChunks + 1,
+		Inner:                  inner,
+		MaxStatements:          5,
+		EntityMaxStatements:    1,
+		EntityPhaseConcurrency: healthyChunks + 1,
 	}
 
 	stmts := make([]sourcecypher.Statement, 0, healthyChunks+1)
