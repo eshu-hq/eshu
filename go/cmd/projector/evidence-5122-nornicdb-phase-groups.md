@@ -106,6 +106,47 @@ GATE_API_PORT=28380 GATE_MCP_PORT=28391 \
 bash scripts/verify-golden-corpus-gate.sh --keep
 ```
 
+Continued validation also built orneryd/NornicDB#261 directly from its full
+source commit through `docker-compose.nornicdb-pr261.yaml`. The built image
+reported OCI revision `1492458852588c884c32f70d27ea2ee07086769c`; Compose
+resolved the same full source commit, `docker/Dockerfile.cpu-bge`, local tag,
+and `pull_policy: never`. A fresh isolated B-7 run used that cached image:
+
+```bash
+docker compose -f docker-compose.yaml \
+  -f docker-compose.nornicdb-pr261.yaml build nornicdb
+
+COMPOSE_PROJECT_NAME=eshu5122pr261proof3 \
+ESHU_POSTGRES_PORT=26434 NEO4J_HTTP_PORT=30474 NEO4J_BOLT_PORT=30687 \
+docker compose -f docker-compose.yaml \
+  -f docker-compose.nornicdb-pr261.yaml \
+  up -d --no-build nornicdb postgres
+
+# --no-compose requires psql. This proof routed it through the retained
+# Postgres container because the host had no psql client.
+psql() {
+  local args=("$@")
+  if [[ "${args[0]:-}" == postgresql:* ]]; then
+    args=("${args[@]:1}")
+  fi
+  docker exec -i eshu5122pr261proof3-postgres-1 \
+    psql -U eshu -d eshu "${args[@]}"
+}
+export -f psql
+
+ESHU_POSTGRES_PORT=26434 NEO4J_HTTP_PORT=30474 NEO4J_BOLT_PORT=30687 \
+GATE_API_PORT=31080 GATE_MCP_PORT=31091 \
+GATE_COLLECTOR_SETTLE_SECONDS=60 \
+scripts/verify-golden-corpus-gate.sh --no-compose --keep
+```
+
+The exact-source run finished in `81s` pipeline wall time with `416/0/1`
+(pass/required-fail/advisory-warn), zero residual or dead-letter work, and zero
+nonterminal shared projection intents. The sole warning was the intentional
+60-second collector settle versus the 20-second timing baseline; graph, API,
+MCP, correlation, drain, and required timing gates all passed. The proof
+Compose project and work directory remain retained.
+
 The backend-oracle comparison queried complete node labels/properties
 and relationship endpoint labels/properties, relationship types, and
 relationship properties. Integral numeric representations were normalized
@@ -285,6 +326,9 @@ Passed on the rebased candidate before this evidence note was committed:
   `37s` pipeline, `179.49s` command wall;
 - fresh B-7 on v1.1.11 plus orneryd/NornicDB#261: `417/0/0`
   (pass/fail/warn), `37s` pipeline, `179.94s` command wall.
+- fresh B-7 on the exact-source Compose override for commit
+  `1492458852588c884c32f70d27ea2ee07086769c`: `416/0/1`, `81s` pipeline;
+  the only advisory was the intentionally extended collector settle.
 
 Both fresh B-7 controls retained two projector workers and completed all three
 drain phases with `3 pass / 0 fail / 0 warn`; both backend pairs remain healthy
@@ -311,9 +355,11 @@ claim.
 Production readiness remains blocked on orneryd/NornicDB#261 being merged,
 tagged, pinned by immutable Eshu artifact, and the candidate being rerun on that
 artifact. The fresh B-7 controls do not prove the absolute under-30 full-corpus
-target or make a local image equivalent to a future production tag. After final
-review, the branch may be published for dependency-aware review and the
-reference remote full-corpus run, but it must not be marked merge-ready while
-Eshu still pins stock v1.1.11.
+target or make a source-built image equivalent to a future production tag. The
+exact-source override does let local and remote validation continue on one
+auditable upstream revision without reducing concurrency. After final review,
+the branch may be published for dependency-aware review and the reference
+remote full-corpus run, but it must not be marked merge-ready while Eshu still
+pins stock v1.1.11 by default.
 
 Refs #5122, #4207, orneryd/NornicDB#261.

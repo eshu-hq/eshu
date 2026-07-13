@@ -23,6 +23,23 @@ func TestNornicDBComposeDefaultUsesPinnedMultiArchImage(t *testing.T) {
 	}
 }
 
+func TestNornicDBPR261ComposeOverridePinsExactSourceCommit(t *testing.T) {
+	t.Parallel()
+
+	content := readRepositoryFile(t, "../../..", "docker-compose.nornicdb-pr261.yaml")
+	for _, want := range []string{
+		"image: eshu-nornicdb-pr261:149245885258",
+		"pull_policy: never",
+		"context: https://github.com/orneryd/NornicDB.git#1492458852588c884c32f70d27ea2ee07086769c",
+		"dockerfile: docker/Dockerfile.cpu-bge",
+		"org.opencontainers.image.revision: 1492458852588c884c32f70d27ea2ee07086769c",
+	} {
+		if !strings.Contains(content, want) {
+			t.Fatalf("NornicDB PR #261 Compose override missing exact pin %q", want)
+		}
+	}
+}
+
 func TestNornicDBComposeDoesNotForceAmd64Platform(t *testing.T) {
 	t.Parallel()
 
