@@ -1,0 +1,123 @@
+{
+  "collector": "replay_schedule",
+  "schema_version": "1",
+  "scopes": [
+    {
+      "scope_id": "replay:schedule:incident-repository-correlation",
+      "source_system": "replay",
+      "scope_kind": "incident_repository_correlation",
+      "collector_kind": "replay_schedule",
+      "partition_key": "replay:schedule:incident-repository-correlation",
+      "metadata": {
+        "purpose": "R-13 (C-14 #4367) shared-conflict-key ordering proof for projection:incident_repository_correlation"
+      },
+      "generation_id": "cassette-schedule-incident-repository-correlation-gen1",
+      "observed_at": "2026-07-01T00:00:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "incident.record",
+          "stable_fact_key": "replay:schedule:incident-repository-correlation:incident:INC-1001",
+          "schema_version": "1.0.0",
+          "collector_kind": "pagerduty",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "provider": "pagerduty",
+            "provider_incident_id": "INC-1001",
+            "title": "Checkout latency above SLO",
+            "status": "triggered",
+            "urgency": "high",
+            "incident_number": 1001,
+            "service_id": "SVC-checkout"
+          }
+        },
+        {
+          "fact_kind": "incident.record",
+          "stable_fact_key": "replay:schedule:incident-repository-correlation:incident:INC-1002",
+          "schema_version": "1.0.0",
+          "collector_kind": "pagerduty",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "provider": "pagerduty",
+            "provider_incident_id": "INC-1002",
+            "title": "Payment webhook 5xx spike",
+            "status": "acknowledged",
+            "urgency": "high",
+            "incident_number": 1002,
+            "service_id": "SVC-payments"
+          }
+        },
+        {
+          "fact_kind": "work_item.record",
+          "stable_fact_key": "replay:schedule:incident-repository-correlation:work_item:JIRA-2001",
+          "schema_version": "1.0.0",
+          "collector_kind": "jira",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "provider": "jira",
+            "provider_work_item_id": "10001",
+            "work_item_key": "JIRA-2001",
+            "issue_type_name": "Incident",
+            "project_key": "OPS",
+            "status_name": "In Progress",
+            "summary": "Investigate checkout latency incident"
+          }
+        },
+        {
+          "fact_kind": "work_item.external_link",
+          "stable_fact_key": "replay:schedule:incident-repository-correlation:link:JIRA-2001:INC-1001",
+          "schema_version": "1.0.0",
+          "collector_kind": "jira",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "provider": "jira",
+            "work_item_key": "JIRA-2001",
+            "provider_remote_link_id": "remote-link-1",
+            "global_id": "INC-1001",
+            "correlation_anchor_class": "incident",
+            "relationship": "is caused by",
+            "application_type": "com.pagerduty"
+          }
+        },
+        {
+          "fact_kind": "work_item.record",
+          "stable_fact_key": "replay:schedule:incident-repository-correlation:work_item:JIRA-2002",
+          "schema_version": "1.0.0",
+          "collector_kind": "jira",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "provider": "jira",
+            "provider_work_item_id": "10002",
+            "work_item_key": "JIRA-2002",
+            "issue_type_name": "Incident",
+            "project_key": "OPS",
+            "status_name": "Open",
+            "summary": "Investigate payment webhook 5xx spike"
+          }
+        },
+        {
+          "fact_kind": "work_item.external_link",
+          "stable_fact_key": "replay:schedule:incident-repository-correlation:link:JIRA-2002:INC-1002",
+          "schema_version": "1.0.0",
+          "collector_kind": "jira",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "provider": "jira",
+            "work_item_key": "JIRA-2002",
+            "provider_remote_link_id": "remote-link-2",
+            "global_id": "INC-1002",
+            "correlation_anchor_class": "incident",
+            "relationship": "is caused by",
+            "application_type": "com.pagerduty"
+          }
+        }
+      ]
+    }
+  ]
+}

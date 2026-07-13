@@ -4,7 +4,7 @@
 
 Every surface Eshu claims to support should have a green, credential-free, Docker-free replay scenario. This dashboard is generated from the C-1 coverage manifest and the source-of-truth registries (epic [#4172](https://github.com/eshu-hq/eshu/issues/4172)); it is refreshed by the replay-coverage gate so the gap is reviewable in a PR diff.
 
-**Overall: 372/400 surfaces satisfied (93.00%)** — mode: blocking.
+**Overall: 374/400 surfaces satisfied (93.50%)** — mode: blocking.
 
 ## Coverage by axis
 
@@ -16,12 +16,12 @@ Every surface Eshu claims to support should have a green, credential-free, Docke
 | Read surfaces (API/MCP) | 22 | 22 | 100.00% | 0 | 1 |
 | Parsers | 4 | 4 | 100.00% | 0 | 0 |
 | Product claims | 11 | 11 | 100.00% | 0 | 0 |
-| Projections (cost/ordering) | 0 | 27 | 0.00% | 27 | 0 |
+| Projections (cost/ordering) | 2 | 27 | 7.41% | 25 | 0 |
 | Reducer drain (crash) | 1 | 1 | 100.00% | 0 | 0 |
 | Retractable edge types (delta) | 52 | 52 | 100.00% | 0 | 0 |
 | Retractable node types (delta) | 86 | 87 | 98.85% | 1 | 0 |
 | Collectors | 34 | 34 | 100.00% | 0 | 8 |
-| **Total** | **372** | **400** | **93.00%** | **28** | **9** |
+| **Total** | **374** | **400** | **93.50%** | **26** | **9** |
 
 ## Coverage by scenario type
 
@@ -32,7 +32,7 @@ Every surface Eshu claims to support should have a green, credential-free, Docke
 | crash | 2 | 2 | 100.00% | 0 | 0 |
 | delta_tombstone | 139 | 140 | 99.29% | 1 | 0 |
 | fault | 17 | 17 | 100.00% | 0 | 4 |
-| ordering | 1 | 3 | 33.33% | 2 | 0 |
+| ordering | 3 | 3 | 100.00% | 0 | 0 |
 
 ## Language parser coverage
 
@@ -44,9 +44,9 @@ Every ledger language is satisfied by corpus or parser fixture coverage.
 
 ## Gaps — surfaces still needing a replay scenario
 
-28 surface(s) uncovered or unresolved:
+26 surface(s) uncovered or unresolved:
 
-### Projections (cost/ordering) (27)
+### Projections (cost/ordering) (25)
 
 - `projection:aws_cloud_runtime_drift` (cost)
 - `projection:azure_resource_materialization` (cost)
@@ -58,7 +58,6 @@ Every ledger language is satisfied by corpus or parser fixture coverage.
 - `projection:documentation_materialization` (cost)
 - `projection:ec2_instance_node_materialization` (cost)
 - `projection:gcp_resource_materialization` (cost)
-- `projection:incident_repository_correlation` (ordering)
 - `projection:incident_repository_correlation` (cost)
 - `projection:incident_routing_materialization` (cost)
 - `projection:kubernetes_correlation` (cost)
@@ -73,14 +72,13 @@ Every ledger language is satisfied by corpus or parser fixture coverage.
 - `projection:security_alert_reconciliation` (cost)
 - `projection:semantic_entity_materialization` (cost)
 - `projection:service_catalog_correlation` (cost)
-- `projection:supply_chain_impact` (ordering)
 - `projection:supply_chain_impact` (cost)
 
 ### Retractable node types (delta) (1)
 
 - `retractable_node:Variable` (delta_tombstone)
 
-## Covered surfaces (372)
+## Covered surfaces (374)
 
 | Surface | Scenario type | Scenario | Proof gate | Artifact |
 | --- | --- | --- | --- | --- |
@@ -283,6 +281,8 @@ Every ledger language is satisfied by corpus or parser fixture coverage.
 | `product_claim:readme.replatforming.plan-readiness` | baseline | product_claim | capability-inventory-docs | `readme.replatforming.plan-readiness` |
 | `product_claim:readme.security-iam.evidence-backed-findings` | baseline | product_claim | capability-inventory-docs | `readme.security-iam.evidence-backed-findings` |
 | `product_claim:readme.supply-chain.default-gated` | baseline | product_claim | capability-inventory-docs | `readme.supply-chain.default-gated` |
+| `projection:incident_repository_correlation` | ordering | go_test | go-test-race | `go/internal/replay/schedulereplay/projection_ordering_scenario_test.go` |
+| `projection:supply_chain_impact` | ordering | go_test | go-test-race | `go/internal/replay/schedulereplay/projection_ordering_scenario_test.go` |
 | `reducer_drain:reducer-projection-drain` | crash | go_test | go-test-race | `go/internal/replay/crashreplay/scenario_test.go` |
 | `retractable_edge:ALIASES` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_inheritance_edge_retract_live_test.go` |
 | `retractable_edge:ALLOWS_EGRESS` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_security_group_reachability_retract_live_test.go` |

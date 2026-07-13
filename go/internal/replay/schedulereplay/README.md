@@ -54,6 +54,45 @@ into per-entity work items (one repository item, one per directory) whose edges
 reference the parent item's node, so reordering exercises a genuine
 conflict-key ordering scenario.
 
+## Shared-conflict-key projection ordering (C-14, #4367)
+
+The nested-directory-tree scenario above proves ordering within one projection
+hook. Two reducer projections are shared-conflict-key: their `reducer_domain`
+is written by **more than one** distinct `projection_hook` in
+`specs/fact-kind-registry.v1.yaml`, so two independently-scheduled fact
+families contend on the same reducer conflict key:
+
+- `projection:incident_repository_correlation` — hooks
+  `incident_context_read_model` (`change.record`, `incident.lifecycle_event`,
+  `incident.record`) and `work_item_evidence_read_model` (`work_item.record`,
+  `work_item.external_link`, ...).
+- `projection:supply_chain_impact` — hooks `supply_chain_impact`
+  (`scanner_worker.analysis`/`.warning`), `vulnerability_source_state`
+  (`vulnerability.cve`, `vulnerability.affected_package`, ...), and
+  `vulnerability_suppression_admission` (`vulnerability.suppression`).
+
+`projection_ordering_scenario_test.go` proves both are delivery-order
+independent under their real `reducer.Domain` constant
+(`Config.Domain`, wired through `RunScheduleReport`) using two dedicated
+cassettes:
+
+- `testdata/cassettes/replayschedule/incident-repository-correlation.json`
+- `testdata/cassettes/replayschedule/supply-chain-impact.json`
+
+`workitem_projection.go` maps each cassette's recorded facts to WorkItems
+through the `cassette.Source` seam (there is no offlinetier materializer for
+these two domains). Each projection hook owns distinct node labels (Incident
+vs. WorkItem; Vulnerability/Package vs. Finding vs. Suppression); the edges
+that cross between two hooks' nodes (`HAS_WORK_ITEM`, `DETECTS`,
+`TARGETS_PACKAGE`, `SUPPRESSES`) are what make this a genuine cross-hook
+ordering proof rather than two independent single-hook scenarios glued
+together. The teeth test
+(`TestProjectionScheduleReplayCatchesCrossHookOrderingBug`) proves the harness
+catches a cross-hook ordering bug on the incident cassette.
+
+See `evidence-4367-projection-ordering.md` for the no-regression and
+no-observability-change evidence for this addition.
+
 ## Verifying a change
 
 ```bash

@@ -25,6 +25,16 @@ type Config struct {
 	// Apply contributes a work item to the shared graph. Defaults to
 	// ApplyCanonical when nil.
 	Apply Applier
+	// Domain is the reducer projection conflict-key domain the scripted intents
+	// carry (reducer.Intent.Domain). It has no effect on the in-memory graph
+	// model itself, but it identifies which real projection's shared-conflict-key
+	// ordering behavior a scenario is proving (C-14 #4367): a scenario for
+	// projection:incident_repository_correlation or projection:supply_chain_impact
+	// must schedule intents under that real domain constant, not a placeholder, so
+	// the coverage manifest entry maps to a genuine domain-scoped proof. Defaults
+	// to reducer.DomainCodeCallMaterialization when empty, preserving the
+	// pre-#4367 behavior for callers that do not set it.
+	Domain reducer.Domain
 }
 
 // RunSchedule drives the recorded work items through the real reducer service
@@ -47,6 +57,10 @@ func RunScheduleReport(ctx context.Context, cfg Config) (snapshot []byte, claimB
 	if workers <= 0 {
 		workers = 1
 	}
+	domain := cfg.Domain
+	if domain == "" {
+		domain = reducer.DomainCodeCallMaterialization
+	}
 
 	registry := make(map[string]WorkItem, len(cfg.Items))
 	intents := make([]reducer.Intent, 0, len(cfg.Items))
@@ -58,7 +72,7 @@ func RunScheduleReport(ctx context.Context, cfg Config) (snapshot []byte, claimB
 			ScopeID:      "replay-schedule",
 			GenerationID: "replay-gen",
 			SourceSystem: "replay",
-			Domain:       reducer.DomainCodeCallMaterialization,
+			Domain:       domain,
 			Cause:        "schedule-replay",
 			Status:       reducer.IntentStatusClaimed,
 			EnqueuedAt:   available,

@@ -3,11 +3,11 @@
   "blocking": true,
   "totals": {
     "total": 400,
-    "covered": 363,
-    "uncovered": 28,
+    "covered": 365,
+    "uncovered": 26,
     "unresolved": 0,
     "exempt": 9,
-    "percent_satisfied": 93
+    "percent_satisfied": 93.5
   },
   "registry_summaries": [
     {
@@ -67,11 +67,11 @@
     {
       "registry": "projection",
       "total": 27,
-      "covered": 0,
-      "uncovered": 27,
+      "covered": 2,
+      "uncovered": 25,
       "unresolved": 0,
       "exempt": 0,
-      "percent_satisfied": 0
+      "percent_satisfied": 7.41
     },
     {
       "registry": "reducer_drain",
@@ -159,11 +159,11 @@
     {
       "scenario_type": "ordering",
       "total": 3,
-      "covered": 1,
-      "uncovered": 2,
+      "covered": 3,
+      "uncovered": 0,
       "unresolved": 0,
       "exempt": 0,
-      "percent_satisfied": 33.33
+      "percent_satisfied": 100
     }
   ],
   "surfaces": [
@@ -2228,8 +2228,11 @@
       "registry": "projection",
       "key": "projection:incident_repository_correlation",
       "scenario_type": "ordering",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type ordering"
+      "status": "covered",
+      "scenario": "go_test",
+      "ref": "go/internal/replay/schedulereplay/projection_ordering_scenario_test.go",
+      "proof_gate": "go-test-race",
+      "detail": "artifact present: go/internal/replay/schedulereplay/projection_ordering_scenario_test.go"
     },
     {
       "registry": "projection",
@@ -2333,8 +2336,11 @@
       "registry": "projection",
       "key": "projection:supply_chain_impact",
       "scenario_type": "ordering",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type ordering"
+      "status": "covered",
+      "scenario": "go_test",
+      "ref": "go/internal/replay/schedulereplay/projection_ordering_scenario_test.go",
+      "proof_gate": "go-test-race",
+      "detail": "artifact present: go/internal/replay/schedulereplay/projection_ordering_scenario_test.go"
     },
     {
       "registry": "projection",
@@ -4069,7 +4075,6 @@
     "projection:ec2_instance_node_materialization|cost",
     "projection:gcp_resource_materialization|cost",
     "projection:incident_repository_correlation|cost",
-    "projection:incident_repository_correlation|ordering",
     "projection:incident_routing_materialization|cost",
     "projection:kubernetes_correlation|cost",
     "projection:observability_coverage_correlation|cost",
@@ -4084,7 +4089,6 @@
     "projection:semantic_entity_materialization|cost",
     "projection:service_catalog_correlation|cost",
     "projection:supply_chain_impact|cost",
-    "projection:supply_chain_impact|ordering",
     "retractable_node:Variable|delta_tombstone"
   ],
   "stale_manifest_surfaces": null,

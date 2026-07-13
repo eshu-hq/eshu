@@ -370,6 +370,29 @@ coverage:
   - {surface: collector:terraform_state, scenario: go_test, scenario_type: fault, ref: go/internal/replay/inputtape/fault_collectors_test.go, proof_gate: go-test-race}
   - {surface: capability:platform_impact.relationships_catalog, scenario: go_test, scenario_type: ordering, ref: go/internal/replay/schedulereplay/scenario_test.go, proof_gate: go-test-race}
   - {surface: capability:platform_impact.relationships_catalog, scenario: go_test, scenario_type: crash, ref: go/internal/replay/crashreplay/scenario_test.go, proof_gate: go-test-race}
+  # C-14 (#4367) projection-ordering backfill: the two shared-conflict-key
+  # reducer projections (a reducer_domain written by >=2 distinct
+  # projection_hook values in specs/fact-kind-registry.v1.yaml) each get a
+  # genuine cross-hook ordering proof, not just the single-hook
+  # nested-directory-tree scenario scenario_test.go already covers.
+  # incident_repository_correlation is written by incident_context_read_model
+  # (change.record, incident.lifecycle_event, incident.record) and
+  # work_item_evidence_read_model (work_item.record, work_item.external_link,
+  # ...); supply_chain_impact is written by supply_chain_impact
+  # (scanner_worker.analysis/.warning), vulnerability_source_state
+  # (vulnerability.cve, vulnerability.affected_package, ...), and
+  # vulnerability_suppression_admission (vulnerability.suppression). Each
+  # domain gets its own committed replayschedule cassette
+  # (testdata/cassettes/replayschedule/) whose facts map to WorkItems through
+  # workitem_projection.go, and projection_ordering_scenario_test.go proves
+  # order-invariant convergence (in-order/reverse/rotated/duplicates,
+  # sequential and concurrent-batch) under the real
+  # reducer.DomainIncidentRepositoryCorrelation /
+  # reducer.DomainSupplyChainImpact domain constants, plus a cross-hook teeth
+  # test that a deliberately order-sensitive applier diverges on the
+  # incident_repository_correlation cassette.
+  - {surface: projection:incident_repository_correlation, scenario: go_test, scenario_type: ordering, ref: go/internal/replay/schedulereplay/projection_ordering_scenario_test.go, proof_gate: go-test-race}
+  - {surface: projection:supply_chain_impact, scenario: go_test, scenario_type: ordering, ref: go/internal/replay/schedulereplay/projection_ordering_scenario_test.go, proof_gate: go-test-race}
   - {surface: capability:freshness.changed_since, scenario: cassette, scenario_type: delta_tombstone, ref: testdata/cassettes/replaydelta/multi-generation-tombstone.json, proof_gate: replay-tier}
   - {surface: capability:code_search.content_search, scenario: proof_artifact, scenario_type: cost, ref: specs/capability-budget-proof.v1.yaml, proof_gate: capability-budget-proof}
 
