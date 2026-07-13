@@ -87,6 +87,13 @@
   `fact_work_items` backlog with pending `shared_projection_intents` so
   `/admin/status` remains `progressing` until reducer-owned shared edges are
   graph-visible. Do not remove that union when editing `status.go`.
+- **Generation liveness respects shared-resolver ownership.** Exact
+  `repo_dependency` / `repo_dependency:<scope>` source runs in that projection
+  domain must not reopen `source_local`, even after backward evidence commits.
+  Source-local replay cannot advance the shared resolver and can launch an
+  obsolete full canonical retract. Keep recovery and stuck-age predicates in
+  lockstep, preserve other domains and prefix-collision source runs, and do not
+  reduce worker concurrency as a substitute.
 - **Schema ordering** — tables with foreign key constraints must appear after
   their referenced tables in `bootstrapDefinitions`. Current FK dependencies:
   `graph_projection_phase_state` → `ingestion_scopes` + `scope_generations`.

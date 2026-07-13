@@ -110,8 +110,8 @@ CREATE TABLE graph_projection_phase_state (
 //     for recovery until reducer work drains.
 //
 //   - scope-shared-backlog / gen-shared-backlog: aged cross-repo
-//     repo_dependency backlog with no backward_evidence_committed phase →
-//     unready downstream work, not a source-local wedge.
+//     repo_dependency backlog after backward_evidence_committed → progress in
+//     the shared resolver's own queue, not a source-local wedge.
 //
 //   - scope-recovery-inflight / gen-recovery-inflight: active, activated 2 hours
 //     ago, has an outstanding shared_projection_intents row and a pending
@@ -132,7 +132,9 @@ CREATE TABLE graph_projection_phase_state (
 //   - scope-pending-newer / gen-pending-active + gen-pending-newer: gen-pending-active
 //     is active and wedged-looking, but gen-pending-newer exists as 'pending' →
 //     the NOT EXISTS gate must exclude scope-pending-newer from re-drive.
-const generationLivenessProofSeedSQL = `
+const generationLivenessProofSeedSQL = generationLivenessProofSeedBaseSQL + generationLivenessSharedBacklogSeedSQL
+
+const generationLivenessProofSeedBaseSQL = `
 -- scope-wedged: wedged active generation with outstanding downstream work.
 INSERT INTO ingestion_scopes (
     scope_id, scope_kind, source_system, source_key, collector_kind,
@@ -200,48 +202,6 @@ INSERT INTO fact_work_items (
     'reducer_gen-reducer-backlog', 'scope-reducer-backlog', 'gen-reducer-backlog',
     'reducer', 'source_local', 'pending', now() - interval '2 hours', now() - interval '2 hours'
 );
-
--- scope-shared-backlog: cross-repo repo_dependency waits for
--- backward_evidence_committed, so liveness must not reopen source_local.
-INSERT INTO ingestion_scopes (
-    scope_id, scope_kind, source_system, source_key, collector_kind,
-    partition_key, observed_at, ingested_at, status, active_generation_id
-) VALUES (
-    'scope-shared-backlog', 'repository', 'github', 'acme/shared-backlog', 'git',
-    'acme/shared-backlog', now(), now(), 'active', 'gen-shared-backlog'
-);
-INSERT INTO scope_generations (
-    generation_id, scope_id, trigger_kind, observed_at, ingested_at,
-    status, activated_at
-) VALUES (
-    'gen-shared-backlog', 'scope-shared-backlog', 'push',
-    now() - interval '2 hours', now() - interval '2 hours',
-    'active', now() - interval '2 hours'
-);
-INSERT INTO shared_projection_intents (
-    intent_id, projection_domain, partition_key, scope_id,
-    acceptance_unit_id, repository_id, source_run_id, generation_id,
-    payload, created_at
-) VALUES (
-    'intent-shared-backlog', 'repo_dependency', 'acme/shared-backlog', 'scope-shared-backlog',
-    '', 'acme/shared-backlog', 'repo_dependency:scope-shared-backlog', 'gen-shared-backlog',
-    '{"action":"sync"}'::jsonb, now() - interval '2 hours'
-);
-INSERT INTO fact_work_items (
-    work_item_id, scope_id, generation_id, stage, domain, status, payload, created_at, updated_at
-) VALUES
-    (
-        'projector_scope-shared-backlog_gen-shared-backlog',
-        'scope-shared-backlog', 'gen-shared-backlog',
-        'projector', 'source_local', 'succeeded', '{}'::jsonb,
-        now() - interval '2 hours', now() - interval '2 hours'
-    ),
-    (
-        'reducer_gen-shared-backlog',
-        'scope-shared-backlog', 'gen-shared-backlog',
-        'reducer', 'repo_dependency', 'succeeded', '{}'::jsonb,
-        now() - interval '2 hours', now() - interval '90 minutes'
-    );
 
 -- scope-recovery-inflight: a previous liveness sweep already re-enqueued
 -- source-local projector work. Do not select it again until that work exits

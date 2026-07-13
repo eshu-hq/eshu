@@ -25,7 +25,10 @@
 // recovery and status surfaces. Status readers include pending shared
 // projection intents and lease-only active shared-projection lanes in domain
 // backlog aggregates because those rows gate whether reducer-owned graph edges
-// are ready for query truth, and ReducerGraphDrain gives local NornicDB
+// are ready for query truth. Generation liveness leaves exact cross-repository
+// repo_dependency source runs with that shared resolver instead of reopening
+// source-local projection; stuck-age reporting uses the same ownership rule.
+// ReducerGraphDrain gives local NornicDB
 // code-call projection a read-only view of reducer graph-domain backlog before
 // it starts its edge write lane. Shared projection partition leases use a
 // domain-scoped advisory lock and reject active partition-count rescaling for

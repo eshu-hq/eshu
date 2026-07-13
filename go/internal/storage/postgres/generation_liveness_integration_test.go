@@ -49,8 +49,9 @@ import (
 //     stuck bucket requires an outstanding shared_projection_intents row that is
 //     actually ready enough to be a source-local wedge, with no unresolved
 //     reducer fact-work or in-flight source-local projector work for the same
-//     generation. Cross-repo repo_dependency intents without
-//     backward_evidence_committed are aging, not stuck.
+//     generation. Cross-repo repo_dependency intents remain aging, not stuck,
+//     after backward_evidence_committed because their shared resolver owns
+//     progress.
 //
 //  5. Recovery already in flight: with MaxRecoverAttempts above the current
 //     attempt count, a pending source-local liveness recovery row is still not
@@ -115,7 +116,8 @@ func TestGenerationLivenessIntegration(t *testing.T) {
 		//   gen-reducer-backlog: activated 2h ago, outstanding intent, pending
 		//     reducer work for the same generation → aging, not stuck.
 		//   gen-shared-backlog: activated 2h ago, cross-repo repo_dependency
-		//     intent is still waiting on backward_evidence_committed → aging.
+		//     intent is draining in its shared resolver after backward evidence →
+		//     aging, not a source-local wedge.
 		//   gen-recovery-inflight: activated 2h ago, outstanding shared intent,
 		//     but liveness recovery is already pending → aging, not stuck.
 		if got, want := counts["aging"], int64(6); got != want {

@@ -46,10 +46,9 @@ func TestRecoverWedgedActiveGenerationsQueryContract(t *testing.T) {
 		"projector_work.status IN ('pending', 'retrying')",
 		"projector_work.claim_until > $4",
 		"existing.domain = 'source_local'",
-		"graph_projection_phase_state",
-		"backward_evidence_committed",
-		"cross_repo_evidence",
-		"repo_dependency:%",
+		"intent.projection_domain = 'repo_dependency'",
+		"intent.source_run_id = 'repo_dependency'",
+		"starts_with(intent.source_run_id, 'repo_dependency:')",
 	} {
 		if !strings.Contains(recoverWedgedActiveGenerationsQuery, want) {
 			t.Fatalf("recover wedged query missing %q:\n%s", want, recoverWedgedActiveGenerationsQuery)
@@ -58,10 +57,12 @@ func TestRecoverWedgedActiveGenerationsQueryContract(t *testing.T) {
 	if strings.Contains(recoverWedgedActiveGenerationsQuery, "projector_work.status IN ('pending', 'claimed', 'running', 'retrying', 'succeeded')") {
 		t.Fatalf("recover wedged query must not exclude succeeded source-local projector rows:\n%s", recoverWedgedActiveGenerationsQuery)
 	}
-	if !strings.Contains(recoverWedgedActiveGenerationsQuery, "backward_phase.acceptance_unit_id = generation.scope_id") ||
-		!strings.Contains(recoverWedgedActiveGenerationsQuery, "backward_phase.source_run_id = generation.generation_id") ||
-		!strings.Contains(recoverWedgedActiveGenerationsQuery, "backward_phase.generation_id = generation.generation_id") {
-		t.Fatalf("recover wedged query missing cross-repo backward-evidence readiness key:\n%s", recoverWedgedActiveGenerationsQuery)
+	if strings.Contains(recoverWedgedActiveGenerationsQuery, "graph_projection_phase_state") ||
+		strings.Contains(recoverWedgedActiveGenerationsQuery, "backward_evidence_committed'") {
+		t.Fatalf("recover wedged query must not treat shared-resolver readiness as a source-local wedge:\n%s", recoverWedgedActiveGenerationsQuery)
+	}
+	if strings.Contains(recoverWedgedActiveGenerationsQuery, "LIKE 'repo_dependency:%'") {
+		t.Fatalf("recover wedged query must not use an unescaped underscore as a LIKE wildcard:\n%s", recoverWedgedActiveGenerationsQuery)
 	}
 	// A wedged active must never be reset to attempt_count = 0; that would erase
 	// the bounded re-drive budget and let a poison scope loop forever.
@@ -308,10 +309,17 @@ func TestGenerationLivenessStoreCountActiveByAge(t *testing.T) {
 		!strings.Contains(db.queries[0].query, "projector_work.claim_until > $3") {
 		t.Fatalf("count query stuck bucket missing source-local in-flight projector gate (queued rows excluded unconditionally, claimed/running only while the lease is live):\n%s", db.queries[0].query)
 	}
-	if !strings.Contains(db.queries[0].query, "graph_projection_phase_state") ||
-		!strings.Contains(db.queries[0].query, "backward_evidence_committed") ||
-		!strings.Contains(db.queries[0].query, "repo_dependency:%") {
-		t.Fatalf("count query stuck bucket missing cross-repo backward-evidence readiness gate:\n%s", db.queries[0].query)
+	if !strings.Contains(db.queries[0].query, "intent.projection_domain = 'repo_dependency'") ||
+		!strings.Contains(db.queries[0].query, "intent.source_run_id = 'repo_dependency'") ||
+		!strings.Contains(db.queries[0].query, "starts_with(intent.source_run_id, 'repo_dependency:')") {
+		t.Fatalf("count query stuck bucket missing exact shared-resolver exclusion:\n%s", db.queries[0].query)
+	}
+	if strings.Contains(db.queries[0].query, "graph_projection_phase_state") ||
+		strings.Contains(db.queries[0].query, "backward_evidence_committed'") {
+		t.Fatalf("count query must not treat shared-resolver readiness as a source-local wedge:\n%s", db.queries[0].query)
+	}
+	if strings.Contains(db.queries[0].query, "LIKE 'repo_dependency:%'") {
+		t.Fatalf("count query must not use an unescaped underscore as a LIKE wildcard:\n%s", db.queries[0].query)
 	}
 	if strings.Contains(db.queries[0].query, "projector_work.status IN ('pending', 'claimed', 'running', 'retrying', 'succeeded')") {
 		t.Fatalf("count query stuck bucket must not suppress succeeded source-local projector rows:\n%s", db.queries[0].query)
