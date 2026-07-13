@@ -161,7 +161,7 @@ never reorder results it was not given, and the per-result `ranking_basis` must
 preserve the baseline rank and lexical/vector score. Adoption requires measured
 benchmark evidence that reranking improves quality without regressing the
 no-signal case; the accept decision and nDCG lift are recorded in
-[issue-2678 graph-rerank evidence](searchbench-evidence/2678-graph-rerank.md).
+[issue-2678 graph-rerank evidence](https://github.com/eshu-hq/eshu/blob/main/docs/internal/evidence/searchbench-evidence/2678-graph-rerank.md).
 
 ## Failure Classes
 

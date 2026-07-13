@@ -56,7 +56,9 @@ The scaffold creates:
 - SDK sample code that emits facts through `collector-sdk/v1alpha1`.
 - focused tests that fail if manifest fact declarations, source confidence, SDK
   contract, and emitted facts disagree.
-- `scripts/verify-local.sh` for local Go tests and component inspect/verify.
+- `<your-component>/scripts/verify-local.sh` for local Go tests and component
+  inspect/verify — generated inside the new component directory, not a script
+  in this repo.
 
 After scaffolding:
 

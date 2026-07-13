@@ -431,16 +431,16 @@ from unlabeled queries.
 
 ## Recorded Runs
 
-- [Issue #2235 search-lane latency (2026-06-13)](searchbench-evidence/issue-2235-search-lane-latency-2026-06-13.md)
+- [Issue #2235 search-lane latency (2026-06-13)](https://github.com/eshu-hq/eshu/blob/main/docs/internal/evidence/searchbench-evidence/issue-2235-search-lane-latency-2026-06-13.md)
   — first measured run over a 27,822-document corpus: Postgres baseline vs the
   in-process `searchhybrid` lane; decision `defer_search_change`. The NornicDB
   search arm was not measured (no search-enabled curated deployment), and recall
   needs a labeled query suite.
-- [Issue #2237 inverted index (2026-06-13)](searchbench-evidence/issue-2237-inverted-index-2026-06-13.md)
+- [Issue #2237 inverted index (2026-06-13)](https://github.com/eshu-hq/eshu/blob/main/docs/internal/evidence/searchbench-evidence/issue-2237-inverted-index-2026-06-13.md)
   — before/after for the `searchhybrid` inverted index: in-process hybrid p50
   ~19.5 ms → ~0.53 ms (~37×) over the same corpus, now faster than the Postgres
   baseline at the median with a tighter tail.
-- [Issue #2355 search cap sweep (2026-06-13)](searchbench-evidence/issue-2355-search-cap-sweep-2026-06-13.md)
+- [Issue #2355 search cap sweep (2026-06-13)](https://github.com/eshu-hq/eshu/blob/main/docs/internal/evidence/searchbench-evidence/issue-2355-search-cap-sweep-2026-06-13.md)
   — live 227,196-document cap sweep with a 20-query content-handle suite; the
   500-document placeholder recorded 0.000 recall, while the full corpus recorded
   1.000 recall with 24 us p95 in-process BM25 latency.

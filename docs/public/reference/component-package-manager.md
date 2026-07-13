@@ -97,7 +97,8 @@ eshu component extraction-readiness pagerduty \
 `./<component-id>` and also accepts `--output <dir>`. It refuses existing output
 directories, unsafe identifiers, and non-namespaced fact kinds. The generated
 package contains a manifest, sample SDK collector code, tests, placeholder-only
-config, a README, and `scripts/verify-local.sh`.
+config, a README, and `<your-component>/scripts/verify-local.sh` — written into
+that generated directory, not a script in this repo.
 
 `component conform` runs a read-only extension conformance check against one
 manifest and one or more collector SDK result fixtures. Fixture mode loads the
