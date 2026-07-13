@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { RepositoryFreshnessSection } from "./RepositoryFreshnessSection";
@@ -26,23 +26,28 @@ function freshnessWire(overrides: Record<string, unknown> = {}): Record<string, 
 
 // sequencedClient answers the freshness GET with the next entry in
 // `responses` on each call, repeating the last entry once exhausted --
-// mirrors OperationsPage.test.tsx's opsClient convention.
+// mirrors OperationsPage.test.tsx's opsClient convention. `paths` records
+// every requested URL so tests can assert on the ?expected_commit= param.
 function sequencedClient(responses: readonly Record<string, unknown>[]): EshuApiClient & {
   calls: number;
+  paths: string[];
 } {
   let call = 0;
+  const paths: string[] = [];
   const client = {
     get calls() {
       return call;
     },
+    paths,
     get: async (path: string) => {
       if (!path.includes("/freshness")) throw new Error(`unexpected get ${path}`);
+      paths.push(path);
       const idx = Math.min(call, responses.length - 1);
       call += 1;
       return { data: responses[idx], error: null, truth: null };
     },
   };
-  return client as unknown as EshuApiClient & { calls: number };
+  return client as unknown as EshuApiClient & { calls: number; paths: string[] };
 }
 
 describe("RepositoryFreshnessSection", () => {
@@ -182,5 +187,147 @@ describe("RepositoryFreshnessSection", () => {
       <RepositoryFreshnessSection repoId="repository:checkout-service" />,
     );
     expect(container).toBeEmptyDOMElement();
+  });
+
+  it("submits an expected commit and drives the fetch with expectedCommit", async () => {
+    const client = sequencedClient([
+      freshnessWire({ verdict: "current" }),
+      freshnessWire({
+        verdict: "behind",
+        observed_commit: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      }),
+    ]);
+
+    render(
+      <RepositoryFreshnessSection
+        client={client}
+        repoId="repository:payments-api"
+        pollMs={50000}
+      />,
+    );
+
+    expect(await screen.findByText(/Current through a1b2c3d4e5/)).toBeInTheDocument();
+
+    const input = screen.getByLabelText("Expected commit");
+    fireEvent.change(input, {
+      target: { value: "  bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb  " },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /check/i }));
+
+    await waitFor(() =>
+      expect(client.paths.at(-1)).toContain(
+        "expected_commit=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      ),
+    );
+  });
+
+  it("renders the 'expected commit not indexed yet' verdict once the fetch resolves as behind", async () => {
+    const client = sequencedClient([
+      freshnessWire({ verdict: "current" }),
+      freshnessWire({
+        verdict: "behind",
+        observed_commit: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      }),
+    ]);
+
+    render(
+      <RepositoryFreshnessSection
+        client={client}
+        repoId="repository:payments-api"
+        pollMs={50000}
+      />,
+    );
+
+    expect(await screen.findByText(/Current through a1b2c3d4e5/)).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Expected commit"), {
+      target: { value: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /check/i }));
+
+    expect(await screen.findByText("Behind your commit")).toBeInTheDocument();
+    expect(
+      await screen.findByText(/eshu has aaaaaaaaaa; expected bbbbbbbbbb not indexed yet\./),
+    ).toBeInTheDocument();
+  });
+
+  it("clears the expected commit input and reverts to the plain fetch", async () => {
+    const client = sequencedClient([
+      freshnessWire({ verdict: "current" }),
+      freshnessWire({
+        verdict: "behind",
+        observed_commit: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      }),
+      freshnessWire({ verdict: "current" }),
+    ]);
+
+    render(
+      <RepositoryFreshnessSection
+        client={client}
+        repoId="repository:payments-api"
+        pollMs={50000}
+      />,
+    );
+
+    expect(await screen.findByText(/Current through a1b2c3d4e5/)).toBeInTheDocument();
+
+    const input = screen.getByLabelText("Expected commit");
+    fireEvent.change(input, {
+      target: { value: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /check/i }));
+    expect(await screen.findByText("Behind your commit")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /clear/i }));
+
+    await waitFor(() => expect(client.paths.at(-1)).not.toContain("expected_commit"));
+    expect(await screen.findByText(/Current through a1b2c3d4e5/)).toBeInTheDocument();
+    // The panel re-renders through a "Loading freshness…" state on refetch, so
+    // the pre-clear `input` reference is a detached node -- re-query it.
+    expect(screen.getByLabelText("Expected commit")).toHaveValue("");
+  });
+
+  it("clears the expected commit state on a repoId change so a SHA never leaks across repos", async () => {
+    // RepoSourcePage keeps this section mounted across in-app navigation
+    // between repos (repoId comes from a route param, not a remount), so a
+    // SHA typed for one repo must never silently drive the fetch for another.
+    const client = sequencedClient([
+      freshnessWire({ verdict: "current" }),
+      freshnessWire({
+        verdict: "behind",
+        observed_commit: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      }),
+      freshnessWire({ verdict: "current" }),
+    ]);
+
+    const { rerender } = render(
+      <RepositoryFreshnessSection
+        client={client}
+        repoId="repository:payments-api"
+        pollMs={50000}
+      />,
+    );
+    expect(await screen.findByText(/Current through a1b2c3d4e5/)).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Expected commit"), {
+      target: { value: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /check/i }));
+    expect(await screen.findByText("Behind your commit")).toBeInTheDocument();
+
+    rerender(
+      <RepositoryFreshnessSection
+        client={client}
+        repoId="repository:other-service"
+        pollMs={50000}
+      />,
+    );
+
+    expect(await screen.findByText(/Current through a1b2c3d4e5/)).toBeInTheDocument();
+    expect(screen.getByLabelText("Expected commit")).toHaveValue("");
+
+    const otherServicePaths = client.paths.filter((path) => path.includes("other-service"));
+    expect(otherServicePaths.length).toBeGreaterThan(0);
+    expect(otherServicePaths.every((path) => !path.includes("expected_commit"))).toBe(true);
   });
 });

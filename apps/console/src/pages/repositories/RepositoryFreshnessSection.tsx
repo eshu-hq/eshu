@@ -11,7 +11,7 @@
 // change soon. Polling stops once the repository reaches "current",
 // "behind", or "unknown", or when the read degrades to unavailable, so an
 // idle or broken repo does not keep the network busy.
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 
 import type { EshuApiClient } from "../../api/client";
 import {
@@ -54,6 +54,24 @@ export function RepositoryFreshnessSection({
   readonly pollMs?: number;
 }): React.JSX.Element | null {
   const [freshness, setFreshness] = useState<RepositoryFreshness | null>(null);
+  // expectedCommitInput is the raw, uncommitted text in the field.
+  // appliedExpectedCommit is the value that actually drives the fetch --
+  // it only changes on submit or clear, so typing does not refetch on every
+  // keystroke (issue #5173).
+  const [expectedCommitInput, setExpectedCommitInput] = useState("");
+  const [appliedExpectedCommit, setAppliedExpectedCommit] = useState("");
+  // RepoSourcePage keeps this section mounted across in-app navigation
+  // between repos (repoId is a route param, not a remount trigger), so a SHA
+  // typed for one repo must never silently drive the fetch for another. This
+  // is React's documented "adjust state while rendering" pattern: comparing
+  // the prop against a tracked previous value and resetting synchronously
+  // avoids both a stale render and a wasted fetch with the old repo's SHA.
+  const [expectedCommitRepoId, setExpectedCommitRepoId] = useState(repoId);
+  if (repoId !== expectedCommitRepoId) {
+    setExpectedCommitRepoId(repoId);
+    setExpectedCommitInput("");
+    setAppliedExpectedCommit("");
+  }
 
   useEffect(() => {
     setFreshness(null);
@@ -62,7 +80,9 @@ export function RepositoryFreshnessSection({
     let timer: ReturnType<typeof setTimeout> | undefined;
 
     const refresh = (): void => {
-      void loadRepositoryFreshness(client, repoId).then((next) => {
+      void loadRepositoryFreshness(client, repoId, {
+        expectedCommit: appliedExpectedCommit,
+      }).then((next) => {
         if (cancelled) return;
         setFreshness(next);
         if (shouldKeepPolling(next)) {
@@ -75,9 +95,19 @@ export function RepositoryFreshnessSection({
       cancelled = true;
       if (timer !== undefined) clearTimeout(timer);
     };
-  }, [client, repoId, pollMs]);
+  }, [client, repoId, pollMs, appliedExpectedCommit]);
 
   if (!client || repoId === "") return null;
+
+  function submitExpectedCommit(event: FormEvent<HTMLFormElement>): void {
+    event.preventDefault();
+    setAppliedExpectedCommit(expectedCommitInput.trim());
+  }
+
+  function clearExpectedCommit(): void {
+    setExpectedCommitInput("");
+    setAppliedExpectedCommit("");
+  }
 
   if (freshness === null) {
     return (
@@ -102,7 +132,31 @@ export function RepositoryFreshnessSection({
       sub="GET /api/v0/repositories/{id}/freshness"
       action={<FreshnessChip freshness={freshness} />}
     >
-      <p className="t-mut">{freshness.copy.detail}</p>
+      <form
+        onSubmit={submitExpectedCommit}
+        style={{ display: "flex", alignItems: "center", gap: 8 }}
+      >
+        <label style={{ display: "flex", alignItems: "center", gap: 6, flex: 1 }}>
+          <span className="t-mut">Expected commit</span>
+          <input
+            className="popover-input mono"
+            onChange={(event) => setExpectedCommitInput(event.target.value)}
+            placeholder="full or short SHA"
+            value={expectedCommitInput}
+          />
+        </label>
+        <button className="btn-ghost" type="submit">
+          Check
+        </button>
+        {appliedExpectedCommit !== "" ? (
+          <button className="btn-ghost" onClick={clearExpectedCommit} type="button">
+            Clear
+          </button>
+        ) : null}
+      </form>
+      <p className="t-mut" style={{ marginTop: 12 }}>
+        {freshness.copy.detail}
+      </p>
       <div className="section-label" style={{ marginTop: 12 }}>
         Stages
       </div>
