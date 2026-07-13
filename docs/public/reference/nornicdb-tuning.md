@@ -48,8 +48,8 @@ not to explain an unclassified NornicDB slowdown.
 
 ## Canonical Write Budget
 
-These knobs affect source-local canonical graph writes from ingester and
-bootstrap-index.
+These knobs affect source-local canonical graph writes from bootstrap-index,
+ingester, and the standalone projector.
 
 | Variable | Default | Use |
 | --- | --- | --- |
@@ -85,7 +85,7 @@ many grouped transactions run in parallel. Peak Bolt session demand is roughly:
 
 ```text
 bootstrap-index: ESHU_PROJECTION_WORKERS * ESHU_NORNICDB_ENTITY_PHASE_CONCURRENCY
-ingester: ESHU_PROJECTOR_WORKERS * ESHU_NORNICDB_ENTITY_PHASE_CONCURRENCY
+ingester or standalone projector: ESHU_PROJECTOR_WORKERS * ESHU_NORNICDB_ENTITY_PHASE_CONCURRENCY
 ```
 
 Pin concurrency lower only when NornicDB shows parallel commit contention.
@@ -209,6 +209,13 @@ includes the `ESHU_CANONICAL_WRITE_TIMEOUT` deadline), a permit-wait does not
 extend that per-write timeout budget beyond what the inner
 `TimeoutExecutor`/retry stack already bounds.
 
+The standalone projector uses the same inner-gate placement through
+`projectorCanonicalExecutorForGraphBackend`. Its `PhaseGroupExecutor` does not
+expose `GroupExecutor`, so the canonical writer cannot collapse materialized
+dependency phases back into one whole-repository transaction. Grouped entity
+chunks and retract drains share the same process-local gate; this preserves
+entity fanout while bounding each actual Bolt write.
+
 The gate itself is constructed exactly ONCE per bootstrap-index run
 (`newBootstrapCanonicalGate` in `go/cmd/bootstrap-index/graph_write_backpressure_wiring.go`,
 called from `openBootstrapCanonicalWriter` in `go/cmd/bootstrap-index/wiring.go`)
@@ -218,9 +225,17 @@ shared instance, so the ceiling bounds in-flight writes across every
 
 No-Regression Evidence: `go test ./internal/storage/cypher
 ./internal/graphbackpressure ./cmd/bootstrap-index ./cmd/reducer -race
--count=1` (930 tests, 4 packages) proves the reducer's and projector's existing
-`GroupExecutor`-based wiring is unchanged while bootstrap's inner-layer wiring
-correctly bounds writes. Peak-concurrency proof:
+-count=1` (930 tests, 4 packages) proves the reducer's existing wiring and
+bootstrap's inner-layer wiring. Standalone-projector coverage comes from
+`go test ./cmd/projector ./internal/storage/nornicdb -race -count=1`:
+`TestProjectorCanonicalExecutorBoundsRealNornicDBFanout` reaches the configured
+inner gate ceiling above one,
+`TestProjectorCanonicalExecutorSharesNornicDBGateWithDrain` proves grouped
+writes and retract drains share that ceiling, and
+`TestPhaseGroupExecutorDrainsExactChunkBeforeNextLabel` preserves exact label
+ordering without serializing chunks within the active label.
+
+Bootstrap peak-concurrency proof:
 `TestBootstrapCanonicalGateBoundsConcurrentEntityFanOut`
 (`go/cmd/bootstrap-index/nornicdb_canonical_gate_fanout_test.go`) drives
 `ExecutePhaseGroup` with `entityPhaseConcurrency=8` and a gate ceiling of 2,

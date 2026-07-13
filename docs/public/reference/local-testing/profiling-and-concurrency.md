@@ -14,8 +14,8 @@ ship single-worker settings as a fix for a concurrency bug.
 | `ESHU_DEFERRED_BACKFILL_CONCURRENCY` | `min(NumCPU, 8)`, hard cap `8` | Bootstrap Index / Ingester | Concurrent per-repository batch transactions in the deferred relationship-evidence backfill; set `1` at `ESHU_POSTGRES_MAX_OPEN_CONNS=1` |
 | `ESHU_SNAPSHOT_WORKERS` | `min(NumCPU, 8)`; local-authoritative owner: `NumCPU` | Ingester / Bootstrap | Concurrent repository snapshot goroutines |
 | `ESHU_PARSE_WORKERS` | `min(NumCPU, 8)`; local-authoritative owner: `NumCPU` | Ingester / Bootstrap | Concurrent file-parse workers inside a repository snapshot |
-| `ESHU_PROJECTOR_WORKERS` | `min(NumCPU, 8)`; NornicDB local-authoritative: `NumCPU` | Ingester | Concurrent source-local projection workers |
-| `ESHU_NORNICDB_ENTITY_PHASE_CONCURRENCY` | `NumCPU`, clamped to `16` | Bootstrap Index / Ingester | Parallel canonical `entities` and `entity_containment` phase grouped writes on NornicDB |
+| `ESHU_PROJECTOR_WORKERS` | `min(NumCPU, 8)`; NornicDB local-authoritative: `NumCPU` | Ingester / Projector | Concurrent source-local projection workers |
+| `ESHU_NORNICDB_ENTITY_PHASE_CONCURRENCY` | `NumCPU`, clamped to `16` | Bootstrap Index / Ingester / Projector | Parallel canonical `entities` and `entity_containment` phase grouped writes on NornicDB |
 | `ESHU_REDUCER_WORKERS` | NornicDB: `NumCPU`; Neo4j: `min(NumCPU, 4)` | Reducer | Concurrent reducer intent execution goroutines |
 | `ESHU_REDUCER_BATCH_CLAIM_SIZE` | NornicDB: `workers`; Neo4j: `workers * 4` capped at `64` | Reducer | Reducer intents leased per claim cycle |
 | `ESHU_REDUCER_SEMANTIC_ENTITY_CLAIM_LIMIT` | unset / disabled | Reducer | Optional cap on cross-scope semantic entity materialization claims after source-local drain |
