@@ -6,6 +6,7 @@ package main
 import (
 	"context"
 	"errors"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -308,6 +309,48 @@ func TestNornicDBRetractBatchSizeEnvInvalid(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("nornicDBCanonicalRetractBatchSize() error = nil, want non-nil for invalid value")
+	}
+}
+
+func TestNornicDBRetractBatchSizeEnvAboveMaximum(t *testing.T) {
+	t.Parallel()
+
+	_, err := nornicDBCanonicalRetractBatchSize(func(key string) string {
+		if key == nornicDBCanonicalRetractBatchSizeEnv {
+			return "10001"
+		}
+		return ""
+	})
+	if err == nil {
+		t.Fatal("nornicDBCanonicalRetractBatchSize() error = nil, want out-of-range error")
+	}
+	if !strings.Contains(err.Error(), nornicDBCanonicalRetractBatchSizeEnv) ||
+		!strings.Contains(err.Error(), "1..10000") {
+		t.Fatalf("error = %q, want env name and valid range", err)
+	}
+}
+
+func TestNornicDBRetractBatchSizeEnvBoundaries(t *testing.T) {
+	t.Parallel()
+
+	for _, value := range []string{"1", "10000"} {
+		value := value
+		t.Run(value, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := nornicDBCanonicalRetractBatchSize(func(key string) string {
+				if key == nornicDBCanonicalRetractBatchSizeEnv {
+					return value
+				}
+				return ""
+			})
+			if err != nil {
+				t.Fatalf("nornicDBCanonicalRetractBatchSize() error = %v, want nil", err)
+			}
+			if strconv.Itoa(got) != value {
+				t.Fatalf("retract batch size = %d, want %s", got, value)
+			}
+		})
 	}
 }
 

@@ -6,6 +6,7 @@ package main
 import (
 	"context"
 	"errors"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -53,6 +54,48 @@ func TestLoadProjectorNornicDBConfigRejectsInvalidEnv(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), projectorNornicDBFileBatchSizeEnv) {
 		t.Fatalf("error = %q, want env name", err)
+	}
+}
+
+func TestLoadProjectorNornicDBConfigRejectsRetractBatchAboveMaximum(t *testing.T) {
+	t.Parallel()
+
+	_, err := loadProjectorNornicDBConfig(func(name string) string {
+		if name == projectorNornicDBCanonicalRetractBatchEnv {
+			return "10001"
+		}
+		return ""
+	})
+	if err == nil {
+		t.Fatal("loadProjectorNornicDBConfig() error = nil, want out-of-range error")
+	}
+	if !strings.Contains(err.Error(), projectorNornicDBCanonicalRetractBatchEnv) ||
+		!strings.Contains(err.Error(), "1..10000") {
+		t.Fatalf("error = %q, want env name and valid range", err)
+	}
+}
+
+func TestLoadProjectorNornicDBConfigAcceptsRetractBatchBoundaries(t *testing.T) {
+	t.Parallel()
+
+	for _, value := range []string{"1", "10000"} {
+		value := value
+		t.Run(value, func(t *testing.T) {
+			t.Parallel()
+
+			config, err := loadProjectorNornicDBConfig(func(name string) string {
+				if name == projectorNornicDBCanonicalRetractBatchEnv {
+					return value
+				}
+				return ""
+			})
+			if err != nil {
+				t.Fatalf("loadProjectorNornicDBConfig() error = %v, want nil", err)
+			}
+			if got := config.CanonicalRetractBatchSize; strconv.Itoa(got) != value {
+				t.Fatalf("retract batch size = %d, want %s", got, value)
+			}
+		})
 	}
 }
 

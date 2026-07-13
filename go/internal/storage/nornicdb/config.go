@@ -40,6 +40,10 @@ const (
 	DefaultEntityLabelSummaryExecutions = 10
 	// DefaultCanonicalRetractBatchSize bounds each full-refresh delete step.
 	DefaultCanonicalRetractBatchSize = 2000
+	// MinCanonicalRetractBatchSize is the smallest accepted retract drain batch.
+	MinCanonicalRetractBatchSize = 1
+	// MaxCanonicalRetractBatchSize is the largest accepted retract drain batch.
+	MaxCanonicalRetractBatchSize = 10000
 	// EntityPhaseConcurrencyCap bounds concurrent entity transaction fan-out.
 	EntityPhaseConcurrencyCap = 16
 	// DefaultBatchedEntityContainment keeps containment in row-scoped entity upserts.

@@ -161,8 +161,15 @@ func loadProjectorNornicDBConfig(getenv func(string) string) (projectorNornicDBC
 	if err != nil {
 		return projectorNornicDBConfig{}, err
 	}
-	if retractBatchSize > 10000 {
-		retractBatchSize = 10000
+	if retractBatchSize < storagenornicdb.MinCanonicalRetractBatchSize ||
+		retractBatchSize > storagenornicdb.MaxCanonicalRetractBatchSize {
+		return projectorNornicDBConfig{}, fmt.Errorf(
+			"parse %s=%q: must be within %d..%d",
+			projectorNornicDBCanonicalRetractBatchEnv,
+			strings.TrimSpace(getenv(projectorNornicDBCanonicalRetractBatchEnv)),
+			storagenornicdb.MinCanonicalRetractBatchSize,
+			storagenornicdb.MaxCanonicalRetractBatchSize,
+		)
 	}
 
 	return projectorNornicDBConfig{

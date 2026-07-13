@@ -429,7 +429,8 @@ worker, queue domain, or runtime surface is removed.
   path) so callers without an opt-in see no behavior change.
 - `ESHU_CANONICAL_RETRACT_BATCH` controls the per-iteration delete limit for
   the bounded full-refresh retract drain loop on NornicDB. Default: 2000.
-  Accepted range: 1–10000. Each full-refresh retract statement (File removal,
+  Accepted range: 1–10000; values outside that range fail startup. Each
+  full-refresh retract statement (File removal,
   Directory removal, Entity removal) is rewritten at runtime into a loop that
   iterates until the graph reports zero nodes deleted, preventing the unbounded
   `DETACH DELETE` from timing out on large corpora (5000+ files, 10000+

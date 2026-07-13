@@ -62,7 +62,7 @@ ingester, and the standalone projector.
 | `ESHU_NORNICDB_ENTITY_LABEL_BATCH_SIZES` | `Function=15,K8sResource=1,Struct=50,Variable=100` | Label-specific row caps for canonical entity writes. |
 | `ESHU_NORNICDB_ENTITY_LABEL_PHASE_GROUP_STATEMENTS` | `Function=5,K8sResource=1,Struct=15,Variable=5` | Label-specific grouped-statement caps. |
 | `ESHU_NORNICDB_ENTITY_PHASE_CONCURRENCY` | `NumCPU`, clamped to `16` | Parallel chunk dispatch for canonical `entities` and `entity_containment` phases. Set to `1` only for a serial comparison. |
-| `ESHU_CANONICAL_RETRACT_BATCH` | `2000` | Nodes deleted per iteration of the bounded full-refresh retract drain loop (File, Directory, and Entity canonical retracts on NornicDB). Valid range: `1`–`10000`. Lower when a single drain iteration approaches the NornicDB write budget on very large repos (e.g. if `graph_write_timeout` appears on a retract statement at corpus scale). Does not change worker counts or per-statement timeouts. |
+| `ESHU_CANONICAL_RETRACT_BATCH` | `2000` | Nodes deleted per iteration of the bounded full-refresh retract drain loop (File, Directory, and Entity canonical retracts on NornicDB). Valid range: `1`–`10000`; ingester and projector startup reject values outside that range. Lower when a single drain iteration approaches the NornicDB write budget on very large repos (e.g. if `graph_write_timeout` appears on a retract statement at corpus scale). Does not change worker counts or per-statement timeouts. |
 
 Two dimensions matter:
 

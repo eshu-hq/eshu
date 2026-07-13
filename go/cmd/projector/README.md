@@ -146,8 +146,7 @@ package's telemetry section.
   conformance diagnostics and logs a warning; NornicDB still commits by
   dependency phase because whole-materialization atomic writes are unsupported.
 - `ESHU_CANONICAL_RETRACT_BATCH` bounds NornicDB full-refresh delete steps;
-  empty values use 2000, values above 10000 clamp to 10000, and invalid values
-  fail startup.
+  empty values use 2000, and values outside 1–10000 fail startup.
 - The projector lease duration for queue claims is one minute
   (`postgres.NewProjectorQueue(database, "projector", time.Minute)`). The
   service heartbeats each claimed row before lease expiry so large source-local

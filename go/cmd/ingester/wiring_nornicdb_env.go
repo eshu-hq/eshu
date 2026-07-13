@@ -20,11 +20,6 @@ const (
 	// Override with ESHU_CANONICAL_RETRACT_BATCH.
 	defaultNornicDBCanonicalRetractBatchSize = storagenornicdb.DefaultCanonicalRetractBatchSize
 
-	// nornicDBCanonicalRetractBatchSizeMin and nornicDBCanonicalRetractBatchSizeMax
-	// clamp the env override to a safe operating range.
-	nornicDBCanonicalRetractBatchSizeMin = 1
-	nornicDBCanonicalRetractBatchSizeMax = 10000
-
 	// nornicDBCanonicalRetractBatchSizeEnv controls the batch size used by the
 	// bounded drain loop that replaces unbounded full-refresh DETACH DELETE
 	// statements on NornicDB. Each drain iteration deletes at most this many
@@ -161,8 +156,7 @@ func nornicDBEntityBatchSize(getenv func(string) string) (int, error) {
 
 // nornicDBCanonicalRetractBatchSize returns the batch size for the bounded
 // drain loop that replaces unbounded full-refresh DETACH DELETE statements on
-// NornicDB. The value is clamped between nornicDBCanonicalRetractBatchSizeMin
-// and nornicDBCanonicalRetractBatchSizeMax.
+// NornicDB. Values outside the shared safe range are rejected.
 func nornicDBCanonicalRetractBatchSize(getenv func(string) string) (int, error) {
 	raw := strings.TrimSpace(getenv(nornicDBCanonicalRetractBatchSizeEnv))
 	if raw == "" {
@@ -172,11 +166,15 @@ func nornicDBCanonicalRetractBatchSize(getenv func(string) string) (int, error) 
 	if err != nil || n <= 0 {
 		return 0, fmt.Errorf("parse %s=%q: must be a positive integer", nornicDBCanonicalRetractBatchSizeEnv, raw)
 	}
-	if n < nornicDBCanonicalRetractBatchSizeMin {
-		return nornicDBCanonicalRetractBatchSizeMin, nil
-	}
-	if n > nornicDBCanonicalRetractBatchSizeMax {
-		return nornicDBCanonicalRetractBatchSizeMax, nil
+	if n < storagenornicdb.MinCanonicalRetractBatchSize ||
+		n > storagenornicdb.MaxCanonicalRetractBatchSize {
+		return 0, fmt.Errorf(
+			"parse %s=%q: must be within %d..%d",
+			nornicDBCanonicalRetractBatchSizeEnv,
+			raw,
+			storagenornicdb.MinCanonicalRetractBatchSize,
+			storagenornicdb.MaxCanonicalRetractBatchSize,
+		)
 	}
 	return n, nil
 }

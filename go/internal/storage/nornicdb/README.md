@@ -52,7 +52,9 @@ non-empty writes must never be acknowledged without reaching the graph.
 - `internal/telemetry` for canonical chunk and reconciliation counters.
 
 The package does not import a graph driver and does not read environment
-variables.
+variables. It exports the shared `MinCanonicalRetractBatchSize` and
+`MaxCanonicalRetractBatchSize` safety bounds; command packages own environment
+parsing and reject values outside that range.
 
 ## Telemetry
 
