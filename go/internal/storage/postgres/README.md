@@ -2107,6 +2107,21 @@ it was not part of the above proof because it runs against a separate,
 independently small table (queued/claimed rows only) with no join to the
 20k/150k/60k corpus above.
 
+No-Regression Evidence: the #5148 case-fold (`LOWER(repository_full_name) =
+LOWER($1)` in `repository_freshness_sql.go`) changes only the equality
+predicate of that already-bounded lookup. Baseline and after share the same
+shape on Postgres 18 (alpine, migrations 001/002/005): the status predicate
+still drives `webhook_refresh_triggers_status_idx`, no index covers
+`repository_full_name` on either side (folding it cannot lose an index), and
+the scan stays bounded to queued/claimed rows with `LIMIT 5`. Behavior delta
+(the point of the fix) is proven by the DSN-gated
+`TestReadRepositoryFreshnessLiveDB` case-fold subtest against live Postgres
+(mixed-case `repository_full_name` now matches; 7/7 subtests green) plus the
+hermetic `TestRepositoryFreshnessWebhookQueryFoldsRepositoryNameCase`
+query-text guard that runs in CI. No worker, lease, queue, or Cypher change.
+No-Observability-Change: #5148 adds no new signal shape; the existing
+freshness duration/error instruments cover the touched read path.
+
 Observability Evidence: every `ReadRepositoryFreshness` call records
 `eshu_dp_repository_freshness_query_duration_seconds` and failures increment
 `eshu_dp_repository_freshness_query_errors_total` (registered in
