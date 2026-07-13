@@ -145,8 +145,12 @@ ORDER BY projection_domain
 // the repository owner's actual casing. A case-sensitive equality here would
 // silently fail to match any repository whose real name contains uppercase
 // characters, under-reporting a genuine unobserved push rather than erring.
-// No index on this table covers repository_full_name, so folding both sides
-// to the same case changes zero index usage and zero query shape.
+// LOWER($1) is also load-bearing, not defensive symmetry: repo_display only
+// carries the lower-cased repo_slug on its preferred path -- its fallbacks
+// (payload->>'repo_name', then source_key) preserve whatever casing was
+// stored, so the parameter side can arrive with uppercase too. Do not relax
+// either side. No index on this table covers repository_full_name, so folding
+// both sides changes zero index usage and zero query shape.
 const repositoryFreshnessWebhookQuery = `
 SELECT target_sha, ref, received_at
 FROM webhook_refresh_triggers

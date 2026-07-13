@@ -4,9 +4,13 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
+	"os"
+	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/component"
@@ -169,4 +173,48 @@ type staticMetricsSource struct{}
 
 func (staticMetricsSource) RangeQuery(context.Context, query.MetricsRangeQuery) ([]query.MetricPoint, error) {
 	return nil, nil
+}
+
+// TestAssertRouterFieldsWiredCopiesStayInSync guards the deliberate
+// duplication of assertRouterFieldsWired across the two entrypoints (they are
+// separate main packages and cannot import a shared test helper): if the
+// reflective logic is ever changed in one copy but not the other, the two
+// structural gates would drift silently and one binary could regress the
+// #5143/#5150 wiring class unnoticed. The copies differ only in the
+// entrypoint-specific tokens their error messages name (constructor and
+// exception-map identifiers); those are normalized to placeholders before the
+// byte comparison so only genuine logic drift fails.
+func TestAssertRouterFieldsWiredCopiesStayInSync(t *testing.T) {
+	t.Parallel()
+
+	extract := func(path, constructor, exceptionsVar string) string {
+		t.Helper()
+		src, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("read %s: %v", path, err)
+		}
+		const marker = "func assertRouterFieldsWired("
+		start := bytes.Index(src, []byte(marker))
+		if start < 0 {
+			t.Fatalf("%s: %q not found", path, marker)
+		}
+		body := string(src[start:])
+		// The function's closing brace is the first "}" at column zero.
+		end := strings.Index(body, "\n}\n")
+		if end < 0 {
+			t.Fatalf("%s: closing brace of assertRouterFieldsWired not found", path)
+		}
+		body = body[:end+2]
+		body = strings.ReplaceAll(body, exceptionsVar, "EXCEPTIONS_VAR")
+		body = strings.ReplaceAll(body, constructor, "CONSTRUCTOR")
+		return strings.TrimSpace(body)
+	}
+
+	api := extract("wiring_router_completeness_test.go",
+		"newRouter()", "routerFieldsNotWiredByNewRouter")
+	mcp := extract(filepath.Join("..", "mcp-server", "wiring_router_completeness_test.go"),
+		"newMCPQueryRouter()", "routerFieldsNotWiredByNewMCPQueryRouter")
+	if api != mcp {
+		t.Fatalf("assertRouterFieldsWired has drifted between cmd/api and cmd/mcp-server; update both copies to match")
+	}
 }
