@@ -174,7 +174,10 @@ ORDER BY b.updated_at DESC, b.work_item_id
 // resolving as Index Only Scans on scope_generations_scope_generation_idx
 // (Heap Fetches: 0) executed exactly `Index Searches: 501` times each --
 // bounded by the LIMIT, not by the 500k-row scope_generations table. Both
-// shapes stay well inside the console's 10-12s poll budget.
+// shapes stay well inside the console's 10-12s poll budget. The outer
+// ORDER BY on the joined result was added after that measurement (review
+// finding on ordering guarantees); it sorts at most LIMIT+1 already-bounded
+// rows, so its cost is corpus-independent and not reflected in the cited plan.
 //
 // Correctness Evidence: querying the full 61,000-row corpus (no LIMIT)
 // through the generation_state CASE reproduced the seeded ground truth
