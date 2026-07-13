@@ -9,6 +9,21 @@ README.
 - `ESHU_SNAPSHOT_WORKERS` (default `min(NumCPU,8)`) controls concurrent
   per-repo snapshotting. Raising this value beyond CPU capacity increases
   context-switching without reducing wall time.
+- `ESHU_PARSE_WORKERS` partitions parser-supported files by stable repository
+  subtree before concurrent native parsing. Partitions are balanced by total
+  on-disk bytes, not file count, so a subtree dominated by a few heavy files
+  does not pin one parse worker. Subtrees heavier than one worker's byte target
+  are split into deterministic byte-balanced chunks; lighter subtrees stay whole
+  so a single large monorepo can keep multiple parse workers busy while the
+  composed snapshot is sorted back to the original file order. See
+  `SCHEDULING.md` for the parse-partition byte-balancing evidence.
+- `ESHU_REPO_SHARD_COUNT` and `ESHU_REPO_SHARD_INDEX` deterministically filter
+  discovered repository IDs before filesystem or Git sync begins. The shard hash
+  uses only the normalized repository ID; shard IDs are not part of repository,
+  file, entity, or fact identity. The existing `sourceRunID` still reflects the
+  selected batch for that process. Helm does not enable horizontal ingester
+  replicas until the global deferred-maintenance hook has a fleet-wide drain
+  barrier.
 - `ESHU_LARGE_REPO_FILE_THRESHOLD` (default `1000`) classifies repositories for
   the large-repo semaphore. The classification is a fast pre-scan that exits
   early once the threshold is exceeded.
@@ -33,6 +48,13 @@ README.
   lockfiles. Generated package caches under that name need repo-local
   `.eshuignore`, `.eshu/discovery.json`, or operator ignored-path globs so the
   exclusion is visible in discovery stats.
+- Legacy vendored-library pruning is intentionally signature- or path-family
+  specific. It skips known third-party libraries such as Zend, PEAR, FPDF,
+  Plupload, Aurigma uploaders, phpCAS, Minify, FusionCharts, Scriptaculous, and
+  legacy Microsoft map-control assets while preserving authored files with
+  similar names. Do not broaden this to generic `framework`, `library`, `tests`,
+  or `public` roots without repository-scale proof that authored source is not
+  lost.
 - Filesystem manifest fingerprints include `.gitignore` and `.eshuignore` rule
   files but exclude paths filtered by those rules. Changing an ignore rule
   reselects the repository; changing only ignored output does not.
@@ -47,6 +69,93 @@ README.
   dedicated runtime slice opens that contract.
 
 ## Evidence
+
+- Performance Evidence: On 2026-07-02, a collector-discovered remote profile of
+  one large legacy PHP/JavaScript repository on `codex/4515-prescan-parse-lanes`
+  with `ESHU_PARSE_WORKERS=16` and NornicDB PR #230 bits showed parser input
+  drop from 5,953 to 5,661 files and parser wall time drop from 4.077s to
+  2.638s after the vendored-library filters were added. A bounded production
+  profile with the same `GOMAXPROCS=16`, parse/snapshot worker settings, and
+  graph backend showed the heavy repository parse stage drop from 96.332s to
+  82.497s, and the first 85 parse samples drop from 947.914s total to 868.837s
+  total. The same run showed pre-scan remained the next bottleneck; this change
+  is a parse/input-shape win, not end-to-end closure.
+- No-Observability-Change: The vendored-library filters only add discovery skip
+  reasons under the existing `FilesSkippedByContent` stats and
+  `eshu_dp_discovery_files_skipped_total` metric. They add no worker, queue,
+  graph write, span, metric name, runtime knob, or status field.
+- No-Regression Evidence: `AfterEmptyBatchDrained` behavior is covered by
+  `go test ./internal/collector -run
+  'TestServiceRun(CallsAfterBatchDrainedOnceAfterCommittedBatch|SkipsAfterBatchDrainedOnEmptyBatchByDefault|CallsAfterBatchDrainedForConfiguredEmptyBatch|CallsEmptyBatchDrainHookOnceWhileIdle)'
+  -count=1`, which proves the default hook remains commit-gated and the
+  empty-batch hook is opt-in and not an idle timer.
+- No-Observability-Change: `AfterEmptyBatchDrained` only changes whether the
+  caller-supplied drain hook runs once for an exhausted empty batch. It adds no
+  metric, span, status field, worker, queue, graph write, or runtime label.
+- No-Regression Evidence: `go test ./internal/collector ./internal/doctruth ./internal/query ./internal/mcp ./internal/storage/postgres -count=1` covers DOCX, CSV/TSV, XLSX, PPTX, ZIP packet summaries, deterministic diagrams, claim hints, repository fact readback, and MCP routing.
+- No-Observability-Change: documentation extraction stays inside existing `collector.observe`, body-free snapshot metadata, and stream-time re-reads. It adds no worker, queue, graph write, metric label, runtime knob, or deployment profile.
+- No-Regression Evidence: delta generation handling is covered by `go test ./internal/collector -run
+  'Test(NativeRepositorySnapshotterCarriesDeletedOnlyDeltaMetadata|NativeRepositorySnapshotterDeltaTargetsKeepFullPreScanContext|NativeRepositorySnapshotterPreservesDeltaMetadataPathWhitespace|UpdateRepositoryReturnsChangedAndDeletedFileTargets|BuildSelectedRepositoriesCarriesGitDeltaFileTargets|BuildStreamingGenerationEmitsDeltaMetadataAndDeletedTombstones|BuildStreamingGenerationPreservesDeltaPathWhitespace|BuildStreamingGenerationDeltaChangedFileFactsMatchFullSnapshot|BuildStreamingGenerationSkipsRepoWideReducerFollowupsForDelta)'
+  -count=1`, which proves Git delta parsing, selector propagation, deleted-only
+  snapshot metadata, full-context pre-scan for targeted deltas, symlink-normalized
+  path metadata with legal whitespace preserved, tombstone emission, changed-file
+  fact payload parity against full snapshots, fact count agreement, and
+  suppression of unsafe repo-wide reducer follow-ups for delta generations.
+- Performance Evidence: `go test ./internal/collector -run '^$' -bench
+  'BenchmarkNativeRepositorySnapshotter(FullFixture|DeltaSingleFileFixture)$'
+  -benchtime=1x -count=1` on an Apple M4 Pro measured a generated 400-file
+  fixture full snapshot at `107796250 ns/op` and a one-file delta snapshot at
+  `34240667 ns/op`.
+- No-Observability-Change: delta parsing reuses hosted git sync logs, snapshot
+  stage logs, `collector.observe`, fact emission counts, and projector/reducer
+  queues. It adds no metric name or label and does not log file paths in sync
+  progress messages.
+- No-Regression Evidence: `go test ./internal/collector -run
+  'Test(BuildDataflowFunctionsReadsParserBucket|DataflowFunctionFactEmittedAndCounted)'
+  -count=1` covers the dataflow function fact-mapping path. The baseline input is
+  the existing gate-off/no-`dataflow_functions` snapshot shape; the after input is
+  one parser-emitted function row with one CFG block and one def-use edge. The
+  terminal row delta is exactly one `code_dataflow_function` fact, and
+  `FactCount == len(envelopes)` remains true. Backend/version: Postgres
+  `fact_records` receives one additional active-generation fact per parser row;
+  no graph write, queue, worker, or provider call is added.
+- No-Observability-Change: the dataflow function mapping is covered by existing
+  `eshu_dp_collector_snapshot_stage_duration_seconds`, `eshu_dp_facts_emitted_total`,
+  and `eshu_dp_generation_fact_count` signals. The `dataflow_function_count`
+  snapshot log attribute lets operators correlate row volume with fact-count
+  changes without adding a new metric or label.
+- No-Regression Evidence: `go test ./internal/collector -run 'FunctionSummary|FunctionSource' -count=1`,
+  `go test ./internal/storage/postgres -run 'FunctionSource' -count=1`, and
+  `go test ./internal/reducer -run 'CodeFunctionSummary' -count=1` prove
+  `buildFunctionSummaries`/`buildFunctionSources` read the `dataflow_summaries` and
+  `dataflow_sources` buckets into per-function snapshots; that `streamFacts` emits
+  one `code_function_summary` fact per function and one `code_function_source` fact
+  per source, counted in `FactCount`, keyed idempotently; that the function-summary
+  reducer handler persists the summaries (and, when wired, the sources) to the
+  durable Postgres stores; and that the new `function_sources` bootstrap schema is
+  ordered and mirrored on disk. It is one extra fact per summarized function/source
+  only when the off-by-default value-flow gate is on; no new Cypher, graph write,
+  worker, queue, or batch. The `contentFactEnvelope`/`contentEntityFactEnvelope`
+  move into `git_content_fact_envelopes.go` is a pure extraction (no behavior
+  change) to keep `git_fact_builder.go` under the file-size cap.
+- No-Observability-Change: the `code_function_summary`/`code_function_source`
+  facts flow through the existing `streamFacts` channel and Postgres fact
+  persistence; they add no metric instrument, metric label, span, worker, queue
+  domain, lease, runtime knob, or log key. Operators diagnose the path through
+  the existing fact-stream counters.
+- No-Regression Evidence: `go test ./internal/collector -run 'DataflowScanned' -count=1`
+  and `go test ./internal/projector -run 'Marker|QueuesBoth' -count=1` prove the
+  `code_dataflow_scanned` marker is emitted (and counted in `FactCount`) only when
+  `DataflowScanned` is set, is absent when the gate is off, and that the projector
+  queues both the `code_taint_evidence` and `code_interproc_evidence` retraction
+  intents from the marker alone. The marker is one extra fact per generation only
+  when the off-by-default gate is on; no new Cypher, graph write, worker, queue, or
+  batch.
+- No-Observability-Change: the `code_dataflow_scanned` marker flows through the
+  existing `streamFacts` channel and Postgres fact persistence; it adds no metric
+  instrument, metric label, span, worker, queue domain, lease, runtime knob, or log
+  key. Operators diagnose it through the existing fact-stream counters and the
+  reducer claim/execute spans for the value-flow evidence domains.
 
 - No-Regression Evidence: nested npm workspace package manifests and lockfiles
   under `packages/<workspace>` remain discoverable by default. The focused gate
@@ -67,6 +176,22 @@ README.
   allocs/op at `4d31617` to 1.11-1.13 us/op, 96 B/op, and 1 alloc/op after
   routing non-glob `.gitignore` and `.eshuignore` rules through literal
   matching.
+- Performance Evidence: baseline unset `SCIP_INDEXER` could enter the shared
+  SCIP process limiter and launch an external indexer when an allowed language
+  and matching `scip-*` binary were present. After this slice, unset
+  `SCIP_INDEXER` returns `Enabled=false`, records one
+  `eshu_dp_scip_snapshot_attempts_total{language="unknown",result="disabled"}`
+  attempt, and returns to native parser workers without binary lookup, process
+  wait, indexer execution, protobuf parsing, queue work, graph writes, or extra
+  rows. Backend/version: local Go test runtime with fixture Python and mixed
+  Python/Go repositories, no Postgres/NornicDB/Neo4j/provider required. After
+  measurement: `go test ./internal/collector -run
+  'Test(LoadSnapshotSCIPConfig|SCIPSnapshot|SCIPLanguage|SCIPWorkers)'
+  -count=1` passed and proves default-off, explicit-on, binary fallback,
+  subtree fan-out, missing-index fallback, and worker-limit behavior.
+- No-Observability-Change: the SCIP default-off gate adds no metric name, metric
+  label, span, status field, log field, worker, queue, graph write, runtime
+  endpoint, deployment profile, or provider configuration.
 - No-Regression Evidence: SCIP subtree worker fan-out preserves native fallback
   and SCIP supplement behavior. `go test ./internal/collector -run
   'Test(LoadSnapshotSCIPConfigParsesWorkers|SCIPLanguageSubtreesRunWithBoundedWorkers|SCIPWorkersCapConcurrentSnapshots|SCIPWorkersRecordLimiterWaitDuration|SCIPSnapshotRuns|SCIPSnapshotSameLanguage|SCIPSnapshotLanguageSubtree|SCIPSnapshotConcurrentParseMergesSCIPSupplement|SCIPSnapshotFallback)'
@@ -152,3 +277,63 @@ README.
   operator fixes the commit failure; dead-letter metadata cannot reconstruct a
   consumed fact stream. Successful later commits mark unresolved rows
   `replayed`; claim-driven services still use workflow claims for requeue.
+
+## Per-collector run telemetry (issue #3680)
+
+### Observability Evidence
+
+`ClaimedService.processClaimed` in `claimed_service.go` is the single chokepoint
+where every collector's claimed work begins and ends. Two new instruments are
+recorded there:
+
+**`eshu_dp_workflow_claim_run_duration_seconds`** (Float64Histogram)
+- Labels: `collector_kind` (bounded `scope.CollectorKind` constant, e.g. `git`,
+  `terraform_state`, `discovery`), `source_system` (e.g. `git`), `outcome`
+  (bounded: `success`, `unchanged`, `released`, `fail_retryable`, `fail_terminal`).
+- Recorded via `defer` at the top of `processClaimed` so every return path
+  (success, unchanged, released, retryable fail, terminal fail) emits a data point.
+- **To find the per-collector long pole:** `topk(5, sum by (collector_kind) of
+  rate(eshu_dp_workflow_claim_run_duration_seconds_sum[5m]) / sum by
+  (collector_kind) of
+  rate(eshu_dp_workflow_claim_run_duration_seconds_count[5m]))` gives mean run
+  duration per collector family. For a corpus run, `max_over_time` on the
+  histogram p95 shows the worst single run.
+- **Joins #3678's per-stage metrics:** both use `collector_kind` as the shared
+  label so `eshu_dp_workflow_claim_run_duration_seconds` (per-collector wall
+  time) and `eshu_dp_bootstrap_pipeline_phase_seconds` (per-phase wall time)
+  compose cleanly.
+
+**`eshu_dp_workflow_claim_facts_emitted_total`** (Int64Counter)
+- Labels: `collector_kind`, `source_system`.
+- Recorded only on the success path, using `CollectedGeneration.FactCount`
+  already populated by every collector — no extra IO introduced.
+- **To find volume per collector:** `sum by (collector_kind) of
+  rate(eshu_dp_workflow_claim_facts_emitted_total[5m])` gives facts/second
+  per collector. A collector with high run duration and low fact count is
+  spending time on IO, not emission.
+- Joins `eshu_dp_content_entity_emitted_total` (from #3678, labeled
+  `source_file_kind`) for a per-collector AND per-file-kind volume breakdown.
+
+Both metrics are surfaced on the existing metrics port (no new endpoint).
+
+### No-Regression Evidence
+
+- The timing wrapper (`runStartedAt := s.now()` + `defer recordClaimRunDuration`)
+  wraps only existing work already performed by `processClaimed`. No extra IO,
+  network, or storage operations are introduced.
+- `CollectedGeneration.FactCount` is an integer already populated before the
+  seam is reached; `recordClaimFactsEmitted` reads it with a single `int64()`
+  cast.
+- Concurrency safety: `metric.Float64Histogram.Record` and
+  `metric.Int64Counter.Add` are safe for concurrent callers per the OTEL Go SDK
+  specification. `runStartedAt` and `runOutcome` are stack-local to each
+  `processClaimed` call frame; N concurrent workers never share them.
+- No behavior changes: all existing claim, heartbeat, commit, complete, fail,
+  and release paths are preserved. The `runOutcome` assignments shadow the
+  pessimistic default (`fail_terminal`) with the correct outcome on each arm;
+  if a future arm is added without an explicit assignment it falls back to
+  `fail_terminal`, which is conservative rather than incorrect.
+- Tests verify all five outcome values (success, unchanged, released,
+  fail_retryable, fail_terminal) under race detection
+  (`go test -race ./internal/collector -run 'ClaimedService|Service|Collector|Metric|Outcome|Released'`):
+  81 tests passed, 0 races detected.

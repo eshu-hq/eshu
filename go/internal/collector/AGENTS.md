@@ -3,18 +3,25 @@
 ## Read first
 
 1. `go/internal/collector/README.md` — pipeline position, lifecycle, exported
-   surface, and telemetry
+   surface, telemetry, and an index of the docs below
 2. `go/internal/collector/service.go` — `Service.Run` and `commitWithTelemetry`;
    understand the poll loop before touching concurrency or `AfterBatchDrained`
 3. `go/internal/collector/git_source.go` — `GitSource.startStream`, the
-   two-lane scheduling design, and the large-repo semaphore lifecycle
+   two-lane scheduling design, and the large-repo semaphore lifecycle; read
+   `go/internal/collector/SCHEDULING.md` before changing giant-repo or
+   parse-partition scheduling
 4. `go/internal/collector/git_snapshot_native.go` — `NativeRepositorySnapshotter.SnapshotRepository`;
    the five snapshot stages and the two-phase memory design
 5. `go/internal/collector/git_selection_config.go` — `RepoSyncConfig` and
    `LoadRepoSyncConfig`; env var names and defaults
 6. `go/internal/telemetry/instruments.go` and `contract.go` — metric and span
    names before adding new telemetry
-7. `go/internal/collector/packageregistry/README.md` — package-registry
+7. `go/internal/collector/OPERATIONS.md` — runtime knobs, discovery/streaming
+   notes, and per-collector-run telemetry evidence before changing collector
+   operational behavior
+8. `go/internal/collector/DIAGNOSTICS.md` — the repository basename-collision
+   diagnostic (issue #3677) before changing repository identity/dedup logic
+9. `go/internal/collector/packageregistry/README.md` — package-registry
    evidence contracts when editing package/feed collection support
 
 ## Invariants this package enforces

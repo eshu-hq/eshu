@@ -125,7 +125,7 @@ single end-to-end git collection number is recorded in the tree):
 | --- | --- | --- | --- | --- |
 | `git` | 896 repositories, 3,501,443 `fact_records` (Tier 4 full corpus) | bootstrap projection complete | 1,245 s | Full-corpus remote Compose run, PostgreSQL 18 + NornicDB (`go/internal/storage/postgres/README.md:1248`) |
 | `git` | same run, 207,003 loaded queried-kind facts | deferred relationship backfill | 882 s (~14.7 min) | Deferred-backfill fact-LOAD fan-out across 896 partitions on 8 workers (`go/internal/storage/postgres/README.md:1223`); down from pre-#3710 ~36 min+ single-scan |
-| `git` (collection stage) | same run; single 16,659-file giant repo | parse stage total / worst single repo | ~675 s total / ~238 s giant (post largest-first + byte-balanced); pre-change baseline ~1586 s / ~1012 s | Full-corpus collection measurement (`go/internal/collector/README.md:571`, baseline; `:675`, post-change); residual giant-repo tail tracked by #3711 |
+| `git` (collection stage) | same run; single 16,659-file giant repo | parse stage total / worst single repo | ~675 s total / ~238 s giant (post largest-first + byte-balanced); pre-change baseline ~1586 s / ~1012 s | Full-corpus collection measurement (`go/internal/collector/SCHEDULING.md:31`, baseline; `:134`, post-change); residual giant-repo tail tracked by #3711 |
 
 `git` is the only collector with a measured full-corpus wall-clock budget today.
 The 882 s figure is the **deferred relationship backfill phase** (the fact-LOAD
@@ -164,9 +164,9 @@ but its full-corpus wall-clock is left as open evidence below.
   deferred relationship backfill at 882 s
   (`go/internal/storage/postgres/README.md:1248`). The collection-stage parse
   numbers come from the giant-repo scheduling measurement at
-  `go/internal/collector/README.md:571` (pre-change baseline parse ~1586 s total,
-  giant repo ~1012 s) and `:675` (post largest-first + byte-balanced parse
-  ~675 s total, giant repo ~238 s). No single end-to-end git collection
+  `go/internal/collector/SCHEDULING.md:31` (pre-change baseline parse ~1586 s
+  total, giant repo ~1012 s) and `:134` (post largest-first + byte-balanced
+  parse ~675 s total, giant repo ~238 s). No single end-to-end git collection
   wall-clock is recorded, so this page does not claim one.
 - **Deferred-backfill fact-LOAD (#3710)** cut the relationship backfill long
   pole from ~36 min+ (single-scan) to 882 s (~14.7 min) by fanning the fact-LOAD
