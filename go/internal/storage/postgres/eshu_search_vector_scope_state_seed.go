@@ -23,6 +23,13 @@ SELECT s.scope_id,
        NOW()
 FROM ingestion_scopes s
 WHERE s.scope_kind = 'repository'
+  -- A scope with a failed ingestion (status='failed') never gets an active
+  -- generation assigned, leaving active_generation_id NULL. generation_id is
+  -- NOT NULL on eshu_search_document_projection_state, so without this guard
+  -- one failed scope aborts the whole INSERT ... SELECT and blocks every
+  -- other (healthy) scope from being seeded. Skip failed scopes here; they
+  -- get seeded once re-ingestion assigns them a real generation.
+  AND s.active_generation_id IS NOT NULL
   AND NOT EXISTS (
     SELECT 1
     FROM eshu_search_document_projection_state ps
@@ -63,6 +70,24 @@ WHERE ps.state = 'ready'
   )
 `
 
+const countFailedGenerationRepositoryScopesSQL = `
+SELECT count(*)
+FROM ingestion_scopes
+WHERE scope_kind = 'repository'
+  AND active_generation_id IS NULL
+`
+
+// SeedSearchVectorScopeStateResult reports how many repository scopes were
+// newly seeded into eshu_search_document_projection_state this call and how
+// many were skipped because they have no active generation (a failed
+// ingestion). Startup logging needs both numbers: a bare "seeded" success log
+// cannot distinguish a fully healthy corpus from one where N scopes are
+// permanently excluded from search/vector projection until re-ingested.
+type SeedSearchVectorScopeStateResult struct {
+	ProjectionRowsSeeded int64
+	FailedScopesSkipped  int64
+}
+
 // SeedSearchVectorScopeState is the one-time fail-closed migration seeder
 // (#4233). It populates eshu_search_document_projection_state rows for every
 // active repository scope (idempotent) and then records conservative building
@@ -72,26 +97,37 @@ func SeedSearchVectorScopeState(
 	ctx context.Context,
 	db ExecQueryer,
 	identity EshuSearchVectorIdentity,
-) error {
+) (SeedSearchVectorScopeStateResult, error) {
 	if db == nil {
-		return fmt.Errorf("eshu search vector scope state seed requires a database")
+		return SeedSearchVectorScopeStateResult{}, fmt.Errorf("eshu search vector scope state seed requires a database")
 	}
 	if identity.ProviderProfileID == "" {
-		return fmt.Errorf("eshu search vector scope state seed requires provider profile id")
+		return SeedSearchVectorScopeStateResult{}, fmt.Errorf("eshu search vector scope state seed requires provider profile id")
 	}
 	if identity.SourceClass == "" {
-		return fmt.Errorf("eshu search vector scope state seed requires source class")
+		return SeedSearchVectorScopeStateResult{}, fmt.Errorf("eshu search vector scope state seed requires source class")
 	}
 	if identity.EmbeddingModelID == "" {
-		return fmt.Errorf("eshu search vector scope state seed requires embedding model id")
+		return SeedSearchVectorScopeStateResult{}, fmt.Errorf("eshu search vector scope state seed requires embedding model id")
 	}
 	if identity.VectorIndexVersion == "" {
-		return fmt.Errorf("eshu search vector scope state seed requires vector index version")
+		return SeedSearchVectorScopeStateResult{}, fmt.Errorf("eshu search vector scope state seed requires vector index version")
 	}
 
-	// Step 1: seed projection_state rows for every repository scope.
-	if _, err := db.ExecContext(ctx, seedProjectionStateSQL); err != nil {
-		return fmt.Errorf("seed eshu search document projection state: %w", err)
+	skipped, err := countFailedGenerationRepositoryScopes(ctx, db)
+	if err != nil {
+		return SeedSearchVectorScopeStateResult{}, fmt.Errorf("count failed-generation repository scopes: %w", err)
+	}
+
+	// Step 1: seed projection_state rows for every repository scope with a
+	// real (non-failed) generation.
+	res, err := db.ExecContext(ctx, seedProjectionStateSQL)
+	if err != nil {
+		return SeedSearchVectorScopeStateResult{}, fmt.Errorf("seed eshu search document projection state: %w", err)
+	}
+	seeded, err := res.RowsAffected()
+	if err != nil {
+		return SeedSearchVectorScopeStateResult{}, fmt.Errorf("seed eshu search document projection state: rows affected: %w", err)
 	}
 
 	// Step 2: seed conservative building rows. Exact readiness is deliberately
@@ -104,8 +140,33 @@ func SeedSearchVectorScopeState(
 		identity.EmbeddingModelID,
 		identity.VectorIndexVersion,
 	); err != nil {
-		return fmt.Errorf("seed eshu search vector scope state: %w", err)
+		return SeedSearchVectorScopeStateResult{}, fmt.Errorf("seed eshu search vector scope state: %w", err)
 	}
 
-	return nil
+	return SeedSearchVectorScopeStateResult{
+		ProjectionRowsSeeded: seeded,
+		FailedScopesSkipped:  skipped,
+	}, nil
+}
+
+// countFailedGenerationRepositoryScopes counts repository scopes with no
+// active generation (status='failed' ingestion), the set seedProjectionStateSQL
+// deliberately skips.
+func countFailedGenerationRepositoryScopes(ctx context.Context, db ExecQueryer) (int64, error) {
+	rows, err := db.QueryContext(ctx, countFailedGenerationRepositoryScopesSQL)
+	if err != nil {
+		return 0, err
+	}
+	defer func() { _ = rows.Close() }()
+	if !rows.Next() {
+		if err := rows.Err(); err != nil {
+			return 0, err
+		}
+		return 0, nil
+	}
+	var count int64
+	if err := rows.Scan(&count); err != nil {
+		return 0, err
+	}
+	return count, rows.Err()
 }

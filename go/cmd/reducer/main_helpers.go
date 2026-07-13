@@ -287,7 +287,8 @@ func seedSearchVectorScopeState(
 		VectorIndexVersion: runner.Config.VectorIndexVersion,
 	}
 	if logger != nil {
-		logger.Info("seeding search vector scope state",
+		logger.Info(
+			"seeding search vector scope state",
 			"provider_profile_id", identity.ProviderProfileID,
 			"embedding_model_id", identity.EmbeddingModelID,
 		)
@@ -295,12 +296,21 @@ func seedSearchVectorScopeState(
 	seedStart := time.Now()
 	seedCtx, seedCancel := context.WithTimeout(seedCtx, searchVectorSeedTimeout)
 	defer seedCancel()
-	if err := postgres.SeedSearchVectorScopeState(seedCtx, database, identity); err != nil {
+	result, err := postgres.SeedSearchVectorScopeState(seedCtx, database, identity)
+	if err != nil {
 		return fmt.Errorf("seed search vector scope state: %w", err)
 	}
 	if logger != nil {
-		logger.Info("search vector scope state seeded",
+		// Both counts are logged every restart (the seeder is idempotent, so
+		// projection_rows_seeded is 0 on a steady-state corpus) so an operator
+		// can tell "fully seeded" from "N scopes permanently excluded from
+		// search/vector projection until re-ingested" without cross-referencing
+		// ingestion_scopes.status separately.
+		logger.Info(
+			"search vector scope state seeded",
 			"duration", time.Since(seedStart).String(),
+			"projection_rows_seeded", result.ProjectionRowsSeeded,
+			"failed_generation_scopes_skipped", result.FailedScopesSkipped,
 		)
 	}
 	return nil
