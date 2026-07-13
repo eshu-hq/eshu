@@ -64,11 +64,17 @@ describe("demoClient", () => {
     expect(env.truth?.basis).toBe("demo_fixture");
     expect(Array.isArray(env.data?.collectors)).toBe(true);
     expect(Array.isArray(env.data?.live_activity)).toBe(true);
-    const firstRow = (env.data?.live_activity as readonly Record<string, unknown>[])[0];
+    const rows = env.data?.live_activity as readonly Record<string, unknown>[];
+    const firstRow = rows[0];
     // source_display is the operator-facing repo name (#5137 follow-up),
     // distinct from the opaque source_key the live backend stores.
     expect(firstRow?.source_display).toBe("acme/checkout-service");
     expect(firstRow?.source_key).not.toBe(firstRow?.source_display);
+    // generation_state (#5138): the demo fixture carries one retrying row
+    // from a superseded generation to demo the console's dimmed/badged
+    // rendering, alongside ordinary "active" rows.
+    expect(firstRow?.generation_state).toBe("active");
+    expect(rows.some((row) => row.generation_state === "stale")).toBe(true);
   });
 
   it("serves a wire-shaped current freshness fixture for checkout-service (issue #5143)", async () => {

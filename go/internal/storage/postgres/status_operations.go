@@ -16,13 +16,17 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
-// liveActivityQueryPrefix selects every in-flight work item (#5137) joined to
-// its originating ingestion scope for repo/collector identity, and
-// liveActivityQuerySuffix orders and bounds the result. buildLiveActivityQuery
-// composes the two, inserting an access-scope predicate between them only
-// when the caller is not allScopes; splitting the query this way keeps the
-// admin/all-scopes shape byte-identical to the original single-string query
-// this package used before #5137 cold-review P1-1.
+// liveActivityQueryPrefix opens a bounded_activity CTE selecting every
+// in-flight work item (#5137) joined to its originating ingestion scope for
+// repo/collector identity, and liveActivityQuerySuffix orders, bounds, and
+// closes the CTE before liveActivityGenerationStateSelectSQL annotates each
+// bounded row with generation_state (#5138). buildLiveActivityQuery composes
+// the three, inserting an access-scope predicate between the prefix and
+// suffix only when the caller is not allScopes; splitting the query this way
+// keeps the admin/all-scopes shape's WHERE/ORDER BY/LIMIT byte-identical to
+// the original single-string query this package used before #5137
+// cold-review P1-1 -- the generation_state annotation is a separate outer
+// SELECT layered on top, not a rewrite of the bounded scan itself.
 //
 // lease_owner is COALESCEd to empty string so the Go scan target stays a
 // plain string, matching the rest of this package's convention (see
@@ -36,11 +40,18 @@ import (
 // repo_slug ("acme/orders-api") or, on older payload shapes, repo_name;
 // COALESCE/NULLIF/BTRIM falls back through both before landing on source_key
 // so every row always has a display value, never NULL or blank.
+//
+// scope_id, generation_id, and active_generation_id are carried through the
+// CTE only so liveActivityGenerationStateSelectSQL can resolve
+// generation_state after the LIMIT; they are not part of the final projected
+// column list.
 const (
 	liveActivityQueryPrefix = `
+WITH bounded_activity AS (
 SELECT w.work_item_id, w.stage, w.status, w.domain, COALESCE(w.lease_owner, '') AS lease_owner,
        w.claim_until, w.attempt_count, w.updated_at, w.created_at,
-       s.scope_kind, s.collector_kind, s.source_system, s.source_key,
+       w.scope_id, w.generation_id,
+       s.scope_kind, s.collector_kind, s.source_system, s.source_key, s.active_generation_id,
        COALESCE(NULLIF(BTRIM(s.payload->>'repo_slug'), ''), NULLIF(BTRIM(s.payload->>'repo_name'), ''), s.source_key) AS source_display
 FROM fact_work_items w
 JOIN ingestion_scopes s ON s.scope_id = w.scope_id
@@ -49,8 +60,68 @@ WHERE w.status IN ('claimed', 'running', 'retrying')
 	liveActivityQuerySuffix = `
 ORDER BY w.updated_at DESC, w.work_item_id
 LIMIT $1
-`
 )
+` + liveActivityGenerationStateSelectSQL
+)
+
+// liveActivityGenerationStateSelectSQL annotates each of the (at most
+// limit+1, capped at LiveActivityMaxLimit 500) rows bounded_activity already
+// selected with generation_state: "stale" when the row is a retrying item
+// whose own generation is older than the scope's current active generation
+// (the same ingested_at-then-generation_id ordering activeFactWorkItemsCTE
+// uses to detect a superseded generation, #4446), "active" otherwise --
+// including every claimed/running row, which stays "active" unconditionally
+// so a live stale worker remains diagnosable instead of disappearing or being
+// mislabeled. This is issue #5138's fix: the board previously rendered a
+// retrying row from a superseded generation identically to a genuinely live
+// one; annotating rather than excluding it keeps that row visible (hiding it
+// would erase the operator-relevant evidence that a dead generation is still
+// consuming retry budget) while letting the console render it dimmed.
+//
+// Stage scope is a deliberate choice, not a mirror of activeFactWorkItemsCTE:
+// that CTE's carve-out only ever excludes stage='reducer' rows (see its own
+// WHERE), but this CASE has no stage predicate -- it labels a stale-generation
+// retrying row of ANY stage (reducer, projector, ...), because the operations
+// board is a cross-stage view and a stale projector-stage retry is just as
+// misleading to an operator as a stale reducer-stage one. Only the
+// claimed/running-stays-"active" behavior mirrors that CTE.
+//
+// The two LEFT JOINs resolve by (scope_id, generation_id) equality, the exact
+// key scope_generations_scope_generation_idx (#4446, migration 002) covers,
+// so each executes as an Index Only Scan bounded by the CTE's row count, not
+// by total scope_generations churn. See buildLiveActivityQuery's doc for the
+// EXPLAIN ANALYZE proof this bounded-join approach does not regress the
+// #5137 6.1ms/12.3ms (and #5137 follow-up 7.2ms/11.0ms) shapes.
+//
+// The trailing ORDER BY re-asserts updated_at DESC, work_item_id on this
+// OUTER select (cold review P1): the inner bounded_activity CTE already sorts
+// under its own LIMIT, but SQL gives no guarantee that a CTE's materialized
+// row order survives an outer SELECT with two more LEFT JOINs layered on top
+// -- the planner is free to pick a hash- or merge-join order that scrambles
+// it. readLiveActivity trims to the first `limit` rows it scans and treats
+// the (limit+1)-th as the truncation signal, so an unordered outer result
+// would silently corrupt both the OpenAPI-promised "most-recently-updated
+// first" order and which row gets dropped as the overflow row.
+const liveActivityGenerationStateSelectSQL = `SELECT
+    b.work_item_id, b.stage, b.status, b.domain, b.lease_owner, b.claim_until, b.attempt_count,
+    b.updated_at, b.created_at, b.scope_kind, b.collector_kind, b.source_system, b.source_key, b.source_display,
+    CASE
+        WHEN b.status <> 'retrying' THEN 'active'
+        WHEN b.active_generation_id IS NULL THEN 'active'
+        WHEN b.generation_id = b.active_generation_id THEN 'active'
+        WHEN active_gen.generation_id IS NULL THEN 'active'
+        WHEN work_gen.ingested_at < active_gen.ingested_at
+          OR (work_gen.ingested_at = active_gen.ingested_at AND work_gen.generation_id < active_gen.generation_id)
+        THEN 'stale'
+        ELSE 'active'
+    END AS generation_state
+FROM bounded_activity b
+LEFT JOIN scope_generations work_gen
+    ON work_gen.scope_id = b.scope_id AND work_gen.generation_id = b.generation_id
+LEFT JOIN scope_generations active_gen
+    ON active_gen.scope_id = b.scope_id AND active_gen.generation_id = b.active_generation_id
+ORDER BY b.updated_at DESC, b.work_item_id
+`
 
 // buildLiveActivityQuery returns the parameterized SQL and positional args
 // for one ReadLiveActivity call.
@@ -88,6 +159,33 @@ LIMIT $1
 // the 6.1ms/12.3ms proof above. The P1-1 access-scope predicate is index-free
 // too (ANY() over a small caller-supplied array, no new join), re-proven
 // against the same synthetic corpus; see the README section above.
+//
+// #5138 generation_state Performance Evidence: prove-theory shim on a
+// disposable Postgres 18-alpine, migrations 001/002/005 applied, corpus
+// mirroring the #4446 default shape (5,000 scopes x 100 generations/scope =
+// 500,000 scope_generations rows) plus the #5137 pathological 61,000
+// in-flight fact_work_items rows (each scope holds a unique conflict_key so
+// the reducer one-live-lease partial unique index is never exercised).
+// allScopes, LIMIT 501: the pre-#5138 query (this doc's 6.1ms/12.3ms shape,
+// re-measured on this corpus/hardware at ~15-18ms) versus the
+// generation_state-annotated query ran ~18-19ms, a ~2-3ms delta -- the
+// EXPLAIN plan shows the Limit/Sort/Hash-Join subplan is byte-identical
+// (same cost node) to the pre-fix query, with the two new LEFT JOINs
+// resolving as Index Only Scans on scope_generations_scope_generation_idx
+// (Heap Fetches: 0) executed exactly `Index Searches: 501` times each --
+// bounded by the LIMIT, not by the 500k-row scope_generations table. Both
+// shapes stay well inside the console's 10-12s poll budget. The outer
+// ORDER BY on the joined result was added after that measurement (review
+// finding on ordering guarantees); it sorts at most LIMIT+1 already-bounded
+// rows, so its cost is corpus-independent and not reflected in the cited plan.
+//
+// Correctness Evidence: querying the full 61,000-row corpus (no LIMIT)
+// through the generation_state CASE reproduced the seeded ground truth
+// exactly -- claimed (18,300) and running (24,400) rows all "active";
+// retrying rows split 12,200 "active" (pinned to the scope's active
+// generation) / 6,100 "stale" (pinned to a superseded generation) -- proving
+// the CASE expression classifies every seeded variant correctly, not just a
+// representative sample.
 func buildLiveActivityQuery(limit int, allScopes bool, allowedRepositoryIDs, allowedScopeIDs []string) (string, []any) {
 	args := []any{limit}
 	if allScopes {
@@ -101,7 +199,8 @@ func buildLiveActivityQuery(limit int, allScopes bool, allowedRepositoryIDs, all
 
 	var builder strings.Builder
 	builder.WriteString(liveActivityQueryPrefix)
-	_, _ = fmt.Fprintf(&builder,
+	_, _ = fmt.Fprintf(
+		&builder,
 		"  AND ((s.scope_kind = 'repository' AND s.source_key = ANY($%d)) OR w.scope_id = ANY($%d))\n",
 		repoArg, scopeArg,
 	)
@@ -147,9 +246,10 @@ func NewInstrumentedLiveActivityStore(queryer Queryer, instruments *telemetry.In
 
 // ReadLiveActivity returns up to limit in-flight work items (claimed,
 // running, or retrying), ordered by most-recently-updated first, each joined
-// to its originating repo/scope identity. A non-positive limit falls back to
-// LiveActivityDefaultLimit. The bool result reports whether more matching
-// rows existed than limit allowed through.
+// to its originating repo/scope identity and annotated with
+// GenerationState ("active" or "stale", #5138). A non-positive limit falls
+// back to LiveActivityDefaultLimit. The bool result reports whether more
+// matching rows existed than limit allowed through.
 //
 // Access scoping (#5137 cold-review P1-1): allScopes selects the
 // admin/all-scopes path (no row filtering; the query text is unchanged from
@@ -226,6 +326,7 @@ func (s LiveActivityStore) readLiveActivity(
 			&row.SourceSystem,
 			&row.SourceKey,
 			&row.SourceDisplay,
+			&row.GenerationState,
 		); scanErr != nil {
 			return nil, false, fmt.Errorf("read live activity: %w", scanErr)
 		}

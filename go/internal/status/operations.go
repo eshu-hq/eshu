@@ -48,6 +48,17 @@ type LiveActivityRow struct {
 	// not a name an operator can recognize. Redacted for scoped callers by
 	// the query-layer projection, exactly like SourceKey.
 	SourceDisplay string
+	// GenerationState reports whether this row's generation is the scope's
+	// current active generation ("active") or an older, superseded/stale one
+	// ("stale"), #5138. Only a retrying row can ever be "stale": claimed and
+	// running rows are always "active" regardless of generation, mirroring
+	// activeFactWorkItemsCTE's own carve-out (a live claimed/running worker
+	// stays diagnosable even against a stale generation). A stale row is
+	// never excluded from LiveActivity -- hiding it would erase evidence that
+	// a generation-superseded retry is still consuming queue capacity, which
+	// is itself an operator-relevant signal -- it is annotated instead so the
+	// console can render it dimmed rather than as ordinary in-flight work.
+	GenerationState string
 }
 
 // Age returns how long ago the row last changed, relative to asOf. It

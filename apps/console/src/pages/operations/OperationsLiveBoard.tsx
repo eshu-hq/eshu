@@ -277,8 +277,13 @@ function LiveActivityRowView({ row }: { readonly row: OperationsActivityRow }): 
   // label (i.e. source_display resolved to a human name) — cheap secondary
   // identity for an operator who wants the opaque key.
   const repoTitle = row.sourceKey && row.sourceKey !== repo ? row.sourceKey : undefined;
+  // A "stale" row (#5138) belongs to a generation the scope has since
+  // superseded -- still shown (hiding it would erase the evidence a dead
+  // generation is still consuming retry budget) but dimmed and badged so an
+  // operator does not mistake it for genuinely live work.
+  const isStale = row.generationState === "stale";
   return (
-    <tr>
+    <tr className={isStale ? "ops-activity-row-stale" : undefined}>
       <td className="mono" title={repoTitle}>
         {repo}
       </td>
@@ -287,6 +292,11 @@ function LiveActivityRowView({ row }: { readonly row: OperationsActivityRow }): 
         <Badge tone={STATUS_TONE[row.status] ?? "neutral"} dot>
           {row.status}
         </Badge>
+        {isStale ? (
+          <Badge tone="warn" dot>
+            stale
+          </Badge>
+        ) : null}
       </td>
       <td className="mono">{row.domain}</td>
       <td className="mono">{row.leaseOwner ?? "—"}</td>

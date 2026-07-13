@@ -425,3 +425,23 @@ func TestGetOperationsLiveActivityReaderUnavailable(t *testing.T) {
 		t.Fatalf("status = %d, want %d; body=%s", got, want, rec.Body.String())
 	}
 }
+
+// TestGenerationStateOrActive pins the defensive-default contract (#5138):
+// any value other than the literal "stale" -- including empty and unknown
+// strings -- must map to "active" so a row can never render as stale by
+// omission or by a future enum widening.
+func TestGenerationStateOrActive(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		input, want string
+	}{
+		{"stale", "stale"},
+		{"active", "active"},
+		{"bogus", "active"},
+		{"", "active"},
+	} {
+		if got := generationStateOrActive(tc.input); got != tc.want {
+			t.Errorf("generationStateOrActive(%q) = %q, want %q", tc.input, got, tc.want)
+		}
+	}
+}
