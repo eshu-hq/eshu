@@ -786,6 +786,28 @@ gates:
     ci_only_reason: ""
     local_only_reason: "First #5015 local/pre-pr metadata ratchet; CI wiring can follow once the required subset stabilizes."
 
+  - id: storage-doc-bundled-nornicdb-example
+    name: Storage doc bundled-NornicDB Helm example renders
+    category: exactness
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "docs/public/deploy/kubernetes/storage.md"
+      - "deploy/helm/eshu/**"
+      - "scripts/verify-storage-doc-bundled-nornicdb-example.sh"
+      - "scripts/test-verify-storage-doc-bundled-nornicdb-example.sh"
+      - "scripts/lib/test-verify-storage-doc-bundled-nornicdb-example-bad.md"
+      - "specs/ci-gates.v1.yaml"
+    local:
+      command: "bash scripts/verify-storage-doc-bundled-nornicdb-example.sh"
+      test_command: "bash scripts/test-verify-storage-doc-bundled-nornicdb-example.sh"
+    ci:
+      workflow: ""
+      job: ""
+    requirements: []
+    ci_only_reason: ""
+    local_only_reason: "#5103 follow-up; needs a docs-workflow home with helm installed before CI wiring — triggers on both the doc and the chart so a future required-value tightening in deploy/helm/eshu (the #5103 root cause) reruns this locally."
+
   - id: docs-prose-quality
     name: Docs prose quality advisory
     category: docs

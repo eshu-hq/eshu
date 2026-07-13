@@ -59,10 +59,15 @@ neo4j:
   uri: bolt://eshu-nornicdb:7687
   auth:
     secretName: ""
+    password: "NornicDbSecret1"
 
 schemaBootstrap:
   useHelmHooks: false
 ```
+
+Replace `password` with your own strong password (min 12 chars, mixed case +
+digit) or set `neo4j.auth.secretName` to an existing Kubernetes Secret instead;
+the chart requires one or the other and fails the render otherwise.
 
 Do not use Helm hooks for schema bootstrap in this shape. Hooks run before the
 bundled NornicDB Service exists.
