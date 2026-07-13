@@ -345,6 +345,10 @@ func (r *CodeCallProjectionRunner) processPartitionOnce(
 	}
 	leaseClaimDuration := time.Since(claimStart).Seconds()
 
+	// Preserve the caller context for release. stopHeartbeat cancels leaseCtx
+	// before the deferred release runs, and Postgres rejects an ExecContext
+	// handed that canceled context, leaving the partition leased until TTL.
+	releaseCtx := ctx
 	leaseCtx, stopHeartbeat := r.startLeaseHeartbeat(ctx, partitionID, partitionCount)
 	defer func() {
 		if heartbeatErr := stopHeartbeat(); heartbeatErr != nil {
@@ -354,7 +358,7 @@ func (r *CodeCallProjectionRunner) processPartitionOnce(
 				retErr = errors.Join(retErr, fmt.Errorf("heartbeat code call lease: %w", heartbeatErr))
 			}
 		}
-		_ = r.LeaseManager.ReleasePartitionLease(ctx, DomainCodeCalls, partitionID, partitionCount, r.Config.leaseOwner())
+		_ = r.LeaseManager.ReleasePartitionLease(releaseCtx, DomainCodeCalls, partitionID, partitionCount, r.Config.leaseOwner())
 	}()
 	ctx = leaseCtx
 

@@ -56,8 +56,12 @@ func TestProcessPartitionOnceHeartbeatKeepsLeaseAliveAgainstPostgres(t *testing.
 		t.Fatalf("create proof schema: %v", err)
 	}
 	t.Cleanup(func() {
-		_, _ = bootstrapDB.ExecContext(context.Background(), "DROP SCHEMA "+schemaName+" CASCADE")
-		_ = bootstrapDB.Close()
+		if _, err := bootstrapDB.ExecContext(context.Background(), "DROP SCHEMA "+schemaName+" CASCADE"); err != nil {
+			t.Errorf("drop proof schema: %v", err)
+		}
+		if err := bootstrapDB.Close(); err != nil {
+			t.Errorf("close bootstrap connection: %v", err)
+		}
 	})
 
 	scopedDSN := dsn + "?search_path=" + schemaName
@@ -199,8 +203,12 @@ func TestProcessPartitionOnceReleasesLeaseRowAfterNormalCycleAgainstPostgres(t *
 		t.Fatalf("create proof schema: %v", err)
 	}
 	t.Cleanup(func() {
-		_, _ = bootstrapDB.ExecContext(context.Background(), "DROP SCHEMA "+schemaName+" CASCADE")
-		_ = bootstrapDB.Close()
+		if _, err := bootstrapDB.ExecContext(context.Background(), "DROP SCHEMA "+schemaName+" CASCADE"); err != nil {
+			t.Errorf("drop proof schema: %v", err)
+		}
+		if err := bootstrapDB.Close(); err != nil {
+			t.Errorf("close bootstrap connection: %v", err)
+		}
 	})
 
 	scopedDSN := dsn + "?search_path=" + schemaName
@@ -278,6 +286,116 @@ func TestProcessPartitionOnceReleasesLeaseRowAfterNormalCycleAgainstPostgres(t *
 	}
 }
 
+// TestCodeCallProjectionRunnerReleasesIdleLeaseAgainstPostgres proves the
+// dedicated code-call runner releases an empty partition through a live
+// context. The custom wait blocks after the first cycle so the database row
+// can be inspected before the runner attempts another claim.
+func TestCodeCallProjectionRunnerReleasesIdleLeaseAgainstPostgres(t *testing.T) {
+	dsn := os.Getenv("ESHU_SHARED_PROJECTION_HEARTBEAT_PROOF_DSN")
+	if dsn == "" {
+		t.Skip("set ESHU_SHARED_PROJECTION_HEARTBEAT_PROOF_DSN to run the code-call partition lease release proof")
+	}
+
+	bootstrapDB, err := sql.Open("pgx", dsn)
+	if err != nil {
+		t.Fatalf("open bootstrap connection: %v", err)
+	}
+	ctx := context.Background()
+	schemaName := fmt.Sprintf("code_call_release_proof_%d", time.Now().UnixNano())
+	if _, err := bootstrapDB.ExecContext(ctx, "CREATE SCHEMA "+schemaName); err != nil {
+		_ = bootstrapDB.Close()
+		t.Fatalf("create proof schema: %v", err)
+	}
+	t.Cleanup(func() {
+		if _, err := bootstrapDB.ExecContext(context.Background(), "DROP SCHEMA "+schemaName+" CASCADE"); err != nil {
+			t.Errorf("drop proof schema: %v", err)
+		}
+		if err := bootstrapDB.Close(); err != nil {
+			t.Errorf("close bootstrap connection: %v", err)
+		}
+	})
+
+	scopedDSN := dsn + "?search_path=" + schemaName
+	if strings.Contains(dsn, "?") {
+		scopedDSN = dsn + "&search_path=" + schemaName
+	}
+	db, err := sql.Open("pgx", scopedDSN)
+	if err != nil {
+		t.Fatalf("open scoped connection pool: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	if _, err := db.ExecContext(ctx, SharedIntentSchemaSQL()); err != nil {
+		t.Fatalf("create proof schema tables: %v", err)
+	}
+
+	store := NewSharedIntentStore(SQLDB{DB: db})
+	cycleComplete := make(chan struct{}, 1)
+	runCtx, cancel := context.WithCancel(ctx)
+	runner := reducer.CodeCallProjectionRunner{
+		IntentReader: &postgresProofNoCodeCallIntentReader{},
+		LeaseManager: store,
+		EdgeWriter:   &postgresProofSlowEdgeWriter{writeBlock: closedChan()},
+		AcceptedGen:  func(reducer.SharedProjectionAcceptanceKey) (string, bool) { return "gen-1", true },
+		Config: reducer.CodeCallProjectionRunnerConfig{
+			LeaseOwner:     "code-call-release-proof",
+			PollInterval:   time.Millisecond,
+			LeaseTTL:       30 * time.Second,
+			BatchLimit:     10,
+			PartitionCount: 1,
+			Workers:        1,
+		},
+		Wait: func(waitCtx context.Context, _ time.Duration) error {
+			cycleComplete <- struct{}{}
+			<-waitCtx.Done()
+			return waitCtx.Err()
+		},
+	}
+
+	runDone := make(chan error, 1)
+	go func() { runDone <- runner.Run(runCtx) }()
+	select {
+	case <-cycleComplete:
+	case <-time.After(5 * time.Second):
+		cancel()
+		<-runDone
+		t.Fatal("code-call runner did not complete its first idle partition cycle")
+	}
+
+	var leaseOwner sql.NullString
+	var leaseExpiresAt sql.NullTime
+	if err := db.QueryRowContext(ctx, `
+		SELECT lease_owner, lease_expires_at
+		FROM shared_projection_partition_leases
+		WHERE projection_domain = $1 AND partition_id = 0 AND partition_count = 1
+	`, reducer.DomainCodeCalls).Scan(&leaseOwner, &leaseExpiresAt); err != nil {
+		cancel()
+		<-runDone
+		t.Fatalf("query code-call lease row: %v", err)
+	}
+	cancel()
+	if err := <-runDone; err != nil {
+		t.Fatalf("CodeCallProjectionRunner.Run() error = %v", err)
+	}
+	if leaseOwner.Valid || leaseExpiresAt.Valid {
+		t.Fatalf("idle code-call lease remains active: owner=%v expires_at=%v", leaseOwner, leaseExpiresAt)
+	}
+
+	claimed, err := store.ClaimPartitionLease(
+		ctx,
+		reducer.DomainCodeCalls,
+		0,
+		1,
+		"code-call-release-proof-rival",
+		30*time.Second,
+	)
+	if err != nil {
+		t.Fatalf("rival ClaimPartitionLease() error = %v", err)
+	}
+	if !claimed {
+		t.Fatal("rival could not immediately claim released code-call partition")
+	}
+}
+
 func closedChan() <-chan struct{} {
 	ch := make(chan struct{})
 	close(ch)
@@ -323,6 +441,20 @@ func (s *postgresProofSlowEdgeWriter) WriteEdges(ctx context.Context, _ string, 
 // MarkIntentsCompleted (this proof only needs to reach WriteEdges, not
 // complete the full cycle bookkeeping).
 type postgresProofEmptyIntentReader struct{}
+
+type postgresProofNoCodeCallIntentReader struct{}
+
+func (r *postgresProofNoCodeCallIntentReader) ListPendingDomainIntents(context.Context, string, int) ([]reducer.SharedProjectionIntentRow, error) {
+	return nil, nil
+}
+
+func (r *postgresProofNoCodeCallIntentReader) ListPendingAcceptanceUnitIntents(context.Context, reducer.SharedProjectionAcceptanceKey, string, int) ([]reducer.SharedProjectionIntentRow, error) {
+	return nil, nil
+}
+
+func (r *postgresProofNoCodeCallIntentReader) MarkIntentsCompleted(context.Context, []string, time.Time) error {
+	return nil
+}
 
 func (r *postgresProofEmptyIntentReader) ListPendingDomainIntents(context.Context, string, int) ([]reducer.SharedProjectionIntentRow, error) {
 	return []reducer.SharedProjectionIntentRow{
