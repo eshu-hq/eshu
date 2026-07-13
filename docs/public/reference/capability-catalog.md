@@ -176,10 +176,34 @@ required semantic output, invalid issue state, stale generated surface count, or
 moved source line. Each proof signal must match a `proof_signals` entry on the
 referenced capability in the generated catalog, so free-form commands cannot be
 the only evidence. The deterministic docs gate runs without provider keys or
-network access. The separate Product Claim Ledger CI workflow sets
-`ESHU_VERIFY_PRODUCT_CLAIM_ISSUES_LIVE=1` on claim-relevant paths; pull requests
-run the live issue-state pass with the read-only Actions token, and push,
-schedule, and manual dispatch use the same tokened GitHub API path.
+network access.
+
+### Two gates, one guard, no repeated scan
+
+This same product claim ledger check is the last step of both `-mode docs` and
+the narrower `-mode product-claims`, and both call the identical
+`checkProductClaims` code path, so they can never disagree on what counts as a
+finding:
+
+- **MCP Schema Drift** (`mcp-schema-drift.yml`) runs the full `-mode docs` scan
+  — capability-state markers, collector-state markers, and the product claim
+  ledger — on every PR, so drift caused by a code change (not just a docs
+  change) is always caught.
+- **Product Claim Ledger** (`product-claim-ledger.yml`) runs only
+  `-mode product-claims` on claim-relevant paths, push, schedule, and manual
+  dispatch. It skips the capability-state and collector-state marker scans
+  `-mode docs` already ran in the sibling workflow, and adds the one check that
+  workflow does not do: live issue-state verification. It sets
+  `ESHU_VERIFY_PRODUCT_CLAIM_ISSUES_LIVE=1` and the read-only Actions token on
+  every one of its triggering events (pull requests, pushes, the weekly
+  schedule, and manual dispatch), with a bounded 30-second timeout.
+
+Before #4073, the product-claim-ledger workflow ran `-mode docs` twice per
+invocation (once without live checks, once with), duplicating its own
+capability-state/collector-state scan on top of the identical scan
+mcp-schema-drift.yml already ran. The narrower mode removes both repeats
+without dropping any check: `-mode docs` still runs, still deterministic,
+still catches everything it caught before.
 
 ## Workflow
 

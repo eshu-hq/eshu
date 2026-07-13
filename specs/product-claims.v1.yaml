@@ -5,6 +5,11 @@ version: v1
 #
 #   cd go && go run ./cmd/capability-inventory -mode docs
 #
+# -mode product-claims runs the same ledger check without the
+# capability-state/collector-state marker scan; product-claim-ledger.yml uses
+# it so it does not repeat the full docs-tree scan mcp-schema-drift.yml
+# already runs on every PR (#4073).
+#
 # Each source quote is intentionally exact and line-bound. If prose moves or
 # broadens, the ledger must move with it.
 claims:

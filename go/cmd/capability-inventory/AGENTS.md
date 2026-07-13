@@ -35,5 +35,8 @@
 
 ## What NOT to change without an ADR
 
-- The `-mode` names (`report`, `generate`, `verify`) — CI and contributor
-  workflows depend on them.
+- The `-mode` names (`report`, `generate`, `verify`, `docs`, `product-claims`) —
+  CI and contributor workflows depend on them. `product-claims` is a narrower
+  view of `docs` (product claim ledger guard only, see #4073) and must keep
+  calling the same `checkProductClaims` helper `docs` mode uses so the two
+  modes cannot silently diverge on what a ledger finding is.

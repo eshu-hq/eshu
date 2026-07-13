@@ -23,17 +23,24 @@
 //
 // Modes:
 //
-//	report    print catalog and surface findings plus counts (default)
-//	generate  write the catalog artifact to -out and the surface artifact to -surface-out
-//	verify    fail when findings exist or either embedded artifact is stale
-//	docs      fail when a capability-state marker contradicts the catalog, a
-//	          collector-state marker contradicts the surface inventory, or a broad
-//	          public product claim is missing marker-to-proof ledger evidence
+//	report          print catalog and surface findings plus counts (default)
+//	generate        write the catalog artifact to -out and the surface artifact to -surface-out
+//	verify          fail when findings exist or either embedded artifact is stale
+//	docs            fail when a capability-state marker contradicts the catalog, a
+//	                collector-state marker contradicts the surface inventory, or a broad
+//	                public product claim is missing marker-to-proof ledger evidence
+//	product-claims  narrower than docs: fail only on the product claim ledger guard
+//	                (guarded marker <-> ledger row <-> proof chain, plus the live
+//	                issue-state check under ESHU_VERIFY_PRODUCT_CLAIM_ISSUES_LIVE=1).
+//	                Skips the capability-state and collector-state marker scans that
+//	                mcp-schema-drift.yml already runs on every PR via -mode docs, so
+//	                the product-claim-ledger workflow does not repeat that docs-tree
+//	                scan just to reach the ledger check it needs (#4073).
 //
 // Flags:
 //
 //	-specs        path to the specs directory (matrix, overlay, surface overlay)
-//	-docs         path to the docs directory (docs mode)
+//	-docs         path to the docs directory (docs and product-claims modes)
 //	-root         path to the repository root (surface enumeration)
 //	-out          catalog artifact output path (generate mode)
 //	-surface-out  surface inventory artifact output path (generate mode)
@@ -42,5 +49,6 @@
 //
 //	go run ./cmd/capability-inventory -mode generate
 //	go run ./cmd/capability-inventory -mode verify
+//	go run ./cmd/capability-inventory -mode product-claims
 //	go run ./cmd/capability-inventory -mode budget-proof -budget-artifact ../capability-budget-proof.json
 package main
