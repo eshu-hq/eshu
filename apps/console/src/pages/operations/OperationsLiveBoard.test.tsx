@@ -131,9 +131,11 @@ describe("OperationsPage live operations board", () => {
     });
 
     // Renders the human-readable source_display, not the raw source_key.
-    expect(
-      await screen.findByText("acme/checkout-service", {}, suspenseCrossingTimeout),
-    ).toBeInTheDocument();
+    // findByText itself proves presence at resolve time (#5182): with
+    // pollMs=50 the second poll can swap the row between findByText
+    // resolving and a wrapping toBeInTheDocument() re-check, so the
+    // redundant re-check flaked on detached nodes under slow CI runners.
+    await screen.findByText("acme/checkout-service", {}, suspenseCrossingTimeout);
     expect(screen.queryByText("repository:r_ea78e8bb")).not.toBeInTheDocument();
 
     await waitFor(() => expect(screen.getByText("acme/payments-api")).toBeInTheDocument(), {
