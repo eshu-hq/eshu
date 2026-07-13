@@ -11,7 +11,7 @@
 // change soon. Polling stops once the repository reaches "current",
 // "behind", or "unknown", or when the read degrades to unavailable, so an
 // idle or broken repo does not keep the network busy.
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 
 import type { EshuApiClient } from "../../api/client";
 import {
@@ -54,12 +54,24 @@ export function RepositoryFreshnessSection({
   readonly pollMs?: number;
 }): React.JSX.Element | null {
   const [freshness, setFreshness] = useState<RepositoryFreshness | null>(null);
+  // checking is true while a fetch triggered by this effect (initial load,
+  // Check/Clear submit, or a repoId/client/pollMs change) is in flight. It is
+  // intentionally separate from `freshness === null`: a same-scope refetch
+  // must not blank prior freshness back to the "Loading freshness…" panel,
+  // since that unmounts the form and drops focus from the input mid-submit.
+  const [checking, setChecking] = useState(false);
   // expectedCommitInput is the raw, uncommitted text in the field.
   // appliedExpectedCommit is the value that actually drives the fetch --
   // it only changes on submit or clear, so typing does not refetch on every
   // keystroke (issue #5173).
   const [expectedCommitInput, setExpectedCommitInput] = useState("");
   const [appliedExpectedCommit, setAppliedExpectedCommit] = useState("");
+  // submitNonce forces a refetch on every explicit Check click, including a
+  // re-submit of the same SHA. Re-checking an unchanged SHA is the feature's
+  // primary operator loop (confirm a push finally landed); keying the fetch
+  // effect only on appliedExpectedCommit would make React bail out on an
+  // identical value and silently drop the second click.
+  const [submitNonce, setSubmitNonce] = useState(0);
   // RepoSourcePage keeps this section mounted across in-app navigation
   // between repos (repoId is a route param, not a remount trigger), so a SHA
   // typed for one repo must never silently drive the fetch for another. This
@@ -73,11 +85,29 @@ export function RepositoryFreshnessSection({
     setAppliedExpectedCommit("");
   }
 
+  // scopeRef tracks the (client, repoId) pair the currently rendered
+  // freshness belongs to. Only a scope change should blank the panel back to
+  // "Loading freshness…" -- a refetch within the same scope (Check/Clear
+  // submit, poll tick, pollMs change) keeps the prior freshness and form on
+  // screen with `checking` as an inline indicator instead.
+  const scopeRef = useRef<{ client: EshuApiClient | undefined; repoId: string }>({
+    client: undefined,
+    repoId: "",
+  });
+
   useEffect(() => {
-    setFreshness(null);
-    if (!client || repoId === "") return;
+    const scopeChanged = scopeRef.current.client !== client || scopeRef.current.repoId !== repoId;
+    scopeRef.current = { client, repoId };
+    if (scopeChanged) {
+      setFreshness(null);
+    }
+    if (!client || repoId === "") {
+      setChecking(false);
+      return;
+    }
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
+    setChecking(true);
 
     const refresh = (): void => {
       void loadRepositoryFreshness(client, repoId, {
@@ -85,6 +115,7 @@ export function RepositoryFreshnessSection({
       }).then((next) => {
         if (cancelled) return;
         setFreshness(next);
+        setChecking(false);
         if (shouldKeepPolling(next)) {
           timer = setTimeout(refresh, pollMs > 0 ? pollMs : defaultPollMs);
         }
@@ -95,13 +126,14 @@ export function RepositoryFreshnessSection({
       cancelled = true;
       if (timer !== undefined) clearTimeout(timer);
     };
-  }, [client, repoId, pollMs, appliedExpectedCommit]);
+  }, [client, repoId, pollMs, appliedExpectedCommit, submitNonce]);
 
   if (!client || repoId === "") return null;
 
   function submitExpectedCommit(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
     setAppliedExpectedCommit(expectedCommitInput.trim());
+    setSubmitNonce((nonce) => nonce + 1);
   }
 
   function clearExpectedCommit(): void {
@@ -145,13 +177,18 @@ export function RepositoryFreshnessSection({
             value={expectedCommitInput}
           />
         </label>
-        <button className="btn-ghost" type="submit">
+        <button className="btn-ghost" disabled={checking} type="submit">
           Check
         </button>
         {appliedExpectedCommit !== "" ? (
           <button className="btn-ghost" onClick={clearExpectedCommit} type="button">
             Clear
           </button>
+        ) : null}
+        {checking ? (
+          <span className="t-mut" style={{ fontSize: "0.76rem" }}>
+            Checking…
+          </span>
         ) : null}
       </form>
       <p className="t-mut" style={{ marginTop: 12 }}>
