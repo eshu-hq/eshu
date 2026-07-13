@@ -170,6 +170,25 @@ git -C "${package_evidence_repo}" add .
 git -C "${package_evidence_repo}" commit -q -m 'hot change with package evidence note'
 expect_pass "${package_evidence_repo}"
 
+# A recorded-run write-up under docs/internal/evidence/ is a valid evidence
+# file. The searchbench gate docs point future gate evaluations at
+# docs/internal/evidence/searchbench-evidence/, so the verifier must count
+# markers recorded there or the documented location disagrees with the gate.
+internal_evidence_repo="$(init_repo internal-evidence)"
+mkdir -p "${internal_evidence_repo}/docs/internal/evidence/searchbench-evidence"
+printf 'package cypher\nconst query = "UNWIND $rows AS row MERGE (n:File {uid: row.uid})"\n' \
+  >"${internal_evidence_repo}/go/internal/storage/cypher/writer.go"
+cat >"${internal_evidence_repo}/docs/internal/evidence/searchbench-evidence/record.md" <<'MD'
+# Search Gate Record
+
+No-Regression Evidence: focused writer benchmark stayed flat.
+
+No-Observability-Change: existing writer metrics covered the changed path.
+MD
+git -C "${internal_evidence_repo}" add .
+git -C "${internal_evidence_repo}" commit -q -m 'hot change with internal evidence write-up'
+expect_pass "${internal_evidence_repo}"
+
 deleted_evidence_repo="$(init_repo deleted-evidence)"
 mkdir -p "${deleted_evidence_repo}/go/internal/collector/oldsource"
 printf 'package oldsource\nconst query = "MATCH (n) RETURN n"\n' \

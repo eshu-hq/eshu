@@ -31,7 +31,7 @@ NornicDB search readiness.
 ## Suite
 
 Suite file:
-[`issue-2355-content-handle-suite-v1.json`](../../public/reference/searchbench-evidence/issue-2355-content-handle-suite-v1.json).
+[`issue-2355-content-handle-suite-v1.json`](../../../public/reference/searchbench-evidence/issue-2355-content-handle-suite-v1.json).
 
 The suite contains 20 repository-scoped keyword queries. Expected handles were
 selected from public content-entity rows before running the benchmark and use
