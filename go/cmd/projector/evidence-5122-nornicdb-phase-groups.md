@@ -28,14 +28,18 @@ reduction, batch-size-one fallback, or whole-route serialization is introduced.
 - After the measured candidate, production Go commit
   `92b62e930374e64e8a2eb7fc353930a64f8f1603` (rebased equivalent
   `033069ec421432b828e9b83dbe2f97252ace0e03`) adds the drain-timeout retry
-  classification and its focused tests. The only production Go delta changes
-  the error returned after a drain timeout; successful phase execution does
-  not enter that branch, so the measured candidate timing remains
+  classification and its focused tests. That delta changes only the error
+  returned after a drain timeout; successful phase execution does not enter
+  that branch, so the measured candidate timing remains
   representative. Commit `4ff7ba3ec173700e3f0282cbca318f51bd85dbfe`
   (rebased equivalent `f5e6b34aca90d928754d603f9f246f246c9c5539`)
   then adds the exact-source Compose validation, a file-content regression
-  test, docs, and evidence. Final-head focused writer and queue lifecycle tests
-  prove the timeout still reaches `projection_retryable`.
+  test, docs, and evidence. Later production Go commit
+  `c9aabdb8f9d21348bb80cd4e07708419bc39b389` rejects out-of-range retract
+  batch configuration at startup in both commands; the valid default remains
+  2000, so that path is neutral to the measured successful run. Final-head
+  focused writer and queue lifecycle tests prove the timeout still reaches
+  `projection_retryable`.
 - Representative retained-scope NornicDB: v1.1.11 plus the exact-key
   transaction-lock patch from public PR orneryd/NornicDB#261. Default Compose
   temporarily carries the exact proven source commit. An upstream release is
@@ -348,7 +352,7 @@ repeated after the exact-source override correction before push:
   `37s` pipeline, `179.49s` command wall;
 - fresh B-7 on v1.1.11 plus orneryd/NornicDB#261: `417/0/0`
   (pass/fail/warn), `37s` pipeline, `179.94s` command wall.
-- fresh B-7 on the exact-source Compose override for commit
+- fresh B-7 on the exact-source Compose default for commit
   `1492458852588c884c32f70d27ea2ee07086769c`: `416/0/1`, `81s` pipeline;
   the only advisory was the intentionally extended collector settle.
 

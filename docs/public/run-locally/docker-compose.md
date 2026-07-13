@@ -183,7 +183,9 @@ Controlled backend comparisons retain the existing override contract. Set
 `NORNICDB_IMAGE` and `NORNICDB_PULL_POLICY` together: use `always` for an
 immutable published image, `never` for a prebuilt local tag, or `build` to build
 the exact source below under a different local tag. Leaving both unset uses the
-exact PR #261 source pin.
+exact PR #261 source pin. Published-image and prebuilt-local comparisons must
+run `docker compose up` without `--build`; `--build` deliberately rebuilds the
+exact source and would defeat the image override.
 
 Leave `NORNICDB_PLATFORM` unset for normal local runs so the build uses the host
 architecture.
