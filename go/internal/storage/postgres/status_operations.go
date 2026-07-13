@@ -72,12 +72,19 @@ LIMIT $1
 // uses to detect a superseded generation, #4446), "active" otherwise --
 // including every claimed/running row, which stays "active" unconditionally
 // so a live stale worker remains diagnosable instead of disappearing or being
-// mislabeled, matching activeFactWorkItemsCTE's own claimed/running
-// carve-out. This is issue #5138's fix: the board previously rendered a
+// mislabeled. This is issue #5138's fix: the board previously rendered a
 // retrying row from a superseded generation identically to a genuinely live
 // one; annotating rather than excluding it keeps that row visible (hiding it
 // would erase the operator-relevant evidence that a dead generation is still
 // consuming retry budget) while letting the console render it dimmed.
+//
+// Stage scope is a deliberate choice, not a mirror of activeFactWorkItemsCTE:
+// that CTE's carve-out only ever excludes stage='reducer' rows (see its own
+// WHERE), but this CASE has no stage predicate -- it labels a stale-generation
+// retrying row of ANY stage (reducer, projector, ...), because the operations
+// board is a cross-stage view and a stale projector-stage retry is just as
+// misleading to an operator as a stale reducer-stage one. Only the
+// claimed/running-stays-"active" behavior mirrors that CTE.
 //
 // The two LEFT JOINs resolve by (scope_id, generation_id) equality, the exact
 // key scope_generations_scope_generation_idx (#4446, migration 002) covers,
@@ -85,6 +92,16 @@ LIMIT $1
 // by total scope_generations churn. See buildLiveActivityQuery's doc for the
 // EXPLAIN ANALYZE proof this bounded-join approach does not regress the
 // #5137 6.1ms/12.3ms (and #5137 follow-up 7.2ms/11.0ms) shapes.
+//
+// The trailing ORDER BY re-asserts updated_at DESC, work_item_id on this
+// OUTER select (cold review P1): the inner bounded_activity CTE already sorts
+// under its own LIMIT, but SQL gives no guarantee that a CTE's materialized
+// row order survives an outer SELECT with two more LEFT JOINs layered on top
+// -- the planner is free to pick a hash- or merge-join order that scrambles
+// it. readLiveActivity trims to the first `limit` rows it scans and treats
+// the (limit+1)-th as the truncation signal, so an unordered outer result
+// would silently corrupt both the OpenAPI-promised "most-recently-updated
+// first" order and which row gets dropped as the overflow row.
 const liveActivityGenerationStateSelectSQL = `SELECT
     b.work_item_id, b.stage, b.status, b.domain, b.lease_owner, b.claim_until, b.attempt_count,
     b.updated_at, b.created_at, b.scope_kind, b.collector_kind, b.source_system, b.source_key, b.source_display,
@@ -103,6 +120,7 @@ LEFT JOIN scope_generations work_gen
     ON work_gen.scope_id = b.scope_id AND work_gen.generation_id = b.generation_id
 LEFT JOIN scope_generations active_gen
     ON active_gen.scope_id = b.scope_id AND active_gen.generation_id = b.active_generation_id
+ORDER BY b.updated_at DESC, b.work_item_id
 `
 
 // buildLiveActivityQuery returns the parameterized SQL and positional args

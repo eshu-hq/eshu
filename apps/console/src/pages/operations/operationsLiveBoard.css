@@ -29,9 +29,17 @@
 
 /* A stale-generation retrying row (#5138) stays visible -- hiding it would
    erase the evidence a dead generation is still consuming retry budget --
-   but dims relative to genuinely live rows so it reads as superseded. */
-.ops-activity-row-stale {
-  opacity: 0.55;
+   but dims relative to genuinely live rows so it reads as superseded.
+   Cold-review P2-3: dim via the --muted foreground token on the row's plain
+   text cells only, rather than a whole-row `opacity`. Row opacity would also
+   fade the status/stale Badge dots and backgrounds, which are the row's
+   actual state signal and whose tone-specific colors (teal/warn/crit/...)
+   were never individually verified against a dimmed background. --muted
+   (#9aa4af) against this page's --bg-panel (#10171f) measures ~7.1:1
+   luminance contrast, clearing WCAG AA's 4.5:1 threshold for normal text
+   with headroom; the badges themselves are left at full strength. */
+.ops-activity-row-stale td.mono {
+  color: var(--muted);
 }
 
 .ops-activity-row-stale .badge + .badge {

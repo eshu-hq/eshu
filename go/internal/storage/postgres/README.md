@@ -2067,16 +2067,34 @@ SELECT that runs only after the `LIMIT`: a `CASE` compares each row's
 covered by `scope_generations_scope_generation_idx`, #4446 migration 002) and
 labels a `retrying` row `"stale"` only when its generation is strictly older
 by the same `ingested_at`-then-`generation_id` ordering
-`activeFactWorkItemsCTE` uses. `claimed`/`running` rows are always `"active"`
-regardless of generation, mirroring that CTE's own diagnosability carve-out
-for a live lease. See `buildLiveActivityQuery`'s doc comment in
-`status_operations.go` for the full EXPLAIN ANALYZE and seeded-corpus
-correctness evidence (allScopes ~18-19ms vs the pre-fix ~15-18ms baseline on
-a 500,000-row `scope_generations` / 61,000-row in-flight corpus, both joins
-executing as bounded Index Only Scans; the CASE reproduced every seeded
-claimed/running/active-retrying/stale-retrying variant exactly). The console
-(`apps/console/src/api/operationsBoard.ts`, `OperationsLiveBoard.tsx`) renders
-a `"stale"` row dimmed with a badge rather than hiding it.
+`activeFactWorkItemsCTE` uses. Unlike that CTE, the CASE has no `stage`
+predicate: it applies to a stale-generation `retrying` row of any stage, not
+only `stage='reducer'`, because the operations board is a cross-stage view
+and a stale projector-stage retry is just as misleading as a stale
+reducer-stage one. `claimed`/`running` rows are always `"active"` regardless
+of generation, mirroring that CTE's own diagnosability carve-out for a live
+lease. See `buildLiveActivityQuery`'s doc comment in `status_operations.go`
+for the EXPLAIN ANALYZE summary (measured on a 500,000-row
+`scope_generations` / 61,000-row in-flight corpus in a prior session:
+allScopes ~18-19ms vs the pre-fix ~15-18ms baseline, both joins executing as
+bounded Index Only Scans) and the seeded-corpus correctness evidence (the
+CASE reproduced every seeded claimed/running/active-retrying/stale-retrying
+variant exactly).
+
+Cold-review P1 fix: the outer SELECT carries its own
+`ORDER BY updated_at DESC, work_item_id`, re-asserted after both `LEFT JOIN`s.
+SQL does not guarantee a CTE's sorted row order survives an outer SELECT with
+more joins layered on top, and `readLiveActivity` scans rows in whatever
+order Postgres returns them, trimming to the first `limit` and using the
+`limit+1`-th row purely as the truncation signal -- an unordered outer result
+would have silently broken both the OpenAPI "most-recently-updated first"
+contract and which row gets dropped as the overflow row.
+
+The console (`apps/console/src/api/operationsBoard.ts`, `OperationsLiveBoard.tsx`)
+renders a `"stale"` row with its plain text cells dimmed to the `--muted`
+foreground token (not a whole-row `opacity`, which would also fade the
+status/stale `Badge` dots that are the row's actual state signal) plus a
+`"stale"` badge, rather than hiding the row.
 
 ## Repo freshness single-scope composite read (#5143)
 
