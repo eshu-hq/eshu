@@ -13,5 +13,3 @@
 #   bash scripts/verify-docs-refs.sh -update
 #
 # <doc-page-relpath> <missing-script-path>
-extend/community-extension-authoring.md scripts/verify-local.sh
-reference/component-package-manager.md scripts/verify-local.sh
