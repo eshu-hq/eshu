@@ -13,12 +13,34 @@ One scenario per distinct `reducer_domain` (`specs/fact-kind-registry.v1.yaml`):
 `cypher.CanonicalNodeWriter`), `semantic_entity_materialization`
 (`semantic_entity_cost_test.go`, drives
 `cypher.SemanticEntityWriter.WriteSemanticEntities` through
-`cypher.InstrumentedExecutor`), and `documentation_materialization`
+`cypher.InstrumentedExecutor`), `documentation_materialization`
 (`documentation_edges_cost_test.go`, drives `cypher.EdgeWriter.WriteEdges` with
-`EdgeWriter.Instruments` set). Shared test helpers (the group-counting
-executor, the path-parameterized budget loader) live in
-`cost_scenario_helpers_test.go`. See README.md for the full instrument/budget
-table before adding a fourth scenario.
+`EdgeWriter.Instruments` set), `aws_cloud_runtime_drift`
+(`aws_cloud_runtime_drift_cost_test.go`, drives
+`reducer.PostgresAWSCloudRuntimeDriftWriter` through `postgres.InstrumentedDB`
+— a Postgres fact writer, not a Cypher writer, so it asserts
+`eshu_dp_postgres_query_duration_seconds` observation count instead of a neo4j
+batch counter), `ec2_instance_node_materialization`
+(`ec2_instance_node_cost_test.go`, drives
+`cypher.EC2InstanceNodeWriter.WriteEC2InstanceNodes`),
+`rds_posture_materialization` (`rds_posture_cost_test.go`, drives
+`cypher.RDSPostureNodeWriter.WriteRDSPostureNodes`),
+`s3_external_principal_grant_materialization`
+(`s3_external_principal_grant_cost_test.go`, drives
+`cypher.S3ExternalPrincipalGrantWriter.WriteS3ExternalPrincipalGrants`),
+`s3_internet_exposure_materialization`
+(`s3_internet_exposure_cost_test.go`, drives
+`cypher.S3InternetExposureNodeWriter.WriteS3InternetExposureNodes`), and
+`secrets_iam_trust_chain` (`secrets_iam_graph_cost_test.go`, drives
+`cypher.SecretsIAMGraphWriter.WriteServiceAccountNodes` at the writer level
+only — ADR #1314 governance-gated, `ESHU_REDUCER_SECRETS_IAM_GRAPH_PROJECTION_ENABLED`
+is never touched). The five node/edge writers listed above all route through
+`cypher.InstrumentedExecutor`, the same wrapper
+`go/cmd/reducer/observed_service_wiring.go` applies to the real Neo4j/NornicDB
+executor. Shared test helpers (the group-counting executor, the
+path-parameterized budget loader) live in `cost_scenario_helpers_test.go`. See
+README.md for the full instrument/budget table before adding another
+scenario.
 
 ## Non-negotiable invariants
 
@@ -35,7 +57,13 @@ table before adding a fourth scenario.
   delete the control. When the writer batches same-key rows together (as
   `SemanticEntityWriter` does per entity label), the N+1 fixture MUST share a
   batching key across its rows — distinct keys already emit one statement each
-  regardless of call count and would make the negative control a no-op.
+  regardless of call count and would make the negative control a no-op. When
+  the writer has NO batching at all (an unbatched per-row writer such as
+  `PostgresAWSCloudRuntimeDriftWriter`, one statement per row regardless of
+  call grouping), per-row calls are the no-op instead — shape the control as
+  DUPLICATE invocation (call the writer twice with the SAME input set) so it
+  models the real regression class (retry without idempotency check,
+  duplicate admission) and genuinely exceeds the budget.
 - Budgets are the EXACT deterministic counts. Because the scenario is
   deterministic, do not pad the budget "to absorb evolution" — a legitimate
   count change must refresh the budget deliberately (R-6 path for

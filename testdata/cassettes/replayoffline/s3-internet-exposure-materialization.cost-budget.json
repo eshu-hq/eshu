@@ -1,0 +1,10 @@
+{
+  "scenario": "s3-internet-exposure-materialization",
+  "cassette": "none: cypher.S3InternetExposureNodeWriter operates over flat map[string]any rows, not a CanonicalMaterialization; the two fixture rows live inline in go/internal/replay/costcounting/s3_internet_exposure_cost_test.go",
+  "description": "Two distinct-uid S3 internet-exposure rows in one scope, driven through the production writer over an InstrumentedExecutor. S3InternetExposureNodeWriter has one Cypher template and no per-row batching split, and the default batch size (500) comfortably covers two rows, so the writer emits exactly one UNWIND write statement (eshu_dp_neo4j_batches_executed_total=1, statements_executed=1). Any increase — an N+1 write cycle or an extra batch split — trips the gate.",
+  "refresh_path": "manual: edit the inline fixture rows in s3_internet_exposure_cost_test.go and this file together, reviewed in the same diff (no credentialed cassette refresh applies since there is no cassette)",
+  "budgets": {
+    "eshu_dp_neo4j_batches_executed_total": 1,
+    "statements_executed": 1
+  }
+}
