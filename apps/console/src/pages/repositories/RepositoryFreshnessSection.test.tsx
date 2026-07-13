@@ -440,4 +440,48 @@ describe("RepositoryFreshnessSection", () => {
     );
     expect(await screen.findByText("Behind your commit")).toBeInTheDocument();
   });
+
+  it("clears the expected commit state when the client prop is swapped, even with the same repoId", async () => {
+    // AppShell can swap the EshuApiClient instance (demo/live switch, base-URL
+    // change) without remounting this section and without a repoId change.
+    // A SHA typed against the old client's data source must never silently
+    // drive the fetch against the new one.
+    const clientA = sequencedClient([
+      freshnessWire({ verdict: "current" }),
+      freshnessWire({
+        verdict: "behind",
+        observed_commit: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      }),
+    ]);
+    const clientB = sequencedClient([freshnessWire({ verdict: "current" })]);
+
+    const { rerender } = render(
+      <RepositoryFreshnessSection
+        client={clientA}
+        repoId="repository:payments-api"
+        pollMs={50000}
+      />,
+    );
+    expect(await screen.findByText(/Current through a1b2c3d4e5/)).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Expected commit"), {
+      target: { value: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /check/i }));
+    expect(await screen.findByText("Behind your commit")).toBeInTheDocument();
+
+    // Swap the client instance -- same repoId.
+    rerender(
+      <RepositoryFreshnessSection
+        client={clientB}
+        repoId="repository:payments-api"
+        pollMs={50000}
+      />,
+    );
+
+    expect(await screen.findByText(/Current through a1b2c3d4e5/)).toBeInTheDocument();
+    expect(screen.getByLabelText("Expected commit")).toHaveValue("");
+    expect(clientB.paths.every((path) => !path.includes("expected_commit"))).toBe(true);
+    expect(clientB.paths.length).toBeGreaterThan(0);
+  });
 });

@@ -73,14 +73,20 @@ export function RepositoryFreshnessSection({
   // identical value and silently drop the second click.
   const [submitNonce, setSubmitNonce] = useState(0);
   // RepoSourcePage keeps this section mounted across in-app navigation
-  // between repos (repoId is a route param, not a remount trigger), so a SHA
-  // typed for one repo must never silently drive the fetch for another. This
-  // is React's documented "adjust state while rendering" pattern: comparing
-  // the prop against a tracked previous value and resetting synchronously
-  // avoids both a stale render and a wasted fetch with the old repo's SHA.
-  const [expectedCommitRepoId, setExpectedCommitRepoId] = useState(repoId);
-  if (repoId !== expectedCommitRepoId) {
-    setExpectedCommitRepoId(repoId);
+  // between repos (repoId is a route param, not a remount trigger), and
+  // AppShell can swap the EshuApiClient instance itself (demo/live switch,
+  // base-URL change) without remounting either -- so a SHA typed against one
+  // repo/client pair must never silently drive the fetch for another. This is
+  // React's documented "adjust state while rendering" pattern: comparing both
+  // the client and repoId props against tracked previous values and resetting
+  // synchronously avoids both a stale render and a wasted fetch with the old
+  // scope's SHA.
+  const [expectedCommitScope, setExpectedCommitScope] = useState<{
+    client: EshuApiClient | undefined;
+    repoId: string;
+  }>({ client, repoId });
+  if (client !== expectedCommitScope.client || repoId !== expectedCommitScope.repoId) {
+    setExpectedCommitScope({ client, repoId });
     setExpectedCommitInput("");
     setAppliedExpectedCommit("");
   }
