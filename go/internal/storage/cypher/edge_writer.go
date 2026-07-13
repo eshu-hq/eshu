@@ -28,9 +28,11 @@ type EdgeWriter struct {
 	SQLRelationshipGroupBatchSize int
 	// RepoDependencyRetractStatementTiming is retained for environment
 	// compatibility (ESHU_REPO_DEPENDENCY_RETRACT_STATEMENT_TIMING) but no
-	// longer changes behavior: repo_dependency retracts always run their three
+	// longer changes behavior: repo_dependency retracts run their source-capable
 	// statements sequentially with per-statement timing logs, because grouped
-	// DELETEs under-apply on NornicDB v1.1.11 (#4367).
+	// DELETEs under-apply on NornicDB v1.1.11 (#4367). Code-import evidence runs
+	// two roles because that producer cannot emit RUNS_ON; other sources run all
+	// three roles.
 	RepoDependencyRetractStatementTiming bool
 	Instruments                          *telemetry.Instruments
 	Logger                               *slog.Logger
@@ -107,6 +109,11 @@ func (w *EdgeWriter) WriteEdges(
 	}
 	if _, err := batchCypherForDomain(domain); err != nil {
 		return err
+	}
+	if domain == reducer.DomainRepoDependency {
+		if err := validateRepoDependencySourceRows(rows, evidenceSource); err != nil {
+			return err
+		}
 	}
 
 	routedRows := make(map[string][]map[string]any)

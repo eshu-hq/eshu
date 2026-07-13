@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/graph/edgetype"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
@@ -15,6 +16,8 @@ type repoDependencyRetractStatement struct {
 	role string
 	stmt Statement
 }
+
+const codeImportRepoDependencyEvidenceSource = "projection/code-imports"
 
 func repoDependencyRetractSummary(role string, relationships string) string {
 	return "role=" + role + " relationships=" + relationships
@@ -29,7 +32,7 @@ func buildRepoDependencyDiagnosticRetractStatements(repoIDs []string, evidenceSo
 }
 
 func buildRepoDependencySplitRetractStatements(repoIDs []string, evidenceSource string) []repoDependencyRetractStatement {
-	return []repoDependencyRetractStatement{
+	items := []repoDependencyRetractStatement{
 		{
 			role: "repository_relationship_edges",
 			stmt: Statement{
@@ -42,7 +45,9 @@ func buildRepoDependencySplitRetractStatements(repoIDs []string, evidenceSource 
 				),
 			},
 		},
-		{
+	}
+	if repoDependencySourceSupportsRunsOn(evidenceSource) {
+		items = append(items, repoDependencyRetractStatement{
 			role: "runs_on_relationships",
 			stmt: Statement{
 				Operation: OperationCanonicalRetract,
@@ -53,20 +58,46 @@ func buildRepoDependencySplitRetractStatements(repoIDs []string, evidenceSource 
 					"role=runs_on_relationships relationships=RUNS_ON",
 				),
 			},
-		},
-		{
-			role: "evidence_artifacts",
-			stmt: Statement{
-				Operation: OperationCanonicalRetract,
-				Cypher:    repoDependencyEvidenceArtifactRetractCypher(repoIDs),
-				Parameters: repoDependencyRetractParameters(
-					repoIDs,
-					evidenceSource,
-					"role=evidence_artifacts relationships=HAS_DEPLOYMENT_EVIDENCE",
-				),
-			},
-		},
+		})
 	}
+	items = append(items, repoDependencyRetractStatement{
+		role: "evidence_artifacts",
+		stmt: Statement{
+			Operation: OperationCanonicalRetract,
+			Cypher:    repoDependencyEvidenceArtifactRetractCypher(repoIDs),
+			Parameters: repoDependencyRetractParameters(
+				repoIDs,
+				evidenceSource,
+				"role=evidence_artifacts relationships=HAS_DEPLOYMENT_EVIDENCE",
+			),
+		},
+	})
+	return items
+}
+
+func repoDependencySourceSupportsRunsOn(evidenceSource string) bool {
+	return evidenceSource != codeImportRepoDependencyEvidenceSource
+}
+
+func validateRepoDependencySourceRows(
+	rows []reducer.SharedProjectionIntentRow,
+	evidenceSource string,
+) error {
+	if evidenceSource != codeImportRepoDependencyEvidenceSource {
+		return nil
+	}
+	for _, row := range rows {
+		relationshipType := payloadString(row.Payload, "relationship_type")
+		if relationshipType == "" || relationshipType == string(edgetype.DependsOn) {
+			continue
+		}
+		return fmt.Errorf(
+			"repo dependency evidence source %q cannot write relationship type %q",
+			evidenceSource,
+			relationshipType,
+		)
+	}
+	return nil
 }
 
 func repoDependencyRelationshipRetractCypher(repoIDs []string) string {
@@ -103,17 +134,33 @@ func repoDependencyRetractParameters(repoIDs []string, evidenceSource string, su
 	return params
 }
 
-// executeRepoDependencyRetractStatements runs the three repo-dependency
+// executeRepoDependencyRetractStatements runs the source-capable repo-dependency
 // retract statements sequentially, each in its own transaction — deliberately
 // NOT grouped through ExecuteGroup, for the same NornicDB v1.1.11
 // managed-transaction reason documented on executeCodeCallRetractStatements
 // (measured here too: the grouped path left the first statement's typed
-// relationship edges undeleted). Each statement is independently scoped and
-// idempotent, so sequential execution is safe.
+// relationship edges undeleted). Code-import evidence omits RUNS_ON because
+// that producer only emits DEPENDS_ON; all other sources retain the RUNS_ON
+// cleanup. Each statement is independently scoped and idempotent, so sequential
+// execution is safe.
 func (w *EdgeWriter) executeRepoDependencyRetractStatements(ctx context.Context, repoIDs []string, evidenceSource string) error {
 	items := buildRepoDependencyRetractStatements(repoIDs, evidenceSource)
 	if w.RepoDependencyRetractStatementTiming {
 		items = buildRepoDependencyDiagnosticRetractStatements(repoIDs, evidenceSource)
+	}
+	if !repoDependencySourceSupportsRunsOn(evidenceSource) {
+		w.recordSharedEdgeRunsOnRetractOmission(
+			ctx,
+			reducer.DomainRepoDependency,
+			"source_capability",
+		)
+		w.logSharedEdgeRetractRoleOmitted(
+			reducer.DomainRepoDependency,
+			evidenceSource,
+			"runs_on_relationships",
+			len(repoIDs),
+			"source_capability",
+		)
 	}
 	return w.executeRepoDependencyRetractStatementsSequential(ctx, items, repoIDs, evidenceSource)
 }

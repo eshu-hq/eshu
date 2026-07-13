@@ -59,6 +59,10 @@
 // coordinated by each CanonicalNodeWriter instance before backend execution so
 // uniqueness retries are not the normal path for one projector process. Backend
 // uniqueness and retry handling still own cross-process convergence.
+// Repo-dependency writes enforce evidence-source capabilities before backend
+// execution: projection/code-imports accepts only DEPENDS_ON and omits the
+// impossible RUNS_ON retract, while other sources retain their full retract
+// surface.
 // AzureCloudResourceEdgeWriter mirrors the GCP CloudResource relationship writer
 // for Azure managed relationships: it MATCHes both CloudResource endpoints by
 // uid, MERGEs only bounded static AZURE_managed_by edge tokens, preserves
