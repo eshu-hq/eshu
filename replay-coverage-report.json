@@ -3,11 +3,11 @@
   "blocking": true,
   "totals": {
     "total": 400,
-    "covered": 368,
-    "uncovered": 23,
+    "covered": 374,
+    "uncovered": 17,
     "unresolved": 0,
     "exempt": 9,
-    "percent_satisfied": 94.25
+    "percent_satisfied": 95.75
   },
   "registry_summaries": [
     {
@@ -67,11 +67,11 @@
     {
       "registry": "projection",
       "total": 27,
-      "covered": 5,
-      "uncovered": 22,
+      "covered": 11,
+      "uncovered": 16,
       "unresolved": 0,
       "exempt": 0,
-      "percent_satisfied": 18.52
+      "percent_satisfied": 40.74
     },
     {
       "registry": "reducer_drain",
@@ -123,11 +123,11 @@
     {
       "scenario_type": "cost",
       "total": 26,
-      "covered": 4,
-      "uncovered": 22,
+      "covered": 10,
+      "uncovered": 16,
       "unresolved": 0,
       "exempt": 0,
-      "percent_satisfied": 15.38
+      "percent_satisfied": 38.46
     },
     {
       "scenario_type": "crash",
@@ -2158,8 +2158,11 @@
       "registry": "projection",
       "key": "projection:aws_cloud_runtime_drift",
       "scenario_type": "cost",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type cost"
+      "status": "covered",
+      "scenario": "go_test",
+      "ref": "go/internal/replay/costcounting/aws_cloud_runtime_drift_cost_test.go",
+      "proof_gate": "go-test-race",
+      "detail": "artifact present: go/internal/replay/costcounting/aws_cloud_runtime_drift_cost_test.go"
     },
     {
       "registry": "projection",
@@ -2220,8 +2223,11 @@
       "registry": "projection",
       "key": "projection:ec2_instance_node_materialization",
       "scenario_type": "cost",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type cost"
+      "status": "covered",
+      "scenario": "go_test",
+      "ref": "go/internal/replay/costcounting/ec2_instance_node_cost_test.go",
+      "proof_gate": "go-test-race",
+      "detail": "artifact present: go/internal/replay/costcounting/ec2_instance_node_cost_test.go"
     },
     {
       "registry": "projection",
@@ -2279,8 +2285,11 @@
       "registry": "projection",
       "key": "projection:rds_posture_materialization",
       "scenario_type": "cost",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type cost"
+      "status": "covered",
+      "scenario": "go_test",
+      "ref": "go/internal/replay/costcounting/rds_posture_cost_test.go",
+      "proof_gate": "go-test-race",
+      "detail": "artifact present: go/internal/replay/costcounting/rds_posture_cost_test.go"
     },
     {
       "registry": "projection",
@@ -2293,15 +2302,21 @@
       "registry": "projection",
       "key": "projection:s3_external_principal_grant_materialization",
       "scenario_type": "cost",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type cost"
+      "status": "covered",
+      "scenario": "go_test",
+      "ref": "go/internal/replay/costcounting/s3_external_principal_grant_cost_test.go",
+      "proof_gate": "go-test-race",
+      "detail": "artifact present: go/internal/replay/costcounting/s3_external_principal_grant_cost_test.go"
     },
     {
       "registry": "projection",
       "key": "projection:s3_internet_exposure_materialization",
       "scenario_type": "cost",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type cost"
+      "status": "covered",
+      "scenario": "go_test",
+      "ref": "go/internal/replay/costcounting/s3_internet_exposure_cost_test.go",
+      "proof_gate": "go-test-race",
+      "detail": "artifact present: go/internal/replay/costcounting/s3_internet_exposure_cost_test.go"
     },
     {
       "registry": "projection",
@@ -2314,8 +2329,11 @@
       "registry": "projection",
       "key": "projection:secrets_iam_trust_chain",
       "scenario_type": "cost",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type cost"
+      "status": "covered",
+      "scenario": "go_test",
+      "ref": "go/internal/replay/costcounting/secrets_iam_graph_cost_test.go",
+      "proof_gate": "go-test-race",
+      "detail": "artifact present: go/internal/replay/costcounting/secrets_iam_graph_cost_test.go"
     },
     {
       "registry": "projection",
@@ -4073,25 +4091,19 @@
     }
   ],
   "gaps": [
-    "projection:aws_cloud_runtime_drift|cost",
     "projection:azure_resource_materialization|cost",
     "projection:ci_cd_run_correlation|cost",
     "projection:cloud_asset_resolution|cost",
     "projection:config_state_drift|cost",
     "projection:container_image_identity|cost",
-    "projection:ec2_instance_node_materialization|cost",
     "projection:gcp_resource_materialization|cost",
     "projection:incident_repository_correlation|cost",
     "projection:incident_routing_materialization|cost",
     "projection:kubernetes_correlation|cost",
     "projection:observability_coverage_correlation|cost",
     "projection:package_source_correlation|cost",
-    "projection:rds_posture_materialization|cost",
     "projection:reducer_derived_findings|cost",
-    "projection:s3_external_principal_grant_materialization|cost",
-    "projection:s3_internet_exposure_materialization|cost",
     "projection:sbom_attestation_attachment|cost",
-    "projection:secrets_iam_trust_chain|cost",
     "projection:security_alert_reconciliation|cost",
     "projection:service_catalog_correlation|cost",
     "projection:supply_chain_impact|cost",

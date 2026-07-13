@@ -4,7 +4,7 @@
 
 Every surface Eshu claims to support should have a green, credential-free, Docker-free replay scenario. This dashboard is generated from the C-1 coverage manifest and the source-of-truth registries (epic [#4172](https://github.com/eshu-hq/eshu/issues/4172)); it is refreshed by the replay-coverage gate so the gap is reviewable in a PR diff.
 
-**Overall: 377/400 surfaces satisfied (94.25%)** — mode: blocking.
+**Overall: 383/400 surfaces satisfied (95.75%)** — mode: blocking.
 
 ## Coverage by axis
 
@@ -16,19 +16,19 @@ Every surface Eshu claims to support should have a green, credential-free, Docke
 | Read surfaces (API/MCP) | 22 | 22 | 100.00% | 0 | 1 |
 | Parsers | 4 | 4 | 100.00% | 0 | 0 |
 | Product claims | 11 | 11 | 100.00% | 0 | 0 |
-| Projections (cost/ordering) | 5 | 27 | 18.52% | 22 | 0 |
+| Projections (cost/ordering) | 11 | 27 | 40.74% | 16 | 0 |
 | Reducer drain (crash) | 1 | 1 | 100.00% | 0 | 0 |
 | Retractable edge types (delta) | 52 | 52 | 100.00% | 0 | 0 |
 | Retractable node types (delta) | 86 | 87 | 98.85% | 1 | 0 |
 | Collectors | 34 | 34 | 100.00% | 0 | 8 |
-| **Total** | **377** | **400** | **94.25%** | **23** | **9** |
+| **Total** | **383** | **400** | **95.75%** | **17** | **9** |
 
 ## Coverage by scenario type
 
 | Scenario type | Satisfied | Total | % | Uncovered | Exempt |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | baseline | 212 | 212 | 100.00% | 0 | 5 |
-| cost | 4 | 26 | 15.38% | 22 | 0 |
+| cost | 10 | 26 | 38.46% | 16 | 0 |
 | crash | 2 | 2 | 100.00% | 0 | 0 |
 | delta_tombstone | 139 | 140 | 99.29% | 1 | 0 |
 | fault | 17 | 17 | 100.00% | 0 | 4 |
@@ -44,29 +44,23 @@ Every ledger language is satisfied by corpus or parser fixture coverage.
 
 ## Gaps — surfaces still needing a replay scenario
 
-23 surface(s) uncovered or unresolved:
+17 surface(s) uncovered or unresolved:
 
-### Projections (cost/ordering) (22)
+### Projections (cost/ordering) (16)
 
-- `projection:aws_cloud_runtime_drift` (cost)
 - `projection:azure_resource_materialization` (cost)
 - `projection:ci_cd_run_correlation` (cost)
 - `projection:cloud_asset_resolution` (cost)
 - `projection:config_state_drift` (cost)
 - `projection:container_image_identity` (cost)
-- `projection:ec2_instance_node_materialization` (cost)
 - `projection:gcp_resource_materialization` (cost)
 - `projection:incident_repository_correlation` (cost)
 - `projection:incident_routing_materialization` (cost)
 - `projection:kubernetes_correlation` (cost)
 - `projection:observability_coverage_correlation` (cost)
 - `projection:package_source_correlation` (cost)
-- `projection:rds_posture_materialization` (cost)
 - `projection:reducer_derived_findings` (cost)
-- `projection:s3_external_principal_grant_materialization` (cost)
-- `projection:s3_internet_exposure_materialization` (cost)
 - `projection:sbom_attestation_attachment` (cost)
-- `projection:secrets_iam_trust_chain` (cost)
 - `projection:security_alert_reconciliation` (cost)
 - `projection:service_catalog_correlation` (cost)
 - `projection:supply_chain_impact` (cost)
@@ -75,7 +69,7 @@ Every ledger language is satisfied by corpus or parser fixture coverage.
 
 - `retractable_node:Variable` (delta_tombstone)
 
-## Covered surfaces (377)
+## Covered surfaces (383)
 
 | Surface | Scenario type | Scenario | Proof gate | Artifact |
 | --- | --- | --- | --- | --- |
@@ -278,9 +272,15 @@ Every ledger language is satisfied by corpus or parser fixture coverage.
 | `product_claim:readme.replatforming.plan-readiness` | baseline | product_claim | capability-inventory-docs | `readme.replatforming.plan-readiness` |
 | `product_claim:readme.security-iam.evidence-backed-findings` | baseline | product_claim | capability-inventory-docs | `readme.security-iam.evidence-backed-findings` |
 | `product_claim:readme.supply-chain.default-gated` | baseline | product_claim | capability-inventory-docs | `readme.supply-chain.default-gated` |
+| `projection:aws_cloud_runtime_drift` | cost | go_test | go-test-race | `go/internal/replay/costcounting/aws_cloud_runtime_drift_cost_test.go` |
 | `projection:code_graph_projection` | cost | go_test | go-test-race | `go/internal/replay/costcounting/cost_counting_test.go` |
 | `projection:documentation_materialization` | cost | go_test | go-test-race | `go/internal/replay/costcounting/documentation_edges_cost_test.go` |
+| `projection:ec2_instance_node_materialization` | cost | go_test | go-test-race | `go/internal/replay/costcounting/ec2_instance_node_cost_test.go` |
 | `projection:incident_repository_correlation` | ordering | go_test | go-test-race | `go/internal/replay/schedulereplay/projection_ordering_scenario_test.go` |
+| `projection:rds_posture_materialization` | cost | go_test | go-test-race | `go/internal/replay/costcounting/rds_posture_cost_test.go` |
+| `projection:s3_external_principal_grant_materialization` | cost | go_test | go-test-race | `go/internal/replay/costcounting/s3_external_principal_grant_cost_test.go` |
+| `projection:s3_internet_exposure_materialization` | cost | go_test | go-test-race | `go/internal/replay/costcounting/s3_internet_exposure_cost_test.go` |
+| `projection:secrets_iam_trust_chain` | cost | go_test | go-test-race | `go/internal/replay/costcounting/secrets_iam_graph_cost_test.go` |
 | `projection:semantic_entity_materialization` | cost | go_test | go-test-race | `go/internal/replay/costcounting/semantic_entity_cost_test.go` |
 | `projection:supply_chain_impact` | ordering | go_test | go-test-race | `go/internal/replay/schedulereplay/projection_ordering_scenario_test.go` |
 | `reducer_drain:reducer-projection-drain` | crash | go_test | go-test-race | `go/internal/replay/crashreplay/scenario_test.go` |

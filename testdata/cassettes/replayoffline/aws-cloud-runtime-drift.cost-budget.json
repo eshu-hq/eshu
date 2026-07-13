@@ -1,0 +1,10 @@
+{
+  "scenario": "aws-cloud-runtime-drift",
+  "cassette": "none: reducer.PostgresAWSCloudRuntimeDriftWriter is a Postgres fact writer, not a Cypher graph writer, and operates over flat model.Candidate values, not a CanonicalMaterialization; the two fixture candidates live inline in go/internal/replay/costcounting/aws_cloud_runtime_drift_cost_test.go",
+  "description": "Two admitted aws_cloud_runtime_drift candidates (orphaned + unmanaged cloud resource) in one scope, driven through the production Postgres fact writer over an InstrumentedDB-wrapped counting queryer. PostgresAWSCloudRuntimeDriftWriter persists one durable fact row per admitted candidate via one ExecContext call each (no UNWIND-style batching exists at this layer), so eshu_dp_postgres_query_duration_seconds records exactly 2 observations and statements_executed=2. Any increase — a duplicate-invocation regression (see the N+1 control's doc comment for why this domain's regression shape differs from the batched Cypher writers) — trips the gate.",
+  "refresh_path": "manual: edit the inline fixture candidates in aws_cloud_runtime_drift_cost_test.go and this file together, reviewed in the same diff (no credentialed cassette refresh applies since there is no cassette)",
+  "budgets": {
+    "eshu_dp_postgres_query_duration_seconds": 2,
+    "statements_executed": 2
+  }
+}
