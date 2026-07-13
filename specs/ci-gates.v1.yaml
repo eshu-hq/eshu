@@ -1138,6 +1138,7 @@ gates:
       - "go/internal/replay/inputtape/**"
       - "go/internal/replay/schedulereplay/**"
       - "go/internal/replay/crashreplay/**"
+      - "go/internal/replay/costcounting/**"
       - "go/internal/capabilitycatalog/**"
       - "go/internal/facts/**"
       - "go/internal/storage/cypher/**"
