@@ -134,11 +134,28 @@ ORDER BY projection_domain
 // compares each row's target_sha against the resolved generation's observed
 // commit to decide whether any represents a push eshu has not started
 // building yet.
+//
+// The LOWER()/LOWER() comparison is load-bearing, not cosmetic (#5148
+// under-report nuance): repositoryidentity.RepoSlugFromRemoteURL
+// (repositoryidentity/identity.go) lower-cases the owner/repo slug it derives
+// from a git remote, and repo_display (repositoryFreshnessGenerationQuery
+// above) prefers that lower-cased repo_slug first. Webhook normalizers
+// (webhook/normalizer_github.go and its siblings) instead store
+// repository_full_name verbatim from the provider payload, which preserves
+// the repository owner's actual casing. A case-sensitive equality here would
+// silently fail to match any repository whose real name contains uppercase
+// characters, under-reporting a genuine unobserved push rather than erring.
+// LOWER($1) is also load-bearing, not defensive symmetry: repo_display only
+// carries the lower-cased repo_slug on its preferred path -- its fallbacks
+// (payload->>'repo_name', then source_key) preserve whatever casing was
+// stored, so the parameter side can arrive with uppercase too. Do not relax
+// either side. No index on this table covers repository_full_name, so folding
+// both sides changes zero index usage and zero query shape.
 const repositoryFreshnessWebhookQuery = `
 SELECT target_sha, ref, received_at
 FROM webhook_refresh_triggers
 WHERE status IN ('queued', 'claimed')
-  AND repository_full_name = $1
+  AND LOWER(repository_full_name) = LOWER($1)
 ORDER BY received_at DESC, trigger_id DESC
 LIMIT 5
 `

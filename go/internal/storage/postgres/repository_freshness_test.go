@@ -254,6 +254,49 @@ func TestReadRepositoryFreshnessWebhookMatchingObservedCommitIsNotUnobserved(t *
 	}
 }
 
+// TestReadRepositoryFreshnessUnobservedPushOlderMismatchNotMaskedByNewerMatch
+// is the #5148 readUnobservedPush ordering-nuance regression: the newest
+// queued/claimed trigger (row order mirrors the query's
+// ORDER BY received_at DESC, trigger_id DESC) matches the observed commit --
+// already built, not unobserved -- but an OLDER trigger in the same result
+// set does not match. readUnobservedPush must keep scanning past the
+// matching newest row and still surface the older mismatch rather than
+// stopping (and silently under-reporting) at the first row it sees.
+func TestReadRepositoryFreshnessUnobservedPushOlderMismatchNotMaskedByNewerMatch(t *testing.T) {
+	t.Parallel()
+
+	observedAt := time.Date(2026, 7, 12, 3, 0, 0, 0, time.UTC)
+	newerReceivedAt := observedAt.Add(-1 * time.Minute)
+	olderReceivedAt := observedAt.Add(-2 * time.Minute)
+	queryer := &fakeQueryer{responses: []fakeRows{
+		{rows: [][]any{{"scope-1", "gen-1"}}},
+		{rows: [][]any{{"gen-1", "active", "push", false, observedAt, "abc123", observedAt, "repository", "acme/orders-api"}}},
+		{rows: [][]any{{"reducer", "succeeded", int64(1)}, {"projector", "succeeded", int64(1)}}},
+		{rows: [][]any{}},
+		// Newest first (matches the query's ORDER BY): the newest row matches
+		// the observed commit, the older row does not.
+		{rows: [][]any{
+			{"abc123", "refs/heads/main", newerReceivedAt},
+			{"olderMismatch", "refs/heads/main", olderReceivedAt},
+		}},
+	}}
+
+	store := NewRepositoryFreshnessStore(queryer)
+	snapshot, err := store.ReadRepositoryFreshness(context.Background(), "repo-1")
+	if err != nil {
+		t.Fatalf("ReadRepositoryFreshness() error = %v, want nil", err)
+	}
+	if snapshot.UnobservedPush == nil {
+		t.Fatal("UnobservedPush = nil, want the older mismatching trigger to surface despite a newer matching trigger")
+	}
+	if snapshot.UnobservedPush.TargetSHA != "olderMismatch" {
+		t.Fatalf("UnobservedPush.TargetSHA = %q, want %q (the older mismatch, not masked by the newer matching row)", snapshot.UnobservedPush.TargetSHA, "olderMismatch")
+	}
+	if !snapshot.UnobservedPush.ReceivedAt.Equal(olderReceivedAt) {
+		t.Fatalf("ReceivedAt = %v, want %v", snapshot.UnobservedPush.ReceivedAt, olderReceivedAt)
+	}
+}
+
 // TestReadRepositoryFreshnessUnresolvedRepositoryReturnsNoRowsWithoutError
 // verifies a repo_id that resolves to no scope produces an honest
 // Resolved=false snapshot rather than an error, and short-circuits before any

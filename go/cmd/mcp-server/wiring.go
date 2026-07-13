@@ -419,7 +419,16 @@ func newMCPQueryRouterWithSemanticEmbedding(
 		},
 		Incident: &query.IncidentHandler{
 			Context: query.NewPostgresIncidentContextStore(db),
-			Profile: queryProfile,
+			// Authorizer gates scoped-token reads of get_incident_context (#2144:
+			// "Authorize ... the get_incident_context MCP tool ... for scoped
+			// tokens"). It was wired only in cmd/api's newIncidentHandler
+			// (wiring_handlers.go), so a scoped token calling get_incident_context
+			// on the standalone MCP server always got a fail-closed not-found --
+			// found by the #5148 dual-main reflective completeness test
+			// (TestNewMCPQueryRouterWiresEveryFieldOrDocumentsWhyNot below), which
+			// flags any nil interface field inside a wired handler.
+			Authorizer: query.NewPostgresIncidentRepositoryAuthorizer(db),
+			Profile:    queryProfile,
 		},
 		WorkItems: &query.WorkItemHandler{
 			Evidence: query.NewPostgresWorkItemEvidenceStore(db),
