@@ -8,6 +8,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -26,6 +27,13 @@ type projectionCase struct {
 	name         string
 	cassettePath string
 	domain       reducer.Domain
+	// hooks is the exact set of projection hooks the domain owns per
+	// specs/fact-kind-registry.v1.yaml. loadProjectionItems asserts the
+	// cassette's work items carry exactly this hook set, so a table entry
+	// pointed at the wrong cassette — or a cassette drifting to another
+	// domain's facts — fails instead of letting the manifest mark this
+	// projection covered without exercising its facts (raised in review).
+	hooks []string
 }
 
 var projectionCases = []projectionCase{
@@ -33,41 +41,68 @@ var projectionCases = []projectionCase{
 		name:         "incident_repository_correlation",
 		cassettePath: filepath.Join("..", "..", "..", "..", "testdata", "cassettes", "replayschedule", "incident-repository-correlation.json"),
 		domain:       reducer.DomainIncidentRepositoryCorrelation,
+		hooks:        []string{"incident_context_read_model", "work_item_evidence_read_model"},
 	},
 	{
 		name:         "supply_chain_impact",
 		cassettePath: filepath.Join("..", "..", "..", "..", "testdata", "cassettes", "replayschedule", "supply-chain-impact.json"),
 		domain:       reducer.DomainSupplyChainImpact,
+		hooks:        []string{"supply_chain_impact", "vulnerability_source_state", "vulnerability_suppression_admission"},
 	},
 }
 
 // loadProjectionItems loads a projection cassette and asserts the shared-
 // conflict-key guard: the resulting work items must carry at least 4 items
-// spanning at least 2 distinct projection-hook IntentID prefixes. Fewer than 2
-// hooks would mean the cassette collapsed to a single-hook scenario and could
-// no longer prove cross-hook ordering, silently defeating the point of this
-// test file.
-func loadProjectionItems(t *testing.T, path string) []schedulereplay.WorkItem {
+// whose projection-hook IntentID prefixes are EXACTLY the case's expected hook
+// set. Exact set equality (not just >=2 distinct hooks) is what binds each
+// table entry to its own domain: a case pointed at the wrong cassette, or a
+// cassette drifting to another domain's facts, fails here instead of letting
+// the coverage manifest mark the projection covered without exercising its
+// facts (raised in review).
+func loadProjectionItems(t *testing.T, tc projectionCase) []schedulereplay.WorkItem {
 	t.Helper()
-	items, err := schedulereplay.LoadProjectionWorkItems(path)
+	items, err := schedulereplay.LoadProjectionWorkItems(tc.cassettePath)
 	if err != nil {
-		t.Fatalf("LoadProjectionWorkItems(%s): %v", path, err)
+		t.Fatalf("LoadProjectionWorkItems(%s): %v", tc.cassettePath, err)
 	}
 	if len(items) < 4 {
 		t.Fatalf("want at least 4 work items, got %d", len(items))
 	}
-	hooks := map[string]struct{}{}
+	got := map[string]struct{}{}
 	for _, item := range items {
 		hook, _, ok := strings.Cut(item.IntentID, ":")
 		if !ok || hook == "" {
 			t.Fatalf("work item IntentID %q has no projection-hook prefix", item.IntentID)
 		}
-		hooks[hook] = struct{}{}
+		got[hook] = struct{}{}
 	}
-	if len(hooks) < 2 {
-		t.Fatalf("want >=2 distinct projection-hook prefixes (shared-conflict-key guard), got %d: %v", len(hooks), hooks)
+	want := map[string]struct{}{}
+	for _, hook := range tc.hooks {
+		want[hook] = struct{}{}
+	}
+	for hook := range want {
+		if _, ok := got[hook]; !ok {
+			t.Fatalf("cassette %s carries no facts for hook %q required by domain %s (got hooks %v)",
+				tc.cassettePath, hook, tc.domain, sortedKeys(got))
+		}
+	}
+	for hook := range got {
+		if _, ok := want[hook]; !ok {
+			t.Fatalf("cassette %s carries facts for hook %q that domain %s does not own (want hooks %v)",
+				tc.cassettePath, hook, tc.domain, tc.hooks)
+		}
 	}
 	return items
+}
+
+// sortedKeys renders a hook set deterministically for failure messages.
+func sortedKeys(set map[string]struct{}) []string {
+	out := make([]string, 0, len(set))
+	for k := range set {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
 }
 
 // TestProjectionScheduleReplayOrderInvariantSnapshot is the C-14 (#4367)
@@ -82,7 +117,7 @@ func TestProjectionScheduleReplayOrderInvariantSnapshot(t *testing.T) {
 	for _, tc := range projectionCases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			items := loadProjectionItems(t, tc.cassettePath)
+			items := loadProjectionItems(t, tc)
 
 			orders := map[string][]schedulereplay.WorkItem{
 				"in-order":        schedulereplay.ScheduleInOrder(items),
@@ -133,7 +168,7 @@ func TestProjectionScheduleReplayConcurrentBatchInvariant(t *testing.T) {
 	for _, tc := range projectionCases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			items := loadProjectionItems(t, tc.cassettePath)
+			items := loadProjectionItems(t, tc)
 
 			seqCtx, seqCancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer seqCancel()
@@ -191,7 +226,7 @@ func TestProjectionScheduleReplayConcurrentBatchInvariant(t *testing.T) {
 func TestProjectionScheduleReplayCatchesCrossHookOrderingBug(t *testing.T) {
 	t.Parallel()
 
-	items := loadProjectionItems(t, projectionCases[0].cassettePath)
+	items := loadProjectionItems(t, projectionCases[0])
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()

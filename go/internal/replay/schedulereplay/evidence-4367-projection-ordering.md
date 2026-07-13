@@ -109,7 +109,7 @@ silently applied.
 ## Commands run
 
 ```bash
-export GOCACHE=/Users/asanabria/repos/eshu-hq/eshu/.worktrees/c14-projection-ordering/.gocache
+export GOCACHE="$(git rev-parse --show-toplevel)/.gocache"
 cd go
 
 # RED: prove the test fails to compile without the implementation
