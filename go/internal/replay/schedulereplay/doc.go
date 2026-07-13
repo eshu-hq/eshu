@@ -21,6 +21,18 @@
 // deliberately order-sensitive applier is used in tests to prove the gate detects
 // ordering bugs.
 //
+// A second family of scenarios (workitem_projection.go,
+// projection_ordering_scenario_test.go, C-14 #4367) proves the same
+// order-invariance property for the two reducer projections that are
+// shared-conflict-key: reducer_domain values written by more than one distinct
+// projection_hook in specs/fact-kind-registry.v1.yaml
+// (incident_repository_correlation, supply_chain_impact). Their work items come
+// from dedicated committed cassettes under testdata/cassettes/replayschedule/
+// through a cassette -> projection work-item seam (there is no offlinetier
+// materializer for these domains), and Config.Domain schedules the intents
+// under the real reducer.Domain constant so the scenario proves the actual
+// projection's shared conflict key, not a placeholder domain.
+//
 // The package requires no Postgres and no graph backend, so the ordering gate
 // runs in the default `go test` pass on every PR.
 package schedulereplay

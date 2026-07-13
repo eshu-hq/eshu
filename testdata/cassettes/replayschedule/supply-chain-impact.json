@@ -1,0 +1,123 @@
+{
+  "collector": "replay_schedule",
+  "schema_version": "1",
+  "scopes": [
+    {
+      "scope_id": "replay:schedule:supply-chain-impact",
+      "source_system": "replay",
+      "scope_kind": "supply_chain_impact",
+      "collector_kind": "replay_schedule",
+      "partition_key": "replay:schedule:supply-chain-impact",
+      "metadata": {
+        "purpose": "R-13 (C-14 #4367) shared-conflict-key ordering proof for projection:supply_chain_impact"
+      },
+      "generation_id": "cassette-schedule-supply-chain-impact-gen1",
+      "observed_at": "2026-07-01T00:00:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "vulnerability.cve",
+          "stable_fact_key": "replay:schedule:supply-chain-impact:cve:CVE-2024-11001",
+          "schema_version": "1.0.0",
+          "collector_kind": "vulnerability_intelligence",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "advisory_id": "GHSA-demo-1111-2222",
+            "cve_id": "CVE-2024-11001",
+            "source": "osv",
+            "severity_label": "high",
+            "cvss_score": 8.1,
+            "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N"
+          }
+        },
+        {
+          "fact_kind": "vulnerability.affected_package",
+          "stable_fact_key": "replay:schedule:supply-chain-impact:affected:left-pad",
+          "schema_version": "1.0.0",
+          "collector_kind": "vulnerability_intelligence",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "advisory_id": "GHSA-demo-1111-2222",
+            "cve_id": "CVE-2024-11001",
+            "ecosystem": "npm",
+            "package_id": "npm:left-pad",
+            "package_name": "left-pad",
+            "purl": "pkg:npm/left-pad@1.3.0",
+            "affected_range": "<1.3.1",
+            "fixed_versions": ["1.3.1"]
+          }
+        },
+        {
+          "fact_kind": "vulnerability.affected_package",
+          "stable_fact_key": "replay:schedule:supply-chain-impact:affected:is-really-old",
+          "schema_version": "1.0.0",
+          "collector_kind": "vulnerability_intelligence",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "advisory_id": "GHSA-demo-1111-2222",
+            "cve_id": "CVE-2024-11001",
+            "ecosystem": "npm",
+            "package_id": "npm:is-really-old",
+            "package_name": "is-really-old",
+            "purl": "pkg:npm/is-really-old@0.1.0",
+            "affected_range": "<0.2.0",
+            "fixed_versions": ["0.2.0"]
+          }
+        },
+        {
+          "fact_kind": "scanner_worker.analysis",
+          "stable_fact_key": "replay:schedule:supply-chain-impact:finding:sha256-demo-finding-1",
+          "schema_version": "1.0.0",
+          "collector_kind": "scanner_worker",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "analyzer": "trivy",
+            "target_kind": "image",
+            "target_locator_hash": "sha256:demofinding0000000000000000000000000000000000000000000000001",
+            "analysis_status": "completed",
+            "coverage_status": "full",
+            "result_count": 1,
+            "fact_count": 3,
+            "image_reference": "registry.example.com/demo/checkout-service:1.4.0",
+            "image_digest": "sha256:deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbe0",
+            "evidence_source": "scanner_worker",
+            "extraction_reason": "scheduled_scan",
+            "distro": "alpine",
+            "distro_version": "3.19",
+            "package_manager": "npm",
+            "linked_cve_id": "CVE-2024-11001",
+            "linked_purl": "pkg:npm/left-pad@1.3.0"
+          }
+        },
+        {
+          "fact_kind": "vulnerability.suppression",
+          "stable_fact_key": "replay:schedule:supply-chain-impact:suppression:SUP-9001",
+          "schema_version": "1.0.0",
+          "collector_kind": "vulnerability_intelligence",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "suppression_id": "SUP-9001",
+            "source": "security-team",
+            "justification": "false_positive",
+            "author": "security-bot",
+            "authored_at": "2026-06-20T00:00:00Z",
+            "reason": "not_reachable_at_runtime",
+            "evidence_ref": "sha256:demofinding0000000000000000000000000000000000000000000000001",
+            "scope": {
+              "cve_id": "CVE-2024-11001",
+              "advisory_id": "GHSA-demo-1111-2222",
+              "package_id": "npm:left-pad",
+              "purl": "pkg:npm/left-pad@1.3.0",
+              "repository_id": "repo-demo-checkout-service"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

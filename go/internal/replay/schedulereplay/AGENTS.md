@@ -21,11 +21,29 @@
 - The gate MUST keep its teeth: the order-sensitive-applier test MUST observe a
   snapshot divergence. If a refactor makes the buggy applier converge, the gate
   is worthless — fix the harness, do not delete the negative test.
-- Inputs MUST come from a real committed cassette through the
-  `cassette.Source` → `offlinetier` materialization seam, never synthesized
-  inline, so the work items track recorded fact shapes.
+- Inputs MUST come from a real committed cassette, never synthesized inline, so
+  the work items track recorded fact shapes. The nested-directory-tree scenario
+  goes through the `cassette.Source` → `offlinetier` materialization seam
+  (`workitem.go`); the two shared-conflict-key projection scenarios
+  (`projection:incident_repository_correlation`,
+  `projection:supply_chain_impact`) go through the `cassette.Source` →
+  projection work-item seam instead (`workitem_projection.go`,
+  `LoadProjectionWorkItems`), because those projections have no offlinetier
+  materializer. Both seams share the same rule: no inline `WorkItem` literals
+  built by hand in a test.
 - It MUST stay credential-free: no Postgres, no graph backend, no Docker. The
   gate runs in the default `go test` pass.
+- A shared-conflict-key projection scenario (a `reducer_domain` written by >=2
+  distinct `projection_hook` values in `specs/fact-kind-registry.v1.yaml`) MUST
+  schedule its intents under that projection's real `reducer.Domain` constant
+  (`Config.Domain`), and its cassette MUST carry facts from at least 2 of the
+  domain's owning hooks, each hook owning distinct node labels with at least
+  one edge crossing between two different hooks' nodes — proving cross-hook
+  ordering, not just cross-item ordering within one hook.
+  `LoadProjectionWorkItems` enforces the cross-hook-edge half of this contract
+  at load time (`assertCrossHookEdge` + the label→owning-hook table): a
+  cassette edit that drops the optional cross-reference payload fields fails
+  every consumer loudly instead of silently degrading to a same-hook scenario.
 
 ## Skill routing
 
