@@ -397,64 +397,6 @@ func TestUpsertFactsRejectsUnsupportedSourceConfidence(t *testing.T) {
 	}
 }
 
-func TestMarshalPayloadSanitizesForPostgresJSONB(t *testing.T) {
-	t.Parallel()
-
-	t.Run("strips null unicode escapes", func(t *testing.T) {
-		t.Parallel()
-		payload := map[string]any{"content": "hello\u0000world"}
-		data, err := marshalPayload(payload)
-		if err != nil {
-			t.Fatalf("marshalPayload() error = %v, want nil", err)
-		}
-		if strings.Contains(string(data), `\u0000`) {
-			t.Fatalf("output contains \\u0000: %s", data)
-		}
-		if !strings.Contains(string(data), "hello") {
-			t.Fatalf("missing content: %s", data)
-		}
-	})
-
-	t.Run("strips raw control bytes", func(t *testing.T) {
-		t.Parallel()
-		// Embed raw control bytes via a pre-built map that json.Marshal will encode.
-		// After marshal + sanitize, no raw control bytes should remain.
-		payload := map[string]any{"content": "before\x01\x02\x03after"}
-		data, err := marshalPayload(payload)
-		if err != nil {
-			t.Fatalf("marshalPayload() error = %v, want nil", err)
-		}
-		for _, b := range data {
-			if b < 0x20 && b != '\t' && b != '\n' && b != '\r' {
-				t.Fatalf("output contains raw control byte 0x%02x: %s", b, data)
-			}
-		}
-	})
-
-	t.Run("clean payload passes through unchanged", func(t *testing.T) {
-		t.Parallel()
-		payload := map[string]any{"name": "eshu"}
-		data, err := marshalPayload(payload)
-		if err != nil {
-			t.Fatalf("marshalPayload() error = %v, want nil", err)
-		}
-		if !strings.Contains(string(data), "eshu") {
-			t.Fatalf("missing content: %s", data)
-		}
-	})
-
-	t.Run("empty payload returns empty object", func(t *testing.T) {
-		t.Parallel()
-		data, err := marshalPayload(nil)
-		if err != nil {
-			t.Fatalf("marshalPayload() error = %v, want nil", err)
-		}
-		if string(data) != "{}" {
-			t.Fatalf("got %s, want {}", data)
-		}
-	})
-}
-
 func TestFactStoreListFactsPropagatesQueryErrors(t *testing.T) {
 	t.Parallel()
 

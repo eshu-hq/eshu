@@ -49,9 +49,10 @@
   snapshot while projection is still in flight, which creates avoidable
   supersession churn. Do not include `failed` generations in this skip path; a
   failed first projection must remain retryable by a later snapshot.
-- **JSONB sanitization** — `sanitizeJSONB` removes `\u0000` escape sequences
-  and raw control bytes before every fact INSERT. Skipping this causes Postgres
-  errors on repositories with binary or non-UTF-8 content.
+- **JSONB sanitization** — `sanitizeJSONB` removes JSON-encoded U+0000
+  characters and raw control bytes before every fact INSERT. It preserves
+  literal source text such as the six characters `\u0000`. Skipping this causes
+  Postgres errors on repositories with binary or non-UTF-8 content.
 - **Ack atomicity** — `ProjectorQueue.Ack` wraps five SQL statements in a
   single transaction. If any step fails, the transaction rolls back. Always
   pass a `SQLDB` or `InstrumentedDB(SQLDB)` to `NewProjectorQueue`; a bare
