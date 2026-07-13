@@ -24,7 +24,15 @@ reduction, batch-size-one fallback, or whole-route serialization is introduced.
 - Eshu measured candidate code commit
   `6aa32cba1517c4015740b3d54400dc08c43cad57`, binary SHA-256
   `b6510d21fe7efab12e58ac7f0491924c74fe9d508f590aca63398d1e2e0500b1`.
-  The later evidence-only commit does not change the Go tree or binary.
+- After the measured candidate, production Go commit
+  `92b62e930374e64e8a2eb7fc353930a64f8f1603` adds the drain-timeout retry
+  classification and its focused tests. The only production Go delta changes
+  the error returned after a drain timeout; successful phase execution does
+  not enter that branch, so the measured candidate timing remains
+  representative. Commit `4ff7ba3ec173700e3f0282cbca318f51bd85dbfe`
+  then adds the exact-source Compose validation, a file-content regression
+  test, docs, and evidence. Final-head focused writer and queue lifecycle tests
+  prove the timeout still reaches `projection_retryable`.
 - Representative retained-scope NornicDB: v1.1.11 plus the exact-key
   transaction-lock patch from public PR orneryd/NornicDB#261. That patch is a
   rollout dependency until it is merged, tagged, pinned by Eshu, and the
