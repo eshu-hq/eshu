@@ -5,7 +5,7 @@
 // any request is made. Everything else -- the actual response bodies each
 // demo endpoint returns -- lives in per-surface modules (demoCloudFixtures.ts,
 // demoImpactFixtures.ts, demoCicdFixtures.ts, demoSupplyChainFixtures.ts,
-// demoOperationsFixture.ts, demoFreshnessFixture.ts) that demoClient.ts's
+// demoOperationsFixture.ts, and the pre-existing demoFreshnessFixture.ts) that demoClient.ts's
 // fetcher loads via dynamic import() only when a matching request is made.
 // This keeps demo-only response payloads out of the console's tightly
 // budgeted main bundle (scripts/console-bundle-budget.mjs) for the common

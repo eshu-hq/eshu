@@ -7,7 +7,7 @@
 // (isDemoCloudRuntimeRequest/isDemoAwsRuntimeRequest) travel with the
 // fixtures they guard for the same reason.
 import { demoDefaults } from "./demoFixtures";
-import { field, objectBody, optionalFieldMatches } from "./demoRequestMatch";
+import { field, objectBody, optionalFieldMatches, optionalParamMatches } from "./demoRequestMatch";
 
 const demoAccountId = "demo-account";
 const demoRegion = "us-east-1";
@@ -149,10 +149,10 @@ export function isDemoAwsRuntimeRequest(body: unknown): boolean {
 export function filterCloudResources(params: URLSearchParams): readonly Record<string, string>[] {
   return cloudResources.filter(
     (resource) =>
-      matchesParam(params, "provider", resource.provider) &&
-      matchesParam(params, "resource_type", resource.resource_type) &&
-      matchesParam(params, "region", resource.region) &&
-      matchesParam(params, "account_id", resource.account_id),
+      optionalParamMatches(params, "provider", resource.provider) &&
+      optionalParamMatches(params, "resource_type", resource.resource_type) &&
+      optionalParamMatches(params, "region", resource.region) &&
+      optionalParamMatches(params, "account_id", resource.account_id),
   );
 }
 
@@ -233,9 +233,4 @@ function cloudResource(
     service_name: serviceName,
     state,
   };
-}
-
-function matchesParam(params: URLSearchParams, name: string, value: string): boolean {
-  const expected = params.get(name);
-  return expected === null || expected === "" || expected === value;
 }
