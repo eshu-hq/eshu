@@ -35,7 +35,7 @@ reduction, batch-size-one fallback, or whole-route serialization is introduced.
   (rebased equivalent `f5e6b34aca90d928754d603f9f246f246c9c5539`)
   then adds the exact-source Compose validation, a file-content regression
   test, docs, and evidence. Later production Go commit
-  `c9aabdb8f9d21348bb80cd4e07708419bc39b389` rejects out-of-range retract
+  `c9aabdb8f9463ff0a440c713f61f73bdc17448b1` rejects out-of-range retract
   batch configuration at startup in both commands; the valid default remains
   2000, so that path is neutral to the measured successful run. Final-head
   focused writer and queue lifecycle tests prove the timeout still reaches
