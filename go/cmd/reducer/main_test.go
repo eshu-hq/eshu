@@ -452,6 +452,14 @@ func (f *fakeReducerDB) ExecContext(
 }
 
 func (f *fakeReducerDB) QueryContext(_ context.Context, query string, args ...any) (postgres.Rows, error) {
+	// countFailedGenerationRepositoryScopesSQL (SeedSearchVectorScopeState):
+	// report zero failed scopes so startup wiring tests, which only exercise
+	// runner construction, aren't coupled to seed-count fixtures. Checked
+	// first because this query also matches the broader
+	// active_generation_id/ingestion_scopes substring check below.
+	if strings.Contains(query, "SELECT count(*)") && strings.Contains(query, "ingestion_scopes") {
+		return &fakeCountRows{value: 0}, nil
+	}
 	// Generation freshness check: return a row matching the intent's generation
 	// so the guard treats the intent as current.
 	if strings.Contains(query, "active_generation_id") && strings.Contains(query, "ingestion_scopes") {

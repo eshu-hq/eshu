@@ -80,3 +80,34 @@ func (r *fakeGenerationRows) Scan(dest ...any) error {
 
 func (r *fakeGenerationRows) Err() error   { return nil }
 func (r *fakeGenerationRows) Close() error { return nil }
+
+// fakeCountRows returns a single int64 row, modeling a `SELECT count(*)`
+// query result (e.g. countFailedGenerationRepositoryScopesSQL, issued by
+// SeedSearchVectorScopeState at reducer startup).
+type fakeCountRows struct {
+	value int64
+	read  bool
+}
+
+func (r *fakeCountRows) Next() bool {
+	if r.read {
+		return false
+	}
+	r.read = true
+	return true
+}
+
+func (r *fakeCountRows) Scan(dest ...any) error {
+	if len(dest) != 1 {
+		return fmt.Errorf("scan: got %d dest, want 1", len(dest))
+	}
+	d, ok := dest[0].(*int64)
+	if !ok {
+		return fmt.Errorf("unsupported scan dest type %T", dest[0])
+	}
+	*d = r.value
+	return nil
+}
+
+func (r *fakeCountRows) Err() error   { return nil }
+func (r *fakeCountRows) Close() error { return nil }

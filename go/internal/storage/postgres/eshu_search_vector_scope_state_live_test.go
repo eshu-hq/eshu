@@ -232,7 +232,7 @@ func TestEshuSearchVectorScopeStateSeederEquivalenceLive(t *testing.T) {
 
 	// --- Run the seeder ---
 	t.Log("running seeder...")
-	if err := SeedSearchVectorScopeState(ctx, db, identity); err != nil {
+	if _, err := SeedSearchVectorScopeState(ctx, db, identity); err != nil {
 		t.Fatalf("SeedSearchVectorScopeState: %v", err)
 	}
 

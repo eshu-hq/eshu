@@ -22,7 +22,7 @@ func TestSeedSearchVectorScopeStateRequiresDatabase(t *testing.T) {
 		EmbeddingModelID:   "m1",
 		VectorIndexVersion: "v1",
 	}
-	err := SeedSearchVectorScopeState(context.Background(), nil, identity)
+	_, err := SeedSearchVectorScopeState(context.Background(), nil, identity)
 	if err == nil {
 		t.Fatal("expected error when database is nil")
 	}
@@ -32,7 +32,7 @@ func TestSeedSearchVectorScopeStateRequiresIdentityFields(t *testing.T) {
 	t.Parallel()
 
 	db := &fakeExecQueryer{}
-	err := SeedSearchVectorScopeState(context.Background(), db, EshuSearchVectorIdentity{})
+	_, err := SeedSearchVectorScopeState(context.Background(), db, EshuSearchVectorIdentity{})
 	if err == nil {
 		t.Fatal("expected error when identity fields are empty")
 	}
@@ -64,6 +64,30 @@ func TestSeedSearchVectorScopeStateSQLShapes(t *testing.T) {
 	}
 	if strings.Contains(seedProjectionStateSQL, "fact_records") {
 		t.Fatalf("seedProjectionStateSQL must not rescan fact_records JSON:\n%s", seedProjectionStateSQL)
+	}
+	// A repository scope with a failed generation (active_generation_id NULL)
+	// must not abort the batch insert for every other scope: the NOT NULL
+	// constraint on generation_id would reject the whole statement otherwise.
+	// Reproduced live: 99/910 real repository scopes with status='failed' had
+	// a NULL active_generation_id and crashed the reducer on every restart
+	// until this filter excludes them.
+	if !strings.Contains(seedProjectionStateSQL, "s.active_generation_id IS NOT NULL") {
+		t.Fatalf("seedProjectionStateSQL must exclude scopes with a failed (NULL) generation:\n%s", seedProjectionStateSQL)
+	}
+
+	// The skipped-scope count must be queryable independently of the insert
+	// itself, so a startup log line can report "N seeded, M skipped" instead
+	// of a single opaque success message that can't distinguish a fully
+	// healthy corpus from one where every failed scope is silently excluded.
+	for _, want := range []string{
+		"SELECT count(*)",
+		"FROM ingestion_scopes",
+		"WHERE scope_kind = 'repository'",
+		"active_generation_id IS NULL",
+	} {
+		if !strings.Contains(countFailedGenerationRepositoryScopesSQL, want) {
+			t.Fatalf("countFailedGenerationRepositoryScopesSQL missing %q:\n%s", want, countFailedGenerationRepositoryScopesSQL)
+		}
 	}
 
 	// Vector scope state seeder records conservative building rows only. Exact
