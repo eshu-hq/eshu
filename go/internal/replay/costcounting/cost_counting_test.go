@@ -5,8 +5,6 @@ package costcounting_test
 
 import (
 	"context"
-	"encoding/json"
-	"os"
 	"path/filepath"
 	"sync/atomic"
 	"testing"
@@ -44,22 +42,13 @@ type costBudget struct {
 	Budgets     map[string]int64 `json:"budgets"`
 }
 
-// loadBudget reads the committed cost budget from the JSON file next to the cassette.
+// loadBudget reads the committed cost budget from the JSON file next to the
+// cassette. It delegates to loadBudgetFrom (cost_scenario_helpers_test.go),
+// the path-parameterized loader shared with the semantic-entity and
+// documentation-edges cost scenarios, which have no cassette of their own.
 func loadBudget(t *testing.T) costBudget {
 	t.Helper()
-
-	data, err := os.ReadFile(budgetRelPath)
-	if err != nil {
-		t.Fatalf("read budget file %s: %v", budgetRelPath, err)
-	}
-	var b costBudget
-	if err := json.Unmarshal(data, &b); err != nil {
-		t.Fatalf("parse budget file %s: %v", budgetRelPath, err)
-	}
-	if len(b.Budgets) == 0 {
-		t.Fatalf("budget file %s has no budget entries", budgetRelPath)
-	}
-	return b
+	return loadBudgetFrom(t, budgetRelPath)
 }
 
 // countingExecutor is an in-memory Executor that records each Execute call.

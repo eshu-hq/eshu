@@ -28,6 +28,7 @@ on:
       - 'go/internal/replay/parserfixture/**'
       - 'go/internal/replay/schedulereplay/**'
       - 'go/internal/replay/crashreplay/**'
+      - 'go/internal/replay/costcounting/**'
       - 'go/internal/capabilitycatalog/**'
       - 'go/internal/facts/**'
       - 'go/internal/goldengate/**'

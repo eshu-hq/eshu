@@ -1,0 +1,10 @@
+{
+  "scenario": "semantic-entity-materialization",
+  "cassette": "none: cypher.SemanticEntityWriter operates over flat reducer.SemanticEntityRow values, not a CanonicalMaterialization; the two same-label Annotation fixture rows live inline in go/internal/replay/costcounting/semantic_entity_cost_test.go",
+  "description": "Two Annotation rows in one repository, driven through the NornicDB-path production writer (NewSemanticEntityWriterWithCanonicalNodeRows + WithLabelScopedRetract) over an InstrumentedExecutor. Both rows share a label and fit in one default-size (500) batch, so the writer emits exactly one Annotation UNWIND write statement (eshu_dp_neo4j_batches_executed_total=1) plus 11 label-scoped retract statements that do not carry a \"rows\" parameter (statements_executed=12). Any increase — an N+1 write cycle or an extra batch split — trips the gate.",
+  "refresh_path": "manual: edit the inline fixture rows in semantic_entity_cost_test.go and this file together, reviewed in the same diff (no credentialed cassette refresh applies since there is no cassette)",
+  "budgets": {
+    "eshu_dp_neo4j_batches_executed_total": 1,
+    "statements_executed": 12
+  }
+}
