@@ -353,6 +353,26 @@ h1, h2, h3, h4 { margin: 0; letter-spacing: -0.02em; font-weight: 700; }
 @keyframes slidein { to { transform: translateX(0); } }
 @keyframes fade { to { opacity: 1; } }
 
+/* confirm dialog (useConfirm): accessible, non-blocking replacement for
+   native window.confirm() on admin mutations. */
+.confirm-scrim { position: fixed; inset: 0; background: rgba(4, 6, 9, 0.62); backdrop-filter: blur(3px); z-index: 70; display: grid; place-items: center; padding: 20px; opacity: 0; animation: fade .16s forwards; }
+.confirm-dialog { width: min(420px, 94vw); background: var(--bg-panel); border: 1px solid var(--line-2); border-radius: var(--radius-sm); box-shadow: 0 30px 80px -30px rgba(0,0,0,.9); padding: 22px; display: grid; gap: 18px; }
+.confirm-dialog-message { font-size: 0.95rem; color: var(--bone); line-height: 1.5; margin: 0; }
+.confirm-dialog-actions { display: flex; gap: 10px; justify-content: flex-end; }
+/* Global .btn-primary base so buttons outside the auth pages (whose richer
+   variant lives in the lazy-loaded authFlow.css chunk) still render styled —
+   e.g. the confirm-dialog primary button reached by an already-authenticated
+   admin who never mounts LoginPage/SetupPage. authFlow.css overrides this on
+   the auth pages because it loads after styles.css. */
+.btn-primary { height: 44px; padding: 0 20px; border-radius: var(--radius-sm); font-weight: 700; font-size: 0.9rem; color: #06110f; border: none; background: linear-gradient(180deg, var(--teal-bright), var(--teal)); display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+.btn-primary:hover:not(:disabled) { filter: brightness(1.05); }
+.btn-primary:focus-visible { outline: 2px solid var(--teal-bright); outline-offset: 3px; }
+.btn-primary:disabled { filter: saturate(0.35) brightness(0.7); pointer-events: none; }
+.btn-danger { height: 44px; padding: 0 20px; border-radius: var(--radius-sm); font-weight: 700; font-size: 0.9rem; color: #fff; border: 1px solid color-mix(in oklab, var(--crit) 70%, transparent); background: var(--crit); display: inline-flex; align-items: center; }
+.btn-danger:hover:not(:disabled) { filter: brightness(1.08); }
+.btn-danger:focus-visible { outline: 2px solid var(--crit); outline-offset: 3px; }
+.btn-danger:disabled { filter: saturate(0.35) brightness(0.7); pointer-events: none; }
+
 .section-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--subtle); margin: 0 0 10px; }
 .empty { color: var(--subtle); font-size: 0.85rem; padding: 20px; text-align: center; }
 /* Inline loading guard: spinner + label while a section fetch is in flight. */

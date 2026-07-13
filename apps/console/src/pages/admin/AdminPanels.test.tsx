@@ -302,6 +302,11 @@ describe("AdminIdPGroupMappingsPanel", () => {
     fireEvent.change(screen.getByLabelText("Role ID"), { target: { value: "developer" } });
     fireEvent.click(screen.getByRole("button", { name: "Create" }));
 
+    // The in-app confirmation dialog (not native window.confirm) gates the
+    // mutation; accept it to proceed.
+    const dialog = await screen.findByRole("alertdialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Confirm" }));
+
     await waitFor(() =>
       expect(postJson).toHaveBeenCalledWith("/api/v0/auth/admin/idp-group-mappings", {
         provider_config_id: "p-1",
@@ -325,6 +330,10 @@ describe("AdminIdPGroupMappingsPanel", () => {
     render(<AdminIdPGroupMappingsPanel client={client} />);
     const btn = await screen.findByRole("button", { name: "Delete" });
     fireEvent.click(btn);
+    // Accept the destructive-styled in-app confirmation (its confirm button is
+    // labelled "Delete"; scope to the dialog to avoid the row button).
+    const dialog = await screen.findByRole("alertdialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Delete" }));
     await waitFor(() =>
       expect(del).toHaveBeenCalledWith("/api/v0/auth/admin/idp-group-mappings/m-ref-1"),
     );
