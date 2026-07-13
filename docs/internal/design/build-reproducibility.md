@@ -65,13 +65,23 @@ should refresh these digests when upstream images release security patches.
 
 ### 3.2 Deterministic Go Compilation
 
-`Dockerfile` declares an `ARG SOURCE_DATE_EPOCH` and exports it as an
-environment variable before the Go build step:
+`Dockerfile` declares an `ARG SOURCE_DATE_EPOCH` in each build stage that
+compiles Go (the `builder` stage and `mock-oidc-builder`, since ARGs do not
+cross stage boundaries):
 
 ```dockerfile
 ARG SOURCE_DATE_EPOCH
-ENV SOURCE_DATE_EPOCH=${SOURCE_DATE_EPOCH}
 ```
+
+The arg is deliberately **not** re-exported with
+`ENV SOURCE_DATE_EPOCH=${SOURCE_DATE_EPOCH}`. BuildKit injects a *provided*
+build arg into that stage's `RUN` environment automatically, so the epoch
+still reaches clang/lld whenever CI passes it. An unconditional `ENV`, by
+contrast, materializes an empty string when the arg is not passed — which is
+every local `docker compose up --build` — and clang rejects an empty
+`SOURCE_DATE_EPOCH` outright (`must be a non-negative decimal integer`),
+breaking the local stack build. Unset must stay unset; reproducibility only
+applies when a value is supplied.
 
 Go compilation is already deterministic for a given source tree, Go version, and
 dependency graph — the `gc` toolchain does not embed wall-clock timestamps in

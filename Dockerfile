@@ -10,8 +10,14 @@ COPY --from=xx /usr/bin/xx-* /usr/bin/
 
 ARG TARGETPLATFORM
 ARG ESHU_VERSION=dev
+# SOURCE_DATE_EPOCH feeds the cgo toolchain (clang/lld) for reproducible
+# builds (docs/internal/design/build-reproducibility.md §3.2). It is a plain
+# ARG, never an unconditional ENV: BuildKit injects a *provided* ARG into this
+# stage's RUN environment automatically, while `ENV SOURCE_DATE_EPOCH=${...}`
+# materializes an EMPTY string when the arg is not passed (any local
+# `docker compose up --build`), and clang hard-errors on an empty
+# SOURCE_DATE_EPOCH. Unset must stay unset.
 ARG SOURCE_DATE_EPOCH
-ENV SOURCE_DATE_EPOCH=${SOURCE_DATE_EPOCH}
 
 # clang+lld for cross-compilation; xx-apk installs the target-arch sysroot.
 RUN apk add --no-cache git clang lld
@@ -83,6 +89,9 @@ RUN cd go \
 # production stage must remain that last stage, with mock-oidc-idp reached
 # only via an explicit `--target mock-oidc-idp` (see docker-compose.e2e.yaml).
 FROM builder AS mock-oidc-builder
+# Redeclare so a provided epoch reaches this stage's RUN too — ARGs do not
+# cross stage boundaries, and the builder stage no longer leaks it via ENV.
+ARG SOURCE_DATE_EPOCH
 RUN cd go \
     && export CGO_ENABLED=1 \
     && export GOFLAGS="-buildvcs=false" \
