@@ -328,7 +328,8 @@ server-side rollback or late partial commit.
 
 ## Verification status
 
-Passed on the rebased candidate before this evidence note was committed:
+The following gates passed on the rebased final branch. `make pre-pr` is
+repeated after the exact-source override correction before push:
 
 - focused concurrency and drain-timeout regressions, ten repetitions;
 - the same focused regressions with `-race`;
@@ -342,7 +343,7 @@ Passed on the rebased candidate before this evidence note was committed:
 - the immutable retained indexed-scope projection and full normalized oracle
   differential;
 - `make pre-pr`, including whole-module formatting, lint, build, vet, selected
-  exactness and telemetry gates, and race lanes (`11m52s` wall);
+  exactness and telemetry gates, and race lanes;
 - fresh B-7 on stock NornicDB v1.1.11: `417/0/0` (pass/fail/warn),
   `37s` pipeline, `179.49s` command wall;
 - fresh B-7 on v1.1.11 plus orneryd/NornicDB#261: `417/0/0`
@@ -360,8 +361,8 @@ shows no stock-versus-patched difference on this small corpus. The deterministic
 same-UID failing-before/passing-after backend proof and the retained full-corpus
 failure, not the reused B-7 run, establish the exact-lock rollout dependency.
 
-Still required on the final diff: the final `eshu-code-review` hostile and
-cross-pass review.
+The PR review record carries the final `eshu-code-review` hostile and cross-pass
+verdict. Any later diff invalidates that verdict and requires another review.
 
 ## Recommendation and limits
 
