@@ -155,23 +155,14 @@ changes.
 
 ### Dedicated large-lane scheduler — small-repo starvation fix (issue #3839)
 
-The `### Giant-repo collection scheduling (issue #3711)` section above noted that
-largest-first ordering guarantees enqueue order but not start order: when the
-classifier fills the small lane before any worker runs, a worker loop that prefers
-the small lane can drain all small repos before it sees the large lane, making the
-giant-repo overlap scheduler-timing-dependent.
-
-This change adds a dedicated large-lane scheduler in `git_source_scheduler.go`.
-`min(LargeRepoMaxConcurrent, workers)` workers are flagged as large-preferring and
-block on `largeCh` in the first select arm, so a giant repo starts the instant it
-is enqueued regardless of how many small repos are queued ahead.
-
-P2 fix (small-repo starvation when `ESHU_SNAPSHOT_WORKERS <= ESHU_LARGE_REPO_MAX_CONCURRENT`):
-when `largePreferring >= workers && workers > 1`, all workers become large-preferring
-and starve `smallCh` until `largeCh` closes. The fix in `git_source_stream.go` clamps
-`largePreferring` to `workers - 1` so at least one small-preferring worker remains.
-When `workers == 1` the lone worker takes the small-preferring path and still
-opportunistically drains large repos via its select fallback.
+The design above guarantees a giant starts the instant it is enqueued regardless
+of small-repo queue depth. However, a starvation edge case exists when
+`ESHU_SNAPSHOT_WORKERS <= ESHU_LARGE_REPO_MAX_CONCURRENT`: when
+`largePreferring >= workers && workers > 1`, all workers become large-preferring
+and starve `smallCh` until `largeCh` closes. The fix in `git_source_stream.go`
+clamps `largePreferring` to `workers - 1` so at least one small-preferring worker
+remains. When `workers == 1` the lone worker takes the small-preferring path and
+still opportunistically drains large repos via its select fallback.
 
 - Performance Evidence: The #3839 dedicated-large-lane scheduler makes early giant
   start deterministic: a large-preferring worker holds a semaphore slot and blocks
