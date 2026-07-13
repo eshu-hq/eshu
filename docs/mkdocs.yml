@@ -177,6 +177,7 @@ nav:
       - Tag Taxonomy: reference/tag-taxonomy.md
     - Testing:
       - CI Gates Reference: reference/ci-gates.md
+      - golangci-lint Configuration: reference/golangci-lint-config.md
       - Ifá CLI Reference: reference/ifa-cli.md
       - Scale Slots And The Perf Contract: reference/scale-slots-and-perf-contract.md
     - Proof & Validation:
