@@ -245,7 +245,13 @@ describe("SemanticSearchPage", () => {
 
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent("repository not found");
-    expect(alert).toHaveFocus();
+    // Same focus-effect race as the ready-path assertion above (#5151): the
+    // useEffect that calls .focus() (SemanticSearchPage.tsx:98-102) fires on
+    // both "ready" and "error" status and commits one tick after the "alert"
+    // node lands in the DOM, so a synchronous toHaveFocus() here races it too.
+    // waitFor with the same generous timeout, scoped to this assertion only,
+    // lets the effect catch up instead of asserting focus synchronously.
+    await waitFor(() => expect(alert).toHaveFocus(), { timeout: 5000 });
   });
   it("ignores a stale in-flight response after leaving bounded state (#4024)", async () => {
     let resolvePost: ((value: unknown) => void) | undefined;
