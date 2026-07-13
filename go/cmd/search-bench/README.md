@@ -76,4 +76,5 @@ no graph backend and writes nothing.
 
 - `docs/internal/design/430-nornicdb-graph-search-split.md`
 - `docs/public/reference/search-benchmark-evidence.md`
-- `docs/public/reference/searchbench-evidence/` (recorded runs)
+- `docs/public/reference/searchbench-evidence/` (query suites and proof-record JSON)
+- `docs/internal/evidence/searchbench-evidence/` (recorded-run write-ups)

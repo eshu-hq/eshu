@@ -100,7 +100,7 @@ func rerankBenchCases() []rerankBenchCase {
 // labeled fixture suite and asserts the documented acceptance thresholds:
 // reranking never regresses mean nDCG and strictly improves it on the
 // graph-anchored cases. The numbers it prints back the checked-in evidence doc
-// at docs/public/reference/searchbench-evidence/2678-graph-rerank.md.
+// at docs/internal/evidence/searchbench-evidence/2678-graph-rerank.md.
 func TestRerankBenchmarkAcceptanceEvidence(t *testing.T) {
 	const k = 3
 	cases := rerankBenchCases()

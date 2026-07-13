@@ -110,7 +110,7 @@ Graph-neighborhood reranking (`go/internal/searchrerank`) is gated separately an
 is **accepted as opt-in** with measured evidence: mean nDCG@3 improved 0.7232 →
 1.0000 over a labeled fixture suite with no regression and the no-signal case
 held neutral. The accept decision, thresholds, and reproduction are recorded in
-[issue-2678 graph-rerank evidence](searchbench-evidence/2678-graph-rerank.md).
+[issue-2678 graph-rerank evidence](https://github.com/eshu-hq/eshu/blob/main/docs/internal/evidence/searchbench-evidence/2678-graph-rerank.md).
 Reranking never changes the result set, scores, or truth labels, so it does not
 affect the retrieval thresholds above; it only reorders the in-scope results.
 
@@ -133,8 +133,8 @@ existing behavior:
 ## Public-safe evidence
 
 Checked-in evidence lives under
-[`searchbench-evidence/`](searchbench-evidence/2678-graph-rerank.md) and must be
-reproducible without credentials or private source. A gate evaluation records
+[`docs/internal/evidence/searchbench-evidence/`](https://github.com/eshu-hq/eshu/tree/main/docs/internal/evidence/searchbench-evidence)
+and must be reproducible without credentials or private source. A gate evaluation records
 the profile, the corpus band and commit, the measured metrics and p95, the
 vector coverage, and the resulting decision.
 
@@ -154,4 +154,4 @@ git diff --check
 - [Semantic Hybrid Search Admission](semantic-hybrid-search-admission.md)
 - [Semantic Search Route](http-api/semantic-search.md)
 - [Search Retrieval Contract](search-retrieval-contract.md)
-- [issue-2678 graph-rerank evidence](searchbench-evidence/2678-graph-rerank.md)
+- [issue-2678 graph-rerank evidence](https://github.com/eshu-hq/eshu/blob/main/docs/internal/evidence/searchbench-evidence/2678-graph-rerank.md)

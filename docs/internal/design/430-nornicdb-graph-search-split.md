@@ -190,7 +190,7 @@ index rebuild.
 First measured run via `go/cmd/search-bench` over a live content corpus
 (`repository:r_9a84f5f1`, 27,822 curated documents), Eshu commit `3d8dbb0e1`.
 Full record:
-[searchbench-evidence/issue-2235-search-lane-latency-2026-06-13.md](../../public/reference/searchbench-evidence/issue-2235-search-lane-latency-2026-06-13.md).
+[searchbench-evidence/issue-2235-search-lane-latency-2026-06-13.md](../evidence/searchbench-evidence/issue-2235-search-lane-latency-2026-06-13.md).
 
 Measured keyword latency:
 
@@ -209,7 +209,7 @@ and Postgres content search remains the search lane.
 Update (inverted index): the in-process lane now serves BM25 from an inverted
 index, cutting p50 from ~19.5 ms to ~0.53 ms (~37×) over the same corpus — now
 faster than the Postgres baseline at the median with a tighter tail (record:
-[searchbench-evidence/issue-2237-inverted-index-2026-06-13.md](../../public/reference/searchbench-evidence/issue-2237-inverted-index-2026-06-13.md)).
+[searchbench-evidence/issue-2237-inverted-index-2026-06-13.md](../evidence/searchbench-evidence/issue-2237-inverted-index-2026-06-13.md)).
 The decision stays `defer_search_change` pending a quality-based comparison; the
 remaining gaps are a labeled query suite to measure recall/ranking quality, a
 search-enabled NornicDB to measure that arm, and an ANN index for the vector
