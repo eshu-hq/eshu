@@ -62,6 +62,68 @@ unwired writer among them); all seven are claimed.
   through it. The MERGE-shaped write path (`dispatch`) is unchanged and still
   groups for throughput.
 
+## Review follow-up: all-retract phase with empty DrainVar crashed the drain loop (#5155)
+
+Raised in review on #5155 after the Atlantis Drain fix landed: when a later
+Atlantis generation keeps the project nodes but removes EVERY
+dir/depends_on/workflow relationship, `atlantisEdgeStatements` emits ONLY the
+three Drain-marked retract statements and no sibling MERGE upserts. The
+structural_edges phase is then homogeneous `OperationCanonicalRetract`, so the
+NornicDB phase-group executor routes it to `executeSequentialRetractPhase` —
+not the mixed-phase `executeGroupedChunksWithDrain` path the Drain marking was
+designed against. There, `Drain=true` with the production `drainReader` wired
+entered `executeDrainLoop`, whose `BuildBoundedRetractDrainCypher` rejects the
+empty `DrainVar` these bounded relationship retracts intentionally carry.
+Failing-test error, verbatim:
+
+```text
+ExecutePhaseGroup() error = phase-group retract statement 1/3
+(first_statement="UNWIND $source_uids AS uid | MATCH (p:AtlantisProject
+{uid: uid})-[r:MANAGES]->(:Directory)"): build drain cypher: drainVar must
+not be empty, want nil
+```
+
+The whole canonical write failed instead of retracting.
+
+**Helm/GitLab audit:** every Drain-marked structural retract carries an empty
+`DrainVar` — Atlantis (x3), Helm (`canonical_helm_template_value_edges.go`,
+x2), and GitLab (`canonical_gitlab_edges.go`, x2) — so all three families
+shared the latent bug. GitLab can even produce the all-retract phase on its
+own: a `.gitlab-ci.yml` with GitlabJob entities, no GitlabPipeline entity,
+and no `needs` emits only the Drain-marked NEEDS retract. Helm cannot alone
+(its retracts are only emitted alongside the MERGE upsert), but any
+combination that leaves the phase all-retract would hit it.
+
+**Fix layer: the executor.** In
+`cmd/ingester/wiring_nornicdb_phase_group.go`, both `executeDrainLoop` call
+sites (`executeSequentialRetractPhase` and `executeEntityPhaseGroup`) now
+route a `Drain=true` statement with an empty `DrainVar` through
+`executeAutocommitRetract` — one plain autocommit statement, exactly the
+semantics Drain buys in the mixed-phase path — and only DrainVar-carrying
+statements (unbounded full-refresh `DETACH DELETE`) enter the bounded LIMIT
+drain loop. The executor fix makes empty-DrainVar semantically valid
+everywhere and repairs all three statement families at once; a statement-side
+fix (adding DrainVars or un-marking Drain in all-retract phases) would have
+had to touch three builders and would have left the executor contract
+inconsistent between the mixed and all-retract paths. The bootstrap-index
+executor (`cmd/bootstrap-index/nornicdb_wiring.go`) was audited and is not
+affected: its `executeSequentialRetractPhase` has no drain loop — every
+retract already runs as chunked autocommit `Execute`.
+
+Regression tests (`go/cmd/ingester/wiring_nornicdb_all_retract_drain_test.go`):
+
+- `TestNornicDBPhaseGroupExecutorAllRetractPhaseRunsEmptyDrainVarAutocommit`
+  (the failing-then-green repro above; asserts one autocommit RunWrite per
+  retract, zero ExecuteGroup calls)
+- `TestNornicDBPhaseGroupExecutorAllRetractPhaseEmptyDrainVarNilReader`
+  (nil drainReader still runs each retract ungrouped via inner Execute)
+- `TestNornicDBPhaseGroupExecutorAllRetractPhaseKeepsDrainLoopForDrainVar`
+  (a DrainVar-carrying full-refresh retract still takes the bounded drain
+  loop, not the single-shot route)
+
+Both live tests re-proven GREEN 3/3 against a fresh v1.1.11 container after
+the executor fix, and the full `verify-replay-tier.sh` gate PASSED.
+
 ## Benchmark Evidence:
 
 Failing-then-green live regressions on the pinned production backend
