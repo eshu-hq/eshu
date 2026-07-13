@@ -10,6 +10,7 @@ const openAPIPathsServiceCatalog = `
         "summary": "List service catalog correlations",
         "description": "Lists reducer-owned service catalog ownership and drift correlation rows. Catalog declarations remain provenance until graph, runtime, deployment, or source evidence corroborates them.",
         "operationId": "listServiceCatalogCorrelations",
+        "x-scoped-token-support": true,
         "parameters": [
           {"name": "scope_id", "in": "query", "schema": {"type": "string"}, "description": "Reducer scope ID to anchor lookup."},
           {"name": "provider", "in": "query", "schema": {"type": "string"}, "description": "Catalog provider such as backstage, opslevel, or cortex."},

@@ -225,6 +225,7 @@ const openAPIPathsPackageRegistry = `
         "summary": "List package registry correlations",
         "description": "Lists reducer-owned package ownership candidates, publication evidence, and manifest-backed consumption correlations. Requests must be anchored by package_id or repository_id and return provenance_only so source hints are not mistaken for ownership truth.",
         "operationId": "listPackageRegistryCorrelations",
+        "x-scoped-token-support": true,
         "parameters": [
           {"name": "package_id", "in": "query", "schema": {"type": "string"}, "description": "Package.uid to anchor package ownership, publication, or consumption correlation lookup."},
           {"name": "repository_id", "in": "query", "schema": {"type": "string"}, "description": "Canonical repository id or human source repository selector (name, repo slug, indexed path, local path, or remote URL) to anchor package ownership, publication, or consumption correlation lookup. Unknown or ambiguous selectors return a selector error instead of an empty page."},
@@ -299,6 +300,7 @@ const openAPIPathsPackageRegistry = `
         "summary": "List package-evidenced repo-to-repo dependency chains",
         "description": "Resolves consumer-repo -> package -> publisher-repo dependency chains for one repository entirely on the read side, by joining canonical manifest-backed consumption correlations with provenance-only publication/ownership correlations. Publisher legs are inferred provenance-only links (provenance_only=true), never asserted Repository dependency edges; multiple candidate publishers mark the chain ambiguous and are never collapsed to a single publisher.",
         "operationId": "listPackageRegistryDependencyChains",
+        "x-scoped-token-support": true,
         "parameters": [
           {"name": "repository_id", "in": "query", "required": true, "schema": {"type": "string"}, "description": "Canonical repository id or human source repository selector (name, repo slug, indexed path, local path, or remote URL) for the consumer repository. Unknown or ambiguous selectors return a selector error instead of an empty page."},
           {"name": "limit", "in": "query", "required": true, "schema": {"type": "integer", "minimum": 1, "maximum": 200}}

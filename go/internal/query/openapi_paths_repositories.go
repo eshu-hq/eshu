@@ -33,6 +33,7 @@ const openAPIPathsRepositories = `
         "summary": "List repositories",
         "description": "Returns a bounded page of indexed repositories. This route also serves the inventory (empty-selector) form of get_repository_stats, so the response carries an additive result_limits drilldown block and an explicit partial_reasons slot alongside the existing truncated paging field.",
         "operationId": "listRepositories",
+        "x-scoped-token-support": true,
         "parameters": [
           {"name": "limit", "in": "query", "schema": {"type": "integer", "default": 100, "minimum": 1, "maximum": 500}},
           {"name": "offset", "in": "query", "schema": {"type": "integer", "default": 0, "minimum": 0, "maximum": 10000}}

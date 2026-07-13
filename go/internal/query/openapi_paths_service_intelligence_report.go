@@ -10,6 +10,7 @@ const openAPIPathsServiceIntelligenceReport = `
         "summary": "Service intelligence report",
         "description": "Composes the one-call service intelligence report: identity, code-to-runtime trace, deployment/config influence, supply-chain, and incident sections, each with preserved truth labels, evidence handles, limitations, and bounded next calls, plus deterministic suggested investigations. Returns schema service_intelligence_report.v1. Runs no LLM interpretation path.",
         "operationId": "getServiceIntelligenceReport",
+        "x-scoped-token-support": true,
         "parameters": [
           {"$ref": "#/components/parameters/ServiceName"},
           {

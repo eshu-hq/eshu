@@ -15,6 +15,7 @@ const openAPIPathsFreshnessCausality = `
         "summary": "Get freshness causality read model",
         "description": "Returns why answers are stale by closed FreshnessCause (pending_repo_generation, reducer_backlog, dead_lettered_domain, missing_collector_completion, and the per-answer content_coverage_unavailable, unsupported_profile, retention_expired classes), each with runtime/per-answer observability and a bounded next-check. Also summarizes the generation lifecycle including retired (superseded) generations and pending projection work. Scoped tokens receive the same aggregate counts with raw scope/generation identifiers withheld from transitions.",
         "operationId": "getFreshnessCausality",
+        "x-scoped-token-support": true,
         "responses": {
           "200": {
             "description": "Freshness causality read model",

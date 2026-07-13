@@ -10,6 +10,7 @@ const openAPIPathsCodeRouteToCaller = `
         "summary": "Trace callers from an exact route handler",
         "description": "Resolves one route endpoint within an explicit repository or service/workload scope, requires an exact HANDLES_ROUTE edge before returning a handler, then traverses bounded CALLS evidence and summarizes materialized workload/repository impact evidence. Dynamic or unsupported routes are reported without guessing handlers.",
         "operationId": "traceRouteCallers",
+        "x-scoped-token-support": true,
         "requestBody": {
           "required": true,
           "content": {

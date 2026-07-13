@@ -11,6 +11,7 @@ const openAPIPathsAuthTOTP = `
         "summary": "Begin authenticator-app (TOTP) MFA enrollment",
         "description": "Self-service route for the authenticated caller's own local identity (any authenticated session, not admin-only): generates a fresh TOTP shared secret, seals it, and persists a PENDING MFA factor. The response returns the plaintext secret exactly once, as an otpauth:// provisioning URI (for QR rendering) and a base32 manual-entry string; neither is ever returned again by any other route. The factor cannot satisfy an MFA login challenge until POST .../mfa/totp/confirm verifies a first submitted code.",
         "operationId": "beginLocalIdentityTOTPEnrollment",
+        "x-scoped-token-support": true,
         "requestBody": {
           "required": false,
           "content": {"application/json": {"schema": {"type": "object", "properties": {"account_label": {"type": "string", "description": "Cosmetic label shown in the authenticator app entry. The server never has the caller's original login identifier (sessions carry only a one-way subject hash), so the console supplies a label it already knows from its own session state."}}}}}
@@ -47,6 +48,7 @@ const openAPIPathsAuthTOTP = `
         "summary": "Confirm authenticator-app (TOTP) MFA enrollment",
         "description": "Self-service route for the authenticated caller's own local identity: verifies the first submitted authenticator-app code against the pending factor identified by factor_id and, on match, activates it so it can satisfy MFA login. A wrong code leaves the factor pending so the caller may retry.",
         "operationId": "confirmLocalIdentityTOTPEnrollment",
+        "x-scoped-token-support": true,
         "requestBody": {
           "required": true,
           "content": {"application/json": {"schema": {"type": "object", "required": ["factor_id", "code"], "properties": {"factor_id": {"type": "string"}, "code": {"type": "string", "description": "6-digit authenticator-app code."}}}}}

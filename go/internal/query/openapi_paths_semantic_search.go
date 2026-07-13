@@ -10,6 +10,7 @@ const openAPIPathsSemanticSearch = `
         "summary": "Search curated semantic context",
         "description": "Runs bounded retrieval over active curated Eshu search documents for one repository corpus. Callers must provide repo_id, query, mode, limit, and timeout_ms. Results are derived retrieval evidence with graph handles, truth labels, freshness, search method, and truncation metadata; retrieval scores are never promoted to canonical graph truth.",
         "operationId": "searchSemanticContext",
+        "x-scoped-token-support": true,
         "requestBody": {
           "required": true,
           "content": {

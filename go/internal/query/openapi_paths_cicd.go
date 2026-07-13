@@ -10,6 +10,7 @@ const openAPIPathsCICD = `
         "summary": "List CI/CD run correlations",
         "description": "Lists reducer-owned CI/CD run, artifact, and environment correlations. CI success and shell-only hints are not deployment truth; exact rows require explicit artifact identity evidence. Repository-scoped responses include evidence_summary so static GitHub Actions workflow artifacts, live run rows, and run-to-artifact/image bridges stay separate even when live run correlation rows are missing.",
         "operationId": "listCICDRunCorrelations",
+        "x-scoped-token-support": true,
         "parameters": [
           {"name": "scope_id", "in": "query", "schema": {"type": "string"}, "description": "Reducer scope ID to anchor lookup."},
           {"name": "repository_id", "in": "query", "schema": {"type": "string"}, "description": "Canonical repository id or human source repository selector (name, repo slug, indexed path, local path, or remote URL) to anchor lookup. Unknown or ambiguous selectors return a selector error instead of an empty page."},

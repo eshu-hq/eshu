@@ -10,6 +10,7 @@ const openAPIPathsFactSchemaVersion = `
         "summary": "List core fact-kind schema versions",
         "description": "Returns the core fact-kind to supported schema-version registry: the schema version a core reducer or query consumer currently supports for each core fact kind. The data is the static in-binary registry from go/internal/facts; it reads no runtime, graph, or registry state.",
         "operationId": "listFactSchemaVersions",
+        "x-scoped-token-support": true,
         "parameters": [
           {
             "name": "limit",
@@ -57,6 +58,7 @@ const openAPIPathsFactSchemaVersion = `
         "summary": "Get the schema version for one core fact kind and classify a candidate",
         "description": "Returns the supported schema version for one core fact kind. When the candidate query parameter is supplied, classifies that collector version as supported, unsupported_major, unsupported_minor, or unknown_kind, so a client can detect an incompatible collector fact version safely. Returns not_found when the fact kind is not core-owned.",
         "operationId": "getFactSchemaVersion",
+        "x-scoped-token-support": true,
         "parameters": [
           {
             "name": "fact_kind",

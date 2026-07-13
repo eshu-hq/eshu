@@ -14,6 +14,7 @@ const openAPIPathsIaCResources = `
         "summary": "List Terraform/IaC resources",
         "description": "Bounded, enveloped browse over the authoritative Terraform/IaC graph projection. Defaults to Terraform resources; set kind to list modules or data sources. Filter by type, provider, and module. The list is keyset-paginated by (name, id); follow next_cursor.after_name and next_cursor.after_id to page. Requires the local-authoritative profile or higher.",
         "operationId": "listIaCResources",
+        "x-scoped-token-support": true,
         "parameters": [
           {
             "name": "kind",

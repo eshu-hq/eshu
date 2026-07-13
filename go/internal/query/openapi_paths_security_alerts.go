@@ -9,6 +9,7 @@ const openAPIPathsSecurityAlerts = `
         "summary": "List provider security alert reconciliations",
         "description": "Requires limit plus repository_id, provider, package_id, cve_id, or ghsa_id. provider_state and reconciliation_status filter anchored pages only.",
         "operationId": "listSecurityAlertReconciliations",
+        "x-scoped-token-support": true,
         "parameters": [
           {"name": "repository_id", "in": "query", "description": "Canonical repository id or human repository selector (name, repo slug, indexed path, local path, or remote URL). Unknown or ambiguous selectors return a selector error instead of an empty page.", "schema": {"type": "string"}},
           {"name": "provider", "in": "query", "schema": {"type": "string"}},

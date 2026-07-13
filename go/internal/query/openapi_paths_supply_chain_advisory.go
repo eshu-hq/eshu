@@ -9,6 +9,7 @@ const openAPIPathsSupplyChainAdvisoryEvidence = `
         "summary": "List source-only advisory evidence",
         "description": "Requires limit plus cve_id, advisory_id, package_id, repository_id, service_id, or workload_id. Repository, service, and workload scopes derive advisory anchors from reducer-owned impact findings before reading source facts. Returns source-specific GHSA, CVE/NVD, OSV, GLAD, EPSS, KEV, CWE, range, fixed-version, withdrawal, reference, and disagreement evidence without implying additional repository, image, workload, or deployment impact.",
         "operationId": "listAdvisoryEvidence",
+        "x-scoped-token-support": true,
         "parameters": [
           {"name": "cve_id", "in": "query", "schema": {"type": "string"}},
           {"name": "advisory_id", "in": "query", "schema": {"type": "string"}},

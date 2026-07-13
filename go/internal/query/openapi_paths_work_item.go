@@ -10,6 +10,7 @@ const openAPIPathsWorkItemEvidence = `
         "summary": "List work-item evidence",
         "description": "Lists bounded Jira/work-item source evidence from active facts. The route reports provider facts, missing evidence, stale/permission-hidden states, unsupported link types, and rejected unsafe payloads. Jira evidence remains source-only and never verifies pull request, commit, deployment, runtime artifact, image, version, service, or incident truth by itself.",
         "operationId": "listWorkItemEvidence",
+        "x-scoped-token-support": true,
         "parameters": [
           {"name": "scope_id", "in": "query", "schema": {"type": "string"}, "description": "Optional Jira collector scope id."},
           {"name": "project_key", "in": "query", "schema": {"type": "string"}, "description": "Optional Jira project key."},

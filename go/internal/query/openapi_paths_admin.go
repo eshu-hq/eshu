@@ -92,6 +92,7 @@ const openAPIPathsAdmin = `
         "tags": ["admin"],
         "summary": "Query dead-letter work items",
         "description": "Returns a bounded deterministic page of durable fact_work_items dead letters. Requires limit and timeout_ms, supports failure_class, domain, scope_id, collector_kind, and updated_at window filters, and returns truncated=true when more rows matched than the requested limit. Scoped tokens are restricted to their granted component scopes.",
+        "x-scoped-token-support": true,
         "requestBody": {
           "required": true,
           "content": {

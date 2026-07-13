@@ -8,6 +8,7 @@ const openAPIPathsSupplyChainImpactFindings = `
       "get": {
         "summary": "List supply-chain impact findings",
         "operationId": "listSupplyChainImpactFindings",
+        "x-scoped-token-support": true,
         "parameters": [
           {"name": "cve_id", "in": "query", "schema": {"type": "string"}},
           {"name": "advisory_id", "in": "query", "description": "Exact source advisory identifier such as GHSA, OSV, GLAD, vendor advisory, or CVE id.", "schema": {"type": "string"}},

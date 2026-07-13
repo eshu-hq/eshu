@@ -11,6 +11,7 @@ const openAPIPathsSecretsIAM = `
         "summary": "Summarize secrets/IAM posture for a scope",
         "description": "Returns a bounded, scope-anchored rollup of the secrets/IAM reducer read models as provenance-only grouped counts: identity trust chains by state, privilege posture observations by risk type and severity, secret access paths by state, and posture gaps by gap type. No fingerprints, paths, or evidence are exposed.",
         "operationId": "countSecretsIAMPosture",
+        "x-scoped-token-support": true,
         "parameters": [
           {"name": "scope_id", "in": "query", "required": true, "schema": {"type": "string"}, "description": "Reducer scope ID to summarize."}
         ],
@@ -41,6 +42,7 @@ const openAPIPathsSecretsIAM = `
         "summary": "List secrets/IAM identity trust chains",
         "description": "Lists reducer-owned secrets/IAM identity trust chains (workload to ServiceAccount to IAM role to Vault policy). A chain is exact only when every hop resolves with explicit evidence; otherwise it stays provenance-only as partial, unresolved, stale, permission_hidden, or unsupported and is never promoted to graph truth. Rows carry fingerprints and join keys only, never secret values, raw paths, or token claims.",
         "operationId": "listSecretsIAMIdentityTrustChains",
+        "x-scoped-token-support": true,
         "parameters": [
           {"name": "scope_id", "in": "query", "schema": {"type": "string"}, "description": "Reducer scope ID to anchor lookup."},
           {"name": "chain_id", "in": "query", "schema": {"type": "string"}, "description": "Identity trust-chain ID (the chain_id row identifier and next_cursor.after_chain_id) to anchor lookup."},
@@ -111,6 +113,7 @@ const openAPIPathsSecretsIAM = `
         "summary": "List secrets/IAM privilege posture observations",
         "description": "Lists reducer-owned risky broad or partial posture observations (for example a role with external trust and no sts:ExternalId). Provenance-only; the reducer never promotes these to an exact path. Subject identifiers are fingerprints.",
         "operationId": "listSecretsIAMPrivilegePostureObservations",
+        "x-scoped-token-support": true,
         "parameters": [
           {"name": "scope_id", "in": "query", "schema": {"type": "string"}, "description": "Reducer scope ID to anchor lookup."},
           {"name": "observation_id", "in": "query", "schema": {"type": "string"}, "description": "Observation ID to anchor lookup."},
@@ -151,6 +154,7 @@ const openAPIPathsSecretsIAM = `
         "summary": "List secrets/IAM secret access paths",
         "description": "Lists reducer-owned Vault policy-to-KV metadata access paths reachable from an exact identity chain. Paths are fingerprints and capabilities only; no secret value is ever returned.",
         "operationId": "listSecretsIAMSecretAccessPaths",
+        "x-scoped-token-support": true,
         "parameters": [
           {"name": "scope_id", "in": "query", "schema": {"type": "string"}, "description": "Reducer scope ID to anchor lookup."},
           {"name": "path_id", "in": "query", "schema": {"type": "string"}, "description": "Secret access path ID to anchor lookup."},
@@ -192,6 +196,7 @@ const openAPIPathsSecretsIAM = `
         "summary": "List secrets/IAM posture gaps",
         "description": "Lists reducer-owned missing, stale, permission_hidden, or unsupported evidence that blocks exact trust-chain truth. Gaps are surfaced rather than silently dropped.",
         "operationId": "listSecretsIAMPostureGaps",
+        "x-scoped-token-support": true,
         "parameters": [
           {"name": "scope_id", "in": "query", "schema": {"type": "string"}, "description": "Reducer scope ID to anchor lookup."},
           {"name": "gap_id", "in": "query", "schema": {"type": "string"}, "description": "Posture gap ID to anchor lookup."},

@@ -70,6 +70,7 @@ const openAPIPathsEvidence = `
         "summary": "List correlation admission decisions",
         "description": "Lists reducer-owned correlation admission decisions for one domain, scope, and generation. Rows explain admitted, rejected, ambiguous, stale, missing-evidence, permission-hidden, unsupported, and unsafe candidates before or beside canonical graph edges. The route is bounded, scoped-token safe, and returns source handles plus recommended next calls. local_lightweight returns unsupported_capability.",
         "operationId": "listAdmissionDecisions",
+        "x-scoped-token-support": true,
         "parameters": [
           {"name": "domain", "in": "query", "required": true, "schema": {"type": "string"}, "description": "Reducer admission domain such as deployable_unit, cloud_inventory, or package_source"},
           {"name": "scope_id", "in": "query", "required": true, "schema": {"type": "string"}, "description": "Ingestion scope id that bounds the read"},
@@ -123,6 +124,7 @@ const openAPIPathsEvidence = `
         "summary": "Build evidence citation packet",
         "description": "Hydrates bounded file and entity handles from story, investigation, search, or drilldown responses into ranked source, documentation, manifest, and deployment citations without graph traversal. Each citation carries the unified evidence contract (#3489): a confidence score, a byte-level citation (line range plus byte_offset/byte_length, content_hash, commit_sha), and typed provenance.",
         "operationId": "buildEvidenceCitationPacket",
+        "x-scoped-token-support": true,
         "requestBody": {
           "required": true,
           "content": {
@@ -226,6 +228,7 @@ const openAPIPathsEvidence = `
         "summary": "List collected documentation facts",
         "description": "Lists source-neutral documentation facts collected from systems such as Confluence. The route is bounded by limit/cursor and requires a scope, target, or source/document/section anchor.",
         "operationId": "listDocumentationFacts",
+        "x-scoped-token-support": true,
         "parameters": [
           {"name": "fact_kind", "in": "query", "schema": {"type": "string", "enum": ["source", "document", "section", "link", "entity_mention", "claim_candidate", "semantic_observation", "documentation_observation", "semantic_documentation_observation", "documentation_source", "documentation_document", "documentation_section", "documentation_link", "documentation_entity_mention", "documentation_claim_candidate", "semantic.documentation_observation"]}},
           {"name": "scope_id", "in": "query", "schema": {"type": "string"}, "description": "Persisted documentation collector scope identifier"},
@@ -299,6 +302,7 @@ const openAPIPathsEvidence = `
         "summary": "List documentation truth findings",
         "description": "Lists read-only documentation truth findings from durable documentation finding facts for external updater actuators. Target-scoped requests also return bounded raw documentation facts and coverage metadata so empty findings are explainable.",
         "operationId": "listDocumentationFindings",
+        "x-scoped-token-support": true,
         "parameters": [
           {"name": "finding_type", "in": "query", "schema": {"type": "string"}},
           {"name": "source_id", "in": "query", "schema": {"type": "string"}},
@@ -354,6 +358,7 @@ const openAPIPathsEvidence = `
         "summary": "Get documentation evidence packet",
         "description": "Returns the bounded evidence packet for one documentation truth finding. External updater services should snapshot this response before planning a diff.",
         "operationId": "getDocumentationEvidencePacket",
+        "x-scoped-token-support": true,
         "parameters": [
           {
             "name": "finding_id",
@@ -429,6 +434,7 @@ const openAPIPathsEvidence = `
         "summary": "Check documentation evidence packet freshness",
         "description": "Checks whether a previously snapshotted documentation evidence packet is still current before an external updater publishes a diff.",
         "operationId": "checkDocumentationEvidencePacketFreshness",
+        "x-scoped-token-support": true,
         "parameters": [
           {
             "name": "packet_id",

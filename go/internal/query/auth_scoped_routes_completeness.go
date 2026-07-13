@@ -14,30 +14,41 @@ package query
 // This is the #5154 gate: the #5150 review retro found that
 // GET /api/v0/repositories/{repo_id}/freshness shipped fully wired --
 // handler, OpenAPI description, HTTP-API reference docs all promised
-// scoped-token support -- while scopedHTTPRouteSupportsTenantFilder (see
+// scoped-token support -- while scopedHTTPRouteSupportsTenantFilter (see
 // auth_scoped_routes.go) had no matching entry, so every scoped and
 // browser-session caller got a middleware 403 before the handler's own grant
 // filtering ever ran. Two prior hand audits and a full cold review missed
 // it; only a PR review caught it.
 //
-// This ledger is deliberately independent of scopedHTTPRouteSupportsTenantFilter's
-// implementation: it is populated by a developer declaring "this route is
-// meant to support scoped access" (an editorial decision, not a derived
-// fact), the same way latestGenerationCTEQueries
-// (go/internal/storage/postgres/ingestion_latest_generation_cte_test.go)
-// hand-lists every production query that must satisfy a property rather than
-// grepping for one. TestScopedTokenAllowlistCompleteness
-// (auth_scoped_routes_completeness_test.go) then fails when this ledger and
-// scopedHTTPRouteSupportsTenantFilter disagree in either direction, and
-// TestScopedTokenAdvertisedRoutesReachHandlerThroughRealAuthMiddleware
-// proves every entry actually clears a real AuthMiddlewareWithScopedTokens
-// round trip rather than relying on a per-route bare-mux handler test (the
-// #5150 false-green pattern) or a hand-authored regression test someone
-// forgot to add.
+// The *actual* source of truth for "advertised" is not this ledger: it is
+// the "x-scoped-token-support": true marker declared in each route's own
+// openapi_paths_*.go operation entry (see openAPIScopedTokenSupportRoutes in
+// auth_scoped_routes_completeness_test.go), the same JSON object as the
+// route's prose "Scoped tokens receive ..." description. A cold-review
+// pass that compared only this ledger against scopedHTTPRouteSupportsTenantFilter
+// would have missed the verbatim #5150 recurrence: a route that advertises
+// scoped support in prose while never gaining a ledger entry, a matcher, or
+// the marker would pass a ledger-only gate silently. This ledger is instead
+// a secondary, human-curated cross-check kept in lockstep with the marker
+// (an editorial "yes, this route is meant to be scoped" declaration, the
+// same way latestGenerationCTEQueries -- go/internal/storage/postgres/ingestion_latest_generation_cte_test.go --
+// hand-lists every production query that must satisfy a property rather
+// than grepping for one).
+//
+// TestScopedTokenAllowlistCompleteness (auth_scoped_routes_completeness_test.go)
+// fails when the OpenAPI marker and scopedHTTPRouteSupportsTenantFilter
+// disagree in either direction, and separately when the marker and this
+// ledger disagree in either direction. TestScopedTokenAdvertisedRoutesReachHandlerThroughRealAuthMiddleware
+// sources its route set from the marker (not this ledger) and proves every
+// one of those routes actually clears a real AuthMiddlewareWithScopedTokens
+// round trip, rather than relying on a per-route bare-mux handler test (the
+// #5150 false-green pattern for that specific failure shape) or a
+// hand-authored regression test someone forgot to add.
 //
 // To add a new scoped route: wire its matcher into
-// scopedHTTPRouteSupportsTenantFilter as usual, then add its
-// "METHOD /path" surface name here. Forgetting either half fails
+// scopedHTTPRouteSupportsTenantFilter, add "x-scoped-token-support": true to
+// its operation entry in the relevant openapi_paths_*.go file, and add its
+// "METHOD /path" surface name here. Missing any one of the three fails
 // TestScopedTokenAllowlistCompleteness. Removing a route without deleting
 // its entry here fails the same test's staleness check.
 var scopedTokenAdvertisedRoutes = map[string]struct{}{

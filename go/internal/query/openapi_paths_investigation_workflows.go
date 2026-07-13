@@ -10,6 +10,7 @@ const openAPIPathsInvestigationWorkflows = `
         "summary": "List guided investigation workflows",
         "description": "Returns the deterministic guided investigation workflow catalog. This is workflow-plan truth from static catalog data, not a live graph query.",
         "operationId": "listInvestigationWorkflows",
+        "x-scoped-token-support": true,
         "responses": {
           "200": {
             "description": "Guided investigation workflow catalog",
@@ -36,6 +37,7 @@ const openAPIPathsInvestigationWorkflows = `
         "summary": "Resolve a guided investigation workflow",
         "description": "Resolves one catalog workflow, declared inputs, and observed missing-evidence state into bounded recommended next calls. It does not execute the calls.",
         "operationId": "resolveInvestigationWorkflow",
+        "x-scoped-token-support": true,
         "requestBody": {
           "required": true,
           "content": {

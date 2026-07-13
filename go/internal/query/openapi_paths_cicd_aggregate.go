@@ -8,6 +8,7 @@ const openAPIPathsCICDRunCorrelationAggregate = `
       "get": {
         "summary": "Count CI/CD run correlations without paging the list endpoint",
         "operationId": "countCICDRunCorrelations",
+        "x-scoped-token-support": true,
         "parameters": [
           {"name": "scope_id", "in": "query", "schema": {"type": "string"}},
           {"name": "repository_id", "in": "query", "description": "Canonical repository id or human source repository selector (name, repo slug, indexed path, local path, or remote URL). Unknown or ambiguous selectors return a selector error instead of an empty aggregate.", "schema": {"type": "string"}},
@@ -43,6 +44,7 @@ const openAPIPathsCICDRunCorrelationAggregate = `
       "get": {
         "summary": "Group CI/CD run correlations by one dimension without paging the list endpoint",
         "operationId": "getCICDRunCorrelationInventory",
+        "x-scoped-token-support": true,
         "parameters": [
           {"name": "group_by", "in": "query", "schema": {"type": "string", "enum": ["outcome", "environment", "repository_id", "provider"], "default": "outcome"}},
           {"name": "scope_id", "in": "query", "schema": {"type": "string"}},

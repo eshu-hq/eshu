@@ -45,6 +45,7 @@ const openAPIPathsCollectorExtractionReadiness = `
         "summary": "List collector extraction readiness",
         "description": "Returns the advisory collector extraction readiness catalog: for each collector family the extraction policy tracks, its classification (keep_in_tree, extraction_candidate, blocked, or external_ready), per-criterion checklist, and blockers. The data is static policy classification computed from documented repository evidence; it reads no runtime, graph, or registry state and never moves code.",
         "operationId": "listCollectorExtractionReadiness",
+        "x-scoped-token-support": true,
         "parameters": [
           {
             "name": "limit",
@@ -86,6 +87,7 @@ const openAPIPathsCollectorExtractionReadiness = `
         "summary": "Get collector extraction readiness for one family",
         "description": "Returns the advisory extraction readiness drilldown for one collector family, including the per-criterion checklist and rationale. Advisory only; does not move code.",
         "operationId": "getCollectorExtractionReadiness",
+        "x-scoped-token-support": true,
         "parameters": [
           {
             "name": "family",

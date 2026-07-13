@@ -10,6 +10,7 @@ const openAPIPathsContent = `
         "summary": "Read file content",
         "description": "Reads full file content from the content store.",
         "operationId": "readFile",
+        "x-scoped-token-support": true,
         "requestBody": {
           "required": true,
           "content": {
@@ -46,6 +47,7 @@ const openAPIPathsContent = `
         "summary": "Read file lines",
         "description": "Reads a line range from a file.",
         "operationId": "readFileLines",
+        "x-scoped-token-support": true,
         "requestBody": {
           "required": true,
           "content": {
@@ -84,6 +86,7 @@ const openAPIPathsContent = `
         "summary": "Read entity content",
         "description": "Reads entity source code from the content store.",
         "operationId": "readEntity",
+        "x-scoped-token-support": true,
         "requestBody": {
           "required": true,
           "content": {
@@ -119,6 +122,7 @@ const openAPIPathsContent = `
         "summary": "Search file content",
         "description": "Searches file content by pattern.",
         "operationId": "searchFiles",
+        "x-scoped-token-support": true,
         "requestBody": {
           "required": true,
           "content": {
@@ -178,6 +182,7 @@ const openAPIPathsContent = `
         "summary": "Search entity content",
         "description": "Searches entity source code by pattern.",
         "operationId": "searchEntities",
+        "x-scoped-token-support": true,
         "requestBody": {
           "required": true,
           "content": {
