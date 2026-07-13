@@ -158,10 +158,11 @@ package, alert state, reconciliation status, CVE, or GHSA. The reducer evidence
 loader pages only active package-consumption and impact facts for identifiers
 seen in the triggering provider alert intent.
 
-`sanitizeJSONB` strips `\u0000` escape sequences and raw control bytes
+`sanitizeJSONB` strips JSON-encoded U+0000 characters and raw control bytes
 (`0x00–0x1F` except tab/newline/CR) from payloads before INSERT to prevent
 `SQLSTATE 22P05` and `SQLSTATE 22P02` errors on repositories with binary or
-non-UTF-8 content.
+non-UTF-8 content. It preserves literal source text such as the six characters
+`\u0000`.
 
 `CommitScopeGeneration` compares the incoming generation `FreshnessHint` with
 the newest pending or active generation for the same scope. When the hint is

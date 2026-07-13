@@ -43,7 +43,7 @@ func sanitizeJSONB(data []byte) []byte {
 		return data
 	}
 
-	data = bytes.ReplaceAll(data, []byte(`\u0000`), nil)
+	data = stripUnescapedJSONNulls(data)
 
 	cleaned := make([]byte, 0, len(data))
 	for _, b := range data {
@@ -54,6 +54,41 @@ func sanitizeJSONB(data []byte) []byte {
 	}
 
 	return cleaned
+}
+
+// stripUnescapedJSONNulls removes JSON null escapes while preserving source
+// text that contains the six literal characters \u0000. JSON encodes that
+// literal text with an escaped backslash (\\u0000); removing the suffix from
+// the escaped form corrupts the JSON and can discard the entire fact payload.
+func stripUnescapedJSONNulls(data []byte) []byte {
+	const nullEscape = `\u0000`
+
+	var cleaned []byte
+	copyStart := 0
+	for i := 0; i+len(nullEscape) <= len(data); i++ {
+		if !bytes.Equal(data[i:i+len(nullEscape)], []byte(nullEscape)) {
+			continue
+		}
+
+		precedingBackslashes := 0
+		for j := i - 1; j >= 0 && data[j] == '\\'; j-- {
+			precedingBackslashes++
+		}
+		if precedingBackslashes%2 != 0 {
+			continue
+		}
+
+		if cleaned == nil {
+			cleaned = make([]byte, 0, len(data)-len(nullEscape))
+		}
+		cleaned = append(cleaned, data[copyStart:i]...)
+		copyStart = i + len(nullEscape)
+		i = copyStart - 1
+	}
+	if cleaned == nil {
+		return data
+	}
+	return append(cleaned, data[copyStart:]...)
 }
 
 func unmarshalPayload(raw []byte) (map[string]any, error) {

@@ -79,9 +79,10 @@ High-signal invariants for this package:
   records the completed intent timestamp covered by each repository snapshot so
   empty reachable sets do not loop forever; query dead-code reads consult the
   rows before the compatibility scan over completed shared projection intents.
-- Fact writes batch at 500 rows, deduplicate `fact_id` within a batch, sanitize
-  JSONB control bytes, and skip unchanged pending-or-active generations by
-  `FreshnessHint`.
+- Fact writes batch at 500 rows, deduplicate `fact_id` within a batch, remove
+  JSONB-incompatible U+0000 characters and control bytes without changing
+  literal source text such as `\u0000`, and skip unchanged pending-or-active
+  generations by `FreshnessHint`.
 - Projector claims preserve one active source-local generation per `scope_id`,
   reclaim expired leases before fresh work, coalesce stale same-scope work, and
   atomically ack by superseding stale active generation, superseding older

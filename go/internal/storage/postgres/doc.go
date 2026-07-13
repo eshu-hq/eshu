@@ -55,9 +55,11 @@
 // since queries use those events to report retention_expired instead of a false
 // empty delta when a prior generation has aged out.
 // FactStore kind-filtered reads use bounded, stable keyset pages and scan the
-// same facts.Envelope metadata shape as full fact loads. Payload value filters
-// are available only for top-level payload fields that are part of a reducer
-// domain's truth contract. Active code-call symbol definition reads join
+// same facts.Envelope metadata shape as full fact loads. Fact writes remove
+// JSONB-incompatible U+0000 characters without changing literal source text
+// such as `\u0000`. Payload value filters are available only for top-level
+// payload fields that are part of a reducer domain's truth contract. Active
+// code-call symbol definition reads join
 // through ingestion_scopes.active_generation_id and only return non-tombstoned
 // file facts whose parsed definitions match the requested stable symbol
 // allowlist. Shared projection intent writes use bounded multi-row upserts so
