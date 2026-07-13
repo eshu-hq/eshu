@@ -145,10 +145,8 @@ ORDER BY projection_domain
 // the repository owner's actual casing. A case-sensitive equality here would
 // silently fail to match any repository whose real name contains uppercase
 // characters, under-reporting a genuine unobserved push rather than erring.
-// repository_full_name carries no index on this table (only
-// (status, updated_at) and (status, received_at, trigger_id) are indexed), so
-// folding both sides to the same case changes zero index usage and zero query
-// shape.
+// No index on this table covers repository_full_name, so folding both sides
+// to the same case changes zero index usage and zero query shape.
 const repositoryFreshnessWebhookQuery = `
 SELECT target_sha, ref, received_at
 FROM webhook_refresh_triggers
