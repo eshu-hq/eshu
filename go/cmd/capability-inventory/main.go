@@ -40,7 +40,7 @@ func main() {
 func run(args []string, stdout, stderr io.Writer) error {
 	flags := flag.NewFlagSet("capability-inventory", flag.ContinueOnError)
 	flags.SetOutput(stderr)
-	mode := flags.String("mode", "report", "report | generate | verify | docs | budget-proof")
+	mode := flags.String("mode", "report", "report | generate | verify | docs | product-claims | budget-proof")
 	specsDir := flags.String("specs", defaultSpecsDir, "path to the specs directory")
 	out := flags.String("out", defaultArtifactOut, "catalog artifact output path (generate mode)")
 	surfaceOut := flags.String("surface-out", defaultSurfaceArtifactOut, "surface inventory artifact output path (generate mode)")
@@ -64,6 +64,11 @@ func run(args []string, stdout, stderr io.Writer) error {
 	if *mode == "docs" {
 		ledgerPath := filepath.Join(*specsDir, capabilitycatalog.ProductClaimLedgerFileName)
 		return checkDocs(stdout, catalog, *docsDir, ledgerPath, *root)
+	}
+
+	if *mode == "product-claims" {
+		ledgerPath := filepath.Join(*specsDir, capabilitycatalog.ProductClaimLedgerFileName)
+		return checkProductClaimsMode(stdout, catalog, *docsDir, ledgerPath, *root)
 	}
 
 	surfaceInventory, surfaceFindings, err := buildSurfaceInventory(*specsDir, *root)
@@ -171,6 +176,28 @@ func checkDocs(stdout io.Writer, catalog capabilitycatalog.Catalog, docsDir, led
 	if total > 0 {
 		return fmt.Errorf("docs freshness check failed: %d capability findings, %d collector findings, %d product claim findings",
 			len(docFindings), len(collectorFindings), len(productFindings))
+	}
+	return nil
+}
+
+// checkProductClaimsMode runs only the product claim ledger guard: every
+// guarded product-claim marker must resolve to exactly one ledger row with a
+// valid proof chain, and (when ESHU_VERIFY_PRODUCT_CLAIM_ISSUES_LIVE=1) every
+// issue-backed claim's recorded state must match GitHub.
+//
+// Unlike -mode docs (checkDocs), this mode does not scan capability-state or
+// collector-state markers. mcp-schema-drift.yml already runs the full
+// -mode docs docs-tree scan on every PR, so the product-claim-ledger workflow
+// uses this narrower mode instead of repeating that scan just to reach the
+// product-claim ledger check and the live issue-state guard it adds. See
+// #4073.
+func checkProductClaimsMode(stdout io.Writer, catalog capabilitycatalog.Catalog, docsDir, ledgerPath, root string) error {
+	findings, err := checkProductClaims(stdout, catalog, ledgerPath, docsDir, root)
+	if err != nil {
+		return err
+	}
+	if len(findings) > 0 {
+		return fmt.Errorf("product claim ledger check failed: %d findings", len(findings))
 	}
 	return nil
 }

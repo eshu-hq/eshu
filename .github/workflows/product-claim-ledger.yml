@@ -58,26 +58,16 @@ jobs:
       - name: Run product claim workflow contract mirror
         run: scripts/test-product-claim-ledger-workflow.sh
 
-      - name: Run deterministic product-claim verify
-        working-directory: go
-        shell: bash
-        run: |
-          set -o pipefail
-          go run ./cmd/capability-inventory -mode docs 2>&1 | tee /tmp/product-claims-docs.log
-
-      - name: Run live issue-state verify for pull requests
-        if: github.event_name == 'pull_request'
-        working-directory: go
-        shell: bash
-        env:
-          ESHU_VERIFY_PRODUCT_CLAIM_ISSUES_LIVE: "1"
-          GITHUB_TOKEN: ${{ github.token }}
-        run: |
-          set -o pipefail
-          go run ./cmd/capability-inventory -mode docs 2>&1 | tee /tmp/product-claims-live-issues.log
-
-      - name: Run live issue-state verify for trusted events
-        if: github.event_name != 'pull_request'
+      # -mode product-claims runs only the product claim ledger guard (ledger
+      # <-> marker <-> proof chain, plus the live issue-state check below). It
+      # skips the capability-state and collector-state marker scans that
+      # -mode docs also performs, because mcp-schema-drift.yml already runs
+      # the full -mode docs scan on every PR; repeating that scan here just to
+      # reach the ledger check wasted CI time as the docs tree grew (#4073).
+      # The live issue-state check is bounded (30s) and PR-safe: it always
+      # runs here (pull_request, push, schedule, and workflow_dispatch all hit
+      # this one step) using the read-only Actions token.
+      - name: Run product-claim ledger verify
         working-directory: go
         shell: bash
         env:
@@ -85,14 +75,12 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -o pipefail
-          go run ./cmd/capability-inventory -mode docs 2>&1 | tee /tmp/product-claims-live-issues.log
+          go run ./cmd/capability-inventory -mode product-claims 2>&1 | tee /tmp/product-claims.log
 
       - name: Upload product claim report on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: product-claim-ledger-report
-          path: |
-            /tmp/product-claims-docs.log
-            /tmp/product-claims-live-issues.log
+          path: /tmp/product-claims.log
           if-no-files-found: warn

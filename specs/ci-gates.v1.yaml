@@ -1480,10 +1480,13 @@ gates:
       - "specs/product-claims.v1.yaml"
       - "specs/capability-catalog.v1.yaml"
       - "specs/capability-matrix.v1.yaml"
-    # The deterministic docs-mode verify is credential-free. The live issue-state
-    # variant (ESHU_VERIFY_PRODUCT_CLAIM_ISSUES_LIVE=1 + GITHUB_TOKEN) stays CI-only.
+    # The deterministic product-claims-mode verify is credential-free. The live
+    # issue-state variant (ESHU_VERIFY_PRODUCT_CLAIM_ISSUES_LIVE=1 + GITHUB_TOKEN)
+    # stays CI-only. #4073: narrowed from -mode docs to -mode product-claims so
+    # this gate does not repeat the capability-state/collector-state docs-tree
+    # scan the capability-inventory-docs gate already runs on every PR.
     local:
-      command: "cd go && go run ./cmd/capability-inventory -mode docs"
+      command: "cd go && go run ./cmd/capability-inventory -mode product-claims"
       test_command: ""
     ci:
       workflow: product-claim-ledger.yml

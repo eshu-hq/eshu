@@ -43,9 +43,13 @@ documentation.
   and docs prose that a single capability marker cannot prove. It binds source
   `product-claim` markers and whole-line quotes to capabilities, owner paths,
   generated surfaces, deterministic proof, catalog proof signals, semantic
-  posture, generated surface counts, and issue state, and is checked by
-  `go/cmd/capability-inventory -mode docs`. Live issue-state verification runs
-  in `.github/workflows/product-claim-ledger.yml`.
+  posture, generated surface counts, and issue state. `mcp-schema-drift.yml`
+  checks it as part of the full `go/cmd/capability-inventory -mode docs` scan
+  on every PR; `.github/workflows/product-claim-ledger.yml` checks it (plus
+  live issue-state verification) through the narrower
+  `-mode product-claims`, which shares the same ledger-check code without
+  repeating the capability-state/collector-state marker scan the other
+  workflow already ran (#4073).
 - `backend-conformance.v1.yaml` defines graph-backend capability classes for
   official adapters.
 - `scale-lab-corpus.v1.yaml` defines the representative scale-lab corpus,

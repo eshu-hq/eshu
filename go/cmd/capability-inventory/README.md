@@ -34,6 +34,13 @@ go run ./cmd/capability-inventory -mode verify
 # product claim lacks a source-to-proof ledger row.
 go run ./cmd/capability-inventory -mode docs
 
+# Product claim ledger guard only: the same ledger/marker/live-issue check
+# `docs` mode runs, without the capability-state and collector-state marker
+# scans. Use this when another gate in the same CI run already covers those
+# (mcp-schema-drift.yml runs full `docs` mode on every PR), so the
+# product-claim-ledger workflow does not repeat the whole docs-tree scan.
+go run ./cmd/capability-inventory -mode product-claims
+
 # Capability budget proof guard: fail when a public measurement artifact does
 # not bind every supported p95/max-scope budget row to measured API/MCP proof.
 go run ./cmd/capability-inventory -mode budget-proof \
@@ -44,12 +51,12 @@ go run ./cmd/capability-inventory -mode budget-proof \
 
 | Flag | Default | Meaning |
 | --- | --- | --- |
-| `-mode` | `report` | `report`, `generate`, `verify`, `docs`, or `budget-proof` |
+| `-mode` | `report` | `report`, `generate`, `verify`, `docs`, `product-claims`, or `budget-proof` |
 | `-specs` | `../specs` | path to the specs directory (matrix, overlay, surface overlay) |
 | `-out` | `internal/capabilitycatalog/data/catalog.generated.json` | catalog artifact output path (generate mode) |
 | `-surface-out` | `internal/capabilitycatalog/data/surface-inventory.generated.json` | surface artifact output path (generate mode) |
 | `-budget-artifact` | empty | public capability budget proof artifact path (budget-proof mode) |
-| `-docs` | `../docs/public` | path to the docs directory (docs mode) |
+| `-docs` | `../docs/public` | path to the docs directory (docs and product-claims modes) |
 | `-root` | `..` | path to the repository root (surface enumeration) |
 
 ## Invariants
@@ -70,6 +77,13 @@ go run ./cmd/capability-inventory -mode budget-proof \
   against GitHub with a bounded run-level timeout; `.github/workflows/product-claim-ledger.yml`
   enables that with the read-only Actions token on pull requests and trusted
   claim-relevant push, schedule, and manual-dispatch events.
+- `product-claims` mode runs only the product claim ledger guard (the same
+  check `docs` mode runs as its last step), skipping the capability-state and
+  collector-state marker scans. It exists so a CI workflow or local run that
+  only needs the ledger/live-issue guard does not have to repeat the full
+  docs-tree walk `docs` mode performs; see #4073. Both modes share the same
+  `checkProductClaims` helper, so they can never diverge on what counts as a
+  ledger finding.
 - `generate` writes deterministic JSON for both the catalog and the surface
   inventory; the same inputs always produce the same bytes, so a regenerated
   artifact only changes when the matrix, overlay, registry, or a live surface
