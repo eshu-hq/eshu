@@ -1096,9 +1096,14 @@ type Instruments struct {
 	BatchClaimSize metric.Int64Histogram
 
 	// Neo4j batch write metrics
-	Neo4jBatchSize                     metric.Float64Histogram
-	Neo4jBatchesExecuted               metric.Int64Counter
-	SharedEdgeWriteGroups              metric.Int64Counter
+	Neo4jBatchSize        metric.Float64Histogram
+	Neo4jBatchesExecuted  metric.Int64Counter
+	SharedEdgeWriteGroups metric.Int64Counter
+	// SharedEdgeRunsOnRetractOmissions counts source-capability decisions that
+	// omit an impossible shared-edge RUNS_ON retract. Labels are limited to the
+	// bounded projection domain and reason enums; evidence source and repository
+	// identity stay in the accompanying structured log.
+	SharedEdgeRunsOnRetractOmissions   metric.Int64Counter
 	SharedEdgeWriteGroupDuration       metric.Float64Histogram
 	SharedEdgeWriteGroupStatementCount metric.Int64Histogram
 	CodeCallEdgeBatches                metric.Int64Counter
@@ -3893,6 +3898,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register SharedEdgeWriteGroups counter: %w", err)
+	}
+
+	inst.SharedEdgeRunsOnRetractOmissions, err = meter.Int64Counter(
+		"eshu_dp_shared_edge_runs_on_retract_omissions_total",
+		metric.WithDescription("Total impossible shared-edge RUNS_ON retracts omitted by bounded source-capability reason and domain"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register SharedEdgeRunsOnRetractOmissions counter: %w", err)
 	}
 
 	sharedEdgeWriteGroupDurationBuckets := []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60}

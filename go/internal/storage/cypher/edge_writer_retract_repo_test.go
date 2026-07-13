@@ -213,7 +213,7 @@ func TestEdgeWriterRetractEdgesRepoDependencySingleRepoUsesBoundDeleteShape(t *t
 		t.Fatalf("ExecuteGroup calls = %d, want 0 (grouped DELETEs under-apply on NornicDB v1.1.11)", got)
 	}
 	group := executor.calls
-	if got, want := len(group), 3; got != want {
+	if got, want := len(group), 2; got != want {
 		t.Fatalf("sequential repo dependency statements = %d, want %d", got, want)
 	}
 	repoRelationships := group[0]
@@ -229,8 +229,77 @@ func TestEdgeWriterRetractEdgesRepoDependencySingleRepoUsesBoundDeleteShape(t *t
 	if _, ok := repoRelationships.Parameters["repo_ids"]; ok {
 		t.Fatalf("single-repo relationship retract must not pass repo_ids: %#v", repoRelationships.Parameters)
 	}
-	if !strings.Contains(group[1].Cypher, "RUNS_ON") {
-		t.Fatalf("second grouped statement should retract RUNS_ON edges: %s", group[1].Cypher)
+	for i, stmt := range group {
+		if strings.Contains(stmt.Cypher, "RUNS_ON") {
+			t.Fatalf("code-import statement %d must not retract impossible RUNS_ON edges: %s", i, stmt.Cypher)
+		}
+	}
+	if !strings.Contains(group[1].Cypher, "HAS_DEPLOYMENT_EVIDENCE") {
+		t.Fatalf("second statement should retract evidence artifacts: %s", group[1].Cypher)
+	}
+}
+
+func TestEdgeWriterWriteEdgesRejectsCodeImportRunsOn(t *testing.T) {
+	t.Parallel()
+
+	executor := &recordingExecutor{}
+	writer := NewEdgeWriter(executor, 0)
+	rows := []reducer.SharedProjectionIntentRow{{
+		IntentID:     "i1",
+		RepositoryID: "repo-a",
+		Payload: map[string]any{
+			"repo_id":           "repo-a",
+			"platform_id":       "platform-a",
+			"relationship_type": "RUNS_ON",
+		},
+	}}
+
+	err := writer.WriteEdges(context.Background(), reducer.DomainRepoDependency, rows, "projection/code-imports")
+	if err == nil {
+		t.Fatal("WriteEdges() error = nil, want source-capability violation")
+	}
+	if !strings.Contains(err.Error(), "projection/code-imports") || !strings.Contains(err.Error(), "RUNS_ON") {
+		t.Fatalf("WriteEdges() error = %q, want source and relationship type", err)
+	}
+	if got := len(executor.calls); got != 0 {
+		t.Fatalf("executor calls = %d, want 0 after source-capability violation", got)
+	}
+}
+
+func TestEdgeWriterRetractEdgesCodeImportLogsRunsOnOmission(t *testing.T) {
+	t.Parallel()
+
+	var logs bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&logs, nil))
+	executor := &recordingExecutor{}
+	writer := NewEdgeWriter(executor, 0)
+	writer.Logger = logger
+	rows := []reducer.SharedProjectionIntentRow{{
+		IntentID:     "i1",
+		RepositoryID: "repo-a",
+		Payload:      map[string]any{"repo_id": "repo-a"},
+	}}
+
+	err := writer.RetractEdges(context.Background(), reducer.DomainRepoDependency, rows, "projection/code-imports")
+	if err != nil {
+		t.Fatalf("RetractEdges() error = %v", err)
+	}
+	entries := decodeJSONLogEntries(t, logs.Bytes())
+	if got, want := len(entries), 3; got != want {
+		t.Fatalf("log entries = %d, want %d\nlogs:\n%s", got, want, logs.String())
+	}
+	omission := entries[0]
+	if got, want := omission["msg"], "shared edge retract role omitted"; got != want {
+		t.Fatalf("omission msg = %v, want %v", got, want)
+	}
+	if got, want := omission["evidence_source"], "projection/code-imports"; got != want {
+		t.Fatalf("omission evidence_source = %v, want %v", got, want)
+	}
+	if got, want := omission["statement_role"], "runs_on_relationships"; got != want {
+		t.Fatalf("omission statement_role = %v, want %v", got, want)
+	}
+	if got, want := omission["reason"], "source_capability"; got != want {
+		t.Fatalf("omission reason = %v, want %v", got, want)
 	}
 }
 
@@ -294,13 +363,27 @@ func TestRepoDependencyRetractSummariesShareRelationshipEdgeTypes(t *testing.T) 
 
 	grouped := buildRepoDependencyRetractStatements([]string{"repo-a"}, "projection/code-imports")
 	diagnostic := buildRepoDependencyDiagnosticRetractStatements([]string{"repo-a"}, "projection/code-imports")
+	crossRepo := buildRepoDependencyRetractStatements([]string{"repo-a"}, "resolver/cross-repo")
+	prefixCollision := buildRepoDependencyRetractStatements([]string{"repo-a"}, "projection/code-imports-extra")
 
 	wantGroupedSummary := repoDependencyRetractSummary("repository_relationship_edges", repoDependencyRelationshipEdgeTypes)
 	if got := grouped[0].stmt.Parameters[StatementMetadataSummaryKey]; got != wantGroupedSummary {
 		t.Fatalf("grouped relationship summary = %v, want %s", got, wantGroupedSummary)
 	}
-	if got := grouped[1].stmt.Parameters[StatementMetadataSummaryKey]; got != "role=runs_on_relationships relationships=RUNS_ON" {
-		t.Fatalf("grouped RUNS_ON summary = %v, want RUNS_ON role", got)
+	if got, want := len(grouped), 2; got != want {
+		t.Fatalf("code-import grouped statements = %d, want %d", got, want)
+	}
+	if got, want := len(diagnostic), 2; got != want {
+		t.Fatalf("code-import diagnostic statements = %d, want %d", got, want)
+	}
+	if got, want := len(crossRepo), 3; got != want {
+		t.Fatalf("cross-repo grouped statements = %d, want %d", got, want)
+	}
+	if got, want := len(prefixCollision), 3; got != want {
+		t.Fatalf("prefix-collision source statements = %d, want %d", got, want)
+	}
+	if got := crossRepo[1].stmt.Parameters[StatementMetadataSummaryKey]; got != "role=runs_on_relationships relationships=RUNS_ON" {
+		t.Fatalf("cross-repo RUNS_ON summary = %v, want RUNS_ON role", got)
 	}
 
 	wantDiagnosticSummary := repoDependencyRetractSummary(

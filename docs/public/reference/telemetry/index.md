@@ -605,6 +605,35 @@ graph write, or queue behavior is introduced. Verified by
 `go test ./internal/reducer ./cmd/reducer ./internal/telemetry -count=1 -race`
 (2678 tests, all passing).
 
+## Repo-Dependency RUNS_ON Retract Omissions
+
+`eshu_dp_shared_edge_runs_on_retract_omissions_total` counts impossible
+`RUNS_ON` retract transactions that the shared edge writer omits because the
+exact evidence source cannot emit that relationship type. It has two bounded
+labels:
+
+- `domain` identifies the shared projection domain;
+- `reason` identifies the closed omission reason, currently
+  `source_capability`.
+
+Evidence source and repository identity are intentionally excluded from metric
+labels. Use the accompanying `shared edge retract role omitted` structured log
+for the exact evidence source, statement role, and repository count. A rising
+counter for `domain=repo_dependency` is expected while code-import refreshes
+drain; a missing counter alongside those refreshes means the source-capability
+fast path is not active.
+
+Performance Evidence: the retained 896-repository run spent `362.94s` across
+838 serialized code-import `RUNS_ON` retracts. Omitting that exact-source arm is
+expected to save `300-360s`; the counter confirms how many transactions were
+removed without introducing repository-level metric cardinality.
+
+No-Regression Evidence: ordinary evidence sources and the prefix lookalike
+`projection/code-imports-extra` retain the `RUNS_ON` retract and do not
+increment the counter. The exact source increments once per omitted role. The
+graph writer's worker, partition, lease, retry, ordering, and remaining
+transaction boundaries are unchanged.
+
 ## Deferred backfill partition memo gate (#3624 Track 1)
 
 The corpus-wide deferred relationship pass now skips re-loading a partition whose

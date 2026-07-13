@@ -248,28 +248,37 @@ write spans, and shared-edge logs; no metric name, metric label, queue domain,
 worker, lease, timeout, runtime knob, or backend-specific branch changes.
 
 Repo-dependency retract executes repository relationship edge cleanup,
-`RUNS_ON` cleanup, and evidence-artifact cleanup as separate statements inside
-one grouped transaction. Single-repository cycles use direct `$repo_id` anchors
-instead of `UNWIND $repo_ids` for the repository relationship statement so
-NornicDB can stay on its bound relationship delete path. The
-`ESHU_REPO_DEPENDENCY_RETRACT_STATEMENT_TIMING` diagnostic switch keeps the same
-default off state, but executes those statements sequentially during a bounded
-proof run so `shared edge retract statement completed` logs can attribute time
-to `repository_relationship_edges`, `runs_on_relationships`, and
-`evidence_artifacts`. Leave the switch disabled for production grouped timing.
+`RUNS_ON` cleanup, and evidence-artifact cleanup as separate sequential
+statements because grouped deletes under-apply on NornicDB v1.1.11. The
+`projection/code-imports` producer is capability-limited to repo-to-repo
+`DEPENDS_ON`, so its retract executes only repository relationship and evidence
+artifact cleanup; it never opens the impossible `RUNS_ON` transaction. Exact
+source equality owns the omission: prefix lookalikes and every other evidence
+source retain all three roles. A mismatched code-import write fails closed
+before backend execution. Single-repository cycles retain direct `$repo_id`
+anchors, and the repo-dependency runner remains one repo-owned partition.
 
-No-Regression Evidence: the default path still uses the grouped
-`ExecuteGroup` transaction boundary. `go test ./internal/storage/cypher -run
-'TestEdgeWriterRetractEdgesRepoDependency(LogsGroupedStatementRoles|SingleRepoGroupUsesBoundDeleteShape|DiagnosticStatementTimingBypassesGroup)' -count=1`
-proves grouped logging remains default, single-repo cycles use the direct
-bound-delete shape, and the diagnostic switch is the only path that bypasses
-grouping for per-statement timing.
+Performance Evidence: the retained 896-repository run attributed `362.94s` to
+the impossible code-import `RUNS_ON` role, exceeding the `158s` worthwhile-work
+threshold by `204.94s`. On the quiet retained graph, the alternative indexed
+traversal saved only milliseconds, so that rewrite was deferred. The complete
+proof and exactness table are in
+[`evidence-5208-code-import-runs-on-omit.md`](evidence-5208-code-import-runs-on-omit.md).
 
-Observability Evidence: the diagnostic path reuses the existing
-`shared edge retract statement completed` log shape with `domain`,
-`evidence_source`, `statement_role`, `repo_count`, `duration_seconds`, and the
-bounded `statement_summary`; it adds no metric name, metric label, queue domain,
-worker, lease, timeout, Cypher text, or graph backend branch.
+No-Regression Evidence: `go test ./internal/storage/cypher -run
+'TestEdgeWriterRetractEdgesRepoDependency|TestEdgeWriterWriteEdgesRejectsCodeImportRunsOn|TestRepoDependencyRetractSummariesShareRelationshipEdgeTypes'
+-count=1` proves code-import executes two sequential roles, other and
+prefix-collision sources execute three, malformed code-import `RUNS_ON` writes
+fail closed, and the existing source-capable roles keep their bound delete
+shapes.
+
+Observability Evidence: executed roles retain `shared edge retract statement
+completed`. The source-capability omission emits `shared edge retract role
+omitted` with `domain`, `evidence_source`, `statement_role`, `repo_count`, and
+bounded `reason=source_capability`. The
+`eshu_dp_shared_edge_runs_on_retract_omissions_total` counter increments once
+per omitted role with bounded `domain` and `reason` labels. No worker, lease,
+partition, retry, timeout, or backend branch changes.
 
 Terraform-state rows are written as `TerraformResource`, `TerraformModule`, and
 `TerraformOutput` nodes keyed by `uid`. The rows keep lineage, serial, provider
@@ -856,6 +865,8 @@ adapter seam.
   — canonical write and retract totals
 - `eshu_dp_shared_edge_write_groups_total` / `eshu_dp_shared_edge_write_group_duration_seconds`
   / `eshu_dp_shared_edge_write_group_statement_count` — edge writer group metrics
+- `eshu_dp_shared_edge_runs_on_retract_omissions_total` — impossible `RUNS_ON`
+  retracts omitted by bounded source-capability reason and projection domain
 - `eshu_dp_code_call_edge_batches_total` / `eshu_dp_code_call_edge_batch_duration_seconds`
   — code-call-specific edge metrics
 - `eshu_dp_graph_orphan_nodes` — reducer-registered observable gauge labeled

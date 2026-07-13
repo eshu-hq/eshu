@@ -3,6 +3,14 @@
 
 package cypher
 
+import (
+	"context"
+
+	"go.opentelemetry.io/otel/metric"
+
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
+)
+
 func (w *EdgeWriter) logSharedEdgeWrite(
 	domain string,
 	evidenceSource string,
@@ -61,6 +69,40 @@ func (w *EdgeWriter) logSharedEdgeRetractStatement(
 		attrs = append(attrs, "statement_summary", summary)
 	}
 	w.Logger.Info("shared edge retract statement completed", attrs...)
+}
+
+func (w *EdgeWriter) logSharedEdgeRetractRoleOmitted(
+	domain string,
+	evidenceSource string,
+	statementRole string,
+	repoCount int,
+	reason string,
+) {
+	if w.Logger == nil {
+		return
+	}
+	w.Logger.Info(
+		"shared edge retract role omitted",
+		"domain", domain,
+		"evidence_source", evidenceSource,
+		"statement_role", statementRole,
+		"repo_count", repoCount,
+		"reason", reason,
+	)
+}
+
+func (w *EdgeWriter) recordSharedEdgeRunsOnRetractOmission(
+	ctx context.Context,
+	domain string,
+	reason string,
+) {
+	if w.Instruments == nil {
+		return
+	}
+	w.Instruments.SharedEdgeRunsOnRetractOmissions.Add(ctx, 1, metric.WithAttributes(
+		telemetry.AttrDomain(domain),
+		telemetry.AttrReason(reason),
+	))
 }
 
 func statementRowCount(stmts []Statement) int {
