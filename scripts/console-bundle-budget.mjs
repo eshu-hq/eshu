@@ -45,7 +45,15 @@ export const BUDGETS = {
   // of that code lands here -- the ~0.8 KiB growth is only the two new
   // `lazy(() => import(...))` + `Suspense` call sites and the small demo
   // dispatch branch, which cannot shrink further without dropping a required
-  // integration point. Budget keeps a small deliberate headroom over that.
+  // integration point. Measured ~708.2 KiB after #5139 (chunk headroom): the
+  // eager demo-mode dispatch table (demoClient.ts's former demoResponse())
+  // and the remaining per-surface demo fixture bodies (cloud/IaC, impact,
+  // CI/CD, supply-chain, operations) were moved to demoRouter.ts and
+  // per-surface fixture modules, all dynamically imported on the first demo
+  // request rather than statically, dropping ~17 KiB of demo-only payload
+  // that a live (non-demo) session never needed. Restores real headroom
+  // (~17.8 KiB) after #5140/#5150 pushed the prior measurement to within 51
+  // bytes of budget. Budget keeps a deliberate margin over that.
   main: 726 * KIB,
   // React/runtime vendor (react, react-dom, react-router-dom). Stable, cached
   // across deploys via its own manualChunk. Measured ~49 KiB.
