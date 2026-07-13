@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 
 import type { EshuApiClient } from "./client";
-import { humanizeAge, loadOperationsBoard, repoLabel } from "./operationsBoard";
+import {
+  humanizeAge,
+  loadOperationsBoard,
+  repoLabel,
+  repositorySourceHref,
+} from "./operationsBoard";
 
 // mockClient answers GET /api/v0/status/operations with a fixed wire payload,
 // or throws/errors to exercise the degrade-to-unavailable path.
@@ -278,5 +283,32 @@ describe("repoLabel", () => {
 
   it("falls back to an em dash when both are redacted or absent", () => {
     expect(repoLabel({ sourceDisplay: null, sourceKey: null })).toBe("—");
+  });
+});
+
+// repositorySourceHref (issue #5171) resolves a "Now processing" row to the
+// same /repositories/:id/source route the Repositories page links to. Only a
+// git repository scope's source_key is actually a repository catalog id (both
+// derive from repositoryidentity.CanonicalRepositoryID, "repository:r_<hash8>"
+// -- see go/internal/repositoryidentity/identity.go and
+// content_reader_repository_catalog.go's repositoryCatalogIDExpr), so the
+// check gates on scope_kind === "repository" in addition to a non-null
+// source_key.
+describe("repositorySourceHref", () => {
+  it("builds the repository freshness route for a resolvable git repository row", () => {
+    expect(
+      repositorySourceHref({ scopeKind: "repository", sourceKey: "repository:r_ea78e8bb" }),
+    ).toBe("/repositories/repository%3Ar_ea78e8bb/source");
+  });
+
+  it("returns null for a non-repository scope_kind even when source_key is present", () => {
+    expect(
+      repositorySourceHref({ scopeKind: "package_registry", sourceKey: "pkg:some-package" }),
+    ).toBeNull();
+  });
+
+  it("returns null when source_key is redacted (scoped caller) or absent", () => {
+    expect(repositorySourceHref({ scopeKind: "repository", sourceKey: null })).toBeNull();
+    expect(repositorySourceHref({ scopeKind: "repository", sourceKey: "" })).toBeNull();
   });
 });

@@ -1,4 +1,5 @@
 import { createDemoApiClient } from "./demoClient";
+import { demoRepositories } from "./demoFixtures";
 
 describe("demoClient", () => {
   it("returns checkout demo evidence for the supported impact scope", async () => {
@@ -75,6 +76,32 @@ describe("demoClient", () => {
     // rendering, alongside ordinary "active" rows.
     expect(firstRow?.generation_state).toBe("active");
     expect(rows.some((row) => row.generation_state === "stale")).toBe(true);
+  });
+
+  // #5171 regression: a repository-scope row's source_key must resolve to a
+  // repository catalog id the demo corpus actually covers -- otherwise the
+  // "Now processing" repo label's link (repositorySourceHref in
+  // operationsBoard.ts) lands on an uncovered demo repository page instead of
+  // one with real freshness data. The live backend's source_key IS the
+  // repository catalog id for a repository scope, so the demo fixture must
+  // mirror that identity, not invent an unrelated opaque value.
+  it("keys every repository-scope live_activity row's source_key to a demo repository id", async () => {
+    const client = createDemoApiClient();
+
+    const env = await client.get<Record<string, unknown>>("/api/v0/status/operations?limit=25");
+
+    const rows = env.data?.live_activity as readonly Record<string, unknown>[];
+    const demoRepoIds = new Set(demoRepositories.map((repo) => repo.id));
+    const repositoryScopeRows = rows.filter((row) => row.scope_kind === "repository");
+    expect(repositoryScopeRows.length).toBeGreaterThan(0);
+    for (const row of repositoryScopeRows) {
+      expect(demoRepoIds.has(row.source_key as string)).toBe(true);
+    }
+    expect(rows.map((row) => row.source_key)).toEqual([
+      "repository:checkout-service",
+      "repository:payments-api",
+      "repository:checkout-service",
+    ]);
   });
 
   it("serves a wire-shaped current freshness fixture for checkout-service (issue #5143)", async () => {

@@ -54,9 +54,17 @@ function demoActivityWire(
     scope_kind: "repository",
     collector_kind: collectorKind,
     source_system: sourceSystem,
-    // source_key: opaque hash like the live backend (#5137 follow-up).
+    // source_key: the repository catalog id, matching the live backend
+    // (#5137 follow-up) where a repository scope's source_key IS the
+    // repository catalog id (both derive from
+    // repositoryidentity.CanonicalRepositoryID). Must match demoRepositories'
+    // `id` and demoFreshnessWire's keyed repoId ("repository:<repo>",
+    // demoFixtures.ts / demoFreshnessFixture.ts) exactly -- #5171's
+    // repositorySourceHref() links this value straight to
+    // /repositories/:id/source, so a mismatched demo source_key would land
+    // on an uncovered demo repository page instead of the matching one.
     // source_display: operator-facing name from the scope payload.
-    source_key: `r_${workItemId}`,
+    source_key: `repository:${repo}`,
     source_display: `acme/${repo}`,
     // generation_state (#5138): "stale" demos a retrying row from a
     // superseded generation rendering dimmed with a badge.
