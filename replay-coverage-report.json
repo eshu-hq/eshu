@@ -3,11 +3,11 @@
   "blocking": true,
   "totals": {
     "total": 400,
-    "covered": 365,
-    "uncovered": 26,
+    "covered": 368,
+    "uncovered": 23,
     "unresolved": 0,
     "exempt": 9,
-    "percent_satisfied": 93.5
+    "percent_satisfied": 94.25
   },
   "registry_summaries": [
     {
@@ -67,11 +67,11 @@
     {
       "registry": "projection",
       "total": 27,
-      "covered": 2,
-      "uncovered": 25,
+      "covered": 5,
+      "uncovered": 22,
       "unresolved": 0,
       "exempt": 0,
-      "percent_satisfied": 7.41
+      "percent_satisfied": 18.52
     },
     {
       "registry": "reducer_drain",
@@ -123,11 +123,11 @@
     {
       "scenario_type": "cost",
       "total": 26,
-      "covered": 1,
-      "uncovered": 25,
+      "covered": 4,
+      "uncovered": 22,
       "unresolved": 0,
       "exempt": 0,
-      "percent_satisfied": 3.85
+      "percent_satisfied": 15.38
     },
     {
       "scenario_type": "crash",
@@ -2186,8 +2186,11 @@
       "registry": "projection",
       "key": "projection:code_graph_projection",
       "scenario_type": "cost",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type cost"
+      "status": "covered",
+      "scenario": "go_test",
+      "ref": "go/internal/replay/costcounting/cost_counting_test.go",
+      "proof_gate": "go-test-race",
+      "detail": "artifact present: go/internal/replay/costcounting/cost_counting_test.go"
     },
     {
       "registry": "projection",
@@ -2207,8 +2210,11 @@
       "registry": "projection",
       "key": "projection:documentation_materialization",
       "scenario_type": "cost",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type cost"
+      "status": "covered",
+      "scenario": "go_test",
+      "ref": "go/internal/replay/costcounting/documentation_edges_cost_test.go",
+      "proof_gate": "go-test-race",
+      "detail": "artifact present: go/internal/replay/costcounting/documentation_edges_cost_test.go"
     },
     {
       "registry": "projection",
@@ -2322,8 +2328,11 @@
       "registry": "projection",
       "key": "projection:semantic_entity_materialization",
       "scenario_type": "cost",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type cost"
+      "status": "covered",
+      "scenario": "go_test",
+      "ref": "go/internal/replay/costcounting/semantic_entity_cost_test.go",
+      "proof_gate": "go-test-race",
+      "detail": "artifact present: go/internal/replay/costcounting/semantic_entity_cost_test.go"
     },
     {
       "registry": "projection",
@@ -4068,10 +4077,8 @@
     "projection:azure_resource_materialization|cost",
     "projection:ci_cd_run_correlation|cost",
     "projection:cloud_asset_resolution|cost",
-    "projection:code_graph_projection|cost",
     "projection:config_state_drift|cost",
     "projection:container_image_identity|cost",
-    "projection:documentation_materialization|cost",
     "projection:ec2_instance_node_materialization|cost",
     "projection:gcp_resource_materialization|cost",
     "projection:incident_repository_correlation|cost",
@@ -4086,7 +4093,6 @@
     "projection:sbom_attestation_attachment|cost",
     "projection:secrets_iam_trust_chain|cost",
     "projection:security_alert_reconciliation|cost",
-    "projection:semantic_entity_materialization|cost",
     "projection:service_catalog_correlation|cost",
     "projection:supply_chain_impact|cost",
     "retractable_node:Variable|delta_tombstone"

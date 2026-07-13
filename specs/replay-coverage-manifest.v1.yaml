@@ -631,6 +631,27 @@ coverage:
   - {surface: retractable_edge:USES, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_workload_uses_edge_retract_live_test.go, proof_gate: replay-tier}
   - {surface: retractable_edge:USES_PROFILE, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_workload_uses_edge_retract_live_test.go, proof_gate: replay-tier}
   - {surface: reducer_drain:reducer-projection-drain, scenario: go_test, scenario_type: crash, ref: go/internal/replay/crashreplay/scenario_test.go, proof_gate: go-test-race}
+  # C-14 (#4367) projection-COST pilot slice: R-16 deterministic cost-counting
+  # scenarios (go/internal/replay/costcounting) for three of the C-13-derived
+  # projection|cost gaps, one per distinct reducer_domain
+  # (specs/fact-kind-registry.v1.yaml). Each scenario drives its domain's
+  # PRODUCTION graph writer over a real sdkmetric.ManualReader-backed
+  # telemetry.Instruments registry and asserts a genuine eshu_dp_* instrument
+  # against a committed exact budget, with an N+1 negative control proven to
+  # exceed that budget and a false-green guard on a 0 instrument value — see
+  # go/internal/replay/costcounting/AGENTS.md for the invariants.
+  #
+  # code_graph_projection reuses the existing TestCostBudget_NestedDirectoryTree
+  # (cost_counting_test.go), not a new scenario: the "code" family's kinds
+  # (file, repository; admission-exempt) project through the production
+  # storage/cypher.CanonicalNodeWriter, and that test already drives exactly
+  # that writer over a committed cassette materialization of a repository plus
+  # nested directories — the repository/directory canonical writes ARE the
+  # code-graph canonical projection path (canonical_code_graph projection_hook),
+  # so no separate scenario is needed to honestly claim this domain.
+  - {surface: projection:code_graph_projection, scenario: go_test, scenario_type: cost, ref: go/internal/replay/costcounting/cost_counting_test.go, proof_gate: go-test-race}
+  - {surface: projection:semantic_entity_materialization, scenario: go_test, scenario_type: cost, ref: go/internal/replay/costcounting/semantic_entity_cost_test.go, proof_gate: go-test-race}
+  - {surface: projection:documentation_materialization, scenario: go_test, scenario_type: cost, ref: go/internal/replay/costcounting/documentation_edges_cost_test.go, proof_gate: go-test-race}
 
 scenario_requirements:
   - {surface: collector:aws, scenario_types: [baseline, fault]}

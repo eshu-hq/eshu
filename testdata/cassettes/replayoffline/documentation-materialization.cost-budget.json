@@ -1,0 +1,10 @@
+{
+  "scenario": "documentation-materialization",
+  "cassette": "none: cypher.EdgeWriter.WriteEdges operates over flat reducer.SharedProjectionIntentRow values, not a CanonicalMaterialization; the two fixture rows (entity target, workload target) live inline in go/internal/replay/costcounting/documentation_edges_cost_test.go",
+  "description": "One entity-target and one workload-target DOCUMENTS edge row in one scope, driven through the production cypher.EdgeWriter.WriteEdges (DomainDocumentationEdges) over a GroupExecutor-capable executor with EdgeWriter.Instruments set. WriteEdges batches every row for the call into one atomic transaction and calls ExecuteGroup exactly once (no per-domain group-batch override applies to documentation), so eshu_dp_shared_edge_write_groups_total=1 regardless of row count; the two rows route to two distinct Cypher templates (entity vs workload target) inside that one group, giving statements_executed=2. Any increase to the group counter means the reducer handler is issuing more than one write transaction per intent — the N+1 pattern this gate exists to catch.",
+  "refresh_path": "manual: edit the inline fixture rows in documentation_edges_cost_test.go and this file together, reviewed in the same diff (no credentialed cassette refresh applies since there is no cassette)",
+  "budgets": {
+    "eshu_dp_shared_edge_write_groups_total": 1,
+    "statements_executed": 2
+  }
+}
