@@ -45,7 +45,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 	out := flags.String("out", defaultArtifactOut, "catalog artifact output path (generate mode)")
 	surfaceOut := flags.String("surface-out", defaultSurfaceArtifactOut, "surface inventory artifact output path (generate mode)")
 	budgetArtifact := flags.String("budget-artifact", "", "public capability budget proof artifact path (budget-proof mode)")
-	docsDir := flags.String("docs", defaultDocsDir, "path to the docs directory (docs mode)")
+	docsDir := flags.String("docs", defaultDocsDir, "path to the docs directory (docs and product-claims modes)")
 	root := flags.String("root", defaultRoot, "path to the repository root (surface enumeration)")
 	if err := flags.Parse(args); err != nil {
 		return err
