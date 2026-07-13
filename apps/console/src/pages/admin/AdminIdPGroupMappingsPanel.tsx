@@ -18,11 +18,12 @@ import { fmt, dash, truncatedNote } from "./adminFormat";
 import {
   loadIdPGroupMappings,
   createIdPGroupMapping,
-  deleteIdPGroupMapping
+  deleteIdPGroupMapping,
 } from "../../api/adminConsole";
 import type { IdPGroupMappingItem } from "../../api/adminConsole";
 import type { EshuApiClient } from "../../api/client";
 import { Panel, Badge } from "../../components/atoms";
+import { useConfirm } from "../../components/useConfirm";
 
 function statusBadge(status: string | undefined): React.JSX.Element {
   if (status === "active") return <Badge tone="teal">active</Badge>;
@@ -31,7 +32,7 @@ function statusBadge(status: string | undefined): React.JSX.Element {
 }
 
 export function AdminIdPGroupMappingsPanel({
-  client
+  client,
 }: {
   readonly client?: EshuApiClient;
 }): React.JSX.Element {
@@ -46,6 +47,7 @@ export function AdminIdPGroupMappingsPanel({
   const [role, setRole] = useState("");
   const [workspace, setWorkspace] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
+  const { confirm, confirmDialog } = useConfirm();
 
   useEffect(() => {
     let cancelled = false;
@@ -68,22 +70,17 @@ export function AdminIdPGroupMappingsPanel({
   }, [client, refreshKey]);
 
   const onCreate = useCallback(async () => {
-    if (
-      !client ||
-      provider.length === 0 ||
-      externalGroup.length === 0 ||
-      role.length === 0
-    ) {
+    if (!client || provider.length === 0 || externalGroup.length === 0 || role.length === 0) {
       return;
     }
-    if (!globalThis.confirm?.(`Create mapping for provider ${provider} → role ${role}?`)) return;
+    if (!(await confirm(`Create mapping for provider ${provider} → role ${role}?`))) return;
     setBusy(true);
     setNotice(null);
     const ok = await createIdPGroupMapping(client, {
       provider_config_id: provider,
       external_group: externalGroup,
       role_id: role,
-      workspace_id: workspace
+      workspace_id: workspace,
     });
     setBusy(false);
     if (ok) {
@@ -97,12 +94,15 @@ export function AdminIdPGroupMappingsPanel({
     } else {
       setNotice(`Failed to create mapping for ${provider} → ${role}.`);
     }
-  }, [client, provider, externalGroup, role, workspace]);
+  }, [client, provider, externalGroup, role, workspace, confirm]);
 
   const onDelete = useCallback(
     async (mappingRef: string) => {
       if (!client) return;
-      if (!globalThis.confirm?.(`Delete mapping ${mappingRef}?`)) return;
+      if (
+        !(await confirm(`Delete mapping ${mappingRef}?`, { danger: true, confirmLabel: "Delete" }))
+      )
+        return;
       setBusy(true);
       setNotice(null);
       const ok = await deleteIdPGroupMapping(client, mappingRef);
@@ -114,7 +114,7 @@ export function AdminIdPGroupMappingsPanel({
         setNotice(`Failed to delete mapping ${mappingRef}.`);
       }
     },
-    [client]
+    [client, confirm],
   );
 
   const createForm = (
@@ -153,12 +153,7 @@ export function AdminIdPGroupMappingsPanel({
       <button
         type="submit"
         className="btn-ghost"
-        disabled={
-          busy ||
-          provider.length === 0 ||
-          externalGroup.length === 0 ||
-          role.length === 0
-        }
+        disabled={busy || provider.length === 0 || externalGroup.length === 0 || role.length === 0}
       >
         {busy ? "Working…" : "Create"}
       </button>
@@ -176,6 +171,7 @@ export function AdminIdPGroupMappingsPanel({
     return (
       <Panel title="IdP group mappings">
         {createForm}
+        {confirmDialog}
         <p className="unavailable-note">IdP group mappings unavailable from this source.</p>
       </Panel>
     );
@@ -184,7 +180,12 @@ export function AdminIdPGroupMappingsPanel({
   return (
     <Panel title="IdP group mappings">
       {createForm}
-      {notice ? <p className="empty-note" role="status">{notice}</p> : null}
+      {confirmDialog}
+      {notice ? (
+        <p className="empty-note" role="status">
+          {notice}
+        </p>
+      ) : null}
       {truncated ? <p className="empty-note">{truncatedNote(truncated, items.length)}</p> : null}
       {items.length === 0 ? (
         <p className="empty-note">No group mappings found.</p>
