@@ -172,8 +172,8 @@ func operationsToMap(ops status.OperationsReport, scoped bool) map[string]any {
 // shape, adding an as-of-relative age. Scoped callers never see source_key
 // or source_display (repo identity, raw and human-readable) or lease_owner
 // (worker identity); every other field (stage, status, domain, attempt
-// count, age, scope/collector kind) stays visible since it carries no
-// cross-tenant identity.
+// count, age, scope/collector kind, generation_state) stays visible since it
+// carries no cross-tenant identity.
 func liveActivityRowsToSlice(rows []status.LiveActivityRow, asOf time.Time, scoped bool) []map[string]any {
 	result := make([]map[string]any, 0, len(rows))
 	for _, row := range rows {
@@ -186,22 +186,35 @@ func liveActivityRowsToSlice(rows []status.LiveActivityRow, asOf time.Time, scop
 			sourceDisplay = ""
 		}
 		result = append(result, map[string]any{
-			"work_item_id":   row.WorkItemID,
-			"stage":          row.Stage,
-			"status":         row.Status,
-			"domain":         row.Domain,
-			"lease_owner":    leaseOwner,
-			"claim_until":    nullableRFC3339(row.ClaimUntil),
-			"attempt_count":  row.AttemptCount,
-			"updated_at":     nullableRFC3339(row.UpdatedAt),
-			"created_at":     nullableRFC3339(row.CreatedAt),
-			"age_seconds":    row.Age(asOf).Seconds(),
-			"scope_kind":     row.ScopeKind,
-			"collector_kind": row.CollectorKind,
-			"source_system":  row.SourceSystem,
-			"source_key":     sourceKey,
-			"source_display": sourceDisplay,
+			"work_item_id":     row.WorkItemID,
+			"stage":            row.Stage,
+			"status":           row.Status,
+			"domain":           row.Domain,
+			"lease_owner":      leaseOwner,
+			"claim_until":      nullableRFC3339(row.ClaimUntil),
+			"attempt_count":    row.AttemptCount,
+			"updated_at":       nullableRFC3339(row.UpdatedAt),
+			"created_at":       nullableRFC3339(row.CreatedAt),
+			"age_seconds":      row.Age(asOf).Seconds(),
+			"scope_kind":       row.ScopeKind,
+			"collector_kind":   row.CollectorKind,
+			"source_system":    row.SourceSystem,
+			"source_key":       sourceKey,
+			"source_display":   sourceDisplay,
+			"generation_state": generationStateOrActive(row.GenerationState),
 		})
 	}
 	return result
+}
+
+// generationStateOrActive defaults an empty/unrecognized GenerationState to
+// "active" (#5138): a row must never render as stale by omission -- an
+// unset or unexpected value (for example a fake test double that does not
+// populate the field) is treated the same as ordinary in-flight work rather
+// than silently dimmed.
+func generationStateOrActive(state string) string {
+	if state == "stale" {
+		return "stale"
+	}
+	return "active"
 }

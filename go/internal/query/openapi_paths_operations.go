@@ -13,13 +13,16 @@ package query
 // an empty array, never another tenant's rows), then withholds
 // source_key/source_display (repo identity, raw and human-readable) and
 // lease_owner (worker identity) on every row it does return; collectors
-// collapse to aggregate counts.
+// collapse to aggregate counts. Every row also carries generation_state
+// (#5138): "active" or "stale", reporting whether a retrying row belongs to
+// the scope's current active generation or a superseded one -- claimed/
+// running rows are always "active" regardless of generation.
 const openAPIPathsOperations = `
     "/api/v0/status/operations": {
       "get": {
         "tags": ["status"],
         "summary": "Get live operations board read model",
-        "description": "Returns one bounded operator read model composing health, collector runtime status (with heartbeat), stage summaries, domain backlogs, and queue depth with live_activity: up to the limit query parameter's number of in-flight work items (claimed, running, retrying) joined to their originating repo, ordered by most-recently-updated first. source_display resolves the operator-facing repo name from the scope payload (repo_slug or repo_name), falling back to the raw source_key when neither is present. Scoped tokens are first restricted to their granted repositories/ingestion scopes: a scoped token with no granted repository or ingestion scope always receives an empty live_activity array, never another tenant's rows. Within that restricted set, scoped tokens receive the same aggregate sections with source_key, source_display (repo identity, raw and human-readable) and lease_owner (worker identity) withheld from live_activity rows, and collectors collapsed to aggregate counts.",
+        "description": "Returns one bounded operator read model composing health, collector runtime status (with heartbeat), stage summaries, domain backlogs, and queue depth with live_activity: up to the limit query parameter's number of in-flight work items (claimed, running, retrying) joined to their originating repo, ordered by most-recently-updated first. source_display resolves the operator-facing repo name from the scope payload (repo_slug or repo_name), falling back to the raw source_key when neither is present. generation_state is 'active' or 'stale': a retrying row is 'stale' when it belongs to a scope_generations row older than the scope's current active generation (a superseded generation); claimed and running rows are always 'active' regardless of generation, since a live claim/lease stays operator-relevant even against a stale generation. Scoped tokens are first restricted to their granted repositories/ingestion scopes: a scoped token with no granted repository or ingestion scope always receives an empty live_activity array, never another tenant's rows. Within that restricted set, scoped tokens receive the same aggregate sections with source_key, source_display (repo identity, raw and human-readable) and lease_owner (worker identity) withheld from live_activity rows, and collectors collapsed to aggregate counts.",
         "operationId": "getOperations",
         "parameters": [
           {
@@ -65,7 +68,8 @@ const openAPIPathsOperations = `
                           "collector_kind": {"type": "string"},
                           "source_system": {"type": "string"},
                           "source_key": {"type": "string"},
-                          "source_display": {"type": "string"}
+                          "source_display": {"type": "string"},
+                          "generation_state": {"type": "string", "enum": ["active", "stale"]}
                         }
                       }
                     },

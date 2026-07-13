@@ -2032,11 +2032,11 @@ and `fact_work_items_status_idx` already cover it. The `source_display`
 follow-up adds one JSONB extraction per returned row only (bounded by
 `LIMIT`), no new join — no regression to the measured shapes.
 
-Known limitation (P2-1, tracked separately): the board renders raw queue
-rows regardless of generation liveness, so a `retrying` work item belonging
-to a superseded/stale `scope_generations` row can still render as "live"
-until the reducer's retention sweep clears it; this is a display accuracy
-gap tracked as a follow-up issue, not an access-control issue.
+Fixed by #5138 (was P2-1): the board previously rendered raw queue rows
+regardless of generation liveness, so a `retrying` work item belonging to a
+superseded/stale `scope_generations` row rendered identically to genuinely
+live work until the reducer's retention sweep cleared it. See "Generation-state
+annotation for retrying rows (#5138)" below for the fix.
 
 Observability Evidence: every `ReadLiveActivity` call records
 `eshu_dp_status_operations_live_activity_query_duration_seconds` and failures
@@ -2044,6 +2044,39 @@ increment `eshu_dp_status_operations_live_activity_query_errors_total`
 (registered in `go/internal/telemetry/instruments.go`, X1 row in
 `docs/public/observability/telemetry-coverage.md`); both are proven by an
 OTEL SDK-backed test in `status_operations_test.go`.
+
+## Generation-state annotation for retrying rows (#5138)
+
+Follow-up from #5137 review (P2). `ReadLiveActivity` deliberately reads
+`fact_work_items` directly rather than joining through
+`activeFactWorkItemsCTE` (that 4-way generation-liveness join is the
+dominant cost of a status read, #4446), so it had no way to tell an operator
+that a `retrying` row belonged to a superseded generation. Evaluated options
+per the issue: (1) exclude stale-generation `retrying` rows via a bounded
+post-filter, (2) annotate with a `generation_state: active|stale` field and
+dim the row in the console, (3) keep the raw view and only document it.
+**Chosen: option 2** — excluding the row would erase the operator-relevant
+evidence that a dead generation is still consuming retry budget; annotating
+keeps the row visible while making its staleness explicit.
+
+`buildLiveActivityQuery` composes a `bounded_activity` CTE (the unchanged
+#5137 scan/bound/order shape) with an outer `liveActivityGenerationStateSelectSQL`
+SELECT that runs only after the `LIMIT`: a `CASE` compares each row's
+`generation_id` against its scope's `active_generation_id` (via two
+`(scope_id, generation_id)`-keyed `LEFT JOIN`s onto `scope_generations`,
+covered by `scope_generations_scope_generation_idx`, #4446 migration 002) and
+labels a `retrying` row `"stale"` only when its generation is strictly older
+by the same `ingested_at`-then-`generation_id` ordering
+`activeFactWorkItemsCTE` uses. `claimed`/`running` rows are always `"active"`
+regardless of generation, mirroring that CTE's own diagnosability carve-out
+for a live lease. See `buildLiveActivityQuery`'s doc comment in
+`status_operations.go` for the full EXPLAIN ANALYZE and seeded-corpus
+correctness evidence (allScopes ~18-19ms vs the pre-fix ~15-18ms baseline on
+a 500,000-row `scope_generations` / 61,000-row in-flight corpus, both joins
+executing as bounded Index Only Scans; the CASE reproduced every seeded
+claimed/running/active-retrying/stale-retrying variant exactly). The console
+(`apps/console/src/api/operationsBoard.ts`, `OperationsLiveBoard.tsx`) renders
+a `"stale"` row dimmed with a badge rather than hiding it.
 
 ## Repo freshness single-scope composite read (#5143)
 
