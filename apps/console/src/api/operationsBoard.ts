@@ -77,6 +77,12 @@ export interface OperationsActivityRow {
   // sourceDisplay is the operator-facing repo name (#5137 follow-up), e.g.
   // "acme/orders-api", resolved server-side from the scope payload.
   readonly sourceDisplay: string | null;
+  // generationState (#5138) is "stale" when this is a retrying row belonging
+  // to a superseded generation -- the console renders it dimmed with a badge
+  // rather than as ordinary in-flight work. claimed/running rows are always
+  // "active" regardless of generation. Defaults to "active" when absent so a
+  // row never renders as stale by omission.
+  readonly generationState: "active" | "stale";
 }
 
 export interface OperationsBoard {
@@ -140,6 +146,7 @@ interface LiveActivityWire {
   readonly source_system?: string;
   readonly source_key?: string | null;
   readonly source_display?: string | null;
+  readonly generation_state?: string;
 }
 interface OperationsWire {
   readonly version?: string;
@@ -292,6 +299,7 @@ function activityRowFromWire(row: LiveActivityWire): OperationsActivityRow {
     sourceSystem: clean(row.source_system) || "—",
     sourceKey: clean(row.source_key ?? undefined) || null,
     sourceDisplay: clean(row.source_display ?? undefined) || null,
+    generationState: row.generation_state === "stale" ? "stale" : "active",
   };
 }
 

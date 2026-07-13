@@ -83,6 +83,7 @@ const wirePayload = {
       source_system: "github",
       source_key: "repository:r_ea78e8bb",
       source_display: "acme/checkout-service",
+      generation_state: "active",
     },
   ],
   truncated: false,
@@ -175,7 +176,34 @@ describe("loadOperationsBoard", () => {
         sourceSystem: "github",
         sourceKey: "repository:r_ea78e8bb",
         sourceDisplay: "acme/checkout-service",
+        generationState: "active",
       },
+    ]);
+  });
+
+  // generation_state (#5138): a retrying row from a superseded generation
+  // maps through as "stale"; every other wire value (including absent)
+  // defaults to "active" so a row never renders as stale by omission.
+  it("maps generation_state 'stale' through, and defaults absent/unrecognized values to 'active'", async () => {
+    const client = mockClient({
+      data: {
+        ...wirePayload,
+        live_activity: [
+          { ...wirePayload.live_activity[0], work_item_id: "wi-stale", generation_state: "stale" },
+          {
+            ...wirePayload.live_activity[0],
+            work_item_id: "wi-absent",
+            generation_state: undefined,
+          },
+          { ...wirePayload.live_activity[0], work_item_id: "wi-bogus", generation_state: "bogus" },
+        ],
+      },
+    });
+    const board = await loadOperationsBoard(client);
+    expect(board.liveActivity.map((row) => [row.workItemId, row.generationState])).toEqual([
+      ["wi-stale", "stale"],
+      ["wi-absent", "active"],
+      ["wi-bogus", "active"],
     ]);
   });
 

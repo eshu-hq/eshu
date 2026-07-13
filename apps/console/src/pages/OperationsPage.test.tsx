@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { OperationsPage } from "./OperationsPage";
@@ -213,6 +213,7 @@ describe("OperationsPage live operations board", () => {
       source_system: "github",
       source_key: "repository:r_ea78e8bb",
       source_display: "acme/checkout-service",
+      generation_state: "active",
       ...overrides,
     };
   }
@@ -284,6 +285,33 @@ describe("OperationsPage live operations board", () => {
 
     await screen.findByText("running", {}, suspenseCrossingTimeout);
     expect(screen.getAllByText("—").length).toBeGreaterThan(0);
+  });
+
+  it("dims a stale-generation retrying row and badges it, leaving active rows undimmed (#5138)", async () => {
+    const client = opsClient([
+      operationsWire({
+        live_activity: [
+          activityRow({ generation_state: "active" }),
+          activityRow({
+            work_item_id: "wi-2",
+            status: "retrying",
+            source_key: "repository:r_1a2b3c4d",
+            source_display: "acme/payments-api",
+            generation_state: "stale",
+          }),
+        ],
+      }),
+    ]);
+    render(<OperationsPage model={demoModel} client={client} pollMs={50000} />);
+
+    const staleBadge = await screen.findByText("stale", {}, suspenseCrossingTimeout);
+    const staleRow = staleBadge.closest("tr");
+    expect(staleRow).toHaveClass("ops-activity-row-stale");
+
+    const activeRow = screen.getByText("acme/checkout-service").closest("tr");
+    expect(activeRow).not.toHaveClass("ops-activity-row-stale");
+    expect(activeRow).not.toBeNull();
+    if (activeRow) expect(within(activeRow).queryByText("stale")).not.toBeInTheDocument();
   });
 
   it("shows the explicit empty state when there is no in-flight work", async () => {

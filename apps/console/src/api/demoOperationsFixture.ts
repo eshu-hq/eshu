@@ -38,6 +38,7 @@ function demoActivityWire(
   ageSeconds: number,
   collectorKind: string,
   sourceSystem: string,
+  generationState: "active" | "stale" = "active",
 ): Record<string, unknown> {
   return {
     work_item_id: workItemId,
@@ -57,6 +58,9 @@ function demoActivityWire(
     // source_display: operator-facing name from the scope payload.
     source_key: `r_${workItemId}`,
     source_display: `acme/${repo}`,
+    // generation_state (#5138): "stale" demos a retrying row from a
+    // superseded generation rendering dimmed with a badge.
+    generation_state: generationState,
   };
 }
 
@@ -136,6 +140,7 @@ export function operationsBoardWire(): Record<string, unknown> {
         360,
         "sbom_attestation",
         "sbom",
+        "stale",
       ),
     ],
     truncated: false,

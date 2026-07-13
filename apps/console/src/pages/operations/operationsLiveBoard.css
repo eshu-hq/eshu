@@ -27,6 +27,17 @@
   font-size: 0.8rem;
 }
 
+/* A stale-generation retrying row (#5138) stays visible -- hiding it would
+   erase the evidence a dead generation is still consuming retry budget --
+   but dims relative to genuinely live rows so it reads as superseded. */
+.ops-activity-row-stale {
+  opacity: 0.55;
+}
+
+.ops-activity-row-stale .badge + .badge {
+  margin-left: 0.35rem;
+}
+
 @media (max-width: 900px) {
   .ops-stage-tiles {
     grid-template-columns: repeat(2, minmax(0, 1fr));
