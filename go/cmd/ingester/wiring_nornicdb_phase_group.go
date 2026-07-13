@@ -89,6 +89,25 @@ func (e nornicDBPhaseGroupExecutor) executeSequentialRetractPhase(
 	stmts []sourcecypher.Statement,
 ) error {
 	for i, stmt := range stmts {
+		// A Drain-marked statement with an EMPTY DrainVar is a bounded
+		// mixed-phase relationship retract (the Helm/GitLab/Atlantis
+		// structural-edge shape): Drain means "run me as my own autocommit
+		// statement", never "bounded drain loop" — there is no trailing
+		// DETACH DELETE <var> to rewrite, and BuildBoundedRetractDrainCypher
+		// rejects the empty var. Before this split, an all-retract
+		// structural_edges phase (every sibling MERGE upsert absent because a
+		// later generation removed all relationships) failed the whole
+		// canonical write with "drainVar must not be empty" instead of
+		// retracting (raised in review on #5155). Only DrainVar-carrying
+		// statements (unbounded full-refresh DETACH DELETE) take the LIMIT
+		// drain loop below.
+		if stmt.Drain && stmt.DrainVar == "" {
+			statementSummary := summarizePhaseGroupChunk([]sourcecypher.Statement{stmt})
+			if err := e.executeAutocommitRetract(ctx, stmt, i+1, len(stmts), statementSummary); err != nil {
+				return err
+			}
+			continue
+		}
 		if stmt.Drain && e.drainReader != nil {
 			statementSummary := summarizePhaseGroupChunk([]sourcecypher.Statement{stmt})
 			if err := e.executeDrainLoop(ctx, stmt, i+1, len(stmts), statementSummary); err != nil {
@@ -283,6 +302,18 @@ func (e nornicDBPhaseGroupExecutor) executeEntityPhaseGroup(
 		if stmt.Operation == sourcecypher.OperationCanonicalRetract {
 			if err := flushGrouped(); err != nil {
 				return err
+			}
+			// Empty-DrainVar Drain statements are bounded relationship
+			// retracts that must run as one autocommit statement, never the
+			// bounded drain loop (which requires a DrainVar to rewrite the
+			// trailing DETACH DELETE). Same split as
+			// executeSequentialRetractPhase; raised in review on #5155.
+			if stmt.Drain && stmt.DrainVar == "" {
+				statementSummary := summarizePhaseGroupChunk([]sourcecypher.Statement{stmt})
+				if err := e.executeAutocommitRetract(ctx, stmt, i+1, len(stmts), statementSummary); err != nil {
+					return err
+				}
+				continue
 			}
 			if stmt.Drain && e.drainReader != nil {
 				statementSummary := summarizePhaseGroupChunk([]sourcecypher.Statement{stmt})

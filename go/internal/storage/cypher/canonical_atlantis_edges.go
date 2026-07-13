@@ -51,21 +51,30 @@ SET r.evidence_source = 'projector/canonical', r.generation_id = row.generation_
 // and USES_WORKFLOW are MERGE-only edges between surviving nodes, so neither
 // repository_cleanup nor entity_retract removes a stale edge when the endpoints
 // survive but the relationship changes. The subsequent MERGE rewrites current
-// edges with the current generation.
+// edges with the current generation. Emitted with Drain=true (see
+// atlantisEdgeStatements): this is an UNWIND relationship DELETE inside the
+// mixed structural_edges phase, and on NornicDB such a DELETE silently no-ops
+// when it runs inside the phase's grouped ExecuteWrite transaction alongside
+// the sibling MANAGES/DEPENDS_ON/USES_WORKFLOW MERGE upserts (#4476, the same
+// class the Helm and GitLab structural edges already guard against). The
+// NornicDB phase-group executor runs a Drain-marked statement as its own
+// standalone autocommit statement before the grouped upserts.
 const retractAtlantisManagesEdgesCypher = `UNWIND $source_uids AS uid
 MATCH (p:AtlantisProject {uid: uid})-[r:MANAGES]->(:Directory)
 WHERE r.evidence_source = 'projector/canonical' AND r.generation_id <> $generation_id
 DELETE r`
 
 // retractAtlantisDependsOnEdgesCypher deletes stale ATLANTIS_DEPENDS_ON edges
-// from this materialization's AtlantisProject source nodes.
+// from this materialization's AtlantisProject source nodes. Drain-marked for
+// the same autocommit reason as retractAtlantisManagesEdgesCypher.
 const retractAtlantisDependsOnEdgesCypher = `UNWIND $source_uids AS uid
 MATCH (p:AtlantisProject {uid: uid})-[r:ATLANTIS_DEPENDS_ON]->(:AtlantisProject)
 WHERE r.evidence_source = 'projector/canonical' AND r.generation_id <> $generation_id
 DELETE r`
 
 // retractAtlantisUsesWorkflowEdgesCypher deletes stale USES_WORKFLOW edges from
-// this materialization's AtlantisProject source nodes.
+// this materialization's AtlantisProject source nodes. Drain-marked for the
+// same autocommit reason as retractAtlantisManagesEdgesCypher.
 const retractAtlantisUsesWorkflowEdgesCypher = `UNWIND $source_uids AS uid
 MATCH (p:AtlantisProject {uid: uid})-[r:USES_WORKFLOW]->(:AtlantisWorkflow)
 WHERE r.evidence_source = 'projector/canonical' AND r.generation_id <> $generation_id
@@ -143,6 +152,12 @@ func atlantisEdgeStatements(mat projector.CanonicalMaterialization) []Statement 
 	var stmts []Statement
 	if !mat.FirstGeneration {
 		if sourceUIDs := atlantisProjectSourceUIDs(projects); len(sourceUIDs) > 0 {
+			// Retract stale edges BEFORE the MERGE, Drain-marked so the NornicDB
+			// phase-group executor runs each as a standalone autocommit statement
+			// rather than inside the mixed structural_edges ExecuteWrite
+			// transaction: an UNWIND relationship DELETE silently no-ops there
+			// (#4476), the same reason the Helm and GitLab structural retracts
+			// are Drain-marked.
 			for _, cypher := range []string{
 				retractAtlantisManagesEdgesCypher,
 				retractAtlantisDependsOnEdgesCypher,
@@ -155,6 +170,7 @@ func atlantisEdgeStatements(mat projector.CanonicalMaterialization) []Statement 
 						"source_uids":   sourceUIDs,
 						"generation_id": mat.GenerationID,
 					},
+					Drain: true,
 				})
 			}
 		}
