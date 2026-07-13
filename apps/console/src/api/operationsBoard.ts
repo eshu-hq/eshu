@@ -313,6 +313,31 @@ export function repoLabel(row: {
   return row.sourceDisplay ?? row.sourceKey ?? "—";
 }
 
+// repositorySourceHref resolves a "Now processing" row to the repository
+// freshness route (issue #5171): the same /repositories/:id/source
+// destination RepositoriesPage links to (RepositoryFreshnessSection lives on
+// RepoSourcePage). It is only resolvable for a git repository scope
+// (scope_kind "repository") -- that scope's source_key IS the repository
+// catalog id GET /api/v0/repositories returns for it. Both values derive from
+// the same repositoryidentity.CanonicalRepositoryID output
+// ("repository:r_<hash8>", go/internal/repositoryidentity/identity.go): the
+// git collector stores it as both ingestion_scopes.source_key and
+// payload->>'repo_id' (go/internal/collector/git_source_processing.go's
+// buildScope), and the repository catalog reads the id back from
+// payload->>'repo_id' first (go/internal/query/content_reader_repository_
+// catalog.go's repositoryCatalogIDExpr). Every other collector's scope_kind
+// has no such relationship to the repository catalog, and a scoped caller's
+// source_key is redacted to null -- both cases return null so the row stays
+// plain text rather than linking to a wrong or dead destination.
+export function repositorySourceHref(row: {
+  readonly scopeKind: string;
+  readonly sourceKey: string | null;
+}): string | null {
+  if (row.scopeKind !== "repository") return null;
+  if (row.sourceKey === null || row.sourceKey === "") return null;
+  return `/repositories/${encodeURIComponent(row.sourceKey)}/source`;
+}
+
 // humanizeAge renders a work item's age_seconds into a compact duration such
 // as "40s", "3m", or "2h 5m". Mirrors statusOverview.ts's relativeAge shape
 // but operates on a duration in seconds rather than an ISO timestamp.

@@ -1,4 +1,5 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { OperationsPage } from "./OperationsPage";
@@ -247,7 +248,9 @@ describe("OperationsPage live operations board", () => {
     });
     const client = opsClient([first, second]);
 
-    render(<OperationsPage model={demoModel} client={client} pollMs={50} />);
+    render(<OperationsPage model={demoModel} client={client} pollMs={50} />, {
+      wrapper: MemoryRouter,
+    });
 
     // Renders the human-readable source_display, not the raw source_key.
     expect(
@@ -267,11 +270,57 @@ describe("OperationsPage live operations board", () => {
         live_activity: [activityRow({ source_display: null })],
       }),
     ]);
-    render(<OperationsPage model={demoModel} client={client} pollMs={50000} />);
+    render(<OperationsPage model={demoModel} client={client} pollMs={50000} />, {
+      wrapper: MemoryRouter,
+    });
 
     expect(
       await screen.findByText("repository:r_ea78e8bb", {}, suspenseCrossingTimeout),
     ).toBeInTheDocument();
+  });
+
+  // issue #5171: the repo label links to the same /repositories/:id/source
+  // freshness route the Repositories page uses, for rows a git repository
+  // scope's source_key resolves to a repository catalog id.
+  it("links a resolvable repo row's label to its repository freshness view", async () => {
+    const client = opsClient([operationsWire({ live_activity: [activityRow()] })]);
+    render(<OperationsPage model={demoModel} client={client} pollMs={50000} />, {
+      wrapper: MemoryRouter,
+    });
+
+    const link = await screen.findByRole(
+      "link",
+      { name: "acme/checkout-service" },
+      suspenseCrossingTimeout,
+    );
+    expect(link).toHaveAttribute("href", "/repositories/repository%3Ar_ea78e8bb/source");
+  });
+
+  // A row from a non-git-repository scope (e.g. a package-registry collector)
+  // carries a source_key that is not a repository catalog id, so it must
+  // render as plain text rather than a dead/wrong link (#5171 acceptance
+  // criteria).
+  it("renders the repo label as plain text when the row's scope is not a repository", async () => {
+    const client = opsClient([
+      operationsWire({
+        live_activity: [
+          activityRow({
+            scope_kind: "package_registry",
+            collector_kind: "package_registry",
+            source_key: "pkg:some-package",
+            source_display: "some-package",
+          }),
+        ],
+      }),
+    ]);
+    render(<OperationsPage model={demoModel} client={client} pollMs={50000} />, {
+      wrapper: MemoryRouter,
+    });
+
+    expect(
+      await screen.findByText("some-package", {}, suspenseCrossingTimeout),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "some-package" })).not.toBeInTheDocument();
   });
 
   it("renders scoped rows safely with an em dash for redacted repo/worker identity", async () => {
@@ -281,10 +330,14 @@ describe("OperationsPage live operations board", () => {
         live_activity: [activityRow({ lease_owner: null, source_key: null, source_display: null })],
       }),
     ]);
-    render(<OperationsPage model={demoModel} client={client} pollMs={50000} />);
+    render(<OperationsPage model={demoModel} client={client} pollMs={50000} />, {
+      wrapper: MemoryRouter,
+    });
 
     await screen.findByText("running", {}, suspenseCrossingTimeout);
     expect(screen.getAllByText("—").length).toBeGreaterThan(0);
+    // Redacted source_key has no resolvable repository id: no dead link.
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
   });
 
   it("dims a stale-generation retrying row and badges it, leaving active rows undimmed (#5138)", async () => {
@@ -302,11 +355,20 @@ describe("OperationsPage live operations board", () => {
         ],
       }),
     ]);
-    render(<OperationsPage model={demoModel} client={client} pollMs={50000} />);
+    render(<OperationsPage model={demoModel} client={client} pollMs={50000} />, {
+      wrapper: MemoryRouter,
+    });
 
     const staleBadge = await screen.findByText("stale", {}, suspenseCrossingTimeout);
     const staleRow = staleBadge.closest("tr");
     expect(staleRow).toHaveClass("ops-activity-row-stale");
+    // The stale row's repo label stays a legible link (dimmed via the
+    // existing td.mono color rule, which the inherited-color anchor picks
+    // up automatically) rather than losing its link on dimming.
+    const staleLink = within(staleRow as HTMLElement).getByRole("link", {
+      name: "acme/payments-api",
+    });
+    expect(staleLink).toHaveAttribute("href", "/repositories/repository%3Ar_1a2b3c4d/source");
 
     const activeRow = screen.getByText("acme/checkout-service").closest("tr");
     expect(activeRow).not.toHaveClass("ops-activity-row-stale");
@@ -316,7 +378,9 @@ describe("OperationsPage live operations board", () => {
 
   it("shows the explicit empty state when there is no in-flight work", async () => {
     const client = opsClient([operationsWire()]);
-    render(<OperationsPage model={demoModel} client={client} pollMs={50000} />);
+    render(<OperationsPage model={demoModel} client={client} pollMs={50000} />, {
+      wrapper: MemoryRouter,
+    });
 
     expect(
       await screen.findByText("No in-flight work — pipeline idle", {}, suspenseCrossingTimeout),
@@ -329,7 +393,9 @@ describe("OperationsPage live operations board", () => {
         throw new Error("offline");
       },
     } as unknown as EshuApiClient;
-    render(<OperationsPage model={demoModel} client={client} pollMs={50000} />);
+    render(<OperationsPage model={demoModel} client={client} pollMs={50000} />, {
+      wrapper: MemoryRouter,
+    });
 
     expect(
       await screen.findByText(/Live operations board is unavailable/i, {}, suspenseCrossingTimeout),

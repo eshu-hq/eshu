@@ -10,12 +10,14 @@
 // budget (scripts/console-bundle-budget.mjs).
 
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 
 import type { EshuApiClient } from "../../api/client";
 import {
   humanizeAge,
   loadOperationsBoard,
   repoLabel,
+  repositorySourceHref,
   type OperationsBoard,
   type OperationsCollectorRow,
   type OperationsActivityRow,
@@ -282,10 +284,21 @@ function LiveActivityRowView({ row }: { readonly row: OperationsActivityRow }): 
   // generation is still consuming retry budget) but dimmed and badged so an
   // operator does not mistake it for genuinely live work.
   const isStale = row.generationState === "stale";
+  // #5171: link the repo label to the same repository freshness route
+  // RepositoriesPage links to, for rows a repository catalog id can be
+  // resolved for. Unresolvable rows (non-repository scopes, or a scoped
+  // caller's redacted source_key) stay plain text -- no dead link. The link
+  // itself carries no color/decoration styling of its own (matches
+  // DeadCodePage/ExplorerPage's `Link` inside a `mono` cell): it inherits the
+  // td's color via the global `a { color: inherit }` rule, so the stale-row
+  // dimming in operationsLiveBoard.css (`.ops-activity-row-stale td.mono`)
+  // keeps applying to it automatically -- the class stays on the `<td>`,
+  // never moves to the `<Link>`.
+  const repoHref = repositorySourceHref(row);
   return (
     <tr className={isStale ? "ops-activity-row-stale" : undefined}>
       <td className="mono" title={repoTitle}>
-        {repo}
+        {repoHref ? <Link to={repoHref}>{repo}</Link> : repo}
       </td>
       <td className="mono">{row.stage}</td>
       <td>
