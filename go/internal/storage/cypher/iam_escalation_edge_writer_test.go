@@ -135,20 +135,27 @@ func TestIAMEscalationEdgeWriterIdempotentInputDoesNotMutateCaller(t *testing.T)
 }
 
 // TestIAMEscalationEdgeRetractScopesByEvidenceSource proves the retract deletes
-// only this reducer's edges, scoped by scope_id + evidence_source, and never
-// touches endpoint nodes.
+// only this reducer's edges, scoped by scope_id + evidence_source, never
+// touches endpoint nodes, and never dispatches through ExecuteGroup (a
+// managed transaction under-applies a retract DELETE on NornicDB v1.1.11;
+// docs/public/reference/nornicdb-pitfalls.md). sqlSequentialRecordingExecutor
+// implements GroupExecutor and records group calls, so a revert to the
+// grouped dispatch() would fail this test.
 func TestIAMEscalationEdgeRetractScopesByEvidenceSource(t *testing.T) {
 	t.Parallel()
 
-	executor := &recordingGroupExecutor{}
+	executor := &sqlSequentialRecordingExecutor{}
 	writer := NewIAMEscalationEdgeWriter(executor, 500)
 	if err := writer.RetractIAMEscalationEdges(context.Background(), []string{"scope-1"}, "gen-1", iamEscalationEvidence); err != nil {
 		t.Fatalf("RetractIAMEscalationEdges returned error: %v", err)
 	}
-	if len(executor.groupCalls) != 1 || len(executor.groupCalls[0]) != 1 {
-		t.Fatalf("expected one retract statement, got %v", executor.groupCalls)
+	if len(executor.groupCalls) != 0 {
+		t.Fatalf("ExecuteGroup calls = %d, want 0 (grouped DELETEs under-apply on NornicDB v1.1.11)", len(executor.groupCalls))
 	}
-	stmt := executor.groupCalls[0][0]
+	if len(executor.calls) != 1 {
+		t.Fatalf("expected one sequential retract statement, got %v", executor.calls)
+	}
+	stmt := executor.calls[0]
 	if !strings.Contains(stmt.Cypher, "[rel:CAN_ESCALATE_TO]") {
 		t.Fatalf("retract must target the CAN_ESCALATE_TO type:\n%s", stmt.Cypher)
 	}

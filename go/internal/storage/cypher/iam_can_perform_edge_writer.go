@@ -173,7 +173,7 @@ func (w *IAMCanPerformEdgeWriter) RetractIAMCanPerformEdges(
 		},
 	}
 
-	return w.dispatch(ctx, []Statement{stmt})
+	return w.dispatchRetract(ctx, []Statement{stmt})
 }
 
 // dispatch runs the prepared statements as one atomic group when the executor
@@ -190,6 +190,23 @@ func (w *IAMCanPerformEdgeWriter) dispatch(ctx context.Context, stmts []Statemen
 		}
 		return nil
 	}
+	for _, stmt := range stmts {
+		if err := w.executor.Execute(ctx, stmt); err != nil {
+			return WrapRetryableNeo4jError(err)
+		}
+	}
+	return nil
+}
+
+// dispatchRetract runs retract statements sequentially through Execute,
+// never ExecuteGroup. On the pinned NornicDB v1.1.11 a DELETE dispatched
+// through a managed transaction (ExecuteGroup) under-applies even for a
+// single statement (docs/public/reference/nornicdb-pitfalls.md); cmd/reducer
+// wires GroupExecutor unconditionally for every graph backend including
+// NornicDB (reducerNeo4jExecutor.ExecuteGroup), so the write-path dispatch()
+// helper above is unsafe for retracts. Retract statements are idempotent and
+// independently scoped, so sequential auto-commit execution is safe.
+func (w *IAMCanPerformEdgeWriter) dispatchRetract(ctx context.Context, stmts []Statement) error {
 	for _, stmt := range stmts {
 		if err := w.executor.Execute(ctx, stmt); err != nil {
 			return WrapRetryableNeo4jError(err)

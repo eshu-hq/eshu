@@ -544,6 +544,27 @@ coverage:
   - {surface: retractable_edge:ALLOWS_INGRESS, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_security_group_reachability_retract_live_test.go, proof_gate: replay-tier}
   - {surface: retractable_edge:ALLOWS_EGRESS, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_security_group_reachability_retract_live_test.go, proof_gate: replay-tier}
   - {surface: retractable_edge:TO, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_security_group_reachability_retract_live_test.go, proof_gate: replay-tier}
+  # IAM privilege edges (C-14 #4367 retract-depth backfill, issue #5152 class):
+  # IAMCanAssumeEdgeWriter, IAMEscalationEdgeWriter, and IAMCanPerformEdgeWriter
+  # each dispatched their single retract DELETE through the shared dispatch()
+  # helper, which routes through ExecuteGroup whenever the executor implements
+  # GroupExecutor -- the shape cmd/reducer wires unconditionally for every
+  # graph backend including NornicDB. Fixed the same way as the five cloud
+  # writers above: a dispatchRetract helper (sequential Execute, never
+  # ExecuteGroup) per writer, live-proven by a full write+retract per edge type
+  # against a real NornicDB.
+  - {surface: retractable_edge:CAN_ASSUME, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_iam_edge_retract_live_test.go, proof_gate: replay-tier}
+  - {surface: retractable_edge:CAN_ESCALATE_TO, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_iam_edge_retract_live_test.go, proof_gate: replay-tier}
+  - {surface: retractable_edge:CAN_PERFORM, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_iam_edge_retract_live_test.go, proof_gate: replay-tier}
+  # Secrets/IAM workload edge (C-14 #4367 retract-depth backfill). Unlike the
+  # writers above, SecretsIAMGraphWriter.RetractScope already dispatched every
+  # retract statement through dispatchSequential (never ExecuteGroup) from its
+  # original commit, so no production fix was needed -- this closes the
+  # missing coverage proof only. The reducer PROJECTION stays gated OFF by
+  # default (ESHU_REDUCER_SECRETS_IAM_GRAPH_PROJECTION_ENABLED, ADR #1314); the
+  # proof drives cypher.NewSecretsIAMGraphWriter directly and never touches
+  # cmd/reducer's domain registry or that flag (go/cmd/reducer/secrets_iam_graph_wiring.go).
+  - {surface: retractable_edge:SECRETS_IAM_USES_SERVICE_ACCOUNT, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_secrets_iam_edge_retract_live_test.go, proof_gate: replay-tier}
   # Reducer-materialized SQL relationships (#5116): all six source-label query
   # shapes are proven through the live production EdgeWriter for both repository
   # and delta-file retract scopes. REFERENCES_TABLE is exercised from SqlView
