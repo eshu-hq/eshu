@@ -3,7 +3,11 @@
 
 package reducer
 
-import "strings"
+import (
+	"strings"
+
+	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
+)
 
 const (
 	cloudResourceServiceAnchorStatusStrong    = "strong"
@@ -24,16 +28,21 @@ type cloudResourceServiceAnchorDecision struct {
 // promotable by the service story read model; ambiguous anchors remain visible
 // as drift candidates without becoming canonical dependencies.
 //
-// attributes is the decoded aws_resource struct's untyped Attributes
-// pass-through: the service-anchor keys (workload_id/workload_ids,
-// service_name/service_names) and any nested "attributes" object are
-// service-specific fields that live there, not in a named struct field.
-// resourceType is the typed resource_type, passed explicitly so the anchor
-// admission gate need not read it back out of the pass-through.
-func cloudResourceServiceAnchorFields(attributes map[string]any, resourceType string) map[string]any {
-	decision := cloudResourceServiceAnchorDecisionForPayload(attributes, resourceType)
+// resource is the already-decoded aws_resource struct. The service-anchor
+// keys (workload_id/workload_ids, service_name/service_names) and, for a small
+// allow-listed set of resource types, the nested "attributes" object's own
+// service_name/service_names are typed through
+// awsv1.DecodeResourceAnchorAttributes / awsv1.DecodeResourceNestedAnchorAttributes
+// (issue #4631) rather than read as a raw map lookup. A present-but-malformed
+// value returns a non-nil error the caller must dead-letter, never a silently
+// empty anchor.
+func cloudResourceServiceAnchorFields(resource awsv1.Resource) (map[string]any, error) {
+	decision, err := cloudResourceServiceAnchorDecisionForPayload(resource)
+	if err != nil {
+		return nil, err
+	}
 	if decision.Status == "" {
-		return nil
+		return nil, nil
 	}
 	fields := map[string]any{
 		"service_anchor_status": decision.Status,
@@ -50,26 +59,31 @@ func cloudResourceServiceAnchorFields(attributes map[string]any, resourceType st
 		fields["service_anchor_names"] = append([]string(nil), decision.ServiceNames...)
 		fields["service_anchor_name_tokens"] = strings.Join(decision.ServiceNames, " ")
 	}
-	return fields
+	return fields, nil
 }
 
-func cloudResourceServiceAnchorDecisionForPayload(attributes map[string]any, resourceType string) cloudResourceServiceAnchorDecision {
-	workloadIDs := payloadStrings(attributes, "workload_id", "workload_ids")
-	serviceNames := payloadStrings(attributes, "service_name", "service_names")
+func cloudResourceServiceAnchorDecisionForPayload(resource awsv1.Resource) (cloudResourceServiceAnchorDecision, error) {
+	anchor, err := awsv1.DecodeResourceAnchorAttributes(resource)
+	if err != nil {
+		return cloudResourceServiceAnchorDecision{}, err
+	}
+	workloadIDs := anchor.WorkloadIDs
+	serviceNames := anchor.ServiceNames
 	source := explicitServiceAnchorSource(workloadIDs, serviceNames, "payload")
 
-	if len(workloadIDs) == 0 && len(serviceNames) == 0 {
-		nested := payloadMap(attributes, "attributes")
-		if shouldAdmitAWSAttributeServiceAnchor(resourceType) {
-			serviceNames = payloadStrings(nested, "service_name", "service_names")
-			source = explicitServiceAnchorSource(nil, serviceNames, "attributes")
+	if len(workloadIDs) == 0 && len(serviceNames) == 0 && shouldAdmitAWSAttributeServiceAnchor(resource.ResourceType) {
+		nested, err := awsv1.DecodeResourceNestedAnchorAttributes(resource)
+		if err != nil {
+			return cloudResourceServiceAnchorDecision{}, err
 		}
+		serviceNames = nested.ServiceNames
+		source = explicitServiceAnchorSource(nil, serviceNames, "attributes")
 	}
 
 	workloadIDs = uniqueSortedStrings(workloadIDs)
 	serviceNames = uniqueSortedStrings(serviceNames)
 	if len(workloadIDs) == 0 && len(serviceNames) == 0 {
-		return cloudResourceServiceAnchorDecision{}
+		return cloudResourceServiceAnchorDecision{}, nil
 	}
 	if len(workloadIDs) > 1 || len(serviceNames) > 1 {
 		return cloudResourceServiceAnchorDecision{
@@ -77,7 +91,7 @@ func cloudResourceServiceAnchorDecisionForPayload(attributes map[string]any, res
 			Source:       source,
 			Reason:       "multiple_service_anchors",
 			ServiceNames: serviceNames,
-		}
+		}, nil
 	}
 
 	decision := cloudResourceServiceAnchorDecision{
@@ -96,7 +110,7 @@ func cloudResourceServiceAnchorDecisionForPayload(attributes map[string]any, res
 			decision.Reason = "explicit_workload_and_service_anchor"
 		}
 	}
-	return decision
+	return decision, nil
 }
 
 func explicitServiceAnchorSource(workloadIDs []string, serviceNames []string, prefix string) string {

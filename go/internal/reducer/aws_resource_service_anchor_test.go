@@ -110,3 +110,38 @@ func TestExtractCloudResourceNodeRowsDoesNotPromoteGenericAWSServiceNameAttribut
 		t.Fatalf("service_name = %q, want empty for generic AWS metadata", got)
 	}
 }
+
+// TestExtractCloudResourceNodeRowsMalformedServiceNameQuarantines proves the
+// #4631 typed-attribute-decode fix: a nested attributes.service_name present
+// as a non-string on an allow-listed resource type must dead-letter as a
+// visible input_invalid quarantine, not silently produce a node with no
+// service anchor (which would look identical to a resource that genuinely
+// carries no anchor at all).
+func TestExtractCloudResourceNodeRowsMalformedServiceNameQuarantines(t *testing.T) {
+	t.Parallel()
+
+	rows, quarantined, err := ExtractCloudResourceNodeRows([]facts.Envelope{
+		awsResourceEnvelope(map[string]any{
+			"account_id":    "sample-account",
+			"region":        "us-east-1",
+			"resource_type": "aws_vpclattice_listener",
+			"resource_id":   "listener/bad/https",
+			"name":          "bad-listener",
+			"attributes": map[string]any{
+				"service_name": 12345,
+			},
+		}),
+	})
+	if err != nil {
+		t.Fatalf("ExtractCloudResourceNodeRows() error = %v, want nil", err)
+	}
+	if got, want := len(rows), 0; got != want {
+		t.Fatalf("len(rows) = %d, want %d for a quarantined resource", got, want)
+	}
+	if len(quarantined) != 1 {
+		t.Fatalf("len(quarantined) = %d, want 1 for a malformed service_name", len(quarantined))
+	}
+	if quarantined[0].classification != "input_invalid" {
+		t.Fatalf("quarantined[0].classification = %q, want input_invalid", quarantined[0].classification)
+	}
+}

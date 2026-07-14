@@ -38,11 +38,21 @@ remain independent from Eshu internals.
   only the shared identity and common fields; every remaining
   service-/verb-specific key stays in `Attributes map[string]any`, untyped,
   on purpose. The pass-through is nested: the collector nests service-specific
-  fields one level deep under a single `"attributes"` payload key, so a
-  reducer consumer reaches one at `Attributes["attributes"][key]`, via the
-  `payloadAttributes(...)` helper — never flat `Attributes[key]`. Do not add
-  a per-resource-type field here casually; typing `Attributes` contents is
-  tracked as separate follow-up work (design §7, issue #4631); see the
+  fields one level deep under a single `"attributes"` payload key, so an
+  UNTYPED field is reached at `Attributes["attributes"][key]`, via the
+  reducer's own `payloadAttributes(...)` helper — never flat
+  `Attributes[key]`.
+- `attribute_shapes.go` types the BOUNDED SUBSET of that pass-through a
+  consumer actually reads (issue #4631): a small resource_type/
+  relationship_type-keyed catalog plus two resource-type-agnostic anchor
+  shapes, each with a validating `Decode<Resource|Relationship><Shape>`
+  accessor. A reducer consumer that reads one of the already-typed shapes
+  MUST call its accessor, never a raw map lookup, and MUST route a non-nil
+  `*AttributeShapeError` through the same input_invalid dead-letter path a
+  missing required identity field already uses. Do not add a new
+  per-resource-type shape here casually — only when a real consumer needs the
+  field. Typing the remaining, not-yet-consumed `Attributes` contents ahead of
+  a consumer is tracked as separate follow-up work (design §7); see the
   package `README.md`.
 - If you add a named field to `Resource` or `Relationship`, add its JSON tag
   to `resourceKnownKeys` / `relationshipKnownKeys` in the same change (in

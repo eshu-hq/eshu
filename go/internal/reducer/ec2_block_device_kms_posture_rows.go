@@ -317,36 +317,6 @@ func ec2BlockDeviceKMSSourceUID(posture awsv1.EC2InstancePosture) (string, bool)
 	return cloudResourceUID(posture.AccountID, posture.Region, resourceType, resourceID), true
 }
 
-func payloadAttributes(payload map[string]any) map[string]any {
-	raw, ok := payload["attributes"]
-	if !ok || raw == nil {
-		return nil
-	}
-	switch typed := raw.(type) {
-	case map[string]any:
-		return typed
-	case map[string]string:
-		out := make(map[string]any, len(typed))
-		for key, value := range typed {
-			out[key] = value
-		}
-		return out
-	default:
-		return nil
-	}
-}
-
-func payloadAttributeBool(payload map[string]any, key string) *bool {
-	if payload == nil {
-		return nil
-	}
-	value, ok := payloadBoolPointerValue(payload, key)
-	if !ok {
-		return nil
-	}
-	return &value
-}
-
 func firstTrimmed(values ...string) string {
 	for _, value := range values {
 		trimmed := strings.TrimSpace(value)

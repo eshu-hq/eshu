@@ -28,12 +28,40 @@
 // nests them one level deep under a single "attributes" object
 // (payload["attributes"] = {"engine": ..., "role_arns": ...}), so a service
 // field lands at Attributes["attributes"][key], not directly on Attributes.
-// A consumer reaches it through the decoded struct with the reducer's
-// payloadAttributes(resource.Attributes) helper, which returns
-// Attributes["attributes"] as a map — never env.Payload["attributes"][key].
-// Typing those service-specific fields per resource_type is deferred as a
-// distinct, larger increment (design §7, remaining families); it does not
-// weaken the identity validation this package adds today.
+//
+// attribute_shapes.go types the BOUNDED SUBSET of that pass-through a
+// consumer actually reads today (issue #4631): a small set of
+// resource_type/relationship_type-keyed structs
+// (ResourceEC2VolumeAttributes, ResourceKMSKeyAttributes,
+// ResourceIAMInstanceProfileAttributes,
+// RelationshipCloudWatchAlarmObservesMetricAttributes,
+// RelationshipXRaySamplingRuleMatchesServiceAttributes) plus two
+// resource-type-agnostic anchor shapes (ResourceAnchorAttributes,
+// ResourceNestedAnchorAttributes) for the workload/service-anchor tags a
+// resource of any type may carry. Each has a validating Decode* accessor
+// (DecodeResourceEC2VolumeAttributes, DecodeResourceKMSKeyAttributes, …) that
+// a reducer consumer calls on the already-decoded Resource/Relationship
+// instead of reading Attributes["attributes"][key] (or, for the anchor
+// shapes, Attributes[key]) directly. A present-but-wrong-JSON-typed value
+// returns a classified *AttributeShapeError the caller MUST route through the
+// same input_invalid dead-letter path a missing required identity field
+// already uses — never substitute a silently coerced or zero value. This is
+// a deliberately bounded catalog, not a general per-resource-type schema: the
+// remaining ~470+ AWS resource types and their service-specific fields stay
+// untyped in Attributes exactly as before.
+//
+// Escape hatch: when a NEW consumer needs to read a service-specific field
+// this file does not yet type, add a typed accessor here following the same
+// pattern (a small struct plus a Decode<Resource|Relationship><Shape>
+// function that validates each field's JSON type) rather than reverting to a
+// raw payloadString/payloadStrings/payloadAttributes map lookup in the
+// reducer handler. If the field instead represents a wholly new kind of fact
+// (not a refinement of an existing aws_resource/aws_relationship envelope),
+// mint a dedicated fact kind instead of overloading the polymorphic
+// Attributes pass-through further. Typing the remaining, not-yet-consumed
+// service-specific fields per resource_type ahead of a real consumer is
+// deferred as a distinct, larger increment (design §7, remaining families);
+// it does not weaken the identity validation this package adds today.
 //
 // Non-polymorphic structs are each scoped to one fact kind with a known field
 // set and carry no Attributes pass-through.

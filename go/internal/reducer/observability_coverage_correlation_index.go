@@ -141,7 +141,9 @@ func buildObservabilityCoverageIndex(envelopes []facts.Envelope) (observabilityC
 				}
 				continue
 			}
-			index.ingestRelationship(relationship, env.FactID)
+			if attrErr := index.ingestRelationship(relationship, env.FactID); attrErr != nil {
+				quarantined = append(quarantined, quarantinedAttributeShapeFact(env, attrErr))
+			}
 		}
 	}
 	sort.Strings(index.objectOrder)
@@ -278,10 +280,17 @@ func coverageResolutionRank(mode string) int {
 	}
 }
 
-func (index *observabilityCoverageIndex) ingestRelationship(relationship awsv1.Relationship, factID string) {
+// ingestRelationship indexes one coverage relationship fact. It returns a
+// non-nil error only when the verb-specific typed attribute decode
+// (DecodeRelationshipCloudWatchAlarmObservesMetricAttributes or
+// DecodeRelationshipXRaySamplingRuleMatchesServiceAttributes) rejects a
+// present-but-malformed field; the caller quarantines the fact rather than
+// silently indexing it with a missing dimension/service-name signal, which
+// would understate coverage rather than surface the bad fact.
+func (index *observabilityCoverageIndex) ingestRelationship(relationship awsv1.Relationship, factID string) error {
 	source := firstNonBlank(derefString(relationship.SourceARN), relationship.SourceResourceID)
 	if source == "" {
-		return
+		return nil
 	}
 	rel := coverageRelationship{
 		factID:           factID,
@@ -293,16 +302,25 @@ func (index *observabilityCoverageIndex) ingestRelationship(relationship awsv1.R
 		// The verb-specific dimension summary lives in the decoded relationship's
 		// Attributes pass-through (the nested "attributes" object), not a named
 		// identity field.
-		rel.targetKeys = alarmDimensionTargetKeys(relationship.Attributes)
+		keys, err := alarmDimensionTargetKeys(relationship)
+		if err != nil {
+			return err
+		}
+		rel.targetKeys = keys
 	case relXRayMatchesService:
-		rel.serviceRef = relationshipServiceRef(relationship.Attributes)
+		serviceRef, err := relationshipServiceRef(relationship)
+		if err != nil {
+			return err
+		}
+		rel.serviceRef = serviceRef
 	default:
 		// Only resource-bearing coverage relationships are indexed in PR1. The
 		// alarm→SNS paging fan-out targets an SNS topic, not a monitored resource,
 		// so it carries no coverage edge and is skipped.
-		return
+		return nil
 	}
 	index.relsBySource[source] = append(index.relsBySource[source], rel)
+	return nil
 }
 
 // alarmDimensionTargetKeys extracts the resource identity from a
@@ -312,36 +330,28 @@ func (index *observabilityCoverageIndex) ingestRelationship(relationship awsv1.R
 // customer-tag dimension values were redacted at the scanner and contribute
 // nothing. An alarm whose dimensions resolve to nothing is a metric-name-only
 // signal and is rejected by the classifier.
-func alarmDimensionTargetKeys(payload map[string]any) []string {
-	attributes, ok := payload["attributes"].(map[string]any)
-	if !ok {
-		return nil
-	}
-	raw, ok := attributes["dimensions"].([]any)
-	if !ok {
-		return nil
+func alarmDimensionTargetKeys(relationship awsv1.Relationship) ([]string, error) {
+	decoded, err := awsv1.DecodeRelationshipCloudWatchAlarmObservesMetricAttributes(relationship)
+	if err != nil {
+		return nil, err
 	}
 	var keys []string
-	for _, entry := range raw {
-		dim, ok := entry.(map[string]any)
-		if !ok {
-			continue
-		}
-		value := strings.TrimSpace(payloadString(dim, "value"))
+	for _, dim := range decoded.Dimensions {
+		value := strings.TrimSpace(dim.Value)
 		if value == "" {
 			continue
 		}
 		keys = append(keys, value)
 	}
-	return keys
+	return keys, nil
 }
 
-func relationshipServiceRef(payload map[string]any) string {
-	attributes, ok := payload["attributes"].(map[string]any)
-	if !ok {
-		return ""
+func relationshipServiceRef(relationship awsv1.Relationship) (string, error) {
+	decoded, err := awsv1.DecodeRelationshipXRaySamplingRuleMatchesServiceAttributes(relationship)
+	if err != nil {
+		return "", err
 	}
-	return payloadString(attributes, "service_name")
+	return decoded.ServiceName, nil
 }
 
 // resolve returns the active and tombstoned-only resource matches for a key set.

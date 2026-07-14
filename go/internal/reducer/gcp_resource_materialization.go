@@ -278,9 +278,10 @@ func ExtractGCPCloudResourceNodeRows(envelopes []facts.Envelope) ([]map[string]a
 // common fields are read from the decoded factschema struct, never the raw
 // envelope payload. This node row does not yet read the decoded struct's
 // untyped Attributes pass-through (the nested "attributes" bounded typed-depth
-// map); a future per-asset-type consumer would read it via the reducer's
-// payloadAttributes(resource.Attributes) helper, mirroring the AWS resource
-// row's service-anchor fields, once such a consumer exists.
+// map); a future per-asset-type consumer would read it via a typed
+// gcpv1.DecodeResource<AssetType>Attributes accessor, mirroring the bounded
+// AWS resource-attribute typing in sdk/go/factschema/aws/v1 (issue #4631),
+// once such a consumer exists.
 //
 // GCP resource identity is the globally-unique Cloud Asset Inventory
 // full_resource_name; the uid folds it together with asset type, project, and

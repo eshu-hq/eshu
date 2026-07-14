@@ -65,12 +65,20 @@ func buildEC2BlockDeviceKMSIndex(
 		}
 		switch resource.ResourceType {
 		case ec2BlockDeviceKMSResourceTypeVolume:
-			volume, ok := ec2BlockDeviceKMSVolumeFromResource(resource)
+			volume, ok, attrErr := ec2BlockDeviceKMSVolumeFromResource(resource)
+			if attrErr != nil {
+				quarantined = append(quarantined, quarantinedAttributeShapeFact(env, attrErr))
+				continue
+			}
 			if ok {
 				index.indexVolume(volume)
 			}
 		case ec2BlockDeviceKMSResourceTypeKey:
-			key, identities, ok := ec2BlockDeviceKMSKeyFromResource(resource)
+			key, identities, ok, attrErr := ec2BlockDeviceKMSKeyFromResource(resource)
+			if attrErr != nil {
+				quarantined = append(quarantined, quarantinedAttributeShapeFact(env, attrErr))
+				continue
+			}
 			if ok {
 				for _, identity := range identities {
 					index.keysByIdentity[identity] = key
@@ -167,38 +175,49 @@ func (i *ec2BlockDeviceKMSIndex) indexKMSRelationship(sourceID, targetID string)
 	i.ambiguousKMSByVolume[sourceID] = struct{}{}
 }
 
-func ec2BlockDeviceKMSVolumeFromResource(resource awsv1.Resource) (ec2BlockDeviceKMSVolume, bool) {
+func ec2BlockDeviceKMSVolumeFromResource(resource awsv1.Resource) (ec2BlockDeviceKMSVolume, bool, error) {
 	arn := derefString(resource.ARN)
 	resourceID := firstTrimmed(resource.ResourceID, arn)
 	if resourceID == "" {
-		return ec2BlockDeviceKMSVolume{}, false
+		return ec2BlockDeviceKMSVolume{}, false, nil
 	}
 	// The per-volume encryption/attachment detail is a service-specific nested
 	// "attributes" object carried in the decoded struct's Attributes
-	// pass-through, not a named identity field.
-	attrs := payloadAttributes(resource.Attributes)
+	// pass-through, not a named identity field. DecodeResourceEC2VolumeAttributes
+	// validates the JSON type of each field it reads (encrypted must be a bool,
+	// every attachment must be an object with string instance_id/state); a
+	// present-but-malformed value is a decode error the caller must dead-letter
+	// rather than silently treat as "not encrypted"/"no attachments" — a wrong
+	// encryption posture reading would be a real security-posture inaccuracy.
+	attrs, err := awsv1.DecodeResourceEC2VolumeAttributes(resource)
+	if err != nil {
+		return ec2BlockDeviceKMSVolume{}, false, err
+	}
 	return ec2BlockDeviceKMSVolume{
 		id:          resourceID,
 		arn:         arn,
-		encrypted:   payloadAttributeBool(attrs, "encrypted"),
-		attachments: ec2BlockDeviceKMSAttachments(attrs),
-	}, true
+		encrypted:   attrs.Encrypted,
+		attachments: ec2BlockDeviceKMSAttachmentsFromTyped(attrs.Attachments),
+	}, true, nil
 }
 
-func ec2BlockDeviceKMSKeyFromResource(resource awsv1.Resource) (ec2BlockDeviceKMSKey, []string, bool) {
+func ec2BlockDeviceKMSKeyFromResource(resource awsv1.Resource) (ec2BlockDeviceKMSKey, []string, bool, error) {
 	arn := derefString(resource.ARN)
 	resourceID := firstTrimmed(resource.ResourceID, arn)
 	if resourceID == "" {
-		return ec2BlockDeviceKMSKey{}, nil, false
+		return ec2BlockDeviceKMSKey{}, nil, false, nil
 	}
-	attrs := payloadAttributes(resource.Attributes)
+	attrs, err := awsv1.DecodeResourceKMSKeyAttributes(resource)
+	if err != nil {
+		return ec2BlockDeviceKMSKey{}, nil, false, err
+	}
 	key := ec2BlockDeviceKMSKey{
 		id:         firstTrimmed(arn, resourceID),
-		keyManager: strings.ToUpper(payloadString(attrs, "key_manager")),
+		keyManager: strings.ToUpper(attrs.KeyManager),
 	}
 	identities := []string{resourceID, arn}
 	identities = append(identities, resource.CorrelationAnchors...)
-	return key, uniqueSortedStrings(identities), true
+	return key, uniqueSortedStrings(identities), true, nil
 }
 
 func ec2BlockDeviceKMSVolumeKeyID(volume ec2BlockDeviceKMSVolume, index ec2BlockDeviceKMSIndex) (string, string) {
@@ -222,29 +241,19 @@ func ec2BlockDeviceKMSVolumeKeyID(volume ec2BlockDeviceKMSVolume, index ec2Block
 	}
 }
 
-func ec2BlockDeviceKMSAttachments(attrs map[string]any) []ec2BlockDeviceKMSAttachment {
-	raw, ok := attrs["attachments"]
-	if !ok || raw == nil {
+// ec2BlockDeviceKMSAttachmentsFromTyped adapts the typed
+// awsv1.EC2VolumeAttachment slice DecodeResourceEC2VolumeAttributes returns
+// to this file's local ec2BlockDeviceKMSAttachment shape.
+func ec2BlockDeviceKMSAttachmentsFromTyped(attachments []awsv1.EC2VolumeAttachment) []ec2BlockDeviceKMSAttachment {
+	if attachments == nil {
 		return nil
 	}
-	output := make([]ec2BlockDeviceKMSAttachment, 0)
-	appendAttachment := func(entry map[string]any) {
+	output := make([]ec2BlockDeviceKMSAttachment, 0, len(attachments))
+	for _, entry := range attachments {
 		output = append(output, ec2BlockDeviceKMSAttachment{
-			instanceID: payloadString(entry, "instance_id"),
-			state:      payloadString(entry, "state"),
+			instanceID: entry.InstanceID,
+			state:      entry.State,
 		})
-	}
-	switch typed := raw.(type) {
-	case []map[string]any:
-		for _, entry := range typed {
-			appendAttachment(entry)
-		}
-	case []any:
-		for _, entry := range typed {
-			if entryMap, ok := entry.(map[string]any); ok {
-				appendAttachment(entryMap)
-			}
-		}
 	}
 	return output
 }

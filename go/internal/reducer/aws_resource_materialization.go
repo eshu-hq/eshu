@@ -307,7 +307,11 @@ func cloudResourceNodeRow(env facts.Envelope) (map[string]any, string, bool, err
 		"collector_kind":      env.CollectorKind,
 		sourceOrderKeyField:   sourceOrderKey(env),
 	}
-	for key, value := range cloudResourceServiceAnchorFields(resource.Attributes, resource.ResourceType) {
+	anchorFields, err := cloudResourceServiceAnchorFields(resource)
+	if err != nil {
+		return nil, "", false, attributeShapeAsFactDecodeError(env.FactKind, err)
+	}
+	for key, value := range anchorFields {
 		row[key] = value
 	}
 	return row, uid, true, nil
