@@ -275,8 +275,8 @@ permission_families:
     scope_levels: [tenant, workspace]
     default_roles: [tenant_admin, operator, auditor, owner]
   - family: operator_dead_letters
-    description: Bounded dead-letter operator triage reads over fact work items, scoped to granted repositories or source scopes.
-    capability_prefixes: [operator.dead_letters.]
+    description: Bounded dead-letter and input-invalid-quarantine operator triage reads over fact work items and reducer_input_invalid_facts, scoped to granted repositories or source scopes.
+    capability_prefixes: [operator.dead_letters., operator.reducer_input_invalid_facts.]
     action: service.runtime.read
     data_classes: [status_metadata]
     scope_levels: [tenant, workspace, repository, source_scope]

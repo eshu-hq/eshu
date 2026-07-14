@@ -4028,6 +4028,23 @@
           "timeout_ms": 5000
         }
       },
+      "list_reducer_input_invalid_facts": {
+        "description": "MCP tool coverage shape for list_reducer_input_invalid_facts; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "count",
+          "items",
+          "limit",
+          "schema_version",
+          "truncated"
+        ],
+        "minimum_results": 0,
+        "arguments": {
+          "scope_id": "supply-chain-demo",
+          "generation_id": "golden-corpus",
+          "limit": 10,
+          "timeout_ms": 5000
+        }
+      },
       "get_freshness_causality": {
         "description": "MCP tool coverage shape for get_freshness_causality; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
         "required_response_fields": [

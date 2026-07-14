@@ -233,4 +233,16 @@
 // No-Observability-Change: resolver dispatch still emits existing durable
 // code-call intent rows and the existing code-call materialization completion
 // logs; no metric, span, status field, route, or log contract changes.
+//
+// recordQuarantinedFacts (factschema_decode.go) also best-effort persists each
+// quarantined input_invalid fact to the durable reducer_input_invalid_facts
+// read surface (issue #4630) through an optional QuarantinedFactWriter
+// (quarantine_writer.go). Service stashes the writer on the execution context
+// once per claimed intent via WithQuarantineWriter, so every domain handler's
+// existing recordQuarantinedFacts call reaches it without a per-handler field.
+// The write is batched (one round trip per intent), idempotent under
+// reduction replay (a natural-key ON CONFLICT DO NOTHING upsert), and strictly
+// best-effort: a durable-write failure is logged and counted but never fails
+// the owning intent, since the fact is already correctly quarantined via the
+// existing counter and structured log regardless of this write's outcome.
 package reducer

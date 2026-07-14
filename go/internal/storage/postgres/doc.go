@@ -307,4 +307,12 @@
 // reference returns an empty SinceGenerationID, and a scope with no current
 // active generation returns Unavailable so callers never read zero deltas as
 // confident truth.
+// ReducerInputInvalidFactStore persists durable reducer_input_invalid_facts
+// rows (issue #4630) and implements reducer.QuarantinedFactWriter directly,
+// mirroring GraphProjectionPhaseStateStore's direct implementation of
+// reducer.GraphProjectionPhasePublisher. WriteQuarantinedFacts batches records
+// into bounded multi-row INSERT statements with an ON CONFLICT (scope_id,
+// generation_id, fact_id, missing_field) DO NOTHING clause, so replaying the
+// same reduction (a retried intent or a re-projected generation) converges on
+// one row per fact/field rather than duplicating it or erroring.
 package postgres

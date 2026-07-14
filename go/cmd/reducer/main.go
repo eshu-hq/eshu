@@ -450,34 +450,11 @@ func buildReducerService(
 			Instruments:         instruments,
 			Logger:              logger,
 		},
-		RepoDependencyProjectionRunner: &reducer.RepoDependencyProjectionRunner{
-			IntentReader:                    intentStore,
-			LeaseManager:                    intentStore,
-			AcceptanceUnitGate:              postgres.NewRepoDependencyAcceptanceUnitGate(reducerBeginner(database)),
-			EdgeWriter:                      edgeWriter,
-			WorkloadMaterializationReplayer: workQueue,
-			// Gate repo-dependency graph-projection authority on the relationship
-			// generation being active (published). Acceptance rows are committed
-			// atomically with the projection intents, but the runner derives
-			// authority from those acceptance rows alone; without this gate the
-			// graph could project edges for a generation that activation has not
-			// yet published, running ahead of the Postgres relationship read
-			// models (which filter on relationship_generations.status = 'active').
-			AcceptedGen: reducer.GateAcceptedGenerationOnActive(
-				postgres.NewAcceptedGenerationLookup(database),
-				relationshipGenerationActive,
-				instruments,
-			),
-			AcceptedGenPrefetch: reducer.GateAcceptedGenerationPrefetchOnActive(
-				acceptedGenerationPrefetch,
-				relationshipGenerationActive,
-				instruments,
-			),
-			Config:      repoDependencyCfg,
-			Tracer:      tracer,
-			Instruments: instruments,
-			Logger:      logger,
-		},
+		RepoDependencyProjectionRunner: newRepoDependencyProjectionRunner(
+			intentStore, database, edgeWriter, workQueue,
+			relationshipGenerationActive, acceptedGenerationPrefetch,
+			repoDependencyCfg, tracer, instruments, logger,
+		),
 		CodeReachabilityProjectionRunner: codeReachabilityProjectionRunnerFor(database, sharedCfg, workers, logger),
 		GraphProjectionPhaseRepairer: graphProjectionPhaseRepairerFor(
 			graphProjectionRepairQueue, database, graphProjectionStateStore, repairCfg, clk, instruments, logger,
@@ -488,6 +465,7 @@ func buildReducerService(
 		GraphOrphanSweepRunner:          graphOrphanSweepRunner,
 		CodeValueFlowStaleCleanupRunner: codeValueFlowStaleCleanupRunner,
 		SearchVectorBuildRunner:         searchVectorBuildRunner,
+		QuarantineWriter:                postgres.NewReducerInputInvalidFactStore(database),
 		Workers:                         workers,
 		BatchClaimSize:                  loadReducerBatchClaimSize(getenv, workers, graphBackend),
 		Tracer:                          tracer,

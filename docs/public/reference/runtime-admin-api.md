@@ -67,6 +67,40 @@ Runbook: find dead letters with `POST /api/v0/admin/dead-letters/query` or
 `list_dead_letter_work_items`, group by `failure_class`, fix the root cause, then
 use targeted `/api/v0/admin/replay` only for rows whose class is safe to replay.
 
+## Public Admin Input-Invalid-Fact Quarantine Read
+
+Issue #4630 adds a durable per-fact quarantine read surface. When the reducer
+decodes a typed fact payload and finds a required field missing or null, it
+skips that one fact (the rest of the batch still projects), records a visible
+`eshu_dp_reducer_input_invalid_facts_total` counter increment plus a structured
+error log, and best-effort persists a durable row to
+`reducer_input_invalid_facts` so an operator can query it after the fact
+instead of only seeing an aggregate rate or a single log line:
+
+- `POST /api/v0/admin/input-invalid-facts/query`
+- MCP mirror: `list_reducer_input_invalid_facts`
+
+The request requires `scope_id`, `generation_id`, `limit` (`1` to `500`), and
+`timeout_ms` (`1` to `30000`). Optional filters are `domain` and `fact_kind`.
+Results are ordered deterministically by
+`decided_at DESC, fact_id ASC, missing_field ASC` and return `truncated=true`
+when more rows matched than the requested limit.
+
+Scoped component-extension tokens are restricted to their granted repository or
+scope IDs before rows are read. The response includes `fact_id`, `fact_kind`,
+`missing_field`, `failure_class`, `domain`, `scope_id`, `generation_id`, and
+`decided_at` for the caller's visible rows — never the raw fact payload.
+
+The durable write is best-effort and idempotent: a write failure is logged and
+counted (`eshu_dp_reducer_input_invalid_fact_write_errors_total`) but never
+fails the owning reducer intent, and replaying the same quarantine (a retried
+intent, or a re-projected generation) converges on one row per
+`(scope_id, generation_id, fact_id, missing_field)` rather than duplicating it.
+"Recompute on demand" for this surface means reading these persisted rows,
+populated during the reduction that quarantined them — re-driving requires
+re-running the collector/reducer after the collector defect is fixed, not a
+live re-decode in the query path.
+
 ## Probe Responses
 
 `/healthz` and `/readyz` return text:

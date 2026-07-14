@@ -81,4 +81,5 @@ var orderedBootstrapDefinitionNames = []string{
 	"content_substring_index_state",
 	"relationship_reference_candidate_keys",
 	"relationship_family_candidate_index",
+	"reducer_input_invalid_facts",
 }

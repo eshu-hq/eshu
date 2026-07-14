@@ -2,12 +2,12 @@
   "schema_version": "replay-coverage-report.v4",
   "blocking": true,
   "totals": {
-    "total": 400,
-    "covered": 374,
+    "total": 401,
+    "covered": 375,
     "uncovered": 17,
     "unresolved": 0,
     "exempt": 9,
-    "percent_satisfied": 95.75
+    "percent_satisfied": 95.76
   },
   "registry_summaries": [
     {
@@ -21,8 +21,8 @@
     },
     {
       "registry": "capability_matrix",
-      "total": 131,
-      "covered": 131,
+      "total": 132,
+      "covered": 132,
       "uncovered": 0,
       "unresolved": 0,
       "exempt": 0,
@@ -113,8 +113,8 @@
   "scenario_type_summaries": [
     {
       "scenario_type": "baseline",
-      "total": 212,
-      "covered": 207,
+      "total": 213,
+      "covered": 208,
       "uncovered": 0,
       "unresolved": 0,
       "exempt": 5,
@@ -1026,6 +1026,16 @@
       "ref": "operator.dead_letters.list",
       "proof_gate": "capability-inventory",
       "detail": "capability \"operator.dead_letters.list\" matrix profile proofs present (supported=4 refusal=0)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:operator.reducer_input_invalid_facts.list",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "operator.reducer_input_invalid_facts.list",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"operator.reducer_input_invalid_facts.list\" matrix profile proofs present (supported=4 refusal=0)"
     },
     {
       "registry": "capability_matrix",

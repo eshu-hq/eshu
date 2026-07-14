@@ -682,9 +682,10 @@
       },
       {
         "family": "operator_dead_letters",
-        "description": "Bounded dead-letter operator triage reads over fact work items, scoped to granted repositories or source scopes.",
+        "description": "Bounded dead-letter and input-invalid-quarantine operator triage reads over fact work items and reducer_input_invalid_facts, scoped to granted repositories or source scopes.",
         "capability_prefixes": [
-          "operator.dead_letters."
+          "operator.dead_letters.",
+          "operator.reducer_input_invalid_facts."
         ],
         "action": "service.runtime.read",
         "data_classes": [
@@ -5331,6 +5332,85 @@
         {
           "kind": "remote_validation",
           "ref": "prod-dead-letter-list"
+        }
+      ],
+      "console": false,
+      "authorization": {
+        "family": "operator_dead_letters",
+        "action": "service.runtime.read",
+        "data_classes": [
+          "status_metadata"
+        ],
+        "scope_levels": [
+          "tenant",
+          "workspace",
+          "repository",
+          "source_scope"
+        ],
+        "default_roles": [
+          "operator",
+          "owner"
+        ],
+        "sensitive_data": false
+      }
+    },
+    {
+      "capability": "operator.reducer_input_invalid_facts.list",
+      "display_name": "Operator Reducer Input Invalid Facts List",
+      "maturity": "general_availability",
+      "derived_maturity": "general_availability",
+      "surfaces": [
+        {
+          "tool": "list_reducer_input_invalid_facts",
+          "kind": "mcp"
+        }
+      ],
+      "profiles": {
+        "local_authoritative": {
+          "status": "supported",
+          "max_truth_level": "exact",
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "scope_generation_domain_fact_kind"
+        },
+        "local_full_stack": {
+          "status": "supported",
+          "max_truth_level": "exact",
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "scope_generation_domain_fact_kind"
+        },
+        "local_lightweight": {
+          "status": "supported",
+          "max_truth_level": "exact",
+          "required_runtime": "local_host_postgres",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "scope_generation_domain_fact_kind"
+        },
+        "production": {
+          "status": "supported",
+          "max_truth_level": "exact",
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 1500,
+          "max_scope_size": "scope_generation_domain_fact_kind"
+        }
+      },
+      "proof_signals": [
+        {
+          "kind": "go_test",
+          "ref": "./internal/mcp"
+        },
+        {
+          "kind": "go_test",
+          "ref": "./internal/query"
+        },
+        {
+          "kind": "integration_test",
+          "ref": "reducer-input-invalid-facts-live-idempotent-replay"
+        },
+        {
+          "kind": "remote_validation",
+          "ref": "prod-reducer-input-invalid-facts-list"
         }
       ],
       "console": false,
