@@ -52,6 +52,10 @@ authoring; it does not build a second coverage framework.
   field the collector emitted.
 - `Catalog`, `CatalogByName`, `CatalogOdu` - the cataloged Odù seed set (see
   `catalog_seed.go` and `roundtrip.go`'s `demoOrgRoundtripOdu`).
+- `RepoDependencyBackfillProofOdu` - a lazy, uncataloged retained-shape Odù for
+  relationship-backfill SQL and eight-worker storage proofs; it preserves the
+  repository-dependency truth cases while adding the measured worst-scope
+  source/candidate cardinalities.
 - `EnumerateSurfaces`, `OduResolver`, `CoverageInputs`, `RunCoverage` - Ifá's
   own coverage reconciliation, mirroring `go/internal/replaycoverage`'s gate
   shape.

@@ -48,4 +48,7 @@
 // #3560 saturation regression — live in the sibling subpackages
 // go/internal/ifa/throughput and go/internal/ifa/saturation, keeping this core
 // package pure and deterministic (no wall-clock, concurrency, or storage seams).
+// RepoDependencyBackfillProofOdu is likewise a lazy, uncataloged storage-proof
+// scenario: it preserves the repository-dependency truth fixture while
+// reproducing retained worst-scope relationship-backfill cardinality and skew.
 package ifa

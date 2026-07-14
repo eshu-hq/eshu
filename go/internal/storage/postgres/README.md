@@ -724,15 +724,16 @@ The deferred pass therefore uses a dedicated query,
   with the repo_id (`Aliases[0]`) stripped (`backfillNonRepoIDAnchorTerms`),
   unioned with `argoCDOverSelectAnchors`. A fact matching `$1` carries a
   cross-repo reference not keyed on its own repo_id.
-- `$2` — raw lowercase full repo_id values (`relationships.CatalogRepoIDValues`),
-  tested with `EXISTS (unnest($2))`, exact self-value exclusion
-  (`catalog_repo_id.value <> own repo_id`), and a literal substring
-  `lower(payload::text) LIKE '%' || value || '%' ESCAPE '\'` whose value has its
-  LIKE metacharacters (`\ % _`) escaped inline so a repo_id containing one cannot
-  become an accidental wildcard. The value stays raw in `$2` so the exact
-  self-exclusion comparison is a whole-string match. A fact matches only when it
-  references ANOTHER repo's repo_id verbatim; a pure self-match has no other
-  repo_id value and is excluded.
+- `$2` — raw lowercase full repo_id values (`relationships.CatalogRepoIDValues`)
+  paired with compact reference keys. The primary path joins those keys to
+  `relationship_reference_candidate_keys`, excludes the fact's exact source
+  repo_id, and tests delimiter-bounded token membership instead of scanning the
+  payload once per catalog value. Facts created before reference-key materialization
+  use a compatibility fallback only when no key row exists: exact self-value
+  exclusion plus the escaped literal substring test against `lower(payload::text)`.
+  The value stays raw in `$2` so self-exclusion remains a whole-string comparison.
+  A fact matches only when it references ANOTHER repo's repo_id; a pure self-match
+  has no other repo_id value and is excluded on both paths.
 
 A value-exclusion list (`payload->>'repo_id' != ALL(catalog_repo_ids)`) would NOT
 work: every active repo's own repo_id is in the catalog, so that predicate would
@@ -740,11 +741,11 @@ exclude EVERY active repo's fact from the repo_id arm, dropping legitimate
 cross-repo references and breaking truth-equivalence. A blind
 `replace(payload, own_repo_id, '')` also breaks overlap cases such as
 `github.com/org/app` referencing `github.com/org/app-config`, because the
-target value is corrupted before matching. The self-aware `EXISTS` test compares
-whole repo_id values, so overlapping targets still match. Full values (not the
-longest token) are used because cross-repo references name a repo by its full
-URL/path, and a shared prefix token like `github.com` would over-select the
-fleet.
+target value is corrupted before matching. The primary reference-key join and
+the no-key compatibility fallback both compare whole repo_id values for
+self-exclusion, so overlapping targets still match. Full values (not the longest
+token) are used because cross-repo references name a repo by its full URL/path,
+and a shared prefix token like `github.com` would over-select the fleet.
 
 Truth-equivalence holds because the in-memory `catalogMatcher.match` already skips
 self-matches (`entry.RepoID == sourceRepoID`), so the excluded pure-self facts
@@ -782,6 +783,42 @@ shape; the existing `relationship.backfill_deferred` span, the
 `deferred_backfill_completed` log line still surface the path, now recording a
 bounded fact load. A shrinking `DeferredBackfillDuration` against a growing fleet
 is the operator-visible signal that the scope bound is in effect.
+
+#### Relationship-family partial index and reference narrowing (#5122)
+
+The deferred query now applies its existing exact relationship-family predicate
+to `fact_records` before materializing `source_facts`. Migration 059 supplies a
+matching concurrent partial index on `(scope_id, generation_id, observed_at,
+fact_id)`. The repo-id reference arm also materializes reference keys only for
+those candidate fact IDs before comparing catalog keys; the previous plan
+compared every catalog key with every reference row in the scope.
+
+The retained-shape Odù contains 60,988 source facts across eight skewed
+partitions but only 84 exact family candidates. On local PostgreSQL 18, the
+shipped worst-scope query took 1,411.501 ms, the index-only rewrite with the old
+reference join took 721.259 ms, and the complete narrowed query took 3.053 ms.
+The eight-task critical path fell from 1.501561 s to 6.241708 ms. Both directions
+of the fact-id differential were empty, loaded counts matched, UNION de-duplication
+was preserved, and the self-reference and prefix-collision cases stayed excluded.
+
+Against the retained 896-repository data, the shipped 14,190-row worst-scope
+query exceeded a bounded 120-second statement timeout. A temporary-table proof
+over the same retained rows used the production migration predicate and selected
+the partition's 12 exact relationship-family candidates in 155.587 ms; its
+partial-index scan took 0.272 ms. The production write path was measured
+separately with ordinary
+WAL-backed tables, the retained 4.432% source / 0.986% family mix, and eight
+simultaneous accepted-fact UPSERT writers. Repeated five-round, 100,000-row
+alternating runs observed all eight writers and no failures or duplicates. The
+post-rebase run projected zero median full-corpus index tax and a conservative
+45.008-second worst-round tax. Against the retained 282.440-second read-saving
+model, the conservative net is 237.432 seconds, clearing the 220.691-second
+current target gap by 16.741 seconds without reducing concurrency.
+
+No-Observability-Change: the query and index add no worker, queue, lease, metric,
+span, or log shape. Operators continue to use the existing
+`relationship.backfill_deferred` span, deferred-backfill duration/batch metrics,
+and committed-batch logs; `workers` remains the concurrency diagnostic.
 
 ### Backfill source-file split (#3673)
 

@@ -28,15 +28,11 @@ import (
 //	   loaded only because they contain noisy short aliases such as "s3" or
 //	   "robots".
 //
-//	$2 pq.StringArray — raw lowercase repo_id values. The repo_id fallback arm
-//	   uses EXISTS to load a fact only when its payload contains a catalog
-//	   repo_id value that is not the row's own repo_id. The value stays raw so
-//	   the exact self-exclusion comparison (catalog_repo_id.value <> own repo_id)
-//	   is a whole string match; the substring LIKE escapes the value's LIKE
-//	   metacharacters (\ % _) inline with the same ESCAPE '\' convention as $1
-//	   so a repo_id containing one of those characters (or a trailing
-//	   backslash) cannot become an accidental wildcard or a malformed escape
-//	   sequence.
+//	$2 pq.StringArray — raw lowercase repo_id values. The primary repo_id arm
+//	   loads a fact only when its precomputed reference keys contain a catalog
+//	   repo_id value that is not the row's own repo_id. Facts without precomputed
+//	   reference keys retain the payload fallback. The values stay raw so both
+//	   self-exclusion comparisons remain whole string matches.
 //
 //	$3 string — the scope_id partition this run is bounded to (issue #3710).
 //
@@ -124,9 +120,10 @@ import (
 //   - When $6 is wrong for a row (own_repo_id <> $6 — including every GCP
 //     cloud-relationship row, since $6 is always "" for non-git-repository-scope
 //     partitions and a GCP row's own repo_id is essentially never ""), the fast
-//     arm's guard is false and that row falls through to the EXISTS fallback,
-//     which is byte-for-byte the pre-hoist self-exclusion arm. The row is never
-//     dropped and never wrongly matched merely because $6 was wrong.
+//     arm's guard is false. A row with precomputed reference keys uses the
+//     reference-key arm; a row without them falls through to the byte-identical
+//     pre-hoist EXISTS fallback. The row is never dropped or wrongly matched
+//     merely because $6 was wrong.
 //
 // A wrong or absent $6 therefore only costs a fallback-arm evaluation for the
 // affected rows (a performance cost bounded by the partition), never a
@@ -179,9 +176,20 @@ import (
 //     own_repo_id hoist), then join that small result to the latest-generation
 //     set, rather than re-deriving it on the inner side of a Nested Loop. The $1
 //     LIKE ANY constant-pattern arm and the $5/$6 fast arm are then cheap
-//     filters on the bounded candidate set, and the $2 EXISTS fallback arm — a
-//     per-fact correlated loop that is un-indexable — runs only for rows the
-//     fast arm did not already resolve, also bounded by the per-scope partition.
+//     filters on the bounded candidate set. The $2 reference-key arm and its
+//     no-reference-key compatibility fallback are also partition-bounded.
+//
+// Relationship-family partial index and reference narrowing (#5122). The source
+// CTE applies deferredRelationshipFamilyCandidatePredicateSQL directly to the
+// base fact_records relation, exactly matching migration 059's partial-index
+// predicate. PostgreSQL can therefore fetch the small extractor-family surface
+// before detoasting generic content payloads. candidate_reference_keys then
+// joins reference rows to those fact_ids before comparing catalog keys, avoiding
+// the prior catalog-size × whole-partition reference-key cross-product. Both
+// transformations are output-preserving: the same exact family predicate
+// already guarded every payload-matching arm, and the reference CTE changes
+// join order without changing its fact_id, scope, generation, or self-exclusion
+// predicates.
 const deferredRelationshipFamilyPathSQL = `lower(COALESCE(
             fact.payload->>'relative_path',
             fact.payload->>'content_path',
@@ -268,6 +276,7 @@ source_facts AS MATERIALIZED (
     WHERE fact.scope_id = $3
       AND fact.generation_id = $4
       AND fact.fact_kind IN ('content', 'file', 'gcp_cloud_relationship')
+      AND ` + deferredRelationshipFamilyCandidatePredicateSQL + `
 ),
 relationship_family_payload_facts AS MATERIALIZED (
     SELECT
@@ -277,23 +286,24 @@ relationship_family_payload_facts AS MATERIALIZED (
     FROM source_facts AS fact
     ` + deferredRelationshipFamilyPayloadFactsFilterSQL + `
 ),
+candidate_reference_keys AS MATERIALIZED (
+    SELECT ref.fact_id, ref.source_repo_id, ref.reference_key
+    FROM relationship_family_payload_facts AS fact
+    JOIN relationship_reference_candidate_keys AS ref
+      ON ref.fact_id = fact.fact_id
+     AND ref.scope_id = $3
+     AND ref.generation_id = $4
+),
 matched_fact_ids AS MATERIALIZED (
         SELECT fact.fact_id
         FROM relationship_family_payload_facts AS fact
         WHERE fact.payload_lower LIKE ANY($1)
         UNION
-        SELECT fact.fact_id
-        FROM relationship_family_payload_facts AS fact
-        WHERE EXISTS (
-          SELECT 1
-          FROM relationship_reference_candidate_keys AS ref
-          JOIN unnest($2::text[], $7::text[]) AS catalog_repo_id(value, reference_key)
-            ON catalog_repo_id.value <> ref.source_repo_id
-           AND position('|' || catalog_repo_id.reference_key || '|' in ref.reference_key) > 0
-          WHERE ref.fact_id = fact.fact_id
-            AND ref.scope_id = $3
-            AND ref.generation_id = $4
-        )
+        SELECT ref.fact_id
+        FROM candidate_reference_keys AS ref
+        JOIN unnest($2::text[], $7::text[]) AS catalog_repo_id(value, reference_key)
+          ON catalog_repo_id.value <> ref.source_repo_id
+         AND position('|' || catalog_repo_id.reference_key || '|' in ref.reference_key) > 0
         UNION
         SELECT fact.fact_id
         FROM relationship_family_payload_facts AS fact
@@ -412,9 +422,8 @@ func buildDeferredScopedFactQueryParams(
 // partition (see the query's doc comment for why an absent/wrong $6 only costs
 // performance, never correctness). The DB excludes facts that only match
 // because their own repo_id appears as an anchor, while still loading facts
-// that reference ANOTHER repo's repo_id in their content (the fallback repo_id
-// arm is an EXISTS(unnest($2)) self-excluded substring test, byte-identical to
-// the pre-hoist shape).
+// whose precomputed reference keys contain another catalog repo_id. Facts with
+// no precomputed keys retain the original payload fallback.
 func loadDeferredScopedRelationshipFactsForPartition(
 	ctx context.Context,
 	queryer Queryer,
