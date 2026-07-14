@@ -21,6 +21,16 @@
 - Function pointer and callback roots are conservative metadata roots; they do
   not claim exact C reachability while macro expansion, conditional compilation,
   include graphs, and dynamic symbol lookup remain unresolved.
+- `annotateCDeadCodeRoots` resolves from the ordered node slice `Parse`
+  gathers during its one tree walk (`gatheredResolutionNodes`), not from its
+  own `shared.WalkNamed` traversal (issue #4870). Do not reintroduce a second
+  full-tree walk in this package; extend the gather step in `Parse` and add
+  the new node kind to the resolution loop instead.
+  `walk_count_test.go::TestParseFullTreeWalkCount` fails if a second full pass
+  is added. The gathered slice must stay a single interleaved (pre-order)
+  slice, not per-kind grouped slices: when one function accumulates root
+  kinds from more than one node kind, the append order must match their
+  relative source position, not a fixed kind-group order.
 
 ## Common Changes And Scope
 
@@ -97,3 +107,31 @@ out-of-AST or call-site/initializer EVIDENCE, not primary symbol extraction:
 No telemetry, spans, metrics, or logs were added or changed. This package emits
 no telemetry directly; parser timing stays owned by the parent engine. The
 change is a within-package symbol-extraction refactor at byte-parity.
+
+## Dead-Code-Roots Walk Merge (issue #4870)
+
+`annotateCDeadCodeRoots` used to run a second full-tree `shared.WalkNamed`
+traversal to resolve `call_expression`/`declaration` nodes against
+`payload["functions"]`. `Parse`'s main walk now gathers those node pointers
+(`shared.CloneNode`) into one ordered slice as it visits them, and
+`annotateCDeadCodeRoots` resolves the slice in an in-memory loop instead of
+re-walking the tree. See
+[docs/public/languages/c.md#dead-code-roots-walk-merge-issue-4870](../../../../docs/public/languages/c.md#dead-code-roots-walk-merge-issue-4870)
+for the full performance evidence.
+
+- No-Regression Evidence: `TestParseFullTreeWalkCount` pins the walk count at
+  7 (down from 8: the eliminated pass was the second full-tree traversal, not
+  a bounded `firstNamedDescendant` subtree scan). `TestGatherResolveCrossKindDeclBeforeCall`
+  and `TestGatherResolveCrossKindCallBeforeDecl` pin `dead_code_root_kinds`
+  ordering for a function tagged by both a declaration-based and a
+  call-expression-based root, in both source orderings.
+  `TestGatherResolveForwardReferenceSignalHandler` pins that a signal handler
+  registered before its own definition still resolves. All pre-existing
+  parent-package C dead-code-root tests
+  (`go/internal/parser/c_dead_code_roots_test.go`) stayed green with zero
+  changes. `0/0` symmetric diff (`diff` + `comm -3` both empty) over the
+  24-file C/H fixture corpus via `equivalence_dump_test.go`
+  (`C_PARSE_DUMP`), old worktree vs. new worktree.
+- No-Observability-Change: this package emits no telemetry by design; the
+  gather-then-resolve refactor neither adds nor removes spans, metrics, or
+  logs.

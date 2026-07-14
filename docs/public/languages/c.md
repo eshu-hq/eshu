@@ -53,3 +53,49 @@ Not claimed today:
   are exactness blockers for dead-code cleanup
 - Dynamic symbol lookup and broad callback registry semantics remain non-exact
 - Variadic functions do not expose their variadic argument types
+
+## Dead-Code-Roots Walk Merge (issue #4870)
+
+`Parse` previously ran two full-tree tree-sitter walks per file: the main
+payload walk, then a second `shared.WalkNamed` traversal inside
+`annotateCDeadCodeRoots` to resolve `call_expression` and `declaration` nodes
+against `payload["functions"]` (signal-handler registrations, callback
+arguments, and function-pointer initializer targets). The second walk visited
+node kinds the main walk already visits, and depended on nothing except
+`payload["functions"]`, which the main walk has already fully populated by the
+time annotation runs.
+
+`annotateCDeadCodeRoots` no longer runs a second full-tree traversal. Instead,
+resolution-candidate node pointers (`call_expression`, `declaration`) are
+gathered via `shared.CloneNode` during `Parse`'s main payload walk, in a single
+ordered (pre-order) slice, and resolved in one in-memory loop after
+`payload["functions"]` is fully populated. Preserving one interleaved gather
+slice (not per-kind grouped slices) matters: when a single function
+accumulates root kinds from both a call expression and a declaration, the
+`dead_code_root_kinds` slice order must match their relative source position,
+exactly as the eliminated second walk produced (mirrors the ordering fix
+landed for C++ in #4844/#4924). Forward references (a call or declaration
+naming a function defined later in the file) still resolve correctly, because
+the function map is complete before any resolution loop runs.
+
+- **Performance Evidence:** `BenchmarkParse/c` on the ~10K-LOC `c_regression`
+  fixture (Apple M1 Max, `-count=10`): B/op went from ~26.51Mi to ~23.07Mi
+  (-12.99%, `benchstat` p=0.000) and allocs/op from ~931.6k to ~795.8k
+  (-14.58%, `benchstat` p=0.000). `sec/op` moved from 1.630s to 1.590s but was
+  not statistically significant at this sample size (`benchstat` p=0.631,
+  ±40-47% noise from concurrent local load); the allocation and B/op deltas
+  are the reliable signal for this refactor. A throwaway isolated-annotation-step
+  microbenchmark (300-repeat synthetic fixture, ~300 function definitions/~600
+  call expressions/~300 declarations) showed the gather-then-resolve candidate
+  at roughly 10x fewer ns/op and B/op than the two-walk baseline, confirming
+  the mechanism before the change was wired into `Parse`. Equivalence: `0/0`
+  symmetric diff (`diff` + `comm -3` both empty) over the 24-file C/H fixture
+  corpus via the `C_PARSE_DUMP` harness (`equivalence_dump_test.go`, a manual
+  differential, not a standing CI gate), and the standing
+  `TestParseFullTreeWalkCount` regression pins the walk count at 7 (down from
+  8 pre-change: the main walk plus bounded `firstNamedDescendant` subtree
+  scans, with the second full-tree dead-code-roots walk eliminated).
+- **No-Observability-Change:** this package emits no telemetry by design; the
+  gather-then-resolve refactor neither adds nor removes spans, metrics, or
+  logs. Operators still diagnose C parsing through the existing collector
+  parse-stage logs and `eshu_dp_file_parse_duration_seconds`.
