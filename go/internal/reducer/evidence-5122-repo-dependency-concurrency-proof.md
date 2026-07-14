@@ -5,8 +5,13 @@
 Proceed with the safety prerequisite for configurable,
 acceptance-unit-partitioned repo-dependency workers. The Odù, grouped-write
 retry prerequisite, real Postgres rescale fence, and same-state retained-data
-built-binary run prove that four workers preserve output and recover seconds at
-the required scale. The production candidate now adds boot-unique process
+built-binary run prove that four workers recover seconds at the required scale;
+the 10/10 Odù matrix proves full graph equivalence locally. The retained run's
+repository-edge differential is valid, but its original artifact query omitted
+the artifact id and returned literal property expressions on the pinned
+backend. The final production-wired replay must therefore re-prove the explicit
+artifact-node and link multisets before this candidate is accepted. The
+production candidate now adds boot-unique process
 owners, the per-repository Postgres critical section, a `45s` whole-cycle
 deadline, and fail-closed lease quarantine. The local component results and
 passing combined fault matrix are recorded in the
@@ -279,12 +284,22 @@ isolated cloned stores.
 | Repo-dependency intents | 2,414 | 2,414 complete / 0 pending | exact |
 | Acceptance units / cycles | 896 | 896 | exact |
 | Resolver/cross-repo relationship rows | 982 | 982 | fact/edge diff `0/0` |
-| Evidence artifact identities | 3,155 | 3,155 | topology diff `0/0` |
+| Evidence artifact identities | 3,155 | 3,155 current explicit-id rows | final pre/post differential pending |
+| Source-to-artifact links | 3,155 | 3,155 current full-property rows | final pre/post differential pending |
+| Artifact-to-target links | 3,155 | 3,155 current full-property rows | final pre/post differential pending |
+| Artifact-to-environment links | 1,676 | 1,676 current full-property rows | final pre/post differential pending |
 | Duplicate relationship identities | 0 | 0 | preserved |
-| Duplicate artifact node identities | 0 | 0 | preserved |
-| Duplicate source/artifact link identities | 0 / 0 | 0 / 0 | preserved |
+| Duplicate artifact/link full identities | - | 0 in corrected current-state readback | final pre/post differential pending |
 | Existing self edges | 7 | 7 | exact diff `0/0`; no new self edge |
 | Failed / dead-letter / retrying fact work | 0 / 0 / 0 | 0 / 0 / 0 | drained |
+
+The original artifact export collapsed distinct nodes because it omitted
+`EvidenceArtifact.id`, and pinned NornicDB returned expressions such as
+`properties(a)` literally in that query shape. Its reported `691` duplicate
+display rows are not duplicate graph nodes and are not accepted as an exactness
+invariant. The final replay uses explicit artifact ids, every written scalar
+property, and each relationship's properties on all four artifact surfaces;
+every canonical multiset must diff `0/0` with zero duplicate full identities.
 
 One real NornicDB `Neo.TransientError.Transaction.Outdated` uniqueness conflict
 occurred. The bounded grouped retry fired once with a roughly `35ms` delay and

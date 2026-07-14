@@ -4,8 +4,10 @@
 
 The retained-data performance result supports implementation: four fixed
 acceptance-unit shards reduced the measured repo-dependency drain from
-`1919.233596s` (`31m59.234s`) to `534.330s` (`8m54.330s`) with graph and fact
-diffs of `0/0`. See
+`1919.233596s` (`31m59.234s`) to `534.330s` (`8m54.330s`) with repository-edge
+and fact diffs of `0/0`. The local Odù matrix proved full graph equivalence;
+the final production-wired replay must repeat the retained artifact topology
+diff with corrected explicit-id/property queries. See
 [the performance proof](evidence-5122-repo-dependency-concurrency-proof.md).
 
 The local component proofs and combined Postgres plus pinned-NornicDB fault
