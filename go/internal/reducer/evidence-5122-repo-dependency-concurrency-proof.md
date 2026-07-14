@@ -9,11 +9,11 @@ built-binary run prove that four workers preserve output and recover seconds at
 the required scale. The production candidate now adds boot-unique process
 owners, the per-repository Postgres critical section, a `45s` whole-cycle
 deadline, and fail-closed lease quarantine. The local component results and
-remaining combined fault gate are recorded in the
-[safety proof](evidence-5122-repo-dependency-safety-proof.md). Do not start the
-final remote replay until that local gate passes, and do not claim the complete
-under-20-minute bootstrap path until an end-to-end run measures the primary
-process-exit boundary.
+passing combined fault matrix are recorded in the
+[safety proof](evidence-5122-repo-dependency-safety-proof.md). The remaining
+gate is one production-wired replay against the isolated retained clones. Do
+not claim the complete under-20-minute bootstrap path until a later end-to-end
+run measures the primary process-exit boundary.
 
 The retained 896-repository run shows that the globally serial
 `repo_dependency` lane is large enough to matter. After subtracting the
@@ -427,10 +427,10 @@ shard = hash % shard_count
 
 ## Recommendation and next gate
 
-Finish the combined local Postgres plus pinned-NornicDB fault matrix in the
-[safety proof](evidence-5122-repo-dependency-safety-proof.md). Do not trade the
-four-shard performance result for global serialization. If the matrix stays
-exact, run the production-wired four-worker binary against the isolated
-retained clones once, then run the full bootstrap acceptance boundary. The
-retained full-drain proof justifies implementation; only the final end-to-end
-run can justify an under-20-minute claim.
+The combined local Postgres plus pinned-NornicDB fault matrix in the
+[safety proof](evidence-5122-repo-dependency-safety-proof.md) passed 10/10. Do
+not trade the four-shard performance result for global serialization. Run the
+production-wired four-worker binary against the isolated retained clones once,
+then run the full bootstrap acceptance boundary. The retained full-drain proof
+justifies implementation; only the final end-to-end run can justify an
+under-20-minute claim.

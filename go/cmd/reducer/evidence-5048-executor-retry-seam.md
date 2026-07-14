@@ -125,6 +125,7 @@ each retry now carries the bounded `reason` label (`connectivity_error`,
 `transient_error`, `write_conflict`, or `commit_unique_conflict`) beside
 `write_phase`. `TestRetryingExecutorRetryMetricUsesBoundedReason` proves raw
 repository/node/error data does not enter the metric attributes. No new span or
-log field is introduced. The proof-only repo-dependency worker coordinator is
-compiled only with `ifarepodependencyproof`, so normal builds retain the global
-0/1 lane and its existing repo-dependency cycle/step/lease telemetry.
+log field is introduced. The repo-dependency coordinator is now production
+wiring: normal deployments default to one worker, while the remote-E2E profile
+selects four acceptance-unit shards. Existing repo-dependency cycle, step, and
+lease telemetry remains active for every shard.
