@@ -31,10 +31,14 @@ func TestPostgresCloudTagEvidenceLoaderMapsTagFacts(t *testing.T) {
 			{rows: [][]any{
 				{facts.AzureTagObservationFactKind, armID, []byte(`{
 					"arm_resource_id":"` + armID + `",
+					"normalized_resource_id":"` + armID + `",
+					"resource_type":"Microsoft.Compute/virtualMachines",
 					"tag_value_fingerprints":{"env":"az-env-marker","owner":"az-owner-marker"}
 				}`)},
 				{facts.AzureTagObservationFactKind, noTagsID, []byte(`{
-					"arm_resource_id":"` + noTagsID + `"
+					"arm_resource_id":"` + noTagsID + `",
+					"normalized_resource_id":"` + noTagsID + `",
+					"resource_type":"Microsoft.Storage/storageAccounts"
 				}`)},
 			}},
 		},
@@ -103,6 +107,51 @@ func TestPostgresCloudTagEvidenceLoaderMapsGCPTagFacts(t *testing.T) {
 	if record.TagValueFingerprints["env"] != "gcp-env-marker" ||
 		record.TagValueFingerprints["owner"] != "gcp-owner-marker" {
 		t.Fatalf("fingerprints = %#v", record.TagValueFingerprints)
+	}
+}
+
+// TestPostgresCloudTagEvidenceLoaderDropsNonStringFingerprintValues proves the
+// loader fails closed, rather than silently coercing, when a tag-evidence
+// fact's tag_value_fingerprints values do not match the collector's
+// fingerprint-marker contract (a JSON string per key). Before the typed
+// factschema decode seam landed, cloudTagEvidenceRecordFromRow read this field
+// through a raw map[string]any lookup and coerceJSONString, which formats ANY
+// JSON value (a number, in this fixture) into a string instead of rejecting
+// it — so a malformed or renamed-shape payload silently attached a coerced,
+// never-actually-fingerprinted marker as if it were real tag evidence. The
+// typed azurev1.TagObservation/gcpv1.TagObservation decode declares
+// TagValueFingerprints as map[string]string, so a non-string JSON value now
+// fails decode and the row is dropped and logged like any other undecodable
+// fact, never silently attached.
+func TestPostgresCloudTagEvidenceLoaderDropsNonStringFingerprintValues(t *testing.T) {
+	t.Parallel()
+
+	const (
+		scopeID      = "cloud:tenant-1"
+		generationID = "gen-1"
+	)
+	armID := "/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.Compute/virtualMachines/vm-bad-tags"
+
+	db := &fakeExecQueryer{
+		queryResponses: []queueFakeRows{
+			{rows: [][]any{
+				{facts.AzureTagObservationFactKind, armID, []byte(`{
+					"arm_resource_id":"` + armID + `",
+					"normalized_resource_id":"` + armID + `",
+					"resource_type":"Microsoft.Compute/virtualMachines",
+					"tag_value_fingerprints":{"build_number":42}
+				}`)},
+			}},
+		},
+	}
+
+	loader := PostgresCloudTagEvidenceLoader{DB: db}
+	records, err := loader.LoadCloudTagEvidence(context.Background(), scopeID, generationID)
+	if err != nil {
+		t.Fatalf("LoadCloudTagEvidence() error = %v, want nil", err)
+	}
+	if got, want := len(records), 0; got != want {
+		t.Fatalf("len(records) = %d, want %d (non-string fingerprint value must be dropped, not coerced): %+v", got, want, records)
 	}
 }
 
