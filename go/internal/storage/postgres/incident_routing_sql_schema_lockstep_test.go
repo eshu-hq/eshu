@@ -54,6 +54,10 @@ func TestIncidentRoutingSQLProjectedFieldsAreSchemaDeclared(t *testing.T) {
 		"provider",
 		"provider_incident_id",
 		"service_id",
+		// service is the nested object serviceIncidentEvidenceQuery reads via
+		// `payload->'service'->>'id'` (COALESCE-falling back to service_id) to
+		// resolve an incident.record's PagerDuty service reference (#4683).
+		"service",
 		"declared_match_state",
 		"redaction_state",
 	}

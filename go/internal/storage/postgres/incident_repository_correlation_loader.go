@@ -22,6 +22,25 @@ import (
 // of other resource classes (escalation policies, integrations, ...) are
 // excluded. The generation is the intent generation, so the correlation reflects
 // the same applied snapshot the incident-routing materialization saw.
+//
+// Decision (#4683): this stays raw SQL permanently, it is not a pending
+// decode-in-Go conversion. The resource_class='service' predicate and the
+// provider_object_id ordering push directly into the partial expression index
+// fact_records_incident_routing_applied_service_idx
+// (schema_fact_records_incident_indexes.go); decode-in-Go would drop that
+// predicate from the query text, which makes the partial index structurally
+// ineligible (a partial index only matches a query whose WHERE clause implies
+// the index's own predicate), forcing a Seq Scan over every row of this fact
+// kind in scope instead. Measured on a throwaway 45k-row seed: the indexed
+// shape ran in 1.121ms over 459 buffers (Index Scan); the decode-in-Go shape
+// (no resource_class/provider_object_id pushdown) ran in 11.454ms over 1553
+// buffers (Seq Scan, 40000 rows removed by filter). See
+// docs/internal/design/4683-incident-routing-sql-decision.md for the full
+// EXPLAIN ANALYZE evidence and rationale. The compensating governance for the
+// #4573 payload-usage manifest gate's resulting blind spot is
+// TestIncidentRoutingSQLProjectedFieldsAreSchemaDeclared
+// (incident_routing_sql_schema_lockstep_test.go), not a future migration onto
+// the typed decode seam.
 const listAppliedPagerDutyServiceRoutingQuery = `
 SELECT
     fact.fact_id,
