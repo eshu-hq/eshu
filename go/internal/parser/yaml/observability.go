@@ -122,9 +122,16 @@ func appendGrafanaObservabilityFromDocument(
 	appendPrometheusObservabilityFromDocument(payload, document, ctx)
 }
 
-func appendHelmGrafanaObservability(payload map[string]any, path string, source []byte) {
-	documents, err := DecodeDocuments(string(source))
-	if err != nil || len(documents) == 0 {
+// appendHelmGrafanaObservability extracts Grafana provisioning evidence
+// (datasources, dashboards, alerting) and metric/log/trace observability
+// evidence from one Helm values file. documents is the caller's
+// already-decoded DecodeDocuments result for the file source; callers share
+// one decode between this and parseHelmValues rather than each decoding the
+// source independently (issue #4847). An empty documents slice — whether
+// from a decode error or an empty file — is a no-op, matching the prior
+// per-call swallow-and-return behavior.
+func appendHelmGrafanaObservability(payload map[string]any, path string, documents []any) {
+	if len(documents) == 0 {
 		return
 	}
 	root, ok := documents[0].(map[string]any)

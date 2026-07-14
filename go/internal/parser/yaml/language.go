@@ -41,7 +41,14 @@ func Parse(
 		return payload, nil
 	}
 	if isHelmValuesFile(filename) {
-		if item := parseHelmValues(path, source); item != nil {
+		// Decode once and share the result between the base HelmValue
+		// extraction and the Grafana observability extraction below — both
+		// previously called DecodeDocuments independently on this same
+		// source (issue #4847). A decode error or empty document set is
+		// treated as "nothing to extract" by both extractors, matching the
+		// prior per-call swallow-and-return-nil/no-op behavior.
+		documents, _ := DecodeDocuments(string(source))
+		if item := parseHelmValues(path, documents); item != nil {
 			shared.AppendBucket(payload, "helm_values", item)
 		}
 		// Only the base values.yaml defines the chart's canonical values; emitting
@@ -53,7 +60,7 @@ func Parse(
 			}
 			shared.SortNamedBucket(payload, "helm_value_definitions")
 		}
-		appendHelmGrafanaObservability(payload, path, source)
+		appendHelmGrafanaObservability(payload, path, documents)
 		sortObservabilityBuckets(payload)
 		if options.IndexSource {
 			payload["source"] = string(source)
