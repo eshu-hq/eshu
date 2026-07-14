@@ -26,6 +26,8 @@ var factKindSchemaFile = map[string]string{ // #nosec G101 -- fact-kind identifi
 	"FactKindAWSSecurityGroupRule":        "aws_security_group_rule.v1.schema.json",
 	"FactKindEC2InstancePosture":          "ec2_instance_posture.v1.schema.json",
 	"FactKindS3BucketPosture":             "s3_bucket_posture.v1.schema.json",
+	"FactKindRDSInstancePosture":          "rds_instance_posture.v1.schema.json",
+	"FactKindS3ExternalPrincipalGrant":    "s3_external_principal_grant.v1.schema.json",
 	"FactKindAWSIAMPermission":            "aws_iam_permission.v1.schema.json",
 	"FactKindAWSResourcePolicyPermission": "aws_resource_policy_permission.v1.schema.json",
 	"FactKindAWSIAMPrincipal":             "aws_iam_principal.v1.schema.json",

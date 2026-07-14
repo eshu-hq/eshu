@@ -9,6 +9,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/graph/edgetype"
+	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
 )
 
 const (
@@ -87,14 +88,26 @@ func ExtractS3ExternalPrincipalGrantRows(
 			continue
 		}
 
-		sourceUID, ok := index.resolve(s3ExternalPrincipalGrantBucketName(env))
+		grant, err := decodeS3ExternalPrincipalGrant(env)
+		if err != nil {
+			q, isQuarantine, fatal := partitionDecodeFailures(env, err)
+			if fatal != nil {
+				return nil, tally, quarantined, fatal
+			}
+			if isQuarantine {
+				quarantined = append(quarantined, q)
+			}
+			continue
+		}
+
+		sourceUID, ok := index.resolve(s3ExternalPrincipalGrantBucketName(grant))
 		if !ok {
 			tally.skipped[s3ExternalPrincipalGrantSkipSourceUnresolved]++
 			continue
 		}
 
-		principalKind := strings.TrimSpace(payloadString(env.Payload, "principal_kind"))
-		principalValue := strings.TrimSpace(payloadString(env.Payload, "principal_value"))
+		principalKind := strings.TrimSpace(grant.PrincipalKind)
+		principalValue := strings.TrimSpace(grant.PrincipalValue)
 		if principalKind == "" || principalValue == "" {
 			tally.skipped[s3ExternalPrincipalGrantSkipMissingIdentity]++
 			continue
@@ -111,21 +124,21 @@ func ExtractS3ExternalPrincipalGrantRows(
 		}
 		seen[key] = struct{}{}
 
-		outcome := strings.TrimSpace(payloadString(env.Payload, "grant_outcome"))
+		outcome := strings.TrimSpace(grant.GrantOutcome)
 		tally.resolved[outcome]++
 		rows = append(rows, map[string]any{
 			"source_uid":           sourceUID,
 			"principal_uid":        principalUID,
 			"principal_kind":       principalKind,
 			"principal_value":      principalValue,
-			"principal_account_id": strings.TrimSpace(payloadString(env.Payload, "principal_account_id")),
-			"principal_partition":  strings.TrimSpace(payloadString(env.Payload, "principal_partition")),
-			"principal_service":    strings.TrimSpace(payloadString(env.Payload, "principal_service")),
+			"principal_account_id": strings.TrimSpace(derefString(grant.PrincipalAccountID)),
+			"principal_partition":  strings.TrimSpace(derefString(grant.PrincipalPartition)),
+			"principal_service":    strings.TrimSpace(derefString(grant.PrincipalService)),
 			"relationship_type":    s3ExternalPrincipalGrantRelationshipType,
 			"grant_outcome":        outcome,
-			"is_public":            payloadBool(env.Payload, "is_public"),
-			"is_cross_account":     payloadBool(env.Payload, "is_cross_account"),
-			"is_service_principal": payloadBool(env.Payload, "is_service_principal"),
+			"is_public":            grant.IsPublic,
+			"is_cross_account":     grant.IsCrossAccount,
+			"is_service_principal": grant.IsServicePrincipal,
 			"resolution_mode":      s3ExternalPrincipalGrantResolutionMode,
 		})
 	}
@@ -153,9 +166,13 @@ func s3ExternalPrincipalGrantKindIsGraphProjectable(kind string) bool {
 	}
 }
 
-func s3ExternalPrincipalGrantBucketName(env facts.Envelope) string {
-	if name := strings.TrimSpace(payloadString(env.Payload, "bucket_name")); name != "" {
+// s3ExternalPrincipalGrantBucketName resolves the decoded grant's source
+// bucket name, falling back to deriving it from the bucket ARN tail when the
+// bare name was not observed (the collector's NewS3ExternalPrincipalGrantEnvelope
+// requires bucket_arn OR bucket_name, so exactly one may be blank).
+func s3ExternalPrincipalGrantBucketName(grant awsv1.S3ExternalPrincipalGrant) string {
+	if name := strings.TrimSpace(derefString(grant.BucketName)); name != "" {
 		return name
 	}
-	return s3BucketNameFromARN(payloadString(env.Payload, "bucket_arn"))
+	return s3BucketNameFromARN(derefString(grant.BucketARN))
 }

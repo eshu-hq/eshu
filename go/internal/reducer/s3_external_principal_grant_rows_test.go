@@ -172,3 +172,73 @@ func TestExtractS3ExternalPrincipalGrantRowsDeduplicatesAndOrders(t *testing.T) 
 		}
 	}
 }
+
+// TestExtractS3ExternalPrincipalGrantRowsQuarantinesMissingRequiredField proves
+// an s3_external_principal_grant fact MISSING a required identity key
+// (account_id absent, not empty) is quarantined as an input_invalid per-fact
+// dead-letter and produces no row, while a valid sibling fact in the same
+// batch still projects normally. Before the typed-decode migration, the
+// extractor read account_id (and principal_kind/principal_value) via raw
+// payloadString lookups that silently defaulted a missing key to "", so the
+// malformed fact would have either fabricated a GRANTS_ACCESS_TO edge keyed by
+// an empty account_id or been swallowed as an indistinguishable
+// missing_identity skip — never a visible, operator-diagnosable dead-letter.
+// This test locks the corrected behavior (#4632).
+func TestExtractS3ExternalPrincipalGrantRowsQuarantinesMissingRequiredField(t *testing.T) {
+	t.Parallel()
+
+	resources := []facts.Envelope{
+		s3BucketResourceEnvelope("111111111111", "us-east-1", "orders-artifacts"),
+	}
+	malformed := facts.Envelope{
+		FactID:   "fact-grant-missing-account",
+		FactKind: facts.S3ExternalPrincipalGrantFactKind,
+		Payload: map[string]any{
+			// account_id intentionally absent.
+			"region":               "us-east-1",
+			"bucket_arn":           "arn:aws:s3:::orders-artifacts",
+			"bucket_name":          "orders-artifacts",
+			"principal_kind":       "aws_account",
+			"principal_value":      "999988887777",
+			"grant_outcome":        "cross_account",
+			"is_public":            false,
+			"is_cross_account":     true,
+			"is_service_principal": false,
+			"is_unsupported":       false,
+		},
+	}
+	grants := []facts.Envelope{
+		malformed,
+		s3ExternalPrincipalGrantEnvelope(
+			"111111111111",
+			"us-east-1",
+			"orders-artifacts",
+			"aws_account",
+			"999988887777",
+			"cross_account",
+		),
+	}
+
+	rows, tally, quarantined, err := ExtractS3ExternalPrincipalGrantRows(resources, grants)
+	if err != nil {
+		t.Fatalf("ExtractS3ExternalPrincipalGrantRows() error = %v, want nil (per-fact isolation, not batch abort)", err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("len(rows) = %d, want 1; the valid fact must still project despite the malformed sibling", len(rows))
+	}
+	if len(quarantined) != 1 {
+		t.Fatalf("len(quarantined) = %d, want 1; the missing-account_id fact must be quarantined", len(quarantined))
+	}
+	if quarantined[0].factKind != facts.S3ExternalPrincipalGrantFactKind {
+		t.Fatalf("quarantined factKind = %q, want %q", quarantined[0].factKind, facts.S3ExternalPrincipalGrantFactKind)
+	}
+	if quarantined[0].field != "account_id" {
+		t.Fatalf("quarantined field = %q, want %q", quarantined[0].field, "account_id")
+	}
+	if quarantined[0].classification != "input_invalid" {
+		t.Fatalf("quarantined classification = %q, want %q", quarantined[0].classification, "input_invalid")
+	}
+	if tally.totalSkipped() != 0 {
+		t.Fatalf("totalSkipped() = %d, want 0; a malformed fact dead-letters through quarantine, it is not counted as a skip", tally.totalSkipped())
+	}
+}
