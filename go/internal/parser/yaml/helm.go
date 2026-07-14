@@ -97,9 +97,15 @@ func parseHelmChart(path string, source []byte) map[string]any {
 	}
 }
 
-func parseHelmValues(path string, source []byte) map[string]any {
-	documents, err := DecodeDocuments(string(source))
-	if err != nil || len(documents) == 0 {
+// parseHelmValues builds the base HelmValue row for one Helm values file.
+// documents is the caller's already-decoded DecodeDocuments result for the
+// file source; callers share one decode between this and
+// appendHelmGrafanaObservability rather than each decoding the source
+// independently (issue #4847). An empty documents slice — whether from a
+// decode error or an empty file — yields a nil row, matching the prior
+// per-call swallow-and-return-nil behavior.
+func parseHelmValues(path string, documents []any) map[string]any {
+	if len(documents) == 0 {
 		return nil
 	}
 	document, ok := documents[0].(map[string]any)
