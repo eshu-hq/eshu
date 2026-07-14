@@ -42,6 +42,7 @@ func goHTTPFrameworkSemantics(
 	source []byte,
 	importAliases map[string][]string,
 ) (map[string]any, bool) {
+	goHTTPFrameworkSemanticsInvocationCount.Add(1)
 	if root == nil {
 		return nil, false
 	}

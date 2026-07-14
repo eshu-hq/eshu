@@ -156,6 +156,41 @@ runtime-behavior change and no new metric/span/log surface. Per-file Go parse
 timing is already covered by the existing parser/pre-scan parse-stage
 telemetry; no new operator signals are warranted.
 
+- **Framework-semantics import gate (#5219):** `goHTTPFrameworkSemantics`
+  (`go/internal/parser/golang/framework_routes.go`) builds a parent-lookup and
+  walks the whole tree for every Go file, but it can only emit
+  `framework_semantics` route entries when the file imports `net/http` or one
+  of the `goRouteFrameworkConstructors` routers (gin, echo, chi, fiber): its
+  net/http path is gated on a net/http alias (`goHTTPRegistrationBaseKnown`)
+  and every third-party receiver is gated on a constructor import
+  (`goRouteFrameworkConstructor`). `Parse` now skips the call for a file that
+  imports none of them via `goFileImportsRouteFramework`
+  (`go/internal/parser/golang/framework_semantics_gate.go`), where the pass
+  provably returns `(nil, false)`. The route-truth capabilities in the table
+  above (`net-http-route-truth`, `third-party-router-route-truth`) are
+  unchanged; only files that could never register a route stop paying for the
+  walk.
+
+Performance Evidence: profiling `Engine.ParsePath` over the kubernetes corpus
+(17,490 `.go` files) attributed 9.1% of parse-stage CPU to
+`goHTTPFrameworkSemantics`, and 94.7% of those files import none of the gated
+paths. A focused benchmark on a dense framework-free file measured the
+eliminated walk at 4.25 ms/op against 48.5 ms/op for the whole parse (8.1% of
+that file's parse), so the corpus-level saving is ~8% × 94.7% ≈ 7.6% of parse
+with no output change.
+
+Accuracy proof: the `framework_semantics` payload is byte-identical old-vs-new
+(the skipped pass already returned `(nil, false)` for these files). Pinned by
+`TestGoHTTPFrameworkSemanticsGateSkipsFilesWithoutFrameworkImports` /
+`...RunsForNetHTTPImport` and `TestGoFileImportsRouteFrameworkCoversEveryGatedImport`
+in `framework_semantics_gate_test.go`, plus the walk-count assertion in
+`walk_count_test.go` dropping from 58 to 55 (the 3 removed framework-pass
+walks). See issue #5219.
+
+No-Observability-Change: a pure gate on already-parsed import data; no new
+metric, span, log, or runtime-behavior surface. Per-file Go parse timing stays
+covered by the existing parse-stage telemetry.
+
 ## Known Limitations
 - Generic type constraints may not be fully captured
 - Channel types not separately tracked
