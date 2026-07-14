@@ -66,7 +66,22 @@ func AnnotatePublicHeaderRoots(payload map[string]any, repoRoot string, sourcePa
 	}
 }
 
-func annotateCDeadCodeRoots(payload map[string]any, root *tree_sitter.Node, source []byte) {
+// annotateCDeadCodeRoots resolves dead-code-root metadata for C entrypoints,
+// signal handlers, callback arguments, and direct function-pointer
+// initializer targets. It no longer runs its own full-tree shared.WalkNamed
+// traversal: gatheredResolutionNodes is the ordered (pre-order) slice of
+// call_expression and declaration node pointers Parse's main walk already
+// gathered via shared.CloneNode, in the same order the removed second walk
+// would have visited them. Resolving from that slice instead of re-walking
+// the tree is safe because functions -- built from payload["functions"] --
+// is only read here after the main walk has fully populated it, so forward
+// references (a call or declaration naming a function defined later in the
+// file) still resolve correctly. Preserving the gathered slice's order is
+// load-bearing: when a single function accumulates root kinds from both a
+// call_expression and a declaration, the append order must match their
+// relative source position, exactly as the eliminated second walk produced
+// (issue #4870, following the ordering fix landed for C++ in #4844/#4924).
+func annotateCDeadCodeRoots(payload map[string]any, source []byte, gatheredResolutionNodes []*tree_sitter.Node) {
 	functions := cFunctionItemsByName(payload)
 	if len(functions) == 0 {
 		return
@@ -79,7 +94,7 @@ func annotateCDeadCodeRoots(payload map[string]any, root *tree_sitter.Node, sour
 		}
 	}
 
-	shared.WalkNamed(root, func(node *tree_sitter.Node) {
+	for _, node := range gatheredResolutionNodes {
 		switch node.Kind() {
 		case "call_expression":
 			annotateCSignalHandlerRoot(functions, node, source)
@@ -87,7 +102,7 @@ func annotateCDeadCodeRoots(payload map[string]any, root *tree_sitter.Node, sour
 		case "declaration":
 			annotateCFunctionPointerTargetRoot(functions, functionPointerTypedefs, node, source)
 		}
-	})
+	}
 }
 
 func cFunctionItemsByName(payload map[string]any) map[string][]map[string]any {

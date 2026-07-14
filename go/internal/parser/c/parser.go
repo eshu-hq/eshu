@@ -37,6 +37,19 @@ func Parse(
 	root := tree.RootNode()
 	scope := options.NormalizedVariableScope()
 
+	// Gather dead-code-root resolution-candidate node pointers during the
+	// main walk in a single ordered slice (pre-order) so
+	// annotateCDeadCodeRoots can resolve them in one in-memory loop instead
+	// of a second full-tree shared.WalkNamed traversal. Appending to one
+	// slice during the main walk's pre-order preserves the original
+	// interleaved visitation order of the old second walk exactly (a
+	// declaration before a call when the declaration appears earlier in
+	// source), which is load-bearing for byte-identical dead_code_root_kinds
+	// slice ordering (issue #4870, following the pattern fixed for C++ in
+	// #4844/#4924). Node pointers are cloned (shared.CloneNode) for safe
+	// retention past the walk callback.
+	var gatheredResolutionNodes []*tree_sitter.Node
+
 	shared.WalkNamed(root, func(node *tree_sitter.Node) {
 		switch node.Kind() {
 		case "preproc_include":
@@ -54,6 +67,7 @@ func Parse(
 		case "function_definition":
 			appendCFunction(payload, node, source, options)
 		case "declaration":
+			gatheredResolutionNodes = append(gatheredResolutionNodes, shared.CloneNode(node))
 			if strings.HasPrefix(strings.TrimSpace(shared.NodeText(node, source)), "typedef ") {
 				appendCTypedefAliases(payload, node, source, "c")
 				return
@@ -64,9 +78,10 @@ func Parse(
 			appendCDeclarationVariables(payload, node, source, "c")
 		case "call_expression":
 			appendCCall(payload, node, source)
+			gatheredResolutionNodes = append(gatheredResolutionNodes, shared.CloneNode(node))
 		}
 	})
-	annotateCDeadCodeRoots(payload, root, source)
+	annotateCDeadCodeRoots(payload, source, gatheredResolutionNodes)
 
 	sortSystemsPayload(
 		payload,

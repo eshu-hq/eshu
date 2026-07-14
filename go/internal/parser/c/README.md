@@ -29,6 +29,15 @@ explicit pointer declarations, multiple initializer declarations, and local
 typedef pointer aliases, including brace initializer tables in those
 declarations.
 
+`annotateCDeadCodeRoots` does not run its own tree-sitter walk. `Parse`'s main
+payload walk gathers `call_expression` and `declaration` node pointers
+(`shared.CloneNode`) into one ordered slice as it visits them, and
+`annotateCDeadCodeRoots` resolves that slice in an in-memory loop once
+`payload["functions"]` is fully populated, instead of re-walking the whole
+tree a second time (issue #4870). See
+[docs/public/languages/c.md](../../../../docs/public/languages/c.md#dead-code-roots-walk-merge-issue-4870)
+for the performance evidence and the ordering invariant this depends on.
+
 ## Dependencies
 
 This package imports the shared parser helper package and tree-sitter types. It
