@@ -28,14 +28,20 @@ import (
 // family self-contained.
 //
 // Only the two WIRED azure kinds (azure_cloud_resource,
-// azure_cloud_relationship) are decoded through a typed seam this wave. The
-// family's other consumed kinds (azure_tag_observation,
-// azure_identity_observation, azure_resource_change, azure_image_reference)
-// are intentionally NOT decoded through a typed seam: their read-side consumers
-// are a shared cross-provider surface or an Azure-specific storage loader not
-// converted in this wave, so a decode wrapper for them would be dead code with
-// no caller (and a hollow, never-validated contract). They migrate with the
-// surface that reads them.
+// azure_cloud_relationship) are decoded through a typed seam ON THE REDUCER
+// SIDE. azure_tag_observation is also typed, but its only production payload
+// consumer is the shared cloud-tag-evidence storage loader
+// (go/internal/storage/postgres/cloud_tag_evidence.go), so its decode seam
+// (decodeAzureTagObservation) lives at that loader boundary instead — see
+// go/internal/storage/postgres/factschema_decode_cloud_tag_evidence.go
+// (#4686). azure_image_reference is decoded through a typed seam too, but on
+// the container-image-identity path (factschema_decode_imagereference.go,
+// #4685), not here. The family's remaining consumed kinds
+// (azure_identity_observation, azure_resource_change) are still intentionally
+// NOT decoded through any typed seam: their read-side consumers are an
+// unconverted Azure-specific storage loader, so a decode wrapper for them would
+// be dead code with no caller (and a hollow, never-validated contract). They
+// migrate with the surface that reads them.
 func decodeAzureCloudResource(env facts.Envelope) (azurev1.CloudResource, error) {
 	resource, err := factschema.DecodeAzureCloudResource(factschemaEnvelope(env))
 	if err != nil {

@@ -57,12 +57,25 @@ var factKindSchemaFile = map[string]string{ // #nosec G101 -- fact-kind identifi
 	"FactKindIncidentRoutingAppliedPagerDutyResource": "incident_routing.applied_pagerduty_resource.v1.schema.json",
 	"FactKindIncidentRoutingObservedPagerDutyService": "incident_routing.observed_pagerduty_service.v1.schema.json",
 	"FactKindIncidentRoutingCoverageWarning":          "incident_routing.coverage_warning.v1.schema.json",
-	// GCP family: only the two wired cloud kinds the reducer decodes.
+	// GCP family: the two cloud kinds the reducer decodes, plus
+	// gcp_tag_observation, whose only production payload consumer is the
+	// shared cloud-tag-evidence storage loader
+	// (go/internal/storage/postgres/cloud_tag_evidence.go), decoded through
+	// decodeGCPTagObservation in factschema_decode_cloud_tag_evidence.go
+	// (#4686).
 	"FactKindGCPCloudResource":     "gcp_cloud_resource.v1.schema.json",
 	"FactKindGCPCloudRelationship": "gcp_cloud_relationship.v1.schema.json",
-	// Azure family: only the two wired cloud kinds the reducer decodes.
+	"FactKindGCPTagObservation":    "gcp_tag_observation.v1.schema.json",
+	// Azure family: the two cloud kinds the reducer decodes, plus
+	// azure_tag_observation, decoded the same way as gcp_tag_observation above
+	// (#4686). azure_image_reference is already mapped above under the
+	// cross-provider image_reference family (#4685). azure_identity_observation
+	// and azure_resource_change remain deferred: their consumers are an
+	// unconverted Azure-specific storage loader, so mapping them here would
+	// assert a gate contract no decode seam backs.
 	"FactKindAzureCloudResource":     "azure_cloud_resource.v1.schema.json",
 	"FactKindAzureCloudRelationship": "azure_cloud_relationship.v1.schema.json",
+	"FactKindAzureTagObservation":    "azure_tag_observation.v1.schema.json",
 	// Kubernetes live family: all three kinds are wired through the reducer's
 	// typed decode seam (factschema_decode_kuberneteslive.go).
 	"FactKindKubernetesLivePodTemplate":  "kubernetes_live.pod_template.v1.schema.json",

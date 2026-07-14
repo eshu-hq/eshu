@@ -14,6 +14,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	"github.com/eshu-hq/eshu/sdk/go/factschema"
 )
 
 // PostgresCloudTagEvidenceLoader reads tag-evidence source facts
@@ -113,8 +114,9 @@ func cloudTagEvidenceRecordFromRow(
 			return reducer.CloudTagEvidenceRecord{}, false
 		}
 	}
-	fingerprints := stringMapFromJSON(decoded["tag_value_fingerprints"])
-	if len(fingerprints) == 0 {
+
+	fingerprints, ok := tagValueFingerprintsForFactKind(factKind, decoded)
+	if !ok {
 		return reducer.CloudTagEvidenceRecord{}, false
 	}
 
@@ -125,28 +127,83 @@ func cloudTagEvidenceRecordFromRow(
 	}, true
 }
 
-// stringMapFromJSON coerces a decoded JSON object into a map[string]string,
-// dropping blank keys and non-string values. The collector already fingerprinted
-// the tag values, so every retained value is a non-secret marker.
-func stringMapFromJSON(raw any) map[string]string {
-	object, ok := raw.(map[string]any)
-	if !ok || len(object) == 0 {
-		return nil
+// tagValueFingerprintsForFactKind decodes payload through the factschema
+// typed seam for factKind and returns its keyed tag-value fingerprints. It
+// dispatches to a per-provider function (rather than inlining both branches
+// here) so each decode call's bound result variable is scoped to its own
+// function body: the payload-usage-manifest gate's AST-based usage scanner
+// (go/internal/payloadusage) attributes a field read to whichever decode call
+// most recently bound the same identifier name within one function, so two
+// same-named bindings in one function would misattribute one provider's
+// field read to the other's decode seam.
+func tagValueFingerprintsForFactKind(factKind string, payload map[string]any) (map[string]string, bool) {
+	switch factKind {
+	case facts.AzureTagObservationFactKind:
+		return azureTagValueFingerprints(payload)
+	case facts.GCPTagObservationFactKind:
+		return gcpTagValueFingerprints(payload)
+	default:
+		return nil, false
 	}
-	out := make(map[string]string, len(object))
-	for key, value := range object {
+}
+
+// azureTagValueFingerprints decodes payload as an azure_tag_observation
+// envelope and returns its trimmed tag-value fingerprints. A decode failure
+// (a missing required field, or a fingerprint value that is not a JSON
+// string) returns ok=false so the caller drops and logs the row instead of
+// attaching a coerced or partial fingerprint map.
+func azureTagValueFingerprints(payload map[string]any) (map[string]string, bool) {
+	observation, err := decodeAzureTagObservation(factschema.Envelope{
+		FactKind:      facts.AzureTagObservationFactKind,
+		SchemaVersion: facts.AzureTagObservationSchemaVersion,
+		Payload:       payload,
+	})
+	if err != nil {
+		return nil, false
+	}
+	return trimTagValueFingerprints(observation.TagValueFingerprints)
+}
+
+// gcpTagValueFingerprints decodes payload as a gcp_tag_observation envelope
+// and returns its trimmed tag-value fingerprints. See
+// azureTagValueFingerprints for the decode-failure contract.
+func gcpTagValueFingerprints(payload map[string]any) (map[string]string, bool) {
+	observation, err := decodeGCPTagObservation(factschema.Envelope{
+		FactKind:      facts.GCPTagObservationFactKind,
+		SchemaVersion: facts.GCPTagObservationSchemaVersion,
+		Payload:       payload,
+	})
+	if err != nil {
+		return nil, false
+	}
+	return trimTagValueFingerprints(observation.TagValueFingerprints)
+}
+
+// trimTagValueFingerprints trims whitespace from tag-evidence keys and
+// fingerprint markers and drops any entry left with a blank key or marker,
+// returning ok=false when nothing usable remains. The typed decode already
+// guarantees every value is a JSON string (a non-string value fails decode
+// before reaching here, see azureTagValueFingerprints); this only guards
+// against a blank key/value slipping through, matching the pre-typed-decode
+// loader's behavior of dropping a fact with no usable tags.
+func trimTagValueFingerprints(raw map[string]string) (map[string]string, bool) {
+	if len(raw) == 0 {
+		return nil, false
+	}
+	out := make(map[string]string, len(raw))
+	for key, value := range raw {
 		key = strings.TrimSpace(key)
 		if key == "" {
 			continue
 		}
-		if marker := strings.TrimSpace(coerceJSONString(value)); marker != "" {
+		if marker := strings.TrimSpace(value); marker != "" {
 			out[key] = marker
 		}
 	}
 	if len(out) == 0 {
-		return nil
+		return nil, false
 	}
-	return out
+	return out, true
 }
 
 // logSkippedRow records a bounded diagnostic for one tag-evidence row the loader

@@ -741,3 +741,65 @@ class, and the durable lifecycle row. Operators still diagnose content reads
 through the existing `postgres.query` spans. The schema-constant guard test
 (`TestContentStoreSearchIndexSchemaSQLKeepsExactTrigramGINs`) remains the
 compile-time safety lock that prevents an inaccurate BM25 substitution.
+
+## #4686 — Typed decode for azure_tag_observation / gcp_tag_observation in cloud_tag_evidence.go
+
+`PostgresCloudTagEvidenceLoader.cloudTagEvidenceRecordFromRow` (the shared
+admission-side loader for the multi-cloud tag-evidence domain, #2192/#2334)
+used to decode `azure_tag_observation`/`gcp_tag_observation` payloads into a raw
+`map[string]any` and read `tag_value_fingerprints` through `coerceJSONString`,
+which formats ANY JSON value (a number, bool, nested object) into a string
+instead of rejecting it — a malformed or renamed-shape fingerprint value was
+silently coerced and attached as tag evidence rather than dropped. The loader
+now decodes both kinds through the `sdk/go/factschema` typed seam
+(`factschema.DecodeAzureTagObservation`/`DecodeGCPTagObservation`, wrapped by
+`decodeAzureTagObservation`/`decodeGCPTagObservation` in
+`factschema_decode_cloud_tag_evidence.go`), so a non-string fingerprint value or
+a missing required field (`arm_resource_id`, `normalized_resource_id`,
+`resource_type`, `full_resource_name`, `asset_type`, `tag_value_fingerprints`)
+now fails decode and the row is dropped and logged like any other undecodable
+fact, matching the loader's existing visible-failure contract instead of
+silently attaching wrong evidence. `aws_tag_observation` is intentionally left
+untyped: no reducer/query/mcp consumer reads its payload fields raw (the two
+touch points that reference `facts.AWSTagObservationFactKind` — the AWS runtime
+collector's emission counter and scan-status summarizer — only switch on the
+fact kind to count occurrences), so a decode struct for it would be a hollow,
+never-validated contract.
+
+Benchmark Evidence: `go test ./internal/storage/postgres -run '^$' -bench
+'BenchmarkCloudTagEvidenceRecordFromRow' -benchmem -count=5` (darwin/arm64,
+Apple M1 Max; one representative azure_tag_observation row + one
+gcp_tag_observation row per iteration, each carrying 3 tag fingerprints).
+BEFORE (raw map + coerceJSONString, commit f51260fb5, measured in a throwaway
+`git worktree` at that commit with the same benchmark file copied in
+unmodified — the function signature did not change) -> AFTER (typed decode):
+5629 ns/op -> 6647 ns/op (+18.1% time), 3312 B/op -> 4224 B/op (+27.5% bytes),
+64 allocs/op -> 72 allocs/op (+12.5% allocs), all for the 2-row batch (halve
+for per-row cost: ~2815 ns/row -> ~3323 ns/row). This exceeds the ~10%
+diagnostic-rigor band; it is accepted rather than optimized away because (a)
+the cost is the price of `decodeAndValidate`'s reflection-based required-field
+check and struct decode replacing an ad hoc map type-switch, the same shape
+every prior Contract System v1 typed-decode migration in this file pays, and
+(b) tag-evidence rows are a small fraction of one generation's fact volume —
+bounded by the count of azure/gcp resources that carry at least one tag, never
+the dominant row count next to `azure_cloud_resource`/`gcp_cloud_resource` or
+the relationship kinds — so a few added microseconds per row does not create a
+queue or admission backlog risk. Result class: correctness win (closes a
+silent-coercion accuracy gap) with a measured, bounded, non-hot-path cost.
+
+No-Regression Evidence: `go test ./internal/storage/postgres -run
+'CloudTag|TagEvidence' -count=1 -v` covers the existing azure/GCP mapping
+tests (now updated with the collector-required `normalized_resource_id`/
+`resource_type` fields the typed struct requires), the SQL allowlist lockstep
+test, and the blank scope/generation rejection test unchanged. A new test,
+`TestPostgresCloudTagEvidenceLoaderDropsNonStringFingerprintValues`, is RED
+against the pre-change raw path (a `tag_value_fingerprints` value of `42`
+decodes to `1` record carrying the coerced string `"42"`) and GREEN after (the
+row is dropped, `0` records) — the concrete regression this change fixes.
+
+No-Observability-Change: #4686 adds no new metric, span, route, worker, queue
+domain, or runtime knob. The existing `logSkippedRow` structured log ("cloud
+tag evidence loader skipped source fact", `cloud_tag_evidence_source_fact_decode`
+failure class, scope/generation/fact_kind attributes) still fires on every
+dropped row, decode failures included, so an operator's existing diagnostic
+path is unchanged.
