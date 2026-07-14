@@ -343,23 +343,6 @@ func cicdImageMatchesForRepository(matches []cicdImageIdentity, repositoryID str
 	return out
 }
 
-// cicdRunKey is the raw-payload run join key, used ONLY by the SEPARATE
-// container_image_identity reducer domain
-// (go/internal/reducer/container_image_identity_evidence.go), which is out
-// of scope for the ci_cd_run_correlation typed-decode migration (Contract
-// System v1, Wave 4d) and continues to read ci.run/ci.artifact payloads raw.
-// The ci_cd_run_correlation domain itself builds its run join key from typed
-// decoded fields via cicdRunKeyFromParts below; do not reintroduce a raw
-// payload read into this file.
-func cicdRunKey(payload map[string]any) string {
-	provider := payloadString(payload, "provider")
-	runID := payloadString(payload, "run_id")
-	if provider == "" || runID == "" {
-		return ""
-	}
-	return provider + ":" + runID + ":" + defaultCICDRunAttempt(payloadString(payload, "run_attempt"))
-}
-
 func defaultCICDRunAttempt(attempt string) string {
 	if strings.TrimSpace(attempt) == "" {
 		return "1"

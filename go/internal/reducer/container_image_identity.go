@@ -121,7 +121,10 @@ func (h ContainerImageIdentityHandler) Handle(ctx context.Context, intent Intent
 	}
 	envelopes = append(envelopes, repositories...)
 
-	decisions := BuildContainerImageIdentityDecisions(envelopes)
+	decisions, quarantined, err := BuildContainerImageIdentityDecisionsWithQuarantine(envelopes)
+	if err != nil {
+		return Result{}, fmt.Errorf("build container image identity decisions: %w", err)
+	}
 	counts := containerImageIdentityCounts(decisions)
 
 	writeResult, err := h.Writer.WriteContainerImageIdentityDecisions(ctx, ContainerImageIdentityWrite{
@@ -137,6 +140,9 @@ func (h ContainerImageIdentityHandler) Handle(ctx context.Context, intent Intent
 	}
 
 	h.emitCounters(ctx, counts)
+	quarantinedCount := recordQuarantinedFacts(
+		ctx, h.Instruments, DomainContainerImageIdentity, intent.ScopeID, intent.GenerationID, quarantined,
+	)
 
 	return Result{
 		IntentID: intent.IntentID,
@@ -148,6 +154,7 @@ func (h ContainerImageIdentityHandler) Handle(ctx context.Context, intent Intent
 			writeResult.CanonicalWrites,
 		),
 		CanonicalWrites: writeResult.CanonicalWrites,
+		SubSignals:      inputInvalidSubSignals(quarantinedCount),
 	}, nil
 }
 
@@ -204,8 +211,45 @@ func (h ContainerImageIdentityHandler) emitCounters(
 
 // BuildContainerImageIdentityDecisions classifies source image references
 // against OCI registry observations.
+//
+// This keeps its existing error-free signature so every existing table-test
+// caller stays unchanged; it delegates to the quarantine-aware
+// BuildContainerImageIdentityDecisionsWithQuarantine and discards the
+// quarantine list, matching the pattern
+// BuildCICDRunCorrelationDecisions/buildCICDRunCorrelationDecisionsWithQuarantine
+// established (go/internal/reducer/AGENTS.md, Wave 4b/4d). Handle calls the
+// quarantine-aware variant directly so the reducer intent path reports
+// quarantines.
 func BuildContainerImageIdentityDecisions(envelopes []facts.Envelope) []ContainerImageIdentityDecision {
-	refs := extractContainerImageRefs(envelopes)
+	decisions, _, err := BuildContainerImageIdentityDecisionsWithQuarantine(envelopes)
+	if err != nil {
+		// A fatal (non-input_invalid) decode error can only occur for an
+		// unsupported schema-version major on the real reducer path, which
+		// Handle already surfaces to the caller; every existing test call
+		// site here passes schema-version-1 (or unset, normalized to major 1)
+		// fixtures, so this branch is unreachable in practice. Returning an
+		// empty decision set (rather than panicking) keeps this pure,
+		// error-free entry point safe for any caller that has not yet
+		// adopted the quarantine-aware signature.
+		return nil
+	}
+	return decisions
+}
+
+// BuildContainerImageIdentityDecisionsWithQuarantine classifies source image
+// references against OCI registry observations, additionally returning every
+// fact that was quarantined during decode (a required identity field was
+// missing or null) and a fatal error for a non-quarantinable decode failure
+// (an unsupported schema major). Handle calls this directly so the reducer
+// intent path can record and count quarantines; BuildContainerImageIdentityDecisions
+// is the pure error-free wrapper existing callers keep using.
+func BuildContainerImageIdentityDecisionsWithQuarantine(
+	envelopes []facts.Envelope,
+) ([]ContainerImageIdentityDecision, []quarantinedFact, error) {
+	refs, quarantined, err := extractContainerImageRefsWithQuarantine(envelopes)
+	if err != nil {
+		return nil, nil, err
+	}
 	index := buildContainerImageRegistryIndex(envelopes)
 	decisions := make([]ContainerImageIdentityDecision, 0, len(refs))
 	for _, ref := range refs {
@@ -214,7 +258,7 @@ func BuildContainerImageIdentityDecisions(envelopes []facts.Envelope) []Containe
 	sort.SliceStable(decisions, func(i, j int) bool {
 		return decisions[i].ImageRef < decisions[j].ImageRef
 	})
-	return decisions
+	return decisions, quarantined, nil
 }
 
 func containerImageIdentityFactKinds() []string {
