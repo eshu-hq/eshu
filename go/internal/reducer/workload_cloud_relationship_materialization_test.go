@@ -215,6 +215,43 @@ func TestExtractWorkloadCloudRelationshipRowsKeepsEnvironmentSpecificEdges(t *te
 	}
 }
 
+// TestExtractWorkloadCloudRelationshipRowsMalformedEnvironmentQuarantines
+// proves the #4631 typed-attribute-decode fix: a resource fact whose
+// top-level "environment" tag is present but not a JSON string must
+// dead-letter as a visible input_invalid quarantine, not silently fall
+// through the missing_environment skip path as if the tag were absent —
+// silently treating "environment: 7" as "no environment" would hide a real
+// malformed-fact bug behind an ordinary skip tally.
+func TestExtractWorkloadCloudRelationshipRowsMalformedEnvironmentQuarantines(t *testing.T) {
+	t.Parallel()
+
+	rows, tally, quarantined, err := ExtractWorkloadCloudRelationshipRows([]facts.Envelope{
+		workloadCloudAWSResourceEnvelope("fact-bad-env", map[string]any{
+			"account_id":    "111122223333",
+			"region":        "us-east-1",
+			"resource_type": "aws_ssm_parameter",
+			"resource_id":   "/config/orders-api/database-url",
+			"workload_id":   "workload:orders-api",
+			"environment":   7,
+		}),
+	})
+	if err != nil {
+		t.Fatalf("ExtractWorkloadCloudRelationshipRows() error = %v, want nil", err)
+	}
+	if len(rows) != 0 {
+		t.Fatalf("rows = %#v, want none for a quarantined fact", rows)
+	}
+	if got := tally.skipped[workloadCloudRelationshipSkipMissingEnvironment]; got != 0 {
+		t.Fatalf("missing environment skips = %d, want 0 (malformed must quarantine, not skip)", got)
+	}
+	if len(quarantined) != 1 {
+		t.Fatalf("len(quarantined) = %d, want 1 for a malformed environment value", len(quarantined))
+	}
+	if quarantined[0].classification != "input_invalid" {
+		t.Fatalf("quarantined[0].classification = %q, want input_invalid", quarantined[0].classification)
+	}
+}
+
 func TestWorkloadCloudRelationshipMaterializationProjectsExactEdges(t *testing.T) {
 	t.Parallel()
 

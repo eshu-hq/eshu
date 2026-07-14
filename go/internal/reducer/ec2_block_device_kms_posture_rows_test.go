@@ -324,3 +324,81 @@ func TestExtractEC2BlockDeviceKMSPostureRowsConflictingKMSRelationshipsStayUnkno
 		t.Fatalf("ambiguous relationship decision tally = %d, want 1", got)
 	}
 }
+
+// TestExtractEC2BlockDeviceKMSPostureRowsMalformedKeyManagerQuarantines proves
+// the #4631 typed-attribute-decode fix: a KMS key fact whose nested
+// "key_manager" value is present but not a JSON string must dead-letter as a
+// visible input_invalid quarantine rather than silently coercing it (the old
+// payloadString(...) read would fmt.Sprint-stringify any type, silently
+// producing a wrong key_manager value for a real, malformed field).
+func TestExtractEC2BlockDeviceKMSPostureRowsMalformedKeyManagerQuarantines(t *testing.T) {
+	t.Parallel()
+
+	const account = "111122223333"
+	const region = "us-east-1"
+	keyARN := "arn:aws:kms:us-east-1:111122223333:key/bad-manager"
+	envelopes := []facts.Envelope{
+		{
+			FactID:   "bad-key",
+			FactKind: facts.AWSResourceFactKind,
+			Payload: map[string]any{
+				"account_id":          account,
+				"region":              region,
+				"resource_type":       "aws_kms_key",
+				"resource_id":         keyARN,
+				"arn":                 keyARN,
+				"correlation_anchors": []string{keyARN},
+				"attributes": map[string]any{
+					"key_manager": true,
+				},
+			},
+		},
+	}
+
+	postures := []facts.Envelope{ec2BlockKMSPostureEnvelope("fact-unrelated", account, region, "i-unrelated")}
+	_, _, quarantined, err := ExtractEC2BlockDeviceKMSPostureRows(envelopes, nil, postures)
+	if err != nil {
+		t.Fatalf("ExtractEC2BlockDeviceKMSPostureRows() error = %v, want nil", err)
+	}
+	if len(quarantined) != 1 {
+		t.Fatalf("len(quarantined) = %d, want 1 for a malformed key_manager value", len(quarantined))
+	}
+	if quarantined[0].classification != "input_invalid" {
+		t.Fatalf("quarantined[0].classification = %q, want input_invalid", quarantined[0].classification)
+	}
+}
+
+// TestExtractEC2BlockDeviceKMSPostureRowsMalformedEncryptedQuarantines proves
+// the #4631 typed-attribute-decode fix: a volume fact whose nested
+// "encrypted" value is present but not a JSON bool must dead-letter as a
+// visible input_invalid quarantine, not silently fall back to encrypted=nil
+// (which the classifier could read as "unreported" and produce a wrong,
+// falsely reassuring encryption posture for a volume that actually reported
+// something, just not a boolean).
+func TestExtractEC2BlockDeviceKMSPostureRowsMalformedEncryptedQuarantines(t *testing.T) {
+	t.Parallel()
+
+	const account = "111122223333"
+	const region = "us-east-1"
+	resources := []facts.Envelope{
+		ec2BlockKMSVolumeEnvelope(account, region, "vol-bad", "not-a-bool", "", attachedTo("i-bad", "vol-bad")),
+	}
+	postures := []facts.Envelope{ec2BlockKMSPostureEnvelope("fact-bad", account, region, "i-bad", "vol-bad")}
+
+	rows, _, quarantined, err := ExtractEC2BlockDeviceKMSPostureRows(resources, nil, postures)
+	if err != nil {
+		t.Fatalf("ExtractEC2BlockDeviceKMSPostureRows() error = %v, want nil", err)
+	}
+	if len(quarantined) != 1 {
+		t.Fatalf("len(quarantined) = %d, want 1 for a malformed encrypted value", len(quarantined))
+	}
+	if quarantined[0].classification != "input_invalid" {
+		t.Fatalf("quarantined[0].classification = %q, want input_invalid", quarantined[0].classification)
+	}
+	// The volume never entered the index, so the posture resolves to the
+	// conservative "unknown" outcome rather than a silently wrong classification.
+	row := requireEC2BlockKMSRow(t, rows, ec2BlockKMSUID(account, region, "i-bad"))
+	if got, want := row["state"], "unknown"; got != want {
+		t.Fatalf("state = %v, want %v for a quarantined volume fact", got, want)
+	}
+}

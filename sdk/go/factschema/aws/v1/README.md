@@ -108,23 +108,39 @@ write service-specific fields as top-level payload keys; it nests them one
 level deep under a single `"attributes"` object
 (`payload["attributes"] = {"engine": ..., "role_arns": ...}`). So a
 service-specific field lands at `Attributes["attributes"][key]`, not
-`Attributes[key]` directly. A consumer reads it through the decoded struct
-with the reducer's `payloadAttributes(resource.Attributes)` helper (which
-returns `resource.Attributes["attributes"]` as a map), for example
-`payloadAttributes(resource.Attributes)["engine"]` — never
-`env.Payload["attributes"]["engine"]` — so the "no raw payload key access"
-contract holds while these fields are honestly not yet a typed contract.
-(`Attributes` also captures the emitter's `collector_instance_id` boundary
-key at the top level; that is boundary metadata, not a service attribute,
-and no graph consumer reads it from here.)
+`Attributes[key]` directly.
 
-Typing service-specific `Resource`/`Relationship` attributes per
-`resource_type` (RDS engine and KMS fields, instance-profile role ARNs,
-workload identifiers, CloudWatch alarm dimensions, and similar) is deferred,
-tracked as a follow-up issue referencing design §7 ("remaining families",
-epic #4566, tracked as #4631). It is a distinct, larger increment, not a gap
-in this package's identity-accuracy goal, which is complete and uniform
-across every `aws_resource` and `aws_relationship` consumer today.
+**A bounded subset of that nested pass-through is typed** in
+`attribute_shapes.go` (issue #4631): the resource_type/relationship_type-keyed
+shapes a reducer consumer actually reads today (EC2 volume
+`encrypted`/`attachments`, KMS key `key_manager`, IAM instance-profile
+`role_arns`, CloudWatch alarm `dimensions`, X-Ray sampling-rule
+`service_name`), plus the two resource-type-agnostic workload/service-anchor
+shapes (`ResourceAnchorAttributes` for the top-level
+`workload_id`/`workload_ids`/`service_name`/`service_names`/`environment`
+tags, `ResourceNestedAnchorAttributes` for the nested `service_name`/
+`service_names` a small allow-listed set of resource types publish). Each
+shape has a validating `Decode<Resource|Relationship><Shape>` accessor; a
+consumer calls that instead of reading `Attributes["attributes"][key]` (or,
+for the anchor shapes, `Attributes[key]`) directly, and MUST route a non-nil
+error — a present-but-wrong-JSON-typed value — through the same
+`input_invalid` dead-letter path a missing required identity field already
+uses, never substitute a silently coerced or zero value.
+
+**Everything else stays untyped.** This is a deliberately bounded catalog, not
+a general per-resource-type schema — the remaining ~470+ AWS resource types
+and their service-specific fields are still read (if a consumer needs one)
+through the reducer's own local map lookup on
+`Attributes["attributes"]`/`Attributes`, honestly not yet a typed contract.
+**Escape hatch:** when a new consumer needs a field this file does not yet
+type, add a typed accessor here following the same pattern, or — if the field
+represents a wholly new kind of fact rather than a refinement of an existing
+`aws_resource`/`aws_relationship` envelope — mint a dedicated fact kind
+instead. Typing the remaining, not-yet-consumed service-specific fields ahead
+of a real consumer is deferred as a distinct, larger increment (design §7,
+remaining families, epic #4566). It is not a gap in this package's
+identity-accuracy goal, which is complete and uniform across every
+`aws_resource` and `aws_relationship` consumer today.
 
 The non-polymorphic structs are each scoped to one fact kind with a known field
 set, so none of them carries an `Attributes` pass-through.
@@ -170,9 +186,12 @@ emission path — see the module `README.md`'s no-observability-change note.
 
 ## Gotchas / invariants
 
-- Attributes nesting: reach service-specific fields through
-  `payloadAttributes(resource.Attributes)["key"]`, never `Attributes["key"]`
-  directly — see "The Attributes pass-through boundary" above.
+- Attributes nesting: reach a TYPED service-specific field through its
+  `Decode<Resource|Relationship><Shape>` accessor in `attribute_shapes.go`
+  (issue #4631); reach an UNTYPED one through the reducer's own
+  `payloadAttributes(resource.Attributes)["key"]` map lookup, never
+  `Attributes["key"]` directly — see "The Attributes pass-through boundary"
+  above.
 - A named field always wins over a same-named `Attributes` key on
   `MarshalJSON`; `resourceKnownKeys` / `relationshipKnownKeys` entries are
   stripped from `Attributes` before merging back to a flat payload.

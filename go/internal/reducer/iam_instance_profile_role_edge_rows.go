@@ -146,11 +146,18 @@ func ExtractIAMInstanceProfileRoleEdgeRows(
 		// (awscloud.NewResourceEnvelope -> awsPayloadAttributes) nests every
 		// scanner-provided attribute, including role_arns, one level deeper
 		// under the decoded resource's Attributes["attributes"] map rather
-		// than at Attributes' own top level (see #4633). Read through the
-		// shared payloadAttributes helper, matching every other reducer site
-		// that reads a service-specific AWS attribute (for example
-		// ec2_block_device_kms_posture_index.go).
-		roleARNs := payloadStrings(payloadAttributes(resource.Attributes), "", "role_arns")
+		// than at Attributes' own top level (see #4633). Read through the typed
+		// awsv1.DecodeResourceIAMInstanceProfileAttributes accessor (#4631): a
+		// present-but-malformed role_arns entry is a decode failure the
+		// extractor must quarantine, since a malformed ARN would otherwise
+		// silently fail to resolve against the role index and just look like
+		// an ordinary target_unresolved skip.
+		instanceProfileAttrs, attrErr := awsv1.DecodeResourceIAMInstanceProfileAttributes(resource)
+		if attrErr != nil {
+			quarantined = append(quarantined, quarantinedAttributeShapeFact(env, attrErr))
+			continue
+		}
+		roleARNs := instanceProfileAttrs.RoleARNs
 		if len(roleARNs) == 0 {
 			continue
 		}

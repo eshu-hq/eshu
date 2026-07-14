@@ -12,6 +12,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/graph/edgetype"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/truth"
+	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
 )
 
 func workloadCloudRelationshipMaterializationDomainDefinition() DomainDefinition {
@@ -272,7 +273,17 @@ func ExtractWorkloadCloudRelationshipRows(envelopes []facts.Envelope) ([]map[str
 			}
 			continue
 		}
-		workloadIDs := uniqueSortedStrings(payloadStrings(resource.Attributes, "workload_id", "workload_ids"))
+		// The workload anchor and environment tags are typed through
+		// awsv1.DecodeResourceAnchorAttributes (issue #4631): a present-but-
+		// wrong-typed value is a decode failure the extractor must quarantine
+		// rather than silently coerce, since a malformed anchor could otherwise
+		// silently mis-key or mis-drop a workload-to-cloud-resource USES edge.
+		workloadAnchor, attrErr := awsv1.DecodeResourceAnchorAttributes(resource)
+		if attrErr != nil {
+			quarantined = append(quarantined, quarantinedAttributeShapeFact(env, attrErr))
+			continue
+		}
+		workloadIDs := uniqueSortedStrings(workloadAnchor.WorkloadIDs)
 		switch len(workloadIDs) {
 		case 0:
 			tally.skipped[workloadCloudRelationshipSkipMissingWorkloadAnchor]++
@@ -292,7 +303,7 @@ func ExtractWorkloadCloudRelationshipRows(envelopes []facts.Envelope) ([]map[str
 			tally.skipped[workloadCloudRelationshipSkipMissingResource]++
 			continue
 		}
-		environment := payloadString(resource.Attributes, "environment")
+		environment := workloadAnchor.Environment
 		if environment == "" {
 			tally.skipped[workloadCloudRelationshipSkipMissingEnvironment]++
 			continue
@@ -301,8 +312,12 @@ func ExtractWorkloadCloudRelationshipRows(envelopes []facts.Envelope) ([]map[str
 		if _, dup := seen[key]; dup {
 			continue
 		}
+		anchor, err := cloudResourceServiceAnchorDecisionForPayload(resource)
+		if err != nil {
+			quarantined = append(quarantined, quarantinedAttributeShapeFact(env, err))
+			continue
+		}
 		seen[key] = struct{}{}
-		anchor := cloudResourceServiceAnchorDecisionForPayload(resource.Attributes, resource.ResourceType)
 		rows = append(rows, map[string]any{
 			"workload_id":           workloadIDs[0],
 			"cloud_resource_uid":    cloudUID,

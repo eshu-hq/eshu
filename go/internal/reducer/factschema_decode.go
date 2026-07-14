@@ -149,6 +149,63 @@ func partitionDecodeFailures(env facts.Envelope, err error) (quarantinedFact, bo
 	return quarantinedFact{}, false, err
 }
 
+// quarantinedAttributeShapeFact builds a quarantinedFact for a service-specific
+// attribute field that failed one of the bounded typed-attribute Decode*
+// functions in sdk/go/factschema/aws/v1 (issue #4631) — for example
+// awsv1.DecodeResourceEC2VolumeAttributes rejecting a present-but-non-bool
+// "encrypted" value. This is distinct from partitionDecodeFailures, which
+// classifies a whole-envelope *factDecodeError: an attribute-shape failure
+// happens AFTER the envelope's identity fields already decoded successfully,
+// so the envelope itself is not malformed, only one service-specific field
+// inside it. Routing it through the same quarantinedFact dead-letter surface
+// keeps the failure visible (counted + logged) instead of silently
+// substituting a zero/empty derived value, matching the accuracy contract a
+// missing required field already gets.
+//
+// err's message (via *awsv1.AttributeShapeError.Error(), or any other error's
+// Error() as a fallback) becomes the quarantine's field name so the field text
+// is preserved even if a future caller passes a wrapped or non-AttributeShapeError
+// value.
+func quarantinedAttributeShapeFact(env facts.Envelope, err error) quarantinedFact {
+	field := err.Error()
+	var shapeErr *awsv1.AttributeShapeError
+	if errors.As(err, &shapeErr) {
+		field = shapeErr.Field
+	}
+	return quarantinedFact{
+		factID:         env.FactID,
+		factKind:       env.FactKind,
+		field:          field,
+		classification: factschema.ClassificationInputInvalid,
+	}
+}
+
+// attributeShapeAsFactDecodeError adapts a service-specific attribute decode
+// error (an *awsv1.AttributeShapeError from one of the bounded typed-attribute
+// Decode* functions, issue #4631) into a *factDecodeError so a caller that
+// already routes its envelope decode errors through partitionDecodeFailures
+// (for example cloudResourceNodeRow) can propagate an attribute-shape failure
+// through that same, unmodified quarantine path. The resulting
+// *factDecodeError classifies as input_invalid and names the specific
+// attribute field (not just the envelope) in its Field, so the quarantine's
+// operator-facing "missing_field" log carries the precise failing path.
+func attributeShapeAsFactDecodeError(factKind string, err error) error {
+	field := err.Error()
+	var shapeErr *awsv1.AttributeShapeError
+	if errors.As(err, &shapeErr) {
+		field = shapeErr.Field
+	}
+	return &factDecodeError{
+		factKind: factKind,
+		err: &factschema.DecodeError{
+			FactKind:       factKind,
+			Classification: factschema.ClassificationInputInvalid,
+			Field:          field,
+			Err:            err,
+		},
+	}
+}
+
 // recordQuarantinedFacts emits the visible, operator-diagnosable dead-letter for
 // each fact a batch extractor quarantined during decode: it increments the
 // eshu_dp_reducer_input_invalid_facts_total counter (labeled by domain and

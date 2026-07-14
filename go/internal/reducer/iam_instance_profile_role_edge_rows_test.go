@@ -117,6 +117,50 @@ func TestExtractIAMInstanceProfileRoleEdgeRowsEmptyRolesNoEdge(t *testing.T) {
 	}
 }
 
+// TestExtractIAMInstanceProfileRoleEdgeRowsMalformedRoleARNsQuarantines proves
+// the #4631 typed-attribute-decode fix: an instance-profile fact whose
+// role_arns array contains a present-but-non-string entry must dead-letter as
+// a visible input_invalid quarantine, not silently drop the malformed entry
+// and continue with whatever role_arns remained valid — a dropped ARN would
+// otherwise produce a silently missing HAS_ROLE edge indistinguishable from an
+// unscanned-role skip.
+func TestExtractIAMInstanceProfileRoleEdgeRowsMalformedRoleARNsQuarantines(t *testing.T) {
+	t.Parallel()
+
+	const acct = "123456789012"
+	roleA := "arn:aws:iam::" + acct + ":role/app"
+	envelopes := []facts.Envelope{
+		{
+			FactID:   "bad-profile",
+			FactKind: facts.AWSResourceFactKind,
+			Payload: map[string]any{
+				"account_id":    acct,
+				"region":        "aws-global",
+				"resource_type": "aws_iam_instance_profile",
+				"resource_id":   "arn:aws:iam::" + acct + ":instance-profile/bad-profile",
+				"attributes": map[string]any{
+					"role_arns": []any{roleA, 42},
+				},
+			},
+		},
+		iamRoleEnvelope(acct, roleA),
+	}
+
+	rows, _, quarantined, err := ExtractIAMInstanceProfileRoleEdgeRows(envelopes)
+	if err != nil {
+		t.Fatalf("ExtractIAMInstanceProfileRoleEdgeRows() error = %v, want nil", err)
+	}
+	if len(rows) != 0 {
+		t.Fatalf("rows = %d, want 0 for a quarantined profile fact", len(rows))
+	}
+	if len(quarantined) != 1 {
+		t.Fatalf("len(quarantined) = %d, want 1 for malformed role_arns", len(quarantined))
+	}
+	if quarantined[0].classification != "input_invalid" {
+		t.Fatalf("quarantined[0].classification = %q, want input_invalid", quarantined[0].classification)
+	}
+}
+
 func TestExtractIAMInstanceProfileRoleEdgeRowsUnscannedRoleSkipped(t *testing.T) {
 	t.Parallel()
 
