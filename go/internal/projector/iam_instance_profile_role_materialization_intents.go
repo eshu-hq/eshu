@@ -25,28 +25,25 @@ const iamInstanceProfileRoleResourceTypeInstanceProfile = "aws_iam_instance_prof
 func buildIAMInstanceProfileRoleMaterializationReducerIntent(
 	scopeValue scope.IngestionScope,
 	generation scope.ScopeGeneration,
-	envelopes []facts.Envelope,
+	index *reducerIntentFactIndex,
 ) (ReducerIntent, bool) {
-	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSResourceFactKind {
-			continue
-		}
+	envelope, ok := index.firstOfKindMatching(facts.AWSResourceFactKind, func(envelope facts.Envelope) bool {
 		resource, err := decodeAWSResource(envelope)
 		if err != nil {
-			continue
+			return false
 		}
-		if resource.ResourceType != iamInstanceProfileRoleResourceTypeInstanceProfile {
-			continue
-		}
-		return ReducerIntent{
-			ScopeID:      scopeValue.ScopeID,
-			GenerationID: generation.GenerationID,
-			Domain:       reducer.DomainIAMInstanceProfileRoleMaterialization,
-			EntityKey:    "aws_resource_materialization:" + scopeValue.ScopeID,
-			Reason:       "iam instance profiles observed",
-			FactID:       envelope.FactID,
-			SourceSystem: awsCloudRuntimeDriftSourceSystem(envelope),
-		}, true
+		return resource.ResourceType == iamInstanceProfileRoleResourceTypeInstanceProfile
+	})
+	if !ok {
+		return ReducerIntent{}, false
 	}
-	return ReducerIntent{}, false
+	return ReducerIntent{
+		ScopeID:      scopeValue.ScopeID,
+		GenerationID: generation.GenerationID,
+		Domain:       reducer.DomainIAMInstanceProfileRoleMaterialization,
+		EntityKey:    "aws_resource_materialization:" + scopeValue.ScopeID,
+		Reason:       "iam instance profiles observed",
+		FactID:       envelope.FactID,
+		SourceSystem: awsCloudRuntimeDriftSourceSystem(envelope),
+	}, true
 }

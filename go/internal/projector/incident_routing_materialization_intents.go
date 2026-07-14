@@ -14,35 +14,22 @@ import (
 func buildIncidentRoutingMaterializationReducerIntent(
 	scopeValue scope.IngestionScope,
 	generation scope.ScopeGeneration,
-	envelopes []facts.Envelope,
+	index *reducerIntentFactIndex,
 ) (ReducerIntent, bool) {
-	for _, envelope := range envelopes {
-		if !isIncidentRoutingMaterializationFactKind(envelope.FactKind) {
-			continue
-		}
-		return ReducerIntent{
-			ScopeID:      scopeValue.ScopeID,
-			GenerationID: generation.GenerationID,
-			Domain:       reducer.DomainIncidentRoutingMaterialization,
-			EntityKey:    "incident_routing_materialization:" + scopeValue.ScopeID,
-			Reason:       "pagerduty incident-routing evidence observed",
-			FactID:       envelope.FactID,
-			SourceSystem: incidentRoutingMaterializationSourceSystem(envelope),
-		}, true
+	candidateKinds := append([]string{facts.IncidentRecordFactKind}, facts.IncidentRoutingFactKinds()...)
+	envelope, ok := index.firstAcrossKinds(func(facts.Envelope) bool { return true }, candidateKinds...)
+	if !ok {
+		return ReducerIntent{}, false
 	}
-	return ReducerIntent{}, false
-}
-
-func isIncidentRoutingMaterializationFactKind(factKind string) bool {
-	if factKind == facts.IncidentRecordFactKind {
-		return true
-	}
-	for _, routingKind := range facts.IncidentRoutingFactKinds() {
-		if factKind == routingKind {
-			return true
-		}
-	}
-	return false
+	return ReducerIntent{
+		ScopeID:      scopeValue.ScopeID,
+		GenerationID: generation.GenerationID,
+		Domain:       reducer.DomainIncidentRoutingMaterialization,
+		EntityKey:    "incident_routing_materialization:" + scopeValue.ScopeID,
+		Reason:       "pagerduty incident-routing evidence observed",
+		FactID:       envelope.FactID,
+		SourceSystem: incidentRoutingMaterializationSourceSystem(envelope),
+	}, true
 }
 
 func incidentRoutingMaterializationSourceSystem(envelope facts.Envelope) string {

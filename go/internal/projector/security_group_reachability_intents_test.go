@@ -43,11 +43,11 @@ func TestSecurityGroupReachabilityIntentsFireOnRuleFacts(t *testing.T) {
 
 	scopeValue := sgReachabilityScope()
 	generation := sgReachabilityGeneration()
-	envelopes := []facts.Envelope{sgRuleFactEnvelope()}
+	index := newReducerIntentFactIndex([]facts.Envelope{sgRuleFactEnvelope()})
 
 	cases := []struct {
 		name    string
-		build   func(scope.IngestionScope, scope.ScopeGeneration, []facts.Envelope) (ReducerIntent, bool)
+		build   func(scope.IngestionScope, scope.ScopeGeneration, *reducerIntentFactIndex) (ReducerIntent, bool)
 		wantDom reducer.Domain
 	}{
 		{"endpoint", buildSecurityGroupEndpointMaterializationReducerIntent, reducer.DomainSecurityGroupCidrMaterialization},
@@ -58,7 +58,7 @@ func TestSecurityGroupReachabilityIntentsFireOnRuleFacts(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			intent, ok := tc.build(scopeValue, generation, envelopes)
+			intent, ok := tc.build(scopeValue, generation, index)
 			if !ok {
 				t.Fatalf("%s intent should fire when a rule fact is present", tc.name)
 			}
@@ -84,14 +84,14 @@ func TestSecurityGroupReachabilityIntentsSkipWithoutRuleFacts(t *testing.T) {
 	scopeValue := sgReachabilityScope()
 	generation := sgReachabilityGeneration()
 	// An aws_resource fact, but no aws_security_group_rule fact.
-	envelopes := []facts.Envelope{{FactKind: facts.AWSResourceFactKind, FactID: "r-1"}}
+	index := newReducerIntentFactIndex([]facts.Envelope{{FactKind: facts.AWSResourceFactKind, FactID: "r-1"}})
 
-	for _, build := range []func(scope.IngestionScope, scope.ScopeGeneration, []facts.Envelope) (ReducerIntent, bool){
+	for _, build := range []func(scope.IngestionScope, scope.ScopeGeneration, *reducerIntentFactIndex) (ReducerIntent, bool){
 		buildSecurityGroupEndpointMaterializationReducerIntent,
 		buildSecurityGroupRuleMaterializationReducerIntent,
 		buildSecurityGroupReachabilityMaterializationReducerIntent,
 	} {
-		if _, ok := build(scopeValue, generation, envelopes); ok {
+		if _, ok := build(scopeValue, generation, index); ok {
 			t.Fatal("reachability intent must not fire without a rule fact")
 		}
 	}

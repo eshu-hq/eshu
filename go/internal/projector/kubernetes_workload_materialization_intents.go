@@ -26,10 +26,10 @@ import (
 func buildKubernetesWorkloadMaterializationReducerIntent(
 	scopeValue scope.IngestionScope,
 	generation scope.ScopeGeneration,
-	envelopes []facts.Envelope,
+	index *reducerIntentFactIndex,
 ) (ReducerIntent, bool) {
 	return buildKubernetesPodTemplateReducerIntent(
-		scopeValue, generation, envelopes,
+		scopeValue, generation, index,
 		reducer.DomainKubernetesWorkloadMaterialization,
 		kubernetesWorkloadMaterializationAcceptanceUnit(scopeValue),
 	)
@@ -53,25 +53,23 @@ func kubernetesWorkloadMaterializationAcceptanceUnit(scopeValue scope.IngestionS
 func buildKubernetesPodTemplateReducerIntent(
 	scopeValue scope.IngestionScope,
 	generation scope.ScopeGeneration,
-	envelopes []facts.Envelope,
+	index *reducerIntentFactIndex,
 	domain reducer.Domain,
 	entityKey string,
 ) (ReducerIntent, bool) {
-	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.KubernetesPodTemplateFactKind {
-			continue
-		}
-		return ReducerIntent{
-			ScopeID:      scopeValue.ScopeID,
-			GenerationID: generation.GenerationID,
-			Domain:       domain,
-			EntityKey:    entityKey,
-			Reason:       "kubernetes live workload pod-template facts observed",
-			FactID:       envelope.FactID,
-			SourceSystem: kubernetesCorrelationSourceSystem(envelope),
-		}, true
+	envelope, ok := index.firstOfKind(facts.KubernetesPodTemplateFactKind)
+	if !ok {
+		return ReducerIntent{}, false
 	}
-	return ReducerIntent{}, false
+	return ReducerIntent{
+		ScopeID:      scopeValue.ScopeID,
+		GenerationID: generation.GenerationID,
+		Domain:       domain,
+		EntityKey:    entityKey,
+		Reason:       "kubernetes live workload pod-template facts observed",
+		FactID:       envelope.FactID,
+		SourceSystem: kubernetesCorrelationSourceSystem(envelope),
+	}, true
 }
 
 // buildKubernetesCorrelationMaterializationReducerIntent enqueues one
@@ -87,7 +85,7 @@ func buildKubernetesPodTemplateReducerIntent(
 func buildKubernetesCorrelationMaterializationReducerIntent(
 	scopeValue scope.IngestionScope,
 	generation scope.ScopeGeneration,
-	envelopes []facts.Envelope,
+	index *reducerIntentFactIndex,
 ) (ReducerIntent, bool) {
 	// The readiness gate matches this intent's acceptance unit (its entity_key)
 	// against the kubernetes_workload_uid canonical-nodes phase the
@@ -97,7 +95,7 @@ func buildKubernetesCorrelationMaterializationReducerIntent(
 	// keys off "aws_resource_materialization:<scope>". Using a distinct key here
 	// leaves the edge permanently unclaimable (the gate never matches).
 	return buildKubernetesPodTemplateReducerIntent(
-		scopeValue, generation, envelopes,
+		scopeValue, generation, index,
 		reducer.DomainKubernetesCorrelationMaterialization,
 		kubernetesWorkloadMaterializationAcceptanceUnit(scopeValue),
 	)

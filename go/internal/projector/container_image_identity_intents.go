@@ -12,26 +12,41 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
+// containerImageIdentityCandidateFactKinds are the fact kinds
+// containerImageIdentityTriggerFact ever returns true for. Kept as an
+// explicit list (rather than discovered per generation like the open-registry
+// probes) because it names concrete, closed fact-kind constants — the same
+// set containerImageIdentityTriggerFact's switch already enumerates.
+var containerImageIdentityCandidateFactKinds = []string{
+	facts.OCIImageManifestFactKind,
+	facts.OCIImageIndexFactKind,
+	facts.OCIImageTagObservationFactKind,
+	facts.OCIImageReferrerFactKind,
+	facts.AWSImageReferenceFactKind,
+	facts.AzureImageReferenceFactKind,
+	facts.GCPImageReferenceFactKind,
+	facts.AWSRelationshipFactKind,
+	"content_entity",
+}
+
 func buildContainerImageIdentityReducerIntent(
 	scopeValue scope.IngestionScope,
 	generation scope.ScopeGeneration,
-	envelopes []facts.Envelope,
+	index *reducerIntentFactIndex,
 ) (ReducerIntent, bool) {
-	for _, envelope := range envelopes {
-		if !containerImageIdentityTriggerFact(envelope) {
-			continue
-		}
-		return ReducerIntent{
-			ScopeID:      scopeValue.ScopeID,
-			GenerationID: generation.GenerationID,
-			Domain:       reducer.DomainContainerImageIdentity,
-			EntityKey:    "container_image_identity:" + scopeValue.ScopeID,
-			Reason:       "container image identity evidence observed",
-			FactID:       envelope.FactID,
-			SourceSystem: containerImageIdentitySourceSystem(envelope),
-		}, true
+	envelope, ok := index.firstAcrossKinds(containerImageIdentityTriggerFact, containerImageIdentityCandidateFactKinds...)
+	if !ok {
+		return ReducerIntent{}, false
 	}
-	return ReducerIntent{}, false
+	return ReducerIntent{
+		ScopeID:      scopeValue.ScopeID,
+		GenerationID: generation.GenerationID,
+		Domain:       reducer.DomainContainerImageIdentity,
+		EntityKey:    "container_image_identity:" + scopeValue.ScopeID,
+		Reason:       "container image identity evidence observed",
+		FactID:       envelope.FactID,
+		SourceSystem: containerImageIdentitySourceSystem(envelope),
+	}, true
 }
 
 func containerImageIdentityTriggerFact(envelope facts.Envelope) bool {

@@ -16,7 +16,7 @@ func TestBuildCodeInterprocEvidenceReducerIntentNoFactNoIntent(t *testing.T) {
 
 	scopeValue := scope.IngestionScope{ScopeID: "scope-1"}
 	generation := scope.ScopeGeneration{GenerationID: "gen-1"}
-	if _, ok := buildCodeInterprocEvidenceReducerIntent(scopeValue, generation, []facts.Envelope{{FactKind: "file"}}); ok {
+	if _, ok := buildCodeInterprocEvidenceReducerIntent(scopeValue, generation, newReducerIntentFactIndex([]facts.Envelope{{FactKind: "file"}})); ok {
 		t.Fatal("queued an interproc intent without any code_interproc_evidence fact")
 	}
 }
@@ -26,10 +26,10 @@ func TestBuildCodeInterprocEvidenceReducerIntentFromFact(t *testing.T) {
 
 	scopeValue := scope.IngestionScope{ScopeID: "scope-1"}
 	generation := scope.ScopeGeneration{GenerationID: "gen-1"}
-	intent, ok := buildCodeInterprocEvidenceReducerIntent(scopeValue, generation, []facts.Envelope{
+	intent, ok := buildCodeInterprocEvidenceReducerIntent(scopeValue, generation, newReducerIntentFactIndex([]facts.Envelope{
 		{FactKind: "file"},
 		{FactKind: facts.CodeInterprocEvidenceFactKind, FactID: "interproc-fact-1", CollectorKind: "git"},
-	})
+	}))
 	if !ok {
 		t.Fatal("no intent queued for a code_interproc_evidence fact")
 	}
@@ -49,10 +49,10 @@ func TestBuildCodeInterprocEvidenceReducerIntentSkipsFunctionSummaryFact(t *test
 
 	scopeValue := scope.IngestionScope{ScopeID: "scope-1"}
 	generation := scope.ScopeGeneration{GenerationID: "gen-1"}
-	if _, ok := buildCodeInterprocEvidenceReducerIntent(scopeValue, generation, []facts.Envelope{
+	if _, ok := buildCodeInterprocEvidenceReducerIntent(scopeValue, generation, newReducerIntentFactIndex([]facts.Envelope{
 		{FactKind: "file"},
 		{FactKind: facts.CodeFunctionSummaryFactKind, FactID: "summary-fact-1", CollectorKind: "git"},
-	}); ok {
+	})); ok {
 		t.Fatal("queued direct interproc intent for code_function_summary fact")
 	}
 }
@@ -65,10 +65,10 @@ func TestBuildCodeInterprocEvidenceReducerIntentFromMarkerOnly(t *testing.T) {
 
 	scopeValue := scope.IngestionScope{ScopeID: "scope-1"}
 	generation := scope.ScopeGeneration{GenerationID: "gen-1"}
-	intent, ok := buildCodeInterprocEvidenceReducerIntent(scopeValue, generation, []facts.Envelope{
+	intent, ok := buildCodeInterprocEvidenceReducerIntent(scopeValue, generation, newReducerIntentFactIndex([]facts.Envelope{
 		{FactKind: "file"},
 		{FactKind: facts.CodeDataflowScannedFactKind, FactID: "marker-1", CollectorKind: "git"},
-	})
+	}))
 	if !ok {
 		t.Fatal("no intent queued for a dataflow marker without findings")
 	}
@@ -88,10 +88,10 @@ func TestBuildCodeInterprocEvidenceReducerIntentPrefersFindingProvenance(t *test
 
 	scopeValue := scope.IngestionScope{ScopeID: "scope-1"}
 	generation := scope.ScopeGeneration{GenerationID: "gen-1"}
-	intent, ok := buildCodeInterprocEvidenceReducerIntent(scopeValue, generation, []facts.Envelope{
+	intent, ok := buildCodeInterprocEvidenceReducerIntent(scopeValue, generation, newReducerIntentFactIndex([]facts.Envelope{
 		{FactKind: facts.CodeDataflowScannedFactKind, FactID: "marker-1", CollectorKind: "git"},
 		{FactKind: facts.CodeInterprocEvidenceFactKind, FactID: "finding-1", CollectorKind: "git"},
-	})
+	}))
 	if !ok || intent.FactID != "finding-1" {
 		t.Fatalf("finding provenance not preferred over marker: %+v", intent)
 	}

@@ -32,29 +32,25 @@ import (
 func buildEC2UsesProfileMaterializationReducerIntent(
 	scopeValue scope.IngestionScope,
 	generation scope.ScopeGeneration,
-	envelopes []facts.Envelope,
+	index *reducerIntentFactIndex,
 ) (ReducerIntent, bool) {
-	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.EC2InstancePostureFactKind {
-			continue
-		}
+	envelope, ok := index.firstOfKindMatching(facts.EC2InstancePostureFactKind, func(envelope facts.Envelope) bool {
 		posture, err := decodeEC2InstancePosture(envelope)
 		if err != nil {
-			continue
+			return false
 		}
-		profileARN := codegraphDerefString(posture.InstanceProfileARN)
-		if strings.TrimSpace(profileARN) == "" {
-			continue
-		}
-		return ReducerIntent{
-			ScopeID:      scopeValue.ScopeID,
-			GenerationID: generation.GenerationID,
-			Domain:       reducer.DomainEC2UsesProfileMaterialization,
-			EntityKey:    "ec2_uses_profile_materialization:" + scopeValue.ScopeID,
-			Reason:       "ec2 instance profile usage observed",
-			FactID:       envelope.FactID,
-			SourceSystem: awsCloudRuntimeDriftSourceSystem(envelope),
-		}, true
+		return strings.TrimSpace(codegraphDerefString(posture.InstanceProfileARN)) != ""
+	})
+	if !ok {
+		return ReducerIntent{}, false
 	}
-	return ReducerIntent{}, false
+	return ReducerIntent{
+		ScopeID:      scopeValue.ScopeID,
+		GenerationID: generation.GenerationID,
+		Domain:       reducer.DomainEC2UsesProfileMaterialization,
+		EntityKey:    "ec2_uses_profile_materialization:" + scopeValue.ScopeID,
+		Reason:       "ec2 instance profile usage observed",
+		FactID:       envelope.FactID,
+		SourceSystem: awsCloudRuntimeDriftSourceSystem(envelope),
+	}, true
 }

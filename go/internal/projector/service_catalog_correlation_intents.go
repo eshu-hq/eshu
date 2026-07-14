@@ -14,23 +14,27 @@ import (
 func buildServiceCatalogCorrelationReducerIntent(
 	scopeValue scope.IngestionScope,
 	generation scope.ScopeGeneration,
-	envelopes []facts.Envelope,
+	index *reducerIntentFactIndex,
 ) (ReducerIntent, bool) {
-	for _, envelope := range envelopes {
-		if _, ok := facts.ServiceCatalogSchemaVersion(envelope.FactKind); !ok {
-			continue
-		}
-		return ReducerIntent{
-			ScopeID:      scopeValue.ScopeID,
-			GenerationID: generation.GenerationID,
-			Domain:       reducer.DomainServiceCatalogCorrelation,
-			EntityKey:    "service_catalog_correlation:" + scopeValue.ScopeID,
-			Reason:       "service catalog facts observed",
-			FactID:       envelope.FactID,
-			SourceSystem: serviceCatalogCorrelationSourceSystem(scopeValue, envelope),
-		}, true
+	envelope, ok := index.firstMatchingKindPredicate(
+		func(kind string) bool {
+			_, isServiceCatalogKind := facts.ServiceCatalogSchemaVersion(kind)
+			return isServiceCatalogKind
+		},
+		func(facts.Envelope) bool { return true },
+	)
+	if !ok {
+		return ReducerIntent{}, false
 	}
-	return ReducerIntent{}, false
+	return ReducerIntent{
+		ScopeID:      scopeValue.ScopeID,
+		GenerationID: generation.GenerationID,
+		Domain:       reducer.DomainServiceCatalogCorrelation,
+		EntityKey:    "service_catalog_correlation:" + scopeValue.ScopeID,
+		Reason:       "service catalog facts observed",
+		FactID:       envelope.FactID,
+		SourceSystem: serviceCatalogCorrelationSourceSystem(scopeValue, envelope),
+	}, true
 }
 
 func serviceCatalogCorrelationSourceSystem(

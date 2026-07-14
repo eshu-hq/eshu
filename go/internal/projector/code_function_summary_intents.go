@@ -19,26 +19,22 @@ import (
 func buildCodeFunctionSummaryReducerIntent(
 	scopeValue scope.IngestionScope,
 	generation scope.ScopeGeneration,
-	envelopes []facts.Envelope,
+	index *reducerIntentFactIndex,
 ) (ReducerIntent, bool) {
-	var summaryFact, markerFact *facts.Envelope
-	for i := range envelopes {
-		switch envelopes[i].FactKind {
-		case facts.CodeFunctionSummaryFactKind:
-			if summaryFact == nil {
-				summaryFact = &envelopes[i]
-			}
-		case facts.CodeDataflowScannedFactKind:
-			if markerFact == nil {
-				markerFact = &envelopes[i]
-			}
-		}
-	}
+	// The two candidate kinds are looked up independently, not merged in
+	// original order: a summary fact always outranks the marker as the
+	// trigger regardless of which appears earlier in the generation, and the
+	// payload construction below needs both facts' repo IDs, not just the
+	// winning trigger's.
+	summaryFact, hasSummaryFact := index.firstOfKind(facts.CodeFunctionSummaryFactKind)
+	markerFact, hasMarkerFact := index.firstOfKind(facts.CodeDataflowScannedFactKind)
 
-	trigger := summaryFact
+	var trigger *facts.Envelope
 	reason := "value-flow function summaries observed"
-	if trigger == nil {
-		trigger = markerFact
+	if hasSummaryFact {
+		trigger = &summaryFact
+	} else if hasMarkerFact {
+		trigger = &markerFact
 		reason = "value-flow gate scanned; reconcile function summaries"
 	}
 	if trigger == nil {
@@ -46,13 +42,18 @@ func buildCodeFunctionSummaryReducerIntent(
 	}
 	payload := map[string]any{}
 	repoID := codeFunctionSummaryTriggerRepoID(trigger)
-	if repoID == "" && markerFact != nil && markerFact != trigger {
-		repoID = codeFunctionSummaryTriggerRepoID(markerFact)
+	// hasMarkerFact && hasSummaryFact reproduces the original pointer check
+	// "markerFact != nil && markerFact != trigger": trigger only equals the
+	// marker when no summary fact is present, so a distinct marker fallback
+	// exists exactly when both facts are present and the summary won as
+	// trigger.
+	if repoID == "" && hasMarkerFact && hasSummaryFact {
+		repoID = codeFunctionSummaryTriggerRepoID(&markerFact)
 	}
 	if repoID != "" {
 		payload["repo_id"] = repoID
 	}
-	if markerFact != nil {
+	if hasMarkerFact {
 		payload["full_snapshot"] = true
 	}
 	return ReducerIntent{

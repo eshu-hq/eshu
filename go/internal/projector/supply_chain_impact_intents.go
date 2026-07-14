@@ -11,26 +11,40 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
+// supplyChainImpactCandidateFactKinds are the fact kinds
+// supplyChainImpactTriggerFact accepts.
+var supplyChainImpactCandidateFactKinds = []string{
+	facts.VulnerabilityCVEFactKind,
+	facts.VulnerabilityAffectedPackageFactKind,
+	facts.VulnerabilityEPSSScoreFactKind,
+	facts.VulnerabilityKnownExploitedFactKind,
+	facts.SecurityAlertRepositoryAlertFactKind,
+	facts.PackageRegistryPackageFactKind,
+	facts.SBOMComponentFactKind,
+	facts.OCIImageManifestFactKind,
+	facts.OCIImageIndexFactKind,
+	facts.OCIImageTagObservationFactKind,
+	facts.OCIImageReferrerFactKind,
+}
+
 func buildSupplyChainImpactReducerIntent(
 	scopeValue scope.IngestionScope,
 	generation scope.ScopeGeneration,
-	envelopes []facts.Envelope,
+	index *reducerIntentFactIndex,
 ) (ReducerIntent, bool) {
-	for _, envelope := range envelopes {
-		if !supplyChainImpactTriggerFact(envelope) {
-			continue
-		}
-		return ReducerIntent{
-			ScopeID:      scopeValue.ScopeID,
-			GenerationID: generation.GenerationID,
-			Domain:       reducer.DomainSupplyChainImpact,
-			EntityKey:    "supply_chain_impact:" + scopeValue.ScopeID,
-			Reason:       supplyChainImpactReason(envelope),
-			FactID:       envelope.FactID,
-			SourceSystem: supplyChainImpactSourceSystem(envelope),
-		}, true
+	envelope, ok := index.firstAcrossKinds(supplyChainImpactTriggerFact, supplyChainImpactCandidateFactKinds...)
+	if !ok {
+		return ReducerIntent{}, false
 	}
-	return ReducerIntent{}, false
+	return ReducerIntent{
+		ScopeID:      scopeValue.ScopeID,
+		GenerationID: generation.GenerationID,
+		Domain:       reducer.DomainSupplyChainImpact,
+		EntityKey:    "supply_chain_impact:" + scopeValue.ScopeID,
+		Reason:       supplyChainImpactReason(envelope),
+		FactID:       envelope.FactID,
+		SourceSystem: supplyChainImpactSourceSystem(envelope),
+	}, true
 }
 
 func supplyChainImpactTriggerFact(envelope facts.Envelope) bool {

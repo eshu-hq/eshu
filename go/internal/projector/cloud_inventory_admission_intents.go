@@ -37,23 +37,27 @@ var cloudInventoryAdmissionSourceFactKinds = map[string]struct{}{
 func buildCloudInventoryAdmissionReducerIntent(
 	scopeValue scope.IngestionScope,
 	generation scope.ScopeGeneration,
-	envelopes []facts.Envelope,
+	index *reducerIntentFactIndex,
 ) (ReducerIntent, bool) {
-	for _, envelope := range envelopes {
-		if _, ok := cloudInventoryAdmissionSourceFactKinds[envelope.FactKind]; !ok {
-			continue
-		}
-		return ReducerIntent{
-			ScopeID:      scopeValue.ScopeID,
-			GenerationID: generation.GenerationID,
-			Domain:       reducer.DomainCloudInventoryAdmission,
-			EntityKey:    "cloud_inventory_admission:" + scopeValue.ScopeID,
-			Reason:       "provider cloud-inventory source facts observed",
-			FactID:       envelope.FactID,
-			SourceSystem: cloudInventoryAdmissionSourceSystem(envelope),
-		}, true
+	envelope, ok := index.firstMatchingKindPredicate(
+		func(kind string) bool {
+			_, isSource := cloudInventoryAdmissionSourceFactKinds[kind]
+			return isSource
+		},
+		func(facts.Envelope) bool { return true },
+	)
+	if !ok {
+		return ReducerIntent{}, false
 	}
-	return ReducerIntent{}, false
+	return ReducerIntent{
+		ScopeID:      scopeValue.ScopeID,
+		GenerationID: generation.GenerationID,
+		Domain:       reducer.DomainCloudInventoryAdmission,
+		EntityKey:    "cloud_inventory_admission:" + scopeValue.ScopeID,
+		Reason:       "provider cloud-inventory source facts observed",
+		FactID:       envelope.FactID,
+		SourceSystem: cloudInventoryAdmissionSourceSystem(envelope),
+	}, true
 }
 
 // cloudInventoryAdmissionSourceSystem resolves the bounded source-system label

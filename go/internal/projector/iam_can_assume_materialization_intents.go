@@ -31,28 +31,25 @@ const iamCanAssumePolicySourceTrust = "trust"
 func buildIAMCanAssumeMaterializationReducerIntent(
 	scopeValue scope.IngestionScope,
 	generation scope.ScopeGeneration,
-	envelopes []facts.Envelope,
+	index *reducerIntentFactIndex,
 ) (ReducerIntent, bool) {
-	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSIAMPermissionFactKind {
-			continue
-		}
+	envelope, ok := index.firstOfKindMatching(facts.AWSIAMPermissionFactKind, func(envelope facts.Envelope) bool {
 		permission, err := decodeAWSIAMPermission(envelope)
 		if err != nil {
-			continue
+			return false
 		}
-		if permission.PolicySource != iamCanAssumePolicySourceTrust {
-			continue
-		}
-		return ReducerIntent{
-			ScopeID:      scopeValue.ScopeID,
-			GenerationID: generation.GenerationID,
-			Domain:       reducer.DomainIAMCanAssumeMaterialization,
-			EntityKey:    "aws_resource_materialization:" + scopeValue.ScopeID,
-			Reason:       "aws iam trust statements observed",
-			FactID:       envelope.FactID,
-			SourceSystem: awsCloudRuntimeDriftSourceSystem(envelope),
-		}, true
+		return permission.PolicySource == iamCanAssumePolicySourceTrust
+	})
+	if !ok {
+		return ReducerIntent{}, false
 	}
-	return ReducerIntent{}, false
+	return ReducerIntent{
+		ScopeID:      scopeValue.ScopeID,
+		GenerationID: generation.GenerationID,
+		Domain:       reducer.DomainIAMCanAssumeMaterialization,
+		EntityKey:    "aws_resource_materialization:" + scopeValue.ScopeID,
+		Reason:       "aws iam trust statements observed",
+		FactID:       envelope.FactID,
+		SourceSystem: awsCloudRuntimeDriftSourceSystem(envelope),
+	}, true
 }

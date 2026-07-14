@@ -11,26 +11,30 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
+// securityAlertReconciliationCandidateFactKinds are the fact kinds
+// securityAlertReconciliationTriggerFact accepts.
+var securityAlertReconciliationCandidateFactKinds = []string{
+	facts.SecurityAlertRepositoryAlertFactKind, facts.PackageRegistryPackageFactKind,
+}
+
 func buildSecurityAlertReconciliationReducerIntent(
 	scopeValue scope.IngestionScope,
 	generation scope.ScopeGeneration,
-	envelopes []facts.Envelope,
+	index *reducerIntentFactIndex,
 ) (ReducerIntent, bool) {
-	for _, envelope := range envelopes {
-		if !securityAlertReconciliationTriggerFact(envelope) {
-			continue
-		}
-		return ReducerIntent{
-			ScopeID:      scopeValue.ScopeID,
-			GenerationID: generation.GenerationID,
-			Domain:       reducer.DomainSecurityAlertReconciliation,
-			EntityKey:    "security_alert_reconciliation:" + scopeValue.ScopeID,
-			Reason:       securityAlertReconciliationReason(envelope),
-			FactID:       envelope.FactID,
-			SourceSystem: securityAlertSourceSystem(envelope),
-		}, true
+	envelope, ok := index.firstAcrossKinds(securityAlertReconciliationTriggerFact, securityAlertReconciliationCandidateFactKinds...)
+	if !ok {
+		return ReducerIntent{}, false
 	}
-	return ReducerIntent{}, false
+	return ReducerIntent{
+		ScopeID:      scopeValue.ScopeID,
+		GenerationID: generation.GenerationID,
+		Domain:       reducer.DomainSecurityAlertReconciliation,
+		EntityKey:    "security_alert_reconciliation:" + scopeValue.ScopeID,
+		Reason:       securityAlertReconciliationReason(envelope),
+		FactID:       envelope.FactID,
+		SourceSystem: securityAlertSourceSystem(envelope),
+	}, true
 }
 
 func securityAlertReconciliationTriggerFact(envelope facts.Envelope) bool {

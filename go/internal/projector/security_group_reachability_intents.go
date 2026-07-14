@@ -29,12 +29,12 @@ func securityGroupReachabilityAcceptanceUnit(scopeValue scope.IngestionScope) st
 func buildSecurityGroupEndpointMaterializationReducerIntent(
 	scopeValue scope.IngestionScope,
 	generation scope.ScopeGeneration,
-	envelopes []facts.Envelope,
+	index *reducerIntentFactIndex,
 ) (ReducerIntent, bool) {
 	return securityGroupReachabilityIntentForDomain(
 		scopeValue,
 		generation,
-		envelopes,
+		index,
 		reducer.DomainSecurityGroupCidrMaterialization,
 		"aws security group rule facts observed (endpoint nodes)",
 	)
@@ -47,12 +47,12 @@ func buildSecurityGroupEndpointMaterializationReducerIntent(
 func buildSecurityGroupRuleMaterializationReducerIntent(
 	scopeValue scope.IngestionScope,
 	generation scope.ScopeGeneration,
-	envelopes []facts.Envelope,
+	index *reducerIntentFactIndex,
 ) (ReducerIntent, bool) {
 	return securityGroupReachabilityIntentForDomain(
 		scopeValue,
 		generation,
-		envelopes,
+		index,
 		reducer.DomainSecurityGroupRuleMaterialization,
 		"aws security group rule facts observed (rule nodes)",
 	)
@@ -65,12 +65,12 @@ func buildSecurityGroupRuleMaterializationReducerIntent(
 func buildSecurityGroupReachabilityMaterializationReducerIntent(
 	scopeValue scope.IngestionScope,
 	generation scope.ScopeGeneration,
-	envelopes []facts.Envelope,
+	index *reducerIntentFactIndex,
 ) (ReducerIntent, bool) {
 	return securityGroupReachabilityIntentForDomain(
 		scopeValue,
 		generation,
-		envelopes,
+		index,
 		reducer.DomainSecurityGroupReachabilityMaterialization,
 		"aws security group rule facts observed (reachability edges)",
 	)
@@ -83,23 +83,21 @@ func buildSecurityGroupReachabilityMaterializationReducerIntent(
 func securityGroupReachabilityIntentForDomain(
 	scopeValue scope.IngestionScope,
 	generation scope.ScopeGeneration,
-	envelopes []facts.Envelope,
+	index *reducerIntentFactIndex,
 	domain reducer.Domain,
 	reason string,
 ) (ReducerIntent, bool) {
-	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSSecurityGroupRuleFactKind {
-			continue
-		}
-		return ReducerIntent{
-			ScopeID:      scopeValue.ScopeID,
-			GenerationID: generation.GenerationID,
-			Domain:       domain,
-			EntityKey:    securityGroupReachabilityAcceptanceUnit(scopeValue),
-			Reason:       reason,
-			FactID:       envelope.FactID,
-			SourceSystem: awsCloudRuntimeDriftSourceSystem(envelope),
-		}, true
+	envelope, ok := index.firstOfKind(facts.AWSSecurityGroupRuleFactKind)
+	if !ok {
+		return ReducerIntent{}, false
 	}
-	return ReducerIntent{}, false
+	return ReducerIntent{
+		ScopeID:      scopeValue.ScopeID,
+		GenerationID: generation.GenerationID,
+		Domain:       domain,
+		EntityKey:    securityGroupReachabilityAcceptanceUnit(scopeValue),
+		Reason:       reason,
+		FactID:       envelope.FactID,
+		SourceSystem: awsCloudRuntimeDriftSourceSystem(envelope),
+	}, true
 }

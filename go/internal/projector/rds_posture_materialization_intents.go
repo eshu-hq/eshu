@@ -25,21 +25,19 @@ import (
 func buildRDSPostureMaterializationReducerIntent(
 	scopeValue scope.IngestionScope,
 	generation scope.ScopeGeneration,
-	envelopes []facts.Envelope,
+	index *reducerIntentFactIndex,
 ) (ReducerIntent, bool) {
-	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.RDSInstancePostureFactKind {
-			continue
-		}
-		return ReducerIntent{
-			ScopeID:      scopeValue.ScopeID,
-			GenerationID: generation.GenerationID,
-			Domain:       reducer.DomainRDSPostureMaterialization,
-			EntityKey:    "aws_resource_materialization:" + scopeValue.ScopeID,
-			Reason:       "rds posture facts observed",
-			FactID:       envelope.FactID,
-			SourceSystem: awsCloudRuntimeDriftSourceSystem(envelope),
-		}, true
+	envelope, ok := index.firstOfKind(facts.RDSInstancePostureFactKind)
+	if !ok {
+		return ReducerIntent{}, false
 	}
-	return ReducerIntent{}, false
+	return ReducerIntent{
+		ScopeID:      scopeValue.ScopeID,
+		GenerationID: generation.GenerationID,
+		Domain:       reducer.DomainRDSPostureMaterialization,
+		EntityKey:    "aws_resource_materialization:" + scopeValue.ScopeID,
+		Reason:       "rds posture facts observed",
+		FactID:       envelope.FactID,
+		SourceSystem: awsCloudRuntimeDriftSourceSystem(envelope),
+	}, true
 }
