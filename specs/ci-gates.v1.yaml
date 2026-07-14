@@ -423,6 +423,7 @@ gates:
     triggers:
       - "sdk/go/collector/**"
       - ".github/workflows/sdk-go.yml"
+      - "scripts/ci/install-apt-packages.sh"
     local:
       command: "cd sdk/go/collector && go build ./... && go test ./... -count=1 && go vet ./... && test -z \"$(gofmt -l .)\" && ! go list -deps ./... | rg -q 'eshu-hq/eshu/go/internal'"
       test_command: ""
@@ -446,8 +447,9 @@ gates:
     triggers:
       - "sdk/go/factschema/**"
       - ".github/workflows/sdk-go.yml"
+      - "scripts/ci/install-apt-packages.sh"
     local:
-      command: "cd sdk/go/factschema && go build ./... && go test ./... -count=1 && go vet ./... && test -z \"$(gofmt -l .)\" && ! go list -deps ./... | rg -q 'eshu-hq/eshu/go/internal' && go generate ./... && git diff --exit-code -- ."
+      command: "cd sdk/go/factschema && go build ./... && go test ./... -count=1 && go vet ./... && test -z \"$(gofmt -l .)\" && ! go list -deps ./... | rg -q 'eshu-hq/eshu/go/internal' && go generate ./... && test -z \"$(git status --porcelain -- .)\""
       test_command: ""
     ci:
       workflow: sdk-go.yml
