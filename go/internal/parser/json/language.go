@@ -60,8 +60,9 @@ func Parse(
 		return payload, nil
 	}
 
+	normalizedBytes := []byte(normalized)
 	var document any
-	if err := stdjson.Unmarshal([]byte(normalized), &document); err != nil {
+	if err := stdjson.Unmarshal(normalizedBytes, &document); err != nil {
 		return nil, fmt.Errorf("parse json file %q: %w", path, err)
 	}
 
@@ -73,9 +74,20 @@ func Parse(
 		return payload, nil
 	}
 
-	topLevelEntries, err := unmarshalOrderedJSONObject([]byte(normalized))
-	if err == nil {
-		payload["json_metadata"] = map[string]any{"top_level_keys": orderedJSONKeys(topLevelEntries)}
+	filename := strings.ToLower(filepath.Base(path))
+
+	// See jsonFilenameNeedsOrderedEntries: only filenames that read
+	// topLevelEntries below pay for the full ordered walk; every other file
+	// gets json_metadata via the cheaper key-order-only scan (issue #4873).
+	var topLevelEntries []orderedJSONEntry
+	if jsonFilenameNeedsOrderedEntries(filename) {
+		entries, err := unmarshalOrderedJSONObject(normalizedBytes)
+		if err == nil {
+			topLevelEntries = entries
+			payload["json_metadata"] = map[string]any{"top_level_keys": orderedJSONKeys(entries)}
+		}
+	} else if keys, err := topLevelJSONKeyOrder(normalizedBytes); err == nil {
+		payload["json_metadata"] = map[string]any{"top_level_keys": keys}
 	}
 
 	languageName := "json"
@@ -93,7 +105,6 @@ func Parse(
 		return payload, nil
 	}
 
-	filename := strings.ToLower(filepath.Base(path))
 	if applyJSONReplayDocument(payload, object, filename, config.LineageExtractor) {
 		if options.IndexSource {
 			payload["source"] = string(source)
@@ -392,104 +403,4 @@ func normalizeJSONArrayValue(value any) string {
 		parts = append(parts, fmt.Sprint(item))
 	}
 	return strings.Join(parts, ",")
-}
-
-func stripJSONCComments(source string) string {
-	var builder strings.Builder
-	inString := false
-	escapeNext := false
-	for index := 0; index < len(source); index++ {
-		current := source[index]
-		if inString {
-			builder.WriteByte(current)
-			if escapeNext {
-				escapeNext = false
-				continue
-			}
-			if current == '\\' {
-				escapeNext = true
-				continue
-			}
-			if current == '"' {
-				inString = false
-			}
-			continue
-		}
-		if current == '"' {
-			inString = true
-			builder.WriteByte(current)
-			continue
-		}
-		if current == '/' && index+1 < len(source) {
-			next := source[index+1]
-			if next == '/' {
-				for index < len(source) && source[index] != '\n' {
-					index++
-				}
-				if index < len(source) {
-					builder.WriteByte(source[index])
-				}
-				continue
-			}
-			if next == '*' {
-				index += 2
-				for index+1 < len(source) && (source[index] != '*' || source[index+1] != '/') {
-					index++
-				}
-				index++
-				continue
-			}
-		}
-		builder.WriteByte(current)
-	}
-	return builder.String()
-}
-
-func stripTrailingCommas(source string) string {
-	var builder strings.Builder
-	inString := false
-	escapeNext := false
-	for index := 0; index < len(source); index++ {
-		current := source[index]
-		if inString {
-			builder.WriteByte(current)
-			if escapeNext {
-				escapeNext = false
-				continue
-			}
-			if current == '\\' {
-				escapeNext = true
-				continue
-			}
-			if current == '"' {
-				inString = false
-			}
-			continue
-		}
-		if current == '"' {
-			inString = true
-			builder.WriteByte(current)
-			continue
-		}
-		if current == ',' {
-			next := nextNonWhitespaceIndex(source, index+1)
-			if next < len(source) && (source[next] == '}' || source[next] == ']') {
-				continue
-			}
-		}
-		builder.WriteByte(current)
-	}
-	return builder.String()
-}
-
-func nextNonWhitespaceIndex(source string, start int) int {
-	for start < len(source) {
-		switch source[start] {
-		case ' ', '\t', '\r', '\n':
-			start++
-		default:
-			return start
-		}
-	}
-	return start
 }

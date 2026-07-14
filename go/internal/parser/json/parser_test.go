@@ -47,6 +47,46 @@ func TestParsePackageJSONPreservesOrderedMetadataAndDependencyRows(t *testing.T)
 	}
 }
 
+// TestParseTSConfigPreservesCompilerOptionsPathsOrder pins the one nested
+// (two-levels-deep) ordering case in this package: tsconfig.json's
+// compilerOptions.paths aliases must emit in JSON source order, not
+// alphabetical order. This exercises jsonFilenameNeedsOrderedEntries routing
+// tsconfig*.json through the full ordered decode (unmarshalOrderedJSONObject)
+// rather than the cheap top-level-keys-only scan used for files that do not
+// need nested key order. See issue #4873.
+func TestParseTSConfigPreservesCompilerOptionsPathsOrder(t *testing.T) {
+	t.Parallel()
+
+	path := writeJSONTestFile(t, "tsconfig.json", `{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "paths": {
+      "@zeta/*": ["packages/zeta/*"],
+      "@alpha/*": ["packages/alpha/*"]
+    }
+  }
+}`)
+
+	payload, err := Parse(path, false, shared.Options{}, Config{})
+	if err != nil {
+		t.Fatalf("Parse() error = %v, want nil", err)
+	}
+
+	rows, ok := payload["variables"].([]map[string]any)
+	if !ok {
+		t.Fatalf("variables = %T, want []map[string]any", payload["variables"])
+	}
+	got := make([]string, 0, len(rows))
+	for _, row := range rows {
+		name, _ := row["name"].(string)
+		got = append(got, name)
+	}
+	want := []string{"extends", "path:@zeta/*", "path:@alpha/*"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("variables order = %#v, want %#v", got, want)
+	}
+}
+
 func TestParsePackageLockJSONEmitsExactDependencyRows(t *testing.T) {
 	t.Parallel()
 

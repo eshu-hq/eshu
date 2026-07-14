@@ -5,10 +5,13 @@
 1. `README.md` - package purpose, ownership boundary, and invariants.
 2. `doc.go` - godoc contract for parent parser callers.
 3. `language.go` - `Parse`, `Config`, payload setup, and JSON dispatch.
-4. `ordered_object.go` - order-preserving top-level and nested object helpers.
-5. `dbt_manifest.go` - dbt manifest payload construction.
-6. `data_intelligence.go` and `governance.go` - replay fixture extraction.
-7. Parent wrapper in `../json_language.go`.
+4. `ordered_object.go` - order-preserving top-level and nested object helpers,
+   plus `jsonFilenameNeedsOrderedEntries` (the filename routing table between
+   the full ordered walk and the cheap top-level-keys-only scan).
+5. `jsonc.go` - JSONC comment and trailing-comma stripping.
+6. `dbt_manifest.go` - dbt manifest payload construction.
+7. `data_intelligence.go` and `governance.go` - replay fixture extraction.
+8. Parent wrapper in `../json_language.go`.
 
 ## Invariants this package enforces
 
@@ -30,11 +33,19 @@
   governance-specific, where `governance.go` owns the rows.
 - New parent-owned behavior should be passed through `Config` instead of adding
   a parent-package import.
+- A new filename branch in `Parse`'s switch that reads `topLevelEntries` (like
+  `package.json`, `composer.json`, and `tsconfig*.json` today) must also be
+  added to `jsonFilenameNeedsOrderedEntries` in `ordered_object.go`, or that
+  filename silently falls back to the cheap key-order-only scan and its
+  dependency/script rows lose JSON source order.
 
 ## Failure modes
 
 - Missing dependency or script rows usually means ordered-object fallback logic
   drifted in `orderedJSONSectionKeys`.
+- Dependency/script/TypeScript-path rows in alphabetical order instead of JSON
+  source order usually means `jsonFilenameNeedsOrderedEntries` fell out of
+  lockstep with `Parse`'s switch for that filename.
 - Missing CloudFormation rows usually means `cloudformation.IsTemplate` did not
   recognize the decoded document shape.
 - Missing dbt column lineage usually means the parent wrapper did not supply

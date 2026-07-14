@@ -37,5 +37,6 @@ Not claimed today:
 
 ## Known Limitations
 - Generic JSON files emit metadata only and do not expand arbitrary nested objects into graph nodes
+- `json_metadata.top_level_keys` is preserved in JSON source order for every JSON file. Manifest files that also emit source-ordered dependency, script, or TypeScript path rows (`package.json`, `composer.json`, `tsconfig*.json`) retain nested key order through a full ordered decode; every other file derives the top-level key order alone through a lighter key-order scan. Both paths yield identical `top_level_keys`; the distinction is an internal cost optimization, not a change in emitted evidence
 - npm `package-lock.json`, Composer `composer.lock`, NuGet `packages.lock.json`, Pipenv `Pipfile.lock`, and SwiftPM `Package.resolved` are parsed into exact-version dependency rows where the source file proves registry-style package identity and version; Pub `pubspec` coverage is YAML-owned. The per-ecosystem coverage map for supply-chain impact lives in [Dependency And Lockfile Coverage](../reference/dependency-coverage.md)
 - Minified JSON assets are intentionally kept metadata-only to avoid graph noise
