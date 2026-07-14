@@ -41,11 +41,17 @@ type QuarantinedFactRecord struct {
 
 // QuarantinedFactWriter persists durable per-fact input_invalid quarantine
 // rows (issue #4630). Implementations MUST be idempotent under reduction
-// replay: a work item that quarantines the same fact/field twice (a retry
-// after a later failure in the same intent, or a replayed generation) must
-// converge on one durable row rather than duplicating it, so a natural-key
-// ON CONFLICT DO NOTHING upsert is the expected shape (mirrors the
-// admission_decisions write pattern's idempotent-upsert requirement).
+// replay: a work item that quarantines the same fact/field/domain twice (a
+// retry after a later failure in the same intent, or a replayed generation)
+// must converge on one durable row rather than duplicating it, so a
+// natural-key ON CONFLICT DO NOTHING upsert is the expected shape (mirrors
+// the admission_decisions write pattern's idempotent-upsert requirement).
+// The natural key includes Domain: two different reducer domains that
+// independently quarantine the same fact/field (for example aws_resource
+// decoded by both the AWS resource materialization domain and the
+// relationship/IAM/security-group join-path domains) MUST produce two
+// distinct durable rows, not one collapsed row, so a domain-filtered read
+// preserves per-domain quarantine truth (codex review on PR #5252).
 //
 // A WriteQuarantinedFacts failure is NEVER allowed to fail the owning
 // intent: this is a best-effort, operator-facing read-surface write, not a

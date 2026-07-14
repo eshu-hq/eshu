@@ -13,10 +13,39 @@ once per intent by `Service.executeWithTelemetry`
 `ReducerInputInvalidFactStore.WriteQuarantinedFacts`
 (`go/internal/storage/postgres/reducer_input_invalid_facts.go`), a batched
 multi-row `INSERT ... ON CONFLICT (scope_id, generation_id, fact_id,
-missing_field) DO NOTHING`. A new bounded, scoped read
+missing_field, domain) DO NOTHING`. A new bounded, scoped read
 (`POST /api/v0/admin/input-invalid-facts/query`,
 `go/internal/query/admin_input_invalid_facts.go`; MCP mirror
 `list_reducer_input_invalid_facts`) exposes it.
+
+**Update (codex review on PR #5252):** two P2 findings were fixed after the
+initial merge-ready pass:
+
+1. **`domain` joined the natural key / `ON CONFLICT` target.** More than one
+   reducer domain can independently quarantine the SAME fact/field — for
+   example `aws_resource` is decoded both by the AWS resource materialization
+   domain and by the relationship/IAM/security-group join-path domains.
+   Without `domain` in the primary key, the second domain's insert collided
+   with (and was silently dropped by) the first domain's row, so a
+   domain-filtered read falsely returned empty for the second domain's
+   quarantine. The primary key is now `(scope_id, generation_id, fact_id,
+   missing_field, domain)` and the `ON CONFLICT` target matches, so replay
+   within one domain still dedupes while two domains quarantining the same
+   fact now durably produce two rows. Proven against real Postgres by the
+   extended `TestReducerInputInvalidFactStoreLive`
+   (`go/internal/storage/postgres/reducer_input_invalid_facts_live_test.go`).
+2. **Repository-scoped read authorization moved from an in-memory pre-check
+   to the store's SQL.** The handler previously rejected a request when the
+   caller's combined allowed-IDs map did not contain the literal requested
+   `scope_id` — but a repository-scoped token grants the repository
+   identifier, not the raw ingestion `scope_id`, so a token that legitimately
+   owns a repository could never read that repository's quarantine rows. The
+   store query now joins `ingestion_scopes` and authorizes via
+   `(scope.scope_kind = 'repository' AND scope.source_key = ANY(...)) OR
+   quarantine.scope_id = ANY(...)`, mirroring `ListDeadLetterWorkItems`.
+   Proven against real Postgres by
+   `TestAdminHandler_InputInvalidFactsQueryLiveRepositoryScopedGrant`
+   (`go/internal/query/admin_input_invalid_facts_test.go`).
 
 ## No-Regression Evidence:
 
@@ -57,9 +86,14 @@ missing_field) DO NOTHING`. A new bounded, scoped read
   `scope_id`, `generation_id`, `limit` (<=500), and `timeout_ms` (<=30s),
   reads a single indexed `(scope_id, generation_id, domain, fact_kind,
   decided_at DESC)` range, over-fetches by exactly one row to set `truncated`,
-  and is scoped by the caller's granted repository/scope ids before the store
-  is ever called (`TestListInputInvalidFactsScopedUngrantedScopeSkipsStore`) —
-  never an unbounded or whole-table scan.
+  and is scoped by the caller's granted repository/scope ids — a scoped token
+  with NO grants at all short-circuits before the store is ever called
+  (`TestListInputInvalidFactsScopedEmptyGrantSkipsStore`), and a scoped token
+  WITH grants always reaches the store, which authorizes the requested
+  `scope_id` via a SQL join against `ingestion_scopes`
+  (`TestBuildListReducerInputInvalidFactsQuery_AuthorizesViaIngestionScopes`,
+  `TestAdminHandler_InputInvalidFactsQueryLiveRepositoryScopedGrant`) — never
+  an unbounded or whole-table scan.
 
 ## No-Observability-Change:
 
@@ -96,5 +130,12 @@ retried reduction is proven against real Postgres by
 `TestReducerInputInvalidFactStoreLive`
 (`go/internal/storage/postgres/reducer_input_invalid_facts_live_test.go`): the
 same batch written twice (as a retried intent would) produces the same row
-count, because `ON CONFLICT (scope_id, generation_id, fact_id, missing_field)
-DO NOTHING` converges on the natural key rather than erroring or duplicating.
+count, because `ON CONFLICT (scope_id, generation_id, fact_id, missing_field,
+domain) DO NOTHING` converges on the natural key rather than erroring or
+duplicating. The same test also proves the natural key's `domain` column is
+load-bearing for correctness, not just idempotency: quarantining the exact
+same `fact_id`/`missing_field` under a SECOND, DIFFERENT domain produces a
+THIRD row (both domains' rows persist independently) and replaying that
+second domain's write is itself idempotent (stays at three rows) —
+concurrent reducer domains observing the same malformed fact never race each
+other's durable row out of existence.

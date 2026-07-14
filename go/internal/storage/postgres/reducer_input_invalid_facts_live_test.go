@@ -24,9 +24,17 @@ import (
 //  2. IDEMPOTENT REPLAY: writing the exact same records a second time (what
 //     a retried reducer intent or a re-projected generation does) produces
 //     no duplicate rows and no error — the ON CONFLICT (scope_id,
-//     generation_id, fact_id, missing_field) DO NOTHING clause actually
-//     works against real Postgres, not just a fake in-memory map.
-//  3. FK CASCADE RETENTION: deleting the owning scope_generations row cascades
+//     generation_id, fact_id, missing_field, domain) DO NOTHING clause
+//     actually works against real Postgres, not just a fake in-memory map.
+//  3. PER-DOMAIN TRUTH PRESERVED: the exact same fact_id/missing_field
+//     quarantined by TWO DIFFERENT reducer domains (for example aws_resource
+//     decoded independently by both the AWS resource materialization domain
+//     and a relationship/IAM/security-group join-path domain) produces TWO
+//     durable rows, not one collapsed row — domain is part of the natural
+//     key/ON CONFLICT target, so a domain-filtered read never falsely
+//     returns empty for the second domain's quarantine (codex review on PR
+//     #5252, issue #4630).
+//  4. FK CASCADE RETENTION: deleting the owning scope_generations row cascades
 //     to delete the quarantine rows, so retention/cleanup of an old
 //     generation does not leave orphaned quarantine rows behind.
 //
@@ -127,6 +135,57 @@ func TestReducerInputInvalidFactStoreLive(t *testing.T) {
 	}
 	if count != 2 {
 		t.Fatalf("row count after idempotent replay = %d, want 2 (ON CONFLICT DO NOTHING must dedupe on the natural key)", count)
+	}
+
+	// PER-DOMAIN TRUTH: the exact same fact_id/missing_field quarantined by a
+	// SECOND, DIFFERENT domain must land as a second durable row, not collide
+	// with (and be silently dropped by) the first domain's row. This is the
+	// codex P2 finding on PR #5252: without domain in the natural key/ON
+	// CONFLICT target, the second domain's insert would be a no-op and a
+	// domain-filtered read for the second domain would falsely return empty.
+	secondDomainRecords := []reducer.QuarantinedFactRecord{
+		{
+			FactID: records[0].FactID, FactKind: records[0].FactKind, MissingField: records[0].MissingField,
+			FailureClass: "input_invalid", Domain: "aws_relationship_join",
+			ScopeID: scopeID, GenerationID: generationID, DecidedAt: now,
+		},
+	}
+	if err := store.WriteQuarantinedFacts(ctx, secondDomainRecords); err != nil {
+		t.Fatalf("WriteQuarantinedFacts() second-domain error = %v", err)
+	}
+	if err := sqlDB.QueryRowContext(ctx,
+		`SELECT count(*) FROM reducer_input_invalid_facts WHERE scope_id = $1 AND generation_id = $2`,
+		scopeID, generationID,
+	).Scan(&count); err != nil {
+		t.Fatalf("count after second-domain write: %v", err)
+	}
+	if count != 3 {
+		t.Fatalf("row count after second-domain quarantine of the same fact/field = %d, want 3 (2 original + 1 new per-domain row; domain must be part of the natural key)", count)
+	}
+	var domainsForFact int
+	if err := sqlDB.QueryRowContext(ctx,
+		`SELECT count(DISTINCT domain) FROM reducer_input_invalid_facts WHERE scope_id = $1 AND generation_id = $2 AND fact_id = $3 AND missing_field = $4`,
+		scopeID, generationID, records[0].FactID, records[0].MissingField,
+	).Scan(&domainsForFact); err != nil {
+		t.Fatalf("count distinct domains for fact: %v", err)
+	}
+	if domainsForFact != 2 {
+		t.Fatalf("distinct domains for the same fact/field = %d, want 2 (aws_resource_materialization and aws_relationship_join both preserved)", domainsForFact)
+	}
+
+	// Idempotent replay WITHIN the second domain: writing it again must not
+	// duplicate that domain's row either.
+	if err := store.WriteQuarantinedFacts(ctx, secondDomainRecords); err != nil {
+		t.Fatalf("WriteQuarantinedFacts() second-domain replay error = %v", err)
+	}
+	if err := sqlDB.QueryRowContext(ctx,
+		`SELECT count(*) FROM reducer_input_invalid_facts WHERE scope_id = $1 AND generation_id = $2`,
+		scopeID, generationID,
+	).Scan(&count); err != nil {
+		t.Fatalf("count after second-domain replay: %v", err)
+	}
+	if count != 3 {
+		t.Fatalf("row count after second-domain idempotent replay = %d, want unchanged 3", count)
 	}
 
 	// FK cascade retention: deleting the owning generation cascades to the

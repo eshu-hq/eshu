@@ -118,13 +118,21 @@ type AdminReducerInputInvalidFact struct {
 // read queries. ScopeID and GenerationID are required: the table is always
 // read scoped to one ingestion scope generation (mirrors
 // AdmissionDecisionReadFilter and DeadLetterListFilter's scope requirement).
+// AllowedRepositoryIDs and AllowedScopeIDs carry a scoped token's grants so
+// the store query can authorize the requested ScopeID against
+// ingestion_scopes (mirroring DeadLetterListFilter): a repository-scoped
+// token that grants a repository but not the raw ingestion scope_id must
+// still be authorized when the requested ScopeID belongs to that repository
+// (codex review on PR #5252, issue #4630).
 type InputInvalidFactListFilter struct {
-	ScopeID      string
-	GenerationID string
-	Domain       string
-	FactKind     string
-	Limit        int
-	Timeout      time.Duration
+	ScopeID              string
+	GenerationID         string
+	Domain               string
+	FactKind             string
+	AllowedRepositoryIDs []string
+	AllowedScopeIDs      []string
+	Limit                int
+	Timeout              time.Duration
 }
 
 // AdminReplayEvent is an admin-friendly view of a fact_replay_events row.

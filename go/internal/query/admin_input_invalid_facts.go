@@ -84,18 +84,29 @@ func (h *AdminHandler) listInputInvalidFacts(w http.ResponseWriter, r *http.Requ
 
 	scopeID := strings.TrimSpace(req.ScopeID)
 	access := repositoryAccessFilterFromContext(r.Context())
-	if access.empty() || !access.allowsRepositoryID(scopeID) {
+	if access.empty() {
 		writeInputInvalidFactList(w, req.Limit, false, nil)
 		return
 	}
 
+	// Authorization for a scoped token is delegated to the store query,
+	// which joins ingestion_scopes and authorizes ScopeID via either a
+	// direct scope grant or a repository grant (mirrors
+	// ListDeadLetterWorkItems). An in-memory pre-check comparing scopeID
+	// against the combined allowed-IDs map is NOT sufficient here: a
+	// repository-scoped token grants the repository identifier, not the
+	// raw ingestion scope_id, so that comparison would falsely reject a
+	// request for a scope_id that legitimately belongs to an allowed
+	// repository (codex review on PR #5252, issue #4630).
 	filter := InputInvalidFactListFilter{
-		ScopeID:      scopeID,
-		GenerationID: strings.TrimSpace(req.GenerationID),
-		Domain:       strings.TrimSpace(req.Domain),
-		FactKind:     strings.TrimSpace(req.FactKind),
-		Limit:        req.Limit + 1,
-		Timeout:      timeout,
+		ScopeID:              scopeID,
+		GenerationID:         strings.TrimSpace(req.GenerationID),
+		Domain:               strings.TrimSpace(req.Domain),
+		FactKind:             strings.TrimSpace(req.FactKind),
+		AllowedRepositoryIDs: access.grantedRepositoryIDs(),
+		AllowedScopeIDs:      access.grantedScopeIDs(),
+		Limit:                req.Limit + 1,
+		Timeout:              timeout,
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), timeout)
 	defer cancel()

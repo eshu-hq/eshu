@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/lib/pq"
+
 	pgstatus "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
@@ -34,6 +36,7 @@ SELECT
     quarantine.generation_id,
     quarantine.decided_at
 FROM reducer_input_invalid_facts AS quarantine
+JOIN ingestion_scopes AS scope ON scope.scope_id = quarantine.scope_id
 WHERE quarantine.scope_id = $1
   AND quarantine.generation_id = $2
 `)
@@ -45,6 +48,25 @@ WHERE quarantine.scope_id = $1
 	if value := strings.TrimSpace(f.FactKind); value != "" {
 		args = append(args, value)
 		_, _ = fmt.Fprintf(&builder, " AND quarantine.fact_kind = $%d\n", len(args))
+	}
+	// Authorize the requested scope via ingestion_scopes, mirroring
+	// buildListDeadLetterWorkItemsQuery: a scoped token that grants a
+	// repository (not the raw scope_id) is authorized when the requested
+	// scope's source_key matches an allowed repository, OR when the raw
+	// scope_id itself was granted directly. Without this join, a
+	// repository-scoped token that never received the raw ingestion
+	// scope_id could never read its own quarantine rows (codex review on
+	// PR #5252, issue #4630).
+	if len(f.AllowedRepositoryIDs) > 0 || len(f.AllowedScopeIDs) > 0 {
+		args = append(args, pq.Array(f.AllowedRepositoryIDs))
+		repoArg := len(args)
+		args = append(args, pq.Array(f.AllowedScopeIDs))
+		scopeArg := len(args)
+		_, _ = fmt.Fprintf(&builder,
+			" AND ((scope.scope_kind = 'repository' AND scope.source_key = ANY($%d)) OR quarantine.scope_id = ANY($%d))\n",
+			repoArg,
+			scopeArg,
+		)
 	}
 	limit := f.Limit
 	if limit <= 0 {

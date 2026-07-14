@@ -22,7 +22,7 @@ func TestReducerInputInvalidFactSchemaSQL(t *testing.T) {
 		"CREATE TABLE IF NOT EXISTS reducer_input_invalid_facts",
 		"REFERENCES ingestion_scopes(scope_id) ON DELETE CASCADE",
 		"REFERENCES scope_generations(generation_id) ON DELETE CASCADE",
-		"PRIMARY KEY (scope_id, generation_id, fact_id, missing_field)",
+		"PRIMARY KEY (scope_id, generation_id, fact_id, missing_field, domain)",
 		"reducer_input_invalid_facts_scope_generation_domain_idx",
 	} {
 		if !strings.Contains(sqlStr, want) {
@@ -92,7 +92,7 @@ func TestReducerInputInvalidFactStoreWriteBatchesAndUsesConflictDoNothing(t *tes
 		if !strings.Contains(stmt, "INSERT INTO reducer_input_invalid_facts") {
 			t.Fatalf("statement[%d] missing INSERT INTO reducer_input_invalid_facts: %s", i, stmt)
 		}
-		if !strings.Contains(stmt, "ON CONFLICT (scope_id, generation_id, fact_id, missing_field) DO NOTHING") {
+		if !strings.Contains(stmt, "ON CONFLICT (scope_id, generation_id, fact_id, missing_field, domain) DO NOTHING") {
 			t.Fatalf("statement[%d] missing the idempotent ON CONFLICT DO NOTHING clause: %s", i, stmt)
 		}
 	}

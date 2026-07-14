@@ -29,7 +29,7 @@ CREATE TABLE IF NOT EXISTS reducer_input_invalid_facts (
     scope_id TEXT NOT NULL REFERENCES ingestion_scopes(scope_id) ON DELETE CASCADE,
     generation_id TEXT NOT NULL REFERENCES scope_generations(generation_id) ON DELETE CASCADE,
     decided_at TIMESTAMPTZ NOT NULL,
-    PRIMARY KEY (scope_id, generation_id, fact_id, missing_field)
+    PRIMARY KEY (scope_id, generation_id, fact_id, missing_field, domain)
 );
 
 CREATE INDEX IF NOT EXISTS reducer_input_invalid_facts_scope_generation_domain_idx
@@ -43,12 +43,24 @@ INSERT INTO reducer_input_invalid_facts (
 
 // insertReducerInputInvalidFactBatchSuffix intentionally does nothing on a
 // natural-key collision: reduction replay (a retried intent, or a
-// re-projected generation) may re-quarantine the same fact/field, and the
-// first-recorded decided_at should win rather than being overwritten on every
-// replay. This is what makes ReducerInputInvalidFactStore.WriteQuarantinedFacts
-// idempotent under at-least-once reduction (issue #4630).
+// re-projected generation) may re-quarantine the same fact/field within the
+// SAME domain, and the first-recorded decided_at should win rather than being
+// overwritten on every replay. This is what makes
+// ReducerInputInvalidFactStore.WriteQuarantinedFacts idempotent under
+// at-least-once reduction (issue #4630).
+//
+// domain is part of the conflict target (matching the table's primary key)
+// because more than one reducer domain can decode and quarantine the SAME
+// fact independently — for example aws_resource is decoded both by AWS
+// resource materialization and by the relationship/IAM/security-group join
+// paths, each its own domain. Without domain in the key, the second domain's
+// insert would collide with and be silently dropped by the first domain's
+// row, and a domain-filtered read would falsely return empty for the second
+// domain's quarantine even though it observed the fault. Keying on domain
+// preserves per-domain quarantine truth while still deduping replay within a
+// single domain (codex review on PR #5252, issue #4630).
 const insertReducerInputInvalidFactBatchSuffix = `
-ON CONFLICT (scope_id, generation_id, fact_id, missing_field) DO NOTHING
+ON CONFLICT (scope_id, generation_id, fact_id, missing_field, domain) DO NOTHING
 `
 
 // ReducerInputInvalidFactStore persists durable reducer_input_invalid_facts
