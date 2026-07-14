@@ -11,26 +11,30 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
+// sbomAttestationAttachmentCandidateFactKinds are the fact kinds
+// sbomAttestationAttachmentTriggerFact accepts.
+var sbomAttestationAttachmentCandidateFactKinds = []string{
+	facts.SBOMDocumentFactKind, facts.AttestationStatementFactKind, facts.OCIImageReferrerFactKind,
+}
+
 func buildSBOMAttestationAttachmentReducerIntent(
 	scopeValue scope.IngestionScope,
 	generation scope.ScopeGeneration,
-	envelopes []facts.Envelope,
+	index *reducerIntentFactIndex,
 ) (ReducerIntent, bool) {
-	for _, envelope := range envelopes {
-		if !sbomAttestationAttachmentTriggerFact(envelope) {
-			continue
-		}
-		return ReducerIntent{
-			ScopeID:      scopeValue.ScopeID,
-			GenerationID: generation.GenerationID,
-			Domain:       reducer.DomainSBOMAttestationAttachment,
-			EntityKey:    "sbom_attestation_attachment:" + scopeValue.ScopeID,
-			Reason:       "sbom or attestation subject evidence observed",
-			FactID:       envelope.FactID,
-			SourceSystem: sbomAttestationAttachmentSourceSystem(envelope),
-		}, true
+	envelope, ok := index.firstAcrossKinds(sbomAttestationAttachmentTriggerFact, sbomAttestationAttachmentCandidateFactKinds...)
+	if !ok {
+		return ReducerIntent{}, false
 	}
-	return ReducerIntent{}, false
+	return ReducerIntent{
+		ScopeID:      scopeValue.ScopeID,
+		GenerationID: generation.GenerationID,
+		Domain:       reducer.DomainSBOMAttestationAttachment,
+		EntityKey:    "sbom_attestation_attachment:" + scopeValue.ScopeID,
+		Reason:       "sbom or attestation subject evidence observed",
+		FactID:       envelope.FactID,
+		SourceSystem: sbomAttestationAttachmentSourceSystem(envelope),
+	}, true
 }
 
 func sbomAttestationAttachmentTriggerFact(envelope facts.Envelope) bool {

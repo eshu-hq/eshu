@@ -62,13 +62,13 @@ func TestBuildProjectionQueuesSupplyChainImpactForProviderAlert(t *testing.T) {
 
 	scopeValue := scope.IngestionScope{ScopeID: "repo://github/eshu-hq/eshu"}
 	generation := scope.ScopeGeneration{ScopeID: scopeValue.ScopeID, GenerationID: "generation-1"}
-	intent, ok := buildSupplyChainImpactReducerIntent(scopeValue, generation, []facts.Envelope{{
+	intent, ok := buildSupplyChainImpactReducerIntent(scopeValue, generation, newReducerIntentFactIndex([]facts.Envelope{{
 		FactID:        "alert-1",
 		ScopeID:       scopeValue.ScopeID,
 		GenerationID:  generation.GenerationID,
 		FactKind:      facts.SecurityAlertRepositoryAlertFactKind,
 		SchemaVersion: facts.SecurityAlertSchemaVersionV1,
-	}})
+	}}))
 	if !ok {
 		t.Fatal("buildSupplyChainImpactReducerIntent() ok = false, want true for provider alert")
 	}

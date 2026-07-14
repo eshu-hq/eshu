@@ -154,12 +154,12 @@ func TestBuildSupplyChainImpactReducerIntentSkipsSnapshotOnlyEvidence(t *testing
 
 	scopeValue := scope.IngestionScope{ScopeID: "vuln-intel://first/epss"}
 	generation := scope.ScopeGeneration{ScopeID: scopeValue.ScopeID, GenerationID: "generation-1"}
-	_, ok := buildSupplyChainImpactReducerIntent(scopeValue, generation, []facts.Envelope{{
+	_, ok := buildSupplyChainImpactReducerIntent(scopeValue, generation, newReducerIntentFactIndex([]facts.Envelope{{
 		FactID:       "snapshot",
 		ScopeID:      scopeValue.ScopeID,
 		GenerationID: generation.GenerationID,
 		FactKind:     facts.VulnerabilitySourceSnapshotFactKind,
-	}})
+	}}))
 	if ok {
 		t.Fatal("buildSupplyChainImpactReducerIntent() ok = true, want false for source snapshot only")
 	}

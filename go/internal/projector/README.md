@@ -200,6 +200,22 @@ generation also emits one `gcp_relationship_materialization` intent via
 GCP CloudResource substrate before projecting `GCP_<TYPE>` edges. The projector
 does not create GCP nodes or edges itself. The scope-generation-level intent
 builders are assembled in `appendScopeGenerationReducerIntents`.
+`appendScopeGenerationReducerIntents` builds one shared, read-only
+`reducerIntentFactIndex` (`reducer_intent_fact_index.go`) over `inputFacts` and
+passes it to all ~38 `build*ReducerIntent` probes instead of the raw
+`inputFacts` slice (issue #4875). Each probe used to independently re-scan the
+full generation for its own trigger fact kind(s); the shared index groups fact
+positions by `FactKind` once, so a probe that only cares about one or a
+handful of kinds looks them up directly instead of walking every fact in the
+generation. `inputFacts` is immutable once a scope generation is claimed for
+projection, so sharing one read-only index across all 38 probes is
+concurrency-safe. Probes that pick their anchor fact from more than one
+candidate kind (e.g. `buildSupplyChainImpactReducerIntent`,
+`buildContainerImageIdentityReducerIntent`) use the index's
+`firstAcrossKinds`/`firstMatchingKindPredicate` helpers, which preserve the
+exact same "earliest fact in original `inputFacts` order" anchor selection the
+old full scan made — not "earliest fact of the first-checked kind" — so anchor
+`FactID`, `Reason`, and `SourceSystem` stay byte-identical.
 RDS posture facts follow that same reducer-owned handoff. When a generation
 contains an `rds_instance_posture` fact,
 `buildRDSPostureMaterializationReducerIntent` emits one
@@ -538,6 +554,49 @@ No-Observability-Change: existing projector `intent_enqueue` stage logs,
 `fact_work_items` terminal state expose whether the `cloud_inventory_admission`
 work was queued, drained, retried, or dead-lettered; no new telemetry series or
 spans are added.
+
+Benchmark Evidence: issue #4875's shared `reducerIntentFactIndex` refactor is
+covered by `BenchmarkAppendScopeGenerationReducerIntentsFanOut`
+(`scope_generation_intents_fanout_bench_test.go`), which runs
+`appendScopeGenerationReducerIntents` against a representative multi-domain
+fixture (`fanOutParityFixture`, spanning all 38 `build*ReducerIntent` domains)
+padded to 5,005 total facts with source-code-domain decoy kinds none of the 38
+probes match — the dominant real shape the issue describes: a source-heavy
+generation where most cloud/k8s/supply-chain probes scan the whole generation
+and find nothing. `go test ./internal/projector/... -run '^$' -bench
+'^BenchmarkAppendScopeGenerationReducerIntentsFanOut$' -benchmem -count=6` plus
+`benchstat` before/after the refactor on this machine (Apple M1 Max) reported:
+
+```
+      │   old (full scan)   │      new (shared index)       │
+      │       sec/op        │   sec/op     vs base           │
+FanOut-10  5433.1µ ± 18%       980.4µ ± 45%  -81.95% (p=0.002 n=6)
+
+      │       B/op          │    B/op      vs base           │
+FanOut-10  66.19Ki ± 0%        72.77Ki ± 0%  +9.94% (p=0.002 n=6)
+
+      │    allocs/op        │  allocs/op   vs base           │
+FanOut-10     665.0 ± 0%        172.0 ± 0%  -74.14% (p=0.002 n=6)
+```
+
+Wall time drops ~82% and allocation count drops ~74%; the ~10% B/op increase is
+the shared index's own O(N) position storage (`reducer_intent_fact_index.go`
+counts each fact kind once, then fills exactly-sized `[]int` position slices —
+no `append`-growth waste), which is expected and bounded by generation size,
+not by the number of probes. `TestAppendScopeGenerationReducerIntentsFanOutParity`
+(`scope_generation_intents_fanout_parity_test.go`) is the accuracy half of this
+proof: it pins the exact anchor `FactID`, `EntityKey`, `Reason`, `SourceSystem`,
+and `Payload` every one of the 38 domains emits for the same fixture, captured
+from the pre-refactor full-scan implementation, and must still pass unchanged —
+a `0/0` symmetric diff of emitted intents old-vs-new.
+
+No-Observability-Change: this refactor changes only how
+`appendScopeGenerationReducerIntents` looks up trigger facts internally, not
+what it emits. Existing projector `intent_enqueue` stage logs,
+`eshu_dp_reducer_intents_enqueued_total`, the reducer domain counters, and
+`fact_work_items` terminal state still expose whether each domain's work was
+queued, drained, retried, or dead-lettered; no new metric, span, log field, or
+runtime knob is added.
 
 ## Curated search-document sweeper (design 430)
 

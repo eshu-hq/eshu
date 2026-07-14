@@ -26,21 +26,19 @@ import (
 func buildEC2InstanceNodeMaterializationReducerIntent(
 	scopeValue scope.IngestionScope,
 	generation scope.ScopeGeneration,
-	envelopes []facts.Envelope,
+	index *reducerIntentFactIndex,
 ) (ReducerIntent, bool) {
-	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.EC2InstancePostureFactKind {
-			continue
-		}
-		return ReducerIntent{
-			ScopeID:      scopeValue.ScopeID,
-			GenerationID: generation.GenerationID,
-			Domain:       reducer.DomainEC2InstanceNodeMaterialization,
-			EntityKey:    "ec2_instance_node_materialization:" + scopeValue.ScopeID,
-			Reason:       "ec2 instance posture facts observed",
-			FactID:       envelope.FactID,
-			SourceSystem: awsCloudRuntimeDriftSourceSystem(envelope),
-		}, true
+	envelope, ok := index.firstOfKind(facts.EC2InstancePostureFactKind)
+	if !ok {
+		return ReducerIntent{}, false
 	}
-	return ReducerIntent{}, false
+	return ReducerIntent{
+		ScopeID:      scopeValue.ScopeID,
+		GenerationID: generation.GenerationID,
+		Domain:       reducer.DomainEC2InstanceNodeMaterialization,
+		EntityKey:    "ec2_instance_node_materialization:" + scopeValue.ScopeID,
+		Reason:       "ec2 instance posture facts observed",
+		FactID:       envelope.FactID,
+		SourceSystem: awsCloudRuntimeDriftSourceSystem(envelope),
+	}, true
 }

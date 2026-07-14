@@ -15,7 +15,7 @@ func TestBuildCodeFunctionSummaryReducerIntentNoFactNoIntent(t *testing.T) {
 	t.Parallel()
 	scopeValue := scope.IngestionScope{ScopeID: "scope-1"}
 	generation := scope.ScopeGeneration{GenerationID: "gen-1"}
-	if _, ok := buildCodeFunctionSummaryReducerIntent(scopeValue, generation, []facts.Envelope{{FactKind: "file"}}); ok {
+	if _, ok := buildCodeFunctionSummaryReducerIntent(scopeValue, generation, newReducerIntentFactIndex([]facts.Envelope{{FactKind: "file"}})); ok {
 		t.Fatal("queued a summary intent without any code_function_summary fact")
 	}
 }
@@ -24,7 +24,7 @@ func TestBuildCodeFunctionSummaryReducerIntentFromFact(t *testing.T) {
 	t.Parallel()
 	scopeValue := scope.IngestionScope{ScopeID: "scope-1"}
 	generation := scope.ScopeGeneration{GenerationID: "gen-1"}
-	intent, ok := buildCodeFunctionSummaryReducerIntent(scopeValue, generation, []facts.Envelope{
+	intent, ok := buildCodeFunctionSummaryReducerIntent(scopeValue, generation, newReducerIntentFactIndex([]facts.Envelope{
 		{FactKind: "file"},
 		{
 			FactKind:      facts.CodeFunctionSummaryFactKind,
@@ -32,7 +32,7 @@ func TestBuildCodeFunctionSummaryReducerIntentFromFact(t *testing.T) {
 			CollectorKind: "git",
 			Payload:       map[string]any{"function_id": "repo-1\x1fpkg\x1f\x1fHandle"},
 		},
-	})
+	}))
 	if !ok {
 		t.Fatal("no intent queued for a code_function_summary fact")
 	}
@@ -54,14 +54,14 @@ func TestBuildCodeFunctionSummaryReducerIntentSkipsInvalidSummaryRepoID(t *testi
 	t.Parallel()
 	scopeValue := scope.IngestionScope{ScopeID: "scope-1"}
 	generation := scope.ScopeGeneration{GenerationID: "gen-1"}
-	intent, ok := buildCodeFunctionSummaryReducerIntent(scopeValue, generation, []facts.Envelope{
+	intent, ok := buildCodeFunctionSummaryReducerIntent(scopeValue, generation, newReducerIntentFactIndex([]facts.Envelope{
 		{
 			FactKind:      facts.CodeFunctionSummaryFactKind,
 			FactID:        "summary-fact-1",
 			CollectorKind: "git",
 			Payload:       map[string]any{"repo_id": "repo-1"},
 		},
-	})
+	}))
 	if !ok {
 		t.Fatal("no intent queued for a code_function_summary fact")
 	}
@@ -74,14 +74,14 @@ func TestBuildCodeFunctionSummaryReducerIntentFromMarkerOnly(t *testing.T) {
 	t.Parallel()
 	scopeValue := scope.IngestionScope{ScopeID: "scope-1"}
 	generation := scope.ScopeGeneration{GenerationID: "gen-1"}
-	intent, ok := buildCodeFunctionSummaryReducerIntent(scopeValue, generation, []facts.Envelope{
+	intent, ok := buildCodeFunctionSummaryReducerIntent(scopeValue, generation, newReducerIntentFactIndex([]facts.Envelope{
 		{
 			FactKind:      facts.CodeDataflowScannedFactKind,
 			FactID:        "marker-1",
 			CollectorKind: "git",
 			Payload:       map[string]any{"repo_id": "repo-1"},
 		},
-	})
+	}))
 	if !ok {
 		t.Fatal("no intent queued for marker-only full dataflow scan")
 	}

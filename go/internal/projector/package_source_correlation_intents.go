@@ -14,12 +14,9 @@ import (
 func buildPackageSourceCorrelationReducerIntent(
 	scopeValue scope.IngestionScope,
 	generation scope.ScopeGeneration,
-	envelopes []facts.Envelope,
+	index *reducerIntentFactIndex,
 ) (ReducerIntent, bool) {
-	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.PackageRegistrySourceHintFactKind {
-			continue
-		}
+	if envelope, ok := index.firstOfKind(facts.PackageRegistrySourceHintFactKind); ok {
 		return ReducerIntent{
 			ScopeID:      scopeValue.ScopeID,
 			GenerationID: generation.GenerationID,
@@ -30,10 +27,7 @@ func buildPackageSourceCorrelationReducerIntent(
 			SourceSystem: packageSourceCorrelationSourceSystem(envelope),
 		}, true
 	}
-	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.PackageRegistryPackageFactKind {
-			continue
-		}
+	if envelope, ok := index.firstOfKind(facts.PackageRegistryPackageFactKind); ok {
 		return ReducerIntent{
 			ScopeID:      scopeValue.ScopeID,
 			GenerationID: generation.GenerationID,

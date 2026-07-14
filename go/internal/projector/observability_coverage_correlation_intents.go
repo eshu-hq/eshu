@@ -12,23 +12,41 @@ import (
 func buildObservabilityCoverageCorrelationReducerIntent(
 	scopeValue scope.IngestionScope,
 	generation scope.ScopeGeneration,
-	envelopes []facts.Envelope,
+	index *reducerIntentFactIndex,
 ) (ReducerIntent, bool) {
-	for _, envelope := range envelopes {
-		if !observabilityCoverageCorrelationTriggerFact(envelope) {
-			continue
-		}
-		return ReducerIntent{
-			ScopeID:      scopeValue.ScopeID,
-			GenerationID: generation.GenerationID,
-			Domain:       reducer.DomainObservabilityCoverageCorrelation,
-			EntityKey:    "observability_coverage_correlation:" + scopeValue.ScopeID,
-			Reason:       observabilityCoverageCorrelationReason(envelope),
-			FactID:       envelope.FactID,
-			SourceSystem: observabilitySourceSystem(envelope),
-		}, true
+	envelope, ok := index.firstMatchingKindPredicate(
+		observabilityCoverageCorrelationCandidateFactKind,
+		observabilityCoverageCorrelationTriggerFact,
+	)
+	if !ok {
+		return ReducerIntent{}, false
 	}
-	return ReducerIntent{}, false
+	return ReducerIntent{
+		ScopeID:      scopeValue.ScopeID,
+		GenerationID: generation.GenerationID,
+		Domain:       reducer.DomainObservabilityCoverageCorrelation,
+		EntityKey:    "observability_coverage_correlation:" + scopeValue.ScopeID,
+		Reason:       observabilityCoverageCorrelationReason(envelope),
+		FactID:       envelope.FactID,
+		SourceSystem: observabilitySourceSystem(envelope),
+	}, true
+}
+
+// observabilityCoverageCorrelationCandidateFactKind reports whether kind can
+// EVER satisfy observabilityCoverageCorrelationTriggerFact. It mirrors that
+// function's kind-level branches so firstMatchingKindPredicate only visits
+// facts of kinds that have a chance of matching; the AWS branch still needs
+// its per-envelope resource_type decode, which stays in
+// observabilityCoverageCorrelationTriggerFact as the final accept check.
+func observabilityCoverageCorrelationCandidateFactKind(kind string) bool {
+	if kind == facts.AWSResourceFactKind {
+		return true
+	}
+	if kind == facts.ObservabilitySourceInstanceFactKind {
+		return false
+	}
+	_, ok := facts.ObservabilitySchemaVersion(kind)
+	return ok
 }
 
 func observabilityCoverageCorrelationTriggerFact(envelope facts.Envelope) bool {

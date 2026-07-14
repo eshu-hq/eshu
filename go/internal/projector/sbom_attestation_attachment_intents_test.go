@@ -135,12 +135,12 @@ func TestBuildSBOMAttestationAttachmentReducerIntentSkipsComponentOnlyEvidence(t
 
 	scopeValue := scope.IngestionScope{ScopeID: "sbom://remote-e2e/team-api"}
 	generation := scope.ScopeGeneration{ScopeID: scopeValue.ScopeID, GenerationID: "generation-sbom"}
-	_, ok := buildSBOMAttestationAttachmentReducerIntent(scopeValue, generation, []facts.Envelope{{
+	_, ok := buildSBOMAttestationAttachmentReducerIntent(scopeValue, generation, newReducerIntentFactIndex([]facts.Envelope{{
 		FactID:       "component-only",
 		ScopeID:      scopeValue.ScopeID,
 		GenerationID: generation.GenerationID,
 		FactKind:     facts.SBOMComponentFactKind,
-	}})
+	}}))
 	if ok {
 		t.Fatal("buildSBOMAttestationAttachmentReducerIntent() ok = true, want false for component-only evidence")
 	}

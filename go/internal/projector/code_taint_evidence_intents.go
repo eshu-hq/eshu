@@ -22,29 +22,10 @@ import (
 func buildCodeTaintEvidenceReducerIntent(
 	scopeValue scope.IngestionScope,
 	generation scope.ScopeGeneration,
-	envelopes []facts.Envelope,
+	index *reducerIntentFactIndex,
 ) (ReducerIntent, bool) {
-	var findingFact, markerFact *facts.Envelope
-	for i := range envelopes {
-		switch envelopes[i].FactKind {
-		case facts.CodeTaintEvidenceFactKind:
-			if findingFact == nil {
-				findingFact = &envelopes[i]
-			}
-		case facts.CodeDataflowScannedFactKind:
-			if markerFact == nil {
-				markerFact = &envelopes[i]
-			}
-		}
-	}
-
-	trigger := findingFact
-	reason := "value-flow taint evidence observed"
-	if trigger == nil {
-		trigger = markerFact
-		reason = "value-flow gate scanned; reconcile taint evidence"
-	}
-	if trigger == nil {
+	trigger, reason, ok := codeTaintEvidenceTrigger(index)
+	if !ok {
 		return ReducerIntent{}, false
 	}
 	return ReducerIntent{
@@ -56,4 +37,20 @@ func buildCodeTaintEvidenceReducerIntent(
 		FactID:       trigger.FactID,
 		SourceSystem: strings.TrimSpace(trigger.CollectorKind),
 	}, true
+}
+
+// codeTaintEvidenceTrigger resolves the anchor fact for
+// buildCodeTaintEvidenceReducerIntent: a code_taint_evidence finding when
+// present, else the code_dataflow_scanned marker as a retraction-reconcile
+// fallback. The two kinds are looked up independently — this domain does not
+// need cross-kind original-order merging because a finding always outranks
+// the marker regardless of which appears earlier in the generation.
+func codeTaintEvidenceTrigger(index *reducerIntentFactIndex) (facts.Envelope, string, bool) {
+	if finding, ok := index.firstOfKind(facts.CodeTaintEvidenceFactKind); ok {
+		return finding, "value-flow taint evidence observed", true
+	}
+	if marker, ok := index.firstOfKind(facts.CodeDataflowScannedFactKind); ok {
+		return marker, "value-flow gate scanned; reconcile taint evidence", true
+	}
+	return facts.Envelope{}, "", false
 }

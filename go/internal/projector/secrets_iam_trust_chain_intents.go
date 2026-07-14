@@ -17,23 +17,27 @@ import (
 func buildSecretsIAMTrustChainReducerIntent(
 	scopeValue scope.IngestionScope,
 	generation scope.ScopeGeneration,
-	envelopes []facts.Envelope,
+	index *reducerIntentFactIndex,
 ) (ReducerIntent, bool) {
-	for _, envelope := range envelopes {
-		if _, ok := facts.SecretsIAMSchemaVersion(envelope.FactKind); !ok {
-			continue
-		}
-		return ReducerIntent{
-			ScopeID:      scopeValue.ScopeID,
-			GenerationID: generation.GenerationID,
-			Domain:       reducer.DomainSecretsIAMTrustChain,
-			EntityKey:    "secrets_iam_trust_chain:" + scopeValue.ScopeID,
-			Reason:       "secrets/IAM source facts observed",
-			FactID:       envelope.FactID,
-			SourceSystem: secretsIAMSourceSystem(envelope),
-		}, true
+	envelope, ok := index.firstMatchingKindPredicate(
+		func(kind string) bool {
+			_, isSecretsIAMKind := facts.SecretsIAMSchemaVersion(kind)
+			return isSecretsIAMKind
+		},
+		func(facts.Envelope) bool { return true },
+	)
+	if !ok {
+		return ReducerIntent{}, false
 	}
-	return ReducerIntent{}, false
+	return ReducerIntent{
+		ScopeID:      scopeValue.ScopeID,
+		GenerationID: generation.GenerationID,
+		Domain:       reducer.DomainSecretsIAMTrustChain,
+		EntityKey:    "secrets_iam_trust_chain:" + scopeValue.ScopeID,
+		Reason:       "secrets/IAM source facts observed",
+		FactID:       envelope.FactID,
+		SourceSystem: secretsIAMSourceSystem(envelope),
+	}, true
 }
 
 func secretsIAMSourceSystem(envelope facts.Envelope) string {

@@ -43,6 +43,7 @@ or marker that already diagnoses it.
 | --- | --- | --- | --- |
 | queue claim | go/internal/reducer/service.go:189 | `eshu_dp_queue_claim_duration_seconds`, `eshu_dp_reducer_queue_wait_seconds`, `eshu_dp_queue_depth`, `eshu_dp_worker_pool_active` | reducer runtime |
 | intent enqueue | go/internal/projector/runtime.go:173 | `eshu_dp_reducer_intents_enqueued_total` | reducer runtime |
+| intent enqueue (scope-generation fact index) | go/internal/projector/reducer_intent_fact_index.go | `No-Observability-Change: shared read-only factsByKind index built once per scope generation and passed to the 38 build*ReducerIntent probes appendScopeGenerationReducerIntents fans out to (#4875), replacing each probe's independent full scan of inputFacts; it changes only how trigger facts are looked up, not which intents are emitted, so the enqueued intents remain covered by eshu_dp_reducer_intents_enqueued_total (intent enqueue row above); this file builds an in-process index and emits no metric of its own` | reducer runtime |
 | retry backoff+jitter (projector) | go/internal/storage/postgres/projector_queue.go:315 | `eshu_dp_projector_retry_surge_total` | projector queue |
 | retry backoff+jitter (reducer) | go/internal/storage/postgres/reducer_queue_helpers.go:255 | `eshu_dp_reducer_retry_surge_total` | reducer queue |
 | batch claim | go/internal/reducer/repo_dependency_projection_runner.go:149 | `eshu_dp_reducer_batch_claim_size`, `eshu_dp_queue_claim_duration_seconds` | reducer runtime |

@@ -16,7 +16,7 @@ func TestBuildCodeTaintEvidenceReducerIntentNoFactNoIntent(t *testing.T) {
 
 	scopeValue := scope.IngestionScope{ScopeID: "scope-1"}
 	generation := scope.ScopeGeneration{GenerationID: "gen-1"}
-	if _, ok := buildCodeTaintEvidenceReducerIntent(scopeValue, generation, []facts.Envelope{{FactKind: "file"}}); ok {
+	if _, ok := buildCodeTaintEvidenceReducerIntent(scopeValue, generation, newReducerIntentFactIndex([]facts.Envelope{{FactKind: "file"}})); ok {
 		t.Fatal("queued a taint intent without any code_taint_evidence fact")
 	}
 }
@@ -26,10 +26,10 @@ func TestBuildCodeTaintEvidenceReducerIntentFromFact(t *testing.T) {
 
 	scopeValue := scope.IngestionScope{ScopeID: "scope-1"}
 	generation := scope.ScopeGeneration{GenerationID: "gen-1"}
-	intent, ok := buildCodeTaintEvidenceReducerIntent(scopeValue, generation, []facts.Envelope{
+	intent, ok := buildCodeTaintEvidenceReducerIntent(scopeValue, generation, newReducerIntentFactIndex([]facts.Envelope{
 		{FactKind: "file"},
 		{FactKind: facts.CodeTaintEvidenceFactKind, FactID: "taint-fact-1", CollectorKind: "git"},
-	})
+	}))
 	if !ok {
 		t.Fatal("no intent queued for a code_taint_evidence fact")
 	}
@@ -52,10 +52,10 @@ func TestBuildCodeTaintEvidenceReducerIntentFromMarkerOnly(t *testing.T) {
 
 	scopeValue := scope.IngestionScope{ScopeID: "scope-1"}
 	generation := scope.ScopeGeneration{GenerationID: "gen-1"}
-	intent, ok := buildCodeTaintEvidenceReducerIntent(scopeValue, generation, []facts.Envelope{
+	intent, ok := buildCodeTaintEvidenceReducerIntent(scopeValue, generation, newReducerIntentFactIndex([]facts.Envelope{
 		{FactKind: "file"},
 		{FactKind: facts.CodeDataflowScannedFactKind, FactID: "marker-1", CollectorKind: "git"},
-	})
+	}))
 	if !ok {
 		t.Fatal("no intent queued for a dataflow marker without findings")
 	}

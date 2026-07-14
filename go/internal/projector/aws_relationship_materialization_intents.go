@@ -23,21 +23,19 @@ import (
 func buildAWSRelationshipMaterializationReducerIntent(
 	scopeValue scope.IngestionScope,
 	generation scope.ScopeGeneration,
-	envelopes []facts.Envelope,
+	index *reducerIntentFactIndex,
 ) (ReducerIntent, bool) {
-	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSRelationshipFactKind {
-			continue
-		}
-		return ReducerIntent{
-			ScopeID:      scopeValue.ScopeID,
-			GenerationID: generation.GenerationID,
-			Domain:       reducer.DomainAWSRelationshipMaterialization,
-			EntityKey:    "aws_resource_materialization:" + scopeValue.ScopeID,
-			Reason:       "aws runtime relationship facts observed",
-			FactID:       envelope.FactID,
-			SourceSystem: awsCloudRuntimeDriftSourceSystem(envelope),
-		}, true
+	envelope, ok := index.firstOfKind(facts.AWSRelationshipFactKind)
+	if !ok {
+		return ReducerIntent{}, false
 	}
-	return ReducerIntent{}, false
+	return ReducerIntent{
+		ScopeID:      scopeValue.ScopeID,
+		GenerationID: generation.GenerationID,
+		Domain:       reducer.DomainAWSRelationshipMaterialization,
+		EntityKey:    "aws_resource_materialization:" + scopeValue.ScopeID,
+		Reason:       "aws runtime relationship facts observed",
+		FactID:       envelope.FactID,
+		SourceSystem: awsCloudRuntimeDriftSourceSystem(envelope),
+	}, true
 }

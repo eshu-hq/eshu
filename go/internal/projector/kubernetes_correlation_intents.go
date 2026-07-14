@@ -20,27 +20,21 @@ import (
 func buildKubernetesCorrelationReducerIntent(
 	scopeValue scope.IngestionScope,
 	generation scope.ScopeGeneration,
-	envelopes []facts.Envelope,
+	index *reducerIntentFactIndex,
 ) (ReducerIntent, bool) {
-	for _, envelope := range envelopes {
-		if !kubernetesCorrelationTriggerFact(envelope) {
-			continue
-		}
-		return ReducerIntent{
-			ScopeID:      scopeValue.ScopeID,
-			GenerationID: generation.GenerationID,
-			Domain:       reducer.DomainKubernetesCorrelation,
-			EntityKey:    "kubernetes_correlation:" + scopeValue.ScopeID,
-			Reason:       "kubernetes live workload evidence observed",
-			FactID:       envelope.FactID,
-			SourceSystem: kubernetesCorrelationSourceSystem(envelope),
-		}, true
+	envelope, ok := index.firstOfKind(facts.KubernetesPodTemplateFactKind)
+	if !ok {
+		return ReducerIntent{}, false
 	}
-	return ReducerIntent{}, false
-}
-
-func kubernetesCorrelationTriggerFact(envelope facts.Envelope) bool {
-	return envelope.FactKind == facts.KubernetesPodTemplateFactKind
+	return ReducerIntent{
+		ScopeID:      scopeValue.ScopeID,
+		GenerationID: generation.GenerationID,
+		Domain:       reducer.DomainKubernetesCorrelation,
+		EntityKey:    "kubernetes_correlation:" + scopeValue.ScopeID,
+		Reason:       "kubernetes live workload evidence observed",
+		FactID:       envelope.FactID,
+		SourceSystem: kubernetesCorrelationSourceSystem(envelope),
+	}, true
 }
 
 func kubernetesCorrelationSourceSystem(envelope facts.Envelope) string {

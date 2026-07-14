@@ -24,29 +24,10 @@ import (
 func buildCodeInterprocEvidenceReducerIntent(
 	scopeValue scope.IngestionScope,
 	generation scope.ScopeGeneration,
-	envelopes []facts.Envelope,
+	index *reducerIntentFactIndex,
 ) (ReducerIntent, bool) {
-	var findingFact, markerFact *facts.Envelope
-	for i := range envelopes {
-		switch envelopes[i].FactKind {
-		case facts.CodeInterprocEvidenceFactKind:
-			if findingFact == nil {
-				findingFact = &envelopes[i]
-			}
-		case facts.CodeDataflowScannedFactKind:
-			if markerFact == nil {
-				markerFact = &envelopes[i]
-			}
-		}
-	}
-
-	trigger := findingFact
-	reason := "cross-function value-flow evidence observed"
-	if trigger == nil {
-		trigger = markerFact
-		reason = "value-flow gate scanned; reconcile cross-function evidence"
-	}
-	if trigger == nil {
+	trigger, reason, ok := codeInterprocEvidenceTrigger(index)
+	if !ok {
 		return ReducerIntent{}, false
 	}
 	return ReducerIntent{
@@ -58,4 +39,21 @@ func buildCodeInterprocEvidenceReducerIntent(
 		FactID:       trigger.FactID,
 		SourceSystem: strings.TrimSpace(trigger.CollectorKind),
 	}, true
+}
+
+// codeInterprocEvidenceTrigger resolves the anchor fact for
+// buildCodeInterprocEvidenceReducerIntent: a code_interproc_evidence finding
+// when present, else the code_dataflow_scanned marker as a
+// retraction-reconcile fallback. The two kinds are looked up independently —
+// this domain does not need cross-kind original-order merging because a
+// finding always outranks the marker regardless of which appears earlier in
+// the generation.
+func codeInterprocEvidenceTrigger(index *reducerIntentFactIndex) (facts.Envelope, string, bool) {
+	if finding, ok := index.firstOfKind(facts.CodeInterprocEvidenceFactKind); ok {
+		return finding, "cross-function value-flow evidence observed", true
+	}
+	if marker, ok := index.firstOfKind(facts.CodeDataflowScannedFactKind); ok {
+		return marker, "value-flow gate scanned; reconcile cross-function evidence", true
+	}
+	return facts.Envelope{}, "", false
 }
