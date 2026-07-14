@@ -273,6 +273,26 @@ collector parse-stage logs and `eshu_dp_file_parse_duration_seconds`, and
 code-call materialization through existing reducer execution counters and
 code-call completion logs.
 
+Performance Evidence (issue #5219, framework-semantics import gate): `Parse`
+now skips `goHTTPFrameworkSemantics` — a parent-lookup build plus three
+full-tree `WalkNamed` passes — for any Go file importing none of `net/http` or
+a `goRouteFrameworkConstructors` package (gin, echo, chi, fiber), because the
+pass provably returns `(nil, false)` without one of those imports. On the
+kubernetes corpus (17,490 files) 94.7% of files import none of them. Profiling
+`Engine.ParsePath` there attributed 9.1% of parse-stage CPU to that pass; a
+focused benchmark on a dense framework-free file measured the eliminated walk
+at 4.25 ms/op against 48.5 ms/op for the whole parse (8.1% of parse for that
+file), so the corpus-level parse saving is ~8% × 94.7% ≈ 7.6% with no output
+change. Output equivalence is pinned by
+`TestGoHTTPFrameworkSemanticsGateSkipsFilesWithoutFrameworkImports` /
+`...RunsForNetHTTPImport` and the walk count in `TestParseFullTreeWalkCount`
+(58 → 55).
+
+No-Observability-Change: the gate removes redundant per-file work; it adds no
+parser stage, queue, worker, graph write, metric, span, status field, or
+runtime knob. Operators still see parser behavior through the existing
+collector parse-stage logs and `eshu_dp_file_parse_duration_seconds`.
+
 ## Related docs
 
 - `docs/public/languages/support-maturity.md`

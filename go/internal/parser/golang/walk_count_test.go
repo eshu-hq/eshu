@@ -74,12 +74,24 @@ func constraintFunc[T Printer](item T) {
 // goMarkGenericConstraintInterfaceRoots at dead_code_semantic_roots.go:216)
 // in addition to the declaration-collection walk (walk-1). After the
 // refactor, resolution candidate nodes are gathered during walk-1 and
-// resolved via in-memory loops, removing exactly two WalkNamed calls.
+// resolved via in-memory loops, removing exactly two WalkNamed calls
+// (60 -> 58).
+//
+// testGoFixture imports only "fmt", so it has no net/http or
+// goRouteFrameworkConstructors framework import. Before the goHTTPFrameworkSemantics
+// import gate (issue #5219), Parse still called goHTTPFrameworkSemantics
+// unconditionally, and it walked the tree three times even though it could
+// only ever return (nil, false) for this fixture: once via
+// goHTTPServeMuxVars->goKnownVariableNames, once via
+// goThirdPartyRouteReceiverBindings, and once directly. The gate
+// (goFileImportsRouteFramework in language.go) skips the call entirely for a
+// file with no framework import, removing exactly those three WalkNamed
+// calls (58 -> 55).
 //
 // This test counts shared.WalkNamed itself (via
 // shared.SetWalkNamedHookForTest), not a manually annotated call site, so it
 // also fails if a future change reintroduces a removed walk or adds new ones
-// in the dead-code semantic root path.
+// in the dead-code semantic root path or the framework-semantics gate.
 //
 // Not parallel: SetWalkNamedHookForTest installs a process-global hook.
 func TestParseFullTreeWalkCount(t *testing.T) {
@@ -103,11 +115,11 @@ func TestParseFullTreeWalkCount(t *testing.T) {
 		t.Fatalf("Parse() error = %v, want nil", err)
 	}
 
-	// TDD step 1: characterize the pre-refactor baseline. When the
-	// gather-then-resolve refactor removes walk-2 and walk-3, the
-	// expected count drops from 60 to 58.
-	const expectedWalkCount = 58
+	// 60 pre-refactor baseline, minus 2 walks removed by the gather-then-resolve
+	// refactor (issue #4920), minus 3 walks removed by the goHTTPFrameworkSemantics
+	// import gate (issue #5219) for this fixture's framework-import-free source.
+	const expectedWalkCount = 55
 	if walkNamedCalls != expectedWalkCount {
-		t.Fatalf("shared.WalkNamed call count = %d, want %d (after refactor: 60 pre-refactor baseline minus 2 removed walks)", walkNamedCalls, expectedWalkCount)
+		t.Fatalf("shared.WalkNamed call count = %d, want %d", walkNamedCalls, expectedWalkCount)
 	}
 }
