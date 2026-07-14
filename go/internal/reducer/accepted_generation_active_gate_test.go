@@ -326,11 +326,12 @@ func TestRepoDependencyRunnerDefersGraphWriteUntilGenerationActive(t *testing.T)
 		nil,
 	)
 	runner := RepoDependencyProjectionRunner{
-		IntentReader: reader,
-		LeaseManager: reader,
-		EdgeWriter:   writer,
-		AcceptedGen:  gated,
-		Config:       RepoDependencyProjectionRunnerConfig{PollInterval: 10 * time.Millisecond},
+		IntentReader:       reader,
+		LeaseManager:       reader,
+		AcceptanceUnitGate: reader,
+		EdgeWriter:         writer,
+		AcceptedGen:        gated,
+		Config:             RepoDependencyProjectionRunnerConfig{PollInterval: 10 * time.Millisecond},
 	}
 
 	result, err := runner.processOnce(context.Background(), now)

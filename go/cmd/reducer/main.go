@@ -35,9 +35,13 @@ func buildReducerService(
 	instruments *telemetry.Instruments,
 	logger *slog.Logger,
 ) (reducer.Service, error) {
+	graphBackend, err := runtimecfg.LoadGraphBackend(getenv)
+	if err != nil {
+		return reducer.Service{}, err
+	}
 	sharedCfg := reducer.LoadSharedProjectionConfig(getenv)
 	codeCallCfg := loadCodeCallProjectionConfig(getenv)
-	repoDependencyCfg := loadRepoDependencyProjectionConfig(getenv)
+	repoDependencyCfg := loadRepoDependencyProjectionConfig(getenv, graphBackend)
 	repairCfg := loadGraphProjectionPhaseRepairConfig(getenv)
 	generationRetentionCfg := loadGenerationRetentionConfig(getenv)
 	if err := validateGenerationRetentionConfig(getenv, generationRetentionCfg); err != nil {
@@ -63,10 +67,6 @@ func buildReducerService(
 	serviceMaterializationWriter := serviceMaterializationWriterFor(database)
 	serviceDocumentationEvidenceLoader := serviceDocumentationEvidenceLoaderFor(database)
 	serviceIncidentEvidenceLoader := serviceIncidentEvidenceLoaderFor(database)
-	graphBackend, err := runtimecfg.LoadGraphBackend(getenv)
-	if err != nil {
-		return reducer.Service{}, err
-	}
 	nornicDBGroupedWrites, err := resolveNornicDBGroupedWrites(getenv, graphBackend, logger)
 	if err != nil {
 		return reducer.Service{}, err
@@ -453,6 +453,7 @@ func buildReducerService(
 		RepoDependencyProjectionRunner: &reducer.RepoDependencyProjectionRunner{
 			IntentReader:                    intentStore,
 			LeaseManager:                    intentStore,
+			AcceptanceUnitGate:              postgres.NewRepoDependencyAcceptanceUnitGate(reducerBeginner(database)),
 			EdgeWriter:                      edgeWriter,
 			WorkloadMaterializationReplayer: workQueue,
 			// Gate repo-dependency graph-projection authority on the relationship

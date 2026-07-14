@@ -38,11 +38,12 @@ func TestRepoDependencyProjectionRunnerProcessesRetractOnlyIntent(t *testing.T) 
 	}
 	writer := &recordingCodeCallProjectionEdgeWriter{}
 	runner := RepoDependencyProjectionRunner{
-		IntentReader: reader,
-		LeaseManager: reader,
-		EdgeWriter:   writer,
-		AcceptedGen:  acceptedGenerationFixed("gen-removed-evidence", true),
-		Config:       RepoDependencyProjectionRunnerConfig{PollInterval: 10 * time.Millisecond},
+		IntentReader:       reader,
+		LeaseManager:       reader,
+		AcceptanceUnitGate: reader,
+		EdgeWriter:         writer,
+		AcceptedGen:        acceptedGenerationFixed("gen-removed-evidence", true),
+		Config:             RepoDependencyProjectionRunnerConfig{PollInterval: 10 * time.Millisecond},
 	}
 
 	result, err := runner.processOnce(context.Background(), now)
@@ -134,11 +135,12 @@ func TestRepoDependencyProjectionRunnerRetractsThenRewritesSurvivingEvidence(t *
 	}
 	writer := &recordingCodeCallProjectionEdgeWriter{}
 	runner := RepoDependencyProjectionRunner{
-		IntentReader: reader,
-		LeaseManager: reader,
-		EdgeWriter:   writer,
-		AcceptedGen:  acceptedGenerationFixed("gen-new", true),
-		Config:       RepoDependencyProjectionRunnerConfig{PollInterval: 10 * time.Millisecond},
+		IntentReader:       reader,
+		LeaseManager:       reader,
+		AcceptanceUnitGate: reader,
+		EdgeWriter:         writer,
+		AcceptedGen:        acceptedGenerationFixed("gen-new", true),
+		Config:             RepoDependencyProjectionRunnerConfig{PollInterval: 10 * time.Millisecond},
 	}
 
 	result, err := runner.processOnce(context.Background(), now)

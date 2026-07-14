@@ -183,13 +183,17 @@ type Instruments struct {
 	// double-write by another worker while the original holder is still
 	// processing.
 	SharedProjectionPartitionHeartbeatMissed metric.Int64Counter
-	GenerationRetentionPruned                metric.Int64Counter
-	GenerationRetentionRowsPruned            metric.Int64Counter
-	GenerationRetentionFailures              metric.Int64Counter
-	GenerationRetentionSkipped               metric.Int64Counter
-	GenerationLivenessRecovered              metric.Int64Counter
-	GenerationLivenessSuperseded             metric.Int64Counter
-	GenerationLivenessFailures               metric.Int64Counter
+	// SharedProjectionLeaseQuarantines counts fail-closed shard pauses after
+	// an ambiguous, canceled, or lease-uncertain repo-dependency cycle. Labels
+	// are domain and a bounded reason set; never repository or lease owner.
+	SharedProjectionLeaseQuarantines metric.Int64Counter
+	GenerationRetentionPruned        metric.Int64Counter
+	GenerationRetentionRowsPruned    metric.Int64Counter
+	GenerationRetentionFailures      metric.Int64Counter
+	GenerationRetentionSkipped       metric.Int64Counter
+	GenerationLivenessRecovered      metric.Int64Counter
+	GenerationLivenessSuperseded     metric.Int64Counter
+	GenerationLivenessFailures       metric.Int64Counter
 	// PoisonLivenessRecovered counts dead-letter/poison-class fact_work_items
 	// rows re-enqueued to pending by the bounded poison-recovery sweep (#4740).
 	// Only increments when the sweep's bounded auto-retry is enabled; the
@@ -1440,6 +1444,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register SharedProjectionPartitionHeartbeatMissed counter: %w", err)
+	}
+
+	inst.SharedProjectionLeaseQuarantines, err = meter.Int64Counter(
+		"eshu_dp_shared_projection_lease_quarantines_total",
+		metric.WithDescription("Total fail-closed shared-projection lease quarantines by domain and bounded reason"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register SharedProjectionLeaseQuarantines counter: %w", err)
 	}
 
 	inst.GenerationRetentionPruned, err = meter.Int64Counter(
@@ -3966,7 +3978,7 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 
 	inst.Neo4jDeadlockRetries, err = meter.Int64Counter(
 		"eshu_dp_neo4j_deadlock_retries_total",
-		metric.WithDescription("Total Neo4j transient error retries (deadlocks, lock timeouts)"),
+		metric.WithDescription("Total graph-write retries by write phase and bounded retry reason"),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register Neo4jDeadlockRetries counter: %w", err)

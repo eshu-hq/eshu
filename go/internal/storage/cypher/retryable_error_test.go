@@ -151,6 +151,17 @@ func TestWrapRetryableNeo4jError(t *testing.T) {
 	}
 }
 
+func TestWrapRetryableNeo4jErrorConnectivityErrorWithoutCauseFailsClosed(t *testing.T) {
+	t.Parallel()
+
+	result := WrapRetryableNeo4jError(&neo4jdriver.ConnectivityError{})
+	require.NotNil(t, result)
+	assert.NotPanics(t, func() {
+		assert.Equal(t, malformedNeo4jConnectivityErrorMessage, result.Error())
+	})
+	assert.False(t, reducer.IsRetryable(result))
+}
+
 // TestProductionErrorChain replicates the exact error path from production:
 // session.ExecuteWrite exhausts retries → *TransactionExecutionLimit
 // → EdgeWriter.WrapRetryableNeo4jError → handler fmt.Errorf wraps

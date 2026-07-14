@@ -9,6 +9,10 @@ import (
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 )
 
+const malformedNeo4jConnectivityErrorMessage = "neo4j connectivity error is missing its underlying cause"
+
+var errMalformedNeo4jConnectivity = errors.New(malformedNeo4jConnectivityErrorMessage)
+
 // retryableNeo4jCodes lists Neo4j error codes that are safe to retry in
 // reducer materialization paths. Scoped narrowly to codes evidenced as
 // transient under concurrent projector/reducer graph access.
@@ -51,6 +55,9 @@ func WrapRetryableNeo4jError(err error) error {
 	if err == nil {
 		return nil
 	}
+	if isMalformedNeo4jConnectivityError(err) {
+		return errMalformedNeo4jConnectivity
+	}
 	// TransactionExecutionLimit means session.ExecuteWrite exhausted its
 	// internal retry budget (typically 30s for deadlocks). The queue should
 	// retry later when contention subsides.
@@ -70,4 +77,9 @@ func WrapRetryableNeo4jError(err error) error {
 		return &neo4jRetryableError{inner: err, code: neo4jErr.Code}
 	}
 	return err
+}
+
+func isMalformedNeo4jConnectivityError(err error) bool {
+	var connectivityErr *neo4jdriver.ConnectivityError
+	return errors.As(err, &connectivityErr) && connectivityErr.Inner == nil
 }

@@ -100,6 +100,20 @@ func TestLoadReducerWorkerCount_InvalidEnv(t *testing.T) {
 	}
 }
 
+func TestRepoDependencyWorkersDoNotInheritMainReducerWorkers(t *testing.T) {
+	t.Parallel()
+
+	cfg := loadRepoDependencyProjectionConfig(func(name string) string {
+		if name == reducerWorkersEnv {
+			return "4"
+		}
+		return ""
+	}, runtimecfg.GraphBackendNornicDB)
+	if got := cfg.Workers; got != 4 {
+		t.Fatalf("repo dependency workers = %d, want proven default 4 when only %s is set", got, reducerWorkersEnv)
+	}
+}
+
 func TestLoadReducerBatchClaimSize_EnvOverride(t *testing.T) {
 	t.Parallel()
 

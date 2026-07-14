@@ -99,14 +99,17 @@ func TestBuildReducerServiceWiresDefaultRuntimeAndQueue(t *testing.T) {
 	if got := service.RepoDependencyProjectionRunner.Config.PollInterval; got <= 0 {
 		t.Fatalf("buildReducerService() repo dependency poll interval = %v, want positive", got)
 	}
-	if got := service.RepoDependencyProjectionRunner.Config.LeaseOwner; got != defaultRepoDependencyProjectionLeaseOwner {
-		t.Fatalf("buildReducerService() repo dependency lease owner = %q, want %q", got, defaultRepoDependencyProjectionLeaseOwner)
+	if got := service.RepoDependencyProjectionRunner.Config.LeaseOwner; !strings.HasPrefix(got, defaultRepoDependencyProjectionLeaseOwner+":") {
+		t.Fatalf("buildReducerService() repo dependency lease owner = %q, want per-process %q prefix", got, defaultRepoDependencyProjectionLeaseOwner)
 	}
 	if got := service.RepoDependencyProjectionRunner.Config.LeaseTTL; got <= 0 {
 		t.Fatalf("buildReducerService() repo dependency lease TTL = %v, want positive", got)
 	}
 	if got := service.RepoDependencyProjectionRunner.Config.BatchLimit; got <= 0 {
 		t.Fatalf("buildReducerService() repo dependency batch limit = %d, want positive", got)
+	}
+	if got := service.RepoDependencyProjectionRunner.Config.Workers; got != 4 {
+		t.Fatalf("buildReducerService() repo dependency workers = %d, want proven default 4", got)
 	}
 	if service.CodeReachabilityProjectionRunner == nil {
 		t.Fatal("buildReducerService() code reachability projection runner = nil, want non-nil")

@@ -52,15 +52,16 @@ func (e reducerNeo4jExecutor) Execute(ctx context.Context, stmt sourcecypher.Sta
 	return e.retry.Execute(ctx, stmt)
 }
 
-// ExecuteGroup runs all statements in a single Neo4j transaction with
-// automatic retry on transient errors (deadlocks, leader switches), via the
-// session driver's own session.ExecuteWrite retry (see neo4jSessionRunner.
-// RunCypherGroup) rather than the persistent RetryingExecutor above: this
-// path bypasses retry.Inner entirely, so an ifafaultinjection-armed fault on
-// retry.Inner does not affect ExecuteGroup (group-write retry parity through
-// RetryingExecutor is tracked separately, out of #5048's scope).
+// ExecuteGroup runs all statements in one graph transaction through the same
+// persistent retry seam as Execute. RetryingExecutor may repeat an atomic group
+// after a retryable immediate transient/connectivity failure. A commit-ambiguous
+// failure is not retried in place by RetryingExecutor. The still-pending
+// repo-dependency acceptance unit may be replayed later after backoff; its
+// source-scoped retract and deterministic MERGE upserts are idempotent.
+// Malformed connectivity failures become safe terminal errors. Commit-time
+// UNIQUE retry is narrower and requires every statement to be MERGE-shaped.
 func (e reducerNeo4jExecutor) ExecuteGroup(ctx context.Context, stmts []sourcecypher.Statement) error {
-	return e.session.RunCypherGroup(ctx, stmts)
+	return e.retry.ExecuteGroup(ctx, stmts)
 }
 
 // reducerCypherExecutor adapts a cypherRunner to the reducer.CypherExecutor
@@ -105,6 +106,10 @@ type cypherRunnerStatementExecutor struct {
 
 func (e cypherRunnerStatementExecutor) Execute(ctx context.Context, stmt sourcecypher.Statement) error {
 	return e.runner.RunCypher(ctx, stmt.Cypher, stmt.Parameters)
+}
+
+func (e cypherRunnerStatementExecutor) ExecuteGroup(ctx context.Context, stmts []sourcecypher.Statement) error {
+	return e.runner.RunCypherGroup(ctx, stmts)
 }
 
 type nornicDBSemanticObservedExecutor struct {

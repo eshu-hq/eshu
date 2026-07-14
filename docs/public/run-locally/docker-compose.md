@@ -471,6 +471,20 @@ The remote proof profile also overrides the code-call sidecar defaults with
 `ESHU_CODE_CALL_PROJECTION_WORKERS=2` so full-corpus CALLS materialization
 proves file-scoped partition concurrency; tune those values in a private env
 file for larger hosts.
+It keeps `ESHU_REPO_DEPENDENCY_PROJECTION_WORKERS=4` for the retained
+full-corpus proof and the proven NornicDB Compose default. The Neo4j
+compatibility Compose file remains at `1` until that backend has equivalent
+headroom proof. The dedicated lane accepts only `1`, `2`, or `4`, and
+unsupported values fall back to the backend default. Fixed
+source-repository acceptance-unit sharding keeps one repository's complete
+retract-then-rewrite cycle serialized and ordered while unrelated repositories
+can project concurrently. This is a repo-dependency-specific knob and does not
+inherit `ESHU_REDUCER_WORKERS`. Repo-dependency cycles use a `45s` whole-cycle
+deadline and a `5m` shard lease. The lease must exceed that deadline plus
+`ESHU_CANONICAL_WRITE_TIMEOUT` and a `30s` margin. The remote profile's `120s`
+canonical-write timeout therefore remains inside the default safety budget.
+Any error, cancellation, or ambiguous commit quarantines only the affected
+shard until lease expiry; other shards keep processing independent repositories.
 Performance Evidence: the #2624 baseline remote proof rendered file-scoped
 `code_calls` work but leased the domain with `partition_count=1`, while the
 queue held 3,454 distinct code-call partition keys and 18,857 pending

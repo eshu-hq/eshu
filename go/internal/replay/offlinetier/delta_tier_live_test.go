@@ -246,7 +246,7 @@ func openDeltaLiveBackend(ctx context.Context, t *testing.T) (liveExecutor, *cyp
 		_ = driver.Close(closeCtx)
 	})
 
-	exec := liveExecutor{driver: driver, database: cfg.DatabaseName}
+	exec := newLiveExecutor(driver, cfg.DatabaseName)
 
 	backend, err := runtimecfg.LoadGraphBackend(os.Getenv)
 	if err != nil {

@@ -98,7 +98,7 @@ func TestOfflineReplayTierGraphTruth(t *testing.T) {
 		_ = driver.Close(closeCtx)
 	})
 
-	exec := liveExecutor{driver: driver, database: cfg.DatabaseName}
+	exec := newLiveExecutor(driver, cfg.DatabaseName)
 
 	// Apply the REAL schema for the configured backend.
 	backend, err := runtimecfg.LoadGraphBackend(os.Getenv)

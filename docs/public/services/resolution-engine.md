@@ -85,6 +85,13 @@ The partitioned runner handles `platform_infra`, `workload_dependency`,
   shared projection is the bottleneck.
 - The main loop, shared projection runner, code-call runner, and
   repo-dependency runner run as concurrent goroutines inside `Service.Run()`.
+- Repo-dependency projection accepts `1`, `2`, or `4` fixed acceptance-unit
+  shards. A source repository stays on one shard, while unrelated repositories
+  can overlap. Each process owner includes hostname, PID, and a boot nonce.
+  Unsafe timing fails startup unless the `5m` lease exceeds the `45s` cycle
+  deadline plus `ESHU_CANONICAL_WRITE_TIMEOUT` and `30s`. An error,
+  cancellation, heartbeat failure, or ambiguous commit quarantines only that
+  shard until lease expiry.
 - `ESHU_REPO_DEPENDENCY_RETRACT_STATEMENT_TIMING` is retained for
   compatibility but no longer changes behavior: repo-dependency retracts
   always execute their three role statements
@@ -133,6 +140,10 @@ Important env vars:
 - `ESHU_CODE_CALL_PROJECTION_ACCEPTANCE_SCAN_LIMIT`
 - `ESHU_CODE_CALL_PROJECTION_PARTITION_COUNT`
 - `ESHU_CODE_CALL_PROJECTION_WORKERS`
+- `ESHU_REPO_DEPENDENCY_PROJECTION_WORKERS`
+- `ESHU_REPO_DEPENDENCY_PROJECTION_LEASE_TTL`
+- `ESHU_REPO_DEPENDENCY_PROJECTION_CYCLE_TIMEOUT`
+- `ESHU_REPO_DEPENDENCY_PROJECTION_LEASE_OWNER`
 - `ESHU_REPO_DEPENDENCY_RETRACT_STATEMENT_TIMING`
 - `ESHU_GENERATION_RETENTION_ENABLED`
 - `ESHU_GENERATION_RETENTION_POLL_INTERVAL`
@@ -194,6 +205,8 @@ Start with:
 - graph cleanup gauge: `eshu_dp_graph_orphan_nodes`
 - logs: reducer execution result logs and shared projection cycle logs with
   domain, worker, route, row count, and failure class
+- repo-dependency quarantine logs: `lease_quarantined=true`,
+  `quarantine_duration_seconds`, duration, retryability, and failure class
 
 ## Related Docs
 

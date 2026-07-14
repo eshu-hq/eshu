@@ -72,9 +72,13 @@
   (`allStatementsAreMerge`); mixed groups containing non-MERGE statements
   are NOT retried, preserving idempotency safety. Driver-level
   `session.ExecuteWrite` retries handle Neo.TransientError.* codes; the Eshu
-  retry loop additionally handles typed driver `ConnectivityError` and
+  retry loop additionally handles driver `ConnectivityError` only when the
+  driver classifies it as retryable. A `ConnectivityError` wrapping
+  `CommitFailedDeadError` is not retried in place because the commit outcome is
+  unknown. A durable caller may later replay still-pending idempotent work after
+  backoff. The loop also handles
   Neo.ClientError.Transaction.TransactionCommitFailed when classified as a
-  commit-time UNIQUE conflict (`retrying_executor.go:52`).
+  commit-time UNIQUE conflict (`retrying_executor.go`).
 - **CanonicalNodeWriter.Write wraps escaping errors as retryable** — every
   return path in `CanonicalNodeWriter.Write` (atomic group, phase group, and
   sequential) routes its error through `WrapRetryableNeo4jError`, matching every
@@ -368,8 +372,9 @@ same transactions; only the error wrapper on the failure return path changed.
 
 Observability Evidence: the change preserves all existing canonical-write
 telemetry — the `telemetry.SpanCanonicalWrite`/`SpanCanonicalRetract` spans,
-the `eshu_dp_neo4j_deadlock_retries_total` retry counter (with write-phase
-label) in `RetryingExecutor`, the `recordAtomicWrite`/`recordAtomicFallback`
+  the `eshu_dp_neo4j_deadlock_retries_total` retry counter (with bounded
+  `write_phase` and `reason` labels) in `RetryingExecutor`, the
+  `recordAtomicWrite`/`recordAtomicFallback`
 counters, and the per-phase failure `slog.WarnContext("canonical phase failed",
 ...)`. The operator-visible improvement is queue-side: a transient canonical
 write now surfaces as queue `failure_class = projection_retryable` with a bounded

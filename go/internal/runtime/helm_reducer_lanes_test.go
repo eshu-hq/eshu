@@ -105,4 +105,7 @@ func TestHelmResolutionEngineRendersCodeCallProjectionConcurrency(t *testing.T) 
 	assertHelmLiteralEnv(t, env, "ESHU_SHARED_PROJECTION_WORKERS", "8")
 	assertHelmLiteralEnv(t, env, "ESHU_CODE_CALL_PROJECTION_PARTITION_COUNT", "8")
 	assertHelmLiteralEnv(t, env, "ESHU_CODE_CALL_PROJECTION_WORKERS", "4")
+	if _, ok := env["ESHU_REPO_DEPENDENCY_PROJECTION_WORKERS"]; ok {
+		t.Fatal("Helm must defer repo-dependency workers to the runtime's backend-aware default")
+	}
 }
