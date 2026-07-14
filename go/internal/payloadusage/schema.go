@@ -68,10 +68,11 @@ var factKindSchemaFile = map[string]string{ // #nosec G101 -- fact-kind identifi
 	"FactKindGCPTagObservation":    "gcp_tag_observation.v1.schema.json",
 	// Azure family: the two cloud kinds the reducer decodes, plus
 	// azure_tag_observation, decoded the same way as gcp_tag_observation above
-	// (#4686). azure_identity_observation, azure_resource_change, and
-	// azure_image_reference remain deferred: their consumers are a shared
-	// cross-provider surface or an unconverted Azure-specific storage loader,
-	// so mapping them here would assert a gate contract no decode seam backs.
+	// (#4686). azure_image_reference is already mapped above under the
+	// cross-provider image_reference family (#4685). azure_identity_observation
+	// and azure_resource_change remain deferred: their consumers are an
+	// unconverted Azure-specific storage loader, so mapping them here would
+	// assert a gate contract no decode seam backs.
 	"FactKindAzureCloudResource":     "azure_cloud_resource.v1.schema.json",
 	"FactKindAzureCloudRelationship": "azure_cloud_relationship.v1.schema.json",
 	"FactKindAzureTagObservation":    "azure_tag_observation.v1.schema.json",
