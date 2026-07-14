@@ -793,10 +793,11 @@ fact_id)`. The repo-id reference arm also materializes reference keys only for
 those candidate fact IDs before comparing catalog keys; the previous plan
 compared every catalog key with every reference row in the scope.
 
-The retained-shape Odù contains 60,988 source facts across eight skewed
-partitions but only 84 exact family candidates. On local PostgreSQL 18, the
-shipped worst-scope query took 1,411.501 ms, the index-only rewrite with the old
-reference join took 721.259 ms, and the complete narrowed query took 3.053 ms.
+Performance Evidence: The retained-shape Odù contains 60,988 source facts
+across eight skewed partitions but only 84 exact family candidates. On local
+PostgreSQL 18, the shipped worst-scope query took 1,411.501 ms, the index-only
+rewrite with the old reference join took 721.259 ms, and the complete narrowed
+query took 3.053 ms.
 The eight-task critical path fell from 1.501561 s to 6.241708 ms. Both directions
 of the fact-id differential were empty, loaded counts matched, UNION de-duplication
 was preserved, and the self-reference and prefix-collision cases stayed excluded.
@@ -814,6 +815,25 @@ post-rebase run projected zero median full-corpus index tax and a conservative
 45.008-second worst-round tax. Against the retained 282.440-second read-saving
 model, the conservative net is 237.432 seconds, clearing the 220.691-second
 current target gap by 16.741 seconds without reducing concurrency.
+
+The environment-gated compiled proof
+`TestRelationshipFamilyRetainedFullBackfillBinaryProof` drives the production
+`BackfillAllRelationshipEvidence` method against either that local Odù or two
+isolated, identical filtered retained-data databases. The baseline substitutes
+the guarded shipped query only at the SQL adapter boundary; the candidate runs
+the unmodified production query. It then requires bidirectional `0/0` exact
+diffs for loaded fact IDs, deterministic evidence fields, readiness keys, and
+memo fingerprints, plus zero duplicate fact IDs. Before either timed call it
+also fingerprints every ordered row in `fact_records`,
+`relationship_reference_candidate_keys`, `ingestion_scopes`,
+`scope_generations`, and `fact_work_items`; the candidate refuses to execute
+unless all five row counts and SHA-256 digests match the baseline. The
+retained-data mode also
+reproduces the accepted 96-open/10-idle connection pool and eight workers,
+records actual overlapping query calls, open cursors, write transactions, and
+transactional SQL calls, and fails unless measured baseline minus candidate
+minus the conservative 45.008-second write tax clears the current
+220.691-second target gap.
 
 No-Observability-Change: the query and index add no worker, queue, lease, metric,
 span, or log shape. Operators continue to use the existing
