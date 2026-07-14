@@ -99,10 +99,13 @@ fallbacks, MERGE-only group retry, and mixed-group non-retry behavior.
 backend lane, where the pinned service must still surface a retry-classifiable
 commit-time UNIQUE conflict.
 
-No-Observability-Change: the retry loop keeps the existing
-`eshu_dp_neo4j_deadlock_retries_total` counter, retry warning log, operation
-label, max-retry behavior, and queue-visible retryable error type. No metric
-name, span, log field, status field, worker knob, or queue contract changes.
+Observability Evidence: the retry loop keeps the existing
+`eshu_dp_neo4j_deadlock_retries_total` counter and adds its bounded `reason`
+label (`connectivity_error`, `transient_error`, `write_conflict`, or
+`commit_unique_conflict`) alongside `write_phase`. The metric never carries a
+raw error, repository id, node id, or statement. The retry warning log,
+max-retry behavior, queue-visible retryable error type, span names, status
+fields, worker knobs, and queue contract remain unchanged.
 
 ### Eshu implications
 

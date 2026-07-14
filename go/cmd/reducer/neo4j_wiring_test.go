@@ -162,6 +162,29 @@ func TestReducerNeo4jExecutorPropagatesError(t *testing.T) {
 	}
 }
 
+func TestReducerNeo4jExecutorRetriesMergeGroupCommitConflict(t *testing.T) {
+	t.Parallel()
+
+	session := &fakeNeo4jSession{errs: []error{
+		errors.New("Neo4jError: Neo.ClientError.Transaction.TransactionCommitFailed " +
+			"(commit failed: constraint violation: Constraint violation " +
+			"(UNIQUE on Environment.[name]): Node with name=production already exists)"),
+		nil,
+	}}
+	executor := newReducerNeo4jExecutor(session, nil)
+	statements := []sourcecypher.Statement{{
+		Operation: sourcecypher.OperationCanonicalUpsert,
+		Cypher:    "UNWIND $rows AS row MERGE (e:Environment {name: row.name}) SET e.uid = row.uid",
+	}}
+
+	if err := executor.ExecuteGroup(context.Background(), statements); err != nil {
+		t.Fatalf("ExecuteGroup() error = %v, want nil after retry", err)
+	}
+	if got, want := len(session.calls), 2; got != want {
+		t.Fatalf("session group attempts = %d, want %d", got, want)
+	}
+}
+
 func TestReducerCypherExecutorExecutesCypher(t *testing.T) {
 	t.Parallel()
 

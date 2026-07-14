@@ -21,6 +21,11 @@ import (
 const (
 	nornicDBTransactionCommitFailedCode = "Neo.ClientError.Transaction.TransactionCommitFailed"
 	nornicDBTransactionOutdatedCode     = "Neo.TransientError.Transaction.Outdated"
+
+	graphWriteRetryReasonConnectivity   = "connectivity_error"
+	graphWriteRetryReasonTransient      = "transient_error"
+	graphWriteRetryReasonWriteConflict  = "write_conflict"
+	graphWriteRetryReasonUniqueConflict = "commit_unique_conflict"
 )
 
 // RetryingExecutor wraps an Executor with retry logic for transient Neo4j
@@ -41,7 +46,7 @@ func (r *RetryingExecutor) Execute(ctx context.Context, stmt Statement) error {
 		ctx,
 		string(stmt.Operation),
 		func() error { return r.Inner.Execute(ctx, stmt) },
-		func(err error) bool { return isRetryableGraphWriteError(err, stmt) },
+		func(err error) string { return classifyRetryableGraphWriteError(err, stmt) },
 	)
 }
 
@@ -56,9 +61,11 @@ func (r *RetryingExecutor) Execute(ctx context.Context, stmt Statement) error {
 // race here.
 //
 // Driver-level session.ExecuteWrite retries handle Neo.TransientError.*
-// codes; this loop additionally covers Neo.ClientError.Transaction.
-// TransactionCommitFailed when the typed code or fallback message classifies
-// as a NornicDB commit-time UNIQUE conflict on a MERGE-shaped group.
+// codes. If the driver returns TransactionExecutionLimit after exhausting its
+// own budget, this loop does not repeat that entire budget. The outer loop
+// additionally covers Neo.ClientError.Transaction.TransactionCommitFailed
+// when the typed code or fallback message classifies as a NornicDB commit-time
+// UNIQUE conflict on a MERGE-shaped group.
 func (r *RetryingExecutor) ExecuteGroup(ctx context.Context, stmts []Statement) error {
 	ge, ok := r.Inner.(GroupExecutor)
 	if !ok {
@@ -68,19 +75,19 @@ func (r *RetryingExecutor) ExecuteGroup(ctx context.Context, stmts []Statement) 
 		ctx,
 		groupOperationLabel(stmts),
 		func() error { return ge.ExecuteGroup(ctx, stmts) },
-		func(err error) bool { return isRetryableGraphWriteGroupError(err, stmts) },
+		func(err error) string { return classifyRetryableGraphWriteGroupError(err, stmts) },
 	)
 }
 
 // runWithRetry centralizes the retry loop for both Execute and ExecuteGroup.
-// classify returns true for errors that are safe to retry; do performs the
-// work. Both callers share the same exponential-backoff-with-jitter cadence
-// and the same retry-budget exhaustion behavior.
+// classify returns a bounded reason for errors that are safe to retry; do
+// performs the work. Both callers share the same exponential-backoff-with-
+// jitter cadence and the same retry-budget exhaustion behavior.
 func (r *RetryingExecutor) runWithRetry(
 	ctx context.Context,
 	operationLabel string,
 	do func() error,
-	classify func(error) bool,
+	classify func(error) string,
 ) error {
 	maxRetries := r.MaxRetries
 	if maxRetries <= 0 {
@@ -97,7 +104,11 @@ func (r *RetryingExecutor) runWithRetry(
 		if lastErr == nil {
 			return nil
 		}
-		if !classify(lastErr) {
+		retryReason := classify(lastErr)
+		if retryReason == "" {
+			if isMalformedNeo4jConnectivityError(lastErr) {
+				return errMalformedNeo4jConnectivity
+			}
 			return lastErr
 		}
 		if attempt == maxRetries {
@@ -106,7 +117,10 @@ func (r *RetryingExecutor) runWithRetry(
 
 		if r.Instruments != nil && r.Instruments.Neo4jDeadlockRetries != nil {
 			r.Instruments.Neo4jDeadlockRetries.Add(ctx, 1,
-				metric.WithAttributes(telemetry.AttrWritePhase(operationLabel)))
+				metric.WithAttributes(
+					telemetry.AttrWritePhase(operationLabel),
+					telemetry.AttrReason(retryReason),
+				))
 		}
 
 		delay := baseDelay * time.Duration(1<<uint(attempt))
@@ -149,18 +163,49 @@ func groupOperationLabel(stmts []Statement) string {
 // isTransientNeo4jError returns true for Neo4j errors that are safe to retry:
 // deadlocks, lock acquisition timeouts, and other transient failures.
 func isTransientNeo4jError(err error) bool {
+	return classifyTransientNeo4jError(err) != ""
+}
+
+// classifyTransientNeo4jError returns one bounded retry-reason value for
+// immediate graph-write failures that are safe to replay. A driver's
+// CommitFailedDeadError is deliberately excluded: it is wrapped as a
+// ConnectivityError, but its commit outcome is unknown and the Neo4j driver
+// itself classifies it as non-retryable.
+func classifyTransientNeo4jError(err error) string {
 	if err == nil {
-		return false
+		return ""
 	}
-	if isNeo4jConnectivityError(err) {
-		return true
+	var connectivityErr *neo4jdriver.ConnectivityError
+	if errors.As(err, &connectivityErr) {
+		if isRetryableNeo4jConnectivityError(connectivityErr) {
+			return graphWriteRetryReasonConnectivity
+		}
+		return ""
 	}
 	msg := err.Error()
-	return strings.Contains(msg, "TransientError") ||
+	if strings.Contains(msg, "TransientError") ||
 		strings.Contains(msg, "DeadlockDetected") ||
 		strings.Contains(msg, "LockClient") ||
-		strings.Contains(msg, "lock acquisition") ||
-		isNornicDBWriteConflict(msg)
+		strings.Contains(msg, "lock acquisition") {
+		return graphWriteRetryReasonTransient
+	}
+	if isNornicDBWriteConflict(msg) {
+		return graphWriteRetryReasonWriteConflict
+	}
+	return ""
+}
+
+func isRetryableNeo4jConnectivityError(connectivityErr *neo4jdriver.ConnectivityError) bool {
+	if connectivityErr.Inner == nil {
+		return false
+	}
+	if !neo4jdriver.IsRetryable(connectivityErr) {
+		return false
+	}
+	// CommitFailedDeadError is private to the driver. Keep the public error
+	// shape as a defensive compatibility guard in addition to IsRetryable so
+	// older driver versions cannot turn an unknown commit outcome into replay.
+	return !strings.HasPrefix(connectivityErr.Inner.Error(), "Connection lost during commit:")
 }
 
 func isNeo4jConnectivityError(err error) bool {
@@ -171,36 +216,55 @@ func isNeo4jConnectivityError(err error) bool {
 // isRetryableGraphWriteError classifies bounded graph-write retries using both
 // driver-level transient signals and statement-aware NornicDB commit conflicts.
 func isRetryableGraphWriteError(err error, stmt Statement) bool {
-	if isTransientNeo4jError(err) {
-		return true
-	}
-	if err == nil {
-		return false
-	}
-	return isNornicDBMergeUniqueConflict(err, stmt.Cypher)
+	return classifyRetryableGraphWriteError(err, stmt) != ""
 }
 
-// isRetryableGraphWriteGroupError classifies a phase-group write failure as
-// retryable when EVERY statement in the group is MERGE-shaped (and therefore
-// idempotent on re-execution) AND the underlying error matches a NornicDB
-// commit-time UNIQUE conflict pattern. Mixed groups containing non-MERGE
-// statements are NOT retried — re-executing a CREATE/DELETE/SET-only
+func classifyRetryableGraphWriteError(err error, stmt Statement) string {
+	if reason := classifyTransientNeo4jError(err); reason != "" {
+		return reason
+	}
+	if isNeo4jConnectivityError(err) {
+		return ""
+	}
+	if err != nil && isNornicDBMergeUniqueConflict(err, stmt.Cypher) {
+		return graphWriteRetryReasonUniqueConflict
+	}
+	return ""
+}
+
+// classifyRetryableGraphWriteGroupError classifies a phase-group write failure
+// as retryable when EVERY statement in the group is MERGE-shaped (and
+// therefore idempotent on re-execution) AND the underlying error matches a
+// NornicDB commit-time UNIQUE conflict pattern. Mixed groups containing
+// non-MERGE statements are NOT retried — re-executing a CREATE/DELETE/SET-only
 // statement under partial-success conditions can double-apply effects.
 //
-// Driver-level transient errors (deadlocks, lock timeouts) remain retryable
-// regardless of statement shape because session.ExecuteWrite re-runs the
-// entire transaction body from scratch.
-func isRetryableGraphWriteGroupError(err error, stmts []Statement) bool {
-	if isTransientNeo4jError(err) {
-		return true
+// Immediate driver-level transient errors (deadlocks, lock timeouts) remain
+// retryable regardless of statement shape because session.ExecuteWrite re-runs
+// the entire transaction body from scratch. TransactionExecutionLimit is the
+// exception: it means session.ExecuteWrite already exhausted that inner retry
+// budget, so repeating it here would multiply the failure window.
+func classifyRetryableGraphWriteGroupError(err error, stmts []Statement) string {
+	var exhausted *neo4jdriver.TransactionExecutionLimit
+	if errors.As(err, &exhausted) {
+		return ""
+	}
+	if reason := classifyTransientNeo4jError(err); reason != "" {
+		return reason
+	}
+	if isNeo4jConnectivityError(err) {
+		return ""
 	}
 	if err == nil {
-		return false
+		return ""
 	}
 	if !allStatementsAreMerge(stmts) {
-		return false
+		return ""
 	}
-	return isNornicDBCommitTimeUniqueConflictError(err)
+	if isNornicDBCommitTimeUniqueConflictError(err) {
+		return graphWriteRetryReasonUniqueConflict
+	}
+	return ""
 }
 
 // allStatementsAreMerge returns true when every statement in stmts contains

@@ -100,7 +100,7 @@ when the reducer has a graph orphan observer.
 | `SharedEdgeRunsOnRetractOmissions` | `eshu_dp_shared_edge_runs_on_retract_omissions_total` (labels: bounded `domain`, `reason`) |
 | `CodeCallEdgeBatches` | `eshu_dp_code_call_edge_batches_total` |
 | `Neo4jBatchesExecuted` | `eshu_dp_neo4j_batches_executed_total` |
-| `Neo4jDeadlockRetries` | `eshu_dp_neo4j_deadlock_retries_total` |
+| `Neo4jDeadlockRetries` | `eshu_dp_neo4j_deadlock_retries_total` (labels: bounded `write_phase`, `reason`) |
 | `ReposSnapshotted` | `eshu_dp_repos_snapshotted_total` |
 | `FilesParsed` | `eshu_dp_files_parsed_total` |
 | `SCIPSnapshotAttempts` | `eshu_dp_scip_snapshot_attempts_total` |

@@ -35,42 +35,6 @@ type RepoDependencyProjectionIntentReader interface {
 	MarkIntentsCompleted(ctx context.Context, intentIDs []string, completedAt time.Time) error
 }
 
-// RepoDependencyProjectionRunnerConfig configures the controlled repo-dependency lane.
-type RepoDependencyProjectionRunnerConfig struct {
-	LeaseOwner   string
-	PollInterval time.Duration
-	LeaseTTL     time.Duration
-	BatchLimit   int
-}
-
-func (c RepoDependencyProjectionRunnerConfig) pollInterval() time.Duration {
-	if c.PollInterval <= 0 {
-		return defaultSharedPollInterval
-	}
-	return c.PollInterval
-}
-
-func (c RepoDependencyProjectionRunnerConfig) leaseTTL() time.Duration {
-	if c.LeaseTTL <= 0 {
-		return defaultLeaseTTL
-	}
-	return c.LeaseTTL
-}
-
-func (c RepoDependencyProjectionRunnerConfig) batchLimit() int {
-	if c.BatchLimit <= 0 {
-		return defaultBatchLimit
-	}
-	return c.BatchLimit
-}
-
-func (c RepoDependencyProjectionRunnerConfig) leaseOwner() string {
-	if c.LeaseOwner == "" {
-		return defaultRepoDependencyLeaseOwner
-	}
-	return c.LeaseOwner
-}
-
 // RepoDependencyProjectionRunner processes repo-dependency shared intents one
 // source repository at a time so repo-wide retractions cannot race with
 // partition-sliced snapshots.
@@ -94,7 +58,10 @@ func (r *RepoDependencyProjectionRunner) Run(ctx context.Context) error {
 	if err := r.validate(); err != nil {
 		return err
 	}
+	return runRepoDependencyProjection(ctx, r)
+}
 
+func (r *RepoDependencyProjectionRunner) runSerial(ctx context.Context) error {
 	consecutiveEmpty := 0
 	for {
 		if ctx.Err() != nil {

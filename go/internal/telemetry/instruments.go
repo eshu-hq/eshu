@@ -3966,7 +3966,7 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 
 	inst.Neo4jDeadlockRetries, err = meter.Int64Counter(
 		"eshu_dp_neo4j_deadlock_retries_total",
-		metric.WithDescription("Total Neo4j transient error retries (deadlocks, lock timeouts)"),
+		metric.WithDescription("Total graph-write retries by write phase and bounded retry reason"),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register Neo4jDeadlockRetries counter: %w", err)

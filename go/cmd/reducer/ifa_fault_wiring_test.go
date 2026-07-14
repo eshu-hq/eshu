@@ -10,6 +10,8 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/replay/faultreplay"
@@ -171,4 +173,152 @@ func TestWrapIfaFaultExecutorExecutorRetryLaneRetriesInPlaceBelowTheRetryingExec
 	if got, want := len(session.calls), 1; got != want {
 		t.Fatalf("session calls = %d, want %d (only the retried, successful attempt reaches the real session)", got, want)
 	}
+}
+
+func TestWrapIfaFaultExecutorGroupRetryLaneRetriesInPlaceBelowTheRetryingExecutor(t *testing.T) {
+	t.Parallel()
+
+	session := &fakeNeo4jSession{}
+	instrumented := &sourcecypher.InstrumentedExecutor{Inner: newReducerNeo4jExecutor(session, nil)}
+	ordinal := 1
+	script := faultreplay.Script{
+		Version: faultreplay.CurrentVersion,
+		Faults: []faultreplay.FaultOp{{
+			Kind:    faultreplay.KindFailGraphWriteOnceThenSucceed,
+			Trigger: faultreplay.Trigger{StatementOrdinal: &ordinal},
+			Target:  faultreplay.Target{Lane: faultreplay.LaneExecutorRetry},
+		}},
+	}
+	raw, err := json.Marshal(script)
+	if err != nil {
+		t.Fatalf("marshal fixture script: %v", err)
+	}
+	path := filepath.Join(t.TempDir(), "group-fault.json")
+	if err := os.WriteFile(path, raw, 0o600); err != nil {
+		t.Fatalf("write fixture: %v", err)
+	}
+
+	wrapped, err := wrapIfaFaultExecutor(instrumented, getenvMap(map[string]string{ifaFaultScriptEnv: path}), nil)
+	if err != nil {
+		t.Fatalf("wrapIfaFaultExecutor: %v", err)
+	}
+	grouped, ok := wrapped.(sourcecypher.GroupExecutor)
+	if !ok {
+		t.Fatalf("wrapped executor type = %T, want sourcecypher.GroupExecutor", wrapped)
+	}
+	statements := []sourcecypher.Statement{{
+		Operation: sourcecypher.OperationCanonicalUpsert,
+		Cypher:    "UNWIND $rows AS row MERGE (e:Environment {name: row.name}) SET e.uid = row.uid",
+	}}
+	if err := grouped.ExecuteGroup(context.Background(), statements); err != nil {
+		t.Fatalf("ExecuteGroup() error = %v, want nil after in-place retry", err)
+	}
+	if got, want := len(session.calls), 1; got != want {
+		t.Fatalf("real session calls = %d, want %d", got, want)
+	}
+}
+
+func TestIfaExecutorRetryArmedExecutorBindsExecuteFaultToArmingContext(t *testing.T) {
+	t.Parallel()
+
+	inner := &concurrentIfaArmedTestExecutor{}
+	armed := &ifaExecutorRetryArmedExecutor{inner: inner}
+	statement := sourcecypher.Statement{
+		Operation: sourcecypher.OperationCanonicalUpsert,
+		Cypher:    "MERGE (r:Repository {id: $id})",
+	}
+	assertIfaFaultContextBound(t, armed.Arm, func(ctx context.Context) error {
+		return armed.Execute(ctx, statement)
+	}, &inner.executeCalls)
+}
+
+func TestIfaExecutorRetryArmedExecutorBindsGroupFaultToArmingContext(t *testing.T) {
+	t.Parallel()
+
+	inner := &concurrentIfaArmedTestExecutor{}
+	armed := &ifaExecutorRetryArmedExecutor{inner: inner}
+	statements := []sourcecypher.Statement{{
+		Operation: sourcecypher.OperationCanonicalUpsert,
+		Cypher:    "MERGE (r:Repository {id: $id})",
+	}}
+	assertIfaFaultContextBound(t, armed.Arm, func(ctx context.Context) error {
+		return armed.ExecuteGroup(ctx, statements)
+	}, &inner.groupCalls)
+}
+
+func assertIfaFaultContextBound(
+	t *testing.T,
+	arm func(context.Context) context.Context,
+	call func(context.Context) error,
+	innerCalls *atomic.Int64,
+) {
+	t.Helper()
+
+	targetCtx := arm(context.Background())
+	if err := call(context.Background()); err != nil {
+		t.Fatalf("unrelated call consumed targeted fault: %v", err)
+	}
+	if err := call(targetCtx); err == nil {
+		t.Fatal("targeted call error = nil, want the armed one-shot fault")
+	}
+	if err := call(targetCtx); err != nil {
+		t.Fatalf("targeted retry error = %v, want nil", err)
+	}
+
+	targetCtx = arm(context.Background())
+	const unrelatedCalls = 16
+	type callResult struct {
+		target bool
+		err    error
+	}
+	results := make(chan callResult, unrelatedCalls+1)
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+	for range unrelatedCalls {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			results <- callResult{err: call(context.Background())}
+		}()
+	}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		<-start
+		results <- callResult{target: true, err: call(targetCtx)}
+	}()
+	close(start)
+	wg.Wait()
+	close(results)
+
+	for result := range results {
+		if result.target && result.err == nil {
+			t.Fatal("concurrent targeted call error = nil, want the armed fault")
+		}
+		if !result.target && result.err != nil {
+			t.Fatalf("concurrent unrelated call consumed targeted fault: %v", result.err)
+		}
+	}
+	if err := call(targetCtx); err != nil {
+		t.Fatalf("concurrent targeted retry error = %v, want nil", err)
+	}
+	if got, want := innerCalls.Load(), int64(unrelatedCalls+3); got != want {
+		t.Fatalf("inner calls = %d, want %d; fault did not fire exactly once per armed context", got, want)
+	}
+}
+
+type concurrentIfaArmedTestExecutor struct {
+	executeCalls atomic.Int64
+	groupCalls   atomic.Int64
+}
+
+func (e *concurrentIfaArmedTestExecutor) Execute(context.Context, sourcecypher.Statement) error {
+	e.executeCalls.Add(1)
+	return nil
+}
+
+func (e *concurrentIfaArmedTestExecutor) ExecuteGroup(context.Context, []sourcecypher.Statement) error {
+	e.groupCalls.Add(1)
+	return nil
 }

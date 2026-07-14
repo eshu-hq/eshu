@@ -100,6 +100,20 @@ func TestLoadReducerWorkerCount_InvalidEnv(t *testing.T) {
 	}
 }
 
+func TestRepoDependencyWorkersDoNotInheritMainReducerWorkers(t *testing.T) {
+	t.Parallel()
+
+	cfg := loadRepoDependencyProjectionConfig(func(name string) string {
+		if name == reducerWorkersEnv {
+			return "4"
+		}
+		return ""
+	})
+	if got := cfg.Workers; got != 1 {
+		t.Fatalf("repo dependency workers = %d, want 1 when only %s is set", got, reducerWorkersEnv)
+	}
+}
+
 func TestLoadReducerBatchClaimSize_EnvOverride(t *testing.T) {
 	t.Parallel()
 

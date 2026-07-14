@@ -31,8 +31,25 @@ import (
 // through the shared storage/nornicdb PhaseGroupExecutor below: bounded
 // per-phase ExecuteGroup transactions over this same driver.
 type liveExecutor struct {
-	driver   neo4jdriver.DriverWithContext
-	database string
+	driver          neo4jdriver.DriverWithContext
+	database        string
+	bookmarkManager neo4jdriver.BookmarkManager
+}
+
+func newLiveExecutor(driver neo4jdriver.DriverWithContext, database string) liveExecutor {
+	return liveExecutor{
+		driver:          driver,
+		database:        database,
+		bookmarkManager: neo4jdriver.NewBookmarkManager(neo4jdriver.BookmarkManagerConfig{}),
+	}
+}
+
+func (e liveExecutor) sessionConfig(accessMode neo4jdriver.AccessMode) neo4jdriver.SessionConfig {
+	return neo4jdriver.SessionConfig{
+		AccessMode:      accessMode,
+		DatabaseName:    e.database,
+		BookmarkManager: e.bookmarkManager,
+	}
 }
 
 // livePhaseGroupExecutor returns the exact production NornicDB adapter with
@@ -55,10 +72,7 @@ func livePhaseGroupExecutor(inner liveExecutor) storagenornicdb.PhaseGroupExecut
 
 // Execute runs one write statement in its own auto-commit session.
 func (e liveExecutor) Execute(ctx context.Context, stmt cypher.Statement) error {
-	session := e.driver.NewSession(ctx, neo4jdriver.SessionConfig{
-		AccessMode:   neo4jdriver.AccessModeWrite,
-		DatabaseName: e.database,
-	})
+	session := e.driver.NewSession(ctx, e.sessionConfig(neo4jdriver.AccessModeWrite))
 	defer func() { _ = session.Close(ctx) }()
 
 	result, err := session.Run(ctx, stmt.Cypher, stmt.Parameters)
@@ -79,10 +93,7 @@ func (e liveExecutor) ExecuteGroup(ctx context.Context, stmts []cypher.Statement
 	if len(stmts) == 0 {
 		return nil
 	}
-	session := e.driver.NewSession(ctx, neo4jdriver.SessionConfig{
-		AccessMode:   neo4jdriver.AccessModeWrite,
-		DatabaseName: e.database,
-	})
+	session := e.driver.NewSession(ctx, e.sessionConfig(neo4jdriver.AccessModeWrite))
 	defer func() { _ = session.Close(ctx) }()
 
 	_, err := session.ExecuteWrite(ctx, func(tx neo4jdriver.ManagedTransaction) (any, error) {
@@ -110,10 +121,7 @@ func (e liveExecutor) RunWrite(
 	cypherText string,
 	parameters map[string]any,
 ) (storagenornicdb.DrainWriteResult, error) {
-	session := e.driver.NewSession(ctx, neo4jdriver.SessionConfig{
-		AccessMode:   neo4jdriver.AccessModeWrite,
-		DatabaseName: e.database,
-	})
+	session := e.driver.NewSession(ctx, e.sessionConfig(neo4jdriver.AccessModeWrite))
 	defer func() { _ = session.Close(ctx) }()
 
 	result, err := session.Run(ctx, cypherText, parameters)
@@ -152,10 +160,7 @@ func (e liveExecutor) ExecuteCypher(ctx context.Context, stmt graph.CypherStatem
 
 // count runs a single-row COUNT query and returns the int64 value.
 func (e liveExecutor) count(ctx context.Context, cypherText string, params map[string]any) (int64, error) {
-	session := e.driver.NewSession(ctx, neo4jdriver.SessionConfig{
-		AccessMode:   neo4jdriver.AccessModeRead,
-		DatabaseName: e.database,
-	})
+	session := e.driver.NewSession(ctx, e.sessionConfig(neo4jdriver.AccessModeRead))
 	defer func() { _ = session.Close(ctx) }()
 
 	result, err := session.Run(ctx, cypherText, params)

@@ -54,7 +54,7 @@
 # advisory for the whole P1 milestone (the blocking flip is P4, per #4394).
 version: "v1"
 coverage:
-  - {surface: "fact_kind:repository", scenario: odu, scenario_type: baseline, ref: "odu:kustomize-deploys-from", proof_gate: ifa-contract-layer}
+  - {surface: "fact_kind:repository", scenario: odu, scenario_type: baseline, ref: "odu:repo-dependency-concurrency", proof_gate: ifa-contract-layer}
   - {surface: "fact_kind:aws_resource", scenario: odu, scenario_type: baseline, ref: "odu:aws-pack", proof_gate: ifa-contract-layer}
   - {surface: "fact_kind:aws_resource_policy_permission", scenario: odu, scenario_type: baseline, ref: "odu:aws-pack", proof_gate: ifa-contract-layer}
   - {surface: "fact_kind:aws_security_group_rule", scenario: odu, scenario_type: baseline, ref: "odu:aws-pack", proof_gate: ifa-contract-layer}

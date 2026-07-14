@@ -20,7 +20,10 @@ type fakeExecutorRetryArmer struct {
 	armCount atomic.Int64
 }
 
-func (a *fakeExecutorRetryArmer) Arm() { a.armCount.Add(1) }
+func (a *fakeExecutorRetryArmer) Arm(ctx context.Context) context.Context {
+	a.armCount.Add(1)
+	return ctx
+}
 
 // TestFaultingExecutorExecutorRetryLaneArmsBelowTheSeamAndDelegatesWhenWired
 // proves the #5048 fix at the FaultingExecutor level in isolation: when an
@@ -63,15 +66,9 @@ func TestFaultingExecutorExecutorRetryLaneArmsBelowTheSeamAndDelegatesWhenWired(
 	}
 }
 
-// TestFaultingExecutorExecuteGroupExecutorRetryLaneIgnoresArmerReturnsShapedError
-// proves the arming scope boundary: even with an ExecutorRetryArmer wired,
-// ExecuteGroup for the executor-retry lane still returns the shaped error
-// directly rather than arming and delegating. go/cmd/reducer's grouped
-// canonical writers bypass RetryingExecutor entirely, so arming here would
-// silently swallow the scripted fault (Arm() would set a flag nothing ever
-// checks, and the real group write would proceed as if nothing had fired).
-// Group-write retry parity is tracked separately, out of #5048's scope.
-func TestFaultingExecutorExecuteGroupExecutorRetryLaneIgnoresArmerReturnsShapedError(t *testing.T) {
+// TestFaultingExecutorExecuteGroupExecutorRetryLaneArmsAndDelegates proves the
+// group path reaches the below-RetryingExecutor armer introduced for #5086.
+func TestFaultingExecutorExecuteGroupExecutorRetryLaneArmsAndDelegates(t *testing.T) {
 	t.Parallel()
 
 	inner := &faultRecordingExecutor{supportsGrp: true}
@@ -81,17 +78,13 @@ func TestFaultingExecutorExecuteGroupExecutorRetryLaneIgnoresArmerReturnsShapedE
 	fe.SetExecutorRetryArmer(arm)
 
 	stmts := []Statement{{Cypher: "MERGE (a) RETURN a"}}
-	err := fe.ExecuteGroup(context.Background(), stmts)
-	if err == nil {
-		t.Fatal("expected the scripted fault to fire on the first ExecuteGroup call")
+	if err := fe.ExecuteGroup(context.Background(), stmts); err != nil {
+		t.Fatalf("ExecuteGroup() error = %v, want nil after arming and delegation", err)
 	}
-	if !isTransientNeo4jError(err) {
-		t.Fatalf("executor-retry lane error must be shaped transient, got %q", err.Error())
+	if got := arm.armCount.Load(); got != 1 {
+		t.Fatalf("expected Arm() once for ExecuteGroup, got %d", got)
 	}
-	if got := arm.armCount.Load(); got != 0 {
-		t.Fatalf("expected Arm() never called for ExecuteGroup, got %d", got)
-	}
-	if got := inner.groupCount(); got != 0 {
-		t.Fatalf("expected inner.ExecuteGroup never called for the fired attempt, got %d", got)
+	if got := inner.groupCount(); got != 1 {
+		t.Fatalf("expected inner.ExecuteGroup once after arming, got %d", got)
 	}
 }
