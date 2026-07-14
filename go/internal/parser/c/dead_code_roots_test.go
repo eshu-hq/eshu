@@ -157,3 +157,57 @@ Handler ptr = foo;          /* LATE declaration -> function_pointer_target */
 		t.Errorf("call-before-decl ordering mismatch:\n  got:  %v\n  want: %v", kinds, wantOrder)
 	}
 }
+
+// TestGatherResolveBreakVerify confirms the characterization tests above have
+// teeth: calling annotateCDeadCodeRoots with a nil gathered-node slice adds no
+// signal-handler, callback-argument, or function-pointer-target root kinds,
+// even though the same payload's functions would otherwise receive them. This
+// proves those roots come from resolving the gathered slice, not from some
+// other hidden path, so a regression that stops gathering nodes (or silently
+// no-ops the resolution loop) would make this test fail to demonstrate the
+// absence it asserts.
+func TestGatherResolveBreakVerify(t *testing.T) {
+	t.Parallel()
+	source := `#include <signal.h>
+
+void foo(void) {}
+void reg(void (*cb)(void));
+void setup(void) { reg(foo); }
+void handler(int signum) {}
+void arm(void) { signal(2, handler); }
+`
+	// First prove the roots exist via the full production path.
+	payload := parseCString(t, source)
+	rootKinds := deadCodeRootKindsFromPayload(payload)
+
+	if kinds, ok := rootKinds["foo"]; !ok {
+		t.Fatal("foo not found in payload functions")
+	} else if !slices.Contains(kinds, cCallbackArgumentTarget) {
+		t.Errorf("foo should have c.callback_argument_target, got %v", kinds)
+	}
+	if kinds, ok := rootKinds["handler"]; !ok {
+		t.Fatal("handler not found in payload functions")
+	} else if !slices.Contains(kinds, cSignalHandlerRoot) {
+		t.Errorf("handler should have c.signal_handler, got %v", kinds)
+	}
+
+	// Re-annotate the SAME payload from a clean slate with a nil gathered
+	// slice: the resolution loop has nothing to iterate.
+	functions, _ := payload["functions"].([]map[string]any)
+	for _, f := range functions {
+		delete(f, "dead_code_root_kinds")
+	}
+	annotateCDeadCodeRoots(payload, []byte(source), nil)
+	rootKindsAfter := deadCodeRootKindsFromPayload(payload)
+
+	if kinds, ok := rootKindsAfter["foo"]; !ok {
+		t.Fatal("foo not found after empty-gather annotation")
+	} else if len(kinds) > 0 {
+		t.Errorf("foo should have empty dead_code_root_kinds after empty gather, got %v", kinds)
+	}
+	if kinds, ok := rootKindsAfter["handler"]; !ok {
+		t.Fatal("handler not found after empty-gather annotation")
+	} else if len(kinds) > 0 {
+		t.Errorf("handler should have empty dead_code_root_kinds after empty gather, got %v", kinds)
+	}
+}
