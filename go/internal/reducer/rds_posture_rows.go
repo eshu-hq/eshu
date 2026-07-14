@@ -4,7 +4,6 @@
 package reducer
 
 import (
-	"fmt"
 	"sort"
 	"strings"
 
@@ -61,7 +60,17 @@ func ExtractRDSPostureRows(
 		if env.FactKind != facts.RDSInstancePostureFactKind {
 			continue
 		}
-		row, uid, ok := rdsPostureRow(env)
+		row, uid, ok, err := rdsPostureRow(env)
+		if err != nil {
+			q, isQuarantine, fatal := partitionDecodeFailures(env, err)
+			if fatal != nil {
+				return nil, tally, quarantined, fatal
+			}
+			if isQuarantine {
+				quarantined = append(quarantined, q)
+			}
+			continue
+		}
 		if !ok {
 			tally.skipped[rdsPostureSkipSourceUnresolved]++
 			continue
@@ -127,49 +136,65 @@ func buildRDSPostureResourceIndex(envelopes []facts.Envelope) (map[string]struct
 	return index, quarantined, nil
 }
 
-func rdsPostureRow(env facts.Envelope) (map[string]any, string, bool) {
-	accountID := payloadString(env.Payload, "account_id")
-	region := payloadString(env.Payload, "region")
-	resourceType := payloadString(env.Payload, "resource_type")
-	resourceID := payloadString(env.Payload, "resource_id")
-	arn := payloadString(env.Payload, "arn")
-	if resourceID == "" {
-		resourceID = arn
-	}
-	if !isRDSPostureResourceType(resourceType) || resourceID == "" {
-		return nil, "", false
+// rdsPostureRow decodes one rds_instance_posture envelope through the
+// contracts seam and builds its CloudResource node-property row. It returns
+// ok=false (with a nil error) when the fact decodes cleanly but carries
+// neither a graph-projectable resource type nor a resource id/arn to derive a
+// stable uid from — a valid-but-incomplete fact, not a malformed one, so it is
+// a conservative skip (rdsPostureSkipSourceUnresolved), never a quarantine. A
+// non-nil error is always a decode failure (a missing/null required field such
+// as account_id or region); the caller routes it through
+// partitionDecodeFailures so it dead-letters as input_invalid instead of
+// silently zeroing the identity, per Contract System v1.
+func rdsPostureRow(env facts.Envelope) (map[string]any, string, bool, error) {
+	posture, err := decodeRDSInstancePosture(env)
+	if err != nil {
+		return nil, "", false, err
 	}
 
-	publiclyAccessible := rdsPosturePayloadBool(env.Payload, "publicly_accessible")
+	resourceType := derefString(posture.ResourceType)
+	resourceID := derefString(posture.ResourceID)
+	if resourceID == "" {
+		resourceID = derefString(posture.ARN)
+	}
+	if !isRDSPostureResourceType(resourceType) || resourceID == "" {
+		return nil, "", false, nil
+	}
+
 	publicState := rdsPostureNotPublic
-	if publiclyAccessible {
+	if posture.PubliclyAccessible {
 		publicState = rdsPosturePublicCandidate
 	}
 
-	uid := cloudResourceUID(accountID, region, resourceType, resourceID)
+	var securityParameters map[string]string
+	if posture.SecurityParameters != nil {
+		securityParameters = *posture.SecurityParameters
+	}
+
+	uid := cloudResourceUID(posture.AccountID, posture.Region, resourceType, resourceID)
 	row := map[string]any{
 		"uid":                       uid,
-		"rds_identifier":            payloadString(env.Payload, "identifier"),
+		"rds_identifier":            derefString(posture.Identifier),
 		"rds_resource_type":         resourceType,
-		"rds_engine":                payloadString(env.Payload, "engine"),
-		"rds_publicly_accessible":   publiclyAccessible,
+		"rds_engine":                derefString(posture.Engine),
+		"rds_publicly_accessible":   posture.PubliclyAccessible,
 		"rds_public_exposure_state": publicState,
-		"rds_storage_encrypted":     rdsPosturePayloadBool(env.Payload, "storage_encrypted"),
-		"rds_kms_key_id":            payloadString(env.Payload, "kms_key_id"),
-		"rds_iam_database_authentication_enabled": rdsPosturePayloadBool(env.Payload, "iam_database_authentication_enabled"),
-		"rds_multi_az":                            rdsPosturePayloadBool(env.Payload, "multi_az"),
-		"rds_deletion_protection":                 rdsPosturePayloadBool(env.Payload, "deletion_protection"),
-		"rds_backup_retention_period":             rdsPosturePayloadInt64(env.Payload, "backup_retention_period"),
-		"rds_performance_insights_enabled":        rdsPosturePayloadBool(env.Payload, "performance_insights_enabled"),
-		"rds_performance_insights_retention_days": rdsPosturePayloadInt64(env.Payload, "performance_insights_retention_days"),
-		"rds_performance_insights_kms_key_id":     payloadString(env.Payload, "performance_insights_kms_key_id"),
-		"rds_ca_certificate_identifier":           payloadString(env.Payload, "ca_certificate_identifier"),
-		"rds_parameter_groups":                    rdsPosturePayloadStringSlice(env.Payload, "parameter_groups"),
-		"rds_option_groups":                       rdsPosturePayloadStringSlice(env.Payload, "option_groups"),
-		"rds_security_parameters":                 rdsPosturePayloadKeyValueStrings(env.Payload, "security_parameters"),
+		"rds_storage_encrypted":     posture.StorageEncrypted,
+		"rds_kms_key_id":            derefString(posture.KMSKeyID),
+		"rds_iam_database_authentication_enabled": posture.IAMDatabaseAuthenticationEnabled,
+		"rds_multi_az":                            posture.MultiAZ,
+		"rds_deletion_protection":                 posture.DeletionProtection,
+		"rds_backup_retention_period":             int64(posture.BackupRetentionPeriod),
+		"rds_performance_insights_enabled":        posture.PerformanceInsightsEnabled,
+		"rds_performance_insights_retention_days": int64(posture.PerformanceInsightsRetentionDays),
+		"rds_performance_insights_kms_key_id":     derefString(posture.PerformanceInsightsKMSKeyID),
+		"rds_ca_certificate_identifier":           derefString(posture.CACertificateIdentifier),
+		"rds_parameter_groups":                    uniqueSortedStrings(posture.ParameterGroups),
+		"rds_option_groups":                       uniqueSortedStrings(posture.OptionGroups),
+		"rds_security_parameters":                 rdsPostureSecurityParameters(securityParameters),
 		"source_fact_id":                          env.FactID,
 	}
-	return row, uid, true
+	return row, uid, true, nil
 }
 
 func isRDSPostureResourceType(resourceType string) bool {
@@ -181,80 +206,22 @@ func isRDSPostureResourceType(resourceType string) bool {
 	}
 }
 
-func rdsPosturePayloadBool(payload map[string]any, key string) bool {
-	value, ok := payload[key]
-	if !ok || value == nil {
-		return false
-	}
-	boolValue, ok := value.(bool)
-	return ok && boolValue
-}
-
-func rdsPosturePayloadInt64(payload map[string]any, key string) int64 {
-	value, ok := payload[key]
-	if !ok || value == nil {
-		return 0
-	}
-	switch typed := value.(type) {
-	case int:
-		return int64(typed)
-	case int8:
-		return int64(typed)
-	case int16:
-		return int64(typed)
-	case int32:
-		return int64(typed)
-	case int64:
-		return typed
-	case uint:
-		return int64(typed)
-	case uint8:
-		return int64(typed)
-	case uint16:
-		return int64(typed)
-	case uint32:
-		return int64(typed)
-	case uint64:
-		return int64(typed)
-	case float64:
-		return int64(typed)
-	default:
-		return 0
-	}
-}
-
-func rdsPosturePayloadStringSlice(payload map[string]any, key string) []string {
-	raw, ok := payload[key]
-	if !ok || raw == nil {
+// rdsPostureSecurityParameters flattens the typed, optional
+// security_parameters map into the row's deterministic "key=value" string
+// list, matching the pre-typing raw-payload derivation byte-for-byte: a nil
+// map (the field was absent from the payload) returns nil, and every entry is
+// trimmed, empty keys/values dropped, then deduplicated and sorted. The caller
+// dereferences the struct's optional *map[string]string field (nil pointer
+// distinguishes an absent key from an observed-empty map) into the plain map
+// this function takes; maps are already reference types, so accepting a
+// pointer-to-map parameter here would be redundant indirection.
+func rdsPostureSecurityParameters(params map[string]string) []string {
+	if params == nil {
 		return nil
 	}
-	var values []string
-	switch typed := raw.(type) {
-	case []string:
-		values = append(values, typed...)
-	case []any:
-		for _, value := range typed {
-			values = append(values, fmt.Sprint(value))
-		}
-	}
-	return uniqueSortedStrings(values)
-}
-
-func rdsPosturePayloadKeyValueStrings(payload map[string]any, key string) []string {
-	raw, ok := payload[key]
-	if !ok || raw == nil {
-		return nil
-	}
-	values := make([]string, 0)
-	switch typed := raw.(type) {
-	case map[string]string:
-		for key, value := range typed {
-			values = appendRDSPostureKeyValue(values, key, value)
-		}
-	case map[string]any:
-		for key, value := range typed {
-			values = appendRDSPostureKeyValue(values, key, fmt.Sprint(value))
-		}
+	values := make([]string, 0, len(params))
+	for key, value := range params {
+		values = appendRDSPostureKeyValue(values, key, value)
 	}
 	return uniqueSortedStrings(values)
 }

@@ -271,6 +271,46 @@ func decodeS3BucketPosture(env facts.Envelope) (awsv1.S3BucketPosture, error) {
 	return posture, nil
 }
 
+// decodeRDSInstancePosture decodes one rds_instance_posture envelope into the
+// typed awsv1.RDSInstancePosture struct through the contracts seam, returning a
+// self-classifying *factDecodeError when the payload is missing a required
+// field (account_id, region, publicly_accessible, storage_encrypted,
+// iam_database_authentication_enabled, multi_az, deletion_protection,
+// backup_retention_period, performance_insights_enabled,
+// performance_insights_retention_days — every non-pointer field the collector's
+// NewRDSInstancePostureEnvelope always stamps). It is the single decode site
+// for this kind on the reducer side: ExtractRDSPostureRows decodes through
+// here so a fact missing its account/region identity dead-letters as a
+// per-fact input_invalid quarantine instead of fabricating a
+// CloudResource uid from an empty account_id/region.
+func decodeRDSInstancePosture(env facts.Envelope) (awsv1.RDSInstancePosture, error) {
+	posture, err := factschema.DecodeRDSInstancePosture(factschemaEnvelope(env))
+	if err != nil {
+		return awsv1.RDSInstancePosture{}, newFactDecodeError(factschema.FactKindRDSInstancePosture, err)
+	}
+	return posture, nil
+}
+
+// decodeS3ExternalPrincipalGrant decodes one s3_external_principal_grant
+// envelope into the typed awsv1.S3ExternalPrincipalGrant struct through the
+// contracts seam, returning a self-classifying *factDecodeError when the
+// payload is missing a required field (account_id, region, principal_kind,
+// principal_value, grant_outcome, is_public, is_cross_account,
+// is_service_principal, is_unsupported — every non-pointer field the
+// collector's NewS3ExternalPrincipalGrantEnvelope always stamps). It is the
+// single decode site for this kind on the reducer side:
+// ExtractS3ExternalPrincipalGrantRows decodes through here so a fact missing
+// its account/region or principal identity dead-letters as a per-fact
+// input_invalid quarantine instead of fabricating a GRANTS_ACCESS_TO edge from
+// an empty principal identity.
+func decodeS3ExternalPrincipalGrant(env facts.Envelope) (awsv1.S3ExternalPrincipalGrant, error) {
+	grant, err := factschema.DecodeS3ExternalPrincipalGrant(factschemaEnvelope(env))
+	if err != nil {
+		return awsv1.S3ExternalPrincipalGrant{}, newFactDecodeError(factschema.FactKindS3ExternalPrincipalGrant, err)
+	}
+	return grant, nil
+}
+
 // decodeAWSIAMPermission decodes one aws_iam_permission envelope into the typed
 // iamv1.Permission struct through the contracts seam, returning a
 // self-classifying *factDecodeError when the payload is missing a required field

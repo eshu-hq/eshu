@@ -192,3 +192,74 @@ func TestExtractRDSPostureRowsEmptyInputIsNoOp(t *testing.T) {
 		t.Fatalf("totalSkipped() = %d, want 0", tally.totalSkipped())
 	}
 }
+
+// TestExtractRDSPostureRowsQuarantinesMissingRequiredField proves an
+// rds_instance_posture fact MISSING a required identity key (account_id
+// absent, not empty) is quarantined as an input_invalid per-fact dead-letter
+// and produces no row, while a valid sibling fact in the same batch still
+// projects normally. Before the typed-decode migration, rdsPostureRow read
+// account_id via a raw payloadString lookup that silently defaulted a missing
+// key to "", so the malformed fact would have fabricated a CloudResource row
+// keyed by an empty account_id instead of dead-lettering — this test locks
+// the corrected behavior (#4632).
+func TestExtractRDSPostureRowsQuarantinesMissingRequiredField(t *testing.T) {
+	t.Parallel()
+
+	instanceARN := "arn:aws:rds:us-east-1:111111111111:db:orders-writer"
+	resources := []facts.Envelope{
+		rdsResourceEnvelope(testRDSInstance, instanceARN, "orders-writer"),
+	}
+	malformed := facts.Envelope{
+		FactID:   "fact-posture-missing-account",
+		FactKind: facts.RDSInstancePostureFactKind,
+		Payload: map[string]any{
+			// account_id intentionally absent.
+			"region":                              testRDSRegion,
+			"resource_type":                       testRDSInstance,
+			"resource_id":                         instanceARN,
+			"arn":                                 instanceARN,
+			"identifier":                          "orders-writer",
+			"engine":                              "postgres",
+			"publicly_accessible":                 true,
+			"storage_encrypted":                   true,
+			"iam_database_authentication_enabled": true,
+			"multi_az":                            true,
+			"deletion_protection":                 true,
+			"backup_retention_period":             int32(7),
+			"performance_insights_enabled":        true,
+			"performance_insights_retention_days": int32(31),
+		},
+	}
+	postures := []facts.Envelope{
+		malformed,
+		rdsPostureEnvelope(testRDSInstance, instanceARN, "orders-writer", true),
+	}
+
+	rows, tally, quarantined, err := ExtractRDSPostureRows(resources, postures)
+	if err != nil {
+		t.Fatalf("ExtractRDSPostureRows() error = %v, want nil (per-fact isolation, not batch abort)", err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("len(rows) = %d, want 1; the valid fact must still project despite the malformed sibling", len(rows))
+	}
+	if len(quarantined) != 1 {
+		t.Fatalf("len(quarantined) = %d, want 1; the missing-account_id fact must be quarantined", len(quarantined))
+	}
+	if quarantined[0].factKind != facts.RDSInstancePostureFactKind {
+		t.Fatalf("quarantined factKind = %q, want %q", quarantined[0].factKind, facts.RDSInstancePostureFactKind)
+	}
+	if quarantined[0].field != "account_id" {
+		t.Fatalf("quarantined field = %q, want %q", quarantined[0].field, "account_id")
+	}
+	if quarantined[0].classification != "input_invalid" {
+		t.Fatalf("quarantined classification = %q, want %q", quarantined[0].classification, "input_invalid")
+	}
+	if tally.updated != 1 {
+		t.Fatalf("tally.updated = %d, want 1", tally.updated)
+	}
+	for _, row := range rows {
+		if row["uid"] == cloudResourceUID("", testRDSRegion, testRDSInstance, instanceARN) {
+			t.Fatalf("found a row with a fabricated empty-account_id uid: %#v", row)
+		}
+	}
+}

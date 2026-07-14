@@ -2138,3 +2138,50 @@ spans/`eshu_dp_postgres_query_duration_seconds` covering the new ledger reads an
 writes. The change adds no new metric instrument, metric label, worker, queue
 domain, lease, runtime knob, or graph-write route; the two new ledger tables are
 reached through the existing Postgres store instrumentation.
+
+No-Regression Evidence (typed-payload decode, issue #4632, completing the
+AWS/IAM family Contract System v1 migration #4568 left out of scope): the two
+remaining AWS extractors that still read their OWN fact kind's payload via raw
+`payloadString` map lookups — `rdsPostureRow` (`rds_posture_rows.go`) for
+`rds_instance_posture` and `ExtractS3ExternalPrincipalGrantRows`
+(`s3_external_principal_grant_rows.go`) for `s3_external_principal_grant` — now
+decode through the `sdk/go/factschema` seam (`decodeRDSInstancePosture`,
+`decodeS3ExternalPrincipalGrant` in `factschema_decode.go`), which wrap the
+already-committed `factschema.DecodeRDSInstancePosture`/
+`DecodeS3ExternalPrincipalGrant` functions and `awsv1.RDSInstancePosture`/
+`awsv1.S3ExternalPrincipalGrant` structs (both landed on `main` ahead of this
+reducer-side wiring). `ExtractRDSPostureRows` and
+`ExtractS3ExternalPrincipalGrantRows` now return `[]quarantinedFact` populated
+from the posture/grant decode failures (previously only the joined
+`aws_resource` side populated it): a fact missing a required identity field
+(`account_id`/`region`, always stamped by the emitting collector) is quarantined
+per-fact via `partitionDecodeFailures` rather than fabricating a `CloudResource`
+uid or `GRANTS_ACCESS_TO` edge from an empty account/region, while every valid
+fact in the same batch still projects. `go test ./internal/reducer -run
+'TestExtractRDSPostureRowsQuarantinesMissingRequiredField|TestExtractS3ExternalPrincipalGrantRowsQuarantinesMissingRequiredField'
+-count=1 -v` failed before the conversion (quarantine count 0, the malformed
+fact's empty account_id silently reached the uid/edge derivation instead), then
+passed after. Row shape and every existing `TestExtractRDSPostureRows*`/
+`TestExtractS3ExternalPrincipalGrantRows*` assertion (numeric widening,
+security-parameter/parameter-group ordering, principal skip tallies, dedup/sort
+order) are unchanged — the typed decode preserves the pre-typing raw-payload
+derivation byte-for-byte. Result class: Correctness win (per-fact isolation
+closes the last two AWS raw-payload reducer sites) with no measured behavior
+change for valid facts.
+
+No-Observability-Change (issue #4632): the typed-decode migration adds no
+route, graph query shape, queue table, worker, lease, runtime knob, metric
+instrument, or metric label. A malformed `rds_instance_posture`/
+`s3_external_principal_grant` fact surfaces through the EXISTING dead-letter
+path (`recordQuarantinedFacts`/`inputInvalidSubSignals`), incrementing the
+existing `eshu_dp_reducer_input_invalid_facts_total` counter (labeled `domain` =
+`rds_posture_materialization` / `s3_external_principal_grant_materialization`,
+an existing label value set) and logging the existing "reducer input_invalid
+fact quarantined" structured log line. The `payload-usage-manifest` gate
+(`go/internal/payloadusage`) required an additive-only extension: two new
+`factKindSchemaFile` entries (`FactKindRDSInstancePosture`,
+`FactKindS3ExternalPrincipalGrant`) in `go/internal/payloadusage/schema.go`
+(both schema files already existed under `sdk/go/factschema/schema/`); this
+only widens which decode seams the gate covers (106 -> 108 manifest kinds,
+`TestLoadAgainstRealReducer`/`TestGateAgainstRealReducerAndSchemas` in
+`go/internal/payloadusage/load_test.go`) and adds no new gate mechanism.
