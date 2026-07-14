@@ -102,6 +102,9 @@
   `dead_code_semantic_roots.go`, `package_interface_prescan.go`, or any other
   helper. Use `goBuildParentLookup`, `goBuildVariableTypeIndex`, or
   `goBuildImportedVariableTypeIndex` so per-file cost stays linear.
+- Re-adding a per-call `regexp.MustCompile` in `goIdentifierShadowedBeforeOffset`
+  (`embedded_shell.go`). Use `identifierShadowPatternsFor`, which caches the
+  compiled shadow-detection regexes per identifier.
 
 ## What NOT to change without an ADR
 
@@ -111,3 +114,34 @@
   reducer, and docs in the same branch.
 - Do not move registry lookup, path normalization, or runtime parser allocation
   into this package.
+
+## Evidence notes
+
+### Shadow-detection regex compile hoist (issue #4874)
+
+`goIdentifierShadowedBeforeOffset` compiled two `regexp.MustCompile` patterns
+(short-declaration and var-declaration) per call for the os/exec import
+alias. The alias identifier is dynamic in principle but in practice is
+virtually always `"exec"` (the default os/exec import name — Go forbids
+importing the same package path twice in one file with different aliases),
+so `identifierShadowPatternsFor` caches the compiled pair per identifier in a
+package-level `sync.Map`, capped at `identifierShadowPatternCacheLimit`
+(20,000) distinct identifiers to keep an ingester's long-running memory
+bounded across a large multi-repo corpus; beyond the cap it falls back to
+compiling per call rather than growing memory unboundedly.
+`TestGoIdentifierShadowedBeforeOffsetMatchesDeclarationForms` pins the exact
+shadowing decision for the short-declaration, var-declaration,
+no-declaration, after-offset, and substring-identifier cases before and after
+the change; `TestEmbeddedShellCommandsSkipsShadowedAliasPerFunction` proves
+the same invariant through the real `EmbeddedShellCommands` entry point, not
+just the helper; `TestGoIdentifierShadowedBeforeOffsetCacheIsConcurrencySafe`
+exercises the cache from concurrent goroutines under `-race`. The identical
+hoist-to-package-level-cache technique is benchmarked directly on the SCIP
+and dbtsql sibling sites in this issue (see `../AGENTS.md#evidence-notes` and
+`../dbtsql/AGENTS.md`); this package relies on those measurements plus its
+own regression and race tests rather than a separate golang-specific
+benchmark.
+
+No-Observability-Change: parse timing remains owned by the ingester and
+collector runtime paths that call the parent Engine, per this file's existing
+anti-pattern against adding telemetry from this package.

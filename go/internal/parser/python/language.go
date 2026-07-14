@@ -5,7 +5,6 @@ package python
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -27,14 +26,7 @@ func Parse(
 		return nil, err
 	}
 	if strings.EqualFold(filepath.Ext(path), ".ipynb") {
-		tempPythonPath, err := convertNotebookToTempPython(path, source)
-		if err != nil {
-			return nil, err
-		}
-		defer func() {
-			_ = os.Remove(tempPythonPath)
-		}()
-		source, err = readSource(tempPythonPath)
+		source, err = notebookPythonSource(path, source)
 		if err != nil {
 			return nil, err
 		}

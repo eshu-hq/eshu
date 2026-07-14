@@ -6,6 +6,7 @@ package gradle
 import (
 	"regexp"
 	"strings"
+	"sync"
 )
 
 type coordinate struct {
@@ -113,9 +114,29 @@ var mapEntryPatterns = []string{
 	`(?m)\b%s\s*=\s*(?:['"])([^'"]+)['"]`,
 }
 
-func extractMapEntry(value, key string) string {
+// mapEntryPatternCache caches the compiled mapEntryPatterns regexes per key so
+// repeated extractMapEntry calls for the same key (parseMapCoordinate always
+// calls it with "group", "name", and "version") reuse the compiled
+// *regexp.Regexp instead of recompiling on every call. The key set is small
+// and effectively fixed in this codebase's callers, but the cache stays
+// correct for any key: a *regexp.Regexp is safe for concurrent use, and
+// sync.Map.LoadOrStore makes first-compile-per-key race-safe.
+var mapEntryPatternCache sync.Map // key -> []*regexp.Regexp
+
+func mapEntryRegexesFor(key string) []*regexp.Regexp {
+	if cached, ok := mapEntryPatternCache.Load(key); ok {
+		return cached.([]*regexp.Regexp)
+	}
+	compiled := make([]*regexp.Regexp, 0, len(mapEntryPatterns))
 	for _, template := range mapEntryPatterns {
-		expr := regexp.MustCompile(strings.Replace(template, "%s", regexp.QuoteMeta(key), 1))
+		compiled = append(compiled, regexp.MustCompile(strings.Replace(template, "%s", regexp.QuoteMeta(key), 1)))
+	}
+	actual, _ := mapEntryPatternCache.LoadOrStore(key, compiled)
+	return actual.([]*regexp.Regexp)
+}
+
+func extractMapEntry(value, key string) string {
+	for _, expr := range mapEntryRegexesFor(key) {
 		match := expr.FindStringSubmatch(value)
 		if len(match) >= 2 {
 			return strings.TrimSpace(match[1])

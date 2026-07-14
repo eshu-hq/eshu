@@ -42,6 +42,20 @@ func NotebookSource(source []byte) (string, error) {
 	return strings.Join(codeCells, "\n\n"), nil
 }
 
+// notebookPythonSource converts a .ipynb payload into synthesized Python
+// source for tree-sitter to parse directly, in memory. It replaces the
+// pre-#4874 behavior of writing the converted source to a temp file and
+// reading it back before parsing: that disk round trip added write, read, and
+// remove syscalls to every notebook parse for no behavioral difference, since
+// tree-sitter's Parser.Parse accepts a []byte source directly.
+func notebookPythonSource(path string, source []byte) ([]byte, error) {
+	code, err := NotebookSource(source)
+	if err != nil {
+		return nil, fmt.Errorf("convert notebook %q: %w", path, err)
+	}
+	return []byte(code), nil
+}
+
 func notebookCellSource(raw any) string {
 	switch typed := raw.(type) {
 	case string:

@@ -225,12 +225,16 @@ func scipOccurrenceLine(occurrence *scippb.Occurrence) int {
 	return int(occurrence.GetRange()[0]) + 1
 }
 
-var scipTrailingCallRe = regexp.MustCompile(`\(\)\.?$`)
+var (
+	scipTrailingCallRe  = regexp.MustCompile(`\(\)\.?$`)
+	scipSeparatorRe     = regexp.MustCompile(`[/#]`)
+	scipSignatureArgsRe = regexp.MustCompile(`\(([^)]*)\)`)
+)
 
 func scipNameFromSymbol(symbol string) string {
 	stripped := strings.TrimRight(symbol, ".#")
 	stripped = scipTrailingCallRe.ReplaceAllString(stripped, "")
-	parts := regexp.MustCompile(`[/#]`).Split(stripped, -1)
+	parts := scipSeparatorRe.Split(stripped, -1)
 	if len(parts) == 0 || parts[len(parts)-1] == "" {
 		return symbol
 	}
@@ -270,7 +274,7 @@ func scipParseSignature(displayName string) ([]string, string) {
 	if parts := strings.Split(displayName, "->"); len(parts) > 1 {
 		returnType = strings.TrimSpace(parts[len(parts)-1])
 	}
-	matches := regexp.MustCompile(`\(([^)]*)\)`).FindStringSubmatch(displayName)
+	matches := scipSignatureArgsRe.FindStringSubmatch(displayName)
 	if len(matches) != 2 || strings.TrimSpace(matches[1]) == "" {
 		return args, returnType
 	}
