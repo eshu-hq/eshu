@@ -166,9 +166,13 @@ func singleFactResult(kind string, payload map[string]any) sdkcollector.Result {
 	}
 }
 
-// clonePayload returns a shallow copy of payload so a test can delete a key
-// from the copy without mutating the envelope the emitter produced (which
-// other subtests or a shared fixture may still reference).
+// clonePayload returns a shallow copy of payload so a test can add or delete a
+// top-level key on the copy without mutating the envelope the emitter produced
+// (which other subtests or a shared fixture may still reference). The copy is
+// shallow: nested slice and map values are shared with the original, so a
+// caller must not mutate a nested value in place — under t.Parallel that would
+// race a reader of the original envelope. The only mutation this helper is
+// built for is deleting a required top-level key to prove the negative case.
 func clonePayload(payload map[string]any) map[string]any {
 	cloned := make(map[string]any, len(payload))
 	for key, value := range payload {
