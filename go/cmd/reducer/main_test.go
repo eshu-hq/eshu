@@ -108,8 +108,8 @@ func TestBuildReducerServiceWiresDefaultRuntimeAndQueue(t *testing.T) {
 	if got := service.RepoDependencyProjectionRunner.Config.BatchLimit; got <= 0 {
 		t.Fatalf("buildReducerService() repo dependency batch limit = %d, want positive", got)
 	}
-	if got := service.RepoDependencyProjectionRunner.Config.Workers; got != 1 {
-		t.Fatalf("buildReducerService() repo dependency workers = %d, want conservative default 1", got)
+	if got := service.RepoDependencyProjectionRunner.Config.Workers; got != 4 {
+		t.Fatalf("buildReducerService() repo dependency workers = %d, want proven default 4", got)
 	}
 	if service.CodeReachabilityProjectionRunner == nil {
 		t.Fatal("buildReducerService() code reachability projection runner = nil, want non-nil")

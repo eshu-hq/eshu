@@ -56,9 +56,10 @@ before treating a graph as current:
 - Scale API and MCP for read traffic.
 - Scale the resolution engine only after queue and Postgres telemetry show the
   reducer is the bottleneck.
-- Keep `ESHU_REPO_DEPENDENCY_PROJECTION_WORKERS` at the general default of `1`
-  unless measured repo-dependency backlog justifies `2` or `4`; other values
-  fall back to `1`. The remote-E2E profile uses `4`. Fixed acceptance-unit
+- Keep `ESHU_REPO_DEPENDENCY_PROJECTION_WORKERS` at the backend-aware default:
+  `4` for the proven NornicDB path and `1` for Neo4j compatibility. Set `1` or
+  `2` on NornicDB only for a measured resource constraint. Other values fall
+  back to the backend default. Fixed acceptance-unit
   sharding serializes the complete retract-then-rewrite cycle for the same
   source repository while allowing unrelated repositories to run concurrently.
   Each process appends its hostname, PID, and a boot-unique nonce to the

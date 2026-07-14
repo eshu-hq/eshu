@@ -108,9 +108,9 @@ func TestRepoDependencyWorkersDoNotInheritMainReducerWorkers(t *testing.T) {
 			return "4"
 		}
 		return ""
-	})
-	if got := cfg.Workers; got != 1 {
-		t.Fatalf("repo dependency workers = %d, want 1 when only %s is set", got, reducerWorkersEnv)
+	}, runtimecfg.GraphBackendNornicDB)
+	if got := cfg.Workers; got != 4 {
+		t.Fatalf("repo dependency workers = %d, want proven default 4 when only %s is set", got, reducerWorkersEnv)
 	}
 }
 

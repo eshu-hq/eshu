@@ -10,13 +10,17 @@ import (
 	"os/exec"
 	"strings"
 	"testing"
+
+	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 )
 
 const repoDependencyLeaseOwnerHelperEnv = "ESHU_TEST_REPO_DEPENDENCY_LEASE_OWNER_HELPER"
 
 func TestRepoDependencyLeaseOwnerDiffersAcrossProcessBoots(t *testing.T) {
 	if os.Getenv(repoDependencyLeaseOwnerHelperEnv) == "1" {
-		fmt.Println(loadRepoDependencyProjectionConfig(func(string) string { return "" }).LeaseOwner)
+		fmt.Println(loadRepoDependencyProjectionConfig(
+			func(string) string { return "" }, runtimecfg.GraphBackendNornicDB,
+		).LeaseOwner)
 		return
 	}
 

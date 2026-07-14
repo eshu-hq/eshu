@@ -1210,9 +1210,11 @@ concurrently.
 
 The command runtime exposes this lane through
 `ESHU_REPO_DEPENDENCY_PROJECTION_WORKERS`. Only `1`, `2`, and `4` are supported;
-the general default is `1`, and invalid or unproven values fall back to `1`.
-The remote-E2E profile selects `4` explicitly. Each process derives a distinct
-lease owner by appending its hostname, PID, and a boot-unique nonce to the
+the backend-aware default is the remotely proven `4` on NornicDB and the
+unscaled `1` on Neo4j. Invalid values fall back to that backend default. Values
+`1` and `2` remain explicit NornicDB resource-constrained fallbacks. Each
+process derives a distinct lease owner by appending its hostname, PID, and a
+boot-unique nonce to the
 configured owner prefix. The default `45s` whole-cycle deadline covers the
 Postgres repository lock, active-lease validation, graph replacement, intent
 completion, and Postgres commit. The `5m` lease must exceed that deadline plus

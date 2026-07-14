@@ -13,9 +13,11 @@ diff of `0/0`. See
 
 The local component proofs and combined Postgres plus pinned-NornicDB fault
 matrix below support the fail-closed safety design. The production replay used
-the reviewed branch, completed all 2,414 intents with zero active leases or
-error/retry residue, and left the retained evidence stack running with
-unchanged container identities and start times.
+reviewed commit `0eb52f97385c7ec3fc027c631752823a0f38c6ef`, completed all
+2,414 intents with zero active leases or error/retry residue, and left the
+retained evidence stack running with unchanged container identities and start
+times. The post-replay review hardenings below are locally proven and do not
+change the retained four-shard FNV assignment.
 
 ## Safety contract
 
@@ -168,6 +170,25 @@ go test -tags ifarepodependencyproof ./internal/replay/offlinetier \
   -count=1
 ```
 
+## Post-replay review hardening
+
+Two review regressions were reproduced before their fixes:
+
+| Finding | Before | After |
+| --- | --- | --- |
+| Lease expires while the gate waits for the repository advisory lock | `CURRENT_TIMESTAMP` retained the transaction-start clock and the expired callback ran | `clock_timestamp()` rejected the callback with `ran=false` in `0.24s` |
+| Shard-owned accepted row follows 10,000 foreign-shard rows | selector returned false-empty | strict `(created_at, intent_id)` keyset continuation selected row 10,001 |
+| Full page without continuation support | selector could report false exhaustion | explicit fail-closed error |
+| Non-advancing continuation cursor | could loop | explicit fail-closed cursor error |
+
+The retained backlog contained only 2,414 intents, so the continuation path was
+not active in the measured `645.836s` run. A temporary 20,001-row Postgres table
+with the shipped pending-order index shape measured the continuation query with
+`EXPLAIN (ANALYZE, BUFFERS)` at `2.186ms` for 10,000 returned rows. These fixes
+therefore preserve the retained performance result without claiming a second
+remote timing. Focused reducer, Postgres, reducer-command, race, and live
+Postgres contention tests pass on the hardened code.
+
 ## Remaining gate
 
 Run the end-to-end bootstrap proof using the same primary start and exit
@@ -178,8 +199,10 @@ itself establish the complete under-20-minute bootstrap claim.
 
 Performance Evidence: retained representative data measured
 `1919.233596s` to `645.836s`, a `1273.397596s` (`21m13.398s`) saving, with 896
-acceptance units and 2,414 intents. The general deployment default remains one
-worker; the accepted remote-E2E proof profile selects four.
+acceptance units and 2,414 intents. NornicDB defaults to the proven four-worker
+shape in the runtime, default Compose stack, Helm chart, and remote-E2E profile;
+`1` and `2` remain explicit resource-constrained fallbacks. Neo4j compatibility
+defaults to `1` until equivalent backend headroom proof exists.
 
 No-Regression Evidence: local cancellation, Postgres connection-loss, timing
 budget, owner identity, source-repository identity, literal COMMIT-response

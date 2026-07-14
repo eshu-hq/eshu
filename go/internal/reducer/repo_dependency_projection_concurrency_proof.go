@@ -68,6 +68,16 @@ type repoDependencyShardReader struct {
 	shardCount int
 }
 
+type repoDependencyPendingIntentContinuationReader interface {
+	ListPendingDomainIntentsAfter(
+		ctx context.Context,
+		domain string,
+		afterCreatedAt time.Time,
+		afterIntentID string,
+		limit int,
+	) ([]SharedProjectionIntentRow, error)
+}
+
 func (r *repoDependencyShardReader) ListPendingDomainIntents(
 	ctx context.Context,
 	domain string,
@@ -77,25 +87,74 @@ func (r *repoDependencyShardReader) ListPendingDomainIntents(
 	if err != nil {
 		return nil, err
 	}
-	owned := make([]SharedProjectionIntentRow, 0, min(len(rows), limit))
+	owned := make([]SharedProjectionIntentRow, 0, min(len(rows), max(limit, 1)))
+	for {
+		owned = r.appendOwnedPendingRows(owned, rows, limit)
+		if limit > 0 && len(owned) >= limit {
+			return owned[:limit], nil
+		}
+		if len(rows) < maxRepoDependencyAcceptanceScanLimit {
+			return owned, nil
+		}
+
+		continuation, ok := r.inner.(repoDependencyPendingIntentContinuationReader)
+		if !ok {
+			return nil, fmt.Errorf(
+				"repo dependency shard %d/%d requires pending-intent continuation after a full %d-row page",
+				r.shardID,
+				r.shardCount,
+				maxRepoDependencyAcceptanceScanLimit,
+			)
+		}
+		last := rows[len(rows)-1]
+		rows, err = continuation.ListPendingDomainIntentsAfter(
+			ctx,
+			domain,
+			last.CreatedAt,
+			last.IntentID,
+			maxRepoDependencyAcceptanceScanLimit,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("continue pending repo dependency intents for shard %d/%d: %w", r.shardID, r.shardCount, err)
+		}
+		if len(rows) > 0 && !repoDependencyPendingCursorAfter(rows[0], last) {
+			return nil, fmt.Errorf(
+				"repo dependency shard %d/%d pending-intent continuation did not advance after (%s, %q)",
+				r.shardID,
+				r.shardCount,
+				last.CreatedAt.UTC().Format(time.RFC3339Nano),
+				last.IntentID,
+			)
+		}
+	}
+}
+
+func repoDependencyPendingCursorAfter(row, cursor SharedProjectionIntentRow) bool {
+	return row.CreatedAt.After(cursor.CreatedAt) ||
+		(row.CreatedAt.Equal(cursor.CreatedAt) && row.IntentID > cursor.IntentID)
+}
+
+func (r *repoDependencyShardReader) appendOwnedPendingRows(
+	owned []SharedProjectionIntentRow,
+	rows []SharedProjectionIntentRow,
+	limit int,
+) []SharedProjectionIntentRow {
 	for _, row := range rows {
 		acceptanceUnitID, ok := repoDependencyAcceptanceUnitID(row)
 		if !ok {
 			// Keep malformed rows visible to worker zero so the shipped validation
-			// path fails closed instead of the proof silently filtering them out.
+			// path fails closed instead of silently filtering them out.
 			if r.shardID == 0 {
 				owned = append(owned, row)
 			}
-			continue
-		}
-		if ifaRepoDependencyAcceptanceShard(acceptanceUnitID, r.shardCount) == r.shardID {
+		} else if ifaRepoDependencyAcceptanceShard(acceptanceUnitID, r.shardCount) == r.shardID {
 			owned = append(owned, row)
 		}
+		if limit > 0 && len(owned) >= limit {
+			return owned
+		}
 	}
-	if limit > 0 && len(owned) > limit {
-		owned = owned[:limit]
-	}
-	return owned, nil
+	return owned
 }
 
 func (r *repoDependencyShardReader) ListAcceptanceUnitDomainIntents(

@@ -178,10 +178,10 @@ Operators continue to use resolution-engine logs, `/admin/status`,
 partition-lease backlog, graph-write metrics, and pprof surfaces for code-call
 partition throughput, retries, and dead-letter diagnosis.
 
-The chart keeps `ESHU_REPO_DEPENDENCY_PROJECTION_WORKERS=1` as the general
-default. Operators may set the resolution-engine environment value to `2` or
-`4`; unsupported values fall back to `1`. The remote-E2E Compose profile uses
-`4`, but that proof profile does not raise the Helm default. Repo-dependency
+The chart defers repo-dependency concurrency to the runtime's backend-aware
+default: `4` for the remotely proven NornicDB path and `1` for unscaled Neo4j
+compatibility. Operators may set the resolution-engine environment value to
+`1`, `2`, or `4`; unsupported values fall back to the backend default. Repo-dependency
 workers use fixed source-repository acceptance-unit shards: the same
 repository's complete retract-then-rewrite cycle stays serialized and ordered,
 while unrelated repositories can project concurrently. The runtime also

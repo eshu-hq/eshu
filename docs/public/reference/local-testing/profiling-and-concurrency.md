@@ -22,7 +22,7 @@ ship single-worker settings as a fix for a concurrency bug.
 | `ESHU_CODE_CALL_PROJECTION_ACCEPTANCE_SCAN_LIMIT` | `250000` | Reducer | Maximum code-call shared intents scanned or loaded for one accepted repo/run before failing safely |
 | `ESHU_CODE_CALL_PROJECTION_PARTITION_COUNT` | `8` | Reducer | File-scoped CALLS projection partitions |
 | `ESHU_CODE_CALL_PROJECTION_WORKERS` | `4` | Reducer | Concurrent file-scoped CALLS partition workers |
-| `ESHU_REPO_DEPENDENCY_PROJECTION_WORKERS` | `1` (`4` in remote E2E) | Reducer | Fixed source-repository acceptance-unit shards; allowed values are `1`, `2`, and `4` |
+| `ESHU_REPO_DEPENDENCY_PROJECTION_WORKERS` | `4` on NornicDB; `1` on Neo4j | Reducer | Fixed source-repository acceptance-unit shards; allowed values are `1`, `2`, and `4` |
 | `ESHU_REPO_DEPENDENCY_PROJECTION_LEASE_TTL` | `5m` | Reducer | Fail-closed shard quarantine and lease ownership window |
 | `ESHU_REPO_DEPENDENCY_PROJECTION_CYCLE_TIMEOUT` | `45s` | Reducer | Deadline for the whole repository acceptance cycle |
 | `ESHU_SHARED_PROJECTION_WORKERS` | `min(NumCPU,4)` | Reducer | Concurrent shared projection partition goroutines |
@@ -34,7 +34,8 @@ ship single-worker settings as a fix for a concurrency bug.
 Repo-dependency workers do not split one repository's edge rows across workers.
 The acceptance-unit shard owns the repository's complete ordered
 retract-then-rewrite cycle, so the same repository remains serialized while
-unrelated repositories can overlap. Unsupported worker values fall back to `1`;
+unrelated repositories can overlap. Unsupported worker values fall back to the
+backend default (`4` on NornicDB and `1` on Neo4j);
 do not use `3` or raise the lane above the proven four-worker ceiling. Each
 process adds hostname, PID, and a boot-unique nonce to its lease-owner prefix.
 The reducer rejects unsafe timing at startup unless:

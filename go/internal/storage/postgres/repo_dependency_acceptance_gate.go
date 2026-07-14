@@ -19,7 +19,7 @@ SELECT EXISTS (
       AND partition_id = $2
       AND partition_count = $3
       AND lease_owner = $4
-      AND lease_expires_at > CURRENT_TIMESTAMP
+      AND lease_expires_at > clock_timestamp()
 )`
 
 // RepoDependencyAcceptanceUnitGate holds the existing per-repository

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 )
 
 var repoDependencyProjectionBootNonce = newRepoDependencyProjectionBootNonce()
@@ -78,7 +79,10 @@ func loadCodeCallProjectionConfig(getenv func(string) string) reducer.CodeCallPr
 	}
 }
 
-func loadRepoDependencyProjectionConfig(getenv func(string) string) reducer.RepoDependencyProjectionRunnerConfig {
+func loadRepoDependencyProjectionConfig(
+	getenv func(string) string,
+	graphBackend runtimecfg.GraphBackend,
+) reducer.RepoDependencyProjectionRunnerConfig {
 	if getenv == nil {
 		getenv = func(string) string { return "" }
 	}
@@ -90,19 +94,22 @@ func loadRepoDependencyProjectionConfig(getenv func(string) string) reducer.Repo
 		CycleTimeout:          loadDurationOrDefault(getenv, repoDependencyProjectionCycleTimeoutEnv, defaultRepoDependencyProjectionCycleTimeout),
 		GraphQuiescenceBudget: nornicDBCanonicalWriteTimeout(getenv),
 		BatchLimit:            loadPositiveIntOrDefault(getenv, repoDependencyProjectionBatchLimitEnv, defaultRepoDependencyProjectionBatchLimit),
-		Workers:               loadRepoDependencyProjectionWorkers(getenv),
+		Workers:               loadRepoDependencyProjectionWorkers(getenv, graphBackend),
 	}
 }
 
-func loadRepoDependencyProjectionWorkers(getenv func(string) string) int {
+func loadRepoDependencyProjectionWorkers(getenv func(string) string, graphBackend runtimecfg.GraphBackend) int {
 	switch strings.TrimSpace(getenv(repoDependencyProjectionWorkersEnv)) {
+	case "1":
+		return 1
 	case "2":
 		return 2
 	case "4":
 		return 4
-	case "1", "":
-		return 1
 	default:
+		if graphBackend == runtimecfg.GraphBackendNornicDB {
+			return 4
+		}
 		return 1
 	}
 }

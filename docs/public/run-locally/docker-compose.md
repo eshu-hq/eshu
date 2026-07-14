@@ -471,9 +471,11 @@ The remote proof profile also overrides the code-call sidecar defaults with
 `ESHU_CODE_CALL_PROJECTION_WORKERS=2` so full-corpus CALLS materialization
 proves file-scoped partition concurrency; tune those values in a private env
 file for larger hosts.
-It also sets `ESHU_REPO_DEPENDENCY_PROJECTION_WORKERS=4` for the retained
-full-corpus proof. The general Compose default remains `1`; the dedicated lane
-accepts only `1`, `2`, or `4`, and unsupported values fall back to `1`. Fixed
+It keeps `ESHU_REPO_DEPENDENCY_PROJECTION_WORKERS=4` for the retained
+full-corpus proof and the proven NornicDB Compose default. The Neo4j
+compatibility Compose file remains at `1` until that backend has equivalent
+headroom proof. The dedicated lane accepts only `1`, `2`, or `4`, and
+unsupported values fall back to the backend default. Fixed
 source-repository acceptance-unit sharding keeps one repository's complete
 retract-then-rewrite cycle serialized and ordered while unrelated repositories
 can project concurrently. This is a repo-dependency-specific knob and does not

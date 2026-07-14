@@ -9,25 +9,27 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 )
 
 func TestLoadRepoDependencyProjectionConfigBoundsWorkers(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []struct {
-		name string
-		raw  string
-		want int
+		name    string
+		raw     string
+		backend runtimecfg.GraphBackend
+		want    int
 	}{
-		{name: "empty defaults to one", raw: "", want: 1},
-		{name: "one", raw: "1", want: 1},
-		{name: "two", raw: "2", want: 2},
-		{name: "four", raw: "4", want: 4},
-		{name: "unproven three", raw: "3", want: 1},
-		{name: "unproven eight", raw: "8", want: 1},
-		{name: "zero", raw: "0", want: 1},
-		{name: "negative", raw: "-1", want: 1},
-		{name: "malformed", raw: "many", want: 1},
+		{name: "empty NornicDB defaults to proven four", backend: runtimecfg.GraphBackendNornicDB, want: 4},
+		{name: "empty Neo4j defaults to unscaled one", backend: runtimecfg.GraphBackendNeo4j, want: 1},
+		{name: "one", raw: "1", backend: runtimecfg.GraphBackendNornicDB, want: 1},
+		{name: "two", raw: "2", backend: runtimecfg.GraphBackendNornicDB, want: 2},
+		{name: "four", raw: "4", backend: runtimecfg.GraphBackendNornicDB, want: 4},
+		{name: "explicit four on Neo4j remains operator controlled", raw: "4", backend: runtimecfg.GraphBackendNeo4j, want: 4},
+		{name: "invalid NornicDB falls back to proven four", raw: "3", backend: runtimecfg.GraphBackendNornicDB, want: 4},
+		{name: "invalid Neo4j falls back to unscaled one", raw: "3", backend: runtimecfg.GraphBackendNeo4j, want: 1},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -36,7 +38,7 @@ func TestLoadRepoDependencyProjectionConfigBoundsWorkers(t *testing.T) {
 					return tc.raw
 				}
 				return ""
-			})
+			}, tc.backend)
 			if got := cfg.Workers; got != tc.want {
 				t.Fatalf("repo dependency workers = %d, want %d", got, tc.want)
 			}
@@ -47,7 +49,10 @@ func TestLoadRepoDependencyProjectionConfigBoundsWorkers(t *testing.T) {
 func TestLoadRepoDependencyProjectionConfigSafetyBudgets(t *testing.T) {
 	t.Parallel()
 
-	defaults := loadRepoDependencyProjectionConfig(func(string) string { return "" })
+	defaults := loadRepoDependencyProjectionConfig(
+		func(string) string { return "" },
+		runtimecfg.GraphBackendNornicDB,
+	)
 	if got, want := defaults.LeaseTTL, 5*time.Minute; got != want {
 		t.Fatalf("default repo dependency lease TTL = %v, want %v", got, want)
 	}
@@ -69,7 +74,7 @@ func TestLoadRepoDependencyProjectionConfigSafetyBudgets(t *testing.T) {
 		default:
 			return ""
 		}
-	})
+	}, runtimecfg.GraphBackendNornicDB)
 	if got, want := overrides.LeaseTTL, 6*time.Minute; got != want {
 		t.Fatalf("overridden repo dependency lease TTL = %v, want %v", got, want)
 	}
@@ -89,7 +94,7 @@ func TestLoadRepoDependencyProjectionConfigUsesPerProcessLeaseOwner(t *testing.T
 			return "operator-prefix"
 		}
 		return ""
-	})
+	}, runtimecfg.GraphBackendNornicDB)
 	if cfg.LeaseOwner == "operator-prefix" || !strings.HasPrefix(cfg.LeaseOwner, "operator-prefix:") {
 		t.Fatalf("repo dependency lease owner = %q, want operator prefix plus per-process identity", cfg.LeaseOwner)
 	}
@@ -109,8 +114,12 @@ func TestLoadRepoDependencyProjectionConfigUsesPerProcessLeaseOwner(t *testing.T
 func TestLoadRepoDependencyProjectionConfigLeaseOwnerStableWithinBoot(t *testing.T) {
 	t.Parallel()
 
-	first := loadRepoDependencyProjectionConfig(func(string) string { return "" }).LeaseOwner
-	second := loadRepoDependencyProjectionConfig(func(string) string { return "" }).LeaseOwner
+	first := loadRepoDependencyProjectionConfig(
+		func(string) string { return "" }, runtimecfg.GraphBackendNornicDB,
+	).LeaseOwner
+	second := loadRepoDependencyProjectionConfig(
+		func(string) string { return "" }, runtimecfg.GraphBackendNornicDB,
+	).LeaseOwner
 	if first != second {
 		t.Fatalf("repo dependency lease owner changed within one process boot: %q != %q", first, second)
 	}
@@ -119,7 +128,9 @@ func TestLoadRepoDependencyProjectionConfigLeaseOwnerStableWithinBoot(t *testing
 func TestLoadRepoDependencyProjectionConfigDefaultLeaseOwnerIsPerProcess(t *testing.T) {
 	t.Parallel()
 
-	cfg := loadRepoDependencyProjectionConfig(func(string) string { return "" })
+	cfg := loadRepoDependencyProjectionConfig(
+		func(string) string { return "" }, runtimecfg.GraphBackendNornicDB,
+	)
 	if cfg.LeaseOwner == defaultRepoDependencyProjectionLeaseOwner ||
 		!strings.HasPrefix(cfg.LeaseOwner, defaultRepoDependencyProjectionLeaseOwner+":") {
 		t.Fatalf(

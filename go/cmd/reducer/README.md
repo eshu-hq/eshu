@@ -215,10 +215,11 @@ never deferred, so the backlog cannot stall.
 | `ESHU_REPO_DEPENDENCY_PROJECTION_CYCLE_TIMEOUT` | `45s` |
 | `ESHU_REPO_DEPENDENCY_PROJECTION_BATCH_LIMIT` | `100` |
 | `ESHU_REPO_DEPENDENCY_PROJECTION_LEASE_OWNER` | `repo-dependency-projection-runner:<hostname>:<pid>:<boot-nonce>` |
-| `ESHU_REPO_DEPENDENCY_PROJECTION_WORKERS` | `1` |
+| `ESHU_REPO_DEPENDENCY_PROJECTION_WORKERS` | `4` on NornicDB; `1` on Neo4j |
 | `ESHU_REPO_DEPENDENCY_RETRACT_STATEMENT_TIMING` | `false` |
 
-Workers accept `1`, `2`, or `4`; invalid values fall back to `1`. See the
+Workers accept `1`, `2`, or `4`; invalid values fall back to the backend default
+of `4` on NornicDB or `1` on Neo4j. See the
 [`internal/reducer` safety proof](../../internal/reducer/evidence-5122-repo-dependency-safety-proof.md)
 for the lock, timing, owner, and quarantine contract.
 

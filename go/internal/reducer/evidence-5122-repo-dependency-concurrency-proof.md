@@ -98,8 +98,10 @@ coordinator's hash shape.
 The inferred post-#5210 ideal lower bounds are `959.616798s` for two workers
 and `479.808399s` for four. Fixed hashing leaves a real four-shard imbalance:
 `814.678878s` versus the `570.543530s` LPT makespan on the old weights.
-Dynamic acceptance-unit claims should use capacity better, but that design
-must be proven before it replaces the safe default of one worker.
+Dynamic acceptance-unit claims should use capacity better, but that separate
+design must be proven before it replaces the remotely proven fixed four-worker
+NornicDB default. Neo4j compatibility remains at one worker until it has an
+equivalent backend-headroom proof.
 
 These are no-contention scheduling ceilings. They do not include extra
 Postgres claims, NornicDB contention, retries, heartbeats, or multi-process
