@@ -3,7 +3,10 @@
 
 package v1
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 // AttributeShapeError reports that a service-specific attribute value a
 // reducer consumer reads out of Resource.Attributes or Relationship.Attributes
@@ -182,7 +185,11 @@ func attributeString(attrs map[string]any, field, key string) (string, error) {
 	if !ok {
 		return "", newAttributeShapeError(field, fmt.Sprintf("want string, got %T", value))
 	}
-	return s, nil
+	// Trim to preserve the pre-typing payloadString normalization
+	// (strings.TrimSpace): a valid-but-padded value like " prod " must
+	// normalize to "prod", and " CUSTOMER " must match the "CUSTOMER" check
+	// (#5243). Wrong JSON types are still rejected above.
+	return strings.TrimSpace(s), nil
 }
 
 // attributeBool reads attrs[key] as a *bool. An absent or nil value decodes as
@@ -212,7 +219,13 @@ func attributeStringSlice(attrs map[string]any, field, key string) ([]string, er
 		return nil, nil
 	}
 	if strs, ok := value.([]string); ok {
-		return append([]string(nil), strs...), nil
+		out := make([]string, 0, len(strs))
+		for _, s := range strs {
+			if trimmed := strings.TrimSpace(s); trimmed != "" {
+				out = append(out, trimmed)
+			}
+		}
+		return out, nil
 	}
 	raw, ok := value.([]any)
 	if !ok {
@@ -224,7 +237,11 @@ func attributeStringSlice(attrs map[string]any, field, key string) ([]string, er
 		if !ok {
 			return nil, newAttributeShapeError(fmt.Sprintf("%s[%d]", field, i), fmt.Sprintf("want string, got %T", entry))
 		}
-		out = append(out, s)
+		// Trim + drop empty-after-trim to match the pre-typing payloadStrings
+		// normalization (#5243).
+		if trimmed := strings.TrimSpace(s); trimmed != "" {
+			out = append(out, trimmed)
+		}
 	}
 	return out, nil
 }
