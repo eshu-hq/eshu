@@ -191,6 +191,40 @@ No-Observability-Change: a pure gate on already-parsed import data; no new
 metric, span, log, or runtime-behavior surface. Per-file Go parse timing stays
 covered by the existing parse-stage telemetry.
 
+- **Scoped variable-type delta memoization (#5219):** `goVariableTypeIndex.ForNode`
+  (`go/internal/parser/golang/variable_type_index.go`) reconstructs the
+  variable-type map visible at a call site by replaying the enclosing scope's
+  declarations that precede it. `goCollectSemanticDeadCodeRoots` calls it once
+  per gathered node, so a scope with many call sites re-ran the same
+  `goRecordLocal*` declaration walks — each a tree-sitter cgo traversal —
+  O(call_sites × bindings) times per function. Those three recorders write
+  their result purely from the declaration node, source, structTypes, and
+  constructorReturns and never read the map they write into, so each
+  declaration's contribution is computed once now (its `delta`) when the scope's
+  binding list is first built. ForNode merges the cached deltas of the
+  preceding bindings in startByte order instead of re-walking each declaration
+  per query node. Output is unchanged: same keys, and a later same-key binding
+  still overwrites an earlier one.
+
+Performance Evidence: parsing the 500 largest Go files in the kubernetes tree
+with `IndexSource` enabled (the production shape that drives dead-code roots),
+3 runs each, single-pass wall and `runtime.MemStats` allocations:
+  - **BEFORE** (base c2c8c9f5): ~173.7 s, ~1,009,709,000 mallocs
+  - **AFTER** (delta memoization): ~135.6 s, ~736,447,000 mallocs
+  - Delta: **−21.9% parse wall, −27.1% allocations**
+  The standard `BenchmarkParse/go` fixture shows only ~−1.6% because it parses
+  with `Options{}` (IndexSource off), which barely exercises the dead-code-root
+  path this change targets.
+
+Accuracy proof: the `GO_PARSE_DUMP` differential over `go/internal` is
+byte-identical old-vs-new (symmetric set difference `0/0`) for every file whose
+own source was not edited. `TestGoVariableTypeIndexForNodeRespectsBindingOrder`
+pins the startByte-ordered, later-binding-wins invariant against the real index
+and fails if ForNode stops honoring the query position. See issue #5219.
+
+No-Observability-Change: a pure per-parse memoization; no new metric, span,
+log, queue, worker, or runtime-behavior surface.
+
 ## Known Limitations
 - Generic type constraints may not be fully captured
 - Channel types not separately tracked
