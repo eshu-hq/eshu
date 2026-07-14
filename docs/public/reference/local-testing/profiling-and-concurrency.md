@@ -22,11 +22,32 @@ ship single-worker settings as a fix for a concurrency bug.
 | `ESHU_CODE_CALL_PROJECTION_ACCEPTANCE_SCAN_LIMIT` | `250000` | Reducer | Maximum code-call shared intents scanned or loaded for one accepted repo/run before failing safely |
 | `ESHU_CODE_CALL_PROJECTION_PARTITION_COUNT` | `8` | Reducer | File-scoped CALLS projection partitions |
 | `ESHU_CODE_CALL_PROJECTION_WORKERS` | `4` | Reducer | Concurrent file-scoped CALLS partition workers |
+| `ESHU_REPO_DEPENDENCY_PROJECTION_WORKERS` | `1` (`4` in remote E2E) | Reducer | Fixed source-repository acceptance-unit shards; allowed values are `1`, `2`, and `4` |
+| `ESHU_REPO_DEPENDENCY_PROJECTION_LEASE_TTL` | `5m` | Reducer | Fail-closed shard quarantine and lease ownership window |
+| `ESHU_REPO_DEPENDENCY_PROJECTION_CYCLE_TIMEOUT` | `45s` | Reducer | Deadline for the whole repository acceptance cycle |
 | `ESHU_SHARED_PROJECTION_WORKERS` | `min(NumCPU,4)` | Reducer | Concurrent shared projection partition goroutines |
 | `ESHU_SHARED_PROJECTION_PARTITION_COUNT` | `8` | Reducer | Partitions per shared projection domain |
 | `ESHU_SHARED_PROJECTION_BATCH_LIMIT` | `100` | Reducer | Intents processed per partition batch |
 | `ESHU_SHARED_PROJECTION_POLL_INTERVAL` | `500ms` | Reducer | Shared projection poll interval; idle cycles back off up to `5s` |
 | `ESHU_SHARED_PROJECTION_LEASE_TTL` | `60s` | Reducer | Partition lease time-to-live |
+
+Repo-dependency workers do not split one repository's edge rows across workers.
+The acceptance-unit shard owns the repository's complete ordered
+retract-then-rewrite cycle, so the same repository remains serialized while
+unrelated repositories can overlap. Unsupported worker values fall back to `1`;
+do not use `3` or raise the lane above the proven four-worker ceiling. Each
+process adds hostname, PID, and a boot-unique nonce to its lease-owner prefix.
+The reducer rejects unsafe timing at startup unless:
+
+```text
+repo-dependency lease TTL
+  > whole-cycle timeout + canonical graph-write timeout + 30s
+```
+
+The `5m` default satisfies both the normal `30s` canonical-write timeout and
+the remote-E2E `120s` timeout. A failed, canceled, or ambiguous cycle does not
+release its shard early. The same owner waits out the lease TTL before retrying,
+while independent shards continue to run.
 
 When changing queue or worker behavior, also prove:
 

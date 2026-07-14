@@ -105,4 +105,5 @@ func TestHelmResolutionEngineRendersCodeCallProjectionConcurrency(t *testing.T) 
 	assertHelmLiteralEnv(t, env, "ESHU_SHARED_PROJECTION_WORKERS", "8")
 	assertHelmLiteralEnv(t, env, "ESHU_CODE_CALL_PROJECTION_PARTITION_COUNT", "8")
 	assertHelmLiteralEnv(t, env, "ESHU_CODE_CALL_PROJECTION_WORKERS", "4")
+	assertHelmLiteralEnv(t, env, "ESHU_REPO_DEPENDENCY_PROJECTION_WORKERS", "1")
 }

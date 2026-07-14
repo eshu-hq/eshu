@@ -453,6 +453,7 @@ func buildReducerService(
 		RepoDependencyProjectionRunner: &reducer.RepoDependencyProjectionRunner{
 			IntentReader:                    intentStore,
 			LeaseManager:                    intentStore,
+			AcceptanceUnitGate:              postgres.NewRepoDependencyAcceptanceUnitGate(reducerBeginner(database)),
 			EdgeWriter:                      edgeWriter,
 			WorkloadMaterializationReplayer: workQueue,
 			// Gate repo-dependency graph-projection authority on the relationship

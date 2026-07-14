@@ -117,10 +117,12 @@ held time for large repositories.
 | `ESHU_CODE_CALL_PROJECTION_PARTITION_COUNT` | `8` | reducer code-call sidecar | Partition count for file-scoped CALLS projection lanes. |
 | `ESHU_CODE_CALL_PROJECTION_WORKERS` | `4` | reducer code-call sidecar | Concurrent partition workers for file-scoped CALLS projection lanes. |
 | `ESHU_REPO_DEPENDENCY_PROJECTION_POLL_INTERVAL` | `500ms` | reducer repo-dependency sidecar | Idle poll interval. |
-| `ESHU_REPO_DEPENDENCY_PROJECTION_LEASE_TTL` | `60s` | reducer repo-dependency sidecar | Lease TTL. |
+| `ESHU_REPO_DEPENDENCY_PROJECTION_LEASE_TTL` | `5m` | reducer repo-dependency sidecar | Shard lease and fail-closed quarantine window. Must exceed the cycle timeout plus `ESHU_CANONICAL_WRITE_TIMEOUT` and `30s`. |
+| `ESHU_REPO_DEPENDENCY_PROJECTION_CYCLE_TIMEOUT` | `45s` | reducer repo-dependency sidecar | Deadline for selection, repository lock, lease validation, graph replacement, completion, and Postgres commit after the shard is claimed. |
 | `ESHU_REPO_DEPENDENCY_PROJECTION_BATCH_LIMIT` | `100` | reducer repo-dependency sidecar | Claim batch size. |
-| `ESHU_REPO_DEPENDENCY_PROJECTION_LEASE_OWNER` | `repo-dependency-projection-runner` | reducer repo-dependency sidecar | Lease owner name. |
-| `ESHU_REPO_DEPENDENCY_RETRACT_STATEMENT_TIMING` | `false` | reducer repo-dependency sidecar | Diagnostic-only switch that bypasses the grouped transaction and logs timed `repository_relationship_edges`, `runs_on_relationships`, and `evidence_artifacts` statements; leave disabled for production grouped retracts. |
+| `ESHU_REPO_DEPENDENCY_PROJECTION_LEASE_OWNER` | `repo-dependency-projection-runner` | reducer repo-dependency sidecar | Owner prefix; the reducer appends hostname, PID, and a boot-unique nonce. |
+| `ESHU_REPO_DEPENDENCY_PROJECTION_WORKERS` | `1`; remote E2E sets `4` | reducer repo-dependency sidecar | Fixed acceptance-unit shard count. Allowed values are `1`, `2`, and `4`. |
+| `ESHU_REPO_DEPENDENCY_RETRACT_STATEMENT_TIMING` | `false` | reducer repo-dependency sidecar | Compatibility variable; behavior is always sequential auto-commit retracts with per-role timing. Grouped DELETEs under-apply on pinned NornicDB. |
 | `ESHU_GRAPH_PROJECTION_REPAIR_POLL_INTERVAL` | `1s` | reducer repairer | Poll interval for graph projection phase repair. |
 | `ESHU_GRAPH_PROJECTION_REPAIR_BATCH_LIMIT` | `100` | reducer repairer | Repair rows per batch. |
 | `ESHU_GRAPH_PROJECTION_REPAIR_RETRY_DELAY` | `1m` | reducer repairer | Delay before retrying repair. |

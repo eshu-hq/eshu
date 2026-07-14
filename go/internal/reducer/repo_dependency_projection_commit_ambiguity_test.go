@@ -49,9 +49,10 @@ func TestRepoDependencyProjectionRunnerReplaysAmbiguousCommittedWriteExactly(t *
 			}
 			writer := newCommitAmbiguityRepoDependencyWriter(repoID, tc.initialEdge)
 			runner := RepoDependencyProjectionRunner{
-				IntentReader: reader,
-				LeaseManager: reader,
-				EdgeWriter:   writer,
+				IntentReader:       reader,
+				LeaseManager:       reader,
+				AcceptanceUnitGate: reader,
+				EdgeWriter:         writer,
 				AcceptedGen: func(key SharedProjectionAcceptanceKey) (string, bool) {
 					if key.AcceptanceUnitID != repoID {
 						return "", false

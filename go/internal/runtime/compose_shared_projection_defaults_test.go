@@ -17,6 +17,7 @@ func TestComposeUsesDocumentedSharedProjectionDefaults(t *testing.T) {
 
 			assertComposeEnv(t, service, "ESHU_SHARED_PROJECTION_WORKERS", "${ESHU_SHARED_PROJECTION_WORKERS:-4}")
 			assertComposeEnv(t, service, "ESHU_SHARED_PROJECTION_PARTITION_COUNT", "${ESHU_SHARED_PROJECTION_PARTITION_COUNT:-8}")
+			assertComposeEnv(t, service, "ESHU_REPO_DEPENDENCY_PROJECTION_WORKERS", "${ESHU_REPO_DEPENDENCY_PROJECTION_WORKERS:-1}")
 		})
 	}
 }

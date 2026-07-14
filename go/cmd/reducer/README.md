@@ -211,17 +211,23 @@ never deferred, so the backlog cannot stall.
 | Variable | Default |
 | --- | --- |
 | `ESHU_REPO_DEPENDENCY_PROJECTION_POLL_INTERVAL` | `500ms` |
-| `ESHU_REPO_DEPENDENCY_PROJECTION_LEASE_TTL` | `60s` |
+| `ESHU_REPO_DEPENDENCY_PROJECTION_LEASE_TTL` | `5m` |
+| `ESHU_REPO_DEPENDENCY_PROJECTION_CYCLE_TIMEOUT` | `45s` |
 | `ESHU_REPO_DEPENDENCY_PROJECTION_BATCH_LIMIT` | `100` |
+| `ESHU_REPO_DEPENDENCY_PROJECTION_LEASE_OWNER` | `repo-dependency-projection-runner:<hostname>:<pid>:<boot-nonce>` |
+| `ESHU_REPO_DEPENDENCY_PROJECTION_WORKERS` | `1` |
 | `ESHU_REPO_DEPENDENCY_RETRACT_STATEMENT_TIMING` | `false` |
 
-`ESHU_REPO_DEPENDENCY_RETRACT_STATEMENT_TIMING=true` is a diagnostic-only
-switch for bounded performance proof runs. The production default remains the
-grouped retract transaction, now containing separate
+Workers accept `1`, `2`, or `4`; invalid values fall back to `1`. See the
+[`internal/reducer` safety proof](../../internal/reducer/evidence-5122-repo-dependency-safety-proof.md)
+for the lock, timing, owner, and quarantine contract.
+
+`ESHU_REPO_DEPENDENCY_RETRACT_STATEMENT_TIMING` is retained for compatibility
+but no longer changes behavior. Repo-dependency retracts always execute the
 `repository_relationship_edges`, `runs_on_relationships`, and
-`evidence_artifacts` statements so single-repo relationship deletes can use the
-bound-delete Cypher shape. When the switch is true, the reducer bypasses the
-group and logs per-statement durations for the same three roles.
+`evidence_artifacts` statements sequentially as auto-commit writes, with timing
+for each role. The grouped COMMIT cancellation and ambiguity contract applies
+to the subsequent canonical upsert group, not to these retract statements.
 
 ### Edge writers
 

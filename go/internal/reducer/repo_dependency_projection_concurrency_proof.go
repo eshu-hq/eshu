@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-//go:build ifarepodependencyproof
-
 package reducer
 
 import (
@@ -13,11 +11,11 @@ import (
 	"time"
 )
 
-// runRepoDependencyProjection fans the proof Odù's acceptance units across
+// runRepoDependencyProjection fans source-owned acceptance units across
 // workers without using shared_projection_intents.partition_hash. That stored
 // hash is per edge and would split one source repository's retract/rewrite
-// snapshot. This proof-only coordinator instead scans the tiny fixture in
-// memory and assigns every row for one acceptance unit to exactly one shard.
+// snapshot. The coordinator scans pending rows and assigns every row for one
+// acceptance unit to exactly one fixed shard.
 func runRepoDependencyProjection(ctx context.Context, runner *RepoDependencyProjectionRunner) error {
 	workers := runner.Config.workerCount()
 	if workers <= 1 {
@@ -35,14 +33,11 @@ func runRepoDependencyProjection(ctx context.Context, runner *RepoDependencyProj
 	for workerID := range workers {
 		worker := *runner
 		worker.Config.Workers = 1
-		worker.Config.LeaseOwner = fmt.Sprintf("%s/proof-%d-of-%d", runner.Config.leaseOwner(), workerID, workers)
-		worker.IntentReader = &ifaRepoDependencyProofShardReader{
+		worker.Config.PartitionID = workerID
+		worker.Config.PartitionCount = workers
+		worker.Config.LeaseOwner = fmt.Sprintf("%s/worker-%d-of-%d", runner.Config.leaseOwner(), workerID, workers)
+		worker.IntentReader = &repoDependencyShardReader{
 			inner:      runner.IntentReader,
-			shardID:    workerID,
-			shardCount: workers,
-		}
-		worker.LeaseManager = ifaRepoDependencyProofShardLeaseManager{
-			inner:      runner.LeaseManager,
 			shardID:    workerID,
 			shardCount: workers,
 		}
@@ -67,13 +62,13 @@ func runRepoDependencyProjection(ctx context.Context, runner *RepoDependencyProj
 	return firstErr
 }
 
-type ifaRepoDependencyProofShardReader struct {
+type repoDependencyShardReader struct {
 	inner      RepoDependencyProjectionIntentReader
 	shardID    int
 	shardCount int
 }
 
-func (r *ifaRepoDependencyProofShardReader) ListPendingDomainIntents(
+func (r *repoDependencyShardReader) ListPendingDomainIntents(
 	ctx context.Context,
 	domain string,
 	limit int,
@@ -103,7 +98,7 @@ func (r *ifaRepoDependencyProofShardReader) ListPendingDomainIntents(
 	return owned, nil
 }
 
-func (r *ifaRepoDependencyProofShardReader) ListAcceptanceUnitDomainIntents(
+func (r *repoDependencyShardReader) ListAcceptanceUnitDomainIntents(
 	ctx context.Context,
 	acceptanceUnitID string,
 	domain string,
@@ -112,37 +107,12 @@ func (r *ifaRepoDependencyProofShardReader) ListAcceptanceUnitDomainIntents(
 	return r.inner.ListAcceptanceUnitDomainIntents(ctx, acceptanceUnitID, domain, limit)
 }
 
-func (r *ifaRepoDependencyProofShardReader) MarkIntentsCompleted(
+func (r *repoDependencyShardReader) MarkIntentsCompleted(
 	ctx context.Context,
 	intentIDs []string,
 	completedAt time.Time,
 ) error {
 	return r.inner.MarkIntentsCompleted(ctx, intentIDs, completedAt)
-}
-
-type ifaRepoDependencyProofShardLeaseManager struct {
-	inner      PartitionLeaseManager
-	shardID    int
-	shardCount int
-}
-
-func (m ifaRepoDependencyProofShardLeaseManager) ClaimPartitionLease(
-	ctx context.Context,
-	domain string,
-	_, _ int,
-	leaseOwner string,
-	leaseTTL time.Duration,
-) (bool, error) {
-	return m.inner.ClaimPartitionLease(ctx, domain, m.shardID, m.shardCount, leaseOwner, leaseTTL)
-}
-
-func (m ifaRepoDependencyProofShardLeaseManager) ReleasePartitionLease(
-	ctx context.Context,
-	domain string,
-	_, _ int,
-	leaseOwner string,
-) error {
-	return m.inner.ReleasePartitionLease(ctx, domain, m.shardID, m.shardCount, leaseOwner)
 }
 
 func ifaRepoDependencyAcceptanceShard(acceptanceUnitID string, shardCount int) int {

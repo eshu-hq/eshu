@@ -2,9 +2,18 @@
 
 ## Decision
 
-Proceed with the Odù, the grouped-write retry prerequisite, and the
-default-off actual-runner proof. Do not enable multiple production workers or
-claim an under-20-minute path yet.
+Proceed with the safety prerequisite for configurable,
+acceptance-unit-partitioned repo-dependency workers. The Odù, grouped-write
+retry prerequisite, real Postgres rescale fence, and same-state retained-data
+built-binary run prove that four workers preserve output and recover seconds at
+the required scale. The production candidate now adds boot-unique process
+owners, the per-repository Postgres critical section, a `45s` whole-cycle
+deadline, and fail-closed lease quarantine. The local component results and
+remaining combined fault gate are recorded in the
+[safety proof](evidence-5122-repo-dependency-safety-proof.md). Do not start the
+final remote replay until that local gate passes, and do not claim the complete
+under-20-minute bootstrap path until an end-to-end run measures the primary
+process-exit boundary.
 
 The retained 896-repository run shows that the globally serial
 `repo_dependency` lane is large enough to matter. After subtracting the
@@ -19,12 +28,11 @@ clears the stable-drain screen by only `13.972567s`; fixed four clears it by
 `517.554718s`. The `103.19s` primary-exit overlap still fails to prove the
 primary target under either schedule.
 
-That arithmetic proves that this lane is worth developing. It does not prove
-the primary bootstrap-exit contribution or authorize a production default.
-Only about `103.19s` of the measured lane overlapped the primary process-exit
-boundary. Dynamic acceptance-unit leases and a same-data built-binary run are
-still required before worker count can be raised or the under-20 target can be
-claimed.
+The same-data built-binary result is stronger than the scheduling ceiling:
+four workers drained the 2,414 retained intents in `534.330s` (`8m54.330s`),
+recovering `1384.903596s` (`23m04.904s`) versus the accepted current serial
+residual. That exceeds the `158s` worthwhile-work threshold by
+`1226.903596s` and the `587s` stable-drain gap by `797.903596s`.
 
 ## Retained data and boundary
 
@@ -228,13 +236,77 @@ bootstrap process exited at `19:55:21.095`, an overlap of about `103.19s`.
 Most of the 38-minute stable-drain lane therefore occurred outside that
 primary exit boundary.
 
-Consequently:
+The isolated built-binary replay now proves the full-drain contribution, but it
+starts from a retained terminal state and therefore does not recreate the
+original bootstrap process-exit overlap. Consequently:
 
 - the lane clearly passes the `158s` stable-drain worthwhile-work threshold;
-- the current evidence does **not** show a `158s` reduction in primary
-  bootstrap exit;
-- it does **not** establish the remaining under-20-minute path;
-- a same-state built-binary run must measure both primary exit and full drain.
+- four workers recover `1384.903596s` on the measured stable-drain boundary;
+- the current evidence does **not** establish the complete under-20-minute
+  bootstrap path;
+- the production-wired change must run end to end from the same primary start
+  and exit boundaries before making that final claim.
+
+## Retained-data built-binary proof
+
+The proof used exact isolated copies of the retained Postgres and pinned
+NornicDB state. NornicDB's pinned namespaced storage wrapper does not expose a
+native online backup through its database interface; its backup endpoint falls
+back to a non-atomic JSON export. To preserve exact evidence, writers were
+paused and the retained graph was stopped only for a four-second physical
+volume copy. The complete source/clone file SHA-256 manifest diff was `0/0`,
+and both graphs reported `980,641` nodes and `1,579,040` edges before replay.
+The retained maintenance window was `145s`; the retained stack was then
+restarted and remained healthy.
+
+The proof binary was built from commit
+`ed086e0639b41c4197ddecdc872aa99d2d96020f`; its SHA-256 was
+`c578b60c00025ef909afc887d6e048fe8de0afd4cbb17d3ff9b20a01698f6d07`.
+The accepted reference host was an AWS EC2 `r7a.4xlarge` with 16 logical CPUs
+and 128 GiB RAM. The run used four fixed FNV32a acceptance-unit shards and the
+isolated cloned stores.
+
+| Measurement | Old/current | Four workers | Delta |
+| --- | ---: | ---: | ---: |
+| Full reducer drain | 1919.233596s | **534.330s** | **-1384.903596s** |
+| Human duration | 31m59.234s | **8m54.330s** | **-23m04.904s** |
+| Speedup | 1.000x | **3.592x** | +2.592x |
+| Margin over `158s` threshold | - | - | **1226.903596s** |
+| Margin over `587s` stable-drain gap | - | - | **797.903596s** |
+
+| Accuracy / lifecycle check | Before | After | Result |
+| --- | ---: | ---: | --- |
+| Repo-dependency intents | 2,414 | 2,414 complete / 0 pending | exact |
+| Acceptance units / cycles | 896 | 896 | exact |
+| Resolver/cross-repo relationship rows | 982 | 982 | fact/edge diff `0/0` |
+| Evidence artifact identities | 3,155 | 3,155 | topology diff `0/0` |
+| Duplicate relationship identities | 0 | 0 | preserved |
+| Duplicate artifact node identities | 0 | 0 | preserved |
+| Duplicate source/artifact link identities | 0 / 0 | 0 / 0 | preserved |
+| Existing self edges | 7 | 7 | exact diff `0/0`; no new self edge |
+| Failed / dead-letter / retrying fact work | 0 / 0 / 0 | 0 / 0 / 0 | drained |
+
+One real NornicDB `Neo.TransientError.Transaction.Outdated` uniqueness conflict
+occurred. The bounded grouped retry fired once with a roughly `35ms` delay and
+converged to the exact graph above. The maximum reducer cycle was `26.844259s`;
+the maximum retract was `26.788246s`. Sampled peaks were 24.60% reducer CPU,
+1,261,816 KiB reducer RSS, 995.99% NornicDB CPU, and 234.34% Postgres CPU.
+
+Fixed hashing still exposed tail imbalance: at 298 seconds three shard leases
+were active; at 332 seconds one lease remained with 462 intents pending. This
+does not erase the proven win, but it bounds a separate dynamic-scheduling
+candidate. Dynamic claims must earn their own accuracy, lease, and performance
+proof rather than expand this productionization without measurement.
+
+The built-binary run used one reducer process and therefore did not exercise
+lease takeover. The candidate now uses a boot-unique owner and holds a Postgres
+transaction-scoped repository lock across active-lease validation, sequential
+graph retracts, grouped upserts, intent completion, and commit. Errors and
+ambiguous outcomes retain the shard lease for its full TTL; distinct repository
+shards remain concurrent. A graph unique-node mutex was rejected because pinned
+NornicDB let both contenders enter. The detailed local results and final
+combined Postgres/NornicDB fault gate are in the
+[safety proof](evidence-5122-repo-dependency-safety-proof.md).
 
 ## Why task 777 / #5088 is not this proof
 
@@ -334,6 +406,12 @@ NEO4J_USERNAME="$NORNICDB_USERNAME" \
 NEO4J_PASSWORD="$NORNICDB_PASSWORD" \
 go test -tags ifafaultinjection ./cmd/reducer \
   -run '^TestReducerGroupedRetrySeamLiveNornicDB$' -count=10 -v
+
+# Real-Postgres partition-count and distinct-process owner fence.
+ESHU_SHARED_PROJECTION_RESCALE_PROOF_DSN="$POSTGRES_DSN" \
+go test -race ./internal/storage/postgres \
+  -run '^TestSharedIntentStorePartitionCountRescaleAgainstPostgres$' \
+  -count=10
 ```
 
 The FNV32a calculation used the standard offset and prime:
@@ -349,26 +427,10 @@ shard = hash % shard_count
 
 ## Recommendation and next gate
 
-Merge the Odù, grouped-write retry proof, and default-off runner proof as one
-accuracy-and-concurrency foundation. Do not enable production workers in this
-change and do not describe the fixture speedup or retained scheduler ceiling
-as an achieved end-to-end reduction.
-
-The production route should use dynamic, database-backed leases keyed by
-`(projection_domain, acceptance_unit_id)`, with unique process/worker owners,
-lease epochs, heartbeats, and fenced completion. Fixed hashes are acceptable
-for the proof coordinator but leave material straggler imbalance and do not
-provide multi-process ownership.
-
-Before raising the default above one, prove on identical retained data and
-storage state:
-
-1. the candidate-discovery SQL and index with `EXPLAIN (ANALYZE, BUFFERS)`;
-2. one winner per acceptance unit, parallel claims for distinct units,
-   expiry takeover, heartbeat loss, and stale-epoch completion rejection;
-3. built binaries with real Postgres and pinned NornicDB at 1/2/4 workers;
-4. graph/API truth, queues drained, same-AU overlap 1, and graph diff 0/0;
-5. primary-exit and full-drain before/after seconds from the same boundaries.
-
-Only that built-binary result can justify a production worker default and an
-under-20-minute claim.
+Finish the combined local Postgres plus pinned-NornicDB fault matrix in the
+[safety proof](evidence-5122-repo-dependency-safety-proof.md). Do not trade the
+four-shard performance result for global serialization. If the matrix stays
+exact, run the production-wired four-worker binary against the isolated
+retained clones once, then run the full bootstrap acceptance boundary. The
+retained full-drain proof justifies implementation; only the final end-to-end
+run can justify an under-20-minute claim.

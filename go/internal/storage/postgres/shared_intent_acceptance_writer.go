@@ -57,8 +57,12 @@ func (w *SharedIntentAcceptanceWriter) UpsertIntents(
 	if err != nil {
 		return err
 	}
+	repoLockKeys := repoDependencyAcceptanceUnitIDs(rows)
 
 	if w.beginner == nil {
+		if len(repoLockKeys) > 0 {
+			return fmt.Errorf("repo-dependency shared intent acceptance requires transactions")
+		}
 		return upsertSharedIntentArtifacts(ctx, w.db, rows, acceptanceRows, w.instruments)
 	}
 
@@ -68,6 +72,11 @@ func (w *SharedIntentAcceptanceWriter) UpsertIntents(
 	}
 	defer func() { _ = tx.Rollback() }()
 
+	for _, repoKey := range sortedUniqueRepoKeys(repoLockKeys) {
+		if err := acquireDeferredMaintenanceRepoSharedLock(ctx, tx, repoKey); err != nil {
+			return fmt.Errorf("lock repo-dependency acceptance unit %q: %w", repoKey, err)
+		}
+	}
 	if err := upsertSharedIntentArtifacts(ctx, tx, rows, acceptanceRows, w.instruments); err != nil {
 		return err
 	}
@@ -75,6 +84,21 @@ func (w *SharedIntentAcceptanceWriter) UpsertIntents(
 		return fmt.Errorf("commit shared intent transaction: %w", err)
 	}
 	return nil
+}
+
+func repoDependencyAcceptanceUnitIDs(rows []reducer.SharedProjectionIntentRow) []string {
+	repoIDs := make([]string, 0, len(rows))
+	for _, row := range rows {
+		if row.ProjectionDomain != reducer.DomainRepoDependency {
+			continue
+		}
+		key, ok := sharedProjectionAcceptanceKey(row)
+		if !ok {
+			continue
+		}
+		repoIDs = append(repoIDs, key.AcceptanceUnitID)
+	}
+	return repoIDs
 }
 
 func upsertSharedIntentArtifacts(

@@ -581,6 +581,10 @@ Phase 1 per-domain attribution:
   marked completed, labeled by `domain` only (bounded domain set).
   Combine with an intent-emit counter to derive per-domain pending depth and
   drain rate without a per-scrape table scan.
+- `eshu_dp_shared_projection_lease_quarantines_total` — a counter of
+  fail-closed shard pauses, labeled by `domain` and a bounded `reason` set:
+  `cycle_deadline`, `heartbeat_lost`, or `cycle_error`. Repository identity and
+  lease owner are deliberately excluded.
 
 Performance Evidence: Phase 2 remote measurement pending — these instruments
 exist so the next corpus run can provide the per-domain latency distribution

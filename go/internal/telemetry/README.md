@@ -82,6 +82,7 @@ when the reducer has a graph orphan observer.
 | `SharedProjectionCycles` | `eshu_dp_shared_projection_cycles_total` |
 | `SharedProjectionStaleIntents` | `eshu_dp_shared_projection_stale_intents_total` |
 | `SharedProjectionPartitionHeartbeatMissed` | `eshu_dp_shared_projection_partition_heartbeat_missed_total` |
+| `SharedProjectionLeaseQuarantines` | `eshu_dp_shared_projection_lease_quarantines_total` |
 | `SharedAcceptanceUpserts` | `eshu_dp_shared_acceptance_upserts_total` |
 | `SharedAcceptanceLookupErrors` | `eshu_dp_shared_acceptance_lookup_errors_total` |
 | `GenerationRetentionPruned` | `eshu_dp_generation_retention_generations_pruned_total` |

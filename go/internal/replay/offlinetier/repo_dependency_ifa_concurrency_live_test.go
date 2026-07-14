@@ -406,6 +406,17 @@ func (s *repoDependencyIfaStore) ReleasePartitionLease(
 	return nil
 }
 
+func (s *repoDependencyIfaStore) WithAcceptanceUnit(
+	ctx context.Context,
+	_ reducer.RepoDependencyAcceptanceUnitGateKey,
+	fn func(context.Context, reducer.RepoDependencyProjectionIntentReader) error,
+) (bool, error) {
+	if err := fn(ctx, s); err != nil {
+		return true, err
+	}
+	return true, nil
+}
+
 func (s *repoDependencyIfaStore) pendingCount() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -446,14 +457,17 @@ func runRepoDependencyIfaRunner(
 	runner := reducer.RepoDependencyProjectionRunner{
 		IntentReader:                    store,
 		LeaseManager:                    store,
+		AcceptanceUnitGate:              store,
 		EdgeWriter:                      writer,
 		WorkloadMaterializationReplayer: replayer,
 		AcceptedGen:                     store.acceptedGeneration,
 		Config: reducer.RepoDependencyProjectionRunnerConfig{
-			Workers:      workers,
-			PollInterval: time.Millisecond,
-			LeaseTTL:     time.Second,
-			BatchLimit:   100,
+			Workers:               workers,
+			PollInterval:          time.Millisecond,
+			LeaseTTL:              32 * time.Second,
+			CycleTimeout:          time.Second,
+			GraphQuiescenceBudget: time.Millisecond,
+			BatchLimit:            100,
 		},
 	}
 	if err := runner.Run(ctx); err != nil {

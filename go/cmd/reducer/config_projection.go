@@ -4,10 +4,17 @@
 package main
 
 import (
+	"crypto/rand"
+	"encoding/hex"
+	"fmt"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
+
+var repoDependencyProjectionBootNonce = newRepoDependencyProjectionBootNonce()
 
 const (
 	codeCallProjectionPollIntervalEnv        = "ESHU_CODE_CALL_PROJECTION_POLL_INTERVAL"
@@ -19,8 +26,10 @@ const (
 	codeCallProjectionWorkersEnv             = "ESHU_CODE_CALL_PROJECTION_WORKERS"
 	repoDependencyProjectionPollIntervalEnv  = "ESHU_REPO_DEPENDENCY_PROJECTION_POLL_INTERVAL"
 	repoDependencyProjectionLeaseTTLEnv      = "ESHU_REPO_DEPENDENCY_PROJECTION_LEASE_TTL"
+	repoDependencyProjectionCycleTimeoutEnv  = "ESHU_REPO_DEPENDENCY_PROJECTION_CYCLE_TIMEOUT"
 	repoDependencyProjectionBatchLimitEnv    = "ESHU_REPO_DEPENDENCY_PROJECTION_BATCH_LIMIT"
 	repoDependencyProjectionLeaseOwnerEnv    = "ESHU_REPO_DEPENDENCY_PROJECTION_LEASE_OWNER"
+	repoDependencyProjectionWorkersEnv       = "ESHU_REPO_DEPENDENCY_PROJECTION_WORKERS"
 	repoDependencyRetractStatementTimingEnv  = "ESHU_REPO_DEPENDENCY_RETRACT_STATEMENT_TIMING"
 	codeCallEdgeBatchSizeEnv                 = "ESHU_CODE_CALL_EDGE_BATCH_SIZE"
 	codeCallEdgeGroupBatchSizeEnv            = "ESHU_CODE_CALL_EDGE_GROUP_BATCH_SIZE"
@@ -39,7 +48,8 @@ const (
 	defaultCodeCallProjectionPartitionCount      = 8
 	defaultCodeCallProjectionWorkers             = 4
 	defaultRepoDependencyProjectionPollInterval  = 500 * time.Millisecond
-	defaultRepoDependencyProjectionLeaseTTL      = 60 * time.Second
+	defaultRepoDependencyProjectionLeaseTTL      = 5 * time.Minute
+	defaultRepoDependencyProjectionCycleTimeout  = 45 * time.Second
 	defaultRepoDependencyProjectionBatchLimit    = 100
 	defaultRepoDependencyProjectionLeaseOwner    = "repo-dependency-projection-runner"
 	defaultCodeCallEdgeBatchSize                 = 1000
@@ -74,12 +84,48 @@ func loadRepoDependencyProjectionConfig(getenv func(string) string) reducer.Repo
 	}
 
 	return reducer.RepoDependencyProjectionRunnerConfig{
-		LeaseOwner:   loadStringOrDefault(getenv, repoDependencyProjectionLeaseOwnerEnv, defaultRepoDependencyProjectionLeaseOwner),
-		PollInterval: loadDurationOrDefault(getenv, repoDependencyProjectionPollIntervalEnv, defaultRepoDependencyProjectionPollInterval),
-		LeaseTTL:     loadDurationOrDefault(getenv, repoDependencyProjectionLeaseTTLEnv, defaultRepoDependencyProjectionLeaseTTL),
-		BatchLimit:   loadPositiveIntOrDefault(getenv, repoDependencyProjectionBatchLimitEnv, defaultRepoDependencyProjectionBatchLimit),
-		Workers:      loadIfaRepoDependencyProofWorkers(getenv),
+		LeaseOwner:            loadRepoDependencyProjectionLeaseOwner(getenv),
+		PollInterval:          loadDurationOrDefault(getenv, repoDependencyProjectionPollIntervalEnv, defaultRepoDependencyProjectionPollInterval),
+		LeaseTTL:              loadDurationOrDefault(getenv, repoDependencyProjectionLeaseTTLEnv, defaultRepoDependencyProjectionLeaseTTL),
+		CycleTimeout:          loadDurationOrDefault(getenv, repoDependencyProjectionCycleTimeoutEnv, defaultRepoDependencyProjectionCycleTimeout),
+		GraphQuiescenceBudget: nornicDBCanonicalWriteTimeout(getenv),
+		BatchLimit:            loadPositiveIntOrDefault(getenv, repoDependencyProjectionBatchLimitEnv, defaultRepoDependencyProjectionBatchLimit),
+		Workers:               loadRepoDependencyProjectionWorkers(getenv),
 	}
+}
+
+func loadRepoDependencyProjectionWorkers(getenv func(string) string) int {
+	switch strings.TrimSpace(getenv(repoDependencyProjectionWorkersEnv)) {
+	case "2":
+		return 2
+	case "4":
+		return 4
+	case "1", "":
+		return 1
+	default:
+		return 1
+	}
+}
+
+func loadRepoDependencyProjectionLeaseOwner(getenv func(string) string) string {
+	prefix := loadStringOrDefault(
+		getenv,
+		repoDependencyProjectionLeaseOwnerEnv,
+		defaultRepoDependencyProjectionLeaseOwner,
+	)
+	hostname, err := os.Hostname()
+	if err != nil || strings.TrimSpace(hostname) == "" {
+		hostname = "unknown-host"
+	}
+	return fmt.Sprintf("%s:%s:%d:%s", prefix, hostname, os.Getpid(), repoDependencyProjectionBootNonce)
+}
+
+func newRepoDependencyProjectionBootNonce() string {
+	bytes := make([]byte, 16)
+	if _, err := rand.Read(bytes); err == nil {
+		return hex.EncodeToString(bytes)
+	}
+	return fmt.Sprintf("%016x", time.Now().UnixNano())
 }
 
 func loadCodeCallEdgeWriterTuning(getenv func(string) string) (int, int) {

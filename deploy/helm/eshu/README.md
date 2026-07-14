@@ -178,6 +178,20 @@ Operators continue to use resolution-engine logs, `/admin/status`,
 partition-lease backlog, graph-write metrics, and pprof surfaces for code-call
 partition throughput, retries, and dead-letter diagnosis.
 
+The chart keeps `ESHU_REPO_DEPENDENCY_PROJECTION_WORKERS=1` as the general
+default. Operators may set the resolution-engine environment value to `2` or
+`4`; unsupported values fall back to `1`. The remote-E2E Compose profile uses
+`4`, but that proof profile does not raise the Helm default. Repo-dependency
+workers use fixed source-repository acceptance-unit shards: the same
+repository's complete retract-then-rewrite cycle stays serialized and ordered,
+while unrelated repositories can project concurrently. The runtime also
+appends hostname, PID, and a boot-unique nonce to any configured lease-owner
+prefix so separate pod boots cannot share one re-entrant owner identity. A
+repo-dependency cycle has a `45s` caller deadline and a `5m` lease. The lease
+must exceed the cycle deadline plus the configured canonical graph-write
+timeout and a `30s` safety margin. An error, cancellation, or ambiguous commit
+quarantines only that shard until its lease expires; other shards keep running.
+
 Performance Evidence: charted ingesters render `SCIP_WORKERS=4` from
 `ingester.scipWorkers` by default as a concurrency cap. SCIP
 language/package-root indexing still requires an explicit `SCIP_INDEXER=1`,

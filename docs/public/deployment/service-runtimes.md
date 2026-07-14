@@ -56,6 +56,16 @@ before treating a graph as current:
 - Scale API and MCP for read traffic.
 - Scale the resolution engine only after queue and Postgres telemetry show the
   reducer is the bottleneck.
+- Keep `ESHU_REPO_DEPENDENCY_PROJECTION_WORKERS` at the general default of `1`
+  unless measured repo-dependency backlog justifies `2` or `4`; other values
+  fall back to `1`. The remote-E2E profile uses `4`. Fixed acceptance-unit
+  sharding serializes the complete retract-then-rewrite cycle for the same
+  source repository while allowing unrelated repositories to run concurrently.
+  Each process appends its hostname, PID, and a boot-unique nonce to the
+  configured lease-owner prefix. The default `5m` lease must exceed the `45s`
+  whole-cycle deadline plus `ESHU_CANONICAL_WRITE_TIMEOUT` and a `30s` margin.
+  Failed, canceled, or ambiguous cycles retain the shard lease until expiry;
+  independent shards continue to run.
 - `ESHU_REPO_DEPENDENCY_RETRACT_STATEMENT_TIMING` is retained for
   compatibility but no longer changes behavior: repo-dependency retract
   statements always run sequentially with per-statement timing logs (grouped

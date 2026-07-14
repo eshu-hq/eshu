@@ -59,6 +59,10 @@ class from status output, structured logs, traces, or a discovery advisory.
 | `ESHU_GRAPH_WRITE_SEMANTIC_MAX_IN_FLIGHT` | Bound concurrent reducer semantic-entity graph writes independently of the canonical pool (issue #4448); unset falls back to `ESHU_GRAPH_WRITE_MAX_IN_FLIGHT`. Splitting the pool prevents a slow write on one class from starving the other (head-of-line blocking). |
 | `ESHU_REDUCER_WORKERS` | Tune reducer worker count after queue and graph-write evidence. |
 | `ESHU_REDUCER_BATCH_CLAIM_SIZE` | Keep reducer claim batch size near worker count on slower graph backends. |
+| `ESHU_REPO_DEPENDENCY_PROJECTION_WORKERS` | Set the dedicated repo-dependency projection lane to `1`, `2`, or `4` workers. The general default is `1`; unsupported values fall back to `1`, while remote E2E explicitly uses `4`. Stable source-repository acceptance-unit sharding keeps the same repository serialized and allows unrelated repositories to run concurrently. |
+| `ESHU_REPO_DEPENDENCY_PROJECTION_LEASE_TTL` | Set the repo-dependency shard lease; default `5m`. It must exceed `ESHU_REPO_DEPENDENCY_PROJECTION_CYCLE_TIMEOUT + ESHU_CANONICAL_WRITE_TIMEOUT + 30s`, or reducer startup fails. An error, cancellation, or ambiguous commit leaves the shard quarantined until this lease expires. |
+| `ESHU_REPO_DEPENDENCY_PROJECTION_CYCLE_TIMEOUT` | Bound the complete repository acceptance cycle, including the Postgres repository lock, lease validation, graph retract/write, intent completion, and Postgres commit; default `45s`. |
+| `ESHU_REPO_DEPENDENCY_PROJECTION_LEASE_OWNER` | Set the lease-owner prefix. The reducer always appends hostname, PID, and a boot-unique nonce; the supplied value is never the complete owner identity. |
 | `ESHU_COLLECTOR_INSTANCES_JSON` | Declare claim-capable collector instances for coordinator-owned workflows. |
 
 ## Secrets

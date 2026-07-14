@@ -1199,6 +1199,30 @@ States: `pending` → `claimed` → `running` → `succeeded` / `failed`.
 `RepoDependencyProjectionRunner`, and `GraphProjectionPhaseRepairer` as
 concurrent goroutines. Any runner error cancels the shared context.
 
+## Repo-dependency acceptance-unit concurrency
+
+`RepoDependencyProjectionRunner` shards work by the source-repository
+acceptance-unit identity, not by individual edge rows. The fixed shard mapping
+keeps a repository's complete retract-then-rewrite cycle on one worker. That is
+the per-repo safety gate: work for the same source repository remains serialized
+and ordered, while unrelated repositories assigned to different shards can run
+concurrently.
+
+The command runtime exposes this lane through
+`ESHU_REPO_DEPENDENCY_PROJECTION_WORKERS`. Only `1`, `2`, and `4` are supported;
+the general default is `1`, and invalid or unproven values fall back to `1`.
+The remote-E2E profile selects `4` explicitly. Each process derives a distinct
+lease owner by appending its hostname, PID, and a boot-unique nonce to the
+configured owner prefix. The default `45s` whole-cycle deadline covers the
+Postgres repository lock, active-lease validation, graph replacement, intent
+completion, and Postgres commit. The `5m` lease must exceed that deadline plus
+the canonical graph-write timeout and a `30s` margin. Errors, cancellation, and
+ambiguous commits retain the shard lease until expiry and force the same owner
+to wait out the quarantine. Independent shards continue to run, so this safety
+contract does not globally serialize repo-dependency work. Changing the worker
+count does not weaken acceptance-unit atomicity and does not inherit the main
+reducer's `ESHU_REDUCER_WORKERS` value.
+
 ## Graph projection phase coordination
 
 `graph_projection_phase_state` is the durable readiness coordination table.

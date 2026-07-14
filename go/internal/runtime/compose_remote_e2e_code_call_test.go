@@ -26,6 +26,12 @@ func TestRemoteE2EComposeConfiguresCodeCallProjectionConcurrency(t *testing.T) {
 		"ESHU_CODE_CALL_PROJECTION_WORKERS",
 		"${ESHU_CODE_CALL_PROJECTION_WORKERS:-2}",
 	)
+	assertComposeEnv(
+		t,
+		resolutionEngine,
+		"ESHU_REPO_DEPENDENCY_PROJECTION_WORKERS",
+		"${ESHU_REPO_DEPENDENCY_PROJECTION_WORKERS:-4}",
+	)
 }
 
 func TestRemoteE2EExampleEnvDocumentsCodeCallProjectionConcurrency(t *testing.T) {
@@ -35,6 +41,7 @@ func TestRemoteE2EExampleEnvDocumentsCodeCallProjectionConcurrency(t *testing.T)
 	for _, want := range []string{
 		"ESHU_CODE_CALL_PROJECTION_PARTITION_COUNT=4",
 		"ESHU_CODE_CALL_PROJECTION_WORKERS=2",
+		"ESHU_REPO_DEPENDENCY_PROJECTION_WORKERS=4",
 	} {
 		if !strings.Contains(content, want) {
 			t.Fatalf(".env.remote-e2e.example missing %q", want)

@@ -6,9 +6,11 @@ package reducer
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -93,14 +95,25 @@ func recordRepoDependencyStepDurations(
 }
 
 func (r *RepoDependencyProjectionRunner) recordRepoDependencyCycleFailure(ctx context.Context, err error, duration float64) {
+	failureClass := "repo_dependency_projection_cycle_error"
+	var quarantineErr *repoDependencyLeaseQuarantineError
+	leaseQuarantined := errors.As(err, &quarantineErr)
+	quarantineReason := repoDependencyLeaseQuarantineReason(err)
+	if leaseQuarantined {
+		failureClass = "repo_dependency_projection_lease_quarantined"
+		if r.Instruments != nil {
+			r.Instruments.SharedProjectionLeaseQuarantines.Add(ctx, 1, metric.WithAttributes(
+				telemetry.AttrDomain(DomainRepoDependency),
+				attribute.String("reason", quarantineReason),
+			))
+		}
+	} else if IsRetryable(err) {
+		failureClass = "repo_dependency_projection_retryable"
+	}
 	if r.Logger == nil {
 		return
 	}
-	failureClass := "repo_dependency_projection_cycle_error"
-	if IsRetryable(err) {
-		failureClass = "repo_dependency_projection_retryable"
-	}
-	logAttrs := make([]any, 0, 6)
+	logAttrs := make([]any, 0, 8)
 	for _, attr := range telemetry.DomainAttrs(string(DomainRepoDependency), "") {
 		logAttrs = append(logAttrs, attr)
 	}
@@ -112,6 +125,14 @@ func (r *RepoDependencyProjectionRunner) recordRepoDependencyCycleFailure(ctx co
 		telemetry.FailureClassAttr(failureClass),
 		telemetry.PhaseAttr(telemetry.PhaseReduction),
 	)
+	if leaseQuarantined {
+		logAttrs = append(
+			logAttrs,
+			slog.Bool("lease_quarantined", true),
+			slog.String("quarantine_reason", quarantineReason),
+			slog.Float64("quarantine_duration_seconds", quarantineErr.delay.Seconds()),
+		)
+	}
 	r.Logger.ErrorContext(ctx, "repo dependency projection cycle failed", logAttrs...)
 }
 
@@ -127,6 +148,16 @@ func (r *RepoDependencyProjectionRunner) validate() error {
 	}
 	if r.AcceptedGen == nil {
 		return errors.New("repo dependency projection runner: accepted generation lookup is required")
+	}
+	if r.AcceptanceUnitGate == nil {
+		return errors.New("repo dependency projection runner: acceptance unit gate is required")
+	}
+	if r.Config.leaseTTL() <= r.Config.requiredLeaseSafetyBudget() {
+		return fmt.Errorf(
+			"repo dependency projection runner: lease TTL %s must exceed safety budget %s",
+			r.Config.leaseTTL(),
+			r.Config.requiredLeaseSafetyBudget(),
+		)
 	}
 	return nil
 }

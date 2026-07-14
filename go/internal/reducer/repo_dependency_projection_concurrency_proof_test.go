@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-//go:build ifarepodependencyproof
-
 package reducer
 
 import (
@@ -45,17 +43,20 @@ func TestIfaRepoDependencyProofWorkersOverlapDistinctAcceptanceUnits(t *testing.
 	store.onAllCompleted = cancel
 	writer := &overlapRecordingRepoDependencyWriter{delay: 40 * time.Millisecond}
 	runner := RepoDependencyProjectionRunner{
-		IntentReader: store,
-		LeaseManager: store,
-		EdgeWriter:   writer,
+		IntentReader:       store,
+		LeaseManager:       store,
+		AcceptanceUnitGate: store,
+		EdgeWriter:         writer,
 		AcceptedGen: func(key SharedProjectionAcceptanceKey) (string, bool) {
 			return "gen-" + strings.TrimPrefix(key.SourceRunID, "run-"), true
 		},
 		Config: RepoDependencyProjectionRunnerConfig{
-			Workers:      4,
-			PollInterval: time.Millisecond,
-			LeaseTTL:     time.Second,
-			BatchLimit:   100,
+			Workers:               4,
+			PollInterval:          time.Millisecond,
+			LeaseTTL:              32 * time.Second,
+			CycleTimeout:          time.Second,
+			GraphQuiescenceBudget: time.Millisecond,
+			BatchLimit:            100,
 		},
 	}
 
@@ -102,17 +103,20 @@ func TestIfaRepoDependencyProofWorkersKeepWholeAcceptanceUnitTogether(t *testing
 	store.onAllCompleted = cancel
 	writer := &overlapRecordingRepoDependencyWriter{}
 	runner := RepoDependencyProjectionRunner{
-		IntentReader: store,
-		LeaseManager: store,
-		EdgeWriter:   writer,
+		IntentReader:       store,
+		LeaseManager:       store,
+		AcceptanceUnitGate: store,
+		EdgeWriter:         writer,
 		AcceptedGen: func(key SharedProjectionAcceptanceKey) (string, bool) {
 			return "atomic-gen-" + strings.TrimPrefix(key.SourceRunID, "atomic-run-"), true
 		},
 		Config: RepoDependencyProjectionRunnerConfig{
-			Workers:      4,
-			PollInterval: time.Millisecond,
-			LeaseTTL:     time.Second,
-			BatchLimit:   100,
+			Workers:               4,
+			PollInterval:          time.Millisecond,
+			LeaseTTL:              32 * time.Second,
+			CycleTimeout:          time.Second,
+			GraphQuiescenceBudget: time.Millisecond,
+			BatchLimit:            100,
 		},
 	}
 
@@ -205,6 +209,17 @@ func (s *proofRepoDependencyStore) ReleasePartitionLease(_ context.Context, doma
 		delete(s.leases, key)
 	}
 	return nil
+}
+
+func (s *proofRepoDependencyStore) WithAcceptanceUnit(
+	ctx context.Context,
+	_ RepoDependencyAcceptanceUnitGateKey,
+	fn func(context.Context, RepoDependencyProjectionIntentReader) error,
+) (bool, error) {
+	if err := fn(ctx, s); err != nil {
+		return true, err
+	}
+	return true, nil
 }
 
 func (s *proofRepoDependencyStore) completedCount() int {
