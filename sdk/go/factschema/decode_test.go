@@ -379,6 +379,8 @@ var payloadContracts = []struct {
 	{FactKindVulnerabilityKnownExploited, "vulnerability.known_exploited.v1.schema.json", reflect.TypeOf(vulnerabilityv1.KnownExploited{})},
 	{FactKindVulnerabilityGoModuleEvidence, "vulnerability.go_module_evidence.v1.schema.json", reflect.TypeOf(vulnerabilityv1.GoModuleEvidence{})},
 	{FactKindVulnerabilityGoCallReachability, "vulnerability.go_call_reachability.v1.schema.json", reflect.TypeOf(vulnerabilityv1.GoCallReachability{})},
+	{FactKindVulnerabilityReference, "vulnerability.reference.v1.schema.json", reflect.TypeOf(vulnerabilityv1.Reference{})},
+	{FactKindVulnerabilitySourceSnapshot, "vulnerability.source_snapshot.v1.schema.json", reflect.TypeOf(vulnerabilityv1.SourceSnapshot{})},
 	{FactKindCodegraphFile, "file.v1.schema.json", reflect.TypeOf(codegraphv1.File{})},
 	{FactKindCodegraphRepository, "repository.v1.schema.json", reflect.TypeOf(codegraphv1.Repository{})},
 	{FactKindCodeDataflowScanned, "code_dataflow_scanned.v1.schema.json", reflect.TypeOf(codedataflowv1.DataflowScanned{})},

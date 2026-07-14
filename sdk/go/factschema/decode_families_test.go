@@ -405,6 +405,12 @@ func decodeByKind(t *testing.T, factKind string, payload map[string]any) error {
 	case FactKindVulnerabilityGoCallReachability:
 		_, err := DecodeVulnerabilityGoCallReachability(env)
 		return err
+	case FactKindVulnerabilityReference:
+		_, err := DecodeVulnerabilityReference(env)
+		return err
+	case FactKindVulnerabilitySourceSnapshot:
+		_, err := DecodeVulnerabilitySourceSnapshot(env)
+		return err
 	case FactKindCodegraphFile:
 		_, err := DecodeCodegraphFile(env)
 		return err
@@ -739,6 +745,8 @@ var allDecodedKinds = []string{
 	FactKindVulnerabilityKnownExploited,
 	FactKindVulnerabilityGoModuleEvidence,
 	FactKindVulnerabilityGoCallReachability,
+	FactKindVulnerabilityReference,
+	FactKindVulnerabilitySourceSnapshot,
 	FactKindCodegraphFile,
 	FactKindCodegraphRepository,
 	FactKindCodeDataflowScanned,
@@ -1094,6 +1102,10 @@ func TestDecodeEachKind_UnsupportedMajorDeadLetters(t *testing.T) {
 				_, err = DecodeVulnerabilityGoModuleEvidence(env)
 			case FactKindVulnerabilityGoCallReachability:
 				_, err = DecodeVulnerabilityGoCallReachability(env)
+			case FactKindVulnerabilityReference:
+				_, err = DecodeVulnerabilityReference(env)
+			case FactKindVulnerabilitySourceSnapshot:
+				_, err = DecodeVulnerabilitySourceSnapshot(env)
 			case FactKindCodegraphFile:
 				_, err = DecodeCodegraphFile(env)
 			case FactKindCodegraphRepository:

@@ -245,6 +245,15 @@ const (
 	// FactKindVulnerabilityGoCallReachability is the
 	// "vulnerability.go_call_reachability" fact kind.
 	FactKindVulnerabilityGoCallReachability = "vulnerability.go_call_reachability"
+	// FactKindVulnerabilityReference is the "vulnerability.reference" fact
+	// kind. No reducer decode call; typed for the go/internal/query SQL-schema
+	// lockstep test (issue #4717) — see vulnerability/v1/doc.go.
+	FactKindVulnerabilityReference = "vulnerability.reference"
+	// FactKindVulnerabilitySourceSnapshot is the
+	// "vulnerability.source_snapshot" fact kind. No reducer decode call; typed
+	// for the go/internal/query SQL-schema lockstep test (issue #4717) — see
+	// vulnerability/v1/doc.go.
+	FactKindVulnerabilitySourceSnapshot = "vulnerability.source_snapshot"
 
 	// The ci_cd_run family fact-kind strings are DOTTED, like the incident
 	// family. The dots are part of the wire kind the collector already emits
