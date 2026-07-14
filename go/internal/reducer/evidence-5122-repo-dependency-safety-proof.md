@@ -27,10 +27,12 @@ commit inside one ordered cycle:
    deferred-maintenance advisory lock.
 4. After taking that lock, it verifies that the exact shard, partition count,
    and owner still hold an unexpired lease.
-5. The transaction-bound reader loads the repository intents. The worker then
-   runs the sequential auto-commit retract statements, writes the canonical
-   upsert group, marks the intents complete, and commits the Postgres
-   transaction.
+5. The transaction-bound reader loads the repository intents and fails closed
+   unless the gated acceptance unit, each row's `acceptance_unit_id`,
+   `repository_id`, and `payload.repo_id` identify the same source repository.
+   The worker then runs the sequential auto-commit retract statements, writes
+   the canonical upsert group, marks the intents complete, and commits the
+   Postgres transaction.
 6. The lease is released only after the callback and Postgres commit return
    confirmed success.
 
@@ -72,7 +74,9 @@ its quarantine.
 | Whole-cycle timeout and lease quarantine unit matrix | Focused suite | Graph error and deadline kept release count at `0`; confirmed commit released once; same owner waited full TTL | Supports fail-closed runner state |
 | Per-process owner configuration | Focused suite | Owner suffix contained hostname, current PID, and a stable in-process boot nonce | Supports boot-unique ownership |
 | Cross-process owner identity | 10 under `-race` | Separate process boots produced distinct owner suffixes | Prevents PID/hostname reuse from bypassing quarantine |
+| Mismatched source-repository identities | 5 hostile shapes, repeated 10 times under focused tests | Gated unit, row acceptance unit, repository id, and payload repo id mismatches all stopped before retract, write, replay, or completion | Prevents a row locked as repository A from mutating repository B |
 | Literal grouped-COMMIT response loss | 10 under `-race` | Backend commit remained visible, caller observed ambiguity, replay preserved one exact edge | Supports ambiguous Bolt commit recovery |
+| Full COMMIT dispatch followed by immediate connection drop | 1 oversized 50,000-row grouped transaction under `-race` | Atomic old outcome remained `0` rows at `5s`, `30s`, and the full `120s` graph budget; after simulated takeover, old rows stayed `0` through the `30s` margin and the new-owner marker stayed exact | Supports bounded mid-COMMIT quiescence before the later `5m` lease takeover |
 | Real Postgres gate plus pinned NornicDB Odù fault/recovery | 10 isolated containers | Four writes overlapped; one post-commit response loss left one intent pending; other shards drained; takeover converged graph and duplicate diffs `0/0` | Supports production-path quarantine without global serialization |
 | Reducer helper-process `SIGKILL` after graph commit | 10 isolated containers | Intent remained pending; new owner was rejected before expiry; post-expiry replay converged graph diff `0/0` | Supports boot death and lease takeover |
 
@@ -90,6 +94,11 @@ cd go
 # Runner safety defaults, unsafe-budget rejection, quarantine, and release.
 go test ./internal/reducer \
   -run '^TestRepoDependencyProjectionRunner' -count=1
+
+# Fail-closed source-repository identity invariant, repeated under race.
+go test -race ./internal/reducer \
+  -run '^TestRepoDependencyProjectionRunnerRejectsMismatchedSourceRepositoryIdentity$' \
+  -count=10
 
 # Runtime timing and boot-unique owner configuration.
 go test ./cmd/reducer \
@@ -135,6 +144,15 @@ go test -race ./cmd/reducer \
   -run '^TestLiveRepoDependencyGroupedCommitResponseLossIsExactlyReplayable$' \
   -count=10
 
+# A complete COMMIT request reached the backend before the proxy dropped both
+# sides of the connection. The atomic outcome stayed fixed through the 120s
+# graph budget, simulated takeover, and 30s safety margin. PASS in 263.73s.
+ESHU_REPO_MID_COMMIT_QUIESCENCE_PROVE_LIVE=1 \
+ESHU_NEO4J_URI="$NORNICDB_BOLT_DSN" \
+go test -race ./cmd/reducer \
+  -run '^TestLiveRepoDependencyMidCommitDropQuiescesBeforeTakeover$' \
+  -count=1 -v
+
 # Combined Odù quarantine/recovery and helper-process SIGKILL. Each of the ten
 # invocations used a fresh disposable pinned-NornicDB container because the
 # backend's delete cleanup is not a stable repeated-test reset boundary.
@@ -162,9 +180,11 @@ acceptance units and 2,414 intents. The general deployment default remains one
 worker; the accepted remote-E2E proof profile selects four.
 
 No-Regression Evidence: local cancellation, Postgres connection-loss, timing
-budget, owner identity, literal COMMIT-response loss, combined four-shard Odù,
-and process `SIGKILL` tests prove the safety contract. The combined live matrix
-passed 10/10 with graph and duplicate diffs `0/0`.
+budget, owner identity, source-repository identity, literal COMMIT-response
+loss, mid-COMMIT connection drop, combined four-shard Odù, and process
+`SIGKILL` tests prove the safety contract. The combined live matrix passed
+10/10 with graph and duplicate diffs `0/0`; the mid-COMMIT outcome stayed
+atomic and unchanged through the full graph budget and takeover margin.
 
 Observability Evidence: successful cycles retain the existing per-step timing
 fields for selection, load, retract, write, replay, completion, and lease claim.

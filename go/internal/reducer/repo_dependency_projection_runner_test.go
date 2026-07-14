@@ -134,6 +134,88 @@ func TestRepoDependencyProjectionRunnerProcessOnceRejectsMissingAcceptanceUnitGa
 	}
 }
 
+func TestRepoDependencyProjectionRunnerRejectsMismatchedSourceRepositoryIdentity(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.July, 14, 13, 0, 0, 0, time.UTC)
+	const (
+		repoA = "repository:r_repo_a"
+		repoB = "repository:r_repo_b"
+	)
+	validPending := repoDependencyIntentRow(
+		"pending-selector", "scope-a", repoA, repoA, "run-new", "gen-new", now,
+		map[string]any{
+			"repo_id":           repoA,
+			"target_repo_id":    "repository:r_target",
+			"relationship_type": "DEPENDS_ON",
+			"evidence_source":   crossRepoEvidenceSource,
+		},
+	)
+
+	tests := []struct {
+		name             string
+		acceptanceUnitID string
+		repositoryID     string
+		payloadRepoID    any
+	}{
+		{name: "loaded acceptance unit differs from gated repository", acceptanceUnitID: repoB, repositoryID: repoB, payloadRepoID: repoB},
+		{name: "repository id differs", acceptanceUnitID: repoA, repositoryID: repoB, payloadRepoID: repoA},
+		{name: "payload repo id differs", acceptanceUnitID: repoA, repositoryID: repoA, payloadRepoID: repoB},
+		{name: "repository id missing", acceptanceUnitID: repoA, payloadRepoID: repoA},
+		{name: "payload repo id missing", acceptanceUnitID: repoA, repositoryID: repoA},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			payload := map[string]any{
+				"target_repo_id":    "repository:r_target",
+				"relationship_type": "DEPENDS_ON",
+				"evidence_source":   crossRepoEvidenceSource,
+			}
+			if tt.payloadRepoID != nil {
+				payload["repo_id"] = tt.payloadRepoID
+			}
+			malformed := repoDependencyIntentRow(
+				"malformed", "scope-a", tt.acceptanceUnitID, tt.repositoryID,
+				"run-new", "gen-new", now, payload,
+			)
+			reader := &fakeRepoDependencyIntentStore{
+				pendingByDomain: []SharedProjectionIntentRow{validPending},
+				pendingByAcceptanceUnit: map[string][]SharedProjectionIntentRow{
+					repoA: {malformed},
+				},
+				leaseGranted: true,
+			}
+			writer := &recordingCodeCallProjectionEdgeWriter{}
+			runner := RepoDependencyProjectionRunner{
+				IntentReader:       reader,
+				LeaseManager:       reader,
+				AcceptanceUnitGate: reader,
+				EdgeWriter:         writer,
+				AcceptedGen:        acceptedGenerationFixed("gen-new", true),
+				Config:             RepoDependencyProjectionRunnerConfig{Workers: 1},
+			}
+
+			_, err := runner.processOnce(context.Background(), now)
+			if err == nil || !strings.Contains(err.Error(), "source repository identity") {
+				t.Fatalf("processOnce() error = %v, want source repository identity error", err)
+			}
+			if got := len(writer.retractCalls); got != 0 {
+				t.Fatalf("retract calls = %d, want 0 for malformed repository identity", got)
+			}
+			if got := len(writer.writeCalls); got != 0 {
+				t.Fatalf("write calls = %d, want 0 for malformed repository identity", got)
+			}
+			if got := len(reader.marked); got != 0 {
+				t.Fatalf("marked intents = %d, want 0 for malformed repository identity", got)
+			}
+		})
+	}
+}
+
 func TestRepoDependencyProjectionRunnerLoadAllAcceptanceUnitIntentsRejectsOversizedSlice(t *testing.T) {
 	t.Parallel()
 

@@ -6,6 +6,7 @@ package reducer
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -25,6 +26,10 @@ func (r *RepoDependencyProjectionRunner) processAcceptanceUnit(
 		return result, nil, 0, err
 	}
 	result.AcceptanceUnitRows = len(rows)
+	if err := validateRepoDependencySourceRepositoryIdentity(acceptanceUnitID, rows); err != nil {
+		result.LeaseAcquired = true
+		return result, nil, 0, err
+	}
 
 	lookup := r.AcceptedGen
 	if r.AcceptedGenPrefetch != nil {
@@ -92,4 +97,33 @@ func (r *RepoDependencyProjectionRunner) processAcceptanceUnit(
 	result.ProcessedIntents = len(processedIDs)
 	result.ProcessingDurationSeconds = time.Since(cycleStart).Seconds()
 	return result, active, writtenGroups, nil
+}
+
+func validateRepoDependencySourceRepositoryIdentity(
+	acceptanceUnitID string,
+	rows []SharedProjectionIntentRow,
+) error {
+	expectedRepoID := strings.TrimSpace(acceptanceUnitID)
+	if expectedRepoID == "" {
+		return fmt.Errorf("repo dependency source repository identity is missing gated acceptance unit")
+	}
+	for _, row := range rows {
+		rowAcceptanceUnitID := strings.TrimSpace(row.AcceptanceUnitID)
+		repositoryID := strings.TrimSpace(row.RepositoryID)
+		payloadRepoID := repoDependencyPayloadString(row, "repo_id")
+		if rowAcceptanceUnitID == expectedRepoID &&
+			repositoryID == expectedRepoID &&
+			payloadRepoID == expectedRepoID {
+			continue
+		}
+		return fmt.Errorf(
+			"repo dependency intent %q source repository identity mismatch: gated acceptance_unit_id=%q, acceptance_unit_id=%q, repository_id=%q, payload.repo_id=%q",
+			row.IntentID,
+			expectedRepoID,
+			rowAcceptanceUnitID,
+			repositoryID,
+			payloadRepoID,
+		)
+	}
+	return nil
 }
