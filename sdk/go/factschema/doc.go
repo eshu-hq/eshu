@@ -26,4 +26,11 @@
 // (ClassificationInputInvalid, a *DecodeError naming the field), never a
 // zero-value struct — the accuracy backstop this design exists to add
 // beneath the existing envelope-level schema-version admission gate.
+//
+// SchemaBytes embeds schema/*.json directly in this package and returns the
+// raw bytes for one fact kind, so a caller (for example a runtime
+// conformance test outside this module) can load a committed schema without
+// duplicating the schema tree the way sdk/go/factschema/fixturepack must,
+// since fixturepack cannot reach this package's schema/ directory with its
+// own go:embed directive.
 package factschema
