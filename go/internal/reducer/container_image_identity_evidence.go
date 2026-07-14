@@ -36,12 +36,33 @@ type parsedContainerImageRef struct {
 	digest        string
 }
 
-func extractContainerImageRefs(envelopes []facts.Envelope) []containerImageRefEvidence {
+// extractContainerImageRefsWithQuarantine is the quarantine-aware core
+// extractContainerImageRefs delegates to. It decodes every
+// aws_image_reference/azure_image_reference/gcp_image_reference/ci.artifact/
+// ci.workflow_image_evidence/ci.run envelope through the sdk/go/factschema
+// typed seam: a fact missing its required identity field (see each add*/
+// decode* helper below) is routed through partitionDecodeFailures so it
+// dead-letters as a per-fact input_invalid quarantine instead of silently
+// producing an empty or malformed image reference, while every valid fact in
+// the same batch still contributes a decision. A non-quarantinable decode
+// error (an unsupported schema major) is returned fatally so the whole intent
+// fails for durable triage.
+//
+// factKindContentEntity, factKindRepository, and facts.AWSRelationshipFactKind
+// are read raw here on purpose: they are generic cross-kind envelope/scope
+// anchors and a differently-scoped AWS relationship kind, not part of the
+// image_reference family this migration covers (#4685 scope note).
+func extractContainerImageRefsWithQuarantine(envelopes []facts.Envelope) ([]containerImageRefEvidence, []quarantinedFact, error) {
 	byRef := make(map[string]containerImageRefEvidence)
-	ciRuns := containerImageCIRuns(envelopes)
+	var quarantined []quarantinedFact
 	for _, ref := range extractOCIConfigProvenanceRefs(envelopes) {
 		mergeContainerImageRef(byRef, ref)
 	}
+	ciRuns, runQuarantine, err := containerImageCIRuns(envelopes)
+	if err != nil {
+		return nil, nil, err
+	}
+	quarantined = append(quarantined, runQuarantine...)
 	for _, envelope := range envelopes {
 		switch envelope.FactKind {
 		case factKindContentEntity:
@@ -49,7 +70,13 @@ func extractContainerImageRefs(envelopes []facts.Envelope) []containerImageRefEv
 				addContainerImageRef(byRef, imageRef, "", containerImageAnchorsFromEnvelope(envelope), envelope.FactID)
 			}
 		case facts.CICDWorkflowImageEvidenceFactKind:
-			addWorkflowImageEvidenceRef(byRef, envelope)
+			q, ok, fatal := addWorkflowImageEvidenceRef(byRef, envelope)
+			if fatal != nil {
+				return nil, nil, fatal
+			}
+			if ok {
+				quarantined = append(quarantined, q)
+			}
 		case facts.AWSRelationshipFactKind:
 			if payloadStr(envelope.Payload, "target_type") != "container_image" {
 				continue
@@ -62,13 +89,37 @@ func extractContainerImageRefs(envelopes []facts.Envelope) []containerImageRefEv
 				envelope.FactID,
 			)
 		case facts.AWSImageReferenceFactKind:
-			addAWSImageReference(byRef, envelope)
+			q, ok, fatal := addAWSImageReference(byRef, envelope)
+			if fatal != nil {
+				return nil, nil, fatal
+			}
+			if ok {
+				quarantined = append(quarantined, q)
+			}
 		case facts.AzureImageReferenceFactKind:
-			addAzureImageReference(byRef, envelope)
+			q, ok, fatal := addAzureImageReference(byRef, envelope)
+			if fatal != nil {
+				return nil, nil, fatal
+			}
+			if ok {
+				quarantined = append(quarantined, q)
+			}
 		case facts.GCPImageReferenceFactKind:
-			addGCPImageReference(byRef, envelope)
+			q, ok, fatal := addGCPImageReference(byRef, envelope)
+			if fatal != nil {
+				return nil, nil, fatal
+			}
+			if ok {
+				quarantined = append(quarantined, q)
+			}
 		case facts.CICDArtifactFactKind:
-			addCICDArtifactImageReference(byRef, envelope, ciRuns)
+			q, ok, fatal := addCICDArtifactImageReference(byRef, envelope, ciRuns)
+			if fatal != nil {
+				return nil, nil, fatal
+			}
+			if ok {
+				quarantined = append(quarantined, q)
+			}
 		}
 	}
 	refs := make([]containerImageRefEvidence, 0, len(byRef))
@@ -78,44 +129,7 @@ func extractContainerImageRefs(envelopes []facts.Envelope) []containerImageRefEv
 	sort.SliceStable(refs, func(i, j int) bool {
 		return refs[i].imageRef < refs[j].imageRef
 	})
-	return refs
-}
-
-func addWorkflowImageEvidenceRef(byRef map[string]containerImageRefEvidence, envelope facts.Envelope) {
-	if payloadStr(envelope.Payload, "evidence_class") != "workflow_image_ref" {
-		return
-	}
-	addContainerImageRef(
-		byRef,
-		payloadStr(envelope.Payload, "image_ref"),
-		"",
-		containerImageAnchorsFromEnvelope(envelope),
-		envelope.FactID,
-	)
-}
-
-type containerImageCIRunAnchor struct {
-	repositoryID string
-	factID       string
-}
-
-func containerImageCIRuns(envelopes []facts.Envelope) map[string]containerImageCIRunAnchor {
-	out := make(map[string]containerImageCIRunAnchor)
-	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.CICDRunFactKind {
-			continue
-		}
-		key := cicdRunKey(envelope.Payload)
-		repositoryID := payloadStr(envelope.Payload, "repository_id")
-		if key == "" || repositoryID == "" {
-			continue
-		}
-		out[key] = containerImageCIRunAnchor{
-			repositoryID: repositoryID,
-			factID:       envelope.FactID,
-		}
-	}
-	return out
+	return refs, quarantined, nil
 }
 
 func addContainerImageRef(
@@ -170,90 +184,6 @@ func mergeContainerImageRef(byRef map[string]containerImageRefEvidence, next con
 	ref.workloadIDs = uniqueSortedStrings(ref.workloadIDs)
 	ref.serviceIDs = uniqueSortedStrings(ref.serviceIDs)
 	byRef[next.imageRef] = ref
-}
-
-func addAWSImageReference(byRef map[string]containerImageRefEvidence, envelope facts.Envelope) {
-	repositoryName := payloadStr(envelope.Payload, "repository_name")
-	digest := firstNonBlank(
-		payloadStr(envelope.Payload, "manifest_digest"),
-		payloadStr(envelope.Payload, "image_digest"),
-	)
-	if repositoryName == "" || digest == "" {
-		return
-	}
-	registryID := payloadStr(envelope.Payload, "registry_id")
-	if registryID == "" {
-		registryID = payloadStr(envelope.Payload, "account_id")
-	}
-	if registryID == "" {
-		return
-	}
-	registry := registryID + ".dkr.ecr." + payloadStr(envelope.Payload, "region") + ".amazonaws.com"
-	imageRef := registry + "/" + repositoryName + "@" + digest
-	addContainerImageRef(byRef, imageRef, imageRef, containerImageAnchorsFromEnvelope(envelope), envelope.FactID)
-}
-
-func addAzureImageReference(byRef map[string]containerImageRefEvidence, envelope facts.Envelope) {
-	imageRef := payloadStr(envelope.Payload, "image_reference")
-	digest := payloadStr(envelope.Payload, "image_digest")
-	anchors := containerImageAnchorsFromEnvelope(envelope)
-	if digest != "" {
-		if digestImageRef := imageRefWithDigest(imageRef, digest); digestImageRef != "" {
-			addContainerImageRef(byRef, digestImageRef, digestImageRef, anchors, envelope.FactID)
-			return
-		}
-		addContainerImageDigestRef(byRef, digest, anchors, envelope.FactID)
-		return
-	}
-	addContainerImageRef(byRef, imageRef, "", anchors, envelope.FactID)
-}
-
-func addGCPImageReference(byRef map[string]containerImageRefEvidence, envelope facts.Envelope) {
-	imageRef := payloadStr(envelope.Payload, "image_reference")
-	digest := payloadStr(envelope.Payload, "image_digest")
-	anchors := containerImageAnchorsFromEnvelope(envelope)
-	if digest != "" {
-		if digestImageRef := imageRefWithDigest(imageRef, digest); digestImageRef != "" {
-			addContainerImageRef(byRef, digestImageRef, digestImageRef, anchors, envelope.FactID)
-			return
-		}
-		addContainerImageDigestRef(byRef, digest, anchors, envelope.FactID)
-		return
-	}
-	addContainerImageRef(byRef, imageRef, "", anchors, envelope.FactID)
-}
-
-func addCICDArtifactImageReference(
-	byRef map[string]containerImageRefEvidence,
-	envelope facts.Envelope,
-	runs map[string]containerImageCIRunAnchor,
-) {
-	if payloadStr(envelope.Payload, "artifact_type") != "container_image" {
-		return
-	}
-	imageRef := payloadStr(envelope.Payload, "image_ref")
-	digest := payloadStr(envelope.Payload, "artifact_digest")
-	if imageRef == "" && digest == "" {
-		return
-	}
-	anchors := containerImageAnchorsFromEnvelope(envelope)
-	evidenceFactIDs := []string{envelope.FactID}
-	if run := runs[cicdRunKey(envelope.Payload)]; run.repositoryID != "" {
-		anchors.sourceRepositoryIDs = append(anchors.sourceRepositoryIDs, run.repositoryID)
-		evidenceFactIDs = append(evidenceFactIDs, run.factID)
-	}
-	if digest != "" {
-		if digestImageRef := imageRefWithDigest(imageRef, digest); digestImageRef != "" {
-			addContainerImageRef(byRef, digestImageRef, digestImageRef, anchors, evidenceFactIDs...)
-			return
-		}
-		addContainerImageDigestRef(byRef, digest, anchors, evidenceFactIDs...)
-		return
-	}
-	if imageRef != "" {
-		addContainerImageRef(byRef, imageRef, imageRef, anchors, evidenceFactIDs...)
-		return
-	}
 }
 
 func imageRefWithDigest(imageRef string, digest string) string {

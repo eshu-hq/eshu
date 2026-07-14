@@ -270,14 +270,17 @@ func buildCICDImageIdentityIndex(envelopes []facts.Envelope) map[string][]cicdIm
 }
 
 // cicdRunKeyFromParts builds the reducer's run join key from typed decoded
-// identity fields (provider, run_id, run_attempt), mirroring cicdRunKey's raw
-// equivalent (ci_cd_run_correlation.go) but reading from a decoded cicdrunv1
-// struct's already-validated Provider/RunID rather than a raw payload map.
-// Every segment is trimmed (trimmedCICDField / defaultCICDRunAttempt, which
-// also trims) so the key is byte-identical to the pre-migration cicdRunKey,
-// which read each segment through the whitespace-trimming payloadString: a
-// padded run_id (" run-1 ") must join under the clean "run-1" key rather than
-// splitting a run's evidence across a padded and a clean bucket.
+// identity fields (provider, run_id, run_attempt), reading from a decoded
+// cicdrunv1 struct's already-validated Provider/RunID rather than a raw
+// payload map. It is now the ONLY run-key builder in the package: the raw
+// payload-map equivalent this function replaced (cicdRunKey) was deleted once
+// container_image_identity_evidence.go's own ci.run/ci.artifact reads
+// migrated to this typed seam (#4685) and no caller remained. Every segment
+// is trimmed (trimmedCICDField / defaultCICDRunAttempt, which also trims) so
+// the key is byte-identical to the pre-migration raw-payload read, which read
+// each segment through the whitespace-trimming payloadString: a padded run_id
+// (" run-1 ") must join under the clean "run-1" key rather than splitting a
+// run's evidence across a padded and a clean bucket.
 func cicdRunKeyFromParts(provider, runID string, runAttempt *string) string {
 	return trimmedCICDField(provider) + ":" + trimmedCICDField(runID) + ":" + defaultCICDRunAttempt(derefString(runAttempt))
 }

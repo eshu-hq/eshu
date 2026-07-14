@@ -31,6 +31,14 @@ var factKindSchemaFile = map[string]string{ // #nosec G101 -- fact-kind identifi
 	"FactKindAWSIAMPermission":            "aws_iam_permission.v1.schema.json",
 	"FactKindAWSResourcePolicyPermission": "aws_resource_policy_permission.v1.schema.json",
 	"FactKindAWSIAMPrincipal":             "aws_iam_principal.v1.schema.json",
+	// Cross-provider image_reference family (#4685): the three cloud image
+	// reference kinds the shared container-image-identity reducer decodes
+	// through the typed seam (factschema_decode_imagereference.go). The OCI and
+	// CI/CD image kinds this same domain reads are already mapped under the
+	// oci_registry and ci_cd_run families below, so they are not repeated here.
+	"FactKindAWSImageReference":   "aws_image_reference.v1.schema.json",
+	"FactKindAzureImageReference": "azure_image_reference.v1.schema.json",
+	"FactKindGCPImageReference":   "gcp_image_reference.v1.schema.json",
 	// Incident family: the kinds a reducer OR query-layer decode seam wrapper
 	// actually decodes are mapped. incident.record, incident_routing.applied_
 	// pagerduty_resource, incident_routing.observed_pagerduty_service, and

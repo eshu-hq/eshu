@@ -42,8 +42,8 @@ func TestLoadAgainstRealReducer(t *testing.T) {
 		t.Fatalf("Load() error = %v", err)
 	}
 
-	if len(manifest.Kinds) != 108 {
-		t.Fatalf("len(manifest.Kinds) = %d, want 108 (10 aws/iam — the original 8 plus rds_instance_posture and s3_external_principal_grant wired to the reducer's typed decode seam, #4632 — + 6 wired incident (4 reducer-decoded + incident.lifecycle_event and change.record decoded only by the query-layer incident-context read model, #4794 W2a) + 2 wired gcp + 2 wired azure + 3 wired kubernetes_live + 8 wired vulnerability + 5 wired sbom_attestation + 6 wired ci_cd_run + 8 wired secrets_iam vault/k8s reducer kinds + 1 wired security_alert reducer kind + 3 reducer_derived package correlation kinds + 17 wired observability reducer kinds (source_instance is typed but has no reducer decode wrapper, so it is intentionally excluded) + 2 wired code kinds (file, repository outer envelopes) + 6 wired codedataflow kinds (Wave 4f S2) + 4 wired service_catalog kinds (entity, ownership, repository_link via the reducer; operational_link decoded only by the query-layer incident-context read model, #4794 W2a) + 6 projector oci_registry kinds + 5 projector terraform_state kinds + 3 projector package_registry kinds + 9 wired work_item query kinds (issue_type_metadata added #4731) + 2 wired documentation kinds via the reducer, projector, and query factschema_decode*.go globs); got %+v", len(manifest.Kinds), manifest.Kinds)
+	if len(manifest.Kinds) != 111 {
+		t.Fatalf("len(manifest.Kinds) = %d, want 111 (10 aws/iam — the original 8 plus rds_instance_posture and s3_external_principal_grant wired to the reducer's typed decode seam, #4632 — + 3 cross-provider image_reference kinds (aws/azure/gcp, #4685) + 6 wired incident (4 reducer-decoded + incident.lifecycle_event and change.record decoded only by the query-layer incident-context read model, #4794 W2a) + 2 wired gcp + 2 wired azure + 3 wired kubernetes_live + 8 wired vulnerability + 5 wired sbom_attestation + 6 wired ci_cd_run + 8 wired secrets_iam vault/k8s reducer kinds + 1 wired security_alert reducer kind + 3 reducer_derived package correlation kinds + 17 wired observability reducer kinds (source_instance is typed but has no reducer decode wrapper, so it is intentionally excluded) + 2 wired code kinds (file, repository outer envelopes) + 6 wired codedataflow kinds (Wave 4f S2) + 4 wired service_catalog kinds (entity, ownership, repository_link via the reducer; operational_link decoded only by the query-layer incident-context read model, #4794 W2a) + 6 projector oci_registry kinds + 5 projector terraform_state kinds + 3 projector package_registry kinds + 9 wired work_item query kinds (issue_type_metadata added #4731) + 2 wired documentation kinds via the reducer, projector, and query factschema_decode*.go globs); got %+v", len(manifest.Kinds), manifest.Kinds)
 	}
 
 	var awsResource *KindManifest
@@ -176,8 +176,8 @@ func TestGateAgainstRealReducerAndSchemas(t *testing.T) {
 	if len(violations) != 0 {
 		t.Fatalf("Gate() found %d violation(s) against the real repository state, want 0:\n%s", len(violations), violationsString(violations))
 	}
-	if len(manifest.Kinds) != 108 {
-		t.Fatalf("len(manifest.Kinds) = %d, want 108", len(manifest.Kinds))
+	if len(manifest.Kinds) != 111 {
+		t.Fatalf("len(manifest.Kinds) = %d, want 111", len(manifest.Kinds))
 	}
 }
 
@@ -301,15 +301,15 @@ func mustMarshal(t *testing.T, m Manifest) string {
 
 // TestLoadCoversWiredAzureKinds proves the payload-usage manifest actually
 // scans the azure/v1 struct dir and the wired azure decode seams — not that
-// "azure isn't scanned". It asserts the two wired azure kinds
-// (azure_cloud_resource, azure_cloud_relationship) appear in the manifest with
-// their real reducer handler files as the used-field source, so a regression
-// that drops azure from the gate (e.g. a removed AzureStructDir default or a
-// dropped factKindSchemaFile entry) fails here rather than silently narrowing
-// coverage. The four DEFERRED azure kinds (tag_observation,
-// identity_observation, resource_change, image_reference) must NOT appear:
-// they have no typed decode seam this wave, so gating them would be a hollow
-// contract.
+// "azure isn't scanned". It asserts the wired azure kinds (azure_cloud_resource,
+// azure_cloud_relationship, and azure_image_reference now that #4685 migrated
+// the cross-provider image_reference family) appear in the manifest with their
+// real reducer handler files as the used-field source, so a regression that
+// drops azure from the gate (e.g. a removed AzureStructDir default or a dropped
+// factKindSchemaFile entry) fails here rather than silently narrowing coverage.
+// The three still-DEFERRED azure kinds (tag_observation, identity_observation,
+// resource_change) must NOT appear: they have no typed decode seam yet, so
+// gating them would be a hollow contract.
 func TestLoadCoversWiredAzureKinds(t *testing.T) {
 	t.Parallel()
 
@@ -330,6 +330,7 @@ func TestLoadCoversWiredAzureKinds(t *testing.T) {
 	}{
 		"FactKindAzureCloudResource":     {"decodeAzureCloudResource", "azurev1.CloudResource", "azure_resource_materialization.go"},
 		"FactKindAzureCloudRelationship": {"decodeAzureCloudRelationship", "azurev1.CloudRelationship", "azure_relationship_join.go"},
+		"FactKindAzureImageReference":    {"decodeAzureImageReference", "azurev1.ImageReference", "container_image_identity_typed_evidence.go"},
 	}
 	for kind, want := range wired {
 		got, ok := byKind[kind]
@@ -359,7 +360,6 @@ func TestLoadCoversWiredAzureKinds(t *testing.T) {
 		"FactKindAzureTagObservation",
 		"FactKindAzureIdentityObservation",
 		"FactKindAzureResourceChange",
-		"FactKindAzureImageReference",
 	}
 	for _, kind := range deferred {
 		if _, present := byKind[kind]; present {
