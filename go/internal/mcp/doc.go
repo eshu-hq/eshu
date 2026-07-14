@@ -87,4 +87,10 @@
 // Any change that alters request or response shape must update the MCP guide,
 // the HTTP API reference where the route is shared, and the handler tests in
 // the same change.
+// list_reducer_input_invalid_facts (issue #4630) resolves 1:1 to
+// POST /api/v0/admin/input-invalid-facts/query, mirroring
+// list_dead_letter_work_items: scope_id, generation_id, limit, and
+// timeout_ms are required, optional domain/fact_kind filters pass through
+// unchanged, and the response is the durable reducer_input_invalid_facts
+// read model rather than a raw fact payload.
 package mcp

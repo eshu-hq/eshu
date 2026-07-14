@@ -122,6 +122,7 @@ func askRouteAnnotations() map[string]Annotation {
 		"GET /api/v0/workloads/{workload_id}/story":                          {Backend: BackendBoth, Cost: CostHigh},
 		"GET /health":                                       {Backend: BackendEmbedded, Cost: CostLow},
 		"POST /api/v0/admin/dead-letters/query":             {Backend: BackendPostgres, Cost: CostLow},
+		"POST /api/v0/admin/input-invalid-facts/query":      {Backend: BackendPostgres, Cost: CostLow},
 		"POST /api/v0/admin/decisions/query":                {Backend: BackendPostgres, Cost: CostLow},
 		"POST /api/v0/admin/replay-events/query":            {Backend: BackendPostgres, Cost: CostLow},
 		"POST /api/v0/admin/work-items/query":               {Backend: BackendPostgres, Cost: CostLow},

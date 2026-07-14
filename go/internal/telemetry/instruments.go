@@ -539,6 +539,46 @@ type Instruments struct {
 	// retried after a post-decode failure re-quarantines the same facts and may
 	// over-count, which is acceptable for an alerting rate.
 	ReducerInputInvalidFacts metric.Int64Counter
+	// ReducerInputInvalidFactWriteBatchSize records the row count of each
+	// batched write to the durable reducer_input_invalid_facts read surface
+	// (issue #4630), one observation per intent that quarantined at least one
+	// fact (persistQuarantinedFacts, factschema_decode.go). No labels: the
+	// batch is always one reducer intent's quarantined facts across every
+	// domain, so a domain breakdown would defeat the point of batching one
+	// round trip per intent. Compare against
+	// ReducerInputInvalidFacts (the per-fact counter) to see the write
+	// amplification ratio; a healthy deployment keeps this close to 1
+	// (nearly every intent that emits ReducerInputInvalidFacts writes exactly
+	// once).
+	ReducerInputInvalidFactWriteBatchSize metric.Float64Histogram
+	// ReducerInputInvalidFactsCommitted counts rows successfully committed to
+	// reducer_input_invalid_facts (issue #4630). No labels. This is the
+	// write-success counterpart to ReducerInputInvalidFacts (which counts
+	// every quarantine regardless of durable-write outcome); a sustained gap
+	// between the two signals a durable-write outage — the fact is still
+	// safely quarantined (the batch's valid facts still project) but the
+	// operator-facing durable row is missing.
+	ReducerInputInvalidFactsCommitted metric.Int64Counter
+	// ReducerInputInvalidFactWriteErrors counts failed batched writes to
+	// reducer_input_invalid_facts (issue #4630). Labels: reason (a bounded
+	// enum, currently only "write_error"). This write is best-effort and
+	// never fails the owning reducer intent (persistQuarantinedFacts,
+	// factschema_decode.go swallows the error after logging and counting it
+	// here) — a non-zero rate is an operator signal that the durable
+	// quarantine read surface is degraded, not that facts are being lost from
+	// the graph (they remain correctly quarantined either way).
+	ReducerInputInvalidFactWriteErrors metric.Int64Counter
+	// QueryInputInvalidFactsDuration records the wall-clock duration of the
+	// bounded reducer_input_invalid_facts read (issue #4630,
+	// POST /api/v0/admin/input-invalid-facts/query), regardless of outcome.
+	// No labels: the route is always scoped to one scope/generation, so a
+	// per-domain breakdown would not add diagnostic value over the existing
+	// structured request log.
+	QueryInputInvalidFactsDuration metric.Float64Histogram
+	// QueryInputInvalidFactsErrors counts failed reducer_input_invalid_facts
+	// reads (issue #4630). Labels: reason (a bounded enum: "timeout" or
+	// "store_error").
+	QueryInputInvalidFactsErrors metric.Int64Counter
 	// ProjectorInputInvalidFacts counts projector canonical-extractor facts
 	// quarantined during typed payload decode because a required identity field
 	// was missing or null (input_invalid). Labels: stage (the projector
@@ -2677,6 +2717,51 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register ReducerInputInvalidFacts counter: %w", err)
+	}
+
+	reducerInputInvalidFactWriteBatchBuckets := []float64{0, 1, 2, 5, 10, 25, 50, 100, 250, 500}
+	inst.ReducerInputInvalidFactWriteBatchSize, err = meter.Float64Histogram(
+		"eshu_dp_reducer_input_invalid_fact_write_batch_size",
+		metric.WithDescription("Row count of each batched durable write to reducer_input_invalid_facts, one observation per reducer intent that quarantined at least one fact"),
+		metric.WithExplicitBucketBoundaries(reducerInputInvalidFactWriteBatchBuckets...),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register ReducerInputInvalidFactWriteBatchSize histogram: %w", err)
+	}
+
+	inst.ReducerInputInvalidFactsCommitted, err = meter.Int64Counter(
+		"eshu_dp_reducer_input_invalid_facts_committed_total",
+		metric.WithDescription("Total rows successfully committed to the durable reducer_input_invalid_facts read surface"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register ReducerInputInvalidFactsCommitted counter: %w", err)
+	}
+
+	inst.ReducerInputInvalidFactWriteErrors, err = meter.Int64Counter(
+		"eshu_dp_reducer_input_invalid_fact_write_errors_total",
+		metric.WithDescription("Total failed batched writes to reducer_input_invalid_facts, by reason; the write is best-effort and never fails the owning reducer intent"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register ReducerInputInvalidFactWriteErrors counter: %w", err)
+	}
+
+	queryDurationBuckets := []float64{0, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10}
+	inst.QueryInputInvalidFactsDuration, err = meter.Float64Histogram(
+		"eshu_dp_query_input_invalid_facts_duration_seconds",
+		metric.WithDescription("Duration of the bounded reducer_input_invalid_facts read (POST /api/v0/admin/input-invalid-facts/query), regardless of outcome"),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(queryDurationBuckets...),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register QueryInputInvalidFactsDuration histogram: %w", err)
+	}
+
+	inst.QueryInputInvalidFactsErrors, err = meter.Int64Counter(
+		"eshu_dp_query_input_invalid_facts_errors_total",
+		metric.WithDescription("Total failed reducer_input_invalid_facts reads, by reason (timeout/store_error)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register QueryInputInvalidFactsErrors counter: %w", err)
 	}
 
 	inst.ProjectorInputInvalidFacts, err = meter.Int64Counter(

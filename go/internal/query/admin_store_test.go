@@ -130,6 +130,82 @@ func TestPostgresAdminStoreListDeadLetterWorkItems_BuildsBoundedFilteredQuery(t 
 	}
 }
 
+// TestBuildListReducerInputInvalidFactsQuery_AuthorizesViaIngestionScopes
+// proves the codex P2 fix on PR #5252 (issue #4630): the store query joins
+// ingestion_scopes and authorizes the requested scope_id via either a
+// repository grant (scope.source_key = ANY(...)) or a direct scope grant
+// (quarantine.scope_id = ANY(...)), mirroring
+// TestPostgresAdminStoreListDeadLetterWorkItems_BuildsBoundedFilteredQuery's
+// proof for the sibling dead-letter path. Before the fix, this authorization
+// lived only in the handler as an in-memory comparison against the combined
+// allowed-IDs map, which cannot express "the requested scope_id belongs to a
+// granted repository."
+func TestBuildListReducerInputInvalidFactsQuery_AuthorizesViaIngestionScopes(t *testing.T) {
+	t.Parallel()
+
+	db := &recordingAdminExecQueryer{
+		rows: &recordingAdminRows{},
+	}
+	store := &postgresAdminStore{db: db}
+
+	_, err := store.ListReducerInputInvalidFacts(context.Background(), InputInvalidFactListFilter{
+		ScopeID:              "scope-a",
+		GenerationID:         "gen-a",
+		Domain:               "aws_resource_materialization",
+		FactKind:             "aws_resource",
+		AllowedRepositoryIDs: []string{"repo-a"},
+		AllowedScopeIDs:      []string{"scope-a"},
+		Limit:                11,
+	})
+	if err != nil {
+		t.Fatalf("ListReducerInputInvalidFacts() error = %v, want nil", err)
+	}
+
+	requiredFragments := []string{
+		"FROM reducer_input_invalid_facts AS quarantine",
+		"JOIN ingestion_scopes AS scope ON scope.scope_id = quarantine.scope_id",
+		"quarantine.scope_id = $1",
+		"quarantine.generation_id = $2",
+		"quarantine.domain = $3",
+		"quarantine.fact_kind = $4",
+		"((scope.scope_kind = 'repository' AND scope.source_key = ANY($5)) OR quarantine.scope_id = ANY($6))",
+		"ORDER BY quarantine.decided_at DESC, quarantine.fact_id ASC, quarantine.missing_field ASC",
+		"LIMIT $7",
+	}
+	for _, fragment := range requiredFragments {
+		if !strings.Contains(db.query, fragment) {
+			t.Fatalf("query missing %q:\n%s", fragment, db.query)
+		}
+	}
+	if got, want := maxPlaceholderIndex(db.query), len(db.queryArgs); got != want {
+		t.Fatalf("max placeholder index = %d, want %d; query = %s", got, want, db.query)
+	}
+	if got, want := db.queryArgs[6], 11; got != want {
+		t.Fatalf("limit arg = %#v, want %#v", got, want)
+	}
+}
+
+// TestBuildListReducerInputInvalidFactsQuery_NoGrantsOmitsAuthorizationClause
+// proves an unscoped/admin caller (no AllowedRepositoryIDs/AllowedScopeIDs)
+// gets no authorization predicate at all — full access, matching
+// repositoryAccessFilter.grantedRepositoryIDs/grantedScopeIDs returning nil
+// for an unscoped filter.
+func TestBuildListReducerInputInvalidFactsQuery_NoGrantsOmitsAuthorizationClause(t *testing.T) {
+	t.Parallel()
+
+	query, args := buildListReducerInputInvalidFactsQuery(InputInvalidFactListFilter{
+		ScopeID:      "scope-a",
+		GenerationID: "gen-a",
+		Limit:        10,
+	})
+	if strings.Contains(query, "scope.source_key") {
+		t.Fatalf("query unexpectedly contains an authorization clause with no grants:\n%s", query)
+	}
+	if got, want := maxPlaceholderIndex(query), len(args); got != want {
+		t.Fatalf("max placeholder index = %d, want %d; query = %s", got, want, query)
+	}
+}
+
 type recordingAdminExecQueryer struct {
 	query     string
 	queryArgs []any

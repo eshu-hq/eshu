@@ -71,6 +71,11 @@ type stubAdminStore struct {
 	decisionsErr     error
 	evidence         []AdminEvidenceRow
 	evidenceErr      error
+
+	inputInvalidFactRows   []AdminReducerInputInvalidFact
+	inputInvalidFactFilter InputInvalidFactListFilter
+	inputInvalidFactCalls  int
+	inputInvalidFactErr    error
 }
 
 func (s *stubAdminStore) ListWorkItems(_ context.Context, _ WorkItemFilter) ([]AdminWorkItem, error) {
@@ -125,6 +130,15 @@ func (s *stubAdminStore) ListDecisions(_ context.Context, _ DecisionQueryFilter)
 
 func (s *stubAdminStore) ListEvidence(_ context.Context, _ string) ([]AdminEvidenceRow, error) {
 	return s.evidence, s.evidenceErr
+}
+
+func (s *stubAdminStore) ListReducerInputInvalidFacts(
+	_ context.Context,
+	f InputInvalidFactListFilter,
+) ([]AdminReducerInputInvalidFact, error) {
+	s.inputInvalidFactCalls++
+	s.inputInvalidFactFilter = f
+	return s.inputInvalidFactRows, s.inputInvalidFactErr
 }
 
 // --- helpers ---

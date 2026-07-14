@@ -129,6 +129,16 @@ type Service struct {
 	// curated search documents. Nil disables vector build work.
 	SearchVectorBuildRunner *SearchVectorBuildRunner
 
+	// QuarantineWriter persists durable per-fact input_invalid quarantine rows
+	// (issue #4630) to the reducer_input_invalid_facts read surface.
+	// executeWithTelemetry stashes it on the execution context via
+	// WithQuarantineWriter once per claimed intent so every domain handler's
+	// recordQuarantinedFacts call (quarantine_writer.go, factschema_decode.go)
+	// can reach it without a per-handler field. Nil disables durable
+	// persistence; the existing eshu_dp_reducer_input_invalid_facts_total
+	// counter and structured error log are unaffected.
+	QuarantineWriter QuarantinedFactWriter
+
 	// Telemetry fields (optional)
 	Tracer         trace.Tracer
 	Instruments    *telemetry.Instruments
@@ -356,6 +366,7 @@ func (s Service) executeWithTelemetry(ctx context.Context, intent Intent, worker
 		}
 	}
 
+	execCtx = WithQuarantineWriter(execCtx, s.QuarantineWriter)
 	result, err := s.Executor.Execute(execCtx, intent)
 	duration := time.Since(start).Seconds()
 	status := "succeeded"

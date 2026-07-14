@@ -95,6 +95,7 @@ func TestNewRouterWiresEveryFieldOrDocumentsWhyNot(t *testing.T) {
 // ever assigns (POST /api/v0/ask is mounted directly on the mux instead).
 var routerFieldsNotWiredByNewRouter = map[string]string{
 	"AdminDeadLetters":             "MCP-only: the API's Admin handler already covers dead-letter queries; cmd/mcp-server has no Admin handler so it gets a dedicated read-only AdminDeadLetters handler instead",
+	"AdminInputInvalidFacts":       "MCP-only: the API's Admin handler already covers input-invalid-facts queries (AdminHandler.Mount, issue #4630); cmd/mcp-server has no Admin handler so it gets a dedicated read-only AdminInputInvalidFacts handler instead",
 	"Setup":                        "wired later by wireAPI once providerSecretKeyring/bootstrapMode exist",
 	"OIDCLogin":                    "wired later by wireAPI once a live OIDC provider resolver exists",
 	"SAML":                         "wired later by wireAPI once a live SAML provider resolver exists",

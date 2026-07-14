@@ -18,9 +18,11 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/relationships/tfstatebackend"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
+	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // configureReducerQueue builds the reducer work queue and applies the retry,
@@ -314,4 +316,51 @@ func seedSearchVectorScopeState(
 		)
 	}
 	return nil
+}
+
+// newRepoDependencyProjectionRunner builds the source-repo-owned repo
+// dependency graph-projection runner, gating projection authority on the
+// relationship generation being active (published) so the graph never runs
+// ahead of the Postgres relationship read models. Extracted from
+// buildReducerService to keep main.go within the repo file-size budget.
+func newRepoDependencyProjectionRunner(
+	intentStore *postgres.SharedIntentStore,
+	database postgres.ExecQueryer,
+	edgeWriter *sourcecypher.EdgeWriter,
+	workQueue postgres.ReducerQueue,
+	relationshipGenerationActive reducer.RelationshipGenerationActiveLookup,
+	acceptedGenerationPrefetch reducer.AcceptedGenerationPrefetch,
+	repoDependencyCfg reducer.RepoDependencyProjectionRunnerConfig,
+	tracer trace.Tracer,
+	instruments *telemetry.Instruments,
+	logger *slog.Logger,
+) *reducer.RepoDependencyProjectionRunner {
+	return &reducer.RepoDependencyProjectionRunner{
+		IntentReader:                    intentStore,
+		LeaseManager:                    intentStore,
+		AcceptanceUnitGate:              postgres.NewRepoDependencyAcceptanceUnitGate(reducerBeginner(database)),
+		EdgeWriter:                      edgeWriter,
+		WorkloadMaterializationReplayer: workQueue,
+		// Gate repo-dependency graph-projection authority on the relationship
+		// generation being active (published). Acceptance rows are committed
+		// atomically with the projection intents, but the runner derives
+		// authority from those acceptance rows alone; without this gate the
+		// graph could project edges for a generation that activation has not
+		// yet published, running ahead of the Postgres relationship read
+		// models (which filter on relationship_generations.status = 'active').
+		AcceptedGen: reducer.GateAcceptedGenerationOnActive(
+			postgres.NewAcceptedGenerationLookup(database),
+			relationshipGenerationActive,
+			instruments,
+		),
+		AcceptedGenPrefetch: reducer.GateAcceptedGenerationPrefetchOnActive(
+			acceptedGenerationPrefetch,
+			relationshipGenerationActive,
+			instruments,
+		),
+		Config:      repoDependencyCfg,
+		Tracer:      tracer,
+		Instruments: instruments,
+		Logger:      logger,
+	}
 }

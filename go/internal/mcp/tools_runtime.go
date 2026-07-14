@@ -119,6 +119,40 @@ func runtimeTools() []ToolDefinition {
 			},
 		},
 		{
+			Name:        "list_reducer_input_invalid_facts",
+			Description: "Return a bounded, deterministic page of durable reducer_input_invalid_facts rows for one ingestion scope generation (issue #4630): facts the reducer quarantined during typed-payload decode because a required field was missing or null. Requires scope_id, generation_id, limit, and timeout_ms; scoped tokens only see granted scopes.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"scope_id": map[string]any{
+						"type":        "string",
+						"description": "Required ingestion scope id.",
+					},
+					"generation_id": map[string]any{
+						"type":        "string",
+						"description": "Required scope generation id.",
+					},
+					"domain": map[string]any{
+						"type":        "string",
+						"description": "Optional reducer domain filter.",
+					},
+					"fact_kind": map[string]any{
+						"type":        "string",
+						"description": "Optional fact_kind filter.",
+					},
+					"limit": map[string]any{
+						"type":        "integer",
+						"description": "Required maximum rows to return (1-500).",
+					},
+					"timeout_ms": map[string]any{
+						"type":        "integer",
+						"description": "Required query timeout in milliseconds (1-30000).",
+					},
+				},
+				"required": []string{"scope_id", "generation_id", "limit", "timeout_ms"},
+			},
+		},
+		{
 			Name:        "get_freshness_causality",
 			Description: "Return the freshness causality read model: why answers are stale by closed cause (pending generation, reducer backlog, dead-lettered domain, missing collector completion, plus per-answer content-coverage, unsupported-profile, and retention-expired classes), the generation lifecycle including retired generations, and pending projection work. Scoped tokens receive the same aggregate counts with raw scope/generation identifiers withheld.",
 			InputSchema: map[string]any{

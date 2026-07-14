@@ -122,6 +122,39 @@ const openAPIPathsAdmin = `
         }
       }
     },
+    "/api/v0/admin/input-invalid-facts/query": {
+      "post": {
+        "tags": ["admin"],
+        "summary": "Query durable input_invalid quarantine facts",
+        "description": "Returns a bounded deterministic page of durable reducer_input_invalid_facts rows (issue #4630): facts the reducer quarantined during typed-payload decode because a required field was missing or null. Requires scope_id, generation_id, limit, and timeout_ms, supports optional domain and fact_kind filters, and returns truncated=true when more rows matched than the requested limit. Scoped tokens are restricted to their granted component scopes.",
+        "x-scoped-token-support": true,
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["scope_id", "generation_id", "limit", "timeout_ms"],
+                "properties": {
+                  "scope_id": {"type": "string"},
+                  "generation_id": {"type": "string"},
+                  "domain": {"type": "string"},
+                  "fact_kind": {"type": "string"},
+                  "limit": {"type": "integer", "minimum": 1, "maximum": 500},
+                  "timeout_ms": {"type": "integer", "minimum": 1, "maximum": 30000}
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {"description": "Bounded input_invalid quarantine page with schema_version, limit, count, truncated, and items"},
+          "400": {"$ref": "#/components/responses/BadRequest"},
+          "504": {"description": "Input-invalid-facts query timed out"},
+          "500": {"$ref": "#/components/responses/InternalError"}
+        }
+      }
+    },
     "/api/v0/admin/dead-letter": {
       "post": {
         "tags": ["admin"],

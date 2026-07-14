@@ -168,6 +168,7 @@ var scopedTokenAdvertisedRoutes = map[string]struct{}{
 	"PATCH /api/v0/auth/admin/sign-in-policy":                                       {},
 	"PATCH /api/v0/auth/browser-session/context":                                    {},
 	"POST /api/v0/admin/dead-letters/query":                                         {},
+	"POST /api/v0/admin/input-invalid-facts/query":                                  {},
 	"POST /api/v0/ask":                                                              {},
 	"POST /api/v0/auth/admin/idp-group-mappings":                                    {},
 	"POST /api/v0/auth/admin/provider-configs":                                      {},

@@ -262,6 +262,7 @@ coverage:
   - {surface: capability:incident.context.read, scenario: capability_claim, scenario_type: baseline, ref: incident.context.read, proof_gate: capability-inventory}
   - {surface: capability:observability.coverage.correlations.list, scenario: capability_claim, scenario_type: baseline, ref: observability.coverage.correlations.list, proof_gate: capability-inventory}
   - {surface: capability:operator.dead_letters.list, scenario: capability_claim, scenario_type: baseline, ref: operator.dead_letters.list, proof_gate: capability-inventory}
+  - {surface: capability:operator.reducer_input_invalid_facts.list, scenario: capability_claim, scenario_type: baseline, ref: operator.reducer_input_invalid_facts.list, proof_gate: capability-inventory}
   - {surface: capability:package_registry.packages.aggregate, scenario: capability_claim, scenario_type: baseline, ref: package_registry.packages.aggregate, proof_gate: capability-inventory}
   - {surface: capability:package_registry.packages.list, scenario: capability_claim, scenario_type: baseline, ref: package_registry.packages.list, proof_gate: capability-inventory}
   - {surface: capability:package_registry.versions.list, scenario: capability_claim, scenario_type: baseline, ref: package_registry.versions.list, proof_gate: capability-inventory}

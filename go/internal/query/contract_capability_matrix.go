@@ -40,6 +40,12 @@ var capabilityMatrix = map[string]capabilitySupport{
 		LocalFullStackMax:     &truthExact,
 		ProductionMax:         &truthExact,
 	},
+	"operator.reducer_input_invalid_facts.list": {
+		LocalLightweightMax:   &truthExact,
+		LocalAuthoritativeMax: &truthExact,
+		LocalFullStackMax:     &truthExact,
+		ProductionMax:         &truthExact,
+	},
 	"code_search.fuzzy_symbol": {
 		LocalLightweightMax:   &truthDerived,
 		LocalAuthoritativeMax: &truthDerived,

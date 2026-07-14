@@ -4,17 +4,11 @@
 package reducer
 
 import (
-	"context"
 	"errors"
 	"fmt"
-	"log/slog"
-
-	"go.opentelemetry.io/otel/metric"
 
 	"github.com/eshu-hq/eshu/go/internal/factenvelope"
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/telemetry"
-	log "github.com/eshu-hq/eshu/go/pkg/log"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
 	gcpv1 "github.com/eshu-hq/eshu/sdk/go/factschema/gcp/v1"
@@ -204,45 +198,6 @@ func attributeShapeAsFactDecodeError(factKind string, err error) error {
 			Err:            err,
 		},
 	}
-}
-
-// recordQuarantinedFacts emits the visible, operator-diagnosable dead-letter for
-// each fact a batch extractor quarantined during decode: it increments the
-// eshu_dp_reducer_input_invalid_facts_total counter (labeled by domain and
-// fact_kind) and logs one structured error per fact naming the fact id and the
-// missing required field, then returns the count for the handler to record in
-// Result.SubSignals["input_invalid_facts"]. This is the difference from the old
-// silent skip — a quarantined fact is a first-class, dashboard-visible,
-// log-searchable event, not an anonymous counter bump.
-//
-// It is safe to call with a nil instruments pointer (the counter is skipped, the
-// logs still emit) and with an empty slice (a no-op returning 0).
-func recordQuarantinedFacts(
-	ctx context.Context,
-	instruments *telemetry.Instruments,
-	domain Domain,
-	scopeID, generationID string,
-	quarantined []quarantinedFact,
-) int {
-	for _, q := range quarantined {
-		if instruments != nil && instruments.ReducerInputInvalidFacts != nil {
-			instruments.ReducerInputInvalidFacts.Add(ctx, 1, metric.WithAttributes(
-				telemetry.AttrDomain(string(domain)),
-				telemetry.AttrFactKind(q.factKind),
-			))
-		}
-		slog.ErrorContext(
-			ctx, "reducer input_invalid fact quarantined",
-			log.Domain(string(domain)),
-			log.ScopeID(scopeID),
-			log.GenerationID(generationID),
-			slog.String("fact_id", q.factID),
-			slog.String("fact_kind", q.factKind),
-			slog.String("missing_field", q.field),
-			slog.String("failure_class", q.classification),
-		)
-	}
-	return len(quarantined)
 }
 
 // inputInvalidSubSignals returns the Result.SubSignals map carrying the count of

@@ -53,6 +53,8 @@ func statusRoute(toolName string, args map[string]any) (*route, bool, error) {
 			}
 		}
 		return &route{method: "POST", path: "/api/v0/admin/dead-letters/query", body: body}, true, nil
+	case "list_reducer_input_invalid_facts":
+		return reducerInputInvalidFactsRoute(args)
 	case "get_freshness_causality":
 		return &route{method: "GET", path: "/api/v0/status/freshness-causality"}, true, nil
 	case "get_collector_readiness":
@@ -133,4 +135,41 @@ func statusRoute(toolName string, args map[string]any) (*route, bool, error) {
 	default:
 		return nil, false, nil
 	}
+}
+
+// reducerInputInvalidFactsRoute builds the POST /api/v0/admin/input-invalid-facts/query
+// route for list_reducer_input_invalid_facts (issue #4630), mirroring the
+// list_dead_letter_work_items case: scope_id, generation_id, limit, and
+// timeout_ms are required; domain and fact_kind are optional passthrough
+// filters. Extracted from statusRoute to keep that switch under the funlen
+// cap.
+func reducerInputInvalidFactsRoute(args map[string]any) (*route, bool, error) {
+	scopeID := strings.TrimSpace(str(args, "scope_id"))
+	if scopeID == "" {
+		return nil, true, fmt.Errorf("scope_id is required")
+	}
+	generationID := strings.TrimSpace(str(args, "generation_id"))
+	if generationID == "" {
+		return nil, true, fmt.Errorf("generation_id is required")
+	}
+	limit := intOr(args, "limit", 0)
+	if limit <= 0 {
+		return nil, true, fmt.Errorf("limit is required")
+	}
+	timeoutMS := intOr(args, "timeout_ms", 0)
+	if timeoutMS <= 0 {
+		return nil, true, fmt.Errorf("timeout_ms is required")
+	}
+	body := map[string]any{
+		"scope_id":      scopeID,
+		"generation_id": generationID,
+		"limit":         limit,
+		"timeout_ms":    timeoutMS,
+	}
+	for _, key := range []string{"domain", "fact_kind"} {
+		if value := strings.TrimSpace(str(args, key)); value != "" {
+			body[key] = value
+		}
+	}
+	return &route{method: "POST", path: "/api/v0/admin/input-invalid-facts/query", body: body}, true, nil
 }

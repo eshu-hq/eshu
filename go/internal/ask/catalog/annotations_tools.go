@@ -138,6 +138,7 @@ func askToolAnnotations() map[string]Annotation {
 		"list_package_registry_packages":                  {Backend: BackendNornicDB, Cost: CostModerate},
 		"list_package_registry_versions":                  {Backend: BackendNornicDB, Cost: CostModerate},
 		"list_query_playbooks":                            {Backend: BackendEmbedded, Cost: CostLow},
+		"list_reducer_input_invalid_facts":                {Backend: BackendPostgres, Cost: CostLow},
 		"list_relationship_edges":                         {Backend: BackendNornicDB, Cost: CostModerate},
 		"list_repositories_by_language":                   {Backend: BackendPostgres, Cost: CostModerate},
 		"list_repository_files":                           {Backend: BackendPostgres, Cost: CostLow},

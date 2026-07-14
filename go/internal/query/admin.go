@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/recovery"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // RecoveryService is the subset of recovery.Handler used by admin endpoints.
@@ -52,6 +53,7 @@ type AdminEvidenceRow struct {
 type AdminStore interface {
 	ListWorkItems(ctx context.Context, f WorkItemFilter) ([]AdminWorkItem, error)
 	ListDeadLetterWorkItems(ctx context.Context, f DeadLetterListFilter) ([]AdminDeadLetterWorkItem, error)
+	ListReducerInputInvalidFacts(ctx context.Context, f InputInvalidFactListFilter) ([]AdminReducerInputInvalidFact, error)
 	DeadLetterWorkItems(ctx context.Context, f DeadLetterFilter) ([]AdminWorkItem, error)
 	SkipRepositoryWorkItems(ctx context.Context, repoID string, note string) ([]AdminWorkItem, error)
 	ReplayFailedWorkItems(ctx context.Context, f ReplayWorkItemFilter) ([]AdminWorkItem, error)
@@ -95,6 +97,42 @@ type AdminDeadLetterWorkItem struct {
 	CreatedAt     time.Time  `json:"created_at"`
 	UpdatedAt     time.Time  `json:"updated_at"`
 	VisibleAt     *time.Time `json:"visible_at"`
+}
+
+// AdminReducerInputInvalidFact is a bounded operator-facing view of one
+// durable reducer_input_invalid_facts row (issue #4630): a fact the reducer
+// quarantined during typed-payload decode because a required field was
+// missing or null.
+type AdminReducerInputInvalidFact struct {
+	FactID       string    `json:"fact_id"`
+	FactKind     string    `json:"fact_kind"`
+	MissingField string    `json:"missing_field"`
+	FailureClass string    `json:"failure_class"`
+	Domain       string    `json:"domain"`
+	ScopeID      string    `json:"scope_id"`
+	GenerationID string    `json:"generation_id"`
+	DecidedAt    time.Time `json:"decided_at"`
+}
+
+// InputInvalidFactListFilter constrains bounded reducer_input_invalid_facts
+// read queries. ScopeID and GenerationID are required: the table is always
+// read scoped to one ingestion scope generation (mirrors
+// AdmissionDecisionReadFilter and DeadLetterListFilter's scope requirement).
+// AllowedRepositoryIDs and AllowedScopeIDs carry a scoped token's grants so
+// the store query can authorize the requested ScopeID against
+// ingestion_scopes (mirroring DeadLetterListFilter): a repository-scoped
+// token that grants a repository but not the raw ingestion scope_id must
+// still be authorized when the requested ScopeID belongs to that repository
+// (codex review on PR #5252, issue #4630).
+type InputInvalidFactListFilter struct {
+	ScopeID              string
+	GenerationID         string
+	Domain               string
+	FactKind             string
+	AllowedRepositoryIDs []string
+	AllowedScopeIDs      []string
+	Limit                int
+	Timeout              time.Duration
 }
 
 // AdminReplayEvent is an admin-friendly view of a fact_replay_events row.
@@ -200,6 +238,10 @@ type AdminHandler struct {
 	// Clock supplies the current time for idempotency bookkeeping; nil uses
 	// time.Now().UTC().
 	Clock func() time.Time
+	// Instruments records query duration and error telemetry for
+	// listInputInvalidFacts (issue #4630). Nil disables that telemetry; the
+	// route itself is unaffected.
+	Instruments *telemetry.Instruments
 }
 
 // now returns the handler clock, defaulting to the wall clock.
@@ -221,6 +263,7 @@ func (h *AdminHandler) Mount(mux *http.ServeMux) {
 	// Fact-inspection endpoints (from admin_facts.py)
 	mux.HandleFunc("POST /api/v0/admin/work-items/query", h.listWorkItems)
 	mux.HandleFunc("POST /api/v0/admin/dead-letters/query", h.listDeadLetters)
+	mux.HandleFunc("POST /api/v0/admin/input-invalid-facts/query", h.listInputInvalidFacts)
 	mux.HandleFunc("POST /api/v0/admin/decisions/query", h.listDecisions)
 	mux.HandleFunc("POST /api/v0/admin/dead-letter", h.deadLetter)
 	mux.HandleFunc("POST /api/v0/admin/skip", h.skip)

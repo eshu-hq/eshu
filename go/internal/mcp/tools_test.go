@@ -11,7 +11,7 @@ import (
 func TestReadOnlyTools(t *testing.T) {
 	tools := ReadOnlyTools()
 
-	expectedCount := 158
+	expectedCount := 159
 	if len(tools) != expectedCount {
 		t.Errorf("Expected %d tools, got %d", expectedCount, len(tools))
 	}
@@ -319,8 +319,8 @@ func TestContentTools(t *testing.T) {
 
 func TestRuntimeTools(t *testing.T) {
 	tools := runtimeTools()
-	if len(tools) != 14 {
-		t.Errorf("Expected 14 runtime tools, got %d", len(tools))
+	if len(tools) != 15 {
+		t.Errorf("Expected 15 runtime tools, got %d", len(tools))
 	}
 }
 
@@ -381,6 +381,8 @@ func minimalDispatchRouteArgs(toolName string) map[string]any {
 		return map[string]any{"family": "pagerduty"}
 	case "list_dead_letter_work_items":
 		return map[string]any{"limit": 10, "timeout_ms": 5000}
+	case "list_reducer_input_invalid_facts":
+		return map[string]any{"scope_id": "sample-scope", "generation_id": "sample-generation", "limit": 10, "timeout_ms": 5000}
 	case "get_fact_schema_version":
 		return map[string]any{"fact_kind": "terraform_state_resource"}
 	case "get_repo_summary":
