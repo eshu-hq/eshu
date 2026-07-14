@@ -9,6 +9,31 @@ recent shipped work grouped by feature area.
 
 ## Unreleased
 
+### Contract System v1 — reducer accuracy fixes
+
+- **Reject blank `ci.run` `run_id` before indexing an image anchor**
+  ([#5234](https://github.com/eshu-hq/eshu/issues/5234), follow-up to
+  [#4685](https://github.com/eshu-hq/eshu/issues/4685)). The typed
+  container-image-identity decode accepted a present-but-blank `run_id`, and
+  `cicdRunKeyFromParts` still returned a non-empty key like `github_actions::1`
+  from the provider/attempt alone, so a malformed `ci.run` was indexed and let a
+  matching malformed `ci.artifact` inherit its repository anchor. A blank
+  provider/run_id is now guarded explicitly, restoring the pre-typing raw
+  `cicdRunKey`'s refusal of blank join identity.
+  - No-Regression Evidence: the guard is one `strings.TrimSpace` per `ci.run`
+    envelope on the container-image-identity map-build path (not a Cypher or
+    graph-write hot path). Valid facts carry a non-blank `run_id` and take the
+    identical index path as before, so the #4685 golden-corpus result (417 pass,
+    0 required-fail, no B-12 drift, NornicDB backend) is unchanged — the guard
+    only diverts malformed blank-identity facts, which the golden corpus does not
+    contain. Regression test `TestContainerImageCIRunsSkipsBlankRunID` fails
+    without the guard (indexes `github_actions::1`) and passes with it.
+  - No-Observability-Change: the blank run is skipped through the same `continue`
+    path as the pre-existing `key/repositoryID == ""` guard; no metric, span, or
+    structured log is added or changed. Existing
+    `eshu_dp_reducer_input_invalid_facts_total` still covers true decode-time
+    quarantines.
+
 ### Telemetry Coverage Discipline (Epic X)
 
 Epic X closes the **telemetry inventory drift** failure class — the recurring

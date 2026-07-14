@@ -4,6 +4,8 @@
 package reducer
 
 import (
+	"strings"
+
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -68,6 +70,17 @@ func containerImageCIRuns(envelopes []facts.Envelope) (map[string]containerImage
 				return nil, nil, fatal
 			}
 			quarantined = append(quarantined, q)
+			continue
+		}
+		// A required identity field can decode as a present-but-blank string
+		// (decodeAndValidate accepts an explicit empty value), and
+		// cicdRunKeyFromParts still yields a non-empty key like
+		// "github_actions::1" from the provider/attempt alone. Guard blank
+		// provider/run_id explicitly so a malformed run is not indexed and
+		// cannot lend its repository anchor to a matching malformed artifact,
+		// restoring the pre-typing raw cicdRunKey's refusal of blank join
+		// identity (#5234).
+		if strings.TrimSpace(run.Provider) == "" || strings.TrimSpace(run.RunID) == "" {
 			continue
 		}
 		key := cicdRunKeyFromParts(run.Provider, run.RunID, run.RunAttempt)
