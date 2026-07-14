@@ -2,23 +2,23 @@
 
 ## Decision
 
-Proceed with the safety prerequisite for configurable,
-acceptance-unit-partitioned repo-dependency workers. The Odù, grouped-write
-retry prerequisite, real Postgres rescale fence, and same-state retained-data
-built-binary run prove that four workers recover seconds at the required scale;
-the 10/10 Odù matrix proves full graph equivalence locally. The retained run's
-repository-edge differential is valid, but its original artifact query omitted
-the artifact id and returned literal property expressions on the pinned
-backend. The final production-wired replay must therefore re-prove the explicit
-artifact-node and link multisets before this candidate is accepted. The
-production candidate now adds boot-unique process
-owners, the per-repository Postgres critical section, a `45s` whole-cycle
-deadline, and fail-closed lease quarantine. The local component results and
-passing combined fault matrix are recorded in the
-[safety proof](evidence-5122-repo-dependency-safety-proof.md). The remaining
-gate is one production-wired replay against the isolated retained clones. Do
-not claim the complete under-20-minute bootstrap path until a later end-to-end
-run measures the primary process-exit boundary.
+Implement the configurable, acceptance-unit-partitioned repo-dependency
+workers. The reviewed production binary drained the retained 2,414-intent,
+896-repository backlog with four workers in `645.836s` (`10m45.836s`) versus
+the accepted `1919.233596s` (`31m59.234s`) serial residual. The measured saving
+is `1273.397596s` (`21m13.398s`), which clears the `158s` worthwhile-work
+threshold by `1115.397596s`. Every explicit graph-node and relationship
+multiset diff was `0/0`, duplicate full identities remained zero, and the seven
+intentional same-repository local-workflow relationships were preserved
+byte-for-byte without an additional self-edge.
+
+The production candidate uses boot-unique process owners, a per-repository
+Postgres critical section, a `45s` whole-cycle deadline, and fail-closed lease
+quarantine. The local component and fault results are recorded in the
+[safety proof](evidence-5122-repo-dependency-safety-proof.md). This proves the
+repo-dependency lane, not the complete under-20-minute bootstrap path; that
+claim still requires a later run with the primary process-start and exit
+boundaries.
 
 The retained 896-repository run shows that the globally serial
 `repo_dependency` lane is large enough to matter. After subtracting the
@@ -33,11 +33,12 @@ clears the stable-drain screen by only `13.972567s`; fixed four clears it by
 `517.554718s`. The `103.19s` primary-exit overlap still fails to prove the
 primary target under either schedule.
 
-The same-data built-binary result is stronger than the scheduling ceiling:
-four workers drained the 2,414 retained intents in `534.330s` (`8m54.330s`),
-recovering `1384.903596s` (`23m04.904s`) versus the accepted current serial
-residual. That exceeds the `158s` worthwhile-work threshold by
-`1226.903596s` and the `587s` stable-drain gap by `797.903596s`.
+The first same-data built-binary prototype drained the 2,414 retained intents
+in `534.330s` (`8m54.330s`). The final production-wired binary, including the
+Postgres safety gate and a cold graph restart, drained them in `645.836s`
+(`10m45.836s`). The final result recovers `1273.397596s` (`21m13.398s`) versus
+the accepted serial residual, exceeds the `158s` worthwhile-work threshold by
+`1115.397596s`, and exceeds the `587s` stable-drain gap by `686.397596s`.
 
 ## Retained data and boundary
 
@@ -246,72 +247,94 @@ starts from a retained terminal state and therefore does not recreate the
 original bootstrap process-exit overlap. Consequently:
 
 - the lane clearly passes the `158s` stable-drain worthwhile-work threshold;
-- four workers recover `1384.903596s` on the measured stable-drain boundary;
+- production-wired four workers recover `1273.397596s` on the measured
+  stable-drain boundary;
 - the current evidence does **not** establish the complete under-20-minute
   bootstrap path;
 - the production-wired change must run end to end from the same primary start
   and exit boundaries before making that final claim.
 
-## Retained-data built-binary proof
+## Retained-data production-wired proof
 
-The proof used exact isolated copies of the retained Postgres and pinned
-NornicDB state. NornicDB's pinned namespaced storage wrapper does not expose a
-native online backup through its database interface; its backup endpoint falls
-back to a non-atomic JSON export. To preserve exact evidence, writers were
-paused and the retained graph was stopped only for a four-second physical
-volume copy. The complete source/clone file SHA-256 manifest diff was `0/0`,
-and both graphs reported `980,641` nodes and `1,579,040` edges before replay.
-The retained maintenance window was `145s`; the retained stack was then
-restarted and remained healthy.
+The first prototype used exact isolated copies of the retained Postgres and
+pinned NornicDB state. NornicDB's pinned namespaced storage wrapper does not
+expose a native online backup through its database interface; its backup
+endpoint falls back to a non-atomic JSON export. To preserve exact evidence,
+writers were paused and the retained graph was stopped only for a four-second
+physical volume copy. The complete source/clone file SHA-256 manifest diff was
+`0/0`, and both graphs reported `980,641` nodes and `1,579,040` edges before
+replay. That initial clone had a `145s` retained maintenance window.
 
-The proof binary was built from commit
-`ed086e0639b41c4197ddecdc872aa99d2d96020f`; its SHA-256 was
-`c578b60c00025ef909afc887d6e048fe8de0afd4cbb17d3ff9b20a01698f6d07`.
+The final production replay reused those isolated stores and cold-copied only
+the isolated NornicDB volume for rollback. The retained evidence stack was not
+stopped; all four retained container ids and start times were unchanged after
+the proof.
+
+The final proof binary was built from reviewed commit
+`0eb52f97385c7ec3fc027c631752823a0f38c6ef`; its SHA-256 was
+`ee78388e595f122aa89c1c0a2036d2429b5e885ca84f3f523a51dd9fce1b5fb2`.
 The accepted reference host was an AWS EC2 `r7a.4xlarge` with 16 logical CPUs
-and 128 GiB RAM. The run used four fixed FNV32a acceptance-unit shards and the
-isolated cloned stores.
+and 128 GiB RAM. The run used four fixed FNV32a acceptance-unit shards, a `5m`
+lease, a `45s` cycle deadline, a `120s` canonical-write timeout, and the
+isolated cloned stores. A cold physical graph snapshot was taken first; the
+separate retained evidence stack stayed up and its container ids and start
+times were unchanged after the proof.
 
-| Measurement | Old/current | Four workers | Delta |
+| Measurement | Serial residual | Prototype | Production-wired |
 | --- | ---: | ---: | ---: |
-| Full reducer drain | 1919.233596s | **534.330s** | **-1384.903596s** |
-| Human duration | 31m59.234s | **8m54.330s** | **-23m04.904s** |
-| Speedup | 1.000x | **3.592x** | +2.592x |
-| Margin over `158s` threshold | - | - | **1226.903596s** |
-| Margin over `587s` stable-drain gap | - | - | **797.903596s** |
+| Full reducer drain | 1919.233596s | 534.330s | **645.836s** |
+| Human duration | 31m59.234s | 8m54.330s | **10m45.836s** |
+| Speedup | 1.000x | 3.592x | **2.972x** |
+| Saving | - | 1384.903596s | **1273.397596s** |
+| Margin over `158s` threshold | - | 1226.903596s | **1115.397596s** |
+| Margin over `587s` stable-drain gap | - | 797.903596s | **686.397596s** |
 
 | Accuracy / lifecycle check | Before | After | Result |
 | --- | ---: | ---: | --- |
 | Repo-dependency intents | 2,414 | 2,414 complete / 0 pending | exact |
 | Acceptance units / cycles | 896 | 896 | exact |
-| Resolver/cross-repo relationship rows | 982 | 982 | fact/edge diff `0/0` |
-| Evidence artifact identities | 3,155 | 3,155 current explicit-id rows | final pre/post differential pending |
-| Source-to-artifact links | 3,155 | 3,155 current full-property rows | final pre/post differential pending |
-| Artifact-to-target links | 3,155 | 3,155 current full-property rows | final pre/post differential pending |
-| Artifact-to-environment links | 1,676 | 1,676 current full-property rows | final pre/post differential pending |
+| Resolver/cross-repo relationship rows | 982 | 982 | full-property diff `0/0` |
+| Evidence artifact identities | 3,155 | 3,155 | explicit-id/property diff `0/0` |
+| Source-to-artifact links | 3,155 | 3,155 | full-property diff `0/0` |
+| Artifact-to-target links | 3,155 | 3,155 | full-property diff `0/0` |
+| Artifact-to-environment links | 1,676 | 1,676 | full-property diff `0/0` |
 | Duplicate relationship identities | 0 | 0 | preserved |
-| Duplicate artifact/link full identities | - | 0 in corrected current-state readback | final pre/post differential pending |
-| Existing self edges | 7 | 7 | exact diff `0/0`; no new self edge |
+| Duplicate artifact/link full identities | 0 | 0 | preserved |
+| Self-referencing input intents | 7 | 7 | preserved |
+| Intentional local-workflow self-edges | 7 | 7 | exact full-property diff `0/0` |
 | Failed / dead-letter / retrying fact work | 0 / 0 / 0 | 0 / 0 / 0 | drained |
 
 The original artifact export collapsed distinct nodes because it omitted
 `EvidenceArtifact.id`, and pinned NornicDB returned expressions such as
 `properties(a)` literally in that query shape. Its reported `691` duplicate
 display rows are not duplicate graph nodes and are not accepted as an exactness
-invariant. The final replay uses explicit artifact ids, every written scalar
+invariant. The final replay used explicit artifact ids, every written scalar
 property, and each relationship's properties on all four artifact surfaces;
-every canonical multiset must diff `0/0` with zero duplicate full identities.
+all five canonical multisets diffed `0/0` with zero duplicate full identities.
+Pinned NornicDB returned a false zero for the generic `WHERE s.id = t.id`
+self-edge query. Querying each of the seven exact repository ids against the
+cold pre-run snapshot and post-run graph returned seven rows on both sides;
+their explicit relationship type and written-property multiset diff was `0/0`.
+All seven are `DEPLOYS_FROM` relationships with evidence type
+`github_actions_local_reusable_workflow_ref` and kind
+`GITHUB_ACTIONS_LOCAL_REUSABLE_WORKFLOW`: a repository intentionally reuses a
+workflow file inside itself. Existing reducer coverage requires that topology.
+The production replay preserved the permitted self-relationship class without
+introducing another self-edge.
 
-One real NornicDB `Neo.TransientError.Transaction.Outdated` uniqueness conflict
-occurred. The bounded grouped retry fired once with a roughly `35ms` delay and
-converged to the exact graph above. The maximum reducer cycle was `26.844259s`;
-the maximum retract was `26.788246s`. Sampled peaks were 24.60% reducer CPU,
-1,261,816 KiB reducer RSS, 995.99% NornicDB CPU, and 234.34% Postgres CPU.
+The earlier prototype saw one real NornicDB
+`Neo.TransientError.Transaction.Outdated` uniqueness conflict and converged
+after a roughly `35ms` grouped retry. The production-wired replay saw zero
+errors and zero retry/conflict matches. Its maximum reducer cycle was
+`25.743129s`; the maximum retract was `25.609244s`; 896 cycles processed all
+2,414 active intents and wrote 982 relationship rows in 302 groups.
 
-Fixed hashing still exposed tail imbalance: at 298 seconds three shard leases
-were active; at 332 seconds one lease remained with 462 intents pending. This
-does not erase the proven win, but it bounds a separate dynamic-scheduling
-candidate. Dynamic claims must earn their own accuracy, lease, and performance
-proof rather than expand this productionization without measurement.
+Fixed hashing still exposed tail imbalance: the production replay had one
+lease and 444 pending intents at `386s`; the final shard drained at
+`645.836s`. This does not erase the proven win, but it bounds a separate
+dynamic-scheduling candidate. Dynamic claims must earn their own accuracy,
+lease, and performance proof rather than expand this productionization without
+measurement.
 
 The built-binary run used one reducer process and therefore did not exercise
 lease takeover. The candidate now uses a boot-unique owner and holds a Postgres
@@ -427,6 +450,22 @@ ESHU_SHARED_PROJECTION_RESCALE_PROOF_DSN="$POSTGRES_DSN" \
 go test -race ./internal/storage/postgres \
   -run '^TestSharedIntentStorePartitionCountRescaleAgainstPostgres$' \
   -count=10
+
+# Final production-wired retained replay. Build the reviewed commit before the
+# timed boundary; POSTGRES_DSN and NORNICDB_BOLT_DSN point only at isolated
+# proof stores.
+ESHU_POSTGRES_DSN="$POSTGRES_DSN" \
+ESHU_CONTENT_STORE_DSN="$POSTGRES_DSN" \
+ESHU_GRAPH_BACKEND=nornicdb \
+ESHU_NEO4J_URI="$NORNICDB_BOLT_DSN" \
+ESHU_NEO4J_USERNAME="$NORNICDB_USERNAME" \
+ESHU_NEO4J_PASSWORD="$NORNICDB_PASSWORD" \
+ESHU_REDUCER_WORKERS=4 \
+ESHU_REPO_DEPENDENCY_PROJECTION_WORKERS=4 \
+ESHU_REPO_DEPENDENCY_PROJECTION_LEASE_TTL=5m \
+ESHU_REPO_DEPENDENCY_PROJECTION_CYCLE_TIMEOUT=45s \
+ESHU_CANONICAL_WRITE_TIMEOUT=120s \
+"$REVIEWED_REDUCER_BINARY"
 ```
 
 The FNV32a calculation used the standard offset and prime:
@@ -442,10 +481,10 @@ shard = hash % shard_count
 
 ## Recommendation and next gate
 
-The combined local Postgres plus pinned-NornicDB fault matrix in the
-[safety proof](evidence-5122-repo-dependency-safety-proof.md) passed 10/10. Do
-not trade the four-shard performance result for global serialization. Run the
-production-wired four-worker binary against the isolated retained clones once,
-then run the full bootstrap acceptance boundary. The retained full-drain proof
-justifies implementation; only the final end-to-end run can justify an
-under-20-minute claim.
+Implement the four-shard candidate; do not trade the measured result for global
+serialization. The local fault matrix passed 10/10 and the production-wired
+retained replay passed exactness while saving `21m13.398s`. The next performance
+gate is the full bootstrap acceptance boundary with the same primary start and
+exit events. Only that later end-to-end run can justify an under-20-minute
+claim. Treat dynamic shard scheduling as a separate measured candidate for the
+remaining fixed-hash tail.

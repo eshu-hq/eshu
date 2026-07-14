@@ -2,18 +2,20 @@
 
 ## Status
 
-The retained-data performance result supports implementation: four fixed
-acceptance-unit shards reduced the measured repo-dependency drain from
-`1919.233596s` (`31m59.234s`) to `534.330s` (`8m54.330s`) with repository-edge
-and fact diffs of `0/0`. The local Odù matrix proved full graph equivalence;
-the final production-wired replay must repeat the retained artifact topology
-diff with corrected explicit-id/property queries. See
+The production-wired retained-data replay supports implementation: four fixed
+acceptance-unit shards reduced the repo-dependency drain from `1919.233596s`
+(`31m59.234s`) to `645.836s` (`10m45.836s`). Explicit repository-edge,
+artifact-node, and artifact-link property multisets all diffed `0/0`, duplicate
+full identities stayed zero, and seven intentional same-repository local
+reusable-workflow relationships were preserved with an exact full-property
+diff of `0/0`. See
 [the performance proof](evidence-5122-repo-dependency-concurrency-proof.md).
 
 The local component proofs and combined Postgres plus pinned-NornicDB fault
-matrix below support the fail-closed safety design. The remaining gate is the
-production-wired retained-data replay; it must use the reviewed branch and keep
-the retained evidence stack up.
+matrix below support the fail-closed safety design. The production replay used
+the reviewed branch, completed all 2,414 intents with zero active leases or
+error/retry residue, and left the retained evidence stack running with
+unchanged container identities and start times.
 
 ## Safety contract
 
@@ -168,16 +170,14 @@ go test -tags ifarepodependencyproof ./internal/replay/offlinetier \
 
 ## Remaining gate
 
-Run one production-wired four-worker replay against the isolated retained
-clones, keeping the retained evidence stack up. Require graph diff `0/0`, exact
-intent completion, zero failed/dead/retrying residue, and the same start and end
-boundaries as the accepted serial replay. Only then run the end-to-end bootstrap
-proof using the same primary start and exit boundaries.
+Run the end-to-end bootstrap proof using the same primary start and exit
+boundaries. The production-wired lane proof is complete, but it does not by
+itself establish the complete under-20-minute bootstrap claim.
 
 ## Evidence markers
 
 Performance Evidence: retained representative data measured
-`1919.233596s` to `534.330s`, a `1384.903596s` (`23m04.904s`) saving, with 896
+`1919.233596s` to `645.836s`, a `1273.397596s` (`21m13.398s`) saving, with 896
 acceptance units and 2,414 intents. The general deployment default remains one
 worker; the accepted remote-E2E proof profile selects four.
 
