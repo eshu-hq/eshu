@@ -52,6 +52,49 @@ func TestDeferredRelationshipFamilyGuardWrapsPayloadScanningArms(t *testing.T) {
 	}
 }
 
+func TestDeferredRelationshipFamilyGuardNarrowsBeforeReferenceJoin(t *testing.T) {
+	t.Parallel()
+
+	sourcePredicate := "AND fact.fact_kind IN ('content', 'file', 'gcp_cloud_relationship')\n      AND " +
+		deferredRelationshipFamilyCandidatePredicateSQL
+	for _, want := range []string{
+		sourcePredicate,
+		"candidate_reference_keys AS MATERIALIZED",
+		"JOIN relationship_reference_candidate_keys AS ref\n      ON ref.fact_id = fact.fact_id",
+		"FROM candidate_reference_keys AS ref\n        JOIN unnest($2::text[], $7::text[])",
+	} {
+		if !strings.Contains(listDeferredScopedRelationshipFactRecordsQuery, want) {
+			t.Fatalf("deferred scoped relationship query does not narrow before reference join; missing %q", want)
+		}
+	}
+	forbiddenCrossProduct := "FROM relationship_reference_candidate_keys AS ref\n          JOIN unnest($2::text[], $7::text[])"
+	if strings.Contains(listDeferredScopedRelationshipFactRecordsQuery, forbiddenCrossProduct) {
+		t.Fatal("deferred scoped relationship query still joins every partition reference row to every catalog key")
+	}
+}
+
+func TestRelationshipFamilyOldQueryReconstructsShippedShape(t *testing.T) {
+	t.Parallel()
+
+	oldQuery := relationshipFamilyOldQuery(t)
+	for _, want := range []string{
+		"FROM relationship_family_payload_facts AS fact\n        WHERE EXISTS (",
+		"FROM relationship_reference_candidate_keys AS ref\n          JOIN unnest($2::text[], $7::text[])",
+	} {
+		if !strings.Contains(oldQuery, want) {
+			t.Fatalf("old relationship-family proof query missing shipped fragment %q", want)
+		}
+	}
+	for _, forbidden := range []string{
+		"candidate_reference_keys AS MATERIALIZED",
+		"FROM candidate_reference_keys AS ref",
+	} {
+		if strings.Contains(oldQuery, forbidden) {
+			t.Fatalf("old relationship-family proof query retained new fragment %q", forbidden)
+		}
+	}
+}
+
 func TestDeferredRelationshipFamilyGuardKeepsExtractorFamilies(t *testing.T) {
 	t.Parallel()
 
