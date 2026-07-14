@@ -62,6 +62,22 @@ files and TypeScript config files before decoding. Trailing-comma removal uses
 bounded byte lookahead so large config files do not pay repeated substring
 trims.
 
+`Parse` picks between two ordered-key strategies by filename, gated by
+`jsonFilenameNeedsOrderedEntries`: `package.json`, `composer.json`, and
+`tsconfig*.json` need nested key order (dependency/script emission order,
+`compilerOptions.paths` order), so they pay for the full
+`unmarshalOrderedJSONObject` walk. Every other file — including the dedicated
+lockfile parsers, CloudFormation templates, and dbt manifests, none of which
+read `topLevelEntries` — only needs the top-level key names for
+`json_metadata`, so it uses the cheaper `topLevelJSONKeyOrder` scan, which
+skips each value's bytes via a no-op `json.Unmarshaler` instead of copying
+them into a `json.RawMessage`. This keeps large lockfiles (the common case
+this split targets) from paying to capture and discard megabytes of
+`packages`/`dependencies` content just to report five or six top-level key
+names. Adding a new filename to the switch in `Parse` that reads
+`topLevelEntries` requires adding it to `jsonFilenameNeedsOrderedEntries` too,
+or its ordered rows silently degrade to alphabetical fallback order.
+
 `package-lock.json`, `composer.lock`, and `packages.lock.json` rows represent
 exact versions installed by the owning repository. npm `package-lock.json` rows
 also preserve dependency chains, direct/transitive evidence, and
