@@ -4031,7 +4031,7 @@ a silent empty identity) and pass green after the seam routing;
 quarantine decision is deterministic across replays. `go test
 ./internal/reducer ./internal/payloadusage ./cmd/reducer -count=1` and
 `cd sdk/go/factschema && go test . -count=1` stay green. The #4573
-payload-usage manifest grows from 106 to 109 governed struct-backed fact kinds
+payload-usage manifest grows from 108 to 111 governed struct-backed fact kinds
 (the three cloud image_reference kinds now decode through a typed seam and are
 mapped in `go/internal/payloadusage/schema.go`; the OCI and CI/CD image kinds
 this domain also reads were already mapped under their own families).
