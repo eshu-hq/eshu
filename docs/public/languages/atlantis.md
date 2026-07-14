@@ -15,7 +15,9 @@ special-cased inside the HCL parser.
 - Parser: `DefaultEngine (yaml)`
 - Entrypoint: `go/internal/parser/yaml/atlantis.go`
 - Fixture: `tests/fixtures/ecosystems/terraform_comprehensive/atlantis.yaml`
-- Unit test suite: `go/internal/parser/yaml/atlantis_test.go`
+- Unit test suite: `go/internal/parser/yaml/atlantis_test.go` and
+  `go/internal/parser/yaml/atlantis_combined_test.go` (the latter pins the
+  combined projects + workflows output of the single-unmarshal parse path)
 - Integration validation: B-7 golden-corpus gate asserts the `AtlantisProject`
   and `AtlantisWorkflow` nodes (required node labels) plus the `MANAGES` (`rc-5`),
   `ATLANTIS_DEPENDS_ON` (`rc-6`), and `USES_WORKFLOW` (`rc-7`) governance edges
