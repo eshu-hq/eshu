@@ -34,6 +34,7 @@ on:
     paths:
       - "sdk/go/**"
       - ".github/workflows/sdk-go.yml"
+      - "scripts/ci/install-apt-packages.sh"
   workflow_dispatch:
 
 concurrency:
@@ -155,4 +156,14 @@ jobs:
         run: |
           set -euo pipefail
           go generate ./...
-          git diff --exit-code -- .
+          # `git diff --exit-code` only sees TRACKED files, so a forgotten
+          # `git add` of a NEW generated schema leaves it untracked and the
+          # check still passes. Use porcelain status so untracked artifacts
+          # also fail the gate.
+          drift="$(git status --porcelain -- .)"
+          if [ -n "${drift}" ]; then
+            echo "::error::go generate produced uncommitted or untracked changes in sdk/go/factschema:"
+            printf '%s\n' "${drift}"
+            exit 1
+          fi
+          echo "go generate produced no drift"
