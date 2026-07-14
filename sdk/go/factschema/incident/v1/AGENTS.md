@@ -60,12 +60,16 @@ whose wire string does not already carry it. The reducer-side
   `ChangeLink` sub-objects are also fully typed). If a new incident payload shape
   genuinely needs a pass-through, that is a design discussion, not a local edit.
 - Some fields (`resource_class`, `backend_kind`, `locator_hash`,
-  `state_generation_id`, `provider_incident_id`, `service_id`, `provider`,
+  `provider_incident_id`, `service_id`, `service`, `provider`,
   `declared_match_state`, `redaction_state`, `provider_object_id`,
   `name_fingerprint`) are read by raw-SQL-JSONB loaders in
   `go/internal/storage/postgres` that the #4573 payload-usage manifest gate
   cannot see. Keep them declared here; the reducer-side
   `TestIncidentRoutingSQLProjectedFieldsAreSchemaDeclared` fails the build if one
-  is dropped.
+  is dropped. Those two loaders (`incident_repository_correlation_loader.go`
+  and `service_incident_evidence_loader.go`) stay raw SQL permanently — see
+  `docs/internal/design/4683-incident-routing-sql-decision.md` (#4683) — so
+  this is not a migration TODO; it is the compensating governance for a
+  deliberate, permanent design decision.
 - This package defines eight fact kinds. Adding a ninth kind or a `v2` major is
   follow-on epic work, not a casual edit.

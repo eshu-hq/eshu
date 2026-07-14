@@ -18,14 +18,20 @@ package v1
 // provider id as a provenance-only rejected decision rather than dead-lettering
 // it.
 //
-// BackendKind, LocatorHash, ResourceClass, SourceClass, SourceKind, Outcome,
-// and StateGenerationID are additionally the fields the two raw-SQL-JSONB
-// loaders (incident_repository_correlation_loader.go and
-// service_incident_evidence_loader.go) read; those loaders are outside the
-// factschema decode seam and so outside the #4573 payload-usage manifest gate's
-// view (their conversion is tracked in #4683), so declaring them here is what
-// keeps a future dropped field a visible schema-diff break instead of a silent
-// read of a missing column.
+// BackendKind, LocatorHash, ResourceClass, DeclaredMatchState, and
+// RedactionState (alongside the optional ProviderObjectID and NameFingerprint
+// above) are additionally the fields the two raw-SQL-JSONB loaders
+// (incident_repository_correlation_loader.go and
+// service_incident_evidence_loader.go) read from this fact kind. Those loaders
+// read `payload->>'field'` directly in SQL text and stay that way permanently —
+// see docs/internal/design/4683-incident-routing-sql-decision.md (#4683) —
+// because the resource_class and provider_object_id predicates they push
+// down are load-bearing for the fact_records_incident_routing_applied_service_idx
+// partial index and the multi-fact-kind JOIN in serviceIncidentEvidenceQuery,
+// neither of which decode-in-Go could preserve. That keeps them outside the
+// factschema decode seam and so outside the #4573 payload-usage manifest
+// gate's view; declaring the fields here is what keeps a future dropped field
+// a visible schema-diff break instead of a silent read of a missing column.
 // TestIncidentRoutingSQLProjectedFieldsAreSchemaDeclared locks that coverage.
 type AppliedPagerDutyResource struct {
 	// SourceClass is the routing source class ("applied"). Required — the base

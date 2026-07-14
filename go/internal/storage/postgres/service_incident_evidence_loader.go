@@ -23,6 +23,23 @@ import (
 // service evidence to multiple catalog services when a repository has ambiguous
 // catalog ownership. Evidence rows return StableFactKey, never FactID, so the
 // incidents family keeps generation-stable identity.
+//
+// Decision (#4683): this stays raw SQL permanently, it is not a pending
+// decode-in-Go conversion. This is a five-CTE JOIN chain across
+// reducer_service_catalog_correlation, reducer_incident_repository_correlation,
+// incident.record, incident_routing.applied_pagerduty_resource, and
+// incident_routing.observed_pagerduty_service, each joined on a
+// payload->>'...' expression. Decode-in-Go cannot push a JOIN into SQL; the
+// equivalent would mean loading every one of those fact kinds' full payloads
+// into memory per query and reimplementing the join, dedup, and fail-closed
+// repository-uniqueness gate above by hand in Go. See
+// docs/internal/design/4683-incident-routing-sql-decision.md for the full
+// rationale and the companion EXPLAIN ANALYZE evidence for
+// listAppliedPagerDutyServiceRoutingQuery's index dependence. The compensating
+// governance for the #4573 payload-usage manifest gate's resulting blind spot
+// is TestIncidentRoutingSQLProjectedFieldsAreSchemaDeclared
+// (incident_routing_sql_schema_lockstep_test.go), not a future migration onto
+// the typed decode seam.
 const serviceIncidentEvidenceQuery = `
 WITH requested_services AS (
     SELECT unnest($1::text[]) AS service_id

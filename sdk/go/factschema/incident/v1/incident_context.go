@@ -54,6 +54,12 @@ type IncidentRecord struct {
 	// Service is the affected service reference. Optional: the emitter emits nil
 	// when the incident carries no service reference. The reducer reads
 	// Service.ID, Service.Summary, and Service.URL for routing correlation.
+	// service_incident_evidence_loader.go's serviceIncidentEvidenceQuery also
+	// reads this field directly as `payload->'service'->>'id'` (falling back to
+	// ServiceID) outside the decode seam — see
+	// docs/internal/design/4683-incident-routing-sql-decision.md (#4683) — so
+	// TestIncidentRoutingSQLProjectedFieldsAreSchemaDeclared asserts `service`
+	// stays declared here.
 	Service *ServiceReference `json:"service,omitempty"`
 
 	// Priority is the incident priority reference. Optional.
