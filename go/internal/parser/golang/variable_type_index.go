@@ -54,13 +54,20 @@ const (
 
 // goScopedBinding is one variable declaration inside a function scope. The
 // startByte field orders bindings by source position so a query can stop
-// scanning once it passes the call site. decl stores the declaration node by
-// value: callers replay it via a stable pointer (&decl) that is independent
-// of the walk that produced it.
+// scanning once it passes the call site.
+//
+// delta is the variable-type contribution this one declaration makes, computed
+// once when the scope's binding list is first built. Because the three
+// goRecordLocal* functions write their results purely from the declaration
+// node, source, structTypes, and constructorReturns and never read the map
+// they write into, each binding's contribution is independent of every other
+// binding and of accumulation order. ForNode merges the cached deltas of the
+// bindings preceding a call site (in startByte order, so a later same-key
+// binding still wins) instead of re-running the cgo-heavy declaration walk once
+// per query node. delta is never mutated after bindingsForScope builds it.
 type goScopedBinding struct {
 	startByte uint
-	kind      goScopedBindingKind
-	decl      tree_sitter.Node
+	delta     map[string]string
 }
 
 // goBuildVariableTypeIndex computes the package-level variable types eagerly
@@ -104,15 +111,11 @@ func (idx *goVariableTypeIndex) ForNode(root *tree_sitter.Node, node *tree_sitte
 		if bindings[i].startByte > target {
 			break
 		}
-		decl := bindings[i].decl
-		switch bindings[i].kind {
-		case goScopedBindingFuncParams:
-			goRecordLocalParameterTypes(&decl, idx.source, idx.structTypes, result)
-		case goScopedBindingVarSpec:
-			goRecordLocalVarSpecTypes(&decl, idx.source, idx.structTypes, idx.constructorReturns, result)
-		case goScopedBindingAssignment:
-			goRecordLocalAssignmentTypes(&decl, idx.source, idx.structTypes, idx.constructorReturns, result)
-		}
+		// bindings[i].delta was computed once from this declaration; merging it
+		// in startByte order reproduces the old per-node goRecordLocal* replay
+		// exactly (later same-key bindings overwrite earlier ones) without the
+		// per-query cgo node walk.
+		maps.Copy(result, bindings[i].delta)
 	}
 	return result
 }
@@ -134,23 +137,38 @@ func (idx *goVariableTypeIndex) bindingsForScope(scope *tree_sitter.Node) []goSc
 			}
 			bindings = append(bindings, goScopedBinding{
 				startByte: child.StartByte(),
-				kind:      goScopedBindingFuncParams,
-				decl:      *child,
+				delta:     idx.bindingDelta(goScopedBindingFuncParams, child),
 			})
 		case "var_spec":
 			bindings = append(bindings, goScopedBinding{
 				startByte: child.StartByte(),
-				kind:      goScopedBindingVarSpec,
-				decl:      *child,
+				delta:     idx.bindingDelta(goScopedBindingVarSpec, child),
 			})
 		case "short_var_declaration", "assignment_statement":
 			bindings = append(bindings, goScopedBinding{
 				startByte: child.StartByte(),
-				kind:      goScopedBindingAssignment,
-				decl:      *child,
+				delta:     idx.bindingDelta(goScopedBindingAssignment, child),
 			})
 		}
 	})
 	idx.scopeBindings[scope.Id()] = bindings
 	return bindings
+}
+
+// bindingDelta computes one declaration's variable-type contribution once, by
+// running the same goRecordLocal* helper ForNode used to call per query node
+// into a fresh map. The helpers are write-only, so the returned map is exactly
+// the set of keys that declaration would have written; ForNode merges these
+// cached deltas instead of re-walking the declaration for every call site.
+func (idx *goVariableTypeIndex) bindingDelta(kind goScopedBindingKind, decl *tree_sitter.Node) map[string]string {
+	delta := make(map[string]string, 1)
+	switch kind {
+	case goScopedBindingFuncParams:
+		goRecordLocalParameterTypes(decl, idx.source, idx.structTypes, delta)
+	case goScopedBindingVarSpec:
+		goRecordLocalVarSpecTypes(decl, idx.source, idx.structTypes, idx.constructorReturns, delta)
+	case goScopedBindingAssignment:
+		goRecordLocalAssignmentTypes(decl, idx.source, idx.structTypes, idx.constructorReturns, delta)
+	}
+	return delta
 }
