@@ -415,6 +415,50 @@ gates:
     # ("Pinning story") and fixturepack_pin_test.go for the pinned
     # fixture-pack conformance proof this gate protects.
 
+  - id: sdk-go-collector
+    name: "SDK Go: collector build/test/vet/fmt/boundary"
+    category: exactness
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "sdk/go/collector/**"
+      - ".github/workflows/sdk-go.yml"
+    local:
+      command: "cd sdk/go/collector && go build ./... && go test ./... -count=1 && go vet ./... && test -z \"$(gofmt -l .)\" && ! go list -deps ./... | rg -q 'eshu-hq/eshu/go/internal'"
+      test_command: ""
+    ci:
+      workflow: sdk-go.yml
+      job: "SDK Go: collector"
+    requirements:
+      - go
+    ci_only_reason: ""
+    # #4602: sdk/go/collector is its own go.mod, resolved independently of the
+    # go/ app module that test.yml's working-directory: go covers. Without
+    # this gate a PR could go all-green while the collector SDK module failed
+    # to build/test, drifted from gofmt, or started importing go/internal
+    # (which the SDK, shipped to external collectors, must never depend on).
+
+  - id: sdk-go-factschema
+    name: "SDK Go: factschema build/test/vet/fmt/boundary/generate"
+    category: exactness
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "sdk/go/factschema/**"
+      - ".github/workflows/sdk-go.yml"
+    local:
+      command: "cd sdk/go/factschema && go build ./... && go test ./... -count=1 && go vet ./... && test -z \"$(gofmt -l .)\" && ! go list -deps ./... | rg -q 'eshu-hq/eshu/go/internal' && go generate ./... && git diff --exit-code -- ."
+      test_command: ""
+    ci:
+      workflow: sdk-go.yml
+      job: "SDK Go: factschema"
+    requirements:
+      - go
+    ci_only_reason: ""
+    # #4602: same rationale as sdk-go-collector, plus a go generate drift
+    # check — factschema's derived JSON Schema/Go artifacts must match their
+    # source, or a schema edit without regeneration ships a stale artifact.
+
   - id: mcp-schema-drift
     name: MCP Schema Drift
     category: exactness

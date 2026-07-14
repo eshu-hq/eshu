@@ -1,0 +1,158 @@
+name: SDK Go Modules
+
+# Coverage gate for github.com/eshu-hq/eshu/sdk/go/* — the collector and
+# factschema SDK modules external collectors import. `test.yml` runs with
+# `working-directory: go`, so these modules (each its own go.mod, resolved
+# independently of the go/ app module) had zero CI coverage: a PR could go
+# all-green while an SDK module failed to build, failed its own tests, or
+# quietly started importing go/internal (issue #4602).
+#
+# For each module this proves, from inside the module's own directory:
+#   * `go build ./...` and `go test ./... -count=1` — it compiles and its own
+#     tests pass in isolation, not merely as a dependency of go/.
+#   * `go vet ./...` and `gofmt -l .` (must report nothing) — the same
+#     hygiene bar as the app module, enforced independently since these
+#     modules are outside go/.golangci.yml and the go-core gofumpt check.
+#   * `go list -deps ./...` contains no `eshu-hq/eshu/go/internal` package —
+#     the SDK modules ship to external collectors and MUST NOT depend on this
+#     repo's application internals. A match fails the job.
+#
+# sdk/go/factschema additionally proves `go generate ./...` leaves the
+# working tree clean, so an edit to a schema source without regenerating the
+# derived artifacts is caught here instead of shipping a stale generated file.
+#
+# Adding a third sdk/go/<module> requires a new job below (mirroring one of
+# the two here) plus a matching gate entry in specs/ci-gates.v1.yaml, or the
+# ci-gate-registry drift gate (verify-ci-gate-registry.yml) will fail on the
+# unregistered workflow/job.
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    paths:
+      - "sdk/go/**"
+      - ".github/workflows/sdk-go.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  sdk-go-collector:
+    name: "SDK Go: collector"
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: sdk/go/collector/go.mod
+          cache-dependency-path: sdk/go/collector/go.mod
+
+      - name: Install ripgrep
+        run: scripts/ci/install-apt-packages.sh ripgrep
+
+      - name: Build
+        working-directory: sdk/go/collector
+        run: go build ./...
+
+      - name: Test
+        working-directory: sdk/go/collector
+        run: go test ./... -count=1
+
+      - name: Vet
+        working-directory: sdk/go/collector
+        run: go vet ./...
+
+      - name: Check gofmt formatting
+        working-directory: sdk/go/collector
+        run: |
+          set -euo pipefail
+          unformatted="$(gofmt -l .)"
+          if [ -n "${unformatted}" ]; then
+            echo "::error::gofmt found unformatted files in sdk/go/collector:"
+            printf '%s\n' "${unformatted}"
+            exit 1
+          fi
+          echo "gofmt clean"
+
+      - name: Verify no dependency on go/internal
+        working-directory: sdk/go/collector
+        run: |
+          set -euo pipefail
+          deps="$(go list -deps ./...)"
+          if printf '%s\n' "${deps}" | rg 'eshu-hq/eshu/go/internal'; then
+            echo "::error::sdk/go/collector must not import eshu-hq/eshu/go/internal packages"
+            exit 1
+          fi
+          echo "no eshu-hq/eshu/go/internal dependency"
+
+  sdk-go-factschema:
+    name: "SDK Go: factschema"
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: sdk/go/factschema/go.mod
+          cache-dependency-path: sdk/go/factschema/go.sum
+
+      - name: Install ripgrep
+        run: scripts/ci/install-apt-packages.sh ripgrep
+
+      - name: Build
+        working-directory: sdk/go/factschema
+        run: go build ./...
+
+      - name: Test
+        working-directory: sdk/go/factschema
+        run: go test ./... -count=1
+
+      - name: Vet
+        working-directory: sdk/go/factschema
+        run: go vet ./...
+
+      - name: Check gofmt formatting
+        working-directory: sdk/go/factschema
+        run: |
+          set -euo pipefail
+          unformatted="$(gofmt -l .)"
+          if [ -n "${unformatted}" ]; then
+            echo "::error::gofmt found unformatted files in sdk/go/factschema:"
+            printf '%s\n' "${unformatted}"
+            exit 1
+          fi
+          echo "gofmt clean"
+
+      - name: Verify no dependency on go/internal
+        working-directory: sdk/go/factschema
+        run: |
+          set -euo pipefail
+          deps="$(go list -deps ./...)"
+          if printf '%s\n' "${deps}" | rg 'eshu-hq/eshu/go/internal'; then
+            echo "::error::sdk/go/factschema must not import eshu-hq/eshu/go/internal packages"
+            exit 1
+          fi
+          echo "no eshu-hq/eshu/go/internal dependency"
+
+      - name: Verify go generate produces no drift
+        working-directory: sdk/go/factschema
+        run: |
+          set -euo pipefail
+          go generate ./...
+          git diff --exit-code -- .
