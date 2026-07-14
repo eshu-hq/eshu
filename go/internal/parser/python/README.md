@@ -92,6 +92,44 @@ No-Observability-Change: this parser package still emits no metrics, spans, or
 logs. Operators diagnose parser and pre-scan cost through existing collector
 snapshot stage logs and `eshu_dp_file_parse_duration_seconds`.
 
+## Notebook In-Memory Parse (issue #4874)
+
+`Parse` and `PreScan`'s `.ipynb` branches used to convert the notebook to
+Python source, write it to a temp file (`os.CreateTemp` + `WriteString`),
+read the temp file back (`readSource`, an `os.ReadFile`), then parse that,
+and finally remove the temp file in a deferred cleanup — four syscalls of
+disk I/O on every notebook parse for source tree-sitter can accept as a
+`[]byte` directly. `notebookPythonSource` (`notebook.go`) now converts the
+notebook straight to the `[]byte` `Parse`/`PreScan` already hold in memory,
+and the temp-file helper (`notebook_temp.go`) is deleted.
+
+Benchmark Evidence: `go test ./internal/parser/python/... -run '^$' -bench
+BenchmarkParseNotebookTempFileRoundTrip -benchmem -benchtime=2000x -count=5`
+on a representative 40-cell notebook fixture measured `54099-54101 allocs/op`
+and `1668113-1668371 B/op` before the change versus `54088-54090 allocs/op`
+and `1667303-1667570 B/op` after — a consistent ~11 fewer allocations and
+~700-800 fewer bytes per parse across all 5 samples, isolating cleanly to the
+four removed temp-file syscalls (both before and after parse the identical
+synthesized Python source, so the tree-sitter walk and payload construction
+cost is unchanged). Wall-clock `ns/op` is reported as a Diagnostic win only,
+not a throughput win: both the before and after samples ranged roughly
+12ms-120ms on this run because 5 other agent processes were compiling and
+testing concurrently on the same shared development machine, and that
+variance swamps the real per-call syscall-avoidance signal. Payload
+equivalence: `TestParseNotebookMatchesEquivalentPythonSource` and
+`TestPreScanNotebookMatchesEquivalentPythonSource` assert `Parse`/`PreScan`
+on a notebook produce a byte-for-byte identical payload (aside from the
+legitimately different `path` field) to `Parse`/`PreScan` on the same
+notebook's already-converted `.py` source, and `go test
+./internal/parser/... -count=1` (every language sub-package, including the
+pre-existing `TestDefaultEngineParsePathPythonNotebook`) stayed green with no
+fixture or golden-gate change — the 0/0 payload-equivalence proof that
+removing the disk round trip does not change parser truth.
+
+No-Observability-Change: this parser package still emits no metrics, spans,
+or logs. Operators diagnose parser cost through existing collector
+snapshot stage logs and `eshu_dp_file_parse_duration_seconds`.
+
 ## Gotchas / invariants
 
 NotebookSource returns an empty string for notebooks without code cells. Invalid

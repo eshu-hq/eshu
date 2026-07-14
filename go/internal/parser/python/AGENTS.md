@@ -6,7 +6,7 @@
 2. doc.go - godoc contract for the Python adapter package
 3. language.go - Parse, PreScan, payload bucket assembly, and tree-sitter walk
 4. shared_helpers.go - allowed shared helper imports and copied wire-shape helpers
-5. notebook.go and notebook_temp.go - notebook extraction and temporary source file lifecycle
+5. notebook.go - notebook code-cell extraction and in-memory Python source conversion
 6. dead_code_roots.go, lambda_roots.go, public_api_roots.go - dead-code root evidence
 7. framework_routes.go, django_drf_routes.go, drf_routes.go,
    aiohttp_tornado_routes.go, ast_nodes.go - Python framework route and ORM
@@ -167,3 +167,19 @@ metric label, span, log line, status field, env var, queue, worker, lease,
 batch, runtime knob, or graph query is added or changed. Operators still
 diagnose parser behavior through existing collector parse-stage logs and
 `eshu_dp_file_parse_duration_seconds`.
+
+### Notebook in-memory parse, no temp-file round trip (issue #4874)
+
+`Parse` and `PreScan` no longer write the notebook-converted Python source to
+a temp file and read it back before parsing; `notebookPythonSource` converts
+straight to the in-memory `[]byte` both functions already hold, and
+`notebook_temp.go` is deleted. See the README's "Notebook In-Memory Parse"
+section for the full before/after benchmark numbers
+(`BenchmarkParseNotebookTempFileRoundTrip`, allocs/bytes evidence with an
+honest wall-clock noise caveat) and the payload-equivalence tests
+(`TestParseNotebookMatchesEquivalentPythonSource`,
+`TestPreScanNotebookMatchesEquivalentPythonSource`).
+
+No-Observability-Change: this parser package still emits no metrics, spans,
+or logs. Operators diagnose parser cost through existing collector
+snapshot stage logs and `eshu_dp_file_parse_duration_seconds`.

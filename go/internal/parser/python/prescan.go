@@ -5,7 +5,6 @@ package python
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -19,14 +18,7 @@ func preScanNames(path string, parser *tree_sitter.Parser) ([]string, error) {
 		return nil, err
 	}
 	if strings.EqualFold(filepath.Ext(path), ".ipynb") {
-		tempPythonPath, err := convertNotebookToTempPython(path, source)
-		if err != nil {
-			return nil, err
-		}
-		defer func() {
-			_ = os.Remove(tempPythonPath)
-		}()
-		source, err = readSource(tempPythonPath)
+		source, err = notebookPythonSource(path, source)
 		if err != nil {
 			return nil, err
 		}

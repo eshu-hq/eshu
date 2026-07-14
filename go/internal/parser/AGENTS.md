@@ -324,3 +324,31 @@ instrument, metric label, span, log line, status field, env var, queue, worker,
 lease, batch, runtime knob, or graph query is added. Operators still diagnose
 Kotlin/Swift parsing through the existing collector parse-stage logs and
 `eshu_dp_file_parse_duration_seconds`.
+
+### SCIP symbol-parsing regex compile hoist (issue #4874)
+
+`scipNameFromSymbol` and `scipParseSignature` (`scip_parser.go`) each compiled
+a static `regexp.MustCompile` pattern inside the function body on every call
+(`[/#]` separator split and `\(([^)]*)\)` signature-argument capture,
+respectively), instead of reusing a package-level `*regexp.Regexp`. Both
+patterns are static (no runtime-dependent content), so they are hoisted to
+plain package-level vars (`scipSeparatorRe`, `scipSignatureArgsRe`) alongside
+the pre-existing `scipTrailingCallRe`. `TestScipNameFromSymbolMatchesSeparatorSplit`
+and `TestScipParseSignatureMatchesArgsAndReturnType` pin the exact matched
+name/args/return-type output, including the empty-input and no-match
+fallback cases, before and after the hoist.
+
+Benchmark Evidence: `go test ./internal/parser -run '^$' -bench
+BenchmarkScipNameFromSymbolRegexHoist -benchmem -benchtime=200000x -count=3`
+measured `10972-19615 ns/op`, `1425-1429 B/op`, `20 allocs/op` before the
+hoist versus `7057-12181 ns/op`, `642-644 B/op`, `10 allocs/op` after — 50%
+fewer allocations and roughly 55% fewer bytes per call, with `go test
+./internal/parser/... -count=1` staying green (no fixture or golden-gate
+change), which is the 0/0 payload-equivalence proof: SCIP symbol table and
+call-edge construction reads only through these two functions' return
+values, so identical outputs mean identical downstream SCIP payloads.
+
+No-Observability-Change: this adds no metric, span, structured log, status
+field, queue, graph write, worker, lease, batch, or runtime knob. Operators
+still diagnose SCIP parse behavior through the existing collector parse-stage
+logs and `eshu_dp_file_parse_duration_seconds`.

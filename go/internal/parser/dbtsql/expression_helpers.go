@@ -6,6 +6,8 @@ package dbtsql
 import (
 	"regexp"
 	"strings"
+	"sync"
+	"sync/atomic"
 )
 
 func supportedFunctionMetadata(expression string) map[string]string {
@@ -104,11 +106,48 @@ func collapsedShape(expression string, references []string, stripCaseKeywords bo
 	return strings.ReplaceAll(strings.ReplaceAll(sanitized, "REF", ""), "0", "")
 }
 
+// referenceTokenPatternCacheLimit bounds referenceTokenPatternCache so an
+// ingester processing a large multi-repo corpus cannot grow the cache
+// unboundedly on a long tail of distinct dbt column/alias tokens. Real dbt
+// projects reuse a small vocabulary of column and alias names across many
+// expressions, so this ceiling is far above any realistic per-process working
+// set while still bounding worst-case memory.
+const referenceTokenPatternCacheLimit = 20_000
+
+// referenceTokenPatternCache caches the compiled `\bTOKEN\b` regex per
+// reference token so repeated replaceReferenceTokens calls for the same token
+// reuse the compiled *regexp.Regexp instead of recompiling on every call. A
+// *regexp.Regexp is safe for concurrent use, and sync.Map.LoadOrStore makes
+// first-compile-per-token race-safe. referenceTokenPatternCacheSize is a soft
+// bound: concurrent callers racing at the limit may overshoot it slightly,
+// which is acceptable for a memory ceiling that only needs to be
+// approximately enforced.
+var (
+	referenceTokenPatternCache     sync.Map // token -> *regexp.Regexp
+	referenceTokenPatternCacheSize atomic.Int64
+)
+
+func referenceTokenPattern(token string) *regexp.Regexp {
+	if cached, ok := referenceTokenPatternCache.Load(token); ok {
+		return cached.(*regexp.Regexp)
+	}
+	compiled := regexp.MustCompile(`\b` + regexp.QuoteMeta(token) + `\b`)
+	if referenceTokenPatternCacheSize.Load() >= referenceTokenPatternCacheLimit {
+		// Cache is at its bound: fall back to compile-per-call for the long
+		// tail of distinct tokens instead of growing memory unboundedly.
+		return compiled
+	}
+	actual, loaded := referenceTokenPatternCache.LoadOrStore(token, compiled)
+	if !loaded {
+		referenceTokenPatternCacheSize.Add(1)
+	}
+	return actual.(*regexp.Regexp)
+}
+
 func replaceReferenceTokens(expression string, references []string) string {
 	sanitized := expression
 	for _, token := range references {
-		re := regexp.MustCompile(`\b` + regexp.QuoteMeta(token) + `\b`)
-		sanitized = re.ReplaceAllString(sanitized, "REF")
+		sanitized = referenceTokenPattern(token).ReplaceAllString(sanitized, "REF")
 	}
 	return sanitized
 }
