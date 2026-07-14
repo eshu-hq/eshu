@@ -151,6 +151,14 @@ func run() error {
 		{name: "vulnerability.known_exploited.v1.schema.json", generate: schemagen.VulnerabilityKnownExploitedSchema},
 		{name: "vulnerability.go_module_evidence.v1.schema.json", generate: schemagen.VulnerabilityGoModuleEvidenceSchema},
 		{name: "vulnerability.go_call_reachability.v1.schema.json", generate: schemagen.VulnerabilityGoCallReachabilitySchema},
+		// vulnerability.reference and vulnerability.source_snapshot have no
+		// reducer decode call; they are typed anyway (issue #4717) so the
+		// go/internal/query SQL-schema lockstep test can lock their raw-SQL
+		// reads to a committed schema (vulnerability/v1/doc.go).
+		// vulnerability.warning stays untyped — it has neither a reducer
+		// decode call nor a raw-SQL read-model consumer.
+		{name: "vulnerability.reference.v1.schema.json", generate: schemagen.VulnerabilityReferenceSchema},
+		{name: "vulnerability.source_snapshot.v1.schema.json", generate: schemagen.VulnerabilitySourceSnapshotSchema},
 		// The code family fact kinds are BARE (no family prefix), unlike every
 		// other family here: they are the git collector's original,
 		// pre-Contract-System literal kinds ("file", "repository"). Only the
