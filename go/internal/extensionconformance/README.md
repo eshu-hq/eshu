@@ -50,6 +50,17 @@ runtime package.
 No-Regression Evidence: fixture-mode conformance behavior is covered by
 `go test ./internal/extensionconformance -count=1`.
 
+`emitter_payload_conformance_test.go` closes a gap the fixture-pack tests above
+could not: it builds a REAL envelope from each of the internal AWS/IAM/S3 fact
+emitters (`go/internal/collector/awscloud`, `go/internal/collector/secretsiam`)
+and validates the actual payload it produces against the committed JSON Schema
+for that exact fact kind, loaded via `factschema.SchemaBytes`, through
+`conformance.ValidatePayloadSchemas`. `TestFixturePackPayloadsAgreeWithConformance`
+only proves curated fixture-pack payloads agree with their schemas; this test
+proves a live emitter's own output does. A companion test strips a
+schema-required field from a real payload and asserts validation fails, so the
+proof cannot pass by accident.
+
 ## Gotchas / invariants
 
 - Fixture validation is fail-closed. Missing fixtures, invalid JSON, undeclared

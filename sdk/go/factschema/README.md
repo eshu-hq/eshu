@@ -142,6 +142,21 @@ every `go test` run and fails the build if it no longer matches the
 committed artifact — schema drift is a test failure, not something only a
 separate CI diff gate would catch.
 
+## Loading a committed schema at runtime
+
+`SchemaBytes(kind string) ([]byte, bool)` (`schema_bytes.go`) embeds
+`schema/*.json` directly in this package via `//go:embed` and returns the raw
+bytes for one fact kind, or `ok == false` when the module ships no schema for
+it. The embed lives here — not duplicated — because `schema/` is a direct
+child of this package, so `go:embed` can reach it without a sibling-directory
+copy (contrast `fixturepack`, one directory over, which embeds its own copy of
+`schema/` because it cannot reach this package's directory). Callers that need
+schema bytes as part of a larger fixture-pack (curated example payloads,
+kind-list helpers) should keep using `fixturepack`; `SchemaBytes` is for a
+caller that only needs one committed schema's bytes to hand to a validator,
+such as the runtime conformance test in `go/internal/extensionconformance`
+that checks a real emitter's payload against its own committed schema.
+
 ## Envelope adapter unification
 
 Eshu has three package-specific envelope shapes for the same fact concept:
