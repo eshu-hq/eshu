@@ -72,8 +72,9 @@ func Parse(
 	}
 	if isAtlantisConfig(filename) {
 		// Atlantis configs are decoded directly from source (not the node-walked
-		// document) so YAML anchors and merge keys in projects[] resolve.
-		rows, err := parseAtlantisProjectsFromSource(source, path)
+		// document) so YAML anchors and merge keys in projects[] resolve. Both
+		// buckets come from one shared unmarshal (issue #4846).
+		rows, workflowRows, err := parseAtlantisFromSource(source, path)
 		if err != nil {
 			return nil, fmt.Errorf("parse atlantis config %q: %w", path, err)
 		}
@@ -81,10 +82,6 @@ func Parse(
 			shared.AppendBucket(payload, "atlantis_projects", row)
 		}
 		shared.SortNamedBucket(payload, "atlantis_projects")
-		workflowRows, err := parseAtlantisWorkflowsFromSource(source, path)
-		if err != nil {
-			return nil, fmt.Errorf("parse atlantis workflows %q: %w", path, err)
-		}
 		for _, row := range workflowRows {
 			shared.AppendBucket(payload, "atlantis_workflows", row)
 		}

@@ -27,28 +27,43 @@ func isAtlantisConfig(filename string) bool {
 	}
 }
 
-// parseAtlantisProjectsFromSource extracts one row per project entry in a
-// repo-level atlantis.yaml. Each row becomes an AtlantisProject content entity.
-// The apply / autoplan fields are governance properties on the node; dir feeds
-// the (AtlantisProject)-[:MANAGES]->(Directory) edge and depends_on /
-// execution_order_group feed (AtlantisProject)-[:DEPENDS_ON]->(AtlantisProject).
-//
-// It decodes from the raw source (not the parent node-walked document) because
-// real-world atlantis.yaml routinely DRYs project definitions with YAML anchors
-// and merge keys (`- &template ...` / `- <<: *template`). Decoding each project
-// element node with yamlv3.Node.Decode resolves those merges and aliases (the
-// parent walker drops them), and the element's own line number gives every
-// project a distinct identity. Malformed entries (a non-map project, or a field
-// whose YAML shape does not match) are tolerantly skipped rather than failing
-// the parse. The caller sorts the bucket deterministically (by line then name).
-func parseAtlantisProjectsFromSource(source []byte, path string) ([]map[string]any, error) {
+// parseAtlantisFromSource extracts both the AtlantisProject and AtlantisWorkflow
+// rows from a repo-level atlantis.yaml in a single yamlv3.Unmarshal pass.
+// parseAtlantisProjectsFromSource and parseAtlantisWorkflowsFromSource used to
+// each unmarshal the same source bytes independently, building and discarding
+// two separate node trees for the same document; this merges them into one
+// parse whose shared root tree feeds both extractions (issue #4846). The
+// per-bucket extraction logic and output shape are unchanged — only the
+// unmarshal call is shared.
+func parseAtlantisFromSource(source []byte, path string) (projects []map[string]any, workflows []map[string]any, err error) {
 	var root yamlv3.Node
 	if err := yamlv3.Unmarshal(source, &root); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	projectsNode := atlantisProjectsNode(&root)
+	return atlantisProjectRowsFromRoot(&root, path), atlantisWorkflowRowsFromRoot(&root, path), nil
+}
+
+// atlantisProjectRowsFromRoot extracts one row per project entry from an
+// already-decoded atlantis.yaml node tree. Each row becomes an AtlantisProject
+// content entity. The apply / autoplan fields are governance properties on the
+// node; dir feeds the (AtlantisProject)-[:MANAGES]->(Directory) edge and
+// depends_on / execution_order_group feed
+// (AtlantisProject)-[:DEPENDS_ON]->(AtlantisProject).
+//
+// root must come from decoding the raw source (not a value re-walked through
+// an intermediate map) because real-world atlantis.yaml routinely DRYs project
+// definitions with YAML anchors and merge keys (`- &template ...` /
+// `- <<: *template`). Decoding each project element node with
+// yamlv3.Node.Decode resolves those merges and aliases (a map-walked
+// intermediate drops them), and the element's own line number gives every
+// project a distinct identity. Malformed entries (a non-map project, or a
+// field whose YAML shape does not match) are tolerantly skipped rather than
+// failing the parse. The caller sorts the bucket deterministically (by line
+// then name).
+func atlantisProjectRowsFromRoot(root *yamlv3.Node, path string) []map[string]any {
+	projectsNode := atlantisProjectsNode(root)
 	if projectsNode == nil {
-		return nil, nil
+		return nil
 	}
 
 	rows := make([]map[string]any, 0, len(projectsNode.Content))
@@ -64,7 +79,7 @@ func parseAtlantisProjectsFromSource(source []byte, path string) ([]map[string]a
 			rows = append(rows, row)
 		}
 	}
-	return rows, nil
+	return rows
 }
 
 // atlantisDocumentMapping returns the top-level mapping node of a decoded
@@ -106,22 +121,19 @@ func atlantisProjectsNode(root *yamlv3.Node) *yamlv3.Node {
 	return nil
 }
 
-// parseAtlantisWorkflowsFromSource extracts AtlantisWorkflow rows from a
-// repo-level atlantis.yaml: one row per workflow defined in the `workflows:` map
-// (source=defined, with the ordered step kinds of each defined stage), plus one
-// source=referenced row per workflow named by a project's `workflow:` that has no
-// in-file definition (Atlantis allows server-side workflow definitions, which is
-// the common real-world case). Run-step command bodies are intentionally NOT
-// captured as node properties — recording the step KIND (`run`) is truthful
-// without fabricating semantics for an opaque shell command.
-func parseAtlantisWorkflowsFromSource(source []byte, path string) ([]map[string]any, error) {
-	var root yamlv3.Node
-	if err := yamlv3.Unmarshal(source, &root); err != nil {
-		return nil, err
-	}
-	doc := atlantisDocumentMapping(&root)
+// atlantisWorkflowRowsFromRoot extracts AtlantisWorkflow rows from an
+// already-decoded atlantis.yaml node tree: one row per workflow defined in the
+// `workflows:` map (source=defined, with the ordered step kinds of each defined
+// stage), plus one source=referenced row per workflow named by a project's
+// `workflow:` that has no in-file definition (Atlantis allows server-side
+// workflow definitions, which is the common real-world case). Run-step command
+// bodies are intentionally NOT captured as node properties — recording the
+// step KIND (`run`) is truthful without fabricating semantics for an opaque
+// shell command.
+func atlantisWorkflowRowsFromRoot(root *yamlv3.Node, path string) []map[string]any {
+	doc := atlantisDocumentMapping(root)
 	if doc == nil {
-		return nil, nil
+		return nil
 	}
 
 	defined := map[string]bool{}
@@ -145,7 +157,7 @@ func parseAtlantisWorkflowsFromSource(source []byte, path string) ([]map[string]
 	// Referenced-but-undefined workflows: a project names a workflow defined
 	// server-side. Emit a stub node so USES_WORKFLOW has a target.
 	referenced := map[string]int{}
-	if projectsNode := atlantisProjectsNode(&root); projectsNode != nil {
+	if projectsNode := atlantisProjectsNode(root); projectsNode != nil {
 		for _, elem := range projectsNode.Content {
 			var project map[string]any
 			if err := elem.Decode(&project); err != nil || project == nil {
@@ -174,7 +186,7 @@ func parseAtlantisWorkflowsFromSource(source []byte, path string) ([]map[string]
 			"source":      "referenced",
 		})
 	}
-	return rows, nil
+	return rows
 }
 
 // atlantisWorkflowRow builds one defined AtlantisWorkflow row from a workflow
