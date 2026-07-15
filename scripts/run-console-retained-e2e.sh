@@ -36,14 +36,14 @@ postgres_port="${ESHU_POSTGRES_PORT:-15432}"
 postgres_password="${ESHU_POSTGRES_PASSWORD:-change-me}"
 auth_secret_enc_key="${ESHU_AUTH_SECRET_ENC_KEY:-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=}"
 wizard_password="${ESHU_E2E_WIZARD_NEW_PASSWORD:-}"
-corpus_identity="${ESHU_E2E_CORPUS_IDENTITY:-}"
+corpus_attestation="${ESHU_E2E_CORPUS_ATTESTATION:-${ESHU_E2E_CORPUS_IDENTITY:-}}"
 corpus_repository_count="${ESHU_E2E_CORPUS_REPOSITORY_COUNT:-}"
 [[ -n "$wizard_password" ]] || {
   echo "run-console-retained-e2e: ESHU_E2E_WIZARD_NEW_PASSWORD is required" >&2
   exit 1
 }
-[[ -n "$corpus_identity" ]] || {
-  echo "run-console-retained-e2e: ESHU_E2E_CORPUS_IDENTITY is required" >&2
+[[ -n "$corpus_attestation" ]] || {
+  echo "run-console-retained-e2e: ESHU_E2E_CORPUS_ATTESTATION is required (ESHU_E2E_CORPUS_IDENTITY is accepted as a deprecated fallback)" >&2
   exit 1
 }
 [[ "$corpus_repository_count" =~ ^[0-9]+$ ]] || {
@@ -74,12 +74,15 @@ API_INPUT_HASH="$({
   git ls-files -z -co --exclude-standard -- go sdk/go
 } | sort -z | xargs -0 shasum -a 256 | shasum -a 256 | awk '{print $1}')"
 RUNNER_INPUT_HASH="$({
+  printf '%s\0' package.json package-lock.json
   git ls-files -z -co --exclude-standard -- \
     apps/console \
     scripts/run-console-live-e2e.sh \
     scripts/run-console-retained-e2e.sh \
     scripts/console-live-e2e-runtime.mjs
 } | sort -z | xargs -0 shasum -a 256 | shasum -a 256 | awk '{print $1}')"
+node_version="$(node --version)"
+playwright_version="$(node -p 'require("playwright/package.json").version')"
 
 postgres_psql() {
   "${compose[@]}" exec -T postgres psql -v ON_ERROR_STOP=1 -U eshu -d eshu "$@"
@@ -115,7 +118,7 @@ DECLARE
   target_table text;
 BEGIN
   EXECUTE format(
-    'CREATE TABLE %I._public_identity_counts (table_name text PRIMARY KEY, row_count bigint NOT NULL)',
+    'CREATE TABLE %I._public_identity_snapshots (table_name text PRIMARY KEY, row_count bigint NOT NULL, row_digest text NOT NULL)',
     target_schema
   );
   FOR target_table IN SELECT table_name FROM proof_auth_tables ORDER BY table_name LOOP
@@ -126,7 +129,9 @@ BEGIN
       target_table
     );
     EXECUTE format(
-      'INSERT INTO %I._public_identity_counts SELECT %L, count(*) FROM public.%I',
+      'INSERT INTO %I._public_identity_snapshots '
+      'SELECT %L, count(*), COALESCE(md5(string_agg(row_json, chr(10) ORDER BY row_json)), md5('''')) '
+      'FROM (SELECT to_jsonb(source_row)::text AS row_json FROM public.%I AS source_row) AS rows',
       target_schema,
       target_table,
       target_table
@@ -155,13 +160,18 @@ DECLARE
   target_schema text := current_setting('eshu.proof_schema');
   baseline record;
   current_count bigint;
+  current_digest text;
 BEGIN
   FOR baseline IN EXECUTE format(
-    'SELECT table_name, row_count FROM %I._public_identity_counts ORDER BY table_name',
+    'SELECT table_name, row_count, row_digest FROM %I._public_identity_snapshots ORDER BY table_name',
     target_schema
   ) LOOP
-    EXECUTE format('SELECT count(*) FROM public.%I', baseline.table_name) INTO current_count;
-    IF current_count <> baseline.row_count THEN
+    EXECUTE format(
+      'SELECT count(*), COALESCE(md5(string_agg(row_json, chr(10) ORDER BY row_json)), md5('''')) '
+      'FROM (SELECT to_jsonb(source_row)::text AS row_json FROM public.%I AS source_row) AS rows',
+      baseline.table_name
+    ) INTO current_count, current_digest;
+    IF current_count <> baseline.row_count OR current_digest <> baseline.row_digest THEN
       RAISE EXCEPTION 'retained public identity table % changed during isolated proof', baseline.table_name;
     END IF;
   END LOOP;
@@ -257,7 +267,9 @@ ESHU_E2E_API_IMAGE_DIGEST="$api_image_digest" \
 ESHU_E2E_API_VERSION="$api_version" \
 ESHU_E2E_NORNIC_IMAGE_DIGEST="$nornic_image_digest" \
 ESHU_E2E_NORNIC_VERSION="$nornic_version" \
-ESHU_E2E_CORPUS_IDENTITY="$corpus_identity" \
+ESHU_E2E_NODE_VERSION="$node_version" \
+ESHU_E2E_PLAYWRIGHT_VERSION="$playwright_version" \
+ESHU_E2E_CORPUS_ATTESTATION="$corpus_attestation" \
 ESHU_E2E_CORPUS_REPOSITORY_COUNT="$corpus_repository_count" \
 npm run console:e2e
 

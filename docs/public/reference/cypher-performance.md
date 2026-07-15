@@ -512,12 +512,15 @@ the per-query fallback.
 The accepted production-binary proof then removed the rejected index and
 verified `function_legacy_id` index count zero before and after the run. On the
 same retained 887-repository corpus, all 39 browser workflows passed. Code
-Graph completed in 9.954 seconds with four owned HTTP responses, all status
-200, zero console errors, and 7.046 seconds of margin inside the 17-second live
-browser cutoff. The built API and MCP sidecars used the same immutable image
-and source manifest as the browser proof. This closes the browser correctness
-and cutoff boundary without claiming the route meets the desired 2-3 second
-read SLO. Open issue [#5244](https://github.com/eshu-hq/eshu/issues/5244) owns
+Graph completed in 10.064 seconds with four owned HTTP responses, all status
+200, zero console errors, and 6.936 seconds of margin inside the runner's
+17-second liveness timeout. The built API and MCP sidecars used the same
+immutable image and source manifest as the browser proof. The timeout proves
+the workflow settled before the harness aborted; it is not portable performance
+acceptance because the run did not record a machine resource envelope or an
+`absolute_target_applicable` classification. The measured 10.064-second result
+also does not meet the desired 2-3 second read SLO. Open issue
+[#5244](https://github.com/eshu-hq/eshu/issues/5244) owns
 cold-client, API, MCP, transport, and residual query attribution after that
 boundary.
 

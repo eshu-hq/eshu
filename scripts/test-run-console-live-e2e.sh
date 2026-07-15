@@ -3,6 +3,8 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 target="$repo_root/scripts/run-console-live-e2e.sh"
+workflow="$repo_root/.github/workflows/frontend.yml"
+registry="$repo_root/specs/ci-gates.v1.yaml"
 tmp_dir="$(mktemp -d)"
 trap 'rm -rf "$tmp_dir"' EXIT
 
@@ -34,5 +36,34 @@ rg -q --fixed-strings 'source "$env_file"' "$target" && {
   echo "run-console-live-e2e must not source Compose env input" >&2
   exit 1
 }
+
+for harness_input in \
+  'scripts/run-console-live-e2e.sh' \
+  'scripts/run-console-retained-e2e.sh' \
+  'scripts/test-run-console-live-e2e.sh' \
+  'scripts/test-run-console-retained-e2e.sh' \
+  'scripts/console-live-e2e-runtime.mjs'; do
+  rg -q --fixed-strings "$harness_input" "$workflow" || {
+    echo "frontend workflow does not watch live harness input: $harness_input" >&2
+    exit 1
+  }
+  rg -q --fixed-strings "$harness_input" "$registry" || {
+    echo "frontend gate registry does not watch live harness input: $harness_input" >&2
+    exit 1
+  }
+done
+
+for harness_test in \
+  'bash scripts/test-run-console-live-e2e.sh' \
+  'bash scripts/test-run-console-retained-e2e.sh'; do
+  rg -q --fixed-strings "$harness_test" "$workflow" || {
+    echo "frontend workflow does not execute live harness test: $harness_test" >&2
+    exit 1
+  }
+  rg -q --fixed-strings "$harness_test" "$registry" || {
+    echo "frontend gate registry does not execute live harness test: $harness_test" >&2
+    exit 1
+  }
+done
 
 echo "run-console-live-e2e env isolation contract: PASS"

@@ -72,7 +72,8 @@ export const primaryConsoleRoutes: readonly ConsoleRoute[] = [
       kind: "repositoryDetails",
       sourceLinkSelector: 'a[href^="/repositories/"][href$="/source"]',
       sourceOutcomeSelector: ".repo-source-page .tbl tbody tr",
-      workspaceOutcomeSelector: '.workspace-page [aria-label="Truth and freshness"]',
+      workspaceOutcomeSelector:
+        '.workspace-page [aria-label="Truth and freshness"], .workspace-page [aria-label="Service Atlas"]',
     },
   },
   {

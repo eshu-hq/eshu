@@ -3,6 +3,15 @@ import { APP_ROUTE_PATHS, missingProductionRoutePaths } from "../appRoutePaths";
 import { NAV_ITEMS } from "../i18n/navigation";
 
 describe("consoleRoutes catalog", () => {
+  it("accepts either repository truth or resolved service truth in the repository workspace", () => {
+    const workflow = consoleRoutes.find((route) => route.path === "/repositories")?.workflow;
+    expect(workflow?.kind).toBe("repositoryDetails");
+    if (workflow?.kind !== "repositoryDetails") return;
+
+    expect(workflow.workspaceOutcomeSelector).toContain('[aria-label="Truth and freshness"]');
+    expect(workflow.workspaceOutcomeSelector).toContain('[aria-label="Service Atlas"]');
+  });
+
   it("covers every route exposed by the sidebar navigation", () => {
     const catalogPaths = new Set(consoleRoutes.map((route) => route.path));
     const missingPaths = NAV_ITEMS.map((item) => item.to).filter((path) => !catalogPaths.has(path));

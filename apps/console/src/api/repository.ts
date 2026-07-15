@@ -148,14 +148,16 @@ async function loadRepositoryWorkloadContext(
 }
 
 function repositoryServiceSelector(story: StoryResponse): string {
-  const workloadName = nonEmpty(story.deployment_overview?.workloads?.[0]);
-  if (
-    workloadName.startsWith("reducer_") &&
-    workloadName.includes("_workload_identity_workload_")
-  ) {
-    return "";
-  }
-  return workloadName;
+  const workloads = story.deployment_overview?.workloads ?? [];
+  return (
+    workloads
+      .map((workload) => nonEmpty(workload))
+      .find(
+        (workload) =>
+          workload.length > 0 &&
+          !(workload.startsWith("reducer_") && workload.includes("_workload_identity_workload_")),
+      ) ?? ""
+  );
 }
 
 async function loadContext(

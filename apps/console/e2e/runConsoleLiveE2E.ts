@@ -59,6 +59,7 @@ import {
 import {
   assertProofManifestRepositoryCount,
   proofManifestFromEnvironment,
+  type LiveE2EProofManifest,
 } from "./liveE2EProofManifest.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -68,6 +69,15 @@ const artifactsDir = resolve(repoRoot, "e2e-artifacts");
 const screenshotsDir = resolve(artifactsDir, "screenshots");
 const tracePath = resolve(artifactsDir, "trace.zip");
 const reportPath = resolve(artifactsDir, "console-live-e2e-report.json");
+
+// proofManifestForLaunchedBrowser binds durable proof identity to the browser
+// instance Playwright actually launched, rather than an operator declaration.
+export function proofManifestForLaunchedBrowser(
+  environment: NodeJS.ProcessEnv,
+  browser: Pick<Browser, "version">,
+): LiveE2EProofManifest {
+  return proofManifestFromEnvironment(environment, browser.version());
+}
 
 // Local-only test key. The runner reads it from the environment so the key is
 // never hard-coded; the npm script supplies it from the gitignored env file.
@@ -239,15 +249,6 @@ export async function captureRoute(
 // TypeScript module through Vite's SSR transformer so the gate runs on any
 // supported Node version without native TS stripping or an extra dependency.
 export async function runConsoleLiveE2E(): Promise<number> {
-  let proofManifest;
-  try {
-    proofManifest = proofManifestFromEnvironment(process.env);
-  } catch (error) {
-    process.stderr.write(
-      `console-live-e2e: ${error instanceof Error ? error.message : String(error)}\n`,
-    );
-    return 1;
-  }
   if (authMode === "bearer" && apiKey.length === 0) {
     process.stderr.write("console-live-e2e: ESHU_E2E_API_KEY is required in bearer mode\n");
     return 1;
@@ -283,6 +284,15 @@ export async function runConsoleLiveE2E(): Promise<number> {
       useBearerAuth: authMode === "bearer",
     });
     browser = await chromium.launch();
+    let proofManifest;
+    try {
+      proofManifest = proofManifestForLaunchedBrowser(process.env, browser);
+    } catch (error) {
+      process.stderr.write(
+        `console-live-e2e: ${error instanceof Error ? error.message : String(error)}\n`,
+      );
+      return 1;
+    }
     const context = await browser.newContext();
     if (captureTrace) {
       await context.tracing.start({ screenshots: true, snapshots: true });

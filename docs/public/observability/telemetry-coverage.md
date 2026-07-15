@@ -513,7 +513,7 @@ catalog; per-route variants share the same `route` label dimension.
 | Supply-chain impact, vulnerability | go/internal/query/supply_chain*.go | `eshu_dp_api_request_duration_seconds`, `eshu_dp_api_request_errors_total` | query supply-chain |
 | Investigation workflows | go/internal/query/investigation_workflows*.go | `eshu_dp_api_request_duration_seconds`, `eshu_dp_api_request_errors_total` | query investigation |
 | Webhooks | go/cmd/webhook-listener/handler.go:368 | `eshu_dp_webhook_requests_total`, `eshu_dp_webhook_trigger_decisions_total`, `eshu_dp_webhook_store_operations_total`, `eshu_dp_webhook_request_duration_seconds`, `eshu_dp_webhook_store_duration_seconds` | webhook surface |
-| Infra relationships | go/internal/query/infra_relationship*.go | `eshu_dp_api_request_duration_seconds`, `eshu_dp_api_request_errors_total` | query infra |
+| Infra relationships and relationship-catalog breakdown limiter | go/internal/query/relationships_catalog.go | `eshu_dp_api_request_duration_seconds`, `eshu_dp_api_request_errors_total`, `eshu_dp_relationship_breakdown_permit_wait_seconds`, `eshu_dp_relationship_breakdown_queued`, `eshu_dp_relationship_breakdown_in_flight` | query infra |
 
 <!-- eshu:metric:section=otel-span-names -->
 ## OTEL Span Names
@@ -749,6 +749,7 @@ set, and every documented set has a matching variable in the code.
 | workflow-claim-run-seconds | 0.1, 0.5, 1, 5, 15, 30, 60, 120, 300, 600, 1200, 1800 |
 | pipeline-overlap-seconds | 1, 5, 10, 30, 60, 120, 300, 600, 1800 |
 | shutdown-duration-seconds | 0.5, 1, 2.5, 5, 10, 30, 60 |
+| relationship-breakdown-permit-wait-seconds | 0, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30 |
 | deferred-backfill-partition-workers-count | 1, 2, 4, 8, 16, 32 |
 | reducer-input-invalid-fact-write-batch-size | 0, 1, 2, 5, 10, 25, 50, 100, 250, 500 |
 | query-input-invalid-facts-duration-seconds | 0, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10 |

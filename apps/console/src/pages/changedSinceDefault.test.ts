@@ -45,7 +45,7 @@ function lifecycleEnvelope(scopeId: string, priorStatus?: "completed" | "failed"
     });
   }
   return {
-    data: { count: generations.length, generations, limit: 2, truncated: false },
+    data: { count: generations.length, generations, limit: 3, truncated: false },
     error: null,
     truth: {
       basis: "durable_lifecycle",
@@ -58,6 +58,74 @@ function lifecycleEnvelope(scopeId: string, priorStatus?: "completed" | "failed"
 }
 
 describe("discoverDefaultChangedSinceParams", () => {
+  it("looks past a pending generation to select the retained exact baseline", async () => {
+    const generations = [
+      {
+        current_active_generation_id: "generation:active",
+        generation_id: "generation:pending",
+        is_active: false,
+        observed_at: "2026-07-15T01:00:00Z",
+        queue_status: {},
+        scope_id: "scope:one",
+        scope_kind: "repository",
+        status: "pending",
+      },
+      {
+        current_active_generation_id: "generation:active",
+        generation_id: "generation:active",
+        is_active: true,
+        observed_at: "2026-07-14T01:00:00Z",
+        queue_status: {},
+        scope_id: "scope:one",
+        scope_kind: "repository",
+        status: "active",
+      },
+      {
+        current_active_generation_id: "generation:active",
+        generation_id: "generation:superseded",
+        is_active: false,
+        observed_at: "2026-07-13T01:00:00Z",
+        queue_status: {},
+        scope_id: "scope:one",
+        scope_kind: "repository",
+        status: "superseded",
+      },
+    ];
+    const get = vi.fn(async (path: string) => {
+      const limit = Number(new URL(path, "http://localhost").searchParams.get("limit"));
+      const page = generations.slice(0, limit);
+      return {
+        data: {
+          count: page.length,
+          generations: page,
+          limit,
+          truncated: page.length < generations.length,
+        },
+        error: null,
+        truth: {
+          basis: "durable_lifecycle",
+          capability: "freshness.generation_lifecycle",
+          freshness: { state: "fresh" },
+          level: "exact",
+          profile: "production",
+        },
+      };
+    });
+
+    await expect(
+      discoverDefaultChangedSinceParams({ get } as unknown as EshuApiClient, [
+        repository("repo-one"),
+      ]),
+    ).resolves.toEqual({
+      scopeId: "scope:one",
+      sinceGenerationId: "generation:superseded",
+    });
+    expect(get).toHaveBeenCalledWith(
+      "/api/v0/freshness/generations?repository=repo-one&limit=3",
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
+  });
+
   it("probes exact repositories until it finds an active and retained prior pair", async () => {
     const get = vi.fn(async (path: string) =>
       path.includes("repository=repo-one")
@@ -78,9 +146,9 @@ describe("discoverDefaultChangedSinceParams", () => {
       string,
       { readonly signal?: AbortSignal },
     ][];
-    expect(calls[0]?.[0]).toBe("/api/v0/freshness/generations?repository=repo-one&limit=2");
+    expect(calls[0]?.[0]).toBe("/api/v0/freshness/generations?repository=repo-one&limit=3");
     expect(calls[0]?.[1].signal).toBeInstanceOf(AbortSignal);
-    expect(calls[1]?.[0]).toBe("/api/v0/freshness/generations?repository=repo-two&limit=2");
+    expect(calls[1]?.[0]).toBe("/api/v0/freshness/generations?repository=repo-two&limit=3");
     expect(calls[1]?.[1].signal).toBeInstanceOf(AbortSignal);
   });
 

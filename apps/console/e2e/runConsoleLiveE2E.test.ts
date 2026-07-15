@@ -6,10 +6,35 @@ import type { Page } from "playwright";
 import { describe, expect, it, vi } from "vitest";
 
 import { startDevServerWithSpawner, stopLiveE2EDevServer } from "./liveE2EDevServer.ts";
-import { captureRoute } from "./runConsoleLiveE2E";
+import { captureRoute, proofManifestForLaunchedBrowser } from "./runConsoleLiveE2E";
 import { locatorStub } from "./routeWorkflowProbesTestSupport";
 
 type ViteChild = ChildProcessByStdio<null, Readable, Readable>;
+
+describe("console live E2E launched-browser identity", () => {
+  it("records the version reported by the browser instance", () => {
+    const version = vi.fn(() => "Chromium 140.0.7339.16");
+    const manifest = proofManifestForLaunchedBrowser(
+      {
+        ESHU_E2E_PROOF_ID: "dashboard-proof-20260715",
+        ESHU_E2E_SOURCE_HASH: "a".repeat(64),
+        ESHU_E2E_RUNNER_HASH: "b".repeat(64),
+        ESHU_E2E_API_IMAGE_DIGEST: `sha256:${"c".repeat(64)}`,
+        ESHU_E2E_API_VERSION: "proof-a1b2c3",
+        ESHU_E2E_NORNIC_IMAGE_DIGEST: `sha256:${"d".repeat(64)}`,
+        ESHU_E2E_NORNIC_VERSION: "v1.1.11",
+        ESHU_E2E_NODE_VERSION: "v24.4.1",
+        ESHU_E2E_PLAYWRIGHT_VERSION: "1.60.0",
+        ESHU_E2E_CORPUS_ATTESTATION: "retained-task-777",
+        ESHU_E2E_CORPUS_REPOSITORY_COUNT: "896",
+      },
+      { version },
+    );
+
+    expect(version).toHaveBeenCalledOnce();
+    expect(manifest.runtime.launchedBrowserVersion).toBe("Chromium 140.0.7339.16");
+  });
+});
 
 function stalledViteChild(): {
   readonly child: ViteChild;

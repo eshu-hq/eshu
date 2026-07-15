@@ -57,7 +57,7 @@ export async function discoverDefaultChangedSinceParams(
           try {
             const lifecycle = await loadGenerationLifecycle(
               client,
-              { limit: 2, repository },
+              { limit: 3, repository },
               { signal: controller.signal },
             );
             return defaultChangedSinceParamsFromGenerations(lifecycle.generations);

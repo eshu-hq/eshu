@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/sourcetool"
 )
@@ -147,7 +148,6 @@ func (h *InfraHandler) relationshipVerbTiles(ctx context.Context) ([]relationshi
 	}
 
 	errs := make([]error, len(relationshipVerbCatalog))
-	breakdownSlots := h.relationshipBreakdownSemaphore()
 	var wg sync.WaitGroup
 	for i, entry := range relationshipVerbCatalog {
 		if !entry.carriesSourceTool {
@@ -156,13 +156,12 @@ func (h *InfraHandler) relationshipVerbTiles(ctx context.Context) ([]relationshi
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			select {
-			case breakdownSlots <- struct{}{}:
-				defer func() { <-breakdownSlots }()
-			case <-ctx.Done():
-				errs[i] = ctx.Err()
+			release, err := h.acquireRelationshipBreakdownSlot(ctx)
+			if err != nil {
+				errs[i] = err
 				return
 			}
+			defer release()
 			breakdown, err := h.relationshipSourceToolBreakdown(ctx, entry)
 			if err != nil {
 				errs[i] = err
@@ -190,6 +189,48 @@ func (h *InfraHandler) relationshipBreakdownSemaphore() chan struct{} {
 		h.relationshipBreakdownSlots = make(chan struct{}, relationshipBreakdownMaxConcurrency)
 	})
 	return h.relationshipBreakdownSlots
+}
+
+// acquireRelationshipBreakdownSlot waits for one handler-wide source-tool
+// breakdown permit and returns its release function. The surrounding queue and
+// in-flight telemetry is label-free and does not change the four-slot admission
+// order, cancellation behavior, or permit ownership contract.
+func (h *InfraHandler) acquireRelationshipBreakdownSlot(ctx context.Context) (func(), error) {
+	slots := h.relationshipBreakdownSemaphore()
+	started := time.Now()
+	h.adjustRelationshipBreakdownQueued(ctx, 1)
+	select {
+	case slots <- struct{}{}:
+		h.adjustRelationshipBreakdownQueued(ctx, -1)
+		h.recordRelationshipBreakdownPermitWait(ctx, time.Since(started))
+		h.adjustRelationshipBreakdownInFlight(ctx, 1)
+		return func() {
+			h.adjustRelationshipBreakdownInFlight(ctx, -1)
+			<-slots
+		}, nil
+	case <-ctx.Done():
+		h.adjustRelationshipBreakdownQueued(ctx, -1)
+		h.recordRelationshipBreakdownPermitWait(ctx, time.Since(started))
+		return nil, ctx.Err()
+	}
+}
+
+func (h *InfraHandler) adjustRelationshipBreakdownQueued(ctx context.Context, delta int64) {
+	if h != nil && h.Instruments != nil && h.Instruments.RelationshipBreakdownQueued != nil {
+		h.Instruments.RelationshipBreakdownQueued.Add(ctx, delta)
+	}
+}
+
+func (h *InfraHandler) adjustRelationshipBreakdownInFlight(ctx context.Context, delta int64) {
+	if h != nil && h.Instruments != nil && h.Instruments.RelationshipBreakdownInFlight != nil {
+		h.Instruments.RelationshipBreakdownInFlight.Add(ctx, delta)
+	}
+}
+
+func (h *InfraHandler) recordRelationshipBreakdownPermitWait(ctx context.Context, duration time.Duration) {
+	if h != nil && h.Instruments != nil && h.Instruments.RelationshipBreakdownPermitWaitDuration != nil {
+		h.Instruments.RelationshipBreakdownPermitWaitDuration.Record(ctx, duration.Seconds())
+	}
 }
 
 // relationshipSourceToolBreakdown queries the source-label-anchored source_tool

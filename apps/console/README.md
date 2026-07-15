@@ -159,7 +159,7 @@ ESHU_E2E_RETAINED_PROJECT=eshu \
 ESHU_E2E_COMPOSE_ENV_FILE=e2e-artifacts/.env.console-e2e \
 ESHU_E2E_RETAINED_API_PORT=18086 \
 ESHU_E2E_WIZARD_NEW_PASSWORD="$LOCAL_PROOF_PASSWORD" \
-ESHU_E2E_CORPUS_IDENTITY="$CORPUS_IDENTITY" \
+ESHU_E2E_CORPUS_ATTESTATION="$CORPUS_ATTESTATION" \
 ESHU_E2E_CORPUS_REPOSITORY_COUNT="$CORPUS_REPOSITORY_COUNT" \
 ESHU_E2E_INCIDENT_ID="$INCIDENT_ID" \
 ESHU_E2E_SERVICE_NAME="$SERVICE_NAME" \
@@ -193,11 +193,16 @@ Every durable report also requires a non-secret proof manifest supplied through
 `ESHU_E2E_PROOF_ID`, `ESHU_E2E_SOURCE_HASH`, `ESHU_E2E_RUNNER_HASH`,
 `ESHU_E2E_API_IMAGE_DIGEST`, `ESHU_E2E_API_VERSION`,
 `ESHU_E2E_NORNIC_IMAGE_DIGEST`, `ESHU_E2E_NORNIC_VERSION`,
-`ESHU_E2E_CORPUS_IDENTITY`, and `ESHU_E2E_CORPUS_REPOSITORY_COUNT`. The runner
-fails closed when any identity is absent or malformed and never writes keys,
-passwords, or encryption secrets into the report. It also requires the declared
-corpus repository count to equal the same-run authoritative repository total;
-a stale or mislabeled corpus manifest fails the gate.
+`ESHU_E2E_NODE_VERSION`, `ESHU_E2E_PLAYWRIGHT_VERSION`, the launched browser
+version, `ESHU_E2E_CORPUS_ATTESTATION`, and
+`ESHU_E2E_CORPUS_REPOSITORY_COUNT`. The retained helper derives the runtime
+versions and records them with a runner hash that includes the root dependency
+manifest and lockfile. It never writes keys, passwords, or encryption secrets
+into the report. The runner validates the declared repository count against the
+same-run authoritative inventory. The corpus attestation is an operator-supplied
+label and is reported explicitly as not authoritatively validated; it is not a
+derived corpus identity. `ESHU_E2E_CORPUS_IDENTITY` remains a deprecated fallback
+when the attestation variable is unset.
 
 Retained-corpus runs also require real, local-only anchors for workflows that
 cannot discover a bounded target through the public UI: `ESHU_E2E_INCIDENT_ID`,

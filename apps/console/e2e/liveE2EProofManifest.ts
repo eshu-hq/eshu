@@ -10,9 +10,18 @@ export interface LiveE2EProofManifest {
     readonly imageDigest: string;
     readonly version: string;
   };
+  readonly runtime: {
+    readonly nodeVersion: string;
+    readonly playwrightVersion: string;
+    readonly launchedBrowserVersion: string;
+  };
   readonly corpus: {
-    readonly identity: string;
+    readonly operatorAttestation: string;
     readonly repositoryCount: number;
+    readonly validation: {
+      readonly operatorAttestation: "operator_attested_not_authoritatively_validated";
+      readonly repositoryCount: "validated_against_live_inventory";
+    };
   };
 }
 
@@ -22,6 +31,17 @@ function requiredValue(environment: ProofEnvironment, name: string): string {
   const value = environment[name]?.trim() ?? "";
   if (value === "") throw new Error(`${name} is required for durable live proof`);
   return value;
+}
+
+function requiredCorpusAttestation(environment: ProofEnvironment): string {
+  const attestation = environment.ESHU_E2E_CORPUS_ATTESTATION?.trim() ?? "";
+  if (attestation !== "") return attestation;
+  const deprecatedIdentity = environment.ESHU_E2E_CORPUS_IDENTITY?.trim() ?? "";
+  if (deprecatedIdentity !== "") return deprecatedIdentity;
+  throw new Error(
+    "ESHU_E2E_CORPUS_ATTESTATION is required for durable live proof " +
+      "(ESHU_E2E_CORPUS_IDENTITY is accepted as a deprecated fallback)",
+  );
 }
 
 function requiredSHA256(environment: ProofEnvironment, name: string): string {
@@ -53,7 +73,10 @@ function requiredNonNegativeInteger(environment: ProofEnvironment, name: string)
 // into this shape, so serializing the manifest cannot expose them.
 export function proofManifestFromEnvironment(
   environment: ProofEnvironment,
+  launchedBrowserVersion: string,
 ): LiveE2EProofManifest {
+  const browserVersion = launchedBrowserVersion.trim();
+  if (browserVersion === "") throw new Error("launched browser version is required");
   return {
     proofId: requiredValue(environment, "ESHU_E2E_PROOF_ID"),
     sourceHash: requiredSHA256(environment, "ESHU_E2E_SOURCE_HASH"),
@@ -66,18 +89,26 @@ export function proofManifestFromEnvironment(
       imageDigest: requiredImageDigest(environment, "ESHU_E2E_NORNIC_IMAGE_DIGEST"),
       version: requiredValue(environment, "ESHU_E2E_NORNIC_VERSION"),
     },
+    runtime: {
+      nodeVersion: requiredValue(environment, "ESHU_E2E_NODE_VERSION"),
+      playwrightVersion: requiredValue(environment, "ESHU_E2E_PLAYWRIGHT_VERSION"),
+      launchedBrowserVersion: browserVersion,
+    },
     corpus: {
-      identity: requiredValue(environment, "ESHU_E2E_CORPUS_IDENTITY"),
-      repositoryCount: requiredNonNegativeInteger(
-        environment,
-        "ESHU_E2E_CORPUS_REPOSITORY_COUNT",
-      ),
+      operatorAttestation: requiredCorpusAttestation(environment),
+      repositoryCount: requiredNonNegativeInteger(environment, "ESHU_E2E_CORPUS_REPOSITORY_COUNT"),
+      validation: {
+        operatorAttestation: "operator_attested_not_authoritatively_validated",
+        repositoryCount: "validated_against_live_inventory",
+      },
     },
   };
 }
 
-// assertProofManifestRepositoryCount prevents a durable report from claiming a
-// corpus identity that disagrees with the same-run authoritative API inventory.
+// assertProofManifestRepositoryCount validates only the repository cardinality
+// against the same-run API inventory. The operator attestation is deliberately
+// reported as non-authoritative rather than pretending the runner can derive a
+// canonical retained-corpus identity from that single count.
 export function assertProofManifestRepositoryCount(
   manifest: LiveE2EProofManifest,
   liveInventoryTotal: number,

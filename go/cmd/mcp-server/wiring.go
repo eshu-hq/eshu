@@ -314,9 +314,10 @@ func newMCPQueryRouterWithSemanticEmbedding(
 			HybridRanker: newContentHybridRanker(semanticSearchEmbedding),
 		},
 		Infra: &query.InfraHandler{
-			Neo4j:      neo4jReader,
-			Aggregates: query.NewGraphInfraResourceAggregateStore(neo4jReader),
-			Profile:    queryProfile,
+			Neo4j:       neo4jReader,
+			Aggregates:  query.NewGraphInfraResourceAggregateStore(neo4jReader),
+			Profile:     queryProfile,
+			Instruments: instruments,
 		},
 		IaC: &query.IaCHandler{
 			Content:      contentReader,
