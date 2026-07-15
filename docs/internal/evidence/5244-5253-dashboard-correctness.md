@@ -119,10 +119,12 @@ catalog requests in the 39-route gate. Reducer, collector, queue, and graph-writ
 worker counts were not changed; only these heavy read-side breakdowns share the
 measured four-slot cap.
 
-No-Observability-Change: the limiter changes scheduling only. Existing HTTP,
-graph-query, error, duration, and truth-envelope telemetry remains the operator
-surface; no retry, swallowed error, stale cache, or serialized fallback was
-added.
+Observability Evidence: the unchanged four-slot limiter now records the
+label-free `eshu_dp_relationship_breakdown_permit_wait_seconds` histogram plus
+current `eshu_dp_relationship_breakdown_queued` and
+`eshu_dp_relationship_breakdown_in_flight` up/down counters. Existing HTTP,
+graph-query, error, duration, and truth-envelope telemetry remains available;
+no retry, swallowed error, stale cache, or serialized fallback was added.
 
 No-Regression Evidence: `scripts/verify-golden-corpus-gate.sh` passed 418
 assertions with zero required failures and zero advisory warnings. The
