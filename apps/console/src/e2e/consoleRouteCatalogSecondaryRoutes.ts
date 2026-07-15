@@ -141,6 +141,7 @@ export const secondaryConsoleRoutes: readonly ConsoleRoute[] = [
       kind: "submit",
       fields: [
         {
+          requestKey: "scope_id",
           selector: 'input[aria-label="Scope id"]',
           valueEnv: "ESHU_E2E_SECRETS_SCOPE_ID",
         },
@@ -258,6 +259,7 @@ export const secondaryConsoleRoutes: readonly ConsoleRoute[] = [
       kind: "fill",
       selector: 'input[aria-label="Find a node by name, type or account"]',
       value: "repository",
+      requestKey: "q",
       outcomeSelector: ".panel-body",
       expectedRequestPath: "/api/v0/graph/entities",
       expectedRequestMethod: "GET",
@@ -304,6 +306,7 @@ export const secondaryConsoleRoutes: readonly ConsoleRoute[] = [
       kind: "submit",
       fields: [
         {
+          requestKey: "scope_id",
           selector: 'input[aria-label="Scope id"]',
           valueEnv: "ESHU_E2E_CLOUD_SCOPE_ID",
         },
@@ -360,10 +363,12 @@ export const secondaryConsoleRoutes: readonly ConsoleRoute[] = [
       kind: "submit",
       fields: [
         {
+          requestKey: "repo_id",
           selector: 'input[aria-label="Repository"]',
           valueEnv: "ESHU_E2E_SEMANTIC_REPOSITORY_ID",
         },
         {
+          requestKey: "query",
           selector: 'input[aria-label="Search query"]',
           valueEnv: "ESHU_E2E_SEMANTIC_QUERY",
         },

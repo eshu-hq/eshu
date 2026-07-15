@@ -113,13 +113,16 @@ function matchesExpectationPath(
 
   const prefix = expectation.pathPrefix;
   const suffix = expectation.pathSuffix;
-  return (
-    prefix !== undefined &&
-    suffix !== undefined &&
-    candidatePath.startsWith(prefix) &&
-    candidatePath.length > prefix.length + suffix.length &&
-    candidatePath.endsWith(suffix)
-  );
+  if (
+    prefix === undefined ||
+    suffix === undefined ||
+    !candidatePath.startsWith(prefix) ||
+    !candidatePath.endsWith(suffix)
+  ) {
+    return false;
+  }
+  const dynamicSegment = candidatePath.slice(prefix.length, candidatePath.length - suffix.length);
+  return dynamicSegment.length > 0 && !dynamicSegment.includes("/");
 }
 
 export function matchesWorkflowResponse(

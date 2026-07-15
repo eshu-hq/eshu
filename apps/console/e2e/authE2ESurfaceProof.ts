@@ -22,7 +22,15 @@ const profileUnavailableTexts = [
 ] as const;
 
 function isGetResponseFor(response: Response, path: string): boolean {
-  return response.request().method() === "GET" && new URL(response.url()).pathname.endsWith(path);
+  try {
+    const pathname = new URL(response.url()).pathname;
+    const normalizedPath = pathname.startsWith("/eshu-api/")
+      ? pathname.slice("/eshu-api".length)
+      : pathname;
+    return response.request().method() === "GET" && normalizedPath === path;
+  } catch {
+    return false;
+  }
 }
 
 function assertSuccessfulResponse(response: Response, path: string): void {
@@ -74,7 +82,11 @@ export async function assertAdminSessionSurface(page: Page, timeoutMs: number): 
   }
   await policyTab.click();
   assertSuccessfulResponse(await policyResponse, "/api/v0/auth/admin/sign-in-policy");
+  await page.waitForSelector('#identity-access-tab-sign-in-policy[aria-selected="true"]', {
+    timeout: timeoutMs,
+  });
   await page.waitForSelector("#identity-access-panel-sign-in-policy", { timeout: timeoutMs });
+  await page.waitForSelector("#policy-require-sso", { timeout: timeoutMs });
   if ((await page.locator("#identity-access-panel-sign-in-policy .unavailable-note").count()) > 0) {
     throw new Error("admin sign-in policy rendered unavailable after a successful read");
   }

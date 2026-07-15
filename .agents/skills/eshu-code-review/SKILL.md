@@ -471,27 +471,18 @@ The verdict is `blocked` when any of these are true:
 - base/head are not the final rebased diff to be pushed or merged;
 - the full-picture gate is incomplete for any touched production surface;
 - proof tier is missing, wrong, or not actually run for in-scope behavior;
-- an applicable adversarial probe is missing or only checks a helper instead of
-  the production subject;
+- an applicable adversarial probe is missing or only checks a helper instead of the production subject;
 - any P0, P1, or P2 finding remains unresolved before preflight or push;
 - generated artifacts or cassettes changed without source-of-truth proof;
 - root `AGENTS.md` and `CLAUDE.md` drift;
-- public text contains private data, credentials, internal identifiers, or AI
-  attribution;
+- public text contains private data, credentials, internal identifiers, or AI attribution;
 - review comments exist on the latest head and are unresolved;
 - CI/check evidence does not match the changed surface.
-- no final live check-rollup snapshot was collected after the last push or
-  rebase.
+- no final live check-rollup snapshot was collected after the last push or rebase.
 
 ## Output Template
 
-Use the template in `references/cold-review-probes.md`. Do not replace it with a
-short paragraph or a PR-body summary. A review that lacks the full-picture gate,
-all five passes, cross-pass comparison, probe results, GitHub truth, disposition,
-verification evidence, and stale-verdict conditions is incomplete.
+Use the template in `references/cold-review-probes.md`. Do not replace it with a short paragraph or a PR-body summary. A review that lacks the full-picture gate, all five passes, cross-pass comparison, probe results, GitHub truth, disposition, verification evidence, and stale-verdict conditions is incomplete.
 
 Ready means `P0=0`, `P1=0`, and `P2=0`, the full-picture gate is complete,
-every applicable adversarial probe has
-evidence, the selected proof tier is actually run for all in-scope behavior,
-out-of-scope proof gaps are routed to tracked follow-ups without overstating
-readiness, and the review was repeated after fixes.
+every applicable adversarial probe has evidence, the selected proof tier is actually run for all in-scope behavior, out-of-scope proof gaps are routed to tracked follow-ups without overstating readiness, and the review was repeated after fixes.

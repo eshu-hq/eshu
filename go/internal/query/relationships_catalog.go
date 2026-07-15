@@ -19,6 +19,11 @@ const (
 	// relationshipEdgesMaxLimit clamps the requested edge page size so a single
 	// verb drill-down can never request an unbounded slice.
 	relationshipEdgesMaxLimit = 200
+	// relationshipBreakdownMaxConcurrency is the retained-data-proven safe
+	// overlap for the catalog's source-label scans on NornicDB. The slots belong
+	// to the handler, so simultaneous HTTP requests share the same cap instead of
+	// multiplying per-request fan-out.
+	relationshipBreakdownMaxConcurrency = 4
 )
 
 // relationshipVerbTile is one entry in the relationships catalog: a typed-edge
@@ -142,6 +147,7 @@ func (h *InfraHandler) relationshipVerbTiles(ctx context.Context) ([]relationshi
 	}
 
 	errs := make([]error, len(relationshipVerbCatalog))
+	breakdownSlots := h.relationshipBreakdownSemaphore()
 	var wg sync.WaitGroup
 	for i, entry := range relationshipVerbCatalog {
 		if !entry.carriesSourceTool {
@@ -150,6 +156,13 @@ func (h *InfraHandler) relationshipVerbTiles(ctx context.Context) ([]relationshi
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
+			select {
+			case breakdownSlots <- struct{}{}:
+				defer func() { <-breakdownSlots }()
+			case <-ctx.Done():
+				errs[i] = ctx.Err()
+				return
+			}
 			breakdown, err := h.relationshipSourceToolBreakdown(ctx, entry)
 			if err != nil {
 				errs[i] = err
@@ -167,6 +180,16 @@ func (h *InfraHandler) relationshipVerbTiles(ctx context.Context) ([]relationshi
 		}
 	}
 	return tiles, nil
+}
+
+// relationshipBreakdownSemaphore returns the handler-wide slots shared by all
+// catalog requests. Lazy initialization keeps direct handler construction in
+// tests and embedded callers safe while sync.Once prevents a first-request race.
+func (h *InfraHandler) relationshipBreakdownSemaphore() chan struct{} {
+	h.relationshipBreakdownOnce.Do(func() {
+		h.relationshipBreakdownSlots = make(chan struct{}, relationshipBreakdownMaxConcurrency)
+	})
+	return h.relationshipBreakdownSlots
 }
 
 // relationshipSourceToolBreakdown queries the source-label-anchored source_tool

@@ -6,6 +6,7 @@ package query
 import (
 	"net/http"
 	"strings"
+	"sync"
 
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -18,6 +19,9 @@ type InfraHandler struct {
 	Neo4j      GraphQuery
 	Aggregates InfraResourceAggregateStore
 	Profile    QueryProfile
+
+	relationshipBreakdownOnce  sync.Once
+	relationshipBreakdownSlots chan struct{}
 }
 
 var infraCategoryLabels = map[string][]string{

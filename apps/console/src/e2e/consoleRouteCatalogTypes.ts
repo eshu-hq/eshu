@@ -11,11 +11,13 @@ export type ConsoleAuthMode = "bearer" | "browser_session";
 
 export type WorkflowField =
   | {
+      readonly requestKey?: string;
       readonly selector: string;
       readonly value: string;
       readonly valueEnv?: never;
     }
   | {
+      readonly requestKey?: string;
       readonly selector: string;
       readonly value?: never;
       readonly valueEnv: string;
@@ -97,6 +99,7 @@ export type RouteWorkflowSpec = WorkflowGuards &
         readonly kind: "fill";
         readonly selector: string;
         readonly value: string;
+        readonly requestKey?: string;
         readonly outcomeSelector?: string;
         readonly outcomeTextIncludes?: string;
         readonly requireOutcomeChange?: boolean;

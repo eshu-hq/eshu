@@ -18,7 +18,7 @@ interface LocatorStub {
 }
 
 interface ResponseStub {
-  request: () => { method: () => string };
+  request: () => { method: () => string; postDataJSON?: () => unknown };
   status: () => number;
   url: () => string;
 }
@@ -42,6 +42,77 @@ function locatorStub(overrides: Partial<LocatorStub> = {}): LocatorStub {
 }
 
 describe("executeRouteWorkflow interactions", () => {
+  it("fails a submit workflow when its typed anchor is absent from the request body", async () => {
+    const field = locatorStub({ inputValue: vi.fn().mockResolvedValue("repository:probe") });
+    const outcome = locatorStub();
+    const submit = locatorStub();
+    const response: ResponseStub = {
+      request: () => ({
+        method: () => "POST",
+        postDataJSON: () => ({ query: "bounded probe" }),
+      }),
+      status: () => 200,
+      url: () => "http://host/eshu-api/api/v0/search/semantic",
+    };
+    const page = {
+      locator: vi.fn((selector: string) => (selector === "#repo" ? field : outcome)),
+      getByRole: vi.fn(() => submit),
+      waitForResponse: vi.fn(async () => response),
+    } as unknown as Page;
+
+    const result = await executeRouteWorkflow(
+      page,
+      {
+        id: "semantic-request-anchor",
+        kind: "submit",
+        fields: [{ selector: "#repo", value: "repository:probe", requestKey: "repo_id" }],
+        role: "button",
+        name: "Search",
+        expectedRequestPath: "/api/v0/search/semantic",
+        expectedRequestMethod: "POST",
+        acceptedResponseStatuses: [200],
+        outcomeSelector: ".sem-result-announce",
+      } as never,
+      vi.fn(),
+    );
+
+    expect(result.passed).toBe(false);
+    expect(result.detail).toContain("repo_id");
+  });
+
+  it("fails a fill workflow when its request query changes the typed value", async () => {
+    const input = locatorStub({ inputValue: vi.fn().mockResolvedValue("repository") });
+    const outcome = locatorStub();
+    const response: ResponseStub = {
+      request: () => ({ method: () => "GET" }),
+      status: () => 200,
+      url: () => "http://host/eshu-api/api/v0/graph/entities?q=service",
+    };
+    const page = {
+      locator: vi.fn((selector: string) => (selector === "#query" ? input : outcome)),
+      waitForResponse: vi.fn(async () => response),
+    } as unknown as Page;
+
+    const result = await executeRouteWorkflow(
+      page,
+      {
+        id: "nodes-request-anchor",
+        kind: "fill",
+        selector: "#query",
+        value: "repository",
+        requestKey: "q",
+        outcomeSelector: ".results",
+        expectedRequestPath: "/api/v0/graph/entities",
+        expectedRequestMethod: "GET",
+        acceptedResponseStatuses: [200],
+      } as never,
+      vi.fn(),
+    );
+
+    expect(result.passed).toBe(false);
+    expect(result.detail).toContain("q");
+  });
+
   it("rejects a response with the right path but the wrong HTTP method", async () => {
     const field = locatorStub({ inputValue: vi.fn().mockResolvedValue("local") });
     const outcome = locatorStub();

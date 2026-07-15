@@ -32,10 +32,13 @@ until the proof clauses in the DONE section all hold.
   equivalent PR/issue/review-thread operations, use that connector as an
   explicit fallback and report the fallback in the proof notes.
 - **fresh base**: before opening or updating a PR, `git fetch origin`, rebase on
-  `origin/main`, rerun focused gates, and push the rebased head before creating
-  or updating the PR. Use `--force-with-lease` when the rebase rewrites an
-  already-pushed branch. Do not create or update a PR from a branch that is
-  knowingly behind main or locally conflicted.
+  `origin/main`, and rerun the focused proof affected by the rebase. Then follow
+  the complete Steps 5-7 promotion sequence: preliminary full
+  `eshu-code-review` with `P0=0, P1=0, P2=0`, one late `make pre-pr`, final
+  full review of the exact post-preflight diff, and only then push. Never push
+  directly after a rebase. Use `--force-with-lease` when the reviewed rebase
+  rewrites an already-pushed branch. Do not create or update a PR from a branch
+  that is knowingly behind main or locally conflicted.
 
 ## How to run it (composition with /goal)
 
@@ -128,10 +131,11 @@ current turn, stop and ask — do not self-approve and proceed.
 - Rebase open PRs on `main`; resolve conflicts immediately (PRs merge fast).
   During CI/review waiting, check `gh pr view <n> --json mergeable,headRefOid`
   about every 60 seconds. If `mergeable` becomes `CONFLICTING` or `UNKNOWN`
-  for more than one poll, fetch, rebase on `origin/main`, rerun focused gates,
-  push the rebased head with `--force-with-lease`, and restart the poll. Active
-  agents merge constantly; a green check snapshot can become stale while the PR
-  is waiting.
+  for more than one poll, fetch, rebase on `origin/main`, rerun affected focused
+  proof, and repeat the complete Steps 5-7 promotion sequence before pushing
+  with `--force-with-lease` and restarting the poll. A rebase never permits a
+  direct push. Active agents merge constantly; a green check snapshot can
+  become stale while the PR is waiting.
 - Fetch ALL inline + bot review comments:
   `gh api repos/eshu-hq/eshu/pulls/<n>/comments`. Treat every reviewer
   uniformly — **codex (`chatgpt-codex-connector[bot]`), GitHub Copilot
@@ -210,8 +214,10 @@ current turn, stop and ask — do not self-approve and proceed.
    is necessary, not sufficient. During CI waiting, poll mergeability and review
    threads about every 60 seconds. If `origin/main` advances, mergeability
    changes, or the PR head changes for any reason, rebase on `origin/main`,
-   rerun affected gates, rerun `eshu-code-review` on the new base/head, resolve
-   any findings, push the reviewed head, and then continue the CI wait.
+   rerun affected focused proof, and repeat the complete Steps 5-7 sequence on
+   the new base/head: clean preliminary review, one late `make pre-pr`, final
+   exact-diff review, then push the reviewed head and continue the CI wait. Do
+   not push a rebased or otherwise changed head directly.
 10. **When the goal is "drive to merged-closed", execute the merge.** Do not
    defer the merge back to the user when all gates are green and all review
    threads are resolved. Use `gh pr merge <n> --repo eshu-hq/eshu --squash

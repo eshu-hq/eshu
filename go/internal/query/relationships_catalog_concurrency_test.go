@@ -21,14 +21,8 @@ type overlappingBreakdownGraph struct {
 }
 
 func newOverlappingBreakdownGraph() *overlappingBreakdownGraph {
-	want := 0
-	for _, entry := range relationshipVerbCatalog {
-		if entry.carriesSourceTool {
-			want++
-		}
-	}
 	return &overlappingBreakdownGraph{
-		wantConcurrent: want,
+		wantConcurrent: 4,
 		release:        make(chan struct{}),
 	}
 }
@@ -97,6 +91,76 @@ func TestRelationshipVerbTilesOverlapsIndependentSourceToolBreakdowns(t *testing
 		}
 	case <-ctx.Done():
 		t.Fatal("source-tool breakdowns did not overlap before the test deadline")
+	}
+}
+
+type cappedBreakdownGraph struct {
+	entered chan struct{}
+	release chan struct{}
+}
+
+func (*cappedBreakdownGraph) RunSingle(
+	_ context.Context,
+	_ string,
+	_ map[string]any,
+) (map[string]any, error) {
+	return map[string]any{"count": int64(1)}, nil
+}
+
+func (g *cappedBreakdownGraph) Run(
+	ctx context.Context,
+	_ string,
+	_ map[string]any,
+) ([]map[string]any, error) {
+	select {
+	case g.entered <- struct{}{}:
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+	select {
+	case <-g.release:
+		return []map[string]any{{"source_tool": "test", "count": int64(1)}}, nil
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+}
+
+func TestRelationshipVerbTilesCapsConcurrentSourceToolBreakdownsAtFour(t *testing.T) {
+	t.Parallel()
+
+	graph := &cappedBreakdownGraph{
+		entered: make(chan struct{}, len(relationshipVerbCatalog)),
+		release: make(chan struct{}),
+	}
+	handler := &InfraHandler{Neo4j: graph, Profile: ProfileProduction}
+	done := make(chan error, 1)
+	go func() {
+		_, err := handler.relationshipVerbTiles(context.Background())
+		done <- err
+	}()
+
+	for range 4 {
+		select {
+		case <-graph.entered:
+		case <-time.After(time.Second):
+			close(graph.release)
+			t.Fatal("four source-tool breakdowns did not overlap")
+		}
+	}
+	select {
+	case <-graph.entered:
+		close(graph.release)
+		t.Fatal("a fifth source-tool breakdown entered the graph concurrently")
+	case <-time.After(25 * time.Millisecond):
+	}
+	close(graph.release)
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("relationshipVerbTiles() error = %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("relationshipVerbTiles() did not complete after releasing the graph")
 	}
 }
 

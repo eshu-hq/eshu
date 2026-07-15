@@ -34,6 +34,46 @@ import { executeStateWorkflow } from "./routeStateWorkflowProbe.ts";
 
 export { repositoryPathsFromSourceHref } from "./repositoryRouteWorkflowProbe.ts";
 
+interface RequestAnchor {
+  readonly key: string;
+  readonly value: string;
+}
+
+function requestAnchorFailure(
+  response: Awaited<ReturnType<Page["waitForResponse"]>>,
+  anchors: readonly RequestAnchor[],
+): string | null {
+  if (anchors.length === 0) return null;
+  const method = response.request().method().toUpperCase();
+  if (method === "GET") {
+    const searchParams = new URL(response.url()).searchParams;
+    for (const anchor of anchors) {
+      const values = searchParams.getAll(anchor.key);
+      if (values.length !== 1 || values[0] !== anchor.value) {
+        return `request did not preserve exact query anchor ${anchor.key}`;
+      }
+    }
+    return null;
+  }
+
+  let body: unknown;
+  try {
+    body = response.request().postDataJSON();
+  } catch {
+    return "request body was not valid JSON";
+  }
+  if (typeof body !== "object" || body === null || Array.isArray(body)) {
+    return "request body was not a JSON object";
+  }
+  const record = body as Readonly<Record<string, unknown>>;
+  for (const anchor of anchors) {
+    if (record[anchor.key] !== anchor.value) {
+      return `request did not preserve exact JSON anchor ${anchor.key}`;
+    }
+  }
+  return null;
+}
+
 async function executeFillWorkflow(
   page: Page,
   workflow: Extract<RouteWorkflowSpec, { readonly kind: "fill" }>,
@@ -85,6 +125,12 @@ async function executeFillWorkflow(
       );
     }
   }
+  if (response && workflow.requestKey) {
+    const requestFailure = requestAnchorFailure(response, [
+      { key: workflow.requestKey, value: workflow.value },
+    ]);
+    if (requestFailure) return failed(workflow.id, requestFailure);
+  }
   const forbidden = await forbiddenState(page, workflow);
   if (forbidden) return failed(workflow.id, forbidden);
   return passed(
@@ -100,6 +146,7 @@ async function executeSubmitWorkflow(
   workflow: Extract<RouteWorkflowSpec, { readonly kind: "submit" }>,
   waitForQuiet: WaitForApiQuiet,
 ): Promise<RouteWorkflowObservation> {
+  const requestAnchors: RequestAnchor[] = [];
   for (const field of workflow.fields) {
     const value = field.value ?? retainedEnvironmentValue(field.valueEnv);
     if (value === null) {
@@ -114,6 +161,7 @@ async function executeSubmitWorkflow(
     if ((await control.inputValue()) !== value) {
       return failed(workflow.id, `control ${field.selector} did not retain its bounded value`);
     }
+    if (field.requestKey) requestAnchors.push({ key: field.requestKey, value });
   }
 
   const expectedPath = resolveWorkflowTemplate(workflow.expectedRequestPath);
@@ -161,6 +209,11 @@ async function executeSubmitWorkflow(
   await submit.click();
   const responses = await Promise.all(responsePromises);
   await waitForQuiet();
+
+  for (const response of responses) {
+    const requestFailure = requestAnchorFailure(response, requestAnchors);
+    if (requestFailure) return failed(workflow.id, requestFailure);
+  }
 
   if (expectedPagePath) {
     const currentPath = pathname(page.url());

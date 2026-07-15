@@ -101,6 +101,8 @@ var ErrNoStreaming = fmt.Errorf("ask: adapter does not support streaming")
 //	  "answer_prose":     string   // LLM prose when narrated
 //	  "artifacts":        []object // rendered format artifacts
 //	  "truth_class":      string   // from primary packet
+//	  "result_ref":       string   // canonical API result reference
+//	  "result":           object   // bounded canonical result projection
 //	  "evidence_handles": []object // from primary packet
 //	  "applied_facets":   object   // deterministic question-scoping metadata
 //	  "query_trace":      []object // tool-call trace

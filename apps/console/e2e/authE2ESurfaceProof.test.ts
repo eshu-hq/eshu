@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { Page } from "playwright";
+import type { Page, Response } from "playwright";
 
 import {
   assertAdminSessionSurface,
@@ -173,6 +173,34 @@ describe("browser-session surface proof", () => {
     );
   });
 
+  it("ignores a neighboring profile response before the exact proxied endpoint", async () => {
+    const exactResponses = [
+      response("/api/v0/auth/profile"),
+      response("/api/v0/auth/sessions"),
+      response("/api/v0/auth/local/api-tokens"),
+    ];
+    let call = 0;
+    const page = {
+      waitForResponse: vi.fn(
+        async (predicate: (candidate: Response) => boolean): Promise<FakeResponse> => {
+          const exact = exactResponses[call++]!;
+          const expectedPath = new URL(exact.url()).pathname.slice("/eshu-api".length);
+          const neighbor = response(`/neighbor${expectedPath}`, 500);
+          if (predicate(neighbor as unknown as Response)) return neighbor;
+          if (predicate(exact as unknown as Response)) return exact;
+          throw new Error(`no response matched ${expectedPath}`);
+        },
+      ),
+      goto: vi.fn().mockResolvedValue(undefined),
+      waitForSelector: vi.fn().mockResolvedValue(undefined),
+      getByText: vi.fn(() => ({ count: vi.fn().mockResolvedValue(0) })),
+    };
+
+    await expect(assertProfileSessionSurface(page as unknown as Page, 1_000)).resolves.toContain(
+      "3 caller-bound reads returned 200",
+    );
+  });
+
   it("accepts the valid catalog-not-enforced unavailable-note copy", async () => {
     const page = {
       waitForResponse: vi
@@ -253,5 +281,81 @@ describe("browser-session surface proof", () => {
     );
     expect(policyTab.waitFor).toHaveBeenCalledWith({ state: "visible", timeout: 1_000 });
     expect(policyTab.click).toHaveBeenCalledOnce();
+  });
+
+  it("ignores a neighboring admin policy response before the exact proxied endpoint", async () => {
+    const policyTab = {
+      waitFor: vi.fn().mockResolvedValue(undefined),
+      count: vi.fn().mockResolvedValue(1),
+      click: vi.fn().mockResolvedValue(undefined),
+      getAttribute: vi.fn().mockResolvedValue("true"),
+    };
+    const page = {
+      goto: vi.fn().mockResolvedValue(undefined),
+      waitForSelector: vi.fn().mockResolvedValue(undefined),
+      waitForResponse: vi.fn(
+        async (predicate: (candidate: Response) => boolean): Promise<FakeResponse> => {
+          const neighbor = response("/neighbor/api/v0/auth/admin/sign-in-policy", 500);
+          if (predicate(neighbor as unknown as Response)) return neighbor;
+          const exact = response("/api/v0/auth/admin/sign-in-policy");
+          if (predicate(exact as unknown as Response)) return exact;
+          throw new Error("no exact policy response matched");
+        },
+      ),
+      getByRole: vi.fn(() => policyTab),
+      locator: vi.fn(() => ({ count: vi.fn().mockResolvedValue(0) })),
+    };
+
+    await expect(assertAdminSessionSurface(page as unknown as Page, 1_000)).resolves.toContain(
+      "sign-in policy returned 200",
+    );
+  });
+
+  it("rejects a successful admin policy response when its loaded control never renders", async () => {
+    const policyTab = {
+      waitFor: vi.fn().mockResolvedValue(undefined),
+      count: vi.fn().mockResolvedValue(1),
+      click: vi.fn().mockResolvedValue(undefined),
+      getAttribute: vi.fn().mockResolvedValue("true"),
+    };
+    const page = {
+      goto: vi.fn().mockResolvedValue(undefined),
+      waitForSelector: vi.fn(async (selector: string) => {
+        if (selector === "#policy-require-sso") {
+          throw new Error("policy control did not render");
+        }
+      }),
+      waitForResponse: vi.fn().mockResolvedValue(response("/api/v0/auth/admin/sign-in-policy")),
+      getByRole: vi.fn(() => policyTab),
+      locator: vi.fn(() => ({ count: vi.fn().mockResolvedValue(0) })),
+    };
+
+    await expect(assertAdminSessionSurface(page as unknown as Page, 1_000)).rejects.toThrow(
+      "policy control did not render",
+    );
+  });
+
+  it("rejects the admin policy proof when the clicked tab is not selected", async () => {
+    const policyTab = {
+      waitFor: vi.fn().mockResolvedValue(undefined),
+      count: vi.fn().mockResolvedValue(1),
+      click: vi.fn().mockResolvedValue(undefined),
+      getAttribute: vi.fn().mockResolvedValue("false"),
+    };
+    const page = {
+      goto: vi.fn().mockResolvedValue(undefined),
+      waitForSelector: vi.fn(async (selector: string) => {
+        if (selector === '#identity-access-tab-sign-in-policy[aria-selected="true"]') {
+          throw new Error("admin Sign-in policy tab was not selected");
+        }
+      }),
+      waitForResponse: vi.fn().mockResolvedValue(response("/api/v0/auth/admin/sign-in-policy")),
+      getByRole: vi.fn(() => policyTab),
+      locator: vi.fn(() => ({ count: vi.fn().mockResolvedValue(0) })),
+    };
+
+    await expect(assertAdminSessionSurface(page as unknown as Page, 1_000)).rejects.toThrow(
+      "admin Sign-in policy tab was not selected",
+    );
   });
 });

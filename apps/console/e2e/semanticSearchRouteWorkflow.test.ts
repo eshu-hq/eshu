@@ -26,7 +26,13 @@ describe("retained Semantic Search workflow", () => {
       });
       const announcement = locatorStub({ textContent: vi.fn().mockResolvedValue("0 results") });
       const response: ResponseStub = {
-        request: () => ({ method: () => "POST" }),
+        request: () => ({
+          method: () => "POST",
+          postDataJSON: () => ({
+            query: "retained symbol",
+            repo_id: "repository:retained",
+          }),
+        }),
         status: () => 200,
         url: () => "http://host/eshu-api/api/v0/search/semantic",
       };

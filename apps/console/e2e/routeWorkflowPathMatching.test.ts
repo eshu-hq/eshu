@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   matchesExpectedResponse,
   matchesExpectedResponsePrefix,
+  matchesWorkflowResponse,
 } from "./routeWorkflowProbeSupport";
 import type { ResponseStub } from "./routeWorkflowProbesTestSupport";
 
@@ -71,5 +72,38 @@ describe("route workflow response path matching", () => {
         [200],
       ),
     ).toBe(false);
+  });
+
+  it.each([
+    "/api/v0/services/service-one/neighbor/story",
+    "/api/v0/services/service-one/story/neighbor",
+    "/api/v0/investigations/services/service-one/neighbor",
+  ])("rejects a dynamic workflow response containing nested segments: %s", (path) => {
+    const expectation = path.startsWith("/api/v0/investigations")
+      ? {
+          pathPrefix: "/api/v0/investigations/services/",
+          pathSuffix: "",
+          method: "GET" as const,
+          acceptedStatuses: [200],
+        }
+      : {
+          pathPrefix: "/api/v0/services/",
+          pathSuffix: "/story",
+          method: "GET" as const,
+          acceptedStatuses: [200],
+        };
+
+    expect(matchesWorkflowResponse(response(path) as never, expectation)).toBe(false);
+  });
+
+  it("accepts one non-empty encoded dynamic segment", () => {
+    expect(
+      matchesWorkflowResponse(response("/api/v0/services/team%2Fgateway/story") as never, {
+        pathPrefix: "/api/v0/services/",
+        pathSuffix: "/story",
+        method: "GET",
+        acceptedStatuses: [200],
+      }),
+    ).toBe(true);
   });
 });

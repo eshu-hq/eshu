@@ -132,6 +132,7 @@ export const primaryConsoleRoutes: readonly ConsoleRoute[] = [
       kind: "submit",
       fields: [
         {
+          requestKey: "name",
           selector: 'input[placeholder="Entity / symbol / service name…"]',
           valueEnv: "ESHU_E2E_SERVICE_NAME",
         },
@@ -223,6 +224,7 @@ export const primaryConsoleRoutes: readonly ConsoleRoute[] = [
       kind: "submit",
       fields: [
         {
+          requestKey: "scope_id",
           selector: 'input[aria-label="Scope ID filter"]',
           valueEnv: "ESHU_E2E_AWS_SCOPE_ID",
         },

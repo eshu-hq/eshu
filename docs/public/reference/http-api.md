@@ -264,7 +264,7 @@ configured via `ESHU_SEMANTIC_PROVIDER_PROFILES_JSON`.
   "artifacts":        [{"format":"string","content":"string","issues":["string"]}],
   "truth_class":      "deterministic|derived|fallback|semantic_observation|code_hint|unsupported",
   "result_ref":       "string (addressable canonical API result)",
-  "result":           {"total": 896},
+  "result":           {"total": 123},
   "evidence_handles": [...],
   "citation_ref":     "string (citation packet that hydrates the evidence handles; coverage anchor for derived prose)",
   "applied_facets":   {
@@ -277,6 +277,10 @@ configured via `ESHU_SEMANTIC_PROVIDER_PROFILES_JSON`.
   "limitations":      ["string"]
 }
 ```
+
+The `123` value is illustrative. Exact repository-count answers use the current
+authorized `list_indexed_repositories.total`, so the value varies by caller and
+corpus rather than representing a fixed product count.
 
 `applied_facets` is omitted when the question has no detectable tool or language scope. When
 present, it records what was detected before the agent loop ran: `source_tool` and `language`

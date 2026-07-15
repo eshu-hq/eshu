@@ -16,11 +16,25 @@ for that platform's own commands and layers.
 
 ## Before You Push
 
-**The contributor standard: run `make pre-pr` before opening or updating any
-PR.** It is the one-command local mirror of the credential-free CI gates, so
-format, exactness, race, contract, docs, and (for Go changes) security failures
-are caught in a single local pass instead of across multiple ~20-minute CI
-rounds:
+Use this fixed promotion order before opening or updating a PR:
+
+1. Complete TDD and the focused proof for every touched surface, including any
+   applicable frontend, security, runtime, or Ifa gates.
+2. Run a preliminary full `eshu-code-review` of the rebased diff. If it reports
+   any P0, P1, or P2 finding, fix every finding, rerun affected focused proof,
+   and repeat the full review. Do **not** run `make pre-pr` while findings remain.
+3. Once the preliminary verdict is `P0=0, P1=0, P2=0` and the branch is
+   otherwise ready to push, run `make pre-pr` exactly once as the late promotion
+   gate. Use `make pre-pr-full` here instead when the risk tier requires the
+   whole-module race lane.
+4. Run a final full `eshu-code-review` against the exact post-preflight diff.
+   Make no edits before push; any diff change invalidates the verdict and
+   restarts this sequence at focused proof.
+
+`make pre-pr` is the one-command local mirror of the credential-free CI gates,
+so format, exactness, race, contract, docs, and (for Go changes) security
+failures are caught in a single local pass instead of across multiple
+~20-minute CI rounds:
 
 ```bash
 make pre-pr            # or: bash scripts/dev/pre-pr.sh
@@ -70,7 +84,7 @@ locally. **CI remains the authoritative blocking race gate** (whole-module
 make pre-pr-full      # pre-pr + `go test ./... -race`
 ```
 
-For frontend changes, a separate preflight mirrors `.github/workflows/frontend.yml`
+For frontend changes, a separate focused preflight mirrors `.github/workflows/frontend.yml`
 (#4216) — root-site and console typecheck/test/build, console a11y (critical +
 serious block), the ESLint flat config, npm audit (high/critical block), the
 per-page console e2e, and changed-file Prettier — selected by changed path:
