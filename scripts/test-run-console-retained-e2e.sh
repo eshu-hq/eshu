@@ -4,12 +4,21 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 target="$repo_root/scripts/run-console-retained-e2e.sh"
+create_schema_sql="$repo_root/scripts/lib/console-retained-create-proof-schema.sql"
+verify_identity_sql="$repo_root/scripts/lib/console-retained-verify-public-identity.sql"
 
 [[ -f "$target" ]] || {
   echo "missing retained console proof lifecycle helper: $target" >&2
   exit 1
 }
 bash -n "$target"
+
+for sql_file in "$create_schema_sql" "$verify_identity_sql"; do
+  [[ -f "$sql_file" ]] || {
+    echo "missing retained console proof SQL fixture: $sql_file" >&2
+    exit 1
+  }
+done
 
 for required in \
   'CREATE SCHEMA' \
@@ -34,8 +43,17 @@ for required in \
   'npm run console:e2e' \
   'DROP SCHEMA' \
   'ESHU_KEEP_RETAINED_PROOF'; do
-  rg -q --fixed-strings "$required" "$target" || {
+  rg -q --fixed-strings "$required" "$target" "$create_schema_sql" "$verify_identity_sql" || {
     echo "retained console proof helper missing lifecycle contract: $required" >&2
+    exit 1
+  }
+done
+
+for sql_fixture in \
+  'scripts/lib/console-retained-create-proof-schema.sql' \
+  'scripts/lib/console-retained-verify-public-identity.sql'; do
+  rg -q --fixed-strings "$sql_fixture" "$target" || {
+    echo "retained console proof runner hash omits SQL fixture: $sql_fixture" >&2
     exit 1
   }
 done
@@ -63,7 +81,7 @@ cleanup() {
   fi
 }
 trap cleanup EXIT
-mkdir -p "$hash_repo/apps/console" "$hash_repo/scripts"
+mkdir -p "$hash_repo/apps/console" "$hash_repo/scripts/lib"
 printf '%s\n' '{"name":"proof"}' >"$hash_repo/package.json"
 printf '%s\n' '{"lockfileVersion":3}' >"$hash_repo/package-lock.json"
 printf '%s\n' 'runner' >"$hash_repo/apps/console/runner.ts"
@@ -73,6 +91,8 @@ for input in \
   console-live-e2e-runtime.mjs; do
   printf '%s\n' "$input" >"$hash_repo/scripts/$input"
 done
+printf '%s\n' 'create proof schema' >"$hash_repo/scripts/lib/console-retained-create-proof-schema.sql"
+printf '%s\n' 'verify public identity' >"$hash_repo/scripts/lib/console-retained-verify-public-identity.sql"
 git -C "$hash_repo" init -q
 git -C "$hash_repo" add .
 runner_hash() {
@@ -84,7 +104,9 @@ runner_hash() {
         apps/console \
         scripts/run-console-live-e2e.sh \
         scripts/run-console-retained-e2e.sh \
-        scripts/console-live-e2e-runtime.mjs
+        scripts/console-live-e2e-runtime.mjs \
+        scripts/lib/console-retained-create-proof-schema.sql \
+        scripts/lib/console-retained-verify-public-identity.sql
     } | sort -z | xargs -0 shasum -a 256 | shasum -a 256 | awk '{print $1}'
   )
 }
@@ -93,6 +115,14 @@ printf '%s\n' '{"changed":true}' >>"$hash_repo/package-lock.json"
 after_lock_hash="$(runner_hash)"
 if [[ "$before_lock_hash" == "$after_lock_hash" ]]; then
   echo "runner identity ignored a package-lock-only change" >&2
+  exit 1
+fi
+
+before_sql_hash="$(runner_hash)"
+printf '%s\n' 'changed' >>"$hash_repo/scripts/lib/console-retained-create-proof-schema.sql"
+after_sql_hash="$(runner_hash)"
+if [[ "$before_sql_hash" == "$after_sql_hash" ]]; then
+  echo "runner identity ignored a retained SQL fixture change" >&2
   exit 1
 fi
 

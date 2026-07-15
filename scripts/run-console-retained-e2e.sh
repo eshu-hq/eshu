@@ -6,6 +6,8 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
+create_proof_schema_sql="$repo_root/scripts/lib/console-retained-create-proof-schema.sql"
+verify_public_identity_sql="$repo_root/scripts/lib/console-retained-verify-public-identity.sql"
 
 compose_project="${ESHU_E2E_RETAINED_PROJECT:-eshu}"
 compose_file="${ESHU_E2E_RETAINED_COMPOSE_FILE:-docker-compose.yaml}"
@@ -69,6 +71,12 @@ for tool in docker curl node npm rg shasum; do
     exit 1
   }
 done
+for sql_file in "$create_proof_schema_sql" "$verify_public_identity_sql"; do
+  [[ -f "$sql_file" ]] || {
+    echo "run-console-retained-e2e: missing required SQL fixture: $sql_file" >&2
+    exit 1
+  }
+done
 
 API_INPUT_HASH="$({
   printf '%s\0' Dockerfile
@@ -80,7 +88,9 @@ RUNNER_INPUT_HASH="$({
     apps/console \
     scripts/run-console-live-e2e.sh \
     scripts/run-console-retained-e2e.sh \
-    scripts/console-live-e2e-runtime.mjs
+    scripts/console-live-e2e-runtime.mjs \
+    scripts/lib/console-retained-create-proof-schema.sql \
+    scripts/lib/console-retained-verify-public-identity.sql
 } | sort -z | xargs -0 shasum -a 256 | shasum -a 256 | awk '{print $1}')"
 node_version="$(node --version)"
 playwright_version="$(node -p 'require("playwright/package.json").version')"
@@ -91,94 +101,12 @@ postgres_psql() {
 
 create_proof_schema() {
   printf '%s\n' "run-console-retained-e2e: creating isolated auth schema $schema"
-  postgres_psql -v proof_schema="$schema" <<'SQL'
-BEGIN;
-SELECT format('CREATE SCHEMA %I', :'proof_schema') \gexec
-SELECT set_config('eshu.proof_schema', :'proof_schema', false);
-CREATE TEMP TABLE proof_auth_tables(table_name text PRIMARY KEY);
-INSERT INTO proof_auth_tables(table_name)
-SELECT table_name
-FROM information_schema.tables
-WHERE table_schema = 'public'
-  AND (
-    table_name LIKE 'identity_%'
-    OR table_name IN (
-      'browser_sessions',
-      'governance_audit_events',
-      'tenant_repository_grants',
-      'tenant_scope_grants',
-      'tenants',
-      'workspaces'
-    )
-  )
-ORDER BY table_name;
-
-DO $proof$
-DECLARE
-  target_schema text := current_setting('eshu.proof_schema');
-  target_table text;
-BEGIN
-  EXECUTE format(
-    'CREATE TABLE %I._public_identity_snapshots (table_name text PRIMARY KEY, row_count bigint NOT NULL, row_digest text NOT NULL)',
-    target_schema
-  );
-  FOR target_table IN SELECT table_name FROM proof_auth_tables ORDER BY table_name LOOP
-    EXECUTE format(
-      'CREATE TABLE %I.%I (LIKE public.%I INCLUDING ALL)',
-      target_schema,
-      target_table,
-      target_table
-    );
-    EXECUTE format(
-      'INSERT INTO %I._public_identity_snapshots '
-      'SELECT %L, count(*), COALESCE(md5(string_agg(row_json, chr(10) ORDER BY row_json)), md5('''')) '
-      'FROM (SELECT to_jsonb(source_row)::text AS row_json FROM public.%I AS source_row) AS rows',
-      target_schema,
-      target_table,
-      target_table
-    );
-  END LOOP;
-END
-$proof$;
-
-DO $proof$
-BEGIN
-  IF to_regclass(format('%I.fact_records', current_setting('eshu.proof_schema'))) IS NOT NULL THEN
-    RAISE EXCEPTION 'proof schema must not shadow retained fact_records';
-  END IF;
-END
-$proof$;
-COMMIT;
-SQL
+  postgres_psql -v proof_schema="$schema" <"$create_proof_schema_sql"
   schema_created=true
 }
 
 verify_public_identity_unchanged() {
-  postgres_psql -v proof_schema="$schema" <<'SQL'
-SELECT set_config('eshu.proof_schema', :'proof_schema', false);
-DO $proof$
-DECLARE
-  target_schema text := current_setting('eshu.proof_schema');
-  baseline record;
-  current_count bigint;
-  current_digest text;
-BEGIN
-  FOR baseline IN EXECUTE format(
-    'SELECT table_name, row_count, row_digest FROM %I._public_identity_snapshots ORDER BY table_name',
-    target_schema
-  ) LOOP
-    EXECUTE format(
-      'SELECT count(*), COALESCE(md5(string_agg(row_json, chr(10) ORDER BY row_json)), md5('''')) '
-      'FROM (SELECT to_jsonb(source_row)::text AS row_json FROM public.%I AS source_row) AS rows',
-      baseline.table_name
-    ) INTO current_count, current_digest;
-    IF current_count <> baseline.row_count OR current_digest <> baseline.row_digest THEN
-      RAISE EXCEPTION 'retained public identity table % changed during isolated proof', baseline.table_name;
-    END IF;
-  END LOOP;
-END
-$proof$;
-SQL
+  postgres_psql -v proof_schema="$schema" <"$verify_public_identity_sql"
   public_identity_verified=true
 }
 
