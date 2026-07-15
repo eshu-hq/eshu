@@ -49,10 +49,17 @@ for required in \
   }
 done
 
+runner_hash_contains_fixture() {
+  local runner="$1"
+  local sql_fixture="$2"
+  sed -n '/^RUNNER_INPUT_HASH=/,/^node_version=/p' "$runner" |
+    rg -q --fixed-strings "$sql_fixture"
+}
+
 for sql_fixture in \
   'scripts/lib/console-retained-create-proof-schema.sql' \
   'scripts/lib/console-retained-verify-public-identity.sql'; do
-  rg -q --fixed-strings "$sql_fixture" "$target" || {
+  runner_hash_contains_fixture "$target" "$sql_fixture" || {
     echo "retained console proof runner hash omits SQL fixture: $sql_fixture" >&2
     exit 1
   }
@@ -95,6 +102,20 @@ printf '%s\n' 'create proof schema' >"$hash_repo/scripts/lib/console-retained-cr
 printf '%s\n' 'verify public identity' >"$hash_repo/scripts/lib/console-retained-verify-public-identity.sql"
 git -C "$hash_repo" init -q
 git -C "$hash_repo" add .
+
+# Mutation-test the production block binding. A fixture path elsewhere in the
+# runner must not hide its omission from RUNNER_INPUT_HASH.
+mutated_runner="$hash_repo/run-console-retained-e2e.sh"
+for sql_fixture in \
+  'scripts/lib/console-retained-create-proof-schema.sql' \
+  'scripts/lib/console-retained-verify-public-identity.sql'; do
+  sed "\\|    ${sql_fixture}|d" "$target" >"$mutated_runner"
+  if runner_hash_contains_fixture "$mutated_runner" "$sql_fixture"; then
+    echo "runner hash fixture assertion accepted an omitted fixture: $sql_fixture" >&2
+    exit 1
+  fi
+done
+
 runner_hash() {
   (
     cd "$hash_repo"
@@ -118,13 +139,20 @@ if [[ "$before_lock_hash" == "$after_lock_hash" ]]; then
   exit 1
 fi
 
-before_sql_hash="$(runner_hash)"
-printf '%s\n' 'changed' >>"$hash_repo/scripts/lib/console-retained-create-proof-schema.sql"
-after_sql_hash="$(runner_hash)"
-if [[ "$before_sql_hash" == "$after_sql_hash" ]]; then
-  echo "runner identity ignored a retained SQL fixture change" >&2
-  exit 1
-fi
+for sql_fixture in \
+  'console-retained-create-proof-schema.sql' \
+  'console-retained-verify-public-identity.sql'; do
+  fixture_path="$hash_repo/scripts/lib/$sql_fixture"
+  original_fixture="$(<"$fixture_path")"
+  before_sql_hash="$(runner_hash)"
+  printf '%s\n' 'changed' >>"$fixture_path"
+  after_sql_hash="$(runner_hash)"
+  printf '%s\n' "$original_fixture" >"$fixture_path"
+  if [[ "$before_sql_hash" == "$after_sql_hash" ]]; then
+    echo "runner identity ignored a retained SQL fixture change: $sql_fixture" >&2
+    exit 1
+  fi
+done
 
 if rg -q --fixed-strings 'down -v' "$target"; then
   echo "retained console proof helper must never remove retained volumes" >&2

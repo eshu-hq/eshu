@@ -1007,6 +1007,8 @@ gates:
       - "scripts/test-run-console-live-e2e.sh"
       - "scripts/test-run-console-retained-e2e.sh"
       - "scripts/console-live-e2e-runtime.mjs"
+      - "scripts/lib/console-retained-create-proof-schema.sql"
+      - "scripts/lib/console-retained-verify-public-identity.sql"
       # console:* commands resolve dependencies from the root package.json, so a
       # root dependency change must re-run the console checks (CI's Console job
       # has no per-job path filter and runs on these too).

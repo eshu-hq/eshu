@@ -15,6 +15,7 @@ script="${repo_root}/scripts/verify-ci-gates-registry.sh"
 registry="${repo_root}/specs/ci-gates.v1.yaml"
 static_contract_workflow="${repo_root}/.github/workflows/static-contract-gates.yml"
 build_test_workflow="${repo_root}/.github/workflows/test.yml"
+frontend_workflow="${repo_root}/.github/workflows/frontend.yml"
 
 fail() {
 	printf 'test-verify-ci-gates-registry: %s\n' "$*" >&2
@@ -47,6 +48,16 @@ require "gates section"     "gates:"          "${registry}"
 require "id field present"  "  - id:"         "${registry}"
 require "triggers present"  "    triggers:"   "${registry}"
 require "ci_only_reason"    "ci_only_reason:" "${registry}"
+
+# Retained-console SQL fixtures are executable proof inputs. A fixture-only
+# change must select the same frontend gate in both GitHub and local parity.
+[[ -f "${frontend_workflow}" ]] || fail "missing ${frontend_workflow}"
+for sql_fixture in \
+	'scripts/lib/console-retained-create-proof-schema.sql' \
+	'scripts/lib/console-retained-verify-public-identity.sql'; do
+	require "frontend workflow retained SQL trigger" "\"${sql_fixture}\"" "${frontend_workflow}"
+	require "frontend registry retained SQL trigger" "\"${sql_fixture}\"" "${registry}"
+done
 
 # Every gate must declare a tier. Spot-check the enumerated tiers.
 require "pre-commit tier"  "tier: pre-commit" "${registry}"

@@ -49,6 +49,8 @@ on:
       - "scripts/test-run-console-live-e2e.sh"
       - "scripts/test-run-console-retained-e2e.sh"
       - "scripts/console-live-e2e-runtime.mjs"
+      - "scripts/lib/console-retained-create-proof-schema.sql"
+      - "scripts/lib/console-retained-verify-public-identity.sql"
       - ".pre-commit-config.yaml"
       - ".github/workflows/frontend.yml"
       # SSO auth E2E (#4971) surfaces — the browser gate, its runtime, the
