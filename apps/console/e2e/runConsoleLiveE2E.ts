@@ -42,6 +42,13 @@ import {
   type RouteResult,
   type RouteSignals,
 } from "../src/e2e/routeAssertions.ts";
+import { executeRouteWorkflow } from "./routeWorkflowProbes.ts";
+import {
+  awaitApiQuiet,
+  filterAllowedResourceConsoleErrors,
+  isConsoleApiUrl,
+  traceCaptureEnabled,
+} from "./liveE2EPolicy.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const consoleDir = resolve(here, "..");
@@ -165,16 +172,15 @@ interface ApiQuietTracker {
 function installApiQuietTracker(page: Page): ApiQuietTracker {
   let inFlight = 0;
   let lastChangeAt = Date.now();
-  const isApi = (url: string): boolean => url.includes("/eshu-api/");
   const settle = (url: string): void => {
-    if (!isApi(url)) {
+    if (!isConsoleApiUrl(url)) {
       return;
     }
     inFlight = Math.max(0, inFlight - 1);
     lastChangeAt = Date.now();
   };
   page.on("request", (request) => {
-    if (isApi(request.url())) {
+    if (isConsoleApiUrl(request.url())) {
       inFlight += 1;
       lastChangeAt = Date.now();
     }
@@ -188,23 +194,30 @@ function installApiQuietTracker(page: Page): ApiQuietTracker {
 }
 
 // waitForApiQuiet blocks until no /eshu-api request has been in flight for a
-// short quiet window, or a hard cap elapses. The cap bounds slow/hung backends
-// without masking them: any request still pending at the cap will be captured
-// as in-flight, and if it later aborts on navigation the gate still records it.
-async function waitForApiQuiet(page: Page, tracker: ApiQuietTracker): Promise<void> {
-  const quietWindowMs = 600;
-  const capMs = 12000;
-  const start = Date.now();
-  for (;;) {
-    const idleFor = Date.now() - tracker.lastChangeAt();
-    if (tracker.inFlight() === 0 && idleFor >= quietWindowMs) {
-      return;
+// short quiet window, or a hard cap elapses. The cap is deliberately longer
+// than EshuApiClient's request timeout, so a client-timed-out request settles on
+// its owning route before navigation can attribute its abort to the next one.
+async function waitForApiQuiet(page: Page, tracker: ApiQuietTracker) {
+  return awaitApiQuiet(tracker, (duration) => page.waitForTimeout(duration));
+}
+
+function allowedConsoleStatuses(network: readonly NetworkObservation[]): readonly number[] {
+  return network.flatMap((observation) => {
+    let pathname = "";
+    try {
+      pathname = new URL(observation.url).pathname;
+    } catch {
+      return [];
     }
-    if (Date.now() - start >= capMs) {
-      return;
-    }
-    await page.waitForTimeout(100);
-  }
+    return defaultNetworkAllowList.some(
+      (rule) =>
+        rule.method === observation.method.toUpperCase() &&
+        rule.pathname === pathname &&
+        rule.status === observation.status,
+    )
+      ? [observation.status]
+      : [];
+  });
 }
 
 // captureRoute navigates to one route and records its signals. localStorage is
@@ -214,6 +227,7 @@ async function captureRoute(
   route: ConsoleRoute,
   tracker: ApiQuietTracker,
 ): Promise<RouteSignals> {
+  const startedAt = Date.now();
   const consoleErrors: string[] = [];
   const network: NetworkObservation[] = [];
 
@@ -263,8 +277,16 @@ async function captureRoute(
   // abort still-pending requests. A genuine navigation failure (e.g. dev server
   // down) still throws and fails the run.
   await page.goto(routeUrl(page, route), { waitUntil: "domcontentloaded", timeout: navTimeoutMs });
+  await page.waitForSelector(".source-pill.src-connected", { timeout: navTimeoutMs });
   await page.waitForTimeout(perRouteSettleMs);
-  await waitForApiQuiet(page, tracker);
+  const apiQuiet = await waitForApiQuiet(page, tracker);
+
+  const workflow = route.workflow
+    ? await executeRouteWorkflow(page, route.workflow, async () => {
+        const result = await waitForApiQuiet(page, tracker);
+        if (!result.settled) throw new Error(`${result.inFlight} API request(s) remained active`);
+      })
+    : null;
 
   const dom = await page.evaluate(() => {
     const pill = document.querySelector(".source-pill");
@@ -303,8 +325,14 @@ async function captureRoute(
     sourceMode: dom.sourceMode,
     demoBannerPresent: dom.demoBannerPresent,
     mainContentChars: dom.mainContentChars,
-    consoleErrors,
+    consoleErrors: filterAllowedResourceConsoleErrors(
+      consoleErrors,
+      allowedConsoleStatuses(network),
+    ),
     network,
+    workflow,
+    apiQuiet,
+    durationMs: Date.now() - startedAt,
   };
 }
 
@@ -338,11 +366,14 @@ export async function runConsoleLiveE2E(): Promise<number> {
   process.stdout.write(`console-live-e2e: live API base ${apiBase}\n`);
 
   const server = await startDevServer();
+  const captureTrace = traceCaptureEnabled(process.env.ESHU_CONSOLE_E2E_TRACE);
   let browser: Browser | undefined;
   try {
     browser = await chromium.launch();
     const context = await browser.newContext();
-    await context.tracing.start({ screenshots: true, snapshots: true });
+    if (captureTrace) {
+      await context.tracing.start({ screenshots: true, snapshots: true });
+    }
 
     // Seed the private-mode environment on the dev-server origin before the app
     // script runs, so the console boots straight into a live connection.
@@ -369,7 +400,12 @@ export async function runConsoleLiveE2E(): Promise<number> {
     await page.waitForSelector(".source-pill.src-connected", { timeout: navTimeoutMs });
     // Let the boot connect's fetches fully settle before the first route, so the
     // first navigation does not abort in-flight boot requests.
-    await waitForApiQuiet(page, tracker);
+    const bootQuiet = await waitForApiQuiet(page, tracker);
+    if (!bootQuiet.settled) {
+      throw new Error(
+        `${bootQuiet.inFlight} boot API request(s) remained active after ${bootQuiet.waitedMs}ms`,
+      );
+    }
 
     const results: RouteResult[] = [];
     for (const route of consoleRoutes) {
@@ -377,15 +413,20 @@ export async function runConsoleLiveE2E(): Promise<number> {
       const result = evaluateRoute(signals, defaultNetworkAllowList);
       results.push(result);
       const status = result.passed ? "PASS" : "FAIL";
+      const workflowStatus = signals.workflow
+        ? `${signals.workflow.passed ? "pass" : "fail"}:${signals.workflow.id}`
+        : "none";
       process.stdout.write(
-        `  ${status} ${route.path} (mode=${signals.sourceMode}, mainChars=${signals.mainContentChars}, errors=${signals.consoleErrors.length}, reqs=${signals.network.length})\n`,
+        `  ${status} ${route.path} (duration=${signals.durationMs}ms, mode=${signals.sourceMode}, workflow=${workflowStatus}, mainChars=${signals.mainContentChars}, errors=${signals.consoleErrors.length}, reqs=${signals.network.length})\n`,
       );
       for (const failure of result.failures) {
         process.stdout.write(`        - ${failure.code}: ${failure.detail}\n`);
       }
     }
 
-    await context.tracing.stop({ path: tracePath });
+    if (captureTrace) {
+      await context.tracing.stop({ path: tracePath });
+    }
     await browser.close();
     browser = undefined;
 

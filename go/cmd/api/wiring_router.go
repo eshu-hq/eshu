@@ -183,9 +183,10 @@ func newRouterWithSemanticEmbedding(
 			Profile: queryProfile,
 		},
 		SemanticSearch: &query.SemanticSearchHandler{
-			Index:       query.NewPostgresSemanticSearchIndexStore(db),
-			LocalHybrid: newSemanticSearchHybrid(db, semanticSearchEmbedding, instruments),
-			Profile:     queryProfile,
+			Index:         query.NewPostgresSemanticSearchIndexStore(db),
+			LocalHybrid:   newSemanticSearchHybrid(db, semanticSearchEmbedding, instruments),
+			ScopeResolver: query.NewPostgresSemanticSearchScopeResolver(db),
+			Profile:       queryProfile,
 			SearchVectorReady: query.NewPostgresSearchVectorReadyStore(db, query.SearchVectorBuildIdentity{
 				ProviderProfileID:  semanticSearchEmbedding.ProviderProfileID,
 				SourceClass:        semanticSearchEmbedding.SourceClass,

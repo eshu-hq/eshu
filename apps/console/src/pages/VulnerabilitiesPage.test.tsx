@@ -9,7 +9,7 @@ function renderPage(model: ConsoleModel): void {
   render(
     <MemoryRouter>
       <VulnerabilitiesPage model={model} />
-    </MemoryRouter>
+    </MemoryRouter>,
   );
 }
 
@@ -42,9 +42,9 @@ describe("VulnerabilitiesPage", () => {
           cvss: 7.5,
           kev: false,
           fixedVersion: null,
-          services: ["catalog-api"]
-        }
-      ]
+          services: ["catalog-api"],
+        },
+      ],
     };
 
     renderPage(model);
@@ -66,9 +66,15 @@ describe("VulnerabilitiesPage", () => {
     expect(path).toHaveTextContent("Owner evidence missing");
     expect(path).toHaveTextContent("admitted impact");
     expect(path).toHaveTextContent("SBOM correlation missing");
-    expect(screen.getByRole("link", { name: "Raw advisory evidence" })).toHaveAttribute("href", "/vulnerabilities/CVE-2024-0001");
+    expect(screen.getByRole("link", { name: "Raw advisory evidence" })).toHaveAttribute(
+      "href",
+      "/vulnerabilities/CVE-2024-0001",
+    );
     expect(screen.getByRole("link", { name: "SBOM evidence" })).toHaveAttribute("href", "/sbom");
-    expect(screen.getByRole("link", { name: "Image inventory" })).toHaveAttribute("href", "/images");
+    expect(screen.getByRole("link", { name: "Image inventory" })).toHaveAttribute(
+      "href",
+      "/images",
+    );
   });
 
   it("keeps partial supply-chain paths explicit when SBOM and image hops are missing", () => {
@@ -84,9 +90,9 @@ describe("VulnerabilitiesPage", () => {
           cvss: 7.8,
           kev: false,
           fixedVersion: "1.2.3",
-          services: ["checkout-service"]
-        }
-      ]
+          services: ["checkout-service"],
+        },
+      ],
     };
 
     renderPage(partial);
@@ -114,10 +120,10 @@ describe("VulnerabilitiesPage", () => {
           repositoryId: "oci-registry://registry.example/sample/unrelated",
           sizeBytes: 1024,
           sourceSystem: "oci_registry",
-          tag: "9.9.9"
-        }
+          tag: "9.9.9",
+        },
       ],
-      sbom: { total: 9, verified: 9, sbomCount: 9, attestationCount: 0 }
+      sbom: { total: 9, verified: 9, sbomCount: 9, attestationCount: 0 },
     };
 
     renderPage(unscopedInventory);
@@ -145,9 +151,9 @@ describe("VulnerabilitiesPage", () => {
           repositoryId: "oci-registry://registry.example/sample/checkout",
           sizeBytes: 1024,
           sourceSystem: "oci_registry",
-          tag: "9.9.9"
-        }
-      ]
+          tag: "9.9.9",
+        },
+      ],
     };
 
     renderPage(ambiguousImageName);
@@ -160,14 +166,24 @@ describe("VulnerabilitiesPage", () => {
   it("renders a no-impact state instead of fabricating a supply-chain path", () => {
     const empty: ConsoleModel = {
       ...demoModel,
-      vulnerabilities: []
+      source: "live",
+      vulnerabilities: [],
+      provenance: { ...demoModel.provenance, advisories: "live", vulnerabilities: "empty" },
     };
 
     renderPage(empty);
 
     const path = screen.getByRole("region", { name: "Supply-chain impact path" });
     expect(path).toHaveTextContent("No admitted supply-chain impact path");
-    expect(path).toHaveTextContent("No reachable advisory from this source.");
+    expect(path).toHaveTextContent(
+      "No affected service has been proven by vulnerability impact evidence.",
+    );
+    expect(
+      screen.getByText("No affected service has been proven by vulnerability impact evidence."),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/requires the vulnerability-intelligence collector/i),
+    ).not.toBeInTheDocument();
   });
 
   it("shows catalog rows linking to the existing CVE detail page", () => {
@@ -185,13 +201,15 @@ describe("VulnerabilitiesPage", () => {
     const empty: ConsoleModel = {
       ...demoModel,
       advisories: [],
-      provenance: { ...demoModel.provenance, advisories: "empty" }
+      provenance: { ...demoModel.provenance, advisories: "empty" },
     };
     renderPage(empty);
 
     fireEvent.click(screen.getByRole("tab", { name: "Known intelligence (catalog)" }));
     expect(
-      screen.getByText("No catalog advisories yet — requires the vulnerability-intelligence collector.")
+      screen.getByText(
+        "No catalog advisories yet — requires the vulnerability-intelligence collector.",
+      ),
     ).toBeInTheDocument();
   });
 
@@ -199,13 +217,13 @@ describe("VulnerabilitiesPage", () => {
     const failed: ConsoleModel = {
       ...demoModel,
       advisories: [],
-      provenance: { ...demoModel.provenance, advisories: "unavailable" }
+      provenance: { ...demoModel.provenance, advisories: "unavailable" },
     };
     renderPage(failed);
 
     fireEvent.click(screen.getByRole("tab", { name: "Known intelligence (catalog)" }));
     expect(
-      screen.getByText(/The vulnerability-intelligence catalog is unavailable/)
+      screen.getByText(/The vulnerability-intelligence catalog is unavailable/),
     ).toBeInTheDocument();
   });
 });

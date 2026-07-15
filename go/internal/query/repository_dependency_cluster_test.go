@@ -185,6 +185,9 @@ func TestListRepositoriesGroupsByDependencyCluster(t *testing.T) {
 	t.Parallel()
 
 	reader := fakeRepoGraphReader{
+		runSingle: func(context.Context, string, map[string]any) (map[string]any, error) {
+			return map[string]any{"total": int64(4)}, nil
+		},
 		run: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 			switch {
 			case strings.Contains(cypher, "(s:Repository)-[:DEPENDS_ON]->(t:Repository)"):
@@ -260,6 +263,9 @@ func TestListRepositoriesScopedDependencyClusterMembership(t *testing.T) {
 
 	var capturedEdgeCypher string
 	reader := fakeRepoGraphReader{
+		runSingle: func(context.Context, string, map[string]any) (map[string]any, error) {
+			return map[string]any{"total": int64(1)}, nil
+		},
 		run: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 			switch {
 			case strings.Contains(cypher, "(s:Repository)-[:DEPENDS_ON]->(t:Repository)"):

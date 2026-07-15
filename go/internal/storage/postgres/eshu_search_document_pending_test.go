@@ -44,18 +44,20 @@ func TestEshuSearchDocumentPendingStoreListsScopes(t *testing.T) {
 		"payload->>'repo_id'",
 		"FROM content_entities",
 		"NOT EXISTS",
-		"f.fact_kind = $1",
+		"eshu_search_document_projection_state",
+		"projection.state = 'ready'",
+		"projection.document_count = idx.document_count",
 		"eshu_search_index_stats",
-		"LIMIT $2",
+		"LIMIT $1",
 	} {
 		if !strings.Contains(q, fragment) {
 			t.Errorf("query missing %q:\n%s", fragment, q)
 		}
 	}
-	if got, want := db.queries[0].args[0], EshuSearchDocumentFactKind; got != want {
-		t.Errorf("fact kind arg = %v, want %v", got, want)
+	if strings.Contains(q, "f.fact_kind") {
+		t.Errorf("query uses search-document fact presence as completion; zero-document ready projections have no fact:\n%s", q)
 	}
-	if got := db.queries[0].args[1]; got != 50 {
+	if got := db.queries[0].args[0]; got != 50 {
 		t.Errorf("limit arg = %v, want 50", got)
 	}
 }
@@ -76,7 +78,7 @@ func TestEshuSearchDocumentPendingStoreCapsLimit(t *testing.T) {
 	if _, err := store.ListPendingSearchDocumentScopes(context.Background(), 100000); err != nil {
 		t.Fatalf("error = %v", err)
 	}
-	if got := db.queries[0].args[1]; got != eshuSearchDocumentPendingMaxLimit {
+	if got := db.queries[0].args[0]; got != eshuSearchDocumentPendingMaxLimit {
 		t.Errorf("capped limit = %v, want %d", got, eshuSearchDocumentPendingMaxLimit)
 	}
 }

@@ -87,7 +87,10 @@ Important response fields:
 | `truth.level` | Current truth level. Dead-code is `derived` unless a future scope is proven exact. |
 | `results[].classification` | One of `unused`, `ambiguous`, `derived_candidate_only`, or `unsupported_language` for returned candidates. |
 | `truncated` | True when either displayed results or the candidate scan window was truncated. |
-| `candidate_scan_limit`, `candidate_scan_pages`, `candidate_scan_rows` | Bounded scan coverage. |
+| `candidate_scan_truncated` | True when at least one selected label reached its per-label scan bound before exhausting candidates; other selected labels are still inspected. |
+| `candidate_scan_limit` | Maximum bounded raw rows across all candidate labels selected by the request. |
+| `candidate_scan_limit_per_label` | Maximum bounded raw rows for each selected candidate label. |
+| `candidate_scan_pages`, `candidate_scan_rows` | Actual bounded pages and rows inspected. |
 | `analysis.root_categories_used` | Root categories applied by the analyzer. |
 | `analysis.frameworks_recognized` | Framework values observed in result metadata. |
 | `analysis.reflection_modeled` | True only when the requested language has modeled reflection reachability evidence. |

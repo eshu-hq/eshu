@@ -55,14 +55,15 @@ type crossRepoDeadCodeEvidenceStore interface {
 }
 
 type crossRepoDeadCodeScan struct {
-	Active                 []map[string]any
-	Suppressed             []map[string]any
-	PolicyStats            deadCodePolicyStats
-	DisplayTruncated       bool
-	CandidateScanTruncated bool
-	CandidateScanLimit     int
-	CandidateScanPages     int
-	CandidateScanRows      int
+	Active                     []map[string]any
+	Suppressed                 []map[string]any
+	PolicyStats                deadCodePolicyStats
+	DisplayTruncated           bool
+	CandidateScanTruncated     bool
+	CandidateScanLimit         int
+	CandidateScanLimitPerLabel int
+	CandidateScanPages         int
+	CandidateScanRows          int
 }
 
 func (h *CodeHandler) handleCrossRepoDeadCode(w http.ResponseWriter, r *http.Request) {
@@ -122,19 +123,20 @@ func (h *CodeHandler) handleCrossRepoDeadCode(w http.ResponseWriter, r *http.Req
 	boundaryEvidence := h.crossRepoDeadCodeRepositoryBoundaryEvidence(r.Context(), req.RepoID)
 	buckets := h.bucketCrossRepoDeadCodeResults(r.Context(), req, scan, evidence, boundaryEvidence, evidenceAvailable)
 	WriteSuccess(w, r, http.StatusOK, map[string]any{
-		"repo_id":                  req.RepoID,
-		"language":                 req.Language,
-		"limit":                    req.Limit,
-		"consumer_repo_ids":        req.ConsumerRepoIDs,
-		"query_shape":              "bounded_cross_repo_dead_code",
-		"truncated":                scan.DisplayTruncated || scan.CandidateScanTruncated,
-		"display_truncated":        scan.DisplayTruncated,
-		"candidate_scan_truncated": scan.CandidateScanTruncated,
-		"candidate_scan_limit":     scan.CandidateScanLimit,
-		"candidate_scan_pages":     scan.CandidateScanPages,
-		"candidate_scan_rows":      scan.CandidateScanRows,
-		"candidate_buckets":        buckets,
-		"bucket_counts":            crossRepoDeadCodeBucketCounts(buckets),
+		"repo_id":                        req.RepoID,
+		"language":                       req.Language,
+		"limit":                          req.Limit,
+		"consumer_repo_ids":              req.ConsumerRepoIDs,
+		"query_shape":                    "bounded_cross_repo_dead_code",
+		"truncated":                      scan.DisplayTruncated || scan.CandidateScanTruncated,
+		"display_truncated":              scan.DisplayTruncated,
+		"candidate_scan_truncated":       scan.CandidateScanTruncated,
+		"candidate_scan_limit":           scan.CandidateScanLimit,
+		"candidate_scan_limit_per_label": scan.CandidateScanLimitPerLabel,
+		"candidate_scan_pages":           scan.CandidateScanPages,
+		"candidate_scan_rows":            scan.CandidateScanRows,
+		"candidate_buckets":              buckets,
+		"bucket_counts":                  crossRepoDeadCodeBucketCounts(buckets),
 		"analysis": buildDeadCodeAnalysisForLanguage(
 			crossRepoDeadCodeAnalysisRows(buckets),
 			req.ExcludeDecoratedWith,
@@ -178,15 +180,16 @@ func (h *CodeHandler) scanCrossRepoDeadCodeCandidates(
 ) (crossRepoDeadCodeScan, error) {
 	pageLimit := deadCodeCandidateQueryLimit(req.Limit)
 	scan := crossRepoDeadCodeScan{
-		Active:             make([]map[string]any, 0, req.Limit+1),
-		Suppressed:         make([]map[string]any, 0),
-		CandidateScanLimit: deadCodeCandidateScanLimit(req.Limit),
+		Active:                     make([]map[string]any, 0, req.Limit+1),
+		Suppressed:                 make([]map[string]any, 0),
+		CandidateScanLimit:         deadCodeCandidateTotalScanLimit(req.Limit, req.Language),
+		CandidateScanLimitPerLabel: deadCodeCandidateScanLimit(req.Limit),
 	}
 	seenEntityIDs := make(map[string]struct{}, req.Limit+1)
 
 	for _, label := range deadCodeCandidateLabelsForLanguage(req.Language) {
-		for offset := 0; offset < scan.CandidateScanLimit; offset += pageLimit {
-			limit := min(pageLimit, scan.CandidateScanLimit-offset)
+		for offset := 0; offset < scan.CandidateScanLimitPerLabel; offset += pageLimit {
+			limit := min(pageLimit, scan.CandidateScanLimitPerLabel-offset)
 			rows, err := h.deadCodeCandidateRows(ctx, req.RepoID, label, req.Language, limit, offset)
 			if err != nil {
 				return scan, err
@@ -219,9 +222,9 @@ func (h *CodeHandler) scanCrossRepoDeadCodeCandidates(
 			if rowCount < limit {
 				break
 			}
-			if offset+rowCount >= scan.CandidateScanLimit {
+			if offset+rowCount >= scan.CandidateScanLimitPerLabel {
 				scan.CandidateScanTruncated = true
-				return scan, nil
+				break
 			}
 		}
 	}

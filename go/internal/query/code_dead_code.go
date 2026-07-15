@@ -71,17 +71,18 @@ func (h *CodeHandler) handleDeadCode(w http.ResponseWriter, r *http.Request) {
 	truncated := scan.CandidateScanTruncated || scan.DisplayTruncated
 
 	WriteSuccess(w, r, http.StatusOK, map[string]any{
-		"repo_id":                  req.RepoID,
-		"language":                 req.Language,
-		"limit":                    req.Limit,
-		"truncated":                truncated,
-		"display_truncated":        scan.DisplayTruncated,
-		"candidate_scan_truncated": scan.CandidateScanTruncated,
-		"candidate_scan_limit":     scan.CandidateScanLimit,
-		"candidate_scan_pages":     scan.CandidateScanPages,
-		"candidate_scan_rows":      scan.CandidateScanRows,
-		"results":                  scan.Results,
-		"analysis":                 buildDeadCodeAnalysisForLanguage(scan.Results, req.ExcludeDecoratedWith, scan.PolicyStats, req.Language),
+		"repo_id":                        req.RepoID,
+		"language":                       req.Language,
+		"limit":                          req.Limit,
+		"truncated":                      truncated,
+		"display_truncated":              scan.DisplayTruncated,
+		"candidate_scan_truncated":       scan.CandidateScanTruncated,
+		"candidate_scan_limit":           scan.CandidateScanLimit,
+		"candidate_scan_limit_per_label": scan.CandidateScanLimitPerLabel,
+		"candidate_scan_pages":           scan.CandidateScanPages,
+		"candidate_scan_rows":            scan.CandidateScanRows,
+		"results":                        scan.Results,
+		"analysis":                       buildDeadCodeAnalysisForLanguage(scan.Results, req.ExcludeDecoratedWith, scan.PolicyStats, req.Language),
 	}, BuildTruthEnvelope(h.profile(), "code_quality.dead_code", TruthBasisHybrid, "resolved from graph-backed dead-code candidates with partial root modeling"))
 }
 
@@ -161,6 +162,10 @@ func deadCodeCandidateQueryLimit(displayLimit int) int {
 
 func deadCodeCandidateScanLimit(displayLimit int) int {
 	return deadCodeCandidateQueryLimit(displayLimit) * deadCodeCandidateScanMaxPages
+}
+
+func deadCodeCandidateTotalScanLimit(displayLimit int, language string) int {
+	return deadCodeCandidateScanLimit(displayLimit) * len(deadCodeCandidateLabelsForLanguage(language))
 }
 
 func deadCodeGraphParams(repoID string, language string, limit int, skip int) map[string]any {

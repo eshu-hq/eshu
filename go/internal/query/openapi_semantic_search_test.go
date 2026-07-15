@@ -36,6 +36,9 @@ func TestOpenAPISpecIncludesSemanticSearchRoute(t *testing.T) {
 	}
 
 	responses := mustMapField(t, post, "responses")
+	if _, ok := responses["409"]; !ok {
+		t.Fatal("semantic search responses missing 409 ambiguous repository-scope response")
+	}
 	okResponse := mustMapField(t, responses, "200")
 	okContent := mustMapField(t, okResponse, "content")
 	okJSON := mustMapField(t, okContent, "application/json")

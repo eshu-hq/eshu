@@ -128,9 +128,15 @@ The gate seeds `localStorage` with `{ mode: "private", apiBaseUrl: "/eshu-api/" 
 before the app boots, starts the console Vite dev server (which owns the
 `/eshu-api` proxy) with `VITE_ESHU_API_KEY` so the console authenticates, walks
 the routes enumerated from the router, and writes durable proof to the
-gitignored `e2e-artifacts/` directory (per-route screenshots, a Playwright
-trace, and a JSON report). It never falls back to mocks: a refused proxy, a
-demo banner, a console error, or any unexpected non-2xx fails the run loudly.
+gitignored `e2e-artifacts/` directory (per-route screenshots and a JSON report).
+It never falls back to mocks: a refused proxy, a demo banner, a console error,
+or any unexpected non-2xx fails the run loudly.
+
+Playwright trace capture is default-off because authenticated traces can retain
+bearer request headers. For a short-lived, locally protected debugging artifact,
+opt in with `ESHU_CONSOLE_E2E_TRACE=1 npm run console:e2e`; delete
+`e2e-artifacts/trace.zip` immediately after use and never attach it to an issue
+or commit it.
 
 ### Exact local command sequence
 

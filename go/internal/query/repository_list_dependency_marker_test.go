@@ -23,6 +23,9 @@ func TestListRepositoriesScopedDependencyMarkerFiltersDepender(t *testing.T) {
 
 	var capturedListCypher string
 	reader := fakeRepoGraphReader{
+		runSingle: func(context.Context, string, map[string]any) (map[string]any, error) {
+			return map[string]any{"total": int64(1)}, nil
+		},
 		run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 			if strings.Contains(cypher, "MATCH (r:Repository)") && strings.Contains(cypher, "DEPENDS_ON") {
 				capturedListCypher = cypher
@@ -80,6 +83,9 @@ func TestListRepositoriesMarksDependencyFromInboundEdge(t *testing.T) {
 
 	var capturedListCypher string
 	reader := fakeRepoGraphReader{
+		runSingle: func(context.Context, string, map[string]any) (map[string]any, error) {
+			return map[string]any{"total": int64(2)}, nil
+		},
 		run: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 			if strings.Contains(cypher, "MATCH (r:Repository)") {
 				capturedListCypher = cypher

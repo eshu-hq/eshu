@@ -19,18 +19,34 @@ export {
   mergeGraphSourceMetadata,
   type CodeRelationshipStoryCoverage,
   type CodeRelationshipStoryResponse,
-  type CodeRelationshipsResponse
+  type CodeRelationshipsResponse,
 } from "./eshuGraphCode";
 
 const VERB_LAYER: Record<string, GraphLayer> = {
-  CALLS: "code", IMPORTS: "code", INHERITS: "code", OVERRIDES: "code", REFERENCES: "code",
-  DEPLOYS_FROM: "deploy", DEPLOYS_HELM: "deploy", PACKAGES: "deploy",
-  BUILDS: "deploy", DISCOVERS_CONFIG_IN: "deploy",
-  DECLARED_BY: "infra", STORES_IN: "infra", ASSUMES_ROLE: "infra",
-  RUNS_IN: "runtime", RUNS_AS: "runtime", DEPENDS_ON: "runtime", EXPOSES: "runtime",
-  AFFECTED_BY: "security", OBSERVED_INCIDENT: "ops", TRACKED_BY: "ops"
+  CALLS: "code",
+  IMPORTS: "code",
+  INHERITS: "code",
+  OVERRIDES: "code",
+  REFERENCES: "code",
+  DEPLOYS_FROM: "deploy",
+  DEPLOYS_HELM: "deploy",
+  PACKAGES: "deploy",
+  BUILDS: "deploy",
+  DISCOVERS_CONFIG_IN: "deploy",
+  DECLARED_BY: "infra",
+  STORES_IN: "infra",
+  ASSUMES_ROLE: "infra",
+  RUNS_IN: "runtime",
+  RUNS_AS: "runtime",
+  DEPENDS_ON: "runtime",
+  EXPOSES: "runtime",
+  AFFECTED_BY: "security",
+  OBSERVED_INCIDENT: "ops",
+  TRACKED_BY: "ops",
 };
-function layerFor(verb: string): GraphLayer { return VERB_LAYER[verb.toUpperCase()] ?? "runtime"; }
+function layerFor(verb: string): GraphLayer {
+  return VERB_LAYER[verb.toUpperCase()] ?? "runtime";
+}
 function kindFor(type: string | undefined): string {
   const t = (type ?? "").toLowerCase();
   if (t.includes("service")) return "service";
@@ -42,19 +58,34 @@ function kindFor(type: string | undefined): string {
   return "service";
 }
 
-interface RelEntity { readonly id?: string; readonly name?: string; readonly type?: string; readonly entity_type?: string; }
+interface RelEntity {
+  readonly id?: string;
+  readonly name?: string;
+  readonly type?: string;
+  readonly entity_type?: string;
+}
 interface RelRecord {
-  readonly verb?: string; readonly relationship?: string; readonly type?: string;
+  readonly verb?: string;
+  readonly relationship?: string;
+  readonly type?: string;
   readonly direction?: string;
-  readonly target?: RelEntity; readonly entity?: RelEntity; readonly node?: RelEntity;
+  readonly target?: RelEntity;
+  readonly entity?: RelEntity;
+  readonly node?: RelEntity;
   readonly source?: RelEntity;
 }
 interface RelationshipsResponse {
-  readonly target?: RelEntity; readonly entity?: RelEntity;
-  readonly relationships?: readonly RelRecord[]; readonly edges?: readonly RelRecord[]; readonly results?: readonly RelRecord[];
+  readonly target?: RelEntity;
+  readonly entity?: RelEntity;
+  readonly relationships?: readonly RelRecord[];
+  readonly edges?: readonly RelRecord[];
+  readonly results?: readonly RelRecord[];
 }
 
-function ident(e: RelEntity | undefined, fallback: string): { id: string; name: string; type?: string } {
+function ident(
+  e: RelEntity | undefined,
+  fallback: string,
+): { id: string; name: string; type?: string } {
   const name = e?.name ?? e?.id ?? fallback;
   return { id: e?.id ?? name, name, type: e?.type ?? e?.entity_type };
 }
@@ -68,7 +99,15 @@ export function relationshipsToGraph(data: RelationshipsResponse, name: string):
   const records = data.relationships ?? data.edges ?? data.results ?? [];
 
   const nodes = new Map<string, GraphNode>();
-  nodes.set(center.id, { id: center.id, kind: kindFor(center.type), label: center.name, sub: center.type, col: 1, hero: true, truth: "exact" });
+  nodes.set(center.id, {
+    id: center.id,
+    kind: kindFor(center.type),
+    label: center.name,
+    sub: center.type,
+    col: 1,
+    hero: true,
+    truth: "exact",
+  });
   const edges: GraphEdge[] = [];
 
   records.forEach((r) => {
@@ -76,11 +115,20 @@ export function relationshipsToGraph(data: RelationshipsResponse, name: string):
     const other = ident(r.target ?? r.entity ?? r.node, "unknown");
     const incoming = (r.direction ?? "outgoing").toLowerCase() === "incoming";
     if (!nodes.has(other.id)) {
-      nodes.set(other.id, { id: other.id, kind: kindFor(other.type), label: other.name, sub: other.type, col: incoming ? 0 : 2, truth: "exact" });
+      nodes.set(other.id, {
+        id: other.id,
+        kind: kindFor(other.type),
+        label: other.name,
+        sub: other.type,
+        col: incoming ? 0 : 2,
+        truth: "exact",
+      });
     }
-    edges.push(incoming
-      ? { s: other.id, t: center.id, verb, layer: layerFor(verb) }
-      : { s: center.id, t: other.id, verb, layer: layerFor(verb) });
+    edges.push(
+      incoming
+        ? { s: other.id, t: center.id, verb, layer: layerFor(verb) }
+        : { s: center.id, t: other.id, verb, layer: layerFor(verb) },
+    );
   });
 
   return { nodes: [...nodes.values()], edges };
@@ -90,14 +138,11 @@ export function relationshipsToGraph(data: RelationshipsResponse, name: string):
 // relationships (max_depth 1). code/relationships only matches on `entity_id`,
 // so we resolve the query to a graph entity id first (falling back to the raw query).
 export async function loadEntityGraph(client: EshuApiClient, name: string): Promise<GraphModel> {
-  let entityID = "";
-  let displayName = name;
-  let centerType: string | undefined;
-  try {
-    const resolved = await resolveEntity({ client, name, limit: 1 });
-    const top = resolved.candidates[0];
-    if (top?.id) { entityID = top.id; displayName = top.name ?? name; centerType = top.type; }
-  } catch { /* resolution unavailable — handled below */ }
+  const resolved = await resolveEntity({ client, name, limit: 1 });
+  const top = resolved.candidates[0];
+  const entityID = top?.id ?? "";
+  const displayName = top?.name ?? name;
+  const centerType = top?.type;
   if (entityID === "") {
     // code/relationships matches on entity_id only; a raw query string is not a
     // valid id, so render the searched node alone instead of forcing a 404.
@@ -105,7 +150,10 @@ export async function loadEntityGraph(client: EshuApiClient, name: string): Prom
   }
   let env;
   try {
-    env = await client.post<CodeRelationshipsResponse>("/api/v0/code/relationships", { entity_id: entityID, max_depth: 1 });
+    env = await client.post<CodeRelationshipsResponse>("/api/v0/code/relationships", {
+      entity_id: entityID,
+      max_depth: 1,
+    });
   } catch (e) {
     // code/relationships is keyed to code entities (Function/File/Class…). A
     // service/workload/infra entity has none, so the endpoint answers 404 — a
@@ -125,7 +173,10 @@ export async function loadEntityGraph(client: EshuApiClient, name: string): Prom
 // centerOnlyGraph renders a single hero node — used when an entity resolves but
 // has no direct code relationships (or could not be resolved to an id).
 function centerOnlyGraph(id: string, label: string, type: string | undefined): GraphModel {
-  return { nodes: [{ id, kind: kindFor(type), label, sub: type, col: 1, hero: true, truth: "exact" }], edges: [] };
+  return {
+    nodes: [{ id, kind: kindFor(type), label, sub: type, col: 1, hero: true, truth: "exact" }],
+    edges: [],
+  };
 }
 
 // recommendedModeForKind chooses the Explorer mode that has data for a resolved
@@ -136,9 +187,36 @@ function centerOnlyGraph(id: string, label: string, type: string | undefined): G
 export function recommendedModeForKind(kind: string | undefined): "direct" | "neighborhood" {
   const k = (kind ?? "").toLowerCase();
   if (k === "") return "direct";
-  const codeKind = ["function", "file", "class", "method", "symbol", "interface", "field", "variable"].some((c) => k.includes(c));
+  const codeKind = [
+    "function",
+    "file",
+    "class",
+    "method",
+    "symbol",
+    "interface",
+    "field",
+    "variable",
+  ].some((c) => k.includes(c));
   if (codeKind) return "direct";
-  const neighborhoodKind = ["service", "workload", "deployment", "repo", "resource", "aws", "infra", "cloud", "module", "package", "library", "endpoint", "queue", "topic", "bucket", "database", "table"].some((c) => k.includes(c));
+  const neighborhoodKind = [
+    "service",
+    "workload",
+    "deployment",
+    "repo",
+    "resource",
+    "aws",
+    "infra",
+    "cloud",
+    "module",
+    "package",
+    "library",
+    "endpoint",
+    "queue",
+    "topic",
+    "bucket",
+    "database",
+    "table",
+  ].some((c) => k.includes(c));
   if (neighborhoodKind) return "neighborhood";
   return "direct";
 }
@@ -147,14 +225,26 @@ export function recommendedModeForKind(kind: string | undefined): "direct" | "ne
 // POST /api/v0/impact/entity-map requires `from` (not `name`); it resolves the
 // handle itself and returns neighbours under evidence.relationships[].
 interface EntityMapRel {
-  readonly entity_id?: string; readonly entity_name?: string; readonly entity_labels?: readonly string[];
+  readonly entity_id?: string;
+  readonly entity_name?: string;
+  readonly entity_labels?: readonly string[];
   readonly direction?: string;
-  readonly relationship_type?: string; readonly relationship_types?: readonly string[];
-  readonly relationship_source?: string; readonly repo_id?: string; readonly environment?: string; readonly depth?: number;
+  readonly relationship_type?: string;
+  readonly relationship_types?: readonly string[];
+  readonly relationship_source?: string;
+  readonly repo_id?: string;
+  readonly environment?: string;
+  readonly depth?: number;
 }
 interface EntityMapResponse {
   readonly from?: string;
-  readonly resolution?: { readonly candidates?: readonly { readonly id?: string; readonly name?: string; readonly labels?: readonly string[] }[] };
+  readonly resolution?: {
+    readonly candidates?: readonly {
+      readonly id?: string;
+      readonly name?: string;
+      readonly labels?: readonly string[];
+    }[];
+  };
   readonly evidence?: { readonly relationships?: readonly EntityMapRel[] };
 }
 
@@ -165,7 +255,15 @@ export function entityMapToGraph(data: EntityMapResponse, fallbackName: string):
   const centerId = candidate?.id ?? data.from ?? fallbackName;
   const centerType = candidate?.labels?.[0];
   const nodes = new Map<string, GraphNode>();
-  nodes.set(centerId, { id: centerId, kind: kindFor(centerType), label: candidate?.name ?? fallbackName, sub: centerType, col: 1, hero: true, truth: "exact" });
+  nodes.set(centerId, {
+    id: centerId,
+    kind: kindFor(centerType),
+    label: candidate?.name ?? fallbackName,
+    sub: centerType,
+    col: 1,
+    hero: true,
+    truth: "exact",
+  });
   const edges: GraphEdge[] = [];
   (data.evidence?.relationships ?? []).forEach((r) => {
     const label = (r.entity_name ?? r.entity_id ?? "").trim();
@@ -177,10 +275,32 @@ export function entityMapToGraph(data: EntityMapResponse, fallbackName: string):
     const verb = (r.relationship_type ?? r.relationship_types?.[0] ?? "RELATED").toUpperCase();
     const type = r.entity_labels?.[0];
     const incoming = (r.direction ?? "outgoing").toLowerCase() === "incoming";
-    if (!nodes.has(id)) nodes.set(id, { id, kind: kindFor(type), label: label || id, sub: type, col: incoming ? 0 : 2, truth: "exact" });
-    edges.push(incoming
-      ? { s: id, t: centerId, verb, layer: layerFor(verb), evidence: entityMapEdgeEvidence(r, incoming) }
-      : { s: centerId, t: id, verb, layer: layerFor(verb), evidence: entityMapEdgeEvidence(r, incoming) });
+    if (!nodes.has(id))
+      nodes.set(id, {
+        id,
+        kind: kindFor(type),
+        label: label || id,
+        sub: type,
+        col: incoming ? 0 : 2,
+        truth: "exact",
+      });
+    edges.push(
+      incoming
+        ? {
+            s: id,
+            t: centerId,
+            verb,
+            layer: layerFor(verb),
+            evidence: entityMapEdgeEvidence(r, incoming),
+          }
+        : {
+            s: centerId,
+            t: id,
+            verb,
+            layer: layerFor(verb),
+            evidence: entityMapEdgeEvidence(r, incoming),
+          },
+    );
   });
   return { nodes: [...nodes.values()], edges };
 }
@@ -193,7 +313,7 @@ function entityMapEdgeEvidence(r: EntityMapRel, incoming: boolean): readonly str
     labels ? `entity labels: ${labels}` : "",
     r.repo_id ? `repo: ${r.repo_id}` : "",
     r.environment ? `environment: ${r.environment}` : "",
-    r.depth !== undefined ? `depth: ${r.depth}` : ""
+    r.depth !== undefined ? `depth: ${r.depth}` : "",
   ].filter((value): value is string => value !== "");
 }
 
@@ -226,63 +346,140 @@ interface RepositoryDeploymentContextResponse {
   };
   readonly deployment_evidence?: ServiceDeploymentContextResponse["deployment_evidence"];
 }
-interface RepoRef { readonly id: string; readonly name: string; }
+interface RepoRef {
+  readonly id: string;
+  readonly name: string;
+}
 
 /**
  * Builds the user-facing controller repo -> chart repo -> source repo ->
  * workload story from service-context deployment artifacts. The graph is
  * derived from artifact evidence instead of the lossy impact/entity-map fanout.
  */
-export function deploymentStoryToGraph(data: ServiceDeploymentContextResponse, fallbackName: string): GraphModel {
+export function deploymentStoryToGraph(
+  data: ServiceDeploymentContextResponse,
+  fallbackName: string,
+): GraphModel {
   const serviceName = cleanText(data.name) || fallbackName;
   const sourceRepoName = cleanText(data.repo_name) || serviceName;
-  const deployArtifacts = (data.deployment_evidence?.artifacts ?? []).filter((artifact) =>
-    cleanText(artifact.relationship_type).toUpperCase() === "DEPLOYS_FROM"
+  const deployArtifacts = (data.deployment_evidence?.artifacts ?? []).filter(
+    (artifact) => cleanText(artifact.relationship_type).toUpperCase() === "DEPLOYS_FROM",
   );
   const artifactTargetRepo = deployArtifacts
     .map((artifact) => repoFromArtifact(artifact, "target"))
     .find((repo) => repo?.name === sourceRepoName);
-  const sourceRepo = artifactTargetRepo ?? { id: `repository:${sourceRepoName}`, name: sourceRepoName };
+  const sourceRepo = artifactTargetRepo ?? {
+    id: `repository:${sourceRepoName}`,
+    name: sourceRepoName,
+  };
   const serviceID = `workload:${serviceName}`;
   const nodes = new Map<string, GraphNode>();
   const edges: GraphEdge[] = [];
   const edgeKeys = new Set<string>();
   const chartRepoIDs = new Set<string>();
 
-  addStoryNode(nodes, { id: serviceID, label: serviceName, kind: "workload", sub: "Workload", col: 3, hero: true, truth: "derived" });
-  addStoryNode(nodes, { id: sourceRepo.id, label: sourceRepo.name, kind: "repo", sub: "Source repository", col: 2, truth: "derived" });
+  addStoryNode(nodes, {
+    id: serviceID,
+    label: serviceName,
+    kind: "workload",
+    sub: "Workload",
+    col: 3,
+    hero: true,
+    truth: "derived",
+  });
+  addStoryNode(nodes, {
+    id: sourceRepo.id,
+    label: sourceRepo.name,
+    kind: "repo",
+    sub: "Source repository",
+    col: 2,
+    truth: "derived",
+  });
 
-  const chartRepos = uniqueRepos(deployArtifacts
-    .filter(isHelmChartArtifact)
-    .map((artifact) => repoFromArtifact(artifact, "source"))
-    .filter((repo): repo is RepoRef => !!repo && repo.id !== sourceRepo.id));
+  const chartRepos = uniqueRepos(
+    deployArtifacts
+      .filter(isHelmChartArtifact)
+      .map((artifact) => repoFromArtifact(artifact, "source"))
+      .filter((repo): repo is RepoRef => !!repo && repo.id !== sourceRepo.id),
+  );
   chartRepos.forEach((repo) => {
     chartRepoIDs.add(repo.id);
-    addStoryNode(nodes, { id: repo.id, label: repo.name, kind: "repo", sub: "Helm chart", col: 1, truth: "derived" });
+    addStoryNode(nodes, {
+      id: repo.id,
+      label: repo.name,
+      kind: "repo",
+      sub: "Helm chart",
+      col: 1,
+      truth: "derived",
+    });
   });
   deployArtifacts.filter(isHelmChartArtifact).forEach((artifact) => {
     const repo = repoFromArtifact(artifact, "source");
-    if (repo && repo.id !== sourceRepo.id) addStoryEdge(edges, edgeKeys, repo.id, sourceRepo.id, "PACKAGES", artifactEdgeEvidence(artifact));
+    if (repo && repo.id !== sourceRepo.id)
+      addStoryEdge(
+        edges,
+        edgeKeys,
+        repo.id,
+        sourceRepo.id,
+        "PACKAGES",
+        artifactEdgeEvidence(artifact),
+      );
   });
 
   const controllerArtifacts = deployArtifacts.filter(isDeploymentControllerArtifact);
-  const controllerRepos = uniqueRepos(controllerArtifacts.map((artifact) => repoFromArtifact(artifact, "source"))
-    .filter((repo): repo is RepoRef => !!repo && repo.id !== sourceRepo.id && !chartRepoIDs.has(repo.id)));
+  const controllerRepos = uniqueRepos(
+    controllerArtifacts
+      .map((artifact) => repoFromArtifact(artifact, "source"))
+      .filter(
+        (repo): repo is RepoRef =>
+          !!repo && repo.id !== sourceRepo.id && !chartRepoIDs.has(repo.id),
+      ),
+  );
   controllerRepos.forEach((repo) => {
-    addStoryNode(nodes, { id: repo.id, label: repo.name, kind: "repo", sub: "Deployment controller", col: 0, truth: "derived" });
+    addStoryNode(nodes, {
+      id: repo.id,
+      label: repo.name,
+      kind: "repo",
+      sub: "Deployment controller",
+      col: 0,
+      truth: "derived",
+    });
   });
   controllerArtifacts.forEach((artifact) => {
     const repo = repoFromArtifact(artifact, "source");
     if (!repo || repo.id === sourceRepo.id || chartRepoIDs.has(repo.id)) return;
     if (chartRepos.length === 0) {
-      addStoryEdge(edges, edgeKeys, repo.id, sourceRepo.id, "DEPLOYS_FROM", artifactEdgeEvidence(artifact));
+      addStoryEdge(
+        edges,
+        edgeKeys,
+        repo.id,
+        sourceRepo.id,
+        "DEPLOYS_FROM",
+        artifactEdgeEvidence(artifact),
+      );
       return;
     }
-    chartRepos.forEach((chartRepo) => addStoryEdge(edges, edgeKeys, repo.id, chartRepo.id, "DEPLOYS_HELM", artifactEdgeEvidence(artifact)));
+    chartRepos.forEach((chartRepo) =>
+      addStoryEdge(
+        edges,
+        edgeKeys,
+        repo.id,
+        chartRepo.id,
+        "DEPLOYS_HELM",
+        artifactEdgeEvidence(artifact),
+      ),
+    );
   });
 
   if (deployArtifacts.length > 0) {
-    addStoryEdge(edges, edgeKeys, sourceRepo.id, serviceID, "DEPLOYS_FROM", artifactEdgeEvidence(deployArtifacts[0]));
+    addStoryEdge(
+      edges,
+      edgeKeys,
+      sourceRepo.id,
+      serviceID,
+      "DEPLOYS_FROM",
+      artifactEdgeEvidence(deployArtifacts[0]),
+    );
   }
   return { nodes: [...nodes.values()], edges };
 }
@@ -291,11 +488,17 @@ export function deploymentStoryToGraph(data: ServiceDeploymentContextResponse, f
  * Loads the best neighborhood graph for a handle, preferring service deployment
  * context and falling back to impact/entity-map when no story evidence exists.
  */
-export async function loadEntityStoryGraph(client: EshuApiClient, name: string, repoID?: string): Promise<GraphModel> {
+export async function loadEntityStoryGraph(
+  client: EshuApiClient,
+  name: string,
+  repoID?: string,
+): Promise<GraphModel> {
   const storyClient = client as EshuApiClient & { readonly get?: EshuApiClient["get"] };
   if (typeof storyClient.get === "function") {
     try {
-      const env = await storyClient.get<ServiceDeploymentContextResponse>(`/api/v0/services/${encodeURIComponent(name)}/context`);
+      const env = await storyClient.get<ServiceDeploymentContextResponse>(
+        `/api/v0/services/${encodeURIComponent(name)}/context`,
+      );
       if (env.error) throw new EshuEnvelopeError(env.error);
       const graph = deploymentStoryToGraph(env.data ?? {}, name);
       if (graph.edges.length > 0) return graph;
@@ -311,20 +514,25 @@ export async function loadEntityStoryGraph(client: EshuApiClient, name: string, 
 async function loadRepositoryDeploymentStoryGraph(
   client: EshuApiClient & { readonly get: EshuApiClient["get"] },
   name: string,
-  repoID: string | undefined
+  repoID: string | undefined,
 ): Promise<GraphModel | null> {
   const id = cleanText(repoID);
   if (id === "") return null;
   try {
-    const env = await client.get<RepositoryDeploymentContextResponse>(`/api/v0/repositories/${encodeURIComponent(id)}/context`);
+    const env = await client.get<RepositoryDeploymentContextResponse>(
+      `/api/v0/repositories/${encodeURIComponent(id)}/context`,
+    );
     if (env.error) throw new EshuEnvelopeError(env.error);
     const data = env.data ?? {};
     const repoName = cleanText(data.repository?.name) || name;
-    const graph = deploymentStoryToGraph({
+    const graph = deploymentStoryToGraph(
+      {
+        name,
+        repo_name: repoName,
+        deployment_evidence: data.deployment_evidence,
+      },
       name,
-      repo_name: repoName,
-      deployment_evidence: data.deployment_evidence
-    }, name);
+    );
     return graph.edges.length > 0 ? graph : null;
   } catch (error) {
     if (shouldFallbackFromServiceContext(error)) return null;
@@ -337,7 +545,10 @@ async function loadRepositoryDeploymentStoryGraph(
 export async function loadEntityMapGraph(client: EshuApiClient, name: string): Promise<GraphModel> {
   // The endpoint's request field is `depth` (1-4); `max_depth` is ignored by the
   // Go decoder and silently defaults the traversal to depth 1.
-  const env = await client.post<EntityMapResponse>("/api/v0/impact/entity-map", { from: name, depth: 2 });
+  const env = await client.post<EntityMapResponse>("/api/v0/impact/entity-map", {
+    from: name,
+    depth: 2,
+  });
   if (env.error) throw new EshuEnvelopeError(env.error);
   return entityMapToGraph(env.data ?? {}, name);
 }
@@ -346,7 +557,10 @@ function cleanText(value: string | undefined): string {
   return value?.trim() ?? "";
 }
 
-function repoFromArtifact(artifact: DeploymentArtifactRecord, side: "source" | "target"): RepoRef | undefined {
+function repoFromArtifact(
+  artifact: DeploymentArtifactRecord,
+  side: "source" | "target",
+): RepoRef | undefined {
   const id = cleanText(side === "source" ? artifact.source_repo_id : artifact.target_repo_id);
   const name = cleanText(side === "source" ? artifact.source_repo_name : artifact.target_repo_name);
   if (id === "" && name === "") return undefined;
@@ -369,7 +583,9 @@ function isHelmChartArtifact(artifact: DeploymentArtifactRecord): boolean {
   const path = cleanText(artifact.path).toLowerCase();
   const sourceRepo = cleanText(artifact.source_repo_name).toLowerCase();
   if (family !== "helm") return false;
-  return path.endsWith("/chart.yaml") || sourceRepo.includes("helm") || sourceRepo.includes("chart");
+  return (
+    path.endsWith("/chart.yaml") || sourceRepo.includes("helm") || sourceRepo.includes("chart")
+  );
 }
 
 function isDeploymentControllerArtifact(artifact: DeploymentArtifactRecord): boolean {
@@ -381,7 +597,14 @@ function addStoryNode(nodes: Map<string, GraphNode>, node: GraphNode): void {
   if (!nodes.has(node.id)) nodes.set(node.id, node);
 }
 
-function addStoryEdge(edges: GraphEdge[], seen: Set<string>, s: string, t: string, verb: string, evidence?: readonly string[]): void {
+function addStoryEdge(
+  edges: GraphEdge[],
+  seen: Set<string>,
+  s: string,
+  t: string,
+  verb: string,
+  evidence?: readonly string[],
+): void {
   const key = `${s}\u0000${t}\u0000${verb}`;
   if (seen.has(key)) return;
   seen.add(key);
@@ -390,10 +613,12 @@ function addStoryEdge(edges: GraphEdge[], seen: Set<string>, s: string, t: strin
 
 function artifactEdgeEvidence(artifact: DeploymentArtifactRecord): readonly string[] {
   return [
-    cleanText(artifact.artifact_family) ? `artifact family: ${cleanText(artifact.artifact_family)}` : "",
+    cleanText(artifact.artifact_family)
+      ? `artifact family: ${cleanText(artifact.artifact_family)}`
+      : "",
     cleanText(artifact.evidence_kind) ? `evidence kind: ${cleanText(artifact.evidence_kind)}` : "",
     cleanText(artifact.path) ? `path: ${cleanText(artifact.path)}` : "",
-    cleanText(artifact.environment) ? `environment: ${cleanText(artifact.environment)}` : ""
+    cleanText(artifact.environment) ? `environment: ${cleanText(artifact.environment)}` : "",
   ].filter((value): value is string => value !== "");
 }
 
@@ -425,28 +650,31 @@ export interface ResolvedHandle {
 }
 
 // resolveEntityHandle resolves a typed query to its canonical name and kind via
-// entities/resolve, then derives the recommended Explorer mode. Falls back to the
-// raw query (and Direct mode) when nothing resolves or resolution is unavailable,
-// so exact-name code search is unchanged.
-export async function resolveEntityHandle(client: EshuApiClient, query: string): Promise<ResolvedHandle> {
-  try {
-    const result = await resolveEntity({ client, name: query, limit: 1 });
-    const top = result.candidates[0];
-    const kind = top?.type ?? top?.labels[0] ?? "";
-    return {
-      id: top?.id ?? "",
-      name: top?.name ?? query,
-      kind,
-      mode: recommendedModeForKind(kind),
-      repoId: repositoryIDForResolved(top?.id, top?.repoId, kind),
-      repoName: top?.repoName ?? ""
-    };
-  } catch {
-    return { id: "", name: query, kind: "", mode: "direct", repoId: "", repoName: "" };
-  }
+// entities/resolve, then derives the recommended Explorer mode. A successful
+// no-match falls back to the raw query and Direct mode. Transport, authorization,
+// timeout, and service failures propagate so the UI cannot report false success.
+export async function resolveEntityHandle(
+  client: EshuApiClient,
+  query: string,
+): Promise<ResolvedHandle> {
+  const result = await resolveEntity({ client, name: query, limit: 1 });
+  const top = result.candidates[0];
+  const kind = top?.type ?? top?.labels[0] ?? "";
+  return {
+    id: top?.id ?? "",
+    name: top?.name ?? query,
+    kind,
+    mode: recommendedModeForKind(kind),
+    repoId: repositoryIDForResolved(top?.id, top?.repoId, kind),
+    repoName: top?.repoName ?? "",
+  };
 }
 
-function repositoryIDForResolved(id: string | undefined, repoID: string | undefined, kind: string): string {
+function repositoryIDForResolved(
+  id: string | undefined,
+  repoID: string | undefined,
+  kind: string,
+): string {
   const resolvedRepoID = cleanText(repoID);
   if (resolvedRepoID !== "") return resolvedRepoID;
   const resolvedID = cleanText(id);

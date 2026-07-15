@@ -10,7 +10,7 @@ Required request fields:
 
 | Field | Meaning |
 | --- | --- |
-| `repo_id` | Repository id that bounds the searchable corpus and the durable search-document scope. |
+| `repo_id` | Canonical repository id that bounds the searchable corpus. The server resolves it to the repository's active ingestion scope. |
 | `query` | Search text. |
 | `mode` | `keyword`, `semantic`, or `hybrid`. |
 | `limit` | Explicit top-K result limit, max 100. |
@@ -139,7 +139,10 @@ Repository scoped tokens are intersected before any search-document read:
 
 - no repository grants return a successful empty result set;
 - out-of-grant `repo_id` returns `not_found`;
-- allowed repository grants read only that repository corpus.
+- allowed repository grants resolve by exact canonical id and read only that
+  repository corpus;
+- multiple active ingestion scopes for the same canonical id fail closed with
+  HTTP 409 instead of selecting an arbitrary scope.
 
 This keeps repository existence and corpus shape from leaking across scoped
 tokens.

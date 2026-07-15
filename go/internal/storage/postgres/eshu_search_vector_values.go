@@ -373,7 +373,7 @@ func scanEshuSearchVectorValue(rows Rows) (EshuSearchVectorValue, error) {
 		&dimensions,
 		&row.EmbeddingContentHash,
 		&row.VectorIndexVersion,
-		&row.VectorValues,
+		pq.Array(&row.VectorValues),
 		&row.CreatedAt,
 		&row.UpdatedAt,
 	); err != nil {

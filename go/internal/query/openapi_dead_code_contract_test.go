@@ -69,6 +69,7 @@ func TestOpenAPIDeadCodeInvestigationDocumentsReturnedFields(t *testing.T) {
 		"display_truncated",
 		"candidate_scan_truncated",
 		"candidate_scan_limit",
+		"candidate_scan_limit_per_label",
 		"candidate_scan_pages",
 		"candidate_scan_rows",
 		"suppressed_truncated",

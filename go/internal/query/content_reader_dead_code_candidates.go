@@ -118,7 +118,7 @@ func (cr *ContentReader) DeadCodeCandidateRows(
 
 func deadCodeCandidateEntityType(label string) (string, bool) {
 	switch label {
-	case "Function", "Class", "Struct", "Interface", "SqlFunction":
+	case "Function", "Class", "Struct", "Interface", "Trait", "SqlFunction":
 		return label, true
 	default:
 		return "", false

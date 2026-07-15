@@ -18,9 +18,10 @@ import (
 
 // SemanticSearchHandler exposes bounded curated search-document retrieval.
 type SemanticSearchHandler struct {
-	Index       SemanticSearchIndexStore
-	LocalHybrid SemanticSearchHybridStore
-	Profile     QueryProfile
+	Index         SemanticSearchIndexStore
+	LocalHybrid   SemanticSearchHybridStore
+	ScopeResolver SemanticSearchScopeResolver
+	Profile       QueryProfile
 	// SearchVectorReady optionally reports the search-vector build sweep's
 	// search_vector_ready watermark. When set, the response's truth freshness
 	// is downgraded (pending_search_vector cause) if the sweep has never
@@ -251,8 +252,25 @@ func (h *SemanticSearchHandler) search(w http.ResponseWriter, r *http.Request) {
 		writeSemanticSearchError(w, r, http.StatusNotFound, ErrorCodeNotFound, "repository not found")
 		return
 	}
+	scopeID := body.RepoID
+	if h.ScopeResolver != nil {
+		resolvedScopeID, err := h.ScopeResolver.ResolveSemanticSearchScope(r.Context(), body.RepoID)
+		if err != nil {
+			if errors.Is(err, ErrSemanticSearchScopeAmbiguous) {
+				writeSemanticSearchError(w, r, http.StatusConflict, ErrorCodeAmbiguous, err.Error())
+				return
+			}
+			writeSemanticSearchError(w, r, http.StatusServiceUnavailable, ErrorCodeBackendUnavailable, err.Error())
+			return
+		}
+		if resolvedScopeID == "" {
+			WriteSuccess(w, r, http.StatusOK, emptySemanticSearchResponse(req), h.truthWithSearchVectorFreshness(r, req.Mode))
+			return
+		}
+		scopeID = resolvedScopeID
+	}
 	var indexResult semanticSearchIndexResult
-	backend, err := h.semanticSearchBackend(req, body, sourceKinds, languages, &indexResult)
+	backend, err := h.semanticSearchBackend(req, body, scopeID, sourceKinds, languages, &indexResult)
 	if err != nil {
 		writeSemanticSearchError(
 			w,
@@ -288,15 +306,16 @@ func (h *SemanticSearchHandler) search(w http.ResponseWriter, r *http.Request) {
 func (h *SemanticSearchHandler) semanticSearchBackend(
 	req searchretrieval.Request,
 	body semanticSearchRequest,
+	scopeID string,
 	sourceKinds []searchdocs.SourceKind,
 	languages []string,
 	indexResult *semanticSearchIndexResult,
 ) (searchretrieval.Backend, error) {
 	query := semanticSearchIndexQuery{
 		Request: req,
-		// The first public slice is repository-bounded; repository id is the
-		// active ingestion scope used by the durable search-document index.
-		ScopeID:     body.RepoID,
+		// The public slice is repository-bounded. ScopeID is the resolved active
+		// ingestion scope; RepoID remains the authorized canonical identity.
+		ScopeID:     scopeID,
 		RepoID:      body.RepoID,
 		SourceKinds: sourceKinds,
 		Languages:   languages,

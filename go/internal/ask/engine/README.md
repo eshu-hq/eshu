@@ -117,6 +117,32 @@ does not read the environment.
   the narration validator.
 - **Bounded**: the iteration and tool-call limits are enforced unconditionally.
 
+### Exact indexed-repository counts
+
+An exact, unqualified indexed-repository count is a deterministic route. If the
+provider selects an ecosystem overview or index-status tool for that sole
+intent, the engine substitutes `list_indexed_repositories` with `limit=1` and
+`offset=0`. It reads the authorized inventory's `total`, never the page
+`count`, and publishes a deterministic packet summary that names
+`list_indexed_repositories.total` as its evidence source. Missing, partial,
+error, or internally inconsistent totals fail bounded instead of falling back
+to provider prose. Qualified and compound questions stay on the provider's
+selected route because a global inventory total cannot answer them exactly.
+
+No-Regression Evidence: #5246 exact-count routing, streaming parity, bounded
+failures, hostile qualified questions, packet evidence, and rejection of an
+unrelated provider-authored count pass with:
+
+```bash
+cd go && GOCACHE=/tmp/eshu-5246-gocache go test ./internal/ask/engine \
+  -run 'Test(Ask.*IndexedRepository|IndexedRepositoryCount)' -count=1
+```
+
+No-Observability-Change: #5246 keeps the existing Ask trace, packet limitations,
+query trace events, HTTP/SSE events, and provider adapter logs. The trace names
+the routed `list_indexed_repositories` tool. No metric, span name, log field,
+runtime knob, queue, graph write, or Postgres write was added.
+
 No-Regression Evidence: `go test ./internal/ask/engine -run '^TestAskStream'
 -count=1` covers default-closed streams, rejected narration, validated
 narration emission, tool-call events, and the no-streaming fallback. The

@@ -124,7 +124,7 @@ func (h *StatusHandler) getOperations(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ops := status.Operations(report, activity, truncated, limit)
-	WriteJSON(w, http.StatusOK, operationsToMap(ops, scopedAuthContext(r.Context())))
+	WriteSuccess(w, r, http.StatusOK, operationsToMap(ops, scopedAuthContext(r.Context())), nil)
 }
 
 // operationsLimit resolves and validates the `limit` query parameter,

@@ -44,6 +44,9 @@ func TestNewRouterLeavesLocalSemanticHybridDisabledByDefault(t *testing.T) {
 	if router.SemanticSearch.LocalHybrid != nil {
 		t.Fatal("newRouter().SemanticSearch.LocalHybrid != nil, want disabled by default")
 	}
+	if router.SemanticSearch.ScopeResolver == nil {
+		t.Fatal("newRouter().SemanticSearch.ScopeResolver = nil, want repository-to-scope resolver")
+	}
 }
 
 func TestNewRouterWiresLocalSemanticHybridWhenExplicitlyConfigured(t *testing.T) {

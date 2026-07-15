@@ -30,17 +30,18 @@ type deadCodeInvestigationRequest struct {
 }
 
 type deadCodeInvestigationScan struct {
-	CleanupReady           []map[string]any
-	Ambiguous              []map[string]any
-	Suppressed             []map[string]any
-	PolicyStats            deadCodePolicyStats
-	DisplayTruncated       bool
-	CandidateScanTruncated bool
-	SuppressedTruncated    bool
-	CandidateScanLimit     int
-	CandidateScanPages     int
-	CandidateScanRows      int
-	ActiveCandidatesSeen   int
+	CleanupReady               []map[string]any
+	Ambiguous                  []map[string]any
+	Suppressed                 []map[string]any
+	PolicyStats                deadCodePolicyStats
+	DisplayTruncated           bool
+	CandidateScanTruncated     bool
+	SuppressedTruncated        bool
+	CandidateScanLimit         int
+	CandidateScanLimitPerLabel int
+	CandidateScanPages         int
+	CandidateScanRows          int
+	ActiveCandidatesSeen       int
 }
 
 // handleDeadCodeInvestigation returns the prompt-oriented dead-code packet used
@@ -96,19 +97,20 @@ func (h *CodeHandler) handleDeadCodeInvestigation(w http.ResponseWriter, r *http
 	analysis := buildDeadCodeAnalysisForLanguage(allReturned, req.ExcludeDecoratedWith, scan.PolicyStats, req.Language)
 
 	WriteSuccess(w, r, http.StatusOK, map[string]any{
-		"repo_id":                  req.RepoID,
-		"language":                 req.Language,
-		"limit":                    req.Limit,
-		"offset":                   req.Offset,
-		"truncated":                scan.DisplayTruncated || scan.CandidateScanTruncated,
-		"display_truncated":        scan.DisplayTruncated,
-		"candidate_scan_truncated": scan.CandidateScanTruncated,
-		"suppressed_truncated":     scan.SuppressedTruncated,
-		"next_offset":              deadCodeInvestigationNextOffset(req, scan),
-		"candidate_scan_limit":     scan.CandidateScanLimit,
-		"candidate_scan_pages":     scan.CandidateScanPages,
-		"candidate_scan_rows":      scan.CandidateScanRows,
-		"coverage":                 coverage,
+		"repo_id":                        req.RepoID,
+		"language":                       req.Language,
+		"limit":                          req.Limit,
+		"offset":                         req.Offset,
+		"truncated":                      scan.DisplayTruncated || scan.CandidateScanTruncated,
+		"display_truncated":              scan.DisplayTruncated,
+		"candidate_scan_truncated":       scan.CandidateScanTruncated,
+		"suppressed_truncated":           scan.SuppressedTruncated,
+		"next_offset":                    deadCodeInvestigationNextOffset(req, scan),
+		"candidate_scan_limit":           scan.CandidateScanLimit,
+		"candidate_scan_limit_per_label": scan.CandidateScanLimitPerLabel,
+		"candidate_scan_pages":           scan.CandidateScanPages,
+		"candidate_scan_rows":            scan.CandidateScanRows,
+		"coverage":                       coverage,
 		"candidate_buckets": map[string]any{
 			"cleanup_ready": scan.CleanupReady,
 			"ambiguous":     scan.Ambiguous,
@@ -154,16 +156,17 @@ func (h *CodeHandler) scanDeadCodeInvestigation(
 	displayWindow := req.Offset + req.Limit
 	pageLimit := deadCodeCandidateQueryLimit(displayWindow)
 	scan := deadCodeInvestigationScan{
-		CleanupReady:       make([]map[string]any, 0),
-		Ambiguous:          make([]map[string]any, 0),
-		Suppressed:         make([]map[string]any, 0),
-		CandidateScanLimit: deadCodeCandidateScanLimit(displayWindow),
+		CleanupReady:               make([]map[string]any, 0),
+		Ambiguous:                  make([]map[string]any, 0),
+		Suppressed:                 make([]map[string]any, 0),
+		CandidateScanLimit:         deadCodeCandidateTotalScanLimit(displayWindow, req.Language),
+		CandidateScanLimitPerLabel: deadCodeCandidateScanLimit(displayWindow),
 	}
 	seenEntityIDs := make(map[string]struct{}, displayWindow+1)
 
 	for _, label := range deadCodeCandidateLabelsForLanguage(req.Language) {
-		for rawOffset := 0; rawOffset < scan.CandidateScanLimit; rawOffset += pageLimit {
-			limit := min(pageLimit, scan.CandidateScanLimit-rawOffset)
+		for rawOffset := 0; rawOffset < scan.CandidateScanLimitPerLabel; rawOffset += pageLimit {
+			limit := min(pageLimit, scan.CandidateScanLimitPerLabel-rawOffset)
 			rows, err := h.deadCodeCandidateRows(ctx, req.RepoID, label, req.Language, limit, rawOffset)
 			if err != nil {
 				return scan, err
@@ -193,9 +196,9 @@ func (h *CodeHandler) scanDeadCodeInvestigation(
 			if rowCount < limit {
 				break
 			}
-			if rawOffset+rowCount >= scan.CandidateScanLimit {
+			if rawOffset+rowCount >= scan.CandidateScanLimitPerLabel {
 				scan.CandidateScanTruncated = true
-				return scan, nil
+				break
 			}
 		}
 	}

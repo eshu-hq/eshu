@@ -83,20 +83,24 @@ func (e *Engine) Ask(ctx context.Context, question string) (Answer, error) {
 		if len(comp.ToolCalls) == 0 {
 			// Final turn: model produced prose with no further tool calls.
 			ans.Prose = comp.Text
+			if finalizeIndexedRepositoryCountAnswer(question, &ans) {
+				return ans, nil
+			}
 			posture := e.resolveNarrationPosture()
 			e.narrate(ctx, &ans, posture)
 			return ans, nil
 		}
+
+		calls := routeIndexedRepositoryCountCalls(question, comp.ToolCalls)
 
 		// Replay: append the assistant message that carries the tool calls so
 		// the next completion sees a valid conversation thread.
 		messages = append(messages, provider.Message{
 			Role:      provider.RoleAssistant,
 			Text:      comp.Text,
-			ToolCalls: comp.ToolCalls,
+			ToolCalls: calls,
 		})
 
-		calls := comp.ToolCalls
 		if len(calls) > e.opts.MaxToolCallsPerTurn {
 			ans.Limitations = appendLimitation(ans.Limitations,
 				fmt.Sprintf("tool calls truncated to %d per turn", e.opts.MaxToolCallsPerTurn))
@@ -121,14 +125,17 @@ func (e *Engine) Ask(ctx context.Context, question string) (Answer, error) {
 	ans.Partial = true
 	ans.Limitations = appendLimitation(ans.Limitations, "reached max reasoning iterations")
 	ans.Prose = bestPacketSummary(ans.Packets)
-	if ans.Prose == "" {
-		ans.Limitations = appendLimitation(ans.Limitations, "no supported evidence assembled")
-	}
 	e.log().Warn("ask: reached max reasoning iterations",
 		"max_iterations", e.opts.MaxIterations,
 		"max_tool_calls_per_turn", e.opts.MaxToolCallsPerTurn,
 		"packets", len(ans.Packets),
 		"has_supported_evidence", ans.Prose != "")
+	if finalizeIndexedRepositoryCountAnswer(question, &ans) {
+		return ans, nil
+	}
+	if ans.Prose == "" {
+		ans.Limitations = appendLimitation(ans.Limitations, "no supported evidence assembled")
+	}
 	posture := e.resolveNarrationPosture()
 	e.narrate(ctx, &ans, posture)
 	return ans, nil
@@ -176,22 +183,7 @@ func (e *Engine) dispatchCall(
 
 	if res.Envelope != nil {
 		// FINDING 1: prefer an embedded answer_packet carried by the route handler.
-		pkt, ok := extractEmbeddedPacket(res.Envelope)
-		if !ok {
-			// FINDING 5 (issue #3437): pass a bounded JSON summary of the
-			// envelope Data so the model receives actual content in the
-			// tool-result message and bestPacketSummary can return prose at
-			// max-iterations. Without this, dispatchCall produced packets with
-			// Summary=="" causing "no supported evidence assembled" and the
-			// model kept calling tools until MaxIterations because the
-			// tool-result message carried no data for it to reason about.
-			pkt = query.NewAnswerPacket(query.AnswerPacketInput{
-				Question:    question,
-				PrimaryTool: call.Name,
-				Envelope:    res.Envelope,
-				Summary:     envelopeDataSummary(res.Envelope),
-			})
-		}
+		pkt := answerPacketForToolResult(question, call.Name, res.Envelope)
 		// FINDING 4: propagate partial state upward to the aggregate answer.
 		if pkt.Partial {
 			ans.Partial = true
@@ -243,6 +235,30 @@ func (e *Engine) dispatchCall(
 		Text:       `{"supported":false,"truth_class":"unsupported"}`,
 	})
 	return messages
+}
+
+func answerPacketForToolResult(
+	question string,
+	toolName string,
+	envelope *query.ResponseEnvelope,
+) query.AnswerPacket {
+	var packet query.AnswerPacket
+	if packet, ok := extractEmbeddedPacket(envelope); ok {
+		if toolName == indexedRepositoryInventoryTool && asksForIndexedRepositoryCount(question) {
+			applyIndexedRepositoryCountResult(&packet, envelope)
+		}
+		return packet
+	}
+	packet = query.NewAnswerPacket(query.AnswerPacketInput{
+		Question:    question,
+		PrimaryTool: toolName,
+		Envelope:    envelope,
+		Summary:     envelopeDataSummary(envelope),
+	})
+	if toolName == indexedRepositoryInventoryTool && asksForIndexedRepositoryCount(question) {
+		applyIndexedRepositoryCountResult(&packet, envelope)
+	}
+	return packet
 }
 
 // toolResultSkeleton is the bounded shape serialised into a tool-result message.

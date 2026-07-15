@@ -39,6 +39,9 @@ func TestNewMCPQueryRouterLeavesLocalSemanticHybridDisabledByDefault(t *testing.
 	if router.SemanticSearch.LocalHybrid != nil {
 		t.Fatal("newMCPQueryRouter().SemanticSearch.LocalHybrid != nil, want disabled by default")
 	}
+	if router.SemanticSearch.ScopeResolver == nil {
+		t.Fatal("newMCPQueryRouter().SemanticSearch.ScopeResolver = nil, want repository-to-scope resolver")
+	}
 }
 
 func TestNewMCPQueryRouterWiresLocalSemanticHybridWhenExplicitlyConfigured(t *testing.T) {

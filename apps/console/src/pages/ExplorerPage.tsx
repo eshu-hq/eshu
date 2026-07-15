@@ -7,14 +7,24 @@ import { loadEntityGraph, loadEntityStoryGraph, resolveEntityHandle } from "../a
 import { Panel, TruthChip } from "../components/atoms";
 import { EvidencePanel, type EvidencePanelData } from "../components/EvidencePanel";
 import { GraphCanvas } from "../components/GraphCanvas";
-import { graphEdgeEvidencePanelData, graphNodeEvidencePanelData } from "../components/graphEvidencePanel";
+import {
+  graphEdgeEvidencePanelData,
+  graphNodeEvidencePanelData,
+} from "../components/graphEvidencePanel";
 import { defaultServiceName } from "../console/defaultEntity";
 import { LAYER_COLOR, KIND_COLOR, fmt } from "../console/types";
 import type { ConsoleModel, GraphEdge, GraphLayer, GraphModel, GraphNode } from "../console/types";
 
 const LAYERS: readonly GraphLayer[] = ["code", "deploy", "infra", "runtime", "security", "ops"];
 
-export function ExplorerPage({ model, client, onOpenService, title, intro, defaultQuery }: {
+export function ExplorerPage({
+  model,
+  client,
+  onOpenService,
+  title,
+  intro,
+  defaultQuery,
+}: {
   readonly model: ConsoleModel;
   readonly client?: EshuApiClient;
   readonly onOpenService?: (name: string) => void;
@@ -26,7 +36,7 @@ export function ExplorerPage({ model, client, onOpenService, title, intro, defau
   const [layout, setLayout] = useState<"layered" | "radial">("layered");
   const [mode, setMode] = useState<"direct" | "neighborhood">("direct");
   const [on, setOn] = useState<Record<GraphLayer, boolean>>(
-    () => Object.fromEntries(LAYERS.map((l) => [l, true])) as Record<GraphLayer, boolean>
+    () => Object.fromEntries(LAYERS.map((l) => [l, true])) as Record<GraphLayer, boolean>,
   );
   const [sel, setSel] = useState<GraphNode | undefined>(model.graph.nodes.find((n) => n.hero));
   // evidence holds the inline evidence-panel data for the node or edge the
@@ -50,6 +60,14 @@ export function ExplorerPage({ model, client, onOpenService, title, intro, defau
   // service/infra → Neighborhood) so the search lands on the view that has data.
   // A manual toggle pins the choice and disables auto-selection. See issue #1725.
   const modePinnedRef = useRef(false);
+  const latestRequestRef = useRef(0);
+
+  useEffect(
+    () => () => {
+      latestRequestRef.current += 1;
+    },
+    [],
+  );
 
   function pickMode(m: "direct" | "neighborhood"): void {
     modePinnedRef.current = true;
@@ -61,15 +79,27 @@ export function ExplorerPage({ model, client, onOpenService, title, intro, defau
   const graph = useMemo(() => {
     const edges = base.edges.filter((e) => on[e.layer]);
     const keep = new Set<string>();
-    edges.forEach((e) => { keep.add(e.s); keep.add(e.t); });
-    base.nodes.forEach((n) => { if (n.hero) keep.add(n.id); });
+    edges.forEach((e) => {
+      keep.add(e.s);
+      keep.add(e.t);
+    });
+    base.nodes.forEach((n) => {
+      if (n.hero) keep.add(n.id);
+    });
     return { nodes: base.nodes.filter((n) => keep.has(n.id) || base.edges.length === 0), edges };
   }, [base, on]);
-  const nodeLabels = useMemo(() => new Map(base.nodes.map((node) => [node.id, node.label])), [base.nodes]);
+  const nodeLabels = useMemo(
+    () => new Map(base.nodes.map((node) => [node.id, node.label])),
+    [base.nodes],
+  );
 
   async function expand(name: string, forcedMode?: "direct" | "neighborhood"): Promise<void> {
     if (!client) return;
-    setBusy(true); setErr(""); setHint("");
+    const requestID = latestRequestRef.current + 1;
+    latestRequestRef.current = requestID;
+    setBusy(true);
+    setErr("");
+    setHint("");
     try {
       // Resolve the typed name to a canonical entity + kind first
       // (entities/resolve). When the user has not pinned a mode, follow the
@@ -77,11 +107,21 @@ export function ExplorerPage({ model, client, onOpenService, title, intro, defau
       // (which has data) instead of Direct's code-only relationships. A toggle
       // click passes forcedMode so the new view applies before state settles.
       const resolved = await resolveEntityHandle(client, name);
+      if (requestID !== latestRequestRef.current) return;
+      if (resolved.id === "") {
+        setLiveGraph({ nodes: [], edges: [] });
+        setSel(undefined);
+        setEvidence(null);
+        setHint(`No indexed entity matched "${name}".`);
+        return;
+      }
       const effectiveMode = forcedMode ?? (modePinnedRef.current ? mode : resolved.mode);
       if (effectiveMode !== mode) setMode(effectiveMode);
-      const g = effectiveMode === "neighborhood"
-        ? await loadEntityStoryGraph(client, resolved.name, resolved.repoId)
-        : await loadEntityGraph(client, resolved.name);
+      const g =
+        effectiveMode === "neighborhood"
+          ? await loadEntityStoryGraph(client, resolved.name, resolved.repoId)
+          : await loadEntityGraph(client, resolved.name);
+      if (requestID !== latestRequestRef.current) return;
       setLiveGraph(g);
       setSel(g.nodes.find((n) => n.hero));
       setEvidence(null);
@@ -91,9 +131,15 @@ export function ExplorerPage({ model, client, onOpenService, title, intro, defau
       if (effectiveMode === "direct" && g.edges.length === 0) {
         setHint("No direct code relationships for this entity — try Neighborhood.");
       }
+    } catch (e) {
+      if (requestID !== latestRequestRef.current) return;
+      setLiveGraph(null);
+      setSel(undefined);
+      setEvidence(null);
+      setErr(e instanceof Error ? e.message : "Explorer data is unavailable");
+    } finally {
+      if (requestID === latestRequestRef.current) setBusy(false);
     }
-    catch (e) { setErr(e instanceof Error ? e.message : "failed"); }
-    finally { setBusy(false); }
   }
 
   function onSelect(n: GraphNode): void {
@@ -110,14 +156,21 @@ export function ExplorerPage({ model, client, onOpenService, title, intro, defau
 
   async function centerOnNode(node: GraphNode): Promise<void> {
     if (!client || node.id === currentCenterId(base)) return;
+    const requestID = latestRequestRef.current + 1;
+    latestRequestRef.current = requestID;
     const nextMode = modeForNode(node);
-    setBusy(true); setErr(""); setHint(""); setQuery(node.label);
+    setBusy(true);
+    setErr("");
+    setHint("");
+    setQuery(node.label);
     if (nextMode !== mode) setMode(nextMode);
     try {
       const handle = node.id.trim() !== "" ? node.id : node.label;
-      const g = nextMode === "neighborhood"
-        ? await loadEntityStoryGraph(client, handle, repoIDForNode(node))
-        : await loadEntityGraph(client, handle);
+      const g =
+        nextMode === "neighborhood"
+          ? await loadEntityStoryGraph(client, handle, repoIDForNode(node))
+          : await loadEntityGraph(client, handle);
+      if (requestID !== latestRequestRef.current) return;
       setLiveGraph(g);
       setSel(g.nodes.find((n) => n.hero) ?? node);
       setEvidence(null);
@@ -125,9 +178,13 @@ export function ExplorerPage({ model, client, onOpenService, title, intro, defau
         setHint("No direct code relationships for this entity — try Neighborhood.");
       }
     } catch (e) {
+      if (requestID !== latestRequestRef.current) return;
+      setLiveGraph(null);
+      setSel(undefined);
+      setEvidence(null);
       setErr(e instanceof Error ? e.message : "failed");
     } finally {
-      setBusy(false);
+      if (requestID === latestRequestRef.current) setBusy(false);
     }
   }
 
@@ -148,48 +205,149 @@ export function ExplorerPage({ model, client, onOpenService, title, intro, defau
 
   return (
     <div className="page" style={{ maxWidth: "none" }}>
-      <div className="page-intro row" style={{ justifyContent: "space-between", alignItems: "flex-end", flexWrap: "wrap", gap: 12 }}>
+      <div
+        className="page-intro row"
+        style={{
+          justifyContent: "space-between",
+          alignItems: "flex-end",
+          flexWrap: "wrap",
+          gap: 12,
+        }}
+      >
         <div>
           <h2>{title ?? "Graph Explorer"}</h2>
-          <p>{intro ?? (live ? "Search an entity, select any node, then center its real relationships from the inspector." : "Pan, zoom and drill into the relationship graph. Toggle layers, then select a node.")}</p>
+          <p>
+            {intro ??
+              (live
+                ? "Search an entity, select any node, then center its real relationships from the inspector."
+                : "Pan, zoom and drill into the relationship graph. Toggle layers, then select a node.")}
+          </p>
         </div>
-        <div className="seg"><button className={layout === "layered" ? "active" : ""} onClick={() => setLayout("layered")}>Layered</button><button className={layout === "radial" ? "active" : ""} onClick={() => setLayout("radial")}>Radial</button></div>
+        <div className="seg">
+          <button
+            className={layout === "layered" ? "active" : ""}
+            onClick={() => setLayout("layered")}
+          >
+            Layered
+          </button>
+          <button
+            className={layout === "radial" ? "active" : ""}
+            onClick={() => setLayout("radial")}
+          >
+            Radial
+          </button>
+        </div>
       </div>
 
       {live ? (
         <div className="explorer-filters" style={{ gap: 8 }}>
           <div className="searchbox" style={{ minWidth: 280, height: 36, margin: 0 }}>
-            <input placeholder="Entity / symbol / service name…" value={query}
-              onChange={(e) => setQuery(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && query) void expand(query); }} />
+            <input
+              placeholder="Entity / symbol / service name…"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && query) void expand(query);
+              }}
+            />
           </div>
-          <button className="btn-ghost active" onClick={() => query && expand(query)} disabled={busy}>{busy ? "Loading…" : "Load"}</button>
-          <div className="seg"><button className={mode === "direct" ? "active" : ""} onClick={() => { pickMode("direct"); if (query) void expand(query, "direct"); }}>Direct</button><button className={mode === "neighborhood" ? "active" : ""} onClick={() => { pickMode("neighborhood"); if (query) void expand(query, "neighborhood"); }}>Neighborhood</button></div>
-          {err ? <span className="src-err" style={{ marginTop: 0 }}>⚠ {err}</span> : null}
-          {!err && hint ? <span className="t-mut" style={{ marginTop: 0, fontSize: ".78rem" }}>{hint}</span> : null}
+          <button
+            className="btn-ghost active"
+            onClick={() => query && expand(query)}
+            disabled={busy}
+          >
+            {busy ? "Loading…" : "Load"}
+          </button>
+          <div className="seg">
+            <button
+              className={mode === "direct" ? "active" : ""}
+              onClick={() => {
+                pickMode("direct");
+                if (query) void expand(query, "direct");
+              }}
+            >
+              Direct
+            </button>
+            <button
+              className={mode === "neighborhood" ? "active" : ""}
+              onClick={() => {
+                pickMode("neighborhood");
+                if (query) void expand(query, "neighborhood");
+              }}
+            >
+              Neighborhood
+            </button>
+          </div>
+          {err ? (
+            <span className="src-err" role="alert" style={{ marginTop: 0 }}>
+              ⚠ {err}
+            </span>
+          ) : null}
+          {!err && hint ? (
+            <span className="t-mut" style={{ marginTop: 0, fontSize: ".78rem" }}>
+              {hint}
+            </span>
+          ) : null}
         </div>
       ) : null}
 
       <div className="explorer-filters">
         {LAYERS.map((k) => (
-          <button key={k} className={`layer-toggle ${on[k] ? "on" : "off"}`} style={{ "--lc": LAYER_COLOR[k] } as React.CSSProperties} onClick={() => setOn((s) => ({ ...s, [k]: !s[k] }))}>
-            <i style={{ background: LAYER_COLOR[k] }} /><span style={{ textTransform: "capitalize" }}>{k}</span>
+          <button
+            key={k}
+            className={`layer-toggle ${on[k] ? "on" : "off"}`}
+            style={{ "--lc": LAYER_COLOR[k] } as React.CSSProperties}
+            onClick={() => setOn((s) => ({ ...s, [k]: !s[k] }))}
+          >
+            <i style={{ background: LAYER_COLOR[k] }} />
+            <span style={{ textTransform: "capitalize" }}>{k}</span>
           </button>
         ))}
       </div>
 
       <div className="explorer-layout">
-        <div className="gcanvas-shell"><GraphCanvas graph={graph} layout={layout} height={640} onSelect={onSelect} selectedId={sel?.id} /></div>
+        <div className="gcanvas-shell">
+          <GraphCanvas
+            graph={graph}
+            layout={layout}
+            height={640}
+            onSelect={onSelect}
+            selectedId={sel?.id}
+          />
+        </div>
         <Panel title="Inspector">
           {sel ? (
             <div className="inspector">
-              <div className="insp-head"><span className="cglyph" style={{ width: 30, height: 30, color: KIND_COLOR[sel.kind] ?? "#9aa4af", borderColor: KIND_COLOR[sel.kind] ?? "#9aa4af" }}>{sel.kind.slice(0, 1).toUpperCase()}</span><div><div className="insp-kind">{sel.kind}</div><div className="insp-title">{sel.label}</div></div></div>
-              {sel.sub ? <div className="t-mut mono" style={{ fontSize: ".82rem" }}>{sel.sub}</div> : null}
+              <div className="insp-head">
+                <span
+                  className="cglyph"
+                  style={{
+                    width: 30,
+                    height: 30,
+                    color: KIND_COLOR[sel.kind] ?? "#9aa4af",
+                    borderColor: KIND_COLOR[sel.kind] ?? "#9aa4af",
+                  }}
+                >
+                  {sel.kind.slice(0, 1).toUpperCase()}
+                </span>
+                <div>
+                  <div className="insp-kind">{sel.kind}</div>
+                  <div className="insp-title">{sel.label}</div>
+                </div>
+              </div>
+              {sel.sub ? (
+                <div className="t-mut mono" style={{ fontSize: ".82rem" }}>
+                  {sel.sub}
+                </div>
+              ) : null}
               {sel.truth ? <TruthChip level={sel.truth} /> : null}
               {sourceHref(sel) ? (
                 <div className="kv-list">
                   <div className="kv">
                     <span>Source</span>
-                    <Link className="mono" to={sourceHref(sel) ?? ""}>{sourceLabel(sel)}</Link>
+                    <Link className="mono" to={sourceHref(sel) ?? ""}>
+                      {sourceLabel(sel)}
+                    </Link>
                   </div>
                 </div>
               ) : null}
@@ -198,38 +356,69 @@ export function ExplorerPage({ model, client, onOpenService, title, intro, defau
                   className="btn-ghost"
                   disabled={busy || sel.id === currentCenterId(base)}
                   style={{ width: "100%", justifyContent: "center" }}
-                  onClick={() => { void centerOnNode(sel); }}
+                  onClick={() => {
+                    void centerOnNode(sel);
+                  }}
                 >
-                  {sel.id === currentCenterId(base) ? "Current center" : busy ? "Loading…" : "Center graph here →"}
+                  {sel.id === currentCenterId(base)
+                    ? "Current center"
+                    : busy
+                      ? "Loading…"
+                      : "Center graph here →"}
                 </button>
               ) : null}
-              {sourceHref(sel) ? <Link className="btn-ghost active" to={sourceHref(sel) ?? ""}>Open source</Link> : null}
+              {sourceHref(sel) ? (
+                <Link className="btn-ghost active" to={sourceHref(sel) ?? ""}>
+                  Open source
+                </Link>
+              ) : null}
               <div className="section-label">Edges</div>
               <div className="insp-evi">
-                {base.edges.filter((e) => e.s === sel.id || e.t === sel.id).map((e, i) => {
-                  const endpointID = e.s === sel.id ? e.t : e.s;
-                  const endpointLabel = nodeLabels.get(endpointID) ?? endpointID;
-                  return (
-                    <button
-                      className="insp-evi-row insp-evi-btn"
-                      key={i}
-                      onClick={() => openEdgeEvidence(e)}
-                      title={`Inspect ${e.verb} evidence`}
-                      type="button"
-                    >
-                      {e.verb} {e.s === sel.id ? "→" : "←"} {endpointLabel}
-                    </button>
-                  );
-                })}
+                {base.edges
+                  .filter((e) => e.s === sel.id || e.t === sel.id)
+                  .map((e, i) => {
+                    const endpointID = e.s === sel.id ? e.t : e.s;
+                    const endpointLabel = nodeLabels.get(endpointID) ?? endpointID;
+                    return (
+                      <button
+                        className="insp-evi-row insp-evi-btn"
+                        key={i}
+                        onClick={() => openEdgeEvidence(e)}
+                        title={`Inspect ${e.verb} evidence`}
+                        type="button"
+                      >
+                        {e.verb} {e.s === sel.id ? "→" : "←"} {endpointLabel}
+                      </button>
+                    );
+                  })}
               </div>
             </div>
-          ) : <p className="empty">{live ? "Search for an entity to begin." : "Select a node."}</p>}
+          ) : (
+            <p className="empty">{live ? "Search for an entity to begin." : "Select a node."}</p>
+          )}
           {model.relationships.length ? (
             <>
-              <div className="section-label" style={{ marginTop: 16 }}>Relationship verbs</div>
+              <div className="section-label" style={{ marginTop: 16 }}>
+                Relationship verbs
+              </div>
               <div className="kv-list">
                 {model.relationships.slice(0, 6).map((rel) => (
-                  <div className="kv" key={rel.verb}><span className="mono" style={{ fontSize: ".78rem" }}><i style={{ display: "inline-block", width: 8, height: 8, borderRadius: 2, background: LAYER_COLOR[rel.layer], marginRight: 7 }} />{rel.verb}</span><strong>{fmt(rel.count)}</strong></div>
+                  <div className="kv" key={rel.verb}>
+                    <span className="mono" style={{ fontSize: ".78rem" }}>
+                      <i
+                        style={{
+                          display: "inline-block",
+                          width: 8,
+                          height: 8,
+                          borderRadius: 2,
+                          background: LAYER_COLOR[rel.layer],
+                          marginRight: 7,
+                        }}
+                      />
+                      {rel.verb}
+                    </span>
+                    <strong>{fmt(rel.count)}</strong>
+                  </div>
                 ))}
               </div>
             </>
@@ -271,7 +460,8 @@ function sourceHref(node: GraphNode): string | null {
 function sourceLabel(node: GraphNode): string {
   const source = node.source;
   if (!source) return "source path unavailable";
-  if (source.startLine !== undefined && source.endLine !== undefined) return `${source.filePath}:${source.startLine}-${source.endLine}`;
+  if (source.startLine !== undefined && source.endLine !== undefined)
+    return `${source.filePath}:${source.startLine}-${source.endLine}`;
   if (source.startLine !== undefined) return `${source.filePath}:${source.startLine}`;
   return source.filePath;
 }

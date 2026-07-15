@@ -16,25 +16,26 @@
 //   - each route renders either real data or an explicit empty/unavailable
 //     state (substantive rendered content, never a blank crash).
 
-// ConsoleRoute is one navigable console route the gate exercises. `path` is the
-// in-app router path; `label` is the human name used in artifacts; `area`
-// groups the route to the acceptance-criteria surface it proves.
-export interface ConsoleRoute {
-  readonly path: string;
-  readonly label: string;
-  readonly area: RouteArea;
-}
+import {
+  defaultNetworkAllowList,
+  type ConsoleRoute,
+  type NetworkAllowRule,
+} from "./consoleRouteCatalog";
 
-export type RouteArea =
-  | "dashboard"
-  | "repositories"
-  | "service"
-  | "graph"
-  | "cloud"
-  | "observability"
-  | "operations"
-  | "security"
-  | "ask";
+export { consoleRoutes, defaultNetworkAllowList } from "./consoleRouteCatalog";
+export type {
+  ConsoleRoute,
+  NetworkAllowRule,
+  RouteArea,
+  RouteWorkflowSpec,
+  WorkflowField,
+} from "./consoleRouteCatalog";
+
+export interface RouteWorkflowObservation {
+  readonly id: string;
+  readonly passed: boolean;
+  readonly detail: string;
+}
 
 // NetworkObservation is one network request the page issued, reduced to the
 // fields the gate reasons about.
@@ -66,16 +67,16 @@ export interface RouteSignals {
   readonly consoleErrors: readonly string[];
   // network is every request the page issued while on this route.
   readonly network: readonly NetworkObservation[];
+  // workflow is the route-specific action or state proof, when configured.
+  readonly workflow: RouteWorkflowObservation | null;
+  readonly apiQuiet?: ApiQuietObservation;
+  readonly durationMs: number;
 }
 
-// NetworkAllowRule justifies a specific expected non-2xx (or otherwise notable)
-// response so the gate does not fail on it. A match requires the method, a URL
-// substring, and the exact status; `reason` is recorded in the report.
-export interface NetworkAllowRule {
-  readonly method: string;
-  readonly urlIncludes: string;
-  readonly status: number;
-  readonly reason: string;
+export interface ApiQuietObservation {
+  readonly settled: boolean;
+  readonly inFlight: number;
+  readonly waitedMs: number;
 }
 
 // RouteFailure is one reason a route did not pass, with a machine-usable code
@@ -90,12 +91,15 @@ export type FailureCode =
   | "demo_fallback"
   | "blank_render"
   | "console_error"
-  | "unexpected_network";
+  | "api_not_quiet"
+  | "unexpected_network"
+  | "workflow_failed";
 
 // RouteResult is the evaluated outcome for one route.
 export interface RouteResult {
   readonly route: ConsoleRoute;
   readonly passed: boolean;
+  readonly durationMs: number;
   readonly failures: readonly RouteFailure[];
   // allowedNonOk lists non-2xx responses that matched an allow rule, for the
   // report's justified-exceptions section.
@@ -116,52 +120,6 @@ export interface AllowedNonOk {
 // "rendered nothing".
 export const minMainContentChars = 40;
 
-// consoleRoutes is the catalog the gate walks. Every entry is a real route
-// enumerated from the console router in apps/console/src/App.tsx; the gate must
-// not invent routes. Parameterized routes (e.g. /service-report/:serviceName)
-// are exercised through their base listing route.
-export const consoleRoutes: readonly ConsoleRoute[] = [
-  { path: "/", label: "Dashboard", area: "dashboard" },
-  { path: "/dashboard", label: "Dashboard (alias)", area: "dashboard" },
-  { path: "/repositories", label: "Repositories", area: "repositories" },
-  { path: "/catalog", label: "Service Catalog", area: "service" },
-  { path: "/service-story", label: "Service Story", area: "service" },
-  { path: "/service-report", label: "Service Report", area: "service" },
-  { path: "/explorer", label: "Explorer", area: "graph" },
-  { path: "/code-graph", label: "Code Graph", area: "graph" },
-  { path: "/topology", label: "Topology", area: "graph" },
-  { path: "/cloud", label: "Cloud", area: "cloud" },
-  { path: "/cloud-drift", label: "Cloud Drift", area: "cloud" },
-  { path: "/iac", label: "IaC", area: "cloud" },
-  { path: "/images", label: "Images", area: "cloud" },
-  { path: "/observability", label: "Observability", area: "observability" },
-  { path: "/incidents", label: "Incidents", area: "observability" },
-  { path: "/freshness-causality", label: "Freshness", area: "observability" },
-  { path: "/operations", label: "Operations", area: "operations" },
-  { path: "/collector-readiness", label: "Collector Readiness", area: "operations" },
-  { path: "/capabilities", label: "Capabilities", area: "operations" },
-  { path: "/surface-inventory", label: "Surface Inventory", area: "operations" },
-  { path: "/findings", label: "Findings", area: "security" },
-  { path: "/vulnerabilities", label: "Vulnerabilities", area: "security" },
-  { path: "/secrets-iam", label: "Secrets & IAM", area: "security" },
-  { path: "/sbom", label: "SBOM", area: "security" },
-  { path: "/exposure", label: "Exposure Path", area: "security" },
-  { path: "/dependencies", label: "Dependencies", area: "security" },
-  { path: "/dead-code", label: "Dead Code", area: "graph" },
-  { path: "/impact", label: "Impact", area: "graph" },
-  { path: "/changed-since", label: "Changed Since", area: "graph" },
-  { path: "/replatforming", label: "Replatforming", area: "service" },
-  { path: "/ci-cd/run-correlations", label: "CI/CD Run Correlations", area: "operations" },
-  { path: "/ask", label: "Ask Eshu", area: "ask" },
-  { path: "/guided-questions", label: "Guided Questions", area: "ask" },
-];
-
-// defaultNetworkAllowList holds the only justified non-2xx responses. Each entry
-// must name a concrete reason; an empty list means "every request must be 2xx".
-// Populate this only with genuinely-expected non-200s discovered during a run,
-// never to paper over a real failure.
-export const defaultNetworkAllowList: readonly NetworkAllowRule[] = [];
-
 function isOkStatus(status: number): boolean {
   // status 0 is Playwright's marker for a request with no HTTP response (it is
   // paired with failureText); treat only 2xx/3xx as ok.
@@ -169,10 +127,16 @@ function isOkStatus(status: number): boolean {
 }
 
 function matchAllowRule(observation: NetworkObservation, rule: NetworkAllowRule): boolean {
+  let pathname = "";
+  try {
+    pathname = new URL(observation.url).pathname;
+  } catch {
+    return false;
+  }
   return (
     observation.method.toUpperCase() === rule.method.toUpperCase() &&
     observation.status === rule.status &&
-    observation.url.includes(rule.urlIncludes)
+    pathname === rule.pathname
   );
 }
 
@@ -190,6 +154,13 @@ export function evaluateRoute(
     failures.push({
       code: "not_connected",
       detail: `route ${signals.route.path} did not reach a connected live source (mode=${signals.sourceMode})`,
+    });
+  }
+
+  if (signals.apiQuiet?.settled === false) {
+    failures.push({
+      code: "api_not_quiet",
+      detail: `${signals.apiQuiet.inFlight} API request(s) remained active after ${signals.apiQuiet.waitedMs}ms`,
     });
   }
 
@@ -238,9 +209,23 @@ export function evaluateRoute(
     });
   }
 
+  if (signals.route.workflow) {
+    const workflow = signals.workflow;
+    if (workflow === null || workflow.id !== signals.route.workflow.id || !workflow.passed) {
+      failures.push({
+        code: "workflow_failed",
+        detail:
+          workflow === null
+            ? `route ${signals.route.path} did not run workflow ${signals.route.workflow.id}`
+            : `route ${signals.route.path} failed workflow ${signals.route.workflow.id}: ${workflow.detail}`,
+      });
+    }
+  }
+
   return {
     route: signals.route,
     passed: failures.length === 0,
+    durationMs: signals.durationMs,
     failures,
     allowedNonOk,
   };

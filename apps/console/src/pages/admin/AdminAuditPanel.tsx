@@ -6,14 +6,14 @@
 // note (referencing #3717) instead of an error. A real error renders
 // "unavailable". Renders only audit-safe fields (event type, classes, decision,
 // reason, timestamps, correlation id) — never actor, scope, or policy hashes.
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { fmt, dash } from "./adminFormat";
 import { loadAuditEvents, loadAuditSummary } from "../../api/adminConsole";
 import type {
   AuditEventItem,
   AuditSummaryData,
-  AdminAuditProvenance
+  AdminAuditProvenance,
 } from "../../api/adminConsole";
 import type { EshuApiClient } from "../../api/client";
 import { Panel } from "../../components/atoms";
@@ -21,8 +21,7 @@ import { Panel } from "../../components/atoms";
 // OPERATOR_SCOPE_NOTE is shown when the audit routes return 403 for a tenant
 // admin. The audit surface is global-operator-only; tenant scoping is tracked
 // in #3717.
-const OPERATOR_SCOPE_NOTE =
-  "Global operator audit — not available for tenant admins (#3717).";
+const OPERATOR_SCOPE_NOTE = "Global operator audit — not available for tenant admins (#3717).";
 
 function SummaryView({ summary }: { readonly summary: AuditSummaryData }): React.JSX.Element {
   return (
@@ -42,7 +41,7 @@ function SummaryView({ summary }: { readonly summary: AuditSummaryData }): React
 }
 
 export function AdminAuditPanel({
-  client
+  client,
 }: {
   readonly client?: EshuApiClient;
 }): React.JSX.Element {
@@ -51,6 +50,7 @@ export function AdminAuditPanel({
   const [eventsProv, setEventsProv] = useState<AdminAuditProvenance>("live");
   const [summaryProv, setSummaryProv] = useState<AdminAuditProvenance>("live");
   const [loading, setLoading] = useState(true);
+  const eventKeys = useMemo(() => auditEventKeys(events), [events]);
 
   useEffect(() => {
     let cancelled = false;
@@ -126,7 +126,7 @@ export function AdminAuditPanel({
           </thead>
           <tbody>
             {events.map((ev, i) => (
-              <tr key={ev.correlation_id ?? i}>
+              <tr key={eventKeys[i]}>
                 <td>{dash(ev.event_type)}</td>
                 <td>{dash(ev.decision)}</td>
                 <td>{dash(ev.reason_code)}</td>
@@ -140,4 +140,27 @@ export function AdminAuditPanel({
       )}
     </Panel>
   );
+}
+
+export function auditEventKeys(events: readonly AuditEventItem[]): readonly string[] {
+  const occurrences = new Map<string, number>();
+  return events.map((event) => {
+    const fingerprint = auditEventFingerprint(event);
+    const occurrence = occurrences.get(fingerprint) ?? 0;
+    occurrences.set(fingerprint, occurrence + 1);
+    return `${fingerprint}\u0000${occurrence}`;
+  });
+}
+
+function auditEventFingerprint(event: AuditEventItem): string {
+  return [
+    event.correlation_id ?? "",
+    event.event_type ?? "",
+    event.decision ?? "",
+    event.reason_code ?? "",
+    event.actor_class ?? "",
+    event.scope_class ?? "",
+    event.occurred_at ?? "",
+    event.service_principal_id ?? "",
+  ].join("\u0000");
 }

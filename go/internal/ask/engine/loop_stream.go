@@ -93,11 +93,8 @@ func (e *Engine) AskStream(ctx context.Context, question string, emit func(Strea
 				// Drop raw provider deltas. They are pre-validation and may
 				// contain uncited claims or publish-unsafe material.
 			case provider.StreamEventToolCallStarted:
-				emit(StreamEvent{
-					Kind:       KindToolCallStarted,
-					ToolCallID: ev.ToolCallID,
-					ToolName:   ev.ToolName,
-				})
+				// The executed call may be deterministically routed after the
+				// completion returns. Emit the executed identity below instead.
 			}
 		})
 		if err != nil {
@@ -110,19 +107,23 @@ func (e *Engine) AskStream(ctx context.Context, question string, emit func(Strea
 		if len(comp.ToolCalls) == 0 {
 			// Final turn: model produced prose with no further tool calls.
 			ans.Prose = comp.Text
+			if finalizeIndexedRepositoryCountAnswer(question, &ans) {
+				return ans, nil
+			}
 			e.narrate(ctx, &ans, posture)
 			emitValidatedNarration(ans, emit)
 			return ans, nil
 		}
 
+		calls := routeIndexedRepositoryCountCalls(question, comp.ToolCalls)
+
 		// Replay: append the assistant message carrying the tool calls.
 		messages = append(messages, provider.Message{
 			Role:      provider.RoleAssistant,
 			Text:      comp.Text,
-			ToolCalls: comp.ToolCalls,
+			ToolCalls: calls,
 		})
 
-		calls := comp.ToolCalls
 		if len(calls) > e.opts.MaxToolCallsPerTurn {
 			ans.Limitations = appendLimitation(ans.Limitations,
 				fmt.Sprintf("tool calls truncated to %d per turn", e.opts.MaxToolCallsPerTurn))
@@ -131,6 +132,11 @@ func (e *Engine) AskStream(ctx context.Context, question string, emit func(Strea
 		}
 
 		for _, call := range calls {
+			emit(StreamEvent{
+				Kind:       KindToolCallStarted,
+				ToolCallID: call.ID,
+				ToolName:   call.Name,
+			})
 			messages = e.dispatchCallStream(ctx, question, call, messages, &ans, emit)
 		}
 	}
@@ -139,6 +145,14 @@ func (e *Engine) AskStream(ctx context.Context, question string, emit func(Strea
 	ans.Partial = true
 	ans.Limitations = appendLimitation(ans.Limitations, "reached max reasoning iterations")
 	ans.Prose = bestPacketSummary(ans.Packets)
+	e.log().Warn("ask: reached max reasoning iterations",
+		"max_iterations", e.opts.MaxIterations,
+		"max_tool_calls_per_turn", e.opts.MaxToolCallsPerTurn,
+		"packets", len(ans.Packets),
+		"has_supported_evidence", ans.Prose != "")
+	if finalizeIndexedRepositoryCountAnswer(question, &ans) {
+		return ans, nil
+	}
 	if ans.Prose == "" {
 		ans.Limitations = appendLimitation(ans.Limitations, "no supported evidence assembled")
 	}
@@ -189,14 +203,7 @@ func (e *Engine) dispatchCallStream(
 	}
 
 	if res.Envelope != nil {
-		pkt, ok := extractEmbeddedPacket(res.Envelope)
-		if !ok {
-			pkt = query.NewAnswerPacket(query.AnswerPacketInput{
-				Question:    question,
-				PrimaryTool: call.Name,
-				Envelope:    res.Envelope,
-			})
-		}
+		pkt := answerPacketForToolResult(question, call.Name, res.Envelope)
 		if pkt.Partial {
 			ans.Partial = true
 		}

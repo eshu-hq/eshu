@@ -194,7 +194,7 @@ func nornicDBOneHopRelationshipsCypher(entityID string, direction string, relati
 	entityPattern := nornicDBNodePatternWithProperty("e", entityLabel, entityIDProperty, "$entity_id")
 	if direction == "incoming" {
 		return `
-		MATCH (source)-[rel` + relPattern + `]->` + entityPattern + `
+		MATCH ` + entityPattern + `<-[rel` + relPattern + `]-(source)
 		OPTIONAL MATCH (source)<-[:CONTAINS]-(sourceFile:File)
 		OPTIONAL MATCH (sourceRepo:Repository)-[:REPO_CONTAINS]->(sourceFile)
 		OPTIONAL MATCH (e)<-[:CONTAINS]-(targetFile:File)

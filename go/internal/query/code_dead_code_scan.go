@@ -36,27 +36,29 @@ func deadCodeIncomingEdgeIsWeak(confidence float64) bool {
 }
 
 type deadCodeCandidateScan struct {
-	Results                []map[string]any
-	PolicyStats            deadCodePolicyStats
-	DisplayTruncated       bool
-	CandidateScanTruncated bool
-	CandidateScanLimit     int
-	CandidateScanPages     int
-	CandidateScanRows      int
+	Results                    []map[string]any
+	PolicyStats                deadCodePolicyStats
+	DisplayTruncated           bool
+	CandidateScanTruncated     bool
+	CandidateScanLimit         int
+	CandidateScanLimitPerLabel int
+	CandidateScanPages         int
+	CandidateScanRows          int
 }
 
 func (h *CodeHandler) scanDeadCodeCandidates(ctx context.Context, req deadCodeRequest) (deadCodeCandidateScan, error) {
 	pageLimit := deadCodeCandidateQueryLimit(req.Limit)
 	scan := deadCodeCandidateScan{
-		Results:            make([]map[string]any, 0, req.Limit+1),
-		CandidateScanLimit: deadCodeCandidateScanLimit(req.Limit),
+		Results:                    make([]map[string]any, 0, req.Limit+1),
+		CandidateScanLimit:         deadCodeCandidateTotalScanLimit(req.Limit, req.Language),
+		CandidateScanLimitPerLabel: deadCodeCandidateScanLimit(req.Limit),
 	}
 	seenEntityIDs := make(map[string]struct{}, req.Limit+1)
 
 	for _, label := range deadCodeCandidateLabelsForLanguage(req.Language) {
-		for offset := 0; offset < scan.CandidateScanLimit; offset += pageLimit {
+		for offset := 0; offset < scan.CandidateScanLimitPerLabel; offset += pageLimit {
 			limit := pageLimit
-			if remaining := scan.CandidateScanLimit - offset; remaining < limit {
+			if remaining := scan.CandidateScanLimitPerLabel - offset; remaining < limit {
 				limit = remaining
 			}
 			rows, err := h.deadCodeCandidateRows(ctx, req.RepoID, label, req.Language, limit, offset)
@@ -89,9 +91,9 @@ func (h *CodeHandler) scanDeadCodeCandidates(ctx context.Context, req deadCodeRe
 			if candidateRowCount < limit {
 				break
 			}
-			if offset+candidateRowCount >= scan.CandidateScanLimit {
+			if offset+candidateRowCount >= scan.CandidateScanLimitPerLabel {
 				scan.CandidateScanTruncated = true
-				return scan, nil
+				break
 			}
 		}
 	}

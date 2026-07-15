@@ -25,7 +25,7 @@ export interface AuditEventItem {
   readonly reason_code?: string;
   readonly occurred_at?: string;
   readonly service_principal_id?: string;
-  readonly correlation_id?: string;
+  readonly correlation_id?: string | null;
 }
 
 export interface AuditEventsResult {

@@ -2,7 +2,18 @@ import { describe, expect, it } from "vitest";
 
 import { EshuApiHttpError } from "./client";
 import type { EshuApiClient } from "./client";
-import { relationshipsToGraph, loadEntityGraph, loadEntityMapGraph, loadEntityStoryGraph, loadBlastGraph, resolveEntityName, codeRelationshipsToGraph, entityMapToGraph, deploymentStoryToGraph, recommendedModeForKind } from "./eshuGraph";
+import {
+  relationshipsToGraph,
+  loadEntityGraph,
+  loadEntityMapGraph,
+  loadEntityStoryGraph,
+  loadBlastGraph,
+  resolveEntityName,
+  codeRelationshipsToGraph,
+  entityMapToGraph,
+  deploymentStoryToGraph,
+  recommendedModeForKind,
+} from "./eshuGraph";
 
 describe("eshuGraph", () => {
   it("loadBlastGraph posts target + target_type and maps the affected list", async () => {
@@ -19,13 +30,13 @@ describe("eshuGraph", () => {
             affected: [
               { repo: "lib-common", hops: 1 },
               { repo: "DISTINCT affected.name" }, // backend null-projection placeholder
-              { repo: "" }
-            ]
+              { repo: "" },
+            ],
           },
           error: null,
-          truth: null
+          truth: null,
         };
-      }
+      },
     } as unknown as EshuApiClient;
 
     const graph = await loadBlastGraph(client, "catalog-api");
@@ -44,8 +55,8 @@ describe("eshuGraph", () => {
       post: async () => ({
         data: { target: "catalog-api", affected: [{ repo: "DISTINCT affected.name" }] },
         error: null,
-        truth: null
-      })
+        truth: null,
+      }),
     } as unknown as EshuApiClient;
     const graph = await loadBlastGraph(client, "catalog-api");
     expect(graph.nodes).toHaveLength(1);
@@ -59,23 +70,30 @@ describe("eshuGraph", () => {
         data: null,
         error: {
           code: "unsupported_capability",
-          message: "blast radius unavailable"
+          message: "blast radius unavailable",
         },
-        truth: null
-      })
+        truth: null,
+      }),
     } as unknown as EshuApiClient;
 
     await expect(loadBlastGraph(client, "catalog-api")).rejects.toThrow("unsupported_capability");
   });
 
   it("relationshipsToGraph builds a hero center and maps verbs to layers + direction", () => {
-    const graph = relationshipsToGraph({
-      target: { id: "svc:checkout", name: "checkout", type: "service" },
-      relationships: [
-        { verb: "DEPENDS_ON", target: { id: "svc:payments", name: "payments", type: "service" } },
-        { verb: "CALLS", direction: "incoming", target: { id: "fn:caller", name: "caller", type: "function" } }
-      ]
-    }, "checkout");
+    const graph = relationshipsToGraph(
+      {
+        target: { id: "svc:checkout", name: "checkout", type: "service" },
+        relationships: [
+          { verb: "DEPENDS_ON", target: { id: "svc:payments", name: "payments", type: "service" } },
+          {
+            verb: "CALLS",
+            direction: "incoming",
+            target: { id: "fn:caller", name: "caller", type: "function" },
+          },
+        ],
+      },
+      "checkout",
+    );
 
     const hero = graph.nodes.find((n) => n.hero);
     expect(hero?.id).toBe("svc:checkout");
@@ -88,53 +106,83 @@ describe("eshuGraph", () => {
   });
 
   it("codeRelationshipsToGraph maps incoming/outgoing edges around the center", () => {
-    const graph = codeRelationshipsToGraph({
-      entity_id: "content-entity:e_center", name: "createNewVersion", labels: ["Function"],
-      incoming: [{ type: "CALLS", source_id: "content-entity:e_main", source_name: "main" }],
-      outgoing: [{ type: "CALLS", target_id: "content-entity:e_dep", target_name: "listFiles" }]
-    }, { id: "content-entity:e_center", name: "createNewVersion" });
+    const graph = codeRelationshipsToGraph(
+      {
+        entity_id: "content-entity:e_center",
+        name: "createNewVersion",
+        labels: ["Function"],
+        incoming: [{ type: "CALLS", source_id: "content-entity:e_main", source_name: "main" }],
+        outgoing: [{ type: "CALLS", target_id: "content-entity:e_dep", target_name: "listFiles" }],
+      },
+      { id: "content-entity:e_center", name: "createNewVersion" },
+    );
     const hero = graph.nodes.find((n) => n.hero);
     expect(hero?.id).toBe("content-entity:e_center");
     expect(graph.nodes).toHaveLength(3);
-    expect(graph.edges.find((e) => e.s === "content-entity:e_main")).toMatchObject({ t: "content-entity:e_center", verb: "CALLS", layer: "code" });
-    expect(graph.edges.find((e) => e.t === "content-entity:e_dep")).toMatchObject({ s: "content-entity:e_center", verb: "CALLS", layer: "code" });
+    expect(graph.edges.find((e) => e.s === "content-entity:e_main")).toMatchObject({
+      t: "content-entity:e_center",
+      verb: "CALLS",
+      layer: "code",
+    });
+    expect(graph.edges.find((e) => e.t === "content-entity:e_dep")).toMatchObject({
+      s: "content-entity:e_center",
+      verb: "CALLS",
+      layer: "code",
+    });
   });
 
   it("codeRelationshipsToGraph classifies related code symbols from relationship direction", () => {
-    const graph = codeRelationshipsToGraph({
-      entity_id: "content-entity:e_center", name: "handler", labels: ["Function"],
-      incoming: [{ type: "CALLS", source_id: "content-entity:e_route", source_name: "route" }],
-      outgoing: [
-        { type: "CALLS", target_id: "content-entity:e_callee", target_name: "loadProfile" },
-        { type: "IMPORTS", target_id: "content-entity:e_pkg", target_name: "apiClient" }
-      ]
-    }, { id: "content-entity:e_center", name: "handler" });
+    const graph = codeRelationshipsToGraph(
+      {
+        entity_id: "content-entity:e_center",
+        name: "handler",
+        labels: ["Function"],
+        incoming: [{ type: "CALLS", source_id: "content-entity:e_route", source_name: "route" }],
+        outgoing: [
+          { type: "CALLS", target_id: "content-entity:e_callee", target_name: "loadProfile" },
+          { type: "IMPORTS", target_id: "content-entity:e_pkg", target_name: "apiClient" },
+        ],
+      },
+      { id: "content-entity:e_center", name: "handler" },
+    );
 
-    expect(graph.nodes.find((node) => node.id === "content-entity:e_route")).toMatchObject({ kind: "client", sub: "incoming CALLS" });
-    expect(graph.nodes.find((node) => node.id === "content-entity:e_callee")).toMatchObject({ kind: "client", sub: "outgoing CALLS" });
-    expect(graph.nodes.find((node) => node.id === "content-entity:e_pkg")).toMatchObject({ kind: "library", sub: "outgoing IMPORTS" });
+    expect(graph.nodes.find((node) => node.id === "content-entity:e_route")).toMatchObject({
+      kind: "client",
+      sub: "incoming CALLS",
+    });
+    expect(graph.nodes.find((node) => node.id === "content-entity:e_callee")).toMatchObject({
+      kind: "client",
+      sub: "outgoing CALLS",
+    });
+    expect(graph.nodes.find((node) => node.id === "content-entity:e_pkg")).toMatchObject({
+      kind: "library",
+      sub: "outgoing IMPORTS",
+    });
   });
 
   it("codeRelationshipsToGraph keeps source metadata for the centered code entity", () => {
-    const graph = codeRelationshipsToGraph({
-      entity_id: "content-entity:e_center",
-      name: "searchByPortalId",
-      labels: ["Function"],
-      repo_id: "repository:r_platform",
-      repo_name: "svc-platform",
-      file_path: "server/resources/listing/index.js",
-      start_line: 1653,
-      end_line: 1662,
-      incoming: [],
-      outgoing: []
-    }, { id: "content-entity:e_center", name: "searchByPortalId" });
+    const graph = codeRelationshipsToGraph(
+      {
+        entity_id: "content-entity:e_center",
+        name: "searchByPortalId",
+        labels: ["Function"],
+        repo_id: "repository:r_platform",
+        repo_name: "svc-platform",
+        file_path: "server/resources/listing/index.js",
+        start_line: 1653,
+        end_line: 1662,
+        incoming: [],
+        outgoing: [],
+      },
+      { id: "content-entity:e_center", name: "searchByPortalId" },
+    );
 
     expect(graph.nodes.find((node) => node.hero)?.source).toEqual({
       repoId: "repository:r_platform",
       repoName: "svc-platform",
       filePath: "server/resources/listing/index.js",
       startLine: 1653,
-      endLine: 1662
+      endLine: 1662,
     });
   });
 
@@ -143,11 +191,26 @@ describe("eshuGraph", () => {
     let body: unknown = null;
     const client = {
       // entities/resolve (used by resolveEntity) goes through postJson
-      postJson: async () => ({ entities: [{ id: "content-entity:e_center", name: "createNewVersion", labels: ["Function"] }] }),
+      postJson: async () => ({
+        entities: [
+          { id: "content-entity:e_center", name: "createNewVersion", labels: ["Function"] },
+        ],
+      }),
       post: async (path: string, b: unknown) => {
-        calledPath = path; body = b;
-        return { data: { entity_id: "content-entity:e_center", name: "createNewVersion", labels: ["Function"], incoming: [{ type: "CALLS", source_id: "content-entity:e_main", source_name: "main" }], outgoing: [] }, error: null, truth: null };
-      }
+        calledPath = path;
+        body = b;
+        return {
+          data: {
+            entity_id: "content-entity:e_center",
+            name: "createNewVersion",
+            labels: ["Function"],
+            incoming: [{ type: "CALLS", source_id: "content-entity:e_main", source_name: "main" }],
+            outgoing: [],
+          },
+          error: null,
+          truth: null,
+        };
+      },
     } as unknown as EshuApiClient;
     const graph = await loadEntityGraph(client, "createNewVersion");
     expect(calledPath).toBe("/api/v0/code/relationships");
@@ -158,21 +221,66 @@ describe("eshuGraph", () => {
   });
 
   it("entityMapToGraph centers on the resolved candidate and maps evidence.relationships by direction", () => {
-    const graph = entityMapToGraph({
-      from: "catalog-api",
-      resolution: { candidates: [{ id: "workload:catalog-api", name: "catalog-api", labels: ["Workload"] }] },
-      evidence: { relationships: [
-        { entity_id: "repository:r_f9600c28", entity_name: "catalog-api", entity_labels: ["Repository"], direction: "incoming", relationship_type: "DEFINES", relationship_source: "graph", repo_id: "repository:r_f9600c28", depth: 1 },
-        // no relationship_type (singular) — must fall back to relationship_types[0]
-        { entity_id: "workload:payments", entity_name: "payments", entity_labels: ["Workload"], direction: "outgoing", relationship_types: ["DEPENDS_ON"], environment: "acme-prod" }
-      ] }
-    }, "catalog-api");
+    const graph = entityMapToGraph(
+      {
+        from: "catalog-api",
+        resolution: {
+          candidates: [{ id: "workload:catalog-api", name: "catalog-api", labels: ["Workload"] }],
+        },
+        evidence: {
+          relationships: [
+            {
+              entity_id: "repository:r_f9600c28",
+              entity_name: "catalog-api",
+              entity_labels: ["Repository"],
+              direction: "incoming",
+              relationship_type: "DEFINES",
+              relationship_source: "graph",
+              repo_id: "repository:r_f9600c28",
+              depth: 1,
+            },
+            // no relationship_type (singular) — must fall back to relationship_types[0]
+            {
+              entity_id: "workload:payments",
+              entity_name: "payments",
+              entity_labels: ["Workload"],
+              direction: "outgoing",
+              relationship_types: ["DEPENDS_ON"],
+              environment: "acme-prod",
+            },
+          ],
+        },
+      },
+      "catalog-api",
+    );
     const hero = graph.nodes.find((n) => n.hero);
     expect(hero?.id).toBe("workload:catalog-api");
     // nodes are keyed by entity_id, not the display name
-    expect(graph.nodes.some((n) => n.id === "workload:payments" && n.label === "payments")).toBe(true);
-    expect(graph.edges.find((e) => e.verb === "DEFINES")).toMatchObject({ s: "repository:r_f9600c28", t: "workload:catalog-api", evidence: ["relationship source: graph", "direction: incoming", "entity labels: Repository", "repo: repository:r_f9600c28", "depth: 1"] });
-    expect(graph.edges.find((e) => e.verb === "DEPENDS_ON")).toMatchObject({ s: "workload:catalog-api", t: "workload:payments", layer: "runtime", evidence: ["relationship source: graph", "direction: outgoing", "entity labels: Workload", "environment: acme-prod"] });
+    expect(graph.nodes.some((n) => n.id === "workload:payments" && n.label === "payments")).toBe(
+      true,
+    );
+    expect(graph.edges.find((e) => e.verb === "DEFINES")).toMatchObject({
+      s: "repository:r_f9600c28",
+      t: "workload:catalog-api",
+      evidence: [
+        "relationship source: graph",
+        "direction: incoming",
+        "entity labels: Repository",
+        "repo: repository:r_f9600c28",
+        "depth: 1",
+      ],
+    });
+    expect(graph.edges.find((e) => e.verb === "DEPENDS_ON")).toMatchObject({
+      s: "workload:catalog-api",
+      t: "workload:payments",
+      layer: "runtime",
+      evidence: [
+        "relationship source: graph",
+        "direction: outgoing",
+        "entity labels: Workload",
+        "environment: acme-prod",
+      ],
+    });
   });
 
   it("loadEntityMapGraph posts impact/entity-map with from and parses evidence.relationships", async () => {
@@ -180,9 +288,29 @@ describe("eshuGraph", () => {
     let body: unknown = null;
     const client = {
       post: async (path: string, b: unknown) => {
-        calledPath = path; body = b;
-        return { data: { from: "checkout", resolution: { candidates: [{ id: "workload:checkout", name: "checkout", labels: ["Workload"] }] }, evidence: { relationships: [{ entity_name: "payments", entity_labels: ["Workload"], direction: "outgoing", relationship_type: "DEPENDS_ON" }] } }, error: null, truth: null };
-      }
+        calledPath = path;
+        body = b;
+        return {
+          data: {
+            from: "checkout",
+            resolution: {
+              candidates: [{ id: "workload:checkout", name: "checkout", labels: ["Workload"] }],
+            },
+            evidence: {
+              relationships: [
+                {
+                  entity_name: "payments",
+                  entity_labels: ["Workload"],
+                  direction: "outgoing",
+                  relationship_type: "DEPENDS_ON",
+                },
+              ],
+            },
+          },
+          error: null,
+          truth: null,
+        };
+      },
     } as unknown as EshuApiClient;
     const graph = await loadEntityMapGraph(client, "checkout");
     expect(calledPath).toBe("/api/v0/impact/entity-map");
@@ -199,68 +327,99 @@ describe("eshuGraph", () => {
         data: null,
         error: {
           code: "unsupported_capability",
-          message: "entity map is unavailable"
+          message: "entity map is unavailable",
         },
-        truth: null
-      })
+        truth: null,
+      }),
     } as unknown as EshuApiClient;
 
     await expect(loadEntityMapGraph(client, "checkout")).rejects.toThrow(
-      "unsupported_capability: entity map is unavailable"
+      "unsupported_capability: entity map is unavailable",
     );
   });
 
   it("deploymentStoryToGraph turns service context artifacts into a typed deployment chain", () => {
-    const graph = deploymentStoryToGraph({
-      name: "svc-platform",
-      repo_name: "svc-platform",
-      deployment_evidence: {
-        artifacts: [
-          {
-            source_repo_id: "repository:r_dd626fe7",
-            source_repo_name: "iac-eks-argocd",
-            target_repo_id: "repository:r_078043f1",
-            target_repo_name: "svc-platform",
-            relationship_type: "DEPLOYS_FROM",
-            artifact_family: "kustomize",
-            evidence_kind: "KUSTOMIZE_RESOURCE_REFERENCE",
-            environment: "acme-prod",
-            path: "applicationsets/core-engineering/api-node/kustomization.yaml"
-          },
-          {
-            source_repo_id: "repository:r_66cd2d76",
-            source_repo_name: "helm-charts",
-            target_repo_id: "repository:r_078043f1",
-            target_repo_name: "svc-platform",
-            relationship_type: "DEPLOYS_FROM",
-            artifact_family: "helm",
-            evidence_kind: "HELM_CHART_REFERENCE",
-            path: "svc-platform/Chart.yaml"
-          },
-          {
-            source_repo_id: "repository:r_8634f55e",
-            source_repo_name: "iac-eks-observability",
-            target_repo_id: "repository:r_078043f1",
-            target_repo_name: "svc-platform",
-            relationship_type: "DEPLOYS_FROM",
-            artifact_family: "helm",
-            path: "bbexporter/overlays/acme-prod/values.yaml"
-          }
-        ]
-      }
-    }, "svc-platform");
+    const graph = deploymentStoryToGraph(
+      {
+        name: "svc-platform",
+        repo_name: "svc-platform",
+        deployment_evidence: {
+          artifacts: [
+            {
+              source_repo_id: "repository:r_dd626fe7",
+              source_repo_name: "iac-eks-argocd",
+              target_repo_id: "repository:r_078043f1",
+              target_repo_name: "svc-platform",
+              relationship_type: "DEPLOYS_FROM",
+              artifact_family: "kustomize",
+              evidence_kind: "KUSTOMIZE_RESOURCE_REFERENCE",
+              environment: "acme-prod",
+              path: "applicationsets/core-engineering/api-node/kustomization.yaml",
+            },
+            {
+              source_repo_id: "repository:r_66cd2d76",
+              source_repo_name: "helm-charts",
+              target_repo_id: "repository:r_078043f1",
+              target_repo_name: "svc-platform",
+              relationship_type: "DEPLOYS_FROM",
+              artifact_family: "helm",
+              evidence_kind: "HELM_CHART_REFERENCE",
+              path: "svc-platform/Chart.yaml",
+            },
+            {
+              source_repo_id: "repository:r_8634f55e",
+              source_repo_name: "iac-eks-observability",
+              target_repo_id: "repository:r_078043f1",
+              target_repo_name: "svc-platform",
+              relationship_type: "DEPLOYS_FROM",
+              artifact_family: "helm",
+              path: "bbexporter/overlays/acme-prod/values.yaml",
+            },
+          ],
+        },
+      },
+      "svc-platform",
+    );
 
     expect(graph.nodes.map((n) => n.label).sort()).toEqual([
       "helm-charts",
       "iac-eks-argocd",
       "svc-platform",
-      "svc-platform"
+      "svc-platform",
     ]);
-    expect(graph.edges).toEqual(expect.arrayContaining([
-      expect.objectContaining({ s: "repository:r_dd626fe7", t: "repository:r_66cd2d76", verb: "DEPLOYS_HELM", layer: "deploy", evidence: ["artifact family: kustomize", "evidence kind: KUSTOMIZE_RESOURCE_REFERENCE", "path: applicationsets/core-engineering/api-node/kustomization.yaml", "environment: acme-prod"] }),
-      expect.objectContaining({ s: "repository:r_66cd2d76", t: "repository:r_078043f1", verb: "PACKAGES", layer: "deploy", evidence: ["artifact family: helm", "evidence kind: HELM_CHART_REFERENCE", "path: svc-platform/Chart.yaml"] }),
-      expect.objectContaining({ s: "repository:r_078043f1", t: "workload:svc-platform", verb: "DEPLOYS_FROM", layer: "deploy" })
-    ]));
+    expect(graph.edges).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          s: "repository:r_dd626fe7",
+          t: "repository:r_66cd2d76",
+          verb: "DEPLOYS_HELM",
+          layer: "deploy",
+          evidence: [
+            "artifact family: kustomize",
+            "evidence kind: KUSTOMIZE_RESOURCE_REFERENCE",
+            "path: applicationsets/core-engineering/api-node/kustomization.yaml",
+            "environment: acme-prod",
+          ],
+        }),
+        expect.objectContaining({
+          s: "repository:r_66cd2d76",
+          t: "repository:r_078043f1",
+          verb: "PACKAGES",
+          layer: "deploy",
+          evidence: [
+            "artifact family: helm",
+            "evidence kind: HELM_CHART_REFERENCE",
+            "path: svc-platform/Chart.yaml",
+          ],
+        }),
+        expect.objectContaining({
+          s: "repository:r_078043f1",
+          t: "workload:svc-platform",
+          verb: "DEPLOYS_FROM",
+          layer: "deploy",
+        }),
+      ]),
+    );
     expect(graph.edges.some((edge) => edge.verb === "RELATED")).toBe(false);
     expect(graph.nodes.some((node) => node.label === "iac-eks-observability")).toBe(false);
   });
@@ -275,33 +434,45 @@ describe("eshuGraph", () => {
             name: "svc-platform",
             repo_name: "svc-platform",
             deployment_evidence: {
-              artifacts: [{
-                source_repo_id: "repository:r_66cd2d76",
-                source_repo_name: "helm-charts",
-                target_repo_id: "repository:r_078043f1",
-                target_repo_name: "svc-platform",
-                relationship_type: "DEPLOYS_FROM",
-                artifact_family: "helm",
-                path: "svc-platform/Chart.yaml"
-              }]
-            }
+              artifacts: [
+                {
+                  source_repo_id: "repository:r_66cd2d76",
+                  source_repo_name: "helm-charts",
+                  target_repo_id: "repository:r_078043f1",
+                  target_repo_name: "svc-platform",
+                  relationship_type: "DEPLOYS_FROM",
+                  artifact_family: "helm",
+                  path: "svc-platform/Chart.yaml",
+                },
+              ],
+            },
           },
           error: null,
-          truth: null
+          truth: null,
         };
       },
       post: async () => {
         throw new Error("entity-map should not be called when deployment evidence exists");
-      }
+      },
     } as unknown as EshuApiClient;
 
     const graph = await loadEntityStoryGraph(client, "svc-platform");
 
     expect(calls).toEqual(["/api/v0/services/svc-platform/context"]);
-    expect(graph.edges).toEqual(expect.arrayContaining([
-      expect.objectContaining({ s: "repository:r_66cd2d76", t: "repository:r_078043f1", verb: "PACKAGES" }),
-      expect.objectContaining({ s: "repository:r_078043f1", t: "workload:svc-platform", verb: "DEPLOYS_FROM" })
-    ]));
+    expect(graph.edges).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          s: "repository:r_66cd2d76",
+          t: "repository:r_078043f1",
+          verb: "PACKAGES",
+        }),
+        expect.objectContaining({
+          s: "repository:r_078043f1",
+          t: "workload:svc-platform",
+          verb: "DEPLOYS_FROM",
+        }),
+      ]),
+    );
   });
 
   it("loadEntityStoryGraph uses repository context deployment evidence before entity-map", async () => {
@@ -310,7 +481,11 @@ describe("eshuGraph", () => {
       get: async (path: string) => {
         calls.push(path);
         if (path === "/api/v0/services/svc-platform/context") {
-          return { data: { name: "svc-platform", repo_name: "svc-platform" }, error: null, truth: null };
+          return {
+            data: { name: "svc-platform", repo_name: "svc-platform" },
+            error: null,
+            truth: null,
+          };
         }
         if (path === "/api/v0/repositories/repository%3Ar_078043f1/context") {
           return {
@@ -325,7 +500,7 @@ describe("eshuGraph", () => {
                     target_repo_name: "svc-platform",
                     relationship_type: "DEPLOYS_FROM",
                     artifact_family: "kustomize",
-                    path: "applicationsets/core-engineering/api-node/kustomization.yaml"
+                    path: "applicationsets/core-engineering/api-node/kustomization.yaml",
                   },
                   {
                     source_repo_id: "repository:r_66cd2d76",
@@ -334,33 +509,49 @@ describe("eshuGraph", () => {
                     target_repo_name: "svc-platform",
                     relationship_type: "DEPLOYS_FROM",
                     artifact_family: "helm",
-                    path: "svc-platform/Chart.yaml"
-                  }
-                ]
-              }
+                    path: "svc-platform/Chart.yaml",
+                  },
+                ],
+              },
             },
             error: null,
-            truth: null
+            truth: null,
           };
         }
         throw new Error(`unexpected GET ${path}`);
       },
       post: async () => {
-        throw new Error("entity-map should not be called when repository deployment evidence exists");
-      }
+        throw new Error(
+          "entity-map should not be called when repository deployment evidence exists",
+        );
+      },
     } as unknown as EshuApiClient;
 
     const graph = await loadEntityStoryGraph(client, "svc-platform", "repository:r_078043f1");
 
     expect(calls).toEqual([
       "/api/v0/services/svc-platform/context",
-      "/api/v0/repositories/repository%3Ar_078043f1/context"
+      "/api/v0/repositories/repository%3Ar_078043f1/context",
     ]);
-    expect(graph.edges).toEqual(expect.arrayContaining([
-      expect.objectContaining({ s: "repository:r_dd626fe7", t: "repository:r_66cd2d76", verb: "DEPLOYS_HELM" }),
-      expect.objectContaining({ s: "repository:r_66cd2d76", t: "repository:r_078043f1", verb: "PACKAGES" }),
-      expect.objectContaining({ s: "repository:r_078043f1", t: "workload:svc-platform", verb: "DEPLOYS_FROM" })
-    ]));
+    expect(graph.edges).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          s: "repository:r_dd626fe7",
+          t: "repository:r_66cd2d76",
+          verb: "DEPLOYS_HELM",
+        }),
+        expect.objectContaining({
+          s: "repository:r_66cd2d76",
+          t: "repository:r_078043f1",
+          verb: "PACKAGES",
+        }),
+        expect.objectContaining({
+          s: "repository:r_078043f1",
+          t: "workload:svc-platform",
+          verb: "DEPLOYS_FROM",
+        }),
+      ]),
+    );
     expect(graph.edges.some((edge) => edge.verb === "RELATED")).toBe(false);
   });
 
@@ -376,20 +567,32 @@ describe("eshuGraph", () => {
         return {
           data: {
             from: "repository:r1",
-            resolution: { candidates: [{ id: "repository:r1", name: "repo-a", labels: ["Repository"] }] },
-            evidence: { relationships: [{ entity_id: "workload:svc", entity_name: "svc", entity_labels: ["Workload"], direction: "outgoing", relationship_type: "DEPLOYS_FROM" }] }
+            resolution: {
+              candidates: [{ id: "repository:r1", name: "repo-a", labels: ["Repository"] }],
+            },
+            evidence: {
+              relationships: [
+                {
+                  entity_id: "workload:svc",
+                  entity_name: "svc",
+                  entity_labels: ["Workload"],
+                  direction: "outgoing",
+                  relationship_type: "DEPLOYS_FROM",
+                },
+              ],
+            },
           },
           error: null,
-          truth: null
+          truth: null,
         };
-      }
+      },
     } as unknown as EshuApiClient;
 
     const graph = await loadEntityStoryGraph(client, "repository:r1");
 
     expect(calls).toEqual([
       "/api/v0/services/repository%3Ar1/context",
-      "/api/v0/impact/entity-map"
+      "/api/v0/impact/entity-map",
     ]);
     expect(graph.nodes.find((node) => node.hero)?.label).toBe("repo-a");
   });
@@ -398,7 +601,10 @@ describe("eshuGraph", () => {
     let postCalled = false;
     const client = {
       postJson: async () => ({ entities: [] }), // resolve returns no candidate
-      post: async () => { postCalled = true; return { data: {}, error: null, truth: null }; }
+      post: async () => {
+        postCalled = true;
+        return { data: {}, error: null, truth: null };
+      },
     } as unknown as EshuApiClient;
     const graph = await loadEntityGraph(client, "no-such-entity");
     expect(postCalled).toBe(false); // never posts a raw name as entity_id
@@ -409,8 +615,12 @@ describe("eshuGraph", () => {
 
   it("loadEntityGraph degrades a 404 from code/relationships to an empty graph (center alone)", async () => {
     const client = {
-      postJson: async () => ({ entities: [{ id: "workload:catalog-api", name: "catalog-api", labels: ["Workload"] }] }),
-      post: async () => { throw new EshuApiHttpError(404); }
+      postJson: async () => ({
+        entities: [{ id: "workload:catalog-api", name: "catalog-api", labels: ["Workload"] }],
+      }),
+      post: async () => {
+        throw new EshuApiHttpError(404);
+      },
     } as unknown as EshuApiClient;
     const graph = await loadEntityGraph(client, "catalog-api");
     // No code relationships exist for a service: render the resolved node alone,
@@ -422,10 +632,18 @@ describe("eshuGraph", () => {
 
   it("loadEntityGraph still surfaces a real server error (500) from code/relationships", async () => {
     const client = {
-      postJson: async () => ({ entities: [{ id: "content-entity:e_center", name: "createNewVersion", labels: ["Function"] }] }),
-      post: async () => { throw new EshuApiHttpError(500); }
+      postJson: async () => ({
+        entities: [
+          { id: "content-entity:e_center", name: "createNewVersion", labels: ["Function"] },
+        ],
+      }),
+      post: async () => {
+        throw new EshuApiHttpError(500);
+      },
     } as unknown as EshuApiClient;
-    await expect(loadEntityGraph(client, "createNewVersion")).rejects.toBeInstanceOf(EshuApiHttpError);
+    await expect(loadEntityGraph(client, "createNewVersion")).rejects.toBeInstanceOf(
+      EshuApiHttpError,
+    );
   });
 
   it("recommendedModeForKind picks direct for code entities and neighborhood for service/infra", () => {
@@ -442,14 +660,32 @@ describe("eshuGraph", () => {
     expect(recommendedModeForKind("")).toBe("direct");
   });
 
-  it("resolveEntityName returns the top candidate, falling back to the raw query", async () => {
-    const withMatch = { postJson: async () => ({ entities: [{ id: "svc:checkout", name: "checkout-service", type: "service", repo_id: "r", repo_name: "r", file_path: "", labels: [] }] }) } as unknown as EshuApiClient;
+  it("resolveEntityName falls back only for a valid no-match and propagates resolver failures", async () => {
+    const withMatch = {
+      postJson: async () => ({
+        entities: [
+          {
+            id: "svc:checkout",
+            name: "checkout-service",
+            type: "service",
+            repo_id: "r",
+            repo_name: "r",
+            file_path: "",
+            labels: [],
+          },
+        ],
+      }),
+    } as unknown as EshuApiClient;
     expect(await resolveEntityName(withMatch, "checkout")).toBe("checkout-service");
 
     const noMatch = { postJson: async () => ({ entities: [] }) } as unknown as EshuApiClient;
     expect(await resolveEntityName(noMatch, "checkout")).toBe("checkout");
 
-    const errClient = { postJson: async () => { throw new Error("boom"); } } as unknown as EshuApiClient;
-    expect(await resolveEntityName(errClient, "checkout")).toBe("checkout");
+    const errClient = {
+      postJson: async () => {
+        throw new Error("boom");
+      },
+    } as unknown as EshuApiClient;
+    await expect(resolveEntityName(errClient, "checkout")).rejects.toThrow("boom");
   });
 });

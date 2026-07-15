@@ -18,11 +18,14 @@ describe("loadSourceBackedSuggestedQuestions", () => {
     const questions = await loadSourceBackedSuggestedQuestions(client);
 
     expect(questions).toEqual([]);
-    expect(calls).toEqual([
-      "GET /api/v0/repositories?limit=500&offset=0",
-      "GET /api/v0/supply-chain/impact/findings?limit=5&severity=critical",
-      "GET /api/v0/supply-chain/impact/findings?limit=5&severity=high"
-    ]);
+    expect(calls).toHaveLength(3);
+    expect(calls).toEqual(
+      expect.arrayContaining([
+        "GET /api/v0/repositories?limit=500&offset=0",
+        "GET /api/v0/supply-chain/impact/findings?limit=5&severity=critical",
+        "GET /api/v0/supply-chain/impact/findings?limit=5&severity=high",
+      ]),
+    );
   });
 
   it("requires a prior generation before loading changed-since", async () => {
@@ -30,7 +33,11 @@ describe("loadSourceBackedSuggestedQuestions", () => {
     const client = clientFor((method, path, body) => {
       calls.push(`${method} ${path}`);
       if (path.startsWith("/api/v0/repositories")) {
-        return { data: { repositories: [{ id: "repository:r1", name: "checkout-api" }] }, error: null, truth: null };
+        return {
+          data: { repositories: [{ id: "repository:r1", name: "checkout-api" }] },
+          error: null,
+          truth: null,
+        };
       }
       if (path === "/api/v0/ecosystem/graph-summary") {
         expect(body).toEqual({ limit: 3, repo_id: "repository:r1" });
@@ -38,9 +45,11 @@ describe("loadSourceBackedSuggestedQuestions", () => {
       }
       if (path.startsWith("/api/v0/freshness/generations")) {
         return {
-          data: { generations: [{ generation_id: "gen-current", is_active: true, status: "active" }] },
+          data: {
+            generations: [{ generation_id: "gen-current", is_active: true, status: "active" }],
+          },
           error: null,
-          truth: null
+          truth: null,
         };
       }
       if (path.includes("severity=critical") || path.includes("severity=high")) {
@@ -59,7 +68,11 @@ describe("loadSourceBackedSuggestedQuestions", () => {
     const client = clientFor((method, path, body) => {
       calls.push(`${method} ${path}`);
       if (path.startsWith("/api/v0/repositories")) {
-        return { data: { repositories: [{ id: "repository:r1", name: "checkout-api" }] }, error: null, truth: null };
+        return {
+          data: { repositories: [{ id: "repository:r1", name: "checkout-api" }] },
+          error: null,
+          truth: null,
+        };
       }
       if (path === "/api/v0/ecosystem/graph-summary") {
         expect(body).toEqual({ limit: 3, repo_id: "repository:r1" });
@@ -70,11 +83,11 @@ describe("loadSourceBackedSuggestedQuestions", () => {
           data: {
             generations: [
               { generation_id: "gen-a", is_active: false, status: "completed" },
-              { generation_id: "gen-b", is_active: false, status: "superseded" }
-            ]
+              { generation_id: "gen-b", is_active: false, status: "superseded" },
+            ],
           },
           error: null,
-          truth: null
+          truth: null,
         };
       }
       if (path.includes("severity=critical") || path.includes("severity=high")) {
@@ -91,22 +104,28 @@ describe("loadSourceBackedSuggestedQuestions", () => {
   it("turns bounded graph summary, changed-since, and high findings into route targets", async () => {
     const client = clientFor((_method, path) => {
       if (path.startsWith("/api/v0/repositories")) {
-        return { data: { repositories: [{ id: "repository:r1", name: "checkout-api" }] }, error: null, truth: null };
+        return {
+          data: { repositories: [{ id: "repository:r1", name: "checkout-api" }] },
+          error: null,
+          truth: null,
+        };
       }
       if (path === "/api/v0/ecosystem/graph-summary") {
         return {
           data: {
-            hot_entities: [{
-              file_path: "src/router.ts",
-              function_id: "content-entity:routeCheckout",
-              function_name: "routeCheckout",
-              incoming_calls: 2,
-              outgoing_calls: 5,
-              total_degree: 7
-            }]
+            hot_entities: [
+              {
+                file_path: "src/router.ts",
+                function_id: "content-entity:routeCheckout",
+                function_name: "routeCheckout",
+                incoming_calls: 2,
+                outgoing_calls: 5,
+                total_degree: 7,
+              },
+            ],
           },
           error: null,
-          truth: null
+          truth: null,
         };
       }
       if (path.startsWith("/api/v0/freshness/generations")) {
@@ -114,18 +133,22 @@ describe("loadSourceBackedSuggestedQuestions", () => {
           data: {
             generations: [
               { generation_id: "gen-current", is_active: true, status: "active" },
-              { generation_id: "gen-prior", is_active: false, status: "superseded" }
-            ]
+              { generation_id: "gen-prior", is_active: false, status: "superseded" },
+            ],
           },
           error: null,
-          truth: null
+          truth: null,
         };
       }
       if (path.startsWith("/api/v0/freshness/changed-since")) {
         return {
-          data: { categories: [{ name: "facts", counts: { added: 2, retired: 1, unchanged: 10, updated: 3 } }] },
+          data: {
+            categories: [
+              { name: "facts", counts: { added: 2, retired: 1, unchanged: 10, updated: 3 } },
+            ],
+          },
           error: null,
-          truth: null
+          truth: null,
         };
       }
       if (path.includes("severity=critical")) {
@@ -134,16 +157,18 @@ describe("loadSourceBackedSuggestedQuestions", () => {
       if (path.includes("severity=high")) {
         return {
           data: {
-            findings: [{
-              advisory_id: "CVE-2026-4321",
-              cvss_score: 8.4,
-              package_name: "openssl",
-              service_ids: ["workload:checkout-api"],
-              severity: "high"
-            }]
+            findings: [
+              {
+                advisory_id: "CVE-2026-4321",
+                cvss_score: 8.4,
+                package_name: "openssl",
+                service_ids: ["workload:checkout-api"],
+                severity: "high",
+              },
+            ],
           },
           error: null,
-          truth: null
+          truth: null,
         };
       }
       throw new Error(`unexpected ${path}`);
@@ -154,21 +179,21 @@ describe("loadSourceBackedSuggestedQuestions", () => {
     expect(questions.map((question) => question.href)).toEqual([
       "/explorer?q=routeCheckout",
       "/repositories/repository%3Ar1/source",
-      "/vulnerabilities/CVE-2026-4321"
+      "/vulnerabilities/CVE-2026-4321",
     ]);
     expect(questions.map((question) => question.source)).toEqual([
       "POST /api/v0/ecosystem/graph-summary",
       "GET /api/v0/freshness/generations -> GET /api/v0/freshness/changed-since",
-      "GET /api/v0/supply-chain/impact/findings"
+      "GET /api/v0/supply-chain/impact/findings",
     ]);
   });
 });
 
 function clientFor(
-  respond: (method: "GET" | "POST", path: string, body?: unknown) => unknown
+  respond: (method: "GET" | "POST", path: string, body?: unknown) => unknown,
 ): EshuApiClient {
   return {
     get: async (path: string) => respond("GET", path),
-    post: async (path: string, body: unknown) => respond("POST", path, body)
+    post: async (path: string, body: unknown) => respond("POST", path, body),
   } as unknown as EshuApiClient;
 }
