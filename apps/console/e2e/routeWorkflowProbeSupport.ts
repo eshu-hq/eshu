@@ -5,7 +5,10 @@ import type {
   RouteWorkflowObservation,
   WorkflowRequestObservation,
 } from "../src/e2e/routeAssertions.ts";
-import type { WorkflowResponseExpectation } from "../src/e2e/consoleRouteCatalogTypes.ts";
+import type {
+  WorkflowRecordedResponseOwnership,
+  WorkflowResponseExpectation,
+} from "../src/e2e/consoleRouteCatalogTypes.ts";
 
 export type WaitForApiQuiet = () => Promise<void>;
 
@@ -131,12 +134,10 @@ export function matchesWorkflowResponse(
 ): boolean {
   try {
     const candidateURL = new URL(candidate.url());
-    const matchesQuery = Object.entries(expectation.query ?? {}).every(
-      ([key, expectedValue]) => {
-        const values = candidateURL.searchParams.getAll(key);
-        return values.length === 1 && values[0] === expectedValue;
-      },
-    );
+    const matchesQuery = Object.entries(expectation.query ?? {}).every(([key, expectedValue]) => {
+      const values = candidateURL.searchParams.getAll(key);
+      return values.length === 1 && values[0] === expectedValue;
+    });
     return (
       matchesExpectationPath(candidateURL.pathname, expectation) &&
       matchesQuery &&
@@ -179,8 +180,8 @@ export function recordedResponseProof(
       }
     });
     if (index < 0) {
-      const expectedPath = expectation.path ??
-        `${expectation.pathPrefix ?? ""}*${expectation.pathSuffix ?? ""}`;
+      const expectedPath =
+        expectation.path ?? `${expectation.pathPrefix ?? ""}*${expectation.pathSuffix ?? ""}`;
       return {
         ok: false,
         detail: `required ${phase} response ${expectation.method} ${expectedPath} with status ${expectation.acceptedStatuses.join("/")} was not observed`,
@@ -196,6 +197,24 @@ export function recordedResponseProof(
     });
   }
   return { ok: true, requests };
+}
+
+export function recordedWorkflowResponseProof(
+  ownership: WorkflowRecordedResponseOwnership,
+  network: readonly NetworkObservation[],
+  bootstrapNetwork: readonly NetworkObservation[],
+):
+  | { readonly ok: true; readonly requests: NonNullable<RouteWorkflowObservation["requests"]> }
+  | { readonly ok: false; readonly detail: string } {
+  const routeProof = recordedResponseProof(network, ownership.requiredResponses ?? [], "route");
+  if (!routeProof.ok) return routeProof;
+  const bootstrapProof = recordedResponseProof(
+    bootstrapNetwork,
+    ownership.requiredBootstrapResponses ?? [],
+    "bootstrap",
+  );
+  if (!bootstrapProof.ok) return bootstrapProof;
+  return { ok: true, requests: [...routeProof.requests, ...bootstrapProof.requests] };
 }
 
 export function matchesExpectedResponsePrefix(

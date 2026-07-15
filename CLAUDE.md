@@ -78,9 +78,10 @@ For a change that is not fixing a failure — a docs update, a refactor, or a ne
 feature with no prior repro — local proof is the change's own appropriate
 verification, run locally and cited: the docs build for docs/navigation
 changes, the tests exercising the new or refactored behavior for a feature or
-refactor, and the relevant `make pre-pr` gates. This rule bars opening a PR to
-discover whether a change works; it does not require a failing reproduction
-where none exists.
+refactor, and the focused verification selected for the touched surface. The
+late `make pre-pr` promotion gate remains reserved for after a preliminary
+P0=0/P1=0/P2=0 review. This rule bars opening a PR to discover whether a change
+works; it does not require a failing reproduction where none exists.
 
 If the change cannot be proven locally, agents MUST stop and report exactly what
 was run and what blocked it, rather than open a PR to find out.

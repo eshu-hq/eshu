@@ -15,7 +15,7 @@ export interface LocatorStub {
 }
 
 export interface ResponseStub {
-  request: () => { method: () => string };
+  request: () => { method: () => string; postDataJSON?: () => unknown };
   status: () => number;
   url: () => string;
 }

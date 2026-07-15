@@ -1,45 +1,8 @@
 import type { Page } from "playwright";
 import { describe, expect, it, vi } from "vitest";
 
-import { repositoryApiPathFromSourcePath } from "./repositoryRouteWorkflowProbe";
-import { executeRouteWorkflow, repositoryPathsFromSourceHref } from "./routeWorkflowProbes";
-
-interface LocatorStub {
-  allTextContents: ReturnType<typeof vi.fn>;
-  getAttribute: ReturnType<typeof vi.fn>;
-  count: ReturnType<typeof vi.fn>;
-  click: ReturnType<typeof vi.fn>;
-  fill: ReturnType<typeof vi.fn>;
-  inputValue: ReturnType<typeof vi.fn>;
-  isVisible: ReturnType<typeof vi.fn>;
-  nth: ReturnType<typeof vi.fn>;
-  textContent: ReturnType<typeof vi.fn>;
-  waitFor: ReturnType<typeof vi.fn>;
-}
-
-interface ResponseStub {
-  request: () => { method: () => string; postDataJSON?: () => unknown };
-  status: () => number;
-  url: () => string;
-}
-
-function locatorStub(overrides: Partial<LocatorStub> = {}): LocatorStub {
-  const stub: LocatorStub = {
-    allTextContents: vi.fn().mockResolvedValue([]),
-    count: vi.fn().mockResolvedValue(1),
-    getAttribute: vi.fn().mockResolvedValue(null),
-    click: vi.fn().mockResolvedValue(undefined),
-    fill: vi.fn().mockResolvedValue(undefined),
-    inputValue: vi.fn().mockResolvedValue(""),
-    isVisible: vi.fn().mockResolvedValue(true),
-    nth: vi.fn(),
-    textContent: vi.fn().mockResolvedValue("live route content"),
-    waitFor: vi.fn().mockResolvedValue(undefined),
-    ...overrides,
-  };
-  if (overrides.nth === undefined) stub.nth.mockImplementation(() => stub);
-  return stub;
-}
+import { executeRouteWorkflow } from "./routeWorkflowProbes";
+import { locatorStub, type ResponseStub } from "./routeWorkflowProbesTestSupport";
 
 describe("executeRouteWorkflow interactions", () => {
   it("fails a submit workflow when its typed anchor is absent from the request body", async () => {
@@ -286,9 +249,7 @@ describe("executeRouteWorkflow interactions", () => {
       url: () => "http://host/eshu-api/api/v0/auth/admin/sign-in-policy",
     };
     const page = {
-      locator: vi.fn((selector: string) =>
-        selector === ".main" ? main : locatorStub(),
-      ),
+      locator: vi.fn((selector: string) => (selector === ".main" ? main : locatorStub())),
       getByRole: vi.fn(() => tab),
       waitForResponse: vi.fn(async () => response),
     } as unknown as Page;
@@ -506,24 +467,4 @@ describe("executeRouteWorkflow interactions", () => {
       vi.unstubAllEnvs();
     },
   );
-});
-
-describe("repositoryPathsFromSourceHref", () => {
-  it("derives repository API requests under the versioned API prefix", () => {
-    expect(repositoryApiPathFromSourcePath("/repositories/repository%3Ar_123/source")).toBe(
-      "/api/v0/repositories/repository%3Ar_123",
-    );
-  });
-
-  it("derives source and workspace routes from the same retained repository id", () => {
-    expect(repositoryPathsFromSourceHref("/repositories/repository%3Ar_123/source")).toEqual({
-      sourcePath: "/repositories/repository%3Ar_123/source",
-      workspacePath: "/workspace/repositories/repository%3Ar_123",
-    });
-  });
-
-  it("rejects a generic or malformed route instead of inventing an id", () => {
-    expect(repositoryPathsFromSourceHref("/repositories/source")).toBeNull();
-    expect(repositoryPathsFromSourceHref("/workspace/repositories/repository%3Ar_123")).toBeNull();
-  });
 });

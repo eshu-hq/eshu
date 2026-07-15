@@ -53,6 +53,12 @@ export interface WorkflowNonNetworkAuthority {
   readonly reason: string;
 }
 
+export interface WorkflowRecordedResponseOwnership {
+  readonly requiredResponses?: readonly WorkflowResponseExpectation[];
+  readonly requiredBootstrapResponses?: readonly WorkflowResponseExpectation[];
+  readonly nonNetworkAuthority?: WorkflowNonNetworkAuthority;
+}
+
 export interface StateWorkflowResponseOwnership {
   readonly route?: readonly WorkflowResponseExpectation[];
   readonly bootstrap?: readonly WorkflowResponseExpectation[];
@@ -60,7 +66,7 @@ export interface StateWorkflowResponseOwnership {
   readonly retainedDataBootstrap?: readonly WorkflowResponseExpectation[];
 }
 
-interface WorkflowGuards {
+interface WorkflowGuards extends WorkflowRecordedResponseOwnership {
   readonly forbiddenSelectors?: readonly string[];
   readonly forbiddenText?: string;
   readonly forbiddenTexts?: readonly string[];

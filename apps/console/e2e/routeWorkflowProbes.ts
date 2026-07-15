@@ -5,6 +5,7 @@ import type {
   RouteWorkflowSpec,
   NetworkObservation,
   WorkflowDataShapeObservation,
+  WorkflowRequestObservation,
 } from "../src/e2e/routeAssertions.ts";
 import {
   dataShape,
@@ -15,6 +16,7 @@ import {
   matchesWorkflowResponse,
   passed,
   pathname,
+  recordedWorkflowResponseProof,
   requestObservation,
   retainedEnvironmentValue,
   resolveWorkflowTemplate,
@@ -31,115 +33,13 @@ import {
   type LoadImpactFindings,
 } from "./vulnerabilityRouteWorkflowProbe.ts";
 import { executeStateWorkflow } from "./routeStateWorkflowProbe.ts";
+import {
+  executeFillWorkflow,
+  requestAnchorFailure,
+  type RequestAnchor,
+} from "./routeFillWorkflowProbe.ts";
 
 export { repositoryPathsFromSourceHref } from "./repositoryRouteWorkflowProbe.ts";
-
-interface RequestAnchor {
-  readonly key: string;
-  readonly value: string;
-}
-
-function requestAnchorFailure(
-  response: Awaited<ReturnType<Page["waitForResponse"]>>,
-  anchors: readonly RequestAnchor[],
-): string | null {
-  if (anchors.length === 0) return null;
-  const method = response.request().method().toUpperCase();
-  if (method === "GET") {
-    const searchParams = new URL(response.url()).searchParams;
-    for (const anchor of anchors) {
-      const values = searchParams.getAll(anchor.key);
-      if (values.length !== 1 || values[0] !== anchor.value) {
-        return `request did not preserve exact query anchor ${anchor.key}`;
-      }
-    }
-    return null;
-  }
-
-  let body: unknown;
-  try {
-    body = response.request().postDataJSON();
-  } catch {
-    return "request body was not valid JSON";
-  }
-  if (typeof body !== "object" || body === null || Array.isArray(body)) {
-    return "request body was not a JSON object";
-  }
-  const record = body as Readonly<Record<string, unknown>>;
-  for (const anchor of anchors) {
-    if (record[anchor.key] !== anchor.value) {
-      return `request did not preserve exact JSON anchor ${anchor.key}`;
-    }
-  }
-  return null;
-}
-
-async function executeFillWorkflow(
-  page: Page,
-  workflow: Extract<RouteWorkflowSpec, { readonly kind: "fill" }>,
-  waitForQuiet: WaitForApiQuiet,
-): Promise<RouteWorkflowObservation> {
-  const input = page.locator(workflow.selector);
-  const count = await input.count();
-  if (count !== 1) {
-    return failed(workflow.id, `expected one ${workflow.selector} control; found ${count}`);
-  }
-
-  const outcome = workflow.outcomeSelector ? page.locator(workflow.outcomeSelector) : null;
-  const before = workflow.requireOutcomeChange ? await outcome?.textContent() : null;
-  if (
-    workflow.expectedRequestPath &&
-    (!workflow.expectedRequestMethod || !workflow.acceptedResponseStatuses?.length)
-  ) {
-    return failed(workflow.id, "expected request proof requires method and accepted statuses");
-  }
-  const responsePromise = workflow.expectedRequestPath
-    ? page.waitForResponse((candidate) =>
-        matchesExpectedResponse(
-          candidate,
-          workflow.expectedRequestPath ?? "",
-          workflow.expectedRequestMethod ?? "GET",
-          workflow.acceptedResponseStatuses ?? [],
-        ),
-      )
-    : null;
-  await input.fill(workflow.value);
-  const response = responsePromise ? await responsePromise : null;
-  await waitForQuiet();
-  if ((await input.inputValue()) !== workflow.value) {
-    return failed(workflow.id, `control did not retain value ${workflow.value}`);
-  }
-  const outcomeCount = outcome ? await visibleCount(outcome) : 0;
-  if (outcome && outcomeCount === 0) {
-    return failed(workflow.id, `no outcome rendered at ${workflow.outcomeSelector}`);
-  }
-  if (workflow.requireOutcomeChange && (await outcome?.textContent()) === before) {
-    return failed(workflow.id, `outcome at ${workflow.outcomeSelector} did not change`);
-  }
-  if (workflow.outcomeTextIncludes) {
-    const outcomeText = (await outcome?.textContent()) ?? "";
-    if (!outcomeText.includes(workflow.outcomeTextIncludes)) {
-      return failed(
-        workflow.id,
-        `outcome at ${workflow.outcomeSelector} did not include ${workflow.outcomeTextIncludes}`,
-      );
-    }
-  }
-  if (response && workflow.requestKey) {
-    const requestFailure = requestAnchorFailure(response, [
-      { key: workflow.requestKey, value: workflow.value },
-    ]);
-    if (requestFailure) return failed(workflow.id, requestFailure);
-  }
-  const forbidden = await forbiddenState(page, workflow);
-  if (forbidden) return failed(workflow.id, forbidden);
-  return passed(
-    workflow.id,
-    `filled ${workflow.selector}`,
-    outcome ? [dataShape(workflow.outcomeSelector ?? workflow.selector, outcomeCount)] : [],
-    response ? [requestObservation(response)] : [],
-  );
-}
 
 async function executeSubmitWorkflow(
   page: Page,
@@ -356,10 +256,7 @@ async function executeClickWorkflow(
   try {
     response = await responsePromise;
   } catch (error) {
-    return failed(
-      workflow.id,
-      error instanceof Error ? error.message : "no matching response",
-    );
+    return failed(workflow.id, error instanceof Error ? error.message : "no matching response");
   }
   await waitForQuiet();
   if ((await control.getAttribute("aria-selected")) !== "true") {
@@ -390,13 +287,19 @@ async function executeTabsWorkflow(
   page: Page,
   workflow: Extract<RouteWorkflowSpec, { readonly kind: "tabs" }>,
   waitForQuiet: WaitForApiQuiet,
+  network: readonly NetworkObservation[],
+  bootstrapNetwork: readonly NetworkObservation[],
   loadImpactFindings?: LoadImpactFindings,
 ): Promise<RouteWorkflowObservation> {
   const shapes: WorkflowDataShapeObservation[] = [];
+  const requests: WorkflowRequestObservation[] = [];
   let serviceTruthDetail = "";
   for (let tabIndex = 0; tabIndex < workflow.tabs.length; tabIndex += 1) {
     const tab = workflow.tabs[tabIndex];
     if (!tab) continue;
+    const ownership = recordedWorkflowResponseProof(tab, network, bootstrapNetwork);
+    if (!ownership.ok) return failed(workflow.id, ownership.detail, shapes);
+    requests.push(...ownership.requests);
     const control = page.getByRole("tab", { name: tab.name, exact: true });
     if ((await visibleCount(control)) !== 1) {
       return failed(workflow.id, `expected one visible tab named ${tab.name}`, shapes);
@@ -427,6 +330,7 @@ async function executeTabsWorkflow(
       workflow.id,
       `proved ${workflow.tabs.length} visible tab surfaces${serviceTruthDetail}`,
       shapes,
+      requests,
     );
   }
 
@@ -472,7 +376,7 @@ async function executeTabsWorkflow(
     workflow.id,
     `proved ${workflow.tabs.length} tab surfaces and one retained detail route${serviceTruthDetail}`,
     shapes,
-    [requestObservation(response)],
+    [...requests, requestObservation(response)],
   );
 }
 
@@ -489,29 +393,52 @@ export async function executeRouteWorkflow(
   indexedRepositoryInventory: IndexedRepositoryInventoryAnchor | null = null,
 ): Promise<RouteWorkflowObservation> {
   try {
+    const ownership =
+      workflow.kind === "state"
+        ? { ok: true as const, requests: [] }
+        : recordedWorkflowResponseProof(workflow, network, bootstrapNetwork);
+    if (!ownership.ok) return failed(workflow.id, ownership.detail);
+    let result: RouteWorkflowObservation;
     switch (workflow.kind) {
       case "state":
-        return await executeStateWorkflow(page, workflow, network, bootstrapNetwork);
+        result = await executeStateWorkflow(page, workflow, network, bootstrapNetwork);
+        break;
       case "fill":
-        return await executeFillWorkflow(page, workflow, waitForQuiet);
+        result = await executeFillWorkflow(page, workflow, waitForQuiet);
+        break;
       case "click":
-        return await executeClickWorkflow(page, workflow, waitForQuiet);
+        result = await executeClickWorkflow(page, workflow, waitForQuiet);
+        break;
       case "submit":
-        return await executeSubmitWorkflow(page, workflow, waitForQuiet);
+        result = await executeSubmitWorkflow(page, workflow, waitForQuiet);
+        break;
       case "exactKind":
-        return await executeExactKindWorkflow(page, workflow, waitForQuiet);
+        result = await executeExactKindWorkflow(page, workflow, waitForQuiet);
+        break;
       case "tabs":
-        return await executeTabsWorkflow(page, workflow, waitForQuiet, loadImpactFindings);
+        result = await executeTabsWorkflow(
+          page,
+          workflow,
+          waitForQuiet,
+          network,
+          bootstrapNetwork,
+          loadImpactFindings,
+        );
+        break;
       case "repositoryDetails":
-        return await executeRepositoryDetailsWorkflow(page, workflow, waitForQuiet);
+        result = await executeRepositoryDetailsWorkflow(page, workflow, waitForQuiet);
+        break;
       case "askExactCount":
-        return await executeAskExactCountWorkflow(
+        result = await executeAskExactCountWorkflow(
           page,
           workflow,
           waitForQuiet,
           indexedRepositoryInventory,
         );
+        break;
     }
+    if (ownership.requests.length === 0) return result;
+    return { ...result, requests: [...ownership.requests, ...(result.requests ?? [])] };
   } catch (error) {
     return failed(workflow.id, error instanceof Error ? error.message : String(error));
   }

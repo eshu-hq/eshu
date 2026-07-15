@@ -64,6 +64,7 @@ export const secondaryConsoleRoutes: readonly ConsoleRoute[] = [
       value: "reducer",
       outcomeSelector: "table tbody",
       requireOutcomeChange: true,
+      requiredResponses: [getResponse("/api/v0/surface-inventory", { limit: "1000" })],
       forbiddenText: "Surface inventory is unavailable from this source.",
     },
   },
@@ -117,6 +118,9 @@ export const secondaryConsoleRoutes: readonly ConsoleRoute[] = [
         {
           name: "Known intelligence (catalog)",
           outcomeSelector: 'input[aria-label="Search advisories"]',
+          requiredBootstrapResponses: [
+            getResponse("/api/v0/supply-chain/advisories", { limit: "50" }),
+          ],
           forbiddenTexts: ["The vulnerability-intelligence catalog is unavailable"],
         },
       ],

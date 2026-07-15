@@ -43,6 +43,52 @@ function findingsWorkflow(): Extract<RouteWorkflowSpec, { readonly kind: "state"
 }
 
 describe("executeRouteWorkflow response proof", () => {
+  it("rejects a Surface Inventory DOM change without its exact route response", async () => {
+    const workflow = consoleRoutes.find((route) => route.path === "/surface-inventory")?.workflow;
+    if (!workflow || workflow.kind !== "fill") {
+      throw new Error("Surface Inventory fill workflow is missing");
+    }
+    const input = locatorStub({ inputValue: vi.fn().mockResolvedValue("reducer") });
+    const outcome = locatorStub({
+      textContent: vi.fn().mockResolvedValueOnce("before").mockResolvedValue("after"),
+    });
+    const page = {
+      locator: vi.fn((selector: string) => (selector === workflow.selector ? input : outcome)),
+    } as unknown as Page;
+
+    const result = await executeRouteWorkflow(page, workflow, vi.fn(), []);
+
+    expect(result.passed).toBe(false);
+    expect(result.detail).toContain("required route response GET /api/v0/surface-inventory");
+  });
+
+  it("rejects vulnerability tabs without the advisory-catalog bootstrap response", async () => {
+    const workflow = consoleRoutes.find((route) => route.path === "/vulnerabilities")?.workflow;
+    if (!workflow || workflow.kind !== "tabs") {
+      throw new Error("Vulnerabilities tabs workflow is missing");
+    }
+    const control = locatorStub({ getAttribute: vi.fn().mockResolvedValue("true") });
+    const absent = locatorStub({ count: vi.fn().mockResolvedValue(0) });
+    const page = {
+      getByRole: vi.fn(() => control),
+      locator: vi.fn((selector: string) =>
+        selector === ".async-guard-error" ? absent : locatorStub(),
+      ),
+    } as unknown as Page;
+    const tabOwnershipWorkflow = {
+      ...workflow,
+      proveVulnerabilityServiceTruth: false,
+      followLink: undefined,
+    };
+
+    const result = await executeRouteWorkflow(page, tabOwnershipWorkflow, vi.fn(), [], []);
+
+    expect(result.passed).toBe(false);
+    expect(result.detail).toContain(
+      "required bootstrap response GET /api/v0/supply-chain/advisories",
+    );
+  });
+
   it("accepts a visible Dashboard atlas only from its exact bootstrap responses", async () => {
     const workflow = consoleRoutes.find((route) => route.path === "/")?.workflow;
     if (!workflow || workflow.kind !== "state") {

@@ -571,10 +571,10 @@ The rebuilt API completed two simultaneous copies of the exact StrictMode body
 in 0.180405s and 0.180382s; both returned HTTP 200, 416 bytes, and byte-identical
 responses. The intermediate browser sweep then passed Code Graph in 9.122s,
 down from the prior failing 16.086s route, with its live-canvas workflow passing
-and zero console errors. The exact final-image acceptance result is recorded at
-the start of this retained-dashboard follow-up. Since the backend fix makes the
-duplicated development-only reads cheap and settled, no frontend cache or
-request-sharing semantics were added.
+and zero console errors. The exact final-image acceptance result is recorded in
+[Dashboard Correctness and Bounded-Read Evidence](https://github.com/eshu-hq/eshu/blob/main/docs/internal/evidence/5244-5253-dashboard-correctness.md#final-live-console-and-corpus-proof).
+Since the backend fix makes the duplicated development-only reads cheap and
+settled, no frontend cache or request-sharing semantics were added.
 
 No-Observability-Change: the endpoint keeps the existing handler span, graph
 read telemetry, response envelope, and request bounds. The change adds no graph

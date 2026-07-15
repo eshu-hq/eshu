@@ -112,20 +112,53 @@ describe("consoleRoutes catalog", () => {
     expect(genericProofs).toEqual([]);
   });
 
-  it("binds every state workflow to production response ownership", () => {
-    const unownedStateWorkflows = consoleRoutes.flatMap((route) => {
+  it("binds every workflow to production response ownership", () => {
+    const unownedWorkflows = consoleRoutes.flatMap((route) => {
       const workflow = route.workflow;
-      if (!workflow || workflow.kind !== "state") return [];
+      if (!workflow) return [];
       const responseCount =
-        (workflow.requiredResponses?.length ?? 0) +
-        (workflow.requiredBootstrapResponses?.length ?? 0) +
-        (workflow.retainedDataRequiredResponses?.length ?? 0) +
-        (workflow.retainedDataRequiredBootstrapResponses?.length ?? 0);
-      if (responseCount > 0 || workflow.nonNetworkAuthority !== undefined) return [];
+        ("requiredResponses" in workflow ? (workflow.requiredResponses?.length ?? 0) : 0) +
+        ("requiredBootstrapResponses" in workflow
+          ? (workflow.requiredBootstrapResponses?.length ?? 0)
+          : 0) +
+        ("retainedDataRequiredResponses" in workflow
+          ? (workflow.retainedDataRequiredResponses?.length ?? 0)
+          : 0) +
+        ("retainedDataRequiredBootstrapResponses" in workflow
+          ? (workflow.retainedDataRequiredBootstrapResponses?.length ?? 0)
+          : 0);
+      const hasNonNetworkAuthority =
+        "nonNetworkAuthority" in workflow && workflow.nonNetworkAuthority !== undefined;
+      const hasInteractiveResponseProof =
+        workflow.kind === "click" ||
+        workflow.kind === "submit" ||
+        workflow.kind === "askExactCount" ||
+        workflow.kind === "exactKind" ||
+        workflow.kind === "repositoryDetails" ||
+        (workflow.kind === "fill" && workflow.expectedRequestPath !== undefined) ||
+        (workflow.kind === "tabs" && workflow.followLink !== undefined);
+      if (responseCount > 0 || hasNonNetworkAuthority || hasInteractiveResponseProof) return [];
       return [`${route.path}:${workflow.id}`];
     });
 
-    expect(unownedStateWorkflows).toEqual([]);
+    expect(unownedWorkflows).toEqual([]);
+  });
+
+  it("binds every vulnerability tab to its own response-backed truth", () => {
+    const workflow = consoleRoutes.find((route) => route.path === "/vulnerabilities")?.workflow;
+    if (!workflow || workflow.kind !== "tabs") {
+      throw new Error("Vulnerabilities tabs workflow is missing");
+    }
+
+    const unownedTabs = workflow.tabs.flatMap((tab, index) => {
+      const responseCount =
+        (tab.requiredResponses?.length ?? 0) + (tab.requiredBootstrapResponses?.length ?? 0);
+      const hasSpecializedComparator = index === 0 && workflow.proveVulnerabilityServiceTruth;
+      if (responseCount > 0 || tab.nonNetworkAuthority || hasSpecializedComparator) return [];
+      return [tab.name];
+    });
+
+    expect(unownedTabs).toEqual([]);
   });
 
   it("requires every non-network state authority to explain its source of truth", () => {
