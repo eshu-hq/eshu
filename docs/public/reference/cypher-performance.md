@@ -626,12 +626,15 @@ for the representative `CALLS` slice. Both forbid `AllNodesScan`,
 fixed verb at page load; the capability matrix records a 2000 ms local p95 and
 3000 ms production p95 budget for `platform_impact.relationships_catalog`.
 
-No-Observability-Change: the two handlers reuse the existing query-handler
+Observability Evidence: the two handlers reuse the existing query-handler
 envelope (`WriteSuccess` + `BuildTruthEnvelope` with
 `TruthBasisAuthoritativeGraph`) and the shared `GraphQuery.Run`/`RunSingle`
-adapters. They add no new metrics, spans, runtime knobs, queue behavior, or
-graph writes; the query-plan gate that guards them is static validation only and
-opens no backend session.
+adapters. The count and edge query shapes add no new spans, runtime knobs,
+queue behavior, or graph writes. The route's bounded source-tool breakdown
+fan-out now emits `eshu_dp_relationship_breakdown_permit_wait_seconds`,
+`eshu_dp_relationship_breakdown_queued`, and
+`eshu_dp_relationship_breakdown_in_flight`; the static query-plan gate opens no
+backend session.
 
 ### Catalog Deployment-Environment Resolution Cold Plan
 

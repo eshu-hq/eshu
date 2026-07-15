@@ -176,9 +176,9 @@ opaque identity as a service selector produced four HTTP 404 responses. The
 exact retained pattern failed its regression before the classifier correction.
 After the correction, the accepted repository workflow completed in 8.524
 seconds with zero console/network errors and response-backed workspace truth.
-Human workload names still load service story context; reducer-owned opaque
-identities are skipped, including when a later workload supplies the valid
-service selector.
+Human workload names still load service story context. A reducer-owned opaque
+identity is skipped even when it appears before a later valid workload; that
+later workload supplies the service selector.
 
 No-Observability-Change: this changes only console selection of an existing
 repository-story field. It adds no API contract, backend read, telemetry,
