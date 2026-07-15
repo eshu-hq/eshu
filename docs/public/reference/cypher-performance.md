@@ -335,11 +335,13 @@ Thread 3 (gate schema): `required_schema` updated from `function_name` /
 two indexes that actually back `ORDER BY s.uid` on the `Function` label. The gate
 now enforces the real backing and will fail if those indexes are removed.
 
-No-Observability-Change: the handlers and gate are unchanged in observability
-surface; they reuse the existing query-handler envelope and shared
-`GraphQuery.Run`/`RunSingle` adapters, add no new metrics, spans, runtime knobs,
-queue behavior, or graph writes, and the query-plan gate stays static validation
-only.
+Observability Evidence: the handlers retain the existing query-handler envelope
+and shared `GraphQuery.Run`/`RunSingle` adapters. The count and edge query
+shapes plus the static query-plan gate add no new spans, runtime knobs, queue
+behavior, or graph writes. The source-tool breakdown fan-out described below
+now emits `eshu_dp_relationship_breakdown_permit_wait_seconds`,
+`eshu_dp_relationship_breakdown_queued`, and
+`eshu_dp_relationship_breakdown_in_flight`.
 
 #### Retained Dashboard Source-Tool Breakdown Follow-Up
 
