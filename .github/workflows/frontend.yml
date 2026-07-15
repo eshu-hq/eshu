@@ -44,6 +44,7 @@ on:
       - "scripts/verify-eslint-config.sh"
       - "scripts/test-verify-frontend-format-changed.sh"
       - "scripts/verify-frontend-format-changed.sh"
+      - "scripts/ci/install-apt-packages.sh"
       - "scripts/run-console-live-e2e.sh"
       - "scripts/run-console-retained-e2e.sh"
       - "scripts/test-run-console-live-e2e.sh"
@@ -122,9 +123,7 @@ jobs:
         run: npm ci
 
       - name: Install live harness dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install --yes ripgrep
+        run: scripts/ci/install-apt-packages.sh ripgrep
 
       - name: Verify live console harness contracts
         run: |

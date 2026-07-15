@@ -13,13 +13,48 @@ command -v rg >/dev/null 2>&1 || {
   exit 1
 }
 
-rg -q --fixed-strings 'sudo apt-get install --yes ripgrep' "$workflow" || {
-  echo "frontend console job must install rg before running harness contracts" >&2
-  exit 1
+console_job_installs_rg_before_harness() {
+  local workflow_path="$1"
+  local console_job
+  local console_start
+  local console_end
+  local next_job_start
+  local install_line
+  local harness_line
+
+  console_start="$(rg -n -m 1 '^  console:$' "$workflow_path")" || return 1
+  console_start="${console_start%%:*}"
+  next_job_start="$(
+    rg -n '^  [[:alnum:]_-]+:$' "$workflow_path" |
+      awk -F: -v console_start="$console_start" '$1 > console_start { print $1; exit }'
+  )"
+  if [[ -n "$next_job_start" ]]; then
+    console_end="$((next_job_start - 1))"
+  else
+    console_end="$(wc -l <"$workflow_path")"
+  fi
+  console_job="$(sed -n "${console_start},${console_end}p" "$workflow_path")"
+
+  install_line="$(printf '%s\n' "$console_job" | rg -n -m 1 --fixed-strings 'scripts/ci/install-apt-packages.sh ripgrep')" || return 1
+  harness_line="$(printf '%s\n' "$console_job" | rg -n -m 1 --fixed-strings 'bash scripts/test-run-console-live-e2e.sh')" || return 1
+  (( ${install_line%%:*} < ${harness_line%%:*} ))
 }
-install_line="$(rg -n -m 1 --fixed-strings 'sudo apt-get install --yes ripgrep' "$workflow")"
-harness_line="$(rg -n -m 1 --fixed-strings 'bash scripts/test-run-console-live-e2e.sh' "$workflow")"
-if (( ${install_line%%:*} >= ${harness_line%%:*} )); then
+
+false_green_workflow="$tmp_dir/frontend-false-green.yml"
+printf '%s\n' \
+  'jobs:' \
+  '  root:' \
+  '    # scripts/ci/install-apt-packages.sh ripgrep' \
+  '  console:' \
+  '    steps:' \
+  '      - run: bash scripts/test-run-console-live-e2e.sh' \
+  >"$false_green_workflow"
+if console_job_installs_rg_before_harness "$false_green_workflow"; then
+  echo "frontend rg contract must not accept an install outside the console job" >&2
+  exit 1
+fi
+
+if ! console_job_installs_rg_before_harness "$workflow"; then
   echo "frontend console job must install rg before running harness contracts" >&2
   exit 1
 fi
@@ -54,6 +89,7 @@ rg -q --fixed-strings 'source "$env_file"' "$target" && {
 }
 
 for harness_input in \
+  'scripts/ci/install-apt-packages.sh' \
   'scripts/run-console-live-e2e.sh' \
   'scripts/run-console-retained-e2e.sh' \
   'scripts/test-run-console-live-e2e.sh' \

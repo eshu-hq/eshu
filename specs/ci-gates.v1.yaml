@@ -1006,6 +1006,7 @@ gates:
       - "scripts/run-console-retained-e2e.sh"
       - "scripts/test-run-console-live-e2e.sh"
       - "scripts/test-run-console-retained-e2e.sh"
+      - "scripts/ci/install-apt-packages.sh"
       - "scripts/console-live-e2e-runtime.mjs"
       - "scripts/lib/console-retained-create-proof-schema.sql"
       - "scripts/lib/console-retained-verify-public-identity.sql"
