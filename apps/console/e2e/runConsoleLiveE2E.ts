@@ -52,6 +52,7 @@ import {
   formatAuthRouteCoverage,
 } from "./liveE2EAuthCoverage.ts";
 import {
+  parseLiveE2EConsolePort,
   startLiveE2EDevServer,
   stopLiveE2EDevServer,
   type LiveE2EDevServer,
@@ -249,6 +250,15 @@ export async function captureRoute(
 // TypeScript module through Vite's SSR transformer so the gate runs on any
 // supported Node version without native TS stripping or an extra dependency.
 export async function runConsoleLiveE2E(): Promise<number> {
+  let consolePort: number;
+  try {
+    consolePort = parseLiveE2EConsolePort(process.env.ESHU_E2E_CONSOLE_PORT);
+  } catch (error) {
+    process.stderr.write(
+      `console-live-e2e: ${error instanceof Error ? error.message : String(error)}\n`,
+    );
+    return 1;
+  }
   if (authMode === "bearer" && apiKey.length === 0) {
     process.stderr.write("console-live-e2e: ESHU_E2E_API_KEY is required in bearer mode\n");
     return 1;
@@ -282,6 +292,7 @@ export async function runConsoleLiveE2E(): Promise<number> {
       apiBase,
       apiKey,
       useBearerAuth: authMode === "bearer",
+      port: consolePort,
     });
     browser = await chromium.launch();
     let proofManifest;

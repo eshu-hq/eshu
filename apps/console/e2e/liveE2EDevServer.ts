@@ -12,9 +12,36 @@ interface LiveE2EDevServerOptions {
   readonly apiBase: string;
   readonly apiKey: string;
   readonly useBearerAuth: boolean;
+  readonly port: number;
 }
 
 const devServerReadyTimeoutMs = 120_000;
+const defaultConsolePort = 5180;
+
+export function parseLiveE2EConsolePort(value: string | undefined): number {
+  const normalized = value?.trim() ?? "";
+  if (normalized === "") return defaultConsolePort;
+  if (!/^\d+$/.test(normalized)) {
+    throw new Error("ESHU_E2E_CONSOLE_PORT must be an integer from 1 through 65535");
+  }
+  const port = Number(normalized);
+  if (port < 1 || port > 65_535) {
+    throw new Error("ESHU_E2E_CONSOLE_PORT must be an integer from 1 through 65535");
+  }
+  return port;
+}
+
+export function liveE2EDevServerArgs(port: number): readonly string[] {
+  return [
+    "--config",
+    "apps/console/vite.config.ts",
+    "--host",
+    "127.0.0.1",
+    "--strictPort",
+    "--port",
+    String(port),
+  ];
+}
 
 // stopLiveE2EDevServer terminates Vite and waits until its port is free.
 export async function stopLiveE2EDevServer(
@@ -89,26 +116,14 @@ export async function startDevServerWithSpawner(
 export function startLiveE2EDevServer(options: LiveE2EDevServerOptions): Promise<LiveE2EDevServer> {
   const viteBin = resolve(options.repoRoot, "node_modules", ".bin", "vite");
   return startDevServerWithSpawner(() =>
-    spawn(
-      viteBin,
-      [
-        "--config",
-        "apps/console/vite.config.ts",
-        "--host",
-        "127.0.0.1",
-        "--strictPort",
-        "--port",
-        "5180",
-      ],
-      {
-        cwd: options.repoRoot,
-        env: {
-          ...process.env,
-          VITE_ESHU_API_KEY: options.useBearerAuth ? options.apiKey : "",
-          ESHU_DEV_PROXY_TARGET: options.apiBase,
-        },
-        stdio: ["ignore", "pipe", "pipe"],
+    spawn(viteBin, liveE2EDevServerArgs(options.port), {
+      cwd: options.repoRoot,
+      env: {
+        ...process.env,
+        VITE_ESHU_API_KEY: options.useBearerAuth ? options.apiKey : "",
+        ESHU_DEV_PROXY_TARGET: options.apiBase,
       },
-    ),
+      stdio: ["ignore", "pipe", "pipe"],
+    }),
   );
 }

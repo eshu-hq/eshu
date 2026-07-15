@@ -158,6 +158,7 @@ npx playwright install chromium
 ESHU_E2E_RETAINED_PROJECT=eshu \
 ESHU_E2E_COMPOSE_ENV_FILE=e2e-artifacts/.env.console-e2e \
 ESHU_E2E_RETAINED_API_PORT=18086 \
+ESHU_E2E_CONSOLE_PORT=5182 \
 ESHU_E2E_WIZARD_NEW_PASSWORD="$LOCAL_PROOF_PASSWORD" \
 ESHU_E2E_CORPUS_ATTESTATION="$CORPUS_ATTESTATION" \
 ESHU_E2E_CORPUS_REPOSITORY_COUNT="$CORPUS_REPOSITORY_COUNT" \
@@ -175,8 +176,10 @@ scripts/run-console-retained-e2e.sh
 # is never stopped by this helper.
 ```
 
-Use a distinct `ESHU_E2E_RETAINED_PROOF_ID` and API port for concurrent proof
-runs. The helper validates the identifier, binds the sidecar and credential CLI
+Use a distinct `ESHU_E2E_RETAINED_PROOF_ID`, API port, and
+`ESHU_E2E_CONSOLE_PORT` for concurrent proof runs. The console port defaults to
+`5180`; override it when that port is serving a retained hands-on evidence site.
+The helper validates the identifier, binds the sidecar and credential CLI
 to the same schema-first `search_path`, and refuses to reuse an existing proof
 container. Its cleanup never acts on the retained Compose project or volumes.
 
