@@ -29,7 +29,7 @@ func (cr *ContentReader) DeadCodeCandidateRows(
 	}
 	entityType, ok := deadCodeCandidateEntityType(label)
 	if !ok {
-		entityType = "Function"
+		return nil, fmt.Errorf("unsupported dead code candidate label %q", label)
 	}
 	if limit <= 0 {
 		limit = deadCodeCandidateQueryMin

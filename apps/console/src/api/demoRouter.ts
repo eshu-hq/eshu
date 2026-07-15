@@ -201,7 +201,7 @@ export async function demoResponse(
   }
   if (method === "GET" && path === "/api/v0/status/operations") {
     const { operationsBoardWire } = await import("./demoOperationsFixture");
-    return { capability: "status.operations", data: operationsBoardWire() };
+    return { capability: "operations.status", data: operationsBoardWire() };
   }
   return null;
 }

@@ -24,7 +24,10 @@ describe("DashboardPage suggested questions", () => {
       screen.getByRole("link", {
         name: /What changed in checkout-api since the prior generation/i,
       }),
-    ).toHaveAttribute("href", "/repositories/repository%3Ar1/source");
+    ).toHaveAttribute(
+      "href",
+      "/changed-since?mode=repository&repository=repository%3Ar1&since_generation_id=gen-prior",
+    );
     expect(
       screen.getByRole("link", { name: /Which services are exposed to CVE-2026-1234/i }),
     ).toHaveAttribute("href", "/vulnerabilities/CVE-2026-1234");

@@ -111,7 +111,7 @@ func TestDeadCodeScanContinuesAfterFirstLabelSaturates(t *testing.T) {
 		scan.CandidateScanTruncated,
 		scan.DisplayTruncated,
 		scan.CandidateScanRows,
-		deadCodeCandidateScanLimit(10)+1,
+		deadCodeCandidateScanLimit(10),
 	)
 }
 
@@ -137,7 +137,7 @@ func TestDeadCodeInvestigationContinuesAfterFirstLabelSaturates(t *testing.T) {
 		scan.CandidateScanTruncated,
 		scan.DisplayTruncated,
 		scan.CandidateScanRows,
-		deadCodeCandidateScanLimit(10)+1,
+		deadCodeCandidateScanLimit(10),
 	)
 }
 
@@ -162,7 +162,7 @@ func TestCrossRepoDeadCodeContinuesAfterFirstLabelSaturates(t *testing.T) {
 		scan.CandidateScanTruncated,
 		scan.DisplayTruncated,
 		scan.CandidateScanRows,
-		deadCodeCandidateScanLimit(10)+1,
+		deadCodeCandidateScanLimit(10),
 	)
 }
 
@@ -185,7 +185,7 @@ func assertDeadCodeFairnessScanMetadata(
 ) {
 	t.Helper()
 	if !candidateTruncated {
-		t.Fatal("candidate scan truncated = false, want true after a per-label bound")
+		t.Fatal("candidate scan truncated = false, want true after the shared scan limit")
 	}
 	if displayTruncated {
 		t.Fatal("display truncated = true, want false with only one active candidate")

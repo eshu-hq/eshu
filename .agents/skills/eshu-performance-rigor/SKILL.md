@@ -256,6 +256,11 @@ Before a scaled or full-corpus run, capture and compare:
   sampling;
 - controller terminal condition and expected minimum runtime.
 
+Bind evidence to the exact source input hash, built binary or image digest,
+proof corpus, and harness or browser-runner hash. A stale image or runner labeled
+as the final proof is a correctness defect in the evidence, not a bookkeeping
+detail.
+
 Remote source must come from Git: push the reviewed feature branch, then fetch
 and check out or fast-forward it on the remote machine. Do not use `rsync` or
 copy an unreviewed worktree. Keep hosts, users, IPs, key paths, and remote
@@ -393,17 +398,29 @@ Classify each result as one or more of:
 Always name the next measured long pole. Do not claim the overall target when
 only a component improved.
 
+Report first-request cold-client latency separately from warm steady-state
+latency. Warm p50/p95 numbers do not prove a cold-start SLO. Compare each class
+to the checked-in capability SLO, and attribute remaining time among graph,
+Postgres, LLM, duplicate requests, transport, and browser rendering before
+proposing a cache. Redis or another cache is a candidate only after attribution
+shows repeated cacheable work dominates and an invalidation/exactness contract
+is proven.
+
 ## Required Closeout
 
 Before push or merge-readiness:
 
 1. Run the focused reproduction and appropriate local integration/golden gates.
-2. Run `make pre-pr`.
-3. Run `scripts/test-verify-performance-evidence.sh` and
+2. Run `scripts/test-verify-performance-evidence.sh` and
    `scripts/verify-performance-evidence.sh` when not already selected.
-4. Run the full `eshu-code-review` on the final diff.
-5. Capture live CI and review-thread truth after push.
-6. Update the issue and PR with the hypothesis ledger, manifest-derived proof,
+3. Run a preliminary full `eshu-code-review`; any P0/P1/P2 finding must be
+   fixed and re-proven before proceeding.
+4. Only after that review is clean, run `make pre-pr` once, immediately before
+   the intended push.
+5. Run the final full `eshu-code-review` on the exact post-preflight diff. Any
+   diff change invalidates the verdict and repeats this sequence.
+6. Capture live CI and review-thread truth after push.
+7. Update the issue and PR with the hypothesis ledger, manifest-derived proof,
    exact and human durations, target result, and next long pole.
-7. Apply the manifest's declared retention mode, verify its resulting resource
+8. Apply the manifest's declared retention mode, verify its resulting resource
    state, and destroy retained proof resources after merge/final disposition.

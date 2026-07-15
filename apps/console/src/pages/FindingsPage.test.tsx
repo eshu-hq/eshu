@@ -20,6 +20,8 @@ describe("FindingsPage", () => {
     // Each type shows once as a summary tile label and once as a row badge.
     expect(screen.getAllByText("Dead code").length).toBeGreaterThan(1);
     expect(screen.getAllByText("Vulnerability").length).toBeGreaterThan(1);
+    expect(screen.getByLabelText("Findings source status")).toHaveAttribute("data-row-count", "3");
+    expect(document.querySelectorAll("[data-finding-row]")).toHaveLength(3);
   });
 
   it("renders the empty state when the model has no findings", () => {
@@ -27,6 +29,10 @@ describe("FindingsPage", () => {
     renderFindings(empty);
 
     expect(screen.getByText("No findings from this source.")).toBeInTheDocument();
+    expect(screen.getByText("No findings from this source.")).toHaveAttribute(
+      "data-authoritative-empty",
+      "true",
+    );
   });
 
   it("joins vulnerability rows into the actionable findings worklist", () => {
@@ -154,6 +160,10 @@ describe("FindingsPage", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("Dead-code findings are unavailable");
     expect(screen.getByText("No findings from the available source.")).toBeInTheDocument();
     expect(screen.queryByText("No findings from this source.")).not.toBeInTheDocument();
+    expect(statValue("Open findings")).toHaveTextContent("—");
+    expect(statValue("Dead code")).toHaveTextContent("—");
+    expect(statValue("Vulnerability")).toHaveTextContent("0");
+    expect(statValue("Types")).toHaveTextContent("—");
   });
 
   it("shows a loading spinner when both worklist sources are in flight", () => {
@@ -162,6 +172,10 @@ describe("FindingsPage", () => {
 
     expect(screen.getByRole("status", { name: "Loading findings" })).toBeInTheDocument();
     expect(screen.queryByText("No findings from this source.")).not.toBeInTheDocument();
+    expect(statValue("Open findings")).toHaveTextContent("—");
+    expect(statValue("Dead code")).toHaveTextContent("—");
+    expect(statValue("Vulnerability")).toHaveTextContent("—");
+    expect(statValue("Types")).toHaveTextContent("—");
   });
 
   it("keeps ready dead-code rows visible while vulnerabilities are still loading", () => {
@@ -194,7 +208,7 @@ describe("FindingsPage", () => {
     renderFindings(model);
 
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
-    expect(screen.getByText(/unavailable/i)).toBeInTheDocument();
+    expect(screen.getByText(/Findings data unavailable/i)).toBeInTheDocument();
     expect(screen.queryByText("No findings from this source.")).not.toBeInTheDocument();
   });
 });
@@ -209,4 +223,12 @@ function renderFindings(model: ConsoleModel): ReturnType<typeof render> {
 
 function sourceCells(text: string): readonly HTMLElement[] {
   return screen.getAllByText(text).filter((element) => element.tagName === "TD");
+}
+
+function statValue(label: string): HTMLElement {
+  const tile = screen.getByText(label).closest(".stat-tile");
+  if (!tile) throw new Error(`missing stat tile: ${label}`);
+  const value = tile.querySelector("strong");
+  if (!(value instanceof HTMLElement)) throw new Error(`missing stat value: ${label}`);
+  return value;
 }

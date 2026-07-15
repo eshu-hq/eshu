@@ -341,28 +341,277 @@ surface; they reuse the existing query-handler envelope and shared
 queue behavior, or graph writes, and the query-plan gate stays static validation
 only.
 
+#### Retained Dashboard Source-Tool Breakdown Follow-Up
+
+The candidate-isolation timings in the following three retained-dashboard
+sections were collected while narrowing the source-tool, incoming-story, and
+anchor-resolution bottlenecks. They remain the OLD/NEW theory proof, but they
+are not used as final-source image identity. An intermediate browser acceptance
+checkpoint was collected against API image
+`sha256:9d7c22bca6d063de04c024e02f8c44aa11f12b7acbd35ad83a15b1bc155d8faa`,
+whose binary embeds the exact Go/Docker input manifest
+`94ede3d9188dbf38421adbd3537e9678153420a62cf614fa7cabfd6aa099c687`.
+That sidecar used the unchanged retained stores and NornicDB v1.1.11 digest
+`sha256:51b6174ae65e4ce54a158ac2f9eace7d36a1971545824d22add0fe06d94c1090`.
+The response-backed browser gate passed Relationships in 6.773 seconds and Code
+Graph in 12.232 seconds; the complete bearer sweep passed 37/37 routes in
+128.224 aggregate route seconds with no route above 18.007 seconds. These are
+named intermediate checkpoint values, not the final browser-run acceptance
+table. The final runner identity and route timings are recorded in the
+repository-only evidence note
+`docs/internal/evidence/5244-5253-dashboard-correctness.md`, so later
+console-only proof reruns do not silently overwrite this query-shape checkpoint
+or manufacture a cross-run comparison.
+
+Performance Evidence: the retained dashboard graph contained 150,422 edges
+across the catalog's 16 fixed relationship types. A direct authenticated
+`POST /api/v0/relationships/catalog` against the shipped binary returned no
+bytes before a 90.0017s client timeout. The 16 type-indexed counts took about
+0.06s total; the seven sequential anonymous-endpoint `source_tool` groupings
+took 142.39s total (17.788-27.414s each). A combined anonymous whole-graph scan
+was rejected after it hit the API's 30.012s query deadline.
+
+The proven shape starts each stamped-verb aggregate at its owning source label.
+`DEPENDS_ON` intentionally uses `Repository` because its
+source-tool evidence is stamped on Repository-to-Repository edges, while the
+separate edge drill-down continues to browse Workload-to-Workload edges. The
+seven narrowed reads took about 17.0s sequentially and 2.82s when overlapped.
+The built API completed the full route in 2.4486s on its first retained-data
+request and 3.1931s, 0.0618s, and 0.0032s on three following requests.
+Those four sequential samples do not establish p95, and the first two exceed
+the checked-in 2-second local-full-stack budget. No production distribution was
+collected to prove its separate 3-second p95. The capability target is therefore
+**missed**, not closed by this handler win. Open issue
+[#5244](https://github.com/eshu-hq/eshu/issues/5244) owns the next bounded proof:
+separate cold graph-client, handler/query, transport, API, and MCP time, then
+tune the measured long pole without reducing the fixed read concurrency.
+
+| Exactness check | Old | New | Bidirectional diff |
+| --- | ---: | ---: | ---: |
+| Catalog verb counts | 16 | 16 | 0 / 0 |
+| Catalog total edges | 150,422 | 150,422 | 0 / 0 |
+| Stamped verb/tool maps | 7 | 7 | 0 / 0 |
+
+The handler writes each concurrent result into its original catalog index, so
+response ordering is unchanged. It waits for every bounded independent read
+and reports the first real error in catalog order; it does not generate an
+internal cancellation that can mask the owning backend failure.
+
+No-Observability-Change: the route retains its existing handler envelope and
+per-query graph telemetry. The change adds no graph writes, queue behavior,
+runtime knobs, metrics, or spans.
+
+#### Retained Dashboard Incoming Relationship Story Planner Seed
+
+Performance Evidence: on the same retained graph, the console's six-type
+relationship story for one Java `Function` exceeded 35s. Per-type timing
+isolated `CALLS` at 17.331s; `IMPORTS`, `REFERENCES`, `INHERITS`, `OVERRIDES`,
+and `TAINT_FLOWS_TO` each completed in 0.001-0.003s. Splitting `CALLS` by
+direction isolated incoming at 18.411s and outgoing at 0.002s.
+
+The current incoming core starts from the unknown caller:
+`MATCH (source)-[:CALLS]->(anchor:Function {uid: $entity_id})`. It exceeded
+25.002s. Writing the identical traversal target-first so NornicDB seeds the
+indexed node -- `MATCH (anchor:Function {uid: $entity_id})<-[:CALLS]-(source)`
+-- completed in 0.0439s. Both returned the same eight edges, with bidirectional
+row diff 0/0 and duplicate counts 0/0. The hydration projections, repository
+access predicates, order, offset, limit, and type/direction merge remain
+unchanged.
+
+Built-binary proof reduced the first full six-type story from a greater-than-35s
+timeout to 24.976s, but repeated full requests still took 23.695s and 23.145s.
+Therefore the planner-seed fix is a measured seconds-scale improvement, not the
+complete browser-budget fix. Single-type requests were all 0.001-0.021s after
+warmup, leaving the multi-type target-property fallback path as the next
+bounded candidate; the route must not be presented as under the browser cutoff
+until that residual is separately proven.
+
+No-Observability-Change: this is a planner-seed reorder inside the existing
+bounded graph read. It adds no query fan-out, graph writes, queue behavior,
+runtime knobs, metrics, or spans.
+
+#### Retained Dashboard Relationship Story Anchor Resolution
+
+Performance Evidence: the residual six-type delay came from repeating the
+`uid`-then-legacy-`id` anchor fallback for every relationship type and
+direction. An empty relationship type cannot distinguish "the `uid` anchor
+exists but has no such edge" from "the anchor is legacy `id`-only", so the old
+path repeatedly paid the labeled legacy lookup.
+
+The output-preserving candidate resolves the root anchor property once, reuses
+it across the six non-transitive types and both directions, and retains the old
+per-query fallback when a separate `uid`/`id` collision is detected. Legacy
+`id`-only and missing anchors are resolved once. Transitive stories deliberately
+keep per-hop fallback because later hop identities can use a different property.
+Single-type stories deliberately keep the original direct `uid`-then-`id`
+query path: the one-time resolver is useful only when several type/direction
+reads amortize its collision check.
+
+The one-time resolver is limited to `Function`, the only supported story label
+with a proven legacy-`id` property index. Other entity labels keep the shipped
+per-query `uid`-then-`id` fallback; proof for `Function.id` must not be
+generalized into an unindexed runtime-selected label scan.
+
+| Retained-data proof | Old | New | Delta |
+| --- | ---: | ---: | ---: |
+| Six-type graph calls | 23 | 14 | -9 |
+| Six-type graph wall time | 38.692691s | 5.827756s | -32.864935s |
+| Relationship rows | 1 | 1 | 0 |
+| Duplicate rows | 0 | 0 | 0 |
+| Bidirectional row diff | 0 / 0 | 0 / 0 | exact |
+
+The Tier-4 no-regression proof used a retained `Function` with 466 incoming
+`CALLS` edges. The unindexed legacy-`id` collision preflight alone took
+5.754621 seconds, while the underlying `CALLS` and empty `TAINT_FLOWS_TO`
+reads took 0.024095 and 0.002327 seconds. The corrected production dispatcher
+therefore bypasses resolution for one type. Against the warmed legacy direct
+path, `CALLS` completed in 0.003525 seconds versus 0.004961 seconds and the
+empty type in 0.000631 seconds versus 0.001053 seconds. Both comparisons kept
+ordered diff 0/0, duplicate count zero, and zero resolver preflights. The same
+anchor's six-type story still improved from 32.842229 seconds and 21 calls to
+5.902045 seconds and 14 calls, with 983 rows and ordered diff 0/0. This proves
+the multi-type win without making the millisecond single-type path pay a
+seconds-scale scan.
+
+The remaining 5.75-second guard was a full `Function` label scan on the legacy
+`id` property. A throwaway `Function.id` index against the same retained graph
+proved the narrowed shape before the production schema changed:
+
+| Retained 887-repository proof | Without index | With index | Exactness |
+| --- | ---: | ---: | ---: |
+| Legacy-ID collision check | 8.837783s | p50 0.000493s / p95 0.000842s | 0 / 0 |
+| Full 14-call story, 983 rows | 5.902045s accepted baseline | 0.008286-0.011195s warm | 0 / 0 |
+| Fresh graph-client first story | not comparable | 4.296237s | 0 / 0 |
+
+The first index build took 24.39 seconds on the populated graph. Reissuing its
+`CREATE INDEX IF NOT EXISTS` directly took 15.03 seconds in NornicDB v1.1.11,
+so the deployment contract relies on the existing Postgres schema fingerprint:
+bootstrap applies the additive DDL once, records it, and skips the entire graph
+schema pass on later starts. The fresh-client 4.296237-second sample remains
+outside the 1.5-3 second capability budgets and is reported separately from the
+warm indexed result; the rebuilt HTTP route is the acceptance boundary.
+
+This repaired retained proof manually reconstructs only the repeated-fallback
+OLD baseline. The NEW side invokes the shipped
+`relationshipStoryRelationships` production helper with all six relationship
+types. The harness asserts one two-query anchor-resolution phase and exactly 12
+direction/type reads, all using only the resolved `{uid: $entity_id}` property.
+Focused production-path tests also prove that a confirmed missing anchor skips
+all relationship reads and that a separate `uid`/legacy-`id` collision retains
+the per-query fallback.
+
+A separate production-binary route proof used the earlier ten-row retained Java
+`Function`, six types, both directions, and limit 50. The prior listener
+returned no bytes before a 45.001937s client timeout. After the final NornicDB
+projection compatibility correction, the rebuilt listener returned HTTP 200
+and 10,373 bytes in 3.855987s, leaving 13.144013s of margin beneath the console's
+17-second live browser cutoff and recovering at least 41.145950s on that cold
+request. The response contained ten unique rows in the same interleaved
+direction/type order.
+
+The 3.855987-second built route and 4.296237-second fresh-client samples remain
+outside the checked-in 2-second local-full-stack budget; neither establishes
+the separate 3-second production p95. They prove a large browser-cutoff
+recovery, not capability-SLO closure. Open issue
+[#5244](https://github.com/eshu-hq/eshu/issues/5244) owns cold-client, API, MCP,
+transport, and residual query attribution for the next long pole.
+
+Accuracy Evidence: the built readback also exposed a separate existing NornicDB
+compatibility defect: `type(rel)` was returned literally as `"type(rel)"` for
+all ten rows. Each query already has a normalized allowlisted relationship
+type, so the projection now returns that static value. This is an intentional
+expected delta from the wrong literal to `CALLS` in this retained story; entity
+IDs, directions, ordering, pagination, de-duplication, and the ten-row set are
+unchanged. An ordered comparison of every relationship field except the
+intentionally corrected `type` field produced a bidirectional diff of 0/0.
+
+The same built readback exposed NornicDB returning projected
+`coalesce(source.id, source.uid)` and related repo/language expressions as
+literal strings. The NornicDB-only direct, class-method, and inheritance story
+queries now return each property under a distinct raw alias; Go applies the
+existing first-nonempty precedence and removes raw aliases before response
+serialization. Exact placeholder rejection covers the direction-specific
+`source.*`, `target.*`, and `anchor.*` forms without broadly rejecting arbitrary
+identifiers. The repaired production-path proof measured 38.692691s and 23
+calls for the repeated fallback versus 5.827756s and 14 calls for the resolved
+shape, with an ordered normalized row diff of 0/0. The separate built response
+had ten unique rows, nine distinct source IDs, three distinct target IDs, and no
+expression-shaped identity placeholders.
+
+No-Observability-Change: anchor resolution and the static relationship-type
+projection remain inside the existing graph-query envelope. They add no graph
+writes, queue behavior, runtime knobs, metrics, or spans; existing per-query
+duration and error telemetry still covers every graph read.
+
+#### Retained Dashboard File Import Cycle Anchor
+
+Performance Evidence: the live development console issues two identical
+file-cycle requests because React StrictMode replays the Code Graph effect. The
+effect cleanup suppresses stale state updates but does not cancel or share the
+network read. Direct timing of the exact selected-repository body showed the
+real backend cold penalty: 8.820754s, followed by identical warm requests in
+0.000696s and 0.000440s. The old query expanded two repository import paths and
+only then applied `repo.id = $repo_id`.
+
+The retained proof candidate moved that already-required repository identity
+into the first indexed match:
+`MATCH (repo:Repository {id: $repo_id})-[:REPO_CONTAINS]->...`. The repaired
+harness derives the legacy OLD query from the shipped NEW builder and fails
+unless the two strings differ, the OLD first match is unanchored with a late
+`repo.id = $repo_id` filter, and the NEW first match is repository-property
+anchored with no late filter. NEW ran in 0.010009s; OLD took 16.052487s on the
+same retained repository scope. Both returned the same ordered empty result,
+diff 0/0. The non-empty handler fixture preserves row content, ordering,
+pagination, and cycle-edge construction, while a separate test preserves the
+broader discovery shape when a request has no `repo_id`. NornicDB returned no
+PROFILE tree for either query, so the proof records measured wall time and the
+explicit indexed query shape rather than inventing operator statistics.
+
+The rebuilt API completed two simultaneous copies of the exact StrictMode body
+in 0.180405s and 0.180382s; both returned HTTP 200, 416 bytes, and byte-identical
+responses. The intermediate browser sweep then passed Code Graph in 9.122s,
+down from the prior failing 16.086s route, with its live-canvas workflow passing
+and zero console errors. The exact final-image acceptance result is recorded at
+the start of this retained-dashboard follow-up. Since the backend fix makes the
+duplicated development-only reads cheap and settled, no frontend cache or
+request-sharing semantics were added.
+
+No-Observability-Change: the endpoint keeps the existing handler span, graph
+read telemetry, response envelope, and request bounds. The change adds no graph
+writes, queue behavior, runtime knobs, metrics, spans, or client-side caching.
+
 ### Relationships Verb Catalog And Per-Verb Edge Slice
 
-No-Regression Evidence: issue #3397 adds two new bounded read shapes in
-`go/internal/query/relationships_catalog_cypher.go`
+Historical No-Regression Evidence: issue #3397 introduced the two bounded read
+surfaces in `go/internal/query/relationships_catalog_cypher.go`
 (`relationshipCountCypher`, `relationshipEdgesCypher`) backing
 `POST /api/v0/relationships/catalog` and `POST /api/v0/relationships/edges`.
-These are new endpoints, not a change to an existing path, so there is no prior
-shape to regress against. Both shapes are source-label-anchored, never the
-unanchored `()-[r:VERB]->()` pattern that risks an all-node scan: each verb is
-counted with `MATCH (s:<SourceLabel>)-[r:<VERB>]->() RETURN count(r)`, the same
-bounded-aggregate class as the sanctioned whole-graph label count
-`MATCH (r:Repository) RETURN count(r)` in `infra_ecosystem_overview.go` and the
-`QP-READINESS-HOSTED` fixture. The per-verb edge slice anchors on the same
-source label, orders deterministically, and is bounded by `LIMIT $limit`
-(default 50, max 200) with a `limit+1` over-fetch for the truncation flag. The
-verb and source label are taken only from the fixed `relationshipVerbCatalog`,
-never from request input. New gate entries `QP-RELATIONSHIPS-CATALOG-COUNT` and
-`QP-RELATIONSHIPS-EDGES` in `go/internal/queryplan/testdata/hot-cypher.yaml`
-keep both shapes registered; the static gate validates them against
-`graph.SchemaStatementsForBackend(graph.SchemaBackendNornicDB)`, requires the
-`Function` source-label index evidence, and forbids `AllNodesScan`,
-`CartesianProduct`, and `UnboundedExpand`. Catalog cost is one bounded count per
+The original #3397 implementation anchored both reads on the catalog entry's
+source label. That description is retained only as the historical baseline;
+issue #3429 subsequently replaced the count shape after representative
+NornicDB proof showed that 16 sequential source-label counts exceeded 30
+seconds at approximately 900,000 edges.
+
+The current contract deliberately uses different anchors for the two reads:
+
+- `relationshipCountCypher` uses the anonymous typed aggregate
+  `MATCH ()-[r:<VERB>]->() RETURN count(r)`. NornicDB serves this through its
+  relationship-type index, so the result is the whole-graph population for the
+  verb. Anonymous `()` endpoints do not bind unlabeled nodes and do not request
+  an all-node scan. When more than one source label writes the same verb, the
+  catalog count can legitimately exceed the companion edge-slice cardinality.
+- `relationshipEdgesCypher` remains source-label-anchored with
+  `MATCH (s:<SourceLabel>)-[r:<VERB>]->(t)`, orders by the indexed source
+  property plus a deterministic target tie-breaker, and applies
+  `LIMIT $limit`. The handler over-fetches `limit+1` rows to derive the
+  truncation flag.
+
+The verb, source label, and source property come only from the fixed
+`relationshipVerbCatalog`, never from request input. The
+`QP-RELATIONSHIPS-CATALOG-COUNT` gate requires `RelationshipTypeScan` and the
+`QP-RELATIONSHIPS-EDGES` gate retains the `Function` source-label index evidence
+for the representative `CALLS` slice. Both forbid `AllNodesScan`,
+`CartesianProduct`, and `UnboundedExpand`. Catalog cost is one typed count per
 fixed verb at page load; the capability matrix records a 2000 ms local p95 and
 3000 ms production p95 budget for `platform_impact.relationships_catalog`.
 

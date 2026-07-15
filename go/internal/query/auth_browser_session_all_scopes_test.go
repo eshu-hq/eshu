@@ -9,7 +9,7 @@ import (
 	"testing"
 )
 
-func TestAuthMiddlewareAllScopesTenantBrowserSessionRejectsWholeGraphConsoleRoutes(t *testing.T) {
+func TestAuthMiddlewareAllScopesTenantBrowserSessionAllowsWholeGraphConsoleRoutes(t *testing.T) {
 	t.Parallel()
 
 	routes := []struct {
@@ -38,14 +38,24 @@ func TestAuthMiddlewareAllScopesTenantBrowserSessionRejectsWholeGraphConsoleRout
 				ok: true,
 			}
 			called := false
-			handler := AuthMiddlewareWithBrowserSessionsAndScopedTokens(
+			handler := AuthMiddlewareWithBrowserSessionsScopedTokensGovernanceAuditAndRoutePolicy(
 				"shared-token",
 				nil,
 				resolver,
-				http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					called = true
-					_, _ = w.Write([]byte(`{"secret_cross_tenant_data":true}`))
+					auth, found := AuthContextFromContext(r.Context())
+					if !found {
+						t.Fatal("next handler missing browser-session auth context")
+					}
+					if auth.Mode != AuthModeBrowserSession || !auth.AllScopes ||
+						auth.TenantID != "tenant-a" || auth.WorkspaceID != "workspace-a" {
+						t.Fatalf("next handler auth = %#v, want tenant-bound all-scopes browser session", auth)
+					}
+					w.WriteHeader(http.StatusOK)
 				}),
+				nil,
+				BrowserSessionRoutePolicy{AllowTenantBoundAllScopes: true},
 			)
 
 			req := httptest.NewRequest(tc.method, tc.path, nil)
@@ -56,10 +66,89 @@ func TestAuthMiddlewareAllScopesTenantBrowserSessionRejectsWholeGraphConsoleRout
 			rec := httptest.NewRecorder()
 			handler.ServeHTTP(rec, req)
 
-			assertWholeGraphRouteDenied(t, rec, called)
+			if !called {
+				t.Fatal("next handler not called for tenant-bound all-scopes browser session")
+			}
+			if got, want := rec.Code, http.StatusOK; got != want {
+				t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
+			}
 			if got, want := resolver.requireCSRF, browserSessionRequiresCSRF(tc.method); got != want {
 				t.Fatalf("requireCSRF = %t, want %t", got, want)
 			}
+		})
+	}
+}
+
+func TestAuthMiddlewareAllScopesTenantBrowserSessionDefaultsWholeGraphConsoleRoutesToDenied(t *testing.T) {
+	t.Parallel()
+
+	called := false
+	resolver := &fakeBrowserSessionResolver{
+		context: AuthContext{
+			Mode:        AuthModeBrowserSession,
+			TenantID:    "tenant-a",
+			WorkspaceID: "workspace-a",
+			AllScopes:   true,
+		},
+		ok: true,
+	}
+	handler := AuthMiddlewareWithBrowserSessionsAndScopedTokens(
+		"shared-token",
+		nil,
+		resolver,
+		http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			called = true
+			_, _ = w.Write([]byte(`{"secret_cross_tenant_data":true}`))
+		}),
+	)
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/graph/entities", nil)
+	req.AddCookie(&http.Cookie{Name: BrowserSessionCookieName, Value: "session-secret"})
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	assertWholeGraphRouteDenied(t, rec, called)
+}
+
+func TestAuthMiddlewareTenantlessAllScopesBrowserSessionCannotEnterWholeGraphConsoleRoutes(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name        string
+		tenantID    string
+		workspaceID string
+	}{
+		{name: "missing tenant", workspaceID: "workspace-a"},
+		{name: "missing workspace", tenantID: "tenant-a"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			called := false
+			resolver := &fakeBrowserSessionResolver{
+				context: AuthContext{
+					Mode:        AuthModeBrowserSession,
+					TenantID:    tc.tenantID,
+					WorkspaceID: tc.workspaceID,
+					AllScopes:   true,
+				},
+				ok: true,
+			}
+			handler := AuthMiddlewareWithBrowserSessionsScopedTokensGovernanceAuditAndRoutePolicy(
+				"shared-token",
+				nil,
+				resolver,
+				http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					called = true
+					_, _ = w.Write([]byte(`{"secret_cross_tenant_data":true}`))
+				}),
+				nil,
+				BrowserSessionRoutePolicy{AllowTenantBoundAllScopes: true},
+			)
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v0/graph/entities", nil)
+			req.AddCookie(&http.Cookie{Name: BrowserSessionCookieName, Value: "session-secret"})
+			rec := httptest.NewRecorder()
+			handler.ServeHTTP(rec, req)
+
+			assertWholeGraphRouteDenied(t, rec, called)
 		})
 	}
 }
@@ -89,7 +178,7 @@ func TestAuthMiddlewareRestrictedCredentialsCannotEnterWholeGraphConsoleRoutes(t
 				},
 				ok: true,
 			}
-			handler := AuthMiddlewareWithBrowserSessionsAndScopedTokens(
+			handler := AuthMiddlewareWithBrowserSessionsScopedTokensGovernanceAuditAndRoutePolicy(
 				"shared-token",
 				nil,
 				resolver,
@@ -97,6 +186,8 @@ func TestAuthMiddlewareRestrictedCredentialsCannotEnterWholeGraphConsoleRoutes(t
 					called = true
 					_, _ = w.Write([]byte(`{"secret_cross_tenant_data":true}`))
 				}),
+				nil,
+				BrowserSessionRoutePolicy{AllowTenantBoundAllScopes: true},
 			)
 			req := httptest.NewRequest(tc.method, tc.path, nil)
 			req.AddCookie(&http.Cookie{Name: BrowserSessionCookieName, Value: "session-secret"})
@@ -121,13 +212,16 @@ func TestAuthMiddlewareRestrictedCredentialsCannotEnterWholeGraphConsoleRoutes(t
 				},
 				ok: true,
 			}
-			handler := AuthMiddlewareWithScopedTokens(
+			handler := AuthMiddlewareWithBrowserSessionsScopedTokensGovernanceAuditAndRoutePolicy(
 				"shared-token",
 				resolver,
+				nil,
 				http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 					called = true
 					_, _ = w.Write([]byte(`{"secret_cross_tenant_data":true}`))
 				}),
+				nil,
+				BrowserSessionRoutePolicy{AllowTenantBoundAllScopes: true},
 			)
 			req := httptest.NewRequest(tc.method, tc.path, nil)
 			req.Header.Set("Authorization", "Bearer scoped-token")

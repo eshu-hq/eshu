@@ -53,6 +53,43 @@ describe("VulnerabilitiesPage", () => {
     expect(screen.queryByText(/^repository[:_]/)).not.toBeInTheDocument();
   });
 
+  it("counts impact findings and renders absent service evidence as not proven", () => {
+    const model: ConsoleModel = {
+      ...demoModel,
+      source: "live",
+      vulnerabilities: [
+        {
+          findingId: "finding:shared:one",
+          id: "GHSA-shared",
+          package: "lodash",
+          severity: "high",
+          cvss: 8.1,
+          kev: false,
+          fixedVersion: "4.17.22",
+          services: [],
+        },
+        {
+          findingId: "finding:shared:two",
+          id: "GHSA-shared",
+          package: "underscore",
+          severity: "high",
+          cvss: 8.1,
+          kev: false,
+          fixedVersion: "1.13.7",
+          services: [],
+        },
+      ],
+    };
+
+    renderPage(model);
+
+    const findingCount = screen.getByText("Open findings").closest(".stat-tile");
+    expect(findingCount).toHaveTextContent("2");
+    expect(screen.getByRole("heading", { name: "Finding register" })).toBeInTheDocument();
+    expect(screen.queryByText("Open advisories")).not.toBeInTheDocument();
+    expect(screen.getAllByText("Not proven")).toHaveLength(2);
+  });
+
   it("renders a supply-chain impact path with evidence state for each hop", () => {
     renderPage(demoModel);
 
@@ -183,6 +220,41 @@ describe("VulnerabilitiesPage", () => {
     ).toBeInTheDocument();
     expect(
       screen.queryByText(/requires the vulnerability-intelligence collector/i),
+    ).not.toBeInTheDocument();
+  });
+
+  it("does not present zero or no-impact truth while reachable findings are unavailable", () => {
+    const unavailable: ConsoleModel = {
+      ...demoModel,
+      source: "live",
+      vulnerabilities: [],
+      provenance: { ...demoModel.provenance, vulnerabilities: "unavailable" },
+    };
+
+    renderPage(unavailable);
+
+    expect(screen.getByText(/Vulnerabilities data unavailable/)).toBeInTheDocument();
+    expect(screen.queryByText("Open findings")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("region", { name: "Supply-chain impact path" }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("No admitted supply-chain impact path")).not.toBeInTheDocument();
+  });
+
+  it("does not present zero or no-impact truth while reachable findings are loading", () => {
+    const loading: ConsoleModel = {
+      ...demoModel,
+      source: "live",
+      vulnerabilities: [],
+      provenance: { ...demoModel.provenance, vulnerabilities: "loading" },
+    };
+
+    renderPage(loading);
+
+    expect(screen.getByRole("status", { name: "Loading vulnerabilities" })).toBeInTheDocument();
+    expect(screen.queryByText("Open findings")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("region", { name: "Supply-chain impact path" }),
     ).not.toBeInTheDocument();
   });
 

@@ -6,6 +6,7 @@ import { Route, Routes } from "react-router-dom";
 import type { BrowserSessionAuth, EshuApiClient } from "./api/client";
 import { demoDefaults } from "./api/demoClient";
 import type { RepoListItem } from "./api/repoCatalog";
+import { APP_ROUTE_PATHS } from "./appRoutePaths";
 import { AdminRouteGuard } from "./auth/AdminRouteGuard";
 import type { SourceState } from "./components/SourceControls";
 import type { ConsoleModel } from "./console/types";
@@ -98,7 +99,7 @@ export function AppRoutes({
   return (
     <Routes>
       <Route
-        path="/"
+        path={APP_ROUTE_PATHS.root}
         element={
           <DashboardPage
             model={model}
@@ -108,9 +109,9 @@ export function AppRoutes({
           />
         }
       />
-      <Route path="/status" element={<StatusPage client={client} />} />
+      <Route path={APP_ROUTE_PATHS.status} element={<StatusPage client={client} />} />
       <Route
-        path="/dashboard"
+        path={APP_ROUTE_PATHS.dashboard}
         element={
           <DashboardPage
             model={model}
@@ -120,9 +121,9 @@ export function AppRoutes({
           />
         }
       />
-      <Route path="/ask" element={<AskPage source={source} />} />
+      <Route path={APP_ROUTE_PATHS.ask} element={<AskPage source={source} />} />
       <Route
-        path="/semantic-search"
+        path={APP_ROUTE_PATHS.semanticSearch}
         element={
           <Suspense
             fallback={
@@ -137,7 +138,7 @@ export function AppRoutes({
         }
       />
       <Route
-        path="/guided-questions"
+        path={APP_ROUTE_PATHS.guidedQuestions}
         element={
           <Suspense
             fallback={
@@ -151,100 +152,133 @@ export function AppRoutes({
           </Suspense>
         }
       />
-      <Route path="/impact" element={<ImpactPage model={model} client={client} />} />
-      <Route path="/exposure" element={<ExposurePathPage client={client} />} />
-      <Route path="/changed-since" element={<ChangedSincePage client={client} model={model} />} />
+      <Route path={APP_ROUTE_PATHS.impact} element={<ImpactPage model={model} client={client} />} />
+      <Route path={APP_ROUTE_PATHS.exposure} element={<ExposurePathPage client={client} />} />
       <Route
-        path="/explorer"
+        path={APP_ROUTE_PATHS.changedSince}
+        element={<ChangedSincePage client={client} repositories={repositories} />}
+      />
+      <Route
+        path={APP_ROUTE_PATHS.explorer}
         element={<ExplorerPage model={model} client={client} onOpenService={onOpenService} />}
       />
-      <Route path="/relationships" element={<RelationshipsPage model={model} client={client} />} />
       <Route
-        path="/service-story"
+        path={APP_ROUTE_PATHS.relationships}
+        element={<RelationshipsPage model={model} client={client} />}
+      />
+      <Route
+        path={APP_ROUTE_PATHS.serviceStory}
         element={
           <ServiceEvidenceGraphPage model={model} client={client} onOpenService={onOpenService} />
         }
       />
       <Route
-        path="/service-story/:serviceName"
+        path={APP_ROUTE_PATHS.serviceStoryDetail}
         element={
           <ServiceEvidenceGraphPage model={model} client={client} onOpenService={onOpenService} />
         }
       />
       <Route
-        path="/service-report"
+        path={APP_ROUTE_PATHS.serviceReport}
         element={<ServiceReportPage model={model} client={client} onOpenService={onOpenService} />}
       />
       <Route
-        path="/service-report/:serviceName"
+        path={APP_ROUTE_PATHS.serviceReportDetail}
         element={<ServiceReportPage model={model} client={client} onOpenService={onOpenService} />}
       />
-      <Route path="/nodes" element={<NodesPage client={client} sourceLabel={sourceLabel} />} />
-      <Route path="/code-graph" element={<CodeGraphPage model={model} client={client} />} />
-      <Route path="/repositories" element={<RepositoriesPage client={client} model={model} />} />
-      <Route path="/repositories/:id/source" element={<RepoSourcePage client={client} />} />
-      <Route path="/cloud" element={<CloudPage client={client} sourceLabel={sourceLabel} />} />
       <Route
-        path="/ci-cd/run-correlations"
+        path={APP_ROUTE_PATHS.nodes}
+        element={<NodesPage client={client} sourceLabel={sourceLabel} />}
+      />
+      <Route
+        path={APP_ROUTE_PATHS.codeGraph}
+        element={<CodeGraphPage model={model} client={client} />}
+      />
+      <Route
+        path={APP_ROUTE_PATHS.repositories}
+        element={<RepositoriesPage client={client} model={model} />}
+      />
+      <Route path={APP_ROUTE_PATHS.repositorySource} element={<RepoSourcePage client={client} />} />
+      <Route
+        path={APP_ROUTE_PATHS.cloud}
+        element={<CloudPage client={client} sourceLabel={sourceLabel} />}
+      />
+      <Route
+        path={APP_ROUTE_PATHS.ciCdRunCorrelations}
         element={<CICDRunCorrelationsPage client={client} model={model} />}
       />
       <Route
-        path="/cloud-drift"
+        path={APP_ROUTE_PATHS.cloudDrift}
         element={<CloudDriftPage client={client} demoDefaults={cloudDriftDemoDefaults} />}
       />
-      <Route path="/secrets-iam" element={<SecretsIamPage model={model} client={client} />} />
       <Route
-        path="/topology"
+        path={APP_ROUTE_PATHS.secretsIam}
+        element={<SecretsIamPage model={model} client={client} />}
+      />
+      <Route
+        path={APP_ROUTE_PATHS.topology}
         element={<TopologyPage client={client} model={model} onOpenService={onOpenService} />}
       />
       <Route
-        path="/incidents"
+        path={APP_ROUTE_PATHS.incidents}
         element={
           <IncidentContextPage model={model} client={client} onOpenService={onOpenService} />
         }
       />
       <Route
-        path="/incidents/:incidentId/context"
+        path={APP_ROUTE_PATHS.incidentContext}
         element={
           <IncidentContextPage model={model} client={client} onOpenService={onOpenService} />
         }
       />
       <Route
-        path="/catalog"
+        path={APP_ROUTE_PATHS.catalog}
         element={<CatalogPage model={model} onOpenService={onOpenService} />}
       />
-      <Route path="/images" element={<ImagesPage client={client} sourceLabel={sourceLabel} />} />
       <Route
-        path="/capabilities"
+        path={APP_ROUTE_PATHS.images}
+        element={<ImagesPage client={client} sourceLabel={sourceLabel} />}
+      />
+      <Route
+        path={APP_ROUTE_PATHS.capabilities}
         element={<CapabilityMatrixPage client={client} sourceLabel={sourceLabel} />}
       />
       <Route
-        path="/surface-inventory"
+        path={APP_ROUTE_PATHS.surfaceInventory}
         element={<SurfaceInventoryPage client={client} sourceLabel={sourceLabel} />}
       />
       <Route
-        path="/iac"
+        path={APP_ROUTE_PATHS.iac}
         element={<IacPage model={model} client={client} sourceLabel={sourceLabel} />}
       />
-      <Route path="/replatforming" element={<ReplatformingPage model={model} client={client} />} />
-      <Route path="/findings" element={<FindingsPage model={model} />} />
-      <Route path="/dead-code" element={<DeadCodePage client={client} model={model} />} />
       <Route
-        path="/vulnerabilities"
+        path={APP_ROUTE_PATHS.replatforming}
+        element={<ReplatformingPage model={model} client={client} />}
+      />
+      <Route path={APP_ROUTE_PATHS.findings} element={<FindingsPage model={model} />} />
+      <Route
+        path={APP_ROUTE_PATHS.deadCode}
+        element={<DeadCodePage client={client} model={model} />}
+      />
+      <Route
+        path={APP_ROUTE_PATHS.vulnerabilities}
         element={<VulnerabilitiesPage model={model} client={client} />}
       />
       <Route
-        path="/vulnerabilities/:id"
+        path={APP_ROUTE_PATHS.vulnerabilityDetail}
         element={<VulnDetailPage model={model} client={client} />}
       />
-      <Route path="/sbom" element={<SbomPage client={client} sourceLabel={sourceLabel} />} />
       <Route
-        path="/dependencies"
+        path={APP_ROUTE_PATHS.sbom}
+        element={<SbomPage client={client} sourceLabel={sourceLabel} />}
+      />
+      <Route
+        path={APP_ROUTE_PATHS.dependencies}
         element={<DependenciesPage client={client} sourceLabel={sourceLabel} />}
       />
-      <Route path="/observability" element={<ObservabilityPage client={client} />} />
+      <Route path={APP_ROUTE_PATHS.observability} element={<ObservabilityPage client={client} />} />
       <Route
-        path="/collector-readiness"
+        path={APP_ROUTE_PATHS.collectorReadiness}
         element={
           <CollectorReadinessPage
             rows={model.collectorReadiness}
@@ -252,11 +286,17 @@ export function AppRoutes({
           />
         }
       />
-      <Route path="/operations" element={<OperationsPage model={model} client={client} />} />
-      <Route path="/freshness-causality" element={<FreshnessCausalityPage client={client} />} />
-      <Route path="/profile" element={<ProfilePage client={client} />} />
       <Route
-        path="/admin"
+        path={APP_ROUTE_PATHS.operations}
+        element={<OperationsPage model={model} client={client} />}
+      />
+      <Route
+        path={APP_ROUTE_PATHS.freshnessCausality}
+        element={<FreshnessCausalityPage client={client} />}
+      />
+      <Route path={APP_ROUTE_PATHS.profile} element={<ProfilePage client={client} />} />
+      <Route
+        path={APP_ROUTE_PATHS.admin}
         element={
           <AdminRouteGuard auth={auth}>
             <AdminPage client={client} baseUrl={source.base} auth={auth} />
@@ -264,7 +304,7 @@ export function AppRoutes({
         }
       />
       <Route
-        path="/workspace/:entityKind/:entityId"
+        path={APP_ROUTE_PATHS.workspace}
         element={
           <Suspense
             fallback={

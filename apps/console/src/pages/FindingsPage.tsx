@@ -2,6 +2,7 @@
 import { Link } from "react-router-dom";
 
 import type { SectionProvenance } from "../api/eshuConsoleLive";
+import { vulnerabilityRowKey } from "../api/eshuConsoleVulnerabilities";
 import { AsyncStateGuard } from "../components/AsyncStateGuard";
 import { Panel, StatTile, TruthChip, Badge } from "../components/atoms";
 import { uiTruth, type ConsoleModel, type FindingRow, type VulnRow } from "../console/types";
@@ -20,6 +21,7 @@ export function FindingsPage({ model }: { readonly model: ConsoleModel }): React
   const provenance = combinedWorklist(findingsProv, vulnProv);
   const partialFailure = partialFailureMessage(findingsProv, vulnProv);
   const loadingNotice = partialLoadingMessage(findingsProv, vulnProv);
+  const allSourcesReady = isReady(findingsProv) && isReady(vulnProv);
   return (
     <div className="page">
       <div className="page-intro">
@@ -31,26 +33,42 @@ export function FindingsPage({ model }: { readonly model: ConsoleModel }): React
           the live drilldown surface that owns the evidence.
         </p>
       </div>
-      <div className="grid g-4">
+      <div
+        aria-label="Findings source status"
+        className="grid g-4 findings-summary"
+        data-findings-state={findingsProv}
+        data-row-count={rows.length}
+        data-source-ready={allSourcesReady}
+        data-vulnerabilities-state={vulnProv}
+      >
         <StatTile
           label="Open findings"
-          value={rows.length}
+          value={allSourcesReady ? rows.length : "—"}
           color="var(--ember)"
-          sub={model.source === "live" ? "live worklist rows" : "demo"}
+          sub={combinedCountSub(
+            findingsProv,
+            vulnProv,
+            model.source === "live" ? "live worklist rows" : "demo",
+          )}
         />
         <StatTile
           label="Dead code"
-          value={byType.get("Dead code") ?? 0}
+          value={isReady(findingsProv) ? (byType.get("Dead code") ?? 0) : "—"}
           color="var(--violet)"
-          sub="graph-backed candidates"
+          sub={sourceCountSub(findingsProv, "graph-backed candidates")}
         />
         <StatTile
           label="Vulnerability"
-          value={byType.get("Vulnerability") ?? 0}
+          value={isReady(vulnProv) ? (byType.get("Vulnerability") ?? 0) : "—"}
           color="var(--crit)"
-          sub="reachable advisories"
+          sub={sourceCountSub(vulnProv, "reachable advisories")}
         />
-        <StatTile label="Types" value={byType.size} color="var(--blue)" sub="distinct categories" />
+        <StatTile
+          label="Types"
+          value={allSourcesReady ? byType.size : "—"}
+          color="var(--blue)"
+          sub={combinedCountSub(findingsProv, vulnProv, "distinct categories")}
+        />
       </div>
       <Panel className="flush mt" title="Unified worklist">
         {partialFailure ? (
@@ -77,7 +95,7 @@ export function FindingsPage({ model }: { readonly model: ConsoleModel }): React
             </thead>
             <tbody>
               {rows.map((row) => (
-                <tr key={row.id}>
+                <tr data-finding-row key={row.id}>
                   <td className="cell-stack" style={{ maxWidth: 460 }}>
                     <span style={{ color: "var(--bone)", fontWeight: 600 }}>{row.title}</span>
                     <small>{row.detail}</small>
@@ -109,7 +127,11 @@ export function FindingsPage({ model }: { readonly model: ConsoleModel }): React
               ))}
               {rows.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="empty">
+                  <td
+                    className="empty"
+                    colSpan={6}
+                    data-authoritative-empty={!partialFailure && allSourcesReady}
+                  >
                     {partialFailure
                       ? "No findings from the available source."
                       : "No findings from this source."}
@@ -190,7 +212,7 @@ function vulnerabilityRow(vulnerability: VulnRow): WorklistRow {
     actions,
     detail,
     entity: primaryEntity,
-    id: `vulnerability:${vulnerability.id}`,
+    id: `vulnerability:${vulnerabilityRowKey(vulnerability)}`,
     source: "GET /api/v0/supply-chain/impact/findings",
     title: `${vulnerability.id} · ${vulnerability.package}`,
     truth: "derived",
@@ -239,4 +261,16 @@ function partialLoadingMessage(a: SectionProvenance, b: SectionProvenance): stri
 
 function isReady(provenance: SectionProvenance): boolean {
   return provenance === "live" || provenance === "empty" || provenance === "demo";
+}
+
+function sourceCountSub(provenance: SectionProvenance, readyLabel: string): string {
+  if (provenance === "loading") return "source still loading";
+  if (provenance === "unavailable") return "source unavailable";
+  return readyLabel;
+}
+
+function combinedCountSub(a: SectionProvenance, b: SectionProvenance, readyLabel: string): string {
+  if (a === "unavailable" || b === "unavailable") return "incomplete source coverage";
+  if (a === "loading" || b === "loading") return "sources still loading";
+  return readyLabel;
 }

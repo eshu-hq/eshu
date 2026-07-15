@@ -41,10 +41,19 @@ cross-pass contradiction check, severity/confidence/disposition for every
 finding, generated-artifact and private-data scans, verification evidence, and
 follow-on issue routing.
 
-PRs MUST NOT be created, updated, pushed, or merged from unreviewed diffs. If
-the review finds any P0/P1 issue, fix it, rerun affected verification, and
-repeat `eshu-code-review`. P2 issues MUST be fixed inline or linked to a
-tracked repository issue before proceeding.
+PRs MUST NOT be created, updated, pushed, or merged from unreviewed diffs.
+Before the expensive `make pre-pr` promotion gate, agents MUST run a preliminary
+full `eshu-code-review`. If that review reports any P0, P1, or P2 finding, fix
+it, rerun the affected focused verification, and repeat the full review;
+`make pre-pr` MUST NOT run until the verdict is P0=0, P1=0, and P2=0.
+
+Once the preliminary review is clean, run `make pre-pr` exactly when the branch
+is otherwise ready for its intended push or PR update, then run a final full
+`eshu-code-review` against the exact post-preflight diff. If `make pre-pr`
+changes tracked or generated files, or the final review finds anything, fix and
+reprove the affected surface and repeat the sequence. No code or documentation
+edits may occur between the final clean review and push; any diff change
+invalidates that verdict.
 
 ## Mandatory Pre-PR Local Proof
 
@@ -61,8 +70,9 @@ CI/CD capacity for little gain.
 passes on the branch, run on this machine and cited in the PR body: a bug fix
 runs its failing regression test to green, a performance change shows
 before/after numbers on the touched path, and a runtime change shows the
-observed behavior. Only after that local proof passes do agents run
-`make pre-pr`, run `eshu-code-review`, and open the PR.
+observed behavior. Only after that local proof passes do agents complete the
+preliminary clean review, run `make pre-pr` immediately before the intended
+push, complete the final clean review, and open or update the PR.
 
 For a change that is not fixing a failure — a docs update, a refactor, or a new
 feature with no prior repro — local proof is the change's own appropriate
@@ -364,12 +374,15 @@ tests, and [HTTP API Reference](docs/public/reference/http-api.md).
 Use [Local Testing](docs/public/reference/local-testing.md) as the source of
 truth for gates.
 
-Run `make pre-pr` before opening or updating any PR. It is the one-command local
-preflight that selects and runs the credential-free gates your changed paths
-require; exactness and race gates are blocking. Use `make pre-pr-full`,
+After focused local proof and a preliminary full `eshu-code-review` with zero
+P0/P1/P2 findings, run `make pre-pr` once, immediately before the intended push
+or PR update. It is the one-command local promotion preflight that selects and
+runs the credential-free gates required by changed paths; it is not an early
+discovery loop. Exactness and race gates are blocking. Use `make pre-pr-full`,
 `make frontend-preflight`, and `make security-preflight` for the heavier lanes.
-CI stays authoritative, but it should not be the first place a credential-free
-failure appears.
+Run the final full `eshu-code-review` on the exact post-preflight diff before
+push. CI stays authoritative, but it should not be the first place a
+credential-free failure appears.
 
 Common checks:
 

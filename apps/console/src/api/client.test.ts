@@ -303,6 +303,33 @@ describe("EshuApiClient", () => {
     await expect(client.getJson("/api/v0/index-status")).rejects.toThrowError();
   });
 
+  it("combines a caller abort signal with the per-request timeout", async () => {
+    const inits: RequestInit[] = [];
+    const fetcher = (_input: RequestInfo | URL, init?: RequestInit): Promise<Response> =>
+      new Promise((_resolve, reject) => {
+        if (init) inits.push(init);
+        init?.signal?.addEventListener(
+          "abort",
+          () => {
+            const reason: unknown = init.signal?.reason;
+            reject(reason instanceof Error ? reason : new DOMException("aborted", "AbortError"));
+          },
+          { once: true },
+        );
+      });
+    const client = new EshuApiClient({ baseUrl: "/eshu-api/", fetcher, timeoutMs: 15_000 });
+    const controller = new AbortController();
+
+    const request = client.get("/api/v0/freshness/generations", {
+      signal: controller.signal,
+    });
+    controller.abort(new DOMException("page unmounted", "AbortError"));
+
+    await expect(request).rejects.toMatchObject({ name: "AbortError" });
+    expect(inits[0]?.signal).not.toBe(controller.signal);
+    expect(inits[0]?.signal?.aborted).toBe(true);
+  });
+
   it("throws a typed EshuApiHttpError carrying the response status on non-2xx", async () => {
     const fetcher = async (): Promise<Response> => new Response("not found", { status: 404 });
     const client = new EshuApiClient({ baseUrl: "/eshu-api/", fetcher });

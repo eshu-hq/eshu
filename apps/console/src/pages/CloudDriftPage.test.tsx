@@ -330,6 +330,49 @@ describe("CloudDriftPage", () => {
       screen.getByText("Enter a scope or account to load drift evidence."),
     ).toBeInTheDocument();
     expect(post).not.toHaveBeenCalled();
+    for (const label of ["Multi-cloud drift", "AWS drift", "Unmanaged", "Import candidates"]) {
+      expect(screen.getByText(label).closest(".stat-tile")).toHaveTextContent("—");
+      expect(screen.getByText(label).closest(".stat-tile")).toHaveTextContent("not requested");
+    }
+  });
+
+  it("shows loading instead of zero until every eligible surface responds", () => {
+    const client = {
+      post: vi.fn(() => new Promise(() => undefined)),
+    } as unknown as EshuApiClient;
+
+    render(
+      <MemoryRouter initialEntries={["/cloud-drift?account_id=123456789012&provider=aws"]}>
+        <CloudDriftPage client={client} />
+      </MemoryRouter>,
+    );
+
+    for (const label of ["Multi-cloud drift", "AWS drift", "Unmanaged", "Import candidates"]) {
+      expect(screen.getByText(label).closest(".stat-tile")).toHaveTextContent("—");
+      expect(screen.getByText(label).closest(".stat-tile")).toHaveTextContent("loading");
+    }
+  });
+
+  it("loads AWS surfaces when the explicit provider is aws even with a generic bounded scope", async () => {
+    const calls: Array<{ path: string; body: unknown }> = [];
+    render(
+      <MemoryRouter initialEntries={["/cloud-drift?scope_id=retained-scope&provider=aws"]}>
+        <CloudDriftPage client={fakeDriftClient(calls)} />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(
+        calls.filter((call) => call.path.startsWith("/api/v0/")).map((call) => call.path),
+      ).toEqual(
+        expect.arrayContaining([
+          "/api/v0/cloud/runtime-drift/findings",
+          "/api/v0/aws/runtime-drift/findings",
+          "/api/v0/iac/unmanaged-resources",
+          "/api/v0/iac/terraform-import-plan/candidates",
+        ]),
+      );
+    });
   });
 
   it("keeps all summary tiles unavailable when a scoped read fails", async () => {

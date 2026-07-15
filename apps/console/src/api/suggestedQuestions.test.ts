@@ -178,7 +178,7 @@ describe("loadSourceBackedSuggestedQuestions", () => {
 
     expect(questions.map((question) => question.href)).toEqual([
       "/explorer?q=routeCheckout",
-      "/repositories/repository%3Ar1/source",
+      "/changed-since?mode=repository&repository=repository%3Ar1&since_generation_id=gen-prior",
       "/vulnerabilities/CVE-2026-4321",
     ]);
     expect(questions.map((question) => question.source)).toEqual([

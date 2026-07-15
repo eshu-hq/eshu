@@ -82,6 +82,16 @@ func TestAskEnvelopeDataFedToModel(t *testing.T) {
 	if !ans.Packets[0].Supported {
 		t.Error("Packets[0].Supported = false, want true")
 	}
+	if got, want := ans.Packets[0].ResultRef, "eshu://api-result/repositories"; got != want {
+		t.Errorf("Packets[0].ResultRef = %q, want %q", got, want)
+	}
+	result, ok := ans.Packets[0].Result.(map[string]any)
+	if !ok {
+		t.Fatalf("Packets[0].Result type = %T, want map[string]any", ans.Packets[0].Result)
+	}
+	if got, want := result["total"], int64(2); got != want {
+		t.Errorf("Packets[0].Result[total] = %#v, want %#v", got, want)
+	}
 
 	const wantProse = "2 indexed repositories visible in your authorized scope. Evidence: list_indexed_repositories.total."
 	if ans.Prose != wantProse {

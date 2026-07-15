@@ -10,11 +10,15 @@ required_ids:
   - QP-SVC-RUNS-ON
   - QP-SVC-CLOUD-DEPS
   - QP-CODE-REL-STORY
+  - QP-CODE-REL-STORY-INCOMING
+  - QP-CODE-REL-STORY-ANCHOR-COLLISION
+  - QP-CODE-IMPORT-CYCLES
   - QP-CODE-REL-TRANSITIVE
   - QP-READINESS-HOSTED
   - QP-READINESS-SC-IMPACT
   - QP-IMPACT-CHANGE-SURFACE
   - QP-RELATIONSHIPS-CATALOG-COUNT
+  - QP-RELATIONSHIPS-CATALOG-SOURCE-TOOL
   - QP-RELATIONSHIPS-EDGES
 entries:
   - id: QP-SC-DEPS
@@ -24,7 +28,7 @@ entries:
     source:
       file: go/internal/query/dependencies_cypher.go
       symbol: forwardDependenciesCypher
-      line_hint: 48
+      line_hint: 54
     cypher: |
       MATCH (src:Package {normalized_name: $package})-[:HAS_VERSION]->(v:PackageVersion)-[:DECLARES_DEPENDENCY]->(d:PackageDependency)-[:DEPENDS_ON_PACKAGE]->(target:Package)
       WHERE ($ecosystem = '' OR src.ecosystem = $ecosystem)
@@ -342,10 +346,12 @@ entries:
     cypher: |
       MATCH (anchor:Function {uid: $entity_id})-[rel:CALLS]->(target:Function)
       RETURN 'outgoing' as direction,
-             type(rel) as type,
-             coalesce(anchor.id, anchor.uid) as source_id,
-             coalesce(target.id, target.uid) as target_id
-      ORDER BY target.name, target_id
+             'CALLS' as type,
+             anchor.id as source_legacy_id,
+             anchor.uid as source_uid,
+             target.id as target_legacy_id,
+             target.uid as target_uid
+      ORDER BY target.name, target.id, target.uid
       SKIP $offset
       LIMIT $limit
     required_anchors:
@@ -377,10 +383,12 @@ entries:
     cypher: |
       MATCH path = (anchor:Class {uid: $entity_id})-[:INHERITS*1..5]->(target:Class)
       RETURN 'outgoing' as direction,
-             coalesce(anchor.id, anchor.uid) as source_id,
-             coalesce(target.id, target.uid) as target_id,
+             anchor.id as source_legacy_id,
+             anchor.uid as source_uid,
+             target.id as target_legacy_id,
+             target.uid as target_uid,
              length(path) as depth
-      ORDER BY depth DESC, target.name, target_id
+      ORDER BY depth DESC, target.name, target.id, target.uid
       LIMIT $limit
     required_anchors:
       - label: Class
@@ -395,6 +403,125 @@ entries:
       operators:
         - NodeIndexSeek
         - VarLengthExpand
+        - Sort
+      forbidden_operators:
+        - AllNodesScan
+        - CartesianProduct
+        - UnboundedExpand
+
+  - id: QP-CODE-REL-STORY-INCOMING
+    domain: code_relationship
+    backend: nornicdb
+    query_kind: cypher
+    source:
+      file: go/internal/query/code_relationship_story_nornicdb.go
+      symbol: nornicDBRelationshipStoryGraphCypher
+      line_hint: 36
+    cypher: |
+      MATCH (anchor:Function {uid: $entity_id})<-[rel:CALLS]-(source:Function)
+      RETURN 'incoming' as direction,
+             'CALLS' as type,
+             source.id as source_legacy_id,
+             source.uid as source_uid,
+             anchor.id as target_legacy_id,
+             anchor.uid as target_uid
+      ORDER BY source.name, source.id, source.uid
+      SKIP $offset
+      LIMIT $limit
+    required_anchors:
+      - label: Function
+        property: uid
+    required_schema:
+      - function_uid_unique
+      - nornicdb_function_uid_lookup
+    required_limits:
+      - $limit
+    requires_order: true
+    caveats:
+      - >-
+        Incoming stories must seed the indexed target before expanding backwards.
+        In the earlier raw-Cypher registry proof, one retained Function target
+        had eight incoming edges: the source-first equivalent exceeded 25 seconds
+        while this target-first query returned the identical set in 0.044 seconds.
+        That query-only sample is distinct from the later one-relationship
+        production-path proof recorded in
+        docs/internal/evidence/5244-5253-dashboard-correctness.md (0.563 to 1.648 ms
+        for the new shape); the targets, cardinalities, and timing boundaries differ.
+    plan:
+      operators:
+        - NodeIndexSeek
+        - Expand
+        - Sort
+      forbidden_operators:
+        - AllNodesScan
+        - CartesianProduct
+
+  - id: QP-CODE-REL-STORY-ANCHOR-COLLISION
+    domain: code_relationship
+    backend: nornicdb
+    query_kind: cypher
+    source:
+      file: go/internal/query/code_relationship_story_nornicdb.go
+      symbol: resolveNornicDBRelationshipStoryAnchorProperty
+      line_hint: 48
+    cypher: |
+      MATCH (idAnchor:Function {id: $entity_id})
+      WHERE coalesce(idAnchor.uid, '') <> $entity_id
+      RETURN true AS collision
+      LIMIT 1
+    required_anchors:
+      - label: Function
+        property: id
+    required_schema:
+      - function_legacy_id
+    required_limits:
+      - 1
+    caveats:
+      - This one-time labeled legacy-id check preserves the old uid-to-id fallback when separate nodes collide. The function_legacy_id schema index keeps the check bounded; retained 887-repository proof measured the old label scan at 8.837783 seconds and the warm indexed check at p50 0.000493 seconds / p95 0.000842 seconds with an exact result diff of 0/0. A fresh graph client still showed a 4.296237-second first concurrent story request before steady-state 0.008286-0.011195-second results, so cold-client latency remains separate from the indexed lookup proof.
+    plan:
+      operators:
+        - NodeIndexSeek
+        - Filter
+        - Limit
+      forbidden_operators:
+        - AllNodesScan
+        - CartesianProduct
+
+  - id: QP-CODE-IMPORT-CYCLES
+    domain: code_relationship
+    backend: nornicdb
+    query_kind: cypher
+    source:
+      file: go/internal/query/code_import_dependencies.go
+      symbol: fileImportCyclesCypher
+      line_hint: 280
+    cypher: |
+      MATCH (repo:Repository {id: $repo_id})-[:REPO_CONTAINS]->(source_file:File)-[source_import:IMPORTS]->(target_module:Module)
+      MATCH (repo:Repository)-[:REPO_CONTAINS]->(target_file:File)-[target_import:IMPORTS]->(source_module:Module)
+      WHERE source_file.name = source_module.name + '.py'
+        AND target_file.name = target_module.name + '.py'
+        AND source_file.relative_path < target_file.relative_path
+      RETURN repo.id as repo_id,
+             source_file.relative_path as source_file,
+             target_file.relative_path as target_file
+      ORDER BY source_file.relative_path, target_file.relative_path, source_module.name, target_module.name
+      SKIP $offset
+      LIMIT $limit
+    required_anchors:
+      - label: Repository
+        property: id
+    required_schema:
+      - repository_id
+      - nornicdb_repository_id_lookup
+    required_limits:
+      - $limit
+    requires_order: true
+    caveats:
+      - Repo-scoped file-cycle investigation must seek the indexed repository before expanding either IMPORTS path. Requests scoped only by file or module retain the broader repository-discovery shape because no repo_id exists to anchor.
+    plan:
+      operators:
+        - NodeIndexSeek
+        - Expand
         - Sort
       forbidden_operators:
         - AllNodesScan
@@ -521,6 +648,32 @@ entries:
     requires_order: true
     caveats:
       - Bounded per-verb concrete edge slice, anchored on the verb's source-node label (CALLS/Function representative of the 16-verb family). The ORDER BY targets the indexed source-anchor property (s.uid here, s.<sourceProperty> per verb) so the LIMIT short-circuits the index-ordered scan rather than materializing and sorting the verb's full edge set on a non-indexed coalesce() expression (issue #3429). The secondary coalesce(t.id, t.uid) tie-breaker makes the ordering deterministic when the page boundary falls inside one source node's outgoing edges. Callers over-fetch $limit+1 to flag truncation.
+    plan:
+      operators:
+        - LabelScan
+        - Expand
+      forbidden_operators:
+        - AllNodesScan
+        - CartesianProduct
+        - UnboundedExpand
+
+  - id: QP-RELATIONSHIPS-CATALOG-SOURCE-TOOL
+    domain: relationships
+    backend: nornicdb
+    query_kind: cypher
+    source:
+      file: go/internal/query/relationships_catalog_cypher.go
+      symbol: relationshipSourceToolBreakdownCypher
+      line_hint: 185
+    cypher: |
+      MATCH (s:Repository)-[r:DEPLOYS_FROM]->()
+      WHERE r.source_tool IS NOT NULL
+      RETURN r.source_tool AS source_tool, count(r) AS count
+    required_schema:
+      - repository_id
+      - nornicdb_repository_id_lookup
+    caveats:
+      - This is the Repository/DEPLOYS_FROM representative of the seven fixed source-tool breakdowns. Each query starts from the indexed source label that owns stamped edges; the handler overlaps the seven independent reads while preserving catalog output order. DEPENDS_ON intentionally uses Repository for this aggregate because source_tool is stamped on its Repository-to-Repository evidence edges, while the per-verb drill-down sourceLabel remains Workload.
     plan:
       operators:
         - LabelScan

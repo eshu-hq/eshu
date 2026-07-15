@@ -14,7 +14,10 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query"
 )
 
-const indexedRepositoryInventoryTool = "list_indexed_repositories"
+const (
+	indexedRepositoryInventoryTool = "list_indexed_repositories"
+	indexedRepositoryResultRef     = "eshu://api-result/repositories"
+)
 
 var (
 	indexedRepositoryCountCorePatterns = []*regexp.Regexp{
@@ -129,6 +132,7 @@ func indexedRepositoryCountSummary(total int64) string {
 
 func applyIndexedRepositoryCountResult(packet *query.AnswerPacket, envelope *query.ResponseEnvelope) {
 	packet.Summary = ""
+	packet.ResultRef = ""
 	packet.Result = nil
 	if !packet.Supported || packet.Partial {
 		return
@@ -143,6 +147,7 @@ func applyIndexedRepositoryCountResult(packet *query.AnswerPacket, envelope *que
 		return
 	}
 	packet.Summary = indexedRepositoryCountSummary(total)
+	packet.ResultRef = indexedRepositoryResultRef
 	packet.Result = map[string]any{"total": total}
 }
 
@@ -154,8 +159,15 @@ func finalizeIndexedRepositoryCountAnswer(question string, answer *Answer) bool 
 	if !asksForIndexedRepositoryCount(question) {
 		return false
 	}
-	for _, packet := range answer.Packets {
-		if packet.PrimaryTool != indexedRepositoryInventoryTool || !packet.Supported || packet.Partial {
+	for index, packet := range answer.Packets {
+		if packet.PrimaryTool != indexedRepositoryInventoryTool {
+			continue
+		}
+		// Bind publication to the inventory packet even when it is unavailable.
+		// Otherwise a preceding unrelated supported packet could become the
+		// response fallback while this exact-count path correctly fails bounded.
+		answer.PrimaryPacketIndex = &index
+		if !packet.Supported || packet.Partial {
 			continue
 		}
 		if strings.TrimSpace(packet.Summary) != "" {

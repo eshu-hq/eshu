@@ -28,13 +28,30 @@ export type {
   NetworkAllowRule,
   RouteArea,
   RouteWorkflowSpec,
+  WorkflowEmptyState,
+  WorkflowFollowLink,
   WorkflowField,
+  WorkflowResponseExpectation,
 } from "./consoleRouteCatalog";
 
 export interface RouteWorkflowObservation {
   readonly id: string;
   readonly passed: boolean;
   readonly detail: string;
+  readonly dataShapes?: readonly WorkflowDataShapeObservation[];
+  readonly requests?: readonly WorkflowRequestObservation[];
+}
+
+export interface WorkflowDataShapeObservation {
+  readonly selector: string;
+  readonly visibleCount: number;
+}
+
+export interface WorkflowRequestObservation {
+  readonly method: string;
+  readonly pathname: string;
+  readonly status: number;
+  readonly phase?: "bootstrap" | "route";
 }
 
 // NetworkObservation is one network request the page issued, reduced to the
@@ -113,6 +130,83 @@ export interface AllowedNonOk {
   readonly reason: string;
 }
 
+// NetworkEvaluation is the verdict for one bounded request-owning phase. The
+// bootstrap phase uses this directly; route evaluation reuses the same rules.
+export interface NetworkEvaluation {
+  readonly scope: string;
+  readonly passed: boolean;
+  readonly failures: readonly RouteFailure[];
+  readonly allowedNonOk: readonly AllowedNonOk[];
+}
+
+export interface RouteReportNetworkObservation {
+  readonly pathname: string;
+  readonly method: string;
+  readonly status: number;
+  readonly failureText: string | null;
+}
+
+export interface RouteReportObservation {
+  readonly path: string;
+  readonly durationMs: number;
+  readonly mainContentChars: number;
+  readonly apiQuiet: ApiQuietObservation | null;
+  readonly network: readonly RouteReportNetworkObservation[];
+  readonly networkTruncated: boolean;
+  readonly workflow: RouteWorkflowObservation | null;
+}
+
+export interface NetworkReportObservation {
+  readonly network: readonly RouteReportNetworkObservation[];
+  readonly networkTruncated: boolean;
+}
+
+const maxReportedRequestsPerRoute = 200;
+
+// buildNetworkReportObservation retains bounded, query-free transport proof
+// for request phases that are not owned by a route, such as initial app boot.
+export function buildNetworkReportObservation(
+  network: readonly NetworkObservation[],
+): NetworkReportObservation {
+  return {
+    network: network.slice(0, maxReportedRequestsPerRoute).map((observation) => ({
+      failureText:
+        observation.failureText === null ? null : redactUrlQueries(observation.failureText),
+      method: observation.method,
+      pathname: safePathname(observation.url),
+      status: observation.status,
+    })),
+    networkTruncated: network.length > maxReportedRequestsPerRoute,
+  };
+}
+
+// buildRouteReportObservation retains the bounded request/status and visible
+// data-shape proof used for the verdict. URLs are reduced to pathnames so query
+// values, headers, response bodies, and credentials never enter the artifact.
+export function buildRouteReportObservation(signals: RouteSignals): RouteReportObservation {
+  const networkReport = buildNetworkReportObservation(signals.network);
+  return {
+    apiQuiet: signals.apiQuiet ?? null,
+    durationMs: signals.durationMs,
+    mainContentChars: signals.mainContentChars,
+    ...networkReport,
+    path: signals.route.path,
+    workflow: signals.workflow,
+  };
+}
+
+function safePathname(url: string): string {
+  try {
+    return new URL(url).pathname;
+  } catch {
+    return "invalid-url";
+  }
+}
+
+function redactUrlQueries(value: string): string {
+  return value.replace(/https?:\/\/[^\s)]+/g, (url) => safePathname(url));
+}
+
 // minMainContentChars is the substance threshold. Every real console route —
 // even one showing only an empty/unavailable state — renders well over this
 // many characters of chrome plus status copy. A blank crash leaves the main
@@ -140,6 +234,43 @@ function matchAllowRule(observation: NetworkObservation, rule: NetworkAllowRule)
   );
 }
 
+// evaluateNetworkObservations applies the exact route network policy to any
+// request-owning phase. Transport failures are never allow-listed.
+export function evaluateNetworkObservations(
+  scope: string,
+  network: readonly NetworkObservation[],
+  allowList: readonly NetworkAllowRule[] = defaultNetworkAllowList,
+): NetworkEvaluation {
+  const failures: RouteFailure[] = [];
+  const allowedNonOk: AllowedNonOk[] = [];
+
+  for (const observation of network) {
+    if (isOkStatus(observation.status) && observation.failureText === null) {
+      continue;
+    }
+    const rule = allowList.find((candidate) => matchAllowRule(observation, candidate));
+    if (rule && observation.failureText === null) {
+      allowedNonOk.push({
+        url: safePathname(observation.url),
+        method: observation.method,
+        status: observation.status,
+        reason: rule.reason,
+      });
+      continue;
+    }
+    const failureSuffix =
+      observation.failureText === null
+        ? `status ${observation.status}`
+        : `network failure ${redactUrlQueries(observation.failureText)}`;
+    failures.push({
+      code: "unexpected_network",
+      detail: `${scope} issued an unexpected request: ${observation.method} ${safePathname(observation.url)} (${failureSuffix})`,
+    });
+  }
+
+  return { scope, passed: failures.length === 0, failures, allowedNonOk };
+}
+
 // evaluateRoute applies every gate rule to one route's captured signals and
 // returns a structured pass/fail result. It never throws; an empty failures
 // array means the route passed.
@@ -148,7 +279,6 @@ export function evaluateRoute(
   allowList: readonly NetworkAllowRule[] = defaultNetworkAllowList,
 ): RouteResult {
   const failures: RouteFailure[] = [];
-  const allowedNonOk: AllowedNonOk[] = [];
 
   if (!signals.connected) {
     failures.push({
@@ -181,33 +311,16 @@ export function evaluateRoute(
   for (const message of signals.consoleErrors) {
     failures.push({
       code: "console_error",
-      detail: `route ${signals.route.path} logged a browser console error: ${message}`,
+      detail: `route ${signals.route.path} logged a browser console error: ${redactUrlQueries(message)}`,
     });
   }
 
-  for (const observation of signals.network) {
-    if (isOkStatus(observation.status) && observation.failureText === null) {
-      continue;
-    }
-    const rule = allowList.find((candidate) => matchAllowRule(observation, candidate));
-    if (rule && observation.failureText === null) {
-      allowedNonOk.push({
-        url: observation.url,
-        method: observation.method,
-        status: observation.status,
-        reason: rule.reason,
-      });
-      continue;
-    }
-    const failureSuffix =
-      observation.failureText === null
-        ? `status ${observation.status}`
-        : `network failure ${observation.failureText}`;
-    failures.push({
-      code: "unexpected_network",
-      detail: `route ${signals.route.path} issued an unexpected request: ${observation.method} ${observation.url} (${failureSuffix})`,
-    });
-  }
+  const network = evaluateNetworkObservations(
+    `route ${signals.route.path}`,
+    signals.network,
+    allowList,
+  );
+  failures.push(...network.failures);
 
   if (signals.route.workflow) {
     const workflow = signals.workflow;
@@ -227,7 +340,7 @@ export function evaluateRoute(
     passed: failures.length === 0,
     durationMs: signals.durationMs,
     failures,
-    allowedNonOk,
+    allowedNonOk: network.allowedNonOk,
   };
 }
 
@@ -237,18 +350,31 @@ export interface GateSummary {
   readonly total: number;
   readonly passedCount: number;
   readonly failedCount: number;
+  readonly preflightPassed: boolean;
+  readonly preflightFailureCount: number;
+  readonly preflight: readonly NetworkEvaluation[];
   readonly results: readonly RouteResult[];
 }
 
 // summarizeGate folds route results into a single verdict. The gate passes only
 // when every route passed; there is no partial-pass fallback.
-export function summarizeGate(results: readonly RouteResult[]): GateSummary {
+export function summarizeGate(
+  results: readonly RouteResult[],
+  preflight: readonly NetworkEvaluation[] = [],
+): GateSummary {
   const passedCount = results.filter((result) => result.passed).length;
+  const preflightFailureCount = preflight.reduce(
+    (count, result) => count + result.failures.length,
+    0,
+  );
   return {
-    passed: results.length > 0 && passedCount === results.length,
+    passed: results.length > 0 && passedCount === results.length && preflightFailureCount === 0,
     total: results.length,
     passedCount,
     failedCount: results.length - passedCount,
+    preflightPassed: preflightFailureCount === 0,
+    preflightFailureCount,
+    preflight,
     results,
   };
 }

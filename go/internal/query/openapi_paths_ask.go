@@ -68,6 +68,14 @@ const openAPIPathsAsk = `
                       "enum": ["deterministic", "derived", "fallback", "semantic_observation", "code_hint", "unsupported"],
                       "description": "Truth classification from the primary AnswerPacket."
                     },
+                    "result_ref": {
+                      "type": "string",
+                      "description": "Addressable reference to the primary AnswerPacket's canonical API result. Exact indexed-repository counts use eshu://api-result/repositories."
+                    },
+                    "result": {
+                      "type": "object",
+                      "description": "Bounded embedded projection of the canonical result. Exact indexed-repository counts expose the authoritative total here rather than the current page count."
+                    },
                     "evidence_handles": {
                       "type": "array",
                       "description": "Addressable evidence handles from the primary AnswerPacket.",

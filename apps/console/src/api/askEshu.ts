@@ -3,13 +3,13 @@
 // The endpoint is content-negotiated on a single route:
 //   Accept: text/event-stream  -> SSE: trace* , answer , error , done
 //   Accept: application/json    -> 200 answer JSON (sync)
-// It requires a shared/admin token (scoped tokens receive 403) and is
-// default-off (503 with {state:"unavailable", reason} when ESHU_ASK_ENABLED is
-// unset or no provider profile is configured). This module speaks that contract
-// over raw fetch so the console can stream reasoning steps live, fall back to a
-// single synchronous request, and surface the disabled/forbidden states
-// cleanly. It never renders or logs raw provider bodies — only the bounded
-// fields below. See docs/public/reference/http-api.md and
+// Auth accepts shared/admin tokens, browser sessions, and scoped tokens with
+// ask_search feature/data-class grants. Every inner scoped call is re-authorized
+// with the caller's identity and route scope. The endpoint is default-off (503
+// with {state:"unavailable", reason} when ESHU_ASK_ENABLED is unset or no
+// provider profile is configured). This client streams reasoning steps or falls
+// back to one synchronous request, surfaces disabled/forbidden states, and never
+// renders or logs raw provider bodies. See docs/public/reference/http-api.md and
 // go/internal/query/openapi_paths_ask.go (the source of truth for the shape).
 
 import {
@@ -81,6 +81,10 @@ export interface AskAnswer {
   readonly answer_prose: string;
   readonly artifacts: readonly AskArtifact[];
   readonly truth_class: AskTruthClass;
+  /** Canonical API result backing the primary packet, when the packet exposes one. */
+  readonly result_ref?: string;
+  /** Bounded embedded projection of the canonical result. */
+  readonly result?: Readonly<Record<string, unknown>>;
   readonly query_trace: readonly AskTraceStep[];
   readonly partial: boolean;
   readonly limitations: readonly string[];

@@ -125,12 +125,17 @@ itself is type-checked Docker-free as part of `npm run console:typecheck` (which
 chains `console:e2e:typecheck`).
 
 The gate seeds `localStorage` with `{ mode: "private", apiBaseUrl: "/eshu-api/" }`
-before the app boots, starts the console Vite dev server (which owns the
-`/eshu-api` proxy) with `VITE_ESHU_API_KEY` so the console authenticates, walks
-the routes enumerated from the router, and writes durable proof to the
-gitignored `e2e-artifacts/` directory (per-route screenshots and a JSON report).
-It never falls back to mocks: a refused proxy, a demo banner, a console error,
-or any unexpected non-2xx fails the run loudly.
+before the app boots and starts the console Vite dev server, which owns the
+`/eshu-api` proxy. By default it retrieves the one-time initial credential,
+claims a fresh identity surface through the real setup wizard, and runs every
+catalogued route and action with the resulting HttpOnly browser-session cookie.
+The retained facts and graph stay unchanged; operators attach an isolated,
+empty auth schema/database to the retained corpus API so the wizard cannot
+overwrite a long-lived user's identity. Authoritative comparator reads use the
+same browser session, not a hidden bearer key. The runner writes durable proof
+to the gitignored `e2e-artifacts/` directory (per-route screenshots and a JSON
+report). It never falls back to mocks: a refused proxy, a demo banner, a console
+error, or any unexpected non-2xx fails the run loudly.
 
 Playwright trace capture is default-off because authenticated traces can retain
 bearer request headers. For a short-lived, locally protected debugging artifact,
@@ -141,60 +146,83 @@ or commit it.
 ### Exact local command sequence
 
 ```bash
-# 1. From the repo root, bring up (or reuse) the local stack. The gitignored
-#    env file pins a local API key and shifts host ports so the gate can coexist
-#    with another stack on the default ports. Create it once (see the example in
-#    e2e-artifacts/.env.console-e2e committed to your local machine only):
-#      ESHU_API_KEY=<local-only-key>
-#      ESHU_HTTP_PORT=9080
-#      ESHU_MCP_PORT=9081
-#      ESHU_POSTGRES_PORT=15433
-#      NEO4J_HTTP_PORT=7475
-#      NEO4J_BOLT_PORT=7688
-#      ESHU_API_METRICS_PORT=19474   # plus the other *_METRICS_PORT shifts
-#      ESHU_FILESYSTEM_HOST_ROOT=./tests/fixtures/ecosystems
-docker compose -p eshu-3326-e2e --env-file e2e-artifacts/.env.console-e2e \
-  -f docker-compose.yaml up --build -d
-
-# 2. Wait for the stack to be ready (poll health/readiness; do not sleep blindly).
-#    The npm script also probes /healthz and /readyz before launching the browser.
-for ep in /healthz /readyz; do
-  until [ "$(curl -sS -m3 -o /dev/null -w '%{http_code}' http://127.0.0.1:9080$ep)" = "200" ]; do
-    sleep 2
-  done
-done
-
-# 3. Install deps and the browser, then run the standard gates plus the live gate.
+# 1. Keep the retained Compose project running, then install browser dependencies.
 npm ci
 npx playwright install chromium
-npm run console:typecheck
-npm run console:test          # includes the route-assertion evaluator unit tests
-npm run console:build
-npm run console:e2e           # the live browser gate; exits non-zero on any failure
 
-# 4. Tear the stack down when finished.
-docker compose -p eshu-3326-e2e --env-file e2e-artifacts/.env.console-e2e \
-  -f docker-compose.yaml down -v
+# 2. Run the retained-corpus lifecycle helper. It builds an API image from the
+#    exact current Dockerfile/Go/SDK manifest, creates a unique empty auth schema,
+#    starts one API sidecar on the retained Postgres/NornicDB stores, drives the
+#    wizard and all routes, verifies public identity rows were untouched, then
+#    removes only its sidecar and proof schema.
+ESHU_E2E_RETAINED_PROJECT=eshu \
+ESHU_E2E_COMPOSE_ENV_FILE=e2e-artifacts/.env.console-e2e \
+ESHU_E2E_RETAINED_API_PORT=18086 \
+ESHU_E2E_WIZARD_NEW_PASSWORD="$LOCAL_PROOF_PASSWORD" \
+ESHU_E2E_CORPUS_IDENTITY="$CORPUS_IDENTITY" \
+ESHU_E2E_CORPUS_REPOSITORY_COUNT="$CORPUS_REPOSITORY_COUNT" \
+ESHU_E2E_INCIDENT_ID="$INCIDENT_ID" \
+ESHU_E2E_SERVICE_NAME="$SERVICE_NAME" \
+ESHU_E2E_SECRETS_SCOPE_ID="$SECRETS_SCOPE_ID" \
+ESHU_E2E_CLOUD_SCOPE_ID="$CLOUD_SCOPE_ID" \
+ESHU_E2E_AWS_SCOPE_ID="$AWS_SCOPE_ID" \
+ESHU_E2E_SEMANTIC_REPOSITORY_ID="$SEMANTIC_REPOSITORY_ID" \
+ESHU_E2E_SEMANTIC_QUERY="$SEMANTIC_QUERY" \
+scripts/run-console-retained-e2e.sh
+
+# Set ESHU_KEEP_RETAINED_PROOF=true only when an operator needs the isolated
+# sidecar/schema left running for hands-on evidence. The retained stack itself
+# is never stopped by this helper.
 ```
 
-If your stack runs on the default ports (`8080`/`8081`) with a known API key,
-omit the port overrides and set `ESHU_E2E_API_KEY` (or `ESHU_API_KEY`) and
-`ESHU_E2E_API_BASE` for the gate instead. The gate does not manage Docker; the
-stack lifecycle stays explicit so a long-lived stack can be reused across runs.
+Use a distinct `ESHU_E2E_RETAINED_PROOF_ID` and API port for concurrent proof
+runs. The helper validates the identifier, binds the sidecar and credential CLI
+to the same schema-first `search_path`, and refuses to reuse an existing proof
+container. Its cleanup never acts on the retained Compose project or volumes.
 
-The runner reads `ESHU_E2E_API_KEY`/`ESHU_API_KEY` and `ESHU_E2E_API_BASE` from
-the environment (the wrapper sources `e2e-artifacts/.env.console-e2e`); the key
-is never hard-coded. Artifacts in `e2e-artifacts/` are local proof only and are
-gitignored — never commit screenshots, traces, or the local key.
+The runner reads its browser-session inputs and `ESHU_E2E_API_BASE` from the
+process environment. Compose env files are Compose input and are never sourced
+as shell programs; export the small required browser-runner input set explicitly.
+`ESHU_E2E_AUTH_MODE=bearer` plus `ESHU_E2E_API_KEY` remains available only for
+bounded operator diagnostics; that mode excludes Profile/Admin and does not
+satisfy the retained browser-session acceptance gate. Credentials are never
+hard-coded. Artifacts in `e2e-artifacts/` are local proof only and are
+gitignored — never commit screenshots, traces, credentials, or local keys.
+
+Every durable report also requires a non-secret proof manifest supplied through
+`ESHU_E2E_PROOF_ID`, `ESHU_E2E_SOURCE_HASH`, `ESHU_E2E_RUNNER_HASH`,
+`ESHU_E2E_API_IMAGE_DIGEST`, `ESHU_E2E_API_VERSION`,
+`ESHU_E2E_NORNIC_IMAGE_DIGEST`, `ESHU_E2E_NORNIC_VERSION`,
+`ESHU_E2E_CORPUS_IDENTITY`, and `ESHU_E2E_CORPUS_REPOSITORY_COUNT`. The runner
+fails closed when any identity is absent or malformed and never writes keys,
+passwords, or encryption secrets into the report. It also requires the declared
+corpus repository count to equal the same-run authoritative repository total;
+a stale or mislabeled corpus manifest fails the gate.
+
+Retained-corpus runs also require real, local-only anchors for workflows that
+cannot discover a bounded target through the public UI: `ESHU_E2E_INCIDENT_ID`,
+`ESHU_E2E_SERVICE_NAME`, `ESHU_E2E_SECRETS_SCOPE_ID`, and
+`ESHU_E2E_CLOUD_SCOPE_ID`. The Cloud Drift four-surface proof additionally
+requires a real retained AWS scope in `ESHU_E2E_AWS_SCOPE_ID`. Semantic Search
+requires a repository and query that produce retained results in
+`ESHU_E2E_SEMANTIC_REPOSITORY_ID` and `ESHU_E2E_SEMANTIC_QUERY`; a successful
+empty response does not satisfy that workflow. Do not commit their values. The
+runner fails closed
+when an anchor is missing, when a parameterized route cannot be reached from a
+real retained link, or when a route renders neither its authoritative data
+shape nor its exact documented empty state. Vulnerability detail coverage
+therefore requires a real advisory collector result; a fabricated advisory ID
+or generic page shell does not satisfy the gate.
 
 ## Browser-Auth E2E Gate
 
-`npm run console:e2e:auth` is a separate browser gate from the one above: it
-proves the FIRST-RUN auth flow itself (issue #4971 phase 2, epic #4962
+`npm run console:e2e:auth` is the exhaustive identity-policy companion to the
+retained browser-session route gate above. It proves the FIRST-RUN auth flow
+itself (issue #4971 phase 2, epic #4962
 closer) — the setup wizard, session-cookie login, and the `require_sso`
 guardrail — rather than route rendering against an already-provisioned
-corpus stack. It authenticates through a real browser session, never an API
-key, because that is the only way to exercise the flow under test.
+corpus stack. It additionally exercises OIDC, SSO guardrails, MFA, and leakage
+contracts against its own empty stack.
 
 Unlike `console:e2e`, this gate owns its own Compose stack lifecycle end to
 end (`scripts/run-auth-e2e.sh`): it always brings up a fresh

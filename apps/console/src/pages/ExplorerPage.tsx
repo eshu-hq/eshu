@@ -61,20 +61,48 @@ export function ExplorerPage({
   // A manual toggle pins the choice and disables auto-selection. See issue #1725.
   const modePinnedRef = useRef(false);
   const latestRequestRef = useRef(0);
+  const mountedRef = useRef(false);
+  const activeClientRef = useRef(client);
+  const previousClientRef = useRef(client);
+  activeClientRef.current = client;
 
-  useEffect(
-    () => () => {
-      latestRequestRef.current += 1;
-    },
-    [],
-  );
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (previousClientRef.current === client) return;
+    previousClientRef.current = client;
+    latestRequestRef.current += 1;
+    seededRef.current = false;
+    setLiveGraph(null);
+    setSel(undefined);
+    setEvidence(null);
+    setBusy(false);
+    setErr("");
+    setHint("");
+  }, [client]);
 
   function pickMode(m: "direct" | "neighborhood"): void {
     modePinnedRef.current = true;
     setMode(m);
   }
 
-  const base = live ? (liveGraph ?? { nodes: [], edges: [] }) : model.graph;
+  function requestIsCurrent(requestID: number, requestClient: EshuApiClient): boolean {
+    return (
+      mountedRef.current &&
+      requestID === latestRequestRef.current &&
+      activeClientRef.current === requestClient
+    );
+  }
+
+  const base = useMemo(
+    () => (live ? (liveGraph ?? { nodes: [], edges: [] }) : model.graph),
+    [live, liveGraph, model.graph],
+  );
 
   const graph = useMemo(() => {
     const edges = base.edges.filter((e) => on[e.layer]);
@@ -95,6 +123,7 @@ export function ExplorerPage({
 
   async function expand(name: string, forcedMode?: "direct" | "neighborhood"): Promise<void> {
     if (!client) return;
+    const requestClient = client;
     const requestID = latestRequestRef.current + 1;
     latestRequestRef.current = requestID;
     setBusy(true);
@@ -107,7 +136,7 @@ export function ExplorerPage({
       // (which has data) instead of Direct's code-only relationships. A toggle
       // click passes forcedMode so the new view applies before state settles.
       const resolved = await resolveEntityHandle(client, name);
-      if (requestID !== latestRequestRef.current) return;
+      if (!requestIsCurrent(requestID, requestClient)) return;
       if (resolved.id === "") {
         setLiveGraph({ nodes: [], edges: [] });
         setSel(undefined);
@@ -121,7 +150,7 @@ export function ExplorerPage({
         effectiveMode === "neighborhood"
           ? await loadEntityStoryGraph(client, resolved.name, resolved.repoId)
           : await loadEntityGraph(client, resolved.name);
-      if (requestID !== latestRequestRef.current) return;
+      if (!requestIsCurrent(requestID, requestClient)) return;
       setLiveGraph(g);
       setSel(g.nodes.find((n) => n.hero));
       setEvidence(null);
@@ -132,13 +161,13 @@ export function ExplorerPage({
         setHint("No direct code relationships for this entity — try Neighborhood.");
       }
     } catch (e) {
-      if (requestID !== latestRequestRef.current) return;
+      if (!requestIsCurrent(requestID, requestClient)) return;
       setLiveGraph(null);
       setSel(undefined);
       setEvidence(null);
       setErr(e instanceof Error ? e.message : "Explorer data is unavailable");
     } finally {
-      if (requestID === latestRequestRef.current) setBusy(false);
+      if (requestIsCurrent(requestID, requestClient)) setBusy(false);
     }
   }
 
@@ -156,6 +185,7 @@ export function ExplorerPage({
 
   async function centerOnNode(node: GraphNode): Promise<void> {
     if (!client || node.id === currentCenterId(base)) return;
+    const requestClient = client;
     const requestID = latestRequestRef.current + 1;
     latestRequestRef.current = requestID;
     const nextMode = modeForNode(node);
@@ -170,7 +200,7 @@ export function ExplorerPage({
         nextMode === "neighborhood"
           ? await loadEntityStoryGraph(client, handle, repoIDForNode(node))
           : await loadEntityGraph(client, handle);
-      if (requestID !== latestRequestRef.current) return;
+      if (!requestIsCurrent(requestID, requestClient)) return;
       setLiveGraph(g);
       setSel(g.nodes.find((n) => n.hero) ?? node);
       setEvidence(null);
@@ -178,13 +208,13 @@ export function ExplorerPage({
         setHint("No direct code relationships for this entity — try Neighborhood.");
       }
     } catch (e) {
-      if (requestID !== latestRequestRef.current) return;
+      if (!requestIsCurrent(requestID, requestClient)) return;
       setLiveGraph(null);
       setSel(undefined);
       setEvidence(null);
       setErr(e instanceof Error ? e.message : "failed");
     } finally {
-      if (requestID === latestRequestRef.current) setBusy(false);
+      if (requestIsCurrent(requestID, requestClient)) setBusy(false);
     }
   }
 
@@ -201,7 +231,7 @@ export function ExplorerPage({
     // expand is stable for a given client/mode; intentionally only re-run when the
     // deep-link param or live state changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [defaultQuery, searchParams, live, model]);
+  }, [client, defaultQuery, searchParams, live, model]);
 
   return (
     <div className="page" style={{ maxWidth: "none" }}>

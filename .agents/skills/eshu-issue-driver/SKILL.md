@@ -174,8 +174,8 @@ current turn, stop and ask — do not self-approve and proceed.
    `git status --short` is clean, and inspect
    `git diff --stat origin/main..HEAD` for unrelated reversions or sibling-PR
    rollback.
-5. **Review gate.** Run `eshu-code-review` on the rebased final diff before
-   push, PR creation or update, and merge-readiness. Prefer separate-context
+5. **Preliminary review gate.** Run `eshu-code-review` on the rebased final diff
+   after focused proof and before `make pre-pr`. Prefer separate-context
    reviewers in PARALLEL when the harness permits delegation; otherwise run the
    skill as an explicit self-review in the current agent. Either mode must be
    prompted to FIND defects (default to reject, not approve) and must include:
@@ -187,23 +187,32 @@ current turn, stop and ask — do not self-approve and proceed.
    - generated-artifact, docs, private-data, and verification-evidence scan,
    - follow-on issue routing for defects outside the PR scope.
 
-   Proceed only when **P0=0 and P1=0 with re-review proof** and every P2 is
-   fixed inline or linked to a tracked repository issue. In self-review mode,
-   explicitly say it was self-review mode and list the evidence inspected.
-6. Push the reviewed rebased head.
+   Do not run `make pre-pr` if the verdict contains any finding. Fix every P0,
+   P1, and P2, rerun affected focused proof, and repeat the full review until
+   **P0=0, P1=0, and P2=0**. In self-review mode, explicitly say it was
+   self-review mode and list the evidence inspected.
+6. **Promotion gate.** Once the preliminary review is clean and the branch is
+   otherwise ready for its intended push, run `make pre-pr` exactly once. Do
+   not spend its CPU cost as an early discovery loop. Then run a final full
+   `eshu-code-review` against the exact post-preflight diff. If preflight changes
+   generated or tracked files, or the final review finds anything, fix the
+   issue, rerun affected focused proof, and repeat from the preliminary review.
+   Make no edits between the final clean review and push; any diff change
+   invalidates the verdict.
+7. Push the reviewed rebased head.
    Use `git push --force-with-lease` when rebasing an already-pushed branch.
-7. Open or update the PR only after the rebased head is on GitHub. Use a
+8. Open or update the PR only after the rebased head is on GitHub. Use a
    humanized description and update affected docs in the same PR. Immediately
    check `gh pr view <n> --json mergeable,statusCheckRollup` and fix conflicts
    before waiting on CI.
-8. **NO MERGE** until the external bot reviews (codex / Copilot / Cursor / Claude)
+9. **NO MERGE** until the external bot reviews (codex / Copilot / Cursor / Claude)
    AND the review gate above both land AND all their findings resolve. CI green
    is necessary, not sufficient. During CI waiting, poll mergeability and review
    threads about every 60 seconds. If `origin/main` advances, mergeability
    changes, or the PR head changes for any reason, rebase on `origin/main`,
    rerun affected gates, rerun `eshu-code-review` on the new base/head, resolve
    any findings, push the reviewed head, and then continue the CI wait.
-9. **When the goal is "drive to merged-closed", execute the merge.** Do not
+10. **When the goal is "drive to merged-closed", execute the merge.** Do not
    defer the merge back to the user when all gates are green and all review
    threads are resolved. Use `gh pr merge <n> --repo eshu-hq/eshu --squash
    --delete-branch` and confirm the returned state is `MERGED`. Deferring is
@@ -233,8 +242,8 @@ to the originating issue.
   CI-wait loop polled mergeability about every 60 seconds until merge.
 - `gh api repos/eshu-hq/eshu/pulls/<n>/comments` shows zero unresolved
   review/bot threads (codex / Copilot / Cursor / Claude / human).
-- Latest `eshu-code-review` verdict shows **P0=0, P1=0, and P2=0 or every P2
-  fixed inline or linked to a tracked repository issue** with re-review proof,
+- Latest `eshu-code-review` verdict shows **P0=0, P1=0, and P2=0** with
+  re-review proof,
   the selected proof tier, all required passes including hostile read,
   cross-pass contradiction check, generated-artifact/doc/private-data scan,
   verification evidence, and follow-on routing for any out-of-scope defect. If

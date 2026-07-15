@@ -1,11 +1,201 @@
 # Dashboard Correctness and Bounded-Read Evidence
 
-This note records the focused local proof for issues #5244, #5245, #5248,
-#5250, #5251, and #5253. Ask Eshu's exact repository-count contract for #5246
+This note records the focused local proof for issues #5240, #5242, #5244,
+#5245, #5248, #5249, #5250, #5251, and #5253. Ask Eshu's exact
+repository-count contract for #5246
 lives with its owning package in
 [`go/internal/ask/engine/README.md`](../../../go/internal/ask/engine/README.md#exact-indexed-repository-counts).
-This note does not claim that #5240 is fixed. Final live-console proof remains a
-separate gate.
+The browser-session proof for #5240 is intentionally limited to the supported
+local and hosted-single-tenant governance modes. Hosted multi-tenant and unknown
+governance modes remain fail-closed; this change does not claim cross-tenant
+graph isolation.
+
+Admin audit entries for #5242 now receive stable event keys derived from their
+record identity instead of colliding on the action label. The focused browser
+session route-policy and audit-key tests cover duplicate actions, owner access,
+and the fail-closed hosted governance modes. Issue #5249 is covered by the
+state-specific live route probes in the final browser gate: a page shell is not
+accepted as proof that its requested data populated.
+
+## Final live-console and corpus proof
+
+Performance Evidence: the corrected retained-stack browser run claimed its
+isolated identity surface through the normal setup wizard, then executed all 39
+catalogued route/action workflows with that same owner browser-session cookie.
+All 39 passed in 113.706 aggregate route seconds. Code Graph passed in 12.829
+seconds with zero console errors, Service Catalog in 10.804 seconds,
+Vulnerabilities in 8.456 seconds, Repositories in 6.210 seconds, Ask Eshu in
+5.745 seconds, Relationships in 4.337 seconds, Replatforming in 3.660 seconds,
+Dead Code in 3.098 seconds, Cloud Drift in 2.698 seconds, Semantic Search in
+2.407 seconds, and Profile/Admin in 1.572/2.219 seconds. The runner records
+route duration but does not enforce a portable
+absolute per-route budget; its fixed settle/quiet windows, workflow actions,
+and screenshots mean route duration is not API latency.
+
+The first correction run exposed two bootstrap requests aborted when the
+runner reset the wizard's still-settling dashboard. The runner now installs
+request ownership before setup and refuses to start retained route proof until
+the wizard dashboard is quiet. The rerun completed 261 bootstrap requests with
+zero aborted or unexpected requests. The durable report retains the first 200
+query-free request observations and marks the bootstrap as truncated.
+
+The final API used immutable image id
+`sha256:c4dc6aaefd5329d2fe8fd2085f7d55c15c90803dc0bc98e36300a96e77337736`.
+Its binary reports
+`proof-245ced8973032ce993c4b352331e2479977041e0c1f4c61f332d72106d1e7e99`,
+which is the SHA-256 manifest of the exact Dockerfile, Go, and local Go SDK
+inputs copied by the image build. The corrected browser/runner input manifest
+was `6a249db6089c99fa4175f01edce419771930ed4727de48c7ea47d9fe63e0fdc2`.
+The sidecar read the unchanged retained Postgres volume and NornicDB image
+`timothyswt/nornicdb-cpu-bge:v1.1.11@sha256:51b6174ae65e4ce54a158ac2f9eace7d36a1971545824d22add0fe06d94c1090`.
+The proof manifest bound that runtime to corpus identity
+`44f0409252bb99550817116fcb5bf3f5f664fea0f53fcc491f687c768088f307`:
+887 repositories, 961,472 graph nodes, 1,180,403 graph edges, and 7,350,389
+Postgres facts at proof start. The runner independently read the authoritative
+repository inventory and failed closed unless its total equaled the declared
+887 repositories.
+The original retained API remained running on its prior image throughout; no
+database, graph, collector, reducer, or projector was restarted.
+
+The identity and sidecar proof used these local-only commands (the operator
+environment and retained anchor values were passed in memory, never printed or
+committed):
+
+```bash
+API_INPUT_HASH="$({ printf '%s\0' Dockerfile; \
+  git ls-files -z -co --exclude-standard -- go sdk/go; } | sort -z | \
+  xargs -0 shasum -a 256 | shasum -a 256 | awk '{print $1}')"
+RUNNER_INPUT_HASH="$({ git ls-files -z -co --exclude-standard -- \
+  apps/console scripts/run-console-live-e2e.sh \
+  scripts/run-console-retained-e2e.sh scripts/console-live-e2e-runtime.mjs; } | \
+  sort -z | xargs -0 shasum -a 256 | shasum -a 256 | awk '{print $1}')"
+ESHU_KEEP_RETAINED_PROOF=true scripts/run-console-retained-e2e.sh
+docker exec eshu-dashboard-session-final5240d-20260715170151 eshu-api --version
+```
+
+The rebuilt MCP server advertised 159 tools. A bounded
+`list_indexed_repositories` call with `limit=1` completed in 1.463704 seconds,
+returned one of 887 repositories with `truncated=true`, and carried
+an exact, fresh, production structured envelope. The exact Ask prompt returned
+the same authorized total through the browser API workflow in 5.745 seconds and
+the standalone MCP transport in 3.572605 seconds; both paths returned deterministic
+truth, `{total: 887}`, and
+`eshu://api-result/repositories`. The MCP image was
+`sha256:c4dc6aaefd5329d2fe8fd2085f7d55c15c90803dc0bc98e36300a96e77337736`
+and reported the same
+`proof-245ced8973032ce993c4b352331e2479977041e0c1f4c61f332d72106d1e7e99`
+binary manifest as the API sidecar.
+API and MCP remained healthy after the run; Postgres, NornicDB, collectors,
+reducer, and projector were not restarted for the read-serving rollout.
+
+No-Regression Evidence: `scripts/verify-golden-corpus-gate.sh` passed 418
+assertions with zero required failures and zero advisory warnings. The
+20-repository pipeline completed in 35 seconds, including a 7-second first
+drain and the API/MCP truth checks. The console unit/component suite passed all
+1,249 tests across 196 files; strict application/E2E TypeScript compilation,
+the production console build, and all 73 bundle budgets passed.
+
+No-Observability-Change: the browser authorization and dashboard presentation
+fixes retain the existing API, MCP, graph-query, and auth telemetry contracts.
+The default live gate now reports one browser-session verdict over all 39
+routes. Bearer mode remains an explicit diagnostic-only option and reports its
+Profile/Admin exclusions rather than counting them as passes. The
+semantic-scope Postgres instrumentation added elsewhere in this change is
+documented in its owning evidence note rather than hidden under this marker.
+
+The final retained browser gate ran with explicit real-data anchors and no
+checked-in identifiers or credentials:
+
+```bash
+ESHU_CONSOLE_E2E_ENV_FILE=/dev/null \
+ESHU_E2E_AUTH_MODE=browser_session \
+ESHU_E2E_API_BASE="$RETAINED_SESSION_API_BASE" \
+ESHU_E2E_POSTGRES_DSN="$ISOLATED_AUTH_RETAINED_DATA_DSN" \
+ESHU_AUTH_SECRET_ENC_KEY="$AUTH_SECRET_ENC_KEY" \
+ESHU_E2E_WIZARD_NEW_PASSWORD="$LOCAL_PROOF_PASSWORD" \
+ESHU_E2E_INCIDENT_ID="$INCIDENT_ID" \
+ESHU_E2E_SERVICE_NAME="$SERVICE_NAME" \
+ESHU_E2E_SECRETS_SCOPE_ID="$SECRETS_SCOPE_ID" \
+ESHU_E2E_CLOUD_SCOPE_ID="$CLOUD_SCOPE_ID" \
+ESHU_E2E_AWS_SCOPE_ID="$AWS_SCOPE_ID" \
+ESHU_E2E_SEMANTIC_REPOSITORY_ID="$SEMANTIC_REPOSITORY_ID" \
+ESHU_E2E_SEMANTIC_QUERY="$SEMANTIC_QUERY" \
+npm run console:e2e
+```
+
+## Repository workload service-selector truth
+
+Accuracy Evidence: repository story responses already expose workload names at
+`deployment_overview.workloads`. The console now consumes that production wire
+field instead of relying on a fabricated top-level `service_identity`. A
+production-shaped regression proves a real workload name requests its service
+story and populates repository service context.
+
+The first final-source retained browser run then exposed an additional real
+shape: a repository can carry an internal reducer workload identity beginning
+with `reducer_` and containing `_workload_identity_workload_`. Treating that
+opaque identity as a service selector produced four HTTP 404 responses. The
+exact retained pattern failed its regression before the classifier correction.
+After the correction, the final repository workflow completed in 6.210 seconds with
+53 bounded requests, zero console/network errors, a three-row source tree, and
+response-backed workspace truth. Human workload names still load service story
+context; only reducer-owned opaque identities are rejected.
+
+No-Observability-Change: this changes only console selection of an existing
+repository-story field. It adds no API contract, backend read, telemetry,
+persistence, queue, reducer, or graph-write behavior.
+
+## Changed Since retained-baseline selection
+
+No-Regression Evidence: the empty Changed Since route no longer searches only
+the newest global lifecycle page. It checks exact repository lifecycle scopes,
+two rows at a time, and stops at the first active/prior pair. Discovery is
+capped at 25 repositories and continues past stale catalog entries without
+inventing a baseline. Superseded and completed generations are preferred; a
+failed predecessor remains a valid exact fact-record baseline when it is the
+only retained predecessor, and its lifecycle status remains visible to the
+operator.
+
+The first live proof exposed the real failure: `latest_failure` is an object in
+the generation-lifecycle wire contract, while the console adapter attempted to
+parse it as a string. Every repository with a retained failed generation was
+therefore rejected before comparison. The adapter now extracts the failure
+message (or class when no message exists). The focused regression and selection
+suite passed 27 tests. Against the retained 887-repository catalog, the helper
+selected an exact active/prior pair in 17 ms. The changed-since read completed
+in 18.2 ms with 16 changed and 6 unchanged facts; the final browser workflow
+completed in 2.235 seconds with seven requests and zero console/API errors. The
+prior retained run issued 12 requests because React Strict Mode created two
+five-request discovery owners; the final component keeps one owner and removes
+that duplicate five-request batch without reducing discovery concurrency.
+
+The default discovery now probes at most five repositories concurrently while
+preserving catalog-order selection within each batch. One 15-second budget
+cancels every in-flight lifecycle request, and page unmount aborts the same
+request signal. The worst case is therefore one bounded 15-second discovery,
+not 25 sequential 15-second waits (up to 375 seconds). Tests cover concurrency,
+the total deadline, caller cancellation, request-signal propagation, and
+fractional concurrency below one. React Strict Mode replay no longer aborts
+five valid lifecycle reads mid-flight or starts a second owner; a real scope
+change or unmount still cancels every stale outstanding request. Production
+component tests prove one Strict Mode owner, at most five concurrent probes,
+at most 25 total probes, and immediate stale-owner cancellation.
+
+```bash
+./node_modules/.bin/vitest --config apps/console/vite.config.ts run \
+  src/api/changedSince.test.ts \
+  src/console/defaultEntity.test.ts \
+  src/pages/changedSinceDefault.test.ts \
+  src/pages/ChangedSincePage.test.tsx \
+  src/pages/ChangedSincePage.lifecycle.test.tsx \
+  src/api/client.test.ts \
+  src/api/suggestedQuestions.test.ts \
+  src/pages/DashboardPageSuggestedQuestions.test.tsx
+```
+
+No-Observability-Change: this corrects bounded lifecycle parsing and default
+selection without changing the generation or changed-since API contracts,
+telemetry, persistence, queue behavior, or reducer concurrency.
 
 ## Incoming NornicDB relationship read (#5244)
 
@@ -20,6 +210,13 @@ known Function target. The target-first shape completed in 0.563 to 1.648 ms on
 the same target. Both normalized result sets contained one relationship;
 old-minus-new and new-minus-old were `0/0`. This is a bounded interactive read
 win, not a claim against the historical #3624 bootstrap target.
+
+This focused one-relationship production-path proof is distinct from the
+earlier raw-Cypher registry measurement in `QP-CODE-REL-STORY-INCOMING`, which
+used another retained Function target with eight incoming edges and measured
+the new query itself at 0.044 seconds. The targets, result cardinalities, and
+timing boundaries differ, so those measurements are evidence for the same
+anchor shape but are not interchangeable latency samples.
 
 The focused contract command pins exact target matching, prefix-collision
 avoidance, empty and duplicate behavior, recursive self-edges, the fallback,
@@ -47,12 +244,39 @@ and exact/fail-closed scope behavior. It does not claim a seconds-scale win.
 
 No-Regression Evidence: the query now preserves Trait identity instead of
 mapping it to Function, keeps repository scope on content rows, and reports the
-2,500-row bound per candidate label separately from the aggregate maximum.
+shared 2,500-row maximum separately from the maximum share one label may use. An
+optional exact `candidate_kind` request narrows the raw scan to one advertised
+kind. Unsupported values return `400`, and the content reader rejects an
+unknown kind before issuing SQL instead of silently querying Functions.
+
+The retained Postgres read model contained 53 Trait entities. The rebuilt API's
+`{"candidate_kind":"Trait","limit":100}` request returned 22 dead-code rows;
+all 22 were Traits, zero rows leaked another kind, and every returned
+`entity_id + repo_id + relative_path` identity matched the direct Postgres Trait
+row. The live browser then selected the Trait control, observed the exact
+`POST /api/v0/code/dead-code` request with `candidate_kind=Trait`, and rendered
+the same 22 exact-kind rows in 3.098 seconds. The prior unscoped 100-row response contained
+100 Functions and no Traits, so the new server-side filter proves the intended
+correctness delta rather than hiding it behind a client-side first-page filter.
+
+Performance Evidence: five warm retained requests measured the unscoped shape
+at 48.621/59.878/73.625 ms min/mean/max while scanning 250 rows under a
+2,500-row shared bound. The exact Trait shape measured
+6.165/10.724/19.518 ms while scanning all 53 Trait rows under the true
+2,500-row one-kind bound. A production-scanner saturation shim separately
+proved the rejected per-label schedule would expand all three dead-code routes
+from 2,500 rows / 10 hydration and reachability pages to 15,000 / 60, while the
+final shared round-robin schedule reaches all six labels at 2,500 / 10. The
+full table is in
+[`go/internal/query/evidence-5248-dead-code-round-robin.md`](../../../go/internal/query/evidence-5248-dead-code-round-robin.md).
+This is a correctness and bounded-work improvement,
+not a seconds-scale performance claim.
+
 Focused handler, content-reader, and OpenAPI tests run with:
 
 ```bash
 cd go && GOCACHE=/tmp/eshu-5248-gocache go test ./internal/query \
-  -run 'Test(DeadCodeCandidateEntityTypeMapsEveryAdvertisedLabel|ContentReaderDeadCodeCandidateRowsKeepsTraitTypeAndRepositoryScope|HandleDeadCodeReportsTotalAndPerLabelCandidateScanLimits|OpenAPIDeadCode)' \
+  -run 'Test(DeadCodeCandidateEntityTypeMapsEveryAdvertisedLabel|ContentReaderDeadCodeCandidateRows|HandleDeadCode|DeadCodeScanRestrictsWorkAndMetadata|OpenAPIDeadCode)' \
   -count=1
 ```
 
@@ -66,13 +290,16 @@ bash scripts/test-verify-golden-corpus-gate.sh
 No-Observability-Change: no metric, span, log field, queue, worker, graph write,
 or runtime knob changed. Existing dead-code query spans and candidate-scan
 metadata remain the diagnostic surface; the response now distinguishes the
-per-label bound from the aggregate maximum.
+maximum share per label from the shared total maximum.
 
 ## Operations response negotiation (#5250)
 
 No-Regression Evidence: the operations handler now uses shared success-response
 negotiation. Envelope clients receive `{data, truth, error}`, while legacy
 `application/json` clients receive the same unwrapped operations object. The
+canonical response carries `operations.status`, `exact`, `production`,
+`runtime_state`, and `fresh` truth metadata. The rebuilt live route returned
+that exact envelope and rendered the Operations board in 2.042 seconds. The
 focused handler and console client tests run with:
 
 ```bash
@@ -98,9 +325,63 @@ npm --prefix apps/console test -- \
   src/pages/VulnerabilitiesPage.test.tsx src/pages/FindingsPage.test.tsx
 ```
 
+Production-shaped adapter regressions also prove that two distinct
+`finding_id` values sharing one advisory remain separate with their own
+package, version, fix, repository, and service evidence. Duplicate exact and
+derived rows for the same `finding_id` merge only their service evidence.
+Advisory identifiers remain unchanged for labels and detail URLs, while React
+and worklist keys use finding identity; advisory fallback detail unions all
+affected packages and services.
+
+The retained stack also ran the public OSV-only vulnerability collector with
+no private token. The API returned five advisory catalog rows, and an exact
+advisory detail read returned HTTP 200 with one source. The final browser route
+rendered those real catalog and detail surfaces in 8.456 seconds with five
+requests and zero errors. The retained impact-finding routes authoritatively
+returned zero rows, and the browser proved the exact no-impact state rather
+than accepting a generic empty page.
+
+The production impact-finding wire field is `service_ids`. The console now
+normalizes every value, removes duplicate service labels, and merges service
+evidence when the same `finding_id` appears in both the exact and derived
+bounded responses. A failing-first fixture proved the old adapter discarded those
+services and substituted the repository label; the corrected full console suite
+passes 1,249 tests.
+
 No-Observability-Change: this is a render-state and copy correction over the
 existing model provenance. It adds no request, collector, metric, span, log
 field, runtime knob, or persisted state.
+
+## Response-backed Code Graph, Findings, Relationships, and Cloud Drift (#5249)
+
+No-Regression Evidence: generic page shells no longer satisfy the live browser
+gate. Code Graph requires successful `200` responses from dead-code,
+relationship-story, relationship, and import-investigation reads before its
+canvas counts. Relationships requires the catalog response plus visible verb
+rows. Findings requires response-backed source readiness and either real row
+cardinality or the exact authoritative empty marker. Adversarial tests prove a
+generic SVG, empty shell, or always-rendered table cannot pass alone.
+
+The final fingerprinted-image retained proof observed all four Code Graph
+responses and one visible canvas in 12.829 seconds; the relationship catalog
+response and 16 verb rows in 4.337 seconds; and three bootstrap-snapshot source
+responses plus 25 Findings rows in 1.771 seconds. Each workflow recorded the
+accepted method, path, status, and owning bootstrap or route phase in the
+durable report. A route-owned expectation cannot borrow a matching bootstrap
+response.
+
+Cloud Drift now distinguishes `not_requested`, `loading`, `loaded`, and
+`unavailable`; only a completed authoritative response may render zero. The
+retained database had 19 active AWS scopes and 3,271 active drift findings. The
+largest real scope contained 1,824 findings. Its browser workflow observed
+HTTP 200 from the multi-cloud, AWS drift, unmanaged-resource, and Terraform
+import-plan endpoints; rendered the authoritative multi-cloud empty row, 50
+bounded AWS rows, 50 bounded unmanaged rows, and a loaded import-plan state;
+and completed in 2.698 seconds with no console or network error.
+
+No-Observability-Change: these changes harden browser proof and render-state
+provenance. They add no runtime metric, span, log field, queue, worker, graph
+write, collector, or concurrency knob.
 
 ## Cloud inventory active-generation readback (#5253)
 

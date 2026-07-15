@@ -48,57 +48,60 @@ type deadCodeCandidateScan struct {
 
 func (h *CodeHandler) scanDeadCodeCandidates(ctx context.Context, req deadCodeRequest) (deadCodeCandidateScan, error) {
 	pageLimit := deadCodeCandidateQueryLimit(req.Limit)
+	candidateLabels := deadCodeCandidateLabelsForRequest(req)
+	totalLimit := deadCodeCandidateScanLimit(req.Limit)
 	scan := deadCodeCandidateScan{
 		Results:                    make([]map[string]any, 0, req.Limit+1),
-		CandidateScanLimit:         deadCodeCandidateTotalScanLimit(req.Limit, req.Language),
-		CandidateScanLimitPerLabel: deadCodeCandidateScanLimit(req.Limit),
+		CandidateScanLimit:         totalLimit,
+		CandidateScanLimitPerLabel: totalLimit,
 	}
 	seenEntityIDs := make(map[string]struct{}, req.Limit+1)
+	schedule := newDeadCodeCandidateSchedule(candidateLabels, pageLimit, totalLimit)
 
-	for _, label := range deadCodeCandidateLabelsForLanguage(req.Language) {
-		for offset := 0; offset < scan.CandidateScanLimitPerLabel; offset += pageLimit {
-			limit := pageLimit
-			if remaining := scan.CandidateScanLimitPerLabel - offset; remaining < limit {
-				limit = remaining
-			}
-			rows, err := h.deadCodeCandidateRows(ctx, req.RepoID, label, req.Language, limit, offset)
-			if err != nil {
-				return scan, err
-			}
-			scan.CandidateScanPages++
-			candidateRowCount := len(rows)
-			scan.CandidateScanRows += candidateRowCount
-			rows = filterDuplicateDeadCodeRows(rows, seenEntityIDs)
-			results, contentByID, err := h.buildDeadCodeResults(ctx, rows)
-			if err != nil {
-				return scan, err
-			}
-			results, stats := filterDeadCodeResultsByDefaultPolicy(results, contentByID)
-			addDeadCodePolicyStats(&scan.PolicyStats, stats)
-			classifyDeadCodeResults(results, contentByID)
-			results = filterResultsByDecoratorExclusions(results, req.ExcludeDecoratedWith)
-			results, err = h.filterDeadCodeResultsWithoutIncomingEdges(ctx, results, label)
-			if err != nil {
-				return scan, err
-			}
-			scan.Results = append(scan.Results, results...)
+	for {
+		page, ok := schedule.nextPage()
+		if !ok {
+			break
+		}
+		rows, err := h.deadCodeCandidateRows(ctx, req.RepoID, page.Label, req.Language, page.Limit, page.Offset)
+		if err != nil {
+			return scan, err
+		}
+		scan.CandidateScanPages++
+		candidateRowCount := len(rows)
+		scan.CandidateScanRows += candidateRowCount
+		schedule.record(page, candidateRowCount)
+		rows = filterDuplicateDeadCodeRows(rows, seenEntityIDs)
+		results, contentByID, err := h.buildDeadCodeResults(ctx, rows)
+		if err != nil {
+			return scan, err
+		}
+		results, stats := filterDeadCodeResultsByDefaultPolicy(results, contentByID)
+		addDeadCodePolicyStats(&scan.PolicyStats, stats)
+		classifyDeadCodeResults(results, contentByID)
+		results = filterResultsByDecoratorExclusions(results, req.ExcludeDecoratedWith)
+		results, err = h.filterDeadCodeResultsWithoutIncomingEdges(ctx, results, page.Label)
+		if err != nil {
+			return scan, err
+		}
+		scan.Results = append(scan.Results, results...)
 
-			if len(scan.Results) > req.Limit {
-				scan.DisplayTruncated = true
-				scan.Results = scan.Results[:req.Limit]
-				return scan, nil
-			}
-			if candidateRowCount < limit {
-				break
-			}
-			if offset+candidateRowCount >= scan.CandidateScanLimitPerLabel {
-				scan.CandidateScanTruncated = true
-				break
-			}
+		if len(scan.Results) > req.Limit {
+			scan.DisplayTruncated = true
+			scan.Results = scan.Results[:req.Limit]
+			return scan, nil
 		}
 	}
+	scan.CandidateScanTruncated = schedule.candidateScanTruncated()
 
 	return scan, nil
+}
+
+func deadCodeCandidateLabelsForRequest(req deadCodeRequest) []string {
+	if req.CandidateKind != "" {
+		return []string{req.CandidateKind}
+	}
+	return deadCodeCandidateLabelsForLanguage(req.Language)
 }
 
 func deadCodeCandidateLabelsForLanguage(language string) []string {

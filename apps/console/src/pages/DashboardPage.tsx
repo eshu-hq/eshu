@@ -1,19 +1,6 @@
 // pages/DashboardPage.tsx
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import type { EshuApiClient } from "../api/client";
-import { loadEntityMapGraph, resolveEntityName } from "../api/eshuGraph";
-import type { RepoListItem } from "../api/repoCatalog";
-import {
-  loadSourceBackedSuggestedQuestionsResult,
-  type SuggestedQuestion,
-} from "../api/suggestedQuestions";
-import { StatTile, Panel, TruthChip } from "../components/atoms";
-import { AreaChart, Donut, BarRows } from "../components/charts";
-import { GraphCanvas } from "../components/GraphCanvas";
-import { SuggestedQuestions } from "../components/SuggestedQuestions";
-import { fmt, LAYER_COLOR, SEVERITY_COLOR, uiTruth } from "../console/types";
-import type { ConsoleModel, GraphLayer, GraphModel, GraphNode } from "../console/types";
 import {
   dashboardErrorMessage,
   filterGraphByLayer,
@@ -28,6 +15,19 @@ import {
   relationshipRowsFor,
   selectSeedGraph,
 } from "./dashboardModel";
+import type { EshuApiClient } from "../api/client";
+import { loadEntityMapGraph, resolveEntityName } from "../api/eshuGraph";
+import type { RepoListItem } from "../api/repoCatalog";
+import {
+  loadSourceBackedSuggestedQuestionsResult,
+  type SuggestedQuestion,
+} from "../api/suggestedQuestions";
+import { StatTile, Panel, TruthChip } from "../components/atoms";
+import { AreaChart, Donut, BarRows } from "../components/charts";
+import { GraphCanvas } from "../components/GraphCanvas";
+import { SuggestedQuestions } from "../components/SuggestedQuestions";
+import { fmt, LAYER_COLOR, SEVERITY_COLOR, uiTruth } from "../console/types";
+import type { ConsoleModel, GraphLayer, GraphModel, GraphNode } from "../console/types";
 import "./dashboardLive.css";
 
 type AtlasState =

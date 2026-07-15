@@ -49,6 +49,24 @@ the internal scope while retaining the canonical id as `repo_id`. Two rows fail
 closed as ambiguous. Exact equality, not `LIKE` or prefix matching, prevents a
 canonical id from selecting a sibling repository.
 
+Scoped credentials may authorize the ingestion `scope_id` directly rather
+than the canonical repository id. That path is validated independently with an
+exact active-scope lookup before the index read:
+
+```sql
+SELECT COALESCE(payload->>'repo_id', '')
+FROM ingestion_scopes
+WHERE scope_kind = 'repository'
+  AND active_generation_id IS NOT NULL
+  AND scope_id = $1
+LIMIT 1;
+```
+
+The authorized scope remains the index partition and the returned canonical id
+remains the document-level repository filter. A missing, stale, or malformed
+scope fails closed instead of returning an authoritative empty result for the
+wrong partition.
+
 The old search-document sweep completion predicate was fact presence OR index
 stats presence. A valid zero-document projection has no search-document fact,
 so it was selected on every 30-second sweep. The new predicate is:
@@ -93,10 +111,12 @@ redundant intents and misleading completion logs every 30 seconds.
 
 No-Regression Evidence: the authorization grant is checked before resolution,
 so an out-of-grant repository still returns not-found without touching the
-resolver or index. API and MCP constructors both wire the same resolver into
-the shared handler. `TestSemanticSearchScopeKnownTermPGXLive` resolved a
-retained canonical repository id to the expected active scope and returned a
-real BM25 candidate in 0.14 s. `TestEshuSearchVectorValueListActivePGXLive`
+resolver or index. A direct scope grant is validated as an active repository
+scope and supplies the canonical document filter without widening access. API
+and MCP constructors both wire the same resolver into the shared handler.
+`TestSemanticSearchScopeKnownTermPGXLive` proved both resolution directions on
+the same retained active scope and returned a real BM25 candidate in 0.16 s.
+`TestEshuSearchVectorValueListActivePGXLive`
 proved the production pgx driver decodes the persisted `float8[]` through the
 public store path. Focused unit tests cover authorized mapping, out-of-grant
 ordering, ambiguity, exact SQL identity, vector decoding, and the zero-document
@@ -114,11 +134,17 @@ on the same work item. A projection becoming ready after the pending snapshot
 can cause at most one redundant idempotent enqueue, and the next sweep observes
 the ready projection/index-count pair. No serialization is introduced.
 
-No-Observability-Change: no metric, span, log field, label, route, queue domain,
-or status schema changes. Existing query instrumentation still measures the
-resolver and index reads. The existing sweep-completed log no longer emits a
-false `pending_scopes=8 enqueued_intents=8` record every 30 seconds after those
-scopes have durably completed.
+Observability Evidence: API and MCP wire the canonical-scope lookup through the
+existing `InstrumentedDB` contract with the stable low-cardinality store label
+`semantic_search_scope`. Operators receive a `postgres.query` child span with
+error status and the `eshu_dp_postgres_query_duration_seconds` histogram for
+this lookup, in addition to the parent semantic-search request signals. Wiring
+tests assert the tracer, instruments, and store label; the shared
+`InstrumentedDB` tests cover success and query-error span status. No queue,
+worker, status schema, or high-cardinality metric dimension changes. The
+existing sweep-completed log no longer emits a false
+`pending_scopes=8 enqueued_intents=8` record every 30 seconds after those scopes
+have durably completed.
 
 ## Commands run
 

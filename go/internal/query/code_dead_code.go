@@ -12,6 +12,7 @@ import (
 )
 
 type deadCodeRequest struct {
+	CandidateKind        string   `json:"candidate_kind"`
 	RepoID               string   `json:"repo_id"`
 	Language             string   `json:"language"`
 	Limit                int      `json:"limit"`
@@ -59,6 +60,11 @@ func (h *CodeHandler) handleDeadCode(w http.ResponseWriter, r *http.Request) {
 		req.Limit = deadCodeMaxLimit
 	}
 	req.Language = normalizeDeadCodeLanguage(req.Language)
+	req.CandidateKind = strings.TrimSpace(req.CandidateKind)
+	if req.CandidateKind != "" && !isDeadCodeCandidateLabel(req.CandidateKind) {
+		WriteError(w, http.StatusBadRequest, "unsupported candidate_kind")
+		return
+	}
 	if !h.applyRepositorySelector(w, r, &req.RepoID) {
 		return
 	}
@@ -71,6 +77,7 @@ func (h *CodeHandler) handleDeadCode(w http.ResponseWriter, r *http.Request) {
 	truncated := scan.CandidateScanTruncated || scan.DisplayTruncated
 
 	WriteSuccess(w, r, http.StatusOK, map[string]any{
+		"candidate_kind":                 req.CandidateKind,
 		"repo_id":                        req.RepoID,
 		"language":                       req.Language,
 		"limit":                          req.Limit,
@@ -162,10 +169,6 @@ func deadCodeCandidateQueryLimit(displayLimit int) int {
 
 func deadCodeCandidateScanLimit(displayLimit int) int {
 	return deadCodeCandidateQueryLimit(displayLimit) * deadCodeCandidateScanMaxPages
-}
-
-func deadCodeCandidateTotalScanLimit(displayLimit int, language string) int {
-	return deadCodeCandidateScanLimit(displayLimit) * len(deadCodeCandidateLabelsForLanguage(language))
 }
 
 func deadCodeGraphParams(repoID string, language string, limit int, skip int) map[string]any {

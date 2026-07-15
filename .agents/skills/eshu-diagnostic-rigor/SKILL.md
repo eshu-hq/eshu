@@ -77,6 +77,17 @@ as timeout budget, query shape, missing schema/index, backend fallback,
 transaction validation, retry/idempotency behavior, stale image, or ambient
 backend work before patching.
 
+For dashboard/API/MCP validation, classify every failure as incorrect data or
+behavior, latency, response-ownership mismatch, or harness/setup failure. Do
+not combine those categories into a generic broken-surface count. Bind the
+proof to the exact source hash, binary or image digest, retained-data identity,
+and browser-runner hash; a stale supposedly final artifact invalidates the
+claim.
+
+Compose env files are Compose input, not shell programs. Never `source` one to
+prepare a proof. Pass the minimum required variables explicitly and keep secret
+values out of logs, evidence, and tracked files.
+
 ## MCP/API Call Checklist
 
 Before calling or designing an Eshu MCP/API tool:
@@ -88,6 +99,11 @@ Before calling or designing an Eshu MCP/API tool:
   service
 - inspect the Eshu envelope (`truth.level`, `truth.profile`,
   `truth.freshness.state`, and `error`) before interpreting results
+- bind visible, empty, and error UI states to the exact response owner and
+  lifecycle phase; a selector match or unrelated successful request is not
+  proof of the displayed data
+- accept bootstrap or cached data only when the exact owning bootstrap response
+  and its source/runtime identity are recorded
 - classify slowness as transport, stale owner ports, backend health, query
   shape, payload size, or runtime-mode selection before retrying
 

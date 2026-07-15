@@ -24,17 +24,96 @@ func (h *CodeHandler) nornicDBRelationshipStoryGraphRows(
 		entityLabel = nornicDBGraphLabelForContentEntityType(entity.EntityType)
 	}
 	access := repositoryAccessFilterFromContext(ctx)
-	for _, property := range []string{"uid", "id"} {
+	properties := []string{"uid", "id"}
+	if req.graphAnchorPropertyResolved {
+		if req.graphAnchorProperty == "" {
+			return []map[string]any{}, nil
+		}
+		properties = []string{req.graphAnchorProperty}
+	}
+	for _, property := range properties {
 		cypher, params := nornicDBRelationshipStoryGraphCypher(req, entityID, entityLabel, property, direction, access)
 		rows, err := h.Neo4j.Run(ctx, cypher, params)
 		if err != nil {
 			return nil, err
 		}
 		if len(rows) > 0 {
-			return normalizeNornicDBRelationshipRows(rows), nil
+			return normalizeNornicDBRelationshipStoryRows(rows), nil
 		}
 	}
 	return []map[string]any{}, nil
+}
+
+// nornicDBRelationshipStoryAnchorPreflightSupported reports whether both
+// identity properties used by the one-time preflight have proven indexes.
+// Function is currently the only supported label with a legacy-id index.
+func nornicDBRelationshipStoryAnchorPreflightSupported(entity *EntityContent) bool {
+	return entity != nil && nornicDBGraphLabelForContentEntityType(entity.EntityType) == "Function"
+}
+
+// resolveNornicDBRelationshipStoryAnchorProperty selects the indexed identity
+// property for a resolved Function target once per request. A separate-node
+// uid/id collision deliberately leaves the request unresolved so the legacy
+// per-query fallback remains authoritative for that ambiguous graph state.
+func (h *CodeHandler) resolveNornicDBRelationshipStoryAnchorProperty(
+	ctx context.Context,
+	req relationshipStoryRequest,
+	entity *EntityContent,
+) (relationshipStoryRequest, error) {
+	if !nornicDBRelationshipStoryAnchorPreflightSupported(entity) {
+		return req, nil
+	}
+	entityID := strings.TrimSpace(req.EntityID)
+	entityLabel := ""
+	if entity != nil {
+		if strings.TrimSpace(entity.EntityID) != "" {
+			entityID = strings.TrimSpace(entity.EntityID)
+		}
+		entityLabel = nornicDBGraphLabelForContentEntityType(entity.EntityType)
+	}
+	if entityID == "" || entityLabel == "" {
+		return req, nil
+	}
+	params := map[string]any{"entity_id": entityID}
+	uidRow, err := h.Neo4j.RunSingle(
+		ctx,
+		"MATCH (anchor:"+entityLabel+" {uid: $entity_id}) RETURN true AS found LIMIT 1",
+		params,
+	)
+	if err != nil {
+		return req, err
+	}
+	if len(uidRow) > 0 {
+		collisionRow, err := h.Neo4j.RunSingle(
+			ctx,
+			"MATCH (idAnchor:"+entityLabel+" {id: $entity_id}) "+
+				"WHERE coalesce(idAnchor.uid, '') <> $entity_id "+
+				"RETURN true AS collision LIMIT 1",
+			params,
+		)
+		if err != nil {
+			return req, err
+		}
+		if len(collisionRow) > 0 {
+			return req, nil
+		}
+		req.graphAnchorPropertyResolved = true
+		req.graphAnchorProperty = "uid"
+		return req, nil
+	}
+	idRow, err := h.Neo4j.RunSingle(
+		ctx,
+		"MATCH (anchor:"+entityLabel+" {id: $entity_id}) RETURN true AS found LIMIT 1",
+		params,
+	)
+	if err != nil {
+		return req, err
+	}
+	req.graphAnchorPropertyResolved = true
+	if len(idRow) > 0 {
+		req.graphAnchorProperty = "id"
+	}
+	return req, nil
 }
 
 func nornicDBRelationshipStoryGraphCypher(
@@ -57,14 +136,14 @@ func nornicDBRelationshipStoryGraphCypher(
 	if direction == "incoming" {
 		predicates := relationshipStoryRepoPredicates(req, access, "targetRepo")
 		return `
-		MATCH (source)-[rel` + relPattern + `]->` + entityPattern + `
+		MATCH ` + entityPattern + `<-[rel` + relPattern + `]-(source)
 		OPTIONAL MATCH (source)<-[:CONTAINS]-(sourceFile:File)
 		OPTIONAL MATCH (sourceRepo:Repository)-[:REPO_CONTAINS]->(sourceFile)
 		OPTIONAL MATCH (anchor)<-[:CONTAINS]-(targetFile:File)
 		OPTIONAL MATCH (targetRepo:Repository)-[:REPO_CONTAINS]->(targetFile)
 		` + nornicDBRelationshipStoryWhere(predicates) + `
 		RETURN 'incoming' as direction,
-		       type(rel) as type,
+		       '` + relationshipType + `' as type,
 		       'direct_code_edge' as edge_origin,
 		       rel.call_kind as call_kind,
 		       rel.reason as reason,
@@ -73,19 +152,27 @@ func nornicDBRelationshipStoryGraphCypher(
 		       rel.evidence_source as evidence_source,
 		       rel.why_trail_json as why_trail_json,
 		       rel.why_trail_truncated as why_trail_truncated,
-		       coalesce(source.id, source.uid) as source_id,
+		       source.id as source_legacy_id,
+		       source.uid as source_uid,
 		       source.name as source_name,
-		       coalesce(source.repo_id, sourceRepo.id) as source_repo_id,
+		       source.repo_id as source_node_repo_id,
+		       sourceRepo.id as source_repo_fallback_id,
 		       sourceRepo.name as source_repo_name,
 		       sourceFile.relative_path as source_file_path,
-		       coalesce(source.language, source.lang, sourceFile.language) as source_language,
-		       coalesce(anchor.id, anchor.uid) as target_id,
+		       source.language as source_language_value,
+		       source.lang as source_lang_value,
+		       sourceFile.language as source_file_language,
+		       anchor.id as target_legacy_id,
+		       anchor.uid as target_uid,
 		       anchor.name as target_name,
-		       coalesce(anchor.repo_id, targetRepo.id) as target_repo_id,
+		       anchor.repo_id as target_node_repo_id,
+		       targetRepo.id as target_repo_fallback_id,
 		       targetRepo.name as target_repo_name,
 		       targetFile.relative_path as target_file_path,
-		       coalesce(anchor.language, anchor.lang, targetFile.language) as target_language
-		ORDER BY source.name, source_id
+		       anchor.language as target_language_value,
+		       anchor.lang as target_lang_value,
+		       targetFile.language as target_file_language
+		ORDER BY source.name, source.id, source.uid
 		SKIP $offset
 		LIMIT $limit
 	`, params
@@ -99,7 +186,7 @@ func nornicDBRelationshipStoryGraphCypher(
 		OPTIONAL MATCH (targetRepo:Repository)-[:REPO_CONTAINS]->(targetFile)
 		` + nornicDBRelationshipStoryWhere(predicates) + `
 		RETURN 'outgoing' as direction,
-		       type(rel) as type,
+		       '` + relationshipType + `' as type,
 		       'direct_code_edge' as edge_origin,
 		       rel.call_kind as call_kind,
 		       rel.reason as reason,
@@ -108,22 +195,114 @@ func nornicDBRelationshipStoryGraphCypher(
 		       rel.evidence_source as evidence_source,
 		       rel.why_trail_json as why_trail_json,
 		       rel.why_trail_truncated as why_trail_truncated,
-		       coalesce(anchor.id, anchor.uid) as source_id,
+		       anchor.id as source_legacy_id,
+		       anchor.uid as source_uid,
 		       anchor.name as source_name,
-		       coalesce(anchor.repo_id, sourceRepo.id) as source_repo_id,
+		       anchor.repo_id as source_node_repo_id,
+		       sourceRepo.id as source_repo_fallback_id,
 		       sourceRepo.name as source_repo_name,
 		       sourceFile.relative_path as source_file_path,
-		       coalesce(anchor.language, anchor.lang, sourceFile.language) as source_language,
-		       coalesce(target.id, target.uid) as target_id,
+		       anchor.language as source_language_value,
+		       anchor.lang as source_lang_value,
+		       sourceFile.language as source_file_language,
+		       target.id as target_legacy_id,
+		       target.uid as target_uid,
 		       target.name as target_name,
-		       coalesce(target.repo_id, targetRepo.id) as target_repo_id,
+		       target.repo_id as target_node_repo_id,
+		       targetRepo.id as target_repo_fallback_id,
 		       targetRepo.name as target_repo_name,
 		       targetFile.relative_path as target_file_path,
-		       coalesce(target.language, target.lang, targetFile.language) as target_language
-		ORDER BY target.name, target_id
+		       target.language as target_language_value,
+		       target.lang as target_lang_value,
+		       targetFile.language as target_file_language
+		ORDER BY target.name, target.id, target.uid
 		SKIP $offset
 		LIMIT $limit
 	`, params
+}
+
+type nornicDBStoryProjectionCandidate struct {
+	key          string
+	placeholders []string
+}
+
+func nornicDBStoryProjection(key string, placeholders ...string) nornicDBStoryProjectionCandidate {
+	return nornicDBStoryProjectionCandidate{key: key, placeholders: placeholders}
+}
+
+func normalizeNornicDBRelationshipStoryRows(rows []map[string]any) []map[string]any {
+	normalized := normalizeNornicDBRelationshipRows(rows)
+	for _, row := range normalized {
+		collapseNornicDBStoryProjection(row, "source_id",
+			nornicDBStoryProjection("source_legacy_id", "source.id", "anchor.id"),
+			nornicDBStoryProjection("source_uid", "source.uid", "anchor.uid"),
+		)
+		collapseNornicDBStoryProjection(row, "source_repo_id",
+			nornicDBStoryProjection("source_node_repo_id", "source.repo_id", "anchor.repo_id"),
+			nornicDBStoryProjection("source_repo_fallback_id", "sourceRepo.id"),
+		)
+		collapseNornicDBStoryProjection(row, "source_language",
+			nornicDBStoryProjection("source_language_value", "source.language", "anchor.language"),
+			nornicDBStoryProjection("source_lang_value", "source.lang", "anchor.lang"),
+			nornicDBStoryProjection("source_file_language", "sourceFile.language"),
+		)
+		collapseNornicDBStoryProjection(row, "target_id",
+			nornicDBStoryProjection("target_legacy_id", "target.id", "anchor.id"),
+			nornicDBStoryProjection("target_uid", "target.uid", "anchor.uid"),
+		)
+		collapseNornicDBStoryProjection(row, "target_repo_id",
+			nornicDBStoryProjection("target_node_repo_id", "target.repo_id", "anchor.repo_id"),
+			nornicDBStoryProjection("target_repo_fallback_id", "targetRepo.id"),
+		)
+		collapseNornicDBStoryProjection(row, "target_language",
+			nornicDBStoryProjection("target_language_value", "target.language", "anchor.language"),
+			nornicDBStoryProjection("target_lang_value", "target.lang", "anchor.lang"),
+			nornicDBStoryProjection("target_file_language", "targetFile.language"),
+		)
+		collapseNornicDBStoryProjection(row, "method_id",
+			nornicDBStoryProjection("method_legacy_id", "method.id"),
+			nornicDBStoryProjection("method_uid", "method.uid"),
+		)
+	}
+	return normalized
+}
+
+func collapseNornicDBStoryProjection(
+	row map[string]any,
+	targetKey string,
+	candidates ...nornicDBStoryProjectionCandidate,
+) {
+	projected := false
+	var selected any
+	for _, candidate := range candidates {
+		value, present := row[candidate.key]
+		if !present {
+			continue
+		}
+		projected = true
+		delete(row, candidate.key)
+		text := strings.TrimSpace(StringVal(map[string]any{candidate.key: value}, candidate.key))
+		if selected == nil && text != "" && text != candidate.key && !containsNornicDBStoryPlaceholder(text, candidate.placeholders) {
+			selected = value
+		}
+	}
+	if !projected {
+		return
+	}
+	if selected == nil {
+		delete(row, targetKey)
+		return
+	}
+	row[targetKey] = selected
+}
+
+func containsNornicDBStoryPlaceholder(value string, placeholders []string) bool {
+	for _, placeholder := range placeholders {
+		if value == placeholder {
+			return true
+		}
+	}
+	return false
 }
 
 func nornicDBRelationshipStoryWhere(predicates []string) string {
@@ -145,7 +324,7 @@ func (h *CodeHandler) nornicDBRelationshipStoryClassMethods(
 			return nil, err
 		}
 		if len(rows) > 0 {
-			return rows, nil
+			return normalizeNornicDBRelationshipStoryRows(rows), nil
 		}
 	}
 	return []map[string]any{}, nil
@@ -164,12 +343,13 @@ func nornicDBRelationshipStoryClassMethodsCypher(
 	classPattern := nornicDBNodePatternWithProperty("class", "Class", property, "$entity_id")
 	return `
 		MATCH ` + classPattern + `-[:CONTAINS]->(method:Function)
-		RETURN coalesce(method.id, method.uid) as method_id,
+		RETURN method.id as method_legacy_id,
+		       method.uid as method_uid,
 		       method.name as method_name,
 		       method.path as file_path,
 		       method.start_line as start_line,
 		       method.end_line as end_line
-		ORDER BY method.name, method_id
+		ORDER BY method.name, method.id, method.uid
 		SKIP $offset
 		LIMIT $limit
 	`, params
@@ -188,7 +368,7 @@ func (h *CodeHandler) nornicDBRelationshipStoryInheritanceDepthRows(
 			return nil, err
 		}
 		if len(rows) > 0 {
-			return rows, nil
+			return normalizeNornicDBRelationshipStoryRows(rows), nil
 		}
 	}
 	return []map[string]any{}, nil
@@ -210,24 +390,28 @@ func nornicDBRelationshipStoryInheritanceDepthCypher(
 		return fmt.Sprintf(`
 		MATCH path = (source:Class)-[:INHERITS*1..%d]->%s
 		RETURN 'incoming' as direction,
-		       coalesce(source.id, source.uid) as source_id,
+		       source.id as source_legacy_id,
+		       source.uid as source_uid,
 		       source.name as source_name,
-		       coalesce(anchor.id, anchor.uid) as target_id,
+		       anchor.id as target_legacy_id,
+		       anchor.uid as target_uid,
 		       anchor.name as target_name,
 		       length(path) as depth
-		ORDER BY depth DESC, source.name, source_id
+		ORDER BY depth DESC, source.name, source.id, source.uid
 		LIMIT $limit
 	`, maxDepth, anchorPattern), params
 	}
 	return fmt.Sprintf(`
 		MATCH path = %s-[:INHERITS*1..%d]->(target:Class)
 		RETURN 'outgoing' as direction,
-		       coalesce(anchor.id, anchor.uid) as source_id,
+		       anchor.id as source_legacy_id,
+		       anchor.uid as source_uid,
 		       anchor.name as source_name,
-		       coalesce(target.id, target.uid) as target_id,
+		       target.id as target_legacy_id,
+		       target.uid as target_uid,
 		       target.name as target_name,
 		       length(path) as depth
-		ORDER BY depth DESC, target.name, target_id
+		ORDER BY depth DESC, target.name, target.id, target.uid
 		LIMIT $limit
 	`, anchorPattern, maxDepth), params
 }

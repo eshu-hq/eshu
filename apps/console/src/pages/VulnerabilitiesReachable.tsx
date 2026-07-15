@@ -1,9 +1,10 @@
 // pages/VulnerabilitiesReachable.tsx
-// Advisories correlated to reachable services via the impact findings surface
+// Findings correlated to reachable services via the impact findings surface
 // (GET /api/v0/supply-chain/impact/findings). This is admitted impact truth, as
 // opposed to the broader known-intelligence catalog.
 import { Link } from "react-router-dom";
 
+import { vulnerabilityRowKey } from "../api/eshuConsoleVulnerabilities";
 import { AsyncStateGuard } from "../components/AsyncStateGuard";
 import { Panel, StatTile, Badge } from "../components/atoms";
 import { Donut } from "../components/charts";
@@ -40,49 +41,48 @@ export function ReachableAdvisories({
   return (
     <div>
       <p className="t-mut" style={{ fontSize: ".82rem", margin: "0 0 var(--gap)" }}>
-        Reachable advisories —{" "}
-        <span className="mono">GET /api/v0/supply-chain/impact/findings</span>.
+        Reachable findings — <span className="mono">GET /api/v0/supply-chain/impact/findings</span>.
       </p>
-      <div className="grid g-4">
-        <StatTile
-          label="Open advisories"
-          value={rows.length}
-          color="var(--crit)"
-          sub={`${sevCount.critical} critical · ${sevCount.high} high`}
-        />
-        <StatTile label="KEV-listed" value={kev} color="var(--crit)" sub="known exploited" />
-        <StatTile
-          label="Fix available"
-          value={`${fixable}/${rows.length || 0}`}
-          color="var(--teal)"
-          sub="patch path exists"
-        />
-        <StatTile
-          label="Source"
-          value={model.source === "live" ? "live" : "demo"}
-          color="var(--ember)"
-          sub="impact findings"
-        />
-      </div>
-      <SupplyChainImpactPath model={model} row={rows[0] ?? null} />
-      <div className="grid mt supply-chain-register-grid">
-        <Panel title="By severity">
-          <div style={{ display: "grid", placeItems: "center" }}>
-            <Donut
-              size={138}
-              thickness={17}
-              center={{ value: rows.length, label: "advisories" }}
-              segments={(["critical", "high", "medium", "low"] as const).map((k) => ({
-                label: k,
-                value: sevCount[k],
-                color: SEVERITY_COLOR[k],
-              }))}
-            />
-          </div>
-        </Panel>
-        <Panel className="flush" title="Advisory register" sub="Sorted by CVSS">
-          <div className="supply-chain-register-scroll">
-            <AsyncStateGuard provenance={provenance} label="vulnerabilities">
+      <AsyncStateGuard provenance={provenance} label="vulnerabilities">
+        <div className="grid g-4">
+          <StatTile
+            label="Open findings"
+            value={rows.length}
+            color="var(--crit)"
+            sub={`${sevCount.critical} critical · ${sevCount.high} high`}
+          />
+          <StatTile label="KEV-listed" value={kev} color="var(--crit)" sub="known exploited" />
+          <StatTile
+            label="Fix available"
+            value={`${fixable}/${rows.length || 0}`}
+            color="var(--teal)"
+            sub="patch path exists"
+          />
+          <StatTile
+            label="Source"
+            value={model.source === "live" ? "live" : "demo"}
+            color="var(--ember)"
+            sub="impact findings"
+          />
+        </div>
+        <SupplyChainImpactPath model={model} row={rows[0] ?? null} />
+        <div className="grid mt supply-chain-register-grid">
+          <Panel title="By severity">
+            <div style={{ display: "grid", placeItems: "center" }}>
+              <Donut
+                size={138}
+                thickness={17}
+                center={{ value: rows.length, label: "findings" }}
+                segments={(["critical", "high", "medium", "low"] as const).map((k) => ({
+                  label: k,
+                  value: sevCount[k],
+                  color: SEVERITY_COLOR[k],
+                }))}
+              />
+            </div>
+          </Panel>
+          <Panel className="flush" title="Finding register" sub="Sorted by CVSS">
+            <div className="supply-chain-register-scroll">
               <table className="tbl">
                 <thead>
                   <tr>
@@ -96,7 +96,12 @@ export function ReachableAdvisories({
                 </thead>
                 <tbody>
                   {rows.map((v) => (
-                    <tr key={v.id}>
+                    <tr
+                      data-affected-services={JSON.stringify(v.affectedServices ?? [])}
+                      data-service-ids={JSON.stringify(v.serviceIds ?? [])}
+                      data-vulnerability-finding-id={v.findingId}
+                      key={vulnerabilityRowKey(v)}
+                    >
                       <td className="row" style={{ gap: 7 }}>
                         <Link
                           to={`/vulnerabilities/${encodeURIComponent(v.id)}`}
@@ -130,8 +135,14 @@ export function ReachableAdvisories({
                         {v.package}
                       </td>
                       <td className="t-mut" style={{ fontSize: ".76rem" }}>
-                        {v.services.slice(0, 2).join(", ")}
-                        {v.services.length > 2 ? ` +${v.services.length - 2}` : ""}
+                        {v.services.length > 0 ? (
+                          <>
+                            {v.services.slice(0, 2).join(", ")}
+                            {v.services.length > 2 ? ` +${v.services.length - 2}` : ""}
+                          </>
+                        ) : (
+                          <span data-service-truth="not-proven">Not proven</span>
+                        )}
                       </td>
                       <td>
                         {v.fixedVersion ? (
@@ -151,10 +162,10 @@ export function ReachableAdvisories({
                   ) : null}
                 </tbody>
               </table>
-            </AsyncStateGuard>
-          </div>
-        </Panel>
-      </div>
+            </div>
+          </Panel>
+        </div>
+      </AsyncStateGuard>
     </div>
   );
 }

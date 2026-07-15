@@ -45,6 +45,14 @@ type relationshipStoryRequest struct {
 	// after the count limit so an agent can cap prompt cost; cuts are reported
 	// with guidance to narrow.
 	TokenBudget int `json:"token_budget"`
+	// graphAnchorProperty records the single identity property selected
+	// for this resolved NornicDB target. It is request-internal and reused by
+	// every requested relationship type and direction.
+	graphAnchorProperty string
+	// graphAnchorPropertyResolved distinguishes a confirmed missing graph anchor
+	// from an unresolved/ambiguous uid-id collision that must retain the legacy
+	// per-query fallback behavior.
+	graphAnchorPropertyResolved bool
 }
 
 type relationshipStoryResolution struct {

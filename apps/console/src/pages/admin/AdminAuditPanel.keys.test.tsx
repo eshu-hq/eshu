@@ -1,8 +1,8 @@
 import { render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { EshuApiClient } from "../../api/client";
 import { AdminAuditPanel, auditEventKeys } from "./AdminAuditPanel";
+import type { EshuApiClient } from "../../api/client";
 
 const NOW = "2026-06-24T10:00:00Z";
 

@@ -2,6 +2,10 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { App } from "./App";
+import type { SourceState } from "./components/SourceControls";
+import { emptyConsoleModel } from "./console/liveModel";
+
 const bootMocks = vi.hoisted(() => ({
   bootFromKey: vi.fn(),
   bootFromSession: vi.fn(),
@@ -11,11 +15,7 @@ vi.mock("./appBoot", () => bootMocks);
 vi.mock("./appRoutes", async () => {
   const { AskPage } = await import("./pages/AskPage");
   return {
-    AppRoutes: ({
-      source,
-    }: {
-      readonly source: import("./components/SourceControls").SourceState;
-    }) => <AskPage source={source} />,
+    AppRoutes: ({ source }: { readonly source: SourceState }) => <AskPage source={source} />,
   };
 });
 vi.mock("./config/environment", () => ({
@@ -28,8 +28,10 @@ vi.mock("./config/environment", () => ({
   saveConsoleEnvironment: vi.fn(),
 }));
 
-import { App } from "./App";
-import { emptyConsoleModel } from "./console/liveModel";
+function requestUrl(input: RequestInfo | URL): string {
+  if (typeof input === "string") return input;
+  return input instanceof URL ? input.href : input.url;
+}
 
 describe("App configured-key boot", () => {
   afterEach(() => {
@@ -66,7 +68,7 @@ describe("App configured-key boot", () => {
     await waitFor(() => expect(fetch).toHaveBeenCalled());
     const request = vi
       .mocked(fetch)
-      .mock.calls.find(([url]) => String(url).includes("status/answer-narration"));
+      .mock.calls.find(([url]) => requestUrl(url).includes("status/answer-narration"));
     expect(request?.[1]?.headers).toMatchObject({ Authorization: "Bearer configured-shared-key" });
   });
 
@@ -91,7 +93,7 @@ describe("App configured-key boot", () => {
     await waitFor(() => expect(fetch).toHaveBeenCalled());
     const request = vi
       .mocked(fetch)
-      .mock.calls.find(([url]) => String(url).includes("status/answer-narration"));
+      .mock.calls.find(([url]) => requestUrl(url).includes("status/answer-narration"));
     expect(request?.[1]?.headers).not.toHaveProperty("Authorization");
   });
 });

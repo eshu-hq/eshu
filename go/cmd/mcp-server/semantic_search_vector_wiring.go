@@ -16,9 +16,45 @@ import (
 )
 
 const (
+	semanticSearchScopeStoreName          = "semantic_search_scope"
 	semanticSearchVectorMetadataStoreName = "semantic_search_vector_metadata"
 	semanticSearchVectorValueStoreName    = "semantic_search_vector_values"
 )
+
+type instrumentedSemanticSearchScopeResolver struct {
+	resolver query.PostgresSemanticSearchScopeResolver
+	db       *pgstatus.InstrumentedDB
+}
+
+func (r instrumentedSemanticSearchScopeResolver) ResolveSemanticSearchScope(
+	ctx context.Context,
+	repoID string,
+) (string, error) {
+	return r.resolver.ResolveSemanticSearchScope(ctx, repoID)
+}
+
+func (r instrumentedSemanticSearchScopeResolver) ResolveSemanticSearchRepositoryForScope(
+	ctx context.Context,
+	scopeID string,
+) (string, error) {
+	return r.resolver.ResolveSemanticSearchRepositoryForScope(ctx, scopeID)
+}
+
+func newInstrumentedSemanticSearchScopeResolver(
+	db *sql.DB,
+	instruments *telemetry.Instruments,
+) instrumentedSemanticSearchScopeResolver {
+	instrumentedDB := newInstrumentedPostgresStore(
+		pgstatus.SQLDB{DB: db},
+		"mcp-server",
+		semanticSearchScopeStoreName,
+		instruments,
+	)
+	return instrumentedSemanticSearchScopeResolver{
+		resolver: query.NewPostgresSemanticSearchScopeResolver(instrumentedDB),
+		db:       instrumentedDB,
+	}
+}
 
 type instrumentedSemanticSearchVectorMetadataStore struct {
 	store pgstatus.EshuSearchVectorMetadataStore

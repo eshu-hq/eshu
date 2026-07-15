@@ -71,6 +71,10 @@ export interface GenerationLifecycleQuery {
   readonly status?: string;
 }
 
+export interface GenerationLifecycleLoadOptions {
+  readonly signal?: AbortSignal;
+}
+
 export interface GenerationLifecycleRow {
   readonly activatedAt: string | null;
   readonly collectorKind: string;
@@ -147,9 +151,14 @@ interface WireGenerationLifecycleRow {
   readonly generation_id?: string;
   readonly ingested_at?: string;
   readonly is_active?: boolean;
-  readonly latest_failure?: string;
+  readonly latest_failure?: WireGenerationLifecycleFailure | null;
   readonly observed_at?: string;
-  readonly queue_status?: Partial<Record<"dead_letter" | "failed" | "in_flight" | "outstanding" | "retrying" | "succeeded" | "total", number>>;
+  readonly queue_status?: Partial<
+    Record<
+      "dead_letter" | "failed" | "in_flight" | "outstanding" | "retrying" | "succeeded" | "total",
+      number
+    >
+  >;
   readonly scope_id?: string;
   readonly scope_kind?: string;
   readonly source_system?: string;
@@ -158,17 +167,24 @@ interface WireGenerationLifecycleRow {
   readonly trigger_kind?: string;
 }
 
+interface WireGenerationLifecycleFailure {
+  readonly failure_class?: string;
+  readonly failure_message?: string;
+  readonly observed_at?: string;
+  readonly work_item_status?: string;
+}
+
 const classifications: readonly ChangeClassification[] = [
   "added",
   "updated",
   "unchanged",
   "retired",
-  "superseded"
+  "superseded",
 ];
 
 export async function loadRepositoryChangedSince(
   client: EshuApiClient,
-  query: RepositoryChangedSinceQuery
+  query: RepositoryChangedSinceQuery,
 ): Promise<ChangedSincePageData> {
   const envelope = await client.get<WireChangedSinceResponse>(repositoryChangedSincePath(query));
   if (envelope.error) throw new EshuEnvelopeError(envelope.error);
@@ -178,7 +194,7 @@ export async function loadRepositoryChangedSince(
 
 export async function loadServiceChangedSince(
   client: EshuApiClient,
-  query: ServiceChangedSinceQuery
+  query: ServiceChangedSinceQuery,
 ): Promise<ChangedSincePageData> {
   const envelope = await client.get<WireChangedSinceResponse>(serviceChangedSincePath(query));
   if (envelope.error) throw new EshuEnvelopeError(envelope.error);
@@ -188,9 +204,13 @@ export async function loadServiceChangedSince(
 
 export async function loadGenerationLifecycle(
   client: EshuApiClient,
-  query: GenerationLifecycleQuery
+  query: GenerationLifecycleQuery,
+  options: GenerationLifecycleLoadOptions = {},
 ): Promise<GenerationLifecyclePage> {
-  const envelope = await client.get<WireGenerationLifecycleResponse>(generationLifecyclePath(query));
+  const envelope = await client.get<WireGenerationLifecycleResponse>(
+    generationLifecyclePath(query),
+    { signal: options.signal },
+  );
   if (envelope.error) throw new EshuEnvelopeError(envelope.error);
   const { data, truth } = unwrapEnvelope(envelope);
   return {
@@ -198,7 +218,7 @@ export async function loadGenerationLifecycle(
     generations: (data.generations ?? []).map(normalizeGeneration),
     limit: numberOrZero(data.limit),
     truncated: data.truncated === true,
-    truth
+    truth,
   };
 }
 
@@ -235,7 +255,7 @@ export function generationLifecyclePath(query: GenerationLifecycleQuery): string
 function normalizeChangedSince(
   data: WireChangedSinceResponse,
   truth: EshuTruth,
-  mode: ChangedSinceMode
+  mode: ChangedSinceMode,
 ): ChangedSincePageData {
   const categories = (data.categories ?? []).map(normalizeCategory);
   return {
@@ -253,7 +273,7 @@ function normalizeChangedSince(
     truth,
     unchangedCount: categories.reduce((sum, category) => sum + category.counts.unchanged, 0),
     unavailable: data.unavailable === true,
-    unavailableReason: str(data.unavailable_reason)
+    unavailableReason: str(data.unavailable_reason),
   };
 }
 
@@ -265,7 +285,7 @@ function normalizeCategory(category: WireChangedSinceCategory): ChangedSinceCate
     counts,
     samples: normalizeSamples(category.samples),
     truncated: normalizeTruncated(category.truncated),
-    unavailable: category.unavailable === true
+    unavailable: category.unavailable === true,
   };
 }
 
@@ -275,29 +295,31 @@ function normalizeCounts(counts: WireChangedSinceCategory["counts"]): ChangeCoun
     updated: numberOrZero(counts?.updated),
     unchanged: numberOrZero(counts?.unchanged),
     retired: numberOrZero(counts?.retired),
-    superseded: numberOrZero(counts?.superseded)
+    superseded: numberOrZero(counts?.superseded),
   };
 }
 
 function normalizeSamples(samples: WireChangedSinceCategory["samples"]): ChangeSamples {
-  return classifications.reduce((acc, classification) => {
-    acc[classification] = (samples?.[classification] ?? []).map(normalizeSample);
-    return acc;
-  }, {} as Record<ChangeClassification, readonly ChangeSample[]>);
+  return classifications.reduce(
+    (acc, classification) => {
+      acc[classification] = (samples?.[classification] ?? []).map(normalizeSample);
+      return acc;
+    },
+    {} as Record<ChangeClassification, readonly ChangeSample[]>,
+  );
 }
 
 function normalizeSample(sample: WireChangeSample): ChangeSample {
   return {
     factKind: str(sample.fact_kind),
-    stableFactKey: str(sample.stable_fact_key)
+    stableFactKey: str(sample.stable_fact_key),
   };
 }
 
 function normalizeTruncated(truncated: WireChangedSinceCategory["truncated"]): ChangeTruncation {
-  return Object.fromEntries(classifications.map((classification) => [
-    classification,
-    truncated?.[classification] === true
-  ])) as ChangeTruncation;
+  return Object.fromEntries(
+    classifications.map((classification) => [classification, truncated?.[classification] === true]),
+  ) as ChangeTruncation;
 }
 
 function normalizeGeneration(row: WireGenerationLifecycleRow): GenerationLifecycleRow {
@@ -310,7 +332,7 @@ function normalizeGeneration(row: WireGenerationLifecycleRow): GenerationLifecyc
     generationId: str(row.generation_id),
     ingestedAt: strOrNull(row.ingested_at),
     isActive: row.is_active === true,
-    latestFailure: str(row.latest_failure),
+    latestFailure: generationFailureMessage(row.latest_failure),
     observedAt: strOrNull(row.observed_at),
     queueDeadLetter: numberOrZero(queue.dead_letter),
     queueFailed: numberOrZero(queue.failed),
@@ -324,8 +346,15 @@ function normalizeGeneration(row: WireGenerationLifecycleRow): GenerationLifecyc
     sourceSystem: str(row.source_system),
     status: str(row.status),
     supersededAt: strOrNull(row.superseded_at),
-    triggerKind: str(row.trigger_kind)
+    triggerKind: str(row.trigger_kind),
   };
+}
+
+function generationFailureMessage(
+  failure: WireGenerationLifecycleFailure | null | undefined,
+): string {
+  if (!failure) return "";
+  return str(failure.failure_message) || str(failure.failure_class);
 }
 
 function scopeLabel(data: WireChangedSinceResponse, mode: ChangedSinceMode): string {

@@ -49,6 +49,10 @@ export interface EshuApiClientOptions {
   readonly timeoutMs?: number;
 }
 
+export interface EshuApiRequestOptions {
+  readonly signal?: AbortSignal;
+}
+
 export interface BrowserSessionAuth {
   readonly mode: "browser_session";
   readonly tenant_id?: string;
@@ -86,13 +90,18 @@ export class EshuApiClient {
     this.timeoutMs = options.timeoutMs ?? eshuDefaultTimeoutMs;
   }
 
-  async get<TData>(path: string): Promise<EshuEnvelope<TData>> {
-    return this.withTimeout((signal) =>
-      this.fetcher(this.url(path), {
-        credentials: "same-origin",
-        headers: this.headers("GET"),
-        signal,
-      }).then((response) => this.parse<TData>(response)),
+  async get<TData>(
+    path: string,
+    options: EshuApiRequestOptions = {},
+  ): Promise<EshuEnvelope<TData>> {
+    return this.withTimeout(
+      (signal) =>
+        this.fetcher(this.url(path), {
+          credentials: "same-origin",
+          headers: this.headers("GET"),
+          signal,
+        }).then((response) => this.parse<TData>(response)),
+      options.signal,
     );
   }
 
@@ -218,12 +227,24 @@ export class EshuApiClient {
   // AbortSignal.timeout) so the signal is the same AbortSignal type the fetch
   // and Request implementations validate against, and always clears the timer so
   // no pending timeout leaks once the request settles. A non-positive or
-  // non-finite timeout disables the deadline and passes signal: undefined.
-  private async withTimeout<T>(run: (signal: AbortSignal | undefined) => Promise<T>): Promise<T> {
-    if (!Number.isFinite(this.timeoutMs) || this.timeoutMs <= 0) {
-      return run(undefined);
+  // non-finite timeout disables only the deadline and preserves a caller signal.
+  private async withTimeout<T>(
+    run: (signal: AbortSignal | undefined) => Promise<T>,
+    callerSignal?: AbortSignal,
+  ): Promise<T> {
+    const timeoutEnabled = Number.isFinite(this.timeoutMs) && this.timeoutMs > 0;
+    if (!timeoutEnabled) {
+      return run(callerSignal);
     }
     const controller = new AbortController();
+    const abortFromCaller = (): void => {
+      controller.abort(normalizedAbortReason(callerSignal));
+    };
+    if (callerSignal?.aborted) {
+      abortFromCaller();
+    } else {
+      callerSignal?.addEventListener("abort", abortFromCaller, { once: true });
+    }
     const timer = setTimeout(() => {
       controller.abort(
         new DOMException(`Eshu API request timed out after ${this.timeoutMs}ms`, "TimeoutError"),
@@ -233,6 +254,7 @@ export class EshuApiClient {
       return await run(controller.signal);
     } finally {
       clearTimeout(timer);
+      callerSignal?.removeEventListener("abort", abortFromCaller);
     }
   }
 
@@ -284,6 +306,11 @@ export class EshuApiClient {
     }
     return new EshuApiHttpError(response.status);
   }
+}
+
+function normalizedAbortReason(signal: AbortSignal | undefined): Error {
+  const reason: unknown = signal?.reason;
+  return reason instanceof Error ? reason : new DOMException("request aborted", "AbortError");
 }
 
 function normalizeBaseUrl(baseUrl: string): string {

@@ -17,26 +17,9 @@
 // up a FRESH stack and always tears it down. Console-reachability decision:
 // see authE2EDevServer.ts's header comment.
 //
-// Acceptance coverage (issue #4971 items 1-6, issue #5073 items 7-9, one
-// fresh zero-identity stack):
-//   1. Fresh stack shows the SetupPage, not a dead-end LoginPage.
-//   2. Claim the one-time credential, complete the 3-step wizard, land on the
-//      dashboard; the credential is destroyed and the setup routes return 410.
-//   3. Configure a member-mapped OIDC provider via the real Add-provider UI
-//      (add -> test -> enable); shows active and appears on /login.
-//   4. Complete a real OIDC redirect -> mock IdP -> callback as that member
-//      (non-admin): no Admin nav, /admin renders AccessDeniedPage, admin APIs 403.
-//   5. require_sso rejects a premature enable (400) until a provider passes
-//      its test AND an admin completes an SSO sign-in; enabling it then
-//      revokes item 2's still-open LOCAL admin session (#5002 — a 401 there
-//      proves the flip revoked an issued session, not just blocked future
-//      ones), hides the local form on /login, while break-glass
-//      /login?local=1 still works. The admin-SSO precondition needs a second,
-//      env/file-backed provider; see authE2EOidcFlow.ts/authE2ERequireSSOFlow.ts.
-//   6. Negative-leakage scan (authE2ELeakage.ts): the flow's secrets never
-//      appear in any audit trail, provider-config read, status/health, DOM, or
-//      API container log — bar epic #4962's one-time banner.
-//   7-9. Three LOCAL non-admin member flows (#5073) — see authE2ELocalMemberFlow.ts.
+// Acceptance coverage: first-run setup and caller-bound Profile/Admin reads;
+// real member/admin OIDC authorization and require_sso; local MFA/password
+// flows; and negative secret-leakage proof. See the extracted authE2E modules.
 // A CI job (frontend.yml's auth-sso-e2e) runs this gate on a fresh stack.
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
@@ -87,6 +70,8 @@ import {
   completeAdminSSOLoginPrecondition,
   enableRequireSSO,
 } from "./authE2ERequireSSOFlow.ts";
+import { recordAuthE2EStep, type StepResult } from "./authE2EStepRecorder.ts";
+import { runSessionSurfaceProofSteps } from "./authE2ESurfaceSteps.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const consoleDir = resolve(here, "..");
@@ -127,27 +112,9 @@ const mockOidcAdminPort = (process.env.ESHU_E2E_MOCK_OIDC_ADMIN_PORT ?? "28091")
 // wizard and no longer valid after setup completes).
 const wizardNewPassword = "E2E-auth-runner-P@ssw0rd-1";
 
-interface StepResult {
-  readonly id: string;
-  readonly status: "pass" | "fail" | "blocked";
-  readonly detail: string;
-  readonly ms: number;
-}
-
 const results: StepResult[] = [];
-
-async function step(id: string, fn: () => Promise<string>): Promise<void> {
-  const start = Date.now();
-  try {
-    const detail = await fn();
-    results.push({ id, status: "pass", detail, ms: Date.now() - start });
-    process.stdout.write(`  PASS ${id} (${Date.now() - start}ms): ${detail}\n`);
-  } catch (err) {
-    const detail = err instanceof Error ? err.message : String(err);
-    results.push({ id, status: "fail", detail, ms: Date.now() - start });
-    process.stdout.write(`  FAIL ${id} (${Date.now() - start}ms): ${detail}\n`);
-  }
-}
+const step = (id: string, fn: () => Promise<string>): Promise<void> =>
+  recordAuthE2EStep(results, id, fn);
 
 // memberOidcIssuer/adminStaticProviderId/memberOidcGroup identify the two
 // mock IdPs and providers in play — see authE2EOidcFlow.ts's header comment
@@ -206,16 +173,13 @@ export async function runAuthE2E(): Promise<number> {
     let bootstrapPassword = "";
     let bootstrapRecoveryCode = "";
     await step("item2_retrieve_initial_credential", async () => {
-      const { credential, rawStderr } = await retrieveInitialCredential(
-        repoGoDir,
-        postgresDSN,
-        authSecretEncKey,
-      );
-      if (!credential) {
+      const retrieval = await retrieveInitialCredential(repoGoDir, postgresDSN, authSecretEncKey);
+      if (retrieval.status !== "available" || !retrieval.credential) {
         throw new Error(
-          `eshu admin initial-credential returned nothing on a fresh stack: ${rawStderr}`,
+          `eshu admin initial-credential unavailable on a fresh stack (${retrieval.failureReason ?? "credential_command_failed"})`,
         );
       }
+      const credential = retrieval.credential;
       credentialUsername = credential.username;
       bootstrapPassword = credential.password;
       bootstrapRecoveryCode = credential.recoveryCode;
@@ -231,23 +195,26 @@ export async function runAuthE2E(): Promise<number> {
     });
 
     await step("item2_credential_consumed", async () => {
-      const { credential, rawStderr } = await retrieveInitialCredential(
-        repoGoDir,
-        postgresDSN,
-        authSecretEncKey,
-      );
-      if (credential) {
+      const retrieval = await retrieveInitialCredential(repoGoDir, postgresDSN, authSecretEncKey);
+      if (retrieval.status === "error") {
+        throw new Error(
+          `eshu admin initial-credential consumption check failed (${retrieval.failureReason ?? "credential_command_failed"})`,
+        );
+      }
+      if (retrieval.credential) {
         throw new Error(
           "eshu admin initial-credential still returns a value after setup completed — not consumed",
         );
       }
-      return `second retrieval correctly empty: ${rawStderr.trim().slice(0, 160)}`;
+      return "second retrieval correctly reports credential_unavailable";
     });
 
     await step("item2_setup_routes_gone", async () => {
       await assertSetupRouteGone(apiBase);
       return "POST /api/v0/auth/setup/claim now returns 410 Gone";
     });
+
+    await runSessionSurfaceProofSteps(step, page, navTimeoutMs);
 
     await step("item5_guardrail_rejects_premature_enable", () =>
       assertGuardrailRejectsPrematureEnable(page),

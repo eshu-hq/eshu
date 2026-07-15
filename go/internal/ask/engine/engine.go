@@ -130,6 +130,11 @@ type Answer struct {
 	// the tool-call phase. They are the authoritative answer truth regardless
 	// of whether narration was produced.
 	Packets []query.AnswerPacket
+	// PrimaryPacketIndex explicitly selects the packet that backs the published
+	// answer when deterministic routing identifies one canonical result. Nil
+	// means consumers use their ordinary first-supported-packet selection. The
+	// index never changes Packets or Trace order; both remain dispatch ordered.
+	PrimaryPacketIndex *int
 	// Trace records every tool call issued during the session in invocation
 	// order.
 	Trace []TraceEntry

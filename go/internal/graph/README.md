@@ -130,6 +130,9 @@ helpers (`schemaDialectForBackend`, `nornicDBSchemaConstraint`).
 - `SourceLocalRecord` receives a `(scope_id, generation_id, record_id)`
   uniqueness constraint during schema setup; canonical source-local MERGE
   statements rely on it to avoid full label scans on large repositories.
+- `Function.id` receives a non-unique lookup index for the relationship-story
+  compatibility path. Canonical identity remains `uid`; the secondary index
+  only keeps the collision check for legacy IDs from scanning every Function.
 - `File` receives both the legacy `path` identity constraint and a `uid`
   uniqueness constraint. Canonical file writes still MERGE by `path`, while
   shared code-call projection reads file endpoints by repo-scoped `uid`.
@@ -189,13 +192,12 @@ Kubernetes bootstrap job no longer appears hung after Postgres schema completes.
 No-Regression Evidence: #2902 adds
 `TestSchemaApplicationsDeclareCompatibilityDecision`, which pins the
 current Neo4j fingerprint
-`556d133c15610ecaaf773af2200717062e5d91d0edd2709fa7f6a83072a11c53`
-(227 statements) and NornicDB fingerprint
-`1c4bf2acf328fdeb19084b18618cc9a57749615d7c513edb674cfbc036f1bbae`
-(289 statements). The latest DDL bump adds only `repo_id` and `path` lookup
-indexes for `ShellCommand`, so older writers remain compatible while
-reducer-owned shell execution edge retractions can avoid large Function-label
-fan-outs.
+`d7049c28a01cad7a2a78c7e3541bb74930417632c3360a06a6ed8ba290bf298a`
+(228 statements) and NornicDB fingerprint
+`e01925b4ca497e4dfb0ac7d5dd50331736d134d2823cac3b60c7729f55db0ebd`
+(290 statements). The latest DDL bump adds only the non-unique `Function.id`
+lookup index, so older writers remain compatible while relationship-story
+legacy-ID collision checks avoid a full Function-label scan.
 
 No-Observability-Change: graph schema compatibility remains a Postgres marker
 read/write contract through `graphschemacompat`; this update changes only the

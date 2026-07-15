@@ -48,6 +48,9 @@ capabilities:
     docs:
       - reference/capability-catalog.md
     console: true
+  - capability: operations.status
+    owner_package: internal/query
+    console: true
 
   # Per-ecosystem reachability rows (issue #3021). Reachability rides the
   # supply-chain impact envelope, so these rows share its surfaces. Go is
@@ -246,6 +249,9 @@ tool_exemptions:
 # Matrix-declared tools that are served through an HTTP API operation rather
 # than the MCP registry. Each name maps 1:1 to an OpenAPI operationId.
 non_mcp_surfaces:
+  - tool: GET /api/v0/status/operations
+    kind: api
+    reason: served by the bounded operations status HTTP route for the Console live board
   - tool: GET /api/v0/capabilities
     kind: api
     reason: served by the capability catalog HTTP operation

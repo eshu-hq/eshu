@@ -600,6 +600,20 @@ names, source-system detail, queue conflict keys, tenant/workspace values,
 provider payloads, local paths, and credentials out of the payload. The legacy
 `/api/v0/collectors` alias remains unavailable to scoped tokens.
 
+The live operations board at `GET /api/v0/status/operations` is exact and
+complete for all-scopes operators: it combines process-wide health, collector,
+stage, domain-backlog, and queue aggregates with bounded live activity. A
+scoped caller receives only live-activity rows restricted to its granted
+repositories or ingestion scopes, with repository and worker identities
+redacted. The process-wide aggregate sections are omitted because they cannot
+be attributed to those grants; `completeness_state=scoped_live_activity_only`,
+`withheld_sections`, and a derived truth level make that boundary explicit.
+
+No-Observability-Change: this is a response-projection and truth-label fix; it
+adds no datastore call, queue stage, retry path, or concurrency boundary. The
+existing `eshu-api` request span and `eshu_dp_postgres_query_duration_seconds`
+status/live-activity query measurements continue to diagnose the route.
+
 Hosted readiness follows the same aggregate rule for scoped tokens. `GET
 /api/v0/status/hosted-readiness` keeps hosted readiness checks, queue counters,
 collector-generation replay blockers, repository counts, diagnostic route
@@ -769,8 +783,10 @@ live in [evidence-notes.md](evidence-notes.md).
   label-scoped pages before policy exclusions, pushes any requested language
   filter into the candidate query, then checks completed reducer code-call
   intent rows for incoming edges on the remaining candidates and uses a
-  2,500-row per-label scan window for small result limits. It reports the
-  aggregate maximum as `candidate_scan_limit`, the per-label bound as
+  shared 2,500-row scan window for small result limits. Label pages are
+  round-robined inside that ceiling so a saturated early label cannot starve
+  later labels or multiply downstream work. It reports the shared maximum as
+  `candidate_scan_limit`, the maximum share one label may consume as
   `candidate_scan_limit_per_label`, and
   `candidate_scan_pages` plus `candidate_scan_rows`.
   `display_truncated` and `candidate_scan_truncated` must stay separate so

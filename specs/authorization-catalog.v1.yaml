@@ -269,7 +269,7 @@ permission_families:
     default_roles: [developer, owner]
   - family: operations_status
     description: Runtime status, freshness, governance status, collector extraction readiness, surface inventory, schema inventory, and query workflow catalogs.
-    capability_prefixes: [freshness., surface_inventory., hosted_governance., collector_extraction_readiness., fact_schema_version., query., platform_metrics.]
+    capability_prefixes: [freshness., surface_inventory., hosted_governance., collector_extraction_readiness., fact_schema_version., query., platform_metrics., operations.]
     action: operations.status.read
     data_classes: [status_metadata, catalog_metadata]
     scope_levels: [tenant, workspace]

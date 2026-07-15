@@ -174,7 +174,7 @@ export function RepoSourcePage({ client }: { readonly client?: EshuApiClient }):
   const lastIndexedAt = selectedBranch?.lastIndexedAt ?? branchOptions[0]?.lastIndexedAt ?? null;
 
   return (
-    <div className="page" style={{ maxWidth: "none" }}>
+    <div className="page repo-source-page" style={{ maxWidth: "none" }}>
       <div className="page-intro">
         <Link to="/repositories" className="link-btn">
           ← Repositories

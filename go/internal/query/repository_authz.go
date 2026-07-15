@@ -53,6 +53,32 @@ func (f repositoryAccessFilter) allowsRepositoryID(repoID string) bool {
 	return ok
 }
 
+func (f repositoryAccessFilter) allowsCanonicalRepositoryID(repoID string) bool {
+	if f.allScopes {
+		return true
+	}
+	return containsAuthString(f.allowedRepositoryIDs, repoID)
+}
+
+func (f repositoryAccessFilter) allowsDirectScopeID(scopeID string) bool {
+	if f.allScopes {
+		return false
+	}
+	return containsAuthString(f.allowedScopeIDs, scopeID)
+}
+
+func containsAuthString(values []string, candidate string) bool {
+	if candidate == "" {
+		return false
+	}
+	for _, value := range values {
+		if value == candidate {
+			return true
+		}
+	}
+	return false
+}
+
 func (f repositoryAccessFilter) graphParams(params map[string]any) map[string]any {
 	if params == nil {
 		params = map[string]any{}

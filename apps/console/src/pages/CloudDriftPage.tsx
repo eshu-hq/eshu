@@ -1,25 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useLocation } from "react-router-dom";
 
-import type { EshuApiClient } from "../api/client";
-import {
-  loadCloudRuntimeDriftFindings,
-  loadIaCManagementExplanation,
-  type CloudDriftExactQuery,
-  type CloudDriftProvider,
-  type CloudDriftQuery,
-  type IaCManagementExplanation,
-  type TerraformImportPlanCandidate,
-  type UnmanagedCloudResourceFinding,
-} from "../api/cloudDrift";
-import {
-  loadCloudRuntimeDriftPacket,
-  type InvestigationPacketResult,
-} from "../api/investigationPacket";
-import { Badge, FreshDot, Panel, StatTile, TruthChip } from "../components/atoms";
-import { InvestigationEvidencePacketReader } from "../components/InvestigationEvidencePacketReader";
-import { uiFresh, uiTruth } from "../console/types";
-import "./liveInventory.css";
 import {
   EMPTY_DRIFT_ERRORS,
   EMPTY_DRIFT_STATE,
@@ -27,22 +8,40 @@ import {
   type DriftState,
   type DriftSurfaceErrors,
 } from "./cloudDriftLoad";
-
-const PAGE_LIMIT = 50;
-
-interface DriftFilters {
-  readonly accountId: string;
-  readonly provider: CloudDriftProvider;
-  readonly region: string;
-  readonly scopeId: string;
-}
-
-const EMPTY_FILTERS: DriftFilters = {
-  accountId: "",
-  provider: "",
-  region: "",
-  scopeId: "",
-};
+import {
+  EmptyRow,
+  listText,
+  ManagementExplanationPanel,
+  surfaceErrorMessage,
+  TruthPair,
+  UnmanagedRow,
+} from "./CloudDriftPresentation";
+import {
+  cleanFilter,
+  EMPTY_FILTERS,
+  filtersFromSearch,
+  hasBoundedScope,
+  queryFor,
+  shouldLoadAwsSurfaces,
+  type DriftFilters,
+} from "./CloudDriftQuery";
+import { CloudDriftSummary } from "./CloudDriftSummary";
+import { CloudDriftToolbar } from "./CloudDriftToolbar";
+import type { EshuApiClient } from "../api/client";
+import {
+  loadCloudRuntimeDriftFindings,
+  loadIaCManagementExplanation,
+  type CloudDriftExactQuery,
+  type IaCManagementExplanation,
+  type UnmanagedCloudResourceFinding,
+} from "../api/cloudDrift";
+import {
+  loadCloudRuntimeDriftPacket,
+  type InvestigationPacketResult,
+} from "../api/investigationPacket";
+import { Badge, Panel } from "../components/atoms";
+import { InvestigationEvidencePacketReader } from "../components/InvestigationEvidencePacketReader";
+import "./liveInventory.css";
 
 export function CloudDriftPage({
   client,
@@ -68,23 +67,36 @@ export function CloudDriftPage({
   const [packet, setPacket] = useState<InvestigationPacketResult | null>(null);
   const [packetBusy, setPacketBusy] = useState(false);
   const [packetError, setPacketError] = useState("");
+  const scopeGeneration = useRef(0);
+  const explanationRequest = useRef(0);
+  const packetRequest = useRef(0);
+  const paginationRequest = useRef(0);
   const hasScope = hasBoundedScope(applied);
+  const multiEnabled = Boolean(client && hasScope);
+  const awsEnabled = Boolean(client && hasScope && shouldLoadAwsSurfaces(applied));
 
   const loadAll = useCallback(
     (filters: DriftFilters, offset: number) => {
-      if (!client || !hasBoundedScope(filters)) return () => undefined;
-      let cancelled = false;
-      setBusy(true);
+      const generation = ++scopeGeneration.current;
+      explanationRequest.current += 1;
+      packetRequest.current += 1;
+      paginationRequest.current += 1;
+      setExplainBusyArn("");
+      setExplainError("");
+      setPacketBusy(false);
+      setPacketError("");
+      setBusy(Boolean(client && hasBoundedScope(filters)));
       setSurfaceErrors(EMPTY_DRIFT_ERRORS);
       setPaginationError("");
       setState(EMPTY_DRIFT_STATE);
       setExplanation(null);
       setPacket(null);
-      setPacketError("");
+      if (!client || !hasBoundedScope(filters)) return () => undefined;
+      let cancelled = false;
       const query = queryFor(filters, offset);
       const awsEnabled = shouldLoadAwsSurfaces(filters);
       void loadCloudDriftSurfaces(client, query, awsEnabled).then((result) => {
-        if (!cancelled) {
+        if (!cancelled && scopeGeneration.current === generation) {
           setState(result.state);
           setSurfaceErrors(result.errors);
           setBusy(false);
@@ -100,30 +112,52 @@ export function CloudDriftPage({
   useEffect(() => loadAll(applied, 0), [loadAll, applied]);
 
   function submit(): void {
-    setApplied(draft);
+    scopeGeneration.current += 1;
+    explanationRequest.current += 1;
+    packetRequest.current += 1;
+    paginationRequest.current += 1;
+    setExplainBusyArn("");
+    setExplainError("");
+    setPacketBusy(false);
+    setPacketError("");
+    // Copy even when values are unchanged so a deliberate re-submit always
+    // starts a fresh generation instead of only invalidating the current one.
+    setApplied({ ...draft });
   }
 
   function reset(): void {
+    scopeGeneration.current += 1;
+    explanationRequest.current += 1;
+    packetRequest.current += 1;
+    paginationRequest.current += 1;
     setDraft(EMPTY_FILTERS);
     setApplied(EMPTY_FILTERS);
     setState(EMPTY_DRIFT_STATE);
+    setBusy(false);
     setSurfaceErrors(EMPTY_DRIFT_ERRORS);
     setPaginationError("");
     setExplanation(null);
+    setExplainBusyArn("");
+    setExplainError("");
     setPacket(null);
+    setPacketBusy(false);
     setPacketError("");
   }
 
   function nextMultiPage(): void {
     if (!client || !state.multi?.nextOffset) return;
+    const generation = scopeGeneration.current;
+    const request = ++paginationRequest.current;
     setBusy(true);
     setPaginationError("");
     void loadCloudRuntimeDriftFindings(client, queryFor(applied, state.multi.nextOffset))
       .then((multi) => {
+        if (scopeGeneration.current !== generation || paginationRequest.current !== request) return;
         setState((current) => ({ ...current, multi }));
         setBusy(false);
       })
       .catch((err: unknown) => {
+        if (scopeGeneration.current !== generation || paginationRequest.current !== request) return;
         setBusy(false);
         setPaginationError(err instanceof Error ? err.message : "failed to load next drift page");
       });
@@ -131,6 +165,8 @@ export function CloudDriftPage({
 
   function explainStatus(finding: UnmanagedCloudResourceFinding): void {
     if (!client || finding.arn === "") return;
+    const generation = scopeGeneration.current;
+    const request = ++explanationRequest.current;
     setExplainBusyArn(finding.arn);
     setExplainError("");
     const query: CloudDriftExactQuery = {
@@ -141,10 +177,14 @@ export function CloudDriftPage({
     };
     void loadIaCManagementExplanation(client, query)
       .then((result) => {
+        if (scopeGeneration.current !== generation || explanationRequest.current !== request)
+          return;
         setExplanation(result);
         setExplainBusyArn("");
       })
       .catch((err: unknown) => {
+        if (scopeGeneration.current !== generation || explanationRequest.current !== request)
+          return;
         setExplainError(err instanceof Error ? err.message : "failed to explain management status");
         setExplainBusyArn("");
       });
@@ -152,6 +192,8 @@ export function CloudDriftPage({
 
   function loadPacket(): void {
     if (!client || !hasBoundedScope(applied)) return;
+    const generation = scopeGeneration.current;
+    const request = ++packetRequest.current;
     setPacketBusy(true);
     setPacketError("");
     void loadCloudRuntimeDriftPacket(client, {
@@ -161,10 +203,12 @@ export function CloudDriftPage({
       scopeId: cleanFilter(applied.scopeId),
     })
       .then((result) => {
+        if (scopeGeneration.current !== generation || packetRequest.current !== request) return;
         setPacket(result);
         setPacketBusy(false);
       })
       .catch((err: unknown) => {
+        if (scopeGeneration.current !== generation || packetRequest.current !== request) return;
         setPacket(null);
         setPacketBusy(false);
         setPacketError(err instanceof Error ? err.message : "failed to load drift evidence packet");
@@ -189,96 +233,20 @@ export function CloudDriftPage({
         </p>
       </div>
 
-      <form
-        className="evidence-toolbar"
-        onSubmit={(event) => {
-          event.preventDefault();
-          submit();
-        }}
-      >
-        <select
-          aria-label="Provider filter"
-          className="popover-input"
-          value={draft.provider}
-          onChange={(event) =>
-            setDraft((current) => ({
-              ...current,
-              provider: event.target.value as CloudDriftProvider,
-            }))
-          }
-        >
-          <option value="">Provider</option>
-          <option value="aws">AWS</option>
-          <option value="gcp">GCP</option>
-          <option value="azure">Azure</option>
-        </select>
-        <input
-          aria-label="Account ID filter"
-          className="popover-input mono"
-          placeholder="account_id"
-          value={draft.accountId}
-          onChange={(event) =>
-            setDraft((current) => ({ ...current, accountId: event.target.value }))
-          }
-        />
-        <input
-          aria-label="Region filter"
-          className="popover-input mono"
-          placeholder="region"
-          value={draft.region}
-          onChange={(event) => setDraft((current) => ({ ...current, region: event.target.value }))}
-        />
-        <input
-          aria-label="Scope ID filter"
-          className="popover-input mono"
-          placeholder="scope_id"
-          value={draft.scopeId}
-          onChange={(event) => setDraft((current) => ({ ...current, scopeId: event.target.value }))}
-        />
-        <button className="btn-ghost active" disabled={busy} type="submit">
-          Load drift findings
-        </button>
-        <button className="btn-ghost" disabled={busy} type="button" onClick={reset}>
-          Reset
-        </button>
-      </form>
+      <CloudDriftToolbar
+        busy={busy}
+        draft={draft}
+        onDraft={setDraft}
+        onReset={reset}
+        onSubmit={submit}
+      />
 
-      <div className="grid g-4">
-        <StatTile
-          label="Multi-cloud drift"
-          value={surfaceErrors.multi ? "—" : (state.multi?.totalFindingsCount ?? 0)}
-          color="var(--blue)"
-          sub={surfaceErrors.multi ? "unavailable" : pageSub(state.multi?.truncated)}
-        />
-        <StatTile
-          label="AWS drift"
-          value={surfaceErrors.aws ? "—" : (state.aws?.totalFindingsCount ?? 0)}
-          color="var(--ember)"
-          sub={
-            surfaceErrors.aws
-              ? "unavailable"
-              : shouldLoadAwsSurfaces(applied)
-                ? "bounded AWS findings"
-                : "AWS scope required"
-          }
-        />
-        <StatTile
-          label="Unmanaged"
-          value={surfaceErrors.unmanaged ? "—" : (state.unmanaged?.totalFindingsCount ?? 0)}
-          color="var(--teal)"
-          sub={surfaceErrors.unmanaged ? "unavailable" : "IaC management readback"}
-        />
-        <StatTile
-          label="Import candidates"
-          value={surfaceErrors.importPlan ? "—" : (state.importPlan?.readyCount ?? 0)}
-          color="var(--violet)"
-          sub={
-            surfaceErrors.importPlan
-              ? "unavailable"
-              : `${state.importPlan?.refusedCount ?? 0} refused`
-          }
-        />
-      </div>
+      <CloudDriftSummary
+        awsEnabled={awsEnabled}
+        multiEnabled={multiEnabled}
+        state={state}
+        surfaceErrors={surfaceErrors}
+      />
 
       {!hasScope ? (
         <p className="empty mt">Enter a scope or account to load drift evidence.</p>
@@ -475,193 +443,4 @@ export function CloudDriftPage({
       </div>
     </div>
   );
-}
-
-function UnmanagedRow({
-  candidate,
-  finding,
-  onExplain,
-  pending,
-}: {
-  readonly candidate: TerraformImportPlanCandidate | undefined;
-  readonly finding: UnmanagedCloudResourceFinding;
-  readonly onExplain: (finding: UnmanagedCloudResourceFinding) => void;
-  readonly pending: boolean;
-}): React.JSX.Element {
-  return (
-    <tr>
-      <td className="cell-stack">
-        <span className="t-name">{finding.arn || finding.resourceId || finding.id}</span>
-        <small>
-          {finding.provider} {finding.accountId} {finding.region}
-        </small>
-      </td>
-      <td>{finding.managementStatus || "-"}</td>
-      <td className="t-mut">{listText(finding.missingEvidence) || "complete"}</td>
-      <td className="cell-stack">
-        {candidate ? (
-          <>
-            <span>{candidate.suggestedResourceAddress || candidate.status}</span>
-            <small>
-              {candidate.status}
-              {candidate.refusalReasons.length > 0 ? `: ${listText(candidate.refusalReasons)}` : ""}
-            </small>
-            <Link to={importContextHref(candidate)}>Open import context</Link>
-          </>
-        ) : (
-          <span className="t-mut">No candidate returned</span>
-        )}
-      </td>
-      <td>{finding.safetyOutcome || "read_only"}</td>
-      <td>
-        <button
-          className="btn-ghost"
-          disabled={pending}
-          type="button"
-          onClick={() => onExplain(finding)}
-        >
-          {pending ? "Explaining..." : `Explain status for ${finding.arn}`}
-        </button>
-      </td>
-    </tr>
-  );
-}
-
-function ManagementExplanationPanel({
-  error,
-  explanation,
-}: {
-  readonly error: string;
-  readonly explanation: IaCManagementExplanation | null;
-}): React.JSX.Element {
-  return (
-    <Panel
-      title="Management explanation"
-      sub={explanation?.arn || "Exact-resource evidence drilldown"}
-    >
-      {error ? <p className="empty">Failed to explain management status: {error}</p> : null}
-      {explanation ? (
-        <div className="evidence-card-list">
-          <div className="evidence-card">
-            <strong>{explanation.story}</strong>
-            <span className="t-mut">Safety gate: {explanation.safetyOutcome || "read_only"}</span>
-          </div>
-          {explanation.evidenceGroups.map((group) => (
-            <div className="evidence-card" key={group.layer}>
-              <strong>
-                {group.layer || "evidence"} · {group.count}
-              </strong>
-              {group.evidence.map((item) => (
-                <span className="cell-stack mono t-mut" key={item.id}>
-                  <span>{item.evidenceType}</span>
-                  <small>
-                    {item.key} · {item.value}
-                  </small>
-                </span>
-              ))}
-            </div>
-          ))}
-        </div>
-      ) : (
-        <p className="empty">
-          Select an unmanaged resource to inspect its reducer evidence groups.
-        </p>
-      )}
-    </Panel>
-  );
-}
-
-function TruthPair({
-  truth,
-}: {
-  readonly truth: { readonly freshness: string; readonly level: string };
-}): React.JSX.Element {
-  return (
-    <span className="panel-action-stack">
-      <TruthChip level={uiTruth(truth.level)} />
-      <FreshDot state={uiFresh(truth.freshness)} />
-    </span>
-  );
-}
-
-function EmptyRow({
-  cols,
-  text,
-}: {
-  readonly cols: number;
-  readonly text: string;
-}): React.JSX.Element {
-  return (
-    <tr>
-      <td className="empty" colSpan={cols}>
-        {text}
-      </td>
-    </tr>
-  );
-}
-
-function filtersFromSearch(search: string, defaults: DriftFilters | undefined): DriftFilters {
-  const params = new URLSearchParams(search);
-  const provider = params.get("provider") ?? "";
-  return {
-    accountId: params.get("account_id") ?? defaults?.accountId ?? "",
-    provider:
-      provider === "aws" || provider === "gcp" || provider === "azure"
-        ? provider
-        : (defaults?.provider ?? ""),
-    region: params.get("region") ?? defaults?.region ?? "",
-    scopeId: params.get("scope_id") ?? defaults?.scopeId ?? "",
-  };
-}
-
-function queryFor(filters: DriftFilters, offset: number): CloudDriftQuery {
-  return {
-    accountId: filters.accountId.trim() || undefined,
-    limit: PAGE_LIMIT,
-    offset,
-    provider: filters.provider,
-    region: filters.region.trim() || undefined,
-    scopeId: filters.scopeId.trim() || undefined,
-  };
-}
-
-function cleanFilter(value: string): string | undefined {
-  const trimmed = value.trim();
-  return trimmed.length === 0 ? undefined : trimmed;
-}
-
-function hasBoundedScope(filters: DriftFilters): boolean {
-  return filters.scopeId.trim() !== "" || filters.accountId.trim() !== "";
-}
-
-function shouldLoadAwsSurfaces(filters: DriftFilters): boolean {
-  return filters.accountId.trim() !== "" || filters.scopeId.trim().startsWith("aws:");
-}
-
-function importContextHref(candidate: TerraformImportPlanCandidate): string {
-  const params = new URLSearchParams();
-  if (candidate.accountId) params.set("account_id", candidate.accountId);
-  if (candidate.region) params.set("region", candidate.region);
-  if (candidate.arn) params.set("arn", candidate.arn);
-  return `/replatforming?${params.toString()}`;
-}
-
-function listText(values: readonly string[]): string {
-  return values.filter((value) => value.trim() !== "").join(", ");
-}
-
-function pageSub(truncated: boolean | undefined): string {
-  return truncated ? "more available" : "bounded page";
-}
-
-function surfaceErrorMessage(errors: DriftSurfaceErrors): string {
-  return [
-    ["Multi-cloud drift", errors.multi],
-    ["AWS drift", errors.aws],
-    ["Unmanaged resources", errors.unmanaged],
-    ["Import candidates", errors.importPlan],
-  ]
-    .filter((entry) => entry[1])
-    .map((entry) => `${entry[0]}: ${entry[1]}`)
-    .join("; ");
 }

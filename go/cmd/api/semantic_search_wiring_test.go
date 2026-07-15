@@ -178,6 +178,49 @@ func TestNewRouterWiresLocalSemanticHybridVectorStoresWithPostgresInstrumentatio
 	}
 }
 
+func TestNewRouterWiresSemanticSearchScopeResolverWithPostgresInstrumentation(t *testing.T) {
+	t.Parallel()
+
+	instruments, err := telemetry.NewInstruments(otel.Meter("eshu-api-scope-test"))
+	if err != nil {
+		t.Fatalf("NewInstruments() error = %v, want nil", err)
+	}
+	router, err := newRouter(
+		nil,
+		nil,
+		nil,
+		staticStatusReader{},
+		nil,
+		query.ProfileLocalFullStack,
+		query.GraphBackendNornicDB,
+		nil,
+		instruments,
+		"",
+		"",
+		component.Policy{},
+		query.GovernanceStatusConfig{},
+		nil,
+		false,
+		query.CookieSecureAuto,
+	)
+	if err != nil {
+		t.Fatalf("newRouter() error = %v, want nil", err)
+	}
+	resolver, ok := router.SemanticSearch.ScopeResolver.(instrumentedSemanticSearchScopeResolver)
+	if !ok {
+		t.Fatalf("ScopeResolver = %T, want instrumented resolver", router.SemanticSearch.ScopeResolver)
+	}
+	if got, want := resolver.db.StoreName, semanticSearchScopeStoreName; got != want {
+		t.Fatalf("scope resolver store name = %q, want %q", got, want)
+	}
+	if resolver.db.Instruments != instruments {
+		t.Fatal("scope resolver instruments do not match API instruments")
+	}
+	if resolver.db.Tracer == nil {
+		t.Fatal("scope resolver tracer = nil, want Postgres child spans")
+	}
+}
+
 func TestWireAPIRejectsUnknownSemanticSearchLocalEmbedderBeforeDatastore(t *testing.T) {
 	_, _, _, err := wireAPI(context.Background(), func(key string) string {
 		if key == envSemanticSearchLocalEmbedder {

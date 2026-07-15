@@ -165,8 +165,13 @@ async function loadChangedSinceQuestion(
   if (env.data?.unavailable === true) throw new Error("changed-since suggestions are unavailable");
   const total = changedCount(env.data?.categories ?? []);
   if (total === 0) return null;
+  const routeParams = new URLSearchParams({
+    mode: "repository",
+    repository: repository.id,
+    since_generation_id: priorGeneration,
+  });
   return {
-    href: `/repositories/${encodeURIComponent(repository.id)}/source`,
+    href: `/changed-since?${routeParams.toString()}`,
     id: `changed-since:${repository.id}:${priorGeneration}`,
     kind: "freshness",
     question: `What changed in ${repository.name} since the prior generation?`,

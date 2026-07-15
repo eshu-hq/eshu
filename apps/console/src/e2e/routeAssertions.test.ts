@@ -1,6 +1,6 @@
 import {
-  consoleRoutes,
   defaultNetworkAllowList,
+  evaluateNetworkObservations,
   evaluateRoute,
   minMainContentChars,
   summarizeGate,
@@ -9,7 +9,6 @@ import {
   type RouteResult,
   type RouteSignals,
 } from "./routeAssertions";
-import { NAV_ITEMS } from "../i18n/navigation";
 
 const sampleRoute: ConsoleRoute = { path: "/dashboard", label: "Dashboard", area: "dashboard" };
 
@@ -34,101 +33,6 @@ function healthySignals(overrides: Partial<RouteSignals> = {}): RouteSignals {
     ...overrides,
   };
 }
-
-describe("consoleRoutes catalog", () => {
-  it("covers every route exposed by the sidebar navigation", () => {
-    const catalogPaths = new Set(consoleRoutes.map((route) => route.path));
-    const missingPaths = NAV_ITEMS.map((item) => item.to).filter((path) => !catalogPaths.has(path));
-
-    expect(missingPaths).toEqual([]);
-  });
-
-  it("enumerates the major console surfaces without duplicates", () => {
-    const paths = consoleRoutes.map((route) => route.path);
-    expect(new Set(paths).size).toBe(paths.length);
-    for (const required of [
-      "/dashboard",
-      "/repositories",
-      "/catalog",
-      "/explorer",
-      "/cloud",
-      "/observability",
-      "/operations",
-      "/findings",
-      "/ask",
-    ]) {
-      expect(paths).toContain(required);
-    }
-  });
-
-  it("covers every acceptance-criteria surface area", () => {
-    const areas = new Set(consoleRoutes.map((route) => route.area));
-    for (const area of [
-      "dashboard",
-      "repositories",
-      "service",
-      "graph",
-      "cloud",
-      "observability",
-      "operations",
-      "security",
-      "ask",
-      "system",
-    ]) {
-      expect(areas.has(area as ConsoleRoute["area"])).toBe(true);
-    }
-  });
-
-  it("assigns bounded workflow probes to the newly covered and high-value live routes", () => {
-    const workflowsByPath = new Map(
-      consoleRoutes.map((route) => [route.path, route.workflow?.kind] as const),
-    );
-
-    expect(
-      Object.fromEntries(
-        [
-          "/status",
-          "/cloud",
-          "/ask",
-          "/semantic-search",
-          "/relationships",
-          "/nodes",
-          "/profile",
-          "/admin",
-          "/operations",
-          "/surface-inventory",
-          "/dead-code",
-          "/code-graph",
-          "/vulnerabilities",
-        ].map((path) => [path, workflowsByPath.get(path)]),
-      ),
-    ).toEqual({
-      "/status": "state",
-      "/cloud": "state",
-      "/ask": "submit",
-      "/semantic-search": "submit",
-      "/relationships": "state",
-      "/nodes": "fill",
-      "/profile": "state",
-      "/admin": "click",
-      "/operations": "state",
-      "/surface-inventory": "fill",
-      "/dead-code": "fill",
-      "/code-graph": "state",
-      "/vulnerabilities": "click",
-    });
-  });
-
-  it("pins the dead-code live proof to the exact Trait candidate", () => {
-    const workflow = consoleRoutes.find((route) => route.path === "/dead-code")?.workflow;
-
-    expect(workflow).toMatchObject({
-      kind: "fill",
-      value: "Trait",
-      outcomeTextIncludes: "Trait",
-    });
-  });
-});
 
 describe("evaluateRoute", () => {
   it("passes a fully healthy live route", () => {
@@ -172,6 +76,19 @@ describe("evaluateRoute", () => {
     expect(result.failures.map((f) => f.code)).toContain("console_error");
   });
 
+  it("redacts URL query values from browser errors retained in the report", () => {
+    const result = evaluateRoute(
+      healthySignals({
+        consoleErrors: [
+          "request failed at https://host/eshu-api/api/v0/search?token=private-token",
+        ],
+      }),
+    );
+
+    expect(JSON.stringify(result.failures)).toContain("/eshu-api/api/v0/search");
+    expect(JSON.stringify(result.failures)).not.toContain("private-token");
+  });
+
   it("fails on an unexpected non-2xx network response", () => {
     const result = evaluateRoute(
       healthySignals({
@@ -186,6 +103,24 @@ describe("evaluateRoute", () => {
       }),
     );
     expect(result.failures.map((f) => f.code)).toContain("unexpected_network");
+  });
+
+  it("redacts request query values from failure details retained in the report", () => {
+    const result = evaluateRoute(
+      healthySignals({
+        network: [
+          {
+            url: "https://host/eshu-api/api/v0/catalog?token=private-token",
+            method: "GET",
+            status: 500,
+            failureText: null,
+          },
+        ],
+      }),
+    );
+
+    expect(JSON.stringify(result.failures)).toContain("/eshu-api/api/v0/catalog");
+    expect(JSON.stringify(result.failures)).not.toContain("private-token");
   });
 
   it("fails on a transport-level network failure even with status 0", () => {
@@ -422,5 +357,60 @@ describe("summarizeGate", () => {
   it("fails on an empty result set rather than vacuously passing", () => {
     const summary = summarizeGate([]);
     expect(summary.passed).toBe(false);
+  });
+
+  it("fails when bootstrap traffic contains a server or transport failure", () => {
+    const bootstrap = evaluateNetworkObservations(
+      "bootstrap",
+      [
+        {
+          url: "https://host/eshu-api/api/v0/status",
+          method: "GET",
+          status: 500,
+          failureText: null,
+        },
+        {
+          url: "https://host/eshu-api/api/v0/repositories",
+          method: "GET",
+          status: 0,
+          failureText: "net::ERR_ABORTED",
+        },
+      ],
+      defaultNetworkAllowList,
+    );
+
+    const summary = summarizeGate([resultFor("/a", true)], [bootstrap]);
+
+    expect(bootstrap.failures).toHaveLength(2);
+    expect(summary.passed).toBe(false);
+    expect(summary.preflightFailureCount).toBe(2);
+  });
+
+  it("allows only the explicit bootstrap auth fallback handshakes", () => {
+    const bootstrap = evaluateNetworkObservations(
+      "bootstrap",
+      [
+        {
+          url: "https://host/eshu-api/api/v0/auth/browser-session",
+          method: "GET",
+          status: 401,
+          failureText: null,
+        },
+        {
+          url: "https://host/eshu-api/api/v0/auth/browser-session",
+          method: "POST",
+          status: 400,
+          failureText: null,
+        },
+      ],
+      defaultNetworkAllowList,
+    );
+
+    const summary = summarizeGate([resultFor("/a", true)], [bootstrap]);
+
+    expect(bootstrap.passed).toBe(true);
+    expect(bootstrap.allowedNonOk).toHaveLength(2);
+    expect(summary.passed).toBe(true);
+    expect(summary.preflightFailureCount).toBe(0);
   });
 });

@@ -12,6 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/searchbench"
 	"github.com/eshu-hq/eshu/go/internal/searchretrieval"
+	pgstatus "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
@@ -65,13 +66,20 @@ JOIN LATERAL (
 		t.Fatalf("select retained semantic-search proof term: %v", err)
 	}
 
-	resolvedScopeID, err := NewPostgresSemanticSearchScopeResolver(db).
-		ResolveSemanticSearchScope(ctx, repoID)
+	resolver := NewPostgresSemanticSearchScopeResolver(pgstatus.SQLDB{DB: db})
+	resolvedScopeID, err := resolver.ResolveSemanticSearchScope(ctx, repoID)
 	if err != nil {
 		t.Fatalf("ResolveSemanticSearchScope() error = %v", err)
 	}
 	if got, want := resolvedScopeID, expectedScopeID; got != want {
 		t.Fatalf("resolved scope = %q, want retained active scope %q", got, want)
+	}
+	resolvedRepoID, err := resolver.ResolveSemanticSearchRepositoryForScope(ctx, expectedScopeID)
+	if err != nil {
+		t.Fatalf("ResolveSemanticSearchRepositoryForScope() error = %v", err)
+	}
+	if got, want := resolvedRepoID, repoID; got != want {
+		t.Fatalf("resolved repository = %q, want retained canonical repository %q", got, want)
 	}
 
 	result, err := NewPostgresSemanticSearchIndexStore(db).Search(ctx, semanticSearchIndexQuery{

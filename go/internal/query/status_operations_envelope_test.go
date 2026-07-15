@@ -53,6 +53,32 @@ func TestGetOperationsNegotiatesEnvelopeAndPreservesLegacyRawJSON(t *testing.T) 
 	if errorValue, ok := envelope["error"]; !ok || errorValue != nil {
 		t.Fatalf("error = %#v, %t; want explicit null", errorValue, ok)
 	}
+	truth, ok := envelope["truth"].(map[string]any)
+	if !ok {
+		t.Fatalf("truth = %#v, want non-null operations truth object", envelope["truth"])
+	}
+	if got, want := truth["capability"], "operations.status"; got != want {
+		t.Fatalf("truth.capability = %#v, want %#v", got, want)
+	}
+	if got, want := truth["level"], "exact"; got != want {
+		t.Fatalf("truth.level = %#v, want %#v", got, want)
+	}
+	if got, want := truth["profile"], "production"; got != want {
+		t.Fatalf("truth.profile = %#v, want %#v", got, want)
+	}
+	if got, want := truth["basis"], "runtime_state"; got != want {
+		t.Fatalf("truth.basis = %#v, want %#v", got, want)
+	}
+	freshness, ok := truth["freshness"].(map[string]any)
+	if !ok {
+		t.Fatalf("truth.freshness = %#v, want object", truth["freshness"])
+	}
+	if got, want := freshness["state"], "fresh"; got != want {
+		t.Fatalf("truth.freshness.state = %#v, want %#v", got, want)
+	}
+	if got, want := freshness["observed_at"], asOf.Format(time.RFC3339); got != want {
+		t.Fatalf("truth.freshness.observed_at = %#v, want %#v", got, want)
+	}
 
 	legacy := request(t, "application/json")
 	if _, ok := legacy["data"]; ok {

@@ -232,6 +232,24 @@ func authMiddleware(
 	next http.Handler,
 	audit GovernanceAuditAppender,
 ) http.Handler {
+	return authMiddlewareWithRoutePolicy(
+		token,
+		resolver,
+		sessionResolver,
+		next,
+		audit,
+		BrowserSessionRoutePolicy{},
+	)
+}
+
+func authMiddlewareWithRoutePolicy(
+	token string,
+	resolver ScopedTokenResolver,
+	sessionResolver BrowserSessionResolver,
+	next http.Handler,
+	audit GovernanceAuditAppender,
+	policy BrowserSessionRoutePolicy,
+) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Public paths: skip auth.
 		if publicHTTPRoute(r) {
@@ -242,7 +260,7 @@ func authMiddleware(
 		authorization := r.Header.Get("Authorization")
 		if strings.TrimSpace(authorization) == "" {
 			if sessionResolver != nil {
-				if tryBrowserSessionAuth(w, r, sessionResolver, next, audit) {
+				if tryBrowserSessionAuth(w, r, sessionResolver, next, audit, policy) {
 					return
 				}
 			}
@@ -301,6 +319,7 @@ func tryBrowserSessionAuth(
 	resolver BrowserSessionResolver,
 	next http.Handler,
 	audit GovernanceAuditAppender,
+	policy BrowserSessionRoutePolicy,
 ) bool {
 	sessionValue, ok := browserSessionCookieValue(r)
 	if !ok {
@@ -331,7 +350,7 @@ func tryBrowserSessionAuth(
 		return true
 	}
 	auth = normalizeBrowserSessionAuthContext(auth)
-	if auth.Mode == AuthModeBrowserSession && !scopedHTTPRouteSupportsTenantFilter(r) {
+	if auth.Mode == AuthModeBrowserSession && !browserSessionRouteAllowed(r, auth, policy) {
 		recordScopedRouteAuthorizationDenied(r, audit, auth)
 		scopedRouteDeniedResponse(w, r)
 		return true

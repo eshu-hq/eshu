@@ -1,4 +1,6 @@
 import { eshuDefaultTimeoutMs } from "../src/api/client.ts";
+import type { NetworkObservation } from "../src/e2e/routeAssertions.ts";
+import type { Page } from "playwright";
 
 const apiTimeoutGraceMs = 3_000;
 
@@ -6,6 +8,7 @@ const apiTimeoutGraceMs = 3_000;
 // on a route long enough for EshuApiClient's own timeout to abort a slow
 // request, plus a grace window for Playwright's requestfailed event to settle.
 export const apiQuietPolicy = Object.freeze({
+  absoluteMaxWaitMs: (eshuDefaultTimeoutMs + apiTimeoutGraceMs) * 2,
   maxWaitMs: eshuDefaultTimeoutMs + apiTimeoutGraceMs,
   pollMs: 100,
   quietWindowMs: 600,
@@ -16,10 +19,91 @@ export interface ApiQuietTracker {
   readonly lastChangeAt: () => number;
 }
 
+export interface NetworkObservationRecorder {
+  readonly observations: NetworkObservation[];
+  readonly stop: () => void;
+}
+
+export function installNetworkObservationRecorder(page: Page): NetworkObservationRecorder {
+  const observations: NetworkObservation[] = [];
+  const onResponse = (response: {
+    url: () => string;
+    status: () => number;
+    request: () => { method: () => string };
+  }): void => {
+    observations.push({
+      url: response.url(),
+      method: response.request().method(),
+      status: response.status(),
+      failureText: null,
+    });
+  };
+  const onRequestFailed = (request: {
+    url: () => string;
+    method: () => string;
+    failure: () => { errorText: string } | null;
+  }): void => {
+    observations.push({
+      url: request.url(),
+      method: request.method(),
+      status: 0,
+      failureText: request.failure()?.errorText ?? "request failed",
+    });
+  };
+  page.on("response", onResponse);
+  page.on("requestfailed", onRequestFailed);
+  return {
+    observations,
+    stop: () => {
+      page.off("response", onResponse);
+      page.off("requestfailed", onRequestFailed);
+    },
+  };
+}
+
+// installApiQuietTracker owns proxied API requests across route transitions so
+// proof callers cannot leave a route while one of its requests is still able to
+// fail. The page lifetime owns the listeners.
+export function installApiQuietTracker(page: Page): ApiQuietTracker {
+  let inFlight = 0;
+  let lastChangeAt = Date.now();
+  const settle = (url: string): void => {
+    if (!isConsoleApiUrl(url)) return;
+    inFlight = Math.max(0, inFlight - 1);
+    lastChangeAt = Date.now();
+  };
+  page.on("request", (request) => {
+    if (!isConsoleApiUrl(request.url())) return;
+    inFlight += 1;
+    lastChangeAt = Date.now();
+  });
+  page.on("requestfinished", (request) => settle(request.url()));
+  page.on("requestfailed", (request) => settle(request.url()));
+  return {
+    inFlight: () => inFlight,
+    lastChangeAt: () => lastChangeAt,
+  };
+}
+
 export interface ApiQuietResult {
   readonly settled: boolean;
   readonly inFlight: number;
   readonly waitedMs: number;
+}
+
+type RouteStep = (path: string) => Promise<void>;
+
+// navigateClientRoute preserves the connected console shell while changing
+// routes. A document navigation would reboot the full snapshot for every page,
+// multiply API fan-out, and attribute the previous page's aborted requests to
+// the page being entered.
+export async function navigateClientRoute(
+  path: string,
+  pushRoute: RouteStep,
+  waitForRoute: RouteStep,
+): Promise<void> {
+  await pushRoute(path);
+  await waitForRoute(path);
 }
 
 export async function awaitApiQuiet(
@@ -34,6 +118,9 @@ export async function awaitApiQuiet(
     const inFlight = tracker.inFlight();
     if (inFlight === 0 && idleFor >= apiQuietPolicy.quietWindowMs) {
       return { settled: true, inFlight: 0, waitedMs: current - startedAt };
+    }
+    if (current - startedAt >= apiQuietPolicy.absoluteMaxWaitMs) {
+      return { settled: false, inFlight, waitedMs: current - startedAt };
     }
     if (inFlight > 0 && idleFor >= apiQuietPolicy.maxWaitMs) {
       return { settled: false, inFlight, waitedMs: current - startedAt };

@@ -320,7 +320,7 @@ func TestNornicDBRelationshipStoryClassMethodsCypherUsesAnchoredClassPattern(t *
 	)
 	for _, fragment := range []string{
 		"MATCH (class:Class {uid: $entity_id})-[:CONTAINS]->(method:Function)",
-		"ORDER BY method.name, method_id",
+		"ORDER BY method.name, method.id, method.uid",
 		"SKIP $offset",
 		"LIMIT $limit",
 	} {
@@ -374,7 +374,7 @@ func TestNornicDBRelationshipStoryInheritanceDepthCypherBoundsTraversal(t *testi
 	)
 	for _, fragment := range []string{
 		"MATCH path = (anchor:Class {uid: $entity_id})-[:INHERITS*1..4]->(target:Class)",
-		"ORDER BY depth DESC, target.name, target_id",
+		"ORDER BY depth DESC, target.name, target.id, target.uid",
 		"LIMIT $limit",
 	} {
 		if !strings.Contains(cypher, fragment) {

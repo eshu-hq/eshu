@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -63,7 +64,22 @@ func TestContentReaderDeadCodeCandidateRowsKeepsTraitTypeAndRepositoryScope(t *t
 	}
 }
 
-func TestHandleDeadCodeReportsTotalAndPerLabelCandidateScanLimits(t *testing.T) {
+func TestContentReaderDeadCodeCandidateRowsRejectsUnknownLabelBeforeQuery(t *testing.T) {
+	t.Parallel()
+
+	db, recorder := openRecordingContentReaderDB(t, nil)
+	reader := NewContentReader(db)
+
+	rows, err := reader.DeadCodeCandidateRows(context.Background(), "repo-1", "Unknown", "", 10, 0)
+	if err == nil {
+		t.Fatalf("DeadCodeCandidateRows() error = nil, want unsupported label error; rows=%#v", rows)
+	}
+	if got := len(recorder.queries); got != 0 {
+		t.Fatalf("database query count = %d, want 0 for an unsupported label", got)
+	}
+}
+
+func TestHandleDeadCodeReportsSharedTotalAndPerLabelCandidateScanLimits(t *testing.T) {
 	t.Parallel()
 
 	handler := &CodeHandler{
@@ -96,9 +112,66 @@ func TestHandleDeadCodeReportsTotalAndPerLabelCandidateScanLimits(t *testing.T) 
 	if got, want := response["candidate_scan_limit_per_label"], float64(perLabel); got != want {
 		t.Fatalf("candidate_scan_limit_per_label = %#v, want %#v", got, want)
 	}
-	if got, want := response["candidate_scan_limit"], float64(perLabel*len(deadCodeCandidateLabels)); got != want {
+	if got, want := response["candidate_scan_limit"], float64(perLabel); got != want {
 		t.Fatalf("candidate_scan_limit = %#v, want %#v", got, want)
 	}
+}
+
+func TestHandleDeadCodeRejectsUnknownCandidateKind(t *testing.T) {
+	t.Parallel()
+
+	handler := &CodeHandler{Profile: ProfileLocalAuthoritative, Neo4j: fakeGraphReader{}}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v0/code/dead-code",
+		bytes.NewBufferString(`{"candidate_kind":"Unknown","limit":10}`),
+	)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusBadRequest; got != want {
+		t.Fatalf("status = %d, want %d body=%s", got, want, w.Body.String())
+	}
+}
+
+func TestDeadCodeScanRestrictsWorkAndMetadataToRequestedCandidateKind(t *testing.T) {
+	t.Parallel()
+
+	store := &recordingDeadCodeKindStore{}
+	handler := &CodeHandler{Neo4j: fakeGraphReader{}, Content: store}
+	scan, err := handler.scanDeadCodeCandidates(context.Background(), deadCodeRequest{
+		CandidateKind: "Trait",
+		Limit:         10,
+	})
+	if err != nil {
+		t.Fatalf("scanDeadCodeCandidates() error = %v, want nil", err)
+	}
+	if got, want := store.labels, []string{"Trait"}; !equalStringSlices(got, want) {
+		t.Fatalf("queried labels = %#v, want %#v", got, want)
+	}
+	if got, want := scan.CandidateScanLimit, scan.CandidateScanLimitPerLabel; got != want {
+		t.Fatalf("candidate scan limit = %d, want one-label bound %d", got, want)
+	}
+}
+
+type recordingDeadCodeKindStore struct {
+	fakeDeadCodeContentStore
+	labels []string
+}
+
+func (s *recordingDeadCodeKindStore) DeadCodeCandidateRows(
+	_ context.Context,
+	_ string,
+	label string,
+	_ string,
+	_ int,
+	_ int,
+) ([]map[string]any, error) {
+	s.labels = append(s.labels, label)
+	return nil, nil
 }
 
 func TestHandleDeadCodeDistinguishesDisplayAndCandidateScanTruncation(t *testing.T) {
@@ -120,7 +193,10 @@ func TestHandleDeadCodeDistinguishesDisplayAndCandidateScanTruncation(t *testing
 	handler := &CodeHandler{
 		Profile: ProfileLocalAuthoritative,
 		Neo4j: fakeGraphReader{
-			run: func(_ context.Context, _ string, params map[string]any) ([]map[string]any, error) {
+			run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
+				if !strings.Contains(cypher, "e:Function") {
+					return nil, nil
+				}
 				offset, ok := params["skip"].(int)
 				if !ok {
 					t.Fatalf("params[skip] type = %T, want int", params["skip"])
@@ -198,7 +274,7 @@ func TestHandleDeadCodeDistinguishesDisplayAndCandidateScanTruncation(t *testing
 	if got, want := resp["candidate_scan_limit_per_label"], float64(scanLimit); got != want {
 		t.Fatalf("resp[candidate_scan_limit_per_label] = %#v, want %#v", got, want)
 	}
-	if got, want := resp["candidate_scan_limit"], float64(scanLimit*len(deadCodeCandidateLabels)); got != want {
+	if got, want := resp["candidate_scan_limit"], float64(scanLimit); got != want {
 		t.Fatalf("resp[candidate_scan_limit] = %#v, want %#v", got, want)
 	}
 }
