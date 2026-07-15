@@ -123,9 +123,13 @@ if [[ "$*" == "container inspect"* ]]; then
   [[ "${ESHU_TEST_COLLISION:-container}" == "container" ]] && exit 0
   exit 1
 fi
-if [[ "${ESHU_TEST_COLLISION:-container}" == "schema" && "$*" == *"exec -T postgres psql"* ]]; then
+if [[ "$*" == *"exec -T postgres psql"* ]]; then
   printf '%s\n' "$(cat)" >>"$ESHU_TEST_DOCKER_LOG"
-  exit 1
+  [[ "${ESHU_TEST_COLLISION:-container}" == "schema" ]] && exit 1
+  exit 0
+fi
+if [[ "${ESHU_TEST_COLLISION:-container}" == "failed_keep" && "$*" == *"run -d --no-deps"* ]]; then
+  exit 42
 fi
 exit 0
 MOCK_DOCKER
@@ -172,6 +176,36 @@ if [[ "$schema_collision_status" -eq 0 ]]; then
 fi
 if rg -q 'rm -f|DROP SCHEMA' "$docker_log"; then
   echo "retained console proof helper cleaned up schema/container state it did not create" >&2
+  exit 1
+fi
+
+# A failed proof retained for evidence must still verify that the shared public
+# identity tables did not change. It must preserve its owned schema/container
+# after that check instead of deleting the evidence.
+: >"$docker_log"
+set +e
+PATH="$tmp/bin:$PATH" \
+ESHU_TEST_DOCKER_LOG="$docker_log" \
+ESHU_TEST_COLLISION=failed_keep \
+ESHU_KEEP_RETAINED_PROOF=true \
+ESHU_E2E_RETAINED_PROOF_ID=failed_kept_proof \
+ESHU_E2E_WIZARD_NEW_PASSWORD=not-a-real-secret \
+ESHU_E2E_CORPUS_IDENTITY=test-corpus \
+ESHU_E2E_CORPUS_REPOSITORY_COUNT=1 \
+"$target" >"$tmp/failed-keep-stdout" 2>"$tmp/failed-keep-stderr"
+failed_keep_status=$?
+set -e
+
+if [[ "$failed_keep_status" -eq 0 ]]; then
+  echo "retained console proof failed+keep model unexpectedly passed" >&2
+  exit 1
+fi
+if ! rg -q --fixed-strings 'current_digest <> baseline.row_digest' "$docker_log"; then
+  echo "retained console proof failed+keep path skipped public identity verification" >&2
+  exit 1
+fi
+if rg -q 'rm -f|DROP SCHEMA' "$docker_log"; then
+  echo "retained console proof failed+keep path deleted retained evidence" >&2
   exit 1
 fi
 

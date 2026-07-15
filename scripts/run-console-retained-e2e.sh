@@ -15,6 +15,7 @@ api_port="${ESHU_E2E_RETAINED_API_PORT:-18086}"
 keep_proof="${ESHU_KEEP_RETAINED_PROOF:-false}"
 schema_created=false
 container_created=false
+public_identity_verified=false
 
 [[ "$proof_id" =~ ^[a-z0-9_]+$ ]] || {
   echo "run-console-retained-e2e: proof id must match [a-z0-9_]+" >&2
@@ -178,6 +179,7 @@ BEGIN
 END
 $proof$;
 SQL
+  public_identity_verified=true
 }
 
 drop_proof_schema() {
@@ -187,6 +189,9 @@ SQL
 }
 
 cleanup() {
+  if [[ "$schema_created" == "true" && "$public_identity_verified" != "true" ]]; then
+    verify_public_identity_unchanged
+  fi
   if [[ "$keep_proof" == "true" ]]; then
     if [[ "$container_created" == "true" ]]; then
       printf '%s\n' "run-console-retained-e2e: keeping proof sidecar $container_name at $api_base"
@@ -200,7 +205,6 @@ cleanup() {
     docker rm -f "$container_name" >/dev/null 2>&1 || true
   fi
   if [[ "$schema_created" == "true" ]]; then
-    verify_public_identity_unchanged
     drop_proof_schema
   fi
 }
