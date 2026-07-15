@@ -44,15 +44,16 @@ func (h *CodeHandler) nornicDBRelationshipStoryGraphRows(
 	return []map[string]any{}, nil
 }
 
-// nornicDBRelationshipStoryAnchorPreflightSupported reports whether both
-// identity properties used by the one-time preflight have proven indexes.
-// Function is currently the only supported label with a legacy-id index.
+// nornicDBRelationshipStoryAnchorPreflightSupported reports whether the
+// one-time uid-first preflight has a measured multi-type win. Function is the
+// only supported label: its uid lookup is indexed, and one legacy-id collision
+// scan is cheaper than repeating uid/id fallback across every type/direction.
 func nornicDBRelationshipStoryAnchorPreflightSupported(entity *EntityContent) bool {
 	return entity != nil && nornicDBGraphLabelForContentEntityType(entity.EntityType) == "Function"
 }
 
-// resolveNornicDBRelationshipStoryAnchorProperty selects the indexed identity
-// property for a resolved Function target once per request. A separate-node
+// resolveNornicDBRelationshipStoryAnchorProperty selects the identity property
+// for a resolved Function target once per request. A separate-node
 // uid/id collision deliberately leaves the request unresolved so the legacy
 // per-query fallback remains authoritative for that ambiguous graph state.
 func (h *CodeHandler) resolveNornicDBRelationshipStoryAnchorProperty(

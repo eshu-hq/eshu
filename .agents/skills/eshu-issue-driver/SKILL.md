@@ -201,6 +201,9 @@ current turn, stop and ask — do not self-approve and proceed.
    `eshu-code-review` against the exact post-preflight diff. If preflight changes
    generated or tracked files, or the final review finds anything, fix the
    issue, rerun affected focused proof, and repeat from the preliminary review.
+   If `make pre-pr` fails, do not immediately rerun it. Fix the failure, rerun
+   affected focused proof, repeat the preliminary full review to zero findings,
+   and only then begin a new promotion attempt.
    Make no edits between the final clean review and push; any diff change
    invalidates the verdict.
 7. Push the reviewed rebased head.
@@ -255,6 +258,11 @@ to the originating issue.
   verification evidence, and follow-on routing for any out-of-scope defect. If
   this was self-review mode, the verdict explicitly says so and lists the
   inspected evidence.
+- The promotion record names the preliminary review phase, reviewed head, and
+  P0/P1/P2 counts; the exact `make pre-pr` command and result; the
+  post-preflight head and clean-status result; and the final review phase and
+  P0/P1/P2 counts. The recorded order must show a zero-finding preliminary
+  review before preflight and a zero-finding final review afterward.
 - **Before closing any issue as fixed**: run the full verification suite from
   `docs/public/reference/local-testing.md` with exact tool versions. Do NOT
   shortcut by verifying a pre-existing fix, trusting a prior CI run, or

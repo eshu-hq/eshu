@@ -21,8 +21,8 @@ func TestSchemaApplicationsDeclareCompatibilityDecision(t *testing.T) {
 			name:        "neo4j",
 			backend:     SchemaBackendNeo4j,
 			fingerprint: graphSchemaNeo4jFingerprint,
-			// The Function legacy-ID lookup, shell_exec, and inheritance child
-			// index bumps add only secondary indexes, so their preceding schemas stay
+			// The shell_exec and inheritance child lookup-index bumps add only
+			// repo_id/path indexes, so their immediately preceding schemas stay
 			// compatible too.
 			// The Helm template-value schema bump only adds
 			// HelmValueDefinition/HelmTemplateValueUsage constraints + uid
@@ -32,7 +32,6 @@ func TestSchemaApplicationsDeclareCompatibilityDecision(t *testing.T) {
 			// stay compatible. The Function retract-index bump is also additive,
 			// so the immediately preceding schema stays compatible too.
 			compatible: []string{
-				graphSchemaNeo4jPreFunctionLegacyIDIndexFingerprint,
 				graphSchemaNeo4jPreShellExecRetractIndexesFingerprint,
 				graphSchemaNeo4jPreInheritanceRetractIndexesFingerprint,
 				graphSchemaNeo4jPreFunctionRetractIndexesFingerprint,
@@ -45,7 +44,6 @@ func TestSchemaApplicationsDeclareCompatibilityDecision(t *testing.T) {
 			backend:     SchemaBackendNornicDB,
 			fingerprint: graphSchemaNornicDBFingerprint,
 			compatible: []string{
-				graphSchemaNornicDBPreFunctionLegacyIDIndexFingerprint,
 				graphSchemaNornicDBPreShellExecRetractIndexesFingerprint,
 				graphSchemaNornicDBPreInheritanceRetractIndexesFingerprint,
 				graphSchemaNornicDBPreFunctionRetractIndexesFingerprint,

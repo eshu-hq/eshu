@@ -136,6 +136,10 @@ Review target:
 - head SHA:
 - PR:
 - no PR exists yet: yes|no
+- review phase: preliminary|final
+- preliminary review head and P0/P1/P2 counts:
+- pre-pr command and result:
+- post-preflight head and clean-status result:
 
 Intent:
 - issue/PR requirement:

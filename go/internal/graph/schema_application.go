@@ -24,15 +24,8 @@ type SchemaApplication struct {
 }
 
 const (
-	graphSchemaNeo4jFingerprint    = "d7049c28a01cad7a2a78c7e3541bb74930417632c3360a06a6ed8ba290bf298a"
-	graphSchemaNornicDBFingerprint = "e01925b4ca497e4dfb0ac7d5dd50331736d134d2823cac3b60c7729f55db0ebd"
-
-	// graphSchemaNeo4jPreFunctionLegacyIDIndexFingerprint and its NornicDB peer
-	// are the immediately preceding schema fingerprints. The new Function.id
-	// lookup index is additive: it accelerates legacy-anchor collision checks
-	// without changing what older graph writers may write.
-	graphSchemaNeo4jPreFunctionLegacyIDIndexFingerprint    = "556d133c15610ecaaf773af2200717062e5d91d0edd2709fa7f6a83072a11c53"
-	graphSchemaNornicDBPreFunctionLegacyIDIndexFingerprint = "1c4bf2acf328fdeb19084b18618cc9a57749615d7c513edb674cfbc036f1bbae"
+	graphSchemaNeo4jFingerprint    = "556d133c15610ecaaf773af2200717062e5d91d0edd2709fa7f6a83072a11c53"
+	graphSchemaNornicDBFingerprint = "1c4bf2acf328fdeb19084b18618cc9a57749615d7c513edb674cfbc036f1bbae"
 
 	// graphSchemaNeo4jPreShellExecRetractIndexesFingerprint and its NornicDB
 	// peer are the schema fingerprints immediately before ShellCommand repo_id/path
@@ -90,7 +83,6 @@ const (
 var graphSchemaCompatibleFingerprints = map[SchemaBackend]map[string][]string{
 	SchemaBackendNeo4j: {
 		graphSchemaNeo4jFingerprint: {
-			graphSchemaNeo4jPreFunctionLegacyIDIndexFingerprint,
 			graphSchemaNeo4jPreShellExecRetractIndexesFingerprint,
 			graphSchemaNeo4jPreInheritanceRetractIndexesFingerprint,
 			graphSchemaNeo4jPreFunctionRetractIndexesFingerprint,
@@ -100,7 +92,6 @@ var graphSchemaCompatibleFingerprints = map[SchemaBackend]map[string][]string{
 	},
 	SchemaBackendNornicDB: {
 		graphSchemaNornicDBFingerprint: {
-			graphSchemaNornicDBPreFunctionLegacyIDIndexFingerprint,
 			graphSchemaNornicDBPreShellExecRetractIndexesFingerprint,
 			graphSchemaNornicDBPreInheritanceRetractIndexesFingerprint,
 			graphSchemaNornicDBPreFunctionRetractIndexesFingerprint,

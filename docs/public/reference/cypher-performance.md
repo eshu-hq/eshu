@@ -447,10 +447,10 @@ Single-type stories deliberately keep the original direct `uid`-then-`id`
 query path: the one-time resolver is useful only when several type/direction
 reads amortize its collision check.
 
-The one-time resolver is limited to `Function`, the only supported story label
-with a proven legacy-`id` property index. Other entity labels keep the shipped
-per-query `uid`-then-`id` fallback; proof for `Function.id` must not be
-generalized into an unindexed runtime-selected label scan.
+The one-time resolver is limited to `Function`, the only label covered by the
+retained multi-type proof. Other entity labels keep the shipped per-query
+`uid`-then-`id` fallback. The Function path intentionally pays one legacy-`id`
+collision scan and amortizes it across all requested types and directions.
 
 | Retained-data proof | Old | New | Delta |
 | --- | ---: | ---: | ---: |
@@ -473,23 +473,32 @@ anchor's six-type story still improved from 32.842229 seconds and 21 calls to
 the multi-type win without making the millisecond single-type path pay a
 seconds-scale scan.
 
-The remaining 5.75-second guard was a full `Function` label scan on the legacy
-`id` property. A throwaway `Function.id` index against the same retained graph
-proved the narrowed shape before the production schema changed:
+The remaining 5.75-second guard is a full `Function` label scan on the legacy
+`id` property. A throwaway `Function.id` index showed that this scan is
+optimizable, but the candidate was rejected before production implementation:
 
 | Retained 887-repository proof | Without index | With index | Exactness |
 | --- | ---: | ---: | ---: |
 | Legacy-ID collision check | 8.837783s | p50 0.000493s / p95 0.000842s | 0 / 0 |
-| Full 14-call story, 983 rows | 5.902045s accepted baseline | 0.008286-0.011195s warm | 0 / 0 |
+| Full 14-call story, 983 rows | 5.902045s retained no-index helper | 0.008286-0.011195s warm | 0 / 0 |
 | Fresh graph-client first story | not comparable | 4.296237s | 0 / 0 |
 
-The first index build took 24.39 seconds on the populated graph. Reissuing its
-`CREATE INDEX IF NOT EXISTS` directly took 15.03 seconds in NornicDB v1.1.11,
-so the deployment contract relies on the existing Postgres schema fingerprint:
-bootstrap applies the additive DDL once, records it, and skips the entire graph
-schema pass on later starts. The fresh-client 4.296237-second sample remains
-outside the 1.5-3 second capability budgets and is reported separately from the
-warm indexed result; the rebuilt HTTP route is the acceptance boundary.
+The first index build took 24.39 seconds on the populated graph. Preliminary
+review then found that NornicDB v1.1.11 calls the property-index backfill even
+when `AddPropertyIndex` reports that the index already exists, while
+`PropertyIndexInsert` appends node IDs without deduplication. The exact source
+paths are the pinned
+[`executeCreateIndex`](https://github.com/orneryd/NornicDB/blob/v1.1.11/pkg/cypher/schema.go#L597-L646)
+and
+[`PropertyIndexInsert`](https://github.com/orneryd/NornicDB/blob/v1.1.11/pkg/storage/schema.go#L1874-L1898)
+implementations. One retained reissue took 15.345136 seconds and left graph
+node/edge counts unchanged, but it was not a safety proof; the index was removed
+in 0.000539 seconds with the same 961,472 nodes and 1,180,403 edges before and
+after. Two repository-narrowed replacement predicates also failed exactness on
+a retained collision case. The production change therefore keeps the prior
+schema fingerprint and accepts the exact 5.902045-second no-index helper result
+rather than shipping an index migration that has not been proven safe for
+repeated or concurrent application.
 
 This repaired retained proof manually reconstructs only the repeated-fallback
 OLD baseline. The NEW side invokes the shipped
@@ -500,21 +509,17 @@ Focused production-path tests also prove that a confirmed missing anchor skips
 all relationship reads and that a separate `uid`/legacy-`id` collision retains
 the per-query fallback.
 
-A separate production-binary route proof used the earlier ten-row retained Java
-`Function`, six types, both directions, and limit 50. The prior listener
-returned no bytes before a 45.001937s client timeout. After the final NornicDB
-projection compatibility correction, the rebuilt listener returned HTTP 200
-and 10,373 bytes in 3.855987s, leaving 13.144013s of margin beneath the console's
-17-second live browser cutoff and recovering at least 41.145950s on that cold
-request. The response contained ten unique rows in the same interleaved
-direction/type order.
-
-The 3.855987-second built route and 4.296237-second fresh-client samples remain
-outside the checked-in 2-second local-full-stack budget; neither establishes
-the separate 3-second production p95. They prove a large browser-cutoff
-recovery, not capability-SLO closure. Open issue
-[#5244](https://github.com/eshu-hq/eshu/issues/5244) owns cold-client, API, MCP,
-transport, and residual query attribution for the next long pole.
+The accepted production-binary proof then removed the rejected index and
+verified `function_legacy_id` index count zero before and after the run. On the
+same retained 887-repository corpus, all 39 browser workflows passed. Code
+Graph completed in 9.954 seconds with four owned HTTP responses, all status
+200, zero console errors, and 7.046 seconds of margin inside the 17-second live
+browser cutoff. The built API and MCP sidecars used the same immutable image
+and source manifest as the browser proof. This closes the browser correctness
+and cutoff boundary without claiming the route meets the desired 2-3 second
+read SLO. Open issue [#5244](https://github.com/eshu-hq/eshu/issues/5244) owns
+cold-client, API, MCP, transport, and residual query attribution after that
+boundary.
 
 Accuracy Evidence: the built readback also exposed a separate existing NornicDB
 compatibility defect: `type(rel)` was returned literally as `"type(rel)"` for

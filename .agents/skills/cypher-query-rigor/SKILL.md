@@ -233,6 +233,11 @@ MERGE (s)-[:RUNS_IN]->(e)
 - Uniqueness constraints can still be a write-time cost center. On NornicDB, verify that constraint validation uses direct unique-value lookup rather than scanning the label population on every create.
 - Relationship `MERGE` can be dominated by existence checks on the start node's outgoing fanout. If `(start)-[:TYPE]->(end)` is hot, look for a direct `(startID,type,endID)` lookup path or backend support before only shrinking batches.
 - Explicit property indexes may be needed for hot graph-backed APIs and materialization jobs.
+- Treat `IF NOT EXISTS` as syntax, not idempotency evidence. For NornicDB index
+  or constraint DDL, inspect the pinned executor's already-exists path and prove
+  identical reapplication on an isolated populated store. Compare index-backed
+  query set/order and index-entry cardinality where observable; graph node/edge
+  counts alone are insufficient.
 - Multi-label and unlabelled node matches can be risky; prefer one clear label plus indexed property anchors.
 - Verify uncertain behavior against NornicDB docs or source before assuming Neo4j planner behavior applies.
 

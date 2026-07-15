@@ -15,9 +15,7 @@
 // canonical writers upsert them, adds digest/tag-ref lookup support for OCI
 // registry projection labels, adds uid lookup support for reducer-owned
 // IncidentRoutingEvidence nodes, and keeps backend-specific constraint
-// translation inside the schema dialect and label-naming helpers. A non-unique
-// Function.id lookup index keeps relationship-story legacy-anchor collision
-// checks bounded while canonical Function identity remains uid. NornicDB
+// translation inside the schema dialect and label-naming helpers. NornicDB
 // drops direct composite uniqueness syntax, so canonical writers rely on
 // projector-derived uid identity for those labels while Neo4j keeps the direct
 // composite constraint. SchemaApplicationForBackend exposes the fingerprint and

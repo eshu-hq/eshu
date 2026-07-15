@@ -121,7 +121,7 @@ func TestSchemaStatementsForBackendAddsNornicDBMergeLookupIndexes(t *testing.T) 
 	}
 }
 
-func TestSchemaStatementsIncludeFunctionReadAndRetractLookupIndexes(t *testing.T) {
+func TestSchemaStatementsIncludeFunctionRetractLookupIndexes(t *testing.T) {
 	t.Parallel()
 
 	stmts, err := SchemaStatementsForBackend(SchemaBackendNornicDB)
@@ -130,7 +130,6 @@ func TestSchemaStatementsIncludeFunctionReadAndRetractLookupIndexes(t *testing.T
 	}
 
 	expected := []string{
-		"CREATE INDEX function_legacy_id IF NOT EXISTS FOR (f:Function) ON (f.id)",
 		"CREATE INDEX function_repo_id IF NOT EXISTS FOR (f:Function) ON (f.repo_id)",
 		"CREATE INDEX function_path IF NOT EXISTS FOR (f:Function) ON (f.path)",
 	}

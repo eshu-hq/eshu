@@ -472,15 +472,13 @@ entries:
     required_anchors:
       - label: Function
         property: id
-    required_schema:
-      - function_legacy_id
     required_limits:
       - 1
     caveats:
-      - This one-time labeled legacy-id check preserves the old uid-to-id fallback when separate nodes collide. The function_legacy_id schema index keeps the check bounded; retained 887-repository proof measured the old label scan at 8.837783 seconds and the warm indexed check at p50 0.000493 seconds / p95 0.000842 seconds with an exact result diff of 0/0. A fresh graph client still showed a 4.296237-second first concurrent story request before steady-state 0.008286-0.011195-second results, so cold-client latency remains separate from the indexed lookup proof.
+      - This one-time labeled legacy-id check preserves the old uid-to-id fallback when separate nodes collide. Retained 887-repository proof rejected a Function.id property index because pinned NornicDB v1.1.11 replays property-index backfill work for CREATE INDEX IF NOT EXISTS and appends index entries without deduplication. The measured no-index resolver took 5.902045 seconds and 14 graph calls on a retained high-fan-in anchor versus 32.842229 seconds and 21 graph calls for the repeated fallback, with an exact result diff of 0/0. The one-time label scan remains a bounded tail tradeoff, not a claim that every cold relationship story meets the separate 2-3-second read SLO.
     plan:
       operators:
-        - NodeIndexSeek
+        - NodeByLabelScan
         - Filter
         - Limit
       forbidden_operators:

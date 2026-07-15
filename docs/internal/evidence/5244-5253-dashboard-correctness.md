@@ -19,18 +19,20 @@ accepted as proof that its requested data populated.
 
 ## Final live-console and corpus proof
 
-Performance Evidence: the corrected retained-stack browser run claimed its
-isolated identity surface through the normal setup wizard, then executed all 39
-catalogued route/action workflows with that same owner browser-session cookie.
-All 39 passed in 111.921 aggregate route seconds. Code Graph passed in 10.416
-seconds with zero console errors, Service Catalog in 11.650 seconds,
-Vulnerabilities in 8.898 seconds, Repositories in 6.432 seconds, Ask Eshu in
-5.592 seconds, Relationships in 4.033 seconds, Replatforming in 2.885 seconds,
-Dead Code in 2.400 seconds, Cloud Drift in 2.759 seconds, Semantic Search in
-2.479 seconds, and Profile/Admin in 1.572/2.223 seconds. The runner records
-route duration but does not enforce a portable
-absolute per-route budget; its fixed settle/quiet windows, workflow actions,
-and screenshots mean route duration is not API latency.
+Performance Evidence: the accepted no-index retained-stack browser run claimed
+its isolated identity surface through the normal setup wizard, then executed
+all 39 catalogued route/action workflows with that same owner browser-session
+cookie. All 39 passed in 109.524 aggregate route seconds. Code Graph passed in
+9.954 seconds with four owned HTTP responses, all status 200, and zero console
+errors. Service Catalog passed in 11.175 seconds, Vulnerabilities in 9.250
+seconds, Repositories in 6.475 seconds, Ask Eshu in 4.947 seconds with the exact
+887-repository result, Relationships in 3.747 seconds, Replatforming in 3.312
+seconds, Dead Code in 2.410 seconds, Cloud Drift in 2.715 seconds, Semantic
+Search in 2.462 seconds, and Secrets/IAM in 2.382 seconds. The Code Graph route
+finished 7.046 seconds inside the 17-second live-browser cutoff. The runner
+records route duration but does not enforce a portable absolute per-route
+budget; its fixed settle/quiet windows, workflow actions, and screenshots mean
+route duration is not API latency.
 
 The first correction run exposed two bootstrap requests aborted when the
 runner reset the wizard's still-settling dashboard. The runner now installs
@@ -40,14 +42,16 @@ zero aborted or unexpected requests. The durable report retains the first 200
 query-free request observations and marks the bootstrap as truncated.
 
 The final API used immutable image id
-`sha256:df1496fa3b62ab4b906b102e980eef23c50c92c8474227399be9ed101ccb9e5a`.
+`sha256:4a562ec6aa8c336e3b2cf66ecf42ca1e388d67c739e9ae412d88cae6e8a6a16e`.
 Its binary reports
-`proof-0b6b8adfd36a1c784eb611c2fc6de1f185f788a2b24d7f8ed21851c3c1646fdc`,
+`proof-0ce4f4ecfaff4ae2832a3633ff638a8fe30b77bc957ae46c6bf355fb1373c300`,
 which is the SHA-256 manifest of the exact Dockerfile, Go, and local Go SDK
 inputs copied by the image build. The corrected browser/runner input manifest
 was `8cc1e7ca4ee9711631121bb0f8a5afbb47c80b18f8015e121c706439768989e8`.
 The sidecar read the unchanged retained Postgres volume and NornicDB image
 `timothyswt/nornicdb-cpu-bge:v1.1.11@sha256:51b6174ae65e4ce54a158ac2f9eace7d36a1971545824d22add0fe06d94c1090`.
+`SHOW INDEXES` verified that the rejected `function_legacy_id` index count was
+zero after the accepted run.
 The proof manifest bound that runtime to corpus identity
 `b09799951df867a5bb5517b7d3cb9657b152b7cf2d54504f03d7e9ce4b4d62ba`:
 887 repositories, 961,472 graph nodes, 1,180,403 graph edges, and 7,384,555
@@ -57,9 +61,9 @@ repository inventory and failed closed unless its total equaled the declared
 The original retained API remained running on its prior image throughout; no
 database, graph, collector, reducer, or projector was restarted.
 
-The identity and sidecar proof used these local-only commands (the operator
-environment and retained anchor values were passed in memory, never printed or
-committed):
+The identity and sidecar proof used these local-only commands. Credentials and
+retained anchor values were passed only at runtime and omitted from committed
+evidence:
 
 ```bash
 API_INPUT_HASH="$({ printf '%s\0' Dockerfile; \
@@ -69,22 +73,23 @@ RUNNER_INPUT_HASH="$({ git ls-files -z -co --exclude-standard -- \
   apps/console scripts/run-console-live-e2e.sh \
   scripts/run-console-retained-e2e.sh scripts/console-live-e2e-runtime.mjs; } | \
   sort -z | xargs -0 shasum -a 256 | shasum -a 256 | awk '{print $1}')"
-ESHU_KEEP_RETAINED_PROOF=true scripts/run-console-retained-e2e.sh
-docker exec eshu-dashboard-session-final5240j eshu-api --version
+ESHU_E2E_RETAINED_PROOF_ID=final5240m \
+  ESHU_E2E_RETAINED_API_PORT=18108 \
+  ESHU_KEEP_RETAINED_PROOF=true scripts/run-console-retained-e2e.sh
+docker exec eshu-dashboard-session-final5240m eshu-api --version
 ```
 
-The rebuilt MCP server advertised 159 tools. Three bounded
-`list_indexed_repositories` calls with `limit=1` completed in
-0.002150-0.002751 warm seconds (after a 0.030393-second first call),
-returned one of 887 repositories with `truncated=true`, and carried
-an exact, fresh, production structured envelope. The exact Ask prompt returned
-the same authorized total through the browser API workflow in 5.592 seconds and
-the standalone MCP transport in 4.102130 seconds; both paths returned deterministic
-truth, `{total: 887}`, and
+The rebuilt MCP server advertised 159 tools. Two bounded
+`list_indexed_repositories` proof calls included a 0.869790-second cold call and
+a 0.025944-second warm call, returned one of 887 repositories with
+`truncated=true`, and carried an exact, fresh, production structured envelope.
+The exact Ask prompt returned the same authorized total through the browser API
+workflow in 4.947 seconds and the standalone MCP transport in 3.424177 seconds;
+both paths returned deterministic truth, `{total: 887}`, and
 `eshu://api-result/repositories`. The MCP image was
-`sha256:df1496fa3b62ab4b906b102e980eef23c50c92c8474227399be9ed101ccb9e5a`
+`sha256:4a562ec6aa8c336e3b2cf66ecf42ca1e388d67c739e9ae412d88cae6e8a6a16e`
 and reported the same
-`proof-0b6b8adfd36a1c784eb611c2fc6de1f185f788a2b24d7f8ed21851c3c1646fdc`
+`proof-0ce4f4ecfaff4ae2832a3633ff638a8fe30b77bc957ae46c6bf355fb1373c300`
 binary manifest as the API sidecar.
 API and MCP remained healthy after the run; Postgres, NornicDB, collectors,
 reducer, and projector were not restarted for the read-serving rollout.

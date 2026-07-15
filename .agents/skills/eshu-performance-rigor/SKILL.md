@@ -172,7 +172,11 @@ the next rung begins.
    prove the explicit expected delta.
 3. **Concurrency.** For claims, locks, leases, queues, DDL, or shared writers,
    prove contention, retry, idempotency, ordering, and failure recovery. Set
-   equivalence alone is insufficient.
+   equivalence alone is insufficient. Index and constraint candidates must
+   prove first application, identical reapplication, restart/bootstrap
+   behavior, and rollback on an isolated populated store. A fast first build
+   does not authorize production DDL when repeated application mutates backend
+   index state.
 4. **Built-binary bounded replay.** Rebuild the production binary and run the
    worst-case repository, partition, scope, or backlog. Query-shape proof does
    not establish wall time.

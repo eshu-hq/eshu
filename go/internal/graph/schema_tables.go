@@ -222,9 +222,6 @@ var uidConstraintLabels = []string{
 // performance for common access patterns.
 var schemaPerformanceIndexes = []string{
 	"CREATE INDEX function_lang IF NOT EXISTS FOR (f:Function) ON (f.lang)",
-	// Relationship-story reads accept a legacy Function.id anchor in addition
-	// to canonical uid. Keep that compatibility collision check index-backed.
-	"CREATE INDEX function_legacy_id IF NOT EXISTS FOR (f:Function) ON (f.id)",
 	// Function and inheritance edge retractions anchor cleanup by repo_id or
 	// changed file path. Keep those cleanup passes index-backed on NornicDB
 	// instead of scanning every code-entity label in large corpora.
