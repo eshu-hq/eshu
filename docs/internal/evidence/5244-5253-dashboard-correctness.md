@@ -203,7 +203,7 @@ message (or class when no message exists). The focused regression and selection
 suite passed 27 tests. Against the retained 887-repository catalog, the helper
 selected an exact active/prior pair in 17 ms. The changed-since read completed
 in 18.2 ms with 16 changed and 6 unchanged facts; the final browser workflow
-completed in 2.214 seconds with seven requests and zero console/API errors. The
+completed in 2.233 seconds with seven requests and zero console/API errors. The
 prior retained run issued 12 requests because React Strict Mode created two
 five-request discovery owners; the final component keeps one owner and removes
 that duplicate five-request batch without reducing discovery concurrency.
@@ -339,7 +339,7 @@ negotiation. Envelope clients receive `{data, truth, error}`, while legacy
 `application/json` clients receive the same unwrapped operations object. The
 canonical response carries `operations.status`, `exact`, `production`,
 `runtime_state`, and `fresh` truth metadata. The rebuilt live route returned
-that exact envelope and rendered the Operations board in 2.042 seconds. The
+that exact envelope and rendered the Operations board in 2.143 seconds. The
 focused handler and console client tests run with:
 
 ```bash
@@ -376,7 +376,7 @@ affected packages and services.
 The retained stack also ran the public OSV-only vulnerability collector with
 no private token. The API returned five advisory catalog rows, and an exact
 advisory detail read returned HTTP 200 with one source. The final browser route
-rendered those real catalog and detail surfaces in 8.898 seconds with five
+rendered those real catalog and detail surfaces in 9.438 seconds with five
 requests and zero errors. The retained impact-finding routes authoritatively
 returned zero rows, and the browser proved the exact no-impact state rather
 than accepting a generic empty page.
@@ -405,7 +405,7 @@ generic SVG, empty shell, or always-rendered table cannot pass alone.
 The accepted fingerprinted-image retained proof observed all four Code Graph
 responses and one visible canvas in 9.544 seconds; the relationship catalog
 response and 16 verb rows in 4.044 seconds; and three bootstrap-snapshot source
-responses plus 25 Findings rows in 1.762 seconds. Each workflow recorded the
+responses plus 25 Findings rows in 1.757 seconds. Each workflow recorded the
 accepted method, path, status, and owning bootstrap or route phase in the
 durable report. A route-owned expectation cannot borrow a matching bootstrap
 response.
