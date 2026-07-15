@@ -397,9 +397,12 @@ response ordering is unchanged. It waits for every bounded independent read
 and reports the first real error in catalog order; it does not generate an
 internal cancellation that can mask the owning backend failure.
 
-No-Observability-Change: the route retains its existing handler envelope and
-per-query graph telemetry. The change adds no graph writes, queue behavior,
-runtime knobs, metrics, or spans.
+Observability Evidence: the route retains its existing handler envelope and
+per-query graph telemetry, and now exposes bounded-read contention through
+`eshu_dp_relationship_breakdown_permit_wait_seconds`,
+`eshu_dp_relationship_breakdown_queued`, and
+`eshu_dp_relationship_breakdown_in_flight`. The change adds no graph writes,
+queue behavior, runtime knobs, or spans.
 
 #### Retained Dashboard Incoming Relationship Story Planner Seed
 
