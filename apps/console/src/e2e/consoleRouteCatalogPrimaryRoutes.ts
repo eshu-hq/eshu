@@ -1,4 +1,5 @@
 import { APP_ROUTE_PATHS } from "../appRoutePaths";
+import { type ConsoleRoute, liveState } from "./consoleRouteCatalogTypes";
 import {
   bootstrapOwnership,
   boundedGetResponse,
@@ -6,7 +7,6 @@ import {
   postResponse,
   routeOwnership,
 } from "./consoleRouteResponseOwnership";
-import { type ConsoleRoute, liveState } from "./consoleRouteCatalogTypes";
 
 const dashboardAtlasOwnership = {
   bootstrap: [getResponse("/api/v0/catalog"), getResponse("/api/v0/repositories")],

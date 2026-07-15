@@ -1,10 +1,10 @@
+import { type ConsoleRoute, liveState } from "./consoleRouteCatalogTypes";
 import {
   bootstrapOwnership,
   getResponse,
   postResponse,
   routeOwnership,
 } from "./consoleRouteResponseOwnership";
-import { type ConsoleRoute, liveState } from "./consoleRouteCatalogTypes";
 
 export const secondaryConsoleRoutes: readonly ConsoleRoute[] = [
   {

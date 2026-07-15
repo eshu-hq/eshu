@@ -120,10 +120,12 @@ describe("discoverDefaultChangedSinceParams", () => {
       scopeId: "scope:one",
       sinceGenerationId: "generation:superseded",
     });
-    expect(get).toHaveBeenCalledWith(
-      "/api/v0/freshness/generations?repository=repo-one&limit=3",
-      expect.objectContaining({ signal: expect.any(AbortSignal) }),
-    );
+    const calls = get.mock.calls as unknown as readonly [
+      string,
+      { readonly signal?: AbortSignal },
+    ][];
+    expect(calls[0]?.[0]).toBe("/api/v0/freshness/generations?repository=repo-one&limit=3");
+    expect(calls[0]?.[1].signal).toBeInstanceOf(AbortSignal);
   });
 
   it("probes exact repositories until it finds an active and retained prior pair", async () => {

@@ -8,6 +8,22 @@ registry="$repo_root/specs/ci-gates.v1.yaml"
 tmp_dir="$(mktemp -d)"
 trap 'rm -rf "$tmp_dir"' EXIT
 
+command -v rg >/dev/null 2>&1 || {
+  echo "run-console-live-e2e contract requires rg" >&2
+  exit 1
+}
+
+rg -q --fixed-strings 'sudo apt-get install --yes ripgrep' "$workflow" || {
+  echo "frontend console job must install rg before running harness contracts" >&2
+  exit 1
+}
+install_line="$(rg -n -m 1 --fixed-strings 'sudo apt-get install --yes ripgrep' "$workflow")"
+harness_line="$(rg -n -m 1 --fixed-strings 'bash scripts/test-run-console-live-e2e.sh' "$workflow")"
+if (( ${install_line%%:*} >= ${harness_line%%:*} )); then
+  echo "frontend console job must install rg before running harness contracts" >&2
+  exit 1
+fi
+
 marker="$tmp_dir/env-file-executed"
 env_file="$tmp_dir/compose.env"
 fake_bin="$tmp_dir/bin"

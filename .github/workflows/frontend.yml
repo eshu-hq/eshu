@@ -121,6 +121,11 @@ jobs:
       - name: Install dependencies (clean, lockfile-pinned)
         run: npm ci
 
+      - name: Install live harness dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes ripgrep
+
       - name: Verify live console harness contracts
         run: |
           bash scripts/test-run-console-live-e2e.sh
