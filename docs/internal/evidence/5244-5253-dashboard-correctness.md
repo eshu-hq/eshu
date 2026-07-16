@@ -194,7 +194,7 @@ shape: a repository can carry an internal reducer workload identity beginning
 with `reducer_` and containing `_workload_identity_workload_`. Treating that
 opaque identity as a service selector produced four HTTP 404 responses. The
 exact retained pattern failed its regression before the classifier correction.
-After the correction, the accepted repository workflow completed in 9.280
+After the correction, the accepted repository workflow completed in 8.318
 seconds with zero console/network errors and response-backed workspace truth.
 Human workload names still load service story context. A reducer-owned opaque
 identity is skipped even when it appears before a later valid workload; that
@@ -223,7 +223,7 @@ message (or class when no message exists). The focused regression and selection
 suite passed 27 tests. Against the retained 887-repository catalog, the helper
 selected an exact active/prior pair in 17 ms. The changed-since read completed
 in 18.2 ms with 16 changed and 6 unchanged facts; the final browser workflow
-completed in 2.219 seconds with seven requests and zero console/API errors. The
+completed in 2.245 seconds with seven requests and zero console/API errors. The
 prior retained run issued 12 requests because React Strict Mode created two
 five-request discovery owners; the final component keeps one owner and removes
 that duplicate five-request batch without reducing discovery concurrency.
@@ -314,7 +314,7 @@ all 22 were Traits, zero rows leaked another kind, and every returned
 `entity_id + repo_id + relative_path` identity matched the direct Postgres Trait
 row. The live browser then selected the Trait control, observed the exact
 `POST /api/v0/code/dead-code` request with `candidate_kind=Trait`, and rendered
-the same 22 exact-kind rows in 2.401 seconds. The prior unscoped 100-row response
+the same 22 exact-kind rows in 2.512 seconds. The prior unscoped 100-row response
 contained 100 Functions and no Traits, so the new server-side filter proves the
 intended correctness delta rather than hiding it behind a client-side first-page
 filter.
@@ -359,7 +359,7 @@ negotiation. Envelope clients receive `{data, truth, error}`, while legacy
 `application/json` clients receive the same unwrapped operations object. The
 canonical response carries `operations.status`, `exact`, `production`,
 `runtime_state`, and `fresh` truth metadata. The rebuilt live route returned
-that exact envelope and rendered the Operations board in 1.941 seconds. The
+that exact envelope and rendered the Operations board in 1.944 seconds. The
 focused handler and console client tests run with:
 
 ```bash
@@ -396,7 +396,7 @@ affected packages and services.
 The retained stack also ran the public OSV-only vulnerability collector with
 no private token. The API returned five advisory catalog rows, and an exact
 advisory detail read returned HTTP 200 with one source. The final browser route
-rendered those real catalog and detail surfaces in 10.106 seconds with five
+rendered those real catalog and detail surfaces in 10.654 seconds with five
 requests and zero errors. The retained impact-finding routes authoritatively
 returned zero rows, and the browser proved the exact no-impact state rather
 than accepting a generic empty page.
@@ -423,8 +423,8 @@ cardinality or the exact authoritative empty marker. Adversarial tests prove a
 generic SVG, empty shell, or always-rendered table cannot pass alone.
 
 The accepted fingerprinted-image retained proof observed all four Code Graph
-responses and one visible canvas in 9.133 seconds; the relationship catalog
-response and 16 verb rows in 4.157 seconds; and three bootstrap-snapshot source
+responses and one visible canvas in 10.048 seconds; the relationship catalog
+response and 16 verb rows in 4.260 seconds; and three bootstrap-snapshot source
 responses plus 25 Findings rows in 1.752 seconds. Each workflow recorded the
 accepted method, path, status, and owning bootstrap or route phase in the
 durable report. A route-owned expectation cannot borrow a matching bootstrap
@@ -437,7 +437,7 @@ largest real scope contained 1,824 findings. Its browser workflow observed
 HTTP 200 from the multi-cloud, AWS drift, unmanaged-resource, and Terraform
 import-plan endpoints; rendered the authoritative multi-cloud empty row, 50
 bounded AWS rows, 50 bounded unmanaged rows, and a loaded import-plan state;
-and completed in 2.772 seconds with no console or network error.
+and completed in 2.784 seconds with no console or network error.
 
 No-Observability-Change: these changes harden browser proof and render-state
 provenance. They add no runtime metric, span, log field, queue, worker, graph
