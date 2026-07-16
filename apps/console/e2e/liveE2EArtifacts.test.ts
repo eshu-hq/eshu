@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -19,19 +19,24 @@ describe("console live E2E artifact ownership", () => {
 
   it("isolates cleanup and outputs between concurrent proof identities", async () => {
     const repoRoot = await mkdtemp(join(tmpdir(), "eshu-live-e2e-artifacts-"));
-    const first = liveE2EArtifactPaths(repoRoot, "proof_first");
-    const second = liveE2EArtifactPaths(repoRoot, "proof_second");
+    try {
+      const first = liveE2EArtifactPaths(repoRoot, "proof_first");
+      const second = liveE2EArtifactPaths(repoRoot, "proof_second");
 
-    await prepareLiveE2EArtifacts(first);
-    await prepareLiveE2EArtifacts(second);
-    await writeFile(first.reportPath, "first", "utf8");
-    await writeFile(second.reportPath, "second", "utf8");
+      await prepareLiveE2EArtifacts(first);
+      await prepareLiveE2EArtifacts(second);
+      await writeFile(first.reportPath, "first", "utf8");
+      await writeFile(second.reportPath, "second", "utf8");
 
-    await prepareLiveE2EArtifacts(first);
+      await prepareLiveE2EArtifacts(first);
 
-    await expect(readFile(second.reportPath, "utf8")).resolves.toBe("second");
-    await expect(readFile(first.reportPath, "utf8")).rejects.toMatchObject({ code: "ENOENT" });
-    expect(first.rootDir).not.toBe(second.rootDir);
+      await expect(readFile(second.reportPath, "utf8")).resolves.toBe("second");
+      await expect(readFile(first.reportPath, "utf8")).rejects.toMatchObject({ code: "ENOENT" });
+      expect(first.rootDir).not.toBe(second.rootDir);
+    } finally {
+      await rm(repoRoot, { recursive: true, force: true });
+    }
+    await expect(stat(repoRoot)).rejects.toMatchObject({ code: "ENOENT" });
   });
 
   it.each(["", "../other-proof", "proof/other", "proof other"])(
