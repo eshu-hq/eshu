@@ -7,6 +7,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { startDevServerWithSpawner, stopLiveE2EDevServer } from "./liveE2EDevServer.ts";
 import { captureRoute, proofManifestForLaunchedBrowser } from "./runConsoleLiveE2E";
+import type { RoutePerformanceRecorder } from "./routePerformanceRecorder";
 import { locatorStub } from "./routeWorkflowProbesTestSupport";
 
 type ViteChild = ChildProcessByStdio<null, Readable, Readable>;
@@ -118,6 +119,11 @@ describe("console live E2E route response ownership", () => {
         failureText: null,
       },
     ] as const;
+    const performanceRecorder = {
+      beginCapture: () => ({ firstSequence: 1, startedAtMs: Date.now() }),
+      recordsSince: () => [],
+      stop: vi.fn(),
+    } satisfies RoutePerformanceRecorder;
 
     const signals = await captureRoute(
       page,
@@ -141,11 +147,20 @@ describe("console live E2E route response ownership", () => {
       { inFlight: () => 0, lastChangeAt: () => Date.now() - 1_000 },
       bootstrapNetwork,
       "/tmp/eshu-live-e2e-test-screenshots",
+      [],
+      null,
+      undefined,
+      performanceRecorder,
     );
 
     expect(signals.workflow?.passed).toBe(false);
     expect(signals.workflow?.detail).toContain("required route response");
     expect(signals.mainContentChars).toBe(100);
+    expect(signals.performance).toMatchObject({
+      firstUsefulContentMs: expect.any(Number),
+      requestCount: 0,
+      routeReadyMs: expect.any(Number),
+    });
   });
 
   it("accepts bootstrap responses only when the snapshot-backed route declares bootstrap ownership", async () => {

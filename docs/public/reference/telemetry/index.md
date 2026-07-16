@@ -466,8 +466,11 @@ Postgres read path unchanged. Verified by
 
 ### Relationship catalog breakdown limiter
 
-The relationship catalog overlaps independent `source_tool` breakdown reads
-under one four-permit limiter shared by all requests in an API or MCP process.
+The relationship catalog issues one grouped `source_tool` aggregate per fixed
+source-owner label (currently Repository and WorkloadInstance). The independent
+owner reads overlap, scan each label once, and return every stamped verb/tool
+bucket. One four-permit limiter shared by all requests in an API or MCP process
+caps concurrent aggregate reads without serializing callers.
 Three label-free metrics distinguish graph-query latency from local admission
 pressure without adding repository, verb, tenant, or request cardinality:
 
@@ -488,10 +491,12 @@ observes two concurrent waiters, cancels one waiter, releases and reuses a
 permit, and proves queued/in-flight return to zero. It also proves all three
 instruments emit one label-free datapoint.
 
-No-Regression Evidence: the metric calls wrap the existing channel send and
-receive at the single semaphore chokepoint. The four-slot capacity, goroutine
-fan-out, cancellation select, graph reads, and result ordering are unchanged.
-The OTEL histogram and up/down-counter operations are concurrency-safe.
+No-Regression Evidence: the metric calls wrap the channel send and receive at
+the per-owner aggregate-read semaphore chokepoint. The four-slot capacity,
+cancellation select, and catalog result ordering are unchanged. Five concurrent
+callers prove four owner reads enter and the fifth waits, then every permit is
+reusable. The OTEL histogram and up/down-counter operations are
+concurrency-safe.
 
 ## Per-Collector Run Metrics
 

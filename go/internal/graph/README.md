@@ -118,6 +118,9 @@ helpers (`schemaDialectForBackend`, `nornicDBSchemaConstraint`).
   fingerprints that graph-writing runtimes check before startup.
 - `SchemaApplication` — durable schema marker payload written after successful
   bootstrap.
+- NornicDB receives `nornicdb_function_legacy_id_lookup` on `Function.id` so
+  relationship stories can resolve a legacy-ID-only Function without scanning
+  the full Function label.
 - `EnsureSchema(ctx, executor, logger)` — creates constraints and indexes for
   the Neo4j backend. Individual failures are logged as warnings and do not
   abort the remaining statements.
@@ -191,11 +194,10 @@ No-Regression Evidence: #2902 adds
 current Neo4j fingerprint
 `556d133c15610ecaaf773af2200717062e5d91d0edd2709fa7f6a83072a11c53`
 (227 statements) and NornicDB fingerprint
-`1c4bf2acf328fdeb19084b18618cc9a57749615d7c513edb674cfbc036f1bbae`
-(289 statements). The latest DDL bump adds only `repo_id` and `path` lookup
-indexes for `ShellCommand`, so older writers remain compatible while
-reducer-owned shell execution edge retractions can avoid large Function-label
-fan-outs.
+`cfff663a3a7cae4e7c36823e0304b25f7f046eed2e139951e8a9bf8121b9ba69`
+(290 statements). The latest NornicDB-only DDL bump adds the Function legacy-ID
+lookup used by relationship-story fallback. It is additive, so the
+immediately preceding NornicDB fingerprint remains writer-compatible.
 
 No-Observability-Change: graph schema compatibility remains a Postgres marker
 read/write contract through `graphschemacompat`; this update changes only the

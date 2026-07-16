@@ -61,15 +61,45 @@ interface CycleEdgeRecord {
   readonly line_number?: number;
 }
 
-export async function loadCodeImportCycles(
+const pendingImportCycleLoads = new WeakMap<
+  EshuApiClient,
+  Map<string, Promise<CodeImportCyclesPage>>
+>();
+
+export function loadCodeImportCycles(
   client: EshuApiClient,
   repoId: string,
-  limit = 6
+  limit = 6,
+): Promise<CodeImportCyclesPage> {
+  let requests = pendingImportCycleLoads.get(client);
+  if (!requests) {
+    requests = new Map();
+    pendingImportCycleLoads.set(client, requests);
+  }
+  const key = JSON.stringify({ limit, repoId });
+  const pending = requests.get(key);
+  if (pending) return pending;
+
+  const request = fetchCodeImportCycles(client, repoId, limit);
+  requests.set(key, request);
+  const removeSettledRequest = (): void => {
+    if (requests.get(key) !== request) return;
+    requests.delete(key);
+    if (requests.size === 0) pendingImportCycleLoads.delete(client);
+  };
+  void request.then(removeSettledRequest, removeSettledRequest);
+  return request;
+}
+
+async function fetchCodeImportCycles(
+  client: EshuApiClient,
+  repoId: string,
+  limit: number,
 ): Promise<CodeImportCyclesPage> {
   const env = await client.post<CodeImportCyclesResponse>("/api/v0/code/imports/investigate", {
     query_type: "file_import_cycles",
     repo_id: repoId,
-    limit
+    limit,
   });
   if (env.error) throw new EshuEnvelopeError(env.error);
   const data = env.data ?? {};
@@ -78,7 +108,7 @@ export async function loadCodeImportCycles(
     cycles,
     count: data.count ?? cycles.length,
     truncated: data.truncated === true,
-    nextOffset: typeof data.next_offset === "number" ? data.next_offset : null
+    nextOffset: typeof data.next_offset === "number" ? data.next_offset : null,
   };
 }
 
@@ -98,8 +128,10 @@ function normalizeCycleRecord(record: CycleRecord): CodeImportCycleRow {
     sourceLineNumber: num(record.source_line_number),
     backEdgeLineNumber: num(record.back_edge_line_number),
     relationshipType: str(record.relationship_type) || "IMPORTS",
-    cyclePath: cyclePath.length ? cyclePath : [sourceFile, targetFile, sourceFile].filter((value) => value !== ""),
-    cycleEdges: (record.cycle_edges ?? []).map(normalizeCycleEdge)
+    cyclePath: cyclePath.length
+      ? cyclePath
+      : [sourceFile, targetFile, sourceFile].filter((value) => value !== ""),
+    cycleEdges: (record.cycle_edges ?? []).map(normalizeCycleEdge),
   };
 }
 
@@ -110,7 +142,7 @@ function normalizeCycleEdge(record: CycleEdgeRecord): CodeImportCycleEdge {
     targetFile: str(record.target_file),
     sourceModule: str(record.source_module),
     targetModule: str(record.target_module),
-    lineNumber: num(record.line_number)
+    lineNumber: num(record.line_number),
   };
 }
 

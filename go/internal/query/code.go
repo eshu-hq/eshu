@@ -190,15 +190,18 @@ func (h *CodeHandler) searchGraphEntitiesWithExact(ctx context.Context, repoID, 
 		"query": query,
 		"limit": limit,
 	}
+	if repoID != "" {
+		cypher = `
+			MATCH (r:Repository {id: $repo_id})-[:REPO_CONTAINS]->(f:File)-[:CONTAINS]->(e)
+		`
+		params["repo_id"] = repoID
+	}
 	if exact {
 		cypher += " WHERE e.name = $query"
 	} else {
 		cypher += " WHERE e.name CONTAINS $query"
 	}
-	if repoID != "" {
-		cypher += " AND r.id = $repo_id"
-		params["repo_id"] = repoID
-	} else if access.scoped() {
+	if repoID == "" && access.scoped() {
 		cypher += access.graphPredicate("r")
 		params = access.graphParams(params)
 	}

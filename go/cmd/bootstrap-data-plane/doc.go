@@ -12,7 +12,9 @@
 // schema bootstrap through graph.EnsureSchemaWithBackendStrict. When the
 // Postgres graph-schema marker is missing for NornicDB, the binary first
 // inspects SHOW CONSTRAINTS and SHOW INDEXES and adopts the existing schema
-// if every expected object is already present. Graph DDL statements run under
+// if every expected object is already present. When only some NornicDB objects
+// are missing, the inspected existing objects are skipped before DDL reaches
+// the backend, so an additive migration applies only its missing delta. Graph DDL statements run under
 // a per-statement deadline so startup failures name the stuck schema phase
 // instead of waiting for the outer Kubernetes or Compose deadline. After every
 // graph statement succeeds, Postgres records the backend/schema fingerprint so

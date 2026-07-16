@@ -264,7 +264,21 @@ func (h *InfraHandler) searchResources(w http.ResponseWriter, r *http.Request) {
 	}
 	access.graphParams(params)
 
-	rows, err := h.Neo4j.Run(r.Context(), cypher, params)
+	var rows []map[string]any
+	var err error
+	if isArgoCDCategoryOnly(
+		query,
+		kind,
+		category,
+		provider,
+		environment,
+		resourceService,
+		resourceCategory,
+	) {
+		rows, err = h.searchArgoCDCategoryRows(r.Context(), access, req.Limit+1)
+	} else {
+		rows, err = h.Neo4j.Run(r.Context(), cypher, params)
+	}
 	if err != nil {
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return

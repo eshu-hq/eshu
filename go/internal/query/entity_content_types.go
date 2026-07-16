@@ -7,7 +7,83 @@
 
 package query
 
-import "context"
+import (
+	"context"
+	"fmt"
+	"net/http"
+	"strings"
+)
+
+const contentEntityIDPrefix = "content-entity:"
+
+func (h *EntityHandler) writeCanonicalContentEntityResolution(
+	w http.ResponseWriter,
+	r *http.Request,
+	req resolveEntityRequest,
+	limit int,
+) bool {
+	entities, handled, err := h.resolveCanonicalContentEntityID(
+		r.Context(),
+		req.Name,
+		req.Type,
+		req.RepoID,
+	)
+	if err != nil {
+		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("resolve canonical content entity: %v", err))
+		return true
+	}
+	if !handled {
+		return false
+	}
+	if err := hydrateResolvedEntityRepoIdentity(r.Context(), h.Neo4j, h.Content, entities); err != nil {
+		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("hydrate entity repo identity: %v", err))
+		return true
+	}
+	entities = normalizeResolvedEntities(entities, limit+1)
+	entities, truncated := trimResolvedEntityPage(entities, limit)
+	if entities == nil {
+		entities = []map[string]any{}
+	}
+	WriteSuccess(
+		w,
+		r,
+		http.StatusOK,
+		resolvedEntityResponse(entities, limit, truncated),
+		entityResolveTruthEnvelope(h.profile()),
+	)
+	return true
+}
+
+func (h *EntityHandler) resolveCanonicalContentEntityID(
+	ctx context.Context,
+	name string,
+	typeName string,
+	repoID string,
+) ([]map[string]any, bool, error) {
+	entityID := strings.TrimSpace(name)
+	if h == nil || h.Content == nil || !strings.HasPrefix(entityID, contentEntityIDPrefix) {
+		return nil, false, nil
+	}
+	entity, err := h.Content.GetEntityContent(ctx, entityID)
+	if err != nil {
+		return nil, true, err
+	}
+	if entity == nil {
+		return []map[string]any{}, true, nil
+	}
+	access := repositoryAccessFilterFromContext(ctx)
+	if access.empty() || !access.allowsRepositoryID(entity.RepoID) {
+		return []map[string]any{}, true, nil
+	}
+	if repoID != "" && entity.RepoID != repoID {
+		return []map[string]any{}, true, nil
+	}
+	wantType := contentEntityTypeForResolve(strings.ToLower(strings.TrimSpace(typeName)))
+	if wantType != "" && !strings.EqualFold(entity.EntityType, wantType) {
+		return []map[string]any{}, true, nil
+	}
+	return []map[string]any{contentEntityToMap(*entity)}, true, nil
+}
 
 func (h *EntityHandler) resolveEntityFromContent(
 	ctx context.Context,

@@ -173,7 +173,7 @@ export function buildNetworkReportObservation(
       failureText:
         observation.failureText === null ? null : redactUrlQueries(observation.failureText),
       method: observation.method,
-      pathname: safePathname(observation.url),
+      pathname: safeReportPathname(observation.url),
       status: observation.status,
     })),
     networkTruncated: network.length > maxReportedRequestsPerRoute,
@@ -191,20 +191,46 @@ export function buildRouteReportObservation(signals: RouteSignals): RouteReportO
     mainContentChars: signals.mainContentChars,
     ...networkReport,
     path: signals.route.path,
-    workflow: signals.workflow,
+    workflow: reportWorkflowObservation(signals.workflow),
   };
 }
 
-function safePathname(url: string): string {
+function reportWorkflowObservation(
+  workflow: RouteWorkflowObservation | null,
+): RouteWorkflowObservation | null {
+  if (workflow === null || workflow.requests === undefined) return workflow;
+  return {
+    ...workflow,
+    requests: workflow.requests.map((request) => ({
+      ...request,
+      pathname: safeReportPathname(request.pathname),
+    })),
+  };
+}
+
+export function safeReportPathname(url: string): string {
   try {
-    return new URL(url).pathname;
+    const pathname = new URL(url, "http://report.invalid").pathname;
+    if (pathname.startsWith("/@fs/")) return "/@fs/:local-module";
+    return pathname
+      .replace(
+        /(\/repositories\/)[^/]+(?=\/(?:stats|story|freshness|tree|branches|content|context)(?:\/|$))/g,
+        "$1:repository",
+      )
+      .replace(/(\/services\/)[^/]+(?=\/(?:story|context)(?:\/|$))/g, "$1:service")
+      .replace(/(\/investigations\/services\/)[^/]+(?=\/|$)/g, "$1:service")
+      .replace(/(\/incidents\/)[^/]+(?=\/context(?:\/|$))/g, "$1:incident")
+      .replace(/(\/supply-chain\/vulnerabilities\/)[^/]+(?=\/|$)/g, "$1:vulnerability")
+      .replace(/(\/auth\/local\/invitations\/)[^/]+(?=\/revoke(?:\/|$))/g, "$1:invitation")
+      .replace(/(\/auth\/admin\/idp-group-mappings\/)[^/]+(?=\/|$)/g, "$1:mapping")
+      .replace(/(\/auth\/local\/api-tokens\/)[^/]+(?=\/revoke(?:\/|$))/g, "$1:token");
   } catch {
     return "invalid-url";
   }
 }
 
 function redactUrlQueries(value: string): string {
-  return value.replace(/https?:\/\/[^\s)]+/g, (url) => safePathname(url));
+  return value.replace(/https?:\/\/[^\s)]+/g, (url) => safeReportPathname(url));
 }
 
 // minMainContentChars is the substance threshold. Every real console route —
@@ -251,7 +277,7 @@ export function evaluateNetworkObservations(
     const rule = allowList.find((candidate) => matchAllowRule(observation, candidate));
     if (rule && observation.failureText === null) {
       allowedNonOk.push({
-        url: safePathname(observation.url),
+        url: safeReportPathname(observation.url),
         method: observation.method,
         status: observation.status,
         reason: rule.reason,
@@ -264,7 +290,7 @@ export function evaluateNetworkObservations(
         : `network failure ${redactUrlQueries(observation.failureText)}`;
     failures.push({
       code: "unexpected_network",
-      detail: `${scope} issued an unexpected request: ${observation.method} ${safePathname(observation.url)} (${failureSuffix})`,
+      detail: `${scope} issued an unexpected request: ${observation.method} ${safeReportPathname(observation.url)} (${failureSuffix})`,
     });
   }
 

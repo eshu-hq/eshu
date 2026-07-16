@@ -258,9 +258,6 @@ func assertProductionRelationshipStoryProofShape(
 	typeCount int,
 ) string {
 	t.Helper()
-	if len(singleCyphers) != 2 {
-		t.Fatalf("anchor resolution queries = %d, want exactly one two-query resolution phase: %v", len(singleCyphers), singleCyphers)
-	}
 	if len(runCyphers) != typeCount*2 {
 		t.Fatalf("relationship graph queries = %d, want %d fixed-property direction queries", len(runCyphers), typeCount*2)
 	}
@@ -281,6 +278,19 @@ func assertProductionRelationshipStoryProofShape(
 	}
 	if property == "" {
 		t.Fatalf("production relationship reads did not reuse one fixed uid/id anchor property")
+	}
+	wantResolutionQueries := 1
+	if property == "id" {
+		wantResolutionQueries = 2
+	}
+	if len(singleCyphers) != wantResolutionQueries {
+		t.Fatalf(
+			"anchor resolution queries = %d, want %d for %s anchor: %v",
+			len(singleCyphers),
+			wantResolutionQueries,
+			property,
+			singleCyphers,
+		)
 	}
 	wantAnchor := "(anchor:Function {" + property + ": $entity_id})"
 	otherProperty := "uid"

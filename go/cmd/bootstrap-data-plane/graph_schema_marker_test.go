@@ -9,6 +9,7 @@ import (
 	"errors"
 	"log/slog"
 	"maps"
+	"strings"
 	"testing"
 	"time"
 
@@ -290,7 +291,7 @@ func TestRunAppliesGraphSchemaWhenAdoptionFindsMissingObjects(t *testing.T) {
 	}
 	inspector := &fakeGraphSchemaInspector{names: existingNames}
 	logger := testLogger(t)
-	graphApplied := false
+	executor := &fakeNeo4jExecutor{}
 
 	err = run(
 		context.Background(),
@@ -309,21 +310,31 @@ func TestRunAppliesGraphSchemaWhenAdoptionFindsMissingObjects(t *testing.T) {
 		},
 		func(context.Context, func(string) string) (neo4jDeps, error) {
 			return neo4jDeps{
-				executor:  &fakeNeo4jExecutor{},
+				executor:  executor,
 				inspector: inspector,
 				close:     func() error { return nil },
 			}, nil
 		},
-		func(_ context.Context, _ graph.CypherExecutor, _ *slog.Logger, _ graph.SchemaBackend) error {
-			graphApplied = true
+		func(ctx context.Context, exec graph.CypherExecutor, _ *slog.Logger, _ graph.SchemaBackend) error {
+			for _, cypher := range []string{
+				"CREATE CONSTRAINT repository_id IF NOT EXISTS FOR (n:Repository) REQUIRE n.id IS UNIQUE",
+				"CREATE INDEX function_name IF NOT EXISTS FOR (n:Function) ON (n.name)",
+			} {
+				if err := exec.ExecuteCypher(ctx, graph.CypherStatement{Cypher: cypher}); err != nil {
+					return err
+				}
+			}
 			return nil
 		},
 	)
 	if err != nil {
 		t.Fatalf("run() error = %v, want nil", err)
 	}
-	if !graphApplied {
-		t.Fatal("run() did not apply graph schema, want fallback when adoption is incomplete")
+	if got, want := executor.calls, 1; got != want {
+		t.Fatalf("underlying graph schema calls = %d, want only the missing object (%d)", got, want)
+	}
+	if len(executor.cyphers) != 1 || !strings.Contains(executor.cyphers[0], "repository_id") {
+		t.Fatalf("underlying graph schema statements = %v, want only repository_id", executor.cyphers)
 	}
 	if got, want := inspector.calls, 1; got != want {
 		t.Fatalf("schema inspector calls = %d, want %d", got, want)

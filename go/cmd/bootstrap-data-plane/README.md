@@ -46,7 +46,10 @@ Resolved through `runtime.OpenPostgres`, `runtime.OpenNeo4jDriver`, and
   inspection support for either backend. False values disable adoption. Adoption
   inspects `SHOW CONSTRAINTS` and `SHOW INDEXES`; if every current schema object
   already exists, it marks the backend/fingerprint as applied and skips the DDL
-  pass. The inspection uses the ESHU_GRAPH_SCHEMA_STATEMENT_TIMEOUT budget.
+  pass. If only some NornicDB objects are missing, the DDL pass forwards only
+  those missing objects and skips every inspected existing constraint/index
+  before it reaches NornicDB. The inspection uses the
+  ESHU_GRAPH_SCHEMA_STATEMENT_TIMEOUT budget.
 - NEO4J_URI, NEO4J_USERNAME, NEO4J_PASSWORD
 - DEFAULT_DATABASE
 
@@ -91,7 +94,9 @@ failure class, and a bounded schema statement summary.
   combinations. It compares the expected schema object names to
   `SHOW CONSTRAINTS` and `SHOW INDEXES` before writing the marker. Set
   `ESHU_GRAPH_SCHEMA_ADOPT_EXISTING=false` only when an operator intentionally
-  wants to force the live DDL pass.
+  wants to force the full live DDL pass. An incomplete default inspection
+  applies only missing objects; it does not reissue existing NornicDB indexes
+  whose populated-index backfill is not idempotent in the pinned backend.
 - version probes are pre-startup checks; keep `buildinfo.PrintVersionFlag` at
   the top of `main` so deployment diagnostics do not run DDL
 - each graph DDL statement runs under `ESHU_GRAPH_SCHEMA_STATEMENT_TIMEOUT`
@@ -110,9 +115,9 @@ proves same-fingerprint restarts skip graph DDL, missing markers still apply and
 record graph schema completion with compatibility metadata, and failed graph DDL
 never records a successful marker. The adoption cases prove complete existing
 NornicDB graph schema marks and skips by default, operators can disable that
-default, Neo4j keeps its existing default DDL path, missing graph schema falls
-back to DDL, and failed schema inspection does not blindly run DDL against a
-live graph. `go test ./internal/graphschemacompat -count=1` proves writer
+default, Neo4j keeps its existing default DDL path, incomplete NornicDB schema
+forwards only missing objects to DDL, and failed schema inspection does not
+blindly run DDL against a live graph. `go test ./internal/graphschemacompat -count=1` proves writer
 startup rejects missing or incompatible latest markers and accepts exact or
 explicitly compatible fingerprints. `go test ./internal/graph -run
 TestEnsureSchemaWithBackendStrictReturnsStatementFailures` proves the strict

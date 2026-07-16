@@ -52,10 +52,10 @@ func nornicDBRelationshipStoryAnchorPreflightSupported(entity *EntityContent) bo
 	return entity != nil && nornicDBGraphLabelForContentEntityType(entity.EntityType) == "Function"
 }
 
-// resolveNornicDBRelationshipStoryAnchorProperty selects the identity property
-// for a resolved Function target once per request. A separate-node
-// uid/id collision deliberately leaves the request unresolved so the legacy
-// per-query fallback remains authoritative for that ambiguous graph state.
+// resolveNornicDBRelationshipStoryAnchorProperty selects the canonical identity
+// property for a resolved Function target once per request. Content entity IDs
+// are canonical graph uids; a legacy id lookup is used only when no uid anchor
+// exists, so an unrelated node whose legacy id collides cannot contribute edges.
 func (h *CodeHandler) resolveNornicDBRelationshipStoryAnchorProperty(
 	ctx context.Context,
 	req relationshipStoryRequest,
@@ -85,19 +85,6 @@ func (h *CodeHandler) resolveNornicDBRelationshipStoryAnchorProperty(
 		return req, err
 	}
 	if len(uidRow) > 0 {
-		collisionRow, err := h.Neo4j.RunSingle(
-			ctx,
-			"MATCH (idAnchor:"+entityLabel+" {id: $entity_id}) "+
-				"WHERE coalesce(idAnchor.uid, '') <> $entity_id "+
-				"RETURN true AS collision LIMIT 1",
-			params,
-		)
-		if err != nil {
-			return req, err
-		}
-		if len(collisionRow) > 0 {
-			return req, nil
-		}
 		req.graphAnchorPropertyResolved = true
 		req.graphAnchorProperty = "uid"
 		return req, nil

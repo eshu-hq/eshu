@@ -258,6 +258,29 @@ describe("consoleRoutes catalog", () => {
     expect(workflow).not.toHaveProperty("requiredResponses");
   });
 
+  it("binds Code Graph candidates to bootstrap while keeping graph reads route-owned", () => {
+    const workflow = consoleRoutes.find((route) => route.path === "/code-graph")?.workflow;
+
+    expect(workflow).toMatchObject({
+      kind: "state",
+      requiredBootstrapResponses: [
+        { path: "/api/v0/code/dead-code", method: "POST", acceptedStatuses: [200] },
+      ],
+      requiredResponses: [
+        {
+          path: "/api/v0/code/relationships/story",
+          method: "POST",
+          acceptedStatuses: [200],
+        },
+        {
+          path: "/api/v0/code/imports/investigate",
+          method: "POST",
+          acceptedStatuses: [200],
+        },
+      ],
+    });
+  });
+
   it("fails parity when a production-only parameterized route is missing from the catalog", () => {
     const withoutWorkspace = Object.values(APP_ROUTE_PATHS).filter(
       (path) => path !== APP_ROUTE_PATHS.workspace,

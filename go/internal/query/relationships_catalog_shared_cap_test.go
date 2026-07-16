@@ -12,13 +12,14 @@ import (
 func TestRelationshipVerbTilesSharesFourBreakdownSlotsAcrossRequests(t *testing.T) {
 	t.Parallel()
 
+	requestCount := relationshipBreakdownMaxConcurrency + 1
 	graph := &cappedBreakdownGraph{
-		entered: make(chan struct{}, 2*len(relationshipVerbCatalog)),
+		entered: make(chan struct{}, requestCount*2),
 		release: make(chan struct{}),
 	}
 	handler := &InfraHandler{Neo4j: graph, Profile: ProfileProduction}
-	done := make(chan error, 2)
-	for range 2 {
+	done := make(chan error, requestCount)
+	for range requestCount {
 		go func() {
 			_, err := handler.relationshipVerbTiles(context.Background())
 			done <- err
@@ -27,7 +28,7 @@ func TestRelationshipVerbTilesSharesFourBreakdownSlotsAcrossRequests(t *testing.
 
 	assertExactlyFourBreakdownsEnter(t, graph.entered)
 	close(graph.release)
-	for range 2 {
+	for range requestCount {
 		select {
 		case err := <-done:
 			if err != nil {
@@ -38,9 +39,9 @@ func TestRelationshipVerbTilesSharesFourBreakdownSlotsAcrossRequests(t *testing.
 		}
 	}
 
-	// A completed request must return every permit to the handler-wide pool.
+	// Completed requests must return every permit to the handler-wide pool.
 	reuseGraph := &cappedBreakdownGraph{
-		entered: make(chan struct{}, len(relationshipVerbCatalog)),
+		entered: make(chan struct{}, 2),
 		release: make(chan struct{}),
 	}
 	handler.Neo4j = reuseGraph
@@ -49,7 +50,11 @@ func TestRelationshipVerbTilesSharesFourBreakdownSlotsAcrossRequests(t *testing.
 		_, err := handler.relationshipVerbTiles(context.Background())
 		reuseDone <- err
 	}()
-	assertExactlyFourBreakdownsEnter(t, reuseGraph.entered)
+	select {
+	case <-reuseGraph.entered:
+	case <-time.After(time.Second):
+		t.Fatal("relationshipVerbTiles() did not reuse a released handler permit")
+	}
 	close(reuseGraph.release)
 	select {
 	case err := <-reuseDone:

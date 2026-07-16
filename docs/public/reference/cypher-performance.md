@@ -406,6 +406,49 @@ per-query graph telemetry, and now exposes bounded-read contention through
 `eshu_dp_relationship_breakdown_in_flight`. The change adds no graph writes,
 queue behavior, runtime knobs, or spans.
 
+#### Retained Dashboard Argo CD Bootstrap Search
+
+Performance Evidence: the console bootstrap requests the bounded Argo CD
+category without a free-text or secondary structured filter. The general
+NornicDB shape matched all nodes and then evaluated
+`n:ArgoCDApplication OR n:ArgoCDApplicationSet`; returning the retained 365-row
+universe took 5.086224s. Two direct label-anchored reads completed in a combined
+0.035001s. The second excludes nodes that also carry the first label, so their
+merged result contained the same 365 rows, zero duplicates, and bidirectional
+set diff 0/0.
+
+Production applies the optimization only to that exact category-only shape.
+Each label read carries the same repository-access predicate and its own
+`limit + 1` bound; Go performs one deterministic global merge and then applies
+the response limit and truncation flag. A query, kind, provider, environment,
+resource service, or resource category keeps the general search path. The
+reads are sequential and bounded, so this adds no backend concurrency or
+partial-result behavior.
+
+No-Observability-Change: both label reads remain inside the existing
+`query.infra_resource_search` handler span and emit their normal graph-query
+duration/error telemetry. No metric, span name, graph write, queue, worker, or
+runtime knob changed.
+
+#### Retained Repository Inventory Rejected Concurrency Candidate
+
+Performance Evidence: after the Argo CD correction, the cold console bootstrap
+long pole moved to `GET /api/v0/repositories` at 2.443s. Existing
+`repository_query.stage_*` telemetry attributed 1.729s to the bounded
+dependency-cluster prepass; repeats were below one millisecond. The exact page
+and cluster queries were then measured sequentially and concurrently against
+the same retained graph before changing the handler. Cold sequential execution
+took 1.294344s; after a clean graph restart, cold parallel execution took
+1.299524s, with the cluster read still dominant at 1.280843s. Both shapes
+returned 101 repository rows and 29 dependency edges. Five warm comparisons
+kept byte-equivalent outputs and saved only 1.9-6.4ms when concurrent.
+
+Disposition: rejected. The candidate did not recover a seconds-scale share and
+would add backend contention. The handler remains sequential. A cache requires
+separate proof of graph-generation invalidation, authorization boundaries,
+negative-result behavior, stampede protection, bounded memory, restart
+behavior, and API/MCP/frontend consistency; no cache was introduced here.
+
 #### Retained Dashboard Incoming Relationship Story Planner Seed
 
 Performance Evidence: on the same retained graph, the console's six-type
@@ -443,19 +486,20 @@ direction. An empty relationship type cannot distinguish "the `uid` anchor
 exists but has no such edge" from "the anchor is legacy `id`-only", so the old
 path repeatedly paid the labeled legacy lookup.
 
-The output-preserving candidate resolves the root anchor property once, reuses
-it across the six non-transitive types and both directions, and retains the old
-per-query fallback when a separate `uid`/`id` collision is detected. Legacy
-`id`-only and missing anchors are resolved once. Transitive stories deliberately
+The output-preserving candidate resolves the root anchor property once and
+reuses it across the six non-transitive types and both directions. A content
+entity ID is the canonical graph `uid`; the resolver checks legacy `id` only
+when that canonical anchor is absent. Legacy `id`-only and missing anchors are
+resolved once. Transitive stories deliberately
 keep per-hop fallback because later hop identities can use a different property.
 Single-type stories deliberately keep the original direct `uid`-then-`id`
 query path: the one-time resolver is useful only when several type/direction
-reads amortize its collision check.
+reads amortize its preflight.
 
 The one-time resolver is limited to `Function`, the only label covered by the
 retained multi-type proof. Other entity labels keep the shipped per-query
-`uid`-then-`id` fallback. The Function path intentionally pays one legacy-`id`
-collision scan and amortizes it across all requested types and directions.
+`uid`-then-`id` fallback. The Function path pays one indexed `uid` lookup and,
+only for a legacy graph without that canonical anchor, one indexed `id` lookup.
 
 | Retained-data proof | Old | New | Delta |
 | --- | ---: | ---: | ---: |
@@ -478,7 +522,7 @@ anchor's six-type story still improved from 32.842229 seconds and 21 calls to
 the multi-type win without making the millisecond single-type path pay a
 seconds-scale scan.
 
-The remaining 5.75-second guard is a full `Function` label scan on the legacy
+The intermediate 5.75-second guard was a full `Function` label scan on the legacy
 `id` property. A throwaway `Function.id` index showed that this scan is
 optimizable, but the candidate was rejected before production implementation:
 
@@ -500,21 +544,29 @@ implementations. One retained reissue took 15.345136 seconds and left graph
 node/edge counts unchanged, but it was not a safety proof; the index was removed
 in 0.000539 seconds with the same 961,472 nodes and 1,180,403 edges before and
 after. Two repository-narrowed replacement predicates also failed exactness on
-a retained collision case. The production change therefore keeps the prior
-schema fingerprint and accepts the exact 5.902045-second no-index helper result
-rather than shipping an index migration that has not been proven safe for
-repeated or concurrent application.
+a retained collision case. That first candidate was therefore rejected rather
+than shipped on an unsafe repeated-DDL assumption.
+
+The accepted schema delta fixes that application hazard directly. Bootstrap
+first inspects NornicDB schema names and forwards only missing constraints and
+indexes to strict DDL, so an existing populated index never reaches NornicDB's
+non-idempotent backfill path. On the retained graph,
+`nornicdb_function_legacy_id_lookup` was absent, one DDL statement applied in
+16.056306s, and an immediate second application issued zero DDL statements.
+The exact NornicDB schema is now 290 statements with fingerprint
+`cfff663a3a7cae4e7c36823e0304b25f7f046eed2e139951e8a9bf8121b9ba69`;
+the immediately preceding fingerprint remains writer-compatible.
 
 This repaired retained proof manually reconstructs only the repeated-fallback
 OLD baseline. The NEW side invokes the shipped
 `relationshipStoryRelationships` production helper with all six relationship
-types. The harness asserts one two-query anchor-resolution phase and exactly 12
-direction/type reads, all using only the resolved `{uid: $entity_id}` property.
-Focused production-path tests also prove that a confirmed missing anchor skips
-all relationship reads and that a separate `uid`/legacy-`id` collision retains
-the per-query fallback.
+types. The harness asserts one canonical-`uid` lookup, or two lookups for a
+legacy `id`-only/missing anchor, plus exactly 12 direction/type reads using only
+the resolved property. Focused production-path tests also prove that a confirmed
+missing anchor skips all relationship reads and that an unrelated node whose
+legacy `id` collides with a canonical `uid` cannot contribute edges.
 
-The accepted production-binary proof then removed the rejected index and
+The intermediate production-binary proof then removed the rejected index and
 verified `function_legacy_id` index count zero before and after the run. On the
 same retained 887-repository corpus, all 39 browser workflows passed. Code
 Graph completed in 9.647 seconds with four owned HTTP responses, all status
@@ -529,6 +581,21 @@ also does not meet the desired 2-3 second read SLO. Open issue
 [#5244](https://github.com/eshu-hq/eshu/issues/5244) owns
 cold-client, API, MCP, transport, and residual query attribution after that
 boundary.
+
+The final populated UID-first proof completed in 0.009856s with 13 graph calls
+and one row. The prior collision-check shape took 4.424432s and 14 calls; the
+ordered row diff was 0/0. A separate post-restart empty-edge target completed
+in 0.031363s versus 4.955485s with the same 13/14-call split. A startup
+warmup was separately disproven: warming one Function did not help a different
+selected Function and delayed readiness, so no warmup code or startup event was
+retained.
+
+The console also stopped issuing `POST /api/v0/code/relationships` after the
+story response. The bootstrap dead-code candidate already owns the selected
+Function's repository/file/line metadata, while the story owns all six typed
+edges, related-node source metadata, and provenance. Code Graph therefore waits
+only for the story and the independent import-cycle read; tests prove one
+relationship request and preserve source navigation and truth labels.
 
 Accuracy Evidence: the built readback also exposed a separate existing NornicDB
 compatibility defect: `type(rel)` was returned literally as `"type(rel)"` for
@@ -556,6 +623,43 @@ No-Observability-Change: anchor resolution and the static relationship-type
 projection remain inside the existing graph-query envelope. They add no graph
 writes, queue behavior, runtime knobs, metrics, or spans; existing per-query
 duration and error telemetry still covers every graph read.
+
+#### Repository-Anchored Entity Discovery And Missing-Entity Probes
+
+The retained Code Graph bootstrap exposed another planner defect after the
+relationship-story fix: repository-scoped entity resolution and exact code
+search started at `MATCH (e)` and applied repository membership only after
+discovering the entity. On the same retained entity, the old resolution shape
+took 35.800930 seconds. Starting at the already-required indexed repository
+identity and traversing `Repository-[:REPO_CONTAINS]->File-[:CONTAINS]->entity`
+completed in 0.002801 seconds. Both returned one identical ordered row.
+
+Canonical `content-entity:` identifiers now take the authoritative content-row
+path before graph name resolution. A missing content row returns an explicit
+empty result. The NornicDB direct-relationship compatibility path still checks
+for a graph-only entity, but it uses a fixed-label `UNION` probe by canonical
+`uid` and then legacy `id`, with repository scope when supplied. The retained
+missing identity returned zero rows from both probes in 0.404645 and 0.188298
+seconds instead of paying an unlabeled property scan. The final exact-image API
+returned canonical entity resolution in 0.004492 seconds, exact repository code
+search in 0.128055 seconds, the 16-verb catalog in 0.903421 seconds, and a
+missing direct relationship as HTTP 404 in 0.623642 seconds. The first
+direct-relationship compatibility control on a fresh API process took 5.334448
+seconds; five immediate settled-stack repeats took 0.002036-0.002547 seconds
+with the same empty relationship set. Code Graph no longer owns or waits for
+that redundant endpoint; its story response owns the route's typed graph and
+source evidence.
+
+Accuracy Evidence: the old and new populated resolver queries produced an
+ordered bidirectional row diff of 0/0. Both missing labeled probes returned
+zero rows. Repository aliases are resolved to the canonical repository ID
+before graph access, and scoped authorization is applied before either the
+repository anchor or content-row result can be returned.
+
+No-Observability-Change: these are read-plan and authoritative-resolution
+changes inside the existing entity, code-search, relationship, graph-query,
+HTTP, and truth-envelope telemetry. They add no graph writes, cache, retry,
+worker, queue, metric, span name, response field, or runtime knob.
 
 #### Retained Dashboard File Import Cycle Anchor
 

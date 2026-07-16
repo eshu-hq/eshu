@@ -7,6 +7,21 @@ contract, and all read models that back the public Eshu query API. It defines th
 `GraphQuery` and `ContentStore` ports through which every handler accesses the
 graph and Postgres content store, and it enforces the capability matrix that
 determines which queries are permitted under each runtime profile.
+For a multi-type NornicDB Function relationship story, the content entity ID
+is the canonical graph `uid`. The handler resolves that anchor once per request
+and checks legacy `id` only when no canonical anchor exists; an unrelated
+legacy-ID collision cannot contribute edges to the selected content entity.
+Repository-scoped entity resolution and graph code search start from the indexed
+`Repository.id` anchor, then expand only that repository's files and entities;
+they do not scan the entity universe before applying repository scope. A
+canonical `content-entity:` resolution request is served from the authoritative
+content row first. A missing canonical content row is an explicit empty result,
+not a reason to fall back to a broad graph name scan.
+
+NornicDB direct-relationship metadata uses the content entity type as its graph
+label. When the content row is absent, the compatibility fallback probes the
+fixed supported label vocabulary by `uid` and then legacy `id`, optionally
+under the selected repository. It never issues an unlabeled property scan.
 The static `/api/v0/capabilities` route serves the embedded capability catalog
 with the built-in role, grant, data-class, and per-capability authorization
 metadata that also backs the MCP capability-catalog tool. Its OpenAPI schema
@@ -356,6 +371,12 @@ same `infraResourceScopePredicate` (`infra_scope.go`). Search appends the
 predicate to its `MATCH (n)` WHERE chain so the matched rows, `count`, `limit`,
 and `truncated` flag are computed over only granted-repository resources; an
 empty-grant scoped token returns the bounded empty page without a graph read.
+The category-only Argo CD snapshot avoids NornicDB's broad OR-label scan by
+reading `ArgoCDApplication` and `ArgoCDApplicationSet` separately under the
+same grant predicate and per-label `limit + 1` bound. The second read excludes
+dual-labeled nodes; Go performs one deterministic global merge before applying
+the response limit and truncation flag. Additional query or structured filters
+retain the general search path.
 Relationships anchor the seed node `n` and every OPTIONAL MATCH neighbor
 (`target` / `source`) to a granted repository: a relationship is visible only
 when both endpoints are attributable to a granted repository, an out-of-grant or

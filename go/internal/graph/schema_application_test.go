@@ -44,6 +44,7 @@ func TestSchemaApplicationsDeclareCompatibilityDecision(t *testing.T) {
 			backend:     SchemaBackendNornicDB,
 			fingerprint: graphSchemaNornicDBFingerprint,
 			compatible: []string{
+				graphSchemaNornicDBPreFunctionLegacyIDLookupFingerprint,
 				graphSchemaNornicDBPreShellExecRetractIndexesFingerprint,
 				graphSchemaNornicDBPreInheritanceRetractIndexesFingerprint,
 				graphSchemaNornicDBPreFunctionRetractIndexesFingerprint,

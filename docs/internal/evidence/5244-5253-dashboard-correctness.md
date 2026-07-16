@@ -157,9 +157,10 @@ no retry, swallowed error, stale cache, or serialized fallback was added.
 
 No-Regression Evidence: `scripts/verify-golden-corpus-gate.sh` passed 418
 assertions with zero required failures and zero advisory warnings. The
-20-repository pipeline completed in 40 seconds, including a 9-second first
-drain and the API/MCP truth checks. The console unit/component suite passed all
-1,314 tests across 204 files; strict application/E2E TypeScript compilation,
+20-repository pipeline completed in 37 seconds, including an 8-second first
+drain, 3-second graph/query phase, and the API/MCP truth checks. The console
+unit/component suite passed all 1,342 tests across 212 files; strict
+application/E2E TypeScript compilation,
 the production console build, and all 73 bundle budgets passed.
 
 No-Observability-Change: the browser authorization and dashboard presentation
@@ -299,6 +300,163 @@ No-Observability-Change: the route retains the existing graph query tracing,
 duration histogram, query trace, and truth envelope. The query reversal adds no
 graph write, worker, queue, metric, span name, response field, or runtime knob.
 
+## Cross-route bounded-read attribution and closeout (#5244)
+
+The authenticated browser runner now records cold-bootstrap and per-navigation
+first-useful-content and API-quiet readiness times, exact request count,
+normalized duplicate groups, encoded bytes, concurrency/ordering, slowest
+request, TTFB, download time, and post-response browser work. Dynamic scope and
+entity values are redacted; headers, bodies, cookies, credentials, and query
+values are never written. `ESHU_E2E_ROUTE_PATHS` permits an exact ordered,
+fail-closed diagnostic subset, including repeated paths for cold/warm ownership
+comparison, without weakening the complete acceptance gate.
+
+Performance Evidence: the relationship catalog previously issued seven
+independent source-tool breakdown reads. On the same retained graph, that exact
+shape took 10.950808s. One grouped aggregate across fixed source-owner labels took
+1.199711s, returned the same ten rows, and produced the same normalized digest.
+The final production shape issues one independent aggregate per source-owner
+label under the existing process-wide four-permit cap. The two current owner
+reads completed in 1.177100s versus 1.317921s for the grouped call, with the
+same ten rows and bidirectional diff `0/0`. Five concurrent callers prove that
+four owner reads enter, the fifth waits, cancellation releases its permit, and
+every slot remains reusable.
+
+The bootstrap Argo CD snapshot also had a seconds-scale query-shape defect. Its
+general `MATCH (n)` plus two-label OR returned the retained 365-row universe in
+5.086224s. Two direct, bounded label reads completed in 0.035001s; the second
+excludes dual-labeled nodes, and the merged universe kept 365 rows, zero
+duplicates, and bidirectional diff `0/0`. Production applies this path only to
+the category-only snapshot body, carries the same repository-access predicate
+on both reads, fetches at most `limit + 1` per label, and performs one globally
+ordered bounded merge. Additional filters keep the general search path.
+
+The multi-type Function story previously paid an unindexed legacy-`id`
+collision scan despite finding the canonical `uid`. The content entity ID is
+now authoritative: production resolves `uid` first and consults legacy `id`
+only when no canonical anchor exists. On a fresh retained Function, the final
+UID-first shape completed in 0.009856s with 13 graph calls and one row; the
+prior collision-check path took 4.424432s and 14 calls, with ordered diff
+`0/0`. A separate post-restart empty-edge target completed in 0.031363s versus
+4.955485s with the same 13/14-call split.
+Unit tests cover canonical, legacy-ID-only, missing, and unrelated-ID-collision
+states. A target-specific startup warmup was measured and rejected because it
+did not help another selected Function and delayed readiness.
+
+The follow-on exact browser workflow localized three additional original-route
+owners rather than accepting a single green story call as route proof.
+Repository-scoped entity resolution and exact code search previously started
+from the entity universe and applied repository membership late. On the same
+retained entity, the old resolver query took 35.800930s and the
+repository-property-anchored replacement took 0.002801s; both returned one
+identical ordered row, diff `0/0`. Canonical `content-entity:` resolution now
+uses its authoritative content row directly, including an explicit empty result
+when that row is missing. The direct-relationship graph-only fallback uses
+fixed supported labels for its `uid` then legacy-`id` probes instead of an
+unlabeled property scan. The two retained missing-identity probes returned zero
+rows in 0.404645s and 0.188298s.
+
+The final exact-image API returned canonical entity resolution in 0.004492s,
+exact repository code search in 0.128055s, missing direct relationships as HTTP
+404 in 0.623642s, and the 16-verb relationship catalog in 0.903421s. The
+matching MCP transport returned structured, non-error results for
+`get_code_relationship_story` in 0.011377s and `trace_exposure_path` in
+0.002798s. The first direct-relationship compatibility control on the fresh API
+process took 5.334448s; five immediate settled-stack repeats took
+0.002036-0.002547s with the same empty relationship set. That endpoint is no
+longer a Code Graph route owner: the story response owns the typed graph and
+source evidence. Every route-owned API/MCP surface completed within the 2-3
+second interactive budget on the exact image.
+
+The original exact-workload `POST /api/v0/infra/relationships` control also
+returned HTTP 200 in 0.017140s, followed by 0.001938s and 0.004079s repeats,
+with the same valid empty relationship set. That handler and its query shape did
+not change in this leaf. The final same-input result therefore contradicts an
+independent seconds-scale infra-relationship defect and supports classifying
+the original greater-than-20-second observation as shared graph contention from
+the preceding unbounded/fallback reads. The original request lacked trace
+correlation, so the evidence does not claim a more specific historical owner.
+No speculative infra-relationship rewrite was added to manufacture a speedup.
+
+Preliminary review also found two harness defects before promotion. The report
+redactor now normalizes dynamic service-investigation, invitation-revocation,
+identity-provider mapping, and API-token revocation paths, including encoded,
+mixed, and numeric identifier fixtures while retaining static route segments.
+Workflow milestones can now name pre-interaction useful content explicitly;
+Repositories uses its view selector and Admin uses its sign-in-policy tab, so
+first-useful timing cannot deadlock on UI that the workflow has not clicked yet.
+
+The retained schema delta adds only
+`nornicdb_function_legacy_id_lookup` for the legacy-ID-only fallback. Before the
+delta the index was absent; the missing-only bootstrap wrapper executed one DDL
+statement in 16.056306s, then an immediate repeat issued zero DDL statements.
+The current NornicDB fingerprint is
+`cfff663a3a7cae4e7c36823e0304b25f7f046eed2e139951e8a9bf8121b9ba69`
+with 290 statements, and the immediately preceding fingerprint remains writer
+compatible.
+
+The Code Graph client no longer chains a broad untyped relationship request
+after the story. Bootstrap dead-code owns the selected candidate and its source
+location; the story owns all six typed edge families, provenance, and related-
+node source metadata. The independent import-cycle read remains route owned.
+In-flight request coalescing covers Strict Mode replays without retaining stale
+results or crossing client/auth boundaries.
+
+The exact rebuilt API and corrected diagnostic runner then passed all four
+selected workflows against the retained 887-repository corpus. The final source
+manifest was `2f52aee83e136c8aa98eb0dea9ed687d77f6bd673ccb3167e30b056bd15de502`
+and its API image digest was
+`sha256:d490a0b1f8cb0259a4bbd043dee44f72360c27266f7cb1dc28680c6eb387d24f`.
+Code Graph reached first useful content in 60 ms and API-quiet readiness in
+1.561s; the workflow verdict completed in 1.702s with exactly two concurrent
+requests, zero duplicates, 11,821 encoded bytes, and no console or network
+errors. Its slowest owner completed in 14 ms. Relationships reached first useful
+content in 1.305s and API-quiet readiness in 2.806s; the workflow verdict
+completed in 2.887s. Its single catalog request took 967 ms and
+transferred 2,924 bytes. The owning API work and useful-paint milestones meet
+the checked-in 2-3 second interactive target; the runner's fixed 1.5-second
+quiet window intentionally keeps route readiness later than useful paint.
+
+The same authenticated run proved the pre-interaction milestones rather than
+merely unit-testing their selectors. Repositories reached useful content in
+24 ms and API-quiet readiness in 1.525s before its retained-data interaction
+workflow completed in 8.738s. Admin reached useful content in 813 ms and
+API-quiet readiness in 2.314s before its sign-in-policy workflow completed in
+3.017s. All four workflows passed with zero console or network errors. The
+Repositories and Admin workflow durations include their deliberate multi-step
+interactions and are not substituted for their route-ready measurements.
+
+The diagnostic packet also exposed and then proved redaction of Vite `/@fs/`
+module URLs to `/@fs/:local-module` plus the dynamic identity-bearing routes
+listed above. A post-fix scan found no local path, repository ID,
+content-entity ID, credential, or unredacted dynamic route value in the durable
+JSON report. The final settled-stack hard load reached first useful content in
+1.409s and API-quiet readiness in 4.245s. It recorded 46 requests, 13 normalized
+duplicate groups, 2,433,981 bytes, maximum concurrency 19, and a 1.545s
+supply-chain impact-findings request as the longest owner. This final load is
+not compared as a speedup against a clean graph restart; the earlier retained
+cold-reset measurements below remain the repository-inventory theory proof.
+
+Repository-list telemetry attributed 1.729s of that cold request to its bounded
+dependency-cluster prepass; repeated prepasses completed below one millisecond.
+The cheapest exact-query shim disproved overlapping the repository page and
+cluster reads: on the retained corpus the cold sequential pair completed in
+1.294344s and the cold parallel pair in 1.299524s. Both returned 101 repository
+rows and 29 dependency edges; five warm iterations preserved byte-equivalent
+results while the parallel shape saved only 1.9-6.4ms. Production therefore
+keeps the sequential backend-safe flow. A cache was not added because the
+required graph-generation invalidation, tenant boundary, negative-result,
+stampede, and API/MCP consistency contracts are not yet proven. The remaining
+cold repository inventory and duplicate-session-read work is a distinct
+cross-route long pole rather than evidence that either selected route regressed.
+
+Observability Evidence: the catalog keeps its handler and graph-query telemetry
+and exposes label-free permit wait, queued, and in-flight instruments at the
+single grouped-aggregate chokepoint. The browser packet attributes request and
+render stages without adding secret-bearing traces. UID-first resolution adds
+no new metric or span; each graph call remains covered by existing duration and
+error telemetry.
+
 ## Semantic-search scope and readiness (#5245)
 
 The retained-data cardinality, old/new SQL, exactness matrix, measured timings,
@@ -424,9 +582,11 @@ field, runtime knob, or persisted state.
 ## Response-backed Code Graph, Findings, Relationships, and Cloud Drift (#5249)
 
 No-Regression Evidence: generic page shells no longer satisfy the live browser
-gate. Code Graph requires successful `200` responses from dead-code,
-relationship-story, relationship, and import-investigation reads before its
-canvas counts. Relationships requires the catalog response plus visible verb
+gate. Code Graph requires successful `200` responses from bootstrap dead-code,
+route-owned relationship-story, and import-investigation reads before its
+canvas counts. The story owns typed edges, provenance, and related-node source
+metadata, so the current route does not issue the former redundant untyped
+relationship read. Relationships requires the catalog response plus visible verb
 rows. Findings requires response-backed source readiness and either real row
 cardinality or the exact authoritative empty marker. Adversarial tests prove a
 generic SVG, empty shell, or always-rendered table cannot pass alone.

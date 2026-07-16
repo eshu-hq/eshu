@@ -24,9 +24,9 @@ describe("CodeGraphPage", () => {
           endLine: 54,
           language: "typescript",
           labels: ["Function"],
-          classification: "unused"
-        }
-      ]
+          classification: "unused",
+        },
+      ],
     };
     const client = {
       post: async () => ({
@@ -35,19 +35,29 @@ describe("CodeGraphPage", () => {
           name: "post",
           labels: ["Function"],
           relationships: [
-            { direction: "incoming", type: "CALLS", source_id: "content-entity:e2", source_name: "handler" },
-            { direction: "outgoing", type: "IMPORTS", target_id: "content-entity:e3", target_name: "installService" }
-          ]
+            {
+              direction: "incoming",
+              type: "CALLS",
+              source_id: "content-entity:e2",
+              source_name: "handler",
+            },
+            {
+              direction: "outgoing",
+              type: "IMPORTS",
+              target_id: "content-entity:e3",
+              target_name: "installService",
+            },
+          ],
         },
         error: null,
-        truth: null
-      })
+        truth: null,
+      }),
     } as unknown as EshuApiClient;
 
     render(
       <MemoryRouter initialEntries={["/code-graph"]}>
         <CodeGraphPage model={model} client={client} />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     expect(screen.getByRole("heading", { name: "Code graph" })).toBeInTheDocument();
@@ -71,15 +81,15 @@ describe("CodeGraphPage", () => {
           truth: "derived",
           entityId: "content-entity:e1",
           filePath: "server/handlers/install.ts",
-          classification: "unused"
-        }
-      ]
+          classification: "unused",
+        },
+      ],
     };
 
     render(
       <MemoryRouter initialEntries={["/code-graph"]}>
         <CodeGraphPage model={model} />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     const selector = screen.getByRole("combobox");
@@ -105,7 +115,7 @@ describe("CodeGraphPage", () => {
           language: "typescript",
           labels: ["Function"],
           classification: "unused",
-          repoId: "repository:r_1"
+          repoId: "repository:r_1",
         },
         {
           id: "dead-2",
@@ -121,33 +131,35 @@ describe("CodeGraphPage", () => {
           language: "typescript",
           labels: ["Function"],
           classification: "unused",
-          repoId: "repository:r_1"
-        }
-      ]
+          repoId: "repository:r_1",
+        },
+      ],
     };
 
     render(
       <MemoryRouter initialEntries={["/code-graph"]}>
         <CodeGraphPage model={model} />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
-    const putNode = screen.getAllByText("put").find((node) => node.tagName.toLowerCase() === "text");
+    const putNode = screen
+      .getAllByText("put")
+      .find((node) => node.tagName.toLowerCase() === "text");
     expect(putNode).toBeDefined();
     fireEvent.click(putNode!);
 
     expect(screen.getByText("Selected symbol")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "server/handlers/profile.ts:41-75" })).toHaveAttribute(
       "href",
-      "/repositories/repository%3Ar_1/source?path=server%2Fhandlers%2Fprofile.ts&lineStart=41&lineEnd=75"
+      "/repositories/repository%3Ar_1/source?path=server%2Fhandlers%2Fprofile.ts&lineStart=41&lineEnd=75",
     );
     expect(screen.getByRole("link", { name: "Open source" })).toHaveAttribute(
       "href",
-      "/repositories/repository%3Ar_1/source?path=server%2Fhandlers%2Fprofile.ts&lineStart=41&lineEnd=75"
+      "/repositories/repository%3Ar_1/source?path=server%2Fhandlers%2Fprofile.ts&lineStart=41&lineEnd=75",
     );
     expect(screen.getByRole("link", { name: "Explore repo graph" })).toHaveAttribute(
       "href",
-      "/explorer?q=svc-platform"
+      "/explorer?q=svc-platform",
     );
   });
 
@@ -167,9 +179,9 @@ describe("CodeGraphPage", () => {
           startLine: 17,
           language: "typescript",
           classification: "unused",
-          repoId: "repository:r_platform"
-        }
-      ]
+          repoId: "repository:r_platform",
+        },
+      ],
     };
     const client = {
       post: async () => ({
@@ -177,23 +189,34 @@ describe("CodeGraphPage", () => {
           entity_id: "content-entity:e1",
           name: "post",
           labels: ["Function"],
-          relationships: [{ direction: "incoming", type: "CALLS", source_id: "content-entity:e2", source_name: "caller" }]
+          relationships: [
+            {
+              direction: "incoming",
+              type: "CALLS",
+              source_id: "content-entity:e2",
+              source_name: "caller",
+            },
+          ],
         },
         error: null,
-        truth: null
-      })
+        truth: null,
+      }),
     } as unknown as EshuApiClient;
 
     render(
       <MemoryRouter initialEntries={["/code-graph"]}>
         <CodeGraphPage model={model} client={client} />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     const callerNode = await screen.findByText("caller");
     fireEvent.click(callerNode);
 
-    expect(screen.getByText("Related symbol source metadata unavailable from POST /api/v0/code/relationships/story.")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Related symbol source metadata unavailable from POST /api/v0/code/relationships/story.",
+      ),
+    ).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Open source" })).not.toBeInTheDocument();
   });
 
@@ -215,7 +238,7 @@ describe("CodeGraphPage", () => {
           language: "typescript",
           labels: ["Function"],
           classification: "unused",
-          repoId: "repository:r_1"
+          repoId: "repository:r_1",
         },
         {
           id: "dead-2",
@@ -231,22 +254,22 @@ describe("CodeGraphPage", () => {
           language: "typescript",
           labels: ["Function"],
           classification: "unused",
-          repoId: "repository:r_1"
-        }
-      ]
+          repoId: "repository:r_1",
+        },
+      ],
     };
 
     render(
       <MemoryRouter initialEntries={["/code-graph"]}>
         <CodeGraphPage model={model} />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     fireEvent.click(screen.getByRole("button", { name: "put unused" }));
 
     expect(screen.getByRole("link", { name: "server/handlers/profile.ts:41-75" })).toHaveAttribute(
       "href",
-      "/repositories/repository%3Ar_1/source?path=server%2Fhandlers%2Fprofile.ts&lineStart=41&lineEnd=75"
+      "/repositories/repository%3Ar_1/source?path=server%2Fhandlers%2Fprofile.ts&lineStart=41&lineEnd=75",
     );
     expect(screen.getByRole("combobox")).toHaveValue("dead-2");
   });
@@ -268,7 +291,7 @@ describe("CodeGraphPage", () => {
           endLine: 54,
           labels: ["Function"],
           classification: "unused",
-          repoId: "repository:r_1"
+          repoId: "repository:r_1",
         },
         {
           id: "dead-2",
@@ -283,21 +306,21 @@ describe("CodeGraphPage", () => {
           endLine: 75,
           labels: ["Function"],
           classification: "unused",
-          repoId: "repository:r_1"
-        }
-      ]
+          repoId: "repository:r_1",
+        },
+      ],
     };
 
     render(
       <MemoryRouter initialEntries={["/code-graph?candidate=dead-2"]}>
         <CodeGraphPage model={model} />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     expect(screen.getByRole("combobox")).toHaveValue("dead-2");
     expect(screen.getByRole("link", { name: "server/handlers/profile.ts:41-75" })).toHaveAttribute(
       "href",
-      "/repositories/repository%3Ar_1/source?path=server%2Fhandlers%2Fprofile.ts&lineStart=41&lineEnd=75"
+      "/repositories/repository%3Ar_1/source?path=server%2Fhandlers%2Fprofile.ts&lineStart=41&lineEnd=75",
     );
   });
 
@@ -307,7 +330,7 @@ describe("CodeGraphPage", () => {
       get: async () => ({
         data: { repositories: [{ id: "repository:r1", name: "svc-platform" }] },
         error: null,
-        truth: null
+        truth: null,
       }),
       post: async (path: string, body: unknown) => {
         calls.push({ path, body });
@@ -315,20 +338,22 @@ describe("CodeGraphPage", () => {
           return {
             data: {
               limit: 100,
-              results: [{
-                classification: "unused",
-                entity_id: "content-entity:e1",
-                file_path: "server/routes.ts",
-                labels: ["Function"],
-                language: "typescript",
-                name: "unusedRoute",
-                repo_id: "repository:r1",
-                start_line: 10
-              }],
-              truncated: false
+              results: [
+                {
+                  classification: "unused",
+                  entity_id: "content-entity:e1",
+                  file_path: "server/routes.ts",
+                  labels: ["Function"],
+                  language: "typescript",
+                  name: "unusedRoute",
+                  repo_id: "repository:r1",
+                  start_line: 10,
+                },
+              ],
+              truncated: false,
             },
             error: null,
-            truth: { level: "derived", freshness: { state: "fresh" }, profile: "production" }
+            truth: { level: "derived", freshness: { state: "fresh" }, profile: "production" },
           };
         }
         return {
@@ -336,48 +361,61 @@ describe("CodeGraphPage", () => {
             entity_id: "content-entity:e1",
             name: "unusedRoute",
             labels: ["Function"],
-            relationships: []
+            relationships: [],
           },
           error: null,
-          truth: null
+          truth: null,
         };
-      }
+      },
     } as unknown as EshuApiClient;
 
     render(
       <MemoryRouter initialEntries={["/code-graph"]}>
         <CodeGraphPage model={{ ...demoModel, source: "live", findings: [] }} client={client} />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
-    await waitFor(() => expect(screen.getByRole("combobox")).toHaveTextContent("unusedRoute · svc-platform"));
+    await waitFor(() =>
+      expect(screen.getByRole("combobox")).toHaveTextContent("unusedRoute · svc-platform"),
+    );
     expect(screen.queryByText("repository:r1")).not.toBeInTheDocument();
     expect(calls).toContainEqual({ path: "/api/v0/code/dead-code", body: { limit: 100 } });
-    await waitFor(() => expect(calls).toContainEqual({
-      path: "/api/v0/code/relationships/story",
-      body: {
-        entity_id: "content-entity:e1",
-        direction: "both",
-        relationship_types: ["CALLS", "IMPORTS", "REFERENCES", "INHERITS", "OVERRIDES", "TAINT_FLOWS_TO"],
-        limit: 50
-      }
-    }));
+    await waitFor(() =>
+      expect(calls).toContainEqual({
+        path: "/api/v0/code/relationships/story",
+        body: {
+          entity_id: "content-entity:e1",
+          direction: "both",
+          relationship_types: [
+            "CALLS",
+            "IMPORTS",
+            "REFERENCES",
+            "INHERITS",
+            "OVERRIDES",
+            "TAINT_FLOWS_TO",
+          ],
+          limit: 50,
+        },
+      }),
+    );
   });
 
   it("reports live candidate load failures instead of hiding the degraded source", async () => {
     const client = {
       get: async () => {
         throw new Error("repository catalog unavailable");
-      }
+      },
     } as unknown as EshuApiClient;
 
     render(
       <MemoryRouter initialEntries={["/code-graph"]}>
-        <CodeGraphPage model={{ ...demoModel, source: "live" }} client={client} />
-      </MemoryRouter>
+        <CodeGraphPage model={{ ...demoModel, source: "live", findings: [] }} client={client} />
+      </MemoryRouter>,
     );
 
-    await waitFor(() => expect(screen.getByText(/Failed to load live dead-code candidates/)).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByText(/Failed to load live dead-code candidates/)).toBeInTheDocument(),
+    );
   });
 
   it("surfaces Eshu error envelopes from live code relationships", async () => {
@@ -392,29 +430,31 @@ describe("CodeGraphPage", () => {
           detail: "server/handlers/install.ts · unused",
           truth: "derived",
           entityId: "content-entity:e1",
-          filePath: "server/handlers/install.ts"
-        }
-      ]
+          filePath: "server/handlers/install.ts",
+        },
+      ],
     };
     const client = {
       post: async () => ({
         data: null,
         error: {
           code: "unsupported_capability",
-          message: "code relationships unavailable"
+          message: "code relationships unavailable",
         },
-        truth: null
-      })
+        truth: null,
+      }),
     } as unknown as EshuApiClient;
 
     render(
       <MemoryRouter initialEntries={["/code-graph"]}>
         <CodeGraphPage model={model} client={client} />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     await waitFor(() =>
-      expect(screen.getByText("unsupported_capability: code relationships unavailable")).toBeInTheDocument()
+      expect(
+        screen.getByText("unsupported_capability: code relationships unavailable"),
+      ).toBeInTheDocument(),
     );
   });
 });

@@ -7,7 +7,6 @@ import (
 	"context"
 	"net/http"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/sourcetool"
@@ -126,10 +125,9 @@ func (h *InfraHandler) getRelationshipsCatalog(w http.ResponseWriter, r *http.Re
 }
 
 // relationshipVerbTiles runs one relationship-type-indexed whole-graph count
-// per catalog verb and returns the verb tiles in catalog order. It overlaps the
-// independent source_tool breakdown reads only for verbs that carry stamped
-// edges; each result is written back to its catalog position so scheduling
-// cannot reorder the API.
+// per catalog verb and returns the verb tiles in catalog order. Source-tool
+// distributions use one label-grouped aggregate so each owning source label is
+// scanned once rather than once per stamped verb.
 func (h *InfraHandler) relationshipVerbTiles(ctx context.Context) ([]relationshipVerbTile, error) {
 	tiles := make([]relationshipVerbTile, 0, len(relationshipVerbCatalog))
 	for _, entry := range relationshipVerbCatalog {
@@ -147,35 +145,13 @@ func (h *InfraHandler) relationshipVerbTiles(ctx context.Context) ([]relationshi
 		tiles = append(tiles, tile)
 	}
 
-	errs := make([]error, len(relationshipVerbCatalog))
-	var wg sync.WaitGroup
-	for i, entry := range relationshipVerbCatalog {
-		if !entry.carriesSourceTool {
-			continue
-		}
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			release, err := h.acquireRelationshipBreakdownSlot(ctx)
-			if err != nil {
-				errs[i] = err
-				return
-			}
-			defer release()
-			breakdown, err := h.relationshipSourceToolBreakdown(ctx, entry)
-			if err != nil {
-				errs[i] = err
-				return
-			}
-			if len(breakdown) > 0 {
-				tiles[i].SourceTools = breakdown
-			}
-		}()
+	breakdowns, err := h.relationshipSourceToolBreakdowns(ctx)
+	if err != nil {
+		return nil, err
 	}
-	wg.Wait()
-	for _, err := range errs {
-		if err != nil {
-			return nil, err
+	for i := range tiles {
+		if breakdown := breakdowns[tiles[i].Verb]; len(breakdown) > 0 {
+			tiles[i].SourceTools = breakdown
 		}
 	}
 	return tiles, nil
@@ -233,24 +209,64 @@ func (h *InfraHandler) recordRelationshipBreakdownPermitWait(ctx context.Context
 	}
 }
 
-// relationshipSourceToolBreakdown queries the source-label-anchored source_tool
-// distribution for one stamped verb. It excludes edges that have no source_tool
-// property, so the map only contains tools that have actually stamped edges for
-// that verb. Its cost still scales with the selected source-label population.
-func (h *InfraHandler) relationshipSourceToolBreakdown(ctx context.Context, entry relationshipVerbEntry) (map[string]int, error) {
-	rows, err := h.Neo4j.Run(ctx, relationshipSourceToolBreakdownCypher(entry), nil)
+type relationshipSourceToolBreakdownResult struct {
+	index int
+	rows  []map[string]any
+	err   error
+}
+
+// relationshipSourceToolBreakdowns returns source-tool distributions keyed by
+// verb. Each source-owner aggregate owns one handler-wide permit, so the two
+// independent label scans overlap while all catalog requests share the same
+// four-read backend cap.
+func (h *InfraHandler) relationshipSourceToolBreakdowns(ctx context.Context) (map[string]map[string]int, error) {
+	queries := relationshipSourceToolBreakdownCyphers()
+	completed := make(chan relationshipSourceToolBreakdownResult, len(queries))
+	for index, cypher := range queries {
+		go func() {
+			rows, err := h.relationshipSourceToolBreakdown(ctx, cypher)
+			completed <- relationshipSourceToolBreakdownResult{index: index, rows: rows, err: err}
+		}()
+	}
+	ordered := make([]relationshipSourceToolBreakdownResult, len(queries))
+	for range queries {
+		result := <-completed
+		ordered[result.index] = result
+	}
+	allRows := make([]map[string]any, 0)
+	for _, result := range ordered {
+		if result.err != nil {
+			return nil, result.err
+		}
+		allRows = append(allRows, result.rows...)
+	}
+
+	result := make(map[string]map[string]int, len(allRows))
+	for _, row := range allRows {
+		verb := StringVal(row, "verb")
+		tool := StringVal(row, "source_tool")
+		if verb == "" || tool == "" {
+			continue
+		}
+		if result[verb] == nil {
+			result[verb] = make(map[string]int)
+		}
+		result[verb][tool] = IntVal(row, "count")
+	}
+	return result, nil
+}
+
+func (h *InfraHandler) relationshipSourceToolBreakdown(
+	ctx context.Context,
+	cypher string,
+) ([]map[string]any, error) {
+	release, err := h.acquireRelationshipBreakdownSlot(ctx)
 	if err != nil {
 		return nil, err
 	}
-	result := make(map[string]int, len(rows))
-	for _, row := range rows {
-		tool := StringVal(row, "source_tool")
-		if tool == "" {
-			continue
-		}
-		result[tool] = IntVal(row, "count")
-	}
-	return result, nil
+	defer release()
+
+	return h.Neo4j.Run(ctx, cypher, nil)
 }
 
 // getRelationshipEdges returns a bounded slice of concrete edges for one verb,

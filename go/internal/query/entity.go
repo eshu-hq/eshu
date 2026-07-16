@@ -78,9 +78,17 @@ func (h *EntityHandler) resolveEntity(w http.ResponseWriter, r *http.Request) {
 		WriteSuccess(w, r, http.StatusOK, resolvedEntityResponse([]map[string]any{}, limit, false), entityResolveTruthEnvelope(h.profile()))
 		return
 	}
+	if h.writeCanonicalContentEntityResolution(w, r, req, limit) {
+		return
+	}
 
+	repositoryAnchored := req.RepoID != ""
 	cypher := `MATCH (e) WHERE e.name = $name`
 	params := map[string]any{"name": req.Name}
+	if repositoryAnchored {
+		cypher = `MATCH (r:Repository {id: $repo_id})-[:REPO_CONTAINS]->(f:File)-[:CONTAINS]->(e) WHERE e.name = $name`
+		params["repo_id"] = req.RepoID
+	}
 
 	if req.Type != "" {
 		graphLabel, semanticKey, semanticValue, ok := resolveGraphEntityType(req.Type)
@@ -94,15 +102,7 @@ func (h *EntityHandler) resolveEntity(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if req.RepoID != "" {
-		cypher += `
-			AND EXISTS {
-				MATCH (e)<-[:CONTAINS]-(f:File)<-[:REPO_CONTAINS]-(r:Repository)
-				WHERE r.id = $repo_id
-			}
-		`
-		params["repo_id"] = req.RepoID
-	} else if access.scoped() {
+	if !repositoryAnchored && access.scoped() {
 		cypher += `
 			AND EXISTS {
 				MATCH (e)<-[:CONTAINS]-(scopeFile:File)<-[:REPO_CONTAINS]-(scopeRepo:Repository)
@@ -112,17 +112,15 @@ func (h *EntityHandler) resolveEntity(w http.ResponseWriter, r *http.Request) {
 		params = access.graphParams(params)
 	}
 
-	cypher += `
-		OPTIONAL MATCH (e)<-[:CONTAINS]-(f:File)<-[:REPO_CONTAINS]-(r:Repository)
-	`
-	if req.RepoID != "" {
+	if !repositoryAnchored {
 		cypher += `
-		WHERE r.id = $repo_id
-	`
-	} else if access.scoped() {
-		cypher += `
-		WHERE ` + access.graphCondition("r") + `
-	`
+			OPTIONAL MATCH (e)<-[:CONTAINS]-(f:File)<-[:REPO_CONTAINS]-(r:Repository)
+		`
+		if access.scoped() {
+			cypher += `
+			WHERE ` + access.graphCondition("r") + `
+		`
+		}
 	}
 	cypher += `
 		RETURN e.id as id, labels(e) as labels, e.name as name,
@@ -137,8 +135,10 @@ func (h *EntityHandler) resolveEntity(w http.ResponseWriter, r *http.Request) {
 	`
 	params["limit"] = limit + 1
 
-	var rows []map[string]any
-	var err error
+	var (
+		rows []map[string]any
+		err  error
+	)
 	if h.Neo4j != nil {
 		rows, err = h.Neo4j.Run(r.Context(), cypher, params)
 		if err != nil {
