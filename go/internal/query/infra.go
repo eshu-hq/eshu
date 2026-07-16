@@ -192,12 +192,23 @@ func (h *InfraHandler) searchResources(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cypher := `
-		MATCH (n)
-		WHERE ` + infraLabelPredicate(labels)
+	// The candidate label set is matched with one MATCH(n:Label) branch per
+	// label, unioned, instead of a single MATCH(n) scan filtered by an
+	// (n:A OR n:B OR ...) predicate. An unlabeled MATCH(n) forces a
+	// whole-graph scan on every call regardless of how selective the later
+	// AND-conditions are (see docs/public/reference/cypher-performance.md).
+	// A MATCH(n:A|B|C) label disjunction is not a safe substitute either:
+	// docs/public/reference/nornicdb-pitfalls.md documents that node-label
+	// disjunction inside a single MATCH matches zero rows on the pinned
+	// NornicDB backend. UNION of single-label branches uses an indexed label
+	// scan per branch and sidesteps both defects. Plain UNION (not UNION
+	// ALL) is used deliberately: it de-duplicates identical rows, so the
+	// result stays exactly one row per node even if a future schema change
+	// ever allows a node to carry more than one of these labels.
+	whereExtra := ""
 	if query != "" {
 		if strings.Contains(query, "::") {
-			cypher += `
+			whereExtra += `
 			  AND (
 			       coalesce(n.resource_type, n.data_type, '') = $resource_type_query
 			       OR coalesce(n.arn, '') = $query
@@ -205,30 +216,30 @@ func (h *InfraHandler) searchResources(w http.ResponseWriter, r *http.Request) {
 			)
 	`
 		} else {
-			cypher += `
+			whereExtra += `
 			  AND ` + infraResourceFreeTextPredicate + `
 	`
 		}
 	}
 
 	if kind != "" {
-		cypher += " AND (n.kind = $kind OR n.resource_type = $kind OR n.data_type = $kind OR n.service_kind = $kind)"
+		whereExtra += " AND (n.kind = $kind OR n.resource_type = $kind OR n.data_type = $kind OR n.service_kind = $kind)"
 	}
 	if provider != "" {
-		cypher += " AND " + infraSearchProviderFilterPredicate(labels)
+		whereExtra += " AND " + infraSearchProviderFilterPredicate(labels)
 	}
 	if environment != "" {
-		cypher += " AND n.environment = $environment"
+		whereExtra += " AND n.environment = $environment"
 	}
 	if resourceService != "" {
-		cypher += " AND " + infraSearchResourceServiceFilterPredicate(labels)
+		whereExtra += " AND " + infraSearchResourceServiceFilterPredicate(labels)
 	}
 	if resourceCategory != "" {
-		cypher += " AND n.resource_category = $resource_category"
+		whereExtra += " AND n.resource_category = $resource_category"
 	}
-	cypher += infraSearchScopeClause(access)
+	whereExtra += infraSearchScopeClause(access)
 
-	cypher += `
+	const infraSearchReturnClause = `
 		RETURN coalesce(n.id, '') as id, coalesce(n.name, '') as name, labels(n) as labels,
 		       coalesce(n.kind, '') as kind, coalesce(n.provider, '') as provider, coalesce(n.source_system, '') as source_system, coalesce(n.environment, '') as environment,
 		       coalesce(n.source, n.source_system, '') as source, coalesce(n.config_path, '') as config_path,
@@ -238,7 +249,15 @@ func (h *InfraHandler) searchResources(w http.ResponseWriter, r *http.Request) {
 		       coalesce(n.resource_id, '') as resource_id, coalesce(n.arn, '') as arn,
 		       coalesce(n.account_id, '') as account_id, coalesce(n.region, '') as region,
 		       coalesce(n.service_kind, '') as service_kind
-		ORDER BY n.name
+	`
+	branches := make([]string, 0, len(labels))
+	for _, label := range labels {
+		branches = append(branches, `
+		MATCH (n:`+label+`)
+		WHERE true`+whereExtra+infraSearchReturnClause)
+	}
+	cypher := strings.Join(branches, "\nUNION") + `
+		ORDER BY name
 		LIMIT $limit
 	`
 

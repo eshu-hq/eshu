@@ -20,6 +20,7 @@ required_ids:
   - QP-RELATIONSHIPS-CATALOG-COUNT
   - QP-RELATIONSHIPS-CATALOG-SOURCE-TOOL
   - QP-RELATIONSHIPS-EDGES
+  - QP-INFRA-RESOURCE-SEARCH
 entries:
   - id: QP-SC-DEPS
     domain: supply_chain
@@ -676,6 +677,37 @@ entries:
       operators:
         - LabelScan
         - Expand
+      forbidden_operators:
+        - AllNodesScan
+        - CartesianProduct
+        - UnboundedExpand
+
+  - id: QP-INFRA-RESOURCE-SEARCH
+    domain: infra
+    backend: nornicdb
+    query_kind: cypher
+    source:
+      file: go/internal/query/infra.go
+      symbol: (*InfraHandler).searchResources
+      line_hint: 195
+    cypher: |
+      MATCH (n:CloudResource)
+      WHERE true
+        AND coalesce(n.name, '') CONTAINS $query
+      RETURN coalesce(n.id, '') as id, coalesce(n.name, '') as name, labels(n) as labels
+      ORDER BY name
+      LIMIT $limit
+    required_anchors:
+      - label: CloudResource
+        property: id
+    required_limits:
+      - $limit
+    requires_order: true
+    caveats:
+      - Representative of one branch of a dynamically generated per-label UNION (issue #5271). The handler builds one MATCH(n:Label) branch per candidate label (up to the ~27-entry allInfraLabels set when no category filter narrows it), unions them, and applies ORDER BY/LIMIT once after the final branch. This replaced a single unlabeled MATCH(n) WHERE (n:A OR n:B OR ...) scan, which forced a whole-graph scan on every call. A label disjunction inside one MATCH (MATCH (n:A|B|C)) was rejected as an alternative because docs/public/reference/nornicdb-pitfalls.md documents it matching zero rows on the pinned NornicDB backend; UNION avoids that defect. Plain UNION (not UNION ALL) de-duplicates, so a node cannot appear twice even if a future schema change lets it carry more than one candidate label.
+    plan:
+      operators:
+        - LabelScan
       forbidden_operators:
         - AllNodesScan
         - CartesianProduct
