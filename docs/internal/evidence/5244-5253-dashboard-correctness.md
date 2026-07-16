@@ -232,7 +232,7 @@ message (or class when no message exists). The focused regression and selection
 suite passed 27 tests. Against the retained 887-repository catalog, the helper
 selected an exact active/prior pair in 17 ms. The changed-since read completed
 in 18.2 ms with 16 changed and 6 unchanged facts; the final browser workflow
-completed in 2.230 seconds with seven requests and zero console/API errors. The
+completed in 2.231 seconds with seven requests and zero console/API errors. The
 prior retained run issued 12 requests because React Strict Mode created two
 five-request discovery owners; the final component keeps one owner and removes
 that duplicate five-request batch without reducing discovery concurrency.
@@ -323,7 +323,7 @@ all 22 were Traits, zero rows leaked another kind, and every returned
 `entity_id + repo_id + relative_path` identity matched the direct Postgres Trait
 row. The live browser then selected the Trait control, observed the exact
 `POST /api/v0/code/dead-code` request with `candidate_kind=Trait`, and rendered
-the same 22 exact-kind rows in 2.435 seconds. The prior unscoped 100-row response
+the same 22 exact-kind rows in 2.519 seconds. The prior unscoped 100-row response
 contained 100 Functions and no Traits, so the new server-side filter proves the
 intended correctness delta rather than hiding it behind a client-side first-page
 filter.
@@ -368,7 +368,7 @@ negotiation. Envelope clients receive `{data, truth, error}`, while legacy
 `application/json` clients receive the same unwrapped operations object. The
 canonical response carries `operations.status`, `exact`, `production`,
 `runtime_state`, and `fresh` truth metadata. The rebuilt live route returned
-that exact envelope and rendered the Operations board in 1.954 seconds. The
+that exact envelope and rendered the Operations board in 1.957 seconds. The
 focused handler and console client tests run with:
 
 ```bash
