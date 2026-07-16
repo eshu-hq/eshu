@@ -135,6 +135,13 @@ describe("DeadCodePage", () => {
     );
     expect(screen.getByText("svc-platform")).toBeInTheDocument();
     expect(screen.queryByText("repository:r1")).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Find dead-code candidate"), {
+      target: { value: "svc-platform" },
+    });
+    expect(screen.getByText("Unreferenced symbol unusedRoute")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Find dead-code candidate"), {
+      target: { value: "" },
+    });
     expect(get).not.toHaveBeenCalled();
     expect(screen.getByText("Repositories represented")).toBeInTheDocument();
     expect(screen.queryByText("Repos affected")).not.toBeInTheDocument();

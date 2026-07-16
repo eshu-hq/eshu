@@ -141,7 +141,7 @@ export function DeadCodePage({
     (finding) =>
       (classification === ANY || classificationFromFinding(finding) === classification) &&
       (kind === ANY || kindFromFinding(finding) === kind) &&
-      matchesDeadCodeQuery(finding, query),
+      matchesDeadCodeQuery(finding, query, repositoryNames.get(finding.repoId ?? "")),
   );
   const grouped = groupDeadCodeByRepository(filtered, repositoryNames);
   const repositoryGroups = groupDeadCodeByRepository(all, repositoryNames);

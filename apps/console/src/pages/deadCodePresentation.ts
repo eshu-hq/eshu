@@ -73,7 +73,11 @@ export function uniqueStrings(values: readonly string[]): readonly string[] {
   return [...new Set(values)].sort((a, b) => a.localeCompare(b));
 }
 
-export function matchesDeadCodeQuery(finding: FindingRow, query: string): boolean {
+export function matchesDeadCodeQuery(
+  finding: FindingRow,
+  query: string,
+  repositoryName?: string,
+): boolean {
   const normalized = query.trim().toLowerCase();
   if (normalized === "") return true;
   return [
@@ -82,6 +86,7 @@ export function matchesDeadCodeQuery(finding: FindingRow, query: string): boolea
     finding.detail,
     finding.filePath ?? "",
     finding.language ?? "",
+    repositoryName ?? "",
   ]
     .join(" ")
     .toLowerCase()
