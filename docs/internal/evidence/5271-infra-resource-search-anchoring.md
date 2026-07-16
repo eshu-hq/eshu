@@ -36,7 +36,7 @@ future schema change lets it carry more than one candidate label.
 
 ## No-Regression Evidence
 
-Backend: NornicDB v1.1.11 base (pinned `eshu-nornicdb-pr261:149245885258`,
+No-Regression Evidence: Backend NornicDB v1.1.11 base (pinned `eshu-nornicdb-pr261:149245885258`,
 commit `1492458852588c884c32f70d27ea2ee07086769c`), isolated Compose project
 `eshu-5271`, own ports/volumes. Corpus: one representative repository bootstrapped
 from a private fixture source (436 files, 2,182 entities, 14,148 facts).
