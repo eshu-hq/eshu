@@ -22,14 +22,14 @@ accepted as proof that its requested data populated.
 Performance Evidence: the accepted no-index retained-stack browser run claimed
 its isolated identity surface through the normal setup wizard, then executed
 all 39 catalogued route/action workflows with that same owner browser-session
-cookie. All 39 passed in 113.546 aggregate route seconds. Code Graph passed in
-9.133 seconds with four owned HTTP responses, all status 200, and zero console
-errors. Service Catalog passed in 10.885 seconds, Vulnerabilities in 10.106
-seconds, Repositories in 9.280 seconds, Ask Eshu in 6.622 seconds with the exact
-887-repository result, Relationships in 4.157 seconds, Replatforming in 2.696
-seconds, Dead Code in 2.401 seconds, Cloud Drift in 2.772 seconds, Semantic
-Search in 2.512 seconds, and Secrets/IAM in 2.377 seconds. The Code Graph route
-finished 7.867 seconds inside the runner's 17-second live-browser liveness
+cookie. All 39 passed in 113.194 aggregate route seconds. Code Graph passed in
+10.048 seconds with twelve owned HTTP responses, all status 200, and zero
+console errors. Service Catalog passed in 10.274 seconds, Vulnerabilities in
+10.654 seconds, Repositories in 8.318 seconds, Ask Eshu in 5.787 seconds with
+the exact 887-repository result, Relationships in 4.260 seconds, Replatforming
+in 2.745 seconds, Dead Code in 2.512 seconds, Cloud Drift in 2.784 seconds,
+Semantic Search in 2.501 seconds, and Secrets/IAM in 2.384 seconds. The Code
+Graph route finished 6.952 seconds inside the runner's 17-second live-browser liveness
 cutoff. That cutoff is a harness timeout, not portable performance acceptance:
 this proof did not record a machine resource envelope or classify an absolute
 target as applicable. The runner's fixed settle/quiet windows, workflow
@@ -43,12 +43,12 @@ zero aborted or unexpected requests. The durable report retains the first 200
 query-free request observations and marks the bootstrap as truncated.
 
 The final API used immutable image id
-`sha256:6b68644c165efe8e06fc34e3e036576f608b2adcfce7862320e1519154c1673d`.
+`sha256:7097361dda38fa2af58f7d5c509d14eb56f8a0a8561899d5a10f86617a5bf849`.
 Its binary reports
 `proof-ce7c829ea06ac809a6f9d7fb67ef2b8c2172056989ccc07f892807a1c884d8ba`,
 which is the SHA-256 manifest of the exact Dockerfile, Go, and local Go SDK
 inputs copied by the image build. The corrected browser/runner input manifest
-was `fb8748f24485229a7a7750d4ec4ae4e68938fb2374446ff00611f122f2a33a95`.
+was `7934a02529b0efc6b6bb73d9aba08d554a96e2f572c2be2b77ecf342793b98e8`.
 The sidecar read the unchanged retained Postgres volume and NornicDB image
 `timothyswt/nornicdb-cpu-bge:v1.1.11@sha256:51b6174ae65e4ce54a158ac2f9eace7d36a1971545824d22add0fe06d94c1090`.
 `SHOW INDEXES` verified that the rejected `function_legacy_id` index count was
@@ -83,7 +83,7 @@ RUNNER_INPUT_HASH="$({ printf '%s\0' package.json package-lock.json; \
 ESHU_ASK_ENABLED=true \
   ESHU_ASK_NARRATION_ENABLED=true \
   ESHU_SEMANTIC_PROVIDER_PROFILES_JSON="$ASK_PROVIDER_PROFILE_JSON" \
-  ESHU_E2E_RETAINED_PROOF_ID=final5240z \
+  ESHU_E2E_RETAINED_PROOF_ID=final5240aa \
   ESHU_E2E_RETAINED_API_PORT=18123 \
   ESHU_E2E_CONSOLE_PORT=5182 \
   ESHU_E2E_WIZARD_NEW_PASSWORD="$LOCAL_PROOF_PASSWORD" \
@@ -104,7 +104,7 @@ The rebuilt MCP server advertised 159 tools. Two bounded
 a 0.035871-second warm call, returned one of 887 repositories with
 `truncated=true`, and carried an exact, fresh, production structured envelope.
 The exact Ask prompt returned the same authorized total through the browser API
-workflow in 6.622 seconds and the standalone MCP transport in 3.022045 seconds;
+workflow in 5.787 seconds and the standalone MCP transport in 3.022045 seconds;
 both paths returned deterministic truth, `{total: 887}`, and
 `eshu://api-result/repositories`. The MCP image was
 `sha256:013e3a86060c2befffaff0a5e205c8b53cbcff65522570b886b21d99f83fa1b2`
