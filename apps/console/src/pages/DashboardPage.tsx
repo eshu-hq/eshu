@@ -155,7 +155,6 @@ export function DashboardPage({
       };
       atlasLoadOwner.current = owner;
     }
-    if (!owner) return;
     const activeOwner = owner;
     async function loadSeed(): Promise<void> {
       try {
