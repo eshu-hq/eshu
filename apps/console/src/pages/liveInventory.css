@@ -185,9 +185,7 @@
 
 .dead-code-row-language {
   color: var(--subtle);
-  display: block;
   font-family: var(--mono);
-  margin-top: 4px;
 }
 
 @media (max-width: 1180px) {
