@@ -173,7 +173,7 @@ done
 
 tmp="$(mktemp -d)"
 mkdir -p "$tmp/bin"
-cat >"$tmp/bin/docker" <<'MOCK_DOCKER'
+cat >"$tmp/bin/docker" <<'MOCK_DOCKER_HEADER'
 #!/usr/bin/env bash
 set -euo pipefail
 mode="${ESHU_TEST_COLLISION:-container}"
@@ -182,6 +182,8 @@ if [[ "$*" == "container inspect"* ]]; then
   [[ "$mode" == "container" ]] && exit 0
   exit 1
 fi
+MOCK_DOCKER_HEADER
+cat >>"$tmp/bin/docker" <<'MOCK_DOCKER_PSQL'
 if [[ "$*" == *"exec -T postgres psql"* ]]; then
   sql="$(cat)"
   printf '%s\n' "$sql" >>"$ESHU_TEST_DOCKER_LOG"
@@ -195,12 +197,16 @@ if [[ "$*" == *"exec -T postgres psql"* ]]; then
   fi
   exit 0
 fi
+MOCK_DOCKER_PSQL
+cat >>"$tmp/bin/docker" <<'MOCK_DOCKER_FAILURES'
 if [[ "$mode" == "failed_keep" && "$*" == *"run -d --no-deps"* ]]; then
   exit 42
 fi
 if [[ "$mode" == "remove_failure" && "$*" == "rm -f "* ]]; then
   exit 75
 fi
+MOCK_DOCKER_FAILURES
+cat >>"$tmp/bin/docker" <<'MOCK_DOCKER_VERSION'
 if [[ "$mode" =~ ^(verify_failure|remove_failure|drop_failure)$ && "$*" == *"eshu-api --version"* ]]; then
   api_hash="$({
     printf '%s\0' Dockerfile
@@ -209,12 +215,14 @@ if [[ "$mode" =~ ^(verify_failure|remove_failure|drop_failure)$ && "$*" == *"esh
   printf 'eshu-api proof-%s\n' "$api_hash"
   exit 0
 fi
+MOCK_DOCKER_VERSION
+cat >>"$tmp/bin/docker" <<'MOCK_DOCKER_NORNIC'
 if [[ "$mode" =~ ^(verify_failure|remove_failure|drop_failure)$ && "$*" == *"ps -q nornicdb"* ]]; then
   printf '%s\n' 'retained-nornicdb'
   exit 0
 fi
 exit 0
-MOCK_DOCKER
+MOCK_DOCKER_NORNIC
 chmod +x "$tmp/bin/docker"
 
 cat >"$tmp/bin/curl" <<'MOCK_CURL'
