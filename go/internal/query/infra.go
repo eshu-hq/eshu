@@ -97,6 +97,51 @@ var allInfraLabels = []string{
 	"HelmValues",
 }
 
+// infraSearchReturnColumns is the single source of truth for
+// searchResources's result columns. Both the per-label CALL branch's inner
+// RETURN and the outer RETURN's column list are generated from this slice
+// (see infraSearchReturnExprs), so they cannot drift out of sync — a
+// mismatch would make NornicDB fail the whole query at runtime with
+// "Variable not defined", a failure the unit tests using
+// recordingInfraGraphReader cannot catch since they assert on the generated
+// query text without executing it against a backend.
+var infraSearchReturnColumns = []string{
+	"id", "name", "labels", "kind", "provider", "source_system", "environment",
+	"source", "config_path", "resource_type", "resource_service",
+	"resource_category", "resource_id", "arn", "account_id", "region", "service_kind",
+}
+
+var infraSearchReturnColumnExprs = map[string]string{
+	"id":                "coalesce(n.id, '')",
+	"name":              "coalesce(n.name, '')",
+	"labels":            "labels(n)",
+	"kind":              "coalesce(n.kind, '')",
+	"provider":          "coalesce(n.provider, '')",
+	"source_system":     "coalesce(n.source_system, '')",
+	"environment":       "coalesce(n.environment, '')",
+	"source":            "coalesce(n.source, n.source_system, '')",
+	"config_path":       "coalesce(n.config_path, '')",
+	"resource_type":     "coalesce(n.resource_type, n.data_type, '')",
+	"resource_service":  "coalesce(n.resource_service, n.service_kind, '')",
+	"resource_category": "coalesce(n.resource_category, '')",
+	"resource_id":       "coalesce(n.resource_id, '')",
+	"arn":               "coalesce(n.arn, '')",
+	"account_id":        "coalesce(n.account_id, '')",
+	"region":            "coalesce(n.region, '')",
+	"service_kind":      "coalesce(n.service_kind, '')",
+}
+
+// infraSearchReturnExprs renders infraSearchReturnColumns as "expr as alias"
+// pairs for the per-label CALL branch's inner RETURN clause, in the same
+// column order the outer RETURN references by alias.
+func infraSearchReturnExprs() []string {
+	exprs := make([]string, len(infraSearchReturnColumns))
+	for i, col := range infraSearchReturnColumns {
+		exprs[i] = infraSearchReturnColumnExprs[col] + " as " + col
+	}
+	return exprs
+}
+
 // Mount registers infrastructure query routes on the given mux.
 func (h *InfraHandler) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v0/infra/resources/search", h.searchResources)
@@ -192,12 +237,33 @@ func (h *InfraHandler) searchResources(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cypher := `
-		MATCH (n)
-		WHERE ` + infraLabelPredicate(labels)
+	// The candidate label set is matched with one MATCH(n:Label) branch per
+	// label, unioned, instead of a single MATCH(n) scan filtered by an
+	// (n:A OR n:B OR ...) predicate. An unlabeled MATCH(n) forces a
+	// whole-graph scan on every call regardless of how selective the later
+	// AND-conditions are (see docs/public/reference/cypher-performance.md).
+	// A MATCH(n:A|B|C) label disjunction is not a safe substitute either:
+	// docs/public/reference/nornicdb-pitfalls.md documents that node-label
+	// disjunction inside a single MATCH matches zero rows on the pinned
+	// NornicDB backend. UNION of single-label branches uses an indexed label
+	// scan per branch and sidesteps both defects. Plain UNION (not UNION
+	// ALL) is used deliberately: it de-duplicates identical rows, so the
+	// result stays exactly one row per node even if a future schema change
+	// ever allows a node to carry more than one of these labels.
+	//
+	// The whole union is wrapped in a CALL {...} subquery, which is load
+	// bearing, not stylistic. See docs/public/reference/nornicdb-pitfalls.md
+	// ("A Bare Top-Level UNION Returns Nothing When Its First Branch Is
+	// Empty"): a bare top-level UNION chain returns zero rows for the ENTIRE
+	// query whenever its FIRST branch matches zero rows, even though later
+	// branches have real matches. allInfraLabels starts with CloudResource,
+	// so any search on a corpus with zero matching CloudResource nodes would
+	// have silently returned an empty result for every other label without
+	// this wrapper.
+	whereExtra := ""
 	if query != "" {
 		if strings.Contains(query, "::") {
-			cypher += `
+			whereExtra += `
 			  AND (
 			       coalesce(n.resource_type, n.data_type, '') = $resource_type_query
 			       OR coalesce(n.arn, '') = $query
@@ -205,40 +271,47 @@ func (h *InfraHandler) searchResources(w http.ResponseWriter, r *http.Request) {
 			)
 	`
 		} else {
-			cypher += `
+			whereExtra += `
 			  AND ` + infraResourceFreeTextPredicate + `
 	`
 		}
 	}
 
 	if kind != "" {
-		cypher += " AND (n.kind = $kind OR n.resource_type = $kind OR n.data_type = $kind OR n.service_kind = $kind)"
+		whereExtra += " AND (n.kind = $kind OR n.resource_type = $kind OR n.data_type = $kind OR n.service_kind = $kind)"
 	}
 	if provider != "" {
-		cypher += " AND " + infraSearchProviderFilterPredicate(labels)
+		whereExtra += " AND " + infraSearchProviderFilterPredicate(labels)
 	}
 	if environment != "" {
-		cypher += " AND n.environment = $environment"
+		whereExtra += " AND n.environment = $environment"
 	}
 	if resourceService != "" {
-		cypher += " AND " + infraSearchResourceServiceFilterPredicate(labels)
+		whereExtra += " AND " + infraSearchResourceServiceFilterPredicate(labels)
 	}
 	if resourceCategory != "" {
-		cypher += " AND n.resource_category = $resource_category"
+		whereExtra += " AND n.resource_category = $resource_category"
 	}
-	cypher += infraSearchScopeClause(access)
+	whereExtra += infraSearchScopeClause(access)
 
-	cypher += `
-		RETURN coalesce(n.id, '') as id, coalesce(n.name, '') as name, labels(n) as labels,
-		       coalesce(n.kind, '') as kind, coalesce(n.provider, '') as provider, coalesce(n.source_system, '') as source_system, coalesce(n.environment, '') as environment,
-		       coalesce(n.source, n.source_system, '') as source, coalesce(n.config_path, '') as config_path,
-		       coalesce(n.resource_type, n.data_type, '') as resource_type,
-		       coalesce(n.resource_service, n.service_kind, '') as resource_service,
-		       coalesce(n.resource_category, '') as resource_category,
-		       coalesce(n.resource_id, '') as resource_id, coalesce(n.arn, '') as arn,
-		       coalesce(n.account_id, '') as account_id, coalesce(n.region, '') as region,
-		       coalesce(n.service_kind, '') as service_kind
-		ORDER BY n.name
+	// infraSearchReturnClause (the CALL block's inner RETURN, per branch) and
+	// the outer RETURN's column list are both derived from
+	// infraSearchReturnColumns so they cannot drift apart. A mismatch
+	// between them would make NornicDB fail the whole query at runtime with
+	// "Variable not defined" — a failure the recordingInfraGraphReader-based
+	// unit tests cannot catch, since they assert on the generated string
+	// without executing it against a backend (flagged in PR #5278 review).
+	infraSearchReturnClause := "\n\t\tRETURN " + strings.Join(infraSearchReturnExprs(), ",\n\t\t       ") + "\n\t"
+	branches := make([]string, 0, len(labels))
+	for _, label := range labels {
+		branches = append(branches, `
+		MATCH (n:`+label+`)
+		WHERE true`+whereExtra+infraSearchReturnClause)
+	}
+	cypher := "CALL {" + strings.Join(branches, "\nUNION") + `
+	}
+	RETURN ` + strings.Join(infraSearchReturnColumns, ", ") + `
+		ORDER BY name
 		LIMIT $limit
 	`
 

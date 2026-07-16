@@ -168,7 +168,21 @@ func TestSearchInfraResourcesArgoCDWithAdditionalFilterKeepsGenericQuery(t *test
 	if got, want := len(graph.calls), 1; got != want {
 		t.Fatalf("graph calls = %d, want generic single read", got)
 	}
-	if !strings.Contains(graph.calls[0].Cypher, "n:ArgoCDApplication OR n:ArgoCDApplicationSet") {
-		t.Fatalf("generic filtered Cypher changed unexpectedly:\n%s", graph.calls[0].Cypher)
+	// The generic (non-argocd-only) path unions one MATCH(n:Label) branch
+	// per label instead of a single MATCH(n) filtered by an (n:A OR n:B)
+	// predicate — the same whole-graph-scan defect fixed generally for
+	// every category, not only the bare argocd-with-no-other-filter shape
+	// isArgoCDCategoryOnly special-cases. See infra.go's searchResources
+	// comment for the two documented reasons (whole-graph scan cost, and
+	// NornicDB's label-disjunction MATCH bug).
+	cypher := graph.calls[0].Cypher
+	if strings.Contains(cypher, "n:ArgoCDApplication OR n:ArgoCDApplicationSet") {
+		t.Fatalf("generic filtered Cypher retained broad OR-label scan:\n%s", cypher)
+	}
+	if !strings.Contains(cypher, "MATCH (n:ArgoCDApplication)") || !strings.Contains(cypher, "MATCH (n:ArgoCDApplicationSet)") {
+		t.Fatalf("generic filtered Cypher is not label anchored per branch:\n%s", cypher)
+	}
+	if !strings.Contains(cypher, "\nUNION") {
+		t.Fatalf("generic filtered Cypher does not union per-label branches:\n%s", cypher)
 	}
 }
