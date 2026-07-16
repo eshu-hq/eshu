@@ -362,7 +362,7 @@ describe("DeadCodePage", () => {
     );
   });
 
-  it("preserves the current language when drilling into a repository", async () => {
+  it("preserves active server filters when drilling into a repository", async () => {
     const post = vi.fn(async () =>
       envelope([
         {
@@ -384,16 +384,25 @@ describe("DeadCodePage", () => {
     ]);
 
     await screen.findByText("Unreferenced symbol unusedRoute");
+    fireEvent.click(screen.getByRole("button", { name: /trait/i }));
+    await waitFor(() =>
+      expect(post).toHaveBeenLastCalledWith("/api/v0/code/dead-code", {
+        candidate_kind: "Trait",
+        language: "typescript",
+        limit: 100,
+      }),
+    );
     fireEvent.click(screen.getByRole("button", { name: "Show repository breakdown" }));
     const filteredLink = screen.getByRole("link", { name: "View candidates" });
     expect(filteredLink).toHaveAttribute(
       "href",
-      "/dead-code?repo_id=repository%3Ar1&language=typescript",
+      "/dead-code?repo_id=repository%3Ar1&language=typescript&candidate_kind=Trait",
     );
 
     fireEvent.click(filteredLink);
     await waitFor(() =>
       expect(post).toHaveBeenLastCalledWith("/api/v0/code/dead-code", {
+        candidate_kind: "Trait",
         language: "typescript",
         limit: 100,
         repo_id: "repository:r1",

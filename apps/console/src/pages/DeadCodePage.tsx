@@ -69,16 +69,20 @@ export function DeadCodePage({
   const [applied, setApplied] = useState<DeadCodeFilters>(initialFilters);
   const [showRepositoryBreakdown, setShowRepositoryBreakdown] = useState(false);
   const [classification, setClassification] = useState(ANY);
-  const [kind, setKind] = useState(ANY);
+  const [kind, setKind] = useState(initialFilters.candidateKind.toLowerCase() || ANY);
   const [query, setQuery] = useState(() => searchParams.get("q") ?? "");
   const routeRepoId = searchParams.get("repo_id") ?? "";
   const routeLanguage = searchParams.get("language") ?? "";
+  const routeCandidateKind = candidateKindFromValue(searchParams.get("candidate_kind"));
   const loadRef = useRef<DeadCodeLoad | null>(null);
 
   useEffect(() => {
-    setDraft((current) => withRouteScope(current, routeLanguage, routeRepoId));
-    setApplied((current) => withRouteScope(current, routeLanguage, routeRepoId));
-  }, [routeLanguage, routeRepoId]);
+    setDraft((current) => withRouteScope(current, routeCandidateKind, routeLanguage, routeRepoId));
+    setApplied((current) =>
+      withRouteScope(current, routeCandidateKind, routeLanguage, routeRepoId),
+    );
+    setKind(routeCandidateKind.toLowerCase() || ANY);
+  }, [routeCandidateKind, routeLanguage, routeRepoId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -164,6 +168,7 @@ export function DeadCodePage({
       const params = new URLSearchParams(current);
       setOrDelete(params, "repo_id", next.repoId);
       setOrDelete(params, "language", next.language);
+      setOrDelete(params, "candidate_kind", next.candidateKind);
       setOrDelete(params, "q", query.trim());
       return params;
     });
@@ -177,6 +182,7 @@ export function DeadCodePage({
       const params = new URLSearchParams(current);
       params.delete("repo_id");
       params.delete("language");
+      params.delete("candidate_kind");
       setOrDelete(params, "q", query.trim());
       return params;
     });
@@ -184,9 +190,14 @@ export function DeadCodePage({
 
   function selectKind(value: string): void {
     setKind(value);
-    const candidateKind =
-      DEAD_CODE_CANDIDATE_KINDS.find((entry) => entry.toLowerCase() === value.toLowerCase()) ?? "";
+    const candidateKind = candidateKindFromValue(value);
     setApplied((current) => ({ ...current, candidateKind }));
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      setOrDelete(params, "candidate_kind", candidateKind);
+      setOrDelete(params, "q", query.trim());
+      return params;
+    });
   }
 
   return (
@@ -227,7 +238,11 @@ export function DeadCodePage({
         />
       </div>
       {showRepositoryBreakdown ? (
-        <DeadCodeRepositoryBreakdown currentLanguage={applied.language} groups={repositoryGroups} />
+        <DeadCodeRepositoryBreakdown
+          currentCandidateKind={applied.candidateKind}
+          currentLanguage={applied.language}
+          groups={repositoryGroups}
+        />
       ) : null}
       <p className="dead-code-scan-status mt" role="status">
         {scanLabel}. All summary counts describe this returned result window, not the corpus.
@@ -369,11 +384,18 @@ export function DeadCodePage({
 
 function withRouteScope(
   current: DeadCodeFilters,
+  candidateKind: string,
   language: string,
   repoId: string,
 ): DeadCodeFilters {
-  if (current.language === language && current.repoId === repoId) return current;
-  return { ...current, language, repoId };
+  if (
+    current.candidateKind === candidateKind &&
+    current.language === language &&
+    current.repoId === repoId
+  ) {
+    return current;
+  }
+  return { candidateKind, language, repoId };
 }
 
 function DeadCodeGroup({ group }: { readonly group: DeadCodeRepositoryGroup }): React.JSX.Element {
@@ -441,10 +463,19 @@ function DeadCodeGroup({ group }: { readonly group: DeadCodeRepositoryGroup }): 
 
 function filtersFromSearchParams(params: URLSearchParams): DeadCodeFilters {
   return {
-    candidateKind: "",
+    candidateKind: candidateKindFromValue(params.get("candidate_kind")),
     language: params.get("language")?.trim() ?? "",
     repoId: params.get("repo_id")?.trim() ?? "",
   };
+}
+
+function candidateKindFromValue(value: string | null | undefined): string {
+  const normalized = value?.trim() ?? "";
+  return (
+    DEAD_CODE_CANDIDATE_KINDS.find(
+      (candidateKind) => candidateKind.toLowerCase() === normalized.toLowerCase(),
+    ) ?? ""
+  );
 }
 
 function setOrDelete(params: URLSearchParams, name: string, value: string): void {
