@@ -24,52 +24,88 @@ https://github.com/eshu-hq/eshu/issues/5271#issuecomment-4995698888
 
 `go/internal/query/infra.go`'s `searchResources` now builds one
 `MATCH (n:Label) WHERE true <same AND-conditions as before>` branch per
-candidate label and unions them, applying `ORDER BY`/`LIMIT` once after the
-final branch, instead of one `MATCH (n) WHERE (n:A OR n:B OR ...)` scan. A
-label-disjunction `MATCH (n:A|B|C)` was rejected as a smaller alternative
-because `docs/public/reference/nornicdb-pitfalls.md` documents it matching
-zero rows on the pinned NornicDB backend (the same reason the handler's
-existing `searchArgoCDCategoryRows` special case already avoids OR-based
-label matching for the argocd-only path). Plain `UNION` (not `UNION ALL`) is
-used deliberately so a node cannot appear twice in the result even if a
-future schema change lets it carry more than one candidate label.
+candidate label and unions them inside a `CALL {...} RETURN ...` subquery,
+applying `ORDER BY`/`LIMIT` once after the subquery closes, instead of one
+`MATCH (n) WHERE (n:A OR n:B OR ...)` scan. A label-disjunction
+`MATCH (n:A|B|C)` was rejected as a smaller alternative because
+`docs/public/reference/nornicdb-pitfalls.md` documents it matching zero rows
+on the pinned NornicDB backend (the same reason the handler's existing
+`searchArgoCDCategoryRows` special case already avoids OR-based label
+matching for the argocd-only path). Plain `UNION` (not `UNION ALL`) is used
+deliberately so a node cannot appear twice in the result even if a future
+schema change lets it carry more than one candidate label.
+
+The `CALL {...}` wrapper is load-bearing, not stylistic, and was added after
+a second, larger-scale proof pass caught a real correctness bug in the first
+version of this fix (bare top-level `UNION`, no `CALL` wrapper): see
+"Bug found during scaled proof" below. New pitfall documented in
+`docs/public/reference/nornicdb-pitfalls.md` ("A Bare Top-Level UNION Returns
+Nothing When Its First Branch Is Empty").
 
 ## No-Regression Evidence
 
 No-Regression Evidence: Backend NornicDB v1.1.11 base (pinned `eshu-nornicdb-pr261:149245885258`,
 commit `1492458852588c884c32f70d27ea2ee07086769c`), isolated Compose project
-`eshu-5271`, own ports/volumes. Corpus: one representative repository bootstrapped
-from a private fixture source (436 files, 2,182 entities, 14,148 facts).
+`eshu-5271`, own ports/volumes. Corpus: two representative repositories
+bootstrapped from a private fixture source — one general-purpose application
+repository (436 files, 2,182 entities) and one real Terraform module
+repository (448 files, 3,211 entities, 3,178 infra-labeled graph nodes:
+589 `TerraformResource`, 1,481 `TerraformVariable`, 232 `TerraformOutput`,
+36 `TerraformProvider`, plus others) — 6,508 total graph nodes, 7,377 edges.
 
 Focused tests: `cd go && go test ./internal/query/... -run
 'TestSearchInfraResources|TestInfraSearch|TestOpenAPIInfraSearch|TestAuthMiddlewareWithScopedTokensAllowsInfraSearch'
 -count=1` — all pass, including the updated
 `TestSearchInfraResourcesArgoCDWithAdditionalFilterKeepsGenericQuery` (now
 asserts the fixed per-label-anchored shape instead of the old OR-scan it
-previously required) and the new
-`TestSearchInfraResourcesNeverUsesUnlabeledWholeGraphScan` regression guard
+previously required), `TestSearchInfraResourcesNeverUsesUnlabeledWholeGraphScan`
 (free-text and structured-filter paths, asserts zero `MATCH (n)\n` occurrences
 and exactly `len(allInfraLabels)-1` `UNION` branches for the unfiltered/worst
-case). Full package: `cd go && go test ./internal/query/... -count=1` — pass
-(1.128s). Query-plan gate: `cd go && go test ./internal/queryplan/... -count=1`
-— pass, with a new `QP-INFRA-RESOURCE-SEARCH` registered entry.
+case), and `TestSearchInfraResourcesWrapsUnionInCallSubquery` (asserts the
+`CALL {...}` wrapper is present, added after the bug below). Full package:
+`cd go && go test ./internal/query/... -count=1` — pass (1.329s). Query-plan
+gate: `cd go && go test ./internal/queryplan/... -count=1` — pass, with a new
+`QP-INFRA-RESOURCE-SEARCH` registered entry.
 
-Exactness proof (old shape vs. new shape, same live data): three synthetic
-nodes were created directly against the live Bolt HTTP endpoint, one per
-label (`CloudResource`, `TerraformResource`, `K8sResource`), each named
-`web-server-a*`. The reconstructed old query
-(`MATCH (n) WHERE (n:CloudResource OR n:K8sResource OR ... OR n:HelmValues) AND
-(coalesce(n.name,'') CONTAINS $query OR ...) RETURN ... ORDER BY n.name`) and
-a live call to the fixed `POST /api/v0/infra/resources/search` endpoint with
-`{"query":"web-server-a","limit":10}` both returned the identical three rows
-in the identical order (`cr-1`/`CloudResource`, `k8s-1`/`K8sResource`,
-`tf-1`/`TerraformResource`) — a `0/0` result-set difference. The synthetic
-nodes were deleted after the comparison. A live call against the real
-(non-synthetic) bootstrapped repository with `{"query":"boatsdotcom","limit":10}`
-returned `HTTP 200` with the correct empty result (`{"count":0,...}`) in
-137ms, proving the 27-branch unioned statement (the worst case, no category
-filter) is valid Cypher that executes successfully end-to-end on the pinned
-backend.
+### Bug found during scaled proof
+
+The first version of this fix (bare top-level `MATCH (n:Label) ... UNION ...`,
+no `CALL` wrapper) passed every unit test and an initial exactness check on a
+3-node synthetic fixture, but was **wrong** at realistic cardinality. Proven
+directly against the live pinned backend: `allInfraLabels` starts with
+`CloudResource`; on the two-repository corpus above, `CloudResource` has zero
+matching nodes for most queries while `TerraformVariable`/`TerraformResource`
+have real matches. A bare top-level `UNION` (and `UNION ALL`) returns **zero
+rows for the entire query** whenever its first branch matches nothing, even
+though later branches have real matches — reproduced with the exact generated
+Cypher extracted from a Go test (`reader.lastCypher`) run directly against
+`http://localhost:7474/db/nornic/tx/commit`, and independently through the
+live HTTP API. Query `{"query":"cluster",...}` against the real corpus
+returned `count: 0` even though `cluster_name`, `ecs_cluster_name`, and
+27 other real matches existed. Wrapping the same union in
+`CALL {...} RETURN ...` fixed it in every branch ordering tried; this is now
+documented as a new NornicDB pitfall (see Fix above) and guarded by
+`TestSearchInfraResourcesWrapsUnionInCallSubquery`.
+
+### Exactness and performance proof (fixed shape, real cardinality)
+
+Old query (reconstructed) vs. new query (`CALL`-wrapped, exact Cypher
+extracted from the running fix), both executed directly against the live
+Bolt HTTP endpoint on the identical two-repository corpus, `query="cluster"`:
+
+| | Cold | Warm (identical repeat) | Rows |
+|---|---:|---:|---:|
+| Old (`MATCH (n) WHERE (n:A OR n:B OR ...)`) | 656.78ms | 5.94-6.36ms | 29 |
+| New (`CALL`-wrapped per-label `UNION`) | 6.54-10.20ms | 1.50-2.35ms | 29 |
+
+Identical row count and content (`0/0` difference) at both cold and warm —
+the fix is two orders of magnitude faster cold (656ms to ~8ms) on this
+corpus, and the warm numbers on both sides are consistent with `SmartQueryCache`
+exact-match hits, not a faster query plan (see the theory-correction section
+above). A live call against the same corpus through the full HTTP API with a
+fresh, never-before-used query string (`{"query":"policies-fresh-cold-2",...}`)
+also returned `HTTP 200` with correct results, proving the fix end-to-end
+through the real handler, not just the raw Cypher.
 
 ## Observability Evidence
 

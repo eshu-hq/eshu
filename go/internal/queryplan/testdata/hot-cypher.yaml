@@ -691,10 +691,13 @@ entries:
       symbol: (*InfraHandler).searchResources
       line_hint: 195
     cypher: |
+      CALL {
       MATCH (n:CloudResource)
       WHERE true
         AND coalesce(n.name, '') CONTAINS $query
       RETURN coalesce(n.id, '') as id, coalesce(n.name, '') as name, labels(n) as labels
+      }
+      RETURN id, name, labels
       ORDER BY name
       LIMIT $limit
     required_anchors:
@@ -705,6 +708,7 @@ entries:
     requires_order: true
     caveats:
       - Representative of one branch of a dynamically generated per-label UNION (issue #5271). The handler builds one MATCH(n:Label) branch per candidate label (up to the ~27-entry allInfraLabels set when no category filter narrows it), unions them, and applies ORDER BY/LIMIT once after the final branch. This replaced a single unlabeled MATCH(n) WHERE (n:A OR n:B OR ...) scan, which forced a whole-graph scan on every call. A label disjunction inside one MATCH (MATCH (n:A|B|C)) was rejected as an alternative because docs/public/reference/nornicdb-pitfalls.md documents it matching zero rows on the pinned NornicDB backend; UNION avoids that defect. Plain UNION (not UNION ALL) de-duplicates, so a node cannot appear twice even if a future schema change lets it carry more than one candidate label.
+      - The whole union is wrapped in CALL {...} RETURN ..., which is load-bearing, not stylistic. See docs/public/reference/nornicdb-pitfalls.md ("A Bare Top-Level UNION Returns Nothing When Its First Branch Is Empty") for the full reproduction. In short, a bare top-level UNION chain (with or without ALL) returns zero rows for the ENTIRE query whenever its FIRST branch matches zero rows, even though later branches have real matches. allInfraLabels starts with CloudResource, so any search on a corpus with zero matching CloudResource nodes silently returned an empty result for every other label without this wrapper.
     plan:
       operators:
         - LabelScan

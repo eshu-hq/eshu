@@ -205,6 +205,16 @@ func (h *InfraHandler) searchResources(w http.ResponseWriter, r *http.Request) {
 	// ALL) is used deliberately: it de-duplicates identical rows, so the
 	// result stays exactly one row per node even if a future schema change
 	// ever allows a node to carry more than one of these labels.
+	//
+	// The whole union is wrapped in a CALL {...} subquery, which is load
+	// bearing, not stylistic. See docs/public/reference/nornicdb-pitfalls.md
+	// ("A Bare Top-Level UNION Returns Nothing When Its First Branch Is
+	// Empty"): a bare top-level UNION chain returns zero rows for the ENTIRE
+	// query whenever its FIRST branch matches zero rows, even though later
+	// branches have real matches. allInfraLabels starts with CloudResource,
+	// so any search on a corpus with zero matching CloudResource nodes would
+	// have silently returned an empty result for every other label without
+	// this wrapper.
 	whereExtra := ""
 	if query != "" {
 		if strings.Contains(query, "::") {
@@ -256,7 +266,10 @@ func (h *InfraHandler) searchResources(w http.ResponseWriter, r *http.Request) {
 		MATCH (n:`+label+`)
 		WHERE true`+whereExtra+infraSearchReturnClause)
 	}
-	cypher := strings.Join(branches, "\nUNION") + `
+	const infraSearchOuterColumns = "id, name, labels, kind, provider, source_system, environment, source, config_path, resource_type, resource_service, resource_category, resource_id, arn, account_id, region, service_kind"
+	cypher := "CALL {" + strings.Join(branches, "\nUNION") + `
+	}
+	RETURN ` + infraSearchOuterColumns + `
 		ORDER BY name
 		LIMIT $limit
 	`

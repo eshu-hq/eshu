@@ -64,3 +64,49 @@ func TestSearchInfraResourcesNeverUsesUnlabeledWholeGraphScan(t *testing.T) {
 		})
 	}
 }
+
+// TestSearchInfraResourcesWrapsUnionInCallSubquery is the regression guard
+// for the correctness bug found while proving #5271's fix at realistic
+// cardinality: on the pinned NornicDB backend, a bare top-level UNION chain
+// returns zero rows for the ENTIRE query whenever its first branch matches
+// zero rows, even when later branches have real matches. Confirmed directly
+// against the live backend with UNION, UNION ALL, and multiple branch
+// orderings; only wrapping the union in CALL {...} RETURN ... avoided it.
+// allInfraLabels starts with CloudResource, so any search on a corpus with
+// zero matching CloudResource nodes would otherwise silently return an empty
+// result for every other label. This asserts the CALL wrapper is present so
+// the fix cannot silently regress back to a bare UNION chain.
+func TestSearchInfraResourcesWrapsUnionInCallSubquery(t *testing.T) {
+	t.Parallel()
+
+	reader := &recordingInfraGraphReader{runRows: []map[string]any{}}
+	handler := &InfraHandler{Neo4j: reader}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v0/infra/resources/search", bytes.NewBufferString(`{"query":"orders","limit":5}`))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+	cypher := reader.lastCypher
+	if !strings.HasPrefix(strings.TrimSpace(cypher), "CALL {") {
+		t.Fatalf("cypher = %q, want the per-label UNION wrapped in a CALL {...} subquery", cypher)
+	}
+	beforeCall, afterCall, found := strings.Cut(cypher, "\n\t}\n\tRETURN ")
+	if !found {
+		t.Fatalf("cypher = %q, want a closing CALL block followed by an outer RETURN", cypher)
+	}
+	if !strings.Contains(beforeCall, "MATCH (n:CloudResource)") {
+		t.Fatalf("cypher = %q, want the CALL block to contain the per-label MATCH branches", cypher)
+	}
+	if strings.Contains(afterCall, "MATCH (n:") {
+		t.Fatalf("cypher = %q, want no per-label MATCH branches outside the CALL block", cypher)
+	}
+	if !strings.Contains(afterCall, "ORDER BY name") || !strings.Contains(afterCall, "LIMIT $limit") {
+		t.Fatalf("cypher = %q, want ORDER BY/LIMIT applied once, outside the CALL block", cypher)
+	}
+}

@@ -393,6 +393,76 @@ No-Observability-Change: no runtime metric, span, log field, queue stage, worker
 knob, or schema phase changes. The existing canonical retract spans and
 graph-write failure/retry telemetry continue to expose retract behavior.
 
+## Pitfall: A Bare Top-Level UNION Returns Nothing When Its First Branch Is Empty
+
+### Observed shape
+
+Measured directly against the pinned NornicDB backend (`eshu-nornicdb-pr261`,
+v1.1.11 base) via the Bolt HTTP `tx/commit` endpoint and independently via the
+Go Neo4j driver over Bolt (both paths reproduce it):
+
+```cypher
+-- CloudResource has 0 matching nodes, TerraformVariable has 10:
+MATCH (n:CloudResource) WHERE n.name CONTAINS 'cluster' RETURN n.id, n.name
+UNION
+MATCH (n:TerraformVariable) WHERE n.name CONTAINS 'cluster' RETURN n.id, n.name
+-- returns 0 rows (broken) -- even though the second branch alone returns 10
+
+-- Same two branches, order swapped (TerraformVariable now first):
+MATCH (n:TerraformVariable) WHERE n.name CONTAINS 'cluster' RETURN n.id, n.name
+UNION
+MATCH (n:CloudResource) WHERE n.name CONTAINS 'cluster' RETURN n.id, n.name
+-- returns the correct 10 rows
+
+-- A THIRD branch with an empty match placed in the MIDDLE (not first) also
+-- works correctly -- only an empty FIRST branch poisons the whole union.
+```
+
+`UNION ALL` reproduces the identical defect (not specific to `UNION`'s
+deduplication pass). Wrapping the same union in a `CALL {...} RETURN ...`
+subquery avoided it in every case tried, regardless of branch order or which
+branch is empty:
+
+```cypher
+CALL {
+  MATCH (n:CloudResource) WHERE n.name CONTAINS 'cluster' RETURN n.id as id, n.name as name
+  UNION
+  MATCH (n:TerraformVariable) WHERE n.name CONTAINS 'cluster' RETURN n.id as id, n.name as name
+}
+RETURN id, name
+-- returns the correct 10 rows even with the empty branch first
+```
+
+### Eshu implications
+
+Any handler that builds a per-label (or otherwise conditionally-empty-branch)
+`UNION` chain directly at the top level of a Cypher statement can silently
+return an empty result whenever its first branch happens to match nothing —
+not an error, not a partial result, a *fully empty* result even though later
+branches have real matches. This is easy to miss in testing: it only shows up
+once cardinality is realistic enough that some candidate branches are empty
+and others are not, which a small fixture with only one or two seeded rows
+per label will not expose. Discovered fixing issue #5271's
+`InfraHandler.searchResources` (`go/internal/query/infra.go`): its label list
+starts with `CloudResource`, so any search against a corpus with zero
+matching `CloudResource` nodes silently returned an empty result for every
+other candidate label until the union was wrapped in `CALL {...}`.
+
+Do not ship a top-level per-branch `UNION`/`UNION ALL` chain against this
+backend without either wrapping it in `CALL {...} RETURN ...`, or proving at
+realistic cardinality (not a two-or-three-row fixture) that every branch
+ordering you can produce is exercised with at least one genuinely empty
+branch in the first position.
+
+### Validation
+
+Reproduced via direct Bolt HTTP `tx/commit` calls against an isolated Compose
+stack seeded with real Terraform fixture data (3,178 infra-labeled nodes
+across multiple labels, one label with zero matches for the test query).
+`go test ./internal/query -run TestSearchInfraResourcesWrapsUnionInCallSubquery
+-count=1` is the static regression guard that the fix's `CALL {...}` wrapper
+stays in place.
+
 ## When To Patch NornicDB
 
 Patch NornicDB only when evidence supports one of these:
