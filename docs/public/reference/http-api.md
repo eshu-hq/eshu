@@ -189,6 +189,15 @@ Session cookies are server-managed:
   revoked without storing provider tokens or raw group values.
 - Workspace switching is limited to all-scopes browser sessions until the
   identity/grant UX can model explicit cross-workspace grants.
+- Tenant-and-workspace-bound all-scopes browser sessions may use Console reads
+  that do not yet implement repository filtering only when
+  `ESHU_GOVERNANCE_MODE` is unset (the `local_no_policy` default),
+  `local_no_policy`, or `hosted_single_tenant`. `hosted_multi_tenant` and
+  unrecognized non-empty modes keep those routes fail-closed with `403`.
+  Restricted browser sessions and scoped bearer tokens remain limited to the
+  existing scoped-route allowlist; live-data routes on that list apply their
+  allowed repository/scope ids before counts, limits, and truncation, while
+  static catalog routes read no tenant data.
 - Local identity routes persist only hashes or credential handles for login
   identifiers, invite codes, MFA recovery codes, break-glass codes, and browser
   session secrets. Bootstrap and break-glass enablement require the shared
@@ -254,6 +263,8 @@ configured via `ESHU_SEMANTIC_PROVIDER_PROFILES_JSON`.
   "answer_prose":     "string (LLM narration when available)",
   "artifacts":        [{"format":"string","content":"string","issues":["string"]}],
   "truth_class":      "deterministic|derived|fallback|semantic_observation|code_hint|unsupported",
+  "result_ref":       "string (addressable canonical API result)",
+  "result":           {"total": 123},
   "evidence_handles": [...],
   "citation_ref":     "string (citation packet that hydrates the evidence handles; coverage anchor for derived prose)",
   "applied_facets":   {
@@ -266,6 +277,10 @@ configured via `ESHU_SEMANTIC_PROVIDER_PROFILES_JSON`.
   "limitations":      ["string"]
 }
 ```
+
+The `123` value is illustrative. Exact repository-count answers use the current
+authorized `list_indexed_repositories.total`, so the value varies by caller and
+corpus rather than representing a fixed product count.
 
 `applied_facets` is omitted when the question has no detectable tool or language scope. When
 present, it records what was detected before the agent loop ran: `source_tool` and `language`

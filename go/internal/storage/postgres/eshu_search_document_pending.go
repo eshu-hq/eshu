@@ -18,9 +18,9 @@ const (
 // listPendingSearchDocumentScopesQuery selects active repository scopes that
 // have indexed content but no complete curated search-document projection for
 // their active generation. The content EXISTS clause keeps empty repositories
-// out of the sweep so they are not re-enqueued forever; the search-document and
-// persisted-index checks drop scopes already projected for the current
-// generation.
+// out of the sweep so they are not re-enqueued forever. Completion is a ready
+// projection-state row plus an index-stat row with the same document count;
+// unlike fact presence, that contract represents valid zero-document output.
 const listPendingSearchDocumentScopesQuery = `
 SELECT s.scope_id, s.active_generation_id, COALESCE(s.source_system, '')
 FROM ingestion_scopes s
@@ -33,21 +33,19 @@ WHERE s.scope_kind = 'repository'
         SELECT 1 FROM content_files cf WHERE cf.repo_id = s.payload->>'repo_id'
         LIMIT 1
       )
-  AND (
-      NOT EXISTS (
-        SELECT 1 FROM fact_records f
-        WHERE f.fact_kind = $1
-          AND f.scope_id = s.scope_id
-          AND f.generation_id = s.active_generation_id
+  AND NOT EXISTS (
+        SELECT 1
+        FROM eshu_search_document_projection_state projection
+        JOIN eshu_search_index_stats idx
+          ON idx.scope_id = projection.scope_id
+         AND idx.generation_id = projection.generation_id
+         AND projection.document_count = idx.document_count
+        WHERE projection.scope_id = s.scope_id
+          AND projection.generation_id = s.active_generation_id
+          AND projection.state = 'ready'
       )
-      OR NOT EXISTS (
-        SELECT 1 FROM eshu_search_index_stats idx
-        WHERE idx.scope_id = s.scope_id
-          AND idx.generation_id = s.active_generation_id
-      )
-  )
 ORDER BY s.scope_id
-LIMIT $2
+LIMIT $1
 `
 
 // EshuSearchDocumentPendingStore lists repository scopes whose active generation
@@ -79,7 +77,7 @@ func (s EshuSearchDocumentPendingStore) ListPendingSearchDocumentScopes(
 		limit = eshuSearchDocumentPendingMaxLimit
 	}
 
-	rows, err := s.db.QueryContext(ctx, listPendingSearchDocumentScopesQuery, EshuSearchDocumentFactKind, limit)
+	rows, err := s.db.QueryContext(ctx, listPendingSearchDocumentScopesQuery, limit)
 	if err != nil {
 		return nil, fmt.Errorf("list pending search document scopes: %w", err)
 	}

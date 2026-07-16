@@ -53,6 +53,14 @@ type runCall struct {
 	args map[string]any
 }
 
+// RunnerFunc adapts a function to the Runner interface for focused tests.
+type RunnerFunc func(context.Context, string, map[string]any) (RunResult, error)
+
+// Run implements Runner.
+func (f RunnerFunc) Run(ctx context.Context, name string, args map[string]any) (RunResult, error) {
+	return f(ctx, name, args)
+}
+
 func (r *recordingRunner) Run(_ context.Context, name string, args map[string]any) (RunResult, error) {
 	r.calls = append(r.calls, runCall{name: name, args: args})
 	if r.runErr != nil {

@@ -24,26 +24,26 @@ describe("WorkspacePage", () => {
                 path: ".github/workflows/cd-helm.yml",
                 signals: ["workflow_file", "run_commands"],
                 trigger_events: ["push"],
-                workflow_name: "cd-helm"
-              }
+                workflow_name: "cd-helm",
+              },
             ],
-            direct_story: ["Runs through ArgoCD into prod."]
+            direct_story: ["Runs through ArgoCD into prod."],
           },
           limitations: ["coverage_not_computed"],
           story: "Repository platform-tools contains indexed files.",
           story_sections: [
             {
               summary: "41 indexed files across 2 language families",
-              title: "codebase"
-            }
+              title: "codebase",
+            },
           ],
           subject: {
             id: "repository:r_1",
             name: "platform-tools",
-            type: "repository"
-          }
-        })
-      )
+            type: "repository",
+          },
+        }),
+      ),
     );
 
     render(
@@ -51,7 +51,7 @@ describe("WorkspacePage", () => {
         <Routes>
           <Route element={<WorkspacePage />} path="/workspace/:entityKind/:entityId" />
         </Routes>
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     expect(await screen.findByRole("heading", { name: "platform-tools" })).toBeInTheDocument();
@@ -77,7 +77,7 @@ describe("WorkspacePage", () => {
           return Response.json({
             service_identity: {
               repo_name: "catalog-api",
-              service_name: "catalog-api"
+              service_name: "catalog-api",
             },
             api_surface: {
               endpoint_count: 38,
@@ -86,58 +86,58 @@ describe("WorkspacePage", () => {
                   methods: ["get"],
                   operation_ids: ["getListing"],
                   path: "/getListing",
-                  source_paths: ["specs/index.yaml"]
-                }
+                  source_paths: ["specs/index.yaml"],
+                },
               ],
               method_count: 44,
-              source_paths: ["catalog-specs.yaml", "specs/index.yaml"]
+              source_paths: ["catalog-specs.yaml", "specs/index.yaml"],
             },
             deployment_lanes: [
               {
                 environments: ["prod"],
                 lane_type: "k8s_gitops",
                 resolved_ids: ["rel:k8s"],
-                source_repositories: ["helm-charts"]
+                source_repositories: ["helm-charts"],
               },
               {
                 environments: ["prod"],
                 lane_type: "ecs_terraform",
                 resolved_ids: ["rel:ecs"],
-                source_repositories: ["terraform-stack-node10"]
-              }
+                source_repositories: ["terraform-stack-node10"],
+              },
             ],
             downstream_consumers: {
               content_consumers: [
                 {
                   consumer_kinds: ["service_reference_consumer"],
                   repository: "terraform-stack-node10",
-                  sample_paths: ["environments/prod/ecs.tf"]
-                }
-              ]
+                  sample_paths: ["environments/prod/ecs.tf"],
+                },
+              ],
             },
             upstream_dependencies: [
               {
                 evidence_count: 4,
                 rationale: "called by reusable workflow",
                 relationship_type: "DEPLOYS_FROM",
-                target: "core-engineering-automation"
-              }
+                target: "core-engineering-automation",
+              },
             ],
             deployment_evidence: {
               artifacts: [
                 {
                   artifact_family: "terraform",
                   evidence_kind: "TERRAFORM_ECS_SERVICE",
-                  source_repo_name: "terraform-stack-node10"
+                  source_repo_name: "terraform-stack-node10",
                 },
                 {
                   artifact_family: "helm",
                   evidence_kind: "HELM_CHART_REFERENCE",
-                  source_repo_name: "helm-charts"
-                }
-              ]
+                  source_repo_name: "helm-charts",
+                },
+              ],
             },
-            provisioning_source_chains: [{ repository: "terraform-stack-node10" }]
+            provisioning_source_chains: [{ repository: "terraform-stack-node10" }],
           });
         }
         if (path.endsWith("/api/v0/repositories/repository:r_472ddee5/context")) {
@@ -146,20 +146,24 @@ describe("WorkspacePage", () => {
         return Response.json({
           deployment_overview: {
             workload_count: 1,
-            workloads: ["catalog-api"]
+            workloads: ["catalog-api"],
           },
           drilldowns: {
-            context_path: "/api/v0/repositories/repository:r_472ddee5/context"
+            context_path: "/api/v0/repositories/repository:r_472ddee5/context",
+          },
+          service_identity: {
+            repo_name: "catalog-api",
+            service_name: "catalog-api",
           },
           story: "Repository catalog-api contains indexed files.",
           story_sections: [{ summary: "538 indexed files", title: "codebase" }],
           subject: {
             id: "repository:r_472ddee5",
             name: "catalog-api",
-            type: "repository"
-          }
+            type: "repository",
+          },
         });
-      })
+      }),
     );
 
     render(
@@ -167,11 +171,11 @@ describe("WorkspacePage", () => {
         <Routes>
           <Route element={<WorkspacePage />} path="/workspace/:entityKind/:entityId" />
         </Routes>
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     expect(
-      await screen.findByRole("heading", { level: 1, name: "catalog-api" })
+      await screen.findByRole("heading", { level: 1, name: "catalog-api" }),
     ).toBeInTheDocument();
     expect(screen.getAllByText(/38 endpoint/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/Kubernetes/i).length).toBeGreaterThan(0);
@@ -190,18 +194,18 @@ describe("WorkspacePage", () => {
         Response.json({
           service_identity: {
             repo_name: "catalog-api",
-            service_name: "catalog-api"
+            service_name: "catalog-api",
           },
           story: "Workload catalog-api is defined in repository catalog-api.",
           story_sections: [
             {
               summary: "38 endpoint(s), 44 method(s), 1 spec file(s)",
-              title: "api"
+              title: "api",
             },
             {
               summary: "25 consumer repo(s) observed from graph and content evidence",
-              title: "consumers"
-            }
+              title: "consumers",
+            },
           ],
           api_surface: {
             endpoint_count: 38,
@@ -210,17 +214,17 @@ describe("WorkspacePage", () => {
                 methods: ["get"],
                 operation_ids: ["getListing"],
                 path: "/getListing",
-                source_paths: ["catalog-specs.yaml"]
+                source_paths: ["catalog-specs.yaml"],
               },
               {
                 methods: ["get"],
                 operation_ids: ["getVersion"],
                 path: "/_version",
-                source_paths: ["catalog-specs.yaml"]
-              }
+                source_paths: ["catalog-specs.yaml"],
+              },
             ],
             method_count: 44,
-            source_paths: ["catalog-specs.yaml"]
+            source_paths: ["catalog-specs.yaml"],
           },
           deployment_lanes: [
             {
@@ -228,15 +232,15 @@ describe("WorkspacePage", () => {
               lane_type: "ecs_terraform",
               relationship_types: ["PROVISIONS_DEPENDENCY_FOR", "READS_CONFIG_FROM"],
               resolved_ids: ["rel:ecs"],
-              source_repositories: ["terraform-stack-node10"]
+              source_repositories: ["terraform-stack-node10"],
             },
             {
               environments: ["dev", "prod", "qa", "platform-prod", "ops-test"],
               lane_type: "k8s_gitops",
               relationship_types: ["DEPLOYS_FROM"],
               resolved_ids: ["rel:k8s"],
-              source_repositories: ["helm-charts", "iac-eks-argocd"]
-            }
+              source_repositories: ["helm-charts", "iac-eks-argocd"],
+            },
           ],
           downstream_consumers: {
             content_consumer_count: 25,
@@ -244,74 +248,74 @@ describe("WorkspacePage", () => {
             content_consumers: [
               {
                 consumer_kinds: ["service_reference_consumer"],
-                repository: "terraform-stack-node10"
-              }
+                repository: "terraform-stack-node10",
+              },
             ],
             graph_dependents: [
               {
                 graph_relationship_types: ["DEPLOYS_FROM"],
-                repository: "iac-eks-argocd"
-              }
-            ]
+                repository: "iac-eks-argocd",
+              },
+            ],
           },
           hostnames: [
             {
               environment: "prod",
               hostname: "catalog-api.prod.example.internal",
-              relative_path: "config/production.json"
-            }
+              relative_path: "config/production.json",
+            },
           ],
           result_limits: {
             downstream_count: 42,
-            upstream_count: 35
+            upstream_count: 35,
           },
           upstream_dependencies: [
             {
               relationship_type: "DEPLOYS_FROM",
-              target: "core-engineering-automation"
-            }
+              target: "core-engineering-automation",
+            },
           ],
           investigation: {
             coverage_summary: {
               reason: "evidence was found, but Eshu cannot prove exhaustive coverage",
               repositories_with_evidence_count: 26,
               repository_count: 26,
-              state: "partial"
+              state: "partial",
             },
             evidence_families_found: ["api_surface", "deployment_lanes"],
             investigation_findings: [
               {
                 evidence_path: "api_surface",
                 family: "api_surface",
-                summary: "38 endpoint(s) across 0 spec file(s)"
-              }
+                summary: "38 endpoint(s) across 0 spec file(s)",
+              },
             ],
             recommended_next_calls: [
               {
                 arguments: { workload_id: "catalog-api" },
                 reason: "retrieve the full one-call dossier",
-                tool: "get_service_story"
+                tool: "get_service_story",
               },
               {
                 arguments: {
                   limit: 25,
                   relationship_type: "CALLS",
-                  target: "createLead"
+                  target: "createLead",
                 },
                 reason: "inspect call graph behind one API path",
-                tool: "get_code_relationship_story"
-              }
+                tool: "get_code_relationship_story",
+              },
             ],
             repositories_with_evidence: [
               {
                 evidence_families: ["api_surface", "deployment_lanes"],
                 repo_name: "catalog-api",
-                roles: ["service_owner"]
-              }
-            ]
-          }
-        })
-      )
+                roles: ["service_owner"],
+              },
+            ],
+          },
+        }),
+      ),
     );
 
     render(
@@ -319,11 +323,11 @@ describe("WorkspacePage", () => {
         <Routes>
           <Route element={<WorkspacePage />} path="/workspace/:entityKind/:entityId" />
         </Routes>
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     expect(
-      await screen.findByRole("heading", { level: 1, name: "catalog-api" })
+      await screen.findByRole("heading", { level: 1, name: "catalog-api" }),
     ).toBeInTheDocument();
     expect(screen.queryByText("Files")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "API and relationships" }));
@@ -336,12 +340,16 @@ describe("WorkspacePage", () => {
     const fetchCallCountBeforeImpact = vi.mocked(globalThis.fetch).mock.calls.length;
     fireEvent.click(screen.getByRole("button", { name: "Impact review" }));
     await waitFor(() =>
-      expect(vi.mocked(globalThis.fetch).mock.calls.length).toBeGreaterThan(fetchCallCountBeforeImpact)
+      expect(vi.mocked(globalThis.fetch).mock.calls.length).toBeGreaterThan(
+        fetchCallCountBeforeImpact,
+      ),
     );
     expect(screen.getByRole("heading", { name: "Investigation coverage" })).toBeInTheDocument();
     const apiEvidence = screen.getByRole("article", { name: /api evidence/i });
     fireEvent.click(within(apiEvidence).getByRole("button", { name: "Inspect evidence" }));
-    expect(within(apiEvidence).getByRole("table", { name: "API endpoint evidence" })).toBeInTheDocument();
+    expect(
+      within(apiEvidence).getByRole("table", { name: "API endpoint evidence" }),
+    ).toBeInTheDocument();
     expect(within(apiEvidence).getByText("/getListing")).toBeInTheDocument();
     expect(within(apiEvidence).getAllByText("GET").length).toBeGreaterThan(0);
     expect(within(apiEvidence).getByText("getListing")).toBeInTheDocument();

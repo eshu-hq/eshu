@@ -29,6 +29,10 @@ func TestOpenAPIDeadCodeMentionsHaskellRootsAndLanguageFilter(t *testing.T) {
 	requestBody := mustMapField(t, mustMapField(t, deadCodePost, "requestBody"), "content")
 	requestJSON := mustMapField(t, requestBody, "application/json")
 	schema := mustMapField(t, mustMapField(t, requestJSON, "schema"), "properties")
+	candidateKind := mustMapField(t, schema, "candidate_kind")
+	if got, ok := candidateKind["enum"].([]any); !ok || len(got) != len(deadCodeCandidateLabels) {
+		t.Fatalf("code/dead-code candidate_kind enum = %#v, want %d advertised labels", candidateKind["enum"], len(deadCodeCandidateLabels))
+	}
 	language := mustMapField(t, schema, "language")
 	languageDescription, ok := language["description"].(string)
 	if !ok {
@@ -69,6 +73,7 @@ func TestOpenAPIDeadCodeInvestigationDocumentsReturnedFields(t *testing.T) {
 		"display_truncated",
 		"candidate_scan_truncated",
 		"candidate_scan_limit",
+		"candidate_scan_limit_per_label",
 		"candidate_scan_pages",
 		"candidate_scan_rows",
 		"suppressed_truncated",

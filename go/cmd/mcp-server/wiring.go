@@ -314,9 +314,10 @@ func newMCPQueryRouterWithSemanticEmbedding(
 			HybridRanker: newContentHybridRanker(semanticSearchEmbedding),
 		},
 		Infra: &query.InfraHandler{
-			Neo4j:      neo4jReader,
-			Aggregates: query.NewGraphInfraResourceAggregateStore(neo4jReader),
-			Profile:    queryProfile,
+			Neo4j:       neo4jReader,
+			Aggregates:  query.NewGraphInfraResourceAggregateStore(neo4jReader),
+			Profile:     queryProfile,
+			Instruments: instruments,
 		},
 		IaC: &query.IaCHandler{
 			Content:      contentReader,
@@ -346,9 +347,10 @@ func newMCPQueryRouterWithSemanticEmbedding(
 			Profile: queryProfile,
 		},
 		SemanticSearch: &query.SemanticSearchHandler{
-			Index:       query.NewPostgresSemanticSearchIndexStore(db),
-			LocalHybrid: newSemanticSearchHybrid(db, semanticSearchEmbedding, instruments),
-			Profile:     queryProfile,
+			Index:         query.NewPostgresSemanticSearchIndexStore(db),
+			LocalHybrid:   newSemanticSearchHybrid(db, semanticSearchEmbedding, instruments),
+			ScopeResolver: newInstrumentedSemanticSearchScopeResolver(db, instruments),
+			Profile:       queryProfile,
 			SearchVectorReady: query.NewPostgresSearchVectorReadyStore(db, query.SearchVectorBuildIdentity{
 				ProviderProfileID:  semanticSearchEmbedding.ProviderProfileID,
 				SourceClass:        semanticSearchEmbedding.SourceClass,

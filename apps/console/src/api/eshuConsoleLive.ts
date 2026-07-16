@@ -28,7 +28,7 @@ import {
   loadSbom,
   loadSeriesBundle,
   loadServices,
-  loadVulnerabilities
+  loadVulnerabilities,
 } from "./eshuConsoleSections";
 import type { SectionContext } from "./eshuConsoleSections";
 import { loadImages } from "./imageInventory";
@@ -95,7 +95,10 @@ export interface ServiceRow {
   readonly language?: string;
 }
 
-export interface LanguageRow { readonly language: string; readonly count: number; }
+export interface LanguageRow {
+  readonly language: string;
+  readonly count: number;
+}
 export interface IngesterRow {
   readonly id: string;
   readonly kind: string;
@@ -122,12 +125,19 @@ export interface FindingRow {
   readonly classification?: string;
 }
 export interface VulnRow {
+  // findingId is the reducer-owned impact-row identity. id remains the
+  // advisory identifier used by the detail route and human-facing labels.
+  readonly findingId?: string;
   readonly id: string;
   readonly package: string;
   readonly severity: string;
   readonly cvss: number;
   readonly kev: boolean;
   readonly fixedVersion: string | null;
+  // serviceIds retains the exact impact API identities used to prove the
+  // human-facing service labels. Legacy/demo rows may omit this field.
+  readonly serviceIds?: readonly string[];
+  readonly affectedServices?: readonly string[];
   readonly services: readonly string[];
 }
 
@@ -266,7 +276,7 @@ function isAbortError(error: unknown): boolean {
 async function section<T>(
   prov: Record<string, SectionProvenance>,
   key: string,
-  load: () => Promise<T | null>
+  load: () => Promise<T | null>,
 ): Promise<T | null> {
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
@@ -310,7 +320,9 @@ export async function loadConsoleSnapshot(client: EshuApiClient): Promise<Consol
   const languagesPromise = runSection("languages", () => loadLanguages(client));
   const ingestersPromise = runSection("ingesters", () => loadIngesters(client));
   const sbomPromise = runSection("sbom", () => loadSbom(client, ctx));
-  const dependenciesPromise = runSection("dependencies", () => loadDependenciesSection(client, ctx));
+  const dependenciesPromise = runSection("dependencies", () =>
+    loadDependenciesSection(client, ctx),
+  );
   const imagesPromise = runSection("images", () => loadImagesSection(client, ctx));
   const iacPromise = runSection("iacResources", () => loadIacResources(client, ctx));
   const advisoriesPromise = runSection("advisories", () => loadAdvisories(client, ctx));
@@ -326,7 +338,9 @@ export async function loadConsoleSnapshot(client: EshuApiClient): Promise<Consol
   // they then run concurrently with the rest.
   await servicesPromise;
   const findingsPromise = runSection("findings", () => loadFindings(client, ctx));
-  const vulnerabilitiesPromise = runSection("vulnerabilities", () => loadVulnerabilities(client, ctx));
+  const vulnerabilitiesPromise = runSection("vulnerabilities", () =>
+    loadVulnerabilities(client, ctx),
+  );
   const argoCDAppsPromise = runSection("argoCDApps", () => loadArgoCDApps(client, ctx));
 
   const [
@@ -343,7 +357,7 @@ export async function loadConsoleSnapshot(client: EshuApiClient): Promise<Consol
     advisories,
     collectorReadiness,
     argoCDApps,
-    series
+    series,
   ] = await Promise.all([
     runtimePromise,
     servicesPromise,
@@ -358,7 +372,7 @@ export async function loadConsoleSnapshot(client: EshuApiClient): Promise<Consol
     advisoriesPromise,
     collectorReadinessPromise,
     argoCDAppsPromise,
-    seriesPromise
+    seriesPromise,
   ] as const);
 
   return {
@@ -377,6 +391,6 @@ export async function loadConsoleSnapshot(client: EshuApiClient): Promise<Consol
     argoCDApps: argoCDApps ?? [],
     series,
     truth,
-    provenance: prov
+    provenance: prov,
   };
 }

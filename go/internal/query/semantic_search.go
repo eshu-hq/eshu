@@ -18,9 +18,10 @@ import (
 
 // SemanticSearchHandler exposes bounded curated search-document retrieval.
 type SemanticSearchHandler struct {
-	Index       SemanticSearchIndexStore
-	LocalHybrid SemanticSearchHybridStore
-	Profile     QueryProfile
+	Index         SemanticSearchIndexStore
+	LocalHybrid   SemanticSearchHybridStore
+	ScopeResolver SemanticSearchScopeResolver
+	Profile       QueryProfile
 	// SearchVectorReady optionally reports the search-vector build sweep's
 	// search_vector_ready watermark. When set, the response's truth freshness
 	// is downgraded (pending_search_vector cause) if the sweep has never
@@ -180,6 +181,54 @@ func (h *SemanticSearchHandler) profile() QueryProfile {
 	return h.Profile
 }
 
+type semanticSearchScopeResolution struct {
+	scopeID      string
+	repositoryID string
+	ambiguous    bool
+}
+
+// resolveScope selects the active search-document scope without adding a
+// direct-scope lookup to canonical all-scope requests. Scoped grants retain
+// their existing direct-versus-canonical authorization boundary.
+func (h *SemanticSearchHandler) resolveScope(
+	ctx context.Context,
+	requestedID string,
+	access repositoryAccessFilter,
+	directScopeGrant bool,
+	canonicalRepositoryGrant bool,
+) (semanticSearchScopeResolution, error) {
+	if h.ScopeResolver == nil {
+		return semanticSearchScopeResolution{scopeID: requestedID, repositoryID: requestedID}, nil
+	}
+	if access.allScopes && strings.HasPrefix(requestedID, "git-repository-scope:") {
+		resolvedRepoID, err := h.ScopeResolver.ResolveSemanticSearchRepositoryForScope(ctx, requestedID)
+		if err != nil {
+			return semanticSearchScopeResolution{}, err
+		}
+		if resolvedRepoID != "" {
+			return semanticSearchScopeResolution{scopeID: requestedID, repositoryID: resolvedRepoID}, nil
+		}
+	}
+	if directScopeGrant && !canonicalRepositoryGrant {
+		resolvedRepoID, err := h.ScopeResolver.ResolveSemanticSearchRepositoryForScope(ctx, requestedID)
+		if err != nil {
+			return semanticSearchScopeResolution{}, err
+		}
+		if resolvedRepoID == "" {
+			return semanticSearchScopeResolution{}, nil
+		}
+		return semanticSearchScopeResolution{scopeID: requestedID, repositoryID: resolvedRepoID}, nil
+	}
+
+	resolvedScopeID, err := h.ScopeResolver.ResolveSemanticSearchScope(ctx, requestedID)
+	if err != nil {
+		return semanticSearchScopeResolution{
+			ambiguous: errors.Is(err, ErrSemanticSearchScopeAmbiguous),
+		}, err
+	}
+	return semanticSearchScopeResolution{scopeID: resolvedScopeID, repositoryID: requestedID}, nil
+}
+
 func (h *SemanticSearchHandler) search(w http.ResponseWriter, r *http.Request) {
 	r, span := startQueryHandlerSpan(
 		r,
@@ -247,12 +296,40 @@ func (h *SemanticSearchHandler) search(w http.ResponseWriter, r *http.Request) {
 		WriteSuccess(w, r, http.StatusOK, emptySemanticSearchResponse(req), h.truthWithSearchVectorFreshness(r, req.Mode))
 		return
 	}
-	if !access.allowsRepositoryID(body.RepoID) {
+	directScopeGrant := access.allowsDirectScopeID(body.RepoID)
+	canonicalRepositoryGrant := access.allowsCanonicalRepositoryID(body.RepoID)
+	if !directScopeGrant && !canonicalRepositoryGrant {
 		writeSemanticSearchError(w, r, http.StatusNotFound, ErrorCodeNotFound, "repository not found")
 		return
 	}
+	resolution, err := h.resolveScope(
+		r.Context(),
+		body.RepoID,
+		access,
+		directScopeGrant,
+		canonicalRepositoryGrant,
+	)
+	if err != nil {
+		if resolution.ambiguous {
+			writeSemanticSearchError(w, r, http.StatusConflict, ErrorCodeAmbiguous, err.Error())
+			return
+		}
+		writeSemanticSearchError(w, r, http.StatusServiceUnavailable, ErrorCodeBackendUnavailable, err.Error())
+		return
+	}
+	if resolution.scopeID == "" {
+		WriteSuccess(w, r, http.StatusOK, emptySemanticSearchResponse(req), h.truthWithSearchVectorFreshness(r, req.Mode))
+		return
+	}
 	var indexResult semanticSearchIndexResult
-	backend, err := h.semanticSearchBackend(req, body, sourceKinds, languages, &indexResult)
+	backend, err := h.semanticSearchBackend(
+		req,
+		resolution.scopeID,
+		resolution.repositoryID,
+		sourceKinds,
+		languages,
+		&indexResult,
+	)
 	if err != nil {
 		writeSemanticSearchError(
 			w,
@@ -287,17 +364,18 @@ func (h *SemanticSearchHandler) search(w http.ResponseWriter, r *http.Request) {
 
 func (h *SemanticSearchHandler) semanticSearchBackend(
 	req searchretrieval.Request,
-	body semanticSearchRequest,
+	scopeID string,
+	repoID string,
 	sourceKinds []searchdocs.SourceKind,
 	languages []string,
 	indexResult *semanticSearchIndexResult,
 ) (searchretrieval.Backend, error) {
 	query := semanticSearchIndexQuery{
 		Request: req,
-		// The first public slice is repository-bounded; repository id is the
-		// active ingestion scope used by the durable search-document index.
-		ScopeID:     body.RepoID,
-		RepoID:      body.RepoID,
+		// The public slice is repository-bounded. ScopeID is the resolved active
+		// ingestion scope; RepoID remains the authorized canonical identity.
+		ScopeID:     scopeID,
+		RepoID:      repoID,
 		SourceKinds: sourceKinds,
 		Languages:   languages,
 	}

@@ -1,40 +1,22 @@
-// Console live E2E gate runner (issue #3326).
-//
-// Drives the PRIVATE/LIVE Eshu console against the REAL local Compose stack
-// through a Chromium browser and proves every major route renders real data or
-// an explicit empty/unavailable state with no demo fallback, no unhandled
-// console errors, and no unexpected failed network requests.
-//
-// This file is the integration harness. The pass/fail decision logic lives in
-// the unit-tested pure module src/e2e/routeAssertions.ts; this runner only
-// captures browser signals and hands them to that evaluator.
-//
-// Flow:
-//   1. Start the Vite dev server (it proxies /eshu-api -> the local API) with
-//      VITE_ESHU_API_KEY so the console authenticates against the live stack.
-//   2. Seed localStorage with a private-mode environment before the app boots.
-//   3. For each route: navigate, let it settle, capture console + network +
-//      DOM signals, screenshot.
-//   4. Evaluate every route and write a JSON report + screenshots + trace into
-//      the gitignored artifacts dir. Exit non-zero if any route fails.
-//
-// This module exports runConsoleLiveE2E() and is loaded by the .mjs bootstrap
-// scripts/console-live-e2e-runtime.mjs, which transforms it through Vite's SSR
-// loader. That keeps the gate runnable on any supported Node version without
-// native TypeScript stripping (Node >= 23.6 only) or an extra dependency. Run
-// it via the npm script (see apps/console/README.md):
-//   npm run console:e2e
+// Console live E2E gate runner (issue #3326). It drives the private console
+// against an operator-managed corpus stack, captures route/network/DOM signals,
+// and delegates verdicts to the pure routeAssertions module. The default gate
+// claims an isolated retained-corpus identity through the real setup wizard and
+// executes every route workflow with the resulting browser-session cookie.
+// The .mjs bootstrap loads this module through Vite's SSR transformer; run it
+// with `npm run console:e2e` as documented in apps/console/README.md.
 
-import { spawn, type ChildProcessByStdio } from "node:child_process";
-import type { Readable } from "node:stream";
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium, type Browser, type Page } from "playwright";
 
 import {
+  buildNetworkReportObservation,
   consoleRoutes,
+  buildRouteReportObservation,
   defaultNetworkAllowList,
+  evaluateNetworkObservations,
   evaluateRoute,
   summarizeGate,
   type ConsoleRoute,
@@ -42,108 +24,75 @@ import {
   type RouteResult,
   type RouteSignals,
 } from "../src/e2e/routeAssertions.ts";
+import { executeRouteWorkflow } from "./routeWorkflowProbes.ts";
+import {
+  loadIndexedRepositoryInventoryAnchor,
+  type IndexedRepositoryInventoryAnchor,
+} from "./askExactCountWorkflowProbe.ts";
+import { createImpactFindingsLoader } from "./vulnerabilityRouteWorkflowProbe.ts";
+import type { LoadImpactFindings } from "./vulnerabilityRouteWorkflowProbe.ts";
+import { createBrowserSessionFetcher } from "./browserSessionFetcher.ts";
+import {
+  awaitRetainedWizardSessionQuiet,
+  establishRetainedWizardSession,
+  parseLiveE2EAuthMode,
+} from "./liveE2EBrowserSession.ts";
+import {
+  awaitApiQuiet,
+  filterAllowedResourceConsoleErrors,
+  installApiQuietTracker,
+  installNetworkObservationRecorder,
+  navigateClientRoute,
+  traceCaptureEnabled,
+  type ApiQuietTracker,
+} from "./liveE2EPolicy.ts";
+import {
+  authCoverageReport,
+  createAuthRouteCoverage,
+  formatAuthRouteCoverage,
+} from "./liveE2EAuthCoverage.ts";
+import {
+  parseLiveE2EConsolePort,
+  startLiveE2EDevServer,
+  stopLiveE2EDevServer,
+  type LiveE2EDevServer,
+} from "./liveE2EDevServer.ts";
+import {
+  assertProofManifestRepositoryCount,
+  proofManifestFromEnvironment,
+  type LiveE2EProofManifest,
+} from "./liveE2EProofManifest.ts";
+import {
+  liveE2EArtifactPaths,
+  prepareLiveE2EArtifacts,
+  type LiveE2EArtifactPaths,
+} from "./liveE2EArtifacts.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const consoleDir = resolve(here, "..");
 const repoRoot = resolve(consoleDir, "..", "..");
-const artifactsDir = resolve(repoRoot, "e2e-artifacts");
-const screenshotsDir = resolve(artifactsDir, "screenshots");
-const tracePath = resolve(artifactsDir, "trace.zip");
-const reportPath = resolve(artifactsDir, "console-live-e2e-report.json");
+// proofManifestForLaunchedBrowser binds durable proof identity to the browser
+// instance Playwright actually launched, rather than an operator declaration.
+export function proofManifestForLaunchedBrowser(
+  environment: NodeJS.ProcessEnv,
+  browser: Pick<Browser, "version">,
+): LiveE2EProofManifest {
+  return proofManifestFromEnvironment(environment, browser.version());
+}
 
 // Local-only test key. The runner reads it from the environment so the key is
 // never hard-coded; the npm script supplies it from the gitignored env file.
 const apiKey = (process.env.ESHU_E2E_API_KEY ?? "").trim();
 const apiBase = (process.env.ESHU_E2E_API_BASE ?? "http://127.0.0.1:9080").trim();
+const authMode = parseLiveE2EAuthMode(process.env.ESHU_E2E_AUTH_MODE);
+const postgresDSN = (process.env.ESHU_E2E_POSTGRES_DSN ?? "").trim();
+const authSecretEncKey = (process.env.ESHU_AUTH_SECRET_ENC_KEY ?? "").trim();
+const wizardNewPassword = (process.env.ESHU_E2E_WIZARD_NEW_PASSWORD ?? "").trim();
 // The console always talks to its own dev-server proxy path, never the API
 // directly; the proxy target is the live API.
 const consoleApiBaseUrl = "/eshu-api/";
 const perRouteSettleMs = 1500;
 const navTimeoutMs = 30000;
-const devServerReadyTimeoutMs = 120000;
-
-interface DevServer {
-  readonly process: ChildProcessByStdio<null, Readable, Readable>;
-  readonly baseUrl: string;
-}
-
-// startDevServer launches Vite for the console and resolves once it prints the
-// local URL. The dev server owns the /eshu-api proxy that points at the live
-// stack, so running the real dev server is the correct LIVE-mode path.
-const viteBin = resolve(repoRoot, "node_modules", ".bin", "vite");
-
-async function startDevServer(): Promise<DevServer> {
-  // Invoke the vite binary directly (not via npx) so the spawned PID is vite
-  // itself and SIGTERM on teardown actually frees the port; an npx wrapper can
-  // leave an orphaned vite child holding the port between runs.
-  const child = spawn(
-    viteBin,
-    [
-      "--config",
-      "apps/console/vite.config.ts",
-      "--host",
-      "127.0.0.1",
-      "--strictPort",
-      "--port",
-      "5180",
-    ],
-    {
-      cwd: repoRoot,
-      env: {
-        ...process.env,
-        VITE_ESHU_API_KEY: apiKey,
-        // Point the dev-server proxy at the live API the operator brought up.
-        ESHU_DEV_PROXY_TARGET: apiBase,
-      },
-      stdio: ["ignore", "pipe", "pipe"],
-    },
-  );
-
-  const baseUrl = await new Promise<string>((resolvePromise, rejectPromise) => {
-    const timer = setTimeout(() => {
-      rejectPromise(new Error("dev server did not become ready in time"));
-    }, devServerReadyTimeoutMs);
-
-    const onData = (chunk: Buffer): void => {
-      const text = chunk.toString();
-      process.stdout.write(`[vite] ${text}`);
-      const match = text.match(/Local:\s+(http:\/\/127\.0\.0\.1:\d+)\/?/);
-      if (match) {
-        clearTimeout(timer);
-        resolvePromise(match[1]);
-      }
-    };
-    child.stdout.on("data", onData);
-    child.stderr.on("data", (chunk: Buffer) =>
-      process.stderr.write(`[vite-err] ${chunk.toString()}`),
-    );
-    child.on("exit", (code) => {
-      clearTimeout(timer);
-      rejectPromise(new Error(`dev server exited early with code ${String(code)}`));
-    });
-  });
-
-  return { process: child, baseUrl };
-}
-
-// stopDevServer terminates the Vite process and resolves once it has exited so
-// the listening port is freed before the runner returns.
-async function stopDevServer(server: DevServer): Promise<void> {
-  if (server.process.exitCode !== null || server.process.signalCode !== null) {
-    return;
-  }
-  await new Promise<void>((resolvePromise) => {
-    const done = (): void => resolvePromise();
-    server.process.once("exit", done);
-    server.process.kill("SIGTERM");
-    // Hard-stop guard so a hung dev server cannot block teardown forever.
-    setTimeout(() => {
-      server.process.kill("SIGKILL");
-      resolvePromise();
-    }, 5000);
-  });
-}
-
 // ignorableConsoleError filters benign noise that is not an app fault. React
 // dev-mode emits a known download-the-devtools info line on some setups; we do
 // not treat that as a failure. Everything else counts.
@@ -151,71 +100,48 @@ function ignorableConsoleError(message: string): boolean {
   return message.includes("Download the React DevTools");
 }
 
-// ApiQuietTracker counts in-flight /eshu-api requests on a page so the runner
-// can wait for a route's data fetches to settle before navigating away. This
-// prevents client-side navigation from aborting still-pending requests
-// (net::ERR_ABORTED), which would otherwise be indistinguishable from a real
-// failed request at the gate. Listeners are installed once and span the whole
-// route walk.
-interface ApiQuietTracker {
-  inFlight(): number;
-  lastChangeAt(): number;
-}
-
-function installApiQuietTracker(page: Page): ApiQuietTracker {
-  let inFlight = 0;
-  let lastChangeAt = Date.now();
-  const isApi = (url: string): boolean => url.includes("/eshu-api/");
-  const settle = (url: string): void => {
-    if (!isApi(url)) {
-      return;
-    }
-    inFlight = Math.max(0, inFlight - 1);
-    lastChangeAt = Date.now();
-  };
-  page.on("request", (request) => {
-    if (isApi(request.url())) {
-      inFlight += 1;
-      lastChangeAt = Date.now();
-    }
-  });
-  page.on("requestfinished", (request) => settle(request.url()));
-  page.on("requestfailed", (request) => settle(request.url()));
-  return {
-    inFlight: () => inFlight,
-    lastChangeAt: () => lastChangeAt,
-  };
-}
-
 // waitForApiQuiet blocks until no /eshu-api request has been in flight for a
-// short quiet window, or a hard cap elapses. The cap bounds slow/hung backends
-// without masking them: any request still pending at the cap will be captured
-// as in-flight, and if it later aborts on navigation the gate still records it.
-async function waitForApiQuiet(page: Page, tracker: ApiQuietTracker): Promise<void> {
-  const quietWindowMs = 600;
-  const capMs = 12000;
-  const start = Date.now();
-  for (;;) {
-    const idleFor = Date.now() - tracker.lastChangeAt();
-    if (tracker.inFlight() === 0 && idleFor >= quietWindowMs) {
-      return;
+// short quiet window, or a hard cap elapses. The cap is deliberately longer
+// than EshuApiClient's request timeout, so a client-timed-out request settles on
+// its owning route before navigation can attribute its abort to the next one.
+async function waitForApiQuiet(page: Page, tracker: ApiQuietTracker) {
+  return awaitApiQuiet(tracker, (duration) => page.waitForTimeout(duration));
+}
+
+function allowedConsoleStatuses(network: readonly NetworkObservation[]): readonly number[] {
+  return network.flatMap((observation) => {
+    let pathname = "";
+    try {
+      pathname = new URL(observation.url).pathname;
+    } catch {
+      return [];
     }
-    if (Date.now() - start >= capMs) {
-      return;
-    }
-    await page.waitForTimeout(100);
-  }
+    return defaultNetworkAllowList.some(
+      (rule) =>
+        rule.method === observation.method.toUpperCase() &&
+        rule.pathname === pathname &&
+        rule.status === observation.status,
+    )
+      ? [observation.status]
+      : [];
+  });
 }
 
 // captureRoute navigates to one route and records its signals. localStorage is
 // seeded once on the first navigation (origin is stable across routes).
-async function captureRoute(
+export async function captureRoute(
   page: Page,
   route: ConsoleRoute,
   tracker: ApiQuietTracker,
+  allNetwork: readonly NetworkObservation[],
+  screenshotsDir: string,
+  bootstrapNetwork: readonly NetworkObservation[] = [],
+  indexedRepositoryInventory: IndexedRepositoryInventoryAnchor | null = null,
+  loadImpactFindings?: LoadImpactFindings,
 ): Promise<RouteSignals> {
+  const startedAt = Date.now();
   const consoleErrors: string[] = [];
-  const network: NetworkObservation[] = [];
+  const networkStart = allNetwork.length;
 
   const onConsole = (msg: { type: () => string; text: () => string }): void => {
     if (msg.type() === "error" && !ignorableConsoleError(msg.text())) {
@@ -225,46 +151,51 @@ async function captureRoute(
   const onPageError = (error: Error): void => {
     consoleErrors.push(`uncaught: ${error.message}`);
   };
-  const onResponse = (response: {
-    url: () => string;
-    status: () => number;
-    request: () => { method: () => string };
-  }): void => {
-    network.push({
-      url: response.url(),
-      method: response.request().method(),
-      status: response.status(),
-      failureText: null,
-    });
-  };
-  const onRequestFailed = (request: {
-    url: () => string;
-    method: () => string;
-    failure: () => { errorText: string } | null;
-  }): void => {
-    network.push({
-      url: request.url(),
-      method: request.method(),
-      status: 0,
-      failureText: request.failure()?.errorText ?? "request failed",
-    });
-  };
-
   page.on("console", onConsole);
   page.on("pageerror", onPageError);
-  page.on("response", onResponse);
-  page.on("requestfailed", onRequestFailed);
 
-  // Navigate and wait for the DOM to be ready. We intentionally use
-  // "domcontentloaded" rather than "networkidle": the console runs background
-  // status polls that may never let the network go fully idle, and waiting on
-  // idle would either hang or mask the rendered state. We then wait for this
-  // route's /eshu-api fetches to settle so navigating to the next route cannot
-  // abort still-pending requests. A genuine navigation failure (e.g. dev server
-  // down) still throws and fails the run.
-  await page.goto(routeUrl(page, route), { waitUntil: "domcontentloaded", timeout: navTimeoutMs });
+  // Keep the connected app shell alive while changing routes. Repeating a
+  // document-level page.goto here rebooted the full snapshot on every route,
+  // multiplied boot fan-out, and attributed the prior route's aborted requests
+  // to the next route. This follows the same history/popstate contract as the
+  // router's in-app links, then waits until the router has accepted the path.
+  await navigateClientRoute(
+    route.path,
+    async (path) => {
+      await page.evaluate((nextPath) => {
+        window.history.pushState({}, "", nextPath);
+        window.dispatchEvent(new PopStateEvent("popstate"));
+      }, path);
+    },
+    async (path) => {
+      await page.waitForFunction(
+        (expectedPath) => window.location.pathname === expectedPath,
+        path,
+        { timeout: navTimeoutMs },
+      );
+    },
+  );
+  await page.waitForSelector(".source-pill.src-connected", { timeout: navTimeoutMs });
   await page.waitForTimeout(perRouteSettleMs);
-  await waitForApiQuiet(page, tracker);
+  const apiQuiet = await waitForApiQuiet(page, tracker);
+
+  // A route may prove only responses observed after its own navigation began.
+  // Bootstrap remains an explicit, separately evaluated preflight below.
+  const routeNetwork = allNetwork.slice(networkStart);
+  const workflow = route.workflow
+    ? await executeRouteWorkflow(
+        page,
+        route.workflow,
+        async () => {
+          const result = await waitForApiQuiet(page, tracker);
+          if (!result.settled) throw new Error(`${result.inFlight} API request(s) remained active`);
+        },
+        routeNetwork,
+        bootstrapNetwork,
+        loadImpactFindings,
+        indexedRepositoryInventory,
+      )
+    : null;
 
   const dom = await page.evaluate(() => {
     const pill = document.querySelector(".source-pill");
@@ -294,8 +225,7 @@ async function captureRoute(
 
   page.off("console", onConsole);
   page.off("pageerror", onPageError);
-  page.off("response", onResponse);
-  page.off("requestfailed", onRequestFailed);
+  const network = allNetwork.slice(networkStart);
 
   return {
     route,
@@ -303,14 +233,15 @@ async function captureRoute(
     sourceMode: dom.sourceMode,
     demoBannerPresent: dom.demoBannerPresent,
     mainContentChars: dom.mainContentChars,
-    consoleErrors,
+    consoleErrors: filterAllowedResourceConsoleErrors(
+      consoleErrors,
+      allowedConsoleStatuses(network),
+    ),
     network,
+    workflow,
+    apiQuiet,
+    durationMs: Date.now() - startedAt,
   };
-}
-
-function routeUrl(page: Page, route: ConsoleRoute): string {
-  const origin = new URL(page.url()).origin;
-  return `${origin}${route.path}`;
 }
 
 // runConsoleLiveE2E runs the gate and returns a process exit code (0 = pass).
@@ -320,29 +251,62 @@ function routeUrl(page: Page, route: ConsoleRoute): string {
 // TypeScript module through Vite's SSR transformer so the gate runs on any
 // supported Node version without native TS stripping or an extra dependency.
 export async function runConsoleLiveE2E(): Promise<number> {
-  if (apiKey.length === 0) {
+  let consolePort: number;
+  let artifactPaths: LiveE2EArtifactPaths;
+  try {
+    consolePort = parseLiveE2EConsolePort(process.env.ESHU_E2E_CONSOLE_PORT);
+    artifactPaths = liveE2EArtifactPaths(repoRoot, process.env.ESHU_E2E_PROOF_ID?.trim() ?? "");
+  } catch (error) {
     process.stderr.write(
-      "console-live-e2e: ESHU_E2E_API_KEY is required so the console can authenticate against the live API\n",
+      `console-live-e2e: ${error instanceof Error ? error.message : String(error)}\n`,
+    );
+    return 1;
+  }
+  if (authMode === "bearer" && apiKey.length === 0) {
+    process.stderr.write("console-live-e2e: ESHU_E2E_API_KEY is required in bearer mode\n");
+    return 1;
+  }
+  if (
+    authMode === "browser_session" &&
+    (postgresDSN === "" || authSecretEncKey === "" || wizardNewPassword === "")
+  ) {
+    process.stderr.write(
+      "console-live-e2e: browser_session mode requires ESHU_E2E_POSTGRES_DSN, ESHU_AUTH_SECRET_ENC_KEY, and ESHU_E2E_WIZARD_NEW_PASSWORD\n",
     );
     return 1;
   }
 
-  // Clean only this gate's own outputs, not the whole artifacts dir: the dir
-  // also holds operator-managed files (logs, the local env file) that the gate
-  // must not delete.
-  await rm(screenshotsDir, { recursive: true, force: true });
-  await rm(tracePath, { force: true });
-  await rm(reportPath, { force: true });
-  await mkdir(screenshotsDir, { recursive: true });
+  // Clean only this proof identity's outputs. Other concurrent runs and
+  // operator-managed files remain untouched.
+  await prepareLiveE2EArtifacts(artifactPaths);
 
   process.stdout.write(`console-live-e2e: live API base ${apiBase}\n`);
 
-  const server = await startDevServer();
+  const captureTrace = traceCaptureEnabled(process.env.ESHU_CONSOLE_E2E_TRACE);
+  let server: LiveE2EDevServer | undefined;
   let browser: Browser | undefined;
   try {
+    server = await startLiveE2EDevServer({
+      repoRoot,
+      apiBase,
+      apiKey,
+      useBearerAuth: authMode === "bearer",
+      port: consolePort,
+    });
     browser = await chromium.launch();
+    let proofManifest;
+    try {
+      proofManifest = proofManifestForLaunchedBrowser(process.env, browser);
+    } catch (error) {
+      process.stderr.write(
+        `console-live-e2e: ${error instanceof Error ? error.message : String(error)}\n`,
+      );
+      return 1;
+    }
     const context = await browser.newContext();
-    await context.tracing.start({ screenshots: true, snapshots: true });
+    if (captureTrace) {
+      await context.tracing.start({ screenshots: true, snapshots: true });
+    }
 
     // Seed the private-mode environment on the dev-server origin before the app
     // script runs, so the console boots straight into a live connection.
@@ -358,6 +322,18 @@ export async function runConsoleLiveE2E(): Promise<number> {
 
     const page = await context.newPage();
     const tracker = installApiQuietTracker(page);
+    if (authMode === "browser_session") {
+      const sessionProof = await establishRetainedWizardSession(page, {
+        consoleBaseUrl: server.baseUrl,
+        postgresDSN,
+        authSecretEncKey,
+        newPassword: wizardNewPassword,
+        timeoutMs: navTimeoutMs,
+      });
+      process.stdout.write(`console-live-e2e: ${sessionProof}\n`);
+      await awaitRetainedWizardSessionQuiet(page, tracker);
+    }
+    const networkRecorder = installNetworkObservationRecorder(page);
     // Prime the origin once so the init script and storage are in place. A
     // failure here means the dev server is unreachable and must fail the run.
     await page.goto(server.baseUrl, { waitUntil: "domcontentloaded", timeout: navTimeoutMs });
@@ -369,35 +345,102 @@ export async function runConsoleLiveE2E(): Promise<number> {
     await page.waitForSelector(".source-pill.src-connected", { timeout: navTimeoutMs });
     // Let the boot connect's fetches fully settle before the first route, so the
     // first navigation does not abort in-flight boot requests.
-    await waitForApiQuiet(page, tracker);
+    const bootQuiet = await waitForApiQuiet(page, tracker);
+    if (!bootQuiet.settled) {
+      throw new Error(
+        `${bootQuiet.inFlight} boot API request(s) remained active after ${bootQuiet.waitedMs}ms`,
+      );
+    }
+    const bootstrapNetwork = [...networkRecorder.observations];
+    const bootstrapEvaluation = evaluateNetworkObservations(
+      "bootstrap",
+      bootstrapNetwork,
+      defaultNetworkAllowList,
+    );
+    process.stdout.write(
+      `  ${bootstrapEvaluation.passed ? "PASS" : "FAIL"} bootstrap network (reqs=${bootstrapNetwork.length}, errors=${bootstrapEvaluation.failures.length})\n`,
+    );
+    for (const failure of bootstrapEvaluation.failures) {
+      process.stdout.write(`        - ${failure.code}: ${failure.detail}\n`);
+    }
+
+    const authCoverage = createAuthRouteCoverage(consoleRoutes, authMode);
+    process.stdout.write(formatAuthRouteCoverage(authCoverage));
+    const proofFetcher =
+      authMode === "browser_session" ? createBrowserSessionFetcher(page) : globalThis.fetch;
+    const proofAPIKey = authMode === "browser_session" ? "" : apiKey;
+    const indexedRepositoryInventory = await loadIndexedRepositoryInventoryAnchor(
+      apiBase,
+      proofAPIKey,
+      proofFetcher,
+    );
+    assertProofManifestRepositoryCount(proofManifest, indexedRepositoryInventory.total);
+    const loadImpactFindings = createImpactFindingsLoader(apiBase, proofAPIKey, proofFetcher);
 
     const results: RouteResult[] = [];
-    for (const route of consoleRoutes) {
-      const signals = await captureRoute(page, route, tracker);
+    const observations = [];
+    for (const route of authCoverage.eligibleRoutes) {
+      const signals = await captureRoute(
+        page,
+        route,
+        tracker,
+        networkRecorder.observations,
+        artifactPaths.screenshotsDir,
+        bootstrapNetwork,
+        indexedRepositoryInventory,
+        loadImpactFindings,
+      );
+      observations.push(buildRouteReportObservation(signals));
       const result = evaluateRoute(signals, defaultNetworkAllowList);
       results.push(result);
       const status = result.passed ? "PASS" : "FAIL";
+      const workflowStatus = signals.workflow
+        ? `${signals.workflow.passed ? "pass" : "fail"}:${signals.workflow.id}`
+        : "none";
       process.stdout.write(
-        `  ${status} ${route.path} (mode=${signals.sourceMode}, mainChars=${signals.mainContentChars}, errors=${signals.consoleErrors.length}, reqs=${signals.network.length})\n`,
+        `  ${status} ${route.path} (duration=${signals.durationMs}ms, mode=${signals.sourceMode}, workflow=${workflowStatus}, mainChars=${signals.mainContentChars}, errors=${signals.consoleErrors.length}, reqs=${signals.network.length})\n`,
       );
       for (const failure of result.failures) {
         process.stdout.write(`        - ${failure.code}: ${failure.detail}\n`);
       }
     }
 
-    await context.tracing.stop({ path: tracePath });
+    if (captureTrace) {
+      await context.tracing.stop({ path: artifactPaths.tracePath });
+    }
+    networkRecorder.stop();
     await browser.close();
     browser = undefined;
 
-    const summary = summarizeGate(results);
-    await writeFile(reportPath, JSON.stringify({ apiBase, summary }, null, 2), "utf8");
+    const summary = summarizeGate(results, [bootstrapEvaluation]);
+    await writeFile(
+      artifactPaths.reportPath,
+      JSON.stringify(
+        {
+          apiBase,
+          proofManifest,
+          ...authCoverageReport(authCoverage),
+          bootstrap: {
+            apiQuiet: bootQuiet,
+            requestCount: bootstrapNetwork.length,
+            ...buildNetworkReportObservation(bootstrapNetwork),
+            verdict: bootstrapEvaluation,
+          },
+          observations,
+          summary,
+        },
+        null,
+        2,
+      ),
+      "utf8",
+    );
     process.stdout.write(
-      `console-live-e2e: ${summary.passedCount}/${summary.total} routes passed; report ${reportPath}\n`,
+      `console-live-e2e: ${summary.passedCount}/${summary.total} routes passed; report ${artifactPaths.reportPath}\n`,
     );
 
     if (!summary.passed) {
       process.stderr.write(
-        `console-live-e2e: ${summary.failedCount} route(s) failed the live gate\n`,
+        `console-live-e2e: ${summary.failedCount} route(s) and ${summary.preflightFailureCount} preflight request(s) failed the live gate\n`,
       );
       return 1;
     }
@@ -406,6 +449,6 @@ export async function runConsoleLiveE2E(): Promise<number> {
     if (browser) {
       await browser.close().catch(() => undefined);
     }
-    await stopDevServer(server);
+    if (server) await stopLiveE2EDevServer(server);
   }
 }

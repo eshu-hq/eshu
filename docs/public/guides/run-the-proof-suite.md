@@ -9,30 +9,12 @@ landing: false
 
 # Run the proof suite
 
-Two commands cover almost every change: `make pre-pr` for the general
-credential-free CI mirror, `make prove` for Ifá's own conformance mirror. Run
-both before opening or updating a PR that touches `go/internal/ifa`,
-`go/cmd/ifa`, or anything the gate registry maps to them.
+Two commands cover almost every Ifá change, but they run at different stages:
+`make prove` is focused conformance proof; `make pre-pr` is the late general
+promotion gate. Use the order below before opening or updating a PR that touches
+`go/internal/ifa`, `go/cmd/ifa`, or anything the gate registry maps to them.
 
-## 1. Run `make pre-pr`
-
-```bash
-make pre-pr
-```
-
-This runs gofumpt and golangci-lint over the whole module, `go build` and
-`go vet`, the focused tests for packages you changed, the 500-line file cap
-and package-docs gates, and the credential-free exactness gates your changed
-paths select from `specs/ci-gates.v1.yaml` — including `ifa-contract-layer`
-and `ifa-load-saturation` when you touch `go/internal/ifa` or `go/cmd/ifa`.
-
-To see exactly which gates your branch selects, and why:
-
-```bash
-bash scripts/dev/select-gates.sh --base origin/main --tier pre-pr --explain
-```
-
-## 2. Run `make prove`
+## 1. Run focused proof with `make prove`
 
 ```bash
 make prove
@@ -55,6 +37,35 @@ matrix when your changed paths select it and Docker is present:
   `ifa-determinism` or `ifa-dead-letter-matrix` and Docker is running.
   Without Docker, `make prove` prints operator guidance and defers loudly —
   it never reports a silent pass.
+
+## 2. Review, promote once, and review the exact diff
+
+After focused proof is green:
+
+1. Run a preliminary full `eshu-code-review` of the rebased diff. Fix every P0,
+   P1, and P2 finding, rerun affected focused proof, and repeat the full review
+   until its verdict is `P0=0, P1=0, P2=0`. Do not run `make pre-pr` sooner.
+2. When the branch is otherwise ready to push, run `make pre-pr` exactly once
+   as the late promotion gate.
+3. Run a final full `eshu-code-review` against the exact post-preflight diff.
+   Make no edits before push; any diff change invalidates the verdict and
+   restarts the sequence at focused proof.
+
+```bash
+make pre-pr
+```
+
+This runs gofumpt and golangci-lint over the whole module, `go build` and
+`go vet`, the focused tests for packages you changed, the 500-line file cap
+and package-docs gates, and the credential-free exactness gates your changed
+paths select from `specs/ci-gates.v1.yaml` — including `ifa-contract-layer`
+and `ifa-load-saturation` when you touch `go/internal/ifa` or `go/cmd/ifa`.
+
+To see exactly which gates your branch selects, and why:
+
+```bash
+bash scripts/dev/select-gates.sh --base origin/main --tier pre-pr --explain
+```
 
 ## Reading the output
 

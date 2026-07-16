@@ -277,8 +277,12 @@ route. It returns coverage, language maturity, exactness blockers,
 cleanup-ready and ambiguous buckets, suppressed modeled roots, source handles,
 recommended next calls, paging, and truncation state.
 
-`POST /api/v0/code/dead-code` is the lower-level candidate scan. `repo_id` and
-`language` are optional; `limit` defaults to `100` and is capped at `500`.
+`POST /api/v0/code/dead-code` is the lower-level candidate scan. `repo_id`,
+`language`, and `candidate_kind` are optional; `limit` defaults to `100` and is
+capped at `500`. `candidate_kind` accepts the exact advertised labels
+`Function`, `Class`, `Struct`, `Interface`, `Trait`, and `SqlFunction`. A
+selected kind narrows the raw scan and its reported bound to that kind;
+unsupported values return `400` instead of silently scanning functions.
 
 Both routes remain `derived` until the broader framework, public API,
 reflection, and user-configured root registry from

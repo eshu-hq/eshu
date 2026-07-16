@@ -14,15 +14,15 @@ function envelope(results: readonly Record<string, unknown>[]) {
       analysis: { dead_code_language_maturity: { typescript: "experimental" } },
       limit: 100,
       results,
-      truncated: true
+      truncated: true,
     },
     error: null,
     truth: {
       capability: "code_quality.dead_code",
       freshness: { state: "fresh" },
       level: "derived",
-      profile: "production"
-    }
+      profile: "production",
+    },
   };
 }
 
@@ -46,7 +46,7 @@ describe("DeadCodePage", () => {
       ...demoModel,
       findings: [
         ...demoModel.findings.map((finding) =>
-          finding.id === "d2" ? { ...finding, detail: "src/discounts.ts · unused" } : finding
+          finding.id === "d2" ? { ...finding, detail: "src/discounts.ts · unused" } : finding,
         ),
         {
           id: "d3",
@@ -54,9 +54,9 @@ describe("DeadCodePage", () => {
           entity: "payments-service",
           title: "Unreferenced symbol oldWebhook",
           detail: "src/webhooks.ts · ambiguous",
-          truth: "derived"
-        }
-      ]
+          truth: "derived",
+        },
+      ],
     };
     renderDeadCode(<DeadCodePage model={model} />);
 
@@ -69,7 +69,7 @@ describe("DeadCodePage", () => {
   it("renders an honest empty state when no dead-code candidates exist", () => {
     const empty: ConsoleModel = {
       ...demoModel,
-      findings: demoModel.findings.filter((finding) => finding.type !== "Dead code")
+      findings: demoModel.findings.filter((finding) => finding.type !== "Dead code"),
     };
 
     renderDeadCode(<DeadCodePage model={empty} />);
@@ -80,47 +80,70 @@ describe("DeadCodePage", () => {
   it("loads the dedicated live dead-code scan with filters", async () => {
     const get = vi.fn(async () => ({
       data: {
-        repositories: [{ id: "repository:r1", name: "svc-platform" }]
+        repositories: [{ id: "repository:r1", name: "svc-platform" }],
       },
       error: null,
-      truth: null
+      truth: null,
     }));
-    const post = vi.fn(async () => envelope([{
-      classification: "unused",
-      entity_id: "function:f1",
-      file_path: "server/routes.ts",
-      labels: ["Function"],
-      language: "typescript",
-      name: "unusedRoute",
-      repo_id: "repository:r1",
-      start_line: 10
-    }]));
+    const post = vi.fn(async (_path: string, body: Record<string, unknown>) =>
+      envelope([
+        {
+          classification: "unused",
+          entity_id: body.candidate_kind === "Trait" ? "trait:t1" : "function:f1",
+          file_path: "server/routes.ts",
+          labels: [body.candidate_kind === "Trait" ? "Trait" : "Function"],
+          language: "typescript",
+          name: body.candidate_kind === "Trait" ? "UnusedTrait" : "unusedRoute",
+          repo_id: "repository:r1",
+          start_line: 10,
+        },
+      ]),
+    );
     const client = { get, post } as unknown as EshuApiClient;
 
     renderDeadCode(<DeadCodePage client={client} model={{ ...demoModel, findings: [] }} />);
 
-    await waitFor(() => expect(screen.getByText("Unreferenced symbol unusedRoute")).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByText("Unreferenced symbol unusedRoute")).toBeInTheDocument(),
+    );
     expect(screen.getByText("svc-platform")).toBeInTheDocument();
     expect(screen.queryByText("repository:r1")).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "server/routes.ts:10" })).toHaveAttribute(
       "href",
-      "/repositories/repository%3Ar1/source?path=server%2Froutes.ts&lineStart=10"
+      "/repositories/repository%3Ar1/source?path=server%2Froutes.ts&lineStart=10",
     );
     expect(screen.getByRole("link", { name: "Open graph" })).toHaveAttribute(
       "href",
-      "/code-graph?candidate=function%3Af1"
+      "/code-graph?candidate=function%3Af1",
     );
     expect(post).toHaveBeenLastCalledWith("/api/v0/code/dead-code", { limit: 100 });
 
-    fireEvent.change(screen.getByLabelText("Repository selector"), { target: { value: "repository:r1" } });
-    fireEvent.change(screen.getByLabelText("Language selector"), { target: { value: "typescript" } });
+    fireEvent.change(screen.getByLabelText("Repository selector"), {
+      target: { value: "repository:r1" },
+    });
+    fireEvent.change(screen.getByLabelText("Language selector"), {
+      target: { value: "typescript" },
+    });
     fireEvent.click(screen.getByRole("button", { name: "Apply" }));
 
-    await waitFor(() => expect(post).toHaveBeenLastCalledWith("/api/v0/code/dead-code", {
-      language: "typescript",
-      limit: 100,
-      repo_id: "repository:r1"
-    }));
+    await waitFor(() =>
+      expect(post).toHaveBeenLastCalledWith("/api/v0/code/dead-code", {
+        language: "typescript",
+        limit: 100,
+        repo_id: "repository:r1",
+      }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /trait/i }));
+    await waitFor(() =>
+      expect(post).toHaveBeenLastCalledWith("/api/v0/code/dead-code", {
+        candidate_kind: "Trait",
+        language: "typescript",
+        limit: 100,
+        repo_id: "repository:r1",
+      }),
+    );
+    expect(await screen.findByText("Unreferenced symbol UnusedTrait")).toBeInTheDocument();
     expect(screen.getByText(/100 candidate scan/)).toBeInTheDocument();
   });
 });

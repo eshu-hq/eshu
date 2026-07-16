@@ -32,12 +32,9 @@ import (
 // same database so environment noise affects both equally.
 //
 // Correctness is proven alongside the timing by querying the raw columns
-// directly (not via ValueStore.ListActive/MetadataStore.ListActive, which
-// have an unrelated, pre-existing, out-of-scope-for-#4430 scan bug against
-// the pgx stdlib driver: they scan vector_values without pq.Array, which
-// fails outside the sqlmock-backed unit tests). This proves the batched path
-// persists the same row count and content per document as the per-document
-// path would have.
+// directly so the write comparison is independent of active-generation and
+// ready-metadata read filters. This proves the batched path persists the same
+// row count and content per document as the per-document path would have.
 //
 // Set ESHU_SEARCH_VECTOR_UPSERT_BATCH_SCALE_LIVE=1 and ESHU_POSTGRES_DSN to a
 // live Postgres DSN to run this proof. The test is skipped when either env

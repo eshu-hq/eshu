@@ -1,12 +1,30 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 
+import { discoverDefaultChangedSinceParams } from "./changedSinceDefault";
 import { ChangedSincePacketComparison } from "./ChangedSincePacketComparison";
+import {
+  ChangedSinceCategoryRows,
+  FilterInput,
+  GenerationLifecycleRows,
+  generationPair,
+  impactLink,
+  sampleTotal,
+} from "./ChangedSincePresentation";
+import {
+  addChangedSinceParam,
+  changedSinceDefaultLimit,
+  changedSinceFormFromSearch,
+  hasChangedSinceRepositoryScope,
+  hasChangedSinceUserScope,
+  isBoundedChangedSince,
+  optionalChangedSinceValue,
+  parseChangedSinceLimit,
+  type ChangedSinceFormState,
+} from "./changedSinceQuery";
 import {
   type ChangedSinceMode,
   type ChangedSincePageData,
-  type ChangeClassification,
-  type ChangedSinceCategory,
   type GenerationLifecyclePage,
   loadGenerationLifecycle,
   loadRepositoryChangedSince,
@@ -14,113 +32,156 @@ import {
 } from "../api/changedSince";
 import type { EshuApiClient } from "../api/client";
 import { buildEvidencePacketComparison } from "../api/evidencePacketDelta";
+import type { RepoListItem } from "../api/repoCatalog";
 import { Badge, FreshDot, Panel, StatTile, TruthChip } from "../components/atoms";
-import {
-  defaultChangedSinceParams,
-  type DefaultChangedSinceParams,
-} from "../console/defaultEntity";
-import type { ConsoleModel } from "../console/types";
 import { fmt, uiFresh, uiTruth } from "../console/types";
 import "./changedSincePage.css";
 
-interface FormState {
-  readonly mode: ChangedSinceMode;
-  readonly repository: string;
-  readonly sampleLimit: string;
-  readonly scopeId: string;
-  readonly serviceId: string;
-  readonly sinceGenerationId: string;
-  readonly sinceObservedAt: string;
+interface DefaultDiscoveryOwner {
+  readonly client: EshuApiClient;
+  readonly controller: AbortController;
+  readonly promise: Promise<Awaited<ReturnType<typeof discoverDefaultChangedSinceParams>>>;
+  readonly repositoryKey: string;
 }
-
-const defaultLimit = "25";
-const classifications: readonly ChangeClassification[] = [
-  "added",
-  "updated",
-  "retired",
-  "superseded",
-  "unchanged",
-];
 
 export function ChangedSincePage({
   client,
-  model,
+  repositories = [],
 }: {
   readonly client?: EshuApiClient;
-  readonly model?: ConsoleModel;
+  readonly repositories?: readonly RepoListItem[];
 }): React.JSX.Element {
   const [searchParams, setSearchParams] = useSearchParams();
-  // Auto-load a sensible default on open: with no explicit scope/baseline in the
-  // URL, seed a real repository scope plus a default observed-at window from the
-  // live catalog so the page renders a delta immediately instead of an empty
-  // form. Any explicit URL filter wins; the query form still overrides.
-  const seedDefault = useMemo(
-    () => (model && client ? defaultChangedSinceParams(model) : null),
-    [client, model],
+  const defaultRequest = useRef(0);
+  const defaultOwner = useRef<DefaultDiscoveryOwner | null>(null);
+  const defaultAbortTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const defaultRepositoryKey = useMemo(
+    () => JSON.stringify(repositories.map((repository) => repository.id.trim())),
+    [repositories],
   );
-  const [form, setForm] = useState<FormState>(() => formFromSearch(searchParams, seedDefault));
+  const userScoped = useMemo(() => hasChangedSinceUserScope(searchParams), [searchParams]);
+  const [form, setForm] = useState<ChangedSinceFormState>(() =>
+    changedSinceFormFromSearch(searchParams),
+  );
   const [page, setPage] = useState<ChangedSincePageData | null>(null);
   const [generations, setGenerations] = useState<GenerationLifecyclePage | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const request = useMemo(
-    () => formFromSearch(searchParams, seedDefault),
-    [searchParams, seedDefault],
-  );
+  const changedRequest = useRef(0);
+  const generationsRequest = useRef(0);
+  const request = useMemo(() => changedSinceFormFromSearch(searchParams), [searchParams]);
   const hasLiveClient = client !== undefined;
-  const canLoadChanges = hasLiveClient && isBounded(request);
+  const canLoadChanges = hasLiveClient && isBoundedChangedSince(request);
   const canLoadGenerations =
-    hasLiveClient && request.mode === "repository" && hasRepositoryScope(request);
+    hasLiveClient && request.mode === "repository" && hasChangedSinceRepositoryScope(request);
+
+  useEffect(() => {
+    if (defaultAbortTimer.current !== null) {
+      clearTimeout(defaultAbortTimer.current);
+      defaultAbortTimer.current = null;
+    }
+    const abortOwner = (owner: DefaultDiscoveryOwner): void => {
+      owner.controller.abort(new DOMException("changed-since page changed", "AbortError"));
+      if (defaultOwner.current === owner) defaultOwner.current = null;
+    };
+    const scheduleDiscoveryAbort = (owner: DefaultDiscoveryOwner | null): void => {
+      if (!owner) return;
+      defaultAbortTimer.current = setTimeout(() => {
+        if (defaultOwner.current === owner) abortOwner(owner);
+        defaultAbortTimer.current = null;
+      }, 0);
+    };
+    const requestID = ++defaultRequest.current;
+    let active = true;
+    const existingOwner = defaultOwner.current;
+    if (!client || userScoped) {
+      if (existingOwner) abortOwner(existingOwner);
+      return;
+    }
+    if (
+      existingOwner &&
+      (existingOwner.client !== client || existingOwner.repositoryKey !== defaultRepositoryKey)
+    ) {
+      abortOwner(existingOwner);
+    }
+    let owner = defaultOwner.current;
+    if (!owner) {
+      const controller = new AbortController();
+      owner = {
+        client,
+        controller,
+        promise: discoverDefaultChangedSinceParams(client, repositories, {
+          signal: controller.signal,
+        }).catch(() => null),
+        repositoryKey: defaultRepositoryKey,
+      };
+      defaultOwner.current = owner;
+    }
+    void owner.promise.then((selected) => {
+      if (!active || defaultRequest.current !== requestID || !selected) return;
+      const params = new URLSearchParams();
+      params.set("mode", "repository");
+      params.set("scope_id", selected.scopeId);
+      params.set("since_generation_id", selected.sinceGenerationId);
+      setSearchParams(params, { replace: true });
+    });
+    return () => {
+      active = false;
+      scheduleDiscoveryAbort(owner);
+    };
+  }, [client, defaultRepositoryKey, repositories, setSearchParams, userScoped]);
 
   const load = useCallback(
-    async (next: FormState) => {
-      if (!client || !isBounded(next)) return;
+    async (next: ChangedSinceFormState) => {
+      if (!client || !isBoundedChangedSince(next)) return;
+      const requestID = ++changedRequest.current;
       setBusy(true);
       setError("");
       try {
         const loaded =
           next.mode === "service"
             ? await loadServiceChangedSince(client, {
-                sampleLimit: parsedLimit(next.sampleLimit),
+                sampleLimit: parseChangedSinceLimit(next.sampleLimit),
                 serviceId: next.serviceId,
                 sinceGenerationId: next.sinceGenerationId,
               })
             : await loadRepositoryChangedSince(client, {
-                repository: optional(next.repository),
-                sampleLimit: parsedLimit(next.sampleLimit),
-                scopeId: optional(next.scopeId),
-                sinceGenerationId: optional(next.sinceGenerationId),
-                sinceObservedAt: optional(next.sinceObservedAt),
+                repository: optionalChangedSinceValue(next.repository),
+                sampleLimit: parseChangedSinceLimit(next.sampleLimit),
+                scopeId: optionalChangedSinceValue(next.scopeId),
+                sinceGenerationId: optionalChangedSinceValue(next.sinceGenerationId),
+                sinceObservedAt: optionalChangedSinceValue(next.sinceObservedAt),
               });
-        setPage(loaded);
+        if (changedRequest.current === requestID) setPage(loaded);
       } catch (loadError) {
+        if (changedRequest.current !== requestID) return;
         setPage(null);
         setError(
           loadError instanceof Error ? loadError.message : "failed to load changed-since data",
         );
       } finally {
-        setBusy(false);
+        if (changedRequest.current === requestID) setBusy(false);
       }
     },
     [client],
   );
 
   const loadGenerations = useCallback(
-    async (next: FormState) => {
-      if (!client || next.mode !== "repository" || !hasRepositoryScope(next)) {
+    async (next: ChangedSinceFormState) => {
+      const requestID = ++generationsRequest.current;
+      if (!client || next.mode !== "repository" || !hasChangedSinceRepositoryScope(next)) {
         setGenerations(null);
         return;
       }
       try {
-        setGenerations(
-          await loadGenerationLifecycle(client, {
-            limit: 50,
-            repository: optional(next.repository),
-            scopeId: optional(next.scopeId),
-          }),
-        );
+        const loaded = await loadGenerationLifecycle(client, {
+          limit: 50,
+          repository: optionalChangedSinceValue(next.repository),
+          scopeId: optionalChangedSinceValue(next.scopeId),
+        });
+        if (generationsRequest.current === requestID) setGenerations(loaded);
       } catch {
-        setGenerations(null);
+        if (generationsRequest.current === requestID) setGenerations(null);
       }
     },
     [client],
@@ -131,12 +192,15 @@ export function ChangedSincePage({
     if (canLoadChanges) {
       void load(request);
     } else {
+      changedRequest.current += 1;
       setPage(null);
       setError("");
+      setBusy(false);
     }
     if (canLoadGenerations) {
       void loadGenerations(request);
     } else {
+      generationsRequest.current += 1;
       setGenerations(null);
     }
   }, [canLoadChanges, canLoadGenerations, load, loadGenerations, request]);
@@ -146,15 +210,15 @@ export function ChangedSincePage({
     const params = new URLSearchParams();
     params.set("mode", form.mode);
     if (form.mode === "service") {
-      addParam(params, "service_id", form.serviceId);
-      addParam(params, "since_generation_id", form.sinceGenerationId);
+      addChangedSinceParam(params, "service_id", form.serviceId);
+      addChangedSinceParam(params, "since_generation_id", form.sinceGenerationId);
     } else {
-      addParam(params, "repository", form.repository);
-      addParam(params, "scope_id", form.scopeId);
-      addParam(params, "since_generation_id", form.sinceGenerationId);
-      addParam(params, "since_observed_at", form.sinceObservedAt);
+      addChangedSinceParam(params, "repository", form.repository);
+      addChangedSinceParam(params, "scope_id", form.scopeId);
+      addChangedSinceParam(params, "since_generation_id", form.sinceGenerationId);
+      addChangedSinceParam(params, "since_observed_at", form.sinceObservedAt);
     }
-    if (form.sampleLimit.trim() !== "" && form.sampleLimit.trim() !== defaultLimit) {
+    if (form.sampleLimit.trim() !== "" && form.sampleLimit.trim() !== changedSinceDefaultLimit) {
       params.set("sample_limit", form.sampleLimit.trim());
     }
     setSearchParams(params);
@@ -227,7 +291,7 @@ export function ChangedSincePage({
         />
         <button
           className="btn-ghost active"
-          disabled={!hasLiveClient || busy || !isBounded(form)}
+          disabled={!hasLiveClient || busy || !isBoundedChangedSince(form)}
           type="submit"
         >
           {busy ? "Loading..." : "Load changes"}
@@ -237,7 +301,7 @@ export function ChangedSincePage({
       {!hasLiveClient ? (
         <p className="inline-state">Live Eshu API connection unavailable.</p>
       ) : null}
-      {!isBounded(request) ? (
+      {!isBoundedChangedSince(request) ? (
         <p className="inline-state">
           Choose a repository/scope or service and a baseline to load changed-since evidence.
         </p>
@@ -317,16 +381,7 @@ export function ChangedSincePage({
                     </tr>
                   </thead>
                   <tbody>
-                    {page.categories.map((category) => (
-                      <CategoryRow category={category} key={category.category} />
-                    ))}
-                    {page.categories.length === 0 ? (
-                      <tr>
-                        <td colSpan={3} className="empty">
-                          No delta categories returned for this retained window.
-                        </td>
-                      </tr>
-                    ) : null}
+                    <ChangedSinceCategoryRows categories={page.categories} />
                   </tbody>
                 </table>
               </div>
@@ -348,33 +403,7 @@ export function ChangedSincePage({
                   </tr>
                 </thead>
                 <tbody>
-                  {generations.generations.map((generation) => (
-                    <tr key={generation.generationId}>
-                      <td className="cell-stack">
-                        <span className="mono">{generation.generationId}</span>
-                        <small>
-                          {generation.sourceSystem || "source"} /{" "}
-                          {generation.collectorKind || "collector"}
-                        </small>
-                      </td>
-                      <td>
-                        {generation.isActive ? (
-                          <Badge tone="teal">active</Badge>
-                        ) : (
-                          <Badge>{generation.status || "unknown"}</Badge>
-                        )}
-                      </td>
-                      <td className="mono">{generation.observedAt ?? "-"}</td>
-                      <td>{fmt(generation.queueOutstanding)} outstanding</td>
-                    </tr>
-                  ))}
-                  {generations.generations.length === 0 ? (
-                    <tr>
-                      <td colSpan={4} className="empty">
-                        No generation lifecycle rows returned.
-                      </td>
-                    </tr>
-                  ) : null}
+                  <GenerationLifecycleRows generations={generations} />
                 </tbody>
               </table>
             </div>
@@ -386,147 +415,5 @@ export function ChangedSincePage({
         </Panel>
       </div>
     </div>
-  );
-}
-
-function FilterInput({
-  label,
-  onChange,
-  value,
-}: {
-  readonly label: string;
-  readonly onChange: (value: string) => void;
-  readonly value: string;
-}): React.JSX.Element {
-  return (
-    <label>
-      <span>{label}</span>
-      <input
-        aria-label={label}
-        className="popover-input mono"
-        onChange={(event) => onChange(event.target.value)}
-        value={value}
-      />
-    </label>
-  );
-}
-
-function CategoryRow({ category }: { readonly category: ChangedSinceCategory }): React.JSX.Element {
-  return (
-    <tr>
-      <td className="cell-stack">
-        <strong>{category.category || "unknown"}</strong>
-        <small>{fmt(category.changedCount)} changed</small>
-      </td>
-      <td className="changed-since-counts">
-        {classifications.map((classification) => (
-          <span key={classification}>
-            {classification} <b>{fmt(category.counts[classification])}</b>
-          </span>
-        ))}
-      </td>
-      <td>
-        <div className="changed-since-samples">
-          {classifications.flatMap((classification) =>
-            category.samples[classification].map((sample) => (
-              <span key={`${classification}:${sample.stableFactKey}:${sample.factKind}`}>
-                <Badge
-                  tone={
-                    classification === "retired" || classification === "superseded"
-                      ? "warn"
-                      : "neutral"
-                  }
-                >
-                  {classification}
-                </Badge>
-                <span className="mono">{sample.stableFactKey || "-"}</span>
-                <small>{sample.factKind || "fact"}</small>
-                {category.truncated[classification] ? <em>truncated</em> : null}
-              </span>
-            )),
-          )}
-          {sampleTotal(category) === 0 ? <span className="t-mut">no samples</span> : null}
-        </div>
-      </td>
-    </tr>
-  );
-}
-
-// SCOPE_PARAMS are the URL keys that signal the user has already chosen a
-// changed-since scope/baseline. When none are present (a fresh page open), the
-// page falls back to the catalog-derived default so it loads a delta on open.
-const SCOPE_PARAMS = [
-  "mode",
-  "repository",
-  "scope_id",
-  "service_id",
-  "since_generation_id",
-  "since_observed_at",
-] as const;
-
-function formFromSearch(
-  params: URLSearchParams,
-  seedDefault: DefaultChangedSinceParams | null = null,
-): FormState {
-  const userScoped = SCOPE_PARAMS.some((key) => (params.get(key) ?? "").trim().length > 0);
-  const mode = params.get("mode") === "service" ? "service" : "repository";
-  return {
-    mode,
-    repository: params.get("repository") ?? (userScoped ? "" : (seedDefault?.repository ?? "")),
-    sampleLimit: params.get("sample_limit") ?? defaultLimit,
-    scopeId: params.get("scope_id") ?? "",
-    serviceId: params.get("service_id") ?? "",
-    sinceGenerationId: params.get("since_generation_id") ?? "",
-    sinceObservedAt:
-      params.get("since_observed_at") ?? (userScoped ? "" : (seedDefault?.sinceObservedAt ?? "")),
-  };
-}
-
-function isBounded(form: FormState): boolean {
-  if (form.mode === "service") {
-    return form.serviceId.trim().length > 0 && form.sinceGenerationId.trim().length > 0;
-  }
-  return (
-    hasRepositoryScope(form) &&
-    (form.sinceGenerationId.trim().length > 0 || form.sinceObservedAt.trim().length > 0)
-  );
-}
-
-function hasRepositoryScope(form: FormState): boolean {
-  return form.repository.trim().length > 0 || form.scopeId.trim().length > 0;
-}
-
-function parsedLimit(value: string): number | undefined {
-  const parsed = Number.parseInt(value.trim(), 10);
-  return Number.isFinite(parsed) ? parsed : undefined;
-}
-
-function optional(value: string): string | undefined {
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : undefined;
-}
-
-function addParam(params: URLSearchParams, key: string, value: string): void {
-  const trimmed = value.trim();
-  if (trimmed.length > 0) params.set(key, trimmed);
-}
-
-function generationPair(page: ChangedSincePageData): string {
-  const since = page.sinceGenerationId || page.sinceObservedAt || "baseline";
-  const current = page.currentActiveGenerationId || page.currentObservedAt || "current";
-  return `${since} -> ${current}`;
-}
-
-function impactLink(page: ChangedSincePageData): string {
-  const params = new URLSearchParams();
-  params.set("kind", page.mode === "service" ? "service" : "repository");
-  params.set("target", page.scopeLabel || page.scopeId);
-  return `/impact?${params.toString()}`;
-}
-
-function sampleTotal(category: ChangedSinceCategory): number {
-  return classifications.reduce(
-    (sum, classification) => sum + category.samples[classification].length,
-    0,
   );
 }

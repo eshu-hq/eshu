@@ -1,151 +1,39 @@
 import type { EshuApiClient } from "./client";
-import { loadDeploymentConfigInfluence, type DeploymentConfigInfluence } from "./deploymentConfigInfluence";
+import {
+  loadDeploymentConfigInfluence,
+  type DeploymentConfigInfluence,
+} from "./deploymentConfigInfluence";
 import { deploymentGraphFromStory } from "./deploymentGraph";
 import type { EshuTruth } from "./envelope";
 import { getDemoWorkspaceStory } from "./mockData";
 import type { EntityKind, EvidenceRow, OverviewStat, WorkspaceStory } from "./mockData";
-import { deploymentArtifactDrilldown, drilldownForStorySection } from "./repositoryEvidenceDrilldown";
+import {
+  deploymentArtifactDrilldown,
+  drilldownForStorySection,
+} from "./repositoryEvidenceDrilldown";
 import { deploymentEvidenceSummary, isPresent, joinHuman, nonEmpty } from "./repositoryText";
+import type {
+  ContextConsumer,
+  ContextResponse,
+  DeploymentEvidenceArtifact,
+  LoadWorkspaceStoryOptions,
+  StoryResponse,
+} from "./repositoryTypes";
+export type {
+  ContextConsumer,
+  ContextResponse,
+  DeliveryPath,
+  DeploymentEvidenceArtifact,
+  LoadWorkspaceStoryOptions,
+  StoryResponse,
+  StorySection,
+} from "./repositoryTypes";
 import { serviceSpotlightFromContext } from "./serviceSpotlight";
 import type { ServiceContextResponse } from "./serviceSpotlight";
 import {
   serviceContextFromStoryDossier,
-  type ServiceStoryDossierResponse
+  type ServiceStoryDossierResponse,
 } from "./serviceStoryDossier";
-import type { ConsoleMode } from "../config/environment";
-
-export interface StoryResponse {
-  readonly deployment_overview?: {
-    readonly delivery_paths?: readonly DeliveryPath[];
-    readonly direct_story?: readonly string[];
-    readonly infrastructure_families?: readonly string[];
-    readonly topology_story?: readonly string[];
-    readonly workload_count?: number;
-    readonly workloads?: readonly string[];
-  };
-  readonly drilldowns?: {
-    readonly context_path?: string;
-    readonly coverage_path?: string;
-    readonly stats_path?: string;
-  };
-  readonly infrastructure_overview?: {
-    readonly artifact_family_counts?: Record<string, number>;
-    readonly entity_type_counts?: Record<string, number>;
-    readonly families?: readonly string[];
-  };
-  readonly limitations?: readonly string[];
-  readonly repository?: StoryRepository;
-  readonly semantic_overview?: {
-    readonly entity_count?: number;
-    readonly entity_type_counts?: Record<string, number>;
-    readonly language_counts?: Record<string, number>;
-  };
-  readonly story_sections?: readonly StorySection[];
-  readonly story?: string;
-  readonly service_identity?: { readonly repo_name?: string; readonly service_name?: string };
-  readonly service_name?: string;
-  readonly support_overview?: {
-    readonly dependency_count?: number;
-    readonly language_count?: number;
-    readonly languages?: readonly string[];
-    readonly topology_signal_count?: number;
-  };
-  readonly subject?: string | StorySubject;
-}
-
-export interface DeliveryPath {
-  readonly artifact_family?: string;
-  readonly artifact_type?: string;
-  readonly delivery_command_families?: readonly string[];
-  readonly environments?: readonly string[];
-  readonly evidence_kind?: string;
-  readonly kind?: string;
-  readonly path?: string;
-  readonly relative_path?: string;
-  readonly signals?: readonly string[];
-  readonly trigger_events?: readonly string[];
-  readonly workflow_name?: string;
-}
-
-interface StoryRepository {
-  readonly id?: string;
-  readonly local_path?: string;
-  readonly name?: string;
-}
-
-interface StorySubject {
-  readonly id?: string;
-  readonly name?: string;
-  readonly type?: string;
-}
-
-export interface StorySection {
-  readonly summary?: string;
-  readonly title?: string;
-}
-
-export interface ContextResponse {
-  readonly consumers?: readonly ContextConsumer[];
-  readonly consumer_repositories?: readonly ContextConsumer[];
-  readonly dependency_count?: number;
-  readonly deployment_evidence?: {
-    readonly artifact_count?: number;
-    readonly artifact_families?: readonly string[];
-    readonly artifacts?: readonly DeploymentEvidenceArtifact[];
-    readonly relationship_types?: readonly string[];
-  };
-  readonly api_surface?: ServiceContextResponse["api_surface"];
-  readonly deployment_lanes?: ServiceContextResponse["deployment_lanes"];
-  readonly file_count?: number;
-  readonly graph_dependents?: ServiceContextResponse["graph_dependents"];
-  readonly infrastructure?: readonly InfrastructureItem[];
-  readonly repository?: StoryRepository;
-}
-
-export interface ContextConsumer {
-  readonly consumer_kinds?: readonly string[];
-  readonly evidence_kinds?: readonly string[];
-  readonly graph_relationship_types?: readonly string[];
-  readonly id?: string;
-  readonly matched_values?: readonly string[];
-  readonly name?: string;
-  readonly repo_name?: string;
-  readonly repository?: string;
-  readonly relationship_types?: readonly string[];
-  readonly sample_paths?: readonly string[];
-}
-
-export interface DeploymentEvidenceArtifact {
-  readonly artifact_family?: string;
-  readonly confidence?: number;
-  readonly direction?: string;
-  readonly environment?: string;
-  readonly evidence_kind?: string;
-  readonly name?: string;
-  readonly path?: string;
-  readonly relationship_type?: string;
-  readonly source_location?: {
-    readonly path?: string;
-    readonly repo_id?: string;
-    readonly repo_name?: string;
-  };
-  readonly source_repo_name?: string;
-  readonly target_repo_name?: string;
-}
-
-interface InfrastructureItem {
-  readonly file_path?: string;
-  readonly kind?: string;
-  readonly name?: string;
-  readonly type?: string;
-}
-
-export interface LoadWorkspaceStoryOptions {
-  readonly client?: EshuApiClient;
-  readonly entityId: string;
-  readonly entityKind: EntityKind;
-  readonly mode: ConsoleMode;
-}
 
 type WorkspaceContextResponse = ContextResponse & ServiceContextResponse;
 
@@ -153,7 +41,7 @@ export async function loadWorkspaceStory({
   client,
   entityId,
   entityKind,
-  mode
+  mode,
 }: LoadWorkspaceStoryOptions): Promise<WorkspaceStory | null> {
   if (mode === "demo") {
     return getDemoWorkspaceStory(entityKind, entityId);
@@ -169,7 +57,7 @@ export async function loadWorkspaceStory({
     client,
     data,
     entityId,
-    serviceContext
+    serviceContext,
   );
   const deploymentContext = serviceContext ?? context;
   const title = titleFromStory(data, entityId);
@@ -182,16 +70,17 @@ export async function loadWorkspaceStory({
     kind: entityKind,
     limitations: data.limitations ?? [],
     overviewStats: overviewStatsFromStory(data, deploymentContext),
-    serviceSpotlight: serviceContext === undefined
-      ? undefined
-      : serviceSpotlightFromContext(
-        serviceContext,
-        data.deployment_overview?.workloads?.[0] ?? title,
-        configInfluence
-      ),
+    serviceSpotlight:
+      serviceContext === undefined
+        ? undefined
+        : serviceSpotlightFromContext(
+            serviceContext,
+            data.deployment_overview?.workloads?.[0] ?? title,
+            configInfluence,
+          ),
     story: humanStory(data, deploymentContext, title, entityKind),
     title,
-    truth: liveRepositoryTruth
+    truth: liveRepositoryTruth,
   };
 }
 
@@ -199,7 +88,7 @@ async function loadDeploymentConfigInfluenceForStory(
   client: EshuApiClient,
   story: StoryResponse,
   entityId: string,
-  serviceContext: WorkspaceContextResponse | undefined
+  serviceContext: WorkspaceContextResponse | undefined,
 ): Promise<DeploymentConfigInfluence | undefined> {
   if (serviceContext === undefined) {
     return undefined;
@@ -219,12 +108,12 @@ async function loadServiceContext(
   client: EshuApiClient,
   story: StoryResponse,
   entityKind: EntityKind,
-  entityId: string
+  entityId: string,
 ): Promise<WorkspaceContextResponse | undefined> {
   if (entityKind === "services" || entityKind === "workloads") {
     return serviceContextFromStoryDossier(
       story as ServiceStoryDossierResponse,
-      serviceNameFromStory(story, entityId)
+      serviceNameFromStory(story, entityId),
     );
   }
   return loadRepositoryWorkloadContext(client, story, entityKind);
@@ -233,24 +122,24 @@ async function loadServiceContext(
 async function loadRepositoryWorkloadContext(
   client: EshuApiClient,
   story: StoryResponse,
-  entityKind: EntityKind
+  entityKind: EntityKind,
 ): Promise<WorkspaceContextResponse | undefined> {
   if (entityKind !== "repositories") {
     return undefined;
   }
-  const workloadName = story.deployment_overview?.workloads?.[0];
-  if (workloadName === undefined || workloadName.trim().length === 0) {
+  const workloadName = repositoryServiceSelector(story);
+  if (workloadName.length === 0) {
     return undefined;
   }
   try {
     const dossier = await client.getJson<ServiceStoryDossierResponse>(
-      `/api/v0/services/${encodeURIComponent(workloadName)}/story`
+      `/api/v0/services/${encodeURIComponent(workloadName)}/story`,
     );
     return serviceContextFromStoryDossier(dossier, workloadName);
   } catch {
     try {
       return await client.getJson<WorkspaceContextResponse>(
-        `/api/v0/services/${encodeURIComponent(workloadName)}/context`
+        `/api/v0/services/${encodeURIComponent(workloadName)}/context`,
       );
     } catch {
       return undefined;
@@ -258,10 +147,23 @@ async function loadRepositoryWorkloadContext(
   }
 }
 
+function repositoryServiceSelector(story: StoryResponse): string {
+  const workloads = story.deployment_overview?.workloads ?? [];
+  return (
+    workloads
+      .map((workload) => nonEmpty(workload))
+      .find(
+        (workload) =>
+          workload.length > 0 &&
+          !(workload.startsWith("reducer_") && workload.includes("_workload_identity_workload_")),
+      ) ?? ""
+  );
+}
+
 async function loadContext(
   client: EshuApiClient,
   story: StoryResponse,
-  entityKind: EntityKind
+  entityKind: EntityKind,
 ): Promise<WorkspaceContextResponse | undefined> {
   if (entityKind !== "repositories") {
     return undefined;
@@ -292,7 +194,7 @@ const liveRepositoryTruth: EshuTruth = {
   freshness: { state: "fresh" },
   level: "exact",
   profile: "local_authoritative",
-  reason: "loaded from the local Eshu HTTP API"
+  reason: "loaded from the local Eshu HTTP API",
 };
 function titleFromSubject(subject: StoryResponse["subject"], fallback: string): string {
   if (typeof subject === "string" && subject.trim().length > 0) {
@@ -304,7 +206,11 @@ function titleFromSubject(subject: StoryResponse["subject"], fallback: string): 
   return fallback;
 }
 function titleFromStory(story: StoryResponse, fallback: string): string {
-  return nonEmpty(story.service_identity?.service_name, story.service_name, titleFromSubject(story.subject, story.repository?.name ?? fallback));
+  return nonEmpty(
+    story.service_identity?.service_name,
+    story.service_name,
+    titleFromSubject(story.subject, story.repository?.name ?? fallback),
+  );
 }
 
 function serviceNameFromStory(story: StoryResponse, fallback: string): string {
@@ -321,7 +227,7 @@ function deploymentPathFromStory(story: StoryResponse): readonly string[] {
 
 function evidenceFromStory(
   story: StoryResponse,
-  context: ContextResponse | undefined
+  context: ContextResponse | undefined,
 ): readonly EvidenceRow[] {
   const storyRows = (story.story_sections ?? []).map((section) => ({
     basis: "repository_story",
@@ -329,7 +235,7 @@ function evidenceFromStory(
     drilldown: drilldownForStorySection(section, context),
     source: section.title ?? "story",
     summary: section.summary ?? "",
-    title: evidenceTitle(section.title)
+    title: evidenceTitle(section.title),
   }));
   return [...deploymentEvidenceRows(context), ...storyRows];
 }
@@ -345,21 +251,23 @@ function deploymentEvidenceRows(context: ContextResponse | undefined): readonly 
     const key = `${artifact.artifact_family}:${sourceRepo}:${artifact.relationship_type}`;
     grouped.set(key, [...(grouped.get(key) ?? []), artifact]);
   }
-  const artifactRows = Array.from(grouped.values()).slice(0, 5).map((group) => {
-    const sample = group[0];
-    const sourceRepo = nonEmpty(sample.source_repo_name, sample.source_location?.repo_name);
-    const path = nonEmpty(sample.source_location?.path, sample.path, sample.name);
-    const family = sample.artifact_family ?? "deployment";
-    return {
-      basis: nonEmpty(sample.relationship_type, sample.evidence_kind, "deployment_evidence"),
-      category: "deployment",
-      detailPath: path,
-      drilldown: deploymentArtifactDrilldown(family, group),
-      source: sourceRepo,
-      summary: deploymentEvidenceSummary(family, sourceRepo, group.length, path),
-      title: family === "argocd" ? "Deployed by ArgoCD" : "Deployed from Helm"
-    };
-  });
+  const artifactRows = Array.from(grouped.values())
+    .slice(0, 5)
+    .map((group) => {
+      const sample = group[0];
+      const sourceRepo = nonEmpty(sample.source_repo_name, sample.source_location?.repo_name);
+      const path = nonEmpty(sample.source_location?.path, sample.path, sample.name);
+      const family = sample.artifact_family ?? "deployment";
+      return {
+        basis: nonEmpty(sample.relationship_type, sample.evidence_kind, "deployment_evidence"),
+        category: "deployment",
+        detailPath: path,
+        drilldown: deploymentArtifactDrilldown(family, group),
+        source: sourceRepo,
+        summary: deploymentEvidenceSummary(family, sourceRepo, group.length, path),
+        title: family === "argocd" ? "Deployed by ArgoCD" : "Deployed from Helm",
+      };
+    });
   if (artifactRows.length > 0) {
     return artifactRows;
   }
@@ -367,19 +275,26 @@ function deploymentEvidenceRows(context: ContextResponse | undefined): readonly 
 }
 
 function consumerEvidenceRows(context: ContextResponse | undefined): readonly EvidenceRow[] {
-  return deploymentConsumers(context).slice(0, 5).map((consumer) => {
-    const sourceRepo = consumerName(consumer);
-    const family = consumerFamily(consumer);
-    const path = consumer.sample_paths?.[0] ?? "";
-    return {
-      basis: consumer.evidence_kinds?.[0] ?? "consumer_repository",
-      category: "deployment",
-      detailPath: path,
-      source: sourceRepo,
-      summary: deploymentEvidenceSummary(family, sourceRepo, consumer.sample_paths?.length ?? 1, path),
-      title: family === "argocd" ? "Deployed by ArgoCD" : "Deployed from Helm"
-    };
-  });
+  return deploymentConsumers(context)
+    .slice(0, 5)
+    .map((consumer) => {
+      const sourceRepo = consumerName(consumer);
+      const family = consumerFamily(consumer);
+      const path = consumer.sample_paths?.[0] ?? "";
+      return {
+        basis: consumer.evidence_kinds?.[0] ?? "consumer_repository",
+        category: "deployment",
+        detailPath: path,
+        source: sourceRepo,
+        summary: deploymentEvidenceSummary(
+          family,
+          sourceRepo,
+          consumer.sample_paths?.length ?? 1,
+          path,
+        ),
+        title: family === "argocd" ? "Deployed by ArgoCD" : "Deployed from Helm",
+      };
+    });
 }
 
 function evidenceTitle(title: string | undefined): string {
@@ -401,51 +316,65 @@ function evidenceTitle(title: string | undefined): string {
 
 function overviewStatsFromStory(
   story: StoryResponse,
-  context: ContextResponse | undefined
+  context: ContextResponse | undefined,
 ): readonly OverviewStat[] {
   const files = fileCount(story, context);
   const workloadCount = story.deployment_overview?.workload_count ?? 0;
-  const infraCount = context?.infrastructure?.length ??
+  const infraCount =
+    context?.infrastructure?.length ??
     totalCount(story.infrastructure_overview?.entity_type_counts);
-  const deploymentEvidence = context?.deployment_evidence?.artifact_count ??
-    story.support_overview?.topology_signal_count ?? 0;
+  const deploymentEvidence =
+    context?.deployment_evidence?.artifact_count ??
+    story.support_overview?.topology_signal_count ??
+    0;
   return [
     {
       detail: "Indexed source and configuration files",
       label: "Files",
-      value: String(files)
+      value: String(files),
     },
     {
       detail: "Workloads Eshu associated with this repo",
       label: "Workloads",
-      value: String(workloadCount)
+      value: String(workloadCount),
     },
     {
       detail: "Helm, Kubernetes, Kustomize, Terraform, and ArgoCD objects",
       label: "Infra objects",
-      value: String(infraCount)
+      value: String(infraCount),
     },
     {
       detail: "Deployment evidence artifacts from graph/context",
       label: "Deployment evidence",
-      value: String(deploymentEvidence)
-    }
+      value: String(deploymentEvidence),
+    },
   ];
 }
 
-function humanStory(story: StoryResponse, context: ContextResponse | undefined, fallback: string, entityKind: EntityKind): string {
+function humanStory(
+  story: StoryResponse,
+  context: ContextResponse | undefined,
+  fallback: string,
+  entityKind: EntityKind,
+): string {
   if (entityKind !== "repositories" && story.story !== undefined && story.story.trim().length > 0) {
     return story.story;
   }
   const repoName = titleFromSubject(story.subject, story.repository?.name ?? fallback);
   const files = fileCount(story, context);
   const languages = story.support_overview?.languages ?? [];
-  const infraFamilies = story.infrastructure_overview?.families ??
-    story.deployment_overview?.infrastructure_families ?? [];
+  const infraFamilies =
+    story.infrastructure_overview?.families ??
+    story.deployment_overview?.infrastructure_families ??
+    [];
   const consumers = deploymentConsumers(context).map(consumerName).filter(isPresent);
-  const parts = [`${repoName} is an indexed ${story.subject === undefined ? "entity" : "repository"}.`];
+  const parts = [
+    `${repoName} is an indexed ${story.subject === undefined ? "entity" : "repository"}.`,
+  ];
   if (files > 0) {
-    parts.push(`${repoName} contains ${files} indexed files${languages.length > 0 ? ` across ${joinHuman(languages)}` : ""}.`);
+    parts.push(
+      `${repoName} contains ${files} indexed files${languages.length > 0 ? ` across ${joinHuman(languages)}` : ""}.`,
+    );
   }
   if (infraFamilies.length > 0) {
     parts.push(`Eshu found ${joinHuman(infraFamilies)} infrastructure evidence.`);
@@ -462,10 +391,12 @@ function deploymentConsumers(context: ContextResponse | undefined): readonly Con
   return candidates.filter((consumer) => {
     const name = consumerName(consumer).toLowerCase();
     const paths = (consumer.sample_paths ?? []).join(" ").toLowerCase();
-    return name.includes("argocd") ||
+    return (
+      name.includes("argocd") ||
       name.includes("helm") ||
       paths.includes("applicationsets/") ||
-      paths.includes("charts/");
+      paths.includes("charts/")
+    );
   });
 }
 

@@ -464,6 +464,35 @@ Postgres read path unchanged. Verified by
 `go test ./internal/telemetry ./internal/query ./cmd/api ./cmd/mcp-server
 -count=1`.
 
+### Relationship catalog breakdown limiter
+
+The relationship catalog overlaps independent `source_tool` breakdown reads
+under one four-permit limiter shared by all requests in an API or MCP process.
+Three label-free metrics distinguish graph-query latency from local admission
+pressure without adding repository, verb, tenant, or request cardinality:
+
+- `eshu_dp_relationship_breakdown_permit_wait_seconds` records every permit
+  wait, including waits that end through request cancellation.
+- `eshu_dp_relationship_breakdown_queued` is the current number of breakdown
+  reads waiting for a permit.
+- `eshu_dp_relationship_breakdown_in_flight` is the current number holding a
+  permit and cannot exceed four while the limiter contract is intact.
+
+An elevated queued value and permit-wait p95 with in-flight pinned at four
+means the local read cap is applying backpressure. Low permit wait with a slow
+`POST /api/v0/relationships/catalog` route instead points to graph query cost,
+not admission delay.
+
+Observability Evidence: the focused semaphore test saturates all four permits,
+observes two concurrent waiters, cancels one waiter, releases and reuses a
+permit, and proves queued/in-flight return to zero. It also proves all three
+instruments emit one label-free datapoint.
+
+No-Regression Evidence: the metric calls wrap the existing channel send and
+receive at the single semaphore chokepoint. The four-slot capacity, goroutine
+fan-out, cancellation select, graph reads, and result ordering are unchanged.
+The OTEL histogram and up/down-counter operations are concurrency-safe.
+
 ## Per-Collector Run Metrics
 
 Every collector — git source, discovery, parser, terraform-state, sbom,

@@ -21,9 +21,9 @@ import (
 const cloudInventoryFactKind = "reducer_cloud_resource_identity"
 
 // cloudInventoryIdentities returns canonical CloudResource identity rows from
-// fact_records, filtered by the bounded readback filters and ordered
-// deterministically. It fetches limit+1 rows so the handler can report a keyset
-// continuation offset without a second count query.
+// each scope's active generation, filtered by the bounded readback filters and
+// ordered deterministically. It fetches limit+1 rows so the handler can report
+// a continuation offset without a second count query.
 func (cr *ContentReader) cloudInventoryIdentities(
 	ctx context.Context,
 	filter cloudInventoryFilter,
@@ -75,11 +75,12 @@ func (cr *ContentReader) cloudInventoryIdentities(
 }
 
 // buildCloudInventoryIdentitiesSQL assembles the bounded canonical-identity list
-// query and its parameters. It anchors on the reducer-owned fact kind, excludes
-// tombstoned rows, applies optional payload-scoped equality filters as bound
-// parameters, orders deterministically by cloud_resource_uid, and fetches
-// limit+1 rows for keyset continuation. The projection returns the envelope
-// metadata plus the canonical payload; the handler view drops raw locators.
+// query and its parameters. It anchors on the reducer-owned fact kind, selects
+// only the active generation for each ingestion scope, excludes tombstoned
+// rows, applies optional payload-scoped equality filters as bound parameters,
+// orders deterministically by cloud_resource_uid, and fetches limit+1 rows for
+// continuation. The projection returns the envelope metadata plus the
+// canonical payload; the handler view drops raw locators.
 func buildCloudInventoryIdentitiesSQL(filter cloudInventoryFilter) (string, []any) {
 	args := []any{}
 	clauses := []string{
@@ -119,6 +120,13 @@ SELECT jsonb_build_object(
     'payload', fact_records.payload
 ) AS payload
 FROM fact_records
+JOIN ingestion_scopes AS scope
+  ON scope.scope_id = fact_records.scope_id
+ AND scope.active_generation_id = fact_records.generation_id
+JOIN scope_generations AS generation
+  ON generation.scope_id = fact_records.scope_id
+ AND generation.generation_id = fact_records.generation_id
+ AND generation.status = 'active'
 WHERE %s
 ORDER BY fact_records.payload->>'cloud_resource_uid', fact_records.fact_id
 LIMIT $%d OFFSET $%d

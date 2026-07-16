@@ -12,17 +12,26 @@ import "./liveInventory.css";
 
 const ANY = "all";
 const LIVE_LIMIT = 100;
+const DEAD_CODE_CANDIDATE_KINDS = [
+  "Function",
+  "Class",
+  "Struct",
+  "Interface",
+  "Trait",
+  "SqlFunction",
+] as const;
 
 interface DeadCodeFilters {
+  readonly candidateKind: string;
   readonly language: string;
   readonly repoId: string;
 }
 
-const EMPTY_FILTERS: DeadCodeFilters = { language: "", repoId: "" };
+const EMPTY_FILTERS: DeadCodeFilters = { candidateKind: "", language: "", repoId: "" };
 
 export function DeadCodePage({
   client,
-  model
+  model,
 }: {
   readonly client?: EshuApiClient;
   readonly model: ConsoleModel;
@@ -34,7 +43,9 @@ export function DeadCodePage({
   const [applied, setApplied] = useState<DeadCodeFilters>(EMPTY_FILTERS);
   const [classification, setClassification] = useState(ANY);
   const [kind, setKind] = useState(ANY);
-  const [query, setQuery] = useState(() => new URLSearchParams(window.location.search).get("q") ?? "");
+  const [query, setQuery] = useState(
+    () => new URLSearchParams(window.location.search).get("q") ?? "",
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -47,11 +58,18 @@ export function DeadCodePage({
     setBusy(true);
     setErr("");
     void loadRepositoryNames(client)
-      .then((repoNames) => loadDeadCodePage(client, {
-        language: applied.language || undefined,
-        limit: LIVE_LIMIT,
-        repoId: applied.repoId || undefined
-      }, repoNames))
+      .then((repoNames) =>
+        loadDeadCodePage(
+          client,
+          {
+            candidateKind: applied.candidateKind || undefined,
+            language: applied.language || undefined,
+            limit: LIVE_LIMIT,
+            repoId: applied.repoId || undefined,
+          },
+          repoNames,
+        ),
+      )
       .then((page) => {
         if (!cancelled) {
           setLivePage(page);
@@ -65,21 +83,29 @@ export function DeadCodePage({
           setErr(error instanceof Error ? error.message : "failed to load dead-code candidates");
         }
       });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [applied, client]);
 
   const all = (livePage?.rows ?? model.findings).filter((finding) => finding.type === "Dead code");
   const classifications = unique(all.map(classificationFromFinding).filter(Boolean));
-  const kinds = unique(all.map(kindFromFinding).filter(Boolean));
-  const filtered = all.filter((finding) =>
-    (classification === ANY || classificationFromFinding(finding) === classification) &&
-    (kind === ANY || kindFromFinding(finding) === kind) &&
-    matchesQuery(finding, query)
+  const kinds = unique([
+    ...DEAD_CODE_CANDIDATE_KINDS.map((candidateKind) => candidateKind.toLowerCase()),
+    ...all.map(kindFromFinding).filter(Boolean),
+  ]);
+  const filtered = all.filter(
+    (finding) =>
+      (classification === ANY || classificationFromFinding(finding) === classification) &&
+      (kind === ANY || kindFromFinding(finding) === kind) &&
+      matchesQuery(finding, query),
   );
   const grouped = groupByRepository(filtered);
   const repositories = unique(all.map(repositoryScopeKey).filter(Boolean));
   const totalLoc = all.reduce((sum, finding) => sum + locFromFinding(finding), 0);
-  const highConfidence = all.filter((finding) => finding.classification === "unused" || finding.truth === "exact").length;
+  const highConfidence = all.filter(
+    (finding) => finding.classification === "unused" || finding.truth === "exact",
+  ).length;
   const source = client ? (busy ? "loading" : err ? "unavailable" : "live") : model.source;
   const scanLabel = livePage
     ? `${livePage.limit} candidate scan${livePage.truncated ? " · truncated" : ""}`
@@ -88,12 +114,24 @@ export function DeadCodePage({
       : "snapshot";
 
   function applyFilters(): void {
-    setApplied({ language: draft.language.trim(), repoId: draft.repoId.trim() });
+    setApplied((current) => ({
+      candidateKind: current.candidateKind,
+      language: draft.language.trim(),
+      repoId: draft.repoId.trim(),
+    }));
   }
 
   function resetLiveFilters(): void {
     setDraft(EMPTY_FILTERS);
     setApplied(EMPTY_FILTERS);
+    setKind(ANY);
+  }
+
+  function selectKind(value: string): void {
+    setKind(value);
+    const candidateKind =
+      DEAD_CODE_CANDIDATE_KINDS.find((entry) => entry.toLowerCase() === value.toLowerCase()) ?? "";
+    setApplied((current) => ({ ...current, candidateKind }));
   }
 
   return (
@@ -102,17 +140,37 @@ export function DeadCodePage({
         <h2>Dead code</h2>
         <p>
           Graph-backed dead-code candidates from{" "}
-          <span className="mono">POST /api/v0/code/dead-code</span>. Candidates
-          are grouped by repository and stay empty when the API has no analyzer
-          output. Select a location to open the source file.
+          <span className="mono">POST /api/v0/code/dead-code</span>. Candidates are grouped by
+          repository and stay empty when the API has no analyzer output. Select a location to open
+          the source file.
         </p>
       </div>
 
       <div className="grid g-4">
-        <StatTile label="Dead symbols" value={all.length} color="var(--ember)" sub="0 inbound references" />
-        <StatTile label="Repos affected" value={repositories.length} color="var(--blue)" sub="with candidates" />
-        <StatTile label="Est. dead LOC" value={fmt(totalLoc)} color="var(--violet)" sub="line span estimate" />
-        <StatTile label="High confidence" value={highConfidence} color="var(--teal)" sub={scanLabel} />
+        <StatTile
+          label="Dead symbols"
+          value={all.length}
+          color="var(--ember)"
+          sub="0 inbound references"
+        />
+        <StatTile
+          label="Repos affected"
+          value={repositories.length}
+          color="var(--blue)"
+          sub="with candidates"
+        />
+        <StatTile
+          label="Est. dead LOC"
+          value={fmt(totalLoc)}
+          color="var(--violet)"
+          sub="line span estimate"
+        />
+        <StatTile
+          label="High confidence"
+          value={highConfidence}
+          color="var(--teal)"
+          sub={scanLabel}
+        />
       </div>
 
       <div className="repo-toolbar mt">
@@ -131,29 +189,47 @@ export function DeadCodePage({
               className="popover-input mono"
               placeholder="repo_id or name"
               value={draft.repoId}
-              onChange={(event) => setDraft((current) => ({ ...current, repoId: event.target.value }))}
+              onChange={(event) =>
+                setDraft((current) => ({ ...current, repoId: event.target.value }))
+              }
             />
             <input
               aria-label="Language selector"
               className="popover-input mono"
               placeholder="language"
               value={draft.language}
-              onChange={(event) => setDraft((current) => ({ ...current, language: event.target.value }))}
+              onChange={(event) =>
+                setDraft((current) => ({ ...current, language: event.target.value }))
+              }
             />
-            <button className="btn-ghost active" disabled={busy} onClick={applyFilters}>Apply</button>
-            <button className="btn-ghost" disabled={busy} onClick={resetLiveFilters}>Reset</button>
+            <button className="btn-ghost active" disabled={busy} onClick={applyFilters}>
+              Apply
+            </button>
+            <button className="btn-ghost" disabled={busy} onClick={resetLiveFilters}>
+              Reset
+            </button>
           </>
         ) : null}
         <div className="seg" aria-label="Dead-code kind filter">
           {[ANY, ...kinds].map((value) => (
-            <button key={value} className={kind === value ? "active" : ""} onClick={() => setKind(value)}>
-              {value === ANY ? "All kinds" : `${value} · ${all.filter((finding) => kindFromFinding(finding) === value).length}`}
+            <button
+              key={value}
+              className={kind === value ? "active" : ""}
+              onClick={() => selectKind(value)}
+            >
+              {value === ANY
+                ? "All kinds"
+                : `${value} · ${all.filter((finding) => kindFromFinding(finding) === value).length}`}
             </button>
           ))}
         </div>
         <div className="seg" aria-label="Dead-code classification filter">
           {[ANY, ...classifications].map((value) => (
-            <button key={value} className={classification === value ? "active" : ""} onClick={() => setClassification(value)}>
+            <button
+              key={value}
+              className={classification === value ? "active" : ""}
+              onClick={() => setClassification(value)}
+            >
               {value === ANY ? "Any" : value}
             </button>
           ))}
@@ -161,16 +237,39 @@ export function DeadCodePage({
       </div>
 
       <div className="evidence-workbench mt" aria-label="Dead-code workbench">
-        <Panel className="flush" title={`${filtered.length} candidates`} sub={`Grouped by repository · ${source}`}>
+        <Panel
+          className="flush"
+          title={`${filtered.length} candidates`}
+          sub={`Grouped by repository · ${source}`}
+        >
           <div className="table-scroll">
             <table className="tbl wide">
-              <thead><tr><th>Symbol</th><th>Kind</th><th>Location</th><th>Refs</th><th>LOC</th><th>Confidence</th><th>Why dead</th><th>Actions</th></tr></thead>
+              <thead>
+                <tr>
+                  <th>Symbol</th>
+                  <th>Kind</th>
+                  <th>Location</th>
+                  <th>Refs</th>
+                  <th>LOC</th>
+                  <th>Confidence</th>
+                  <th>Why dead</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
               <tbody>
                 {grouped.map((group) => (
                   <DeadCodeGroup key={group.key} group={group} />
                 ))}
                 {filtered.length === 0 ? (
-                  <tr><td colSpan={8} className="empty">{err ? `Failed to load: ${err}` : busy ? "Loading dead-code candidates..." : "No dead-code candidates from this source."}</td></tr>
+                  <tr>
+                    <td colSpan={8} className="empty">
+                      {err
+                        ? `Failed to load: ${err}`
+                        : busy
+                          ? "Loading dead-code candidates..."
+                          : "No dead-code candidates from this source."}
+                    </td>
+                  </tr>
                 ) : null}
               </tbody>
             </table>
@@ -187,8 +286,12 @@ function DeadCodeGroup({ group }: { readonly group: DeadCodeGroupModel }): React
     <>
       <tr className="group-row">
         <td colSpan={8}>
-          <span className="group-label" style={{ color: "var(--ember)" }}>{group.repository}</span>
-          <span className="group-meta">{group.rows.length} dead · {fmt(loc)} LOC</span>
+          <span className="group-label" style={{ color: "var(--ember)" }}>
+            {group.repository}
+          </span>
+          <span className="group-meta">
+            {group.rows.length} dead · {fmt(loc)} LOC
+          </span>
         </td>
       </tr>
       {group.rows.map((finding) => {
@@ -196,18 +299,42 @@ function DeadCodeGroup({ group }: { readonly group: DeadCodeGroupModel }): React
         return (
           <tr key={finding.id} className="cloud-row">
             <td className="cell-stack">
-              <span className="mono" style={{ color: "var(--bone)", fontWeight: 600 }}>{symbolFromFinding(finding)}</span>
+              <span className="mono" style={{ color: "var(--bone)", fontWeight: 600 }}>
+                {symbolFromFinding(finding)}
+              </span>
               <small>{finding.title}</small>
             </td>
-            <td><Badge tone="neutral">{kindFromFinding(finding)}</Badge></td>
-            <td className="t-mut mono" style={{ fontSize: ".74rem" }}>
-              {href ? <Link className="mono" to={href}>{locationFromFinding(finding)}</Link> : locationFromFinding(finding)}
+            <td>
+              <Badge tone="neutral">{kindFromFinding(finding)}</Badge>
             </td>
-            <td><span className="mono" style={{ color: "var(--crit)", fontWeight: 700 }}>0</span></td>
-            <td className="t-mut mono" style={{ fontSize: ".78rem" }}>{locFromFinding(finding) || "—"}</td>
-            <td><TruthChip level={uiTruth(finding.truth)} /></td>
-            <td className="t-mut" style={{ fontSize: ".78rem", maxWidth: 360 }}>{classificationFromFinding(finding) || "candidate"}</td>
-            <td><Link className="btn-ghost" to={codeGraphHref(finding)}>Open graph</Link></td>
+            <td className="t-mut mono" style={{ fontSize: ".74rem" }}>
+              {href ? (
+                <Link className="mono" to={href}>
+                  {locationFromFinding(finding)}
+                </Link>
+              ) : (
+                locationFromFinding(finding)
+              )}
+            </td>
+            <td>
+              <span className="mono" style={{ color: "var(--crit)", fontWeight: 700 }}>
+                0
+              </span>
+            </td>
+            <td className="t-mut mono" style={{ fontSize: ".78rem" }}>
+              {locFromFinding(finding) || "—"}
+            </td>
+            <td>
+              <TruthChip level={uiTruth(finding.truth)} />
+            </td>
+            <td className="t-mut" style={{ fontSize: ".78rem", maxWidth: 360 }}>
+              {classificationFromFinding(finding) || "candidate"}
+            </td>
+            <td>
+              <Link className="btn-ghost" to={codeGraphHref(finding)}>
+                Open graph
+              </Link>
+            </td>
           </tr>
         );
       })}
@@ -253,8 +380,11 @@ function matchesQuery(finding: FindingRow, query: string): boolean {
     finding.entity,
     finding.detail,
     finding.filePath ?? "",
-    finding.language ?? ""
-  ].join(" ").toLowerCase().includes(q);
+    finding.language ?? "",
+  ]
+    .join(" ")
+    .toLowerCase()
+    .includes(q);
 }
 
 function symbolFromFinding(finding: FindingRow): string {

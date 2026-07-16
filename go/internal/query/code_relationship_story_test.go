@@ -462,7 +462,7 @@ func TestNornicDBRelationshipStoryCypherUsesAnchoredPatternAndPagination(t *test
 
 	for _, fragment := range []string{
 		"MATCH (anchor:Function {uid: $entity_id})-[rel:CALLS]->(target)",
-		"ORDER BY target.name, target_id",
+		"ORDER BY target.name, target.id, target.uid",
 		"SKIP $offset",
 		"LIMIT $limit",
 	} {

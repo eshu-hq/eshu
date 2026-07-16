@@ -97,7 +97,13 @@ function AppShell(): React.JSX.Element {
       setModel(result.model);
       setRepositories(result.repositories);
       setSession(result.session);
-      setSource({ base, key: "", mode: "private", status: "connected", msg: "" });
+      setSource({
+        base,
+        key: result.session === null ? key : "",
+        mode: "private",
+        status: "connected",
+        msg: "",
+      });
       setOpen(false);
     } catch (e) {
       setClient(undefined);
@@ -201,6 +207,11 @@ function AppShell(): React.JSX.Element {
             setRepositories(result.repositories);
             setSession(result.session);
             setSource({ base, key: "", mode: "private", status: "connected", msg: "" });
+          } else if (env.apiKey.trim().length > 0) {
+            // A build-time local shared key cannot always mint a tenant-bound
+            // browser session. Reuse the existing bootFromKey bearer fallback
+            // when no session cookie exists, including after a full reload.
+            void connect(base, env.apiKey);
           } else {
             setSource((s) => ({ ...s, status: "needs-connection", msg: "" }));
           }

@@ -47,9 +47,11 @@ water them down:
 
 ## When To Use
 
-Use this before every Eshu `git push`, PR create/update, and merge-readiness
-claim. Use it for self-review when no separate reviewer is available. Re-run it
-after any review fix that changes the diff or verification evidence.
+Use this first as a preliminary full review after focused proof and before
+`make pre-pr`, then again on the exact post-preflight diff before every Eshu
+`git push`, PR create/update, and merge-readiness claim. `make pre-pr` may run
+only after a preliminary P0=0/P1=0/P2=0 verdict. Re-run review after any fix or
+diff/evidence change. Self-review is valid when no separate reviewer is available.
 
 Inputs required:
 
@@ -134,6 +136,10 @@ Review target:
 - head SHA:
 - PR:
 - no PR exists yet: yes|no
+- review phase: preliminary|final
+- preliminary review head and P0/P1/P2 counts:
+- pre-pr command and result:
+- post-preflight head and clean-status result:
 
 Intent:
 - issue/PR requirement:
@@ -342,6 +348,10 @@ API/MCP graph-backed responses change:
 - Verify every multi-label MATCH/MERGE alternative label has the required
   uniqueness constraint or property index. One unindexed alternative can flip
   `MergeScanFallbackUsed=true`.
+- Treat runtime-selected labels and identity properties as alternatives too.
+  Proof for one label/property pair does not cover any other branch.
+- A query-plan fixture that claims `NodeIndexSeek` MUST declare its load-bearing
+  index or constraint under `required_schema`; a caveat naming it is not a gate.
 - Prefer stable parameterized query templates. Whitespace/query-text churn can
   defeat plan-cache reuse.
 - Review DDL/bootstrap separately: schema DDL must be startup-first,
@@ -451,8 +461,8 @@ Severity:
   change on a hot path, or required proof tier not run. Blocks push/PR update
   until fixed and re-reviewed.
 - **P2**: edge case, doc drift, genuine missing coverage, minor performance or
-  naming issue. Fix inline or link/create a tracked repository issue. Informal
-  TODOs, comments, or memory notes are not enough.
+  naming issue. Fix inline before preflight or push. A linked follow-up may
+  preserve context, but does not make a pre-push review verdict clean.
 
 Disposition must be one of: `fixed`, `not-a-bug-with-evidence`,
 `deferred-to-linked-follow-up`, or `blocked`. No finding may disappear between
@@ -465,29 +475,18 @@ The verdict is `blocked` when any of these are true:
 - base/head are not the final rebased diff to be pushed or merged;
 - the full-picture gate is incomplete for any touched production surface;
 - proof tier is missing, wrong, or not actually run for in-scope behavior;
-- an applicable adversarial probe is missing or only checks a helper instead of
-  the production subject;
-- P0 or P1 finding remains unresolved;
-- P2 finding is neither fixed nor linked to an explicit tracked repository
-  issue;
+- an applicable adversarial probe is missing or only checks a helper instead of the production subject;
+- any P0, P1, or P2 finding remains unresolved before preflight or push;
 - generated artifacts or cassettes changed without source-of-truth proof;
 - root `AGENTS.md` and `CLAUDE.md` drift;
-- public text contains private data, credentials, internal identifiers, or AI
-  attribution;
+- public text contains private data, credentials, internal identifiers, or AI attribution;
 - review comments exist on the latest head and are unresolved;
 - CI/check evidence does not match the changed surface.
-- no final live check-rollup snapshot was collected after the last push or
-  rebase.
+- no final live check-rollup snapshot was collected after the last push or rebase.
 
 ## Output Template
 
-Use the template in `references/cold-review-probes.md`. Do not replace it with a
-short paragraph or a PR-body summary. A review that lacks the full-picture gate,
-all five passes, cross-pass comparison, probe results, GitHub truth, disposition,
-verification evidence, and stale-verdict conditions is incomplete.
+Use the template in `references/cold-review-probes.md`. Do not replace it with a short paragraph or a PR-body summary. A review that lacks the full-picture gate, all five passes, cross-pass comparison, probe results, GitHub truth, disposition, verification evidence, and stale-verdict conditions is incomplete.
 
-Ready means `P0=0`, `P1=0`, every P2 fixed or linked to a tracked repository
-issue, the full-picture gate is complete, every applicable adversarial probe has
-evidence, the selected proof tier is actually run for all in-scope behavior,
-out-of-scope proof gaps are routed to tracked follow-ups without overstating
-readiness, and the review was repeated after fixes.
+Ready means `P0=0`, `P1=0`, and `P2=0`, the full-picture gate is complete,
+every applicable adversarial probe has evidence, the selected proof tier is actually run for all in-scope behavior, out-of-scope proof gaps are routed to tracked follow-ups without overstating readiness, and the review was repeated after fixes.

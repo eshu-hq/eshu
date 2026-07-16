@@ -55,14 +55,15 @@ type crossRepoDeadCodeEvidenceStore interface {
 }
 
 type crossRepoDeadCodeScan struct {
-	Active                 []map[string]any
-	Suppressed             []map[string]any
-	PolicyStats            deadCodePolicyStats
-	DisplayTruncated       bool
-	CandidateScanTruncated bool
-	CandidateScanLimit     int
-	CandidateScanPages     int
-	CandidateScanRows      int
+	Active                     []map[string]any
+	Suppressed                 []map[string]any
+	PolicyStats                deadCodePolicyStats
+	DisplayTruncated           bool
+	CandidateScanTruncated     bool
+	CandidateScanLimit         int
+	CandidateScanLimitPerLabel int
+	CandidateScanPages         int
+	CandidateScanRows          int
 }
 
 func (h *CodeHandler) handleCrossRepoDeadCode(w http.ResponseWriter, r *http.Request) {
@@ -122,19 +123,20 @@ func (h *CodeHandler) handleCrossRepoDeadCode(w http.ResponseWriter, r *http.Req
 	boundaryEvidence := h.crossRepoDeadCodeRepositoryBoundaryEvidence(r.Context(), req.RepoID)
 	buckets := h.bucketCrossRepoDeadCodeResults(r.Context(), req, scan, evidence, boundaryEvidence, evidenceAvailable)
 	WriteSuccess(w, r, http.StatusOK, map[string]any{
-		"repo_id":                  req.RepoID,
-		"language":                 req.Language,
-		"limit":                    req.Limit,
-		"consumer_repo_ids":        req.ConsumerRepoIDs,
-		"query_shape":              "bounded_cross_repo_dead_code",
-		"truncated":                scan.DisplayTruncated || scan.CandidateScanTruncated,
-		"display_truncated":        scan.DisplayTruncated,
-		"candidate_scan_truncated": scan.CandidateScanTruncated,
-		"candidate_scan_limit":     scan.CandidateScanLimit,
-		"candidate_scan_pages":     scan.CandidateScanPages,
-		"candidate_scan_rows":      scan.CandidateScanRows,
-		"candidate_buckets":        buckets,
-		"bucket_counts":            crossRepoDeadCodeBucketCounts(buckets),
+		"repo_id":                        req.RepoID,
+		"language":                       req.Language,
+		"limit":                          req.Limit,
+		"consumer_repo_ids":              req.ConsumerRepoIDs,
+		"query_shape":                    "bounded_cross_repo_dead_code",
+		"truncated":                      scan.DisplayTruncated || scan.CandidateScanTruncated,
+		"display_truncated":              scan.DisplayTruncated,
+		"candidate_scan_truncated":       scan.CandidateScanTruncated,
+		"candidate_scan_limit":           scan.CandidateScanLimit,
+		"candidate_scan_limit_per_label": scan.CandidateScanLimitPerLabel,
+		"candidate_scan_pages":           scan.CandidateScanPages,
+		"candidate_scan_rows":            scan.CandidateScanRows,
+		"candidate_buckets":              buckets,
+		"bucket_counts":                  crossRepoDeadCodeBucketCounts(buckets),
 		"analysis": buildDeadCodeAnalysisForLanguage(
 			crossRepoDeadCodeAnalysisRows(buckets),
 			req.ExcludeDecoratedWith,
@@ -177,54 +179,57 @@ func (h *CodeHandler) scanCrossRepoDeadCodeCandidates(
 	req crossRepoDeadCodeRequest,
 ) (crossRepoDeadCodeScan, error) {
 	pageLimit := deadCodeCandidateQueryLimit(req.Limit)
+	totalLimit := deadCodeCandidateScanLimit(req.Limit)
 	scan := crossRepoDeadCodeScan{
-		Active:             make([]map[string]any, 0, req.Limit+1),
-		Suppressed:         make([]map[string]any, 0),
-		CandidateScanLimit: deadCodeCandidateScanLimit(req.Limit),
+		Active:                     make([]map[string]any, 0, req.Limit+1),
+		Suppressed:                 make([]map[string]any, 0),
+		CandidateScanLimit:         totalLimit,
+		CandidateScanLimitPerLabel: totalLimit,
 	}
 	seenEntityIDs := make(map[string]struct{}, req.Limit+1)
+	schedule := newDeadCodeCandidateSchedule(
+		deadCodeCandidateLabelsForLanguage(req.Language),
+		pageLimit,
+		totalLimit,
+	)
 
-	for _, label := range deadCodeCandidateLabelsForLanguage(req.Language) {
-		for offset := 0; offset < scan.CandidateScanLimit; offset += pageLimit {
-			limit := min(pageLimit, scan.CandidateScanLimit-offset)
-			rows, err := h.deadCodeCandidateRows(ctx, req.RepoID, label, req.Language, limit, offset)
-			if err != nil {
-				return scan, err
-			}
-			scan.CandidateScanPages++
-			rowCount := len(rows)
-			scan.CandidateScanRows += rowCount
-			rows = filterDuplicateDeadCodeRows(rows, seenEntityIDs)
-			results, contentByID, err := h.buildDeadCodeResults(ctx, rows)
-			if err != nil {
-				return scan, err
-			}
-			active, suppressed, stats := partitionDeadCodeInvestigationResults(
-				results,
-				contentByID,
-				req.ExcludeDecoratedWith,
-			)
-			addDeadCodePolicyStats(&scan.PolicyStats, stats)
-			scan.Suppressed = append(scan.Suppressed, suppressed...)
-			active, err = h.filterCrossRepoDeadCodeResultsWithoutProducerLocalIncomingEdges(ctx, active, label)
-			if err != nil {
-				return scan, err
-			}
-			scan.Active = append(scan.Active, active...)
-			if len(scan.Active) > req.Limit {
-				scan.DisplayTruncated = true
-				scan.Active = scan.Active[:req.Limit]
-				return scan, nil
-			}
-			if rowCount < limit {
-				break
-			}
-			if offset+rowCount >= scan.CandidateScanLimit {
-				scan.CandidateScanTruncated = true
-				return scan, nil
-			}
+	for {
+		page, ok := schedule.nextPage()
+		if !ok {
+			break
+		}
+		rows, err := h.deadCodeCandidateRows(ctx, req.RepoID, page.Label, req.Language, page.Limit, page.Offset)
+		if err != nil {
+			return scan, err
+		}
+		scan.CandidateScanPages++
+		rowCount := len(rows)
+		scan.CandidateScanRows += rowCount
+		schedule.record(page, rowCount)
+		rows = filterDuplicateDeadCodeRows(rows, seenEntityIDs)
+		results, contentByID, err := h.buildDeadCodeResults(ctx, rows)
+		if err != nil {
+			return scan, err
+		}
+		active, suppressed, stats := partitionDeadCodeInvestigationResults(
+			results,
+			contentByID,
+			req.ExcludeDecoratedWith,
+		)
+		addDeadCodePolicyStats(&scan.PolicyStats, stats)
+		scan.Suppressed = append(scan.Suppressed, suppressed...)
+		active, err = h.filterCrossRepoDeadCodeResultsWithoutProducerLocalIncomingEdges(ctx, active, page.Label)
+		if err != nil {
+			return scan, err
+		}
+		scan.Active = append(scan.Active, active...)
+		if len(scan.Active) > req.Limit {
+			scan.DisplayTruncated = true
+			scan.Active = scan.Active[:req.Limit]
+			return scan, nil
 		}
 	}
+	scan.CandidateScanTruncated = schedule.candidateScanTruncated()
 	return scan, nil
 }
 

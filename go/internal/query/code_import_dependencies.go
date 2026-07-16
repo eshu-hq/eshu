@@ -279,14 +279,16 @@ func importDependencyImportPredicates(req importDependencyRequest) []string {
 
 func fileImportCyclesCypher(req importDependencyRequest) string {
 	var cypher strings.Builder
-	cypher.WriteString(`MATCH (repo:Repository)-[:REPO_CONTAINS]->(source_file:File)-[source_import:IMPORTS]->(target_module:Module)
-MATCH (repo)-[:REPO_CONTAINS]->(target_file:File)-[target_import:IMPORTS]->(source_module:Module)
+	if strings.TrimSpace(req.RepoID) != "" {
+		cypher.WriteString("MATCH (repo:Repository {id: $repo_id})-[:REPO_CONTAINS]->")
+	} else {
+		cypher.WriteString("MATCH (repo:Repository)-[:REPO_CONTAINS]->")
+	}
+	cypher.WriteString(`(source_file:File)-[source_import:IMPORTS]->(target_module:Module)
+MATCH (repo:Repository)-[:REPO_CONTAINS]->(target_file:File)-[target_import:IMPORTS]->(source_module:Module)
 WHERE source_file.name = source_module.name + '.py'
   AND target_file.name = target_module.name + '.py'
   AND source_file.relative_path < target_file.relative_path`)
-	if strings.TrimSpace(req.RepoID) != "" {
-		cypher.WriteString("\n  AND repo.id = $repo_id")
-	}
 	if language := req.normalizedLanguage(); language != "" {
 		_ = language
 		cypher.WriteString("\n  AND source_file.language = $language AND target_file.language = $language")

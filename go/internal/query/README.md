@@ -166,14 +166,16 @@ truncation, and answer metadata. They add no worker, queue claim, graph write,
 metric label, or datastore connection.
 Semantic search reads (`POST /api/v0/search/semantic`, MCP
 `search_semantic_context`) are repository-bounded over active curated search
-documents. They use the repository id as the current durable search-document
-scope, allow smaller service/workload/environment anchors only inside that
-repository corpus, serve the active generation from the persisted search index
-instead of rebuilding a request-local corpus, require explicit `limit` and
-`timeout_ms`, and return derived retrieval evidence rather than canonical graph
-truth. Scoped-token requests with no repository grant return an empty bounded
-response without reading the store; out-of-grant repository ids return not found
-before store access.
+documents. After repository authorization, the handler resolves the canonical
+repository id to exactly one active ingestion-scope id for index reads while
+retaining the canonical id as the repository boundary. No active mapping returns
+an empty bounded result; multiple active mappings fail closed as ambiguous.
+Smaller service/workload/environment anchors remain inside that repository
+corpus. The route serves the active generation from the persisted search index,
+requires explicit `limit` and `timeout_ms`, and returns derived retrieval
+evidence rather than canonical graph truth. Scoped-token requests with no grant
+return an empty bounded response without reading the store; out-of-grant
+repository ids return not found before scope resolution or store access.
 Documentation reads follow the same split: target-scoped findings responses can
 include `related_facts`, `coverage`, and `missing_evidence` when raw
 documentation facts reference a repo or service but no admissible finding exists
@@ -598,6 +600,20 @@ names, source-system detail, queue conflict keys, tenant/workspace values,
 provider payloads, local paths, and credentials out of the payload. The legacy
 `/api/v0/collectors` alias remains unavailable to scoped tokens.
 
+The live operations board at `GET /api/v0/status/operations` is exact and
+complete for all-scopes operators: it combines process-wide health, collector,
+stage, domain-backlog, and queue aggregates with bounded live activity. A
+scoped caller receives only live-activity rows restricted to its granted
+repositories or ingestion scopes, with repository and worker identities
+redacted. The process-wide aggregate sections are omitted because they cannot
+be attributed to those grants; `completeness_state=scoped_live_activity_only`,
+`withheld_sections`, and a derived truth level make that boundary explicit.
+
+No-Observability-Change: this is a response-projection and truth-label fix; it
+adds no datastore call, queue stage, retry path, or concurrency boundary. The
+existing `eshu-api` request span and `eshu_dp_postgres_query_duration_seconds`
+status/live-activity query measurements continue to diagnose the route.
+
 Hosted readiness follows the same aggregate rule for scoped tokens. `GET
 /api/v0/status/hosted-readiness` keeps hosted readiness checks, queue counters,
 collector-generation replay blockers, repository counts, diagnostic route
@@ -767,7 +783,11 @@ live in [evidence-notes.md](evidence-notes.md).
   label-scoped pages before policy exclusions, pushes any requested language
   filter into the candidate query, then checks completed reducer code-call
   intent rows for incoming edges on the remaining candidates and uses a
-  2,500-row scan window for small result limits. It reports
+  shared 2,500-row scan window for small result limits. Label pages are
+  round-robined inside that ceiling so a saturated early label cannot starve
+  later labels or multiply downstream work. It reports the shared maximum as
+  `candidate_scan_limit`, the maximum share one label may consume as
+  `candidate_scan_limit_per_label`, and
   `candidate_scan_pages` plus `candidate_scan_rows`.
   `display_truncated` and `candidate_scan_truncated` must stay separate so
   performance bounds do not blur result-list pagination with raw scan coverage.
@@ -1002,8 +1022,8 @@ poison `projection_bug` never drains via a scope-wide replay without force.
 - [read-models.md](read-models.md) for route-specific read-model bounds,
   evidence, and investigation-route contracts.
 - [dead-code-reachability.md](dead-code-reachability.md) for dead-code language roots, exactness blockers, and candidate paging rules.
-- [evidence-notes.md](evidence-notes.md) for issue-specific no-regression and
-  observability notes that do not belong in the package overview.
+- [evidence-notes.md](evidence-notes.md) and [dashboard correctness evidence](../../../docs/internal/evidence/5244-5253-dashboard-correctness.md)
+  for issue-specific no-regression, performance, and observability proof.
 - `docs/public/reference/http-api.md` for the public HTTP and envelope contract.
 - `docs/public/reference/dead-code-reachability-spec.md` for the dead-code
   language maturity contract.

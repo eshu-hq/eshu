@@ -9,6 +9,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -17,6 +18,15 @@ func TestRepositoryListGraphAppliesScopedAuthBeforePagination(t *testing.T) {
 	t.Parallel()
 
 	reader := fakeRepoGraphReader{
+		runSingle: func(_ context.Context, cypher string, params map[string]any) (map[string]any, error) {
+			if !strings.Contains(cypher, "allowed_repository_ids") {
+				t.Fatalf("repository count query missing scoped repository predicate:\n%s", cypher)
+			}
+			if got, want := params["allowed_repository_ids"], []string{"repo-team-a"}; !reflect.DeepEqual(got, want) {
+				t.Fatalf("allowed_repository_ids = %#v, want %#v", got, want)
+			}
+			return map[string]any{"total": int64(1)}, nil
+		},
 		run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 			if !strings.Contains(cypher, "allowed_repository_ids") {
 				t.Fatalf("repository list query missing scoped repository predicate:\n%s", cypher)
@@ -60,6 +70,9 @@ func TestRepositoryListExposesSourceBackedGroupEvidence(t *testing.T) {
 	t.Parallel()
 
 	reader := fakeRepoGraphReader{
+		runSingle: func(_ context.Context, _ string, _ map[string]any) (map[string]any, error) {
+			return map[string]any{"total": int64(3)}, nil
+		},
 		run: func(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
 			return []map[string]any{
 				{

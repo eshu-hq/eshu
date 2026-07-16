@@ -12,6 +12,7 @@ import (
 )
 
 type deadCodeRequest struct {
+	CandidateKind        string   `json:"candidate_kind"`
 	RepoID               string   `json:"repo_id"`
 	Language             string   `json:"language"`
 	Limit                int      `json:"limit"`
@@ -59,6 +60,11 @@ func (h *CodeHandler) handleDeadCode(w http.ResponseWriter, r *http.Request) {
 		req.Limit = deadCodeMaxLimit
 	}
 	req.Language = normalizeDeadCodeLanguage(req.Language)
+	req.CandidateKind = strings.TrimSpace(req.CandidateKind)
+	if req.CandidateKind != "" && !isDeadCodeCandidateLabel(req.CandidateKind) {
+		WriteError(w, http.StatusBadRequest, "unsupported candidate_kind")
+		return
+	}
 	if !h.applyRepositorySelector(w, r, &req.RepoID) {
 		return
 	}
@@ -71,17 +77,19 @@ func (h *CodeHandler) handleDeadCode(w http.ResponseWriter, r *http.Request) {
 	truncated := scan.CandidateScanTruncated || scan.DisplayTruncated
 
 	WriteSuccess(w, r, http.StatusOK, map[string]any{
-		"repo_id":                  req.RepoID,
-		"language":                 req.Language,
-		"limit":                    req.Limit,
-		"truncated":                truncated,
-		"display_truncated":        scan.DisplayTruncated,
-		"candidate_scan_truncated": scan.CandidateScanTruncated,
-		"candidate_scan_limit":     scan.CandidateScanLimit,
-		"candidate_scan_pages":     scan.CandidateScanPages,
-		"candidate_scan_rows":      scan.CandidateScanRows,
-		"results":                  scan.Results,
-		"analysis":                 buildDeadCodeAnalysisForLanguage(scan.Results, req.ExcludeDecoratedWith, scan.PolicyStats, req.Language),
+		"candidate_kind":                 req.CandidateKind,
+		"repo_id":                        req.RepoID,
+		"language":                       req.Language,
+		"limit":                          req.Limit,
+		"truncated":                      truncated,
+		"display_truncated":              scan.DisplayTruncated,
+		"candidate_scan_truncated":       scan.CandidateScanTruncated,
+		"candidate_scan_limit":           scan.CandidateScanLimit,
+		"candidate_scan_limit_per_label": scan.CandidateScanLimitPerLabel,
+		"candidate_scan_pages":           scan.CandidateScanPages,
+		"candidate_scan_rows":            scan.CandidateScanRows,
+		"results":                        scan.Results,
+		"analysis":                       buildDeadCodeAnalysisForLanguage(scan.Results, req.ExcludeDecoratedWith, scan.PolicyStats, req.Language),
 	}, BuildTruthEnvelope(h.profile(), "code_quality.dead_code", TruthBasisHybrid, "resolved from graph-backed dead-code candidates with partial root modeling"))
 }
 

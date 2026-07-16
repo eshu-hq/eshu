@@ -181,6 +181,42 @@ worker knob, schema bootstrap phase, or status field changes. Existing
 canonical write spans, phase logs, graph query spans, and query-duration
 metrics continue to expose graph write failures and retries.
 
+## Pitfall: `CREATE INDEX IF NOT EXISTS` Rebackfills Existing Property Indexes
+
+### Observed shape
+
+In pinned NornicDB v1.1.11, `IF NOT EXISTS` is accepted syntax but is not proof
+that reapplying property-index DDL is a no-op. The
+[`executeCreateIndex`](https://github.com/orneryd/NornicDB/blob/v1.1.11/pkg/cypher/schema.go#L597-L646)
+path calls the index backfill after `AddPropertyIndex` returns, including when
+the property index already exists. The
+[`PropertyIndexInsert`](https://github.com/orneryd/NornicDB/blob/v1.1.11/pkg/storage/schema.go#L1874-L1898)
+path appends node IDs without an observable duplicate guard.
+
+Performance Evidence: an identical property-index statement reissued against
+the retained 887-repository graph took 15.345136 seconds. Unchanged graph node
+and edge counts did not prove the internal index was unchanged, so that
+candidate was removed and rejected rather than shipped.
+
+### Eshu implications
+
+Do not repeat experimental index DDL against a retained evidence stack. Prove
+the candidate on an isolated populated store first:
+
+1. Measure the first create and record the index-backed result set.
+2. Reissue the identical statement and compare duration plus index-backed
+   result and index-entry cardinality where the backend exposes it.
+3. Prove ordered query exactness and bidirectional result diff `0/0`.
+4. Restart, rerun Eshu schema bootstrap, and verify the same query readback.
+5. Prove rollback or cleanup, then destroy the isolated volume.
+
+Eshu's Postgres graph-schema fingerprint normally skips an already-applied
+schema application. That is defense in depth for the normal bootstrap path; it
+does not prove the backend DDL itself is idempotent.
+
+No-Observability-Change: this documents a validation requirement. It changes
+no runtime schema statement, metric, span, log, queue, or worker behavior.
+
 ## Pitfall: Persisted Graph Store Fails To Reopen After Dictionary Corruption
 
 ### Observed shape

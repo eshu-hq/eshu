@@ -30,10 +30,20 @@ const KNOWN_TRUTH_CLASSES: readonly AskTruthClass[] = [
 /** Coerce a raw ask response into a fully-populated AskAnswer. */
 export function normalizeAnswer(raw: unknown): AskAnswer {
   const record = asRecord(raw);
+  const resultRef =
+    typeof record.result_ref === "string" && record.result_ref.length > 0
+      ? record.result_ref
+      : undefined;
+  const result =
+    record.result !== null && typeof record.result === "object" && !Array.isArray(record.result)
+      ? (record.result as Record<string, unknown>)
+      : undefined;
   return {
     answer_prose: typeof record.answer_prose === "string" ? record.answer_prose : "",
     artifacts: asArray(record.artifacts).map(normalizeArtifact),
     truth_class: normalizeTruthClass(record.truth_class),
+    result_ref: resultRef,
+    result,
     query_trace: asArray(record.query_trace).map(normalizeTraceStep),
     partial: record.partial === true,
     limitations: asArray(record.limitations).filter(

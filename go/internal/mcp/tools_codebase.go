@@ -346,7 +346,7 @@ func codebaseTools() []ToolDefinition {
 		},
 		{
 			Name:        "list_indexed_repositories",
-			Description: "List all indexed repositories.",
+			Description: "List a bounded page of indexed repositories. For an exact indexed-repository count, use the authoritative total field, which is independent of page size; count is only the number of rows in the current page. Cite list_indexed_repositories.total as the evidence source.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{

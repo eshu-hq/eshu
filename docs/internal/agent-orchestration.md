@@ -184,13 +184,18 @@ CI can reject it.
 
 ## Token-budget optimization
 
-Push **mechanical** quality down to the automated gates so independent review never
-spends tokens catching a lint error or a missing test. The order is:
+Use focused local proof for discovery and reserve the expensive promotion gate
+for a branch that has already survived design review. The order is:
 
-1. Executor runs local gates + opens a PR.
-2. CI must be green (mechanical correctness proven for free).
-3. *Only then* run an independent full `eshu-code-review` — for **design**
-   judgment on mechanically green code, never as a substitute for local proof.
+1. Executor completes TDD implementation and focused local proof.
+2. Run a preliminary full `eshu-code-review` on the final rebased diff. Fix every
+   P0, P1, and P2 finding and repeat until the verdict is zero findings.
+3. Only when the branch is otherwise ready to push, run `make pre-pr` once.
+4. Run a final full `eshu-code-review` on the exact post-preflight diff. Any
+   tracked/generated change or finding restarts the affected proof and review.
+5. Push the reviewed diff, open or update the PR, then use CI and external
+   reviews as authoritative post-push gates. No edit may occur between the final
+   clean review and push.
 
 This maximizes the value of every frontier token: judgment, not janitorial.
 

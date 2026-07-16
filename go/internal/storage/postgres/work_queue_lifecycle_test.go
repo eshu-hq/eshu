@@ -15,6 +15,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	"github.com/lib/pq"
 )
 
 func TestReducerQueueFailClassifiesGraphWriteTimeoutAfterAttemptBudget(t *testing.T) {
@@ -333,6 +334,12 @@ func (r *queueFakeRows) Scan(dest ...any) error {
 			}
 			*target = value
 		case *[]float64:
+			value, ok := row[i].([]float64)
+			if !ok {
+				return fmt.Errorf("row[%d] type = %T, want []float64", i, row[i])
+			}
+			*target = append((*target)[:0], value...)
+		case *pq.Float64Array:
 			value, ok := row[i].([]float64)
 			if !ok {
 				return fmt.Errorf("row[%d] type = %T, want []float64", i, row[i])

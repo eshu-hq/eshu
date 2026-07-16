@@ -15,6 +15,7 @@ script="${repo_root}/scripts/verify-ci-gates-registry.sh"
 registry="${repo_root}/specs/ci-gates.v1.yaml"
 static_contract_workflow="${repo_root}/.github/workflows/static-contract-gates.yml"
 build_test_workflow="${repo_root}/.github/workflows/test.yml"
+frontend_workflow="${repo_root}/.github/workflows/frontend.yml"
 
 fail() {
 	printf 'test-verify-ci-gates-registry: %s\n' "$*" >&2
@@ -47,6 +48,34 @@ require "gates section"     "gates:"          "${registry}"
 require "id field present"  "  - id:"         "${registry}"
 require "triggers present"  "    triggers:"   "${registry}"
 require "ci_only_reason"    "ci_only_reason:" "${registry}"
+
+# Retained-console SQL fixtures are executable proof inputs. A fixture-only
+# change must select the same frontend gate in both GitHub and local parity.
+[[ -f "${frontend_workflow}" ]] || fail "missing ${frontend_workflow}"
+frontend_pull_request_paths="$(
+	sed -n '/^  pull_request:/,/^  workflow_dispatch:/p' "${frontend_workflow}"
+)"
+for sql_fixture in \
+	'scripts/lib/console-retained-create-proof-schema.sql' \
+	'scripts/lib/console-retained-verify-public-identity.sql'; do
+	printf '%s\n' "${frontend_pull_request_paths}" |
+		rg --fixed-strings --quiet -- "- \"${sql_fixture}\"" ||
+		fail "frontend pull_request paths omit retained SQL fixture (${sql_fixture})"
+
+	selection="$(
+		printf '%s\n' "${sql_fixture}" |
+			(cd "${repo_root}/go" && go run ./cmd/ci-gates select \
+				--registry "${registry}" --tier pre-push --paths-from - --explain)
+	)"
+	[[ "$(printf '%s\n' "${selection}" | rg --count '^SELECTED[[:space:]]+' || true)" == "1" ]] ||
+		fail "retained SQL fixture must select exactly one gate (${sql_fixture})"
+	printf '%s\n' "${selection}" |
+		rg --quiet '^SELECTED[[:space:]]+frontend-console-checks[[:space:]]' ||
+		fail "retained SQL fixture did not select frontend-console-checks (${sql_fixture})"
+	printf '%s\n' "${selection}" |
+		rg --fixed-strings --quiet -- "matched trigger \"${sql_fixture}\" on path \"${sql_fixture}\"" ||
+		fail "frontend-console-checks selected for the wrong reason (${sql_fixture})"
+done
 
 # Every gate must declare a tier. Spot-check the enumerated tiers.
 require "pre-commit tier"  "tier: pre-commit" "${registry}"

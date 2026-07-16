@@ -155,6 +155,7 @@ const openAPIPathsSemanticSearch = `
           },
           "400": {"$ref": "#/components/responses/BadRequest"},
           "404": {"$ref": "#/components/responses/NotFound"},
+          "409": {"description": "Canonical repository id maps to multiple active ingestion scopes; retry after repairing repository scope identity"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"}
         }
       }

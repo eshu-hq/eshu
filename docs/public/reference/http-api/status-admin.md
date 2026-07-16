@@ -217,6 +217,22 @@ the deployment platform inventory to prove process liveness.
 `/api/v0/status/ingesters/{ingester}` is the canonical detail route. The
 `/api/v0/ingesters` routes are legacy GET aliases that return the same payload.
 
+## Live Operations Board
+
+- `GET /api/v0/status/operations`
+
+All-scopes operators receive the complete bounded board: process-wide health,
+collector runtime, stage, domain-backlog, and queue aggregates plus bounded
+live activity. Scoped callers receive only live-activity rows restricted to
+their granted repositories or ingestion scopes, with repository and worker
+identities redacted. Process-wide aggregates are not tenant- or grant-scoped,
+so scoped responses omit `health`, `collectors`, `stage_summaries`,
+`domain_backlogs`, and `queue`; they report
+`completeness_state=scoped_live_activity_only`, list those names in
+`withheld_sections`, and use derived truth. All-scopes responses retain exact
+truth. Both legacy JSON and negotiated Eshu envelopes carry the same data
+object.
+
 ## Operator Control-Plane Read Model
 
 - `GET /api/v0/status/operator-control-plane`

@@ -4,22 +4,19 @@
 package query
 
 // relationshipVerbEntry describes one typed-edge verb in the relationships
-// catalog: its layer, the source-node label that anchors every count and edge
-// query, and a short evidence/source label for the UI.
+// catalog: its layer, the source-node label for bounded edge slices, and a short
+// evidence/source label for the UI. Counts are whole-graph relationship-type
+// aggregates and deliberately do not use sourceLabel.
 //
-// Each verb is anchored on a concrete source-node label rather than a bare
-// `()-[r:VERB]->()` pattern. A source-label anchor converts the count/scan into
-// a bounded label-scan-plus-expand, the same sanctioned class as the
-// repo-anchored and label-anchored counts in infra_ecosystem_overview.go and
-// infra_graph_summary_packet_cypher.go. A bare unlabeled endpoint match is an
-// all-node-scan risk on NornicDB and is rejected by the query-plan gate, so it
-// is never used here.
+// Edge slices and source_tool breakdowns start from a concrete source-node
+// label. Counts use `MATCH ()-[r:VERB]->()` so NornicDB can use its
+// relationship-type index and include edges written from every source label.
 type relationshipVerbEntry struct {
 	// verb is the relationship type as written in the canonical graph.
 	verb string
 	// layer is the fixed code-to-cloud layer the verb belongs to.
 	layer string
-	// sourceLabel is the label that anchors the count and edge queries.
+	// sourceLabel is the label that anchors the bounded edge-slice query.
 	sourceLabel string
 	// sourceProperty is the indexed anchor property on sourceLabel. It is the
 	// property whose schema index makes the label scan bounded; it is recorded
@@ -36,12 +33,18 @@ type relationshipVerbEntry struct {
 	// them would be guaranteed-empty work that needlessly doubles the catalog's
 	// sequential round-trips (the count path is already budget-tuned).
 	carriesSourceTool bool
+	// sourceToolSourceLabel is the source label that owns edges stamped with
+	// source_tool. It can differ from sourceLabel when one shared verb has more
+	// than one source kind: DEPENDS_ON source-tool evidence belongs to
+	// Repository-to-Repository edges, while its drill-down slice browses
+	// Workload-to-Workload edges.
+	sourceToolSourceLabel string
 }
 
 // relationshipVerbCatalog is the fixed set of typed-edge verbs the relationships
 // surface browses, spanning all six layers (code, deploy, infra, runtime,
 // security, ops). Every verb is grounded in a relationship type the canonical
-// graph actually writes, anchored on a source label that carries a schema index.
+// graph actually writes. Every edge-slice source label carries a schema index.
 // The set is intentionally fixed (not derived at query time) so each entry can
 // be covered by the static query-plan regression gate.
 var relationshipVerbCatalog = []relationshipVerbEntry{
@@ -53,19 +56,19 @@ var relationshipVerbCatalog = []relationshipVerbEntry{
 	{verb: "OVERRIDES", layer: "code", sourceLabel: "Function", sourceProperty: "uid", evidence: "Type hierarchy", detail: "Method overrides a base method"},
 	{verb: "QUERIES_TABLE", layer: "code", sourceLabel: "Function", sourceProperty: "uid", evidence: "Data access", detail: "Function queries a database table"},
 	// deploy layer
-	{verb: "DEPLOYS_FROM", layer: "deploy", sourceLabel: "Repository", sourceProperty: "id", evidence: "Deployment evidence", detail: "Repository deploys from a source", carriesSourceTool: true},
+	{verb: "DEPLOYS_FROM", layer: "deploy", sourceLabel: "Repository", sourceProperty: "id", evidence: "Deployment evidence", detail: "Repository deploys from a source", carriesSourceTool: true, sourceToolSourceLabel: "Repository"},
 	{verb: "INSTANCE_OF", layer: "deploy", sourceLabel: "WorkloadInstance", sourceProperty: "id", evidence: "Workload model", detail: "Instance realizes a workload definition"},
 	// infra layer
-	{verb: "PROVISIONS_DEPENDENCY_FOR", layer: "infra", sourceLabel: "Repository", sourceProperty: "id", evidence: "Terraform", detail: "Repository provisions infrastructure for a target", carriesSourceTool: true},
-	{verb: "USES_MODULE", layer: "infra", sourceLabel: "Repository", sourceProperty: "id", evidence: "Terraform modules", detail: "Repository consumes a module repository", carriesSourceTool: true},
-	{verb: "DISCOVERS_CONFIG_IN", layer: "infra", sourceLabel: "Repository", sourceProperty: "id", evidence: "Config discovery", detail: "Repository discovers configuration in a target", carriesSourceTool: true},
+	{verb: "PROVISIONS_DEPENDENCY_FOR", layer: "infra", sourceLabel: "Repository", sourceProperty: "id", evidence: "Terraform", detail: "Repository provisions infrastructure for a target", carriesSourceTool: true, sourceToolSourceLabel: "Repository"},
+	{verb: "USES_MODULE", layer: "infra", sourceLabel: "Repository", sourceProperty: "id", evidence: "Terraform modules", detail: "Repository consumes a module repository", carriesSourceTool: true, sourceToolSourceLabel: "Repository"},
+	{verb: "DISCOVERS_CONFIG_IN", layer: "infra", sourceLabel: "Repository", sourceProperty: "id", evidence: "Config discovery", detail: "Repository discovers configuration in a target", carriesSourceTool: true, sourceToolSourceLabel: "Repository"},
 	// runtime layer
-	{verb: "RUNS_ON", layer: "runtime", sourceLabel: "WorkloadInstance", sourceProperty: "id", evidence: "Runtime placement", detail: "Workload instance runs on a platform", carriesSourceTool: true},
-	{verb: "DEPENDS_ON", layer: "runtime", sourceLabel: "Workload", sourceProperty: "id", evidence: "Runtime dependency", detail: "Workload depends on another workload", carriesSourceTool: true},
+	{verb: "RUNS_ON", layer: "runtime", sourceLabel: "WorkloadInstance", sourceProperty: "id", evidence: "Runtime placement", detail: "Workload instance runs on a platform", carriesSourceTool: true, sourceToolSourceLabel: "WorkloadInstance"},
+	{verb: "DEPENDS_ON", layer: "runtime", sourceLabel: "Workload", sourceProperty: "id", evidence: "Runtime dependency", detail: "Workload depends on another workload", carriesSourceTool: true, sourceToolSourceLabel: "Repository"},
 	// security layer
 	{verb: "INVOKES_CLOUD_ACTION", layer: "security", sourceLabel: "Function", sourceProperty: "uid", evidence: "IAM call analysis", detail: "Function invokes a cloud action"},
 	// ops layer
-	{verb: "READS_CONFIG_FROM", layer: "ops", sourceLabel: "Repository", sourceProperty: "id", evidence: "Config access", detail: "Repository reads configuration from a target", carriesSourceTool: true},
+	{verb: "READS_CONFIG_FROM", layer: "ops", sourceLabel: "Repository", sourceProperty: "id", evidence: "Config access", detail: "Repository reads configuration from a target", carriesSourceTool: true, sourceToolSourceLabel: "Repository"},
 	{verb: "TAINT_FLOWS_TO", layer: "ops", sourceLabel: "Function", sourceProperty: "uid", evidence: "Taint analysis", detail: "Tainted data flows to a sink"},
 }
 
@@ -169,16 +172,16 @@ func relationshipEdgesCypherFiltered(entry relationshipVerbEntry) string {
 		"LIMIT $limit"
 }
 
-// relationshipSourceToolBreakdownCypher builds the whole-graph source_tool
-// distribution query for a verb. It matches only edges where source_tool IS NOT
-// NULL (so Tier-3 code edges and unstamped Tier-1 edges that carry no property
-// are excluded) and returns a per-tool count. The shape is
-// `MATCH ()-[r:VERB]->() WHERE ... RETURN source_tool, count`, which is
-// answered by the relationship-type index like relationshipCountCypher.
+// relationshipSourceToolBreakdownCypher builds the source_tool distribution
+// query for a verb. It starts at the source label that owns stamped edges and
+// excludes relationships where source_tool IS NULL. On NornicDB this is a
+// label-scan-plus-typed-expand: it avoids the anonymous whole-relationship scan,
+// but its cost remains proportional to the selected source-label population and
+// matching outgoing edges.
 //
 // The verb is taken from the fixed catalog only.
 func relationshipSourceToolBreakdownCypher(entry relationshipVerbEntry) string {
-	return "MATCH ()-[r:" + entry.verb + "]->()\n" +
+	return "MATCH (s:" + entry.sourceToolSourceLabel + ")-[r:" + entry.verb + "]->()\n" +
 		"WHERE r.source_tool IS NOT NULL\n" +
 		"RETURN r.source_tool AS source_tool, count(r) AS count"
 }

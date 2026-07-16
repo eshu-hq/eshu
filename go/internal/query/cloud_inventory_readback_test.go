@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -111,6 +112,22 @@ func TestCloudInventoryHandlerListsCanonicalIdentities(t *testing.T) {
 	}
 	if got, want := resp.Truth.Basis, TruthBasisSemanticFacts; got != want {
 		t.Fatalf("truth.basis = %#v, want %#v", got, want)
+	}
+}
+
+func TestCloudInventoryReadbackSelectsOnlyActiveScopeGenerations(t *testing.T) {
+	t.Parallel()
+
+	query, _ := buildCloudInventoryIdentitiesSQL(cloudInventoryFilter{Limit: 50})
+	for _, required := range []string{
+		"JOIN ingestion_scopes AS scope",
+		"scope.active_generation_id = fact_records.generation_id",
+		"JOIN scope_generations AS generation",
+		"generation.status = 'active'",
+	} {
+		if !strings.Contains(query, required) {
+			t.Fatalf("cloud inventory query missing active-generation guard %q:\n%s", required, query)
+		}
 	}
 }
 

@@ -39,6 +39,9 @@ func TestNewMCPQueryRouterLeavesLocalSemanticHybridDisabledByDefault(t *testing.
 	if router.SemanticSearch.LocalHybrid != nil {
 		t.Fatal("newMCPQueryRouter().SemanticSearch.LocalHybrid != nil, want disabled by default")
 	}
+	if router.SemanticSearch.ScopeResolver == nil {
+		t.Fatal("newMCPQueryRouter().SemanticSearch.ScopeResolver = nil, want repository-to-scope resolver")
+	}
 }
 
 func TestNewMCPQueryRouterWiresLocalSemanticHybridWhenExplicitlyConfigured(t *testing.T) {
@@ -151,6 +154,44 @@ func TestNewMCPQueryRouterWiresLocalSemanticHybridVectorStoresWithPostgresInstru
 	}
 	if values.db.Instruments != instruments {
 		t.Fatal("value store instruments do not match MCP instruments")
+	}
+}
+
+func TestNewMCPQueryRouterWiresSemanticSearchScopeResolverWithPostgresInstrumentation(t *testing.T) {
+	t.Parallel()
+
+	instruments, err := telemetry.NewInstruments(otel.Meter("eshu-mcp-scope-test"))
+	if err != nil {
+		t.Fatalf("NewInstruments() error = %v, want nil", err)
+	}
+	router := newMCPQueryRouter(
+		nil,
+		nil,
+		nil,
+		staticStatusReader{},
+		query.ProfileLocalFullStack,
+		query.GraphBackendNornicDB,
+		nil,
+		instruments,
+		"",
+		"",
+		component.Policy{},
+		query.GovernanceStatusConfig{},
+		nil,
+		false,
+	)
+	resolver, ok := router.SemanticSearch.ScopeResolver.(instrumentedSemanticSearchScopeResolver)
+	if !ok {
+		t.Fatalf("ScopeResolver = %T, want instrumented resolver", router.SemanticSearch.ScopeResolver)
+	}
+	if got, want := resolver.db.StoreName, semanticSearchScopeStoreName; got != want {
+		t.Fatalf("scope resolver store name = %q, want %q", got, want)
+	}
+	if resolver.db.Instruments != instruments {
+		t.Fatal("scope resolver instruments do not match MCP instruments")
+	}
+	if resolver.db.Tracer == nil {
+		t.Fatal("scope resolver tracer = nil, want Postgres child spans")
 	}
 }
 

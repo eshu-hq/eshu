@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"math"
 	"net/http"
 )
 
@@ -72,9 +73,10 @@ func isRepositoryCountCypher(cypher string) bool {
 }
 
 // queryRepositoryTotal runs a bounded COUNT query and returns the true number
-// of Repository nodes visible to the caller. On error it returns 0 so callers
-// always get a valid (if degraded) total rather than a server error.
-func queryRepositoryTotal(ctx context.Context, graph GraphQuery, access repositoryAccessFilter) int {
+// of Repository nodes visible to the caller. A failed or malformed count is an
+// error rather than an exact zero because zero is a valid, materially different
+// inventory result.
+func queryRepositoryTotal(ctx context.Context, graph GraphQuery, access repositoryAccessFilter) (int, error) {
 	var cypher string
 	var params map[string]any
 	if access.scoped() {
@@ -87,10 +89,37 @@ func queryRepositoryTotal(ctx context.Context, graph GraphQuery, access reposito
 		cypher = repositoryCountCypher
 	}
 	row, err := graph.RunSingle(ctx, cypher, params)
-	if err != nil || row == nil {
-		return 0
+	if err != nil {
+		return 0, fmt.Errorf("repository total: %w", err)
 	}
-	return IntVal(row, "total")
+	if row == nil {
+		return 0, fmt.Errorf("repository total: count query returned no row")
+	}
+	raw, ok := row["total"]
+	if !ok || raw == nil {
+		return 0, fmt.Errorf("repository total: count query omitted total")
+	}
+	var total int
+	switch value := raw.(type) {
+	case int:
+		total = value
+	case int64:
+		if value > int64(math.MaxInt) {
+			return 0, fmt.Errorf("repository total: count query total exceeds platform integer range")
+		}
+		total = int(value)
+	case float64:
+		if value != math.Trunc(value) || value > float64(math.MaxInt) {
+			return 0, fmt.Errorf("repository total: count query returned non-integer total")
+		}
+		total = int(value)
+	default:
+		return 0, fmt.Errorf("repository total: count query returned unsupported total type %T", raw)
+	}
+	if total < 0 {
+		return 0, fmt.Errorf("repository total: count query returned negative total")
+	}
+	return total, nil
 }
 
 // listRepositories returns a bounded page of indexed repositories. It also
@@ -126,7 +155,11 @@ func (h *RepositoryHandler) listRepositories(w http.ResponseWriter, r *http.Requ
 	// Run the total COUNT and the page query. The COUNT is a cheap label scan
 	// that resolves in a few milliseconds; it does not need to be parallelised
 	// with the page query on any graph backend at production scale.
-	total := queryRepositoryTotal(r.Context(), h.Neo4j, access)
+	total, err := queryRepositoryTotal(r.Context(), h.Neo4j, access)
+	if err != nil {
+		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query failed: %v", err))
+		return
+	}
 
 	cypher := fmt.Sprintf(`
 		MATCH (r:Repository)

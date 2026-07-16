@@ -1,11 +1,25 @@
 // pages/DashboardPage.tsx
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import {
+  dashboardErrorMessage,
+  filterGraphByLayer,
+  graphNodeMetric,
+  hotEntityRows,
+  initialSelection,
+  LANDING_LAYERS,
+  layerCounts,
+  liveAtlasSeeds,
+  MAX_SEED_PROBES,
+  relationshipMetric,
+  relationshipRowsFor,
+  selectSeedGraph,
+} from "./dashboardModel";
 import type { EshuApiClient } from "../api/client";
 import { loadEntityMapGraph, resolveEntityName } from "../api/eshuGraph";
 import type { RepoListItem } from "../api/repoCatalog";
 import {
-  loadSourceBackedSuggestedQuestions,
+  loadSourceBackedSuggestedQuestionsResult,
   type SuggestedQuestion,
 } from "../api/suggestedQuestions";
 import { StatTile, Panel, TruthChip } from "../components/atoms";
@@ -13,36 +27,13 @@ import { AreaChart, Donut, BarRows } from "../components/charts";
 import { GraphCanvas } from "../components/GraphCanvas";
 import { SuggestedQuestions } from "../components/SuggestedQuestions";
 import { fmt, LAYER_COLOR, SEVERITY_COLOR, uiTruth } from "../console/types";
-import type {
-  ConsoleModel,
-  GraphLayer,
-  GraphModel,
-  GraphNode,
-  RelationshipRow,
-  ServiceRow,
-} from "../console/types";
+import type { ConsoleModel, GraphLayer, GraphModel, GraphNode } from "../console/types";
 import "./dashboardLive.css";
-
-const LANDING_LAYERS: readonly GraphLayer[] = [
-  "code",
-  "deploy",
-  "infra",
-  "runtime",
-  "security",
-  "ops",
-];
 
 type AtlasState =
   | { readonly kind: "idle" }
   | { readonly kind: "loading"; readonly seed: string }
   | { readonly kind: "error"; readonly message: string; readonly seed: string };
-
-type RelationshipCoverageRow = {
-  readonly label: string;
-  readonly value: number;
-  readonly color: string;
-  readonly detail: string;
-};
 
 export function DashboardPage({
   model,
@@ -81,9 +72,11 @@ export function DashboardPage({
   const hotEntities = useMemo(() => hotEntityRows(model, atlasSeeds), [atlasSeeds, model]);
   const [sel, setSel] = useState<GraphNode | undefined>(() => initialSelection(graph));
   const atlasLabel = sel?.label ?? atlasSeed?.label ?? "live graph";
-  const graphNodeCount = lastNumber(model.series.graphNodes);
+  const graphNodeCount = graphNodeMetric(model);
   const relationshipCount = relationshipMetric(model, baseGraph);
   const [suggestedQuestions, setSuggestedQuestions] = useState<readonly SuggestedQuestion[]>([]);
+  const [suggestedQuestionsError, setSuggestedQuestionsError] = useState(false);
+  const [suggestedQuestionFailures, setSuggestedQuestionFailures] = useState<readonly string[]>([]);
   const selectedSpotlightName =
     sel && (sel.kind === "service" || sel.kind === "workload") ? sel.label : null;
   const nodeLabels = useMemo(
@@ -114,16 +107,29 @@ export function DashboardPage({
     let cancelled = false;
     if (!client || model.source !== "live") {
       setSuggestedQuestions([]);
+      setSuggestedQuestionsError(false);
+      setSuggestedQuestionFailures([]);
       return () => {
         cancelled = true;
       };
     }
-    void loadSourceBackedSuggestedQuestions(client)
-      .then((questions) => {
-        if (!cancelled) setSuggestedQuestions(questions);
+    setSuggestedQuestionsError(false);
+    setSuggestedQuestions([]);
+    setSuggestedQuestionFailures([]);
+    void loadSourceBackedSuggestedQuestionsResult(client)
+      .then((result) => {
+        if (!cancelled) {
+          setSuggestedQuestions(result.questions);
+          setSuggestedQuestionFailures(result.failures);
+          setSuggestedQuestionsError(result.failures.length > 0 && result.questions.length === 0);
+        }
       })
       .catch(() => {
-        if (!cancelled) setSuggestedQuestions([]);
+        if (!cancelled) {
+          setSuggestedQuestions([]);
+          setSuggestedQuestionsError(true);
+          setSuggestedQuestionFailures([]);
+        }
       });
     return () => {
       cancelled = true;
@@ -159,7 +165,11 @@ export function DashboardPage({
         setAtlasState({ kind: "idle" });
       } catch (error) {
         if (cancelled || requestID !== atlasRequestRef.current) return;
-        setAtlasState({ kind: "error", message: errorMessage(error), seed: atlasSeeds[0].label });
+        setAtlasState({
+          kind: "error",
+          message: dashboardErrorMessage(error),
+          seed: atlasSeeds[0].label,
+        });
       }
     }
     void loadSeed();
@@ -183,7 +193,7 @@ export function DashboardPage({
       setAtlasState({ kind: "idle" });
     } catch (error) {
       if (requestID !== atlasRequestRef.current) return;
-      setAtlasState({ kind: "error", message: errorMessage(error), seed: node.label });
+      setAtlasState({ kind: "error", message: dashboardErrorMessage(error), seed: node.label });
     }
   }
 
@@ -385,7 +395,20 @@ export function DashboardPage({
       </Panel>
 
       <Panel className="mt" title="Suggested questions" sub="Source-backed next reads">
-        <SuggestedQuestions questions={suggestedQuestions} />
+        {suggestedQuestionsError ? (
+          <p className="src-err" role="alert">
+            Suggested questions are unavailable from this source.
+          </p>
+        ) : (
+          <>
+            {suggestedQuestionFailures.length > 0 ? (
+              <p className="src-err" role="alert">
+                Some suggested questions are unavailable: {suggestedQuestionFailures.join(", ")}.
+              </p>
+            ) : null}
+            <SuggestedQuestions questions={suggestedQuestions} />
+          </>
+        )}
       </Panel>
 
       <Panel
@@ -430,195 +453,4 @@ export function DashboardPage({
       </Panel>
     </div>
   );
-}
-
-function initialSelection(graph: GraphModel): GraphNode | undefined {
-  return graph.nodes.find((node) => node.hero) ?? graph.nodes[0];
-}
-
-function lastNumber(values: readonly number[]): number | null {
-  const value = values.at(-1);
-  return typeof value === "number" && Number.isFinite(value) ? value : null;
-}
-
-function relationshipMetric(model: ConsoleModel, graph: GraphModel): number | null {
-  const graphEdgeCount = lastNumber(model.series.graphEdges);
-  if (graphEdgeCount !== null) return graphEdgeCount;
-  const relationshipTotal = model.relationships.reduce((total, row) => total + row.count, 0);
-  if (relationshipTotal > 0) return relationshipTotal;
-  return graph.edges.length > 0 ? graph.edges.length : null;
-}
-
-function relationshipRowsFor(
-  rows: readonly RelationshipRow[],
-  graph: GraphModel,
-): readonly RelationshipCoverageRow[] {
-  if (rows.length > 0) {
-    return rows
-      .slice()
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 7)
-      .map((row) => ({
-        label: row.verb,
-        value: row.count,
-        color: LAYER_COLOR[row.layer],
-        detail: row.detail,
-      }));
-  }
-  const counts = new Map<string, RelationshipRow>();
-  for (const edge of graph.edges) {
-    const key = `${edge.verb}\u0000${edge.layer}`;
-    const current = counts.get(key);
-    counts.set(key, {
-      verb: edge.verb,
-      layer: edge.layer,
-      count: (current?.count ?? 0) + 1,
-      detail: "Live entity-map relationships",
-    });
-  }
-  return [...counts.values()]
-    .sort((a, b) => b.count - a.count)
-    .slice(0, 7)
-    .map((row) => ({
-      label: row.verb,
-      value: row.count,
-      color: LAYER_COLOR[row.layer],
-      detail: row.detail,
-    }));
-}
-
-function filterGraphByLayer(
-  graph: GraphModel,
-  enabledLayers: Readonly<Record<GraphLayer, boolean>>,
-): GraphModel {
-  const edges = graph.edges.filter((edge) => enabledLayers[edge.layer]);
-  const keep = new Set<string>();
-  for (const edge of edges) {
-    keep.add(edge.s);
-    keep.add(edge.t);
-  }
-  for (const node of graph.nodes) {
-    if (node.hero) keep.add(node.id);
-  }
-  return {
-    edges,
-    nodes: graph.nodes.filter((node) => keep.has(node.id) || graph.edges.length === 0),
-  };
-}
-
-function layerCounts(
-  graph: GraphModel,
-): readonly { readonly count: number; readonly layer: GraphLayer }[] {
-  return LANDING_LAYERS.map((layer) => ({
-    count: graph.edges.filter((edge) => edge.layer === layer).length,
-    layer,
-  }));
-}
-
-function hotEntityRows(
-  model: ConsoleModel,
-  atlasSeeds: readonly GraphNode[],
-): readonly { readonly id: string; readonly name: string }[] {
-  const services =
-    atlasSeeds.length > 0
-      ? atlasSeeds.map((seed) => ({ id: seed.id, name: seed.label }))
-      : model.services.map((service) => ({ id: service.id, name: service.name }));
-  return services.filter((row) => row.name.trim().length > 0).slice(0, MAX_SEED_PROBES);
-}
-
-// A seed graph is "meaningful" once it has at least this many edges. A single
-// edge is the trivial workload->repository self-edge (2 nodes / 1 edge) that
-// makes for a weak landing atlas, so we keep probing past it.
-const MEANINGFUL_SEED_EDGES = 2;
-
-// Probe at most this many catalog services when hunting for a non-trivial seed.
-// Bounds the entity-map calls on first paint regardless of catalog size.
-const MAX_SEED_PROBES = 8;
-
-// liveAtlasSeeds returns the ordered candidate seed nodes for the live atlas.
-// It prefers named catalog services (in catalog order); when the catalog is
-// empty it falls back to indexed repositories, which always exist on a populated
-// stack even before any service/workload is admitted to the catalog (issue
-// #3398). Both kinds resolve through impact/entity-map, so the loader probes them
-// in turn and lands on the first that yields a meaningful neighbourhood, falling
-// back to the most-connected candidate it saw. Empty for demo data or once the
-// model already carries a graph.
-function liveAtlasSeeds(
-  model: ConsoleModel,
-  repositories: readonly RepoListItem[] | undefined,
-): readonly GraphNode[] {
-  if (model.source !== "live" || model.graph.nodes.length > 0) return [];
-  const serviceSeeds = model.services
-    .filter((service) => service.name.trim().length > 0)
-    .map(serviceSeedNode);
-  if (serviceSeeds.length > 0) return serviceSeeds;
-  return (repositories ?? [])
-    .filter((repository) => repository.name.trim().length > 0)
-    .map(repoSeedNode);
-}
-
-// selectSeedGraph probes candidate seeds in order and returns the first whose
-// live neighbourhood clears MEANINGFUL_SEED_EDGES. If none do, it returns the
-// most-connected graph seen so it still opens on real (never fabricated) edges.
-// Probing is bounded by MAX_SEED_PROBES so first paint stays cheap on large
-// catalogs, and stops early when isCancelled() reports the effect was torn down
-// (e.g. the model changed mid-scan) to avoid wasting reads.
-async function selectSeedGraph(
-  client: EshuApiClient,
-  seeds: readonly GraphNode[],
-  isCancelled: () => boolean,
-): Promise<{ readonly seed: GraphNode; readonly graph: GraphModel } | undefined> {
-  let best: { readonly seed: GraphNode; readonly graph: GraphModel } | undefined;
-  for (const seed of seeds.slice(0, MAX_SEED_PROBES)) {
-    if (isCancelled()) return best;
-    const resolved = await resolveEntityName(client, seed.label);
-    const graph = await loadEntityMapGraph(client, resolved);
-    if (graph.edges.length >= MEANINGFUL_SEED_EDGES) return { seed, graph };
-    if (!best || graph.edges.length > best.graph.edges.length) best = { seed, graph };
-  }
-  return best;
-}
-
-function serviceSeedNode(service: ServiceRow): GraphNode {
-  const label = service.name.trim();
-  const id = service.id.trim() || label;
-  const repo = service.repo.trim();
-  return {
-    col: 1,
-    hero: true,
-    id,
-    kind: serviceKind(service.kind),
-    label,
-    sub: repo || undefined,
-    truth: uiTruth(service.truth),
-  };
-}
-
-// repoSeedNode lifts an indexed repository into an atlas seed node. The label is
-// the repository handle the entity-map resolver expects; the id keys the node so
-// distinct repos never collapse. Used only when the service catalog yields no
-// seeds (issue #3398).
-function repoSeedNode(repository: RepoListItem): GraphNode {
-  const label = repository.name.trim();
-  const id = repository.id.trim() || label;
-  return {
-    col: 1,
-    hero: true,
-    id,
-    kind: "repo",
-    label,
-    sub: repository.repoSlug.trim() || undefined,
-    truth: "exact",
-  };
-}
-
-function serviceKind(kind: string): string {
-  const lower = kind.toLowerCase();
-  if (lower.includes("workload") || lower.includes("deployment")) return "workload";
-  if (lower.includes("repo")) return "repo";
-  return "service";
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : "failed";
 }

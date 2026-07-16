@@ -334,6 +334,7 @@ const openAPIPathsCode = `
               "schema": {
                 "type": "object",
                 "properties": {
+                  "candidate_kind": {"type": "string", "description": "Optional exact candidate kind. Restricts the bounded scan to the selected kind and rejects unsupported values instead of falling back to Function.", "enum": ["Function", "Class", "Struct", "Interface", "Trait", "SqlFunction"]},
                   "repo_id": {"type": "string", "description": "Optional repository selector (canonical ID, name, slug, or path)"},
                   "language": {"type": "string", "description": "Optional parser language filter. Use this when validating one language family, for example csharp, c, dart, haskell, kotlin, elixir, perl, php, groovy, or sql."},
                   "limit": {"type": "integer", "description": "Maximum dead-code candidates to return (default 100, max 500).", "default": 100},
@@ -355,13 +356,15 @@ const openAPIPathsCode = `
                 "schema": {
                   "type": "object",
                   "properties": {
+                    "candidate_kind": {"type": "string"},
                     "repo_id": {"type": "string"},
                     "language": {"type": "string"},
                     "limit": {"type": "integer"},
                     "truncated": {"type": "boolean", "description": "True when either displayed results were clipped to limit or the bounded paged raw candidate scan reached its scan cap."},
                     "display_truncated": {"type": "boolean", "description": "True when filtered display results exceeded limit and were clipped."},
                     "candidate_scan_truncated": {"type": "boolean", "description": "True when the paged raw candidate scan reached candidate_scan_limit before exhausting candidates."},
-                    "candidate_scan_limit": {"type": "integer", "description": "Maximum raw candidate rows the bounded dead-code scan may inspect before policy exclusions."},
+                    "candidate_scan_limit": {"type": "integer", "description": "Maximum raw candidate rows the bounded dead-code scan may inspect across all selected candidate labels before policy exclusions."},
+                    "candidate_scan_limit_per_label": {"type": "integer", "description": "Maximum share one candidate label may consume from the bounded scan's shared raw-row limit."},
                     "candidate_scan_pages": {"type": "integer", "description": "Number of raw candidate pages read before returning results."},
                     "candidate_scan_rows": {"type": "integer", "description": "Number of raw candidate rows inspected before policy exclusions."},
                     "results": {

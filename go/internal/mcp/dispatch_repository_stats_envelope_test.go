@@ -8,6 +8,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query"
@@ -142,9 +143,12 @@ type repositoryStatsEnvelopeGraphReader struct {
 
 func (r repositoryStatsEnvelopeGraphReader) RunSingle(
 	_ context.Context,
-	_ string,
+	cypher string,
 	_ map[string]any,
 ) (map[string]any, error) {
+	if strings.Contains(cypher, "count(r) AS total") {
+		return map[string]any{"total": int64(0)}, nil
+	}
 	return map[string]any{
 		"id":         r.repoID,
 		"name":       "stats-service",

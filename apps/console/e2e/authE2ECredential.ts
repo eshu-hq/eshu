@@ -46,10 +46,43 @@ export interface InitialCredential {
 }
 
 export interface RetrieveCredentialResult {
+  readonly status: "available" | "unavailable" | "error";
   readonly credential: InitialCredential | null;
+  readonly failureReason: CredentialFailureReason | null;
   // rawStderr is captured for diagnostics only — never printed alongside a
   // successful credential (the plaintext password must not be logged twice).
   readonly rawStderr: string;
+}
+
+export type CredentialFailureReason =
+  | "credential_unavailable"
+  | "encryption_key_mismatch"
+  | "credential_command_timeout"
+  | "postgres_unavailable"
+  | "credential_command_failed";
+
+export function classifyCredentialFailure(diagnostic: string): {
+  readonly status: "unavailable" | "error";
+  readonly reason: CredentialFailureReason;
+} {
+  const normalized = diagnostic.toLowerCase();
+  if (normalized.includes("no retrievable bootstrap credential")) {
+    return { status: "unavailable", reason: "credential_unavailable" };
+  }
+  if (normalized.includes("cannot decrypt the sealed bootstrap credential")) {
+    return { status: "error", reason: "encryption_key_mismatch" };
+  }
+  if (normalized.includes("timed out") || normalized.includes("timeout")) {
+    return { status: "error", reason: "credential_command_timeout" };
+  }
+  if (
+    normalized.includes("postgres") ||
+    normalized.includes("connection refused") ||
+    normalized.includes("select bootstrap credential")
+  ) {
+    return { status: "error", reason: "postgres_unavailable" };
+  }
+  return { status: "error", reason: "credential_command_failed" };
 }
 
 const usernameLine = /^username:\s+(\S+)/m;
@@ -97,7 +130,12 @@ export async function retrieveInitialCredential(
           `stdout omitted because it carries the one-time credential`,
       );
     }
-    return { credential: { username, password, recoveryCode }, rawStderr: "" };
+    return {
+      status: "available",
+      credential: { username, password, recoveryCode },
+      failureReason: null,
+      rawStderr: "",
+    };
   } catch (err) {
     const stderr =
       err !== null && typeof err === "object" && "stderr" in err
@@ -105,7 +143,13 @@ export async function retrieveInitialCredential(
         : err instanceof Error
           ? err.message
           : String(err);
-    return { credential: null, rawStderr: stderr };
+    const failure = classifyCredentialFailure(stderr);
+    return {
+      status: failure.status,
+      credential: null,
+      failureReason: failure.reason,
+      rawStderr: stderr,
+    };
   }
 }
 

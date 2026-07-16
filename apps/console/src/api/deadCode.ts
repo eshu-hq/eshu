@@ -3,6 +3,7 @@ import { EshuEnvelopeError, type TruthLevel } from "./envelope";
 import type { FindingRow } from "./eshuConsoleLive";
 
 export interface DeadCodeQuery {
+  readonly candidateKind?: string;
   readonly language?: string;
   readonly limit: number;
   readonly repoId?: string;
@@ -45,9 +46,12 @@ export interface DeadCodePage {
 export async function loadDeadCodePage(
   client: EshuApiClient,
   query: DeadCodeQuery,
-  repoNames?: ReadonlyMap<string, string>
+  repoNames?: ReadonlyMap<string, string>,
 ): Promise<DeadCodePage> {
-  const env = await client.post<DeadCodeResponse>("/api/v0/code/dead-code", deadCodePostBody(query));
+  const env = await client.post<DeadCodeResponse>(
+    "/api/v0/code/dead-code",
+    deadCodePostBody(query),
+  );
   if (env.error) throw new EshuEnvelopeError(env.error);
   const payload = env.data ?? {};
   const truthLevel = env.truth?.level ?? "derived";
@@ -59,15 +63,15 @@ export async function loadDeadCodePage(
     truth: {
       freshness: env.truth?.freshness?.state ?? "unknown",
       level: truthLevel,
-      profile: env.truth?.profile ?? "unknown"
-    }
+      profile: env.truth?.profile ?? "unknown",
+    },
   };
 }
 
 export function deadCodeRowsFromResponse(
   response: DeadCodeResponse | null | undefined,
   truthLevel: TruthLevel,
-  repoNames?: ReadonlyMap<string, string>
+  repoNames?: ReadonlyMap<string, string>,
 ): readonly FindingRow[] {
   return (response?.results ?? []).map((row, index) => {
     const filePath = nonEmpty(row.file_path, "unknown");
@@ -86,13 +90,15 @@ export function deadCodeRowsFromResponse(
       startLine: row.start_line,
       title: `Unreferenced symbol ${nonEmpty(row.name, "candidate")}`,
       truth: truthLevel,
-      type: "Dead code"
+      type: "Dead code",
     };
   });
 }
 
 function deadCodePostBody(query: DeadCodeQuery): Record<string, string | number> {
   const body: Record<string, string | number> = { limit: query.limit };
+  const candidateKind = query.candidateKind?.trim();
+  if (candidateKind) body.candidate_kind = candidateKind;
   const repoId = query.repoId?.trim();
   if (repoId) body.repo_id = repoId;
   const language = query.language?.trim();
@@ -102,7 +108,7 @@ function deadCodePostBody(query: DeadCodeQuery): Record<string, string | number>
 
 function deadCodeRepositoryLabel(
   row: DeadCodeRecord,
-  repoNames?: ReadonlyMap<string, string>
+  repoNames?: ReadonlyMap<string, string>,
 ): string {
   const explicitName = row.repo_name?.trim();
   if (explicitName) return explicitName;

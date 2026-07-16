@@ -405,11 +405,12 @@ func convertAnswer(ans engine.Answer) query.AskAnswer {
 		}
 	}
 	return query.AskAnswer{
-		Prose:       ans.Prose,
-		Narrated:    ans.Narrated,
-		Packets:     ans.Packets,
-		Trace:       trace,
-		Partial:     ans.Partial,
-		Limitations: ans.Limitations,
+		Prose:              ans.Prose,
+		Narrated:           ans.Narrated,
+		Packets:            ans.Packets,
+		PrimaryPacketIndex: ans.PrimaryPacketIndex,
+		Trace:              trace,
+		Partial:            ans.Partial,
+		Limitations:        ans.Limitations,
 	}
 }

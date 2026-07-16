@@ -221,11 +221,11 @@ are avoided: `deadCodeResultsWithGraphIncomingEdges` in
 content stores without that relational read model and for SQL routine
 reachability, whose reducer-owned `EXECUTES` edges are graph-written rather
 than stored as completed shared-projection intent rows. Small display limits use
-a bounded 2,500-row scan window, so a narrow MCP request does not become
-incomplete just because most raw candidates are later suppressed. The response
-separates display truncation from bounded raw candidate-scan truncation so
-callers know whether the returned page was clipped or the scan window was
-exhausted.
+one shared 2,500-row scan window with round-robin label pages, so a narrow MCP
+request does not become incomplete because an early label consumed the full
+budget or most raw candidates were later suppressed. The response separates
+display truncation from bounded raw candidate-scan truncation so callers know
+whether the returned page was clipped or the shared scan window was exhausted.
 
 ## Operational invariants
 
@@ -257,7 +257,11 @@ exhausted.
   label-scoped pages before policy exclusions, pushes any requested language
   filter into the candidate query, then checks completed reducer code-call
   intent rows for incoming edges on the remaining candidates and uses a
-  2,500-row scan window for small result limits. It reports
+  shared 2,500-row scan window for small result limits. Label pages are
+  round-robined inside that ceiling so a saturated early label cannot starve
+  later labels or multiply downstream work. It reports the shared maximum as
+  `candidate_scan_limit` and the maximum share one label may consume as
+  `candidate_scan_limit_per_label`, plus
   `candidate_scan_pages` plus `candidate_scan_rows`.
   `display_truncated` and `candidate_scan_truncated` must stay separate so
   performance bounds do not blur result-list pagination with raw scan coverage.

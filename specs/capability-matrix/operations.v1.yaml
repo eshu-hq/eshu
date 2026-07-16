@@ -1,0 +1,8 @@
+capabilities:
+  - capability: operations.status
+    tools: [GET /api/v0/status/operations]
+    profiles:
+      local_lightweight: {status: supported, max_truth_level: exact, required_runtime: local_host, p95_latency_ms: 1000, max_scope_size: bounded_live_operations, verification: [{go_test: ./internal/query}], notes: all-scopes callers receive exact bounded runtime status; scoped callers receive derived grant-filtered live activity with process-global aggregates withheld}
+      local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 1000, max_scope_size: bounded_live_operations, verification: [{go_test: ./internal/query}], notes: graph sidecar is not required; all-scopes truth is exact and scoped live-activity-only truth is derived}
+      local_full_stack: {status: supported, max_truth_level: exact, required_runtime: full_stack, p95_latency_ms: 1500, max_scope_size: bounded_live_operations, verification: [{go_test: ./internal/query}], notes: all-scopes callers receive the full exact board; scoped callers omit process-global queue, collector, stage, domain, and health aggregates}
+      production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 2000, max_scope_size: bounded_live_operations, verification: [{remote_validation: prod-operations-status}], notes: all-scopes callers receive exact deployed operations status; scoped callers receive derived grant-filtered live activity with no cross-tenant aggregates or identities}

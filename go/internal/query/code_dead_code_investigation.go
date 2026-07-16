@@ -30,17 +30,18 @@ type deadCodeInvestigationRequest struct {
 }
 
 type deadCodeInvestigationScan struct {
-	CleanupReady           []map[string]any
-	Ambiguous              []map[string]any
-	Suppressed             []map[string]any
-	PolicyStats            deadCodePolicyStats
-	DisplayTruncated       bool
-	CandidateScanTruncated bool
-	SuppressedTruncated    bool
-	CandidateScanLimit     int
-	CandidateScanPages     int
-	CandidateScanRows      int
-	ActiveCandidatesSeen   int
+	CleanupReady               []map[string]any
+	Ambiguous                  []map[string]any
+	Suppressed                 []map[string]any
+	PolicyStats                deadCodePolicyStats
+	DisplayTruncated           bool
+	CandidateScanTruncated     bool
+	SuppressedTruncated        bool
+	CandidateScanLimit         int
+	CandidateScanLimitPerLabel int
+	CandidateScanPages         int
+	CandidateScanRows          int
+	ActiveCandidatesSeen       int
 }
 
 // handleDeadCodeInvestigation returns the prompt-oriented dead-code packet used
@@ -96,19 +97,20 @@ func (h *CodeHandler) handleDeadCodeInvestigation(w http.ResponseWriter, r *http
 	analysis := buildDeadCodeAnalysisForLanguage(allReturned, req.ExcludeDecoratedWith, scan.PolicyStats, req.Language)
 
 	WriteSuccess(w, r, http.StatusOK, map[string]any{
-		"repo_id":                  req.RepoID,
-		"language":                 req.Language,
-		"limit":                    req.Limit,
-		"offset":                   req.Offset,
-		"truncated":                scan.DisplayTruncated || scan.CandidateScanTruncated,
-		"display_truncated":        scan.DisplayTruncated,
-		"candidate_scan_truncated": scan.CandidateScanTruncated,
-		"suppressed_truncated":     scan.SuppressedTruncated,
-		"next_offset":              deadCodeInvestigationNextOffset(req, scan),
-		"candidate_scan_limit":     scan.CandidateScanLimit,
-		"candidate_scan_pages":     scan.CandidateScanPages,
-		"candidate_scan_rows":      scan.CandidateScanRows,
-		"coverage":                 coverage,
+		"repo_id":                        req.RepoID,
+		"language":                       req.Language,
+		"limit":                          req.Limit,
+		"offset":                         req.Offset,
+		"truncated":                      scan.DisplayTruncated || scan.CandidateScanTruncated,
+		"display_truncated":              scan.DisplayTruncated,
+		"candidate_scan_truncated":       scan.CandidateScanTruncated,
+		"suppressed_truncated":           scan.SuppressedTruncated,
+		"next_offset":                    deadCodeInvestigationNextOffset(req, scan),
+		"candidate_scan_limit":           scan.CandidateScanLimit,
+		"candidate_scan_limit_per_label": scan.CandidateScanLimitPerLabel,
+		"candidate_scan_pages":           scan.CandidateScanPages,
+		"candidate_scan_rows":            scan.CandidateScanRows,
+		"coverage":                       coverage,
 		"candidate_buckets": map[string]any{
 			"cleanup_ready": scan.CleanupReady,
 			"ambiguous":     scan.Ambiguous,
@@ -153,52 +155,55 @@ func (h *CodeHandler) scanDeadCodeInvestigation(
 ) (deadCodeInvestigationScan, error) {
 	displayWindow := req.Offset + req.Limit
 	pageLimit := deadCodeCandidateQueryLimit(displayWindow)
+	totalLimit := deadCodeCandidateScanLimit(displayWindow)
 	scan := deadCodeInvestigationScan{
-		CleanupReady:       make([]map[string]any, 0),
-		Ambiguous:          make([]map[string]any, 0),
-		Suppressed:         make([]map[string]any, 0),
-		CandidateScanLimit: deadCodeCandidateScanLimit(displayWindow),
+		CleanupReady:               make([]map[string]any, 0),
+		Ambiguous:                  make([]map[string]any, 0),
+		Suppressed:                 make([]map[string]any, 0),
+		CandidateScanLimit:         totalLimit,
+		CandidateScanLimitPerLabel: totalLimit,
 	}
 	seenEntityIDs := make(map[string]struct{}, displayWindow+1)
+	schedule := newDeadCodeCandidateSchedule(
+		deadCodeCandidateLabelsForLanguage(req.Language),
+		pageLimit,
+		totalLimit,
+	)
 
-	for _, label := range deadCodeCandidateLabelsForLanguage(req.Language) {
-		for rawOffset := 0; rawOffset < scan.CandidateScanLimit; rawOffset += pageLimit {
-			limit := min(pageLimit, scan.CandidateScanLimit-rawOffset)
-			rows, err := h.deadCodeCandidateRows(ctx, req.RepoID, label, req.Language, limit, rawOffset)
-			if err != nil {
-				return scan, err
-			}
-			scan.CandidateScanPages++
-			rowCount := len(rows)
-			scan.CandidateScanRows += rowCount
-			rows = filterDuplicateDeadCodeRows(rows, seenEntityIDs)
-			results, contentByID, err := h.buildDeadCodeResults(ctx, rows)
-			if err != nil {
-				return scan, err
-			}
-			active, suppressed, stats := partitionDeadCodeInvestigationResults(
-				results,
-				contentByID,
-				req.ExcludeDecoratedWith,
-			)
-			addDeadCodePolicyStats(&scan.PolicyStats, stats)
-			scan.addSuppressed(suppressed)
-			active, err = h.filterDeadCodeResultsWithoutIncomingEdges(ctx, active, label)
-			if err != nil {
-				return scan, err
-			}
-			if scan.addActive(active, req) {
-				return scan, nil
-			}
-			if rowCount < limit {
-				break
-			}
-			if rawOffset+rowCount >= scan.CandidateScanLimit {
-				scan.CandidateScanTruncated = true
-				return scan, nil
-			}
+	for {
+		page, ok := schedule.nextPage()
+		if !ok {
+			break
+		}
+		rows, err := h.deadCodeCandidateRows(ctx, req.RepoID, page.Label, req.Language, page.Limit, page.Offset)
+		if err != nil {
+			return scan, err
+		}
+		scan.CandidateScanPages++
+		rowCount := len(rows)
+		scan.CandidateScanRows += rowCount
+		schedule.record(page, rowCount)
+		rows = filterDuplicateDeadCodeRows(rows, seenEntityIDs)
+		results, contentByID, err := h.buildDeadCodeResults(ctx, rows)
+		if err != nil {
+			return scan, err
+		}
+		active, suppressed, stats := partitionDeadCodeInvestigationResults(
+			results,
+			contentByID,
+			req.ExcludeDecoratedWith,
+		)
+		addDeadCodePolicyStats(&scan.PolicyStats, stats)
+		scan.addSuppressed(suppressed)
+		active, err = h.filterDeadCodeResultsWithoutIncomingEdges(ctx, active, page.Label)
+		if err != nil {
+			return scan, err
+		}
+		if scan.addActive(active, req) {
+			return scan, nil
 		}
 	}
+	scan.CandidateScanTruncated = schedule.candidateScanTruncated()
 	return scan, nil
 }
 

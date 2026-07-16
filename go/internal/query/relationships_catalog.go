@@ -7,6 +7,8 @@ import (
 	"context"
 	"net/http"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/sourcetool"
 )
@@ -18,6 +20,11 @@ const (
 	// relationshipEdgesMaxLimit clamps the requested edge page size so a single
 	// verb drill-down can never request an unbounded slice.
 	relationshipEdgesMaxLimit = 200
+	// relationshipBreakdownMaxConcurrency is the retained-data-proven safe
+	// overlap for the catalog's source-label scans on NornicDB. The slots belong
+	// to the handler, so simultaneous HTTP requests share the same cap instead of
+	// multiplying per-request fan-out.
+	relationshipBreakdownMaxConcurrency = 4
 )
 
 // relationshipVerbTile is one entry in the relationships catalog: a typed-edge
@@ -65,15 +72,14 @@ func (req relationshipEdgesRequest) limit() int {
 	}
 }
 
-// getRelationshipsCatalog returns the fixed typed-edge verb catalog with a
-// bounded, source-label-anchored whole-graph count per verb.
+// getRelationshipsCatalog returns the fixed typed-edge verb catalog with one
+// relationship-type-indexed whole-graph count per verb.
 //
 // POST /api/v0/relationships/catalog
 //
-// Each verb is counted with its own single bounded query anchored on the verb's
-// source-node label, mirroring the per-label portability rule in
-// infra_ecosystem_overview.go. No whole-graph unanchored relationship scan is
-// ever run, so the catalog stays within the bounded read contract.
+// Counts use the anonymous-endpoint relationship-type aggregate so every source
+// label that writes the verb is included. Source-label anchoring applies only
+// to the concrete edge slices and source_tool breakdowns.
 func (h *InfraHandler) getRelationshipsCatalog(w http.ResponseWriter, r *http.Request) {
 	if capabilityUnsupported(h.profile(), relationshipsCatalogCapability) {
 		WriteContractError(
@@ -115,14 +121,15 @@ func (h *InfraHandler) getRelationshipsCatalog(w http.ResponseWriter, r *http.Re
 		h.profile(),
 		relationshipsCatalogCapability,
 		TruthBasisAuthoritativeGraph,
-		"resolved from per-verb source-anchored relationship counts",
+		"resolved from per-verb relationship-type-indexed whole-graph counts",
 	))
 }
 
-// relationshipVerbTiles runs one bounded, source-anchored count per catalog
-// verb and returns the verb tiles in catalog order. For each verb it also runs
-// the source_tool breakdown query; the breakdown map is omitted when the verb
-// has no stamped edges (Tier-3 code verbs or verbs not yet stamped).
+// relationshipVerbTiles runs one relationship-type-indexed whole-graph count
+// per catalog verb and returns the verb tiles in catalog order. It overlaps the
+// independent source_tool breakdown reads only for verbs that carry stamped
+// edges; each result is written back to its catalog position so scheduling
+// cannot reorder the API.
 func (h *InfraHandler) relationshipVerbTiles(ctx context.Context) ([]relationshipVerbTile, error) {
 	tiles := make([]relationshipVerbTile, 0, len(relationshipVerbCatalog))
 	for _, entry := range relationshipVerbCatalog {
@@ -137,24 +144,99 @@ func (h *InfraHandler) relationshipVerbTiles(ctx context.Context) ([]relationshi
 			Evidence: entry.evidence,
 			Detail:   entry.detail,
 		}
-		if entry.carriesSourceTool {
+		tiles = append(tiles, tile)
+	}
+
+	errs := make([]error, len(relationshipVerbCatalog))
+	var wg sync.WaitGroup
+	for i, entry := range relationshipVerbCatalog {
+		if !entry.carriesSourceTool {
+			continue
+		}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			release, err := h.acquireRelationshipBreakdownSlot(ctx)
+			if err != nil {
+				errs[i] = err
+				return
+			}
+			defer release()
 			breakdown, err := h.relationshipSourceToolBreakdown(ctx, entry)
 			if err != nil {
-				return nil, err
+				errs[i] = err
+				return
 			}
 			if len(breakdown) > 0 {
-				tile.SourceTools = breakdown
+				tiles[i].SourceTools = breakdown
 			}
+		}()
+	}
+	wg.Wait()
+	for _, err := range errs {
+		if err != nil {
+			return nil, err
 		}
-		tiles = append(tiles, tile)
 	}
 	return tiles, nil
 }
 
-// relationshipSourceToolBreakdown queries the whole-graph source_tool
-// distribution for a single verb. It excludes edges that have no source_tool
-// property (Tier-1 self-labeling types and Tier-3 code edges), so the map
-// only contains tools that have actually stamped edges for that verb.
+// relationshipBreakdownSemaphore returns the handler-wide slots shared by all
+// catalog requests. Lazy initialization keeps direct handler construction in
+// tests and embedded callers safe while sync.Once prevents a first-request race.
+func (h *InfraHandler) relationshipBreakdownSemaphore() chan struct{} {
+	h.relationshipBreakdownOnce.Do(func() {
+		h.relationshipBreakdownSlots = make(chan struct{}, relationshipBreakdownMaxConcurrency)
+	})
+	return h.relationshipBreakdownSlots
+}
+
+// acquireRelationshipBreakdownSlot waits for one handler-wide source-tool
+// breakdown permit and returns its release function. The surrounding queue and
+// in-flight telemetry is label-free and does not change the four-slot admission
+// order, cancellation behavior, or permit ownership contract.
+func (h *InfraHandler) acquireRelationshipBreakdownSlot(ctx context.Context) (func(), error) {
+	slots := h.relationshipBreakdownSemaphore()
+	started := time.Now()
+	h.adjustRelationshipBreakdownQueued(ctx, 1)
+	select {
+	case slots <- struct{}{}:
+		h.adjustRelationshipBreakdownQueued(ctx, -1)
+		h.recordRelationshipBreakdownPermitWait(ctx, time.Since(started))
+		h.adjustRelationshipBreakdownInFlight(ctx, 1)
+		return func() {
+			h.adjustRelationshipBreakdownInFlight(ctx, -1)
+			<-slots
+		}, nil
+	case <-ctx.Done():
+		h.adjustRelationshipBreakdownQueued(ctx, -1)
+		h.recordRelationshipBreakdownPermitWait(ctx, time.Since(started))
+		return nil, ctx.Err()
+	}
+}
+
+func (h *InfraHandler) adjustRelationshipBreakdownQueued(ctx context.Context, delta int64) {
+	if h != nil && h.Instruments != nil && h.Instruments.RelationshipBreakdownQueued != nil {
+		h.Instruments.RelationshipBreakdownQueued.Add(ctx, delta)
+	}
+}
+
+func (h *InfraHandler) adjustRelationshipBreakdownInFlight(ctx context.Context, delta int64) {
+	if h != nil && h.Instruments != nil && h.Instruments.RelationshipBreakdownInFlight != nil {
+		h.Instruments.RelationshipBreakdownInFlight.Add(ctx, delta)
+	}
+}
+
+func (h *InfraHandler) recordRelationshipBreakdownPermitWait(ctx context.Context, duration time.Duration) {
+	if h != nil && h.Instruments != nil && h.Instruments.RelationshipBreakdownPermitWaitDuration != nil {
+		h.Instruments.RelationshipBreakdownPermitWaitDuration.Record(ctx, duration.Seconds())
+	}
+}
+
+// relationshipSourceToolBreakdown queries the source-label-anchored source_tool
+// distribution for one stamped verb. It excludes edges that have no source_tool
+// property, so the map only contains tools that have actually stamped edges for
+// that verb. Its cost still scales with the selected source-label population.
 func (h *InfraHandler) relationshipSourceToolBreakdown(ctx context.Context, entry relationshipVerbEntry) (map[string]int, error) {
 	rows, err := h.Neo4j.Run(ctx, relationshipSourceToolBreakdownCypher(entry), nil)
 	if err != nil {

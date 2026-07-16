@@ -28,7 +28,7 @@ Trace the changed flow before judging it:
 | Workflow or gate registry | Compare every changed workflow path/filter, called script, fixture, manifest ref, and generated artifact against the local registry trigger. Prove a change to each referenced input selects the intended gate. |
 | CLI/API/MCP contract | Run or statically validate the exact advertised argv, flag, route, schema, response shape, and output mode. Path-only tests are insufficient. |
 | Public report or redaction | Test strings, numbers, mixed case, nested scalars, URLs, hostnames, account-like IDs, and unrelated metadata that should not classify as evidence. |
-| Hot table, migration, or DDL | Prove lock behavior on populated stores, concurrency mode, idempotency, rollback/retry behavior, and bootstrap/restart interaction. |
+| Hot table, migration, or DDL | Prove first and repeated application on a populated supported backend, lock behavior, concurrency mode, rollback/retry behavior, and bootstrap/restart interaction. Inspect internal or index-backed result cardinality where possible; do not accept `IF NOT EXISTS` or unchanged domain-row counts as idempotency evidence. |
 | Performance or query path | Compare before/after on the same input shape, include cardinality, plan/trace/buffer or p95 evidence, and name the stop threshold. |
 | Live/integration test harness | Prove cleanup happens before resources close, failures are not ignored, fixtures are isolated, and reruns cannot leave durable state. |
 | Generated, cassette, golden, or manifest | Prove source-of-truth regeneration path, watcher coverage, stale deletion behavior, and consumer readback. |

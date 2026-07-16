@@ -1793,6 +1793,7 @@
           "data.analysis.root_categories_used[]",
           "data.analysis.dead_code_language_maturity.go",
           "data.candidate_scan_limit",
+          "data.candidate_scan_limit_per_label",
           "data.candidate_scan_pages",
           "data.candidate_scan_rows"
         ],
@@ -1820,6 +1821,7 @@
           "data.bucket_counts.cleanup_ready",
           "data.bucket_counts.ambiguous",
           "data.bucket_counts.suppressed",
+          "data.candidate_scan_limit_per_label",
           "data.language_maturity.go"
         ],
         "required_json_values": {
@@ -4211,6 +4213,7 @@
         ],
         "required_json_paths": [
           "data.candidate_buckets",
+          "data.candidate_scan_limit_per_label",
           "data.bucket_counts.dead",
           "data.bucket_counts.live_by_consumer",
           "data.bucket_counts.unknown",
@@ -4592,6 +4595,7 @@
           "data.analysis.root_categories_used[]",
           "data.analysis.dead_code_language_maturity.go",
           "data.candidate_scan_limit",
+          "data.candidate_scan_limit_per_label",
           "data.candidate_scan_pages",
           "data.candidate_scan_rows"
         ],
@@ -4621,6 +4625,7 @@
           "data.bucket_counts.cleanup_ready",
           "data.bucket_counts.ambiguous",
           "data.bucket_counts.suppressed",
+          "data.candidate_scan_limit_per_label",
           "data.language_maturity.go"
         ],
         "required_json_values": {
@@ -4648,6 +4653,7 @@
         ],
         "required_json_paths": [
           "data.candidate_buckets",
+          "data.candidate_scan_limit_per_label",
           "data.bucket_counts.dead",
           "data.bucket_counts.live_by_consumer",
           "data.bucket_counts.unknown",

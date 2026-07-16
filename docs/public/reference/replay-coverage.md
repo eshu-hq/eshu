@@ -4,14 +4,14 @@
 
 Every surface Eshu claims to support should have a green, credential-free, Docker-free replay scenario. This dashboard is generated from the C-1 coverage manifest and the source-of-truth registries (epic [#4172](https://github.com/eshu-hq/eshu/issues/4172)); it is refreshed by the replay-coverage gate so the gap is reviewable in a PR diff.
 
-**Overall: 384/401 surfaces satisfied (95.76%)** — mode: blocking.
+**Overall: 385/402 surfaces satisfied (95.77%)** — mode: blocking.
 
 ## Coverage by axis
 
 | Axis | Satisfied | Total | % | Uncovered | Exempt |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | authorization_catalog | 24 | 24 | 100.00% | 0 | 0 |
-| Capability claims | 132 | 132 | 100.00% | 0 | 0 |
+| Capability claims | 133 | 133 | 100.00% | 0 | 0 |
 | Read surfaces (CLI) | 7 | 7 | 100.00% | 0 | 0 |
 | Read surfaces (API/MCP) | 22 | 22 | 100.00% | 0 | 1 |
 | Parsers | 4 | 4 | 100.00% | 0 | 0 |
@@ -21,13 +21,13 @@ Every surface Eshu claims to support should have a green, credential-free, Docke
 | Retractable edge types (delta) | 52 | 52 | 100.00% | 0 | 0 |
 | Retractable node types (delta) | 86 | 87 | 98.85% | 1 | 0 |
 | Collectors | 34 | 34 | 100.00% | 0 | 8 |
-| **Total** | **384** | **401** | **95.76%** | **17** | **9** |
+| **Total** | **385** | **402** | **95.77%** | **17** | **9** |
 
 ## Coverage by scenario type
 
 | Scenario type | Satisfied | Total | % | Uncovered | Exempt |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| baseline | 213 | 213 | 100.00% | 0 | 5 |
+| baseline | 214 | 214 | 100.00% | 0 | 5 |
 | cost | 10 | 26 | 38.46% | 16 | 0 |
 | crash | 2 | 2 | 100.00% | 0 | 0 |
 | delta_tombstone | 139 | 140 | 99.29% | 1 | 0 |
@@ -69,7 +69,7 @@ Every ledger language is satisfied by corpus or parser fixture coverage.
 
 - `retractable_node:Variable` (delta_tombstone)
 
-## Covered surfaces (384)
+## Covered surfaces (385)
 
 | Surface | Scenario type | Scenario | Proof gate | Artifact |
 | --- | --- | --- | --- | --- |
@@ -158,6 +158,7 @@ Every ledger language is satisfied by corpus or parser fixture coverage.
 | `capability:incident.context.read` | baseline | capability_claim | capability-inventory | `incident.context.read` |
 | `capability:kubernetes.correlations.list` | baseline | correlation | golden-corpus-gate | `rc-4` |
 | `capability:observability.coverage.correlations.list` | baseline | capability_claim | capability-inventory | `observability.coverage.correlations.list` |
+| `capability:operations.status` | baseline | capability_claim | capability-inventory | `operations.status` |
 | `capability:operator.dead_letters.list` | baseline | capability_claim | capability-inventory | `operator.dead_letters.list` |
 | `capability:operator.reducer_input_invalid_facts.list` | baseline | capability_claim | capability-inventory | `operator.reducer_input_invalid_facts.list` |
 | `capability:package_registry.correlations.list` | baseline | correlation | golden-corpus-gate | `rc-9` |

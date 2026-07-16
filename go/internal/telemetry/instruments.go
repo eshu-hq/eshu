@@ -1022,6 +1022,15 @@ type Instruments struct {
 	// the handful with bespoke instruments.
 	APIRequestDuration metric.Float64Histogram
 	APIRequestErrors   metric.Int64Counter
+	// RelationshipBreakdownPermitWaitDuration measures time spent waiting for
+	// one of the four handler-wide relationship source-tool breakdown permits.
+	// RelationshipBreakdownQueued and RelationshipBreakdownInFlight expose the
+	// current number of callers waiting for and holding those permits. All three
+	// instruments are label-free because the limiter is one fixed conflict
+	// domain shared by every relationship-catalog request in the process.
+	RelationshipBreakdownPermitWaitDuration metric.Float64Histogram
+	RelationshipBreakdownQueued             metric.Int64UpDownCounter
+	RelationshipBreakdownInFlight           metric.Int64UpDownCounter
 	// SearchHybridDegraded counts POST /api/v0/search/semantic requests served
 	// without semantic ranking (hybrid degraded to BM25, or semantic refused) by
 	// query_type and reason. Like APIRequestDuration it is recorded from the query
@@ -3637,6 +3646,35 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register APIRequestErrors counter: %w", err)
+	}
+
+	relationshipBreakdownWaitBuckets := []float64{0, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30}
+	inst.RelationshipBreakdownPermitWaitDuration, err = meter.Float64Histogram(
+		"eshu_dp_relationship_breakdown_permit_wait_seconds",
+		metric.WithDescription("Time relationship catalog source-tool breakdown reads wait for a handler-wide graph-read permit"),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(relationshipBreakdownWaitBuckets...),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register RelationshipBreakdownPermitWaitDuration histogram: %w", err)
+	}
+
+	inst.RelationshipBreakdownQueued, err = meter.Int64UpDownCounter(
+		"eshu_dp_relationship_breakdown_queued",
+		metric.WithDescription("Current relationship catalog source-tool breakdown reads waiting for a graph-read permit"),
+		metric.WithUnit("{read}"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register RelationshipBreakdownQueued up/down counter: %w", err)
+	}
+
+	inst.RelationshipBreakdownInFlight, err = meter.Int64UpDownCounter(
+		"eshu_dp_relationship_breakdown_in_flight",
+		metric.WithDescription("Current relationship catalog source-tool breakdown reads holding a graph-read permit"),
+		metric.WithUnit("{read}"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register RelationshipBreakdownInFlight up/down counter: %w", err)
 	}
 
 	inst.SearchHybridDegraded, err = meter.Int64Counter(

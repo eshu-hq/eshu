@@ -62,6 +62,7 @@ describe("demoClient", () => {
     const env = await client.get<Record<string, unknown>>("/api/v0/status/operations?limit=25");
 
     expect(env.error).toBeNull();
+    expect(env.truth?.capability).toBe("operations.status");
     expect(env.truth?.basis).toBe("demo_fixture");
     expect(Array.isArray(env.data?.collectors)).toBe(true);
     expect(Array.isArray(env.data?.live_activity)).toBe(true);

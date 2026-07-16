@@ -112,6 +112,22 @@ func TestRealSpecsCapabilityCatalogConsoleSurfaceSetsConsoleFlag(t *testing.T) {
 	}
 }
 
+func TestRealSpecsOperationsStatusDeclaresConsoleSurface(t *testing.T) {
+	t.Parallel()
+
+	catalog, _, err := BuildFromSpecs(repoSpecsDir(t), Signals{})
+	if err != nil {
+		t.Fatalf("BuildFromSpecs: %v", err)
+	}
+	entry, ok := entryByCapability(catalog.Entries, "operations.status")
+	if !ok {
+		t.Fatal("operations.status missing from real specs")
+	}
+	if !entry.Console {
+		t.Fatalf("operations.status Console = false, want true for the routed Operations page")
+	}
+}
+
 func entryByCapability(entries []Entry, capability string) (Entry, bool) {
 	for _, entry := range entries {
 		if entry.Capability == capability {

@@ -117,6 +117,51 @@ does not read the environment.
   the narration validator.
 - **Bounded**: the iteration and tool-call limits are enforced unconditionally.
 
+### Exact indexed-repository counts
+
+An exact, unqualified indexed-repository count is a deterministic route. If the
+provider selects an ecosystem overview or index-status tool for that sole
+intent, the engine substitutes `list_indexed_repositories` with `limit=1` and
+`offset=0`. It reads the authorized inventory's `total`, never the page
+`count`, and publishes a deterministic packet summary that names
+`list_indexed_repositories.total` as its evidence source. Missing, partial,
+error, or internally inconsistent totals fail bounded instead of falling back
+to provider prose. Qualified and compound questions stay on the provider's
+selected route because a global inventory total cannot answer them exactly.
+The packet embeds `{total}` and references the exact authorized inventory at
+`eshu://api-result/repositories`; the ordinary JSON response and the SSE
+`answer` event preserve that same `result_ref` and bounded result. This is an
+aggregate-result reference, not a fabricated file/entity citation handle.
+When a provider requests multiple tools in the same turn, packet and trace
+order remain the actual dispatch order. The engine records an explicit primary
+packet index for this deterministic intent so prose, truth, result, and evidence
+all publish from the inventory packet even when another supported packet came
+first.
+
+No-Regression Evidence: #5246 exact-count routing, streaming parity, bounded
+failures, hostile qualified questions, packet evidence, and rejection of an
+unrelated provider-authored count pass with:
+
+```bash
+cd go && GOCACHE=/tmp/eshu-5246-gocache go test ./internal/ask/engine \
+  -run 'Test(Ask.*IndexedRepository|IndexedRepositoryCount)' -count=1
+```
+
+Retained-stack proof on 2026-07-14 returned the same current authorized total,
+`887`, through the HTTP API in `4.438 s` and the MCP server's shared Ask route
+in `4.666 s`; the direct repository inventory also reported `total=887`. Both
+responses named `list_indexed_repositories.total`, carried a deterministic
+truth class, and recorded the same supported `list_indexed_repositories` query
+trace. The canonical evidence-citation contract currently hydrates file/entity
+handles only, so this aggregate result deliberately uses its addressable
+canonical result plus packet truth provenance rather than fabricating an
+unresolvable citation handle.
+
+No-Observability-Change: #5246 keeps the existing Ask trace, packet limitations,
+query trace events, HTTP/SSE events, and provider adapter logs. The trace names
+the routed `list_indexed_repositories` tool. No metric, span name, log field,
+runtime knob, queue, graph write, or Postgres write was added.
+
 No-Regression Evidence: `go test ./internal/ask/engine -run '^TestAskStream'
 -count=1` covers default-closed streams, rejected narration, validated
 narration emission, tool-call events, and the no-streaming fallback. The

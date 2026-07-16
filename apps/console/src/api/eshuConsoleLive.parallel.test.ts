@@ -45,8 +45,14 @@ describe("loadConsoleSnapshot concurrency + resilience", () => {
         if (path.includes("/catalog")) {
           return enveloped(path, {
             services: [
-              { id: "workload:api", name: "api", kind: "service", repo_id: "repository:r_1", repo_name: "api" }
-            ]
+              {
+                id: "workload:api",
+                name: "api",
+                kind: "service",
+                repo_id: "repository:r_1",
+                repo_name: "api",
+              },
+            ],
           });
         }
         if (path.includes("/language-inventory")) {
@@ -57,23 +63,31 @@ describe("loadConsoleSnapshot concurrency + resilience", () => {
         }
         if (path.includes("/supply-chain/impact/findings") && path.includes("affected_exact")) {
           return enveloped(path, {
-            findings: [{ advisory_id: "GHSA-x", package_name: "p", cvss_score: 7, repository_id: "repository:r_1" }]
+            findings: [
+              {
+                advisory_id: "GHSA-x",
+                package_name: "p",
+                cvss_score: 7,
+                repository_id: "repository:r_1",
+              },
+            ],
           });
         }
         return enveloped(path, {});
       },
       getJson: async (path: string) =>
         defer(path, path.includes("/index-status") ? { status: "healthy", queue: {} } : {}),
-      post: async (path: string) => enveloped(path, { results: [{ name: "x", repo_name: "api" }] })
+      post: async (path: string) => enveloped(path, { results: [{ name: "x", repo_name: "api" }] }),
     } as unknown as EshuApiClient;
 
     const snap = await loadConsoleSnapshot(client);
 
     expect(topLevelOverlap).toBe(true);
-    // Parallelization must not break the repoNames -> vuln service-label
-    // dependency: the catalog (services) section feeds vulnerabilities.
+    // Parallelization must not turn a repository association into service
+    // evidence. The finding has repository_id only, so no reachable service is
+    // proven even though the catalog contains a matching repository.
     expect(snap.services).toHaveLength(1);
-    expect(snap.vulnerabilities[0]?.services).toEqual(["api"]);
+    expect(snap.vulnerabilities[0]?.services).toEqual([]);
   });
 
   it("retries a transient AbortError on the services fetch instead of degrading to empty", async () => {
@@ -89,15 +103,22 @@ describe("loadConsoleSnapshot concurrency + resilience", () => {
             throw new DOMException("The user aborted a request.", "AbortError");
           }
           return {
-            data: { services: [{ id: "workload:api", name: "api", kind: "service", repo_name: "api" }] },
+            data: {
+              services: [{ id: "workload:api", name: "api", kind: "service", repo_name: "api" }],
+            },
             error: null,
-            truth: { profile: "production", level: "exact", capability: "x", freshness: { state: "fresh" } }
+            truth: {
+              profile: "production",
+              level: "exact",
+              capability: "x",
+              freshness: { state: "fresh" },
+            },
           };
         }
         return { data: {}, error: null, truth: null };
       },
       getJson: async () => ({ status: "healthy", queue: {} }),
-      post: async () => ({ data: {}, error: null, truth: null })
+      post: async () => ({ data: {}, error: null, truth: null }),
     } as unknown as EshuApiClient;
 
     const snap = await loadConsoleSnapshot(client);
@@ -119,7 +140,7 @@ describe("loadConsoleSnapshot concurrency + resilience", () => {
         return { data: {}, error: null, truth: null };
       },
       getJson: async () => ({ status: "healthy", queue: {} }),
-      post: async () => ({ data: {}, error: null, truth: null })
+      post: async () => ({ data: {}, error: null, truth: null }),
     } as unknown as EshuApiClient;
 
     const snap = await loadConsoleSnapshot(client);

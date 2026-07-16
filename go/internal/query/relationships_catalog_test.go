@@ -39,8 +39,6 @@ func (f *fakeRelationshipsGraphReader) RunSingle(_ context.Context, cypher strin
 }
 
 func (f *fakeRelationshipsGraphReader) Run(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
-	f.lastParams = params
-	f.lastCypher = cypher
 	verb := verbInCypher(cypher)
 	// Breakdown queries contain the IS NOT NULL guard; edge queries do not.
 	if strings.Contains(cypher, "source_tool IS NOT NULL") {
@@ -49,6 +47,8 @@ func (f *fakeRelationshipsGraphReader) Run(_ context.Context, cypher string, par
 		}
 		return nil, nil
 	}
+	f.lastParams = params
+	f.lastCypher = cypher
 	return f.edgesByVerb[verb], nil
 }
 
@@ -96,6 +96,12 @@ func TestGetRelationshipsCatalogReturnsVerbTiles(t *testing.T) {
 	}
 	if env.Truth == nil || env.Truth.Basis != TruthBasisAuthoritativeGraph {
 		t.Fatalf("truth basis = %+v, want authoritative_graph", env.Truth)
+	}
+	if got, want := env.Truth.Reason, "resolved from per-verb relationship-type-indexed whole-graph counts"; got != want {
+		t.Fatalf("truth reason = %q, want %q", got, want)
+	}
+	if strings.Contains(env.Truth.Reason, "source-anchored") {
+		t.Fatalf("truth reason falsely describes whole-graph counts as source-anchored: %q", env.Truth.Reason)
 	}
 }
 
@@ -382,17 +388,43 @@ func TestRelationshipEdgesFilteredCypherHasWhereGuard(t *testing.T) {
 	}
 }
 
-// TestRelationshipSourceToolBreakdownCypherIsTypeIndexed guards that the
-// breakdown query uses the type-indexed bare-endpoint shape
-// `MATCH ()-[r:VERB]->()`, matching the contract of relationshipCountCypher.
-func TestRelationshipSourceToolBreakdownCypherIsTypeIndexed(t *testing.T) {
+// TestRelationshipSourceToolBreakdownCypherIsSourceAnchored guards that the
+// breakdown query starts from the catalog's source-owner label. On NornicDB,
+// the anonymous-endpoint shape scans the whole relationship population for
+// every verb even when the relationship type is selective.
+func TestRelationshipSourceToolBreakdownCypherIsSourceAnchored(t *testing.T) {
 	t.Parallel()
 
 	for _, entry := range relationshipVerbCatalog {
+		if entry.carriesSourceTool != (entry.sourceToolSourceLabel != "") {
+			t.Fatalf(
+				"%s carriesSourceTool = %t, sourceToolSourceLabel = %q; want both configured together",
+				entry.verb,
+				entry.carriesSourceTool,
+				entry.sourceToolSourceLabel,
+			)
+		}
+		if !entry.carriesSourceTool {
+			continue
+		}
+		if entry.verb == "DEPENDS_ON" && entry.sourceToolSourceLabel != "Repository" {
+			t.Fatalf(
+				"DEPENDS_ON source_tool owner = %q, want Repository because stamped edges are repository-to-repository",
+				entry.sourceToolSourceLabel,
+			)
+		}
+		if entry.verb != "DEPENDS_ON" && entry.sourceToolSourceLabel != entry.sourceLabel {
+			t.Fatalf(
+				"%s source_tool owner %q differs from edge-slice source %q",
+				entry.verb,
+				entry.sourceToolSourceLabel,
+				entry.sourceLabel,
+			)
+		}
 		breakdown := relationshipSourceToolBreakdownCypher(entry)
-		typeAnchor := "()-[r:" + entry.verb + "]->()"
-		if !strings.Contains(breakdown, typeAnchor) {
-			t.Fatalf("breakdown cypher for %s not relationship-type anchored: %s", entry.verb, breakdown)
+		sourceAnchor := "(s:" + entry.sourceToolSourceLabel + ")-[r:" + entry.verb + "]->()"
+		if !strings.Contains(breakdown, sourceAnchor) {
+			t.Fatalf("breakdown cypher for %s not source-label anchored: %s", entry.verb, breakdown)
 		}
 		if !strings.Contains(breakdown, "source_tool IS NOT NULL") {
 			t.Fatalf("breakdown cypher for %s must filter source_tool IS NOT NULL: %s", entry.verb, breakdown)

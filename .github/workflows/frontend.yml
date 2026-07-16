@@ -44,6 +44,14 @@ on:
       - "scripts/verify-eslint-config.sh"
       - "scripts/test-verify-frontend-format-changed.sh"
       - "scripts/verify-frontend-format-changed.sh"
+      - "scripts/ci/install-apt-packages.sh"
+      - "scripts/run-console-live-e2e.sh"
+      - "scripts/run-console-retained-e2e.sh"
+      - "scripts/test-run-console-live-e2e.sh"
+      - "scripts/test-run-console-retained-e2e.sh"
+      - "scripts/console-live-e2e-runtime.mjs"
+      - "scripts/lib/console-retained-create-proof-schema.sql"
+      - "scripts/lib/console-retained-verify-public-identity.sql"
       - ".pre-commit-config.yaml"
       - ".github/workflows/frontend.yml"
       # SSO auth E2E (#4971) surfaces — the browser gate, its runtime, the
@@ -113,6 +121,14 @@ jobs:
 
       - name: Install dependencies (clean, lockfile-pinned)
         run: npm ci
+
+      - name: Install live harness dependencies
+        run: scripts/ci/install-apt-packages.sh ripgrep
+
+      - name: Verify live console harness contracts
+        run: |
+          bash scripts/test-run-console-live-e2e.sh
+          bash scripts/test-run-console-retained-e2e.sh
 
       - name: Typecheck console
         run: npm run console:typecheck

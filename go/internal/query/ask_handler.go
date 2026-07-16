@@ -24,6 +24,10 @@ type AskAnswer struct {
 	Narrated bool
 	// Packets are the evidence-backed AnswerPackets.
 	Packets []AnswerPacket
+	// PrimaryPacketIndex explicitly selects the packet that backs the published
+	// response. Nil or an out-of-range index uses the ordinary first-supported
+	// fallback. Packet and trace order always remain dispatch ordered.
+	PrimaryPacketIndex *int
 	// Trace records every tool call in invocation order.
 	Trace []AskTraceEntry
 	// Partial is true when the answer is usable but incomplete.
@@ -97,6 +101,8 @@ var ErrNoStreaming = fmt.Errorf("ask: adapter does not support streaming")
 //	  "answer_prose":     string   // LLM prose when narrated
 //	  "artifacts":        []object // rendered format artifacts
 //	  "truth_class":      string   // from primary packet
+//	  "result_ref":       string   // canonical API result reference
+//	  "result":           object   // bounded canonical result projection
 //	  "evidence_handles": []object // from primary packet
 //	  "applied_facets":   object   // deterministic question-scoping metadata
 //	  "query_trace":      []object // tool-call trace
@@ -149,9 +155,13 @@ type askAppliedFacets struct {
 
 // askResponse is the documented JSON response shape for POST /api/v0/ask.
 type askResponse struct {
-	AnswerProse     string                   `json:"answer_prose,omitempty"`
-	Artifacts       []askArtifact            `json:"artifacts,omitempty"`
-	TruthClass      string                   `json:"truth_class,omitempty"`
+	AnswerProse string        `json:"answer_prose,omitempty"`
+	Artifacts   []askArtifact `json:"artifacts,omitempty"`
+	TruthClass  string        `json:"truth_class,omitempty"`
+	// ResultRef references the primary packet's canonical API result. Result is
+	// the packet's bounded embedded projection of that result.
+	ResultRef       string                   `json:"result_ref,omitempty"`
+	Result          any                      `json:"result,omitempty"`
 	EvidenceHandles []evidenceCitationHandle `json:"evidence_handles,omitempty"`
 	// CitationRef references the citation packet that hydrates the primary
 	// packet's evidence handles. It is the packet-level citation coverage for the
@@ -260,18 +270,13 @@ func buildAskResponse(ans AskAnswer, question, format string) askResponse {
 		resp.AnswerProse = ans.Prose
 	}
 
-	// Truth class and evidence handles: taken from the primary packet.
-	if len(ans.Packets) > 0 {
-		primary := ans.Packets[0]
-		for _, p := range ans.Packets {
-			if p.Supported {
-				primary = p
-				break
-			}
-		}
+	// Truth class, result, and evidence: taken from the primary packet.
+	if primary, ok := primaryAskPacket(ans); ok {
 		primarySupported = primary.Supported
 		primarySummary = primary.Summary
 		resp.TruthClass = string(primary.TruthClass)
+		resp.ResultRef = strings.TrimSpace(primary.ResultRef)
+		resp.Result = primary.Result
 		if len(primary.EvidenceHandles) > 0 {
 			resp.EvidenceHandles = primary.EvidenceHandles
 		}
@@ -322,6 +327,28 @@ func buildAskResponse(ans AskAnswer, question, format string) askResponse {
 	}
 
 	return resp
+}
+
+// primaryAskPacket returns the explicitly selected packet when the engine
+// identified one canonical answer. Otherwise it preserves the historical
+// first-supported fallback. An invalid explicit index fails closed to the
+// fallback so a malformed Asker cannot panic or suppress all packet truth.
+func primaryAskPacket(ans AskAnswer) (AnswerPacket, bool) {
+	if len(ans.Packets) == 0 {
+		return AnswerPacket{}, false
+	}
+	if ans.PrimaryPacketIndex != nil {
+		index := *ans.PrimaryPacketIndex
+		if index >= 0 && index < len(ans.Packets) {
+			return ans.Packets[index], true
+		}
+	}
+	for _, packet := range ans.Packets {
+		if packet.Supported {
+			return packet, true
+		}
+	}
+	return ans.Packets[0], true
 }
 
 // buildAppliedFacets runs DetectFacets on the question and returns a populated

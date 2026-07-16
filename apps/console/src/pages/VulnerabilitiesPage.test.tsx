@@ -9,7 +9,7 @@ function renderPage(model: ConsoleModel): void {
   render(
     <MemoryRouter>
       <VulnerabilitiesPage model={model} />
-    </MemoryRouter>
+    </MemoryRouter>,
   );
 }
 
@@ -42,15 +42,52 @@ describe("VulnerabilitiesPage", () => {
           cvss: 7.5,
           kev: false,
           fixedVersion: null,
-          services: ["catalog-api"]
-        }
-      ]
+          services: ["catalog-api"],
+        },
+      ],
     };
 
     renderPage(model);
 
     expect(screen.getAllByText("catalog-api").length).toBeGreaterThan(0);
     expect(screen.queryByText(/^repository[:_]/)).not.toBeInTheDocument();
+  });
+
+  it("counts impact findings and renders absent service evidence as not proven", () => {
+    const model: ConsoleModel = {
+      ...demoModel,
+      source: "live",
+      vulnerabilities: [
+        {
+          findingId: "finding:shared:one",
+          id: "GHSA-shared",
+          package: "lodash",
+          severity: "high",
+          cvss: 8.1,
+          kev: false,
+          fixedVersion: "4.17.22",
+          services: [],
+        },
+        {
+          findingId: "finding:shared:two",
+          id: "GHSA-shared",
+          package: "underscore",
+          severity: "high",
+          cvss: 8.1,
+          kev: false,
+          fixedVersion: "1.13.7",
+          services: [],
+        },
+      ],
+    };
+
+    renderPage(model);
+
+    const findingCount = screen.getByText("Open findings").closest(".stat-tile");
+    expect(findingCount).toHaveTextContent("2");
+    expect(screen.getByRole("heading", { name: "Finding register" })).toBeInTheDocument();
+    expect(screen.queryByText("Open advisories")).not.toBeInTheDocument();
+    expect(screen.getAllByText("Not proven")).toHaveLength(2);
   });
 
   it("renders a supply-chain impact path with evidence state for each hop", () => {
@@ -66,9 +103,15 @@ describe("VulnerabilitiesPage", () => {
     expect(path).toHaveTextContent("Owner evidence missing");
     expect(path).toHaveTextContent("admitted impact");
     expect(path).toHaveTextContent("SBOM correlation missing");
-    expect(screen.getByRole("link", { name: "Raw advisory evidence" })).toHaveAttribute("href", "/vulnerabilities/CVE-2024-0001");
+    expect(screen.getByRole("link", { name: "Raw advisory evidence" })).toHaveAttribute(
+      "href",
+      "/vulnerabilities/CVE-2024-0001",
+    );
     expect(screen.getByRole("link", { name: "SBOM evidence" })).toHaveAttribute("href", "/sbom");
-    expect(screen.getByRole("link", { name: "Image inventory" })).toHaveAttribute("href", "/images");
+    expect(screen.getByRole("link", { name: "Image inventory" })).toHaveAttribute(
+      "href",
+      "/images",
+    );
   });
 
   it("keeps partial supply-chain paths explicit when SBOM and image hops are missing", () => {
@@ -84,9 +127,9 @@ describe("VulnerabilitiesPage", () => {
           cvss: 7.8,
           kev: false,
           fixedVersion: "1.2.3",
-          services: ["checkout-service"]
-        }
-      ]
+          services: ["checkout-service"],
+        },
+      ],
     };
 
     renderPage(partial);
@@ -114,10 +157,10 @@ describe("VulnerabilitiesPage", () => {
           repositoryId: "oci-registry://registry.example/sample/unrelated",
           sizeBytes: 1024,
           sourceSystem: "oci_registry",
-          tag: "9.9.9"
-        }
+          tag: "9.9.9",
+        },
       ],
-      sbom: { total: 9, verified: 9, sbomCount: 9, attestationCount: 0 }
+      sbom: { total: 9, verified: 9, sbomCount: 9, attestationCount: 0 },
     };
 
     renderPage(unscopedInventory);
@@ -145,9 +188,9 @@ describe("VulnerabilitiesPage", () => {
           repositoryId: "oci-registry://registry.example/sample/checkout",
           sizeBytes: 1024,
           sourceSystem: "oci_registry",
-          tag: "9.9.9"
-        }
-      ]
+          tag: "9.9.9",
+        },
+      ],
     };
 
     renderPage(ambiguousImageName);
@@ -160,14 +203,59 @@ describe("VulnerabilitiesPage", () => {
   it("renders a no-impact state instead of fabricating a supply-chain path", () => {
     const empty: ConsoleModel = {
       ...demoModel,
-      vulnerabilities: []
+      source: "live",
+      vulnerabilities: [],
+      provenance: { ...demoModel.provenance, advisories: "live", vulnerabilities: "empty" },
     };
 
     renderPage(empty);
 
     const path = screen.getByRole("region", { name: "Supply-chain impact path" });
     expect(path).toHaveTextContent("No admitted supply-chain impact path");
-    expect(path).toHaveTextContent("No reachable advisory from this source.");
+    expect(path).toHaveTextContent(
+      "No affected service has been proven by vulnerability impact evidence.",
+    );
+    expect(
+      screen.getByText("No affected service has been proven by vulnerability impact evidence."),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/requires the vulnerability-intelligence collector/i),
+    ).not.toBeInTheDocument();
+  });
+
+  it("does not present zero or no-impact truth while reachable findings are unavailable", () => {
+    const unavailable: ConsoleModel = {
+      ...demoModel,
+      source: "live",
+      vulnerabilities: [],
+      provenance: { ...demoModel.provenance, vulnerabilities: "unavailable" },
+    };
+
+    renderPage(unavailable);
+
+    expect(screen.getByText(/Vulnerabilities data unavailable/)).toBeInTheDocument();
+    expect(screen.queryByText("Open findings")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("region", { name: "Supply-chain impact path" }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("No admitted supply-chain impact path")).not.toBeInTheDocument();
+  });
+
+  it("does not present zero or no-impact truth while reachable findings are loading", () => {
+    const loading: ConsoleModel = {
+      ...demoModel,
+      source: "live",
+      vulnerabilities: [],
+      provenance: { ...demoModel.provenance, vulnerabilities: "loading" },
+    };
+
+    renderPage(loading);
+
+    expect(screen.getByRole("status", { name: "Loading vulnerabilities" })).toBeInTheDocument();
+    expect(screen.queryByText("Open findings")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("region", { name: "Supply-chain impact path" }),
+    ).not.toBeInTheDocument();
   });
 
   it("shows catalog rows linking to the existing CVE detail page", () => {
@@ -185,13 +273,15 @@ describe("VulnerabilitiesPage", () => {
     const empty: ConsoleModel = {
       ...demoModel,
       advisories: [],
-      provenance: { ...demoModel.provenance, advisories: "empty" }
+      provenance: { ...demoModel.provenance, advisories: "empty" },
     };
     renderPage(empty);
 
     fireEvent.click(screen.getByRole("tab", { name: "Known intelligence (catalog)" }));
     expect(
-      screen.getByText("No catalog advisories yet — requires the vulnerability-intelligence collector.")
+      screen.getByText(
+        "No catalog advisories yet — requires the vulnerability-intelligence collector.",
+      ),
     ).toBeInTheDocument();
   });
 
@@ -199,13 +289,13 @@ describe("VulnerabilitiesPage", () => {
     const failed: ConsoleModel = {
       ...demoModel,
       advisories: [],
-      provenance: { ...demoModel.provenance, advisories: "unavailable" }
+      provenance: { ...demoModel.provenance, advisories: "unavailable" },
     };
     renderPage(failed);
 
     fireEvent.click(screen.getByRole("tab", { name: "Known intelligence (catalog)" }));
     expect(
-      screen.getByText(/The vulnerability-intelligence catalog is unavailable/)
+      screen.getByText(/The vulnerability-intelligence catalog is unavailable/),
     ).toBeInTheDocument();
   });
 });

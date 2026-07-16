@@ -48,6 +48,8 @@ const (
 	operationsMaxLimit     = pgstatus.LiveActivityMaxLimit
 )
 
+const operationsStatusCapability = "operations.status"
+
 // scopedOperationsRoute reports whether the request targets the live
 // operations board. The handler restricts live_activity rows to the caller's
 // granted repositories/ingestion scopes (returning zero rows without
@@ -77,11 +79,10 @@ func scopedOperationsRoute(r *http.Request) bool {
 // unaffected (access.empty() is always false for them) and see every
 // in-flight row, matching the pre-fix behavior.
 //
-// Scoped tokens receive the same aggregate sections; live_activity rows keep
-// every field except source_key/source_display (repo identity, raw and
-// human-readable) and lease_owner (worker identity), which are withheld, and
-// collectors collapse to the existing aggregate-only projection used by the
-// collector-status route.
+// Scoped callers receive only their grant-filtered live_activity rows. The
+// status.Reader snapshot is process-global, so its health, collector, stage,
+// domain, and queue aggregates cannot be attributed to the caller's grants and
+// are withheld rather than presented as tenant-local truth.
 func (h *StatusHandler) getOperations(w http.ResponseWriter, r *http.Request) {
 	if h.StatusReader == nil {
 		WriteError(w, http.StatusServiceUnavailable, "status reader not configured")
@@ -123,8 +124,30 @@ func (h *StatusHandler) getOperations(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	scoped := access.scoped()
 	ops := status.Operations(report, activity, truncated, limit)
-	WriteJSON(w, http.StatusOK, operationsToMap(ops, scopedAuthContext(r.Context())))
+	WriteSuccess(
+		w,
+		r,
+		http.StatusOK,
+		operationsToMap(ops, scoped),
+		operationsStatusTruth(h.profile(), report.AsOf, scoped),
+	)
+}
+
+func operationsStatusTruth(profile QueryProfile, observedAt time.Time, scoped bool) *TruthEnvelope {
+	truth := BuildTruthEnvelope(
+		profile,
+		operationsStatusCapability,
+		TruthBasisRuntimeState,
+		"resolved from the bounded live operations runtime read model",
+	)
+	truth.Freshness.ObservedAt = observedAt.UTC().Format(time.RFC3339)
+	if scoped {
+		truth.Level = TruthLevelDerived
+		truth.Reason = "resolved from grant-filtered live activity; process-global aggregate sections are withheld"
+	}
+	return truth
 }
 
 // operationsLimit resolves and validates the `limit` query parameter,
@@ -145,27 +168,36 @@ func operationsLimit(w http.ResponseWriter, r *http.Request) (int, bool) {
 
 // operationsToMap renders the operations-board read model to a JSON-friendly
 // map. When scoped is true, live_activity rows withhold source_key,
-// source_display, and lease_owner, and collectors collapse to the
-// aggregate-only projection.
+// source_display, and lease_owner. Process-global aggregate sections are
+// omitted because the status snapshot cannot attribute them to the caller's
+// grants.
 func operationsToMap(ops status.OperationsReport, scoped bool) map[string]any {
-	collectors := collectorRuntimeStatusesToSlice(ops.Collectors)
+	result := map[string]any{
+		"version":       buildinfo.AppVersion(),
+		"as_of":         ops.AsOf.Format(time.RFC3339),
+		"scoped":        scoped,
+		"live_activity": liveActivityRowsToSlice(ops.LiveActivity, ops.AsOf, scoped),
+		"truncated":     ops.Truncated,
+		"limit":         ops.Limit,
+	}
 	if scoped {
-		collectors = scopedCollectorRuntimeStatusesToSlice(ops.Collectors)
+		result["completeness_state"] = "scoped_live_activity_only"
+		result["withheld_sections"] = []string{
+			"health",
+			"collectors",
+			"stage_summaries",
+			"domain_backlogs",
+			"queue",
+		}
+		return result
 	}
 
-	return map[string]any{
-		"version":         buildinfo.AppVersion(),
-		"as_of":           ops.AsOf.Format(time.RFC3339),
-		"scoped":          scoped,
-		"health":          healthToMap(ops.Health),
-		"collectors":      collectors,
-		"stage_summaries": stageSummariesToSlice(ops.StageSummaries),
-		"domain_backlogs": domainBacklogsToSlice(ops.DomainBacklogs, nil),
-		"queue":           queueToMap(ops.Queue),
-		"live_activity":   liveActivityRowsToSlice(ops.LiveActivity, ops.AsOf, scoped),
-		"truncated":       ops.Truncated,
-		"limit":           ops.Limit,
-	}
+	result["health"] = healthToMap(ops.Health)
+	result["collectors"] = collectorRuntimeStatusesToSlice(ops.Collectors)
+	result["stage_summaries"] = stageSummariesToSlice(ops.StageSummaries)
+	result["domain_backlogs"] = domainBacklogsToSlice(ops.DomainBacklogs, nil)
+	result["queue"] = queueToMap(ops.Queue)
+	return result
 }
 
 // liveActivityRowsToSlice converts []status.LiveActivityRow to the wire

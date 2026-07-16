@@ -10,7 +10,7 @@ import {
   loadSeriesBundle,
   loadServices,
   loadVulnerabilities,
-  type SectionContext
+  type SectionContext,
 } from "./eshuConsoleSections";
 
 describe("eshuConsoleSections findings", () => {
@@ -18,22 +18,24 @@ describe("eshuConsoleSections findings", () => {
     const client = {
       post: async () => ({
         data: {
-          results: [{
-            classification: "unused",
-            file_path: "server/src/api/itemsClient.ts",
-            name: "parseRange",
-            repo_id: "repository:r_1",
-            repo_name: ""
-          }]
+          results: [
+            {
+              classification: "unused",
+              file_path: "server/src/api/itemsClient.ts",
+              name: "parseRange",
+              repo_id: "repository:r_1",
+              repo_name: "",
+            },
+          ],
         },
         error: null,
         truth: {
           capability: "code_quality.dead_code",
           freshness: { state: "fresh" },
           level: "derived",
-          profile: "local_authoritative"
-        }
-      })
+          profile: "local_authoritative",
+        },
+      }),
     } as unknown as EshuApiClient;
 
     const rows = await loadFindings(client);
@@ -45,26 +47,28 @@ describe("eshuConsoleSections findings", () => {
     const client = {
       post: async () => ({
         data: {
-          results: [{
-            classification: "unused",
-            file_path: "server/src/api/itemsClient.ts",
-            name: "parseRange",
-            repo_id: "repository:r_1",
-            repo_name: ""
-          }]
+          results: [
+            {
+              classification: "unused",
+              file_path: "server/src/api/itemsClient.ts",
+              name: "parseRange",
+              repo_id: "repository:r_1",
+              repo_name: "",
+            },
+          ],
         },
         error: null,
         truth: {
           capability: "code_quality.dead_code",
           freshness: { state: "fresh" },
           level: "derived",
-          profile: "local_authoritative"
-        }
-      })
+          profile: "local_authoritative",
+        },
+      }),
     } as unknown as EshuApiClient;
     const ctx: SectionContext = {
       truth: {},
-      repoNames: new Map([["repository:r_1", "svc-catalog"]])
+      repoNames: new Map([["repository:r_1", "svc-catalog"]]),
     };
 
     const rows = await loadFindings(client, ctx);
@@ -78,37 +82,56 @@ describe("eshuConsoleSections findings", () => {
         data: null,
         error: {
           code: "unsupported_capability",
-          message: "dead-code analysis unavailable"
+          message: "dead-code analysis unavailable",
         },
-        truth: null
-      })
+        truth: null,
+      }),
     } as unknown as EshuApiClient;
 
     await expect(loadFindings(client)).rejects.toThrow(
-      "unsupported_capability: dead-code analysis unavailable"
+      "unsupported_capability: dead-code analysis unavailable",
     );
   });
 });
 
 describe("eshuConsoleSections vulnerabilities", () => {
+  it("rejects a request failure instead of reporting an authoritative empty result", async () => {
+    const client = {
+      get: async (path: string) => {
+        if (path.includes("impact_status=affected_exact")) {
+          return { data: { findings: [] }, error: null, truth: null };
+        }
+        throw new Error("derived impact request timed out");
+      },
+    } as unknown as EshuApiClient;
+    const ctx: SectionContext = {
+      truth: {},
+      repoNames: new Map(),
+    };
+
+    await expect(loadVulnerabilities(client, ctx)).rejects.toThrow(
+      "derived impact request timed out",
+    );
+  });
+
   it("rejects impact-finding error envelopes so snapshot provenance marks vulnerabilities unavailable", async () => {
     const client = {
       get: async () => ({
         data: null,
         error: {
           code: "unsupported_capability",
-          message: "impact findings unavailable"
+          message: "impact findings unavailable",
         },
-        truth: null
-      })
+        truth: null,
+      }),
     } as unknown as EshuApiClient;
     const ctx: SectionContext = {
       truth: {},
-      repoNames: new Map()
+      repoNames: new Map(),
     };
 
     await expect(loadVulnerabilities(client, ctx)).rejects.toThrow(
-      "unsupported_capability: impact findings unavailable"
+      "unsupported_capability: impact findings unavailable",
     );
   });
 });
@@ -120,10 +143,10 @@ describe("eshuConsoleSections snapshot envelopes", () => {
         data: null,
         error: {
           code: "unsupported_capability",
-          message: "snapshot section unavailable"
+          message: "snapshot section unavailable",
         },
-        truth: null
-      })
+        truth: null,
+      }),
     } as unknown as EshuApiClient;
   }
 
@@ -144,16 +167,20 @@ describe("eshuConsoleSections snapshot envelopes", () => {
   });
 
   it("rejects image inventory error envelopes so images are marked unavailable", async () => {
-    await expect(loadImagesSection(errorClient(), context())).rejects.toThrow("unsupported_capability");
+    await expect(loadImagesSection(errorClient(), context())).rejects.toThrow(
+      "unsupported_capability",
+    );
   });
 
   it("rejects IaC resource error envelopes so IaC is marked unavailable", async () => {
-    await expect(loadIacResources(errorClient(), context())).rejects.toThrow("unsupported_capability");
+    await expect(loadIacResources(errorClient(), context())).rejects.toThrow(
+      "unsupported_capability",
+    );
   });
 
   it("rejects metric series error envelopes so series provenance is marked unavailable", async () => {
     await expect(loadSeriesBundle(errorClient(), async (_key, load) => load())).rejects.toThrow(
-      "unsupported_capability"
+      "unsupported_capability",
     );
   });
 });

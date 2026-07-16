@@ -113,6 +113,12 @@ func TestHandleImportDependencyInvestigationReturnsFileImportCycles(t *testing.T
 	handler := &CodeHandler{
 		Neo4j: fakeGraphReader{
 			run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
+				if !strings.Contains(cypher, "MATCH (repo:Repository {id: $repo_id})-[:REPO_CONTAINS]->(source_file:File)") {
+					t.Fatalf("cypher = %q, want indexed repository anchor before import expansion", cypher)
+				}
+				if strings.Contains(cypher, "AND repo.id = $repo_id") {
+					t.Fatalf("cypher = %q, repo filter must not remain after import expansion", cypher)
+				}
 				if !strings.Contains(cypher, "repo.name as repo_name") {
 					t.Fatalf("cypher = %q, want repository display name projection", cypher)
 				}
@@ -226,6 +232,71 @@ func TestHandleImportDependencyInvestigationReturnsEmptyFileImportCycles(t *test
 	if got, want := resp["truncated"], false; got != want {
 		t.Fatalf("truncated = %#v, want %#v", got, want)
 	}
+}
+
+func TestFileImportCyclesCypherPreservesUnscopedRepositoryShape(t *testing.T) {
+	t.Parallel()
+
+	cypher := fileImportCyclesCypher(importDependencyRequest{
+		QueryType:  "file_import_cycles",
+		SourceFile: "src/module_a.py",
+		Limit:      6,
+	})
+	if !strings.Contains(cypher, "MATCH (repo:Repository)-[:REPO_CONTAINS]->(source_file:File)") {
+		t.Fatalf("cypher = %q, want repository discovery when repo_id is absent", cypher)
+	}
+	if strings.Contains(cypher, "{id: $repo_id}") || strings.Contains(cypher, "repo.id = $repo_id") {
+		t.Fatalf("cypher = %q, must not reference absent repo_id", cypher)
+	}
+}
+
+func TestFileImportCycleLiveProofShapesRemainStructurallyDistinct(t *testing.T) {
+	t.Parallel()
+
+	newCypher := fileImportCyclesCypher(importDependencyRequest{
+		QueryType: "file_import_cycles",
+		RepoID:    "repository:proof",
+		Limit:     6,
+	})
+	oldCypher := legacyUnanchoredFileImportCyclesProofCypher(newCypher)
+	assertImportCycleProofShapes(t, oldCypher, newCypher)
+}
+
+func assertImportCycleProofShapes(t *testing.T, oldCypher string, newCypher string) {
+	t.Helper()
+	if oldCypher == newCypher {
+		t.Fatal("old and new import-cycle proof queries are identical")
+	}
+	oldFirstMatch := "MATCH (repo:Repository)-[:REPO_CONTAINS]->(source_file:File)"
+	oldPostExpansionFilter := "AND repo.id = $repo_id"
+	newFirstMatch := "MATCH (repo:Repository {id: $repo_id})-[:REPO_CONTAINS]->(source_file:File)"
+	if !strings.Contains(oldCypher, oldFirstMatch) || !strings.Contains(oldCypher, oldPostExpansionFilter) {
+		t.Fatalf("old query does not preserve the shipped unanchored baseline markers: %q", oldCypher)
+	}
+	if strings.Contains(oldCypher, newFirstMatch) {
+		t.Fatalf("old query already contains the candidate repository anchor: %q", oldCypher)
+	}
+	if !strings.Contains(newCypher, newFirstMatch) || strings.Contains(newCypher, oldPostExpansionFilter) {
+		t.Fatalf("new query does not preserve the shipped anchored candidate markers: %q", newCypher)
+	}
+	if strings.Count(oldCypher, oldFirstMatch) != 1 || strings.Count(newCypher, newFirstMatch) != 1 {
+		t.Fatalf("old/new first-match markers must each occur exactly once")
+	}
+}
+
+func legacyUnanchoredFileImportCyclesProofCypher(newCypher string) string {
+	oldCypher := strings.Replace(
+		newCypher,
+		"MATCH (repo:Repository {id: $repo_id})-[:REPO_CONTAINS]->(source_file:File)",
+		"MATCH (repo:Repository)-[:REPO_CONTAINS]->(source_file:File)",
+		1,
+	)
+	return strings.Replace(
+		oldCypher,
+		"  AND source_file.relative_path < target_file.relative_path",
+		"  AND source_file.relative_path < target_file.relative_path\n  AND repo.id = $repo_id",
+		1,
+	)
 }
 
 func TestHandleImportDependencyInvestigationTruncatesFileImportCycles(t *testing.T) {
