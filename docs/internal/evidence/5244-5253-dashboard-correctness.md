@@ -22,14 +22,14 @@ accepted as proof that its requested data populated.
 Performance Evidence: the accepted no-index retained-stack browser run claimed
 its isolated identity surface through the normal setup wizard, then executed
 all 39 catalogued route/action workflows with that same owner browser-session
-cookie. All 39 passed in 115.593 aggregate route seconds. Code Graph passed in
-9.021 seconds with twelve owned HTTP responses, all status 200, and zero
-console errors. Service Catalog passed in 10.101 seconds, Vulnerabilities in
-12.933 seconds, Repositories in 8.829 seconds, Ask Eshu in 5.887 seconds with
-the exact 887-repository result, Relationships in 5.268 seconds, Replatforming
-in 2.706 seconds, Dead Code in 2.435 seconds, Cloud Drift in 2.779 seconds,
-Semantic Search in 2.693 seconds, and Secrets/IAM in 2.378 seconds. The Code
-Graph route finished 7.979 seconds inside the runner's 17-second live-browser liveness
+cookie. All 39 passed in 116.642 aggregate route seconds. Code Graph passed in
+9.351 seconds with twelve owned HTTP responses, all status 200, and zero
+console errors. Service Catalog passed in 10.075 seconds, Vulnerabilities in
+11.034 seconds, Repositories in 8.535 seconds, Ask Eshu in 10.355 seconds with
+the exact 887-repository result, Relationships in 3.639 seconds, Replatforming
+in 2.711 seconds, Dead Code in 2.519 seconds, Cloud Drift in 2.801 seconds,
+Semantic Search in 2.631 seconds, and Secrets/IAM in 2.362 seconds. The Code
+Graph route finished 7.649 seconds inside the runner's 17-second live-browser liveness
 cutoff. That cutoff is a harness timeout, not portable performance acceptance:
 this proof did not record a machine resource envelope or classify an absolute
 target as applicable. The runner's fixed settle/quiet windows, workflow
@@ -43,12 +43,12 @@ zero aborted or unexpected requests. The durable report retains the first 200
 query-free request observations and marks the bootstrap as truncated.
 
 The final API used immutable image id
-`sha256:7f0763c281937d0c7e643f3e76f6c7918e2829bf6d556d90d5be3b981e00ebb7`.
+`sha256:7d1dbb628e57bea37ece63086c961fdade2a291095b69daf4df3f60ae5b33bb4`.
 Its binary reports
 `proof-ce7c829ea06ac809a6f9d7fb67ef2b8c2172056989ccc07f892807a1c884d8ba`,
 which is the SHA-256 manifest of the exact Dockerfile, Go, and local Go SDK
 inputs copied by the image build. The corrected browser/runner input manifest
-was `a94dfc4cd1c33c8cc4eef9aceeeccc702bdb8eafe5a494a96aa2e49f4b5d6287`.
+was `160378744517e8ef9c646feaad8e2737f0b023b2d0ce2e9bbe3f2d86f441d8a9`.
 The sidecar read the unchanged retained Postgres volume and NornicDB image
 `timothyswt/nornicdb-cpu-bge:v1.1.11@sha256:51b6174ae65e4ce54a158ac2f9eace7d36a1971545824d22add0fe06d94c1090`.
 `SHOW INDEXES` verified that the rejected `function_legacy_id` index count was
@@ -64,6 +64,15 @@ The original retained API and console remained running on their prior image and
 port throughout. The final proof used isolated console port `5182` and API port
 `18123`, then removed only that temporary sidecar and auth schema. No database,
 graph, collector, reducer, or projector was restarted.
+
+No-Regression Evidence: a failing-first lifecycle regression reproduced the
+external-review defect: public-identity verification exited `73`, after which
+the prior EXIT trap leaked its owned sidecar. The corrected matrix proves both
+explicit and cleanup-time verification failures, original-versus-cleanup exit
+status precedence, keep-for-evidence behavior, continued schema cleanup after
+sidecar-removal failure, terminal schema-drop failure, and suppression of a
+false PASS marker. The real `final5240ad` proof then removed its temporary
+sidecar and schema after verifying the shared public identity digest.
 
 The identity and sidecar proof used these local-only commands. Credentials and
 retained anchor values were passed only at runtime and omitted from committed
@@ -83,7 +92,7 @@ RUNNER_INPUT_HASH="$({ printf '%s\0' package.json package-lock.json; \
 ESHU_ASK_ENABLED=true \
   ESHU_ASK_NARRATION_ENABLED=true \
   ESHU_SEMANTIC_PROVIDER_PROFILES_JSON="$ASK_PROVIDER_PROFILE_JSON" \
-  ESHU_E2E_RETAINED_PROOF_ID=final5240ab \
+  ESHU_E2E_RETAINED_PROOF_ID=final5240ad \
   ESHU_E2E_RETAINED_API_PORT=18123 \
   ESHU_E2E_CONSOLE_PORT=5182 \
   ESHU_E2E_WIZARD_NEW_PASSWORD="$LOCAL_PROOF_PASSWORD" \
@@ -104,7 +113,7 @@ The rebuilt MCP server advertised 159 tools. Two bounded
 a 0.035871-second warm call, returned one of 887 repositories with
 `truncated=true`, and carried an exact, fresh, production structured envelope.
 The exact Ask prompt returned the same authorized total through the browser API
-workflow in 5.887 seconds and the standalone MCP transport in 3.022045 seconds;
+workflow in 10.355 seconds and the standalone MCP transport in 3.022045 seconds;
 both paths returned deterministic truth, `{total: 887}`, and
 `eshu://api-result/repositories`. The MCP image was
 `sha256:013e3a86060c2befffaff0a5e205c8b53cbcff65522570b886b21d99f83fa1b2`
@@ -194,7 +203,7 @@ shape: a repository can carry an internal reducer workload identity beginning
 with `reducer_` and containing `_workload_identity_workload_`. Treating that
 opaque identity as a service selector produced four HTTP 404 responses. The
 exact retained pattern failed its regression before the classifier correction.
-After the correction, the accepted repository workflow completed in 8.829
+After the correction, the accepted repository workflow completed in 8.535
 seconds with zero console/network errors and response-backed workspace truth.
 Human workload names still load service story context. A reducer-owned opaque
 identity is skipped even when it appears before a later valid workload; that
@@ -396,7 +405,7 @@ affected packages and services.
 The retained stack also ran the public OSV-only vulnerability collector with
 no private token. The API returned five advisory catalog rows, and an exact
 advisory detail read returned HTTP 200 with one source. The final browser route
-rendered those real catalog and detail surfaces in 12.933 seconds with five
+rendered those real catalog and detail surfaces in 11.034 seconds with five
 requests and zero errors. The retained impact-finding routes authoritatively
 returned zero rows, and the browser proved the exact no-impact state rather
 than accepting a generic empty page.
@@ -423,9 +432,9 @@ cardinality or the exact authoritative empty marker. Adversarial tests prove a
 generic SVG, empty shell, or always-rendered table cannot pass alone.
 
 The accepted fingerprinted-image retained proof observed all four Code Graph
-responses and one visible canvas in 9.021 seconds; the relationship catalog
-response and 16 verb rows in 5.268 seconds; and three bootstrap-snapshot source
-responses plus 25 Findings rows in 1.764 seconds. Each workflow recorded the
+responses and one visible canvas in 9.351 seconds; the relationship catalog
+response and 16 verb rows in 3.639 seconds; and three bootstrap-snapshot source
+responses plus 25 Findings rows in 1.758 seconds. Each workflow recorded the
 accepted method, path, status, and owning bootstrap or route phase in the
 durable report. A route-owned expectation cannot borrow a matching bootstrap
 response.
@@ -437,7 +446,7 @@ largest real scope contained 1,824 findings. Its browser workflow observed
 HTTP 200 from the multi-cloud, AWS drift, unmanaged-resource, and Terraform
 import-plan endpoints; rendered the authoritative multi-cloud empty row, 50
 bounded AWS rows, 50 bounded unmanaged rows, and a loaded import-plan state;
-and completed in 2.779 seconds with no console or network error.
+and completed in 2.801 seconds with no console or network error.
 
 No-Observability-Change: these changes harden browser proof and render-state
 provenance. They add no runtime metric, span, log field, queue, worker, graph

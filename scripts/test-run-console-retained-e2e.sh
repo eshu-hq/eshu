@@ -176,22 +176,58 @@ mkdir -p "$tmp/bin"
 cat >"$tmp/bin/docker" <<'MOCK_DOCKER'
 #!/usr/bin/env bash
 set -euo pipefail
+mode="${ESHU_TEST_COLLISION:-container}"
 printf '%s\n' "$*" >>"$ESHU_TEST_DOCKER_LOG"
 if [[ "$*" == "container inspect"* ]]; then
-  [[ "${ESHU_TEST_COLLISION:-container}" == "container" ]] && exit 0
+  [[ "$mode" == "container" ]] && exit 0
   exit 1
 fi
 if [[ "$*" == *"exec -T postgres psql"* ]]; then
-  printf '%s\n' "$(cat)" >>"$ESHU_TEST_DOCKER_LOG"
-  [[ "${ESHU_TEST_COLLISION:-container}" == "schema" ]] && exit 1
+  sql="$(cat)"
+  printf '%s\n' "$sql" >>"$ESHU_TEST_DOCKER_LOG"
+  [[ "$mode" == "schema" ]] && exit 1
+  if [[ "$mode" =~ ^(verify_failure|cleanup_verify_failure)$ &&
+        "$sql" == *"current_digest <> baseline.row_digest"* ]]; then
+    exit 73
+  fi
+  if [[ "$mode" == "drop_failure" && "$sql" == *"DROP SCHEMA IF EXISTS %I CASCADE"* ]]; then
+    exit 74
+  fi
   exit 0
 fi
-if [[ "${ESHU_TEST_COLLISION:-container}" == "failed_keep" && "$*" == *"run -d --no-deps"* ]]; then
+if [[ "$mode" == "failed_keep" && "$*" == *"run -d --no-deps"* ]]; then
   exit 42
+fi
+if [[ "$mode" == "remove_failure" && "$*" == "rm -f "* ]]; then
+  exit 75
+fi
+if [[ "$mode" =~ ^(verify_failure|remove_failure|drop_failure)$ && "$*" == *"eshu-api --version"* ]]; then
+  api_hash="$({
+    printf '%s\0' Dockerfile
+    git ls-files -z -co --exclude-standard -- go sdk/go
+  } | sort -z | xargs -0 shasum -a 256 | shasum -a 256 | awk '{print $1}')"
+  printf 'eshu-api proof-%s\n' "$api_hash"
+  exit 0
+fi
+if [[ "$mode" =~ ^(verify_failure|remove_failure|drop_failure)$ && "$*" == *"ps -q nornicdb"* ]]; then
+  printf '%s\n' 'retained-nornicdb'
+  exit 0
 fi
 exit 0
 MOCK_DOCKER
 chmod +x "$tmp/bin/docker"
+
+cat >"$tmp/bin/curl" <<'MOCK_CURL'
+#!/usr/bin/env bash
+printf '%s' '200'
+MOCK_CURL
+chmod +x "$tmp/bin/curl"
+
+cat >"$tmp/bin/npm" <<'MOCK_NPM'
+#!/usr/bin/env bash
+exit 0
+MOCK_NPM
+chmod +x "$tmp/bin/npm"
 
 docker_log="$tmp/docker.log"
 set +e
@@ -237,9 +273,9 @@ if rg -q 'rm -f|DROP SCHEMA' "$docker_log"; then
   exit 1
 fi
 
-# A failed proof retained for evidence must still verify that the shared public
-# identity tables did not change. It must preserve its owned schema/container
-# after that check instead of deleting the evidence.
+# When sidecar startup fails, a proof retained for evidence must still verify
+# that the shared public identity tables did not change and preserve its owned
+# schema instead of deleting the evidence.
 : >"$docker_log"
 set +e
 PATH="$tmp/bin:$PATH" \
@@ -264,6 +300,163 @@ if ! rg -q --fixed-strings 'current_digest <> baseline.row_digest' "$docker_log"
 fi
 if rg -q 'rm -f|DROP SCHEMA' "$docker_log"; then
   echo "retained console proof failed+keep path deleted retained evidence" >&2
+  exit 1
+fi
+
+# A failed public-identity verification must not short-circuit cleanup of an
+# owned sidecar or schema. The verification status remains the terminal result.
+: >"$docker_log"
+set +e
+PATH="$tmp/bin:$PATH" \
+ESHU_TEST_DOCKER_LOG="$docker_log" \
+ESHU_TEST_COLLISION=verify_failure \
+ESHU_E2E_RETAINED_PROOF_ID=failed_verification_cleanup \
+ESHU_E2E_WIZARD_NEW_PASSWORD=not-a-real-secret \
+ESHU_E2E_CORPUS_ATTESTATION=test-corpus \
+ESHU_E2E_CORPUS_REPOSITORY_COUNT=1 \
+"$target" >"$tmp/failed-verification-stdout" 2>"$tmp/failed-verification-stderr"
+failed_verification_status=$?
+set -e
+
+if [[ "$failed_verification_status" -ne 73 ]]; then
+  echo "retained console proof did not propagate public identity verification failure" >&2
+  exit 1
+fi
+if ! rg -q --fixed-strings 'current_digest <> baseline.row_digest' "$docker_log"; then
+  echo "retained console proof cleanup skipped failed public identity verification" >&2
+  exit 1
+fi
+if ! rg -q --fixed-strings 'rm -f eshu-dashboard-session-failed-verification-cleanup' "$docker_log"; then
+  echo "retained console proof verification failure leaked its owned sidecar" >&2
+  exit 1
+fi
+if ! rg -q --fixed-strings 'DROP SCHEMA IF EXISTS %I CASCADE' "$docker_log"; then
+  echo "retained console proof verification failure leaked its owned schema" >&2
+  exit 1
+fi
+
+# If the main proof fails before its explicit identity check, a verification
+# failure inside the EXIT trap must not prevent either owned resource cleanup.
+# The original proof failure remains the terminal status.
+: >"$docker_log"
+set +e
+PATH="$tmp/bin:$PATH" \
+ESHU_TEST_DOCKER_LOG="$docker_log" \
+ESHU_TEST_COLLISION=cleanup_verify_failure \
+ESHU_E2E_RETAINED_PROOF_ID=failed_during_cleanup_verification \
+ESHU_E2E_WIZARD_NEW_PASSWORD=not-a-real-secret \
+ESHU_E2E_CORPUS_ATTESTATION=test-corpus \
+ESHU_E2E_CORPUS_REPOSITORY_COUNT=1 \
+"$target" >"$tmp/cleanup-verification-stdout" 2>"$tmp/cleanup-verification-stderr"
+cleanup_verification_status=$?
+set -e
+
+if [[ "$cleanup_verification_status" -ne 1 ]]; then
+  echo "retained console proof did not preserve the original failure over cleanup verification" >&2
+  exit 1
+fi
+if ! rg -q --fixed-strings 'public identity verification failed during cleanup (status 73)' "$tmp/cleanup-verification-stderr"; then
+  echo "retained console proof hid its cleanup-time identity verification failure" >&2
+  exit 1
+fi
+if ! rg -q --fixed-strings 'current_digest <> baseline.row_digest' "$docker_log"; then
+  echo "retained console proof skipped cleanup-time public identity verification" >&2
+  exit 1
+fi
+if ! rg -q --fixed-strings 'rm -f eshu-dashboard-session-failed-during-cleanup-verification' "$docker_log"; then
+  echo "retained console proof cleanup-time verification failure leaked its owned sidecar" >&2
+  exit 1
+fi
+if ! rg -q --fixed-strings 'DROP SCHEMA IF EXISTS %I CASCADE' "$docker_log"; then
+  echo "retained console proof cleanup-time verification failure leaked its owned schema" >&2
+  exit 1
+fi
+
+# Keeping a failed proof after its explicit verification must retain both the
+# owned sidecar and schema for inspection while propagating the failure.
+: >"$docker_log"
+set +e
+PATH="$tmp/bin:$PATH" \
+ESHU_TEST_DOCKER_LOG="$docker_log" \
+ESHU_TEST_COLLISION=verify_failure \
+ESHU_KEEP_RETAINED_PROOF=true \
+ESHU_E2E_RETAINED_PROOF_ID=failed_verification_kept \
+ESHU_E2E_WIZARD_NEW_PASSWORD=not-a-real-secret \
+ESHU_E2E_CORPUS_ATTESTATION=test-corpus \
+ESHU_E2E_CORPUS_REPOSITORY_COUNT=1 \
+"$target" >"$tmp/failed-verification-kept-stdout" 2>"$tmp/failed-verification-kept-stderr"
+failed_verification_kept_status=$?
+set -e
+
+if [[ "$failed_verification_kept_status" -ne 73 ]]; then
+  echo "retained console proof did not propagate a kept verification failure" >&2
+  exit 1
+fi
+for retained_message in \
+  'keeping proof sidecar eshu-dashboard-session-failed-verification-kept' \
+  'keeping isolated auth schema dashboard_session_failed_verification_kept'; do
+  if ! rg -q --fixed-strings "$retained_message" "$tmp/failed-verification-kept-stdout"; then
+    echo "retained console proof did not report retained failed evidence: $retained_message" >&2
+    exit 1
+  fi
+done
+if rg -q 'rm -f|DROP SCHEMA' "$docker_log"; then
+  echo "retained console proof deleted explicitly kept sidecar/schema evidence" >&2
+  exit 1
+fi
+
+# Cleanup must continue from a failed sidecar removal to schema teardown, and
+# the first cleanup failure must surface after an otherwise successful proof.
+: >"$docker_log"
+set +e
+PATH="$tmp/bin:$PATH" \
+ESHU_TEST_DOCKER_LOG="$docker_log" \
+ESHU_TEST_COLLISION=remove_failure \
+ESHU_E2E_RETAINED_PROOF_ID=failed_sidecar_removal \
+ESHU_E2E_WIZARD_NEW_PASSWORD=not-a-real-secret \
+ESHU_E2E_CORPUS_ATTESTATION=test-corpus \
+ESHU_E2E_CORPUS_REPOSITORY_COUNT=1 \
+"$target" >"$tmp/failed-remove-stdout" 2>"$tmp/failed-remove-stderr"
+failed_remove_status=$?
+set -e
+
+if [[ "$failed_remove_status" -ne 75 ]]; then
+  echo "retained console proof hid its sidecar cleanup failure" >&2
+  exit 1
+fi
+if ! rg -q --fixed-strings 'DROP SCHEMA IF EXISTS %I CASCADE' "$docker_log"; then
+  echo "retained console proof sidecar removal failure skipped schema cleanup" >&2
+  exit 1
+fi
+if rg -q --fixed-strings 'isolated retained-corpus proof PASS' "$tmp/failed-remove-stdout"; then
+  echo "retained console proof reported PASS after sidecar cleanup failure" >&2
+  exit 1
+fi
+
+# A schema teardown failure must be terminal and must suppress the PASS marker.
+: >"$docker_log"
+set +e
+PATH="$tmp/bin:$PATH" \
+ESHU_TEST_DOCKER_LOG="$docker_log" \
+ESHU_TEST_COLLISION=drop_failure \
+ESHU_E2E_RETAINED_PROOF_ID=failed_schema_drop \
+ESHU_E2E_WIZARD_NEW_PASSWORD=not-a-real-secret \
+ESHU_E2E_CORPUS_ATTESTATION=test-corpus \
+ESHU_E2E_CORPUS_REPOSITORY_COUNT=1 \
+"$target" >"$tmp/failed-drop-stdout" 2>"$tmp/failed-drop-stderr"
+failed_drop_status=$?
+set -e
+
+if [[ "$failed_drop_status" -ne 74 ]]; then
+  echo "retained console proof hid its schema cleanup failure" >&2
+  exit 1
+fi
+if ! rg -q --fixed-strings 'rm -f eshu-dashboard-session-failed-schema-drop' "$docker_log"; then
+  echo "retained console proof schema drop failure skipped sidecar cleanup" >&2
+  exit 1
+fi
+if rg -q --fixed-strings 'isolated retained-corpus proof PASS' "$tmp/failed-drop-stdout"; then
+  echo "retained console proof reported PASS after schema cleanup failure" >&2
   exit 1
 fi
 

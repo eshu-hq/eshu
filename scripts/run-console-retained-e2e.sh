@@ -17,7 +17,8 @@ api_port="${ESHU_E2E_RETAINED_API_PORT:-18086}"
 keep_proof="${ESHU_KEEP_RETAINED_PROOF:-false}"
 schema_created=false
 container_created=false
-public_identity_verified=false
+public_identity_verification_attempted=false
+proof_completed=false
 
 [[ "$proof_id" =~ ^[a-z0-9_]+$ ]] || {
   echo "run-console-retained-e2e: proof id must match [a-z0-9_]+" >&2
@@ -106,8 +107,8 @@ create_proof_schema() {
 }
 
 verify_public_identity_unchanged() {
-  postgres_psql -v proof_schema="$schema" <"$verify_public_identity_sql"
-  public_identity_verified=true
+  public_identity_verification_attempted=true
+  postgres_psql -v proof_schema="$schema" <"$verify_public_identity_sql" || return "$?"
 }
 
 drop_proof_schema() {
@@ -117,8 +118,21 @@ SQL
 }
 
 cleanup() {
-  if [[ "$schema_created" == "true" && "$public_identity_verified" != "true" ]]; then
+  local original_status="${1:-$?}"
+  local cleanup_status=0
+  local operation_status=0
+  local final_status=0
+
+  trap - EXIT
+  set +e
+
+  if [[ "$schema_created" == "true" && "$public_identity_verification_attempted" != "true" ]]; then
     verify_public_identity_unchanged
+    operation_status=$?
+    if ((operation_status != 0)); then
+      printf '%s\n' "run-console-retained-e2e: public identity verification failed during cleanup (status $operation_status)" >&2
+      cleanup_status=$operation_status
+    fi
   fi
   if [[ "$keep_proof" == "true" ]]; then
     if [[ "$container_created" == "true" ]]; then
@@ -127,16 +141,39 @@ cleanup() {
     if [[ "$schema_created" == "true" ]]; then
       printf '%s\n' "run-console-retained-e2e: keeping isolated auth schema $schema"
     fi
-    return
+  else
+    if [[ "$container_created" == "true" ]]; then
+      docker rm -f "$container_name" >/dev/null 2>&1
+      operation_status=$?
+      if ((operation_status != 0)); then
+        printf '%s\n' "run-console-retained-e2e: failed to remove proof sidecar $container_name (status $operation_status)" >&2
+        if ((cleanup_status == 0)); then
+          cleanup_status=$operation_status
+        fi
+      fi
+    fi
+    if [[ "$schema_created" == "true" ]]; then
+      drop_proof_schema
+      operation_status=$?
+      if ((operation_status != 0)); then
+        printf '%s\n' "run-console-retained-e2e: failed to drop isolated auth schema $schema (status $operation_status)" >&2
+        if ((cleanup_status == 0)); then
+          cleanup_status=$operation_status
+        fi
+      fi
+    fi
   fi
-  if [[ "$container_created" == "true" ]]; then
-    docker rm -f "$container_name" >/dev/null 2>&1 || true
+
+  final_status=$original_status
+  if ((final_status == 0)); then
+    final_status=$cleanup_status
   fi
-  if [[ "$schema_created" == "true" ]]; then
-    drop_proof_schema
+  if ((final_status == 0)) && [[ "$proof_completed" == "true" ]]; then
+    printf '%s\n' "run-console-retained-e2e: isolated retained-corpus proof PASS"
   fi
+  exit "$final_status"
 }
-trap cleanup EXIT
+trap 'cleanup "$?"' EXIT
 
 "${compose[@]}" ps --status running postgres nornicdb >/dev/null
 if docker container inspect "$container_name" >/dev/null 2>&1; then
@@ -206,4 +243,4 @@ ESHU_E2E_CORPUS_REPOSITORY_COUNT="$corpus_repository_count" \
 npm run console:e2e
 
 verify_public_identity_unchanged
-printf '%s\n' "run-console-retained-e2e: isolated retained-corpus proof PASS"
+proof_completed=true
