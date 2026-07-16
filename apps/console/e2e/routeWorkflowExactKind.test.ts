@@ -166,20 +166,27 @@ describe("exact-kind route workflow", () => {
     let pageUrl = "http://host/dead-code";
     const breakdownLink = locatorStub({
       click: vi.fn(async () => {
-        pageUrl = "http://host/dead-code?repo_id=repository%3Ar1";
+        pageUrl = "http://host/dead-code?repo_id=repository%3Ar1&language=typescript";
       }),
-      getAttribute: vi.fn().mockResolvedValue("/dead-code?repo_id=repository%3Ar1"),
+      getAttribute: vi
+        .fn()
+        .mockResolvedValue("/dead-code?repo_id=repository%3Ar1&language=typescript"),
     });
     const repositoryInput = locatorStub({
       inputValue: vi.fn().mockResolvedValue("repository:r1"),
     });
     const observedLanguage = locatorStub({ innerText: vi.fn().mockResolvedValue("typescript") });
-    const languageInput = locatorStub();
+    const languageInput = locatorStub({
+      fill: vi.fn(async () => {
+        pageUrl = "http://host/dead-code?language=typescript";
+      }),
+      inputValue: vi.fn().mockResolvedValue("typescript"),
+    });
     const waitForResponse = vi
       .fn()
       .mockResolvedValueOnce(response("Trait"))
       .mockResolvedValueOnce(responseBody({ limit: 100 }))
-      .mockResolvedValueOnce(responseBody({ limit: 100, repo_id: "repository:r1" }))
+      .mockResolvedValueOnce(responseBody({ language: "typescript", limit: 100 }))
       .mockResolvedValueOnce(
         responseBody({ language: "typescript", limit: 100, repo_id: "repository:r1" }),
       );

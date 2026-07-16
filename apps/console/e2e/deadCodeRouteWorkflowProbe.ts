@@ -47,6 +47,42 @@ export async function executeDeadCodeControls(
   }
   shapes.push(dataShape(controls.countScopeSelector, 1));
 
+  const observedLanguages = page.locator(controls.observedLanguageSelector);
+  if ((await visibleCount(observedLanguages)) === 0) {
+    return failed(workflow.id, "unscoped result returned no observed language to select", shapes);
+  }
+  const language = (await observedLanguages.first().innerText()).trim();
+  if (language === "" || language === "language unavailable") {
+    return failed(workflow.id, "unscoped result did not expose a usable language option", shapes);
+  }
+  const languageOption = page.locator(
+    `${controls.languageOptionsSelector}[value=${JSON.stringify(language)}]`,
+  );
+  if ((await languageOption.count()) !== 1) {
+    return failed(
+      workflow.id,
+      `observed language ${language} was absent from selector options`,
+      shapes,
+    );
+  }
+  const languageInput = page.locator(controls.languageSelector);
+  await languageInput.fill(language);
+  const apply = page.getByRole("button", { name: controls.applyName, exact: true });
+  const languageResponse = await clickForDeadCodeResponse(page, workflow, apply.click.bind(apply));
+  await waitForQuiet();
+  const languageBody = requestBodyRecord(languageResponse);
+  if (languageBody?.language !== language || languageBody.repo_id !== undefined) {
+    return failed(
+      workflow.id,
+      "language selection did not apply an exact language-only scope",
+      shapes,
+    );
+  }
+  if (new URL(page.url()).searchParams.get("language") !== language) {
+    return failed(workflow.id, "language selection did not preserve language in the URL", shapes);
+  }
+  requests.push(requestObservation(languageResponse));
+
   const breakdownToggle = page.getByRole("button", {
     name: controls.breakdownToggleName,
     exact: true,
@@ -73,6 +109,9 @@ export async function executeDeadCodeControls(
   if (!repositoryId) {
     return failed(workflow.id, "repository breakdown link omitted repo_id", shapes);
   }
+  if (new URL(href ?? "", "http://console.local").searchParams.get("language") !== language) {
+    return failed(workflow.id, "repository breakdown link dropped the active language", shapes);
+  }
   const repositoryOption = page.locator(
     `${controls.repositoryOptionsSelector}[value=${JSON.stringify(repositoryId)}]`,
   );
@@ -86,53 +125,36 @@ export async function executeDeadCodeControls(
 
   const repositoryResponse = await clickForDeadCodeResponse(page, workflow, link.click.bind(link));
   await waitForQuiet();
-  if (requestBodyRecord(repositoryResponse)?.repo_id !== repositoryId) {
-    return failed(workflow.id, "repository breakdown did not send its canonical repo_id", shapes);
+  const repositoryBody = requestBodyRecord(repositoryResponse);
+  if (repositoryBody?.repo_id !== repositoryId || repositoryBody.language !== language) {
+    return failed(
+      workflow.id,
+      "repository breakdown did not preserve canonical repository and language scope",
+      shapes,
+    );
   }
-  if (new URL(page.url()).searchParams.get("repo_id") !== repositoryId) {
-    return failed(workflow.id, "repository breakdown did not preserve repo_id in the URL", shapes);
+  const scopedURL = new URL(page.url());
+  if (
+    scopedURL.searchParams.get("repo_id") !== repositoryId ||
+    scopedURL.searchParams.get("language") !== language
+  ) {
+    return failed(
+      workflow.id,
+      "repository breakdown did not preserve both scopes in the URL",
+      shapes,
+    );
   }
   const repositoryInput = page.locator(controls.repositorySelector);
   if ((await repositoryInput.inputValue()) !== repositoryId) {
     return failed(workflow.id, "repository selector did not retain the breakdown scope", shapes);
   }
+  if ((await languageInput.inputValue()) !== language) {
+    return failed(workflow.id, "language selector did not retain the breakdown scope", shapes);
+  }
   requests.push(requestObservation(repositoryResponse));
-
-  const observedLanguages = page.locator(controls.observedLanguageSelector);
-  if ((await visibleCount(observedLanguages)) === 0) {
-    return failed(workflow.id, "repository scope returned no observed language to select", shapes);
-  }
-  const language = (await observedLanguages.first().innerText()).trim();
-  if (language === "" || language === "language unavailable") {
-    return failed(workflow.id, "repository scope did not expose a usable language option", shapes);
-  }
-  const languageOption = page.locator(
-    `${controls.languageOptionsSelector}[value=${JSON.stringify(language)}]`,
-  );
-  if ((await languageOption.count()) !== 1) {
-    return failed(
-      workflow.id,
-      `observed language ${language} was absent from selector options`,
-      shapes,
-    );
-  }
-  const languageInput = page.locator(controls.languageSelector);
-  await languageInput.fill(language);
-  const apply = page.getByRole("button", { name: controls.applyName, exact: true });
-  const languageResponse = await clickForDeadCodeResponse(page, workflow, apply.click.bind(apply));
-  await waitForQuiet();
-  const languageBody = requestBodyRecord(languageResponse);
-  if (languageBody?.repo_id !== repositoryId || languageBody.language !== language) {
-    return failed(
-      workflow.id,
-      "language selection did not preserve repository and language scope",
-      shapes,
-    );
-  }
-  requests.push(requestObservation(languageResponse));
   return passed(
     workflow.id,
-    "verified exact-kind/reset, window-scoped counts, repository drill-down, and observed language selection",
+    "verified exact-kind/reset, window-scoped counts, and repository drill-down preserving observed language",
     shapes,
     requests,
   );

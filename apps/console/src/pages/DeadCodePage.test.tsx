@@ -290,6 +290,45 @@ describe("DeadCodePage", () => {
     );
   });
 
+  it("preserves the current language when drilling into a repository", async () => {
+    const post = vi.fn(async () =>
+      envelope([
+        {
+          classification: "unused",
+          entity_id: "function:f1",
+          file_path: "server/routes.ts",
+          labels: ["Function"],
+          language: "typescript",
+          name: "unusedRoute",
+          repo_id: "repository:r1",
+          start_line: 10,
+        },
+      ]),
+    );
+    const client = { get: vi.fn(), post } as unknown as EshuApiClient;
+
+    renderDeadCode(<DeadCodePage client={client} model={{ ...demoModel, findings: [] }} />, [
+      "/dead-code?language=typescript",
+    ]);
+
+    await screen.findByText("Unreferenced symbol unusedRoute");
+    fireEvent.click(screen.getByRole("button", { name: "Show repository breakdown" }));
+    const filteredLink = screen.getByRole("link", { name: "View candidates" });
+    expect(filteredLink).toHaveAttribute(
+      "href",
+      "/dead-code?repo_id=repository%3Ar1&language=typescript",
+    );
+
+    fireEvent.click(filteredLink);
+    await waitFor(() =>
+      expect(post).toHaveBeenLastCalledWith("/api/v0/code/dead-code", {
+        language: "typescript",
+        limit: 100,
+        repo_id: "repository:r1",
+      }),
+    );
+  });
+
   it("does not invent a canonical repository scope for unresolved ownership", () => {
     const model: ConsoleModel = {
       ...demoModel,
@@ -317,6 +356,9 @@ describe("DeadCodePage", () => {
   });
 });
 
-function renderDeadCode(element: ReactElement): ReturnType<typeof render> {
-  return render(<MemoryRouter>{element}</MemoryRouter>);
+function renderDeadCode(
+  element: ReactElement,
+  initialEntries?: string[],
+): ReturnType<typeof render> {
+  return render(<MemoryRouter initialEntries={initialEntries}>{element}</MemoryRouter>);
 }

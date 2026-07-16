@@ -126,8 +126,10 @@ export function locFromFinding(finding: FindingRow): number {
   return 0;
 }
 
-export function deadCodeRepositoryHref(repositoryId: string): string {
+export function deadCodeRepositoryHref(repositoryId: string, language?: string): string {
   const params = new URLSearchParams({ repo_id: repositoryId });
+  const trimmedLanguage = language?.trim();
+  if (trimmedLanguage) params.set("language", trimmedLanguage);
   return `/dead-code?${params.toString()}`;
 }
 

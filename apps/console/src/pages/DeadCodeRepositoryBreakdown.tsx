@@ -38,8 +38,10 @@ export function RepositoryCoverageTile({
 }
 
 export function DeadCodeRepositoryBreakdown({
+  currentLanguage,
   groups,
 }: {
+  readonly currentLanguage: string;
   readonly groups: readonly DeadCodeRepositoryGroup[];
 }): React.JSX.Element {
   return (
@@ -77,7 +79,10 @@ export function DeadCodeRepositoryBreakdown({
                     <td>{fmt(loc)} LOC</td>
                     <td>
                       {group.repositoryId ? (
-                        <Link className="btn-ghost" to={deadCodeRepositoryHref(group.repositoryId)}>
+                        <Link
+                          className="btn-ghost"
+                          to={deadCodeRepositoryHref(group.repositoryId, currentLanguage)}
+                        >
                           View candidates
                         </Link>
                       ) : (

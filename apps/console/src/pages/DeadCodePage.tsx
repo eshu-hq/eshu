@@ -223,7 +223,9 @@ export function DeadCodePage({
           sub={scanLabel}
         />
       </div>
-      {showRepositoryBreakdown ? <DeadCodeRepositoryBreakdown groups={repositoryGroups} /> : null}
+      {showRepositoryBreakdown ? (
+        <DeadCodeRepositoryBreakdown currentLanguage={applied.language} groups={repositoryGroups} />
+      ) : null}
       <p className="dead-code-scan-status mt" role="status">
         {scanLabel}. All summary counts describe this returned result window, not the corpus.
       </p>
