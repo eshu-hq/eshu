@@ -70,7 +70,8 @@ export function DeadCodePage({
   const [showRepositoryBreakdown, setShowRepositoryBreakdown] = useState(false);
   const [classification, setClassification] = useState(ANY);
   const [kind, setKind] = useState(initialFilters.candidateKind.toLowerCase() || ANY);
-  const [query, setQuery] = useState(() => searchParams.get("q") ?? "");
+  const routeQuery = searchParams.get("q") ?? "";
+  const [query, setQuery] = useState(routeQuery);
   const routeRepoId = searchParams.get("repo_id") ?? "";
   const routeLanguage = searchParams.get("language") ?? "";
   const routeCandidateKind = candidateKindFromValue(searchParams.get("candidate_kind"));
@@ -82,7 +83,8 @@ export function DeadCodePage({
       withRouteScope(current, routeCandidateKind, routeLanguage, routeRepoId),
     );
     setKind(routeCandidateKind.toLowerCase() || ANY);
-  }, [routeCandidateKind, routeLanguage, routeRepoId]);
+    setQuery(routeQuery);
+  }, [routeCandidateKind, routeLanguage, routeQuery, routeRepoId]);
 
   useEffect(() => {
     let cancelled = false;

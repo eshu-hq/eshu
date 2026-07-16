@@ -380,7 +380,7 @@ describe("DeadCodePage", () => {
     const client = { get: vi.fn(), post } as unknown as EshuApiClient;
 
     renderDeadCode(<DeadCodePage client={client} model={{ ...demoModel, findings: [] }} />, [
-      "/dead-code?language=typescript",
+      "/dead-code?language=typescript&q=unusedRoute",
     ]);
 
     await screen.findByText("Unreferenced symbol unusedRoute");
@@ -400,6 +400,7 @@ describe("DeadCodePage", () => {
     );
 
     fireEvent.click(filteredLink);
+    await waitFor(() => expect(screen.getByLabelText("Find dead-code candidate")).toHaveValue(""));
     await waitFor(() =>
       expect(post).toHaveBeenLastCalledWith("/api/v0/code/dead-code", {
         candidate_kind: "Trait",
