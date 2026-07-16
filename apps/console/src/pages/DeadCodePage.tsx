@@ -1,30 +1,42 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 
 import {
   classificationFromFinding,
-  codeGraphHref,
   deadCodeLanguages,
   deadCodeScanLabel,
   groupDeadCodeByRepository,
   kindFromFinding,
-  locationFromFinding,
   locFromFinding,
   matchesDeadCodeQuery,
-  sourceHref,
-  symbolFromFinding,
   uniqueStrings,
-  type DeadCodeRepositoryGroup,
 } from "./deadCodePresentation";
 import type { EshuApiClient } from "../api/client";
 import { loadDeadCodePage } from "../api/deadCode";
 import type { DeadCodePage as LiveDeadCodePage } from "../api/deadCode";
-import { Panel, StatTile, Badge, TruthChip } from "../components/atoms";
+import { Panel, StatTile } from "../components/atoms";
 import type { ConsoleModel } from "../console/types";
-import { fmt, uiTruth } from "../console/types";
+import { fmt } from "../console/types";
 import type { RepositoryCatalogState } from "../repositoryCatalogLifecycle";
-import { DeadCodeRepositoryBreakdown, RepositoryCoverageTile } from "./DeadCodeRepositoryBreakdown";
 import "./liveInventory.css";
+
+const RepositoryCoverageTile = lazy(() =>
+  import("./DeadCodeRepositoryCoverageTile").then((module) => ({
+    default: module.RepositoryCoverageTile,
+  })),
+);
+
+const DeadCodeRepositoryBreakdown = lazy(() =>
+  import("./DeadCodeRepositoryBreakdown").then((module) => ({
+    default: module.DeadCodeRepositoryBreakdown,
+  })),
+);
+
+const DeadCodeTableRows = lazy(() =>
+  import("./DeadCodeTableRows").then((module) => ({
+    default: module.DeadCodeTableRows,
+  })),
+);
 
 const ANY = "all";
 const LIVE_LIMIT = 100;
@@ -94,6 +106,7 @@ export function DeadCodePage({
       setErr("");
       return;
     }
+    setLivePage(null);
     setBusy(true);
     setErr("");
     const filters = {
@@ -133,7 +146,9 @@ export function DeadCodePage({
     };
   }, [applied, client]);
 
-  const all = (livePage?.rows ?? model.findings).filter((finding) => finding.type === "Dead code");
+  const all = (client ? (livePage?.rows ?? []) : model.findings).filter(
+    (finding) => finding.type === "Dead code",
+  );
   const repositoryNames = useMemo(
     () => new Map(repositoryCatalog?.repositories.map((repo) => [repo.id, repo.name]) ?? []),
     [repositoryCatalog?.repositories],
@@ -221,11 +236,21 @@ export function DeadCodePage({
           color="var(--ember)"
           sub="current bounded response"
         />
-        <RepositoryCoverageTile
-          count={repositoryGroups.length}
-          expanded={showRepositoryBreakdown}
-          onToggle={() => setShowRepositoryBreakdown((current) => !current)}
-        />
+        <Suspense
+          fallback={
+            <StatTile
+              label="Repositories represented"
+              value={repositoryGroups.length}
+              sub="current result window"
+            />
+          }
+        >
+          <RepositoryCoverageTile
+            count={repositoryGroups.length}
+            expanded={showRepositoryBreakdown}
+            onToggle={() => setShowRepositoryBreakdown((current) => !current)}
+          />
+        </Suspense>
         <StatTile
           label="Est. LOC shown"
           value={fmt(totalLoc)}
@@ -239,13 +264,14 @@ export function DeadCodePage({
           sub={scanLabel}
         />
       </div>
-      {showRepositoryBreakdown ? (
+      <Suspense fallback={null}>
         <DeadCodeRepositoryBreakdown
           currentCandidateKind={applied.candidateKind}
           currentLanguage={applied.language}
           groups={repositoryGroups}
+          visible={showRepositoryBreakdown}
         />
-      ) : null}
+      </Suspense>
       <p className="dead-code-scan-status mt" role="status">
         {scanLabel}. All summary counts describe this returned result window, not the corpus.
       </p>
@@ -361,9 +387,17 @@ export function DeadCodePage({
                 </tr>
               </thead>
               <tbody>
-                {grouped.map((group) => (
-                  <DeadCodeGroup key={group.key} group={group} />
-                ))}
+                <Suspense
+                  fallback={
+                    <tr>
+                      <td colSpan={9} className="empty">
+                        Loading candidate rows...
+                      </td>
+                    </tr>
+                  }
+                >
+                  <DeadCodeTableRows groups={grouped} />
+                </Suspense>
                 {filtered.length === 0 ? (
                   <tr>
                     <td colSpan={9} className="empty">
@@ -398,69 +432,6 @@ function withRouteScope(
     return current;
   }
   return { candidateKind, language, repoId };
-}
-
-function DeadCodeGroup({ group }: { readonly group: DeadCodeRepositoryGroup }): React.JSX.Element {
-  const loc = group.rows.reduce((sum, finding) => sum + locFromFinding(finding), 0);
-  return (
-    <>
-      <tr className="group-row">
-        <td colSpan={9}>
-          <span className="group-label" style={{ color: "var(--ember)" }}>
-            {group.repository}
-          </span>
-          <span className="group-meta">
-            {group.rows.length} dead · {fmt(loc)} LOC
-          </span>
-        </td>
-      </tr>
-      {group.rows.map((finding) => {
-        const href = sourceHref(finding);
-        return (
-          <tr key={finding.id} className="cloud-row">
-            <td className="cell-stack">
-              <span className="mono" style={{ color: "var(--bone)", fontWeight: 600 }}>
-                {symbolFromFinding(finding)}
-              </span>
-              <small>{finding.title}</small>
-            </td>
-            <td>
-              <Badge tone="neutral">{kindFromFinding(finding)}</Badge>
-            </td>
-            <td className="dead-code-row-language">{finding.language ?? "language unavailable"}</td>
-            <td className="t-mut mono" style={{ fontSize: ".74rem" }}>
-              {href ? (
-                <Link className="mono" to={href}>
-                  {locationFromFinding(finding)}
-                </Link>
-              ) : (
-                locationFromFinding(finding)
-              )}
-            </td>
-            <td>
-              <span className="mono" style={{ color: "var(--crit)", fontWeight: 700 }}>
-                0
-              </span>
-            </td>
-            <td className="t-mut mono" style={{ fontSize: ".78rem" }}>
-              {locFromFinding(finding) || "—"}
-            </td>
-            <td>
-              <TruthChip level={uiTruth(finding.truth)} />
-            </td>
-            <td className="t-mut" style={{ fontSize: ".78rem", maxWidth: 360 }}>
-              {classificationFromFinding(finding) || "candidate"}
-            </td>
-            <td>
-              <Link className="btn-ghost" to={codeGraphHref(finding)}>
-                Open graph
-              </Link>
-            </td>
-          </tr>
-        );
-      })}
-    </>
-  );
 }
 
 function filtersFromSearchParams(params: URLSearchParams): DeadCodeFilters {

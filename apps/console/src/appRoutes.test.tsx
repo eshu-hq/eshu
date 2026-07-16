@@ -116,3 +116,21 @@ describe("AppRoutes /admin capability gating (#4969)", () => {
     await waitFor(() => expect(screen.getByText("Invitations")).toBeInTheDocument());
   });
 });
+
+describe("AppRoutes /dead-code performance boundary", () => {
+  it("renders the route shell synchronously without a route-level lazy hop", () => {
+    render(
+      <MemoryRouter initialEntries={["/dead-code"]}>
+        <AppRoutes
+          client={undefined}
+          model={demoModel}
+          source={{ base: "", key: "", mode: "private", status: "connected", msg: "" }}
+          repositories={[]}
+          onOpenService={vi.fn()}
+        />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole("heading", { level: 2, name: "Dead code" })).toBeInTheDocument();
+  });
+});

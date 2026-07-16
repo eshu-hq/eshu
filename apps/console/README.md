@@ -328,6 +328,14 @@ languages observed in the returned rows. Selecting a supported candidate kind
 must issue the exact server-side `candidate_kind`; resetting to all kinds must
 remove it.
 
+Keep the Dead Code route shell eager so navigation can render useful content
+without waiting for a route-level module hop. The repository coverage tile,
+hidden breakdown implementation, and candidate-row renderer may remain small
+lazy chunks; mount the hidden breakdown boundary during the initial render so
+opening it is synchronous after the route becomes interactive. This boundary
+keeps the main console bundle within its enforced budget without moving the
+whole route behind a loading screen.
+
 Cloud drift surfaces use bounded POST readbacks:
 
 - `POST /api/v0/cloud/runtime-drift/findings`

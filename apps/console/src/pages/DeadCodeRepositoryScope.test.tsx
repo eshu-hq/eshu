@@ -6,7 +6,7 @@ import { demoModel } from "../console/demoModel";
 import type { ConsoleModel } from "../console/types";
 
 describe("DeadCodePage repository scoping", () => {
-  it("counts unresolved repositories by canonical id instead of display label", () => {
+  it("counts unresolved repositories by canonical id instead of display label", async () => {
     const model: ConsoleModel = {
       ...demoModel,
       findings: [
@@ -40,9 +40,9 @@ describe("DeadCodePage repository scoping", () => {
     );
 
     expect(screen.getByText("Repositories represented")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Show repository breakdown" })).toHaveTextContent(
-      "2",
-    );
-    expect(screen.getAllByText("unresolved repository")).toHaveLength(2);
+    expect(
+      await screen.findByRole("button", { name: "Show repository breakdown" }),
+    ).toHaveTextContent("2");
+    expect(await screen.findAllByText("unresolved repository")).toHaveLength(2);
   });
 });

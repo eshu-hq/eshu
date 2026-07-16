@@ -38,7 +38,7 @@ function envelope(
 }
 
 describe("DeadCodePage", () => {
-  it("renders the dedicated dead-code workbench from finding rows", () => {
+  it("renders the dedicated dead-code workbench from finding rows", async () => {
     renderDeadCode(<DeadCodePage model={demoModel} />);
 
     expect(screen.getByRole("heading", { name: "Dead code" })).toBeInTheDocument();
@@ -48,11 +48,11 @@ describe("DeadCodePage", () => {
     expect(screen.getByText(/Grouped by repository/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /All kinds/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Any" })).toBeInTheDocument();
-    expect(screen.getByText("Unreferenced symbol legacyDiscount")).toBeInTheDocument();
+    expect(await screen.findByText("Unreferenced symbol legacyDiscount")).toBeInTheDocument();
     expect(screen.queryByText("CVE-2024-0001 reachable in prod image")).not.toBeInTheDocument();
   });
 
-  it("filters candidates by analyzer classification", () => {
+  it("filters candidates by analyzer classification", async () => {
     const model: ConsoleModel = {
       ...demoModel,
       findings: [
@@ -71,6 +71,7 @@ describe("DeadCodePage", () => {
     };
     renderDeadCode(<DeadCodePage model={model} />);
 
+    await screen.findByText("Unreferenced symbol legacyDiscount");
     fireEvent.click(screen.getByRole("button", { name: /unused/ }));
 
     expect(screen.getByText("Unreferenced symbol legacyDiscount")).toBeInTheDocument();
@@ -86,6 +87,17 @@ describe("DeadCodePage", () => {
     renderDeadCode(<DeadCodePage model={empty} />);
 
     expect(screen.getByText("No dead-code candidates from this source.")).toBeInTheDocument();
+  });
+
+  it("does not present bootstrap rows as the current live response while loading", () => {
+    const post = vi.fn(() => new Promise<never>(() => undefined));
+    const client = { get: vi.fn(), post } as unknown as EshuApiClient;
+
+    renderDeadCode(<DeadCodePage client={client} model={demoModel} />);
+
+    expect(screen.queryByText("Unreferenced symbol legacyDiscount")).not.toBeInTheDocument();
+    expect(screen.getByText("Loading dead-code candidates...")).toBeInTheDocument();
+    expect(screen.getByText("Candidates shown").closest(".stat-tile")).toHaveTextContent("0");
   });
 
   it("loads the dedicated live dead-code scan with filters", async () => {
