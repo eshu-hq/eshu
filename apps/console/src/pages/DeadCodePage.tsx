@@ -164,6 +164,7 @@ export function DeadCodePage({
       const params = new URLSearchParams(current);
       setOrDelete(params, "repo_id", next.repoId);
       setOrDelete(params, "language", next.language);
+      setOrDelete(params, "q", query.trim());
       return params;
     });
   }
@@ -176,6 +177,7 @@ export function DeadCodePage({
       const params = new URLSearchParams(current);
       params.delete("repo_id");
       params.delete("language");
+      setOrDelete(params, "q", query.trim());
       return params;
     });
   }

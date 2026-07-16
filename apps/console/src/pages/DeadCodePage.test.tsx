@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { StrictMode, type ReactElement } from "react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, useLocation } from "react-router-dom";
 import { vi } from "vitest";
 
 import { DeadCodePage } from "./DeadCodePage";
@@ -263,6 +263,45 @@ describe("DeadCodePage", () => {
     expect(post).toHaveBeenCalledTimes(2);
   });
 
+  it("synchronizes the local query when applying live scopes", async () => {
+    const post = vi.fn(async () =>
+      envelope([
+        {
+          classification: "unused",
+          entity_id: "function:f1",
+          file_path: "server/routes.ts",
+          labels: ["Function"],
+          language: "typescript",
+          name: "staleCandidate",
+          repo_id: "repository:r1",
+          start_line: 10,
+        },
+      ]),
+    );
+    const client = { get: vi.fn(), post } as unknown as EshuApiClient;
+
+    renderDeadCode(
+      <>
+        <DeadCodePage client={client} model={{ ...demoModel, findings: [] }} />
+        <LocationSearch />
+      </>,
+      ["/dead-code?q=stale"],
+    );
+
+    await screen.findByText("Unreferenced symbol staleCandidate");
+    fireEvent.change(screen.getByLabelText("Find dead-code candidate"), {
+      target: { value: "" },
+    });
+    fireEvent.change(screen.getByLabelText("Language selector"), {
+      target: { value: "typescript" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+
+    await waitFor(() =>
+      expect(screen.getByTestId("location-search")).toHaveTextContent("?language=typescript"),
+    );
+  });
+
   it("opens an actionable current-window repository breakdown", async () => {
     const post = vi.fn(async () =>
       envelope(
@@ -394,4 +433,8 @@ function renderDeadCode(
   initialEntries?: string[],
 ): ReturnType<typeof render> {
   return render(<MemoryRouter initialEntries={initialEntries}>{element}</MemoryRouter>);
+}
+
+function LocationSearch(): React.JSX.Element {
+  return <output data-testid="location-search">{useLocation().search}</output>;
 }
