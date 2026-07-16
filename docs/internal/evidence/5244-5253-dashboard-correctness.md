@@ -425,7 +425,7 @@ generic SVG, empty shell, or always-rendered table cannot pass alone.
 The accepted fingerprinted-image retained proof observed all four Code Graph
 responses and one visible canvas in 10.048 seconds; the relationship catalog
 response and 16 verb rows in 4.260 seconds; and three bootstrap-snapshot source
-responses plus 25 Findings rows in 1.752 seconds. Each workflow recorded the
+responses plus 25 Findings rows in 1.771 seconds. Each workflow recorded the
 accepted method, path, status, and owning bootstrap or route phase in the
 durable report. A route-owned expectation cannot borrow a matching bootstrap
 response.
