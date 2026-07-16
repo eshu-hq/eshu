@@ -68,6 +68,48 @@ func TestCodeSearchGraphAppliesScopedAuthBeforeLimit(t *testing.T) {
 	}
 }
 
+func TestCodeSearchCanonicalRepositoryStartsFromIndexedRepository(t *testing.T) {
+	t.Parallel()
+
+	reader := fakeGraphReader{
+		run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
+			if !strings.Contains(cypher, "MATCH (r:Repository {id: $repo_id})-[:REPO_CONTAINS]->(f:File)-[:CONTAINS]->(e)") {
+				t.Fatalf("repository-scoped code search is not repository anchored:\n%s", cypher)
+			}
+			if strings.Contains(cypher, "MATCH (e)<-[:CONTAINS]") {
+				t.Fatalf("repository-scoped code search retained entity-first scan:\n%s", cypher)
+			}
+			if got, want := params["repo_id"], "repo-team-a"; got != want {
+				t.Fatalf("params[repo_id] = %#v, want %#v", got, want)
+			}
+			return []map[string]any{{
+				"entity_id": "entity-a",
+				"name":      "HandlePayment",
+				"repo_id":   "repo-team-a",
+			}}, nil
+		},
+	}
+	handler := &CodeHandler{
+		Neo4j: reader,
+		Content: fakePortContentStore{repositories: []RepositoryCatalogEntry{{
+			ID: "repo-team-a", Name: "payments", RepoSlug: "acme/payments",
+		}}},
+		Profile: ProfileLocalAuthoritative,
+	}
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v0/code/search",
+		bytes.NewBufferString(`{"query":"HandlePayment","repo_id":"repo-team-a","exact":true,"limit":5}`),
+	)
+	rec := httptest.NewRecorder()
+
+	handler.handleSearch(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body = %s", rec.Code, rec.Body.String())
+	}
+}
+
 func TestCodeSearchContentAppliesScopedAuthWithoutAnyRepoFallback(t *testing.T) {
 	t.Parallel()
 

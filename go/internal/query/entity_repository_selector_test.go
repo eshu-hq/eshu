@@ -8,6 +8,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -17,6 +18,12 @@ func TestResolveEntityAcceptsRepositorySelectorAlias(t *testing.T) {
 	handler := &EntityHandler{
 		Neo4j: fakeGraphReader{
 			run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
+				if !strings.Contains(cypher, "MATCH (r:Repository {id: $repo_id})-[:REPO_CONTAINS]->(f:File)-[:CONTAINS]->(e)") {
+					t.Fatalf("repository-scoped entity resolution is not repository anchored:\n%s", cypher)
+				}
+				if strings.Contains(cypher, "MATCH (e)<-[:CONTAINS]") {
+					t.Fatalf("repository-scoped entity resolution retained entity-first scan:\n%s", cypher)
+				}
 				if got, want := params["repo_id"], "repo-1"; got != want {
 					t.Fatalf("params[repo_id] = %#v, want %#v", got, want)
 				}
@@ -56,5 +63,34 @@ func TestResolveEntityAcceptsRepositorySelectorAlias(t *testing.T) {
 
 	if got, want := w.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d body=%s", got, want, w.Body.String())
+	}
+}
+
+func TestResolveEntityMissingCanonicalContentIDSkipsBroadGraphNameScan(t *testing.T) {
+	t.Parallel()
+
+	handler := &EntityHandler{
+		Neo4j: fakeGraphReader{
+			run: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+				t.Fatalf("missing canonical content ID reached graph name scan:\n%s", cypher)
+				return nil, nil
+			},
+		},
+		Content: nornicDBRelationshipContentStore{entities: map[string]EntityContent{}},
+	}
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v0/entities/resolve",
+		bytes.NewBufferString(`{"name":"content-entity:missing","limit":5}`),
+	)
+	rec := httptest.NewRecorder()
+
+	handler.resolveEntity(rec, req)
+
+	if got, want := rec.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), `"entities":[]`) {
+		t.Fatalf("body = %s, want explicit empty canonical-ID result", rec.Body.String())
 	}
 }

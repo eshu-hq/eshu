@@ -57,17 +57,17 @@ func adoptExistingGraphSchema(
 	inspector graphSchemaInspector,
 	logger *slog.Logger,
 	app graph.SchemaApplication,
-) (bool, error) {
+) (bool, map[string]struct{}, error) {
 	if inspector == nil {
-		return false, fmt.Errorf("%s requires graph schema inspection support", graphSchemaAdoptExistingEnv)
+		return false, nil, fmt.Errorf("%s requires graph schema inspection support", graphSchemaAdoptExistingEnv)
 	}
 	expectedNames, err := expectedGraphSchemaObjectNames(app.Backend)
 	if err != nil {
-		return false, err
+		return false, nil, err
 	}
 	actualNames, err := inspector.GraphSchemaObjectNames(ctx)
 	if err != nil {
-		return false, fmt.Errorf("inspect graph schema for adoption: %w", err)
+		return false, nil, fmt.Errorf("inspect graph schema for adoption: %w", err)
 	}
 	missing := missingGraphSchemaObjectNames(expectedNames, actualNames)
 	if len(missing) > 0 {
@@ -83,10 +83,10 @@ func adoptExistingGraphSchema(
 				"first_missing_schema_objects", firstStrings(missing, 10),
 			)
 		}
-		return false, nil
+		return false, actualNames, nil
 	}
 	if err := markGraphSchemaApplied(ctx, db, app); err != nil {
-		return false, err
+		return false, actualNames, err
 	}
 	if logger != nil {
 		logger.Info(
@@ -98,7 +98,25 @@ func adoptExistingGraphSchema(
 			"schema_object_count", len(actualNames),
 		)
 	}
-	return true, nil
+	return true, actualNames, nil
+}
+
+type missingGraphSchemaExecutor struct {
+	executor      graph.CypherExecutor
+	existingNames map[string]struct{}
+}
+
+func (e *missingGraphSchemaExecutor) ExecuteCypher(
+	ctx context.Context,
+	statement graph.CypherStatement,
+) error {
+	name, err := graphSchemaObjectName(statement.Cypher)
+	if err == nil {
+		if _, exists := e.existingNames[name]; exists {
+			return nil
+		}
+	}
+	return e.executor.ExecuteCypher(ctx, statement)
 }
 
 func expectedGraphSchemaObjectNames(backend graph.SchemaBackend) (map[string]struct{}, error) {

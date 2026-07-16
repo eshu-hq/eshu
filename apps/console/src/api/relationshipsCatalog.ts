@@ -95,11 +95,27 @@ interface EdgeRecord {
   readonly source_tool?: string;
 }
 
+const pendingCatalogLoads = new WeakMap<EshuApiClient, Promise<RelationshipsCatalog>>();
+
 // loadRelationshipsCatalog fetches the typed-edge verb catalog with bounded
-// per-verb whole-graph counts.
-export async function loadRelationshipsCatalog(
-  client: EshuApiClient,
-): Promise<RelationshipsCatalog> {
+// per-verb whole-graph counts. React StrictMode can replay the page effect while
+// the first request is still pending, so one client shares only that in-flight
+// request. Both success and failure evict it; later navigation and retries read
+// fresh server truth.
+export function loadRelationshipsCatalog(client: EshuApiClient): Promise<RelationshipsCatalog> {
+  const pending = pendingCatalogLoads.get(client);
+  if (pending) return pending;
+
+  const request = fetchRelationshipsCatalog(client);
+  pendingCatalogLoads.set(client, request);
+  void request.then(
+    () => clearPendingCatalogLoad(client, request),
+    () => clearPendingCatalogLoad(client, request),
+  );
+  return request;
+}
+
+async function fetchRelationshipsCatalog(client: EshuApiClient): Promise<RelationshipsCatalog> {
   const env = await client.post<CatalogResponse>("/api/v0/relationships/catalog", {});
   if (env.error) throw new EshuEnvelopeError(env.error);
   const data = env.data ?? {};
@@ -110,6 +126,13 @@ export async function loadRelationshipsCatalog(
     totalEdges: num(data.total_edges) ?? verbs.reduce((sum, verb) => sum + verb.count, 0),
     layerCount: num(data.layer_count) ?? new Set(verbs.map((verb) => verb.layer)).size,
   };
+}
+
+function clearPendingCatalogLoad(
+  client: EshuApiClient,
+  request: Promise<RelationshipsCatalog>,
+): void {
+  if (pendingCatalogLoads.get(client) === request) pendingCatalogLoads.delete(client);
 }
 
 // loadRelationshipEdges fetches the bounded concrete-edge slice for one verb.

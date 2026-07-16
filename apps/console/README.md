@@ -140,6 +140,21 @@ so concurrent runs with distinct proof IDs cannot overwrite one another. It
 never falls back to mocks: a refused proxy, a demo banner, a console error, or
 any unexpected non-2xx fails the run loudly.
 
+The JSON report includes a cold-bootstrap and per-navigation performance packet:
+route-owned first-useful-content and API-quiet readiness time, request count,
+exact duplicate groups, encoded transfer bytes, concurrency/ordering, slowest
+request, TTFB, download time, and the post-response interval before useful
+content. Request URLs are reduced to endpoint shapes and query-key names;
+dynamic repository, service, incident, and vulnerability identifiers are
+redacted. Headers, query values, bodies, cookies, and credentials are never
+written. These diagnostics attribute latency but do not change the route verdict.
+
+Code Graph obtains its selected candidate and source location from the
+bootstrap dead-code response. Its route-owned relationship story supplies the
+six typed edge families, related-node source metadata, and provenance. The page
+does not issue a second untyped relationship request for the same selection;
+the independent import-cycle request remains route owned.
+
 Playwright trace capture is default-off because authenticated traces can retain
 bearer request headers. For a short-lived, locally protected debugging artifact,
 opt in with `ESHU_CONSOLE_E2E_TRACE=1 npm run console:e2e`; delete
@@ -191,6 +206,13 @@ or its volumes.
 The runner reads its browser-session inputs and `ESHU_E2E_API_BASE` from the
 process environment. Compose env files are Compose input and are never sourced
 as shell programs; export the small required browser-runner input set explicitly.
+For a bounded diagnostic, `ESHU_E2E_ROUTE_PATHS` accepts comma-separated exact
+eligible paths such as `/relationships,/code-graph`. Requested order is
+preserved, including repeated paths, so `/code-graph,/catalog,/code-graph`
+captures cold and warm navigation in one authenticated session. Unknown,
+ineligible, or empty selections fail closed. Omit the variable for the complete
+auth-eligible route catalog; a filtered run is diagnostic evidence, not a
+replacement for the full acceptance gate.
 `ESHU_E2E_AUTH_MODE=bearer` plus `ESHU_E2E_API_KEY` remains available only for
 bounded operator diagnostics; that mode excludes Profile/Admin and does not
 satisfy the retained browser-session acceptance gate. Credentials are never

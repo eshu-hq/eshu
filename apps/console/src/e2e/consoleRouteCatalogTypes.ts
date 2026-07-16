@@ -67,6 +67,10 @@ export interface StateWorkflowResponseOwnership {
 }
 
 interface WorkflowGuards extends WorkflowRecordedResponseOwnership {
+  // firstUsefulSelector is a route-owned surface present before an interaction
+  // workflow runs. It prevents the performance harness from waiting for an
+  // outcome that only the workflow itself can create.
+  readonly firstUsefulSelector?: string;
   readonly forbiddenSelectors?: readonly string[];
   readonly forbiddenText?: string;
   readonly forbiddenTexts?: readonly string[];

@@ -340,6 +340,7 @@ var schemaPerformanceIndexes = []string{
 // large-repo projection.
 var nornicDBMergeLookupIndexes = []string{
 	"CREATE INDEX nornicdb_repository_id_lookup IF NOT EXISTS FOR (r:Repository) ON (r.id)",
+	"CREATE INDEX nornicdb_function_legacy_id_lookup IF NOT EXISTS FOR (n:Function) ON (n.id)",
 	"CREATE INDEX nornicdb_directory_path_lookup IF NOT EXISTS FOR (d:Directory) ON (d.path)",
 	"CREATE INDEX nornicdb_file_path_lookup IF NOT EXISTS FOR (f:File) ON (f.path)",
 	"CREATE INDEX nornicdb_workload_id_lookup IF NOT EXISTS FOR (w:Workload) ON (w.id)",

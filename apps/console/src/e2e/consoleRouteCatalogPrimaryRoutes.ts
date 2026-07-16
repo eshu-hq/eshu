@@ -70,6 +70,7 @@ export const primaryConsoleRoutes: readonly ConsoleRoute[] = [
     workflow: {
       id: "repositories-source-workspace-retained-routes",
       kind: "repositoryDetails",
+      firstUsefulSelector: '[role="group"][aria-label="Repository view"]',
       sourceLinkSelector: 'a[href^="/repositories/"][href$="/source"]',
       sourceOutcomeSelector: ".repo-source-page .tbl tbody tr",
       workspaceOutcomeSelector:
@@ -155,15 +156,12 @@ export const primaryConsoleRoutes: readonly ConsoleRoute[] = [
       id: "code-graph-live-canvas",
       kind: "state",
       anySelectors: [".gcanvas-svg"],
-      requiredResponses: [
+      requiredBootstrapResponses: [
         { path: "/api/v0/code/dead-code", method: "POST", acceptedStatuses: [200] },
+      ],
+      requiredResponses: [
         {
           path: "/api/v0/code/relationships/story",
-          method: "POST",
-          acceptedStatuses: [200],
-        },
-        {
-          path: "/api/v0/code/relationships",
           method: "POST",
           acceptedStatuses: [200],
         },

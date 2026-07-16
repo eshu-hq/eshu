@@ -67,13 +67,19 @@ func (h *CodeHandler) nornicDBRelationshipMetadataRow(
 		return nil, nil
 	}
 
-	entityLabel := h.nornicDBRelationshipEntityLabel(ctx, entityID)
+	entityLabel, err := h.nornicDBRelationshipEntityLabel(ctx, entityID, repoID)
+	if err != nil {
+		return nil, err
+	}
 	predicate, params := nornicDBRelationshipMetadataPredicate(name, repoID)
 	entityID = strings.TrimSpace(entityID)
 	if predicate == "" && entityID == "" {
 		return nil, nil
 	}
 	if entityID != "" {
+		if entityLabel == "" {
+			return nil, nil
+		}
 		params["entity_id"] = entityID
 		for _, property := range []string{"uid", "id"} {
 			rows, err := h.Neo4j.Run(ctx, nornicDBRelationshipMetadataCypher(predicate, entityLabel, property), params)
@@ -97,17 +103,6 @@ func (h *CodeHandler) nornicDBRelationshipMetadataRow(
 		return nil, nil
 	}
 	return rows[0], nil
-}
-
-func (h *CodeHandler) nornicDBRelationshipEntityLabel(ctx context.Context, entityID string) string {
-	if h == nil || h.Content == nil || strings.TrimSpace(entityID) == "" {
-		return ""
-	}
-	entity, err := h.Content.GetEntityContent(ctx, strings.TrimSpace(entityID))
-	if err != nil || entity == nil {
-		return ""
-	}
-	return nornicDBGraphLabelForContentEntityType(entity.EntityType)
 }
 
 func nornicDBGraphLabelForContentEntityType(entityType string) string {

@@ -85,8 +85,8 @@ func TestRelationshipStoryProductionPathHandlesMissingAndCollisionAnchors(t *tes
 		if len(rows) != 0 {
 			t.Fatalf("rows = %v, want empty fake result", rows)
 		}
-		if got := strings.Join(graph.calls, ","); got != "uid,collision" {
-			t.Fatalf("anchor resolution calls = %q, want one uid/collision resolution", got)
+		if got := strings.Join(graph.calls, ","); got != "uid" {
+			t.Fatalf("anchor resolution calls = %q, want one canonical uid resolution", got)
 		}
 		if len(graph.runs) != 4 {
 			t.Fatalf("relationship reads = %d, want 2 types x 2 directions", len(graph.runs))
@@ -126,7 +126,7 @@ func TestRelationshipStoryProductionPathHandlesMissingAndCollisionAnchors(t *tes
 		}
 	})
 
-	t.Run("separate uid-id collision retains per-query fallback", func(t *testing.T) {
+	t.Run("canonical uid anchor ignores unrelated legacy id collision", func(t *testing.T) {
 		graph := &storyAnchorPropertyGraph{uidFound: true, collision: true}
 		handler := &CodeHandler{GraphBackend: GraphBackendNornicDB, Neo4j: graph}
 		rows, _, _, err := handler.relationshipStoryRelationships(
@@ -145,11 +145,11 @@ func TestRelationshipStoryProductionPathHandlesMissingAndCollisionAnchors(t *tes
 		if len(rows) != 0 {
 			t.Fatalf("rows = %v, want empty fake result", rows)
 		}
-		if got := strings.Join(graph.calls, ","); got != "uid,collision" {
-			t.Fatalf("anchor resolution calls = %q, want one uid/collision resolution", got)
+		if got := strings.Join(graph.calls, ","); got != "uid" {
+			t.Fatalf("anchor resolution calls = %q, want canonical uid only", got)
 		}
-		if len(graph.runs) != 8 {
-			t.Fatalf("relationship reads = %d, want 2 types x 2 directions x uid/id fallback", len(graph.runs))
+		if len(graph.runs) != 4 {
+			t.Fatalf("relationship reads = %d, want 2 types x 2 directions", len(graph.runs))
 		}
 		uidReads, idReads := 0, 0
 		for _, cypher := range graph.runs {
@@ -160,8 +160,8 @@ func TestRelationshipStoryProductionPathHandlesMissingAndCollisionAnchors(t *tes
 				idReads++
 			}
 		}
-		if uidReads != 4 || idReads != 4 {
-			t.Fatalf("uid/id fallback reads = %d/%d, want 4/4", uidReads, idReads)
+		if uidReads != 4 || idReads != 0 {
+			t.Fatalf("uid/id reads = %d/%d, want 4/0", uidReads, idReads)
 		}
 	})
 }
@@ -239,7 +239,7 @@ func TestRelationshipStoryAnchorPreflightOnlyAmortizesMultiTypeRequests(t *testi
 		}
 	})
 
-	t.Run("multiple types retain one collision-safe preflight", func(t *testing.T) {
+	t.Run("multiple types retain one canonical preflight", func(t *testing.T) {
 		graph := &storyAnchorPropertyGraph{uidFound: true}
 		handler := &CodeHandler{GraphBackend: GraphBackendNornicDB, Neo4j: graph}
 		_, _, _, err := handler.relationshipStoryRelationships(
@@ -255,8 +255,8 @@ func TestRelationshipStoryAnchorPreflightOnlyAmortizesMultiTypeRequests(t *testi
 		if err != nil {
 			t.Fatalf("relationshipStoryRelationships() error = %v", err)
 		}
-		if got := strings.Join(graph.calls, ","); got != "uid,collision" {
-			t.Fatalf("anchor preflight calls = %q, want one uid/collision resolution", got)
+		if got := strings.Join(graph.calls, ","); got != "uid" {
+			t.Fatalf("anchor preflight calls = %q, want one canonical uid resolution", got)
 		}
 		if len(graph.runs) != 2 {
 			t.Fatalf("relationship reads = %d, want one per requested type", len(graph.runs))
@@ -360,26 +360,25 @@ func TestResolveNornicDBRelationshipStoryAnchorProperty(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name            string
-		graph           *storyAnchorPropertyGraph
-		wantResolved    bool
-		wantProperty    string
-		wantCalls       []string
-		wantOldFallback bool
+		name         string
+		graph        *storyAnchorPropertyGraph
+		wantResolved bool
+		wantProperty string
+		wantCalls    []string
 	}{
 		{
 			name:         "uid anchor",
 			graph:        &storyAnchorPropertyGraph{uidFound: true},
 			wantResolved: true,
 			wantProperty: "uid",
-			wantCalls:    []string{"uid", "collision"},
+			wantCalls:    []string{"uid"},
 		},
 		{
 			name:         "same node has both identity properties",
 			graph:        &storyAnchorPropertyGraph{uidFound: true, idFound: true},
 			wantResolved: true,
 			wantProperty: "uid",
-			wantCalls:    []string{"uid", "collision"},
+			wantCalls:    []string{"uid"},
 		},
 		{
 			name:         "legacy id-only anchor",
@@ -396,12 +395,11 @@ func TestResolveNornicDBRelationshipStoryAnchorProperty(t *testing.T) {
 			wantCalls:    []string{"uid", "id"},
 		},
 		{
-			name:            "separate uid-id collision retains old fallback",
-			graph:           &storyAnchorPropertyGraph{uidFound: true, idFound: true, collision: true},
-			wantResolved:    false,
-			wantProperty:    "",
-			wantCalls:       []string{"uid", "collision"},
-			wantOldFallback: true,
+			name:         "separate legacy id collision cannot override canonical uid",
+			graph:        &storyAnchorPropertyGraph{uidFound: true, idFound: true, collision: true},
+			wantResolved: true,
+			wantProperty: "uid",
+			wantCalls:    []string{"uid"},
 		},
 	}
 
@@ -426,9 +424,6 @@ func TestResolveNornicDBRelationshipStoryAnchorProperty(t *testing.T) {
 			}
 			if strings.Join(tt.graph.calls, ",") != strings.Join(tt.wantCalls, ",") {
 				t.Fatalf("calls = %v, want %v", tt.graph.calls, tt.wantCalls)
-			}
-			if tt.wantOldFallback && req.graphAnchorPropertyResolved {
-				t.Fatal("collision must retain per-query fallback")
 			}
 			for _, cypher := range tt.graph.cyphers {
 				if strings.Contains(cypher, "), (") {

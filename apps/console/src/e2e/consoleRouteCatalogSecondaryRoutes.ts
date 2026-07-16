@@ -429,6 +429,7 @@ export const secondaryConsoleRoutes: readonly ConsoleRoute[] = [
     workflow: {
       id: "admin-sign-in-policy-tab",
       kind: "click",
+      firstUsefulSelector: "#identity-access-tab-sign-in-policy",
       role: "tab",
       name: "Sign-in policy",
       outcomeSelector: "#identity-access-panel-sign-in-policy",

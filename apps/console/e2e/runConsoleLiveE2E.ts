@@ -1,10 +1,5 @@
-// Console live E2E gate runner (issue #3326). It drives the private console
-// against an operator-managed corpus stack, captures route/network/DOM signals,
-// and delegates verdicts to the pure routeAssertions module. The default gate
-// claims an isolated retained-corpus identity through the real setup wizard and
-// executes every route workflow with the resulting browser-session cookie.
-// The .mjs bootstrap loads this module through Vite's SSR transformer; run it
-// with `npm run console:e2e` as documented in apps/console/README.md.
+// Console live E2E gate runner. It drives the private console against an
+// operator-managed corpus and captures route, network, DOM, and performance proof.
 
 import { writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
@@ -67,12 +62,20 @@ import {
   prepareLiveE2EArtifacts,
   type LiveE2EArtifactPaths,
 } from "./liveE2EArtifacts.ts";
+import {
+  summarizeRoutePerformance,
+  type RoutePerformanceDiagnostics,
+} from "./routePerformanceDiagnostics.ts";
+import { firstUsefulSelectorForRoute } from "./routePerformanceMilestones.ts";
+import {
+  installRoutePerformanceRecorder,
+  type RoutePerformanceRecorder,
+} from "./routePerformanceRecorder.ts";
+import { selectLiveE2ERoutes } from "./liveE2ERouteSelection.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const consoleDir = resolve(here, "..");
 const repoRoot = resolve(consoleDir, "..", "..");
-// proofManifestForLaunchedBrowser binds durable proof identity to the browser
-// instance Playwright actually launched, rather than an operator declaration.
 export function proofManifestForLaunchedBrowser(
   environment: NodeJS.ProcessEnv,
   browser: Pick<Browser, "version">,
@@ -100,10 +103,6 @@ function ignorableConsoleError(message: string): boolean {
   return message.includes("Download the React DevTools");
 }
 
-// waitForApiQuiet blocks until no /eshu-api request has been in flight for a
-// short quiet window, or a hard cap elapses. The cap is deliberately longer
-// than EshuApiClient's request timeout, so a client-timed-out request settles on
-// its owning route before navigation can attribute its abort to the next one.
 async function waitForApiQuiet(page: Page, tracker: ApiQuietTracker) {
   return awaitApiQuiet(tracker, (duration) => page.waitForTimeout(duration));
 }
@@ -127,8 +126,10 @@ function allowedConsoleStatuses(network: readonly NetworkObservation[]): readonl
   });
 }
 
-// captureRoute navigates to one route and records its signals. localStorage is
-// seeded once on the first navigation (origin is stable across routes).
+export interface CapturedRouteSignals extends RouteSignals {
+  readonly performance?: RoutePerformanceDiagnostics;
+}
+
 export async function captureRoute(
   page: Page,
   route: ConsoleRoute,
@@ -138,8 +139,10 @@ export async function captureRoute(
   bootstrapNetwork: readonly NetworkObservation[] = [],
   indexedRepositoryInventory: IndexedRepositoryInventoryAnchor | null = null,
   loadImpactFindings?: LoadImpactFindings,
-): Promise<RouteSignals> {
+  performanceRecorder?: RoutePerformanceRecorder,
+): Promise<CapturedRouteSignals> {
   const startedAt = Date.now();
+  const performanceCapture = performanceRecorder?.beginCapture();
   const consoleErrors: string[] = [];
   const networkStart = allNetwork.length;
 
@@ -176,8 +179,22 @@ export async function captureRoute(
     },
   );
   await page.waitForSelector(".source-pill.src-connected", { timeout: navTimeoutMs });
+  await page.waitForTimeout(0);
+  const firstUsefulSelector = firstUsefulSelectorForRoute(route);
+  if (performanceCapture !== undefined && firstUsefulSelector !== null) {
+    await page.waitForSelector(firstUsefulSelector, { timeout: navTimeoutMs });
+  }
+  const firstUsefulContentMs = Date.now() - startedAt;
   await page.waitForTimeout(perRouteSettleMs);
   const apiQuiet = await waitForApiQuiet(page, tracker);
+  const routeReadyMs = Date.now() - startedAt;
+  const performance =
+    performanceCapture === undefined || performanceRecorder === undefined
+      ? undefined
+      : summarizeRoutePerformance(performanceRecorder.recordsSince(performanceCapture), {
+          firstUsefulContentMs,
+          routeReadyMs,
+        });
 
   // A route may prove only responses observed after its own navigation began.
   // Bootstrap remains an explicit, separately evaluated preflight below.
@@ -241,15 +258,11 @@ export async function captureRoute(
     workflow,
     apiQuiet,
     durationMs: Date.now() - startedAt,
+    performance,
   };
 }
 
-// runConsoleLiveE2E runs the gate and returns a process exit code (0 = pass).
-// It never calls process.exit itself so the finally block always tears down the
-// dev server and frees the port, even when the gate fails. It is invoked by the
-// .mjs bootstrap (scripts/console-live-e2e-runtime.mjs), which loads this
-// TypeScript module through Vite's SSR transformer so the gate runs on any
-// supported Node version without native TS stripping or an extra dependency.
+// runConsoleLiveE2E returns an exit code and always tears down owned processes.
 export async function runConsoleLiveE2E(): Promise<number> {
   let consolePort: number;
   let artifactPaths: LiveE2EArtifactPaths;
@@ -308,8 +321,6 @@ export async function runConsoleLiveE2E(): Promise<number> {
       await context.tracing.start({ screenshots: true, snapshots: true });
     }
 
-    // Seed the private-mode environment on the dev-server origin before the app
-    // script runs, so the console boots straight into a live connection.
     await context.addInitScript(
       ([base]: readonly string[]) => {
         window.localStorage.setItem(
@@ -321,6 +332,9 @@ export async function runConsoleLiveE2E(): Promise<number> {
     );
 
     const page = await context.newPage();
+    const performanceRecorder = await installRoutePerformanceRecorder(
+      await context.newCDPSession(page),
+    );
     const tracker = installApiQuietTracker(page);
     if (authMode === "browser_session") {
       const sessionProof = await establishRetainedWizardSession(page, {
@@ -334,23 +348,33 @@ export async function runConsoleLiveE2E(): Promise<number> {
       await awaitRetainedWizardSessionQuiet(page, tracker);
     }
     const networkRecorder = installNetworkObservationRecorder(page);
-    // Prime the origin once so the init script and storage are in place. A
-    // failure here means the dev server is unreachable and must fail the run.
+    const bootstrapStartedAt = Date.now();
+    const bootstrapPerformanceCapture = performanceRecorder.beginCapture();
     await page.goto(server.baseUrl, { waitUntil: "domcontentloaded", timeout: navTimeoutMs });
-    // Wait for the boot connect to finish before walking routes. Without this,
-    // the first route navigation fires while the boot snapshot fetches are still
-    // in flight and the browser aborts them (net::ERR_ABORTED) — a client-side
-    // navigation cancel, not a server fault, but indistinguishable at the gate.
-    // Letting the connection settle first makes every route's network clean.
     await page.waitForSelector(".source-pill.src-connected", { timeout: navTimeoutMs });
+    const dashboardRoute = consoleRoutes.find((route) => route.path === "/");
+    const bootstrapUsefulSelector =
+      dashboardRoute === undefined ? null : firstUsefulSelectorForRoute(dashboardRoute);
+    if (bootstrapUsefulSelector !== null) {
+      await page.waitForSelector(bootstrapUsefulSelector, { timeout: navTimeoutMs });
+    }
+    const bootstrapFirstUsefulContentMs = Date.now() - bootstrapStartedAt;
     // Let the boot connect's fetches fully settle before the first route, so the
     // first navigation does not abort in-flight boot requests.
     const bootQuiet = await waitForApiQuiet(page, tracker);
+    const bootstrapRouteReadyMs = Date.now() - bootstrapStartedAt;
     if (!bootQuiet.settled) {
       throw new Error(
         `${bootQuiet.inFlight} boot API request(s) remained active after ${bootQuiet.waitedMs}ms`,
       );
     }
+    const bootstrapPerformance = summarizeRoutePerformance(
+      performanceRecorder.recordsSince(bootstrapPerformanceCapture),
+      {
+        firstUsefulContentMs: bootstrapFirstUsefulContentMs,
+        routeReadyMs: bootstrapRouteReadyMs,
+      },
+    );
     const bootstrapNetwork = [...networkRecorder.observations];
     const bootstrapEvaluation = evaluateNetworkObservations(
       "bootstrap",
@@ -365,6 +389,10 @@ export async function runConsoleLiveE2E(): Promise<number> {
     }
 
     const authCoverage = createAuthRouteCoverage(consoleRoutes, authMode);
+    const selectedRoutes = selectLiveE2ERoutes(
+      authCoverage.eligibleRoutes,
+      process.env.ESHU_E2E_ROUTE_PATHS,
+    );
     process.stdout.write(formatAuthRouteCoverage(authCoverage));
     const proofFetcher =
       authMode === "browser_session" ? createBrowserSessionFetcher(page) : globalThis.fetch;
@@ -379,7 +407,7 @@ export async function runConsoleLiveE2E(): Promise<number> {
 
     const results: RouteResult[] = [];
     const observations = [];
-    for (const route of authCoverage.eligibleRoutes) {
+    for (const route of selectedRoutes) {
       const signals = await captureRoute(
         page,
         route,
@@ -389,8 +417,12 @@ export async function runConsoleLiveE2E(): Promise<number> {
         bootstrapNetwork,
         indexedRepositoryInventory,
         loadImpactFindings,
+        performanceRecorder,
       );
-      observations.push(buildRouteReportObservation(signals));
+      observations.push({
+        ...buildRouteReportObservation(signals),
+        performance: signals.performance ?? null,
+      });
       const result = evaluateRoute(signals, defaultNetworkAllowList);
       results.push(result);
       const status = result.passed ? "PASS" : "FAIL";
@@ -409,6 +441,7 @@ export async function runConsoleLiveE2E(): Promise<number> {
       await context.tracing.stop({ path: artifactPaths.tracePath });
     }
     networkRecorder.stop();
+    performanceRecorder.stop();
     await browser.close();
     browser = undefined;
 
@@ -420,8 +453,10 @@ export async function runConsoleLiveE2E(): Promise<number> {
           apiBase,
           proofManifest,
           ...authCoverageReport(authCoverage),
+          selectedRoutePaths: selectedRoutes.map((route) => route.path),
           bootstrap: {
             apiQuiet: bootQuiet,
+            performance: bootstrapPerformance,
             requestCount: bootstrapNetwork.length,
             ...buildNetworkReportObservation(bootstrapNetwork),
             verdict: bootstrapEvaluation,

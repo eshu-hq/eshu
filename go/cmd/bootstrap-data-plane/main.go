@@ -184,6 +184,7 @@ func run(
 		timeout:  statementTimeout,
 	})
 	adoptionMode := graphSchemaAdoptionModeFromEnv(getenv, backend)
+	var existingSchemaNames map[string]struct{}
 	if adoptionMode != graphSchemaAdoptionDisabled {
 		if nd.inspector == nil {
 			if adoptionMode == graphSchemaAdoptionRequired {
@@ -192,13 +193,20 @@ func run(
 		} else {
 			adoptionCtx, cancel := context.WithTimeout(ctx, statementTimeout)
 			defer cancel()
-			adopted, err := adoptExistingGraphSchema(adoptionCtx, db, nd.inspector, logger, schemaApplication)
+			adopted, actualNames, err := adoptExistingGraphSchema(adoptionCtx, db, nd.inspector, logger, schemaApplication)
 			if err != nil {
 				return err
 			}
 			if adopted {
 				return nil
 			}
+			existingSchemaNames = actualNames
+		}
+	}
+	if backend == graph.SchemaBackendNornicDB && len(existingSchemaNames) > 0 {
+		graphExecutor = &missingGraphSchemaExecutor{
+			executor:      graphExecutor,
+			existingNames: existingSchemaNames,
 		}
 	}
 	if err = applyNeo4jFn(ctx, graphExecutor, logger, backend); err != nil {

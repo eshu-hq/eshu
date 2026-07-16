@@ -25,7 +25,13 @@ type SchemaApplication struct {
 
 const (
 	graphSchemaNeo4jFingerprint    = "556d133c15610ecaaf773af2200717062e5d91d0edd2709fa7f6a83072a11c53"
-	graphSchemaNornicDBFingerprint = "1c4bf2acf328fdeb19084b18618cc9a57749615d7c513edb674cfbc036f1bbae"
+	graphSchemaNornicDBFingerprint = "cfff663a3a7cae4e7c36823e0304b25f7f046eed2e139951e8a9bf8121b9ba69"
+
+	// graphSchemaNornicDBPreFunctionLegacyIDLookupFingerprint is the schema
+	// immediately before the additive Function.id lookup used by the bounded
+	// relationship-story legacy fallback. Older writers do not depend on this
+	// secondary index being absent.
+	graphSchemaNornicDBPreFunctionLegacyIDLookupFingerprint = "1c4bf2acf328fdeb19084b18618cc9a57749615d7c513edb674cfbc036f1bbae"
 
 	// graphSchemaNeo4jPreShellExecRetractIndexesFingerprint and its NornicDB
 	// peer are the schema fingerprints immediately before ShellCommand repo_id/path
@@ -92,6 +98,7 @@ var graphSchemaCompatibleFingerprints = map[SchemaBackend]map[string][]string{
 	},
 	SchemaBackendNornicDB: {
 		graphSchemaNornicDBFingerprint: {
+			graphSchemaNornicDBPreFunctionLegacyIDLookupFingerprint,
 			graphSchemaNornicDBPreShellExecRetractIndexesFingerprint,
 			graphSchemaNornicDBPreInheritanceRetractIndexesFingerprint,
 			graphSchemaNornicDBPreFunctionRetractIndexesFingerprint,

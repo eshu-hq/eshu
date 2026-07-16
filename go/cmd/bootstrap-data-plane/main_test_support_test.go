@@ -117,11 +117,13 @@ func (r *fakeBootstrapRows) Close() error {
 }
 
 type fakeNeo4jExecutor struct {
-	calls int
+	calls   int
+	cyphers []string
 }
 
-func (f *fakeNeo4jExecutor) ExecuteCypher(_ context.Context, _ graph.CypherStatement) error {
+func (f *fakeNeo4jExecutor) ExecuteCypher(_ context.Context, statement graph.CypherStatement) error {
 	f.calls++
+	f.cyphers = append(f.cyphers, statement.Cypher)
 	return nil
 }
 

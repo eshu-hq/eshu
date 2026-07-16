@@ -95,6 +95,94 @@ describe("buildRouteReportObservation", () => {
 
     expect(JSON.stringify(observation)).not.toContain("private-token");
   });
+
+  it("redacts dynamic resource identifiers from retained request paths", () => {
+    const observation = buildRouteReportObservation(
+      healthySignals({
+        network: [
+          {
+            failureText: null,
+            method: "GET",
+            status: 200,
+            url: "https://host/eshu-api/api/v0/repositories/repository%3Aprivate-id/story",
+          },
+          {
+            failureText: null,
+            method: "GET",
+            status: 200,
+            url: "https://host/eshu-api/api/v0/services/private-service/context",
+          },
+        ],
+        workflow: {
+          id: "private-resource-follow-up",
+          passed: true,
+          detail: "proved the retained route",
+          requests: [
+            {
+              method: "GET",
+              pathname: "/eshu-api/api/v0/repositories/repository%3Aprivate-id/story",
+              status: 200,
+            },
+          ],
+        },
+      }),
+    );
+
+    expect(observation.network.map((request) => request.pathname)).toEqual([
+      "/eshu-api/api/v0/repositories/:repository/story",
+      "/eshu-api/api/v0/services/:service/context",
+    ]);
+    expect(observation.workflow?.requests?.[0]?.pathname).toBe(
+      "/eshu-api/api/v0/repositories/:repository/story",
+    );
+    expect(JSON.stringify(observation)).not.toMatch(/private-id|private-service/);
+  });
+
+  it("redacts every dynamic production path without over-redacting static routes", () => {
+    const report = buildNetworkReportObservation([
+      {
+        failureText: null,
+        method: "GET",
+        status: 200,
+        url: "https://private-host/eshu-api/api/v0/investigations/services/team%2FPayments-42",
+      },
+      {
+        failureText: null,
+        method: "DELETE",
+        status: 204,
+        url: "https://private-host/eshu-api/api/v0/auth/local/invitations/123456/revoke",
+      },
+      {
+        failureText: null,
+        method: "DELETE",
+        status: 204,
+        url: "https://private-host/eshu-api/api/v0/auth/admin/idp-group-mappings/Map%2FRef-9",
+      },
+      {
+        failureText: null,
+        method: "DELETE",
+        status: 204,
+        url: "https://private-host/eshu-api/api/v0/auth/local/api-tokens/account-9988/revoke",
+      },
+      {
+        failureText: null,
+        method: "GET",
+        status: 200,
+        url: "https://private-host/eshu-api/api/v0/services/catalog/contextual",
+      },
+    ]);
+
+    expect(report.network.map((request) => request.pathname)).toEqual([
+      "/eshu-api/api/v0/investigations/services/:service",
+      "/eshu-api/api/v0/auth/local/invitations/:invitation/revoke",
+      "/eshu-api/api/v0/auth/admin/idp-group-mappings/:mapping",
+      "/eshu-api/api/v0/auth/local/api-tokens/:token/revoke",
+      "/eshu-api/api/v0/services/catalog/contextual",
+    ]);
+    expect(JSON.stringify(report)).not.toMatch(
+      /team%2FPayments|123456|Map%2FRef|account-9988|private-host/i,
+    );
+  });
 });
 
 describe("buildNetworkReportObservation", () => {
@@ -115,5 +203,19 @@ describe("buildNetworkReportObservation", () => {
     expect(report.networkTruncated).toBe(true);
     expect(report.network[0].pathname).toBe("/eshu-api/api/v0/entities/0");
     expect(JSON.stringify(report)).not.toContain("private-token");
+  });
+
+  it("redacts Vite filesystem module paths from bootstrap proof", () => {
+    const report = buildNetworkReportObservation([
+      {
+        failureText: null,
+        method: "GET",
+        status: 200,
+        url: "http://localhost/@fs/Users/operator/private-worktree/node_modules/vite/env.mjs",
+      },
+    ]);
+
+    expect(report.network[0].pathname).toBe("/@fs/:local-module");
+    expect(JSON.stringify(report)).not.toContain("operator/private-worktree");
   });
 });

@@ -42,10 +42,18 @@ func (f *fakeRelationshipsGraphReader) Run(_ context.Context, cypher string, par
 	verb := verbInCypher(cypher)
 	// Breakdown queries contain the IS NOT NULL guard; edge queries do not.
 	if strings.Contains(cypher, "source_tool IS NOT NULL") {
-		if f.breakdownByVerb != nil {
-			return f.breakdownByVerb[verb], nil
+		var rows []map[string]any
+		for _, entry := range relationshipVerbCatalog {
+			for _, source := range f.breakdownByVerb[entry.verb] {
+				row := make(map[string]any, len(source)+1)
+				for key, value := range source {
+					row[key] = value
+				}
+				row["verb"] = entry.verb
+				rows = append(rows, row)
+			}
 		}
-		return nil, nil
+		return rows, nil
 	}
 	f.lastParams = params
 	f.lastCypher = cypher
@@ -388,13 +396,15 @@ func TestRelationshipEdgesFilteredCypherHasWhereGuard(t *testing.T) {
 	}
 }
 
-// TestRelationshipSourceToolBreakdownCypherIsSourceAnchored guards that the
-// breakdown query starts from the catalog's source-owner label. On NornicDB,
-// the anonymous-endpoint shape scans the whole relationship population for
-// every verb even when the relationship type is selective.
-func TestRelationshipSourceToolBreakdownCypherIsSourceAnchored(t *testing.T) {
+// TestRelationshipSourceToolBreakdownsCypherGroupsSourceLabels guards that the
+// aggregate query scans each source-owner label once while retaining the exact
+// verb and source_tool grouping contract.
+func TestRelationshipSourceToolBreakdownsCypherGroupsSourceLabels(t *testing.T) {
 	t.Parallel()
 
+	breakdowns := relationshipSourceToolBreakdownCyphers()
+	breakdown := strings.Join(breakdowns, "\n")
+	seenOwners := make(map[string]bool)
 	for _, entry := range relationshipVerbCatalog {
 		if entry.carriesSourceTool != (entry.sourceToolSourceLabel != "") {
 			t.Fatalf(
@@ -421,16 +431,29 @@ func TestRelationshipSourceToolBreakdownCypherIsSourceAnchored(t *testing.T) {
 				entry.sourceLabel,
 			)
 		}
-		breakdown := relationshipSourceToolBreakdownCypher(entry)
-		sourceAnchor := "(s:" + entry.sourceToolSourceLabel + ")-[r:" + entry.verb + "]->()"
-		if !strings.Contains(breakdown, sourceAnchor) {
-			t.Fatalf("breakdown cypher for %s not source-label anchored: %s", entry.verb, breakdown)
+		if !strings.Contains(breakdown, entry.verb) {
+			t.Fatalf("aggregate breakdown cypher missing verb %s: %s", entry.verb, breakdown)
 		}
-		if !strings.Contains(breakdown, "source_tool IS NOT NULL") {
-			t.Fatalf("breakdown cypher for %s must filter source_tool IS NOT NULL: %s", entry.verb, breakdown)
+		seenOwners[entry.sourceToolSourceLabel] = true
+	}
+	for owner := range seenOwners {
+		anchor := "MATCH (s:" + owner + ")-[r:"
+		if got := strings.Count(breakdown, anchor); got != 1 {
+			t.Fatalf("aggregate breakdown owner %s scans = %d, want 1: %s", owner, got, breakdown)
 		}
-		if !strings.Contains(breakdown, "count(r)") {
-			t.Fatalf("breakdown cypher for %s missing count(r): %s", entry.verb, breakdown)
+	}
+	if got, want := len(breakdowns), len(seenOwners); got != want {
+		t.Fatalf("aggregate breakdown queries = %d, want one per %d source owners", got, want)
+	}
+	for _, want := range []string{
+		"source_tool IS NOT NULL",
+		"type(r) AS verb",
+		"r.source_tool AS source_tool",
+		"count(r) AS count",
+		"ORDER BY verb, source_tool",
+	} {
+		if !strings.Contains(breakdown, want) {
+			t.Fatalf("aggregate breakdown cypher missing %q: %s", want, breakdown)
 		}
 	}
 }

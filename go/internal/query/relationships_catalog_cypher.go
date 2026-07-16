@@ -3,6 +3,8 @@
 
 package query
 
+import "strings"
+
 // relationshipVerbEntry describes one typed-edge verb in the relationships
 // catalog: its layer, the source-node label for bounded edge slices, and a short
 // evidence/source label for the UI. Counts are whole-graph relationship-type
@@ -27,11 +29,10 @@ type relationshipVerbEntry struct {
 	// detail is a one-line description of what the edge means.
 	detail string
 	// carriesSourceTool is true for the Tier-2 shared verbs whose cross-repo edges
-	// are stamped with a source_tool token (#3999). Only those verbs run the
-	// per-verb source_tool breakdown query; Tier-1 self-labeling and Tier-3
-	// code/structural verbs never carry source_tool, so running the breakdown for
-	// them would be guaranteed-empty work that needlessly doubles the catalog's
-	// sequential round-trips (the count path is already budget-tuned).
+	// are stamped with a source_tool token (#3999). Only those verbs participate
+	// in the label-grouped source_tool aggregate; Tier-1 self-labeling and Tier-3
+	// code/structural verbs never carry source_tool, so including them would add
+	// guaranteed-empty work (the count path is already budget-tuned).
 	carriesSourceTool bool
 	// sourceToolSourceLabel is the source label that owns edges stamped with
 	// source_tool. It can differ from sourceLabel when one shared verb has more
@@ -172,16 +173,32 @@ func relationshipEdgesCypherFiltered(entry relationshipVerbEntry) string {
 		"LIMIT $limit"
 }
 
-// relationshipSourceToolBreakdownCypher builds the source_tool distribution
-// query for a verb. It starts at the source label that owns stamped edges and
-// excludes relationships where source_tool IS NULL. On NornicDB this is a
-// label-scan-plus-typed-expand: it avoids the anonymous whole-relationship scan,
-// but its cost remains proportional to the selected source-label population and
-// matching outgoing edges.
-//
-// The verb is taken from the fixed catalog only.
-func relationshipSourceToolBreakdownCypher(entry relationshipVerbEntry) string {
-	return "MATCH (s:" + entry.sourceToolSourceLabel + ")-[r:" + entry.verb + "]->()\n" +
-		"WHERE r.source_tool IS NOT NULL\n" +
-		"RETURN r.source_tool AS source_tool, count(r) AS count"
+// relationshipSourceToolBreakdownCyphers builds one source_tool aggregate per
+// owning source label. Keeping the two label scans independent lets the shared
+// handler limiter overlap them without multiplying scans per stamped verb.
+// Labels and relationship types come only from the fixed catalog.
+func relationshipSourceToolBreakdownCyphers() []string {
+	ownerOrder := make([]string, 0, 2)
+	verbsByOwner := make(map[string][]string, 2)
+	for _, entry := range relationshipVerbCatalog {
+		if !entry.carriesSourceTool {
+			continue
+		}
+		owner := entry.sourceToolSourceLabel
+		if _, ok := verbsByOwner[owner]; !ok {
+			ownerOrder = append(ownerOrder, owner)
+		}
+		verbsByOwner[owner] = append(verbsByOwner[owner], entry.verb)
+	}
+
+	queries := make([]string, 0, len(ownerOrder))
+	for _, owner := range ownerOrder {
+		queries = append(queries,
+			"MATCH (s:"+owner+")-[r:"+strings.Join(verbsByOwner[owner], "|")+"]->()\n"+
+				"WHERE r.source_tool IS NOT NULL\n"+
+				"RETURN type(r) AS verb, r.source_tool AS source_tool, count(r) AS count\n"+
+				"ORDER BY verb, source_tool",
+		)
+	}
+	return queries
 }

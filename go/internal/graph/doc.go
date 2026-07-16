@@ -14,7 +14,8 @@
 // performance, keeps parser-matured infrastructure labels indexed before
 // canonical writers upsert them, adds digest/tag-ref lookup support for OCI
 // registry projection labels, adds uid lookup support for reducer-owned
-// IncidentRoutingEvidence nodes, and keeps backend-specific constraint
+// IncidentRoutingEvidence nodes, adds a NornicDB-only Function legacy-id lookup
+// for bounded relationship-story fallback, and keeps backend-specific constraint
 // translation inside the schema dialect and label-naming helpers. NornicDB
 // drops direct composite uniqueness syntax, so canonical writers rely on
 // projector-derived uid identity for those labels while Neo4j keeps the direct

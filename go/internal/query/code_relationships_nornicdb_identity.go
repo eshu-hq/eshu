@@ -1,0 +1,75 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+package query
+
+import (
+	"context"
+	"fmt"
+	"strings"
+)
+
+var nornicDBRelationshipEntityLabels = []string{
+	"Annotation", "Function", "Class", "Interface", "Module", "Variable",
+	"Struct", "Enum", "Union", "Macro", "ImplBlock", "Typedef", "TypeAlias",
+	"TypeAnnotation", "Component", "SqlColumn", "SqlFunction", "SqlIndex",
+	"SqlTable", "SqlTrigger", "SqlView", "TerraformModule", "TerragruntConfig",
+	"TerragruntDependency",
+}
+
+func (h *CodeHandler) nornicDBRelationshipEntityLabel(
+	ctx context.Context,
+	entityID string,
+	repoID string,
+) (string, error) {
+	entityID = strings.TrimSpace(entityID)
+	if h == nil || entityID == "" {
+		return "", nil
+	}
+	if h.Content != nil {
+		entity, err := h.Content.GetEntityContent(ctx, entityID)
+		if err == nil && entity != nil {
+			return nornicDBGraphLabelForContentEntityType(entity.EntityType), nil
+		}
+	}
+	if h.Neo4j == nil {
+		return "", nil
+	}
+	params := map[string]any{"entity_id": entityID}
+	repoID = strings.TrimSpace(repoID)
+	if repoID != "" {
+		params["repo_id"] = repoID
+	}
+	for _, property := range []string{"uid", "id"} {
+		rows, err := h.Neo4j.Run(
+			ctx,
+			nornicDBRelationshipEntityLabelCypher(property, repoID != ""),
+			params,
+		)
+		if err != nil {
+			return "", err
+		}
+		if len(rows) == 1 {
+			return nornicDBPrimaryEntityLabel(rows[0]), nil
+		}
+		if len(rows) > 1 {
+			return "", nil
+		}
+	}
+	return "", nil
+}
+
+func nornicDBRelationshipEntityLabelCypher(property string, repositoryScoped bool) string {
+	queries := make([]string, 0, len(nornicDBRelationshipEntityLabels))
+	for _, label := range nornicDBRelationshipEntityLabels {
+		match := fmt.Sprintf("MATCH (e:%s {%s: $entity_id})", label, property)
+		if repositoryScoped {
+			match += "<-[:CONTAINS]-(:File)<-[:REPO_CONTAINS]-(repo:Repository {id: $repo_id})"
+		}
+		queries = append(queries, fmt.Sprintf(
+			"%s RETURN e.uid AS uid, e.id AS id, labels(e) AS labels",
+			match,
+		))
+	}
+	return strings.Join(queries, "\nUNION\n") + "\nLIMIT 2"
+}

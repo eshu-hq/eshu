@@ -240,6 +240,51 @@ func TestHandleRelationshipsUsesIndexedFallbackForNornicDBDirectCalls(t *testing
 	}
 }
 
+func TestHandleRelationshipsMissingContentUsesLabeledIdentityProbes(t *testing.T) {
+	t.Parallel()
+
+	var probes []string
+	handler := &CodeHandler{
+		GraphBackend: GraphBackendNornicDB,
+		Content:      nornicDBRelationshipContentStore{entities: map[string]EntityContent{}},
+		Neo4j: fakeGraphReader{
+			run: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+				if strings.Contains(cypher, "MATCH (e {uid: $entity_id})") ||
+					strings.Contains(cypher, "MATCH (e {id: $entity_id})") {
+					t.Fatalf("missing content entity used an unlabeled identity scan:\n%s", cypher)
+				}
+				if !strings.Contains(cypher, "MATCH (e:Function") || !strings.Contains(cypher, "\nUNION\n") {
+					t.Fatalf("missing content entity did not use the fixed labeled identity probe:\n%s", cypher)
+				}
+				switch {
+				case strings.Contains(cypher, "{uid: $entity_id}"):
+					probes = append(probes, "uid")
+				case strings.Contains(cypher, "{id: $entity_id}"):
+					probes = append(probes, "id")
+				default:
+					t.Fatalf("identity probe omitted uid/id property:\n%s", cypher)
+				}
+				return []map[string]any{}, nil
+			},
+		},
+	}
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v0/code/relationships",
+		bytes.NewBufferString(`{"entity_id":"content-entity:missing","max_depth":1}`),
+	)
+	rec := httptest.NewRecorder()
+
+	handler.handleRelationships(rec, req)
+
+	if got, want := rec.Code, http.StatusNotFound; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
+	}
+	if want := []string{"uid", "id"}; !reflect.DeepEqual(probes, want) {
+		t.Fatalf("identity probes = %#v, want %#v", probes, want)
+	}
+}
+
 func TestHandleRelationshipsHydratesNornicDBPlaceholderRepoIdentityFromContent(t *testing.T) {
 	t.Parallel()
 
