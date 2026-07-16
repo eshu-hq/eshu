@@ -296,6 +296,13 @@ describe("consoleRoutes catalog", () => {
       kind: "exactKind",
       preferredName: "Trait",
       outcomeCellSelector: ".evidence-workbench tbody tr.cloud-row td:nth-child(2)",
+      deadCodeControls: {
+        breakdownToggleName: "Show repository breakdown",
+        expectedCountScopeText: "returned result window, not the corpus",
+        languageSelector: 'input[aria-label="Language selector"]',
+        repositorySelector: 'input[aria-label="Repository selector"]',
+        resetKindName: "All kinds",
+      },
     });
   });
 

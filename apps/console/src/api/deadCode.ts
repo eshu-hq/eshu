@@ -11,6 +11,8 @@ export interface DeadCodeQuery {
 
 export interface DeadCodeResponse {
   readonly analysis?: Readonly<Record<string, unknown>>;
+  readonly candidate_scan_truncated?: boolean;
+  readonly display_truncated?: boolean;
   readonly limit?: number;
   readonly results?: readonly DeadCodeRecord[];
   readonly truncated?: boolean;
@@ -37,6 +39,8 @@ export interface DeadCodeTruth {
 
 export interface DeadCodePage {
   readonly analysis: Readonly<Record<string, unknown>>;
+  readonly candidateScanTruncated: boolean;
+  readonly displayTruncated: boolean;
   readonly limit: number;
   readonly rows: readonly FindingRow[];
   readonly truncated: boolean;
@@ -57,6 +61,8 @@ export async function loadDeadCodePage(
   const truthLevel = env.truth?.level ?? "derived";
   return {
     analysis: payload.analysis ?? {},
+    candidateScanTruncated: payload.candidate_scan_truncated === true,
+    displayTruncated: payload.display_truncated === true,
     limit: payload.limit ?? query.limit,
     rows: deadCodeRowsFromResponse(payload, truthLevel, repoNames),
     truncated: payload.truncated === true,

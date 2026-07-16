@@ -21,7 +21,6 @@ import { CloudPage } from "./pages/CloudPage";
 import { CodeGraphPage } from "./pages/CodeGraphPage";
 import { CollectorReadinessPage } from "./pages/CollectorReadinessPage";
 import { DashboardPage } from "./pages/DashboardPage";
-import { DeadCodePage } from "./pages/DeadCodePage";
 import { DependenciesPage } from "./pages/DependenciesPage";
 import { ExplorerPage } from "./pages/ExplorerPage";
 import { ExposurePathPage } from "./pages/ExposurePathPage";
@@ -69,6 +68,15 @@ const SemanticSearchPage = lazy(() =>
 const GuidedQuestionsPage = lazy(() =>
   import("./pages/GuidedQuestionsPage").then((module) => ({
     default: module.GuidedQuestionsPage,
+  })),
+);
+
+// DeadCodePage is route-specific and carries the interactive scan presentation.
+// Keep it out of the eager shell bundle so the recovery work does not regress
+// first-load performance for unrelated console routes.
+const DeadCodePage = lazy(() =>
+  import("./pages/DeadCodePage").then((module) => ({
+    default: module.DeadCodePage,
   })),
 );
 
@@ -265,7 +273,18 @@ export function AppRoutes({
       <Route path={APP_ROUTE_PATHS.findings} element={<FindingsPage model={model} />} />
       <Route
         path={APP_ROUTE_PATHS.deadCode}
-        element={<DeadCodePage client={client} model={model} />}
+        element={
+          <Suspense
+            fallback={
+              <section className="page-shell">
+                <h1>Loading dead code</h1>
+                <p>Loading live data.</p>
+              </section>
+            }
+          >
+            <DeadCodePage client={client} model={model} repositoryCatalog={repositoryCatalog} />
+          </Suspense>
+        }
       />
       <Route
         path={APP_ROUTE_PATHS.vulnerabilities}

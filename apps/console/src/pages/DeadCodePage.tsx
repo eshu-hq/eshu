@@ -1,13 +1,29 @@
-import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 
+import {
+  classificationFromFinding,
+  codeGraphHref,
+  deadCodeLanguages,
+  deadCodeScanLabel,
+  groupDeadCodeByRepository,
+  kindFromFinding,
+  locationFromFinding,
+  locFromFinding,
+  matchesDeadCodeQuery,
+  sourceHref,
+  symbolFromFinding,
+  uniqueStrings,
+  type DeadCodeRepositoryGroup,
+} from "./deadCodePresentation";
 import type { EshuApiClient } from "../api/client";
 import { loadDeadCodePage } from "../api/deadCode";
 import type { DeadCodePage as LiveDeadCodePage } from "../api/deadCode";
-import { loadRepositoryNameMap } from "../api/repoCatalog";
 import { Panel, StatTile, Badge, TruthChip } from "../components/atoms";
-import type { ConsoleModel, FindingRow } from "../console/types";
+import type { ConsoleModel } from "../console/types";
 import { fmt, uiTruth } from "../console/types";
+import type { RepositoryCatalogState } from "../repositoryCatalogLifecycle";
+import { DeadCodeRepositoryBreakdown, RepositoryCoverageTile } from "./DeadCodeRepositoryBreakdown";
 import "./liveInventory.css";
 
 const ANY = "all";
@@ -27,25 +43,42 @@ interface DeadCodeFilters {
   readonly repoId: string;
 }
 
+interface DeadCodeLoad {
+  readonly client: EshuApiClient;
+  readonly filtersKey: string;
+  readonly promise: Promise<LiveDeadCodePage>;
+}
+
 const EMPTY_FILTERS: DeadCodeFilters = { candidateKind: "", language: "", repoId: "" };
 
 export function DeadCodePage({
   client,
   model,
+  repositoryCatalog,
 }: {
   readonly client?: EshuApiClient;
   readonly model: ConsoleModel;
+  readonly repositoryCatalog?: RepositoryCatalogState;
 }): React.JSX.Element {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialFilters = filtersFromSearchParams(searchParams);
   const [livePage, setLivePage] = useState<LiveDeadCodePage | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
-  const [draft, setDraft] = useState<DeadCodeFilters>(EMPTY_FILTERS);
-  const [applied, setApplied] = useState<DeadCodeFilters>(EMPTY_FILTERS);
+  const [draft, setDraft] = useState<DeadCodeFilters>(initialFilters);
+  const [applied, setApplied] = useState<DeadCodeFilters>(initialFilters);
+  const [showRepositoryBreakdown, setShowRepositoryBreakdown] = useState(false);
   const [classification, setClassification] = useState(ANY);
   const [kind, setKind] = useState(ANY);
-  const [query, setQuery] = useState(
-    () => new URLSearchParams(window.location.search).get("q") ?? "",
-  );
+  const [query, setQuery] = useState(() => searchParams.get("q") ?? "");
+  const routeRepoId = searchParams.get("repo_id") ?? "";
+  const routeLanguage = searchParams.get("language") ?? "";
+  const loadRef = useRef<DeadCodeLoad | null>(null);
+
+  useEffect(() => {
+    setDraft((current) => withRouteScope(current, routeLanguage, routeRepoId));
+    setApplied((current) => withRouteScope(current, routeLanguage, routeRepoId));
+  }, [routeLanguage, routeRepoId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -57,19 +90,23 @@ export function DeadCodePage({
     }
     setBusy(true);
     setErr("");
-    void loadRepositoryNames(client)
-      .then((repoNames) =>
-        loadDeadCodePage(
-          client,
-          {
-            candidateKind: applied.candidateKind || undefined,
-            language: applied.language || undefined,
-            limit: LIVE_LIMIT,
-            repoId: applied.repoId || undefined,
-          },
-          repoNames,
-        ),
-      )
+    const filters = {
+      candidateKind: applied.candidateKind || undefined,
+      language: applied.language || undefined,
+      limit: LIVE_LIMIT,
+      repoId: applied.repoId || undefined,
+    };
+    const filtersKey = JSON.stringify(filters);
+    const load =
+      loadRef.current?.client === client && loadRef.current.filtersKey === filtersKey
+        ? loadRef.current
+        : {
+            client,
+            filtersKey,
+            promise: loadDeadCodePage(client, filters),
+          };
+    loadRef.current = load;
+    void load.promise
       .then((page) => {
         if (!cancelled) {
           setLivePage(page);
@@ -77,6 +114,7 @@ export function DeadCodePage({
         }
       })
       .catch((error) => {
+        if (loadRef.current === load) loadRef.current = null;
         if (!cancelled) {
           setLivePage(null);
           setBusy(false);
@@ -89,8 +127,12 @@ export function DeadCodePage({
   }, [applied, client]);
 
   const all = (livePage?.rows ?? model.findings).filter((finding) => finding.type === "Dead code");
-  const classifications = unique(all.map(classificationFromFinding).filter(Boolean));
-  const kinds = unique([
+  const repositoryNames = useMemo(
+    () => new Map(repositoryCatalog?.repositories.map((repo) => [repo.id, repo.name]) ?? []),
+    [repositoryCatalog?.repositories],
+  );
+  const classifications = uniqueStrings(all.map(classificationFromFinding).filter(Boolean));
+  const kinds = uniqueStrings([
     ...DEAD_CODE_CANDIDATE_KINDS.map((candidateKind) => candidateKind.toLowerCase()),
     ...all.map(kindFromFinding).filter(Boolean),
   ]);
@@ -98,33 +140,43 @@ export function DeadCodePage({
     (finding) =>
       (classification === ANY || classificationFromFinding(finding) === classification) &&
       (kind === ANY || kindFromFinding(finding) === kind) &&
-      matchesQuery(finding, query),
+      matchesDeadCodeQuery(finding, query),
   );
-  const grouped = groupByRepository(filtered);
-  const repositories = unique(all.map(repositoryScopeKey).filter(Boolean));
+  const grouped = groupDeadCodeByRepository(filtered, repositoryNames);
+  const repositoryGroups = groupDeadCodeByRepository(all, repositoryNames);
+  const languages = deadCodeLanguages(livePage, all);
   const totalLoc = all.reduce((sum, finding) => sum + locFromFinding(finding), 0);
   const highConfidence = all.filter(
     (finding) => finding.classification === "unused" || finding.truth === "exact",
   ).length;
   const source = client ? (busy ? "loading" : err ? "unavailable" : "live") : model.source;
-  const scanLabel = livePage
-    ? `${livePage.limit} candidate scan${livePage.truncated ? " · truncated" : ""}`
-    : client
-      ? "direct live scan"
-      : "snapshot";
+  const scanLabel = deadCodeScanLabel(livePage, client !== undefined);
 
   function applyFilters(): void {
-    setApplied((current) => ({
-      candidateKind: current.candidateKind,
+    const next = {
+      candidateKind: applied.candidateKind,
       language: draft.language.trim(),
       repoId: draft.repoId.trim(),
-    }));
+    };
+    setApplied(next);
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      setOrDelete(params, "repo_id", next.repoId);
+      setOrDelete(params, "language", next.language);
+      return params;
+    });
   }
 
   function resetLiveFilters(): void {
     setDraft(EMPTY_FILTERS);
     setApplied(EMPTY_FILTERS);
     setKind(ANY);
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      params.delete("repo_id");
+      params.delete("language");
+      return params;
+    });
   }
 
   function selectKind(value: string): void {
@@ -148,30 +200,33 @@ export function DeadCodePage({
 
       <div className="grid g-4">
         <StatTile
-          label="Dead symbols"
+          label="Candidates shown"
           value={all.length}
           color="var(--ember)"
-          sub="0 inbound references"
+          sub="current bounded response"
+        />
+        <RepositoryCoverageTile
+          count={repositoryGroups.length}
+          expanded={showRepositoryBreakdown}
+          onToggle={() => setShowRepositoryBreakdown((current) => !current)}
         />
         <StatTile
-          label="Repos affected"
-          value={repositories.length}
-          color="var(--blue)"
-          sub="with candidates"
-        />
-        <StatTile
-          label="Est. dead LOC"
+          label="Est. LOC shown"
           value={fmt(totalLoc)}
           color="var(--violet)"
-          sub="line span estimate"
+          sub="current result window"
         />
         <StatTile
-          label="High confidence"
+          label="High confidence shown"
           value={highConfidence}
           color="var(--teal)"
           sub={scanLabel}
         />
       </div>
+      {showRepositoryBreakdown ? <DeadCodeRepositoryBreakdown groups={repositoryGroups} /> : null}
+      <p className="dead-code-scan-status mt" role="status">
+        {scanLabel}. All summary counts describe this returned result window, not the corpus.
+      </p>
 
       <div className="repo-toolbar mt">
         <div className="searchbox repo-search">
@@ -187,21 +242,45 @@ export function DeadCodePage({
             <input
               aria-label="Repository selector"
               className="popover-input mono"
-              placeholder="repo_id or name"
+              list="dead-code-repository-options"
+              placeholder="Search repository name or identifier"
               value={draft.repoId}
               onChange={(event) =>
                 setDraft((current) => ({ ...current, repoId: event.target.value }))
               }
             />
+            <datalist id="dead-code-repository-options">
+              {(repositoryCatalog?.repositories ?? []).map((repository) => (
+                <option key={repository.id} value={repository.id}>
+                  {repository.name} · {repository.id}
+                </option>
+              ))}
+            </datalist>
+            {repositoryCatalog?.kind === "unavailable" ? (
+              <span className="t-mut" role="status">
+                Repository choices unavailable; enter a canonical identifier.
+              </span>
+            ) : repositoryCatalog?.kind === "ready" &&
+              repositoryCatalog.completeness === "truncated" ? (
+              <span className="t-mut" role="status">
+                Repository choices are incomplete: {repositoryCatalog.warning}
+              </span>
+            ) : null}
             <input
               aria-label="Language selector"
               className="popover-input mono"
-              placeholder="language"
+              list="dead-code-language-options"
+              placeholder="Search language"
               value={draft.language}
               onChange={(event) =>
                 setDraft((current) => ({ ...current, language: event.target.value }))
               }
             />
+            <datalist id="dead-code-language-options">
+              {languages.map((language) => (
+                <option key={language} value={language} />
+              ))}
+            </datalist>
             <button className="btn-ghost active" disabled={busy} onClick={applyFilters}>
               Apply
             </button>
@@ -213,6 +292,7 @@ export function DeadCodePage({
         <div className="seg" aria-label="Dead-code kind filter">
           {[ANY, ...kinds].map((value) => (
             <button
+              aria-pressed={kind === value}
               key={value}
               className={kind === value ? "active" : ""}
               onClick={() => selectKind(value)}
@@ -226,6 +306,7 @@ export function DeadCodePage({
         <div className="seg" aria-label="Dead-code classification filter">
           {[ANY, ...classifications].map((value) => (
             <button
+              aria-pressed={classification === value}
               key={value}
               className={classification === value ? "active" : ""}
               onClick={() => setClassification(value)}
@@ -248,6 +329,7 @@ export function DeadCodePage({
                 <tr>
                   <th>Symbol</th>
                   <th>Kind</th>
+                  <th>Language</th>
                   <th>Location</th>
                   <th>Refs</th>
                   <th>LOC</th>
@@ -262,7 +344,7 @@ export function DeadCodePage({
                 ))}
                 {filtered.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="empty">
+                    <td colSpan={9} className="empty">
                       {err
                         ? `Failed to load: ${err}`
                         : busy
@@ -280,12 +362,21 @@ export function DeadCodePage({
   );
 }
 
-function DeadCodeGroup({ group }: { readonly group: DeadCodeGroupModel }): React.JSX.Element {
+function withRouteScope(
+  current: DeadCodeFilters,
+  language: string,
+  repoId: string,
+): DeadCodeFilters {
+  if (current.language === language && current.repoId === repoId) return current;
+  return { ...current, language, repoId };
+}
+
+function DeadCodeGroup({ group }: { readonly group: DeadCodeRepositoryGroup }): React.JSX.Element {
   const loc = group.rows.reduce((sum, finding) => sum + locFromFinding(finding), 0);
   return (
     <>
       <tr className="group-row">
-        <td colSpan={8}>
+        <td colSpan={9}>
           <span className="group-label" style={{ color: "var(--ember)" }}>
             {group.repository}
           </span>
@@ -307,6 +398,7 @@ function DeadCodeGroup({ group }: { readonly group: DeadCodeGroupModel }): React
             <td>
               <Badge tone="neutral">{kindFromFinding(finding)}</Badge>
             </td>
+            <td className="dead-code-row-language">{finding.language ?? "language unavailable"}</td>
             <td className="t-mut mono" style={{ fontSize: ".74rem" }}>
               {href ? (
                 <Link className="mono" to={href}>
@@ -342,93 +434,15 @@ function DeadCodeGroup({ group }: { readonly group: DeadCodeGroupModel }): React
   );
 }
 
-interface DeadCodeGroupModel {
-  readonly key: string;
-  readonly repository: string;
-  readonly rows: readonly FindingRow[];
+function filtersFromSearchParams(params: URLSearchParams): DeadCodeFilters {
+  return {
+    candidateKind: "",
+    language: params.get("language")?.trim() ?? "",
+    repoId: params.get("repo_id")?.trim() ?? "",
+  };
 }
 
-function groupByRepository(rows: readonly FindingRow[]): readonly DeadCodeGroupModel[] {
-  const groups = new Map<string, { readonly label: string; readonly rows: FindingRow[] }>();
-  for (const row of rows) {
-    const key = repositoryScopeKey(row);
-    const group = groups.get(key);
-    if (group) {
-      groups.set(key, { label: group.label, rows: [...group.rows, row] });
-    } else {
-      groups.set(key, { label: row.entity || "repository", rows: [row] });
-    }
-  }
-  return [...groups.entries()]
-    .map(([key, group]) => ({ key, repository: group.label, rows: group.rows }))
-    .sort((a, b) => b.rows.length - a.rows.length || a.repository.localeCompare(b.repository));
-}
-
-function repositoryScopeKey(finding: FindingRow): string {
-  return finding.repoId?.trim() || finding.entity.trim() || finding.id;
-}
-
-function unique(values: readonly string[]): readonly string[] {
-  return [...new Set(values)].sort((a, b) => a.localeCompare(b));
-}
-
-function matchesQuery(finding: FindingRow, query: string): boolean {
-  const q = query.trim().toLowerCase();
-  if (q === "") return true;
-  return [
-    finding.title,
-    finding.entity,
-    finding.detail,
-    finding.filePath ?? "",
-    finding.language ?? "",
-  ]
-    .join(" ")
-    .toLowerCase()
-    .includes(q);
-}
-
-function symbolFromFinding(finding: FindingRow): string {
-  return finding.title.replace(/^Unreferenced symbol\s+/i, "").trim() || finding.title;
-}
-
-function classificationFromFinding(finding: FindingRow): string {
-  return finding.classification ?? finding.detail.split(" · ")[1] ?? "";
-}
-
-function kindFromFinding(finding: FindingRow): string {
-  return finding.labels?.[0]?.toLowerCase() ?? "symbol";
-}
-
-function locationFromFinding(finding: FindingRow): string {
-  const path = finding.filePath ?? finding.detail.split(" · ")[0] ?? "source path unavailable";
-  return finding.startLine ? `${path}:${finding.startLine}` : path;
-}
-
-function sourceHref(finding: FindingRow): string | null {
-  const filePath = finding.filePath;
-  const repository = finding.repoId ?? finding.entity;
-  if (!filePath || !repository) return null;
-  const params = new URLSearchParams({ path: filePath });
-  if (finding.startLine !== undefined) params.set("lineStart", String(finding.startLine));
-  if (finding.endLine !== undefined) params.set("lineEnd", String(finding.endLine));
-  return `/repositories/${encodeURIComponent(repository)}/source?${params.toString()}`;
-}
-
-function codeGraphHref(finding: FindingRow): string {
-  return `/code-graph?candidate=${encodeURIComponent(finding.id)}`;
-}
-
-function locFromFinding(finding: FindingRow): number {
-  if (finding.startLine && finding.endLine && finding.endLine >= finding.startLine) {
-    return finding.endLine - finding.startLine + 1;
-  }
-  return 0;
-}
-
-async function loadRepositoryNames(client: EshuApiClient): Promise<ReadonlyMap<string, string>> {
-  try {
-    return await loadRepositoryNameMap(client);
-  } catch {
-    return new Map();
-  }
+function setOrDelete(params: URLSearchParams, name: string, value: string): void {
+  if (value === "") params.delete(name);
+  else params.set(name, value);
 }

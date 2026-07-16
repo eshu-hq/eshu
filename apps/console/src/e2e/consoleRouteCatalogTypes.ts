@@ -28,6 +28,21 @@ export interface WorkflowEmptyState {
   readonly exactText: string;
 }
 
+export interface DeadCodeWorkflowControls {
+  readonly applyName: string;
+  readonly breakdownLinkSelector: string;
+  readonly breakdownSelector: string;
+  readonly breakdownToggleName: string;
+  readonly countScopeSelector: string;
+  readonly expectedCountScopeText: string;
+  readonly languageOptionsSelector: string;
+  readonly languageSelector: string;
+  readonly observedLanguageSelector: string;
+  readonly repositoryOptionsSelector: string;
+  readonly repositorySelector: string;
+  readonly resetKindName: string;
+}
+
 interface WorkflowResponseExpectationBase {
   readonly method: "GET" | "POST";
   readonly acceptedStatuses: readonly number[];
@@ -164,6 +179,7 @@ export type RouteWorkflowSpec = WorkflowGuards &
         readonly expectedRequestPath: string;
         readonly expectedRequestMethod: "POST";
         readonly acceptedResponseStatuses: readonly number[];
+        readonly deadCodeControls?: DeadCodeWorkflowControls;
       }
     | {
         readonly id: string;

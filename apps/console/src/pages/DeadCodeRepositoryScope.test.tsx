@@ -18,7 +18,7 @@ describe("DeadCodePage repository scoping", () => {
           detail: "server/first.ts · unused",
           truth: "derived",
           filePath: "server/first.ts",
-          repoId: "repository:r_11111111"
+          repoId: "repository:r_11111111",
         },
         {
           id: "dead-2",
@@ -28,18 +28,21 @@ describe("DeadCodePage repository scoping", () => {
           detail: "server/second.ts · unused",
           truth: "derived",
           filePath: "server/second.ts",
-          repoId: "repository:r_22222222"
-        }
-      ]
+          repoId: "repository:r_22222222",
+        },
+      ],
     };
 
     render(
       <MemoryRouter>
         <DeadCodePage model={model} />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
-    expect(screen.getByText("Repos affected")).toBeInTheDocument();
+    expect(screen.getByText("Repositories represented")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Show repository breakdown" })).toHaveTextContent(
+      "2",
+    );
     expect(screen.getAllByText("unresolved repository")).toHaveLength(2);
   });
 });
