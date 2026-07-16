@@ -48,6 +48,7 @@ import { SurfaceInventoryPage } from "./pages/SurfaceInventoryPage";
 import { TopologyPage } from "./pages/TopologyPage";
 import { VulnDetailPage } from "./pages/VulnDetailPage";
 import { VulnerabilitiesPage } from "./pages/VulnerabilitiesPage";
+import type { RepositoryCatalogState } from "./repositoryCatalogLifecycle";
 
 // WorkspacePage is code-split via React.lazy (issue #3331), so this route has an
 // extra dynamic-import hop before its content renders. See App.tsx for details.
@@ -76,6 +77,7 @@ export interface AppRoutesProps {
   readonly client: EshuApiClient | undefined;
   readonly source: SourceState;
   readonly repositories: readonly RepoListItem[];
+  readonly repositoryCatalog?: RepositoryCatalogState;
   readonly onOpenService: (name: string) => void;
   // auth gates /admin (issue #4969): the route guard and AdminPage's
   // per-panel gating both derive from this session auth. Undefined in tests
@@ -90,6 +92,7 @@ export function AppRoutes({
   client,
   source,
   repositories,
+  repositoryCatalog,
   auth,
   onOpenService,
 }: AppRoutesProps): React.JSX.Element {
@@ -106,6 +109,7 @@ export function AppRoutes({
             client={client}
             onOpenService={onOpenService}
             repositories={repositories}
+            repositoryCatalog={repositoryCatalog}
           />
         }
       />
@@ -118,6 +122,7 @@ export function AppRoutes({
             client={client}
             onOpenService={onOpenService}
             repositories={repositories}
+            repositoryCatalog={repositoryCatalog}
           />
         }
       />
@@ -196,7 +201,9 @@ export function AppRoutes({
       />
       <Route
         path={APP_ROUTE_PATHS.repositories}
-        element={<RepositoriesPage client={client} model={model} />}
+        element={
+          <RepositoriesPage client={client} model={model} repositoryCatalog={repositoryCatalog} />
+        }
       />
       <Route path={APP_ROUTE_PATHS.repositorySource} element={<RepoSourcePage client={client} />} />
       <Route

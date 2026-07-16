@@ -24,6 +24,11 @@ export interface SuggestedQuestionsResult {
   readonly questions: readonly SuggestedQuestion[];
 }
 
+export interface SuggestedQuestionsOptions {
+  readonly repositories?: readonly RepoListItem[];
+  readonly repositoryCatalogUnavailable?: boolean;
+}
+
 interface GraphSummaryResponse {
   readonly hot_entities?: readonly HotEntityRecord[];
 }
@@ -92,14 +97,16 @@ export async function loadSourceBackedSuggestedQuestions(
 
 export async function loadSourceBackedSuggestedQuestionsResult(
   client: EshuApiClient,
+  options: SuggestedQuestionsOptions = {},
 ): Promise<SuggestedQuestionsResult> {
   const questions: SuggestedQuestion[] = [];
   const failures: string[] = [];
   const security = settleQuestion("vulnerability impact", loadSecurityQuestion(client));
   let repository: RepoListItem | undefined;
   try {
-    const repositories = await loadRepositories(client);
+    const repositories = options.repositories ?? (await loadRepositories(client));
     repository = repositories.find((row) => row.id.trim().length > 0);
+    if (options.repositoryCatalogUnavailable === true) failures.push("repository catalog");
   } catch {
     failures.push("repository catalog");
   }

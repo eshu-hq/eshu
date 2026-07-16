@@ -4,15 +4,18 @@ import { loadCurrentSession } from "./api/authSession";
 import type { BrowserSessionResponse } from "./api/client";
 import { EshuApiClient } from "./api/client";
 import { loadConsoleSnapshot } from "./api/eshuConsoleLive";
-import { loadRepositories, type RepoListItem } from "./api/repoCatalog";
 import { saveConsoleEnvironment } from "./config/environment";
 import { modelFromSnapshot } from "./console/liveModel";
 import type { ConsoleModel } from "./console/types";
+import {
+  loadRepositoryCatalogState,
+  type RepositoryCatalogState,
+} from "./repositoryCatalogLifecycle";
 
 export interface BootResult {
   readonly client: EshuApiClient;
   readonly model: ConsoleModel;
-  readonly repositories: readonly RepoListItem[];
+  readonly repositoryCatalog: Promise<RepositoryCatalogState>;
   readonly session: BrowserSessionResponse | null;
 }
 
@@ -25,15 +28,13 @@ export async function bootFromSession(baseUrl: string): Promise<BootResult | nul
   if (session === null) {
     return null;
   }
-  const [snap, repoRows] = await Promise.all([
-    loadConsoleSnapshot(client),
-    loadRepositories(client).catch((): readonly RepoListItem[] => [])
-  ]);
+  const repositoryCatalog = loadRepositoryCatalogState(client);
+  const snap = await loadConsoleSnapshot(client);
   return {
     client,
     model: modelFromSnapshot(snap),
-    repositories: repoRows,
-    session
+    repositoryCatalog,
+    session,
   };
 }
 
@@ -64,19 +65,27 @@ export async function bootFromKey(base: string, key: string): Promise<BootResult
       // unauthenticated (those reads 401 and would strand the user in an error
       // state). Persist the selected base and signal no-session so the caller
       // routes to local login for this deployment. (#3685 P2)
-      saveConsoleEnvironment({ mode: "private", apiBaseUrl: base, apiKey: "", recentApiBaseUrls: [base] });
+      saveConsoleEnvironment({
+        mode: "private",
+        apiBaseUrl: base,
+        apiKey: "",
+        recentApiBaseUrls: [base],
+      });
       return null;
     }
   }
-  const [snap, repoRows] = await Promise.all([
-    loadConsoleSnapshot(nextClient),
-    loadRepositories(nextClient).catch((): readonly RepoListItem[] => [])
-  ]);
-  saveConsoleEnvironment({ mode: "private", apiBaseUrl: base, apiKey: "", recentApiBaseUrls: [base] });
+  const repositoryCatalog = loadRepositoryCatalogState(nextClient);
+  const snap = await loadConsoleSnapshot(nextClient);
+  saveConsoleEnvironment({
+    mode: "private",
+    apiBaseUrl: base,
+    apiKey: "",
+    recentApiBaseUrls: [base],
+  });
   return {
     client: nextClient,
     model: modelFromSnapshot(snap),
-    repositories: repoRows,
-    session
+    repositoryCatalog,
+    session,
   };
 }

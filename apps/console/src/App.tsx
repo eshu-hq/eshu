@@ -28,6 +28,11 @@ import { NAV_ITEMS, type NavItem } from "./i18n/navigation";
 import { ConsoleI18nProvider, FormattedMessage, useConsoleIntl } from "./i18n/provider";
 import { shellMessageDescriptors } from "./i18n/shellMessages";
 import { AuthGate } from "./pages/AuthGate";
+import {
+  loadingRepositoryCatalog,
+  readyRepositoryCatalog,
+  useRepositoryCatalogLifecycle,
+} from "./repositoryCatalogLifecycle";
 import "./styles.css";
 import "./appShell.css";
 
@@ -57,8 +62,13 @@ function AppShell(): React.JSX.Element {
   const [client, setClient] = useState<EshuApiClient | undefined>(() =>
     hasDemoEnv ? createDemoApiClient() : undefined,
   );
-  const [repositories, setRepositories] = useState<readonly RepoListItem[]>(() =>
-    hasDemoEnv ? demoRepositories : [],
+  const {
+    activate: activateRepositoryCatalog,
+    clear: clearRepositoryCatalog,
+    replace: replaceRepositoryCatalog,
+    state: repositoryCatalog,
+  } = useRepositoryCatalogLifecycle(
+    hasDemoEnv ? readyRepositoryCatalog(demoRepositories) : loadingRepositoryCatalog,
   );
   const [session, setSession] = useState<BrowserSessionResponse | null>(null);
   const [drawer, setDrawer] = useState<string | null>(null);
@@ -74,7 +84,7 @@ function AppShell(): React.JSX.Element {
     saveConsoleEnvironment({ mode: "demo", apiBaseUrl: "", apiKey: "", recentApiBaseUrls: [] });
     setClient(createDemoApiClient());
     setModel(demoModel);
-    setRepositories(demoRepositories);
+    replaceRepositoryCatalog(readyRepositoryCatalog(demoRepositories));
     setSource({ base: demoApiBaseUrl, key: "", mode: "demo", status: "connected", msg: "" });
     setOpen(false);
   }
@@ -86,7 +96,7 @@ function AppShell(): React.JSX.Element {
       const result = await bootFromKey(base, key);
       if (result === null) {
         setClient(undefined);
-        setRepositories([]);
+        clearRepositoryCatalog();
         setSession(null);
         setModel(emptyConsoleModel("unavailable"));
         setSource({ base, key: "", mode: "private", status: "needs-connection", msg: "" });
@@ -95,7 +105,7 @@ function AppShell(): React.JSX.Element {
       }
       setClient(result.client);
       setModel(result.model);
-      setRepositories(result.repositories);
+      activateRepositoryCatalog(result.client, result.repositoryCatalog);
       setSession(result.session);
       setSource({
         base,
@@ -107,7 +117,7 @@ function AppShell(): React.JSX.Element {
       setOpen(false);
     } catch (e) {
       setClient(undefined);
-      setRepositories([]);
+      clearRepositoryCatalog();
       setSession(null);
       setModel(emptyConsoleModel("unavailable"));
       setSource({
@@ -130,7 +140,7 @@ function AppShell(): React.JSX.Element {
         if (result !== null) {
           setClient(result.client);
           setModel(result.model);
-          setRepositories(result.repositories);
+          activateRepositoryCatalog(result.client, result.repositoryCatalog);
           setSession(result.session);
           setSource({ base, key: "", mode: "private", status: "connected", msg: "" });
         } else {
@@ -158,7 +168,7 @@ function AppShell(): React.JSX.Element {
         setSession(null);
         setClient(undefined);
         setModel(emptyConsoleModel());
-        setRepositories([]);
+        clearRepositoryCatalog();
         setSource((s) => ({ ...s, status: "needs-connection", msg: "" }));
       })
       .catch(() => {
@@ -174,7 +184,7 @@ function AppShell(): React.JSX.Element {
     const query = rawQuery.trim();
     if (query.length === 0) return;
     const needle = query.toLowerCase();
-    const repositoryId = repositorySearchTarget(repositories, needle);
+    const repositoryId = repositorySearchTarget(repositoryCatalog.repositories, needle);
     if (repositoryId) {
       navigate(`/repositories/${encodeURIComponent(repositoryId)}/source`);
       return;
@@ -204,7 +214,7 @@ function AppShell(): React.JSX.Element {
           if (result !== null) {
             setClient(result.client);
             setModel(result.model);
-            setRepositories(result.repositories);
+            activateRepositoryCatalog(result.client, result.repositoryCatalog);
             setSession(result.session);
             setSource({ base, key: "", mode: "private", status: "connected", msg: "" });
           } else if (env.apiKey.trim().length > 0) {
@@ -396,7 +406,8 @@ function AppShell(): React.JSX.Element {
               model={visibleModel}
               client={client}
               source={source}
-              repositories={repositories}
+              repositories={repositoryCatalog.repositories}
+              repositoryCatalog={repositoryCatalog}
               onOpenService={openService}
               auth={session?.auth}
             />

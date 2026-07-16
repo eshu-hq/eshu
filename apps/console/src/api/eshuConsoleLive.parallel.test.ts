@@ -149,4 +149,70 @@ describe("loadConsoleSnapshot concurrency + resilience", () => {
     expect(snap.services).toEqual([]);
     expect(snap.provenance.services).toBe("unavailable");
   });
+
+  it("shares one index-status read across runtime and ingester snapshot sections", async () => {
+    let indexStatusCalls = 0;
+    const client = {
+      get: async () => ({ data: {}, error: null, truth: null }),
+      getJson: async (path: string) => {
+        if (path === "/api/v0/index-status") indexStatusCalls += 1;
+        return path === "/api/v0/index-status" ? { status: "healthy", queue: {} } : {};
+      },
+      post: async () => ({ data: {}, error: null, truth: null }),
+    } as unknown as EshuApiClient;
+
+    await loadConsoleSnapshot(client);
+
+    expect(indexStatusCalls).toBe(1);
+  });
+
+  it("handles an immediate shared index-status rejection while sibling reads are pending", async () => {
+    const overview = deferred<unknown>();
+    const ingesters = deferred<unknown>();
+    const unhandled: unknown[] = [];
+    const onUnhandled = (reason: unknown): void => {
+      unhandled.push(reason);
+    };
+    process.on("unhandledRejection", onUnhandled);
+    try {
+      const client = {
+        get: async (path: string) => {
+          if (path === "/api/v0/ecosystem/overview") return overview.promise;
+          return { data: {}, error: null, truth: null };
+        },
+        getJson: (path: string) => {
+          if (path === "/api/v0/index-status") {
+            return Promise.reject(new Error("index status unavailable"));
+          }
+          if (path === "/api/v0/status/ingesters") return ingesters.promise;
+          return Promise.resolve({});
+        },
+        post: async () => ({ data: {}, error: null, truth: null }),
+      } as unknown as EshuApiClient;
+
+      const snapshot = loadConsoleSnapshot(client);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      expect(unhandled).toEqual([]);
+      overview.resolve({ data: {}, error: null, truth: null });
+      ingesters.resolve({ ingesters: [] });
+      await snapshot;
+    } finally {
+      process.off("unhandledRejection", onUnhandled);
+    }
+  });
 });
+
+function deferred<T>(): {
+  readonly promise: Promise<T>;
+  readonly resolve: (value: T) => void;
+} {
+  let resolvePromise: ((value: T) => void) | undefined;
+  const promise = new Promise<T>((resolve) => {
+    resolvePromise = resolve;
+  });
+  return {
+    promise,
+    resolve: (value: T): void => resolvePromise?.(value),
+  };
+}

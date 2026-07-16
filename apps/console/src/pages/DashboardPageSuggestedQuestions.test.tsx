@@ -1,10 +1,12 @@
 import { render, screen } from "@testing-library/react";
+import { StrictMode } from "react";
 import { MemoryRouter } from "react-router-dom";
 
 import { DashboardPage } from "./DashboardPage";
 import type { EshuApiClient } from "../api/client";
 import { emptySnapshot, modelFromSnapshot } from "../console/liveModel";
 import type { ConsoleModel } from "../console/types";
+import { readyRepositoryCatalog } from "../repositoryCatalogLifecycle";
 
 describe("DashboardPage suggested questions", () => {
   it("renders source-backed suggestions as query route links", async () => {
@@ -105,6 +107,51 @@ describe("DashboardPage suggested questions", () => {
 
     expect(screen.queryByRole("link", { name: /Why is routeCheckout/i })).not.toBeInTheDocument();
     resolveRepositories({ data: { repositories: [] }, error: null, truth: null });
+  });
+
+  it("reuses the session-owned repository catalog and one suggestion load in StrictMode", async () => {
+    const calls: string[] = [];
+    const base = suggestionClient();
+    const client = {
+      get: async (path: string) => {
+        calls.push(`GET ${path}`);
+        return base.get(path);
+      },
+      post: async (path: string, body: unknown) => {
+        calls.push(`POST ${path}`);
+        return base.post(path, body);
+      },
+    } as unknown as EshuApiClient;
+
+    render(
+      <StrictMode>
+        <MemoryRouter>
+          <DashboardPage
+            client={client}
+            model={modelWithSuggestions()}
+            repositoryCatalog={readyRepositoryCatalog([
+              {
+                groupKey: "Platform",
+                groupKind: "source",
+                groupReason: "derived from repository slug namespace",
+                groupSource: "repo_slug_namespace",
+                groupTruth: "derived",
+                id: "repository:r1",
+                isDependency: false,
+                name: "checkout-api",
+                remoteUrl: "",
+                repoSlug: "platform/checkout-api",
+              },
+            ])}
+          />
+        </MemoryRouter>
+      </StrictMode>,
+    );
+
+    expect(await screen.findByRole("link", { name: /Why is routeCheckout/i })).toBeInTheDocument();
+    expect(calls.filter((call) => call.includes("/api/v0/repositories"))).toHaveLength(0);
+    expect(calls.filter((call) => call === "POST /api/v0/ecosystem/graph-summary")).toHaveLength(1);
+    expect(calls.filter((call) => call.includes("/api/v0/freshness/generations"))).toHaveLength(1);
   });
 });
 

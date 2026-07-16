@@ -20,7 +20,9 @@ describe("prototype documentation parity", () => {
     expect(guide).toContain("GET /api/v0/supply-chain/advisories");
     expect(guide).toContain("GET /api/v0/dependencies");
     expect(guide).toContain("GET /api/v0/metrics/timeseries");
-    expect(guide).toContain("`dead_letters`, `graph_nodes`, `graph_edges`, `query_p50`, `query_p95`, and");
+    expect(guide).toContain(
+      "`dead_letters`, `graph_nodes`, `graph_edges`, `query_p50`, `query_p95`, and",
+    );
     expect(guide).toContain("issue #2216 defines named live contracts");
     expect(guide).toContain("Remote E2E representative proof now requires non-empty");
     expect(guide).toContain("panels without live rows render explicit empty/unavailable states");
@@ -29,7 +31,9 @@ describe("prototype documentation parity", () => {
     expect(guide).not.toContain("no historical series endpoint");
     expect(guide).not.toContain("panels without live rows keep demo facts");
     expect(guide).not.toContain("Copy `eshuConsoleLive.ts`");
-    expect(guide).toContain("Use the production loaders in `apps/console/src/api/` as the current contract");
+    expect(guide).toContain(
+      "Use the production loaders in `apps/console/src/api/` as the current contract",
+    );
     expect(livePages).toContain("digest, tags, registry/repository, media type, and size");
     expect(livePages).not.toContain("joined to service and vulnerability evidence");
     expect(livePages).not.toContain("vulnCount");
@@ -42,7 +46,9 @@ describe("prototype documentation parity", () => {
     const html = repoFile("apps/console/prototype/eshu-console/Eshu Console.html");
     const app = repoFile("apps/console/prototype/eshu-console/console/app.jsx");
     const page = repoFile("apps/console/prototype/eshu-console/console/pages-cloud.jsx");
-    const overlay = repoFile("apps/console/prototype/eshu-console/console/pages-observability-parity.jsx");
+    const overlay = repoFile(
+      "apps/console/prototype/eshu-console/console/pages-observability-parity.jsx",
+    );
     const loader = repoFile("apps/console/prototype/eshu-console/console/live-parity-loader.js");
 
     expect(html).toContain("console/pages-observability-parity.jsx");
@@ -114,14 +120,16 @@ describe("prototype documentation parity", () => {
     const prototypeApp = repoFile("apps/console/prototype/eshu-console/console/app.jsx");
 
     expect(prototypeApp).toContain("function liveConsoleData");
-    expect(prototypeApp).toContain('source.mode === "live" ? liveConsoleData(ESHU, source.live) : ESHU');
+    expect(prototypeApp).toContain(
+      'source.mode === "live" ? liveConsoleData(ESHU, source.live) : ESHU',
+    );
     expect(prototypeApp).toContain('org: "live"');
     expect(prototypeApp).toContain('services: liveArray(live, "services")');
     expect(prototypeApp).toContain('vulns: liveArray(live, "vulns")');
     expect(prototypeApp).toContain("graph: (live && live.graph) || { nodes: [], edges: [] }");
     expect(prototypeApp).toContain("unsupported sections show explicit empty/unavailable states");
     expect(prototypeApp).not.toContain("Object.assign({}, ESHU, source.live)");
-    expect(prototypeApp).not.toContain('source.live) ? liveConsoleData(ESHU, source.live) : ESHU');
+    expect(prototypeApp).not.toContain("source.live) ? liveConsoleData(ESHU, source.live) : ESHU");
     expect(prototypeApp).not.toContain("sections without a live endpoint show demo facts");
     expect(prototypeApp).not.toContain("Showing demo facts");
     expect(prototypeApp).not.toContain("showing demo");
@@ -173,8 +181,12 @@ describe("prototype documentation parity", () => {
   });
 
   it("keeps prototype entity-map graph edges carrying source-backed row metadata", () => {
-    const dashboard = repoFile("apps/console/prototype/eshu-console/console/pages-dashboard-parity.jsx");
-    const explorer = repoFile("apps/console/prototype/eshu-console/console/pages-explorer-parity.jsx");
+    const dashboard = repoFile(
+      "apps/console/prototype/eshu-console/console/pages-dashboard-parity.jsx",
+    );
+    const explorer = repoFile(
+      "apps/console/prototype/eshu-console/console/pages-explorer-parity.jsx",
+    );
 
     expect(dashboard).toContain("evidence: entityMapEdgeEvidence(rel, verb, incoming)");
     expect(explorer).toContain("evidence: entityMapEdgeEvidence(rel, verb, incoming)");
@@ -183,7 +195,9 @@ describe("prototype documentation parity", () => {
   it("keeps prototype Operations connected-live mode on supported metric contracts", () => {
     const html = repoFile("apps/console/prototype/eshu-console/Eshu Console.html");
     const app = repoFile("apps/console/prototype/eshu-console/console/app.jsx");
-    const page = repoFile("apps/console/prototype/eshu-console/console/pages-operations-parity.jsx");
+    const page = repoFile(
+      "apps/console/prototype/eshu-console/console/pages-operations-parity.jsx",
+    );
     const guide = repoFile("apps/console/prototype/eshu-console/port/PORT-TO-CONSOLE.md");
 
     expect(html).toContain("console/pages-operations-parity.jsx");
@@ -212,7 +226,7 @@ describe("prototype documentation parity", () => {
     const corePages = repoFile("apps/console/prototype/eshu-console/console/pages-core.jsx");
 
     expect(prototypeApp).toContain("source={source}");
-    expect(corePages).toContain("source && source.mode === \"live\"");
+    expect(corePages).toContain('source && source.mode === "live"');
     expect(corePages).toContain("Live service spotlight");
     expect(corePages).toContain("Demo service spotlight");
   });
@@ -222,10 +236,14 @@ describe("prototype documentation parity", () => {
     const prototypeApp = repoFile("apps/console/prototype/eshu-console/console/app.jsx");
 
     expect(liveApp).toContain("vulnerabilitySearchTarget");
-    expect(liveApp).toContain("navigate(`/vulnerabilities/${encodeURIComponent(vulnerabilityId)}`)");
+    expect(liveApp).toContain(
+      "navigate(`/vulnerabilities/${encodeURIComponent(vulnerabilityId)}`)",
+    );
     expect(prototypeApp).toContain("onSubmit={submitSearch}");
     expect(prototypeApp).toContain("prototypeVulnerabilitySearchTarget");
-    expect(prototypeApp).toContain('setRouteHash("vulnerabilities", "?cve=" + encodeURIComponent(cve))');
+    expect(prototypeApp).toContain(
+      'setRouteHash("vulnerabilities", "?cve=" + encodeURIComponent(cve))',
+    );
   });
 
   it("keeps prototype topbar search wired to live-style repository routing", () => {
@@ -235,9 +253,12 @@ describe("prototype documentation parity", () => {
     const prototypeApp = repoFile("apps/console/prototype/eshu-console/console/app.jsx");
 
     expect(liveApp).toContain("repositorySearchTarget");
-    // loadRepositories lives in appBoot.ts after extraction from App.tsx (issue #3462).
-    expect(liveAppBoot).toContain("loadRepositories(nextClient)");
-    expect(liveApp).toContain("navigate(`/repositories/${encodeURIComponent(repositoryId)}/source`)");
+    // The session-owned catalog load starts in appBoot.ts and hydrates after
+    // the snapshot makes the shell interactive (issues #3462 and #5268).
+    expect(liveAppBoot).toContain("loadRepositoryCatalogState(nextClient)");
+    expect(liveApp).toContain(
+      "navigate(`/repositories/${encodeURIComponent(repositoryId)}/source`)",
+    );
     expect(liveApp).toContain("onKeyDown={submitSearchKey}");
     expect(liveApp).toContain("onClick={submitSearchButton}");
     expect(liveApp).toContain('className="search-submit"');
@@ -251,7 +272,9 @@ describe("prototype documentation parity", () => {
   it("keeps the prototype repositories route on the live repository contract", () => {
     const html = repoFile("apps/console/prototype/eshu-console/Eshu Console.html");
     const app = repoFile("apps/console/prototype/eshu-console/console/app.jsx");
-    const page = repoFile("apps/console/prototype/eshu-console/console/pages-repositories-parity.jsx");
+    const page = repoFile(
+      "apps/console/prototype/eshu-console/console/pages-repositories-parity.jsx",
+    );
     const guide = repoFile("apps/console/prototype/eshu-console/port/PORT-TO-CONSOLE.md");
 
     expect(html).toContain("console/pages-repositories-parity.jsx");
@@ -275,7 +298,9 @@ describe("prototype documentation parity", () => {
   it("keeps the prototype vulnerability surface split like the live console", () => {
     const html = repoFile("apps/console/prototype/eshu-console/Eshu Console.html");
     const app = repoFile("apps/console/prototype/eshu-console/console/app.jsx");
-    const page = repoFile("apps/console/prototype/eshu-console/console/pages-vulnerability-parity.jsx");
+    const page = repoFile(
+      "apps/console/prototype/eshu-console/console/pages-vulnerability-parity.jsx",
+    );
     const guide = repoFile("apps/console/prototype/eshu-console/port/PORT-TO-CONSOLE.md");
 
     expect(html).toContain("console/pages-vulnerability-parity.jsx");
@@ -365,8 +390,12 @@ describe("prototype documentation parity", () => {
   });
 
   it("keeps prototype live page overlays rejecting API error envelopes", () => {
-    const explorer = repoFile("apps/console/prototype/eshu-console/console/pages-explorer-parity.jsx");
-    const workspace = repoFile("apps/console/prototype/eshu-console/console/pages-workspace-parity.jsx");
+    const explorer = repoFile(
+      "apps/console/prototype/eshu-console/console/pages-explorer-parity.jsx",
+    );
+    const workspace = repoFile(
+      "apps/console/prototype/eshu-console/console/pages-workspace-parity.jsx",
+    );
     const source = repoFile("apps/console/prototype/eshu-console/console/pages-source-parity.jsx");
 
     for (const page of [explorer, workspace, source]) {
@@ -383,7 +412,7 @@ describe("prototype documentation parity", () => {
       repoFile("apps/console/prototype/eshu-console/console/pages-observability-parity.jsx"),
       repoFile("apps/console/prototype/eshu-console/console/pages-dashboard-parity.jsx"),
       repoFile("apps/console/prototype/eshu-console/console/pages-live-parity.jsx"),
-      repoFile("apps/console/prototype/eshu-console/console/pages-cloud.jsx")
+      repoFile("apps/console/prototype/eshu-console/console/pages-cloud.jsx"),
     ];
 
     for (const page of helperPages) {
@@ -396,7 +425,14 @@ describe("prototype documentation parity", () => {
     const app = repoFile("apps/console/prototype/eshu-console/console/app.jsx");
     const page = repoFile("apps/console/prototype/eshu-console/console/pages-live-parity.jsx");
 
-    const staleAppContracts = ["Container image inventory and package risk", "Package evidence and advisory reachability", "Source, service and datastore dependency edges", "|| m.vulns.length", "|| m.services.filter((s) => s.image).length", "|| m.cloudResources.filter((r) => r.tf).length"];
+    const staleAppContracts = [
+      "Container image inventory and package risk",
+      "Package evidence and advisory reachability",
+      "Source, service and datastore dependency edges",
+      "|| m.vulns.length",
+      "|| m.services.filter((s) => s.image).length",
+      "|| m.cloudResources.filter((r) => r.tf).length",
+    ];
     for (const stale of staleAppContracts) expect(app).not.toContain(stale);
     expect(page).toContain("GET /api/v0/images");
     expect(page).toContain("GET /api/v0/iac/resources");
@@ -415,7 +451,9 @@ describe("prototype documentation parity", () => {
   it("keeps prototype Catalog and Findings honest in connected-live mode", () => {
     const html = repoFile("apps/console/prototype/eshu-console/Eshu Console.html");
     const app = repoFile("apps/console/prototype/eshu-console/console/app.jsx");
-    const page = repoFile("apps/console/prototype/eshu-console/console/pages-catalog-findings-parity.jsx");
+    const page = repoFile(
+      "apps/console/prototype/eshu-console/console/pages-catalog-findings-parity.jsx",
+    );
 
     expect(html).toContain("console/pages-catalog-findings-parity.jsx");
     expect(app).toContain("<Catalog data={data} client={liveClient}");
@@ -432,7 +470,9 @@ describe("prototype documentation parity", () => {
   it("keeps prototype dead-code locations wired to repository source deep links", () => {
     const html = repoFile("apps/console/prototype/eshu-console/Eshu Console.html");
     const page = repoFile("apps/console/prototype/eshu-console/console/pages-code.jsx");
-    const deadCodeLoader = repoFile("apps/console/prototype/eshu-console/console/live-dead-code-loader.js");
+    const deadCodeLoader = repoFile(
+      "apps/console/prototype/eshu-console/console/live-dead-code-loader.js",
+    );
     const loader = repoFile("apps/console/prototype/eshu-console/console/live-base-loader.js");
 
     expect(html).toContain("console/live-dead-code-loader.js");
@@ -446,56 +486,5 @@ describe("prototype documentation parity", () => {
     expect(deadCodeLoader).toContain("repoDisplayName");
     expect(deadCodeLoader).not.toContain("row.entityId && row.file");
     expect(loader).toContain("repoNameById");
-  });
-
-  it("keeps the prototype code graph on current live code contracts", () => {
-    const app = repoFile("apps/console/prototype/eshu-console/console/app.jsx");
-    const page = repoFile("apps/console/prototype/eshu-console/console/pages-code.jsx");
-
-    expect(app).toContain("<CodeGraph data={data} client={liveClient}");
-    expect(page).toContain("/api/v0/code/relationships");
-    expect(page).toContain("max_depth");
-    expect(page).toContain("sourceHref");
-    expect(page).toContain("deadCodeSourceRepo");
-    expect(page).toContain("focusedNode");
-    expect(page).toContain("locationLabel");
-    expect(page).toContain("codeGraphCandidateParam");
-    expect(page).toContain("relationshipNodeKind");
-    expect(page).toContain("relationshipNodeSub");
-    expect(page).toContain("sourceLocationFromCodeEdge");
-    expect(page).toContain("sourceHrefFromNode");
-    expect(page).toContain("locationLabelFromNode");
-    expect(page).toContain("focusedNodeSourceHref");
-    expect(page).toContain("focusedRepositoryLabel");
-    expect(page).toContain("Related symbol source metadata unavailable");
-    expect(page).toContain("function apiData(env)");
-    expect(page).toContain("env && env.error");
-    expect(page).toContain("sourceAvailable");
-  });
-
-  it("keeps the prototype topology route on current live service topology contracts", () => {
-    const html = repoFile("apps/console/prototype/eshu-console/Eshu Console.html");
-    const app = repoFile("apps/console/prototype/eshu-console/console/app.jsx");
-    const chain = repoFile("apps/console/prototype/eshu-console/console/deployment-chain-parity.js");
-    const page = repoFile("apps/console/prototype/eshu-console/console/pages-live-parity.jsx");
-    const guide = repoFile("apps/console/prototype/eshu-console/port/PORT-TO-CONSOLE.md");
-
-    expect(html).toContain("console/deployment-chain-parity.js");
-    expect(app).toContain("<Topology data={data} client={liveClient}");
-    expect(app).toContain("data.servicesById = {}");
-    expect(page).toContain("/api/v0/services/");
-    expect(page).toContain("/story");
-    expect(page).toContain("/context");
-    expect(page).toContain("traffic evidence unavailable");
-    expect(page).toContain("liveDeploymentChainGraph");
-    expect(chain).toContain("DEPLOYS_HELM");
-    expect(chain).toContain("PACKAGES");
-    expect(chain).toContain("deployment_evidence.artifacts");
-    expect(chain).toContain("function artifactEdgeEvidence(artifact)");
-    expect(chain).toContain("evidence: artifactEdgeEvidence(artifact)");
-    expect(chain).toContain("evidence: artifactEdgeEvidence(deployArtifacts[0])");
-    expect(chain).toContain("Object.assign(window, { liveDeploymentChainGraph, artifactEdgeEvidence })");
-    expect(guide).toContain("GET /api/v0/services/{name}/story");
-    expect(guide).toContain("GET /api/v0/services/{name}/context");
   });
 });

@@ -35,6 +35,12 @@ export interface RepoDetail {
   readonly provenance: "live" | "empty" | "unavailable";
 }
 
+export interface RepositoryCatalog {
+  readonly completeness: "complete" | "truncated";
+  readonly repositories: readonly RepoListItem[];
+  readonly warning: string;
+}
+
 interface RepoRecord {
   readonly id?: string;
   readonly name?: string;
@@ -123,8 +129,9 @@ function warnIncomplete(reason: string): void {
 //      because more data exists that the server will not serve.
 //   3. Both warn paths use warnIncomplete with a distinct reason so operators
 //      can tell which cap was hit.
-export async function loadRepositories(client: EshuApiClient): Promise<readonly RepoListItem[]> {
+export async function loadRepositoryCatalog(client: EshuApiClient): Promise<RepositoryCatalog> {
   const items: RepoListItem[] = [];
+  let incompleteReason = "";
   let offset = 0;
   let page = 0;
   for (; page < REPOSITORY_MAX_PAGES; page += 1) {
@@ -141,10 +148,10 @@ export async function loadRepositories(client: EshuApiClient): Promise<readonly 
     const echoedOffset = env.data?.offset;
     if (typeof echoedOffset === "number" && echoedOffset !== offset) {
       if (env.data?.truncated === true) {
-        warnIncomplete(
+        incompleteReason =
           `server offset clamped at ${echoedOffset} (requested ${offset}); ` +
-            `catalog has more repositories beyond the server offset limit`,
-        );
+          `catalog has more repositories beyond the server offset limit`;
+        warnIncomplete(incompleteReason);
       }
       break;
     }
@@ -153,9 +160,16 @@ export async function loadRepositories(client: EshuApiClient): Promise<readonly 
       const item = repoListItem(record);
       if (item.id !== "") items.push(item);
     }
-    // An empty page is always terminal — truncated:true with zero rows is
-    // contradictory and must not cause another fetch.
-    if (wire.length === 0) break;
+    // An empty page is always terminal. If the server simultaneously reports
+    // truncation, preserve that contradiction as incomplete truth rather than
+    // presenting an authoritative empty or complete catalog.
+    if (wire.length === 0) {
+      if (env.data?.truncated === true) {
+        incompleteReason = "received an empty page while the server still reports truncation";
+        warnIncomplete(incompleteReason);
+      }
+      break;
+    }
     // truncated is the authoritative paging signal. When the API omits it
     // (older/fixture shape), a full page is the only hint that more may exist;
     // a short page is terminal.
@@ -165,11 +179,18 @@ export async function loadRepositories(client: EshuApiClient): Promise<readonly 
     offset += REPOSITORY_PAGE_LIMIT;
   }
   if (page === REPOSITORY_MAX_PAGES) {
-    warnIncomplete(
-      `reached page limit (${REPOSITORY_MAX_PAGES} pages × ${REPOSITORY_PAGE_LIMIT} rows)`,
-    );
+    incompleteReason = `reached page limit (${REPOSITORY_MAX_PAGES} pages × ${REPOSITORY_PAGE_LIMIT} rows)`;
+    warnIncomplete(incompleteReason);
   }
-  return items;
+  return {
+    completeness: incompleteReason === "" ? "complete" : "truncated",
+    repositories: items,
+    warning: incompleteReason,
+  };
+}
+
+export async function loadRepositories(client: EshuApiClient): Promise<readonly RepoListItem[]> {
+  return (await loadRepositoryCatalog(client)).repositories;
 }
 
 export async function loadRepositoryNameMap(

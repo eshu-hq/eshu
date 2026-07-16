@@ -18,16 +18,14 @@ import {
 import type { EshuApiClient } from "../api/client";
 import { loadEntityMapGraph, resolveEntityName } from "../api/eshuGraph";
 import type { RepoListItem } from "../api/repoCatalog";
-import {
-  loadSourceBackedSuggestedQuestionsResult,
-  type SuggestedQuestion,
-} from "../api/suggestedQuestions";
 import { StatTile, Panel, TruthChip } from "../components/atoms";
 import { AreaChart, Donut, BarRows } from "../components/charts";
 import { GraphCanvas } from "../components/GraphCanvas";
 import { SuggestedQuestions } from "../components/SuggestedQuestions";
 import { fmt, LAYER_COLOR, SEVERITY_COLOR, uiTruth } from "../console/types";
 import type { ConsoleModel, GraphLayer, GraphModel, GraphNode } from "../console/types";
+import type { RepositoryCatalogState } from "../repositoryCatalogLifecycle";
+import { useDashboardSuggestedQuestions } from "./useDashboardSuggestedQuestions";
 import "./dashboardLive.css";
 
 type AtlasState =
@@ -35,19 +33,32 @@ type AtlasState =
   | { readonly kind: "loading"; readonly seed: string }
   | { readonly kind: "error"; readonly message: string; readonly seed: string };
 
+interface AtlasLoadOwner {
+  readonly cancellation: { cancelled: boolean };
+  readonly client: EshuApiClient;
+  readonly key: string;
+  readonly promise: ReturnType<typeof selectSeedGraph>;
+}
+
 export function DashboardPage({
   model,
   client,
   onOpenService,
   repositories,
+  repositoryCatalog,
 }: {
   readonly model: ConsoleModel;
   readonly client?: EshuApiClient;
   readonly onOpenService?: (name: string) => void;
   readonly repositories?: readonly RepoListItem[];
+  readonly repositoryCatalog?: RepositoryCatalogState;
 }): React.JSX.Element {
   const r = model.runtime;
-  const atlasSeeds = useMemo(() => liveAtlasSeeds(model, repositories), [model, repositories]);
+  const catalogRepositories = repositoryCatalog?.repositories ?? repositories;
+  const atlasSeeds = useMemo(
+    () => liveAtlasSeeds(model, catalogRepositories),
+    [catalogRepositories, model],
+  );
   const atlasSeed = atlasSeeds[0];
   const seededGraph = useMemo<GraphModel>(
     () => (atlasSeed ? { nodes: [atlasSeed], edges: [] } : model.graph),
@@ -63,6 +74,12 @@ export function DashboardPage({
   );
   const [atlasState, setAtlasState] = useState<AtlasState>({ kind: "idle" });
   const atlasRequestRef = useRef(0);
+  const atlasLoadOwner = useRef<AtlasLoadOwner | null>(null);
+  const atlasAbortTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const atlasLoadKey = useMemo(
+    () => JSON.stringify(atlasSeeds.map((seed) => [seed.id, seed.label])),
+    [atlasSeeds],
+  );
   const baseGraph = liveGraph ?? seededGraph;
   const graph = useMemo(
     () => filterGraphByLayer(baseGraph, enabledLayers),
@@ -74,9 +91,16 @@ export function DashboardPage({
   const atlasLabel = sel?.label ?? atlasSeed?.label ?? "live graph";
   const graphNodeCount = graphNodeMetric(model);
   const relationshipCount = relationshipMetric(model, baseGraph);
-  const [suggestedQuestions, setSuggestedQuestions] = useState<readonly SuggestedQuestion[]>([]);
-  const [suggestedQuestionsError, setSuggestedQuestionsError] = useState(false);
-  const [suggestedQuestionFailures, setSuggestedQuestionFailures] = useState<readonly string[]>([]);
+  const {
+    error: suggestedQuestionsError,
+    failures: suggestedQuestionFailures,
+    questions: suggestedQuestions,
+  } = useDashboardSuggestedQuestions(
+    client,
+    model.source === "live",
+    catalogRepositories,
+    repositoryCatalog,
+  );
   const selectedSpotlightName =
     sel && (sel.kind === "service" || sel.kind === "workload") ? sel.label : null;
   const nodeLabels = useMemo(
@@ -104,39 +128,10 @@ export function DashboardPage({
   }, [graph]);
 
   useEffect(() => {
-    let cancelled = false;
-    if (!client || model.source !== "live") {
-      setSuggestedQuestions([]);
-      setSuggestedQuestionsError(false);
-      setSuggestedQuestionFailures([]);
-      return () => {
-        cancelled = true;
-      };
+    if (atlasAbortTimer.current !== null) {
+      clearTimeout(atlasAbortTimer.current);
+      atlasAbortTimer.current = null;
     }
-    setSuggestedQuestionsError(false);
-    setSuggestedQuestions([]);
-    setSuggestedQuestionFailures([]);
-    void loadSourceBackedSuggestedQuestionsResult(client)
-      .then((result) => {
-        if (!cancelled) {
-          setSuggestedQuestions(result.questions);
-          setSuggestedQuestionFailures(result.failures);
-          setSuggestedQuestionsError(result.failures.length > 0 && result.questions.length === 0);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setSuggestedQuestions([]);
-          setSuggestedQuestionsError(true);
-          setSuggestedQuestionFailures([]);
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [client, model.source]);
-
-  useEffect(() => {
     setLiveGraph(null);
     const requestID = atlasRequestRef.current + 1;
     atlasRequestRef.current = requestID;
@@ -148,13 +143,22 @@ export function DashboardPage({
     const liveClient = client;
     let cancelled = false;
     setAtlasState({ kind: "loading", seed: atlasSeeds[0].label });
+    let owner = atlasLoadOwner.current;
+    if (!owner || owner.client !== liveClient || owner.key !== atlasLoadKey) {
+      if (owner) owner.cancellation.cancelled = true;
+      const cancellation = { cancelled: false };
+      owner = {
+        cancellation,
+        client: liveClient,
+        key: atlasLoadKey,
+        promise: selectSeedGraph(liveClient, atlasSeeds, () => cancellation.cancelled),
+      };
+      atlasLoadOwner.current = owner;
+    }
+    const activeOwner = owner;
     async function loadSeed(): Promise<void> {
       try {
-        const next = await selectSeedGraph(
-          liveClient,
-          atlasSeeds,
-          () => cancelled || requestID !== atlasRequestRef.current,
-        );
+        const next = await activeOwner.promise;
         if (cancelled || requestID !== atlasRequestRef.current) return;
         if (!next) {
           setAtlasState({ kind: "idle" });
@@ -175,8 +179,13 @@ export function DashboardPage({
     void loadSeed();
     return () => {
       cancelled = true;
+      atlasAbortTimer.current = setTimeout(() => {
+        activeOwner.cancellation.cancelled = true;
+        if (atlasLoadOwner.current === activeOwner) atlasLoadOwner.current = null;
+        atlasAbortTimer.current = null;
+      }, 0);
     };
-  }, [atlasSeeds, client, model.source]);
+  }, [atlasLoadKey, atlasSeeds, client, model.source]);
 
   async function expandAtlasNode(node: GraphNode): Promise<void> {
     const requestID = atlasRequestRef.current + 1;

@@ -49,9 +49,14 @@ describe("App configured-key boot", () => {
   it("falls back to the configured key when the saved source has no browser session", async () => {
     bootMocks.bootFromSession.mockResolvedValue(null);
     bootMocks.bootFromKey.mockResolvedValue({
-      client: undefined,
+      client: {},
       model: emptyConsoleModel(),
-      repositories: [],
+      repositoryCatalog: Promise.resolve({
+        completeness: "complete",
+        kind: "ready",
+        repositories: [],
+        warning: "",
+      }),
       session: null,
     });
 
@@ -75,9 +80,14 @@ describe("App configured-key boot", () => {
   it("clears the configured key after key boot creates a browser session", async () => {
     bootMocks.bootFromSession.mockResolvedValue(null);
     bootMocks.bootFromKey.mockResolvedValue({
-      client: undefined,
+      client: {},
       model: emptyConsoleModel(),
-      repositories: [],
+      repositoryCatalog: Promise.resolve({
+        completeness: "complete",
+        kind: "ready",
+        repositories: [],
+        warning: "",
+      }),
       session: { auth: { mode: "browser_session", all_scopes: true } },
     });
 

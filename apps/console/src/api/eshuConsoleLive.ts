@@ -22,6 +22,7 @@ import {
   loadFindings,
   loadIacResources,
   loadImagesSection,
+  loadIndexStatus,
   loadIngesters,
   loadLanguages,
   loadRuntime,
@@ -315,10 +316,15 @@ export async function loadConsoleSnapshot(client: EshuApiClient): Promise<Consol
   // services must resolve before downstream sections can resolve repository
   // labels, so its promise is captured and awaited before those fan-outs.
   const servicesPromise = runSection("services", () => loadServices(client, ctx));
+  // Attach the optional-read failure handler at creation time. Runtime and
+  // ingester loaders await this promise only after their own first reads, so a
+  // fast rejection would otherwise surface as unhandled before either local
+  // try/catch reached it.
+  const indexStatusPromise = loadIndexStatus(client).catch(() => ({}));
 
-  const runtimePromise = runSection("runtime", () => loadRuntime(client, ctx));
+  const runtimePromise = runSection("runtime", () => loadRuntime(client, ctx, indexStatusPromise));
   const languagesPromise = runSection("languages", () => loadLanguages(client));
-  const ingestersPromise = runSection("ingesters", () => loadIngesters(client));
+  const ingestersPromise = runSection("ingesters", () => loadIngesters(client, indexStatusPromise));
   const sbomPromise = runSection("sbom", () => loadSbom(client, ctx));
   const dependenciesPromise = runSection("dependencies", () =>
     loadDependenciesSection(client, ctx),
