@@ -380,7 +380,7 @@ describe("ChangedSincePage", () => {
       "git-repository-scope:acme/app",
     );
     expect(screen.getByLabelText<HTMLInputElement>("Since generation").value).toBe("gen-prior");
-    expect(calls[0]).toBe("/api/v0/freshness/generations?repository=acme%2Fapp&limit=2");
+    expect(calls[0]).toBe("/api/v0/freshness/generations?repository=acme%2Fapp&limit=3");
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
@@ -425,7 +425,7 @@ describe("ChangedSincePage", () => {
       string,
       { readonly signal?: AbortSignal },
     ];
-    expect(path).toBe("/api/v0/freshness/generations?repository=acme%2Fapp&limit=2");
+    expect(path).toBe("/api/v0/freshness/generations?repository=acme%2Fapp&limit=3");
     expect(options.signal).toBeInstanceOf(AbortSignal);
   });
 });
