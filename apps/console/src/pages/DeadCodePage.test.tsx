@@ -230,6 +230,32 @@ describe("DeadCodePage", () => {
     expect(post).toHaveBeenCalledTimes(1);
   });
 
+  it("starts a fresh scan when settled filters are applied again", async () => {
+    const post = vi.fn(async () =>
+      envelope([
+        {
+          classification: "unused",
+          entity_id: `function:f${post.mock.calls.length}`,
+          file_path: "server/routes.ts",
+          labels: ["Function"],
+          language: "typescript",
+          name: post.mock.calls.length === 1 ? "firstCandidate" : "refreshedCandidate",
+          repo_id: "repository:r1",
+          start_line: 10,
+        },
+      ]),
+    );
+    const client = { get: vi.fn(), post } as unknown as EshuApiClient;
+
+    renderDeadCode(<DeadCodePage client={client} model={{ ...demoModel, findings: [] }} />);
+
+    await screen.findByText("Unreferenced symbol firstCandidate");
+    fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+
+    expect(await screen.findByText("Unreferenced symbol refreshedCandidate")).toBeInTheDocument();
+    expect(post).toHaveBeenCalledTimes(2);
+  });
+
   it("opens an actionable current-window repository breakdown", async () => {
     const post = vi.fn(async () =>
       envelope(

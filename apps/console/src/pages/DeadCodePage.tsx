@@ -108,6 +108,7 @@ export function DeadCodePage({
     loadRef.current = load;
     void load.promise
       .then((page) => {
+        if (loadRef.current === load) loadRef.current = null;
         if (!cancelled) {
           setLivePage(page);
           setBusy(false);
