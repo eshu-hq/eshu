@@ -133,15 +133,18 @@ The retained facts and graph stay unchanged; operators attach an isolated,
 empty auth schema/database to the retained corpus API so the wizard cannot
 overwrite a long-lived user's identity. Authoritative comparator reads use the
 same browser session, not a hidden bearer key. The runner writes durable proof
-to the gitignored `e2e-artifacts/` directory (per-route screenshots and a JSON
-report). It never falls back to mocks: a refused proxy, a demo banner, a console
-error, or any unexpected non-2xx fails the run loudly.
+under the gitignored
+`e2e-artifacts/console-live-e2e/<ESHU_E2E_PROOF_ID>/` directory (per-route
+screenshots and a JSON report). Each proof owns and cleans only that directory,
+so concurrent runs with distinct proof IDs cannot overwrite one another. It
+never falls back to mocks: a refused proxy, a demo banner, a console error, or
+any unexpected non-2xx fails the run loudly.
 
 Playwright trace capture is default-off because authenticated traces can retain
 bearer request headers. For a short-lived, locally protected debugging artifact,
 opt in with `ESHU_CONSOLE_E2E_TRACE=1 npm run console:e2e`; delete
-`e2e-artifacts/trace.zip` immediately after use and never attach it to an issue
-or commit it.
+`e2e-artifacts/console-live-e2e/<ESHU_E2E_PROOF_ID>/trace.zip` immediately
+after use and never attach it to an issue or commit it.
 
 ### Exact local command sequence
 
@@ -181,7 +184,9 @@ Use a distinct `ESHU_E2E_RETAINED_PROOF_ID`, API port, and
 `5180`; override it when that port is serving a retained hands-on evidence site.
 The helper validates the identifier, binds the sidecar and credential CLI
 to the same schema-first `search_path`, and refuses to reuse an existing proof
-container. Its cleanup never acts on the retained Compose project or volumes.
+container. The browser runner scopes screenshots, trace, and JSON report to the
+same proof ID. Cleanup never acts on another proof, the retained Compose project,
+or its volumes.
 
 The runner reads its browser-session inputs and `ESHU_E2E_API_BASE` from the
 process environment. Compose env files are Compose input and are never sourced

@@ -146,6 +146,91 @@ func TestSemanticSearchHandlerUsesDirectGrantedScopeAndCanonicalRepository(t *te
 	}
 }
 
+func TestSemanticSearchHandlerAllScopesUsesDirectActiveScope(t *testing.T) {
+	t.Parallel()
+
+	index := &fakeSemanticSearchIndexStore{}
+	resolver := &fakeSemanticSearchScopeResolver{directRepoID: "repository:r_payments"}
+	handler := &SemanticSearchHandler{
+		Index:         index,
+		ScopeResolver: resolver,
+		Profile:       ProfileProduction,
+	}
+	req := semanticSearchHTTPRequest(t, map[string]any{
+		"repo_id":    "git-repository-scope:repo-payments",
+		"query":      "refund",
+		"mode":       "keyword",
+		"limit":      5,
+		"timeout_ms": 250,
+	})
+	rec := httptest.NewRecorder()
+
+	handler.search(rec, req)
+
+	if got, want := rec.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body=%s", got, want, rec.Body.String())
+	}
+	if got, want := resolver.directScopeCalls, 1; got != want {
+		t.Fatalf("direct scope resolver calls = %d, want %d", got, want)
+	}
+	if got, want := resolver.directScopeID, "git-repository-scope:repo-payments"; got != want {
+		t.Fatalf("direct scope id = %q, want %q", got, want)
+	}
+	if got, want := resolver.calls, 0; got != want {
+		t.Fatalf("canonical repository resolver calls = %d, want %d", got, want)
+	}
+	if got, want := index.calls, 1; got != want {
+		t.Fatalf("index calls = %d, want %d", got, want)
+	}
+	if got, want := index.query.ScopeID, "git-repository-scope:repo-payments"; got != want {
+		t.Fatalf("index scope id = %q, want %q", got, want)
+	}
+	if got, want := index.query.RepoID, "repository:r_payments"; got != want {
+		t.Fatalf("index repo id = %q, want %q", got, want)
+	}
+}
+
+func TestSemanticSearchHandlerAllScopesCanonicalRepositorySkipsDirectScopeLookup(t *testing.T) {
+	t.Parallel()
+
+	index := &fakeSemanticSearchIndexStore{}
+	resolver := &fakeSemanticSearchScopeResolver{scopeID: "git-repository-scope:repo-payments"}
+	handler := &SemanticSearchHandler{
+		Index:         index,
+		ScopeResolver: resolver,
+		Profile:       ProfileProduction,
+	}
+	req := semanticSearchHTTPRequest(t, map[string]any{
+		"repo_id":    "repository:r_payments",
+		"query":      "refund",
+		"mode":       "keyword",
+		"limit":      5,
+		"timeout_ms": 250,
+	})
+	rec := httptest.NewRecorder()
+
+	handler.search(rec, req)
+
+	if got, want := rec.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body=%s", got, want, rec.Body.String())
+	}
+	if got, want := resolver.directScopeCalls, 0; got != want {
+		t.Fatalf("direct scope resolver calls = %d, want %d", got, want)
+	}
+	if got, want := resolver.calls, 1; got != want {
+		t.Fatalf("canonical repository resolver calls = %d, want %d", got, want)
+	}
+	if got, want := resolver.repoID, "repository:r_payments"; got != want {
+		t.Fatalf("canonical repository id = %q, want %q", got, want)
+	}
+	if got, want := index.query.ScopeID, "git-repository-scope:repo-payments"; got != want {
+		t.Fatalf("index scope id = %q, want %q", got, want)
+	}
+	if got, want := index.query.RepoID, "repository:r_payments"; got != want {
+		t.Fatalf("index repo id = %q, want %q", got, want)
+	}
+}
+
 func TestSemanticSearchHandlerDoesNotReadIndexForStaleDirectScope(t *testing.T) {
 	t.Parallel()
 

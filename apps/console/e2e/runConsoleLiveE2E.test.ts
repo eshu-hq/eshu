@@ -140,6 +140,7 @@ describe("console live E2E route response ownership", () => {
       },
       { inFlight: () => 0, lastChangeAt: () => Date.now() - 1_000 },
       bootstrapNetwork,
+      "/tmp/eshu-live-e2e-test-screenshots",
     );
 
     expect(signals.workflow?.passed).toBe(false);
@@ -219,6 +220,7 @@ describe("console live E2E route response ownership", () => {
       },
       { inFlight: () => 0, lastChangeAt: () => Date.now() - 1_000 },
       bootstrapNetwork,
+      "/tmp/eshu-live-e2e-test-screenshots",
       bootstrapNetwork,
     );
 

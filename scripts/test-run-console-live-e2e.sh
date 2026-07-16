@@ -35,22 +35,68 @@ console_job_installs_rg_before_harness() {
   fi
   console_job="$(sed -n "${console_start},${console_end}p" "$workflow_path")"
 
-  install_line="$(printf '%s\n' "$console_job" | rg -n -m 1 --fixed-strings 'scripts/ci/install-apt-packages.sh ripgrep')" || return 1
-  harness_line="$(printf '%s\n' "$console_job" | rg -n -m 1 --fixed-strings 'bash scripts/test-run-console-live-e2e.sh')" || return 1
+  install_line="$(
+    printf '%s\n' "$console_job" |
+      rg -n -m 1 '^[[:space:]]*(-[[:space:]]+)?run:[[:space:]]+scripts/ci/install-apt-packages\.sh[[:space:]]+ripgrep[[:space:]]*$'
+  )" || return 1
+  harness_line="$(
+    printf '%s\n' "$console_job" |
+      rg -n -m 1 '^[[:space:]]*((-[[:space:]]+)?run:[[:space:]]+)?bash[[:space:]]+scripts/test-run-console-live-e2e\.sh[[:space:]]*$'
+  )" || return 1
   (( ${install_line%%:*} < ${harness_line%%:*} ))
 }
 
 false_green_workflow="$tmp_dir/frontend-false-green.yml"
 printf '%s\n' \
   'jobs:' \
-  '  root:' \
-  '    # scripts/ci/install-apt-packages.sh ripgrep' \
   '  console:' \
   '    steps:' \
+  '      # scripts/ci/install-apt-packages.sh ripgrep' \
   '      - run: bash scripts/test-run-console-live-e2e.sh' \
   >"$false_green_workflow"
 if console_job_installs_rg_before_harness "$false_green_workflow"; then
-  echo "frontend rg contract must not accept an install outside the console job" >&2
+  echo "frontend rg contract must not accept a commented install inside the console job" >&2
+  exit 1
+fi
+
+other_job_workflow="$tmp_dir/frontend-other-job.yml"
+printf '%s\n' \
+  'jobs:' \
+  '  setup:' \
+  '    steps:' \
+  '      - run: scripts/ci/install-apt-packages.sh ripgrep' \
+  '  console:' \
+  '    steps:' \
+  '      - run: bash scripts/test-run-console-live-e2e.sh' \
+  >"$other_job_workflow"
+if console_job_installs_rg_before_harness "$other_job_workflow"; then
+  echo "frontend rg contract must not accept an install from another job" >&2
+  exit 1
+fi
+
+late_install_workflow="$tmp_dir/frontend-late-install.yml"
+printf '%s\n' \
+  'jobs:' \
+  '  console:' \
+  '    steps:' \
+  '      - run: bash scripts/test-run-console-live-e2e.sh' \
+  '      - run: scripts/ci/install-apt-packages.sh ripgrep' \
+  >"$late_install_workflow"
+if console_job_installs_rg_before_harness "$late_install_workflow"; then
+  echo "frontend rg contract must reject an install after the harness" >&2
+  exit 1
+fi
+
+valid_workflow="$tmp_dir/frontend-valid.yml"
+printf '%s\n' \
+  'jobs:' \
+  '  console:' \
+  '    steps:' \
+  '      - run: scripts/ci/install-apt-packages.sh ripgrep' \
+  '      - run: bash scripts/test-run-console-live-e2e.sh' \
+  >"$valid_workflow"
+if ! console_job_installs_rg_before_harness "$valid_workflow"; then
+  echo "frontend rg contract rejected an executable install before the harness" >&2
   exit 1
 fi
 

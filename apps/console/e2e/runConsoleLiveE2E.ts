@@ -6,7 +6,7 @@
 // The .mjs bootstrap loads this module through Vite's SSR transformer; run it
 // with `npm run console:e2e` as documented in apps/console/README.md.
 
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium, type Browser, type Page } from "playwright";
@@ -62,15 +62,15 @@ import {
   proofManifestFromEnvironment,
   type LiveE2EProofManifest,
 } from "./liveE2EProofManifest.ts";
+import {
+  liveE2EArtifactPaths,
+  prepareLiveE2EArtifacts,
+  type LiveE2EArtifactPaths,
+} from "./liveE2EArtifacts.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const consoleDir = resolve(here, "..");
 const repoRoot = resolve(consoleDir, "..", "..");
-const artifactsDir = resolve(repoRoot, "e2e-artifacts");
-const screenshotsDir = resolve(artifactsDir, "screenshots");
-const tracePath = resolve(artifactsDir, "trace.zip");
-const reportPath = resolve(artifactsDir, "console-live-e2e-report.json");
-
 // proofManifestForLaunchedBrowser binds durable proof identity to the browser
 // instance Playwright actually launched, rather than an operator declaration.
 export function proofManifestForLaunchedBrowser(
@@ -134,6 +134,7 @@ export async function captureRoute(
   route: ConsoleRoute,
   tracker: ApiQuietTracker,
   allNetwork: readonly NetworkObservation[],
+  screenshotsDir: string,
   bootstrapNetwork: readonly NetworkObservation[] = [],
   indexedRepositoryInventory: IndexedRepositoryInventoryAnchor | null = null,
   loadImpactFindings?: LoadImpactFindings,
@@ -251,8 +252,10 @@ export async function captureRoute(
 // supported Node version without native TS stripping or an extra dependency.
 export async function runConsoleLiveE2E(): Promise<number> {
   let consolePort: number;
+  let artifactPaths: LiveE2EArtifactPaths;
   try {
     consolePort = parseLiveE2EConsolePort(process.env.ESHU_E2E_CONSOLE_PORT);
+    artifactPaths = liveE2EArtifactPaths(repoRoot, process.env.ESHU_E2E_PROOF_ID?.trim() ?? "");
   } catch (error) {
     process.stderr.write(
       `console-live-e2e: ${error instanceof Error ? error.message : String(error)}\n`,
@@ -273,13 +276,9 @@ export async function runConsoleLiveE2E(): Promise<number> {
     return 1;
   }
 
-  // Clean only this gate's own outputs, not the whole artifacts dir: the dir
-  // also holds operator-managed files (logs, the local env file) that the gate
-  // must not delete.
-  await rm(screenshotsDir, { recursive: true, force: true });
-  await rm(tracePath, { force: true });
-  await rm(reportPath, { force: true });
-  await mkdir(screenshotsDir, { recursive: true });
+  // Clean only this proof identity's outputs. Other concurrent runs and
+  // operator-managed files remain untouched.
+  await prepareLiveE2EArtifacts(artifactPaths);
 
   process.stdout.write(`console-live-e2e: live API base ${apiBase}\n`);
 
@@ -386,6 +385,7 @@ export async function runConsoleLiveE2E(): Promise<number> {
         route,
         tracker,
         networkRecorder.observations,
+        artifactPaths.screenshotsDir,
         bootstrapNetwork,
         indexedRepositoryInventory,
         loadImpactFindings,
@@ -406,7 +406,7 @@ export async function runConsoleLiveE2E(): Promise<number> {
     }
 
     if (captureTrace) {
-      await context.tracing.stop({ path: tracePath });
+      await context.tracing.stop({ path: artifactPaths.tracePath });
     }
     networkRecorder.stop();
     await browser.close();
@@ -414,7 +414,7 @@ export async function runConsoleLiveE2E(): Promise<number> {
 
     const summary = summarizeGate(results, [bootstrapEvaluation]);
     await writeFile(
-      reportPath,
+      artifactPaths.reportPath,
       JSON.stringify(
         {
           apiBase,
@@ -435,7 +435,7 @@ export async function runConsoleLiveE2E(): Promise<number> {
       "utf8",
     );
     process.stdout.write(
-      `console-live-e2e: ${summary.passedCount}/${summary.total} routes passed; report ${reportPath}\n`,
+      `console-live-e2e: ${summary.passedCount}/${summary.total} routes passed; report ${artifactPaths.reportPath}\n`,
     );
 
     if (!summary.passed) {
