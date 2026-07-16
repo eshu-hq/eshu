@@ -54,7 +54,7 @@ interface CollectorInstanceStatus {
   readonly last_observed_at?: string | null;
   readonly deactivated_at?: string | null;
 }
-interface IndexStatus {
+export interface IndexStatus {
   readonly status?: string;
   readonly repository_count?: number;
   readonly queue?: {
@@ -149,6 +149,10 @@ export function emptyRuntime(): RuntimeSummary {
   };
 }
 
+export function loadIndexStatus(client: EshuApiClient): Promise<IndexStatus> {
+  return client.getJson<IndexStatus>("/api/v0/index-status");
+}
+
 // loadRuntime reads the ecosystem overview (enveloped), index-status (raw
 // JSON), and the repositories list total into the runtime summary. Each
 // sub-fetch is optional and swallows its own failure so the snapshot degrades
@@ -162,6 +166,7 @@ export function emptyRuntime(): RuntimeSummary {
 export async function loadRuntime(
   client: EshuApiClient,
   ctx: SectionContext,
+  indexStatus?: Promise<IndexStatus>,
 ): Promise<RuntimeSummary | null> {
   let overview: EcosystemOverview = {};
   let profile = "unknown";
@@ -179,7 +184,7 @@ export async function loadRuntime(
   // plain JSON (client.get would unwrap a non-existent `data` field to nothing).
   let st: IndexStatus = {};
   try {
-    st = await client.getJson<IndexStatus>("/api/v0/index-status");
+    st = await (indexStatus ?? loadIndexStatus(client));
   } catch {
     /* optional */
   }
@@ -270,7 +275,10 @@ export async function loadLanguages(client: EshuApiClient): Promise<readonly Lan
 // loadIngesters merges two raw status payloads: status/ingesters (the repository
 // ingester) and index-status.coordinator.collector_instances (every configured
 // collector), deduped by id, so the operator sees the full fact-source roster.
-export async function loadIngesters(client: EshuApiClient): Promise<readonly IngesterRow[] | null> {
+export async function loadIngesters(
+  client: EshuApiClient,
+  indexStatus?: Promise<IndexStatus>,
+): Promise<readonly IngesterRow[] | null> {
   const rows: IngesterRow[] = [];
   try {
     const data = await client.getJson<IngesterStatus>("/api/v0/status/ingesters");
@@ -292,7 +300,7 @@ export async function loadIngesters(client: EshuApiClient): Promise<readonly Ing
     /* ingester status optional */
   }
   try {
-    const st = await client.getJson<IndexStatus>("/api/v0/index-status");
+    const st = await (indexStatus ?? loadIndexStatus(client));
     for (const c of st.coordinator?.collector_instances ?? []) {
       const id = String(c.instance_id ?? c.collector_kind ?? "");
       if (id === "" || rows.some((r) => r.id === id)) continue;

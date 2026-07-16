@@ -2,19 +2,23 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("./api/authSession", () => ({
-  loadCurrentSession: vi.fn()
+  loadCurrentSession: vi.fn(),
 }));
 vi.mock("./api/eshuConsoleLive", () => ({
-  loadConsoleSnapshot: vi.fn()
+  loadConsoleSnapshot: vi.fn(),
 }));
 vi.mock("./api/repoCatalog", () => ({
-  loadRepositories: vi.fn(async () => [])
+  loadRepositoryCatalog: vi.fn(async () => ({
+    completeness: "complete",
+    repositories: [],
+    warning: "",
+  })),
 }));
 vi.mock("./config/environment", () => ({
-  saveConsoleEnvironment: vi.fn()
+  saveConsoleEnvironment: vi.fn(),
 }));
 vi.mock("./console/liveModel", () => ({
-  modelFromSnapshot: vi.fn(() => ({}))
+  modelFromSnapshot: vi.fn(() => ({})),
 }));
 
 import { loadCurrentSession } from "./api/authSession";
@@ -38,13 +42,13 @@ describe("bootFromKey", () => {
     expect(loadConsoleSnapshot).not.toHaveBeenCalled();
     // The selected base is persisted so login renders for this deployment.
     expect(saveConsoleEnvironment).toHaveBeenCalledWith(
-      expect.objectContaining({ mode: "private", apiBaseUrl: "https://api.example/", apiKey: "" })
+      expect.objectContaining({ mode: "private", apiBaseUrl: "https://api.example/", apiKey: "" }),
     );
   });
 
   it("loads data when an existing cookie session is found for an empty key", async () => {
     vi.mocked(loadCurrentSession).mockResolvedValue({
-      auth: { mode: "browser_session", all_scopes: true }
+      auth: { mode: "browser_session", all_scopes: true },
     });
     vi.mocked(loadConsoleSnapshot).mockResolvedValue({} as never);
 

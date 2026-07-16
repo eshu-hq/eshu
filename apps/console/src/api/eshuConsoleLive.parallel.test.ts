@@ -149,4 +149,20 @@ describe("loadConsoleSnapshot concurrency + resilience", () => {
     expect(snap.services).toEqual([]);
     expect(snap.provenance.services).toBe("unavailable");
   });
+
+  it("shares one index-status read across runtime and ingester snapshot sections", async () => {
+    let indexStatusCalls = 0;
+    const client = {
+      get: async () => ({ data: {}, error: null, truth: null }),
+      getJson: async (path: string) => {
+        if (path === "/api/v0/index-status") indexStatusCalls += 1;
+        return path === "/api/v0/index-status" ? { status: "healthy", queue: {} } : {};
+      },
+      post: async () => ({ data: {}, error: null, truth: null }),
+    } as unknown as EshuApiClient;
+
+    await loadConsoleSnapshot(client);
+
+    expect(indexStatusCalls).toBe(1);
+  });
 });

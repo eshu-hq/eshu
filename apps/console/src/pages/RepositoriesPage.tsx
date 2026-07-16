@@ -10,6 +10,7 @@ import { loadRepositories, loadRepositoryDetail } from "../api/repoCatalog";
 import type { RepoDetail, RepoListItem } from "../api/repoCatalog";
 import { Panel, StatTile, Badge } from "../components/atoms";
 import type { ConsoleModel } from "../console/types";
+import type { RepositoryCatalogState } from "../repositoryCatalogLifecycle";
 import "./repositories.css";
 import "./liveInventory.css";
 
@@ -34,9 +35,11 @@ interface RepoGroup {
 export function RepositoriesPage({
   client,
   model,
+  repositoryCatalog,
 }: {
   readonly client?: EshuApiClient;
   readonly model?: ConsoleModel;
+  readonly repositoryCatalog?: RepositoryCatalogState;
 }): React.JSX.Element {
   const [repos, setRepos] = useState<readonly RepoListItem[] | null>(null);
   const [err, setErr] = useState("");
@@ -48,6 +51,11 @@ export function RepositoriesPage({
 
   useEffect(() => {
     let cancelled = false;
+    if (repositoryCatalog) {
+      setRepos(repositoryCatalog.kind === "loading" ? null : repositoryCatalog.repositories);
+      setErr(repositoryCatalog.kind === "unavailable" ? repositoryCatalog.error : "");
+      return;
+    }
     if (!client) {
       setRepos([]);
       return;
@@ -66,7 +74,7 @@ export function RepositoriesPage({
     return () => {
       cancelled = true;
     };
-  }, [client]);
+  }, [client, repositoryCatalog]);
 
   useEffect(() => {
     let cancelled = false;
@@ -149,6 +157,12 @@ export function RepositoriesPage({
           sub="largest live group"
         />
       </div>
+
+      {repositoryCatalog?.kind === "ready" && repositoryCatalog.completeness === "truncated" ? (
+        <Panel className="mt">
+          <p className="empty">Repository inventory is incomplete: {repositoryCatalog.warning}</p>
+        </Panel>
+      ) : null}
 
       {repos === null ? (
         <div className="conn-state compact">
