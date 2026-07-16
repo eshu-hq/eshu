@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"net/http"
 	"net/http/httptest"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -96,10 +97,15 @@ func TestSearchInfraResourcesWrapsUnionInCallSubquery(t *testing.T) {
 	if !strings.HasPrefix(strings.TrimSpace(cypher), "CALL {") {
 		t.Fatalf("cypher = %q, want the per-label UNION wrapped in a CALL {...} subquery", cypher)
 	}
-	beforeCall, afterCall, found := strings.Cut(cypher, "\n\t}\n\tRETURN ")
-	if !found {
+	// Split on the CALL block's closing brace followed by the outer RETURN,
+	// tolerant of exact indentation/whitespace (a gofumpt reformat or a
+	// future template restructure must not break this on formatting alone —
+	// only a structural regression should).
+	boundary := regexp.MustCompile(`\}\s*RETURN\s`).FindStringIndex(cypher)
+	if boundary == nil {
 		t.Fatalf("cypher = %q, want a closing CALL block followed by an outer RETURN", cypher)
 	}
+	beforeCall, afterCall := cypher[:boundary[0]], cypher[boundary[1]:]
 	if !strings.Contains(beforeCall, "MATCH (n:CloudResource)") {
 		t.Fatalf("cypher = %q, want the CALL block to contain the per-label MATCH branches", cypher)
 	}
@@ -108,5 +114,26 @@ func TestSearchInfraResourcesWrapsUnionInCallSubquery(t *testing.T) {
 	}
 	if !strings.Contains(afterCall, "ORDER BY name") || !strings.Contains(afterCall, "LIMIT $limit") {
 		t.Fatalf("cypher = %q, want ORDER BY/LIMIT applied once, outside the CALL block", cypher)
+	}
+}
+
+// TestInfraSearchReturnColumnsHaveExprs guards the invariant
+// infraSearchReturnExprs relies on: every column in infraSearchReturnColumns
+// must have a non-empty entry in infraSearchReturnColumnExprs, and the map
+// must not carry orphan entries for columns no longer in the slice. A
+// missing entry would silently render as "" + " as " + col (e.g. " as
+// region", invalid Cypher with no expression before "as") rather than a
+// visible Go compile error, so this is a runtime-only failure mode without
+// this test.
+func TestInfraSearchReturnColumnsHaveExprs(t *testing.T) {
+	t.Parallel()
+
+	if got, want := len(infraSearchReturnColumnExprs), len(infraSearchReturnColumns); got != want {
+		t.Fatalf("infraSearchReturnColumnExprs has %d entries, want %d (one per infraSearchReturnColumns column, no orphans)", got, want)
+	}
+	for _, col := range infraSearchReturnColumns {
+		if expr := infraSearchReturnColumnExprs[col]; expr == "" {
+			t.Fatalf("infraSearchReturnColumnExprs[%q] is empty; every column in infraSearchReturnColumns needs a Cypher expression", col)
+		}
 	}
 }

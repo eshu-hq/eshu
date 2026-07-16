@@ -97,6 +97,51 @@ var allInfraLabels = []string{
 	"HelmValues",
 }
 
+// infraSearchReturnColumns is the single source of truth for
+// searchResources's result columns. Both the per-label CALL branch's inner
+// RETURN and the outer RETURN's column list are generated from this slice
+// (see infraSearchReturnExprs), so they cannot drift out of sync — a
+// mismatch would make NornicDB fail the whole query at runtime with
+// "Variable not defined", a failure the unit tests using
+// recordingInfraGraphReader cannot catch since they assert on the generated
+// query text without executing it against a backend.
+var infraSearchReturnColumns = []string{
+	"id", "name", "labels", "kind", "provider", "source_system", "environment",
+	"source", "config_path", "resource_type", "resource_service",
+	"resource_category", "resource_id", "arn", "account_id", "region", "service_kind",
+}
+
+var infraSearchReturnColumnExprs = map[string]string{
+	"id":                "coalesce(n.id, '')",
+	"name":              "coalesce(n.name, '')",
+	"labels":            "labels(n)",
+	"kind":              "coalesce(n.kind, '')",
+	"provider":          "coalesce(n.provider, '')",
+	"source_system":     "coalesce(n.source_system, '')",
+	"environment":       "coalesce(n.environment, '')",
+	"source":            "coalesce(n.source, n.source_system, '')",
+	"config_path":       "coalesce(n.config_path, '')",
+	"resource_type":     "coalesce(n.resource_type, n.data_type, '')",
+	"resource_service":  "coalesce(n.resource_service, n.service_kind, '')",
+	"resource_category": "coalesce(n.resource_category, '')",
+	"resource_id":       "coalesce(n.resource_id, '')",
+	"arn":               "coalesce(n.arn, '')",
+	"account_id":        "coalesce(n.account_id, '')",
+	"region":            "coalesce(n.region, '')",
+	"service_kind":      "coalesce(n.service_kind, '')",
+}
+
+// infraSearchReturnExprs renders infraSearchReturnColumns as "expr as alias"
+// pairs for the per-label CALL branch's inner RETURN clause, in the same
+// column order the outer RETURN references by alias.
+func infraSearchReturnExprs() []string {
+	exprs := make([]string, len(infraSearchReturnColumns))
+	for i, col := range infraSearchReturnColumns {
+		exprs[i] = infraSearchReturnColumnExprs[col] + " as " + col
+	}
+	return exprs
+}
+
 // Mount registers infrastructure query routes on the given mux.
 func (h *InfraHandler) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v0/infra/resources/search", h.searchResources)
@@ -249,27 +294,23 @@ func (h *InfraHandler) searchResources(w http.ResponseWriter, r *http.Request) {
 	}
 	whereExtra += infraSearchScopeClause(access)
 
-	const infraSearchReturnClause = `
-		RETURN coalesce(n.id, '') as id, coalesce(n.name, '') as name, labels(n) as labels,
-		       coalesce(n.kind, '') as kind, coalesce(n.provider, '') as provider, coalesce(n.source_system, '') as source_system, coalesce(n.environment, '') as environment,
-		       coalesce(n.source, n.source_system, '') as source, coalesce(n.config_path, '') as config_path,
-		       coalesce(n.resource_type, n.data_type, '') as resource_type,
-		       coalesce(n.resource_service, n.service_kind, '') as resource_service,
-		       coalesce(n.resource_category, '') as resource_category,
-		       coalesce(n.resource_id, '') as resource_id, coalesce(n.arn, '') as arn,
-		       coalesce(n.account_id, '') as account_id, coalesce(n.region, '') as region,
-		       coalesce(n.service_kind, '') as service_kind
-	`
+	// infraSearchReturnClause (the CALL block's inner RETURN, per branch) and
+	// the outer RETURN's column list are both derived from
+	// infraSearchReturnColumns so they cannot drift apart. A mismatch
+	// between them would make NornicDB fail the whole query at runtime with
+	// "Variable not defined" — a failure the recordingInfraGraphReader-based
+	// unit tests cannot catch, since they assert on the generated string
+	// without executing it against a backend (flagged in PR #5278 review).
+	infraSearchReturnClause := "\n\t\tRETURN " + strings.Join(infraSearchReturnExprs(), ",\n\t\t       ") + "\n\t"
 	branches := make([]string, 0, len(labels))
 	for _, label := range labels {
 		branches = append(branches, `
 		MATCH (n:`+label+`)
 		WHERE true`+whereExtra+infraSearchReturnClause)
 	}
-	const infraSearchOuterColumns = "id, name, labels, kind, provider, source_system, environment, source, config_path, resource_type, resource_service, resource_category, resource_id, arn, account_id, region, service_kind"
 	cypher := "CALL {" + strings.Join(branches, "\nUNION") + `
 	}
-	RETURN ` + infraSearchOuterColumns + `
+	RETURN ` + strings.Join(infraSearchReturnColumns, ", ") + `
 		ORDER BY name
 		LIMIT $limit
 	`
