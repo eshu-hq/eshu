@@ -88,60 +88,46 @@ func (h *ImpactHandler) traceResourceToCode(w http.ResponseWriter, r *http.Reque
 	}
 	limit := normalizeImpactListLimit(req.Limit)
 
-	cypher := fmt.Sprintf(`MATCH (start:%s) WHERE start.id = $start_id
-		OPTIONAL MATCH path = (start)-[rels*1..%d]->(repo:Repository)
-		WITH start, path, repo, length(path) as depth, [rel IN relationships(path) | {type: type(rel), confidence: rel.confidence, reason: rel.reason}] as hops
-		RETURN DISTINCT start.id as start_id, start.name as start_name, labels(start) as start_labels, repo.id as repo_id, repo.name as repo_name, depth, hops
-		ORDER BY depth, repo_name, repo_id
-		LIMIT $limit`, impactAnchorLabelDisjunction, req.MaxDepth)
-
-	params := map[string]any{"start_id": req.Start, "limit": limit + 1}
-	rows, err := h.Neo4j.Run(r.Context(), cypher, params)
+	// Resolve the start node's label and canonical id from the caller identifier
+	// (id or name). The pinned NornicDB build matches zero rows for a
+	// `MATCH (n:A|B|C) WHERE n.id = $id` label-disjunction anchor (#5286), so the
+	// disjunction cannot seed the traversal directly.
+	start, err := resolveImpactAnchorNode(r.Context(), h.Neo4j, "start_id", req.Start)
 	if err != nil {
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-
-	var start map[string]any
-	if len(rows) > 0 {
-		start = map[string]any{"id": StringVal(rows[0], "start_id"), "name": StringVal(rows[0], "start_name"), "labels": StringSliceVal(rows[0], "start_labels")}
-	} else {
-		startRow, err := h.Neo4j.RunSingle(r.Context(), "MATCH (n:"+impactAnchorLabelDisjunction+") WHERE n.id = $id RETURN n.id as id, n.name as name, labels(n) as labels", map[string]any{"id": req.Start})
-		if err != nil {
-			WriteError(w, http.StatusInternalServerError, err.Error())
+	startInfo := map[string]any{"id": req.Start}
+	paths := make([]map[string]any, 0)
+	truncated := false
+	if start != nil {
+		startInfo = map[string]any{"id": start.id, "name": start.name, "labels": start.labels}
+		// Anchor the resolved label inline on the canonical id (indexed) and
+		// project the raw relationships(path) list, unwound into per-hop
+		// provenance in Go — the map-valued `[rel IN relationships(path) | {…}]`
+		// comprehension is mangled on the pinned build.
+		cypher := fmt.Sprintf(impactRepoPathCypher, start.pattern("start", "start_id"), req.MaxDepth)
+		rows, rerr := h.Neo4j.Run(r.Context(), cypher, map[string]any{"start_id": start.id, "limit": limit + 1})
+		if rerr != nil {
+			WriteError(w, http.StatusInternalServerError, rerr.Error())
 			return
 		}
-		start = map[string]any{"id": StringVal(startRow, "id"), "name": StringVal(startRow, "name"), "labels": StringSliceVal(startRow, "labels")}
-	}
-	rows, truncated := trimImpactRows(rows, limit)
-	paths := make([]map[string]any, 0, len(rows))
-	for _, row := range rows {
-		repoID := StringVal(row, "repo_id")
-		if repoID == "" {
-			continue
-		}
-		path := map[string]any{"repo_id": repoID, "repo_name": StringVal(row, "repo_name"), "depth": IntVal(row, "depth")}
-		if hopsRaw := row["hops"]; hopsRaw != nil {
-			if hopsSlice, ok := hopsRaw.([]any); ok {
-				hops := make([]map[string]any, 0, len(hopsSlice))
-				for _, hopRaw := range hopsSlice {
-					if hopMap, ok := hopRaw.(map[string]any); ok {
-						hop := map[string]any{"type": StringVal(hopMap, "type")}
-						if conf, ok := hopMap["confidence"].(float64); ok {
-							hop["confidence"] = conf
-						}
-						if reason := StringVal(hopMap, "reason"); reason != "" {
-							hop["reason"] = reason
-						}
-						hops = append(hops, hop)
-					}
-				}
-				path["hops"] = hops
+		var trimmed []map[string]any
+		trimmed, truncated = trimImpactRows(rows, limit)
+		for _, row := range trimmed {
+			repoID := StringVal(row, "repo_id")
+			if repoID == "" {
+				continue
 			}
+			paths = append(paths, map[string]any{
+				"repo_id":   repoID,
+				"repo_name": StringVal(row, "repo_name"),
+				"depth":     IntVal(row, "depth"),
+				"hops":      impactTraceHops(row["rels"]),
+			})
 		}
-		paths = append(paths, path)
 	}
-	resp := map[string]any{"start": start, "paths": paths, "count": len(paths), "limit": limit, "truncated": truncated}
+	resp := map[string]any{"start": startInfo, "paths": paths, "count": len(paths), "limit": limit, "truncated": truncated}
 	if req.Environment != "" {
 		resp["environment"] = req.Environment
 	}
@@ -185,91 +171,75 @@ func (h *ImpactHandler) explainDependencyPath(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	cypher := `MATCH (source:` + impactAnchorLabelDisjunction + `) WHERE source.id = $source_id
-		MATCH (target:` + impactAnchorLabelDisjunction + `) WHERE target.id = $target_id
-		OPTIONAL MATCH path = shortestPath((source)-[*1..8]-(target))
-		WITH source, target, path, CASE WHEN path IS NOT NULL THEN [rel IN relationships(path) | {from_id: startNode(rel).id, from_name: startNode(rel).name, to_id: endNode(rel).id, to_name: endNode(rel).name, type: type(rel), confidence: rel.confidence, reason: rel.reason}] ELSE null END as hops
-		RETURN source.id as source_id, source.name as source_name, labels(source) as source_labels, target.id as target_id, target.name as target_name, labels(target) as target_labels, CASE WHEN path IS NOT NULL THEN length(path) ELSE -1 END as depth, hops`
-
-	params := map[string]any{
-		"source_id": req.Source,
-		"target_id": req.Target,
+	// Resolve the source and target labels with per-label inline-property anchors
+	// (one CALL{UNION} each); a `MATCH (n:A|B|C) WHERE n.id = $id` label-
+	// disjunction anchor matches zero rows on the pinned NornicDB build (#5286).
+	sourceNode, err := resolveImpactAnchorNode(r.Context(), h.Neo4j, "source_id", req.Source)
+	if err != nil {
+		WriteError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	targetNode, err := resolveImpactAnchorNode(r.Context(), h.Neo4j, "target_id", req.Target)
+	if err != nil {
+		WriteError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if sourceNode == nil || targetNode == nil {
+		WriteError(w, http.StatusNotFound, "source or target not found")
+		return
 	}
 
-	row, err := h.Neo4j.RunSingle(r.Context(), cypher, params)
+	source := map[string]any{"id": sourceNode.id, "name": sourceNode.name, "labels": sourceNode.labels}
+	target := map[string]any{"id": targetNode.id, "name": targetNode.name, "labels": targetNode.labels}
+
+	// Single anchoring clause: shortestPath with single-label inline-property
+	// anchors on both ends, projecting the raw nodes(path)/relationships(path)
+	// lists (zipped into hops in Go). The pinned build corrupts the old
+	// two-disjunction-MATCH + WITH + map-valued rel comprehension shape.
+	cypher := fmt.Sprintf(`MATCH path = shortestPath(%s-[*1..8]-%s)
+RETURN length(path) AS depth, nodes(path) AS ns, relationships(path) AS rels`,
+		sourceNode.pattern("source", "source_id"), targetNode.pattern("target", "target_id"))
+	// Anchor on the resolved canonical ids (the caller may have passed a name).
+	row, err := h.Neo4j.RunSingle(r.Context(), cypher, map[string]any{"source_id": sourceNode.id, "target_id": targetNode.id})
 	if err != nil {
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	if row == nil {
-		WriteError(w, http.StatusNotFound, "source or target not found")
-		return
-	}
-
-	source := map[string]any{
-		"id":     StringVal(row, "source_id"),
-		"name":   StringVal(row, "source_name"),
-		"labels": StringSliceVal(row, "source_labels"),
-	}
-
-	target := map[string]any{
-		"id":     StringVal(row, "target_id"),
-		"name":   StringVal(row, "target_name"),
-		"labels": StringSliceVal(row, "target_labels"),
-	}
-
-	depth := IntVal(row, "depth")
 	var pathInfo map[string]any
 	var overallConfidence float64
 	var overallReason string
 
-	if depth >= 0 {
+	// A path exists only when nodes(path) is non-empty. Guarding on the node list
+	// rather than `row != nil` keeps the "no path" case correct on a backend where
+	// shortestPath returns a single null-valued record (nodes(path) IS NULL)
+	// instead of zero rows — otherwise the handler would report a bogus
+	// `path: {depth: 0, hops: []}`.
+	if pathNodes := impactNodeIdentityList(row["ns"]); len(pathNodes) > 0 {
+		depth := IntVal(row, "depth")
 		pathInfo = map[string]any{"depth": depth}
+		hops := impactDependencyHops(row["ns"], row["rels"])
+		pathInfo["hops"] = hops
 
-		// Extract hops
-		if hopsRaw := row["hops"]; hopsRaw != nil {
-			if hopsSlice, ok := hopsRaw.([]any); ok {
-				hops := make([]map[string]any, 0, len(hopsSlice))
-				confSum := 0.0
-				confCount := 0
-				reasons := []string{}
-
-				for _, hopRaw := range hopsSlice {
-					if hopMap, ok := hopRaw.(map[string]any); ok {
-						hop := map[string]any{
-							"from_id":   StringVal(hopMap, "from_id"),
-							"from_name": StringVal(hopMap, "from_name"),
-							"to_id":     StringVal(hopMap, "to_id"),
-							"to_name":   StringVal(hopMap, "to_name"),
-							"type":      StringVal(hopMap, "type"),
-						}
-						if conf, ok := hopMap["confidence"].(float64); ok {
-							hop["confidence"] = conf
-							confSum += conf
-							confCount++
-						}
-						if reason := StringVal(hopMap, "reason"); reason != "" {
-							hop["reason"] = reason
-							reasons = append(reasons, reason)
-						}
-						hops = append(hops, hop)
-					}
-				}
-
-				pathInfo["hops"] = hops
-
-				// Calculate average confidence
-				if confCount > 0 {
-					overallConfidence = confSum / float64(confCount)
-				}
-				// Aggregate reasons
-				if len(reasons) > 0 {
-					overallReason = reasons[0]
-					if len(reasons) > 1 {
-						overallReason = fmt.Sprintf("%s (and %d more)", reasons[0], len(reasons)-1)
-					}
-				}
+		confSum := 0.0
+		confCount := 0
+		reasons := []string{}
+		for _, hop := range hops {
+			if conf, ok := hop["confidence"].(float64); ok {
+				confSum += conf
+				confCount++
+			}
+			if reason := StringVal(hop, "reason"); reason != "" {
+				reasons = append(reasons, reason)
+			}
+		}
+		if confCount > 0 {
+			overallConfidence = confSum / float64(confCount)
+		}
+		if len(reasons) > 0 {
+			overallReason = reasons[0]
+			if len(reasons) > 1 {
+				overallReason = fmt.Sprintf("%s (and %d more)", reasons[0], len(reasons)-1)
 			}
 		}
 	}

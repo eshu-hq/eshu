@@ -351,8 +351,20 @@ impact read that anchors on `MATCH (n:A|B|C) WHERE n.id = $id` (e.g.
 `trace-resource-to-code`, `explain-dependency-path` via
 `impactAnchorLabelDisjunction`) is broken by BOTH bugs and returns zero rows;
 the safe fix is a per-label inline-property anchor (one `MATCH (n:Label {id:$id})`
-per label) plus the single-clause projection contract. Tracked for the
-remaining impact reads beyond blast-radius.
+per label) plus the single-clause projection contract.
+
+Both by-id impact reads were fixed this way (#5286,
+`go/internal/query/impact_anchor_resolve.go`, `impact.go`, guard test
+`TestImpactAnchorResolveCypherIsPerLabelUnion`, live proof
+`docs/internal/evidence/5286-by-id-impact-anchors-nornicdb.md`):
+`trace-resource-to-code` folds the label resolution into the traversal as a
+`CALL{UNION}` of per-label inline-property anchors (one round-trip), and
+`explain-dependency-path` resolves both endpoints' labels in one `CALL{UNION}`
+then runs `shortestPath` with single-label inline-property anchors on both ends.
+Hop provenance is unwound from the raw `relationships(path)`/`nodes(path)` lists
+in Go (the map-valued rel-property comprehension mangles). `nodes(path)`
+deserializes as `neo4j.Node` on both backends; `relationships(path)` as
+`neo4j.Relationship` on Neo4j and a `map[string]any` on NornicDB.
 
 The property-join variant was fixed the same way for the `trace-deployment-chain`
 OCI registry-truth reads (#5287): the old two-MATCH digest read returned a null
