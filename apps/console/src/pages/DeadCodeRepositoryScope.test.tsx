@@ -6,7 +6,7 @@ import { demoModel } from "../console/demoModel";
 import type { ConsoleModel } from "../console/types";
 
 describe("DeadCodePage repository scoping", () => {
-  it("counts unresolved repositories by canonical id instead of display label", () => {
+  it("counts unresolved repositories by canonical id instead of display label", async () => {
     const model: ConsoleModel = {
       ...demoModel,
       findings: [
@@ -18,7 +18,7 @@ describe("DeadCodePage repository scoping", () => {
           detail: "server/first.ts · unused",
           truth: "derived",
           filePath: "server/first.ts",
-          repoId: "repository:r_11111111"
+          repoId: "repository:r_11111111",
         },
         {
           id: "dead-2",
@@ -28,18 +28,21 @@ describe("DeadCodePage repository scoping", () => {
           detail: "server/second.ts · unused",
           truth: "derived",
           filePath: "server/second.ts",
-          repoId: "repository:r_22222222"
-        }
-      ]
+          repoId: "repository:r_22222222",
+        },
+      ],
     };
 
     render(
       <MemoryRouter>
         <DeadCodePage model={model} />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
-    expect(screen.getByText("Repos affected")).toBeInTheDocument();
-    expect(screen.getAllByText("unresolved repository")).toHaveLength(2);
+    expect(screen.getByText("Repositories represented")).toBeInTheDocument();
+    expect(
+      await screen.findByRole("button", { name: "Show repository breakdown" }),
+    ).toHaveTextContent("2");
+    expect(await screen.findAllByText("unresolved repository")).toHaveLength(2);
   });
 });

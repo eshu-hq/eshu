@@ -306,6 +306,40 @@ contract. Screen code must preserve:
 
 Do not flatten truth and freshness into generic loading or error states.
 
+### Dead Code count and filter contract
+
+The Dead Code route treats `POST /api/v0/code/dead-code` as a bounded candidate
+window, not a corpus-wide aggregate. Its candidate, repository, estimated-LOC,
+kind, and confidence counts describe only the rows returned by the current
+response. The repository breakdown is an on-demand view of that same window;
+it must not be labeled as a complete affected-repository inventory when the
+response is truncated.
+
+Keep `display_truncated` and `candidate_scan_truncated` visible as separate
+conditions. The first means the filtered display was clipped at the requested
+limit; the second means the bounded raw candidate scan stopped before exhausting
+the selected labels. The combined legacy `truncated` field does not erase that
+distinction.
+
+Repository choices reuse the authenticated session-owned repository catalog and
+show both a friendly name and canonical identifier. Language choices combine
+the response's advertised `analysis.dead_code_language_maturity` keys with
+languages observed in the returned rows. Selecting a supported candidate kind
+must issue the exact server-side `candidate_kind`; resetting to all kinds must
+remove it.
+
+Only private/live mode owns the bounded Dead Code POST and its repository and
+language selectors. Demo mode renders its model fixtures without issuing that
+live request or exposing server-only selectors.
+
+Keep the Dead Code route shell eager so navigation can render useful content
+without waiting for a route-level module hop. The repository coverage tile,
+hidden breakdown implementation, and candidate-row renderer may remain small
+lazy chunks; mount the hidden breakdown boundary during the initial render so
+opening it is synchronous after the route becomes interactive. This boundary
+keeps the main console bundle within its enforced budget without moving the
+whole route behind a loading screen.
+
 Cloud drift surfaces use bounded POST readbacks:
 
 - `POST /api/v0/cloud/runtime-drift/findings`

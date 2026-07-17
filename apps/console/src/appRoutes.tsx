@@ -265,7 +265,9 @@ export function AppRoutes({
       <Route path={APP_ROUTE_PATHS.findings} element={<FindingsPage model={model} />} />
       <Route
         path={APP_ROUTE_PATHS.deadCode}
-        element={<DeadCodePage client={client} model={model} />}
+        element={
+          <DeadCodePage client={client} model={model} repositoryCatalog={repositoryCatalog} />
+        }
       />
       <Route
         path={APP_ROUTE_PATHS.vulnerabilities}

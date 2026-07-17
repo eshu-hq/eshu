@@ -38,6 +38,7 @@ import {
   requestAnchorFailure,
   type RequestAnchor,
 } from "./routeFillWorkflowProbe.ts";
+import { executeDeadCodeControls } from "./deadCodeRouteWorkflowProbe.ts";
 
 export { repositoryPathsFromSourceHref } from "./repositoryRouteWorkflowProbe.ts";
 
@@ -207,6 +208,16 @@ async function executeExactKindWorkflow(
   }
   const forbidden = await forbiddenState(page, workflow);
   if (forbidden) return failed(workflow.id, forbidden);
+  if (workflow.deadCodeControls) {
+    return executeDeadCodeControls(
+      page,
+      workflow,
+      workflow.deadCodeControls,
+      waitForQuiet,
+      cellCount,
+      response,
+    );
+  }
   return passed(
     workflow.id,
     `verified required exact ${workflow.preferredName} filter across ${cellCount} row(s)`,
@@ -218,6 +229,14 @@ async function executeExactKindWorkflow(
 function exactKindRequestCandidate(
   response: Awaited<ReturnType<Page["waitForResponse"]>>,
 ): string | null {
+  const body = requestBodyRecord(response);
+  const candidateKind = body?.candidate_kind;
+  return typeof candidateKind === "string" ? candidateKind : null;
+}
+
+function requestBodyRecord(
+  response: Awaited<ReturnType<Page["waitForResponse"]>>,
+): Record<string, unknown> | null {
   let body: unknown;
   try {
     body = response.request().postDataJSON();
@@ -225,8 +244,7 @@ function exactKindRequestCandidate(
     return null;
   }
   if (body === null || typeof body !== "object" || Array.isArray(body)) return null;
-  const candidateKind = (body as Record<string, unknown>).candidate_kind;
-  return typeof candidateKind === "string" ? candidateKind : null;
+  return body as Record<string, unknown>;
 }
 
 async function executeClickWorkflow(

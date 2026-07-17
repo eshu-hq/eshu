@@ -162,6 +162,32 @@
   margin-left: 10px;
 }
 
+.dead-code-repository-tile {
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+}
+
+.dead-code-repository-tile:hover,
+.dead-code-repository-tile:focus-visible {
+  border-color: var(--blue);
+}
+
+.dead-code-repository-breakdown .panel {
+  border-color: color-mix(in oklab, var(--blue) 38%, var(--line));
+}
+
+.dead-code-scan-status {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.dead-code-row-language {
+  color: var(--subtle);
+  font-family: var(--mono);
+}
+
 @media (max-width: 1180px) {
   .evidence-workbench-wide,
   .evidence-workbench-rail {

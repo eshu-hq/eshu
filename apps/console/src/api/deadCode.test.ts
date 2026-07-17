@@ -5,7 +5,11 @@ import { loadDeadCodePage } from "./deadCode";
 
 function envelope(
   results: readonly Record<string, unknown>[],
-  opts: { readonly truncated?: boolean } = {},
+  opts: {
+    readonly candidateScanTruncated?: boolean;
+    readonly displayTruncated?: boolean;
+    readonly truncated?: boolean;
+  } = {},
 ) {
   return {
     data: {
@@ -13,6 +17,8 @@ function envelope(
         dead_code_language_maturity: { typescript: "experimental" },
         modeled_public_api: false,
       },
+      candidate_scan_truncated: opts.candidateScanTruncated === true,
+      display_truncated: opts.displayTruncated === true,
       limit: 100,
       results,
       truncated: opts.truncated === true,
@@ -64,7 +70,7 @@ describe("deadCode", () => {
             start_line: 10,
           },
         ],
-        { truncated: true },
+        { candidateScanTruncated: true, displayTruncated: false, truncated: true },
       ),
     );
     const client = { post } as unknown as EshuApiClient;
@@ -77,6 +83,8 @@ describe("deadCode", () => {
         modeled_public_api: false,
       },
       limit: 100,
+      candidateScanTruncated: true,
+      displayTruncated: false,
       truncated: true,
       truth: {
         freshness: "fresh",

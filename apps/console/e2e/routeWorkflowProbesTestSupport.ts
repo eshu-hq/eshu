@@ -7,7 +7,9 @@ export interface LocatorStub {
   count: ReturnType<typeof vi.fn>;
   click: ReturnType<typeof vi.fn>;
   fill: ReturnType<typeof vi.fn>;
+  first: ReturnType<typeof vi.fn>;
   inputValue: ReturnType<typeof vi.fn>;
+  innerText: ReturnType<typeof vi.fn>;
   isVisible: ReturnType<typeof vi.fn>;
   nth: ReturnType<typeof vi.fn>;
   textContent: ReturnType<typeof vi.fn>;
@@ -28,7 +30,9 @@ export function locatorStub(overrides: Partial<LocatorStub> = {}): LocatorStub {
     getByRole: vi.fn(),
     click: vi.fn().mockResolvedValue(undefined),
     fill: vi.fn().mockResolvedValue(undefined),
+    first: vi.fn(),
     inputValue: vi.fn().mockResolvedValue(""),
+    innerText: vi.fn().mockResolvedValue("live route content"),
     isVisible: vi.fn().mockResolvedValue(true),
     nth: vi.fn(),
     textContent: vi.fn().mockResolvedValue("live route content"),
@@ -36,5 +40,6 @@ export function locatorStub(overrides: Partial<LocatorStub> = {}): LocatorStub {
     ...overrides,
   };
   if (overrides.nth === undefined) stub.nth.mockImplementation(() => stub);
+  if (overrides.first === undefined) stub.first.mockImplementation(() => stub);
   return stub;
 }
