@@ -4,8 +4,11 @@
 package postgres
 
 import (
+	"sort"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
 // TestFactRecordSchemaIncludesCodeFlowRepoIndex proves the schema registers the
@@ -20,7 +23,6 @@ func TestFactRecordSchemaIncludesCodeFlowRepoIndex(t *testing.T) {
 	for _, want := range []string{
 		"fact_records_code_flow_repo_idx",
 		"((payload->>'repo_id'), scope_id, generation_id, fact_id)",
-		"fact_kind IN ('code_taint_evidence', 'code_interproc_evidence', 'code_dataflow_function')",
 	} {
 		if !strings.Contains(factRecordSchemaSQL, want) {
 			t.Fatalf("factRecordSchemaSQL missing %q", want)
@@ -38,4 +40,58 @@ func TestFactRecordSchemaIncludesCodeFlowRepoIndex(t *testing.T) {
 	if strings.Contains(idx, "is_tombstone") {
 		t.Fatalf("code-flow repo index must not filter is_tombstone (the read ranks tombstones): %s", idx)
 	}
+
+	// The partial predicate must cover EXACTLY the canonical code-flow read set.
+	// Extracting and set-comparing (rather than a substring check) fails when a
+	// kind is missing OR when an extra kind drifts in, so the index predicate,
+	// the query's literal conjunct, and facts.CodeFlowReadFactKinds cannot drift
+	// independently across the query/postgres package boundary (#5284). Without
+	// this, adding a 4th kind to the read + query literal while forgetting the
+	// index WHERE would silently over-fetch that kind through the old all-scope
+	// heap filter while the write path still paid the index maintenance cost.
+	got := extractIndexFactKindInList(t, idx)
+	want := facts.CodeFlowReadFactKinds()
+	sort.Strings(want)
+	if !codeFlowIndexEqualKinds(got, want) {
+		t.Fatalf("code-flow repo index fact_kind set = %v, want the canonical facts.CodeFlowReadFactKinds() = %v", got, want)
+	}
+}
+
+// extractIndexFactKindInList pulls the parenthesised kind list from the partial
+// index's `fact_kind IN ( ... )` predicate and returns the unquoted kinds
+// sorted. Fails the test when the predicate is absent or malformed rather than
+// silently returning an empty set that would false-green a broken predicate.
+func extractIndexFactKindInList(t *testing.T, ddl string) []string {
+	t.Helper()
+	marker := "fact_kind IN ("
+	start := strings.Index(ddl, marker)
+	if start < 0 {
+		t.Fatalf("code-flow repo index missing `fact_kind IN (` predicate: %s", ddl)
+	}
+	open := start + len(marker)
+	end := strings.Index(ddl[open:], ")")
+	if end < 0 {
+		t.Fatalf("code-flow repo index has unterminated `fact_kind IN (` predicate: %s", ddl)
+	}
+	kinds := []string{}
+	for _, part := range strings.Split(ddl[open:open+end], ",") {
+		kind := strings.Trim(strings.TrimSpace(part), "'")
+		if kind != "" {
+			kinds = append(kinds, kind)
+		}
+	}
+	sort.Strings(kinds)
+	return kinds
+}
+
+func codeFlowIndexEqualKinds(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }

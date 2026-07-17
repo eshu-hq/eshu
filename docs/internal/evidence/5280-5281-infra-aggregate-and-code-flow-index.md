@@ -125,6 +125,22 @@ Guarded by `TestCodeFlowSQLKeepsLiteralKindConjunctForPartialIndex`, which also
 asserts the literal set covers every kind `codeFlowFactKinds` can select so the
 conjunct stays redundant rather than row-dropping.
 
+Cross-package lockstep (PR #5284 review, second P2): the literal conjunct (query
+package) and the partial-index `WHERE fact_kind IN (...)` predicate (postgres
+package) previously hardcoded the same three kinds with no test forcing them to
+stay equal — a future 4th kind added to the read + query literal but not the
+index would silently over-fetch that kind through the old all-scope heap filter
+while the write path still paid the index maintenance cost. Both sites now
+derive from one canonical source, `facts.CodeFlowReadFactKinds()`. The query and
+postgres guard tests extract each SQL site's `fact_kind IN (...)` list and assert
+exact set-equality with that source (extraction, not substring, so both a
+missing and an extra kind fail), and the query test asserts the
+`codeFlowFactKinds` union equals it too. Proven: injecting a phantom kind into
+the canonical source fails **both** guards
+(`TestCodeFlowSQLKeepsLiteralKindConjunctForPartialIndex` and
+`TestFactRecordSchemaIncludesCodeFlowRepoIndex`); removing it returns both to
+green.
+
 All 83,000 seeded facts and the manual index were removed after measurement
 (`VACUUM ANALYZE`; verified `fact_records` = 330,474, 0 leftover).
 

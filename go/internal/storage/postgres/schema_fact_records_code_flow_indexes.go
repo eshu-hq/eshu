@@ -35,6 +35,16 @@ package postgres
 // all-scope over-fetch. Proven under plan_cache_mode=force_generic_plan: the
 // literal-conjunct read uses this index (728 buffers) while the $1-only read
 // does not (10,137 buffers).
+//
+// The kind set in this predicate, the read's literal conjunct, and
+// query.codeFlowFactKinds all derive from one canonical source,
+// facts.CodeFlowReadFactKinds. Cross-package lockstep guards
+// (TestFactRecordSchemaIncludesCodeFlowRepoIndex here,
+// TestCodeFlowSQLKeepsLiteralKindConjunctForPartialIndex in the query package)
+// extract each site's IN(...) list and assert set-equality with that source, so
+// adding a code-flow kind cannot land unless this predicate, the read literal,
+// and the read's kind selector all cover it — the index can never silently miss
+// a queried kind.
 const codeFlowFactRecordReadIndexesSQL = `
 CREATE INDEX IF NOT EXISTS fact_records_code_flow_repo_idx ON fact_records ((payload->>'repo_id'), scope_id, generation_id, fact_id) WHERE fact_kind IN ('code_taint_evidence', 'code_interproc_evidence', 'code_dataflow_function');
 `
