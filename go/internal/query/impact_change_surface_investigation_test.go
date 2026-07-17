@@ -124,10 +124,11 @@ func TestInvestigateChangeSurfaceUsesBoundedTraversal(t *testing.T) {
 	}
 	traversalCypher := graph.runCalls[1].cypher
 	for _, want := range []string{
-		"MATCH (start:Workload {id: $target_id})",
+		"(start:Workload {id: $target_id})",
 		"*1..3",
 		"LIMIT 3",
-		"ORDER BY depth, impacted.name, impacted.id",
+		"min(length(path)) as depth",
+		"ORDER BY depth, name, id",
 	} {
 		if !strings.Contains(traversalCypher, want) {
 			t.Fatalf("traversal cypher missing %q: %s", want, traversalCypher)
@@ -196,7 +197,7 @@ func TestInvestigateChangeSurfaceResolvesBareServiceNameByCanonicalWorkloadID(t 
 	if got, want := selected["id"], "workload:svc-catalog"; got != want {
 		t.Fatalf("selected.id = %#v, want %#v", got, want)
 	}
-	if traversal := graph.runCalls[2].cypher; !strings.Contains(traversal, "MATCH (start:Workload {id: $target_id})") {
+	if traversal := graph.runCalls[2].cypher; !strings.Contains(traversal, "(start:Workload {id: $target_id})") {
 		t.Fatalf("traversal cypher = %s, want typed Workload id anchor", traversal)
 	}
 }
@@ -288,7 +289,7 @@ func TestInvestigateChangeSurfaceGenericTargetUsesBoundedResolverProbes(t *testi
 	if !strings.Contains(resolverCypher, "MATCH (n:Workload {id: $target})") {
 		t.Fatalf("resolver cypher = %s, want typed Workload id probe", resolverCypher)
 	}
-	if traversal := graph.runCalls[1].cypher; !strings.Contains(traversal, "MATCH (start:Workload {id: $target_id})") {
+	if traversal := graph.runCalls[1].cypher; !strings.Contains(traversal, "(start:Workload {id: $target_id})") {
 		t.Fatalf("traversal cypher = %s, want typed Workload id anchor", traversal)
 	}
 }

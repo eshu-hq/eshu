@@ -7,11 +7,129 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 )
+
+// TestChangeSurfaceTraversalQueriesAreNornicDBSafe guards the #5287 fix: both
+// change-surface impact traversals must be single-anchor-clause reads. The
+// pinned NornicDB build mis-executes a second MATCH / OPTIONAL MATCH / WITH /
+// UNWIND / RETURN DISTINCT between the anchor and the projection (the investigate
+// read returned zero rows and the legacy read returned a single all-null row),
+// and a `[rel IN relationships(path) | rel.<prop>]` comprehension stringifies
+// the edge map. Returning the raw relationships(path) list and unwinding in Go is
+// the safe shape.
+func TestChangeSurfaceTraversalQueriesAreNornicDBSafe(t *testing.T) {
+	t.Parallel()
+
+	envClause := changeSurfaceEnvironmentClause("prod")
+	queries := map[string]string{
+		"investigate":     fmt.Sprintf(changeSurfaceInvestigateCypher, "(start:Workload {id: $target_id})", 4, "", 50),
+		"investigate+env": fmt.Sprintf(changeSurfaceInvestigateCypher, "(start:Workload {id: $target_id})", 4, envClause, 50),
+		"legacy":          fmt.Sprintf(changeSurfaceLegacyCypher, "(start:Workload {id: $target_id})", 4, ""),
+		"legacy+env":      fmt.Sprintf(changeSurfaceLegacyCypher, "(start:Workload {id: $target_id})", 4, envClause),
+	}
+	for name, q := range queries {
+		if got := strings.Count(q, "MATCH"); got != 1 {
+			t.Errorf("%s must use exactly one MATCH (multi-clause corrupts on NornicDB), got %d: %s", name, got, q)
+		}
+		for _, banned := range []string{"RETURN DISTINCT", "OPTIONAL", "UNWIND", "WITH ", "| rel."} {
+			if strings.Contains(q, banned) {
+				t.Errorf("%s must not contain %q (corrupts on the pinned NornicDB): %s", name, banned, q)
+			}
+		}
+	}
+	// The legacy read must project the raw relationships list for the Go-side
+	// per-edge unwind (never a rel-property comprehension).
+	if !strings.Contains(queries["legacy"], "relationships(path) as rels") {
+		t.Errorf("legacy read must project relationships(path) for the Go unwind: %s", queries["legacy"])
+	}
+}
+
+// TestChangeSurfaceRelEdgesDecodesBothBackendShapes guards the #5287 review P1:
+// relationships(path) is serialized differently by the two backends — the Neo4j
+// Go driver returns neo4j.Relationship values, while NornicDB returns a
+// map[string]any with a nested properties map. Both must decode to the same
+// per-edge provenance, or the legacy read silently drops every hop on one
+// backend.
+func TestChangeSurfaceRelEdgesDecodesBothBackendShapes(t *testing.T) {
+	t.Parallel()
+
+	cases := map[string]any{
+		"neo4j.Relationship": []any{
+			neo4jdriver.Relationship{Type: "DEPENDS_ON", Props: map[string]any{"confidence": 0.9, "reason": "import"}},
+		},
+		"nornicdb map": []any{
+			map[string]any{"type": "DEPENDS_ON", "properties": map[string]any{"confidence": 0.9, "reason": "import"}},
+		},
+	}
+	for name, raw := range cases {
+		edges := changeSurfaceRelEdges(raw)
+		if len(edges) != 1 {
+			t.Fatalf("%s: got %d edges, want 1", name, len(edges))
+		}
+		e := edges[0]
+		if e.relType != "DEPENDS_ON" {
+			t.Errorf("%s: relType = %q, want DEPENDS_ON", name, e.relType)
+		}
+		if !e.hasConfidence || e.confidence != 0.9 {
+			t.Errorf("%s: confidence = %v (has=%v), want 0.9", name, e.confidence, e.hasConfidence)
+		}
+		if e.reason != "import" {
+			t.Errorf("%s: reason = %q, want import", name, e.reason)
+		}
+	}
+}
+
+// TestFindChangeSurfaceImpactRowsDedupsConfidenceStably guards the #5287 review
+// P2: the per-edge dedup key must encode an unset confidence distinctly from an
+// explicit 0.0 and collapse true duplicates. A `%v` of a missing map value
+// formats as "<nil>" while 0.0 formats as "0", so a stable sentinel is used.
+func TestFindChangeSurfaceImpactRowsDedupsConfidenceStably(t *testing.T) {
+	t.Parallel()
+
+	graph := &legacyChangeSurfaceGraph{
+		handler: func(cypher string, _ map[string]any) ([]map[string]any, error) {
+			if !strings.Contains(cypher, "relationships(path)") {
+				return nil, nil
+			}
+			// One impacted path carrying three edges of the same type/reason/depth:
+			// two with confidence 0.0 (must collapse) and one with confidence unset
+			// (must stay distinct from the 0.0 edges).
+			return []map[string]any{
+				{"id": "repo:x", "name": "x", "labels": []any{"Repository"}, "depth": int64(1), "rels": []any{
+					map[string]any{"type": "DEPENDS_ON", "properties": map[string]any{"confidence": 0.0, "reason": "r"}},
+					map[string]any{"type": "DEPENDS_ON", "properties": map[string]any{"reason": "r"}},
+					map[string]any{"type": "DEPENDS_ON", "properties": map[string]any{"confidence": 0.0, "reason": "r"}},
+				}},
+			}, nil
+		},
+	}
+	handler := &ImpactHandler{Neo4j: graph}
+	rows, _, err := handler.findChangeSurfaceImpactRows(t.Context(), changeSurfaceTargetCandidate{ID: "wl:s", Labels: []string{"Workload"}}, "", 4, 50)
+	if err != nil {
+		t.Fatalf("findChangeSurfaceImpactRows() error = %v", err)
+	}
+	if len(rows) != 2 {
+		t.Fatalf("got %d entries, want 2 (the two 0.0 edges collapse; the unset edge stays distinct): %#v", len(rows), rows)
+	}
+	var sawZero, sawUnset bool
+	for _, row := range rows {
+		if _, ok := row["confidence"]; ok {
+			sawZero = true
+		} else {
+			sawUnset = true
+		}
+	}
+	if !sawZero || !sawUnset {
+		t.Fatalf("want one 0.0-confidence entry and one unset-confidence entry, got %#v", rows)
+	}
+}
 
 // legacyChangeSurfaceGraph records every Run call so a test can assert the
 // resolver-then-traversal call shape and reply with a scripted row set per call.
@@ -75,13 +193,19 @@ func TestFindChangeSurfaceServiceKindAnchorsLabeledStartAndBoundsDepth(t *testin
 					{"id": "workload:orders-api", "name": "orders", "labels": []any{"Workload"}, "repo_id": "repo-api"},
 				}, nil
 			}
-			// Traversal: the bounded impact expansion.
+			// Traversal: the bounded impact expansion. Each path row carries the
+			// raw relationships(path) list; the handler unwinds per-edge provenance
+			// in Go (the pinned NornicDB corrupts a rel-property comprehension).
 			if strings.Contains(cypher, "relationships(path)") {
 				traversalCypher = cypher
 				traversalParams = params
 				return []map[string]any{
-					{"id": "repo:billing", "name": "billing", "labels": []any{"Repository"}, "environment": "prod", "rel_type": "DEPENDS_ON", "confidence": 0.9, "reason": "import", "depth": int64(1)},
-					{"id": "repo:ledger", "name": "ledger", "labels": []any{"Repository"}, "environment": "prod", "rel_type": "CALLS", "confidence": 0.8, "reason": "rpc", "depth": int64(2)},
+					{"id": "repo:billing", "name": "billing", "labels": []any{"Repository"}, "environment": "prod", "depth": int64(1), "rels": []any{
+						map[string]any{"type": "DEPENDS_ON", "properties": map[string]any{"confidence": 0.9, "reason": "import"}},
+					}},
+					{"id": "repo:ledger", "name": "ledger", "labels": []any{"Repository"}, "environment": "prod", "depth": int64(2), "rels": []any{
+						map[string]any{"type": "CALLS", "properties": map[string]any{"confidence": 0.8, "reason": "rpc"}},
+					}},
 				}, nil
 			}
 			return nil, nil
@@ -109,12 +233,12 @@ func TestFindChangeSurfaceServiceKindAnchorsLabeledStartAndBoundsDepth(t *testin
 	if strings.Contains(traversalCypher, "MATCH (start) WHERE start.id") {
 		t.Fatalf("traversal must not anchor an unlabeled start node (all-node scan): %s", traversalCypher)
 	}
-	if !strings.Contains(traversalCypher, "MATCH (start:Workload {id:") {
+	if !strings.Contains(traversalCypher, "(start:Workload {id:") {
 		t.Fatalf("traversal must anchor the resolved label in the start MATCH: %s", traversalCypher)
 	}
 	// Root cause (b): depth MUST be bounded by the requested/clamped max_depth,
 	// not the hardcoded 8.
-	if !strings.Contains(traversalCypher, "rels*1..3]") {
+	if !strings.Contains(traversalCypher, "*1..3]") {
 		t.Fatalf("traversal depth must honor max_depth=3, got: %s", traversalCypher)
 	}
 	if strings.Contains(traversalCypher, "*1..8") {
@@ -152,9 +276,9 @@ func TestFindChangeSurfaceClampsMaxDepth(t *testing.T) {
 		body      string
 		wantDepth string
 	}{
-		{"default_when_absent", `{"kind":"service","target":"orders"}`, "rels*1..4]"},
-		{"clamped_when_over_max", `{"kind":"service","target":"orders","max_depth":99}`, "rels*1..8]"},
-		{"floored_when_zero", `{"kind":"service","target":"orders","max_depth":0}`, "rels*1..4]"},
+		{"default_when_absent", `{"kind":"service","target":"orders"}`, "*1..4]"},
+		{"clamped_when_over_max", `{"kind":"service","target":"orders","max_depth":99}`, "*1..8]"},
+		{"floored_when_zero", `{"kind":"service","target":"orders","max_depth":0}`, "*1..4]"},
 	}
 	for _, tc := range cases {
 		tc := tc
@@ -198,10 +322,13 @@ func TestFindChangeSurfaceReportsTruncationWithOverfetch(t *testing.T) {
 				return []map[string]any{{"id": "workload:orders", "name": "orders", "labels": []any{"Workload"}}}, nil
 			}
 			if strings.Contains(cypher, "relationships(path)") {
-				// Backend returns limit+1 rows (over-fetch) -> truncated.
+				// Backend returns limit+1 distinct impacted paths (over-fetch) ->
+				// truncated. Each carries one edge in relationships(path).
 				rows := make([]map[string]any, 0, 3)
 				for i := 0; i < 3; i++ {
-					rows = append(rows, map[string]any{"id": "repo:" + string(rune('a'+i)), "name": "r", "labels": []any{"Repository"}, "depth": int64(1)})
+					rows = append(rows, map[string]any{"id": "repo:" + string(rune('a'+i)), "name": "r" + string(rune('a'+i)), "labels": []any{"Repository"}, "depth": int64(1), "rels": []any{
+						map[string]any{"type": "DEPENDS_ON", "properties": map[string]any{"confidence": 0.9, "reason": "import"}},
+					}})
 				}
 				return rows, nil
 			}
@@ -247,7 +374,7 @@ func TestFindChangeSurfaceBareTargetUsesLabeledProbesNotUnlabeledScan(t *testing
 			}
 			if strings.Contains(cypher, "relationships(path)") {
 				traversalCypher = cypher
-				return []map[string]any{{"id": "repo:billing", "name": "billing", "labels": []any{"Repository"}, "depth": int64(1)}}, nil
+				return []map[string]any{{"id": "repo:billing", "name": "billing", "labels": []any{"Repository"}, "depth": int64(1), "rels": []any{map[string]any{"type": "DEPENDS_ON", "properties": map[string]any{"confidence": 0.9, "reason": "import"}}}}}, nil
 			}
 			return nil, nil
 		},
@@ -263,7 +390,7 @@ func TestFindChangeSurfaceBareTargetUsesLabeledProbesNotUnlabeledScan(t *testing
 	handler.findChangeSurface(rec, req)
 
 	data := decodeLegacyChangeSurfaceData(t, rec)
-	if strings.Contains(traversalCypher, "MATCH (start:Repository {id:") == false {
+	if strings.Contains(traversalCypher, "(start:Repository {id:") == false {
 		t.Fatalf("bare-target traversal must anchor the resolved Repository label: %s", traversalCypher)
 	}
 	// No probe nor traversal may use an unlabeled anchor.
@@ -303,7 +430,7 @@ func TestFindChangeSurfaceBareTargetPrefersExactIdOverNameCollision(t *testing.T
 			}
 			if strings.Contains(cypher, "relationships(path)") {
 				traversalCypher = cypher
-				return []map[string]any{{"id": "repo:billing", "name": "billing", "labels": []any{"Repository"}, "depth": int64(1)}}, nil
+				return []map[string]any{{"id": "repo:billing", "name": "billing", "labels": []any{"Repository"}, "depth": int64(1), "rels": []any{map[string]any{"type": "DEPENDS_ON", "properties": map[string]any{"confidence": 0.9, "reason": "import"}}}}}, nil
 			}
 			return nil, nil
 		},
@@ -320,10 +447,10 @@ func TestFindChangeSurfaceBareTargetPrefersExactIdOverNameCollision(t *testing.T
 
 	data := decodeLegacyChangeSurfaceData(t, rec)
 	// Exact id (Repository) must win over the colliding Workload name.
-	if !strings.Contains(traversalCypher, "MATCH (start:Repository {id:") {
+	if !strings.Contains(traversalCypher, "(start:Repository {id:") {
 		t.Fatalf("exact Repository id must win over colliding Workload name; traversal = %q", traversalCypher)
 	}
-	if strings.Contains(traversalCypher, "MATCH (start:Workload") {
+	if strings.Contains(traversalCypher, "(start:Workload") {
 		t.Fatalf("must not resolve to the name-colliding Workload: %q", traversalCypher)
 	}
 	target, _ := data["target"].(map[string]any)

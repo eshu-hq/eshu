@@ -360,8 +360,33 @@ OCI registry-truth reads (#5287): the old two-MATCH digest read returned a null
 dropped every row, both replaced with single-clause per-label reads joined in Go
 (`go/internal/query/impact_trace_deployment_oci.go`, guard test
 `TestOCIRegistryTruthQueriesAreNornicDBSafe`, live proof
-`docs/internal/evidence/5287-trace-deployment-oci-nornicdb.md`). The
-change-surface variable-length impact traversals remain tracked.
+`docs/internal/evidence/5287-trace-deployment-oci-nornicdb.md`).
+
+The change-surface variable-length impact traversals (`/change-surface`,
+`/change-surface/investigate`) were fixed the same way (#5287): the investigate
+read (two MATCH + `RETURN DISTINCT` + `length(path)`) returned zero rows and the
+legacy read (`OPTIONAL MATCH` + `UNWIND relationships(path)` + `WITH` + `RETURN
+DISTINCT`) returned a single all-null row. Both collapse to a single
+`MATCH path = (start:Label {id:$id})-[*1..N]->(impacted)` clause that folds the
+anchor into the path pattern, with `min(length(path))` for the investigate read
+and a raw `relationships(path)` projection unwound per-edge in Go for the legacy
+read (`go/internal/query/impact_change_surface_response.go`,
+`impact_change_surface_legacy.go`, guard test
+`TestChangeSurfaceTraversalQueriesAreNornicDBSafe`, live proof
+`docs/internal/evidence/5287-change-surface-nornicdb.md`). Two supporting
+findings from that proof:
+
+- A **bare untyped** variable-length traversal `(start)-[*1..N]->(impacted)`
+  DOES traverse correctly in a single clause (unlike the untyped `[*1..N] WHERE
+  all(type(rel)=…)` retract shape above, which matches zero rows). Only the
+  surrounding multi-clause shape corrupted the old reads.
+- A `WHERE` predicate of the form `($param = '' OR coalesce(n.prop, '') = '' OR
+  n.prop = $param)` silently drops **every** row when combined with a
+  `relationships(path)` projection on the pinned build — the `$param = ''`
+  parameter-comparison disjunct is the offender. The narrower node-only form
+  `(n.prop = $param OR coalesce(n.prop, '') = '')` is safe with the same
+  projection (drop the empty-parameter disjunct and only add the predicate when
+  the parameter is set).
 
 ### Validation
 
