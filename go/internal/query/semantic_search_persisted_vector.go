@@ -31,6 +31,7 @@ type PersistedLocalSemanticSearchHybridConfig struct {
 	EmbeddingModelID   string
 	VectorIndexVersion string
 	CorpusLimit        int
+	CacheEntries       int
 	VectorRetrieval    searchhybrid.VectorRetrievalMode
 }
 
@@ -43,6 +44,7 @@ func DefaultPersistedLocalSemanticSearchHybridConfig() PersistedLocalSemanticSea
 		EmbeddingModelID:   defaultPersistedLocalVectorModelID,
 		VectorIndexVersion: defaultPersistedLocalVectorIndexVersion,
 		CorpusLimit:        semanticSearchLocalHybridCorpusLimit,
+		CacheEntries:       defaultSemanticSearchIndexCacheEntries,
 		VectorRetrieval:    searchhybrid.VectorRetrievalAuto,
 	}
 }
@@ -65,8 +67,27 @@ type PersistedLocalSemanticSearchHybrid struct {
 	Documents SemanticSearchDocumentStore
 	Metadata  SemanticSearchVectorMetadataStore
 	Values    SemanticSearchVectorValueStore
+	Snapshots SemanticSearchSnapshotStore
 	Embedder  searchhybrid.Embedder
 	Config    PersistedLocalSemanticSearchHybridConfig
+	cache     *semanticSearchIndexCache
+}
+
+// NewCachedPersistedLocalSemanticSearchHybrid creates a persisted-vector
+// adapter whose bounded in-process index is reused only while the durable
+// active generation and document/vector revisions remain identical.
+func NewCachedPersistedLocalSemanticSearchHybrid(
+	documents SemanticSearchDocumentStore,
+	metadata SemanticSearchVectorMetadataStore,
+	values SemanticSearchVectorValueStore,
+	snapshots SemanticSearchSnapshotStore,
+	embedder searchhybrid.Embedder,
+	config PersistedLocalSemanticSearchHybridConfig,
+) *PersistedLocalSemanticSearchHybrid {
+	hybrid := NewPersistedLocalSemanticSearchHybrid(documents, metadata, values, embedder, config)
+	hybrid.Snapshots = snapshots
+	hybrid.cache = newSemanticSearchIndexCache(hybrid.Config.CacheEntries)
+	return hybrid
 }
 
 // NewPersistedLocalSemanticSearchHybrid creates a semantic/hybrid adapter
@@ -115,49 +136,24 @@ func (h *PersistedLocalSemanticSearchHybrid) Search(
 	if err := h.validate(); err != nil {
 		return semanticSearchIndexResult{}, err
 	}
-	rows, err := h.Documents.ListActiveDocuments(ctx, semanticSearchDocumentQuery{
-		ScopeID:     query.ScopeID,
-		RepoID:      query.RepoID,
-		SourceKinds: query.SourceKinds,
-		Languages:   query.Languages,
-		Limit:       h.Config.CorpusLimit,
-	})
-	if err != nil {
-		return semanticSearchIndexResult{}, err
+	if h.Snapshots != nil && h.cache != nil {
+		return h.searchCached(ctx, query)
 	}
-	docs := semanticSearchDocumentsFiltered(rows, query.Languages)
-	vectors, state, err := h.readyVectors(ctx, docs, query.ScopeID)
-	if err != nil {
-		return semanticSearchIndexResult{}, err
-	}
-	if state != "ready" {
-		return h.keywordFallback(ctx, query, docs, state, len(rows))
-	}
+	return h.searchUncached(ctx, query)
+}
 
-	index, err := searchhybrid.NewIndex(docs, searchhybrid.Options{
-		MaxDocuments:               h.Config.CorpusLimit,
-		Embedder:                   h.Embedder,
-		PrecomputedDocumentVectors: vectors,
-		VectorRetrieval:            h.Config.VectorRetrieval,
-	})
-	if err != nil {
-		return h.keywordFallback(ctx, query, docs, "index_unready", len(rows))
-	}
-	candidates, err := (searchhybrid.Backend{Index: index}).Search(ctx, query.Request)
+func (h *PersistedLocalSemanticSearchHybrid) searchUncached(
+	ctx context.Context,
+	query semanticSearchIndexQuery,
+) (semanticSearchIndexResult, error) {
+	build, err := h.buildPersistedIndex(ctx, query)
 	if err != nil {
 		return semanticSearchIndexResult{}, err
 	}
-	annotateSemanticSearchCandidates(candidates, map[string]string{
-		"vector_source":          "persisted_local",
-		"vector_retrieval_state": "ready",
-	})
-	return semanticSearchIndexResult{
-		Candidates:           candidates,
-		IndexedDocumentCount: index.Size(),
-		CorpusLimit:          h.Config.CorpusLimit,
-		CorpusMayBeTruncated: index.Overflow() > 0 || len(rows) >= h.Config.CorpusLimit,
-		RetrievalState:       semanticSearchActiveRetrievalState(query.Request.Mode, candidates),
-	}, nil
+	if build.state != "ready" || build.entry == nil {
+		return h.keywordFallback(ctx, query, build.docs, build.state, build.rowCount)
+	}
+	return h.searchReadyIndex(ctx, query, build.entry)
 }
 
 func (h *PersistedLocalSemanticSearchHybrid) keywordFallback(
@@ -267,6 +263,9 @@ func (h *PersistedLocalSemanticSearchHybrid) validate() error {
 	if h.Embedder == nil || h.Embedder.Dimensions() <= 0 {
 		return fmt.Errorf("semantic search local embedder is required")
 	}
+	if h.cache != nil && h.Snapshots == nil {
+		return fmt.Errorf("semantic search snapshot store is required when caching is enabled")
+	}
 	return nil
 }
 
@@ -348,6 +347,7 @@ func normalizePersistedLocalSemanticSearchHybridConfig(
 	if config.CorpusLimit <= 0 || config.CorpusLimit > semanticSearchLocalHybridCorpusLimit {
 		config.CorpusLimit = semanticSearchLocalHybridCorpusLimit
 	}
+	config.CacheEntries = normalizeSemanticSearchIndexCacheEntries(config.CacheEntries)
 	if config.VectorRetrieval == "" {
 		config.VectorRetrieval = searchhybrid.VectorRetrievalAuto
 	}

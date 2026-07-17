@@ -155,6 +155,19 @@ func TestNewMCPQueryRouterWiresLocalSemanticHybridVectorStoresWithPostgresInstru
 	if values.db.Instruments != instruments {
 		t.Fatal("value store instruments do not match MCP instruments")
 	}
+	snapshots, ok := hybrid.Snapshots.(instrumentedSemanticSearchSnapshotStore)
+	if !ok {
+		t.Fatalf("hybrid.Snapshots = %T, want instrumented snapshot store", hybrid.Snapshots)
+	}
+	if snapshots.db.StoreName != semanticSearchSnapshotStoreName {
+		t.Fatalf("snapshot store name = %q, want %q", snapshots.db.StoreName, semanticSearchSnapshotStoreName)
+	}
+	if snapshots.db.Instruments != instruments {
+		t.Fatal("snapshot store instruments do not match MCP instruments")
+	}
+	if snapshots.db.Tracer == nil {
+		t.Fatal("snapshot store tracer = nil, want Postgres child spans")
+	}
 }
 
 func TestNewMCPQueryRouterWiresSemanticSearchScopeResolverWithPostgresInstrumentation(t *testing.T) {

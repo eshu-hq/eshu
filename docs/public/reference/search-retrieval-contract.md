@@ -306,6 +306,23 @@ reports `retrieval_state=semantic_active` or `hybrid_active` only when ready
 persisted vector retrieval participates. It is not a graph-write or external
 vector-store integration.
 
+API and MCP retain a bounded process-local retrieval index for a ready corpus.
+Reuse is permitted only while the active generation, document projection
+revision and count, vector projection revision and build fence, vector identity,
+repository, source/language filters, retrieval mode, and corpus limit are
+unchanged. A request validates that durable tuple with Postgres before every
+reuse; a miss validates it again after the build so a mixed or changing
+projection is never cached. Missing, rebuilding, failed, empty, or
+revision-mismatched state bypasses reuse and follows the existing explicit
+degraded/unavailable behavior. There is no TTL or negative-result cache.
+
+The cache is an LRU with eight entries by default and a hard maximum of 32.
+Concurrent requests for the same exact snapshot coalesce one build, while
+different keys continue in parallel. A live waiter retries if the request that
+owned its shared build is canceled. Process restart is intentionally cold: the
+first request rebuilds from the durable Postgres rows, and later requests reuse
+that exact snapshot.
+
 Broader production ANN/vector-index retrieval is gated separately by issue #2578
 with storage-owner follow-up issue #2582. The first implementation storage owner
 is Postgres sidecar vector metadata and build state over active curated search
@@ -326,8 +343,10 @@ The public surface:
 - treats `repo_id` as the durable search-document scope id for this slice;
 - optionally narrows within that repository by service, workload, environment,
   and curated `source_kinds`;
-- serves from the active persisted search index without a request-time full
-  rebuild or corpus cap;
+- serves from the active persisted search index without repeating its bounded
+  corpus fetch and in-memory build on every stable-snapshot request; the local
+  persisted-vector adapter retains its reported corpus cap and truncation
+  fields;
 - uses the selected local or governed provider embedder for `semantic` and
   `hybrid` only when the reducer has built ready vector rows with the same
   persisted vector identity;

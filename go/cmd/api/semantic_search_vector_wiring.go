@@ -17,6 +17,7 @@ import (
 
 const (
 	semanticSearchScopeStoreName          = "semantic_search_scope"
+	semanticSearchSnapshotStoreName       = "semantic_search_snapshot"
 	semanticSearchVectorMetadataStoreName = "semantic_search_vector_metadata"
 	semanticSearchVectorValueStoreName    = "semantic_search_vector_values"
 )
@@ -71,6 +72,18 @@ func (s instrumentedSemanticSearchVectorMetadataStore) ListActive(
 type instrumentedSemanticSearchVectorValueStore struct {
 	store pgstatus.EshuSearchVectorValueStore
 	db    *pgstatus.InstrumentedDB
+}
+
+type instrumentedSemanticSearchSnapshotStore struct {
+	store query.PostgresSemanticSearchSnapshotStore
+	db    *pgstatus.InstrumentedDB
+}
+
+func (s instrumentedSemanticSearchSnapshotStore) Load(
+	ctx context.Context,
+	request query.SemanticSearchSnapshotRequest,
+) (query.SemanticSearchSnapshot, error) {
+	return s.store.Load(ctx, request)
 }
 
 func (s instrumentedSemanticSearchVectorValueStore) ListActive(
@@ -142,13 +155,19 @@ func newSemanticSearchHybrid(
 		semanticSearchVectorValueStoreName,
 		instruments,
 	)
+	snapshotDB := newInstrumentedPostgresStore(
+		sqlDB,
+		"eshu-api",
+		semanticSearchSnapshotStoreName,
+		instruments,
+	)
 	vectorConfig := query.DefaultPersistedLocalSemanticSearchHybridConfig()
 	vectorConfig.ProviderProfileID = config.ProviderProfileID
 	vectorConfig.SourceClass = config.SourceClass
 	vectorConfig.EmbeddingModelID = config.EmbeddingModelID
 	vectorConfig.VectorIndexVersion = config.VectorIndexVersion
 	vectorConfig.VectorRetrieval = config.VectorRetrieval
-	return query.NewPersistedLocalSemanticSearchHybrid(
+	return query.NewCachedPersistedLocalSemanticSearchHybrid(
 		query.NewPostgresSemanticSearchIndexStore(db),
 		instrumentedSemanticSearchVectorMetadataStore{
 			store: pgstatus.NewEshuSearchVectorMetadataStore(metadataDB),
@@ -157,6 +176,10 @@ func newSemanticSearchHybrid(
 		instrumentedSemanticSearchVectorValueStore{
 			store: pgstatus.NewEshuSearchVectorValueStore(valueDB),
 			db:    valueDB,
+		},
+		instrumentedSemanticSearchSnapshotStore{
+			store: query.NewPostgresSemanticSearchSnapshotStore(snapshotDB),
+			db:    snapshotDB,
 		},
 		config.Embedder,
 		vectorConfig,

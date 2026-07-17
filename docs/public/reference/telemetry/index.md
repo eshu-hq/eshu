@@ -330,6 +330,15 @@ degradations do. The handler also stamps `search.retrieval_state`,
 `search.degraded`, and (when degraded) `search.degraded_reason` span attributes on
 every request span, so a single trace shows the served mode.
 
+Persisted semantic/hybrid retrieval also stamps the bounded
+`search.index_cache` attribute on the existing request span. Values are `hit`,
+`miss`, `coalesced`, `bypass_unready`, or `retry_snapshot_changed`. The API and
+MCP snapshot check runs through the instrumented Postgres store named
+`semantic_search_snapshot`, so its child span and database duration remain
+visible alongside document, vector-metadata, and vector-value loads. This is a
+span-only signal: no new metric is needed because the existing route-duration
+histogram measures impact and traces retain the per-request cache decision.
+
 **Degraded search is expected, not an error, in no-provider mode.** Eshu runs
 deterministic keyword search with no embedder configured by design (the
 no-provider invariant); this counter is how an operator confirms semantic ranking
