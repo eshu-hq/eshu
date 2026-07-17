@@ -68,6 +68,52 @@ func fetchOCIImageRegistryTruth(
 	return truth, nil
 }
 
+// The OCI registry-truth reads deliberately use one anchoring clause per Cypher
+// statement and join across labels application-side. The pinned NornicDB build
+// mis-executes any read that places a second MATCH (or a cross-clause property
+// join) between the anchor and the projection: the old two-MATCH digest query
+// returned a null `coalesce(image.id, image.descriptor_id)` and the old
+// three-MATCH tag query dropped every row (#5287, proven live over Bolt). Each
+// template below is a single `MATCH … WHERE … RETURN … ORDER BY` shape, and the
+// image↔repository and tag↔repository↔image joins run in Go.
+
+// ociImageByDigestCypher is the single-clause per-label image lookup by digest.
+// The verb `%s` is one of ociImageLookupLabels.
+const ociImageByDigestCypher = `
+MATCH (image:%s)
+WHERE image.digest IN $digests
+RETURN coalesce(image.id, image.descriptor_id) AS image_id,
+       image.digest AS digest,
+       image.repository_id AS repository_id,
+       image.media_type AS media_type
+ORDER BY digest`
+
+// ociRepositoryByUIDCypher is the single-clause registry-repository lookup that
+// resolves an image/tag `repository_id` to its registry metadata.
+const ociRepositoryByUIDCypher = `
+MATCH (repo:OciRegistryRepository)
+WHERE repo.uid IN $repository_ids
+RETURN repo.uid AS repository_id,
+       repo.registry AS registry,
+       repo.repository AS repository,
+       repo.provider AS provider
+ORDER BY repository_id`
+
+// ociTagObservationByRefCypher is the single-clause tag-observation lookup that
+// resolves a mutable tag reference to its recorded digest and repository.
+const ociTagObservationByRefCypher = `
+MATCH (tag:ContainerImageTagObservation)
+WHERE tag.image_ref IN $image_refs
+RETURN tag.image_ref AS image_ref,
+       tag.tag AS tag,
+       tag.resolved_digest AS digest,
+       tag.repository_id AS repository_id
+ORDER BY image_ref`
+
+// fetchOCIImageDigestRows returns digest-addressed image registry truth by
+// reading each image label with a single-clause query and joining the
+// registry-repository metadata in Go. It preserves the old inner-join
+// semantics (an image with no matching repository is omitted).
 func fetchOCIImageDigestRows(
 	ctx context.Context,
 	reader GraphQuery,
@@ -76,30 +122,30 @@ func fetchOCIImageDigestRows(
 	if len(digests) == 0 {
 		return nil, nil
 	}
-	rows := make([]map[string]any, 0, len(digests))
-	for _, label := range ociImageLookupLabels {
-		labelRows, err := reader.Run(ctx, fmt.Sprintf(`
-			MATCH (image:%s)
-			WHERE image.digest IN $digests
-			MATCH (repo:OciRegistryRepository)
-			WHERE repo.uid = image.repository_id
-			RETURN DISTINCT coalesce(image.id, image.descriptor_id) AS image_id,
-			       image.digest AS digest,
-			       repo.registry AS registry,
-			       repo.repository AS repository,
-			       repo.uid AS repository_id,
-			       image.media_type AS media_type,
-			       repo.provider AS provider
-			ORDER BY repository_id, digest
-		`, label), map[string]any{"digests": digests})
-		if err != nil {
-			return nil, err
+	images, err := fetchOCIImagesByDigest(ctx, reader, digests)
+	if err != nil {
+		return nil, err
+	}
+	repos, err := fetchOCIRepositoriesByUID(ctx, reader, distinctFieldValues(images, "repository_id"))
+	if err != nil {
+		return nil, err
+	}
+	rows := make([]map[string]any, 0, len(images))
+	for _, image := range images {
+		repo, ok := repos[StringVal(image, "repository_id")]
+		if !ok {
+			continue
 		}
-		rows = append(rows, labelRows...)
+		rows = append(rows, joinOCIImageRepository(image, repo))
 	}
 	return rows, nil
 }
 
+// fetchOCIImageTagRows returns tag-resolved image registry truth. It reads tag
+// observations with a single-clause query, then joins the registry repository
+// (by repository_id) and the canonical image (by resolved digest) in Go,
+// preserving the old inner-join semantics (a tag whose repository or resolved
+// image is absent is omitted).
 func fetchOCIImageTagRows(
 	ctx context.Context,
 	reader GraphQuery,
@@ -108,32 +154,129 @@ func fetchOCIImageTagRows(
 	if len(imageRefs) == 0 {
 		return nil, nil
 	}
-	rows := make([]map[string]any, 0, len(imageRefs))
+	tags, err := reader.Run(ctx, ociTagObservationByRefCypher, map[string]any{"image_refs": imageRefs})
+	if err != nil {
+		return nil, err
+	}
+	if len(tags) == 0 {
+		return nil, nil
+	}
+	repos, err := fetchOCIRepositoriesByUID(ctx, reader, distinctFieldValues(tags, "repository_id"))
+	if err != nil {
+		return nil, err
+	}
+	images, err := fetchOCIImagesByDigest(ctx, reader, distinctFieldValues(tags, "digest"))
+	if err != nil {
+		return nil, err
+	}
+	imageByDigest := indexOCIImagesByDigest(images)
+	rows := make([]map[string]any, 0, len(tags))
+	for _, tag := range tags {
+		repo, repoOK := repos[StringVal(tag, "repository_id")]
+		image, imageOK := imageByDigest[StringVal(tag, "digest")]
+		if !repoOK || !imageOK {
+			continue
+		}
+		rows = append(rows, joinOCITagRepositoryImage(tag, repo, image))
+	}
+	return rows, nil
+}
+
+// fetchOCIImagesByDigest reads each OCI image label with a single-clause query
+// and concatenates the rows. Each row carries image_id, digest, repository_id,
+// and media_type.
+func fetchOCIImagesByDigest(
+	ctx context.Context,
+	reader GraphQuery,
+	digests []string,
+) ([]map[string]any, error) {
+	if len(digests) == 0 {
+		return nil, nil
+	}
+	rows := make([]map[string]any, 0, len(digests)*len(ociImageLookupLabels))
 	for _, label := range ociImageLookupLabels {
-		labelRows, err := reader.Run(ctx, fmt.Sprintf(`
-			MATCH (tag:ContainerImageTagObservation)
-			WHERE tag.image_ref IN $image_refs
-			MATCH (repo:OciRegistryRepository)
-			WHERE repo.uid = tag.repository_id
-			MATCH (image:%s)
-			WHERE image.digest = tag.resolved_digest
-			RETURN DISTINCT tag.image_ref AS image_ref,
-			       tag.tag AS tag,
-			       tag.resolved_digest AS digest,
-			       coalesce(image.id, image.descriptor_id) AS image_id,
-			       repo.registry AS registry,
-			       repo.repository AS repository,
-			       repo.uid AS repository_id,
-			       image.media_type AS media_type,
-			       repo.provider AS provider
-			ORDER BY image_ref, digest
-		`, label), map[string]any{"image_refs": imageRefs})
+		labelRows, err := reader.Run(ctx, fmt.Sprintf(ociImageByDigestCypher, label), map[string]any{"digests": digests})
 		if err != nil {
 			return nil, err
 		}
 		rows = append(rows, labelRows...)
 	}
 	return rows, nil
+}
+
+// fetchOCIRepositoriesByUID reads the registry repositories for the given uids
+// with one single-clause query and indexes them by repository_id for the Go
+// join.
+func fetchOCIRepositoriesByUID(
+	ctx context.Context,
+	reader GraphQuery,
+	uids []string,
+) (map[string]map[string]any, error) {
+	result := make(map[string]map[string]any, len(uids))
+	if len(uids) == 0 {
+		return result, nil
+	}
+	rows, err := reader.Run(ctx, ociRepositoryByUIDCypher, map[string]any{"repository_ids": uids})
+	if err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		if id := StringVal(row, "repository_id"); id != "" {
+			result[id] = row
+		}
+	}
+	return result, nil
+}
+
+// indexOCIImagesByDigest keeps the first image row seen per digest so a tag can
+// resolve its canonical image identity and media type. Digest is the canonical
+// content address, so the first-wins policy is deterministic under the ordered
+// per-label reads.
+func indexOCIImagesByDigest(images []map[string]any) map[string]map[string]any {
+	byDigest := make(map[string]map[string]any, len(images))
+	for _, image := range images {
+		digest := StringVal(image, "digest")
+		if digest == "" {
+			continue
+		}
+		if _, exists := byDigest[digest]; !exists {
+			byDigest[digest] = image
+		}
+	}
+	return byDigest
+}
+
+// joinOCIImageRepository merges a digest-addressed image row with its registry
+// repository into the row shape the digest truth builder consumes.
+func joinOCIImageRepository(image, repo map[string]any) map[string]any {
+	return map[string]any{
+		"image_id":      StringVal(image, "image_id"),
+		"digest":        StringVal(image, "digest"),
+		"registry":      StringVal(repo, "registry"),
+		"repository":    StringVal(repo, "repository"),
+		"repository_id": StringVal(image, "repository_id"),
+		"media_type":    StringVal(image, "media_type"),
+		"provider":      StringVal(repo, "provider"),
+	}
+}
+
+// joinOCITagRepositoryImage merges a tag observation with its registry
+// repository and resolved image into the row shape the tag truth builder
+// consumes. The digest and repository_id come from the tag observation, the
+// registry metadata from the repository, and the image identity/media type from
+// the resolved image.
+func joinOCITagRepositoryImage(tag, repo, image map[string]any) map[string]any {
+	return map[string]any{
+		"image_ref":     StringVal(tag, "image_ref"),
+		"tag":           StringVal(tag, "tag"),
+		"digest":        StringVal(tag, "digest"),
+		"image_id":      StringVal(image, "image_id"),
+		"registry":      StringVal(repo, "registry"),
+		"repository":    StringVal(repo, "repository"),
+		"repository_id": StringVal(tag, "repository_id"),
+		"media_type":    StringVal(image, "media_type"),
+		"provider":      StringVal(repo, "provider"),
+	}
 }
 
 func splitOCIImageRefs(imageRefs []string) (map[string][]string, []string) {
