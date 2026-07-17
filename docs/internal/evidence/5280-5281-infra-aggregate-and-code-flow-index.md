@@ -104,6 +104,27 @@ excluding tombstones from the index would resurface deleted code-flow evidence.
 The `.go` schema const and `migrations/003_fact_records.sql` carry the
 byte-identical statement (lockstep test `TestFactRecordSchemaIncludesCodeFlowRepoIndex`).
 
+Generic-plan usability (PR #5284 review, Codex P1): PostgreSQL only matches a
+partial-index predicate it can prove at plan time. The read filters
+`fact_kind = ANY($1)` (parameterized), so under a generic prepared plan — the
+plan pgx converges to after repeated executions — the planner cannot prove `$1`
+is limited to the three code-flow kinds and would bypass this index, falling
+back to the old over-fetch. The read therefore also carries a literal
+`fact_kind IN ('code_taint_evidence', 'code_interproc_evidence',
+'code_dataflow_function')` conjunct (redundant with `$1`, whose values
+`codeFlowFactKinds` always draws from this set — proven result-neutral: `0/0`
+symmetric difference on the seeded corpus). Proven under
+`SET plan_cache_mode = force_generic_plan` with `PREPARE`/`EXPLAIN EXECUTE`:
+
+| Generic-plan read | Plan | Buffers | Exec |
+|---|---|---:|---:|
+| `fact_kind = ANY($1)` only | `fact_records_scope_generation_idx`, Rows Removed by Filter 1976×41 | 10,137 | 22.5 ms |
+| `+ literal fact_kind IN (...)` | `fact_records_code_flow_repo_idx` | 728 | 1.54 ms |
+
+Guarded by `TestCodeFlowSQLKeepsLiteralKindConjunctForPartialIndex`, which also
+asserts the literal set covers every kind `codeFlowFactKinds` can select so the
+conjunct stays redundant rather than row-dropping.
+
 All 83,000 seeded facts and the manual index were removed after measurement
 (`VACUUM ANALYZE`; verified `fact_records` = 330,474, 0 leftover).
 

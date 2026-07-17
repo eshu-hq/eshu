@@ -60,6 +60,14 @@ ranked_candidates AS (
       ON generation.scope_id = fact.scope_id
      AND generation.generation_id = fact.generation_id
     WHERE fact.fact_kind = ANY($1::text[])
+      -- Literal code-flow kind conjunct (redundant with the $1 filter, whose
+      -- values codeFlowFactKinds always draws from this same set) so the
+      -- planner can prove the fact_records_code_flow_repo_idx partial-index
+      -- predicate at plan time. Without it a generic prepared plan cannot
+      -- prove $1 is limited to these kinds and silently falls back to the
+      -- all-scope over-fetch (#5280 review). Keep both: $1 selects the exact
+      -- kind subset per read, this conjunct unlocks the partial index.
+      AND fact.fact_kind IN ('code_taint_evidence', 'code_interproc_evidence', 'code_dataflow_function')
       AND fact.payload->>'repo_id' = $2
       AND generation.status IN ('active', 'superseded')
       AND generation.ingested_at <= active_scope.active_ingested_at

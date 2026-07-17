@@ -24,6 +24,17 @@ package postgres
 // the newest generation per stable_fact_key, then drops rn=1 tombstones in its
 // outer filter. Excluding tombstones here would let an older live fact win the
 // ranking over a newer retraction and resurface deleted code-flow evidence.
+//
+// For this partial index to be usable the read carries a LITERAL
+// `fact_kind IN ('code_taint_evidence','code_interproc_evidence','code_dataflow_function')`
+// conjunct alongside its parameterized `fact_kind = ANY($1)` filter (see
+// query.listActiveCodeFlowFactsSQL). PostgreSQL only matches a partial-index
+// predicate it can prove at plan time; under a generic prepared plan it cannot
+// prove `$1` is limited to these kinds, so without the literal conjunct the
+// planner falls back to fact_records_scope_generation_idx and the old
+// all-scope over-fetch. Proven under plan_cache_mode=force_generic_plan: the
+// literal-conjunct read uses this index (728 buffers) while the $1-only read
+// does not (10,137 buffers).
 const codeFlowFactRecordReadIndexesSQL = `
 CREATE INDEX IF NOT EXISTS fact_records_code_flow_repo_idx ON fact_records ((payload->>'repo_id'), scope_id, generation_id, fact_id) WHERE fact_kind IN ('code_taint_evidence', 'code_interproc_evidence', 'code_dataflow_function');
 `
