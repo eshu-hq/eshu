@@ -1,8 +1,8 @@
 import type { Dispatch, SetStateAction } from "react";
 
-import { ChangedSinceRepositorySelector } from "./ChangedSinceRepositorySelector";
 import { FilterInput } from "./ChangedSincePresentation";
 import { isBoundedChangedSince, type ChangedSinceFormState } from "./changedSinceQuery";
+import { ChangedSinceRepositorySelector } from "./ChangedSinceRepositorySelector";
 import type { ChangedSinceMode } from "../api/changedSince";
 import type { RepoListItem } from "../api/repoCatalog";
 

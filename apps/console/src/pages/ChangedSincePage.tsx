@@ -3,8 +3,6 @@ import { Link, useSearchParams } from "react-router-dom";
 
 import { discoverDefaultChangedSinceParams } from "./changedSinceDefault";
 import { ChangedSincePacketComparison } from "./ChangedSincePacketComparison";
-import { changedSinceRepositoryLabel } from "./ChangedSinceRepositorySelector";
-import { ChangedSinceQueryForm } from "./ChangedSinceQueryForm";
 import {
   ChangedSinceCategoryRows,
   GenerationLifecycleRows,
@@ -24,6 +22,8 @@ import {
   parseChangedSinceLimit,
   type ChangedSinceFormState,
 } from "./changedSinceQuery";
+import { ChangedSinceQueryForm } from "./ChangedSinceQueryForm";
+import { changedSinceRepositoryLabel } from "./ChangedSinceRepositorySelector";
 import {
   type ChangedSincePageData,
   type GenerationLifecyclePage,
