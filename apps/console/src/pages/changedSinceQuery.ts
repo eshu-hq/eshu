@@ -49,7 +49,13 @@ export function isBoundedChangedSince(form: ChangedSinceFormState): boolean {
 }
 
 export function hasChangedSinceRepositoryScope(form: ChangedSinceFormState): boolean {
-  return form.repository.trim().length > 0 || form.scopeId.trim().length > 0;
+  const hasRepository = form.repository.trim().length > 0;
+  const hasScopeID = form.scopeId.trim().length > 0;
+  return hasRepository !== hasScopeID;
+}
+
+export function hasChangedSincePriorReference(form: ChangedSinceFormState): boolean {
+  return form.sinceGenerationId.trim().length > 0 || form.sinceObservedAt.trim().length > 0;
 }
 
 export function parseChangedSinceLimit(value: string): number | undefined {

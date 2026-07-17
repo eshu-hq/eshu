@@ -223,6 +223,9 @@ export async function loadGenerationLifecycle(
 }
 
 export function repositoryChangedSincePath(query: RepositoryChangedSinceQuery): string {
+  if ((query.repository?.trim() ?? "") !== "" && (query.scopeId?.trim() ?? "") !== "") {
+    throw new Error("repository and scopeId are mutually exclusive");
+  }
   const params = new URLSearchParams();
   addParam(params, "repository", query.repository);
   addParam(params, "scope_id", query.scopeId);

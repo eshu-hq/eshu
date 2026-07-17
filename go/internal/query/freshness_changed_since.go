@@ -33,6 +33,13 @@ func (h *FreshnessHandler) listChangedSince(w http.ResponseWriter, r *http.Reque
 	)
 	defer span.End()
 
+	if QueryParam(r, "scope_id") != "" && QueryParam(r, "repository") != "" {
+		err := fmt.Errorf("scope_id and repository are mutually exclusive")
+		span.RecordError(err)
+		WriteError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
 	if capabilityUnsupported(h.profile(), freshnessChangedSinceCapability) {
 		WriteContractError(
 			w,

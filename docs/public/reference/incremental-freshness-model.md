@@ -310,6 +310,10 @@ The changed-since surface answers "what changed in this repository scope since a
 prior generation or instant?" without re-indexing. It diffs two generations of
 one scope:
 
+- Exactly one mutually exclusive scope selector is accepted: an exact
+  `scope_id` or a canonical `repository`. Supplying both fails closed instead of
+  intersecting potentially stale scope state.
+
 - The **prior generation** is the generation named by `since_generation_id`, or
   the generation observed at or before `since_observed_at` for the scope.
 - The **current generation** is the scope's current
@@ -335,7 +339,8 @@ prior baseline was pruned, changed-since returns `unavailable=true` with
 `unavailable_reason=retention_expired`; the truth freshness cause is
 `retention_expired` and its next check points to `get_generation_lifecycle`.
 
-Resolution failures are explicit, never confident emptiness. An unknown
+The response carries the resolved canonical repository identity even for a
+legacy scope-id request. Resolution failures are explicit, never confident emptiness. An unknown
 scope/repository returns `scope_not_found`; a since reference that resolves to no
 generation returns `not_found`; a scope with no current active generation returns
 an `unavailable` diff (and a `building`/`unavailable` freshness state) rather than

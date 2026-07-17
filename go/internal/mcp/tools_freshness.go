@@ -48,17 +48,17 @@ func freshnessTools() []ToolDefinition {
 		},
 		{
 			Name:        "get_changed_since",
-			Description: "Summarize what changed in a repository scope since a prior generation or instant. Diffs the prior generation's fact set against the current active generation's fact set, keyed by stable fact key, into per-category counts (files, content entities, facts) for added, updated, unchanged, retired, and superseded keys plus bounded sample handles. Supply since_generation_id for an exact prior generation or since_observed_at (RFC3339) for the generation observed at or before that instant. Unknown scope/repository returns not-found; a scope with no current active generation returns an explicit unavailable diff rather than zero deltas. Retired and superseded are never collapsed into unchanged.",
+			Description: "Summarize what changed in a repository scope since a prior generation or instant. Exactly one mutually exclusive scope selector is required: scope_id or repository. Diffs the prior generation's fact set against the current active generation's fact set, keyed by stable fact key, into per-category counts (files, content entities, facts) for added, updated, unchanged, retired, and superseded keys plus bounded sample handles. Supply since_generation_id for an exact prior generation or since_observed_at (RFC3339) for the generation observed at or before that instant. Unknown scope/repository returns not-found; a scope with no current active generation returns an explicit unavailable diff rather than zero deltas. Retired and superseded are never collapsed into unchanged.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
 					"scope_id": map[string]any{
 						"type":        "string",
-						"description": "Exact ingestion scope id (required unless repository is set), for example git-repository-scope:owner/repo.",
+						"description": "Exact ingestion scope id. Mutually exclusive with repository; exactly one selector is required.",
 					},
 					"repository": map[string]any{
 						"type":        "string",
-						"description": "Canonical repository id (matches repository-kind scopes by source_key; required unless scope_id is set).",
+						"description": "Canonical repository id matched to repository-kind scopes by source_key. Mutually exclusive with scope_id; exactly one selector is required.",
 					},
 					"since_generation_id": map[string]any{
 						"type":        "string",

@@ -39,13 +39,15 @@ export function FilterInput({
 
 export function ChangedSinceCategoryRows({
   categories,
+  repositoryId,
 }: {
   readonly categories: readonly ChangedSinceCategory[];
+  readonly repositoryId?: string;
 }): React.JSX.Element {
   return (
     <>
       {categories.map((category) => (
-        <CategoryRow category={category} key={category.category} />
+        <CategoryRow category={category} key={category.category} repositoryId={repositoryId} />
       ))}
       {categories.length === 0 ? (
         <tr>
@@ -115,7 +117,13 @@ export function sampleTotal(category: ChangedSinceCategory): number {
   );
 }
 
-function CategoryRow({ category }: { readonly category: ChangedSinceCategory }): React.JSX.Element {
+function CategoryRow({
+  category,
+  repositoryId = "",
+}: {
+  readonly category: ChangedSinceCategory;
+  readonly repositoryId?: string;
+}): React.JSX.Element {
   return (
     <tr>
       <td className="cell-stack">
@@ -143,7 +151,11 @@ function CategoryRow({ category }: { readonly category: ChangedSinceCategory }):
                 >
                   {classification}
                 </Badge>
-                <span className="mono">{sample.stableFactKey || "-"}</span>
+                <SampleIdentity
+                  factKind={sample.factKind}
+                  repositoryId={repositoryId}
+                  stableFactKey={sample.stableFactKey}
+                />
                 <small>{sample.factKind || "fact"}</small>
                 {category.truncated[classification] ? <em>truncated</em> : null}
               </span>
@@ -154,4 +166,25 @@ function CategoryRow({ category }: { readonly category: ChangedSinceCategory }):
       </td>
     </tr>
   );
+}
+
+function SampleIdentity({
+  factKind,
+  repositoryId,
+  stableFactKey,
+}: {
+  readonly factKind: string;
+  readonly repositoryId: string;
+  readonly stableFactKey: string;
+}): React.JSX.Element {
+  const prefix = `file:${repositoryId}:`;
+  if (factKind === "file" && repositoryId !== "" && stableFactKey.startsWith(prefix)) {
+    return (
+      <details className="changed-since-sample-identity">
+        <summary className="mono">{stableFactKey.slice(prefix.length) || "-"}</summary>
+        <code>{stableFactKey}</code>
+      </details>
+    );
+  }
+  return <span className="mono">{stableFactKey || "-"}</span>;
 }
