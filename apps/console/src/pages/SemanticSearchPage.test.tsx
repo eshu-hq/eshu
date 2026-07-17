@@ -208,6 +208,38 @@ describe("SemanticSearchPage", () => {
     expect((call[1] as Record<string, unknown>).repo_id).toBe("repository:r_checkout");
   });
 
+  it("fails closed on an alias match when the authorized catalog is truncated", async () => {
+    const client = { post: vi.fn() } as unknown as EshuApiClient;
+    const catalog: RepositoryCatalogState = {
+      completeness: "truncated",
+      kind: "ready",
+      repositories: [checkoutRepository],
+      warning: "Repository catalog truncated.",
+    };
+
+    renderPage(client, ["/semantic-search?repo=acme%2Fcheckout-service&q=retry+logic"], catalog);
+
+    expect(await screen.findByText(/authorization cannot be determined/i)).toBeInTheDocument();
+    expect(client.post).not.toHaveBeenCalled();
+  });
+
+  it("allows an exact canonical ID when the authorized catalog is truncated", async () => {
+    const client = {
+      post: vi.fn(async () => envelope(resultsResponse())),
+    } as unknown as EshuApiClient;
+    const catalog: RepositoryCatalogState = {
+      completeness: "truncated",
+      kind: "ready",
+      repositories: [checkoutRepository],
+      warning: "Repository catalog truncated.",
+    };
+
+    renderPage(client, ["/semantic-search?repo=repository%3Ar_checkout&q=retry+logic"], catalog);
+
+    expect(await screen.findByText("retry.go")).toBeInTheDocument();
+    expect(client.post).toHaveBeenCalledOnce();
+  });
+
   it("fails closed when a repository label is ambiguous and requires an explicit choice", async () => {
     const client = { post: vi.fn() } as unknown as EshuApiClient;
     const catalog = readyRepositoryCatalog([

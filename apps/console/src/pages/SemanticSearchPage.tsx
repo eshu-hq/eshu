@@ -381,6 +381,13 @@ function resolveRepository(
   const canonical = catalog.repositories.find((repository) => repository.id === requested);
   if (canonical) return { status: "resolved", message: "", repository: canonical };
 
+  if (catalog.completeness === "truncated") {
+    return {
+      status: "unresolved",
+      message: `Repository ${requested} cannot be resolved from this incomplete authorized session catalog. Authorization cannot be determined; choose an explicit canonical repository ID.`,
+    };
+  }
+
   const aliases = catalog.repositories.filter(
     (repository) => repository.name === requested || repository.repoSlug === requested,
   );
@@ -393,12 +400,8 @@ function resolveRepository(
       message: `Repository label ${requested} matches multiple authorized repositories. Choose one explicitly.`,
     };
   }
-  const suffix =
-    catalog.completeness === "truncated"
-      ? " The session catalog is incomplete, so authorization cannot be determined."
-      : "";
   return {
     status: "unresolved",
-    message: `Repository ${requested} is not present in this authorized session catalog.${suffix}`,
+    message: `Repository ${requested} is not present in this authorized session catalog.`,
   };
 }
