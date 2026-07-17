@@ -21,17 +21,36 @@ func changeSurfaceNoTargetResolution(req changeSurfaceInvestigationRequest) map[
 
 // changeSurfaceInvestigateCypher is the single-anchor-clause impact traversal
 // for the investigate endpoint. Verbs: %s = the label-anchored start node
-// pattern, %d = max traversal depth, %d = LIMIT (over-fetched by one). It folds
+// pattern, %d = max traversal depth, %s = the optional environment predicate
+// (empty or an ` AND (…)` clause), %d = LIMIT (over-fetched by one). It folds
 // the start anchor into the path MATCH and groups distinct impacted nodes with
 // min(length(path)) in the same clause — the pinned NornicDB build corrupts the
-// old separate-MATCH + RETURN DISTINCT + length(path) shape (#5287).
+// old separate-MATCH + RETURN DISTINCT + length(path) shape (#5287). The
+// environment filter is applied server-side (before LIMIT) so an
+// environment-scoped read cannot under-report when the limit is reached.
 const changeSurfaceInvestigateCypher = `MATCH path = %s-[*1..%d]->(impacted)
 WHERE impacted.id <> $target_id
-  AND any(label IN labels(impacted) WHERE label IN ['Repository', 'Workload', 'WorkloadInstance', 'CloudResource', 'TerraformModule', 'DataAsset'])
+  AND any(label IN labels(impacted) WHERE label IN ['Repository', 'Workload', 'WorkloadInstance', 'CloudResource', 'TerraformModule', 'DataAsset'])%s
 RETURN impacted.id as id, impacted.name as name, labels(impacted) as labels,
        impacted.environment as environment, impacted.repo_id as repo_id, min(length(path)) as depth
 ORDER BY depth, name, id
 LIMIT %d`
+
+// changeSurfaceEnvironmentClause returns the NornicDB-safe server-side
+// environment predicate to append to a change-surface WHERE clause, or an empty
+// string when no environment scope is requested. It keeps impacted nodes whose
+// environment matches or is unset (null/empty), mirroring the Go-side filter. The
+// predicate deliberately avoids the empty-parameter-disjunct form
+// (`$environment = ” OR ...`), which silently drops every row when combined with
+// a relationships(path) projection on the pinned NornicDB build (#5287); it is
+// only added when an environment is requested so the empty-scope read carries no
+// predicate at all.
+func changeSurfaceEnvironmentClause(environment string) string {
+	if environment == "" {
+		return ""
+	}
+	return "\n  AND (impacted.environment = $environment OR coalesce(impacted.environment, '') = '')"
+}
 
 func (h *ImpactHandler) changeSurfaceImpactRows(
 	ctx context.Context,
@@ -47,8 +66,12 @@ func (h *ImpactHandler) changeSurfaceImpactRows(
 	// and the projection — the old two-MATCH shape returned zero rows (#5287,
 	// proven live). Fold the start anchor into the path pattern and group the
 	// distinct impacted nodes with min(length(path)) in the same clause.
-	cypher := fmt.Sprintf(changeSurfaceInvestigateCypher, startPattern, req.MaxDepth, req.Limit+1)
-	rows, err := h.Neo4j.Run(ctx, cypher, map[string]any{"target_id": target.ID})
+	cypher := fmt.Sprintf(changeSurfaceInvestigateCypher, startPattern, req.MaxDepth, changeSurfaceEnvironmentClause(req.Environment), req.Limit+1)
+	params := map[string]any{"target_id": target.ID}
+	if req.Environment != "" {
+		params["environment"] = req.Environment
+	}
+	rows, err := h.Neo4j.Run(ctx, cypher, params)
 	if err != nil {
 		return nil, false, fmt.Errorf("query change surface impact: %w", err)
 	}

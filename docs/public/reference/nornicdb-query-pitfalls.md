@@ -380,11 +380,13 @@ findings from that proof:
   DOES traverse correctly in a single clause (unlike the untyped `[*1..N] WHERE
   all(type(rel)=…)` retract shape above, which matches zero rows). Only the
   surrounding multi-clause shape corrupted the old reads.
-- A server-side environment predicate of the form `($env = '' OR
-  coalesce(impacted.environment, '') = '' OR impacted.environment = $env)`
-  silently drops **every** row when combined with a `relationships(path)`
-  projection on the pinned build. Filter such optional-property environment
-  predicates in Go instead of the Cypher `WHERE`.
+- A `WHERE` predicate of the form `($param = '' OR coalesce(n.prop, '') = '' OR
+  n.prop = $param)` silently drops **every** row when combined with a
+  `relationships(path)` projection on the pinned build — the `$param = ''`
+  parameter-comparison disjunct is the offender. The narrower node-only form
+  `(n.prop = $param OR coalesce(n.prop, '') = '')` is safe with the same
+  projection (drop the empty-parameter disjunct and only add the predicate when
+  the parameter is set).
 
 ### Validation
 

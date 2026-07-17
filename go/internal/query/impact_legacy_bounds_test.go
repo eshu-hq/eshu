@@ -136,14 +136,17 @@ func TestFindChangeSurfaceUsesRequestedLimitAndReportsTruncation(t *testing.T) {
 				if !strings.Contains(cypher, "LIMIT $limit") {
 					t.Fatalf("cypher = %q, want server-side LIMIT parameter", cypher)
 				}
-				// The environment filter runs in Go, not server-side: the pinned
-				// NornicDB drops every row when the coalesce/OR environment predicate
-				// is combined with the relationships(path) projection (#5287).
-				if strings.Contains(cypher, "$environment") {
-					t.Fatalf("cypher = %q, must not carry the server-side environment predicate (Go-side now)", cypher)
+				// The environment filter is applied server-side (before LIMIT) with
+				// the NornicDB-safe predicate, so an environment-scoped read cannot
+				// under-report when the limit is reached (#5287).
+				if !strings.Contains(cypher, "$environment") {
+					t.Fatalf("cypher = %q, want server-side environment predicate before LIMIT", cypher)
 				}
 				if got, want := params["limit"], 2; got != want {
 					t.Fatalf("params[limit] = %#v, want %#v", got, want)
+				}
+				if got, want := params["environment"], "prod"; got != want {
+					t.Fatalf("params[environment] = %#v, want %#v", got, want)
 				}
 				return []map[string]any{
 					{"id": "service:a", "name": "a", "labels": []any{"Workload"}, "environment": "prod", "depth": int64(1), "rels": []any{

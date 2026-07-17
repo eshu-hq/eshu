@@ -7,6 +7,8 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+
+	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 )
 
 const (
@@ -104,11 +106,14 @@ func (h *ImpactHandler) findChangeSurface(w http.ResponseWriter, r *http.Request
 
 // changeSurfaceLegacyCypher is the single-anchor-clause impact traversal for the
 // legacy endpoint. Verbs: %s = the label-anchored start node pattern, %d = max
-// traversal depth. It projects the raw relationships(path) list (unwound per-edge
-// in Go) rather than the old OPTIONAL MATCH + UNWIND + WITH + RETURN DISTINCT
-// shape, which returned a single all-null row on the pinned NornicDB (#5287).
+// traversal depth, %s = the optional environment predicate (empty or an
+// ` AND (…)` clause). It projects the raw relationships(path) list (unwound
+// per-edge in Go) rather than the old OPTIONAL MATCH + UNWIND + WITH + RETURN
+// DISTINCT shape, which returned a single all-null row on the pinned NornicDB
+// (#5287). The environment filter is applied server-side (before LIMIT) so an
+// environment-scoped read cannot under-report when the limit is reached.
 const changeSurfaceLegacyCypher = `MATCH path = %s-[*1..%d]->(impacted)
-WHERE impacted.id <> $target_id AND any(label IN labels(impacted) WHERE label IN ['Repository', 'Workload', 'WorkloadInstance', 'CloudResource', 'TerraformModule', 'DataAsset'])
+WHERE impacted.id <> $target_id AND any(label IN labels(impacted) WHERE label IN ['Repository', 'Workload', 'WorkloadInstance', 'CloudResource', 'TerraformModule', 'DataAsset'])%s
 RETURN impacted.id as id, impacted.name as name, labels(impacted) as labels, impacted.environment as environment,
 	length(path) as depth, relationships(path) as rels
 ORDER BY depth, name, id
@@ -136,16 +141,20 @@ func (h *ImpactHandler) findChangeSurfaceImpactRows(
 	// anchor into the path pattern, project the raw relationships(path) list, and
 	// unwind the per-edge provenance in Go. Two constraints from the pinned build:
 	// a `[rel IN relationships(path) | rel.confidence]` comprehension is NOT safe
-	// (it stringifies the edge map), and the old server-side environment predicate
-	// (`$environment = '' OR coalesce(...)`) silently drops every row when combined
-	// with the relationships(path) projection — so the environment filter runs in
-	// Go below, matching the investigate read.
-	cypher := fmt.Sprintf(changeSurfaceLegacyCypher, startPattern, depth)
-
-	rows, err := h.Neo4j.Run(ctx, cypher, map[string]any{
+	// (it stringifies the edge map), and the old `$environment = '' OR
+	// coalesce(…, '') = ''` predicate silently drops every row when combined with
+	// the relationships(path) projection — so the environment filter uses the
+	// narrower NornicDB-safe form in changeSurfaceEnvironmentClause, applied
+	// server-side before LIMIT and re-checked in Go below.
+	cypher := fmt.Sprintf(changeSurfaceLegacyCypher, startPattern, depth, changeSurfaceEnvironmentClause(environment))
+	params := map[string]any{
 		"target_id": target.ID,
 		"limit":     limit + 1,
-	})
+	}
+	if environment != "" {
+		params["environment"] = environment
+	}
+	rows, err := h.Neo4j.Run(ctx, cypher, params)
 	if err != nil {
 		return nil, false, err
 	}
@@ -178,7 +187,15 @@ func (h *ImpactHandler) findChangeSurfaceImpactRows(
 			if edge.reason != "" {
 				entry["reason"] = edge.reason
 			}
-			key := fmt.Sprintf("%s\x00%s\x00%v\x00%s\x00%d", StringVal(entry, "id"), edge.relType, entry["confidence"], edge.reason, IntVal(entry, "depth"))
+			// Dedup on the same tuple the old RETURN DISTINCT collapsed. Encode
+			// confidence with a sentinel for the unset case so a missing confidence
+			// and an explicit 0.0 do not produce different keys (a `%v` of a nil map
+			// value formats as "<nil>" but 0.0 formats as "0").
+			confKey := "\x00unset"
+			if edge.hasConfidence {
+				confKey = fmt.Sprintf("%g", edge.confidence)
+			}
+			key := fmt.Sprintf("%s\x00%s\x00%s\x00%s\x00%d", StringVal(entry, "id"), edge.relType, confKey, edge.reason, IntVal(entry, "depth"))
 			if _, ok := seen[key]; ok {
 				continue
 			}
@@ -200,10 +217,12 @@ type changeSurfaceRelEdge struct {
 }
 
 // changeSurfaceRelEdges extracts per-relationship provenance from a
-// relationships(path) value. The graph driver returns each relationship as a
-// map with `type` and a nested `properties` map; a scalar comprehension over
-// rel properties corrupts on the pinned NornicDB, so the raw list is unwound
-// here instead.
+// relationships(path) value. A scalar comprehension over rel properties corrupts
+// on the pinned NornicDB, so the raw list is unwound here. The two supported
+// backends serialize the list differently: the Neo4j Go driver returns
+// `neo4j.Relationship` values (with Type/Props), while NornicDB returns each
+// relationship as a `map[string]any` with a `type` and a nested `properties`
+// map. Both shapes are decoded so the edge provenance survives on either backend.
 func changeSurfaceRelEdges(raw any) []changeSurfaceRelEdge {
 	rels, ok := raw.([]any)
 	if !ok {
@@ -211,23 +230,29 @@ func changeSurfaceRelEdges(raw any) []changeSurfaceRelEdge {
 	}
 	edges := make([]changeSurfaceRelEdge, 0, len(rels))
 	for _, item := range rels {
-		rel, ok := item.(map[string]any)
-		if !ok {
-			continue
+		switch rel := item.(type) {
+		case neo4jdriver.Relationship:
+			edges = append(edges, changeSurfaceRelEdgeFromProps(rel.Type, rel.Props))
+		case map[string]any:
+			props, _ := rel["properties"].(map[string]any)
+			edges = append(edges, changeSurfaceRelEdgeFromProps(StringVal(rel, "type"), props))
 		}
-		edge := changeSurfaceRelEdge{relType: StringVal(rel, "type")}
-		if props, ok := rel["properties"].(map[string]any); ok {
-			if conf, ok := props["confidence"].(float64); ok {
-				edge.confidence = conf
-				edge.hasConfidence = true
-			}
-			if reason, ok := props["reason"].(string); ok {
-				edge.reason = reason
-			}
-		}
-		edges = append(edges, edge)
 	}
 	return edges
+}
+
+// changeSurfaceRelEdgeFromProps builds a provenance edge from a relationship type
+// and its property map, tolerating a nil property map.
+func changeSurfaceRelEdgeFromProps(relType string, props map[string]any) changeSurfaceRelEdge {
+	edge := changeSurfaceRelEdge{relType: relType}
+	if conf, ok := props["confidence"].(float64); ok {
+		edge.confidence = conf
+		edge.hasConfidence = true
+	}
+	if reason, ok := props["reason"].(string); ok {
+		edge.reason = reason
+	}
+	return edge
 }
 
 // legacyChangeSurfaceTargetType maps the legacy request hint to a normalized

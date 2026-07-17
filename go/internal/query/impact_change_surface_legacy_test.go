@@ -12,6 +12,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 )
 
 // TestChangeSurfaceTraversalQueriesAreNornicDBSafe guards the #5287 fix: both
@@ -25,9 +27,12 @@ import (
 func TestChangeSurfaceTraversalQueriesAreNornicDBSafe(t *testing.T) {
 	t.Parallel()
 
+	envClause := changeSurfaceEnvironmentClause("prod")
 	queries := map[string]string{
-		"investigate": fmt.Sprintf(changeSurfaceInvestigateCypher, "(start:Workload {id: $target_id})", 4, 50),
-		"legacy":      fmt.Sprintf(changeSurfaceLegacyCypher, "(start:Workload {id: $target_id})", 4),
+		"investigate":     fmt.Sprintf(changeSurfaceInvestigateCypher, "(start:Workload {id: $target_id})", 4, "", 50),
+		"investigate+env": fmt.Sprintf(changeSurfaceInvestigateCypher, "(start:Workload {id: $target_id})", 4, envClause, 50),
+		"legacy":          fmt.Sprintf(changeSurfaceLegacyCypher, "(start:Workload {id: $target_id})", 4, ""),
+		"legacy+env":      fmt.Sprintf(changeSurfaceLegacyCypher, "(start:Workload {id: $target_id})", 4, envClause),
 	}
 	for name, q := range queries {
 		if got := strings.Count(q, "MATCH"); got != 1 {
@@ -43,6 +48,86 @@ func TestChangeSurfaceTraversalQueriesAreNornicDBSafe(t *testing.T) {
 	// per-edge unwind (never a rel-property comprehension).
 	if !strings.Contains(queries["legacy"], "relationships(path) as rels") {
 		t.Errorf("legacy read must project relationships(path) for the Go unwind: %s", queries["legacy"])
+	}
+}
+
+// TestChangeSurfaceRelEdgesDecodesBothBackendShapes guards the #5287 review P1:
+// relationships(path) is serialized differently by the two backends — the Neo4j
+// Go driver returns neo4j.Relationship values, while NornicDB returns a
+// map[string]any with a nested properties map. Both must decode to the same
+// per-edge provenance, or the legacy read silently drops every hop on one
+// backend.
+func TestChangeSurfaceRelEdgesDecodesBothBackendShapes(t *testing.T) {
+	t.Parallel()
+
+	cases := map[string]any{
+		"neo4j.Relationship": []any{
+			neo4jdriver.Relationship{Type: "DEPENDS_ON", Props: map[string]any{"confidence": 0.9, "reason": "import"}},
+		},
+		"nornicdb map": []any{
+			map[string]any{"type": "DEPENDS_ON", "properties": map[string]any{"confidence": 0.9, "reason": "import"}},
+		},
+	}
+	for name, raw := range cases {
+		edges := changeSurfaceRelEdges(raw)
+		if len(edges) != 1 {
+			t.Fatalf("%s: got %d edges, want 1", name, len(edges))
+		}
+		e := edges[0]
+		if e.relType != "DEPENDS_ON" {
+			t.Errorf("%s: relType = %q, want DEPENDS_ON", name, e.relType)
+		}
+		if !e.hasConfidence || e.confidence != 0.9 {
+			t.Errorf("%s: confidence = %v (has=%v), want 0.9", name, e.confidence, e.hasConfidence)
+		}
+		if e.reason != "import" {
+			t.Errorf("%s: reason = %q, want import", name, e.reason)
+		}
+	}
+}
+
+// TestFindChangeSurfaceImpactRowsDedupsConfidenceStably guards the #5287 review
+// P2: the per-edge dedup key must encode an unset confidence distinctly from an
+// explicit 0.0 and collapse true duplicates. A `%v` of a missing map value
+// formats as "<nil>" while 0.0 formats as "0", so a stable sentinel is used.
+func TestFindChangeSurfaceImpactRowsDedupsConfidenceStably(t *testing.T) {
+	t.Parallel()
+
+	graph := &legacyChangeSurfaceGraph{
+		handler: func(cypher string, _ map[string]any) ([]map[string]any, error) {
+			if !strings.Contains(cypher, "relationships(path)") {
+				return nil, nil
+			}
+			// One impacted path carrying three edges of the same type/reason/depth:
+			// two with confidence 0.0 (must collapse) and one with confidence unset
+			// (must stay distinct from the 0.0 edges).
+			return []map[string]any{
+				{"id": "repo:x", "name": "x", "labels": []any{"Repository"}, "depth": int64(1), "rels": []any{
+					map[string]any{"type": "DEPENDS_ON", "properties": map[string]any{"confidence": 0.0, "reason": "r"}},
+					map[string]any{"type": "DEPENDS_ON", "properties": map[string]any{"reason": "r"}},
+					map[string]any{"type": "DEPENDS_ON", "properties": map[string]any{"confidence": 0.0, "reason": "r"}},
+				}},
+			}, nil
+		},
+	}
+	handler := &ImpactHandler{Neo4j: graph}
+	rows, _, err := handler.findChangeSurfaceImpactRows(t.Context(), changeSurfaceTargetCandidate{ID: "wl:s", Labels: []string{"Workload"}}, "", 4, 50)
+	if err != nil {
+		t.Fatalf("findChangeSurfaceImpactRows() error = %v", err)
+	}
+	if len(rows) != 2 {
+		t.Fatalf("got %d entries, want 2 (the two 0.0 edges collapse; the unset edge stays distinct): %#v", len(rows), rows)
+	}
+	var sawZero, sawUnset bool
+	for _, row := range rows {
+		if _, ok := row["confidence"]; ok {
+			sawZero = true
+		} else {
+			sawUnset = true
+		}
+	}
+	if !sawZero || !sawUnset {
+		t.Fatalf("want one 0.0-confidence entry and one unset-confidence entry, got %#v", rows)
 	}
 }
 

@@ -146,4 +146,37 @@ ORDER BY depth, impacted.id`, map[string]any{"target_id": startID})
 	if !crContains {
 		t.Errorf("legacy missing cr CONTAINS provenance: %#v", legacy)
 	}
+
+	// Environment-scoped read: the server-side environment predicate must filter
+	// live alongside the relationships(path) projection (the coalesce/OR form that
+	// dropped every row is avoided) and keep only prod/unset-environment impacted.
+	// r1 and cr are both environment=prod, so a staging scope returns nothing.
+	prodInvestigate, _, err := handler.changeSurfaceImpactRows(ctx, changeSurfaceInvestigationRequest{MaxDepth: 4, Limit: 50, Environment: "prod"}, target)
+	if err != nil {
+		t.Fatalf("investigate(env=prod) error = %v", err)
+	}
+	if len(prodInvestigate) != 2 {
+		t.Errorf("investigate(env=prod) = %d rows, want 2 (r1, cr both prod)", len(prodInvestigate))
+	}
+	stagingInvestigate, _, err := handler.changeSurfaceImpactRows(ctx, changeSurfaceInvestigationRequest{MaxDepth: 4, Limit: 50, Environment: "staging"}, target)
+	if err != nil {
+		t.Fatalf("investigate(env=staging) error = %v", err)
+	}
+	if len(stagingInvestigate) != 0 {
+		t.Errorf("investigate(env=staging) = %d rows, want 0 (no staging impacted)", len(stagingInvestigate))
+	}
+	prodLegacy, _, err := handler.findChangeSurfaceImpactRows(ctx, target, "prod", 4, 50)
+	if err != nil {
+		t.Fatalf("legacy(env=prod) error = %v", err)
+	}
+	if len(prodLegacy) == 0 {
+		t.Errorf("legacy(env=prod) returned no rows, want prod provenance (server-side env predicate must not drop all rows)")
+	}
+	stagingLegacy, _, err := handler.findChangeSurfaceImpactRows(ctx, target, "staging", 4, 50)
+	if err != nil {
+		t.Fatalf("legacy(env=staging) error = %v", err)
+	}
+	if len(stagingLegacy) != 0 {
+		t.Errorf("legacy(env=staging) = %d rows, want 0", len(stagingLegacy))
+	}
 }

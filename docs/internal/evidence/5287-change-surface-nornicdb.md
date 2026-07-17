@@ -51,9 +51,19 @@ Two supporting findings from the proof (recorded in the pitfalls reference):
 - A server-side environment predicate of the form `($env = '' OR
   coalesce(impacted.environment, '') = '' OR impacted.environment = $env)`
   silently drops **every** row when combined with a `relationships(path)`
-  projection on this backend. The environment filter now runs in Go (matching the
-  investigate read), so the shipped legacy query carries no `$environment`
-  predicate.
+  projection on this backend — the `$env = ''` param disjunct is the offender.
+  The narrower `(impacted.environment = $env OR coalesce(impacted.environment,
+  '') = '')` form (added only when an environment is requested) is safe with the
+  `relationships(path)` projection and is applied **server-side before LIMIT** so
+  an environment-scoped read cannot under-report, with the Go-side filter kept as
+  a re-check.
+
+- `relationships(path)` is serialized differently by the two backends: the Neo4j
+  Go driver returns `neo4j.Relationship` values (with `Type`/`Props`), while
+  NornicDB returns each relationship as a `map[string]any` with a nested
+  `properties` map. `changeSurfaceRelEdges` decodes **both** shapes so the
+  per-edge provenance survives on either backend (unit test
+  `TestChangeSurfaceRelEdgesDecodesBothBackendShapes`).
 
 ## Performance Evidence (correctness win; also faster)
 
