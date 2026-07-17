@@ -82,7 +82,6 @@ func TestImpactAnchorResolveCypherIsPerLabelUnion(t *testing.T) {
 	builders := map[string]string{
 		"resolve":   impactAnchorResolveCypher("start_id"),
 		"traversal": impactRepoTraversalCypher(8),
-		"dual":      impactDualAnchorResolveCypher(),
 	}
 	for name, q := range builders {
 		assertNoImpactLabelDisjunction(t, q)
@@ -215,21 +214,22 @@ func TestTraceResourceToCodeReturnsStartWithoutPaths(t *testing.T) {
 func TestExplainDependencyPathAnchorsResolvedEndpoints(t *testing.T) {
 	t.Parallel()
 
-	var resolveCypher, pathCypher string
+	var resolveCyphers []string
+	var pathCypher string
 	handler := &ImpactHandler{
 		Profile: ProfileLocalAuthoritative,
 		Neo4j: fakeGraphReaderWithSingle{
-			run: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
-				// The dual anchor resolver (source + target in one round-trip).
-				resolveCypher = cypher
-				return []map[string]any{
-					{"role": "source", "label": "CloudResource", "id": "resource:queue", "name": "queue", "labels": []any{"CloudResource"}},
-					{"role": "target", "label": "Repository", "id": "repo:api", "name": "api", "labels": []any{"Repository"}},
-				}, nil
-			},
-			runSingle: func(_ context.Context, cypher string, _ map[string]any) (map[string]any, error) {
-				pathCypher = cypher
-				return nil, nil // no path found in this shape assertion
+			runSingle: func(_ context.Context, cypher string, params map[string]any) (map[string]any, error) {
+				if strings.Contains(cypher, "shortestPath") {
+					pathCypher = cypher
+					return nil, nil // no path found in this shape assertion
+				}
+				// A per-label CALL{UNION} resolve, one per endpoint.
+				resolveCyphers = append(resolveCyphers, cypher)
+				if _, ok := params["source_id"]; ok {
+					return map[string]any{"label": "CloudResource", "id": "resource:queue", "name": "queue", "labels": []any{"CloudResource"}}, nil
+				}
+				return map[string]any{"label": "Repository", "id": "repo:api", "name": "api", "labels": []any{"Repository"}}, nil
 			},
 		},
 	}
@@ -243,16 +243,27 @@ func TestExplainDependencyPathAnchorsResolvedEndpoints(t *testing.T) {
 
 	handler.explainDependencyPath(rec, req)
 
-	if got := rec.Code; got != http.StatusOK {
-		t.Fatalf("status = %d, want 200; body = %s", got, rec.Body.String())
+	data := decodeImpactEnvelopeData(t, rec)
+	if len(resolveCyphers) != 2 {
+		t.Fatalf("want two per-label resolve queries (source, target), got %d", len(resolveCyphers))
 	}
-	assertNoImpactLabelDisjunction(t, resolveCypher)
-	if !strings.Contains(resolveCypher, "CALL {") {
-		t.Fatalf("dual resolve query must be a CALL{UNION}: %s", resolveCypher)
+	for _, q := range resolveCyphers {
+		assertNoImpactLabelDisjunction(t, q)
+		if !strings.Contains(q, "CALL {") {
+			t.Fatalf("resolve query must be a CALL{UNION}: %s", q)
+		}
 	}
 	assertNoImpactLabelDisjunction(t, pathCypher)
 	if !strings.Contains(pathCypher, "shortestPath((source:CloudResource {id: $source_id})-[*1..8]-(target:Repository {id: $target_id}))") {
 		t.Fatalf("shortestPath must anchor both resolved labels inline: %s", pathCypher)
+	}
+	// The handler intentionally returns "path": null when no path exists.
+	if v, ok := data["path"]; ok && v != nil {
+		t.Fatalf("path = %#v, want absent/null when no shortest path exists", v)
+	}
+	// Source and target are still resolved and returned.
+	if src, _ := data["source"].(map[string]any); StringVal(src, "id") != "resource:queue" {
+		t.Fatalf("source = %#v, want resolved resource:queue", data["source"])
 	}
 }
 

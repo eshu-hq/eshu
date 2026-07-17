@@ -7,8 +7,6 @@ import (
 	"context"
 	"fmt"
 	"strings"
-
-	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 )
 
 // impactAnchorLabels is the ordered label set the by-id impact reads anchor on,
@@ -71,23 +69,6 @@ func impactRepoTraversalCypher(depth int) string {
 		"ORDER BY depth, repo_name, repo_id\nLIMIT $limit"
 }
 
-// impactDualAnchorResolveCypher resolves both the source and the target node to
-// their labels in a single round-trip, as a CALL{UNION} of per-label
-// inline-property anchors for each role. Each matching branch returns one row
-// tagged with its role; the pinned NornicDB build matches zero rows for a label
-// disjunction, so per-label anchors are required.
-func impactDualAnchorResolveCypher() string {
-	branches := make([]string, 0, len(impactAnchorLabels)*2)
-	for _, role := range []struct{ name, param string }{{"source", "source_id"}, {"target", "target_id"}} {
-		for _, label := range impactAnchorLabels {
-			branches = append(branches, fmt.Sprintf(
-				"MATCH (n:%s {id: $%s}) RETURN '%s' AS role, '%s' AS label, n.id AS id, n.name AS name, labels(n) AS labels",
-				label, role.param, role.name, label))
-		}
-	}
-	return "CALL {\n" + strings.Join(branches, "\nUNION\n") + "\n}\nRETURN role, label, id, name, labels"
-}
-
 // resolveImpactAnchorNode resolves a by-id node to its canonical label so a
 // caller can anchor a single-label inline-property traversal. It returns nil when
 // no anchor-label node carries the id.
@@ -109,116 +90,6 @@ func resolveImpactAnchorNode(ctx context.Context, reader GraphQuery, idParam, id
 		label:  label,
 		labels: StringSliceVal(row, "labels"),
 	}, nil
-}
-
-// resolveImpactDualAnchors resolves the source and target by-id nodes to their
-// labels in a single round-trip. Either return value is nil when no anchor-label
-// node carries the corresponding id.
-func resolveImpactDualAnchors(ctx context.Context, reader GraphQuery, sourceID, targetID string) (source, target *resolvedImpactAnchor, err error) {
-	rows, err := reader.Run(ctx, impactDualAnchorResolveCypher(), map[string]any{"source_id": sourceID, "target_id": targetID})
-	if err != nil {
-		return nil, nil, err
-	}
-	for _, row := range rows {
-		anchor := &resolvedImpactAnchor{
-			id:     StringVal(row, "id"),
-			name:   StringVal(row, "name"),
-			label:  StringVal(row, "label"),
-			labels: StringSliceVal(row, "labels"),
-		}
-		if anchor.label == "" {
-			continue
-		}
-		switch StringVal(row, "role") {
-		case "source":
-			source = anchor
-		case "target":
-			target = anchor
-		}
-	}
-	return source, target, nil
-}
-
-// impactRelProvenance is one relationship's provenance decoded from a
-// relationships(path) element.
-type impactRelProvenance struct {
-	relType    string
-	confidence float64
-	hasConf    bool
-	reason     string
-}
-
-// impactRelProvenanceList decodes a relationships(path) value into per-edge
-// provenance. relationships(path) is serialized as neo4j.Relationship by the
-// Neo4j Go driver but as a map[string]any (with a nested properties map) by
-// NornicDB; both shapes are decoded. A `[rel IN relationships(path) | {…}]`
-// map-valued comprehension corrupts on the pinned NornicDB build, so the raw
-// list is unwound here instead (#5286).
-func impactRelProvenanceList(raw any) []impactRelProvenance {
-	items, ok := raw.([]any)
-	if !ok {
-		return nil
-	}
-	out := make([]impactRelProvenance, 0, len(items))
-	for _, item := range items {
-		switch rel := item.(type) {
-		case neo4jdriver.Relationship:
-			out = append(out, impactRelProvenanceFromProps(rel.Type, rel.Props))
-		case map[string]any:
-			props, _ := rel["properties"].(map[string]any)
-			out = append(out, impactRelProvenanceFromProps(StringVal(rel, "type"), props))
-		}
-	}
-	return out
-}
-
-// impactRelProvenanceFromProps builds provenance from a relationship type and its
-// property map, tolerating a nil property map.
-func impactRelProvenanceFromProps(relType string, props map[string]any) impactRelProvenance {
-	p := impactRelProvenance{relType: relType}
-	if conf, ok := props["confidence"].(float64); ok {
-		p.confidence = conf
-		p.hasConf = true
-	}
-	if reason, ok := props["reason"].(string); ok {
-		p.reason = reason
-	}
-	return p
-}
-
-// impactNodeIdentity is the id/name of a nodes(path) element.
-type impactNodeIdentity struct {
-	id   string
-	name string
-}
-
-// impactNodeIdentityList decodes a nodes(path) value into per-node identities.
-// nodes(path) is serialized as neo4j.Node by both backends (unlike
-// relationships(path)); a map[string]any fallback is kept for safety.
-func impactNodeIdentityList(raw any) []impactNodeIdentity {
-	items, ok := raw.([]any)
-	if !ok {
-		return nil
-	}
-	out := make([]impactNodeIdentity, 0, len(items))
-	for _, item := range items {
-		switch node := item.(type) {
-		case neo4jdriver.Node:
-			out = append(out, impactNodeIdentityFromProps(node.Props))
-		case map[string]any:
-			if props, ok := node["properties"].(map[string]any); ok {
-				out = append(out, impactNodeIdentityFromProps(props))
-			} else {
-				out = append(out, impactNodeIdentityFromProps(node))
-			}
-		}
-	}
-	return out
-}
-
-// impactNodeIdentityFromProps reads id/name from a node property map.
-func impactNodeIdentityFromProps(props map[string]any) impactNodeIdentity {
-	return impactNodeIdentity{id: StringVal(props, "id"), name: StringVal(props, "name")}
 }
 
 // impactTraceHops builds the trace-resource-to-code hop provenance ({type,

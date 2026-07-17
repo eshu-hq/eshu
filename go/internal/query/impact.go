@@ -170,10 +170,15 @@ func (h *ImpactHandler) explainDependencyPath(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	// Resolve source and target labels in a single round-trip with per-label
-	// inline-property anchors; a `MATCH (n:A|B|C) WHERE n.id = $id` label-
+	// Resolve the source and target labels with per-label inline-property anchors
+	// (one CALL{UNION} each); a `MATCH (n:A|B|C) WHERE n.id = $id` label-
 	// disjunction anchor matches zero rows on the pinned NornicDB build (#5286).
-	sourceNode, targetNode, err := resolveImpactDualAnchors(r.Context(), h.Neo4j, req.Source, req.Target)
+	sourceNode, err := resolveImpactAnchorNode(r.Context(), h.Neo4j, "source_id", req.Source)
+	if err != nil {
+		WriteError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	targetNode, err := resolveImpactAnchorNode(r.Context(), h.Neo4j, "target_id", req.Target)
 	if err != nil {
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return

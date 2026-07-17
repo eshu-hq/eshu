@@ -18,10 +18,15 @@ The fix (`go/internal/query/impact_anchor_resolve.go`, `impact.go`):
   `CALL{UNION}` of per-label inline-property anchors, each traversing to a
   `Repository`, in a single round-trip. Hop provenance is unwound from the raw
   `relationships(path)` list in Go.
-- **explain-dependency-path** resolves the source and target labels in one
-  `CALL{UNION}` round-trip, then runs `shortestPath` with single-label
-  inline-property anchors on both ends. Hops are built in Go by zipping
-  `nodes(path)` with `relationships(path)`.
+- **explain-dependency-path** resolves the source and target labels with a
+  per-label `CALL{UNION}` anchor each (one round-trip per endpoint), then runs
+  `shortestPath` with single-label inline-property anchors on both ends. Hops are
+  built in Go by zipping `nodes(path)` with `relationships(path)`, in path
+  traversal order (source toward target) — the pinned NornicDB does not expose
+  per-relationship start/end node identity in `relationships(path)` (only
+  `_edgeId`/`type`/`properties`), and a `startNode(rel).id`/`endNode(rel).id`
+  comprehension is mangled to null, so edge-direction endpoints are unavailable;
+  the hop `type` carries the semantic direction.
 - Both `relationships(path)` (neo4j.Relationship on Neo4j / map on NornicDB) and
   `nodes(path)` (neo4j.Node on both) are decoded across backends.
 
@@ -57,17 +62,21 @@ both handlers per iteration, through `Neo4jReader`:
 
 | path | warm median | result |
 |---|---:|---|
-| OLD disjunction shapes (trace + explain) | 543.7 µs | 0 rows / mangled hops |
-| NEW single-label shapes (trace + explain) | 924.9 µs | correct |
+| OLD disjunction shapes (trace + explain) | 463.2 µs | 0 rows / mangled hops |
+| NEW single-label shapes (trace + explain) | 979.8 µs | correct |
 
 `trace-resource-to-code` is on its own **faster** than the OLD disjunction shape
 (the folded `CALL{UNION}` traversal warm-medians ~390 µs vs ~460 µs) because it
-stays a single round-trip. `explain-dependency-path` adds one round-trip: the
-source/target labels must be resolved before `shortestPath` can anchor them
-single-label, which is the unavoidable cost of routing around the label-
-disjunction bug. Against a baseline that returns **no valid results**, this is a
-`Correctness win`; the absolute latency stays sub-millisecond, and the label
-resolves are bounded per-label indexed id lookups.
+stays a single round-trip. `explain-dependency-path` adds round-trips: the
+source and target labels are each resolved with a per-label `CALL{UNION}` before
+`shortestPath` can anchor them single-label, the unavoidable cost of routing
+around the label-disjunction bug. A single per-label `CALL{UNION}` is the shape
+the golden-corpus gate exercises (it drives `trace_resource_to_code`); a combined
+26-branch source+target resolver was tried and reverted because it did not
+resolve on the bootstrapped corpus, whereas per-endpoint 13-branch resolvers do.
+Against a baseline that returns **no valid results**, this is a `Correctness
+win`; the absolute latency stays sub-millisecond, and the label resolves are
+bounded per-label indexed id lookups.
 
 ## Observability Evidence
 
@@ -78,7 +87,7 @@ worker knob, or schema phase. Each read still runs through `Neo4jReader.Run`/
 ## Verification
 
 - `go test ./internal/query -run 'ImpactAnchor|TraceResource|ExplainDependency|DependencyPath' -count=1`
-  — resolver/traversal/dual-anchor guards (per-label, no disjunction),
+  — resolver/traversal guards (per-label, no disjunction),
   handler flows, limit/truncation, and the resolved-label shape assertions.
 - `ESHU_OCI_PROVE_LIVE=1 ESHU_NEO4J_URI=bolt://localhost:17687 go test ./internal/query -run TestLiveByIdImpactAnchorReads -count=1 -v`
   — backend-required live before/after through the real handlers.
