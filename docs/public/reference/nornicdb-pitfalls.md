@@ -519,6 +519,69 @@ passthrough + Go merge returned the same 16 buckets as the whole-graph read.
 `go test ./internal/query -run TestInfraResourceScopePredicateRendersOnlyWhenScoped
 -count=1` guards that the aggregate query stays per-label CALL-anchored.
 
+## Pitfall: Multi-Clause Read Queries Silently Corrupt The Projection
+
+### Observed shape
+
+On the pinned build a read query that places any clause (`WITH`, a second
+`MATCH`, or `OPTIONAL MATCH`) between the anchoring `MATCH` and the final
+`RETURN` routes into a string-slicing interpreter that cannot faithfully
+evaluate the projection. Measured directly over Bolt-HTTP against a seeded
+`Repository`/`DEPENDS_ON` graph:
+
+```cypher
+-- RETURN DISTINCT <expr> AS alias after a preceding clause -> LITERAL TEXT:
+MATCH (s:Repository) WHERE s.name CONTAINS $t
+OPTIONAL MATCH path=(s)<-[:DEPENDS_ON*1..5]-(a:Repository)
+RETURN DISTINCT a.name AS repo          -- value comes back as "DISTINCT a.name"
+
+-- length(path) once another clause follows the path-declaring clause -> 0 / literal:
+MATCH (s:Repository) WHERE s.name CONTAINS $t
+OPTIONAL MATCH path=(s)<-[:DEPENDS_ON*1..5]-(a:Repository)
+RETURN a.name AS repo, length(path) AS hops   -- hops = 0
+
+-- min()/max()/aggregate in a multi-clause projection -> literal "min(length(path))"
+-- WITH ... (aggregating or bare) then OPTIONAL MATCH -> zero rows (row-drop)
+-- a MAP-valued comprehension with rel-property access -> mangled:
+RETURN [rel IN relationships(path) | {c: rel.confidence}]  -- value leaks "map[…].confidence"
+-- a trailing OPTIONAL MATCH after CALL {} -> 500 "unsupported clause after CALL {}"
+```
+
+Untyped variable-length `[*1..N] WHERE all(rel IN rels WHERE type(rel)='X')`
+separately matches zero rows; typed `[:X*1..N]` works. Zero-length `*0..N`
+projects literal text for the hop-0 row.
+
+### Eshu implications
+
+`impact/blast-radius` served literal alias strings (`"DISTINCT affected.name"`)
+and `affected_count:1` for a 19-repo blast radius, and its `sql_table` branch
+hard-errored — issue #5279. The safe contract is a **single anchoring clause**:
+one `MATCH … WHERE … RETURN` with the aggregate (`min(length(path))`) and
+`ORDER BY`/`LIMIT` in that same clause, typed var-length traversal, plain value
+or SCALAR-comprehension projection (`[rel IN relationships(path) | type(rel)]`,
+`[n IN nodes(path) | n.id]` evaluate correctly; map-valued comprehensions with
+relationship-property access do not), `CALL{…UNION…}` with a plain outer
+`RETURN` for multi-branch reads, and any secondary join (tier lookup) run as a
+SEPARATE single-clause query merged in Go. See
+`go/internal/query/impact_blast_radius.go` and the guard test
+`TestBlastRadiusQueriesAreNornicDBSafe`. These shapes are also strictly more
+correct on Neo4j (`RETURN DISTINCT repo, hops` double-counts diamond-reachable
+repos and inflates `LIMIT`).
+
+This corruption compounds with the node-label-disjunction pitfall above: an
+impact read that anchors on `MATCH (n:A|B|C) WHERE n.id = $id` (e.g.
+`trace-resource-to-code`, `explain-dependency-path` via
+`impactAnchorLabelDisjunction`) is broken by BOTH bugs and returns zero rows;
+the safe fix is a per-label inline-property anchor (one `MATCH (n:Label {id:$id})`
+per label) plus the single-clause projection contract. Tracked for the
+remaining impact reads beyond blast-radius.
+
+### Validation
+
+`go test ./internal/query -run 'TestBlastRadius|TestFindBlastRadius|TestMergeBlastRadius' -count=1`
+(the query-shape guard fails on the pre-#5279 multi-clause shapes) plus the live
+Bolt-HTTP before/after in `docs/internal/evidence/5279-blast-radius-nornicdb.md`.
+
 ## When To Patch NornicDB
 
 Patch NornicDB only when evidence supports one of these:

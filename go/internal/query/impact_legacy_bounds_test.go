@@ -19,17 +19,33 @@ func TestFindBlastRadiusUsesRequestedLimitAndReportsTruncation(t *testing.T) {
 	handler := &ImpactHandler{
 		Profile: ProfileLocalAuthoritative,
 		Neo4j: fakeGraphReader{
+			// #5279: the handler now runs a bounded affected query (server-side
+			// LIMIT) and a SEPARATE tier lookup (bounded by the affected IN list,
+			// no LIMIT clause) merged in Go.
 			run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
+				if strings.Contains(cypher, "CONTAINS]-(tier:Tier)") {
+					return []map[string]any{
+						{"repo_id": "repo-payments", "tier": "edge"},
+						{"repo_id": "repo-billing", "tier": "backend"},
+						{"repo_id": "repo-ledger", "tier": "backend"},
+					}, nil
+				}
+				// Anchor on the affected-query fingerprint (typed DEPENDS_ON
+				// traversal) so this branch cannot accidentally match a future
+				// tier-lookup shape that gains a LIMIT clause.
+				if !strings.Contains(cypher, ":DEPENDS_ON*1..5") {
+					t.Fatalf("affected cypher = %q, want the typed DEPENDS_ON traversal", cypher)
+				}
 				if !strings.Contains(cypher, "LIMIT $limit") {
-					t.Fatalf("cypher = %q, want server-side LIMIT parameter", cypher)
+					t.Fatalf("affected cypher = %q, want server-side LIMIT parameter", cypher)
 				}
 				if got, want := params["limit"], 3; got != want {
-					t.Fatalf("params[limit] = %#v, want %#v", got, want)
+					t.Fatalf("affected params[limit] = %#v, want %#v (requested 2 + 1)", got, want)
 				}
 				return []map[string]any{
-					{"repo": "payments", "tier": "edge"},
-					{"repo": "billing", "tier": "backend"},
-					{"repo": "ledger", "tier": "backend"},
+					{"repo": "payments", "repo_id": "repo-payments", "hops": int64(1)},
+					{"repo": "billing", "repo_id": "repo-billing", "hops": int64(1)},
+					{"repo": "ledger", "repo_id": "repo-ledger", "hops": int64(2)},
 				}, nil
 			},
 		},
