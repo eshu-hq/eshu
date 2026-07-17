@@ -38,7 +38,7 @@ describe("retained Semantic Search workflow", () => {
       };
       const page = {
         locator: vi.fn((selector: string) => {
-          if (selector === 'input[aria-label="Repository"]') return repository;
+          if (selector === 'select[aria-label="Repository"]') return repository;
           if (selector === 'input[aria-label="Search query"]') return query;
           if (selector === ".semantic-search-form") return form;
           if (selector === ".sem-result-row") return emptyRows;

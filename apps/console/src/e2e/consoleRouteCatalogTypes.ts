@@ -13,12 +13,14 @@ export type WorkflowField =
   | {
       readonly requestKey?: string;
       readonly selector: string;
+      readonly interaction?: "fill" | "select";
       readonly value: string;
       readonly valueEnv?: never;
     }
   | {
       readonly requestKey?: string;
       readonly selector: string;
+      readonly interaction?: "fill" | "select";
       readonly value?: never;
       readonly valueEnv: string;
     };

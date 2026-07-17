@@ -12,6 +12,7 @@ export interface LocatorStub {
   innerText: ReturnType<typeof vi.fn>;
   isVisible: ReturnType<typeof vi.fn>;
   nth: ReturnType<typeof vi.fn>;
+  selectOption: ReturnType<typeof vi.fn>;
   textContent: ReturnType<typeof vi.fn>;
   waitFor: ReturnType<typeof vi.fn>;
 }
@@ -35,6 +36,7 @@ export function locatorStub(overrides: Partial<LocatorStub> = {}): LocatorStub {
     innerText: vi.fn().mockResolvedValue("live route content"),
     isVisible: vi.fn().mockResolvedValue(true),
     nth: vi.fn(),
+    selectOption: vi.fn().mockResolvedValue([]),
     textContent: vi.fn().mockResolvedValue("live route content"),
     waitFor: vi.fn().mockResolvedValue(undefined),
     ...overrides,

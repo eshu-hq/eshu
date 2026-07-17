@@ -6,12 +6,25 @@
 //   - reloading with ?languages=... in the URL restores the selection
 //   - empty query / zero results / API error states render honestly
 //   - language chips are real buttons with aria-pressed (a11y)
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import { MemoryRouter, useNavigate } from "react-router-dom";
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
+import { MemoryRouter, useLocation, useNavigate } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 
 import { SemanticSearchPage } from "./SemanticSearchPage";
 import type { EshuApiClient } from "../api/client";
+import type { RepoListItem } from "../api/repoCatalog";
+import { readyRepositoryCatalog, type RepositoryCatalogState } from "../repositoryCatalogLifecycle";
+
+const checkoutRepository = repository(
+  "repository:r_checkout",
+  "checkout-service",
+  "acme/checkout-service",
+);
+
+const defaultCatalog = readyRepositoryCatalog([
+  checkoutRepository,
+  repository("repository:r_payments", "payments-api", "acme/payments-api"),
+]);
 
 function envelope(data: unknown) {
   return {
@@ -30,7 +43,7 @@ function envelope(data: unknown) {
 function resultsResponse(overrides: Record<string, unknown> = {}) {
   return {
     query: "retry logic",
-    repo_id: "acme/checkout-service",
+    repo_id: "repository:r_checkout",
     mode: "hybrid",
     search_mode: "hybrid",
     limit: 20,
@@ -42,7 +55,7 @@ function resultsResponse(overrides: Record<string, unknown> = {}) {
         search_method: "hybrid",
         document: {
           id: "doc-1",
-          repo_id: "acme/checkout-service",
+          repo_id: "repository:r_checkout",
           source_kind: "repository_file",
           title: "retry.go",
           path: "internal/checkout/retry.go",
@@ -67,10 +80,12 @@ function resultsResponse(overrides: Record<string, unknown> = {}) {
 function renderPage(
   client: EshuApiClient | undefined,
   initialEntries: readonly string[] = ["/semantic-search"],
+  repositoryCatalog: RepositoryCatalogState = defaultCatalog,
 ) {
   return render(
     <MemoryRouter initialEntries={initialEntries as string[]}>
-      <SemanticSearchPage client={client} />
+      <LocationProbe />
+      <SemanticSearchPage client={client} repositoryCatalog={repositoryCatalog} />
     </MemoryRouter>,
   );
 }
@@ -83,8 +98,8 @@ describe("SemanticSearchPage", () => {
 
     renderPage(client);
 
-    fireEvent.change(screen.getByLabelText("Repository"), {
-      target: { value: "acme/checkout-service" },
+    fireEvent.change(screen.getByRole("combobox", { name: "Repository" }), {
+      target: { value: "repository:r_checkout" },
     });
     fireEvent.change(screen.getByLabelText("Search query"), {
       target: { value: "retry logic" },
@@ -101,7 +116,12 @@ describe("SemanticSearchPage", () => {
 
     const call = (client.post as ReturnType<typeof vi.fn>).mock.calls[0];
     expect(call[0]).toBe("/api/v0/search/semantic");
-    expect((call[1] as Record<string, unknown>).repo_id).toBe("acme/checkout-service");
+    expect((call[1] as Record<string, unknown>).repo_id).toBe("repository:r_checkout");
+    await waitFor(() =>
+      expect(screen.getByTestId("location-search")).toHaveTextContent(
+        "repo=repository%3Ar_checkout",
+      ),
+    );
     expect((call[1] as Record<string, unknown>).query).toBe("retry logic");
   });
 
@@ -172,6 +192,81 @@ describe("SemanticSearchPage", () => {
     expect((call[1] as Record<string, unknown>).languages).toEqual(["go"]);
   });
 
+  it("resolves a unique repository slug to its authorized canonical ID", async () => {
+    const client = {
+      post: vi.fn(async () => envelope(resultsResponse())),
+    } as unknown as EshuApiClient;
+
+    renderPage(client, ["/semantic-search?repo=acme%2Fcheckout-service&q=retry+logic"]);
+
+    await screen.findByText("retry.go");
+    expect(screen.getByRole("combobox", { name: "Repository" })).toHaveValue(
+      "repository:r_checkout",
+    );
+    expect(screen.getByRole("option", { name: "checkout-service" })).toBeInTheDocument();
+    const call = (client.post as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect((call[1] as Record<string, unknown>).repo_id).toBe("repository:r_checkout");
+  });
+
+  it("fails closed when a repository label is ambiguous and requires an explicit choice", async () => {
+    const client = { post: vi.fn() } as unknown as EshuApiClient;
+    const catalog = readyRepositoryCatalog([
+      repository("repository:r_one", "shared-service", "team-one/shared-service"),
+      repository("repository:r_two", "shared-service", "team-two/shared-service"),
+    ]);
+
+    renderPage(client, ["/semantic-search?repo=shared-service&q=retry+logic"], catalog);
+
+    expect(
+      await screen.findByText(/matches multiple authorized repositories/i),
+    ).toBeInTheDocument();
+    expect(client.post).not.toHaveBeenCalled();
+    const selector = screen.getByRole("combobox", { name: "Repository" });
+    expect(
+      within(selector).getByRole("option", { name: "shared-service — team-one/shared-service" }),
+    ).toBeInTheDocument();
+    expect(
+      within(selector).getByRole("option", { name: "shared-service — team-two/shared-service" }),
+    ).toBeInTheDocument();
+  });
+
+  it("does not search an unavailable repository or mislabel it as zero results", async () => {
+    const client = { post: vi.fn() } as unknown as EshuApiClient;
+
+    renderPage(client, ["/semantic-search?repo=repository%3Ar_missing&q=retry+logic"]);
+
+    expect(
+      await screen.findByText(/not present in this authorized session catalog/i),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("No results for this query.")).not.toBeInTheDocument();
+    expect(client.post).not.toHaveBeenCalled();
+  });
+
+  it("searches the catalog without dropping the current repository selection", () => {
+    const client = { post: vi.fn() } as unknown as EshuApiClient;
+    renderPage(client);
+
+    fireEvent.change(screen.getByRole("combobox", { name: "Repository" }), {
+      target: { value: "repository:r_checkout" },
+    });
+    fireEvent.change(screen.getByRole("searchbox", { name: "Search repositories" }), {
+      target: { value: "payments" },
+    });
+
+    expect(screen.getByRole("option", { name: "checkout-service" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "payments-api" })).toBeInTheDocument();
+  });
+
+  it("labels the repository search and selector independently", () => {
+    const client = { post: vi.fn() } as unknown as EshuApiClient;
+    renderPage(client);
+
+    expect(
+      screen.getByRole("searchbox", { name: "Search repositories" }).closest("label"),
+    ).toBeNull();
+    expect(screen.getByRole("combobox", { name: "Repository" }).closest("label")).toBeNull();
+  });
+
   it("renders an empty-query state when no query is bounded yet", () => {
     const client = { post: vi.fn() } as unknown as EshuApiClient;
     renderPage(client);
@@ -200,7 +295,7 @@ describe("SemanticSearchPage", () => {
       })),
     } as unknown as EshuApiClient;
 
-    renderPage(client, ["/semantic-search?repo=missing%2Frepo&q=retry"]);
+    renderPage(client, ["/semantic-search?repo=repository%3Ar_checkout&q=retry"]);
 
     expect(await screen.findByText(/repository not found/)).toBeInTheDocument();
   });
@@ -241,7 +336,7 @@ describe("SemanticSearchPage", () => {
       })),
     } as unknown as EshuApiClient;
 
-    renderPage(client, ["/semantic-search?repo=missing%2Frepo&q=retry"]);
+    renderPage(client, ["/semantic-search?repo=repository%3Ar_checkout&q=retry"]);
 
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent("repository not found");
@@ -278,7 +373,7 @@ describe("SemanticSearchPage", () => {
         initialEntries={["/semantic-search?repo=acme%2Fcheckout-service&q=retry+logic"]}
       >
         <BackToUnbounded />
-        <SemanticSearchPage client={client} />
+        <SemanticSearchPage client={client} repositoryCatalog={defaultCatalog} />
       </MemoryRouter>,
     );
 
@@ -301,3 +396,23 @@ describe("SemanticSearchPage", () => {
     expect(screen.queryByText("retry.go")).not.toBeInTheDocument();
   });
 });
+
+function repository(id: string, name: string, repoSlug: string): RepoListItem {
+  return {
+    groupKey: "source",
+    groupKind: "source",
+    groupReason: "fixture",
+    groupSource: "fixture",
+    groupTruth: "exact",
+    id,
+    isDependency: false,
+    name,
+    remoteUrl: "",
+    repoSlug,
+  };
+}
+
+function LocationProbe(): React.JSX.Element {
+  const location = useLocation();
+  return <span data-testid="location-search">{location.search}</span>;
+}

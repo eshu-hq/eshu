@@ -199,4 +199,33 @@ describe("searchSemantic", () => {
       searchSemantic(client, { repoId: "missing/repo", query: "retry" }),
     ).rejects.toBeInstanceOf(EshuEnvelopeError);
   });
+
+  it("rejects a response scoped to a different repository", async () => {
+    const client = {
+      post: vi.fn(async () =>
+        envelope({ ...responseFixture, repo_id: "repository:r_other", results: [] }),
+      ),
+    } as unknown as EshuApiClient;
+
+    await expect(
+      searchSemantic(client, { repoId: "acme/checkout-service", query: "retry" }),
+    ).rejects.toThrow("different repository");
+  });
+
+  it("rejects cross-repository result documents", async () => {
+    const crossRepositoryResult = {
+      ...responseFixture.results[0],
+      document: {
+        ...responseFixture.results[0]?.document,
+        repo_id: "repository:r_other",
+      },
+    };
+    const client = {
+      post: vi.fn(async () => envelope({ ...responseFixture, results: [crossRepositoryResult] })),
+    } as unknown as EshuApiClient;
+
+    await expect(
+      searchSemantic(client, { repoId: "acme/checkout-service", query: "retry" }),
+    ).rejects.toThrow("cross-repository");
+  });
 });

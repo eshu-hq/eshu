@@ -165,11 +165,11 @@ capped at 100 entities with explicit truncation, and the independent import-cycl
 read remains repository scoped. The page issues no second untyped relationship
 request for the same selection.
 
-Playwright trace capture is default-off because authenticated traces can retain
-bearer request headers. For a short-lived, locally protected debugging artifact,
-opt in with `ESHU_CONSOLE_E2E_TRACE=1 npm run console:e2e`; delete
-`e2e-artifacts/console-live-e2e/<ESHU_E2E_PROOF_ID>/trace.zip` immediately
-after use and never attach it to an issue or commit it.
+Semantic Search uses the authenticated repository catalog. Its searchable selector stores the canonical ID in the URL and request while rendering the human label.
+Legacy name or slug links canonicalize only for one authorized match; ambiguous or unavailable values remain explicit and never run an unscoped or false-empty search.
+
+Playwright trace capture is default-off because authenticated traces can retain bearer request headers. For a short-lived, locally protected debugging artifact, opt in with
+`ESHU_CONSOLE_E2E_TRACE=1 npm run console:e2e`; delete `e2e-artifacts/console-live-e2e/<ESHU_E2E_PROOF_ID>/trace.zip` immediately after use and never attach it to an issue or commit it.
 
 ### Exact local command sequence
 

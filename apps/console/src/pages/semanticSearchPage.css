@@ -15,17 +15,26 @@
   margin-top: 18px;
 }
 
-.semantic-search-form label {
+.semantic-search-field {
   display: grid;
   gap: 6px;
   min-width: 0;
 }
 
-.semantic-search-form label span {
+.semantic-search-field > span {
   color: var(--muted);
   font-size: 0.72rem;
   font-weight: 700;
   text-transform: uppercase;
+}
+
+.semantic-repository-selector {
+  display: grid;
+  gap: 6px;
+}
+
+.semantic-repository-state {
+  margin-top: 10px;
 }
 
 .sem-result-announce {

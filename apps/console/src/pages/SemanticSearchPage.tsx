@@ -16,7 +16,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useSearchParams } from "react-router-dom";
 
+import { SemanticRepositorySelector } from "./SemanticRepositorySelector";
 import type { EshuApiClient } from "../api/client";
+import type { RepoListItem } from "../api/repoCatalog";
 import {
   searchSemantic,
   type SemanticSearchResponse,
@@ -24,6 +26,10 @@ import {
 } from "../api/semanticSearch";
 import { Panel, TruthChip, FreshDot } from "../components/atoms";
 import { uiFresh, uiTruth } from "../console/types";
+import {
+  loadingRepositoryCatalog,
+  type RepositoryCatalogState,
+} from "../repositoryCatalogLifecycle";
 import "./semanticSearchPage.css";
 
 interface FormState {
@@ -39,15 +45,26 @@ type SearchState =
 
 export function SemanticSearchPage({
   client,
+  repositoryCatalog = loadingRepositoryCatalog,
 }: {
   readonly client?: EshuApiClient;
+  readonly repositoryCatalog?: RepositoryCatalogState;
 }): React.JSX.Element {
   const [searchParams, setSearchParams] = useSearchParams();
   const request = useMemo(() => requestFromSearch(searchParams), [searchParams]);
-  const [form, setForm] = useState<FormState>({ repoId: request.repoId, query: request.query });
+  const repositoryResolution = useMemo(
+    () => resolveRepository(repositoryCatalog, request.repoId),
+    [repositoryCatalog, request.repoId],
+  );
+  const resolvedRepository =
+    repositoryResolution.status === "resolved" ? repositoryResolution.repository : undefined;
+  const [form, setForm] = useState<FormState>({
+    repoId: resolvedRepository?.id ?? "",
+    query: request.query,
+  });
   const [result, setResult] = useState<SearchState>({ status: "idle" });
   const hasLiveClient = client !== undefined;
-  const isBounded = request.repoId.trim().length > 0 && request.query.trim().length > 0;
+  const isBounded = resolvedRepository !== undefined && request.query.trim().length > 0;
 
   // latestLoad sequences concurrent searches: rapid facet toggles or query
   // resubmits fire overlapping requests, and responses can arrive out of order.
@@ -79,9 +96,16 @@ export function SemanticSearchPage({
   );
 
   useEffect(() => {
-    setForm({ repoId: request.repoId, query: request.query });
-    if (client && isBounded) {
-      void load(request);
+    if (!resolvedRepository || request.repoId === resolvedRepository.id) return;
+    const canonical = new URLSearchParams(searchParams);
+    canonical.set("repo", resolvedRepository.id);
+    setSearchParams(canonical, { replace: true });
+  }, [request.repoId, resolvedRepository, searchParams, setSearchParams]);
+
+  useEffect(() => {
+    setForm({ repoId: resolvedRepository?.id ?? "", query: request.query });
+    if (client && isBounded && request.repoId === resolvedRepository?.id) {
+      void load({ ...request, repoId: resolvedRepository.id });
     } else {
       // Leaving bounded state (e.g. back-navigating to an unbounded URL) must
       // also invalidate any in-flight search, or its late response would still
@@ -89,7 +113,7 @@ export function SemanticSearchPage({
       latestLoad.current += 1;
       setResult({ status: "idle" });
     }
-  }, [client, isBounded, load, request]);
+  }, [client, isBounded, load, request, resolvedRepository]);
 
   // announceRef moves focus to the outcome announcement once a search settles
   // (ready or error), so a keyboard/screen-reader user who just submitted the
@@ -111,6 +135,12 @@ export function SemanticSearchPage({
     if (form.repoId.trim()) next.set("repo", form.repoId.trim());
     if (form.query.trim()) next.set("q", form.query.trim());
     setSearchParams(next);
+  }
+
+  function updateDraft(update: (current: FormState) => FormState): void {
+    latestLoad.current += 1;
+    setResult({ status: "idle" });
+    setForm(update);
   }
 
   // toggleLanguage flips one language in the URL-held selection and lets the
@@ -155,22 +185,24 @@ export function SemanticSearchPage({
       </div>
 
       <form className="semantic-search-form" onSubmit={submit} aria-label="Semantic search">
-        <label>
+        <div className="semantic-search-field">
           <span>Repository</span>
-          <input
-            aria-label="Repository"
-            className="popover-input mono"
-            value={form.repoId}
-            onChange={(event) => setForm((current) => ({ ...current, repoId: event.target.value }))}
+          <SemanticRepositorySelector
+            catalog={repositoryCatalog}
+            onChange={(repoId) => updateDraft((current) => ({ ...current, repoId }))}
+            searchHint={resolvedRepository ? "" : request.repoId}
+            selectedRepositoryId={form.repoId}
           />
-        </label>
-        <label>
+        </div>
+        <label className="semantic-search-field">
           <span>Query</span>
           <input
             aria-label="Search query"
             className="popover-input"
             value={form.query}
-            onChange={(event) => setForm((current) => ({ ...current, query: event.target.value }))}
+            onChange={(event) =>
+              updateDraft((current) => ({ ...current, query: event.target.value }))
+            }
           />
         </label>
         <button
@@ -190,7 +222,12 @@ export function SemanticSearchPage({
       {!hasLiveClient ? (
         <p className="inline-state">Live Eshu API connection unavailable.</p>
       ) : null}
-      {hasLiveClient && !isBounded ? (
+      {repositoryResolution.message && form.repoId === "" ? (
+        <p className="inline-state semantic-repository-state" role="alert">
+          {repositoryResolution.message}
+        </p>
+      ) : null}
+      {hasLiveClient && !isBounded && !repositoryResolution.message ? (
         <p className="inline-state">Enter a repository and a query to search.</p>
       ) : null}
       {result.status === "error" ? (
@@ -311,5 +348,57 @@ function requestFromSearch(params: URLSearchParams): {
       .split(",")
       .map((value) => value.trim())
       .filter((value) => value.length > 0),
+  };
+}
+
+type RepositoryResolution =
+  | { readonly status: "empty"; readonly message: string }
+  | { readonly status: "resolved"; readonly message: ""; readonly repository: RepoListItem }
+  | { readonly status: "unresolved"; readonly message: string };
+
+function resolveRepository(
+  catalog: RepositoryCatalogState,
+  requestedValue: string,
+): RepositoryResolution {
+  const requested = requestedValue.trim();
+  if (catalog.kind === "loading") {
+    return { status: "unresolved", message: "Repository catalog is still loading." };
+  }
+  if (catalog.kind === "unavailable") {
+    return {
+      status: "unresolved",
+      message: `Repository catalog unavailable: ${catalog.error}`,
+    };
+  }
+  if (catalog.repositories.length === 0) {
+    return {
+      status: "unresolved",
+      message: "No authorized repositories are available in this session.",
+    };
+  }
+  if (requested === "") return { status: "empty", message: "" };
+
+  const canonical = catalog.repositories.find((repository) => repository.id === requested);
+  if (canonical) return { status: "resolved", message: "", repository: canonical };
+
+  const aliases = catalog.repositories.filter(
+    (repository) => repository.name === requested || repository.repoSlug === requested,
+  );
+  if (aliases.length === 1 && aliases[0]) {
+    return { status: "resolved", message: "", repository: aliases[0] };
+  }
+  if (aliases.length > 1) {
+    return {
+      status: "unresolved",
+      message: `Repository label ${requested} matches multiple authorized repositories. Choose one explicitly.`,
+    };
+  }
+  const suffix =
+    catalog.completeness === "truncated"
+      ? " The session catalog is incomplete, so authorization cannot be determined."
+      : "";
+  return {
+    status: "unresolved",
+    message: `Repository ${requested} is not present in this authorized session catalog.${suffix}`,
   };
 }
