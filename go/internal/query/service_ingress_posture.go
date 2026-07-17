@@ -280,11 +280,15 @@ func plural(n int, singular, pluralForm string) string {
 
 // loadServiceIngressPosture loads the WAF/TLS protection state for a service's
 // internet-facing edge resources from the materialized graph and assembles the
-// honest posture block. It runs at most one bounded graph query, only when the
-// service has at least one internet-facing edge resource. The query matches the
-// two materialized AWS edges (AWS_wafv2_web_acl_protects_resource and
-// AWS_acm_certificate_used_by_resource) terminating on the edge resource ids, so
-// absence of an edge is reported as observed-negative, never as missing data.
+// honest posture block. It runs three bounded single-clause set queries — the
+// base set (which requested edges exist / collectorPresent), the WAF-protected
+// set, and the ACM-terminated set — only when the service has at least one
+// internet-facing edge resource, and merges them by membership in Go: an edge in
+// the base set but absent from a protection set is a genuine observed-negative,
+// distinct from an edge absent from the base set entirely (missing data). The
+// prior single multi-clause OPTIONAL MATCH aggregation is mis-executed on the
+// pinned NornicDB build (returns a null edge_id and reports every edge as
+// protected); see docs/internal/evidence/5287-ingress-posture-nornicdb.md (#5287).
 func loadServiceIngressPosture(
 	ctx context.Context,
 	graph GraphQuery,
