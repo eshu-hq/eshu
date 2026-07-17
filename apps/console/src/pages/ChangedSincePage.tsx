@@ -1,15 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 
 import { discoverDefaultChangedSinceParams } from "./changedSinceDefault";
 import { ChangedSincePacketComparison } from "./ChangedSincePacketComparison";
-import {
-  ChangedSinceRepositorySelector,
-  changedSinceRepositoryLabel,
-} from "./ChangedSinceRepositorySelector";
+import { changedSinceRepositoryLabel } from "./ChangedSinceRepositorySelector";
+import { ChangedSinceQueryForm } from "./ChangedSinceQueryForm";
 import {
   ChangedSinceCategoryRows,
-  FilterInput,
   GenerationLifecycleRows,
   generationPair,
   impactLink,
@@ -28,7 +25,6 @@ import {
   type ChangedSinceFormState,
 } from "./changedSinceQuery";
 import {
-  type ChangedSinceMode,
   type ChangedSincePageData,
   type GenerationLifecyclePage,
   loadGenerationLifecycle,
@@ -230,6 +226,7 @@ export function ChangedSincePage({
   useEffect(() => {
     setForm(request);
     if (canLoadChanges) {
+      setPage(null);
       void load(request);
     } else {
       changedRequest.current += 1;
@@ -239,7 +236,11 @@ export function ChangedSincePage({
     }
     if (canLoadGenerations) {
       const ownerKey = `${request.repository.trim()}|${request.scopeId.trim()}`;
-      if (generationsOwnerKey.current !== ownerKey) void loadGenerations(request);
+      if (generationsOwnerKey.current !== ownerKey) {
+        setGenerations(null);
+        setBaselineState("");
+        void loadGenerations(request);
+      }
     } else {
       generationsRequest.current += 1;
       generationsOwnerKey.current = "";
@@ -247,8 +248,7 @@ export function ChangedSincePage({
     }
   }, [canLoadChanges, canLoadGenerations, load, loadGenerations, request]);
 
-  function submit(event: FormEvent<HTMLFormElement>): void {
-    event.preventDefault();
+  function submit(): void {
     const params = new URLSearchParams();
     params.set("mode", form.mode);
     if (form.mode === "service") {
@@ -307,59 +307,16 @@ export function ChangedSincePage({
         <Badge tone="teal">freshness</Badge>
       </div>
 
-      <form className="changed-since-query" onSubmit={submit}>
-        <label>
-          <span>Mode</span>
-          <select
-            aria-label="Mode"
-            className="popover-input"
-            value={form.mode}
-            onChange={(event) =>
-              setForm((current) => ({ ...current, mode: event.target.value as ChangedSinceMode }))
-            }
-          >
-            <option value="repository">Repository</option>
-            <option value="service">Service</option>
-          </select>
-        </label>
-        {form.mode === "service" ? (
-          <FilterInput
-            label="Service ID"
-            value={form.serviceId}
-            onChange={(value) => setForm((current) => ({ ...current, serviceId: value }))}
-          />
-        ) : (
-          <ChangedSinceRepositorySelector
-            onChange={selectRepository}
-            repositories={repositories}
-            selectedRepositoryId={selectedRepositoryId}
-          />
-        )}
-        <FilterInput
-          label="Since generation"
-          value={form.sinceGenerationId}
-          onChange={(value) => setForm((current) => ({ ...current, sinceGenerationId: value }))}
-        />
-        {form.mode === "repository" ? (
-          <FilterInput
-            label="Since observed at"
-            value={form.sinceObservedAt}
-            onChange={(value) => setForm((current) => ({ ...current, sinceObservedAt: value }))}
-          />
-        ) : null}
-        <FilterInput
-          label="Sample limit"
-          value={form.sampleLimit}
-          onChange={(value) => setForm((current) => ({ ...current, sampleLimit: value }))}
-        />
-        <button
-          className="btn-ghost active"
-          disabled={!hasLiveClient || busy || !isBoundedChangedSince(form)}
-          type="submit"
-        >
-          {busy ? "Loading..." : "Load changes"}
-        </button>
-      </form>
+      <ChangedSinceQueryForm
+        busy={busy}
+        form={form}
+        hasLiveClient={hasLiveClient}
+        onChange={setForm}
+        onSelectRepository={selectRepository}
+        onSubmit={submit}
+        repositories={repositories}
+        selectedRepositoryId={selectedRepositoryId}
+      />
 
       {!hasLiveClient ? (
         <p className="inline-state">Live Eshu API connection unavailable.</p>

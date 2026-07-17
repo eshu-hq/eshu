@@ -160,6 +160,13 @@ The live retained-data workflow proved:
   repository-only no-baseline state without leaking the prior samples or URL
   selector.
 
+A separate component history regression covers the retained-data shape that
+the live corpus could not supply twice: populated repository A and populated
+repository B. It holds A's restored lifecycle and delta reads open, navigates
+Back from B, and asserts B's samples and lifecycle disappear before A's reads
+finish. The test failed on the stale B packet before the fix and passes after
+URL-owned state is invalidated at the start of the transition.
+
 Five warm retained reloads navigated away before each trial so prior Changed
 Since DOM could not satisfy the terminal condition. Navigation start was the
 primary start event; canonical selector ownership plus the first rendered
@@ -207,7 +214,7 @@ uv run --with mkdocs --with mkdocs-material --with pymdown-extensions \
 git diff --check
 ```
 
-The post-review focused console set passed 27 tests across five files.
+The post-review focused console set passed 28 tests across five files.
 The direct storage guard test also proves invalid missing and dual selectors
 are rejected before any SQL read is attempted. The authenticated retained-stack
 browser and live MCP workflows completed successfully before promotion.

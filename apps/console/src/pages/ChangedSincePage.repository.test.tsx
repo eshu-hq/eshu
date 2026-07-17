@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, useNavigate } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 
 import { ChangedSincePage } from "./ChangedSincePage";
@@ -228,15 +228,56 @@ describe("ChangedSincePage repository ownership", () => {
       ),
     ).toBe(false);
   });
+
+  it("clears populated evidence and lifecycle while browser Back restores another repository", async () => {
+    const slowLifecycleA = deferred<ReturnType<typeof lifecycle>>();
+    const slowChangedA = deferred<ReturnType<typeof changedPage>>();
+    let restoringA = false;
+    const get = vi.fn(async (path: string) => {
+      if (path.startsWith("/api/v0/freshness/generations")) {
+        if (path.includes("r_a") && restoringA) return slowLifecycleA.promise;
+        return lifecycle(path.includes("r_b") ? "b" : "a");
+      }
+      if (path.includes("r_a") && restoringA) return slowChangedA.promise;
+      return path.includes("r_b")
+        ? changedPage("repository:r_b", "src/payments.go")
+        : changedPage("repository:r_a", "src/old.go");
+    });
+
+    renderPage(get, undefined, true);
+    await screen.findAllByText("src/old.go");
+    fireEvent.change(screen.getByLabelText("Repository"), { target: { value: "repository:r_b" } });
+    await screen.findAllByText("src/payments.go");
+
+    restoringA = true;
+    fireEvent.click(screen.getByRole("button", { name: "Browser back" }));
+
+    expect(screen.queryByText("src/payments.go")).not.toBeInTheDocument();
+    expect(screen.queryByText("gen-b-current")).not.toBeInTheDocument();
+
+    await act(async () => {
+      slowLifecycleA.resolve(lifecycle("a"));
+      slowChangedA.resolve(changedPage("repository:r_a", "src/old.go"));
+      await Promise.all([slowLifecycleA.promise, slowChangedA.promise]);
+    });
+    expect((await screen.findAllByText("src/old.go")).length).toBeGreaterThan(0);
+  });
 });
 
 function renderPage(
   get: ReturnType<typeof vi.fn>,
   entry = "/changed-since?mode=repository&repository=repository%3Ar_a&since_generation_id=gen-a-prior",
+  withHistoryControl = false,
 ): void {
   render(
     <MemoryRouter initialEntries={[entry]}>
+      {withHistoryControl ? <HistoryBackButton /> : null}
       <ChangedSincePage client={{ get } as unknown as EshuApiClient} repositories={repositories} />
     </MemoryRouter>,
   );
+}
+
+function HistoryBackButton(): React.JSX.Element {
+  const navigate = useNavigate();
+  return <button onClick={() => navigate(-1)}>Browser back</button>;
 }
