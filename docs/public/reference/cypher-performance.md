@@ -624,6 +624,54 @@ projection remain inside the existing graph-query envelope. They add no graph
 writes, queue behavior, runtime knobs, metrics, or spans; existing per-query
 duration and error telemetry still covers every graph read.
 
+#### Repository-Scoped Non-Function Story Anchor Resolution
+
+Performance Evidence: issue
+[#5256](https://github.com/eshu-hq/eshu/issues/5256) made Code Graph send the
+selected canonical `repo_id` with its six-type relationship story. The retained
+887-repository browser proof selected an authorized `Variable` content entity
+that had no canonical graph anchor. The built API returned the correct resolved,
+zero-relationship story, but the request took 7.602292 seconds because the
+Function-only preflight did not apply: each type/direction path repeated the
+same unindexed `Variable.uid` and legacy-`id` miss.
+
+The output-preserving replacement uses the request's already-authorized,
+indexed Repository identity as the preflight seed:
+
+```cypher
+MATCH (repo:Repository {id: $repo_id})
+      -[:REPO_CONTAINS]->(:File)-[:CONTAINS]->(anchor:Variable)
+WHERE anchor.uid = $entity_id
+RETURN true AS found
+LIMIT 1
+```
+
+It checks legacy `anchor.id` only after the canonical `uid` is absent. This is
+the same ownership path and repository predicate the relationship query already
+requires for its anchor, so a miss can safely short-circuit every type/direction
+read. Unscoped non-Function stories retain the prior per-query fallback; the
+change does not introduce a broad label scan.
+
+On the same retained data and pinned NornicDB v1.1.11 image digest
+`sha256:51b6174ae65e4ce54a158ac2f9eace7d36a1971545824d22add0fe06d94c1090`,
+the old unscoped `Variable.uid` plus `Variable.id` miss took 7.839 seconds. The
+repository-anchored pair took 0.011 seconds and returned the same missing anchor.
+A populated Function resolved through the same ownership shape in 0.002
+seconds. After rebuilding the API, the exact six-type missing-Variable request
+completed in 0.084 seconds with HTTP 200, `target_resolution.status=resolved`,
+authoritative-graph truth, matching target/scope repository IDs, and zero
+relationships. A populated control completed in 0.009 seconds with the same
+repository agreement and five relationships.
+
+Accuracy Evidence: missing-anchor output stayed resolved with zero
+relationships; the populated control retained all five scoped relationships.
+Focused production-path tests cover canonical `uid`, legacy `id`, missing
+anchor, unscoped non-Function fallback, and repository-bounded query shape.
+
+No-Observability-Change: the preflight remains inside the existing graph-query
+telemetry and relationship-story HTTP duration metric. It adds no route, graph
+write, queue, worker, runtime knob, metric label, or span.
+
 #### Repository-Anchored Entity Discovery And Missing-Entity Probes
 
 The retained Code Graph bootstrap exposed another planner defect after the

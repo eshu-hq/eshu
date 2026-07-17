@@ -49,12 +49,12 @@ func (g *storyAnchorPropertyGraph) RunSingle(
 		if g.collision {
 			return map[string]any{"collision": true}, nil
 		}
-	case strings.Contains(cypher, "{uid: $entity_id}"):
+	case strings.Contains(cypher, "{uid: $entity_id}") || strings.Contains(cypher, "anchor.uid = $entity_id"):
 		g.calls = append(g.calls, "uid")
 		if g.uidFound {
 			return map[string]any{"found": true}, nil
 		}
-	case strings.Contains(cypher, "{id: $entity_id}"):
+	case strings.Contains(cypher, "{id: $entity_id}") || strings.Contains(cypher, "anchor.id = $entity_id"):
 		g.calls = append(g.calls, "id")
 		if g.idFound {
 			return map[string]any{"found": true}, nil
@@ -200,42 +200,39 @@ func TestRelationshipStoryAnchorPreflightOnlyAmortizesMultiTypeRequests(t *testi
 		}
 	})
 
-	t.Run("non-function multi-type keeps indexed-identity fallback", func(t *testing.T) {
+	t.Run("repo-scoped non-function resolves once through repository ownership", func(t *testing.T) {
 		graph := &storyAnchorPropertyGraph{}
 		handler := &CodeHandler{GraphBackend: GraphBackendNornicDB, Neo4j: graph}
 		_, _, _, err := handler.relationshipStoryRelationships(
 			context.Background(),
 			relationshipStoryRequest{
-				EntityID:          "class-target",
+				EntityID:          "variable-target",
+				RepoID:            "repository-1",
 				Direction:         "incoming",
 				RelationshipTypes: []string{"CALLS", "IMPORTS"},
 				Limit:             50,
 			},
-			&EntityContent{EntityID: "class-target", EntityType: "Class"},
+			&EntityContent{EntityID: "variable-target", EntityType: "Variable"},
 		)
 		if err != nil {
 			t.Fatalf("relationshipStoryRelationships() error = %v", err)
 		}
-		if len(graph.calls) != 0 {
-			t.Fatalf("anchor preflight calls = %v, want none without a proven Class.id index", graph.calls)
+		if got := strings.Join(graph.calls, ","); got != "uid,id" {
+			t.Fatalf("anchor preflight calls = %q, want one bounded uid/id resolution", got)
 		}
-		if len(graph.runs) != 4 {
-			t.Fatalf("relationship reads = %d, want 2 types x uid/id fallback", len(graph.runs))
+		if len(graph.runs) != 0 {
+			t.Fatalf("relationship reads = %d, want none for a confirmed missing anchor", len(graph.runs))
 		}
-		uidReads, idReads := 0, 0
-		for _, cypher := range graph.runs {
-			if !strings.Contains(cypher, "(anchor:Class") {
-				t.Fatalf("relationship read does not preserve the resolved Class label: %s", cypher)
-			}
-			if strings.Contains(cypher, "{uid: $entity_id}") {
-				uidReads++
-			}
-			if strings.Contains(cypher, "{id: $entity_id}") {
-				idReads++
-			}
+		if len(graph.cyphers) != 2 {
+			t.Fatalf("anchor preflight queries = %d, want uid and id", len(graph.cyphers))
 		}
-		if uidReads != 2 || idReads != 2 {
-			t.Fatalf("uid/id fallback reads = %d/%d, want 2/2", uidReads, idReads)
+		for _, cypher := range graph.cyphers {
+			if !strings.Contains(cypher, "MATCH (repo:Repository {id: $repo_id})-[:REPO_CONTAINS]->(:File)-[:CONTAINS]->(anchor:Variable)") {
+				t.Fatalf("anchor preflight is not repository bounded: %s", cypher)
+			}
+			if !strings.Contains(cypher, "WHERE anchor.") || strings.Contains(cypher, "), (") {
+				t.Fatalf("anchor preflight does not keep one bounded ownership path: %s", cypher)
+			}
 		}
 	})
 

@@ -258,17 +258,17 @@ describe("consoleRoutes catalog", () => {
     expect(workflow).not.toHaveProperty("requiredResponses");
   });
 
-  it("binds Code Graph candidates to bootstrap while keeping graph reads route-owned", () => {
+  it("binds Code Graph to the authorized catalog and repository-owned graph reads", () => {
     const workflow = consoleRoutes.find((route) => route.path === "/code-graph")?.workflow;
 
     expect(workflow).toMatchObject({
       kind: "state",
       requiredBootstrapResponses: [
-        { path: "/api/v0/code/dead-code", method: "POST", acceptedStatuses: [200] },
+        { path: "/api/v0/repositories", method: "GET", acceptedStatuses: [200] },
       ],
       requiredResponses: [
         {
-          path: "/api/v0/code/relationships/story",
+          path: "/api/v0/code/structure/inventory",
           method: "POST",
           acceptedStatuses: [200],
         },
@@ -278,6 +278,12 @@ describe("consoleRoutes catalog", () => {
           acceptedStatuses: [200],
         },
       ],
+      codeGraphControls: {
+        globalSearchSelector: 'input[aria-label="Search Eshu"]',
+        graphSelector: ".gcanvas",
+        repositorySelector: 'select[aria-label="Repository"]',
+        symbolSelector: 'select[aria-label="Symbol"]',
+      },
     });
   });
 

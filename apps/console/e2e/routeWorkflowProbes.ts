@@ -419,7 +419,13 @@ export async function executeRouteWorkflow(
     let result: RouteWorkflowObservation;
     switch (workflow.kind) {
       case "state":
-        result = await executeStateWorkflow(page, workflow, network, bootstrapNetwork);
+        result = await executeStateWorkflow(
+          page,
+          workflow,
+          network,
+          bootstrapNetwork,
+          waitForQuiet,
+        );
         break;
       case "fill":
         result = await executeFillWorkflow(page, workflow, waitForQuiet);

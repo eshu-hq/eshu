@@ -43,6 +43,13 @@ export interface DeadCodeWorkflowControls {
   readonly resetKindName: string;
 }
 
+export interface CodeGraphWorkflowControls {
+  readonly globalSearchSelector: string;
+  readonly graphSelector: string;
+  readonly repositorySelector: string;
+  readonly symbolSelector: string;
+}
+
 interface WorkflowResponseExpectationBase {
   readonly method: "GET" | "POST";
   readonly acceptedStatuses: readonly number[];
@@ -113,6 +120,7 @@ export type RouteWorkflowSpec = WorkflowGuards &
         readonly anySelectors: readonly string[];
         readonly emptyStates?: readonly WorkflowEmptyState[];
         readonly expectedPathPrefix?: string;
+        readonly codeGraphControls?: CodeGraphWorkflowControls;
         readonly requiredResponses?: readonly WorkflowResponseExpectation[];
         readonly requiredBootstrapResponses?: readonly WorkflowResponseExpectation[];
         readonly retainedDataRequiredResponses?: readonly WorkflowResponseExpectation[];

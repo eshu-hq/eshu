@@ -13,7 +13,9 @@ import {
   pathname,
   recordedResponseProof,
   visibleCount,
+  type WaitForApiQuiet,
 } from "./routeWorkflowProbeSupport.ts";
+import { executeCodeGraphControls } from "./codeGraphRouteWorkflowProbe.ts";
 
 /** Prove one response-backed route state or its declared truthful empty state. */
 export async function executeStateWorkflow(
@@ -21,6 +23,7 @@ export async function executeStateWorkflow(
   workflow: Extract<RouteWorkflowSpec, { readonly kind: "state" }>,
   network: readonly NetworkObservation[],
   bootstrapNetwork: readonly NetworkObservation[],
+  waitForQuiet: WaitForApiQuiet,
 ): Promise<RouteWorkflowObservation> {
   const requiredResponses = workflow.requiredResponses ?? [];
   const requiredBootstrapResponses = workflow.requiredBootstrapResponses ?? [];
@@ -74,6 +77,13 @@ export async function executeStateWorkflow(
       }
       const forbidden = await forbiddenState(page, workflow);
       if (forbidden) return failed(workflow.id, forbidden, [dataShape(selector, count)]);
+      if (workflow.codeGraphControls) {
+        const controlProof = await executeCodeGraphControls(page, workflow, waitForQuiet);
+        return {
+          ...controlProof,
+          requests: [...requests, ...(controlProof.requests ?? [])],
+        };
+      }
       return passed(
         workflow.id,
         `rendered response-backed visible ${selector}`,

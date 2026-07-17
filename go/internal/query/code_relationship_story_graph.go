@@ -23,7 +23,7 @@ func (h *CodeHandler) relationshipStoryRelationships(
 		return nil, "", "", err
 	}
 	if len(types) > 1 && !req.graphAnchorPropertyResolved && h != nil && h.Neo4j != nil && h.graphBackend() == GraphBackendNornicDB &&
-		!req.IncludeTransitive && nornicDBRelationshipStoryAnchorPreflightSupported(entity) {
+		!req.IncludeTransitive && nornicDBRelationshipStoryAnchorPreflightSupported(req, entity) {
 		resolvedReq, err := h.resolveNornicDBRelationshipStoryAnchorProperty(ctx, req, entity)
 		if err != nil {
 			return nil, "", "", err

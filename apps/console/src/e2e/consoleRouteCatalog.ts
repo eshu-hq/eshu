@@ -8,6 +8,7 @@ import { secondaryConsoleRoutes } from "./consoleRouteCatalogSecondaryRoutes";
 import type { ConsoleRoute, NetworkAllowRule } from "./consoleRouteCatalogTypes";
 
 export type {
+  CodeGraphWorkflowControls,
   ConsoleAuthMode,
   ConsoleRoute,
   NetworkAllowRule,

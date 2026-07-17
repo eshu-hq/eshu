@@ -248,6 +248,7 @@ describe("prototype documentation parity", () => {
 
   it("keeps prototype topbar search wired to live-style repository routing", () => {
     const liveApp = repoFile("apps/console/src/App.tsx");
+    const liveSearchRouting = repoFile("apps/console/src/appSearchRouting.ts");
     // Repository-loading logic was extracted to appBoot.ts to keep App.tsx under 500 lines.
     const liveAppBoot = repoFile("apps/console/src/appBoot.ts");
     const prototypeApp = repoFile("apps/console/prototype/eshu-console/console/app.jsx");
@@ -257,8 +258,10 @@ describe("prototype documentation parity", () => {
     // the snapshot makes the shell interactive (issues #3462 and #5268).
     expect(liveAppBoot).toContain("loadRepositoryCatalogState(nextClient)");
     expect(liveApp).toContain(
-      "navigate(`/repositories/${encodeURIComponent(repositoryId)}/source`)",
+      "navigate(repositorySearchDestination(location.pathname, repositoryId))",
     );
+    expect(liveSearchRouting).toContain("`/repositories/${encoded}/source`");
+    expect(liveSearchRouting).toContain('pathname === "/code-graph"');
     expect(liveApp).toContain("onKeyDown={submitSearchKey}");
     expect(liveApp).toContain("onClick={submitSearchButton}");
     expect(liveApp).toContain('className="search-submit"');

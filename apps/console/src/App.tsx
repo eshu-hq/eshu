@@ -16,6 +16,7 @@ import { createDemoApiClient, demoApiBaseUrl, demoRepositories } from "./api/dem
 import type { RepoListItem } from "./api/repoCatalog";
 import { bootFromKey, bootFromSession } from "./appBoot";
 import { AppRoutes } from "./appRoutes";
+import { repositorySearchDestination } from "./appSearchRouting";
 import { buildAllowedNavSet } from "./auth/capabilityAccess";
 import { AppSidebar } from "./components/AppSidebar";
 import { ServiceDrawer } from "./components/ServiceDrawer";
@@ -186,7 +187,7 @@ function AppShell(): React.JSX.Element {
     const needle = query.toLowerCase();
     const repositoryId = repositorySearchTarget(repositoryCatalog.repositories, needle);
     if (repositoryId) {
-      navigate(`/repositories/${encodeURIComponent(repositoryId)}/source`);
+      navigate(repositorySearchDestination(location.pathname, repositoryId));
       return;
     }
     const service = visibleModel.services.find((row) =>

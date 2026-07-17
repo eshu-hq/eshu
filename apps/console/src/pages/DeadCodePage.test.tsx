@@ -193,7 +193,7 @@ describe("DeadCodePage", () => {
     );
     expect(screen.getByRole("link", { name: "Open graph" })).toHaveAttribute(
       "href",
-      "/code-graph?candidate=function%3Af1",
+      "/code-graph?repo_id=repository%3Ar1&entity_id=function%3Af1",
     );
     expect(post).toHaveBeenLastCalledWith("/api/v0/code/dead-code", { limit: 100 });
 

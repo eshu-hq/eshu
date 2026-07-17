@@ -45,23 +45,34 @@ func (h *CodeHandler) nornicDBRelationshipStoryGraphRows(
 }
 
 // nornicDBRelationshipStoryAnchorPreflightSupported reports whether the
-// one-time uid-first preflight has a measured multi-type win. Function is the
-// only supported label: its uid lookup is indexed, and one legacy-id collision
-// scan is cheaper than repeating uid/id fallback across every type/direction.
-func nornicDBRelationshipStoryAnchorPreflightSupported(entity *EntityContent) bool {
-	return entity != nil && nornicDBGraphLabelForContentEntityType(entity.EntityType) == "Function"
+// one-time uid-first preflight has a bounded multi-type lookup. Repository-
+// scoped requests can anchor every supported entity label through the selected
+// Repository and its owned File before checking entity identity. Unscoped
+// requests retain the indexed Function-only path.
+func nornicDBRelationshipStoryAnchorPreflightSupported(
+	req relationshipStoryRequest,
+	entity *EntityContent,
+) bool {
+	if entity == nil {
+		return false
+	}
+	label := nornicDBGraphLabelForContentEntityType(entity.EntityType)
+	if label == "" {
+		return false
+	}
+	return strings.TrimSpace(req.RepoID) != "" || label == "Function"
 }
 
 // resolveNornicDBRelationshipStoryAnchorProperty selects the canonical identity
-// property for a resolved Function target once per request. Content entity IDs
-// are canonical graph uids; a legacy id lookup is used only when no uid anchor
+// property for a supported target once per request. Content entity IDs are
+// canonical graph uids; a legacy id lookup is used only when no uid anchor
 // exists, so an unrelated node whose legacy id collides cannot contribute edges.
 func (h *CodeHandler) resolveNornicDBRelationshipStoryAnchorProperty(
 	ctx context.Context,
 	req relationshipStoryRequest,
 	entity *EntityContent,
 ) (relationshipStoryRequest, error) {
-	if !nornicDBRelationshipStoryAnchorPreflightSupported(entity) {
+	if !nornicDBRelationshipStoryAnchorPreflightSupported(req, entity) {
 		return req, nil
 	}
 	entityID := strings.TrimSpace(req.EntityID)
@@ -76,9 +87,13 @@ func (h *CodeHandler) resolveNornicDBRelationshipStoryAnchorProperty(
 		return req, nil
 	}
 	params := map[string]any{"entity_id": entityID}
+	repoScoped := strings.TrimSpace(req.RepoID) != ""
+	if repoScoped {
+		params["repo_id"] = strings.TrimSpace(req.RepoID)
+	}
 	uidRow, err := h.Neo4j.RunSingle(
 		ctx,
-		"MATCH (anchor:"+entityLabel+" {uid: $entity_id}) RETURN true AS found LIMIT 1",
+		nornicDBRelationshipStoryAnchorLookupCypher(entityLabel, "uid", repoScoped),
 		params,
 	)
 	if err != nil {
@@ -91,7 +106,7 @@ func (h *CodeHandler) resolveNornicDBRelationshipStoryAnchorProperty(
 	}
 	idRow, err := h.Neo4j.RunSingle(
 		ctx,
-		"MATCH (anchor:"+entityLabel+" {id: $entity_id}) RETURN true AS found LIMIT 1",
+		nornicDBRelationshipStoryAnchorLookupCypher(entityLabel, "id", repoScoped),
 		params,
 	)
 	if err != nil {
@@ -102,6 +117,20 @@ func (h *CodeHandler) resolveNornicDBRelationshipStoryAnchorProperty(
 		req.graphAnchorProperty = "id"
 	}
 	return req, nil
+}
+
+func nornicDBRelationshipStoryAnchorLookupCypher(
+	entityLabel string,
+	property string,
+	repoScoped bool,
+) string {
+	if repoScoped {
+		return "MATCH (repo:Repository {id: $repo_id})-[:REPO_CONTAINS]->(:File)-[:CONTAINS]->" +
+			"(anchor:" + entityLabel + ") WHERE anchor." + property +
+			" = $entity_id RETURN true AS found LIMIT 1"
+	}
+	return "MATCH (anchor:" + entityLabel + " {" + property +
+		": $entity_id}) RETURN true AS found LIMIT 1"
 }
 
 func nornicDBRelationshipStoryGraphCypher(

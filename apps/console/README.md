@@ -149,11 +149,21 @@ dynamic repository, service, incident, and vulnerability identifiers are
 redacted. Headers, query values, bodies, cookies, and credentials are never
 written. These diagnostics attribute latency but do not change the route verdict.
 
-Code Graph obtains its selected candidate and source location from the
-bootstrap dead-code response. Its route-owned relationship story supplies the
-six typed edge families, related-node source metadata, and provenance. The page
-does not issue a second untyped relationship request for the same selection;
-the independent import-cycle request remains route owned.
+Code Graph uses the authenticated session repository catalog plus a bounded,
+authorized `POST /api/v0/code/structure/inventory` entity page. Dead-code
+findings remain a derived overlay and never define or replace repository scope.
+Its canonical deep link is
+`/code-graph?repo_id=<canonical-id>&entity_id=<optional-anchor>`; valid legacy
+candidate links are canonicalized, while invalid explicit values remain visibly
+unavailable. Refresh and browser history restore the URL-owned selection, and a
+repository switch clears prior graph state through loading, error, retry, empty,
+and stale-response states.
+
+The relationship story supplies six typed edge families, related-node source
+metadata, and provenance. Exact reads include canonical `repo_id`, inventory is
+capped at 100 entities with explicit truncation, and the independent import-cycle
+read remains repository scoped. The page issues no second untyped relationship
+request for the same selection.
 
 Playwright trace capture is default-off because authenticated traces can retain
 bearer request headers. For a short-lived, locally protected debugging artifact,
