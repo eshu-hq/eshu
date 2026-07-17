@@ -166,16 +166,18 @@ func TestLoadServiceIngressPostureRunsBoundedQuery(t *testing.T) {
 	var capturedIDs []string
 	graph := fakeGraphReader{
 		run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
-			if !strings.Contains(cypher, "AWS_wafv2_web_acl_protects_resource") {
-				t.Fatalf("unexpected cypher: %s", cypher)
-			}
 			ids, _ := params["edge_ids"].([]string)
 			capturedIDs = ids
-			// Graph returns a row for lb-1: collector ran and found WAF protected,
-			// TLS not terminated. This is an observed result, not collector-absent.
-			return []map[string]any{
-				{"edge_id": "lb-1", "waf_protected": true, "tls_terminated": false},
-			}, nil
+			// #5287: three single-clause set queries — base (edge exists), waf,
+			// tls. lb-1 is observed present, WAF-protected, TLS NOT terminated.
+			switch {
+			case strings.Contains(cypher, "AWS_wafv2_web_acl_protects_resource"):
+				return []map[string]any{{"edge_id": "lb-1"}}, nil // waf set
+			case strings.Contains(cypher, "AWS_acm_certificate_used_by_resource"):
+				return []map[string]any{}, nil // tls set: empty -> observed-negative
+			default:
+				return []map[string]any{{"edge_id": "lb-1"}}, nil // base set: lb-1 present
+			}
 		},
 	}
 
@@ -258,5 +260,33 @@ func TestLoadServiceIngressPosturePropagatesGraphError(t *testing.T) {
 	})
 	if !errors.Is(err, wantErr) {
 		t.Fatalf("loadServiceIngressPosture() error = %v, want %v", err, wantErr)
+	}
+}
+
+// TestIngressPostureQueriesAreSingleClause guards the #5287 fix: each ingress
+// posture query must be a single-clause set query (no OPTIONAL MATCH / WITH /
+// aggregate) — the pinned NornicDB build mis-executes the prior
+// aggregate-over-OPTIONAL-MATCH form (null edge_id, both flags true even for an
+// unprotected edge).
+func TestIngressPostureQueriesAreSingleClause(t *testing.T) {
+	t.Parallel()
+
+	for name, q := range map[string]string{
+		"base": ingressPostureBaseCypher,
+		"waf":  ingressPostureWafCypher,
+		"tls":  ingressPostureTLSCypher,
+	} {
+		if strings.Contains(q, "OPTIONAL MATCH") {
+			t.Errorf("%s ingress query must not use OPTIONAL MATCH (multi-clause defect): %s", name, q)
+		}
+		if strings.Contains(q, "WITH ") || strings.Contains(q, "count(") {
+			t.Errorf("%s ingress query must not aggregate in a multi-clause projection: %s", name, q)
+		}
+		if strings.Count(q, "MATCH ") != 1 {
+			t.Errorf("%s ingress query must be single-clause (one MATCH): %s", name, q)
+		}
+		if !strings.Contains(q, "RETURN DISTINCT") {
+			t.Errorf("%s ingress query must RETURN DISTINCT the edge id set: %s", name, q)
+		}
 	}
 }
