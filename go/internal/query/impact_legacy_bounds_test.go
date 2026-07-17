@@ -25,9 +25,9 @@ func TestFindBlastRadiusUsesRequestedLimitAndReportsTruncation(t *testing.T) {
 			run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 				if strings.Contains(cypher, "CONTAINS]-(tier:Tier)") {
 					return []map[string]any{
-						{"repo": "payments", "tier": "edge"},
-						{"repo": "billing", "tier": "backend"},
-						{"repo": "ledger", "tier": "backend"},
+						{"repo_id": "repo-payments", "tier": "edge"},
+						{"repo_id": "repo-billing", "tier": "backend"},
+						{"repo_id": "repo-ledger", "tier": "backend"},
 					}, nil
 				}
 				// Anchor on the affected-query fingerprint (typed DEPENDS_ON

@@ -63,14 +63,18 @@ LIMIT $limit`
 // by the matched CrossplaneXRD (xrd <- claim <- file <- repo). The repo is
 // bound through the REPO_CONTAINS chain (the previous shape left `affected`
 // unbound, cartesian-joining every Tier on Neo4j and leaking literal text on
-// NornicDB). Plain value projection; dedup in Go.
+// NornicDB). A repo holding several matching claims is collapsed to ONE row via
+// `min(claim.name)` (a representative claim) so `LIMIT` bounds the unique-repo
+// count rather than the (repo, claim) pair count — the same dedup-before-LIMIT
+// concern the sql_table branch handles with over-fetch, closed here in-query
+// because crossplane has no `CALL {}` blocking the aggregation.
 const blastRadiusCrossplaneCypher = `MATCH (xrd:CrossplaneXRD)
 WHERE xrd.kind CONTAINS $target_name OR xrd.name CONTAINS $target_name
 MATCH (claim:CrossplaneClaim)-[:SATISFIED_BY]->(xrd)
 MATCH (f:File)-[:CONTAINS]->(claim)
 MATCH (repo:Repository)-[:REPO_CONTAINS]->(f)
-RETURN repo.name AS repo, repo.id AS repo_id, claim.name AS claim
-ORDER BY repo, claim
+RETURN repo.name AS repo, repo.id AS repo_id, min(claim.name) AS claim
+ORDER BY repo
 LIMIT $limit`
 
 // blastRadiusSqlTableBranches is the number of UNION branches in
@@ -108,13 +112,15 @@ ORDER BY hops, repo
 LIMIT $limit`
 
 // blastRadiusTierLookupCypher resolves the deployment Tier (name + risk) for a
-// bounded set of affected repositories. Kept a SEPARATE single-clause query:
-// folding it into the affected query as a trailing OPTIONAL MATCH re-triggers
-// the multi-clause literal-text / row-drop defects on this build. The IN list
-// is bounded by the response limit, so the payload stays bounded.
+// bounded set of affected repositories, keyed on the concrete repo `id` (not
+// name — names are not unique, which is why the dependents traversal anchors on
+// id) so tier/risk is never mis-attributed to a same-named unrelated repo. Kept
+// a SEPARATE single-clause query: folding it into the affected query as a
+// trailing OPTIONAL MATCH re-triggers the multi-clause literal-text / row-drop
+// defects on this build. The IN list is bounded by the response limit.
 const blastRadiusTierLookupCypher = `MATCH (a:Repository)<-[:CONTAINS]-(tier:Tier)
-WHERE a.name IN $repo_names
-RETURN a.name AS repo, tier.name AS tier, tier.risk_level AS risk`
+WHERE a.id IN $repo_ids
+RETURN a.id AS repo_id, tier.name AS tier, tier.risk_level AS risk`
 
 // findBlastRadius analyzes the blast radius for a target entity.
 // POST /api/v0/impact/blast-radius
@@ -244,11 +250,11 @@ func (h *ImpactHandler) blastRadiusAffected(ctx context.Context, targetType, tar
 // no-tier rather than failing the whole blast-radius read; the affected set is
 // already correct without it.
 func (h *ImpactHandler) enrichBlastRadiusTiers(ctx context.Context, affected []map[string]any) {
-	names := distinctRepoNames(affected)
-	if len(names) == 0 {
+	ids := distinctRepoIDs(affected)
+	if len(ids) == 0 {
 		return
 	}
-	rows, err := h.Neo4j.Run(ctx, blastRadiusTierLookupCypher, map[string]any{"repo_names": names})
+	rows, err := h.Neo4j.Run(ctx, blastRadiusTierLookupCypher, map[string]any{"repo_ids": ids})
 	if err != nil {
 		if h.Logger != nil {
 			h.Logger.Warn("blast-radius tier enrichment failed; returning affected repos without tier", "error", err)
@@ -257,14 +263,14 @@ func (h *ImpactHandler) enrichBlastRadiusTiers(ctx context.Context, affected []m
 	}
 	tiers := make(map[string]map[string]string, len(rows))
 	for _, row := range rows {
-		name := StringVal(row, "repo")
-		if name == "" {
+		id := StringVal(row, "repo_id")
+		if id == "" {
 			continue
 		}
-		tiers[name] = map[string]string{"tier": StringVal(row, "tier"), "risk": StringVal(row, "risk")}
+		tiers[id] = map[string]string{"tier": StringVal(row, "tier"), "risk": StringVal(row, "risk")}
 	}
 	for _, row := range affected {
-		if t, ok := tiers[StringVal(row, "repo")]; ok {
+		if t, ok := tiers[StringVal(row, "repo_id")]; ok {
 			if t["tier"] != "" {
 				row["tier"] = t["tier"]
 			}
@@ -273,12 +279,6 @@ func (h *ImpactHandler) enrichBlastRadiusTiers(ctx context.Context, affected []m
 			}
 		}
 	}
-}
-
-// distinctRepoNames returns the unique non-empty repo names from the rows,
-// preserving first-seen order so downstream ORDER BY stays deterministic.
-func distinctRepoNames(rows []map[string]any) []string {
-	return distinctFieldValues(rows, "repo")
 }
 
 // distinctRepoIDs returns the unique non-empty repo ids from the rows. Used to

@@ -37,6 +37,18 @@ func TestBlastRadiusQueriesAreNornicDBSafe(t *testing.T) {
 	if !strings.Contains(blastRadiusDependentsByIDCypher, "s.id IN $repo_ids") {
 		t.Errorf("terraform dependents query must anchor on s.id IN $repo_ids, not name: %s", blastRadiusDependentsByIDCypher)
 	}
+
+	// crossplane_xrd must collapse a multi-claim repo to one row IN-query
+	// (min(claim.name)) so LIMIT bounds unique repos, not (repo, claim) pairs
+	// (PR #5288 F1 — the sql_table dedup-before-LIMIT defect class).
+	if !strings.Contains(blastRadiusCrossplaneCypher, "min(claim.name) AS claim") {
+		t.Errorf("crossplane query must dedup repos in-query via min(claim.name): %s", blastRadiusCrossplaneCypher)
+	}
+
+	// Tier lookup must key on repo id, not name (names are not unique).
+	if !strings.Contains(blastRadiusTierLookupCypher, "a.id IN $repo_ids") {
+		t.Errorf("tier lookup must key on a.id IN $repo_ids, not name: %s", blastRadiusTierLookupCypher)
+	}
 	for name, q := range affected {
 		if strings.Contains(q, "OPTIONAL MATCH") {
 			t.Errorf("%s query must not use OPTIONAL MATCH (multi-clause literal-text / row-drop on NornicDB): %s", name, q)
@@ -107,12 +119,12 @@ func TestFindBlastRadiusRepositoryMergesAffectedAndTiers(t *testing.T) {
 					}, nil
 				case strings.Contains(cypher, "CONTAINS]-(tier:Tier)"):
 					tierCalls++
-					names, _ := params["repo_names"].([]string)
-					if len(names) != 3 {
-						t.Fatalf("tier lookup got %d repo names, want 3", len(names))
+					ids, _ := params["repo_ids"].([]string)
+					if len(ids) != 3 {
+						t.Fatalf("tier lookup got %d repo ids, want 3 (keyed on id, not name)", len(ids))
 					}
 					return []map[string]any{
-						{"repo": "web", "tier": "tier-1", "risk": "critical"},
+						{"repo_id": "repo-web", "tier": "tier-1", "risk": "critical"},
 					}, nil
 				default:
 					t.Fatalf("unexpected cypher: %s", cypher)
