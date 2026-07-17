@@ -58,10 +58,17 @@ func TestLiveOCITraceDeploymentRegistryTruth(t *testing.T) {
 		tagRef    = "ghcr.io/acme/payments-api:v1"
 	)
 
-	// Clean + seed a representative OCI registry graph.
-	for _, label := range []string{"OciRegistryRepository", "ContainerImage", "ContainerImageIndex", "ContainerImageTagObservation"} {
-		write("MATCH (n:"+label+") DETACH DELETE n", nil)
+	// Clean + seed a representative OCI registry graph. Delete ONLY the exact
+	// synthetic nodes by id/digest/ref (never a label-wide DETACH DELETE) so
+	// running this against a retained evidence graph cannot wipe production-shaped
+	// OCI rows. The same targeted cleanup runs on exit.
+	cleanup := func() {
+		write(`MATCH (n:OciRegistryRepository {uid:$uid}) DETACH DELETE n`, map[string]any{"uid": repoUID})
+		write(`MATCH (n:ContainerImage {id:$id}) DETACH DELETE n`, map[string]any{"id": imageID})
+		write(`MATCH (n:ContainerImageTagObservation {image_ref:$ref}) DETACH DELETE n`, map[string]any{"ref": tagRef})
 	}
+	cleanup()
+	defer cleanup()
 	write(`CREATE (:OciRegistryRepository {uid:$uid, registry:$reg, repository:$repo, provider:$prov})`,
 		map[string]any{"uid": repoUID, "reg": "ghcr.io", "repo": "acme/payments-api", "prov": "ghcr"})
 	write(`CREATE (:ContainerImage {id:$id, digest:$d, repository_id:$rid, media_type:$mt})`,
