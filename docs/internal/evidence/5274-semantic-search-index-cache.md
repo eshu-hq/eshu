@@ -116,6 +116,35 @@ The existing semantic-search request span now carries bounded
 Postgres store `semantic_search_snapshot`; existing document/vector stores and
 route-duration telemetry remain unchanged.
 
+## Post-merge unready-fallback correction
+
+No-Regression Evidence: the `daa097304b` (`#5293`) baseline loaded the same
+two-document corpus twice when a durable, cacheable snapshot reported disabled
+vector metadata: the failing-first regression reported `document loads = 2,
+want 1`. The corrected path reuses the first build's two documents, metadata,
+and vector-value rows for query-specific keyword fallback. The same test now
+terminates with at least one candidate, `index_unready` retrieval state, and
+exactly one document, metadata, and vector-store call. This focused store-double
+proof models the PostgreSQL adapter boundary; the production backend and
+representative retained baseline remain PostgreSQL 18.4 and the 500-row request
+bound documented above. No worker or queue participates in this read path, so
+there is no queue terminal count.
+
+Performance Evidence: the correction removes one complete bounded corpus load
+from every cache miss whose vector projection is disabled or otherwise
+terminally unready. It restores the pre-cache one-pass fallback contract rather
+than claiming a new end-to-end latency result. On the representative retained
+shape above, the avoided duplicate load is bounded to 500 document rows, 500
+metadata rows, and 500 vector rows; the regression test proves the per-store
+call count changes from two to one without changing the keyword result state.
+
+No-Observability-Change: the corrected branch keeps the existing
+`search.index_cache=bypass_unready` span attribute and existing instrumented
+document, metadata, and vector-store calls. It adds no metric, label, span,
+status field, log payload, worker, queue, or runtime knob. Reusing immutable
+build data is safe for coalesced waiters because keyword scoring remains
+query-specific and an unready build is never inserted into the cache.
+
 ## Verification
 
 ```bash

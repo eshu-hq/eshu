@@ -67,6 +67,18 @@ type semanticSearchIndexCacheBuild struct {
 	err   error
 }
 
+type semanticSearchCacheIndexUnreadyError struct {
+	build semanticSearchPersistedIndexBuild
+}
+
+func (e *semanticSearchCacheIndexUnreadyError) Error() string {
+	return errSemanticSearchCacheIndexUnready.Error()
+}
+
+func (e *semanticSearchCacheIndexUnreadyError) Unwrap() error {
+	return errSemanticSearchCacheIndexUnready
+}
+
 // semanticSearchIndexCache is a bounded process-local LRU. A build is
 // coalesced only with the same exact durable snapshot and corpus-filter key;
 // different repositories or revisions build concurrently.
@@ -178,7 +190,7 @@ func (h *PersistedLocalSemanticSearchHybrid) searchCached(
 				return nil, buildErr
 			}
 			if build.state != "ready" || build.entry == nil {
-				return nil, errSemanticSearchCacheIndexUnready
+				return nil, &semanticSearchCacheIndexUnreadyError{build: build}
 			}
 			after, loadErr := h.Snapshots.Load(ctx, h.snapshotRequest(query.ScopeID))
 			if loadErr != nil {
@@ -198,9 +210,16 @@ func (h *PersistedLocalSemanticSearchHybrid) searchCached(
 			annotateSemanticSearchIndexCache(ctx, semanticSearchCacheStateRetry)
 			continue
 		}
-		if errors.Is(err, errSemanticSearchCacheIndexUnready) {
+		var unreadyErr *semanticSearchCacheIndexUnreadyError
+		if errors.As(err, &unreadyErr) {
 			annotateSemanticSearchIndexCache(ctx, semanticSearchCacheStateBypass)
-			return h.searchUncached(ctx, query)
+			return h.keywordFallback(
+				ctx,
+				query,
+				unreadyErr.build.docs,
+				unreadyErr.build.state,
+				unreadyErr.build.rowCount,
+			)
 		}
 		return semanticSearchIndexResult{}, err
 	}
