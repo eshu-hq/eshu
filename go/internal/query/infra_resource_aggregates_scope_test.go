@@ -158,15 +158,15 @@ func TestInfraResourceScopePredicateRendersOnlyWhenScoped(t *testing.T) {
 
 	labels := allInfraLabels
 
-	unscoped := infraResourceAggregateWhereClause(labels, InfraResourceAggregateFilter{Category: ""})
+	unscoped := infraResourceAggregateBranchWhere(InfraResourceAggregateFilter{Category: ""})
 	if strings.Contains(unscoped, "$allowed_repository_ids") {
-		t.Fatalf("unscoped where clause must not bind grant arrays:\n%s", unscoped)
+		t.Fatalf("unscoped branch where clause must not bind grant arrays:\n%s", unscoped)
 	}
 	if strings.Contains(unscoped, "scopeRepo") {
-		t.Fatalf("unscoped where clause must not traverse repositories:\n%s", unscoped)
+		t.Fatalf("unscoped branch where clause must not traverse repositories:\n%s", unscoped)
 	}
 
-	scoped := infraResourceAggregateWhereClause(labels, InfraResourceAggregateFilter{
+	scoped := infraResourceAggregateBranchWhere(InfraResourceAggregateFilter{
 		AllowedRepositoryIDs: []string{"repo-team-a"},
 	})
 	for _, want := range []string{
@@ -177,16 +177,33 @@ func TestInfraResourceScopePredicateRendersOnlyWhenScoped(t *testing.T) {
 		"scopeRepo.id IN $allowed_repository_ids",
 	} {
 		if !strings.Contains(scoped, want) {
-			t.Fatalf("scoped where clause missing %q:\n%s", want, scoped)
+			t.Fatalf("scoped branch where clause missing %q:\n%s", want, scoped)
 		}
 	}
 
-	// The predicate must come after the label predicate so the scan is still
-	// anchored on the closed infra label set before the grant filter applies.
-	labelIdx := strings.Index(scoped, infraLabelPredicate(labels))
-	predIdx := strings.Index(scoped, "n.repo_id IN $allowed_repository_ids")
-	if labelIdx < 0 || predIdx < 0 || predIdx < labelIdx {
-		t.Fatalf("scope predicate must follow the label predicate:\n%s", scoped)
+	// The scan is now anchored per label via one MATCH (n:Label) branch per
+	// candidate label inside a CALL subquery, instead of a single MATCH (n)
+	// filtered by an OR of labels (#5281 / #5278). The scope predicate rides
+	// in the shared per-branch WHERE. Prove the query is label-anchored and
+	// never regresses to the unlabeled whole-graph scan.
+	cypher := infraResourceAggregatePerLabelCypher(labels, scoped,
+		"RETURN count(n) AS bucket_count", "RETURN bucket_count")
+	if !strings.HasPrefix(strings.TrimSpace(cypher), "CALL {") {
+		t.Fatalf("aggregate query must wrap per-label branches in a CALL subquery:\n%s", cypher)
+	}
+	if strings.Contains(cypher, "MATCH (n) ") {
+		t.Fatalf("aggregate query must not use an unlabeled MATCH (n) whole-graph scan:\n%s", cypher)
+	}
+	if !strings.Contains(cypher, "MATCH (n:CloudResource)") {
+		t.Fatalf("aggregate query must anchor one MATCH (n:Label) branch per candidate label:\n%s", cypher)
+	}
+	if got, want := strings.Count(cypher, "\nUNION ALL\n"), len(labels)-1; got != want {
+		t.Fatalf("aggregate query union branch count = %d, want %d (one branch per candidate label)", got, want)
+	}
+	predIdx := strings.Index(cypher, "n.repo_id IN $allowed_repository_ids")
+	branchIdx := strings.Index(cypher, "MATCH (n:CloudResource)")
+	if predIdx < 0 || branchIdx < 0 || predIdx < branchIdx {
+		t.Fatalf("scope predicate must render inside the label-anchored branches:\n%s", cypher)
 	}
 }
 
@@ -221,7 +238,7 @@ func TestGraphInfraResourceAggregateScopedQueryBindsPredicate(t *testing.T) {
 	t.Parallel()
 
 	graph := &stubInfraGraphQuery{responses: map[string][]map[string]any{
-		"RETURN count(n) AS total": {{"total": int64(5)}},
+		"RETURN bucket_count": {{"bucket_count": int64(5)}},
 	}}
 	store := NewGraphInfraResourceAggregateStore(graph)
 

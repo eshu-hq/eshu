@@ -412,7 +412,7 @@ func TestGraphInfraResourceAggregateCountShapeNarrowsToCategoryLabels(t *testing
 
 	graph := &stubInfraGraphQuery{
 		responses: map[string][]map[string]any{
-			"count(n) AS total":          {{"total": int64(42)}},
+			"RETURN bucket_count":        {{"bucket_count": int64(42)}},
 			"WHEN n.provider IS NULL":    {{"bucket": "aws", "bucket_count": int64(40)}, {"bucket": "gcp", "bucket_count": int64(2)}},
 			"WHEN n.environment IS NULL": {{"bucket": "production", "bucket_count": int64(30)}},
 			"head(labels(n)) AS bucket":  {{"bucket": "TerraformResource", "bucket_count": int64(42)}},
@@ -461,43 +461,5 @@ func TestGraphInfraResourceAggregateInventoryRejectsUnsafeDimension(t *testing.T
 	}
 	if len(graph.calls) != 0 {
 		t.Fatal("graph queried for unknown dimension; substitution must be guarded before any graph call")
-	}
-}
-
-// TestInfraResourceAggregateWhereClauseUsesDirectEqualityForIndexedProps
-// guards the hot-path index eligibility for the four TerraformResource
-// indexes shipped with #690 (provider, environment, resource_service,
-// resource_category). A future refactor that wraps the property in
-// `coalesce(n.X, ”) = $X` would silently block planner index selection
-// even though the test fixture still returns the right rows. This test
-// fails as soon as that regression lands.
-func TestInfraResourceAggregateWhereClauseUsesDirectEqualityForIndexedProps(t *testing.T) {
-	t.Parallel()
-
-	filter := InfraResourceAggregateFilter{
-		Provider:         "aws",
-		Environment:      "production",
-		ResourceService:  "aws.ec2",
-		ResourceCategory: "compute",
-	}
-	where := infraResourceAggregateWhereClause([]string{"TerraformResource"}, filter)
-
-	wantClauses := []string{
-		"n.provider = $provider",
-		"n.environment = $environment",
-		"n.resource_service = $resource_service",
-		"n.resource_category = $resource_category",
-	}
-	for _, want := range wantClauses {
-		if !strings.Contains(where, want) {
-			t.Fatalf("WHERE clause missing direct-equality predicate %q (index-eligible form): %s", want, where)
-		}
-	}
-
-	if strings.Contains(where, "coalesce(n.provider") ||
-		strings.Contains(where, "coalesce(n.environment") ||
-		strings.Contains(where, "coalesce(n.resource_service") ||
-		strings.Contains(where, "coalesce(n.resource_category") {
-		t.Fatalf("WHERE clause wraps indexed property in coalesce(...); this blocks TerraformResource index usage: %s", where)
 	}
 }

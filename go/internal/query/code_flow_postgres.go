@@ -60,6 +60,14 @@ ranked_candidates AS (
       ON generation.scope_id = fact.scope_id
      AND generation.generation_id = fact.generation_id
     WHERE fact.fact_kind = ANY($1::text[])
+      -- Literal code-flow kind conjunct (redundant with the $1 filter, whose
+      -- values codeFlowFactKinds always draws from this same set) so the
+      -- planner can prove the fact_records_code_flow_repo_idx partial-index
+      -- predicate at plan time. Without it a generic prepared plan cannot
+      -- prove $1 is limited to these kinds and silently falls back to the
+      -- all-scope over-fetch (#5280 review). Keep both: $1 selects the exact
+      -- kind subset per read, this conjunct unlocks the partial index.
+      AND fact.fact_kind IN ('code_taint_evidence', 'code_interproc_evidence', 'code_dataflow_function')
       AND fact.payload->>'repo_id' = $2
       AND generation.status IN ('active', 'superseded')
       AND generation.ingested_at <= active_scope.active_ingested_at
@@ -145,15 +153,34 @@ func (s PostgresCodeFlowStore) ListCodeFlow(ctx context.Context, filter CodeFlow
 	return model, nil
 }
 
+// codeFlowKindFactKinds maps each queryable CodeFlowKind to the fact kinds its
+// read selects. It is the single dispatch source for codeFlowFactKinds AND the
+// enumeration the lockstep coverage guard ranges
+// (TestCodeFlowSQLKeepsLiteralKindConjunctForPartialIndex), so a new CodeFlowKind
+// wired here is automatically checked against facts.CodeFlowReadFactKinds() —
+// there is no separate hand-maintained kind list a new entry could drift from.
+// Every fact kind listed here MUST be covered by facts.CodeFlowReadFactKinds()
+// (and therefore by the read's literal `fact_kind IN (...)` conjunct and the
+// fact_records_code_flow_repo_idx partial index), or the read would select a
+// kind the literal conjunct silently excludes, returning zero rows for it.
+var codeFlowKindFactKinds = map[CodeFlowKind][]string{
+	CodeFlowKindTaintPath:   {facts.CodeTaintEvidenceFactKind, facts.CodeInterprocEvidenceFactKind},
+	CodeFlowKindReachingDef: {facts.CodeDataflowFunctionFactKind},
+	CodeFlowKindCFGSummary:  {facts.CodeDataflowFunctionFactKind},
+	CodeFlowKindPDGSummary:  {facts.CodeDataflowFunctionFactKind},
+}
+
+// codeFlowFactKinds returns the fact kinds the read selects for kind, or nil for
+// an unknown kind (ListCodeFlow short-circuits on nil). It returns a fresh copy
+// of the canonical per-kind entry, never the shared map slice, so a caller that
+// sorts or appends in place cannot corrupt codeFlowKindFactKinds for later reads
+// across all endpoints.
 func codeFlowFactKinds(kind CodeFlowKind) []string {
-	switch kind {
-	case CodeFlowKindTaintPath:
-		return []string{facts.CodeTaintEvidenceFactKind, facts.CodeInterprocEvidenceFactKind}
-	case CodeFlowKindReachingDef, CodeFlowKindCFGSummary, CodeFlowKindPDGSummary:
-		return []string{facts.CodeDataflowFunctionFactKind}
-	default:
+	entry := codeFlowKindFactKinds[kind]
+	if entry == nil {
 		return nil
 	}
+	return append([]string(nil), entry...)
 }
 
 func codeFlowFunctionFromPayload(
