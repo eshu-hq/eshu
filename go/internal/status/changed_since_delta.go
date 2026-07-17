@@ -164,6 +164,13 @@ func (f ChangedSinceFilter) HasScopeSelector() bool {
 	return strings.TrimSpace(f.ScopeID) != "" || strings.TrimSpace(f.Repository) != ""
 }
 
+// HasConflictingScopeSelectors reports whether both mutually exclusive scope
+// selectors are present. Callers must fail closed rather than intersecting the
+// two values because that can retain evidence from an obsolete UI scope.
+func (f ChangedSinceFilter) HasConflictingScopeSelectors() bool {
+	return strings.TrimSpace(f.ScopeID) != "" && strings.TrimSpace(f.Repository) != ""
+}
+
 // HasSinceReference reports whether the filter names a prior generation or a
 // prior observed-at instant. A changed-since summary always requires one.
 func (f ChangedSinceFilter) HasSinceReference() bool {

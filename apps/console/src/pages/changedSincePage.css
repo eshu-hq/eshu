@@ -30,6 +30,27 @@
   text-transform: uppercase;
 }
 
+.changed-since-repository-selector {
+  display: contents;
+}
+
+.changed-since-sample-identity {
+  min-width: 0;
+}
+
+.changed-since-sample-identity summary {
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+
+.changed-since-sample-identity code {
+  color: var(--muted);
+  display: block;
+  font-size: .72rem;
+  margin-top: 4px;
+  overflow-wrap: anywhere;
+}
+
 .changed-since-grid {
   display: grid;
   gap: 16px;

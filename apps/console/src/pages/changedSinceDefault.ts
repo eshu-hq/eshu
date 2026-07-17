@@ -1,5 +1,12 @@
-import { loadGenerationLifecycle } from "../api/changedSince";
+import {
+  loadGenerationLifecycle,
+  type GenerationLifecycleLoadOptions,
+  type GenerationLifecyclePage,
+  type GenerationLifecycleQuery,
+  type GenerationLifecycleRow,
+} from "../api/changedSince";
 import type { EshuApiClient } from "../api/client";
+import { EshuEnvelopeError } from "../api/envelope";
 import type { RepoListItem } from "../api/repoCatalog";
 import {
   defaultChangedSinceParamsFromGenerations,
@@ -16,6 +23,12 @@ export interface ChangedSinceDiscoveryOptions {
   readonly signal?: AbortSignal;
 }
 
+export interface ChangedSinceDefaultSelection {
+  readonly repository: string;
+  readonly scopeId: string;
+  readonly sinceGenerationId: string;
+}
+
 // discoverDefaultChangedSinceParams finds a real, exact repository generation
 // pair without relying on the globally ordered lifecycle page. Requests run in
 // catalog-order batches so latency is bounded without changing which exact pair
@@ -24,7 +37,7 @@ export async function discoverDefaultChangedSinceParams(
   client: EshuApiClient,
   repositories: readonly RepoListItem[],
   options: ChangedSinceDiscoveryOptions = {},
-): Promise<DefaultChangedSinceParams | null> {
+): Promise<ChangedSinceDefaultSelection | null> {
   const repositoryIds = repositories
     .map((repository) => repository.id.trim())
     .filter((id, index, ids) => id !== "" && ids.indexOf(id) === index)
@@ -60,7 +73,10 @@ export async function discoverDefaultChangedSinceParams(
               { limit: 3, repository },
               { signal: controller.signal },
             );
-            return defaultChangedSinceParamsFromGenerations(lifecycle.generations);
+            const baseline = await resolveChangedSinceBaseline(client, { repository }, lifecycle, {
+              signal: controller.signal,
+            });
+            return baseline ? { ...baseline, repository } : null;
           } catch {
             // Stale and slow catalog rows fail closed within the shared budget.
             return null;
@@ -75,6 +91,95 @@ export async function discoverDefaultChangedSinceParams(
   } finally {
     clearTimeout(deadline);
     options.signal?.removeEventListener("abort", abortFromCaller);
+  }
+}
+
+// resolveChangedSinceBaseline keeps the visible lifecycle page small while
+// preserving baseline correctness when newer pending or failed rows hide the
+// active/prior pair. Status probes are sequential so default discovery still
+// honors its repository-level concurrency ceiling, and stop as soon as the
+// preferred superseded/completed/failed predecessor is proven.
+export async function resolveChangedSinceBaseline(
+  client: EshuApiClient,
+  selector: Pick<GenerationLifecycleQuery, "repository" | "scopeId">,
+  lifecycle: GenerationLifecyclePage,
+  options: GenerationLifecycleLoadOptions = {},
+): Promise<DefaultChangedSinceParams | null> {
+  const generations = [...lifecycle.generations];
+  if (!lifecycle.truncated) {
+    return defaultChangedSinceParamsFromGenerations(generations);
+  }
+
+  if (!hasActiveGeneration(generations)) {
+    mergeGenerations(generations, await loadGenerationStatus(client, selector, "active", options));
+  }
+  if (!hasActiveGeneration(generations)) return null;
+
+  for (const status of ["superseded", "completed", "failed"] as const) {
+    if (!hasPriorStatus(generations, status)) {
+      mergeGenerations(generations, await loadGenerationStatus(client, selector, status, options));
+    }
+    if (hasPriorStatus(generations, status)) {
+      return defaultChangedSinceParamsFromGenerations(generations);
+    }
+  }
+  return null;
+}
+
+async function loadGenerationStatus(
+  client: EshuApiClient,
+  selector: Pick<GenerationLifecycleQuery, "repository" | "scopeId">,
+  status: "active" | "completed" | "failed" | "superseded",
+  options: GenerationLifecycleLoadOptions,
+): Promise<readonly GenerationLifecycleRow[]> {
+  try {
+    const page = await loadGenerationLifecycle(client, { ...selector, limit: 1, status }, options);
+    return page.generations;
+  } catch (error) {
+    if (error instanceof EshuEnvelopeError && error.error.code === "scope_not_found") return [];
+    throw error;
+  }
+}
+
+function hasActiveGeneration(generations: readonly GenerationLifecycleRow[]): boolean {
+  return generations.some(
+    (generation) => generation.isActive && generation.generationId.trim() !== "",
+  );
+}
+
+function hasPriorStatus(
+  generations: readonly GenerationLifecycleRow[],
+  status: "completed" | "failed" | "superseded",
+): boolean {
+  const activeGenerationIds = new Set(
+    generations
+      .filter((generation) => generation.isActive)
+      .map((generation) => generation.generationId),
+  );
+  return generations.some(
+    (generation) =>
+      !generation.isActive &&
+      generation.status === status &&
+      generation.generationId.trim() !== "" &&
+      !activeGenerationIds.has(generation.generationId),
+  );
+}
+
+function mergeGenerations(
+  target: GenerationLifecycleRow[],
+  additions: readonly GenerationLifecycleRow[],
+): void {
+  for (const generation of additions) {
+    if (
+      target.some(
+        (existing) =>
+          existing.scopeId === generation.scopeId &&
+          existing.generationId === generation.generationId,
+      )
+    ) {
+      continue;
+    }
+    target.push(generation);
   }
 }
 

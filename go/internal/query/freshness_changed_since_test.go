@@ -16,17 +16,37 @@ type recordingChangedSinceReader struct {
 	summary    status.ChangedSinceSummary
 	err        error
 	lastFilter status.ChangedSinceFilter
+	callCount  int
 }
 
 func (r *recordingChangedSinceReader) ComputeChangedSinceDelta(
 	_ context.Context,
 	filter status.ChangedSinceFilter,
 ) (status.ChangedSinceSummary, error) {
+	r.callCount++
 	r.lastFilter = filter
 	if r.err != nil {
 		return status.ChangedSinceSummary{}, r.err
 	}
 	return r.summary, nil
+}
+
+func TestChangedSinceRejectsConflictingScopeSelectorsBeforeRead(t *testing.T) {
+	t.Parallel()
+
+	reader := &recordingChangedSinceReader{}
+	mux := newChangedSinceMux(reader)
+	w := doFreshnessRequest(
+		t,
+		mux,
+		"/api/v0/freshness/changed-since?scope_id=scope-a&repository=repository%3Ar_b&since_generation_id=gen-prior",
+	)
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400; body = %s", w.Code, w.Body.String())
+	}
+	if reader.callCount != 0 {
+		t.Fatalf("reader calls = %d, want 0 for conflicting selectors", reader.callCount)
+	}
 }
 
 func newChangedSinceMux(reader ChangedSinceReader) *http.ServeMux {

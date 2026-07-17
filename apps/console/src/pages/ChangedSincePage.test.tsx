@@ -374,11 +374,10 @@ describe("ChangedSincePage", () => {
       path.startsWith("/api/v0/freshness/changed-since"),
     );
     expect(changedSinceCall).toBeDefined();
-    expect(changedSinceCall).toContain("scope_id=git-repository-scope%3Aacme%2Fapp");
+    expect(changedSinceCall).toContain("repository=acme%2Fapp");
+    expect(changedSinceCall).not.toContain("scope_id=");
     expect(changedSinceCall).toContain("since_generation_id=gen-prior");
-    expect(screen.getByLabelText<HTMLInputElement>("Scope ID").value).toBe(
-      "git-repository-scope:acme/app",
-    );
+    expect(screen.getByLabelText<HTMLSelectElement>("Repository").value).toBe("acme/app");
     expect(screen.getByLabelText<HTMLInputElement>("Since generation").value).toBe("gen-prior");
     expect(calls[0]).toBe("/api/v0/freshness/generations?repository=acme%2Fapp&limit=3");
     await act(async () => {

@@ -39,6 +39,12 @@ func (s StatusStore) ComputeChangedSinceDelta(
 	}
 
 	filter = filter.Normalize()
+	if !filter.HasScopeSelector() {
+		return statuspkg.ChangedSinceSummary{}, fmt.Errorf("scope_id or repository is required")
+	}
+	if filter.HasConflictingScopeSelectors() {
+		return statuspkg.ChangedSinceSummary{}, fmt.Errorf("scope_id and repository are mutually exclusive")
+	}
 
 	scope, ok, err := s.resolveChangedSinceScope(ctx, filter)
 	if err != nil {
@@ -48,11 +54,15 @@ func (s StatusStore) ComputeChangedSinceDelta(
 		// Unknown scope/repository: empty ScopeID signals not-found upstream.
 		return statuspkg.ChangedSinceSummary{}, nil
 	}
+	repository := ""
+	if scope.scopeKind == "repository" {
+		repository = scope.repository
+	}
 
 	summary := statuspkg.ChangedSinceSummary{
 		ScopeID:                   scope.scopeID,
 		ScopeKind:                 scope.scopeKind,
-		Repository:                filter.Repository,
+		Repository:                repository,
 		CurrentActiveGenerationID: scope.currentGenerationID,
 		CurrentObservedAt:         statuspkg.ChangedSinceTimestamp(scope.currentObservedAt),
 		SampleLimit:               filter.SampleLimit,
@@ -129,6 +139,7 @@ func (s StatusStore) ComputeChangedSinceDelta(
 type changedSinceScope struct {
 	scopeID             string
 	scopeKind           string
+	repository          string
 	currentGenerationID string
 	currentObservedAt   time.Time
 	hasPending          bool
@@ -161,6 +172,7 @@ func (s StatusStore) resolveChangedSinceScope(
 	if err := rows.Scan(
 		&scope.scopeID,
 		&scope.scopeKind,
+		&scope.repository,
 		&scope.currentGenerationID,
 		&currentObserved,
 		&scope.hasPending,
