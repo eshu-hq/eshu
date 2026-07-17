@@ -109,6 +109,16 @@ func TestLiveByIdImpactAnchorReads(t *testing.T) {
 		t.Fatalf("trace hops = %#v, want 2 (OLD map-comprehension mangled these to empty)", p0["hops"])
 	}
 
+	// Name resolution: callers may pass the node name, not the canonical id. The
+	// start seed is named "src"; tracing by name must resolve to the same node.
+	traceByName := post("/api/v0/impact/trace-resource-to-code", `{"start":"src","limit":50}`, handler.traceResourceToCode)
+	if start, _ := traceByName["start"].(map[string]any); StringVal(start, "id") != srcID {
+		t.Errorf("trace by name start = %#v, want resolved to %s", traceByName["start"], srcID)
+	}
+	if c, _ := traceByName["count"].(float64); c != 1 {
+		t.Errorf("trace by name count = %v, want 1", traceByName["count"])
+	}
+
 	// explain-dependency-path: src -> tgt, shortest path length 2, 2 hops.
 	explain := post("/api/v0/impact/explain-dependency-path", `{"source":"`+srcID+`","target":"`+tgtID+`"}`, handler.explainDependencyPath)
 	pathInfo, ok := explain["path"].(map[string]any)

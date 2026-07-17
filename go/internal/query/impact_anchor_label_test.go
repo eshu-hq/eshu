@@ -6,6 +6,7 @@ package query
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -61,6 +62,42 @@ func TestImpactPathDecodersDecodeBothBackendShapes(t *testing.T) {
 	}
 }
 
+// TestExplainDependencyPathNullPathRecordOmitsPath proves the no-path guard is
+// robust when shortestPath returns a single null-valued record (nodes(path) IS
+// NULL) instead of zero rows: the handler must omit `path` and still return the
+// resolved source/target, not report a bogus `path: {depth: 0, hops: []}`.
+func TestExplainDependencyPathNullPathRecordOmitsPath(t *testing.T) {
+	t.Parallel()
+
+	handler := &ImpactHandler{
+		Profile: ProfileLocalAuthoritative,
+		Neo4j: fakeGraphReaderWithSingle{
+			runSingle: func(_ context.Context, cypher string, params map[string]any) (map[string]any, error) {
+				if strings.Contains(cypher, "shortestPath") {
+					// A non-nil record with null path columns (no path found).
+					return map[string]any{"depth": nil, "ns": nil, "rels": nil}, nil
+				}
+				if _, ok := params["source_id"]; ok {
+					return map[string]any{"label": "CloudResource", "id": "resource:queue", "name": "queue", "labels": []any{"CloudResource"}}, nil
+				}
+				return map[string]any{"label": "Repository", "id": "repo:api", "name": "api", "labels": []any{"Repository"}}, nil
+			},
+		},
+	}
+	req := httptest.NewRequest(http.MethodPost, "/api/v0/impact/explain-dependency-path", bytes.NewBufferString(`{"source":"resource:queue","target":"repo:api"}`))
+	req.Header.Set("Accept", EnvelopeMIMEType)
+	rec := httptest.NewRecorder()
+	handler.explainDependencyPath(rec, req)
+
+	data := decodeImpactEnvelopeData(t, rec)
+	if v, ok := data["path"]; ok && v != nil {
+		t.Fatalf("path = %#v, want absent/null for a null shortestPath record", v)
+	}
+	if src, _ := data["source"].(map[string]any); StringVal(src, "id") != "resource:queue" {
+		t.Fatalf("source = %#v, want resolved resource:queue", data["source"])
+	}
+}
+
 // assertNoImpactLabelDisjunction fails when a by-id anchor uses the label
 // disjunction (`A|B|C`), which matches zero rows on the pinned NornicDB build.
 func assertNoImpactLabelDisjunction(t *testing.T, cypher string) {
@@ -76,34 +113,36 @@ func assertNoImpactLabelDisjunction(t *testing.T, cypher string) {
 func TestImpactAnchorResolveCypherIsPerLabelUnion(t *testing.T) {
 	t.Parallel()
 
-	// Every by-id anchor builder must use per-label inline-property anchors inside
-	// a CALL{UNION}, never the label disjunction, and never a `WHERE n.id`
-	// predicate that would reintroduce the disjunction-shaped scan.
-	builders := map[string]string{
-		"resolve":   impactAnchorResolveCypher("start_id"),
-		"traversal": impactRepoTraversalCypher(8),
+	// The resolver must be a CALL{UNION} of per-label inline-property anchors,
+	// never the label disjunction, and never a `WHERE n.id` predicate that would
+	// reintroduce the disjunction-shaped scan.
+	resolve := impactAnchorResolveCypher("start_id")
+	assertNoImpactLabelDisjunction(t, resolve)
+	if !strings.Contains(resolve, "CALL {") {
+		t.Errorf("resolve must wrap the per-label union in CALL {}: %s", resolve)
 	}
-	for name, q := range builders {
-		assertNoImpactLabelDisjunction(t, q)
-		if !strings.Contains(q, "CALL {") {
-			t.Errorf("%s must wrap the per-label union in CALL {}: %s", name, q)
-		}
-		if strings.Contains(q, "WHERE") && strings.Contains(q, ".id =") {
-			t.Errorf("%s must anchor by inline property, not a WHERE id predicate: %s", name, q)
-		}
+	if strings.Contains(resolve, "WHERE") && strings.Contains(resolve, ".id =") {
+		t.Errorf("resolve must anchor by inline property, not a WHERE id predicate: %s", resolve)
 	}
+	// It must anchor every label on BOTH id and name (callers pass human names).
 	for _, label := range []string{"CloudResource", "Repository", "TerraformResource", "KubernetesWorkload"} {
-		if !strings.Contains(builders["resolve"], "MATCH (n:"+label+" {id: $start_id})") {
-			t.Errorf("resolve must anchor %s with an inline-property MATCH", label)
+		if !strings.Contains(resolve, "MATCH (n:"+label+" {id: $start_id})") {
+			t.Errorf("resolve must anchor %s by id: %s", label, resolve)
 		}
-		if !strings.Contains(builders["traversal"], "(start:"+label+" {id: $start_id})") {
-			t.Errorf("traversal must anchor %s with an inline-property MATCH", label)
+		if !strings.Contains(resolve, "MATCH (n:"+label+" {name: $start_id})") {
+			t.Errorf("resolve must anchor %s by name: %s", label, resolve)
 		}
 	}
-	// The folded traversal must project the raw relationships(path) list and the
-	// Repository target for the Go-side hop unwind.
-	if !strings.Contains(builders["traversal"], "relationships(path) AS rels") || !strings.Contains(builders["traversal"], "(repo:Repository)") {
-		t.Errorf("traversal must project relationships(path) to a Repository target: %s", builders["traversal"])
+
+	// The traversal anchors a single resolved label inline (no disjunction) and
+	// projects the raw relationships(path) list to a Repository target.
+	traversal := fmt.Sprintf(impactRepoPathCypher, "(start:Repository {id: $start_id})", 8)
+	assertNoImpactLabelDisjunction(t, traversal)
+	if strings.Count(traversal, "MATCH") != 1 {
+		t.Errorf("traversal must be a single anchoring MATCH: %s", traversal)
+	}
+	if !strings.Contains(traversal, "relationships(path) AS rels") || !strings.Contains(traversal, "(repo:Repository)") {
+		t.Errorf("traversal must project relationships(path) to a Repository target: %s", traversal)
 	}
 }
 

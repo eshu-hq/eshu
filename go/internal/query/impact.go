@@ -88,43 +88,44 @@ func (h *ImpactHandler) traceResourceToCode(w http.ResponseWriter, r *http.Reque
 	}
 	limit := normalizeImpactListLimit(req.Limit)
 
-	// Folded per-label traversal: one CALL{UNION} query anchors each candidate
-	// label inline and traverses to Repository, keeping label resolution and the
-	// traversal in a single round-trip. The pinned NornicDB build matches zero
-	// rows for a `MATCH (n:A|B|C) WHERE n.id = $id` label-disjunction anchor and
-	// mangles the map-valued `[rel IN relationships(path) | {…}]` comprehension
-	// (#5286), so each branch is a single-label inline-property anchor projecting
-	// the raw relationships(path) list, unwound into per-hop provenance in Go.
-	rows, err := h.Neo4j.Run(r.Context(), impactRepoTraversalCypher(req.MaxDepth), map[string]any{"start_id": req.Start, "limit": limit + 1})
+	// Resolve the start node's label and canonical id from the caller identifier
+	// (id or name). The pinned NornicDB build matches zero rows for a
+	// `MATCH (n:A|B|C) WHERE n.id = $id` label-disjunction anchor (#5286), so the
+	// disjunction cannot seed the traversal directly.
+	start, err := resolveImpactAnchorNode(r.Context(), h.Neo4j, "start_id", req.Start)
 	if err != nil {
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	trimmed, truncated := trimImpactRows(rows, limit)
 	startInfo := map[string]any{"id": req.Start}
-	if len(rows) > 0 {
-		startInfo["name"] = StringVal(rows[0], "start_name")
-		startInfo["labels"] = StringSliceVal(rows[0], "start_labels")
-	} else if start, rerr := resolveImpactAnchorNode(r.Context(), h.Neo4j, "start_id", req.Start); rerr != nil {
-		// No Repository paths: hydrate the start node by id so the response still
-		// identifies it.
-		WriteError(w, http.StatusInternalServerError, rerr.Error())
-		return
-	} else if start != nil {
+	paths := make([]map[string]any, 0)
+	truncated := false
+	if start != nil {
 		startInfo = map[string]any{"id": start.id, "name": start.name, "labels": start.labels}
-	}
-	paths := make([]map[string]any, 0, len(trimmed))
-	for _, row := range trimmed {
-		repoID := StringVal(row, "repo_id")
-		if repoID == "" {
-			continue
+		// Anchor the resolved label inline on the canonical id (indexed) and
+		// project the raw relationships(path) list, unwound into per-hop
+		// provenance in Go — the map-valued `[rel IN relationships(path) | {…}]`
+		// comprehension is mangled on the pinned build.
+		cypher := fmt.Sprintf(impactRepoPathCypher, start.pattern("start", "start_id"), req.MaxDepth)
+		rows, rerr := h.Neo4j.Run(r.Context(), cypher, map[string]any{"start_id": start.id, "limit": limit + 1})
+		if rerr != nil {
+			WriteError(w, http.StatusInternalServerError, rerr.Error())
+			return
 		}
-		paths = append(paths, map[string]any{
-			"repo_id":   repoID,
-			"repo_name": StringVal(row, "repo_name"),
-			"depth":     IntVal(row, "depth"),
-			"hops":      impactTraceHops(row["rels"]),
-		})
+		var trimmed []map[string]any
+		trimmed, truncated = trimImpactRows(rows, limit)
+		for _, row := range trimmed {
+			repoID := StringVal(row, "repo_id")
+			if repoID == "" {
+				continue
+			}
+			paths = append(paths, map[string]any{
+				"repo_id":   repoID,
+				"repo_name": StringVal(row, "repo_name"),
+				"depth":     IntVal(row, "depth"),
+				"hops":      impactTraceHops(row["rels"]),
+			})
+		}
 	}
 	resp := map[string]any{"start": startInfo, "paths": paths, "count": len(paths), "limit": limit, "truncated": truncated}
 	if req.Environment != "" {
@@ -198,7 +199,8 @@ func (h *ImpactHandler) explainDependencyPath(w http.ResponseWriter, r *http.Req
 	cypher := fmt.Sprintf(`MATCH path = shortestPath(%s-[*1..8]-%s)
 RETURN length(path) AS depth, nodes(path) AS ns, relationships(path) AS rels`,
 		sourceNode.pattern("source", "source_id"), targetNode.pattern("target", "target_id"))
-	row, err := h.Neo4j.RunSingle(r.Context(), cypher, map[string]any{"source_id": req.Source, "target_id": req.Target})
+	// Anchor on the resolved canonical ids (the caller may have passed a name).
+	row, err := h.Neo4j.RunSingle(r.Context(), cypher, map[string]any{"source_id": sourceNode.id, "target_id": targetNode.id})
 	if err != nil {
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -208,7 +210,12 @@ RETURN length(path) AS depth, nodes(path) AS ns, relationships(path) AS rels`,
 	var overallConfidence float64
 	var overallReason string
 
-	if row != nil {
+	// A path exists only when nodes(path) is non-empty. Guarding on the node list
+	// rather than `row != nil` keeps the "no path" case correct on a backend where
+	// shortestPath returns a single null-valued record (nodes(path) IS NULL)
+	// instead of zero rows — otherwise the handler would report a bogus
+	// `path: {depth: 0, hops: []}`.
+	if pathNodes := impactNodeIdentityList(row["ns"]); len(pathNodes) > 0 {
 		depth := IntVal(row, "depth")
 		pathInfo = map[string]any{"depth": depth}
 		hops := impactDependencyHops(row["ns"], row["rels"])

@@ -31,43 +31,36 @@ func (a resolvedImpactAnchor) pattern(variable, idParam string) string {
 	return fmt.Sprintf("(%s:%s {id: $%s})", variable, a.label, idParam)
 }
 
-// impactAnchorResolveCypher builds the CALL{UNION} that resolves a by-id node to
-// its label with one per-label inline-property anchor per UNION branch. The
-// wrapping CALL{} with a plain outer RETURN is the NornicDB-safe shape for a
-// per-label union (a bare top-level UNION mis-executes on the pinned build); a
-// per-label inline-property anchor is the NornicDB-safe by-id lookup (a label
-// disjunction matches zero rows). Only the branch whose label the node actually
-// carries returns a row.
+// impactAnchorResolveCypher builds the CALL{UNION} that resolves a node to its
+// canonical label and id from a caller-supplied identifier, matching on either
+// the node `id` or the node `name` per label. The wrapping CALL{} with a plain
+// outer RETURN is the NornicDB-safe shape for a per-label union (a bare top-level
+// UNION mis-executes on the pinned build); a per-label inline-property anchor is
+// the NornicDB-safe lookup (a label disjunction matches zero rows). Matching
+// name as well as id is required because callers (and the MCP tools) pass human
+// identifiers such as a repository name, not the hashed canonical id. Only the
+// branch whose label and property the node actually carries returns a row.
 func impactAnchorResolveCypher(idParam string) string {
-	branches := make([]string, 0, len(impactAnchorLabels))
+	branches := make([]string, 0, len(impactAnchorLabels)*2)
 	for _, label := range impactAnchorLabels {
-		branches = append(branches, fmt.Sprintf(
-			"MATCH (n:%s {id: $%s}) RETURN '%s' AS label, n.id AS id, n.name AS name, labels(n) AS labels",
-			label, idParam, label))
+		for _, prop := range []string{"id", "name"} {
+			branches = append(branches, fmt.Sprintf(
+				"MATCH (n:%s {%s: $%s}) RETURN '%s' AS label, n.id AS id, n.name AS name, labels(n) AS labels",
+				label, prop, idParam, label))
+		}
 	}
 	return "CALL {\n" + strings.Join(branches, "\nUNION\n") + "\n}\nRETURN label, id, name, labels\nLIMIT 1"
 }
 
-// impactRepoTraversalCypher builds the trace-resource-to-code traversal as a
-// CALL{UNION} of per-label inline-property anchors, each traversing to a
-// Repository. Folding the label resolution into the traversal keeps it a single
-// round-trip (only the branch whose label the start node carries returns rows),
-// and the CALL{} wrapper with a plain outer RETURN is the NornicDB-safe shape for
-// a per-label union. %d is the max traversal depth. The start label/name are
-// projected so the handler can hydrate the start node from the same query.
-func impactRepoTraversalCypher(depth int) string {
-	branches := make([]string, 0, len(impactAnchorLabels))
-	for _, label := range impactAnchorLabels {
-		branches = append(branches, fmt.Sprintf(
-			"MATCH path = (start:%s {id: $start_id})-[*1..%d]->(repo:Repository) "+
-				"RETURN repo.id AS repo_id, repo.name AS repo_name, length(path) AS depth, "+
-				"relationships(path) AS rels, labels(start) AS start_labels, start.name AS start_name",
-			label, depth))
-	}
-	return "CALL {\n" + strings.Join(branches, "\nUNION\n") + "\n}\n" +
-		"RETURN repo_id, repo_name, depth, rels, start_labels, start_name\n" +
-		"ORDER BY depth, repo_name, repo_id\nLIMIT $limit"
-}
+// impactRepoPathCypher is the trace-resource-to-code traversal from a resolved
+// start node to Repository nodes. %s is the resolved single-label inline-property
+// start pattern (anchored on the resolved canonical id, which is indexed) and %d
+// is the max traversal depth. It projects the raw relationships(path) list,
+// unwound into per-hop provenance in Go.
+const impactRepoPathCypher = `MATCH path = %s-[*1..%d]->(repo:Repository)
+RETURN repo.id AS repo_id, repo.name AS repo_name, length(path) AS depth, relationships(path) AS rels
+ORDER BY depth, repo_name, repo_id
+LIMIT $limit`
 
 // resolveImpactAnchorNode resolves a by-id node to its canonical label so a
 // caller can anchor a single-label inline-property traversal. It returns nil when
