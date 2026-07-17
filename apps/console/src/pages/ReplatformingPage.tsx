@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useSearchParams } from "react-router-dom";
 
 import type { EshuApiClient } from "../api/client";
@@ -14,61 +14,99 @@ import {
   type ReplatformingRollups,
   type ReplatformingScopeKind,
   type ReplatformingSection,
-  type ReplatformingSkippedSection
+  type ReplatformingSkippedSection,
 } from "../api/replatforming";
+import {
+  loadReplatformingSelectors,
+  type ReplatformingSelectorInventory,
+} from "../api/replatformingSelectors";
 import { Badge, FreshDot, Panel, StatTile, TruthChip } from "../components/atoms";
 import type { ConsoleModel } from "../console/types";
 import { fmt, uiFresh, uiTruth } from "../console/types";
+import { ReplatformingFilters, type ReplatformingFormState } from "./ReplatformingFilters";
 import "./replatformingPage.css";
 
-interface FormState {
-  readonly accountId: string;
-  readonly findingKinds: string;
-  readonly limit: string;
-  readonly offset: string;
-  readonly region: string;
-  readonly scopeId: string;
-  readonly scopeKind: ReplatformingScopeKind;
-}
-
-const scopeKinds: readonly ReplatformingScopeKind[] = ["account", "region", "service", "workload", "repository", "environment", "resource"];
+const scopeKinds: readonly ReplatformingScopeKind[] = ["account", "region", "service"];
 
 const staticNonGoals = [
   "does not run Terraform or any migration",
   "does not import resources or mutate cloud state",
-  "does not write user repositories"
+  "does not write user repositories",
 ] as const;
 
 export function ReplatformingPage({
   client,
-  model
+  model,
 }: {
   readonly client?: EshuApiClient;
   readonly model: ConsoleModel;
 }): React.JSX.Element {
   const [searchParams, setSearchParams] = useSearchParams();
-  const [form, setForm] = useState<FormState>(() => formFromSearch(searchParams));
+  const [form, setForm] = useState<ReplatformingFormState>(() => formFromSearch(searchParams));
+  const [inventory, setInventory] = useState<ReplatformingSelectorInventory | null>(null);
+  const [inventoryError, setInventoryError] = useState("");
+  const [inventoryLoading, setInventoryLoading] = useState(false);
   const [review, setReview] = useState<ReplatformingReview | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const requestSequence = useRef(0);
   const canLoad = model.source === "live" && client !== undefined;
 
   const runReview = useCallback(
-    async (next: FormState) => {
+    async (next: ReplatformingFormState) => {
       if (!client) return;
+      if (!hasAnchor(next)) {
+        requestSequence.current += 1;
+        setReview(null);
+        setBusy(false);
+        setError("");
+        return;
+      }
+      const requestID = requestSequence.current + 1;
+      requestSequence.current = requestID;
       setBusy(true);
       setError("");
       try {
-        setReview(await loadReplatformingReview(client, inputFromForm(next)));
+        const loaded = await loadReplatformingReview(client, inputFromForm(next));
+        if (requestSequence.current === requestID) setReview(loaded);
       } catch (loadError) {
-        setReview(null);
-        setError(loadError instanceof Error ? loadError.message : "failed to load replatforming plan");
+        if (requestSequence.current === requestID) {
+          setReview(null);
+          setError(
+            loadError instanceof Error ? loadError.message : "failed to load replatforming plan",
+          );
+        }
       } finally {
-        setBusy(false);
+        if (requestSequence.current === requestID) setBusy(false);
       }
     },
-    [client]
+    [client],
   );
+
+  useEffect(() => {
+    if (!canLoad || !client) return;
+    let active = true;
+    setInventoryLoading(true);
+    setInventoryError("");
+    void loadReplatformingSelectors(client)
+      .then((loaded) => {
+        if (active) setInventory(loaded);
+      })
+      .catch((loadError: unknown) => {
+        if (active) {
+          setInventory(null);
+          setInventoryError(
+            loadError instanceof Error ? loadError.message : "failed to load selector inventory",
+          );
+        }
+      })
+      .finally(() => {
+        if (active) setInventoryLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [canLoad, client]);
 
   useEffect(() => {
     const next = formFromSearch(searchParams);
@@ -78,14 +116,11 @@ export function ReplatformingPage({
 
   function submit(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
-    const params = new URLSearchParams();
-    params.set("scope_kind", form.scopeKind);
-    addParam(params, "scope_id", form.scopeId);
-    addParam(params, "account_id", form.accountId);
-    addParam(params, "region", form.region);
-    addParam(params, "finding_kinds", form.findingKinds);
-    if (form.limit.trim().length > 0 && form.limit.trim() !== "100") params.set("limit", form.limit.trim());
-    if (form.offset.trim().length > 0 && form.offset.trim() !== "0") params.set("offset", form.offset.trim());
+    const params = searchFromForm(form);
+    if (params.toString() === searchParams.toString()) {
+      void runReview(form);
+      return;
+    }
     setSearchParams(params);
   }
 
@@ -94,7 +129,7 @@ export function ReplatformingPage({
   const ownership = review?.ownership.status === "ready" ? review.ownership.data : null;
   const stats = useMemo(() => statRows(rollups, plan, ownership), [rollups, plan, ownership]);
   const nonGoals = plan?.nonGoals.length ? plan.nonGoals : staticNonGoals;
-  const skippedReason = allSkipped(review) ? review.rollups.reason : "";
+  const statusMessage = inventoryStatus(inventory, inventoryLoading, review, busy);
 
   return (
     <div className="page replatforming-page" style={{ maxWidth: "none" }}>
@@ -103,48 +138,48 @@ export function ReplatformingPage({
         <Badge tone="warn">read only</Badge>
       </div>
 
-      <form className="replatforming-query" onSubmit={submit}>
-        <label>
-          <span>Scope kind</span>
-          <select
-            aria-label="Scope kind"
-            className="popover-input"
-            value={form.scopeKind}
-            onChange={(event) => setForm((current) => ({ ...current, scopeKind: event.target.value as ReplatformingScopeKind }))}
-          >
-            {scopeKinds.map((kind) => <option key={kind} value={kind}>{formatLabel(kind)}</option>)}
-          </select>
-        </label>
-        <FilterInput label="Scope id" value={form.scopeId} onChange={(value) => setForm((current) => ({ ...current, scopeId: value }))} />
-        <FilterInput label="Account id" value={form.accountId} onChange={(value) => setForm((current) => ({ ...current, accountId: value }))} />
-        <FilterInput label="Region" value={form.region} onChange={(value) => setForm((current) => ({ ...current, region: value }))} />
-        <FilterInput label="Finding kinds" value={form.findingKinds} onChange={(value) => setForm((current) => ({ ...current, findingKinds: value }))} />
-        <FilterInput label="Limit" value={form.limit} onChange={(value) => setForm((current) => ({ ...current, limit: value }))} />
-        <FilterInput label="Offset" value={form.offset} onChange={(value) => setForm((current) => ({ ...current, offset: value }))} />
-        <button className="btn-ghost active" disabled={!canLoad || busy} type="submit">
-          {busy ? "Loading..." : "Review plan"}
-        </button>
-      </form>
+      <ReplatformingFilters
+        canLoad={canLoad}
+        form={form}
+        inventory={inventory}
+        onChange={setForm}
+        onSubmit={submit}
+      />
 
       {!canLoad ? <p className="inline-state">Live Eshu API connection unavailable.</p> : null}
-      {skippedReason ? <p className="inline-state">{skippedReason}</p> : null}
+      {statusMessage ? <p className="inline-state">{statusMessage}</p> : null}
+      {inventoryError ? (
+        <p className="src-err">Selector inventory unavailable: {inventoryError}</p>
+      ) : null}
       {error ? <p className="src-err">{error}</p> : null}
 
       <div className="replatforming-boundary mt">
         <strong>No-execution boundary</strong>
-        {nonGoals.map((goal) => <span key={goal}>{goal}</span>)}
+        {nonGoals.map((goal) => (
+          <span key={goal}>{goal}</span>
+        ))}
       </div>
 
       <div className="grid g-4 mt">
         {stats.map((stat) => (
-          <StatTile color={stat.color} key={stat.label} label={stat.label} sub={stat.sub} value={stat.value} />
+          <StatTile
+            color={stat.color}
+            key={stat.label}
+            label={stat.label}
+            sub={stat.sub}
+            value={stat.value}
+          />
         ))}
       </div>
 
       <div className="replatforming-grid mt">
         <Panel title="Rollup readiness" sub="Bounded drift and readiness counts">
           <SectionStatus section={review?.rollups ?? null} />
-          {rollups ? <RollupSection rollups={rollups} /> : <SkippedState review={review} section="rollups" />}
+          {rollups ? (
+            <RollupSection rollups={rollups} />
+          ) : (
+            <SkippedState review={review} section="rollups" />
+          )}
         </Panel>
         <Panel title="Migration packet" sub="Import candidates and refusal reasons">
           <SectionStatus section={review?.plan ?? null} />
@@ -155,32 +190,19 @@ export function ReplatformingPage({
       <div className="mt">
         <Panel title="Ownership packets" sub="Candidates, missing evidence, and safety gates">
           <SectionStatus section={review?.ownership ?? null} />
-          {ownership ? <OwnershipSection ownership={ownership} /> : <SkippedState review={review} section="ownership" />}
+          {ownership ? (
+            <OwnershipSection ownership={ownership} />
+          ) : (
+            <SkippedState review={review} section="ownership" />
+          )}
         </Panel>
       </div>
     </div>
   );
 }
 
-function FilterInput({
-  label,
-  onChange,
-  value
-}: {
-  readonly label: string;
-  readonly onChange: (value: string) => void;
-  readonly value: string;
-}): React.JSX.Element {
-  return (
-    <label>
-      <span>{label}</span>
-      <input aria-label={label} className="popover-input mono" onChange={(event) => onChange(event.target.value)} placeholder="optional" value={value} />
-    </label>
-  );
-}
-
 function SectionStatus<TData>({
-  section
+  section,
 }: {
   readonly section: ReplatformingSection<TData> | ReplatformingSkippedSection | null;
 }): React.JSX.Element | null {
@@ -203,29 +225,29 @@ function TruthSummary({ truth }: { readonly truth: EshuTruth | null }): React.JS
 
 function SkippedState({
   review,
-  section
+  section,
 }: {
   readonly review: ReplatformingReview | null;
   readonly section: "ownership" | "plan" | "rollups";
 }): React.JSX.Element {
   const current = review?.[section];
-  if (current?.status === "skipped") return <p className="empty">No replatforming data loaded.</p>;
-  return <p className="empty">No replatforming data loaded.</p>;
-}
-
-function allSkipped(review: ReplatformingReview | null): review is ReplatformingReview & {
-  readonly ownership: ReplatformingSkippedSection;
-  readonly plan: ReplatformingSkippedSection;
-  readonly rollups: ReplatformingSkippedSection;
-} {
-  return review?.rollups.status === "skipped" && review.plan.status === "skipped" && review.ownership.status === "skipped";
+  if (current?.status === "unavailable")
+    return <p className="empty">This section is unavailable for the selected scope.</p>;
+  if (current?.status === "skipped")
+    return <p className="empty">Choose a bounded scope to query this section.</p>;
+  return <p className="empty">Not queried yet.</p>;
 }
 
 function RollupSection({ rollups }: { readonly rollups: ReplatformingRollups }): React.JSX.Element {
   return (
     <div className="replatforming-section">
       <p>{rollups.story || "No rollup story returned."}</p>
-      <PagingNote limit={rollups.limit} nextOffset={rollups.nextOffset} offset={rollups.offset} truncated={rollups.truncated} />
+      <PagingNote
+        limit={rollups.limit}
+        nextOffset={rollups.nextOffset}
+        offset={rollups.offset}
+        truncated={rollups.truncated}
+      />
       <div className="replatforming-readiness">
         <Readiness label="Import ready" value={rollups.readinessTotals.importReady} />
         <Readiness label="Needs review" value={rollups.readinessTotals.needsReview} />
@@ -238,7 +260,13 @@ function RollupSection({ rollups }: { readonly rollups: ReplatformingRollups }):
   );
 }
 
-function Readiness({ label, value }: { readonly label: string; readonly value: number }): React.JSX.Element {
+function Readiness({
+  label,
+  value,
+}: {
+  readonly label: string;
+  readonly value: number;
+}): React.JSX.Element {
   return (
     <div>
       <strong>{fmt(value)}</strong>
@@ -247,12 +275,20 @@ function Readiness({ label, value }: { readonly label: string; readonly value: n
   );
 }
 
-function BucketGroup({ buckets, title }: { readonly buckets: readonly ReplatformingRollupBucket[]; readonly title: string }): React.JSX.Element {
+function BucketGroup({
+  buckets,
+  title,
+}: {
+  readonly buckets: readonly ReplatformingRollupBucket[];
+  readonly title: string;
+}): React.JSX.Element {
   return (
     <div className="replatforming-buckets">
       <strong>{title}</strong>
       {buckets.slice(0, 4).map((bucket) => (
-        <span key={`${title}:${bucket.key}`}>{formatLabel(bucket.key)} <b>{fmt(bucket.total)}</b></span>
+        <span key={`${title}:${bucket.key}`}>
+          {formatLabel(bucket.key)} <b>{fmt(bucket.total)}</b>
+        </span>
       ))}
       {buckets.length === 0 ? <span>no buckets</span> : null}
     </div>
@@ -263,7 +299,12 @@ function PlanSection({ plan }: { readonly plan: ReplatformingPlan }): React.JSX.
   return (
     <div className="replatforming-section">
       <p>{plan.story || "No migration packet story returned."}</p>
-      <PagingNote limit={plan.limit} nextOffset={plan.nextOffset} offset={plan.offset} truncated={plan.truncated} />
+      <PagingNote
+        limit={plan.limit}
+        nextOffset={plan.nextOffset}
+        offset={plan.offset}
+        truncated={plan.truncated}
+      />
       <div className="replatforming-readiness">
         <Readiness label="Ready imports" value={plan.readyImportCount} />
         <Readiness label="Refused imports" value={plan.refusedImportCount} />
@@ -271,10 +312,25 @@ function PlanSection({ plan }: { readonly plan: ReplatformingPlan }): React.JSX.
       </div>
       <div className="replatforming-table-wrap">
         <table className="tbl replatforming-table">
-          <thead><tr><th>Resource</th><th>Source state</th><th>Import</th><th>Wave</th></tr></thead>
+          <thead>
+            <tr>
+              <th>Resource</th>
+              <th>Source state</th>
+              <th>Import</th>
+              <th>Wave</th>
+            </tr>
+          </thead>
           <tbody>
-            {plan.items.map((item) => <PlanRow item={item} key={item.itemId} />)}
-            {plan.items.length === 0 ? <tr><td className="empty" colSpan={4}>No migration packet items returned.</td></tr> : null}
+            {plan.items.map((item) => (
+              <PlanRow item={item} key={item.itemId} />
+            ))}
+            {plan.items.length === 0 ? (
+              <tr>
+                <td className="empty" colSpan={4}>
+                  No migration packet items returned.
+                </td>
+              </tr>
+            ) : null}
           </tbody>
         </table>
       </div>
@@ -286,24 +342,46 @@ function PlanRow({ item }: { readonly item: ReplatformingPlanItem }): React.JSX.
   const refusalReason = item.importCandidate.refusalReasons[0] ?? "";
   return (
     <tr>
-      <td><CellStack title={item.resourceType || item.itemId} sub={shortStableId(item.stableId)} /></td>
-      <td><StatusPill value={item.sourceState} /></td>
       <td>
-        <span className={`replatforming-import replatforming-import-${classToken(item.importCandidate.status)}`}>
+        <CellStack title={item.resourceType || item.itemId} sub={shortStableId(item.stableId)} />
+      </td>
+      <td>
+        <StatusPill value={item.sourceState} />
+      </td>
+      <td>
+        <span
+          className={`replatforming-import replatforming-import-${classToken(item.importCandidate.status)}`}
+        >
           {formatLabel(item.importCandidate.status)}
         </span>
-        {refusalReason ? <span className="replatforming-reason">{formatLabel(refusalReason)}</span> : null}
+        {refusalReason ? (
+          <span className="replatforming-reason">{formatLabel(refusalReason)}</span>
+        ) : null}
       </td>
-      <td><CellStack title={item.waveId || "unassigned"} sub={`Gate: ${formatLabel(item.safetyGate.outcome || "unspecified")}`} /></td>
+      <td>
+        <CellStack
+          title={item.waveId || "unassigned"}
+          sub={`Gate: ${formatLabel(item.safetyGate.outcome || "unspecified")}`}
+        />
+      </td>
     </tr>
   );
 }
 
-function OwnershipSection({ ownership }: { readonly ownership: ReplatformingOwnership }): React.JSX.Element {
+function OwnershipSection({
+  ownership,
+}: {
+  readonly ownership: ReplatformingOwnership;
+}): React.JSX.Element {
   return (
     <div className="replatforming-section">
       <p>{ownership.story || "No ownership packet story returned."}</p>
-      <PagingNote limit={ownership.limit} nextOffset={ownership.nextOffset} offset={ownership.offset} truncated={ownership.truncated} />
+      <PagingNote
+        limit={ownership.limit}
+        nextOffset={ownership.nextOffset}
+        offset={ownership.offset}
+        truncated={ownership.truncated}
+      />
       <div className="replatforming-readiness">
         <Readiness label="Packets" value={ownership.packetsCount} />
         <Readiness label="Ambiguous" value={ownership.ambiguousCount} />
@@ -324,7 +402,9 @@ function OwnershipSection({ ownership }: { readonly ownership: ReplatformingOwne
               {packet.ownerCandidates.length === 0 ? <span>no candidates</span> : null}
             </div>
             <div className="replatforming-gaps">
-              {packet.missingEvidence.map((gap) => <span key={gap}>{formatLabel(gap)}</span>)}
+              {packet.missingEvidence.map((gap) => (
+                <span key={gap}>{formatLabel(gap)}</span>
+              ))}
               {packet.missingEvidence.length === 0 ? <span>no missing evidence</span> : null}
             </div>
           </div>
@@ -335,14 +415,18 @@ function OwnershipSection({ ownership }: { readonly ownership: ReplatformingOwne
 }
 
 function StatusPill({ value }: { readonly value: string }): React.JSX.Element {
-  return <span className={`replatforming-state replatforming-state-${classToken(value)}`}>{formatLabel(value)}</span>;
+  return (
+    <span className={`replatforming-state replatforming-state-${classToken(value)}`}>
+      {formatLabel(value)}
+    </span>
+  );
 }
 
 function PagingNote({
   limit,
   nextOffset,
   offset,
-  truncated
+  truncated,
 }: {
   readonly limit: number;
   readonly nextOffset: number | null;
@@ -354,10 +438,20 @@ function PagingNote({
       ? " More rows are available."
       : ` Next offset ${fmt(nextOffset)}.`
     : "";
-  return <p className="replatforming-page-note">Showing up to {fmt(limit)} rows from offset {fmt(offset)}.{next}</p>;
+  return (
+    <p className="replatforming-page-note">
+      Showing up to {fmt(limit)} rows from offset {fmt(offset)}.{next}
+    </p>
+  );
 }
 
-function CellStack({ sub, title }: { readonly sub: string; readonly title: string }): React.JSX.Element {
+function CellStack({
+  sub,
+  title,
+}: {
+  readonly sub: string;
+  readonly title: string;
+}): React.JSX.Element {
   return (
     <span className="cell-stack">
       <span className="t-name">{title}</span>
@@ -369,7 +463,7 @@ function CellStack({ sub, title }: { readonly sub: string; readonly title: strin
 function statRows(
   rollups: ReplatformingRollups | null,
   plan: ReplatformingPlan | null,
-  ownership: ReplatformingOwnership | null
+  ownership: ReplatformingOwnership | null,
 ): readonly {
   readonly color: string;
   readonly label: string;
@@ -377,14 +471,34 @@ function statRows(
   readonly value: number | string;
 }[] {
   return [
-    { color: "var(--teal)", label: "Findings", sub: "bounded rollup", value: rollups?.totalFindingsCount ?? "-" },
-    { color: "var(--blue)", label: "Ready imports", sub: "planning only", value: plan?.readyImportCount ?? "-" },
-    { color: "var(--crit)", label: "Refused", sub: "safety gate", value: plan?.refusedImportCount ?? "-" },
-    { color: "var(--violet)", label: "Ownership packets", sub: "candidate owners", value: ownership?.packetsCount ?? "-" }
+    {
+      color: "var(--teal)",
+      label: "Findings",
+      sub: "bounded rollup",
+      value: rollups?.totalFindingsCount ?? "-",
+    },
+    {
+      color: "var(--blue)",
+      label: "Ready imports",
+      sub: "planning only",
+      value: plan?.readyImportCount ?? "-",
+    },
+    {
+      color: "var(--crit)",
+      label: "Refused",
+      sub: "safety gate",
+      value: plan?.refusedImportCount ?? "-",
+    },
+    {
+      color: "var(--violet)",
+      label: "Ownership packets",
+      sub: "candidate owners",
+      value: ownership?.packetsCount ?? "-",
+    },
   ];
 }
 
-function formFromSearch(params: URLSearchParams): FormState {
+function formFromSearch(params: URLSearchParams): ReplatformingFormState {
   return {
     accountId: params.get("account_id") ?? "",
     findingKinds: params.get("finding_kinds") ?? "",
@@ -392,20 +506,67 @@ function formFromSearch(params: URLSearchParams): FormState {
     offset: params.get("offset") ?? "0",
     region: params.get("region") ?? "",
     scopeId: params.get("scope_id") ?? "",
-    scopeKind: scopeKind(params.get("scope_kind"))
+    scopeKind: scopeKind(params.get("scope_kind")),
   };
 }
 
-function inputFromForm(form: FormState): ReplatformingInput {
+function inputFromForm(form: ReplatformingFormState): ReplatformingInput {
   return {
     accountId: form.accountId,
-    findingKinds: form.findingKinds.split(",").map((kind) => kind.trim()).filter(Boolean),
+    findingKinds: form.findingKinds
+      .split(",")
+      .map((kind) => kind.trim())
+      .filter(Boolean),
     limit: optionalNumber(form.limit),
     offset: optionalNumber(form.offset),
     region: form.region,
     scopeId: form.scopeId,
-    scopeKind: form.scopeKind
+    scopeKind: form.scopeKind,
   };
+}
+
+function searchFromForm(form: ReplatformingFormState): URLSearchParams {
+  const params = new URLSearchParams();
+  params.set("scope_kind", form.scopeKind);
+  addParam(params, "scope_id", form.scopeId);
+  addParam(params, "account_id", form.accountId);
+  addParam(params, "region", form.region);
+  addParam(params, "finding_kinds", form.findingKinds);
+  if (form.limit.trim() !== "" && form.limit.trim() !== "100")
+    params.set("limit", form.limit.trim());
+  if (form.offset.trim() !== "" && form.offset.trim() !== "0")
+    params.set("offset", form.offset.trim());
+  return params;
+}
+
+function hasAnchor(form: ReplatformingFormState): boolean {
+  return form.accountId.trim() !== "" || form.scopeId.trim() !== "";
+}
+
+function inventoryStatus(
+  inventory: ReplatformingSelectorInventory | null,
+  inventoryLoading: boolean,
+  review: ReplatformingReview | null,
+  busy: boolean,
+): string {
+  if (inventoryLoading) return "Loading selector inventory...";
+  if (inventory?.readiness.state === "collector_evidence_absent") {
+    return (
+      inventory.readiness.detail ||
+      "No active AWS collector evidence is available for replatforming review."
+    );
+  }
+  if (busy) return "Loading the bounded replatforming plan...";
+  if (review === null && inventory !== null) {
+    return (
+      inventory.readiness.nextAction ||
+      "Choose an account, region, or source scope to review a bounded plan."
+    );
+  }
+  if (review?.rollups.status === "ready" && review.rollups.data.totalFindingsCount === 0) {
+    return "The selected active collector scope is authoritative and currently has zero replatforming findings.";
+  }
+  return "";
 }
 
 function optionalNumber(value: string): number | undefined {
@@ -416,7 +577,9 @@ function optionalNumber(value: string): number | undefined {
 }
 
 function scopeKind(value: string | null): ReplatformingScopeKind {
-  return scopeKinds.includes(value as ReplatformingScopeKind) ? value as ReplatformingScopeKind : "account";
+  return scopeKinds.includes(value as ReplatformingScopeKind)
+    ? (value as ReplatformingScopeKind)
+    : "account";
 }
 
 function addParam(params: URLSearchParams, key: string, value: string): void {

@@ -30,6 +30,29 @@ type IaCManagementStore interface {
 	CountUnmanagedCloudResources(ctx context.Context, filter IaCManagementFilter) (int, error)
 }
 
+// ReplatformingSelectorStore reads the bounded collector-scope inventory used
+// to populate replatforming controls. It is a separate optional port so the
+// existing management-plan test stores do not accidentally claim selector
+// support.
+type ReplatformingSelectorStore interface {
+	ListReplatformingSelectors(context.Context, int) (ReplatformingSelectorPage, error)
+}
+
+// ReplatformingSelectorScope is one active, selectable AWS collector scope.
+type ReplatformingSelectorScope struct {
+	ScopeID      string
+	AccountID    string
+	Region       string
+	Service      string
+	FindingCount int
+}
+
+// ReplatformingSelectorPage is one bounded selector inventory page.
+type ReplatformingSelectorPage struct {
+	Scopes    []ReplatformingSelectorScope
+	Truncated bool
+}
+
 // IaCManagementFilter bounds cloud management reads to one AWS scope or account.
 type IaCManagementFilter struct {
 	ScopeID      string
@@ -111,6 +134,32 @@ func NewPostgresIaCManagementStore(db *sql.DB) *PostgresIaCManagementStore {
 		StoreName: "iac_management",
 	}
 	return &PostgresIaCManagementStore{store: postgres.NewAWSCloudRuntimeDriftFindingStore(storeDB)}
+}
+
+// ListReplatformingSelectors maps the Postgres active AWS scope inventory onto
+// the query-layer selector contract.
+func (s *PostgresIaCManagementStore) ListReplatformingSelectors(
+	ctx context.Context,
+	limit int,
+) (ReplatformingSelectorPage, error) {
+	if s == nil {
+		return ReplatformingSelectorPage{}, nil
+	}
+	page, err := s.store.ListActiveReplatformingScopes(ctx, limit)
+	if err != nil {
+		return ReplatformingSelectorPage{}, err
+	}
+	scopes := make([]ReplatformingSelectorScope, 0, len(page.Scopes))
+	for _, row := range page.Scopes {
+		scopes = append(scopes, ReplatformingSelectorScope{
+			ScopeID:      row.ScopeID,
+			AccountID:    row.AccountID,
+			Region:       row.Region,
+			Service:      row.Service,
+			FindingCount: row.FindingCount,
+		})
+	}
+	return ReplatformingSelectorPage{Scopes: scopes, Truncated: page.Truncated}, nil
 }
 
 // ListUnmanagedCloudResources returns the active reducer findings matching the
