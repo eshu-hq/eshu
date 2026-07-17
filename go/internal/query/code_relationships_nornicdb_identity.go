@@ -71,5 +71,11 @@ func nornicDBRelationshipEntityLabelCypher(property string, repositoryScoped boo
 			match,
 		))
 	}
-	return strings.Join(queries, "\nUNION\n") + "\nLIMIT 2"
+	// Wrap the per-label UNION in CALL{} with a plain outer RETURN. A top-level
+	// UNION is mis-parsed on the pinned NornicDB build (the branch columns are
+	// mangled into a single row), while CALL{...UNION...} + a plain outer RETURN
+	// executes correctly (#5287). Each branch keeps its single-label
+	// inline-property anchor (the safe shape; a bare label-disjunction MATCH
+	// matches zero rows on this build).
+	return "CALL {\n" + strings.Join(queries, "\nUNION\n") + "\n}\nRETURN uid, id, labels\nLIMIT 2"
 }
