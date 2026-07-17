@@ -137,7 +137,7 @@ func TestInfraResourceInventoryCloudCategoryUsesCloudGroupFields(t *testing.T) {
 func TestGraphInfraResourceAggregateDefaultScopeKeepsCloudFiltersReachable(t *testing.T) {
 	t.Parallel()
 
-	where := infraResourceAggregateWhereClause(allInfraLabels, InfraResourceAggregateFilter{
+	where := infraResourceAggregateBranchWhere(InfraResourceAggregateFilter{
 		Kind:            "ssm",
 		Provider:        "aws",
 		ResourceService: "ssm",

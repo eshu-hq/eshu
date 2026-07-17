@@ -18,14 +18,15 @@ import (
 // account?" exposed by find_infra_resources.
 //
 // Performance contract: hot-path eligibility requires a label-property
-// anchor with an indexed property. The list endpoint and this aggregate
-// both `MATCH (n)` filtered by an OR of the documented infrastructure
-// labels (see `infraLabelPredicate`). The `category` filter narrows the
-// label set to one of {k8s, terraform, argocd, crossplane, helm, cloud}; when
-// combined with an indexed property predicate that label exposes, the
-// aggregate hits the cookbook Area-5 hot path. Without a category filter
-// the aggregate falls back to a label-set scan. The PR description names
-// the operator PROFILE gate.
+// anchor. The aggregate anchors one `MATCH (n:Label)` branch per candidate
+// label inside a CALL subquery (see infraResourceAggregatePerLabelCypher),
+// replacing the earlier unlabeled `MATCH (n)` filtered by an OR of the
+// documented infrastructure labels — that whole-graph scan cost grew with
+// total graph size rather than the infra-label population (#5281, the same
+// defect fixed for infra/resources/search in #5278). The `category` filter
+// narrows the label set to one of {k8s, terraform, argocd, crossplane, helm,
+// cloud}; when combined with an indexed property predicate that label exposes,
+// each branch hits the cookbook Area-5 hot path.
 type InfraResourceAggregateStore interface {
 	CountInfraResources(context.Context, InfraResourceAggregateFilter) (InfraResourceAggregateCount, error)
 	InfraResourceInventory(
@@ -152,17 +153,22 @@ func (s GraphInfraResourceAggregateStore) CountInfraResources(
 		return InfraResourceAggregateCount{}, err
 	}
 
-	whereClause := infraResourceAggregateWhereClause(labels, filter)
+	branchWhere := infraResourceAggregateBranchWhere(filter)
 	params := infraResourceAggregateParams(filter)
 
+	// Per-label count branches each return exactly one count row (0 for an
+	// empty label), so the total is their sum. Aggregating in Go avoids the
+	// NornicDB CALL-subquery aggregation collapse documented in
+	// infraResourceAggregatePerLabelCypher.
 	totalRows, err := s.Graph.Run(ctx,
-		"MATCH (n) "+whereClause+" RETURN count(n) AS total", params)
+		infraResourceAggregatePerLabelCypher(labels, branchWhere, "RETURN count(n) AS bucket_count", "RETURN bucket_count"),
+		params)
 	if err != nil {
 		return InfraResourceAggregateCount{}, fmt.Errorf("count infra resources: %w", err)
 	}
 	var total int
-	if len(totalRows) > 0 {
-		total = IntVal(totalRows[0], "total")
+	for _, row := range totalRows {
+		total += IntVal(row, "bucket_count")
 	}
 
 	out := InfraResourceAggregateCount{
@@ -171,19 +177,19 @@ func (s GraphInfraResourceAggregateStore) CountInfraResources(
 		ByEnvironment:  map[string]int{},
 		ByLabel:        map[string]int{},
 	}
-	if err := s.fillBuckets(ctx, whereClause, params,
+	if err := s.fillBuckets(ctx, labels, branchWhere, params,
 		infraResourceProviderGroupExpression(filter),
 		out.ByProvider); err != nil {
 		return InfraResourceAggregateCount{}, err
 	}
-	if err := s.fillBuckets(ctx, whereClause, params,
+	if err := s.fillBuckets(ctx, labels, branchWhere, params,
 		"CASE WHEN n.environment IS NULL OR n.environment = '' THEN 'unknown' ELSE n.environment END",
 		out.ByEnvironment); err != nil {
 		return InfraResourceAggregateCount{}, err
 	}
 	// Group by the node's primary label. `labels(n)` returns a list; we
 	// surface the first label, which is the canonical type for these nodes.
-	if err := s.fillBuckets(ctx, whereClause, params,
+	if err := s.fillBuckets(ctx, labels, branchWhere, params,
 		"head(labels(n))",
 		out.ByLabel); err != nil {
 		return InfraResourceAggregateCount{}, err
@@ -193,21 +199,22 @@ func (s GraphInfraResourceAggregateStore) CountInfraResources(
 
 func (s GraphInfraResourceAggregateStore) fillBuckets(
 	ctx context.Context,
-	whereClause string,
+	labels []string,
+	branchWhere string,
 	params map[string]any,
 	groupExpr string,
 	dst map[string]int,
 ) error {
-	cypher := "MATCH (n) " + whereClause +
-		" RETURN " + groupExpr + " AS bucket, count(n) AS bucket_count" +
-		" ORDER BY bucket_count DESC, bucket"
+	cypher := infraResourceAggregatePerLabelCypher(labels, branchWhere,
+		"RETURN "+groupExpr+" AS bucket, count(n) AS bucket_count",
+		"RETURN bucket, bucket_count")
 	rows, err := s.Graph.Run(ctx, cypher, params)
 	if err != nil {
 		return fmt.Errorf("group infra resources: %w", err)
 	}
-	for _, row := range rows {
-		bucket := strings.TrimSpace(StringVal(row, "bucket"))
-		count := IntVal(row, "bucket_count")
+	// Each label branch groups independently, so one bucket value can appear
+	// once per contributing label; sum the per-branch counts.
+	for bucket, count := range mergeInfraResourceAggregateBuckets(rows) {
 		dst[bucket] = count
 	}
 	return nil
@@ -241,37 +248,39 @@ func (s GraphInfraResourceAggregateStore) InfraResourceInventory(
 		return nil, err
 	}
 
-	whereClause := infraResourceAggregateWhereClause(labels, filter)
+	branchWhere := infraResourceAggregateBranchWhere(filter)
 	params := infraResourceAggregateParams(filter)
-	params["limit"] = limit
-	params["offset"] = offset
 
-	cypher := "MATCH (n) " + whereClause +
-		" RETURN " + groupExpr + " AS bucket, count(n) AS bucket_count" +
-		" ORDER BY bucket_count DESC, bucket" +
-		" SKIP $offset LIMIT $limit"
-
+	// Fetch every per-label grouped bucket, then merge, order, and paginate in
+	// Go. The distinct-bucket cardinality is small (bounded by the number of
+	// distinct provider/environment/kind values across the fixed label set), so
+	// fetching the full unioned set is cheap, and Go-side ordering/pagination
+	// replaces the ORDER BY / SKIP / LIMIT that cannot run over a per-label CALL
+	// subquery without triggering the NornicDB aggregation collapse documented
+	// in infraResourceAggregatePerLabelCypher.
+	cypher := infraResourceAggregatePerLabelCypher(labels, branchWhere,
+		"RETURN "+groupExpr+" AS bucket, count(n) AS bucket_count",
+		"RETURN bucket, bucket_count")
 	rows, err := s.Graph.Run(ctx, cypher, params)
 	if err != nil {
 		return nil, fmt.Errorf("inventory infra resources: %w", err)
 	}
+	sorted := sortedInfraResourceAggregateBuckets(mergeInfraResourceAggregateBuckets(rows))
 	out := make([]InfraResourceInventoryRow, 0, limit)
-	for _, row := range rows {
-		bucket := strings.TrimSpace(StringVal(row, "bucket"))
-		count := IntVal(row, "bucket_count")
+	for i := offset; i < len(sorted) && len(out) < limit; i++ {
 		out = append(out, InfraResourceInventoryRow{
 			Dimension: dimension,
-			Value:     bucket,
-			Count:     count,
+			Value:     sorted[i].Bucket,
+			Count:     sorted[i].Count,
 		})
 	}
 	return out, nil
 }
 
-// infraResourceAggregateWhereClause renders the label predicate and the
-// optional indexed-property filters. Filter values flow through bound
-// parameters; only the label list is interpolated, and it comes from the
-// closed `allInfraLabels` / `infraCategoryLabels` enums (no user input).
+// infraResourceAggregateFilterClauses renders the optional indexed-property
+// filters shared by every per-label aggregate branch, WITHOUT any label
+// predicate (each branch's `MATCH (n:Label)` supplies the label). Filter
+// values flow through bound parameters; nothing user-supplied is interpolated.
 //
 // Property predicates use direct equality on TerraformResource fields for
 // category-specific Terraform reads. The clauses only render when the caller
@@ -282,8 +291,8 @@ func (s GraphInfraResourceAggregateStore) InfraResourceInventory(
 // indexes on TerraformResource; the coalesce wrapper would block planner
 // index selection. The all-category scope uses an OR across equivalent
 // provider/service fields so CloudResource rows remain reachable.
-func infraResourceAggregateWhereClause(labels []string, filter InfraResourceAggregateFilter) string {
-	clauses := []string{infraLabelPredicate(labels)}
+func infraResourceAggregateFilterClauses(filter InfraResourceAggregateFilter) []string {
+	clauses := []string{}
 	if filter.Kind != "" {
 		if infraResourceAggregateCanReachCloud(filter) {
 			clauses = append(clauses, "(n.kind = $kind OR n.resource_type = $kind OR n.data_type = $kind OR n.service_kind = $kind)")
@@ -321,7 +330,7 @@ func infraResourceAggregateWhereClause(labels []string, filter InfraResourceAggr
 	if filter.scoped() {
 		clauses = append(clauses, infraResourceScopePredicate("n"))
 	}
-	return "WHERE " + strings.Join(clauses, " AND ")
+	return clauses
 }
 
 // infraResourceScopePredicate bounds the whole-graph infra `MATCH (n)` to

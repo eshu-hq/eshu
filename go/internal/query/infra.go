@@ -417,19 +417,6 @@ func infraSearchHasScope(values ...string) bool {
 	return false
 }
 
-// infraLabelPredicate renders fixed internal label choices as direct label
-// predicates so graph backends can use label matching without list functions.
-func infraLabelPredicate(labels []string) string {
-	if len(labels) == 0 {
-		return "false"
-	}
-	parts := make([]string, 0, len(labels))
-	for _, label := range labels {
-		parts = append(parts, "n:"+label)
-	}
-	return "(" + strings.Join(parts, " OR ") + ")"
-}
-
 func infraSearchProviderFilterPredicate(labels []string) string {
 	if infraLabelsAreCloudOnly(labels) {
 		return "n.source_system = $provider"
