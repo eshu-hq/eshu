@@ -35,7 +35,7 @@ type IaCManagementStore interface {
 // existing management-plan test stores do not accidentally claim selector
 // support.
 type ReplatformingSelectorStore interface {
-	ListReplatformingSelectors(context.Context, int) (ReplatformingSelectorPage, error)
+	ListReplatformingSelectors(context.Context, int, []string) (ReplatformingSelectorPage, error)
 }
 
 // ReplatformingSelectorScope is one active, selectable AWS collector scope.
@@ -141,11 +141,12 @@ func NewPostgresIaCManagementStore(db *sql.DB) *PostgresIaCManagementStore {
 func (s *PostgresIaCManagementStore) ListReplatformingSelectors(
 	ctx context.Context,
 	limit int,
+	allowedScopeIDs []string,
 ) (ReplatformingSelectorPage, error) {
 	if s == nil {
 		return ReplatformingSelectorPage{}, nil
 	}
-	page, err := s.store.ListActiveReplatformingScopes(ctx, limit)
+	page, err := s.store.ListActiveReplatformingScopes(ctx, limit, allowedScopeIDs)
 	if err != nil {
 		return ReplatformingSelectorPage{}, err
 	}

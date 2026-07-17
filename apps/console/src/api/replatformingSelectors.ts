@@ -19,7 +19,7 @@ export interface ReplatformingSelectorScope {
 export interface ReplatformingSelectorReadiness {
   readonly detail: string;
   readonly nextAction: string;
-  readonly state: "collector_evidence_absent" | "ready";
+  readonly state: "collector_evidence_absent" | "no_authorized_scopes" | "ready";
 }
 
 export interface ReplatformingSelectorInventory {
@@ -118,7 +118,11 @@ function readinessFromWire(
   scopeCount: number,
 ): ReplatformingSelectorReadiness {
   const state =
-    readiness?.state === "ready" && scopeCount > 0 ? "ready" : "collector_evidence_absent";
+    readiness?.state === "ready" && scopeCount > 0
+      ? "ready"
+      : readiness?.state === "no_authorized_scopes" && scopeCount === 0
+        ? "no_authorized_scopes"
+        : "collector_evidence_absent";
   return {
     detail: stringOrEmpty(readiness?.detail),
     nextAction: stringOrEmpty(readiness?.next_action),

@@ -8686,6 +8686,79 @@
       }
     },
     {
+      "capability": "replatforming.selector_inventory",
+      "display_name": "Replatforming Selector Inventory",
+      "maturity": "general_availability",
+      "derived_maturity": "general_availability",
+      "surfaces": [],
+      "profiles": {
+        "local_authoritative": {
+          "status": "supported",
+          "max_truth_level": "derived",
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 2000,
+          "max_scope_size": "bounded_active_aws_collector_scope_page"
+        },
+        "local_full_stack": {
+          "status": "supported",
+          "max_truth_level": "derived",
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 2000,
+          "max_scope_size": "bounded_active_aws_collector_scope_page"
+        },
+        "local_lightweight": {
+          "status": "unsupported",
+          "max_truth_level": "unsupported",
+          "required_runtime": "local_host",
+          "max_scope_size": "bounded_active_aws_collector_scope_page"
+        },
+        "production": {
+          "status": "supported",
+          "max_truth_level": "derived",
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 2000,
+          "max_scope_size": "bounded_active_aws_collector_scope_page"
+        }
+      },
+      "proof_signals": [
+        {
+          "kind": "go_test",
+          "ref": "./internal/query"
+        },
+        {
+          "kind": "go_test",
+          "ref": "./internal/storage/postgres"
+        },
+        {
+          "kind": "integration_test",
+          "ref": "local-lightweight-unsupported-replatforming-selector-inventory"
+        },
+        {
+          "kind": "remote_validation",
+          "ref": "prod-replatforming-selector-inventory"
+        }
+      ],
+      "console": false,
+      "authorization": {
+        "family": "cloud_iac",
+        "action": "cloud.iac.read",
+        "data_classes": [
+          "cloud_iac"
+        ],
+        "scope_levels": [
+          "tenant",
+          "workspace",
+          "repository",
+          "source_scope"
+        ],
+        "default_roles": [
+          "security_analyst",
+          "owner"
+        ],
+        "sensitive_data": true
+      }
+    },
+    {
       "capability": "secrets_iam.identity_trust_chains.list",
       "display_name": "Secrets Iam Identity Trust Chains List",
       "maturity": "general_availability",

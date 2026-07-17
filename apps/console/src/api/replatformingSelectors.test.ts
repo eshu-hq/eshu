@@ -77,4 +77,27 @@ describe("replatforming selector adapter", () => {
 
     await expect(loadReplatformingSelectors(client)).rejects.toThrow("backend_unavailable");
   });
+
+  it("preserves a scoped empty inventory without claiming collector evidence is absent", async () => {
+    const client = {
+      get: vi.fn(async () => ({
+        data: {
+          scopes: [],
+          count: 0,
+          readiness: {
+            state: "no_authorized_scopes",
+            detail: "No AWS collector scopes are authorized for this session.",
+            next_action: "Request an AWS scope grant.",
+          },
+        },
+        error: null,
+        truth: null,
+      })),
+    } as unknown as EshuApiClient;
+
+    const inventory = await loadReplatformingSelectors(client);
+
+    expect(inventory.readiness.state).toBe("no_authorized_scopes");
+    expect(inventory.readiness.nextAction).toBe("Request an AWS scope grant.");
+  });
 });

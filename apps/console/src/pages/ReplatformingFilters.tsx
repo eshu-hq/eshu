@@ -182,6 +182,36 @@ export function ReplatformingFilters({
   );
 }
 
+export function ReplatformingPagination({
+  busy,
+  canMoveNext,
+  canMovePrevious,
+  onNext,
+  onPrevious,
+}: {
+  readonly busy: boolean;
+  readonly canMoveNext: boolean;
+  readonly canMovePrevious: boolean;
+  readonly onNext: () => void;
+  readonly onPrevious: () => void;
+}): React.JSX.Element {
+  return (
+    <nav aria-label="Replatforming result pages" className="replatforming-pagination">
+      <button
+        className="btn-ghost"
+        disabled={busy || !canMovePrevious}
+        onClick={onPrevious}
+        type="button"
+      >
+        Previous page
+      </button>
+      <button className="btn-ghost" disabled={busy || !canMoveNext} onClick={onNext} type="button">
+        Next page
+      </button>
+    </nav>
+  );
+}
+
 function splitKinds(value: string): readonly string[] {
   return value
     .split(",")

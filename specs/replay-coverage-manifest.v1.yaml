@@ -291,6 +291,7 @@ coverage:
   - {surface: capability:replatforming.ownership.candidates, scenario: capability_claim, scenario_type: baseline, ref: replatforming.ownership.candidates, proof_gate: capability-inventory}
   - {surface: capability:replatforming.plan.readiness, scenario: capability_claim, scenario_type: baseline, ref: replatforming.plan.readiness, proof_gate: capability-inventory}
   - {surface: capability:replatforming.rollups.readiness, scenario: capability_claim, scenario_type: baseline, ref: replatforming.rollups.readiness, proof_gate: capability-inventory}
+  - {surface: capability:replatforming.selector_inventory, scenario: capability_claim, scenario_type: baseline, ref: replatforming.selector_inventory, proof_gate: capability-inventory}
   - {surface: capability:secrets_iam.identity_trust_chains.list, scenario: capability_claim, scenario_type: baseline, ref: secrets_iam.identity_trust_chains.list, proof_gate: capability-inventory}
   - {surface: capability:secrets_iam.posture_gaps.list, scenario: capability_claim, scenario_type: baseline, ref: secrets_iam.posture_gaps.list, proof_gate: capability-inventory}
   - {surface: capability:secrets_iam.posture_summary.read, scenario: capability_claim, scenario_type: baseline, ref: secrets_iam.posture_summary.read, proof_gate: capability-inventory}

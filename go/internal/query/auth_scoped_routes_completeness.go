@@ -125,6 +125,7 @@ var scopedTokenAdvertisedRoutes = map[string]struct{}{
 	"GET /api/v0/query-playbooks":                                                   {},
 	"GET /api/v0/repositories":                                                      {},
 	"GET /api/v0/repositories/{repo_id}/freshness":                                  {},
+	"GET /api/v0/replatforming/selectors":                                           {},
 	"GET /api/v0/secrets-iam/identity-trust-chains":                                 {},
 	"GET /api/v0/secrets-iam/posture-gaps":                                          {},
 	"GET /api/v0/secrets-iam/posture-summary":                                       {},

@@ -12,9 +12,11 @@ import (
 )
 
 type fakeReplatformingSelectorStore struct {
-	page        ReplatformingSelectorPage
-	requested   int
-	selectorErr error
+	page              ReplatformingSelectorPage
+	requested         int
+	requestedScopeIDs []string
+	selectorCalls     int
+	selectorErr       error
 }
 
 func (f *fakeReplatformingSelectorStore) ListUnmanagedCloudResources(context.Context, IaCManagementFilter) ([]IaCManagementFindingRow, error) {
@@ -25,8 +27,14 @@ func (f *fakeReplatformingSelectorStore) CountUnmanagedCloudResources(context.Co
 	return 0, nil
 }
 
-func (f *fakeReplatformingSelectorStore) ListReplatformingSelectors(_ context.Context, limit int) (ReplatformingSelectorPage, error) {
+func (f *fakeReplatformingSelectorStore) ListReplatformingSelectors(
+	_ context.Context,
+	limit int,
+	allowedScopeIDs []string,
+) (ReplatformingSelectorPage, error) {
 	f.requested = limit
+	f.requestedScopeIDs = append([]string(nil), allowedScopeIDs...)
+	f.selectorCalls++
 	return f.page, f.selectorErr
 }
 
@@ -117,6 +125,70 @@ func TestReplatformingSelectorsHandlerDistinguishesMissingCollectorEvidence(t *t
 	}
 	if got := readiness["next_action"]; got == "" {
 		t.Fatal("readiness.next_action is empty, want useful collector action")
+	}
+}
+
+func TestReplatformingSelectorsHandlerPassesScopedAWSGrantsToStore(t *testing.T) {
+	t.Parallel()
+
+	store := &fakeReplatformingSelectorStore{}
+	handler := &IaCHandler{Management: store, Profile: ProfileLocalAuthoritative}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/replatforming/selectors", nil)
+	req = req.WithContext(ContextWithAuthContext(req.Context(), AuthContext{
+		Mode:                 AuthModeScoped,
+		AllowedScopeIDs:      []string{"aws:123456789012:us-east-1:lambda", "aws:210987654321:us-west-2:s3"},
+		AllowedRepositoryIDs: []string{"repository:r_example"},
+	}))
+	recorder := httptest.NewRecorder()
+
+	mux.ServeHTTP(recorder, req)
+
+	if got, want := recorder.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, recorder.Body.String())
+	}
+	if got, want := store.requestedScopeIDs, []string{
+		"aws:123456789012:us-east-1:lambda",
+		"aws:210987654321:us-west-2:s3",
+	}; !equalStringSlices(got, want) {
+		t.Fatalf("allowed scope ids = %#v, want %#v", got, want)
+	}
+}
+
+func TestReplatformingSelectorsHandlerReturnsEmptyWithoutStoreForScopedRepositoryOnlyGrant(t *testing.T) {
+	t.Parallel()
+
+	store := &fakeReplatformingSelectorStore{}
+	handler := &IaCHandler{Management: store, Profile: ProfileLocalAuthoritative}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/replatforming/selectors", nil)
+	req = req.WithContext(ContextWithAuthContext(req.Context(), AuthContext{
+		Mode:                 AuthModeScoped,
+		AllowedRepositoryIDs: []string{"repository:r_example"},
+	}))
+	req.Header.Set("Accept", EnvelopeMIMEType)
+	recorder := httptest.NewRecorder()
+
+	mux.ServeHTTP(recorder, req)
+
+	if got, want := recorder.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, recorder.Body.String())
+	}
+	if got := store.selectorCalls; got != 0 {
+		t.Fatalf("selector store calls = %d, want 0 for unprovable AWS scope grants", got)
+	}
+	var envelope ResponseEnvelope
+	if err := json.Unmarshal(recorder.Body.Bytes(), &envelope); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v, want nil", err)
+	}
+	data := envelope.Data.(map[string]any)
+	if got, want := int(data["count"].(float64)), 0; got != want {
+		t.Fatalf("count = %d, want %d", got, want)
+	}
+	if got, want := data["readiness"].(map[string]any)["state"], "no_authorized_scopes"; got != want {
+		t.Fatalf("readiness.state = %#v, want %#v", got, want)
 	}
 }
 

@@ -97,6 +97,15 @@ func scopedIaCResourceListRoute(r *http.Request) bool {
 	return r.Method == http.MethodGet && r.URL.Path == "/api/v0/iac/resources"
 }
 
+// scopedReplatformingSelectorRoute reports whether the request targets the
+// Postgres-backed active AWS selector inventory. The handler passes exact
+// granted AWS scope ids to the store before counts, truncation, or readiness
+// are computed; repository-only and empty grants return an empty page without
+// a store read because this path has no authoritative repository-to-scope map.
+func scopedReplatformingSelectorRoute(r *http.Request) bool {
+	return r.Method == http.MethodGet && r.URL.Path == "/api/v0/replatforming/selectors"
+}
+
 // scopedWorkItemEvidenceRoute reports whether the request targets the
 // source-only work-item evidence read GET /api/v0/work-items/evidence.
 // Work-item facts key on the provider project scope (scope_id, project_key,

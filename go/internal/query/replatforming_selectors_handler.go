@@ -24,9 +24,10 @@ var replatformingFindingKinds = []string{
 }
 
 // handleReplatformingSelectors returns active AWS collector scopes that can
-// safely anchor the existing bounded plan routes. The route is intentionally
-// not enabled for scoped tokens: until tenant/source-scope filtering is wired,
-// the shared auth middleware rejects scoped callers before this handler runs.
+// safely anchor the existing bounded plan routes. Scoped callers see only
+// exact AWS scope grants; repository-only or empty grants fail closed without
+// reading the selector store because no repository-to-AWS-scope mapping is
+// authoritative on this path.
 func (h *IaCHandler) handleReplatformingSelectors(w http.ResponseWriter, r *http.Request) {
 	r, span := startQueryHandlerSpan(
 		r,
@@ -67,7 +68,18 @@ func (h *IaCHandler) handleReplatformingSelectors(w http.ResponseWriter, r *http
 		)
 		return
 	}
-	page, err := store.ListReplatformingSelectors(r.Context(), limit)
+	access := repositoryAccessFilterFromContext(r.Context())
+	allowedScopeIDs := access.grantedScopeIDs()
+	if access.scoped() && len(allowedScopeIDs) == 0 {
+		WriteSuccess(w, r, http.StatusOK, replatformingSelectorScopedEmptyResponse(limit), BuildTruthEnvelope(
+			h.profile(),
+			replatformingSelectorInventoryCapability,
+			TruthBasisSemanticFacts,
+			"resolved from active AWS collector scopes authorized by exact scope grants; no authorized AWS scopes were granted",
+		))
+		return
+	}
+	page, err := store.ListReplatformingSelectors(r.Context(), limit, allowedScopeIDs)
 	if err != nil {
 		WriteContractError(
 			w,
@@ -87,6 +99,16 @@ func (h *IaCHandler) handleReplatformingSelectors(w http.ResponseWriter, r *http
 		TruthBasisSemanticFacts,
 		"resolved from active AWS collector scopes and reducer-materialized drift finding counts",
 	))
+}
+
+func replatformingSelectorScopedEmptyResponse(limit int) map[string]any {
+	response := replatformingSelectorResponse(ReplatformingSelectorPage{}, limit)
+	response["readiness"] = map[string]any{
+		"state":       "no_authorized_scopes",
+		"detail":      "No AWS collector scopes are authorized for this session.",
+		"next_action": "Request an exact AWS collector scope grant, then reload this page.",
+	}
+	return response
 }
 
 func replatformingSelectorLimit(w http.ResponseWriter, r *http.Request) (int, bool) {

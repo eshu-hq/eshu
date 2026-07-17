@@ -408,6 +408,11 @@
     },
     {
       "category": "api_route",
+      "name": "GET /api/v0/replatforming/selectors",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
       "name": "GET /api/v0/repositories",
       "readiness": "implemented"
     },
@@ -1274,6 +1279,7 @@
         "read_surfaces": [
           "GET /api/v0/cloud/inventory",
           "GET /api/v0/cloud/resources",
+          "GET /api/v0/replatforming/selectors",
           "GET /api/v0/secrets-iam/posture-summary",
           "list_aws_runtime_drift_findings",
           "list_secrets_iam_identity_trust_chains"

@@ -160,6 +160,59 @@ describe("ReplatformingPage", () => {
     expect(post).not.toHaveBeenCalled();
   });
 
+  it("moves through bounded review pages without exposing raw offsets", async () => {
+    const calls: Record<string, unknown>[] = [];
+    const client = {
+      get: async () => selectorEnvelope(),
+      post: async (path: string, body: Record<string, unknown>) => {
+        calls.push(body);
+        return {
+          data: path.endsWith("/rollups")
+            ? rollupsPayload()
+            : path.endsWith("/plans")
+              ? planPayload()
+              : ownershipPayload(),
+          error: null,
+          truth: truthEnvelope("replatforming.plan.readiness"),
+        };
+      },
+    } as unknown as EshuApiClient;
+
+    render(
+      <MemoryRouter
+        initialEntries={["/replatforming?scope_kind=account&account_id=123456789012&offset=25"]}
+      >
+        <Routes>
+          <Route
+            element={
+              <>
+                <ReplatformingPage
+                  client={client}
+                  model={modelFromSnapshot(emptySnapshot("live"))}
+                />
+                <LocationProbe />
+              </>
+            }
+            path="/replatforming"
+          />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await screen.findByText("Showing up to 100 rows from offset 25. Next offset 125.");
+    expect(screen.queryByLabelText("Offset")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Next page" }));
+
+    expect(await screen.findByTestId("replatforming-location")).toHaveTextContent(
+      "/replatforming?scope_kind=account&account_id=123456789012&offset=125",
+    );
+    await waitFor(() => expect(calls.some((body) => body.offset === 125)).toBe(true));
+    fireEvent.click(screen.getByRole("button", { name: "Previous page" }));
+    expect(await screen.findByTestId("replatforming-location")).toHaveTextContent(
+      "/replatforming?scope_kind=account&account_id=123456789012&offset=25",
+    );
+  });
+
   it("ignores a stale plan response after a newer selection completes", async () => {
     let resolveFirst: (() => void) | undefined;
     const firstRelease = new Promise<void>((resolve) => {
