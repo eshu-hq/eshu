@@ -169,6 +169,17 @@ Back from B, and asserts B's samples and lifecycle disappear before A's reads
 finish. The test failed on the stale B packet before the fix and passes after
 URL-owned state is invalidated at the start of the transition.
 
+Review also exposed a deeper bounded-page case: two newer pending generations
+can push the retained predecessor past the three lifecycle rows rendered by the
+page. The failing regression first reproduced the false no-baseline state. The
+fix keeps the visible table at three rows and, only when that page is truncated,
+performs sequential `limit=1` status probes until it proves the preferred
+superseded, completed, or failed predecessor. The representative truncated
+case uses one extra status request; an ordinary non-truncated repository still
+uses one lifecycle request. A separate failure regression proves a transport
+error in the targeted lookup reports unavailable history and never becomes a
+confident no-baseline result.
+
 Five warm retained reloads navigated away before each trial so prior Changed
 Since DOM could not satisfy the terminal condition. Navigation start was the
 primary start event; canonical selector ownership plus the first rendered
@@ -216,7 +227,7 @@ uv run --with mkdocs --with mkdocs-material --with pymdown-extensions \
 git diff --check
 ```
 
-The post-review focused console set passed 28 tests across five files.
+The post-review focused console set passed 31 tests across five files.
 The direct storage guard test also proves invalid missing and dual selectors
 are rejected before any SQL read is attempted. The authenticated retained-stack
 browser and live MCP workflows completed successfully before promotion.

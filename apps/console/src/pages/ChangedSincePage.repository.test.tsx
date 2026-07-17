@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, useNavigate } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 
@@ -191,6 +191,90 @@ describe("ChangedSincePage repository ownership", () => {
         (path) => path.startsWith("/api/v0/freshness/changed-since") && path.includes("r_b"),
       ),
     ).toBe(false);
+  });
+
+  it("finds a retained baseline hidden behind newer lifecycle rows", async () => {
+    const calls: string[] = [];
+    const lifecycleRows = [
+      generation("b", "pending-newest", false, "pending"),
+      generation("b", "pending-older", false, "pending"),
+      generation("b", "current", true, "active"),
+      generation("b", "prior", false, "superseded"),
+    ];
+    const get = vi.fn(async (path: string) => {
+      calls.push(path);
+      if (path.startsWith("/api/v0/freshness/generations")) {
+        const params = new URL(path, "http://localhost").searchParams;
+        const limit = Number(params.get("limit"));
+        const status = params.get("status");
+        const matching = status
+          ? lifecycleRows.filter((row) => row.status === status)
+          : lifecycleRows;
+        const page = matching.slice(0, limit);
+        return envelope(
+          {
+            count: page.length,
+            generations: page,
+            limit,
+            truncated: page.length < matching.length,
+          },
+          "freshness.generation_lifecycle",
+        );
+      }
+      return changedPage("repository:r_b", "src/payments.go");
+    });
+
+    renderPage(get, "/changed-since?mode=repository&repository=repository%3Ar_b");
+
+    await screen.findAllByText("src/payments.go");
+    const lifecyclePanel = screen
+      .getByRole("heading", { name: "Generation lifecycle" })
+      .closest("section");
+    expect(lifecyclePanel).not.toBeNull();
+    expect(within(lifecyclePanel as HTMLElement).getAllByRole("row")).toHaveLength(4);
+    expect(
+      within(lifecyclePanel as HTMLElement).queryByText("gen-b-prior"),
+    ).not.toBeInTheDocument();
+    expect(
+      calls.some(
+        (path) =>
+          path.startsWith("/api/v0/freshness/changed-since") &&
+          path.includes("since_generation_id=gen-b-prior"),
+      ),
+    ).toBe(true);
+    expect(
+      calls.some((path) => path.includes("status=superseded") && path.includes("limit=1")),
+    ).toBe(true);
+  });
+
+  it("fails closed when a targeted baseline lookup cannot complete", async () => {
+    const calls: string[] = [];
+    const get = vi.fn(async (path: string) => {
+      calls.push(path);
+      if (path.includes("status=superseded")) throw new Error("lifecycle backend unavailable");
+      if (path.startsWith("/api/v0/freshness/generations")) {
+        const generations = [
+          generation("b", "pending-newest", false, "pending"),
+          generation("b", "pending-older", false, "pending"),
+          generation("b", "current", true, "active"),
+        ];
+        return envelope(
+          { count: generations.length, generations, limit: 3, truncated: true },
+          "freshness.generation_lifecycle",
+        );
+      }
+      return changedPage("repository:r_b", "src/payments.go");
+    });
+
+    renderPage(get, "/changed-since?mode=repository&repository=repository%3Ar_b");
+
+    expect(
+      await screen.findByText("Repository generation history could not be loaded."),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("No retained prior generation is available for this repository."),
+    ).not.toBeInTheDocument();
+    expect(calls.some((path) => path.startsWith("/api/v0/freshness/changed-since"))).toBe(false);
   });
 
   it("prevents a slow obsolete repository baseline from rewriting a newer selection", async () => {

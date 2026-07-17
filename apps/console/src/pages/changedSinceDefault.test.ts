@@ -62,9 +62,19 @@ describe("discoverDefaultChangedSinceParams", () => {
     const generations = [
       {
         current_active_generation_id: "generation:active",
-        generation_id: "generation:pending",
+        generation_id: "generation:pending-newest",
         is_active: false,
         observed_at: "2026-07-15T01:00:00Z",
+        queue_status: {},
+        scope_id: "scope:one",
+        scope_kind: "repository",
+        status: "pending",
+      },
+      {
+        current_active_generation_id: "generation:active",
+        generation_id: "generation:pending-older",
+        is_active: false,
+        observed_at: "2026-07-14T02:00:00Z",
         queue_status: {},
         scope_id: "scope:one",
         scope_kind: "repository",
@@ -92,14 +102,19 @@ describe("discoverDefaultChangedSinceParams", () => {
       },
     ];
     const get = vi.fn(async (path: string) => {
-      const limit = Number(new URL(path, "http://localhost").searchParams.get("limit"));
-      const page = generations.slice(0, limit);
+      const params = new URL(path, "http://localhost").searchParams;
+      const limit = Number(params.get("limit"));
+      const status = params.get("status");
+      const matching = status
+        ? generations.filter((generation) => generation.status === status)
+        : generations;
+      const page = matching.slice(0, limit);
       return {
         data: {
           count: page.length,
           generations: page,
           limit,
-          truncated: page.length < generations.length,
+          truncated: page.length < matching.length,
         },
         error: null,
         truth: {
@@ -127,6 +142,10 @@ describe("discoverDefaultChangedSinceParams", () => {
     ][];
     expect(calls[0]?.[0]).toBe("/api/v0/freshness/generations?repository=repo-one&limit=3");
     expect(calls[0]?.[1].signal).toBeInstanceOf(AbortSignal);
+    expect(calls.map(([path]) => path)).toEqual([
+      "/api/v0/freshness/generations?repository=repo-one&limit=3",
+      "/api/v0/freshness/generations?repository=repo-one&status=superseded&limit=1",
+    ]);
   });
 
   it("probes exact repositories until it finds an active and retained prior pair", async () => {
@@ -154,6 +173,7 @@ describe("discoverDefaultChangedSinceParams", () => {
     expect(calls[0]?.[1].signal).toBeInstanceOf(AbortSignal);
     expect(calls[1]?.[0]).toBe("/api/v0/freshness/generations?repository=repo-two&limit=3");
     expect(calls[1]?.[1].signal).toBeInstanceOf(AbortSignal);
+    expect(calls).toHaveLength(2);
   });
 
   it("continues after a repository lifecycle request fails", async () => {
@@ -172,6 +192,38 @@ describe("discoverDefaultChangedSinceParams", () => {
       scopeId: "scope:two",
       sinceGenerationId: "generation:superseded",
     });
+  });
+
+  it("continues targeted lookup after an expected status miss", async () => {
+    const get = vi.fn(async (path: string) => {
+      if (path.includes("status=superseded")) {
+        return {
+          data: null,
+          error: { code: "scope_not_found", message: "no matching superseded generation" },
+          truth: null,
+        };
+      }
+      if (path.includes("status=completed")) {
+        return lifecycleEnvelope("scope:one", "completed");
+      }
+      const initial = lifecycleEnvelope("scope:one");
+      return { ...initial, data: { ...initial.data, truncated: true } };
+    });
+
+    await expect(
+      discoverDefaultChangedSinceParams({ get } as unknown as EshuApiClient, [
+        repository("repo-one"),
+      ]),
+    ).resolves.toEqual({
+      repository: "repo-one",
+      scopeId: "scope:one",
+      sinceGenerationId: "generation:completed",
+    });
+    expect(get.mock.calls.map(([path]) => path)).toEqual([
+      "/api/v0/freshness/generations?repository=repo-one&limit=3",
+      "/api/v0/freshness/generations?repository=repo-one&status=superseded&limit=1",
+      "/api/v0/freshness/generations?repository=repo-one&status=completed&limit=1",
+    ]);
   });
 
   it("caps discovery at 25 repositories and fails closed without an exact pair", async () => {

@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 
-import { discoverDefaultChangedSinceParams } from "./changedSinceDefault";
+import {
+  discoverDefaultChangedSinceParams,
+  resolveChangedSinceBaseline,
+} from "./changedSinceDefault";
 import { ChangedSincePacketComparison } from "./ChangedSincePacketComparison";
 import {
   ChangedSinceCategoryRows,
@@ -35,7 +38,6 @@ import type { EshuApiClient } from "../api/client";
 import { buildEvidencePacketComparison } from "../api/evidencePacketDelta";
 import type { RepoListItem } from "../api/repoCatalog";
 import { Badge, FreshDot, Panel, StatTile, TruthChip } from "../components/atoms";
-import { defaultChangedSinceParamsFromGenerations } from "../console/defaultEntity";
 import { fmt, uiFresh, uiTruth } from "../console/types";
 import "./changedSincePage.css";
 
@@ -191,7 +193,15 @@ export function ChangedSincePage({
           setBaselineState("");
           return;
         }
-        const baseline = defaultChangedSinceParamsFromGenerations(loaded.generations);
+        const baseline = await resolveChangedSinceBaseline(
+          client,
+          {
+            repository: optionalChangedSinceValue(next.repository),
+            scopeId: optionalChangedSinceValue(next.scopeId),
+          },
+          loaded,
+        );
+        if (generationsRequest.current !== requestID) return;
         if (!baseline) {
           setBaselineState("No retained prior generation is available for this repository.");
           return;
