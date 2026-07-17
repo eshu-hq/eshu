@@ -1,10 +1,7 @@
 import { loadGenerationLifecycle } from "../api/changedSince";
 import type { EshuApiClient } from "../api/client";
 import type { RepoListItem } from "../api/repoCatalog";
-import {
-  defaultChangedSinceParamsFromGenerations,
-  type DefaultChangedSinceParams,
-} from "../console/defaultEntity";
+import { defaultChangedSinceParamsFromGenerations } from "../console/defaultEntity";
 
 const MAX_DEFAULT_REPOSITORY_PROBES = 25;
 const DEFAULT_DISCOVERY_BUDGET_MS = 15_000;
@@ -16,6 +13,12 @@ export interface ChangedSinceDiscoveryOptions {
   readonly signal?: AbortSignal;
 }
 
+export interface ChangedSinceDefaultSelection {
+  readonly repository: string;
+  readonly scopeId: string;
+  readonly sinceGenerationId: string;
+}
+
 // discoverDefaultChangedSinceParams finds a real, exact repository generation
 // pair without relying on the globally ordered lifecycle page. Requests run in
 // catalog-order batches so latency is bounded without changing which exact pair
@@ -24,7 +27,7 @@ export async function discoverDefaultChangedSinceParams(
   client: EshuApiClient,
   repositories: readonly RepoListItem[],
   options: ChangedSinceDiscoveryOptions = {},
-): Promise<DefaultChangedSinceParams | null> {
+): Promise<ChangedSinceDefaultSelection | null> {
   const repositoryIds = repositories
     .map((repository) => repository.id.trim())
     .filter((id, index, ids) => id !== "" && ids.indexOf(id) === index)
@@ -60,7 +63,8 @@ export async function discoverDefaultChangedSinceParams(
               { limit: 3, repository },
               { signal: controller.signal },
             );
-            return defaultChangedSinceParamsFromGenerations(lifecycle.generations);
+            const baseline = defaultChangedSinceParamsFromGenerations(lifecycle.generations);
+            return baseline ? { ...baseline, repository } : null;
           } catch {
             // Stale and slow catalog rows fail closed within the shared budget.
             return null;

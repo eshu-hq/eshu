@@ -117,6 +117,7 @@ describe("discoverDefaultChangedSinceParams", () => {
         repository("repo-one"),
       ]),
     ).resolves.toEqual({
+      repository: "repo-one",
       scopeId: "scope:one",
       sinceGenerationId: "generation:superseded",
     });
@@ -141,6 +142,7 @@ describe("discoverDefaultChangedSinceParams", () => {
         repository("repo-two"),
       ]),
     ).resolves.toEqual({
+      repository: "repo-two",
       scopeId: "scope:two",
       sinceGenerationId: "generation:failed",
     });
@@ -166,6 +168,7 @@ describe("discoverDefaultChangedSinceParams", () => {
         repository("repo-two"),
       ]),
     ).resolves.toEqual({
+      repository: "repo-two",
       scopeId: "scope:two",
       sinceGenerationId: "generation:superseded",
     });
@@ -271,6 +274,7 @@ describe("discoverDefaultChangedSinceParams", () => {
         { maxConcurrency: 0.5 },
       ),
     ).resolves.toEqual({
+      repository: "repo-one",
       scopeId: "scope:one",
       sinceGenerationId: "generation:completed",
     });

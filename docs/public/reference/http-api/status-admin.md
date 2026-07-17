@@ -436,8 +436,10 @@ set, keyed by `stable_fact_key`.
 
 Required parameters:
 
-- a scope selector: `scope_id` (exact) **or** `repository` (canonical repository
-  id, matches repository-kind scopes by `source_key`)
+- exactly one mutually exclusive scope selector: `scope_id` (exact) **or**
+  `repository` (canonical repository id, matches repository-kind scopes by
+  `source_key`). Supplying both is a bad request; the server never intersects
+  an old scope id with a newly selected repository.
 - a since reference: `since_generation_id` (exact prior generation) **or**
   `since_observed_at` (RFC3339; the diff baseline is the generation observed at or
   before that instant)
@@ -455,7 +457,9 @@ identical payload hash; `retired` is a key tombstoned in the current generation;
 `superseded` is a key dropped entirely on generation rollover. Retired and
 superseded are never collapsed into `unchanged`.
 
-An unknown `scope_id`/`repository` returns `scope_not_found`; a since reference
+The response includes the resolved canonical `repository` even when the caller
+uses a legacy `scope_id` selector. An unknown `scope_id`/`repository` returns
+`scope_not_found`; a since reference
 that resolves to no generation returns `not_found`; a scope with no current
 active generation returns `unavailable=true` (and a `building`/`unavailable`
 freshness state) rather than zero deltas. If generation retention proves the

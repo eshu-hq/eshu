@@ -205,6 +205,30 @@ func TestComputeChangedSinceDeltaScopeSelectorReturnsResolvedRepository(t *testi
 	}
 }
 
+func TestComputeChangedSinceDeltaDoesNotLabelNonRepositoryScopeAsRepository(t *testing.T) {
+	t.Parallel()
+
+	observed := time.Date(2026, 7, 17, 12, 0, 0, 0, time.UTC)
+	queryer := &fakeQueryer{responses: []fakeRows{
+		{rows: scopeRow("service-scope:checkout", "service", "gen-current", observed, false, "service:checkout")},
+		{rows: priorRow("gen-prior", observed.Add(-time.Hour))},
+		{rows: [][]any{}},
+	}}
+	store := NewStatusStore(queryer)
+
+	summary, err := store.ComputeChangedSinceDelta(context.Background(), statuspkg.ChangedSinceFilter{
+		ScopeID:           "service-scope:checkout",
+		SinceGenerationID: "gen-prior",
+		SampleLimit:       25,
+	})
+	if err != nil {
+		t.Fatalf("ComputeChangedSinceDelta() error = %v", err)
+	}
+	if summary.Repository != "" {
+		t.Fatalf("Repository = %q, want empty for non-repository scope", summary.Repository)
+	}
+}
+
 func TestComputeChangedSinceDeltaUnknownSinceGenerationReturnsNoPrior(t *testing.T) {
 	t.Parallel()
 

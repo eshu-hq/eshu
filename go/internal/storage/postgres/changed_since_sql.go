@@ -16,9 +16,13 @@ package postgres
 //	$1 scope_id     (empty bypasses)
 //	$2 repository   (empty bypasses; matches source_key for repository scopes)
 const resolveChangedSinceScopeQuery = `
-SELECT
-    scope.scope_id,
-    scope.scope_kind,
+	SELECT
+	    scope.scope_id,
+	    scope.scope_kind,
+	    CASE
+	        WHEN scope.scope_kind = 'repository' THEN scope.source_key
+	        ELSE ''
+	    END AS repository,
     COALESCE(scope.active_generation_id, '') AS current_active_generation_id,
     active_generation.observed_at AS current_observed_at,
     EXISTS (

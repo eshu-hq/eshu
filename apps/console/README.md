@@ -371,6 +371,11 @@ The Changed Since console surface is backed by:
 It must keep retained-window limits visible. When the API returns
 `unavailable=true` or `unavailable_reason=retention_expired`, the page must show
 that unavailable state instead of treating the result as an empty diff.
+Repository mode uses the caller-authorized repository catalog as a searchable
+canonical selector. Selecting a new repository immediately clears prior-scope
+evidence, drops obsolete scope/baseline URL state, and performs one bounded
+generation lookup before loading the new comparison. File samples show a human
+path first while retaining the raw stable fact key as diagnostic detail.
 
 ## Service Evidence Graph
 

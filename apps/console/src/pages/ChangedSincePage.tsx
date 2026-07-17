@@ -4,6 +4,10 @@ import { Link, useSearchParams } from "react-router-dom";
 import { discoverDefaultChangedSinceParams } from "./changedSinceDefault";
 import { ChangedSincePacketComparison } from "./ChangedSincePacketComparison";
 import {
+  ChangedSinceRepositorySelector,
+  changedSinceRepositoryLabel,
+} from "./ChangedSinceRepositorySelector";
+import {
   ChangedSinceCategoryRows,
   FilterInput,
   GenerationLifecycleRows,
@@ -15,6 +19,7 @@ import {
   addChangedSinceParam,
   changedSinceDefaultLimit,
   changedSinceFormFromSearch,
+  hasChangedSincePriorReference,
   hasChangedSinceRepositoryScope,
   hasChangedSinceUserScope,
   isBoundedChangedSince,
@@ -34,6 +39,7 @@ import type { EshuApiClient } from "../api/client";
 import { buildEvidencePacketComparison } from "../api/evidencePacketDelta";
 import type { RepoListItem } from "../api/repoCatalog";
 import { Badge, FreshDot, Panel, StatTile, TruthChip } from "../components/atoms";
+import { defaultChangedSinceParamsFromGenerations } from "../console/defaultEntity";
 import { fmt, uiFresh, uiTruth } from "../console/types";
 import "./changedSincePage.css";
 
@@ -67,8 +73,10 @@ export function ChangedSincePage({
   const [generations, setGenerations] = useState<GenerationLifecyclePage | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [baselineState, setBaselineState] = useState("");
   const changedRequest = useRef(0);
   const generationsRequest = useRef(0);
+  const generationsOwnerKey = useRef("");
   const request = useMemo(() => changedSinceFormFromSearch(searchParams), [searchParams]);
   const hasLiveClient = client !== undefined;
   const canLoadChanges = hasLiveClient && isBoundedChangedSince(request);
@@ -121,7 +129,7 @@ export function ChangedSincePage({
       if (!active || defaultRequest.current !== requestID || !selected) return;
       const params = new URLSearchParams();
       params.set("mode", "repository");
-      params.set("scope_id", selected.scopeId);
+      params.set("repository", selected.repository);
       params.set("since_generation_id", selected.sinceGenerationId);
       setSearchParams(params, { replace: true });
     });
@@ -173,18 +181,50 @@ export function ChangedSincePage({
         setGenerations(null);
         return;
       }
+      const ownerKey = `${next.repository.trim()}|${next.scopeId.trim()}`;
       try {
         const loaded = await loadGenerationLifecycle(client, {
-          limit: 50,
+          limit: 3,
           repository: optionalChangedSinceValue(next.repository),
           scopeId: optionalChangedSinceValue(next.scopeId),
         });
-        if (generationsRequest.current === requestID) setGenerations(loaded);
+        if (generationsRequest.current !== requestID) return;
+        generationsOwnerKey.current = ownerKey;
+        setGenerations(loaded);
+        if (hasChangedSincePriorReference(next)) {
+          setBaselineState("");
+          return;
+        }
+        const baseline = defaultChangedSinceParamsFromGenerations(loaded.generations);
+        if (!baseline) {
+          setBaselineState("No retained prior generation is available for this repository.");
+          return;
+        }
+        const params = new URLSearchParams();
+        params.set("mode", "repository");
+        if (next.repository.trim() !== "") {
+          params.set("repository", next.repository.trim());
+        } else {
+          params.set("scope_id", baseline.scopeId);
+        }
+        params.set("since_generation_id", baseline.sinceGenerationId);
+        if (
+          next.sampleLimit.trim() !== "" &&
+          next.sampleLimit.trim() !== changedSinceDefaultLimit
+        ) {
+          params.set("sample_limit", next.sampleLimit.trim());
+        }
+        setBaselineState("");
+        setSearchParams(params, { replace: true });
       } catch {
-        if (generationsRequest.current === requestID) setGenerations(null);
+        if (generationsRequest.current === requestID) {
+          generationsOwnerKey.current = "";
+          setGenerations(null);
+          setBaselineState("Repository generation history could not be loaded.");
+        }
       }
     },
-    [client],
+    [client, setSearchParams],
   );
 
   useEffect(() => {
@@ -198,9 +238,11 @@ export function ChangedSincePage({
       setBusy(false);
     }
     if (canLoadGenerations) {
-      void loadGenerations(request);
+      const ownerKey = `${request.repository.trim()}|${request.scopeId.trim()}`;
+      if (generationsOwnerKey.current !== ownerKey) void loadGenerations(request);
     } else {
       generationsRequest.current += 1;
+      generationsOwnerKey.current = "";
       setGenerations(null);
     }
   }, [canLoadChanges, canLoadGenerations, load, loadGenerations, request]);
@@ -224,11 +266,39 @@ export function ChangedSincePage({
     setSearchParams(params);
   }
 
+  function selectRepository(repository: string): void {
+    changedRequest.current += 1;
+    generationsRequest.current += 1;
+    generationsOwnerKey.current = "";
+    setPage(null);
+    setGenerations(null);
+    setError("");
+    setBaselineState("");
+    setBusy(false);
+    const params = new URLSearchParams();
+    params.set("mode", "repository");
+    addChangedSinceParam(params, "repository", repository);
+    if (form.sampleLimit.trim() !== "" && form.sampleLimit.trim() !== changedSinceDefaultLimit) {
+      params.set("sample_limit", form.sampleLimit.trim());
+    }
+    setSearchParams(params);
+  }
+
   const categoryCount = page?.categories.length ?? 0;
   const sampleCount =
     page?.categories.reduce((sum, category) => sum + sampleTotal(category), 0) ?? 0;
   const impactHref = page ? impactLink(page) : "";
   const comparison = page && !page.unavailable ? buildEvidencePacketComparison(page) : null;
+  const panelScopeLabel =
+    page?.mode === "repository"
+      ? changedSinceRepositoryLabel(repositories, page.scopeLabel || request.repository)
+      : page?.scopeLabel || page?.scopeId || "selected scope";
+  const selectedRepositoryId =
+    form.repository.trim() !== ""
+      ? form.repository
+      : request.scopeId.trim() !== "" && page?.mode === "repository"
+        ? page.scopeLabel
+        : "";
 
   return (
     <div className="page changed-since-page" style={{ maxWidth: "none" }}>
@@ -259,18 +329,11 @@ export function ChangedSincePage({
             onChange={(value) => setForm((current) => ({ ...current, serviceId: value }))}
           />
         ) : (
-          <>
-            <FilterInput
-              label="Repository"
-              value={form.repository}
-              onChange={(value) => setForm((current) => ({ ...current, repository: value }))}
-            />
-            <FilterInput
-              label="Scope ID"
-              value={form.scopeId}
-              onChange={(value) => setForm((current) => ({ ...current, scopeId: value }))}
-            />
-          </>
+          <ChangedSinceRepositorySelector
+            onChange={selectRepository}
+            repositories={repositories}
+            selectedRepositoryId={selectedRepositoryId}
+          />
         )}
         <FilterInput
           label="Since generation"
@@ -307,6 +370,7 @@ export function ChangedSincePage({
         </p>
       ) : null}
       {error ? <p className="src-err">{error}</p> : null}
+      {baselineState ? <p className="inline-state">{baselineState}</p> : null}
 
       <div className="grid g-4 mt">
         <StatTile
@@ -338,11 +402,7 @@ export function ChangedSincePage({
       <div className="changed-since-grid mt">
         <Panel
           title="Delta evidence"
-          sub={
-            page
-              ? page.scopeLabel || page.scopeId || "selected scope"
-              : "No changed-since data loaded"
-          }
+          sub={page ? panelScopeLabel : "No changed-since data loaded"}
           action={
             page ? (
               <span className="panel-action-stack">
@@ -381,7 +441,10 @@ export function ChangedSincePage({
                     </tr>
                   </thead>
                   <tbody>
-                    <ChangedSinceCategoryRows categories={page.categories} />
+                    <ChangedSinceCategoryRows
+                      categories={page.categories}
+                      repositoryId={page.scopeLabel || request.repository}
+                    />
                   </tbody>
                 </table>
               </div>

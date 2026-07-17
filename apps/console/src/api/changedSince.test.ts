@@ -4,6 +4,7 @@ import {
   loadGenerationLifecycle,
   loadRepositoryChangedSince,
   loadServiceChangedSince,
+  repositoryChangedSincePath,
 } from "./changedSince";
 import type { EshuApiClient } from "./client";
 
@@ -22,6 +23,16 @@ function envelope(data: unknown, capability = "freshness.changed_since") {
 }
 
 describe("changed-since adapters", () => {
+  it("rejects conflicting repository and scope selectors before an HTTP call", () => {
+    expect(() =>
+      repositoryChangedSincePath({
+        repository: "repository:r_b",
+        scopeId: "git-repository-scope:old",
+        sinceGenerationId: "gen-prior",
+      }),
+    ).toThrow("mutually exclusive");
+  });
+
   it("loads repository changed-since with bounded query parameters and truth", async () => {
     const captured: { path?: string } = {};
     const client = {
