@@ -354,6 +354,15 @@ the safe fix is a per-label inline-property anchor (one `MATCH (n:Label {id:$id}
 per label) plus the single-clause projection contract. Tracked for the
 remaining impact reads beyond blast-radius.
 
+The property-join variant was fixed the same way for the `trace-deployment-chain`
+OCI registry-truth reads (#5287): the old two-MATCH digest read returned a null
+`coalesce(image.id, image.descriptor_id)` and the old three-MATCH tag read
+dropped every row, both replaced with single-clause per-label reads joined in Go
+(`go/internal/query/impact_trace_deployment_oci.go`, guard test
+`TestOCIRegistryTruthQueriesAreNornicDBSafe`, live proof
+`docs/internal/evidence/5287-trace-deployment-oci-nornicdb.md`). The
+change-surface variable-length impact traversals remain tracked.
+
 ### Validation
 
 `go test ./internal/query -run 'TestBlastRadius|TestFindBlastRadius|TestMergeBlastRadius' -count=1`
