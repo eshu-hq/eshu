@@ -160,6 +160,19 @@ func (s GraphInfraResourceAggregateStore) CountInfraResources(
 	// empty label), so the total is their sum. Aggregating in Go avoids the
 	// NornicDB CALL-subquery aggregation collapse documented in
 	// infraResourceAggregatePerLabelCypher.
+	//
+	// Invariant: summing per-label counts equals the old whole-graph
+	// `MATCH (n) WHERE (n:A OR n:B ...)` deduped total ONLY because every infra
+	// resource node carries exactly one of the candidate labels — the
+	// source-local projector materializes each cloud/IaC resource under a single
+	// canonical label (CloudResource XOR TerraformResource XOR K8sResource XOR
+	// ...), never a combination from allInfraLabels. A node carrying two
+	// candidate labels would be counted once per label here and once total by
+	// the old shape; if the projector ever assigns multiple infra labels to one
+	// node, this count (and the buckets below) must switch to distinct-node
+	// identity aggregation. The candidate taxonomy is `allInfraLabels`
+	// (infra.go); TestInfraLabelsAreSinglePrimaryTaxonomy records this
+	// single-label invariant so a taxonomy change surfaces the assumption.
 	totalRows, err := s.Graph.Run(ctx,
 		infraResourceAggregatePerLabelCypher(labels, branchWhere, "RETURN count(n) AS bucket_count", "RETURN bucket_count"),
 		params)

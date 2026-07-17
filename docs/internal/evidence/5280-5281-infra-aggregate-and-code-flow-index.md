@@ -23,11 +23,22 @@ backend over Bolt HTTP:
 | count(n) total | 380.9 ms cold | 90 ms cold (via per-label + Go sum) |
 | grouped bucket (by provider) | 410.9 ms cold | 1.2 ms cold |
 
-Exact-equivalence (old vs new, same corpus): total = 5,653 both; by-label
-buckets identical across all 16 populated labels; by-provider buckets identical
-across all 10 populated providers (`aws=1249, unknown=4375, …`). The old
-whole-graph scan cost grows with total graph size; the new per-label scans are
-bounded by the infra-label population, so the gap widens on larger corpora.
+Exact-equivalence (old vs new, same corpus) held for every filter dimension —
+independently re-verified by an adversarial reviewer running the old
+whole-graph shape against the new per-label shape live: total = 5,653; by-label
+16 buckets; by-environment 1; by-resource-service 108; by-resource-category 11;
+and the scoped path (a three-repository grant) total = 5,375 with identical
+provider/label buckets. By-provider equivalence held for both provider
+expressions the code emits: the category-filtered simple expression
+(`n.provider`) yields the 10-bucket distribution `aws=1249, unknown=4375, …`,
+and the default all-categories nested-CASE expression yields its own 2-bucket
+distribution on this corpus — old == new in both. (The all-categories
+expression renders one bucket as SQL-null rather than `unknown` on this
+NornicDB build, but that expression is unchanged by this PR and Go maps null
+and `unknown`/`""` identically for old and new, so equivalence is unaffected;
+tracked separately as pre-existing bug #5283.) The old whole-graph scan
+cost grows with total graph size; the new per-label scans are bounded by the
+infra-label population, so the gap widens on larger corpora.
 
 The `CALL { ... }` wrapper and per-branch grouping are load-bearing, not
 stylistic — both work around NornicDB v1.1.11 bugs measured directly and now

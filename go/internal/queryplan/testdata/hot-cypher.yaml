@@ -723,20 +723,15 @@ entries:
     source:
       file: go/internal/query/infra_resource_aggregates_cypher.go
       symbol: infraResourceAggregatePerLabelCypher
-      line_hint: 40
+      line_hint: 42
     cypher: |
       CALL {
       MATCH (n:CloudResource)
-      WHERE true
-        AND n.provider = $provider
       RETURN head(labels(n)) AS bucket, count(n) AS bucket_count
       }
       RETURN bucket, bucket_count
-    required_anchors:
-      - label: CloudResource
-        property: provider
     caveats:
-      - Representative of one branch of a dynamically generated per-label CALL { ... UNION ALL ... } (issue #5281). CountInfraResources/fillBuckets/InfraResourceInventory build one MATCH (n:Label) branch per candidate infra label (up to the ~27-entry allInfraLabels set) and merge/sort/paginate the passed-through rows in Go. This replaced a single unlabeled MATCH (n) WHERE (n:A OR n:B ...) whole-graph scan (measured 380-410ms cold on a 91k-node corpus, growing with total graph size) — the same defect fixed for infra/resources/search in #5278. The property anchor is only present when a category-specific filter is applied; the unfiltered aggregate is a bounded per-label LabelScan (plan operators below).
+      - Representative of one branch of a dynamically generated per-label CALL { ... UNION ALL ... } (issue #5281), shown in its unfiltered form (the shape emitted when no property filter applies). CountInfraResources/fillBuckets/InfraResourceInventory build one MATCH (n:Label) branch per candidate infra label (up to the ~27-entry allInfraLabels set) and merge/sort/paginate the passed-through rows in Go. This replaced a single unlabeled MATCH (n) WHERE (n:A OR n:B ...) whole-graph scan (measured 380-410ms cold on a 91k-node corpus, growing with total graph size) — the same defect fixed for infra/resources/search in #5278. No required_anchors is declared because the only guarantee is a bounded per-label LabelScan; any property filter (e.g. n.provider = $provider) is optional and rendered by infraResourceAggregateBranchWhere without a "WHERE true" prefix. This static entry lints the query SHAPE (label-anchored, no AllNodesScan operator listed); the load-bearing drift guard that the generated query stays per-label CALL-anchored is the Go test TestInfraResourceScopePredicateRendersOnlyWhenScoped, not a live planner assertion.
       - The union is wrapped in CALL { ... } and each branch groups internally, passing rows through the outer RETURN without re-aggregating. Both are load-bearing on the pinned NornicDB backend (see docs/public/reference/nornicdb-pitfalls.md). A bare top-level UNION drops all rows when its first branch is empty (allInfraLabels starts with the frequently-empty CloudResource), and outer aggregation over a CALL subquery evaluates the group key to null and collapses every row into one bogus bucket. Callers therefore merge/sum the per-branch rows application-side.
     plan:
       operators:

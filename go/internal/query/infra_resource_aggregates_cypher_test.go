@@ -40,6 +40,39 @@ func TestMergeInfraResourceAggregateBucketsSkipsZeroCountRows(t *testing.T) {
 	}
 }
 
+// TestInfraLabelsAreSinglePrimaryTaxonomy records the invariant the per-label
+// aggregate count depends on: summing per-label counts equals the old
+// whole-graph deduped total only because every infra node carries exactly one
+// of these labels (the projector materializes each resource under a single
+// canonical label). The candidate labels must therefore be a duplicate-free
+// set used as a single-primary taxonomy. A future change that lets a node carry
+// two of these labels breaks the equivalence and must switch the aggregate to
+// distinct-node identity aggregation; a change to the label list surfaces here.
+func TestInfraLabelsAreSinglePrimaryTaxonomy(t *testing.T) {
+	t.Parallel()
+
+	seen := map[string]bool{}
+	for _, label := range allInfraLabels {
+		if label == "" {
+			t.Fatal("allInfraLabels contains an empty label")
+		}
+		if seen[label] {
+			t.Fatalf("allInfraLabels contains duplicate label %q; the per-label aggregate count assumes a duplicate-free single-primary taxonomy", label)
+		}
+		seen[label] = true
+	}
+	// The per-category label sets must be subsets of the single-primary
+	// taxonomy so a category-filtered aggregate never anchors on a label the
+	// count/bucket equivalence was not proven for.
+	for category, labels := range infraCategoryLabels {
+		for _, label := range labels {
+			if !seen[label] {
+				t.Fatalf("category %q label %q is not in the single-primary allInfraLabels taxonomy", category, label)
+			}
+		}
+	}
+}
+
 // TestSortedInfraResourceAggregateBucketsOrder proves the Go-side ordering
 // matches the ORDER BY bucket_count DESC, bucket the graph query used before
 // aggregation moved application-side.
