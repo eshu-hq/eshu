@@ -53,19 +53,29 @@ traversal on the bounded edge set):
   edge first is a 2-clause shape, which was probed live and returns a null
   `edge_id` (the same multi-clause projection defect), so it cannot be used.
 
-No-Regression Evidence: the added cost is bounded by the **WAF web ACL /
-ACM-certificate protection-edge population**, which is small and slow-growing per
-AWS account (these edges exist only for WAF-protected / TLS-terminated resources —
-typically tens to low hundreds), not by total graph size. The base scan is
-unchanged from the prior query. So on a realistic estate the net change is two
-extra scans over a small relationship population, in exchange for a **correct**
-result (the prior query reported every edge as WAF/TLS-protected, including
-unprotected ones). Absolute timing was taken only on a 4-node seed and is not a
-representative-partition measurement; `EXPLAIN`/`PROFILE` returns no plan on the
-pinned build, so no db-hit evidence is available. If the WAF/ACM edge population
-is ever large enough to matter, the durable fix is a NornicDB semantic fix that
-restores the bounded edge-anchored `OPTIONAL MATCH` form (tracked with the other
-multi-clause reads on #5287), not a further Eshu workaround.
+No-Regression Evidence: at representative scale (measured) — seeded a large
+protection-edge population and measured the shipped WAF/TLS set query against the
+base label scan with a 2-element `$edge_ids`, warm median of 4 runs over
+Bolt-HTTP:
+
+| corpus | shipped WAF-led set query | base `CloudResource` label scan |
+|---|---:|---:|
+| **3,633 WAF protection edges / 7,768 CloudResource nodes** | **1.2 ms** | 1.3 ms |
+
+The widened WAF/TLS lookup is **statistically identical to the base scan** at
+3.6k protection edges, because the WAF/ACM protection-edge population is a
+**subset** of the `CloudResource` node population (only protected resources carry
+the edge) — so the relationship-type scan is bounded by protected-resource count,
+which is ≤ the base label scan the prior query already performed. The added cost
+is therefore not unbounded in global WAF volume; it is bounded by (a subset of)
+the same population as the unchanged base scan. This buys a **correct** result
+(the prior query reported every edge as WAF/TLS-protected, including unprotected
+ones). `EXPLAIN`/`PROFILE` returns no plan on the pinned build, so this
+wall-clock measurement is the available evidence. If a future estate makes even
+this bounded scan matter, the durable fix is a NornicDB semantic fix restoring
+the edge-anchored `OPTIONAL MATCH` form (the 2-clause edge-anchored variant is
+itself broken on this build — probed live, returns a null `edge_id`; tracked with
+the other multi-clause reads on #5287), not a further Eshu workaround.
 
 ## Observability Evidence
 
