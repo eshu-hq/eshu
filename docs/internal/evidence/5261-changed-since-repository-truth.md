@@ -125,6 +125,46 @@ new shape differed only by the repository-kind `source_key` projection. The
 row differential compared the five shared fields and separately asserted that
 the repository-kind source key was non-empty.
 
+## Authenticated retained-browser proof
+
+The in-app browser ran the console at source commit `ba2187716d` on base
+`04aa756610`. The browser runner was version `26.707.91948`, SHA-256
+`7abc8b22abade944bcd80135500416c7aee60c0e94290c7d644b54428a0013ab`.
+The retained API credential was supplied only to the dev server's supported
+in-memory `VITE_ESHU_API_KEY` input. It was not printed, entered into the page,
+or persisted in browser storage. No password or MFA reset was required.
+
+The live retained-data workflow proved:
+
+- the shell reported `Live`, and the repository selector was populated from
+  the caller-authorized catalog with human names and canonical repository IDs;
+- searching by a human-name fragment filtered the selector without changing
+  the applied URL or repository owner;
+- a repository with a retained baseline automatically wrote a repository-only
+  URL, selected one prior generation, and rendered three delta categories and
+  25 bounded sample identities;
+- each file sample displayed the exact human path after removing only the
+  matching `file:<canonical repository id>:` prefix, while its expandable
+  diagnostic value retained that prefix and ended with the visible path;
+- the blast-radius link targeted the same canonical repository as the rendered
+  evidence;
+- changing to a repository with no retained prior generation immediately
+  removed all prior samples and delta rows, kept a repository-only URL, showed
+  `No retained prior generation is available for this repository.`, and left
+  `Load changes` disabled; and
+- a copied legacy scope-only URL resolved its response repository identity back
+  into the canonical selector, rendered the same bounded delta, and did not add
+  a conflicting repository query parameter.
+
+Five warm retained reloads navigated away before each trial so prior Changed
+Since DOM could not satisfy the terminal condition. Navigation start was the
+primary start event; canonical selector ownership plus the first rendered
+delta sample was the terminal event. The trials completed in 1.929, 1.803,
+1.826, 1.842, and 1.813 seconds: median 1.826 seconds and maximum 1.929 seconds.
+All five reached the terminal event within the route's 2-3 second interactive
+target. This is full-console route hydration evidence; the separate
+eight-trial API measurement above remains the handler-level evidence.
+
 ## Observability
 
 The route keeps its existing changed-since span and attributes. A selector
