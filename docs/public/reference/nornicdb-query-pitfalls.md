@@ -297,6 +297,67 @@ passthrough + Go merge returned the same 16 buckets as the whole-graph read.
 `go test ./internal/query -run TestInfraResourceScopePredicateRendersOnlyWhenScoped
 -count=1` guards that the aggregate query stays per-label CALL-anchored.
 
+## Pitfall: A `n:Label` Test Inside A CASE / Projection Returns Literal Text
+
+### Observed shape
+
+Measured directly against the pinned NornicDB backend (`eshu-nornicdb-pr261`,
+v1.1.11 base) while fixing the infra all-categories by-provider grouping
+(#5283). A node-label test used as a boolean **inside a projection or CASE**
+is not evaluated — it is echoed as the literal expression text:
+
+```cypher
+MATCH (n:CloudResource {id:$id})
+RETURN (n:CloudResource) AS istest,            -- returns the STRING "n:CloudResource"
+       ('CloudResource' IN labels(n)) AS ok    -- returns the boolean true
+```
+
+Because a non-null string is truthy, a `CASE WHEN n:Label THEN a ELSE b END`
+does not simply pick a branch — combined with nesting it corrupts the whole
+expression. A deeply nested `CASE WHEN ... THEN CASE WHEN n:CloudResource THEN
+CASE WHEN ... END END ELSE ... END` group key collapsed every row (including
+rows whose top-level branch never reached the label test) to a `null` bucket:
+
+```cypher
+-- BROKEN group key: nested CASE-in-CASE with a n:Label test
+CASE WHEN n.provider IS NULL OR n.provider = ''
+     THEN CASE WHEN n:CloudResource
+               THEN CASE WHEN n.source_system IS NULL OR n.source_system = ''
+                         THEN 'unknown' ELSE n.source_system END
+               ELSE 'unknown' END
+     ELSE n.provider END
+-- => every provider-less node buckets to null; even n.provider='gcp' mis-buckets
+```
+
+A label test in a **WHERE clause** (`... WHERE n:Label AND ...`) IS evaluated as
+a boolean and works correctly; only the projection/CASE position is defective.
+
+### Eshu implications
+
+Never gate on a label with a `n:Label` test inside a RETURN projection or CASE
+on this backend. Use `'Label' IN labels(n)` — `labels(n)` is evaluated correctly
+— and keep the CASE flat (single level of `WHEN` branches) rather than nesting
+CASE inside CASE. The infra by-provider grouping
+(`infraResourceProviderGroupExpression`,
+`go/internal/query/infra_resource_aggregates.go`) now emits a flat
+`CASE WHEN coalesce(n.provider,'') <> '' THEN n.provider WHEN ('CloudResource'
+IN labels(n)) AND coalesce(n.source_system,'') <> '' THEN n.source_system ELSE
+'unknown' END`. WHERE-clause label tests in the same file
+(`infraResourceAggregateFilterClauses`) are left as-is because the WHERE
+position evaluates them correctly.
+
+### Validation
+
+Reproduced live via the Bolt driver on an isolated pinned NornicDB with a
+4-node seed across `CloudResource` and `TerraformResource`: the old nested
+label-test group key returned `{"":3, "unknown":1}` (null bucket, `gcp` lost);
+the flat `IN labels(n)` form returned the intended `{aws:1, gcp:1, unknown:2}`.
+`go test ./internal/query -run
+TestInfraResourceInventoryGroupExpressionsAreNornicDBSafe -count=1` guards that
+no inventory group expression reintroduces a `n:Label` test in a projection, and
+`TestLiveInfraProviderInventoryBucketsNonNull`
+(`ESHU_INFRA_AGG_PROVE_LIVE=1`) is the backend-required live proof.
+
 ## Pitfall: Multi-Clause Read Queries Silently Corrupt The Projection
 
 ### Observed shape

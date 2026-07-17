@@ -439,7 +439,22 @@ func infraResourceProviderGroupExpression(filter InfraResourceAggregateFilter) s
 		return "CASE WHEN n.source_system IS NULL OR n.source_system = '' THEN 'unknown' ELSE n.source_system END"
 	}
 	if infraResourceAggregateAllCategories(filter) {
-		return "CASE WHEN n.provider IS NULL OR n.provider = '' THEN CASE WHEN n:CloudResource THEN CASE WHEN n.source_system IS NULL OR n.source_system = '' THEN 'unknown' ELSE n.source_system END ELSE 'unknown' END ELSE n.provider END"
+		// Flat single-level CASE. The all-categories read groups CloudResource
+		// (whose provider signal lives in `source_system`) alongside IaC labels
+		// (whose provider signal lives in `provider`), so a provider-less node
+		// falls back to `source_system` only when it is a CloudResource, else
+		// buckets as `unknown`.
+		//
+		// The CloudResource gate uses `'CloudResource' IN labels(n)`, not a
+		// `n:CloudResource` label test. On the pinned NornicDB build a label
+		// test inside a CASE/projection is echoed as the literal expression
+		// text, so a nested `CASE WHEN n:CloudResource THEN ... END` collapsed
+		// every provider-less node into a null bucket and mis-bucketed even
+		// nodes carrying a real provider (#5283). `IN labels(n)` evaluates
+		// correctly, and flattening the nested CASE avoids the CASE-in-CASE
+		// shape the same build mangles. The `coalesce(prop, '') <> ''` guards
+		// treat NULL and empty-string identically, matching the prior intent.
+		return "CASE WHEN coalesce(n.provider, '') <> '' THEN n.provider WHEN ('CloudResource' IN labels(n)) AND coalesce(n.source_system, '') <> '' THEN n.source_system ELSE 'unknown' END"
 	}
 	return "CASE WHEN n.provider IS NULL OR n.provider = '' THEN 'unknown' ELSE n.provider END"
 }

@@ -7,6 +7,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -157,6 +158,48 @@ func TestGraphInfraResourceAggregateDefaultScopeKeepsCloudFiltersReachable(t *te
 	}
 }
 
+// TestInfraResourceInventoryGroupExpressionsAreNornicDBSafe guards every
+// inventory grouping expression against the #5283 defect: a `n:Label` label
+// test inside a CASE/projection. On the pinned NornicDB build such a test is
+// echoed as the literal expression text, so the enclosing CASE evaluates to a
+// null bucket instead of the intended value. `'CloudResource' IN labels(n)` is
+// the NornicDB-safe way to gate on a label inside a projection. A WHERE-clause
+// label test is fine (evaluated as a boolean by NornicDB) and is covered
+// separately by the where-clause tests; this guard only inspects the RETURN
+// grouping projections produced by infraResourceInventoryGroupExpression.
+func TestInfraResourceInventoryGroupExpressionsAreNornicDBSafe(t *testing.T) {
+	t.Parallel()
+
+	dimensions := []InfraResourceInventoryDimension{
+		InfraResourceInventoryByProvider,
+		InfraResourceInventoryByEnvironment,
+		InfraResourceInventoryByResourceCategory,
+		InfraResourceInventoryByResourceService,
+		InfraResourceInventoryByLabel,
+	}
+	filters := map[string]InfraResourceAggregateFilter{
+		"all-categories": {},
+		"cloud":          {Category: "cloud"},
+		"terraform":      {Category: "terraform"},
+	}
+	// A `n:Label` label test appears as `n:` followed by an uppercase label
+	// name. `IN labels(n)` never produces that substring, so a plain scan for
+	// `n:CloudResource` (and the generic `n:` + uppercase) catches the defect
+	// without matching the safe list-membership form.
+	labelTestInProjection := regexp.MustCompile(`n:[A-Z]`)
+	for _, dimension := range dimensions {
+		for name, filter := range filters {
+			expr, err := infraResourceInventoryGroupExpression(dimension, filter)
+			if err != nil {
+				t.Fatalf("group expression (%s/%s): %v", dimension, name, err)
+			}
+			if labelTestInProjection.MatchString(expr) {
+				t.Fatalf("group expression (%s/%s) = %q contains a NornicDB-unsafe label test in a CASE/projection; gate on labels with 'CloudResource' IN labels(n) instead", dimension, name, expr)
+			}
+		}
+	}
+}
+
 func TestInfraResourceInventoryDefaultScopeCoalescesCloudAndTerraformGroups(t *testing.T) {
 	t.Parallel()
 
@@ -172,8 +215,13 @@ func TestInfraResourceInventoryDefaultScopeCoalescesCloudAndTerraformGroups(t *t
 			t.Fatalf("provider group expression = %q, want %s", providerExpr, want)
 		}
 	}
-	if !strings.Contains(providerExpr, "WHEN n:CloudResource") {
-		t.Fatalf("provider group expression = %q, want source_system fallback gated to CloudResource", providerExpr)
+	// The source_system fallback must stay gated to CloudResource nodes, but the
+	// gate must use `'CloudResource' IN labels(n)`, not a `n:CloudResource`
+	// label test inside a CASE. On the pinned NornicDB build a label test in a
+	// projection/CASE evaluates to the literal expression text and the enclosing
+	// CASE collapses to a null bucket (#5283); `IN labels(n)` evaluates correctly.
+	if !strings.Contains(providerExpr, "'CloudResource' IN labels(n)") {
+		t.Fatalf("provider group expression = %q, want source_system fallback gated via 'CloudResource' IN labels(n)", providerExpr)
 	}
 	if strings.Contains(providerExpr, "coalesce(n.provider, n.source_system") {
 		t.Fatalf("provider group expression = %q, must not coalesce source_system into provider for non-cloud nodes", providerExpr)
