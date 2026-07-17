@@ -46,13 +46,15 @@ MATCH (repo:Repository)-[:REPO_CONTAINS]->(f)
 RETURN repo.name AS repo, repo.id AS repo_id
 LIMIT $limit`
 
-// blastRadiusDependentsByNameCypher returns repos that transitively depend on
-// any of the named source repositories, with shortest hop distance. Used to
-// extend the terraform_module blast surface past the defining repos. Typed
-// traversal, single clause; `*1..5` (never `*0..5`, which projects literal text
-// for the zero-length row on this build).
-const blastRadiusDependentsByNameCypher = `MATCH path=(s:Repository)<-[:DEPENDS_ON*1..5]-(a:Repository)
-WHERE s.name IN $repo_names
+// blastRadiusDependentsByIDCypher returns repos that transitively depend on any
+// of the source repositories identified by concrete `id`, with shortest hop
+// distance. Used to extend the terraform_module blast surface past the defining
+// repos. Anchored on `s.id IN $repo_ids` (not name) so a source repo that shares
+// its name with an unrelated indexed repo does not pull that repo's dependents
+// into the blast radius. Typed traversal, single clause; `*1..5` (never `*0..5`,
+// which projects literal text for the zero-length row on this build).
+const blastRadiusDependentsByIDCypher = `MATCH path=(s:Repository)<-[:DEPENDS_ON*1..5]-(a:Repository)
+WHERE s.id IN $repo_ids
 RETURN a.name AS repo, a.id AS repo_id, min(length(path)) AS hops
 ORDER BY hops, repo
 LIMIT $limit`
@@ -70,6 +72,12 @@ MATCH (repo:Repository)-[:REPO_CONTAINS]->(f)
 RETURN repo.name AS repo, repo.id AS repo_id, claim.name AS claim
 ORDER BY repo, claim
 LIMIT $limit`
+
+// blastRadiusSqlTableBranches is the number of UNION branches in
+// blastRadiusSqlTableCypher; a single repo can appear once per branch, so the
+// caller over-fetches by this factor before the app-side min-hop dedup and
+// trim, ensuring the requested unique-repo limit is met.
+const blastRadiusSqlTableBranches = 6
 
 // blastRadiusSqlTableCypher resolves repositories touching the matched SqlTable
 // through any of the code/schema relationship kinds, with a coarse hop marker.
@@ -206,8 +214,8 @@ func (h *ImpactHandler) blastRadiusAffected(ctx context.Context, targetType, tar
 			return nil, true, err
 		}
 		affected := src
-		if names := distinctRepoNames(src); len(names) > 0 {
-			deps, err := h.Neo4j.Run(ctx, blastRadiusDependentsByNameCypher, map[string]any{"repo_names": names, "limit": limit})
+		if ids := distinctRepoIDs(src); len(ids) > 0 {
+			deps, err := h.Neo4j.Run(ctx, blastRadiusDependentsByIDCypher, map[string]any{"repo_ids": ids, "limit": limit})
 			if err != nil {
 				return nil, true, err
 			}
@@ -218,7 +226,12 @@ func (h *ImpactHandler) blastRadiusAffected(ctx context.Context, targetType, tar
 		rows, err := h.Neo4j.Run(ctx, blastRadiusCrossplaneCypher, params)
 		return mergeBlastRadiusRows(rows), true, err
 	case "sql_table":
-		rows, err := h.Neo4j.Run(ctx, blastRadiusSqlTableCypher, params)
+		// A repo can reach the table through several UNION branches (up to
+		// blastRadiusSqlTableBranches rows for one repo), and the query's own
+		// LIMIT applies before mergeBlastRadiusRows collapses those duplicates.
+		// Over-fetch by the branch multiplier so the post-dedup unique set still
+		// covers the requested limit before the handler trims it.
+		rows, err := h.Neo4j.Run(ctx, blastRadiusSqlTableCypher, map[string]any{"target_name": target, "limit": limit * blastRadiusSqlTableBranches})
 		return mergeBlastRadiusRows(rows), true, err
 	default:
 		return nil, false, nil
@@ -265,17 +278,30 @@ func (h *ImpactHandler) enrichBlastRadiusTiers(ctx context.Context, affected []m
 // distinctRepoNames returns the unique non-empty repo names from the rows,
 // preserving first-seen order so downstream ORDER BY stays deterministic.
 func distinctRepoNames(rows []map[string]any) []string {
+	return distinctFieldValues(rows, "repo")
+}
+
+// distinctRepoIDs returns the unique non-empty repo ids from the rows. Used to
+// anchor the terraform_module dependents traversal on concrete source-repo ids
+// rather than names, so same-named-but-unrelated repos are not pulled in.
+func distinctRepoIDs(rows []map[string]any) []string {
+	return distinctFieldValues(rows, "repo_id")
+}
+
+// distinctFieldValues returns the unique non-empty values of key across rows,
+// preserving first-seen order.
+func distinctFieldValues(rows []map[string]any, key string) []string {
 	seen := make(map[string]bool, len(rows))
-	names := make([]string, 0, len(rows))
+	out := make([]string, 0, len(rows))
 	for _, row := range rows {
-		name := StringVal(row, "repo")
-		if name == "" || seen[name] {
+		v := StringVal(row, key)
+		if v == "" || seen[v] {
 			continue
 		}
-		seen[name] = true
-		names = append(names, name)
+		seen[v] = true
+		out = append(out, v)
 	}
-	return names
+	return out
 }
 
 // mergeBlastRadiusRows de-duplicates affected rows by repo name, keeping the

@@ -30,6 +30,12 @@ func TestFindBlastRadiusUsesRequestedLimitAndReportsTruncation(t *testing.T) {
 						{"repo": "ledger", "tier": "backend"},
 					}, nil
 				}
+				// Anchor on the affected-query fingerprint (typed DEPENDS_ON
+				// traversal) so this branch cannot accidentally match a future
+				// tier-lookup shape that gains a LIMIT clause.
+				if !strings.Contains(cypher, ":DEPENDS_ON*1..5") {
+					t.Fatalf("affected cypher = %q, want the typed DEPENDS_ON traversal", cypher)
+				}
 				if !strings.Contains(cypher, "LIMIT $limit") {
 					t.Fatalf("affected cypher = %q, want server-side LIMIT parameter", cypher)
 				}

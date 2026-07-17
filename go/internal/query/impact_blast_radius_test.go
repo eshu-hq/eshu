@@ -26,9 +26,16 @@ func TestBlastRadiusQueriesAreNornicDBSafe(t *testing.T) {
 	affected := map[string]string{
 		"repository":       blastRadiusRepositoryCypher,
 		"terraform_source": blastRadiusTerraformSourceReposCypher,
-		"terraform_deps":   blastRadiusDependentsByNameCypher,
+		"terraform_deps":   blastRadiusDependentsByIDCypher,
 		"crossplane":       blastRadiusCrossplaneCypher,
 		"sql_table":        blastRadiusSqlTableCypher,
+	}
+
+	// The terraform_module dependents traversal must anchor on the concrete
+	// source-repo id, not name, so a same-named unrelated repo cannot pull its
+	// dependents into the blast radius (PR #5288 P1).
+	if !strings.Contains(blastRadiusDependentsByIDCypher, "s.id IN $repo_ids") {
+		t.Errorf("terraform dependents query must anchor on s.id IN $repo_ids, not name: %s", blastRadiusDependentsByIDCypher)
 	}
 	for name, q := range affected {
 		if strings.Contains(q, "OPTIONAL MATCH") {
@@ -222,6 +229,87 @@ func TestFindBlastRadiusSqlTableTierErrorDegradesGracefully(t *testing.T) {
 		if a.Repo == "orders-db" && a.Hops != 0 {
 			t.Fatalf("orders-db should keep min hop 0 across UNION, got %d", a.Hops)
 		}
+	}
+}
+
+// TestFindBlastRadiusTerraformAnchorsDependentsByID proves the terraform_module
+// branch resolves source repos then anchors the dependents traversal on the
+// concrete source-repo IDs (not names), so a same-named unrelated repo cannot
+// leak its dependents into the blast radius (PR #5288 P1).
+func TestFindBlastRadiusTerraformAnchorsDependentsByID(t *testing.T) {
+	t.Parallel()
+
+	var gotDepParams map[string]any
+	handler := &ImpactHandler{
+		Profile: ProfileLocalAuthoritative,
+		Neo4j: fakeGraphReader{
+			run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
+				switch {
+				case strings.Contains(cypher, "TerraformModule"):
+					return []map[string]any{{"repo": "infra", "repo_id": "repo-infra-42"}}, nil
+				case strings.Contains(cypher, ":DEPENDS_ON*1..5"):
+					gotDepParams = params
+					return []map[string]any{{"repo": "web", "repo_id": "repo-web", "hops": int64(1)}}, nil
+				case strings.Contains(cypher, "CONTAINS]-(tier:Tier)"):
+					return nil, nil
+				default:
+					t.Fatalf("unexpected cypher: %s", cypher)
+					return nil, nil
+				}
+			},
+		},
+	}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+	req := httptest.NewRequest(http.MethodPost, "/api/v0/impact/blast-radius",
+		bytes.NewBufferString(`{"target":"vpc","target_type":"terraform_module"}`))
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status %d body %s", w.Code, w.Body.String())
+	}
+	ids, ok := gotDepParams["repo_ids"].([]string)
+	if !ok || len(ids) != 1 || ids[0] != "repo-infra-42" {
+		t.Fatalf("dependents query got repo_ids = %#v, want [repo-infra-42] (must anchor on id, not name)", gotDepParams["repo_ids"])
+	}
+	if _, leaked := gotDepParams["repo_names"]; leaked {
+		t.Fatalf("dependents query must not be anchored by name: %#v", gotDepParams)
+	}
+}
+
+// TestFindBlastRadiusSqlTableOverFetchesBeforeDedup proves the sql_table query
+// receives limit * branch-count so per-repo UNION duplicates are collapsed by
+// mergeBlastRadiusRows before the requested unique-repo limit is applied
+// (PR #5288 P2).
+func TestFindBlastRadiusSqlTableOverFetchesBeforeDedup(t *testing.T) {
+	t.Parallel()
+
+	var gotLimit any
+	handler := &ImpactHandler{
+		Profile: ProfileLocalAuthoritative,
+		Neo4j: fakeGraphReader{
+			run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
+				if strings.Contains(cypher, "CALL {") {
+					gotLimit = params["limit"]
+					return nil, nil
+				}
+				return nil, nil
+			},
+		},
+	}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+	req := httptest.NewRequest(http.MethodPost, "/api/v0/impact/blast-radius",
+		bytes.NewBufferString(`{"target":"orders","target_type":"sql_table","limit":10}`))
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status %d", w.Code)
+	}
+	// handler passes limit+1 (=11) into blastRadiusAffected, scaled by branch count.
+	want := 11 * blastRadiusSqlTableBranches
+	if gotLimit != want {
+		t.Fatalf("sql_table query limit = %#v, want %d (limit+1 over-fetched by %d branches)", gotLimit, want, blastRadiusSqlTableBranches)
 	}
 }
 

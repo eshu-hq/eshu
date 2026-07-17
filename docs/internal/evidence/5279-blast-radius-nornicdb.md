@@ -75,7 +75,11 @@ goes from broken to correct with no throughput regression.
 
 ## Observability Evidence
 
-Observability Evidence: No new metric, span, or log field. The handler still runs through the existing
+Observability Evidence: one new operator log field — `enrichBlastRadiusTiers`
+emits a `Warn` ("blast-radius tier enrichment failed; returning affected repos
+without tier", `error=<err>`) when the separate tier-lookup query fails, so an
+operator can see tier-enrichment degradation instead of silently missing
+tier/risk on the affected repos. No new metric or span. The handler still runs through the existing
 `GraphQuery.Run` spans (now two spans per request instead of one); the tier
 enrichment logs a `Warn` and degrades to no-tier on lookup error rather than
 failing the read, so an operator can see tier-enrichment failures without losing
