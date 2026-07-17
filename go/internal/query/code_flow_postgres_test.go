@@ -74,11 +74,12 @@ func TestCodeFlowSQLKeepsLiteralKindConjunctForPartialIndex(t *testing.T) {
 	for _, k := range facts.CodeFlowReadFactKinds() {
 		canonical[k] = true
 	}
+	// Range the production dispatch map itself, not a hand-copied list of
+	// CodeFlowKind values: a new kind wired into codeFlowKindFactKinds is picked
+	// up here automatically, so it cannot add a fact kind the canonical set (and
+	// therefore the literal conjunct and index) miss without failing this guard.
 	union := map[string]bool{}
-	for _, kind := range []CodeFlowKind{
-		CodeFlowKindTaintPath, CodeFlowKindReachingDef,
-		CodeFlowKindCFGSummary, CodeFlowKindPDGSummary,
-	} {
+	for kind := range codeFlowKindFactKinds {
 		for _, k := range codeFlowFactKinds(kind) {
 			union[k] = true
 			if !canonical[k] {
@@ -88,6 +89,38 @@ func TestCodeFlowSQLKeepsLiteralKindConjunctForPartialIndex(t *testing.T) {
 	}
 	if len(union) != len(canonical) {
 		t.Fatalf("codeFlowFactKinds union has %d kinds but facts.CodeFlowReadFactKinds() has %d; the canonical set must equal the kinds the read can actually select", len(union), len(canonical))
+	}
+}
+
+// TestCodeFlowFactKindsDispatch pins the per-kind fact-kind dispatch so the
+// map-backed lookup keeps the exact behavior of the switch it replaced: taint
+// selects the taint+interproc evidence kinds, the three dataflow-derived kinds
+// select the dataflow function kind, and an unknown kind returns nil (which
+// ListCodeFlow short-circuits to an empty read). Order within a kind is part of
+// the contract because it becomes the $1 array the read binds.
+func TestCodeFlowFactKindsDispatch(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		kind CodeFlowKind
+		want []string
+	}{
+		{CodeFlowKindTaintPath, []string{facts.CodeTaintEvidenceFactKind, facts.CodeInterprocEvidenceFactKind}},
+		{CodeFlowKindReachingDef, []string{facts.CodeDataflowFunctionFactKind}},
+		{CodeFlowKindCFGSummary, []string{facts.CodeDataflowFunctionFactKind}},
+		{CodeFlowKindPDGSummary, []string{facts.CodeDataflowFunctionFactKind}},
+		{CodeFlowKind("unknown_kind"), nil},
+	}
+	for _, tc := range cases {
+		got := codeFlowFactKinds(tc.kind)
+		if len(got) != len(tc.want) {
+			t.Fatalf("codeFlowFactKinds(%q) = %v, want %v", tc.kind, got, tc.want)
+		}
+		for i := range tc.want {
+			if got[i] != tc.want[i] {
+				t.Fatalf("codeFlowFactKinds(%q)[%d] = %q, want %q", tc.kind, i, got[i], tc.want[i])
+			}
+		}
 	}
 }
 

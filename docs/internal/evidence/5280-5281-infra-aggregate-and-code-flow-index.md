@@ -141,6 +141,22 @@ the canonical source fails **both** guards
 `TestFactRecordSchemaIncludesCodeFlowRepoIndex`); removing it returns both to
 green.
 
+A third-pass review P2 noted the remaining narrow gap: the union-coverage check
+hand-enumerated the four `CodeFlowKind` values, so a new kind wired into
+`codeFlowFactKinds` but omitted from both that test enumeration and the canonical
+set would slip through. Closed structurally: `codeFlowFactKinds` now dispatches
+through a package-level `codeFlowKindFactKinds` map, and the guard ranges that
+same production map instead of a hand-copied list — so any kind wired into
+dispatch is automatically checked against `facts.CodeFlowReadFactKinds()`, with
+no separate enumeration to forget. Dispatch behavior is pinned unchanged by
+`TestCodeFlowFactKindsDispatch` (taint→taint+interproc, the three
+dataflow-derived kinds→dataflow function, unknown→nil). Proven: adding a new
+dispatch entry returning an uncovered kind (without touching any test list) now
+fails `TestCodeFlowSQLKeepsLiteralKindConjunctForPartialIndex`; the residual
+"new `CodeFlowKind` never wired into dispatch" case returns an empty read
+(caught by the endpoint's own handler tests), an obvious unwired-endpoint
+failure rather than a silent kind exclusion.
+
 All 83,000 seeded facts and the manual index were removed after measurement
 (`VACUUM ANALYZE`; verified `fact_records` = 330,474, 0 leftover).
 
