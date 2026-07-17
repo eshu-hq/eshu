@@ -19,6 +19,18 @@ const repositories: readonly RepoListItem[] = [
     remoteUrl: "",
     repoSlug: "acme/app",
   },
+  {
+    groupKey: "",
+    groupKind: "",
+    groupReason: "",
+    groupSource: "",
+    groupTruth: "",
+    id: "repository:r_b",
+    isDependency: false,
+    name: "payments",
+    remoteUrl: "",
+    repoSlug: "acme/payments",
+  },
 ];
 
 function ChangedSinceNavigationHarness({ client }: { readonly client: EshuApiClient }) {
@@ -221,6 +233,78 @@ function fakeClient(calls: string[], discoverySignals: AbortSignal[] = []): Eshu
 }
 
 describe("ChangedSincePage", () => {
+  it("clears old repository evidence immediately and loads the new canonical repository", async () => {
+    const calls: string[] = [];
+    const get = vi.fn(async (path: string) => {
+      calls.push(path);
+      if (path.startsWith("/api/v0/freshness/generations")) {
+        const isPayments = path.includes("repository=repository%3Ar_b");
+        return envelope(
+          {
+            count: 2,
+            generations: [
+              {
+                current_active_generation_id: isPayments ? "gen-b-current" : "gen-a-current",
+                generation_id: isPayments ? "gen-b-prior" : "gen-a-prior",
+                is_active: false,
+                observed_at: "2026-07-16T00:00:00Z",
+                queue_status: {},
+                scope_id: isPayments ? "scope:b" : "scope:a",
+                status: "superseded",
+              },
+              {
+                current_active_generation_id: isPayments ? "gen-b-current" : "gen-a-current",
+                generation_id: isPayments ? "gen-b-current" : "gen-a-current",
+                is_active: true,
+                observed_at: "2026-07-17T00:00:00Z",
+                queue_status: {},
+                scope_id: isPayments ? "scope:b" : "scope:a",
+                status: "active",
+              },
+            ],
+            limit: 3,
+            truncated: false,
+          },
+          "freshness.generation_lifecycle",
+        );
+      }
+      if (path.includes("repository=repository%3Ar_b")) {
+        return changedPage("repository:r_b", "file:repository:r_b:src/payments.go");
+      }
+      return changedPage("repository:r_a", "file:repository:r_a:src/old.go");
+    });
+
+    render(
+      <MemoryRouter
+        initialEntries={[
+          "/changed-since?mode=repository&repository=repository%3Ar_a&since_generation_id=gen-a-prior",
+        ]}
+      >
+        <ChangedSincePage
+          client={{ get } as unknown as EshuApiClient}
+          repositories={repositories}
+        />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() =>
+      expect(screen.getAllByText("file:repository:r_a:src/old.go").length).toBeGreaterThan(0),
+    );
+    fireEvent.change(screen.getByLabelText("Repository"), {
+      target: { value: "repository:r_b" },
+    });
+
+    expect(screen.queryByText("file:repository:r_a:src/old.go")).not.toBeInTheDocument();
+    await waitFor(() =>
+      expect(calls).toContain(
+        "/api/v0/freshness/changed-since?repository=repository%3Ar_b&since_generation_id=gen-b-prior&sample_limit=25",
+      ),
+    );
+    expect(calls.some((path) => path.includes("scope_id=") && path.includes("repository="))).toBe(
+      false,
+    );
+  });
+
   it("does not let an older scope overwrite newer changed-since or generation truth", async () => {
     const oldChanges = deferred<ReturnType<typeof envelope>>();
     const oldGenerations = deferred<ReturnType<typeof envelope>>();

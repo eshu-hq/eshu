@@ -12,8 +12,12 @@ import (
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 )
 
-func scopeRow(scopeID, scopeKind, currentGen string, currentObserved any, hasPending bool) [][]any {
-	return [][]any{{scopeID, scopeKind, currentGen, currentObserved, hasPending}}
+func scopeRow(scopeID, scopeKind, currentGen string, currentObserved any, hasPending bool, repository ...string) [][]any {
+	resolvedRepository := scopeID
+	if len(repository) > 0 {
+		resolvedRepository = repository[0]
+	}
+	return [][]any{{scopeID, scopeKind, resolvedRepository, currentGen, currentObserved, hasPending}}
 }
 
 func priorRow(generationID string, observed any) [][]any {
@@ -174,6 +178,30 @@ func TestComputeChangedSinceDeltaUnknownScopeReturnsEmpty(t *testing.T) {
 	}
 	if summary.ScopeID != "" {
 		t.Fatalf("ScopeID = %q, want empty for unknown scope", summary.ScopeID)
+	}
+}
+
+func TestComputeChangedSinceDeltaScopeSelectorReturnsResolvedRepository(t *testing.T) {
+	t.Parallel()
+
+	observed := time.Date(2026, 7, 17, 12, 0, 0, 0, time.UTC)
+	queryer := &fakeQueryer{responses: []fakeRows{
+		{rows: scopeRow("git-repository-scope:opaque", "repository", "gen-current", observed, false, "repository:r_b")},
+		{rows: priorRow("gen-prior", observed.Add(-time.Hour))},
+		{rows: [][]any{}},
+	}}
+	store := NewStatusStore(queryer)
+
+	summary, err := store.ComputeChangedSinceDelta(context.Background(), statuspkg.ChangedSinceFilter{
+		ScopeID:           "git-repository-scope:opaque",
+		SinceGenerationID: "gen-prior",
+		SampleLimit:       25,
+	})
+	if err != nil {
+		t.Fatalf("ComputeChangedSinceDelta() error = %v", err)
+	}
+	if got, want := summary.Repository, "repository:r_b"; got != want {
+		t.Fatalf("Repository = %q, want %q", got, want)
 	}
 }
 
