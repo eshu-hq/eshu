@@ -18,7 +18,6 @@ import { ChangedSincePage } from "./pages/ChangedSincePage";
 import { CICDRunCorrelationsPage } from "./pages/CICDRunCorrelationsPage";
 import { CloudDriftPage } from "./pages/CloudDriftPage";
 import { CloudPage } from "./pages/CloudPage";
-import { CodeGraphPage } from "./pages/CodeGraphPage";
 import { CollectorReadinessPage } from "./pages/CollectorReadinessPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { DeadCodePage } from "./pages/DeadCodePage";
@@ -70,6 +69,10 @@ const GuidedQuestionsPage = lazy(() =>
   import("./pages/GuidedQuestionsPage").then((module) => ({
     default: module.GuidedQuestionsPage,
   })),
+);
+
+const CodeGraphPage = lazy(() =>
+  import("./pages/CodeGraphPage").then((module) => ({ default: module.CodeGraphPage })),
 );
 
 export interface AppRoutesProps {
@@ -197,7 +200,23 @@ export function AppRoutes({
       />
       <Route
         path={APP_ROUTE_PATHS.codeGraph}
-        element={<CodeGraphPage model={model} client={client} />}
+        element={
+          <Suspense
+            fallback={
+              <section className="page-shell">
+                <h1>Loading Code Graph</h1>
+                <p>Loading repository-scoped graph controls.</p>
+              </section>
+            }
+          >
+            <CodeGraphPage
+              model={model}
+              client={client}
+              repositories={repositories}
+              repositoryCatalog={repositoryCatalog}
+            />
+          </Suspense>
+        }
       />
       <Route
         path={APP_ROUTE_PATHS.repositories}

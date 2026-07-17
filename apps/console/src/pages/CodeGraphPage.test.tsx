@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 
 import { CodeGraphPage } from "./CodeGraphPage";
+import { codeGraphRepository } from "./codeGraphTestFixtures";
 import type { EshuApiClient } from "../api/client";
 import { demoModel } from "../console/demoModel";
 import type { ConsoleModel } from "../console/types";
@@ -92,9 +93,11 @@ describe("CodeGraphPage", () => {
       </MemoryRouter>,
     );
 
-    const selector = screen.getByRole("combobox");
-    expect(selector).toHaveTextContent("post · svc-platform");
-    expect(selector).not.toHaveTextContent("repository:r_");
+    expect(screen.getByRole("combobox", { name: "Repository" })).toHaveTextContent("svc-platform");
+    expect(screen.getByRole("combobox", { name: "Symbol" })).toHaveTextContent("post");
+    expect(screen.getByRole("combobox", { name: "Repository" })).not.toHaveTextContent(
+      "repository:r_",
+    );
   });
 
   it("turns clicked graph dead-code nodes into actionable evidence", async () => {
@@ -189,6 +192,12 @@ describe("CodeGraphPage", () => {
           entity_id: "content-entity:e1",
           name: "post",
           labels: ["Function"],
+          scope: { repo_id: "repository:r_platform" },
+          target_resolution: {
+            entity_id: "content-entity:e1",
+            repo_id: "repository:r_platform",
+            status: "resolved",
+          },
           relationships: [
             {
               direction: "incoming",
@@ -271,7 +280,7 @@ describe("CodeGraphPage", () => {
       "href",
       "/repositories/repository%3Ar_1/source?path=server%2Fhandlers%2Fprofile.ts&lineStart=41&lineEnd=75",
     );
-    expect(screen.getByRole("combobox")).toHaveValue("dead-2");
+    expect(screen.getByRole("combobox", { name: "Symbol" })).toHaveValue("content-entity:e1");
   });
 
   it("selects a dead-code candidate from the code-graph URL parameter", async () => {
@@ -317,14 +326,14 @@ describe("CodeGraphPage", () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByRole("combobox")).toHaveValue("dead-2");
+    expect(screen.getByRole("combobox", { name: "Symbol" })).toHaveValue("content-entity:e2");
     expect(screen.getByRole("link", { name: "server/handlers/profile.ts:41-75" })).toHaveAttribute(
       "href",
       "/repositories/repository%3Ar_1/source?path=server%2Fhandlers%2Fprofile.ts&lineStart=41&lineEnd=75",
     );
   });
 
-  it("loads live dead-code candidates and uses the documented relationships depth field", async () => {
+  it("loads repository structural inventory and uses the documented relationships depth field", async () => {
     const calls: { readonly path: string; readonly body: unknown }[] = [];
     const client = {
       get: async () => ({
@@ -334,18 +343,17 @@ describe("CodeGraphPage", () => {
       }),
       post: async (path: string, body: unknown) => {
         calls.push({ path, body });
-        if (path === "/api/v0/code/dead-code") {
+        if (path === "/api/v0/code/structure/inventory") {
           return {
             data: {
               limit: 100,
               results: [
                 {
-                  classification: "unused",
                   entity_id: "content-entity:e1",
+                  entity_name: "unusedRoute",
+                  entity_type: "Function",
                   file_path: "server/routes.ts",
-                  labels: ["Function"],
                   language: "typescript",
-                  name: "unusedRoute",
                   repo_id: "repository:r1",
                   start_line: 10,
                 },
@@ -371,20 +379,28 @@ describe("CodeGraphPage", () => {
 
     render(
       <MemoryRouter initialEntries={["/code-graph"]}>
-        <CodeGraphPage model={{ ...demoModel, source: "live", findings: [] }} client={client} />
+        <CodeGraphPage
+          model={{ ...demoModel, source: "live", findings: [] }}
+          client={client}
+          repositories={[codeGraphRepository("repository:r1", "svc-platform")]}
+        />
       </MemoryRouter>,
     );
 
     await waitFor(() =>
-      expect(screen.getByRole("combobox")).toHaveTextContent("unusedRoute · svc-platform"),
+      expect(screen.getByRole("combobox", { name: "Symbol" })).toHaveTextContent("unusedRoute"),
     );
     expect(screen.queryByText("repository:r1")).not.toBeInTheDocument();
-    expect(calls).toContainEqual({ path: "/api/v0/code/dead-code", body: { limit: 100 } });
+    expect(calls).toContainEqual({
+      path: "/api/v0/code/structure/inventory",
+      body: { inventory_kind: "entity", limit: 100, repo_id: "repository:r1" },
+    });
     await waitFor(() =>
       expect(calls).toContainEqual({
         path: "/api/v0/code/relationships/story",
         body: {
           entity_id: "content-entity:e1",
+          repo_id: "repository:r1",
           direction: "both",
           relationship_types: [
             "CALLS",
@@ -400,21 +416,25 @@ describe("CodeGraphPage", () => {
     );
   });
 
-  it("reports live candidate load failures instead of hiding the degraded source", async () => {
+  it("reports live inventory failures instead of hiding the degraded source", async () => {
     const client = {
-      get: async () => {
-        throw new Error("repository catalog unavailable");
+      post: async () => {
+        throw new Error("structural inventory unavailable");
       },
     } as unknown as EshuApiClient;
 
     render(
       <MemoryRouter initialEntries={["/code-graph"]}>
-        <CodeGraphPage model={{ ...demoModel, source: "live", findings: [] }} client={client} />
+        <CodeGraphPage
+          model={{ ...demoModel, source: "live", findings: [] }}
+          client={client}
+          repositories={[codeGraphRepository("repository:r1", "svc-platform")]}
+        />
       </MemoryRouter>,
     );
 
     await waitFor(() =>
-      expect(screen.getByText(/Failed to load live dead-code candidates/)).toBeInTheDocument(),
+      expect(screen.getByText("structural inventory unavailable")).toBeInTheDocument(),
     );
   });
 

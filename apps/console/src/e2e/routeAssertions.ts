@@ -25,6 +25,7 @@ import {
 export { consoleRoutes, defaultNetworkAllowList } from "./consoleRouteCatalog";
 export type {
   ConsoleRoute,
+  CodeGraphWorkflowControls,
   NetworkAllowRule,
   RouteArea,
   RouteWorkflowSpec,

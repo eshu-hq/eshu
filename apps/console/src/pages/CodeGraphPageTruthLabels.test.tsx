@@ -10,17 +10,19 @@ describe("CodeGraphPage relationship truth labels", () => {
   it("renders relationship-story confidence tiers, truth states, and coverage", async () => {
     const model: ConsoleModel = {
       ...demoModel,
-      findings: [{
-        id: "dead-1",
-        type: "Dead code",
-        entity: "api-platform",
-        title: "Unreferenced symbol post",
-        detail: "server/handlers/install.ts · unused",
-        truth: "derived",
-        entityId: "content-entity:e1",
-        filePath: "server/handlers/install.ts",
-        repoId: "repository:r_platform"
-      }]
+      findings: [
+        {
+          id: "dead-1",
+          type: "Dead code",
+          entity: "api-platform",
+          title: "Unreferenced symbol post",
+          detail: "server/handlers/install.ts · unused",
+          truth: "derived",
+          entityId: "content-entity:e1",
+          filePath: "server/handlers/install.ts",
+          repoId: "repository:r_platform",
+        },
+      ],
     };
     const calls: { readonly path: string; readonly body: unknown }[] = [];
     const client = {
@@ -28,6 +30,12 @@ describe("CodeGraphPage relationship truth labels", () => {
         calls.push({ path, body });
         return {
           data: {
+            scope: { repo_id: "repository:r_platform" },
+            target_resolution: {
+              entity_id: "content-entity:e1",
+              repo_id: "repository:r_platform",
+              status: "resolved",
+            },
             relationships: [
               {
                 direction: "incoming",
@@ -40,8 +48,8 @@ describe("CodeGraphPage relationship truth labels", () => {
                   truth_state: "derived",
                   source_family: "code_edge",
                   method: "scip",
-                  confidence: 0.99
-                }
+                  confidence: 0.99,
+                },
               },
               {
                 direction: "outgoing",
@@ -54,8 +62,8 @@ describe("CodeGraphPage relationship truth labels", () => {
                   truth_state: "heuristic",
                   source_family: "correlation_edge",
                   method: "evidence_constant",
-                  confidence: 0.55
-                }
+                  confidence: 0.55,
+                },
               },
               {
                 direction: "outgoing",
@@ -67,37 +75,47 @@ describe("CodeGraphPage relationship truth labels", () => {
                   confidence_tier: "unsupported",
                   truth_state: "unsupported",
                   source_family: "unsupported",
-                  method: "unsupported"
-                }
-              }
+                  method: "unsupported",
+                },
+              },
             ],
             coverage: {
               missing_edge_reason: "truncated_by_limit",
               truncation_state: "count",
-              evidence_explanation: "Returned the first page of relationship rows."
-            }
+              evidence_explanation: "Returned the first page of relationship rows.",
+            },
           },
           error: null,
-          truth: null
+          truth: null,
         };
-      }
+      },
     } as unknown as EshuApiClient;
 
     render(
       <MemoryRouter initialEntries={["/code-graph"]}>
         <CodeGraphPage model={model} client={client} />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
-    await waitFor(() => expect(calls).toContainEqual({
-      path: "/api/v0/code/relationships/story",
-      body: {
-        entity_id: "content-entity:e1",
-        direction: "both",
-        relationship_types: ["CALLS", "IMPORTS", "REFERENCES", "INHERITS", "OVERRIDES", "TAINT_FLOWS_TO"],
-        limit: 50
-      }
-    }));
+    await waitFor(() =>
+      expect(calls).toContainEqual({
+        path: "/api/v0/code/relationships/story",
+        body: {
+          entity_id: "content-entity:e1",
+          repo_id: "repository:r_platform",
+          direction: "both",
+          relationship_types: [
+            "CALLS",
+            "IMPORTS",
+            "REFERENCES",
+            "INHERITS",
+            "OVERRIDES",
+            "TAINT_FLOWS_TO",
+          ],
+          limit: 50,
+        },
+      }),
+    );
     expect(screen.getByText("Relationship truth")).toBeInTheDocument();
     expect(screen.getByText("high · derived")).toBeInTheDocument();
     expect(screen.getByText("low · heuristic")).toBeInTheDocument();

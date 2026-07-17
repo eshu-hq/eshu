@@ -19,6 +19,10 @@ export const emptyImportCycleState: ImportCycleState = {
   nextOffset: null,
 };
 
+export function codeGraphSelectionKey(repoId: string, entityId: string): string {
+  return JSON.stringify([repoId, entityId]);
+}
+
 export function ImportCyclesPanel({
   state,
 }: {
@@ -234,7 +238,10 @@ export function sourceMetadataStatus(
   href: string | null,
 ): string {
   if (!node || href) return "";
-  if (finding) return "Dead-code scan did not return repository/file metadata.";
+  if (finding?.type === "Dead code") {
+    return "Dead-code scan did not return repository/file metadata.";
+  }
+  if (finding) return "Structural inventory did not return repository/file metadata.";
   return "Related symbol source metadata unavailable from POST /api/v0/code/relationships/story.";
 }
 

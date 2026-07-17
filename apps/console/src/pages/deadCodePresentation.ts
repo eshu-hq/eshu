@@ -121,6 +121,13 @@ export function sourceHref(finding: FindingRow): string | null {
 }
 
 export function codeGraphHref(finding: FindingRow): string {
+  if (finding.repoId && finding.entityId) {
+    const params = new URLSearchParams({
+      repo_id: finding.repoId,
+      entity_id: finding.entityId,
+    });
+    return `/code-graph?${params.toString()}`;
+  }
   return `/code-graph?candidate=${encodeURIComponent(finding.id)}`;
 }
 

@@ -155,13 +155,13 @@ export const primaryConsoleRoutes: readonly ConsoleRoute[] = [
     workflow: {
       id: "code-graph-live-canvas",
       kind: "state",
-      anySelectors: [".gcanvas-svg"],
+      anySelectors: [".gcanvas"],
       requiredBootstrapResponses: [
-        { path: "/api/v0/code/dead-code", method: "POST", acceptedStatuses: [200] },
+        { path: "/api/v0/repositories", method: "GET", acceptedStatuses: [200] },
       ],
       requiredResponses: [
         {
-          path: "/api/v0/code/relationships/story",
+          path: "/api/v0/code/structure/inventory",
           method: "POST",
           acceptedStatuses: [200],
         },
@@ -172,11 +172,13 @@ export const primaryConsoleRoutes: readonly ConsoleRoute[] = [
         },
       ],
       forbiddenSelectors: [".src-err"],
-      forbiddenTexts: [
-        "Failed to load live dead-code candidates:",
-        "Relationships unavailable:",
-        "Import cycle analysis unavailable:",
-      ],
+      forbiddenTexts: ["Relationships unavailable:", "Import cycle analysis unavailable:"],
+      codeGraphControls: {
+        globalSearchSelector: 'input[aria-label="Search Eshu"]',
+        graphSelector: ".gcanvas",
+        repositorySelector: 'select[aria-label="Repository"]',
+        symbolSelector: 'select[aria-label="Symbol"]',
+      },
     },
   },
   {

@@ -39,6 +39,12 @@ describe("CodeGraphPage source links", () => {
               entity_id: "content-entity:e1",
               name: "post",
               labels: ["Function"],
+              scope: { repo_id: "repository:r_platform" },
+              target_resolution: {
+                entity_id: "content-entity:e1",
+                repo_id: "repository:r_platform",
+                status: "resolved",
+              },
               relationships: [
                 {
                   direction: "incoming",

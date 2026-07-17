@@ -1,6 +1,7 @@
 // pages/FindingsPage.tsx
 import { Link } from "react-router-dom";
 
+import { codeGraphHref } from "./deadCodePresentation";
 import type { SectionProvenance } from "../api/eshuConsoleLive";
 import { vulnerabilityRowKey } from "../api/eshuConsoleVulnerabilities";
 import { AsyncStateGuard } from "../components/AsyncStateGuard";
@@ -171,7 +172,7 @@ function findingRow(finding: FindingRow): WorklistRow {
   if (finding.type === "Dead code") {
     actions.push({
       label: "Open graph",
-      to: `/code-graph?candidate=${encodeURIComponent(finding.id)}`,
+      to: codeGraphHref(finding),
     });
     if (finding.filePath)
       actions.push({
