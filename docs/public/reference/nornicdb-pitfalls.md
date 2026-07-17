@@ -463,6 +463,62 @@ across multiple labels, one label with zero matches for the test query).
 -count=1` is the static regression guard that the fix's `CALL {...}` wrapper
 stays in place.
 
+## Pitfall: Outer Aggregation Over A `CALL { ... }` Subquery Collapses The Group Key
+
+### Observed shape
+
+Measured directly against the pinned NornicDB backend (`eshu-nornicdb-pr261`,
+v1.1.11 base) while fixing the infra resource aggregate reads (#5281). When a
+per-label union is wrapped in a `CALL { ... }` subquery (the fix for the
+empty-first-branch pitfall above) and the OUTER query re-aggregates the
+subquery result, the non-aggregated group key evaluates to `null` and every row
+collapses into a single bogus bucket:
+
+```cypher
+-- Per-label node collection, then group OUTSIDE the CALL: BROKEN
+CALL {
+  MATCH (n:CloudResource) RETURN n
+  UNION ALL
+  MATCH (n:TerraformResource) RETURN n
+}
+RETURN head(labels(n)) AS bucket, count(n) AS c   -- returns [(null, <grand total>)]
+
+-- Per-branch group key returned as a column, re-aggregated OUTSIDE: also BROKEN
+CALL {
+  MATCH (n:CloudResource) RETURN head(labels(n)) AS bucket, count(n) AS c
+  UNION ALL
+  MATCH (n:TerraformResource) RETURN head(labels(n)) AS bucket, count(n) AS c
+}
+RETURN bucket, sum(c) AS c                          -- returns [(null, <grand total>)]
+```
+
+A scalar aggregation with no grouping key works (`CALL { ... } RETURN sum(c)`
+returns the correct total), and a NON-aggregating outer passthrough of the
+subquery columns works (`CALL { ... RETURN gexpr AS bucket, count(n) AS c }
+RETURN bucket, c` returns the correct per-branch rows). Only outer aggregation
+WITH a group key over the CALL result collapses.
+
+### Eshu implications
+
+Do not group or re-aggregate over a `CALL { ... }` subquery result on this
+backend. Group inside each branch, pass the `(bucket, count)` rows through the
+outer RETURN unchanged, and merge/sum the buckets application-side. The infra
+resource aggregate reads (`go/internal/query/infra_resource_aggregates.go`,
+`infra_resource_aggregates_cypher.go`) follow this shape: each per-label branch
+returns its own grouped `(bucket, count)` rows, and Go sums them into the final
+bucket map, then sorts and paginates. A bucket value can appear once per
+contributing label, so the application-side step must SUM, not overwrite.
+
+### Validation
+
+Reproduced via direct Bolt HTTP `tx/commit` calls on the 91k-node
+`eshu-5279-81` corpus: the old whole-graph `MATCH (n) WHERE (n:A OR ...) RETURN
+head(labels(n)), count(n)` returned 16 correct buckets, both CALL-wrapped
+outer-aggregation shapes above returned `[(null, 5653)]`, and the per-branch
+passthrough + Go merge returned the same 16 buckets as the whole-graph read.
+`go test ./internal/query -run TestInfraResourceScopePredicateRendersOnlyWhenScoped
+-count=1` guards that the aggregate query stays per-label CALL-anchored.
+
 ## When To Patch NornicDB
 
 Patch NornicDB only when evidence supports one of these:

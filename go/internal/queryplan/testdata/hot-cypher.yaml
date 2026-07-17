@@ -21,6 +21,7 @@ required_ids:
   - QP-RELATIONSHIPS-CATALOG-SOURCE-TOOL
   - QP-RELATIONSHIPS-EDGES
   - QP-INFRA-RESOURCE-SEARCH
+  - QP-INFRA-RESOURCE-AGGREGATE
 entries:
   - id: QP-SC-DEPS
     domain: supply_chain
@@ -707,6 +708,36 @@ entries:
       - No required_anchors are declared because this shape has no property-level anchor to enforce. Its only guarantee is a label scan (MATCH (n:CloudResource), see plan.operators below) — the WHERE predicate (coalesce(n.name, '') CONTAINS $query) is free-text and cannot use an index seek, and RETURN coalesce(n.id, '') is a projected field, not a filter, so declaring it as a required_anchors property would assert a guarantee the query does not actually provide (flagged in PR #5278 review: the validator accepts a property reference anywhere in the query text, so an unfiltered RETURN field can falsely satisfy an anchor check). Per-label LabelScan bounded by candidate-label cardinality is the real and only guarantee; do not add a required_anchors entry here unless a genuine WHERE-bound equality/indexed predicate is added to the query.
       - Representative of one branch of a dynamically generated per-label UNION (issue #5271). The handler builds one MATCH(n:Label) branch per candidate label (up to the ~27-entry allInfraLabels set when no category filter narrows it), unions them, and applies ORDER BY/LIMIT once after the final branch. This replaced a single unlabeled MATCH(n) WHERE (n:A OR n:B OR ...) scan, which forced a whole-graph scan on every call. A label disjunction inside one MATCH (MATCH (n:A|B|C)) was rejected as an alternative because docs/public/reference/nornicdb-pitfalls.md documents it matching zero rows on the pinned NornicDB backend; UNION avoids that defect. Plain UNION (not UNION ALL) de-duplicates, so a node cannot appear twice even if a future schema change lets it carry more than one candidate label.
       - The whole union is wrapped in CALL {...} RETURN ..., which is load-bearing, not stylistic. See docs/public/reference/nornicdb-pitfalls.md ("A Bare Top-Level UNION Returns Nothing When Its First Branch Is Empty") for the full reproduction. In short, a bare top-level UNION chain (with or without ALL) returns zero rows for the ENTIRE query whenever its FIRST branch matches zero rows, even though later branches have real matches. allInfraLabels starts with CloudResource, so any search on a corpus with zero matching CloudResource nodes silently returned an empty result for every other label without this wrapper.
+    plan:
+      operators:
+        - LabelScan
+      forbidden_operators:
+        - AllNodesScan
+        - CartesianProduct
+        - UnboundedExpand
+
+  - id: QP-INFRA-RESOURCE-AGGREGATE
+    domain: infra
+    backend: nornicdb
+    query_kind: cypher
+    source:
+      file: go/internal/query/infra_resource_aggregates_cypher.go
+      symbol: infraResourceAggregatePerLabelCypher
+      line_hint: 40
+    cypher: |
+      CALL {
+      MATCH (n:CloudResource)
+      WHERE true
+        AND n.provider = $provider
+      RETURN head(labels(n)) AS bucket, count(n) AS bucket_count
+      }
+      RETURN bucket, bucket_count
+    required_anchors:
+      - label: CloudResource
+        property: provider
+    caveats:
+      - Representative of one branch of a dynamically generated per-label CALL { ... UNION ALL ... } (issue #5281). CountInfraResources/fillBuckets/InfraResourceInventory build one MATCH (n:Label) branch per candidate infra label (up to the ~27-entry allInfraLabels set) and merge/sort/paginate the passed-through rows in Go. This replaced a single unlabeled MATCH (n) WHERE (n:A OR n:B ...) whole-graph scan (measured 380-410ms cold on a 91k-node corpus, growing with total graph size) — the same defect fixed for infra/resources/search in #5278. The property anchor is only present when a category-specific filter is applied; the unfiltered aggregate is a bounded per-label LabelScan (plan operators below).
+      - The union is wrapped in CALL { ... } and each branch groups internally, passing rows through the outer RETURN without re-aggregating. Both are load-bearing on the pinned NornicDB backend (see docs/public/reference/nornicdb-pitfalls.md). A bare top-level UNION drops all rows when its first branch is empty (allInfraLabels starts with the frequently-empty CloudResource), and outer aggregation over a CALL subquery evaluates the group key to null and collapses every row into one bogus bucket. Callers therefore merge/sum the per-branch rows application-side.
     plan:
       operators:
         - LabelScan
