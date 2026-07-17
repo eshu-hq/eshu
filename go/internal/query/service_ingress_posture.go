@@ -280,11 +280,15 @@ func plural(n int, singular, pluralForm string) string {
 
 // loadServiceIngressPosture loads the WAF/TLS protection state for a service's
 // internet-facing edge resources from the materialized graph and assembles the
-// honest posture block. It runs at most one bounded graph query, only when the
-// service has at least one internet-facing edge resource. The query matches the
-// two materialized AWS edges (AWS_wafv2_web_acl_protects_resource and
-// AWS_acm_certificate_used_by_resource) terminating on the edge resource ids, so
-// absence of an edge is reported as observed-negative, never as missing data.
+// honest posture block. It runs three bounded single-clause set queries — the
+// base set (which requested edges exist / collectorPresent), the WAF-protected
+// set, and the ACM-terminated set — only when the service has at least one
+// internet-facing edge resource, and merges them by membership in Go: an edge in
+// the base set but absent from a protection set is a genuine observed-negative,
+// distinct from an edge absent from the base set entirely (missing data). The
+// prior single multi-clause OPTIONAL MATCH aggregation is mis-executed on the
+// pinned NornicDB build (returns a null edge_id and reports every edge as
+// protected); see docs/internal/evidence/5287-ingress-posture-nornicdb.md (#5287).
 func loadServiceIngressPosture(
 	ctx context.Context,
 	graph GraphQuery,
@@ -305,43 +309,82 @@ func loadServiceIngressPosture(
 		for _, edge := range edges {
 			ids = append(ids, edge.id)
 		}
-		rows, err := graph.Run(ctx, ingressPostureCypher, map[string]any{
-			"edge_ids": ids,
-		})
+		params := map[string]any{"edge_ids": ids}
+		baseSet, err := ingressPostureEdgeSet(ctx, graph, ingressPostureBaseCypher, params)
 		if err != nil {
 			return nil, err
 		}
-		for _, row := range rows {
-			id := StringVal(row, "edge_id")
-			if id == "" {
-				continue
-			}
-			// collectorPresent=true: the graph returned a row for this resource,
-			// so the OPTIONAL MATCH result is a genuine observed-negative when the
-			// protection flags are false, not a missing-collector gap.
+		wafSet, err := ingressPostureEdgeSet(ctx, graph, ingressPostureWafCypher, params)
+		if err != nil {
+			return nil, err
+		}
+		tlsSet, err := ingressPostureEdgeSet(ctx, graph, ingressPostureTLSCypher, params)
+		if err != nil {
+			return nil, err
+		}
+		// A row in the base set means the graph observed the resource
+		// (collectorPresent); the waf/tls sets carry the protection facts. A
+		// resource in the base set but absent from a protection set is a genuine
+		// observed-negative (flag false), distinct from a resource absent from
+		// the base set entirely (missing collector data, left out of the map).
+		for id := range baseSet {
 			protection[id] = ingressEdgeProtection{
 				collectorPresent: true,
-				wafProtected:     BoolVal(row, "waf_protected"),
-				tlsTerminated:    BoolVal(row, "tls_terminated"),
+				wafProtected:     wafSet[id],
+				tlsTerminated:    tlsSet[id],
 			}
 		}
 	}
 	return buildIngressPosture(edges, protection), nil
 }
 
-// ingressPostureCypher matches the two materialized AWS protection edges on each
-// candidate edge resource. It is anchored on the bounded $edge_ids list (the
-// service's own internet-facing resources), so the scan is bounded by that set.
-// OPTIONAL MATCH ensures a resource with no protection edge still returns a row
-// with false flags (observed-negative), distinct from a resource that does not
-// appear at all. The coalesce over id/uid/resource_id/arn matches the same
-// identity columns the cloud-resource loader projects.
-const ingressPostureCypher = `
+// ingressPostureEdgeSet runs a single-clause ingress-posture query and returns
+// the set of edge ids it matched. Empty/blank ids are skipped.
+func ingressPostureEdgeSet(ctx context.Context, graph GraphQuery, cypher string, params map[string]any) (map[string]bool, error) {
+	rows, err := graph.Run(ctx, cypher, params)
+	if err != nil {
+		return nil, err
+	}
+	set := make(map[string]bool, len(rows))
+	for _, row := range rows {
+		if id := StringVal(row, "edge_id"); id != "" {
+			set[id] = true
+		}
+	}
+	return set, nil
+}
+
+// ingressPostureEdgeIdentity is the shared coalesce over the identity columns
+// the cloud-resource loader projects; every ingress-posture query resolves an
+// edge to the same id.
+const ingressPostureEdgeIdentity = `coalesce(edge.id, edge.uid, edge.resource_id, edge.arn, edge.name)`
+
+// The ingress-posture reads are three single-clause set queries, merged in Go.
+// The prior multi-clause form (`MATCH edge OPTIONAL MATCH waf WITH edge,
+// count(*)>0 OPTIONAL MATCH acm RETURN …, count(*)>0`) is mis-executed on the
+// pinned NornicDB build: the aggregate-over-OPTIONAL-MATCH between two clauses
+// returns a null edge_id and reports both flags as true even for an unprotected
+// edge (#5287). An `EXISTS { … }` subquery is equally broken — it does not
+// correlate with the outer edge. So each fact is a bounded single-clause set:
+//
+//   - base: which requested edges exist in the graph (collectorPresent);
+//   - waf: which of them are protected by a WAF web ACL;
+//   - tls: which of them terminate an ACM certificate.
+//
+// The handler computes each edge's flags by set membership, preserving the
+// collectorPresent (row present) vs observed-negative (present, flag false) vs
+// missing (absent) distinction the tile relies on.
+const ingressPostureBaseCypher = `
 MATCH (edge:CloudResource)
-WHERE coalesce(edge.id, edge.uid, edge.resource_id, edge.arn, edge.name) IN $edge_ids
-OPTIONAL MATCH (:CloudResource)-[:AWS_wafv2_web_acl_protects_resource]->(edge)
-WITH edge, count(*) > 0 AS waf_protected
-OPTIONAL MATCH (:CloudResource)-[:AWS_acm_certificate_used_by_resource]->(edge)
-RETURN coalesce(edge.id, edge.uid, edge.resource_id, edge.arn, edge.name) AS edge_id,
-       waf_protected AS waf_protected,
-       count(*) > 0 AS tls_terminated`
+WHERE ` + ingressPostureEdgeIdentity + ` IN $edge_ids
+RETURN DISTINCT ` + ingressPostureEdgeIdentity + ` AS edge_id`
+
+const ingressPostureWafCypher = `
+MATCH (:CloudResource)-[:AWS_wafv2_web_acl_protects_resource]->(edge:CloudResource)
+WHERE ` + ingressPostureEdgeIdentity + ` IN $edge_ids
+RETURN DISTINCT ` + ingressPostureEdgeIdentity + ` AS edge_id`
+
+const ingressPostureTLSCypher = `
+MATCH (:CloudResource)-[:AWS_acm_certificate_used_by_resource]->(edge:CloudResource)
+WHERE ` + ingressPostureEdgeIdentity + ` IN $edge_ids
+RETURN DISTINCT ` + ingressPostureEdgeIdentity + ` AS edge_id`

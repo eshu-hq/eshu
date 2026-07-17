@@ -822,15 +822,18 @@ three-valued (`protected`/`unprotected`/`unproven` and
 `terminated`/`not_terminated`/`unproven`) so an observed-negative is never
 confused with missing evidence.
 
-Performance Evidence: No-Regression. The new `ingress_posture` stage
-(`loadServiceIngressPosture`, `service_ingress_posture.go`) runs at most one
-graph query, and only when the already-loaded `cloud_resources` contain at least
-one internet-facing edge resource (CloudFront/ALB/ELB/API Gateway). The query is
-anchored on the bounded `$edge_ids` list (the service's own edge resources, a
-small set bounded by `serviceStoryItemLimit`), uses `OPTIONAL MATCH` so absence
-of a protection edge is an explicit observed-negative row rather than a wider
-scan, and does no work at all (no graph round-trip) when the service has no edge
-resource. Before: the context returned no WAF/TLS posture. After: one bounded,
+Performance Evidence: No-Regression. The `ingress_posture` stage
+(`loadServiceIngressPosture`, `service_ingress_posture.go`) runs only when the
+already-loaded `cloud_resources` contain at least one internet-facing edge
+resource (CloudFront/ALB/ELB/API Gateway), and does no work at all (no graph
+round-trip) when the service has no edge resource. As of #5287 it runs three
+bounded single-clause set queries (base edges / WAF-protected / ACM-terminated)
+merged by membership in Go, replacing the prior single `OPTIONAL MATCH`
+aggregation — which the pinned NornicDB build mis-executes (returns a null
+edge_id and reports every edge as protected). The WAF/ACM lookups are bounded by
+the (subset) protection-edge population, measured no-regression at 3,633 WAF
+edges (1.2 ms, ≈ the base label scan); see
+`docs/internal/evidence/5287-ingress-posture-nornicdb.md`. Before: the context returned no WAF/TLS posture. After: one bounded,
 edge-id-anchored read derives the posture inside the existing few-seconds context
 SLA. Baseline/after: derivation reuses the `WorkloadInstance-[:USES]->`
 `CloudResource` set the context already resolves; no new whole-graph scan is
