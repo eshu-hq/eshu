@@ -328,6 +328,10 @@ languages observed in the returned rows. Selecting a supported candidate kind
 must issue the exact server-side `candidate_kind`; resetting to all kinds must
 remove it.
 
+Only private/live mode owns the bounded Dead Code POST and its repository and
+language selectors. Demo mode renders its model fixtures without issuing that
+live request or exposing server-only selectors.
+
 Keep the Dead Code route shell eager so navigation can render useful content
 without waiting for a route-level module hop. The repository coverage tile,
 hidden breakdown implementation, and candidate-row renderer may remain small

@@ -93,11 +93,24 @@ describe("DeadCodePage", () => {
     const post = vi.fn(() => new Promise<never>(() => undefined));
     const client = { get: vi.fn(), post } as unknown as EshuApiClient;
 
-    renderDeadCode(<DeadCodePage client={client} model={demoModel} />);
+    renderDeadCode(<DeadCodePage client={client} model={{ ...demoModel, source: "live" }} />);
 
     expect(screen.queryByText("Unreferenced symbol legacyDiscount")).not.toBeInTheDocument();
     expect(screen.getByText("Loading dead-code candidates...")).toBeInTheDocument();
     expect(screen.getByText("Candidates shown").closest(".stat-tile")).toHaveTextContent("0");
+  });
+
+  it("keeps demo fixtures without issuing a live dead-code request", async () => {
+    const post = vi.fn(async () => {
+      throw new Error("demo route has no dead-code API fixture");
+    });
+    const client = { get: vi.fn(), post } as unknown as EshuApiClient;
+
+    renderDeadCode(<DeadCodePage client={client} model={demoModel} />);
+
+    expect(await screen.findByText("Unreferenced symbol legacyDiscount")).toBeInTheDocument();
+    expect(post).not.toHaveBeenCalled();
+    expect(screen.queryByLabelText("Repository selector")).not.toBeInTheDocument();
   });
 
   it("loads the dedicated live dead-code scan with filters", async () => {
@@ -124,7 +137,7 @@ describe("DeadCodePage", () => {
     renderDeadCode(
       <DeadCodePage
         client={client}
-        model={{ ...demoModel, findings: [] }}
+        model={{ ...demoModel, findings: [], source: "live" }}
         repositoryCatalog={readyRepositoryCatalog([
           {
             groupKey: "",
@@ -241,7 +254,7 @@ describe("DeadCodePage", () => {
 
     renderDeadCode(
       <StrictMode>
-        <DeadCodePage client={client} model={{ ...demoModel, findings: [] }} />
+        <DeadCodePage client={client} model={{ ...demoModel, findings: [], source: "live" }} />
       </StrictMode>,
     );
 
@@ -266,7 +279,9 @@ describe("DeadCodePage", () => {
     );
     const client = { get: vi.fn(), post } as unknown as EshuApiClient;
 
-    renderDeadCode(<DeadCodePage client={client} model={{ ...demoModel, findings: [] }} />);
+    renderDeadCode(
+      <DeadCodePage client={client} model={{ ...demoModel, findings: [], source: "live" }} />,
+    );
 
     await screen.findByText("Unreferenced symbol firstCandidate");
     fireEvent.click(screen.getByRole("button", { name: "Apply" }));
@@ -294,7 +309,7 @@ describe("DeadCodePage", () => {
 
     renderDeadCode(
       <>
-        <DeadCodePage client={client} model={{ ...demoModel, findings: [] }} />
+        <DeadCodePage client={client} model={{ ...demoModel, findings: [], source: "live" }} />
         <LocationSearch />
       </>,
       ["/dead-code?q=stale"],
@@ -338,7 +353,7 @@ describe("DeadCodePage", () => {
     renderDeadCode(
       <DeadCodePage
         client={client}
-        model={{ ...demoModel, findings: [] }}
+        model={{ ...demoModel, findings: [], source: "live" }}
         repositoryCatalog={readyRepositoryCatalog([
           {
             groupKey: "",
@@ -391,9 +406,10 @@ describe("DeadCodePage", () => {
     );
     const client = { get: vi.fn(), post } as unknown as EshuApiClient;
 
-    renderDeadCode(<DeadCodePage client={client} model={{ ...demoModel, findings: [] }} />, [
-      "/dead-code?language=typescript&q=unusedRoute",
-    ]);
+    renderDeadCode(
+      <DeadCodePage client={client} model={{ ...demoModel, findings: [], source: "live" }} />,
+      ["/dead-code?language=typescript&q=unusedRoute"],
+    );
 
     await screen.findByText("Unreferenced symbol unusedRoute");
     fireEvent.click(screen.getByRole("button", { name: /trait/i }));

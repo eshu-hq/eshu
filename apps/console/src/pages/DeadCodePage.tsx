@@ -88,6 +88,7 @@ export function DeadCodePage({
   const routeLanguage = searchParams.get("language") ?? "";
   const routeCandidateKind = candidateKindFromValue(searchParams.get("candidate_kind"));
   const loadRef = useRef<DeadCodeLoad | null>(null);
+  const liveClient = model.source === "live" ? client : undefined;
 
   useEffect(() => {
     setDraft((current) => withRouteScope(current, routeCandidateKind, routeLanguage, routeRepoId));
@@ -100,7 +101,7 @@ export function DeadCodePage({
 
   useEffect(() => {
     let cancelled = false;
-    if (!client) {
+    if (!liveClient) {
       setLivePage(null);
       setBusy(false);
       setErr("");
@@ -117,12 +118,12 @@ export function DeadCodePage({
     };
     const filtersKey = JSON.stringify(filters);
     const load =
-      loadRef.current?.client === client && loadRef.current.filtersKey === filtersKey
+      loadRef.current?.client === liveClient && loadRef.current.filtersKey === filtersKey
         ? loadRef.current
         : {
-            client,
+            client: liveClient,
             filtersKey,
-            promise: loadDeadCodePage(client, filters),
+            promise: loadDeadCodePage(liveClient, filters),
           };
     loadRef.current = load;
     void load.promise
@@ -144,9 +145,9 @@ export function DeadCodePage({
     return () => {
       cancelled = true;
     };
-  }, [applied, client]);
+  }, [applied, liveClient]);
 
-  const all = (client ? (livePage?.rows ?? []) : model.findings).filter(
+  const all = (liveClient ? (livePage?.rows ?? []) : model.findings).filter(
     (finding) => finding.type === "Dead code",
   );
   const repositoryNames = useMemo(
@@ -171,8 +172,8 @@ export function DeadCodePage({
   const highConfidence = all.filter(
     (finding) => finding.classification === "unused" || finding.truth === "exact",
   ).length;
-  const source = client ? (busy ? "loading" : err ? "unavailable" : "live") : model.source;
-  const scanLabel = deadCodeScanLabel(livePage, client !== undefined);
+  const source = liveClient ? (busy ? "loading" : err ? "unavailable" : "live") : model.source;
+  const scanLabel = deadCodeScanLabel(livePage, liveClient !== undefined);
 
   function applyFilters(): void {
     const next = {
@@ -285,7 +286,7 @@ export function DeadCodePage({
             onChange={(event) => setQuery(event.target.value)}
           />
         </div>
-        {client ? (
+        {liveClient ? (
           <>
             <input
               aria-label="Repository selector"
