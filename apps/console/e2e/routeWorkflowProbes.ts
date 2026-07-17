@@ -58,7 +58,8 @@ async function executeSubmitWorkflow(
     if (count !== 1) {
       return failed(workflow.id, `expected one ${field.selector} control; found ${count}`);
     }
-    await control.fill(value);
+    if (field.interaction === "select") await control.selectOption(value);
+    else await control.fill(value);
     if ((await control.inputValue()) !== value) {
       return failed(workflow.id, `control ${field.selector} did not retain its bounded value`);
     }

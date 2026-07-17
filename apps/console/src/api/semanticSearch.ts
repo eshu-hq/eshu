@@ -154,7 +154,14 @@ export async function searchSemantic(
 
   const env = await client.post<ResponseRecord>("/api/v0/search/semantic", body);
   if (env.error) throw new EshuEnvelopeError(env.error);
-  return normalizeResponse(env.data ?? {});
+  const response = normalizeResponse(env.data ?? {});
+  if (response.repoId !== req.repoId) {
+    throw new Error("semantic search returned a different repository than requested");
+  }
+  if (response.results.some((result) => result.document.repoId !== req.repoId)) {
+    throw new Error("semantic search returned a cross-repository document");
+  }
+  return response;
 }
 
 function normalizeResponse(data: ResponseRecord): SemanticSearchResponse {

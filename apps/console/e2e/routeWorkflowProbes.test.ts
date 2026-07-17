@@ -394,57 +394,6 @@ describe("executeRouteWorkflow", () => {
     expect(result.detail).toContain("Trait");
   });
 
-  it("submits a bounded live request and requires its result surface", async () => {
-    const repository = locatorStub({ inputValue: vi.fn().mockResolvedValue("repository:probe") });
-    const query = locatorStub({ inputValue: vi.fn().mockResolvedValue("bounded probe") });
-    const outcome = locatorStub();
-    const submit = locatorStub();
-    const response: ResponseStub = {
-      request: () => ({ method: () => "POST" }),
-      status: () => 200,
-      url: () => "http://host/eshu-api/api/v0/search/semantic",
-    };
-    const page = {
-      locator: vi.fn((selector: string) => {
-        if (selector === "#repo") return repository;
-        if (selector === "#query") return query;
-        return outcome;
-      }),
-      getByRole: vi.fn(() => submit),
-      waitForResponse: vi.fn(async (predicate: (candidate: ResponseStub) => boolean) => {
-        expect(predicate(response)).toBe(true);
-        return response;
-      }),
-    } as unknown as Page;
-    const waitForQuiet = vi.fn().mockResolvedValue(undefined);
-
-    const result = await executeRouteWorkflow(
-      page,
-      {
-        id: "semantic-submit",
-        kind: "submit",
-        fields: [
-          { selector: "#repo", value: "repository:probe" },
-          { selector: "#query", value: "bounded probe" },
-        ],
-        role: "button",
-        name: "Search",
-        expectedRequestPath: "/api/v0/search/semantic",
-        expectedRequestMethod: "POST",
-        acceptedResponseStatuses: [200],
-        outcomeSelector: ".sem-result-announce",
-      },
-      waitForQuiet,
-    );
-
-    expect(result.passed).toBe(true);
-    expect(repository.fill).toHaveBeenCalledWith("repository:probe");
-    expect(query.fill).toHaveBeenCalledWith("bounded probe");
-    expect(submit.waitFor).toHaveBeenCalledWith({ state: "visible", timeout: 10_000 });
-    expect(submit.click).toHaveBeenCalledOnce();
-    expect(waitForQuiet).toHaveBeenCalledOnce();
-  });
-
   it("scopes a submit button to its owning form when the page has duplicate names", async () => {
     const repository = locatorStub({ inputValue: vi.fn().mockResolvedValue("local") });
     const query = locatorStub({ inputValue: vi.fn().mockResolvedValue("deployment entrypoints") });

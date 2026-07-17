@@ -141,7 +141,7 @@ export function AppRoutes({
               </section>
             }
           >
-            <SemanticSearchPage client={client} />
+            <SemanticSearchPage client={client} repositoryCatalog={repositoryCatalog} />
           </Suspense>
         }
       />

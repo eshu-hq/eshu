@@ -381,8 +381,9 @@ export const secondaryConsoleRoutes: readonly ConsoleRoute[] = [
       kind: "submit",
       fields: [
         {
+          interaction: "select",
           requestKey: "repo_id",
-          selector: 'input[aria-label="Repository"]',
+          selector: 'select[aria-label="Repository"]',
           valueEnv: "ESHU_E2E_SEMANTIC_REPOSITORY_ID",
         },
         {
