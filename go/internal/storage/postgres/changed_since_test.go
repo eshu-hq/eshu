@@ -24,6 +24,49 @@ func priorRow(generationID string, observed any) [][]any {
 	return [][]any{{generationID, observed}}
 }
 
+func TestComputeChangedSinceDeltaRejectsInvalidScopeSelectorsBeforeRead(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		filter     statuspkg.ChangedSinceFilter
+		wantErrSub string
+	}{
+		{
+			name: "missing selector",
+			filter: statuspkg.ChangedSinceFilter{
+				SinceGenerationID: "gen-prior",
+			},
+			wantErrSub: "scope_id or repository is required",
+		},
+		{
+			name: "conflicting selectors",
+			filter: statuspkg.ChangedSinceFilter{
+				Repository:        "repository:r_b",
+				ScopeID:           "git-repository-scope:old",
+				SinceGenerationID: "gen-prior",
+			},
+			wantErrSub: "scope_id and repository are mutually exclusive",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			queryer := &fakeQueryer{}
+			store := NewStatusStore(queryer)
+			_, err := store.ComputeChangedSinceDelta(context.Background(), tt.filter)
+			if err == nil || !strings.Contains(err.Error(), tt.wantErrSub) {
+				t.Fatalf("ComputeChangedSinceDelta() error = %v, want containing %q", err, tt.wantErrSub)
+			}
+			if len(queryer.queries) != 0 {
+				t.Fatalf("queries = %d, want 0 before invalid selector rejection", len(queryer.queries))
+			}
+		})
+	}
+}
+
 func countRow(category, classification string, count int64) []any {
 	return []any{category, classification, count}
 }

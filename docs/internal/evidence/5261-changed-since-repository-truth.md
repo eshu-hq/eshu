@@ -151,10 +151,14 @@ The live retained-data workflow proved:
 - changing to a repository with no retained prior generation immediately
   removed all prior samples and delta rows, kept a repository-only URL, showed
   `No retained prior generation is available for this repository.`, and left
-  `Load changes` disabled; and
+  `Load changes` disabled;
 - a copied legacy scope-only URL resolved its response repository identity back
   into the canonical selector, rendered the same bounded delta, and did not add
-  a conflicting repository query parameter.
+  a conflicting repository query parameter; and
+- browser Back restored that populated legacy scope-only state, including its
+  canonical repository owner and bounded samples, while Forward restored the
+  repository-only no-baseline state without leaking the prior samples or URL
+  selector.
 
 Five warm retained reloads navigated away before each trial so prior Changed
 Since DOM could not satisfy the terminal condition. Navigation start was the
@@ -164,6 +168,14 @@ delta sample was the terminal event. The trials completed in 1.929, 1.803,
 All five reached the terminal event within the route's 2-3 second interactive
 target. This is full-console route hydration evidence; the separate
 eight-trial API measurement above remains the handler-level evidence.
+
+The retained MCP server was exercised through its live JSON-RPC endpoint after
+the branch containers were rebuilt. A repository-only `get_changed_since` call
+returned an exact, fresh result whose repository matched the request, whose
+scope provenance was present, and whose three categories matched the HTTP
+response. A conflicting repository-plus-scope call returned a tool error with
+the explicit mutual-exclusion diagnostic. Credentials and retained repository
+identifiers were not printed or recorded.
 
 ## Observability
 
@@ -196,5 +208,6 @@ git diff --check
 ```
 
 The post-review focused console set passed 27 tests across five files.
-The authenticated retained-stack browser workflow is a pre-PR blocking gate.
-No PR is created until that run is complete and its result is added here.
+The direct storage guard test also proves invalid missing and dual selectors
+are rejected before any SQL read is attempted. The authenticated retained-stack
+browser and live MCP workflows completed successfully before promotion.
