@@ -70,11 +70,23 @@ type infraResourceAggregateBucketRow struct {
 // into a single bucket total map. A bucket value (for example a provider or
 // environment) can appear once per contributing label, so the per-branch rows
 // must be summed, not overwritten.
+//
+// Zero-count rows are skipped: a per-label branch whose label is empty (or
+// filtered to nothing) still emits one grouped row with a null bucket and
+// count 0, because `RETURN groupExpr, count(n)` over no matches aggregates to a
+// single row. The old whole-graph `MATCH (n) WHERE (n:A OR ...)` read grouped
+// only over matched nodes and never produced an empty bucket, so dropping the
+// zero-count rows keeps the result exactly equivalent (a real bucket always has
+// count >= 1, since count(n) groups only over nodes that exist).
 func mergeInfraResourceAggregateBuckets(rows []map[string]any) map[string]int {
 	merged := map[string]int{}
 	for _, row := range rows {
+		count := IntVal(row, "bucket_count")
+		if count <= 0 {
+			continue
+		}
 		bucket := strings.TrimSpace(StringVal(row, "bucket"))
-		merged[bucket] += IntVal(row, "bucket_count")
+		merged[bucket] += count
 	}
 	return merged
 }
