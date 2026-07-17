@@ -102,6 +102,18 @@ func (h *ImpactHandler) findChangeSurface(w http.ResponseWriter, r *http.Request
 	WriteSuccess(w, r, http.StatusOK, resp, BuildTruthEnvelope(h.profile(), "platform_impact.change_surface", TruthBasisHybrid, "resolved from graph and impact relationships"))
 }
 
+// changeSurfaceLegacyCypher is the single-anchor-clause impact traversal for the
+// legacy endpoint. Verbs: %s = the label-anchored start node pattern, %d = max
+// traversal depth. It projects the raw relationships(path) list (unwound per-edge
+// in Go) rather than the old OPTIONAL MATCH + UNWIND + WITH + RETURN DISTINCT
+// shape, which returned a single all-null row on the pinned NornicDB (#5287).
+const changeSurfaceLegacyCypher = `MATCH path = %s-[*1..%d]->(impacted)
+WHERE impacted.id <> $target_id AND any(label IN labels(impacted) WHERE label IN ['Repository', 'Workload', 'WorkloadInstance', 'CloudResource', 'TerraformModule', 'DataAsset'])
+RETURN impacted.id as id, impacted.name as name, labels(impacted) as labels, impacted.environment as environment,
+	length(path) as depth, relationships(path) as rels
+ORDER BY depth, name, id
+LIMIT $limit`
+
 // findChangeSurfaceImpactRows runs the bounded impact traversal from a resolved
 // start node. It anchors the resolved label in the start MATCH (indexed lookup),
 // caps the variable-length expansion at depth, over-fetches one row beyond limit
@@ -114,50 +126,108 @@ func (h *ImpactHandler) findChangeSurfaceImpactRows(
 	depth int,
 	limit int,
 ) ([]map[string]any, bool, error) {
-	startMatch, err := changeSurfaceTraversalStartMatch(target)
+	startPattern, err := changeSurfaceTraversalStartPattern(target)
 	if err != nil {
 		return nil, false, err
 	}
-	cypher := fmt.Sprintf(`%s
-OPTIONAL MATCH path = (start)-[rels*1..%d]->(impacted)
-WHERE impacted.id <> $target_id AND any(label IN labels(impacted) WHERE label IN ['Repository', 'Workload', 'WorkloadInstance', 'CloudResource', 'TerraformModule', 'DataAsset'])
-	AND ($environment = '' OR coalesce(impacted.environment, '') = '' OR impacted.environment = $environment)
-UNWIND relationships(path) as rel
-WITH impacted, rel, length(path) as depth
-RETURN DISTINCT impacted.id as id, impacted.name as name, labels(impacted) as labels, impacted.environment as environment,
-	type(rel) as rel_type, rel.confidence as confidence, rel.reason as reason, depth
-ORDER BY depth, impacted.name, impacted.id
-LIMIT $limit`, startMatch, depth)
+	// Single anchoring clause: the pinned NornicDB build mis-executes the old
+	// OPTIONAL MATCH + UNWIND relationships(path) + WITH + RETURN DISTINCT shape
+	// (it returned a single all-null row — #5287, proven live). Fold the start
+	// anchor into the path pattern, project the raw relationships(path) list, and
+	// unwind the per-edge provenance in Go. Two constraints from the pinned build:
+	// a `[rel IN relationships(path) | rel.confidence]` comprehension is NOT safe
+	// (it stringifies the edge map), and the old server-side environment predicate
+	// (`$environment = '' OR coalesce(...)`) silently drops every row when combined
+	// with the relationships(path) projection — so the environment filter runs in
+	// Go below, matching the investigate read.
+	cypher := fmt.Sprintf(changeSurfaceLegacyCypher, startPattern, depth)
 
 	rows, err := h.Neo4j.Run(ctx, cypher, map[string]any{
-		"target_id":   target.ID,
-		"environment": environment,
-		"limit":       limit + 1,
+		"target_id": target.ID,
+		"limit":     limit + 1,
 	})
 	if err != nil {
 		return nil, false, err
 	}
 
-	rows, truncated := trimImpactRows(rows, limit)
-	impacted := make([]map[string]any, 0, len(rows))
+	// Unwind relationships(path) per impacted path into per-edge provenance
+	// entries (the old UNWIND relationships(path) done in Go), deduplicating on
+	// the same tuple the old RETURN DISTINCT collapsed.
+	entries := make([]map[string]any, 0, len(rows))
+	seen := make(map[string]struct{}, len(rows))
 	for _, row := range rows {
 		env := StringVal(row, "environment")
 		if environment != "" && env != "" && env != environment {
 			continue
 		}
-		entry := map[string]any{"id": StringVal(row, "id"), "name": StringVal(row, "name"), "labels": StringSliceVal(row, "labels"), "depth": IntVal(row, "depth")}
+		base := map[string]any{"id": StringVal(row, "id"), "name": StringVal(row, "name"), "labels": StringSliceVal(row, "labels"), "depth": IntVal(row, "depth")}
 		if env != "" {
-			entry["environment"] = env
+			base["environment"] = env
 		}
-		if conf, ok := row["confidence"].(float64); ok {
-			entry["confidence"] = conf
+		for _, edge := range changeSurfaceRelEdges(row["rels"]) {
+			entry := map[string]any{"id": base["id"], "name": base["name"], "labels": base["labels"], "depth": base["depth"]}
+			if env != "" {
+				entry["environment"] = env
+			}
+			if edge.relType != "" {
+				entry["rel_type"] = edge.relType
+			}
+			if edge.hasConfidence {
+				entry["confidence"] = edge.confidence
+			}
+			if edge.reason != "" {
+				entry["reason"] = edge.reason
+			}
+			key := fmt.Sprintf("%s\x00%s\x00%v\x00%s\x00%d", StringVal(entry, "id"), edge.relType, entry["confidence"], edge.reason, IntVal(entry, "depth"))
+			if _, ok := seen[key]; ok {
+				continue
+			}
+			seen[key] = struct{}{}
+			entries = append(entries, entry)
 		}
-		if reason := StringVal(row, "reason"); reason != "" {
-			entry["reason"] = reason
-		}
-		impacted = append(impacted, entry)
 	}
-	return impacted, truncated, nil
+	entries, truncated := trimImpactRows(entries, limit)
+	return entries, truncated, nil
+}
+
+// changeSurfaceRelEdge is one relationship's provenance unwound from a graph
+// path row.
+type changeSurfaceRelEdge struct {
+	relType       string
+	confidence    float64
+	hasConfidence bool
+	reason        string
+}
+
+// changeSurfaceRelEdges extracts per-relationship provenance from a
+// relationships(path) value. The graph driver returns each relationship as a
+// map with `type` and a nested `properties` map; a scalar comprehension over
+// rel properties corrupts on the pinned NornicDB, so the raw list is unwound
+// here instead.
+func changeSurfaceRelEdges(raw any) []changeSurfaceRelEdge {
+	rels, ok := raw.([]any)
+	if !ok {
+		return nil
+	}
+	edges := make([]changeSurfaceRelEdge, 0, len(rels))
+	for _, item := range rels {
+		rel, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		edge := changeSurfaceRelEdge{relType: StringVal(rel, "type")}
+		if props, ok := rel["properties"].(map[string]any); ok {
+			if conf, ok := props["confidence"].(float64); ok {
+				edge.confidence = conf
+				edge.hasConfidence = true
+			}
+			if reason, ok := props["reason"].(string); ok {
+				edge.reason = reason
+			}
+		}
+		edges = append(edges, edge)
+	}
+	return edges
 }
 
 // legacyChangeSurfaceTargetType maps the legacy request hint to a normalized

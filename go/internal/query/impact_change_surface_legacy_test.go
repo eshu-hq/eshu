@@ -7,11 +7,44 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 )
+
+// TestChangeSurfaceTraversalQueriesAreNornicDBSafe guards the #5287 fix: both
+// change-surface impact traversals must be single-anchor-clause reads. The
+// pinned NornicDB build mis-executes a second MATCH / OPTIONAL MATCH / WITH /
+// UNWIND / RETURN DISTINCT between the anchor and the projection (the investigate
+// read returned zero rows and the legacy read returned a single all-null row),
+// and a `[rel IN relationships(path) | rel.<prop>]` comprehension stringifies
+// the edge map. Returning the raw relationships(path) list and unwinding in Go is
+// the safe shape.
+func TestChangeSurfaceTraversalQueriesAreNornicDBSafe(t *testing.T) {
+	t.Parallel()
+
+	queries := map[string]string{
+		"investigate": fmt.Sprintf(changeSurfaceInvestigateCypher, "(start:Workload {id: $target_id})", 4, 50),
+		"legacy":      fmt.Sprintf(changeSurfaceLegacyCypher, "(start:Workload {id: $target_id})", 4),
+	}
+	for name, q := range queries {
+		if got := strings.Count(q, "MATCH"); got != 1 {
+			t.Errorf("%s must use exactly one MATCH (multi-clause corrupts on NornicDB), got %d: %s", name, got, q)
+		}
+		for _, banned := range []string{"RETURN DISTINCT", "OPTIONAL", "UNWIND", "WITH ", "| rel."} {
+			if strings.Contains(q, banned) {
+				t.Errorf("%s must not contain %q (corrupts on the pinned NornicDB): %s", name, banned, q)
+			}
+		}
+	}
+	// The legacy read must project the raw relationships list for the Go-side
+	// per-edge unwind (never a rel-property comprehension).
+	if !strings.Contains(queries["legacy"], "relationships(path) as rels") {
+		t.Errorf("legacy read must project relationships(path) for the Go unwind: %s", queries["legacy"])
+	}
+}
 
 // legacyChangeSurfaceGraph records every Run call so a test can assert the
 // resolver-then-traversal call shape and reply with a scripted row set per call.
@@ -75,13 +108,19 @@ func TestFindChangeSurfaceServiceKindAnchorsLabeledStartAndBoundsDepth(t *testin
 					{"id": "workload:orders-api", "name": "orders", "labels": []any{"Workload"}, "repo_id": "repo-api"},
 				}, nil
 			}
-			// Traversal: the bounded impact expansion.
+			// Traversal: the bounded impact expansion. Each path row carries the
+			// raw relationships(path) list; the handler unwinds per-edge provenance
+			// in Go (the pinned NornicDB corrupts a rel-property comprehension).
 			if strings.Contains(cypher, "relationships(path)") {
 				traversalCypher = cypher
 				traversalParams = params
 				return []map[string]any{
-					{"id": "repo:billing", "name": "billing", "labels": []any{"Repository"}, "environment": "prod", "rel_type": "DEPENDS_ON", "confidence": 0.9, "reason": "import", "depth": int64(1)},
-					{"id": "repo:ledger", "name": "ledger", "labels": []any{"Repository"}, "environment": "prod", "rel_type": "CALLS", "confidence": 0.8, "reason": "rpc", "depth": int64(2)},
+					{"id": "repo:billing", "name": "billing", "labels": []any{"Repository"}, "environment": "prod", "depth": int64(1), "rels": []any{
+						map[string]any{"type": "DEPENDS_ON", "properties": map[string]any{"confidence": 0.9, "reason": "import"}},
+					}},
+					{"id": "repo:ledger", "name": "ledger", "labels": []any{"Repository"}, "environment": "prod", "depth": int64(2), "rels": []any{
+						map[string]any{"type": "CALLS", "properties": map[string]any{"confidence": 0.8, "reason": "rpc"}},
+					}},
 				}, nil
 			}
 			return nil, nil
@@ -109,12 +148,12 @@ func TestFindChangeSurfaceServiceKindAnchorsLabeledStartAndBoundsDepth(t *testin
 	if strings.Contains(traversalCypher, "MATCH (start) WHERE start.id") {
 		t.Fatalf("traversal must not anchor an unlabeled start node (all-node scan): %s", traversalCypher)
 	}
-	if !strings.Contains(traversalCypher, "MATCH (start:Workload {id:") {
+	if !strings.Contains(traversalCypher, "(start:Workload {id:") {
 		t.Fatalf("traversal must anchor the resolved label in the start MATCH: %s", traversalCypher)
 	}
 	// Root cause (b): depth MUST be bounded by the requested/clamped max_depth,
 	// not the hardcoded 8.
-	if !strings.Contains(traversalCypher, "rels*1..3]") {
+	if !strings.Contains(traversalCypher, "*1..3]") {
 		t.Fatalf("traversal depth must honor max_depth=3, got: %s", traversalCypher)
 	}
 	if strings.Contains(traversalCypher, "*1..8") {
@@ -152,9 +191,9 @@ func TestFindChangeSurfaceClampsMaxDepth(t *testing.T) {
 		body      string
 		wantDepth string
 	}{
-		{"default_when_absent", `{"kind":"service","target":"orders"}`, "rels*1..4]"},
-		{"clamped_when_over_max", `{"kind":"service","target":"orders","max_depth":99}`, "rels*1..8]"},
-		{"floored_when_zero", `{"kind":"service","target":"orders","max_depth":0}`, "rels*1..4]"},
+		{"default_when_absent", `{"kind":"service","target":"orders"}`, "*1..4]"},
+		{"clamped_when_over_max", `{"kind":"service","target":"orders","max_depth":99}`, "*1..8]"},
+		{"floored_when_zero", `{"kind":"service","target":"orders","max_depth":0}`, "*1..4]"},
 	}
 	for _, tc := range cases {
 		tc := tc
@@ -198,10 +237,13 @@ func TestFindChangeSurfaceReportsTruncationWithOverfetch(t *testing.T) {
 				return []map[string]any{{"id": "workload:orders", "name": "orders", "labels": []any{"Workload"}}}, nil
 			}
 			if strings.Contains(cypher, "relationships(path)") {
-				// Backend returns limit+1 rows (over-fetch) -> truncated.
+				// Backend returns limit+1 distinct impacted paths (over-fetch) ->
+				// truncated. Each carries one edge in relationships(path).
 				rows := make([]map[string]any, 0, 3)
 				for i := 0; i < 3; i++ {
-					rows = append(rows, map[string]any{"id": "repo:" + string(rune('a'+i)), "name": "r", "labels": []any{"Repository"}, "depth": int64(1)})
+					rows = append(rows, map[string]any{"id": "repo:" + string(rune('a'+i)), "name": "r" + string(rune('a'+i)), "labels": []any{"Repository"}, "depth": int64(1), "rels": []any{
+						map[string]any{"type": "DEPENDS_ON", "properties": map[string]any{"confidence": 0.9, "reason": "import"}},
+					}})
 				}
 				return rows, nil
 			}
@@ -247,7 +289,7 @@ func TestFindChangeSurfaceBareTargetUsesLabeledProbesNotUnlabeledScan(t *testing
 			}
 			if strings.Contains(cypher, "relationships(path)") {
 				traversalCypher = cypher
-				return []map[string]any{{"id": "repo:billing", "name": "billing", "labels": []any{"Repository"}, "depth": int64(1)}}, nil
+				return []map[string]any{{"id": "repo:billing", "name": "billing", "labels": []any{"Repository"}, "depth": int64(1), "rels": []any{map[string]any{"type": "DEPENDS_ON", "properties": map[string]any{"confidence": 0.9, "reason": "import"}}}}}, nil
 			}
 			return nil, nil
 		},
@@ -263,7 +305,7 @@ func TestFindChangeSurfaceBareTargetUsesLabeledProbesNotUnlabeledScan(t *testing
 	handler.findChangeSurface(rec, req)
 
 	data := decodeLegacyChangeSurfaceData(t, rec)
-	if strings.Contains(traversalCypher, "MATCH (start:Repository {id:") == false {
+	if strings.Contains(traversalCypher, "(start:Repository {id:") == false {
 		t.Fatalf("bare-target traversal must anchor the resolved Repository label: %s", traversalCypher)
 	}
 	// No probe nor traversal may use an unlabeled anchor.
@@ -303,7 +345,7 @@ func TestFindChangeSurfaceBareTargetPrefersExactIdOverNameCollision(t *testing.T
 			}
 			if strings.Contains(cypher, "relationships(path)") {
 				traversalCypher = cypher
-				return []map[string]any{{"id": "repo:billing", "name": "billing", "labels": []any{"Repository"}, "depth": int64(1)}}, nil
+				return []map[string]any{{"id": "repo:billing", "name": "billing", "labels": []any{"Repository"}, "depth": int64(1), "rels": []any{map[string]any{"type": "DEPENDS_ON", "properties": map[string]any{"confidence": 0.9, "reason": "import"}}}}}, nil
 			}
 			return nil, nil
 		},
@@ -320,10 +362,10 @@ func TestFindChangeSurfaceBareTargetPrefersExactIdOverNameCollision(t *testing.T
 
 	data := decodeLegacyChangeSurfaceData(t, rec)
 	// Exact id (Repository) must win over the colliding Workload name.
-	if !strings.Contains(traversalCypher, "MATCH (start:Repository {id:") {
+	if !strings.Contains(traversalCypher, "(start:Repository {id:") {
 		t.Fatalf("exact Repository id must win over colliding Workload name; traversal = %q", traversalCypher)
 	}
-	if strings.Contains(traversalCypher, "MATCH (start:Workload") {
+	if strings.Contains(traversalCypher, "(start:Workload") {
 		t.Fatalf("must not resolve to the name-colliding Workload: %q", traversalCypher)
 	}
 	target, _ := data["target"].(map[string]any)

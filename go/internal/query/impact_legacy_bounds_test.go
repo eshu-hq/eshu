@@ -136,18 +136,22 @@ func TestFindChangeSurfaceUsesRequestedLimitAndReportsTruncation(t *testing.T) {
 				if !strings.Contains(cypher, "LIMIT $limit") {
 					t.Fatalf("cypher = %q, want server-side LIMIT parameter", cypher)
 				}
-				if !strings.Contains(cypher, "$environment") {
-					t.Fatalf("cypher = %q, want environment predicate before LIMIT", cypher)
+				// The environment filter runs in Go, not server-side: the pinned
+				// NornicDB drops every row when the coalesce/OR environment predicate
+				// is combined with the relationships(path) projection (#5287).
+				if strings.Contains(cypher, "$environment") {
+					t.Fatalf("cypher = %q, must not carry the server-side environment predicate (Go-side now)", cypher)
 				}
 				if got, want := params["limit"], 2; got != want {
 					t.Fatalf("params[limit] = %#v, want %#v", got, want)
 				}
-				if got, want := params["environment"], "prod"; got != want {
-					t.Fatalf("params[environment] = %#v, want %#v", got, want)
-				}
 				return []map[string]any{
-					{"id": "service:a", "name": "a", "labels": []any{"Workload"}, "environment": "prod", "depth": int64(1)},
-					{"id": "service:b", "name": "b", "labels": []any{"Workload"}, "environment": "prod", "depth": int64(2)},
+					{"id": "service:a", "name": "a", "labels": []any{"Workload"}, "environment": "prod", "depth": int64(1), "rels": []any{
+						map[string]any{"type": "DEPENDS_ON", "properties": map[string]any{"confidence": 0.9, "reason": "import"}},
+					}},
+					{"id": "service:b", "name": "b", "labels": []any{"Workload"}, "environment": "prod", "depth": int64(2), "rels": []any{
+						map[string]any{"type": "CALLS", "properties": map[string]any{"confidence": 0.8, "reason": "rpc"}},
+					}},
 				}, nil
 			},
 		},
