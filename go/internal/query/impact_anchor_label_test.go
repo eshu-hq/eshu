@@ -10,26 +10,127 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 )
 
-// TestTraceResourceToCodeAnchorsLabeledStart proves the resource-to-code start
-// anchor is label-seeded (issue #3567). On the Neo4j-compat path an unlabeled
-// `MATCH (start) WHERE start.id = $start_id` cannot use a label/index seek, so
-// the planner scans every node in the graph. The fix anchors the start MATCH on
-// the bounded impact-anchor label disjunction while keeping the exact id
-// predicate, projection, ordering, and LIMIT, so results are unchanged but the
-// scan is bounded to the labeled, id-indexed populations.
-func TestTraceResourceToCodeAnchorsLabeledStart(t *testing.T) {
+// TestImpactPathDecodersDecodeBothBackendShapes guards the cross-backend decode:
+// relationships(path) is a neo4j.Relationship on Neo4j but a map[string]any on
+// NornicDB, and nodes(path) is a neo4j.Node on both. Both rel shapes and the node
+// shape must decode to the same provenance/identity, or a hop is silently dropped
+// on one backend.
+func TestImpactPathDecodersDecodeBothBackendShapes(t *testing.T) {
 	t.Parallel()
 
-	var seenCypher string
+	relCases := map[string]any{
+		"neo4j.Relationship": []any{
+			neo4jdriver.Relationship{Type: "DEPENDS_ON", Props: map[string]any{"confidence": 0.9, "reason": "import"}},
+		},
+		"nornicdb map": []any{
+			map[string]any{"type": "DEPENDS_ON", "properties": map[string]any{"confidence": 0.9, "reason": "import"}},
+		},
+	}
+	for name, raw := range relCases {
+		got := impactRelProvenanceList(raw)
+		if len(got) != 1 {
+			t.Fatalf("%s: got %d rels, want 1", name, len(got))
+		}
+		if got[0].relType != "DEPENDS_ON" || !got[0].hasConf || got[0].confidence != 0.9 || got[0].reason != "import" {
+			t.Errorf("%s: decoded %#v, want DEPENDS_ON/0.9/import", name, got[0])
+		}
+	}
+
+	nodeCases := map[string]any{
+		"neo4j.Node": []any{neo4jdriver.Node{Props: map[string]any{"id": "z:1", "name": "one"}}, neo4jdriver.Node{Props: map[string]any{"id": "z:2", "name": "two"}}},
+		"map":        []any{map[string]any{"properties": map[string]any{"id": "z:1", "name": "one"}}, map[string]any{"properties": map[string]any{"id": "z:2", "name": "two"}}},
+	}
+	for name, raw := range nodeCases {
+		got := impactNodeIdentityList(raw)
+		if len(got) != 2 || got[0].id != "z:1" || got[0].name != "one" || got[1].id != "z:2" {
+			t.Errorf("%s: decoded %#v, want [z:1/one, z:2/two]", name, got)
+		}
+	}
+
+	// A zipped hop uses path-order endpoints (nodes[i] -> nodes[i+1]).
+	hops := impactDependencyHops(nodeCases["neo4j.Node"], relCases["neo4j.Relationship"])
+	if len(hops) != 1 {
+		t.Fatalf("hops = %#v, want 1", hops)
+	}
+	if hops[0]["from_id"] != "z:1" || hops[0]["to_id"] != "z:2" || hops[0]["type"] != "DEPENDS_ON" {
+		t.Errorf("zipped hop = %#v, want z:1->z:2 DEPENDS_ON", hops[0])
+	}
+}
+
+// assertNoImpactLabelDisjunction fails when a by-id anchor uses the label
+// disjunction (`A|B|C`), which matches zero rows on the pinned NornicDB build.
+func assertNoImpactLabelDisjunction(t *testing.T, cypher string) {
+	t.Helper()
+	if strings.Contains(cypher, impactAnchorLabelDisjunction) {
+		t.Fatalf("by-id anchor must use per-label inline-property anchors, not the label disjunction: %s", cypher)
+	}
+}
+
+// TestImpactAnchorResolveCypherIsPerLabelUnion guards the #5286 fix: the by-id
+// label resolver must be a CALL{UNION} of per-label inline-property anchors, not
+// a label-disjunction anchor (which matches zero rows on the pinned NornicDB).
+func TestImpactAnchorResolveCypherIsPerLabelUnion(t *testing.T) {
+	t.Parallel()
+
+	// Every by-id anchor builder must use per-label inline-property anchors inside
+	// a CALL{UNION}, never the label disjunction, and never a `WHERE n.id`
+	// predicate that would reintroduce the disjunction-shaped scan.
+	builders := map[string]string{
+		"resolve":   impactAnchorResolveCypher("start_id"),
+		"traversal": impactRepoTraversalCypher(8),
+		"dual":      impactDualAnchorResolveCypher(),
+	}
+	for name, q := range builders {
+		assertNoImpactLabelDisjunction(t, q)
+		if !strings.Contains(q, "CALL {") {
+			t.Errorf("%s must wrap the per-label union in CALL {}: %s", name, q)
+		}
+		if strings.Contains(q, "WHERE") && strings.Contains(q, ".id =") {
+			t.Errorf("%s must anchor by inline property, not a WHERE id predicate: %s", name, q)
+		}
+	}
+	for _, label := range []string{"CloudResource", "Repository", "TerraformResource", "KubernetesWorkload"} {
+		if !strings.Contains(builders["resolve"], "MATCH (n:"+label+" {id: $start_id})") {
+			t.Errorf("resolve must anchor %s with an inline-property MATCH", label)
+		}
+		if !strings.Contains(builders["traversal"], "(start:"+label+" {id: $start_id})") {
+			t.Errorf("traversal must anchor %s with an inline-property MATCH", label)
+		}
+	}
+	// The folded traversal must project the raw relationships(path) list and the
+	// Repository target for the Go-side hop unwind.
+	if !strings.Contains(builders["traversal"], "relationships(path) AS rels") || !strings.Contains(builders["traversal"], "(repo:Repository)") {
+		t.Errorf("traversal must project relationships(path) to a Repository target: %s", builders["traversal"])
+	}
+}
+
+// TestTraceResourceToCodeAnchorsResolvedLabel proves the resource-to-code start
+// anchor is resolved to a single label and folded into the traversal inline. The
+// pinned NornicDB build matches zero rows for a label-disjunction by-id anchor
+// (#5286), so the start is resolved with a per-label CALL{UNION} first, then the
+// traversal anchors the resolved label with the exact id predicate, repo target,
+// and server-side LIMIT.
+func TestTraceResourceToCodeAnchorsResolvedLabel(t *testing.T) {
+	t.Parallel()
+
+	var resolveCypher, traversalCypher string
 	handler := &ImpactHandler{
 		Profile: ProfileLocalAuthoritative,
-		Neo4j: fakeGraphReader{
+		Neo4j: fakeGraphReaderWithSingle{
+			runSingle: func(_ context.Context, cypher string, _ map[string]any) (map[string]any, error) {
+				resolveCypher = cypher
+				return map[string]any{"label": "CloudResource", "id": "resource:queue", "name": "queue", "labels": []any{"CloudResource"}}, nil
+			},
 			run: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
-				seenCypher = cypher
+				traversalCypher = cypher
 				return []map[string]any{
-					{"start_id": "resource:queue", "start_name": "queue", "start_labels": []any{"CloudResource"}, "repo_id": "repo-a", "repo_name": "api", "depth": int64(1)},
+					{"repo_id": "repo-a", "repo_name": "api", "depth": int64(1), "rels": []any{
+						map[string]any{"type": "DEPENDS_ON", "properties": map[string]any{"confidence": 0.9, "reason": "import"}},
+					}},
 				}, nil
 			},
 		},
@@ -44,87 +145,91 @@ func TestTraceResourceToCodeAnchorsLabeledStart(t *testing.T) {
 
 	handler.traceResourceToCode(rec, req)
 
-	decodeImpactEnvelopeData(t, rec)
-	if strings.Contains(seenCypher, "MATCH (start) WHERE start.id") {
-		t.Fatalf("start anchor must not be an unlabeled all-node scan: %s", seenCypher)
+	data := decodeImpactEnvelopeData(t, rec)
+	assertNoImpactLabelDisjunction(t, resolveCypher)
+	assertNoImpactLabelDisjunction(t, traversalCypher)
+	if !strings.Contains(traversalCypher, "(start:CloudResource {id: $start_id})") {
+		t.Fatalf("traversal must anchor the resolved label inline: %s", traversalCypher)
 	}
-	if !strings.Contains(seenCypher, "MATCH (start:"+impactAnchorLabelDisjunction+")") {
-		t.Fatalf("start anchor must be label-seeded with the impact-anchor disjunction: %s", seenCypher)
+	if strings.Contains(traversalCypher, "MATCH (start) WHERE") {
+		t.Fatalf("traversal must not anchor an unlabeled start node: %s", traversalCypher)
 	}
-	// Semantics preserved: the exact id predicate, repo target, and server-side
-	// LIMIT parameter must remain.
-	if !strings.Contains(seenCypher, "start.id = $start_id") {
-		t.Fatalf("start id predicate must be preserved: %s", seenCypher)
+	if !strings.Contains(traversalCypher, "(repo:Repository)") {
+		t.Fatalf("repo target label must be preserved: %s", traversalCypher)
 	}
-	if !strings.Contains(seenCypher, "(repo:Repository)") {
-		t.Fatalf("repo target label must be preserved: %s", seenCypher)
+	if !strings.Contains(traversalCypher, "LIMIT $limit") {
+		t.Fatalf("server-side LIMIT must be preserved: %s", traversalCypher)
 	}
-	if !strings.Contains(seenCypher, "LIMIT $limit") {
-		t.Fatalf("server-side LIMIT must be preserved: %s", seenCypher)
+	// Per-edge hop provenance is built in Go from relationships(path).
+	paths, ok := data["paths"].([]any)
+	if !ok || len(paths) != 1 {
+		t.Fatalf("paths = %#v, want one path", data["paths"])
+	}
+	first, _ := paths[0].(map[string]any)
+	hops, _ := first["hops"].([]any)
+	if len(hops) != 1 {
+		t.Fatalf("hops = %#v, want one hop from relationships(path)", first["hops"])
+	}
+	hop0, _ := hops[0].(map[string]any)
+	if hop0["type"] != "DEPENDS_ON" || hop0["reason"] != "import" {
+		t.Fatalf("hop provenance not decoded from rels: %#v", hop0)
 	}
 }
 
-// TestTraceResourceToCodeFallbackHydrationAnchorsLabeled proves the fallback
-// start-node hydration (issue #3567, impact.go ~line 233) is label-seeded too.
-// When the traversal returns no rows the handler hydrates the start node by id;
-// the prior `MATCH (n) WHERE n.id = $id` was a second all-node scan.
-func TestTraceResourceToCodeFallbackHydrationAnchorsLabeled(t *testing.T) {
+// TestTraceResourceToCodeReturnsStartWithoutPaths proves that when the start
+// resolves but the traversal finds no Repository paths, the start is still
+// hydrated (from the resolver) with an empty paths list.
+func TestTraceResourceToCodeReturnsStartWithoutPaths(t *testing.T) {
 	t.Parallel()
 
-	var hydrationCypher string
 	handler := &ImpactHandler{
 		Profile: ProfileLocalAuthoritative,
 		Neo4j: fakeGraphReaderWithSingle{
-			run: func(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
-				// Traversal returns no paths so the handler falls back to hydration.
-				return nil, nil
+			runSingle: func(_ context.Context, _ string, _ map[string]any) (map[string]any, error) {
+				return map[string]any{"label": "CloudResource", "id": "resource:queue", "name": "queue", "labels": []any{"CloudResource"}}, nil
 			},
-			runSingle: func(_ context.Context, cypher string, _ map[string]any) (map[string]any, error) {
-				hydrationCypher = cypher
-				return map[string]any{"id": "resource:queue", "name": "queue", "labels": []any{"CloudResource"}}, nil
+			run: func(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
+				return nil, nil // no Repository paths
 			},
 		},
 	}
-	req := httptest.NewRequest(
-		http.MethodPost,
-		"/api/v0/impact/trace-resource-to-code",
-		bytes.NewBufferString(`{"start":"resource:queue"}`),
-	)
+	req := httptest.NewRequest(http.MethodPost, "/api/v0/impact/trace-resource-to-code", bytes.NewBufferString(`{"start":"resource:queue"}`))
 	req.Header.Set("Accept", EnvelopeMIMEType)
 	rec := httptest.NewRecorder()
-
 	handler.traceResourceToCode(rec, req)
 
-	decodeImpactEnvelopeData(t, rec)
-	if strings.Contains(hydrationCypher, "MATCH (n) WHERE n.id") {
-		t.Fatalf("fallback hydration must not be an unlabeled all-node scan: %s", hydrationCypher)
+	data := decodeImpactEnvelopeData(t, rec)
+	start, _ := data["start"].(map[string]any)
+	if start["id"] != "resource:queue" || start["name"] != "queue" {
+		t.Fatalf("start must be hydrated from the resolver even with no paths: %#v", data["start"])
 	}
-	if !strings.Contains(hydrationCypher, "MATCH (n:"+impactAnchorLabelDisjunction+")") {
-		t.Fatalf("fallback hydration must be label-seeded: %s", hydrationCypher)
-	}
-	if !strings.Contains(hydrationCypher, "n.id = $id") {
-		t.Fatalf("fallback hydration id predicate must be preserved: %s", hydrationCypher)
+	if got, want := data["count"], float64(0); got != want {
+		t.Fatalf("count = %#v, want 0", got)
 	}
 }
 
-// TestExplainDependencyPathAnchorsLabeledEndpoints proves the dependency-path
-// source and target anchors are label-seeded (issue #3567, impact.go ~lines
-// 312-313). Both endpoints previously used unlabeled `MATCH (x) WHERE x.id` that
-// the planner could only satisfy with an all-node scan per endpoint.
-func TestExplainDependencyPathAnchorsLabeledEndpoints(t *testing.T) {
+// TestExplainDependencyPathAnchorsResolvedEndpoints proves the dependency-path
+// source and target are resolved to single labels and the shortestPath anchors
+// both inline. The pinned NornicDB build matches zero rows for a label-disjunction
+// by-id anchor (#5286).
+func TestExplainDependencyPathAnchorsResolvedEndpoints(t *testing.T) {
 	t.Parallel()
 
-	var seenCypher string
+	var resolveCypher, pathCypher string
 	handler := &ImpactHandler{
 		Profile: ProfileLocalAuthoritative,
 		Neo4j: fakeGraphReaderWithSingle{
-			runSingle: func(_ context.Context, cypher string, _ map[string]any) (map[string]any, error) {
-				seenCypher = cypher
-				return map[string]any{
-					"source_id": "resource:queue", "source_name": "queue", "source_labels": []any{"CloudResource"},
-					"target_id": "repo:api", "target_name": "api", "target_labels": []any{"Repository"},
-					"depth": int64(-1),
+			run: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+				// The dual anchor resolver (source + target in one round-trip).
+				resolveCypher = cypher
+				return []map[string]any{
+					{"role": "source", "label": "CloudResource", "id": "resource:queue", "name": "queue", "labels": []any{"CloudResource"}},
+					{"role": "target", "label": "Repository", "id": "repo:api", "name": "api", "labels": []any{"Repository"}},
 				}, nil
+			},
+			runSingle: func(_ context.Context, cypher string, _ map[string]any) (map[string]any, error) {
+				pathCypher = cypher
+				return nil, nil // no path found in this shape assertion
 			},
 		},
 	}
@@ -141,24 +246,13 @@ func TestExplainDependencyPathAnchorsLabeledEndpoints(t *testing.T) {
 	if got := rec.Code; got != http.StatusOK {
 		t.Fatalf("status = %d, want 200; body = %s", got, rec.Body.String())
 	}
-	if strings.Contains(seenCypher, "MATCH (source) WHERE source.id") {
-		t.Fatalf("source anchor must not be an unlabeled all-node scan: %s", seenCypher)
+	assertNoImpactLabelDisjunction(t, resolveCypher)
+	if !strings.Contains(resolveCypher, "CALL {") {
+		t.Fatalf("dual resolve query must be a CALL{UNION}: %s", resolveCypher)
 	}
-	if strings.Contains(seenCypher, "MATCH (target) WHERE target.id") {
-		t.Fatalf("target anchor must not be an unlabeled all-node scan: %s", seenCypher)
-	}
-	if !strings.Contains(seenCypher, "MATCH (source:"+impactAnchorLabelDisjunction+")") {
-		t.Fatalf("source anchor must be label-seeded: %s", seenCypher)
-	}
-	if !strings.Contains(seenCypher, "MATCH (target:"+impactAnchorLabelDisjunction+")") {
-		t.Fatalf("target anchor must be label-seeded: %s", seenCypher)
-	}
-	// Semantics preserved: exact id predicates and shortestPath stay intact.
-	if !strings.Contains(seenCypher, "source.id = $source_id") || !strings.Contains(seenCypher, "target.id = $target_id") {
-		t.Fatalf("id predicates must be preserved: %s", seenCypher)
-	}
-	if !strings.Contains(seenCypher, "shortestPath((source)-[*1..8]-(target))") {
-		t.Fatalf("shortestPath traversal must be preserved: %s", seenCypher)
+	assertNoImpactLabelDisjunction(t, pathCypher)
+	if !strings.Contains(pathCypher, "shortestPath((source:CloudResource {id: $source_id})-[*1..8]-(target:Repository {id: $target_id}))") {
+		t.Fatalf("shortestPath must anchor both resolved labels inline: %s", pathCypher)
 	}
 }
 

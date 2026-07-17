@@ -78,7 +78,10 @@ func TestTraceResourceToCodeUsesRequestedLimitAndReportsTruncation(t *testing.T)
 
 	handler := &ImpactHandler{
 		Profile: ProfileLocalAuthoritative,
-		Neo4j: fakeGraphReader{
+		Neo4j: fakeGraphReaderWithSingle{
+			runSingle: func(_ context.Context, _ string, _ map[string]any) (map[string]any, error) {
+				return map[string]any{"label": "CloudResource", "id": "resource:queue", "name": "queue", "labels": []any{"CloudResource"}}, nil
+			},
 			run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 				if !strings.Contains(cypher, "LIMIT $limit") {
 					t.Fatalf("cypher = %q, want server-side LIMIT parameter", cypher)
@@ -87,8 +90,8 @@ func TestTraceResourceToCodeUsesRequestedLimitAndReportsTruncation(t *testing.T)
 					t.Fatalf("params[limit] = %#v, want %#v", got, want)
 				}
 				return []map[string]any{
-					{"start_id": "resource:queue", "start_name": "queue", "start_labels": []any{"CloudResource"}, "repo_id": "repo-a", "repo_name": "api", "depth": int64(1)},
-					{"start_id": "resource:queue", "start_name": "queue", "start_labels": []any{"CloudResource"}, "repo_id": "repo-b", "repo_name": "worker", "depth": int64(2)},
+					{"repo_id": "repo-a", "repo_name": "api", "depth": int64(1), "rels": []any{}},
+					{"repo_id": "repo-b", "repo_name": "worker", "depth": int64(2), "rels": []any{}},
 				}, nil
 			},
 		},
