@@ -582,6 +582,22 @@ remaining impact reads beyond blast-radius.
 (the query-shape guard fails on the pre-#5279 multi-clause shapes) plus the live
 Bolt-HTTP before/after in `docs/internal/evidence/5279-blast-radius-nornicdb.md`.
 
+### Upstream fix (pinned until merged into NornicDB main)
+
+A **fail-loud guard** for these multi-clause shapes is proposed upstream at
+[orneryd/NornicDB#263](https://github.com/orneryd/NornicDB/pull/263) (branch
+`fix/fail-loud-multiclause`, based on the pinned image commit
+`1492458852588c884c32f70d27ea2ee07086769c`). It makes the executor return a
+clear `unsupported multi-clause query: <detail>` error instead of silently
+returning corrupt rows — defense-in-depth so any un-rewritten multi-clause read
+fails visibly rather than serving garbage. It is **not yet in the pinned image**
+(`eshu-nornicdb-pr261:149245885258`) and does not change Eshu's correctness on
+its own — Eshu's reads are being rewritten to the single-clause-safe contract
+regardless (blast-radius #5279, code-relationships/ingress-posture #5287). Do not
+build/pin an image from that branch before the Eshu multi-clause sweep completes,
+or the not-yet-rewritten reads would begin erroring. This note stays pinned to
+that PR/branch until the fix lands in NornicDB `main` and a new image is pinned.
+
 ## When To Patch NornicDB
 
 Patch NornicDB only when evidence supports one of these:
