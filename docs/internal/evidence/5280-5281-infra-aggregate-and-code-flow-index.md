@@ -157,6 +157,14 @@ fails `TestCodeFlowSQLKeepsLiteralKindConjunctForPartialIndex`; the residual
 (caught by the endpoint's own handler tests), an obvious unwired-endpoint
 failure rather than a silent kind exclusion.
 
+`codeFlowFactKinds` returns a fresh copy of the per-kind entry, never the shared
+`codeFlowKindFactKinds` backing slice, so an in-place `sort`/`append`/index-assign
+by a future caller cannot corrupt the canonical entry for later reads across all
+four endpoints — restoring the mutation-safety the pre-refactor fresh-literal
+form had. Guarded by `TestCodeFlowFactKindsReturnsIsolatedCopy` (mutating the
+returned slice must not change a subsequent call), proven RED without the copy /
+GREEN with it.
+
 All 83,000 seeded facts and the manual index were removed after measurement
 (`VACUUM ANALYZE`; verified `fact_records` = 330,474, 0 leftover).
 

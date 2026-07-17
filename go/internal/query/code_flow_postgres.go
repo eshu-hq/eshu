@@ -171,10 +171,16 @@ var codeFlowKindFactKinds = map[CodeFlowKind][]string{
 }
 
 // codeFlowFactKinds returns the fact kinds the read selects for kind, or nil for
-// an unknown kind (ListCodeFlow short-circuits on nil). The returned slice is
-// the canonical per-kind entry and is treated as read-only by callers.
+// an unknown kind (ListCodeFlow short-circuits on nil). It returns a fresh copy
+// of the canonical per-kind entry, never the shared map slice, so a caller that
+// sorts or appends in place cannot corrupt codeFlowKindFactKinds for later reads
+// across all endpoints.
 func codeFlowFactKinds(kind CodeFlowKind) []string {
-	return codeFlowKindFactKinds[kind]
+	entry := codeFlowKindFactKinds[kind]
+	if entry == nil {
+		return nil
+	}
+	return append([]string(nil), entry...)
 }
 
 func codeFlowFunctionFromPayload(

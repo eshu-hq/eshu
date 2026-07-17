@@ -124,6 +124,34 @@ func TestCodeFlowFactKindsDispatch(t *testing.T) {
 	}
 }
 
+// TestCodeFlowFactKindsReturnsIsolatedCopy proves codeFlowFactKinds hands back a
+// fresh slice, not the shared codeFlowKindFactKinds backing array: mutating the
+// returned slice in place (sort/append/index-assign) must not corrupt the
+// canonical per-kind entry for later reads across all code-flow endpoints.
+func TestCodeFlowFactKindsReturnsIsolatedCopy(t *testing.T) {
+	t.Parallel()
+
+	first := codeFlowFactKinds(CodeFlowKindTaintPath)
+	if len(first) < 2 {
+		t.Fatalf("expected the taint kind to select >=2 fact kinds, got %v", first)
+	}
+	// Corrupt the returned slice in place.
+	for i := range first {
+		first[i] = "corrupted"
+	}
+	// A subsequent call must still return the pristine canonical entry.
+	second := codeFlowFactKinds(CodeFlowKindTaintPath)
+	want := []string{facts.CodeTaintEvidenceFactKind, facts.CodeInterprocEvidenceFactKind}
+	if len(second) != len(want) {
+		t.Fatalf("codeFlowFactKinds(taint) after mutation = %v, want %v (shared backing slice corrupted)", second, want)
+	}
+	for i := range want {
+		if second[i] != want[i] {
+			t.Fatalf("codeFlowFactKinds(taint)[%d] = %q after mutation, want %q (shared backing slice corrupted)", i, second[i], want[i])
+		}
+	}
+}
+
 // extractFactKindInList pulls the parenthesised kind list from the single
 // `fact_kind IN ( ... )` conjunct in a code-flow SQL statement and returns the
 // unquoted kinds sorted. It anchors on `fact_kind IN (` so it ignores unrelated
