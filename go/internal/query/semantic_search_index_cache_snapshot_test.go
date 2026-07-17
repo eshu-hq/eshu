@@ -7,6 +7,8 @@ import (
 	"context"
 	"reflect"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
 func TestPersistedSemanticSearchRetriesWhenSnapshotChangesDuringBuild(t *testing.T) {
@@ -63,5 +65,32 @@ func TestPersistedSemanticSearchBypassesCacheForUnreadySnapshot(t *testing.T) {
 	}
 	if got, want := snapshots.callCount(), 2; got != want {
 		t.Fatalf("snapshot loads = %d, want %d", got, want)
+	}
+}
+
+func TestPersistedSemanticSearchReusesCorpusForUnreadyVectorFallback(t *testing.T) {
+	t.Parallel()
+
+	hybrid, documents, metadata, values, _ := newSemanticSearchCacheTestHybrid(t, 2)
+	metadata.rows[0].BuildState = postgres.EshuSearchVectorBuildStateDisabled
+
+	result, err := hybrid.Search(context.Background(), semanticSearchCacheTestQuery("refund"))
+	if err != nil {
+		t.Fatalf("Search() error = %v", err)
+	}
+	if len(result.Candidates) == 0 {
+		t.Fatal("Search() returned no keyword fallback candidates")
+	}
+	if got, want := result.RetrievalState, "index_unready"; got != want {
+		t.Fatalf("RetrievalState = %q, want %q", got, want)
+	}
+	if got, want := documents.callCount(), 1; got != want {
+		t.Fatalf("document loads = %d, want %d for one-pass fallback", got, want)
+	}
+	if got, want := metadata.callCount(), 1; got != want {
+		t.Fatalf("metadata loads = %d, want %d for one-pass fallback", got, want)
+	}
+	if got, want := values.callCount(), 1; got != want {
+		t.Fatalf("vector loads = %d, want %d for one-pass fallback", got, want)
 	}
 }
