@@ -61,12 +61,29 @@ export function useCodeGraphSelection({
   const legacyCandidate = deadCandidates.find((finding) => finding.id === legacyCandidateId);
   const repoParam = searchParams.get("repo_id") ?? "";
   const entityParam = searchParams.get("entity_id") ?? "";
+  const legacyRepositories = legacyCandidate
+    ? availableRepositories.filter((repo) => findingMatchesRepository(legacyCandidate, repo))
+    : [];
+  const legacyRepository = legacyRepositories.length === 1 ? legacyRepositories[0] : undefined;
   const invalidLegacyCandidate =
     legacyCandidateParam.trim() !== "" && legacyCandidate === undefined && repoParam === "";
+  const unavailableLegacyRepository =
+    legacyCandidateParam.trim() !== "" &&
+    legacyCandidate !== undefined &&
+    legacyRepository === undefined &&
+    legacyRepositories.length === 0 &&
+    repoParam === "";
+  const ambiguousLegacyRepository =
+    legacyCandidateParam.trim() !== "" &&
+    legacyCandidate !== undefined &&
+    legacyRepositories.length > 1 &&
+    repoParam === "";
   const requestedRepoId =
     repoParam ||
-    legacyCandidate?.repoId ||
-    (invalidLegacyCandidate ? "" : availableRepositories[0]?.id) ||
+    legacyRepository?.id ||
+    (invalidLegacyCandidate || unavailableLegacyRepository || ambiguousLegacyRepository
+      ? ""
+      : availableRepositories[0]?.id) ||
     "";
   const repository = availableRepositories.find(
     (repo) => repo.id === requestedRepoId || (repoParam !== "" && repo.name === requestedRepoId),
@@ -175,6 +192,12 @@ export function useCodeGraphSelection({
     repositoryError(repository, repoParam, repositoryCatalog) ||
     (invalidLegacyCandidate
       ? `Legacy Code Graph candidate ${legacyCandidateParam} is not available.`
+      : "") ||
+    (unavailableLegacyRepository
+      ? `Legacy Code Graph candidate ${legacyCandidateParam} repository is not present in this session catalog.`
+      : "") ||
+    (ambiguousLegacyRepository
+      ? `Legacy Code Graph candidate ${legacyCandidateParam} repository label matches multiple repositories.`
       : "") ||
     activeInventory.error;
   return {

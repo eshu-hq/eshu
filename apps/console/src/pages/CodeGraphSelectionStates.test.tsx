@@ -231,6 +231,80 @@ describe("CodeGraphPage repository state isolation", () => {
     expect(inventoryCalls).toEqual([]);
   });
 
+  it("resolves a legacy candidate repository label to its canonical catalog repository", async () => {
+    const inventoryCalls: string[] = [];
+    const client = clientWithInventory((repoId) => {
+      inventoryCalls.push(repoId);
+      return Promise.resolve(inventory(repoId, "betaSymbol"));
+    });
+    render(
+      <MemoryRouter initialEntries={["/code-graph?candidate=legacy-beta"]}>
+        <CodeGraphPage
+          client={client}
+          model={{
+            ...demoModel,
+            findings: [
+              {
+                detail: "src/beta.ts · unused",
+                entity: "service-two",
+                entityId: "content-entity:repository:r2:betaSymbol",
+                filePath: "src/beta.ts",
+                id: "legacy-beta",
+                title: "Unreferenced symbol betaSymbol",
+                truth: "derived",
+                type: "Dead code",
+              },
+            ],
+            source: "live",
+          }}
+          repositories={repositories}
+        />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => expect(inventoryCalls).toEqual(["repository:r2"]));
+    expect(screen.getByRole("combobox", { name: "Repository" })).toHaveValue("repository:r2");
+    expect(await screen.findByRole("combobox", { name: "Symbol" })).toHaveValue(
+      "content-entity:repository:r2:betaSymbol",
+    );
+  });
+
+  it("does not substitute the first repository when a legacy repository label is unavailable", () => {
+    const inventoryCalls: string[] = [];
+    const client = clientWithInventory((repoId) => {
+      inventoryCalls.push(repoId);
+      return Promise.resolve(inventory(repoId, "unexpectedSymbol"));
+    });
+    render(
+      <MemoryRouter initialEntries={["/code-graph?candidate=legacy-unknown"]}>
+        <CodeGraphPage
+          client={client}
+          model={{
+            ...demoModel,
+            findings: [
+              {
+                detail: "src/unknown.ts · unused",
+                entity: "unknown-service",
+                id: "legacy-unknown",
+                title: "Unreferenced symbol unknownSymbol",
+                truth: "derived",
+                type: "Dead code",
+              },
+            ],
+            source: "live",
+          }}
+          repositories={repositories}
+        />
+      </MemoryRouter>,
+    );
+
+    expect(
+      screen.getByText(/repository is not present in this session catalog/i),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Repository" })).toHaveValue("");
+    expect(inventoryCalls).toEqual([]);
+  });
+
   it("restores repository scope through browser back and forward", async () => {
     const client = clientWithInventory((repoId) =>
       Promise.resolve(inventory(repoId, repoId === "repository:r1" ? "alphaSymbol" : "betaSymbol")),
