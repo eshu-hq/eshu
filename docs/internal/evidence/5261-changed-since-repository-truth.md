@@ -127,8 +127,10 @@ the repository-kind source key was non-empty.
 
 ## Authenticated retained-browser proof
 
-The in-app browser ran the console at source commit `ba2187716d` on base
-`04aa756610`. The browser runner was version `26.707.91948`, SHA-256
+The initial in-app browser workflow ran the console at source commit
+`ba2187716d` on base `04aa756610`. The final Back/Forward rerun used source
+identical to `2bf9c122c8` on the same base. The browser runner was version
+`26.707.91948`, SHA-256
 `7abc8b22abade944bcd80135500416c7aee60c0e94290c7d644b54428a0013ab`.
 The retained API credential was supplied only to the dev server's supported
 in-memory `VITE_ESHU_API_KEY` input. It was not printed, entered into the page,
