@@ -71,10 +71,10 @@ func (e *Engine) Ask(ctx context.Context, question string) (Answer, error) {
 				"max_tool_calls_per_turn", e.opts.MaxToolCallsPerTurn,
 				"iteration", i)
 			calls = calls[:e.opts.MaxToolCallsPerTurn]
-			// FINDING 3: the assistant message must carry only the dispatched
-			// (truncated) tool calls. Replaying all comp.ToolCalls while only
-			// providing RoleTool responses for the truncated subset causes the
-			// provider to reject the next request due to unmatched IDs.
+			// The assistant message must carry only the dispatched (truncated)
+			// tool calls. Replaying all comp.ToolCalls while only providing
+			// RoleTool responses for the truncated subset causes the provider to
+			// reject the next request due to unmatched IDs.
 			messages[len(messages)-1].ToolCalls = calls
 		}
 
@@ -184,9 +184,9 @@ func (e *Engine) finalizeAnswerWithPosture(ctx context.Context, question string,
 //  1. Run error: record a failed trace entry and a bounded error tool-result.
 //  2. Envelope non-nil: extract or build an AnswerPacket, append it to
 //     ans.Packets, propagate Partial, and feed the model a bounded JSON of the
-//     packet. FINDING 1: prefer an embedded answer_packet from envelope.Data
-//     over a bare NewAnswerPacket when the route handler attached one.
-//     FINDING 4: when the packet is Partial, set ans.Partial = true.
+//     packet. An embedded answer_packet from envelope.Data is preferred over a
+//     bare NewAnswerPacket when the route handler attached one, and a Partial
+//     packet sets ans.Partial = true.
 //  3. Envelope nil, Value non-nil: the tool returned plain JSON. Feed the model
 //     a bounded JSON of the value; do NOT append an AnswerPacket (no truth
 //     envelope). Record the trace entry as Supported=true.
@@ -261,9 +261,9 @@ func (e *Engine) dispatchCall(
 				Text:       continuationToolResult(cont),
 			})
 		}
-		// FINDING 1: prefer an embedded answer_packet carried by the route handler.
+		// Prefer an embedded answer_packet carried by the route handler.
 		pkt := answerPacketForToolResult(question, call.Name, res.Envelope)
-		// FINDING 4: propagate partial state upward to the aggregate answer.
+		// Propagate partial state upward to the aggregate answer.
 		if pkt.Partial {
 			ans.Partial = true
 		}
@@ -284,8 +284,8 @@ func (e *Engine) dispatchCall(
 	}
 
 	if res.Value != nil {
-		// FINDING 2: plain-JSON result. Feed the model the bounded data but do
-		// not fabricate an AnswerPacket — there is no truth envelope to score.
+		// Plain-JSON result. Feed the model the bounded data but do not fabricate
+		// an AnswerPacket — there is no truth envelope to score.
 		ans.Trace = append(ans.Trace, TraceEntry{
 			Tool:      call.Name,
 			Args:      call.Arguments,

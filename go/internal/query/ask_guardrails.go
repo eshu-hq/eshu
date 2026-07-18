@@ -40,6 +40,14 @@ func applyAskSubstanceGuardrail(resp *askResponse, question string, primarySuppo
 		"runtime answer guardrail withheld a circular, identity-only answer: "+string(answerguardrail.CriterionAnswerSubstance))
 	resp.Limitations = appendAskLimitation(resp.Limitations,
 		"name the entity's operational facts (repository, deployments, environments, API surface, dependencies) or the exact missing evidence instead of restating the entity name")
+	// The evidence handles and citation ref are publish-safe and still address the
+	// packet, so they are kept for follow-up rather than dropped; note explicitly
+	// that only the prose was withheld so a consumer seeing partial=true with
+	// citation metadata but no prose is not confused.
+	if len(resp.EvidenceHandles) > 0 || strings.TrimSpace(resp.CitationRef) != "" {
+		resp.Limitations = appendAskLimitation(resp.Limitations,
+			"citation metadata (evidence handles and citation ref) is preserved for follow-up; only the circular prose was withheld")
+	}
 }
 
 func applyAskRuntimeGuardrails(resp *askResponse, primarySupported bool) {

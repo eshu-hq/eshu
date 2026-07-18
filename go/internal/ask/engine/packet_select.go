@@ -179,9 +179,15 @@ func selectedPacketIndex(ans *Answer) int {
 // meaningfulTokens splits text into a set of lowercased, whole-word tokens,
 // excluding a small stop-word set. A token is kept when it is at least three
 // characters OR it carries a digit, so a short version or count identifier
-// ("v2", "5") that discriminates the right packet is not dropped. This mirrors
-// the digit escape in answerguardrail.contentTokens. It is the shared tokenizer
-// for the relevance heuristic.
+// ("v2", "5") that discriminates the right packet is not dropped. It is the
+// tokenizer for the relevance heuristic.
+//
+// It shares the digit escape with answerguardrail.contentTokens but deliberately
+// diverges on hyphens: this tokenizer splits on hyphens so a compound entity name
+// ("api-gateway") contributes both parts to relevance-match recall, whereas
+// contentTokens preserves hyphens because its circular-answer analysis compares
+// whole answer tokens against the question. The two are intentionally not the
+// same tokenizer.
 func meaningfulTokens(text string) map[string]struct{} {
 	out := make(map[string]struct{})
 	for _, raw := range strings.FieldsFunc(strings.ToLower(text), func(r rune) bool {

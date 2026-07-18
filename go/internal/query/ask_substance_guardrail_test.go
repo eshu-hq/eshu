@@ -12,9 +12,10 @@ func TestApplyAskSubstanceGuardrailWithholdsCircularAnswer(t *testing.T) {
 	t.Parallel()
 
 	resp := &askResponse{
-		AnswerProse: "The payments service is a service named payments.",
-		TruthClass:  string(AnswerTruthDerived),
-		Artifacts:   []askArtifact{{Format: "markdown", Content: "x"}},
+		AnswerProse:     "The payments service is a service named payments.",
+		TruthClass:      string(AnswerTruthDerived),
+		Artifacts:       []askArtifact{{Format: "markdown", Content: "x"}},
+		EvidenceHandles: []evidenceCitationHandle{{Kind: "file", RepoID: "demo"}},
 	}
 	applyAskSubstanceGuardrail(resp, "give me an overview of the payments service", true)
 
@@ -27,7 +28,11 @@ func TestApplyAskSubstanceGuardrailWithholdsCircularAnswer(t *testing.T) {
 	if !resp.Partial {
 		t.Error("withheld circular answer must be marked partial")
 	}
-	var hasVerdict, hasNextAction bool
+	// Publish-safe citation metadata is preserved for follow-up, not dropped.
+	if len(resp.EvidenceHandles) == 0 {
+		t.Error("evidence handles were dropped; they are publish-safe and should be preserved")
+	}
+	var hasVerdict, hasNextAction, hasCitationNote bool
 	for _, lim := range resp.Limitations {
 		if strings.Contains(lim, "answer_substance") {
 			hasVerdict = true
@@ -35,12 +40,18 @@ func TestApplyAskSubstanceGuardrailWithholdsCircularAnswer(t *testing.T) {
 		if strings.Contains(lim, "operational facts") {
 			hasNextAction = true
 		}
+		if strings.Contains(lim, "citation metadata") {
+			hasCitationNote = true
+		}
 	}
 	if !hasVerdict {
 		t.Errorf("missing answer_substance verdict limitation: %v", resp.Limitations)
 	}
 	if !hasNextAction {
 		t.Errorf("missing useful next-action limitation: %v", resp.Limitations)
+	}
+	if !hasCitationNote {
+		t.Errorf("missing preserved-citation-metadata note: %v", resp.Limitations)
 	}
 }
 
