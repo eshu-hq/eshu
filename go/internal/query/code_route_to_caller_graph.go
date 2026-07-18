@@ -85,12 +85,35 @@ func (h *CodeHandler) routeToCallerEndpointRows(r *http.Request, req routeToCall
 // routeToCallerHandlerRows reads the HANDLES_ROUTE handlers for the endpoints
 // matching the route selector path (and optional method).
 func (h *CodeHandler) routeToCallerHandlerRows(r *http.Request, req routeToCallerRequest) ([]map[string]any, error) {
-	params := routeToCallerAccessParams(r, map[string]any{"path": req.Path, "method": req.Method, "route_limit": req.Limit + 1})
+	params := map[string]any{"path": req.Path, "method": req.Method, "route_limit": req.Limit + 1}
 	predicates := []string{"endpoint.path = $path", "($method = '' OR coalesce(route.http_method, '') = $method)"}
+	// Scope the handler half by the same route selectors as the endpoint half so
+	// it does not read handlers of same-path endpoints in other repos/services
+	// (the endpoint-id join drops those, but scope the read directly too).
+	if req.RepoID != "" {
+		params["repo_id"] = req.RepoID
+		predicates = append(predicates, "endpoint.repo_id = $repo_id")
+	}
+	if req.ServiceID != "" {
+		params["service_id"] = req.ServiceID
+		predicates = append(predicates, "coalesce(workload.id, workload.uid) = $service_id")
+	}
+	if req.ServiceName != "" {
+		params["service_name"] = req.ServiceName
+		predicates = append(predicates, "workload.name = $service_name")
+	}
+	params = routeToCallerAccessParams(r, params)
 	if accessPredicate := routeToCallerEndpointAccessPredicate(r); accessPredicate != "" {
 		predicates = append(predicates, accessPredicate)
 	}
-	cypher := `MATCH (handler)-[route:HANDLES_ROUTE]->(endpoint:Endpoint)
+	// A service selector requires the endpoint to be exposed by the matching
+	// workload; the WORKLOAD -> ENDPOINT <- HANDLES_ROUTE linear pattern is a
+	// single MATCH clause (NornicDB-safe, verified live).
+	match := "MATCH (handler)-[route:HANDLES_ROUTE]->(endpoint:Endpoint)"
+	if req.ServiceID != "" || req.ServiceName != "" {
+		match = "MATCH (workload:Workload)-[:EXPOSES_ENDPOINT]->(endpoint:Endpoint)<-[route:HANDLES_ROUTE]-(handler)"
+	}
+	cypher := match + `
 		WHERE ` + strings.Join(predicates, " AND ") + `
 		RETURN DISTINCT coalesce(endpoint.id, endpoint.uid) as endpoint_id,
 		       route.http_method as http_method,
@@ -232,7 +255,7 @@ func (h *CodeHandler) routeToCallerDirectionRows(
 		  AND coalesce(` + far + `.id, ` + far + `.uid) <> coalesce(handler.id, handler.uid)` +
 		routeToCallerEntityAccessPredicate(r, far) + routeToCallerPathAccessPredicate(r, "path") + `
 		RETURN length(path) as depth, nodes(path) as chain
-		ORDER BY depth
+		ORDER BY depth, coalesce(` + far + `.id, ` + far + `.uid)
 		LIMIT $limit`
 	params := routeToCallerAccessParams(r, map[string]any{"handler_id": handlerID, "limit": req.Limit + 1})
 	rows, err := h.Neo4j.Run(r.Context(), cypher, params)

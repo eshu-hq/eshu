@@ -47,9 +47,16 @@ func TestRouteToCallerEntityFromChainDecodesBothBackends(t *testing.T) {
 			neo4jdriver.Node{Props: map[string]any{"id": "handler"}},
 			neo4jdriver.Node{Props: props},
 		},
-		"nornicdb-map": []any{
+		"nornicdb-flat-map": []any{
 			map[string]any{"id": "handler"},
 			props,
+		},
+		// Defensive fallback: a node serialized as a map with a nested
+		// "properties" sub-map (e.g. an HTTP-API-style shape). lastChainNodeProps
+		// unwraps it before reading the entity fields.
+		"nested-properties-map": []any{
+			map[string]any{"properties": map[string]any{"id": "handler"}},
+			map[string]any{"properties": props},
 		},
 	}
 	for name, chain := range cases {

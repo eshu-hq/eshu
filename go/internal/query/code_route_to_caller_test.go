@@ -44,6 +44,9 @@ func TestHandleRouteToCallerReturnsExactHandlerAndBoundedCallers(t *testing.T) {
 					if !strings.Contains(cypher, "(handler)-[route:HANDLES_ROUTE]->(endpoint:Endpoint)") {
 						t.Fatalf("handler query did not anchor on HANDLES_ROUTE: %s", cypher)
 					}
+					if !strings.Contains(cypher, "endpoint.repo_id = $repo_id") {
+						t.Fatalf("handler query not scoped by repo_id: %s", cypher)
+					}
 					if got, want := params["method"], "GET"; got != want {
 						t.Fatalf("handler params[method] = %#v, want %#v", got, want)
 					}
