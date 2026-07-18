@@ -31,6 +31,24 @@ func scopedHTTPRouteSupportsTenantFilter(r *http.Request) bool {
 	if r.Method == http.MethodGet && scopedRepositoryFreshnessRoute(r.URL.Path) {
 		return true
 	}
+	// #5167 Group A: already grant-filtered single-repository GET routes that
+	// only needed the allowlist matcher (see auth_scoped_routes_repository.go
+	// doc comments for each handler's resolution chain).
+	if r.Method == http.MethodGet && scopedRepositoryStatsRoute(r.URL.Path) {
+		return true
+	}
+	if r.Method == http.MethodGet && scopedRepositoryContextRoute(r.URL.Path) {
+		return true
+	}
+	if r.Method == http.MethodGet && scopedRepositoryStoryRoute(r.URL.Path) {
+		return true
+	}
+	if r.Method == http.MethodGet && scopedRepositoryCoverageRoute(r.URL.Path) {
+		return true
+	}
+	if r.Method == http.MethodGet && scopedRepositoryTreeRoute(r.URL.Path) {
+		return true
+	}
 	if r.Method == http.MethodPost && r.URL.Path == "/api/v0/code/search" {
 		return true
 	}
@@ -38,6 +56,12 @@ func scopedHTTPRouteSupportsTenantFilter(r *http.Request) bool {
 		return true
 	}
 	if r.Method == http.MethodPost && r.URL.Path == "/api/v0/code/routes/callers" {
+		return true
+	}
+	// #5167 task 4: VisualizationHandler holds no graph/content/store
+	// reference (visualization_packet_handler.go) -- it only reshapes the
+	// caller-supplied source_response, so there is no tenant data to filter.
+	if r.Method == http.MethodPost && r.URL.Path == "/api/v0/visualizations/derive" {
 		return true
 	}
 	// POST /api/v0/ask orchestrates other read routes through the in-process MCP

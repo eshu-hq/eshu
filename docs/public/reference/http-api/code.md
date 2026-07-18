@@ -316,6 +316,12 @@ API/MCP parity claims.
 optional `limit`, rejects mutation keywords, caps query length, uses a request
 timeout, and appends or enforces bounded `LIMIT` values. Use purpose-built
 code, story, impact, and content routes for normal client workflows.
+`POST /api/v0/code/visualize` shares the same read-only Cypher path and
+projects the result into a bounded, renderable graph visualization packet
+instead of raw rows. Both routes are shared-key/all-scope callers only (#5167
+Group C): the query text is caller-supplied and unbounded, so there is no
+selector to intersect against a scoped-token or browser-session tenant grant,
+and both are rejected before the handler runs.
 
 `POST /api/v0/code/bundles` searches the pre-indexed package registry catalog
 (package bundles) by name, namespace, or PURL. It requires a non-empty `query`

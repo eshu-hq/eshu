@@ -391,8 +391,23 @@ func minimalDispatchRouteArgs(toolName string) map[string]any {
 		return map[string]any{"repo_id": "sample-repo"}
 	case "list_relationship_edges":
 		return map[string]any{"verb": "DEPENDS_ON"}
-	case "list_repository_files":
+	case "list_repository_files", "get_repo_context", "get_repo_story",
+		"get_repository_coverage", "get_repository_freshness":
 		return map[string]any{"repo_id": "sample-repo"}
+	case "get_entity_context":
+		return map[string]any{"entity_id": "sample-entity"}
+	case "get_workload_context", "get_workload_story":
+		return map[string]any{"workload_id": "sample-workload"}
+	case "get_incident_context":
+		return map[string]any{"provider_incident_id": "sample-incident"}
+	case "investigate_service":
+		return map[string]any{"service_name": "sample-service-api"}
+	case "get_relationship_evidence":
+		return map[string]any{"resolved_id": "sample-resolved-id"}
+	case "get_documentation_evidence_packet":
+		return map[string]any{"finding_id": "sample-finding-id"}
+	case "check_documentation_evidence_packet_freshness":
+		return map[string]any{"packet_id": "sample-packet-id"}
 	default:
 		return map[string]any{}
 	}

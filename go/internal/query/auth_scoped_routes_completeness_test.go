@@ -148,6 +148,22 @@ func openAPIBrowserSessionOnlyRoutes(t *testing.T) map[string]struct{} {
 	return openAPIBoolMarkerRoutes(t, "x-browser-session-only")
 }
 
+// openAPISharedKeyOnlyRoutes returns the "METHOD /path" surface name for
+// every operation carrying the "x-shared-key-only": true marker (#5167 Group
+// C). These routes execute caller-supplied Cypher with no bounded selector
+// to intersect against a grant -- POST /api/v0/code/cypher
+// (runReadOnlyCypher) and POST /api/v0/code/visualize
+// (runReadOnlyCypherVisualization) -- so unlike the other two markers, a
+// shared-key-only route is expected to clear scopedHTTPRouteSupportsTenantFilter
+// as false: it stays off the tenant-filter allowlist entirely, reachable only
+// by shared-key and all-scope callers. See IsSharedKeyOnlyRoute
+// (auth_scoped_routes_shared_key_only.go) for the production accessor the
+// go/internal/mcp exhaustiveness gate uses on dispatched requests.
+func openAPISharedKeyOnlyRoutes(t *testing.T) map[string]struct{} {
+	t.Helper()
+	return openAPIBoolMarkerRoutes(t, "x-shared-key-only")
+}
+
 // surfaceNameToRequest builds an *http.Request from a "METHOD /path" surface
 // name for probing scopedHTTPRouteSupportsTenantFilter or the real
 // AuthMiddlewareWithScopedTokens. OpenAPI path templates (e.g. "{repo_id}")
@@ -200,10 +216,19 @@ func TestScopedTokenAllowlistCompleteness(t *testing.T) {
 	surfaceSet := make(map[string]struct{}, len(surfaces))
 	tokenAdvertised := openAPIScopedTokenSupportRoutes(t)
 	browserOnlyAdvertised := openAPIBrowserSessionOnlyRoutes(t)
+	sharedKeyOnlyAdvertised := openAPISharedKeyOnlyRoutes(t)
 
 	for name := range tokenAdvertised {
 		if _, both := browserOnlyAdvertised[name]; both {
 			t.Errorf("%s: carries both \"x-scoped-token-support\": true and \"x-browser-session-only\": true -- exactly one tenant-scope marker must apply per route", name)
+		}
+		if _, both := sharedKeyOnlyAdvertised[name]; both {
+			t.Errorf("%s: carries both \"x-scoped-token-support\": true and \"x-shared-key-only\": true -- exactly one tenant-scope marker must apply per route", name)
+		}
+	}
+	for name := range browserOnlyAdvertised {
+		if _, both := sharedKeyOnlyAdvertised[name]; both {
+			t.Errorf("%s: carries both \"x-browser-session-only\": true and \"x-shared-key-only\": true -- exactly one tenant-scope marker must apply per route", name)
 		}
 	}
 
@@ -213,8 +238,10 @@ func TestScopedTokenAllowlistCompleteness(t *testing.T) {
 		wired := scopedHTTPRouteSupportsTenantFilter(req)
 		_, tokenMarked := tokenAdvertised[name]
 		_, browserOnlyMarked := browserOnlyAdvertised[name]
+		_, sharedKeyOnlyMarked := sharedKeyOnlyAdvertised[name]
 		marked := tokenMarked || browserOnlyMarked
 		_, ledgered := scopedTokenAdvertisedRoutes[name]
+		_, sharedKeyOnlyLedgered := sharedKeyOnlyRoutes[name]
 
 		switch {
 		case marked && !wired:
@@ -228,11 +255,31 @@ func TestScopedTokenAllowlistCompleteness(t *testing.T) {
 		case ledgered && !marked:
 			t.Errorf("%s: scopedTokenAdvertisedRoutes declares this route scoped, but its OpenAPI path entry has neither tenant-scope marker -- add the marker that matches the handler's actual auth.Mode requirement in its openapi_paths_*.go source, or remove the stale ledger entry", name)
 		}
+
+		// #5167 Group C: a shared-key-only marked route must be the opposite
+		// of the other two markers -- it must stay OFF the tenant-filter
+		// allowlist (wired == false), since its handler executes
+		// caller-supplied Cypher with nothing to bind a grant against, and it
+		// must be declared in the sharedKeyOnlyRoutes ledger
+		// (auth_scoped_routes_shared_key_only.go).
+		switch {
+		case sharedKeyOnlyMarked && wired:
+			t.Errorf("%s: carries \"x-shared-key-only\": true but scopedHTTPRouteSupportsTenantFilter(r) returns true -- a shared-key-only route must never clear the tenant-filter allowlist", name)
+		case sharedKeyOnlyMarked && !sharedKeyOnlyLedgered:
+			t.Errorf("%s: OpenAPI path entry carries \"x-shared-key-only\": true, but the route is missing from sharedKeyOnlyRoutes -- add it to the ledger (auth_scoped_routes_shared_key_only.go)", name)
+		case sharedKeyOnlyLedgered && !sharedKeyOnlyMarked:
+			t.Errorf("%s: sharedKeyOnlyRoutes declares this route shared-key-only, but its OpenAPI path entry has no \"x-shared-key-only\": true marker -- add the marker in its openapi_paths_*.go source, or remove the stale ledger entry", name)
+		}
 	}
 
 	for name := range scopedTokenAdvertisedRoutes {
 		if _, ok := surfaceSet[name]; !ok {
 			t.Errorf("%s: scopedTokenAdvertisedRoutes has a stale entry -- no implemented api_route surface has this name; remove the entry or fix the surface name to match capabilitycatalog.LoadSurfaceInventory()", name)
+		}
+	}
+	for name := range sharedKeyOnlyRoutes {
+		if _, ok := surfaceSet[name]; !ok {
+			t.Errorf("%s: sharedKeyOnlyRoutes has a stale entry -- no implemented api_route surface has this name; remove the entry or fix the surface name to match capabilitycatalog.LoadSurfaceInventory()", name)
 		}
 	}
 }
