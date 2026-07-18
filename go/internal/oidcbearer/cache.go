@@ -29,9 +29,10 @@ type bearerEntry struct {
 type snapshot struct {
 	builtAt time.Time
 	// byIssuer routes an unverified token's "iss" claim to the entry whose
-	// verifier and grant-resolution scope apply. When two providers share an
-	// issuer, the later one processed during rebuild wins; see
-	// ComposeProviderSources's doc comment.
+	// verifier and grant-resolution scope apply. An issuer claimed by more than
+	// one active provider is excluded from the table entirely (fail closed), so
+	// a token for it is denied rather than bound to an arbitrary provider; see
+	// rebuild and ComposeProviderSources's doc comment.
 	byIssuer map[string]*bearerEntry
 	// byProviderConfigID exists only to let the next rebuild decide whether
 	// a provider's verifier can be reused (same IssuerURL and RevisionID) or
