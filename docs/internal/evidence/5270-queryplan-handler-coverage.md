@@ -2,9 +2,11 @@
 
 ## Scope
 
-This change closes the guardrail gap without changing production query text or
-runtime behavior. It adds an exhaustive production execution inventory, handler
-query-plan registrations, and isolated live plan assertions.
+This change closes the guardrail gap without changing valid production query
+text. It adds an exhaustive production execution inventory, handler query-plan
+registrations, and isolated live plan assertions. One invalid runtime branch is
+now fail-closed: a resolved resource without a whitelisted infrastructure label
+returns an error before any graph read instead of issuing an unlabeled scan.
 
 ## False-Green Reproduction
 
@@ -41,8 +43,9 @@ call count. Each site must link to hot entry IDs or state a non-hot reason. It
 fails for a new file or symbol, an added or removed call, a stale registration,
 an unknown hot ID, a duplicate, or a missing disposition.
 
-Each handler plan entry contains no Cypher copy. It records an exact-text
-SHA-256 and binds its query anchor fragment to the production builder symbol.
+Each handler plan entry contains no Cypher copy. It records exact query and
+builder-source SHA-256 values and binds its query anchor fragment to the
+production builder symbol.
 The query-package gate supplies the actual builder output, rejects a fingerprint
 mismatch, and validates the populated manifest. Changing the production query
 or removing its anchor therefore fails before the live plan test can run.
@@ -54,42 +57,45 @@ from pre-extraction commit `50d13be62c`. The two workload-resolution shapes
 merged later are frozen against their pre-extraction source at `2209892807`.
 The proof covers repository-anchored, all-scope, scoped, workload-property,
 workload-relationship, resource-workload, instance-workload, repository-name
-hydration, and both repository-path directions.
+hydration, and both repository-path directions. A safe-variant family digest
+also freezes 293 reachable shapes: repository entity type filters; exact,
+substring, and language code filters; all/scoped workload resolution; and every
+whitelisted resource label, identity property, path direction, and minimum or
+maximum traversal depth.
 
 The handler manifest registers 16 plan shapes spanning the repository-anchored
 entity and code reads corrected under #5244 and the import, entity-map, cloud
 resource, call-graph, graph-entity, workload-resolution, and
 resource-investigation handler families.
-The sibling issue's still-unfixed unlabeled resolver branches remain visible in
-the exhaustive inventory; this change does not weaken the unlabeled-anchor rule
-to admit them.
+The 18 unsafe global entity/code variants are a separate, immutable family tied
+to #5318. Isolated PROFILE proved `AllNodesScan` for all/scoped entity resolution
+and `DirectedRelationshipTypeScan` for all/scoped code search. #5270 therefore
+does not register or claim those variants as safe; their exact/substring,
+optional-language, type-filter, and access-scope branches remain source- and
+family-digest guarded until #5318 replaces their scan shapes.
 
 The exhaustive inventory retains 102 existing prose `non_hot_reason`
-dispositions during the staged typed-disposition migration. This issue does not
-invent unsupported key bounds or result limits for unrelated callsites. Typed
-source-digest enforcement now covers the newly merged workload repository-name
-hydration helper as a batch bounded to 101 keys/results. A source change forces
-that typed disposition to be re-audited.
+dispositions without leaving a writable escape hatch. Their exact source
+digests are frozen to main baseline `2209892807`; a new prose disposition, a
+different baseline, or any source change fails validation and forces a typed
+hot/non-hot audit. Typed source-digest enforcement also covers the workload
+repository-name hydration helper as a batch bounded to 101 keys/results.
 
 ## Isolated PROFILE Proof
 
-Backend: isolated `neo4j:2026-community`, reporting Neo4j 2026.05.0. The test
-binds the 16 exact production-builder outputs, applies only schema objects named
-by the handler manifest, waits for the indexes, then runs every bound entry with
-`PROFILE`.
+Backend: the hermetic script pins Neo4j by image digest
+`sha256:6c162e2432f861f2c4e3da77a6ba478e7f10e2160b870541f85294532bc6ff5f`
+(Neo4j 2026.05.0 in the proof run). It starts a uniquely named isolated
+container on an ephemeral port, applies only schema objects named by the handler
+manifest, waits for indexes, profiles the 16 registered builders plus all 293
+safe production variants, and removes the container through an exit trap.
 
 ```text
-ESHU_QUERYPLAN_PROFILE_LIVE=1 \
-ESHU_QUERYPLAN_PROFILE_ISOLATED=1 \
-ESHU_NEO4J_URI=bolt://127.0.0.1:17688 \
-ESHU_NEO4J_USERNAME=neo4j \
-ESHU_NEO4J_PASSWORD=<ephemeral-proof-password> \
-ESHU_NEO4J_DATABASE=neo4j \
-go test -tags queryplan_profile_live ./internal/query \
-  -run TestHandlerQueryplanProfilesRejectWholeGraphScans -count=1 -v
+scripts/verify-query-plan-profile.sh
 ```
 
-Result: 16/16 subtests passed. Entity resolution, code search, import reads,
+Result: 309/309 registered and safe production plan shapes passed in the tagged
+test. Entity resolution, code search, import reads,
 entity-map traversal, call-graph metrics, and resource-investigation reads used
 `NodeUniqueIndexSeek` or `NodeIndexSeek` where the production predicate is
 indexable. Graph-entity counts used
@@ -97,7 +103,8 @@ indexable. Graph-entity counts used
 `NodeByLabelScan`. The resource workload and repository-path shapes used their
 explicitly admitted `DirectedRelationshipTypeScan` and `NodeByLabelScan`
 anchors. No plan contained `AllNodesScan`, `CartesianProduct`, or an unbounded
-expansion.
+expansion. The closed operator policy lives in Go code; manifest data cannot add
+arbitrary accepted operators.
 
 The pinned NornicDB Bolt/HTTP surface returned no plan object for `PROFILE`, so
 the NornicDB side remains enforced through the shared Cypher shape and exact
@@ -106,17 +113,21 @@ as success on backends that claim plan support.
 
 No-Regression Evidence: the focused production-binding and byte-preservation
 tests, `go test ./internal/queryplan -count=1`, the queryplan verification
-script, and the isolated 16-query PROFILE test above all pass.
+script, and the isolated 309-shape PROFILE test above all pass. The hermetic
+PROFILE test package completed in 11.182 seconds; including container start,
+readiness, and cleanup, the proof command completed in 24.98 seconds.
 
 Performance Evidence: the prior gate profiled 14 copied fixture shapes and did
 not prove the bytes executed by production handlers. The finished gate profiles
-16 exact production-builder shapes on isolated Neo4j 2026.05.0 with an empty
-proof graph (0 terminal result rows per entry). All 16 completed in 0.14 seconds
-after schema warm-up; the two newly merged workload queries used
-`NodeIndexSeek`, and no entry used `AllNodesScan`, `CartesianProduct`, or an
+16 exact registered builders and 293 hash-frozen safe variants on isolated
+Neo4j 2026.05.0 with an empty proof graph (0 terminal result rows per shape).
+The workload variants used `NodeIndexSeek`, and no accepted shape used
+`AllNodesScan`, `CartesianProduct`, or an
 unbounded expansion. This is planner-regression evidence, not a retained-corpus
 latency claim; production query text and runtime call counts are byte-for-byte
-unchanged.
+unchanged for valid resolved resources. The invalid unlabeled resource branch
+now executes zero graph calls by design.
 
-No-Observability-Change: this is a static/test guardrail. It adds no production
-query, API request, graph write, metric, span, log, runtime knob, or queue work.
+No-Observability-Change: this adds no production query, API request, graph write,
+metric, span, log, runtime knob, or queue work. The fail-closed resource-label
+invariant reuses the existing handler request span and error response path.

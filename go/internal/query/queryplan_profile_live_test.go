@@ -102,6 +102,67 @@ func TestHandlerQueryplanProfilesRejectWholeGraphScans(t *testing.T) {
 			t.Logf("operators=%s", strings.Join(operators, ","))
 		})
 	}
+	profileQueryplanSafeProductionVariants(ctx, t, session)
+}
+
+func profileQueryplanSafeProductionVariants(
+	ctx context.Context,
+	t *testing.T,
+	session neo4jdriver.SessionWithContext,
+) {
+	t.Helper()
+	variants := handlerQueryplanSafeCypherVariants()
+	names := make([]string, 0, len(variants))
+	for name := range variants {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		name := name
+		t.Run("production-variant/"+name, func(t *testing.T) {
+			result, err := session.Run(ctx, "PROFILE "+variants[name], queryplanProfileParams())
+			if err != nil {
+				t.Fatalf("PROFILE production variant: %v", err)
+			}
+			summary, err := result.Consume(ctx)
+			if err != nil {
+				t.Fatalf("consume production variant PROFILE: %v", err)
+			}
+			profile := summary.Profile()
+			if profile == nil {
+				t.Fatal("production variant PROFILE returned no plan")
+			}
+			operators := profiledPlanOperators(profile)
+			assertProductionVariantOperators(t, name, operators)
+			t.Logf("operators=%s", strings.Join(operators, ","))
+		})
+	}
+}
+
+func assertProductionVariantOperators(t *testing.T, name string, operators []string) {
+	t.Helper()
+	for _, forbidden := range []string{"AllNodesScan", "CartesianProduct", "UnboundedExpand"} {
+		for _, operator := range operators {
+			if strings.EqualFold(operator, forbidden) {
+				t.Fatalf("production variant %s contains forbidden operator %s: %v", name, operator, operators)
+			}
+		}
+	}
+	allowed := []string{"NodeIndexSeek", "NodeUniqueIndexSeek"}
+	switch {
+	case strings.HasPrefix(name, "resource/") && strings.HasSuffix(name, "/workloads"):
+		allowed = []string{"DirectedRelationshipTypeScan"}
+	case strings.HasPrefix(name, "resource/") && strings.Contains(name, "/paths/"):
+		allowed = []string{"NodeByLabelScan", "NodeIndexSeek", "NodeUniqueIndexSeek"}
+	}
+	for _, operator := range operators {
+		for _, candidate := range allowed {
+			if strings.EqualFold(operator, candidate) {
+				return
+			}
+		}
+	}
+	t.Fatalf("production variant %s has no bounded anchor operator (%s): %v", name, fmt.Sprint(allowed), operators)
 }
 
 func applyQueryplanProfileSchema(
@@ -148,19 +209,25 @@ func applyQueryplanProfileSchema(
 
 func queryplanProfileParams() map[string]any {
 	return map[string]any{
-		"environment":   "",
-		"from":          "proof-repository",
-		"from_id":       "proof-repository",
-		"instance_ids":  []string{"proof-instance"},
-		"limit":         10,
-		"name":          "proof",
-		"offset":        0,
-		"q":             "proof",
-		"query":         "proof",
-		"repo_id":       "proof-repository",
-		"resource_id":   "proof-resource",
-		"resource_type": "proof-type",
-		"source_file":   "proof.go",
+		"allowed_repository_ids": []string{"proof-repository"},
+		"allowed_scope_ids":      []string{"proof-scope"},
+		"environment":            "",
+		"from":                   "proof-repository",
+		"from_id":                "proof-repository",
+		"instance_ids":           []string{"proof-instance"},
+		"language":               "go",
+		"limit":                  10,
+		"name":                   "proof",
+		"offset":                 0,
+		"q":                      "proof",
+		"query":                  "proof",
+		"repo_id":                "proof-repository",
+		"resource_id":            "proof-resource",
+		"resource_arn":           "arn:proof",
+		"resource_type":          "proof-type",
+		"semantic_filter":        "proof",
+		"source_file":            "proof.go",
+		"type":                   "Function",
 	}
 }
 

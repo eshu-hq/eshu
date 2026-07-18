@@ -73,18 +73,22 @@ recursively beneath `go/internal/query` and compares each `Run` or `RunSingle` o
 `query-source-coverage.yaml` by file, enclosing symbol, and exact call count.
 Every callsite must link to registered hot entries or carry an explicit non-hot
 disposition. Typed non-hot dispositions freeze the reviewed source symbol and
-declare machine-checked key/result bounds. Handler entries contain no copied Cypher: they bind an exact-text
-SHA-256 and anchor `query_fragment` to the production builder. The regression
+declare machine-checked key/result bounds. Grandfathered prose dispositions are
+immutable source-digest records: new or changed source must use the typed form.
+Handler entries contain no copied Cypher: they bind exact query and builder
+source SHA-256 values plus an anchor `query_fragment` to the production builder. The regression
 script runs the query-package binding test, which fills the manifest with the
 actual builder bytes before applying shape validation. New or stale execution
 sites, missing dispositions, unknown entry links, source-fragment or fingerprint
 drift, unbounded variable-length traversals, unlabeled anchors, unordered
 pagination, missing schema evidence, and forbidden plan signatures fail the
-gate. The build-tagged live proof in
-`go/internal/query/queryplan_profile_live_test.go` runs every handler entry
-through Neo4j `PROFILE` using those same production builder bytes and rejects
-whole-graph scans. A label or relationship-type scan is accepted only when the
-entry explicitly declares it as the bounded anchor operator. Static validation
+gate. The same script provisions a pinned, isolated Neo4j container and runs the
+build-tagged live proof in
+`go/internal/query/queryplan_profile_live_test.go`. That proof profiles every
+handler entry through Neo4j `PROFILE` using those same production builder bytes,
+plus every hash-frozen safe production variant, and rejects whole-graph scans. A label or
+relationship-type scan is accepted only by the closed code-level operator
+policy; manifest data cannot add an exception. Static validation
 does not replace live backend `EXPLAIN`,
 `PROFILE`, or before/after runtime measurements for production Cypher changes.
 

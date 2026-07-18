@@ -24,7 +24,8 @@
   `testdata/query-source-coverage.yaml` with the exact enclosing symbol and call
   count. Link hot calls through `entry_ids`; new non-hot registrations must use
   a typed `non_hot` class with a production source digest and applicable bounds.
-  `non_hot_reason` remains legacy migration debt and must not be added.
+  `non_hot_reason` remains source-digest-frozen legacy migration debt and must
+  not be added or changed without converting the entry to the typed form.
 - Keep production-builder binding and live `PROFILE` tests in `internal/query`,
   never in this package.
 

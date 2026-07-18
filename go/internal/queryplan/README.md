@@ -38,22 +38,24 @@ runs the full anchor, traversal, ordering, schema, and plan validation against
 those production-owned bytes. The older `testdata/hot-cypher.yaml` continues to
 hold cross-service static shapes.
 
-The inventory still contains 102 pre-existing `non_hot_reason` entries. They
-remain accepted during the staged typed-disposition migration so this issue
-does not invent behavioral limits for unrelated callsites. Source-digest
-revalidation applies to entries using the typed `non_hot` form, including the
-bounded workload repository-name hydration helper; the migration is not
-presented as complete.
+The inventory still contains 102 pre-existing `non_hot_reason` entries, but they
+are immutable migration debt rather than an open classification path. Their
+exact source digests are frozen to a named main baseline; new prose entries,
+source drift, or a different baseline fail validation and require a typed audit.
+Source-digest revalidation also applies to entries using the typed `non_hot`
+form, including the bounded workload repository-name hydration helper.
 
 ## Live Plan Proof
 
 Live backend calls remain outside this package. The build-tagged test
 `internal/query/queryplan_profile_live_test.go` applies only the schema names
 required by the handler manifest to an isolated Neo4j database, binds every
-entry to its exact production builder output, runs `PROFILE`, and fails on
-`AllNodesScan` or a missing bounded anchor operator. Entries whose production
-predicate is not indexable must explicitly declare their accepted bounded
-label or relationship-type anchor operator; generic scans remain forbidden.
+entry to its exact production builder output, profiles the registered and
+hash-frozen safe production variants, and fails on `AllNodesScan` or a missing
+bounded anchor operator. The accepted label and relationship-type scan
+exceptions are a closed Go policy; manifest data cannot expand that allowlist.
+Global entity/code variants known to be unsafe are frozen separately against
+#5318 and are not presented as accepted shapes.
 NornicDB builds that do not
 expose a plan over Bolt remain covered by the shared production shape and
 schema contract; the live proof must not be pointed at retained data because it
@@ -69,19 +71,16 @@ creates schema objects.
   have graph plans.
 - Every production query execution callsite must have an exact inventory entry
   and an explicit hot or non-hot disposition.
-- Every handler hot entry must bind its exact production-builder SHA-256 and
-  anchor fragment to the declared builder symbol.
+- Every handler hot entry must bind its exact production-builder query and
+  source SHA-256 values plus its anchor fragment to the declared builder symbol.
 
 No-Regression Evidence: `scripts/verify-query-plan-regression.sh` exercises the
 static fixtures, exhaustive production callsite inventory, deliberately bad
-query/plan fixtures, and the query-package production-builder binding test.
-With the documented Neo4j environment variables and
-`ESHU_QUERYPLAN_PROFILE_ISOLATED=1` set, run the isolated live promotion proof
-as:
+query/plan fixtures, production-builder binding, and the required hermetic live
+PROFILE proof. Run the live proof independently as:
 
 ```bash
-go test -tags queryplan_profile_live ./internal/query \
-  -run TestHandlerQueryplanProfilesRejectWholeGraphScans -count=1
+scripts/verify-query-plan-profile.sh
 ```
 
 No-Observability-Change: this package performs static validation only. It adds

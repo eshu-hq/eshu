@@ -62,7 +62,8 @@ func TestResourceInvestigationAnchorParamsBindArnOnlyWhenPresent(t *testing.T) {
 // P1 fix: the traversal reference folds in the resolved candidate's infra label
 // so the path anchors on a bounded label population rather than an unlabeled
 // whole-graph start. Only a known infra label is interpolated (injection-safe);
-// an unknown or empty label falls back to an unlabeled reference.
+// the section loader rejects an unknown or empty label before this helper is
+// used by a production graph read.
 func TestResourceInvestigationResourceRefFoldsResolvedLabel(t *testing.T) {
 	t.Parallel()
 
