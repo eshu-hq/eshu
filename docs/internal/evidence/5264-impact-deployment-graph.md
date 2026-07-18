@@ -95,7 +95,11 @@ workload:deployable-config
 ```
 
 The retained diagnostic containers and volumes were removed before the final
-run. The clean NornicDB v1.1.11 gate command was:
+run. The inspected NornicDB image was bound to RepoDigest
+`sha256:f9250ff06e7bd311f7b6137dbb53773df77540af4929091dbcb7d5dfaeea137a`
+and OCI source revision
+`1492458852588c884c32f70d27ea2ee07086769c`; the tag below is the human-readable
+alias for that inspected image. The clean NornicDB v1.1.11 gate command was:
 
 ```bash
 NORNICDB_IMAGE=tianthyss/nornicdb-cpu-bge:v1.1.11 \

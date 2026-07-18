@@ -85,6 +85,57 @@ describe("impact deployment graph composition", () => {
     expect(review.graph.nodes.some((node) => node.kind === "env")).toBe(true);
   });
 
+  it("separates retained environments, platforms, and evidence into navigable lanes", async () => {
+    const instances = Array.from({ length: 6 }, (_, index) => ({
+      environment: `environment-${index}`,
+      instance_id: `instance:catalog:${index}`,
+      platforms: [
+        {
+          platform_id: `platform:kubernetes:${index}`,
+          platform_kind: "kubernetes",
+          platform_name: `cluster-${index}`,
+        },
+        ...(index === 0
+          ? [
+              {
+                platform_id: "platform:ecs:0",
+                platform_kind: "ecs",
+                platform_name: "cluster-ecs-0",
+              },
+            ]
+          : []),
+      ],
+    }));
+    const review = await loadReview(
+      deploymentTracePayload({
+        cloud_resources: [{ id: "cloud:queue", name: "events", resource_type: "aws_sqs_queue" }],
+        instances,
+        k8s_resources: [{ entity_id: "k8s:service", entity_name: "catalog" }],
+      }),
+    );
+
+    expect(
+      new Set(review.graph.nodes.filter((node) => node.kind === "env").map((node) => node.col)),
+    ).toEqual(new Set([4]));
+    expect(
+      new Set(
+        review.graph.nodes.filter((node) => node.kind === "platform").map((node) => node.col),
+      ),
+    ).toEqual(new Set([5]));
+    expect(
+      new Set(
+        review.graph.nodes
+          .filter((node) => node.kind === "aws" || node.kind === "k8s")
+          .map((node) => node.col),
+      ),
+    ).toEqual(new Set([6]));
+    const nodesPerColumn = new Map<number, number>();
+    for (const node of review.graph.nodes) {
+      nodesPerColumn.set(node.col, (nodesPerColumn.get(node.col) ?? 0) + 1);
+    }
+    expect(Math.max(...nodesPerColumn.values())).toBeLessThanOrEqual(7);
+  });
+
   it("inherits the deployment trace truth level on every topology node", async () => {
     const review = await loadReview(
       deploymentTracePayload({

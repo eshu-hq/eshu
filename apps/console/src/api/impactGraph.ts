@@ -268,7 +268,7 @@ function deploymentTraceGraph(
       addNode(
         platformID.length > 0
           ? {
-              col: 4,
+              col: 5,
               id: platformID,
               kind: "platform",
               label: platform.name,
@@ -291,7 +291,7 @@ function deploymentTraceGraph(
     addNode(
       resource.id !== undefined
         ? {
-            col: 5,
+            col: 6,
             id: resource.id,
             kind: "aws",
             label: resource.name,
@@ -306,7 +306,7 @@ function deploymentTraceGraph(
     addNode(
       resource.id !== undefined
         ? {
-            col: 5,
+            col: 6,
             id: resource.id,
             kind: "k8s",
             label: resource.name,
