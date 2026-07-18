@@ -108,12 +108,16 @@ export async function fetchAdvisoryCatalogPage(
   if (env.error) throw new EshuEnvelopeError(env.error);
   const data = env.data ?? {};
   const rows = (data.advisories ?? []).map(mapAdvisoryRow);
-  const summary = catalogSummary(data, rows.length);
+  const summary = catalogSummary(data, rows.length, query.limit);
   const next = catalogCursor(data, summary.truncated);
   return { rows, nextCursor: next, summary, truth: env.truth ?? undefined };
 }
 
-function catalogSummary(data: AdvisoryCatalogResponse, rowCount: number): AdvisoryCatalogSummary {
+function catalogSummary(
+  data: AdvisoryCatalogResponse,
+  rowCount: number,
+  requestedLimit: number,
+): AdvisoryCatalogSummary {
   const count = data.count;
   const limit = data.limit;
   if (typeof count !== "number" || !Number.isInteger(count) || count < 0 || count !== rowCount) {
@@ -125,6 +129,9 @@ function catalogSummary(data: AdvisoryCatalogResponse, rowCount: number): Adviso
     throw new Error(
       `catalog page limit must bound count; got limit ${String(limit)} and count ${count}`,
     );
+  }
+  if (limit !== requestedLimit) {
+    throw new Error(`catalog page must preserve requested limit ${requestedLimit}; got ${limit}`);
   }
   if (typeof data.truncated !== "boolean") {
     throw new Error("catalog page truncated flag is required");

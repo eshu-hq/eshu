@@ -57,6 +57,25 @@ describe("fetchAdvisoryCatalogPage", () => {
     );
   });
 
+  it("rejects a response that does not preserve the requested page bound", async () => {
+    const client = {
+      get: async () => ({
+        data: {
+          advisories: [{ advisory_key: "CVE-2026-0001" }],
+          count: 1,
+          limit: 200,
+          truncated: false,
+        },
+        error: null,
+        truth: null,
+      }),
+    } as unknown as EshuApiClient;
+
+    await expect(fetchAdvisoryCatalogPage(client, { limit: 50 })).rejects.toThrow(
+      "requested limit 50",
+    );
+  });
+
   it("rejects Eshu error envelopes instead of returning an empty advisory catalog", async () => {
     const client = {
       get: async () => ({

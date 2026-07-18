@@ -12,9 +12,9 @@
 // "live" vs "not available" per panel instead of failing the whole page.
 
 import type { EshuApiClient } from "./client";
-import type { AdvisoryCatalogCursor, AdvisoryCatalogSummary } from "./eshuConsoleAdvisories";
 import { loadCollectorReadiness, type CollectorReadinessRow } from "./collectorReadiness";
 import type { EshuTruth, TruthLevel, FreshnessState } from "./envelope";
+import type { AdvisoryCatalogCursor, AdvisoryCatalogSummary } from "./eshuConsoleAdvisories";
 import {
   emptyRuntime,
   loadAdvisories,
