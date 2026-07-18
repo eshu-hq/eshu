@@ -28,9 +28,10 @@ var (
 // Manifest describes the set of hot paths that a query-plan regression gate
 // must validate.
 type Manifest struct {
-	Version     int      `yaml:"version"`
-	RequiredIDs []string `yaml:"required_ids"`
-	Entries     []Entry  `yaml:"entries"`
+	Version        int              `yaml:"version"`
+	RequiredIDs    []string         `yaml:"required_ids"`
+	Entries        []Entry          `yaml:"entries"`
+	SourceCoverage []SourceCoverage `yaml:"source_coverage"`
 }
 
 // Entry describes one hot query or read model in the query-plan gate.

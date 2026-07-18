@@ -1,0 +1,278 @@
+version: 1
+required_ids:
+  - QP-ENTITY-RESOLVE-REPOSITORY
+  - QP-CODE-SEARCH-REPOSITORY
+  - QP-CODE-IMPORT-ROWS-REPOSITORY
+  - QP-ENTITY-MAP-RESOLVE-REPOSITORY
+  - QP-ENTITY-MAP-DIRECT-REPOSITORY
+  - QP-ENTITY-MAP-BOUNDED-REPOSITORY
+  - QP-CLOUD-RESOURCE-LIST
+  - QP-CALL-GRAPH-HUBS
+  - QP-CALL-GRAPH-RECURSIVE
+  - QP-GRAPH-ENTITY-COUNT
+  - QP-GRAPH-ENTITY-LIST
+  - QP-RESOURCE-INVESTIGATION-WORKLOADS
+  - QP-RESOURCE-INVESTIGATION-INSTANCE-WORKLOADS
+  - QP-RESOURCE-INVESTIGATION-REPO-PATHS
+entries:
+  - id: QP-ENTITY-RESOLVE-REPOSITORY
+    domain: entity
+    backend: nornicdb_neo4j
+    query_kind: cypher
+    source: {file: go/internal/query/entity.go, symbol: "(*EntityHandler).resolveEntity"}
+    query_fragment: 'MATCH (r:Repository {id: $repo_id})'
+    cypher: |
+      MATCH (r:Repository {id: $repo_id})-[:REPO_CONTAINS]->(f:File)-[:CONTAINS]->(e)
+      WHERE e.name = $name
+      RETURN e.id AS id, e.name AS name, f.relative_path AS file_path, r.id AS repo_id
+      ORDER BY e.name
+      LIMIT $limit
+    required_anchors: [{label: Repository, property: id}]
+    required_schema: [repository_id]
+    required_limits: [$limit]
+    requires_order: true
+    plan: &indexed_plan
+      operators: [NodeIndexSeek, Expand]
+      forbidden_operators: [AllNodesScan, CartesianProduct, UnboundedExpand]
+
+  - id: QP-CODE-SEARCH-REPOSITORY
+    domain: code
+    backend: nornicdb_neo4j
+    query_kind: cypher
+    source: {file: go/internal/query/code.go, symbol: "(*CodeHandler).searchGraphEntitiesWithExact"}
+    query_fragment: 'MATCH (r:Repository {id: $repo_id})'
+    cypher: |
+      MATCH (r:Repository {id: $repo_id})-[:REPO_CONTAINS]->(f:File)-[:CONTAINS]->(e)
+      WHERE e.name = $query
+      RETURN e.id AS entity_id, e.name AS name, f.relative_path AS file_path, r.id AS repo_id
+      ORDER BY e.name
+      LIMIT $limit
+    required_anchors: [{label: Repository, property: id}]
+    required_schema: [repository_id]
+    required_limits: [$limit]
+    requires_order: true
+    plan: *indexed_plan
+
+  - id: QP-CODE-IMPORT-ROWS-REPOSITORY
+    domain: code
+    backend: nornicdb_neo4j
+    query_kind: cypher
+    source: {file: go/internal/query/code_import_dependencies.go, symbol: importRowsCypher}
+    query_fragment: 'MATCH (repo:Repository {id: $repo_id})-[:REPO_CONTAINS]->(source_file:File {relative_path: $source_file})'
+    cypher: |
+      MATCH (repo:Repository {id: $repo_id})-[:REPO_CONTAINS]->(source_file:File {relative_path: $source_file})
+      MATCH (source_file)-[rel:IMPORTS]->(target_module:Module)
+      RETURN repo.id AS repo_id, source_file.relative_path AS source_file, target_module.name AS target_module
+      ORDER BY source_file.relative_path, target_module.name, rel.line_number
+      SKIP $offset
+      LIMIT $limit
+    required_anchors: [{label: Repository, property: id}]
+    required_schema: [repository_id]
+    required_limits: [$limit]
+    requires_order: true
+    allow_unlabeled: true
+    caveats: [The second MATCH expands from source_file already bound by the indexed Repository anchor.]
+    plan: *indexed_plan
+
+  - id: QP-ENTITY-MAP-RESOLVE-REPOSITORY
+    domain: impact
+    backend: nornicdb_neo4j
+    query_kind: cypher
+    source: {file: go/internal/query/entity_map_resolver.go, symbol: entityMapNodeResolverQuery}
+    query_fragment: 'MATCH (n:%s {%s: $from})'
+    cypher: |
+      MATCH (n:Repository {id: $from})
+      WHERE ($environment = '' OR coalesce(n.environment, '') = '' OR n.environment = $environment)
+        AND ($repo_id = '' OR coalesce(n.repo_id, n.id, '') = $repo_id)
+      RETURN n.id AS id, n.name AS name, labels(n) AS labels, n.id AS anchor_value, 0 AS rank
+      ORDER BY rank, name, id
+      LIMIT 51
+    required_anchors: [{label: Repository, property: id}]
+    required_schema: [repository_id]
+    required_limits: [51]
+    requires_order: true
+    plan: *indexed_plan
+
+  - id: QP-ENTITY-MAP-DIRECT-REPOSITORY
+    domain: impact
+    backend: nornicdb_neo4j
+    query_kind: cypher
+    source: {file: go/internal/query/entity_map_traversal.go, symbol: entityMapDirectTraversalCypher}
+    query_fragment: '(start:%s {%s: $from_id})-[rel:%s]->(entity)'
+    cypher: |
+      MATCH (start:Repository {id: $from_id})-[rel:DEPENDS_ON]->(entity)
+      WHERE ($environment = '' OR coalesce(entity.environment, '') = '' OR entity.environment = $environment)
+        AND ($repo_id = '' OR coalesce(entity.repo_id, entity.id, '') = $repo_id)
+      RETURN entity.id AS id, entity.name AS name, type(rel) AS relationship_type
+      ORDER BY name, id
+      LIMIT $limit
+    required_anchors: [{label: Repository, property: id}]
+    required_schema: [repository_id]
+    required_limits: [$limit]
+    requires_order: true
+    plan: *indexed_plan
+
+  - id: QP-ENTITY-MAP-BOUNDED-REPOSITORY
+    domain: impact
+    backend: nornicdb_neo4j
+    query_kind: cypher
+    source: {file: go/internal/query/entity_map_traversal.go, symbol: entityMapVariableTraversalCypher}
+    query_fragment: '(start:%s {%s: $from_id})-[%s]->(entity)'
+    cypher: |
+      MATCH path = (start:Repository {id: $from_id})-[rels:DEPENDS_ON*2..3]->(entity)
+      WHERE ($environment = '' OR coalesce(entity.environment, '') = '' OR entity.environment = $environment)
+        AND ($repo_id = '' OR coalesce(entity.repo_id, entity.id, '') = $repo_id)
+      RETURN entity.id AS id, entity.name AS name, length(path) AS path_length
+      ORDER BY name, id
+      LIMIT $limit
+    required_anchors: [{label: Repository, property: id}]
+    required_schema: [repository_id]
+    required_limits: [$limit]
+    requires_order: true
+    plan: *indexed_plan
+
+  - id: QP-CLOUD-RESOURCE-LIST
+    domain: infra
+    backend: nornicdb_neo4j
+    query_kind: cypher
+    source: {file: go/internal/query/cloud_resources.go, symbol: buildCloudResourceListQuery}
+    query_fragment: 'MATCH (n:CloudResource)'
+    cypher: |
+      MATCH (n:CloudResource)
+      WHERE n.resource_type = $resource_type
+      RETURN n.id AS id, n.resource_type AS resource_type, n.name AS name
+      ORDER BY n.resource_type, n.id
+      LIMIT $limit
+    required_anchors: [{label: CloudResource, property: resource_type}]
+    required_schema: [cloud_resource_type]
+    required_limits: [$limit]
+    requires_order: true
+    plan: *indexed_plan
+
+  - id: QP-CALL-GRAPH-HUBS
+    domain: code
+    backend: nornicdb_neo4j
+    query_kind: cypher
+    source: {file: go/internal/query/code_call_graph_metrics.go, symbol: hubFunctionsCypher}
+    query_fragment: 'MATCH (repo:Repository {id: $repo_id})'
+    cypher: |
+      MATCH (repo:Repository {id: $repo_id})-[:REPO_CONTAINS]->(source_file:File)-[:CONTAINS]->(fn:Function)
+      OPTIONAL MATCH (repo)-[:REPO_CONTAINS]->(:File)-[:CONTAINS]->(caller:Function)-[:CALLS]->(fn)
+      WITH repo, source_file, fn, count(DISTINCT caller) AS incoming_calls
+      RETURN repo.id AS repo_id, fn.name AS function_name, incoming_calls
+      ORDER BY incoming_calls DESC, source_file.relative_path, fn.name
+      SKIP $offset
+      LIMIT $limit
+    required_anchors: [{label: Repository, property: id}]
+    required_schema: [repository_id]
+    required_limits: [$limit]
+    requires_order: true
+    allow_unlabeled: true
+    caveats: [The OPTIONAL MATCH reuses repo and fn already bound by the indexed Repository path.]
+    plan: *indexed_plan
+
+  - id: QP-CALL-GRAPH-RECURSIVE
+    domain: code
+    backend: nornicdb_neo4j
+    query_kind: cypher
+    source: {file: go/internal/query/code_call_graph_metrics.go, symbol: recursiveFunctionsCypher}
+    query_fragment: 'MATCH (repo:Repository {id: $repo_id})'
+    cypher: |
+      MATCH (repo:Repository {id: $repo_id})-[:REPO_CONTAINS]->(source_file:File)-[:CONTAINS]->(fn:Function)
+      MATCH (fn)-[:CALLS]->(partner:Function)
+      MATCH (partner)-[:CALLS]->(fn)
+      RETURN repo.id AS repo_id, fn.name AS function_name, partner.name AS partner_name
+      ORDER BY source_file.relative_path, fn.name, partner.name
+      SKIP $offset
+      LIMIT $limit
+    required_anchors: [{label: Repository, property: id}]
+    required_schema: [repository_id]
+    required_limits: [$limit]
+    requires_order: true
+    allow_unlabeled: true
+    caveats: [The later MATCH clauses reuse fn and partner already bound by the indexed Repository path.]
+    plan: *indexed_plan
+
+  - id: QP-GRAPH-ENTITY-COUNT
+    domain: graph
+    backend: nornicdb_neo4j
+    query_kind: cypher
+    source: {file: go/internal/query/graph_entity_inventory.go, symbol: graphEntityKindCountCypher}
+    query_fragment: 'MATCH (n:'
+    cypher: MATCH (n:Workload) RETURN count(n) AS c
+    caveats: [Neo4j may use the label count store; NornicDB must remain label-bounded and must not use an all-node scan.]
+    plan:
+      operators: [NodeCountFromCountStore]
+      forbidden_operators: [AllNodesScan, CartesianProduct, UnboundedExpand]
+
+  - id: QP-GRAPH-ENTITY-LIST
+    domain: graph
+    backend: nornicdb_neo4j
+    query_kind: cypher
+    source: {file: go/internal/query/graph_entity_inventory.go, symbol: graphEntityKindListCypher}
+    query_fragment: 'MATCH (n:'
+    cypher: |
+      MATCH (n:Workload)
+      WHERE toLower(coalesce(n.name, '')) CONTAINS $q
+      RETURN coalesce(n.id, '') AS id, coalesce(n.name, '') AS name, coalesce(n.repo_id, '') AS account
+      ORDER BY name
+      SKIP $offset
+      LIMIT $limit
+    required_anchors: [{label: Workload, property: name}]
+    required_schema: [workload_name]
+    required_limits: [$limit]
+    requires_order: true
+    caveats: [Substring search is label-bounded; PROFILE must reject an all-node scan even when the backend cannot use the name index for CONTAINS.]
+    plan:
+      operators: [NodeByLabelScan]
+      forbidden_operators: [AllNodesScan, CartesianProduct, UnboundedExpand]
+
+  - id: QP-RESOURCE-INVESTIGATION-WORKLOADS
+    domain: impact
+    backend: nornicdb_neo4j
+    query_kind: cypher
+    source: {file: go/internal/query/impact_resource_investigation_reads.go, symbol: "(*ImpactHandler).resourceInvestigationWorkloads"}
+    query_fragment: 'MATCH (instance:WorkloadInstance)-[rel:USES]->(%s)'
+    cypher: |
+      MATCH (instance:WorkloadInstance)-[rel:USES]->(resource:CloudResource)
+      WHERE resource.resource_id = $resource_id
+      RETURN DISTINCT instance.id AS instance_id, type(rel) AS relationship_type
+      ORDER BY instance_id
+      LIMIT $limit
+    required_anchors: [{label: CloudResource, property: resource_id}]
+    required_schema: [cloud_resource_resource_id]
+    required_limits: [$limit]
+    requires_order: true
+    plan: *indexed_plan
+
+  - id: QP-RESOURCE-INVESTIGATION-INSTANCE-WORKLOADS
+    domain: impact
+    backend: nornicdb_neo4j
+    query_kind: cypher
+    source: {file: go/internal/query/impact_resource_investigation_reads.go, symbol: "(*ImpactHandler).resourceInvestigationInstanceWorkloads"}
+    query_fragment: 'MATCH (instance:WorkloadInstance)-[:INSTANCE_OF]->(workload:Workload)'
+    cypher: |
+      MATCH (instance:WorkloadInstance)-[:INSTANCE_OF]->(workload:Workload)
+      WHERE instance.id IN $instance_ids
+      RETURN instance.id AS instance_id, workload.id AS workload_id, workload.name AS workload_name
+    required_anchors: [{label: WorkloadInstance, property: id}]
+    required_schema: [workload_instance_id]
+    plan: *indexed_plan
+
+  - id: QP-RESOURCE-INVESTIGATION-REPO-PATHS
+    domain: impact
+    backend: nornicdb_neo4j
+    query_kind: cypher
+    source: {file: go/internal/query/impact_resource_investigation_reads.go, symbol: "(*ImpactHandler).resourceInvestigationRepoPaths"}
+    query_fragment: 'MATCH path = %s'
+    cypher: |
+      MATCH path = (resource:CloudResource)-[rels*1..3]->(repo:Repository)
+      WHERE resource.resource_id = $resource_id
+      RETURN DISTINCT repo.id AS repo_id, repo.name AS repo_name, length(path) AS depth
+      ORDER BY depth, repo_name, repo_id
+      LIMIT $limit
+    required_anchors: [{label: CloudResource, property: resource_id}]
+    required_schema: [cloud_resource_resource_id]
+    required_limits: [$limit]
+    requires_order: true
+    plan: *indexed_plan
