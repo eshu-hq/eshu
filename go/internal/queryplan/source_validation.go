@@ -4,6 +4,7 @@
 package queryplan
 
 import (
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"go/ast"
@@ -48,6 +49,18 @@ func ValidateManifestSources(manifest Manifest, repoRoot string) error {
 				entry.ID,
 				entry.Source.Symbol,
 			))
+		}
+		if entry.Source.SourceSHA256 != "" {
+			digest := fmt.Sprintf("%x", sha256.Sum256([]byte(symbolSource)))
+			if digest != entry.Source.SourceSHA256 {
+				violations = append(violations, fmt.Sprintf(
+					"%s: source_sha256 does not match source symbol %s (manifest %s, production %s)",
+					entry.ID,
+					entry.Source.Symbol,
+					entry.Source.SourceSHA256,
+					digest,
+				))
+			}
 		}
 	}
 	if len(violations) > 0 {

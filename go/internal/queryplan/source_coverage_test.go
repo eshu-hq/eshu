@@ -190,7 +190,7 @@ func TestValidateSourceCoverageRequiresDisposition(t *testing.T) {
 	}
 }
 
-func TestValidateSourceCoverageAcceptsLegacyDispositionDuringTypedMigration(t *testing.T) {
+func TestValidateSourceCoverageRejectsNewLegacyDisposition(t *testing.T) {
 	manifest := Manifest{
 		Version: 1,
 		SourceCoverage: []SourceCoverage{{
@@ -211,8 +211,44 @@ func TestValidateSourceCoverageAcceptsLegacyDispositionDuringTypedMigration(t *t
 		}},
 	}}
 
+	err := ValidateSourceCoverage(manifest, discovered)
+	if err == nil || !strings.Contains(err.Error(), "new callsites cannot use legacy non_hot_reason") {
+		t.Fatalf("ValidateSourceCoverage() error = %v, want new legacy disposition rejected", err)
+	}
+}
+
+func TestValidateSourceCoverageAcceptsFrozenLegacyDisposition(t *testing.T) {
+	const key = "catalog.go:(*RepositoryHandler).listCatalogRepositoriesFromGraph"
+	digest := grandfatheredNonHotSourceDigests[key]
+	manifest := Manifest{
+		Version:                     1,
+		GrandfatheredNonHotBaseline: grandfatheredNonHotBaseline,
+		SourceCoverage: []SourceCoverage{{
+			File: "catalog.go",
+			Calls: []QueryCallsite{{
+				Symbol: "(*RepositoryHandler).listCatalogRepositoriesFromGraph",
+				Count:  1,
+				Reason: "frozen legacy disposition",
+			}},
+		}},
+	}
+	discovered := []SourceCoverage{{
+		File: "catalog.go",
+		Calls: []QueryCallsite{{
+			Symbol:       "(*RepositoryHandler).listCatalogRepositoriesFromGraph",
+			Count:        1,
+			SourceDigest: digest,
+		}},
+	}}
+
 	if err := ValidateSourceCoverage(manifest, discovered); err != nil {
-		t.Fatalf("ValidateSourceCoverage() error = %v, want legacy disposition accepted during migration", err)
+		t.Fatalf("ValidateSourceCoverage() error = %v, want frozen legacy disposition accepted", err)
+	}
+
+	discovered[0].Calls[0].SourceDigest = strings.Repeat("0", 64)
+	err := ValidateSourceCoverage(manifest, discovered)
+	if err == nil || !strings.Contains(err.Error(), "grandfathered source_sha256") {
+		t.Fatalf("ValidateSourceCoverage() error = %v, want grandfathered source drift rejected", err)
 	}
 }
 
@@ -391,6 +427,7 @@ func TestHotCypherManifestCoversEveryProductionQueryCall(t *testing.T) {
 		t.Fatalf("ValidateManifest(query source coverage) error = %v", err)
 	}
 	manifest.SourceCoverage = coverageManifest.SourceCoverage
+	manifest.GrandfatheredNonHotBaseline = coverageManifest.GrandfatheredNonHotBaseline
 	cypherEntryIDs := make([]string, 0, len(manifest.Entries))
 	for _, entry := range manifest.Entries {
 		if entry.QueryKind == queryKindCypher {
@@ -404,6 +441,30 @@ func TestHotCypherManifestCoversEveryProductionQueryCall(t *testing.T) {
 	}
 	if err := ValidateSourceCoverage(manifest, discovered); err != nil {
 		t.Fatalf("production query source coverage: %v", err)
+	}
+}
+
+func TestGrandfatheredNonHotRegistryExactlyMatchesLegacyManifest(t *testing.T) {
+	manifest, err := LoadManifestFile("testdata/query-source-coverage.yaml")
+	if err != nil {
+		t.Fatalf("LoadManifestFile() error = %v", err)
+	}
+	legacy := make(map[string]struct{})
+	for _, source := range manifest.SourceCoverage {
+		for _, callsite := range source.Calls {
+			if strings.TrimSpace(callsite.Reason) == "" {
+				continue
+			}
+			legacy[source.File+":"+callsite.Symbol] = struct{}{}
+		}
+	}
+	if len(legacy) != len(grandfatheredNonHotSourceDigests) {
+		t.Fatalf("legacy manifest entries = %d, grandfathered registry entries = %d", len(legacy), len(grandfatheredNonHotSourceDigests))
+	}
+	for key := range grandfatheredNonHotSourceDigests {
+		if _, ok := legacy[key]; !ok {
+			t.Errorf("stale grandfathered non-hot registration %s", key)
+		}
 	}
 }
 

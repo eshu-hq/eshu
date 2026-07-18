@@ -4,6 +4,7 @@
 package queryplan
 
 import (
+	"encoding/hex"
 	"strings"
 	"testing"
 
@@ -24,21 +25,30 @@ func TestHotCypherManifestValidatesAgainstNornicDBSchema(t *testing.T) {
 	}
 }
 
-func TestHandlerHotCypherManifestValidatesAgainstNornicDBSchema(t *testing.T) {
+func TestHandlerHotCypherManifestRegistrationMetadata(t *testing.T) {
 	manifest, err := LoadManifestFile("testdata/handler-hot-cypher.yaml")
 	if err != nil {
 		t.Fatalf("LoadManifestFile() error = %v", err)
 	}
-	statements, err := graph.SchemaStatementsForBackend(graph.SchemaBackendNornicDB)
-	if err != nil {
-		t.Fatalf("SchemaStatementsForBackend() error = %v", err)
-	}
-	if err := ValidateManifest(manifest, statements); err != nil {
-		t.Fatalf("ValidateManifest() error = %v", err)
-	}
+	entries := make(map[string]struct{}, len(manifest.Entries))
 	for _, entry := range manifest.Entries {
+		entries[entry.ID] = struct{}{}
+		if strings.TrimSpace(entry.Cypher) != "" {
+			t.Errorf("handler hot path %s must bind Cypher from its production builder", entry.ID)
+		}
+		if digest, err := hex.DecodeString(entry.CypherSHA256); err != nil || len(digest) != 32 {
+			t.Errorf("handler hot path %s has invalid cypher_sha256 %q", entry.ID, entry.CypherSHA256)
+		}
+		if digest, err := hex.DecodeString(entry.Source.SourceSHA256); err != nil || len(digest) != 32 {
+			t.Errorf("handler hot path %s has invalid source.source_sha256 %q", entry.ID, entry.Source.SourceSHA256)
+		}
 		if strings.TrimSpace(entry.QueryFragment) == "" {
 			t.Errorf("handler hot path %s is missing query_fragment", entry.ID)
+		}
+	}
+	for _, requiredID := range manifest.RequiredIDs {
+		if _, ok := entries[requiredID]; !ok {
+			t.Errorf("handler hot path manifest is missing required entry %s", requiredID)
 		}
 	}
 	if err := ValidateManifestSources(manifest, "../../.."); err != nil {

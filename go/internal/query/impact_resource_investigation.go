@@ -125,6 +125,13 @@ func (h *ImpactHandler) loadResourceInvestigationSections(
 	bool,
 	error,
 ) {
+	if resourceInvestigationAnchorLabel(selected) == "" {
+		return nil, false, nil, false, nil, false, fmt.Errorf(
+			"resolved resource %q has no supported infrastructure label",
+			selected.ID,
+		)
+	}
+
 	var (
 		workloads          []map[string]any
 		workloadsTruncated bool

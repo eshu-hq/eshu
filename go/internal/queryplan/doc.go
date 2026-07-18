@@ -11,7 +11,9 @@
 // evidence names, optional backend plan-operator fixtures, and an exhaustive
 // file/symbol/call-count inventory of production graph query execution sites.
 // Every discovered callsite must link to registered hot entries or carry an
-// explicit non-hot disposition. Handler entries also bind anchor fragments to
-// their owning Go symbols. Live PROFILE assertions remain in the query package
-// so this package keeps its no-network invariant.
+// explicit non-hot disposition. Handler registrations store no copied Cypher:
+// the query package binds exact production-builder bytes by SHA-256 before
+// applying the static shape rules and live PROFILE assertions. Anchor fragments
+// remain bound to their owning builder symbols, while this package keeps its
+// no-network invariant.
 package queryplan

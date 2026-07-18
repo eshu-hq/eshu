@@ -9,6 +9,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -23,6 +24,20 @@ const (
 	queryplanProfileLiveEnv     = "ESHU_QUERYPLAN_PROFILE_LIVE"
 	queryplanProfileIsolatedEnv = "ESHU_QUERYPLAN_PROFILE_ISOLATED"
 )
+
+func TestQueryplanBoundedAnchorOperatorPolicyIsClosed(t *testing.T) {
+	tests := map[string][]string{
+		"QP-GRAPH-ENTITY-LIST":                    {"NodeByLabelScan"},
+		"QP-RESOURCE-INVESTIGATION-WORKLOADS":     {"DirectedRelationshipTypeScan"},
+		"QP-RESOURCE-INVESTIGATION-REPO-PATHS":    {"NodeByLabelScan"},
+		"unregistered-or-indexed-production-path": {"NodeIndexSeek", "NodeUniqueIndexSeek", "NodeCountFromCountStore"},
+	}
+	for entryID, want := range tests {
+		if got := queryplanBoundedAnchorOperators(entryID); !slices.Equal(got, want) {
+			t.Errorf("queryplanBoundedAnchorOperators(%q) = %v, want %v", entryID, got, want)
+		}
+	}
+}
 
 func TestHandlerQueryplanProfilesRejectWholeGraphScans(t *testing.T) {
 	if os.Getenv(queryplanProfileLiveEnv) != "1" {
@@ -60,6 +75,10 @@ func TestHandlerQueryplanProfilesRejectWholeGraphScans(t *testing.T) {
 	manifest, err := queryplan.LoadManifestFile("../queryplan/testdata/handler-hot-cypher.yaml")
 	if err != nil {
 		t.Fatalf("load handler queryplan manifest: %v", err)
+	}
+	manifest, err = queryplan.BindProductionCypher(manifest, handlerQueryplanProductionCypher())
+	if err != nil {
+		t.Fatalf("bind production handler Cypher: %v", err)
 	}
 	applyQueryplanProfileSchema(ctx, t, session, manifest)
 	for _, entry := range manifest.Entries {
@@ -168,10 +187,7 @@ func assertProfileExcludesOperators(t *testing.T, entry queryplan.Entry, operato
 
 func assertProfileHasBoundedAnchor(t *testing.T, entry queryplan.Entry, operators []string) {
 	t.Helper()
-	allowed := []string{"NodeIndexSeek", "NodeUniqueIndexSeek", "NodeCountFromCountStore"}
-	if entry.ID == "QP-GRAPH-ENTITY-LIST" {
-		allowed = append(allowed, "NodeByLabelScan")
-	}
+	allowed := queryplanBoundedAnchorOperators(entry.ID)
 	for _, operator := range operators {
 		for _, candidate := range allowed {
 			if strings.EqualFold(operator, candidate) {
@@ -180,4 +196,15 @@ func assertProfileHasBoundedAnchor(t *testing.T, entry queryplan.Entry, operator
 		}
 	}
 	t.Fatalf("PROFILE has no bounded anchor operator (%s): %v", fmt.Sprint(allowed), operators)
+}
+
+func queryplanBoundedAnchorOperators(entryID string) []string {
+	switch entryID {
+	case "QP-GRAPH-ENTITY-LIST", "QP-RESOURCE-INVESTIGATION-REPO-PATHS":
+		return []string{"NodeByLabelScan"}
+	case "QP-RESOURCE-INVESTIGATION-WORKLOADS":
+		return []string{"DirectedRelationshipTypeScan"}
+	default:
+		return []string{"NodeIndexSeek", "NodeUniqueIndexSeek", "NodeCountFromCountStore"}
+	}
 }

@@ -28,10 +28,11 @@ var (
 // Manifest describes the set of hot paths that a query-plan regression gate
 // must validate.
 type Manifest struct {
-	Version        int              `yaml:"version"`
-	RequiredIDs    []string         `yaml:"required_ids"`
-	Entries        []Entry          `yaml:"entries"`
-	SourceCoverage []SourceCoverage `yaml:"source_coverage"`
+	Version                     int              `yaml:"version"`
+	RequiredIDs                 []string         `yaml:"required_ids"`
+	Entries                     []Entry          `yaml:"entries"`
+	GrandfatheredNonHotBaseline string           `yaml:"grandfathered_non_hot_baseline,omitempty"`
+	SourceCoverage              []SourceCoverage `yaml:"source_coverage"`
 }
 
 // Entry describes one hot query or read model in the query-plan gate.
@@ -55,9 +56,10 @@ type Entry struct {
 
 // SourceRef points a manifest entry at the production source that owns it.
 type SourceRef struct {
-	File     string `yaml:"file"`
-	Symbol   string `yaml:"symbol"`
-	LineHint int    `yaml:"line_hint,omitempty"`
+	File         string `yaml:"file"`
+	Symbol       string `yaml:"symbol"`
+	SourceSHA256 string `yaml:"source_sha256,omitempty"`
+	LineHint     int    `yaml:"line_hint,omitempty"`
 }
 
 // Anchor declares the label and property expected to bound a hot Cypher query.
@@ -91,6 +93,12 @@ func ValidateManifest(manifest Manifest, schemaStatements []string) error {
 	var violations []string
 	if manifest.Version != 1 {
 		violations = append(violations, fmt.Sprintf("unsupported manifest version %d", manifest.Version))
+	}
+	if manifest.GrandfatheredNonHotBaseline != "" && manifest.GrandfatheredNonHotBaseline != grandfatheredNonHotBaseline {
+		violations = append(violations, fmt.Sprintf(
+			"unsupported grandfathered non-hot baseline %s",
+			manifest.GrandfatheredNonHotBaseline,
+		))
 	}
 
 	entriesByID := make(map[string]Entry, len(manifest.Entries))
@@ -208,7 +216,7 @@ func validateAnchor(prefix, cypher string, anchor Anchor) []string {
 
 func validatePlan(entry Entry) []string {
 	var violations []string
-	if len(entry.Plan.Operators) == 0 || len(entry.Plan.ForbiddenOperators) == 0 {
+	if len(entry.Plan.ForbiddenOperators) == 0 {
 		return violations
 	}
 	seen := make(map[string]struct{}, len(entry.Plan.Operators))

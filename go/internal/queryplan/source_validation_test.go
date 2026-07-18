@@ -4,6 +4,8 @@
 package queryplan
 
 import (
+	"crypto/sha256"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -41,6 +43,9 @@ func unrelatedQuery() string {
 			},
 		},
 	}
+	manifest.Entries[0].Source.SourceSHA256 = fmt.Sprintf("%x", sha256.Sum256([]byte(`func hotQuery() string {
+	return "MATCH (r:Repository {id: $repo_id}) RETURN r.id"
+}`)))
 
 	if err := ValidateManifestSources(manifest, repoRoot); err != nil {
 		t.Fatalf("ValidateManifestSources() error = %v", err)
@@ -49,5 +54,11 @@ func unrelatedQuery() string {
 	err := ValidateManifestSources(manifest, repoRoot)
 	if err == nil || !strings.Contains(err.Error(), "query_fragment is absent from source symbol") {
 		t.Fatalf("ValidateManifestSources() error = %v, want source drift", err)
+	}
+	manifest.Entries[0].QueryFragment = "MATCH (r:Repository {id: $repo_id})"
+	manifest.Entries[0].Source.SourceSHA256 = strings.Repeat("0", 64)
+	err = ValidateManifestSources(manifest, repoRoot)
+	if err == nil || !strings.Contains(err.Error(), "source_sha256 does not match source symbol") {
+		t.Fatalf("ValidateManifestSources() error = %v, want source digest drift", err)
 	}
 }

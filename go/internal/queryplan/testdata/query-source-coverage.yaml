@@ -1,4 +1,5 @@
 version: 1
+grandfathered_non_hot_baseline: 220989280718f206e53fade8670c3b240d44a9b0
 source_coverage:
   - file: catalog.go
     calls:
@@ -104,6 +105,17 @@ source_coverage:
     calls:
       - {symbol: "(*EntityHandler).getEntityContext", count: 1, non_hot_reason: "unlabeled entity-context lookup is inventoried but cannot be admitted until its production anchor is typed"}
       - {symbol: "(*EntityHandler).resolveEntity", count: 1, entry_ids: [QP-ENTITY-RESOLVE-REPOSITORY]}
+  - file: entity_resolve_workload.go
+    calls:
+      - {symbol: "(*EntityHandler).resolveWorkloadEntities", count: 2, entry_ids: [QP-WORKLOAD-RESOLVE-PROPERTY, QP-WORKLOAD-RESOLVE-RELATIONSHIP]}
+      - symbol: "(*EntityHandler).hydrateResolvedWorkloadRepoNames"
+        count: 1
+        non_hot:
+          class: keyed_support
+          source_sha256: 8ad608e32e0a41e763aa45f182b8b9db8ec57b3de959d920207c130abb196687
+          key_bound: bounded_key_batch
+          max_keys: 101
+          max_results: 101
   - file: entity_map_resolver.go
     calls:
       - {symbol: "(*ImpactHandler).resolveEntityMapStart", count: 1, entry_ids: [QP-ENTITY-MAP-RESOLVE-REPOSITORY]}

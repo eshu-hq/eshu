@@ -69,47 +69,13 @@ func (h *EntityHandler) resolveWorkloadEntities(
 	}
 
 	access := repositoryAccessFilterFromContext(ctx)
-	params := access.graphParams(map[string]any{
-		"name":  name,
-		"limit": limit,
-	})
-	propertyWhere := []string{"w.name = $name"}
-	relationshipWhere := []string{"w.name = $name"}
-	switch {
-	case repoID != "":
-		params["repo_id"] = repoID
-		propertyWhere = append(propertyWhere, "w.repo_id = $repo_id")
-		relationshipWhere = append(relationshipWhere, "repo.id = $repo_id")
-	case access.scoped():
-		propertyWhere = append(propertyWhere,
-			"(w.repo_id IN $allowed_repository_ids OR w.repo_id IN $allowed_scope_ids)")
-		relationshipWhere = append(relationshipWhere, access.graphCondition("repo"))
-	}
-
-	propertyRows, err := h.Neo4j.Run(ctx, `
-		MATCH (w:Workload)
-		WHERE `+strings.Join(propertyWhere, " AND ")+`
-		RETURN w.id AS id,
-		       labels(w) AS labels,
-		       w.name AS name,
-		       w.repo_id AS repo_id
-		ORDER BY id
-		LIMIT $limit
-	`, params)
+	propertyCypher, relationshipCypher, params := buildResolveWorkloadQueries(name, repoID, limit, access)
+	propertyRows, err := h.Neo4j.Run(ctx, propertyCypher, params)
 	if err != nil {
 		return nil, fmt.Errorf("query workloads by repository property: %w", err)
 	}
 
-	relationshipRows, err := h.Neo4j.Run(ctx, `
-		MATCH (w:Workload)<-[:DEFINES]-(repo:Repository)
-		WHERE `+strings.Join(relationshipWhere, " AND ")+`
-		RETURN w.id AS id,
-		       labels(w) AS labels,
-		       w.name AS name,
-		       min(repo.id) AS repo_id
-		ORDER BY id
-		LIMIT $limit
-	`, params)
+	relationshipRows, err := h.Neo4j.Run(ctx, relationshipCypher, params)
 	if err != nil {
 		return nil, fmt.Errorf("query workloads by defining repository: %w", err)
 	}
@@ -161,12 +127,7 @@ func (h *EntityHandler) hydrateResolvedWorkloadRepoNames(
 	}
 
 	access := repositoryAccessFilterFromContext(ctx)
-	params := access.graphParams(map[string]any{"repo_ids": repoIDs})
-	cypher := `MATCH (repo:Repository) WHERE repo.id IN $repo_ids`
-	if access.scoped() {
-		cypher += " AND " + access.graphCondition("repo")
-	}
-	cypher += ` RETURN repo.id AS repo_id, repo.name AS repo_name ORDER BY repo_id`
+	cypher, params := buildHydrateResolvedWorkloadRepoNamesQuery(repoIDs, access)
 	rows, err := h.Neo4j.Run(ctx, cypher, params)
 	if err != nil {
 		return fmt.Errorf("hydrate workload repository names: %w", err)

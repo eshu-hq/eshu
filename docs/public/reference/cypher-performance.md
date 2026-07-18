@@ -72,16 +72,21 @@ schema statement contract. The gate also parses every non-test Go file
 recursively beneath `go/internal/query` and compares each `Run` or `RunSingle` owner against
 `query-source-coverage.yaml` by file, enclosing symbol, and exact call count.
 Every callsite must link to registered hot entries or carry an explicit non-hot
-disposition. Handler entries also bind an anchor `query_fragment` to their
-declared production Go symbol. New or stale execution sites, missing
-dispositions, unknown entry links, source-fragment drift, unbounded
-variable-length traversals, unlabeled anchors, unordered
+disposition. Typed non-hot dispositions freeze the reviewed source symbol and
+declare machine-checked key/result bounds. Handler entries contain no copied Cypher: they bind an exact-text
+SHA-256 and anchor `query_fragment` to the production builder. The regression
+script runs the query-package binding test, which fills the manifest with the
+actual builder bytes before applying shape validation. New or stale execution
+sites, missing dispositions, unknown entry links, source-fragment or fingerprint
+drift, unbounded variable-length traversals, unlabeled anchors, unordered
 pagination, missing schema evidence, and forbidden plan signatures fail the
 gate. The build-tagged live proof in
 `go/internal/query/queryplan_profile_live_test.go` runs every handler entry
-through Neo4j `PROFILE` and rejects whole-graph scans. Static validation does
-not replace live backend `EXPLAIN`, `PROFILE`, or before/after runtime
-measurements for production Cypher changes.
+through Neo4j `PROFILE` using those same production builder bytes and rejects
+whole-graph scans. A label or relationship-type scan is accepted only when the
+entry explicitly declares it as the bounded anchor operator. Static validation
+does not replace live backend `EXPLAIN`,
+`PROFILE`, or before/after runtime measurements for production Cypher changes.
 
 Hot-path changes must update a versioned repo file with one benchmark marker:
 

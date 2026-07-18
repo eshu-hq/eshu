@@ -67,7 +67,8 @@ type NonHotDisposition struct {
 }
 
 // DiscoverQueryCallsites returns every direct Run or RunSingle selector call
-// in non-test Go files directly beneath queryDir.
+// in non-test Go files recursively beneath queryDir. Testdata plus hidden and
+// underscore-prefixed directories are excluded from the inventory.
 func DiscoverQueryCallsites(queryDir string) ([]SourceCoverage, error) {
 	coverage := make([]SourceCoverage, 0)
 	err := filepath.WalkDir(queryDir, func(path string, dirEntry fs.DirEntry, walkErr error) error {
@@ -134,10 +135,32 @@ func ValidateSourceCoverage(manifest Manifest, discovered []SourceCoverage) erro
 				expectedCallsite.Count,
 			))
 		}
+		if strings.TrimSpace(expectedCallsite.Reason) != "" {
+			if manifest.GrandfatheredNonHotBaseline != grandfatheredNonHotBaseline {
+				violations = append(violations, fmt.Sprintf(
+					"%s: new callsites cannot use legacy non_hot_reason",
+					key,
+				))
+			} else if digest, grandfathered := grandfatheredNonHotSourceDigests[key]; !grandfathered {
+				violations = append(violations, fmt.Sprintf(
+					"%s: new callsites cannot use legacy non_hot_reason",
+					key,
+				))
+			} else if callsite.SourceDigest != digest {
+				violations = append(violations, fmt.Sprintf(
+					"%s: grandfathered source_sha256 does not match production symbol (baseline %s, production %s)",
+					key,
+					digest,
+					callsite.SourceDigest,
+				))
+			}
+		}
 		if expectedCallsite.NonHot != nil && callsite.SourceDigest != expectedCallsite.NonHot.SourceDigest {
 			violations = append(violations, fmt.Sprintf(
-				"%s: source_sha256 does not match production symbol",
+				"%s: source evidence mismatch: source_sha256 does not match production symbol (manifest %s, production %s)",
 				key,
+				expectedCallsite.NonHot.SourceDigest,
+				callsite.SourceDigest,
 			))
 		}
 	}

@@ -49,47 +49,11 @@ type resolveEntityRequest struct {
 
 const serviceLookupWhereClause = "w.name = $service_name OR w.id = $service_name" // #nosec G101 -- Cypher parameterised query template, not a hardcoded credential
 
-// resolveEntity resolves an entity by name and optional type/repo filters.
-func (h *EntityHandler) resolveEntity(w http.ResponseWriter, r *http.Request) {
-	var req resolveEntityRequest
-	if err := ReadJSON(r, &req); err != nil {
-		WriteError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-
-	if req.Name == "" {
-		WriteError(w, http.StatusBadRequest, "name is required")
-		return
-	}
-	limit := normalizeResolveEntityLimit(req.Limit)
-	access := repositoryAccessFilterFromContext(r.Context())
-	if req.RepoID != "" {
-		resolvedRepoID, err := resolveRepositorySelectorExactForAccess(r.Context(), h.Neo4j, h.Content, req.RepoID, access)
-		if err != nil {
-			status := http.StatusBadRequest
-			if isRepositorySelectorNotFound(err) {
-				status = http.StatusNotFound
-			}
-			WriteError(w, status, err.Error())
-			return
-		}
-		req.RepoID = resolvedRepoID
-	}
-	if access.empty() {
-		truth := entityResolveTruthEnvelope(h.profile())
-		if strings.EqualFold(strings.TrimSpace(req.Type), "workload") {
-			truth = workloadEntityResolveTruthEnvelope(h.profile())
-		}
-		WriteSuccess(w, r, http.StatusOK, resolvedEntityResponse([]map[string]any{}, limit, false), truth)
-		return
-	}
-	if h.writeCanonicalContentEntityResolution(w, r, req, limit) {
-		return
-	}
-	if h.writeWorkloadEntityResolution(w, r, req, limit) {
-		return
-	}
-
+func buildResolveEntityGraphQuery(
+	req resolveEntityRequest,
+	limit int,
+	access repositoryAccessFilter,
+) (string, map[string]any) {
 	repositoryAnchored := req.RepoID != ""
 	cypher := `MATCH (e) WHERE e.name = $name`
 	params := map[string]any{"name": req.Name}
@@ -142,6 +106,51 @@ func (h *EntityHandler) resolveEntity(w http.ResponseWriter, r *http.Request) {
 		LIMIT $limit
 	`
 	params["limit"] = limit + 1
+	return cypher, params
+}
+
+// resolveEntity resolves an entity by name and optional type/repo filters.
+func (h *EntityHandler) resolveEntity(w http.ResponseWriter, r *http.Request) {
+	var req resolveEntityRequest
+	if err := ReadJSON(r, &req); err != nil {
+		WriteError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	if req.Name == "" {
+		WriteError(w, http.StatusBadRequest, "name is required")
+		return
+	}
+	limit := normalizeResolveEntityLimit(req.Limit)
+	access := repositoryAccessFilterFromContext(r.Context())
+	if req.RepoID != "" {
+		resolvedRepoID, err := resolveRepositorySelectorExactForAccess(r.Context(), h.Neo4j, h.Content, req.RepoID, access)
+		if err != nil {
+			status := http.StatusBadRequest
+			if isRepositorySelectorNotFound(err) {
+				status = http.StatusNotFound
+			}
+			WriteError(w, status, err.Error())
+			return
+		}
+		req.RepoID = resolvedRepoID
+	}
+	if access.empty() {
+		truth := entityResolveTruthEnvelope(h.profile())
+		if strings.EqualFold(strings.TrimSpace(req.Type), "workload") {
+			truth = workloadEntityResolveTruthEnvelope(h.profile())
+		}
+		WriteSuccess(w, r, http.StatusOK, resolvedEntityResponse([]map[string]any{}, limit, false), truth)
+		return
+	}
+	if h.writeCanonicalContentEntityResolution(w, r, req, limit) {
+		return
+	}
+	if h.writeWorkloadEntityResolution(w, r, req, limit) {
+		return
+	}
+
+	cypher, params := buildResolveEntityGraphQuery(req, limit, access)
 
 	var (
 		rows []map[string]any

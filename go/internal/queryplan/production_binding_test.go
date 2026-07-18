@@ -60,3 +60,16 @@ func TestBindProductionCypherRejectsCopiedOrUnregisteredShapes(t *testing.T) {
 		t.Fatalf("BindProductionCypher() error = %v, want extra production shape rejection", err)
 	}
 }
+
+func TestProductionCypherFamilySHA256IsOrderIndependentAndNameSensitive(t *testing.T) {
+	left := map[string]string{"all": "MATCH (n) RETURN n", "scoped": "MATCH (r:Repository) RETURN r"}
+	right := map[string]string{"scoped": left["scoped"], "all": left["all"]}
+	if got, want := ProductionCypherFamilySHA256(left), ProductionCypherFamilySHA256(right); got != want {
+		t.Fatalf("family digest changed with map order: %s != %s", got, want)
+	}
+	right["renamed"] = right["all"]
+	delete(right, "all")
+	if ProductionCypherFamilySHA256(left) == ProductionCypherFamilySHA256(right) {
+		t.Fatal("family digest must include variant names")
+	}
+}
