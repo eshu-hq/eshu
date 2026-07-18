@@ -3,18 +3,30 @@
 ## Scope
 
 `SemanticEntityWriter.WriteSemanticEntities` (`go/internal/storage/cypher/semantic_entity.go`)
-previously dispatched its whole statement list — the delta/full **retract**
-DETACH DELETEs plus the MERGE/SET **upserts** — through a single `ExecuteGroup`
-(one managed Bolt transaction). This change splits the dispatch: retract
-statements now run sequentially through `Execute` (one autocommit transaction
-each), while upserts continue to batch through `ExecuteGroup`.
+dispatches the delta/full **retract** DETACH DELETEs together with the MERGE/SET
+**upserts**. This change adds a `WithSequentialRetract` mode: when set, retracts
+run sequentially through `Execute` (one autocommit transaction each) while
+upserts keep batching through `ExecuteGroup`; when unset (the default), retract
+and upsert stay in one grouped, atomic transaction.
 
-This is a **correctness fix**, not a performance change. Grouped DETACH DELETEs
-under-apply on the pinned NornicDB v1.1.11 (the same managed-transaction
-`tx.Run` deletes-zero-rows limitation the `EdgeWriter` shell/documentation
-retracts already work around in `edge_writer_retract.go`, and issue #4902): a
-grouped per-label retract silently left semantic nodes (e.g. `Variable`) in the
-graph, so semantic delta retracts accumulated stale nodes in production.
+This is a **correctness fix** scoped by backend, not a performance change, and
+it deliberately preserves atomicity where it was already correct:
+
+- **NornicDB with grouped writes** (`ESHU_NORNICDB_CANONICAL_GROUPED_WRITES`, and
+  any group-capable NornicDB executor): grouped DETACH DELETEs under-apply on the
+  pinned NornicDB v1.1.11 (the same managed-transaction `tx.Run`
+  deletes-zero-rows limitation the `EdgeWriter` shell/documentation retracts work
+  around in `edge_writer_retract.go`, and issue #4902) — a grouped per-label
+  retract silently left semantic nodes such as `Variable` in the graph. The
+  reducer now wires `WithSequentialRetract` for NornicDB
+  (`go/cmd/reducer/neo4j_wiring.go`), so the retract applies.
+- **NornicDB default** already dispatches everything sequentially — its executor
+  is `ExecuteOnlyExecutor` (GroupExecutor hidden), so this path was never
+  affected and is unchanged.
+- **Neo4j** groups the whole statement list, where `ExecuteGroup` applies
+  correctly and gives retract+upsert atomic rollback. That path keeps the
+  default (grouped, atomic) dispatch — `WithSequentialRetract` is NOT set — so
+  this fix does not regress Neo4j atomicity.
 
 ## No-Regression Evidence:
 
@@ -33,8 +45,8 @@ graph, so semantic delta retracts accumulated stale nodes in production.
   `ExecuteGroup` (managed Bolt transaction) leaves the in-scope `Variable`
   present — read-back `count = 1`, want `0`. Silent data retention (a
   correctness defect), measured directly against the base v1.1.11 backend.
-- **After (sequential retract dispatch):** gen2 delta retract dispatched through
-  `Execute` (autocommit) removes the in-scope `Variable` — read-back
+- **After (`WithSequentialRetract`, the NornicDB dispatch):** gen2 delta retract
+  dispatched through `Execute` (autocommit) removes the in-scope `Variable` — read-back
   `count = 0`; the out-of-scope `Variable` and both `File` nodes survive
   (`count = 1`). Failing-then-green regression, proven on the base v1.1.11 image.
 - **Throughput safety:** the retract path emits at most one bounded statement

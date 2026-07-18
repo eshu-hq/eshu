@@ -15,13 +15,15 @@
 // while a same-label Variable in another file survives — a genuine
 // create-then-delta-tombstone vehicle for the Variable label.
 //
-// The delta retract is dispatched sequentially through Execute (one autocommit
-// transaction per DETACH DELETE statement, one per semantic label), which is
-// what this PR's fix changed it to: grouped-transaction (ExecuteGroup) DETACH
-// DELETEs under-apply on the pinned NornicDB v1.1.11, silently leaving the
-// Variable node. This test is the failing-then-green regression for that fix —
-// it fails (Variable survives gen2, count=1) when the retract is dispatched
-// grouped and passes (count=0) once it is dispatched sequentially.
+// The writer uses WithSequentialRetract (the NornicDB dispatch), so the delta
+// retract runs sequentially through Execute (one autocommit transaction per
+// DETACH DELETE, one per semantic label) instead of grouping through
+// ExecuteGroup. That is what this PR added for NornicDB: grouped-transaction
+// DETACH DELETEs under-apply on the pinned NornicDB v1.1.11 and silently leave
+// the Variable node. This test is the failing-then-green regression — it fails
+// (Variable survives gen2, count=1) when the grouped-writes NornicDB path
+// retracts through ExecuteGroup, and passes (count=0) with sequential retract.
+// Neo4j keeps the atomic grouped retract+upsert (default, no WithSequentialRetract).
 //
 // Skills active: golang-engineering, eshu-golden-corpus-rigor,
 // cypher-query-rigor, concurrency-deadlock-rigor.
@@ -77,9 +79,14 @@ func TestReducerSemanticVariableRetractGraphTruth(t *testing.T) {
 		t.Fatalf("seed files: %v", err)
 	}
 
-	// Production semantic writer: canonical-node-rows mode + label-scoped
-	// retract, exactly as the reducer wires it for the NornicDB path.
-	writer := cypher.NewSemanticEntityWriterWithCanonicalNodeRows(exec, 500).WithLabelScopedRetract()
+	// Production semantic writer for the NornicDB path: canonical-node-rows mode
+	// + label-scoped retract + sequential retract, exactly as
+	// semanticEntityWriterForGraphBackend wires it for NornicDB (the
+	// WithSequentialRetract dispatch is what makes the grouped-DETACH-DELETE
+	// under-apply not bite).
+	writer := cypher.NewSemanticEntityWriterWithCanonicalNodeRows(exec, 500).
+		WithLabelScopedRetract().
+		WithSequentialRetract()
 
 	variableRow := func(uid, file string) reducer.SemanticEntityRow {
 		return reducer.SemanticEntityRow{
