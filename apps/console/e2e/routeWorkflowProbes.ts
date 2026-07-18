@@ -13,13 +13,10 @@ import {
   forbiddenState,
   matchesExpectedResponse,
   matchesExpectedResponsePrefix,
-  matchesWorkflowResponse,
   passed,
   pathname,
   recordedWorkflowResponseProof,
   requestObservation,
-  retainedEnvironmentValue,
-  resolveWorkflowTemplate,
   visibleCount,
   type WaitForApiQuiet,
 } from "./routeWorkflowProbeSupport.ts";
@@ -33,121 +30,11 @@ import {
   type LoadImpactFindings,
 } from "./vulnerabilityRouteWorkflowProbe.ts";
 import { executeStateWorkflow } from "./routeStateWorkflowProbe.ts";
-import {
-  executeFillWorkflow,
-  requestAnchorFailure,
-  type RequestAnchor,
-} from "./routeFillWorkflowProbe.ts";
+import { executeFillWorkflow } from "./routeFillWorkflowProbe.ts";
 import { executeDeadCodeControls } from "./deadCodeRouteWorkflowProbe.ts";
+import { executeSubmitWorkflow } from "./routeSubmitWorkflowProbe.ts";
 
 export { repositoryPathsFromSourceHref } from "./repositoryRouteWorkflowProbe.ts";
-
-async function executeSubmitWorkflow(
-  page: Page,
-  workflow: Extract<RouteWorkflowSpec, { readonly kind: "submit" }>,
-  waitForQuiet: WaitForApiQuiet,
-): Promise<RouteWorkflowObservation> {
-  const requestAnchors: RequestAnchor[] = [];
-  for (const field of workflow.fields) {
-    const value = field.value ?? retainedEnvironmentValue(field.valueEnv);
-    if (value === null) {
-      return failed(workflow.id, `required retained-data anchor ${field.valueEnv} is missing`);
-    }
-    const control = page.locator(field.selector);
-    const count = await control.count();
-    if (count !== 1) {
-      return failed(workflow.id, `expected one ${field.selector} control; found ${count}`);
-    }
-    if (field.interaction === "select") await control.selectOption(value);
-    else await control.fill(value);
-    if ((await control.inputValue()) !== value) {
-      return failed(workflow.id, `control ${field.selector} did not retain its bounded value`);
-    }
-    if (field.requestKey) requestAnchors.push({ key: field.requestKey, value });
-  }
-
-  const expectedPath = resolveWorkflowTemplate(workflow.expectedRequestPath);
-  if (expectedPath.missing !== null) {
-    return failed(
-      workflow.id,
-      `required retained-data anchor ${expectedPath.missing} is missing from request path`,
-    );
-  }
-  const expectedPagePath = workflow.expectedPagePath
-    ? resolveWorkflowTemplate(workflow.expectedPagePath)
-    : null;
-  if (expectedPagePath?.missing) {
-    return failed(
-      workflow.id,
-      `required retained-data anchor ${expectedPagePath.missing} is missing from page path`,
-    );
-  }
-
-  const submit = workflow.scopeSelector
-    ? page.locator(workflow.scopeSelector).getByRole(workflow.role, {
-        name: workflow.name,
-        exact: true,
-      })
-    : page.getByRole(workflow.role, { name: workflow.name, exact: true });
-  await submit.waitFor({ state: "visible", timeout: 10_000 });
-  const count = await submit.count();
-  if (count !== 1) {
-    return failed(
-      workflow.id,
-      `expected one ${workflow.role} named ${workflow.name}; found ${count}`,
-    );
-  }
-  const expectedRequests = [
-    {
-      path: expectedPath.value,
-      method: workflow.expectedRequestMethod,
-      acceptedStatuses: workflow.acceptedResponseStatuses,
-    },
-    ...(workflow.additionalExpectedRequests ?? []),
-  ];
-  const responsePromises = expectedRequests.map((expected) =>
-    page.waitForResponse((candidate) => matchesWorkflowResponse(candidate, expected)),
-  );
-  await submit.click();
-  const responses = await Promise.all(responsePromises);
-  await waitForQuiet();
-
-  for (const response of responses) {
-    const requestFailure = requestAnchorFailure(response, requestAnchors);
-    if (requestFailure) return failed(workflow.id, requestFailure);
-  }
-
-  if (expectedPagePath) {
-    const currentPath = pathname(page.url());
-    if (currentPath !== expectedPagePath.value) {
-      return failed(
-        workflow.id,
-        `submitted page reached ${currentPath}, expected ${expectedPagePath.value}`,
-      );
-    }
-  }
-
-  const outcomeSelectors = [
-    workflow.outcomeSelector,
-    ...(workflow.additionalOutcomeSelectors ?? []),
-  ];
-  const shapes: WorkflowDataShapeObservation[] = [];
-  for (const selector of outcomeSelectors) {
-    const outcomeCount = await visibleCount(page.locator(selector));
-    shapes.push(dataShape(selector, outcomeCount));
-    if (outcomeCount === 0) {
-      return failed(workflow.id, `outcome did not render at ${selector}`, shapes);
-    }
-  }
-  const forbidden = await forbiddenState(page, workflow);
-  if (forbidden) return failed(workflow.id, forbidden);
-  return passed(
-    workflow.id,
-    `submitted ${workflow.name}`,
-    shapes,
-    responses.map(requestObservation),
-  );
-}
 
 function kindName(label: string): string {
   return (label.split(" · ")[0] ?? "").trim();

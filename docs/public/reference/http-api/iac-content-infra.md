@@ -12,6 +12,7 @@ comparison. The route list is verified against `go/internal/query`.
 | IaC quality | `POST /api/v0/iac/dead` |
 | AWS management and drift | `POST /api/v0/iac/unmanaged-resources`, `POST /api/v0/iac/management-status`, `POST /api/v0/iac/management-status/explain`, `POST /api/v0/iac/terraform-import-plan/candidates`, `POST /api/v0/aws/runtime-drift/findings` |
 | Provider-neutral cloud runtime drift | `POST /api/v0/cloud/runtime-drift/findings` |
+| Replatforming selectors | `GET /api/v0/replatforming/selectors` |
 | Replatforming | `POST /api/v0/replatforming/plans` |
 | Replatforming rollups | `POST /api/v0/replatforming/rollups` |
 | Replatforming ownership packets | `POST /api/v0/replatforming/ownership-packets` |
@@ -259,6 +260,43 @@ No-Observability-Change: this read uses the shared query-handler request metrics
 and `query.cloud_runtime_drift_findings` span with stable `http.route` and
 `eshu.capability` attributes. Per-resource identifiers stay in the bounded
 response body and out of metric labels.
+
+## Replatforming Selectors
+
+`GET /api/v0/replatforming/selectors` returns the bounded active AWS collector
+scopes that can honestly anchor the Replatforming console's existing plan,
+rollup, and ownership reads. Each selector carries its canonical `scope_id`,
+AWS account, region, service, a human-readable masked-account label, and its
+active-generation `finding_count`.
+
+The route intentionally includes active scopes whose finding count is zero.
+Those rows mean the collector scope exists and its active generation currently
+has no replatforming findings; they are authoritative empty choices, not absent
+data. When no active AWS scope exists, `readiness.state` is
+`collector_evidence_absent` and the response explains how to restore collector
+evidence. `supported_scope_kinds` advertises only `account`, `region`, and
+`service`, the dimensions the current bounded reads can enforce without
+inventing repository or workload filtering.
+
+`limit` defaults to 100 and is capped at 200. The Postgres read walks the small
+active scope inventory in canonical order, counts only each scope's active
+generation through the existing `(scope_id, generation_id, fact_kind)` index,
+and fetches one lookahead row so `truncated` is explicit. Inactive and
+superseded generations are never selector sources.
+
+Scoped tokens and signed-in scoped browser sessions see only exact
+`allowed_scope_ids` grants. A scoped caller with repository grants but no AWS
+scope grant receives a bounded empty inventory without a selector-store read;
+the route does not infer an AWS account or scope from repository identity. That
+response uses `readiness.state=no_authorized_scopes`, distinct from missing
+collector evidence.
+
+### Replatforming selector observability
+
+The `query.replatforming_selectors` span carries only stable `http.route` and
+`eshu.capability` attributes. Canonical scope and account identities stay in the
+bounded response body and out of metric labels. Selector discovery failures are
+therefore attributable separately from the three plan-section requests.
 
 ## Replatforming Rollups
 

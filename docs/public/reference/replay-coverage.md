@@ -4,14 +4,14 @@
 
 Every surface Eshu claims to support should have a green, credential-free, Docker-free replay scenario. This dashboard is generated from the C-1 coverage manifest and the source-of-truth registries (epic [#4172](https://github.com/eshu-hq/eshu/issues/4172)); it is refreshed by the replay-coverage gate so the gap is reviewable in a PR diff.
 
-**Overall: 385/402 surfaces satisfied (95.77%)** — mode: blocking.
+**Overall: 386/403 surfaces satisfied (95.78%)** — mode: blocking.
 
 ## Coverage by axis
 
 | Axis | Satisfied | Total | % | Uncovered | Exempt |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | authorization_catalog | 24 | 24 | 100.00% | 0 | 0 |
-| Capability claims | 133 | 133 | 100.00% | 0 | 0 |
+| Capability claims | 134 | 134 | 100.00% | 0 | 0 |
 | Read surfaces (CLI) | 7 | 7 | 100.00% | 0 | 0 |
 | Read surfaces (API/MCP) | 22 | 22 | 100.00% | 0 | 1 |
 | Parsers | 4 | 4 | 100.00% | 0 | 0 |
@@ -21,13 +21,13 @@ Every surface Eshu claims to support should have a green, credential-free, Docke
 | Retractable edge types (delta) | 52 | 52 | 100.00% | 0 | 0 |
 | Retractable node types (delta) | 86 | 87 | 98.85% | 1 | 0 |
 | Collectors | 34 | 34 | 100.00% | 0 | 8 |
-| **Total** | **385** | **402** | **95.77%** | **17** | **9** |
+| **Total** | **386** | **403** | **95.78%** | **17** | **9** |
 
 ## Coverage by scenario type
 
 | Scenario type | Satisfied | Total | % | Uncovered | Exempt |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| baseline | 214 | 214 | 100.00% | 0 | 5 |
+| baseline | 215 | 215 | 100.00% | 0 | 5 |
 | cost | 10 | 26 | 38.46% | 16 | 0 |
 | crash | 2 | 2 | 100.00% | 0 | 0 |
 | delta_tombstone | 139 | 140 | 99.29% | 1 | 0 |
@@ -69,7 +69,7 @@ Every ledger language is satisfied by corpus or parser fixture coverage.
 
 - `retractable_node:Variable` (delta_tombstone)
 
-## Covered surfaces (385)
+## Covered surfaces (386)
 
 | Surface | Scenario type | Scenario | Proof gate | Artifact |
 | --- | --- | --- | --- | --- |
@@ -197,6 +197,7 @@ Every ledger language is satisfied by corpus or parser fixture coverage.
 | `capability:replatforming.ownership.candidates` | baseline | capability_claim | capability-inventory | `replatforming.ownership.candidates` |
 | `capability:replatforming.plan.readiness` | baseline | capability_claim | capability-inventory | `replatforming.plan.readiness` |
 | `capability:replatforming.rollups.readiness` | baseline | capability_claim | capability-inventory | `replatforming.rollups.readiness` |
+| `capability:replatforming.selector_inventory` | baseline | capability_claim | capability-inventory | `replatforming.selector_inventory` |
 | `capability:secrets_iam.identity_trust_chains.list` | baseline | capability_claim | capability-inventory | `secrets_iam.identity_trust_chains.list` |
 | `capability:secrets_iam.posture_gaps.list` | baseline | capability_claim | capability-inventory | `secrets_iam.posture_gaps.list` |
 | `capability:secrets_iam.posture_summary.read` | baseline | capability_claim | capability-inventory | `secrets_iam.posture_summary.read` |

@@ -209,6 +209,9 @@ func scopedHTTPRouteSupportsTenantFilter(r *http.Request) bool {
 	if scopedIaCResourceListRoute(r) {
 		return true
 	}
+	if scopedReplatformingSelectorRoute(r) {
+		return true
+	}
 	if scopedWorkItemEvidenceRoute(r) {
 		return true
 	}

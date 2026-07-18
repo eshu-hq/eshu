@@ -447,6 +447,11 @@ const (
 	SpanQueryIaCManagementExplanation = "query.iac_management_explanation"
 	SpanQueryIaCTerraformImportPlan   = "query.iac_terraform_import_plan"
 	SpanQueryAWSRuntimeDriftFindings  = "query.aws_runtime_drift_findings"
+	// SpanQueryReplatformingSelectors wraps the bounded active AWS collector
+	// scope inventory read (GET /api/v0/replatforming/selectors). The span carries
+	// only stable route and capability attributes; account, region, service, and
+	// scope identifiers remain in the authorized response and out of telemetry.
+	SpanQueryReplatformingSelectors = "query.replatforming_selectors"
 	// SpanQueryReplatformingRollups wraps the bounded replatforming drift and
 	// readiness rollup read (POST /api/v0/replatforming/rollups). It aggregates
 	// active AWS runtime drift and IaC findings by account, environment, and

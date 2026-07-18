@@ -325,4 +325,28 @@ describe("consoleRoutes catalog", () => {
       forbiddenSelectors: [".src-err"],
     });
   });
+
+  it("discovers Replatforming selectors and proves retained pagination", () => {
+    const workflow = consoleRoutes.find((route) => route.path === "/replatforming")?.workflow;
+
+    expect(workflow).toMatchObject({
+      id: "replatforming-retained-scope",
+      kind: "submit",
+      fields: [
+        {
+          requestKey: "account_id",
+          valueFromSelector: "#replatforming-accounts option",
+        },
+        {
+          requestKey: "region",
+          valueFromSelector: "#replatforming-regions option",
+        },
+      ],
+      pagination: {
+        nextName: "Next page",
+        offsetQueryKey: "offset",
+        previousName: "Previous page",
+      },
+    });
+  });
 });

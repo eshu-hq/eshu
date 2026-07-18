@@ -1,0 +1,17 @@
+version: v1
+updated_at: 2026-07-17
+owners:
+  - platform-engineering
+# Bounded active AWS collector-scope inventory for the Replatforming console.
+# Active zero-finding scopes remain visible so the console can distinguish an
+# authoritative empty result from absent collector evidence. This fragment MUST
+# stay in sync with the Go capability row in
+# go/internal/query/contract_replatforming.go.
+capabilities:
+  - capability: replatforming.selector_inventory
+    tools: []
+    profiles:
+      local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: bounded_active_aws_collector_scope_page, verification: [{integration_test: local-lightweight-unsupported-replatforming-selector-inventory}], notes: requires active AWS collector scope generations and reducer-materialized drift finding counts}
+      local_authoritative: {status: supported, max_truth_level: derived, required_runtime: local_host_plus_graph, p95_latency_ms: 2000, max_scope_size: bounded_active_aws_collector_scope_page, verification: [{go_test: ./internal/query}, {go_test: ./internal/storage/postgres}], notes: bounded active AWS scope inventory with indexed active-generation finding counts; exact scope-grant filtering includes authoritative zero-finding scopes and never scans superseded generations}
+      local_full_stack: {status: supported, max_truth_level: derived, required_runtime: full_stack, p95_latency_ms: 2000, max_scope_size: bounded_active_aws_collector_scope_page, verification: [{go_test: ./internal/query}, {go_test: ./internal/storage/postgres}], notes: bounded active AWS scope inventory with indexed active-generation finding counts; exact scope-grant filtering includes authoritative zero-finding scopes and never scans superseded generations}
+      production: {status: supported, max_truth_level: derived, required_runtime: deployed_services, p95_latency_ms: 2000, max_scope_size: bounded_active_aws_collector_scope_page, verification: [{remote_validation: prod-replatforming-selector-inventory}], notes: bounded active AWS scope inventory with indexed active-generation finding counts; exact scope-grant filtering includes authoritative zero-finding scopes and never scans superseded generations}

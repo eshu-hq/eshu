@@ -61,7 +61,7 @@ func TestOwnershipPacketsRequiresScopeOrAccount(t *testing.T) {
 	}
 }
 
-func TestOwnershipPacketsComposesCandidatesAndPreservesTruth(t *testing.T) {
+func TestReplatformingOwnershipPacketsComposesCandidatesAndPreservesTruth(t *testing.T) {
 	t.Parallel()
 
 	stale := ownershipFinding(

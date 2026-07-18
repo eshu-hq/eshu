@@ -32,6 +32,13 @@
   width: 100%;
 }
 
+.replatforming-pagination {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 10px;
+}
+
 .replatforming-query .btn-ghost {
   min-height: 37px;
   white-space: normal;
