@@ -169,7 +169,16 @@ export function AppRoutes({
         }
       />
       <Route path={APP_ROUTE_PATHS.impact} element={<ImpactPage model={model} client={client} />} />
-      <Route path={APP_ROUTE_PATHS.exposure} element={<ExposurePathPage client={client} />} />
+      <Route
+        path={APP_ROUTE_PATHS.exposure}
+        element={
+          <ExposurePathPage
+            catalogTruncated={model.serviceCatalogSummary?.truncated}
+            client={client}
+            services={model.services}
+          />
+        }
+      />
       <Route
         path={APP_ROUTE_PATHS.changedSince}
         element={<ChangedSincePage client={client} repositories={repositories} />}

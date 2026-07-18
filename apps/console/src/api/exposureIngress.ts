@@ -10,7 +10,7 @@
 // the handler-trace view already uses. WAF/TLS posture is three-valued
 // (protected/unprotected/unproven and terminated/not_terminated/unproven) so an
 // observed-negative is never confused with missing evidence.
-import type { EshuApiClient } from "./client";
+import { EshuApiHttpError, type EshuApiClient } from "./client";
 import { EshuEnvelopeError, type EshuTruth } from "./envelope";
 
 // IngressTruth is the per-hop truth level. It mirrors the repo's evidence
@@ -40,6 +40,7 @@ export interface IngressHop {
 // IngressChain is one entrypoint's proven path to the runtime/service.
 export interface IngressChain {
   readonly entrypoint: string;
+  readonly environment: string;
   readonly visibility: string;
   readonly hops: readonly IngressHop[];
 }
@@ -63,6 +64,13 @@ export interface ExposureIngress {
   readonly totalHops: number;
   readonly truth: EshuTruth | null;
   readonly provenance: "live" | "empty" | "unavailable";
+  readonly state:
+    | "backend_unavailable"
+    | "live"
+    | "no_ingress"
+    | "not_authorized"
+    | "not_found"
+    | "selection_required";
   readonly error?: string;
 }
 
@@ -107,7 +115,7 @@ const postureStates: ReadonlySet<IngressPostureState> = new Set([
   "unprotected",
   "terminated",
   "not_terminated",
-  "unproven"
+  "unproven",
 ]);
 
 // parsePostureState defaults an unknown wire value to "unproven" so a tile never
@@ -125,7 +133,7 @@ function postureFromWire(wire: IngressPostureWire | undefined): IngressPosture {
     edgeCount: wire?.edge_count ?? 0,
     wafProtected: wire?.waf_protected ?? 0,
     tlsTerminated: wire?.tls_terminated ?? 0,
-    reason: wire?.reason ?? ""
+    reason: wire?.reason ?? "",
   };
 }
 
@@ -141,7 +149,7 @@ function originHop(visibility: string): IngressHop | null {
       label: "Internet",
       detail: "0.0.0.0/0",
       truth: "observed",
-      reason: "entrypoint is an observed public hostname"
+      reason: "entrypoint is an observed public hostname",
     };
   }
   if (visibility === "internal") {
@@ -151,7 +159,7 @@ function originHop(visibility: string): IngressHop | null {
       label: "Network boundary",
       detail: "internal",
       truth: "observed",
-      reason: "entrypoint is internal; public reachability is not claimed"
+      reason: "entrypoint is internal; public reachability is not claimed",
     };
   }
   return null;
@@ -164,21 +172,23 @@ function originHop(visibility: string): IngressHop | null {
 // backend observed.
 function buildChains(
   entrypoints: readonly EntrypointWire[],
-  paths: readonly NetworkPathWire[]
+  paths: readonly NetworkPathWire[],
 ): readonly IngressChain[] {
   if (paths.length === 0) {
     return [];
   }
-  const visibilityByTarget = new Map<string, string>();
+  const entrypointByTarget = new Map<string, EntrypointWire>();
   for (const entry of entrypoints) {
     if (entry.target) {
-      visibilityByTarget.set(entry.target, entry.visibility ?? "");
+      entrypointByTarget.set(entry.target, entry);
     }
   }
 
   return paths.map((path) => {
     const entrypoint = path.from ?? "";
-    const visibility = visibilityByTarget.get(entrypoint) ?? path.visibility ?? "";
+    const entrypointRecord = entrypointByTarget.get(entrypoint);
+    const visibility = entrypointRecord?.visibility ?? path.visibility ?? "";
+    const environment = entrypointRecord?.environment ?? path.environment ?? "";
     const hops: IngressHop[] = [];
     const origin = originHop(visibility);
     if (origin !== null) {
@@ -190,7 +200,7 @@ function buildChains(
       label: humanizeKind(path.from_type ?? "entrypoint"),
       detail: entrypoint,
       truth: "observed",
-      reason: path.reason ?? "observed entrypoint"
+      reason: path.reason ?? "observed entrypoint",
     });
     hops.push({
       id: `runtime:${path.to ?? ""}`,
@@ -198,11 +208,9 @@ function buildChains(
       label: runtimeLabel(path),
       detail: path.to ?? "",
       truth: "derived",
-      reason:
-        path.reason ??
-        "runtime target derived from the entrypoint-to-runtime network path"
+      reason: path.reason ?? "runtime target derived from the entrypoint-to-runtime network path",
     });
-    return { entrypoint, visibility, hops };
+    return { entrypoint, environment, visibility, hops };
   });
 }
 
@@ -221,7 +229,11 @@ function humanizeKind(value: string): string {
     .replace(/\bCdn\b/g, "CDN");
 }
 
-function ingressFromWire(wire: ServiceContextWire, fallbackName: string, truth: EshuTruth | null): ExposureIngress {
+function ingressFromWire(
+  wire: ServiceContextWire,
+  fallbackName: string,
+  truth: EshuTruth | null,
+): ExposureIngress {
   const entrypoints = wire.entrypoints ?? [];
   const paths = wire.network_paths ?? [];
   const chains = buildChains(entrypoints, paths);
@@ -235,7 +247,8 @@ function ingressFromWire(wire: ServiceContextWire, fallbackName: string, truth: 
     publicEntrypoints,
     totalHops,
     truth,
-    provenance: chains.length > 0 ? "live" : "empty"
+    provenance: chains.length > 0 ? "live" : "empty",
+    state: chains.length > 0 ? "live" : "no_ingress",
   };
 }
 
@@ -244,15 +257,21 @@ function ingressFromWire(wire: ServiceContextWire, fallbackName: string, truth: 
 // message, never a fabricated chain.
 export async function loadExposureIngress(
   client: EshuApiClient,
-  service: string
+  service: string,
+  signal?: AbortSignal,
 ): Promise<ExposureIngress> {
   const name = service.trim();
   if (name.length === 0) {
-    return emptyIngress(name, "A service name is required to trace its ingress chain.");
+    return emptyIngress(
+      name,
+      "A service name is required to trace its ingress chain.",
+      "selection_required",
+    );
   }
   try {
     const env = await client.get<ServiceContextWire>(
-      `/api/v0/services/${encodeURIComponent(name)}/context`
+      `/api/v0/services/${encodeURIComponent(name)}/context`,
+      { signal },
     );
     if (env.error !== null) {
       throw new EshuEnvelopeError(env.error);
@@ -262,11 +281,48 @@ export async function loadExposureIngress(
     }
     return ingressFromWire(env.data, name, env.truth ?? null);
   } catch (error) {
-    return emptyIngress(name, error instanceof Error ? error.message : "request failed");
+    return classifiedIngressError(name, error);
   }
 }
 
-function emptyIngress(service: string, message: string): ExposureIngress {
+function classifiedIngressError(service: string, error: unknown): ExposureIngress {
+  if (isAbortError(error)) {
+    return emptyIngress(service, "", "selection_required");
+  }
+  if (error instanceof EshuApiHttpError) {
+    if (error.status === 401 || error.status === 403) {
+      return emptyIngress(
+        service,
+        "You are not authorized to trace this service in the active workspace.",
+        "not_authorized",
+      );
+    }
+    if (error.status === 404) {
+      return emptyIngress(
+        service,
+        "No authorized service matched this canonical handle.",
+        "not_found",
+      );
+    }
+  }
+  return emptyIngress(
+    service,
+    "Service resolution or ingress tracing is temporarily unavailable.",
+    "backend_unavailable",
+  );
+}
+
+function isAbortError(error: unknown): boolean {
+  return (
+    typeof error === "object" && error !== null && "name" in error && error.name === "AbortError"
+  );
+}
+
+function emptyIngress(
+  service: string,
+  message: string,
+  state: ExposureIngress["state"],
+): ExposureIngress {
   return {
     service,
     chains: [],
@@ -276,12 +332,13 @@ function emptyIngress(service: string, message: string): ExposureIngress {
       edgeCount: 0,
       wafProtected: 0,
       tlsTerminated: 0,
-      reason: ""
+      reason: "",
     },
     publicEntrypoints: 0,
     totalHops: 0,
     truth: null,
     provenance: "unavailable",
-    error: message
+    state,
+    error: message,
   };
 }

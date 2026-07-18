@@ -130,18 +130,24 @@ export class EshuApiClient {
     );
   }
 
-  async postJson<TData>(path: string, body: unknown): Promise<TData> {
-    return this.withTimeout((signal) =>
-      this.fetcher(this.url(path), {
-        body: JSON.stringify(body),
-        credentials: "same-origin",
-        headers: {
-          ...this.headers("POST"),
-          "Content-Type": "application/json",
-        },
-        method: "POST",
-        signal,
-      }).then((response) => this.parseJson<TData>(response)),
+  async postJson<TData>(
+    path: string,
+    body: unknown,
+    options: EshuApiRequestOptions = {},
+  ): Promise<TData> {
+    return this.withTimeout(
+      (signal) =>
+        this.fetcher(this.url(path), {
+          body: JSON.stringify(body),
+          credentials: "same-origin",
+          headers: {
+            ...this.headers("POST"),
+            "Content-Type": "application/json",
+          },
+          method: "POST",
+          signal,
+        }).then((response) => this.parseJson<TData>(response)),
+      options.signal,
     );
   }
 

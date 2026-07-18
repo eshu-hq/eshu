@@ -24,6 +24,75 @@
   text-transform: uppercase;
 }
 
+.exposure-selector {
+  min-width: 0;
+  position: relative;
+}
+
+.exposure-selector-options {
+  background: var(--bg-panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: 0 14px 36px color-mix(in oklab, black 35%, transparent);
+  display: grid;
+  left: 0;
+  max-height: 320px;
+  overflow-y: auto;
+  padding: 6px;
+  position: absolute;
+  right: 0;
+  top: calc(100% - 28px);
+  z-index: 12;
+}
+
+.exposure-selector-option {
+  background: transparent;
+  border: 0;
+  border-radius: 7px;
+  color: var(--text);
+  cursor: pointer;
+  display: grid;
+  gap: 3px;
+  padding: 9px 10px;
+  text-align: left;
+}
+
+.exposure-selector-option:hover,
+.exposure-selector-option[aria-selected="true"],
+.exposure-selector-option:focus-visible {
+  background: color-mix(in oklab, var(--teal) 12%, var(--bg-field));
+  outline: 1px solid color-mix(in oklab, var(--teal) 50%, transparent);
+}
+
+.exposure-empty-truth {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.exposure-selector-option .mono,
+.exposure-selector-option small,
+.exposure-selector-help,
+.exposure-selector-more {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.exposure-selector-more {
+  margin: 6px 10px;
+}
+
+.exposure-selector-help {
+  line-height: 1.4;
+  margin: 5px 0 0;
+}
+
+.exposure-selector-help strong {
+  color: var(--text);
+}
+
 .exposure-posture-tiles {
   display: grid;
   gap: var(--gap);

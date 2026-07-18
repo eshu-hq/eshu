@@ -31,6 +31,11 @@ export function ServiceDrawer({
   const [graph, setGraph] = useState<GraphModel | null>(null);
   const [graphBusy, setGraphBusy] = useState(false);
   const [graphErr, setGraphErr] = useState("");
+  const exactIDMatch = model.services.find((service) => service.id === name);
+  const displayNameMatches = model.services.filter((service) => service.name === name);
+  const selectedService =
+    exactIDMatch ?? (displayNameMatches.length === 1 ? displayNameMatches[0] : undefined);
+  const exposureServiceID = selectedService?.id ?? name;
 
   // Findings for this service derive from the same impact-findings rows the
   // Vulnerabilities page uses, so the count always equals the listed rows.
@@ -76,9 +81,8 @@ export function ServiceDrawer({
   useEffect(() => {
     let active = true;
     setLoading(true);
-    const row = model.services.find((s) => s.id === name || s.name === name);
     if (client && model.source === "live") {
-      loadServiceSpotlight(client, row?.name ?? name)
+      loadServiceSpotlight(client, selectedService?.name ?? name)
         .then((s) => {
           if (active) {
             setSpot(s);
@@ -87,18 +91,18 @@ export function ServiceDrawer({
         })
         .catch(() => {
           if (active) {
-            setSpot(row ? spotlightFromRow(row) : undefined);
+            setSpot(selectedService ? spotlightFromRow(selectedService) : undefined);
             setLoading(false);
           }
         });
     } else {
-      setSpot(row ? spotlightFromRow(row) : undefined);
+      setSpot(selectedService ? spotlightFromRow(selectedService) : undefined);
       setLoading(false);
     }
     return () => {
       active = false;
     };
-  }, [name, client, model]);
+  }, [name, client, model, selectedService]);
 
   return (
     <>
@@ -117,7 +121,16 @@ export function ServiceDrawer({
           {loading ? (
             <p className="empty">Loading…</p>
           ) : !spot ? (
-            <p className="empty">No spotlight available for {name}.</p>
+            <>
+              <p className="empty">No unambiguous spotlight is available for {name}.</p>
+              <Link
+                className="btn-ghost"
+                onClick={onClose}
+                to={`/exposure?service=${encodeURIComponent(exposureServiceID)}`}
+              >
+                Trace exposure →
+              </Link>
+            </>
           ) : (
             <>
               <div className="row wrap" style={{ gap: 10 }}>
@@ -179,6 +192,13 @@ export function ServiceDrawer({
               <div>
                 <div className="section-label">Drill-downs</div>
                 <div className="row wrap" style={{ gap: 8 }}>
+                  <Link
+                    className="btn-ghost"
+                    onClick={onClose}
+                    to={`/exposure?service=${encodeURIComponent(exposureServiceID)}`}
+                  >
+                    Trace exposure →
+                  </Link>
                   <button
                     className={`btn-ghost${drill === "blast" ? " active" : ""}`}
                     onClick={() => openGraph("blast")}

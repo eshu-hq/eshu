@@ -22,6 +22,7 @@ import type {
   LanguageRow,
   RuntimeSummary,
   SbomEvidenceRow,
+  ServiceCatalogSummary,
   ServiceRow,
 } from "./eshuConsoleLive";
 import { loadDependencies } from "./eshuDependencies";
@@ -38,6 +39,7 @@ export interface SectionContext {
   readonly repoNames: Map<string, string>;
   advisoryCatalogSummary?: AdvisoryCatalogSummary;
   advisoryCatalogNextCursor?: AdvisoryCatalogCursor;
+  serviceCatalogSummary?: ServiceCatalogSummary;
 }
 
 // ---- endpoint response shapes (partial; see GET /api/v0/openapi.json) ----
@@ -79,8 +81,12 @@ interface RepositoryListBrief {
   readonly repository_count?: number; // legacy alias kept for forward-compat
 }
 interface CatalogResponse {
+  readonly count?: number;
+  readonly limit?: number;
   readonly repositories?: readonly CatalogRecord[];
   readonly services?: readonly CatalogRecord[];
+  readonly truncated?: boolean;
+  readonly workloads_truncated?: boolean;
   readonly workloads?: readonly CatalogRecord[];
 }
 interface CatalogRecord {
@@ -229,6 +235,11 @@ export async function loadServices(
   const env = await client.get<CatalogResponse>("/api/v0/catalog?limit=2000&offset=0");
   if (env.error) throw new EshuEnvelopeError(env.error);
   const c = env.data ?? {};
+  ctx.serviceCatalogSummary = {
+    count: c.count ?? (c.repositories?.length ?? 0) + (c.workloads?.length ?? 0),
+    limit: c.limit ?? 2000,
+    truncated: c.workloads_truncated ?? c.truncated ?? false,
+  };
   if (env.truth) ctx.truth.services = env.truth;
   const lvl = env.truth?.level ?? "exact";
   const fresh = env.truth?.freshness.state ?? "fresh";

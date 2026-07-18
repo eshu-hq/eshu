@@ -18,14 +18,15 @@ const (
 )
 
 type catalogResponse struct {
-	Repositories []catalogRepository `json:"repositories"`
-	Workloads    []catalogWorkload   `json:"workloads"`
-	Services     []catalogWorkload   `json:"services"`
-	Counts       map[string]int      `json:"counts"`
-	Count        int                 `json:"count"`
-	Limit        int                 `json:"limit"`
-	Truncated    bool                `json:"truncated"`
-	Limitations  []string            `json:"limitations,omitempty"`
+	Repositories       []catalogRepository `json:"repositories"`
+	Workloads          []catalogWorkload   `json:"workloads"`
+	Services           []catalogWorkload   `json:"services"`
+	Counts             map[string]int      `json:"counts"`
+	Count              int                 `json:"count"`
+	Limit              int                 `json:"limit"`
+	Truncated          bool                `json:"truncated"`
+	WorkloadsTruncated bool                `json:"workloads_truncated"`
+	Limitations        []string            `json:"limitations,omitempty"`
 }
 
 type catalogRepository struct {
@@ -104,13 +105,12 @@ func (h *RepositoryHandler) listCatalog(w http.ResponseWriter, r *http.Request) 
 		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query repositories: %v", err))
 		return
 	}
-	var workloadsTruncated bool
-	response.Workloads, workloadsTruncated, err = h.listCatalogWorkloads(r.Context(), limit)
+	response.Workloads, response.WorkloadsTruncated, err = h.listCatalogWorkloads(r.Context(), limit)
 	if err != nil {
 		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query workloads: %v", err))
 		return
 	}
-	response.Truncated = response.Truncated || workloadsTruncated
+	response.Truncated = response.Truncated || response.WorkloadsTruncated
 	// Enrich workloads with tier, category, domain, and language from
 	// service-catalog correlation facts. The lookup is bounded to the repo IDs
 	// assembled above; a nil store or empty id set is a no-op so the response

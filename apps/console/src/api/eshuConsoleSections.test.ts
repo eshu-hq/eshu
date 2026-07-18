@@ -158,6 +158,72 @@ describe("eshuConsoleSections snapshot envelopes", () => {
     await expect(loadServices(errorClient(), context())).rejects.toThrow("unsupported_capability");
   });
 
+  it("does not treat repository-only catalog truncation as service truncation", async () => {
+    const ctx = context();
+    const client = {
+      get: async () => ({
+        data: {
+          count: 4001,
+          limit: 2000,
+          services: [
+            {
+              id: "workload:checkout",
+              kind: "service",
+              name: "Checkout API",
+              repo_name: "checkout-service",
+            },
+          ],
+          truncated: true,
+          workloads_truncated: false,
+          workloads: [],
+        },
+        error: null,
+        truth: null,
+      }),
+    } as unknown as EshuApiClient;
+
+    await loadServices(client, ctx);
+
+    expect(ctx.serviceCatalogSummary).toEqual({ count: 4001, limit: 2000, truncated: false });
+  });
+
+  it("records when the authorized workload catalog is only a bounded first page", async () => {
+    const ctx = context();
+    const client = {
+      get: async () => ({
+        data: {
+          count: 2001,
+          limit: 2000,
+          services: [],
+          truncated: true,
+          workloads_truncated: true,
+          workloads: [],
+        },
+        error: null,
+        truth: null,
+      }),
+    } as unknown as EshuApiClient;
+
+    await loadServices(client, ctx);
+
+    expect(ctx.serviceCatalogSummary).toEqual({ count: 2001, limit: 2000, truncated: true });
+  });
+
+  it("preserves aggregate truncation from an older catalog response", async () => {
+    const ctx = context();
+    const client = {
+      get: async () => ({
+        data: { count: 2001, limit: 2000, services: [], truncated: true, workloads: [] },
+        error: null,
+        truth: null,
+      }),
+    } as unknown as EshuApiClient;
+
+    await loadServices(client, ctx);
+
+    expect(ctx.serviceCatalogSummary?.truncated).toBe(true);
+  });
+
   it("rejects language inventory error envelopes so languages are marked unavailable", async () => {
     await expect(loadLanguages(errorClient())).rejects.toThrow("unsupported_capability");
   });

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
 )
 
 // EntityHandler exposes HTTP routes for entity queries.
@@ -75,10 +76,17 @@ func (h *EntityHandler) resolveEntity(w http.ResponseWriter, r *http.Request) {
 		req.RepoID = resolvedRepoID
 	}
 	if access.empty() {
-		WriteSuccess(w, r, http.StatusOK, resolvedEntityResponse([]map[string]any{}, limit, false), entityResolveTruthEnvelope(h.profile()))
+		truth := entityResolveTruthEnvelope(h.profile())
+		if strings.EqualFold(strings.TrimSpace(req.Type), "workload") {
+			truth = workloadEntityResolveTruthEnvelope(h.profile())
+		}
+		WriteSuccess(w, r, http.StatusOK, resolvedEntityResponse([]map[string]any{}, limit, false), truth)
 		return
 	}
 	if h.writeCanonicalContentEntityResolution(w, r, req, limit) {
+		return
+	}
+	if h.writeWorkloadEntityResolution(w, r, req, limit) {
 		return
 	}
 

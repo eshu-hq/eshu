@@ -197,9 +197,42 @@ func TestListCatalogTruncatesEachCollectionByLimit(t *testing.T) {
 	if got, want := body["truncated"], true; got != want {
 		t.Fatalf("truncated = %#v, want %#v", got, want)
 	}
+	if got, want := body["workloads_truncated"], true; got != want {
+		t.Fatalf("workloads_truncated = %#v, want %#v", got, want)
+	}
 	assertCatalogCollectionLength(t, body, "repositories", 1)
 	assertCatalogCollectionLength(t, body, "workloads", 1)
 	assertCatalogCollectionLength(t, body, "services", 1)
+}
+
+func TestListCatalogDistinguishesRepositoryOnlyTruncation(t *testing.T) {
+	t.Parallel()
+
+	rows := catalogGraphRows{
+		repositories: []map[string]any{
+			{"id": "repository:r_1", "name": "one"},
+			{"id": "repository:r_2", "name": "two"},
+		},
+		base: []map[string]any{
+			{"id": "workload:w_1", "name": "one", "kind": "service"},
+		},
+	}
+	handler := &RepositoryHandler{Neo4j: rows.reader(t, 0), Profile: ProfileLocalAuthoritative}
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/catalog?limit=1", nil)
+	rec := httptest.NewRecorder()
+
+	handler.listCatalog(rec, req)
+
+	var body map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v, want nil", err)
+	}
+	if got, want := body["truncated"], true; got != want {
+		t.Fatalf("truncated = %#v, want %#v", got, want)
+	}
+	if got, want := body["workloads_truncated"], false; got != want {
+		t.Fatalf("workloads_truncated = %#v, want %#v", got, want)
+	}
 }
 
 func TestListCatalogIncludesIdentityOnlyServicesFromReadModel(t *testing.T) {

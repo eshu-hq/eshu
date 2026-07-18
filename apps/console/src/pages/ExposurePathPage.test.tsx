@@ -1,10 +1,11 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { act } from "react";
-import { MemoryRouter } from "react-router-dom";
-import { describe, expect, it } from "vitest";
+import { act, StrictMode } from "react";
+import { MemoryRouter, useLocation, useNavigate } from "react-router-dom";
+import { describe, expect, it, vi } from "vitest";
 
 import { ExposurePathPage } from "./ExposurePathPage";
-import type { EshuApiClient } from "../api/client";
+import { contextEnvelope, publicContext, serviceOptions } from "./ExposurePathPageTestFixtures";
+import { EshuApiHttpError, type EshuApiClient } from "../api/client";
 
 // ExposurePathPage is the entrypoint-first exposure view (#3403). It must:
 // - auto-load the proven ingress chain for a service deep-linked via ?service=
@@ -13,100 +14,310 @@ import type { EshuApiClient } from "../api/client";
 // - never draw an "Internet" origin for an internal entrypoint
 // - keep the handler-trace form available as advanced mode
 describe("ExposurePathPage", () => {
-  it("auto-loads the ingress chain and posture tiles for a deep-linked service", async () => {
+  it("resolves a human catalog name authoritatively before tracing", async () => {
+    const requests: string[] = [];
     const client = {
       get: async (path: string) => {
-        expect(path).toBe("/api/v0/services/checkout/context");
-        return {
-          data: publicContext(),
-          error: null,
-          truth: {
-            capability: "platform_impact.context_overview",
-            level: "derived",
-            profile: "production",
-            freshness: { state: "fresh" }
-          }
-        };
-      }
+        requests.push(path);
+        return { data: publicContext(), error: null, truth: null };
+      },
+      postJson: async () => ({
+        count: 1,
+        entities: [
+          {
+            id: "workload:checkout",
+            labels: ["Workload"],
+            name: "Checkout API",
+            repo_name: "checkout-service",
+          },
+        ],
+        limit: 10,
+        truncated: false,
+      }),
     } as unknown as EshuApiClient;
 
     render(
-      <MemoryRouter initialEntries={["/exposure?service=checkout"]}>
-        <ExposurePathPage client={client} />
-      </MemoryRouter>
+      <MemoryRouter initialEntries={["/exposure"]}>
+        <ExposurePathPage client={client} services={serviceOptions()} />
+      </MemoryRouter>,
+    );
+
+    fireEvent.change(screen.getByRole("combobox", { name: "Service selection" }), {
+      target: { value: "Checkout API" },
+    });
+    const traceButton = screen.getByRole("button", { name: "Trace ingress" });
+    fireEvent.focus(screen.getByRole("combobox", { name: "Service selection" }));
+    expect(screen.getByRole("listbox", { name: "Authorized services" })).toBeInTheDocument();
+    fireEvent.blur(screen.getByRole("combobox", { name: "Service selection" }), {
+      relatedTarget: traceButton,
+    });
+    fireEvent.click(traceButton);
+
+    expect(await screen.findByText("Ingress chain")).toBeInTheDocument();
+    expect(screen.queryByRole("listbox", { name: "Authorized services" })).not.toBeInTheDocument();
+    expect(requests).toEqual(["/api/v0/services/workload%3Acheckout/context"]);
+  });
+
+  it("restores a canonical deep link while showing the human service name", async () => {
+    const get = vi.fn(async (path: string) => {
+      expect(path).toBe("/api/v0/services/workload%3Acheckout/context");
+      return { data: publicContext(), error: null, truth: null };
+    });
+    const client = {
+      get,
+    } as unknown as EshuApiClient;
+
+    render(
+      <MemoryRouter initialEntries={["/exposure?service=workload%3Acheckout"]}>
+        <ExposurePathPage client={client} services={serviceOptions()} />
+        <LocationSearch />
+      </MemoryRouter>,
     );
 
     expect(await screen.findByText("Ingress chain")).toBeInTheDocument();
-    // Posture tiles.
-    expect(screen.getByText("Public entrypoints")).toBeInTheDocument();
-    expect(screen.getByText("WAF coverage")).toBeInTheDocument();
-    expect(screen.getByText("TLS termination")).toBeInTheDocument();
-    // Proven Internet origin hop for an observed-public entrypoint.
-    expect(screen.getByText("Internet")).toBeInTheDocument();
-    expect(screen.getByText("checkout.example.test")).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Service selection" })).toHaveValue("Checkout API");
+
+    fireEvent.click(screen.getByRole("button", { name: "Trace ingress" }));
+    expect(await screen.findByText("Ingress chain")).toBeInTheDocument();
+    expect(get).toHaveBeenCalledTimes(2);
+
+    fireEvent.change(screen.getByRole("combobox", { name: "Service selection" }), {
+      target: { value: "Payments API" },
+    });
+    expect(screen.getByTestId("location-search")).toBeEmptyDOMElement();
   });
 
-  it("opens hop evidence with a truth level when a hop is clicked", async () => {
+  it("clears stale service truth when history removes the active deep link", async () => {
     const client = {
-      get: async () => ({ data: publicContext(), error: null, truth: null })
+      get: vi.fn(async () => ({ data: publicContext(), error: null, truth: null })),
     } as unknown as EshuApiClient;
 
     render(
-      <MemoryRouter initialEntries={["/exposure?service=checkout"]}>
-        <ExposurePathPage client={client} />
-      </MemoryRouter>
+      <MemoryRouter initialEntries={["/exposure?service=workload%3Acheckout"]}>
+        <ExposurePathPage client={client} services={serviceOptions()} />
+        <RemoveServiceParam />
+      </MemoryRouter>,
     );
 
-    await screen.findByText("Ingress chain");
-    fireEvent.click(screen.getByRole("button", { pressed: false, name: /checkout.example.test/ }));
+    expect(await screen.findByText("Ingress chain")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Remove service parameter" }));
 
-    expect(await screen.findByText("Node")).toBeInTheDocument();
-    expect(screen.getByText("Truth level")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Enter an internet-facing service to trace its ingress chain."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Ingress chain")).not.toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Service selection" })).toHaveValue("");
   });
 
-  it("does not draw an Internet origin for an internal entrypoint", async () => {
-    const client = {
-      get: async () => ({ data: internalContext(), error: null, truth: null })
-    } as unknown as EshuApiClient;
+  it("restarts an aborted deep-link request during the StrictMode effect rehearsal", async () => {
+    const get = vi.fn(async () => contextEnvelope());
+    const client = { get } as unknown as EshuApiClient;
 
     render(
-      <MemoryRouter initialEntries={["/exposure?service=internal-api"]}>
-        <ExposurePathPage client={client} />
-      </MemoryRouter>
+      <StrictMode>
+        <MemoryRouter initialEntries={["/exposure?service=workload%3Acheckout"]}>
+          <ExposurePathPage client={client} services={serviceOptions()} />
+        </MemoryRouter>
+      </StrictMode>,
     );
 
-    await screen.findByText("Ingress chain");
-    expect(screen.getByText("Network boundary")).toBeInTheDocument();
-    expect(screen.queryByText("Internet")).not.toBeInTheDocument();
+    expect(await screen.findByText("Ingress chain")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Trace ingress" })).toBeEnabled();
+    expect(get).toHaveBeenCalled();
   });
 
-  it("shows an honest empty state when no ingress path is proven", async () => {
-    const client = {
-      get: async () => ({
-        data: { name: "ghost", entrypoints: [], network_paths: [] },
-        error: null,
-        truth: null
-      })
-    } as unknown as EshuApiClient;
-
+  it("offers authorized services through a searchable accessible selector", async () => {
+    const get = vi.fn(async (_path: string, _options?: { readonly signal?: AbortSignal }) =>
+      contextEnvelope(),
+    );
+    const client = { get } as unknown as EshuApiClient;
     render(
-      <MemoryRouter initialEntries={["/exposure?service=ghost"]}>
-        <ExposurePathPage client={client} />
-      </MemoryRouter>
+      <MemoryRouter initialEntries={["/exposure"]}>
+        <ExposurePathPage client={client} services={serviceOptions()} />
+      </MemoryRouter>,
     );
 
-    expect(await screen.findByText("No proven ingress chain")).toBeInTheDocument();
+    const selector = screen.getByRole("combobox", { name: "Service selection" });
+    fireEvent.focus(selector);
+    fireEvent.change(selector, { target: { value: "payments-service" } });
+    expect(screen.getByRole("listbox", { name: "Authorized services" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("option", { name: /Payments API/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Trace ingress" }));
+
+    expect(await screen.findByText("Ingress chain")).toBeInTheDocument();
+    expect(get.mock.calls[0]?.[0]).toBe("/api/v0/services/workload%3Apayments/context");
+    expect(get.mock.calls[0]?.[1]?.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it("supports keyboard selection with an active descendant and Escape dismissal", () => {
+    render(
+      <MemoryRouter initialEntries={["/exposure"]}>
+        <ExposurePathPage client={{} as EshuApiClient} services={serviceOptions()} />
+      </MemoryRouter>,
+    );
+
+    const selector = screen.getByRole("combobox", { name: "Service selection" });
+    fireEvent.focus(selector);
+    fireEvent.keyDown(selector, { key: "ArrowDown" });
+    expect(selector).toHaveAttribute("aria-activedescendant");
+    expect(selector.getAttribute("aria-activedescendant")).not.toBe("");
+    expect(screen.getByRole("option", { selected: true })).toHaveTextContent("Checkout API");
+    fireEvent.keyDown(selector, { key: "Enter" });
+    expect(selector).toHaveValue("Checkout API");
+    expect(screen.queryByRole("listbox", { name: "Authorized services" })).not.toBeInTheDocument();
+
+    fireEvent.focus(selector);
+    fireEvent.keyDown(selector, { key: "Escape" });
+    expect(screen.queryByRole("listbox", { name: "Authorized services" })).not.toBeInTheDocument();
+  });
+
+  it("discloses that the visible authorized service catalog is truncated", () => {
+    render(
+      <MemoryRouter initialEntries={["/exposure"]}>
+        <ExposurePathPage
+          catalogTruncated
+          client={{} as EshuApiClient}
+          services={serviceOptions()}
+        />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText(/visible service list is bounded/i)).toBeInTheDocument();
+    expect(screen.getByText(/submit-time resolver searches beyond it/i)).toBeInTheDocument();
+  });
+
+  it("shows an ambiguous selector state and does not trace a guessed service", async () => {
+    const get = vi.fn();
+    const client = {
+      get,
+      postJson: vi.fn(async () => ({
+        count: 2,
+        entities: [
+          {
+            id: "workload:checkout-us",
+            labels: ["Workload"],
+            name: "Checkout API",
+            repo_name: "checkout-us",
+          },
+          {
+            id: "workload:checkout-eu",
+            labels: ["Workload"],
+            name: "Checkout API",
+            repo_name: "checkout-eu",
+          },
+        ],
+        limit: 10,
+        truncated: false,
+      })),
+    } as unknown as EshuApiClient;
+    render(
+      <MemoryRouter initialEntries={["/exposure"]}>
+        <ExposurePathPage
+          client={client}
+          services={[
+            { ...serviceOptions()[0], id: "workload:checkout-us", repo: "checkout-us" },
+            { ...serviceOptions()[0], id: "workload:checkout-eu", repo: "checkout-eu" },
+          ]}
+        />
+      </MemoryRouter>,
+    );
+
+    fireEvent.change(screen.getByRole("combobox", { name: "Service selection" }), {
+      target: { value: "Checkout API" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Trace ingress" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Multiple authorized services match",
+    );
+    expect(get).not.toHaveBeenCalled();
+  });
+
+  it("distinguishes no match from a request-level authorization failure", async () => {
+    const postJson = vi
+      .fn()
+      .mockResolvedValueOnce({ count: 0, entities: [], limit: 10, truncated: false })
+      .mockRejectedValueOnce(new EshuApiHttpError(403));
+    const client = { get: vi.fn(), postJson } as unknown as EshuApiClient;
+    render(
+      <MemoryRouter initialEntries={["/exposure"]}>
+        <ExposurePathPage client={client} services={[]} />
+      </MemoryRouter>,
+    );
+
+    const selector = screen.getByRole("combobox", { name: "Service selection" });
+    fireEvent.change(selector, { target: { value: "missing-service" } });
+    expect(selector).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(screen.getByRole("button", { name: "Trace ingress" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("No authorized service matches");
+
+    fireEvent.change(selector, { target: { value: "restricted-service" } });
+    fireEvent.click(screen.getByRole("button", { name: "Trace ingress" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "active session is not authorized to use service resolution",
+    );
+  });
+
+  it("clears stale ingress immediately and ignores an older response after selection changes", async () => {
+    let resolveCheckout: ((value: ReturnType<typeof contextEnvelope>) => void) | undefined;
+    const checkoutResponse = new Promise<ReturnType<typeof contextEnvelope>>((resolve) => {
+      resolveCheckout = resolve;
+    });
+    const get = vi.fn(async (path: string) => {
+      if (path.includes("workload%3Acheckout")) return checkoutResponse;
+      return contextEnvelope({ name: "payments", hostname: "payments.example.test" });
+    });
+    const client = {
+      get,
+      postJson: vi.fn(async (_path: string, body: { readonly name: string }) => ({
+        count: 1,
+        entities: [
+          {
+            id: body.name === "Payments API" ? "workload:payments" : "workload:checkout",
+            labels: ["Workload"],
+            name: body.name,
+          },
+        ],
+        limit: 10,
+        truncated: false,
+      })),
+    } as unknown as EshuApiClient;
+    render(
+      <MemoryRouter initialEntries={["/exposure"]}>
+        <ExposurePathPage client={client} services={serviceOptions()} />
+      </MemoryRouter>,
+    );
+
+    const selector = screen.getByRole("combobox", { name: "Service selection" });
+    fireEvent.change(selector, { target: { value: "Checkout API" } });
+    fireEvent.click(screen.getByRole("button", { name: "Trace ingress" }));
+    expect(selector).toBeEnabled();
+    fireEvent.change(selector, { target: { value: "Payments API" } });
+    expect(screen.queryByText("checkout.example.test")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Trace ingress" }));
+
+    expect(await screen.findByText("payments.example.test")).toBeInTheDocument();
+    await act(async () => {
+      resolveCheckout?.(contextEnvelope());
+      await checkoutResponse;
+    });
+    expect(screen.getByText("payments.example.test")).toBeInTheDocument();
+    expect(screen.queryByText("checkout.example.test")).not.toBeInTheDocument();
   });
 
   it("requires a service before tracing", () => {
-    const client = { get: async () => ({ data: null, error: null, truth: null }) } as unknown as EshuApiClient;
+    const client = {
+      get: async () => ({ data: null, error: null, truth: null }),
+    } as unknown as EshuApiClient;
     render(
       <MemoryRouter initialEntries={["/exposure"]}>
         <ExposurePathPage client={client} />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
     fireEvent.click(screen.getByRole("button", { name: "Trace ingress" }));
-    expect(screen.getByText("A service name is required to trace its ingress chain.")).toBeInTheDocument();
+    expect(
+      screen.getByText("Choose an authorized service or paste a canonical workload:… handle."),
+    ).toBeInTheDocument();
   });
 
   it("loads the ingress chain when client connects after mount (boot race)", async () => {
@@ -114,19 +325,19 @@ describe("ExposurePathPage", () => {
     // client=undefined, then the client becomes available after mount.
     const client = {
       get: async (path: string) => {
-        expect(path).toBe("/api/v0/services/checkout/context");
+        expect(path).toBe("/api/v0/services/workload%3Acheckout/context");
         return {
           data: publicContext(),
           error: null,
-          truth: null
+          truth: null,
         };
-      }
+      },
     } as unknown as EshuApiClient;
 
     const { rerender } = render(
-      <MemoryRouter initialEntries={["/exposure?service=checkout"]}>
-        <ExposurePathPage client={undefined} />
-      </MemoryRouter>
+      <MemoryRouter initialEntries={["/exposure?service=workload%3Acheckout"]}>
+        <ExposurePathPage client={undefined} services={serviceOptions()} />
+      </MemoryRouter>,
     );
 
     // At mount client is undefined — no load fires. The page shows the empty prompt.
@@ -135,9 +346,9 @@ describe("ExposurePathPage", () => {
     // Client connects after mount (boot race resolves).
     await act(async () => {
       rerender(
-        <MemoryRouter initialEntries={["/exposure?service=checkout"]}>
-          <ExposurePathPage client={client} />
-        </MemoryRouter>
+        <MemoryRouter initialEntries={["/exposure?service=workload%3Acheckout"]}>
+          <ExposurePathPage client={client} services={serviceOptions()} />
+        </MemoryRouter>,
       );
     });
 
@@ -148,13 +359,17 @@ describe("ExposurePathPage", () => {
 
   it("keeps the handler-trace form available as advanced mode", async () => {
     const client = {
-      get: async () => ({ data: { name: "x", entrypoints: [], network_paths: [] }, error: null, truth: null }),
-      post: async () => ({ data: null, error: null, truth: null })
+      get: async () => ({
+        data: { name: "x", entrypoints: [], network_paths: [] },
+        error: null,
+        truth: null,
+      }),
+      post: async () => ({ data: null, error: null, truth: null }),
     } as unknown as EshuApiClient;
     render(
       <MemoryRouter initialEntries={["/exposure"]}>
         <ExposurePathPage client={client} />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
     fireEvent.click(screen.getByText("Advanced: handler trace"));
     expect(await screen.findByRole("button", { name: "Trace exposure" })).toBeInTheDocument();
@@ -162,48 +377,15 @@ describe("ExposurePathPage", () => {
   });
 });
 
-function publicContext(): Record<string, unknown> {
-  return {
-    name: "checkout",
-    entrypoints: [{ type: "hostname", target: "checkout.example.test", visibility: "public" }],
-    network_paths: [
-      {
-        path_type: "hostname_to_runtime",
-        from_type: "hostname",
-        from: "checkout.example.test",
-        to_type: "runtime_platform",
-        to: "checkout-eks",
-        platform_kind: "eks",
-        environment: "production",
-        visibility: "public",
-        reason: "ingress host maps to the eks runtime"
-      }
-    ],
-    ingress_posture: {
-      waf_coverage: "protected",
-      tls_termination: "terminated",
-      edge_count: 1,
-      waf_protected: 1,
-      tls_terminated: 1,
-      reason: "observed across 1 internet-facing edge resource"
-    }
-  };
+function LocationSearch(): React.JSX.Element {
+  return <output data-testid="location-search">{useLocation().search}</output>;
 }
 
-function internalContext(): Record<string, unknown> {
-  return {
-    name: "internal-api",
-    entrypoints: [{ type: "docs_route", target: "/internal/health", visibility: "internal" }],
-    network_paths: [
-      {
-        path_type: "docs_route_to_runtime",
-        from_type: "docs_route",
-        from: "/internal/health",
-        to_type: "runtime_platform",
-        to: "internal-eks",
-        platform_kind: "eks",
-        visibility: "internal"
-      }
-    ]
-  };
+function RemoveServiceParam(): React.JSX.Element {
+  const navigate = useNavigate();
+  return (
+    <button onClick={() => navigate("/exposure")} type="button">
+      Remove service parameter
+    </button>
+  );
 }
