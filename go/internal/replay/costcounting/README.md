@@ -23,6 +23,29 @@ graph writer:
 | `s3_external_principal_grant_materialization` | `s3_external_principal_grant_cost_test.go` | `storage/cypher.S3ExternalPrincipalGrantWriter` | `eshu_dp_neo4j_batches_executed_total` |
 | `s3_internet_exposure_materialization` | `s3_internet_exposure_cost_test.go` | `storage/cypher.S3InternetExposureNodeWriter` | `eshu_dp_neo4j_batches_executed_total` |
 | `secrets_iam_trust_chain` | `secrets_iam_graph_cost_test.go` | `storage/cypher.SecretsIAMGraphWriter` (writer-level only, ADR #1314 governance-gated) | `eshu_dp_neo4j_batches_executed_total` |
+| `azure_resource_materialization` | `azure_resource_materialization_cost_test.go` | `graphowner.CloudResourceGatedWriter` (shared `cypher.CloudResourceNodeWriter`) | `eshu_dp_neo4j_batches_executed_total` |
+| `gcp_resource_materialization` | `gcp_resource_materialization_cost_test.go` | `graphowner.CloudResourceGatedWriter` (shared `cypher.CloudResourceNodeWriter`) | `eshu_dp_neo4j_batches_executed_total` |
+| `kubernetes_correlation` | `kubernetes_workload_node_cost_test.go` | `graphowner.KubernetesWorkloadGatedWriter` | `eshu_dp_neo4j_batches_executed_total` |
+| `observability_coverage_correlation` | `observability_coverage_edge_cost_test.go` | `storage/cypher.ObservabilityCoverageEdgeWriter` | `eshu_dp_neo4j_batches_executed_total` |
+| `incident_routing_materialization` | `incident_routing_evidence_cost_test.go` | `storage/cypher.IncidentRoutingEvidenceWriter` | `eshu_dp_neo4j_batches_executed_total` |
+| `container_image_identity` | `container_image_identity_cost_test.go` | `reducer.PostgresContainerImageIdentityWriter` | `eshu_dp_postgres_query_duration_seconds` (observation count) |
+| `ci_cd_run_correlation` | `ci_cd_run_correlation_cost_test.go` | `reducer.PostgresCICDRunCorrelationWriter` | `eshu_dp_postgres_query_duration_seconds` (observation count) |
+| `sbom_attestation_attachment` | `sbom_attestation_attachment_cost_test.go` | `reducer.PostgresSBOMAttestationAttachmentWriter` | `eshu_dp_postgres_query_duration_seconds` (observation count) |
+| `cloud_asset_resolution` | `cloud_asset_resolution_cost_test.go` | `reducer.PostgresCloudAssetResolutionWriter` | `eshu_dp_postgres_query_duration_seconds` (observation count) |
+| `service_catalog_correlation` | `service_catalog_correlation_cost_test.go` | `reducer.PostgresServiceCatalogCorrelationWriter` (per-row, exact budget) | `eshu_dp_postgres_query_duration_seconds` (observation count) |
+| `security_alert_reconciliation` | `security_alert_reconciliation_cost_test.go` | `reducer.PostgresSecurityAlertReconciliationWriter` (per-row, exact budget) | `eshu_dp_postgres_query_duration_seconds` (observation count) |
+| `supply_chain_impact` | `supply_chain_impact_cost_test.go` | `reducer.PostgresSupplyChainImpactWriter` (per-row, exact budget) | `eshu_dp_postgres_query_duration_seconds` (observation count) |
+| `incident_repository_correlation` | `incident_repository_correlation_cost_test.go` | `reducer.PostgresIncidentRepositoryCorrelationWriter` (per-row, exact budget) | `eshu_dp_postgres_query_duration_seconds` (observation count) |
+| `package_source_correlation` | `package_source_correlation_cost_test.go` | `reducer.PostgresPackageCorrelationWriter` (per-row, exact budget) | `eshu_dp_postgres_query_duration_seconds` (observation count) |
+| `reducer_derived_findings` | `multi_cloud_runtime_drift_cost_test.go` | `reducer.PostgresMultiCloudRuntimeDriftWriter` (per-row, exact budget) | `eshu_dp_postgres_query_duration_seconds` (observation count) |
+
+The Postgres per-row writers commit an exact-equality budget encoding their
+known per-row write amplification; the follow-on migration to the batched
+`reducerBatchInsertFacts` insert path (which will let their budgets ratchet to 1
+with a standard N+1 control) is tracked as a separate issue.
+`projection:config_state_drift` is exempted in
+`specs/replay-depth-requirements.v1.yaml` (a counter-only terraform domain with
+no reducer write instrument to bound).
 
 `code_graph_projection` reuses the existing nested-directory-tree scenario: the
 "code" family's `file`/`repository` kinds project through

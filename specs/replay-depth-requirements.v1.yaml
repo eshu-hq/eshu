@@ -210,7 +210,24 @@ reducer_drain:
     crash scenario covers the drain.
 
 # Depth surfaces deliberately not required to have a replay scenario, each with an
-# auditable reason. Empty at seed: every depth gap should be burned down by an
-# authored scenario (C-14), not exempted away. Add an entry only when a retractable
-# node type genuinely cannot be exercised by a credential-free delta scenario.
-exemptions: []
+# auditable reason. Every depth gap should be burned down by an authored scenario
+# (C-14), not exempted away. Add an entry only when a surface genuinely has nothing
+# for the required axis to bound.
+exemptions:
+  - surface: projection:config_state_drift
+    scenario_type: cost
+    reason: >-
+      config_state_drift (the terraform_state fact family, projection_hook
+      terraform_relationship_projection) has no reducer-level write instrument
+      for the cost axis to bound. Its sole reducer handler,
+      TerraformConfigStateDriftHandler.Handle
+      (go/internal/reducer/terraform_config_state_drift.go), has no Writer field
+      and performs zero Postgres or graph writes -- it only increments bounded
+      OTel counters (CorrelationRuleMatches, CorrelationDriftDetected) and emits
+      structured logs. This is explicit design intent:
+      registry_additive_domains.go sets Ownership{CanonicalWrite: false,
+      CounterEmit: true} with "Graph projection follows per design doc §10" -- a
+      future, not-yet-implemented write path. The only Postgres access near this
+      domain (storage/postgres/drift_enqueue.go) is a QueryContext read that
+      enqueues intents, not a domain-output write. Remove this exemption when the
+      graph-projection write path lands and add a cost scenario for it.

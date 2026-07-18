@@ -1,0 +1,10 @@
+{
+  "scenario": "container-image-identity",
+  "cassette": "none: reducer.PostgresContainerImageIdentityWriter operates over []ContainerImageIdentityDecision Go values, not a CanonicalMaterialization; the two fixture decisions live inline in go/internal/replay/costcounting/container_image_identity_cost_test.go",
+  "description": "Two canonical (CanonicalWrites=1) exact-digest decisions for distinct image references in one scope, driven through the production Postgres fact writer over an InstrumentedDB-wrapped counting fake. WriteContainerImageIdentityDecisions filters to CanonicalWrites>0 decisions then calls the shared reducerBatchInsertFacts bounded chunked bulk insert (go/internal/reducer/reducer_fact_batch_insert.go, batch size 1000): two rows fit one chunk, so eshu_dp_postgres_query_duration_seconds records exactly 1 write observation and statements_executed=1. Any increase — an N+1 write-per-decision regression — trips the gate.",
+  "refresh_path": "manual: edit the inline fixture decisions in container_image_identity_cost_test.go and this file together, reviewed in the same diff (no credentialed cassette refresh applies since there is no cassette)",
+  "budgets": {
+    "eshu_dp_postgres_query_duration_seconds": 1,
+    "statements_executed": 1
+  }
+}

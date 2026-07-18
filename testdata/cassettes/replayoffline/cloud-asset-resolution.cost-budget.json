@@ -1,0 +1,10 @@
+{
+  "scenario": "cloud-asset-resolution",
+  "cassette": "none: reducer.PostgresCloudAssetResolutionWriter operates over one CloudAssetResolutionWrite Go value per call, not a CanonicalMaterialization; the fixture writes live inline in go/internal/replay/costcounting/cloud_asset_resolution_cost_test.go",
+  "description": "One cross-scope cloud asset resolution correlating two distinct entity keys, driven through the production Postgres fact writer over an InstrumentedDB-wrapped counting fake. WriteCloudAssetResolution persists exactly one canonical fact record per call via canonicalReducerFactInsertQuery (no []Decision slice to batch), so eshu_dp_postgres_query_duration_seconds records exactly 1 write observation and statements_executed=1 regardless of how many entity keys the one resolution spans. Any increase — splitting one resolution into one call per entity key instead of a single call carrying both — trips the gate.",
+  "refresh_path": "manual: edit the inline fixture writes in cloud_asset_resolution_cost_test.go and this file together, reviewed in the same diff (no credentialed cassette refresh applies since there is no cassette)",
+  "budgets": {
+    "eshu_dp_postgres_query_duration_seconds": 1,
+    "statements_executed": 1
+  }
+}

@@ -133,9 +133,15 @@ func (w *SemanticEntityWriter) batchSizeForLabel(label string) int {
 }
 
 // WriteSemanticEntities retracts stale semantic nodes for the touched
-// repositories and upserts the current rows. When the executor supports
-// GroupExecutor, all statements run in a single atomic transaction so
-// concurrent workers never see partially retracted or partially written state.
+// repositories and upserts the current rows. Retract statements are dispatched
+// sequentially, each in its own autocommit transaction (grouped DETACH DELETEs
+// under-apply on the pinned NornicDB v1.1.11), so there is a brief window in
+// which retracts have committed but the upserts have not; a concurrent reader
+// may momentarily observe the retracted nodes as absent. When the executor
+// supports GroupExecutor the upserts run as one atomic grouped transaction. The
+// reducer requeues on error and the write is idempotent, so a retry converges;
+// the retract/upsert split is deliberate and bounded (retracts emit at most one
+// statement per semantic label).
 func (w *SemanticEntityWriter) WriteSemanticEntities(
 	ctx context.Context,
 	write reducer.SemanticEntityWrite,
@@ -153,16 +159,23 @@ func (w *SemanticEntityWriter) WriteSemanticEntities(
 		return reducer.SemanticEntityWriteResult{}, fmt.Errorf("semantic entity delta projection requires file paths")
 	}
 
-	// Build the full statement list: retract first, then all upserts.
-	var stmts []Statement
+	// Retract statements are dispatched sequentially (each in its own
+	// autocommit transaction), never grouped through ExecuteGroup: grouped
+	// DELETEs under-apply on the pinned NornicDB v1.1.11, so a grouped
+	// per-label retract silently leaves some nodes (the #4367 semantic
+	// Variable delta-retract hole; same NornicDB limitation the EdgeWriter
+	// retract path already works around in edge_writer_retract.go). Upserts
+	// (MERGE/SET) apply correctly grouped and stay atomic below.
+	var retractStmts []Statement
 	if !write.SkipRetract {
 		if write.DeltaProjection {
-			stmts = append(stmts, w.semanticDeltaRetractStatements(deltaFilePaths)...)
+			retractStmts = w.semanticDeltaRetractStatements(deltaFilePaths)
 		} else {
-			stmts = append(stmts, w.semanticRetractStatements(repoIDs)...)
+			retractStmts = w.semanticRetractStatements(repoIDs)
 		}
 	}
 
+	var stmts []Statement
 	writes := 0
 	switch w.writeMode {
 	case semanticEntityWriteModeParameterizedRows:
@@ -288,6 +301,15 @@ func (w *SemanticEntityWriter) WriteSemanticEntities(
 			Cypher:     semanticRustImplBlockOwnershipCypher,
 			Parameters: map[string]any{"rows": ownershipRows[start:end]},
 		})
+	}
+
+	// Retracts first, sequentially (see the retractStmts comment above): each
+	// runs in its own autocommit transaction so a grouped-DELETE under-apply
+	// cannot silently leave stale semantic nodes.
+	for _, stmt := range retractStmts {
+		if err := w.executor.Execute(ctx, stmt); err != nil {
+			return reducer.SemanticEntityWriteResult{}, fmt.Errorf("retract semantic entities: %w", WrapRetryableNeo4jError(err))
+		}
 	}
 
 	if len(stmts) > 0 {
