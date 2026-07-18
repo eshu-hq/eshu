@@ -63,6 +63,58 @@ runtime knob, or API call was added.
 
 ## Golden contract
 
-The B-12 `trace_deployment_chain` MCP shape requires the non-empty deep path
-`instances[].platforms[].platform_id` for the deterministic `api-svc` corpus.
-This keeps the API, MCP, golden trace, and console identity contract aligned.
+The existing B-12 `trace_deployment_chain` MCP shape remains anchored to
+`api-svc`, preserving its broad service-evidence response contract. A separate
+authenticated HTTP golden shape calls
+`POST /api/v0/impact/trace-deployment-chain` for the corpus's positive runtime
+fixture, `deployable-config`, and requires:
+
+- `data.instances[].platforms[].platform_id`;
+- `data.deployment_sources[].relationship_type`;
+- `data.deployment_sources[].source_id`;
+- `data.deployment_sources[].target_id`;
+- `truth.level=derived`; and
+- `truth.basis=hybrid`.
+
+This split preserves the rich MCP fixture while proving canonical deployment
+topology against the fixture that actually materializes a runtime instance. A
+retained diagnostic run confirmed the exact graph chain before the final clean
+proof:
+
+```text
+workload:deployable-config
+  <- INSTANCE_OF - workload-instance:deployable-config:production
+  - RUNS_ON -> platform:kubernetes:none:production:production:none
+  - DEPLOYMENT_SOURCE -> repository:r_1f68383d (deployable-source)
+```
+
+The retained diagnostic containers and volumes were removed before the final
+run. The clean NornicDB v1.1.11 gate command was:
+
+```bash
+NORNICDB_IMAGE=tianthyss/nornicdb-cpu-bge:v1.1.11 \
+ESHU_POSTGRES_PORT=25432 \
+NEO4J_BOLT_PORT=17687 \
+NEO4J_HTTP_PORT=17474 \
+GATE_API_PORT=28080 \
+GATE_MCP_PORT=28091 \
+scripts/verify-golden-corpus-gate.sh
+```
+
+Result: **419 pass, 0 required-fail, 0 advisory-warn** in 37 seconds.
+Phase timings were bootstrap 3 seconds, collector replay 20 seconds, first
+drain 9 seconds, maintenance drains 5 seconds, and graph/query checks 5
+seconds. Both the authenticated positive HTTP topology shape and the existing
+MCP trace shape passed.
+
+Replay coverage also passed:
+
+```bash
+cd go && go test ./conformance ./internal/replay/... \
+  ./cmd/replay-coverage-gate ./internal/replaycoverage -count=1
+scripts/test-verify-replay-coverage-gate.sh
+scripts/verify-replay-coverage-gate.sh --blocking
+```
+
+The blocking gate reported 386 pass, 0 required-fail, and 17 existing advisory
+coverage gaps; the blocking coverage threshold passed.

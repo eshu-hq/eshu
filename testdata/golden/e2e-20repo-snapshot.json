@@ -2413,12 +2413,6 @@
           "workload_id"
         ],
         "minimum_results": 0,
-        "required_json_paths": [
-          "instances[].platforms[].platform_id",
-          "deployment_sources[].relationship_type",
-          "deployment_sources[].source_id",
-          "deployment_sources[].target_id"
-        ],
         "arguments": {
           "service_name": "api-svc",
           "max_depth": 4
@@ -4485,6 +4479,30 @@
           "query": "main",
           "exact": true,
           "limit": 1
+        }
+      },
+      "POST /api/v0/impact/trace-deployment-chain": {
+        "description": "Positive deployment-topology trace for the deployable-config runtime fixture; proves canonical instance, platform, and deployment-source endpoint identity against the live projected corpus.",
+        "envelope": true,
+        "required_response_fields": [
+          "data",
+          "truth",
+          "error"
+        ],
+        "minimum_results": 0,
+        "request_body": {
+          "service_name": "deployable-config",
+          "max_depth": 4
+        },
+        "required_json_paths": [
+          "data.instances[].platforms[].platform_id",
+          "data.deployment_sources[].relationship_type",
+          "data.deployment_sources[].source_id",
+          "data.deployment_sources[].target_id"
+        ],
+        "required_json_values": {
+          "truth.level": "derived",
+          "truth.basis": "hybrid"
         }
       },
       "GET /api/v0/repositories": {
