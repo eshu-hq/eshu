@@ -209,7 +209,7 @@ export type RouteWorkflowSpec = WorkflowGuards &
     | {
         readonly id: string;
         readonly kind: "tabs";
-        readonly proveVulnerabilityServiceTruth?: boolean;
+        readonly proveVulnerabilityLandingTruth?: boolean;
         readonly tabs: readonly WorkflowTab[];
         readonly followLink?: WorkflowFollowLink;
       }

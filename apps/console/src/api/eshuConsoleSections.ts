@@ -10,6 +10,7 @@ import type { EshuApiClient } from "./client";
 import { deadCodeRowsFromResponse, type DeadCodeResponse } from "./deadCode";
 import { EshuEnvelopeError, type EshuTruth, type FreshnessState } from "./envelope";
 import { fetchAdvisoryCatalogPage } from "./eshuConsoleAdvisories";
+import type { AdvisoryCatalogCursor, AdvisoryCatalogSummary } from "./eshuConsoleAdvisories";
 import type {
   AdvisoryRow,
   ArgoCDAppRow,
@@ -35,6 +36,8 @@ import { imageRowsFromResponse } from "./imageInventory";
 export interface SectionContext {
   readonly truth: Partial<Record<keyof ConsoleSnapshot, EshuTruth>>;
   readonly repoNames: Map<string, string>;
+  advisoryCatalogSummary?: AdvisoryCatalogSummary;
+  advisoryCatalogNextCursor?: AdvisoryCatalogCursor;
 }
 
 // ---- endpoint response shapes (partial; see GET /api/v0/openapi.json) ----
@@ -407,6 +410,8 @@ export async function loadAdvisories(
 ): Promise<readonly AdvisoryRow[] | null> {
   const page = await fetchAdvisoryCatalogPage(client, { limit: 50 });
   if (page.truth) ctx.truth.advisories = page.truth;
+  ctx.advisoryCatalogSummary = page.summary;
+  if (page.nextCursor) ctx.advisoryCatalogNextCursor = page.nextCursor;
   return page.rows.length > 0 ? [...page.rows] : null;
 }
 

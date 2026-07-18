@@ -14,6 +14,7 @@
 import type { EshuApiClient } from "./client";
 import { loadCollectorReadiness, type CollectorReadinessRow } from "./collectorReadiness";
 import type { EshuTruth, TruthLevel, FreshnessState } from "./envelope";
+import type { AdvisoryCatalogCursor, AdvisoryCatalogSummary } from "./eshuConsoleAdvisories";
 import {
   emptyRuntime,
   loadAdvisories,
@@ -60,6 +61,8 @@ export interface ConsoleSnapshot {
   readonly images: readonly ImageRow[];
   readonly iacResources: readonly IacResourceRow[];
   readonly advisories: readonly AdvisoryRow[];
+  readonly advisoryCatalogSummary: AdvisoryCatalogSummary | null;
+  readonly advisoryCatalogNextCursor: AdvisoryCatalogCursor | null;
   readonly collectorReadiness: readonly CollectorReadinessRow[];
   readonly argoCDApps: readonly ArgoCDAppRow[];
   readonly series: SeriesBundle;
@@ -393,6 +396,8 @@ export async function loadConsoleSnapshot(client: EshuApiClient): Promise<Consol
     images: images ?? [],
     iacResources: iacResources ?? [],
     advisories: advisories ?? [],
+    advisoryCatalogSummary: ctx.advisoryCatalogSummary ?? null,
+    advisoryCatalogNextCursor: ctx.advisoryCatalogNextCursor ?? null,
     collectorReadiness: collectorReadiness ?? [],
     argoCDApps: argoCDApps ?? [],
     series,

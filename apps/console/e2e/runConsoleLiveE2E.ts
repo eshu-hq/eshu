@@ -20,12 +20,16 @@ import {
   type RouteSignals,
 } from "../src/e2e/routeAssertions.ts";
 import { executeRouteWorkflow } from "./routeWorkflowProbes.ts";
+import { captureLandingScreenshotIfRequired } from "./routeScreenshotEvidence.ts";
 import {
   loadIndexedRepositoryInventoryAnchor,
   type IndexedRepositoryInventoryAnchor,
 } from "./askExactCountWorkflowProbe.ts";
-import { createImpactFindingsLoader } from "./vulnerabilityRouteWorkflowProbe.ts";
-import type { LoadImpactFindings } from "./vulnerabilityRouteWorkflowProbe.ts";
+import {
+  createAdvisoryCatalogLoader,
+  createImpactFindingsLoader,
+} from "./vulnerabilityRouteWorkflowProbe.ts";
+import type { LoadAdvisoryCatalog, LoadImpactFindings } from "./vulnerabilityRouteWorkflowProbe.ts";
 import { createBrowserSessionFetcher } from "./browserSessionFetcher.ts";
 import {
   awaitRetainedWizardSessionQuiet,
@@ -140,6 +144,7 @@ export async function captureRoute(
   indexedRepositoryInventory: IndexedRepositoryInventoryAnchor | null = null,
   loadImpactFindings?: LoadImpactFindings,
   performanceRecorder?: RoutePerformanceRecorder,
+  loadAdvisoryCatalog?: LoadAdvisoryCatalog,
 ): Promise<CapturedRouteSignals> {
   const startedAt = Date.now();
   const performanceCapture = performanceRecorder?.beginCapture();
@@ -199,6 +204,8 @@ export async function captureRoute(
   // A route may prove only responses observed after its own navigation began.
   // Bootstrap remains an explicit, separately evaluated preflight below.
   const routeNetwork = allNetwork.slice(networkStart);
+  const safeName = route.label.replace(/[^a-z0-9]+/gi, "_").toLowerCase();
+  await captureLandingScreenshotIfRequired(page, route, screenshotsDir, safeName);
   const workflow = route.workflow
     ? await executeRouteWorkflow(
         page,
@@ -211,6 +218,7 @@ export async function captureRoute(
         bootstrapNetwork,
         loadImpactFindings,
         indexedRepositoryInventory,
+        loadAdvisoryCatalog,
       )
     : null;
 
@@ -237,7 +245,6 @@ export async function captureRoute(
     };
   });
 
-  const safeName = route.label.replace(/[^a-z0-9]+/gi, "_").toLowerCase();
   await page.screenshot({ path: resolve(screenshotsDir, `${safeName}.png`), fullPage: true });
 
   page.off("console", onConsole);
@@ -404,6 +411,7 @@ export async function runConsoleLiveE2E(): Promise<number> {
     );
     assertProofManifestRepositoryCount(proofManifest, indexedRepositoryInventory.total);
     const loadImpactFindings = createImpactFindingsLoader(apiBase, proofAPIKey, proofFetcher);
+    const loadAdvisoryCatalog = createAdvisoryCatalogLoader(apiBase, proofAPIKey, proofFetcher);
 
     const results: RouteResult[] = [];
     const observations = [];
@@ -418,6 +426,7 @@ export async function runConsoleLiveE2E(): Promise<number> {
         indexedRepositoryInventory,
         loadImpactFindings,
         performanceRecorder,
+        loadAdvisoryCatalog,
       );
       observations.push({
         ...buildRouteReportObservation(signals),

@@ -6,6 +6,7 @@
 // Kept under 500 lines by delegating page handlers to a separate module.
 
 import type { Page } from "playwright";
+import { handleBootRouteExt } from "./mockApiBootExt.ts";
 import { handlePageRoute } from "./mockApiPages.ts";
 
 export const truth = {
@@ -18,14 +19,6 @@ export const truth = {
 
 export function envelope<T>(data: T, capability: string, error: unknown = null) {
   return { data, error, truth: { ...truth, capability } };
-}
-
-function tsParams(metric: string): number[] {
-  const n = 48;
-  return Array.from(
-    { length: n },
-    (_, i) => 100 + Math.round(Math.sin(i / 5) * 30 + metric.length * 7),
-  );
 }
 
 export async function installMockApi(page: Page): Promise<void> {
@@ -387,79 +380,7 @@ export async function installMockApi(page: Page): Promise<void> {
       });
     }
 
-    // ── Boot: advisories ──
-    if (method === "GET" && path === "/api/v0/supply-chain/advisories") {
-      return route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify(
-          envelope(
-            [
-              {
-                id: "GHSA-xxxx-xxxx-xxxx",
-                package: "express",
-                severity: "high",
-                cvss: 7.5,
-                summary: "Prototype pollution",
-              },
-            ],
-            "advisories.list",
-          ),
-        ),
-      });
-    }
-
-    // ── Boot: collector readiness ──
-    if (method === "GET" && path === "/api/v0/status/collector-readiness") {
-      return route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify(
-          envelope(
-            [
-              {
-                kind: "git",
-                instance_id: "git-primary",
-                mode: "primary",
-                enabled: true,
-                ready: true,
-                last_observed_at: new Date().toISOString(),
-              },
-              {
-                kind: "kubernetes",
-                instance_id: "k8s-observer",
-                mode: "primary",
-                enabled: true,
-                ready: true,
-                last_observed_at: new Date().toISOString(),
-              },
-            ],
-            "status.collector_readiness",
-          ),
-        ),
-      });
-    }
-
-    // ── Boot: timeseries metrics ──
-    if (method === "GET" && path === "/api/v0/metrics/timeseries") {
-      const metric = params.get("metric") ?? "unknown";
-      return route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify(
-          envelope(
-            {
-              metric,
-              values: tsParams(metric).map((v, i) => ({
-                ts: new Date(Date.now() - (47 - i) * 1800000).toISOString(),
-                value: v,
-              })),
-            },
-            "metrics.timeseries",
-          ),
-        ),
-      });
-    }
+    if (await handleBootRouteExt(route, path, method, params)) return;
 
     // ── Boot: dead code ──
     if (method === "POST" && path.includes("/code/dead-code")) {

@@ -78,6 +78,8 @@ describe("eshuConsoleLive vulnerability snapshot", () => {
                 after_advisory_key: "CVE-2021-45046",
                 after_cvss: 9,
               },
+              count: 2,
+              limit: 50,
               truncated: true,
             },
             error: null,
@@ -370,6 +372,11 @@ describe("eshuConsoleLive vulnerability snapshot", () => {
       id: "CVE-2021-45046",
       kev: false,
       severity: "critical",
+    });
+    expect(snap.advisoryCatalogSummary).toEqual({ count: 2, limit: 50, truncated: true });
+    expect(snap.advisoryCatalogNextCursor).toEqual({
+      after_advisory_key: "CVE-2021-45046",
+      after_cvss: 9,
     });
     expect(snap.provenance.advisories).toBe("live");
     expect(snap.truth.advisories?.capability).toBe("supply_chain.advisory_catalog.list");

@@ -1,14 +1,15 @@
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 
 import { VulnerabilitiesPage } from "./VulnerabilitiesPage";
+import type { EshuApiClient } from "../api/client";
 import { demoModel } from "../console/demoModel";
 import type { ConsoleModel } from "../console/types";
 
-function renderPage(model: ConsoleModel): void {
+function renderPage(model: ConsoleModel, client?: EshuApiClient): void {
   render(
     <MemoryRouter>
-      <VulnerabilitiesPage model={model} />
+      <VulnerabilitiesPage model={model} client={client} />
     </MemoryRouter>,
   );
 }
@@ -223,6 +224,68 @@ describe("VulnerabilitiesPage", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("continues a seeded truncated catalog from the authoritative cursor", async () => {
+    const paths: string[] = [];
+    const client = {
+      get: async (path: string) => {
+        paths.push(path);
+        return {
+          data: {
+            advisories: [
+              {
+                advisory_key: "CVE-2026-0002",
+                cve_id: "CVE-2026-0002",
+                cvss_score: 8.7,
+                severity_label: "high",
+              },
+            ],
+            count: 1,
+            limit: 50,
+            truncated: false,
+          },
+          error: null,
+          truth: null,
+        };
+      },
+    } as unknown as EshuApiClient;
+    const truncated: ConsoleModel = {
+      ...demoModel,
+      source: "live",
+      advisoryCatalogSummary: { count: 1, limit: 50, truncated: true },
+      advisoryCatalogNextCursor: {
+        after_advisory_key: "CVE-2021-44228",
+        after_cvss: 10,
+      },
+      provenance: { ...demoModel.provenance, advisories: "live" },
+    };
+    renderPage(truncated, client);
+
+    fireEvent.click(screen.getByRole("tab", { name: "Known intelligence (catalog)" }));
+    fireEvent.click(screen.getByRole("button", { name: "Load more" }));
+
+    await waitFor(() =>
+      expect(screen.getByRole("link", { name: "CVE-2026-0002" })).toBeInTheDocument(),
+    );
+    expect(paths).toHaveLength(1);
+    expect(paths[0]).toContain("after_cvss=10");
+    expect(paths[0]).toContain("after_advisory_key=CVE-2021-44228");
+  });
+
+  it("supports arrow-key tab switching with a roving focus target", () => {
+    renderPage(demoModel);
+    const reachable = screen.getByRole("tab", { name: "Reachable in services" });
+    const catalog = screen.getByRole("tab", { name: "Known intelligence (catalog)" });
+
+    reachable.focus();
+    fireEvent.keyDown(reachable, { key: "ArrowRight" });
+
+    expect(catalog).toHaveFocus();
+    expect(catalog).toHaveAttribute("aria-selected", "true");
+    expect(
+      screen.getByRole("tabpanel", { name: "Known intelligence (catalog)" }),
+    ).toBeInTheDocument();
+  });
+
   it("does not present zero or no-impact truth while reachable findings are unavailable", () => {
     const unavailable: ConsoleModel = {
       ...demoModel,
@@ -294,8 +357,24 @@ describe("VulnerabilitiesPage", () => {
     renderPage(failed);
 
     fireEvent.click(screen.getByRole("tab", { name: "Known intelligence (catalog)" }));
+    expect(screen.getByText(/Catalog intelligence data unavailable/)).toBeInTheDocument();
+  });
+
+  it("does not render the catalog empty state while catalog intelligence is loading", () => {
+    const loading: ConsoleModel = {
+      ...demoModel,
+      source: "live",
+      advisories: [],
+      advisoryCatalogSummary: null,
+      provenance: { ...demoModel.provenance, advisories: "loading" },
+    };
+    renderPage(loading);
+
+    fireEvent.click(screen.getByRole("tab", { name: "Known intelligence (catalog)" }));
+
     expect(
-      screen.getByText(/The vulnerability-intelligence catalog is unavailable/),
+      screen.getByRole("status", { name: "Loading catalog intelligence" }),
     ).toBeInTheDocument();
+    expect(screen.queryByText(/No catalog advisories yet/)).not.toBeInTheDocument();
   });
 });
