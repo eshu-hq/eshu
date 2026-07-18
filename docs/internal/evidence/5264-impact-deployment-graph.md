@@ -102,8 +102,8 @@ scripts/verify-golden-corpus-gate.sh
 ```
 
 Result: **419 pass, 0 required-fail, 0 advisory-warn** in 37 seconds.
-Phase timings were bootstrap 3 seconds, collector replay 20 seconds, first
-drain 9 seconds, maintenance drains 5 seconds, and graph/query checks 5
+Phase timings were bootstrap 2 seconds, collector replay 21 seconds, first
+drain 8 seconds, maintenance drains 6 seconds, and graph/query checks 2
 seconds. Both the authenticated positive HTTP topology shape and the existing
 MCP trace shape passed.
 
