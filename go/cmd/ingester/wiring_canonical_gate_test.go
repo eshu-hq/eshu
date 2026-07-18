@@ -154,8 +154,9 @@ func TestCanonicalExecutorGatesDrainWritesWhenConfigured(t *testing.T) {
 	}
 }
 
-// TestCanonicalExecutorDrainPassthroughWhenUnset proves the drain path stays the
-// raw reader (ungated passthrough) when no ceiling is configured.
+// TestCanonicalExecutorDrainPassthroughWhenUnset proves the drain path is not
+// gated when no ceiling is configured. The reader is the per-iteration timeout
+// wrapper (#5198) around the raw reader, never the backpressure-gated wrapper.
 func TestCanonicalExecutorDrainPassthroughWhenUnset(t *testing.T) {
 	executor := newTestNornicDBCanonicalExecutorWithRaw(drainCapableExecutor{}, newIngesterCanonicalGate(func(string) string { return "" }, nil))
 	pge, ok := executor.(nornicDBPhaseGroupExecutor)
@@ -163,6 +164,9 @@ func TestCanonicalExecutorDrainPassthroughWhenUnset(t *testing.T) {
 		t.Fatalf("executor type = %T, want nornicDBPhaseGroupExecutor", executor)
 	}
 	if _, gated := pge.DrainReader.(gatedDrainReader); gated {
-		t.Fatalf("unset ceiling: drain reader is gated, want the raw passthrough reader")
+		t.Fatalf("unset ceiling: drain reader is gated, want the ungated per-iteration timeout reader")
+	}
+	if _, ok := pge.DrainReader.(ingesterTimeoutDrainReader); !ok {
+		t.Fatalf("unset ceiling: drain reader = %T, want ingesterTimeoutDrainReader", pge.DrainReader)
 	}
 }

@@ -63,12 +63,12 @@ Grouped inner statements continue through the command-owned retry,
 backpressure layers. Drain and autocommit retracts use a command-owned
 `DrainReader`; they share the same backpressure gate and retain the server
 transaction timeout while bypassing grouped retry and instrumentation wrappers.
-The standalone projector applies a fresh client timeout to each raw drain
-iteration and returns the shared retryable graph-write timeout shape, so one
-lost Bolt response cannot hold a projector worker indefinitely. The ingester
-currently leaves the raw reader unbounded by a client deadline to avoid
-mistaking one phase-wide timeout for a per-iteration budget; issue #5198 tracks
-adding the narrower guard without canceling a correctly progressing drain.
+Both the standalone projector and the ingester apply a fresh client timeout to
+each raw drain iteration and return the shared retryable graph-write timeout
+shape, so one lost Bolt response cannot hold a worker indefinitely (#5122 for
+the projector, #5198 for the ingester). The timeout is per iteration, not
+phase-wide: the deadline resets every iteration, so a drain that keeps making
+progress across many iterations is never canceled by an earlier one.
 Drain logs and reconciliation counters provide the dedicated operator surface.
 The adapter also emits bounded phase/chunk logs and rolling entity-label
 summaries. No metric label contains repository paths, entity IDs, or symbols.
