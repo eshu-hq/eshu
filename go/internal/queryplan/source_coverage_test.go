@@ -61,6 +61,19 @@ func query(graph Graph) {
 	if err != nil {
 		t.Fatalf("DiscoverQueryCallsites() error = %v", err)
 	}
+	for sourceIndex := range got {
+		for callIndex := range got[sourceIndex].Calls {
+			if len(got[sourceIndex].Calls[callIndex].SourceDigest) != 64 {
+				t.Fatalf(
+					"DiscoverQueryCallsites() source digest for %s:%s has length %d, want 64",
+					got[sourceIndex].File,
+					got[sourceIndex].Calls[callIndex].Symbol,
+					len(got[sourceIndex].Calls[callIndex].SourceDigest),
+				)
+			}
+			got[sourceIndex].Calls[callIndex].SourceDigest = ""
+		}
+	}
 	want := []SourceCoverage{
 		{
 			File: "handler.go",
@@ -172,8 +185,137 @@ func TestValidateSourceCoverageRequiresDisposition(t *testing.T) {
 	}
 
 	err := ValidateSourceCoverage(manifest, discovered)
-	if err == nil || !strings.Contains(err.Error(), "requires entry_ids or a non-hot reason") {
+	if err == nil || !strings.Contains(err.Error(), "requires entry_ids or a non-hot disposition") {
 		t.Fatalf("ValidateSourceCoverage() error = %v, want missing disposition", err)
+	}
+}
+
+func TestValidateSourceCoverageAcceptsLegacyDispositionDuringTypedMigration(t *testing.T) {
+	manifest := Manifest{
+		Version: 1,
+		SourceCoverage: []SourceCoverage{{
+			File: "handler.go",
+			Calls: []QueryCallsite{{
+				Symbol: "(*Handler).handle",
+				Count:  1,
+				Reason: "inventory-only support or bounded read; promote when hot",
+			}},
+		}},
+	}
+	discovered := []SourceCoverage{{
+		File: "handler.go",
+		Calls: []QueryCallsite{{
+			Symbol:       "(*Handler).handle",
+			Count:        1,
+			SourceDigest: strings.Repeat("a", 64),
+		}},
+	}}
+
+	if err := ValidateSourceCoverage(manifest, discovered); err != nil {
+		t.Fatalf("ValidateSourceCoverage() error = %v, want legacy disposition accepted during migration", err)
+	}
+}
+
+func TestValidateSourceCoverageRequiresTypedEvidenceMatchingSource(t *testing.T) {
+	manifest := Manifest{
+		Version: 1,
+		SourceCoverage: []SourceCoverage{{
+			File: "handler.go",
+			Calls: []QueryCallsite{{
+				Symbol: "(*Handler).handle",
+				Count:  1,
+				NonHot: &NonHotDisposition{
+					Class:        NonHotClassKeyedSupport,
+					SourceDigest: strings.Repeat("b", 64),
+					KeyBound:     NonHotKeyBoundSingle,
+					MaxResults:   50,
+				},
+			}},
+		}},
+	}
+	discovered := []SourceCoverage{{
+		File: "handler.go",
+		Calls: []QueryCallsite{{
+			Symbol:       "(*Handler).handle",
+			Count:        1,
+			SourceDigest: strings.Repeat("a", 64),
+		}},
+	}}
+
+	err := ValidateSourceCoverage(manifest, discovered)
+	if err == nil || !strings.Contains(err.Error(), "source_sha256 does not match production symbol") {
+		t.Fatalf("ValidateSourceCoverage() error = %v, want source evidence mismatch", err)
+	}
+}
+
+func TestValidateSourceCoverageRejectsIncompleteTypedEvidence(t *testing.T) {
+	tests := []struct {
+		name        string
+		disposition NonHotDisposition
+		want        string
+	}{
+		{
+			name: "unknown class",
+			disposition: NonHotDisposition{
+				Class:        "reviewed_bounded",
+				SourceDigest: strings.Repeat("a", 64),
+			},
+			want: "unsupported non-hot class",
+		},
+		{
+			name: "keyed support missing key bound",
+			disposition: NonHotDisposition{
+				Class:        NonHotClassKeyedSupport,
+				SourceDigest: strings.Repeat("a", 64),
+				MaxResults:   50,
+			},
+			want: "keyed_support requires key_bound",
+		},
+		{
+			name: "label inventory missing label",
+			disposition: NonHotDisposition{
+				Class:        NonHotClassLabelInventory,
+				SourceDigest: strings.Repeat("a", 64),
+				MaxResults:   50,
+			},
+			want: "label_inventory requires label",
+		},
+		{
+			name: "delegated missing target",
+			disposition: NonHotDisposition{
+				Class:        NonHotClassDelegated,
+				SourceDigest: strings.Repeat("a", 64),
+			},
+			want: "delegated requires delegate",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			manifest := Manifest{
+				Version: 1,
+				SourceCoverage: []SourceCoverage{{
+					File: "handler.go",
+					Calls: []QueryCallsite{{
+						Symbol: "handle",
+						Count:  1,
+						NonHot: &test.disposition,
+					}},
+				}},
+			}
+			discovered := []SourceCoverage{{
+				File: "handler.go",
+				Calls: []QueryCallsite{{
+					Symbol:       "handle",
+					Count:        1,
+					SourceDigest: strings.Repeat("a", 64),
+				}},
+			}}
+			err := ValidateSourceCoverage(manifest, discovered)
+			if err == nil || !strings.Contains(err.Error(), test.want) {
+				t.Fatalf("ValidateSourceCoverage() error = %v, want %q", err, test.want)
+			}
+		})
 	}
 }
 

@@ -42,6 +42,7 @@ type Entry struct {
 	QueryKind       string          `yaml:"query_kind"`
 	Source          SourceRef       `yaml:"source"`
 	Cypher          string          `yaml:"cypher,omitempty"`
+	CypherSHA256    string          `yaml:"cypher_sha256,omitempty"`
 	QueryFragment   string          `yaml:"query_fragment,omitempty"`
 	RequiredAnchors []Anchor        `yaml:"required_anchors,omitempty"`
 	RequiredSchema  []string        `yaml:"required_schema,omitempty"`
