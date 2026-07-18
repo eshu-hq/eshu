@@ -35,7 +35,6 @@ func (h *EntityHandler) writeWorkloadEntityResolution(
 	for i := range entities {
 		attachSemanticSummary(entities[i])
 	}
-	entities = normalizeResolvedEntities(entities, limit+1)
 	entities, truncated := trimResolvedEntityPage(entities, limit)
 	if entities == nil {
 		entities = []map[string]any{}
