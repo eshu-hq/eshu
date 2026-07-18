@@ -113,6 +113,7 @@ describe("VulnerabilitiesPage status summary", () => {
     const summary = screen.getByRole("region", { name: "Vulnerability view status" });
     expect(summary).toHaveTextContent("50+ known advisories");
     expect(summary).toHaveTextContent("Bounded first page; more catalog entries are available.");
+    expect(summary).toHaveTextContent("Catalog intelligence only; reachability is not implied.");
     expect(summary).not.toHaveTextContent("50 total");
   });
 

@@ -237,7 +237,7 @@ function statusForCatalog(model: ConsoleModel): ViewStatus {
     truncated: summary.truncated,
     value: `${summary.count}${summary.truncated ? "+" : ""} known advisories`,
     detail: summary.truncated
-      ? "Bounded first page; more catalog entries are available."
+      ? "Bounded first page; more catalog entries are available. Catalog intelligence only; reachability is not implied."
       : "Catalog intelligence only; reachability is not implied.",
   };
 }
