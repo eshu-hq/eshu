@@ -93,4 +93,36 @@ func TestNonUIDRetractsRouteThroughAutocommitExecute(t *testing.T) {
 		}
 		assertAutocommitRoute(t, rec)
 	})
+
+	// Three writers with the same grouped-retract defect were found beyond the
+	// issue's list during the completeness sweep for #5152; they are covered here.
+	t.Run("incident-routing-evidence", func(t *testing.T) {
+		t.Parallel()
+		rec := &dispatchRouteRecorder{}
+		w := NewIncidentRoutingEvidenceWriter(rec, 0)
+		if err := w.RetractIncidentRoutingEvidence(context.Background(), scopeIDs, gen, src); err != nil {
+			t.Fatalf("RetractIncidentRoutingEvidence: %v", err)
+		}
+		assertAutocommitRoute(t, rec)
+	})
+
+	t.Run("observability-coverage-edges", func(t *testing.T) {
+		t.Parallel()
+		rec := &dispatchRouteRecorder{}
+		w := NewObservabilityCoverageEdgeWriter(rec, 0)
+		if err := w.RetractObservabilityCoverageEdges(context.Background(), scopeIDs, gen, src); err != nil {
+			t.Fatalf("RetractObservabilityCoverageEdges: %v", err)
+		}
+		assertAutocommitRoute(t, rec)
+	})
+
+	t.Run("rds-posture-nodes", func(t *testing.T) {
+		t.Parallel()
+		rec := &dispatchRouteRecorder{}
+		w := NewRDSPostureNodeWriter(rec, 0)
+		if err := w.RetractRDSPostureNodes(context.Background(), scopeIDs, gen, src); err != nil {
+			t.Fatalf("RetractRDSPostureNodes: %v", err)
+		}
+		assertAutocommitRoute(t, rec)
+	})
 }

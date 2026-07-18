@@ -7,11 +7,22 @@ whole-scope retract paths still dispatched their DELETE/REMOVE through the group
 pinned production NornicDB `timothyswt/nornicdb-cpu-bge:v1.1.11@sha256:51b6174a`.
 This routes all seven through `dispatchRetract`; MERGE-shaped writes stay grouped.
 
-Rerouted (all live, confirmed by caller search):
+Rerouted — 10 live whole-scope retract paths (all confirmed by caller search).
+Seven were named in #5152; a completeness sweep of the whole package
+(`grep` for any `Retract*` method ending in the grouped `dispatch`) surfaced
+three more with the identical defect, so this PR fixes the whole class:
+
 - `azure`/`gcp`/`aws` CloudResource edge `RetractCloudResourceEdges`
 - code-taint `RetractCodeTaintEvidence` + `RetractStaleCodeTaintEvidence`
 - `ec2_block_device_kms` + `ec2_internet_exposure` node retracts (added
-  `dispatchRetract` to both)
+  `dispatchRetract`)
+- **beyond the issue list:** `incident_routing_evidence`
+  `RetractIncidentRoutingEvidence`, `observability_coverage_edge`
+  `RetractObservabilityCoverageEdges`, `rds_posture_node` `RetractRDSPostureNodes`
+  (added `dispatchRetract` to the two lacking it)
+
+A final package-wide sweep confirms no `Retract*` method routes through the
+grouped `dispatch` any longer.
 
 Classification: **Correctness win** + **Performance win**.
 

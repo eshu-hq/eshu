@@ -246,7 +246,7 @@ func (w *ObservabilityCoverageEdgeWriter) RetractObservabilityCoverageEdges(
 		},
 	}
 
-	return w.dispatch(ctx, []Statement{stmt})
+	return w.dispatchRetract(ctx, []Statement{stmt})
 }
 
 // RetractObservabilityCoverageEdgesByUIDs removes this reducer's COVERS edges
