@@ -402,6 +402,70 @@ Reproduced live via the Bolt driver on an isolated pinned NornicDB. `go test
 `TestLiveResourceInvestigationReadsAreNornicDBSafe`
 (`ESHU_INFRA_AGG_PROVE_LIVE=1`) is the backend-required live proof.
 
+## Pitfall: A Variable-Length Path With A Fresh Far End Needs A Labelled Start
+
+### Observed shape
+
+Measured against the pinned NornicDB backend (`eshu-nornicdb-pr261`, v1.1.11
+base) while fixing the route-to-caller reads (#5287). A single-clause
+variable-length path whose anchored endpoint is unlabelled and whose far end is a
+fresh variable returns zero rows:
+
+```cypher
+-- BROKEN: unlabelled anchored end, fresh far end -> 0 rows
+MATCH path = (caller)-[:CALLS*1..5]->(handler) WHERE handler.id = $hid
+RETURN nodes(path) AS chain
+-- BROKEN: unlabelled anchored start -> 0 rows
+MATCH path = (handler)<-[:CALLS*1..5]-(caller) WHERE coalesce(handler.id, handler.uid) = $hid
+RETURN nodes(path) AS chain
+
+-- WORKS: the anchored node carries a label
+MATCH path = (handler:Function)-[:CALLS*1..5]->(callee) WHERE handler.id = $hid
+RETURN nodes(path) AS chain
+```
+
+A path whose BOTH endpoints are pre-bound in their own `MATCH` clauses works
+without a label on the path pattern (e.g. `buildNornicDBCallChainCypher`'s
+`MATCH (start {uid:$s}) MATCH (end {uid:$e}) MATCH path=shortestPath((start)-[:CALLS*1..N]->(end))`),
+because the endpoints are already bound nodes. Only a fresh-variable far end
+needs the anchored end labelled.
+
+### Eshu implications
+
+When traversing from a known node to discover unknown neighbours over a
+variable-length relationship, anchor the known node with a label. If the label is
+not known statically, resolve it first (`RETURN head(labels(n))`) and interpolate
+it — gated against a whitelist so the label is never attacker-influenced. The
+route-to-caller relationship reads (`routeToCallerHandlerLabel` +
+`routeToCallerDirectionRows` in `go/internal/query/code_route_to_caller_graph.go`)
+resolve the handler label, then anchor `(handler:<Label>)` as the path start and
+project raw `nodes(path)`.
+
+## Pitfall: Node-Identity Inequality `a <> b` Returns Zero Rows
+
+### Observed shape
+
+Measured on the pinned NornicDB backend (#5287). Comparing two whole nodes with
+`<>` in a WHERE clause drops all rows:
+
+```cypher
+-- BROKEN: node-identity inequality -> 0 rows
+MATCH path = (handler:Function)-[:CALLS*1..5]->(callee) WHERE handler.id = $hid AND callee <> handler
+RETURN nodes(path) AS chain
+
+-- WORKS: compare identity properties instead
+MATCH path = (handler:Function)-[:CALLS*1..5]->(callee)
+WHERE handler.id = $hid AND coalesce(callee.id, callee.uid) <> coalesce(handler.id, handler.uid)
+RETURN nodes(path) AS chain
+```
+
+### Eshu implications
+
+Never express "these two nodes are different" as `a <> b` on this backend.
+Compare stable identity properties: `coalesce(a.id, a.uid) <> coalesce(b.id,
+b.uid)`. The route-to-caller directional reads use this form to exclude the
+handler itself from its own caller/callee set.
+
 ## Pitfall: Multi-Clause Read Queries Silently Corrupt The Projection
 
 ### Observed shape

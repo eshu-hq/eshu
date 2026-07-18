@@ -357,6 +357,60 @@ func resourceInvestigationHopReason(props map[string]any) string {
 	return StringVal(props, "evidence_type")
 }
 
+// routeToCallerEntityFromChain extracts the far-endpoint (caller/callee) entity
+// fields from a nodes(path) value, reading the LAST node in the chain. The
+// route-to-caller relationship reads anchor the known handler as the path start
+// and project raw nodes(path) because NornicDB corrupts a CALL-subquery computed
+// projection over path nodes (#5287); the far endpoint is the discovered
+// caller/callee. nodes(path) is a neo4j.Node on both backends, with a
+// map[string]any fallback. Returns nil when the chain is empty or its last
+// element is not a node. This decoder lives in neo4j.go because it is the only
+// driver-aware seam in the query package (per the package AGENTS.md).
+func routeToCallerEntityFromChain(chain any) map[string]any {
+	props := lastChainNodeProps(chain)
+	if props == nil {
+		return nil
+	}
+	entityID := StringVal(props, "id")
+	if entityID == "" {
+		entityID = StringVal(props, "uid")
+	}
+	filePath := StringVal(props, "file_path")
+	if filePath == "" {
+		filePath = StringVal(props, "relative_path")
+	}
+	return map[string]any{
+		"entity_id":  entityID,
+		"name":       StringVal(props, "name"),
+		"file_path":  filePath,
+		"repo_id":    StringVal(props, "repo_id"),
+		"language":   StringVal(props, "language"),
+		"start_line": IntVal(props, "start_line"),
+		"end_line":   IntVal(props, "end_line"),
+	}
+}
+
+// lastChainNodeProps returns the property map of the last node in a nodes(path)
+// value, decoding both the neo4j.Node driver shape and a map[string]any
+// fallback.
+func lastChainNodeProps(chain any) map[string]any {
+	items, ok := chain.([]any)
+	if !ok || len(items) == 0 {
+		return nil
+	}
+	switch node := items[len(items)-1].(type) {
+	case neo4jdriver.Node:
+		return node.Props
+	case map[string]any:
+		if props, ok := node["properties"].(map[string]any); ok {
+			return props
+		}
+		return node
+	default:
+		return nil
+	}
+}
+
 // RepoProjection returns the standard Cypher RETURN clause for repository nodes.
 func RepoProjection(alias string) string {
 	return fmt.Sprintf(
