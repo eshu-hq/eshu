@@ -1,0 +1,10 @@
+{
+  "scenario": "security-alert-reconciliation",
+  "cassette": "none: reducer.PostgresSecurityAlertReconciliationWriter operates over []SecurityAlertReconciliationDecision Go values, not a CanonicalMaterialization; the two fixture decisions live inline in go/internal/replay/costcounting/security_alert_reconciliation_cost_test.go",
+  "description": "Two matched-status provider alert decisions for distinct alerts in one scope, driven through the production Postgres fact writer over an InstrumentedDB-wrapped counting fake. WriteSecurityAlertReconciliations issues ONE ExecContext PER decision in a plain loop (go/internal/reducer/security_alert_reconciliation_writer.go) — there is no reducerBatchInsertFacts call here — so this writer's Postgres write cost is O(N) round-trips: two decisions cost exactly eshu_dp_postgres_query_duration_seconds=2 write observations and statements_executed=2. This budget is asserted EXACT (==, not <=): it encodes the CURRENT known per-row write amplification rather than absorbing it silently. Migrating this writer onto the shared batched bulk-insert path is a follow-on tracked separately (C-14 issue #4367 orchestration); until then, any deviation from exactly 2 trips this gate. The standard N+1 negative control (call once per row vs. once for the whole batch) is a structural no-op for this per-row writer, mirroring the confirmed aws_cloud_runtime_drift precedent (aws_cloud_runtime_drift_cost_test.go): N separate calls with 1 decision each cost the identical N round-trips as one call with N decisions, so it is deferred to the same follow-on rather than asserted here as a false negative control.",
+  "refresh_path": "manual: edit the inline fixture decisions in security_alert_reconciliation_cost_test.go and this file together, reviewed in the same diff (no credentialed cassette refresh applies since there is no cassette)",
+  "budgets": {
+    "eshu_dp_postgres_query_duration_seconds": 2,
+    "statements_executed": 2
+  }
+}
