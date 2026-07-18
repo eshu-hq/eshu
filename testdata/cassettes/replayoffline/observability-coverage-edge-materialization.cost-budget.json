@@ -1,0 +1,10 @@
+{
+  "scenario": "observability-coverage-edge-materialization",
+  "cassette": "none: cypher.ObservabilityCoverageEdgeWriter operates over flat map[string]any rows, not a CanonicalMaterialization; the two fixture rows live inline in go/internal/replay/costcounting/observability_coverage_edge_cost_test.go",
+  "description": "Two distinct (observability_uid, target_uid) COVERS edge rows sharing the same coverage_signal (alarm) in one scope, driven through the production unwrapped writer (cypher.ObservabilityCoverageEdgeWriter, no owner-ledger gate) over an InstrumentedExecutor. The writer groups rows by coverage_signal into one Cypher statement per signal; both rows share a signal and fit the default batch size (500), so the writer emits exactly one UNWIND write statement (eshu_dp_neo4j_batches_executed_total=1, statements_executed=1). Any increase — an N+1 write cycle or an extra signal-group/batch split — trips the gate.",
+  "refresh_path": "manual: edit the inline fixture rows in observability_coverage_edge_cost_test.go and this file together, reviewed in the same diff (no credentialed cassette refresh applies since there is no cassette)",
+  "budgets": {
+    "eshu_dp_neo4j_batches_executed_total": 1,
+    "statements_executed": 1
+  }
+}
