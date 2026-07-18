@@ -15,40 +15,18 @@ export const pageTest: PageTest = {
     const initialViewport = page.viewportSize();
     const initialZoom = await page.evaluate(() => document.documentElement.style.zoom);
     try {
-      const initialViewport = page.viewportSize();
-      const initialZoom = await page.evaluate(() => document.documentElement.style.zoom);
-      try {
-        const initialViewport = page.viewportSize();
-        const initialZoom = await page.evaluate(() => document.documentElement.style.zoom);
-        try {
-          await installLongValueFixture(page);
+      await installLongValueFixture(page);
 
-          for (const width of [1024, 1280, 1767]) {
-            await page.setViewportSize({ width, height: 900 });
-            await assertCatalogOverflowOwnership(page, `${width}px`, width !== 1767);
-          }
-
-          await page.setViewportSize({ width: 1280, height: 900 });
-          await page.evaluate(() => {
-            document.documentElement.style.zoom = "125%";
-          });
-          await assertCatalogOverflowOwnership(page, "1280px at 125% zoom", true);
-        } finally {
-          await page.evaluate((zoom) => {
-            document.documentElement.style.zoom = zoom;
-          }, initialZoom);
-          if (initialViewport !== null) {
-            await page.setViewportSize(initialViewport);
-          }
-        }
-      } finally {
-        await page.evaluate((zoom) => {
-          document.documentElement.style.zoom = zoom;
-        }, initialZoom);
-        if (initialViewport !== null) {
-          await page.setViewportSize(initialViewport);
-        }
+      for (const width of [1024, 1280, 1767]) {
+        await page.setViewportSize({ width, height: 900 });
+        await assertCatalogOverflowOwnership(page, `${width}px`, width !== 1767);
       }
+
+      await page.setViewportSize({ width: 1280, height: 900 });
+      await page.evaluate(() => {
+        document.documentElement.style.zoom = "125%";
+      });
+      await assertCatalogOverflowOwnership(page, "1280px at 125% zoom", true);
     } finally {
       await page.evaluate((zoom) => {
         document.documentElement.style.zoom = zoom;
