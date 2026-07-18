@@ -86,7 +86,6 @@ export function ReplatformingFilters({
               change({ accountId: event.target.value, offset: "0", region: "", scopeId: "" })
             }
             placeholder="Choose an AWS account"
-            role="combobox"
             value={form.accountId}
           />
           <datalist id="replatforming-accounts">
@@ -110,7 +109,6 @@ export function ReplatformingFilters({
             list="replatforming-regions"
             onChange={(event) => change({ offset: "0", region: event.target.value, scopeId: "" })}
             placeholder={form.scopeKind === "region" ? "Choose a region" : "All regions"}
-            role="combobox"
             value={form.region}
           />
           <datalist id="replatforming-regions">
@@ -140,7 +138,6 @@ export function ReplatformingFilters({
             list="replatforming-source-scopes"
             onChange={(event) => change({ offset: "0", scopeId: event.target.value })}
             placeholder="Choose a collector scope"
-            role="combobox"
             value={form.scopeId}
           />
           <datalist id="replatforming-source-scopes">

@@ -154,7 +154,8 @@ describe("ReplatformingPage", () => {
         "Choose an account, region, or source scope to review a bounded plan.",
       ),
     ).toBeInTheDocument();
-    expect(screen.getByRole("combobox", { name: "Account" })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Account" })).not.toHaveAttribute("role");
+    expect(screen.getByRole("combobox", { name: "Region" })).not.toHaveAttribute("role");
     expect(screen.getByRole("listbox", { name: "Finding kinds" })).toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: "Page size" })).toHaveValue("100");
     expect(screen.getByRole("button", { name: "Review plan" })).toBeDisabled();
@@ -184,7 +185,7 @@ describe("ReplatformingPage", () => {
     expect(await screen.findByText(/first 200 authorized scopes/i)).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("Scope kind"), { target: { value: "service" } });
 
-    expect(screen.getByRole("combobox", { name: "Source scope" })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Source scope" })).not.toHaveAttribute("role");
     expect(screen.queryByRole("combobox", { name: "Account" })).not.toBeInTheDocument();
     expect(screen.queryByRole("combobox", { name: "Region" })).not.toBeInTheDocument();
   });
