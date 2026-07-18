@@ -1,5 +1,5 @@
-import type { VisualizationEdge, VisualizationNode } from "../api/answerVisualization";
 import type { EvidenceSelection } from "./EvidenceDrawer";
+import type { VisualizationEdge, VisualizationNode } from "../api/answerVisualization";
 
 const RELATIONSHIP_VERBS: Readonly<Record<string, string>> = {
   CONSUMED_BY: "is consumed by",
