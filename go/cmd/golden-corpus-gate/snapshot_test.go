@@ -169,8 +169,10 @@ func TestGoldenSnapshotPinsServiceStoryVisualizationIdentityFields(t *testing.T)
 	}
 	for _, path := range []string{
 		"visualization_packet.nodes[].role",
+		"visualization_packet.nodes[].roles[]",
 		"visualization_packet.nodes[].canonical_key",
 		"visualization_packet.nodes[].scope_key",
+		"visualization_packet.nodes[].scope_keys[]",
 		"visualization_packet.nodes[].evidence_handles[]",
 	} {
 		if !containsString(shape.RequiredJSONPaths, path) {

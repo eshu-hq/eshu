@@ -241,8 +241,7 @@ function ServiceEvidenceResult({
 
       {packet.supported && packet.truncation.truncated ? (
         <div className="seg-trunc" role="status">
-          Subgraph truncated to stay within bounds — {packet.truncation.droppedNodeCount} nodes and{" "}
-          {packet.truncation.droppedEdgeCount} edges dropped.
+          {truncationMessage(packet.truncation)}
         </div>
       ) : null}
 
@@ -286,6 +285,15 @@ function ServiceEvidenceResult({
       )}
     </Panel>
   );
+}
+
+function truncationMessage(
+  truncation: NonNullable<ServiceEvidenceGraphResult["packet"]>["truncation"],
+): string {
+  if (truncation.droppedNodeCount === 0 && truncation.droppedEdgeCount === 0) {
+    return "Source story was already truncated; this visualization is a bounded subset.";
+  }
+  return `Subgraph truncated to stay within bounds — ${truncation.droppedNodeCount} nodes and ${truncation.droppedEdgeCount} edges dropped.`;
 }
 
 // SelectedEvidence renders the shared inline evidence panel for the selected

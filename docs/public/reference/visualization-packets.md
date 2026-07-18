@@ -104,8 +104,10 @@ truncation and notes that it is a bounded subset of an already-bounded response.
       "label": "billing",
       "category": "deployment",
       "role": "deployment_configuration",
+      "roles": ["deployment_configuration"],
       "canonical_key": "repository:r_…",
       "scope_key": "scope:s_…",
+      "scope_keys": ["scope:s_…"],
       "evidence_handle": { "kind": "entity", "repo_id": "up-1", "entity_id": "up-1", "evidence_family": "repository" }
     }
   ],
@@ -133,8 +135,8 @@ truncation and notes that it is a bounded subset of an already-bounded response.
 | `view` | The derived-view family: `service_story`, `evidence_citation`, `incident_context`, or `unsupported`. |
 | `title` | Short human-readable subject for the subgraph. Optional. |
 | `supported` | `false` when no subgraph could be derived; the packet then carries `limitations` and `recommended_next_calls` instead of nodes/edges. |
-| `nodes` | Bounded, deterministically ordered nodes. Each has a stable `id`, a `type`, a `label`, optional `category` and source-proven `role`, optional privacy-safe repository `canonical_key` / observation `scope_key`, an optional `truth_label`, the compatibility `evidence_handle`, and optional `evidence_handles` preserving every reconciled observation. |
-| `edges` | Bounded, deterministically ordered edges. Each has a stable `id`, `source`/`target` node IDs, a `relationship` label, an optional `truth_label`, and an optional `evidence_handle`. |
+| `nodes` | Bounded, deterministically ordered nodes. Each has a stable `id`, a `type`, a `label`, optional `category` and deterministic primary `role`, optional `roles` preserving every source-proven role, optional privacy-safe repository `canonical_key`, compatibility `scope_key`, and `scope_keys` preserving every reconciled observation scope, an optional `truth_label`, the compatibility `evidence_handle`, and optional `evidence_handles` preserving every reconciled observation. |
+| `edges` | Bounded, deterministically ordered edges. Each has a stable `id`, `source`/`target` node IDs, a `relationship` label, a strongest-supported deterministic `truth_label`, the compatibility `evidence_handle`, and optional `evidence_handles` preserving every collapsed relationship handle. |
 | `truth` | A copy of the source response's `TruthEnvelope`. Canonical truth metadata for the subgraph. |
 | `limits` | Payload bounds (`max_nodes`, `max_edges`), the `ordering` contract (`stable_id`), and the retained `node_count`/`edge_count`. |
 | `truncation` | What was dropped to stay within bounds: `truncated`, `dropped_node_count`, `dropped_edge_count`, `dropped_node_ids`. |
@@ -152,8 +154,11 @@ truncation and notes that it is a bounded subset of an already-bounded response.
   only when the source provides the same privacy-safe `canonical_key`; labels
   never establish identity. Without canonical evidence, distinct observations
   retain privacy-safe `scope_key` disambiguation. A reconciled node carries all
-  observation handles in `evidence_handles` so the collapsed provenance remains
-  inspectable. Each node also carries an `evidence_handle` in the
+  source-proven roles in `roles`, all privacy-safe observation scopes in
+  `scope_keys`, and all observation handles in `evidence_handles`, so the
+  collapsed semantics and provenance remain inspectable. Canonically collapsed
+  duplicate edges retain the strongest supported truth label independent of
+  input order. Each node also carries an `evidence_handle` in the
   `evidence_citation` handle shape so a rendered repository or service maps back
   to the citation that hydrates it. Relationship confidence in the source row is
   folded into a truth label using the existing `exact`/`derived`/`fallback`

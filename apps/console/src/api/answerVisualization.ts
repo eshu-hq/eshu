@@ -97,7 +97,9 @@ export interface VisualizationNode {
   readonly id: string;
   readonly label: string;
   readonly role: string;
+  readonly roles: readonly string[];
   readonly scopeKey: string;
+  readonly scopeKeys: readonly string[];
   readonly truthLabel: string;
   readonly type: string;
 }
@@ -110,13 +112,16 @@ export interface VisualizationNodeWire {
   readonly id?: string;
   readonly label?: string;
   readonly role?: string;
+  readonly roles?: readonly string[];
   readonly scope_key?: string;
+  readonly scope_keys?: readonly string[];
   readonly truth_label?: string;
   readonly type?: string;
 }
 
 export interface VisualizationEdge {
   readonly evidenceHandle: AnswerEvidenceHandle | null;
+  readonly evidenceHandles: readonly AnswerEvidenceHandle[];
   readonly id: string;
   readonly relationship: string;
   readonly source: string;
@@ -126,6 +131,7 @@ export interface VisualizationEdge {
 
 export interface VisualizationEdgeWire {
   readonly evidence_handle?: AnswerEvidenceHandleWire;
+  readonly evidence_handles?: readonly AnswerEvidenceHandleWire[];
   readonly id?: string;
   readonly relationship?: string;
   readonly source?: string;
@@ -171,6 +177,7 @@ export function normalizeVisualizationPacket(
   return {
     edges: (packet.edges ?? []).map((edge) => ({
       evidenceHandle: handleRow(edge.evidence_handle),
+      evidenceHandles: handleRows(edge.evidence_handles),
       id: clean(edge.id),
       relationship: clean(edge.relationship),
       source: clean(edge.source),
@@ -189,7 +196,9 @@ export function normalizeVisualizationPacket(
       id: clean(node.id),
       label: clean(node.label),
       role: clean(node.role),
+      roles: cleanValues(node.roles, node.role),
       scopeKey: clean(node.scope_key),
+      scopeKeys: cleanValues(node.scope_keys, node.scope_key),
       truthLabel: clean(node.truth_label),
       type: clean(node.type),
     })),
@@ -277,6 +286,20 @@ function handleRow(handle: AnswerEvidenceHandleWire | undefined): AnswerEvidence
     repoId,
     startLine: handle.start_line,
   };
+}
+
+function handleRows(
+  handles: readonly AnswerEvidenceHandleWire[] | undefined,
+): readonly AnswerEvidenceHandle[] {
+  return (handles ?? [])
+    .map((handle) => handleRow(handle))
+    .filter((handle): handle is AnswerEvidenceHandle => handle !== null);
+}
+
+function cleanValues(values: readonly string[] | undefined, compatibilityValue?: string): string[] {
+  return [compatibilityValue, ...(values ?? [])]
+    .map((value) => clean(value))
+    .filter((value, index, all) => value.length > 0 && all.indexOf(value) === index);
 }
 
 function nextCalls(calls: readonly AnswerNextCallWire[]): readonly AnswerNextCall[] {

@@ -18,7 +18,9 @@ function node(
     id,
     label,
     role,
+    roles: [role],
     scopeKey: id,
+    scopeKeys: [id],
     truthLabel: "exact",
     type: "repository",
     ...overrides,
@@ -32,6 +34,7 @@ function edge(
 ): VisualizationEdge {
   return {
     evidenceHandle: null,
+    evidenceHandles: [],
     id: `vizedge:${relationship}`,
     relationship,
     source,

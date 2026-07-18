@@ -243,6 +243,24 @@ describe("ServiceEvidenceGraphPage", () => {
     expect(screen.getByText(/bounded subset/)).toBeInTheDocument();
   });
 
+  it("does not invent zero drop counts for an already-truncated source story", async () => {
+    const truncated = supportedPacket({
+      truncation: {
+        truncated: true,
+        dropped_node_count: 0,
+        dropped_edge_count: 0,
+      },
+      limitations: [
+        "source story response was already truncated; visualized subgraph is a bounded subset",
+      ],
+    });
+    const { client } = clientFor(deriveEnvelope(truncated));
+    renderAt("/service-story/payments", client);
+
+    expect(await screen.findByText(/Source story was already truncated/i)).toBeInTheDocument();
+    expect(screen.queryByText(/0 nodes and 0 edges dropped/i)).not.toBeInTheDocument();
+  });
+
   it("keeps truncation visible even when every node was dropped", async () => {
     const allDropped = {
       view: "service_story",

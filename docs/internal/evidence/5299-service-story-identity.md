@@ -54,12 +54,24 @@ capacity reservation and generic sorting:
 
 ## Correctness and operator proof
 
-No-Regression Evidence: `go test ./internal/query ./internal/mcp -count=1`, the
-full query-package coverage run, and 20 race-instrumented allocation-guard runs
-pass. The console's 30 focused Service Story tests, TypeScript typecheck,
-production build, bundle-budget assertions, strict MkDocs build, and
-`git diff --check` pass. The output-preserving allocation and sort changes keep
-the existing response assertions and deterministic-order tests green.
+No-Regression Evidence: `go test ./internal/query ./internal/mcp
+./cmd/golden-corpus-gate -count=1`, the full query-package coverage run, and 20
+race-instrumented allocation-guard runs pass. A failing-then-green canonical
+collapse regression now reverses duplicate-node and duplicate-edge input and
+proves identical output: all observed roles, scope keys, and evidence handles
+survive, while the primary presentation fields and strongest exact edge truth
+remain deterministic. Separate regressions prove that known source edge drops
+are added to the packet's truncation count and that an already-truncated source
+with unknown counts never invents a misleading zero-drop claim.
+
+The console's 41 focused Service Story tests and the complete 1,439-test suite
+pass, along with TypeScript typecheck, production build, bundle-budget
+assertions, the 85-scenario mock browser suite, the accessibility gate (zero
+critical or serious violations), ESLint, strict MkDocs build, and
+`git diff --check`. The generated Go coverage report was refreshed from a full
+repository run and its 23 generator-contract tests pass. The output-preserving
+allocation and sort changes keep the existing response assertions and
+deterministic-order tests green.
 
 Authenticated retained-browser proof shows exactly one hero node labeled
 `api-node-boats` with role `workload service`; the source repository remains a

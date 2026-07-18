@@ -174,9 +174,11 @@ describe("serviceStoryGraph", () => {
               id: "viznode:config",
               type: "repository",
               label: "iac-eks-argocd",
-              category: "deployment",
-              role: "deployment_configuration",
+              category: "source",
+              role: "source_repository",
+              roles: ["source_repository", "deployment_configuration"],
               scope_key: "scope:s_a",
+              scope_keys: ["scope:s_a", "scope:s_b"],
             },
             {
               id: "viznode:runtime",
@@ -207,7 +209,8 @@ describe("serviceStoryGraph", () => {
       "source repository",
     );
     const configSub = graph.nodes.find((node) => node.id === "viznode:config")?.sub ?? "";
-    expect(configSub).toContain("observation s_a");
+    expect(configSub).toContain("source repository + deployment configuration repository");
+    expect(configSub).toContain("observations s_a, s_b");
     expect(configSub).not.toContain("scope:");
 
     const orderedIds = [...graph.nodes]

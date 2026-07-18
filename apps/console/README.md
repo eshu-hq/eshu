@@ -394,9 +394,12 @@ graph. It is purely source-backed:
 - Repository observations reconcile only through the packet's privacy-safe
   canonical repository key, never by label. When canonical identity is absent,
   role and hashed scope disambiguation remain visible. Reconciled observations
-  retain all evidence handles in the inline evidence panel.
+  retain every role, hashed scope, and evidence handle in the inline evidence
+  panel; the graph uses the deterministic highest-priority role for layout.
 - Relationship rows lead with human endpoint labels, roles, and a readable verb; opaque `viznode:*` endpoint IDs remain secondary diagnostic detail.
-- `limits` and `truncation` stay visible: a truncated subgraph shows dropped node/edge counts so a bounded subset is never read as the full picture.
+- `limits` and `truncation` stay visible: a truncated subgraph shows known
+  dropped node/edge counts, and uses a count-free bounded-subset message when
+  the source did not expose exact counts.
 - Empty, unsupported, partial, and error states are first-class UI. The page
   never renders a stale graph when the story or derive route fails.
 - Selecting a node or an evidence-lane relationship pill opens the shared inline

@@ -3316,8 +3316,10 @@
         ],
         "required_json_paths": [
           "visualization_packet.nodes[].role",
+          "visualization_packet.nodes[].roles[]",
           "visualization_packet.nodes[].canonical_key",
           "visualization_packet.nodes[].scope_key",
+          "visualization_packet.nodes[].scope_keys[]",
           "visualization_packet.nodes[].evidence_handles[]"
         ],
         "minimum_results": 0,
@@ -3338,8 +3340,14 @@
                   "kind": "repository",
                   "category": "deployment",
                   "role": "deployment_configuration",
+                  "roles": [
+                    "deployment_configuration"
+                  ],
                   "canonical_key": "repository:r_argocd",
-                  "scope_key": "scope:s_a"
+                  "scope_key": "scope:s_a",
+                  "scope_keys": [
+                    "scope:s_a"
+                  ]
                 },
                 {
                   "id": "repository:argocd-observation-b",
@@ -3348,8 +3356,14 @@
                   "kind": "repository",
                   "category": "deployment",
                   "role": "deployment_configuration",
+                  "roles": [
+                    "deployment_configuration"
+                  ],
                   "canonical_key": "repository:r_argocd",
-                  "scope_key": "scope:s_b"
+                  "scope_key": "scope:s_b",
+                  "scope_keys": [
+                    "scope:s_b"
+                  ]
                 }
               ],
               "edges": []

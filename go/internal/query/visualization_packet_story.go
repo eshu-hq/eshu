@@ -43,6 +43,9 @@ func BuildServiceStoryVisualizationPacket(response map[string]any, truth *TruthE
 	packet := builder.finalize()
 	if BoolVal(evidenceGraph, "truncated") || serviceStoryDownstreamTruncated(downstream) {
 		packet.Truncation.Truncated = true
+		if sourceEdgeCount := IntVal(evidenceGraph, "edge_count"); sourceEdgeCount > len(mapSliceValue(evidenceGraph, "edges")) {
+			packet.Truncation.DroppedEdgeCount += sourceEdgeCount - len(mapSliceValue(evidenceGraph, "edges"))
+		}
 		packet.Limitations = appendReason(packet.Limitations,
 			"source story response was already truncated; visualized subgraph is a bounded subset")
 	}

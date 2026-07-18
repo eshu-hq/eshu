@@ -128,7 +128,7 @@ export function serviceStoryGraph(packet: VisualizationPacket | null): GraphMode
       id: node.id,
       kind: KIND_ALIASES[node.type] ?? node.type ?? "repo",
       label: node.label || node.id,
-      sub: nodeSubLabel(node.role, node.scopeKey, node.category || node.type),
+      sub: nodeSubLabel(node.roles, node.scopeKeys, node.category || node.type),
       truth: node.truthLabel.length > 0 ? uiTruth(node.truthLabel) : undefined,
     }));
   const nodeIds = new Set(nodes.map((node) => node.id));
@@ -145,11 +145,20 @@ export function serviceStoryGraph(packet: VisualizationPacket | null): GraphMode
   return { edges, nodes };
 }
 
-function nodeSubLabel(role: string, scopeKey: string, fallback: string): string {
-  const parts = [(ROLE_LABEL[role] ?? role.replaceAll("_", " ")) || fallback];
-  if (scopeKey.length > 0) {
-    const observation = scopeKey.startsWith("scope:") ? scopeKey.slice("scope:".length) : scopeKey;
-    parts.push(`observation ${observation}`);
+function nodeSubLabel(
+  roles: readonly string[],
+  scopeKeys: readonly string[],
+  fallback: string,
+): string {
+  const roleLabels = roles.map((role) => ROLE_LABEL[role] ?? role.replaceAll("_", " "));
+  const parts = [roleLabels.filter((role) => role.length > 0).join(" + ") || fallback];
+  if (scopeKeys.length > 0) {
+    const observations = scopeKeys.map((scopeKey) =>
+      scopeKey.startsWith("scope:") ? scopeKey.slice("scope:".length) : scopeKey,
+    );
+    parts.push(
+      `${observations.length === 1 ? "observation" : "observations"} ${observations.join(", ")}`,
+    );
   }
   return parts.filter((part) => part.length > 0).join(" · ");
 }

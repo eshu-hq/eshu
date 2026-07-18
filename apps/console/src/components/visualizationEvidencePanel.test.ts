@@ -20,10 +20,12 @@ function packetFrom(): VisualizationPacket {
             id: "viznode:up-1",
             type: "repository",
             label: "billing",
-            category: "upstream",
-            role: "deployment_configuration",
+            category: "source",
+            role: "source_repository",
+            roles: ["source_repository", "deployment_configuration"],
             canonical_key: "repository:r_billing",
             scope_key: "scope:s_primary",
+            scope_keys: ["scope:s_primary", "scope:s_secondary"],
             truth_label: "fallback",
             evidence_handle: {
               kind: "file",
@@ -94,11 +96,19 @@ describe("visualizationEvidencePanelData", () => {
     expect(data?.title).toBe("billing");
     expect(data?.truthLabel).toBe("fallback");
     expect(data?.facts).toContainEqual({ label: "Type", value: "repository" });
-    expect(data?.facts).toContainEqual({ label: "Category", value: "upstream" });
-    expect(data?.facts).toContainEqual({ label: "Role", value: "deployment_configuration" });
+    expect(data?.facts).toContainEqual({ label: "Category", value: "source" });
+    expect(data?.facts).toContainEqual({ label: "Role", value: "source_repository" });
+    expect(data?.facts).toContainEqual({
+      label: "All roles",
+      value: "source_repository, deployment_configuration",
+    });
     expect(data?.facts).toContainEqual({
       label: "Canonical repository",
       value: "repository:r_billing",
+    });
+    expect(data?.facts).toContainEqual({
+      label: "All observation scopes",
+      value: "scope:s_primary, scope:s_secondary",
     });
     expect(data?.sourceHref).toBe("/repositories/up-1/source?path=go.mod&lineStart=12");
     expect(data?.limitations).toContain("bounded subset");

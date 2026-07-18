@@ -72,6 +72,10 @@ type VisualizationNode struct {
 	// service story. It keeps a workload anchor distinct from source-code,
 	// deployment-configuration, runtime, and downstream repository nodes.
 	Role string `json:"role,omitempty"`
+	// Roles preserves every source-proven role when canonical repository
+	// observations reconcile to one node. Role remains the deterministic primary
+	// role used by compatibility clients and layout.
+	Roles []string `json:"roles,omitempty"`
 	// CanonicalKey is a privacy-safe repository identity supplied by the source
 	// evidence. Repository observations are reconciled only when this key is
 	// non-empty and equal; display labels are never identity.
@@ -80,6 +84,10 @@ type VisualizationNode struct {
 	// visible when canonical identity is unavailable so equal labels are not
 	// presented as unexplained duplicates.
 	ScopeKey string `json:"scope_key,omitempty"`
+	// ScopeKeys preserves every privacy-safe observation scope represented by a
+	// reconciled repository node. ScopeKey remains the deterministic first value
+	// for compatibility clients.
+	ScopeKeys []string `json:"scope_keys,omitempty"`
 	// TruthLabel is an optional per-node truth label, carried straight from the
 	// source response (for example an incident evidence-path truth label). It is
 	// never synthesized here.
@@ -114,6 +122,9 @@ type VisualizationEdge struct {
 	// EvidenceHandle is an optional reference back to an evidence_citation
 	// handle for the relationship, when the source response carried one.
 	EvidenceHandle *evidenceCitationHandle `json:"evidence_handle,omitempty"`
+	// EvidenceHandles preserves every supported relationship handle when
+	// canonical endpoint reconciliation collapses duplicate evidence edges.
+	EvidenceHandles []evidenceCitationHandle `json:"evidence_handles,omitempty"`
 }
 
 // VisualizationLimits states the payload bounds and observed counts for a
@@ -207,14 +218,24 @@ func newVisualizationBuilder(view VisualizationView, title string) *visualizatio
 	}
 }
 
-// addNode records a node under its stable ID. The first record for an ID wins;
-// later duplicates with the same ID are ignored so dedup is deterministic and
-// independent of input order.
+// addNode records a node under its stable ID. Duplicate canonical observations
+// merge semantic fields and provenance deterministically so input order cannot
+// change the rendered role, scope, label, truth, or evidence handles.
 func (b *visualizationBuilder) addNode(node VisualizationNode) {
 	if node.ID == "" {
 		return
 	}
+	node = normalizeVisualizationNode(node)
 	if existing, exists := b.nodes[node.ID]; exists {
+		existing = mergeVisualizationNodePresentation(existing, node)
+		existing.Roles = mergeVisualizationRoles(existing.Roles, node.Roles)
+		existing.Role = primaryVisualizationRole(existing.Roles)
+		if category := visualizationCategoryForRole(existing.Role); category != "" {
+			existing.Category = category
+		}
+		existing.ScopeKeys = mergeVisualizationStrings(existing.ScopeKeys, node.ScopeKeys)
+		existing.ScopeKey = firstVisualizationString(existing.ScopeKeys)
+		existing.TruthLabel = strongerVisualizationTruthLabel(existing.TruthLabel, node.TruthLabel)
 		existing.EvidenceHandles = mergeVisualizationEvidenceHandles(
 			existing.EvidenceHandles,
 			node.EvidenceHandles,
@@ -235,52 +256,31 @@ func (b *visualizationBuilder) addNode(node VisualizationNode) {
 	b.nodeKeys = append(b.nodeKeys, node.ID)
 }
 
-func mergeVisualizationEvidenceHandles(
-	left []evidenceCitationHandle,
-	right []evidenceCitationHandle,
-	extra ...*evidenceCitationHandle,
-) []evidenceCitationHandle {
-	merged := make(map[evidenceCitationHandleKey]evidenceCitationHandle, len(left)+len(right)+len(extra))
-	for _, handle := range append(append([]evidenceCitationHandle{}, left...), right...) {
-		merged[handle.evidenceCitationHandleKey()] = handle
-	}
-	for _, handle := range extra {
-		if handle != nil {
-			merged[handle.evidenceCitationHandleKey()] = *handle
-		}
-	}
-	result := make([]evidenceCitationHandle, 0, len(merged))
-	for _, handle := range merged {
-		result = append(result, handle)
-	}
-	sort.Slice(result, func(i, j int) bool {
-		return visualizationEvidenceHandleSortKey(result[i]) < visualizationEvidenceHandleSortKey(result[j])
-	})
-	return result
-}
-
-func visualizationEvidenceHandleSortKey(handle evidenceCitationHandle) string {
-	return strings.Join([]string{
-		handle.Kind,
-		handle.RepoID,
-		handle.RelativePath,
-		handle.EntityID,
-		handle.EvidenceFamily,
-		handle.Reason,
-		fmt.Sprint(handle.StartLine),
-		fmt.Sprint(handle.EndLine),
-	}, "\x00")
-}
-
 // addEdge records an edge under its stable ID. Endpoints with empty IDs are
-// rejected so an edge never dangles. The first record for an ID wins.
+// rejected so an edge never dangles. Duplicate canonical edges retain the
+// strongest supported truth label and every evidence handle deterministically.
 func (b *visualizationBuilder) addEdge(edge VisualizationEdge) {
 	if edge.Source == "" || edge.Target == "" {
 		return
 	}
 	edge.ID = visualizationEdgeID(edge.Source, edge.Target, edge.Relationship)
-	if _, exists := b.edges[edge.ID]; exists {
+	if existing, exists := b.edges[edge.ID]; exists {
+		existing.TruthLabel = strongerVisualizationTruthLabel(existing.TruthLabel, edge.TruthLabel)
+		existing.EvidenceHandles = mergeVisualizationEvidenceHandles(
+			existing.EvidenceHandles,
+			edge.EvidenceHandles,
+			existing.EvidenceHandle,
+			edge.EvidenceHandle,
+		)
+		if len(existing.EvidenceHandles) > 0 {
+			existing.EvidenceHandle = &existing.EvidenceHandles[0]
+		}
+		b.edges[edge.ID] = existing
 		return
+	}
+	if len(edge.EvidenceHandles) > 0 || edge.EvidenceHandle != nil {
+		edge.EvidenceHandles = mergeVisualizationEvidenceHandles(edge.EvidenceHandles, nil, edge.EvidenceHandle)
+		edge.EvidenceHandle = &edge.EvidenceHandles[0]
 	}
 	b.edges[edge.ID] = edge
 	b.edgeKeys = append(b.edgeKeys, edge.ID)

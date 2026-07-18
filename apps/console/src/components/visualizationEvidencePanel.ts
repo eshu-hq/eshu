@@ -26,8 +26,10 @@ export function visualizationEvidencePanelData(
       { label: "Type", value: node.type },
       { label: "Category", value: node.category },
       { label: "Role", value: node.role },
+      { label: "All roles", value: node.roles.join(", ") },
       { label: "Canonical repository", value: node.canonicalKey },
       { label: "Observation scope", value: node.scopeKey },
+      { label: "All observation scopes", value: node.scopeKeys.join(", ") },
     ];
     return {
       kindLabel: "Node evidence",
@@ -57,7 +59,10 @@ export function visualizationEvidencePanelData(
     truthLabel: edge.truthLabel,
     truth: packet.truth,
     facts,
-    sections: handleSections(edge.evidenceHandle),
+    sections: [
+      ...handleSections(edge.evidenceHandle),
+      ...observationHandleSections(edge.evidenceHandles),
+    ],
     limitations: packet.limitations,
     ...sourceLinkFields(edge.evidenceHandle),
   };
