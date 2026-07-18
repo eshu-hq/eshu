@@ -114,7 +114,7 @@ export const secondaryConsoleRoutes: readonly ConsoleRoute[] = [
     workflow: {
       id: "vulnerabilities-live-tabs",
       kind: "tabs",
-      proveVulnerabilityServiceTruth: true,
+      proveVulnerabilityLandingTruth: true,
       tabs: [
         {
           name: "Reachable in services",

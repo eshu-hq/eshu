@@ -162,7 +162,7 @@ describe("consoleRoutes catalog", () => {
     const unownedTabs = workflow.tabs.flatMap((tab, index) => {
       const responseCount =
         (tab.requiredResponses?.length ?? 0) + (tab.requiredBootstrapResponses?.length ?? 0);
-      const hasSpecializedComparator = index === 0 && workflow.proveVulnerabilityServiceTruth;
+      const hasSpecializedComparator = index === 0 && workflow.proveVulnerabilityLandingTruth;
       if (responseCount > 0 || tab.nonNetworkAuthority || hasSpecializedComparator) return [];
       return [tab.name];
     });

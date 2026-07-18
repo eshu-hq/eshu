@@ -26,7 +26,8 @@ import {
   type IndexedRepositoryInventoryAnchor,
 } from "./askExactCountWorkflowProbe.ts";
 import {
-  proveVulnerabilityServiceTruth,
+  proveVulnerabilityLandingTruth,
+  type LoadAdvisoryCatalog,
   type LoadImpactFindings,
 } from "./vulnerabilityRouteWorkflowProbe.ts";
 import { executeStateWorkflow } from "./routeStateWorkflowProbe.ts";
@@ -196,6 +197,7 @@ async function executeTabsWorkflow(
   network: readonly NetworkObservation[],
   bootstrapNetwork: readonly NetworkObservation[],
   loadImpactFindings?: LoadImpactFindings,
+  loadAdvisoryCatalog?: LoadAdvisoryCatalog,
 ): Promise<RouteWorkflowObservation> {
   const shapes: WorkflowDataShapeObservation[] = [];
   const requests: WorkflowRequestObservation[] = [];
@@ -222,13 +224,17 @@ async function executeTabsWorkflow(
     }
     const forbidden = await forbiddenState(page, tab);
     if (forbidden) return failed(workflow.id, `${tab.name}: ${forbidden}`, shapes);
-    if (tabIndex === 0 && workflow.proveVulnerabilityServiceTruth) {
-      if (!loadImpactFindings) {
-        return failed(workflow.id, "vulnerability service truth loader is unavailable", shapes);
+    if (tabIndex === 0 && workflow.proveVulnerabilityLandingTruth) {
+      if (!loadImpactFindings || !loadAdvisoryCatalog) {
+        return failed(workflow.id, "vulnerability landing truth loaders are unavailable", shapes);
       }
-      const serviceTruth = await proveVulnerabilityServiceTruth(page, loadImpactFindings);
-      if (!serviceTruth.ok) return failed(workflow.id, serviceTruth.detail, shapes);
-      serviceTruthDetail = `; service truth: ${serviceTruth.detail}`;
+      const landingTruth = await proveVulnerabilityLandingTruth(
+        page,
+        loadImpactFindings,
+        loadAdvisoryCatalog,
+      );
+      if (!landingTruth.ok) return failed(workflow.id, landingTruth.detail, shapes);
+      serviceTruthDetail = `; landing truth: ${landingTruth.detail}`;
     }
   }
   if (!workflow.followLink) {
@@ -297,6 +303,7 @@ export async function executeRouteWorkflow(
   bootstrapNetwork: readonly NetworkObservation[] = [],
   loadImpactFindings?: LoadImpactFindings,
   indexedRepositoryInventory: IndexedRepositoryInventoryAnchor | null = null,
+  loadAdvisoryCatalog?: LoadAdvisoryCatalog,
 ): Promise<RouteWorkflowObservation> {
   try {
     const ownership =
@@ -335,6 +342,7 @@ export async function executeRouteWorkflow(
           network,
           bootstrapNetwork,
           loadImpactFindings,
+          loadAdvisoryCatalog,
         );
         break;
       case "repositoryDetails":

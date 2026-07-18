@@ -3,7 +3,7 @@
 // Rows are source intelligence (not service reachability) and link to the
 // existing CVE detail page. Seeds from the snapshot's first page, then paginates,
 // filters, and refreshes live through the catalog client.
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 
 import type { EshuApiClient } from "../api/client";
@@ -50,6 +50,25 @@ export function AdvisoryCatalog({
   const provenance = model.provenance.advisories ?? (model.source === "demo" ? "demo" : "loading");
   const filtersActive = applied !== EMPTY_FILTERS;
 
+  useEffect(() => {
+    // A source swap or refreshed snapshot is an authoritative ownership
+    // boundary. Reset local browse state and fence requests from the prior
+    // source so retained rows cannot bleed into demo or a newer connection.
+    requestGeneration.current += 1;
+    setRows(model.advisories.slice());
+    setCursor(model.advisoryCatalogNextCursor);
+    setHasMore(model.advisoryCatalogSummary?.truncated === true);
+    setDraft(EMPTY_FILTERS);
+    setApplied(EMPTY_FILTERS);
+    setLoading(false);
+    setError(null);
+  }, [
+    model.source,
+    model.advisories,
+    model.advisoryCatalogNextCursor,
+    model.advisoryCatalogSummary,
+  ]);
+
   async function load(
     next: Filters,
     append: boolean,
@@ -62,6 +81,11 @@ export function AdvisoryCatalog({
     const generation = ++requestGeneration.current;
     setLoading(true);
     setError(null);
+    if (!append) {
+      setRows([]);
+      setCursor(null);
+      setHasMore(false);
+    }
     try {
       const page = await fetchAdvisoryCatalogPage(client, {
         limit: PAGE_SIZE,

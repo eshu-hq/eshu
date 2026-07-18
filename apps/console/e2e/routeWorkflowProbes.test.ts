@@ -226,10 +226,28 @@ describe("executeRouteWorkflow", () => {
       ),
     });
     const notProven = locatorStub();
+    const reachableSummary = locatorStub({
+      getAttribute: vi.fn(async (name: string) => (name === "data-count" ? "0" : null)),
+      textContent: vi.fn().mockResolvedValue("0 affected services proven"),
+    });
+    const catalogSummary = locatorStub({
+      getAttribute: vi.fn(async (name: string) => {
+        if (name === "data-count") return "1";
+        if (name === "data-truncated") return "false";
+        return null;
+      }),
+      textContent: vi
+        .fn()
+        .mockResolvedValue(
+          "1 known advisories Catalog intelligence only; reachability is not implied.",
+        ),
+    });
     const page = {
       locator: vi.fn((selector: string) => {
         if (selector === "[data-vulnerability-finding-id]") return findingRow;
         if (selector === '[data-service-truth="not-proven"]') return notProven;
+        if (selector === '[data-vulnerability-view="reachable"]') return reachableSummary;
+        if (selector === '[data-vulnerability-view="catalog"]') return catalogSummary;
         return locatorStub();
       }),
       getByRole: vi.fn((_role: string, options: { name: string }) =>
@@ -244,13 +262,21 @@ describe("executeRouteWorkflow", () => {
             : [],
       },
     }));
+    const loadAdvisories = vi.fn(async () => ({
+      data: {
+        advisories: [{ advisory_key: "CVE-2026-0001" }],
+        count: 1,
+        limit: 50,
+        truncated: false,
+      },
+    }));
 
     const result = await executeRouteWorkflow(
       page,
       {
         id: "vulnerability-tabs",
         kind: "tabs",
-        proveVulnerabilityServiceTruth: true,
+        proveVulnerabilityLandingTruth: true,
         tabs: [
           { name: "Reachable in services", outcomeSelector: ".supply-chain-register-grid" },
           {
@@ -263,11 +289,14 @@ describe("executeRouteWorkflow", () => {
       [],
       [],
       loadFindings,
+      null,
+      loadAdvisories,
     );
 
     expect(result.passed).toBe(true);
-    expect(result.detail).toContain("service truth");
+    expect(result.detail).toContain("landing truth");
     expect(loadFindings).toHaveBeenCalledTimes(2);
+    expect(loadAdvisories).toHaveBeenCalledOnce();
     expect(catalogTab.click).toHaveBeenCalledOnce();
   });
 

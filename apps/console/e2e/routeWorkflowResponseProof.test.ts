@@ -77,7 +77,7 @@ describe("executeRouteWorkflow response proof", () => {
     } as unknown as Page;
     const tabOwnershipWorkflow = {
       ...workflow,
-      proveVulnerabilityServiceTruth: false,
+      proveVulnerabilityLandingTruth: false,
       followLink: undefined,
     };
 
