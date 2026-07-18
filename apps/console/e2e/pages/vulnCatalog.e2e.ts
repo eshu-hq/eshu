@@ -11,6 +11,10 @@ export const pageTest: PageTest = {
       state: "visible",
       timeout: 10000,
     });
+    await page.getByRole("link", { name: "GHSA-xxxx-xxxx-xxxx" }).waitFor({
+      state: "visible",
+      timeout: 10000,
+    });
 
     const unavailable = page.getByText("The vulnerability-intelligence catalog is unavailable", {
       exact: false,
