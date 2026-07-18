@@ -56,7 +56,7 @@ func TestBuildCandidateOrphanNodesQueryUsesStaticLabelNoRelationshipPredicate(t 
 	for _, label := range DefaultOrphanSweepLabels() {
 		t.Run(string(label), func(t *testing.T) {
 			t.Parallel()
-			stmt, ok := BuildCandidateOrphanNodesQuery(label, 25)
+			stmt, ok := BuildCandidateOrphanNodesQuery(label, 25, "")
 			if !ok {
 				t.Fatalf("BuildCandidateOrphanNodesQuery(%s) ok = false, want true", label)
 			}
@@ -96,7 +96,7 @@ func TestBuildCandidateOrphanNodesQueryUsesPerLabelIdentityKey(t *testing.T) {
 		{OrphanSweepLabelDirectory, "path"},
 		{OrphanSweepLabelModule, "name"},
 	} {
-		stmt, ok := BuildCandidateOrphanNodesQuery(tc.label, 10)
+		stmt, ok := BuildCandidateOrphanNodesQuery(tc.label, 10, "")
 		if !ok {
 			t.Fatalf("BuildCandidateOrphanNodesQuery(%s) ok = false", tc.label)
 		}
@@ -110,7 +110,7 @@ func TestBuildCandidateOrphanNodesQueryUsesPerLabelIdentityKey(t *testing.T) {
 func TestRepositoryCandidateQueryExcludesSourceLocalCanonicalRepositories(t *testing.T) {
 	t.Parallel()
 
-	stmt, ok := BuildCandidateOrphanNodesQuery(OrphanSweepLabelRepository, 10)
+	stmt, ok := BuildCandidateOrphanNodesQuery(OrphanSweepLabelRepository, 10, "")
 	if !ok {
 		t.Fatal("BuildCandidateOrphanNodesQuery() ok = false, want true")
 	}
@@ -126,7 +126,7 @@ func TestRepositoryCandidateQueryExcludesSourceLocalCanonicalRepositories(t *tes
 		OrphanSweepLabelDirectory,
 		OrphanSweepLabelModule,
 	} {
-		stmt, ok := BuildCandidateOrphanNodesQuery(label, 10)
+		stmt, ok := BuildCandidateOrphanNodesQuery(label, 10, "")
 		if !ok {
 			t.Fatalf("BuildCandidateOrphanNodesQuery(%s) ok = false", label)
 		}
@@ -211,7 +211,7 @@ func TestBuildClearMarkSweepStatementsAreKeyAnchoredNoRelationshipPredicate(t *t
 				t.Fatalf("observed_at_unix = %#v, want int64 timestamp", got)
 			}
 
-			sweepStmt, ok := BuildSweepOrphanNodesStatement(label, keys)
+			sweepStmt, ok := BuildSweepOrphanNodesStatement(label, keys, 0)
 			if !ok {
 				t.Fatalf("BuildSweepOrphanNodesStatement(%s) ok = false", label)
 			}
@@ -236,7 +236,7 @@ func TestBuildOrphanSweepStatementsRejectUnknownLabels(t *testing.T) {
 	t.Parallel()
 
 	unknown := OrphanSweepLabel("DynamicLabel")
-	if _, ok := BuildCandidateOrphanNodesQuery(unknown, 1); ok {
+	if _, ok := BuildCandidateOrphanNodesQuery(unknown, 1, ""); ok {
 		t.Fatal("BuildCandidateOrphanNodesQuery() ok = true, want false for unknown label")
 	}
 	if _, ok := BuildConnectedKeysQuery(unknown, []string{"a"}); ok {
@@ -248,7 +248,7 @@ func TestBuildOrphanSweepStatementsRejectUnknownLabels(t *testing.T) {
 	if _, ok := BuildMarkOrphanNodesStatement(unknown, []string{"a"}, 1); ok {
 		t.Fatal("BuildMarkOrphanNodesStatement() ok = true, want false for unknown label")
 	}
-	if _, ok := BuildSweepOrphanNodesStatement(unknown, []string{"a"}); ok {
+	if _, ok := BuildSweepOrphanNodesStatement(unknown, []string{"a"}, 0); ok {
 		t.Fatal("BuildSweepOrphanNodesStatement() ok = true, want false for unknown label")
 	}
 }

@@ -74,7 +74,7 @@ func TestReadCandidateOrphanNodesRejectsUnexpectedKeyType(t *testing.T) {
 
 	reader := stubOrphanReader{rows: []map[string]any{{"key": 42, "observed_at": nil}}}
 	store := &OrphanSweepStore{Reader: reader}
-	if _, err := store.readCandidateOrphanNodes(context.Background(), OrphanSweepLabelFile, 10); err == nil {
+	if _, err := store.readCandidateOrphanNodes(context.Background(), OrphanSweepLabelFile, 10, ""); err == nil {
 		t.Fatal("readCandidateOrphanNodes() error = nil, want error for non-string key")
 	}
 }
@@ -84,7 +84,7 @@ func TestReadCandidateOrphanNodesPropagatesReaderError(t *testing.T) {
 
 	reader := stubOrphanReader{err: errStubOrphanReader}
 	store := &OrphanSweepStore{Reader: reader}
-	if _, err := store.readCandidateOrphanNodes(context.Background(), OrphanSweepLabelFile, 10); err == nil {
+	if _, err := store.readCandidateOrphanNodes(context.Background(), OrphanSweepLabelFile, 10, ""); err == nil {
 		t.Fatal("readCandidateOrphanNodes() error = nil, want propagated reader error")
 	}
 }

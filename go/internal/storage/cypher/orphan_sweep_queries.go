@@ -30,7 +30,7 @@ type orphanSweepCandidate struct {
 // resolved separately by BuildConnectedKeysQuery. The LIMIT bounds how many
 // candidates one cycle considers -- a label with more matching nodes than
 // limit converges over multiple cycles rather than in one pass.
-func BuildCandidateOrphanNodesQuery(label OrphanSweepLabel, limit int) (Statement, bool) {
+func BuildCandidateOrphanNodesQuery(label OrphanSweepLabel, limit int, cursor string) (Statement, bool) {
 	match, ok := orphanLabelMatch(label)
 	if !ok {
 		return Statement{}, false
@@ -39,14 +39,24 @@ func BuildCandidateOrphanNodesQuery(label OrphanSweepLabel, limit int) (Statemen
 	if !ok {
 		return Statement{}, false
 	}
+	// ORDER BY the identity key and take only keys strictly greater than the
+	// caller's cursor so a label with more matching nodes than limit is paged
+	// deterministically across cycles instead of re-reading the same arbitrary
+	// window. This guarantees forward progress past a window that happens to be
+	// entirely connected: the cursor advances every cycle regardless of orphan
+	// state, and orphan_sweep.go wraps the cursor back to "" once a short page
+	// signals the end of the label.
 	return Statement{
 		Operation: OperationCanonicalRetract,
 		Cypher: fmt.Sprintf(`MATCH (n:%s)
 WHERE %s
+  AND n.%s > $cursor
 RETURN n.%s AS key, n.eshu_orphan_observed_at_unix AS observed_at
-LIMIT $limit`, match, orphanSweepEvidencePredicate(label), key),
+ORDER BY n.%s
+LIMIT $limit`, match, orphanSweepNodeGuard(label), key, key, key),
 		Parameters: map[string]any{
-			"limit": normalizePositiveInt(limit, defaultOrphanSweepCountLimit),
+			"limit":  normalizePositiveInt(limit, defaultOrphanSweepCountLimit),
+			"cursor": cursor,
 		},
 	}, true
 }
@@ -71,11 +81,19 @@ func BuildConnectedKeysQuery(label OrphanSweepLabel, keys []string) (Statement, 
 	if !ok {
 		return Statement{}, false
 	}
+	// For a label whose identity key is not unique across node classes (Module:
+	// name is shared between canonical imports and semantic entities), restrict
+	// the connectivity check to the class this sweep owns, so a connected
+	// same-name node of the OTHER class does not mask a true orphan.
+	classWhere := ""
+	if class := orphanSweepClassPredicate(label); class != "" {
+		classWhere = "\nWHERE " + class
+	}
 	return Statement{
 		Operation: OperationCanonicalRetract,
 		Cypher: fmt.Sprintf(`UNWIND $keys AS candidate_key
-MATCH (n:%s {%s: candidate_key})-[r]-(m)
-RETURN DISTINCT n.%s AS key`, match, key, key),
+MATCH (n:%s {%s: candidate_key})-[r]-(m)%s
+RETURN DISTINCT n.%s AS key`, match, key, classWhere, key),
 		Parameters: map[string]any{
 			"keys": keys,
 		},
@@ -88,8 +106,9 @@ func (s *OrphanSweepStore) readCandidateOrphanNodes(
 	ctx context.Context,
 	label OrphanSweepLabel,
 	limit int,
+	cursor string,
 ) ([]orphanSweepCandidate, error) {
-	stmt, ok := BuildCandidateOrphanNodesQuery(label, limit)
+	stmt, ok := BuildCandidateOrphanNodesQuery(label, limit, cursor)
 	if !ok {
 		return nil, fmt.Errorf("unsupported orphan sweep label %q", label)
 	}

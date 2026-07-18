@@ -114,14 +114,19 @@ func (g *fakeOrphanGraph) Run(_ context.Context, cypher string, params map[strin
 		return rows, nil
 	}
 
-	// S1: candidates read.
+	// S1: candidates read. Honors the paging cursor (n.<key> > $cursor) and the
+	// ORDER BY <key> LIMIT the real query uses, so the cursor advancement is
+	// exercised faithfully.
 	limit := 1 << 30
 	if v, ok := params["limit"].(int); ok && v > 0 {
 		limit = v
 	}
+	cursor, _ := params["cursor"].(string)
 	keys := make([]string, 0, len(nodes))
 	for k := range nodes {
-		keys = append(keys, k)
+		if k > cursor {
+			keys = append(keys, k)
+		}
 	}
 	sort.Strings(keys)
 	rows := make([]map[string]any, 0, len(keys))

@@ -61,7 +61,13 @@ anti-join between two bounded reads per label:
 - **S1 candidates** (`BuildCandidateOrphanNodesQuery`): every node matching
   `evidence_source IS NOT NULL` (plus the Repository-only exclusion below),
   with its identity key and current `eshu_orphan_observed_at_unix` marker.
-  Contains no relationship clause at all.
+  Contains no relationship clause at all. The read is `ORDER BY` the identity
+  key and takes only keys `> $cursor`, and the store advances a process-local
+  per-label cursor every cycle, so a label with more nodes than the count limit
+  is paged deterministically across cycles. This guarantees forward progress
+  past a candidate window that happens to be entirely connected (the cursor
+  wraps back to the label start once a short page signals the end) instead of
+  re-reading the same window and never discovering orphans beyond it.
 - **S2 connected keys** (`BuildConnectedKeysQuery`): `UNWIND $keys AS
   candidate_key MATCH (n:Label {key: candidate_key})-[r]-(m) RETURN DISTINCT
   n.key AS key` -- the only relationship primitive proven reliable on both
@@ -89,14 +95,24 @@ for marked orphans aged past the TTL cutoff, capped at the batch limit).
 Immediately before sweep, the store re-runs the S2 read restricted to the
 keys about to be deleted and drops any that reconnected between the
 top-of-cycle read and the delete (a TOCTOU guard against a concurrent
-projector). The per-label identity key mirrors the canonical writers' MERGE
-identity: `id` for Repository/Platform/EvidenceArtifact, `path` for
-File/Directory, `name` for Module. Repository's S1 read also excludes
+projector). Each clear/mark/sweep write **re-applies** the same
+evidence/ownership guard (and the appropriate marker/age predicate) that S1
+used, rather than matching on label+key alone: a key whose ownership changed
+between the read and the write -- for example a `Repository {id}` re-created by
+canonical projection as `evidence_source='projector/canonical'` in the window
+before its relationships attach -- is then skipped by the write, not deleted.
+
+The per-label identity key mirrors the canonical writers' MERGE identity:
+`id` for Repository/Platform/EvidenceArtifact, `path` for File/Directory,
+`name` for Module. Repository's reads and writes exclude
 `evidence_source='projector/canonical'` so active source-local repository
-nodes remain owned by the canonical writer even when a repository has no
-graph relationships yet; no other label carries that exclusion, and the
-downstream clear/mark/sweep writes don't need it either since they only ever
-act on keys S1 already filtered.
+nodes remain owned by the canonical writer even when a repository has no graph
+relationships yet. `Module.name` is not unique across node classes (canonical
+imported modules are MERGEd on `{name}` with no `uid`; semantic module entities
+are MERGEd on `{uid}` and also carry a name), so the Module sweep -- which owns
+only the canonical imports -- additionally restricts S1, S2, and its writes to
+`n.uid IS NULL`; without this a connected same-name semantic module would mask
+a canonical orphan and the writes would target the semantic node too.
 
 The steady no-orphan state (a label whose S1 candidates are all connected,
 none marked) issues exactly two reads (S1, S2) and zero writes; a label with

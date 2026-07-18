@@ -255,3 +255,39 @@ fields are unchanged in shape -- the gauge's *values* now reflect real orphan
 counts (previously always 0) rather than the metric contract itself changing.
 No metric name, span, log field, queue stage, worker knob, or status field
 was added, removed, or renamed.
+
+## Review fixes (#5313 code review, three P1s)
+
+1. **Module key is not unique.** `Module.name` collides across node classes
+   (canonical imports MERGE `{name}` with no `uid`; semantic entities MERGE
+   `{uid}` and also set a name). S1, S2, and the writes for Module now restrict
+   to `n.uid IS NULL`, so a connected same-name semantic module cannot mask a
+   canonical orphan and the writes never target the semantic node.
+   `TestModuleAntiJoinRestrictsToCanonicalImportClass` asserts the predicate;
+   `TestLiveOrphanAntiJoinModuleClassRestriction` proves it live on both pinned
+   backends (canonical `{name}` orphan deleted, connected same-name `{uid}`
+   semantic module preserved).
+2. **Write-time ownership/marker recheck.** The clear/mark/sweep writes matched
+   only label+key, so a `Repository {id}` re-created by canonical projection as
+   `evidence_source='projector/canonical'` between the S1 read and the sweep
+   could be deleted. Each write now re-applies the evidence/ownership guard plus
+   the marker/age predicate. `TestOrphanSweepWritesReapplyOwnershipAndMarkerGuard`
+   asserts every write carries the guard.
+3. **Forward-progress guarantee.** S1's `LIMIT` was applied before connectivity
+   with no ordering, so a window that happened to be entirely connected reported
+   zero orphans and the next cycle re-read the same rows. S1 is now `ORDER BY`
+   the identity key with `n.key > $cursor`, and the store advances a
+   process-local per-label cursor every cycle (wrapping at the end), so orphans
+   beyond an all-connected window are reached.
+   `TestOrphanSweepPagesPastAllConnectedWindow` proves a first all-connected
+   window is paged past so the orphans behind it are marked on the next cycle.
+
+No-Regression Evidence: the live discriminating regression still passes on both
+pinned backends after all three fixes (orphan deleted, connected preserved,
+relinked marker cleared), and the new Cypher shapes (ORDER BY, `> $cursor`, the
+re-applied write guards, and the S2 class predicate) were confirmed to evaluate
+correctly on NornicDB v1.1.11 and PR261.
+
+No-Observability-Change: the cursor is in-memory process-local state; no new
+metric, span, log field, queue stage, or schema. The mark/clear/sweep operation
+summaries and the `eshu_dp_graph_orphan_nodes` gauge are unchanged.

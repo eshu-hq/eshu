@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"sync"
 	"time"
 )
 
@@ -105,6 +106,17 @@ type OrphanSweepStore struct {
 	CountLimit int
 	Labels     []OrphanSweepLabel
 	Now        func() time.Time
+
+	// cursors holds the last identity key each label's S1 candidate read
+	// reached, so successive cycles page deterministically through a label with
+	// more matching nodes than CountLimit instead of re-reading the same window.
+	// It is process-local: the reducer reuses one OrphanSweepStore across all
+	// cycles (guarded by the graph_orphan_sweep single-partition lease, so calls
+	// are serial), and a restart resets to the label start, which harmlessly
+	// re-scans from the beginning. The mutex keeps it safe if a store is ever
+	// shared across goroutines.
+	cursorMu sync.Mutex
+	cursors  map[OrphanSweepLabel]string
 }
 
 // NewOrphanSweepStore returns a graph orphan sweep store.
@@ -181,14 +193,12 @@ func (s *OrphanSweepStore) runOrphanSweepCycle(
 
 	// S1: candidates are every node this label's sweep is allowed to touch,
 	// regardless of relationship state. No relationship predicate appears
-	// here; connectivity is resolved entirely by S2 below.
-	candidates, err := s.readCandidateOrphanNodes(ctx, label, policy.CountLimit)
+	// here; connectivity is resolved entirely by S2 below. The read pages past
+	// the label's cursor and is ORDER BY the identity key, so a label with more
+	// nodes than CountLimit is covered deterministically across cycles.
+	candidates, err := s.readCandidateOrphanNodes(ctx, label, policy.CountLimit, s.candidateCursor(label))
 	if err != nil {
 		return out, err
-	}
-	if len(candidates) == 0 {
-		out.skipped = 3
-		return out, nil
 	}
 
 	candidateKeys := make([]string, 0, len(candidates))
@@ -196,6 +206,15 @@ func (s *OrphanSweepStore) runOrphanSweepCycle(
 		candidateKeys = append(candidateKeys, c.key)
 	}
 	sort.Strings(candidateKeys)
+	// Advance the cursor before any early return so an all-connected window
+	// still makes forward progress next cycle rather than re-reading the same
+	// rows. An empty window wraps the cursor to the label start.
+	s.advanceCursor(label, candidateKeys, policy.CountLimit)
+
+	if len(candidates) == 0 {
+		out.skipped = 3
+		return out, nil
+	}
 
 	// S2: the only relationship primitive proven reliable on both pinned
 	// NornicDB backends -- a concrete relationship-variable MATCH anchored on
@@ -279,7 +298,7 @@ func (s *OrphanSweepStore) runOrphanSweepCycle(
 		return out, nil
 	}
 
-	stmt, _ := BuildSweepOrphanNodesStatement(label, finalSweep)
+	stmt, _ := BuildSweepOrphanNodesStatement(label, finalSweep, cutoffUnix)
 	if err := s.Executor.Execute(ctx, stmt); err != nil {
 		return out, fmt.Errorf("sweep orphan nodes for %s: %w", label, err)
 	}
@@ -303,7 +322,10 @@ func (s *OrphanSweepStore) GraphOrphanNodeCounts(ctx context.Context) (map[strin
 	}
 	counts := make(map[string]int64, len(labels))
 	for _, label := range labels {
-		candidates, err := s.readCandidateOrphanNodes(ctx, label, limit)
+		// GraphOrphanNodeCounts is a read-only gauge, not the paging sweep, so
+		// it always reads the first bounded window (cursor "") rather than
+		// advancing the sweep's cursor.
+		candidates, err := s.readCandidateOrphanNodes(ctx, label, limit, "")
 		if err != nil {
 			return nil, err
 		}

@@ -27,7 +27,9 @@ func BuildClearOrphanMarkerStatement(label OrphanSweepLabel, keys []string) (Sta
 		Operation: OperationCanonicalRetract,
 		Cypher: fmt.Sprintf(`UNWIND $keys AS candidate_key
 MATCH (n:%s {%s: candidate_key})
-REMOVE n.eshu_orphan_observed_at_unix`, match, key),
+WHERE %s
+  AND n.eshu_orphan_observed_at_unix IS NOT NULL
+REMOVE n.eshu_orphan_observed_at_unix`, match, key, orphanSweepNodeGuard(label)),
 		Parameters: map[string]any{
 			"keys": keys,
 		},
@@ -51,7 +53,9 @@ func BuildMarkOrphanNodesStatement(label OrphanSweepLabel, keys []string, observ
 		Operation: OperationCanonicalRetract,
 		Cypher: fmt.Sprintf(`UNWIND $keys AS candidate_key
 MATCH (n:%s {%s: candidate_key})
-SET n.eshu_orphan_observed_at_unix = $observed_at_unix`, match, key),
+WHERE %s
+  AND n.eshu_orphan_observed_at_unix IS NULL
+SET n.eshu_orphan_observed_at_unix = $observed_at_unix`, match, key, orphanSweepNodeGuard(label)),
 		Parameters: map[string]any{
 			"keys":             keys,
 			"observed_at_unix": observedAtUnix,
@@ -60,10 +64,13 @@ SET n.eshu_orphan_observed_at_unix = $observed_at_unix`, match, key),
 }
 
 // BuildSweepOrphanNodesStatement builds the S5 write: deletes every supplied
-// key without DETACH DELETE. Callers must only pass keys already known to be
-// orphaned, marked, aged past the TTL cutoff, and re-verified connected by
-// the TOCTOU guard immediately before this statement is issued.
-func BuildSweepOrphanNodesStatement(label OrphanSweepLabel, keys []string) (Statement, bool) {
+// key without DETACH DELETE. Callers pass keys already known to be orphaned,
+// marked, aged past the TTL cutoff, and re-verified disconnected by the TOCTOU
+// guard immediately before this statement is issued. The write re-applies the
+// ownership/class guard and the marker+age predicate so a key that changed
+// ownership (e.g. re-created by canonical projection) or lost its marker
+// between the read and this delete is skipped, not deleted.
+func BuildSweepOrphanNodesStatement(label OrphanSweepLabel, keys []string, cutoffUnix int64) (Statement, bool) {
 	match, ok := orphanLabelMatch(label)
 	if !ok {
 		return Statement{}, false
@@ -76,9 +83,13 @@ func BuildSweepOrphanNodesStatement(label OrphanSweepLabel, keys []string) (Stat
 		Operation: OperationCanonicalRetract,
 		Cypher: fmt.Sprintf(`UNWIND $keys AS candidate_key
 MATCH (n:%s {%s: candidate_key})
-DELETE n`, match, key),
+WHERE %s
+  AND n.eshu_orphan_observed_at_unix IS NOT NULL
+  AND n.eshu_orphan_observed_at_unix <= $cutoff_unix
+DELETE n`, match, key, orphanSweepNodeGuard(label)),
 		Parameters: map[string]any{
-			"keys": keys,
+			"keys":        keys,
+			"cutoff_unix": cutoffUnix,
 		},
 	}, true
 }
