@@ -40,7 +40,7 @@ func TestSemanticDeltaRetractRoutesThroughAutocommitExecute(t *testing.T) {
 	t.Parallel()
 
 	rec := &dispatchRouteRecorder{}
-	w := NewSemanticEntityWriterWithCanonicalNodeRows(rec, 500).WithLabelScopedRetract()
+	w := NewSemanticEntityWriterWithCanonicalNodeRows(rec, 500).WithLabelScopedRetract().WithSequentialRetract()
 	if _, err := w.WriteSemanticEntities(context.Background(), reducer.SemanticEntityWrite{
 		RepoIDs: []string{"repo-1"}, DeltaProjection: true, DeltaFilePaths: []string{"pkg/config.py"},
 	}); err != nil {
@@ -64,7 +64,7 @@ func TestSemanticFullRetractRoutesThroughAutocommitExecute(t *testing.T) {
 	t.Parallel()
 
 	rec := &dispatchRouteRecorder{}
-	w := NewSemanticEntityWriterWithCanonicalNodeRows(rec, 500).WithLabelScopedRetract()
+	w := NewSemanticEntityWriterWithCanonicalNodeRows(rec, 500).WithLabelScopedRetract().WithSequentialRetract()
 	if _, err := w.WriteSemanticEntities(context.Background(), reducer.SemanticEntityWrite{
 		RepoIDs: []string{"repo-1"},
 	}); err != nil {
@@ -86,7 +86,7 @@ func TestSemanticWriteWithRetractSplitsDispatch(t *testing.T) {
 	t.Parallel()
 
 	rec := &dispatchRouteRecorder{}
-	w := NewSemanticEntityWriterWithCanonicalNodeRows(rec, 500).WithLabelScopedRetract()
+	w := NewSemanticEntityWriterWithCanonicalNodeRows(rec, 500).WithLabelScopedRetract().WithSequentialRetract()
 	if _, err := w.WriteSemanticEntities(context.Background(), reducer.SemanticEntityWrite{
 		RepoIDs:         []string{"repo-1"},
 		Rows:            []reducer.SemanticEntityRow{semanticRetractRow()},
@@ -103,5 +103,33 @@ func TestSemanticWriteWithRetractSplitsDispatch(t *testing.T) {
 	}
 	if len(rec.groupCyphers) == 0 {
 		t.Fatal("write+retract: MERGE upserts must still batch through ExecuteGroup (0 grouped stmts)")
+	}
+}
+
+// TestSemanticDefaultRetractGroupsAtomicallyWithUpserts proves the DEFAULT
+// (no WithSequentialRetract, i.e. the Neo4j path) keeps retract and upsert in a
+// single grouped transaction so they commit or roll back atomically. Splitting
+// retracts onto autocommit Execute unconditionally would regress Neo4j, where
+// grouped DELETEs apply correctly and the atomic retract+upsert guarantee must
+// hold; the sequential split is reserved for NornicDB via WithSequentialRetract.
+func TestSemanticDefaultRetractGroupsAtomicallyWithUpserts(t *testing.T) {
+	t.Parallel()
+
+	rec := &dispatchRouteRecorder{}
+	// No WithSequentialRetract: the default, group-capable (Neo4j) dispatch.
+	w := NewSemanticEntityWriterWithCanonicalNodeRows(rec, 500).WithLabelScopedRetract()
+	if _, err := w.WriteSemanticEntities(context.Background(), reducer.SemanticEntityWrite{
+		RepoIDs:         []string{"repo-1"},
+		Rows:            []reducer.SemanticEntityRow{semanticRetractRow()},
+		DeltaProjection: true,
+		DeltaFilePaths:  []string{"pkg/config.py"},
+	}); err != nil {
+		t.Fatalf("default write+retract error = %v, want nil", err)
+	}
+	if len(rec.executeCyphers) != 0 {
+		t.Fatalf("default path routed %d statement(s) through autocommit Execute, want 0 — retract and upsert must stay in one atomic grouped transaction on Neo4j", len(rec.executeCyphers))
+	}
+	if !cyphersContainDelete(rec.groupCyphers) {
+		t.Fatal("default path: the retract DELETE must be inside the grouped transaction (atomic with upserts)")
 	}
 }
