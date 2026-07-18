@@ -1,5 +1,6 @@
 import type { FormEvent } from "react";
 
+import { hasAnchor } from "./replatformingPageModel";
 import type { ReplatformingScopeKind } from "../api/replatforming";
 import type { ReplatformingSelectorInventory } from "../api/replatformingSelectors";
 
@@ -42,12 +43,7 @@ export function ReplatformingFilters({
       .filter((scope) => form.accountId === "" || scope.accountId === form.accountId)
       .map((scope) => scope.region),
   );
-  const canSubmit =
-    form.scopeKind === "service"
-      ? form.scopeId.trim() !== ""
-      : form.scopeKind === "region"
-        ? form.accountId.trim() !== "" && form.region.trim() !== ""
-        : form.accountId.trim() !== "";
+  const canSubmit = hasAnchor(form);
 
   function change(patch: Partial<ReplatformingFormState>): void {
     onChange({ ...form, ...patch });

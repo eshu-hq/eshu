@@ -6,6 +6,7 @@ package query
 import (
 	"fmt"
 	"net/http"
+	"regexp"
 	"strconv"
 
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -22,6 +23,10 @@ var replatformingFindingKinds = []string{
 	findingKindUnmanagedCloudResource,
 	findingKindUnknownCloudResource,
 }
+
+var replatformingAWSSelectorScopeIDPattern = regexp.MustCompile(
+	`^aws:[0-9]{12}:[a-z0-9-]+:[a-z0-9-]+$`,
+)
 
 // handleReplatformingSelectors returns active AWS collector scopes that can
 // safely anchor the existing bounded plan routes. Scoped callers see only
@@ -69,7 +74,7 @@ func (h *IaCHandler) handleReplatformingSelectors(w http.ResponseWriter, r *http
 		return
 	}
 	access := repositoryAccessFilterFromContext(r.Context())
-	allowedScopeIDs := access.grantedScopeIDs()
+	allowedScopeIDs := replatformingAWSSelectorScopeIDs(access.grantedScopeIDs())
 	if access.scoped() && len(allowedScopeIDs) == 0 {
 		WriteSuccess(w, r, http.StatusOK, replatformingSelectorScopedEmptyResponse(limit), BuildTruthEnvelope(
 			h.profile(),
@@ -159,10 +164,23 @@ func replatformingSelectorResponse(page ReplatformingSelectorPage, limit int) ma
 
 func replatformingSelectorLabel(scope ReplatformingSelectorScope) string {
 	accountSuffix := scope.AccountID
+	if accountSuffix == "" {
+		return fmt.Sprintf("%s in %s (account unknown)", scope.Service, scope.Region)
+	}
 	if len(accountSuffix) > 4 {
 		accountSuffix = accountSuffix[len(accountSuffix)-4:]
 	}
 	return fmt.Sprintf("%s in %s (account ...%s)", scope.Service, scope.Region, accountSuffix)
+}
+
+func replatformingAWSSelectorScopeIDs(scopeIDs []string) []string {
+	awsScopeIDs := make([]string, 0, len(scopeIDs))
+	for _, scopeID := range scopeIDs {
+		if replatformingAWSSelectorScopeIDPattern.MatchString(scopeID) {
+			awsScopeIDs = append(awsScopeIDs, scopeID)
+		}
+	}
+	return awsScopeIDs
 }
 
 func replatformingSelectorReadiness(scopes []map[string]any) map[string]any {

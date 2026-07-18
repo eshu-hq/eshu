@@ -138,7 +138,7 @@ func TestReplatformingSelectorsHandlerPassesScopedAWSGrantsToStore(t *testing.T)
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/replatforming/selectors", nil)
 	req = req.WithContext(ContextWithAuthContext(req.Context(), AuthContext{
 		Mode:                 AuthModeScoped,
-		AllowedScopeIDs:      []string{"aws:123456789012:us-east-1:lambda", "aws:210987654321:us-west-2:s3"},
+		AllowedScopeIDs:      []string{"git-repository-scope:example", "aws:123456789012:us-east-1:lambda", "aws:invalid", "aws:210987654321:us-west-2:s3"},
 		AllowedRepositoryIDs: []string{"repository:r_example"},
 	}))
 	recorder := httptest.NewRecorder()
@@ -153,6 +153,51 @@ func TestReplatformingSelectorsHandlerPassesScopedAWSGrantsToStore(t *testing.T)
 		"aws:210987654321:us-west-2:s3",
 	}; !equalStringSlices(got, want) {
 		t.Fatalf("allowed scope ids = %#v, want %#v", got, want)
+	}
+}
+
+func TestReplatformingSelectorsHandlerRejectsScopedNonAWSGrantsWithoutStoreRead(t *testing.T) {
+	t.Parallel()
+
+	store := &fakeReplatformingSelectorStore{}
+	handler := &IaCHandler{Management: store, Profile: ProfileLocalAuthoritative}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/replatforming/selectors", nil)
+	req = req.WithContext(ContextWithAuthContext(req.Context(), AuthContext{
+		Mode:            AuthModeScoped,
+		AllowedScopeIDs: []string{"git-repository-scope:example", "aws:not-a-collector-scope"},
+	}))
+	req.Header.Set("Accept", EnvelopeMIMEType)
+	recorder := httptest.NewRecorder()
+
+	mux.ServeHTTP(recorder, req)
+
+	if got, want := recorder.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, recorder.Body.String())
+	}
+	if got := store.selectorCalls; got != 0 {
+		t.Fatalf("selector store calls = %d, want 0 for non-AWS scope grants", got)
+	}
+	var envelope ResponseEnvelope
+	if err := json.Unmarshal(recorder.Body.Bytes(), &envelope); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v, want nil", err)
+	}
+	data := envelope.Data.(map[string]any)
+	if got, want := data["readiness"].(map[string]any)["state"], "no_authorized_scopes"; got != want {
+		t.Fatalf("readiness.state = %#v, want %#v", got, want)
+	}
+}
+
+func TestReplatformingSelectorLabelHandlesMissingAccountID(t *testing.T) {
+	t.Parallel()
+
+	got := replatformingSelectorLabel(ReplatformingSelectorScope{
+		Region:  "us-east-1",
+		Service: "lambda",
+	})
+	if want := "lambda in us-east-1 (account unknown)"; got != want {
+		t.Fatalf("replatformingSelectorLabel() = %q, want %q", got, want)
 	}
 }
 

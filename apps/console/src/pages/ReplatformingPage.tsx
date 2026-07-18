@@ -138,7 +138,7 @@ export function ReplatformingPage({
   }
 
   function setPageOffset(offset: number): void {
-    const next = { ...form, offset: String(offset) };
+    const next = { ...formFromSearch(searchParams), offset: String(offset) };
     setForm(next);
     setSearchParams(searchFromForm(next));
   }
@@ -149,8 +149,9 @@ export function ReplatformingPage({
   const stats = useMemo(() => statRows(rollups, plan, ownership), [rollups, plan, ownership]);
   const nonGoals = plan?.nonGoals.length ? plan.nonGoals : staticNonGoals;
   const statusMessage = inventoryStatus(inventory, inventoryLoading, review, busy);
-  const currentOffset = optionalNumber(form.offset) ?? 0;
-  const pageLimit = optionalNumber(form.limit) ?? 100;
+  const submittedForm = formFromSearch(searchParams);
+  const currentOffset = optionalNumber(submittedForm.offset) ?? 0;
+  const pageLimit = optionalNumber(submittedForm.limit) ?? 100;
   const nextOffset = nextReviewOffset(review, currentOffset, pageLimit);
 
   return (
