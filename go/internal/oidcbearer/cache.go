@@ -130,10 +130,33 @@ func (c *cache) rebuild(ctx context.Context) {
 		return
 	}
 
+	// Fail closed on a duplicate issuer. Provider-config uniqueness is scoped
+	// to tenant/kind/key, not issuer, so two active providers in different
+	// tenants may legitimately share one issuer URL (two tenants on the same
+	// corporate Okta org, say). A token is routed to its provider by the `iss`
+	// claim alone — nothing in a standard access token names the Eshu tenant —
+	// so if one issuer were owned by more than one provider, the last row
+	// processed here would silently win and every token from that IdP would be
+	// authenticated against that row's TenantID/WorkspaceID/grants, i.e. against
+	// another tenant's mapping. Since no claim can disambiguate the tenant,
+	// any issuer claimed by more than one active provider is dropped from the
+	// snapshot entirely: a token for it is denied as an unknown issuer rather
+	// than mis-routed, until an operator resolves the ambiguity.
+	issuerProviderCount := make(map[string]int, len(providers))
+	for _, provider := range providers {
+		issuerProviderCount[provider.IssuerURL]++
+	}
+
 	prev := c.ptr.Load()
 	byIssuer := make(map[string]*bearerEntry, len(providers))
 	byProviderConfigID := make(map[string]*bearerEntry, len(providers))
 	for _, provider := range providers {
+		if issuerProviderCount[provider.IssuerURL] > 1 {
+			c.logWarn("oidc bearer provider shares its issuer with another active provider; excluded from bearer validation (fail closed) until the ambiguity is resolved",
+				"provider_config_id", provider.ProviderConfigID,
+				"sharing_provider_count", issuerProviderCount[provider.IssuerURL])
+			continue
+		}
 		entry := c.buildEntry(ctx, prev, provider)
 		if entry == nil {
 			continue

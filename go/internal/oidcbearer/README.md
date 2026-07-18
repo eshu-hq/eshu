@@ -118,6 +118,28 @@ all — `NewResolver` returns `ErrAudienceRequired` for an empty audience by
 design, so wiring treats "unset" as "build nothing," not "build one that
 always errors."
 
+Provider listing is all-or-nothing. `ComposeProviderSources` joins the
+env-file source and the DB-backed source, and if either one fails to list, the
+whole refresh fails. On a running process that is harmless: the rebuild keeps
+the previous snapshot and retries on the next TTL tick, so a transient DB blip
+never drops live bearer auth. At process startup, `NewResolver`'s first
+synchronous rebuild must succeed, which means every configured source has to be
+reachable — including Postgres — even for an env-file-only provider set. That
+matches the rest of Eshu, which already requires Postgres for the whole query
+layer, so a deployment whose DB is down at startup cannot serve reads anyway.
+The compose is deliberately not best-effort: silently serving a partial
+provider set would let a DB-backed tenant's tokens fail closed without any
+signal that the DB source was skipped.
+
+Two active providers must not share an issuer URL. Provider-config uniqueness
+is scoped to tenant/kind/key, so a shared issuer (two tenants on one corporate
+IdP) is a valid config, but a token carries no claim that names the Eshu
+tenant, so its issuer alone cannot pick between the colliding providers. The
+cache drops any issuer claimed by more than one active provider and logs a
+warning; a token for it is denied as an unknown issuer until an operator
+resolves the ambiguity, rather than being bound to whichever provider row
+happened to be processed last.
+
 ## Tests
 
 - `resolver_test.go` (and siblings): valid-audience acceptance; wrong

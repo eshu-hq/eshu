@@ -75,11 +75,17 @@ type multiProviderSource struct {
 }
 
 // ComposeProviderSources returns one ProviderSource that concatenates every
-// non-nil source's active providers. When two sources both return an entry
-// for the same IssuerURL, the later source's entry wins the routing table
-// (see cache.go's rebuild): callers should order sources so a DB-backed
-// provider does not silently shadow an env-file provider of the same issuer,
-// or vice versa, without an explicit choice.
+// non-nil source's active providers. If two providers (from the same source or
+// different ones) end up claiming the same IssuerURL, neither one wins: the
+// cache rebuild drops that issuer from the routing table entirely and fails
+// closed, because routing a token by its issuer alone cannot decide which of
+// the colliding providers (and therefore which tenant) it belongs to. See
+// cache.go's rebuild for the duplicate-issuer handling.
+//
+// The compose is all-or-nothing: if any source's listing fails, the whole
+// listing fails and (on a running process) the previous snapshot is preserved.
+// This is intentional and consistent with Eshu's hard Postgres dependency —
+// see the README's activation section.
 func ComposeProviderSources(sources ...ProviderSource) ProviderSource {
 	nonNil := make([]ProviderSource, 0, len(sources))
 	for _, s := range sources {

@@ -196,3 +196,107 @@ func TestNewResolverRejectsMissingDependencies(t *testing.T) {
 		t.Fatalf("NewResolver() error = %v, want ErrAudienceRequired", err)
 	}
 }
+
+// TestCacheFailsClosedOnDuplicateIssuer proves that when two active providers
+// (two tenants sharing one corporate IdP, say) claim the same issuer URL, the
+// cache excludes that issuer from the snapshot entirely instead of letting the
+// last-processed row silently own it. Provider-config uniqueness is scoped to
+// tenant/kind/key, not issuer, so this collision is a legitimate config state,
+// and a token routed by `iss` alone cannot say which tenant it belongs to.
+// Picking either row would authenticate the caller against that row's
+// TenantID/WorkspaceID/grants — a cross-tenant escalation. Fail closed: a valid
+// token from the shared issuer is denied as an unknown issuer, never resolved.
+func TestCacheFailsClosedOnDuplicateIssuer(t *testing.T) {
+	t.Parallel()
+	idp := newTestIdP(t)
+	calls := 0
+
+	tenantA := testProvider()
+	tenantB := testProvider()
+	tenantB.ProviderConfigID = "pc_tenant_b"
+	tenantB.TenantID = "tenant_b"
+	// tenantB deliberately keeps tenantA's IssuerURL (testIssuer): the shared
+	// corporate-IdP collision this test guards against. A third provider on its
+	// own distinct issuer keeps the snapshot non-empty, so the shared-issuer
+	// token exercises the explicit deny path (unknown issuer) rather than the
+	// zero-provider fall-through it would take if every provider were excluded.
+	const keeperIssuer = "https://unambiguous-idp.example.test"
+	keeper := testProvider()
+	keeper.ProviderConfigID = "pc_keeper"
+	keeper.IssuerURL = keeperIssuer
+	source := &fakeProviderSource{providers: []BearerProvider{tenantA, tenantB, keeper}}
+
+	resolver, err := NewResolver(context.Background(), Config{
+		Source:          source,
+		GrantResolver:   testGrantResolver(),
+		Audience:        testAudience,
+		VerifierFactory: idp.verifierFactory(&calls),
+		Now:             time.Now,
+	})
+	if err != nil {
+		t.Fatalf("NewResolver() error = %v", err)
+	}
+
+	snap := resolver.cache.ptr.Load()
+	if _, present := snap.byIssuer[testIssuer]; present {
+		t.Fatal("shared issuer present in the snapshot; want it dropped fail-closed")
+	}
+	if _, present := snap.byProviderConfigID[tenantA.ProviderConfigID]; present {
+		t.Fatal("tenantA retained despite sharing an ambiguous issuer; want it excluded")
+	}
+	if _, present := snap.byProviderConfigID[tenantB.ProviderConfigID]; present {
+		t.Fatal("tenantB retained despite sharing an ambiguous issuer; want it excluded")
+	}
+	if _, present := snap.byIssuer[keeperIssuer]; !present {
+		t.Fatal("unambiguous keeper issuer dropped; want it kept")
+	}
+
+	// A valid token from the ambiguous shared issuer must be actively denied,
+	// never bound to tenantA or tenantB.
+	token := idp.sign(t, defaultTokenClaims(testIssuer, testAudience), false)
+	auth, ok, resolveErr := resolver.ResolveScopedToken(context.Background(), token)
+	if ok {
+		t.Fatalf("ResolveScopedToken() resolved a token for an ambiguous shared issuer (to tenant %q); want denial", auth.TenantID)
+	}
+	if resolveErr == nil {
+		t.Fatal("ResolveScopedToken() for an ambiguous shared issuer = (false, nil) fall-through; want a deny error while other providers remain enabled")
+	}
+}
+
+// TestCacheKeepsDistinctIssuersWhenOneIsDuplicated proves the exclusion is
+// scoped to the offending issuer only: a third provider on its own distinct
+// issuer still resolves while the duplicated pair is dropped.
+func TestCacheKeepsDistinctIssuersWhenOneIsDuplicated(t *testing.T) {
+	t.Parallel()
+	idp := newTestIdP(t)
+	calls := 0
+
+	dupA := testProvider()
+	dupB := testProvider()
+	dupB.ProviderConfigID = "pc_dup_b"
+	dupB.TenantID = "tenant_b"
+	const altIssuer = "https://alt-idp.example.test"
+	distinct := testProvider()
+	distinct.ProviderConfigID = "pc_distinct"
+	distinct.IssuerURL = altIssuer
+
+	source := &fakeProviderSource{providers: []BearerProvider{dupA, dupB, distinct}}
+	resolver, err := NewResolver(context.Background(), Config{
+		Source:          source,
+		GrantResolver:   testGrantResolver(),
+		Audience:        testAudience,
+		VerifierFactory: idp.verifierFactory(&calls),
+		Now:             time.Now,
+	})
+	if err != nil {
+		t.Fatalf("NewResolver() error = %v", err)
+	}
+
+	snap := resolver.cache.ptr.Load()
+	if _, present := snap.byIssuer[testIssuer]; present {
+		t.Fatal("duplicated issuer present; want it dropped")
+	}
+	if _, present := snap.byIssuer[altIssuer]; !present {
+		t.Fatal("distinct issuer dropped; want it kept alongside the excluded duplicate")
+	}
+}
