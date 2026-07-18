@@ -133,9 +133,15 @@ func (w *SemanticEntityWriter) batchSizeForLabel(label string) int {
 }
 
 // WriteSemanticEntities retracts stale semantic nodes for the touched
-// repositories and upserts the current rows. When the executor supports
-// GroupExecutor, all statements run in a single atomic transaction so
-// concurrent workers never see partially retracted or partially written state.
+// repositories and upserts the current rows. Retract statements are dispatched
+// sequentially, each in its own autocommit transaction (grouped DETACH DELETEs
+// under-apply on the pinned NornicDB v1.1.11), so there is a brief window in
+// which retracts have committed but the upserts have not; a concurrent reader
+// may momentarily observe the retracted nodes as absent. When the executor
+// supports GroupExecutor the upserts run as one atomic grouped transaction. The
+// reducer requeues on error and the write is idempotent, so a retry converges;
+// the retract/upsert split is deliberate and bounded (retracts emit at most one
+// statement per semantic label).
 func (w *SemanticEntityWriter) WriteSemanticEntities(
 	ctx context.Context,
 	write reducer.SemanticEntityWrite,

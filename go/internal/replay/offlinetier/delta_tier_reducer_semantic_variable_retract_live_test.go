@@ -15,10 +15,13 @@
 // while a same-label Variable in another file survives — a genuine
 // create-then-delta-tombstone vehicle for the Variable label.
 //
-// The delta retract is dispatched through ExecuteGroup (one managed Bolt
-// transaction, one DETACH DELETE statement per semantic label). This is the
-// grouped-transaction retract shape the pinned NornicDB under-applies before
-// the #264/#4902 fixes, so this tier must run against a fixed backend.
+// The delta retract is dispatched sequentially through Execute (one autocommit
+// transaction per DETACH DELETE statement, one per semantic label), which is
+// what this PR's fix changed it to: grouped-transaction (ExecuteGroup) DETACH
+// DELETEs under-apply on the pinned NornicDB v1.1.11, silently leaving the
+// Variable node. This test is the failing-then-green regression for that fix —
+// it fails (Variable survives gen2, count=1) when the retract is dispatched
+// grouped and passes (count=0) once it is dispatched sequentially.
 //
 // Skills active: golang-engineering, eshu-golden-corpus-rigor,
 // cypher-query-rigor, concurrency-deadlock-rigor.
