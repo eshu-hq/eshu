@@ -52,12 +52,14 @@ describe("Graph Explorer deployment truth", () => {
       filePath: "applications/checkout/prod/kustomization.yaml",
       repoId: "repository:r_gitops",
     });
+    expect(node("repository:r_gitops")?.truth).toBe("exact");
     expect(edge("workload-instance:checkout-api:prod", "INSTANCE_OF")).toMatchObject({
       t: "workload:checkout-api",
     });
     const ecsEdge = edge("workload-instance:checkout-api:prod", "RUNS_ON");
     expect(ecsEdge?.t).toMatch(/^platform:/);
     expect(ecsEdge?.evidence).toContain("platform kind: ecs_service");
+    expect(ecsEdge?.evidence).toContain("reason: runtime placement");
     const kubernetesEdge = edge("workload-instance:checkout-api:staging", "RUNS_ON");
     expect(kubernetesEdge?.t).toMatch(/^platform:/);
     expect(kubernetesEdge?.evidence).toContain("platform kind: kubernetes");
@@ -156,6 +158,17 @@ describe("Graph Explorer deployment truth", () => {
     expect(staleTruthGraph.nodes.find((node) => node.id === "repository:r_gitops")?.sub).toContain(
       "stale",
     );
+
+    const staleTraceGraph = deploymentStoryToGraph(
+      { id: "workload:checkout-api", name: "checkout-api" },
+      "checkout-api",
+      retainedDeploymentTrace(),
+      { traceTruth: { ...exactTruth, freshness: { state: "stale" } } },
+    );
+    expect(staleTraceGraph.edges).toHaveLength(0);
+    expect(staleTraceGraph.nodes.map((node) => node.label)).toContain(
+      "6 stale deployment relationships not admitted",
+    );
   });
 
   it("shows missing environment honestly and exposes family-aware truncation", () => {
@@ -198,30 +211,31 @@ describe("Graph Explorer deployment truth", () => {
     expect(expanded.edges.length).toBeLessThanOrEqual(90);
   });
 
-  it("loads service context and deployment trace while preserving authorization failures", async () => {
-    const calls: string[] = [];
-    const client = {
-      get: async (path: string) => {
-        calls.push(path);
-        return { data: retainedServiceContext(), error: null, truth: exactTruth };
-      },
-      post: async (path: string) => {
-        calls.push(path);
-        if (path === "/api/v0/impact/trace-deployment-chain") {
-          throw new EshuApiHttpError(403);
-        }
-        throw new Error(`unexpected POST ${path}`);
-      },
-    } as unknown as EshuApiClient;
+  it.each([403, 404])(
+    "loads service context and preserves deployment-trace HTTP %i failures",
+    async (status) => {
+      const calls: string[] = [];
+      const client = {
+        get: async (path: string) => {
+          calls.push(path);
+          return { data: retainedServiceContext(), error: null, truth: exactTruth };
+        },
+        post: async (path: string) => {
+          calls.push(path);
+          if (path === "/api/v0/impact/trace-deployment-chain") {
+            throw new EshuApiHttpError(status);
+          }
+          throw new Error(`unexpected POST ${path}`);
+        },
+      } as unknown as EshuApiClient;
 
-    await expect(loadEntityStoryGraph(client, "checkout-api")).rejects.toMatchObject({
-      status: 403,
-    });
-    expect(calls).toEqual([
-      "/api/v0/services/checkout-api/context",
-      "/api/v0/impact/trace-deployment-chain",
-    ]);
-  });
+      await expect(loadEntityStoryGraph(client, "checkout-api")).rejects.toMatchObject({ status });
+      expect(calls).toEqual([
+        "/api/v0/services/checkout-api/context",
+        "/api/v0/impact/trace-deployment-chain",
+      ]);
+    },
+  );
 });
 
 function retainedServiceContext() {
@@ -231,8 +245,9 @@ function retainedServiceContext() {
       endpoints: Array.from({ length: 12 }, (_, index) => ({ path: `/v1/items/${index}` })),
     },
     deployment_evidence: {
-      artifact_count: 4,
+      artifact_count: 5,
       artifacts: [
+        deploymentArtifact(),
         deploymentArtifact(),
         deploymentArtifact({ evidence_kind: "ARGOCD_APPLICATION_REFERENCE" }),
         deploymentArtifact({
@@ -254,6 +269,10 @@ function retainedServiceContext() {
     instances: retainedDeploymentTrace().instances?.map((instance) => ({
       environment: instance.environment,
       instance_id: instance.instance_id,
+      platforms: instance.platforms?.map((platform) => ({
+        platform_kind: platform.platform_kind,
+        platform_name: platform.platform_name,
+      })),
     })),
     name: "checkout-api",
     repo_id: "repository:r_checkout",

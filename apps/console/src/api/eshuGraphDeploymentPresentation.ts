@@ -21,6 +21,8 @@ export function artifactAdmissionStatus(artifact: DeploymentArtifactRecord): str
 
 export function artifactEvidence(artifact: DeploymentArtifactRecord): readonly string[] {
   return compact([
+    cleanText(artifact.artifact_id) ? `artifact id: ${cleanText(artifact.artifact_id)}` : "",
+    cleanText(artifact.generation_id) ? `generation id: ${cleanText(artifact.generation_id)}` : "",
     cleanText(artifact.evidence_kind) ? `evidence kind: ${cleanText(artifact.evidence_kind)}` : "",
     cleanText(artifact.path) ? `path: ${cleanText(artifact.path)}` : "",
     cleanText(artifact.environment) ? `environment: ${cleanText(artifact.environment)}` : "",
@@ -28,7 +30,34 @@ export function artifactEvidence(artifact: DeploymentArtifactRecord): readonly s
       ? `confidence basis: ${cleanText(artifact.confidence_basis)}`
       : "",
     cleanText(artifact.resolved_id) ? `resolved id: ${cleanText(artifact.resolved_id)}` : "",
+    cleanText(artifact.extractor) ? `extractor: ${cleanText(artifact.extractor)}` : "",
+    cleanText(artifact.evidence_source)
+      ? `evidence source: ${cleanText(artifact.evidence_source)}`
+      : "",
+    sourceLineEvidence(artifact.start_line, artifact.end_line),
+    cleanText(artifact.commit_sha) ? `commit: ${cleanText(artifact.commit_sha)}` : "",
+    cleanText(artifact.runtime_platform_kind)
+      ? `runtime platform kind: ${cleanText(artifact.runtime_platform_kind)}`
+      : "",
+    cleanText(artifact.matched_alias) ? `matched alias: ${cleanText(artifact.matched_alias)}` : "",
+    cleanText(artifact.matched_value) ? `matched value: ${cleanText(artifact.matched_value)}` : "",
+    cleanText(artifact.direction) ? `direction: ${cleanText(artifact.direction)}` : "",
+    artifact.confidence !== undefined ? `confidence: ${artifact.confidence}` : "",
+    cleanText(artifact.source_freshness)
+      ? `source freshness: ${cleanText(artifact.source_freshness)}`
+      : "",
+    cleanText(artifact.outcome) ? `outcome: ${cleanText(artifact.outcome)}` : "",
+    cleanText(artifact.rationale) ? `rationale: ${cleanText(artifact.rationale)}` : "",
   ]);
+}
+
+export function artifactMethod(artifact: DeploymentArtifactRecord): string | undefined {
+  return (
+    cleanText(artifact.resolution_source) ||
+    cleanText(artifact.extractor) ||
+    cleanText(artifact.evidence_source) ||
+    undefined
+  );
 }
 
 export function materializationEvidence(instance: DeploymentInstanceRecord): readonly string[] {
@@ -54,13 +83,17 @@ export function repoNode(
   repo: { readonly id: string; readonly name: string },
   sub: string,
   filePath?: string,
+  startLine?: number,
+  endLine?: number,
 ): GraphNode {
   return {
     col: 1,
     id: repo.id,
     kind: "repo",
     label: repo.name,
-    source: filePath ? { filePath, repoId: repo.id, repoName: repo.name } : undefined,
+    source: filePath
+      ? { endLine, filePath, repoId: repo.id, repoName: repo.name, startLine }
+      : undefined,
     sub,
     truth: "derived",
   };
@@ -73,7 +106,7 @@ export function addIsolatedRecords(
   prefix: string,
   col: number,
   maxNodes: number,
-  truth: UiTruth,
+  truth: UiTruth | ((row: NamedDeploymentRecord) => UiTruth),
 ): void {
   rows.slice(0, limit).forEach((row, index) => {
     if (nodes.size >= maxNodes) return;
@@ -91,8 +124,9 @@ export function addIsolatedRecords(
             cleanText(row.environment),
             cleanText(row.visibility),
             cleanText(row.reason),
+            row.confidence !== undefined ? `confidence: ${row.confidence}` : "",
           ]).join(" · ") || undefined,
-        truth,
+        truth: typeof truth === "function" ? truth(row) : truth,
       });
   });
 }
@@ -130,6 +164,8 @@ export function truthEvidence(truth: EshuTruth | null | undefined): readonly str
     `truth level: ${truth.level}`,
     `freshness: ${truth.freshness.state}`,
     `truth basis: ${truth.basis ?? "not provided"}`,
+    `capability: ${truth.capability}`,
+    `profile: ${truth.profile}`,
   ];
 }
 
@@ -150,4 +186,9 @@ export function compact(values: readonly string[]): readonly string[] {
 
 export function encodeKey(value: string): string {
   return encodeURIComponent(value.toLowerCase());
+}
+
+function sourceLineEvidence(startLine: number | undefined, endLine: number | undefined): string {
+  if (startLine === undefined) return "";
+  return `source lines: ${startLine}${endLine === undefined ? "" : `-${endLine}`}`;
 }

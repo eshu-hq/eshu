@@ -1,9 +1,9 @@
-import type { EshuTruth } from "./envelope";
+import { addDeploymentArtifactGraph } from "./eshuGraphDeploymentArtifacts";
+import { deploymentFamilyLimits, deploymentGraphBounds } from "./eshuGraphDeploymentLimits";
+import type { DeploymentGraphBuildOptions } from "./eshuGraphDeploymentLimits";
 import {
   addIsolatedRecords,
   addOmissionSummary,
-  artifactAdmissionStatus,
-  artifactEvidence,
   compact,
   encodeKey,
   graphTruth,
@@ -15,71 +15,28 @@ import {
   truthEvidence,
   truthIsCurrent,
 } from "./eshuGraphDeploymentPresentation";
+import * as deploymentProvenance from "./eshuGraphDeploymentProvenance";
 import {
   mergeDeploymentInstances,
-  uniqueDeploymentArtifacts,
   uniqueNamedRecords,
   uniqueNetworkPaths,
 } from "./eshuGraphDeploymentWire";
 import type {
-  DeploymentGraphDetail,
   DeploymentTraceResponse,
   ServiceDeploymentContextResponse,
 } from "./eshuGraphDeploymentWire";
 import { cleanText, layerFor } from "./eshuGraphShared";
 import type { GraphEdge, GraphModel, GraphNode } from "../console/types";
 
-interface BuildOptions {
-  readonly contextTruth?: EshuTruth | null;
-  readonly detail?: DeploymentGraphDetail;
-  readonly traceTruth?: EshuTruth | null;
-}
-
-interface FamilyLimits {
-  readonly artifacts: number;
-  readonly cloud: number;
-  readonly entrypoints: number;
-  readonly instances: number;
-  readonly k8sRelationships: number;
-  readonly k8sResources: number;
-  readonly networkPaths: number;
-  readonly platformPlacements: number;
-  readonly sources: number;
-}
-
-const SUMMARY_LIMITS: FamilyLimits = {
-  artifacts: 3,
-  cloud: 1,
-  entrypoints: 1,
-  instances: 6,
-  k8sRelationships: 2,
-  k8sResources: 4,
-  networkPaths: 1,
-  platformPlacements: 6,
-  sources: 2,
-};
-const EXPANDED_LIMITS: FamilyLimits = {
-  artifacts: 4,
-  cloud: 1,
-  entrypoints: 1,
-  instances: 14,
-  k8sRelationships: 2,
-  k8sResources: 4,
-  networkPaths: 1,
-  platformPlacements: 14,
-  sources: 3,
-};
-
 export function buildDeploymentStoryGraph(
   context: ServiceDeploymentContextResponse,
   fallbackName: string,
   trace: DeploymentTraceResponse,
-  options: BuildOptions,
+  options: DeploymentGraphBuildOptions,
 ): GraphModel {
   const detail = options.detail ?? "summary";
-  const limits = detail === "expanded" ? EXPANDED_LIMITS : SUMMARY_LIMITS;
-  const maxNodes = detail === "expanded" ? 60 : 42;
-  const maxEdges = detail === "expanded" ? 90 : 48;
+  const limits = deploymentFamilyLimits(detail);
+  const { maxEdges, maxNodes } = deploymentGraphBounds(detail);
   const nodes = new Map<string, GraphNode>();
   const edges: GraphEdge[] = [];
   const edgeKeys = new Set<string>();
@@ -90,7 +47,7 @@ export function buildDeploymentStoryGraph(
   const truth = graphTruth(options.traceTruth ?? options.contextTruth);
   const addNode = (node: GraphNode): boolean => {
     if (nodes.has(node.id)) return true;
-    if (nodes.size >= maxNodes - 8) return false;
+    if (nodes.size >= maxNodes - 12) return false;
     nodes.set(node.id, node);
     return true;
   };
@@ -108,7 +65,6 @@ export function buildDeploymentStoryGraph(
     edgeKeys.add(key);
     edges.push(edge);
   };
-
   addNode({
     col: 2,
     hero: true,
@@ -118,76 +74,30 @@ export function buildDeploymentStoryGraph(
     sub: workloadID,
     truth,
   });
-
-  const contextArtifacts = context.deployment_evidence?.artifacts ?? [];
-  const traceArtifacts = trace.deployment_evidence?.artifacts ?? [];
-  const artifacts = uniqueDeploymentArtifacts(
-    contextArtifacts.length > 0 ? contextArtifacts : traceArtifacts,
-  );
-  const artifactTruth = contextArtifacts.length > 0 ? options.contextTruth : options.traceTruth;
-  let notAdmitted = 0;
-  artifacts.slice(0, limits.artifacts).forEach((artifact) => {
-    const status = truthIsCurrent(artifactTruth)
-      ? artifactAdmissionStatus(artifact)
-      : `Deployment evidence · ${artifactTruth?.freshness.state ?? "stale"} · relationship not admitted`;
-    const source = repoRef(artifact.source_repo_id, artifact.source_repo_name);
-    const target = repoRef(artifact.target_repo_id, artifact.target_repo_name);
-    if (source)
-      addNode(
-        repoNode(
-          source,
-          status === "admitted" ? "Deployment evidence" : status,
-          cleanText(artifact.path) || undefined,
-        ),
-      );
-    if (target) addNode(repoNode(target, "Deployment target"));
-    if (status !== "admitted") {
-      notAdmitted += 1;
-      return;
-    }
-    const verb = cleanText(artifact.relationship_type).toUpperCase();
-    if (!source || !target || verb === "") {
-      notAdmitted += 1;
-      return;
-    }
-    addEdge({
-      evidence: [...artifactEvidence(artifact), ...truthEvidence(artifactTruth)],
-      layer: layerFor(verb),
-      method: cleanText(artifact.resolution_source) || undefined,
-      s: source.id,
-      sourceFamily: cleanText(artifact.artifact_family) || undefined,
-      t: target.id,
-      truthState: "derived",
-      verb,
-    });
-  });
-  const omittedArtifacts = Math.max(0, artifacts.length - limits.artifacts);
-  addOmissionSummary(
+  addDeploymentArtifactGraph({
+    addEdge,
+    addNode,
+    contextArtifacts: context.deployment_evidence?.artifacts ?? [],
+    contextTruth: options.contextTruth,
+    limit: limits.artifacts,
     summaries,
-    "deployment artifacts",
-    omittedArtifacts,
-    "artifacts",
-    omissionContract(
-      limits.artifacts,
-      artifacts
-        .slice(limits.artifacts)
-        .map(
-          (artifact) => cleanText(artifact.artifact_family) || cleanText(artifact.evidence_kind),
-        ),
-    ),
-  );
-  if (notAdmitted > 0) {
-    summaries.push(
-      summaryNode("not_admitted", `${notAdmitted} deployment relationships not admitted`),
-    );
-  }
-
+    traceArtifacts: trace.deployment_evidence?.artifacts ?? [],
+    traceTruth: options.traceTruth,
+  });
   const sources = trace.deployment_sources ?? [];
   sources.slice(0, limits.sources).forEach((source) => {
     const repo = repoRef(source.repo_id, source.repo_name);
     if (!repo || nodes.has(repo.id)) return;
     addNode({
-      ...repoNode(repo, "Deployment source · relationship endpoints not exposed by API"),
+      ...repoNode(
+        repo,
+        compact([
+          "Deployment source",
+          cleanText(source.reason) ? `reason: ${cleanText(source.reason)}` : "",
+          source.confidence !== undefined ? `confidence: ${source.confidence}` : "",
+          "relationship endpoints not exposed by API",
+        ]).join(" · "),
+      ),
       truth: graphTruth(options.traceTruth),
     });
   });
@@ -203,26 +113,20 @@ export function buildDeploymentStoryGraph(
         .map((source) => cleanText(source.repo_name) || cleanText(source.repo_id)),
     ),
   );
-
   const instances = mergeDeploymentInstances(context.instances ?? [], trace.instances ?? []);
-  const contextInstanceIDs = new Set(
-    (context.instances ?? []).map((instance) => cleanText(instance.instance_id)),
-  );
-  const traceInstanceIDs = new Set(
-    (trace.instances ?? []).map((instance) => cleanText(instance.instance_id)),
-  );
+  const instanceSources = {
+    contextRows: context.instances ?? [],
+    contextTruth: options.contextTruth,
+    traceRows: trace.instances ?? [],
+    traceTruth: options.traceTruth,
+  };
   let platformPlacements = 0;
-  let staleInstanceRelationships = 0;
+  let staleRelationships = 0;
   instances.slice(0, limits.instances).forEach((instance) => {
     const instanceID = cleanText(instance.instance_id);
     if (instanceID === "") return;
     const environment = cleanText(instance.environment);
-    const instanceTruth = contextInstanceIDs.has(instanceID)
-      ? options.contextTruth
-      : options.traceTruth;
-    const platformTruth = traceInstanceIDs.has(instanceID)
-      ? options.traceTruth
-      : options.contextTruth;
+    const instanceTruth = deploymentProvenance.instanceRecordTruth(instanceID, instanceSources);
     const instanceAdded = addNode({
       col: 3,
       id: instanceID,
@@ -242,13 +146,18 @@ export function buildDeploymentStoryGraph(
         verb: "INSTANCE_OF",
       });
     } else {
-      staleInstanceRelationships += 1;
+      staleRelationships += 1;
     }
     (instance.platforms ?? []).forEach((platform) => {
       if (platformPlacements >= limits.platformPlacements) return;
       const platformName = cleanText(platform.platform_name);
       const platformKind = cleanText(platform.platform_kind);
       if (platformName === "" && platformKind === "") return;
+      const platformTruth = deploymentProvenance.platformRecordTruth(
+        instanceID,
+        platform,
+        instanceSources,
+      );
       const platformID = `platform:${encodeKey(platformKind || "unknown")}:${encodeKey(platformName || "unknown")}`;
       if (
         !addNode({
@@ -257,7 +166,7 @@ export function buildDeploymentStoryGraph(
           kind: platformKind || "platform",
           label: platformName || platformKind,
           sub: `${platformKind || "platform"} · canonical platform identity not exposed by API`,
-          truth: graphTruth(options.traceTruth),
+          truth: graphTruth(platformTruth),
         })
       )
         return;
@@ -270,6 +179,9 @@ export function buildDeploymentStoryGraph(
               cleanText(platform.platform_reason)
                 ? `reason: ${cleanText(platform.platform_reason)}`
                 : "",
+              platform.platform_confidence !== undefined
+                ? `confidence: ${platform.platform_confidence}`
+                : "",
             ]),
             ...truthEvidence(platformTruth),
           ],
@@ -280,7 +192,7 @@ export function buildDeploymentStoryGraph(
           verb: "RUNS_ON",
         });
       } else {
-        staleInstanceRelationships += 1;
+        staleRelationships += 1;
       }
     });
   });
@@ -312,15 +224,6 @@ export function buildDeploymentStoryGraph(
       ),
     ),
   );
-  if (staleInstanceRelationships > 0) {
-    summaries.push(
-      summaryNode(
-        "stale_instances",
-        `${staleInstanceRelationships} stale instance relationships not admitted`,
-      ),
-    );
-  }
-
   const k8sResources = trace.k8s_resources ?? [];
   k8sResources.slice(0, limits.k8sResources).forEach((resource) => {
     const id = cleanText(resource.entity_id);
@@ -359,7 +262,7 @@ export function buildDeploymentStoryGraph(
         id: sourceID,
         kind: "kubernetes",
         label: cleanText(relationship.source_name) || sourceID,
-        truth,
+        truth: graphTruth(options.traceTruth),
       });
     }
     if (!nodes.has(targetID)) {
@@ -368,7 +271,7 @@ export function buildDeploymentStoryGraph(
         id: targetID,
         kind: "kubernetes",
         label: cleanText(relationship.target_name) || targetID,
-        truth,
+        truth: graphTruth(options.traceTruth),
       });
     }
     if (truthIsCurrent(options.traceTruth)) {
@@ -385,6 +288,8 @@ export function buildDeploymentStoryGraph(
         truthState: "derived",
         verb,
       });
+    } else {
+      staleRelationships += 1;
     }
   });
   addOmissionSummary(
@@ -399,14 +304,18 @@ export function buildDeploymentStoryGraph(
         .map((relationship) => cleanText(relationship.type)),
     ),
   );
-
-  const paths = uniqueNetworkPaths([
-    ...(context.network_paths ?? []),
-    ...(trace.network_paths ?? []),
-  ]);
-  const pathTruth =
-    (context.network_paths?.length ?? 0) > 0 ? options.contextTruth : options.traceTruth;
+  const pathSources = {
+    contextRows: context.network_paths ?? [],
+    contextTruth: options.contextTruth,
+    traceRows: trace.network_paths ?? [],
+    traceTruth: options.traceTruth,
+  };
+  const paths = deploymentProvenance.currentRecordsFirst(
+    uniqueNetworkPaths([...pathSources.contextRows, ...pathSources.traceRows]),
+    (path) => deploymentProvenance.networkPathRecordTruth(path, pathSources),
+  );
   paths.slice(0, limits.networkPaths).forEach((path, index) => {
+    const pathTruth = deploymentProvenance.networkPathRecordTruth(path, pathSources);
     const from = cleanText(path.from);
     const to = cleanText(path.to);
     const verb = cleanText(path.path_type).toUpperCase();
@@ -418,9 +327,15 @@ export function buildDeploymentStoryGraph(
       id: fromID,
       kind: cleanText(path.from_type) || "network",
       label: from,
-      truth,
+      truth: graphTruth(pathTruth),
     });
-    addNode({ col: 5, id: toID, kind: cleanText(path.to_type) || "network", label: to, truth });
+    addNode({
+      col: 5,
+      id: toID,
+      kind: cleanText(path.to_type) || "network",
+      label: to,
+      truth: graphTruth(pathTruth),
+    });
     if (truthIsCurrent(pathTruth)) {
       addEdge({
         evidence: [
@@ -437,6 +352,8 @@ export function buildDeploymentStoryGraph(
         truthState: "derived",
         verb,
       });
+    } else {
+      staleRelationships += 1;
     }
   });
   addOmissionSummary(
@@ -449,12 +366,34 @@ export function buildDeploymentStoryGraph(
       paths.slice(limits.networkPaths).map((path) => cleanText(path.path_type)),
     ),
   );
-
-  const entrypoints = uniqueNamedRecords([
-    ...(context.entrypoints ?? []),
-    ...(trace.entrypoints ?? []),
-  ]);
-  addIsolatedRecords(nodes, entrypoints, limits.entrypoints, "entrypoint", 4, maxNodes - 8, truth);
+  if (staleRelationships > 0) {
+    summaries.push(
+      summaryNode(
+        "stale_relationships",
+        `${staleRelationships} stale deployment relationships not admitted`,
+      ),
+    );
+  }
+  const entrypointSources = {
+    contextRows: context.entrypoints ?? [],
+    contextTruth: options.contextTruth,
+    traceRows: trace.entrypoints ?? [],
+    traceTruth: options.traceTruth,
+  };
+  const entrypoints = deploymentProvenance.currentRecordsFirst(
+    uniqueNamedRecords([...entrypointSources.contextRows, ...entrypointSources.traceRows]),
+    (entrypoint) => deploymentProvenance.namedRecordTruth(entrypoint, entrypointSources),
+  );
+  addIsolatedRecords(
+    nodes,
+    entrypoints,
+    limits.entrypoints,
+    "entrypoint",
+    4,
+    maxNodes - 12,
+    (entrypoint) =>
+      graphTruth(deploymentProvenance.namedRecordTruth(entrypoint, entrypointSources)),
+  );
   addOmissionSummary(
     summaries,
     "entrypoints",
@@ -471,7 +410,7 @@ export function buildDeploymentStoryGraph(
     limits.cloud,
     "cloud",
     5,
-    maxNodes - 8,
+    maxNodes - 12,
     truth,
   );
   addOmissionSummary(

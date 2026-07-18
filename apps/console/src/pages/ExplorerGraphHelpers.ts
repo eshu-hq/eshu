@@ -4,6 +4,16 @@ export function currentCenterId(graph: GraphModel): string | undefined {
   return graph.nodes.find((node) => node.hero)?.id;
 }
 
+export function hasDeploymentEvidence(graph: GraphModel): boolean {
+  return graph.nodes.some(
+    (node) =>
+      node.kind === "instance" ||
+      node.id.startsWith("platform:") ||
+      node.id.startsWith("summary:") ||
+      node.sub?.includes("Deployment") === true,
+  );
+}
+
 export function modeForNode(node: GraphNode): "direct" | "neighborhood" {
   if (node.kind === "client" || node.kind === "library") return "direct";
   return "neighborhood";

@@ -1,11 +1,20 @@
 export type DeploymentGraphDetail = "summary" | "expanded";
 
 export interface DeploymentArtifactRecord {
+  readonly artifact_id?: string;
   readonly artifact_family?: string;
+  readonly commit_sha?: string;
   readonly confidence?: number;
   readonly confidence_basis?: string;
+  readonly direction?: string;
+  readonly end_line?: number;
   readonly environment?: string;
   readonly evidence_kind?: string;
+  readonly evidence_source?: string;
+  readonly extractor?: string;
+  readonly generation_id?: string;
+  readonly matched_alias?: string;
+  readonly matched_value?: string;
   readonly outcome?: string;
   readonly path?: string;
   readonly provenance_only?: boolean;
@@ -13,10 +22,12 @@ export interface DeploymentArtifactRecord {
   readonly relationship_type?: string;
   readonly resolution_source?: string;
   readonly resolved_id?: string;
+  readonly runtime_platform_kind?: string;
   readonly source_freshness?: string;
   readonly source_repo_id?: string;
   readonly source_repo_name?: string;
   readonly state?: string;
+  readonly start_line?: number;
   readonly target_repo_id?: string;
   readonly target_repo_name?: string;
 }
@@ -72,6 +83,7 @@ export interface NetworkPathRecord {
 }
 
 export interface NamedDeploymentRecord {
+  readonly confidence?: number;
   readonly environment?: string;
   readonly id?: string;
   readonly kind?: string;
@@ -146,35 +158,81 @@ export function mergeDeploymentInstances(
 export function uniqueDeploymentArtifacts(
   rows: readonly DeploymentArtifactRecord[],
 ): DeploymentArtifactRecord[] {
-  return uniqueRecords(rows, (row) =>
-    [
-      row.source_repo_id,
-      row.target_repo_id,
-      row.relationship_type,
-      row.artifact_family,
-      row.evidence_kind,
-      row.path,
-      row.environment,
-    ].join("\u0000"),
-  );
+  return uniqueRecords(rows, deploymentArtifactKey);
 }
 
 export function uniqueNetworkPaths(rows: readonly NetworkPathRecord[]): NetworkPathRecord[] {
-  return uniqueRecords(rows, (row) =>
-    [row.from, row.to, row.path_type, row.environment, row.reason].join("\u0000"),
-  );
+  return uniqueRecords(rows, networkPathKey);
 }
 
 export function uniqueNamedRecords(
   rows: readonly NamedDeploymentRecord[],
 ): NamedDeploymentRecord[] {
-  return uniqueRecords(rows, (row) =>
-    [row.id, row.name, row.target, row.type, row.environment].join("\u0000"),
-  );
+  return uniqueRecords(rows, namedDeploymentRecordKey);
+}
+
+export function deploymentArtifactKey(row: DeploymentArtifactRecord): string {
+  return [
+    row.artifact_id,
+    row.generation_id,
+    row.source_repo_id,
+    row.target_repo_id,
+    row.relationship_type,
+    row.artifact_family,
+    row.evidence_kind,
+    row.path,
+    row.environment,
+    row.outcome,
+    String(row.provenance_only ?? false),
+    row.resolution_source,
+    row.resolved_id,
+    row.source_freshness,
+    row.commit_sha,
+    row.start_line,
+    row.end_line,
+    row.extractor,
+    row.evidence_source,
+    row.matched_alias,
+    row.matched_value,
+    row.runtime_platform_kind,
+    row.direction,
+  ].join("\u0000");
+}
+
+export function networkPathKey(row: NetworkPathRecord): string {
+  return [
+    row.from,
+    row.from_type,
+    row.to,
+    row.to_type,
+    row.path_type,
+    row.environment,
+    row.reason,
+    row.visibility,
+  ].join("\u0000");
+}
+
+export function namedDeploymentRecordKey(row: NamedDeploymentRecord): string {
+  return [row.id, row.name, row.target, row.type, row.environment].join("\u0000");
+}
+
+export function deploymentPlatformKey(row: DeploymentPlatformRecord): string {
+  return `${row.platform_kind ?? ""}\u0000${row.platform_name ?? ""}`;
 }
 
 function uniquePlatforms(rows: readonly DeploymentPlatformRecord[]): DeploymentPlatformRecord[] {
-  return uniqueRecords(rows, (row) => `${row.platform_kind ?? ""}\u0000${row.platform_name ?? ""}`);
+  const platforms = new Map<string, DeploymentPlatformRecord>();
+  rows.forEach((row) => {
+    const key = deploymentPlatformKey(row);
+    const current = platforms.get(key);
+    platforms.set(key, {
+      platform_confidence: current?.platform_confidence ?? row.platform_confidence,
+      platform_kind: current?.platform_kind ?? row.platform_kind,
+      platform_name: current?.platform_name ?? row.platform_name,
+      platform_reason: current?.platform_reason ?? row.platform_reason,
+    });
+  });
+  return [...platforms.values()];
 }
 
 function uniqueStrings(values: readonly string[]): string[] {

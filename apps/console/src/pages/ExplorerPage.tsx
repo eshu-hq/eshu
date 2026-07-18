@@ -1,6 +1,6 @@
 // pages/ExplorerPage.tsx
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 
 import {
   DeploymentDetailButton,
@@ -9,24 +9,19 @@ import {
 } from "./ExplorerGraphControls";
 import {
   currentCenterId,
+  hasDeploymentEvidence,
   modeForNode,
   repoIDForNode,
-  sourceHref,
-  sourceLabel,
 } from "./ExplorerGraphHelpers";
+import { ExplorerInspector } from "./ExplorerInspector";
 import type { EshuApiClient } from "../api/client";
 import { loadEntityGraph, loadEntityStoryGraph, resolveEntityHandle } from "../api/eshuGraph";
 import type { DeploymentGraphDetail } from "../api/eshuGraph";
-import { Panel, TruthChip } from "../components/atoms";
-import { EvidencePanel, type EvidencePanelData } from "../components/EvidencePanel";
+import type { EvidencePanelData } from "../components/EvidencePanel";
 import { GraphCanvas } from "../components/GraphCanvas";
-import {
-  graphEdgeEvidencePanelData,
-  graphNodeEvidencePanelData,
-} from "../components/graphEvidencePanel";
+import { graphNodeEvidencePanelData } from "../components/graphEvidencePanel";
 import { defaultServiceName } from "../console/defaultEntity";
-import { LAYER_COLOR, KIND_COLOR, fmt } from "../console/types";
-import type { ConsoleModel, GraphEdge, GraphLayer, GraphModel, GraphNode } from "../console/types";
+import type { ConsoleModel, GraphLayer, GraphModel, GraphNode } from "../console/types";
 
 export function ExplorerPage({
   model,
@@ -141,11 +136,6 @@ export function ExplorerPage({
       edges,
     };
   }, [base, on]);
-  const nodeLabels = useMemo(
-    () => new Map(base.nodes.map((node) => [node.id, node.label])),
-    [base.nodes],
-  );
-
   async function expand(
     name: string,
     forcedMode?: "direct" | "neighborhood",
@@ -206,12 +196,6 @@ export function ExplorerPage({
     setSel(n);
     setEvidence(graphNodeEvidencePanelData(n));
     if ((n.kind === "service" || n.kind === "workload") && onOpenService) onOpenService(n.label);
-  }
-
-  function openEdgeEvidence(edge: GraphEdge): void {
-    const fromLabel = nodeLabels.get(edge.s) ?? edge.s;
-    const toLabel = nodeLabels.get(edge.t) ?? edge.t;
-    setEvidence(graphEdgeEvidencePanelData(edge, fromLabel, toLabel));
   }
 
   async function centerOnNode(node: GraphNode): Promise<void> {
@@ -346,7 +330,7 @@ export function ExplorerPage({
               const nextDetail = deploymentDetail === "summary" ? "expanded" : "summary";
               void expand(query, "neighborhood", nextDetail);
             }}
-            visible={mode === "neighborhood" && liveGraph !== null}
+            visible={mode === "neighborhood" && hasDeploymentEvidence(base)}
           />
           {err ? (
             <span className="src-err" role="alert" style={{ marginTop: 0 }}>
@@ -376,120 +360,16 @@ export function ExplorerPage({
             selectedId={sel?.id}
           />
         </div>
-        <Panel title="Inspector">
-          {sel ? (
-            <div className="inspector">
-              <div className="insp-head">
-                <span
-                  className="cglyph"
-                  style={{
-                    width: 30,
-                    height: 30,
-                    color: KIND_COLOR[sel.kind] ?? "#9aa4af",
-                    borderColor: KIND_COLOR[sel.kind] ?? "#9aa4af",
-                  }}
-                >
-                  {sel.kind.slice(0, 1).toUpperCase()}
-                </span>
-                <div>
-                  <div className="insp-kind">{sel.kind}</div>
-                  <div className="insp-title">{sel.label}</div>
-                </div>
-              </div>
-              {sel.sub ? (
-                <div className="t-mut mono" style={{ fontSize: ".82rem" }}>
-                  {sel.sub}
-                </div>
-              ) : null}
-              {sel.truth ? <TruthChip level={sel.truth} /> : null}
-              {sourceHref(sel) ? (
-                <div className="kv-list">
-                  <div className="kv">
-                    <span>Source</span>
-                    <Link className="mono" to={sourceHref(sel) ?? ""}>
-                      {sourceLabel(sel)}
-                    </Link>
-                  </div>
-                </div>
-              ) : null}
-              {live ? (
-                <button
-                  className="btn-ghost"
-                  disabled={busy || sel.id === currentCenterId(base)}
-                  style={{ width: "100%", justifyContent: "center" }}
-                  onClick={() => {
-                    void centerOnNode(sel);
-                  }}
-                >
-                  {sel.id === currentCenterId(base)
-                    ? "Current center"
-                    : busy
-                      ? "Loading…"
-                      : "Center graph here →"}
-                </button>
-              ) : null}
-              {sourceHref(sel) ? (
-                <Link className="btn-ghost active" to={sourceHref(sel) ?? ""}>
-                  Open source
-                </Link>
-              ) : null}
-              <div className="section-label">Edges</div>
-              <div className="insp-evi">
-                {base.edges
-                  .filter((e) => e.s === sel.id || e.t === sel.id)
-                  .map((e, i) => {
-                    const endpointID = e.s === sel.id ? e.t : e.s;
-                    const endpointLabel = nodeLabels.get(endpointID) ?? endpointID;
-                    return (
-                      <button
-                        className="insp-evi-row insp-evi-btn"
-                        key={i}
-                        onClick={() => openEdgeEvidence(e)}
-                        title={`Inspect ${e.verb} evidence`}
-                        type="button"
-                      >
-                        {e.verb} {e.s === sel.id ? "→" : "←"} {endpointLabel}
-                      </button>
-                    );
-                  })}
-              </div>
-            </div>
-          ) : (
-            <p className="empty">{live ? "Search for an entity to begin." : "Select a node."}</p>
-          )}
-          {model.relationships.length ? (
-            <>
-              <div className="section-label" style={{ marginTop: 16 }}>
-                Relationship verbs
-              </div>
-              <div className="kv-list">
-                {model.relationships.slice(0, 6).map((rel) => (
-                  <div className="kv" key={rel.verb}>
-                    <span className="mono" style={{ fontSize: ".78rem" }}>
-                      <i
-                        style={{
-                          display: "inline-block",
-                          width: 8,
-                          height: 8,
-                          borderRadius: 2,
-                          background: LAYER_COLOR[rel.layer],
-                          marginRight: 7,
-                        }}
-                      />
-                      {rel.verb}
-                    </span>
-                    <strong>{fmt(rel.count)}</strong>
-                  </div>
-                ))}
-              </div>
-            </>
-          ) : null}
-          {evidence !== null ? (
-            <div className="insp-evidence-panel">
-              <EvidencePanel data={evidence} onClose={() => setEvidence(null)} />
-            </div>
-          ) : null}
-        </Panel>
+        <ExplorerInspector
+          base={base}
+          busy={busy}
+          evidence={evidence}
+          live={live}
+          onCenter={(node) => void centerOnNode(node)}
+          onEvidenceChange={setEvidence}
+          relationships={model.relationships}
+          selected={sel}
+        />
       </div>
     </div>
   );

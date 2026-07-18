@@ -1,7 +1,7 @@
 import type { EshuApiClient } from "./client";
 import { EshuApiHttpError } from "./client";
 import { EshuEnvelopeError } from "./envelope";
-import type { EshuTruth } from "./envelope";
+import type { EshuEnvelope, EshuTruth } from "./envelope";
 import { buildDeploymentStoryGraph } from "./eshuGraphDeploymentModel";
 import type {
   DeploymentGraphDetail,
@@ -51,41 +51,46 @@ export async function loadEntityStoryGraph(
     readonly get?: EshuApiClient["get"];
   };
   if (typeof deploymentClient.get !== "function") return loadEntityMapGraph(client, name);
+  let contextEnvelope: EshuEnvelope<ServiceDeploymentContextResponse>;
   try {
-    const contextEnvelope = await deploymentClient.get<ServiceDeploymentContextResponse>(
+    contextEnvelope = await deploymentClient.get<ServiceDeploymentContextResponse>(
       `/api/v0/services/${encodeURIComponent(name)}/context`,
     );
     if (contextEnvelope.error) throw new EshuEnvelopeError(contextEnvelope.error);
-
-    const context = contextEnvelope.data ?? {};
-    const serviceName = cleanText(context.name) || name;
-    const traceEnvelope = await client.post<DeploymentTraceResponse>(
-      "/api/v0/impact/trace-deployment-chain",
-      {
-        direct_only: true,
-        include_related_module_usage: false,
-        max_depth: 2,
-        service_name: serviceName,
-      },
-    );
-    if (traceEnvelope.error) throw new EshuEnvelopeError(traceEnvelope.error);
-
-    const graph = deploymentStoryToGraph(context, name, traceEnvelope.data ?? {}, {
-      contextTruth: contextEnvelope.truth,
-      detail,
-      traceTruth: traceEnvelope.truth,
-    });
-    if (graph.nodes.length > 1 || graph.edges.length > 0) return graph;
   } catch (error) {
     if (!shouldFallbackFromServiceContext(error)) throw error;
+    return loadFallbackStoryGraph(deploymentClient, name, repoID, detail);
   }
 
-  const repositoryGraph = await loadRepositoryDeploymentStoryGraph(
-    deploymentClient,
-    name,
-    repoID,
-    detail,
+  const context = contextEnvelope.data ?? {};
+  const serviceName = cleanText(context.name) || name;
+  const traceEnvelope = await client.post<DeploymentTraceResponse>(
+    "/api/v0/impact/trace-deployment-chain",
+    {
+      direct_only: true,
+      include_related_module_usage: false,
+      max_depth: 2,
+      service_name: serviceName,
+    },
   );
+  if (traceEnvelope.error) throw new EshuEnvelopeError(traceEnvelope.error);
+
+  const graph = deploymentStoryToGraph(context, name, traceEnvelope.data ?? {}, {
+    contextTruth: contextEnvelope.truth,
+    detail,
+    traceTruth: traceEnvelope.truth,
+  });
+  if (graph.nodes.length > 1 || graph.edges.length > 0) return graph;
+  return loadFallbackStoryGraph(deploymentClient, name, repoID, detail);
+}
+
+async function loadFallbackStoryGraph(
+  client: EshuApiClient,
+  name: string,
+  repoID: string | undefined,
+  detail: DeploymentGraphDetail,
+): Promise<GraphModel> {
+  const repositoryGraph = await loadRepositoryDeploymentStoryGraph(client, name, repoID, detail);
   if (repositoryGraph !== null) return repositoryGraph;
   return loadEntityMapGraph(client, name);
 }
