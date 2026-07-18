@@ -3,11 +3,11 @@
   "blocking": true,
   "totals": {
     "total": 403,
-    "covered": 377,
-    "uncovered": 17,
+    "covered": 393,
+    "uncovered": 0,
     "unresolved": 0,
-    "exempt": 9,
-    "percent_satisfied": 95.78
+    "exempt": 10,
+    "percent_satisfied": 100
   },
   "registry_summaries": [
     {
@@ -67,11 +67,11 @@
     {
       "registry": "projection",
       "total": 27,
-      "covered": 11,
-      "uncovered": 16,
+      "covered": 26,
+      "uncovered": 0,
       "unresolved": 0,
-      "exempt": 0,
-      "percent_satisfied": 40.74
+      "exempt": 1,
+      "percent_satisfied": 100
     },
     {
       "registry": "reducer_drain",
@@ -94,11 +94,11 @@
     {
       "registry": "retractable_type",
       "total": 87,
-      "covered": 86,
-      "uncovered": 1,
+      "covered": 87,
+      "uncovered": 0,
       "unresolved": 0,
       "exempt": 0,
-      "percent_satisfied": 98.85
+      "percent_satisfied": 100
     },
     {
       "registry": "surface_inventory",
@@ -123,11 +123,11 @@
     {
       "scenario_type": "cost",
       "total": 26,
-      "covered": 10,
-      "uncovered": 16,
+      "covered": 25,
+      "uncovered": 0,
       "unresolved": 0,
-      "exempt": 0,
-      "percent_satisfied": 38.46
+      "exempt": 1,
+      "percent_satisfied": 100
     },
     {
       "scenario_type": "crash",
@@ -141,11 +141,11 @@
     {
       "scenario_type": "delta_tombstone",
       "total": 140,
-      "covered": 139,
-      "uncovered": 1,
+      "covered": 140,
+      "uncovered": 0,
       "unresolved": 0,
       "exempt": 0,
-      "percent_satisfied": 99.29
+      "percent_satisfied": 100
     },
     {
       "scenario_type": "fault",
@@ -2198,22 +2198,31 @@
       "registry": "projection",
       "key": "projection:azure_resource_materialization",
       "scenario_type": "cost",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type cost"
+      "status": "covered",
+      "scenario": "go_test",
+      "ref": "go/internal/replay/costcounting/azure_resource_materialization_cost_test.go",
+      "proof_gate": "go-test-race",
+      "detail": "artifact present: go/internal/replay/costcounting/azure_resource_materialization_cost_test.go"
     },
     {
       "registry": "projection",
       "key": "projection:ci_cd_run_correlation",
       "scenario_type": "cost",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type cost"
+      "status": "covered",
+      "scenario": "go_test",
+      "ref": "go/internal/replay/costcounting/ci_cd_run_correlation_cost_test.go",
+      "proof_gate": "go-test-race",
+      "detail": "artifact present: go/internal/replay/costcounting/ci_cd_run_correlation_cost_test.go"
     },
     {
       "registry": "projection",
       "key": "projection:cloud_asset_resolution",
       "scenario_type": "cost",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type cost"
+      "status": "covered",
+      "scenario": "go_test",
+      "ref": "go/internal/replay/costcounting/cloud_asset_resolution_cost_test.go",
+      "proof_gate": "go-test-race",
+      "detail": "artifact present: go/internal/replay/costcounting/cloud_asset_resolution_cost_test.go"
     },
     {
       "registry": "projection",
@@ -2229,15 +2238,18 @@
       "registry": "projection",
       "key": "projection:config_state_drift",
       "scenario_type": "cost",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type cost"
+      "status": "exempt",
+      "detail": "config_state_drift (the terraform_state fact family, projection_hook terraform_relationship_projection) has no reducer-level write instrument for the cost axis to bound. Its sole reducer handler, TerraformConfigStateDriftHandler.Handle (go/internal/reducer/terraform_config_state_drift.go), has no Writer field and performs zero Postgres or graph writes -- it only increments bounded OTel counters (CorrelationRuleMatches, CorrelationDriftDetected) and emits structured logs. This is explicit design intent: registry_additive_domains.go sets Ownership{CanonicalWrite: false, CounterEmit: true} with \"Graph projection follows per design doc §10\" -- a future, not-yet-implemented write path. The only Postgres access near this domain (storage/postgres/drift_enqueue.go) is a QueryContext read that enqueues intents, not a domain-output write. Remove this exemption when the graph-projection write path lands and add a cost scenario for it."
     },
     {
       "registry": "projection",
       "key": "projection:container_image_identity",
       "scenario_type": "cost",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type cost"
+      "status": "covered",
+      "scenario": "go_test",
+      "ref": "go/internal/replay/costcounting/container_image_identity_cost_test.go",
+      "proof_gate": "go-test-race",
+      "detail": "artifact present: go/internal/replay/costcounting/container_image_identity_cost_test.go"
     },
     {
       "registry": "projection",
@@ -2263,8 +2275,11 @@
       "registry": "projection",
       "key": "projection:gcp_resource_materialization",
       "scenario_type": "cost",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type cost"
+      "status": "covered",
+      "scenario": "go_test",
+      "ref": "go/internal/replay/costcounting/gcp_resource_materialization_cost_test.go",
+      "proof_gate": "go-test-race",
+      "detail": "artifact present: go/internal/replay/costcounting/gcp_resource_materialization_cost_test.go"
     },
     {
       "registry": "projection",
@@ -2280,36 +2295,51 @@
       "registry": "projection",
       "key": "projection:incident_repository_correlation",
       "scenario_type": "cost",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type cost"
+      "status": "covered",
+      "scenario": "go_test",
+      "ref": "go/internal/replay/costcounting/incident_repository_correlation_cost_test.go",
+      "proof_gate": "go-test-race",
+      "detail": "artifact present: go/internal/replay/costcounting/incident_repository_correlation_cost_test.go"
     },
     {
       "registry": "projection",
       "key": "projection:incident_routing_materialization",
       "scenario_type": "cost",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type cost"
+      "status": "covered",
+      "scenario": "go_test",
+      "ref": "go/internal/replay/costcounting/incident_routing_evidence_cost_test.go",
+      "proof_gate": "go-test-race",
+      "detail": "artifact present: go/internal/replay/costcounting/incident_routing_evidence_cost_test.go"
     },
     {
       "registry": "projection",
       "key": "projection:kubernetes_correlation",
       "scenario_type": "cost",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type cost"
+      "status": "covered",
+      "scenario": "go_test",
+      "ref": "go/internal/replay/costcounting/kubernetes_workload_node_cost_test.go",
+      "proof_gate": "go-test-race",
+      "detail": "artifact present: go/internal/replay/costcounting/kubernetes_workload_node_cost_test.go"
     },
     {
       "registry": "projection",
       "key": "projection:observability_coverage_correlation",
       "scenario_type": "cost",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type cost"
+      "status": "covered",
+      "scenario": "go_test",
+      "ref": "go/internal/replay/costcounting/observability_coverage_edge_cost_test.go",
+      "proof_gate": "go-test-race",
+      "detail": "artifact present: go/internal/replay/costcounting/observability_coverage_edge_cost_test.go"
     },
     {
       "registry": "projection",
       "key": "projection:package_source_correlation",
       "scenario_type": "cost",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type cost"
+      "status": "covered",
+      "scenario": "go_test",
+      "ref": "go/internal/replay/costcounting/package_source_correlation_cost_test.go",
+      "proof_gate": "go-test-race",
+      "detail": "artifact present: go/internal/replay/costcounting/package_source_correlation_cost_test.go"
     },
     {
       "registry": "projection",
@@ -2325,8 +2355,11 @@
       "registry": "projection",
       "key": "projection:reducer_derived_findings",
       "scenario_type": "cost",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type cost"
+      "status": "covered",
+      "scenario": "go_test",
+      "ref": "go/internal/replay/costcounting/multi_cloud_runtime_drift_cost_test.go",
+      "proof_gate": "go-test-race",
+      "detail": "artifact present: go/internal/replay/costcounting/multi_cloud_runtime_drift_cost_test.go"
     },
     {
       "registry": "projection",
@@ -2352,8 +2385,11 @@
       "registry": "projection",
       "key": "projection:sbom_attestation_attachment",
       "scenario_type": "cost",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type cost"
+      "status": "covered",
+      "scenario": "go_test",
+      "ref": "go/internal/replay/costcounting/sbom_attestation_attachment_cost_test.go",
+      "proof_gate": "go-test-race",
+      "detail": "artifact present: go/internal/replay/costcounting/sbom_attestation_attachment_cost_test.go"
     },
     {
       "registry": "projection",
@@ -2369,8 +2405,11 @@
       "registry": "projection",
       "key": "projection:security_alert_reconciliation",
       "scenario_type": "cost",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type cost"
+      "status": "covered",
+      "scenario": "go_test",
+      "ref": "go/internal/replay/costcounting/security_alert_reconciliation_cost_test.go",
+      "proof_gate": "go-test-race",
+      "detail": "artifact present: go/internal/replay/costcounting/security_alert_reconciliation_cost_test.go"
     },
     {
       "registry": "projection",
@@ -2386,8 +2425,11 @@
       "registry": "projection",
       "key": "projection:service_catalog_correlation",
       "scenario_type": "cost",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type cost"
+      "status": "covered",
+      "scenario": "go_test",
+      "ref": "go/internal/replay/costcounting/service_catalog_correlation_cost_test.go",
+      "proof_gate": "go-test-race",
+      "detail": "artifact present: go/internal/replay/costcounting/service_catalog_correlation_cost_test.go"
     },
     {
       "registry": "projection",
@@ -2403,8 +2445,11 @@
       "registry": "projection",
       "key": "projection:supply_chain_impact",
       "scenario_type": "cost",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type cost"
+      "status": "covered",
+      "scenario": "go_test",
+      "ref": "go/internal/replay/costcounting/supply_chain_impact_cost_test.go",
+      "proof_gate": "go-test-race",
+      "detail": "artifact present: go/internal/replay/costcounting/supply_chain_impact_cost_test.go"
     },
     {
       "registry": "reducer_drain",
@@ -3800,8 +3845,11 @@
       "registry": "retractable_type",
       "key": "retractable_node:Variable",
       "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+      "status": "covered",
+      "scenario": "go_test",
+      "ref": "go/internal/replay/offlinetier/delta_tier_reducer_semantic_variable_retract_live_test.go",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: go/internal/replay/offlinetier/delta_tier_reducer_semantic_variable_retract_live_test.go"
     },
     {
       "registry": "surface_inventory",
@@ -4120,25 +4168,7 @@
       "detail": "Inbound webhook sink, not a pollable source. The webhook collector verifies and normalizes inbound deliveries into refresh triggers; it never polls an upstream, so there is no generation to record into a cassette."
     }
   ],
-  "gaps": [
-    "projection:azure_resource_materialization|cost",
-    "projection:ci_cd_run_correlation|cost",
-    "projection:cloud_asset_resolution|cost",
-    "projection:config_state_drift|cost",
-    "projection:container_image_identity|cost",
-    "projection:gcp_resource_materialization|cost",
-    "projection:incident_repository_correlation|cost",
-    "projection:incident_routing_materialization|cost",
-    "projection:kubernetes_correlation|cost",
-    "projection:observability_coverage_correlation|cost",
-    "projection:package_source_correlation|cost",
-    "projection:reducer_derived_findings|cost",
-    "projection:sbom_attestation_attachment|cost",
-    "projection:security_alert_reconciliation|cost",
-    "projection:service_catalog_correlation|cost",
-    "projection:supply_chain_impact|cost",
-    "retractable_node:Variable|delta_tombstone"
-  ],
+  "gaps": null,
   "stale_manifest_surfaces": null,
   "language_scoreboard": {
     "total": 32,
