@@ -3,7 +3,7 @@
 // Rows are source intelligence (not service reachability) and link to the
 // existing CVE detail page. Seeds from the snapshot's first page, then paginates,
 // filters, and refreshes live through the catalog client.
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { Link } from "react-router-dom";
 
 import type { EshuApiClient } from "../api/client";
@@ -32,6 +32,19 @@ export function AdvisoryCatalog({
   readonly model: ConsoleModel;
   readonly client?: EshuApiClient;
 }): React.JSX.Element {
+  // A value-stable key makes authoritative source/snapshot changes remount the
+  // browse-state owner, while equivalent parent object churn preserves it.
+  // This keeps render pure and lets React discard speculative renders safely.
+  return <AdvisoryCatalogState key={catalogSeedIdentity(model)} model={model} client={client} />;
+}
+
+function AdvisoryCatalogState({
+  model,
+  client,
+}: {
+  readonly model: ConsoleModel;
+  readonly client?: EshuApiClient;
+}): React.JSX.Element {
   // Seed from the snapshot's first page so the catalog renders instantly. The
   // API's bounded-page metadata and cursor prove whether another page exists.
   const seeded = model.advisories.slice();
@@ -45,36 +58,10 @@ export function AdvisoryCatalog({
   const [draft, setDraft] = useState<Filters>(EMPTY_FILTERS);
   const [applied, setApplied] = useState<Filters>(EMPTY_FILTERS);
   const requestGeneration = useRef(0);
-  const seedIdentity = catalogSeedIdentity(model);
-  const authoritativeSeed = {
-    cursor: model.advisoryCatalogNextCursor,
-    hasMore: model.advisoryCatalogSummary?.truncated === true,
-    rows: seeded,
-  };
-  const authoritativeSeedRef = useRef(authoritativeSeed);
-  authoritativeSeedRef.current = authoritativeSeed;
 
   const truth = model.truth.advisories;
   const provenance = model.provenance.advisories ?? (model.source === "demo" ? "demo" : "loading");
   const filtersActive = applied !== EMPTY_FILTERS;
-
-  useEffect(() => {
-    // Parent renders may rebuild an equivalent ConsoleModel with fresh array
-    // and object references. Only authoritative value changes own a reset;
-    // reference churn must not discard the user's filters or loaded pages.
-    const next = authoritativeSeedRef.current;
-    // A source swap or refreshed snapshot is an authoritative ownership
-    // boundary. Reset local browse state and fence requests from the prior
-    // source so retained rows cannot bleed into demo or a newer connection.
-    requestGeneration.current += 1;
-    setRows(next.rows);
-    setCursor(next.cursor);
-    setHasMore(next.hasMore);
-    setDraft(EMPTY_FILTERS);
-    setApplied(EMPTY_FILTERS);
-    setLoading(false);
-    setError(null);
-  }, [seedIdentity]);
 
   async function load(
     next: Filters,

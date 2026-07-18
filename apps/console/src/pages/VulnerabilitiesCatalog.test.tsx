@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { StrictMode } from "react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it } from "vitest";
 
@@ -126,9 +127,11 @@ describe("AdvisoryCatalog", () => {
       provenance: { ...demoModel.provenance, advisories: "live" },
     };
     const { rerender } = render(
-      <MemoryRouter>
-        <AdvisoryCatalog client={client} model={model} />
-      </MemoryRouter>,
+      <StrictMode>
+        <MemoryRouter>
+          <AdvisoryCatalog client={client} model={model} />
+        </MemoryRouter>
+      </StrictMode>,
     );
 
     fireEvent.change(screen.getByRole("textbox", { name: "Search advisories" }), {
@@ -138,25 +141,27 @@ describe("AdvisoryCatalog", () => {
     await screen.findByRole("link", { name: "CVE-2026-FILTERED" });
 
     rerender(
-      <MemoryRouter>
-        <AdvisoryCatalog
-          client={client}
-          model={{
-            ...model,
-            advisories: model.advisories.map((advisory) => ({
-              ...advisory,
-              ecosystems: [...advisory.ecosystems],
-              packageIds: [...advisory.packageIds],
-            })),
-            advisoryCatalogSummary:
-              model.advisoryCatalogSummary === null ? null : { ...model.advisoryCatalogSummary },
-            advisoryCatalogNextCursor:
-              model.advisoryCatalogNextCursor === null
-                ? null
-                : { ...model.advisoryCatalogNextCursor },
-          }}
-        />
-      </MemoryRouter>,
+      <StrictMode>
+        <MemoryRouter>
+          <AdvisoryCatalog
+            client={client}
+            model={{
+              ...model,
+              advisories: model.advisories.map((advisory) => ({
+                ...advisory,
+                ecosystems: [...advisory.ecosystems],
+                packageIds: [...advisory.packageIds],
+              })),
+              advisoryCatalogSummary:
+                model.advisoryCatalogSummary === null ? null : { ...model.advisoryCatalogSummary },
+              advisoryCatalogNextCursor:
+                model.advisoryCatalogNextCursor === null
+                  ? null
+                  : { ...model.advisoryCatalogNextCursor },
+            }}
+          />
+        </MemoryRouter>
+      </StrictMode>,
     );
 
     expect(screen.getByRole("textbox", { name: "Search advisories" })).toHaveValue("CVE-2026");
