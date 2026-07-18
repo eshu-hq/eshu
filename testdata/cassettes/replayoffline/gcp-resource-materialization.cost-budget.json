@@ -1,0 +1,10 @@
+{
+  "scenario": "gcp-resource-materialization",
+  "cassette": "none: cypher.CloudResourceNodeWriter operates over flat map[string]any rows, not a CanonicalMaterialization; the two fixture rows live inline in go/internal/replay/costcounting/gcp_resource_materialization_cost_test.go",
+  "description": "Two distinct-uid GCP CloudResource rows in one project/region, driven through the production gated writer (graphowner.CloudResourceGatedWriter over cypher.CloudResourceNodeWriter) over an InstrumentedExecutor. CloudResourceNodeWriter has one Cypher template and no per-row batching split, and the default batch size (500) comfortably covers two rows, so the writer emits exactly one UNWIND write statement (eshu_dp_neo4j_batches_executed_total=1, statements_executed=1). Any increase — an N+1 write cycle or an extra batch split — trips the gate.",
+  "refresh_path": "manual: edit the inline fixture rows in gcp_resource_materialization_cost_test.go and this file together, reviewed in the same diff (no credentialed cassette refresh applies since there is no cassette)",
+  "budgets": {
+    "eshu_dp_neo4j_batches_executed_total": 1,
+    "statements_executed": 1
+  }
+}
