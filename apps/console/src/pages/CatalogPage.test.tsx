@@ -11,9 +11,7 @@ describe("CatalogPage", () => {
     render(<CatalogPage model={demoModel} />);
 
     expect(screen.getByRole("heading", { name: "Catalog" })).toBeInTheDocument();
-    expect(
-      screen.getByText(`${demoModel.services.length} entries`)
-    ).toBeInTheDocument();
+    expect(screen.getByText(`${demoModel.services.length} entries`)).toBeInTheDocument();
     expect(screen.getByText("checkout-service")).toBeInTheDocument();
     expect(screen.getByText("payments-api")).toBeInTheDocument();
     expect(screen.getByText("ledger-service")).toBeInTheDocument();
@@ -24,7 +22,7 @@ describe("CatalogPage", () => {
     render(<CatalogPage model={demoModel} />);
 
     fireEvent.change(screen.getByPlaceholderText(/Filter catalog/i), {
-      target: { value: "ledger" }
+      target: { value: "ledger" },
     });
 
     expect(screen.getByText("ledger-service")).toBeInTheDocument();
@@ -32,12 +30,10 @@ describe("CatalogPage", () => {
     expect(screen.queryByText("payments-api")).not.toBeInTheDocument();
 
     fireEvent.change(screen.getByPlaceholderText(/Filter catalog/i), {
-      target: { value: "no-such-entry" }
+      target: { value: "no-such-entry" },
     });
 
-    expect(
-      screen.getByText("No catalog entries from this source.")
-    ).toBeInTheDocument();
+    expect(screen.getByText("No catalog entries from this source.")).toBeInTheDocument();
   });
 
   it("invokes onOpenService when a row is clicked", () => {
@@ -47,6 +43,32 @@ describe("CatalogPage", () => {
     fireEvent.click(screen.getByText("payments-api"));
 
     expect(onOpenService).toHaveBeenCalledWith("payments-api");
+  });
+
+  it("contains long values in an accessible table scroll region", () => {
+    const longName = "customer-account-reconciliation-and-regulatory-reporting-orchestrator";
+    const longRepository =
+      "platform/customer-account-reconciliation-and-regulatory-reporting-orchestrator";
+    const model: ConsoleModel = {
+      ...demoModel,
+      services: [
+        {
+          ...demoModel.services[0],
+          id: "long-catalog-entry",
+          name: longName,
+          repo: longRepository,
+        },
+      ],
+    };
+
+    render(<CatalogPage model={model} />);
+
+    const region = screen.getByRole("region", { name: "Catalog entries" });
+    expect(region).toHaveAttribute("tabindex", "0");
+    expect(region).toHaveClass("catalog-table-scroll");
+    expect(region).toContainElement(screen.getByRole("table"));
+    expect(screen.getByText(longName)).toHaveAttribute("title", longName);
+    expect(screen.getByText(longRepository)).toHaveAttribute("title", longRepository);
   });
 
   it("renders the Environments column as an env count", () => {
@@ -125,7 +147,17 @@ describe("CatalogPage", () => {
   it("renders em-dash in tier/category/domain/language when fields are absent", () => {
     const sparse: ConsoleModel = {
       ...demoModel,
-      services: [{ id: "bare-svc", name: "bare-svc", kind: "service", repo: "sample/bare", environments: [], truth: "exact", freshness: "fresh" }]
+      services: [
+        {
+          id: "bare-svc",
+          name: "bare-svc",
+          kind: "service",
+          repo: "sample/bare",
+          environments: [],
+          truth: "exact",
+          freshness: "fresh",
+        },
+      ],
     };
     render(<CatalogPage model={sparse} />);
 
@@ -149,7 +181,7 @@ describe("CatalogPage", () => {
       title: "Test finding",
       detail: "detail",
       truth: "derived",
-      labels: ["high"]
+      labels: ["high"],
     };
     const withFindings: ConsoleModel = { ...demoModel, findings: [findingRow] };
     render(<CatalogPage model={withFindings} />);
@@ -168,7 +200,7 @@ describe("CatalogPage", () => {
     render(<CatalogPage model={demoModel} />);
 
     fireEvent.change(screen.getByPlaceholderText(/Filter catalog/i), {
-      target: { value: "finance" }
+      target: { value: "finance" },
     });
 
     // Only ledger-service has domain "finance"

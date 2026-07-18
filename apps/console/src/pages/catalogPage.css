@@ -1,0 +1,90 @@
+.catalog-page,
+.catalog-panel {
+  min-width: 0;
+}
+
+.catalog-panel {
+  overflow: hidden;
+}
+
+.catalog-table-scroll {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+}
+
+.catalog-table-scroll:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.catalog-table {
+  min-width: 1235px;
+  table-layout: fixed;
+}
+
+.catalog-table th,
+.catalog-table td {
+  padding-inline: 12px;
+}
+
+.catalog-table .catalog-col-name {
+  width: 180px;
+}
+
+.catalog-table .catalog-col-kind {
+  width: 80px;
+}
+
+.catalog-table .catalog-col-tier {
+  width: 80px;
+}
+
+.catalog-table .catalog-col-category {
+  width: 95px;
+}
+
+.catalog-table .catalog-col-domain {
+  width: 120px;
+}
+
+.catalog-table .catalog-col-language {
+  width: 95px;
+}
+
+.catalog-table .catalog-col-repository {
+  width: 210px;
+}
+
+.catalog-table .catalog-col-environments {
+  width: 105px;
+}
+
+.catalog-table .catalog-col-findings {
+  width: 85px;
+}
+
+.catalog-table .catalog-col-truth {
+  width: 85px;
+}
+
+.catalog-table .catalog-col-freshness {
+  width: 100px;
+}
+
+.catalog-cell-value {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  user-select: text;
+}
+
+.catalog-cell-metadata {
+  overflow-wrap: anywhere;
+}
+
+.catalog-repository-cell {
+  font-size: 0.78rem;
+}
