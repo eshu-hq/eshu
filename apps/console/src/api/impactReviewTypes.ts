@@ -26,11 +26,32 @@ export interface ImpactReview {
   readonly changeSurface: ImpactSection<ChangeSurfaceInvestigation>;
   readonly deploymentTrace: ImpactSection<DeploymentTraceResult>;
   readonly graph: GraphModel;
+  readonly graphPresentation: ImpactGraphPresentation;
   readonly input: Required<Pick<ImpactReviewInput, "target" | "targetKind">> &
     Pick<ImpactReviewInput, "environment" | "repoId"> & {
       readonly limit: number;
       readonly maxDepth: number;
     };
+}
+
+export type ImpactGraphMode = "blast_radius" | "change_surface" | "deployment_trace" | "empty";
+
+export interface ImpactGraphPresentation {
+  readonly duplicateEdges: number;
+  readonly duplicateNodes: number;
+  readonly edgeLimit: number;
+  readonly inputEdges: number;
+  readonly inputNodes: number;
+  readonly limitations: readonly string[];
+  readonly mode: ImpactGraphMode;
+  readonly nodeLimit: number;
+  readonly omittedEdges: number;
+  readonly omittedNodes: number;
+  readonly renderedEdges: number;
+  readonly renderedNodes: number;
+  readonly sourceApis: readonly string[];
+  readonly title: string;
+  readonly truncated: boolean;
 }
 
 export type ImpactSection<TData> =
@@ -74,12 +95,39 @@ export interface BlastAffectedEntity {
 export interface DeploymentTraceResult {
   readonly cloudResources: readonly DeploymentTraceEntity[];
   readonly deploymentOverview: Record<string, unknown>;
+  readonly deploymentFacts: readonly DeploymentTraceFact[];
   readonly deploymentSources: readonly DeploymentTraceEntity[];
   readonly imageRefs: readonly string[];
   readonly k8sResources: readonly DeploymentTraceEntity[];
+  readonly instances: readonly DeploymentTraceInstance[];
+  readonly repoId: string;
+  readonly repoName: string;
   readonly serviceName: string;
   readonly story: string;
   readonly workloadId: string;
+}
+
+export interface DeploymentTraceFact {
+  readonly confidence?: number;
+  readonly kind?: string;
+  readonly reason?: string;
+  readonly target: string;
+  readonly targetId?: string;
+  readonly type: string;
+}
+
+export interface DeploymentTraceInstance {
+  readonly environment?: string;
+  readonly id: string;
+  readonly platforms: readonly DeploymentTracePlatform[];
+}
+
+export interface DeploymentTracePlatform {
+  readonly confidence?: number;
+  readonly id?: string;
+  readonly kind?: string;
+  readonly name: string;
+  readonly reason?: string;
 }
 
 export interface DeploymentTraceEntity {
@@ -89,8 +137,4 @@ export interface DeploymentTraceEntity {
   readonly name: string;
 }
 
-export type BlastTargetType =
-  | "crossplane_xrd"
-  | "repository"
-  | "sql_table"
-  | "terraform_module";
+export type BlastTargetType = "crossplane_xrd" | "repository" | "sql_table" | "terraform_module";

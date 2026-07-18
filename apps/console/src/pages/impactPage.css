@@ -39,6 +39,17 @@
   min-height: 620px;
 }
 
+.impact-graph-provenance {
+  border-bottom: 1px solid var(--line);
+  display: grid;
+  gap: 7px;
+  padding: 14px 16px 4px;
+}
+
+.impact-graph-provenance p {
+  margin: 0 0 8px;
+}
+
 .impact-evidence-grid {
   display: grid;
   gap: var(--gap);
@@ -112,6 +123,44 @@
 .impact-summary-block {
   display: grid;
   gap: 10px;
+}
+
+.impact-pivots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.impact-pivots a {
+  border: 1px solid var(--line-2);
+  border-radius: 7px;
+  color: var(--teal-bright);
+  font-size: 0.76rem;
+  padding: 6px 9px;
+  text-decoration: none;
+}
+
+.impact-narrative {
+  background: var(--bg-field);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 9px 10px;
+}
+
+.impact-narrative summary {
+  color: var(--text);
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.impact-narrative p {
+  margin-top: 10px;
+}
+
+.impact-trace-group {
+  display: grid;
+  gap: 8px;
 }
 
 .impact-summary-block p {

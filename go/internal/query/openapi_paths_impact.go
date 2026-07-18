@@ -43,7 +43,29 @@ const openAPIPathsImpact = `
                     "repo_id": {"type": "string"},
                     "repo_name": {"type": "string"},
                     "story": {"type": "string"},
-                    "instances": {"type": "array", "items": {"type": "object"}},
+                    "instances": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "instance_id": {"type": "string"},
+                          "environment": {"type": "string"},
+                          "platforms": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "platform_id": {"type": "string", "description": "Canonical graph Platform identity; never derived from the display name."},
+                                "platform_name": {"type": "string"},
+                                "platform_kind": {"type": "string"},
+                                "platform_confidence": {"type": "number"},
+                                "platform_reason": {"type": "string"}
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
                     "hostnames": {"type": "array", "items": {"type": "object"}},
                     "entrypoints": {"type": "array", "items": {"type": "object"}},
                     "network_paths": {"type": "array", "items": {"type": "object"}},

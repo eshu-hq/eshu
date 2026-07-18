@@ -340,6 +340,7 @@ func (h *EntityHandler) fetchWorkloadInstances(ctx context.Context, whereClause 
 			continue
 		}
 		platform := map[string]any{
+			"platform_id":         StringVal(row, "platform_id"),
 			"platform_name":       StringVal(row, "platform_name"),
 			"platform_kind":       StringVal(row, "platform_kind"),
 			"platform_confidence": platformEdgeConfidence(row),
@@ -378,6 +379,7 @@ func (h *EntityHandler) fetchWorkloadPlatformRows(ctx context.Context, instances
 		MATCH (i:WorkloadInstance)-[runsOn:RUNS_ON]->(p:Platform)
 		WHERE i.id IN $instance_ids
 		RETURN i.id as instance_id,
+		       p.id as platform_id,
 		       p.name as platform_name,
 		       p.kind as platform_kind,
 		       runsOn.confidence as platform_confidence,
@@ -438,6 +440,7 @@ func (h *EntityHandler) fetchProvisionedPlatformRows(ctx context.Context, repoID
 // all materialized workload instances for the service.
 func attachProvisionedPlatform(instances []map[string]any, row map[string]any) {
 	platform := map[string]any{
+		"platform_id":         StringVal(row, "platform_id"),
 		"platform_name":       StringVal(row, "platform_name"),
 		"platform_kind":       StringVal(row, "platform_kind"),
 		"platform_confidence": floatVal(row, "platform_confidence"),

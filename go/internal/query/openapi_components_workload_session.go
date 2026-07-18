@@ -44,7 +44,19 @@ const openAPIComponentsWorkloadSession = `      "WorkloadContext": {
                 "instance_id": {"type": "string"},
                 "platform_name": {"type": "string"},
                 "platform_kind": {"type": "string"},
-                "platforms": {"type": "array", "items": {"type": "object"}},
+                "platforms": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "platform_id": {"type": "string", "description": "Canonical graph Platform identity; never derived from the display name."},
+                      "platform_name": {"type": "string"},
+                      "platform_kind": {"type": "string"},
+                      "platform_confidence": {"type": "number"},
+                      "platform_reason": {"type": "string"}
+                    }
+                  }
+                },
                 "environment": {"type": "string"}
               }
             }

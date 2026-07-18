@@ -7,12 +7,8 @@ import type { EshuApiClient } from "../api/client";
 import { demoDefaults } from "../api/demoClient";
 import type { EshuTruth } from "../api/envelope";
 import { loadImpactReview } from "../api/impactReview";
-import type {
-  DeploymentTraceEntity,
-  ImpactReview,
-  ImpactSection,
-  ImpactTargetKind
-} from "../api/impactReviewTypes";
+import type { ImpactReview, ImpactSection, ImpactTargetKind } from "../api/impactReviewTypes";
+import { DeploymentTraceSummary, ImpactGraphProvenance } from "./ImpactDeploymentSummary";
 import { Badge, FreshDot, Panel, StatTile, TruthChip } from "../components/atoms";
 import { GraphCanvas } from "../components/GraphCanvas";
 import { defaultServiceName } from "../console/defaultEntity";
@@ -35,12 +31,12 @@ const targetKinds: readonly { readonly label: string; readonly value: ImpactTarg
   { label: "Terraform module", value: "terraform_module" },
   { label: "Code topic", value: "code_topic" },
   { label: "SQL table", value: "sql_table" },
-  { label: "Crossplane XRD", value: "crossplane_xrd" }
+  { label: "Crossplane XRD", value: "crossplane_xrd" },
 ];
 
 export function ImpactPage({
   client,
-  model
+  model,
 }: {
   readonly client?: EshuApiClient;
   readonly model: ConsoleModel;
@@ -51,7 +47,9 @@ export function ImpactPage({
   // seed a real service from the catalog so the page renders a blast/change graph
   // immediately instead of an empty form. The query form still overrides.
   const liveDefaultTarget = demoMode ? "" : defaultServiceName(model);
-  const [form, setForm] = useState<ImpactFormState>(() => formFromSearch(searchParams, demoMode, liveDefaultTarget));
+  const [form, setForm] = useState<ImpactFormState>(() =>
+    formFromSearch(searchParams, demoMode, liveDefaultTarget),
+  );
   const [review, setReview] = useState<ImpactReview | null>(null);
   const [selectedNode, setSelectedNode] = useState<GraphNode | undefined>();
   const [busy, setBusy] = useState(false);
@@ -72,7 +70,7 @@ export function ImpactPage({
           environment: next.environment,
           repoId: next.repoId,
           target,
-          targetKind: next.kind
+          targetKind: next.kind,
         });
         setReview(loaded);
         setSelectedNode(loaded.graph.nodes.find((node) => node.hero) ?? loaded.graph.nodes[0]);
@@ -84,7 +82,7 @@ export function ImpactPage({
         setBusy(false);
       }
     },
-    [client]
+    [client],
   );
 
   useEffect(() => {
@@ -104,7 +102,7 @@ export function ImpactPage({
     }
     const params = new URLSearchParams({
       kind: form.kind,
-      target
+      target,
     });
     if (form.repoId.trim().length > 0) {
       params.set("repoId", form.repoId.trim());
@@ -118,10 +116,11 @@ export function ImpactPage({
   const graph = review?.graph ?? { edges: [], nodes: [] };
   const stats = useMemo(() => statRows(review), [review]);
   const selectedEdges = useMemo(
-    () => selectedNode === undefined
-      ? []
-      : graph.edges.filter((edge) => edge.s === selectedNode.id || edge.t === selectedNode.id),
-    [graph.edges, selectedNode]
+    () =>
+      selectedNode === undefined
+        ? []
+        : graph.edges.filter((edge) => edge.s === selectedNode.id || edge.t === selectedNode.id),
+    [graph.edges, selectedNode],
   );
 
   return (
@@ -130,7 +129,9 @@ export function ImpactPage({
         <div>
           <h2>Impact</h2>
         </div>
-        <Badge tone={canLoad ? "teal" : "warn"}>{canLoad ? demoMode ? "demo fixtures" : "live API" : "connect live API"}</Badge>
+        <Badge tone={canLoad ? "teal" : "warn"}>
+          {canLoad ? (demoMode ? "demo fixtures" : "live API") : "connect live API"}
+        </Badge>
       </div>
 
       <form className="impact-query" onSubmit={submit}>
@@ -140,13 +141,17 @@ export function ImpactPage({
             aria-label="Entity type"
             className="popover-input mono"
             value={form.kind}
-            onChange={(event) => setForm((current) => ({
-              ...current,
-              kind: event.target.value as ImpactTargetKind
-            }))}
+            onChange={(event) =>
+              setForm((current) => ({
+                ...current,
+                kind: event.target.value as ImpactTargetKind,
+              }))
+            }
           >
             {targetKinds.map((kind) => (
-              <option key={kind.value} value={kind.value}>{kind.label}</option>
+              <option key={kind.value} value={kind.value}>
+                {kind.label}
+              </option>
             ))}
           </select>
         </label>
@@ -175,7 +180,9 @@ export function ImpactPage({
           <input
             aria-label="Environment"
             className="popover-input mono"
-            onChange={(event) => setForm((current) => ({ ...current, environment: event.target.value }))}
+            onChange={(event) =>
+              setForm((current) => ({ ...current, environment: event.target.value }))
+            }
             placeholder="optional"
             value={form.environment}
           />
@@ -186,22 +193,35 @@ export function ImpactPage({
       </form>
 
       {!canLoad ? (
-        <p className="inline-state">{demoMode ? "Demo fixture client unavailable." : "Live Eshu API connection unavailable."}</p>
+        <p className="inline-state">
+          {demoMode ? "Demo fixture client unavailable." : "Live Eshu API connection unavailable."}
+        </p>
       ) : null}
       {error ? <p className="src-err">{error}</p> : null}
 
       <div className="grid g-4 mt">
         {stats.map((stat) => (
-          <StatTile color={stat.color} key={stat.label} label={stat.label} sub={stat.sub} value={stat.value} />
+          <StatTile
+            color={stat.color}
+            key={stat.label}
+            label={stat.label}
+            sub={stat.sub}
+            value={stat.value}
+          />
         ))}
       </div>
 
       <div className="impact-layout mt">
         <Panel
           className="flush impact-graph-panel"
-          sub={review ? `${review.input.targetKind.replace(/_/g, " ")} · ${review.input.target}` : "No impact graph loaded"}
-          title="Blast and change graph"
+          sub={
+            review
+              ? `${review.input.targetKind.replace(/_/g, " ")} · ${review.input.target}`
+              : "No impact graph loaded"
+          }
+          title={review?.graphPresentation.title ?? "Impact graph"}
         >
+          {review ? <ImpactGraphProvenance presentation={review.graphPresentation} /> : null}
           {busy ? (
             <div className="conn-state compact">
               <div aria-hidden className="conn-spinner" />
@@ -233,10 +253,13 @@ export function ImpactPage({
               <div className="impact-edge-list">
                 {selectedEdges.map((edge, index) => (
                   <div className="insp-evi-row" key={`${edge.s}:${edge.t}:${edge.verb}:${index}`}>
-                    {edge.verb} {edge.s === selectedNode.id ? "->" : "<-"} {edge.s === selectedNode.id ? edge.t : edge.s}
+                    {edge.verb} {edge.s === selectedNode.id ? "->" : "<-"}{" "}
+                    {edge.s === selectedNode.id ? edge.t : edge.s}
                   </div>
                 ))}
-                {selectedEdges.length === 0 ? <p className="empty">No edges selected yet.</p> : null}
+                {selectedEdges.length === 0 ? (
+                  <p className="empty">No edges selected yet.</p>
+                ) : null}
               </div>
             </div>
           ) : (
@@ -246,46 +269,38 @@ export function ImpactPage({
       </div>
 
       <div className="impact-evidence-grid mt">
-        <ImpactSectionPanel
-          section={review?.blast ?? null}
-          title="Blast radius"
-        >
+        <ImpactSectionPanel section={review?.blast ?? null} title="Blast radius">
           {review?.blast.status === "ready" ? (
             <EntityList
               empty="No transitive dependents returned."
               rows={review.blast.data.affected.map((entity) => ({
-                detail: [
-                  entity.repoId,
-                  entity.tier,
-                  entity.risk,
-                  `hop ${entity.hops}`
-                ].filter(Boolean).join(" · "),
-                name: entity.repo
+                detail: [entity.repoId, entity.tier, entity.risk, `hop ${entity.hops}`]
+                  .filter(Boolean)
+                  .join(" · "),
+                name: entity.repo,
               }))}
             />
           ) : null}
         </ImpactSectionPanel>
 
-        <ImpactSectionPanel
-          section={review?.changeSurface ?? null}
-          title="Change surface"
-        >
+        <ImpactSectionPanel section={review?.changeSurface ?? null} title="Change surface">
           {review?.changeSurface.status === "ready" ? (
             <ChangeSurfaceSummary investigation={review.changeSurface.data} />
           ) : null}
         </ImpactSectionPanel>
 
-        <ImpactSectionPanel
-          section={review?.deploymentTrace ?? null}
-          title="Deployment chain"
-        >
+        <ImpactSectionPanel section={review?.deploymentTrace ?? null} title="Deployment chain">
           {review?.deploymentTrace.status === "ready" ? (
             <DeploymentTraceSummary trace={review.deploymentTrace.data} />
           ) : null}
         </ImpactSectionPanel>
       </div>
 
-      <DeployableUnitPacketPanel canLoad={canLoad} client={client} initial={deployablePacketInitial} />
+      <DeployableUnitPacketPanel
+        canLoad={canLoad}
+        client={client}
+        initial={deployablePacketInitial}
+      />
     </div>
   );
 }
@@ -294,21 +309,27 @@ export function ImpactPage({
 // seeds the target for the live page open state (no demo, no explicit target) so
 // the page auto-loads a real catalog service instead of an empty form; an
 // explicit `target` param always wins.
-function formFromSearch(searchParams: URLSearchParams, demoMode = false, liveDefaultTarget = ""): ImpactFormState {
+function formFromSearch(
+  searchParams: URLSearchParams,
+  demoMode = false,
+  liveDefaultTarget = "",
+): ImpactFormState {
   const kind = searchParams.get("kind");
-  const target = searchParams.get("target") ?? (demoMode ? demoDefaults.impact.target : liveDefaultTarget);
+  const target =
+    searchParams.get("target") ?? (demoMode ? demoDefaults.impact.target : liveDefaultTarget);
   return {
-    environment: searchParams.get("environment") ?? (demoMode ? demoDefaults.impact.environment : ""),
+    environment:
+      searchParams.get("environment") ?? (demoMode ? demoDefaults.impact.environment : ""),
     kind: kind === null && demoMode ? demoDefaults.impact.kind : parseTargetKind(kind),
     repoId: searchParams.get("repoId") ?? "",
-    target
+    target,
   };
 }
 
 function parseTargetKind(raw: string | null): ImpactTargetKind {
   const values = new Set(targetKinds.map((kind) => kind.value));
   return raw !== null && values.has(raw as ImpactTargetKind)
-    ? raw as ImpactTargetKind
+    ? (raw as ImpactTargetKind)
     : "service";
 }
 
@@ -323,29 +344,49 @@ function statRows(review: ImpactReview | null): readonly {
       { color: "var(--teal)", label: "Graph nodes", sub: "awaiting review", value: "—" },
       { color: "var(--blue)", label: "Change surface", sub: "awaiting review", value: "—" },
       { color: "var(--ember)", label: "Blast radius", sub: "awaiting review", value: "—" },
-      { color: "var(--violet)", label: "Deployment chain", sub: "awaiting review", value: "—" }
+      { color: "var(--violet)", label: "Deployment chain", sub: "awaiting review", value: "—" },
     ];
   }
   const change = review.changeSurface.status === "ready" ? review.changeSurface.data : null;
   const blast = review.blast.status === "ready" ? review.blast.data : null;
   const trace = review.deploymentTrace.status === "ready" ? review.deploymentTrace.data : null;
   return [
-    { color: "var(--teal)", label: "Graph nodes", sub: `${review.graph.edges.length} edges`, value: fmt(review.graph.nodes.length) },
-    { color: "var(--blue)", label: "Change surface", sub: change?.truncated ? "truncated" : "bounded", value: change?.impact.totalCount ?? "—" },
-    { color: "var(--ember)", label: "Blast radius", sub: review.blast.status, value: blast?.affectedCount ?? "—" },
+    {
+      color: "var(--teal)",
+      label: "Graph nodes",
+      sub: `${review.graph.edges.length} edges`,
+      value: fmt(review.graph.nodes.length),
+    },
+    {
+      color: "var(--blue)",
+      label: "Change surface",
+      sub: change?.truncated ? "truncated" : "bounded",
+      value: change?.impact.totalCount ?? "—",
+    },
+    {
+      color: "var(--ember)",
+      label: "Blast radius",
+      sub: review.blast.status,
+      value: blast?.affectedCount ?? "—",
+    },
     {
       color: "var(--violet)",
       label: "Deployment chain",
       sub: review.deploymentTrace.status,
-      value: trace === null ? "—" : trace.deploymentSources.length + trace.cloudResources.length + trace.k8sResources.length
-    }
+      value:
+        trace === null
+          ? "—"
+          : trace.deploymentSources.length +
+            trace.cloudResources.length +
+            trace.k8sResources.length,
+    },
   ];
 }
 
 function ImpactSectionPanel<TData>({
   children,
   section,
-  title
+  title,
 }: {
   readonly children: React.ReactNode;
   readonly section: ImpactSection<TData> | null;
@@ -386,7 +427,7 @@ function TruthSummary({ truth }: { readonly truth: EshuTruth | null }): React.JS
 }
 
 function ChangeSurfaceSummary({
-  investigation
+  investigation,
 }: {
   readonly investigation: ChangeSurfaceInvestigation;
 }): React.JSX.Element {
@@ -400,8 +441,10 @@ function ChangeSurfaceSummary({
       <EntityList
         empty="No affected entities returned."
         rows={[...investigation.directImpact, ...investigation.transitiveImpact].map((node) => ({
-          detail: [node.repoId, node.environment, `depth ${node.depth}`].filter(Boolean).join(" · "),
-          name: node.name
+          detail: [node.repoId, node.environment, `depth ${node.depth}`]
+            .filter(Boolean)
+            .join(" · "),
+          name: node.name,
         }))}
       />
       {investigation.codeSurface.symbols.length > 0 ? (
@@ -411,7 +454,7 @@ function ChangeSurfaceSummary({
             empty="No touched symbols returned."
             rows={investigation.codeSurface.symbols.slice(0, 5).map((symbol) => ({
               detail: symbol.relativePath,
-              name: symbol.name
+              name: symbol.name,
             }))}
           />
         </>
@@ -420,45 +463,9 @@ function ChangeSurfaceSummary({
   );
 }
 
-function DeploymentTraceSummary({
-  trace
-}: {
-  readonly trace: {
-    readonly cloudResources: readonly DeploymentTraceEntity[];
-    readonly deploymentSources: readonly DeploymentTraceEntity[];
-    readonly imageRefs: readonly string[];
-    readonly k8sResources: readonly DeploymentTraceEntity[];
-    readonly story: string;
-  };
-}): React.JSX.Element {
-  return (
-    <div className="impact-summary-block">
-      <p>{trace.story}</p>
-      <div className="impact-mini-stats">
-        <span>{trace.deploymentSources.length} deployment sources</span>
-        <span>{trace.cloudResources.length} cloud resources</span>
-        <span>{trace.k8sResources.length} Kubernetes resources</span>
-      </div>
-      <EntityList
-        empty="No deployment sources returned."
-        rows={trace.deploymentSources.slice(0, 4)}
-      />
-      {trace.cloudResources.length > 0 ? (
-        <>
-          <div className="section-label">Cloud resources</div>
-          <EntityList empty="No cloud resources returned." rows={trace.cloudResources.slice(0, 4)} />
-        </>
-      ) : null}
-      {trace.imageRefs.length > 0 ? (
-        <p className="mono t-mut">{trace.imageRefs.slice(0, 3).join(" · ")}</p>
-      ) : null}
-    </div>
-  );
-}
-
 function EntityList({
   empty,
-  rows
+  rows,
 }: {
   readonly empty: string;
   readonly rows: readonly { readonly detail?: string; readonly name: string }[];

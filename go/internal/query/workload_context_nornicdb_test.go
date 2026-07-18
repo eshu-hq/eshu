@@ -60,6 +60,7 @@ func TestFetchWorkloadContextUsesScalarQueriesForNornicDBOptionalProjectionSafet
 					return []map[string]any{
 						{
 							"instance_id":         "workload-instance:svc-orders:example-prod",
+							"platform_id":         "platform:kubernetes:example-prod",
 							"platform_name":       "example-prod",
 							"platform_kind":       "kubernetes",
 							"platform_confidence": 0.95,
@@ -67,6 +68,7 @@ func TestFetchWorkloadContextUsesScalarQueriesForNornicDBOptionalProjectionSafet
 						},
 						{
 							"instance_id":         "workload-instance:svc-orders:example-prod",
+							"platform_id":         "platform:ecs:ecs-prod",
 							"platform_name":       "ecs-prod",
 							"platform_kind":       "ecs",
 							"platform_confidence": 0.91,
@@ -74,6 +76,7 @@ func TestFetchWorkloadContextUsesScalarQueriesForNornicDBOptionalProjectionSafet
 						},
 						{
 							"instance_id":         "workload-instance:svc-orders:platform-qa",
+							"platform_id":         "platform:kubernetes:platform-qa",
 							"platform_name":       "platform-qa",
 							"platform_kind":       "kubernetes",
 							"platform_confidence": 0.95,
@@ -140,6 +143,9 @@ func TestFetchWorkloadContextUsesScalarQueriesForNornicDBOptionalProjectionSafet
 	}
 	if got, want := bgProdPlatforms[1]["platform_name"], "ecs-prod"; got != want {
 		t.Fatalf("instances[0].platforms[1].platform_name = %#v, want %#v", got, want)
+	}
+	if got, want := bgProdPlatforms[1]["platform_id"], "platform:ecs:ecs-prod"; got != want {
+		t.Fatalf("instances[0].platforms[1].platform_id = %#v, want %#v", got, want)
 	}
 	overview := buildServiceDeploymentOverview(ctx)
 	if got, want := overview["platform_count"], 3; got != want {
