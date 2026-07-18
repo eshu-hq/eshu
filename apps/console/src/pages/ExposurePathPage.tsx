@@ -46,6 +46,7 @@ export function ExposurePathPage({
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const deepLinkRef = useRef("");
+  const urlSelectorRef = useRef("");
   const selectedCanonicalRef = useRef("");
   const requestVersionRef = useRef(0);
   const canLoad = client !== undefined;
@@ -53,6 +54,7 @@ export function ExposurePathPage({
 
   const clearDeepLink = useCallback(() => {
     deepLinkRef.current = "";
+    urlSelectorRef.current = "";
     if (!searchParams.has("service")) {
       return;
     }
@@ -109,6 +111,7 @@ export function ExposurePathPage({
       selectedCanonicalRef.current = canonicalID;
       setService(resolution.option.displayName);
       deepLinkRef.current = canonicalID;
+      urlSelectorRef.current = canonicalID;
       const params = new URLSearchParams(searchParams);
       params.set("service", canonicalID);
       setSearchParams(params, { replace: true });
@@ -130,13 +133,21 @@ export function ExposurePathPage({
   useEffect(() => {
     const initial = searchParams.get("service")?.trim() ?? "";
     if (initial.length === 0) {
-      if (deepLinkRef.current.length > 0) {
+      if (urlSelectorRef.current.length > 0 || deepLinkRef.current.length > 0) {
+        urlSelectorRef.current = "";
         deepLinkRef.current = "";
         selectedCanonicalRef.current = "";
         invalidateActiveRequest();
         setService("");
       }
       return;
+    }
+    if (urlSelectorRef.current !== initial) {
+      urlSelectorRef.current = initial;
+      deepLinkRef.current = "";
+      selectedCanonicalRef.current = "";
+      invalidateActiveRequest();
+      setService(initial);
     }
     if (!canLoad) {
       return;
@@ -150,6 +161,7 @@ export function ExposurePathPage({
 
   useEffect(
     () => () => {
+      urlSelectorRef.current = "";
       deepLinkRef.current = "";
       requestVersionRef.current += 1;
       abortRef.current?.abort();

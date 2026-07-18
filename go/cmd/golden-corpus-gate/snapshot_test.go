@@ -82,6 +82,32 @@ func TestLoadSnapshotParsesGoldenContract(t *testing.T) {
 	}
 }
 
+func TestGoldenSnapshotCatalogShapeProtectsWorkloadTruncation(t *testing.T) {
+	snap, err := LoadSnapshot(goldenSnapshotPath())
+	if err != nil {
+		t.Fatalf("LoadSnapshot() error = %v", err)
+	}
+
+	const key = "GET /api/v0/catalog?limit=2000&offset=0"
+	shape, ok := snap.QueryShapes.HTTP[key]
+	if !ok {
+		t.Fatalf("query_shapes.http missing %s", key)
+	}
+	for _, field := range []string{
+		"repositories",
+		"workloads",
+		"services",
+		"count",
+		"limit",
+		"truncated",
+		"workloads_truncated",
+	} {
+		if !containsString(shape.RequiredResponseFields, field) {
+			t.Fatalf("%s missing required response field %q", key, field)
+		}
+	}
+}
+
 func TestGoldenSnapshotIncludesDeadCodeReplayLibrary(t *testing.T) {
 	snap, err := LoadSnapshot(goldenSnapshotPath())
 	if err != nil {

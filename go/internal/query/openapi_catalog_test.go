@@ -30,6 +30,23 @@ func TestOpenAPICatalogDistinguishesWorkloadTruncation(t *testing.T) {
 	}
 }
 
+func TestOpenAPIEntityResolveDocumentsGraphUnavailable(t *testing.T) {
+	t.Parallel()
+
+	var spec map[string]any
+	if err := json.Unmarshal([]byte(OpenAPISpec()), &spec); err != nil {
+		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v, want nil", err)
+	}
+	paths := openAPIObject(t, spec, "paths")
+	resolve := openAPIObject(t, paths, "/api/v0/entities/resolve")
+	post := openAPIObject(t, resolve, "post")
+	responses := openAPIObject(t, post, "responses")
+	unavailable := openAPIObject(t, responses, "503")
+	if got, want := unavailable["$ref"], "#/components/responses/ServiceUnavailable"; got != want {
+		t.Fatalf("entity resolve 503 ref = %#v, want %#v", got, want)
+	}
+}
+
 func openAPIObject(t *testing.T, parent map[string]any, key string) map[string]any {
 	t.Helper()
 	value, ok := parent[key].(map[string]any)

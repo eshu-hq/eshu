@@ -4423,6 +4423,20 @@
           "repositories"
         ]
       },
+      "GET /api/v0/catalog?limit=2000&offset=0": {
+        "description": "Bounded catalog response used by console service selection; protects the distinct workload truncation signal from response-shape drift.",
+        "truth_class": "deterministic",
+        "minimum_results": 1,
+        "required_response_fields": [
+          "repositories",
+          "workloads",
+          "services",
+          "count",
+          "limit",
+          "truncated",
+          "workloads_truncated"
+        ]
+      },
       "GET /api/v0/status/operator-control-plane": {
         "description": "Operator control plane status; confirms the status projection is operational",
         "required_response_fields": [
