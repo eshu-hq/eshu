@@ -4,10 +4,12 @@
 package main
 
 import (
+	"encoding/json"
 	"path/filepath"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/mcp"
+	"github.com/eshu-hq/eshu/go/internal/query"
 )
 
 // goldenSnapshotPath returns the repo-relative path to the committed B-12
@@ -152,6 +154,50 @@ func TestGoldenSnapshotIncludesDeadCodeReplayLibrary(t *testing.T) {
 		if got := shape.shape.RequiredJSONValues["data.candidate_buckets.unknown[].classification"]; got != "unknown_needs_evidence" {
 			t.Fatalf("%s cross-repo unknown classification value = %#v, want unknown_needs_evidence", shape.name, got)
 		}
+	}
+}
+
+func TestGoldenSnapshotPinsServiceStoryVisualizationIdentityFields(t *testing.T) {
+	snap, err := LoadSnapshot(goldenSnapshotPath())
+	if err != nil {
+		t.Fatalf("LoadSnapshot() error = %v", err)
+	}
+
+	shape, ok := snap.QueryShapes.MCP["derive_visualization_packet"]
+	if !ok {
+		t.Fatal("query_shapes.mcp missing derive_visualization_packet")
+	}
+	for _, path := range []string{
+		"visualization_packet.nodes[].role",
+		"visualization_packet.nodes[].roles[]",
+		"visualization_packet.nodes[].canonical_key",
+		"visualization_packet.nodes[].scope_key",
+		"visualization_packet.nodes[].scope_keys[]",
+		"visualization_packet.nodes[].evidence_handles[]",
+	} {
+		if !containsString(shape.RequiredJSONPaths, path) {
+			t.Fatalf("derive_visualization_packet shape missing identity path %q", path)
+		}
+	}
+	source, ok := shape.Arguments["source_response"].(map[string]any)
+	if !ok {
+		t.Fatalf("derive_visualization_packet source_response = %T, want map[string]any", shape.Arguments["source_response"])
+	}
+	graph, ok := source["evidence_graph"].(map[string]any)
+	if !ok {
+		t.Fatalf("derive_visualization_packet source_response.evidence_graph = %T, want map[string]any", source["evidence_graph"])
+	}
+	nodes, ok := graph["nodes"].([]any)
+	if !ok || len(nodes) < 2 {
+		t.Fatalf("derive_visualization_packet source evidence nodes = %#v, want at least two observations", graph["nodes"])
+	}
+	packet := query.BuildServiceStoryVisualizationPacket(source, nil)
+	body, err := json.Marshal(map[string]any{"visualization_packet": packet})
+	if err != nil {
+		t.Fatalf("json.Marshal() error = %v", err)
+	}
+	if finding := EvaluateQueryShape("mcp:derive_visualization_packet", shape, body); !finding.OK {
+		t.Fatalf("derive_visualization_packet golden shape failed: %s", finding.Detail)
 	}
 }
 

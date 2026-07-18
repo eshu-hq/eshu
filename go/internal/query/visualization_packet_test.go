@@ -145,16 +145,157 @@ func TestServiceStoryVisualizationPrivacyInvariant(t *testing.T) {
 		"downstream_consumers": map[string]any{},
 	}
 	packet := BuildServiceStoryVisualizationPacket(resp, freshTruth())
+	checkedRepository := false
 	for _, node := range packet.Nodes {
 		// Labels fall back to the id the response carried; never to a fabricated name.
-		if node.Type == "repository" && node.Category == "upstream" && node.Label != "up-1" {
-			t.Fatalf("label fabricated for upstream node: %q", node.Label)
+		if node.Type == "repository" && node.Role == "deployment_configuration" {
+			checkedRepository = true
+			if node.Label != "up-1" {
+				t.Fatalf("label fabricated for deployment repository: %q", node.Label)
+			}
 		}
+	}
+	if !checkedRepository {
+		t.Fatal("privacy assertion did not inspect the deployment repository")
 	}
 	for _, edge := range packet.Edges {
 		if edge.TruthLabel != "" {
 			t.Fatalf("truth label invented with no source confidence: %q", edge.TruthLabel)
 		}
+	}
+}
+
+func TestServiceStoryVisualizationReconcilesCanonicalRepositoryObservations(t *testing.T) {
+	response := map[string]any{
+		"service_identity": map[string]any{
+			"service_id":   "workload:api-node-boats",
+			"service_name": "api-node-boats",
+			"repo_id":      "repository:r_service",
+		},
+		"evidence_graph": map[string]any{
+			"nodes": []map[string]any{
+				{
+					"id":       "workload:api-node-boats",
+					"label":    "api-node-boats",
+					"kind":     "service",
+					"category": "service",
+					"role":     "workload",
+				},
+				{
+					"id":       "repository:r_service",
+					"label":    "api-node-boats",
+					"kind":     "repository",
+					"category": "source",
+					"role":     "source_repository",
+				},
+				{
+					"id":            "repository:r_argocd_observation_a",
+					"label":         "iac-eks-argocd",
+					"kind":          "repository",
+					"category":      "deployment",
+					"role":          "deployment_configuration",
+					"canonical_key": "repository:r_argocd_canonical",
+					"scope_key":     "scope:s_a",
+				},
+				{
+					"id":            "repository:r_argocd_observation_b",
+					"label":         "iac-eks-argocd",
+					"kind":          "repository",
+					"category":      "deployment",
+					"role":          "deployment_configuration",
+					"canonical_key": "repository:r_argocd_canonical",
+					"scope_key":     "scope:s_b",
+				},
+				{
+					"id":       "runtime:api-node-boats:eks-prod",
+					"label":    "eks-prod",
+					"kind":     "runtime",
+					"category": "runtime",
+					"role":     "runtime_instance",
+					"repo_id":  "repository:r_service",
+				},
+			},
+			"edges": []map[string]any{
+				{
+					"source":            "repository:r_argocd_observation_a",
+					"target":            "repository:r_service",
+					"relationship_type": "PROVISIONING_SOURCE_CHAIN",
+					"confidence":        0.9,
+				},
+				{
+					"source":            "repository:r_argocd_observation_b",
+					"target":            "repository:r_service",
+					"relationship_type": "PROVISIONING_SOURCE_CHAIN",
+					"confidence":        0.9,
+				},
+				{
+					"source":            "workload:api-node-boats",
+					"target":            "runtime:api-node-boats:eks-prod",
+					"relationship_type": "RUNS_AS",
+				},
+			},
+		},
+		"upstream_dependencies": []map[string]any{},
+		"downstream_consumers":  map[string]any{},
+	}
+
+	packet := BuildServiceStoryVisualizationPacket(response, freshTruth())
+
+	serviceNodes := 0
+	canonicalRepositories := 0
+	var canonicalNode VisualizationNode
+	for _, node := range packet.Nodes {
+		if node.Role == "workload" && node.Type == "service" {
+			serviceNodes++
+		}
+		if node.Type == "repository" && node.CanonicalKey == "repository:r_argocd_canonical" {
+			canonicalRepositories++
+			canonicalNode = node
+		}
+	}
+	if serviceNodes != 1 {
+		t.Fatalf("workload service anchors = %d, want exactly 1", serviceNodes)
+	}
+	if canonicalRepositories != 1 {
+		t.Fatalf("canonical Argo repositories = %d, want 1", canonicalRepositories)
+	}
+	if len(canonicalNode.EvidenceHandles) != 2 {
+		t.Fatalf("canonical Argo evidence handles = %d, want 2 observation handles", len(canonicalNode.EvidenceHandles))
+	}
+	serviceNodeID := visualizationNodeID("service", "workload:api-node-boats")
+	for _, edge := range packet.Edges {
+		if edge.Relationship == "PROVISIONING_SOURCE_CHAIN" && edge.Target != serviceNodeID {
+			t.Fatalf("provisioning edge target = %q, want workload anchor %q", edge.Target, serviceNodeID)
+		}
+	}
+}
+
+func TestServiceStoryVisualizationDoesNotMergeEqualLabelsWithoutCanonicalKey(t *testing.T) {
+	response := map[string]any{
+		"service_identity": map[string]any{
+			"service_id":   "workload:api-node-boats",
+			"service_name": "api-node-boats",
+		},
+		"evidence_graph": map[string]any{
+			"nodes": []map[string]any{
+				{"id": "repository:r_a", "label": "iac-eks-argocd", "kind": "repository", "category": "deployment", "role": "deployment_configuration", "scope_key": "scope:s_a"},
+				{"id": "repository:r_b", "label": "iac-eks-argocd", "kind": "repository", "category": "deployment", "role": "deployment_configuration", "scope_key": "scope:s_b"},
+			},
+		},
+	}
+
+	packet := BuildServiceStoryVisualizationPacket(response, freshTruth())
+	observations := 0
+	for _, node := range packet.Nodes {
+		if node.Label == "iac-eks-argocd" {
+			observations++
+			if node.ScopeKey == "" {
+				t.Fatalf("unreconciled repository observation missing scope disambiguation: %+v", node)
+			}
+		}
+	}
+	if observations != 2 {
+		t.Fatalf("unreconciled Argo observations = %d, want 2", observations)
 	}
 }
 

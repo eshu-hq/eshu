@@ -5,8 +5,12 @@ package query
 
 import (
 	"context"
+	"crypto/sha1" // #nosec G505 -- privacy-safe observation discriminator, not a security primitive
+	"encoding/hex"
 	"sort"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/repositoryidentity"
 )
 
 const repositoryDeploymentEvidenceArtifactLimit = 50
@@ -44,8 +48,12 @@ func queryRepoDeploymentEvidence(ctx context.Context, reader GraphQuery, content
 		       artifact.commit_sha AS commit_sha,
 		       r.id AS source_repo_id,
 		       r.name AS source_repo_name,
+		       r.remote_url AS source_repo_remote_url,
+		       r.scope_id AS source_repo_scope_id,
 		       target.id AS target_repo_id,
-		       target.name AS target_repo_name
+		       target.name AS target_repo_name,
+		       target.remote_url AS target_repo_remote_url,
+		       target.scope_id AS target_repo_scope_id
 		ORDER BY path, artifact_id
 	`)
 	incoming, incomingTruncated := queryRepoDeploymentEvidenceDirection(ctx, reader, params, `
@@ -74,8 +82,12 @@ func queryRepoDeploymentEvidence(ctx context.Context, reader GraphQuery, content
 		       artifact.commit_sha AS commit_sha,
 		       source.id AS source_repo_id,
 		       source.name AS source_repo_name,
+		       source.remote_url AS source_repo_remote_url,
+		       source.scope_id AS source_repo_scope_id,
 		       r.id AS target_repo_id,
-		       r.name AS target_repo_name
+		       r.name AS target_repo_name,
+		       r.remote_url AS target_repo_remote_url,
+		       r.scope_id AS target_repo_scope_id
 		ORDER BY path, artifact_id
 	`)
 	rows := append(outgoing, incoming...)
@@ -131,6 +143,8 @@ func buildGraphDeploymentEvidence(rows []map[string]any) map[string]any {
 			"target_repo_name":  StringVal(row, "target_repo_name"),
 			"evidence_source":   StringVal(row, "evidence_source"),
 		}
+		attachRepositoryObservationIdentity(artifact, row, "source")
+		attachRepositoryObservationIdentity(artifact, row, "target")
 		copyOptionalDeploymentEvidenceFields(artifact, row)
 		attachDeploymentEvidenceSourceLocation(artifact)
 
@@ -169,6 +183,26 @@ func buildGraphDeploymentEvidence(rows []map[string]any) map[string]any {
 		"environments":       uniqueSortedStrings(environments),
 		"source_repo_ids":    uniqueSortedStrings(sourceRepoIDs),
 		"target_repo_ids":    uniqueSortedStrings(targetRepoIDs),
+	}
+}
+
+func attachRepositoryObservationIdentity(artifact, row map[string]any, endpoint string) {
+	if canonicalID := StringVal(row, endpoint+"_repo_canonical_id"); canonicalID != "" {
+		artifact[endpoint+"_repo_canonical_id"] = canonicalID
+	}
+	if scopeKey := StringVal(row, endpoint+"_repo_scope_key"); scopeKey != "" {
+		artifact[endpoint+"_repo_scope_key"] = scopeKey
+	}
+	remoteURL := StringVal(row, endpoint+"_repo_remote_url")
+	if remoteURL != "" {
+		canonicalID, err := repositoryidentity.CanonicalRepositoryID(remoteURL, "")
+		if err == nil {
+			artifact[endpoint+"_repo_canonical_id"] = canonicalID
+		}
+	}
+	if scopeID := strings.TrimSpace(StringVal(row, endpoint+"_repo_scope_id")); scopeID != "" {
+		sum := sha1.Sum([]byte(scopeID)) // #nosec G401 -- privacy-safe stable scope discriminator, not a security primitive
+		artifact[endpoint+"_repo_scope_key"] = "scope:s_" + hex.EncodeToString(sum[:])[:8]
 	}
 }
 

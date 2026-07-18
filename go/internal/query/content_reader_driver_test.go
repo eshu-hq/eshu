@@ -230,7 +230,8 @@ func contentReaderRelationshipReadModelColumns() []string {
 func contentReaderDeploymentEvidenceColumns() []string {
 	return []string{
 		"direction", "resolved_id", "generation_id", "source_repo_id", "source_name",
-		"target_repo_id", "target_name", "relationship_type", "confidence", "details",
+		"source_remote_url", "source_scope_id", "target_repo_id", "target_name",
+		"target_remote_url", "target_scope_id", "relationship_type", "confidence", "details",
 	}
 }
 

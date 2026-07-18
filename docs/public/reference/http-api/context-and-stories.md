@@ -262,6 +262,15 @@ Story routes return structured narrative first and drilldown handles second.
 They are the right entry point for onboarding, support, service explanation,
 and documentation generation prompts.
 
+Service story `evidence_graph.nodes[]` assigns source-backed roles for the
+workload anchor, source repository, deployment configuration, runtime instance,
+and downstream consumer. Repository nodes may also carry privacy-safe
+`canonical_key` and `scope_key` fields. `RUNS_AS` edges are emitted only for
+instances present in the selected workload evidence; the route does not infer
+ECS, EKS, or other runtime multiplicity from labels. Node and edge collections
+remain deterministically ordered and bounded, with `edge_count` and `truncated`
+reporting any source-side clipping before visualization derivation.
+
 Service story and service context classify hostname-shaped content evidence
 before returning entrypoints. Exact hostnames are returned in `hostnames` and
 may become public hostname `entrypoints`. Documented docs/spec routes remain

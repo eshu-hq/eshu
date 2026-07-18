@@ -80,14 +80,14 @@ func (cr *ContentReader) repositoryDeploymentEvidence(ctx context.Context, repoI
 
 const repositoryDeploymentEvidenceReadModelSQL = `
 WITH scoped_relationships AS (
-	SELECT 'outgoing' AS direction, r.*
+	SELECT 'outgoing' AS direction, r.*, g.scope AS generation_source_scope_id
 	FROM resolved_relationships AS r
 	JOIN relationship_generations AS g
 	  ON g.generation_id = r.generation_id
 	WHERE g.status = 'active'
 	  AND r.source_repo_id = $1
 	UNION ALL
-	SELECT 'incoming' AS direction, r.*
+	SELECT 'incoming' AS direction, r.*, g.scope AS generation_source_scope_id
 	FROM resolved_relationships AS r
 	JOIN relationship_generations AS g
 	  ON g.generation_id = r.generation_id
@@ -99,22 +99,33 @@ SELECT r.direction,
        r.generation_id,
        COALESCE(r.source_repo_id, '') AS source_repo_id,
        COALESCE(source_scope.name, r.source_repo_id, '') AS source_name,
+       COALESCE(source_scope.remote_url, '') AS source_remote_url,
+       COALESCE(source_scope.scope_id, '') AS source_scope_id,
        COALESCE(r.target_repo_id, '') AS target_repo_id,
        COALESCE(target_scope.name, r.target_repo_id, '') AS target_name,
+       COALESCE(target_scope.remote_url, '') AS target_remote_url,
+       COALESCE(target_scope.scope_id, '') AS target_scope_id,
        r.relationship_type,
        r.confidence,
        r.details
 FROM scoped_relationships AS r
 LEFT JOIN LATERAL (
-	SELECT COALESCE(payload->>'name', payload->>'repo_name', payload->>'repo_slug', source_key, scope_id) AS name
+	SELECT COALESCE(payload->>'name', payload->>'repo_name', payload->>'repo_slug', source_key, scope_id) AS name,
+	       COALESCE(payload->>'remote_url', '') AS remote_url,
+	       scope_id
 	FROM ingestion_scopes
 	WHERE scope_kind = 'repository'
-	  AND (scope_id = r.source_repo_id OR source_key = r.source_repo_id OR payload->>'repo_id' = r.source_repo_id OR payload->>'id' = r.source_repo_id)
-	ORDER BY scope_id
+	  -- A relationship generation is owned by its source observation. Its scope
+	  -- must not participate in target identity selection, which would alias the
+	  -- target repository back to the source when their identifiers differ.
+	  AND (scope_id = r.generation_source_scope_id OR scope_id = r.source_repo_id OR source_key = r.source_repo_id OR payload->>'repo_id' = r.source_repo_id OR payload->>'id' = r.source_repo_id)
+	ORDER BY CASE WHEN scope_id = r.generation_source_scope_id THEN 0 ELSE 1 END, scope_id
 	LIMIT 1
 ) AS source_scope ON true
 LEFT JOIN LATERAL (
-	SELECT COALESCE(payload->>'name', payload->>'repo_name', payload->>'repo_slug', source_key, scope_id) AS name
+	SELECT COALESCE(payload->>'name', payload->>'repo_name', payload->>'repo_slug', source_key, scope_id) AS name,
+	       COALESCE(payload->>'remote_url', '') AS remote_url,
+	       scope_id
 	FROM ingestion_scopes
 	WHERE scope_kind = 'repository'
 	  AND (scope_id = r.target_repo_id OR source_key = r.target_repo_id OR payload->>'repo_id' = r.target_repo_id OR payload->>'id' = r.target_repo_id)
@@ -132,13 +143,32 @@ func scanRepositoryDeploymentEvidenceRows(rows *sql.Rows, repoID string) ([]map[
 		generationID     string
 		sourceID         string
 		sourceName       string
+		sourceRemoteURL  string
+		sourceScopeID    string
 		targetID         string
 		targetName       string
+		targetRemoteURL  string
+		targetScopeID    string
 		relationshipType string
 		confidence       float64
 		detailsRaw       []byte
 	)
-	if err := rows.Scan(&direction, &resolvedID, &generationID, &sourceID, &sourceName, &targetID, &targetName, &relationshipType, &confidence, &detailsRaw); err != nil {
+	if err := rows.Scan(
+		&direction,
+		&resolvedID,
+		&generationID,
+		&sourceID,
+		&sourceName,
+		&sourceRemoteURL,
+		&sourceScopeID,
+		&targetID,
+		&targetName,
+		&targetRemoteURL,
+		&targetScopeID,
+		&relationshipType,
+		&confidence,
+		&detailsRaw,
+	); err != nil {
 		return nil, fmt.Errorf("scan repository deployment evidence: %w", err)
 	}
 	details := map[string]any{}
@@ -154,6 +184,14 @@ func scanRepositoryDeploymentEvidenceRows(rows *sql.Rows, repoID string) ([]map[
 		if len(artifact) == 0 {
 			continue
 		}
+		identityRow := map[string]any{
+			"source_repo_remote_url": sourceRemoteURL,
+			"source_repo_scope_id":   sourceScopeID,
+			"target_repo_remote_url": targetRemoteURL,
+			"target_repo_scope_id":   targetScopeID,
+		}
+		attachRepositoryObservationIdentity(artifact, identityRow, "source")
+		attachRepositoryObservationIdentity(artifact, identityRow, "target")
 		artifacts = append(artifacts, artifact)
 	}
 	return artifacts, nil

@@ -125,10 +125,11 @@ func TestBuildServiceStoryResponseNormalizesAPISurfaceOnce(t *testing.T) {
 		_ = buildServiceStoryResponse("service-edge-api", ctx)
 	})
 
-	// GitHub Actions runs this package under the race detector, which adds a few
-	// bookkeeping allocations. Keep the guard tight enough to catch repeated
-	// API-surface normalization while allowing the race-instrumented build.
-	const maxAllocsPerResponse = 690
+	// GitHub Actions runs this package under the race detector. The source-backed
+	// evidence graph now carries both the workload and its source repository;
+	// 705 retains a narrow race-instrumented margin around the measured 697-698
+	// allocations while still catching repeated API-surface normalization.
+	const maxAllocsPerResponse = 705
 	if allocs > maxAllocsPerResponse {
 		t.Fatalf("allocs per service story response = %.0f, want <= %d", allocs, maxAllocsPerResponse)
 	}

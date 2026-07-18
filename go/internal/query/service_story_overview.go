@@ -14,13 +14,12 @@ func buildServiceStoryResponse(serviceName string, workloadContext map[string]an
 	buildCtx := newServiceStoryBuildContext(workloadContext)
 	cacheServiceStoryBuildContext(buildCtx)
 	serviceName = canonicalServiceName(serviceName, workloadContext)
-	response := map[string]any{
-		"service_name":          serviceName,
-		"story":                 buildWorkloadStoryWithAPISurface(workloadContext, buildCtx.apiSurface, buildCtx.hasAPISurface),
-		"story_sections":        buildServiceStorySectionsWithContext(buildCtx),
-		"deployment_overview":   buildServiceDeploymentOverviewWithContext(buildCtx),
-		"code_to_runtime_trace": buildServiceCodeToRuntimeTrace(workloadContext),
-	}
+	response := make(map[string]any, 24)
+	response["service_name"] = serviceName
+	response["story"] = buildWorkloadStoryWithAPISurface(workloadContext, buildCtx.apiSurface, buildCtx.hasAPISurface)
+	response["story_sections"] = buildServiceStorySectionsWithContext(buildCtx)
+	response["deployment_overview"] = buildServiceDeploymentOverviewWithContext(buildCtx)
+	response["code_to_runtime_trace"] = buildServiceCodeToRuntimeTrace(workloadContext)
 	for _, key := range []string{"documentation_overview", "support_overview"} {
 		if value, ok := workloadContext[key]; ok && value != nil {
 			response[key] = value

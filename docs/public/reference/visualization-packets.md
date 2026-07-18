@@ -54,7 +54,7 @@ identity, **never from iteration order**:
 | Source | Identity used for the node ID |
 | --- | --- |
 | Service story service node | `service_id` (falling back to `service_name`) |
-| Service story repository node | repository `id` from the evidence graph / dependency rows |
+| Service story repository node | privacy-safe `canonical_key` when the source proves one; otherwise the repository observation `id` |
 | Evidence citation node | `entity_id`, else `repo_id` + `relative_path` |
 | Incident anchor node | `provider` + `provider_incident_id` |
 | Incident evidence slot node | incident anchor + slot name |
@@ -95,13 +95,19 @@ truncation and notes that it is a bounded subset of an already-bounded response.
       "type": "service",
       "label": "payments",
       "category": "service",
+      "role": "workload",
       "evidence_handle": { "kind": "entity", "repo_id": "svc-repo", "entity_id": "svc-1" }
     },
     {
       "id": "viznode:…",
       "type": "repository",
       "label": "billing",
-      "category": "upstream",
+      "category": "deployment",
+      "role": "deployment_configuration",
+      "roles": ["deployment_configuration"],
+      "canonical_key": "repository:r_…",
+      "scope_key": "scope:s_…",
+      "scope_keys": ["scope:s_…"],
       "evidence_handle": { "kind": "entity", "repo_id": "up-1", "entity_id": "up-1", "evidence_family": "repository" }
     }
   ],
@@ -129,8 +135,8 @@ truncation and notes that it is a bounded subset of an already-bounded response.
 | `view` | The derived-view family: `service_story`, `evidence_citation`, `incident_context`, or `unsupported`. |
 | `title` | Short human-readable subject for the subgraph. Optional. |
 | `supported` | `false` when no subgraph could be derived; the packet then carries `limitations` and `recommended_next_calls` instead of nodes/edges. |
-| `nodes` | Bounded, deterministically ordered nodes. Each has a stable `id`, a `type`, a `label`, an optional `category`, an optional `truth_label`, and an optional `evidence_handle`. |
-| `edges` | Bounded, deterministically ordered edges. Each has a stable `id`, `source`/`target` node IDs, a `relationship` label, an optional `truth_label`, and an optional `evidence_handle`. |
+| `nodes` | Bounded, deterministically ordered nodes. Each has a stable `id`, a `type`, a `label`, optional `category` and deterministic primary `role`, optional `roles` preserving every source-proven role, optional privacy-safe repository `canonical_key`, compatibility `scope_key`, and `scope_keys` preserving every reconciled observation scope, an optional `truth_label`, the compatibility `evidence_handle`, and optional `evidence_handles` preserving every reconciled observation. |
+| `edges` | Bounded, deterministically ordered edges. Each has a stable `id`, `source`/`target` node IDs, a `relationship` label, a strongest-supported deterministic `truth_label`, the compatibility `evidence_handle`, and optional `evidence_handles` preserving every collapsed relationship handle. |
 | `truth` | A copy of the source response's `TruthEnvelope`. Canonical truth metadata for the subgraph. |
 | `limits` | Payload bounds (`max_nodes`, `max_edges`), the `ordering` contract (`stable_id`), and the retained `node_count`/`edge_count`. |
 | `truncation` | What was dropped to stay within bounds: `truncated`, `dropped_node_count`, `dropped_edge_count`, `dropped_node_ids`. |
@@ -142,7 +148,17 @@ truncation and notes that it is a bounded subset of an already-bounded response.
 - **`service_story`** is derived from a service story dossier response. The
   service node comes from `service_identity`; repository nodes and their edges
   come from the dossier `evidence_graph`, `upstream_dependencies`, and
-  `downstream_consumers`. Each node carries an `evidence_handle` in the
+  `downstream_consumers`. The workload is the only service anchor. Source-code,
+  deployment-configuration, runtime-instance, and downstream-consumer nodes
+  carry distinct roles and layout categories. Repository observations reconcile
+  only when the source provides the same privacy-safe `canonical_key`; labels
+  never establish identity. Without canonical evidence, distinct observations
+  retain privacy-safe `scope_key` disambiguation. A reconciled node carries all
+  source-proven roles in `roles`, all privacy-safe observation scopes in
+  `scope_keys`, and all observation handles in `evidence_handles`, so the
+  collapsed semantics and provenance remain inspectable. Canonically collapsed
+  duplicate edges retain the strongest supported truth label independent of
+  input order. Each node also carries an `evidence_handle` in the
   `evidence_citation` handle shape so a rendered repository or service maps back
   to the citation that hydrates it. Relationship confidence in the source row is
   folded into a truth label using the existing `exact`/`derived`/`fallback`
@@ -210,7 +226,7 @@ The response data wraps the packet under `visualization_packet`:
     "view": "service_story",
     "supported": true,
     "nodes": [
-      { "id": "viznode:...", "type": "service", "label": "payments", "category": "service" }
+      { "id": "viznode:...", "type": "service", "label": "payments", "category": "service", "role": "workload" }
     ],
     "edges": [],
     "limits": { "max_nodes": 60, "max_edges": 120, "ordering": "stable_id", "node_count": 1, "edge_count": 0 },

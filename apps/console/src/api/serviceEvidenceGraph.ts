@@ -3,7 +3,7 @@ import {
   normalizeVisualizationPacket,
   serviceStoryVisualizationRequest,
   type VisualizationDeriveResponseWire,
-  type VisualizationPacket
+  type VisualizationPacket,
 } from "./answerVisualization";
 import { EshuApiHttpError, type EshuApiClient } from "./client";
 import type { EshuError, EshuTruth } from "./envelope";
@@ -27,15 +27,32 @@ export interface ServiceEvidenceGraphResult {
 // anchor visually distinct.
 const CATEGORY_COLUMN: Record<string, number> = {
   upstream: 0,
-  service: 1,
-  downstream: 2
+  source: 0,
+  deployment: 1,
+  service: 2,
+  runtime: 3,
+  downstream: 4,
 };
-const UNCATEGORIZED_COLUMN = 3;
+const ROLE_COLUMN: Record<string, number> = {
+  source_repository: 0,
+  deployment_configuration: 1,
+  workload: 2,
+  runtime_instance: 3,
+  downstream_consumer: 4,
+};
+const ROLE_LABEL: Record<string, string> = {
+  source_repository: "source repository",
+  deployment_configuration: "deployment configuration repository",
+  workload: "workload service",
+  runtime_instance: "runtime instance",
+  downstream_consumer: "downstream repository",
+};
+const UNCATEGORIZED_COLUMN = 5;
 
 // Node types the derive route emits map onto the console KIND_COLOR vocabulary.
 // "repository" is the dossier's spelling; the console palette keys it as "repo".
 const KIND_ALIASES: Record<string, string> = {
-  repository: "repo"
+  repository: "repo",
 };
 
 // loadServiceEvidenceGraph fetches the authorized service-story dossier, then
@@ -47,12 +64,12 @@ const KIND_ALIASES: Record<string, string> = {
 // result so the page never leaves a stale graph on screen after a failed load.
 export async function loadServiceEvidenceGraph(
   client: EshuApiClient,
-  serviceName: string
+  serviceName: string,
 ): Promise<ServiceEvidenceGraphResult> {
   const trimmed = serviceName.trim();
   try {
     const story = await client.get<Record<string, unknown>>(
-      `/api/v0/services/${encodeURIComponent(trimmed)}/story`
+      `/api/v0/services/${encodeURIComponent(trimmed)}/story`,
     );
     if (story.error !== null || story.data === null) {
       return emptyResult(trimmed, story.error ?? requestFailedError());
@@ -60,7 +77,7 @@ export async function loadServiceEvidenceGraph(
 
     const derived = await client.post<VisualizationDeriveResponseWire>(
       "/api/v0/visualizations/derive",
-      serviceStoryVisualizationRequest(story.data, story.truth)
+      serviceStoryVisualizationRequest(story.data, story.truth),
     );
     if (derived.error !== null || derived.data === null) {
       return emptyResult(trimmed, derived.error ?? requestFailedError());
@@ -72,7 +89,7 @@ export async function loadServiceEvidenceGraph(
       packet,
       serviceName: trimmed,
       storyError: null,
-      truth: derived.truth ?? packet?.truth ?? story.truth
+      truth: derived.truth ?? packet?.truth ?? story.truth,
     };
   } catch (error) {
     return emptyResult(trimmed, eshuErrorFromThrown(error));
@@ -89,7 +106,7 @@ function eshuErrorFromThrown(error: unknown): EshuError {
 function requestFailedError(error?: unknown): EshuError {
   return {
     code: "request_failed",
-    message: error instanceof Error ? error.message : "service evidence graph request failed"
+    message: error instanceof Error ? error.message : "service evidence graph request failed",
   };
 }
 
@@ -104,27 +121,46 @@ export function serviceStoryGraph(packet: VisualizationPacket | null): GraphMode
   const nodes: GraphNode[] = packet.nodes
     .filter((node) => node.id.length > 0)
     .map((node) => ({
-      col: CATEGORY_COLUMN[node.category] ?? UNCATEGORIZED_COLUMN,
-      hero: node.category === "service",
+      col: ROLE_COLUMN[node.role] ?? CATEGORY_COLUMN[node.category] ?? UNCATEGORIZED_COLUMN,
+      hero:
+        node.role === "workload" ||
+        (node.role.length === 0 && node.type === "service" && node.category === "service"),
       id: node.id,
       kind: KIND_ALIASES[node.type] ?? node.type ?? "repo",
       label: node.label || node.id,
-      sub: node.category || node.type,
-      truth: node.truthLabel.length > 0 ? uiTruth(node.truthLabel) : undefined
+      sub: nodeSubLabel(node.roles, node.scopeKeys, node.category || node.type),
+      truth: node.truthLabel.length > 0 ? uiTruth(node.truthLabel) : undefined,
     }));
-  if (nodes.length > 0 && !nodes.some((node) => node.hero === true)) {
-    nodes[0] = { ...nodes[0], hero: true };
-  }
   const nodeIds = new Set(nodes.map((node) => node.id));
   const edges = packet.edges
     .filter((edge) => nodeIds.has(edge.source) && nodeIds.has(edge.target))
-    .map((edge): GraphEdge => ({
-      layer: "code",
-      s: edge.source,
-      t: edge.target,
-      verb: edge.relationship || "RELATED"
-    }));
+    .map(
+      (edge): GraphEdge => ({
+        layer: "code",
+        s: edge.source,
+        t: edge.target,
+        verb: edge.relationship || "RELATED",
+      }),
+    );
   return { edges, nodes };
+}
+
+function nodeSubLabel(
+  roles: readonly string[],
+  scopeKeys: readonly string[],
+  fallback: string,
+): string {
+  const roleLabels = roles.map((role) => ROLE_LABEL[role] ?? role.replaceAll("_", " "));
+  const parts = [roleLabels.filter((role) => role.length > 0).join(" + ") || fallback];
+  if (scopeKeys.length > 0) {
+    const observations = scopeKeys.map((scopeKey) =>
+      scopeKey.startsWith("scope:") ? scopeKey.slice("scope:".length) : scopeKey,
+    );
+    parts.push(
+      `${observations.length === 1 ? "observation" : "observations"} ${observations.join(", ")}`,
+    );
+  }
+  return parts.filter((part) => part.length > 0).join(" · ");
 }
 
 function emptyResult(serviceName: string, error: EshuError | null): ServiceEvidenceGraphResult {
@@ -133,6 +169,6 @@ function emptyResult(serviceName: string, error: EshuError | null): ServiceEvide
     packet: null,
     serviceName,
     storyError: error,
-    truth: null
+    truth: null,
   };
 }

@@ -387,11 +387,14 @@ graph. It is purely source-backed:
   with `POST /api/v0/visualizations/derive` (`view: "service_story"`). The derive
   route is a side-effect-free transformation, so the console performs no
   client-side graph synthesis.
-- Node types, categories, relationships, and truth labels come only from the
-  packet. The legend reflects the node types actually present; missing collector
-  lanes are never backfilled with invented nodes.
-- `limits` and `truncation` stay visible: a truncated subgraph shows the dropped
-  node/edge counts so a bounded subset is never read as the full picture.
+- Packet roles keep the workload as the sole service anchor and place source,
+  deployment configuration, proven runtime, and downstream nodes in separate lanes.
+- Repository observations reconcile only through a privacy-safe canonical key,
+  never by label. The panel retains every proven role, hashed scope, and evidence handle.
+- Relationship rows lead with human labels, roles, and readable verbs. Opaque
+  `viznode:*` endpoints remain secondary diagnostics.
+- Truncation stays visible with known drop counts or a count-free bounded-subset
+  message when the source does not expose exact counts.
 - Empty, unsupported, partial, and error states are first-class UI. The page
   never renders a stale graph when the story or derive route fails.
 - Selecting a node or an evidence-lane relationship pill opens the shared inline

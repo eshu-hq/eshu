@@ -65,13 +65,23 @@ func TestBuildServiceStoryResponseReturnsCompleteDossier(t *testing.T) {
 
 	graph := mapValue(got, "evidence_graph")
 	edges := mapSliceValue(graph, "edges")
-	if len(edges) != 2 {
-		t.Fatalf("len(evidence_graph.edges) = %d, want 2 durable edges", len(edges))
+	if len(edges) != 4 {
+		t.Fatalf("len(evidence_graph.edges) = %d, want 2 deployment and 2 runtime edges", len(edges))
 	}
+	deploymentEdges := 0
+	runtimeEdges := 0
 	for _, edge := range edges {
+		if StringVal(edge, "relationship_type") == "RUNS_AS" {
+			runtimeEdges++
+			continue
+		}
+		deploymentEdges++
 		if StringVal(edge, "resolved_id") == "" {
 			t.Fatalf("evidence_graph edge missing resolved_id: %#v", edge)
 		}
+	}
+	if deploymentEdges != 2 || runtimeEdges != 2 {
+		t.Fatalf("evidence graph edge roles = deployment:%d runtime:%d, want 2/2", deploymentEdges, runtimeEdges)
 	}
 
 	limits := mapValue(got, "result_limits")

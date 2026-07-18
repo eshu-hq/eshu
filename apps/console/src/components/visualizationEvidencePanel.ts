@@ -1,6 +1,10 @@
 import type { EvidenceSelection } from "./EvidenceDrawer";
 import type { EvidencePanelData, EvidencePanelFact, EvidencePanelSection } from "./EvidencePanel";
-import { buildSourceCitationHref, sourceCitationLabel, type AnswerEvidenceHandle } from "../api/answerPacket";
+import {
+  buildSourceCitationHref,
+  sourceCitationLabel,
+  type AnswerEvidenceHandle,
+} from "../api/answerPacket";
 import type { VisualizationPacket } from "../api/answerVisualization";
 
 // visualizationEvidencePanelData maps a selected node or edge from a
@@ -11,7 +15,7 @@ import type { VisualizationPacket } from "../api/answerVisualization";
 // than an empty panel.
 export function visualizationEvidencePanelData(
   packet: VisualizationPacket,
-  selection: EvidenceSelection
+  selection: EvidenceSelection,
 ): EvidencePanelData | null {
   if (selection.kind === "node") {
     const node = packet.nodes.find((row) => row.id === selection.id);
@@ -20,7 +24,12 @@ export function visualizationEvidencePanelData(
     }
     const facts: EvidencePanelFact[] = [
       { label: "Type", value: node.type },
-      { label: "Category", value: node.category }
+      { label: "Category", value: node.category },
+      { label: "Role", value: node.role },
+      { label: "All roles", value: node.roles.join(", ") },
+      { label: "Canonical repository", value: node.canonicalKey },
+      { label: "Observation scope", value: node.scopeKey },
+      { label: "All observation scopes", value: node.scopeKeys.join(", ") },
     ];
     return {
       kindLabel: "Node evidence",
@@ -28,9 +37,12 @@ export function visualizationEvidencePanelData(
       truthLabel: node.truthLabel,
       truth: packet.truth,
       facts,
-      sections: handleSections(node.evidenceHandle),
+      sections: [
+        ...handleSections(node.evidenceHandle),
+        ...observationHandleSections(node.evidenceHandles),
+      ],
       limitations: packet.limitations,
-      ...sourceLinkFields(node.evidenceHandle)
+      ...sourceLinkFields(node.evidenceHandle),
     };
   }
   const edge = packet.edges.find((row) => row.id === selection.id);
@@ -39,7 +51,7 @@ export function visualizationEvidencePanelData(
   }
   const facts: EvidencePanelFact[] = [
     { label: "From", value: nodeLabel(packet, edge.source) },
-    { label: "To", value: nodeLabel(packet, edge.target) }
+    { label: "To", value: nodeLabel(packet, edge.target) },
   ];
   return {
     kindLabel: "Edge evidence",
@@ -47,10 +59,30 @@ export function visualizationEvidencePanelData(
     truthLabel: edge.truthLabel,
     truth: packet.truth,
     facts,
-    sections: handleSections(edge.evidenceHandle),
+    sections: [
+      ...handleSections(edge.evidenceHandle),
+      ...observationHandleSections(edge.evidenceHandles),
+    ],
     limitations: packet.limitations,
-    ...sourceLinkFields(edge.evidenceHandle)
+    ...sourceLinkFields(edge.evidenceHandle),
   };
+}
+
+function observationHandleSections(
+  handles: readonly AnswerEvidenceHandle[],
+): readonly EvidencePanelSection[] {
+  if (handles.length <= 1) {
+    return [];
+  }
+  return [
+    {
+      title: "Repository observations",
+      rows: handles.map((handle, index) => ({
+        label: `Observation ${index + 1}`,
+        value: handle.entityId ?? handle.repoId ?? "",
+      })),
+    },
+  ];
 }
 
 function handleSections(handle: AnswerEvidenceHandle | null): readonly EvidencePanelSection[] {
@@ -61,18 +93,21 @@ function handleSections(handle: AnswerEvidenceHandle | null): readonly EvidenceP
     { label: "Kind", value: handle.kind },
     { label: "Family", value: handle.evidenceFamily },
     { label: "Entity", value: handle.entityId ?? "" },
-    { label: "Reason", value: handle.reason }
+    { label: "Reason", value: handle.reason },
   ];
   return [{ title: "Evidence handle", rows }];
 }
 
-function sourceLinkFields(handle: AnswerEvidenceHandle | null): { sourceHref?: string; sourceLabel?: string } {
+function sourceLinkFields(handle: AnswerEvidenceHandle | null): {
+  sourceHref?: string;
+  sourceLabel?: string;
+} {
   if (handle === null || handle.relativePath === undefined || handle.repoId === undefined) {
     return {};
   }
   return {
     sourceHref: buildSourceCitationHref(handle),
-    sourceLabel: sourceCitationLabel(handle)
+    sourceLabel: sourceCitationLabel(handle),
   };
 }
 

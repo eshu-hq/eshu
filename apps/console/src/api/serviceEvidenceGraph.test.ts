@@ -3,22 +3,30 @@ import { describe, expect, it, vi } from "vitest";
 import { normalizeVisualizationPacket } from "./answerVisualization";
 import { EshuApiHttpError, type EshuApiClient } from "./client";
 import type { EshuEnvelope } from "./envelope";
-import {
-  loadServiceEvidenceGraph,
-  serviceStoryGraph
-} from "./serviceEvidenceGraph";
+import { loadServiceEvidenceGraph, serviceStoryGraph } from "./serviceEvidenceGraph";
 
 function storyEnvelope(): EshuEnvelope<Record<string, unknown>> {
   return {
     data: {
       service_identity: { service_id: "svc-1", service_name: "payments", repo_id: "svc-repo" },
       upstream_dependencies: [
-        { source: "billing", source_repo_id: "up-1", target_repo_id: "svc-repo", relationship_type: "DEPENDS_ON", confidence: 0.9 }
+        {
+          source: "billing",
+          source_repo_id: "up-1",
+          target_repo_id: "svc-repo",
+          relationship_type: "DEPENDS_ON",
+          confidence: 0.9,
+        },
       ],
-      downstream_consumers: {}
+      downstream_consumers: {},
     },
     error: null,
-    truth: { capability: "service.story.read", freshness: { state: "fresh" }, level: "exact", profile: "local_authoritative" }
+    truth: {
+      capability: "service.story.read",
+      freshness: { state: "fresh" },
+      level: "exact",
+      profile: "local_authoritative",
+    },
   };
 }
 
@@ -26,7 +34,12 @@ function packetEnvelope(packet: unknown): EshuEnvelope<Record<string, unknown>> 
   return {
     data: { visualization_packet: packet },
     error: null,
-    truth: { capability: "visualization.derive", freshness: { state: "fresh" }, level: "exact", profile: "local_authoritative" }
+    truth: {
+      capability: "visualization.derive",
+      freshness: { state: "fresh" },
+      level: "exact",
+      profile: "local_authoritative",
+    },
   };
 }
 
@@ -36,17 +49,41 @@ function supportedPacket(): Record<string, unknown> {
     title: "payments",
     supported: true,
     nodes: [
-      { id: "viznode:service", type: "service", label: "payments", category: "service", evidence_handle: { kind: "entity", repo_id: "svc-repo", entity_id: "svc-1" } },
-      { id: "viznode:up-1", type: "repository", label: "billing", category: "upstream", truth_label: "exact", evidence_handle: { kind: "entity", repo_id: "up-1", entity_id: "up-1", evidence_family: "repository" } }
+      {
+        id: "viznode:service",
+        type: "service",
+        label: "payments",
+        category: "service",
+        evidence_handle: { kind: "entity", repo_id: "svc-repo", entity_id: "svc-1" },
+      },
+      {
+        id: "viznode:up-1",
+        type: "repository",
+        label: "billing",
+        category: "upstream",
+        truth_label: "exact",
+        evidence_handle: {
+          kind: "entity",
+          repo_id: "up-1",
+          entity_id: "up-1",
+          evidence_family: "repository",
+        },
+      },
     ],
     edges: [
-      { id: "vizedge:1", source: "viznode:up-1", target: "viznode:service", relationship: "DEPENDS_ON", truth_label: "exact" }
+      {
+        id: "vizedge:1",
+        source: "viznode:up-1",
+        target: "viznode:service",
+        relationship: "DEPENDS_ON",
+        truth_label: "exact",
+      },
     ],
     truth: { level: "exact", basis: "authoritative_graph", freshness: { state: "fresh" } },
     limits: { max_nodes: 60, max_edges: 120, ordering: "stable_id", node_count: 2, edge_count: 1 },
     truncation: { truncated: false, dropped_node_count: 0, dropped_edge_count: 0 },
     limitations: [],
-    recommended_next_calls: []
+    recommended_next_calls: [],
   };
 }
 
@@ -56,11 +93,22 @@ describe("normalizeVisualizationPacket limits and truncation", () => {
       {
         visualization_packet: {
           ...supportedPacket(),
-          truncation: { truncated: true, dropped_node_count: 3, dropped_edge_count: 5, dropped_node_ids: ["viznode:x"] },
-          limits: { max_nodes: 60, max_edges: 120, ordering: "stable_id", node_count: 2, edge_count: 1 }
-        }
+          truncation: {
+            truncated: true,
+            dropped_node_count: 3,
+            dropped_edge_count: 5,
+            dropped_node_ids: ["viznode:x"],
+          },
+          limits: {
+            max_nodes: 60,
+            max_edges: 120,
+            ordering: "stable_id",
+            node_count: 2,
+            edge_count: 1,
+          },
+        },
       },
-      null
+      null,
     );
     expect(packet?.truncation.truncated).toBe(true);
     expect(packet?.truncation.droppedNodeCount).toBe(3);
@@ -73,7 +121,7 @@ describe("normalizeVisualizationPacket limits and truncation", () => {
   it("defaults limits and truncation when the wire omits them", () => {
     const packet = normalizeVisualizationPacket(
       { visualization_packet: { view: "service_story", supported: true, nodes: [], edges: [] } },
-      null
+      null,
     );
     expect(packet?.truncation.truncated).toBe(false);
     expect(packet?.truncation.droppedNodeIds).toEqual([]);
@@ -97,9 +145,84 @@ describe("serviceStoryGraph", () => {
   it("returns an empty graph for an unsupported packet", () => {
     const packet = normalizeVisualizationPacket(
       { visualization_packet: { view: "service_story", supported: false, nodes: [], edges: [] } },
-      null
+      null,
     );
     expect(serviceStoryGraph(packet).nodes).toHaveLength(0);
+  });
+
+  it("keeps one workload hero and separates source, deployment, runtime, and downstream roles", () => {
+    const packet = normalizeVisualizationPacket(
+      {
+        visualization_packet: {
+          ...supportedPacket(),
+          nodes: [
+            {
+              id: "viznode:service",
+              type: "service",
+              label: "api-node-boats",
+              category: "service",
+              role: "workload",
+            },
+            {
+              id: "viznode:source",
+              type: "repository",
+              label: "api-node-boats",
+              category: "source",
+              role: "source_repository",
+            },
+            {
+              id: "viznode:config",
+              type: "repository",
+              label: "iac-eks-argocd",
+              category: "source",
+              role: "source_repository",
+              roles: ["source_repository", "deployment_configuration"],
+              scope_key: "scope:s_a",
+              scope_keys: ["scope:s_a", "scope:s_b"],
+            },
+            {
+              id: "viznode:runtime",
+              type: "runtime",
+              label: "eks-prod",
+              category: "runtime",
+              role: "runtime_instance",
+            },
+            {
+              id: "viznode:downstream",
+              type: "repository",
+              label: "boats-web",
+              category: "downstream",
+              role: "downstream_consumer",
+            },
+          ],
+          edges: [],
+        },
+      },
+      null,
+    );
+
+    const graph = serviceStoryGraph(packet);
+    expect(graph.nodes.filter((node) => node.hero === true)).toHaveLength(1);
+    expect(graph.nodes.find((node) => node.id === "viznode:service")?.hero).toBe(true);
+    expect(graph.nodes.find((node) => node.id === "viznode:source")?.hero).toBe(false);
+    expect(graph.nodes.find((node) => node.id === "viznode:source")?.sub).toContain(
+      "source repository",
+    );
+    const configSub = graph.nodes.find((node) => node.id === "viznode:config")?.sub ?? "";
+    expect(configSub).toContain("source repository + deployment configuration repository");
+    expect(configSub).toContain("observations s_a, s_b");
+    expect(configSub).not.toContain("scope:");
+
+    const orderedIds = [...graph.nodes]
+      .sort((left, right) => left.col - right.col)
+      .map((node) => node.id);
+    expect(orderedIds).toEqual([
+      "viznode:source",
+      "viznode:config",
+      "viznode:service",
+      "viznode:runtime",
+      "viznode:downstream",
+    ]);
   });
 
   it("drops edges that reference a missing endpoint", () => {
@@ -108,11 +231,20 @@ describe("serviceStoryGraph", () => {
         visualization_packet: {
           view: "service_story",
           supported: true,
-          nodes: [{ id: "viznode:service", type: "service", label: "payments", category: "service" }],
-          edges: [{ id: "vizedge:dangling", source: "viznode:service", target: "viznode:ghost", relationship: "DEPENDS_ON" }]
-        }
+          nodes: [
+            { id: "viznode:service", type: "service", label: "payments", category: "service" },
+          ],
+          edges: [
+            {
+              id: "vizedge:dangling",
+              source: "viznode:service",
+              target: "viznode:ghost",
+              relationship: "DEPENDS_ON",
+            },
+          ],
+        },
       },
-      null
+      null,
     );
     expect(serviceStoryGraph(packet).edges).toHaveLength(0);
   });
@@ -131,15 +263,12 @@ describe("loadServiceEvidenceGraph", () => {
         paths.push(path);
         bodies.push(body);
         return packetEnvelope(supportedPacket());
-      })
+      }),
     } as unknown as EshuApiClient;
 
     const result = await loadServiceEvidenceGraph(client, "payments");
 
-    expect(paths).toEqual([
-      "/api/v0/services/payments/story",
-      "/api/v0/visualizations/derive"
-    ]);
+    expect(paths).toEqual(["/api/v0/services/payments/story", "/api/v0/visualizations/derive"]);
     expect(bodies[0]).toMatchObject({ view: "service_story" });
     expect(result.storyError).toBeNull();
     expect(result.packet?.supported).toBe(true);
@@ -154,7 +283,7 @@ describe("loadServiceEvidenceGraph", () => {
         paths.push(path);
         return storyEnvelope();
       }),
-      post: vi.fn(async () => packetEnvelope(supportedPacket()))
+      post: vi.fn(async () => packetEnvelope(supportedPacket())),
     } as unknown as EshuApiClient;
 
     await loadServiceEvidenceGraph(client, "team/payments");
@@ -167,9 +296,9 @@ describe("loadServiceEvidenceGraph", () => {
       get: vi.fn(async () => ({
         data: null,
         error: { code: "not_found", message: "service not found" },
-        truth: null
+        truth: null,
       })),
-      post
+      post,
     } as unknown as EshuApiClient;
 
     const result = await loadServiceEvidenceGraph(client, "ghost");
@@ -185,8 +314,8 @@ describe("loadServiceEvidenceGraph", () => {
       post: vi.fn(async () => ({
         data: null,
         error: { code: "unsupported_capability", message: "derive disabled" },
-        truth: null
-      }))
+        truth: null,
+      })),
     } as unknown as EshuApiClient;
 
     const result = await loadServiceEvidenceGraph(client, "payments");
@@ -201,7 +330,7 @@ describe("loadServiceEvidenceGraph", () => {
       get: vi.fn(async () => {
         throw new EshuApiHttpError(404, { code: "not_found", message: "service not found" });
       }),
-      post
+      post,
     } as unknown as EshuApiClient;
 
     const result = await loadServiceEvidenceGraph(client, "ghost");
@@ -216,7 +345,7 @@ describe("loadServiceEvidenceGraph", () => {
       get: vi.fn(async () => storyEnvelope()),
       post: vi.fn(async () => {
         throw new EshuApiHttpError(503);
-      })
+      }),
     } as unknown as EshuApiClient;
 
     const result = await loadServiceEvidenceGraph(client, "payments");
