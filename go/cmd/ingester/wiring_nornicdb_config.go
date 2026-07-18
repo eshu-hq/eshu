@@ -182,22 +182,30 @@ func canonicalExecutorForGraphBackend(
 				"env_var", nornicDBCanonicalGroupedWritesEnv)
 		}
 		// Wire the raw executor as drainReader so the bounded drain loop can
-		// open its own write sessions independent of the TimeoutExecutor.
-		// The drain loop bypasses the timeout wrapper intentionally: each
-		// bounded iteration is small (retractBatchSize nodes) and completes
-		// well within the per-statement budget; we don't want a 2m global
-		// timeout to cancel a correctly-progressing multi-iteration drain.
+		// open its own write sessions independent of the grouped TimeoutExecutor
+		// above. The drain loop bypasses that phase-wide timeout intentionally so
+		// a correctly-progressing multi-iteration drain is not canceled by one
+		// global deadline. Instead, ingesterTimeoutDrainReader gives EACH drain
+		// iteration its own fresh child deadline (#5198): a stalled iteration
+		// (e.g. a lost Bolt response) fails after the per-statement budget with a
+		// retryable graph_write_timeout, while the budget resets every iteration
+		// so steady progress is never canceled by an earlier iteration.
 		var dr retractDrainReader
 		if rdr, ok := rawExecutor.(retractDrainReader); ok {
-			dr = rdr
+			dr = ingesterTimeoutDrainReader{
+				inner:       rdr,
+				timeout:     nornicDBTimeout,
+				timeoutHint: canonicalWriteTimeoutEnv,
+			}
 			// Gate the full-refresh DETACH DELETE drain writes too (#4729): the
 			// drain loop calls drainReader.RunWrite on the raw executor, bypassing
 			// the gated inner GroupExecutor above, so without this the drain path
 			// would run ungated and could exceed ESHU_GRAPH_WRITE_MAX_IN_FLIGHT
-			// under concurrent projector workers. Only wrap when a gate is
-			// configured (nil gate = passthrough, keep the raw reader).
+			// under concurrent projector workers. The gate wraps the per-iteration
+			// timeout reader (permit outside the deadline), matching the projector
+			// (#5122). Only wrap when a gate is configured (nil gate = passthrough).
 			if gate != nil {
-				dr = gatedDrainReader{inner: rdr, gate: gate}
+				dr = gatedDrainReader{inner: dr, gate: gate}
 			}
 		}
 		return nornicDBPhaseGroupExecutor{
