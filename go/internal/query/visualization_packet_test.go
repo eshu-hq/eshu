@@ -145,11 +145,18 @@ func TestServiceStoryVisualizationPrivacyInvariant(t *testing.T) {
 		"downstream_consumers": map[string]any{},
 	}
 	packet := BuildServiceStoryVisualizationPacket(resp, freshTruth())
+	checkedRepository := false
 	for _, node := range packet.Nodes {
 		// Labels fall back to the id the response carried; never to a fabricated name.
-		if node.Type == "repository" && node.Category == "upstream" && node.Label != "up-1" {
-			t.Fatalf("label fabricated for upstream node: %q", node.Label)
+		if node.Type == "repository" && node.Role == "deployment_configuration" {
+			checkedRepository = true
+			if node.Label != "up-1" {
+				t.Fatalf("label fabricated for deployment repository: %q", node.Label)
+			}
 		}
+	}
+	if !checkedRepository {
+		t.Fatal("privacy assertion did not inspect the deployment repository")
 	}
 	for _, edge := range packet.Edges {
 		if edge.TruthLabel != "" {

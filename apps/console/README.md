@@ -387,19 +387,14 @@ graph. It is purely source-backed:
   with `POST /api/v0/visualizations/derive` (`view: "service_story"`). The derive
   route is a side-effect-free transformation, so the console performs no
   client-side graph synthesis.
-- Node types, source-proven roles, categories, relationships, and truth labels
-  come only from the packet. The workload is the sole service anchor; source,
-  deployment-configuration, proven runtime-instance, and downstream roles use separate
-  lanes. Missing collector lanes are never backfilled with invented nodes.
-- Repository observations reconcile only through the packet's privacy-safe
-  canonical repository key, never by label. When canonical identity is absent,
-  role and hashed scope disambiguation remain visible. Reconciled observations
-  retain every role, hashed scope, and evidence handle in the inline evidence
-  panel; the graph uses the deterministic highest-priority role for layout.
-- Relationship rows lead with human endpoint labels, roles, and a readable verb; opaque `viznode:*` endpoint IDs remain secondary diagnostic detail.
-- `limits` and `truncation` stay visible: a truncated subgraph shows known
-  dropped node/edge counts, and uses a count-free bounded-subset message when
-  the source did not expose exact counts.
+- Packet roles keep the workload as the sole service anchor and place source,
+  deployment configuration, proven runtime, and downstream nodes in separate lanes.
+- Repository observations reconcile only through a privacy-safe canonical key,
+  never by label. The panel retains every proven role, hashed scope, and evidence handle.
+- Relationship rows lead with human labels, roles, and readable verbs. Opaque
+  `viznode:*` endpoints remain secondary diagnostics.
+- Truncation stays visible with known drop counts or a count-free bounded-subset
+  message when the source does not expose exact counts.
 - Empty, unsupported, partial, and error states are first-class UI. The page
   never renders a stale graph when the story or derive route fails.
 - Selecting a node or an evidence-lane relationship pill opens the shared inline

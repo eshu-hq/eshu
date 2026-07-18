@@ -65,8 +65,9 @@ type VisualizationNode struct {
 	Type string `json:"type"`
 	// Label is a bounded human-readable label for rendering.
 	Label string `json:"label"`
-	// Category is an optional sub-classification (upstream, downstream, service,
-	// or an incident evidence slot) that a client may use for layout or color.
+	// Category is an optional sub-classification (source, deployment, service,
+	// runtime, downstream, or an incident evidence slot) that a client may use
+	// for layout or color.
 	Category string `json:"category,omitempty"`
 	// Role describes what the source evidence proves this node does in the
 	// service story. It keeps a workload anchor distinct from source-code,

@@ -15,6 +15,12 @@ pointers instead of embedding every Postgres evidence row.
   `resolved_relationships` row in Postgres.
 - `artifacts[].generation_id` identifies the relationship generation that
   produced the row.
+- `artifacts[].source_repo_canonical_id` and
+  `artifacts[].target_repo_canonical_id` carry a privacy-safe canonical
+  repository identity when the source remote URL can be normalized.
+- `artifacts[].source_repo_scope_key` and `artifacts[].target_repo_scope_key`
+  carry a stable `scope:s_...` discriminator when an ingestion scope is known.
+  The response never exposes the raw scope identifier through these fields.
 - `artifacts[].source_location` records `repo_id`, `repo_name`, `path`, and
   line range when the extractor emitted line data.
 - `evidence_index.lookup_basis` is `resolved_id`.
