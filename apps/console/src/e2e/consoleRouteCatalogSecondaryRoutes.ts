@@ -6,6 +6,12 @@ import {
   routeOwnership,
 } from "./consoleRouteResponseOwnership";
 
+const replatformingResponses = [
+  postResponse("/api/v0/replatforming/rollups"),
+  postResponse("/api/v0/replatforming/plans"),
+  postResponse("/api/v0/replatforming/ownership-packets"),
+] as const;
+
 export const secondaryConsoleRoutes: readonly ConsoleRoute[] = [
   {
     path: "/operations",
@@ -324,9 +330,14 @@ export const secondaryConsoleRoutes: readonly ConsoleRoute[] = [
       kind: "submit",
       fields: [
         {
-          requestKey: "scope_id",
-          selector: 'input[aria-label="Scope id"]',
-          valueEnv: "ESHU_E2E_CLOUD_SCOPE_ID",
+          requestKey: "account_id",
+          selector: 'input[aria-label="Account"]',
+          valueFromSelector: "#replatforming-accounts option",
+        },
+        {
+          requestKey: "region",
+          selector: 'input[aria-label="Region"]',
+          valueFromSelector: "#replatforming-regions option",
         },
       ],
       role: "button",
@@ -335,7 +346,18 @@ export const secondaryConsoleRoutes: readonly ConsoleRoute[] = [
       expectedRequestPath: "/api/v0/replatforming/rollups",
       expectedRequestMethod: "POST",
       acceptedResponseStatuses: [200],
+      additionalExpectedRequests: replatformingResponses.slice(1),
       outcomeSelector: ".replatforming-truth",
+      additionalOutcomeSelectors: [
+        ".replatforming-grid .replatforming-section",
+        ".replatforming-page > .mt .replatforming-section",
+      ],
+      pagination: {
+        nextName: "Next page",
+        previousName: "Previous page",
+        offsetQueryKey: "offset",
+        expectedRequests: replatformingResponses,
+      },
       forbiddenSelectors: [".replatforming-page .src-err"],
     },
   },

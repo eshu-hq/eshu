@@ -35,12 +35,19 @@ export function ReplatformingFilters({
     ? inventory.supportedScopeKinds
     : defaultScopeKinds;
   const pageSizes = inventory?.pageSizes.length ? inventory.pageSizes : defaultPageSizes;
+  const scopes = inventory?.scopes ?? [];
   const accounts = unique(inventory?.scopes.map((scope) => scope.accountId) ?? []);
   const regions = unique(
-    (inventory?.scopes ?? [])
+    scopes
       .filter((scope) => form.accountId === "" || scope.accountId === form.accountId)
       .map((scope) => scope.region),
   );
+  const canSubmit =
+    form.scopeKind === "service"
+      ? form.scopeId.trim() !== ""
+      : form.scopeKind === "region"
+        ? form.accountId.trim() !== "" && form.region.trim() !== ""
+        : form.accountId.trim() !== "";
 
   function change(patch: Partial<ReplatformingFormState>): void {
     onChange({ ...form, ...patch });
@@ -72,43 +79,61 @@ export function ReplatformingFilters({
         </select>
       </label>
 
-      <label>
-        <span>Account</span>
-        <input
-          aria-label="Account"
-          className="popover-input mono"
-          list="replatforming-accounts"
-          onChange={(event) =>
-            change({ accountId: event.target.value, offset: "0", region: "", scopeId: "" })
-          }
-          placeholder="Choose an AWS account"
-          role="combobox"
-          value={form.accountId}
-        />
-        <datalist id="replatforming-accounts">
-          {accounts.map((account) => (
-            <option key={account} value={account} />
-          ))}
-        </datalist>
-      </label>
+      {form.scopeKind !== "service" ? (
+        <label>
+          <span>Account</span>
+          <input
+            aria-label="Account"
+            className="popover-input mono"
+            list="replatforming-accounts"
+            onChange={(event) =>
+              change({ accountId: event.target.value, offset: "0", region: "", scopeId: "" })
+            }
+            placeholder="Choose an AWS account"
+            role="combobox"
+            value={form.accountId}
+          />
+          <datalist id="replatforming-accounts">
+            {accounts.map((account) => (
+              <option
+                key={account}
+                label={`${scopes.filter((scope) => scope.accountId === account).length} active scopes`}
+                value={account}
+              />
+            ))}
+          </datalist>
+        </label>
+      ) : null}
 
-      <label>
-        <span>Region</span>
-        <input
-          aria-label="Region"
-          className="popover-input mono"
-          list="replatforming-regions"
-          onChange={(event) => change({ offset: "0", region: event.target.value, scopeId: "" })}
-          placeholder="All regions"
-          role="combobox"
-          value={form.region}
-        />
-        <datalist id="replatforming-regions">
-          {regions.map((region) => (
-            <option key={region} value={region} />
-          ))}
-        </datalist>
-      </label>
+      {form.scopeKind !== "service" ? (
+        <label>
+          <span>Region</span>
+          <input
+            aria-label="Region"
+            className="popover-input mono"
+            list="replatforming-regions"
+            onChange={(event) => change({ offset: "0", region: event.target.value, scopeId: "" })}
+            placeholder={form.scopeKind === "region" ? "Choose a region" : "All regions"}
+            role="combobox"
+            value={form.region}
+          />
+          <datalist id="replatforming-regions">
+            {regions.map((region) => (
+              <option
+                key={region}
+                label={`${
+                  scopes.filter(
+                    (scope) =>
+                      scope.region === region &&
+                      (form.accountId === "" || scope.accountId === form.accountId),
+                  ).length
+                } active scopes`}
+                value={region}
+              />
+            ))}
+          </datalist>
+        </label>
+      ) : null}
 
       {form.scopeKind === "service" ? (
         <label>
@@ -175,7 +200,11 @@ export function ReplatformingFilters({
         </select>
       </label>
 
-      <button className="btn-ghost active" disabled={!canLoad || inventory === null} type="submit">
+      <button
+        className="btn-ghost active"
+        disabled={!canLoad || inventory === null || !canSubmit}
+        type="submit"
+      >
         Review plan
       </button>
     </form>

@@ -23,6 +23,15 @@ export type WorkflowField =
       readonly interaction?: "fill" | "select";
       readonly value?: never;
       readonly valueEnv: string;
+      readonly valueFromSelector?: never;
+    }
+  | {
+      readonly requestKey?: string;
+      readonly selector: string;
+      readonly interaction?: "fill";
+      readonly value?: never;
+      readonly valueEnv?: never;
+      readonly valueFromSelector: string;
     };
 
 export interface WorkflowEmptyState {
@@ -167,6 +176,12 @@ export type RouteWorkflowSpec = WorkflowGuards &
         readonly expectedPagePath?: string;
         readonly outcomeSelector: string;
         readonly additionalOutcomeSelectors?: readonly string[];
+        readonly pagination?: {
+          readonly expectedRequests: readonly WorkflowResponseExpectation[];
+          readonly nextName: string;
+          readonly offsetQueryKey: string;
+          readonly previousName: string;
+        };
       }
     | {
         readonly id: string;

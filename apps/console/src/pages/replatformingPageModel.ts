@@ -55,7 +55,11 @@ export function searchFromForm(form: ReplatformingFormState): URLSearchParams {
 }
 
 export function hasAnchor(form: ReplatformingFormState): boolean {
-  return form.accountId.trim() !== "" || form.scopeId.trim() !== "";
+  if (form.scopeKind === "service") return form.scopeId.trim() !== "";
+  if (form.scopeKind === "region") {
+    return form.accountId.trim() !== "" && form.region.trim() !== "";
+  }
+  return form.accountId.trim() !== "";
 }
 
 export function inventoryStatus(
@@ -76,6 +80,9 @@ export function inventoryStatus(
   }
   if (busy) return "Loading the bounded replatforming plan...";
   if (review === null && inventory !== null) {
+    if (inventory.truncated) {
+      return `Showing the first ${inventory.limit} authorized scopes. Narrow the selection or use an exact authorized scope if the required choice is not listed.`;
+    }
     return (
       inventory.readiness.nextAction ||
       "Choose an account, region, or source scope to review a bounded plan."

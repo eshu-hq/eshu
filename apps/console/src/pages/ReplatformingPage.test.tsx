@@ -157,7 +157,36 @@ describe("ReplatformingPage", () => {
     expect(screen.getByRole("combobox", { name: "Account" })).toBeInTheDocument();
     expect(screen.getByRole("listbox", { name: "Finding kinds" })).toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: "Page size" })).toHaveValue("100");
+    expect(screen.getByRole("button", { name: "Review plan" })).toBeDisabled();
+    expect(document.querySelector("#replatforming-accounts option")).toHaveAttribute(
+      "label",
+      expect.stringContaining("active scopes"),
+    );
     expect(post).not.toHaveBeenCalled();
+  });
+
+  it("adapts controls to scope kind and reports a bounded selector slice", async () => {
+    const envelope = selectorEnvelope();
+    const client = {
+      get: vi.fn(async () => ({
+        ...envelope,
+        data: { ...envelope.data, truncated: true },
+      })),
+      post: vi.fn(),
+    } as unknown as EshuApiClient;
+
+    render(
+      <MemoryRouter initialEntries={["/replatforming"]}>
+        <ReplatformingPage client={client} model={modelFromSnapshot(emptySnapshot("live"))} />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText(/first 200 authorized scopes/i)).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Scope kind"), { target: { value: "service" } });
+
+    expect(screen.getByRole("combobox", { name: "Source scope" })).toBeInTheDocument();
+    expect(screen.queryByRole("combobox", { name: "Account" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("combobox", { name: "Region" })).not.toBeInTheDocument();
   });
 
   it("moves through bounded review pages without exposing raw offsets", async () => {
