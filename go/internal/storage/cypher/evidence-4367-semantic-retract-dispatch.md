@@ -18,18 +18,25 @@ graph, so semantic delta retracts accumulated stale nodes in production.
 
 ## No-Regression Evidence:
 
-- **Backend / version:** NornicDB v1.1.11 (bolt, `nornic-pr264` image),
-  `ESHU_GRAPH_BACKEND=nornicdb`, database `nornic`.
+- **Backend / version:** NornicDB v1.1.11 — the unpatched pinned image the
+  replay-tier gate provisions,
+  `timothyswt/nornicdb-cpu-bge:v1.1.11@sha256:51b6174ae65e4ce54a158ac2f9eace7d36a1971545824d22add0fe06d94c1090`
+  (`scripts/verify-replay-tier.sh`), bolt, `ESHU_GRAPH_BACKEND=nornicdb`,
+  database `nornic`. Both the baseline and after measurements below were taken
+  against this exact base image (no #264/#4902 backend patches), which is what
+  the fix has to hold on and what CI runs.
 - **Input shape:** one repo, two `Variable` entities in two files, gen1 upsert
   then gen2 delta retract of one file path (the live regression
   `TestReducerSemanticVariableRetractGraphTruth`,
   `go/internal/replay/offlinetier/delta_tier_reducer_semantic_variable_retract_live_test.go`).
-- **Baseline (grouped dispatch, before):** gen2 delta retract leaves the
-  in-scope `Variable` present — read-back `count = 1`, want `0`. Silent data
-  retention (a correctness defect), measured directly against the live backend.
-- **After (sequential retract dispatch):** gen2 delta retract removes the
-  in-scope `Variable` — read-back `count = 0`; the out-of-scope `Variable` and
-  both `File` nodes survive (`count = 1`). Failing-then-green regression.
+- **Baseline (grouped dispatch, before):** gen2 delta retract dispatched through
+  `ExecuteGroup` (managed Bolt transaction) leaves the in-scope `Variable`
+  present — read-back `count = 1`, want `0`. Silent data retention (a
+  correctness defect), measured directly against the base v1.1.11 backend.
+- **After (sequential retract dispatch):** gen2 delta retract dispatched through
+  `Execute` (autocommit) removes the in-scope `Variable` — read-back
+  `count = 0`; the out-of-scope `Variable` and both `File` nodes survive
+  (`count = 1`). Failing-then-green regression, proven on the base v1.1.11 image.
 - **Throughput safety:** the retract path emits at most one bounded statement
   per semantic label (`len(semanticEntityPlans())`, ~11), issued once per delta
   generation per file-path set — not a high-cardinality hot path. The
