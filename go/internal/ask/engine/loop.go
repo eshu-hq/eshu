@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/ask/provider"
 	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/status"
 )
 
 // extractEmbeddedPacket checks whether env.Data is a JSON object containing an
@@ -70,6 +71,7 @@ func (e *Engine) Ask(ctx context.Context, question string) (Answer, error) {
 		{Role: provider.RoleUser, Text: question},
 	}
 	ans := Answer{Question: question}
+	var progress evidenceProgress
 
 	for i := 0; i < e.opts.MaxIterations; i++ {
 		comp, err := e.adapter.Complete(ctx, messages, e.tools)
@@ -84,10 +86,10 @@ func (e *Engine) Ask(ctx context.Context, question string) (Answer, error) {
 			// Final turn: model produced prose with no further tool calls.
 			ans.Prose = comp.Text
 			if finalizeIndexedRepositoryCountAnswer(question, &ans) {
+				ans.TerminationReason = terminationDeterministicRoute
 				return ans, nil
 			}
-			posture := e.resolveNarrationPosture()
-			e.narrate(ctx, &ans, posture)
+			e.finalizeAnswer(ctx, question, &ans, terminationFinalTurn)
 			return ans, nil
 		}
 
@@ -119,26 +121,79 @@ func (e *Engine) Ask(ctx context.Context, question string) (Answer, error) {
 		for _, call := range calls {
 			messages = e.dispatchCall(ctx, question, call, messages, &ans)
 		}
+
+		// Evidence-sufficiency stop: once answer evidence is held and the latest
+		// turn added no new distinct supported evidence, continuing would only
+		// spin on redundant or oversized calls, so terminate instead of running
+		// to the iteration bound.
+		if made, have := progress.observe(ans.Packets); have && !made {
+			if finalizeIndexedRepositoryCountAnswer(question, &ans) {
+				ans.TerminationReason = terminationDeterministicRoute
+				return ans, nil
+			}
+			e.log().Info("ask: evidence sufficiency stop",
+				"iteration", i+1,
+				"max_iterations", e.opts.MaxIterations,
+				"packets", len(ans.Packets))
+			e.finalizeAnswer(ctx, question, &ans, terminationEvidenceSufficient)
+			return ans, nil
+		}
 	}
 
 	// Loop exhausted MaxIterations without a final text turn.
 	ans.Partial = true
 	ans.Limitations = appendLimitation(ans.Limitations, "reached max reasoning iterations")
-	ans.Prose = bestPacketSummary(ans.Packets)
 	e.log().Warn("ask: reached max reasoning iterations",
 		"max_iterations", e.opts.MaxIterations,
 		"max_tool_calls_per_turn", e.opts.MaxToolCallsPerTurn,
 		"packets", len(ans.Packets),
-		"has_supported_evidence", ans.Prose != "")
+		"has_supported_evidence", bestPacketSummary(ans.Packets) != "")
 	if finalizeIndexedRepositoryCountAnswer(question, &ans) {
+		ans.TerminationReason = terminationDeterministicRoute
 		return ans, nil
 	}
+	e.finalizeAnswer(ctx, question, &ans, terminationMaxIterations)
 	if ans.Prose == "" {
 		ans.Limitations = appendLimitation(ans.Limitations, "no supported evidence assembled")
 	}
-	posture := e.resolveNarrationPosture()
-	e.narrate(ctx, &ans, posture)
 	return ans, nil
+}
+
+// finalizeAnswer performs the shared answer-completion steps for every non-error
+// loop exit: it records the termination reason, selects the relevance-ranked
+// primary packet (unless a deterministic route already bound one), fills
+// deterministic prose from that packet when the model produced none, and runs the
+// governed narration gate. It is called by both the synchronous and streaming
+// loops so their answer assembly stays identical.
+func (e *Engine) finalizeAnswer(ctx context.Context, question string, ans *Answer, reason string) {
+	e.finalizeAnswerWithPosture(ctx, question, ans, reason, e.resolveNarrationPosture())
+}
+
+// finalizeAnswerWithPosture is finalizeAnswer with an explicitly supplied
+// narration posture. The streaming loop resolves the posture once up front and
+// threads it here so the stream and the returned answer make the same narration
+// decision for a request.
+func (e *Engine) finalizeAnswerWithPosture(ctx context.Context, question string, ans *Answer, reason string, posture status.AnswerNarrationStatus) {
+	ans.TerminationReason = reason
+	if ans.PrimaryPacketIndex == nil {
+		if idx, selReason := selectPrimaryPacketIndex(question, ans.Packets); idx >= 0 {
+			// Only override the historical first-supported fallback when the
+			// ranking disagrees, so the handler's own selection is unchanged for
+			// the common case and only corrected when relevance demands it.
+			if idx != firstSupportedIndex(ans.Packets) {
+				bound := idx
+				ans.PrimaryPacketIndex = &bound
+			}
+			e.log().Info("ask: primary packet selected",
+				"index", idx,
+				"reason", selReason,
+				"termination", reason)
+		}
+	}
+	if ans.Prose == "" {
+		ans.Prose = selectedPacketSummary(ans)
+	}
+	e.narrate(ctx, ans, posture)
 }
 
 // dispatchCall executes a single tool call, records a TraceEntry, and appends
@@ -163,6 +218,28 @@ func (e *Engine) dispatchCall(
 	messages []provider.Message,
 	ans *Answer,
 ) []provider.Message {
+	// Pre-dispatch bounding: refuse an unbounded broad list/search call before it
+	// can spend the dispatch deadline or the response budget, feeding the model an
+	// executable narrowing hint instead.
+	if hint, refused := boundToolCall(call.Name, call.Arguments); refused {
+		ans.Limitations = appendLimitation(ans.Limitations, hint)
+		ans.Trace = append(ans.Trace, TraceEntry{
+			Tool:       call.Name,
+			Args:       call.Arguments,
+			Supported:  false,
+			TruthClass: query.AnswerTruthUnsupported,
+			Err:        "refused: unbounded list/search call",
+		})
+		e.log().Warn("ask: refused unbounded list/search call before dispatch",
+			"tool", call.Name)
+		return append(messages, provider.Message{
+			Role:       provider.RoleTool,
+			ToolCallID: call.ID,
+			ToolName:   call.Name,
+			Text:       refusalToolResult(hint),
+		})
+	}
+
 	res, runErr := e.runner.Run(ctx, call.Name, call.Arguments)
 	if runErr != nil {
 		ans.Trace = append(ans.Trace, TraceEntry{
@@ -182,6 +259,28 @@ func (e *Engine) dispatchCall(
 	}
 
 	if res.Envelope != nil {
+		// Runaway result (over-budget or dispatch-timeout): preserve a bounded
+		// continuation packet with a useful next action instead of collapsing rich
+		// evidence into an opaque unsupported outcome.
+		if cont, ok := oversizedContinuationPacket(question, call.Name, res.Envelope); ok {
+			ans.Partial = true
+			ans.Packets = append(ans.Packets, cont)
+			ans.Trace = append(ans.Trace, TraceEntry{
+				Tool:       call.Name,
+				Args:       call.Arguments,
+				Supported:  false,
+				TruthClass: query.AnswerTruthUnsupported,
+			})
+			e.log().Warn("ask: tool result runaway; bounded continuation offered",
+				"tool", call.Name,
+				"code", envelopeErrorCode(res.Envelope))
+			return append(messages, provider.Message{
+				Role:       provider.RoleTool,
+				ToolCallID: call.ID,
+				ToolName:   call.Name,
+				Text:       continuationToolResult(cont),
+			})
+		}
 		// FINDING 1: prefer an embedded answer_packet carried by the route handler.
 		pkt := answerPacketForToolResult(question, call.Name, res.Envelope)
 		// FINDING 4: propagate partial state upward to the aggregate answer.

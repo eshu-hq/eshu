@@ -50,9 +50,34 @@ func routeIndexedRepositoryCountCalls(question string, calls []provider.ToolCall
 		case "get_ecosystem_overview", "get_index_status":
 			routed[i].Name = indexedRepositoryInventoryTool
 			routed[i].Arguments = map[string]any{"limit": 1, "offset": 0}
+		case indexedRepositoryInventoryTool:
+			// The exact count needs only the authoritative total, not a page of
+			// rows, and the total is independent of page size. Bound a bare
+			// inventory call to limit=1 so it is never an unscoped list-all: an
+			// unbounded inventory read is refused by the pre-dispatch bounding
+			// guard and, in production, returns the whole repository inventory
+			// and blows the response budget (issue #5266).
+			routed[i].Arguments = boundedInventoryCountArgs(routed[i].Arguments)
 		}
 	}
 	return routed
+}
+
+// boundedInventoryCountArgs returns the inventory call arguments bounded to a
+// single-row page for the exact-count path: it preserves any caller-supplied
+// arguments but forces a positive limit and a zero offset when the call is not
+// already bounded, so the count read stays within the response budget.
+func boundedInventoryCountArgs(args map[string]any) map[string]any {
+	if hasPositiveLimit(args) {
+		return args
+	}
+	bounded := make(map[string]any, len(args)+2)
+	for k, v := range args {
+		bounded[k] = v
+	}
+	bounded["limit"] = 1
+	bounded["offset"] = 0
+	return bounded
 }
 
 func asksForIndexedRepositoryCount(question string) bool {

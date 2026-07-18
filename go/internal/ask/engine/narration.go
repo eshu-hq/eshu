@@ -237,7 +237,7 @@ func (e *Engine) narrate(ctx context.Context, ans *Answer, posture status.Answer
 		return
 	}
 
-	primary := primaryPacket(ans.Packets)
+	primary := selectedNarrationPacket(ans)
 
 	// No external citation IDs are hydrated in this context, so the prompt
 	// selector and the validator both rely on truth provenance whenever the
@@ -359,6 +359,20 @@ func primaryPacket(packets []query.AnswerPacket) query.AnswerPacket {
 		}
 	}
 	return packets[0]
+}
+
+// selectedNarrationPacket returns the packet narration should render: the packet
+// at an explicitly bound PrimaryPacketIndex when set and in range, otherwise the
+// relevance-ranked winner, falling back to the first supported packet. It keeps
+// narration, deterministic prose, and the handler's published packet in
+// agreement on which packet backs the answer. Callers must ensure the answer
+// carries at least one packet.
+func selectedNarrationPacket(ans *Answer) query.AnswerPacket {
+	idx := selectedPacketIndex(ans)
+	if idx >= 0 && idx < len(ans.Packets) {
+		return ans.Packets[idx]
+	}
+	return primaryPacket(ans.Packets)
 }
 
 // joinSentences concatenates the text of all sentences, separated by a space.
