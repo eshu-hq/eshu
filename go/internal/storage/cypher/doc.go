@@ -76,8 +76,11 @@
 // CodeInterprocEvidenceWriter keep side-cleanup stale value-flow deletes scoped
 // to one active scope/source and `generation_id <> current_generation`, with a
 // bounded LIMIT so current evidence survives gate-disabled generations.
-// OrphanSweepStore uses static-label, zero-relationship MATCH/SET/DELETE
-// statements over the closed Repository, Platform, EvidenceArtifact, File,
-// Directory, and Module label set and deletes only nodes whose orphan marker
-// aged past the configured TTL.
+// OrphanSweepStore detects orphans with an app-side anti-join over the closed
+// Repository, Platform, EvidenceArtifact, File, Directory, and Module label
+// set: a static-label candidate read and a concrete-relationship-variable
+// connected-keys read, differenced in Go, because NornicDB mis-evaluates every
+// relationship-existence predicate. Its mark/clear/sweep writes are key-anchored
+// static-label SET/REMOVE/DELETE statements, and it deletes only nodes whose
+// orphan marker aged past the configured TTL (re-verifying connectivity first).
 package cypher

@@ -6,7 +6,8 @@ package cypher
 import (
 	"context"
 	"fmt"
-	"math"
+	"sort"
+	"sync"
 	"time"
 )
 
@@ -14,6 +15,20 @@ const (
 	defaultOrphanSweepBatchLimit = 100
 	defaultOrphanSweepCountLimit = 10000
 	defaultOrphanSweepTTL        = 7 * 24 * time.Hour
+
+	// defaultOrphanSweepConnectedKeysChunkSize bounds how many keys one
+	// BuildConnectedKeysQuery round trip anchors on. #5147 finding 2 measured
+	// the UNWIND-per-key anchored S2 read's own per-statement cost scaling
+	// super-linearly with key-list size on both pinned NornicDB backends
+	// (roughly quadratic: 200 keys ~14ms, 5,000 keys ~4.7s). Splitting one
+	// large key list into fixed-size chunked round trips keeps each
+	// individual statement's key count small and empirically recovers close
+	// to linear total cost (5,000 keys in 10 chunks of 500: ~570ms measured,
+	// vs ~4.7s unchunked -- see evidence-5147-orphan-sweep-antijoin.md). This
+	// preserves the anchored, CountLimit-bounded read shape -- it never falls
+	// back to an unbounded full-label scan, so it carries no additional
+	// relationship-existence-predicate or unbounded-backlog-scan risk.
+	defaultOrphanSweepConnectedKeysChunkSize = 500
 )
 
 // OrphanSweepLabel names one closed graph node label eligible for bounded
@@ -66,21 +81,42 @@ type OrphanSweepResult struct {
 	Counts  map[string]int64
 	Marked  map[string]int64
 	Deleted map[string]int64
-	// Skipped counts write statements that were not executed because a
-	// preceding cheap count query returned zero. Values are 0..3 per label
+	// Skipped counts write statements that were not executed because the
+	// computed key set for that write was empty. Values are 0..3 per label
 	// (clear, mark, sweep).
 	Skipped  map[string]int64
 	Duration time.Duration
 }
 
-// OrphanSweepStore counts, marks, and deletes zero-relationship graph nodes
-// through backend-neutral Cypher seams.
+// OrphanSweepStore counts, marks, and deletes disconnected graph nodes through
+// backend-neutral Cypher seams.
+//
+// The store never relies on a relationship-existence predicate (`NOT
+// (n)--()`, `(n)--()`, or `COUNT { (n)--() } = 0`): on the pinned NornicDB
+// backends every such predicate is mis-evaluated (see
+// docs/public/reference/nornicdb-pitfalls.md). Instead it computes orphan
+// status as a Go-side anti-join between two concrete-relationship-variable
+// reads: candidates (S1, a label+evidence_source scan) and connected keys
+// (S2, `MATCH (n:Label {key: k})-[r]-(m)`, the only relationship primitive
+// proven reliable on both pinned backends). See orphan_sweep_queries.go for
+// the read builders and orphan_sweep_writes.go for the key-anchored writes.
 type OrphanSweepStore struct {
 	Executor   Executor
 	Reader     OrphanSweepReader
 	CountLimit int
 	Labels     []OrphanSweepLabel
 	Now        func() time.Time
+
+	// cursors holds the last identity key each label's S1 candidate read
+	// reached, so successive cycles page deterministically through a label with
+	// more matching nodes than CountLimit instead of re-reading the same window.
+	// It is process-local: the reducer reuses one OrphanSweepStore across all
+	// cycles (guarded by the graph_orphan_sweep single-partition lease, so calls
+	// are serial), and a restart resets to the label start, which harmlessly
+	// re-scans from the beginning. The mutex keeps it safe if a store is ever
+	// shared across goroutines.
+	cursorMu sync.Mutex
+	cursors  map[OrphanSweepLabel]string
 }
 
 // NewOrphanSweepStore returns a graph orphan sweep store.
@@ -122,98 +158,156 @@ func (s *OrphanSweepStore) SweepOrphanNodes(ctx context.Context, policy OrphanSw
 
 	for _, label := range labels {
 		labelKey := string(label)
-		var skipped int64
-
-		// Each write is gated on a count query whose predicate mirrors that
-		// write's own MATCH...WHERE exactly, so a statement is issued only when
-		// it will mutate at least one row. This avoids the ~14s fixed-cost
-		// NornicDB write transaction (a label MATCH inside a write transaction
-		// runs a full-store MVCC visible-at iteration) for the common cases
-		// where clear/mark/sweep would otherwise match zero rows. markedCount
-		// (a cheap marker-presence read) short-circuits clear and sweep, which
-		// can only match when marked nodes exist, so the steady no-orphan state
-		// runs two cheap reads and issues zero write transactions.
-		markedCount, err := s.countMarkedOrphans(ctx, label, policy.CountLimit)
+		cycle, err := s.runOrphanSweepCycle(ctx, label, policy, nowUnix, cutoffUnix)
 		if err != nil {
 			return OrphanSweepResult{}, err
 		}
-
-		count, err := s.countOrphans(ctx, label, policy.CountLimit)
-		if err != nil {
-			return OrphanSweepResult{}, err
-		}
-		result.Counts[labelKey] = count
-
-		// clear matches marked nodes that regained a relationship; it can only
-		// match when markers exist. Preserve the clear-before-mark ordering.
-		if markedCount > 0 {
-			relinkedCount, err := s.countMarkedRelinked(ctx, label, policy.CountLimit)
-			if err != nil {
-				return OrphanSweepResult{}, err
-			}
-			if relinkedCount > 0 {
-				clearStmt, _ := BuildClearOrphanMarkerStatement(label, policy.BatchLimit)
-				if err := s.Executor.Execute(ctx, clearStmt); err != nil {
-					return OrphanSweepResult{}, fmt.Errorf("clear orphan marker for %s: %w", label, err)
-				}
-			} else {
-				skipped++
-			}
-		} else {
-			// No markers: clear cannot match, skipped without a count read.
-			skipped++
-		}
-
-		// mark matches unmarked orphans only. When no markers exist every
-		// orphan is unmarked, so the total orphan count is exact and no extra
-		// read is needed; otherwise count the unmarked orphans precisely.
-		markCount := count
-		if markedCount > 0 {
-			markCount, err = s.countUnmarkedOrphans(ctx, label, policy.CountLimit)
-			if err != nil {
-				return OrphanSweepResult{}, err
-			}
-		}
-		if markCount > 0 {
-			markStmt, _ := BuildMarkOrphanNodesStatement(label, nowUnix, policy.BatchLimit)
-			if err := s.Executor.Execute(ctx, markStmt); err != nil {
-				return OrphanSweepResult{}, fmt.Errorf("mark orphan nodes for %s: %w", label, err)
-			}
-			result.Marked[labelKey] = boundedMutationEstimate(markCount, policy.BatchLimit)
-		} else {
-			result.Marked[labelKey] = 0
-			skipped++
-		}
-
-		// sweep matches aged marked orphans; it can only match when markers exist.
-		if markedCount > 0 {
-			agedCount, err := s.countAgedOrphans(ctx, label, cutoffUnix, policy.CountLimit)
-			if err != nil {
-				return OrphanSweepResult{}, err
-			}
-			if agedCount > 0 {
-				sweepStmt, _ := BuildSweepOrphanNodesStatement(label, cutoffUnix, policy.BatchLimit)
-				if err := s.Executor.Execute(ctx, sweepStmt); err != nil {
-					return OrphanSweepResult{}, fmt.Errorf("sweep orphan nodes for %s: %w", label, err)
-				}
-				result.Deleted[labelKey] = boundedMutationEstimate(agedCount, policy.BatchLimit)
-			} else {
-				result.Deleted[labelKey] = 0
-				skipped++
-			}
-		} else {
-			// No markers: sweep cannot match, skipped without a count read.
-			result.Deleted[labelKey] = 0
-			skipped++
-		}
-
-		result.Skipped[labelKey] = skipped
+		result.Counts[labelKey] = cycle.orphanCount
+		result.Marked[labelKey] = cycle.markedCount
+		result.Deleted[labelKey] = cycle.deletedCount
+		result.Skipped[labelKey] = cycle.skipped
 	}
 	result.Duration = time.Since(start)
 	return result, nil
 }
 
-// GraphOrphanNodeCounts returns bounded zero-relationship node counts by label.
+// orphanSweepCycleResult summarizes one label's anti-join cycle.
+type orphanSweepCycleResult struct {
+	orphanCount  int64
+	markedCount  int64
+	deletedCount int64
+	skipped      int64
+}
+
+// runOrphanSweepCycle runs the S1/S2 anti-join reads, computes the
+// clear/mark/sweep key sets in Go, and issues only the key-anchored writes
+// that have a non-empty key set. Steady state (no orphans, no markers) issues
+// exactly two reads (S1, S2) and zero writes.
+func (s *OrphanSweepStore) runOrphanSweepCycle(
+	ctx context.Context,
+	label OrphanSweepLabel,
+	policy OrphanSweepPolicy,
+	nowUnix, cutoffUnix int64,
+) (orphanSweepCycleResult, error) {
+	var out orphanSweepCycleResult
+
+	// S1: candidates are every node this label's sweep is allowed to touch,
+	// regardless of relationship state. No relationship predicate appears
+	// here; connectivity is resolved entirely by S2 below. The read pages past
+	// the label's cursor and is ORDER BY the identity key, so a label with more
+	// nodes than CountLimit is covered deterministically across cycles.
+	candidates, err := s.readCandidateOrphanNodes(ctx, label, policy.CountLimit, s.candidateCursor(label))
+	if err != nil {
+		return out, err
+	}
+
+	candidateKeys := make([]string, 0, len(candidates))
+	for _, c := range candidates {
+		candidateKeys = append(candidateKeys, c.key)
+	}
+	sort.Strings(candidateKeys)
+	// Advance the cursor before any early return so an all-connected window
+	// still makes forward progress next cycle rather than re-reading the same
+	// rows. An empty window wraps the cursor to the label start.
+	s.advanceCursor(label, candidateKeys, policy.CountLimit)
+
+	if len(candidates) == 0 {
+		out.skipped = 3
+		return out, nil
+	}
+
+	// S2: the only relationship primitive proven reliable on both pinned
+	// NornicDB backends -- a concrete relationship-variable MATCH anchored on
+	// the candidate keys.
+	connectedKeys, err := s.readConnectedKeys(ctx, label, candidateKeys)
+	if err != nil {
+		return out, err
+	}
+	connected := make(map[string]bool, len(connectedKeys))
+	for _, k := range connectedKeys {
+		connected[k] = true
+	}
+
+	marked := make(map[string]bool, len(candidates))
+	observedAt := make(map[string]int64, len(candidates))
+	orphans := make(map[string]bool, len(candidates))
+	for _, c := range candidates {
+		if c.observedAt != nil {
+			marked[c.key] = true
+			observedAt[c.key] = *c.observedAt
+		}
+		if !connected[c.key] {
+			orphans[c.key] = true
+		}
+	}
+	out.orphanCount = int64(len(orphans))
+
+	toClear := sortedKeysWhere(marked, func(k string) bool { return connected[k] })
+	toMarkAll := sortedKeysWhere(orphans, func(k string) bool { return !marked[k] })
+	toMark := boundedKeys(toMarkAll, policy.BatchLimit)
+	toSweepAll := sortedKeysWhere(orphans, func(k string) bool {
+		return marked[k] && observedAt[k] <= cutoffUnix
+	})
+	toSweep := boundedKeys(toSweepAll, policy.BatchLimit)
+
+	if len(toClear) > 0 {
+		stmt, _ := BuildClearOrphanMarkerStatement(label, toClear)
+		if err := s.Executor.Execute(ctx, stmt); err != nil {
+			return out, fmt.Errorf("clear orphan marker for %s: %w", label, err)
+		}
+	} else {
+		out.skipped++
+	}
+
+	if len(toMark) > 0 {
+		stmt, _ := BuildMarkOrphanNodesStatement(label, toMark, nowUnix)
+		if err := s.Executor.Execute(ctx, stmt); err != nil {
+			return out, fmt.Errorf("mark orphan nodes for %s: %w", label, err)
+		}
+		out.markedCount = int64(len(toMark))
+	} else {
+		out.skipped++
+	}
+
+	if len(toSweep) == 0 {
+		out.skipped++
+		return out, nil
+	}
+
+	// TOCTOU guard: re-verify connectivity for exactly the keys about to be
+	// deleted, immediately before the delete. A node can regain a
+	// relationship between the top-of-cycle S2 read and this delete; this
+	// cheap, BatchLimit-bounded re-read (only on a sweeping cycle) drops any
+	// key that reconnected in that window instead of deleting it.
+	reverifyConnected, err := s.readConnectedKeys(ctx, label, toSweep)
+	if err != nil {
+		return out, err
+	}
+	reconnected := make(map[string]bool, len(reverifyConnected))
+	for _, k := range reverifyConnected {
+		reconnected[k] = true
+	}
+	finalSweep := make([]string, 0, len(toSweep))
+	for _, k := range toSweep {
+		if !reconnected[k] {
+			finalSweep = append(finalSweep, k)
+		}
+	}
+	if len(finalSweep) == 0 {
+		out.skipped++
+		return out, nil
+	}
+
+	stmt, _ := BuildSweepOrphanNodesStatement(label, finalSweep, cutoffUnix)
+	if err := s.Executor.Execute(ctx, stmt); err != nil {
+		return out, fmt.Errorf("sweep orphan nodes for %s: %w", label, err)
+	}
+	out.deletedCount = int64(len(finalSweep))
+	return out, nil
+}
+
+// GraphOrphanNodeCounts returns bounded disconnected-node counts by label
+// using the same S1/S2 anti-join as SweepOrphanNodes, without issuing writes.
 func (s *OrphanSweepStore) GraphOrphanNodeCounts(ctx context.Context) (map[string]int64, error) {
 	if s == nil || s.Reader == nil {
 		return nil, fmt.Errorf("orphan sweep reader is required")
@@ -228,96 +322,39 @@ func (s *OrphanSweepStore) GraphOrphanNodeCounts(ctx context.Context) (map[strin
 	}
 	counts := make(map[string]int64, len(labels))
 	for _, label := range labels {
-		count, err := s.countOrphans(ctx, label, limit)
+		// GraphOrphanNodeCounts is a read-only gauge, not the paging sweep, so
+		// it always reads the first bounded window (cursor "") rather than
+		// advancing the sweep's cursor.
+		candidates, err := s.readCandidateOrphanNodes(ctx, label, limit, "")
 		if err != nil {
 			return nil, err
 		}
-		counts[string(label)] = count
+		if len(candidates) == 0 {
+			counts[string(label)] = 0
+			continue
+		}
+		keys := make([]string, 0, len(candidates))
+		for _, c := range candidates {
+			keys = append(keys, c.key)
+		}
+		sort.Strings(keys)
+		connectedKeys, err := s.readConnectedKeys(ctx, label, keys)
+		if err != nil {
+			return nil, err
+		}
+		connected := make(map[string]bool, len(connectedKeys))
+		for _, k := range connectedKeys {
+			connected[k] = true
+		}
+		var orphanCount int64
+		for _, k := range keys {
+			if !connected[k] {
+				orphanCount++
+			}
+		}
+		counts[string(label)] = orphanCount
 	}
 	return counts, nil
-}
-
-// BuildMarkOrphanNodesStatement builds a static-label statement that marks
-// newly observed zero-relationship nodes.
-func BuildMarkOrphanNodesStatement(label OrphanSweepLabel, observedAtUnix int64, limit int) (Statement, bool) {
-	match, ok := orphanLabelMatch(label)
-	if !ok {
-		return Statement{}, false
-	}
-	return Statement{
-		Operation: OperationCanonicalRetract,
-		Cypher: fmt.Sprintf(`MATCH (n:%s)
-WHERE %s
-  AND n.eshu_orphan_observed_at_unix IS NULL
-  AND NOT (n)--()
-WITH n LIMIT $limit
-SET n.eshu_orphan_observed_at_unix = $observed_at_unix`, match, orphanSweepEvidencePredicate(label)),
-		Parameters: map[string]any{
-			"observed_at_unix": observedAtUnix,
-			"limit":            normalizePositiveInt(limit, defaultOrphanSweepBatchLimit),
-		},
-	}, true
-}
-
-// BuildSweepOrphanNodesStatement builds a static-label statement that deletes
-// aged zero-relationship nodes without DETACH DELETE.
-func BuildSweepOrphanNodesStatement(label OrphanSweepLabel, cutoffUnix int64, limit int) (Statement, bool) {
-	match, ok := orphanLabelMatch(label)
-	if !ok {
-		return Statement{}, false
-	}
-	return Statement{
-		Operation: OperationCanonicalRetract,
-		Cypher: fmt.Sprintf(`MATCH (n:%s)
-WHERE %s
-  AND n.eshu_orphan_observed_at_unix <= $cutoff_unix
-  AND NOT (n)--()
-WITH n LIMIT $limit
-DELETE n`, match, orphanSweepEvidencePredicate(label)),
-		Parameters: map[string]any{
-			"cutoff_unix": cutoffUnix,
-			"limit":       normalizePositiveInt(limit, defaultOrphanSweepBatchLimit),
-		},
-	}, true
-}
-
-// BuildClearOrphanMarkerStatement clears orphan markers from relinked nodes.
-func BuildClearOrphanMarkerStatement(label OrphanSweepLabel, limit int) (Statement, bool) {
-	match, ok := orphanLabelMatch(label)
-	if !ok {
-		return Statement{}, false
-	}
-	return Statement{
-		Operation: OperationCanonicalRetract,
-		Cypher: fmt.Sprintf(`MATCH (n:%s)
-WHERE n.eshu_orphan_observed_at_unix IS NOT NULL
-  AND (n)--()
-WITH n LIMIT $limit
-REMOVE n.eshu_orphan_observed_at_unix`, match),
-		Parameters: map[string]any{
-			"limit": normalizePositiveInt(limit, defaultOrphanSweepBatchLimit),
-		},
-	}, true
-}
-
-func buildCountAgedOrphanNodesQuery(label OrphanSweepLabel, cutoffUnix int64, limit int) (Statement, bool) {
-	match, ok := orphanLabelMatch(label)
-	if !ok {
-		return Statement{}, false
-	}
-	return Statement{
-		Operation: OperationCanonicalRetract,
-		Cypher: fmt.Sprintf(`MATCH (n:%s)
-WHERE %s
-  AND n.eshu_orphan_observed_at_unix <= $cutoff_unix
-  AND NOT (n)--()
-WITH n LIMIT $limit
-RETURN count(n) AS orphan_count`, match, orphanSweepEvidencePredicate(label)),
-		Parameters: map[string]any{
-			"cutoff_unix": cutoffUnix,
-			"limit":       normalizePositiveInt(limit, defaultOrphanSweepCountLimit),
-		},
-	}, true
 }
 
 func orphanLabelMatch(label OrphanSweepLabel) (string, bool) {
@@ -334,6 +371,23 @@ func orphanLabelMatch(label OrphanSweepLabel) (string, bool) {
 		return "Directory", true
 	case OrphanSweepLabelModule:
 		return "Module", true
+	default:
+		return "", false
+	}
+}
+
+// orphanSweepIdentityKey returns the per-label identity property used to
+// anchor the key-based connected-keys read and the clear/mark/sweep writes.
+// These mirror the canonical writers' MERGE identity: Repository/Platform/
+// EvidenceArtifact use `id`, File/Directory use `path`, Module uses `name`.
+func orphanSweepIdentityKey(label OrphanSweepLabel) (string, bool) {
+	switch label {
+	case OrphanSweepLabelRepository, OrphanSweepLabelPlatform, OrphanSweepLabelEvidenceArtifact:
+		return "id", true
+	case OrphanSweepLabelFile, OrphanSweepLabelDirectory:
+		return "path", true
+	case OrphanSweepLabelModule:
+		return "name", true
 	default:
 		return "", false
 	}
@@ -380,30 +434,27 @@ func normalizePositiveInt(value int, defaultValue int) int {
 	return value
 }
 
-func boundedMutationEstimate(count int64, limit int) int64 {
-	if count <= 0 {
-		return 0
+// sortedKeysWhere returns the keys of set for which predicate is true, sorted
+// ascending for deterministic write ordering and testable output.
+func sortedKeysWhere(set map[string]bool, predicate func(string) bool) []string {
+	out := make([]string, 0, len(set))
+	for k := range set {
+		if predicate(k) {
+			out = append(out, k)
+		}
 	}
+	sort.Strings(out)
+	return out
+}
+
+// boundedKeys caps keys at limit (or defaultOrphanSweepBatchLimit when limit
+// is non-positive), preserving the input (already sorted) order.
+func boundedKeys(keys []string, limit int) []string {
 	if limit <= 0 {
 		limit = defaultOrphanSweepBatchLimit
 	}
-	return min(count, int64(limit))
-}
-
-func int64Count(value any) (int64, bool) {
-	switch typed := value.(type) {
-	case int:
-		return int64(typed), true
-	case int32:
-		return int64(typed), true
-	case int64:
-		return typed, true
-	case float64:
-		if typed < 0 || typed > math.MaxInt64 || math.Trunc(typed) != typed {
-			return 0, false
-		}
-		return int64(typed), true
-	default:
-		return 0, false
+	if len(keys) <= limit {
+		return keys
 	}
+	return keys[:limit]
 }

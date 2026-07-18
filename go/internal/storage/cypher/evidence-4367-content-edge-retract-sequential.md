@@ -23,10 +23,24 @@
    rows on v1.1.11, and an `OPTIONAL MATCH (target)-[link]-() WITH target,
    link WHERE link IS NULL DELETE target` pipeline returns the filtered row
    but does not apply the trailing DELETE when the node previously had
-   (since-deleted) relationships. A `COUNT { (target)--() } = 0` predicate
-   deletes the orphan on both v1.1.11 and the `neo4j:2026-community` lane.
-   The wider orphan-sweep subsystem carries the same negated-pattern shape and
-   is tracked in #5147.
+   (since-deleted) relationships. A `COUNT { (target)--() } = 0` predicate did
+   delete the seeded orphan on both v1.1.11 and the `neo4j:2026-community`
+   lane at the time this was written, but that test only proved the DELETE
+   fired on a node already known to be an orphan -- it never proved the
+   predicate excludes a connected node. **This claim was wrong.** The #5147
+   investigation later proved `COUNT { (n)--() } = 0` is a tautology on both
+   pinned NornicDB backends: the subquery's count is always reported as 0, so
+   the predicate matches every node regardless of relationship state,
+   including connected ones. See
+   `docs/public/reference/nornicdb-pitfalls.md` ("Every Relationship-Existence
+   Predicate Is Mis-Evaluated") for the corrected finding and
+   `evidence-5147-orphan-sweep-antijoin.md` for the anti-join replacement that
+   never relies on a relationship-existence predicate. The `ShellCommand`
+   orphan cleanup in `edge_writer_shell_exec.go` still carries this predicate
+   and is not fixed by #5147 (out of scope: that cleanup targets a different
+   label/identity shape); it is tracked separately and must not be treated as
+   a working reference shape for new code. The wider orphan-sweep subsystem
+   carried the same negated-pattern shape and was tracked and fixed in #5147.
 
 ## Fixes
 

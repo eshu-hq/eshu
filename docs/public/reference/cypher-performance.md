@@ -1461,6 +1461,82 @@ No-Observability-Change: the retract keeps its existing statement metadata
 or span is added or removed. The ledger and backfill stage files are covered in
 `docs/public/observability/telemetry-coverage.md`.
 
+### Orphan Sweep Anti-Join Connectivity-Read Chunking (#5147)
+
+The #5147 anti-join redesign of `OrphanSweepStore` (see [NornicDB
+Pitfalls](nornicdb-pitfalls.md) for why the sweep cannot use `NOT (n)--()`,
+`(n)--()`, or `COUNT { (n)--() }`) replaced the relationship-existence
+predicate with a Go-side anti-join between an S1 candidate read and an S2
+connected-keys read (`UNWIND $keys AS candidate_key MATCH (n:Label {key:
+candidate_key})-[r]-(m) RETURN DISTINCT n.key`). That S2 read's own
+per-statement cost scales super-linearly with the size of the `$keys` list on
+both pinned NornicDB backends (v1.1.11 and PR261/compose-default), independent
+of the anti-join's correctness, which was proven separately.
+
+Measured (throwaway shim, deleted after recording; 5,000-node populated `File`
+label, 4,000 connected + 1,000 orphan, `17688`): the UNWIND-anchored form goes
+200 keys 14ms -> 1,000 keys 197ms -> 2,000 keys 815ms -> 4,000 keys 3.1s ->
+5,000 keys 4.7s (~0.07ms/key at 200, ~0.95ms/key at 5,000 -- roughly
+quadratic, exponent ~1.8-2.0 between adjacent scale points). This is bounded
+today by `OrphanSweepPolicy.CountLimit`
+(`ESHU_GRAPH_ORPHAN_SWEEP_COUNT_LIMIT`, default 10,000) and runs at most once
+per label per hourly cycle, so it is correctness-safe, but a heavily
+populated label could cost 10-20s/cycle at the default `CountLimit`.
+
+Two alternative shapes were measured on the same populated label and
+rejected:
+
+- **Bounded IN-list, no UNWIND** (`MATCH (n:Label)-[r]-(m) WHERE n.key IN
+  $keys RETURN DISTINCT n.key`): *worse*, not better -- 200 keys 16ms, 5,000
+  keys 7.2s (slower than the UNWIND form at every scale point). Rejected.
+- **Unbounded full-label scan** (`MATCH (n:Label)-[r]-(m) WHERE
+  <evidence_predicate> RETURN DISTINCT n.key`, no key anchor at all): fast at
+  the 5,000-node and 15,000-node scale (27ms and 200ms respectively) and
+  proven correct (identical connected-key set to the anchored form), but it
+  is **not bounded by `CountLimit`** -- its cost is proportional to total
+  label population matching the evidence predicate, not to the S1 candidate
+  count. `evidence_source` has no index (see [NornicDB
+  Tuning](nornicdb-tuning.md)), and a follow-up shim that grew a *different*
+  synthetic population toward 20,000-40,000 nodes hit a server-side "Txn is
+  too big to fit into one request" failure and >2-minute unindexed-scan
+  timeouts on unrelated large single-statement operations against the same
+  backend -- direct evidence that this backend's cost for unindexed
+  full-label operations does not stay flat at larger populations, and that
+  removing `CountLimit`'s bound on the S2 read would trade one scaling
+  cliff (UNWIND, bounded) for a potentially worse one (full-label scan,
+  unbounded) on exactly the years-old-backlog deployment this fix targets.
+  Rejected for that boundedness risk, not for a correctness defect.
+
+**Adopted: chunk the existing anchored UNWIND form into fixed-size round
+trips** (`defaultOrphanSweepConnectedKeysChunkSize = 500` in
+`go/internal/storage/cypher/orphan_sweep.go`). This keeps the same bounded,
+CountLimit-relative, key-anchored read shape -- no relationship-existence
+predicate, no unbounded scan -- and only changes how many keys one round trip
+anchors on. Measured on the real `(*OrphanSweepStore).readConnectedKeys`
+production method (not a hand-rolled loop), same 5,000-key/4,000-connected
+scenario, both backends: **4.7s (unchunked) -> ~0.60-0.61s (chunked at 500)**,
+identical connected-key result (4,000/4,000). A manual sweep of chunk sizes on
+the same data showed 500 (10 round trips, ~572-610ms total) beating 1,000 (5
+round trips, ~950-964ms total) -- more, smaller round trips outperform fewer,
+larger ones here, consistent with the underlying per-statement cost being
+super-linear in list length.
+
+No-Regression Evidence: `go test ./internal/storage/cypher -run
+'TestReadConnectedKeys' -race -count=1` proves chunking is transparent below
+`defaultOrphanSweepConnectedKeysChunkSize` (exactly one round trip, matching
+pre-#5147-finding-2 behavior) and correctly unions/dedupes results across
+chunks above it, including a mid-chunk reader-error propagation case.
+`TestLiveOrphanAntiJoinReplacesBrokenNotDashDashPredicate` passes unchanged on
+both `17688` and `17689` after the chunking change, proving the chunked read
+still discriminates orphan vs. connected correctly at the discriminating-fixture
+scale that matters for correctness.
+
+No-Observability-Change: `readConnectedKeys` keeps the same `Reader.Run`
+seam, same `Operation: OperationCanonicalRetract` statement tagging per round
+trip, and the same public `SweepOrphanNodes`/`GraphOrphanNodeCounts` result
+shape; chunking is an internal round-trip-count change, not a new metric,
+span, log field, or config surface.
+
 ## Related Docs
 
 - [NornicDB Pitfalls](nornicdb-pitfalls.md)

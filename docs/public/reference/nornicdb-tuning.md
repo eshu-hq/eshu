@@ -344,6 +344,37 @@ If changing `ESHU_CONTENT_ENTITY_BATCH_SIZE` changes statement count but not
 wall time, inspect source-cache size and trigram index maintenance before
 raising the batch again.
 
+## Orphan Sweep Candidate And Connectivity-Read Sizing
+
+`OrphanSweepStore` (#5147, `go/internal/storage/cypher/orphan_sweep.go`) reads
+per-label orphan candidates (S1, bounded by `CountLimit`) and then checks
+their connectivity (S2, a key-anchored `MATCH`) before marking or sweeping.
+
+| Variable | Default | Use |
+| --- | --- | --- |
+| `ESHU_GRAPH_ORPHAN_SWEEP_COUNT_LIMIT` | `10000` | Caps S1 candidates read per label per cycle. Raising it directly raises S2's cost (see below) -- do not raise past evidence of a real multi-cycle convergence problem. |
+| `ESHU_GRAPH_ORPHAN_SWEEP_BATCH_LIMIT` | `100` | Caps mark/sweep writes per label per cycle; unaffected by the S2 sizing below. |
+
+S2's connectivity check (`UNWIND $keys AS candidate_key MATCH (n:Label {key:
+candidate_key})-[r]-(m) RETURN DISTINCT n.key`) is bounded to exactly the S1
+candidate set, never a full-label scan (see [Cypher
+Performance](cypher-performance.md#orphan-sweep-anti-join-connectivity-read-chunking-5147)
+for the alternative shapes measured and rejected). Its own per-statement cost
+scales super-linearly with candidate-list size, so the read is split into
+`defaultOrphanSweepConnectedKeysChunkSize` (500, a compiled-in constant, not
+an env knob) round trips rather than one unbounded anchor. Measured on a
+5,000-node populated `File` label: unchunked 4.7s, chunked at 500 ~0.6s. A
+label with close to `CountLimit` (10,000) real candidates in one cycle should
+therefore cost on the order of low single-digit seconds for S2, not the
+10-20s an unchunked read at that scale would cost.
+
+If a single label's orphan backlog is large enough that even chunked S2 reads
+dominate a sweep cycle, lower `ESHU_GRAPH_ORPHAN_SWEEP_COUNT_LIMIT` for that
+deployment rather than disabling the sweep -- the sweep converges across
+multiple hourly cycles by design (`BatchLimit`-bounded mark/sweep writes each
+make forward progress), so a smaller `CountLimit` trades cycle count for
+per-cycle cost, not correctness.
+
 ## Compatibility And Conformance Switches
 
 | Variable | Default | Use |

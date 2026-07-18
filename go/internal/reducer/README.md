@@ -195,15 +195,22 @@ failure, the `poison_liveness_error` failure class.
 ## Graph Orphan Sweep
 
 `GraphOrphanSweepRunner` runs beside reducer intent workers and shared
-projection. It delegates to `storage/cypher.OrphanSweepStore`, which counts,
-marks, clears, and deletes only zero-relationship nodes in a closed label set:
-`Repository`, `Platform`, `EvidenceArtifact`, `File`, `Directory`, and
-`Module`. The sweep uses static-label Cypher, a single-owner Postgres partition
-lease, a per-label batch limit, a per-label count cap, and a TTL marker
-(`eshu_orphan_observed_at_unix`) so one transiently disconnected cycle cannot
-delete a node immediately. Repository sweeps exclude
-`evidence_source='projector/canonical'`; empty but active source-local
-repositories remain canonical-writer truth, not sweep candidates.
+projection. It delegates to `storage/cypher.OrphanSweepStore`, which computes
+orphan status as a Go-side anti-join between two bounded reads per label
+(candidates with no relationship clause, and connected keys via a concrete
+relationship-variable `MATCH` anchored on those candidates' identity keys --
+see `storage/cypher/README.md` and `storage/cypher/evidence-5147-orphan-sweep-antijoin.md`
+for why: every relationship-existence predicate is mis-evaluated on the pinned
+NornicDB backends), then marks, clears, and deletes only disconnected nodes in
+a closed label set: `Repository`, `Platform`, `EvidenceArtifact`, `File`,
+`Directory`, and `Module`. The sweep uses static-label, key-anchored Cypher
+writes, a single-owner Postgres partition lease, a per-label batch limit, a
+per-label count cap, and a TTL marker (`eshu_orphan_observed_at_unix`) so one
+transiently disconnected cycle cannot delete a node immediately; a TOCTOU
+re-verify immediately before delete drops any key that reconnected mid-cycle.
+Repository sweeps exclude `evidence_source='projector/canonical'`; empty but
+active source-local repositories remain canonical-writer truth, not sweep
+candidates.
 
 This runner is cleanup, not truth ownership. Relationship retraction,
 canonical-node replacement, and reducer-owned materialization still own their
@@ -211,14 +218,15 @@ normal invariants. The sweep removes only nodes that remain disconnected after
 the TTL and clears the marker when a relationship returns.
 
 No-Regression Evidence: `go test ./internal/storage/cypher -run
-'TestDefaultOrphanSweepLabelsIncludesCodeStructureLabels|TestCodeStructureOrphanSweepStatementsUseStaticZeroRelationshipGuards|TestOrphanSweepStoreDefaultLabelsConvergeAcrossBoundedBatches|TestOrphanSweepStoreDelaysCodeStructureDeletionDuringProjectionRace|TestGraphOrphanNodeCountsUsesDefaultCodeStructureLabels|TestCanonicalCodeStructureNodesStampOrphanSweepMetadata|TestBuildMarkOrphan|TestBuildSweepOrphan|TestBuildCountOrphan|TestBuildClearOrphan|TestRepoRelationshipUpsertStamps|TestInfrastructurePlatformUpsert|TestBatchedWriteEdgesParameterFidelity|TestOrphanSweepStoreUsesInjectedClock'
--count=1` proves the bounded static-label Cypher shape, metadata stamping for
-relationship-created repositories and platforms, default coverage for code
-structure labels, Directory and imported Module metadata stamping, bounded
-convergence, newly observed code-structure orphan retention before TTL expiry,
-telemetry observer counts, and injected-clock TTL behavior. `go test
+'TestDefaultOrphanSweepLabelsIncludesCodeStructureLabels|TestBuildCandidateOrphanNodesQueryUsesStaticLabelNoRelationshipPredicate|TestBuildConnectedKeysQueryUsesConcreteRelationshipVariable|TestBuildClearMarkSweepStatementsAreKeyAnchoredNoRelationshipPredicate|TestOrphanSweepStoreDelaysCodeStructureDeletionDuringProjectionRace|TestGraphOrphanNodeCountsUsesDefaultCodeStructureLabels|TestCanonicalCodeStructureNodesStampOrphanSweepMetadata|TestRepoRelationshipUpsertStamps|TestOrphanSweepStoreUsesInjectedClockForMarkAndCutoff|TestOrphanSweepStoreConvergesAcrossBoundedCyclesForAllDefaultLabels|TestOrphanSweepStoreTOCTOUGuardDropsReconnectedKeyBeforeSweep'
+-count=1` proves the bounded static-label, no-relationship-predicate anti-join
+read shapes, metadata stamping for relationship-created repositories and
+platforms, default coverage for code structure labels, Directory and imported
+Module metadata stamping, bounded convergence, newly observed code-structure
+orphan retention before TTL expiry, telemetry observer counts, the TOCTOU
+guard, and injected-clock TTL behavior. `go test
 ./internal/storage/cypher -run
-TestRepositoryOrphanSweepExcludesSourceLocalCanonicalRepositories -count=1`
+TestRepositoryCandidateQueryExcludesSourceLocalCanonicalRepositories -count=1`
 proves source-local canonical Repository nodes are outside the sweep predicate.
 `go test ./cmd/reducer -run TestProductionWiringConsumesCapabilityDefaults
 -count=1` proves the reducer runtime consumes the same closed label default
