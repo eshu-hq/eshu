@@ -147,6 +147,11 @@ type Answer struct {
 	// Limitations carries bounded human-readable caveats about the answer,
 	// aggregated from the underlying Packets.
 	Limitations []string
+	// TerminationReason records, for operator telemetry, why the reasoning loop
+	// stopped: a final model turn, an evidence-sufficiency stop, the deterministic
+	// count route, or the max-iteration bound. It is one of the termination*
+	// constants and is never empty for a completed Ask.
+	TerminationReason string
 }
 
 // Options configures the behaviour of an Engine.

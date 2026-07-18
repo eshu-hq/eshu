@@ -4,8 +4,9 @@
 
 `answerguardrail` owns pure output checks for publishable answer text. Runtime
 Ask Eshu and the offline answer-quality scorecard use it to reject supported
-answers without citations and strings that look like private paths, hosts,
-credentials, or raw addresses.
+answers without citations, strings that look like private paths, hosts,
+credentials, or raw addresses, and circular identity-only answers that only
+restate the question's entity and name no operational fact.
 
 ## Ownership boundary
 
@@ -15,9 +16,16 @@ it does not decide whether a route or provider may run.
 
 ## Exported surface
 
-- `Result` — bounded answer fields evaluated by guardrails.
-- `ValidateResult` — evaluates citation coverage and publish safety.
-- `Verdict`, `Finding`, `Criterion` — stable result types for callers.
+- `Result` — bounded answer fields evaluated by guardrails (including the
+  `Question` used by the answer-substance check).
+- `ValidateResult` — evaluates citation coverage, publish safety, and, when a
+  `Question` is supplied, answer substance (circular / identity-only rejection).
+- `IsCircularAnswer` — deterministic detector for a tautological, identity-only
+  answer that only restates the question's entity; shared by the runtime handler
+  and the offline answer-quality scorer.
+- `Verdict`, `Finding`, `Criterion` — stable result types for callers
+  (`CriterionCitationCoverage`, `CriterionPublishSafety`,
+  `CriterionAnswerSubstance`).
 - `FirstUnsafeString`, `UnsafeString` — deterministic publish-safety scanner
   used by scorecard code that needs the first rejected value.
 
@@ -40,6 +48,10 @@ their own logs, status, responses, or scorecards.
 - `ValidateResult` requires citations only for supported answers with a
   non-empty published summary. Unsupported fallback rows may explain their
   limitation without citations.
+- The answer-substance check runs only for a supported answer with a non-empty
+  `Question`; an empty `Question` disables it. It flags an answer whose content
+  tokens are all drawn from the question (an identity restatement) and passes any
+  answer that introduces a new operational token.
 - The scanner is intentionally conservative and deterministic. Do not add
   network, filesystem, or provider-dependent checks here.
 
@@ -47,4 +59,3 @@ their own logs, status, responses, or scorecards.
 
 - `go/internal/answerquality/README.md`
 - `go/internal/query/README.md`
-

@@ -18,10 +18,18 @@ const (
 	// CriterionPublishSafety rejects publishable strings that look like private
 	// paths, hosts, credentials, or raw addresses.
 	CriterionPublishSafety Criterion = "publish_safety"
+	// CriterionAnswerSubstance rejects a tautological, identity-only answer that
+	// only restates the question's entity and carries no operational fact, even
+	// when citation and publish-safety pass.
+	CriterionAnswerSubstance Criterion = "answer_substance"
 )
 
 // Result is the bounded answer shape evaluated by guardrails.
 type Result struct {
+	// Question is the original question the answer addresses. It is used only by
+	// the answer-substance check to detect a circular, identity-only answer; an
+	// empty Question disables that check.
+	Question      string
 	AnswerSummary string
 	Supported     bool
 	// CitationHandles are inlined evidence handles that cover the prose.
@@ -67,6 +75,13 @@ func ValidateResult(result Result) Verdict {
 		findings = append(findings, Finding{
 			Criterion: CriterionPublishSafety,
 			Detail:    "publishable answer contains a restricted private or credential-like value",
+		})
+	}
+	if result.Supported && strings.TrimSpace(result.Question) != "" &&
+		IsCircularAnswer(result.Question, result.AnswerSummary) {
+		findings = append(findings, Finding{
+			Criterion: CriterionAnswerSubstance,
+			Detail:    "supported answer is circular or identity-only and names no operational fact",
 		})
 	}
 	return Verdict{

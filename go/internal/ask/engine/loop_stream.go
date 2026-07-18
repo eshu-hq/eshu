@@ -85,6 +85,8 @@ func (e *Engine) AskStream(ctx context.Context, question string, emit func(Strea
 		{Role: provider.RoleUser, Text: question},
 	}
 	ans := Answer{Question: question}
+	var progress evidenceProgress
+	noProgressStreak := 0
 
 	for i := 0; i < e.opts.MaxIterations; i++ {
 		comp, err := sa.CompleteStream(ctx, messages, e.tools, func(ev provider.StreamEvent) {
@@ -108,9 +110,10 @@ func (e *Engine) AskStream(ctx context.Context, question string, emit func(Strea
 			// Final turn: model produced prose with no further tool calls.
 			ans.Prose = comp.Text
 			if finalizeIndexedRepositoryCountAnswer(question, &ans) {
+				ans.TerminationReason = terminationDeterministicRoute
 				return ans, nil
 			}
-			e.narrate(ctx, &ans, posture)
+			e.finalizeAnswerWithPosture(ctx, question, &ans, terminationFinalTurn, posture)
 			emitValidatedNarration(ans, emit)
 			return ans, nil
 		}
@@ -139,24 +142,50 @@ func (e *Engine) AskStream(ctx context.Context, question string, emit func(Strea
 			})
 			messages = e.dispatchCallStream(ctx, question, call, messages, &ans, emit)
 		}
+
+		// Evidence-sufficiency stop: mirror the synchronous loop so the SSE
+		// surface terminates on sufficiency rather than running to the bound.
+		made, haveEvidence := progress.observe(ans.Packets)
+		switch {
+		case !haveEvidence:
+			// No answer evidence yet; keep gathering.
+		case made:
+			noProgressStreak = 0
+		default:
+			noProgressStreak++
+		}
+		if haveEvidence && noProgressStreak >= sufficiencyNoProgressTurns {
+			if finalizeIndexedRepositoryCountAnswer(question, &ans) {
+				ans.TerminationReason = terminationDeterministicRoute
+				return ans, nil
+			}
+			e.log().Info("ask: evidence sufficiency stop",
+				"iteration", i+1,
+				"max_iterations", e.opts.MaxIterations,
+				"no_progress_turns", noProgressStreak,
+				"packets", len(ans.Packets))
+			e.finalizeAnswerWithPosture(ctx, question, &ans, terminationEvidenceSufficient, posture)
+			emitValidatedNarration(ans, emit)
+			return ans, nil
+		}
 	}
 
 	// Loop exhausted MaxIterations without a final text turn.
 	ans.Partial = true
 	ans.Limitations = appendLimitation(ans.Limitations, "reached max reasoning iterations")
-	ans.Prose = bestPacketSummary(ans.Packets)
 	e.log().Warn("ask: reached max reasoning iterations",
 		"max_iterations", e.opts.MaxIterations,
 		"max_tool_calls_per_turn", e.opts.MaxToolCallsPerTurn,
 		"packets", len(ans.Packets),
-		"has_supported_evidence", ans.Prose != "")
+		"has_supported_evidence", bestPacketSummary(ans.Packets) != "")
 	if finalizeIndexedRepositoryCountAnswer(question, &ans) {
+		ans.TerminationReason = terminationDeterministicRoute
 		return ans, nil
 	}
+	e.finalizeAnswerWithPosture(ctx, question, &ans, terminationMaxIterations, posture)
 	if ans.Prose == "" {
 		ans.Limitations = appendLimitation(ans.Limitations, "no supported evidence assembled")
 	}
-	e.narrate(ctx, &ans, posture)
 	emitValidatedNarration(ans, emit)
 	return ans, nil
 }
@@ -182,6 +211,29 @@ func (e *Engine) dispatchCallStream(
 	ans *Answer,
 	emit func(StreamEvent),
 ) []provider.Message {
+	// Pre-dispatch bounding: refuse an unbounded broad list/search call before it
+	// can spend the dispatch deadline or the response budget.
+	if hint, refused := boundToolCall(call.Name, call.Arguments); refused {
+		ans.Limitations = appendLimitation(ans.Limitations, hint)
+		te := TraceEntry{
+			Tool:       call.Name,
+			Args:       call.Arguments,
+			Supported:  false,
+			TruthClass: query.AnswerTruthUnsupported,
+			Err:        "refused: unbounded list/search call",
+		}
+		ans.Trace = append(ans.Trace, te)
+		emit(StreamEvent{Kind: KindTraceEntry, TraceEntry: &te})
+		e.log().Warn("ask: refused unbounded list/search call before dispatch",
+			"tool", call.Name)
+		return append(messages, provider.Message{
+			Role:       provider.RoleTool,
+			ToolCallID: call.ID,
+			ToolName:   call.Name,
+			Text:       refusalToolResult(hint),
+		})
+	}
+
 	res, runErr := e.runner.Run(ctx, call.Name, call.Arguments)
 	if runErr != nil {
 		te := TraceEntry{
@@ -203,6 +255,29 @@ func (e *Engine) dispatchCallStream(
 	}
 
 	if res.Envelope != nil {
+		// Runaway result (over-budget or dispatch-timeout): preserve a bounded
+		// continuation packet instead of an opaque unsupported outcome.
+		if cont, ok := oversizedContinuationPacket(question, call.Name, res.Envelope); ok {
+			ans.Partial = true
+			ans.Packets = append(ans.Packets, cont)
+			te := TraceEntry{
+				Tool:       call.Name,
+				Args:       call.Arguments,
+				Supported:  false,
+				TruthClass: query.AnswerTruthUnsupported,
+			}
+			ans.Trace = append(ans.Trace, te)
+			emit(StreamEvent{Kind: KindTraceEntry, TraceEntry: &te})
+			e.log().Warn("ask: tool result runaway; bounded continuation offered",
+				"tool", call.Name,
+				"code", envelopeErrorCode(res.Envelope))
+			return append(messages, provider.Message{
+				Role:       provider.RoleTool,
+				ToolCallID: call.ID,
+				ToolName:   call.Name,
+				Text:       continuationToolResult(cont),
+			})
+		}
 		pkt := answerPacketForToolResult(question, call.Name, res.Envelope)
 		if pkt.Partial {
 			ans.Partial = true

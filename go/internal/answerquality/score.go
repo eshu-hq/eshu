@@ -133,6 +133,12 @@ func scoreUsefulness(prompt PromptResult) CriterionScore {
 		if strings.TrimSpace(result.AnswerSummary) == "" {
 			return fail(CriterionUsefulness, fmt.Sprintf("%s result had no answer summary", result.Surface))
 		}
+		// Reject a circular, identity-only answer that only restates the question's
+		// entity, even when the captured TooGeneric flag is unset and truth/citation
+		// scoring passes (issue #5266).
+		if answerguardrail.IsCircularAnswer(prompt.Prompt, result.AnswerSummary) {
+			return fail(CriterionUsefulness, fmt.Sprintf("%s result is circular or identity-only", result.Surface))
+		}
 	}
 	return pass(CriterionUsefulness, "captured answers are useful and supported")
 }
