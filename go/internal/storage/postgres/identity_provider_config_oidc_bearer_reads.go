@@ -23,6 +23,7 @@ import (
 // sealed_secret is deliberately never selected: JWT bearer-token validation
 // verifies a signature against the issuer's own published JWKS, never
 // against Eshu's stored OAuth2 client secret.
+// #nosec G101 -- SQL query constant; its column list selects no secret (sealed_secret is deliberately excluded), so this is query text, not a hardcoded credential. LOW-confidence gosec heuristic triggered by the adjacent doc-comment word.
 const selectActiveOIDCBearerProvidersQuery = `
 SELECT
     c.provider_config_id,
