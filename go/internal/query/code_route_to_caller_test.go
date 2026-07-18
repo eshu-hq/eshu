@@ -20,74 +20,69 @@ func TestHandleRouteToCallerReturnsExactHandlerAndBoundedCallers(t *testing.T) {
 	var sawTraversalQuery bool
 	handler := &CodeHandler{
 		Neo4j: fakeGraphReader{
+			runSingle: func(_ context.Context, cypher string, _ map[string]any) (map[string]any, error) {
+				if isRouteToCallerLabelResolveQuery(cypher) {
+					return map[string]any{"label": "Function"}, nil
+				}
+				return nil, nil
+			},
 			run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
-				if isRouteToCallerSelectorQuery(cypher) {
+				switch {
+				case isRouteToCallerEndpointQuery(cypher):
 					sawRouteQuery = true
-					if !strings.Contains(cypher, "handler)-[route:HANDLES_ROUTE]->(endpoint:Endpoint)") {
-						t.Fatalf("route query did not anchor on HANDLES_ROUTE: %s", cypher)
-					}
 					if got, want := params["repo_id"], "repo-payments"; got != want {
-						t.Fatalf("params[repo_id] = %#v, want %#v", got, want)
+						t.Fatalf("endpoint params[repo_id] = %#v, want %#v", got, want)
 					}
 					if got, want := params["path"], "/payments/{id}"; got != want {
-						t.Fatalf("params[path] = %#v, want %#v", got, want)
+						t.Fatalf("endpoint params[path] = %#v, want %#v", got, want)
+					}
+					return []map[string]any{{
+						"endpoint_id": "endpoint-1", "path": "/payments/{id}",
+						"repo_id": "repo-payments", "endpoint_framework": "fastapi",
+					}}, nil
+				case isRouteToCallerHandlerQuery(cypher):
+					if !strings.Contains(cypher, "(handler)-[route:HANDLES_ROUTE]->(endpoint:Endpoint)") {
+						t.Fatalf("handler query did not anchor on HANDLES_ROUTE: %s", cypher)
 					}
 					if got, want := params["method"], "GET"; got != want {
-						t.Fatalf("params[method] = %#v, want %#v", got, want)
+						t.Fatalf("handler params[method] = %#v, want %#v", got, want)
 					}
 					return []map[string]any{{
-						"endpoint_id":        "endpoint-1",
-						"path":               "/payments/{id}",
-						"repo_id":            "repo-payments",
-						"http_method":        "GET",
-						"framework":          "fastapi",
-						"handler_id":         "function-handler",
-						"handler_name":       "getPayment",
-						"handler_file_path":  "app/routes.py",
-						"handler_language":   "python",
-						"handler_start_line": int64(12),
-						"handler_end_line":   int64(20),
+						"endpoint_id": "endpoint-1", "http_method": "GET", "route_framework": "fastapi",
+						"handler_id": "function-handler", "handler_name": "getPayment",
+						"handler_file_path": "app/routes.py", "handler_language": "python",
+						"handler_start_line": int64(12), "handler_end_line": int64(20),
 					}}, nil
-				}
-				if strings.Contains(cypher, "CALLS") {
-					sawTraversalQuery = true
+				case isRouteToCallerDirectionQuery(cypher):
 					if got, want := params["handler_id"], "function-handler"; got != want {
-						t.Fatalf("params[handler_id] = %#v, want %#v", got, want)
+						t.Fatalf("direction params[handler_id] = %#v, want %#v", got, want)
 					}
 					if got, want := params["limit"], 3; got != want {
-						t.Fatalf("params[limit] = %#v, want %#v", got, want)
+						t.Fatalf("direction params[limit] = %#v, want %#v", got, want)
 					}
-					return []map[string]any{
-						{"direction": "incoming", "depth": int64(1), "entity_id": "caller-1", "name": "authz", "file_path": "app/auth.py", "repo_id": "repo-payments"},
-						{"direction": "incoming", "depth": int64(2), "entity_id": "caller-2", "name": "audit", "file_path": "app/audit.py", "repo_id": "repo-payments"},
-						{"direction": "incoming", "depth": int64(2), "entity_id": "caller-3", "name": "metrics", "file_path": "app/metrics.py", "repo_id": "repo-payments"},
-					}, nil
-				}
-				if isRouteToCallerImpactQuery(cypher) {
-					if strings.Contains(cypher, "WHERE endpointWorkload IS NULL") ||
-						strings.Contains(cypher, "WHERE runtimeWorkload IS NULL") ||
-						strings.Contains(cypher, "WHERE repo IS NULL") {
-						t.Fatalf("unscoped impact query filtered away optional matches: %s", cypher)
+					if strings.Contains(cypher, "<-[:CALLS") { // incoming
+						sawTraversalQuery = true
+						return []map[string]any{
+							routeToCallerChainRow(1, map[string]any{"id": "caller-1", "name": "authz", "file_path": "app/auth.py", "repo_id": "repo-payments"}),
+							routeToCallerChainRow(2, map[string]any{"id": "caller-2", "name": "audit", "file_path": "app/audit.py", "repo_id": "repo-payments"}),
+							routeToCallerChainRow(2, map[string]any{"id": "caller-3", "name": "metrics", "file_path": "app/metrics.py", "repo_id": "repo-payments"}),
+						}, nil
 					}
-					if !strings.Contains(cypher, "(handler)-[:RUNS_IN]->(runtimeWorkload:Workload)") {
-						t.Fatalf("impact query did not use RUNS_IN Workload bridge: %s", cypher)
-					}
-					if !strings.Contains(cypher, "(repo:Repository)-[:EXPOSES_ENDPOINT]->(endpoint)") {
-						t.Fatalf("impact query did not use Repository endpoint ownership: %s", cypher)
-					}
-					if strings.Contains(cypher, ":Service") ||
-						strings.Contains(cypher, ":Deployable") ||
-						strings.Contains(cypher, ":Deployment") {
+					return nil, nil // outgoing: none
+				case isRouteToCallerImpactQuery(cypher):
+					if strings.Contains(cypher, ":Service") || strings.Contains(cypher, ":Deployable") || strings.Contains(cypher, ":Deployment") {
 						t.Fatalf("impact query used non-materialized platform labels: %s", cypher)
 					}
-					if got, want := params["endpoint_id"], "endpoint-1"; got != want {
-						t.Fatalf("params[endpoint_id] = %#v, want %#v", got, want)
+					if strings.Contains(cypher, "-[:RUNS_IN]->(runtimeWorkload:Workload)") {
+						return []map[string]any{{"id": "workload-payments", "name": "payments", "repo_id": "repo-payments"}}, nil
 					}
-					return []map[string]any{{
-						"endpoint_workloads": []any{map[string]any{"id": "workload-payments", "name": "payments", "repo_id": "repo-payments"}},
-						"runtime_workloads":  []any{map[string]any{"id": "workload-payments", "name": "payments", "repo_id": "repo-payments"}},
-						"repositories":       []any{map[string]any{"id": "repo-payments", "name": "payments-api"}},
-					}}, nil
+					if strings.Contains(cypher, "(repo:Repository)-[:EXPOSES_ENDPOINT]->(endpoint:Endpoint)") {
+						return []map[string]any{{"id": "repo-payments", "name": "payments-api"}}, nil
+					}
+					if got, want := params["endpoint_id"], "endpoint-1"; got != want {
+						t.Fatalf("impact params[endpoint_id] = %#v, want %#v", got, want)
+					}
+					return []map[string]any{{"id": "workload-payments", "name": "payments", "repo_id": "repo-payments"}}, nil
 				}
 				return nil, nil
 			},
@@ -163,12 +158,15 @@ func TestHandleRouteToCallerReportsUnsupportedWithoutHandlesRoute(t *testing.T) 
 	handler := &CodeHandler{
 		Neo4j: fakeGraphReader{
 			run: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
-				if isRouteToCallerSelectorQuery(cypher) {
+				if isRouteToCallerEndpointQuery(cypher) {
 					return []map[string]any{{
 						"endpoint_id": "endpoint-1",
 						"path":        "/dynamic",
 						"repo_id":     "repo-payments",
 					}}, nil
+				}
+				if isRouteToCallerHandlerQuery(cypher) {
+					return nil, nil // no HANDLES_ROUTE handler for this endpoint
 				}
 				if strings.Contains(cypher, "CALLS") {
 					traversalQueries++
@@ -215,24 +213,15 @@ func TestHandleRouteToCallerAmbiguousRouteIsConflict(t *testing.T) {
 	handler := &CodeHandler{
 		Neo4j: fakeGraphReader{
 			run: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
-				if isRouteToCallerSelectorQuery(cypher) {
+				if isRouteToCallerEndpointQuery(cypher) {
+					return []map[string]any{{
+						"endpoint_id": "endpoint-1", "path": "/payments/{id}", "repo_id": "repo-payments",
+					}}, nil
+				}
+				if isRouteToCallerHandlerQuery(cypher) {
 					return []map[string]any{
-						{
-							"endpoint_id":  "endpoint-1",
-							"path":         "/payments/{id}",
-							"repo_id":      "repo-payments",
-							"http_method":  "GET",
-							"handler_id":   "handler-a",
-							"handler_name": "getPaymentA",
-						},
-						{
-							"endpoint_id":  "endpoint-1",
-							"path":         "/payments/{id}",
-							"repo_id":      "repo-payments",
-							"http_method":  "GET",
-							"handler_id":   "handler-b",
-							"handler_name": "getPaymentB",
-						},
+						{"endpoint_id": "endpoint-1", "http_method": "GET", "handler_id": "handler-a", "handler_name": "getPaymentA"},
+						{"endpoint_id": "endpoint-1", "http_method": "GET", "handler_id": "handler-b", "handler_name": "getPaymentB"},
 					}, nil
 				}
 				if strings.Contains(cypher, "CALLS") {
@@ -268,9 +257,15 @@ func TestHandleRouteToCallerServiceScopeUsesWorkloadEndpointEdges(t *testing.T) 
 	var sawWorkloadEndpointScope bool
 	handler := &CodeHandler{
 		Neo4j: fakeGraphReader{
+			runSingle: func(_ context.Context, cypher string, _ map[string]any) (map[string]any, error) {
+				if isRouteToCallerLabelResolveQuery(cypher) {
+					return map[string]any{"label": "Function"}, nil
+				}
+				return nil, nil
+			},
 			run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 				switch {
-				case isRouteToCallerSelectorQuery(cypher):
+				case isRouteToCallerEndpointQuery(cypher):
 					sawWorkloadEndpointScope = true
 					if !strings.Contains(cypher, "(workload:Workload)-[:EXPOSES_ENDPOINT]->(endpoint:Endpoint)") {
 						t.Fatalf("service scope did not use materialized Workload endpoint edge: %s", cypher)
@@ -282,21 +277,23 @@ func TestHandleRouteToCallerServiceScopeUsesWorkloadEndpointEdges(t *testing.T) 
 						t.Fatalf("params[service_id] = %#v, want %#v", got, want)
 					}
 					return []map[string]any{{
-						"endpoint_id":  "endpoint-1",
-						"path":         "/payments/{id}",
-						"repo_id":      "repo-payments",
-						"http_method":  "GET",
-						"handler_id":   "function-handler",
-						"handler_name": "getPayment",
+						"endpoint_id": "endpoint-1", "path": "/payments/{id}", "repo_id": "repo-payments",
 					}}, nil
-				case strings.Contains(cypher, "CALLS"):
+				case isRouteToCallerHandlerQuery(cypher):
+					return []map[string]any{{
+						"endpoint_id": "endpoint-1", "http_method": "GET",
+						"handler_id": "function-handler", "handler_name": "getPayment",
+					}}, nil
+				case isRouteToCallerDirectionQuery(cypher):
 					return nil, nil
 				case isRouteToCallerImpactQuery(cypher):
-					return []map[string]any{{
-						"endpoint_workloads": []any{map[string]any{"id": "workload-payments", "name": "payments", "repo_id": "repo-payments"}},
-						"runtime_workloads":  []any{},
-						"repositories":       []any{map[string]any{"id": "repo-payments", "name": "payments-api"}},
-					}}, nil
+					if strings.Contains(cypher, "-[:RUNS_IN]->(runtimeWorkload:Workload)") {
+						return nil, nil
+					}
+					if strings.Contains(cypher, "(repo:Repository)-[:EXPOSES_ENDPOINT]->(endpoint:Endpoint)") {
+						return []map[string]any{{"id": "repo-payments", "name": "payments-api"}}, nil
+					}
+					return []map[string]any{{"id": "workload-payments", "name": "payments", "repo_id": "repo-payments"}}, nil
 				default:
 					t.Fatalf("unexpected query: %s", cypher)
 					return nil, nil
@@ -330,29 +327,31 @@ func TestHandleRouteToCallerScopedTraversalFiltersEveryPathNode(t *testing.T) {
 	var sawScopedPathPredicate bool
 	handler := &CodeHandler{
 		Neo4j: fakeGraphReader{
+			runSingle: func(_ context.Context, cypher string, _ map[string]any) (map[string]any, error) {
+				if isRouteToCallerLabelResolveQuery(cypher) {
+					return map[string]any{"label": "Function"}, nil
+				}
+				return nil, nil
+			},
 			run: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 				switch {
-				case isRouteToCallerSelectorQuery(cypher):
+				case isRouteToCallerEndpointQuery(cypher):
 					return []map[string]any{{
-						"endpoint_id":  "endpoint-1",
-						"path":         "/payments/{id}",
-						"repo_id":      "repo-payments",
-						"http_method":  "GET",
-						"handler_id":   "function-handler",
-						"handler_name": "getPayment",
+						"endpoint_id": "endpoint-1", "path": "/payments/{id}", "repo_id": "repo-payments",
 					}}, nil
-				case strings.Contains(cypher, "CALLS"):
+				case isRouteToCallerHandlerQuery(cypher):
+					return []map[string]any{{
+						"endpoint_id": "endpoint-1", "http_method": "GET",
+						"handler_id": "function-handler", "handler_name": "getPayment",
+					}}, nil
+				case isRouteToCallerDirectionQuery(cypher):
 					if !strings.Contains(cypher, "all(pathNode IN nodes(path) WHERE") {
 						t.Fatalf("scoped traversal did not filter every path node: %s", cypher)
 					}
 					sawScopedPathPredicate = true
 					return nil, nil
 				case isRouteToCallerImpactQuery(cypher):
-					return []map[string]any{{
-						"endpoint_workloads": []any{},
-						"runtime_workloads":  []any{},
-						"repositories":       []any{},
-					}}, nil
+					return nil, nil
 				default:
 					t.Fatalf("unexpected query: %s", cypher)
 					return nil, nil
@@ -446,10 +445,47 @@ func TestHandleRouteToCallerMissingRouteIsNotFound(t *testing.T) {
 	}
 }
 
-func isRouteToCallerSelectorQuery(cypher string) bool {
+// isRouteToCallerEndpointQuery matches the split endpoint read (#5287); the
+// handler read is matched by isRouteToCallerHandlerQuery.
+func isRouteToCallerEndpointQuery(cypher string) bool {
+	return strings.Contains(cypher, "endpoint.framework as endpoint_framework")
+}
+
+// isRouteToCallerHandlerQuery matches the split HANDLES_ROUTE handler read.
+func isRouteToCallerHandlerQuery(cypher string) bool {
 	return strings.Contains(cypher, "route.http_method as http_method")
 }
 
+// isRouteToCallerSelectorQuery matches either half of the split route read, so
+// tests that only care that "a route query ran" keep working.
+func isRouteToCallerSelectorQuery(cypher string) bool {
+	return isRouteToCallerEndpointQuery(cypher) || isRouteToCallerHandlerQuery(cypher)
+}
+
+// isRouteToCallerDirectionQuery matches the split directional CALLS traversal
+// that projects raw nodes(path) (#5287).
+func isRouteToCallerDirectionQuery(cypher string) bool {
+	return strings.Contains(cypher, "nodes(path) as chain")
+}
+
+// isRouteToCallerLabelResolveQuery matches the handler-label RunSingle read.
+func isRouteToCallerLabelResolveQuery(cypher string) bool {
+	return strings.Contains(cypher, "head(labels(handler)) AS label")
+}
+
+// routeToCallerChainRow builds a fake directional-traversal row: a depth plus a
+// nodes(path) chain whose LAST element carries the far-endpoint entity props
+// (routeToCallerEntityFromChain reads the last node).
+func routeToCallerChainRow(depth int, entity map[string]any) map[string]any {
+	return map[string]any{"depth": int64(depth), "chain": []any{map[string]any{"id": "handler-node"}, entity}}
+}
+
 func isRouteToCallerImpactQuery(cypher string) bool {
-	return strings.Contains(cypher, "endpoint_workloads")
+	if isRouteToCallerEndpointQuery(cypher) || isRouteToCallerHandlerQuery(cypher) {
+		return false
+	}
+	return strings.Contains(cypher, "endpoint_workloads") ||
+		(strings.Contains(cypher, "RETURN DISTINCT") &&
+			(strings.Contains(cypher, "-[:EXPOSES_ENDPOINT]->(endpoint:Endpoint)") ||
+				strings.Contains(cypher, "-[:RUNS_IN]->(runtimeWorkload:Workload)")))
 }
