@@ -134,7 +134,23 @@ if [ -n "${_perf_diff_cache}" ]; then
           _perf_cur=""
         fi
         ;;
-      "+"*|"-")
+      "+++ /dev/null")
+        # Deleted-file new-path header (git writes "+++ /dev/null", no b/
+        # prefix, so the "+++ b/"* arm above does not catch it). Reset the
+        # current file: otherwise this header matches the "+"* arm below and,
+        # together with the deleted file's removed lines (now matched by "-"*),
+        # would be attributed to the PREVIOUS file's map entry and wrongly flip
+        # a comment-only prior change to a code change.
+        _perf_cur=""
+        ;;
+      "--- a/"*|"--- /dev/null")
+        # Old-path diff header (--- a/foo, or --- /dev/null for a new file).
+        # It starts with "-", so it must be excluded before the removed-line
+        # arm below (which now matches "-"*), or it would be misread as removed
+        # content and wrongly flip the current file to a code change.
+        continue
+        ;;
+      "+"*|"-"*)
         [ -z "${_perf_cur}" ] && continue
         _perf_payload="${line:1}"
         # Comment or blank: Go line (//), block markers (/* * */), shell/
