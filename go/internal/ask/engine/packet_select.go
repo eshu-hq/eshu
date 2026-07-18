@@ -176,16 +176,19 @@ func selectedPacketIndex(ans *Answer) int {
 	return idx
 }
 
-// meaningfulTokens splits text into a set of lowercased, whole-word tokens of at
-// least three characters, excluding a small stop-word set. It is the shared
-// tokenizer for the relevance heuristic.
+// meaningfulTokens splits text into a set of lowercased, whole-word tokens,
+// excluding a small stop-word set. A token is kept when it is at least three
+// characters OR it carries a digit, so a short version or count identifier
+// ("v2", "5") that discriminates the right packet is not dropped. This mirrors
+// the digit escape in answerguardrail.contentTokens. It is the shared tokenizer
+// for the relevance heuristic.
 func meaningfulTokens(text string) map[string]struct{} {
 	out := make(map[string]struct{})
 	for _, raw := range strings.FieldsFunc(strings.ToLower(text), func(r rune) bool {
 		return !unicode.IsLetter(r) && !unicode.IsDigit(r) && r != '_'
 	}) {
 		tok := strings.Trim(raw, "_")
-		if len(tok) < 3 {
+		if len(tok) < 3 && !tokenHasDigit(tok) {
 			continue
 		}
 		if _, stop := relevanceStopWords[tok]; stop {
@@ -194,6 +197,16 @@ func meaningfulTokens(text string) map[string]struct{} {
 		out[tok] = struct{}{}
 	}
 	return out
+}
+
+// tokenHasDigit reports whether tok contains at least one digit rune.
+func tokenHasDigit(tok string) bool {
+	for _, r := range tok {
+		if unicode.IsDigit(r) {
+			return true
+		}
+	}
+	return false
 }
 
 // relevanceStopWords are common question words that carry no entity signal. The

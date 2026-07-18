@@ -25,10 +25,14 @@ func TestBoundToolCall(t *testing.T) {
 		{"inventory with zero limit refused", "list_indexed_repositories", map[string]any{"limit": 0}, true},
 		{"inventory with float limit allowed", "list_indexed_repositories", map[string]any{"limit": float64(10)}, false},
 		{"inventory with json.Number limit allowed", "list_indexed_repositories", map[string]any{"limit": json.Number("5")}, false},
-		{"unbounded edges refused", "list_relationship_edges", map[string]any{}, true},
-		{"edges with scope allowed", "list_relationship_edges", map[string]any{"repo_id": "r1"}, false},
-		{"edges with blank scope refused", "list_relationship_edges", map[string]any{"repo_id": "  "}, true},
-		{"edges with source_tool allowed", "list_relationship_edges", map[string]any{"source_tool": "terraform"}, false},
+		{"inventory with uint limit allowed", "list_indexed_repositories", map[string]any{"limit": uint(10)}, false},
+		{"inventory with string limit allowed", "list_indexed_repositories", map[string]any{"limit": "25"}, false},
+		{"inventory with blank string limit refused", "list_indexed_repositories", map[string]any{"limit": " "}, true},
+		{"inventory with non-numeric string limit refused", "list_indexed_repositories", map[string]any{"limit": "lots"}, true},
+		// list_relationship_edges is dispatch-bounded (limit default 50, forwards
+		// only verb/source_tool/limit), so it is not pre-refused: a scope arg its
+		// route drops must never be treated as bounding.
+		{"dispatch-bounded edges never refused", "list_relationship_edges", map[string]any{}, false},
 		{"non-broad tool never refused", "find_code", map[string]any{}, false},
 		{"scoped story never refused", "get_service_story", map[string]any{"service": "payments"}, false},
 	}
@@ -121,10 +125,15 @@ func TestEvidenceProgress(t *testing.T) {
 	if made, have := p.observe(pkts); !made || !have {
 		t.Fatalf("first evidence: made=%v have=%v, want true/true", made, have)
 	}
-	// A redundant call to the same tool: no new progress, evidence still held.
-	pkts = append(pkts, evidence("get_service_story", "payments overview again"))
+	// A redundant call — same tool AND same summary: no new progress.
+	pkts = append(pkts, evidence("get_service_story", "payments overview"))
 	if made, have := p.observe(pkts); made || !have {
-		t.Fatalf("redundant tool: made=%v have=%v, want false/true", made, have)
+		t.Fatalf("redundant identical result: made=%v have=%v, want false/true", made, have)
+	}
+	// The same tool with a DISTINCT summary is new evidence (a comparison).
+	pkts = append(pkts, evidence("get_service_story", "ledger overview"))
+	if made, have := p.observe(pkts); !made || !have {
+		t.Fatalf("same tool, distinct result: made=%v have=%v, want true/true", made, have)
 	}
 	// A new distinct tool: progress again.
 	pkts = append(pkts, evidence("get_repository_summary", "repo summary"))

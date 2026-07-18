@@ -5,6 +5,7 @@ package engine
 
 import (
 	"encoding/json"
+	"strconv"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query"
@@ -20,71 +21,46 @@ const (
 	errCodeDispatchTimeout    = "mcp_dispatch_timeout"
 )
 
-// boundingRule describes how a broad list/search tool must be bounded before the
-// Ask engine will dispatch it. A call is bounded when it carries a positive
-// limit, or when any one of scopeArgs is present with a non-empty value. A call
-// that satisfies neither is refused before dispatch, so the 30s dispatch
-// deadline and the 256KB response budget are never spent on a runaway read.
-type boundingRule struct {
-	// scopeArgs are alternative bounding arguments; any one present with a
-	// non-empty value bounds the call even without a limit. Empty means only a
-	// positive limit bounds the call.
-	scopeArgs []string
-	// hint is the executable narrowing instruction fed back to the model and
-	// surfaced to operators when the call is refused.
-	hint string
-}
-
-// boundedListSearchTools is the curated set of full-inventory list/search tools
-// an Ask session must bound before dispatch. These are the tools whose unbounded
-// form returned the 431,682-byte inventory and blew the response budget in issue
-// #5266. Scoped searches with dispatch-layer default limits (for example
-// find_code) are intentionally absent: their runaway form is a slow or oversized
-// result, handled after dispatch by oversizedContinuationPacket, not a
-// pre-dispatch refusal.
-var boundedListSearchTools = map[string]boundingRule{
-	"list_indexed_repositories": {
-		hint: "list_indexed_repositories is a full-inventory list-all; add a bounded limit (for example limit=25) and page with offset instead of requesting every indexed repository at once",
-	},
-	"list_relationship_edges": {
-		scopeArgs: []string{"repo_id", "repository", "source_tool", "relationship_type"},
-		hint:      "list_relationship_edges can return the entire edge set; add a limit (for example limit=25) or scope it with repo_id, source_tool, or a single relationship_type",
-	},
+// boundedListSearchTools maps a full-inventory list/search tool to the executable
+// narrowing hint fed back when an unbounded call is refused before dispatch. Each
+// listed tool must carry a positive limit; an unbounded call would otherwise
+// return the entire inventory and blow the 256KB response budget.
+//
+// Only tools whose unbounded form is a genuine runaway are listed.
+// list_indexed_repositories is the reproduced case (issue #5266): its unbounded
+// form returned the 431,682-byte inventory. Tools that are already bounded at the
+// dispatch layer are intentionally absent — find_code carries a dispatch default
+// limit and list_relationship_edges is dispatch-bounded to 50 rows (its route
+// forwards only verb/source_tool/limit) — so their runaway form is a slow or
+// oversized result handled after dispatch by oversizedContinuationPacket, not a
+// pre-dispatch refusal. Listing a scope argument the tool's route does not forward
+// would let the model "bound" a call whose scope is silently dropped, so only the
+// limit — which every listed tool honours — bounds a call here.
+var boundedListSearchTools = map[string]string{
+	"list_indexed_repositories": "list_indexed_repositories is a full-inventory list-all; add a bounded limit (for example limit=25) and page with offset instead of requesting every indexed repository at once",
 }
 
 // boundToolCall reports whether a tool call must be refused before dispatch for
-// being an unbounded broad list/search. When refused it returns the executable
+// being an unbounded broad list-all. When refused it returns the executable
 // narrowing hint the engine surfaces to the model and to operators. Tools not in
-// the bounded set, and calls that already carry a positive limit or a recognised
-// scope argument, are never refused.
+// the bounded set, and calls that already carry a positive limit, are never
+// refused.
 func boundToolCall(name string, args map[string]any) (hint string, refused bool) {
-	rule, ok := boundedListSearchTools[name]
+	hintText, ok := boundedListSearchTools[name]
 	if !ok {
 		return "", false
 	}
-	if callIsBounded(rule, args) {
+	if hasPositiveLimit(args) {
 		return "", false
 	}
-	return rule.hint, true
-}
-
-// callIsBounded reports whether args satisfy rule: a positive limit, or any one
-// of the rule's scope arguments present with a non-empty value.
-func callIsBounded(rule boundingRule, args map[string]any) bool {
-	if hasPositiveLimit(args) {
-		return true
-	}
-	for _, key := range rule.scopeArgs {
-		if hasNonEmptyArg(args, key) {
-			return true
-		}
-	}
-	return false
+	return hintText, true
 }
 
 // hasPositiveLimit reports whether args carries a "limit" argument that parses to
-// a value greater than zero. It accepts the numeric shapes a decoded JSON tool
-// argument can take (json.Number, float64, and the Go integer types tests use).
+// a value greater than zero. It accepts every numeric shape a decoded JSON tool
+// argument can take — json.Number, the float and signed/unsigned integer types,
+// and a string-encoded number — so a caller or model that encodes the limit
+// unusually is not mistaken for an unbounded call.
 func hasPositiveLimit(args map[string]any) bool {
 	v, ok := args["limit"]
 	if !ok {
@@ -104,22 +80,18 @@ func hasPositiveLimit(args map[string]any) bool {
 		return n > 0
 	case int64:
 		return n > 0
+	case uint:
+		return n > 0
+	case uint32:
+		return n > 0
+	case uint64:
+		return n > 0
+	case string:
+		i, err := strconv.Atoi(strings.TrimSpace(n))
+		return err == nil && i > 0
 	default:
 		return false
 	}
-}
-
-// hasNonEmptyArg reports whether args carries key with a non-empty, non-blank
-// string value or a non-nil non-string value.
-func hasNonEmptyArg(args map[string]any, key string) bool {
-	v, ok := args[key]
-	if !ok || v == nil {
-		return false
-	}
-	if s, isStr := v.(string); isStr {
-		return strings.TrimSpace(s) != ""
-	}
-	return true
 }
 
 // refusalToolResult is the bounded JSON tool-result fed back to the model when a

@@ -47,6 +47,7 @@ func IsCircularAnswer(question, answer string) bool {
 var identityScaffolding = map[string]struct{}{
 	"is": {}, "are": {}, "was": {}, "were": {}, "been": {}, "being": {},
 	"the": {}, "and": {}, "for": {}, "with": {}, "this": {}, "that": {},
+	"from": {}, "by": {},
 	"service": {}, "services": {}, "workload": {}, "workloads": {},
 	"named": {}, "called": {}, "known": {}, "referred": {}, "identified": {},
 	"component": {}, "components": {}, "system": {}, "systems": {},

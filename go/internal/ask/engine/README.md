@@ -149,13 +149,17 @@ identity-only answer even when rich bounded evidence exists. Four deterministic
 mechanisms keep such a session bounded and useful without raising any timeout,
 response budget, or iteration count:
 
-- **Pre-dispatch bounding** (`bounding.go`): a curated set of full-inventory
-  list/search tools (`list_indexed_repositories`, `list_relationship_edges`)
-  must carry a positive `limit` or a recognised scope argument. An unbounded
-  call is refused before dispatch with an executable narrowing hint, so the
-  dispatch deadline and the response budget are never spent on a runaway
-  list-all. The exact-count route bounds a bare inventory call to `limit=1` so
-  it is never refused.
+- **Pre-dispatch bounding** (`bounding.go`): a full-inventory list-all whose
+  unbounded form blows the response budget (`list_indexed_repositories`) must
+  carry a positive `limit`; an unbounded call is refused before dispatch with an
+  executable narrowing hint, so the dispatch deadline and the response budget are
+  never spent on a runaway list-all. The exact-count route bounds a bare
+  inventory call to `limit=1` so it is never refused. Tools already bounded at
+  the dispatch layer (`find_code`'s default limit; `list_relationship_edges`,
+  bounded to 50 rows and forwarding only `verb`/`source_tool`/`limit`) are not
+  pre-refused — a scope argument their route would silently drop is never treated
+  as a bound; their runaway form is handled after dispatch by the continuation
+  mechanism.
 - **Oversized-result continuation** (`bounding.go`): when a dispatched tool
   returns an `mcp_response_over_budget` or `mcp_dispatch_timeout` envelope, the
   engine builds a bounded continuation packet — partial, with the narrowing

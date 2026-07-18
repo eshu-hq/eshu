@@ -298,6 +298,56 @@ func TestAsk_SingleNoProgressTurnDoesNotTruncate(t *testing.T) {
 	}
 }
 
+// TestAsk_MultiEntitySameToolCountsAsProgress proves evidence progress is keyed
+// by packet identity, not tool name: a comparison that gathers distinct evidence
+// with repeated calls to the same tool (different services via get_service_story)
+// makes progress every turn and reaches the model's final synthesis turn, rather
+// than being stopped early after two same-tool turns. Keying progress by tool
+// name would truncate this flow after the second call.
+func TestAsk_MultiEntitySameToolCountsAsProgress(t *testing.T) {
+	t.Parallel()
+
+	tc := func(id, service string) provider.ToolCall {
+		return provider.ToolCall{ID: id, Name: "get_service_story", Arguments: map[string]any{"service": service, "limit": 1}}
+	}
+	turns := []provider.Completion{
+		{ToolCalls: []provider.ToolCall{tc("s1", "payments")}},
+		{ToolCalls: []provider.ToolCall{tc("s2", "ledger")}},
+		{ToolCalls: []provider.ToolCall{tc("s3", "auth")}},
+		{Text: "here is the comparison of payments, ledger, and auth"},
+	}
+	adapter := &scriptedAdapter{turns: turns, errOnIdx: -1}
+
+	// Distinct evidence per call: the summary names the requested service.
+	runner := RunnerFunc(func(_ context.Context, _ string, args map[string]any) (RunResult, error) {
+		svc, _ := args["service"].(string)
+		return RunResult{Envelope: &query.ResponseEnvelope{
+			Truth: &query.TruthEnvelope{Level: query.TruthLevelExact, Basis: query.TruthBasisAuthoritativeGraph},
+			Data:  map[string]any{"service": svc, "detail": svc + " service story"},
+		}}, nil
+	})
+
+	eng, err := New(adapter, runner, nil, DefaultOptions())
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	ans, err := eng.Ask(context.Background(), "compare the payments, ledger, and auth services")
+	if err != nil {
+		t.Fatalf("Ask: %v", err)
+	}
+
+	if ans.TerminationReason != terminationFinalTurn {
+		t.Errorf("TerminationReason = %q, want %q (same-tool distinct evidence must not stop the loop)",
+			ans.TerminationReason, terminationFinalTurn)
+	}
+	if adapter.calls != len(turns) {
+		t.Errorf("iterations = %d, want %d (all three services gathered)", adapter.calls, len(turns))
+	}
+	if len(ans.Packets) != 3 {
+		t.Errorf("len(Packets) = %d, want 3 (one per service)", len(ans.Packets))
+	}
+}
+
 func hasPacketForTool(packets []query.AnswerPacket, tool string) bool {
 	for _, p := range packets {
 		if p.PrimaryTool == tool {

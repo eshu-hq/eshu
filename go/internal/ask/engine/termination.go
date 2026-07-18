@@ -34,43 +34,57 @@ const (
 // still stops well before the iteration bound.
 const sufficiencyNoProgressTurns = 2
 
-// evidenceProgress tracks, across loop turns, the distinct primary tools that
-// have produced a supported, summary-bearing answer packet. It is the signal the
+// evidenceProgress tracks, across loop turns, the distinct answer packets that
+// have been gathered, keyed by packet identity. It is the signal the
 // evidence-sufficiency stop uses to distinguish a loop that is still gathering
 // new evidence from one that is spinning on redundant or oversized calls.
 //
 // The zero value is ready to use.
 type evidenceProgress struct {
-	// tools is the set of primary tools that have contributed at least one
-	// supported, summary-bearing packet. A repeated call to the same tool is not
-	// new progress.
-	tools map[string]struct{}
+	// seen is the set of packet identities that have contributed at least one
+	// supported, summary-bearing packet. Identity is keyed by tool AND summary
+	// content, so a re-issued call with the same result is not new progress but a
+	// distinct result from the same tool (for example comparing several services
+	// with repeated get_service_story calls) is.
+	seen map[string]struct{}
 }
 
 // observe records the supported, summary-bearing packets in packets and reports
-// whether this turn added a new distinct evidence tool (progress) and whether any
-// answer evidence is now held at all (haveEvidence).
+// whether this turn added a new distinct evidence packet (progress) and whether
+// any answer evidence is now held at all (haveEvidence).
 //
 // A packet counts as answer evidence only when it is Supported, not Partial, and
 // carries a non-empty Summary — the same bar bestPacketSummary uses to publish
-// deterministic prose. Repeated calls to an already-seen primary tool, oversized
-// continuation packets, and refused-call packets never register as progress, so a
-// model that keeps re-issuing the same broad call cannot defeat the stop.
+// deterministic prose. Identity is (PrimaryTool, Summary): a repeated call that
+// returns the same result, an oversized continuation packet, and a refused-call
+// packet never register as progress, so a model re-issuing the same broad call
+// cannot defeat the stop; but a distinct result from the same tool — a
+// multi-entity comparison — is correctly counted as new evidence and does not
+// trip the stop prematurely.
 func (p *evidenceProgress) observe(packets []query.AnswerPacket) (progress, haveEvidence bool) {
-	if p.tools == nil {
-		p.tools = make(map[string]struct{})
+	if p.seen == nil {
+		p.seen = make(map[string]struct{})
 	}
 	for _, pkt := range packets {
 		if !packetIsAnswerEvidence(pkt) {
 			continue
 		}
-		tool := pkt.PrimaryTool
-		if _, seen := p.tools[tool]; !seen {
-			p.tools[tool] = struct{}{}
+		id := packetIdentity(pkt)
+		if _, ok := p.seen[id]; !ok {
+			p.seen[id] = struct{}{}
 			progress = true
 		}
 	}
-	return progress, len(p.tools) > 0
+	return progress, len(p.seen) > 0
+}
+
+// packetIdentity returns the distinct-evidence key for a packet: its primary tool
+// joined with its summary content. Two calls to the same tool that return
+// different summaries are distinct evidence; two calls that return the same
+// summary are redundant. The NUL separator cannot appear in a tool name, so it
+// unambiguously joins the two fields.
+func packetIdentity(pkt query.AnswerPacket) string {
+	return pkt.PrimaryTool + "\x00" + pkt.Summary
 }
 
 // packetIsAnswerEvidence reports whether pkt is a supported, complete,
