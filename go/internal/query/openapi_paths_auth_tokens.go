@@ -9,7 +9,7 @@ const openAPIPathsAuthTokens = `
       "post": {
         "tags": ["auth"],
         "summary": "Create a generated API token",
-        "description": "All-scopes admin route that creates a generated personal or service-principal API token. Shared-operator callers whose auth context has no tenant/workspace must provide tenant_id and workspace_id in the request body. The raw bearer value is returned once in api_token; storage persists only token_hash metadata, active subject ownership, status, expiry, and last-used timestamps. Personal tokens inherit the target user's active grants at request time, and service-principal tokens inherit the active service-principal role grants.",
+        "description": "All-scopes admin route that creates a generated personal or service-principal API token. Shared-operator callers whose auth context has no tenant/workspace must provide tenant_id and workspace_id in the request body. For token_class=personal, an omitted user_id resolves to the calling browser session's own identity (self-service create of one's own token, issue #5164); an explicit user_id keeps working as the existing admin-mints-for-another-user flow. The raw bearer value is returned once in api_token; storage persists only token_hash metadata, active subject ownership, status, an optional plaintext display_label, expiry, and last-used timestamps. Personal tokens inherit the target user's active grants at request time, and service-principal tokens inherit the active service-principal role grants.",
         "operationId": "createLocalIdentityAPIToken",
         "x-scoped-token-support": true,
         "requestBody": {
@@ -26,7 +26,7 @@ const openAPIPathsAuthTokens = `
       "get": {
         "tags": ["auth"],
         "summary": "List the caller's generated API tokens",
-        "description": "Returns metadata for the authenticated caller's own personal and service-principal generated API tokens: token id, class, and issued/expires/revoked timestamps. Never returns the token hash or raw bearer value, and never returns other subjects' tokens.",
+        "description": "Returns metadata for the authenticated caller's own personal and service-principal generated API tokens: token id, class, display_label, and issued/expires/revoked timestamps. Never returns the token hash, display label hash, or raw bearer value, and never returns other subjects' tokens.",
         "operationId": "listLocalIdentityAPITokens",
         "x-scoped-token-support": true,
         "responses": {
@@ -44,6 +44,7 @@ const openAPIPathsAuthTokens = `
                         "properties": {
                           "token_id": {"type": "string"},
                           "token_class": {"type": "string"},
+                          "display_label": {"type": "string", "description": "Present only when the token was created with a label."},
                           "issued_at": {"type": "string", "format": "date-time"},
                           "expires_at": {"type": "string", "format": "date-time"},
                           "revoked_at": {"type": "string", "format": "date-time"}

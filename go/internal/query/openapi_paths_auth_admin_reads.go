@@ -278,7 +278,7 @@ const openAPIPathsAuthAdminReads = `
       "get": {
         "tags": ["auth"],
         "summary": "List the tenant's generated API tokens",
-        "description": "All-scopes admin route that lists every user's generated API tokens within the caller's own tenant/workspace: token id, class, owning user or service principal, status, and issued/expires/revoked timestamps. Never returns the token hash or display label hash. Distinct from the self-scoped GET /api/v0/auth/local/api-tokens.",
+        "description": "All-scopes admin route that lists every user's generated API tokens within the caller's own tenant/workspace: token id, class, owning user or service principal, status, display_label, and issued/expires/revoked timestamps. Never returns the token hash or display label hash. Distinct from the self-scoped GET /api/v0/auth/local/api-tokens.",
         "operationId": "listAdminAPITokens",
         "x-scoped-token-support": true,
         "responses": {
@@ -299,6 +299,7 @@ const openAPIPathsAuthAdminReads = `
                           "user_id": {"type": "string"},
                           "service_principal_id": {"type": "string"},
                           "status": {"type": "string"},
+                          "display_label": {"type": "string", "description": "Present only when the token was created with a label."},
                           "issued_at": {"type": "string", "format": "date-time"},
                           "expires_at": {"type": "string", "format": "date-time"},
                           "revoked_at": {"type": "string", "format": "date-time"},

@@ -334,6 +334,9 @@ func (h *AdminIdentityReadHandler) handleListAPITokens(w http.ResponseWriter, r 
 		if item.ServicePrincipalID != "" {
 			row["service_principal_id"] = item.ServicePrincipalID
 		}
+		if item.DisplayLabel != "" {
+			row["display_label"] = item.DisplayLabel
+		}
 		addOptionalTime(row, "expires_at", item.ExpiresAt)
 		addOptionalTime(row, "revoked_at", item.RevokedAt)
 		out = append(out, row)

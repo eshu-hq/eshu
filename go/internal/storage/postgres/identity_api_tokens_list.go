@@ -15,14 +15,16 @@ import (
 // IdentityAPITokenListItem is the metadata-only view of one API token that is
 // safe to return to the owning subject. It never includes token_hash.
 // display_handle_hash is intentionally omitted: it is SHA-256(display_label)
-// and presenting a hash as a "label" is misleading. A follow-up issue (#3703)
-// will persist a real non-secret display label.
+// and presenting a hash as a "label" is misleading. DisplayLabel (issue
+// #3708) is the real, non-secret operator-facing label and is safe to return
+// as-is.
 type IdentityAPITokenListItem struct {
-	TokenID    string
-	TokenClass string
-	IssuedAt   time.Time
-	ExpiresAt  time.Time
-	RevokedAt  time.Time
+	TokenID      string
+	TokenClass   string
+	DisplayLabel string
+	IssuedAt     time.Time
+	ExpiresAt    time.Time
+	RevokedAt    time.Time
 }
 
 // listLocalIdentityAPITokensBySubjectQuery selects metadata-only columns for
@@ -34,6 +36,7 @@ const listLocalIdentityAPITokensBySubjectQuery = `
 SELECT
     tok.token_id,
     tok.token_class,
+    tok.display_label,
     tok.issued_at,
     tok.expires_at,
     tok.revoked_at
@@ -82,16 +85,21 @@ func (s *IdentitySubjectStore) ListAPITokensBySubject(
 	var items []IdentityAPITokenListItem
 	for rows.Next() {
 		var item IdentityAPITokenListItem
+		var displayLabel sql.NullString
 		var expiresAt sql.NullTime
 		var revokedAt sql.NullTime
 		if err := rows.Scan(
 			&item.TokenID,
 			&item.TokenClass,
+			&displayLabel,
 			&item.IssuedAt,
 			&expiresAt,
 			&revokedAt,
 		); err != nil {
 			return nil, fmt.Errorf("scan api token list item: %w", err)
+		}
+		if displayLabel.Valid {
+			item.DisplayLabel = displayLabel.String
 		}
 		if expiresAt.Valid {
 			item.ExpiresAt = expiresAt.Time.UTC()

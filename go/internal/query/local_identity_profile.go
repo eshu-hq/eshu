@@ -12,14 +12,16 @@ import (
 // that is safe to return to the owning subject. It never includes token_hash,
 // display_handle_hash, or any raw credential value.
 // display_handle_hash is omitted intentionally — it is SHA-256(display_label)
-// and presenting a hash as a human label is misleading. See issue #3708 for
-// persisting a real non-secret display label.
+// and presenting a hash as a human label is misleading. DisplayLabel (issue
+// #3708) is the real, non-secret operator-facing label and is safe to
+// return as-is.
 type LocalIdentityAPITokenListItem struct {
-	TokenID    string
-	TokenClass string
-	IssuedAt   time.Time
-	ExpiresAt  time.Time
-	RevokedAt  time.Time
+	TokenID      string
+	TokenClass   string
+	DisplayLabel string
+	IssuedAt     time.Time
+	ExpiresAt    time.Time
+	RevokedAt    time.Time
 }
 
 // LocalIdentityMFAStatus is the safe-to-expose MFA state for one identity.

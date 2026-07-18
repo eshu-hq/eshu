@@ -28,9 +28,13 @@ type fakeLocalIdentityStore struct {
 	createdAPIToken LocalIdentityAPITokenCreate
 	revokedAPIToken LocalIdentityAPITokenRevoke
 	rotatedAPIToken LocalIdentityAPITokenRotate
-	rotation        LocalIdentityPasswordRotation
-	rotationResult  LocalIdentityAuthenticationResult
-	rotationError   error
+	// apiTokens accumulates every CreateLocalIdentityAPIToken call so
+	// ListAPITokensBySubject can prove real create-then-list wiring instead of
+	// always returning nil.
+	apiTokens      []LocalIdentityAPITokenCreate
+	rotation       LocalIdentityPasswordRotation
+	rotationResult LocalIdentityAuthenticationResult
+	rotationError  error
 
 	resolvedUserID      string
 	resolvedUserIDFound bool
@@ -119,6 +123,7 @@ func (s *fakeLocalIdentityStore) CreateLocalIdentityAPIToken(
 	token LocalIdentityAPITokenCreate,
 ) error {
 	s.createdAPIToken = token
+	s.apiTokens = append(s.apiTokens, token)
 	return nil
 }
 
@@ -138,12 +143,29 @@ func (s *fakeLocalIdentityStore) RotateLocalIdentityAPIToken(
 	return nil
 }
 
+// ListAPITokensBySubject returns metadata built from every token this fake has
+// recorded via CreateLocalIdentityAPIToken, so tests can prove real
+// create-then-list wiring (including DisplayLabel) through one handler mux
+// rather than asserting against a hand-built stand-in.
 func (s *fakeLocalIdentityStore) ListAPITokensBySubject(
 	_ context.Context,
 	_ string,
 	_ time.Time,
 ) ([]LocalIdentityAPITokenListItem, error) {
-	return nil, nil
+	if len(s.apiTokens) == 0 {
+		return nil, nil
+	}
+	items := make([]LocalIdentityAPITokenListItem, 0, len(s.apiTokens))
+	for _, token := range s.apiTokens {
+		items = append(items, LocalIdentityAPITokenListItem{
+			TokenID:      token.TokenID,
+			TokenClass:   token.TokenClass,
+			DisplayLabel: token.DisplayLabel,
+			IssuedAt:     token.IssuedAt,
+			ExpiresAt:    token.ExpiresAt,
+		})
+	}
+	return items, nil
 }
 
 func (s *fakeLocalIdentityStore) GetLocalIdentityMFAStatus(

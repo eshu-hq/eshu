@@ -7,6 +7,8 @@
 import { useEffect, useState } from "react";
 
 import { TOTPEnrollmentControl } from "./TOTPEnrollmentControl";
+import { TokensSection } from "./tokens/TokensSection";
+import { fmt } from "./tokens/tokenFormat";
 import type { EshuApiClient } from "../api/client";
 import { loadProfile, loadSessions, loadTokens } from "../api/userProfile";
 import type { ProfileData, BrowserSessionItem, APITokenItem } from "../api/userProfile";
@@ -17,26 +19,8 @@ import "./liveInventory.css";
 // Helpers
 // ---------------------------------------------------------------------------
 
-function fmt(iso: string | undefined): string {
-  if (!iso) return "—";
-  try {
-    return new Date(iso).toLocaleString();
-  } catch {
-    return "—";
-  }
-}
-
 function providerLabel(id: string | undefined): string {
   return id && id.length > 0 ? id : "Local";
-}
-
-// isExpired reports whether a token's expiry has passed. An expired-but-not-
-// revoked token must not be labeled "active" — that would imply it is still
-// usable. Tokens with no expiry never expire.
-function isExpired(iso: string | undefined): boolean {
-  if (!iso) return false;
-  const ms = new Date(iso).getTime();
-  return Number.isFinite(ms) && ms < Date.now();
 }
 
 // ---------------------------------------------------------------------------
@@ -281,67 +265,6 @@ function SessionsSection({
 }
 
 // ---------------------------------------------------------------------------
-// Tokens section
-// ---------------------------------------------------------------------------
-
-function TokensSection({
-  tokens,
-  unavailable,
-}: {
-  readonly tokens: readonly APITokenItem[];
-  readonly unavailable: boolean;
-}): React.JSX.Element {
-  if (unavailable) {
-    return (
-      <Panel title="API tokens">
-        <p className="unavailable-note">Tokens unavailable from this source.</p>
-      </Panel>
-    );
-  }
-  if (tokens.length === 0) {
-    return (
-      <Panel title="API tokens">
-        <p className="empty-note">No tokens found.</p>
-      </Panel>
-    );
-  }
-  return (
-    <Panel title="API tokens">
-      <table className="data-table" aria-label="API tokens">
-        <thead>
-          <tr>
-            <th>ID</th>
-            <th>Class</th>
-            <th>Issued</th>
-            <th>Expires</th>
-            <th>Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          {tokens.map((t) => (
-            <tr key={t.token_id}>
-              <td>{t.token_id}</td>
-              <td>{t.token_class ?? "—"}</td>
-              <td>{fmt(t.issued_at)}</td>
-              <td>{fmt(t.expires_at)}</td>
-              <td>
-                {t.revoked_at ? (
-                  <Badge tone="crit">revoked</Badge>
-                ) : isExpired(t.expires_at) ? (
-                  <Badge tone="neutral">expired</Badge>
-                ) : (
-                  <Badge tone="teal">active</Badge>
-                )}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </Panel>
-  );
-}
-
-// ---------------------------------------------------------------------------
 // ProfilePage
 // ---------------------------------------------------------------------------
 
@@ -393,6 +316,17 @@ export function ProfilePage({ client }: { readonly client?: EshuApiClient }): Re
     });
   }
 
+  // reloadTokens refreshes only the tokens panel after a create/rotate/revoke
+  // (issue #5164), so the list reflects the authoritative server state
+  // instead of trusting the client-side mutation's own echo.
+  function reloadTokens(): void {
+    if (!client) return;
+    void loadTokens(client).then((t) => {
+      setTokens(t.tokens);
+      setTokensUnavailable(t.provenance === "unavailable");
+    });
+  }
+
   if (loading) {
     return (
       <section className="page-shell">
@@ -415,7 +349,12 @@ export function ProfilePage({ client }: { readonly client?: EshuApiClient }): Re
         <ContextSection profile={profile} unavailable={profileUnavailable} />
         <PermissionsSection profile={profile} unavailable={profileUnavailable} />
         <SessionsSection sessions={sessions} unavailable={sessionsUnavailable} />
-        <TokensSection tokens={tokens} unavailable={tokensUnavailable} />
+        <TokensSection
+          client={client}
+          tokens={tokens}
+          unavailable={tokensUnavailable}
+          onChanged={reloadTokens}
+        />
       </div>
     </section>
   );

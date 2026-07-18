@@ -282,6 +282,7 @@ func (a *postgresLocalIdentityAdapter) CreateLocalIdentityAPIToken(
 		UserID:             token.UserID,
 		ServicePrincipalID: token.ServicePrincipalID,
 		DisplayHandleHash:  token.DisplayHandleHash,
+		DisplayLabel:       token.DisplayLabel,
 		PolicyRevisionHash: token.PolicyRevisionHash,
 		IssuedAt:           token.IssuedAt,
 		ExpiresAt:          token.ExpiresAt,
@@ -329,11 +330,12 @@ func (a *postgresLocalIdentityAdapter) ListAPITokensBySubject(
 	out := make([]query.LocalIdentityAPITokenListItem, 0, len(items))
 	for _, item := range items {
 		out = append(out, query.LocalIdentityAPITokenListItem{
-			TokenID:    item.TokenID,
-			TokenClass: item.TokenClass,
-			IssuedAt:   item.IssuedAt,
-			ExpiresAt:  item.ExpiresAt,
-			RevokedAt:  item.RevokedAt,
+			TokenID:      item.TokenID,
+			TokenClass:   item.TokenClass,
+			DisplayLabel: item.DisplayLabel,
+			IssuedAt:     item.IssuedAt,
+			ExpiresAt:    item.ExpiresAt,
+			RevokedAt:    item.RevokedAt,
 		})
 	}
 	return out, nil

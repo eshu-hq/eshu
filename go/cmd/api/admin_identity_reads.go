@@ -200,6 +200,7 @@ func (a *postgresAdminIdentityReadAdapter) ListAdminAPITokens(
 			UserID:             item.UserID,
 			ServicePrincipalID: item.ServicePrincipalID,
 			Status:             item.Status,
+			DisplayLabel:       item.DisplayLabel,
 			IssuedAt:           item.IssuedAt,
 			ExpiresAt:          item.ExpiresAt,
 			RevokedAt:          item.RevokedAt,

@@ -15,6 +15,7 @@ INSERT INTO identity_token_metadata (
     service_principal_id,
     status,
     display_handle_hash,
+    display_label,
     policy_revision_hash,
     issued_at,
     expires_at,
@@ -25,7 +26,7 @@ INSERT INTO identity_token_metadata (
 )
 SELECT
     $1, $2, 'personal', $3, $4, user_subject.user_id, NULL,
-    'active', NULLIF($6, ''), $7, $8, $9,
+    'active', NULLIF($6, ''), NULLIF($10, ''), $7, $8, $9,
     NULL, NULL, $8, $8
 FROM identity_users user_subject
 JOIN identity_tenant_memberships membership
@@ -55,6 +56,7 @@ INSERT INTO identity_token_metadata (
     service_principal_id,
     status,
     display_handle_hash,
+    display_label,
     policy_revision_hash,
     issued_at,
     expires_at,
@@ -65,7 +67,7 @@ INSERT INTO identity_token_metadata (
 )
 SELECT
     $1, $2, 'service_principal', $3, $4, NULL, service_principal.service_principal_id,
-    'active', NULLIF($6, ''), $7, $8, $9,
+    'active', NULLIF($6, ''), NULLIF($10, ''), $7, $8, $9,
     NULL, NULL, $8, $8
 FROM identity_service_principals service_principal
 WHERE service_principal.service_principal_id = $5
@@ -101,6 +103,7 @@ INSERT INTO identity_token_metadata (
     service_principal_id,
     status,
     display_handle_hash,
+    display_label,
     policy_revision_hash,
     issued_at,
     expires_at,
@@ -119,6 +122,7 @@ SELECT
     old_token.service_principal_id,
     'active',
     old_token.display_handle_hash,
+    old_token.display_label,
     old_token.policy_revision_hash,
     $6,
     $7,

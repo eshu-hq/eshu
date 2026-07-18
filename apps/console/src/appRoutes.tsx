@@ -33,7 +33,6 @@ import { IncidentContextPage } from "./pages/IncidentContextPage";
 import { NodesPage } from "./pages/NodesPage";
 import { ObservabilityPage } from "./pages/ObservabilityPage";
 import { OperationsPage } from "./pages/OperationsPage";
-import { ProfilePage } from "./pages/ProfilePage";
 import { RelationshipsPage } from "./pages/RelationshipsPage";
 import { ReplatformingPage } from "./pages/ReplatformingPage";
 import { RepositoriesPage } from "./pages/RepositoriesPage";
@@ -81,6 +80,14 @@ const VulnerabilitiesPage = lazy(() =>
   import("./pages/VulnerabilitiesPage").then((module) => ({
     default: module.VulnerabilitiesPage,
   })),
+);
+
+// ProfilePage is code-split via React.lazy (issue #5164): its self-service
+// API-token create/rotate/revoke controls and reveal-once panel pushed the
+// eagerly loaded main chunk over the console-bundle-budget threshold, and
+// the profile surface is not needed on initial app load for most routes.
+const ProfilePage = lazy(() =>
+  import("./pages/ProfilePage").then((module) => ({ default: module.ProfilePage })),
 );
 
 export interface AppRoutesProps {
@@ -350,7 +357,21 @@ export function AppRoutes({
         path={APP_ROUTE_PATHS.freshnessCausality}
         element={<FreshnessCausalityPage client={client} />}
       />
-      <Route path={APP_ROUTE_PATHS.profile} element={<ProfilePage client={client} />} />
+      <Route
+        path={APP_ROUTE_PATHS.profile}
+        element={
+          <Suspense
+            fallback={
+              <section className="page-shell">
+                <h1>Profile</h1>
+                <p>Loading profile…</p>
+              </section>
+            }
+          >
+            <ProfilePage client={client} />
+          </Suspense>
+        }
+      />
       <Route
         path={APP_ROUTE_PATHS.admin}
         element={

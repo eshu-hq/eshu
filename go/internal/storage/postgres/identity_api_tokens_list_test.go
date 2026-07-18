@@ -24,6 +24,10 @@ func TestIdentitySubjectStoreListAPITokensBySubjectQuerySecurity(t *testing.T) {
 		"issued_at",
 		"expires_at",
 		"revoked_at",
+		// display_label is the real, non-secret operator-facing label
+		// persisted for display (issue #3708). Unlike display_handle_hash
+		// (a hash, forbidden below), it is safe to return as-is.
+		"display_label",
 	} {
 		if !strings.Contains(q, want) {
 			t.Errorf("listLocalIdentityAPITokensBySubjectQuery missing %q", want)
@@ -32,7 +36,8 @@ func TestIdentitySubjectStoreListAPITokensBySubjectQuerySecurity(t *testing.T) {
 
 	// Security: raw token hash and display_handle_hash must NOT appear in the
 	// list response query. display_handle_hash is SHA-256(display_label) — a
-	// hash rendered as a "label" is misleading and was removed (see #3703).
+	// hash rendered as a "label" is misleading, so the real display_label
+	// column (above) is selected instead (issue #3708).
 	for _, forbidden := range []string{
 		"token_hash",
 		"password_hash",

@@ -43,6 +43,7 @@ func (s *IdentitySubjectStore) CreateLocalIdentityAPIToken(
 		token.PolicyRevisionHash,
 		token.IssuedAt,
 		nullTime(token.ExpiresAt),
+		token.DisplayLabel,
 	)
 	if err != nil {
 		return fmt.Errorf("create local identity api token: %w", err)
@@ -162,6 +163,7 @@ func normalizeLocalIdentityAPITokenCreate(token LocalIdentityAPITokenCreate) Loc
 	token.UserID = strings.TrimSpace(token.UserID)
 	token.ServicePrincipalID = strings.TrimSpace(token.ServicePrincipalID)
 	token.DisplayHandleHash = strings.TrimSpace(token.DisplayHandleHash)
+	token.DisplayLabel = strings.TrimSpace(token.DisplayLabel)
 	token.PolicyRevisionHash = strings.TrimSpace(token.PolicyRevisionHash)
 	token.IssuedAt = normalizeAPITokenTime(token.IssuedAt)
 	token.ExpiresAt = normalizeAPITokenTime(token.ExpiresAt)

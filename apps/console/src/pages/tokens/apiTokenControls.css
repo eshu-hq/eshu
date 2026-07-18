@@ -1,0 +1,134 @@
+/* pages/tokens/apiTokenControls.css — self-service and admin API-token
+   create/reveal-once/rotate controls (issue #5164). Scoped under
+   .token-create / .token-reveal so they never leak into unrelated panels.
+   Mirrors totpEnrollment.css's minimal styling so this reads as the same
+   console rather than a bespoke widget. */
+
+.token-create {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border, #2a2f3a);
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.token-create label {
+  font-size: 0.8rem;
+  opacity: 0.8;
+}
+
+.token-create input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.4rem 0.6rem;
+  border-radius: 6px;
+  border: 1px solid var(--border, #2a2f3a);
+  background: var(--panel-bg, transparent);
+  color: inherit;
+  font-family: inherit;
+}
+
+.token-create-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.token-create-actions button {
+  padding: 0.4rem 0.9rem;
+  border-radius: 6px;
+  border: 1px solid var(--teal, #2dd4bf);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.token-create-actions button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.token-create-start {
+  align-self: flex-start;
+  padding: 0.4rem 0.9rem;
+  border-radius: 6px;
+  border: 1px solid var(--teal, #2dd4bf);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.token-create-error {
+  color: var(--crit, #f0506e);
+  font-size: 0.85rem;
+  margin: 0;
+}
+
+.token-reveal {
+  margin-top: 0.75rem;
+  padding: 0.75rem;
+  border: 1px solid var(--teal, #2dd4bf);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.token-reveal-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+}
+
+.token-reveal label {
+  font-size: 0.8rem;
+  opacity: 0.8;
+}
+
+.token-reveal-hint {
+  font-size: 0.8rem;
+  opacity: 0.75;
+  margin: 0;
+}
+
+.token-reveal-copy-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+}
+
+.token-reveal input,
+.token-reveal textarea {
+  flex: 1;
+  box-sizing: border-box;
+  padding: 0.4rem 0.6rem;
+  border-radius: 6px;
+  border: 1px solid var(--border, #2a2f3a);
+  background: var(--panel-bg, transparent);
+  color: inherit;
+  font-family: var(--mono, monospace);
+  font-size: 0.8rem;
+}
+
+.token-reveal-ack {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+}
+
+.token-reveal-done {
+  align-self: flex-start;
+  padding: 0.4rem 0.9rem;
+  border-radius: 6px;
+  border: 1px solid var(--teal, #2dd4bf);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.token-reveal-done:disabled {
+  opacity: 0.5;
+  cursor: default;
+}

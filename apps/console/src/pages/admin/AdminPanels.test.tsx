@@ -404,6 +404,130 @@ describe("AdminTokensPanel", () => {
     render(<AdminTokensPanel client={client} />);
     expect(await screen.findByText("API tokens unavailable from this source.")).toBeInTheDocument();
   });
+
+  it("shows the display_label column when a token was created with one (#3708)", async () => {
+    const client = {
+      getJson: async () => ({
+        tokens: [
+          {
+            token_id: "t-1",
+            token_class: "personal",
+            user_id: "u-1",
+            status: "active",
+            display_label: "owner laptop",
+            issued_at: NOW,
+          },
+        ],
+      }),
+    } as unknown as EshuApiClient;
+    render(<AdminTokensPanel client={client} />);
+    expect(await screen.findByText("owner laptop")).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Label" })).toBeInTheDocument();
+  });
+
+  // Create service_principal token (issue #5164): label required, reveal-once,
+  // refresh on Done.
+  describe("create service_principal token", () => {
+    function emptyListClient(overrides: {
+      postJson?: ReturnType<typeof vi.fn>;
+      getJson?: ReturnType<typeof vi.fn>;
+    }): EshuApiClient {
+      return {
+        getJson: overrides.getJson ?? vi.fn(async () => ({ tokens: [] })),
+        postJson: overrides.postJson,
+      } as unknown as EshuApiClient;
+    }
+
+    it("requires both a service principal ID and a label before Create is enabled", async () => {
+      const client = emptyListClient({});
+      render(<AdminTokensPanel client={client} />);
+      const startButton = await screen.findByRole("button", {
+        name: "Create service principal token",
+      });
+      fireEvent.click(startButton);
+      const createButton = await screen.findByRole("button", { name: "Create" });
+      expect(createButton).toBeDisabled();
+
+      fireEvent.change(screen.getByLabelText("Service principal ID"), {
+        target: { value: "svc_ci" },
+      });
+      expect(createButton).toBeDisabled();
+
+      fireEvent.change(screen.getByLabelText("Label"), { target: { value: "CI pipeline" } });
+      expect(createButton).toBeEnabled();
+    });
+
+    it("creates a token, reveals the raw value exactly once, and refetches the list on Done", async () => {
+      const postJson = vi.fn(async () => ({
+        token_id: "t-new",
+        api_token: "raw-service-token",
+        issued_at: NOW,
+      }));
+      const getJson = vi.fn(async () => ({ tokens: [] }));
+      const client = emptyListClient({ postJson, getJson });
+      render(<AdminTokensPanel client={client} />);
+
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Create service principal token" }),
+      );
+      fireEvent.change(screen.getByLabelText("Service principal ID"), {
+        target: { value: "svc_ci" },
+      });
+      fireEvent.change(screen.getByLabelText("Label"), { target: { value: "CI pipeline" } });
+      fireEvent.click(screen.getByRole("button", { name: "Create" }));
+
+      await waitFor(() =>
+        expect(postJson).toHaveBeenCalledWith("/api/v0/auth/local/api-tokens", {
+          token_class: "service_principal",
+          service_principal_id: "svc_ci",
+          display_label: "CI pipeline",
+        }),
+      );
+
+      // Reveal-once: the raw token is shown, and Done stays disabled until the
+      // "I've saved this" acknowledgement is checked.
+      const revealed = await screen.findByLabelText("API token");
+      expect(revealed).toHaveValue("raw-service-token");
+      const doneButton = screen.getByRole("button", { name: "Done" });
+      expect(doneButton).toBeDisabled();
+
+      fireEvent.click(
+        screen.getByRole("checkbox", {
+          name: /I've saved this token and understand it won't be shown again/,
+        }),
+      );
+      expect(doneButton).toBeEnabled();
+
+      const listCallsBeforeDismiss = getJson.mock.calls.length;
+      fireEvent.click(doneButton);
+      await waitFor(() =>
+        expect(getJson.mock.calls.length).toBeGreaterThan(listCallsBeforeDismiss),
+      );
+      // The raw token must not linger once dismissed — reveal-once means once.
+      expect(screen.queryByLabelText("API token")).not.toBeInTheDocument();
+    });
+
+    it("surfaces a clear message on a 403 instead of crashing", async () => {
+      const postJson = vi.fn(async () => {
+        throw new EshuApiHttpError(403);
+      });
+      const client = emptyListClient({ postJson, getJson: vi.fn(async () => ({ tokens: [] })) });
+      render(<AdminTokensPanel client={client} />);
+
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Create service principal token" }),
+      );
+      fireEvent.change(screen.getByLabelText("Service principal ID"), {
+        target: { value: "svc_ci" },
+      });
+      fireEvent.change(screen.getByLabelText("Label"), { target: { value: "CI pipeline" } });
+      fireEvent.click(screen.getByRole("button", { name: "Create" }));
+
+      expect(
+        await screen.findByText("You don't have permission to create API tokens."),
+      ).toBeInTheDocument();
+    });
+  });
 });
 
 // ---------------------------------------------------------------------------

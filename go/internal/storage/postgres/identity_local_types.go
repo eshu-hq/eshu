@@ -214,6 +214,10 @@ type LocalIdentityAPITokenCreate struct {
 	UserID             string
 	ServicePrincipalID string
 	DisplayHandleHash  string
+	// DisplayLabel is the real, non-secret operator-facing label persisted as
+	// plaintext (issue #3708). It is display-only and distinct from
+	// DisplayHandleHash, which remains a one-way hash of the same input.
+	DisplayLabel       string
 	PolicyRevisionHash string
 	IssuedAt           time.Time
 	ExpiresAt          time.Time
