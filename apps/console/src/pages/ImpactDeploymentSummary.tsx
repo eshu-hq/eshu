@@ -15,6 +15,8 @@ export function ImpactGraphProvenance({
     <div className="impact-graph-provenance" aria-label="Graph composition evidence">
       <div className="impact-mini-stats">
         <span>{presentation.mode.replace(/_/g, " ")}</span>
+        {presentation.truthLevel ? <span>truth {presentation.truthLevel}</span> : null}
+        {presentation.freshness ? <span>freshness {presentation.freshness}</span> : null}
         <span>
           {presentation.renderedNodes}/{presentation.inputNodes} nodes
         </span>
@@ -90,6 +92,24 @@ export function DeploymentTraceSummary({
         rows={trace.deploymentSources}
         repositoryLinks
       />
+
+      <section className="impact-trace-group">
+        <div className="section-label">Deployment facts</div>
+        {trace.deploymentFacts.length === 0 ? (
+          <p className="empty">No normalized deployment facts returned.</p>
+        ) : (
+          <div className="impact-entity-list">
+            {trace.deploymentFacts.map((fact, index) => (
+              <article key={`${fact.type}:${fact.targetId ?? fact.target}:${index}`}>
+                <strong>{fact.type.replace(/_/g, " ")}</strong>
+                <span>{fact.target}</span>
+                {fact.targetId ? <span className="mono">{fact.targetId}</span> : null}
+                {fact.reason ? <span>{fact.reason}</span> : null}
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
 
       <section className="impact-trace-group">
         <div className="section-label">Runtime instances and platforms</div>

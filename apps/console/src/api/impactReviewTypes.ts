@@ -40,6 +40,7 @@ export interface ImpactGraphPresentation {
   readonly duplicateEdges: number;
   readonly duplicateNodes: number;
   readonly edgeLimit: number;
+  readonly freshness?: string;
   readonly inputEdges: number;
   readonly inputNodes: number;
   readonly limitations: readonly string[];
@@ -52,6 +53,7 @@ export interface ImpactGraphPresentation {
   readonly sourceApis: readonly string[];
   readonly title: string;
   readonly truncated: boolean;
+  readonly truthLevel?: string;
 }
 
 export type ImpactSection<TData> =

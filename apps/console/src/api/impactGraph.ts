@@ -19,7 +19,13 @@ export function selectImpactGraph(
   deploymentTrace: ImpactSection<DeploymentTraceResult>,
 ): { readonly graph: GraphModel; readonly presentation: ImpactGraphPresentation } {
   if (blast.status === "ready" && blast.data.graph.nodes.length > 1) {
-    return existingGraph(blast.data.graph, "blast_radius", [blast.source], "Blast radius");
+    return existingGraph(
+      blast.data.graph,
+      "blast_radius",
+      [blast.source],
+      "Blast radius",
+      blast.truth,
+    );
   }
   if (changeSurface.status === "ready" && changeSurface.data.impact.totalCount > 0) {
     return existingGraph(
@@ -27,6 +33,7 @@ export function selectImpactGraph(
       "change_surface",
       [changeSurface.source],
       "Change surface",
+      changeSurface.truth,
     );
   }
   if (
@@ -35,7 +42,14 @@ export function selectImpactGraph(
   ) {
     const deployment = deploymentTraceGraph(deploymentTrace.data);
     if (deployment.graph.edges.length > 0) {
-      return deployment;
+      return {
+        graph: deployment.graph,
+        presentation: {
+          ...deployment.presentation,
+          freshness: deploymentTrace.truth?.freshness.state,
+          truthLevel: deploymentTrace.truth?.level,
+        },
+      };
     }
   }
   if (changeSurface.status === "ready") {
@@ -44,10 +58,17 @@ export function selectImpactGraph(
       "change_surface",
       [changeSurface.source],
       "Change surface",
+      changeSurface.truth,
     );
   }
   if (blast.status === "ready") {
-    return existingGraph(blast.data.graph, "blast_radius", [blast.source], "Blast radius");
+    return existingGraph(
+      blast.data.graph,
+      "blast_radius",
+      [blast.source],
+      "Blast radius",
+      blast.truth,
+    );
   }
   return existingGraph({ edges: [], nodes: [] }, "empty", [], "Impact graph");
 }
@@ -285,6 +306,7 @@ function existingGraph(
   mode: ImpactGraphPresentation["mode"],
   sourceApis: readonly string[],
   title: string,
+  truth?: { readonly freshness: { readonly state: string }; readonly level: string } | null,
 ): { readonly graph: GraphModel; readonly presentation: ImpactGraphPresentation } {
   return {
     graph,
@@ -292,6 +314,7 @@ function existingGraph(
       duplicateEdges: 0,
       duplicateNodes: 0,
       edgeLimit,
+      freshness: truth?.freshness.state,
       inputEdges: graph.edges.length,
       inputNodes: graph.nodes.length,
       limitations: [],
@@ -304,6 +327,7 @@ function existingGraph(
       sourceApis,
       title,
       truncated: false,
+      truthLevel: truth?.level,
     },
   };
 }

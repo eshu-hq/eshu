@@ -330,6 +330,7 @@ func TestFetchWorkloadContextFallsBackToProvisionedPlatformWhenInstanceRunsOnMis
 					}}, nil
 				case strings.Contains(cypher, "<-[rel:PROVISIONS_DEPENDENCY_FOR]-"):
 					return []map[string]any{{
+						"platform_id":         "platform:ecs:shared-runtime-cluster",
 						"platform_name":       "shared-runtime-cluster",
 						"platform_kind":       "ecs",
 						"platform_confidence": 0.96,
@@ -353,6 +354,10 @@ func TestFetchWorkloadContextFallsBackToProvisionedPlatformWhenInstanceRunsOnMis
 	if got, want := instances[0]["platform_kind"], "ecs"; got != want {
 		t.Fatalf("fallback platform_kind = %#v, want %#v", got, want)
 	}
+	platforms := mapSliceValue(instances[0], "platforms")
+	if got, want := platforms[0]["platform_id"], "platform:ecs:shared-runtime-cluster"; got != want {
+		t.Fatalf("fallback platform_id = %#v, want %#v", got, want)
+	}
 }
 
 func TestFetchWorkloadPlatformRowsBatchesExactInstanceIDs(t *testing.T) {
@@ -368,6 +373,9 @@ func TestFetchWorkloadPlatformRowsBatchesExactInstanceIDs(t *testing.T) {
 				}
 				if strings.Contains(cypher, "MATCH (i)-[runsOn:RUNS_ON]->") {
 					t.Fatalf("cypher = %q, want WorkloadInstance label and RUNS_ON traversal in one MATCH", cypher)
+				}
+				if !strings.Contains(cypher, "p.id as platform_id") {
+					t.Fatalf("cypher = %q, want canonical Platform id projection", cypher)
 				}
 				gotIDs := StringSliceVal(params, "instance_ids")
 				wantIDs := []string{

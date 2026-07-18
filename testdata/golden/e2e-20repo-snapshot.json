@@ -2413,6 +2413,9 @@
           "workload_id"
         ],
         "minimum_results": 0,
+        "required_json_paths": [
+          "instances[].platforms[].platform_id"
+        ],
         "arguments": {
           "service_name": "api-svc",
           "max_depth": 4
