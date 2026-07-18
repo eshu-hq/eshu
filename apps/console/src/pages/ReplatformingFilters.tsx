@@ -1,7 +1,7 @@
 import type { FormEvent } from "react";
 
-import type { ReplatformingSelectorInventory } from "../api/replatformingSelectors";
 import type { ReplatformingScopeKind } from "../api/replatforming";
+import type { ReplatformingSelectorInventory } from "../api/replatformingSelectors";
 
 export interface ReplatformingFormState {
   readonly accountId: string;

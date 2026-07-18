@@ -1,6 +1,24 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useSearchParams } from "react-router-dom";
 
+import {
+  ReplatformingFilters,
+  ReplatformingPagination,
+  type ReplatformingFormState,
+} from "./ReplatformingFilters";
+import {
+  classToken,
+  formatLabel,
+  formFromSearch,
+  hasAnchor,
+  inputFromForm,
+  inventoryStatus,
+  nextReviewOffset,
+  optionalNumber,
+  searchFromForm,
+  shortStableId,
+  statRows,
+} from "./replatformingPageModel";
 import type { EshuApiClient } from "../api/client";
 import type { EshuTruth } from "../api/envelope";
 import {
@@ -21,24 +39,6 @@ import {
 import { Badge, FreshDot, Panel, StatTile, TruthChip } from "../components/atoms";
 import type { ConsoleModel } from "../console/types";
 import { fmt, uiFresh, uiTruth } from "../console/types";
-import {
-  ReplatformingFilters,
-  ReplatformingPagination,
-  type ReplatformingFormState,
-} from "./ReplatformingFilters";
-import {
-  classToken,
-  formatLabel,
-  formFromSearch,
-  hasAnchor,
-  inputFromForm,
-  inventoryStatus,
-  nextReviewOffset,
-  optionalNumber,
-  searchFromForm,
-  shortStableId,
-  statRows,
-} from "./replatformingPageModel";
 import "./replatformingPage.css";
 
 const staticNonGoals = [

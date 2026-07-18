@@ -1,3 +1,4 @@
+import type { ReplatformingFormState } from "./ReplatformingFilters";
 import type {
   ReplatformingInput,
   ReplatformingOwnership,
@@ -7,7 +8,6 @@ import type {
   ReplatformingScopeKind,
 } from "../api/replatforming";
 import type { ReplatformingSelectorInventory } from "../api/replatformingSelectors";
-import type { ReplatformingFormState } from "./ReplatformingFilters";
 
 const scopeKinds: readonly ReplatformingScopeKind[] = ["account", "region", "service"];
 
