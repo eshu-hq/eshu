@@ -286,6 +286,9 @@ export async function loadExposureIngress(
 }
 
 function classifiedIngressError(service: string, error: unknown): ExposureIngress {
+  if (isAbortError(error)) {
+    return emptyIngress(service, "", "selection_required");
+  }
   if (error instanceof EshuApiHttpError) {
     if (error.status === 401 || error.status === 403) {
       return emptyIngress(
@@ -306,6 +309,12 @@ function classifiedIngressError(service: string, error: unknown): ExposureIngres
     service,
     "Service resolution or ingress tracing is temporarily unavailable.",
     "backend_unavailable",
+  );
+}
+
+function isAbortError(error: unknown): boolean {
+  return (
+    typeof error === "object" && error !== null && "name" in error && error.name === "AbortError"
   );
 }
 

@@ -151,6 +151,19 @@ describe("loadExposureIngress", () => {
     expect(ingress.chains).toHaveLength(0);
   });
 
+  it("does not classify an intentional request abort as a backend failure", async () => {
+    const client = {
+      get: async () => {
+        throw new DOMException("The operation was aborted.", "AbortError");
+      },
+    } as unknown as EshuApiClient;
+
+    const ingress = await loadExposureIngress(client, "checkout");
+    expect(ingress.provenance).toBe("unavailable");
+    expect(ingress.state).toBe("selection_required");
+    expect(ingress.error).toBe("");
+  });
+
   it.each([
     [403, "not_authorized", "not authorized"],
     [404, "not_found", "No authorized service matched"],
