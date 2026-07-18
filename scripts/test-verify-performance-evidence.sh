@@ -341,6 +341,32 @@ git -C "${multi_comment_repo}" add .
 git -C "${multi_comment_repo}" commit -q -m 'add SPDX header to both (comment-only)'
 expect_pass "${multi_comment_repo}"
 
+# Comment-only change to a hot-path Go file in the SAME commit as a deleted
+# file. git orders "go/..." before "nonhot/...", so the deleted file's
+# new-path header ("+++ /dev/null") and its removed lines are processed while
+# the current file is still the hot file. They must not be attributed to it,
+# which would falsely flip the comment-only hot change to a code change. Gate
+# must NOT trip. Regression guard for the deleted-file _perf_cur reset that the
+# "-"* fix requires.
+deleted_after_comment_repo="$(init_repo deleted-after-comment)"
+mkdir -p "${deleted_after_comment_repo}/nonhot"
+{
+  printf 'package cypher\n\n'
+  printf 'const aQuery = "UNWIND $rows AS row MERGE (n:File {uid: row.uid})"\n'
+} >"${deleted_after_comment_repo}/go/internal/storage/cypher/a.go"
+printf 'throwaway\nlines\nto delete\n' >"${deleted_after_comment_repo}/nonhot/delete.txt"
+git -C "${deleted_after_comment_repo}" add .
+git -C "${deleted_after_comment_repo}" commit -q -m 'baseline hot writer + deletable non-hot file'
+{
+  printf '// SPDX-License-Identifier: MIT\n'
+  printf 'package cypher\n\n'
+  printf 'const aQuery = "UNWIND $rows AS row MERGE (n:File {uid: row.uid})"\n'
+} >"${deleted_after_comment_repo}/go/internal/storage/cypher/a.go"
+rm "${deleted_after_comment_repo}/nonhot/delete.txt"
+git -C "${deleted_after_comment_repo}" add -A
+git -C "${deleted_after_comment_repo}" commit -q -m 'comment-only hot edit + delete non-hot file'
+expect_pass "${deleted_after_comment_repo}"
+
 # Whitespace-only change to a hot-path Go file (no comment, no code): gate
 # must NOT trip because the diff is purely indentation/blank lines.
 whitespace_repo="$(init_repo whitespace-only)"
