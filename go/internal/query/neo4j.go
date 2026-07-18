@@ -301,6 +301,53 @@ func impactNodeIdentityFromProps(props map[string]any) impactNodeIdentity {
 	return impactNodeIdentity{id: StringVal(props, "id"), name: StringVal(props, "name")}
 }
 
+// resourceInvestigationHopList decodes a relationships(path) value into the
+// resource-investigation per-hop maps {type, confidence, reason}. Each hop's
+// reason falls back to the edge's evidence_type, matching the prior
+// `coalesce(rel.reason, rel.evidence_type, ”)` projection. relationships(path)
+// is serialized as neo4j.Relationship by the Neo4j driver and as a
+// map[string]any (with a nested properties map) by NornicDB; both are decoded.
+// The prior `[rel IN relationships(path) | {type, confidence, reason}]`
+// map-valued comprehension corrupts on the pinned NornicDB build (#5287), so the
+// raw list is unwound here instead. This decoder lives in neo4j.go because it is
+// the only driver-aware seam in the query package (per the package AGENTS.md).
+func resourceInvestigationHopList(raw any) []map[string]any {
+	items, ok := raw.([]any)
+	if !ok {
+		return []map[string]any{}
+	}
+	hops := make([]map[string]any, 0, len(items))
+	for _, item := range items {
+		var relType string
+		var props map[string]any
+		switch rel := item.(type) {
+		case neo4jdriver.Relationship:
+			relType = rel.Type
+			props = rel.Props
+		case map[string]any:
+			relType = StringVal(rel, "type")
+			props, _ = rel["properties"].(map[string]any)
+		default:
+			continue
+		}
+		hops = append(hops, map[string]any{
+			"type":       relType,
+			"confidence": props["confidence"],
+			"reason":     resourceInvestigationHopReason(props),
+		})
+	}
+	return hops
+}
+
+// resourceInvestigationHopReason renders a hop reason as
+// coalesce(reason, evidence_type, ”), tolerating a nil property map.
+func resourceInvestigationHopReason(props map[string]any) string {
+	if reason := StringVal(props, "reason"); reason != "" {
+		return reason
+	}
+	return StringVal(props, "evidence_type")
+}
+
 // RepoProjection returns the standard Cypher RETURN clause for repository nodes.
 func RepoProjection(alias string) string {
 	return fmt.Sprintf(

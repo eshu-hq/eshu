@@ -358,6 +358,50 @@ no inventory group expression reintroduces a `n:Label` test in a projection, and
 `TestLiveInfraProviderInventoryBucketsNonNull`
 (`ESHU_INFRA_AGG_PROVE_LIVE=1`) is the backend-required live proof.
 
+## Pitfall: An Empty-String-Guarded `OR` Disjunct Collapses The Whole Predicate
+
+### Observed shape
+
+Measured against the pinned NornicDB backend (`eshu-nornicdb-pr261`, v1.1.11
+base) while fixing the resource-investigation impact reads (#5287). A predicate
+that guards an optional-parameter disjunct with an empty-string test returns
+**zero rows** even when the primary disjunct matches, when the guarded parameter
+is empty:
+
+```cypher
+-- BROKEN when $resource_arn = '':
+MATCH (instance:WorkloadInstance)-[rel:USES]->(resource)
+WHERE coalesce(resource.id, resource.uid, resource.resource_id, resource.name) = $resource_id
+   OR ($resource_arn <> '' AND resource.arn = $resource_arn)
+RETURN ...
+-- => 0 rows, even though the coalesce(...) = $resource_id disjunct is true.
+```
+
+Isolated on a live seed: `coalesce(...) = $resource_id` alone returns the row;
+adding `OR ($resource_arn <> '' AND resource.arn = $resource_arn)` with
+`$resource_arn = ''` drops it to zero rows; `coalesce(...) = $resource_id OR
+resource.arn = $resource_arn` (no `<> ''` guard, with a non-matching arn) returns
+the row. The `'' <> ''` guard sub-expression mis-evaluates and poisons the
+enclosing `OR`.
+
+### Eshu implications
+
+Do not gate an optional disjunct with `$param <> '' AND ...` on this backend.
+Build the predicate conditionally in Go: emit only the primary disjunct when the
+optional value is empty, and append ` OR n.prop = $param` (without the guard)
+only when the value is present, binding `$param` in lockstep. The
+resource-investigation anchor (`resourceInvestigationResourceAnchor` /
+`resourceInvestigationAnchorParams` in
+`go/internal/query/impact_resource_investigation.go`) follows this shape.
+
+### Validation
+
+Reproduced live via the Bolt driver on an isolated pinned NornicDB. `go test
+./internal/query -run TestResourceInvestigationResourceAnchorOmitsEmptyArnGuard
+-count=1` guards that the anchor never reintroduces the `<> ''` guard, and
+`TestLiveResourceInvestigationReadsAreNornicDBSafe`
+(`ESHU_INFRA_AGG_PROVE_LIVE=1`) is the backend-required live proof.
+
 ## Pitfall: Multi-Clause Read Queries Silently Corrupt The Projection
 
 ### Observed shape

@@ -15,15 +15,17 @@ import (
 )
 
 type recordingResourceInvestigationGraph struct {
-	mu           sync.Mutex
-	runCalls     []resourceInvestigationRunCall
-	runRows      [][]map[string]any
-	workloadRows []map[string]any
-	incomingRows []map[string]any
-	outgoingRows []map[string]any
-	workloadErr  error
-	incomingErr  error
-	outgoingErr  error
+	mu                   sync.Mutex
+	runCalls             []resourceInvestigationRunCall
+	runRows              [][]map[string]any
+	workloadRows         []map[string]any
+	instanceWorkloadRows []map[string]any
+	incomingRows         []map[string]any
+	outgoingRows         []map[string]any
+	workloadErr          error
+	instanceWorkloadErr  error
+	incomingErr          error
+	outgoingErr          error
 }
 
 type resourceInvestigationRunCall struct {
@@ -40,6 +42,11 @@ func (g *recordingResourceInvestigationGraph) Run(
 	defer g.mu.Unlock()
 	g.runCalls = append(g.runCalls, resourceInvestigationRunCall{cypher: cypher, params: params})
 	switch {
+	case strings.Contains(cypher, "-[:INSTANCE_OF]->(workload:Workload)"):
+		if g.instanceWorkloadErr != nil {
+			return nil, g.instanceWorkloadErr
+		}
+		return g.instanceWorkloadRows, nil
 	case strings.Contains(cypher, "MATCH (instance:WorkloadInstance)"):
 		if g.workloadErr != nil {
 			return nil, g.workloadErr
@@ -125,15 +132,25 @@ func TestInvestigateResourceReturnsBoundedResourcePacket(t *testing.T) {
 		}},
 		workloadRows: []map[string]any{
 			{
-				"workload_id": "workload:orders-api", "workload_name": "orders-api",
 				"instance_id": "instance:orders-api:prod", "environment": "prod",
+				"workload_id_raw": "workload:orders-api", "instance_name": "orders-api",
 				"relationship_type": "USES", "relationship_reason": "env DATABASE_URL",
 				"confidence": 0.95,
 			},
 			{
-				"workload_id": "workload:orders-worker", "workload_name": "orders-worker",
 				"instance_id": "instance:orders-worker:prod", "environment": "prod",
+				"workload_id_raw": "workload:orders-worker", "instance_name": "orders-worker",
 				"relationship_type": "USES", "relationship_reason": "queue consumer",
+			},
+		},
+		instanceWorkloadRows: []map[string]any{
+			{
+				"instance_id": "instance:orders-api:prod",
+				"workload_id": "workload:orders-api", "workload_name": "orders-api",
+			},
+			{
+				"instance_id": "instance:orders-worker:prod",
+				"workload_id": "workload:orders-worker", "workload_name": "orders-worker",
 			},
 		},
 		incomingRows: []map[string]any{
@@ -165,11 +182,16 @@ func TestInvestigateResourceReturnsBoundedResourcePacket(t *testing.T) {
 	if got, want := w.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d body=%s", got, want, w.Body.String())
 	}
-	if got, want := len(graph.runCalls), 4; got != want {
-		t.Fatalf("graph Run calls = %d, want resolver, workloads, incoming paths, outgoing paths", got)
+	if got, want := len(graph.runCalls), 5; got != want {
+		t.Fatalf("graph Run calls = %d, want resolver, workload instances, instance-of resolve, incoming paths, outgoing paths", got)
 	}
 	var depthQueries int
 	for i, call := range graph.runCalls[1:] {
+		// The INSTANCE_OF workload-resolve read is bounded by the (already
+		// limited) instance-id set, not a LIMIT clause.
+		if strings.Contains(call.cypher, "-[:INSTANCE_OF]->(workload:Workload)") {
+			continue
+		}
 		if !strings.Contains(call.cypher, "LIMIT $limit") {
 			t.Fatalf("call %d cypher missing LIMIT $limit: %s", i+1, call.cypher)
 		}
