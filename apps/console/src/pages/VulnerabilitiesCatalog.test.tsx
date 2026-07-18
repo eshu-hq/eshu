@@ -2,10 +2,10 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it } from "vitest";
 
+import { AdvisoryCatalog } from "./VulnerabilitiesCatalog";
 import type { EshuApiClient } from "../api/client";
 import { demoModel } from "../console/demoModel";
 import type { ConsoleModel } from "../console/types";
-import { AdvisoryCatalog } from "./VulnerabilitiesCatalog";
 
 describe("AdvisoryCatalog", () => {
   it("preserves bounded filters and truth indicators when refreshing the catalog", async () => {
