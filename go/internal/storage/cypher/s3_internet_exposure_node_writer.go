@@ -126,7 +126,7 @@ func (w *S3InternetExposureNodeWriter) RetractS3InternetExposureNodes(
 		},
 	}
 
-	return w.dispatch(ctx, []Statement{stmt})
+	return w.dispatchRetract(ctx, []Statement{stmt})
 }
 
 func (w *S3InternetExposureNodeWriter) dispatch(ctx context.Context, stmts []Statement) error {
@@ -137,6 +137,24 @@ func (w *S3InternetExposureNodeWriter) dispatch(ctx context.Context, stmts []Sta
 		if err := ge.ExecuteGroup(ctx, stmts); err != nil {
 			return WrapRetryableNeo4jError(err)
 		}
+		return nil
+	}
+	for _, stmt := range stmts {
+		if err := w.executor.Execute(ctx, stmt); err != nil {
+			return WrapRetryableNeo4jError(err)
+		}
+	}
+	return nil
+}
+
+// dispatchRetract runs retract statements sequentially through Execute, each in
+// its own auto-commit transaction — never ExecuteGroup. On NornicDB v1.1.11 a
+// retract inside a managed transaction can under-apply even as a single
+// statement (#4367/#5128/#5146/#5152). RetractS3InternetExposureNodes routes
+// through this so the S3 internet-exposure property retract is never batched with
+// a sibling write via ExecuteGroup.
+func (w *S3InternetExposureNodeWriter) dispatchRetract(ctx context.Context, stmts []Statement) error {
+	if len(stmts) == 0 {
 		return nil
 	}
 	for _, stmt := range stmts {

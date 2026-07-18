@@ -7,10 +7,12 @@ whole-scope retract paths still dispatched their DELETE/REMOVE through the group
 pinned production NornicDB `timothyswt/nornicdb-cpu-bge:v1.1.11@sha256:51b6174a`.
 This routes all seven through `dispatchRetract`; MERGE-shaped writes stay grouped.
 
-Rerouted — 10 live whole-scope retract paths (all confirmed by caller search).
-Seven were named in #5152; a completeness sweep of the whole package
-(`grep` for any `Retract*` method ending in the grouped `dispatch`) surfaced
-three more with the identical defect, so this PR fixes the whole class:
+Rerouted — 11 live whole-scope retract paths (all confirmed by caller search).
+Seven were named in #5152; a completeness sweep of the whole package surfaced
+four more with the identical defect (the first grep missed one because an
+intermediate guard-block `}` reset the matcher; a brace-matched sweep over each
+`Retract*` method body is authoritative and finds them all), so this PR fixes the
+whole class:
 
 - `azure`/`gcp`/`aws` CloudResource edge `RetractCloudResourceEdges`
 - code-taint `RetractCodeTaintEvidence` + `RetractStaleCodeTaintEvidence`
@@ -18,11 +20,12 @@ three more with the identical defect, so this PR fixes the whole class:
   `dispatchRetract`)
 - **beyond the issue list:** `incident_routing_evidence`
   `RetractIncidentRoutingEvidence`, `observability_coverage_edge`
-  `RetractObservabilityCoverageEdges`, `rds_posture_node` `RetractRDSPostureNodes`
-  (added `dispatchRetract` to the two lacking it)
+  `RetractObservabilityCoverageEdges`, `rds_posture_node` `RetractRDSPostureNodes`,
+  and `s3_internet_exposure_node` `RetractS3InternetExposureNodes` (Codex review
+  catch — added `dispatchRetract` to the three lacking it)
 
-A final package-wide sweep confirms no `Retract*` method routes through the
-grouped `dispatch` any longer.
+A final brace-matched sweep over every `Retract*` method body confirms no
+`Retract*` routes through the grouped `dispatch` any longer.
 
 Classification: **Correctness win** + **Performance win**.
 

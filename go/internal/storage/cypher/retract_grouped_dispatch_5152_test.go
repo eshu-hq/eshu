@@ -125,4 +125,14 @@ func TestNonUIDRetractsRouteThroughAutocommitExecute(t *testing.T) {
 		}
 		assertAutocommitRoute(t, rec)
 	})
+
+	t.Run("s3-internet-exposure-nodes", func(t *testing.T) {
+		t.Parallel()
+		rec := &dispatchRouteRecorder{}
+		w := NewS3InternetExposureNodeWriter(rec, 0)
+		if err := w.RetractS3InternetExposureNodes(context.Background(), scopeIDs, gen, src); err != nil {
+			t.Fatalf("RetractS3InternetExposureNodes: %v", err)
+		}
+		assertAutocommitRoute(t, rec)
+	})
 }
