@@ -168,7 +168,7 @@ func (w *CodeTaintEvidenceWriter) RetractCodeTaintEvidence(
 			),
 		},
 	}
-	return w.dispatch(ctx, []Statement{stmt})
+	return w.dispatchRetract(ctx, []Statement{stmt})
 }
 
 // RetractStaleCodeTaintEvidence removes one bounded batch of taint evidence
@@ -207,7 +207,7 @@ func (w *CodeTaintEvidenceWriter) RetractStaleCodeTaintEvidence(
 			),
 		},
 	}
-	return w.dispatch(ctx, []Statement{stmt})
+	return w.dispatchRetract(ctx, []Statement{stmt})
 }
 
 // RetractCodeTaintEvidenceByUIDs removes reducer-owned taint evidence nodes for

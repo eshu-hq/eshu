@@ -215,7 +215,7 @@ func (w *GCPCloudResourceEdgeWriter) RetractCloudResourceEdges(
 		},
 	}
 
-	return w.dispatch(ctx, []Statement{stmt})
+	return w.dispatchRetract(ctx, []Statement{stmt})
 }
 
 // RetractCloudResourceEdgesByUIDs removes this reducer's GCP relationship
