@@ -233,7 +233,14 @@ func TestCanonicalNodeWriterRetractCoversProjectableEntityLabels(t *testing.T) {
 
 	var missing []string
 	for _, label := range projector.EntityTypeLabelMap() {
-		if label == "Module" || label == "Parameter" {
+		// Module and Parameter have dedicated write/retract phases (F, G) that
+		// never route through the generic per-domain entity retract scan.
+		// Variable joins them as of #5156: the canonical writer's phase E
+		// never creates Variable base nodes (canonical_builder.go), so it must
+		// never be part of this scan's retract-family coverage either -- the
+		// semantic entity writer owns Variable's full upsert+retract
+		// lifecycle instead (semantic_entity_statements.go).
+		if label == "Module" || label == "Parameter" || label == "Variable" {
 			continue
 		}
 		if _, ok := covered[label]; !ok {

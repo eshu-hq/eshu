@@ -422,12 +422,6 @@ var semanticEntityCanonicalNodeClearProperties = map[string][]string{
 		"implemented_for",
 		"semantic_kind",
 	},
-	"Variable": {
-		"attribute_kind",
-		"value",
-		"component_type_assertion",
-		"semantic_kind",
-	},
 	"Function": {
 		"impl_context",
 		"docstring",

@@ -2,12 +2,12 @@
   "schema_version": "replay-coverage-report.v4",
   "blocking": true,
   "totals": {
-    "total": 403,
+    "total": 402,
     "covered": 377,
-    "uncovered": 17,
+    "uncovered": 16,
     "unresolved": 0,
     "exempt": 9,
-    "percent_satisfied": 95.78
+    "percent_satisfied": 96.02
   },
   "registry_summaries": [
     {
@@ -93,12 +93,12 @@
     },
     {
       "registry": "retractable_type",
-      "total": 87,
+      "total": 86,
       "covered": 86,
-      "uncovered": 1,
+      "uncovered": 0,
       "unresolved": 0,
       "exempt": 0,
-      "percent_satisfied": 98.85
+      "percent_satisfied": 100
     },
     {
       "registry": "surface_inventory",
@@ -140,12 +140,12 @@
     },
     {
       "scenario_type": "delta_tombstone",
-      "total": 140,
+      "total": 139,
       "covered": 139,
-      "uncovered": 1,
+      "uncovered": 0,
       "unresolved": 0,
       "exempt": 0,
-      "percent_satisfied": 99.29
+      "percent_satisfied": 100
     },
     {
       "scenario_type": "fault",
@@ -3797,13 +3797,6 @@
       "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
     },
     {
-      "registry": "retractable_type",
-      "key": "retractable_node:Variable",
-      "scenario_type": "delta_tombstone",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
-    },
-    {
       "registry": "surface_inventory",
       "key": "collector:aws",
       "scenario_type": "baseline",
@@ -4136,8 +4129,7 @@
     "projection:sbom_attestation_attachment|cost",
     "projection:security_alert_reconciliation|cost",
     "projection:service_catalog_correlation|cost",
-    "projection:supply_chain_impact|cost",
-    "retractable_node:Variable|delta_tombstone"
+    "projection:supply_chain_impact|cost"
   ],
   "stale_manifest_surfaces": null,
   "language_scoreboard": {

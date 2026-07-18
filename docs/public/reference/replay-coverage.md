@@ -4,7 +4,7 @@
 
 Every surface Eshu claims to support should have a green, credential-free, Docker-free replay scenario. This dashboard is generated from the C-1 coverage manifest and the source-of-truth registries (epic [#4172](https://github.com/eshu-hq/eshu/issues/4172)); it is refreshed by the replay-coverage gate so the gap is reviewable in a PR diff.
 
-**Overall: 386/403 surfaces satisfied (95.78%)** — mode: blocking.
+**Overall: 386/402 surfaces satisfied (96.02%)** — mode: blocking.
 
 ## Coverage by axis
 
@@ -19,9 +19,9 @@ Every surface Eshu claims to support should have a green, credential-free, Docke
 | Projections (cost/ordering) | 11 | 27 | 40.74% | 16 | 0 |
 | Reducer drain (crash) | 1 | 1 | 100.00% | 0 | 0 |
 | Retractable edge types (delta) | 52 | 52 | 100.00% | 0 | 0 |
-| Retractable node types (delta) | 86 | 87 | 98.85% | 1 | 0 |
+| Retractable node types (delta) | 86 | 86 | 100.00% | 0 | 0 |
 | Collectors | 34 | 34 | 100.00% | 0 | 8 |
-| **Total** | **386** | **403** | **95.78%** | **17** | **9** |
+| **Total** | **386** | **402** | **96.02%** | **16** | **9** |
 
 ## Coverage by scenario type
 
@@ -30,7 +30,7 @@ Every surface Eshu claims to support should have a green, credential-free, Docke
 | baseline | 215 | 215 | 100.00% | 0 | 5 |
 | cost | 10 | 26 | 38.46% | 16 | 0 |
 | crash | 2 | 2 | 100.00% | 0 | 0 |
-| delta_tombstone | 139 | 140 | 99.29% | 1 | 0 |
+| delta_tombstone | 139 | 139 | 100.00% | 0 | 0 |
 | fault | 17 | 17 | 100.00% | 0 | 4 |
 | ordering | 3 | 3 | 100.00% | 0 | 0 |
 
@@ -44,7 +44,7 @@ Every ledger language is satisfied by corpus or parser fixture coverage.
 
 ## Gaps — surfaces still needing a replay scenario
 
-17 surface(s) uncovered or unresolved:
+16 surface(s) uncovered or unresolved:
 
 ### Projections (cost/ordering) (16)
 
@@ -64,10 +64,6 @@ Every ledger language is satisfied by corpus or parser fixture coverage.
 - `projection:security_alert_reconciliation` (cost)
 - `projection:service_catalog_correlation` (cost)
 - `projection:supply_chain_impact` (cost)
-
-### Retractable node types (delta) (1)
-
-- `retractable_node:Variable` (delta_tombstone)
 
 ## Covered surfaces (386)
 

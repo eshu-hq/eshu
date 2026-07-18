@@ -18,7 +18,6 @@ const (
 var canonicalNodeRetractCodeEntityLabels = map[string]struct{}{
 	"Function":               {},
 	"Class":                  {},
-	"Variable":               {},
 	"Interface":              {},
 	"Trait":                  {},
 	"Struct":                 {},
