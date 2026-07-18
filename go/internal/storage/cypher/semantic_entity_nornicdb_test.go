@@ -389,6 +389,85 @@ func TestSemanticEntityWriterSkipsRetractWhenRequested(t *testing.T) {
 	}
 }
 
+// TestSemanticEntityCanonicalNodeRowsUpsertVariableIsMergeFirstWithContainment
+// guards issue #5156: Variable is the lone label the projector's phase E
+// deliberately skips (canonical_builder.go) AND the writer previously listed
+// as canonical-node-owned, so on NornicDB the upsert rewrote to a MATCH-only
+// statement against a base node nothing ever created — a silent no-op.
+// Variable must use the same merge-first, containment-owning shape as Module.
+func TestSemanticEntityCanonicalNodeRowsUpsertVariableIsMergeFirstWithContainment(t *testing.T) {
+	t.Parallel()
+
+	if semanticEntityCanonicalNodeOwnedLabel("Variable") {
+		t.Fatal("Variable must not be canonical-node-owned: nothing else creates its base node, so treating it as owned makes the semantic writer MATCH-only and skip node creation (issue #5156)")
+	}
+
+	cypher := semanticEntityCanonicalNodeRowsUpsertCypher("Variable", semanticVariableUpsertCypher)
+	if !strings.Contains(cypher, "MERGE (n:Variable {uid: row.entity_id})") {
+		t.Fatalf("cypher = %q, want merge-first Variable node creation", cypher)
+	}
+	if strings.Contains(cypher, "MATCH (n:Variable {uid: row.entity_id})") {
+		t.Fatalf("cypher = %q, want no MATCH-only rewrite for Variable", cypher)
+	}
+	if !strings.Contains(cypher, "MATCH (f:File {path: row.file_path})") {
+		t.Fatalf("cypher = %q, want File match for containment", cypher)
+	}
+	if !strings.Contains(cypher, "MERGE (f)-[:CONTAINS]->(n)") {
+		t.Fatalf("cypher = %q, want Variable containment retained", cypher)
+	}
+	if !strings.Contains(cypher, "n.evidence_source = row.evidence_source") {
+		t.Fatalf("cypher = %q, want evidence_source set on upsert", cypher)
+	}
+}
+
+// TestSemanticEntityCanonicalNodeRowsRetractsVariableByDetachDelete guards the
+// retract half of #5156: once Variable is semantic-owned, stale Variable
+// nodes must be removed by DETACH DELETE scoped to evidence_source, not by
+// the canonical-node-owned property-clear (REMOVE) path.
+func TestSemanticEntityCanonicalNodeRowsRetractsVariableByDetachDelete(t *testing.T) {
+	t.Parallel()
+
+	executor := &recordingExecutor{}
+	writer := NewSemanticEntityWriterWithCanonicalNodeRows(executor, 100).WithLabelScopedRetract()
+
+	_, err := writer.WriteSemanticEntities(context.Background(), reducer.SemanticEntityWrite{
+		RepoIDs: []string{"repo-1"},
+		Rows: []reducer.SemanticEntityRow{
+			{
+				RepoID:       "repo-1",
+				EntityID:     "variable-elixir-1",
+				EntityType:   "Variable",
+				EntityName:   "@moduledoc",
+				FilePath:     "/repo/lib/foo.ex",
+				RelativePath: "lib/foo.ex",
+				Language:     "elixir",
+				StartLine:    1,
+				EndLine:      1,
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("WriteSemanticEntities() error = %v", err)
+	}
+
+	variableRetractIndex := -1
+	for i, call := range executor.calls {
+		if call.Parameters[StatementMetadataEntityLabelKey] == "Variable" && call.Operation == OperationCanonicalRetract {
+			variableRetractIndex = i
+		}
+	}
+	if variableRetractIndex < 0 {
+		t.Fatal("missing Variable retract statement")
+	}
+	retract := executor.calls[variableRetractIndex]
+	if !strings.Contains(retract.Cypher, "DETACH DELETE n") {
+		t.Fatalf("Variable retract cypher = %q, want DETACH DELETE (semantic-owned), not property clear", retract.Cypher)
+	}
+	if strings.Contains(retract.Cypher, "REMOVE") {
+		t.Fatalf("Variable retract cypher = %q, want no REMOVE-based property clear", retract.Cypher)
+	}
+}
+
 func semanticNornicDBFunctionRow(id string) reducer.SemanticEntityRow {
 	return reducer.SemanticEntityRow{
 		RepoID:       "repo-1",
