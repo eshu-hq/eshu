@@ -9,7 +9,7 @@ function renderDrawer(model: ConsoleModel): void {
   render(
     <MemoryRouter>
       <ServiceDrawer name="checkout-service" model={model} onClose={() => {}} />
-    </MemoryRouter>
+    </MemoryRouter>,
   );
 }
 
@@ -18,9 +18,25 @@ describe("ServiceDrawer drill-downs", () => {
     const model: ConsoleModel = {
       ...demoModel,
       vulnerabilities: [
-        { id: "CVE-2026-1", package: "left-pad", severity: "high", cvss: 8.1, kev: false, fixedVersion: "2.0.1", services: ["checkout-service"] },
-        { id: "CVE-2026-2", package: "other", severity: "low", cvss: 3.1, kev: false, fixedVersion: null, services: ["payments-api"] }
-      ]
+        {
+          id: "CVE-2026-1",
+          package: "left-pad",
+          severity: "high",
+          cvss: 8.1,
+          kev: false,
+          fixedVersion: "2.0.1",
+          services: ["checkout-service"],
+        },
+        {
+          id: "CVE-2026-2",
+          package: "other",
+          severity: "low",
+          cvss: 3.1,
+          kev: false,
+          fixedVersion: null,
+          services: ["payments-api"],
+        },
+      ],
     };
     renderDrawer(model);
     // Only one CVE affects checkout-service, so the count must read 1.
@@ -35,5 +51,14 @@ describe("ServiceDrawer drill-downs", () => {
     renderDrawer(demoModel);
     expect(screen.getByRole("button", { name: /Blast radius/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Callers \/ importers/ })).toBeInTheDocument();
+  });
+
+  it("offers an explicit Exposure Path pivot for a global service result", () => {
+    renderDrawer(demoModel);
+
+    expect(screen.getByRole("link", { name: "Trace exposure →" })).toHaveAttribute(
+      "href",
+      "/exposure?service=workload%3Acheckout-service",
+    );
   });
 });

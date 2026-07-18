@@ -31,6 +31,10 @@ export function ServiceDrawer({
   const [graph, setGraph] = useState<GraphModel | null>(null);
   const [graphBusy, setGraphBusy] = useState(false);
   const [graphErr, setGraphErr] = useState("");
+  const selectedService = model.services.find(
+    (service) => service.id === name || service.name === name,
+  );
+  const exposureServiceID = canonicalWorkloadID(selectedService?.id ?? name);
 
   // Findings for this service derive from the same impact-findings rows the
   // Vulnerabilities page uses, so the count always equals the listed rows.
@@ -76,9 +80,8 @@ export function ServiceDrawer({
   useEffect(() => {
     let active = true;
     setLoading(true);
-    const row = model.services.find((s) => s.id === name || s.name === name);
     if (client && model.source === "live") {
-      loadServiceSpotlight(client, row?.name ?? name)
+      loadServiceSpotlight(client, selectedService?.name ?? name)
         .then((s) => {
           if (active) {
             setSpot(s);
@@ -87,18 +90,18 @@ export function ServiceDrawer({
         })
         .catch(() => {
           if (active) {
-            setSpot(row ? spotlightFromRow(row) : undefined);
+            setSpot(selectedService ? spotlightFromRow(selectedService) : undefined);
             setLoading(false);
           }
         });
     } else {
-      setSpot(row ? spotlightFromRow(row) : undefined);
+      setSpot(selectedService ? spotlightFromRow(selectedService) : undefined);
       setLoading(false);
     }
     return () => {
       active = false;
     };
-  }, [name, client, model]);
+  }, [name, client, model, selectedService]);
 
   return (
     <>
@@ -179,6 +182,13 @@ export function ServiceDrawer({
               <div>
                 <div className="section-label">Drill-downs</div>
                 <div className="row wrap" style={{ gap: 8 }}>
+                  <Link
+                    className="btn-ghost"
+                    onClick={onClose}
+                    to={`/exposure?service=${encodeURIComponent(exposureServiceID)}`}
+                  >
+                    Trace exposure →
+                  </Link>
                   <button
                     className={`btn-ghost${drill === "blast" ? " active" : ""}`}
                     onClick={() => openGraph("blast")}
@@ -299,4 +309,8 @@ export function ServiceDrawer({
       </aside>
     </>
   );
+}
+
+function canonicalWorkloadID(value: string): string {
+  return value.startsWith("workload:") ? value : `workload:${value}`;
 }

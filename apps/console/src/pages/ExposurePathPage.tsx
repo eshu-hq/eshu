@@ -10,10 +10,11 @@
 // It never fabricates a chain: the synthetic "Internet" origin hop is drawn only
 // for an observed-public entrypoint, and WAF/TLS tiles render the honest
 // three-valued posture (protected/unprotected/unproven) returned by the backend.
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useSearchParams } from "react-router-dom";
 
 import { ExposurePathAdvanced } from "./ExposurePathAdvanced";
+import { ExposureServiceSelector } from "./ExposureServiceSelector";
 import type { EshuApiClient } from "../api/client";
 import {
   loadExposureIngress,
@@ -23,8 +24,13 @@ import {
   type IngressPostureState,
   type IngressTruth,
 } from "../api/exposureIngress";
+import {
+  exposureServiceOptions,
+  resolveExposureServiceSelection,
+  type ExposureServiceSelectionResult,
+} from "../api/exposureServiceSelection";
 import { Badge, FreshDot, Panel, StatTile, TruthChip } from "../components/atoms";
-import { uiFresh, uiTruth } from "../console/types";
+import { uiFresh, uiTruth, type ServiceRow } from "../console/types";
 import "./exposurePathPage.css";
 
 type BadgeTone = "neutral" | "teal" | "ember" | "crit" | "warn" | "violet";
@@ -53,8 +59,10 @@ const POSTURE_LABEL: Record<IngressPostureState, string> = {
 
 export function ExposurePathPage({
   client,
+  services = [],
 }: {
   readonly client?: EshuApiClient;
+  readonly services?: readonly ServiceRow[];
 }): React.JSX.Element {
   const [searchParams, setSearchParams] = useSearchParams();
   const [service, setService] = useState(() => searchParams.get("service") ?? "");
@@ -64,77 +72,111 @@ export function ExposurePathPage({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  const abortRef = useRef<AbortController | null>(null);
+  const deepLinkRef = useRef("");
+  const requestVersionRef = useRef(0);
   const canLoad = client !== undefined;
+  const options = useMemo(() => exposureServiceOptions(services), [services]);
 
-  const runIngress = useCallback(
-    async (name: string) => {
-      const trimmed = name.trim();
+  const clearDeepLink = useCallback(() => {
+    deepLinkRef.current = "";
+    if (!searchParams.has("service")) {
+      return;
+    }
+    const params = new URLSearchParams(searchParams);
+    params.delete("service");
+    setSearchParams(params, { replace: true });
+  }, [searchParams, setSearchParams]);
+
+  const invalidateActiveRequest = useCallback(() => {
+    requestVersionRef.current += 1;
+    abortRef.current?.abort();
+    abortRef.current = null;
+    setBusy(false);
+    setError("");
+    setIngress(null);
+    setSelectedChain(0);
+    setSelectedHop(null);
+  }, []);
+
+  const runSelection = useCallback(
+    async (query: string) => {
+      const trimmed = query.trim();
       if (!client || trimmed.length === 0) {
         return;
       }
+      const version = requestVersionRef.current + 1;
+      requestVersionRef.current = version;
+      abortRef.current?.abort();
+      const controller = new AbortController();
+      abortRef.current = controller;
       setBusy(true);
       setError("");
-      try {
-        const loaded = await loadExposureIngress(client, trimmed);
-        setIngress(loaded);
-        setSelectedChain(0);
-        setSelectedHop(null);
-        if (loaded.provenance === "unavailable") {
-          setError(loaded.error ?? "failed to trace ingress chain");
-        }
-      } catch (ingressError) {
-        setIngress(null);
-        setError(
-          ingressError instanceof Error ? ingressError.message : "failed to trace ingress chain",
-        );
-      } finally {
-        setBusy(false);
+      setIngress(null);
+      setSelectedChain(0);
+      setSelectedHop(null);
+
+      const resolution = await resolveExposureServiceSelection({
+        client,
+        options,
+        query: trimmed,
+      });
+      if (version !== requestVersionRef.current) {
+        return;
       }
+      if (resolution.status !== "resolved") {
+        setError(selectionError(resolution));
+        abortRef.current = null;
+        setBusy(false);
+        return;
+      }
+
+      const canonicalID = resolution.option.canonicalId;
+      setService(resolution.option.displayName);
+      deepLinkRef.current = canonicalID;
+      const params = new URLSearchParams(searchParams);
+      params.set("service", canonicalID);
+      setSearchParams(params, { replace: true });
+
+      const loaded = await loadExposureIngress(client, canonicalID, controller.signal);
+      if (version !== requestVersionRef.current) {
+        return;
+      }
+      setIngress(loaded);
+      if (loaded.provenance === "unavailable") {
+        setError(loaded.error ?? "Service resolution or ingress tracing is unavailable.");
+      }
+      abortRef.current = null;
+      setBusy(false);
     },
-    [client],
+    [client, options, searchParams, setSearchParams],
   );
 
-  // Auto-load on mount when the client is already available and a service is in
-  // the URL (the common case for deep-links in an already-connected session).
   useEffect(() => {
     const initial = searchParams.get("service")?.trim() ?? "";
-    if (initial.length > 0 && canLoad) {
-      void runIngress(initial);
-    }
-    // Run once on mount; subsequent loads are user-driven via submit.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Re-trigger the load when the client connects after mount (boot race: the
-  // page mounts before the saved private env completes its handshake, so
-  // `client` is undefined at mount and the effect above skips the load).
-  // Guard: only fire when the ingress hasn't loaded yet and a service is in the
-  // URL, so a user-driven submit is never overwritten by this effect.
-  useEffect(() => {
-    if (!canLoad || ingress !== null || busy) {
+    if (!canLoad || initial.length === 0 || deepLinkRef.current === initial) {
       return;
     }
-    const initial = searchParams.get("service")?.trim() ?? "";
-    if (initial.length > 0) {
-      void runIngress(initial);
-    }
-    // Depend on client readiness (canLoad) so this fires exactly once when the
-    // client transitions from undefined → defined after mount. ingress/busy are
-    // guards only; runIngress is stable (useCallback on [client]).
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canLoad]);
+    deepLinkRef.current = initial;
+    void runSelection(initial);
+  }, [canLoad, runSelection, searchParams]);
+
+  useEffect(
+    () => () => {
+      requestVersionRef.current += 1;
+      abortRef.current?.abort();
+    },
+    [],
+  );
 
   function submit(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
     const name = service.trim();
     if (name.length === 0) {
-      setError("A service name is required to trace its ingress chain.");
+      setError("Choose an authorized service or paste a canonical workload:… handle.");
       return;
     }
-    const params = new URLSearchParams(searchParams);
-    params.set("service", name);
-    setSearchParams(params);
-    void runIngress(name);
+    void runSelection(name);
   }
 
   const chains = ingress?.chains ?? [];
@@ -155,28 +197,37 @@ export function ExposurePathPage({
       </div>
 
       <form className="exposure-entry-form" onSubmit={submit}>
-        <label className="exposure-entry-field">
-          <span>Service entrypoint</span>
-          <input
-            aria-label="Service name"
-            className="popover-input mono"
-            onChange={(event) => setService(event.target.value)}
-            placeholder="checkout"
-            value={service}
-          />
-        </label>
+        <ExposureServiceSelector
+          busy={busy}
+          onChoose={(option) => {
+            invalidateActiveRequest();
+            clearDeepLink();
+            setService(option.displayName);
+          }}
+          onValueChange={(value) => {
+            invalidateActiveRequest();
+            clearDeepLink();
+            setService(value);
+          }}
+          options={options}
+          value={service}
+        />
         <button className="btn-ghost active" disabled={!canLoad || busy} type="submit">
-          {busy ? "Tracing…" : "Trace ingress"}
+          {busy ? "Resolving…" : "Trace ingress"}
         </button>
       </form>
 
       {!canLoad ? <p className="inline-state">Live Eshu API connection unavailable.</p> : null}
-      {error ? <p className="src-err">{error}</p> : null}
+      {error ? (
+        <p className="src-err" role="alert">
+          {error}
+        </p>
+      ) : null}
 
       {busy ? (
         <div className="conn-state compact mt">
           <div aria-hidden className="conn-spinner" />
-          <p>Tracing ingress chain…</p>
+          <p>Resolving service and tracing ingress chain…</p>
         </div>
       ) : ingress !== null && ingress.provenance === "live" ? (
         <IngressView
@@ -205,6 +256,23 @@ export function ExposurePathPage({
       </details>
     </div>
   );
+}
+
+function selectionError(
+  result: Exclude<ExposureServiceSelectionResult, { status: "resolved" }>,
+): string {
+  switch (result.status) {
+    case "ambiguous":
+      return `Multiple authorized services match “${result.query}”. Choose one canonical service: ${result.candidates
+        .map((candidate) => `${candidate.displayName} (${candidate.canonicalId})`)
+        .join(", ")}.`;
+    case "not_authorized":
+      return "You are not authorized to resolve that service in the active workspace.";
+    case "not_found":
+      return `No authorized service matches “${result.query}”. Choose an available service or paste a canonical workload:… handle.`;
+    case "unavailable":
+      return "Service resolution is temporarily unavailable. The prior ingress result was cleared.";
+  }
 }
 
 function IngressView({

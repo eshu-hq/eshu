@@ -193,14 +193,14 @@ export const secondaryConsoleRoutes: readonly ConsoleRoute[] = [
       kind: "submit",
       fields: [
         {
-          selector: 'input[aria-label="Service name"]',
+          selector: 'input[aria-label="Service selection"]',
           valueEnv: "ESHU_E2E_SERVICE_NAME",
         },
       ],
       role: "button",
       name: "Trace ingress",
       scopeSelector: ".exposure-entry-form",
-      expectedRequestPath: "/api/v0/services/${ESHU_E2E_SERVICE_NAME}/context",
+      expectedRequestPath: "/api/v0/services/workload%3A${ESHU_E2E_SERVICE_NAME}/context",
       expectedRequestMethod: "GET",
       acceptedResponseStatuses: [200],
       outcomeSelector: ".exposure-result, .exposure-unresolved-panel",
