@@ -16,8 +16,8 @@ import (
 	"strings"
 )
 
-// ValidateManifestSources verifies that every declared query fragment still
-// exists inside its owning production Go symbol.
+// ValidateManifestSources verifies that every declared query fragment or source
+// digest remains bound to its owning production Go function or value symbol.
 func ValidateManifestSources(manifest Manifest, repoRoot string) error {
 	root, err := filepath.Abs(repoRoot)
 	if err != nil {
@@ -25,7 +25,8 @@ func ValidateManifestSources(manifest Manifest, repoRoot string) error {
 	}
 	var violations []string
 	for _, entry := range manifest.Entries {
-		if strings.TrimSpace(entry.QueryFragment) == "" {
+		queryFragment := strings.TrimSpace(entry.QueryFragment)
+		if queryFragment == "" && strings.TrimSpace(entry.Source.SourceSHA256) == "" {
 			continue
 		}
 		path, err := manifestSourcePath(root, entry.Source.File)
@@ -43,7 +44,7 @@ func ValidateManifestSources(manifest Manifest, repoRoot string) error {
 			violations = append(violations, fmt.Sprintf("%s: %v", entry.ID, err))
 			continue
 		}
-		if !strings.Contains(normalizeCypher(symbolSource), normalizeCypher(entry.QueryFragment)) {
+		if queryFragment != "" && !strings.Contains(normalizeCypher(symbolSource), normalizeCypher(queryFragment)) {
 			violations = append(violations, fmt.Sprintf(
 				"%s: query_fragment is absent from source symbol %s",
 				entry.ID,
@@ -95,16 +96,33 @@ func manifestSymbolSource(path string, source []byte, symbol string) (string, er
 		return "", fmt.Errorf("parse source: %w", err)
 	}
 	for _, declaration := range file.Decls {
-		function, ok := declaration.(*ast.FuncDecl)
-		if !ok || functionSymbol(function) != symbol {
-			continue
+		switch typed := declaration.(type) {
+		case *ast.FuncDecl:
+			if functionSymbol(typed) == symbol {
+				return sourceNodeText(fileSet, source, typed, symbol)
+			}
+		case *ast.GenDecl:
+			for _, spec := range typed.Specs {
+				valueSpec, ok := spec.(*ast.ValueSpec)
+				if !ok {
+					continue
+				}
+				for _, name := range valueSpec.Names {
+					if name.Name == symbol {
+						return sourceNodeText(fileSet, source, typed, symbol)
+					}
+				}
+			}
 		}
-		start := fileSet.Position(function.Pos()).Offset
-		end := fileSet.Position(function.End()).Offset
-		if start < 0 || end < start || end > len(source) {
-			return "", fmt.Errorf("invalid source offsets for symbol %s", symbol)
-		}
-		return string(source[start:end]), nil
 	}
 	return "", fmt.Errorf("source symbol %s not found", symbol)
+}
+
+func sourceNodeText(fileSet *token.FileSet, source []byte, node ast.Node, symbol string) (string, error) {
+	start := fileSet.Position(node.Pos()).Offset
+	end := fileSet.Position(node.End()).Offset
+	if start < 0 || end < start || end > len(source) {
+		return "", fmt.Errorf("invalid source offsets for symbol %s", symbol)
+	}
+	return string(source[start:end]), nil
 }

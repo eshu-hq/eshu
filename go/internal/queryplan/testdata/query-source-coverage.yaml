@@ -7,21 +7,21 @@ source_coverage:
   - file: catalog_workload_environments.go
     calls:
       - {symbol: "(*RepositoryHandler).assembleCatalogWorkloadsFromGraph", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
-      - {symbol: "(*RepositoryHandler).catalogWorkloadEnrichments", count: 3, entry_ids: [QP-DEPLOY-CATALOG-ENV, QP-DEPLOY-CATALOG-WORKLOAD-REPO, QP-DEPLOY-CATALOG-WORKLOAD-INSTANCE]}
+      - {symbol: "(*RepositoryHandler).catalogWorkloadEnrichments", count: 3, source_sha256: 9b229875007dea30e912d535d547932e1b03da048d1dae61fe98a855ea3b5419, entry_ids: [QP-DEPLOY-CATALOG-ENV, QP-DEPLOY-CATALOG-WORKLOAD-REPO, QP-DEPLOY-CATALOG-WORKLOAD-INSTANCE]}
   - file: cloud_resource_candidates.go
     calls:
       - {symbol: "loadUncorrelatedCloudResourceCandidatesBounded", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
   - file: cloud_resource_dependencies.go
     calls:
       - {symbol: "loadConfigDerivedCloudResourceDependencies", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
-      - {symbol: "loadMaterializedServiceCloudResourceDependencies", count: 1, entry_ids: [QP-SVC-CLOUD-DEPS]}
+      - {symbol: "loadMaterializedServiceCloudResourceDependencies", count: 1, source_sha256: 147687884747140d0e4cc8238bef499cff688799df7206de884d264e23269e3e, entry_ids: [QP-SVC-CLOUD-DEPS]}
   - file: cloud_resources.go
     calls:
-      - {symbol: "(*InfraHandler).listCloudResources", count: 1, entry_ids: [QP-CLOUD-RESOURCE-LIST]}
+      - {symbol: "(*InfraHandler).listCloudResources", count: 1, source_sha256: f6f736fb51d770f9e83e5a335723cd974974a491c3420cf71c0ef2095698022b, entry_ids: [QP-CLOUD-RESOURCE-LIST]}
   - file: code.go
     calls:
       - {symbol: "(*CodeHandler).runComplexityQuery", count: 1, non_hot_reason: "unlabeled complexity-by-id branch is inventoried but cannot be admitted until its production anchor is typed"}
-      - {symbol: "(*CodeHandler).searchGraphEntitiesWithExact", count: 1, entry_ids: [QP-CODE-SEARCH-REPOSITORY]}
+      - {symbol: "(*CodeHandler).searchGraphEntitiesWithExact", count: 1, source_sha256: 0908f8963be089df03eddcb22e9801b3744b24974fe5bcd5980b123db94298a7, entry_ids: [QP-CODE-SEARCH-REPOSITORY]}
   - file: code_call_chain.go
     calls:
       - {symbol: "(*CodeHandler).handleCallChain", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
@@ -33,7 +33,7 @@ source_coverage:
       - {symbol: "(*CodeHandler).callChainCandidateOneHopRows", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
   - file: code_call_graph_metrics.go
     calls:
-      - {symbol: "(*CodeHandler).callGraphMetricsData", count: 1, entry_ids: [QP-CALL-GRAPH-HUBS, QP-CALL-GRAPH-RECURSIVE]}
+      - {symbol: "(*CodeHandler).callGraphMetricsData", count: 1, source_sha256: 341892f6fdd03b0f9a6acaf7c501c3252d66cf8a489b1b9f0e822de7fcc8f015, entry_ids: [QP-CALL-GRAPH-HUBS, QP-CALL-GRAPH-RECURSIVE]}
   - file: code_complexity_queries.go
     calls:
       - {symbol: "(*CodeHandler).listMostComplexFunctions", count: 1, non_hot_reason: "label-bounded complexity support read has no accepted standalone PROFILE registration"}
@@ -48,7 +48,7 @@ source_coverage:
       - {symbol: "(*CodeHandler).deadCodeResultsWithGraphIncomingEdges", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
   - file: code_import_dependencies.go
     calls:
-      - {symbol: "(*CodeHandler).importDependencyData", count: 1, entry_ids: [QP-CODE-IMPORT-ROWS-REPOSITORY, QP-CODE-IMPORT-CYCLES]}
+      - {symbol: "(*CodeHandler).importDependencyData", count: 1, source_sha256: ffb1041b0efec595092e2cc45f2beefd178b3575a2b500825d7ea46542269a0e, entry_ids: [QP-CODE-IMPORT-ROWS-REPOSITORY, QP-CODE-IMPORT-CYCLES]}
   - file: code_quality.go
     calls:
       - {symbol: "(*CodeHandler).inspectCodeQuality", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
@@ -66,9 +66,9 @@ source_coverage:
   - file: code_relationship_story_nornicdb.go
     calls:
       - {symbol: "(*CodeHandler).nornicDBRelationshipStoryClassMethods", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
-      - {symbol: "(*CodeHandler).nornicDBRelationshipStoryGraphRows", count: 1, entry_ids: [QP-CODE-REL-STORY, QP-CODE-REL-STORY-INCOMING]}
-      - {symbol: "(*CodeHandler).nornicDBRelationshipStoryInheritanceDepthRows", count: 1, entry_ids: [QP-CODE-REL-TRANSITIVE]}
-      - {symbol: "(*CodeHandler).resolveNornicDBRelationshipStoryAnchorProperty", count: 2, entry_ids: [QP-CODE-REL-STORY-ANCHOR-COLLISION]}
+      - {symbol: "(*CodeHandler).nornicDBRelationshipStoryGraphRows", count: 1, source_sha256: 4eee27939dd008c5aa1a21012acef45c4890d65b3896f128a5b4d854fcee3df6, entry_ids: [QP-CODE-REL-STORY, QP-CODE-REL-STORY-INCOMING]}
+      - {symbol: "(*CodeHandler).nornicDBRelationshipStoryInheritanceDepthRows", count: 1, source_sha256: 3766798eac808f680a6aaa54dc03aa9d54d5576692882dbd86fae5d74f6ace68, entry_ids: [QP-CODE-REL-TRANSITIVE]}
+      - {symbol: "(*CodeHandler).resolveNornicDBRelationshipStoryAnchorProperty", count: 2, source_sha256: 8e5cde039dd4f4a605f8558cb610a4aaf8c6ba81898ae0aff858242ca0761cac, entry_ids: [QP-CODE-REL-STORY-ANCHOR-COLLISION]}
   - file: code_relationships.go
     calls:
       - {symbol: "(*CodeHandler).relationshipsGraphRow", count: 3, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
@@ -97,17 +97,17 @@ source_coverage:
       - {symbol: "(*ImpactHandler).contractImpactResponse", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
   - file: dependencies.go
     calls:
-      - {symbol: "(*DependenciesHandler).listDependencies", count: 1, entry_ids: [QP-SC-DEPS]}
+      - {symbol: "(*DependenciesHandler).listDependencies", count: 1, source_sha256: df94f2b95ebbc32e6b363870504a214d665c562bee61e19e54b21594d20dbd98, entry_ids: [QP-SC-DEPS]}
   - file: deployment_trace_support_helpers.go
     calls:
       - {symbol: "queryProvisioningRepositoryCandidates", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
   - file: entity.go
     calls:
       - {symbol: "(*EntityHandler).getEntityContext", count: 1, non_hot_reason: "unlabeled entity-context lookup is inventoried but cannot be admitted until its production anchor is typed"}
-      - {symbol: "(*EntityHandler).resolveEntity", count: 1, entry_ids: [QP-ENTITY-RESOLVE-REPOSITORY]}
+      - {symbol: "(*EntityHandler).resolveEntity", count: 1, source_sha256: 9094084be281ce1ac0fd8f2c7b567b80f959efacc623674e3c346c6a12745447, entry_ids: [QP-ENTITY-RESOLVE-REPOSITORY]}
   - file: entity_resolve_workload.go
     calls:
-      - {symbol: "(*EntityHandler).resolveWorkloadEntities", count: 2, entry_ids: [QP-WORKLOAD-RESOLVE-PROPERTY, QP-WORKLOAD-RESOLVE-RELATIONSHIP]}
+      - {symbol: "(*EntityHandler).resolveWorkloadEntities", count: 2, source_sha256: 83874ee2f3b3671a59477114863d85aeb37e477b8421a3d60c79c4336b179be1, entry_ids: [QP-WORKLOAD-RESOLVE-PROPERTY, QP-WORKLOAD-RESOLVE-RELATIONSHIP]}
       - symbol: "(*EntityHandler).hydrateResolvedWorkloadRepoNames"
         count: 1
         non_hot:
@@ -118,10 +118,10 @@ source_coverage:
           max_results: 101
   - file: entity_map_resolver.go
     calls:
-      - {symbol: "(*ImpactHandler).resolveEntityMapStart", count: 1, entry_ids: [QP-ENTITY-MAP-RESOLVE-REPOSITORY]}
+      - {symbol: "(*ImpactHandler).resolveEntityMapStart", count: 1, source_sha256: c8e809a08354bf2502860bbdb2904406110d83a192d7cadb59afceb5b21adff3, entry_ids: [QP-ENTITY-MAP-RESOLVE-REPOSITORY]}
   - file: entity_map_traversal.go
     calls:
-      - {symbol: "(*ImpactHandler).entityMapNeighborhoodRows", count: 1, entry_ids: [QP-ENTITY-MAP-DIRECT-REPOSITORY, QP-ENTITY-MAP-BOUNDED-REPOSITORY]}
+      - {symbol: "(*ImpactHandler).entityMapNeighborhoodRows", count: 1, source_sha256: 5c91dacd107e037ad4ceffb0804c89b1f6baca7a66c314407b3e3359dc80bfb2, entry_ids: [QP-ENTITY-MAP-DIRECT-REPOSITORY, QP-ENTITY-MAP-BOUNDED-REPOSITORY]}
   - file: entity_resolve_identity.go
     calls:
       - {symbol: "hydrateResolvedEntityRepoIdentity", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
@@ -129,16 +129,16 @@ source_coverage:
     calls:
       - {symbol: "(*EntityHandler).fetchProvisionedPlatformRows", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
       - {symbol: "(*EntityHandler).fetchRepositoryNameByID", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
-      - {symbol: "(*EntityHandler).fetchWorkloadContextForOperation", count: 1, entry_ids: [QP-SVC-CONTEXT]}
+      - {symbol: "(*EntityHandler).fetchWorkloadContextForOperation", count: 1, source_sha256: 28bfc91a0b6411f1a7b8e076406be9a29dbff6b3748af3129f0a04fa78109ea3, entry_ids: [QP-SVC-CONTEXT]}
       - {symbol: "(*EntityHandler).fetchWorkloadInstances", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
-      - {symbol: "(*EntityHandler).fetchWorkloadPlatformRows", count: 1, entry_ids: [QP-SVC-RUNS-ON]}
+      - {symbol: "(*EntityHandler).fetchWorkloadPlatformRows", count: 1, source_sha256: fae20b9391fd84bc35575df5bf63ee7397f3cc8f25cd90f585236243d69fac3f, entry_ids: [QP-SVC-RUNS-ON]}
       - {symbol: "(*EntityHandler).fetchWorkloadRepositoryForAccess", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
   - file: exposure_path.go
     calls:
       - {symbol: "(*ImpactHandler).exposurePathCandidates", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
   - file: graph_entity_inventory.go
     calls:
-      - {symbol: "(*GraphEntityInventoryHandler).listEntities", count: 2, entry_ids: [QP-GRAPH-ENTITY-COUNT, QP-GRAPH-ENTITY-LIST]}
+      - {symbol: "(*GraphEntityInventoryHandler).listEntities", count: 2, source_sha256: a55aef265d6c25d1b558062a3b66ed1421777374ddfcd92c3721bb4959bb9a00, entry_ids: [QP-GRAPH-ENTITY-COUNT, QP-GRAPH-ENTITY-LIST]}
   - file: iac_resources.go
     calls:
       - {symbol: "(*IaCHandler).listResources", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
@@ -161,7 +161,7 @@ source_coverage:
       - {symbol: "(*ImpactHandler).resolveChangeSurfaceTarget", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
   - file: impact_change_surface_legacy.go
     calls:
-      - {symbol: "(*ImpactHandler).findChangeSurfaceImpactRows", count: 1, entry_ids: [QP-IMPACT-CHANGE-SURFACE]}
+      - {symbol: "(*ImpactHandler).findChangeSurfaceImpactRows", count: 1, source_sha256: 588becf80571c7da65b565341a59fcd56e6fa4ce336ff6e69c85abe012235f82, entry_ids: [QP-IMPACT-CHANGE-SURFACE]}
   - file: impact_change_surface_response.go
     calls:
       - {symbol: "(*ImpactHandler).changeSurfaceImpactRows", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
@@ -170,9 +170,9 @@ source_coverage:
       - {symbol: "(*ImpactHandler).resolveResourceInvestigationTarget", count: 1, non_hot_reason: "multi-label resolver remains owned by issue 5269 and cannot be admitted until its production start anchor is plan-safe"}
   - file: impact_resource_investigation_reads.go
     calls:
-      - {symbol: "(*ImpactHandler).resourceInvestigationInstanceWorkloads", count: 1, entry_ids: [QP-RESOURCE-INVESTIGATION-INSTANCE-WORKLOADS]}
-      - {symbol: "(*ImpactHandler).resourceInvestigationRepoPaths", count: 1, entry_ids: [QP-RESOURCE-INVESTIGATION-REPO-PATHS]}
-      - {symbol: "(*ImpactHandler).resourceInvestigationWorkloads", count: 1, entry_ids: [QP-RESOURCE-INVESTIGATION-WORKLOADS]}
+      - {symbol: "(*ImpactHandler).resourceInvestigationInstanceWorkloads", count: 1, source_sha256: 2fd9f8b87204123d1db73f2d7d15b01007dde0b0e3a75e5f9e53af0a4384c7cf, entry_ids: [QP-RESOURCE-INVESTIGATION-INSTANCE-WORKLOADS]}
+      - {symbol: "(*ImpactHandler).resourceInvestigationRepoPaths", count: 1, source_sha256: 466f2d536aa176592ad902ebda945f0b2c5f66047589e97e7f79c29daf5a6869, entry_ids: [QP-RESOURCE-INVESTIGATION-REPO-PATHS]}
+      - {symbol: "(*ImpactHandler).resourceInvestigationWorkloads", count: 1, source_sha256: 26765d4aad64c69b9de78b95fef02d0a95377a5ae4c7eddced413144d9c28935, entry_ids: [QP-RESOURCE-INVESTIGATION-WORKLOADS]}
   - file: impact_trace_deployment.go
     calls:
       - {symbol: "fetchDeploymentSourcesFromGraph", count: 2, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
@@ -187,7 +187,7 @@ source_coverage:
       - {symbol: "(*ImpactHandler).fetchConfigDerivedCloudResources", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
   - file: infra.go
     calls:
-      - {symbol: "(*InfraHandler).searchResources", count: 1, entry_ids: [QP-INFRA-RESOURCE-SEARCH]}
+      - {symbol: "(*InfraHandler).searchResources", count: 1, source_sha256: 2f6c76e66dd4601d82ab8c71bee437ce39b3626776181515abf5f87a18430a17, entry_ids: [QP-INFRA-RESOURCE-SEARCH]}
   - file: infra_argocd_search.go
     calls:
       - {symbol: "(*InfraHandler).searchArgoCDCategoryRows", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
@@ -208,7 +208,7 @@ source_coverage:
     calls:
       - {symbol: "(GraphInfraResourceAggregateStore).CountInfraResources", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
       - {symbol: "(GraphInfraResourceAggregateStore).InfraResourceInventory", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
-      - {symbol: "(GraphInfraResourceAggregateStore).fillBuckets", count: 1, entry_ids: [QP-INFRA-RESOURCE-AGGREGATE]}
+      - {symbol: "(GraphInfraResourceAggregateStore).fillBuckets", count: 1, source_sha256: 1461164d77a8cb60bf9544641e88dab27a1215ba40e578550fd78a4fc7790d15, entry_ids: [QP-INFRA-RESOURCE-AGGREGATE]}
   - file: language_queries.go
     calls:
       - {symbol: "(*LanguageQueryHandler).queryByLanguageWithSemanticFilter", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
@@ -219,7 +219,7 @@ source_coverage:
       - {symbol: "(*Neo4jReader).RunSingle", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
   - file: package_registry.go
     calls:
-      - {symbol: "(*PackageRegistryHandler).listDependencies", count: 1, entry_ids: [QP-SC-PKGREG-DEPS]}
+      - {symbol: "(*PackageRegistryHandler).listDependencies", count: 1, source_sha256: a3cb8fcb033c0a00bd4adc48b17d4966b91bff376c4b19f1a49e1c9a57c36740, entry_ids: [QP-SC-PKGREG-DEPS]}
       - {symbol: "(*PackageRegistryHandler).listPackages", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
       - {symbol: "(*PackageRegistryHandler).listVersions", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
   - file: package_registry_aggregates.go
@@ -228,9 +228,9 @@ source_coverage:
       - {symbol: "(GraphPackageRegistryAggregateStore).PackageRegistryPackageInventory", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
   - file: relationships_catalog.go
     calls:
-      - {symbol: "(*InfraHandler).relationshipEdges", count: 1, entry_ids: [QP-RELATIONSHIPS-EDGES]}
-      - {symbol: "(*InfraHandler).relationshipSourceToolBreakdown", count: 1, entry_ids: [QP-RELATIONSHIPS-CATALOG-SOURCE-TOOL]}
-      - {symbol: "(*InfraHandler).relationshipVerbTiles", count: 1, entry_ids: [QP-RELATIONSHIPS-CATALOG-COUNT]}
+      - {symbol: "(*InfraHandler).relationshipEdges", count: 1, source_sha256: 56fa1d3da0fcd50a5a8f61e5fe980e955350a487f2846d33ffef102253ad2b1d, entry_ids: [QP-RELATIONSHIPS-EDGES]}
+      - {symbol: "(*InfraHandler).relationshipSourceToolBreakdown", count: 1, source_sha256: d854d833cdc75c1e250b0d049ca0733a5429bb3580360bcbf958cf46aee39441, entry_ids: [QP-RELATIONSHIPS-CATALOG-SOURCE-TOOL-REPOSITORY, QP-RELATIONSHIPS-CATALOG-SOURCE-TOOL-INSTANCE]}
+      - {symbol: "(*InfraHandler).relationshipVerbTiles", count: 1, source_sha256: 594369a3bf0dfd685853cec025547e41cf1b7929f913b208021bba627a3e3376, entry_ids: [QP-RELATIONSHIPS-CATALOG-COUNT]}
   - file: repository.go
     calls:
       - {symbol: "(*RepositoryHandler).getRepositoryStory", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
@@ -289,10 +289,10 @@ source_coverage:
   - file: service_workload_resolution.go
     calls:
       - {symbol: "(*EntityHandler).hydrateServiceWorkloadCandidateRepoNames", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
-      - {symbol: "(*EntityHandler).serviceWorkloadCandidatesFromQuery", count: 1, entry_ids: [QP-SVC-RESOLVE]}
+      - {symbol: "(*EntityHandler).serviceWorkloadCandidatesFromQuery", count: 1, source_sha256: dee5ee4d2e0c647e66879714b8dc981fc999a38d53b225cb065f50794e07aab6, entry_ids: [QP-SVC-RESOLVE]}
   - file: status.go
     calls:
       - {symbol: "(*StatusHandler).getIndexStatus", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
   - file: status_hosted_readiness.go
     calls:
-      - {symbol: "(*StatusHandler).readHostedRepositoryCount", count: 1, entry_ids: [QP-READINESS-HOSTED]}
+      - {symbol: "(*StatusHandler).readHostedRepositoryCount", count: 1, source_sha256: add2e56e1ca154fc60b94390bf6e55b5d9768ea3c895a9502c710be90ad2371e, entry_ids: [QP-READINESS-HOSTED]}

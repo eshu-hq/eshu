@@ -18,6 +18,8 @@ record is keyed by source file and enclosing function or method, includes the
 exact call count, and has exactly one disposition:
 
 - `entry_ids` links a registered hot callsite to one or more query-plan entries.
+  Every hot callsite freezes the full production execution symbol with
+  `source_sha256`, so a same-count reroute to a different query forces review.
 - `non_hot_reason` records why an inventory-only support or bounded read is not
   independently registered as a hot query.
 - `non_hot` records a machine-checked closed classification, source digest, and
@@ -25,18 +27,19 @@ exact call count, and has exactly one disposition:
 
 The production-source test discovers this inventory with the Go parser. A new
 file, symbol, or call, a changed call count, a stale registration, an unknown hot
-entry, or a missing disposition fails the gate. A developer adding graph-query
+entry, changed hot-callsite source digest, or a missing disposition fails the gate. A developer adding graph-query
 execution must therefore update the inventory and either register its hot query
 shape or explain the non-hot classification in the same change.
 
-`testdata/handler-hot-cypher.yaml` holds handler-owned hot shapes. Its required
-entries must be linked back to production execution callsites. The manifest
-stores no copied Cypher. Instead, each entry records an exact-text SHA-256 and a
-`query_fragment` owned by its production builder. The query-package binding
-test supplies the actual builder output, verifies the fingerprint, and then
-runs the full anchor, traversal, ordering, schema, and plan validation against
-those production-owned bytes. The older `testdata/hot-cypher.yaml` continues to
-hold cross-service static shapes.
+`testdata/handler-hot-cypher.yaml` and `testdata/hot-cypher.yaml` hold the
+handler-owned and legacy cross-service hot shapes. Their required entries must
+be linked back to production execution callsites, and neither manifest stores a
+copied Cypher query. Each entry records its production source owner, source
+SHA-256, and exact-text query SHA-256. Handler entries also bind a
+`query_fragment` to the owning builder. Query-package binding tests supply direct builder
+output or capture the query emitted by the production execution path, verify the
+fingerprints, and run the full anchor, traversal, ordering, schema, and plan
+validation against those production-owned bytes.
 
 The inventory still contains 102 pre-existing `non_hot_reason` entries, but they
 are immutable migration debt rather than an open classification path. Their
@@ -49,11 +52,12 @@ form, including the bounded workload repository-name hydration helper.
 
 Live backend calls remain outside this package. The build-tagged test
 `internal/query/queryplan_profile_live_test.go` applies only the schema names
-required by the handler manifest to an isolated Neo4j database, binds every
-entry to its exact production builder output, profiles the registered and
-hash-frozen safe production variants, and fails on `AllNodesScan` or a missing
-bounded anchor operator. The accepted label and relationship-type scan
-exceptions are a closed Go policy; manifest data cannot expand that allowlist.
+required by both manifests to an isolated Neo4j database, binds every Cypher
+entry to its exact production builder or execution-path output, and profiles 16
+handler entries, 22 legacy entries, and 293 hash-frozen safe production
+variants. All 331 shapes must avoid `AllNodesScan` and expose an admitted bounded
+anchor operator. The accepted label and relationship-type scan exceptions are a
+closed Go policy; manifest data cannot expand that allowlist.
 Global entity/code variants known to be unsafe are frozen separately against
 #5318 and are not presented as accepted shapes.
 NornicDB builds that do not
@@ -71,8 +75,9 @@ creates schema objects.
   have graph plans.
 - Every production query execution callsite must have an exact inventory entry
   and an explicit hot or non-hot disposition.
-- Every handler hot entry must bind its exact production-builder query and
-  source SHA-256 values plus its anchor fragment to the declared builder symbol.
+- Every Cypher hot entry must bind its exact production query and source SHA-256
+  to its declared builder or execution-path owner. Handler entries additionally
+  bind an anchor fragment to the declared builder symbol.
 
 No-Regression Evidence: `scripts/verify-query-plan-regression.sh` exercises the
 static fixtures, exhaustive production callsite inventory, deliberately bad

@@ -7,21 +7,33 @@ import (
 	"encoding/hex"
 	"strings"
 	"testing"
-
-	"github.com/eshu-hq/eshu/go/internal/graph"
 )
 
-func TestHotCypherManifestValidatesAgainstNornicDBSchema(t *testing.T) {
+func TestLegacyHotCypherManifestRegistrationMetadata(t *testing.T) {
 	manifest, err := LoadManifestFile("testdata/hot-cypher.yaml")
 	if err != nil {
 		t.Fatalf("LoadManifestFile() error = %v", err)
 	}
-	statements, err := graph.SchemaStatementsForBackend(graph.SchemaBackendNornicDB)
-	if err != nil {
-		t.Fatalf("SchemaStatementsForBackend() error = %v", err)
+	entries := make(map[string]struct{}, len(manifest.Entries))
+	for _, entry := range manifest.Entries {
+		entries[entry.ID] = struct{}{}
+		if entry.QueryKind != queryKindCypher {
+			continue
+		}
+		if strings.TrimSpace(entry.Cypher) != "" {
+			t.Errorf("legacy hot path %s must bind Cypher from its production execution path", entry.ID)
+		}
+		if digest, err := hex.DecodeString(entry.CypherSHA256); err != nil || len(digest) != 32 {
+			t.Errorf("legacy hot path %s has invalid cypher_sha256 %q", entry.ID, entry.CypherSHA256)
+		}
+		if digest, err := hex.DecodeString(entry.Source.SourceSHA256); err != nil || len(digest) != 32 {
+			t.Errorf("legacy hot path %s has invalid source.source_sha256 %q", entry.ID, entry.Source.SourceSHA256)
+		}
 	}
-	if err := ValidateManifest(manifest, statements); err != nil {
-		t.Fatalf("ValidateManifest() error = %v", err)
+	for _, requiredID := range manifest.RequiredIDs {
+		if _, ok := entries[requiredID]; !ok {
+			t.Errorf("legacy hot path manifest is missing required entry %s", requiredID)
+		}
 	}
 }
 

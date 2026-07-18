@@ -27,10 +27,17 @@ const (
 
 func TestQueryplanBoundedAnchorOperatorPolicyIsClosed(t *testing.T) {
 	tests := map[string][]string{
-		"QP-GRAPH-ENTITY-LIST":                    {"NodeByLabelScan"},
-		"QP-RESOURCE-INVESTIGATION-WORKLOADS":     {"DirectedRelationshipTypeScan"},
-		"QP-RESOURCE-INVESTIGATION-REPO-PATHS":    {"NodeByLabelScan"},
-		"unregistered-or-indexed-production-path": {"NodeIndexSeek", "NodeUniqueIndexSeek", "NodeCountFromCountStore"},
+		"QP-GRAPH-ENTITY-LIST":                            {"NodeByLabelScan"},
+		"QP-RESOURCE-INVESTIGATION-WORKLOADS":             {"DirectedRelationshipTypeScan"},
+		"QP-RESOURCE-INVESTIGATION-REPO-PATHS":            {"NodeByLabelScan"},
+		"QP-CODE-REL-STORY-ANCHOR-COLLISION":              {"NodeByLabelScan"},
+		"QP-RELATIONSHIPS-CATALOG-COUNT":                  {"RelationshipCountFromCountStore"},
+		"QP-RELATIONSHIPS-EDGES":                          {"DirectedRelationshipTypeScan"},
+		"QP-RELATIONSHIPS-CATALOG-SOURCE-TOOL-REPOSITORY": {"NodeByLabelScan"},
+		"QP-RELATIONSHIPS-CATALOG-SOURCE-TOOL-INSTANCE":   {"DirectedRelationshipTypeScan"},
+		"QP-INFRA-RESOURCE-SEARCH":                        {"NodeByLabelScan"},
+		"QP-INFRA-RESOURCE-AGGREGATE":                     {"NodeByLabelScan"},
+		"unregistered-or-indexed-production-path":         {"NodeIndexSeek", "NodeUniqueIndexSeek", "NodeCountFromCountStore"},
 	}
 	for entryID, want := range tests {
 		if got := queryplanBoundedAnchorOperators(entryID); !slices.Equal(got, want) {
@@ -39,7 +46,15 @@ func TestQueryplanBoundedAnchorOperatorPolicyIsClosed(t *testing.T) {
 	}
 }
 
-func TestHandlerQueryplanProfilesRejectWholeGraphScans(t *testing.T) {
+func TestQueryplanForbiddenOperatorPolicyIsClosed(t *testing.T) {
+	entry := queryplan.Entry{Plan: queryplan.PlanExpectation{ForbiddenOperators: []string{"Eager"}}}
+	want := []string{"AllNodesScan", "CartesianProduct", "UnboundedExpand", "Eager"}
+	if got := queryplanForbiddenOperators(entry); !slices.Equal(got, want) {
+		t.Fatalf("queryplanForbiddenOperators() = %v, want %v", got, want)
+	}
+}
+
+func TestProductionQueryplanProfilesRejectWholeGraphScans(t *testing.T) {
 	if os.Getenv(queryplanProfileLiveEnv) != "1" {
 		t.Skipf("set %s=1 to run live handler PROFILE assertions", queryplanProfileLiveEnv)
 	}
@@ -80,9 +95,21 @@ func TestHandlerQueryplanProfilesRejectWholeGraphScans(t *testing.T) {
 	if err != nil {
 		t.Fatalf("bind production handler Cypher: %v", err)
 	}
+	legacyManifest, err := queryplan.LoadManifestFile("../queryplan/testdata/hot-cypher.yaml")
+	if err != nil {
+		t.Fatalf("load legacy queryplan manifest: %v", err)
+	}
+	legacyManifest, err = queryplan.BindProductionCypher(legacyManifest, legacyQueryplanProductionCypher(t))
+	if err != nil {
+		t.Fatalf("bind production legacy Cypher: %v", err)
+	}
+	manifest.Entries = append(manifest.Entries, legacyManifest.Entries...)
 	applyQueryplanProfileSchema(ctx, t, session, manifest)
 	for _, entry := range manifest.Entries {
 		entry := entry
+		if strings.TrimSpace(entry.Cypher) == "" {
+			continue
+		}
 		t.Run(entry.ID, func(t *testing.T) {
 			result, err := session.Run(ctx, "PROFILE "+entry.Cypher, queryplanProfileParams())
 			if err != nil {
@@ -209,25 +236,40 @@ func applyQueryplanProfileSchema(
 
 func queryplanProfileParams() map[string]any {
 	return map[string]any{
+		"after_dependency_id":    "proof-dependency",
+		"after_edge":             "proof-edge",
+		"after_name":             "proof-name",
+		"after_version_id":       "proof-version",
 		"allowed_repository_ids": []string{"proof-repository"},
 		"allowed_scope_ids":      []string{"proof-scope"},
+		"ecosystem":              "proof-ecosystem",
+		"entity_id":              "proof-entity",
 		"environment":            "",
 		"from":                   "proof-repository",
 		"from_id":                "proof-repository",
 		"instance_ids":           []string{"proof-instance"},
+		"ids":                    []string{"proof-id"},
 		"language":               "go",
 		"limit":                  10,
 		"name":                   "proof",
 		"offset":                 0,
+		"package":                "proof-package",
+		"package_id":             "proof-package",
 		"q":                      "proof",
 		"query":                  "proof",
 		"repo_id":                "proof-repository",
 		"resource_id":            "proof-resource",
 		"resource_arn":           "arn:proof",
 		"resource_type":          "proof-type",
+		"resource_type_query":    "proof-type",
 		"semantic_filter":        "proof",
+		"service_id":             "proof-service",
 		"source_file":            "proof.go",
+		"source_tool":            "proof-tool",
+		"target_id":              "proof-target",
 		"type":                   "Function",
+		"version_id":             "proof-version",
+		"workload_id":            "proof-workload",
 	}
 }
 
@@ -243,13 +285,34 @@ func profiledPlanOperators(plan neo4jdriver.ProfiledPlan) []string {
 
 func assertProfileExcludesOperators(t *testing.T, entry queryplan.Entry, operators []string) {
 	t.Helper()
-	for _, forbidden := range entry.Plan.ForbiddenOperators {
+	for _, forbidden := range queryplanForbiddenOperators(entry) {
 		for _, operator := range operators {
 			if strings.EqualFold(operator, forbidden) {
 				t.Fatalf("PROFILE contains forbidden operator %s: %v", operator, operators)
 			}
 		}
 	}
+}
+
+func queryplanForbiddenOperators(entry queryplan.Entry) []string {
+	forbidden := []string{"AllNodesScan", "CartesianProduct", "UnboundedExpand"}
+	seen := map[string]struct{}{
+		"AllNodesScan":     {},
+		"CartesianProduct": {},
+		"UnboundedExpand":  {},
+	}
+	for _, operator := range entry.Plan.ForbiddenOperators {
+		operator = strings.TrimSpace(operator)
+		if operator == "" {
+			continue
+		}
+		if _, ok := seen[operator]; ok {
+			continue
+		}
+		seen[operator] = struct{}{}
+		forbidden = append(forbidden, operator)
+	}
+	return forbidden
 }
 
 func assertProfileHasBoundedAnchor(t *testing.T, entry queryplan.Entry, operators []string) {
@@ -267,10 +330,16 @@ func assertProfileHasBoundedAnchor(t *testing.T, entry queryplan.Entry, operator
 
 func queryplanBoundedAnchorOperators(entryID string) []string {
 	switch entryID {
-	case "QP-GRAPH-ENTITY-LIST", "QP-RESOURCE-INVESTIGATION-REPO-PATHS":
+	case "QP-GRAPH-ENTITY-LIST", "QP-RESOURCE-INVESTIGATION-REPO-PATHS",
+		"QP-CODE-REL-STORY-ANCHOR-COLLISION",
+		"QP-RELATIONSHIPS-CATALOG-SOURCE-TOOL-REPOSITORY",
+		"QP-INFRA-RESOURCE-SEARCH", "QP-INFRA-RESOURCE-AGGREGATE":
 		return []string{"NodeByLabelScan"}
-	case "QP-RESOURCE-INVESTIGATION-WORKLOADS":
+	case "QP-RESOURCE-INVESTIGATION-WORKLOADS", "QP-RELATIONSHIPS-EDGES",
+		"QP-RELATIONSHIPS-CATALOG-SOURCE-TOOL-INSTANCE":
 		return []string{"DirectedRelationshipTypeScan"}
+	case "QP-RELATIONSHIPS-CATALOG-COUNT":
+		return []string{"RelationshipCountFromCountStore"}
 	default:
 		return []string{"NodeIndexSeek", "NodeUniqueIndexSeek", "NodeCountFromCountStore"}
 	}

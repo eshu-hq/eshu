@@ -39,16 +39,22 @@ instead of preserving a stale green snapshot.
 
 The gate now parses non-test Go files recursively beneath `internal/query`. It
 records every execution site by file, enclosing function or method, and exact
-call count. Each site must link to hot entry IDs or state a non-hot reason. It
-fails for a new file or symbol, an added or removed call, a stale registration,
-an unknown hot ID, a duplicate, or a missing disposition.
+call count. Each hot site must link to entry IDs and freeze the full execution
+symbol with a source SHA-256; non-hot sites state their bounded disposition. It
+fails for a new file or symbol, an added or removed call, a same-count source
+reroute, a stale registration, an unknown hot ID, a duplicate, or a missing
+disposition. A failing-first regression proves changing a hot callsite digest
+while retaining its single graph call is rejected.
 
 Each handler plan entry contains no Cypher copy. It records exact query and
 builder-source SHA-256 values and binds its query anchor fragment to the
-production builder symbol.
-The query-package gate supplies the actual builder output, rejects a fingerprint
-mismatch, and validates the populated manifest. Changing the production query
-or removing its anchor therefore fails before the live plan test can run.
+production builder symbol. The 22 legacy Cypher entries also contain no query
+copy: each records its declared production owner plus exact source and query
+fingerprints.
+The query-package gates supply direct builder output or capture the query emitted
+by the production execution path, reject a fingerprint mismatch, and validate
+the populated manifests. Changing a production query or removing its anchor
+therefore fails before the live plan test can run.
 
 Seven handler query shapes previously assembled Cypher inline. Their query construction was
 extracted without changing emitted bytes. Production-capture tests compare
@@ -67,6 +73,11 @@ The handler manifest registers 16 plan shapes spanning the repository-anchored
 entity and code reads corrected under #5244 and the import, entity-map, cloud
 resource, call-graph, graph-entity, workload-resolution, and
 resource-investigation handler families.
+The legacy manifest contributes 22 production-bound Cypher shapes across supply
+chain, deployable catalog, service context, relationship story, readiness,
+change-surface, relationship catalog, and infrastructure reads. Its remaining
+entry is a Postgres read-model declaration and is intentionally excluded from
+Cypher PROFILE counts.
 The 18 unsafe global entity/code variants are a separate, immutable family tied
 to #5318. Isolated PROFILE proved `AllNodesScan` for all/scoped entity resolution
 and `DirectedRelationshipTypeScan` for all/scoped code search. #5270 therefore
@@ -87,14 +98,15 @@ Backend: the hermetic script pins Neo4j by image digest
 `sha256:6c162e2432f861f2c4e3da77a6ba478e7f10e2160b870541f85294532bc6ff5f`
 (Neo4j 2026.05.0 in the proof run). It starts a uniquely named isolated
 container on an ephemeral port, applies only schema objects named by the handler
-manifest, waits for indexes, profiles the 16 registered builders plus all 293
-safe production variants, and removes the container through an exit trap.
+and legacy manifests, waits for indexes, profiles the 16 handler entries, 22
+legacy entries, and all 293 safe production variants, and removes the container
+through an exit trap.
 
 ```text
 scripts/verify-query-plan-profile.sh
 ```
 
-Result: 309/309 registered and safe production plan shapes passed in the tagged
+Result: 331/331 registered and safe production plan shapes passed in the tagged
 test. Entity resolution, code search, import reads,
 entity-map traversal, call-graph metrics, and resource-investigation reads used
 `NodeUniqueIndexSeek` or `NodeIndexSeek` where the production predicate is
@@ -111,16 +123,18 @@ the NornicDB side remains enforced through the shared Cypher shape and exact
 schema-name contract. The live test fails rather than treating a missing plan
 as success on backends that claim plan support.
 
-No-Regression Evidence: the focused production-binding and byte-preservation
-tests, `go test ./internal/queryplan -count=1`, the queryplan verification
-script, and the isolated 309-shape PROFILE test above all pass. The hermetic
-PROFILE test package completed in 11.182 seconds; including container start,
-readiness, and cleanup, the proof command completed in 24.98 seconds.
+No-Regression Evidence: the focused handler and legacy production-binding and
+byte-preservation tests, `go test ./internal/queryplan -count=1`, the queryplan
+verification script, and the isolated 331-shape PROFILE test above all pass. The
+exact final regression command passed with the tagged PROFILE package in 12.022
+seconds and the full source-binding, unit, container-start, readiness, PROFILE,
+and cleanup command in 23.872 seconds.
 
 Performance Evidence: the prior gate profiled 14 copied fixture shapes and did
 not prove the bytes executed by production handlers. The finished gate profiles
-16 exact registered builders and 293 hash-frozen safe variants on isolated
-Neo4j 2026.05.0 with an empty proof graph (0 terminal result rows per shape).
+16 exact handler shapes, 22 production-bound legacy shapes, and 293 hash-frozen
+safe variants on isolated Neo4j 2026.05.0 with an empty proof graph (0 terminal
+result rows per shape).
 The workload variants used `NodeIndexSeek`, and no accepted shape used
 `AllNodesScan`, `CartesianProduct`, or an
 unbounded expansion. This is planner-regression evidence, not a retained-corpus

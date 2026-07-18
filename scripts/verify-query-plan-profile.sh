@@ -51,7 +51,7 @@ fi
 	ESHU_NEO4J_PASSWORD="$password" \
 	ESHU_NEO4J_DATABASE=neo4j \
 	go test -tags queryplan_profile_live ./internal/query \
-		-run '^(TestQueryplanBoundedAnchorOperatorPolicyIsClosed|TestHandlerQueryplanProfilesRejectWholeGraphScans)$' \
+		-run '^(TestQueryplanBoundedAnchorOperatorPolicyIsClosed|TestQueryplanForbiddenOperatorPolicyIsClosed|TestProductionQueryplanProfilesRejectWholeGraphScans)$' \
 		-count=1
 )
 

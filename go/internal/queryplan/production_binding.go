@@ -58,7 +58,12 @@ func BindProductionCypher(manifest Manifest, production map[string]string) (Mani
 			continue
 		}
 		if got := ProductionCypherSHA256(cypher); got != entry.CypherSHA256 {
-			violations = append(violations, fmt.Sprintf("%s: production Cypher SHA-256 mismatch", entry.ID))
+			violations = append(violations, fmt.Sprintf(
+				"%s: production Cypher SHA-256 mismatch (manifest %s, production %s)",
+				entry.ID,
+				entry.CypherSHA256,
+				got,
+			))
 			continue
 		}
 		entry.Cypher = cypher

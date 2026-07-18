@@ -25,14 +25,14 @@ type SourceCoverage struct {
 }
 
 // QueryCallsite records the enclosing production symbol, its exact number of
-// graph query calls, and whether the call is a registered hot path.
+// graph query calls, its source digest, and whether it is a registered hot path.
 type QueryCallsite struct {
 	Symbol       string             `yaml:"symbol"`
 	Count        int                `yaml:"count"`
 	EntryIDs     []string           `yaml:"entry_ids,omitempty"`
 	NonHot       *NonHotDisposition `yaml:"non_hot,omitempty"`
 	Reason       string             `yaml:"non_hot_reason,omitempty"`
-	SourceDigest string             `yaml:"-"`
+	SourceDigest string             `yaml:"source_sha256,omitempty"`
 }
 
 // Closed non-hot coverage classes. They are intentionally behavioral rather
@@ -133,6 +133,16 @@ func ValidateSourceCoverage(manifest Manifest, discovered []SourceCoverage) erro
 				key,
 				callsite.Count,
 				expectedCallsite.Count,
+			))
+		}
+		if len(expectedCallsite.EntryIDs) > 0 &&
+			len(expectedCallsite.SourceDigest) == sha256.Size*2 &&
+			callsite.SourceDigest != expectedCallsite.SourceDigest {
+			violations = append(violations, fmt.Sprintf(
+				"%s: hot callsite source_sha256 does not match production symbol (manifest %s, production %s)",
+				key,
+				expectedCallsite.SourceDigest,
+				callsite.SourceDigest,
 			))
 		}
 		if strings.TrimSpace(expectedCallsite.Reason) != "" {
@@ -301,6 +311,12 @@ func flattenCoverage(
 			}
 			if len(callsite.EntryIDs) > 0 && (callsite.NonHot != nil || hasLegacyReason) {
 				violations = append(violations, fmt.Sprintf("%s: cannot declare both entry_ids and a non-hot disposition", key))
+			}
+			if len(callsite.EntryIDs) > 0 && len(callsite.SourceDigest) != sha256.Size*2 {
+				violations = append(violations, fmt.Sprintf(
+					"%s: hot callsite requires a SHA-256 source_sha256",
+					key,
+				))
 			}
 			if callsite.NonHot != nil && hasLegacyReason {
 				violations = append(violations, fmt.Sprintf("%s: cannot declare both typed and legacy non-hot dispositions", key))

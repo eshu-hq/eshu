@@ -75,20 +75,25 @@ Every callsite must link to registered hot entries or carry an explicit non-hot
 disposition. Typed non-hot dispositions freeze the reviewed source symbol and
 declare machine-checked key/result bounds. Grandfathered prose dispositions are
 immutable source-digest records: new or changed source must use the typed form.
-Handler entries contain no copied Cypher: they bind exact query and builder
-source SHA-256 values plus an anchor `query_fragment` to the production builder. The regression
-script runs the query-package binding test, which fills the manifest with the
-actual builder bytes before applying shape validation. New or stale execution
-sites, missing dispositions, unknown entry links, source-fragment or fingerprint
-drift, unbounded variable-length traversals, unlabeled anchors, unordered
-pagination, missing schema evidence, and forbidden plan signatures fail the
-gate. The same script provisions a pinned, isolated Neo4j container and runs the
-build-tagged live proof in
-`go/internal/query/queryplan_profile_live_test.go`. That proof profiles every
-handler entry through Neo4j `PROFILE` using those same production builder bytes,
-plus every hash-frozen safe production variant, and rejects whole-graph scans. A label or
-relationship-type scan is accepted only by the closed code-level operator
-policy; manifest data cannot add an exception. Static validation
+Hot dispositions also freeze the full graph-executing production symbol, so
+retaining the same `Run` count while rerouting to another query fails the gate.
+Handler and legacy entries contain no copied Cypher. Handler entries bind exact
+query and builder-source SHA-256 values plus an anchor `query_fragment` to the
+production builder; legacy entries bind exact query fingerprints to their
+declared production builder or execution-path owners and freeze those owners by
+source SHA-256. The regression script runs
+both query-package binding tests, which fill the manifests with production bytes
+before applying shape validation. New or stale execution sites, missing
+dispositions, unknown entry links, source-fragment or fingerprint drift,
+unbounded variable-length traversals, unlabeled anchors, unordered pagination,
+missing schema evidence, and forbidden plan signatures fail the gate. The same
+script provisions a pinned, isolated Neo4j container and runs the build-tagged
+live proof in `go/internal/query/queryplan_profile_live_test.go`. That proof
+profiles 16 handler entries and 22 legacy entries through Neo4j `PROFILE` using
+production-owned bytes, plus 293 hash-frozen safe production variants: 331
+shapes in total. A label or relationship-type scan is accepted only by the
+closed code-level operator policy; manifest data cannot add an exception.
+Static validation
 does not replace live backend `EXPLAIN`,
 `PROFILE`, or before/after runtime measurements for production Cypher changes.
 
