@@ -138,7 +138,7 @@ func (w *EC2BlockDeviceKMSPostureNodeWriter) RetractEC2BlockDeviceKMSPostureNode
 		},
 	}
 
-	return w.dispatch(ctx, []Statement{stmt})
+	return w.dispatchRetract(ctx, []Statement{stmt})
 }
 
 func (w *EC2BlockDeviceKMSPostureNodeWriter) dispatch(ctx context.Context, stmts []Statement) error {
@@ -149,6 +149,25 @@ func (w *EC2BlockDeviceKMSPostureNodeWriter) dispatch(ctx context.Context, stmts
 		if err := ge.ExecuteGroup(ctx, stmts); err != nil {
 			return WrapRetryableNeo4jError(err)
 		}
+		return nil
+	}
+	for _, stmt := range stmts {
+		if err := w.executor.Execute(ctx, stmt); err != nil {
+			return WrapRetryableNeo4jError(err)
+		}
+	}
+	return nil
+}
+
+// dispatchRetract runs retract statements sequentially through Execute, each in
+// its own auto-commit transaction — never ExecuteGroup. On NornicDB v1.1.11 a
+// DELETE inside a managed transaction can under-apply even as a single statement
+// (#4367/#5128/#5146/#5152): the grouped DELETE leaves the node in place while
+// the same statement auto-committed deletes it. RetractEC2BlockDeviceKMSPostureNodes
+// routes through this so the KMS-posture node retract is never batched with a
+// sibling write via ExecuteGroup.
+func (w *EC2BlockDeviceKMSPostureNodeWriter) dispatchRetract(ctx context.Context, stmts []Statement) error {
+	if len(stmts) == 0 {
 		return nil
 	}
 	for _, stmt := range stmts {

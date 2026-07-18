@@ -176,7 +176,7 @@ func (w *AzureCloudResourceEdgeWriter) RetractCloudResourceEdges(
 			),
 		},
 	}
-	return w.dispatch(ctx, []Statement{stmt})
+	return w.dispatchRetract(ctx, []Statement{stmt})
 }
 
 // RetractCloudResourceEdgesByUIDs removes Azure relationship edges owned by
