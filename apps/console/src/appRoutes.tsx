@@ -46,7 +46,6 @@ import { StatusPage } from "./pages/StatusPage";
 import { SurfaceInventoryPage } from "./pages/SurfaceInventoryPage";
 import { TopologyPage } from "./pages/TopologyPage";
 import { VulnDetailPage } from "./pages/VulnDetailPage";
-import { VulnerabilitiesPage } from "./pages/VulnerabilitiesPage";
 import type { RepositoryCatalogState } from "./repositoryCatalogLifecycle";
 
 // WorkspacePage is code-split via React.lazy (issue #3331), so this route has an
@@ -73,6 +72,15 @@ const GuidedQuestionsPage = lazy(() =>
 
 const CodeGraphPage = lazy(() =>
   import("./pages/CodeGraphPage").then((module) => ({ default: module.CodeGraphPage })),
+);
+
+// VulnerabilitiesPage owns the advisory catalog, its bounded filter client,
+// and the reachable-vulnerability view. Keep that route-specific surface out
+// of the eager console shell while preserving an honest loading state.
+const VulnerabilitiesPage = lazy(() =>
+  import("./pages/VulnerabilitiesPage").then((module) => ({
+    default: module.VulnerabilitiesPage,
+  })),
 );
 
 export interface AppRoutesProps {
@@ -290,7 +298,18 @@ export function AppRoutes({
       />
       <Route
         path={APP_ROUTE_PATHS.vulnerabilities}
-        element={<VulnerabilitiesPage model={model} client={client} />}
+        element={
+          <Suspense
+            fallback={
+              <section className="page narrow" aria-live="polite">
+                <h1>Loading vulnerabilities</h1>
+                <p>Loading vulnerability intelligence.</p>
+              </section>
+            }
+          >
+            <VulnerabilitiesPage model={model} client={client} />
+          </Suspense>
+        }
       />
       <Route
         path={APP_ROUTE_PATHS.vulnerabilityDetail}
