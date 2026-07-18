@@ -97,6 +97,23 @@ var allInfraLabels = []string{
 	"HelmValues",
 }
 
+// infraLabelSet indexes allInfraLabels for O(1) membership tests.
+var infraLabelSet = func() map[string]struct{} {
+	set := make(map[string]struct{}, len(allInfraLabels))
+	for _, label := range allInfraLabels {
+		set[label] = struct{}{}
+	}
+	return set
+}()
+
+// infraLabelAllowed reports whether label is a known infrastructure node label.
+// It gates any label interpolated into a Cypher pattern so the label text is
+// never attacker-influenced.
+func infraLabelAllowed(label string) bool {
+	_, ok := infraLabelSet[label]
+	return ok
+}
+
 // infraSearchReturnColumns is the single source of truth for
 // searchResources's result columns. Both the per-label CALL branch's inner
 // RETURN and the outer RETURN's column list are generated from this slice
