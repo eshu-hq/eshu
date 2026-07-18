@@ -42,6 +42,25 @@ path-parameterized budget loader) live in `cost_scenario_helpers_test.go`. See
 README.md for the full instrument/budget table before adding another
 scenario.
 
+The C-14 closeout added 15 more scenarios (5 graph writers —
+`azure_resource_materialization`, `gcp_resource_materialization`,
+`kubernetes_correlation`, `observability_coverage_correlation`,
+`incident_routing_materialization`; 10 Postgres writers —
+`container_image_identity`, `ci_cd_run_correlation`,
+`sbom_attestation_attachment`, `cloud_asset_resolution`,
+`service_catalog_correlation`, `security_alert_reconciliation`,
+`supply_chain_impact`, `incident_repository_correlation`,
+`package_source_correlation`, `reducer_derived_findings` via
+`multi_cloud_runtime_drift`), taking the C-7 dashboard to 100%. The Postgres
+writers read `eshu_dp_postgres_query_duration_seconds` observation count via
+`postgres.InstrumentedDB` over a counting fake `ExecQueryer`; helpers for that
+path (`collectAttributedHistogramCount`, `countingExecQueryer`,
+`newInstrumentedReducerDB`) live in `postgres_cost_helpers_test.go`. Per-row
+Postgres writers commit an exact-equality budget encoding known per-row write
+amplification pending a batched-insert migration tracked as a follow-on issue.
+`projection:config_state_drift` is exempted (counter-only terraform domain, no
+reducer write to bound) in `specs/replay-depth-requirements.v1.yaml`.
+
 ## Non-negotiable invariants
 
 - The PRIMARY assertion MUST read a real `eshu_dp_*` instrument off the
