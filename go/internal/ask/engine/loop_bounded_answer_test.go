@@ -247,6 +247,66 @@ func TestAsk_ProgressingMultiFacetFlowNotTruncated(t *testing.T) {
 	}
 }
 
+// TestAsk_SingleNoProgressTurnDoesNotTruncate is the failing-first guard for the
+// two-consecutive-no-progress-turns rule. The scripted flow makes progress
+// (tool A), then spends one no-progress turn (a redundant A call), then makes
+// progress again (tool B), then finishes. With the required streak at 1 this
+// truncates after the single no-progress turn and never reaches B; at 2 it
+// survives, gathers B, and reaches the model's final turn. Reverting
+// sufficiencyNoProgressTurns from 2 to 1 must turn this test red.
+func TestAsk_SingleNoProgressTurnDoesNotTruncate(t *testing.T) {
+	t.Parallel()
+
+	tc := func(id, name string, args map[string]any) provider.ToolCall {
+		return provider.ToolCall{ID: id, Name: name, Arguments: args}
+	}
+	turns := []provider.Completion{
+		{ToolCalls: []provider.ToolCall{tc("a", "get_service_story", map[string]any{"service": "payments", "limit": 1})}},
+		// One no-progress turn: a redundant call to the already-seen tool.
+		{ToolCalls: []provider.ToolCall{tc("a2", "get_service_story", map[string]any{"service": "payments", "limit": 1})}},
+		// Progress resumes with a distinct tool that must still be reached.
+		{ToolCalls: []provider.ToolCall{tc("b", "list_deployments", map[string]any{"service": "payments", "limit": 5})}},
+		{Text: "here is the full payments overview"},
+	}
+	adapter := &scriptedAdapter{turns: turns, errOnIdx: -1}
+
+	runner := RunnerFunc(func(_ context.Context, name string, _ map[string]any) (RunResult, error) {
+		return RunResult{Envelope: &query.ResponseEnvelope{
+			Truth: &query.TruthEnvelope{Level: query.TruthLevelExact, Basis: query.TruthBasisAuthoritativeGraph},
+			Data:  map[string]any{"facet": name, "detail": "payments " + name},
+		}}, nil
+	})
+
+	eng, err := New(adapter, runner, nil, DefaultOptions())
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	ans, err := eng.Ask(context.Background(), "give me a full operational overview of the payments service")
+	if err != nil {
+		t.Fatalf("Ask: %v", err)
+	}
+
+	if ans.TerminationReason != terminationFinalTurn {
+		t.Errorf("TerminationReason = %q, want %q (a single no-progress turn must not stop the loop)",
+			ans.TerminationReason, terminationFinalTurn)
+	}
+	if adapter.calls != len(turns) {
+		t.Errorf("iterations = %d, want %d (loop must survive one no-progress turn)", adapter.calls, len(turns))
+	}
+	if !hasPacketForTool(ans.Packets, "list_deployments") {
+		t.Errorf("the distinct tool after the no-progress turn was never reached; packets=%+v", ans.Packets)
+	}
+}
+
+func hasPacketForTool(packets []query.AnswerPacket, tool string) bool {
+	for _, p := range packets {
+		if p.PrimaryTool == tool {
+			return true
+		}
+	}
+	return false
+}
+
 func containsString(xs []string, want string) bool {
 	for _, x := range xs {
 		if x == want {
