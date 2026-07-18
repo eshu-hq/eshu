@@ -80,14 +80,14 @@ func (cr *ContentReader) repositoryDeploymentEvidence(ctx context.Context, repoI
 
 const repositoryDeploymentEvidenceReadModelSQL = `
 WITH scoped_relationships AS (
-	SELECT 'outgoing' AS direction, r.*, g.scope AS generation_scope_id
+	SELECT 'outgoing' AS direction, r.*, g.scope AS generation_source_scope_id
 	FROM resolved_relationships AS r
 	JOIN relationship_generations AS g
 	  ON g.generation_id = r.generation_id
 	WHERE g.status = 'active'
 	  AND r.source_repo_id = $1
 	UNION ALL
-	SELECT 'incoming' AS direction, r.*, g.scope AS generation_scope_id
+	SELECT 'incoming' AS direction, r.*, g.scope AS generation_source_scope_id
 	FROM resolved_relationships AS r
 	JOIN relationship_generations AS g
 	  ON g.generation_id = r.generation_id
@@ -115,8 +115,11 @@ LEFT JOIN LATERAL (
 	       scope_id
 	FROM ingestion_scopes
 	WHERE scope_kind = 'repository'
-	  AND (scope_id = r.generation_scope_id OR scope_id = r.source_repo_id OR source_key = r.source_repo_id OR payload->>'repo_id' = r.source_repo_id OR payload->>'id' = r.source_repo_id)
-	ORDER BY CASE WHEN scope_id = r.generation_scope_id THEN 0 ELSE 1 END, scope_id
+	  -- A relationship generation is owned by its source observation. Its scope
+	  -- must not participate in target identity selection, which would alias the
+	  -- target repository back to the source when their identifiers differ.
+	  AND (scope_id = r.generation_source_scope_id OR scope_id = r.source_repo_id OR source_key = r.source_repo_id OR payload->>'repo_id' = r.source_repo_id OR payload->>'id' = r.source_repo_id)
+	ORDER BY CASE WHEN scope_id = r.generation_source_scope_id THEN 0 ELSE 1 END, scope_id
 	LIMIT 1
 ) AS source_scope ON true
 LEFT JOIN LATERAL (

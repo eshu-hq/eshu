@@ -254,14 +254,17 @@ func TestBuildGraphDeploymentEvidencePreservesReadModelRepositoryIdentity(t *tes
 	}
 }
 
-func TestRepositoryDeploymentEvidenceReadModelUsesRelationshipGenerationScope(t *testing.T) {
+func TestRepositoryDeploymentEvidenceReadModelUsesRelationshipGenerationSourceScope(t *testing.T) {
 	for _, want := range []string{
-		"g.scope AS generation_scope_id",
-		"scope_id = r.generation_scope_id",
+		"g.scope AS generation_source_scope_id",
+		"scope_id = r.generation_source_scope_id",
 	} {
 		if !strings.Contains(repositoryDeploymentEvidenceReadModelSQL, want) {
 			t.Fatalf("repositoryDeploymentEvidenceReadModelSQL missing %q", want)
 		}
+	}
+	if strings.Count(repositoryDeploymentEvidenceReadModelSQL, "r.generation_source_scope_id") != 2 {
+		t.Fatal("relationship generation source scope must only participate in source repository identity resolution")
 	}
 }
 

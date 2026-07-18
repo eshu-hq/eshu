@@ -3310,16 +3310,50 @@
         }
       },
       "derive_visualization_packet": {
-        "description": "MCP tool coverage shape for derive_visualization_packet; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "description": "MCP tool coverage shape for derive_visualization_packet; asserts reconciled Service Story node identity and provenance fields live through the MCP tool layer.",
         "required_response_fields": [
           "visualization_packet"
+        ],
+        "required_json_paths": [
+          "visualization_packet.nodes[].role",
+          "visualization_packet.nodes[].canonical_key",
+          "visualization_packet.nodes[].scope_key",
+          "visualization_packet.nodes[].evidence_handles[]"
         ],
         "minimum_results": 0,
         "arguments": {
           "view": "service_story",
-          "source_tool": "get_service_story",
-          "source_arguments": {
-            "workload_id": "workload:api-svc"
+          "source_response": {
+            "service_identity": {
+              "service_id": "workload:api-svc",
+              "service_name": "api-svc",
+              "repo_id": "repository:api-svc"
+            },
+            "evidence_graph": {
+              "nodes": [
+                {
+                  "id": "repository:argocd-observation-a",
+                  "repo_id": "repository:argocd-observation-a",
+                  "label": "iac-eks-argocd",
+                  "kind": "repository",
+                  "category": "deployment",
+                  "role": "deployment_configuration",
+                  "canonical_key": "repository:r_argocd",
+                  "scope_key": "scope:s_a"
+                },
+                {
+                  "id": "repository:argocd-observation-b",
+                  "repo_id": "repository:argocd-observation-b",
+                  "label": "iac-eks-argocd",
+                  "kind": "repository",
+                  "category": "deployment",
+                  "role": "deployment_configuration",
+                  "canonical_key": "repository:r_argocd",
+                  "scope_key": "scope:s_b"
+                }
+              ],
+              "edges": []
+            }
           }
         }
       },
