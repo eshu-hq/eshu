@@ -8,25 +8,54 @@
 // available.
 
 import type {
-  ConsoleModel, ConsoleSnapshot, RuntimeSummary, SeriesBundle, SectionProvenance
+  ConsoleModel,
+  ConsoleSnapshot,
+  RuntimeSummary,
+  SeriesBundle,
+  SectionProvenance,
 } from "./types";
 
 export const emptySeries: SeriesBundle = {
-  ingestRate: [], queueDepth: [], deadLetters: [],
-  graphNodes: [], graphEdges: [], queryP50: [], queryP95: [], queryP99: [],
-  newVulns: [], metricsConfigured: true
+  ingestRate: [],
+  queueDepth: [],
+  deadLetters: [],
+  graphNodes: [],
+  graphEdges: [],
+  queryP50: [],
+  queryP95: [],
+  queryP99: [],
+  newVulns: [],
+  metricsConfigured: true,
 };
 
 const SNAPSHOT_SECTIONS = [
-  "runtime", "services", "languages", "ingesters", "findings", "vulnerabilities",
-  "sbom", "dependencies", "images", "iacResources", "advisories", "collectorReadiness",
-  "argoCDApps"
+  "runtime",
+  "services",
+  "languages",
+  "ingesters",
+  "findings",
+  "vulnerabilities",
+  "sbom",
+  "dependencies",
+  "images",
+  "iacResources",
+  "advisories",
+  "collectorReadiness",
+  "argoCDApps",
 ] as const;
 
 function emptyRuntime(): RuntimeSummary {
   return {
-    indexStatus: "unavailable", repositories: 0, workloads: 0, platforms: 0, instances: 0,
-    queueOutstanding: 0, inFlight: 0, deadLetters: 0, succeeded: 0, profile: "unknown"
+    indexStatus: "unavailable",
+    repositories: 0,
+    workloads: 0,
+    platforms: 0,
+    instances: 0,
+    queueOutstanding: 0,
+    inFlight: 0,
+    deadLetters: 0,
+    succeeded: 0,
+    profile: "unknown",
   };
 }
 
@@ -38,16 +67,23 @@ export function emptySnapshot(provenance: SectionProvenance | null = null): Cons
   if (provenance) for (const section of SNAPSHOT_SECTIONS) prov[section] = provenance;
   return {
     runtime: emptyRuntime(),
-    services: [], languages: [], ingesters: [], findings: [], vulnerabilities: [],
+    services: [],
+    languages: [],
+    ingesters: [],
+    findings: [],
+    vulnerabilities: [],
     sbom: null,
     dependencies: [],
     images: [],
     iacResources: [],
     advisories: [],
+    advisoryCatalogSummary: null,
+    advisoryCatalogNextCursor: null,
     collectorReadiness: [],
     argoCDApps: [],
     series: emptySeries,
-    truth: {}, provenance: prov
+    truth: {},
+    provenance: prov,
   };
 }
 

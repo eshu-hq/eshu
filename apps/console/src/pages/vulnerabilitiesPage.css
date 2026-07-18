@@ -1,0 +1,52 @@
+.vulnerability-view-status {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0 0 var(--gap);
+}
+
+.vulnerability-view-status-card {
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--teal);
+  border-radius: 8px;
+  background: var(--bg-raised);
+}
+
+.vulnerability-view-status-card[data-state="empty"] {
+  border-left-color: var(--med);
+}
+
+.vulnerability-view-status-card[data-state="loading"] {
+  border-left-color: var(--muted);
+}
+
+.vulnerability-view-status-card[data-state="unavailable"] {
+  border-left-color: var(--crit);
+}
+
+.vulnerability-view-status-card > span {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.vulnerability-view-status-card > strong {
+  color: var(--bone);
+  font-size: 1rem;
+}
+
+.vulnerability-view-status-card > small {
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+@media (max-width: 700px) {
+  .vulnerability-view-status {
+    grid-template-columns: 1fr;
+  }
+}

@@ -20,7 +20,7 @@ function modelWithVulnerability(): ConsoleModel {
       queryP95: [],
       queryP99: [],
       newVulns: [],
-      metricsConfigured: true
+      metricsConfigured: true,
     },
     runtime: {
       indexStatus: "healthy",
@@ -32,7 +32,7 @@ function modelWithVulnerability(): ConsoleModel {
       inFlight: 0,
       deadLetters: 0,
       succeeded: 0,
-      profile: "live"
+      profile: "live",
     },
     services: [],
     languages: [],
@@ -47,14 +47,16 @@ function modelWithVulnerability(): ConsoleModel {
         cvss: 8.1,
         kev: false,
         fixedVersion: "7.0.3",
-        services: ["checkout-api"]
-      }
+        services: ["checkout-api"],
+      },
     ],
     sbom: null,
     dependencies: [],
     images: [],
     iacResources: [],
     advisories: [],
+    advisoryCatalogSummary: { count: 0, limit: 50, truncated: false },
+    advisoryCatalogNextCursor: null,
     argoCDApps: [],
     provenance: {
       services: "live",
@@ -67,16 +69,16 @@ function modelWithVulnerability(): ConsoleModel {
       images: "empty",
       iacResources: "empty",
       advisories: "empty",
-      collectorReadiness: "empty"
+      collectorReadiness: "empty",
     },
-    truth: {}
+    truth: {},
   };
 }
 
 describe("VulnDetailPage", () => {
   it("shows an unavailable state when the advisory and impact rows are empty", async () => {
     const client = {
-      get: async () => ({ data: null, truth: null, error: null })
+      get: async () => ({ data: null, truth: null, error: null }),
     } as unknown as EshuApiClient;
 
     render(
@@ -87,7 +89,7 @@ describe("VulnDetailPage", () => {
             path="/vulnerabilities/:id"
           />
         </Routes>
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     await waitFor(() => {
@@ -98,7 +100,7 @@ describe("VulnDetailPage", () => {
 
   it("falls back to source-backed impact facts when extended advisory evidence is empty", async () => {
     const client = {
-      get: async () => ({ data: null, truth: null, error: null })
+      get: async () => ({ data: null, truth: null, error: null }),
     } as unknown as EshuApiClient;
 
     render(
@@ -109,7 +111,7 @@ describe("VulnDetailPage", () => {
             path="/vulnerabilities/:id"
           />
         </Routes>
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     await waitFor(() => {
@@ -132,7 +134,11 @@ describe("VulnDetailPage", () => {
         if (path.startsWith("/api/v0/investigations/supply-chain/impact/packet")) {
           return {
             data: {
-              answer: { summary: "Advisory impact packet is supported.", supported: true, truth_class: "exact" },
+              answer: {
+                summary: "Advisory impact packet is supported.",
+                supported: true,
+                truth_class: "exact",
+              },
               bounds: { max_source_facts: 200, truncated: false },
               graph_answers: [{ id: "graph:supply:1", present: true, relation: "AFFECTED_BY" }],
               identity: { family: "supply_chain_impact", scope: { cve_id: "CVE-2025-13465" } },
@@ -140,22 +146,24 @@ describe("VulnDetailPage", () => {
               packet_id: "investigation-evidence-packet:supply-demo",
               reducer_decisions: [{ id: "decision:supply:1", state: "admitted" }],
               redaction: { profile: "share_safe_v2" },
-              reproduce: [{ kind: "http", route: "/api/v0/investigations/supply-chain/impact/packet" }],
+              reproduce: [
+                { kind: "http", route: "/api/v0/investigations/supply-chain/impact/packet" },
+              ],
               schema: "investigation_evidence_packet.v2",
               source_facts: [{ evidence_family: "supply_chain", fact_id: "fact:supply:1" }],
-              validation: { valid: true }
+              validation: { valid: true },
             },
             error: null,
             truth: {
               capability: "supply_chain.impact_explanation.read",
               freshness: { state: "fresh" },
               level: "exact",
-              profile: "production"
-            }
+              profile: "production",
+            },
           };
         }
         throw new Error(`unexpected path ${path}`);
-      }
+      },
     } as unknown as EshuApiClient;
 
     render(
@@ -166,7 +174,7 @@ describe("VulnDetailPage", () => {
             path="/vulnerabilities/:id"
           />
         </Routes>
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     await waitFor(() => {
@@ -174,7 +182,7 @@ describe("VulnDetailPage", () => {
     });
     expect(screen.getByText("fact:supply:1")).toBeInTheDocument();
     expect(calls).toContain(
-      "/api/v0/investigations/supply-chain/impact/packet?cve_id=CVE-2025-13465&package_id=serialize-javascript&max_source_facts=50"
+      "/api/v0/investigations/supply-chain/impact/packet?cve_id=CVE-2025-13465&package_id=serialize-javascript&max_source_facts=50",
     );
   });
 });

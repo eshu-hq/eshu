@@ -23,7 +23,17 @@ export interface AdvisoryCatalogCursor {
 export interface AdvisoryCatalogPageResult {
   readonly rows: readonly AdvisoryRow[];
   readonly nextCursor: AdvisoryCatalogCursor | null;
+  readonly summary: AdvisoryCatalogSummary;
   readonly truth: EshuTruth | undefined;
+}
+
+// AdvisoryCatalogSummary preserves the authoritative bounded-page metadata.
+// count is the number of rows in this page, never an assumed corpus total;
+// truncated tells the UI when it must render the count with an open-ended cue.
+export interface AdvisoryCatalogSummary {
+  readonly count: number;
+  readonly limit: number;
+  readonly truncated: boolean;
 }
 
 // AdvisoryCatalogQuery bounds one catalog page request.
@@ -38,6 +48,8 @@ export interface AdvisoryCatalogQuery {
 
 interface AdvisoryCatalogResponse {
   readonly advisories?: readonly Record<string, unknown>[];
+  readonly count?: number;
+  readonly limit?: number;
   readonly truncated?: boolean;
   readonly next_cursor?: { readonly after_cvss?: number; readonly after_advisory_key?: string };
 }
@@ -60,7 +72,7 @@ export function mapAdvisoryRow(raw: Record<string, unknown>): AdvisoryRow {
     kev: Boolean(raw.kev),
     ecosystems: Array.isArray(raw.ecosystems) ? (raw.ecosystems as string[]) : [],
     packageIds: Array.isArray(raw.package_ids) ? (raw.package_ids as string[]) : [],
-    publishedAt: stringField(raw.published_at)
+    publishedAt: stringField(raw.published_at),
   };
 }
 
@@ -78,7 +90,7 @@ function stringField(value: unknown): string {
 // GET /api/v0/supply-chain/advisories.
 export async function fetchAdvisoryCatalogPage(
   client: EshuApiClient,
-  query: AdvisoryCatalogQuery
+  query: AdvisoryCatalogQuery,
 ): Promise<AdvisoryCatalogPageResult> {
   const params = new URLSearchParams();
   params.set("limit", String(query.limit));
@@ -90,12 +102,50 @@ export async function fetchAdvisoryCatalogPage(
     params.set("after_cvss", String(query.cursor.after_cvss));
     params.set("after_advisory_key", query.cursor.after_advisory_key);
   }
-  const env = await client.get<AdvisoryCatalogResponse>(`/api/v0/supply-chain/advisories?${params.toString()}`);
+  const env = await client.get<AdvisoryCatalogResponse>(
+    `/api/v0/supply-chain/advisories?${params.toString()}`,
+  );
   if (env.error) throw new EshuEnvelopeError(env.error);
   const data = env.data ?? {};
   const rows = (data.advisories ?? []).map(mapAdvisoryRow);
-  const next = data.truncated && data.next_cursor && data.next_cursor.after_advisory_key
-    ? { after_cvss: Number(data.next_cursor.after_cvss ?? 0), after_advisory_key: String(data.next_cursor.after_advisory_key) }
-    : null;
-  return { rows, nextCursor: next, truth: env.truth ?? undefined };
+  const summary = catalogSummary(data, rows.length);
+  const next = catalogCursor(data, summary.truncated);
+  return { rows, nextCursor: next, summary, truth: env.truth ?? undefined };
+}
+
+function catalogSummary(data: AdvisoryCatalogResponse, rowCount: number): AdvisoryCatalogSummary {
+  const count = data.count;
+  const limit = data.limit;
+  if (typeof count !== "number" || !Number.isInteger(count) || count < 0 || count !== rowCount) {
+    throw new Error(
+      `catalog page count must match returned rows; got ${String(count)} for ${rowCount} rows`,
+    );
+  }
+  if (typeof limit !== "number" || !Number.isInteger(limit) || limit <= 0 || count > limit) {
+    throw new Error(
+      `catalog page limit must bound count; got limit ${String(limit)} and count ${count}`,
+    );
+  }
+  if (typeof data.truncated !== "boolean") {
+    throw new Error("catalog page truncated flag is required");
+  }
+  return { count, limit, truncated: data.truncated };
+}
+
+function catalogCursor(
+  data: AdvisoryCatalogResponse,
+  truncated: boolean,
+): AdvisoryCatalogCursor | null {
+  if (!truncated) return null;
+  const key = data.next_cursor?.after_advisory_key;
+  const cvss = data.next_cursor?.after_cvss;
+  if (
+    typeof key !== "string" ||
+    key.length === 0 ||
+    typeof cvss !== "number" ||
+    !Number.isFinite(cvss)
+  ) {
+    throw new Error("truncated catalog page requires a complete next cursor");
+  }
+  return { after_cvss: cvss, after_advisory_key: key };
 }
