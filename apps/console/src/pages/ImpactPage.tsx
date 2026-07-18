@@ -293,6 +293,9 @@ export function ImpactPage({
         <ImpactSectionPanel section={review?.deploymentTrace ?? null} title="Deployment chain">
           {review?.deploymentTrace.status === "ready" ? (
             <DeploymentTraceSummary
+              canInspectEntity={(entityId) =>
+                graph.nodes.some((candidate) => candidate.id === entityId)
+              }
               onInspectEntity={(entityId) => {
                 const node = graph.nodes.find((candidate) => candidate.id === entityId);
                 if (node !== undefined) setSelectedNode(node);

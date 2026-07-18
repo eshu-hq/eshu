@@ -80,11 +80,54 @@ describe("ImpactPage deployment topology", () => {
     fireEvent.click(screen.getByRole("button", { name: "Inspect lead-events" }));
     expect(within(selectedPanel as HTMLElement).getByText("cloud:queue")).toBeInTheDocument();
   });
+
+  it("labels evidence pivots that fall outside the bounded graph", async () => {
+    const cloudResources = Array.from({ length: 70 }, (_, index) => ({
+      id: `cloud:${String(index).padStart(2, "0")}`,
+      name: `cloud-${String(index).padStart(2, "0")}`,
+      resource_type: "aws_sqs_queue",
+    }));
+    const client = {
+      post: async (path: string) => {
+        if (path === "/api/v0/impact/change-surface/investigate") {
+          return { data: zeroChangeSurface(), error: null, truth: truth("derived", "fresh") };
+        }
+        if (path === "/api/v0/impact/trace-deployment-chain") {
+          return {
+            data: deploymentTrace(cloudResources),
+            error: null,
+            truth: truth("exact", "fresh"),
+          };
+        }
+        throw new Error(`unexpected path ${path}`);
+      },
+    } as unknown as EshuApiClient;
+
+    render(
+      <MemoryRouter initialEntries={["/impact?kind=service&target=catalog-api"]}>
+        <ImpactPage client={client} model={modelFromSnapshot(emptySnapshot("live"))} />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("Deployment topology")).toBeInTheDocument();
+    const omittedRow = screen.getByText("cloud-69").closest("article");
+    expect(omittedRow).not.toBeNull();
+    expect(
+      within(omittedRow as HTMLElement).queryByRole("button", { name: "Inspect cloud-69" }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(omittedRow as HTMLElement).getByText("Outside bounded graph"),
+    ).toBeInTheDocument();
+  });
 });
 
-function deploymentTrace(): Record<string, unknown> {
+function deploymentTrace(
+  cloudResources: readonly Record<string, unknown>[] = [
+    { id: "cloud:queue", name: "lead-events", resource_type: "aws_sqs_queue" },
+  ],
+): Record<string, unknown> {
   return {
-    cloud_resources: [{ id: "cloud:queue", name: "lead-events", resource_type: "aws_sqs_queue" }],
+    cloud_resources: cloudResources,
     deployment_sources: [
       {
         confidence: 0.98,

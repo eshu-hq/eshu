@@ -158,6 +158,31 @@ describe("impact deployment graph composition", () => {
     expect(review.graphPresentation.truthBasis).toBeUndefined();
   });
 
+  it("does not select deployment topology for an ambiguous service target", async () => {
+    const review = await loadReview(
+      deploymentTracePayload({
+        instances: [
+          {
+            environment: "prod",
+            instance_id: "instance:catalog:prod",
+            platforms: [
+              { platform_id: "platform:ecs:prod", platform_kind: "ecs", platform_name: "prod" },
+            ],
+          },
+        ],
+      }),
+      "fresh",
+      "exact",
+      ambiguousChangeSurface(),
+    );
+
+    expect(review.graphPresentation.mode).toBe("change_surface");
+    expect(review.graphPresentation.limitations).toContain(
+      "deployment topology not selected because the service target is ambiguous",
+    );
+    expect(review.graph.nodes.some((node) => node.id === "platform:ecs:prod")).toBe(false);
+  });
+
   it("keeps authorization failures visible without leaking or fabricating topology", async () => {
     const client = new EshuApiClient({
       baseUrl: "http://localhost:8080",
@@ -190,6 +215,7 @@ async function loadReview(
   trace: Record<string, unknown>,
   freshness = "fresh",
   traceLevel: string | null = "exact",
+  changeSurface: Record<string, unknown> = zeroChangeSurface(),
 ) {
   const client = new EshuApiClient({
     baseUrl: "http://localhost:8080",
@@ -197,7 +223,7 @@ async function loadReview(
       const path = new URL(new Request(input).url).pathname;
       if (path === "/api/v0/impact/change-surface/investigate") {
         return Response.json({
-          data: zeroChangeSurface(),
+          data: changeSurface,
           error: null,
           truth: truthEnvelope("derived", freshness),
         });
@@ -213,6 +239,22 @@ async function loadReview(
     },
   });
   return loadImpactReview(client, { target: "catalog-api", targetKind: "service" });
+}
+
+function ambiguousChangeSurface(): Record<string, unknown> {
+  return {
+    ...zeroChangeSurface(),
+    target_resolution: {
+      candidates: [
+        { id: "workload:catalog-api-a", labels: ["Workload"], name: "catalog-api-a" },
+        { id: "workload:catalog-api-b", labels: ["Workload"], name: "catalog-api-b" },
+      ],
+      input: "catalog-api",
+      status: "ambiguous",
+      target_type: "service",
+      truncated: false,
+    },
+  };
 }
 
 function deploymentTracePayload(overrides: Record<string, unknown> = {}): Record<string, unknown> {

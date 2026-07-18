@@ -54,9 +54,11 @@ export function ImpactGraphProvenance({
 }
 
 export function DeploymentTraceSummary({
+  canInspectEntity,
   onInspectEntity,
   trace,
 }: {
+  readonly canInspectEntity: (entityId: string) => boolean;
   readonly onInspectEntity: (entityId: string) => void;
   readonly trace: DeploymentTraceResult;
 }): React.JSX.Element {
@@ -129,24 +131,20 @@ export function DeploymentTraceSummary({
                 </span>
                 <div className="impact-pivots">
                   {instance.environment ? (
-                    <button
-                      aria-label={`Inspect ${instance.environment} environment`}
-                      className="btn-ghost"
-                      onClick={() => onInspectEntity(`environment:${instance.environment}`)}
-                      type="button"
-                    >
-                      Inspect environment
-                    </button>
+                    <EntityPivot
+                      canInspectEntity={canInspectEntity}
+                      entityId={`environment:${instance.environment}`}
+                      label={`Inspect ${instance.environment} environment`}
+                      onInspectEntity={onInspectEntity}
+                    />
                   ) : null}
                   {instance.id ? (
-                    <button
-                      aria-label={`Inspect ${instance.id}`}
-                      className="btn-ghost"
-                      onClick={() => onInspectEntity(instance.id)}
-                      type="button"
-                    >
-                      Inspect instance
-                    </button>
+                    <EntityPivot
+                      canInspectEntity={canInspectEntity}
+                      entityId={instance.id}
+                      label={`Inspect ${instance.id}`}
+                      onInspectEntity={onInspectEntity}
+                    />
                   ) : null}
                 </div>
                 {instance.platforms.length > 0 ? (
@@ -158,6 +156,7 @@ export function DeploymentTraceSummary({
                           <>
                             <span className="mono">{platform.id}</span>{" "}
                             <EntityPivot
+                              canInspectEntity={canInspectEntity}
                               entityId={platform.id}
                               label={`Inspect ${platform.name} platform`}
                               onInspectEntity={onInspectEntity}
@@ -183,6 +182,7 @@ export function DeploymentTraceSummary({
         empty="No exact cloud-resource relationships returned."
         graphLinks
         label="Cloud resources"
+        canInspectEntity={canInspectEntity}
         onInspectEntity={onInspectEntity}
         rows={trace.cloudResources}
       />
@@ -190,6 +190,7 @@ export function DeploymentTraceSummary({
         empty="No Kubernetes resources returned."
         graphLinks
         label="Kubernetes resources"
+        canInspectEntity={canInspectEntity}
         onInspectEntity={onInspectEntity}
         rows={trace.k8sResources}
       />
@@ -205,6 +206,7 @@ export function DeploymentTraceSummary({
 }
 
 function TraceEntityGroup({
+  canInspectEntity,
   empty,
   graphLinks = false,
   label,
@@ -212,6 +214,7 @@ function TraceEntityGroup({
   repositoryLinks = false,
   rows,
 }: {
+  readonly canInspectEntity?: (entityId: string) => boolean;
   readonly empty: string;
   readonly graphLinks?: boolean;
   readonly label: string;
@@ -239,6 +242,7 @@ function TraceEntityGroup({
               {row.detail ? <span>{row.detail}</span> : null}
               {graphLinks && row.id && onInspectEntity ? (
                 <EntityPivot
+                  canInspectEntity={canInspectEntity}
                   entityId={row.id}
                   label={`Inspect ${row.name}`}
                   onInspectEntity={onInspectEntity}
@@ -253,14 +257,19 @@ function TraceEntityGroup({
 }
 
 function EntityPivot({
+  canInspectEntity,
   entityId,
   label,
   onInspectEntity,
 }: {
+  readonly canInspectEntity?: (entityId: string) => boolean;
   readonly entityId: string;
   readonly label: string;
   readonly onInspectEntity: (entityId: string) => void;
 }): React.JSX.Element {
+  if (canInspectEntity !== undefined && !canInspectEntity(entityId)) {
+    return <span className="t-mut">Outside bounded graph</span>;
+  }
   return (
     <button
       aria-label={label}

@@ -25,6 +25,12 @@ The graph reports input, rendered, duplicate, and omitted node/edge counts. It
 is deterministically capped at 60 nodes and 120 edges; exceeding either cap sets
 `truncated=true` and reports the omitted cardinality.
 
+An ambiguous change-surface target does not select a ready deployment trace:
+the graph remains in change-surface mode and states that topology was withheld
+because the service identity is ambiguous. Trace evidence rows whose canonical
+IDs fall outside the bounded graph are labeled `Outside bounded graph` instead
+of rendering an inspect control that cannot select a node.
+
 ## Backend read shape
 
 The workload-context platform lookup remains one bounded read anchored by the
