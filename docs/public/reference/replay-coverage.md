@@ -4,7 +4,7 @@
 
 Every surface Eshu claims to support should have a green, credential-free, Docker-free replay scenario. This dashboard is generated from the C-1 coverage manifest and the source-of-truth registries (epic [#4172](https://github.com/eshu-hq/eshu/issues/4172)); it is refreshed by the replay-coverage gate so the gap is reviewable in a PR diff.
 
-**Overall: 386/403 surfaces satisfied (95.78%)** — mode: blocking.
+**Overall: 403/403 surfaces satisfied (100.00%)** — mode: blocking.
 
 ## Coverage by axis
 
@@ -16,21 +16,21 @@ Every surface Eshu claims to support should have a green, credential-free, Docke
 | Read surfaces (API/MCP) | 22 | 22 | 100.00% | 0 | 1 |
 | Parsers | 4 | 4 | 100.00% | 0 | 0 |
 | Product claims | 11 | 11 | 100.00% | 0 | 0 |
-| Projections (cost/ordering) | 11 | 27 | 40.74% | 16 | 0 |
+| Projections (cost/ordering) | 27 | 27 | 100.00% | 0 | 1 |
 | Reducer drain (crash) | 1 | 1 | 100.00% | 0 | 0 |
 | Retractable edge types (delta) | 52 | 52 | 100.00% | 0 | 0 |
-| Retractable node types (delta) | 86 | 87 | 98.85% | 1 | 0 |
+| Retractable node types (delta) | 87 | 87 | 100.00% | 0 | 0 |
 | Collectors | 34 | 34 | 100.00% | 0 | 8 |
-| **Total** | **386** | **403** | **95.78%** | **17** | **9** |
+| **Total** | **403** | **403** | **100.00%** | **0** | **10** |
 
 ## Coverage by scenario type
 
 | Scenario type | Satisfied | Total | % | Uncovered | Exempt |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | baseline | 215 | 215 | 100.00% | 0 | 5 |
-| cost | 10 | 26 | 38.46% | 16 | 0 |
+| cost | 26 | 26 | 100.00% | 0 | 1 |
 | crash | 2 | 2 | 100.00% | 0 | 0 |
-| delta_tombstone | 139 | 140 | 99.29% | 1 | 0 |
+| delta_tombstone | 140 | 140 | 100.00% | 0 | 0 |
 | fault | 17 | 17 | 100.00% | 0 | 4 |
 | ordering | 3 | 3 | 100.00% | 0 | 0 |
 
@@ -44,32 +44,9 @@ Every ledger language is satisfied by corpus or parser fixture coverage.
 
 ## Gaps — surfaces still needing a replay scenario
 
-17 surface(s) uncovered or unresolved:
+None. Every supported surface has a replay scenario.
 
-### Projections (cost/ordering) (16)
-
-- `projection:azure_resource_materialization` (cost)
-- `projection:ci_cd_run_correlation` (cost)
-- `projection:cloud_asset_resolution` (cost)
-- `projection:config_state_drift` (cost)
-- `projection:container_image_identity` (cost)
-- `projection:gcp_resource_materialization` (cost)
-- `projection:incident_repository_correlation` (cost)
-- `projection:incident_routing_materialization` (cost)
-- `projection:kubernetes_correlation` (cost)
-- `projection:observability_coverage_correlation` (cost)
-- `projection:package_source_correlation` (cost)
-- `projection:reducer_derived_findings` (cost)
-- `projection:sbom_attestation_attachment` (cost)
-- `projection:security_alert_reconciliation` (cost)
-- `projection:service_catalog_correlation` (cost)
-- `projection:supply_chain_impact` (cost)
-
-### Retractable node types (delta) (1)
-
-- `retractable_node:Variable` (delta_tombstone)
-
-## Covered surfaces (386)
+## Covered surfaces (403)
 
 | Surface | Scenario type | Scenario | Proof gate | Artifact |
 | --- | --- | --- | --- | --- |
@@ -276,16 +253,32 @@ Every ledger language is satisfied by corpus or parser fixture coverage.
 | `product_claim:readme.security-iam.evidence-backed-findings` | baseline | product_claim | capability-inventory-docs | `readme.security-iam.evidence-backed-findings` |
 | `product_claim:readme.supply-chain.default-gated` | baseline | product_claim | capability-inventory-docs | `readme.supply-chain.default-gated` |
 | `projection:aws_cloud_runtime_drift` | cost | go_test | go-test-race | `go/internal/replay/costcounting/aws_cloud_runtime_drift_cost_test.go` |
+| `projection:azure_resource_materialization` | cost | go_test | go-test-race | `go/internal/replay/costcounting/azure_resource_materialization_cost_test.go` |
+| `projection:ci_cd_run_correlation` | cost | go_test | go-test-race | `go/internal/replay/costcounting/ci_cd_run_correlation_cost_test.go` |
+| `projection:cloud_asset_resolution` | cost | go_test | go-test-race | `go/internal/replay/costcounting/cloud_asset_resolution_cost_test.go` |
 | `projection:code_graph_projection` | cost | go_test | go-test-race | `go/internal/replay/costcounting/cost_counting_test.go` |
+| `projection:config_state_drift` | cost | exempt | — | — |
+| `projection:container_image_identity` | cost | go_test | go-test-race | `go/internal/replay/costcounting/container_image_identity_cost_test.go` |
 | `projection:documentation_materialization` | cost | go_test | go-test-race | `go/internal/replay/costcounting/documentation_edges_cost_test.go` |
 | `projection:ec2_instance_node_materialization` | cost | go_test | go-test-race | `go/internal/replay/costcounting/ec2_instance_node_cost_test.go` |
+| `projection:gcp_resource_materialization` | cost | go_test | go-test-race | `go/internal/replay/costcounting/gcp_resource_materialization_cost_test.go` |
 | `projection:incident_repository_correlation` | ordering | go_test | go-test-race | `go/internal/replay/schedulereplay/projection_ordering_scenario_test.go` |
+| `projection:incident_repository_correlation` | cost | go_test | go-test-race | `go/internal/replay/costcounting/incident_repository_correlation_cost_test.go` |
+| `projection:incident_routing_materialization` | cost | go_test | go-test-race | `go/internal/replay/costcounting/incident_routing_evidence_cost_test.go` |
+| `projection:kubernetes_correlation` | cost | go_test | go-test-race | `go/internal/replay/costcounting/kubernetes_workload_node_cost_test.go` |
+| `projection:observability_coverage_correlation` | cost | go_test | go-test-race | `go/internal/replay/costcounting/observability_coverage_edge_cost_test.go` |
+| `projection:package_source_correlation` | cost | go_test | go-test-race | `go/internal/replay/costcounting/package_source_correlation_cost_test.go` |
 | `projection:rds_posture_materialization` | cost | go_test | go-test-race | `go/internal/replay/costcounting/rds_posture_cost_test.go` |
+| `projection:reducer_derived_findings` | cost | go_test | go-test-race | `go/internal/replay/costcounting/multi_cloud_runtime_drift_cost_test.go` |
 | `projection:s3_external_principal_grant_materialization` | cost | go_test | go-test-race | `go/internal/replay/costcounting/s3_external_principal_grant_cost_test.go` |
 | `projection:s3_internet_exposure_materialization` | cost | go_test | go-test-race | `go/internal/replay/costcounting/s3_internet_exposure_cost_test.go` |
+| `projection:sbom_attestation_attachment` | cost | go_test | go-test-race | `go/internal/replay/costcounting/sbom_attestation_attachment_cost_test.go` |
 | `projection:secrets_iam_trust_chain` | cost | go_test | go-test-race | `go/internal/replay/costcounting/secrets_iam_graph_cost_test.go` |
+| `projection:security_alert_reconciliation` | cost | go_test | go-test-race | `go/internal/replay/costcounting/security_alert_reconciliation_cost_test.go` |
 | `projection:semantic_entity_materialization` | cost | go_test | go-test-race | `go/internal/replay/costcounting/semantic_entity_cost_test.go` |
+| `projection:service_catalog_correlation` | cost | go_test | go-test-race | `go/internal/replay/costcounting/service_catalog_correlation_cost_test.go` |
 | `projection:supply_chain_impact` | ordering | go_test | go-test-race | `go/internal/replay/schedulereplay/projection_ordering_scenario_test.go` |
+| `projection:supply_chain_impact` | cost | go_test | go-test-race | `go/internal/replay/costcounting/supply_chain_impact_cost_test.go` |
 | `reducer_drain:reducer-projection-drain` | crash | go_test | go-test-race | `go/internal/replay/crashreplay/scenario_test.go` |
 | `retractable_edge:ALIASES` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_inheritance_edge_retract_live_test.go` |
 | `retractable_edge:ALLOWS_EGRESS` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_security_group_reachability_retract_live_test.go` |
@@ -425,6 +418,7 @@ Every ledger language is satisfied by corpus or parser fixture coverage.
 | `retractable_node:TypeAnnotation` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
 | `retractable_node:Typedef` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
 | `retractable_node:Union` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
+| `retractable_node:Variable` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_semantic_variable_retract_live_test.go` |
 | `collector:aws` | baseline | cassette | golden-corpus-gate | `testdata/cassettes/awscloud/supply-chain-demo.json` |
 | `collector:aws` | fault | go_test | go-test-race | `go/internal/replay/inputtape/fault_timeout_test.go` |
 | `collector:documentation` | baseline | exempt | — | — |

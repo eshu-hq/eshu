@@ -447,6 +447,7 @@ coverage:
   - {surface: retractable_node:DataQualityCheck, scenario: cassette, scenario_type: delta_tombstone, ref: testdata/cassettes/replaydelta/multi-generation-tombstone.json, proof_gate: replay-tier}
   - {surface: retractable_node:Enum, scenario: cassette, scenario_type: delta_tombstone, ref: testdata/cassettes/replaydelta/multi-generation-tombstone.json, proof_gate: replay-tier}
   - {surface: retractable_node:Function, scenario: cassette, scenario_type: delta_tombstone, ref: testdata/cassettes/replaydelta/multi-generation-tombstone.json, proof_gate: replay-tier}
+  - {surface: retractable_node:Variable, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_semantic_variable_retract_live_test.go, proof_gate: replay-tier}
   - {surface: retractable_node:HelmChart, scenario: cassette, scenario_type: delta_tombstone, ref: testdata/cassettes/replaydelta/multi-generation-tombstone.json, proof_gate: replay-tier}
   - {surface: retractable_node:HelmTemplateValueUsage, scenario: cassette, scenario_type: delta_tombstone, ref: testdata/cassettes/replaydelta/multi-generation-tombstone.json, proof_gate: replay-tier}
   - {surface: retractable_node:HelmValueDefinition, scenario: cassette, scenario_type: delta_tombstone, ref: testdata/cassettes/replaydelta/multi-generation-tombstone.json, proof_gate: replay-tier}
@@ -685,6 +686,21 @@ coverage:
   - {surface: projection:s3_external_principal_grant_materialization, scenario: go_test, scenario_type: cost, ref: go/internal/replay/costcounting/s3_external_principal_grant_cost_test.go, proof_gate: go-test-race}
   - {surface: projection:s3_internet_exposure_materialization, scenario: go_test, scenario_type: cost, ref: go/internal/replay/costcounting/s3_internet_exposure_cost_test.go, proof_gate: go-test-race}
   - {surface: projection:secrets_iam_trust_chain, scenario: go_test, scenario_type: cost, ref: go/internal/replay/costcounting/secrets_iam_graph_cost_test.go, proof_gate: go-test-race}
+  - {surface: projection:azure_resource_materialization, scenario: go_test, scenario_type: cost, ref: go/internal/replay/costcounting/azure_resource_materialization_cost_test.go, proof_gate: go-test-race}
+  - {surface: projection:gcp_resource_materialization, scenario: go_test, scenario_type: cost, ref: go/internal/replay/costcounting/gcp_resource_materialization_cost_test.go, proof_gate: go-test-race}
+  - {surface: projection:kubernetes_correlation, scenario: go_test, scenario_type: cost, ref: go/internal/replay/costcounting/kubernetes_workload_node_cost_test.go, proof_gate: go-test-race}
+  - {surface: projection:observability_coverage_correlation, scenario: go_test, scenario_type: cost, ref: go/internal/replay/costcounting/observability_coverage_edge_cost_test.go, proof_gate: go-test-race}
+  - {surface: projection:incident_routing_materialization, scenario: go_test, scenario_type: cost, ref: go/internal/replay/costcounting/incident_routing_evidence_cost_test.go, proof_gate: go-test-race}
+  - {surface: projection:container_image_identity, scenario: go_test, scenario_type: cost, ref: go/internal/replay/costcounting/container_image_identity_cost_test.go, proof_gate: go-test-race}
+  - {surface: projection:ci_cd_run_correlation, scenario: go_test, scenario_type: cost, ref: go/internal/replay/costcounting/ci_cd_run_correlation_cost_test.go, proof_gate: go-test-race}
+  - {surface: projection:sbom_attestation_attachment, scenario: go_test, scenario_type: cost, ref: go/internal/replay/costcounting/sbom_attestation_attachment_cost_test.go, proof_gate: go-test-race}
+  - {surface: projection:cloud_asset_resolution, scenario: go_test, scenario_type: cost, ref: go/internal/replay/costcounting/cloud_asset_resolution_cost_test.go, proof_gate: go-test-race}
+  - {surface: projection:service_catalog_correlation, scenario: go_test, scenario_type: cost, ref: go/internal/replay/costcounting/service_catalog_correlation_cost_test.go, proof_gate: go-test-race}
+  - {surface: projection:security_alert_reconciliation, scenario: go_test, scenario_type: cost, ref: go/internal/replay/costcounting/security_alert_reconciliation_cost_test.go, proof_gate: go-test-race}
+  - {surface: projection:supply_chain_impact, scenario: go_test, scenario_type: cost, ref: go/internal/replay/costcounting/supply_chain_impact_cost_test.go, proof_gate: go-test-race}
+  - {surface: projection:incident_repository_correlation, scenario: go_test, scenario_type: cost, ref: go/internal/replay/costcounting/incident_repository_correlation_cost_test.go, proof_gate: go-test-race}
+  - {surface: projection:package_source_correlation, scenario: go_test, scenario_type: cost, ref: go/internal/replay/costcounting/package_source_correlation_cost_test.go, proof_gate: go-test-race}
+  - {surface: projection:reducer_derived_findings, scenario: go_test, scenario_type: cost, ref: go/internal/replay/costcounting/multi_cloud_runtime_drift_cost_test.go, proof_gate: go-test-race}
 
 scenario_requirements:
   - {surface: collector:aws, scenario_types: [baseline, fault]}
