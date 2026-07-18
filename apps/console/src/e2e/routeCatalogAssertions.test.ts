@@ -326,6 +326,20 @@ describe("consoleRoutes catalog", () => {
     });
   });
 
+  it("resolves a human exposure service selection before proving ingress", () => {
+    const workflow = consoleRoutes.find((route) => route.path === "/exposure")?.workflow;
+
+    expect(workflow).toMatchObject({
+      id: "exposure-path-retained-service",
+      kind: "submit",
+      fields: [{ valueEnv: "ESHU_E2E_SERVICE_NAME" }],
+      expectedRequestPath: "/api/v0/entities/resolve",
+      expectedRequestMethod: "POST",
+      outcomeSelector: ".exposure-result",
+      additionalOutcomeSelectors: [".exposure-chain-options", ".exposure-ingress-panel"],
+    });
+  });
+
   it("discovers Replatforming selectors and proves retained pagination", () => {
     const workflow = consoleRoutes.find((route) => route.path === "/replatforming")?.workflow;
 

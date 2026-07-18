@@ -21,13 +21,14 @@ export interface ExposureServiceOption {
 export type ExposureServiceSelectionResult =
   | {
       readonly option: ExposureServiceOption;
-      readonly source: "canonical_handle" | "catalog" | "resolver";
+      readonly source: "canonical_handle" | "catalog_alias" | "resolver";
       readonly status: "resolved";
     }
   | {
       readonly candidates: readonly ExposureServiceOption[];
       readonly query: string;
       readonly status: "ambiguous";
+      readonly truncated: boolean;
     }
   | {
       readonly query: string;
@@ -37,8 +38,9 @@ export type ExposureServiceSelectionResult =
 interface ResolveExposureServiceSelectionOptions {
   readonly client: EshuApiClient;
   readonly limit?: number;
-  readonly options: readonly ExposureServiceOption[];
+  readonly options?: readonly ExposureServiceOption[];
   readonly query: string;
+  readonly signal?: AbortSignal;
 }
 
 export function exposureServiceOptions(
@@ -81,20 +83,15 @@ export function filterExposureServiceOptions(
 export async function resolveExposureServiceSelection({
   client,
   limit = DEFAULT_RESOLUTION_LIMIT,
-  options,
+  options = [],
   query,
+  signal,
 }: ResolveExposureServiceSelectionOptions): Promise<ExposureServiceSelectionResult> {
   const trimmed = query.trim();
-  const localMatches = exactLocalMatches(options, trimmed);
-  if (localMatches.length === 1 && localMatches[0]) {
-    return { option: localMatches[0], source: "catalog", status: "resolved" };
-  }
-  if (localMatches.length > 1) {
-    return { candidates: localMatches, query: trimmed, status: "ambiguous" };
-  }
   if (isCanonicalWorkloadHandle(trimmed)) {
+    const catalogOption = options.find((option) => option.canonicalId === trimmed);
     return {
-      option: {
+      option: catalogOption ?? {
         aliases: [],
         canonicalId: trimmed,
         displayName: canonicalWorkloadName(trimmed),
@@ -106,11 +103,27 @@ export async function resolveExposureServiceSelection({
     };
   }
 
+  const exactAliasMatches = options.filter((option) =>
+    option.aliases.some((alias) => normalized(alias) === normalized(trimmed)),
+  );
+  if (exactAliasMatches.length === 1 && exactAliasMatches[0]) {
+    return { option: exactAliasMatches[0], source: "catalog_alias", status: "resolved" };
+  }
+  if (exactAliasMatches.length > 1) {
+    return {
+      candidates: exactAliasMatches,
+      query: trimmed,
+      status: "ambiguous",
+      truncated: false,
+    };
+  }
+
   try {
     const resolution = await resolveEntity({
       client,
       limit,
       name: trimmed,
+      signal,
       type: "workload",
     });
     const candidates = resolution.candidates
@@ -124,11 +137,11 @@ export async function resolveExposureServiceSelection({
       }))
       .filter((candidate) => isCanonicalWorkloadHandle(candidate.canonicalId))
       .sort(compareExposureServiceOptions);
-    if (candidates.length === 1 && candidates[0]) {
+    if (candidates.length === 1 && candidates[0] && !resolution.truncated) {
       return { option: candidates[0], source: "resolver", status: "resolved" };
     }
-    if (candidates.length > 1) {
-      return { candidates, query: trimmed, status: "ambiguous" };
+    if (candidates.length > 1 || resolution.truncated) {
+      return { candidates, query: trimmed, status: "ambiguous", truncated: resolution.truncated };
     }
     return { query: trimmed, status: "not_found" };
   } catch (error) {
@@ -142,20 +155,6 @@ export async function resolveExposureServiceSelection({
     }
     return { query: trimmed, status: "unavailable" };
   }
-}
-
-function exactLocalMatches(
-  options: readonly ExposureServiceOption[],
-  query: string,
-): readonly ExposureServiceOption[] {
-  const needle = normalized(query);
-  return options
-    .filter((option) =>
-      [option.canonicalId, option.displayName, ...option.aliases].some(
-        (value) => normalized(value) === needle,
-      ),
-    )
-    .sort(compareExposureServiceOptions);
 }
 
 function isWorkloadCandidate(candidate: {

@@ -16,6 +16,10 @@ import (
 
 const contentEntityIDPrefix = "content-entity:"
 
+var resolverOnlyGraphEntityTypes = map[string]string{
+	"workload": "Workload",
+}
+
 func (h *EntityHandler) writeCanonicalContentEntityResolution(
 	w http.ResponseWriter,
 	r *http.Request,
@@ -92,6 +96,9 @@ func (h *EntityHandler) resolveEntityFromContent(
 	repoID string,
 	limit int,
 ) ([]map[string]any, error) {
+	if _, graphOnly := resolverOnlyGraphEntityTypes[strings.ToLower(strings.TrimSpace(typeName))]; graphOnly {
+		return []map[string]any{}, nil
+	}
 	if h == nil || h.Content == nil || repoID == "" || name == "" {
 		if h == nil || h.Content == nil || name == "" {
 			return []map[string]any{}, nil
@@ -158,6 +165,9 @@ func resolveGraphEntityType(typeName string) (string, string, string, bool) {
 		return graphLabel, semanticKey, semanticValue, true
 	}
 	if graphLabel, ok := graphBackedEntityTypes[typeName]; ok {
+		return graphLabel, "", "", true
+	}
+	if graphLabel, ok := resolverOnlyGraphEntityTypes[typeName]; ok {
 		return graphLabel, "", "", true
 	}
 	if graphLabel, ok := graphFirstContentBackedEntityTypes[typeName]; ok {

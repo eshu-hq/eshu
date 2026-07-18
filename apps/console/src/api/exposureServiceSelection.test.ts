@@ -45,23 +45,7 @@ describe("Exposure service selection", () => {
     expect(filterExposureServiceOptions(options, "payments-service")).toEqual([options[1]]);
   });
 
-  it("resolves a catalog display name to its canonical workload handle without an API call", async () => {
-    const postJson = vi.fn();
-    const result = await resolveExposureServiceSelection({
-      client: { postJson } as unknown as EshuApiClient,
-      options: exposureServiceOptions(services),
-      query: "Payments API",
-    });
-
-    expect(result).toMatchObject({
-      option: { canonicalId: "workload:payments-api", displayName: "Payments API" },
-      source: "catalog",
-      status: "resolved",
-    });
-    expect(postJson).not.toHaveBeenCalled();
-  });
-
-  it("uses one bounded workload resolver call for a supported human alias", async () => {
+  it("resolves an exact catalog display name through the authoritative bounded resolver", async () => {
     const postJson = vi.fn(async () => ({
       count: 1,
       entities: [
@@ -76,10 +60,41 @@ describe("Exposure service selection", () => {
       limit: 10,
       truncated: false,
     }));
+    const result = await resolveExposureServiceSelection({
+      client: { postJson } as unknown as EshuApiClient,
+      query: "Payments API",
+    });
+
+    expect(result).toMatchObject({
+      option: { canonicalId: "workload:payments-api", displayName: "Payments API" },
+      source: "resolver",
+      status: "resolved",
+    });
+    expect(postJson).toHaveBeenCalledWith("/api/v0/entities/resolve", {
+      limit: 10,
+      name: "Payments API",
+      type: "workload",
+    });
+  });
+
+  it("uses one bounded workload resolver call for free text", async () => {
+    const postJson = vi.fn(async () => ({
+      count: 1,
+      entities: [
+        {
+          id: "workload:payments-api",
+          labels: ["Workload"],
+          name: "payments",
+          repo_id: "repository:r_payments",
+          repo_name: "payments-service",
+        },
+      ],
+      limit: 10,
+      truncated: false,
+    }));
 
     const result = await resolveExposureServiceSelection({
       client: { postJson } as unknown as EshuApiClient,
-      options: [],
       query: "payments",
     });
 
@@ -89,19 +104,111 @@ describe("Exposure service selection", () => {
       type: "workload",
     });
     expect(result).toMatchObject({
-      option: { canonicalId: "workload:payments-api", displayName: "Payments API" },
+      option: { canonicalId: "workload:payments-api", displayName: "payments" },
       source: "resolver",
       status: "resolved",
     });
   });
 
+  it("submits an exact catalog handle alias as its authorized canonical workload", async () => {
+    const postJson = vi.fn(async () => ({ count: 0, entities: [], limit: 10, truncated: false }));
+    const result = await resolveExposureServiceSelection({
+      client: { postJson } as unknown as EshuApiClient,
+      options: exposureServiceOptions(services),
+      query: "payments-api",
+    });
+
+    expect(result).toMatchObject({
+      option: { canonicalId: "workload:payments-api", displayName: "Payments API" },
+      source: "catalog_alias",
+      status: "resolved",
+    });
+    expect(postJson).not.toHaveBeenCalled();
+  });
+
+  it("passes the caller abort signal into the bounded resolver request", async () => {
+    const controller = new AbortController();
+    const postJson = vi.fn(async () => ({
+      count: 0,
+      entities: [],
+      limit: 10,
+      truncated: false,
+    }));
+
+    await resolveExposureServiceSelection({
+      client: { postJson } as unknown as EshuApiClient,
+      query: "checkout",
+      signal: controller.signal,
+    });
+
+    expect(postJson).toHaveBeenCalledWith(
+      "/api/v0/entities/resolve",
+      { limit: 10, name: "checkout", type: "workload" },
+      { signal: controller.signal },
+    );
+  });
+
+  it("refuses to auto-select a single visible candidate from a truncated resolver page", async () => {
+    const result = await resolveExposureServiceSelection({
+      client: {
+        postJson: vi.fn(async () => ({
+          count: 11,
+          entities: [
+            {
+              id: "workload:payments-api",
+              labels: ["Workload"],
+              name: "Payments API",
+              repo_id: "repository:r_payments",
+              repo_name: "payments-service",
+            },
+          ],
+          limit: 1,
+          truncated: true,
+        })),
+      } as unknown as EshuApiClient,
+      limit: 1,
+      query: "payments",
+    });
+
+    expect(result).toEqual({
+      candidates: [
+        {
+          aliases: [],
+          canonicalId: "workload:payments-api",
+          displayName: "Payments API",
+          kind: "workload",
+          repoName: "payments-service",
+        },
+      ],
+      query: "payments",
+      status: "ambiguous",
+      truncated: true,
+    });
+  });
+
   it("refuses to guess when a display name maps to multiple canonical workloads", async () => {
     const result = await resolveExposureServiceSelection({
-      client: { postJson: vi.fn() } as unknown as EshuApiClient,
-      options: exposureServiceOptions([
-        { id: "workload:payments-us", kind: "service", name: "Payments", repo: "payments-us" },
-        { id: "workload:payments-eu", kind: "service", name: "Payments", repo: "payments-eu" },
-      ]),
+      client: {
+        postJson: vi.fn(async () => ({
+          count: 2,
+          entities: [
+            {
+              id: "workload:payments-us",
+              labels: ["Workload"],
+              name: "Payments",
+              repo_name: "payments-us",
+            },
+            {
+              id: "workload:payments-eu",
+              labels: ["Workload"],
+              name: "Payments",
+              repo_name: "payments-eu",
+            },
+          ],
+          limit: 10,
+          truncated: false,
+        })),
+      } as unknown as EshuApiClient,
       query: "Payments",
     });
 
@@ -119,7 +226,6 @@ describe("Exposure service selection", () => {
       client: {
         postJson: vi.fn(async () => ({ count: 0, entities: [], limit: 10, truncated: false })),
       } as unknown as EshuApiClient,
-      options: [],
       query: "missing-service",
     });
 
@@ -133,7 +239,6 @@ describe("Exposure service selection", () => {
           throw new EshuApiHttpError(403);
         }),
       } as unknown as EshuApiClient,
-      options: [],
       query: "restricted-service",
     });
 
@@ -144,7 +249,6 @@ describe("Exposure service selection", () => {
     const postJson = vi.fn();
     const result = await resolveExposureServiceSelection({
       client: { postJson } as unknown as EshuApiClient,
-      options: [],
       query: "workload:external-api",
     });
 

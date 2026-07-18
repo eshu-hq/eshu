@@ -13,54 +13,26 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useSearchParams } from "react-router-dom";
 
+import { ExposureIngressView, NoExposureChainNotice } from "./ExposureIngressView";
 import { ExposurePathAdvanced } from "./ExposurePathAdvanced";
 import { ExposureServiceSelector } from "./ExposureServiceSelector";
 import type { EshuApiClient } from "../api/client";
-import {
-  loadExposureIngress,
-  type ExposureIngress,
-  type IngressChain,
-  type IngressHop,
-  type IngressPostureState,
-  type IngressTruth,
-} from "../api/exposureIngress";
+import { loadExposureIngress, type ExposureIngress, type IngressHop } from "../api/exposureIngress";
 import {
   exposureServiceOptions,
   resolveExposureServiceSelection,
   type ExposureServiceSelectionResult,
 } from "../api/exposureServiceSelection";
-import { Badge, FreshDot, Panel, StatTile, TruthChip } from "../components/atoms";
-import { uiFresh, uiTruth, type ServiceRow } from "../console/types";
+import { Badge } from "../components/atoms";
+import type { ServiceRow } from "../console/types";
 import "./exposurePathPage.css";
 
-type BadgeTone = "neutral" | "teal" | "ember" | "crit" | "warn" | "violet";
-
-const TRUTH_TONE: Record<IngressTruth, BadgeTone> = {
-  observed: "teal",
-  derived: "violet",
-  unresolved: "neutral",
-};
-
-const POSTURE_TONE: Record<IngressPostureState, BadgeTone> = {
-  protected: "teal",
-  terminated: "teal",
-  unprotected: "ember",
-  not_terminated: "ember",
-  unproven: "neutral",
-};
-
-const POSTURE_LABEL: Record<IngressPostureState, string> = {
-  protected: "Yes",
-  terminated: "Yes",
-  unprotected: "No",
-  not_terminated: "No",
-  unproven: "Unproven",
-};
-
 export function ExposurePathPage({
+  catalogTruncated = false,
   client,
   services = [],
 }: {
+  readonly catalogTruncated?: boolean;
   readonly client?: EshuApiClient;
   readonly services?: readonly ServiceRow[];
 }): React.JSX.Element {
@@ -74,6 +46,7 @@ export function ExposurePathPage({
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const deepLinkRef = useRef("");
+  const selectedCanonicalRef = useRef("");
   const requestVersionRef = useRef(0);
   const canLoad = client !== undefined;
   const options = useMemo(() => exposureServiceOptions(services), [services]);
@@ -120,6 +93,7 @@ export function ExposurePathPage({
         client,
         options,
         query: trimmed,
+        signal: controller.signal,
       });
       if (version !== requestVersionRef.current) {
         return;
@@ -132,6 +106,7 @@ export function ExposurePathPage({
       }
 
       const canonicalID = resolution.option.canonicalId;
+      selectedCanonicalRef.current = canonicalID;
       setService(resolution.option.displayName);
       deepLinkRef.current = canonicalID;
       const params = new URLSearchParams(searchParams);
@@ -154,15 +129,28 @@ export function ExposurePathPage({
 
   useEffect(() => {
     const initial = searchParams.get("service")?.trim() ?? "";
-    if (!canLoad || initial.length === 0 || deepLinkRef.current === initial) {
+    if (initial.length === 0) {
+      if (deepLinkRef.current.length > 0) {
+        deepLinkRef.current = "";
+        selectedCanonicalRef.current = "";
+        invalidateActiveRequest();
+        setService("");
+      }
+      return;
+    }
+    if (!canLoad) {
+      return;
+    }
+    if (deepLinkRef.current === initial) {
       return;
     }
     deepLinkRef.current = initial;
     void runSelection(initial);
-  }, [canLoad, runSelection, searchParams]);
+  }, [canLoad, invalidateActiveRequest, runSelection, searchParams]);
 
   useEffect(
     () => () => {
+      deepLinkRef.current = "";
       requestVersionRef.current += 1;
       abortRef.current?.abort();
     },
@@ -176,7 +164,7 @@ export function ExposurePathPage({
       setError("Choose an authorized service or paste a canonical workload:… handle.");
       return;
     }
-    void runSelection(name);
+    void runSelection(selectedCanonicalRef.current || name);
   }
 
   const chains = ingress?.chains ?? [];
@@ -199,14 +187,17 @@ export function ExposurePathPage({
       <form className="exposure-entry-form" onSubmit={submit}>
         <ExposureServiceSelector
           busy={busy}
+          catalogTruncated={catalogTruncated}
           onChoose={(option) => {
             invalidateActiveRequest();
             clearDeepLink();
+            selectedCanonicalRef.current = option.canonicalId;
             setService(option.displayName);
           }}
           onValueChange={(value) => {
             invalidateActiveRequest();
             clearDeepLink();
+            selectedCanonicalRef.current = "";
             setService(value);
           }}
           options={options}
@@ -230,7 +221,7 @@ export function ExposurePathPage({
           <p>Resolving service and tracing ingress chain…</p>
         </div>
       ) : ingress !== null && ingress.provenance === "live" ? (
-        <IngressView
+        <ExposureIngressView
           active={active}
           ingress={ingress}
           onSelectChain={(index) => {
@@ -242,7 +233,7 @@ export function ExposurePathPage({
           selectedHop={selectedHop}
         />
       ) : ingress !== null && ingress.provenance === "empty" && !error ? (
-        <NoChainNotice service={ingress.service} />
+        <NoExposureChainNotice ingress={ingress} />
       ) : ingress === null && !error ? (
         <p className="empty mt">Enter an internet-facing service to trace its ingress chain.</p>
       ) : null}
@@ -263,207 +254,19 @@ function selectionError(
 ): string {
   switch (result.status) {
     case "ambiguous":
+      if (result.truncated) {
+        return `The bounded resolver found ${result.candidates.length} authorized candidate${
+          result.candidates.length === 1 ? "" : "s"
+        } for “${result.query}”, but more may exist. Keep typing or choose a canonical workload:… handle.`;
+      }
       return `Multiple authorized services match “${result.query}”. Choose one canonical service: ${result.candidates
         .map((candidate) => `${candidate.displayName} (${candidate.canonicalId})`)
         .join(", ")}.`;
     case "not_authorized":
-      return "You are not authorized to resolve that service in the active workspace.";
+      return "Your active session is not authorized to use service resolution.";
     case "not_found":
       return `No authorized service matches “${result.query}”. Choose an available service or paste a canonical workload:… handle.`;
     case "unavailable":
       return "Service resolution is temporarily unavailable. The prior ingress result was cleared.";
   }
-}
-
-function IngressView({
-  active,
-  ingress,
-  onSelectChain,
-  onSelectHop,
-  selectedChain,
-  selectedHop,
-}: {
-  readonly active: IngressChain | undefined;
-  readonly ingress: ExposureIngress;
-  readonly onSelectChain: (index: number) => void;
-  readonly onSelectHop: (hop: IngressHop) => void;
-  readonly selectedChain: number;
-  readonly selectedHop: IngressHop | null;
-}): React.JSX.Element {
-  return (
-    <div className="exposure-result mt">
-      <div className="exposure-posture-tiles">
-        <StatTile
-          label="Public entrypoints"
-          value={ingress.publicEntrypoints}
-          sub="observed public hostnames"
-        />
-        <StatTile
-          label="Hops to service"
-          value={active?.hops.length ?? 0}
-          sub="on the selected chain"
-        />
-        <PostureTile
-          label="WAF coverage"
-          state={ingress.posture.wafCoverage}
-          sub={wafSub(ingress)}
-        />
-        <PostureTile
-          label="TLS termination"
-          state={ingress.posture.tlsTermination}
-          sub={tlsSub(ingress)}
-        />
-      </div>
-
-      {ingress.chains.length > 1 ? (
-        <div className="exposure-chain-options" role="tablist" aria-label="Ingress entrypoints">
-          {ingress.chains.map((chain, index) => (
-            <button
-              aria-pressed={selectedChain === index}
-              className="exposure-chain-option"
-              key={`${chain.entrypoint}:${index}`}
-              onClick={() => onSelectChain(index)}
-              type="button"
-            >
-              {chain.entrypoint || "entrypoint"}
-            </button>
-          ))}
-        </div>
-      ) : null}
-
-      <div className="exposure-ingress-layout">
-        <Panel
-          className="exposure-ingress-panel"
-          sub={
-            active
-              ? `${active.entrypoint} · ${active.visibility || "visibility unknown"}`
-              : undefined
-          }
-          title="Ingress chain"
-        >
-          {active ? (
-            <ol className="exposure-hops" aria-label="Ingress chain hops">
-              {active.hops.map((hop, index) => (
-                <li className="exposure-hop-item" key={`${hop.id}:${index}`}>
-                  <button
-                    aria-pressed={selectedHop?.id === hop.id}
-                    className={`exposure-hop exposure-hop-${hop.kind}`}
-                    onClick={() => onSelectHop(hop)}
-                    type="button"
-                  >
-                    <span className="exposure-hop-kind">{hop.label}</span>
-                    <span className="exposure-hop-detail mono">{hop.detail || hop.id}</span>
-                    <Badge tone={TRUTH_TONE[hop.truth]}>{hop.truth}</Badge>
-                  </button>
-                </li>
-              ))}
-            </ol>
-          ) : (
-            <p className="empty">No proven ingress chain for this entrypoint.</p>
-          )}
-        </Panel>
-
-        <aside aria-label="Selected hop evidence" className="exposure-evidence-panel">
-          {selectedHop !== null ? (
-            <HopEvidence hop={selectedHop} truth={ingress} />
-          ) : (
-            <div className="exposure-evidence-empty">
-              <h3>Hop evidence</h3>
-              <p>Select a hop in the chain to inspect its evidence and truth level.</p>
-            </div>
-          )}
-        </aside>
-      </div>
-    </div>
-  );
-}
-
-function HopEvidence({
-  hop,
-  truth,
-}: {
-  readonly hop: IngressHop;
-  readonly truth: ExposureIngress;
-}): React.JSX.Element {
-  return (
-    <div className="exposure-evidence">
-      <h3>{hop.label}</h3>
-      <dl>
-        <div>
-          <dt>Node</dt>
-          <dd className="mono">{hop.detail || hop.id}</dd>
-        </div>
-        <div>
-          <dt>Kind</dt>
-          <dd>{hop.kind.replace(/_/g, " ")}</dd>
-        </div>
-        <div>
-          <dt>Truth level</dt>
-          <dd>
-            <Badge tone={TRUTH_TONE[hop.truth]}>{hop.truth}</Badge>
-          </dd>
-        </div>
-        {truth.truth ? (
-          <div>
-            <dt>Capability</dt>
-            <dd className="exposure-truth">
-              <span className="mono">{truth.truth.capability}</span>
-              <FreshDot state={uiFresh(truth.truth.freshness.state)} />
-            </dd>
-          </div>
-        ) : null}
-      </dl>
-      <p className="exposure-reason">{hop.reason}</p>
-      {truth.truth ? <TruthChip level={uiTruth(truth.truth.level)} /> : null}
-    </div>
-  );
-}
-
-function PostureTile({
-  label,
-  state,
-  sub,
-}: {
-  readonly label: string;
-  readonly state: IngressPostureState;
-  readonly sub: string;
-}): React.JSX.Element {
-  return (
-    <div className="exposure-posture-tile">
-      <div className="exposure-posture-head">{label}</div>
-      <div className="exposure-posture-body">
-        <Badge tone={POSTURE_TONE[state]}>{POSTURE_LABEL[state]}</Badge>
-      </div>
-      <div className="exposure-posture-sub">{sub}</div>
-    </div>
-  );
-}
-
-function NoChainNotice({ service }: { readonly service: string }): React.JSX.Element {
-  return (
-    <Panel className="exposure-unresolved-panel mt" title="No proven ingress chain">
-      <p className="exposure-unresolved-lead">
-        {service ? <span className="mono">{service}</span> : "This service"} has no materialized
-        internet-facing ingress path. No exposure is implied.
-      </p>
-      <p className="exposure-reason">
-        Eshu found no entrypoint-to-runtime network path for this service. Try a service with a
-        public hostname, or use the advanced handler trace below.
-      </p>
-    </Panel>
-  );
-}
-
-function wafSub(ingress: ExposureIngress): string {
-  if (ingress.posture.wafCoverage === "unproven") {
-    return "no edge resource materialized";
-  }
-  return `${ingress.posture.wafProtected}/${ingress.posture.edgeCount} edge web ACL`;
-}
-
-function tlsSub(ingress: ExposureIngress): string {
-  if (ingress.posture.tlsTermination === "unproven") {
-    return "no edge resource materialized";
-  }
-  return `${ingress.posture.tlsTerminated}/${ingress.posture.edgeCount} ACM cert`;
 }

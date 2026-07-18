@@ -52,6 +52,7 @@ export { loadImages };
 export interface ConsoleSnapshot {
   readonly runtime: RuntimeSummary;
   readonly services: readonly ServiceRow[];
+  readonly serviceCatalogSummary?: ServiceCatalogSummary;
   readonly languages: readonly LanguageRow[];
   readonly ingesters: readonly IngesterRow[];
   readonly findings: readonly FindingRow[];
@@ -68,6 +69,12 @@ export interface ConsoleSnapshot {
   readonly series: SeriesBundle;
   readonly truth: Partial<Record<keyof ConsoleSnapshot, EshuTruth>>;
   readonly provenance: Record<string, SectionProvenance>;
+}
+
+export interface ServiceCatalogSummary {
+  readonly count: number;
+  readonly limit: number;
+  readonly truncated: boolean;
 }
 
 export interface RuntimeSummary {
@@ -387,6 +394,7 @@ export async function loadConsoleSnapshot(client: EshuApiClient): Promise<Consol
   return {
     runtime: runtime ?? emptyRuntime(),
     services: services ?? [],
+    serviceCatalogSummary: ctx.serviceCatalogSummary,
     languages: languages ?? [],
     ingesters: ingesters ?? [],
     findings: findings ?? [],

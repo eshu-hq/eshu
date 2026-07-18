@@ -57,6 +57,7 @@ describe("loadExposureIngress", () => {
     expect(chain.hops[0].label).toBe("Internet");
     expect(chain.hops[1].detail).toBe("checkout.example.test");
     expect(chain.hops[2].label).toBe("EKS");
+    expect(chain.environment).toBe("production");
     expect(ingress.posture.wafCoverage).toBe("protected");
     expect(ingress.posture.tlsTermination).toBe("terminated");
   });

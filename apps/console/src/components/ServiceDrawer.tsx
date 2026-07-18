@@ -31,10 +31,11 @@ export function ServiceDrawer({
   const [graph, setGraph] = useState<GraphModel | null>(null);
   const [graphBusy, setGraphBusy] = useState(false);
   const [graphErr, setGraphErr] = useState("");
-  const selectedService = model.services.find(
-    (service) => service.id === name || service.name === name,
-  );
-  const exposureServiceID = canonicalWorkloadID(selectedService?.id ?? name);
+  const exactIDMatch = model.services.find((service) => service.id === name);
+  const displayNameMatches = model.services.filter((service) => service.name === name);
+  const selectedService =
+    exactIDMatch ?? (displayNameMatches.length === 1 ? displayNameMatches[0] : undefined);
+  const exposureServiceID = selectedService?.id ?? name;
 
   // Findings for this service derive from the same impact-findings rows the
   // Vulnerabilities page uses, so the count always equals the listed rows.
@@ -120,7 +121,16 @@ export function ServiceDrawer({
           {loading ? (
             <p className="empty">Loading…</p>
           ) : !spot ? (
-            <p className="empty">No spotlight available for {name}.</p>
+            <>
+              <p className="empty">No unambiguous spotlight is available for {name}.</p>
+              <Link
+                className="btn-ghost"
+                onClick={onClose}
+                to={`/exposure?service=${encodeURIComponent(exposureServiceID)}`}
+              >
+                Trace exposure →
+              </Link>
+            </>
           ) : (
             <>
               <div className="row wrap" style={{ gap: 10 }}>
@@ -309,8 +319,4 @@ export function ServiceDrawer({
       </aside>
     </>
   );
-}
-
-function canonicalWorkloadID(value: string): string {
-  return value.startsWith("workload:") ? value : `workload:${value}`;
 }

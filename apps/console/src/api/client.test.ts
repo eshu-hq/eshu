@@ -286,6 +286,28 @@ describe("EshuApiClient", () => {
     }
   });
 
+  it("combines a caller abort signal with postJson requests", async () => {
+    const requestSignals: AbortSignal[] = [];
+    const fetcher = async (_input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+      if (init?.signal instanceof AbortSignal) requestSignals.push(init.signal);
+      return Response.json({ status: "healthy" });
+    };
+    const controller = new AbortController();
+    controller.abort(new DOMException("selection changed", "AbortError"));
+    const client = new EshuApiClient({ baseUrl: "/eshu-api/", fetcher });
+
+    await client.postJson(
+      "/api/v0/entities/resolve",
+      { name: "checkout" },
+      {
+        signal: controller.signal,
+      },
+    );
+
+    expect(requestSignals).toHaveLength(1);
+    expect(requestSignals[0]?.aborted).toBe(true);
+  });
+
   it("propagates the abort error when a request exceeds the configured timeout", async () => {
     const fetcher = (_input: RequestInfo | URL, init?: RequestInit): Promise<Response> =>
       new Promise((_resolve, reject) => {

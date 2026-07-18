@@ -5,10 +5,10 @@ import { ServiceDrawer } from "./ServiceDrawer";
 import { demoModel } from "../console/demoModel";
 import type { ConsoleModel } from "../console/types";
 
-function renderDrawer(model: ConsoleModel): void {
+function renderDrawer(model: ConsoleModel, name = "checkout-service"): void {
   render(
     <MemoryRouter>
-      <ServiceDrawer name="checkout-service" model={model} onClose={() => {}} />
+      <ServiceDrawer name={name} model={model} onClose={() => {}} />
     </MemoryRouter>,
   );
 }
@@ -58,7 +58,26 @@ describe("ServiceDrawer drill-downs", () => {
 
     expect(screen.getByRole("link", { name: "Trace exposure →" })).toHaveAttribute(
       "href",
-      "/exposure?service=workload%3Acheckout-service",
+      "/exposure?service=checkout-service",
+    );
+  });
+
+  it("does not guess a canonical Exposure Path handle for duplicate display names", () => {
+    const duplicate = demoModel.services[0];
+    if (!duplicate) throw new Error("demo model must include a service fixture");
+    const model: ConsoleModel = {
+      ...demoModel,
+      services: [
+        { ...duplicate, id: "workload:shared-us", name: "Shared API" },
+        { ...duplicate, id: "workload:shared-eu", name: "Shared API" },
+      ],
+    };
+
+    renderDrawer(model, "Shared API");
+
+    expect(screen.getByRole("link", { name: "Trace exposure →" })).toHaveAttribute(
+      "href",
+      "/exposure?service=Shared%20API",
     );
   });
 });

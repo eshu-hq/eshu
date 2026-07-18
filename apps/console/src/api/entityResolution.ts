@@ -22,6 +22,7 @@ export interface ResolveEntityOptions {
   readonly limit?: number;
   readonly name: string;
   readonly repoId?: string;
+  readonly signal?: AbortSignal;
   readonly type?: string;
 }
 
@@ -38,12 +39,13 @@ export async function resolveEntity({
   limit = 10,
   name,
   repoId,
-  type
+  signal,
+  type,
 }: ResolveEntityOptions): Promise<EntityResolutionResult> {
-  const response = await client.postJson<ResolveEntityResponse>(
-    "/api/v0/entities/resolve",
-    compactBody({ limit, name, repo_id: repoId, type })
-  );
+  const body = compactBody({ limit, name, repo_id: repoId, type });
+  const response = signal
+    ? await client.postJson<ResolveEntityResponse>("/api/v0/entities/resolve", body, { signal })
+    : await client.postJson<ResolveEntityResponse>("/api/v0/entities/resolve", body);
   const rawCandidates = Array.isArray(response.entities)
     ? response.entities
     : Array.isArray(response.matches)
@@ -54,7 +56,7 @@ export async function resolveEntity({
     candidates: rawCandidates.map(normalizeCandidate),
     count: numberValue(response.count, rawCandidates.length),
     limit: numberValue(response.limit, limit),
-    truncated: response.truncated === true
+    truncated: response.truncated === true,
   };
 }
 
@@ -69,12 +71,12 @@ function normalizeCandidate(value: unknown): EntityResolutionCandidate {
     name: stringValue(record.name) || id,
     repoId: stringValue(record.repo_id),
     repoName: stringValue(record.repo_name),
-    type: stringValue(record.type) || labels[0] || "Entity"
+    type: stringValue(record.type) || labels[0] || "Entity",
   };
 }
 
 function compactBody(
-  body: Record<string, string | number | undefined>
+  body: Record<string, string | number | undefined>,
 ): Record<string, string | number> {
   const compacted: Record<string, string | number> = {};
   for (const [key, value] of Object.entries(body)) {
@@ -86,9 +88,7 @@ function compactBody(
 }
 
 function objectValue(value: unknown): Record<string, unknown> {
-  return typeof value === "object" && value !== null
-    ? value as Record<string, unknown>
-    : {};
+  return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {};
 }
 
 function arrayStrings(value: unknown): readonly string[] {

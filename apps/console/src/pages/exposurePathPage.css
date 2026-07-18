@@ -58,9 +58,18 @@
 }
 
 .exposure-selector-option:hover,
+.exposure-selector-option[aria-selected="true"],
 .exposure-selector-option:focus-visible {
   background: color-mix(in oklab, var(--teal) 12%, var(--bg-field));
   outline: 1px solid color-mix(in oklab, var(--teal) 50%, transparent);
+}
+
+.exposure-empty-truth {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
 }
 
 .exposure-selector-option .mono,

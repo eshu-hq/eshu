@@ -209,6 +209,7 @@ const openAPIPathsRepositories = `
                     "count": {"type": "integer"},
                     "limit": {"type": "integer"},
                     "truncated": {"type": "boolean"},
+                    "workloads_truncated": {"type": "boolean", "description": "True only when the workload and service collections are a bounded partial page; repository-only truncation does not set this field."},
                     "limitations": {"type": "array", "items": {"type": "string"}}
                   }
                 }

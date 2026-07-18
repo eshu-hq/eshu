@@ -40,6 +40,7 @@ export interface IngressHop {
 // IngressChain is one entrypoint's proven path to the runtime/service.
 export interface IngressChain {
   readonly entrypoint: string;
+  readonly environment: string;
   readonly visibility: string;
   readonly hops: readonly IngressHop[];
 }
@@ -176,16 +177,18 @@ function buildChains(
   if (paths.length === 0) {
     return [];
   }
-  const visibilityByTarget = new Map<string, string>();
+  const entrypointByTarget = new Map<string, EntrypointWire>();
   for (const entry of entrypoints) {
     if (entry.target) {
-      visibilityByTarget.set(entry.target, entry.visibility ?? "");
+      entrypointByTarget.set(entry.target, entry);
     }
   }
 
   return paths.map((path) => {
     const entrypoint = path.from ?? "";
-    const visibility = visibilityByTarget.get(entrypoint) ?? path.visibility ?? "";
+    const entrypointRecord = entrypointByTarget.get(entrypoint);
+    const visibility = entrypointRecord?.visibility ?? path.visibility ?? "";
+    const environment = entrypointRecord?.environment ?? path.environment ?? "";
     const hops: IngressHop[] = [];
     const origin = originHop(visibility);
     if (origin !== null) {
@@ -207,7 +210,7 @@ function buildChains(
       truth: "derived",
       reason: path.reason ?? "runtime target derived from the entrypoint-to-runtime network path",
     });
-    return { entrypoint, visibility, hops };
+    return { entrypoint, environment, visibility, hops };
   });
 }
 
