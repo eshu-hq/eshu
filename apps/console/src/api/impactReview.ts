@@ -15,6 +15,7 @@ import type {
   DeploymentTraceInstance,
   DeploymentTracePlatform,
   DeploymentTraceResult,
+  DeploymentTraceSource,
   ImpactReview,
   ImpactReviewInput,
   ImpactSection,
@@ -71,6 +72,7 @@ export async function loadImpactReview(
     loadChangeSurfaceSection(client, input),
     loadDeploymentTraceSection(client, input),
   ]);
+  const compositionStartedAt = performance.now();
   const selectedGraph = selectImpactGraph(
     input.target,
     input.targetKind,
@@ -78,12 +80,13 @@ export async function loadImpactReview(
     changeSurface,
     deploymentTrace,
   );
+  const compositionDurationMs = Math.max(0, performance.now() - compositionStartedAt);
   return {
     blast,
     changeSurface,
     deploymentTrace,
     graph: selectedGraph.graph,
-    graphPresentation: selectedGraph.presentation,
+    graphPresentation: { ...selectedGraph.presentation, compositionDurationMs },
     input,
   };
 }
@@ -314,7 +317,7 @@ function normalizeDeploymentTrace(response: DeploymentTraceResponse): Deployment
   };
 }
 
-function normalizeDeploymentSource(record: Record<string, unknown>): DeploymentTraceEntity {
+function normalizeDeploymentSource(record: Record<string, unknown>): DeploymentTraceSource {
   const name = nonEmpty(
     stringField(record, "repo_name"),
     stringField(record, "path"),
@@ -328,7 +331,16 @@ function normalizeDeploymentSource(record: Record<string, unknown>): DeploymentT
     id: optionalTrim(stringField(record, "repo_id")),
     kind: "repository",
     name,
+    relationshipType: deploymentSourceRelationshipType(stringField(record, "relationship_type")),
+    sourceId: optionalTrim(stringField(record, "source_id")),
+    targetId: optionalTrim(stringField(record, "target_id")),
   };
+}
+
+function deploymentSourceRelationshipType(
+  value: string,
+): DeploymentTraceSource["relationshipType"] {
+  return value === "DEPLOYMENT_SOURCE" || value === "DEPLOYS_FROM" ? value : undefined;
 }
 
 function normalizeDeploymentFact(record: Record<string, unknown>): DeploymentTraceFact {
@@ -375,7 +387,11 @@ function normalizeTraceEntity(
         .map((field) => stringField(record, field))
         .filter((value) => value.length > 0 && value !== name)
         .join(" · ") || undefined,
-    id: optionalTrim(stringField(record, "id")),
+    id: optionalTrim(
+      stringField(record, "id") ||
+        stringField(record, "entity_id") ||
+        stringField(record, "resource_id"),
+    ),
     kind: optionalTrim(stringField(record, "kind") || stringField(record, "resource_type")),
     name,
   };

@@ -334,13 +334,17 @@ func buildDeploymentFacts(
 		})
 	}
 	for _, source := range deploymentSources {
-		facts = append(facts, map[string]any{
-			"type":       "DEPLOYS_FROM",
+		fact := map[string]any{
+			"type":       firstNonEmptyString(safeStr(source, "relationship_type"), "DEPLOYS_FROM"),
 			"target":     safeStr(source, "repo_name"),
-			"target_id":  safeStr(source, "repo_id"),
+			"target_id":  firstNonEmptyString(safeStr(source, "target_id"), safeStr(source, "repo_id")),
 			"confidence": floatVal(source, "confidence"),
 			"reason":     safeStr(source, "reason"),
-		})
+		}
+		if sourceID := safeStr(source, "source_id"); sourceID != "" {
+			fact["source_id"] = sourceID
+		}
+		facts = append(facts, fact)
 	}
 	return facts
 }

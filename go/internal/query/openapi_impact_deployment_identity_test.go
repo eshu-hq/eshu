@@ -35,4 +35,12 @@ func TestOpenAPIImpactDeploymentTraceDocumentsCanonicalPlatformIdentity(t *testi
 	if _, ok := platformProperties["platform_id"]; !ok {
 		t.Fatal("impact trace instances[].platforms[] schema missing platform_id")
 	}
+	deploymentSources := mustMapField(t, properties, "deployment_sources")
+	deploymentSourceItems := mustMapField(t, deploymentSources, "items")
+	deploymentSourceProperties := mustMapField(t, deploymentSourceItems, "properties")
+	for _, field := range []string{"relationship_type", "source_id", "target_id"} {
+		if _, ok := deploymentSourceProperties[field]; !ok {
+			t.Fatalf("impact trace deployment_sources[] schema missing %s", field)
+		}
+	}
 }

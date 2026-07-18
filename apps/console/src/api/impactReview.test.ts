@@ -113,7 +113,7 @@ describe("impact review adapter", () => {
       omittedEdges: 0,
       omittedNodes: 0,
       renderedEdges: 9,
-      renderedNodes: 10,
+      renderedNodes: 12,
       truncated: false,
     });
     expect(result.graph.nodes.map((node) => node.id)).toEqual([
@@ -127,6 +127,8 @@ describe("impact review adapter", () => {
       "platform:ecs:catalog-ecs",
       "platform:kubernetes:catalog-eks",
       "platform:kubernetes:catalog-stage-eks",
+      "cloud:queue",
+      "k8s:catalog",
     ]);
     expect(result.graph.edges).toEqual(
       expect.arrayContaining([
@@ -427,8 +429,11 @@ function dualPlatformDeploymentTracePayload(): Record<string, unknown> {
       {
         confidence: 0.98,
         reason: "canonical deployment source",
+        relationship_type: "DEPLOYS_FROM",
         repo_id: "repository:r_config",
         repo_name: "deployment-config",
+        source_id: "repository:r_config",
+        target_id: "repository:r_catalog",
       },
     ],
     instances: [

@@ -17,8 +17,14 @@ func TestGoldenSnapshotTraceDeploymentChainRequiresCanonicalPlatformIdentity(t *
 	if !ok {
 		t.Fatal("query_shapes.mcp missing trace_deployment_chain")
 	}
-	const identityPath = "instances[].platforms[].platform_id"
-	if !slices.Contains(shape.RequiredJSONPaths, identityPath) {
-		t.Fatalf("trace_deployment_chain.required_json_paths missing %q", identityPath)
+	for _, identityPath := range []string{
+		"instances[].platforms[].platform_id",
+		"deployment_sources[].relationship_type",
+		"deployment_sources[].source_id",
+		"deployment_sources[].target_id",
+	} {
+		if !slices.Contains(shape.RequiredJSONPaths, identityPath) {
+			t.Fatalf("trace_deployment_chain.required_json_paths missing %q", identityPath)
+		}
 	}
 }

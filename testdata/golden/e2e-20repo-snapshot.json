@@ -2414,7 +2414,10 @@
         ],
         "minimum_results": 0,
         "required_json_paths": [
-          "instances[].platforms[].platform_id"
+          "instances[].platforms[].platform_id",
+          "deployment_sources[].relationship_type",
+          "deployment_sources[].source_id",
+          "deployment_sources[].target_id"
         ],
         "arguments": {
           "service_name": "api-svc",

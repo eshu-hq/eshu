@@ -16,7 +16,9 @@ export function ImpactGraphProvenance({
       <div className="impact-mini-stats">
         <span>{presentation.mode.replace(/_/g, " ")}</span>
         {presentation.truthLevel ? <span>truth {presentation.truthLevel}</span> : null}
+        {presentation.truthBasis ? <span>basis {presentation.truthBasis}</span> : null}
         {presentation.freshness ? <span>freshness {presentation.freshness}</span> : null}
+        <span>composition {presentation.compositionDurationMs.toFixed(3)} ms</span>
         <span>
           {presentation.renderedNodes}/{presentation.inputNodes} nodes
         </span>
@@ -52,8 +54,10 @@ export function ImpactGraphProvenance({
 }
 
 export function DeploymentTraceSummary({
+  onInspectEntity,
   trace,
 }: {
+  readonly onInspectEntity: (entityId: string) => void;
   readonly trace: DeploymentTraceResult;
 }): React.JSX.Element {
   return (
@@ -123,13 +127,52 @@ export function DeploymentTraceSummary({
                 <span className="mono">
                   {instance.id || "canonical instance identity unavailable"}
                 </span>
-                <span>
-                  {instance.platforms.length > 0
-                    ? instance.platforms
-                        .map((platform) => `${platform.name} (${platform.kind ?? "platform"})`)
-                        .join(" · ")
-                    : "No exact platform relationship returned"}
-                </span>
+                <div className="impact-pivots">
+                  {instance.environment ? (
+                    <button
+                      aria-label={`Inspect ${instance.environment} environment`}
+                      className="btn-ghost"
+                      onClick={() => onInspectEntity(`environment:${instance.environment}`)}
+                      type="button"
+                    >
+                      Inspect environment
+                    </button>
+                  ) : null}
+                  {instance.id ? (
+                    <button
+                      aria-label={`Inspect ${instance.id}`}
+                      className="btn-ghost"
+                      onClick={() => onInspectEntity(instance.id)}
+                      type="button"
+                    >
+                      Inspect instance
+                    </button>
+                  ) : null}
+                </div>
+                {instance.platforms.length > 0 ? (
+                  <div className="impact-entity-list">
+                    {instance.platforms.map((platform, index) => (
+                      <span key={`${platform.id ?? platform.name}:${index}`}>
+                        {platform.name} ({platform.kind ?? "platform"} ·{" "}
+                        {platform.id ? (
+                          <>
+                            <span className="mono">{platform.id}</span>{" "}
+                            <EntityPivot
+                              entityId={platform.id}
+                              label={`Inspect ${platform.name} platform`}
+                              onInspectEntity={onInspectEntity}
+                            />
+                          </>
+                        ) : (
+                          "canonical identity unavailable"
+                        )}
+                        )
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <span>No exact platform relationship returned</span>
+                )}
               </article>
             ))}
           </div>
@@ -138,12 +181,16 @@ export function DeploymentTraceSummary({
 
       <TraceEntityGroup
         empty="No exact cloud-resource relationships returned."
+        graphLinks
         label="Cloud resources"
+        onInspectEntity={onInspectEntity}
         rows={trace.cloudResources}
       />
       <TraceEntityGroup
         empty="No Kubernetes resources returned."
+        graphLinks
         label="Kubernetes resources"
+        onInspectEntity={onInspectEntity}
         rows={trace.k8sResources}
       />
 
@@ -159,12 +206,16 @@ export function DeploymentTraceSummary({
 
 function TraceEntityGroup({
   empty,
+  graphLinks = false,
   label,
+  onInspectEntity,
   repositoryLinks = false,
   rows,
 }: {
   readonly empty: string;
+  readonly graphLinks?: boolean;
   readonly label: string;
+  readonly onInspectEntity?: (entityId: string) => void;
   readonly repositoryLinks?: boolean;
   readonly rows: readonly DeploymentTraceEntity[];
 }): React.JSX.Element {
@@ -186,10 +237,38 @@ function TraceEntityGroup({
               )}
               {row.id ? <span className="mono">{row.id}</span> : null}
               {row.detail ? <span>{row.detail}</span> : null}
+              {graphLinks && row.id && onInspectEntity ? (
+                <EntityPivot
+                  entityId={row.id}
+                  label={`Inspect ${row.name}`}
+                  onInspectEntity={onInspectEntity}
+                />
+              ) : null}
             </article>
           ))}
         </div>
       )}
     </section>
+  );
+}
+
+function EntityPivot({
+  entityId,
+  label,
+  onInspectEntity,
+}: {
+  readonly entityId: string;
+  readonly label: string;
+  readonly onInspectEntity: (entityId: string) => void;
+}): React.JSX.Element {
+  return (
+    <button
+      aria-label={label}
+      className="btn-ghost"
+      onClick={() => onInspectEntity(entityId)}
+      type="button"
+    >
+      Inspect graph
+    </button>
   );
 }

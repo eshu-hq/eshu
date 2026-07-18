@@ -6,7 +6,14 @@ import type {
   ImpactSection,
   ImpactTargetKind,
 } from "./impactReviewTypes";
-import type { GraphEdge, GraphLayer, GraphModel, GraphNode } from "../console/types";
+import {
+  uiTruth,
+  type GraphEdge,
+  type GraphLayer,
+  type GraphModel,
+  type GraphNode,
+  type UiTruth,
+} from "../console/types";
 
 const nodeLimit = 60;
 const edgeLimit = 120;
@@ -40,7 +47,11 @@ export function selectImpactGraph(
     (targetKind === "service" || targetKind === "workload") &&
     deploymentTrace.status === "ready"
   ) {
-    const deployment = deploymentTraceGraph(deploymentTrace.data);
+    const traceTruth = deploymentTrace.truth;
+    const deployment = deploymentTraceGraph(
+      deploymentTrace.data,
+      traceTruth === null ? "inferred" : uiTruth(traceTruth.level),
+    );
     if (deployment.graph.edges.length > 0) {
       return {
         graph: deployment.graph,
@@ -48,6 +59,7 @@ export function selectImpactGraph(
           ...deployment.presentation,
           freshness: deploymentTrace.truth?.freshness.state,
           truthLevel: deploymentTrace.truth?.level,
+          truthBasis: deploymentTrace.truth?.basis,
         },
       };
     }
@@ -73,7 +85,10 @@ export function selectImpactGraph(
   return existingGraph({ edges: [], nodes: [] }, "empty", [], "Impact graph");
 }
 
-function deploymentTraceGraph(trace: DeploymentTraceResult): {
+function deploymentTraceGraph(
+  trace: DeploymentTraceResult,
+  truth: UiTruth,
+): {
   readonly graph: GraphModel;
   readonly presentation: ImpactGraphPresentation;
 } {
@@ -112,7 +127,7 @@ function deploymentTraceGraph(trace: DeploymentTraceResult): {
           kind: "workload",
           label: trace.serviceName || workloadID,
           sub: "deployment subject",
-          truth: "exact",
+          truth,
         }
       : null,
     "workload omitted because the trace has no canonical workload_id",
@@ -125,7 +140,7 @@ function deploymentTraceGraph(trace: DeploymentTraceResult): {
           kind: "repo",
           label: trace.repoName || sourceRepoID,
           sub: "source repository",
-          truth: "exact",
+          truth,
         }
       : null,
     "source repository omitted because the trace has no canonical repo_id",
@@ -144,17 +159,41 @@ function deploymentTraceGraph(trace: DeploymentTraceResult): {
             kind: "repo",
             label: source.name,
             sub: source.detail ?? "deployment source",
-            truth: "exact",
+            truth,
           }
         : null,
       "deployment source omitted because it has no canonical repo_id",
     );
-    addEdge(
-      configRepoID.length > 0 && sourceRepoID.length > 0
-        ? { layer: "deploy", s: configRepoID, t: sourceRepoID, verb: "DEPLOYS_FROM" }
-        : null,
-      "deployment-source edge omitted because an endpoint lacks canonical identity",
-    );
+    if (source.relationshipType === "DEPLOYS_FROM") {
+      addEdge(
+        source.sourceId === configRepoID && source.targetId === sourceRepoID
+          ? {
+              layer: "deploy",
+              s: source.sourceId,
+              t: source.targetId,
+              verb: "DEPLOYS_FROM",
+            }
+          : null,
+        "DEPLOYS_FROM edge omitted because its exact endpoints do not match the trace repositories",
+      );
+    } else if (source.relationshipType === "DEPLOYMENT_SOURCE") {
+      addEdge(
+        source.sourceId !== undefined && source.targetId === configRepoID
+          ? {
+              layer: "deploy",
+              s: source.sourceId,
+              t: source.targetId,
+              verb: "DEPLOYMENT_SOURCE",
+            }
+          : null,
+        "DEPLOYMENT_SOURCE edge omitted because its exact instance or repository endpoint is unavailable",
+      );
+    } else {
+      addEdge(
+        null,
+        "deployment-source edge omitted because the trace did not identify its relationship family and endpoints",
+      );
+    }
   }
 
   const environmentKeys = new Set<string>();
@@ -164,10 +203,10 @@ function deploymentTraceGraph(trace: DeploymentTraceResult): {
         ? {
             col: 3,
             id: instance.id,
-            kind: "service",
+            kind: "instance",
             label: instance.environment ?? instance.id,
             sub: "runtime instance",
-            truth: "exact",
+            truth,
           }
         : null,
       "runtime instance omitted because it has no canonical instance_id",
@@ -188,7 +227,7 @@ function deploymentTraceGraph(trace: DeploymentTraceResult): {
           kind: "env",
           label: instance.environment,
           sub: "materialized environment",
-          truth: "exact",
+          truth,
         },
         "",
       );
@@ -215,10 +254,10 @@ function deploymentTraceGraph(trace: DeploymentTraceResult): {
           ? {
               col: 4,
               id: platformID,
-              kind: "service",
+              kind: "platform",
               label: platform.name,
               sub: platform.kind ?? "runtime platform",
-              truth: "exact",
+              truth,
             }
           : null,
         "runtime platform omitted because it has no canonical platform_id",
@@ -232,9 +271,39 @@ function deploymentTraceGraph(trace: DeploymentTraceResult): {
     }
   }
 
+  for (const resource of trace.cloudResources) {
+    addNode(
+      resource.id !== undefined
+        ? {
+            col: 5,
+            id: resource.id,
+            kind: "aws",
+            label: resource.name,
+            sub: "evidence only · no exact topology edge",
+            truth,
+          }
+        : null,
+      "cloud-resource evidence omitted because it has no canonical identity",
+    );
+  }
+  for (const resource of trace.k8sResources) {
+    addNode(
+      resource.id !== undefined
+        ? {
+            col: 5,
+            id: resource.id,
+            kind: "k8s",
+            label: resource.name,
+            sub: "evidence only · no exact topology edge",
+            truth,
+          }
+        : null,
+      "Kubernetes evidence omitted because it has no canonical identity",
+    );
+  }
   if (trace.cloudResources.length > 0 || trace.k8sResources.length > 0) {
     limitations.add(
-      "cloud and Kubernetes evidence stays in the evidence groups unless the trace supplies exact topology endpoints",
+      "cloud and Kubernetes evidence nodes remain disconnected unless the trace supplies exact topology endpoints",
     );
   }
 
@@ -259,8 +328,6 @@ function boundedGraph(
       left.kind.localeCompare(right.kind) ||
       left.id.localeCompare(right.id),
   );
-  const nodes = uniqueNodes.slice(0, nodeLimit);
-  const renderedIDs = new Set(nodes.map((node) => node.id));
   const edgeByKey = new Map<string, GraphEdge>();
   for (const edge of rawEdges) {
     const key = `${edge.s}\u0000${edge.verb}\u0000${edge.t}`;
@@ -268,6 +335,8 @@ function boundedGraph(
   }
   const duplicateEdges = rawEdges.length - edgeByKey.size;
   const uniqueEdges = [...edgeByKey.values()];
+  const nodes = selectBoundedNodes(uniqueNodes, uniqueEdges, nodeLimit);
+  const renderedIDs = new Set(nodes.map((node) => node.id));
   const referenceOmittedEdges = uniqueEdges.filter(
     (edge) => !renderedIDs.has(edge.s) || !renderedIDs.has(edge.t),
   ).length;
@@ -282,6 +351,7 @@ function boundedGraph(
   return {
     graph: { edges, nodes },
     presentation: {
+      compositionDurationMs: 0,
       duplicateEdges,
       duplicateNodes,
       edgeLimit,
@@ -306,11 +376,16 @@ function existingGraph(
   mode: ImpactGraphPresentation["mode"],
   sourceApis: readonly string[],
   title: string,
-  truth?: { readonly freshness: { readonly state: string }; readonly level: string } | null,
+  truth?: {
+    readonly basis?: string;
+    readonly freshness: { readonly state: string };
+    readonly level: string;
+  } | null,
 ): { readonly graph: GraphModel; readonly presentation: ImpactGraphPresentation } {
   return {
     graph,
     presentation: {
+      compositionDurationMs: 0,
       duplicateEdges: 0,
       duplicateNodes: 0,
       edgeLimit,
@@ -327,9 +402,46 @@ function existingGraph(
       sourceApis,
       title,
       truncated: false,
+      truthBasis: truth?.basis,
       truthLevel: truth?.level,
     },
   };
+}
+
+function selectBoundedNodes(
+  nodes: readonly GraphNode[],
+  edges: readonly GraphEdge[],
+  limit: number,
+): readonly GraphNode[] {
+  if (nodes.length <= limit) return nodes;
+  const required = new Set<string>();
+  const add = (node: GraphNode | undefined): void => {
+    if (node !== undefined && required.size < limit) required.add(node.id);
+  };
+  add(nodes.find((node) => node.hero));
+  for (const kind of ["repo", "env", "aws", "k8s"] as const) {
+    add(nodes.find((node) => node.kind === kind));
+  }
+  const platformKinds = new Set<string>();
+  for (const node of nodes) {
+    const platformKind = node.sub ?? "unknown";
+    if (node.kind !== "platform" || platformKinds.has(platformKind)) continue;
+    platformKinds.add(platformKind);
+    add(node);
+    const runsOn = edges.find((edge) => edge.verb === "RUNS_ON" && edge.t === node.id);
+    add(nodes.find((candidate) => candidate.id === runsOn?.s));
+  }
+  for (const verb of ["DEFINES", "DEPLOYS_FROM", "DEPLOYMENT_SOURCE"] as const) {
+    const edge = edges.find((candidate) => candidate.verb === verb);
+    add(nodes.find((node) => node.id === edge?.s));
+    add(nodes.find((node) => node.id === edge?.t));
+  }
+  const selected = nodes.filter((node) => required.has(node.id));
+  for (const node of nodes) {
+    if (selected.length >= limit) break;
+    if (!required.has(node.id)) selected.push(node);
+  }
+  return selected;
 }
 
 function changeSurfaceGraph(

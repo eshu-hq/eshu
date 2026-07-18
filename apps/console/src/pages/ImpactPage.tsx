@@ -2,13 +2,13 @@ import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react
 import { useSearchParams } from "react-router-dom";
 
 import { DeployableUnitPacketPanel, packetFormFromSearch } from "./DeployableUnitPacketPanel";
+import { DeploymentTraceSummary, ImpactGraphProvenance } from "./ImpactDeploymentSummary";
 import type { ChangeSurfaceInvestigation } from "../api/changeSurface";
 import type { EshuApiClient } from "../api/client";
 import { demoDefaults } from "../api/demoClient";
 import type { EshuTruth } from "../api/envelope";
 import { loadImpactReview } from "../api/impactReview";
 import type { ImpactReview, ImpactSection, ImpactTargetKind } from "../api/impactReviewTypes";
-import { DeploymentTraceSummary, ImpactGraphProvenance } from "./ImpactDeploymentSummary";
 import { Badge, FreshDot, Panel, StatTile, TruthChip } from "../components/atoms";
 import { GraphCanvas } from "../components/GraphCanvas";
 import { defaultServiceName } from "../console/defaultEntity";
@@ -231,7 +231,7 @@ export function ImpactPage({
             <GraphCanvas
               graph={graph}
               height={590}
-              layout="radial"
+              layout="layered"
               onSelect={setSelectedNode}
               selectedId={selectedNode?.id}
             />
@@ -247,6 +247,7 @@ export function ImpactPage({
                   <div className="insp-title">{selectedNode.label}</div>
                 </div>
               </div>
+              <p className="mono t-mut">{selectedNode.id}</p>
               {selectedNode.sub ? <p className="mono t-mut">{selectedNode.sub}</p> : null}
               {selectedNode.truth ? <TruthChip level={selectedNode.truth} /> : null}
               <div className="section-label">Impact edges</div>
@@ -291,7 +292,13 @@ export function ImpactPage({
 
         <ImpactSectionPanel section={review?.deploymentTrace ?? null} title="Deployment chain">
           {review?.deploymentTrace.status === "ready" ? (
-            <DeploymentTraceSummary trace={review.deploymentTrace.data} />
+            <DeploymentTraceSummary
+              onInspectEntity={(entityId) => {
+                const node = graph.nodes.find((candidate) => candidate.id === entityId);
+                if (node !== undefined) setSelectedNode(node);
+              }}
+              trace={review.deploymentTrace.data}
+            />
           ) : null}
         </ImpactSectionPanel>
       </div>

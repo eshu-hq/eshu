@@ -37,6 +37,7 @@ export interface ImpactReview {
 export type ImpactGraphMode = "blast_radius" | "change_surface" | "deployment_trace" | "empty";
 
 export interface ImpactGraphPresentation {
+  readonly compositionDurationMs: number;
   readonly duplicateEdges: number;
   readonly duplicateNodes: number;
   readonly edgeLimit: number;
@@ -53,6 +54,7 @@ export interface ImpactGraphPresentation {
   readonly sourceApis: readonly string[];
   readonly title: string;
   readonly truncated: boolean;
+  readonly truthBasis?: string;
   readonly truthLevel?: string;
 }
 
@@ -98,7 +100,7 @@ export interface DeploymentTraceResult {
   readonly cloudResources: readonly DeploymentTraceEntity[];
   readonly deploymentOverview: Record<string, unknown>;
   readonly deploymentFacts: readonly DeploymentTraceFact[];
-  readonly deploymentSources: readonly DeploymentTraceEntity[];
+  readonly deploymentSources: readonly DeploymentTraceSource[];
   readonly imageRefs: readonly string[];
   readonly k8sResources: readonly DeploymentTraceEntity[];
   readonly instances: readonly DeploymentTraceInstance[];
@@ -137,6 +139,12 @@ export interface DeploymentTraceEntity {
   readonly id?: string;
   readonly kind?: string;
   readonly name: string;
+}
+
+export interface DeploymentTraceSource extends DeploymentTraceEntity {
+  readonly relationshipType?: "DEPLOYMENT_SOURCE" | "DEPLOYS_FROM";
+  readonly sourceId?: string;
+  readonly targetId?: string;
 }
 
 export type BlastTargetType = "crossplane_xrd" | "repository" | "sql_table" | "terraform_module";

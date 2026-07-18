@@ -72,7 +72,21 @@ const openAPIPathsImpact = `
                     "observed_config_environments": {"type": "array", "items": {"type": "string"}},
                     "api_surface": {"type": "object"},
                     "dependents": {"type": "array", "items": {"type": "object"}},
-                    "deployment_sources": {"type": "array", "items": {"type": "object"}},
+                    "deployment_sources": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "repo_id": {"type": "string"},
+                          "repo_name": {"type": "string"},
+                          "relationship_type": {"type": "string", "enum": ["DEPLOYMENT_SOURCE", "DEPLOYS_FROM"]},
+                          "source_id": {"type": "string", "description": "Canonical source endpoint identity for relationship_type."},
+                          "target_id": {"type": "string", "description": "Canonical target endpoint identity for relationship_type."},
+                          "confidence": {"type": "number"},
+                          "reason": {"type": "string"}
+                        }
+                      }
+                    },
                     "cloud_resources": {"type": "array", "description": "CloudResource dependencies admitted only from materialized WorkloadInstance USES CloudResource relationships.", "items": {"type": "object"}},
                     "uncorrelated_cloud_resources": {"type": "array", "description": "CloudResource candidates that matched the service name or ARN/resource identifier but do not have a materialized workload-to-cloud relationship.", "items": {"type": "object"}},
                     "k8s_resources": {"type": "array", "items": {"type": "object"}},

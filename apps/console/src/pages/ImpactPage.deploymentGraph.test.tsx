@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 
 import { ImpactPage } from "./ImpactPage";
@@ -29,9 +29,13 @@ describe("ImpactPage deployment topology", () => {
     const composition = screen.getByLabelText("Graph composition evidence");
     expect(within(composition).getByText("deployment trace")).toBeInTheDocument();
     expect(within(composition).getByText("truth exact")).toBeInTheDocument();
+    expect(within(composition).getByText("basis authoritative_graph")).toBeInTheDocument();
     expect(within(composition).getByText("freshness stale")).toBeInTheDocument();
-    expect(within(composition).getByText("10/10 nodes")).toBeInTheDocument();
+    expect(within(composition).getByText("12/12 nodes")).toBeInTheDocument();
     expect(within(composition).getByText("9/9 edges")).toBeInTheDocument();
+    expect(within(composition).getByText(/composition \d+\.\d{3} ms/)).toBeInTheDocument();
+    expect(document.querySelector(".gnode-instance")).not.toBeNull();
+    expect(document.querySelector(".gnode-platform")).not.toBeNull();
 
     expect(screen.getByText("Full deployment narrative")).toBeInTheDocument();
     expect(
@@ -39,6 +43,8 @@ describe("ImpactPage deployment topology", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("2 runtime instances")).toBeInTheDocument();
     expect(screen.getByText("Runtime instances and platforms")).toBeInTheDocument();
+    expect(screen.getByText(/platform:ecs:catalog-ecs/)).toBeInTheDocument();
+    expect(screen.getByText(/platform:kubernetes:catalog-eks/)).toBeInTheDocument();
     expect(screen.getByText("Deployment facts")).toBeInTheDocument();
     expect(screen.getByText("DEPLOYS FROM")).toBeInTheDocument();
     expect(screen.getByText("Cloud resources")).toBeInTheDocument();
@@ -62,6 +68,17 @@ describe("ImpactPage deployment topology", () => {
       "href",
       "/repositories/repository%3Ar_config/source",
     );
+    expect(screen.getByRole("button", { name: "Inspect prod environment" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Inspect instance:catalog:prod" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Inspect catalog-ecs platform" }),
+    ).toBeInTheDocument();
+    const selectedPanel = screen.getByText("Selected entity").closest("section");
+    expect(selectedPanel).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Inspect lead-events" }));
+    expect(within(selectedPanel as HTMLElement).getByText("cloud:queue")).toBeInTheDocument();
   });
 });
 
@@ -72,8 +89,11 @@ function deploymentTrace(): Record<string, unknown> {
       {
         confidence: 0.98,
         reason: "canonical deployment source",
+        relationship_type: "DEPLOYS_FROM",
         repo_id: "repository:r_config",
         repo_name: "deployment-config",
+        source_id: "repository:r_config",
+        target_id: "repository:r_catalog",
       },
     ],
     deployment_facts: [

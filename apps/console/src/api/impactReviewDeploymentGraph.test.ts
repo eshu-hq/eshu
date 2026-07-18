@@ -59,8 +59,8 @@ describe("impact deployment graph composition", () => {
       instance_id: `instance:catalog:${String(index).padStart(2, "0")}`,
       platforms: [
         {
-          platform_id: `platform:kubernetes:${String(index).padStart(2, "0")}`,
-          platform_kind: "kubernetes",
+          platform_id: `platform:${index === 0 ? "ecs" : "kubernetes"}:${String(index).padStart(2, "0")}`,
+          platform_kind: index === 0 ? "ecs" : "kubernetes",
           platform_name: `cluster-${String(index).padStart(2, "0")}`,
         },
       ],
@@ -79,10 +79,118 @@ describe("impact deployment graph composition", () => {
     });
     expect(review.graphPresentation.omittedNodes).toBeGreaterThan(0);
     expect(review.graphPresentation.omittedEdges).toBeGreaterThan(0);
+    expect(
+      review.graph.nodes.filter((node) => node.kind === "platform").map((node) => node.sub),
+    ).toEqual(expect.arrayContaining(["ecs", "kubernetes"]));
+    expect(review.graph.nodes.some((node) => node.kind === "env")).toBe(true);
+  });
+
+  it("inherits the deployment trace truth level on every topology node", async () => {
+    const review = await loadReview(
+      deploymentTracePayload({
+        instances: [
+          {
+            environment: "prod",
+            instance_id: "instance:catalog:prod",
+            platforms: [
+              { platform_id: "platform:ecs:prod", platform_kind: "ecs", platform_name: "prod" },
+            ],
+          },
+        ],
+      }),
+      "fresh",
+      "derived",
+    );
+
+    expect(review.graph.nodes.every((node) => node.truth === "derived")).toBe(true);
+  });
+
+  it("preserves exact instance deployment-source endpoints without inventing DEPLOYS_FROM", async () => {
+    const review = await loadReview(
+      deploymentTracePayload({
+        deployment_sources: [
+          {
+            relationship_type: "DEPLOYMENT_SOURCE",
+            repo_id: "repository:r_config",
+            repo_name: "deployment-config",
+            source_id: "instance:catalog:prod",
+            target_id: "repository:r_config",
+          },
+        ],
+        instances: [
+          {
+            environment: "prod",
+            instance_id: "instance:catalog:prod",
+            platforms: [],
+          },
+        ],
+      }),
+    );
+
+    expect(review.graph.edges).toContainEqual({
+      layer: "deploy",
+      s: "instance:catalog:prod",
+      t: "repository:r_config",
+      verb: "DEPLOYMENT_SOURCE",
+    });
+    expect(review.graph.edges.some((edge) => edge.verb === "DEPLOYS_FROM")).toBe(false);
+  });
+
+  it("does not promote a missing trace truth envelope to exact", async () => {
+    const review = await loadReview(
+      deploymentTracePayload({
+        instances: [
+          {
+            environment: "prod",
+            instance_id: "instance:catalog:prod",
+            platforms: [
+              { platform_id: "platform:ecs:prod", platform_kind: "ecs", platform_name: "prod" },
+            ],
+          },
+        ],
+      }),
+      "fresh",
+      null,
+    );
+
+    expect(review.graph.nodes.every((node) => node.truth === "inferred")).toBe(true);
+    expect(review.graphPresentation.truthLevel).toBeUndefined();
+    expect(review.graphPresentation.truthBasis).toBeUndefined();
+  });
+
+  it("keeps authorization failures visible without leaking or fabricating topology", async () => {
+    const client = new EshuApiClient({
+      baseUrl: "http://localhost:8080",
+      fetcher: async (): Promise<Response> =>
+        Response.json({
+          data: null,
+          error: { code: "permission_denied", message: "repository scope is not authorized" },
+          truth: null,
+        }),
+    });
+
+    const review = await loadImpactReview(client, {
+      target: "catalog-api",
+      targetKind: "service",
+    });
+
+    expect(review.changeSurface.status).toBe("unavailable");
+    expect(review.deploymentTrace.status).toBe("unavailable");
+    expect(review.graph).toEqual({ edges: [], nodes: [] });
+    expect(review.graphPresentation).toMatchObject({
+      inputEdges: 0,
+      inputNodes: 0,
+      mode: "empty",
+      sourceApis: [],
+    });
   });
 });
 
-async function loadReview(trace: Record<string, unknown>, freshness = "fresh") {
+async function loadReview(
+  trace: Record<string, unknown>,
+  freshness = "fresh",
+  traceLevel: string | null = "exact",
+) {
   const client = new EshuApiClient({
     baseUrl: "http://localhost:8080",
     fetcher: async (input: RequestInfo | URL): Promise<Response> => {
@@ -98,7 +206,7 @@ async function loadReview(trace: Record<string, unknown>, freshness = "fresh") {
         return Response.json({
           data: trace,
           error: null,
-          truth: truthEnvelope("exact", freshness),
+          truth: traceLevel === null ? null : truthEnvelope(traceLevel, freshness),
         });
       }
       throw new Error(`unexpected request ${path}`);
@@ -126,8 +234,11 @@ function deploymentSource(): Record<string, unknown> {
   return {
     confidence: 0.98,
     reason: "canonical deployment source",
+    relationship_type: "DEPLOYS_FROM",
     repo_id: "repository:r_config",
     repo_name: "deployment-config",
+    source_id: "repository:r_config",
+    target_id: "repository:r_catalog",
   };
 }
 

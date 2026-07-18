@@ -77,6 +77,22 @@ sees bounds and missing evidence without falling back to raw Cypher.
   payload's `limitations` into an explicit, sorted, de-duplicated array so the
   envelope shape is stable across complete and partial reads.
 
+### Deployment Trace Relationship Endpoints
+
+`POST /api/v0/impact/trace-deployment-chain` keeps deployment-source
+relationship families distinct. Every `deployment_sources[]` row includes
+`relationship_type`, canonical `source_id`, and canonical `target_id`:
+
+- `DEPLOYMENT_SOURCE` is `WorkloadInstance -> Repository` runtime admission
+  evidence.
+- `DEPLOYS_FROM` is `Repository -> Repository` deployment configuration
+  evidence.
+
+Consumers must render the returned direction and endpoints. A deployment-source
+repository name is display text, not permission to convert an instance edge into
+a repository edge. `instances[].platforms[].platform_id` is likewise the
+canonical platform identity; `platform_name` is only its label.
+
 Repository context relationship rows expose the same correlation confidence
 metadata as relationship evidence drilldown: `confidence`, `confidence_basis`,
 `resolution_source`, `evidence_type`, and `evidence_kinds` when the reducer or
