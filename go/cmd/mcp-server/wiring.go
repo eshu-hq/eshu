@@ -119,10 +119,12 @@ func wireAPI(
 	if logger != nil {
 		logger.Info("postgres connected", telemetry.EventAttr("runtime.postgres.connected"))
 	}
-	scopedTokenResolver = scopedtoken.ChainResolvers(
-		scopedtoken.NewPostgresIdentityResolver(pgstatus.NewScopedAPITokenStore(pgstatus.SQLDB{DB: db})),
-		scopedTokenResolver,
-	)
+	// identityResolver is kept separate from scopedTokenResolver (the
+	// file-registry resolver loaded above) until after instruments exists
+	// below: the IdP bearer resolver (#5162) needs instruments and must sit
+	// BETWEEN identity and file-registry in the chain
+	// (identity -> bearer -> file), matching cmd/api's wiring exactly.
+	identityResolver := scopedtoken.NewPostgresIdentityResolver(pgstatus.NewScopedAPITokenStore(pgstatus.SQLDB{DB: db}))
 	instruments, err := telemetry.NewInstruments(otel.Meter("mcp-server"))
 	if err != nil {
 		_ = db.Close()
@@ -131,6 +133,18 @@ func wireAPI(
 		}
 		return nil, nil, nil, fmt.Errorf("register query instruments: %w", err)
 	}
+
+	// IdP bearer-token resolver (#5162): see cmd/api's identical wiring
+	// comment. Returns (nil, nil) when ESHU_AUTH_RESOURCE_URI is unset.
+	oidcBearerResolver, err := newOIDCBearerResolver(ctx, getenv, db, instruments, logger)
+	if err != nil {
+		_ = db.Close()
+		if driver != nil {
+			_ = driver.Close(ctx)
+		}
+		return nil, nil, nil, fmt.Errorf("construct oidc bearer resolver: %w", err)
+	}
+	scopedTokenResolver = scopedtoken.ChainResolvers(identityResolver, oidcBearerResolver, scopedTokenResolver)
 
 	// Build query layer
 	neo4jReader := query.NewNeo4jReader(driver, neo4jDB)
