@@ -4,7 +4,7 @@ import type {
   AnswerNextCall,
   AnswerNextCallWire,
   EvidenceCitationPacket,
-  EvidenceCitationResponseWire
+  EvidenceCitationResponseWire,
 } from "./answerPacket";
 import type { EshuTruth } from "./envelope";
 import type { GraphModel, GraphLayer, GraphNode } from "../console/types";
@@ -90,19 +90,27 @@ export interface VisualizationTruncationWire {
 }
 
 export interface VisualizationNode {
+  readonly canonicalKey: string;
   readonly category: string;
   readonly evidenceHandle: AnswerEvidenceHandle | null;
+  readonly evidenceHandles: readonly AnswerEvidenceHandle[];
   readonly id: string;
   readonly label: string;
+  readonly role: string;
+  readonly scopeKey: string;
   readonly truthLabel: string;
   readonly type: string;
 }
 
 export interface VisualizationNodeWire {
+  readonly canonical_key?: string;
   readonly category?: string;
   readonly evidence_handle?: AnswerEvidenceHandleWire;
+  readonly evidence_handles?: readonly AnswerEvidenceHandleWire[];
   readonly id?: string;
   readonly label?: string;
+  readonly role?: string;
+  readonly scope_key?: string;
   readonly truth_label?: string;
   readonly type?: string;
 }
@@ -127,12 +135,12 @@ export interface VisualizationEdgeWire {
 
 export function visualizationRequest(
   citationPacket: EvidenceCitationPacket,
-  sourceTruth: EshuTruth | null
+  sourceTruth: EshuTruth | null,
 ): VisualizationDeriveRequest {
   return {
     source_response: citationPacket.raw,
     ...(sourceTruth === null ? {} : { source_truth: sourceTruth }),
-    view: "evidence_citation"
+    view: "evidence_citation",
   };
 }
 
@@ -143,18 +151,18 @@ export function visualizationRequest(
 // graph topology client-side.
 export function serviceStoryVisualizationRequest(
   story: Record<string, unknown>,
-  sourceTruth: EshuTruth | null
+  sourceTruth: EshuTruth | null,
 ): ServiceStoryVisualizationRequest {
   return {
     source_response: story,
     ...(sourceTruth === null ? {} : { source_truth: sourceTruth }),
-    view: "service_story"
+    view: "service_story",
   };
 }
 
 export function normalizeVisualizationPacket(
   response: VisualizationDeriveResponseWire,
-  routeTruth: EshuTruth | null
+  routeTruth: EshuTruth | null,
 ): VisualizationPacket | null {
   const packet = response.visualization_packet;
   if (packet === undefined) {
@@ -167,24 +175,30 @@ export function normalizeVisualizationPacket(
       relationship: clean(edge.relationship),
       source: clean(edge.source),
       target: clean(edge.target),
-      truthLabel: clean(edge.truth_label)
+      truthLabel: clean(edge.truth_label),
     })),
     limitations: packet.limitations ?? [],
     limits: normalizeLimits(packet.limits),
     nodes: (packet.nodes ?? []).map((node) => ({
+      canonicalKey: clean(node.canonical_key),
       category: clean(node.category),
       evidenceHandle: handleRow(node.evidence_handle),
+      evidenceHandles: (node.evidence_handles ?? [])
+        .map((handle) => handleRow(handle))
+        .filter((handle): handle is AnswerEvidenceHandle => handle !== null),
       id: clean(node.id),
       label: clean(node.label),
+      role: clean(node.role),
+      scopeKey: clean(node.scope_key),
       truthLabel: clean(node.truth_label),
-      type: clean(node.type)
+      type: clean(node.type),
     })),
     recommendedNextCalls: nextCalls(packet.recommended_next_calls ?? []),
     supported: packet.supported ?? false,
     title: clean(packet.title),
     truncation: normalizeTruncation(packet.truncation),
     truth: packet.truth ?? routeTruth,
-    view: clean(packet.view)
+    view: clean(packet.view),
   };
 }
 
@@ -194,16 +208,18 @@ function normalizeLimits(limits: VisualizationLimitsWire | undefined): Visualiza
     maxEdges: limits?.max_edges ?? 0,
     maxNodes: limits?.max_nodes ?? 0,
     nodeCount: limits?.node_count ?? 0,
-    ordering: clean(limits?.ordering)
+    ordering: clean(limits?.ordering),
   };
 }
 
-function normalizeTruncation(truncation: VisualizationTruncationWire | undefined): VisualizationTruncation {
+function normalizeTruncation(
+  truncation: VisualizationTruncationWire | undefined,
+): VisualizationTruncation {
   return {
     droppedEdgeCount: truncation?.dropped_edge_count ?? 0,
     droppedNodeCount: truncation?.dropped_node_count ?? 0,
     droppedNodeIds: (truncation?.dropped_node_ids ?? []).filter((id) => id.trim().length > 0),
-    truncated: truncation?.truncated ?? false
+    truncated: truncation?.truncated ?? false,
   };
 }
 
@@ -220,7 +236,7 @@ export function graphFromVisualizationPacket(packet: VisualizationPacket | null)
       kind: node.type || "citation",
       label: node.label || node.id,
       sub: node.category || node.type,
-      truth: node.truthLabel.length > 0 ? uiTruth(node.truthLabel) : undefined
+      truth: node.truthLabel.length > 0 ? uiTruth(node.truthLabel) : undefined,
     }));
   const nodeIds = new Set(nodes.map((node) => node.id));
   return {
@@ -230,9 +246,9 @@ export function graphFromVisualizationPacket(packet: VisualizationPacket | null)
         layer: "code" satisfies GraphLayer,
         s: edge.source,
         t: edge.target,
-        verb: edge.relationship || "EVIDENCE"
+        verb: edge.relationship || "EVIDENCE",
       })),
-    nodes
+    nodes,
   };
 }
 
@@ -259,7 +275,7 @@ function handleRow(handle: AnswerEvidenceHandleWire | undefined): AnswerEvidence
     reason: clean(handle.reason),
     relativePath,
     repoId,
-    startLine: handle.start_line
+    startLine: handle.start_line,
   };
 }
 
@@ -270,7 +286,7 @@ function nextCalls(calls: readonly AnswerNextCallWire[]): readonly AnswerNextCal
       params: call.params,
       reason: clean(call.reason),
       route: optionalClean(call.route),
-      tool: clean(call.tool)
+      tool: clean(call.tool),
     }))
     .filter((call) => call.tool.length > 0 || call.route !== undefined);
 }

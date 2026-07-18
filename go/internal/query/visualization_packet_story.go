@@ -36,7 +36,7 @@ func BuildServiceStoryVisualizationPacket(response map[string]any, truth *TruthE
 	builder.truth = truth
 
 	serviceNodeID := addServiceStoryServiceNode(builder, identity)
-	addServiceStoryEvidenceGraph(builder, evidenceGraph)
+	addServiceStoryEvidenceGraph(builder, evidenceGraph, identity, serviceNodeID)
 	addServiceStoryUpstreamEdges(builder, upstream, serviceNodeID)
 	addServiceStoryDownstream(builder, downstream, serviceNodeID)
 
@@ -74,6 +74,7 @@ func addServiceStoryServiceNode(builder *visualizationBuilder, identity map[stri
 		Type:     "service",
 		Label:    firstNonEmptyString(serviceName, serviceID),
 		Category: "service",
+		Role:     "workload",
 	}
 	if repoID != "" {
 		node.EvidenceHandle = &evidenceCitationHandle{Kind: "entity", RepoID: repoID, EntityID: serviceID}
@@ -86,19 +87,47 @@ func addServiceStoryServiceNode(builder *visualizationBuilder, identity map[stri
 // straight onto visualization nodes and edges. Each evidence-graph node already
 // carries a stable id (repo/service id), so the visualization node ID is
 // derived from it. Edges reference the same source/target repo ids.
-func addServiceStoryEvidenceGraph(builder *visualizationBuilder, evidenceGraph map[string]any) {
+func addServiceStoryEvidenceGraph(
+	builder *visualizationBuilder,
+	evidenceGraph map[string]any,
+	identity map[string]any,
+	serviceNodeID string,
+) {
+	var nodeIDOverrides map[string]string
+	serviceID := strings.TrimSpace(safeStr(identity, "service_id"))
+	serviceRepoID := strings.TrimSpace(safeStr(identity, "repo_id"))
 	for _, node := range mapSliceValue(evidenceGraph, "nodes") {
 		rawID := strings.TrimSpace(StringVal(node, "id"))
 		if rawID == "" {
 			continue
 		}
 		kind := firstNonEmptyString(StringVal(node, "kind"), "repository")
+		canonicalKey := strings.TrimSpace(StringVal(node, "canonical_key"))
+		nodeID := serviceStoryVisualizationNodeID(kind, rawID, canonicalKey)
+		if serviceNodeID != "" && kind == "service" && rawID == serviceID {
+			nodeID = serviceNodeID
+			if nodeIDOverrides == nil {
+				nodeIDOverrides = map[string]string{}
+			}
+			nodeIDOverrides[rawID] = nodeID
+			continue
+		}
+		if kind != "repository" || canonicalKey != "" {
+			if nodeIDOverrides == nil {
+				nodeIDOverrides = map[string]string{}
+			}
+			nodeIDOverrides[rawID] = nodeID
+		}
+		handle := serviceStoryEvidenceHandle(kind, rawID, StringVal(node, "repo_id"))
 		builder.addNode(VisualizationNode{
-			ID:             visualizationNodeID(kind, rawID),
+			ID:             nodeID,
 			Type:           kind,
 			Label:          firstNonEmptyString(StringVal(node, "label"), rawID),
 			Category:       StringVal(node, "category"),
-			EvidenceHandle: serviceStoryRepoHandle(kind, rawID),
+			Role:           StringVal(node, "role"),
+			CanonicalKey:   canonicalKey,
+			ScopeKey:       StringVal(node, "scope_key"),
+			EvidenceHandle: handle,
 		})
 	}
 	for _, edge := range mapSliceValue(evidenceGraph, "edges") {
@@ -107,9 +136,23 @@ func addServiceStoryEvidenceGraph(builder *visualizationBuilder, evidenceGraph m
 		if source == "" || target == "" {
 			continue
 		}
+		sourceNodeID := visualizationNodeID("repository", source)
+		targetNodeID := visualizationNodeID("repository", target)
+		if override := nodeIDOverrides[source]; override != "" {
+			sourceNodeID = override
+		}
+		if override := nodeIDOverrides[target]; override != "" {
+			targetNodeID = override
+		}
+		if serviceNodeID != "" && (target == serviceRepoID || target == serviceID) {
+			targetNodeID = serviceNodeID
+		}
+		if serviceNodeID != "" && source == serviceID {
+			sourceNodeID = serviceNodeID
+		}
 		builder.addEdge(VisualizationEdge{
-			Source:       visualizationNodeID("repository", source),
-			Target:       visualizationNodeID("repository", target),
+			Source:       sourceNodeID,
+			Target:       targetNodeID,
 			Relationship: firstNonEmptyString(StringVal(edge, "relationship_type"), "RELATED"),
 			TruthLabel:   serviceStoryConfidenceLabel(edge),
 		})
@@ -126,19 +169,20 @@ func addServiceStoryUpstreamEdges(builder *visualizationBuilder, upstream []map[
 		if sourceID == "" {
 			continue
 		}
-		sourceNodeID := visualizationNodeID("repository", sourceID)
+		canonicalKey := strings.TrimSpace(StringVal(row, "source_repo_canonical_id"))
+		sourceNodeID := serviceStoryVisualizationNodeID("repository", sourceID, canonicalKey)
+		handle := serviceStoryRepoHandle("repository", sourceID)
 		builder.addNode(VisualizationNode{
 			ID:             sourceNodeID,
 			Type:           "repository",
 			Label:          firstNonEmptyString(StringVal(row, "source"), sourceID),
-			Category:       "upstream",
-			EvidenceHandle: serviceStoryRepoHandle("repository", sourceID),
+			Category:       "deployment",
+			Role:           "deployment_configuration",
+			CanonicalKey:   canonicalKey,
+			ScopeKey:       StringVal(row, "source_repo_scope_key"),
+			EvidenceHandle: handle,
 		})
-		targetID := strings.TrimSpace(StringVal(row, "target_repo_id"))
 		targetNodeID := serviceNodeID
-		if targetID != "" {
-			targetNodeID = visualizationNodeID("repository", targetID)
-		}
 		if targetNodeID == "" {
 			continue
 		}
@@ -171,6 +215,7 @@ func addServiceStoryDownstream(builder *visualizationBuilder, downstream map[str
 			Type:           "repository",
 			Label:          firstNonEmptyString(StringVal(row, "repository"), repoID),
 			Category:       "downstream",
+			Role:           "downstream_consumer",
 			EvidenceHandle: serviceStoryRepoHandle("repository", repoID),
 		})
 		builder.addEdge(VisualizationEdge{
@@ -178,6 +223,30 @@ func addServiceStoryDownstream(builder *visualizationBuilder, downstream map[str
 			Target:       nodeID,
 			Relationship: "CONSUMED_BY",
 		})
+	}
+}
+
+func serviceStoryVisualizationNodeID(kind, rawID, canonicalKey string) string {
+	identity := strings.TrimSpace(rawID)
+	if kind == "repository" && strings.TrimSpace(canonicalKey) != "" {
+		identity = strings.TrimSpace(canonicalKey)
+	}
+	return visualizationNodeID(kind, identity)
+}
+
+func serviceStoryEvidenceHandle(kind, id, repoID string) *evidenceCitationHandle {
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return nil
+	}
+	if kind == "repository" || kind == "service" {
+		return serviceStoryRepoHandle(kind, id)
+	}
+	return &evidenceCitationHandle{
+		Kind:           "entity",
+		RepoID:         strings.TrimSpace(repoID),
+		EntityID:       id,
+		EvidenceFamily: kind,
 	}
 }
 

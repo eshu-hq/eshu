@@ -68,6 +68,18 @@ type VisualizationNode struct {
 	// Category is an optional sub-classification (upstream, downstream, service,
 	// or an incident evidence slot) that a client may use for layout or color.
 	Category string `json:"category,omitempty"`
+	// Role describes what the source evidence proves this node does in the
+	// service story. It keeps a workload anchor distinct from source-code,
+	// deployment-configuration, runtime, and downstream repository nodes.
+	Role string `json:"role,omitempty"`
+	// CanonicalKey is a privacy-safe repository identity supplied by the source
+	// evidence. Repository observations are reconciled only when this key is
+	// non-empty and equal; display labels are never identity.
+	CanonicalKey string `json:"canonical_key,omitempty"`
+	// ScopeKey is a privacy-safe observation-scope discriminator. It remains
+	// visible when canonical identity is unavailable so equal labels are not
+	// presented as unexplained duplicates.
+	ScopeKey string `json:"scope_key,omitempty"`
 	// TruthLabel is an optional per-node truth label, carried straight from the
 	// source response (for example an incident evidence-path truth label). It is
 	// never synthesized here.
@@ -76,6 +88,9 @@ type VisualizationNode struct {
 	// handle, so a rendered node maps to the citation that hydrates it. It is
 	// populated only when the source response already carried the handle fields.
 	EvidenceHandle *evidenceCitationHandle `json:"evidence_handle,omitempty"`
+	// EvidenceHandles preserves every supported observation handle when several
+	// repository observations reconcile to one canonical visualization node.
+	EvidenceHandles []evidenceCitationHandle `json:"evidence_handles,omitempty"`
 }
 
 // VisualizationEdge is one bounded edge in a visualization packet. Source and
@@ -199,11 +214,62 @@ func (b *visualizationBuilder) addNode(node VisualizationNode) {
 	if node.ID == "" {
 		return
 	}
-	if _, exists := b.nodes[node.ID]; exists {
+	if existing, exists := b.nodes[node.ID]; exists {
+		existing.EvidenceHandles = mergeVisualizationEvidenceHandles(
+			existing.EvidenceHandles,
+			node.EvidenceHandles,
+			existing.EvidenceHandle,
+			node.EvidenceHandle,
+		)
+		if len(existing.EvidenceHandles) > 0 {
+			existing.EvidenceHandle = &existing.EvidenceHandles[0]
+		}
+		b.nodes[node.ID] = existing
 		return
+	}
+	if len(node.EvidenceHandles) > 0 {
+		node.EvidenceHandles = mergeVisualizationEvidenceHandles(node.EvidenceHandles, nil, node.EvidenceHandle)
+		node.EvidenceHandle = &node.EvidenceHandles[0]
 	}
 	b.nodes[node.ID] = node
 	b.nodeKeys = append(b.nodeKeys, node.ID)
+}
+
+func mergeVisualizationEvidenceHandles(
+	left []evidenceCitationHandle,
+	right []evidenceCitationHandle,
+	extra ...*evidenceCitationHandle,
+) []evidenceCitationHandle {
+	merged := make(map[evidenceCitationHandleKey]evidenceCitationHandle, len(left)+len(right)+len(extra))
+	for _, handle := range append(append([]evidenceCitationHandle{}, left...), right...) {
+		merged[handle.evidenceCitationHandleKey()] = handle
+	}
+	for _, handle := range extra {
+		if handle != nil {
+			merged[handle.evidenceCitationHandleKey()] = *handle
+		}
+	}
+	result := make([]evidenceCitationHandle, 0, len(merged))
+	for _, handle := range merged {
+		result = append(result, handle)
+	}
+	sort.Slice(result, func(i, j int) bool {
+		return visualizationEvidenceHandleSortKey(result[i]) < visualizationEvidenceHandleSortKey(result[j])
+	})
+	return result
+}
+
+func visualizationEvidenceHandleSortKey(handle evidenceCitationHandle) string {
+	return strings.Join([]string{
+		handle.Kind,
+		handle.RepoID,
+		handle.RelativePath,
+		handle.EntityID,
+		handle.EvidenceFamily,
+		handle.Reason,
+		fmt.Sprint(handle.StartLine),
+		fmt.Sprint(handle.EndLine),
+	}, "\x00")
 }
 
 // addEdge records an edge under its stable ID. Endpoints with empty IDs are

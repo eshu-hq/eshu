@@ -126,7 +126,7 @@ func TestContentReaderDeploymentEvidenceHydratesCommitSHA(t *testing.T) {
 			rows: [][]driver.Value{
 				{
 					"outgoing", "resolved-3", "gen-2", "repo-platform", "platform-k8s",
-					"repo-app", "my-app", "DEPLOYS_FROM", float64(0.78),
+					"", "", "repo-app", "my-app", "", "", "DEPLOYS_FROM", float64(0.78),
 					[]byte(`{"evidence_preview":[{"kind":"KUSTOMIZE_RESOURCE","confidence":0.78,"details":{"path":"overlays/prod/kustomization.yaml","extractor":"kustomize","matched_alias":"my-app","matched_value":"my-app","commit_sha":"deadbeef1234"}}]}`),
 				},
 			},

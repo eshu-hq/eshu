@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from "react"
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 
 import type { AnswerNextCall } from "../api/answerPacket";
-import type { VisualizationEdge, VisualizationNode } from "../api/answerVisualization";
+import type { VisualizationNode } from "../api/answerVisualization";
 import type { EshuApiClient } from "../api/client";
 import {
   loadServiceEvidenceGraph,
@@ -13,6 +13,7 @@ import type { EvidenceSelection } from "../components/EvidenceDrawer";
 import { EvidencePanel } from "../components/EvidencePanel";
 import { GraphCanvas } from "../components/GraphCanvas";
 import { visualizationEvidencePanelData } from "../components/visualizationEvidencePanel";
+import { ServiceStoryRelationshipList } from "../components/ServiceStoryRelationshipList";
 import { defaultServiceName } from "../console/defaultEntity";
 import type { ConsoleModel } from "../console/types";
 import { uiFresh, uiTruth } from "../console/types";
@@ -272,7 +273,12 @@ function ServiceEvidenceResult({
             onSelect={(node) => onSelect({ kind: "node", id: node.id })}
             selectedId={selected?.kind === "node" ? selected.id : undefined}
           />
-          <RelationshipList edges={packet.edges} onSelect={onSelect} selected={selected} />
+          <ServiceStoryRelationshipList
+            edges={packet.edges}
+            nodes={packet.nodes}
+            onSelect={onSelect}
+            selected={selected}
+          />
           <SelectedEvidence packet={packet} selected={selected} onClose={() => onSelect(null)} />
           <StateList title="Limitations" values={packet.limitations} />
           <NextCalls calls={packet.recommendedNextCalls} />
@@ -322,47 +328,6 @@ function NodeTypeLegend({
         </span>
       ))}
     </div>
-  );
-}
-
-function RelationshipList({
-  edges,
-  onSelect,
-  selected,
-}: {
-  readonly edges: readonly VisualizationEdge[];
-  readonly onSelect: (selection: Selection | null) => void;
-  readonly selected: Selection | null;
-}): React.JSX.Element | null {
-  if (edges.length === 0) {
-    return null;
-  }
-  return (
-    <section className="seg-edges" aria-label="Relationships">
-      <h3>Relationships</h3>
-      <ul>
-        {edges.map((edge) => {
-          const active = selected?.kind === "edge" && selected.id === edge.id;
-          return (
-            <li key={edge.id}>
-              <button
-                className={`seg-edge${active ? " is-active" : ""}`}
-                onClick={() => onSelect({ kind: "edge", id: edge.id })}
-                type="button"
-              >
-                <span className="mono">
-                  {edge.source} → {edge.target}
-                </span>
-                <span className="seg-edge-verb">{edge.relationship || "RELATED"}</span>
-                {edge.truthLabel.length > 0 ? (
-                  <span className="seg-edge-truth">{edge.truthLabel}</span>
-                ) : null}
-              </button>
-            </li>
-          );
-        })}
-      </ul>
-    </section>
   );
 }
 

@@ -194,6 +194,77 @@ func TestGetRepositoryContextIncludesGraphDeploymentEvidence(t *testing.T) {
 	}
 }
 
+func TestBuildGraphDeploymentEvidenceCarriesPrivacySafeRepositoryIdentity(t *testing.T) {
+	remoteURL := "git@github.com:acme/iac-eks-argocd.git"
+	result := buildGraphDeploymentEvidence([]map[string]any{
+		{
+			"artifact_id":            "artifact-1",
+			"relationship_type":      "DEPLOYS_FROM",
+			"source_repo_id":         "repository:observation-a",
+			"source_repo_name":       "iac-eks-argocd",
+			"source_repo_remote_url": remoteURL,
+			"source_repo_scope_id":   "ingestion-scope:private-observation-a",
+			"target_repo_id":         "repository:service",
+			"target_repo_name":       "api-node-boats",
+		},
+	})
+
+	artifacts := mapSliceValue(result, "artifacts")
+	if len(artifacts) != 1 {
+		t.Fatalf("artifacts = %d, want 1", len(artifacts))
+	}
+	artifact := artifacts[0]
+	if got, want := StringVal(artifact, "source_repo_canonical_id"), "repository:r_1caa1ae8"; got != want {
+		t.Fatalf("source_repo_canonical_id = %q, want %q", got, want)
+	}
+	if got := StringVal(artifact, "source_repo_scope_key"); !strings.HasPrefix(got, "scope:s_") || len(got) != len("scope:s_")+8 {
+		t.Fatalf("source_repo_scope_key = %q, want privacy-safe stable scope key", got)
+	}
+	for _, forbidden := range []string{"source_repo_remote_url", "source_repo_scope_id"} {
+		if _, present := artifact[forbidden]; present {
+			t.Fatalf("artifact exposes private source field %q: %#v", forbidden, artifact)
+		}
+	}
+}
+
+func TestBuildGraphDeploymentEvidencePreservesReadModelRepositoryIdentity(t *testing.T) {
+	result := buildGraphDeploymentEvidence([]map[string]any{
+		{
+			"artifact_id":              "artifact-1",
+			"relationship_type":        "DEPLOYS_FROM",
+			"source_repo_id":           "repository:observation-a",
+			"source_repo_name":         "iac-eks-argocd",
+			"source_repo_canonical_id": "repository:r_1caa1ae8",
+			"source_repo_scope_key":    "scope:s_12345678",
+			"target_repo_id":           "repository:service",
+			"target_repo_name":         "api-node-boats",
+		},
+	})
+
+	artifacts := mapSliceValue(result, "artifacts")
+	if len(artifacts) != 1 {
+		t.Fatalf("artifacts = %d, want 1", len(artifacts))
+	}
+	artifact := artifacts[0]
+	if got, want := StringVal(artifact, "source_repo_canonical_id"), "repository:r_1caa1ae8"; got != want {
+		t.Fatalf("source_repo_canonical_id = %q, want %q", got, want)
+	}
+	if got, want := StringVal(artifact, "source_repo_scope_key"), "scope:s_12345678"; got != want {
+		t.Fatalf("source_repo_scope_key = %q, want %q", got, want)
+	}
+}
+
+func TestRepositoryDeploymentEvidenceReadModelUsesRelationshipGenerationScope(t *testing.T) {
+	for _, want := range []string{
+		"g.scope AS generation_scope_id",
+		"scope_id = r.generation_scope_id",
+	} {
+		if !strings.Contains(repositoryDeploymentEvidenceReadModelSQL, want) {
+			t.Fatalf("repositoryDeploymentEvidenceReadModelSQL missing %q", want)
+		}
+	}
+}
+
 func TestGetRepositoryContextUsesReadModelForDeploymentEvidence(t *testing.T) {
 	t.Parallel()
 
@@ -327,7 +398,9 @@ func TestContentReaderRepositoryDeploymentEvidenceHydratesPreviewArtifacts(t *te
 			rows: [][]driver.Value{
 				{
 					"incoming", "resolved-1", "gen-1", "repo-terraform", "terraform-live",
-					"repo-service", "checkout-service", "PROVISIONS_DEPENDENCY_FOR", float64(0.96),
+					"git@github.com:acme/terraform-live.git", "scope:terraform-live",
+					"repo-service", "checkout-service", "https://github.com/acme/checkout-service", "scope:checkout-service",
+					"PROVISIONS_DEPENDENCY_FOR", float64(0.96),
 					[]byte(`{"evidence_preview":[{"kind":"TERRAFORM_ECS_SERVICE","confidence":0.96,"details":{"path":"environments/prod/ecs.tf","extractor":"terraform-runtime-service-module","matched_alias":"checkout-service","matched_value":"checkout-service","runtime_platform_kind":"ecs"}}]}`),
 				},
 			},
@@ -347,13 +420,14 @@ func TestContentReaderRepositoryDeploymentEvidenceHydratesPreviewArtifacts(t *te
 	}
 	row := got.Rows[0]
 	for key, want := range map[string]any{
-		"direction":             "incoming",
-		"source_repo_id":        "repo-terraform",
-		"source_repo_name":      "terraform-live",
-		"target_repo_id":        "repo-service",
-		"target_repo_name":      "checkout-service",
-		"environment":           "prod",
-		"runtime_platform_kind": "ecs",
+		"direction":                "incoming",
+		"source_repo_id":           "repo-terraform",
+		"source_repo_name":         "terraform-live",
+		"target_repo_id":           "repo-service",
+		"target_repo_name":         "checkout-service",
+		"environment":              "prod",
+		"runtime_platform_kind":    "ecs",
+		"source_repo_canonical_id": "repository:r_94eaa67a",
 	} {
 		if got := row[key]; got != want {
 			t.Fatalf("Rows[0].%s = %#v, want %#v", key, got, want)

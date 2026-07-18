@@ -14,7 +14,17 @@ function liveModel() {
 function modelWithService(name: string) {
   return modelFromSnapshot({
     ...emptySnapshot("live"),
-    services: [{ id: `svc:${name}`, name, kind: "service", repo: `${name}-repo`, environments: [], truth: "exact", freshness: "fresh" }]
+    services: [
+      {
+        id: `svc:${name}`,
+        name,
+        kind: "service",
+        repo: `${name}-repo`,
+        environments: [],
+        truth: "exact",
+        freshness: "fresh",
+      },
+    ],
   });
 }
 
@@ -23,12 +33,23 @@ function storyEnvelope(): EshuEnvelope<Record<string, unknown>> {
     data: {
       service_identity: { service_id: "svc-1", service_name: "payments", repo_id: "svc-repo" },
       upstream_dependencies: [
-        { source: "billing", source_repo_id: "up-1", target_repo_id: "svc-repo", relationship_type: "DEPENDS_ON", confidence: 0.9 }
+        {
+          source: "billing",
+          source_repo_id: "up-1",
+          target_repo_id: "svc-repo",
+          relationship_type: "DEPENDS_ON",
+          confidence: 0.9,
+        },
       ],
-      downstream_consumers: {}
+      downstream_consumers: {},
     },
     error: null,
-    truth: { capability: "service.story.read", freshness: { state: "fresh" }, level: "exact", profile: "local_authoritative" }
+    truth: {
+      capability: "service.story.read",
+      freshness: { state: "fresh" },
+      level: "exact",
+      profile: "local_authoritative",
+    },
   };
 }
 
@@ -36,7 +57,12 @@ function deriveEnvelope(packet: Record<string, unknown>): EshuEnvelope<Record<st
   return {
     data: { visualization_packet: packet },
     error: null,
-    truth: { capability: "visualization.derive", freshness: { state: "fresh" }, level: "exact", profile: "local_authoritative" }
+    truth: {
+      capability: "visualization.derive",
+      freshness: { state: "fresh" },
+      level: "exact",
+      profile: "local_authoritative",
+    },
   };
 }
 
@@ -46,22 +72,49 @@ function supportedPacket(overrides: Record<string, unknown> = {}): Record<string
     title: "payments",
     supported: true,
     nodes: [
-      { id: "viznode:service", type: "service", label: "payments", category: "service", evidence_handle: { kind: "entity", repo_id: "svc-repo", entity_id: "svc-1" } },
-      { id: "viznode:up-1", type: "repository", label: "billing", category: "upstream", truth_label: "exact", evidence_handle: { kind: "entity", repo_id: "up-1", entity_id: "up-1", evidence_family: "repository" } }
+      {
+        id: "viznode:service",
+        type: "service",
+        label: "payments",
+        category: "service",
+        evidence_handle: { kind: "entity", repo_id: "svc-repo", entity_id: "svc-1" },
+      },
+      {
+        id: "viznode:up-1",
+        type: "repository",
+        label: "billing",
+        category: "upstream",
+        truth_label: "exact",
+        evidence_handle: {
+          kind: "entity",
+          repo_id: "up-1",
+          entity_id: "up-1",
+          evidence_family: "repository",
+        },
+      },
     ],
     edges: [
-      { id: "vizedge:1", source: "viznode:up-1", target: "viznode:service", relationship: "DEPENDS_ON", truth_label: "exact" }
+      {
+        id: "vizedge:1",
+        source: "viznode:up-1",
+        target: "viznode:service",
+        relationship: "DEPENDS_ON",
+        truth_label: "exact",
+      },
     ],
     truth: { level: "exact", basis: "authoritative_graph", freshness: { state: "fresh" } },
     limits: { max_nodes: 60, max_edges: 120, ordering: "stable_id", node_count: 2, edge_count: 1 },
     truncation: { truncated: false, dropped_node_count: 0, dropped_edge_count: 0 },
     limitations: [],
     recommended_next_calls: [],
-    ...overrides
+    ...overrides,
   };
 }
 
-function clientFor(deriveData: EshuEnvelope<Record<string, unknown>>): { client: EshuApiClient; paths: string[] } {
+function clientFor(deriveData: EshuEnvelope<Record<string, unknown>>): {
+  client: EshuApiClient;
+  paths: string[];
+} {
   const paths: string[] = [];
   const client = {
     get: vi.fn(async (path: string) => {
@@ -71,7 +124,7 @@ function clientFor(deriveData: EshuEnvelope<Record<string, unknown>>): { client:
     post: vi.fn(async (path: string) => {
       paths.push(path);
       return deriveData;
-    })
+    }),
   } as unknown as EshuApiClient;
   return { client, paths };
 }
@@ -80,10 +133,20 @@ function renderAt(path: string, client: EshuApiClient) {
   return render(
     <MemoryRouter initialEntries={[path]}>
       <Routes>
-        <Route path="/service-story" element={<ServiceEvidenceGraphPage client={client} model={liveModel()} onOpenService={vi.fn()} />} />
-        <Route path="/service-story/:serviceName" element={<ServiceEvidenceGraphPage client={client} model={liveModel()} onOpenService={vi.fn()} />} />
+        <Route
+          path="/service-story"
+          element={
+            <ServiceEvidenceGraphPage client={client} model={liveModel()} onOpenService={vi.fn()} />
+          }
+        />
+        <Route
+          path="/service-story/:serviceName"
+          element={
+            <ServiceEvidenceGraphPage client={client} model={liveModel()} onOpenService={vi.fn()} />
+          }
+        />
       </Routes>
-    </MemoryRouter>
+    </MemoryRouter>,
   );
 }
 
@@ -100,16 +163,31 @@ describe("ServiceEvidenceGraphPage", () => {
     render(
       <MemoryRouter initialEntries={["/service-story"]}>
         <Routes>
-          <Route path="/service-story" element={<ServiceEvidenceGraphPage client={client} model={modelWithService("acme-app")} onOpenService={vi.fn()} />} />
-          <Route path="/service-story/:serviceName" element={<ServiceEvidenceGraphPage client={client} model={modelWithService("acme-app")} onOpenService={vi.fn()} />} />
+          <Route
+            path="/service-story"
+            element={
+              <ServiceEvidenceGraphPage
+                client={client}
+                model={modelWithService("acme-app")}
+                onOpenService={vi.fn()}
+              />
+            }
+          />
+          <Route
+            path="/service-story/:serviceName"
+            element={
+              <ServiceEvidenceGraphPage
+                client={client}
+                model={modelWithService("acme-app")}
+                onOpenService={vi.fn()}
+              />
+            }
+          />
         </Routes>
-      </MemoryRouter>
+      </MemoryRouter>,
     );
     await waitFor(() => {
-      expect(paths).toEqual([
-        "/api/v0/services/acme-app/story",
-        "/api/v0/visualizations/derive"
-      ]);
+      expect(paths).toEqual(["/api/v0/services/acme-app/story", "/api/v0/visualizations/derive"]);
     });
     expect(await screen.findByText("billing")).toBeInTheDocument();
   });
@@ -119,10 +197,7 @@ describe("ServiceEvidenceGraphPage", () => {
     renderAt("/service-story/payments", client);
 
     await waitFor(() => {
-      expect(paths).toEqual([
-        "/api/v0/services/payments/story",
-        "/api/v0/visualizations/derive"
-      ]);
+      expect(paths).toEqual(["/api/v0/services/payments/story", "/api/v0/visualizations/derive"]);
     });
     expect(await screen.findByText("billing")).toBeInTheDocument();
     expect(screen.getAllByText("payments").length).toBeGreaterThan(0);
@@ -142,17 +217,21 @@ describe("ServiceEvidenceGraphPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Show evidence graph" }));
 
     await waitFor(() => {
-      expect(paths).toEqual([
-        "/api/v0/services/payments/story",
-        "/api/v0/visualizations/derive"
-      ]);
+      expect(paths).toEqual(["/api/v0/services/payments/story", "/api/v0/visualizations/derive"]);
     });
   });
 
   it("keeps truncation visible when the subgraph is bounded", async () => {
     const truncated = supportedPacket({
-      truncation: { truncated: true, dropped_node_count: 4, dropped_edge_count: 7, dropped_node_ids: ["viznode:z"] },
-      limitations: ["source story response was already truncated; visualized subgraph is a bounded subset"]
+      truncation: {
+        truncated: true,
+        dropped_node_count: 4,
+        dropped_edge_count: 7,
+        dropped_node_ids: ["viznode:z"],
+      },
+      limitations: [
+        "source story response was already truncated; visualized subgraph is a bounded subset",
+      ],
     });
     const { client } = clientFor(deriveEnvelope(truncated));
     renderAt("/service-story/payments", client);
@@ -171,8 +250,14 @@ describe("ServiceEvidenceGraphPage", () => {
       supported: true,
       nodes: [],
       edges: [],
-      limits: { max_nodes: 60, max_edges: 120, ordering: "stable_id", node_count: 0, edge_count: 0 },
-      truncation: { truncated: true, dropped_node_count: 5, dropped_edge_count: 9 }
+      limits: {
+        max_nodes: 60,
+        max_edges: 120,
+        ordering: "stable_id",
+        node_count: 0,
+        edge_count: 0,
+      },
+      truncation: { truncated: true, dropped_node_count: 5, dropped_edge_count: 9 },
     };
     const { client } = clientFor(deriveEnvelope(allDropped));
     renderAt("/service-story/payments", client);
@@ -190,9 +275,16 @@ describe("ServiceEvidenceGraphPage", () => {
       supported: true,
       nodes: [
         { id: "viznode:service", type: "service", label: "payments", category: "service" },
-        { id: "viznode:up-1", type: "repository", label: "billing", category: "upstream" }
+        { id: "viznode:up-1", type: "repository", label: "billing", category: "upstream" },
       ],
-      edges: [{ id: "vizedge:1", source: "viznode:up-1", target: "viznode:service", relationship: "DEPENDS_ON" }]
+      edges: [
+        {
+          id: "vizedge:1",
+          source: "viznode:up-1",
+          target: "viznode:service",
+          relationship: "DEPENDS_ON",
+        },
+      ],
     };
     const { client } = clientFor(deriveEnvelope(noLimits));
     renderAt("/service-story/payments", client);
@@ -207,8 +299,12 @@ describe("ServiceEvidenceGraphPage", () => {
       supported: false,
       nodes: [],
       edges: [],
-      limitations: ["service story response carried no identity, evidence graph, or dependency topology to visualize"],
-      recommended_next_calls: [{ tool: "get_service_story", reason: "fetch a service story dossier first" }]
+      limitations: [
+        "service story response carried no identity, evidence graph, or dependency topology to visualize",
+      ],
+      recommended_next_calls: [
+        { tool: "get_service_story", reason: "fetch a service story dossier first" },
+      ],
     };
     const { client } = clientFor(deriveEnvelope(unsupported));
     renderAt("/service-story/payments", client);
@@ -225,8 +321,14 @@ describe("ServiceEvidenceGraphPage", () => {
       supported: true,
       nodes: [],
       edges: [],
-      limits: { max_nodes: 60, max_edges: 120, ordering: "stable_id", node_count: 0, edge_count: 0 },
-      truncation: { truncated: false }
+      limits: {
+        max_nodes: 60,
+        max_edges: 120,
+        ordering: "stable_id",
+        node_count: 0,
+        edge_count: 0,
+      },
+      truncation: { truncated: false },
     };
     const { client } = clientFor(deriveEnvelope(empty));
     renderAt("/service-story/payments", client);
@@ -239,9 +341,9 @@ describe("ServiceEvidenceGraphPage", () => {
       get: vi.fn(async () => ({
         data: null,
         error: { code: "not_found", message: "service not found" },
-        truth: null
+        truth: null,
       })),
-      post: vi.fn()
+      post: vi.fn(),
     } as unknown as EshuApiClient;
 
     renderAt("/service-story/ghost", client);
@@ -253,15 +355,43 @@ describe("ServiceEvidenceGraphPage", () => {
     const { client } = clientFor(deriveEnvelope(supportedPacket()));
     function Nav(): React.JSX.Element {
       const navigate = useNavigate();
-      return <button onClick={() => navigate("/service-story")} type="button">to bare</button>;
+      return (
+        <button onClick={() => navigate("/service-story")} type="button">
+          to bare
+        </button>
+      );
     }
     render(
       <MemoryRouter initialEntries={["/service-story/payments"]}>
         <Routes>
-          <Route path="/service-story" element={<><Nav /><ServiceEvidenceGraphPage client={client} model={liveModel()} onOpenService={vi.fn()} /></>} />
-          <Route path="/service-story/:serviceName" element={<><Nav /><ServiceEvidenceGraphPage client={client} model={liveModel()} onOpenService={vi.fn()} /></>} />
+          <Route
+            path="/service-story"
+            element={
+              <>
+                <Nav />
+                <ServiceEvidenceGraphPage
+                  client={client}
+                  model={liveModel()}
+                  onOpenService={vi.fn()}
+                />
+              </>
+            }
+          />
+          <Route
+            path="/service-story/:serviceName"
+            element={
+              <>
+                <Nav />
+                <ServiceEvidenceGraphPage
+                  client={client}
+                  model={liveModel()}
+                  onOpenService={vi.fn()}
+                />
+              </>
+            }
+          />
         </Routes>
-      </MemoryRouter>
+      </MemoryRouter>,
     );
     expect(await screen.findByText("billing")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "to bare" }));
@@ -289,5 +419,63 @@ describe("ServiceEvidenceGraphPage", () => {
 
     const panel = await screen.findByRole("region", { name: /Evidence for DEPENDS_ON/i });
     expect(within(panel).getByText("DEPENDS_ON")).toBeInTheDocument();
+  });
+
+  it("renders human relationship narratives with raw visualization ids as secondary diagnostics", async () => {
+    const packet = supportedPacket({
+      nodes: [
+        {
+          id: "viznode:service",
+          type: "service",
+          label: "api-node-boats",
+          category: "service",
+          role: "workload",
+        },
+        {
+          id: "viznode:argocd",
+          type: "repository",
+          label: "iac-eks-argocd",
+          category: "deployment",
+          role: "deployment_configuration",
+        },
+        {
+          id: "viznode:multi-role",
+          type: "repository",
+          label: "terraform-stack-user-management",
+          category: "deployment",
+          role: "deployment_configuration",
+        },
+      ],
+      edges: [
+        {
+          id: "vizedge:provisions",
+          source: "viznode:argocd",
+          target: "viznode:service",
+          relationship: "PROVISIONING_SOURCE_CHAIN",
+          truth_label: "exact",
+        },
+        {
+          id: "vizedge:consumed-by",
+          source: "viznode:service",
+          target: "viznode:multi-role",
+          relationship: "CONSUMED_BY",
+        },
+      ],
+    });
+    const { client } = clientFor(deriveEnvelope(packet));
+    renderAt("/service-story/api-node-boats", client);
+
+    expect(
+      await screen.findByText(
+        "iac-eks-argocd (deployment configuration repository) provisions api-node-boats (workload service)",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "api-node-boats (workload service) is consumed by terraform-stack-user-management (downstream repository)",
+      ),
+    ).toBeInTheDocument();
+    const diagnostics = screen.getAllByLabelText("Relationship diagnostic IDs");
+    expect(diagnostics[0]).toHaveTextContent("viznode:argocd → viznode:service");
   });
 });

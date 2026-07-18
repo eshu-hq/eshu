@@ -160,6 +160,12 @@
   border-color: var(--teal, #14b8a6);
 }
 
+.seg-edge-narrative {
+  flex-basis: 100%;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
 .seg-edge-verb {
   font-size: 12px;
   color: var(--teal, #14b8a6);
@@ -168,6 +174,12 @@
 .seg-edge-truth {
   font-size: 12px;
   color: var(--muted, #9aa4af);
+}
+
+.seg-edge-diagnostic {
+  color: var(--muted, #9aa4af);
+  font-size: 11px;
+  opacity: 0.72;
 }
 
 .seg-next-reason {
