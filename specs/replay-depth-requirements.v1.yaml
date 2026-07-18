@@ -36,7 +36,7 @@
 # delta scenario here instead of the gap going unseen.
 version: "v1"
 
-# 86 retractable graph node labels, grouped by source domain to mirror the
+# 87 retractable graph node labels, grouped by source domain to mirror the
 # internal/storage/cypher retract label sets. Order is irrelevant (the lockstep
 # test compares as sets); grouping is for review only.
 retractable_node_types:
@@ -64,6 +64,7 @@ retractable_node_types:
   - TypeAnnotation
   - Typedef
   - Union
+  - Variable
   # infra
   - ArgoCDApplication
   - ArgoCDApplicationSet
