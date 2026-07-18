@@ -1,0 +1,10 @@
+{
+  "scenario": "incident-routing-evidence-materialization",
+  "cassette": "none: cypher.IncidentRoutingEvidenceWriter operates over flat map[string]any rows, not a CanonicalMaterialization; the two fixture rows live inline in go/internal/replay/costcounting/incident_routing_evidence_cost_test.go",
+  "description": "Two distinct-incident applied_routing evidence rows sharing the same routing slot in one scope, driven through the production unwrapped writer (cypher.IncidentRoutingEvidenceWriter, no owner-ledger gate) over an InstrumentedExecutor. The writer groups rows by routing slot into one Cypher statement per slot (mixed incident-node + routing-node + edge MERGE per row); both rows share a slot and fit the default batch size (500), so the writer emits exactly one UNWIND write statement (eshu_dp_neo4j_batches_executed_total=1, statements_executed=1). Any increase — an N+1 write cycle or an extra slot-group/batch split — trips the gate.",
+  "refresh_path": "manual: edit the inline fixture rows in incident_routing_evidence_cost_test.go and this file together, reviewed in the same diff (no credentialed cassette refresh applies since there is no cassette)",
+  "budgets": {
+    "eshu_dp_neo4j_batches_executed_total": 1,
+    "statements_executed": 1
+  }
+}
