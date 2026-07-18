@@ -134,7 +134,14 @@ if [ -n "${_perf_diff_cache}" ]; then
           _perf_cur=""
         fi
         ;;
-      "+"*|"-")
+      "--- a/"*|"--- /dev/null")
+        # Old-path diff header (--- a/foo, or --- /dev/null for a new file).
+        # It starts with "-", so it must be excluded before the removed-line
+        # arm below (which now matches "-"*), or it would be misread as removed
+        # content and wrongly flip the current file to a code change.
+        continue
+        ;;
+      "+"*|"-"*)
         [ -z "${_perf_cur}" ] && continue
         _perf_payload="${line:1}"
         # Comment or blank: Go line (//), block markers (/* * */), shell/

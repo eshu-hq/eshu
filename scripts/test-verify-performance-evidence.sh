@@ -282,6 +282,65 @@ git -C "${mixed_repo}" add .
 git -C "${mixed_repo}" commit -q -m 'add SPDX header and tweak hot-path query'
 expect_fail "${mixed_repo}"
 
+# Deletion-only change to an existing hot-path Go file: a real code line is
+# REMOVED with no additions (e.g. dropping a map entry, a query branch, or a
+# retry clause). The file stays hot because other hot-path content remains.
+# The gate must trip: removing hot-path code is a real change that needs
+# evidence. Regression for the removed-line classifier bug -- the case pattern
+# matched the bare "-" character exactly instead of "-"*, so a real "-<code>"
+# removed line fell through both arms and was recorded neither as a comment
+# ("0") nor a code change ("1"), leaving a deletion-only diff wrongly
+# classified comment-only.
+deletion_only_repo="$(init_repo deletion-only)"
+{
+  printf 'package cypher\n'
+  printf '\n'
+  printf 'const writerQuery = "UNWIND $rows AS row MERGE (n:File {uid: row.uid})"\n'
+  printf 'const readerQuery = "MATCH (r:Repository {id: $id}) RETURN r"\n'
+} >"${deletion_only_repo}/go/internal/storage/cypher/writer.go"
+git -C "${deletion_only_repo}" add .
+git -C "${deletion_only_repo}" commit -q -m 'baseline hot-path writer with two queries'
+{
+  printf 'package cypher\n'
+  printf '\n'
+  printf 'const writerQuery = "UNWIND $rows AS row MERGE (n:File {uid: row.uid})"\n'
+} >"${deletion_only_repo}/go/internal/storage/cypher/writer.go"
+git -C "${deletion_only_repo}" add .
+git -C "${deletion_only_repo}" commit -q -m 'remove readerQuery (deletion-only hot-path change)'
+expect_fail "${deletion_only_repo}"
+
+# Multi-file comment-only change across two hot-path Go files. The second
+# file's old-path header ("--- a/.../z_writer.go") is read while the current
+# file is still the first file, so it must be skipped rather than misread as a
+# removed content line -- otherwise it flips the first file to a code change and
+# the gate wrongly trips. Both files change comment-only, so the gate must NOT
+# trip. Regression guard for the "--- a/" header exclusion that the "-"* fix
+# above requires.
+multi_comment_repo="$(init_repo multi-comment-only)"
+{
+  printf 'package cypher\n\n'
+  printf 'const aQuery = "UNWIND $rows AS row MERGE (n:File {uid: row.uid})"\n'
+} >"${multi_comment_repo}/go/internal/storage/cypher/a_writer.go"
+{
+  printf 'package cypher\n\n'
+  printf 'const zQuery = "UNWIND $rows AS row MERGE (n:Directory {uid: row.uid})"\n'
+} >"${multi_comment_repo}/go/internal/storage/cypher/z_writer.go"
+git -C "${multi_comment_repo}" add .
+git -C "${multi_comment_repo}" commit -q -m 'baseline two hot-path writers'
+{
+  printf '// SPDX-License-Identifier: MIT\n'
+  printf 'package cypher\n\n'
+  printf 'const aQuery = "UNWIND $rows AS row MERGE (n:File {uid: row.uid})"\n'
+} >"${multi_comment_repo}/go/internal/storage/cypher/a_writer.go"
+{
+  printf '// SPDX-License-Identifier: MIT\n'
+  printf 'package cypher\n\n'
+  printf 'const zQuery = "UNWIND $rows AS row MERGE (n:Directory {uid: row.uid})"\n'
+} >"${multi_comment_repo}/go/internal/storage/cypher/z_writer.go"
+git -C "${multi_comment_repo}" add .
+git -C "${multi_comment_repo}" commit -q -m 'add SPDX header to both (comment-only)'
+expect_pass "${multi_comment_repo}"
+
 # Whitespace-only change to a hot-path Go file (no comment, no code): gate
 # must NOT trip because the diff is purely indentation/blank lines.
 whitespace_repo="$(init_repo whitespace-only)"
