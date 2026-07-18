@@ -6,10 +6,17 @@ export const pageTest: PageTest = {
   label: "Vulnerabilities - Catalog View",
   area: "security",
   async assert(page: Page): Promise<void> {
-    await page.waitForSelector(".page-shell", { timeout: 10000 });
-    const len = await page.evaluate(
-      () => document.querySelector(".page-shell")?.textContent?.trim().length ?? 0,
-    );
-    if (len < 40) throw new Error(`page rendered only ${len} chars`);
+    await page.getByRole("tab", { name: "Known intelligence (catalog)" }).click();
+    await page.getByRole("textbox", { name: "Search advisories" }).waitFor({
+      state: "visible",
+      timeout: 10000,
+    });
+
+    const unavailable = page.getByText("The vulnerability-intelligence catalog is unavailable", {
+      exact: false,
+    });
+    if ((await unavailable.count()) > 0) {
+      throw new Error("catalog tab rendered unavailable against the advisory mock");
+    }
   },
 };

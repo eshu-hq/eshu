@@ -394,15 +394,20 @@ export async function installMockApi(page: Page): Promise<void> {
         contentType: "application/json",
         body: JSON.stringify(
           envelope(
-            [
-              {
-                id: "GHSA-xxxx-xxxx-xxxx",
-                package: "express",
-                severity: "high",
-                cvss: 7.5,
-                summary: "Prototype pollution",
-              },
-            ],
+            {
+              advisories: [
+                {
+                  id: "GHSA-xxxx-xxxx-xxxx",
+                  package: "express",
+                  severity: "high",
+                  cvss: 7.5,
+                  summary: "Prototype pollution",
+                },
+              ],
+              count: 1,
+              limit: 50,
+              truncated: false,
+            },
             "advisories.list",
           ),
         ),
