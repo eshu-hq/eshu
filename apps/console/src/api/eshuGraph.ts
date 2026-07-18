@@ -22,5 +22,6 @@ export { entityMapToGraph, loadEntityMapGraph } from "./eshuGraphNeighborhood";
 export {
   deploymentStoryToGraph,
   loadEntityStoryGraph,
+  type DeploymentGraphDetail,
   type ServiceDeploymentContextResponse,
 } from "./eshuGraphDeployment";

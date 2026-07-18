@@ -5,7 +5,7 @@ import type { EshuApiClient } from "./client";
 import { deploymentStoryToGraph, loadEntityStoryGraph } from "./eshuGraph";
 
 describe("eshuGraph deployment story", () => {
-  it("deploymentStoryToGraph turns service context artifacts into a typed deployment chain", () => {
+  it("deploymentStoryToGraph preserves the exact artifact relationship endpoints", () => {
     const graph = deploymentStoryToGraph(
       {
         name: "svc-platform",
@@ -51,6 +51,7 @@ describe("eshuGraph deployment story", () => {
     expect(graph.nodes.map((node) => node.label).sort()).toEqual([
       "helm-charts",
       "iac-eks-argocd",
+      "iac-eks-observability",
       "svc-platform",
       "svc-platform",
     ]);
@@ -58,11 +59,11 @@ describe("eshuGraph deployment story", () => {
       expect.arrayContaining([
         expect.objectContaining({
           s: "repository:r_dd626fe7",
-          t: "repository:r_66cd2d76",
-          verb: "DEPLOYS_HELM",
+          t: "repository:r_078043f1",
+          verb: "DEPLOYS_FROM",
           layer: "deploy",
+          sourceFamily: "kustomize",
           evidence: [
-            "artifact family: kustomize",
             "evidence kind: KUSTOMIZE_RESOURCE_REFERENCE",
             "path: applicationsets/core-engineering/api-node/kustomization.yaml",
             "environment: acme-prod",
@@ -71,24 +72,16 @@ describe("eshuGraph deployment story", () => {
         expect.objectContaining({
           s: "repository:r_66cd2d76",
           t: "repository:r_078043f1",
-          verb: "PACKAGES",
-          layer: "deploy",
-          evidence: [
-            "artifact family: helm",
-            "evidence kind: HELM_CHART_REFERENCE",
-            "path: svc-platform/Chart.yaml",
-          ],
-        }),
-        expect.objectContaining({
-          s: "repository:r_078043f1",
-          t: "workload:svc-platform",
           verb: "DEPLOYS_FROM",
           layer: "deploy",
+          sourceFamily: "helm",
+          evidence: ["evidence kind: HELM_CHART_REFERENCE", "path: svc-platform/Chart.yaml"],
         }),
       ]),
     );
-    expect(graph.edges.some((edge) => edge.verb === "RELATED")).toBe(false);
-    expect(graph.nodes.some((node) => node.label === "iac-eks-observability")).toBe(false);
+    expect(
+      graph.edges.some((edge) => ["DEPLOYS_HELM", "PACKAGES", "RELATED"].includes(edge.verb)),
+    ).toBe(false);
   });
 
   it("loadEntityStoryGraph prefers service deployment context when deployment evidence exists", async () => {
@@ -118,24 +111,26 @@ describe("eshuGraph deployment story", () => {
           truth: null,
         };
       },
-      post: async () => {
-        throw new Error("entity-map should not be called when deployment evidence exists");
+      post: async (path: string) => {
+        calls.push(path);
+        if (path === "/api/v0/impact/trace-deployment-chain") {
+          return { data: {}, error: null, truth: null };
+        }
+        throw new Error(`unexpected POST ${path}`);
       },
     } as unknown as EshuApiClient;
 
     const graph = await loadEntityStoryGraph(client, "svc-platform");
 
-    expect(calls).toEqual(["/api/v0/services/svc-platform/context"]);
+    expect(calls).toEqual([
+      "/api/v0/services/svc-platform/context",
+      "/api/v0/impact/trace-deployment-chain",
+    ]);
     expect(graph.edges).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           s: "repository:r_66cd2d76",
           t: "repository:r_078043f1",
-          verb: "PACKAGES",
-        }),
-        expect.objectContaining({
-          s: "repository:r_078043f1",
-          t: "workload:svc-platform",
           verb: "DEPLOYS_FROM",
         }),
       ]),
@@ -148,11 +143,7 @@ describe("eshuGraph deployment story", () => {
       get: async (path: string) => {
         calls.push(path);
         if (path === "/api/v0/services/svc-platform/context") {
-          return {
-            data: { name: "svc-platform", repo_name: "svc-platform" },
-            error: null,
-            truth: null,
-          };
+          throw new EshuApiHttpError(404);
         }
         if (path === "/api/v0/repositories/repository%3Ar_078043f1/context") {
           return {
@@ -187,10 +178,8 @@ describe("eshuGraph deployment story", () => {
         }
         throw new Error(`unexpected GET ${path}`);
       },
-      post: async () => {
-        throw new Error(
-          "entity-map should not be called when repository deployment evidence exists",
-        );
+      post: async (path: string) => {
+        throw new Error(`unexpected POST ${path}`);
       },
     } as unknown as EshuApiClient;
 
@@ -204,22 +193,19 @@ describe("eshuGraph deployment story", () => {
       expect.arrayContaining([
         expect.objectContaining({
           s: "repository:r_dd626fe7",
-          t: "repository:r_66cd2d76",
-          verb: "DEPLOYS_HELM",
+          t: "repository:r_078043f1",
+          verb: "DEPLOYS_FROM",
         }),
         expect.objectContaining({
           s: "repository:r_66cd2d76",
           t: "repository:r_078043f1",
-          verb: "PACKAGES",
-        }),
-        expect.objectContaining({
-          s: "repository:r_078043f1",
-          t: "workload:svc-platform",
           verb: "DEPLOYS_FROM",
         }),
       ]),
     );
-    expect(graph.edges.some((edge) => edge.verb === "RELATED")).toBe(false);
+    expect(
+      graph.edges.some((edge) => ["DEPLOYS_HELM", "PACKAGES", "RELATED"].includes(edge.verb)),
+    ).toBe(false);
   });
 
   it("loadEntityStoryGraph falls back to entity-map when service context is not found", async () => {

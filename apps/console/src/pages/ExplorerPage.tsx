@@ -2,8 +2,21 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 
+import {
+  DeploymentDetailButton,
+  EXPLORER_LAYERS,
+  ExplorerLayerFilters,
+} from "./ExplorerGraphControls";
+import {
+  currentCenterId,
+  modeForNode,
+  repoIDForNode,
+  sourceHref,
+  sourceLabel,
+} from "./ExplorerGraphHelpers";
 import type { EshuApiClient } from "../api/client";
 import { loadEntityGraph, loadEntityStoryGraph, resolveEntityHandle } from "../api/eshuGraph";
+import type { DeploymentGraphDetail } from "../api/eshuGraph";
 import { Panel, TruthChip } from "../components/atoms";
 import { EvidencePanel, type EvidencePanelData } from "../components/EvidencePanel";
 import { GraphCanvas } from "../components/GraphCanvas";
@@ -14,8 +27,6 @@ import {
 import { defaultServiceName } from "../console/defaultEntity";
 import { LAYER_COLOR, KIND_COLOR, fmt } from "../console/types";
 import type { ConsoleModel, GraphEdge, GraphLayer, GraphModel, GraphNode } from "../console/types";
-
-const LAYERS: readonly GraphLayer[] = ["code", "deploy", "infra", "runtime", "security", "ops"];
 
 export function ExplorerPage({
   model,
@@ -35,8 +46,13 @@ export function ExplorerPage({
   const live = model.source === "live" && !!client;
   const [layout, setLayout] = useState<"layered" | "radial">("layered");
   const [mode, setMode] = useState<"direct" | "neighborhood">("direct");
+  const [deploymentDetail, setDeploymentDetail] = useState<DeploymentGraphDetail>("summary");
   const [on, setOn] = useState<Record<GraphLayer, boolean>>(
-    () => Object.fromEntries(LAYERS.map((l) => [l, true])) as Record<GraphLayer, boolean>,
+    () =>
+      Object.fromEntries(EXPLORER_LAYERS.map((layer) => [layer, true])) as Record<
+        GraphLayer,
+        boolean
+      >,
   );
   const [sel, setSel] = useState<GraphNode | undefined>(model.graph.nodes.find((n) => n.hero));
   // evidence holds the inline evidence-panel data for the node or edge the
@@ -84,6 +100,7 @@ export function ExplorerPage({
     setBusy(false);
     setErr("");
     setHint("");
+    setDeploymentDetail("summary");
   }, [client]);
 
   function pickMode(m: "direct" | "neighborhood"): void {
@@ -107,6 +124,11 @@ export function ExplorerPage({
   const graph = useMemo(() => {
     const edges = base.edges.filter((e) => on[e.layer]);
     const keep = new Set<string>();
+    const incident = new Set<string>();
+    base.edges.forEach((e) => {
+      incident.add(e.s);
+      incident.add(e.t);
+    });
     edges.forEach((e) => {
       keep.add(e.s);
       keep.add(e.t);
@@ -114,14 +136,21 @@ export function ExplorerPage({
     base.nodes.forEach((n) => {
       if (n.hero) keep.add(n.id);
     });
-    return { nodes: base.nodes.filter((n) => keep.has(n.id) || base.edges.length === 0), edges };
+    return {
+      nodes: base.nodes.filter((n) => keep.has(n.id) || !incident.has(n.id)),
+      edges,
+    };
   }, [base, on]);
   const nodeLabels = useMemo(
     () => new Map(base.nodes.map((node) => [node.id, node.label])),
     [base.nodes],
   );
 
-  async function expand(name: string, forcedMode?: "direct" | "neighborhood"): Promise<void> {
+  async function expand(
+    name: string,
+    forcedMode?: "direct" | "neighborhood",
+    forcedDetail?: DeploymentGraphDetail,
+  ): Promise<void> {
     if (!client) return;
     const requestClient = client;
     const requestID = latestRequestRef.current + 1;
@@ -145,10 +174,12 @@ export function ExplorerPage({
         return;
       }
       const effectiveMode = forcedMode ?? (modePinnedRef.current ? mode : resolved.mode);
+      const effectiveDetail = forcedDetail ?? deploymentDetail;
       if (effectiveMode !== mode) setMode(effectiveMode);
+      if (effectiveDetail !== deploymentDetail) setDeploymentDetail(effectiveDetail);
       const g =
         effectiveMode === "neighborhood"
-          ? await loadEntityStoryGraph(client, resolved.name, resolved.repoId)
+          ? await loadEntityStoryGraph(client, resolved.name, resolved.repoId, effectiveDetail)
           : await loadEntityGraph(client, resolved.name);
       if (!requestIsCurrent(requestID, requestClient)) return;
       setLiveGraph(g);
@@ -198,7 +229,7 @@ export function ExplorerPage({
       const handle = node.id.trim() !== "" ? node.id : node.label;
       const g =
         nextMode === "neighborhood"
-          ? await loadEntityStoryGraph(client, handle, repoIDForNode(node))
+          ? await loadEntityStoryGraph(client, handle, repoIDForNode(node), deploymentDetail)
           : await loadEntityGraph(client, handle);
       if (!requestIsCurrent(requestID, requestClient)) return;
       setLiveGraph(g);
@@ -308,6 +339,15 @@ export function ExplorerPage({
               Neighborhood
             </button>
           </div>
+          <DeploymentDetailButton
+            busy={busy || query.trim() === ""}
+            detail={deploymentDetail}
+            onToggle={() => {
+              const nextDetail = deploymentDetail === "summary" ? "expanded" : "summary";
+              void expand(query, "neighborhood", nextDetail);
+            }}
+            visible={mode === "neighborhood" && liveGraph !== null}
+          />
           {err ? (
             <span className="src-err" role="alert" style={{ marginTop: 0 }}>
               ⚠ {err}
@@ -321,19 +361,10 @@ export function ExplorerPage({
         </div>
       ) : null}
 
-      <div className="explorer-filters">
-        {LAYERS.map((k) => (
-          <button
-            key={k}
-            className={`layer-toggle ${on[k] ? "on" : "off"}`}
-            style={{ "--lc": LAYER_COLOR[k] } as React.CSSProperties}
-            onClick={() => setOn((s) => ({ ...s, [k]: !s[k] }))}
-          >
-            <i style={{ background: LAYER_COLOR[k] }} />
-            <span style={{ textTransform: "capitalize" }}>{k}</span>
-          </button>
-        ))}
-      </div>
+      <ExplorerLayerFilters
+        enabled={on}
+        onToggle={(layer) => setOn((current) => ({ ...current, [layer]: !current[layer] }))}
+      />
 
       <div className="explorer-layout">
         <div className="gcanvas-shell">
@@ -462,36 +493,4 @@ export function ExplorerPage({
       </div>
     </div>
   );
-}
-
-function currentCenterId(graph: GraphModel): string | undefined {
-  return graph.nodes.find((node) => node.hero)?.id;
-}
-
-function modeForNode(node: GraphNode): "direct" | "neighborhood" {
-  if (node.kind === "client" || node.kind === "library") return "direct";
-  return "neighborhood";
-}
-
-function repoIDForNode(node: GraphNode): string | undefined {
-  if (node.kind !== "repo") return undefined;
-  return node.id.trim() === "" ? undefined : node.id;
-}
-
-function sourceHref(node: GraphNode): string | null {
-  const source = node.source;
-  if (!source) return null;
-  const params = new URLSearchParams({ path: source.filePath });
-  if (source.startLine !== undefined) params.set("lineStart", String(source.startLine));
-  if (source.endLine !== undefined) params.set("lineEnd", String(source.endLine));
-  return `/repositories/${encodeURIComponent(source.repoId)}/source?${params.toString()}`;
-}
-
-function sourceLabel(node: GraphNode): string {
-  const source = node.source;
-  if (!source) return "source path unavailable";
-  if (source.startLine !== undefined && source.endLine !== undefined)
-    return `${source.filePath}:${source.startLine}-${source.endLine}`;
-  if (source.startLine !== undefined) return `${source.filePath}:${source.startLine}`;
-  return source.filePath;
 }
