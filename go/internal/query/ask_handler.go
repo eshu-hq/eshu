@@ -293,6 +293,11 @@ func buildAskResponse(ans AskAnswer, question, format string) askResponse {
 	// derived prose so the answer is not silently empty (issue #3550).
 	applyDerivedProseFallback(&resp, ans.Narrated, primarySupported, primarySummary)
 
+	// Substance guardrail: withhold a circular, identity-only answer even when
+	// citation and publish-safety pass (issue #5266). Runs last so it evaluates
+	// the finally published prose, narration or derived summary alike.
+	applyAskSubstanceGuardrail(&resp, question, primarySupported)
+
 	// Artifacts: when the answer has prose, validate the detected format and
 	// include one artifact entry.
 	detectedFormat := render.DetectFormat(question, format)

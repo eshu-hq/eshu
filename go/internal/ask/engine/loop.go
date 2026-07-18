@@ -7,7 +7,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/answerguardrail"
 	"github.com/eshu-hq/eshu/go/internal/ask/provider"
 	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/status"
@@ -194,6 +196,15 @@ func (e *Engine) finalizeAnswerWithPosture(ctx context.Context, question string,
 		ans.Prose = selectedPacketSummary(ans)
 	}
 	e.narrate(ctx, ans, posture)
+	// Usefulness verdict telemetry: record whether the published prose is a
+	// circular, identity-only restatement of the question so an operator can see
+	// the answer-quality outcome without re-running the session. The handler
+	// enforces the withholding; this is the observable verdict.
+	if strings.TrimSpace(ans.Prose) != "" {
+		e.log().Info("ask: usefulness verdict",
+			"circular", answerguardrail.IsCircularAnswer(question, ans.Prose),
+			"termination", reason)
+	}
 }
 
 // dispatchCall executes a single tool call, records a TraceEntry, and appends
