@@ -93,186 +93,188 @@ export function AdvisoryCatalog({
     setError(null);
   }
 
+  if (provenance === "loading" || provenance === "unavailable") {
+    return (
+      <AsyncStateGuard provenance={provenance} label="catalog intelligence">
+        {null}
+      </AsyncStateGuard>
+    );
+  }
+
   return (
-    <AsyncStateGuard provenance={provenance} label="catalog intelligence">
-      <div>
+    <div>
+      <div
+        className="row"
+        style={{
+          justifyContent: "space-between",
+          alignItems: "center",
+          margin: "0 0 var(--gap)",
+          flexWrap: "wrap",
+          gap: 8,
+        }}
+      >
+        <p className="t-mut" style={{ fontSize: ".82rem", margin: 0 }}>
+          Known intelligence — <span className="mono">GET /api/v0/supply-chain/advisories</span>.
+          These advisories are not a claim of service impact.
+        </p>
+        <div className="row" style={{ gap: 8, alignItems: "center" }}>
+          {truth ? <TruthChip level={uiTruth(truth.level)} /> : null}
+          {truth ? <FreshDot state={uiFresh(truth.freshness.state)} /> : null}
+        </div>
+      </div>
+
+      <Panel
+        className="flush"
+        title="CVE intelligence catalog"
+        sub="Sorted by CVSS"
+        action={
+          <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>
+            <input
+              className="popover-input"
+              placeholder="Search id / package"
+              value={draft.q}
+              onChange={(e) => setDraft({ ...draft, q: e.target.value })}
+              style={{ width: 160 }}
+              aria-label="Search advisories"
+            />
+            <select
+              className="popover-input"
+              value={draft.severity}
+              onChange={(e) => setDraft({ ...draft, severity: e.target.value })}
+              aria-label="Severity filter"
+            >
+              <option value="">Any severity</option>
+              <option value="critical">Critical</option>
+              <option value="high">High</option>
+              <option value="medium">Medium</option>
+              <option value="low">Low</option>
+            </select>
+            <input
+              className="popover-input"
+              placeholder="Ecosystem"
+              value={draft.ecosystem}
+              onChange={(e) => setDraft({ ...draft, ecosystem: e.target.value })}
+              style={{ width: 110 }}
+              aria-label="Ecosystem filter"
+            />
+            <label className="row" style={{ gap: 4, fontSize: ".78rem", alignItems: "center" }}>
+              <input
+                type="checkbox"
+                checked={draft.kev}
+                onChange={(e) => setDraft({ ...draft, kev: e.target.checked })}
+              />{" "}
+              KEV only
+            </label>
+            <button
+              className="btn-ghost active"
+              onClick={applyFilters}
+              disabled={loading || !client}
+            >
+              Apply
+            </button>
+            {filtersActive ? (
+              <button className="link-btn" onClick={resetFilters}>
+                Clear
+              </button>
+            ) : null}
+          </div>
+        }
+      >
+        <table className="tbl">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Severity</th>
+              <th>CVSS</th>
+              <th>KEV</th>
+              <th>Ecosystem</th>
+              <th>Package</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((a) => (
+              <tr key={a.id}>
+                <td className="row" style={{ gap: 7 }}>
+                  <Link
+                    to={`/vulnerabilities/${encodeURIComponent(a.id)}`}
+                    className="t-name link-btn"
+                    style={{ fontSize: ".8rem" }}
+                  >
+                    {a.id}
+                  </Link>
+                  {a.ghsaId && a.ghsaId !== a.id ? (
+                    <span className="t-mut mono" style={{ fontSize: ".68rem" }}>
+                      {a.ghsaId}
+                    </span>
+                  ) : null}
+                </td>
+                <td>
+                  <span
+                    className="sev-tag"
+                    style={{
+                      color:
+                        SEVERITY_COLOR[
+                          (a.severity as Severity) in SEVERITY_COLOR
+                            ? (a.severity as Severity)
+                            : "medium"
+                        ],
+                    }}
+                  >
+                    <i style={{ background: "currentColor" }} />
+                    {a.severity}
+                  </span>
+                </td>
+                <td className="mono" style={{ fontSize: ".82rem" }}>
+                  {a.cvss || "—"}
+                </td>
+                <td>
+                  {a.kev ? <span className="kev-flag">KEV</span> : <span className="t-mut">—</span>}
+                </td>
+                <td className="t-mut" style={{ fontSize: ".76rem" }}>
+                  {a.ecosystems.length > 0 ? a.ecosystems.slice(0, 2).join(", ") : "—"}
+                </td>
+                <td className="t-mut mono" style={{ fontSize: ".74rem" }}>
+                  {a.packageIds.length > 0 ? a.packageIds[0] : "—"}
+                  {a.packageIds.length > 1 ? ` +${a.packageIds.length - 1}` : ""}
+                </td>
+              </tr>
+            ))}
+            {rows.length === 0 && !loading ? (
+              <tr>
+                <td colSpan={6} className="empty">
+                  {error
+                    ? error
+                    : filtersActive
+                      ? "No catalog advisories match these filters."
+                      : "No catalog advisories yet — requires the vulnerability-intelligence collector."}
+                </td>
+              </tr>
+            ) : null}
+          </tbody>
+        </table>
         <div
           className="row"
-          style={{
-            justifyContent: "space-between",
-            alignItems: "center",
-            margin: "0 0 var(--gap)",
-            flexWrap: "wrap",
-            gap: 8,
-          }}
+          style={{ justifyContent: "space-between", padding: "10px 12px", alignItems: "center" }}
         >
-          <p className="t-mut" style={{ fontSize: ".82rem", margin: 0 }}>
-            Known intelligence — <span className="mono">GET /api/v0/supply-chain/advisories</span>.
-            These advisories are not a claim of service impact.
-          </p>
+          <span className="t-mut" style={{ fontSize: ".74rem" }}>
+            {rows.length} loaded{hasMore ? " · more available" : ""}
+          </span>
           <div className="row" style={{ gap: 8, alignItems: "center" }}>
-            {truth ? <TruthChip level={uiTruth(truth.level)} /> : null}
-            {truth ? <FreshDot state={uiFresh(truth.freshness.state)} /> : null}
+            {error && rows.length > 0 ? (
+              <span className="t-mut" style={{ fontSize: ".74rem", color: "var(--crit)" }}>
+                {error}
+              </span>
+            ) : null}
+            <button
+              className="btn-ghost"
+              onClick={() => void load(applied, true, cursor)}
+              disabled={!hasMore || loading || !client}
+            >
+              {loading ? "Loading…" : hasMore ? "Load more" : "End of catalog"}
+            </button>
           </div>
         </div>
-
-        <Panel
-          className="flush"
-          title="CVE intelligence catalog"
-          sub="Sorted by CVSS"
-          action={
-            <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>
-              <input
-                className="popover-input"
-                placeholder="Search id / package"
-                value={draft.q}
-                onChange={(e) => setDraft({ ...draft, q: e.target.value })}
-                style={{ width: 160 }}
-                aria-label="Search advisories"
-              />
-              <select
-                className="popover-input"
-                value={draft.severity}
-                onChange={(e) => setDraft({ ...draft, severity: e.target.value })}
-                aria-label="Severity filter"
-              >
-                <option value="">Any severity</option>
-                <option value="critical">Critical</option>
-                <option value="high">High</option>
-                <option value="medium">Medium</option>
-                <option value="low">Low</option>
-              </select>
-              <input
-                className="popover-input"
-                placeholder="Ecosystem"
-                value={draft.ecosystem}
-                onChange={(e) => setDraft({ ...draft, ecosystem: e.target.value })}
-                style={{ width: 110 }}
-                aria-label="Ecosystem filter"
-              />
-              <label className="row" style={{ gap: 4, fontSize: ".78rem", alignItems: "center" }}>
-                <input
-                  type="checkbox"
-                  checked={draft.kev}
-                  onChange={(e) => setDraft({ ...draft, kev: e.target.checked })}
-                />{" "}
-                KEV only
-              </label>
-              <button
-                className="btn-ghost active"
-                onClick={applyFilters}
-                disabled={loading || !client}
-              >
-                Apply
-              </button>
-              {filtersActive ? (
-                <button className="link-btn" onClick={resetFilters}>
-                  Clear
-                </button>
-              ) : null}
-            </div>
-          }
-        >
-          <table className="tbl">
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Severity</th>
-                <th>CVSS</th>
-                <th>KEV</th>
-                <th>Ecosystem</th>
-                <th>Package</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((a) => (
-                <tr key={a.id}>
-                  <td className="row" style={{ gap: 7 }}>
-                    <Link
-                      to={`/vulnerabilities/${encodeURIComponent(a.id)}`}
-                      className="t-name link-btn"
-                      style={{ fontSize: ".8rem" }}
-                    >
-                      {a.id}
-                    </Link>
-                    {a.ghsaId && a.ghsaId !== a.id ? (
-                      <span className="t-mut mono" style={{ fontSize: ".68rem" }}>
-                        {a.ghsaId}
-                      </span>
-                    ) : null}
-                  </td>
-                  <td>
-                    <span
-                      className="sev-tag"
-                      style={{
-                        color:
-                          SEVERITY_COLOR[
-                            (a.severity as Severity) in SEVERITY_COLOR
-                              ? (a.severity as Severity)
-                              : "medium"
-                          ],
-                      }}
-                    >
-                      <i style={{ background: "currentColor" }} />
-                      {a.severity}
-                    </span>
-                  </td>
-                  <td className="mono" style={{ fontSize: ".82rem" }}>
-                    {a.cvss || "—"}
-                  </td>
-                  <td>
-                    {a.kev ? (
-                      <span className="kev-flag">KEV</span>
-                    ) : (
-                      <span className="t-mut">—</span>
-                    )}
-                  </td>
-                  <td className="t-mut" style={{ fontSize: ".76rem" }}>
-                    {a.ecosystems.length > 0 ? a.ecosystems.slice(0, 2).join(", ") : "—"}
-                  </td>
-                  <td className="t-mut mono" style={{ fontSize: ".74rem" }}>
-                    {a.packageIds.length > 0 ? a.packageIds[0] : "—"}
-                    {a.packageIds.length > 1 ? ` +${a.packageIds.length - 1}` : ""}
-                  </td>
-                </tr>
-              ))}
-              {rows.length === 0 && !loading ? (
-                <tr>
-                  <td colSpan={6} className="empty">
-                    {error
-                      ? error
-                      : filtersActive
-                        ? "No catalog advisories match these filters."
-                        : "No catalog advisories yet — requires the vulnerability-intelligence collector."}
-                  </td>
-                </tr>
-              ) : null}
-            </tbody>
-          </table>
-          <div
-            className="row"
-            style={{ justifyContent: "space-between", padding: "10px 12px", alignItems: "center" }}
-          >
-            <span className="t-mut" style={{ fontSize: ".74rem" }}>
-              {rows.length} loaded{hasMore ? " · more available" : ""}
-            </span>
-            <div className="row" style={{ gap: 8, alignItems: "center" }}>
-              {error && rows.length > 0 ? (
-                <span className="t-mut" style={{ fontSize: ".74rem", color: "var(--crit)" }}>
-                  {error}
-                </span>
-              ) : null}
-              <button
-                className="btn-ghost"
-                onClick={() => void load(applied, true, cursor)}
-                disabled={!hasMore || loading || !client}
-              >
-                {loading ? "Loading…" : hasMore ? "Load more" : "End of catalog"}
-              </button>
-            </div>
-          </div>
-        </Panel>
-      </div>
-    </AsyncStateGuard>
+      </Panel>
+    </div>
   );
 }
