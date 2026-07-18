@@ -253,6 +253,97 @@ Supported response:
 Do not delete Postgres unless the accepted recovery plan is full source
 recollection. Do not make Eshu silently delete graph data at startup.
 
+## Pitfall: Every Relationship-Existence Predicate Is Mis-Evaluated
+
+### Observed shape
+
+On both pinned NornicDB backends (v1.1.11 and the PR261/compose-default
+image), every Cypher shape that asks "does this node have any relationship"
+without binding a concrete relationship variable is wrong:
+
+- `NOT (n)--()` (intended: "n has no relationship") always evaluates false --
+  it matches nothing, ever, even for a node with zero relationships.
+- `(n)--()` (intended: "n has a relationship") always evaluates true -- it
+  matches every node, even one with zero relationships.
+- `COUNT { (n)--() } = 0` (intended: "n has no relationship") always
+  evaluates true -- the subquery's count is always reported as 0, so the
+  predicate matches every node regardless of actual relationship state.
+
+Eshu's orphan sweep (`go/internal/storage/cypher/orphan_sweep.go`, #5147) was
+built on the first shape and was a silent no-op: the mark and sweep writes
+never matched a true orphan, and the `eshu_dp_graph_orphan_nodes` gauge
+reported a constant 0 regardless of how many disconnected nodes existed. The
+same class of bug affected the `ShellCommand` orphan cleanup in
+`edge_writer_shell_exec.go` (documented in
+`go/internal/storage/cypher/evidence-4367-content-edge-retract-sequential.md`,
+which originally and incorrectly claimed the `COUNT { (target)--() } = 0` form
+"works" -- that claim proved only that the DELETE fired, never that it
+preserved connected nodes and excluded true orphans; the same predicate class
+now known to be a permanently-true tautology mis-classified it as a fix).
+
+### Eshu implications
+
+Do not write, review, or approve any Cypher shape in this repo that asks a
+relationship-existence question without a concrete relationship variable. The
+only proven-reliable primitive is a MATCH with a bound relationship variable
+anchored on a specific node identity, for example:
+
+```cypher
+MATCH (n:Label {id: $id})-[r]-(m)
+RETURN count(r) AS relationship_count
+```
+
+For a bounded batch of candidate nodes, anchor on their identity keys via
+`UNWIND` rather than scanning the whole label:
+
+```cypher
+UNWIND $keys AS candidate_key
+MATCH (n:Label {id: candidate_key})-[r]-(m)
+RETURN DISTINCT n.id AS key
+```
+
+Then compute the anti-join (candidates minus connected) in application code,
+not in Cypher. Eshu's orphan sweep now works this way; see
+`go/internal/storage/cypher/README.md` ("OrphanSweepStore is the cleanup
+seam...") and `evidence-5147-orphan-sweep-antijoin.md` for the full design and
+live proof.
+
+### Pitfall within the pitfall: UNWIND variable shadowing the RETURN alias
+
+While proving the anti-join replacement, reusing the `UNWIND` binding
+variable's name as the `RETURN ... AS` alias silently broke the query on both
+pinned backends:
+
+```cypher
+-- BROKEN: returns zero rows on both pinned NornicDB backends, no error
+UNWIND $keys AS key
+MATCH (n:Label {id: key})-[r]-(m)
+RETURN DISTINCT n.id AS key
+```
+
+```cypher
+-- CORRECT: distinct variable name for the UNWIND binding
+UNWIND $keys AS candidate_key
+MATCH (n:Label {id: candidate_key})-[r]-(m)
+RETURN DISTINCT n.id AS key
+```
+
+Real Neo4j Cypher generally rejects redeclaring a bound variable name with a
+compile error; NornicDB instead silently returns an empty result set. Always
+give the `UNWIND` binding variable and any `RETURN ... AS` alias distinct
+names, and do not trust an empty result from a NornicDB query as proof of "no
+matching rows" without checking for this shadowing shape first.
+
+### Validation
+
+`go test ./internal/storage/cypher -run
+'TestBuildConnectedKeysQueryUsesConcreteRelationshipVariable|TestLiveOrphanAntiJoinReplacesBrokenNotDashDashPredicate'
+-count=1` (the second env-gated on `ESHU_CYPHER_BOLT_DSN`) proves the
+concrete-relationship-variable form and the UNWIND/alias distinction hold, and
+that the anti-join correctly detects a true orphan that the old `NOT
+(n)--()` predicate silently ignored, on both the pinned v1.1.11 and the
+PR261/compose-default NornicDB images.
+
 ## When To Patch NornicDB
 
 Patch NornicDB only when evidence supports one of these:

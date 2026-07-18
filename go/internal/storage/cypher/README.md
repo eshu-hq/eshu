@@ -51,32 +51,89 @@ adding a label to a retract set makes that gate demand a new scenario for it.
 `OrphanSweepStore` is the cleanup seam for disconnected graph nodes that remain
 after owned retractions. It only handles the closed labels
 `Repository`, `Platform`, `EvidenceArtifact`, `File`, `Directory`, and
-`Module`; each statement uses a static label, checks
-`evidence_source IS NOT NULL`, requires `NOT (n)--()`, and applies the
-configured limit before setting or deleting. The store marks first-seen orphans
-with `eshu_orphan_observed_at_unix`, clears that marker when a relationship
-returns, and deletes only nodes whose marker is older than the configured TTL.
-Repository queries also exclude
-`evidence_source='projector/canonical'` so active source-local repository nodes
-remain owned by the canonical writer even when a repository has no graph
-relationships yet.
+`Module`. On both pinned NornicDB backends every relationship-existence
+predicate is mis-evaluated (`NOT (n)--()` always false, `(n)--()` always true,
+`COUNT { (n)--() } = 0` always true regardless of relationship state -- see
+`docs/public/reference/nornicdb-pitfalls.md`), so the store never issues one.
+Instead it computes orphan status as a Go-side
+anti-join between two bounded reads per label:
+
+- **S1 candidates** (`BuildCandidateOrphanNodesQuery`): every node matching
+  `evidence_source IS NOT NULL` (plus the Repository-only exclusion below),
+  with its identity key and current `eshu_orphan_observed_at_unix` marker.
+  Contains no relationship clause at all.
+- **S2 connected keys** (`BuildConnectedKeysQuery`): `UNWIND $keys AS
+  candidate_key MATCH (n:Label {key: candidate_key})-[r]-(m) RETURN DISTINCT
+  n.key AS key` -- the only relationship primitive proven reliable on both
+  pinned backends: a concrete relationship variable in a MATCH anchored on
+  caller-supplied identity keys, never a negated or counted pattern-existence
+  predicate. The UNWIND binding variable is deliberately not named `key`:
+  reusing the RETURN alias as the UNWIND variable silently returns zero rows
+  on the pinned NornicDB backends instead of erroring. `readConnectedKeys`
+  splits the key list into
+  `defaultOrphanSweepConnectedKeysChunkSize`-sized (500) round trips rather
+  than anchoring one statement on an arbitrarily large key list: this
+  statement's own cost scales super-linearly with key-list size on both
+  pinned backends (measured ~4.7s at 5,000 keys unchunked vs ~0.6s chunked at
+  500/round trip -- see `evidence-5147-orphan-sweep-antijoin.md` and
+  `docs/public/reference/cypher-performance.md`). Below the chunk size this
+  is exactly one round trip, unchanged from before chunking was added.
+
+`orphans = candidates - connected` is computed in Go. The store then issues at
+most three key-anchored writes per label, each `UNWIND $keys AS candidate_key
+MATCH (n:Label {key: candidate_key}) ...`, never a relationship predicate or
+`DETACH DELETE`: **clear** (`REMOVE eshu_orphan_observed_at_unix` for marked
+nodes that are now connected), **mark** (`SET eshu_orphan_observed_at_unix`
+for unmarked orphans, capped at the batch limit), and **sweep** (`DELETE n`
+for marked orphans aged past the TTL cutoff, capped at the batch limit).
+Immediately before sweep, the store re-runs the S2 read restricted to the
+keys about to be deleted and drops any that reconnected between the
+top-of-cycle read and the delete (a TOCTOU guard against a concurrent
+projector). The per-label identity key mirrors the canonical writers' MERGE
+identity: `id` for Repository/Platform/EvidenceArtifact, `path` for
+File/Directory, `name` for Module. Repository's S1 read also excludes
+`evidence_source='projector/canonical'` so active source-local repository
+nodes remain owned by the canonical writer even when a repository has no
+graph relationships yet; no other label carries that exclusion, and the
+downstream clear/mark/sweep writes don't need it either since they only ever
+act on keys S1 already filtered.
+
+The steady no-orphan state (a label whose S1 candidates are all connected,
+none marked) issues exactly two reads (S1, S2) and zero writes; a label with
+no matching nodes at all skips S2 entirely (one read, zero writes). A label
+with unmarked orphans, reconnected markers, or aged markers issues the S1/S2
+reads plus only the clear/mark/sweep writes whose key set is non-empty.
 
 No-Regression Evidence: `go test ./internal/storage/cypher -run
-'TestDefaultOrphanSweepLabelsIncludesCodeStructureLabels|TestCodeStructureOrphanSweepStatementsUseStaticZeroRelationshipGuards|TestOrphanSweepStoreDefaultLabelsConvergeAcrossBoundedBatches|TestOrphanSweepStoreDelaysCodeStructureDeletionDuringProjectionRace|TestGraphOrphanNodeCountsUsesDefaultCodeStructureLabels|TestCanonicalCodeStructureNodesStampOrphanSweepMetadata|TestBuildMarkOrphan|TestBuildSweepOrphan|TestBuildCountOrphan|TestBuildClearOrphan|TestOrphanSweepStoreUsesInjectedClock'
+'TestDefaultOrphanSweepLabelsIncludesCodeStructureLabels|TestBuildCandidateOrphanNodesQueryUsesStaticLabelNoRelationshipPredicate|TestBuildConnectedKeysQueryUsesConcreteRelationshipVariable|TestBuildClearMarkSweepStatementsAreKeyAnchoredNoRelationshipPredicate|TestOrphanSweepStoreComputesSetDifferenceAndOrdersClearBeforeMark|TestOrphanSweepStoreDeletesAgedOrphansAndPreservesConnected|TestOrphanSweepStoreBoundsMarkAndSweepToBatchLimit|TestOrphanSweepStoreConvergesAcrossBoundedCyclesForAllDefaultLabels|TestOrphanSweepStoreDelaysCodeStructureDeletionDuringProjectionRace|TestOrphanSweepStoreTOCTOUGuardDropsReconnectedKeyBeforeSweep|TestGraphOrphanNodeCountsUsesDefaultCodeStructureLabels'
 -count=1` proves the default closed label set includes code structure nodes,
-Directory and imported Module writes stamp the metadata required by the sweep
-predicate, the static-label query builders reject unknown labels, every swept
-label keeps the zero-relationship guard, newly observed code-structure orphans
-are marked but not deleted until the TTL has aged, the count and mutation paths
-stay bounded, and the TTL clock is injectable for deterministic cleanup. `go test
-./internal/storage/cypher -run
-'TestRepositoryOrphanSweepExcludesSourceLocalCanonicalRepositories' -count=1`
+every builder rejects the relationship-existence forbidden patterns
+(`)--(`, `NOT (`, `COUNT {`, `EXISTS {`), the Go-side anti-join computes the
+correct orphan/connected/clear/mark/sweep key sets against a scripted fixture
+that exercises the real production code, aging and batch bounds hold, the
+TTL clock is injectable for deterministic cleanup, and the TOCTOU guard drops
+a key that reconnects mid-cycle. `go test ./internal/storage/cypher -run
+'TestRepositoryCandidateQueryExcludesSourceLocalCanonicalRepositories' -count=1`
 proves the sweep never targets source-local canonical Repository nodes.
 `go test ./internal/storage/cypher -run
 'TestRepoRelationshipUpsertStamps|TestInfrastructurePlatformUpsert|TestBatchedWriteEdgesParameterFidelity'
 -count=1` proves relationship-created repository and platform targets carry
 `evidence_source` / `generation_id` metadata so the sweep can distinguish Eshu
-nodes from backend-local graph objects.
+nodes from backend-local graph objects. `go test ./internal/storage/cypher
+-run
+'TestReadConnectedKeysIssuesOneRoundTripAtOrBelowChunkSize|TestReadConnectedKeysChunksAboveChunkSizeAndUnionsResults|TestReadConnectedKeysChunkPropagatesReaderErrorMidway'
+-count=1` proves the S2 chunk boundary (one round trip at or below the chunk
+size), the union/dedup of results across chunks above it, and that a reader
+error on a later chunk surfaces rather than being silently swallowed. The
+committed live regression `go test
+./internal/storage/cypher -run
+'TestLiveOrphanAntiJoinReplacesBrokenNotDashDashPredicate' -count=1` (env-gated
+on `ESHU_CYPHER_BOLT_DSN`) first reproduces the historical `NOT (n)--()` no-op
+on a true orphan on the live backend, then proves the anti-join store marks,
+ages, sweeps the orphan, clears a relinked node's marker, and preserves
+connected nodes across two injected-clock cycles; verified on both the pinned
+v1.1.11 and PR261/compose-default NornicDB images (see
+`evidence-5147-orphan-sweep-antijoin.md`).
 
 Observability Evidence: `OrphanSweepStore` statement summaries and operation
 metadata flow through the existing `InstrumentedExecutor` metrics and spans.
@@ -1094,11 +1151,20 @@ committed zero nodes.
   `PackageVersion`, and `PackageDependency` labels. Do not add `Repository`
   matches or ownership edges to `package_registry_canonical_writer.go`; source
   hints need reducer admission first.
-- Orphan sweep statements must stay on the closed label set and must keep
-  `NOT (n)--()` plus the TTL marker before deletion. Do not replace the sweep
-  with `DETACH DELETE`, dynamic labels, or an unlabelled graph scan; dangling
-  relationships are owned by the relationship retractors, not this cleanup
-  runner.
+- Orphan sweep statements must stay on the closed label set and must never
+  contain a relationship-existence predicate (`NOT (n)--()`, `(n)--()`, or
+  `COUNT { (n)--() } = 0` are all mis-evaluated on the pinned NornicDB
+  backends -- see `docs/public/reference/nornicdb-pitfalls.md`). Orphan status
+  must be computed as a Go-side anti-join between a label+evidence_source scan
+  (S1) and a concrete-relationship-variable MATCH anchored on caller-supplied
+  identity keys (S2); the clear/mark/sweep writes must stay key-anchored
+  (`UNWIND $keys AS candidate_key MATCH (n:Label {key: candidate_key}) ...`)
+  and keep the TTL marker before deletion. Do not replace the sweep with
+  `DETACH DELETE`, dynamic labels, an unlabelled graph scan, or any relationship
+  pattern-existence predicate; dangling relationships are owned by the
+  relationship retractors, not this cleanup runner. Immediately before the
+  sweep delete, re-verify connectivity for exactly the keys about to be
+  deleted (TOCTOU guard) rather than trusting the top-of-cycle read.
 
   No-Regression Evidence: `go test ./internal/projector ./internal/storage/cypher -count=1`
   on 2026-05-22 covered package-registry phase ordering with 1 package, 1
