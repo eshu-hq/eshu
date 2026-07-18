@@ -1329,6 +1329,18 @@ type Instruments struct {
 	// Lets an operator read the cache hit-rate for the status stage-counts
 	// read at 3 AM.
 	StatusStageCountsCacheTotal metric.Int64Counter
+	// OIDCBearerValidationTotal counts every IdP bearer-token (Authorization:
+	// Bearer <access_token>) validation outcome the internal/oidcbearer
+	// resolver reaches (issue #5162, epic #5161), by bounded outcome value:
+	// valid, expired, wrong_audience, unknown_issuer, bad_signature,
+	// malformed, jwks_fetch_failure, or no_grants. A credential that is not
+	// JWT-shaped, or a deployment with zero enabled bearer IdPs, never
+	// increments this counter at all — those paths fall through to the rest
+	// of the scoped-token resolver chain instead of being "denied" (see
+	// oidcbearer.Resolver.ResolveScopedToken's doc comment). Never labeled
+	// with the raw token, issuer, or subject — those go to the paired
+	// structured log only.
+	OIDCBearerValidationTotal metric.Int64Counter
 }
 
 // NewInstruments creates and registers all OTEL metric instruments using the
@@ -4444,6 +4456,19 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register StatusStageCountsCacheTotal counter: %w", err)
+	}
+
+	inst.OIDCBearerValidationTotal, err = meter.Int64Counter(
+		"eshu_dp_oidc_bearer_validation_total",
+		metric.WithDescription(
+			"IdP bearer-token (Authorization: Bearer <access_token>) validation "+
+				"outcomes by bounded outcome: valid, expired, wrong_audience, "+
+				"unknown_issuer, bad_signature, malformed, jwks_fetch_failure, "+
+				"no_grants.",
+		),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register OIDCBearerValidationTotal counter: %w", err)
 	}
 
 	return inst, nil

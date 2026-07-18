@@ -123,10 +123,13 @@ func wireAPI(
 	if logger != nil {
 		logger.Info("postgres connected", telemetry.EventAttr("runtime.postgres.connected"))
 	}
-	scopedTokenResolver = scopedtoken.ChainResolvers(
-		scopedtoken.NewPostgresIdentityResolver(pgstatus.NewScopedAPITokenStore(pgstatus.SQLDB{DB: db})),
-		scopedTokenResolver,
-	)
+	// identityResolver is kept separate from scopedTokenResolver (the
+	// file-registry resolver loaded above) until after instruments exists
+	// below: the IdP bearer resolver (#5162) needs instruments and must sit
+	// BETWEEN identity and file-registry in the chain
+	// (identity -> bearer -> file), so the three-way ChainResolvers call is
+	// deferred to just after instruments is built instead of assembled here.
+	identityResolver := scopedtoken.NewPostgresIdentityResolver(pgstatus.NewScopedAPITokenStore(pgstatus.SQLDB{DB: db}))
 
 	// Build query layer
 	neo4jReader := query.NewNeo4jReader(driver, neo4jDB)
@@ -156,6 +159,22 @@ func wireAPI(
 		return nil, nil, nil, fmt.Errorf("configure metrics time-series source: %w", err)
 	}
 	governanceAudit := newGovernanceAuditStore(db, instruments)
+
+	// IdP bearer-token resolver (#5162): validates an IdP-issued OAuth2
+	// access token presented as Authorization: Bearer <token> against the
+	// canonical Eshu resource URI (ESHU_AUTH_RESOURCE_URI). Returns
+	// (nil, nil) when that env var is unset, which is what makes the
+	// three-way chain below degrade to the pre-#5162 identity -> file chain
+	// on a token-only deployment.
+	oidcBearerResolver, err := newOIDCBearerResolver(ctx, getenv, db, instruments, logger)
+	if err != nil {
+		_ = db.Close()
+		if driver != nil {
+			_ = driver.Close(ctx)
+		}
+		return nil, nil, nil, fmt.Errorf("construct oidc bearer resolver: %w", err)
+	}
+	scopedTokenResolver = scopedtoken.ChainResolvers(identityResolver, oidcBearerResolver, scopedTokenResolver)
 
 	// Bootstrap identity seeding (epic #4962, issue #4963): seed the first
 	// local owner/admin identity exactly once before the router mounts any

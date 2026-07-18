@@ -499,6 +499,7 @@ catalog; per-route variants share the same `route` label dimension.
 | Status and admin | go/internal/query/admin.go:182 | `eshu_dp_api_request_duration_seconds`, `eshu_dp_api_request_errors_total` | query admin |
 | Auth (sessions, OIDC, SAML) | go/internal/query/browser_session*.go | `eshu_dp_api_request_duration_seconds`, `eshu_dp_api_request_errors_total` | query auth |
 | OIDC login rate-limit | go/internal/query/oidc_rate_limiter.go | `eshu_dp_oidc_login_throttled_total` | query auth |
+| IdP bearer-token resolver (#5162) | go/internal/oidcbearer/resolver.go | `eshu_dp_oidc_bearer_validation_total` | query auth |
 | Search hybrid degradation | go/internal/query/semantic_search_telemetry.go | `eshu_dp_search_hybrid_degraded_total` | query search |
 | Semantic-search canonical scope resolution | go/internal/query/semantic_search_scope.go | `postgres.query` span and `eshu_dp_postgres_query_duration_seconds` with `store=semantic_search_scope` | query search |
 | Component extensions | go/internal/query/component_extensions.go:149 | `eshu_dp_api_request_duration_seconds`, `eshu_dp_api_request_errors_total` | query extensions |
@@ -581,6 +582,7 @@ the right name when adding a new stage.
 | aws.service.scan / aws.service.pagination.page | go/internal/telemetry/contract.go:508-509 | `eshu_dp_aws_api_calls_total` | span AWS |
 | postgres.exec / postgres.query | go/internal/telemetry/contract.go:512-513 | `eshu_dp_postgres_query_duration_seconds` | span dependency |
 | neo4j.execute | go/internal/telemetry/contract.go:514 | `eshu_dp_neo4j_query_duration_seconds` | span dependency |
+| oidcbearer.resolve | go/internal/oidcbearer/telemetry.go | `eshu_dp_oidc_bearer_validation_total` | span query |
 
 <!-- eshu:metric:section=structured-log-keys -->
 ## Structured Log Keys

@@ -6,6 +6,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"sort"
 	"sync"
 	"testing"
 	"time"
@@ -264,6 +265,29 @@ func (db *providerConfigFakeDB) QueryContext(_ context.Context, query string, ar
 			configuration = rev.configuration
 		}
 		return &scalarRows{data: [][]any{{row.providerKind, row.activeRevisionID, rev.sealedSecret, configuration}}}, nil
+	case selectActiveOIDCBearerProvidersQuery:
+		providerConfigIDs := make([]string, 0, len(db.configs))
+		for providerConfigID := range db.configs {
+			providerConfigIDs = append(providerConfigIDs, providerConfigID)
+		}
+		sort.Strings(providerConfigIDs)
+		var data [][]any
+		for _, providerConfigID := range providerConfigIDs {
+			row := db.configs[providerConfigID]
+			if row.tombstoned || row.providerKind != "external_oidc" || row.status != "active" || row.activeRevisionID == "" {
+				continue
+			}
+			rev, ok := db.revisions[providerConfigID][row.activeRevisionID]
+			if !ok {
+				continue
+			}
+			var configuration any
+			if rev.configuration != "" {
+				configuration = rev.configuration
+			}
+			data = append(data, []any{providerConfigID, row.tenantID, row.activeRevisionID, configuration})
+		}
+		return &scalarRows{data: data}, nil
 	default:
 		return nil, errUnexpectedProviderConfigQuery(query)
 	}

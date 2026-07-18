@@ -25,6 +25,7 @@ This reference is generated from the code-owned registry in `go/internal/envregi
 | `ESHU_AUTH_OIDC_SESSION_REFRESH_INTERVAL` | duration | `1m` | Cadence of the bounded OIDC active-session revocation refresh worker. Non-positive durations fail API startup closed. |
 | `ESHU_AUTH_OIDC_SESSION_REFRESH_WINDOW` | duration | `15m` | Maximum staleness window for OIDC-backed browser sessions before the API revokes the session and requires fresh IdP reauthentication. Explicit invalid or non-positive durations fail API startup closed. |
 | `ESHU_AUTH_OIDC_STATE_TTL` | duration | `10m` | OIDC login state and nonce lifetime. Explicit invalid durations fail API startup closed. |
+| `ESHU_AUTH_RESOURCE_URI` | string | — | Canonical Eshu API/MCP resource identifier (RFC 8707) that an IdP-issued bearer access token's aud claim must carry to be accepted by the internal/oidcbearer resolver (issue #5162). Shared, deployment-wide, single value across cmd/api and cmd/mcp-server; also the resource identifier F-2's RFC 9728 protected-resource metadata advertises. When unset, IdP bearer-token validation is disabled entirely (the resolver is never constructed) - Eshu's own scoped/shared token authentication is unaffected. |
 | `ESHU_AUTO_GENERATE_API_KEY` | bool | `false` | When true, auto-generate and persist an API key if none is set. |
 | `ESHU_DISABLE_NEO4J` | bool | `false` | When true, disable the graph backend entirely. |
 | `ESHU_HOME` | string | — | Root directory for persisted API key and configuration (defaults to ~/.eshu). |
