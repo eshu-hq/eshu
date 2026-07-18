@@ -100,6 +100,70 @@ describe("AdvisoryCatalog", () => {
     expect(screen.queryByRole("link", { name: "CVE-2026-FIRST" })).not.toBeInTheDocument();
   });
 
+  it("preserves local browse state across same-content model rerenders", async () => {
+    const client = {
+      get: async () => ({
+        data: {
+          advisories: [
+            {
+              advisory_key: "CVE-2026-FILTERED",
+              cve_id: "CVE-2026-FILTERED",
+              cvss_score: 8.7,
+              severity_label: "high",
+            },
+          ],
+          count: 1,
+          limit: 50,
+          truncated: false,
+        },
+        error: null,
+        truth: null,
+      }),
+    } as unknown as EshuApiClient;
+    const model: ConsoleModel = {
+      ...demoModel,
+      source: "live",
+      provenance: { ...demoModel.provenance, advisories: "live" },
+    };
+    const { rerender } = render(
+      <MemoryRouter>
+        <AdvisoryCatalog client={client} model={model} />
+      </MemoryRouter>,
+    );
+
+    fireEvent.change(screen.getByRole("textbox", { name: "Search advisories" }), {
+      target: { value: "CVE-2026" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+    await screen.findByRole("link", { name: "CVE-2026-FILTERED" });
+
+    rerender(
+      <MemoryRouter>
+        <AdvisoryCatalog
+          client={client}
+          model={{
+            ...model,
+            advisories: model.advisories.map((advisory) => ({
+              ...advisory,
+              ecosystems: [...advisory.ecosystems],
+              packageIds: [...advisory.packageIds],
+            })),
+            advisoryCatalogSummary:
+              model.advisoryCatalogSummary === null ? null : { ...model.advisoryCatalogSummary },
+            advisoryCatalogNextCursor:
+              model.advisoryCatalogNextCursor === null
+                ? null
+                : { ...model.advisoryCatalogNextCursor },
+          }}
+        />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole("textbox", { name: "Search advisories" })).toHaveValue("CVE-2026");
+    expect(screen.getByRole("link", { name: "CVE-2026-FILTERED" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Clear" })).toBeInTheDocument();
+  });
+
   it("does not present stale rows as matches when a replacement request fails", async () => {
     const client = {
       get: async () => {

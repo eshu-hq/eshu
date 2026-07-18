@@ -70,7 +70,7 @@ describe("VulnerabilitiesPage status summary", () => {
     expect(summary).not.toHaveTextContent("admitted service-impact evidence");
   });
 
-  it("reports unique proven services and preserves mixed no-service truth", () => {
+  it("reports service-backed findings and preserves mixed no-service truth", () => {
     const mixed: ConsoleModel = {
       ...demoModel,
       source: "live",

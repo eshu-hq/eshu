@@ -45,29 +45,36 @@ export function AdvisoryCatalog({
   const [draft, setDraft] = useState<Filters>(EMPTY_FILTERS);
   const [applied, setApplied] = useState<Filters>(EMPTY_FILTERS);
   const requestGeneration = useRef(0);
+  const seedIdentity = catalogSeedIdentity(model);
+  const authoritativeSeed = {
+    cursor: model.advisoryCatalogNextCursor,
+    hasMore: model.advisoryCatalogSummary?.truncated === true,
+    rows: seeded,
+  };
+  const authoritativeSeedRef = useRef(authoritativeSeed);
+  authoritativeSeedRef.current = authoritativeSeed;
 
   const truth = model.truth.advisories;
   const provenance = model.provenance.advisories ?? (model.source === "demo" ? "demo" : "loading");
   const filtersActive = applied !== EMPTY_FILTERS;
 
   useEffect(() => {
+    // Parent renders may rebuild an equivalent ConsoleModel with fresh array
+    // and object references. Only authoritative value changes own a reset;
+    // reference churn must not discard the user's filters or loaded pages.
+    const next = authoritativeSeedRef.current;
     // A source swap or refreshed snapshot is an authoritative ownership
     // boundary. Reset local browse state and fence requests from the prior
     // source so retained rows cannot bleed into demo or a newer connection.
     requestGeneration.current += 1;
-    setRows(model.advisories.slice());
-    setCursor(model.advisoryCatalogNextCursor);
-    setHasMore(model.advisoryCatalogSummary?.truncated === true);
+    setRows(next.rows);
+    setCursor(next.cursor);
+    setHasMore(next.hasMore);
     setDraft(EMPTY_FILTERS);
     setApplied(EMPTY_FILTERS);
     setLoading(false);
     setError(null);
-  }, [
-    model.source,
-    model.advisories,
-    model.advisoryCatalogNextCursor,
-    model.advisoryCatalogSummary,
-  ]);
+  }, [seedIdentity]);
 
   async function load(
     next: Filters,
@@ -307,4 +314,23 @@ export function AdvisoryCatalog({
       </Panel>
     </div>
   );
+}
+
+function catalogSeedIdentity(model: ConsoleModel): string {
+  return JSON.stringify({
+    advisories: model.advisories.map((advisory) => ({
+      cveId: advisory.cveId,
+      cvss: advisory.cvss,
+      ecosystems: advisory.ecosystems,
+      ghsaId: advisory.ghsaId,
+      id: advisory.id,
+      kev: advisory.kev,
+      packageIds: advisory.packageIds,
+      publishedAt: advisory.publishedAt,
+      severity: advisory.severity,
+    })),
+    cursor: model.advisoryCatalogNextCursor,
+    source: model.source,
+    summary: model.advisoryCatalogSummary,
+  });
 }
