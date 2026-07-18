@@ -24,6 +24,16 @@ const (
 	terminationMaxIterations = "max_iterations"
 )
 
+// sufficiencyNoProgressTurns is the number of consecutive turns that must add no
+// new distinct supported evidence before the evidence-sufficiency stop fires,
+// once answer evidence is already held. Requiring consecutive no-progress turns
+// (rather than stopping on the first) leaves a model that is mid-narrowing — about
+// to issue a distinct tool, refine a call with tighter arguments, or retry the
+// bounded continuation of a runaway result — one more turn to make progress, so a
+// legitimate multi-turn flow is not truncated early. A genuinely spinning loop
+// still stops well before the iteration bound.
+const sufficiencyNoProgressTurns = 2
+
 // evidenceProgress tracks, across loop turns, the distinct primary tools that
 // have produced a supported, summary-bearing answer packet. It is the signal the
 // evidence-sufficiency stop uses to distinguish a loop that is still gathering

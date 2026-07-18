@@ -19,6 +19,16 @@
 // is gated on Narrated == true in an Answer and is never presented as a
 // substitute for the machine-readable packets.
 //
+// # Bounding and termination
+//
+// The loop keeps an entity-oriented session bounded and useful without raising
+// any timeout, response budget, or iteration count: it refuses an unbounded
+// full-inventory list/search before dispatch, converts an over-budget or
+// timed-out tool result into a bounded continuation packet, stops on evidence
+// sufficiency once the requested facets are supported, and selects the primary
+// packet by relevance rather than first-supported dispatch order. Every
+// non-error exit records a low-cardinality Answer.TerminationReason.
+//
 // # Usage
 //
 //	eng, err := engine.New(adapter, runner, tools, engine.DefaultOptions())

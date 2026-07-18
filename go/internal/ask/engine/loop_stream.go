@@ -86,6 +86,7 @@ func (e *Engine) AskStream(ctx context.Context, question string, emit func(Strea
 	}
 	ans := Answer{Question: question}
 	var progress evidenceProgress
+	noProgressStreak := 0
 
 	for i := 0; i < e.opts.MaxIterations; i++ {
 		comp, err := sa.CompleteStream(ctx, messages, e.tools, func(ev provider.StreamEvent) {
@@ -144,7 +145,16 @@ func (e *Engine) AskStream(ctx context.Context, question string, emit func(Strea
 
 		// Evidence-sufficiency stop: mirror the synchronous loop so the SSE
 		// surface terminates on sufficiency rather than running to the bound.
-		if made, have := progress.observe(ans.Packets); have && !made {
+		made, haveEvidence := progress.observe(ans.Packets)
+		switch {
+		case !haveEvidence:
+			// No answer evidence yet; keep gathering.
+		case made:
+			noProgressStreak = 0
+		default:
+			noProgressStreak++
+		}
+		if haveEvidence && noProgressStreak >= sufficiencyNoProgressTurns {
 			if finalizeIndexedRepositoryCountAnswer(question, &ans) {
 				ans.TerminationReason = terminationDeterministicRoute
 				return ans, nil
@@ -152,6 +162,7 @@ func (e *Engine) AskStream(ctx context.Context, question string, emit func(Strea
 			e.log().Info("ask: evidence sufficiency stop",
 				"iteration", i+1,
 				"max_iterations", e.opts.MaxIterations,
+				"no_progress_turns", noProgressStreak,
 				"packets", len(ans.Packets))
 			e.finalizeAnswerWithPosture(ctx, question, &ans, terminationEvidenceSufficient, posture)
 			emitValidatedNarration(ans, emit)

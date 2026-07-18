@@ -55,16 +55,19 @@ var identityScaffolding = map[string]struct{}{
 	"a": {}, "an": {}, "of": {}, "as": {}, "it": {}, "to": {}, "in": {}, "on": {},
 }
 
-// contentTokens returns the set of lowercased whole-word tokens of at least three
-// characters in text, excluding identity scaffolding. It is the shared tokenizer
-// for the circular-answer heuristic.
+// contentTokens returns the set of lowercased whole-word content tokens in text,
+// excluding identity scaffolding. A token is content when it is at least three
+// characters OR it carries a digit: a short numeric fact ("5", "v2", "3") is a
+// real operational fact, not filler, so a terse answer like "payments exposes 5
+// endpoints" must not be classed as an identity restatement. It is the shared
+// tokenizer for the circular-answer heuristic.
 func contentTokens(text string) map[string]struct{} {
 	out := make(map[string]struct{})
 	for _, raw := range strings.FieldsFunc(strings.ToLower(text), func(r rune) bool {
 		return !unicode.IsLetter(r) && !unicode.IsDigit(r) && r != '_' && r != '-'
 	}) {
 		tok := strings.Trim(raw, "-_")
-		if len(tok) < 3 {
+		if len(tok) < 3 && !hasDigit(tok) {
 			continue
 		}
 		if _, scaffold := identityScaffolding[tok]; scaffold {
@@ -73,4 +76,16 @@ func contentTokens(text string) map[string]struct{} {
 		out[tok] = struct{}{}
 	}
 	return out
+}
+
+// hasDigit reports whether tok contains at least one digit rune. A digit-bearing
+// token (a count, a version, an identifier) is treated as content regardless of
+// length so a terse numeric answer is never mistaken for an identity restatement.
+func hasDigit(tok string) bool {
+	for _, r := range tok {
+		if unicode.IsDigit(r) {
+			return true
+		}
+	}
+	return false
 }

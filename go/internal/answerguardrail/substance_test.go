@@ -39,6 +39,24 @@ func TestIsCircularAnswer(t *testing.T) {
 			want:     false,
 		},
 		{
+			name:     "terse count answer is substantive",
+			question: "how many endpoints does payments expose",
+			answer:   "payments expose 5 endpoints",
+			want:     false,
+		},
+		{
+			name:     "terse version answer is substantive",
+			question: "what version is the payments service",
+			answer:   "payments is version 2",
+			want:     false,
+		},
+		{
+			name:     "terse deployment count is substantive",
+			question: "how many deployments does payments have",
+			answer:   "payments have 3 deployments",
+			want:     false,
+		},
+		{
 			name:     "empty answer is not circular",
 			question: "what is payments",
 			answer:   "",

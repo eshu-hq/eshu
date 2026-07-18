@@ -29,7 +29,7 @@ The scorer records pass/fail rows for:
 
 | Criterion | Pass condition |
 | --- | --- |
-| `usefulness` | The answer is supported, specific, and not generic or too verbose. |
+| `usefulness` | The answer is supported, specific, and not generic, too verbose, or a circular identity-only restatement of the question's entity. |
 | `truth_honesty` | Truth class and freshness are present and not over-confident. |
 | `citation_coverage` | Every captured result has concrete evidence handles. |
 | `boundedness` | Partial, truncated, stale, or unsupported answers say why and give a bounded continuation. |

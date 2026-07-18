@@ -200,6 +200,53 @@ func TestAsk_RetainedEntityOverview_BoundedUsefulAnswer(t *testing.T) {
 	}
 }
 
+// TestAsk_ProgressingMultiFacetFlowNotTruncated proves the evidence-sufficiency
+// stop does not truncate a legitimate multi-turn flow: a model that makes
+// distinct-tool progress on every turn runs to its own final text turn rather
+// than being cut off after the first turn that holds evidence.
+func TestAsk_ProgressingMultiFacetFlowNotTruncated(t *testing.T) {
+	t.Parallel()
+
+	tc := func(id, name string, args map[string]any) provider.ToolCall {
+		return provider.ToolCall{ID: id, Name: name, Arguments: args}
+	}
+	turns := []provider.Completion{
+		{ToolCalls: []provider.ToolCall{tc("t0", "get_service_story", map[string]any{"service": "payments", "limit": 1})}},
+		{ToolCalls: []provider.ToolCall{tc("t1", "get_repository_summary", map[string]any{"repo_id": "payments-api"})}},
+		{ToolCalls: []provider.ToolCall{tc("t2", "list_deployments", map[string]any{"service": "payments", "limit": 5})}},
+		{Text: "here is the full payments overview"},
+	}
+	adapter := &scriptedAdapter{turns: turns, errOnIdx: -1}
+
+	// Every tool returns a distinct supported, summary-bearing packet.
+	runner := RunnerFunc(func(_ context.Context, name string, _ map[string]any) (RunResult, error) {
+		return RunResult{Envelope: &query.ResponseEnvelope{
+			Truth: &query.TruthEnvelope{Level: query.TruthLevelExact, Basis: query.TruthBasisAuthoritativeGraph},
+			Data:  map[string]any{"facet": name, "detail": "payments " + name},
+		}}, nil
+	})
+
+	eng, err := New(adapter, runner, nil, DefaultOptions())
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	ans, err := eng.Ask(context.Background(), "give me a full operational overview of the payments service")
+	if err != nil {
+		t.Fatalf("Ask: %v", err)
+	}
+
+	if ans.TerminationReason != terminationFinalTurn {
+		t.Errorf("TerminationReason = %q, want %q (progressing flow must reach its final turn)",
+			ans.TerminationReason, terminationFinalTurn)
+	}
+	if adapter.calls != len(turns) {
+		t.Errorf("iterations = %d, want %d (no premature sufficiency stop)", adapter.calls, len(turns))
+	}
+	if len(ans.Packets) != 3 {
+		t.Errorf("len(Packets) = %d, want 3 (all facets gathered)", len(ans.Packets))
+	}
+}
+
 func containsString(xs []string, want string) bool {
 	for _, x := range xs {
 		if x == want {

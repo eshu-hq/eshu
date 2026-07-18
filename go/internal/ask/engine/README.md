@@ -49,8 +49,11 @@ issue #3261.
    per turn).
 4. Each `ResponseEnvelope` is wrapped into an `AnswerPacket` and fed back to the
    model as bounded JSON (capped at `maxToolResultBytes`).
-5. The loop terminates on a tool-call-free completion or when `MaxIterations` is
-   exhausted. Exhaustion marks the answer `Partial`.
+5. The loop terminates on a tool-call-free completion, on an evidence-sufficiency
+   stop (answer evidence held and a turn added no new distinct supported
+   evidence), on the deterministic count route, or when `MaxIterations` is
+   exhausted. Exhaustion marks the answer `Partial`. Every exit records a
+   low-cardinality `Answer.TerminationReason`.
 6. If narration posture is `Available`, the final prose is validated by
    `answernarration.Validate`; it becomes `Answer.Prose` only on a passing
    verdict. Failing validation drops prose and the answer falls back to
@@ -137,6 +140,98 @@ order remain the actual dispatch order. The engine records an explicit primary
 packet index for this deterministic intent so prose, truth, result, and evidence
 all publish from the inventory packet even when another supported packet came
 first.
+
+### Bounded, useful answers (#5266)
+
+An entity-oriented question can otherwise spend tens of seconds on poorly
+bounded tool calls, exhaust the reasoning budget, and publish a circular
+identity-only answer even when rich bounded evidence exists. Four deterministic
+mechanisms keep such a session bounded and useful without raising any timeout,
+response budget, or iteration count:
+
+- **Pre-dispatch bounding** (`bounding.go`): a curated set of full-inventory
+  list/search tools (`list_indexed_repositories`, `list_relationship_edges`)
+  must carry a positive `limit` or a recognised scope argument. An unbounded
+  call is refused before dispatch with an executable narrowing hint, so the
+  dispatch deadline and the response budget are never spent on a runaway
+  list-all. The exact-count route bounds a bare inventory call to `limit=1` so
+  it is never refused.
+- **Oversized-result continuation** (`bounding.go`): when a dispatched tool
+  returns an `mcp_response_over_budget` or `mcp_dispatch_timeout` envelope, the
+  engine builds a bounded continuation packet — partial, with the narrowing
+  guidance and a recommended bounded retry — instead of collapsing the outcome
+  into an opaque unsupported packet.
+- **Evidence-sufficiency termination** (`termination.go`): the loop tracks the
+  distinct primary tools that have produced a supported, summary-bearing packet.
+  Once answer evidence is held and a turn adds no new distinct supported
+  evidence, the loop stops (`TerminationReason == evidence_sufficient`) rather
+  than spinning to `MaxIterations`.
+- **Relevance-ranked selection** (`packet_select.go`): the primary packet that
+  backs deterministic prose, narration, and the handler's published answer is
+  chosen by evidence tier, question relevance, truth strength, and completeness
+  — not first-supported dispatch order. Selection is stable and dispatch-ordered
+  on a tie; an explicitly bound `PrimaryPacketIndex` (the count route) always
+  wins.
+
+Every non-error exit records a low-cardinality `Answer.TerminationReason`
+(`final_turn`, `evidence_sufficient`, `deterministic_route`, or
+`max_iterations`). A circular, identity-only answer is withheld by the runtime
+answer-substance guardrail in the query handler (shared by the JSON, SSE, and
+MCP surfaces); the engine logs the usefulness verdict for operators.
+
+No-Regression Evidence (#5266 bounded useful answers): the failing-first
+retained-shape regression `engine.TestAsk_RetainedEntityOverview_BoundedUsefulAnswer`
+reproduces the reported run — the scripted model resolves the entity then issues
+an unbounded list-all, an oversized service story, a broad timed-out search, and
+redundant status calls, never emitting a final turn. Before the fix it ran the
+full 6/6 iterations, dispatched all 8 calls (including the unbounded 256KB
+inventory read), collapsed the oversized results into opaque unsupported
+packets, and published the first-supported generic packet
+(`{"indexed_repositories":42,...}`) with no `TerminationReason`. After the fix
+the same script stops at 4 iterations (`TerminationReason == evidence_sufficient`),
+refuses the unbounded `list_indexed_repositories` before dispatch (never spending
+the response budget), converts the oversized service story and the timed-out
+search into bounded continuation packets, and publishes the relevant
+payments-service overview. Focused proof:
+
+```bash
+cd go && go test ./internal/ask/engine ./internal/answerguardrail \
+  ./internal/answerquality ./internal/query -count=1
+```
+
+New regression tests: `engine.TestAsk_RetainedEntityOverview_BoundedUsefulAnswer`,
+`engine.TestBoundToolCall`, `engine.TestOversizedContinuationPacket`,
+`engine.TestEvidenceProgress`, `engine.TestSelectPrimaryPacketIndex`,
+`answerguardrail.TestIsCircularAnswer`,
+`answerguardrail.TestValidateResultRejectsCircularAnswer`,
+`query.TestApplyAskSubstanceGuardrailWithholdsCircularAnswer`, and
+`answerquality.TestScoreRejectsCircularAnswer`.
+
+Performance Evidence (#5266): measured on the deterministic representative
+harness above (LLM and backend abstracted through the `provider.Adapter` and
+`Runner` seams, so iterations and dispatched tool calls are exact). Before →
+after on the reproduced entity-overview scope: reasoning iterations 6 → 4,
+dispatched tool calls 8 → 5 (the unbounded full-inventory read is no longer
+dispatched), oversized/timeout results converted from 3 opaque unsupported
+outcomes to 2 bounded continuations, termination reason none → `evidence_sufficient`,
+and published answer generic-first-supported → relevant entity overview. The
+change adds no timeout, response-budget, or iteration-count increase. The
+remaining cost of a genuinely global (unscoped) search is inherent and now
+yields a bounded continuation with a narrowing next action rather than an opaque
+dead end; a live cold/warm wall-time rerun is the operator-local Ask proof
+(`scripts/verify-ask-eshu-local-proof.sh --deepseek`).
+
+Observability Evidence (#5266): the engine emits operator-facing structured logs
+(no new metric labels, no hot path) through the injected `*slog.Logger`:
+`ask: refused unbounded list/search call before dispatch` (field `tool`),
+`ask: tool result runaway; bounded continuation offered` (fields `tool`,
+`code`), `ask: evidence sufficiency stop` (fields `iteration`, `max_iterations`,
+`packets`), `ask: primary packet selected` (fields `index`, `reason`,
+`termination`), and `ask: usefulness verdict` (fields `circular`, `termination`).
+These let an operator see the planner's bounding choice, budget rejections, the
+packet-selection reason, the termination reason, and the answer usefulness
+verdict without re-running the session. The change touches no Cypher, graph
+write, worker, queue, lease, batch, Postgres write, or runtime stage.
 
 No-Regression Evidence: #5246 exact-count routing, streaming parity, bounded
 failures, hostile qualified questions, packet evidence, and rejection of an
