@@ -42,6 +42,32 @@ func resourceInvestigationAnchorParams(selected *resourceInvestigationCandidate,
 	return params
 }
 
+// resourceInvestigationAnchorLabel returns a single infra label to fold into the
+// traversal pattern for the resolved candidate, bounding the scan to that
+// label's population instead of an unlabeled whole-graph start — the late-filter
+// shape that produced repo-scale traversals (#5271/#5281, Codex review on #5302).
+// Only a known infra label is returned, so the interpolated label is never
+// attacker-influenced Cypher text; an unknown/empty label falls back to an
+// unlabeled reference.
+func resourceInvestigationAnchorLabel(selected *resourceInvestigationCandidate) string {
+	for _, label := range selected.Labels {
+		if infraLabelAllowed(label) {
+			return label
+		}
+	}
+	return ""
+}
+
+// resourceInvestigationResourceRef renders the `resource` pattern reference,
+// folding in the resolved infra label when one is known so the traversal anchors
+// on a bounded label population.
+func resourceInvestigationResourceRef(selected *resourceInvestigationCandidate) string {
+	if label := resourceInvestigationAnchorLabel(selected); label != "" {
+		return "resource:" + label
+	}
+	return "resource"
+}
+
 // resourceInvestigationWorkloads returns the workload instances that USE the
 // resolved resource. The prior single query chained
 // MATCH + MATCH + OPTIONAL MATCH + WITH into a computed RETURN, which the pinned
@@ -55,7 +81,7 @@ func (h *ImpactHandler) resourceInvestigationWorkloads(
 	selected *resourceInvestigationCandidate,
 ) ([]map[string]any, bool, error) {
 	anchor := resourceInvestigationResourceAnchor("resource", selected.Arn != "")
-	instancesCypher := fmt.Sprintf(`MATCH (instance:WorkloadInstance)-[rel:USES]->(resource)
+	instancesCypher := fmt.Sprintf(`MATCH (instance:WorkloadInstance)-[rel:USES]->(%s)
 WHERE (%s)
   AND ($environment = '' OR coalesce(instance.environment, resource.environment, '') = '' OR instance.environment = $environment)
 RETURN DISTINCT instance.id AS instance_id,
@@ -66,7 +92,7 @@ RETURN DISTINCT instance.id AS instance_id,
        coalesce(rel.reason, rel.evidence_type, '') AS relationship_reason,
        rel.confidence AS confidence
 ORDER BY instance_id
-LIMIT $limit`, anchor)
+LIMIT $limit`, resourceInvestigationResourceRef(selected), anchor)
 	rows, err := h.Neo4j.Run(ctx, instancesCypher, resourceInvestigationAnchorParams(selected, map[string]any{
 		"environment": req.Environment,
 		"limit":       req.Limit + 1,
@@ -176,9 +202,10 @@ func (h *ImpactHandler) resourceInvestigationRepoPaths(
 	selected *resourceInvestigationCandidate,
 	direction string,
 ) ([]map[string]any, bool, error) {
-	pattern := fmt.Sprintf("(resource)-[rels*1..%d]->(repo:Repository)", req.MaxDepth)
+	resourceRef := resourceInvestigationResourceRef(selected)
+	pattern := fmt.Sprintf("(%s)-[rels*1..%d]->(repo:Repository)", resourceRef, req.MaxDepth)
 	if direction == "incoming" {
-		pattern = fmt.Sprintf("(resource)<-[rels*1..%d]-(repo:Repository)", req.MaxDepth)
+		pattern = fmt.Sprintf("(%s)<-[rels*1..%d]-(repo:Repository)", resourceRef, req.MaxDepth)
 	}
 	anchor := resourceInvestigationResourceAnchor("resource", selected.Arn != "")
 	cypher := fmt.Sprintf(`MATCH path = %s

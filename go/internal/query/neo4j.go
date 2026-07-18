@@ -328,6 +328,15 @@ func resourceInvestigationHopList(raw any) []map[string]any {
 			relType = StringVal(rel, "type")
 			props, _ = rel["properties"].(map[string]any)
 		default:
+			// Unexpected relationships(path) element shape. Both pinned
+			// backends serialize edges as neo4j.Relationship (Neo4j) or
+			// map[string]any (NornicDB); a different type would indicate a
+			// backend/driver upgrade that changed the serialization. Dropping
+			// it keeps the read resilient rather than panicking; the
+			// backend-required live test
+			// (TestLiveResourceInvestigationReadsAreNornicDBSafe) asserts the
+			// current shapes decode, so such a drift fails that gate before it
+			// can surface as silently empty hops in production.
 			continue
 		}
 		hops = append(hops, map[string]any{

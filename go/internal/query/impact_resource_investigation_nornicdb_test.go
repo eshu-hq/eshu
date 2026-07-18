@@ -58,6 +58,33 @@ func TestResourceInvestigationAnchorParamsBindArnOnlyWhenPresent(t *testing.T) {
 	}
 }
 
+// TestResourceInvestigationResourceRefFoldsResolvedLabel guards the #5302 Codex
+// P1 fix: the traversal reference folds in the resolved candidate's infra label
+// so the path anchors on a bounded label population rather than an unlabeled
+// whole-graph start. Only a known infra label is interpolated (injection-safe);
+// an unknown or empty label falls back to an unlabeled reference.
+func TestResourceInvestigationResourceRefFoldsResolvedLabel(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name   string
+		labels []string
+		want   string
+	}{
+		{"known-infra-label", []string{"CloudResource"}, "resource:CloudResource"},
+		{"first-known-of-many", []string{"NotALabel", "TerraformResource"}, "resource:TerraformResource"},
+		{"unknown-label-falls-back", []string{"Repository"}, "resource"},
+		{"injection-attempt-rejected", []string{"CloudResource) DETACH DELETE (n"}, "resource"},
+		{"empty", nil, "resource"},
+	}
+	for _, tc := range cases {
+		got := resourceInvestigationResourceRef(&resourceInvestigationCandidate{ID: "r1", Labels: tc.labels})
+		if got != tc.want {
+			t.Errorf("%s: ref = %q, want %q", tc.name, got, tc.want)
+		}
+	}
+}
+
 // TestResourceInvestigationHopListDecodesBothBackends proves the hop decoder
 // unwinds a raw relationships(path) value from both the Neo4j driver
 // (neo4j.Relationship) and NornicDB (map[string]any with a nested properties

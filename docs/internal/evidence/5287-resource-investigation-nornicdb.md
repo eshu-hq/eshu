@@ -89,3 +89,36 @@ resource-investigation request normalizer).
 
 No-Observability-Change: No metrics, spans, logs, or status fields are added,
 removed, or renamed; only the Cypher shapes and their Go decoding changed.
+
+## Review-fix addendum (PR #5302)
+
+**Codex P1 — anchor the resource inside the traversal pattern.** The repo-paths
+read anchored an unlabeled `(resource)-[rels*1..N]->(repo:Repository)` start with
+the identity filter in `WHERE`; on a large graph the planner scans all nodes for
+the resource before traversing (the late-filter shape behind the 900-repo hangs,
+#5271/#5281). The resolved candidate already carries its labels, so the fix folds
+the resolved infra label into the pattern:
+`resourceInvestigationResourceRef` renders `(resource:<Label>)` when the
+candidate's first known infra label is present (whitelisted against
+`allInfraLabels` via `infraLabelAllowed`, so the interpolated label is never
+attacker-influenced; unknown/empty labels fall back to the unlabeled reference).
+The same label is folded into the workloads USES read for consistency (its start
+was already bounded by `:WorkloadInstance`).
+
+Evidence: this is the identical unlabeled-scan → bounded-label-anchor
+transformation already measured at repo scale in #5281 (410ms → 1.2ms on the
+91k-node corpus); the pinned NornicDB build does not emit query plans over Bolt,
+and re-timing on the isolated 4-node proof graph would be non-representative, so
+the repo-scale measurement stands as the perf precedent. Exactness is proven
+live: `TestLiveResourceInvestigationReadsAreNornicDBSafe` now sets
+`Labels: ["CloudResource"]`, asserts the ref folds to `resource:CloudResource`,
+and confirms the labeled traversal returns the same {repo, depth 1, hops} result
+as the unlabeled form. `TestResourceInvestigationResourceRefFoldsResolvedLabel`
+guards the label selection, the unlabeled fallback, and injection rejection.
+
+**Human P2 — silent drop of unknown relationship shapes in
+`resourceInvestigationHopList`.** Documented the `default` branch: both pinned
+backends serialize edges as `neo4j.Relationship` or `map[string]any`; a different
+type indicates a backend/driver upgrade, and the backend-required live test
+asserts the current shapes decode, so such drift fails that gate before it can
+surface as silently empty `hops` in production.

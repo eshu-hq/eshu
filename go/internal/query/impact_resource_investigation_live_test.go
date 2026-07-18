@@ -65,7 +65,12 @@ func TestLiveResourceInvestigationReadsAreNornicDBSafe(t *testing.T) {
 
 	handler := &ImpactHandler{Neo4j: NewNeo4jReader(driver, "nornic"), Profile: ProfileLocalAuthoritative}
 	req := resourceInvestigationRequest{Environment: "", MaxDepth: 4, Limit: 25}
-	selected := &resourceInvestigationCandidate{ID: "ri5287:res"}
+	// Labels set so the traversal folds in the resolved `:CloudResource` anchor
+	// (bounded-scan start) rather than the unlabeled fallback (Codex P1, #5302).
+	selected := &resourceInvestigationCandidate{ID: "ri5287:res", Labels: []string{"CloudResource"}}
+	if ref := resourceInvestigationResourceRef(selected); ref != "resource:CloudResource" {
+		t.Fatalf("resource ref = %q, want resource:CloudResource (labeled anchor)", ref)
+	}
 
 	// Workloads read.
 	workloads, _, err := handler.resourceInvestigationWorkloads(ctx, req, selected)
