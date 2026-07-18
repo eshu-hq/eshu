@@ -133,3 +133,51 @@ always errors."
 
 All tests drive the real go-oidc `Verify` path via `oidc.NewVerifier` +
 `oidc.StaticKeySet`, signing tokens with `golang-jwt/jwt/v5` — no network.
+
+## Performance and observability evidence
+
+This package adds a new resolver to the per-request API/MCP auth chain and a
+concurrent verifier cache (`atomic.Pointer[snapshot]` reads, a single
+background rebuild guarded by a mutex + `rebuilding` bool). The evidence below
+is why that is safe on the hot path.
+
+Benchmark Evidence: the load-bearing guarantee is that a deployment with
+no IdP configured pays nothing (issue F-1 AC #4). Baseline shape: before this
+change the auth chain had no bearer resolver at all. After: with the resolver
+present but zero providers enabled, the zero-provider fast path returns before
+any parse, map lookup, or verifier call.
+
+```
+BenchmarkResolveScopedToken_EmptySnapshot-10   16789575   72.10 ns/op   0 B/op   0 allocs/op
+```
+
+Input shape: an opaque (non-JWT) credential on an empty snapshot — the common
+token-only-posture request. `0 allocs/op` confirms no heap traffic and no JWKS
+network I/O is added when no provider is enabled. When providers *are* enabled,
+the request-path cost is a lock-free `atomic.Pointer` load, one issuer map
+lookup, and one go-oidc `Verify` against an in-process JWKS keyset; the
+provider-list Postgres read (`ListActiveOIDCBearerProviders`, a bounded
+`SELECT ... LIMIT 2000` ordered by `provider_config_id`) runs only on the
+background rebuild every `defaultTTL` (30s), never on the request path. No graph
+backend is involved. go-oidc/v3 v3.19.0.
+
+No-Regression Evidence: the resolver slots into the existing
+`scopedtoken.ChainResolvers` seam (identity → bearer → file) with no change to
+`authMiddleware`; an unknown/opaque credential falls through in O(1) and the
+chain's shared-key and identity-token behavior is unchanged. Concurrency safety
+is proven by `go test -race ./internal/oidcbearer ./internal/scopedtoken`
+(clean): reads never block, the single-rebuild guard is reset in a `defer` so a
+panicking rebuild cannot wedge it, the rebuild runs on a bounded 20s context so
+a hung issuer cannot pin the flag, and a persistent source error keeps serving
+the last good snapshot and retries on the next TTL tick (no leak, no wedge).
+
+Observability Evidence: validation outcomes are counted on
+`eshu_dp_oidc_bearer_validation_total{outcome}` (outcomes `valid`, `expired`,
+`wrong_audience`, `unknown_issuer`, `bad_signature`, `malformed`,
+`jwks_fetch_failure`, `no_grants`), the resolve path opens the
+`oidcbearer.resolve` span, and denials emit a structured `slog` line carrying
+only the issuer and outcome — never the raw token, and a subject hash only on
+the success path where claims are already verified. The counter is registered
+in `telemetry.Instruments` and tracked by the telemetry-coverage contract
+(doc + verifier), so an operator can see catalog-scoped token-validation
+failures without a code change.
