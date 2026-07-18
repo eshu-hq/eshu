@@ -82,4 +82,50 @@ describe("AdvisoryCatalog", () => {
     expect(request.searchParams.get("ecosystem")).toBe("npm");
     expect(request.searchParams.get("kev")).toBe("true");
   });
+
+  it("keeps cleared filters authoritative when an older request completes late", async () => {
+    let resolvePage: ((value: unknown) => void) | undefined;
+    const client = {
+      get: () =>
+        new Promise((resolve) => {
+          resolvePage = resolve;
+        }),
+    } as unknown as EshuApiClient;
+
+    render(
+      <MemoryRouter>
+        <AdvisoryCatalog client={client} model={demoModel} />
+      </MemoryRouter>,
+    );
+
+    fireEvent.change(screen.getByRole("textbox", { name: "Search advisories" }), {
+      target: { value: "CVE-2026" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Clear" }));
+
+    resolvePage?.({
+      data: {
+        advisories: [
+          {
+            advisory_key: "CVE-2026-LATE",
+            cve_id: "CVE-2026-LATE",
+            cvss_score: 8.7,
+            severity_label: "high",
+          },
+        ],
+        count: 1,
+        limit: 50,
+        truncated: false,
+      },
+      error: null,
+      truth: null,
+    });
+
+    await waitFor(() =>
+      expect(screen.queryByRole("link", { name: "CVE-2026-LATE" })).not.toBeInTheDocument(),
+    );
+    expect(screen.getByRole("link", { name: "CVE-2021-44228" })).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Search advisories" })).toHaveValue("");
+  });
 });

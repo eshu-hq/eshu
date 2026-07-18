@@ -3,7 +3,7 @@
 // Rows are source intelligence (not service reachability) and link to the
 // existing CVE detail page. Seeds from the snapshot's first page, then paginates,
 // filters, and refreshes live through the catalog client.
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Link } from "react-router-dom";
 
 import type { EshuApiClient } from "../api/client";
@@ -44,6 +44,7 @@ export function AdvisoryCatalog({
   const [error, setError] = useState<string | null>(null);
   const [draft, setDraft] = useState<Filters>(EMPTY_FILTERS);
   const [applied, setApplied] = useState<Filters>(EMPTY_FILTERS);
+  const requestGeneration = useRef(0);
 
   const truth = model.truth.advisories;
   const provenance = model.provenance.advisories ?? (model.source === "demo" ? "demo" : "loading");
@@ -58,6 +59,7 @@ export function AdvisoryCatalog({
       setError("Live API connection required to browse the catalog.");
       return;
     }
+    const generation = ++requestGeneration.current;
     setLoading(true);
     setError(null);
     try {
@@ -69,13 +71,15 @@ export function AdvisoryCatalog({
         kev: next.kev || undefined,
         cursor: from,
       });
+      if (generation !== requestGeneration.current) return;
       setRows((prev) => (append ? [...prev, ...page.rows] : page.rows));
       setCursor(page.nextCursor);
       setHasMore(page.nextCursor !== null);
     } catch (e) {
+      if (generation !== requestGeneration.current) return;
       setError(e instanceof Error ? e.message : "Catalog request failed.");
     } finally {
-      setLoading(false);
+      if (generation === requestGeneration.current) setLoading(false);
     }
   }
 
@@ -85,12 +89,14 @@ export function AdvisoryCatalog({
   }
 
   function resetFilters(): void {
+    requestGeneration.current += 1;
     setDraft(EMPTY_FILTERS);
     setApplied(EMPTY_FILTERS);
     setRows(seeded);
     setCursor(model.advisoryCatalogNextCursor);
     setHasMore(model.advisoryCatalogSummary?.truncated === true);
     setError(null);
+    setLoading(false);
   }
 
   if (provenance === "loading" || provenance === "unavailable") {
