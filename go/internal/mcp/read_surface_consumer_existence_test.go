@@ -66,6 +66,58 @@ func TestLanguageParityReadSurfacesResolveToRealConsumers(t *testing.T) {
 	assertLanguageParityBackingNotStale(t, used)
 }
 
+// TestLanguageParityReadSurfaceNoneSentinel locks in the safety semantics of
+// the "none" sentinel (#5334): a row may truthfully declare it has no query
+// consumer, but "none" must NOT become a way to silence the #5335 gate. The
+// invariant is that resolution is PER-LABEL, so "none" can never swallow a
+// co-located real (and unbacked) claim — if a future refactor changed the
+// per-row loop to skip the whole row when any label is "none", this test goes
+// red.
+func TestLanguageParityReadSurfaceNoneSentinel(t *testing.T) {
+	liveMCPTools := liveMCPToolNameSet()
+	goSymbolBackings := query.ReadSurfaceGoSymbolBackings
+
+	const fakeUnbacked = "totally_fake_unbacked_surface"
+	if _, claimed := languageParityReadSurfaceBacking[fakeUnbacked]; claimed {
+		t.Fatalf("test premise broken: %q must not be a real backing-map entry", fakeUnbacked)
+	}
+
+	t.Run("none resolves true", func(t *testing.T) {
+		if ok, reason := resolveLanguageParityReadSurface(languageParityReadSurfaceNone, languageParityReadSurfaceBacking, liveMCPTools, goSymbolBackings); !ok {
+			t.Fatalf("resolveLanguageParityReadSurface(%q) = false (%s), want true", languageParityReadSurfaceNone, reason)
+		}
+	})
+
+	t.Run("unbacked label still bites", func(t *testing.T) {
+		if ok, _ := resolveLanguageParityReadSurface(fakeUnbacked, languageParityReadSurfaceBacking, liveMCPTools, goSymbolBackings); ok {
+			t.Fatalf("resolveLanguageParityReadSurface(%q) = true, want false — the gate must reject an unbacked claim", fakeUnbacked)
+		}
+	})
+
+	t.Run("none does not swallow a co-located unbacked label", func(t *testing.T) {
+		// Mimic the production per-row loop shape from
+		// TestLanguageParityReadSurfacesResolveToRealConsumers: each label is
+		// resolved independently, so the unbacked label must still be flagged
+		// even though "none" precedes it in the same slice.
+		row := []string{languageParityReadSurfaceNone, fakeUnbacked}
+		var unbackedFlagged bool
+		for _, label := range row {
+			if ok, _ := resolveLanguageParityReadSurface(label, languageParityReadSurfaceBacking, liveMCPTools, goSymbolBackings); !ok {
+				unbackedFlagged = true
+			}
+		}
+		if !unbackedFlagged {
+			t.Fatalf("a row of %v resolved with no failures — \"none\" must not swallow the co-located unbacked label %q", row, fakeUnbacked)
+		}
+	})
+
+	t.Run("a real backed label still resolves true", func(t *testing.T) {
+		if ok, reason := resolveLanguageParityReadSurface("content_relationships", languageParityReadSurfaceBacking, liveMCPTools, goSymbolBackings); !ok {
+			t.Fatalf("resolveLanguageParityReadSurface(\"content_relationships\") = false (%s), want true", reason)
+		}
+	})
+}
+
 // grandfatheredLanguageParityRowOK reports whether the unresolved
 // (language, label) instance is pinned in grandfatheredLanguageParityReadSurfaces
 // at the row's current digest. A pinned entry whose digest no longer matches

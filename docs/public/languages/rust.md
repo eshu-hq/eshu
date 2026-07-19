@@ -85,9 +85,15 @@ Supported today:
 
 - Tokio runtime/test functions and Criterion benchmarks are modeled as derived
   roots.
-- Cargo entrypoints, tests, exact `pub` API items, direct trait implementation
-  methods, conditional derive evidence, and direct module/import declarations
-  are modeled as root evidence.
+- Cargo entrypoints, tests, exact `pub` API items, and direct trait
+  implementation methods are modeled as root evidence (`rust.main_function`,
+  `rust.test_function`/`rust.tokio_test`, `rust.tokio_main`,
+  `rust.public_api_item`, `rust.trait_impl_method`).
+- Conditional derive evidence and direct module/import declarations are
+  parsed and recorded (`derives`, `conditional_derives`, the `modules`
+  bucket) but are not modeled as dead-code root evidence -- no root kind in
+  `go/internal/parser/rust/helpers.go` or `metadata.go` reacts to a derive
+  or a module/import declaration.
 - Direct Axum `Router::new().route(...)` calls emit exact
   `framework_semantics.axum.route_entries` when the path is literal, the method
   helper resolves to `axum::routing`, and the handler is a bare same-file

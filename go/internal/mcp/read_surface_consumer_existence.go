@@ -15,6 +15,18 @@ import (
 // alias) is a data change, not a code change.
 type readSurfaceBackingKind string
 
+// languageParityReadSurfaceNone is the literal sentinel a language row uses
+// to declare, truthfully, that it has no read surface at all -- mirroring
+// factKindReadSurfaceNone (read_surface_factkind.go) for the fact-kind side
+// of this same gate. scripts/verify-parser-relationship-kit.sh requires
+// every language_features row to carry a non-empty read_surfaces list (so a
+// row can never silently go undocumented), but "no real consumer exists" is
+// a legitimate, permanent state for a graph-written-but-unconsumed or
+// parsed-but-unmaterialized language (see #5334). "none" lets a row say that
+// honestly instead of claiming an unresolvable label or being forced into a
+// grandfather entry.
+const languageParityReadSurfaceNone = "none"
+
 const (
 	// readSurfaceBackingMCPTool means Ref is an exact tool.Name entry in
 	// ReadOnlyTools() (and, for the six labels that are literal MCP dispatch
@@ -77,6 +89,9 @@ func resolveLanguageParityReadSurface(
 	liveMCPTools map[string]struct{},
 	goSymbolBackings map[string]bool,
 ) (ok bool, reason string) {
+	if label == languageParityReadSurfaceNone {
+		return true, ""
+	}
 	b, known := backing[label]
 	if !known {
 		return false, fmt.Sprintf("label %q is not in the closed read-surface backing map (languageParityReadSurfaceBacking)", label)

@@ -73,3 +73,17 @@ The opaque body of a `run`/`env` step is intentionally **not** captured as a nod
 property — recording the step kind (`run`) is truthful without fabricating
 semantics for arbitrary shell. Both the workflow node and the `USES_WORKFLOW`
 edge are matched by canonical key (uid), like the other Atlantis edges.
+
+## Query surfacing
+
+`AtlantisProject`/`AtlantisWorkflow` and the `MANAGES`/`ATLANTIS_DEPENDS_ON`/
+`USES_WORKFLOW` edges above are graph-written and **retrievable via the generic
+entity-context surface**: `resolve_entity` returns a node's id by name and
+`get_entity_context` returns that node together with its outgoing edges
+(`OPTIONAL MATCH (e)-[rel]->(target)`), so an `AtlantisProject`/`AtlantisWorkflow`
+and its `MANAGES`/`ATLANTIS_DEPENDS_ON`/`USES_WORKFLOW` edges can be read back
+today. What is **not** yet available is a *typed*, Atlantis-aware surface — no
+`execute_language_query` dispatch case, `content_relationships` branch, or
+`source_tool=atlantis` relationship-verb-catalog entry interprets these edges as
+governance relationships. That richer typed surfacing is tracked in
+[#5369](https://github.com/eshu-hq/eshu/issues/5369).
