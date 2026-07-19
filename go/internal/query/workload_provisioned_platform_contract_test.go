@@ -62,6 +62,9 @@ func TestFetchProvisionedPlatformsKeepsRepositoryTopologySeparate(t *testing.T) 
 	if got, want := len(result.rows), 1; got != want {
 		t.Fatalf("rows = %d, want %d", got, want)
 	}
+	if got, want := StringVal(result.rows[0], "topology_basis"), "provisioning_fallback"; got != want {
+		t.Fatalf("topology_basis = %q, want %q", got, want)
+	}
 	edges := mapSliceValue(result.rows[0], "topology_edges")
 	assertExactTopologyEdge(t, edges, "PROVISIONS_DEPENDENCY_FOR", "repository:infra", "repository:orders", "fact-dependency")
 	assertExactTopologyEdge(t, edges, "PROVISIONS_PLATFORM", "repository:infra", "platform:eks:prod", "fact-platform")

@@ -86,6 +86,7 @@ func normalizeProvisionedPlatform(row map[string]any) map[string]any {
 		"platform_locator":    StringVal(row, "platform_locator"),
 		"platform_confidence": firstPositiveFloat(floatVal(row, "platform_edge_confidence"), floatVal(row, "dependency_confidence")),
 		"platform_reason":     firstNonEmptyString(StringVal(row, "platform_edge_reason"), StringVal(row, "dependency_reason")),
+		"topology_basis":      "provisioning_fallback",
 		"topology_edges":      provisionedPlatformTopologyEdges(row),
 	}
 }

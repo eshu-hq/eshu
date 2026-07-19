@@ -98,7 +98,12 @@ const openAPIComponentsWorkloadSession = `      "WorkloadContext": {
           "provisioned_platforms": {
             "type": "array",
             "description": "Repository-level provisioning evidence kept separate from runtime instance placement.",
-            "items": {"type": "object"}
+            "items": {
+              "type": "object",
+              "properties": {
+                "topology_basis": {"type": "string", "enum": ["provisioning_fallback"], "description": "The platform is supported by exact repository provisioning relationships, not a WorkloadInstance RUNS_ON relationship."}
+              }
+            }
           },
           "runtime_topology_limits": {
             "type": "object",

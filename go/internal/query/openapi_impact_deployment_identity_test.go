@@ -63,6 +63,19 @@ func TestOpenAPIImpactDeploymentTraceDocumentsCanonicalPlatformIdentity(t *testi
 	if _, ok := provisionedProperties["topology_edges"]; !ok {
 		t.Fatal("impact trace provisioned_platforms[] schema missing topology_edges")
 	}
+	assertProvisioningFallbackTopologyBasis(t, provisionedProperties, "impact trace provisioned_platforms[]")
+	components := mustMapField(t, spec, "components")
+	schemas := mustMapField(t, components, "schemas")
+	workloadSession := mustMapField(t, schemas, "WorkloadContext")
+	workloadSessionProperties := mustMapField(t, workloadSession, "properties")
+	workloadProvisioned := mustMapField(t, workloadSessionProperties, "provisioned_platforms")
+	workloadProvisionedItems := mustMapField(t, workloadProvisioned, "items")
+	workloadProvisionedProperties := mustMapField(t, workloadProvisionedItems, "properties")
+	assertProvisioningFallbackTopologyBasis(
+		t,
+		workloadProvisionedProperties,
+		"WorkloadContext provisioned_platforms[]",
+	)
 	for _, limitsField := range []string{"runtime_topology_limits", "cloud_resource_limits"} {
 		if _, ok := properties[limitsField]; !ok {
 			t.Fatalf("impact trace schema missing %s", limitsField)
@@ -107,6 +120,18 @@ func TestOpenAPIImpactDeploymentTraceDocumentsCanonicalPlatformIdentity(t *testi
 		if _, ok := deploymentSourceLimitProperties[field]; !ok {
 			t.Fatalf("impact trace deployment_source_limits schema missing %s", field)
 		}
+	}
+}
+
+func assertProvisioningFallbackTopologyBasis(
+	t *testing.T,
+	properties map[string]any,
+	context string,
+) {
+	t.Helper()
+	topologyBasis := mustMapField(t, properties, "topology_basis")
+	if got, want := topologyBasis["enum"], []any{"provisioning_fallback"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("%s topology_basis enum = %#v, want %#v", context, got, want)
 	}
 }
 

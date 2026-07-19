@@ -119,6 +119,7 @@ const openAPIPathsImpact = `
                           "platform_provider": {"type": "string"},
                           "platform_region": {"type": "string"},
                           "platform_locator": {"type": "string"},
+                          "topology_basis": {"type": "string", "enum": ["provisioning_fallback"], "description": "The platform is supported by exact repository provisioning relationships, not a WorkloadInstance RUNS_ON relationship."},
                           "topology_edges": {
                             "type": "array",
                             "items": {
