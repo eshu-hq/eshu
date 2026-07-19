@@ -221,13 +221,24 @@ func dedupeNonEmptyStrings(values []string) []string {
 
 func collectMetadataLabels(metadata map[string]any) string {
 	labels, ok := metadata["labels"].(map[string]any)
-	if !ok || len(labels) == 0 {
+	if !ok {
 		return ""
 	}
-	keys := sortedMapKeysAny(labels)
+	return collectLabelLikeMap(labels)
+}
+
+// collectLabelLikeMap normalizes any label-shaped map (metadata.labels,
+// spec.selector, spec.template.metadata.labels) into a stable, sorted
+// "k=v,k=v" string. Shared by collectMetadataLabels, collectSpecSelector, and
+// collectPodTemplateLabels so all three normalize identically.
+func collectLabelLikeMap(values map[string]any) string {
+	if len(values) == 0 {
+		return ""
+	}
+	keys := sortedMapKeysAny(values)
 	pairs := make([]string, 0, len(keys))
 	for _, key := range keys {
-		value := strings.TrimSpace(fmt.Sprint(labels[key]))
+		value := strings.TrimSpace(fmt.Sprint(values[key]))
 		if value == "" || value == "<nil>" {
 			continue
 		}
@@ -343,7 +354,53 @@ func parseK8sResource(document map[string]any, metadata map[string]any, apiVersi
 	if backends := collectHTTPRouteBackends(document); len(backends) > 0 {
 		row["backend_refs"] = strings.Join(backends, ",")
 	}
+	// selector is always emitted (empty string when spec.selector is absent)
+	// so the query-time SELECTS matcher can distinguish "known, empty
+	// selector" (genuinely selectorless Service) from "key absent"
+	// (pre-upgrade data, selector truth unknown). Only Services carry a
+	// meaningful selector, but the key is emitted for every kind for
+	// deterministic, consistent content-row shape.
+	row["selector"] = collectSpecSelector(document)
+	// pod_template_labels is emitted only for pod-template-bearing kinds so
+	// its absence is a meaningful "not a workload" (or "pre-upgrade data")
+	// signal rather than an ambiguous empty capture. The v1 SELECTS matcher
+	// only consumes this for Deployment, but all four kinds are captured so
+	// widening the matcher later needs no parser change.
+	if isK8sPodTemplateKind(kind) {
+		row["pod_template_labels"] = collectPodTemplateLabels(document)
+	}
 	return row
+}
+
+// isK8sPodTemplateKind reports whether kind is a workload kind that carries
+// a pod template (spec.template.metadata.labels).
+func isK8sPodTemplateKind(kind string) bool {
+	switch strings.TrimSpace(kind) {
+	case "Deployment", "StatefulSet", "DaemonSet", "ReplicaSet":
+		return true
+	default:
+		return false
+	}
+}
+
+// collectSpecSelector normalizes a Service's spec.selector into a sorted,
+// deterministic "k=v,k=v" string, mirroring collectMetadataLabels's
+// normalization exactly so both fields compare the same way downstream.
+func collectSpecSelector(document map[string]any) string {
+	spec, _ := document["spec"].(map[string]any)
+	selector, _ := spec["selector"].(map[string]any)
+	return collectLabelLikeMap(selector)
+}
+
+// collectPodTemplateLabels normalizes a workload's
+// spec.template.metadata.labels into the same sorted "k=v,k=v" encoding as
+// collectMetadataLabels and collectSpecSelector.
+func collectPodTemplateLabels(document map[string]any) string {
+	spec, _ := document["spec"].(map[string]any)
+	template := nestedMap(spec, "template")
+	metadata := nestedMap(template, "metadata")
+	labels, _ := metadata["labels"].(map[string]any)
+	return collectLabelLikeMap(labels)
 }
 
 func normalizeK8sQualifiedName(namespace string, kind string, name string) string {
