@@ -59,36 +59,40 @@ type k8sSelectMatchInput struct {
 // Mixed vintage (Service selector known, but the workload row predates
 // pod_template_labels capture -- podTemplateLabelsPresent == false) also
 // produces no match and no fallback: a transient false negative until
-// re-ingest, preferred over guessing.
+// re-ingest, preferred over guessing. mixedVintageDrop reports this specific
+// case so a caller can log it as an operator diagnostic (see
+// buildOutgoingK8sSelectRelationships / buildIncomingK8sSelectRelationships,
+// content_relationships.go): it self-heals on re-ingest, so it is a Debug
+// signal, not a Warn.
 //
 // Namespace scoping is strict in both the fallback and authoritative cases.
-func k8sSelectMatch(service, workload k8sSelectMatchInput) (matched bool, reason string) {
+func k8sSelectMatch(service, workload k8sSelectMatchInput) (matched bool, reason string, mixedVintageDrop bool) {
 	if !strings.EqualFold(workload.kind, "Deployment") {
-		return false, ""
+		return false, "", false
 	}
 	if !strings.EqualFold(service.namespace, workload.namespace) {
-		return false, ""
+		return false, "", false
 	}
 
 	if !service.selectorPresent {
 		if service.name != "" && service.name == workload.name {
-			return true, k8sSelectReasonNameNamespace
+			return true, k8sSelectReasonNameNamespace, false
 		}
-		return false, ""
+		return false, "", false
 	}
 
 	if service.selector == "" {
-		return false, ""
+		return false, "", false
 	}
 
 	if !workload.podTemplateLabelsPresent {
-		return false, ""
+		return false, "", true
 	}
 
 	if k8sSelectorSubsetOf(service.selector, workload.podTemplateLabels) {
-		return true, k8sSelectReasonSelectorMatch
+		return true, k8sSelectReasonSelectorMatch, false
 	}
-	return false, ""
+	return false, "", false
 }
 
 // k8sSelectorSubsetOf reports whether every key=value pair in selector

@@ -46,7 +46,7 @@ func TestBuildContentRelationshipSetRustImplBlockContainsMethods(t *testing.T) {
 		},
 	}
 
-	relationships, err := buildContentRelationshipSet(context.Background(), reader, implBlock)
+	relationships, err := buildContentRelationshipSet(context.Background(), reader, implBlock, nil)
 	if err != nil {
 		t.Fatalf("buildContentRelationshipSet() error = %v, want nil", err)
 	}
@@ -100,7 +100,7 @@ func TestBuildContentRelationshipSetRustFunctionBelongsToImplBlock(t *testing.T)
 		},
 	}
 
-	relationships, err := buildContentRelationshipSet(context.Background(), reader, fn)
+	relationships, err := buildContentRelationshipSet(context.Background(), reader, fn, nil)
 	if err != nil {
 		t.Fatalf("buildContentRelationshipSet() error = %v, want nil", err)
 	}

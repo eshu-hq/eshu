@@ -6,73 +6,98 @@ package query
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strings"
 )
 
 const contentRelationshipLimit = 20
 
+// k8sSelectCandidateScanTruncationReason is the machine-readable disclosure
+// reason emitted on the entity-context API/MCP response when a k8s SELECTS
+// relationship build's K8sResource candidate scan hits
+// repositorySemanticEntityLimit and had to be truncated. It is emitted only
+// when truncation actually occurs (see contentRelationshipSet.scanTruncated)
+// so every repo under the limit -- every golden-corpus repo included -- gets
+// byte-identical responses. Pagination past the limit is deferred to #5367;
+// this is disclosure-only so a truncated response is never silently
+// presented as complete.
+const k8sSelectCandidateScanTruncationReason = "k8s_resource_candidate_scan_truncated_at_5000"
+
 type contentRelationshipSet struct {
 	incoming []map[string]any
 	outgoing []map[string]any
+	// scanTruncated reports whether either the outgoing (Service) or
+	// incoming (Deployment) k8s SELECTS candidate scan hit
+	// repositorySemanticEntityLimit and was truncated. Only one of the two
+	// scans runs per request (outgoing fires for kind=Service, incoming for
+	// kind=Deployment), so ORing both is safe and future-proof against that
+	// invariant changing.
+	scanTruncated bool
 }
 
 func buildContentRelationshipSet(
 	ctx context.Context,
 	reader ContentStore,
 	entity EntityContent,
+	logger *slog.Logger,
 ) (contentRelationshipSet, error) {
-	outgoing, err := buildOutgoingContentRelationships(ctx, reader, entity)
+	outgoing, outgoingTruncated, err := buildOutgoingContentRelationships(ctx, reader, entity, logger)
 	if err != nil {
 		return contentRelationshipSet{}, err
 	}
 
-	incoming, err := buildIncomingContentRelationships(ctx, reader, entity)
+	incoming, incomingTruncated, err := buildIncomingContentRelationships(ctx, reader, entity, logger)
 	if err != nil {
 		return contentRelationshipSet{}, err
 	}
 
-	return contentRelationshipSet{incoming: incoming, outgoing: outgoing}, nil
+	return contentRelationshipSet{
+		incoming:      incoming,
+		outgoing:      outgoing,
+		scanTruncated: outgoingTruncated || incomingTruncated,
+	}, nil
 }
 
 func buildOutgoingContentRelationships(
 	ctx context.Context,
 	reader ContentStore,
 	entity EntityContent,
-) ([]map[string]any, error) {
+	logger *slog.Logger,
+) ([]map[string]any, bool, error) {
 	if relationships, ok, err := buildOutgoingArgoCDRelationships(entity); ok || err != nil {
-		return relationships, err
+		return relationships, false, err
 	}
 	if relationships, ok, err := buildOutgoingTerraformRelationships(entity); ok || err != nil {
-		return relationships, err
+		return relationships, false, err
 	}
 	if relationships, ok, err := buildOutgoingGitHubActionsRelationships(entity); ok || err != nil {
-		return relationships, err
+		return relationships, false, err
 	}
 	if relationships, ok, err := buildOutgoingDockerfileRelationships(entity); ok || err != nil {
-		return relationships, err
+		return relationships, false, err
 	}
 	if relationships, ok, err := buildOutgoingDockerComposeRelationships(entity); ok || err != nil {
-		return relationships, err
+		return relationships, false, err
 	}
 	if reader == nil {
-		return nil, nil
+		return nil, false, nil
 	}
-	if relationships, ok, err := buildOutgoingK8sSelectRelationships(ctx, reader, entity); ok || err != nil {
-		return relationships, err
+	if relationships, ok, truncated, err := buildOutgoingK8sSelectRelationships(ctx, reader, entity, logger); ok || err != nil {
+		return relationships, truncated, err
 	}
 	if relationships, ok, err := buildOutgoingCloudFormationRelationships(ctx, reader, entity); ok || err != nil {
-		return relationships, err
+		return relationships, false, err
 	}
 	if relationships, ok, err := buildOutgoingKustomizeRelationships(ctx, reader, entity); ok || err != nil {
-		return relationships, err
+		return relationships, false, err
 	}
 	if relationships, ok, err := buildOutgoingRustImplBlockRelationships(ctx, reader, entity); ok || err != nil {
-		return relationships, err
+		return relationships, false, err
 	}
 
 	componentNames := metadataStringSlice(entity.Metadata, "jsx_component_usage")
 	if len(componentNames) == 0 {
-		return nil, nil
+		return nil, false, nil
 	}
 
 	relationships := make([]map[string]any, 0, len(componentNames))
@@ -83,7 +108,7 @@ func buildOutgoingContentRelationships(
 		}
 		components, err := reader.SearchEntitiesByName(ctx, entity.RepoID, "Component", componentName, contentRelationshipLimit)
 		if err != nil {
-			return nil, fmt.Errorf("search referenced components: %w", err)
+			return nil, false, fmt.Errorf("search referenced components: %w", err)
 		}
 		for _, component := range components {
 			if component.EntityID == entity.EntityID {
@@ -103,28 +128,29 @@ func buildOutgoingContentRelationships(
 		}
 	}
 
-	return relationships, nil
+	return relationships, false, nil
 }
 
 func buildIncomingContentRelationships(
 	ctx context.Context,
 	reader ContentStore,
 	entity EntityContent,
-) ([]map[string]any, error) {
-	if relationships, ok, err := buildIncomingK8sSelectRelationships(ctx, reader, entity); ok || err != nil {
-		return relationships, err
+	logger *slog.Logger,
+) ([]map[string]any, bool, error) {
+	if relationships, ok, truncated, err := buildIncomingK8sSelectRelationships(ctx, reader, entity, logger); ok || err != nil {
+		return relationships, truncated, err
 	}
 	if relationships, ok, err := buildIncomingRustImplBlockRelationships(ctx, reader, entity); ok || err != nil {
-		return relationships, err
+		return relationships, false, err
 	}
 
 	if entity.EntityType != "Component" || entity.EntityName == "" {
-		return nil, nil
+		return nil, false, nil
 	}
 
 	referencing, err := reader.SearchEntitiesReferencingComponent(ctx, entity.RepoID, entity.EntityName, contentRelationshipLimit)
 	if err != nil {
-		return nil, fmt.Errorf("search referencing entities: %w", err)
+		return nil, false, fmt.Errorf("search referencing entities: %w", err)
 	}
 
 	relationships := make([]map[string]any, 0, len(referencing))
@@ -146,7 +172,7 @@ func buildIncomingContentRelationships(
 		})
 	}
 
-	return relationships, nil
+	return relationships, false, nil
 }
 
 func buildOutgoingArgoCDRelationships(entity EntityContent) ([]map[string]any, bool, error) {
@@ -187,62 +213,6 @@ func buildOutgoingGitHubActionsRelationships(entity EntityContent) ([]map[string
 	}
 	for _, relationship := range sourceRelationships {
 		add(relationship)
-	}
-
-	return relationships, true, nil
-}
-
-func buildOutgoingK8sSelectRelationships(
-	ctx context.Context,
-	reader ContentStore,
-	entity EntityContent,
-) ([]map[string]any, bool, error) {
-	if !isK8sResourceKind(entity, "Service") || entity.EntityName == "" {
-		return nil, false, nil
-	}
-
-	serviceInput := k8sSelectMatchInputFromEntity(entity)
-	// A Service with a known, empty selector is genuinely selectorless
-	// (ExternalName/manual Endpoints): no SELECTS edge is possible and no
-	// fallback applies (see k8sSelectMatch), so skip the query entirely.
-	if serviceInput.selectorPresent && serviceInput.selector == "" {
-		return nil, true, nil
-	}
-
-	// Selector matches are not name-scoped (a Service and the Deployment it
-	// selects commonly have different names), so candidates come from a
-	// repo-wide entity scan rather than a name lookup. The scan is typed
-	// (ListRepoEntitiesByType, not ListRepoEntities) so the LIMIT applies to
-	// the K8sResource-filtered row set: a repo-wide scan can push late-sorting
-	// K8sResource rows past the limit and silently drop them, producing a
-	// missing SELECTS edge in a repo with more than repositorySemanticEntityLimit
-	// entities.
-	candidates, err := reader.ListRepoEntitiesByType(ctx, entity.RepoID, "K8sResource", repositorySemanticEntityLimit)
-	if err != nil {
-		return nil, true, fmt.Errorf("list repo entities for k8s selects: %w", err)
-	}
-
-	relationships := make([]map[string]any, 0, len(candidates))
-	seen := make(map[string]struct{}, len(candidates))
-	for _, match := range candidates {
-		if match.EntityID == entity.EntityID || !isK8sResourceKind(match, "Deployment") {
-			continue
-		}
-		matched, reason := k8sSelectMatch(serviceInput, k8sSelectMatchInputFromEntity(match))
-		if !matched {
-			continue
-		}
-		key := match.EntityID + ":" + match.EntityName
-		if _, ok := seen[key]; ok {
-			continue
-		}
-		seen[key] = struct{}{}
-		relationships = append(relationships, map[string]any{
-			"type":        "SELECTS",
-			"target_name": match.EntityName,
-			"target_id":   match.EntityID,
-			"reason":      reason,
-		})
 	}
 
 	return relationships, true, nil
@@ -314,64 +284,11 @@ func buildOutgoingKustomizeRelationships(
 	return relationships, true, nil
 }
 
-func buildIncomingK8sSelectRelationships(
-	ctx context.Context,
-	reader ContentStore,
-	entity EntityContent,
-) ([]map[string]any, bool, error) {
-	if !isK8sResourceKind(entity, "Deployment") || entity.EntityName == "" {
-		return nil, false, nil
-	}
-
-	workloadInput := k8sSelectMatchInputFromEntity(entity)
-
-	// A matching Service can have any name, so candidates come from a typed
-	// repo-wide entity scan (see buildOutgoingK8sSelectRelationships for the
-	// same reasoning, including why ListRepoEntitiesByType and not
-	// ListRepoEntities) rather than a name lookup.
-	candidates, err := reader.ListRepoEntitiesByType(ctx, entity.RepoID, "K8sResource", repositorySemanticEntityLimit)
-	if err != nil {
-		return nil, true, fmt.Errorf("list repo entities for k8s selects: %w", err)
-	}
-
-	relationships := make([]map[string]any, 0, len(candidates))
-	seen := make(map[string]struct{}, len(candidates))
-	for _, match := range candidates {
-		if match.EntityID == entity.EntityID || !isK8sResourceKind(match, "Service") {
-			continue
-		}
-		matched, reason := k8sSelectMatch(k8sSelectMatchInputFromEntity(match), workloadInput)
-		if !matched {
-			continue
-		}
-		key := match.EntityID + ":" + match.EntityName
-		if _, ok := seen[key]; ok {
-			continue
-		}
-		seen[key] = struct{}{}
-		relationships = append(relationships, map[string]any{
-			"type":        "SELECTS",
-			"source_name": match.EntityName,
-			"source_id":   match.EntityID,
-			"reason":      reason,
-		})
-	}
-
-	return relationships, true, nil
-}
-
-func isK8sResourceKind(entity EntityContent, kind string) bool {
-	if entity.EntityType != "K8sResource" {
-		return false
-	}
-	value, _ := entity.Metadata["kind"].(string)
-	return strings.EqualFold(strings.TrimSpace(value), kind)
-}
-
-func k8sNamespace(metadata map[string]any) string {
-	value, _ := metadata["namespace"].(string)
-	return strings.TrimSpace(value)
-}
+// K8s SELECTS relationship building (buildOutgoingK8sSelectRelationships,
+// buildIncomingK8sSelectRelationships, fetchK8sResourceCandidates,
+// logK8sSelectMixedVintageDrop, isK8sResourceKind, k8sNamespace) lives in
+// content_relationships_k8s.go to keep this file under the repo's 500-line
+// package-file cap.
 
 func splitKustomizePatchTarget(value string) (string, string, bool) {
 	parts := strings.SplitN(strings.TrimSpace(value), "/", 2)

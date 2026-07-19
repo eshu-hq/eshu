@@ -9,6 +9,8 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // EntityHandler exposes HTTP routes for entity queries.
@@ -20,6 +22,11 @@ type EntityHandler struct {
 	SBOMAttachments          SBOMAttestationAttachmentStore
 	Profile                  QueryProfile
 	Logger                   *slog.Logger
+	// Instruments backs operator-facing metrics for degraded-but-successful
+	// entity-context reads, e.g. QueryK8sSelectCandidateScanTruncated. Nil is
+	// tolerated (metric emission is skipped) so tests can construct
+	// EntityHandler without wiring the full telemetry stack.
+	Instruments *telemetry.Instruments
 }
 
 // Mount registers all entity routes on the given mux.

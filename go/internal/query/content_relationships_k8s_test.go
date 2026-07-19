@@ -42,7 +42,7 @@ func TestBuildContentRelationshipSetK8sServiceSelectsDeployment(t *testing.T) {
 		},
 	}
 
-	relationships, err := buildContentRelationshipSet(context.Background(), reader, service)
+	relationships, err := buildContentRelationshipSet(context.Background(), reader, service, nil)
 	if err != nil {
 		t.Fatalf("buildContentRelationshipSet() error = %v, want nil", err)
 	}
@@ -98,7 +98,7 @@ func TestBuildContentRelationshipSetK8sDeploymentReceivesIncomingServiceSelects(
 		},
 	}
 
-	relationships, err := buildContentRelationshipSet(context.Background(), reader, deployment)
+	relationships, err := buildContentRelationshipSet(context.Background(), reader, deployment, nil)
 	if err != nil {
 		t.Fatalf("buildContentRelationshipSet() error = %v, want nil", err)
 	}
@@ -162,7 +162,7 @@ func TestBuildContentRelationshipSetK8sServiceSelectsDifferentlyNamedDeploymentB
 		},
 	}
 
-	relationships, err := buildContentRelationshipSet(context.Background(), reader, service)
+	relationships, err := buildContentRelationshipSet(context.Background(), reader, service, nil)
 	if err != nil {
 		t.Fatalf("buildContentRelationshipSet() error = %v, want nil", err)
 	}
@@ -220,7 +220,7 @@ func TestBuildContentRelationshipSetK8sAnchorSelectorMismatchNeverFallsBackToNam
 		},
 	}
 
-	relationships, err := buildContentRelationshipSet(context.Background(), reader, service)
+	relationships, err := buildContentRelationshipSet(context.Background(), reader, service, nil)
 	if err != nil {
 		t.Fatalf("buildContentRelationshipSet() error = %v, want nil", err)
 	}
@@ -268,7 +268,7 @@ func TestBuildContentRelationshipSetK8sSelectorlessServiceProducesNoEdge(t *test
 		},
 	}
 
-	relationships, err := buildContentRelationshipSet(context.Background(), reader, service)
+	relationships, err := buildContentRelationshipSet(context.Background(), reader, service, nil)
 	if err != nil {
 		t.Fatalf("buildContentRelationshipSet() error = %v, want nil", err)
 	}
@@ -319,7 +319,7 @@ func TestBuildContentRelationshipSetK8sServiceSelectsMultipleDeployments(t *test
 		},
 	}
 
-	relationships, err := buildContentRelationshipSet(context.Background(), reader, service)
+	relationships, err := buildContentRelationshipSet(context.Background(), reader, service, nil)
 	if err != nil {
 		t.Fatalf("buildContentRelationshipSet() error = %v, want nil", err)
 	}
@@ -376,7 +376,7 @@ func TestBuildContentRelationshipSetK8sSelectorMatchNamespaceScoped(t *testing.T
 		},
 	}
 
-	relationships, err := buildContentRelationshipSet(context.Background(), reader, service)
+	relationships, err := buildContentRelationshipSet(context.Background(), reader, service, nil)
 	if err != nil {
 		t.Fatalf("buildContentRelationshipSet() error = %v, want nil", err)
 	}

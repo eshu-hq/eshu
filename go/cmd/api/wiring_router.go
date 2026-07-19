@@ -124,6 +124,7 @@ func newRouterWithSemanticEmbedding(
 			SBOMAttachments:          sbomAttachments,
 			Profile:                  queryProfile,
 			Logger:                   logger,
+			Instruments:              instruments,
 		},
 		Code: &query.CodeHandler{
 			GraphBackend: graphBackend,

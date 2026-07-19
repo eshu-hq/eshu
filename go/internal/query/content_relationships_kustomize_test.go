@@ -40,7 +40,7 @@ func TestBuildContentRelationshipSetKustomizeOverlayPatchesTargetResource(t *tes
 		},
 	}
 
-	relationships, err := buildContentRelationshipSet(context.Background(), reader, overlay)
+	relationships, err := buildContentRelationshipSet(context.Background(), reader, overlay, nil)
 	if err != nil {
 		t.Fatalf("buildContentRelationshipSet() error = %v, want nil", err)
 	}

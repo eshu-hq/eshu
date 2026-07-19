@@ -16,6 +16,12 @@ import (
 // to a single content entity_type. The limit applies to the TYPE-FILTERED row
 // set (that narrower budget is the point: a repo-wide ListRepoEntities can push
 // late-sorting rows of a rare type past its LIMIT and silently drop them).
+//
+// ORDER BY carries entity_id as a tiebreaker after relative_path, start_line
+// so a truncated fetch (see fetchK8sResourceCandidates in
+// content_relationships.go) drops a reproducible, deterministic set of rows
+// instead of leaving which rows land past LIMIT to Postgres's unspecified
+// tiebreak order among rows with equal relative_path/start_line.
 func (cr *ContentReader) ListRepoEntitiesByType(ctx context.Context, repoID, entityType string, limit int) ([]EntityContent, error) {
 	ctx, span := cr.tracer.Start(
 		ctx, "postgres.query",
@@ -37,7 +43,7 @@ func (cr *ContentReader) ListRepoEntitiesByType(ctx context.Context, repoID, ent
 		       metadata
 		FROM content_entities
 		WHERE repo_id = $1 AND entity_type = $2
-		ORDER BY relative_path, start_line
+		ORDER BY relative_path, start_line, entity_id
 		LIMIT $3
 	`, repoID, entityType, limit)
 	if err != nil {

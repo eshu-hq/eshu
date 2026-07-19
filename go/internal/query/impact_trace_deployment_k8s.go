@@ -25,7 +25,7 @@ func buildK8sRelationships(k8sResources []map[string]any) []map[string]any {
 				if targetID == "" || targetName == "" || targetID == sourceID {
 					continue
 				}
-				matched, reason := k8sSelectMatch(serviceInput, k8sSelectMatchInputFromRow(target))
+				matched, reason, _ := k8sSelectMatch(serviceInput, k8sSelectMatchInputFromRow(target))
 				if !matched {
 					continue
 				}

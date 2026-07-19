@@ -27,7 +27,7 @@ func TestK8sSelectMatchSelectorAuthoritativeMatch(t *testing.T) {
 		podTemplateLabelsPresent: true,
 	}
 
-	matched, reason := k8sSelectMatch(service, workload)
+	matched, reason, _ := k8sSelectMatch(service, workload)
 	if !matched {
 		t.Fatalf("k8sSelectMatch() matched = false, want true")
 	}
@@ -59,7 +59,7 @@ func TestK8sSelectMatchAnchorSelectorMismatchNeverFallsBack(t *testing.T) {
 		podTemplateLabelsPresent: true,
 	}
 
-	matched, reason := k8sSelectMatch(service, workload)
+	matched, reason, _ := k8sSelectMatch(service, workload)
 	if matched {
 		t.Fatalf("k8sSelectMatch() matched = true, want false (selector mismatch must never fall back); reason = %q", reason)
 	}
@@ -87,7 +87,7 @@ func TestK8sSelectMatchSelectorlessServiceNeverMatches(t *testing.T) {
 		podTemplateLabelsPresent: true,
 	}
 
-	matched, _ := k8sSelectMatch(service, workload)
+	matched, _, _ := k8sSelectMatch(service, workload)
 	if matched {
 		t.Fatalf("k8sSelectMatch() matched = true, want false (empty selector must never vacuously match)")
 	}
@@ -112,7 +112,7 @@ func TestK8sSelectMatchVintageFallback(t *testing.T) {
 		podTemplateLabelsPresent: false,
 	}
 
-	matched, reason := k8sSelectMatch(service, workload)
+	matched, reason, _ := k8sSelectMatch(service, workload)
 	if !matched {
 		t.Fatalf("k8sSelectMatch() matched = false, want true (vintage name+namespace fallback)")
 	}
@@ -143,9 +143,80 @@ func TestK8sSelectMatchMixedVintageNoFallback(t *testing.T) {
 		podTemplateLabelsPresent: false,
 	}
 
-	matched, _ := k8sSelectMatch(service, workload)
+	matched, _, mixedVintageDrop := k8sSelectMatch(service, workload)
 	if matched {
 		t.Fatalf("k8sSelectMatch() matched = true, want false (mixed vintage must not match or fall back)")
+	}
+	if !mixedVintageDrop {
+		t.Fatalf("k8sSelectMatch() mixedVintageDrop = false, want true (this is the diagnostic signal callers log at Debug)")
+	}
+}
+
+// TestK8sSelectMatchMixedVintageDropFlagOnlySetOnThatPath proves
+// mixedVintageDrop is a precise signal: it must NOT be set on the other
+// no-match paths (selector mismatch, empty selector, namespace mismatch,
+// non-Deployment workload) -- only on the exact "selector known, workload
+// pod_template_labels absent" case. A caller logging on this flag must not
+// fire for those unrelated no-match reasons.
+func TestK8sSelectMatchMixedVintageDropFlagOnlySetOnThatPath(t *testing.T) {
+	t.Parallel()
+
+	cases := map[string]struct {
+		service  k8sSelectMatchInput
+		workload k8sSelectMatchInput
+	}{
+		"selector_mismatch": {
+			service: k8sSelectMatchInput{
+				kind: "Service", name: "api", namespace: "prod",
+				selector: "app=api-v2", selectorPresent: true,
+			},
+			workload: k8sSelectMatchInput{
+				kind: "Deployment", name: "api", namespace: "prod",
+				podTemplateLabels: "app=api-v1", podTemplateLabelsPresent: true,
+			},
+		},
+		"empty_selector": {
+			service: k8sSelectMatchInput{
+				kind: "Service", name: "external", namespace: "prod",
+				selector: "", selectorPresent: true,
+			},
+			workload: k8sSelectMatchInput{
+				kind: "Deployment", name: "external", namespace: "prod",
+				podTemplateLabels: "app=anything", podTemplateLabelsPresent: true,
+			},
+		},
+		"namespace_mismatch": {
+			service: k8sSelectMatchInput{
+				kind: "Service", name: "web", namespace: "prod",
+				selector: "app=frontend", selectorPresent: true,
+			},
+			workload: k8sSelectMatchInput{
+				kind: "Deployment", name: "frontend-deploy", namespace: "staging",
+				podTemplateLabels: "app=frontend", podTemplateLabelsPresent: true,
+			},
+		},
+		"non_deployment_workload": {
+			service: k8sSelectMatchInput{
+				kind: "Service", name: "web", namespace: "prod",
+				selector: "app=frontend", selectorPresent: true,
+			},
+			workload: k8sSelectMatchInput{
+				kind: "StatefulSet", name: "frontend-set", namespace: "prod",
+				podTemplateLabels: "app=frontend", podTemplateLabelsPresent: true,
+			},
+		},
+	}
+
+	for name, tc := range cases {
+		tc := tc
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			_, _, mixedVintageDrop := k8sSelectMatch(tc.service, tc.workload)
+			if mixedVintageDrop {
+				t.Fatalf("k8sSelectMatch() mixedVintageDrop = true, want false for case %q", name)
+			}
+		})
 	}
 }
 
@@ -169,7 +240,7 @@ func TestK8sSelectMatchNamespaceScoped(t *testing.T) {
 		podTemplateLabelsPresent: true,
 	}
 
-	matched, _ := k8sSelectMatch(service, workload)
+	matched, _, _ := k8sSelectMatch(service, workload)
 	if matched {
 		t.Fatalf("k8sSelectMatch() matched = true, want false (namespace mismatch)")
 	}
@@ -196,7 +267,7 @@ func TestK8sSelectMatchNonDeploymentWorkloadNeverMatches(t *testing.T) {
 		podTemplateLabelsPresent: true,
 	}
 
-	matched, _ := k8sSelectMatch(service, workload)
+	matched, _, _ := k8sSelectMatch(service, workload)
 	if matched {
 		t.Fatalf("k8sSelectMatch() matched = true, want false (matcher scope is Deployment-only in v1)")
 	}

@@ -28,7 +28,7 @@ func TestBuildContentRelationshipSetArgoCDApplicationPromotesSourceAndDestinatio
 		},
 	}
 
-	relationships, err := buildContentRelationshipSet(context.Background(), reader, application)
+	relationships, err := buildContentRelationshipSet(context.Background(), reader, application, nil)
 	if err != nil {
 		t.Fatalf("buildContentRelationshipSet() error = %v, want nil", err)
 	}
@@ -72,7 +72,7 @@ func TestBuildContentRelationshipSetArgoCDApplicationPromotesMultiSourceRepos(t 
 		},
 	}
 
-	relationships, err := buildContentRelationshipSet(context.Background(), reader, application)
+	relationships, err := buildContentRelationshipSet(context.Background(), reader, application, nil)
 	if err != nil {
 		t.Fatalf("buildContentRelationshipSet() error = %v, want nil", err)
 	}
@@ -109,7 +109,7 @@ func TestBuildContentRelationshipSetArgoCDApplicationSetPromotesDiscoveryDeployA
 		},
 	}
 
-	relationships, err := buildContentRelationshipSet(context.Background(), reader, applicationSet)
+	relationships, err := buildContentRelationshipSet(context.Background(), reader, applicationSet, nil)
 	if err != nil {
 		t.Fatalf("buildContentRelationshipSet() error = %v, want nil", err)
 	}
@@ -159,7 +159,7 @@ func TestBuildContentRelationshipSetTerraformModulePromotesSource(t *testing.T) 
 		Metadata: map[string]any{
 			"source": "tfr:///terraform-aws-modules/eks/aws?version=19.0.0",
 		},
-	})
+	}, nil)
 	if err != nil {
 		t.Fatalf("buildContentRelationshipSet() error = %v, want nil", err)
 	}
@@ -189,7 +189,7 @@ func TestBuildContentRelationshipSetTerragruntConfigPromotesTerraformSource(t *t
 		Metadata: map[string]any{
 			"terraform_source": "../modules/app",
 		},
-	})
+	}, nil)
 	if err != nil {
 		t.Fatalf("buildContentRelationshipSet() error = %v, want nil", err)
 	}
@@ -219,7 +219,7 @@ func TestBuildContentRelationshipSetTerragruntDependencyPromotesConfigPath(t *te
 		Metadata: map[string]any{
 			"config_path": "../vpc",
 		},
-	})
+	}, nil)
 	if err != nil {
 		t.Fatalf("buildContentRelationshipSet() error = %v, want nil", err)
 	}
@@ -327,7 +327,7 @@ func TestBuildContentRelationshipSetArgoCDMetadataFromMaterializedStrings(t *tes
 		t.Fatal("GetEntityContent() = nil, want entity")
 	}
 
-	relationships, err := buildContentRelationshipSet(context.Background(), reader, *entity)
+	relationships, err := buildContentRelationshipSet(context.Background(), reader, *entity, nil)
 	if err != nil {
 		t.Fatalf("buildContentRelationshipSet() error = %v, want nil", err)
 	}

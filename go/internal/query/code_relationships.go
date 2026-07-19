@@ -393,7 +393,11 @@ func (h *CodeHandler) relationshipsFromEntity(
 	ctx context.Context,
 	entity EntityContent,
 ) (map[string]any, error) {
-	relationshipSet, err := buildContentRelationshipSet(ctx, h.Content, entity)
+	// CodeHandler has no Logger field (unlike EntityHandler), so the
+	// mixed-vintage k8s SELECTS Debug diagnostic (see
+	// logK8sSelectMixedVintageDrop, content_relationships.go) is skipped for
+	// this call path -- it is a no-op when logger is nil, not an error.
+	relationshipSet, err := buildContentRelationshipSet(ctx, h.Content, entity, nil)
 	if err != nil {
 		return nil, err
 	}

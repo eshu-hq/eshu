@@ -27,7 +27,7 @@ func TestBuildContentRelationshipSetDockerComposePromotesBuildContextImageAndDep
   database:
     image: postgres:16
 `,
-	})
+	}, nil)
 	if err != nil {
 		t.Fatalf("buildContentRelationshipSet() error = %v, want nil", err)
 	}

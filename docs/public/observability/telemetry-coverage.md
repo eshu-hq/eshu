@@ -516,6 +516,7 @@ catalog; per-route variants share the same `route` label dimension.
 | Investigation workflows | go/internal/query/investigation_workflows*.go | `eshu_dp_api_request_duration_seconds`, `eshu_dp_api_request_errors_total` | query investigation |
 | Webhooks | go/cmd/webhook-listener/handler.go:368 | `eshu_dp_webhook_requests_total`, `eshu_dp_webhook_trigger_decisions_total`, `eshu_dp_webhook_store_operations_total`, `eshu_dp_webhook_request_duration_seconds`, `eshu_dp_webhook_store_duration_seconds` | webhook surface |
 | Infra relationships and relationship-catalog breakdown limiter | go/internal/query/relationships_catalog.go | `eshu_dp_api_request_duration_seconds`, `eshu_dp_api_request_errors_total`, `eshu_dp_relationship_breakdown_permit_wait_seconds`, `eshu_dp_relationship_breakdown_queued`, `eshu_dp_relationship_breakdown_in_flight` | query infra |
+| Entity context k8s SELECTS candidate-scan truncation disclosure (#5343 follow-up #5367) | go/internal/query/entity_context_content.go:54 | `eshu_dp_api_request_duration_seconds`, `eshu_dp_api_request_errors_total`, `eshu_dp_query_k8s_select_candidate_scan_truncated_total` | query content |
 
 <!-- eshu:metric:section=otel-span-names -->
 ## OTEL Span Names
