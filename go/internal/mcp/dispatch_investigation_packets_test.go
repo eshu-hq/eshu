@@ -183,3 +183,73 @@ func TestDispatchToolInvestigationPacketReturnsHTTPEnvelopePacket(t *testing.T) 
 		t.Fatalf("truth = %#v, want supply-chain impact packet truth", result.Envelope.Truth)
 	}
 }
+
+// TestDispatchToolExportCloudRuntimeDriftPacketAllowsScopedRoute is the
+// MCP-dispatch-level counterpart of the #5167 W5 HTTP-handler scoped-access
+// proof (investigation_packet_api_drift_scope_test.go): it proves
+// export_cloud_runtime_drift_packet threads the caller's AuthContext through
+// dispatchTool's HTTP round trip to the real
+// GET /api/v0/investigations/drift/packet route, mirroring
+// TestDispatchToolSupplyChainImpactAllowsScopedRoutes's "explain" case for
+// the sibling route allowlisted in the same change. The HTTP-handler tests
+// prove the AllowedScopeIDs gating logic is correct GIVEN an AuthContext in
+// the request context; this proves dispatchTool's route mapping for this
+// tool actually delivers one.
+func TestDispatchToolExportCloudRuntimeDriftPacketAllowsScopedRoute(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	// This handler runs on the dispatch goroutine, so it MUST NOT call
+	// t.Fatal: FailNow from a non-owning goroutine panics the package test
+	// binary under Go 1.26 (#2152). A missing AuthContext is surfaced as a
+	// 5xx error and asserted on the subtest goroutine via result.IsError
+	// below.
+	mux.HandleFunc("GET /api/v0/investigations/drift/packet", func(w http.ResponseWriter, r *http.Request) {
+		if _, ok := query.AuthContextFromContext(r.Context()); !ok {
+			query.WriteError(w, http.StatusInternalServerError, "AuthContextFromContext() ok = false, want true")
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"data": map[string]any{
+				"schema":    "investigation_evidence_packet.v2",
+				"packet_id": "packet-drift-1",
+				"refusal":   "none",
+			},
+			"truth": map[string]any{
+				"level":      "exact",
+				"capability": "cloud.runtime_drift.readback",
+				"profile":    "production",
+			},
+			"error": nil,
+		})
+	})
+	resolver := &mcpScopedTokenResolver{
+		auth: query.AuthContext{
+			Mode:            query.AuthModeScoped,
+			TenantID:        "tenant-a",
+			WorkspaceID:     "workspace-a",
+			AllowedScopeIDs: []string{"aws-account-1"},
+		},
+		ok: true,
+	}
+	handler := query.AuthMiddlewareWithScopedTokens("", resolver, mux)
+
+	result, err := dispatchTool(
+		context.Background(),
+		handler,
+		"export_cloud_runtime_drift_packet",
+		map[string]any{"scope_id": "aws-account-1"},
+		"Bearer scoped-token",
+		slog.Default(),
+	)
+	if err != nil {
+		t.Fatalf("dispatchTool() error = %v, want nil", err)
+	}
+	if result.IsError {
+		t.Fatalf("dispatchTool() IsError = true, want false; envelope = %#v", result.Envelope)
+	}
+	if result.Envelope == nil || result.Envelope.Truth == nil {
+		t.Fatalf("envelope = %#v, want truth envelope", result.Envelope)
+	}
+}
