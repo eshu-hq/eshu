@@ -60,6 +60,20 @@ func (h *PackageRegistryHandler) countPackageRegistryPackages(w http.ResponseWri
 	if !validatePackageRegistryAggregateVisibility(w, filter) {
 		return
 	}
+	filter, emptyResult := packageRegistryAggregateVisibilityGate(r.Context(), span, filter)
+	if emptyResult {
+		WriteSuccess(w, r, http.StatusOK, map[string]any{
+			"total_packages": 0,
+			"by_ecosystem":   map[string]int{},
+			"scope":          packageRegistryAggregateScope(filter),
+		}, BuildTruthEnvelope(
+			h.profile(),
+			packageRegistryAggregateCapability,
+			TruthBasisAuthoritativeGraph,
+			"resolved from the authoritative (:Package) corpus; per-ecosystem rollup uses the package_ecosystem graph index",
+		))
+		return
+	}
 	count, err := h.Aggregates.CountPackageRegistryPackages(r.Context(), filter)
 	if err != nil {
 		WriteError(w, http.StatusInternalServerError, err.Error())
@@ -131,6 +145,25 @@ func (h *PackageRegistryHandler) packageRegistryPackageInventory(w http.Response
 	}
 	filter := packageRegistryAggregateFilterFromRequest(r)
 	if !validatePackageRegistryAggregateVisibility(w, filter) {
+		return
+	}
+	filter, emptyResult := packageRegistryAggregateVisibilityGate(r.Context(), span, filter)
+	if emptyResult {
+		WriteSuccess(w, r, http.StatusOK, map[string]any{
+			"buckets":     []PackageRegistryInventoryRow{},
+			"count":       0,
+			"limit":       limit,
+			"offset":      offset,
+			"group_by":    string(dimension),
+			"truncated":   false,
+			"next_offset": nil,
+			"scope":       packageRegistryAggregateScope(filter),
+		}, BuildTruthEnvelope(
+			h.profile(),
+			packageRegistryAggregateCapability,
+			TruthBasisAuthoritativeGraph,
+			"resolved from the authoritative (:Package) corpus; one grouped bucket per row, ordered by count desc",
+		))
 		return
 	}
 

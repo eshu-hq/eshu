@@ -15,6 +15,11 @@ func TestAuthMiddlewareWithScopedTokensAllowsInvestigationPacketRoutes(t *testin
 	allowed := []string{
 		"/api/v0/investigations/supply-chain/impact/packet?finding_id=finding-1&repository_id=repo-team-a",
 		"/api/v0/investigations/deployable-unit/packet?scope_id=repo-team-a&generation_id=generation-1",
+		// Drift packets (#5167 W5) bind AllowedScopeIDs directly against the
+		// cloud ingestion scope_id -- drift findings have no repository
+		// dimension, so scope-grant proof (not repository-grant proof) is the
+		// applicable filter, matching GET /api/v0/replatforming/selectors.
+		"/api/v0/investigations/drift/packet?scope_id=account-1",
 	}
 	for _, target := range allowed {
 		target := target
@@ -26,10 +31,5 @@ func TestAuthMiddlewareWithScopedTokensAllowsInvestigationPacketRoutes(t *testin
 				t.Fatalf("scopedHTTPRouteSupportsTenantFilter(GET %s) = false, want true", target)
 			}
 		})
-	}
-
-	drift := httptest.NewRequest(http.MethodGet, "/api/v0/investigations/drift/packet?scope_id=account-1", nil)
-	if scopedHTTPRouteSupportsTenantFilter(drift) {
-		t.Fatal("scopedHTTPRouteSupportsTenantFilter(GET drift packet) = true, want false until drift rows have repository-grant proof")
 	}
 }

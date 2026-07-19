@@ -124,14 +124,39 @@ worker knob, or schema phase changes. The handler keeps its existing
 the same `WriteError`/500 path on failure as every other `h.Neo4j.Run` call in
 this handler.
 
-## Known second occurrence — reconcile at merge
+## Second occurrence, reconciled: `packageRegistryPackagesScopedEcosystemCypher`
 
 `go/internal/query/package_registry_cypher.go` on branch
-`fix/5167-w5-registry-supply` (F-6/W5b, not touched by this branch) adds
-`packageRegistryPackagesScopedEcosystemCypher`, which reuses the identical
-`OPTIONAL MATCH (p)-[:HAS_VERSION]->(v) ... count(v)` composition and is
-exposed to the same zero-version-package drop. That branch needs the same
-two-query fix (anchor-only read + `packageRegistryVersionCountsCypher`-style
-scoped count, merged in Go) — not the pattern-comprehension candidate, which
-this evidence file disproves. Whichever branch lands first, the other should
-rebase and apply the identical pattern to its function.
+`fix/5167-w5-registry-supply` (F-6/W5b) added
+`packageRegistryPackagesScopedEcosystemCypher`, the tenant-scoped
+ecosystem-browse variant that combines the ecosystem and `visibility =
+'public'` predicates in one `WHERE` clause (see the "Inline `MATCH` Property
+Pattern Silently Dropped By A Trailing `WHERE`" pitfall). It reused the
+identical `OPTIONAL MATCH (p)-[:HAS_VERSION]->(v) ... count(v)` composition
+this document fixes and was exposed to the same zero-version-package drop.
+Rebasing that branch onto this fix, it was rewritten to the same anchor-only
+read; `attachPackageVersionCounts`/`packageRegistryVersionCountsCypher`
+already merge the version count in Go for every `listPackages` branch,
+scoped and unscoped alike, so no second count query was needed.
+
+### Scoped-ecosystem before/after (live)
+
+Measured live against the same pinned backend
+(`eshu-nornicdb-pr261:149245885258`, isolated Compose project
+`f6w5-nornic-proof`), seeded with 2 `public` packages (one zero-version, one
+with 2 `HAS_VERSION` edges) and 1 `private` zero-version package in the same
+ecosystem, via `TestLivePackageRegistryScopedEcosystemBrowseReturnsZeroVersionPackages`:
+
+| shape | seeded rows | OLD result | NEW result |
+|---|---|---|---|
+| scoped-ecosystem `OPTIONAL MATCH`+`count(v)` (combined-WHERE) | 2 public `Package` (1 zero-version, 1 two-version), 1 private `Package` | 1 row total: `{id: "scoped-no-versions", vc: 2}` — same wrong-id/count pairing as the unscoped shape | anchor: 2 rows (both public packages, private excluded by the `WHERE` predicate); count query resolves the 2 public uids; Go zero-fill: `{scoped-no-versions: 0, scoped-two-versions: 2}` — all correct |
+
+Deterministic across runs (`TestLivePackageRegistryScopedEcosystemBrowseReturnsZeroVersionPackages`
+run twice back-to-back with cleanup between runs, and alongside the sibling
+unscoped live test in the same `go test` invocation).
+
+Performance and observability evidence for the scoped-ecosystem branch are
+unchanged from the unscoped case above: the extra round trip is the same
+bounded `attachPackageVersionCounts` call already proven immaterial
+(~2-3ms at `limit ≤ 200`), and no runtime metric, span, log field, or schema
+phase changed.

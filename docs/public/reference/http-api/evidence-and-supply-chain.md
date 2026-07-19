@@ -207,6 +207,88 @@ one candidate publisher is marked `ambiguous=true` and never collapsed to a
 single asserted publisher; a publisher repository that equals the consumer
 repository is dropped as a self-reference.
 
+### Scoped-token access (#5167 W5b)
+
+`/packages`, `/versions`, `/dependencies`, `/packages/count`, and
+`/packages/inventory` support scoped bearer tokens. Package/version/dependency
+graph nodes carry no repository or tenant property, so these routes gate on
+package `visibility` instead of a repository grant:
+
+- A `visibility: public` package's identity, versions, and dependencies are
+  world-readable to any scoped token (the same class of global data the
+  advisory-evidence route already exposes); `source_path` is redacted on these
+  rows because a public registry row can still name an unrelated repository's
+  manifest path.
+- A `visibility: private` or `visibility: unknown` package is visible only when
+  a reducer-owned package correlation (ownership, publication, or consumption)
+  proves the caller's granted repositories own, consume, or publish it — the
+  same bounded probe `/correlations` already exposes. `source_path` is
+  returned unredacted on a granted row.
+- A private/unknown package outside the caller's grant returns the exact same
+  empty page as a nonexistent `package_id` — there is no way to distinguish
+  "exists but denied" from "does not exist" through this surface.
+- `ecosystem`-only browsing on `/packages` (no `package_id` or `name`) returns
+  only `visibility: public` rows for a scoped caller; correlation-augmented
+  inclusion of a caller's own private packages in an ecosystem browse is not
+  yet implemented (tracked as a follow-up).
+- `/packages/count` and `/packages/inventory` force `visibility=public` onto a
+  scoped caller's aggregate regardless of the `visibility` query parameter,
+  UNLESS the caller explicitly requests `visibility=private` or
+  `visibility=unknown`, in which case the response is an empty envelope (the
+  response `scope` always reflects the value actually applied, not the
+  request). `group_by=visibility` therefore degenerates to a single `public`
+  bucket for scoped callers.
+
+**Operator hygiene:** a package-registry collector target's declared
+`visibility` (`public`/`private`) determines whether scoped tokens can ever see
+that target's packages via this path. A target with no declared `visibility`
+defaults to `unknown` and is treated as not-provably-public, so its packages
+are invisible to scoped callers unless a correlation grant proves ownership.
+Operators who intend a source to be publicly browsable by scoped tokens MUST
+set `visibility: public` on that collector target.
+
+Performance Evidence: proved against the pinned PR261/compose-default
+NornicDB image (Bolt + HTTP tx/commit) and a live Postgres instance with the
+real `eshu-bootstrap-data-plane` schema, per CLAUDE.md's Prove-The-Theory-First
+gate, before landing the row-filtering code.
+
+- Ecosystem-browse visibility filter (`packageRegistryPackagesScopedEcosystemCypher`):
+  120k-node single-ecosystem partitions, two shapes -- (a) 90% public / 10%
+  private, (b) pathological 100% `unknown` (predicate matches nothing).
+  Combined-`WHERE` form (`MATCH (p:Package) WHERE p.ecosystem = $ecosystem AND
+  p.visibility = 'public'`): shape (a) warm ~10ms/201-row page; shape (b) warm
+  ~10-40ms/0-row page. Equivalence: NEW result set (full scan, no LIMIT) vs.
+  OLD result set client-filtered to `visibility=='public'`, symmetric
+  set-difference on `package_id` = 0/0 (108000/108000 match on shape (a); 0/0
+  on shape (b)). The literal decision-doc shape (inline `MATCH` property +
+  trailing `WHERE`) was DISPROVEN -- see
+  docs/public/reference/nornicdb-pitfalls.md ("Inline MATCH Property Pattern
+  Silently Dropped By A Trailing WHERE"); it silently drops the `$ecosystem`
+  anchor and both a correctness leak and a full-scan regression.
+- Correlation-grant probe (`ListPackageRegistryCorrelations`, `Limit: 1`):
+  worst case is a hyper-consumed package with ~15,000 correlation rows (5,000
+  granted-repository-shaped scopes x 3 fact kinds) inside a 1M-row
+  `fact_records` table, probed with a 100-id granted-repository list that
+  matches nothing (forces the full per-package index range scan via
+  `fact_records_package_correlations_v2_lookup_idx`). `EXPLAIN (ANALYZE,
+  BUFFERS)` warm execution time: ~5.4-7.1ms (bound: <10ms). Delta check: the
+  `LIMIT 1` probe returns 0 rows iff an unbounded (`LIMIT 20000`) same-predicate
+  query also returns 0 rows for the no-match grant, and returns >=1 row iff the
+  unbounded query also returns >=1 (1 vs. 3 rows for a matching grant).
+- Forced-visibility aggregates (`countPackageRegistryPackages`,
+  `packageRegistryPackageInventory`): query text is unchanged (already
+  parameterized `$visibility`); measured on a 240k-node corpus (the two
+  ecosystem-browse shapes combined), unfiltered vs. `visibility='public'`
+  counts both warm ~10-70ms, no measurable regression.
+
+No-Observability-Change: the handlers keep the existing
+`startQueryHandlerSpan`/`query.package_registry_*` spans and per-route
+`readiness`/truth envelopes; the only addition is two span attributes on the
+existing request span, `pkgreg.scoped_visibility_forced` (bool) and
+`pkgreg.correlation_grant` (`hit`/`miss`/`unavailable`), set only on the
+scoped-caller gate path. No new metric instrument, metric label, worker,
+queue, or runtime deployment knob is introduced.
+
 ## Gated List Collector Readiness
 
 Seven gated supply-chain list routes are fed by opt-in collectors that stay off

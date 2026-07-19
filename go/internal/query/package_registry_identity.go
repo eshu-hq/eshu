@@ -51,6 +51,27 @@ func packageRegistryPackageResultFromRow(
 	}, nil
 }
 
+// redactPackageRegistryIdentityIssueMetadata blanks every field on issue that
+// could describe a private/unknown package's registry metadata, in place.
+// Ecosystem and NormalizedName are left untouched: the scoped name+ecosystem
+// branch's caller already supplied both as request query parameters, so
+// echoing them back is not a new disclosure. Every other field could belong
+// to a package the caller has no grant to see and this row's missing
+// package_id makes its grant status unverifiable, so this fails closed on
+// all of them rather than the source_path field alone.
+func redactPackageRegistryIdentityIssueMetadata(issue *PackageRegistryIdentityIssue) {
+	issue.Registry = ""
+	issue.Namespace = ""
+	issue.PURL = ""
+	issue.BOMRef = ""
+	issue.PackageManager = ""
+	issue.SourcePath = ""
+	issue.SourceSpecificID = ""
+	issue.Visibility = ""
+	issue.SourceConfidence = ""
+	issue.VersionCount = 0
+}
+
 func packageRegistryIdentityIssueFromRow(row map[string]any, reason string) PackageRegistryIdentityIssue {
 	return PackageRegistryIdentityIssue{
 		Reason:           reason,

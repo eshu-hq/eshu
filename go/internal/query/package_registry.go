@@ -145,21 +145,26 @@ func (h *PackageRegistryHandler) listPackages(w http.ResponseWriter, r *http.Req
 		WriteError(w, http.StatusBadRequest, "package_id or ecosystem is required")
 		return
 	}
-	if h.Neo4j == nil {
-		WriteContractError(
-			w,
-			r,
-			http.StatusServiceUnavailable,
-			"package registry queries require the authoritative graph",
-			ErrorCodeBackendUnavailable,
-			packageRegistryPackagesCapability,
-			h.profile(),
-			requiredProfile(packageRegistryPackagesCapability),
-		)
+	gate, handled := packageRegistryPackagesGate(w, r, h, span, packageID, ecosystem, name, limit)
+	if handled {
 		return
 	}
+	packageID = gate.packageID
+	redactSourcePath := gate.redactSourcePath
+	// nameAnchorRedactByID is set only for the scoped name+ecosystem branch:
+	// normalized_name is not a unique package identity within an ecosystem,
+	// so the read below returns EVERY package sharing the anchor and this
+	// map (built by gating each candidate individually) decides, per row,
+	// whether it is allowed and whether its source_path must be redacted.
+	nameAnchorRedactByID := gate.nameAnchorRedactByID
 
-	cypher, params := packageRegistryPackagesCypher(packageID, ecosystem, name, limit+1)
+	var cypher string
+	var params map[string]any
+	if gate.useScopedEcosystemCypher {
+		cypher, params = packageRegistryPackagesScopedEcosystemCypher(ecosystem, limit+1)
+	} else {
+		cypher, params = packageRegistryPackagesCypher(packageID, ecosystem, name, limit+1)
+	}
 	rows, err := h.Neo4j.Run(r.Context(), cypher, params)
 	if err != nil {
 		WriteError(w, http.StatusInternalServerError, err.Error())
@@ -167,16 +172,51 @@ func (h *PackageRegistryHandler) listPackages(w http.ResponseWriter, r *http.Req
 	}
 	results := make([]PackageRegistryPackageResult, 0, len(rows))
 	identityIssues := make([]PackageRegistryIdentityIssue, 0)
-	truncated := len(rows) > limit
+	// nameAnchorCandidatesTruncated forces truncated=true even when the
+	// returned page fits under limit: it means the name+ecosystem anchor
+	// itself was capped (packageRegistryNameAnchorCandidateLimit), so this
+	// response cannot be presented as a complete candidate set.
+	truncated := len(rows) > limit || gate.nameAnchorCandidatesTruncated
 	for _, row := range rows {
 		result, issue := packageRegistryPackageResultFromRow(row)
 		if issue != nil {
+			if nameAnchorRedactByID != nil {
+				// The name+ecosystem branch cannot look up this row's grant
+				// status (packageRegistryPackageResultFromRow already failed
+				// to extract a package_id, so there is no key for
+				// nameAnchorRedactByID): fail closed on every metadata field
+				// this issue carries, not just source_path. A malformed row
+				// sharing the requested name could belong to a
+				// private/unknown package the caller has no grant for, and
+				// registry/namespace/purl/package_manager/source_specific_id/
+				// source_confidence/version_count are as much a metadata leak
+				// as source_path is.
+				redactPackageRegistryIdentityIssueMetadata(issue)
+			} else if redactSourcePath {
+				issue.SourcePath = ""
+			}
 			identityIssues = append(identityIssues, *issue)
 			continue
+		}
+		rowRedact := redactSourcePath
+		if nameAnchorRedactByID != nil {
+			redact, allowed := nameAnchorRedactByID[result.PackageID]
+			if !allowed {
+				// A name+ecosystem sibling the caller has no grant for
+				// (private/unknown, no correlation proof). Drop it silently
+				// -- same treatment as an ungranted package anywhere else in
+				// this handler; the caller only ever sees rows it is allowed
+				// to see.
+				continue
+			}
+			rowRedact = redact
 		}
 		if len(results) == limit {
 			truncated = true
 			continue
+		}
+		if rowRedact {
+			result.SourcePath = ""
 		}
 		results = append(results, result)
 	}
@@ -221,17 +261,7 @@ func (h *PackageRegistryHandler) listVersions(w http.ResponseWriter, r *http.Req
 		WriteError(w, http.StatusBadRequest, "package_id is required")
 		return
 	}
-	if h.Neo4j == nil {
-		WriteContractError(
-			w,
-			r,
-			http.StatusServiceUnavailable,
-			"package registry version queries require the authoritative graph",
-			ErrorCodeBackendUnavailable,
-			packageRegistryVersionsCapability,
-			h.profile(),
-			requiredProfile(packageRegistryVersionsCapability),
-		)
+	if packageRegistryVersionsGate(w, r, h, span, packageID, limit) {
 		return
 	}
 
@@ -306,17 +336,7 @@ func (h *PackageRegistryHandler) listDependencies(w http.ResponseWriter, r *http
 		WriteError(w, http.StatusBadRequest, "after_version_id and after_dependency_id must be provided together")
 		return
 	}
-	if h.Neo4j == nil {
-		WriteContractError(
-			w,
-			r,
-			http.StatusServiceUnavailable,
-			"package registry dependency queries require the authoritative graph",
-			ErrorCodeBackendUnavailable,
-			packageRegistryDependenciesCapability,
-			h.profile(),
-			requiredProfile(packageRegistryDependenciesCapability),
-		)
+	if packageRegistryDependenciesGate(w, r, h, span, packageID, versionID, limit) {
 		return
 	}
 

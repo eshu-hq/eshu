@@ -82,7 +82,6 @@ var grandfatheredNonHotSourceDigests = map[string]string{
 	"neo4j.go:(*Neo4jReader).RelationshipTypes":                                                           "0a1d2ac1a82d38e0bd8766758df6b1f894f95c94a169c2419666ab521f8bcce4",
 	"neo4j.go:(*Neo4jReader).Run":                                                                         "8dcec6d7b77474e30e6789b4a57f8d91087fdd6a46884dc8ec57677b327804a4",
 	"neo4j.go:(*Neo4jReader).RunSingle":                                                                   "3c8a24c80d618aa49cb81676ccd9a6a479743fa66150d790f644f26e9b1228c1",
-	"package_registry.go:(*PackageRegistryHandler).listVersions":                                          "dd28bfd513b5c50df48746bcb83ecc45f4e0d2e858d47c3dfb72ce51cf8dbf7c",
 	"package_registry_aggregates.go:(GraphPackageRegistryAggregateStore).CountPackageRegistryPackages":    "17436e4034f0d986cc2c8c9342783a36803d087ab9a44f791ac4f4922a6ad623",
 	"package_registry_aggregates.go:(GraphPackageRegistryAggregateStore).PackageRegistryPackageInventory": "2c5afd11d4b433375b7be7ad70b28e4a679db8f8a063243f6c3c6355c20b1482",
 	"repository.go:(*RepositoryHandler).getRepositoryStory":                                               "bae39b0909def877cd13f22f226faa49bff2867406aa6e5cb8655421450ec2e1",

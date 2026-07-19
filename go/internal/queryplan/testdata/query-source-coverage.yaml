@@ -233,19 +233,48 @@ source_coverage:
           key_bound: bounded_key_batch
           max_keys: 200
           max_results: 200
-      - {symbol: "(*PackageRegistryHandler).listDependencies", count: 1, source_sha256: a3cb8fcb033c0a00bd4adc48b17d4966b91bff376c4b19f1a49e1c9a57c36740, entry_ids: [QP-SC-PKGREG-DEPS]}
+      - {symbol: "(*PackageRegistryHandler).listDependencies", count: 1, source_sha256: 395a805e56c42221f797df08b75705035805605c1affac9e783b3216a4c1b87f, entry_ids: [QP-SC-PKGREG-DEPS]}
       - symbol: "(*PackageRegistryHandler).listPackages"
         count: 1
         non_hot:
           class: keyed_support
-          source_sha256: b652cf897e7da042e885ea6cbdc0844282c836b404fa85ba8308bb1957841ab4
+          source_sha256: b6cc6cff14dba78264c8433a6f0deed1481a6844a8fc46d2285ae0b9efc7051b
           key_bound: single_key
           max_results: 201
-      - {symbol: "(*PackageRegistryHandler).listVersions", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
+      - symbol: "(*PackageRegistryHandler).listVersions"
+        count: 1
+        non_hot:
+          class: keyed_support
+          source_sha256: f687a82428c6e120dce940aab0386d36b6c19df0d0cef6bd3027ff6f0cd45890
+          key_bound: single_key
+          max_results: 201
   - file: package_registry_aggregates.go
     calls:
       - {symbol: "(GraphPackageRegistryAggregateStore).CountPackageRegistryPackages", count: 2, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
       - {symbol: "(GraphPackageRegistryAggregateStore).PackageRegistryPackageInventory", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
+  - file: package_registry_scoped_access.go
+    calls:
+      - symbol: "packageRegistryAnchorVisibility"
+        count: 1
+        non_hot:
+          class: keyed_support
+          source_sha256: 67d07c3840993985ca66c3d7754c65b717f58e4cf18a7e451f1b40ce2ff83fb5
+          key_bound: single_key
+          max_results: 1
+      - symbol: "packageRegistryNameAnchorCandidates"
+        count: 1
+        non_hot:
+          class: keyed_support
+          source_sha256: d47ab5e072dff4fb7fa11c73f912e9f2db350ac012da77f498b67fd36a2d4c00
+          key_bound: single_key
+          max_results: 50
+      - symbol: "packageRegistryVersionAnchorPackageID"
+        count: 1
+        non_hot:
+          class: keyed_support
+          source_sha256: c087948c1bce642afe88e4410e6d3485d98ea44ccd95764068a90b56bbbb8368
+          key_bound: single_key
+          max_results: 1
   - file: relationships_catalog.go
     calls:
       - {symbol: "(*InfraHandler).relationshipEdges", count: 1, source_sha256: 56fa1d3da0fcd50a5a8f61e5fe980e955350a487f2846d33ffef102253ad2b1d, entry_ids: [QP-RELATIONSHIPS-EDGES]}
