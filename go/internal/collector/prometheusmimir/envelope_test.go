@@ -102,6 +102,29 @@ func TestCoverageWarningEnvelopePreservesStaleState(t *testing.T) {
 	assertPayload(t, env, "outcome", OutcomeStale)
 }
 
+func TestCoverageWarningEnvelopeUsesTruncatedReason(t *testing.T) {
+	t.Parallel()
+
+	if WarningTruncated != "truncated" {
+		t.Fatalf("WarningTruncated = %q, want %q", WarningTruncated, "truncated")
+	}
+
+	ctx := testEnvelopeContext()
+	warning := Warning{
+		ResourceClass: ResourceClassTarget,
+		Reason:        WarningTruncated,
+	}
+
+	env, err := NewCoverageWarningEnvelope(ctx, warning)
+	if err != nil {
+		t.Fatalf("NewCoverageWarningEnvelope() error = %v, want nil", err)
+	}
+
+	assertObservabilityEnvelope(t, env, facts.ObservabilityCoverageWarningFactKind)
+	assertPayload(t, env, "warning_kind", WarningTruncated)
+	assertPayload(t, env, "resource_class", ResourceClassTarget)
+}
+
 func testEnvelopeContext() EnvelopeContext {
 	return EnvelopeContext{
 		ScopeID:             "prometheus:instance:prod",

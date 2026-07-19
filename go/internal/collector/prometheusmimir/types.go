@@ -114,6 +114,9 @@ const (
 	WarningPartial = "partial"
 	// WarningStale marks provider evidence older than the freshness window.
 	WarningStale = "stale"
+	// WarningTruncated marks a resource class where the client-side
+	// resource_limit cap dropped records the provider actually returned.
+	WarningTruncated = "truncated"
 )
 
 // EnvelopeContext carries durable fact-envelope identity for metric facts.
@@ -189,6 +192,9 @@ type CollectionStats struct {
 	Retries      int
 	Stale        int
 	Partial      bool
+	// Truncated is true when any resource class hit its client-side
+	// resource_limit cap and dropped provider-returned records.
+	Truncated bool
 }
 
 // CollectionResult is one bounded Prometheus-compatible metadata snapshot.

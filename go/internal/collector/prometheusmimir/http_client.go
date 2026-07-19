@@ -159,11 +159,13 @@ func (c HTTPClient) collectTargets(ctx context.Context, target TargetConfig, res
 	}
 	result.Stats.PagesFetched++
 	limit := normalizedResourceLimit(target.ResourceLimit)
+	considered := 0
 	for _, raw := range response.Data.ActiveTargets {
 		normalized := normalizeTarget(raw, target, result.ObservedAt)
 		if normalized.ProviderObjectID == "" {
 			continue
 		}
+		considered++
 		if len(result.Targets) >= limit {
 			continue
 		}
@@ -177,6 +179,13 @@ func (c HTTPClient) collectTargets(ctx context.Context, target TargetConfig, res
 			})
 		}
 	}
+	if considered > limit {
+		result.Stats.Truncated = true
+		result.Warnings = append(result.Warnings, Warning{
+			ResourceClass: targetsResourceClass,
+			Reason:        WarningTruncated,
+		})
+	}
 	return nil
 }
 
@@ -188,12 +197,14 @@ func (c HTTPClient) collectRules(ctx context.Context, target TargetConfig, resul
 	}
 	result.Stats.PagesFetched++
 	limit := normalizedResourceLimit(target.ResourceLimit)
+	considered := 0
 	for _, group := range response.Data.Groups {
 		for _, raw := range group.Rules {
 			normalized := normalizeRule(group, raw, target, result.ObservedAt)
 			if normalized.ProviderObjectID == "" {
 				continue
 			}
+			considered++
 			if len(result.Rules) >= limit {
 				continue
 			}
@@ -207,6 +218,13 @@ func (c HTTPClient) collectRules(ctx context.Context, target TargetConfig, resul
 				})
 			}
 		}
+	}
+	if considered > limit {
+		result.Stats.Truncated = true
+		result.Warnings = append(result.Warnings, Warning{
+			ResourceClass: rulesResourceClass,
+			Reason:        WarningTruncated,
+		})
 	}
 	return nil
 }
