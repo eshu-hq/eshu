@@ -391,7 +391,11 @@ Loki targets include `scope_id`, `instance_id`, `base_url`, optional
 `path_prefix`, optional `token_env`, optional `tenant_id` or `tenant_id_env`,
 optional `resource_limit`, optional `label_value_names`, optional
 `max_label_values_per_label`, optional `series_matchers`, optional
-`stale_after`, optional `declared_ids`, and `enabled: true`.
+`series_lookback`, optional `stale_after`, optional `declared_ids`, and
+`enabled: true`. `series_lookback` bounds the `/loki/api/v1/series` query's
+`start` window; it defaults to `stale_after` when unset so the series bound
+and the staleness signal agree, and falls back to 24h when neither is
+configured.
 
 Tempo targets include `scope_id`, `instance_id`, `base_url`, optional
 `path_prefix`, optional `token_env`, optional `tenant_id` or `tenant_id_env`,
