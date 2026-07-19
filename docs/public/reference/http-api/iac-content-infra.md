@@ -590,6 +590,22 @@ whole-table scan, graph traversal, or per-row fan-out.
 Legacy impact routes accept `limit` with default 50 and cap 200, probe one
 extra row, and return `truncated`.
 
+`/impact/blast-radius` accepts `target`, `target_type` (`repository`,
+`terraform_module`, `crossplane_xrd`, or `sql_table`), and `limit`. Every
+response includes `complete` (bool) and `coverage` (array of
+`{edge_type, materialized, reason}`), which report whether the affected set is
+known-complete for the query surface: for `sql_table`, `coverage` lists every
+graph relationship type the surface conceptually covers (`CONTAINS`,
+`QUERIES_TABLE`, `REFERENCES_TABLE`, `TRIGGERS`, `INDEXES`, `READS_FROM`,
+`MIGRATES`, `MAPS_TO_TABLE`) with its current materialization status, and
+`complete` is `false` whenever any of them has no graph writer — so a table
+reachable only through an unmaterialized edge type is surfaced as a known gap
+instead of a silent zero. `READS_FROM` and `MIGRATES` are parsed but not
+materialized (see [SQL parser](../../languages/sql.md) and
+[Edge Source-Tool Provenance](../edge-source-tool-provenance.md)). Other
+`target_type` values have no registered coverage gap in this contract and
+report `complete: true` with an empty `coverage` array.
+
 `/impact/change-surface/investigate` accepts one graph target family
 (`target` + `target_type`, `service_name`, `workload_id`, `resource_id`, or
 `module_id`) and/or a code scope (`topic`, `repo_id`, `changed_paths`).

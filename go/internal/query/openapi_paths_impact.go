@@ -192,7 +192,23 @@ const openAPIPathsImpact = `
                     "affected": {"type": "array", "items": {"type": "object"}},
                     "affected_count": {"type": "integer"},
                     "limit": {"type": "integer"},
-                    "truncated": {"type": "boolean"}
+                    "truncated": {"type": "boolean"},
+                    "complete": {
+                      "type": "boolean",
+                      "description": "False when target_type is sql_table and any edge type the surface conceptually covers (see coverage) has no graph writer, so affected_count may undercount. Always true for target_type values with no registered coverage gap (repository, terraform_module, crossplane_xrd)."
+                    },
+                    "coverage": {
+                      "type": "array",
+                      "description": "Materialization status of every graph edge type the target_type's blast-radius surface conceptually covers. Empty for target_type values with no registered coverage gap.",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "edge_type": {"type": "string", "description": "Graph relationship type, e.g. INDEXES"},
+                          "materialized": {"type": "boolean", "description": "Whether a graph writer currently emits this edge type"},
+                          "reason": {"type": "string", "description": "Why the edge type is or is not materialized"}
+                        }
+                      }
+                    }
                   }
                 }
               }
