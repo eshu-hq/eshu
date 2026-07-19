@@ -172,6 +172,29 @@ seconds for maintenance drains, and 5 seconds for graph/query checks. The
 isolated containers, network, and volumes were removed by the gate; the
 retained development stack was not changed.
 
+After the review fixes that reject deployment-source relationships without
+canonical endpoints and preserve bounded runtime-topology metadata, the full
+gate was rerun at exact implementation head
+`5ad14292b0922ca7fbfcc5795f82b902fa8f27b8` on fresh isolated ports:
+
+```bash
+ESHU_POSTGRES_PORT=16535 \
+NEO4J_BOLT_PORT=8790 \
+NEO4J_HTTP_PORT=8578 \
+GATE_API_PORT=19083 \
+GATE_MCP_PORT=19094 \
+GATE_DRAIN_TIMEOUT=10m \
+GATE_BUDGET_SECONDS=600 \
+bash scripts/verify-golden-corpus-gate.sh
+```
+
+The post-fix run completed in 34 seconds with **420 pass, 0 required-fail,
+and 0 advisory-warn**. Its phase timings were 3 seconds for bootstrap, 20
+seconds for collector replay, 6 seconds for the first drain, 5 seconds for
+maintenance drains, and 3 seconds for graph/query checks. The gate removed its
+isolated containers, network, and volumes; the retained development stack was
+not changed.
+
 Replay coverage also passed:
 
 ```bash
