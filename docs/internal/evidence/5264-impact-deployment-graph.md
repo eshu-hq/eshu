@@ -249,6 +249,43 @@ seconds for maintenance drains, and 3 seconds for graph/query checks. Both
 HTTP shapes passed. The gate removed its isolated containers, network, and
 volumes; the retained development stack was not changed.
 
+After the exact workload-selector fix and scoped-topology authorization review,
+the gate was rerun at exact implementation head
+`186e534302098cd75f7034567baaac1200f391cd`. The authorization correction
+constrains defining repositories, owned workload instances, platform hydration
+inputs, and provisioning source/target repositories to caller grants; it also
+selects an allowed defining repository deterministically when the Workload
+node's stored `repo_id` is not authorized.
+
+```bash
+ESHU_POSTGRES_PORT=16538 \
+NEO4J_BOLT_PORT=8793 \
+NEO4J_HTTP_PORT=8581 \
+GATE_API_PORT=19087 \
+GATE_MCP_PORT=19097 \
+GATE_DRAIN_TIMEOUT=10m \
+GATE_BUDGET_SECONDS=600 \
+bash scripts/verify-golden-corpus-gate.sh
+```
+
+The exact-head run completed in 37 seconds with **421 pass, 0 required-fail,
+and 0 advisory-warn**. Its phase timings were 4 seconds for bootstrap, 20
+seconds for collector replay, 8 seconds for the first drain, 5 seconds for
+maintenance drains, and 4 seconds for graph/query checks. The gate removed its
+isolated containers, network, and volumes; the retained development stack was
+not changed. Focused production-subject authorization proof also passed:
+
+```bash
+cd go && go test ./internal/query -run \
+  '^(TestFetchWorkloadContextScopesSharedWorkloadTopologyToCallerGrants|TestFetchWorkloadRuntimeTopologyScopesDefiningRepositoriesToCallerGrants)$' \
+  -count=1
+```
+
+That regression uses one shared workload with an allowed and a denied
+repository. It proves that repository identity, runtime instances, direct
+platform hydration, topology edges, and provisioning fallback contain only
+the allowed repository's data.
+
 Replay coverage also passed:
 
 ```bash
@@ -359,8 +396,8 @@ single 16.7 ms frame budget. These are warm retained-data measurements on this
 local machine, not a hardware-independent product guarantee or a comparison to
 the earlier 0.357 s API-only measurement.
 
-The final post-review browser smoke used the exact integrated implementation head
-`9ce1e43aeb7d5df7691945d8298a144a24896a46`: the feature-worktree API ran on
+The earlier post-review browser smoke used the exact integrated implementation
+head `9ce1e43aeb7d5df7691945d8298a144a24896a46`: the feature-worktree API ran on
 `127.0.0.1:19085` against the retained Postgres and NornicDB data, and the
 feature-worktree console proxy ran on `127.0.0.1:5195`. This closes the stale
 binary gap after the final topology-basis validation and OpenAPI contract
@@ -383,3 +420,16 @@ The retained `api-node-boats` dual-platform proof and five-sample timing series
 above remain the positive ECS/Kubernetes and interactive-read evidence; this
 exact-head smoke specifically proves the final fallback selection and
 fail-closed contract integration in the signed-in console.
+
+The final signed-in browser smoke rebuilt the feature-worktree API at exact
+security-fixed implementation head
+`186e534302098cd75f7034567baaac1200f391cd` on `127.0.0.1:19085` and reused
+the feature-worktree console proxy on `127.0.0.1:5195`. The retained
+`service:base` route again selected **Deployment topology**, rendered **35 of
+35 nodes** and **5 of 5 edges**, reported **complete within bounds**, and
+showed **0.100 ms** composition with zero direct change impacts. Browser log
+inspection returned zero warnings or errors. This exact-head smoke proves the
+authorization correction did not regress the unscoped signed-in console path;
+the allowed-A/denied-B production-subject test and exact-head B-7 run above
+bind the scoped authorization behavior that the retained local admin session
+cannot exercise.
