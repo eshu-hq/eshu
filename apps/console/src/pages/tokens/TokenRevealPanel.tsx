@@ -7,6 +7,15 @@
 // MCP client config snippet that references ${ESHU_API_KEY} instead of
 // embedding the token (mcpConfigSnippet.ts) — the console never writes the
 // raw token into that snippet.
+//
+// The MCP endpoint host must never default to window.location.origin: the
+// console UI and the MCP server (/mcp/message) are separate endpoints (the
+// Vite dev proxy only forwards /eshu-api, and production is not guaranteed
+// to route MCP traffic through the console's own origin either), so that
+// default silently produces a concrete-but-wrong URL. There is currently no
+// console runtime config that carries a real configured MCP endpoint, so
+// mcpEndpointHost defaults to blank and buildMcpConfigSnippet renders its
+// own unmistakable fill-in placeholder instead.
 import { Check, Copy, ShieldAlert } from "lucide-react";
 import { useState } from "react";
 
@@ -27,21 +36,24 @@ async function copyToClipboard(value: string, mark: (copied: boolean) => void): 
 
 export function TokenRevealPanel({
   token,
-  serviceUrl,
+  mcpEndpointHost,
   onDismiss,
 }: {
   readonly token: CreatedAPIToken;
-  // serviceUrl overrides the MCP snippet's host — tests pass a fixed value
-  // so the assertion does not depend on jsdom's default location. Production
-  // callers omit it and get the browser's own origin.
-  readonly serviceUrl?: string;
+  // mcpEndpointHost is the actual configured MCP endpoint host, when one is
+  // known (tests pass a fixed value to make assertions deterministic).
+  // Production callers currently have no configured MCP endpoint to pass, so
+  // this is omitted and buildMcpConfigSnippet falls back to its placeholder
+  // host — it must NEVER be filled in with the console's own origin
+  // (window.location.origin), because the console and the MCP server are
+  // separate endpoints.
+  readonly mcpEndpointHost?: string;
   readonly onDismiss: () => void;
 }): React.JSX.Element {
   const [ack, setAck] = useState(false);
   const [copiedToken, setCopiedToken] = useState(false);
   const [copiedConfig, setCopiedConfig] = useState(false);
-  const origin = serviceUrl ?? (typeof window !== "undefined" ? window.location.origin : "");
-  const configSnippet = buildMcpConfigSnippet(origin);
+  const configSnippet = buildMcpConfigSnippet(mcpEndpointHost ?? "");
 
   return (
     <div className="token-reveal" role="region" aria-label="New API token">

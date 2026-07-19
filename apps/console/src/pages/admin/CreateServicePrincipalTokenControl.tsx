@@ -10,8 +10,8 @@ import { useState } from "react";
 
 import { createServicePrincipalApiToken } from "../../api/adminConsole";
 import type { EshuApiClient } from "../../api/client";
-import { TokenRevealPanel } from "../tokens/TokenRevealPanel";
 import type { CreatedAPIToken } from "../../api/userProfile";
+import { TokenRevealPanel } from "../tokens/TokenRevealPanel";
 
 import "../tokens/apiTokenControls.css";
 

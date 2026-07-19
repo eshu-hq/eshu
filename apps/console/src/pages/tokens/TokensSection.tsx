@@ -10,13 +10,13 @@
 // list — the same refreshKey pattern AdminTokensPanel.tsx uses.
 import { useState } from "react";
 
+import { CreateApiTokenControl } from "./CreateApiTokenControl";
+import { fmt, isExpired } from "./tokenFormat";
+import { TokenRevealPanel } from "./TokenRevealPanel";
 import type { EshuApiClient } from "../../api/client";
 import { rotatePersonalApiToken, revokeApiToken } from "../../api/userProfile";
 import type { APITokenItem, CreatedAPIToken } from "../../api/userProfile";
 import { Panel, Badge } from "../../components/atoms";
-import { CreateApiTokenControl } from "./CreateApiTokenControl";
-import { TokenRevealPanel } from "./TokenRevealPanel";
-import { fmt, isExpired } from "./tokenFormat";
 
 function statusBadge(revoked: boolean, expired: boolean): React.JSX.Element {
   if (revoked) return <Badge tone="crit">revoked</Badge>;

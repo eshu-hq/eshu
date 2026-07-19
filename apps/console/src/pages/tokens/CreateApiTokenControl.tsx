@@ -14,10 +14,10 @@
 // CreateTokenResult union.
 import { useState } from "react";
 
+import { TokenRevealPanel } from "./TokenRevealPanel";
 import type { EshuApiClient } from "../../api/client";
 import { createPersonalApiToken } from "../../api/userProfile";
 import type { CreatedAPIToken } from "../../api/userProfile";
-import { TokenRevealPanel } from "./TokenRevealPanel";
 
 import "./apiTokenControls.css";
 

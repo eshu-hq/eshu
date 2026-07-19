@@ -9,9 +9,9 @@ import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 import { TokensSection } from "./TokensSection";
-import type { APITokenItem } from "../../api/userProfile";
 import type { EshuApiClient } from "../../api/client";
 import { EshuApiHttpError } from "../../api/client";
+import type { APITokenItem } from "../../api/userProfile";
 
 const NOW = "2026-06-24T10:00:00Z";
 

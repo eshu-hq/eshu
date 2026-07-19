@@ -6,9 +6,9 @@
 // renders "—" / unavailable rather than fabricated data.
 import { useEffect, useState } from "react";
 
-import { TOTPEnrollmentControl } from "./TOTPEnrollmentControl";
-import { TokensSection } from "./tokens/TokensSection";
 import { fmt } from "./tokens/tokenFormat";
+import { TokensSection } from "./tokens/TokensSection";
+import { TOTPEnrollmentControl } from "./TOTPEnrollmentControl";
 import type { EshuApiClient } from "../api/client";
 import { loadProfile, loadSessions, loadTokens } from "../api/userProfile";
 import type { ProfileData, BrowserSessionItem, APITokenItem } from "../api/userProfile";
