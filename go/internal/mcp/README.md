@@ -48,7 +48,7 @@ flowchart LR
 
 ```mermaid
 flowchart TB
-    hm["handleMessage()\nserver.go:236"]
+    hm["handleMessage()\nserver.go:235"]
     parse["json.Unmarshal params\nmcpToolCallParams"]
     dt["dispatchTool()\ndispatch.go:18"]
     rr["resolveRoute(toolName, args)\ndispatch.go:173"]
@@ -421,7 +421,7 @@ membership as trust.
 | `Server` | `server.go:93` | MCP server struct; fields `handler`, `tools`, `logger`, `sessions`, `transportAuth` |
 | `NewServer` | `server.go:112` | constructs `Server`; calls `ReadOnlyTools()`; accepts `...ServerOption` (e.g. `WithTransportAuth`) |
 | `ServerOption` / `WithTransportAuth` | `transport_auth.go:24,28` | option that wraps the HTTP transport (`GET /sse`, `POST /mcp/message`) with a credential chain (#5168) |
-| `Server.Run` (`Run`) | `server.go:191` | stdio transport; reads stdin, writes stdout; never authenticated (process/filesystem trust boundary) |
+| `Server.Run` (`Run`) | `server.go:190` | stdio transport; reads stdin, writes stdout; never authenticated (process/filesystem trust boundary) |
 | `Server.RunHTTP` (`RunHTTP`) | `server.go:137` | HTTP+SSE transport; listens on `addr` |
 | `ToolDefinition` | `types.go:4` | `Name`, `Description`, `InputSchema` |
 | `ReadOnlyTools` | `types.go:11` | returns all 159 tool definitions |
@@ -551,7 +551,7 @@ element and sets `repo_id` rather than `repo_ids`.
   and a version bump.
 
 - The `Envelope` field of `dispatchResult` is populated by
-  `parseCanonicalEnvelope` and consumed in `handleMessage` (`server.go:277`,
+  `parseCanonicalEnvelope` and consumed in `handleMessage` (`server.go:276`,
   `if result.Envelope != nil`). When it is non-nil, the response is returned as
   `structuredContent` plus a two-block `mcpToolResult`. Do not substitute the
   `query.EnvelopeMIMEType` string literal; use the constant.

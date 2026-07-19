@@ -39,7 +39,7 @@
   `r.Context()` cancellation instead of starting unbounded work.
 
 - **Envelope MIME type constant** — `EnvelopeMIMEType` is written as the
-  resource MIME type at `server.go:289`. Do not replace with a string literal;
+  resource MIME type at `server.go:288`. Do not replace with a string literal;
   the constant is the public contract between this package and `internal/query`.
 
 - **Authorization passthrough** — `dispatchTool` forwards the `Authorization`
@@ -111,7 +111,7 @@
   assumptions about keepalive cadence.
 
 - **Change the MCP protocol version** → edit `ProtocolVersion` in
-  `handleMessage` (`server.go:243`). Check the MCP spec for backward
+  `handleMessage` (`server.go:242`). Check the MCP spec for backward
   compatibility. Why: clients that cache `initialize` results may reject
   version changes without a new session.
 
