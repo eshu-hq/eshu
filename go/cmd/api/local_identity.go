@@ -6,6 +6,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"time"
 
 	"go.opentelemetry.io/otel"
@@ -293,27 +294,42 @@ func (a *postgresLocalIdentityAdapter) RevokeLocalIdentityAPIToken(
 	ctx context.Context,
 	revoke query.LocalIdentityAPITokenRevoke,
 ) error {
-	return a.store.RevokeLocalIdentityAPIToken(ctx, pgstatus.LocalIdentityAPITokenRevoke{
-		TokenID:     revoke.TokenID,
-		TenantID:    revoke.TenantID,
-		WorkspaceID: revoke.WorkspaceID,
-		RevokedAt:   revoke.RevokedAt,
-	})
+	return translateLocalIdentityAPITokenNotFound(a.store.RevokeLocalIdentityAPIToken(ctx, pgstatus.LocalIdentityAPITokenRevoke{
+		TokenID:            revoke.TokenID,
+		TenantID:           revoke.TenantID,
+		WorkspaceID:        revoke.WorkspaceID,
+		RevokedAt:          revoke.RevokedAt,
+		OwnerSubjectIDHash: revoke.OwnerSubjectIDHash,
+	}))
 }
 
 func (a *postgresLocalIdentityAdapter) RotateLocalIdentityAPIToken(
 	ctx context.Context,
 	rotate query.LocalIdentityAPITokenRotate,
 ) error {
-	return a.store.RotateLocalIdentityAPIToken(ctx, pgstatus.LocalIdentityAPITokenRotate{
-		OldTokenID:      rotate.OldTokenID,
-		NewTokenID:      rotate.NewTokenID,
-		NewTokenHash:    rotate.NewTokenHash,
-		TenantID:        rotate.TenantID,
-		WorkspaceID:     rotate.WorkspaceID,
-		RotatedAt:       rotate.RotatedAt,
-		NewTokenExpires: rotate.NewTokenExpires,
-	})
+	return translateLocalIdentityAPITokenNotFound(a.store.RotateLocalIdentityAPIToken(ctx, pgstatus.LocalIdentityAPITokenRotate{
+		OldTokenID:         rotate.OldTokenID,
+		NewTokenID:         rotate.NewTokenID,
+		NewTokenHash:       rotate.NewTokenHash,
+		TenantID:           rotate.TenantID,
+		WorkspaceID:        rotate.WorkspaceID,
+		RotatedAt:          rotate.RotatedAt,
+		NewTokenExpires:    rotate.NewTokenExpires,
+		OwnerSubjectIDHash: rotate.OwnerSubjectIDHash,
+	}))
+}
+
+// translateLocalIdentityAPITokenNotFound maps the storage layer's
+// "no active token matched" sentinel to the query layer's not-found sentinel
+// (issue #5164). The self-service revoke/rotate handlers turn that into a
+// non-disclosing 404; the all-scope admin path ignores the specific sentinel
+// and still treats any non-nil error as a 400, so this translation is safe for
+// both callers.
+func translateLocalIdentityAPITokenNotFound(err error) error {
+	if errors.Is(err, pgstatus.ErrLocalIdentityAPITokenUnavailable) {
+		return query.ErrLocalIdentityAPITokenNotFound
+	}
+	return err
 }
 
 // ListAPITokensBySubject returns metadata-only token rows owned by the subject.

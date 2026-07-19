@@ -229,6 +229,10 @@ type LocalIdentityAPITokenRevoke struct {
 	TenantID    string
 	WorkspaceID string
 	RevokedAt   time.Time
+	// OwnerSubjectIDHash, when non-empty, restricts the revoke to a token the
+	// named subject owns via an atomic ownership predicate (self-service
+	// revoke, issue #5164). Empty keeps the unrestricted all-scope admin path.
+	OwnerSubjectIDHash string
 }
 
 // LocalIdentityAPITokenRotate atomically revokes one token and inserts its replacement.
@@ -240,6 +244,11 @@ type LocalIdentityAPITokenRotate struct {
 	WorkspaceID     string
 	RotatedAt       time.Time
 	NewTokenExpires time.Time
+	// OwnerSubjectIDHash, when non-empty, restricts the rotation to a token the
+	// named subject owns via an atomic ownership predicate on the replacement
+	// insert (self-service rotate, issue #5164). Empty keeps the unrestricted
+	// all-scope admin path.
+	OwnerSubjectIDHash string
 }
 
 type localIdentityCredentialRow struct {

@@ -4,11 +4,14 @@
 // TokenRevealPanel (reveal-once) -> dismiss refreshes the caller's list.
 //
 // createPersonalApiToken (api/userProfile.ts) omits user_id; the backend
-// resolves it from the caller's own session (go/internal/query/
-// local_identity_api_tokens.go resolveSelfServiceAPITokenUserID), so this
-// mints a token for the CALLER, never an arbitrary target. A 403 is
-// rendered as an explicit "you don't have permission" message, not a
-// crash — see createPersonalApiToken's CreateTokenResult union.
+// resolves it from the caller's own session and enforces self-scope
+// (go/internal/query/local_identity_api_tokens.go
+// enforceSelfServiceTokenCreateScope), so this mints a token for the CALLER,
+// never an arbitrary target. Any authenticated user can create in the default
+// no-SSO posture; a 403 only occurs in a catalog-enforced (SSO) posture that
+// withholds the `tokens` feature, and is rendered as an explicit "you don't
+// have permission" message, not a crash — see createPersonalApiToken's
+// CreateTokenResult union.
 import { useState } from "react";
 
 import type { EshuApiClient } from "../../api/client";

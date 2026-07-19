@@ -5,16 +5,15 @@
 // rows — an error always produces an empty result set, never invented data.
 //
 // createPersonalApiToken / rotatePersonalApiToken / revokeApiToken (issue
-// #5164) are the self-service token mutators. All three call the SAME
-// all-scope-gated endpoints AdminTokensPanel already used
-// (go/internal/query/local_identity_api_tokens.go); a personal-token create
-// with no user_id now resolves to the caller's own identity server-side
-// (see resolveSelfServiceAPITokenUserID), so this works end-to-end for the
-// fresh local owner/admin console session. A non-admin session still gets a
-// clean "forbidden" result — see the CreateTokenResult/"forbidden" case —
-// because the create/rotate/revoke routes require all-scope auth; true
-// non-admin self-service is a separate, unresolved scope question (see PR
-// description).
+// #5164) are the self-service token mutators. Any authenticated user may call
+// them: create binds the new token to the caller's OWN identity server-side
+// (the handler resolves user_id from the session subject and rejects a foreign
+// user_id or a service principal), and revoke/rotate are scoped in the store to
+// a token the caller owns — a token the caller does not own returns 404, never
+// touching it (go/internal/query/local_identity_api_tokens.go +
+// identity_api_token_lifecycle.go). The "forbidden" result is retained for the
+// catalog-enforced (SSO) posture, where the `tokens` permission feature can be
+// withheld; in the default no-SSO posture every authenticated user passes.
 import type { EshuApiClient } from "./client";
 import { EshuApiHttpError } from "./client";
 

@@ -28,6 +28,12 @@ type fakeLocalIdentityStore struct {
 	createdAPIToken LocalIdentityAPITokenCreate
 	revokedAPIToken LocalIdentityAPITokenRevoke
 	rotatedAPIToken LocalIdentityAPITokenRotate
+	// revokeAPITokenError / rotateAPITokenError let a test drive the
+	// self-service not-owned path (issue #5164): the owner-scoped store
+	// returns ErrLocalIdentityAPITokenNotFound when the caller does not own
+	// the token, which the handler must translate into a 404.
+	revokeAPITokenError error
+	rotateAPITokenError error
 	// apiTokens accumulates every CreateLocalIdentityAPIToken call so
 	// ListAPITokensBySubject can prove real create-then-list wiring instead of
 	// always returning nil.
@@ -132,7 +138,7 @@ func (s *fakeLocalIdentityStore) RevokeLocalIdentityAPIToken(
 	revoke LocalIdentityAPITokenRevoke,
 ) error {
 	s.revokedAPIToken = revoke
-	return nil
+	return s.revokeAPITokenError
 }
 
 func (s *fakeLocalIdentityStore) RotateLocalIdentityAPIToken(
@@ -140,7 +146,7 @@ func (s *fakeLocalIdentityStore) RotateLocalIdentityAPIToken(
 	rotate LocalIdentityAPITokenRotate,
 ) error {
 	s.rotatedAPIToken = rotate
-	return nil
+	return s.rotateAPITokenError
 }
 
 // ListAPITokensBySubject returns metadata built from every token this fake has
