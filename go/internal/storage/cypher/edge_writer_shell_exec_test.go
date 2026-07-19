@@ -5,6 +5,7 @@ package cypher
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -409,4 +410,49 @@ func equalStringSlices(a, b []string) bool {
 		}
 	}
 	return true
+}
+
+// TestCleanupOrphanShellCommandsChunksConnectedRead proves the S2 connected-keys
+// read is chunked at shellCommandConnectedKeysChunkSize, not sent as one
+// round trip -- the anchored read scales super-linearly on NornicDB (#5147).
+func TestCleanupOrphanShellCommandsChunksConnectedRead(t *testing.T) {
+	t.Parallel()
+
+	candidates := make([]string, 1200) // 3 chunks of 500/500/200
+	for i := range candidates {
+		candidates[i] = fmt.Sprintf("shell-command:%04d", i)
+	}
+	executor := &recordingExecutor{readCandidates: candidates, readConnected: map[string]bool{}}
+	writer := NewEdgeWriter(executor, 0)
+	writer.Reader = executor
+
+	if err := writer.cleanupOrphanShellCommands(
+		context.Background(),
+		shellCommandCandidateKeysByRepoCypher,
+		map[string]any{"repo_ids": []string{"repo-a"}, "evidence_source": "es"},
+	); err != nil {
+		t.Fatalf("cleanupOrphanShellCommands error = %v", err)
+	}
+
+	var s2Reads int
+	for _, c := range executor.readCalls {
+		keys, ok := c.Parameters["keys"].([]string)
+		if !ok {
+			continue // S1 candidate read (no "keys" param)
+		}
+		s2Reads++
+		if len(keys) > shellCommandConnectedKeysChunkSize {
+			t.Fatalf("S2 chunk carried %d keys, want <= %d", len(keys), shellCommandConnectedKeysChunkSize)
+		}
+	}
+	if want := 3; s2Reads != want {
+		t.Fatalf("S2 connected-keys reads = %d, want %d (1200 keys chunked at %d)", s2Reads, want, shellCommandConnectedKeysChunkSize)
+	}
+	if len(executor.calls) != 1 {
+		t.Fatalf("delete Execute calls = %d, want 1", len(executor.calls))
+	}
+	delKeys, _ := executor.calls[0].Parameters["keys"].([]string)
+	if len(delKeys) != 1200 {
+		t.Fatalf("delete carried %d orphan keys, want 1200 (all candidates were orphan)", len(delKeys))
+	}
 }

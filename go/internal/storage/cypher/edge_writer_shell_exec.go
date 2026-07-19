@@ -46,11 +46,30 @@ DELETE rel`
 // node already known to be an orphan; it was never proven to preserve a
 // connected node, and #5147 later showed the same predicate class is a
 // permanently-true tautology that would delete every in-scope ShellCommand,
-// connected or not. The shape here mirrors orphan_sweep.go: S1 reads
-// candidate uids, S2 reads which of those uids currently have any
+// connected or not. The read/anti-join/delete SHAPE here mirrors orphan_sweep.go:
+// S1 reads candidate uids, S2 reads which of those uids currently have any
 // relationship via a concrete relationship variable, the anti-join
 // (candidates minus connected) is computed in Go, and only the resulting
 // non-connected uids are deleted by explicit key.
+//
+// It deliberately does NOT carry orphan_sweep's pre-delete TOCTOU re-verify or
+// its observed-at marker/TTL, and that omission is safe here (unlike for
+// orphan_sweep, whose README calls the guard essential) BECAUSE this cleanup is
+// not a background observer racing live projectors -- it runs inline inside the
+// DomainShellExec retract, and three invariants close the S2-read -> S3-delete
+// window:
+//  1. EXECUTES_SHELL is ShellCommand's ONLY edge type, created ONLY by the
+//     DomainShellExec upsert (batchCanonicalShellExecUpsertCypher); no other
+//     production writer links a ShellCommand.
+//  2. The ShellCommand uid is repo-scoped (shellExecTargetID embeds repo_id), so
+//     every node belongs to exactly one repo.
+//  3. DomainShellExec is partition-leased by acceptance_unit (repo), so all
+//     same-repo shell-exec upserts AND retracts -- including foreign-evidence-
+//     source generations -- serialize on one lease and cannot relink a candidate
+//     between the connected-keys read and the delete.
+// If any of these change (a second edge type on ShellCommand, cross-partition
+// shell-exec, or a repo-independent uid), this cleanup must adopt orphan_sweep's
+// TOCTOU re-verify + marker/TTL before it is safe again.
 
 // shellCommandCandidateKeysByRepoCypher is the S1 read for a whole-repo
 // shell-exec retract: every in-scope ShellCommand uid for the given
@@ -79,6 +98,12 @@ RETURN DISTINCT target.uid AS key`
 const shellCommandConnectedKeysCypher = `UNWIND $keys AS candidate_key
 MATCH (target:ShellCommand {uid: candidate_key})-[r]-(m)
 RETURN DISTINCT target.uid AS key`
+
+// shellCommandConnectedKeysChunkSize bounds how many candidate keys the S2
+// connected-keys read anchors on per round trip. It matches orphan_sweep.go's
+// defaultOrphanSweepConnectedKeysChunkSize because the anchored read scales
+// super-linearly with key count on the pinned NornicDB backends (#5147).
+const shellCommandConnectedKeysChunkSize = 500
 
 // deleteShellCommandsByUIDCypher is the S3 write: deletes exactly the
 // supplied uids, computed by the caller as candidates minus connected. It is
@@ -191,15 +216,26 @@ func (w *EdgeWriter) cleanupOrphanShellCommands(
 		return nil
 	}
 
-	connectedKeys, err := w.readShellCommandKeys(ctx, shellCommandConnectedKeysCypher, map[string]any{
-		"keys": candidateKeys,
-	})
-	if err != nil {
-		return fmt.Errorf("read shell command connected keys: %w", err)
-	}
-	connected := make(map[string]bool, len(connectedKeys))
-	for _, key := range connectedKeys {
-		connected[key] = true
+	// Read connected keys in bounded chunks. The anchored connected-keys read
+	// (a concrete relationship-variable MATCH) scales super-linearly with the
+	// key count on the pinned NornicDB backends -- #5147 measured ~200 keys at
+	// 14ms vs ~5,000 keys at 4.7s -- so chunk it like orphan_sweep.go does,
+	// rather than sending the whole candidate list in one round trip.
+	connected := make(map[string]bool, len(candidateKeys))
+	for start := 0; start < len(candidateKeys); start += shellCommandConnectedKeysChunkSize {
+		end := start + shellCommandConnectedKeysChunkSize
+		if end > len(candidateKeys) {
+			end = len(candidateKeys)
+		}
+		chunk, err := w.readShellCommandKeys(ctx, shellCommandConnectedKeysCypher, map[string]any{
+			"keys": candidateKeys[start:end],
+		})
+		if err != nil {
+			return fmt.Errorf("read shell command connected keys: %w", err)
+		}
+		for _, key := range chunk {
+			connected[key] = true
+		}
 	}
 
 	orphanKeys := make([]string, 0, len(candidateKeys))
