@@ -132,10 +132,15 @@ func (w PostgresPackageCorrelationWriter) WritePackageCorrelations(
 }
 
 // buildRow constructs the batched-insert row for one package correlation
-// decision. It derives scope_id/generation_id/source_system/intent_id from
-// the already-built payload map, matching the retired per-row writePayload
-// helper's derivation exactly so the batched insert is byte-identical to the
-// per-row canonicalVersionedReducerFactInsertQuery loop it replaces.
+// decision. It deliberately derives scope_id/generation_id/source_system/
+// intent_id from the already-built payload map via payloadString — NOT from the
+// PackageCorrelationWrite struct fields — because the retired per-row
+// writePayload helper derived them from that same payload map, and reading them
+// the same way is what makes the batched insert provably byte-identical to the
+// per-row canonicalVersionedReducerFactInsertQuery loop it replaces. Switching
+// to the struct fields would only be equivalent if they always match the
+// payload's values, which is not guaranteed at this seam; the indirection is the
+// byte-identity contract, not accidental.
 func (w PostgresPackageCorrelationWriter) buildRow(
 	now time.Time,
 	factKind string,

@@ -184,6 +184,15 @@ func reducerBatchInsertFacts(
 }
 
 // execReducerFactChunk sends one bounded chunk as a single unnest statement.
+//
+// This and execReducerFactVersionedChunk are deliberately kept as separate,
+// explicit parallel functions rather than unified behind a shared helper. Each
+// mirrors one distinct positional query (the 15-column unversioned insert vs the
+// 16-column versioned insert, which interleaves schema_version at position 6),
+// and the array order here IS the column↔bind-parameter contract. Collapsing
+// them behind a generic argument builder would hide that mapping and reintroduce
+// exactly the column-misplacement risk this change was reviewed against on the
+// governed-fact path, for no runtime benefit; the duplication is intentional.
 func execReducerFactChunk(
 	ctx context.Context,
 	db workloadIdentityExecer,
