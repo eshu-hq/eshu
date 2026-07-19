@@ -24,7 +24,7 @@ parser mechanics live in `go/internal/parser/java/README.md`.
 | Call metadata | Method and constructor arity, local receiver type inference, argument counts, typed receiver variables, records, nested-class context, and same-class helper return types. |
 | Annotation metadata | Applied annotations persist as first-class graph entities and remain graph-first on `code/language-query`, with content fallback when the graph is empty. |
 | Dead-code roots | Parser metadata and reducer `REFERENCES` edges suppress parser-proven runtime and framework roots from cleanup candidates. |
-| Framework route entries | Literal Spring MVC/WebFlux, JAX-RS, and Micronaut route annotations emit exact `framework_semantics.<framework>.route_entries` with handler names for downstream `HANDLES_ROUTE` projection. |
+| Framework route entries | Literal Spring MVC/WebFlux, JAX-RS, and Micronaut route annotations emit exact `framework_semantics.<framework>.route_entries` with handler names. The shared reducer resolves each entry to a `HANDLES_ROUTE` edge, queryable end to end through the `trace_route_callers` surface. |
 
 Primary proof:
 
@@ -32,9 +32,12 @@ Primary proof:
 - `go/internal/parser/java_dead_code_roots_test.go`
 - `go/internal/parser/java_dead_code_framework_roots_test.go`
 - `go/internal/parser/java_kotlin_spring_route_semantics_test.go`
+- `go/internal/parser/java_comprehensive_route_fixture_test.go::TestDefaultEngineParsePathJavaComprehensiveRouteFixtures`
 - `go/internal/parser/java_reflection_test.go`
 - `go/internal/reducer/code_call_materialization_java_reflection_test.go`
+- `go/internal/reducer/handles_route_java_test.go`
 - `go/internal/query/code_dead_code_java_roots_test.go`
+- `go/internal/query/code_route_to_caller_java_test.go::TestHandleRouteToCallerResolvesJavaSpringHandler`
 
 ## Dead-Code Support
 
@@ -82,6 +85,11 @@ Supported today:
 - Literal JAX-RS `@Path` plus HTTP method annotations and Micronaut
   `@Controller` plus HTTP method annotations emit exact route entries when the
   path is source-literal and the handler is the annotated method.
+- `HANDLES_ROUTE` materialization is framework-agnostic (the same reducer path
+  every language uses) and is proven for Spring, JAX-RS, and Micronaut with
+  positive, unknown-handler, and ambiguous-handler fixtures. The materialized
+  edge is queryable end to end through the `trace_route_callers` MCP/API
+  surface, proven against a Spring handler.
 - Gradle plugin/task/DSL roots, JUnit tests and lifecycle methods,
   Jenkins/Stapler extension points, serialization hooks, ServiceLoader
   providers, and Spring Boot autoconfiguration metadata are modeled roots.

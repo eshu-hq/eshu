@@ -167,9 +167,9 @@ language_features:
     partial_features: [spring-composed-route-truth, external-route-config-truth, generated-route-truth, outbound-contracts, broad-reflection]
     derived_features: []
     source_files: [go/internal/parser/java_language.go, go/internal/parser/java/parser.go, go/internal/parser/java/spring_routes.go, go/internal/parser/java/framework_routes.go]
-    test_files: [go/internal/parser/engine_managed_oo_test.go, go/internal/parser/java_dead_code_framework_roots_test.go, go/internal/parser/java_kotlin_spring_route_semantics_test.go]
+    test_files: [go/internal/parser/engine_managed_oo_test.go, go/internal/parser/java_dead_code_framework_roots_test.go, go/internal/parser/java_kotlin_spring_route_semantics_test.go, go/internal/reducer/handles_route_java_test.go, go/internal/query/code_route_to_caller_java_test.go]
     docs: [docs/public/languages/java.md]
-    read_surfaces: [execute_language_query, get_code_relationship_story, find_dead_code]
+    read_surfaces: [execute_language_query, get_code_relationship_story, find_dead_code, trace_route_callers]
     tracking_issues: [4040, 4097]
   - language: javascript
     docs_claim: docs/public/languages/javascript.md

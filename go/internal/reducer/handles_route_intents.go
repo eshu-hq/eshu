@@ -118,6 +118,27 @@ func buildHandlesRouteIntentRows(
 	return intents
 }
 
+// BuildHandlesRouteIntentRowsForQueryProof runs the same HANDLES_ROUTE
+// materialization pipeline production uses -- buildCodeCallProjectionContexts,
+// buildCodeEntityIndex, and buildHandlesRouteIntentRows -- over the given file
+// envelopes and returns the resulting intent rows.
+//
+// It exists solely so internal/query's Java route-to-caller proof test
+// (code_route_to_caller_java_test.go) can derive its fakeGraphReader
+// HANDLES_ROUTE row from the reducer's real materialized output instead of
+// hand-inventing literals that could silently diverge from what the reducer
+// actually writes. That gap was flagged as a false-green risk on #5333: a
+// break at the reducer-to-edge boundary would otherwise leave the query test
+// green because its fake row was disconnected from reducer behavior. Calling
+// this from the query test closes that seam without exporting the full
+// internal materialization surface.
+func BuildHandlesRouteIntentRowsForQueryProof(envelopes []facts.Envelope) []SharedProjectionIntentRow {
+	generationID := "gen-handles-route-query-proof"
+	contextByRepoID := buildCodeCallProjectionContexts(envelopes, generationID)
+	index := buildCodeEntityIndex(envelopes)
+	return buildHandlesRouteIntentRows(envelopes, index, contextByRepoID, time.Unix(0, 0).UTC(), handlesRouteEvidenceSource)
+}
+
 // resolveHandlesRouteFunction resolves a route handler name to exactly one
 // Function entity id. It first tries a same-file unique match across the route
 // file's path keys, then a repository-wide unique name. It returns the entity id
