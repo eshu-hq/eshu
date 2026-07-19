@@ -22,6 +22,17 @@ Repository routes accept a repository selector in `{repo_id}`. The selector may
 be the canonical repository ID, repository name, repository slug, or indexed
 path. The server resolves it to the canonical repository ID before querying.
 
+Scoped tokens are supported on the single-repository `{repo_id}` reads --
+`context`, `story`, `stats`, `tree`, `coverage`, and `freshness` (#5167 Group
+A; freshness already worked from #5143). Each resolves the selector through
+the same grant-filtering path (`resolveRepositorySelectorExactForAccess`), so
+a repository outside the caller's grant renders `404` rather than leaking
+existence, matching every other repository route. The bare list route
+`GET /api/v0/repositories` is also scoped-token supported (it filters the
+returned catalog to the caller's grant). The `by-language` and
+`language-inventory` list variants remain outside the scoped-token allowlist
+pending #5167 Group B row-filtering.
+
 `GET /api/v0/repositories/{repo_id}/context` relationship rows include compact
 correlation provenance when available: `confidence`, `confidence_basis`,
 `resolution_source`, `evidence_type`, `evidence_kinds`, and `resolved_id`.

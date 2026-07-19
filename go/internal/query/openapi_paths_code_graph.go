@@ -7,8 +7,9 @@ const openAPIPathsCodeGraph = `
     "/api/v0/code/cypher": {
       "post": {
         "tags": ["code"], "summary": "Run bounded read-only Cypher",
-        "description": "Diagnostics-only graph query endpoint. Prefer purpose-built code, service, and impact routes for prompt contracts. Queries are read-only, timeout-bound, and server-capped.",
+        "description": "Diagnostics-only graph query endpoint. Prefer purpose-built code, service, and impact routes for prompt contracts. Queries are read-only, timeout-bound, and server-capped. Shared-key/all-scope callers only: the query text is caller-supplied and unbounded, so there is no selector to intersect against a tenant grant. Scoped and browser-session tokens are rejected before the handler runs.",
         "operationId": "runReadOnlyCypher",
+        "x-shared-key-only": true,
         "requestBody": {
           "required": true,
           "content": {

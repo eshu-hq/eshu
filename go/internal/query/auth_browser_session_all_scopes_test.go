@@ -156,6 +156,12 @@ func TestAuthMiddlewareTenantlessAllScopesBrowserSessionCannotEnterWholeGraphCon
 func TestAuthMiddlewareRestrictedCredentialsCannotEnterWholeGraphConsoleRoutes(t *testing.T) {
 	t.Parallel()
 
+	// POST /api/v0/visualizations/derive is deliberately absent from this
+	// table (#5167 task 4): VisualizationHandler holds no graph, content, or
+	// store reference (visualization_packet_handler.go) -- it only reshapes
+	// the caller-supplied source_response the restricted caller already
+	// possesses, so it was moved into scopedHTTPRouteSupportsTenantFilter and
+	// a restricted credential is now expected to reach it, not be denied.
 	routes := []struct {
 		method string
 		path   string
@@ -163,7 +169,6 @@ func TestAuthMiddlewareRestrictedCredentialsCannotEnterWholeGraphConsoleRoutes(t
 		{method: http.MethodPost, path: "/api/v0/code/dead-code"},
 		{method: http.MethodGet, path: "/api/v0/graph/entities"},
 		{method: http.MethodGet, path: "/api/v0/ecosystem/overview"},
-		{method: http.MethodPost, path: "/api/v0/visualizations/derive"},
 	}
 
 	for _, tc := range routes {
@@ -231,6 +236,96 @@ func TestAuthMiddlewareRestrictedCredentialsCannotEnterWholeGraphConsoleRoutes(t
 			assertWholeGraphRouteDenied(t, rec, called)
 		})
 	}
+}
+
+// TestAuthMiddlewareRestrictedCredentialsReachVisualizationDeriveRoute is the
+// #5167 task 4 counterpart of
+// TestAuthMiddlewareRestrictedCredentialsCannotEnterWholeGraphConsoleRoutes:
+// it proves a restricted (non-all-scopes, single-repository-grant) caller now
+// reaches POST /api/v0/visualizations/derive under the real production
+// middleware (AuthMiddlewareWithBrowserSessionsScopedTokensGovernanceAuditAndRoutePolicy),
+// for both a browser-session cookie and a scoped bearer token, instead of the
+// 403 every other whole-graph console route still returns to the same
+// credential shape.
+func TestAuthMiddlewareRestrictedCredentialsReachVisualizationDeriveRoute(t *testing.T) {
+	t.Parallel()
+
+	const path = "/api/v0/visualizations/derive"
+
+	t.Run("browser session", func(t *testing.T) {
+		t.Parallel()
+
+		called := false
+		resolver := &fakeBrowserSessionResolver{
+			context: AuthContext{
+				Mode:                 AuthModeBrowserSession,
+				TenantID:             "tenant-a",
+				WorkspaceID:          "workspace-a",
+				AllowedRepositoryIDs: []string{"repo-a"},
+			},
+			ok: true,
+		}
+		handler := AuthMiddlewareWithBrowserSessionsScopedTokensGovernanceAuditAndRoutePolicy(
+			"shared-token",
+			nil,
+			resolver,
+			http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				called = true
+				w.WriteHeader(http.StatusOK)
+			}),
+			nil,
+			BrowserSessionRoutePolicy{AllowTenantBoundAllScopes: true},
+		)
+		req := httptest.NewRequest(http.MethodPost, path, nil)
+		req.AddCookie(&http.Cookie{Name: BrowserSessionCookieName, Value: "session-secret"})
+		req.Header.Set(BrowserSessionCSRFHeaderName, "csrf-secret")
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+
+		if !called {
+			t.Fatalf("next handler not called for a restricted browser session; status = %d, body = %s", rec.Code, rec.Body.String())
+		}
+		if got, want := rec.Code, http.StatusOK; got != want {
+			t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
+		}
+	})
+
+	t.Run("scoped bearer", func(t *testing.T) {
+		t.Parallel()
+
+		called := false
+		resolver := &fakeScopedTokenResolver{
+			context: AuthContext{
+				Mode:                 AuthModeScoped,
+				TenantID:             "tenant-a",
+				WorkspaceID:          "workspace-a",
+				AllowedRepositoryIDs: []string{"repo-a"},
+			},
+			ok: true,
+		}
+		handler := AuthMiddlewareWithBrowserSessionsScopedTokensGovernanceAuditAndRoutePolicy(
+			"shared-token",
+			resolver,
+			nil,
+			http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				called = true
+				w.WriteHeader(http.StatusOK)
+			}),
+			nil,
+			BrowserSessionRoutePolicy{AllowTenantBoundAllScopes: true},
+		)
+		req := httptest.NewRequest(http.MethodPost, path, nil)
+		req.Header.Set("Authorization", "Bearer scoped-token")
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+
+		if !called {
+			t.Fatalf("next handler not called for a restricted scoped bearer; status = %d, body = %s", rec.Code, rec.Body.String())
+		}
+		if got, want := rec.Code, http.StatusOK; got != want {
+			t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
+		}
+	})
 }
 
 func assertWholeGraphRouteDenied(t *testing.T, rec *httptest.ResponseRecorder, handlerCalled bool) {

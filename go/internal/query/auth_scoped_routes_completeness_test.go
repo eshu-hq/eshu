@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"testing"
@@ -148,6 +150,51 @@ func openAPIBrowserSessionOnlyRoutes(t *testing.T) map[string]struct{} {
 	return openAPIBoolMarkerRoutes(t, "x-browser-session-only")
 }
 
+// openAPISharedKeyOnlyRoutes returns the "METHOD /path" surface name for
+// every operation carrying the "x-shared-key-only": true marker (#5167 Group
+// C). These routes execute caller-supplied Cypher with no bounded selector
+// to intersect against a grant -- POST /api/v0/code/cypher
+// (runReadOnlyCypher) and POST /api/v0/code/visualize
+// (runReadOnlyCypherVisualization) -- so unlike the other two markers, a
+// shared-key-only route is expected to clear scopedHTTPRouteSupportsTenantFilter
+// as false: it stays off the tenant-filter allowlist entirely, reachable only
+// by shared-key and all-scope callers. See IsSharedKeyOnlyRoute
+// (auth_scoped_routes_shared_key_only.go) for the production accessor the
+// go/internal/mcp exhaustiveness gate uses on dispatched requests.
+func openAPISharedKeyOnlyRoutes(t *testing.T) map[string]struct{} {
+	t.Helper()
+	return openAPIBoolMarkerRoutes(t, "x-shared-key-only")
+}
+
+// openAPIKnownDriftRoutes parses .github/openapi-known-drift.txt and returns
+// the "METHOD /path" surface name for every route intentionally excluded from
+// the public OpenAPI surface. scripts/verify-openapi.sh subtracts these from
+// the HandleFunc side so a route with a live handler but no openapi_paths_*.go
+// entry stays green instead of tripping the drift gate. A shared-key-only
+// route may be OpenAPI-excluded (POST /api/v0/code/visualize, #3781): it has a
+// real handler, is in the sharedKeyOnlyRoutes Go ledger, but must NOT carry an
+// x-shared-key-only OpenAPI marker or appear in the served surface inventory,
+// because it is not part of the public OpenAPI at all. This set lets
+// TestScopedTokenAllowlistCompleteness validate such a route by Go-ledger
+// membership alone rather than demanding a marker it deliberately lacks.
+func openAPIKnownDriftRoutes(t *testing.T) map[string]struct{} {
+	t.Helper()
+	path := filepath.Join("..", "..", "..", ".github", "openapi-known-drift.txt")
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read known-drift file %s: %v", path, err)
+	}
+	routes := map[string]struct{}{}
+	for _, line := range strings.Split(string(raw), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		routes[line] = struct{}{}
+	}
+	return routes
+}
+
 // surfaceNameToRequest builds an *http.Request from a "METHOD /path" surface
 // name for probing scopedHTTPRouteSupportsTenantFilter or the real
 // AuthMiddlewareWithScopedTokens. OpenAPI path templates (e.g. "{repo_id}")
@@ -200,10 +247,20 @@ func TestScopedTokenAllowlistCompleteness(t *testing.T) {
 	surfaceSet := make(map[string]struct{}, len(surfaces))
 	tokenAdvertised := openAPIScopedTokenSupportRoutes(t)
 	browserOnlyAdvertised := openAPIBrowserSessionOnlyRoutes(t)
+	sharedKeyOnlyAdvertised := openAPISharedKeyOnlyRoutes(t)
+	knownDrift := openAPIKnownDriftRoutes(t)
 
 	for name := range tokenAdvertised {
 		if _, both := browserOnlyAdvertised[name]; both {
 			t.Errorf("%s: carries both \"x-scoped-token-support\": true and \"x-browser-session-only\": true -- exactly one tenant-scope marker must apply per route", name)
+		}
+		if _, both := sharedKeyOnlyAdvertised[name]; both {
+			t.Errorf("%s: carries both \"x-scoped-token-support\": true and \"x-shared-key-only\": true -- exactly one tenant-scope marker must apply per route", name)
+		}
+	}
+	for name := range browserOnlyAdvertised {
+		if _, both := sharedKeyOnlyAdvertised[name]; both {
+			t.Errorf("%s: carries both \"x-browser-session-only\": true and \"x-shared-key-only\": true -- exactly one tenant-scope marker must apply per route", name)
 		}
 	}
 
@@ -213,8 +270,10 @@ func TestScopedTokenAllowlistCompleteness(t *testing.T) {
 		wired := scopedHTTPRouteSupportsTenantFilter(req)
 		_, tokenMarked := tokenAdvertised[name]
 		_, browserOnlyMarked := browserOnlyAdvertised[name]
+		_, sharedKeyOnlyMarked := sharedKeyOnlyAdvertised[name]
 		marked := tokenMarked || browserOnlyMarked
 		_, ledgered := scopedTokenAdvertisedRoutes[name]
+		_, sharedKeyOnlyLedgered := sharedKeyOnlyRoutes[name]
 
 		switch {
 		case marked && !wired:
@@ -228,11 +287,82 @@ func TestScopedTokenAllowlistCompleteness(t *testing.T) {
 		case ledgered && !marked:
 			t.Errorf("%s: scopedTokenAdvertisedRoutes declares this route scoped, but its OpenAPI path entry has neither tenant-scope marker -- add the marker that matches the handler's actual auth.Mode requirement in its openapi_paths_*.go source, or remove the stale ledger entry", name)
 		}
+
+		// #5167 Group C: a shared-key-only marked route must be the opposite
+		// of the other two markers -- it must stay OFF the tenant-filter
+		// allowlist (wired == false), since its handler executes
+		// caller-supplied Cypher with nothing to bind a grant against, and it
+		// must be declared in the sharedKeyOnlyRoutes ledger
+		// (auth_scoped_routes_shared_key_only.go).
+		switch {
+		case sharedKeyOnlyMarked && wired:
+			t.Errorf("%s: carries \"x-shared-key-only\": true but scopedHTTPRouteSupportsTenantFilter(r) returns true -- a shared-key-only route must never clear the tenant-filter allowlist", name)
+		case sharedKeyOnlyMarked && !sharedKeyOnlyLedgered:
+			t.Errorf("%s: OpenAPI path entry carries \"x-shared-key-only\": true, but the route is missing from sharedKeyOnlyRoutes -- add it to the ledger (auth_scoped_routes_shared_key_only.go)", name)
+		case sharedKeyOnlyLedgered && !sharedKeyOnlyMarked:
+			t.Errorf("%s: sharedKeyOnlyRoutes declares this route shared-key-only, but its OpenAPI path entry has no \"x-shared-key-only\": true marker -- add the marker in its openapi_paths_*.go source, or remove the stale ledger entry", name)
+		}
 	}
 
 	for name := range scopedTokenAdvertisedRoutes {
 		if _, ok := surfaceSet[name]; !ok {
 			t.Errorf("%s: scopedTokenAdvertisedRoutes has a stale entry -- no implemented api_route surface has this name; remove the entry or fix the surface name to match capabilitycatalog.LoadSurfaceInventory()", name)
+		}
+	}
+	for name := range sharedKeyOnlyRoutes {
+		if _, ok := surfaceSet[name]; ok {
+			// The route is in the served OpenAPI surface (e.g.
+			// POST /api/v0/code/cypher): the loop above already validated its
+			// x-shared-key-only marker, so nothing more to check here.
+			continue
+		}
+		// The route is not in the served surface inventory. That is legitimate
+		// only when the route is intentionally OpenAPI-excluded via
+		// .github/openapi-known-drift.txt (POST /api/v0/code/visualize, #3781):
+		// it is a real, shared-key-only handler that verify-openapi.sh treats
+		// as covered, so this Go ledger is its sole machine-checkable
+		// classification -- it must NOT also carry an x-shared-key-only OpenAPI
+		// marker (it has no OpenAPI entry to carry one). Any other missing
+		// surface is a genuinely stale ledger entry.
+		if _, excluded := knownDrift[name]; !excluded {
+			t.Errorf("%s: sharedKeyOnlyRoutes has a stale entry -- no implemented api_route surface has this name and it is not in .github/openapi-known-drift.txt; remove the entry, fix the surface name to match capabilitycatalog.LoadSurfaceInventory(), or add it to known-drift if the route is intentionally OpenAPI-excluded", name)
+			continue
+		}
+		if _, marked := sharedKeyOnlyAdvertised[name]; marked {
+			t.Errorf("%s: is in .github/openapi-known-drift.txt (intentionally OpenAPI-excluded) yet also carries an \"x-shared-key-only\": true OpenAPI marker -- an OpenAPI-excluded route has no OpenAPI operation to mark; remove the marker or remove the route from known-drift", name)
+		}
+	}
+}
+
+// TestPendingRowFilteringRoutesDisjointFromScopedAndSharedKey is the #5167 W1
+// guardrail for the family workstreams (W2-W6). Each of the three route
+// classifications is a distinct terminal state, so a route may belong to
+// exactly one: the scoped-token allowlist ledger
+// (scopedTokenAdvertisedRoutes), the shared-key-only ledger
+// (sharedKeyOnlyRoutes), or the pending-row-filtering backlog
+// (pendingRowFilteringRoutes). This test fails the build when
+// pendingRowFilteringRoutes overlaps either of the other two, which is exactly
+// the mistake a family workstream makes when it lands the #5137 row-filtering
+// pattern for a Group B route and adds it to scopedTokenAdvertisedRoutes
+// (plus a matcher and marker) without deleting the now-stale
+// pendingRowFilteringRoutes entry. Without this check the route would be both
+// allowlisted and still advertised as an unfiltered gap -- a contradiction the
+// two staleness checks above do not catch, because both entries would name a
+// real implemented surface.
+//
+// All three maps are package-level vars in this package, so this literal-map
+// disjointness check lives here rather than in the go/internal/mcp
+// exhaustiveness test, which only sees the exported surface slices. The one
+// parameterized Group B entry (pendingRowFilteringEvidenceRelationshipRoute,
+// GET /api/v0/evidence/relationships/{id}) is intentionally not in either
+// literal ledger, so it cannot collide with a literal-map entry.
+func TestPendingRowFilteringRoutesDisjointFromScopedAndSharedKey(t *testing.T) {
+	for name := range pendingRowFilteringRoutes {
+		if _, ok := scopedTokenAdvertisedRoutes[name]; ok {
+			t.Errorf("%s: is in BOTH pendingRowFilteringRoutes and scopedTokenAdvertisedRoutes -- when a family workstream (W2-W6) allowlists a Group B route after adding real grant filtering, it MUST delete the route from pendingRowFilteringRoutes (auth_scoped_routes_pending_row_filtering.go); a route cannot be both allowlisted and advertised as an unfiltered pending gap", name)
+		}
+		if _, ok := sharedKeyOnlyRoutes[name]; ok {
+			t.Errorf("%s: is in BOTH pendingRowFilteringRoutes and sharedKeyOnlyRoutes -- a route is either a pending row-filtering gap or permanently shared-key-only, never both; remove it from pendingRowFilteringRoutes (auth_scoped_routes_pending_row_filtering.go)", name)
 		}
 	}
 }

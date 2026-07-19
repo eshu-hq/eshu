@@ -224,8 +224,9 @@ const openAPIPathsRepositories = `
       "get": {
         "tags": ["repositories"],
         "summary": "Get repository context",
-        "description": "Returns repository metadata with graph statistics.",
+        "description": "Returns repository metadata with graph statistics. Scoped tokens receive the same shape; a repository outside the caller's grant 404s like sibling repository routes.",
         "operationId": "getRepositoryContext",
+        "x-scoped-token-support": true,
         "parameters": [
           {"$ref": "#/components/parameters/RepoId"}
         ],
@@ -289,8 +290,9 @@ const openAPIPathsRepositories = `
       "get": {
         "tags": ["repositories"],
         "summary": "Get repository story",
-        "description": "Returns a structured repository story with deployment, support, and bounded content-store coverage overviews. Missing coverage remains explicit and does not trigger whole-graph traversal.",
+        "description": "Returns a structured repository story with deployment, support, and bounded content-store coverage overviews. Missing coverage remains explicit and does not trigger whole-graph traversal. Scoped tokens receive the same shape; a repository outside the caller's grant 404s like sibling repository routes.",
         "operationId": "getRepositoryStory",
+        "x-scoped-token-support": true,
         "parameters": [
           {"$ref": "#/components/parameters/RepoId"}
         ],
@@ -330,8 +332,9 @@ const openAPIPathsRepositories = `
       "get": {
         "tags": ["repositories"],
         "summary": "Get repository file tree",
-        "description": "Lists one directory level (or the full subtree with recursive=true) reconstructed from the content-store file index. Returns directory and file entries; child_count on a directory is the number of descendant files. The ref reflects the indexed commit SHA the tree was built from. When ref is supplied, it must resolve to the indexed commit; known but unindexed refs return 409 instead of silently falling back.",
+        "description": "Lists one directory level (or the full subtree with recursive=true) reconstructed from the content-store file index. Returns directory and file entries; child_count on a directory is the number of descendant files. The ref reflects the indexed commit SHA the tree was built from. When ref is supplied, it must resolve to the indexed commit; known but unindexed refs return 409 instead of silently falling back. Scoped tokens receive the same shape; a repository outside the caller's grant 404s like sibling repository routes.",
         "operationId": "getRepositoryTree",
+        "x-scoped-token-support": true,
         "parameters": [
           {"$ref": "#/components/parameters/RepoId"},
           {"name": "path", "in": "query", "required": false, "schema": {"type": "string"}, "description": "Directory subpath to list, relative to the repository root."},
@@ -418,8 +421,9 @@ const openAPIPathsRepositories = `
       "get": {
         "tags": ["repositories"],
         "summary": "Get repository coverage",
-        "description": "Returns content store coverage metrics for the repository.",
+        "description": "Returns content store coverage metrics for the repository. Scoped tokens receive the same shape; a repository outside the caller's grant 404s like sibling repository routes.",
         "operationId": "getRepositoryCoverage",
+        "x-scoped-token-support": true,
         "parameters": [
           {"$ref": "#/components/parameters/RepoId"}
         ],

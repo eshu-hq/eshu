@@ -8,8 +8,9 @@ const openAPIPathsVisualizationPackets = `
       "post": {
         "tags": ["visualizations"],
         "summary": "Derive a visualization packet",
-        "description": "Builds a bounded visualization packet from a source response the caller already received from an authorized answer route. The derivation is side-effect-free, performs no graph or content query, preserves the supplied source_truth in the packet, and returns a derived visualization.packet_derivation truth envelope. Supports service_story, evidence_citation, and incident_context views. Unsupported source shapes return an explicit unsupported packet with limitations and recommended next calls.",
+        "description": "Builds a bounded visualization packet from a source response the caller already received from an authorized answer route. The derivation is side-effect-free, performs no graph or content query, preserves the supplied source_truth in the packet, and returns a derived visualization.packet_derivation truth envelope. Supports service_story, evidence_citation, and incident_context views. Unsupported source shapes return an explicit unsupported packet with limitations and recommended next calls. Scoped tokens receive the same shape: VisualizationHandler holds no graph, content, or store reference, so there is no tenant-scoped data to filter -- the packet is reshaped entirely from the caller-supplied source_response.",
         "operationId": "deriveVisualizationPacket",
+        "x-scoped-token-support": true,
         "requestBody": {
           "required": true,
           "content": {

@@ -124,7 +124,12 @@ var scopedTokenAdvertisedRoutes = map[string]struct{}{
 	"GET /api/v0/package-registry/dependency-chains":                                {},
 	"GET /api/v0/query-playbooks":                                                   {},
 	"GET /api/v0/repositories":                                                      {},
+	"GET /api/v0/repositories/{repo_id}/context":                                    {},
+	"GET /api/v0/repositories/{repo_id}/coverage":                                   {},
 	"GET /api/v0/repositories/{repo_id}/freshness":                                  {},
+	"GET /api/v0/repositories/{repo_id}/stats":                                      {},
+	"GET /api/v0/repositories/{repo_id}/story":                                      {},
+	"GET /api/v0/repositories/{repo_id}/tree":                                       {},
 	"GET /api/v0/replatforming/selectors":                                           {},
 	"GET /api/v0/secrets-iam/identity-trust-chains":                                 {},
 	"GET /api/v0/secrets-iam/posture-gaps":                                          {},
@@ -205,4 +210,5 @@ var scopedTokenAdvertisedRoutes = map[string]struct{}{
 	"POST /api/v0/investigation-workflows/resolve":                                  {},
 	"POST /api/v0/query-playbooks/resolve":                                          {},
 	"POST /api/v0/search/semantic":                                                  {},
+	"POST /api/v0/visualizations/derive":                                            {},
 }

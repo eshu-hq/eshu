@@ -10,8 +10,9 @@ const openAPIPathsRepositoriesStats = `
       "get": {
         "tags": ["repositories"],
         "summary": "Get repository statistics",
-        "description": "Returns timeout-bounded repository statistics from content-store coverage when available. Counts are null and coverage.missing_evidence explains the gap when the read model is unavailable or times out; the handler does not fall back to whole-graph traversal. The response carries the canonical truth envelope plus an additive result_limits drilldown block and an explicit partial_reasons slot; the existing coverage partial_results/truncated/timeout fields are preserved.",
+        "description": "Returns timeout-bounded repository statistics from content-store coverage when available. Counts are null and coverage.missing_evidence explains the gap when the read model is unavailable or times out; the handler does not fall back to whole-graph traversal. The response carries the canonical truth envelope plus an additive result_limits drilldown block and an explicit partial_reasons slot; the existing coverage partial_results/truncated/timeout fields are preserved. Scoped tokens receive the same shape; a repository outside the caller's grant 404s like sibling repository routes.",
         "operationId": "getRepositoryStats",
+        "x-scoped-token-support": true,
         "parameters": [
           {"$ref": "#/components/parameters/RepoId"}
         ],

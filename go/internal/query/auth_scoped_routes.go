@@ -28,7 +28,35 @@ func scopedHTTPRouteSupportsTenantFilter(r *http.Request) bool {
 	if r.Method == http.MethodGet && r.URL.Path == "/api/v0/repositories" {
 		return true
 	}
-	if r.Method == http.MethodGet && scopedRepositoryFreshnessRoute(r.URL.Path) {
+	// Single-repository {repo_id} routes are matched against the ESCAPED path,
+	// not r.URL.Path. The MCP dispatchers build the path with url.PathEscape
+	// (go/internal/mcp/dispatch_repositories.go), so an org/repo-style selector
+	// arrives as one escaped segment (org%2Frepo); http.NewRequest decodes
+	// r.URL.Path back to org/repo -- reintroducing a slash that would trip
+	// scopedRepositorySingleResourceRoute's single-segment guard and 403 a
+	// legitimate scoped caller before the grant-filtering selector resolver
+	// runs (#5167 PR #5324 review, P1). r.URL.EscapedPath() preserves the
+	// single escaped segment and equals r.URL.Path for slash-free selectors.
+	repoRoutePath := r.URL.EscapedPath()
+	if r.Method == http.MethodGet && scopedRepositoryFreshnessRoute(repoRoutePath) {
+		return true
+	}
+	// #5167 Group A: already grant-filtered single-repository GET routes that
+	// only needed the allowlist matcher (see auth_scoped_routes_repository.go
+	// doc comments for each handler's resolution chain).
+	if r.Method == http.MethodGet && scopedRepositoryStatsRoute(repoRoutePath) {
+		return true
+	}
+	if r.Method == http.MethodGet && scopedRepositoryContextRoute(repoRoutePath) {
+		return true
+	}
+	if r.Method == http.MethodGet && scopedRepositoryStoryRoute(repoRoutePath) {
+		return true
+	}
+	if r.Method == http.MethodGet && scopedRepositoryCoverageRoute(repoRoutePath) {
+		return true
+	}
+	if r.Method == http.MethodGet && scopedRepositoryTreeRoute(repoRoutePath) {
 		return true
 	}
 	if r.Method == http.MethodPost && r.URL.Path == "/api/v0/code/search" {
@@ -38,6 +66,12 @@ func scopedHTTPRouteSupportsTenantFilter(r *http.Request) bool {
 		return true
 	}
 	if r.Method == http.MethodPost && r.URL.Path == "/api/v0/code/routes/callers" {
+		return true
+	}
+	// #5167 task 4: VisualizationHandler holds no graph/content/store
+	// reference (visualization_packet_handler.go) -- it only reshapes the
+	// caller-supplied source_response, so there is no tenant data to filter.
+	if r.Method == http.MethodPost && r.URL.Path == "/api/v0/visualizations/derive" {
 		return true
 	}
 	// POST /api/v0/ask orchestrates other read routes through the in-process MCP

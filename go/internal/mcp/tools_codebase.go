@@ -272,7 +272,7 @@ func codebaseTools() []ToolDefinition {
 		codeQualityInspectionTool(),
 		{
 			Name:        "execute_cypher_query",
-			Description: "Fallback tool to run a direct, read-only Cypher query against the code graph.",
+			Description: "Fallback tool to run a direct, read-only Cypher query against the code graph. Shared-key/all-scope callers only: the query text is caller-supplied and unbounded, so it cannot be intersected against a tenant grant. A scoped or browser-session token is rejected before this tool's request ever reaches the graph.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
@@ -293,7 +293,7 @@ func codebaseTools() []ToolDefinition {
 		},
 		{
 			Name:        "visualize_graph_query",
-			Description: "Executes a read-only Cypher query and returns a bounded, renderable graph visualization packet (nodes and edges) projected from the graph nodes, relationships, and paths in the result. RETURN whole graph entities (for example RETURN n, r, m) rather than scalar properties; scalar columns are not renderable and yield an explicit unsupported packet. The query is bounded with an injected LIMIT and executed against a read-only session.",
+			Description: "Executes a read-only Cypher query and returns a bounded, renderable graph visualization packet (nodes and edges) projected from the graph nodes, relationships, and paths in the result. RETURN whole graph entities (for example RETURN n, r, m) rather than scalar properties; scalar columns are not renderable and yield an explicit unsupported packet. The query is bounded with an injected LIMIT and executed against a read-only session. Shared-key/all-scope callers only: the query text is caller-supplied and unbounded, so it cannot be intersected against a tenant grant. A scoped or browser-session token is rejected before this tool's request ever reaches the graph.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
