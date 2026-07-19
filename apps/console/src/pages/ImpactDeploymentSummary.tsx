@@ -31,7 +31,13 @@ export function ImpactGraphProvenance({
         <span>
           bounds {presentation.nodeLimit}/{presentation.edgeLimit}
         </span>
-        <span>{presentation.truncated ? "truncated" : "complete within bounds"}</span>
+        <span>
+          {presentation.completeness === "unverified"
+            ? "completeness unverified"
+            : presentation.completeness === "truncated"
+              ? "truncated"
+              : "complete within bounds"}
+        </span>
       </div>
       <p className="mono impact-source">
         {presentation.sourceApis.join(" · ") || "No source API selected"}

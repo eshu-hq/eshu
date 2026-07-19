@@ -23,6 +23,7 @@ describe("impact deployment-source coverage normalization", () => {
       truncated: true,
     });
     expect(result.graphPresentation).toMatchObject({
+      completeness: "truncated",
       inputEdges: 52,
       mode: "deployment_trace",
       omittedEdges: 1,
@@ -43,6 +44,7 @@ describe("impact deployment-source coverage normalization", () => {
     expect(result.deploymentTrace.status).toBe("ready");
     if (result.deploymentTrace.status !== "ready") return;
     expect(result.deploymentTrace.data.deploymentSourceLimits).toBeNull();
+    expect(result.graphPresentation.completeness).toBe("unverified");
   });
 
   it.each([
@@ -62,6 +64,7 @@ describe("impact deployment-source coverage normalization", () => {
     expect(result.deploymentTrace.status).toBe("ready");
     if (result.deploymentTrace.status !== "ready") return;
     expect(result.deploymentTrace.data.deploymentSourceLimits).toBeNull();
+    expect(result.graphPresentation.completeness).toBe("unverified");
   });
 
   it("rejects contradictory runtime-topology coverage metadata", async () => {
@@ -77,6 +80,7 @@ describe("impact deployment-source coverage normalization", () => {
     expect(result.deploymentTrace.status).toBe("ready");
     if (result.deploymentTrace.status !== "ready") return;
     expect(result.deploymentTrace.data.runtimeTopologyLimits).toBeNull();
+    expect(result.graphPresentation.completeness).toBe("unverified");
     expect(result.graphPresentation.limitations).toContain(
       "runtime-topology completeness unverified because collection metadata is unavailable",
     );
@@ -85,7 +89,7 @@ describe("impact deployment-source coverage normalization", () => {
 
 function clientWithDeploymentSourceLimits(
   deploymentSourceLimits: unknown = validDeploymentSourceLimits(),
-  runtimeTopologyLimits?: unknown,
+  runtimeTopologyLimits: unknown = completeRuntimeTopologyLimits(),
 ): EshuApiClient {
   return {
     post: async (path: string) => {
@@ -125,6 +129,15 @@ function clientWithDeploymentSourceLimits(
       throw new Error(`unexpected path ${path}`);
     },
   } as unknown as EshuApiClient;
+}
+
+function completeRuntimeTopologyLimits(): Record<string, unknown> {
+  const limits = completeRuntimeLimits();
+  return {
+    instances: limits,
+    platform_edges: limits,
+    provisioned_platforms: limits,
+  };
 }
 
 function completeRuntimeLimits(): Record<string, unknown> {

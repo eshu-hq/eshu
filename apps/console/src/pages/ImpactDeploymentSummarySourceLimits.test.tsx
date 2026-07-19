@@ -1,8 +1,12 @@
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 
-import { DeploymentTraceSummary } from "./ImpactDeploymentSummary";
-import type { DeploymentSourceLimits, DeploymentTraceResult } from "../api/impactReviewTypes";
+import { DeploymentTraceSummary, ImpactGraphProvenance } from "./ImpactDeploymentSummary";
+import type {
+  DeploymentSourceLimits,
+  DeploymentTraceResult,
+  ImpactGraphPresentation,
+} from "../api/impactReviewTypes";
 
 describe("DeploymentTraceSummary deployment-source coverage", () => {
   it("discloses a lower-bound count when the server stopped at its sentinel", () => {
@@ -53,6 +57,38 @@ describe("DeploymentTraceSummary deployment-source coverage", () => {
         "Deployment source coverage unavailable; deployment topology completeness is unverified.",
       ),
     ).toBeInTheDocument();
+  });
+});
+
+describe("ImpactGraphProvenance completeness", () => {
+  it.each([
+    "runtime-topology completeness unverified because collection metadata is unavailable",
+    "deployment-source completeness unverified because coverage metadata is unavailable",
+  ])("does not call the graph complete when %s", (limitation) => {
+    const presentation: ImpactGraphPresentation = {
+      completeness: "unverified",
+      compositionDurationMs: 0,
+      duplicateEdges: 0,
+      duplicateNodes: 0,
+      edgeLimit: 120,
+      inputEdges: 2,
+      inputNodes: 3,
+      limitations: [limitation],
+      mode: "deployment_trace",
+      nodeLimit: 60,
+      omittedEdges: 0,
+      omittedNodes: 0,
+      renderedEdges: 2,
+      renderedNodes: 3,
+      sourceApis: ["/api/v0/impact/trace-deployment-chain"],
+      title: "Deployment topology",
+      truncated: false,
+    };
+
+    render(<ImpactGraphProvenance presentation={presentation} />);
+
+    expect(screen.getByText("completeness unverified")).toBeInTheDocument();
+    expect(screen.queryByText("complete within bounds")).not.toBeInTheDocument();
   });
 });
 

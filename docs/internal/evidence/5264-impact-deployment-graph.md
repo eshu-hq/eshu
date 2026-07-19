@@ -41,6 +41,10 @@ evidence groups when the trace does not supply exact topology endpoints.
 The graph reports input, rendered, duplicate, and omitted node/edge counts. It
 is deterministically capped at 60 nodes and 120 edges; exceeding either cap sets
 `truncated=true` and reports the omitted cardinality.
+When runtime-topology or deployment-source limit metadata is missing or fails
+validation, the console preserves those bounded counts but reports
+`completeness unverified`; it reserves `complete within bounds` for responses
+whose upstream completeness metadata is present and internally consistent.
 
 An ambiguous change-surface target does not select a ready deployment trace:
 the graph remains in change-surface mode and states that topology was withheld
@@ -60,14 +64,14 @@ RETURN i.id as instance_id,
        p.id as platform_id,
        p.name as platform_name,
        p.kind as platform_kind,
-       runsOn.confidence as platform_confidence,
-       runsOn.reason as platform_reason,
-       properties(runsOn) as platform_edge
+       collect(DISTINCT properties(runsOn)) as platform_edges
 ORDER BY instance_id, platform_name, platform_id
+LIMIT $platform_edge_limit
 ```
 
-The direct query also projects `properties(runsOn)` so confidence, rationale,
-and provenance stay attached to the exact endpoints. The unambiguous
+The direct query groups the distinct `RUNS_ON` property maps by exact endpoints;
+the response mapper then selects a deterministic evidence map so confidence,
+rationale, and provenance stay attached to those endpoints. The unambiguous
 repository fallback remains one indexed repository-anchored read and returns
 the distinct properties and endpoints of both provisioning relationships.
 Focused tests prove exact direct and fallback relationship families, endpoints,
@@ -93,6 +97,29 @@ fingerprints include the deterministic sentinel limits. Static query-plan
 regression and the backend-executed B-7 result are recorded below. The opt-in
 `ESHU_QUERYPLAN_PROFILE_LIVE=1` suite was not run for this correctness change,
 so this note makes no live PROFILE claim.
+
+The exact static query-plan and performance-evidence commands run after the
+review corrections were:
+
+```bash
+# From the go/ directory:
+GOCACHE=$PWD/.gocache-build5264 go test ./internal/queryplan -count=1
+GOCACHE=$PWD/.gocache-build5264 go test ./internal/query \
+    -run '^(TestHandlerQueryplanManifestBindsProductionBuilders|TestLegacyQueryplanManifestBindsProductionQueries)$' \
+    -count=1
+# From the repository root:
+bash scripts/test-verify-query-plan-regression.sh
+bash scripts/test-verify-performance-evidence.sh
+ESHU_PERFORMANCE_EVIDENCE_BASE=e8e3928b97c20335bf60cd47ea28a9ce884e9cf7 \
+  bash scripts/verify-performance-evidence.sh
+```
+
+Results: `internal/queryplan` passed in 0.455 seconds, the production-builder
+binding tests passed in 0.793 seconds, the query-plan script contract reported
+`test-verify-query-plan-regression: pass`, the performance-evidence verifier
+tests passed, and the branch verifier reported that benchmark and observability
+markers were present for the hot-path changes. These are static source/query
+contract and evidence-policy results only; no live PROFILE command was run.
 
 ## Golden contract
 

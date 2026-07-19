@@ -1,10 +1,10 @@
 import { boundedGraph } from "./impactGraphSelection";
-import { runtimeTopologyGraphAccounting } from "./impactRuntimeTopologyLimits";
 import type {
   DeploymentTraceResult,
   DeploymentTraceTopologyEdge,
   ImpactGraphPresentation,
 } from "./impactReviewTypes";
+import { runtimeTopologyGraphAccounting } from "./impactRuntimeTopologyLimits";
 import type { GraphEdge, GraphLayer, GraphModel, GraphNode, UiTruth } from "../console/types";
 
 export function deploymentTraceGraph(
@@ -213,14 +213,22 @@ export function deploymentTraceGraph(
     identityOmittedEdges,
     limitations,
   );
+  const completenessMetadataAvailable =
+    trace.runtimeTopologyLimits !== null && trace.deploymentSourceLimits !== null;
+  const truncated =
+    bounded.presentation.truncated ||
+    runtimeAccounting.truncated ||
+    trace.deploymentSourceLimits?.truncated === true;
   return {
     graph: bounded.graph,
     presentation: {
       ...bounded.presentation,
-      truncated:
-        bounded.presentation.truncated ||
-        runtimeAccounting.truncated ||
-        trace.deploymentSourceLimits?.truncated === true,
+      completeness: completenessMetadataAvailable
+        ? truncated
+          ? "truncated"
+          : "complete"
+        : "unverified",
+      truncated,
     },
   };
 }

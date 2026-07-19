@@ -35,8 +35,10 @@ export interface ImpactReview {
 }
 
 export type ImpactGraphMode = "blast_radius" | "change_surface" | "deployment_trace" | "empty";
+export type ImpactGraphCompleteness = "complete" | "truncated" | "unverified";
 
 export interface ImpactGraphPresentation {
+  readonly completeness: ImpactGraphCompleteness;
   readonly compositionDurationMs: number;
   readonly duplicateEdges: number;
   readonly duplicateNodes: number;

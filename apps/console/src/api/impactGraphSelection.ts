@@ -76,6 +76,7 @@ export function boundedGraph(
   return {
     graph: { edges, nodes },
     presentation: {
+      completeness: truncated ? "truncated" : "complete",
       compositionDurationMs: 0,
       duplicateEdges,
       duplicateNodes,

@@ -145,6 +145,7 @@ function existingGraph(
   return {
     graph,
     presentation: {
+      completeness: "complete",
       compositionDurationMs: 0,
       duplicateEdges: 0,
       duplicateNodes: 0,
