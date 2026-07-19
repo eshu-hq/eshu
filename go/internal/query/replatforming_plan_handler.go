@@ -82,6 +82,7 @@ func (h *IaCHandler) handleReplatformingPlan(w http.ResponseWriter, r *http.Requ
 		WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	filter = bindIaCManagementFilterAccess(r.Context(), filter)
 	if h == nil || h.Management == nil {
 		WriteError(w, http.StatusServiceUnavailable, "IaC management store is required")
 		return

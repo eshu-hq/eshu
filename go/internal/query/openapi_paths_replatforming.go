@@ -14,6 +14,7 @@ const openAPIPathsReplatforming = `
         "summary": "Compose a service-scoped replatforming plan",
         "description": "Composes one bounded, truth-labeled replatforming plan over active AWS IaC management and runtime-drift findings. Each migration packet item carries its management status, finding kind, provider-neutral source state, safety gate, source layers, owner candidates with ambiguity reasons, and a ready or refused Terraform import candidate. The route is read-only: it never runs Terraform, imports resources, or mutates cloud or repository state. Lightweight local profiles return unsupported_capability.",
         "operationId": "composeReplatformingPlan",
+        "x-scoped-token-support": true,
         "requestBody": {
           "required": true,
           "content": {

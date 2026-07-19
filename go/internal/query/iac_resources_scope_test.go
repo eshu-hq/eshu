@@ -70,9 +70,14 @@ func TestScopedIaCResourceListGateRejectsAdjacentRoute(t *testing.T) {
 	}
 	handler := AuthMiddlewareWithScopedTokens("", resolver, mockHandler())
 
-	// POST /api/v0/iac/dead is an adjacent IaC route that stays fail-closed for
-	// scoped tokens; only the GET list route is enabled.
-	req := httptest.NewRequest(http.MethodPost, "/api/v0/iac/dead", nil)
+	// POST /api/v0/aws/runtime-drift/findings is an adjacent AWS/IaC route
+	// that stays fail-closed for scoped tokens (#5167 Group B,
+	// pendingRowFilteringRoutes -- it has no AllowedScopeIDs grant-filtering
+	// wired yet); only the GET list route and the #5167 W4 iac/replatforming
+	// family (POST /api/v0/iac/dead among them, see
+	// TestAuthMiddlewareWithScopedTokensAllowsIaCDeadWithEmptyGrant) are
+	// enabled.
+	req := httptest.NewRequest(http.MethodPost, "/api/v0/aws/runtime-drift/findings", nil)
 	req.Header.Set("Authorization", "Bearer scoped-token")
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)

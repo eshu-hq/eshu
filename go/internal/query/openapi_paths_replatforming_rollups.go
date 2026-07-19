@@ -10,6 +10,7 @@ const openAPIPathsReplatformingRollups = `
         "summary": "Roll up replatforming drift and readiness",
         "description": "Aggregates active reducer-materialized AWS runtime drift and IaC findings into bounded rollups by account, environment, and service over the provider-neutral source-state taxonomy plus an import-readiness view. Per-item source state is preserved; ambiguous or missing service/environment attribution is counted under explicit __ambiguous__ and __unattributed__ buckets and is never guessed.",
         "operationId": "rollupReplatformingReadiness",
+        "x-scoped-token-support": true,
         "requestBody": {
           "required": true,
           "content": {

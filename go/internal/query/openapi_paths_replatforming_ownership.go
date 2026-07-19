@@ -10,6 +10,7 @@ const openAPIPathsReplatformingOwnership = `
         "summary": "Compose unmanaged-resource ownership packets",
         "description": "For each active reducer-materialized AWS runtime drift finding, composes a bounded ownership packet of owner, repository, module, service, and environment candidates with explicit ambiguity reasons, confidence, freshness, and the read-only safety gate. Candidates are derived from reducer-owned finding fields only; a single candidate is derived, never exact, and conflicting candidates are surfaced with ambiguity reasons rather than collapsed to a single guessed owner. Raw tags remain provenance-only and never become owner candidates. Requires the local-authoritative profile or higher; lower profiles return 501 unsupported_capability.",
         "operationId": "composeReplatformingOwnershipPackets",
+        "x-scoped-token-support": true,
         "requestBody": {
           "required": true,
           "content": {

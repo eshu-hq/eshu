@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/lib/pq"
 )
 
 // AWSCloudRuntimeDriftFindingFactKind is the durable reducer fact emitted for
@@ -22,14 +24,31 @@ const (
 
 // AWSCloudRuntimeDriftFindingFilter bounds active AWS drift finding reads. The
 // store rejects filters without ScopeID or AccountID and caps list pages.
+//
+// Scoped and AllowedScopeIDs bind the read to a scoped-token or
+// browser-session caller's exact AWS collector-scope grant (#5167 W4). The
+// zero value (Scoped false) is the pre-existing admin/shared-key/all-scopes
+// behavior every caller before this field existed relied on -- the query
+// text is unchanged, and every direct construction of this filter across the
+// package's existing tests stays correct without updating them. When Scoped
+// is true, ListActiveFindings and CountActiveFindings intersect every row
+// with AllowedScopeIDs via `fact.scope_id = ANY(...)`, and return zero rows
+// WITHOUT querying Postgres at all when AllowedScopeIDs is empty -- a scoped
+// caller with no granted AWS collector scope must never observe another
+// tenant's cloud drift findings (existence, volume, or identity), the same
+// defense-in-depth double guard LiveActivityStore.ReadLiveActivity uses
+// (allScopes there is this field's inverse; see buildLiveActivityQuery in
+// go/internal/storage/postgres/status_operations.go).
 type AWSCloudRuntimeDriftFindingFilter struct {
-	ScopeID      string
-	AccountID    string
-	Region       string
-	ARN          string
-	FindingKinds []string
-	Limit        int
-	Offset       int
+	ScopeID         string
+	AccountID       string
+	Region          string
+	ARN             string
+	FindingKinds    []string
+	Limit           int
+	Offset          int
+	Scoped          bool
+	AllowedScopeIDs []string
 }
 
 // AWSCloudRuntimeDriftFindingRow is one active reducer finding loaded from
@@ -92,6 +111,9 @@ func (s AWSCloudRuntimeDriftFindingStore) ListActiveFindings(
 	if s.db == nil {
 		return nil, fmt.Errorf("aws cloud runtime drift finding store database is required")
 	}
+	if filter.Scoped && len(filter.AllowedScopeIDs) == 0 {
+		return nil, nil
+	}
 	filter = normalizeAWSCloudRuntimeDriftFindingFilter(filter)
 	if err := validateAWSCloudRuntimeDriftFindingFilter(filter); err != nil {
 		return nil, err
@@ -136,6 +158,9 @@ func (s AWSCloudRuntimeDriftFindingStore) CountActiveFindings(
 ) (int, error) {
 	if s.db == nil {
 		return 0, fmt.Errorf("aws cloud runtime drift finding store database is required")
+	}
+	if filter.Scoped && len(filter.AllowedScopeIDs) == 0 {
+		return 0, nil
 	}
 	filter = normalizeAWSCloudRuntimeDriftFindingFilter(filter)
 	if err := validateAWSCloudRuntimeDriftFindingFilter(filter); err != nil {
@@ -249,6 +274,16 @@ func buildAWSCloudRuntimeDriftFindingQuery(
 			placeholders = append(placeholders, addArg(kind))
 		}
 		conditions = append(conditions, "fact.payload->>'finding_kind' IN ("+strings.Join(placeholders, ", ")+")")
+	}
+	if filter.Scoped {
+		// #5167 W4: intersect with the caller's exact granted AWS collector
+		// scopes. ListActiveFindings/CountActiveFindings never reach this
+		// builder with Scoped true and an empty AllowedScopeIDs (they
+		// short-circuit to zero rows first), but binding
+		// `= ANY(allowed_scope_ids)` here even against an empty array is a
+		// safe no-op (matches zero rows), not a leak, so this stays
+		// unconditional on Scoped rather than also checking length.
+		conditions = append(conditions, "fact.scope_id = ANY("+addArg(pq.StringArray(filter.AllowedScopeIDs))+")")
 	}
 
 	var builder strings.Builder
