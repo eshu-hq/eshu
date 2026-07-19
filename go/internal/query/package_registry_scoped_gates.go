@@ -6,6 +6,7 @@ package query
 import (
 	"net/http"
 
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -40,6 +41,14 @@ type packageRegistryPackagesGateResult struct {
 	// returns every package sharing the anchor regardless of visibility or
 	// grant.
 	nameAnchorRedactByID map[string]bool
+	// nameAnchorCandidatesTruncated reports whether more than
+	// packageRegistryNameAnchorCandidateLimit packages matched the
+	// name+ecosystem anchor (packageRegistryNameAnchorCandidates detected the
+	// limit+1 row). listPackages MUST fold this into the response's
+	// truncated flag so a caller cannot mistake a capped candidate set for a
+	// complete one -- the same silent-drop shape this fix closes, just past a
+	// higher and rarer threshold instead of always.
+	nameAnchorCandidatesTruncated bool
 }
 
 // packageRegistryPackagesGate performs the empty-grant short-circuit, the
@@ -96,10 +105,16 @@ func packageRegistryPackagesGate(
 		// -- collapsing to a single resolved id here would silently drop
 		// other legitimate public or grant-accessible packages sharing the
 		// name (see packageRegistryNameAnchorCandidates's doc comment).
-		candidates, err := packageRegistryNameAnchorCandidates(r.Context(), h.Neo4j, ecosystem, name)
+		candidates, candidatesTruncated, err := packageRegistryNameAnchorCandidates(r.Context(), h.Neo4j, ecosystem, name)
 		if err != nil {
 			WriteError(w, http.StatusInternalServerError, err.Error())
 			return result, true
+		}
+		if candidatesTruncated {
+			// Operator-facing signal: more than packageRegistryNameAnchorCandidateLimit
+			// packages share this {ecosystem, normalized_name} anchor. Not
+			// expected in practice; if it fires, the cap may need raising.
+			span.SetAttributes(attribute.Bool("pkgreg.name_anchor_candidates_truncated", true))
 		}
 		if len(candidates) == 0 {
 			// Name did not resolve. Issue the same correlation probe a
@@ -114,22 +129,31 @@ func packageRegistryPackagesGate(
 			writeEmptyPackageRegistryPackagesPage(w, r, h, limit)
 			return result, true
 		}
+		candidateGates, err := packageRegistryGateForVisibilityBatch(r.Context(), span, h.Correlations, candidates, access)
+		if err != nil {
+			WriteError(w, http.StatusInternalServerError, err.Error())
+			return result, true
+		}
 		redactByID := make(map[string]bool, len(candidates))
 		for _, candidate := range candidates {
-			gate, gateErr := packageRegistryGateForVisibility(r.Context(), span, h.Correlations, candidate.PackageID, candidate.Visibility, access)
-			if gateErr != nil {
-				WriteError(w, http.StatusInternalServerError, gateErr.Error())
-				return result, true
-			}
-			if gate.proceed {
+			if gate := candidateGates[candidate.PackageID]; gate.proceed {
 				redactByID[candidate.PackageID] = gate.redactSourcePath
 			}
 		}
 		if len(redactByID) == 0 {
+			// Every candidate was denied. Write the same empty page a
+			// nonexistent name produces -- do NOT set
+			// nameAnchorCandidatesTruncated here even if candidatesTruncated
+			// is true: a fully-denied caller must not learn "many packages
+			// share this name" from a response shape it cannot otherwise
+			// distinguish from "the name does not exist" (no existence
+			// oracle). The truncation signal is only meaningful once at
+			// least one row is actually being returned to the caller.
 			writeEmptyPackageRegistryPackagesPage(w, r, h, limit)
 			return result, true
 		}
 		result.nameAnchorRedactByID = redactByID
+		result.nameAnchorCandidatesTruncated = candidatesTruncated
 		// Fail-closed default for a row that fails identity extraction
 		// (packageRegistryPackageResultFromRow returns an issue instead of a
 		// PackageRegistryPackageResult, so it has no package_id to look up in

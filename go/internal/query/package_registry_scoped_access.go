@@ -140,6 +140,102 @@ func packageRegistryGateForVisibility(
 	return packageRegistryAnchorGate{proceed: granted}, nil
 }
 
+// packageRegistryGateForVisibilityBatch is the batched sibling of
+// packageRegistryGateForVisibility for the name+ecosystem branch, where up to
+// packageRegistryNameAnchorCandidateLimit candidates must each be gated: it
+// resolves every public candidate immediately (no store read) and issues ONE
+// correlation query for every private/unknown candidate instead of one query
+// per candidate.
+//
+// A single shared-LIMIT batched read is NOT simply correct here:
+// listPackageRegistryCorrelationsQuery orders by fact_id across the WHOLE
+// matched set and applies one LIMIT, so if one candidate has many
+// grant-visible correlation rows within the caller's own granted
+// repositories/scopes, its rows can fill the page before a co-candidate's
+// only row is reached -- silently reproducing this same PR's class of bug
+// (a real candidate treated as ungranted) at the correlation layer instead
+// of the anchor layer. This function closes that gap: it batches at
+// packageRegistryMaxLimit (comfortably above the realistic per-candidate
+// row count within one caller's own grant) and, if the response filled that
+// page (proving at least one candidate's rows could have crowded out
+// another's), individually re-verifies every candidate whose presence in
+// the batched result is still unproven -- so batching is a strict
+// round-trip win in the common case and never trades correctness for it in
+// the adversarial one.
+func packageRegistryGateForVisibilityBatch(
+	ctx context.Context,
+	span trace.Span,
+	correlations PackageRegistryCorrelationStore,
+	candidates []packageRegistryNameCandidate,
+	access repositoryAccessFilter,
+) (map[string]packageRegistryAnchorGate, error) {
+	gates := make(map[string]packageRegistryAnchorGate, len(candidates))
+	needsProbe := make([]packageRegistryNameCandidate, 0, len(candidates))
+	for _, candidate := range candidates {
+		if candidate.Visibility == packageRegistryVisibilityPublic {
+			gates[candidate.PackageID] = packageRegistryAnchorGate{proceed: true, redactSourcePath: true}
+			continue
+		}
+		needsProbe = append(needsProbe, candidate)
+	}
+	if len(needsProbe) == 0 {
+		span.SetAttributes(attribute.Bool("pkgreg.scoped_visibility_forced", true))
+		return gates, nil
+	}
+	if correlations == nil {
+		span.SetAttributes(attribute.String("pkgreg.correlation_grant", "unavailable"))
+		for _, candidate := range needsProbe {
+			gates[candidate.PackageID] = packageRegistryAnchorGate{}
+		}
+		return gates, nil
+	}
+	packageIDs := make([]string, len(needsProbe))
+	for i, candidate := range needsProbe {
+		packageIDs[i] = candidate.PackageID
+	}
+	rows, err := correlations.ListPackageRegistryCorrelations(ctx, PackageRegistryCorrelationFilter{
+		PackageIDs:           packageIDs,
+		Limit:                packageRegistryMaxLimit,
+		AllowedRepositoryIDs: access.grantedRepositoryIDs(),
+		AllowedScopeIDs:      access.grantedScopeIDs(),
+	})
+	if err != nil {
+		return nil, err
+	}
+	grantedSeen := make(map[string]bool, len(rows))
+	for _, row := range rows {
+		grantedSeen[row.PackageID] = true
+	}
+	// The batch page filled: some candidate's rows may have crowded a
+	// co-candidate's only row off the LIMIT window, so an absence in
+	// grantedSeen is not proof of zero correlations. Below the cap, absence
+	// IS proof (the query would have returned every matching row).
+	ambiguous := len(rows) >= packageRegistryMaxLimit
+	verified := 0
+	for _, candidate := range needsProbe {
+		if grantedSeen[candidate.PackageID] {
+			gates[candidate.PackageID] = packageRegistryAnchorGate{proceed: true}
+			continue
+		}
+		if !ambiguous {
+			gates[candidate.PackageID] = packageRegistryAnchorGate{}
+			continue
+		}
+		gate, err := packageRegistryGateForVisibility(ctx, span, correlations, candidate.PackageID, candidate.Visibility, access)
+		if err != nil {
+			return nil, err
+		}
+		gates[candidate.PackageID] = gate
+		verified++
+	}
+	span.SetAttributes(
+		attribute.Int("pkgreg.name_anchor_batch_candidates", len(needsProbe)),
+		attribute.Bool("pkgreg.name_anchor_batch_ambiguous", ambiguous),
+		attribute.Int("pkgreg.name_anchor_batch_individually_verified", verified),
+	)
+	return gates, nil
+}
+
 // packageRegistryAnchorVisibility resolves one Package node's visibility by
 // its indexed uid. An empty result (package does not exist) returns "" so
 // the caller falls to the correlation probe, which will also miss (0 rows)
@@ -171,33 +267,42 @@ type packageRegistryNameCandidate struct {
 // given), reusing the same {ecosystem, normalized_name} anchor the unscoped
 // list already matches on. normalized_name is not a unique package identity
 // within an ecosystem -- distinct registries or namespaces can legitimately
-// share it (packageRegistryNameAnchorVisibilityCypher has no LIMIT for this
-// reason) -- so callers MUST gate every returned candidate individually
-// rather than collapsing to a single resolved id. A zero-length return means
-// no package matched.
+// share it -- so callers MUST gate every returned candidate individually
+// rather than collapsing to a single resolved id.
+//
+// A zero-length return means no package matched. truncated reports whether
+// more than packageRegistryNameAnchorCandidateLimit candidates matched
+// (packageRegistryNameAnchorVisibilityCypher fetches one past the limit to
+// detect this, the same idiom listPackages uses for page limits); the
+// caller MUST surface this rather than silently presenting a partial
+// candidate set as complete.
 func packageRegistryNameAnchorCandidates(
 	ctx context.Context,
 	graph GraphQuery,
 	ecosystem, name string,
-) ([]packageRegistryNameCandidate, error) {
+) (candidates []packageRegistryNameCandidate, truncated bool, err error) {
 	if graph == nil {
-		return nil, fmt.Errorf("package registry graph is required")
+		return nil, false, fmt.Errorf("package registry graph is required")
 	}
 	rows, err := graph.Run(ctx, packageRegistryNameAnchorVisibilityCypher, map[string]any{
 		"ecosystem": ecosystem,
 		"name":      name,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("resolve package registry name anchor: %w", err)
+		return nil, false, fmt.Errorf("resolve package registry name anchor: %w", err)
 	}
-	candidates := make([]packageRegistryNameCandidate, 0, len(rows))
+	if len(rows) > packageRegistryNameAnchorCandidateLimit {
+		truncated = true
+		rows = rows[:packageRegistryNameAnchorCandidateLimit]
+	}
+	candidates = make([]packageRegistryNameCandidate, 0, len(rows))
 	for _, row := range rows {
 		candidates = append(candidates, packageRegistryNameCandidate{
 			PackageID:  StringVal(row, "package_id"),
 			Visibility: StringVal(row, "visibility"),
 		})
 	}
-	return candidates, nil
+	return candidates, truncated, nil
 }
 
 // packageRegistryVersionAnchorPackageID resolves a PackageVersion's owning

@@ -238,7 +238,7 @@ source_coverage:
         count: 1
         non_hot:
           class: keyed_support
-          source_sha256: 6151a96202da1a83cbde8545114152fb335869763bb97a350b23a212b3115ab9
+          source_sha256: b6cc6cff14dba78264c8433a6f0deed1481a6844a8fc46d2285ae0b9efc7051b
           key_bound: single_key
           max_results: 201
       - symbol: "(*PackageRegistryHandler).listVersions"
@@ -265,7 +265,7 @@ source_coverage:
         count: 1
         non_hot:
           class: keyed_support
-          source_sha256: 51a5b03afaec3310ad05d2d55eef4563d2803081562b2139abcb911cb03abced
+          source_sha256: d47ab5e072dff4fb7fa11c73f912e9f2db350ac012da77f498b67fd36a2d4c00
           key_bound: single_key
           max_results: 50
       - symbol: "packageRegistryVersionAnchorPackageID"

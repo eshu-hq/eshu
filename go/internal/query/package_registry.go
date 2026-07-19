@@ -172,11 +172,27 @@ func (h *PackageRegistryHandler) listPackages(w http.ResponseWriter, r *http.Req
 	}
 	results := make([]PackageRegistryPackageResult, 0, len(rows))
 	identityIssues := make([]PackageRegistryIdentityIssue, 0)
-	truncated := len(rows) > limit
+	// nameAnchorCandidatesTruncated forces truncated=true even when the
+	// returned page fits under limit: it means the name+ecosystem anchor
+	// itself was capped (packageRegistryNameAnchorCandidateLimit), so this
+	// response cannot be presented as a complete candidate set.
+	truncated := len(rows) > limit || gate.nameAnchorCandidatesTruncated
 	for _, row := range rows {
 		result, issue := packageRegistryPackageResultFromRow(row)
 		if issue != nil {
-			if redactSourcePath {
+			if nameAnchorRedactByID != nil {
+				// The name+ecosystem branch cannot look up this row's grant
+				// status (packageRegistryPackageResultFromRow already failed
+				// to extract a package_id, so there is no key for
+				// nameAnchorRedactByID): fail closed on every metadata field
+				// this issue carries, not just source_path. A malformed row
+				// sharing the requested name could belong to a
+				// private/unknown package the caller has no grant for, and
+				// registry/namespace/purl/package_manager/source_specific_id/
+				// source_confidence/version_count are as much a metadata leak
+				// as source_path is.
+				redactPackageRegistryIdentityIssueMetadata(issue)
+			} else if redactSourcePath {
 				issue.SourcePath = ""
 			}
 			identityIssues = append(identityIssues, *issue)
