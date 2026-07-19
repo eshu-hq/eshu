@@ -42,12 +42,12 @@ func newRandomID(prefix string) (string, error) {
 }
 
 // adminProviderConfigWriteRequest is the JSON body for creating or updating a
-// provider config. Exactly one of the OIDC or SAML field groups is read,
-// selected by ProviderKind. Every secret field (ClientSecret, SPPrivateKey,
-// SPCertificate) is write-only: the handler seals it via the store and never
-// echoes it back in any response.
+// provider config. Exactly one of the OIDC, SAML, or GitHub field groups is
+// read, selected by ProviderKind. Every secret field (ClientSecret,
+// SPPrivateKey, SPCertificate) is write-only: the handler seals it via the
+// store and never echoes it back in any response.
 type adminProviderConfigWriteRequest struct {
-	ProviderKind string `json:"provider_kind"` // "oidc" | "saml"
+	ProviderKind string `json:"provider_kind"` // "oidc" | "saml" | "github"
 
 	// ProviderConfigID is optional on create: when omitted, the handler
 	// generates a random id. When supplied, it is used verbatim — this is how
