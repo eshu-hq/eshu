@@ -337,6 +337,7 @@ func TestLoadResourceInvestigationSectionsJoinsParallelErrors(t *testing.T) {
 		context.Background(),
 		resourceInvestigationRequest{Limit: 1, MaxDepth: 1},
 		&resourceInvestigationCandidate{ID: "cloud:rds:orders", Labels: []string{"CloudResource"}},
+		repositoryAccessFilter{allScopes: true},
 	)
 	if !errors.Is(err, workloadErr) {
 		t.Fatalf("joined error missing workload error: %v", err)
@@ -355,6 +356,7 @@ func TestLoadResourceInvestigationSectionsRejectsUnknownAnchorLabel(t *testing.T
 		context.Background(),
 		resourceInvestigationRequest{Limit: 1, MaxDepth: 1},
 		&resourceInvestigationCandidate{ID: "proof", Labels: []string{"Repository"}},
+		repositoryAccessFilter{allScopes: true},
 	)
 	if err == nil || !strings.Contains(err.Error(), "supported infrastructure label") {
 		t.Fatalf("loadResourceInvestigationSections() error = %v, want fail-closed label error", err)

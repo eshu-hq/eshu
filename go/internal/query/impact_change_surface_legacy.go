@@ -77,6 +77,10 @@ func (h *ImpactHandler) findChangeSurface(w http.ResponseWriter, r *http.Request
 		TargetType: legacyChangeSurfaceTargetType(req.Kind, req.TargetType),
 		Limit:      limit,
 	}
+	// resolveChangeSurfaceTarget already binds the resolved start candidate to
+	// the caller's grant (#5167 W3); findChangeSurfaceImpactRows independently
+	// binds every impacted row below, since the traversal can transitively
+	// reach a repository the caller does not hold.
 	selected, _, err := h.resolveChangeSurfaceTarget(r.Context(), resolverReq)
 	if err != nil {
 		WriteError(w, http.StatusInternalServerError, err.Error())
@@ -88,7 +92,7 @@ func (h *ImpactHandler) findChangeSurface(w http.ResponseWriter, r *http.Request
 	truncated := false
 	if selected != nil {
 		target = map[string]any{"id": selected.ID, "name": selected.Name}
-		rows, rowsTruncated, traversalErr := h.findChangeSurfaceImpactRows(r.Context(), *selected, req.Environment, depth, limit)
+		rows, rowsTruncated, traversalErr := h.findChangeSurfaceImpactRows(r.Context(), *selected, req.Environment, depth, limit, repositoryAccessFilterFromContext(r.Context()))
 		if traversalErr != nil {
 			WriteError(w, http.StatusInternalServerError, traversalErr.Error())
 			return
@@ -115,7 +119,7 @@ func (h *ImpactHandler) findChangeSurface(w http.ResponseWriter, r *http.Request
 const changeSurfaceLegacyCypher = `MATCH path = %s-[*1..%d]->(impacted)
 WHERE impacted.id <> $target_id AND any(label IN labels(impacted) WHERE label IN ['Repository', 'Workload', 'WorkloadInstance', 'CloudResource', 'TerraformModule', 'DataAsset'])%s
 RETURN impacted.id as id, impacted.name as name, labels(impacted) as labels, impacted.environment as environment,
-	length(path) as depth, relationships(path) as rels
+	impacted.repo_id as repo_id, length(path) as depth, relationships(path) as rels
 ORDER BY depth, name, id
 LIMIT $limit`
 
@@ -130,7 +134,15 @@ func (h *ImpactHandler) findChangeSurfaceImpactRows(
 	environment string,
 	depth int,
 	limit int,
+	access repositoryAccessFilter,
 ) ([]map[string]any, bool, error) {
+	// #5167 W3: mirror changeSurfaceImpactRows's empty-grant short circuit --
+	// the caller's target is already resolved through the grant-filtered
+	// resolveChangeSurfaceTarget, but a scoped caller with no granted
+	// repositories must never see impacted rows.
+	if access.empty() {
+		return nil, false, nil
+	}
 	startPattern, err := changeSurfaceTraversalStartPattern(target)
 	if err != nil {
 		return nil, false, err
@@ -167,6 +179,9 @@ func (h *ImpactHandler) findChangeSurfaceImpactRows(
 	for _, row := range rows {
 		env := StringVal(row, "environment")
 		if environment != "" && env != "" && env != environment {
+			continue
+		}
+		if !impactRepoIDAllowed(changeSurfaceImpactedRowRepoID(row), access) {
 			continue
 		}
 		base := map[string]any{"id": StringVal(row, "id"), "name": StringVal(row, "name"), "labels": StringSliceVal(row, "labels"), "depth": IntVal(row, "depth")}

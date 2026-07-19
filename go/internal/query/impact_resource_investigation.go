@@ -80,6 +80,22 @@ func (h *ImpactHandler) investigateResource(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	// #5167 W3: resourceInvestigationResolverCypher matches by free-text/exact
+	// selector across every supported infra label with no repo scoping in the
+	// Cypher itself, so an empty grant short-circuits to "no match" without
+	// running the resolver query, and resolveResourceInvestigationTarget filters
+	// the resolved candidates by the caller's grant below.
+	if access := repositoryAccessFilterFromContext(r.Context()); access.empty() {
+		resp := resourceInvestigationResponse(req, resourceInvestigationEmptyGrantResolution(req), nil, nil, nil, nil, false)
+		WriteSuccess(w, r, http.StatusOK, resp, BuildTruthEnvelope(
+			h.profile(),
+			resourceInvestigationCapability,
+			TruthBasisHybrid,
+			"resolved resource ambiguity before graph traversal",
+		))
+		return
+	}
+
 	selected, resolution, err := h.resolveResourceInvestigationTarget(r.Context(), req)
 	if err != nil {
 		WriteError(w, http.StatusInternalServerError, err.Error())
@@ -96,7 +112,9 @@ func (h *ImpactHandler) investigateResource(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	workloads, workloadsTruncated, incomingPaths, incomingTruncated, outgoingPaths, outgoingTruncated, err := h.loadResourceInvestigationSections(r.Context(), req, selected)
+	workloads, workloadsTruncated, incomingPaths, incomingTruncated, outgoingPaths, outgoingTruncated, err := h.loadResourceInvestigationSections(
+		r.Context(), req, selected, repositoryAccessFilterFromContext(r.Context()),
+	)
 	if err != nil {
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -116,6 +134,7 @@ func (h *ImpactHandler) loadResourceInvestigationSections(
 	ctx context.Context,
 	req resourceInvestigationRequest,
 	selected *resourceInvestigationCandidate,
+	access repositoryAccessFilter,
 ) (
 	[]map[string]any,
 	bool,
@@ -146,7 +165,7 @@ func (h *ImpactHandler) loadResourceInvestigationSections(
 	go func() {
 		defer wg.Done()
 		var err error
-		workloads, workloadsTruncated, err = h.resourceInvestigationWorkloads(ctx, req, selected)
+		workloads, workloadsTruncated, err = h.resourceInvestigationWorkloads(ctx, req, selected, access)
 		if err != nil {
 			errCh <- err
 		}
@@ -154,7 +173,7 @@ func (h *ImpactHandler) loadResourceInvestigationSections(
 	go func() {
 		defer wg.Done()
 		var err error
-		incomingPaths, incomingTruncated, err = h.resourceInvestigationRepoPaths(ctx, req, selected, "incoming")
+		incomingPaths, incomingTruncated, err = h.resourceInvestigationRepoPaths(ctx, req, selected, "incoming", access)
 		if err != nil {
 			errCh <- err
 		}
@@ -162,7 +181,7 @@ func (h *ImpactHandler) loadResourceInvestigationSections(
 	go func() {
 		defer wg.Done()
 		var err error
-		outgoingPaths, outgoingTruncated, err = h.resourceInvestigationRepoPaths(ctx, req, selected, "outgoing")
+		outgoingPaths, outgoingTruncated, err = h.resourceInvestigationRepoPaths(ctx, req, selected, "outgoing", access)
 		if err != nil {
 			errCh <- err
 		}
@@ -218,6 +237,21 @@ func normalizeResourceInvestigationType(value string) string {
 	}
 }
 
+// resourceInvestigationEmptyGrantResolution builds the "no match" resolution
+// envelope for a scoped caller with an empty grant, mirroring the shape
+// resolveResourceInvestigationTarget returns for a zero-candidate resolution
+// so an empty-grant caller cannot distinguish "no such resource" from "no
+// granted repositories".
+func resourceInvestigationEmptyGrantResolution(req resourceInvestigationRequest) map[string]any {
+	return map[string]any{
+		"input":         req.selector(),
+		"resource_type": req.ResourceType,
+		"status":        "no_match",
+		"candidates":    []map[string]any{},
+		"truncated":     false,
+	}
+}
+
 func (h *ImpactHandler) resolveResourceInvestigationTarget(
 	ctx context.Context,
 	req resourceInvestigationRequest,
@@ -225,12 +259,20 @@ func (h *ImpactHandler) resolveResourceInvestigationTarget(
 	if h == nil || h.Neo4j == nil {
 		return nil, nil, fmt.Errorf("graph backend is unavailable")
 	}
+	access := repositoryAccessFilterFromContext(ctx)
+	if access.empty() {
+		return nil, resourceInvestigationEmptyGrantResolution(req), nil
+	}
 	params := map[string]any{"selector": req.selector(), "environment": req.Environment, "limit": req.Limit + 1}
 	rows, err := h.Neo4j.Run(ctx, resourceInvestigationResolverCypher(req), params)
 	if err != nil {
 		return nil, nil, fmt.Errorf("resolve resource investigation target: %w", err)
 	}
-	candidates := resourceInvestigationCandidates(rows)
+	// #5167 W3: the resolver matches across the whole graph with no repo
+	// predicate, so bind every candidate to the caller's grant here before
+	// ambiguity/selection logic runs -- a candidate outside the grant must never
+	// surface in the "ambiguous" candidate list either.
+	candidates := filterResourceInvestigationCandidatesForAccess(resourceInvestigationCandidates(rows), access)
 	totalCandidates := len(candidates)
 	truncated := len(candidates) > req.Limit
 	if truncated {

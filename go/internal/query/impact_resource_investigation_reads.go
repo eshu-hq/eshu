@@ -87,7 +87,7 @@ LIMIT $limit`, resourceInvestigationResourceRef(selected), anchor)
 func resourceInvestigationInstanceWorkloadsCypher() string {
 	return `MATCH (instance:WorkloadInstance)-[:INSTANCE_OF]->(workload:Workload)
 WHERE instance.id IN $instance_ids
-RETURN instance.id AS instance_id, workload.id AS workload_id, workload.name AS workload_name`
+RETURN instance.id AS instance_id, workload.id AS workload_id, workload.name AS workload_name, workload.repo_id AS workload_repo_id`
 }
 
 func resourceInvestigationRepoPathsCypher(
@@ -122,6 +122,7 @@ func (h *ImpactHandler) resourceInvestigationWorkloads(
 	ctx context.Context,
 	req resourceInvestigationRequest,
 	selected *resourceInvestigationCandidate,
+	access repositoryAccessFilter,
 ) ([]map[string]any, bool, error) {
 	instancesCypher := resourceInvestigationWorkloadsCypher(selected)
 	rows, err := h.Neo4j.Run(ctx, instancesCypher, resourceInvestigationAnchorParams(selected, map[string]any{
@@ -143,6 +144,13 @@ func (h *ImpactHandler) resourceInvestigationWorkloads(
 		instanceID := StringVal(row, "instance_id")
 		workloadIDRaw := StringVal(row, "workload_id_raw")
 		resolved := workloadByInstance[instanceID]
+		// #5167 W3: the resolved resource anchor is already grant-checked (its
+		// candidate was filtered in resolveResourceInvestigationTarget), but a
+		// resource can be USEd by a workload in a different repository, so each
+		// dependent workload is bound to the grant independently here.
+		if !impactRepoIDAllowed(resolved.repoID, access) {
+			continue
+		}
 		workload := compactStringMap(map[string]any{
 			"workload_id":         firstNonEmpty(resolved.id, workloadIDRaw, instanceID),
 			"workload_name":       firstNonEmpty(resolved.name, StringVal(row, "instance_name"), workloadIDRaw),
@@ -167,8 +175,9 @@ func (h *ImpactHandler) resourceInvestigationWorkloads(
 
 // resourceInvestigationWorkloadRef is a resolved INSTANCE_OF workload identity.
 type resourceInvestigationWorkloadRef struct {
-	id   string
-	name string
+	id     string
+	name   string
+	repoID string
 }
 
 // resourceInvestigationInstanceWorkloads resolves the INSTANCE_OF workload for
@@ -202,8 +211,9 @@ func (h *ImpactHandler) resourceInvestigationInstanceWorkloads(
 	}
 	for _, row := range rows {
 		resolved[StringVal(row, "instance_id")] = resourceInvestigationWorkloadRef{
-			id:   StringVal(row, "workload_id"),
-			name: StringVal(row, "workload_name"),
+			id:     StringVal(row, "workload_id"),
+			name:   StringVal(row, "workload_name"),
+			repoID: StringVal(row, "workload_repo_id"),
 		}
 	}
 	return resolved, nil
@@ -230,6 +240,7 @@ func (h *ImpactHandler) resourceInvestigationRepoPaths(
 	req resourceInvestigationRequest,
 	selected *resourceInvestigationCandidate,
 	direction string,
+	access repositoryAccessFilter,
 ) ([]map[string]any, bool, error) {
 	cypher := resourceInvestigationRepoPathsCypher(req, selected, direction)
 	rows, err := h.Neo4j.Run(ctx, cypher, resourceInvestigationAnchorParams(selected, map[string]any{
@@ -249,5 +260,8 @@ func (h *ImpactHandler) resourceInvestigationRepoPaths(
 			"hops":      resourceInvestigationHopList(row["rels"]),
 		})
 	}
-	return paths, truncated, nil
+	// #5167 W3: each path terminates at a Repository node; bind every one to
+	// the caller's grant so a resource that traces to a cross-tenant repo does
+	// not surface that repo's id/name.
+	return filterRowsByRepoIDForAccess(paths, access), truncated, nil
 }

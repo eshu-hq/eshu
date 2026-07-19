@@ -8,8 +8,9 @@ const openAPIPathsImpactRest = `
       "post": {
         "tags": ["impact"],
         "summary": "Analyze pre-change impact",
-        "description": "Maps a changed-file list or base/head diff descriptor onto the bounded change-surface evidence graph, returning affected symbols, graph impacts, truth labels, missing evidence, truncation, and recommended next calls without requiring provider credentials.",
+        "description": "Maps a changed-file list or base/head diff descriptor onto the bounded change-surface evidence graph, returning affected symbols, graph impacts, truth labels, missing evidence, truncation, and recommended next calls without requiring provider credentials. Scoped tokens receive the same shape; a required repo_id and every impacted row outside the caller's grant are withheld.",
         "operationId": "analyzePreChangeImpact",
+        "x-scoped-token-support": true,
         "requestBody": {
           "required": true,
           "content": {
@@ -96,8 +97,9 @@ const openAPIPathsImpactRest = `
       "post": {
         "tags": ["impact"],
         "summary": "Plan a developer change",
-        "description": "Builds a read-only developer_change_plan.v1 action plan over the pre-change impact evidence graph, returning changed-file coverage, affected entities, recommended tests, bounded next calls, missing evidence, and patch guidance without generating or applying code.",
+        "description": "Builds a read-only developer_change_plan.v1 action plan over the pre-change impact evidence graph, returning changed-file coverage, affected entities, recommended tests, bounded next calls, missing evidence, and patch guidance without generating or applying code. Scoped tokens receive the same shape; a required repo_id and every impacted row outside the caller's grant are withheld.",
         "operationId": "planDeveloperChange",
+        "x-scoped-token-support": true,
         "requestBody": {
           "required": true,
           "content": {
@@ -254,8 +256,9 @@ const openAPIPathsImpactRest = `
       "post": {
         "tags": ["impact"],
         "summary": "Investigate resource",
-        "description": "Resolves a queue, database, cloud resource, Terraform resource, or Kubernetes object into a bounded investigation packet with ambiguity metadata, workload users, repository provenance paths, source handles, limitations, and recommended next calls.",
+        "description": "Resolves a queue, database, cloud resource, Terraform resource, or Kubernetes object into a bounded investigation packet with ambiguity metadata, workload users, repository provenance paths, source handles, limitations, and recommended next calls. Scoped tokens receive the same shape; resolved candidates, dependent workloads, and repository-provenance paths outside the caller's grant are withheld.",
         "operationId": "investigateResource",
+        "x-scoped-token-support": true,
         "requestBody": {
           "required": true,
           "content": {

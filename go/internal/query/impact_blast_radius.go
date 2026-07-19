@@ -248,6 +248,25 @@ func (h *ImpactHandler) findBlastRadius(w http.ResponseWriter, r *http.Request) 
 	}
 
 	limit := normalizeImpactListLimit(req.Limit)
+
+	// #5167 W3: every affected row is a Repository (repo/repo_id), so this
+	// traversal's endpoints are bound to the caller's grant by filtering the
+	// affected set after the query -- an empty grant short-circuits to zero
+	// affected repos without running the (potentially expensive) traversal at
+	// all, matching the #5137 reference pattern.
+	access := repositoryAccessFilterFromContext(r.Context())
+	if access.empty() {
+		WriteSuccess(w, r, http.StatusOK, map[string]any{
+			"target":         req.Target,
+			"target_type":    req.TargetType,
+			"affected":       []map[string]any{},
+			"affected_count": 0,
+			"limit":          limit,
+			"truncated":      false,
+		}, BuildTruthEnvelope(h.profile(), "platform_impact.blast_radius", TruthBasisHybrid, "resolved from platform graph impact analysis"))
+		return
+	}
+
 	affected, supported, complete, coverage, err := h.blastRadiusAffected(r.Context(), req.TargetType, req.Target, limit+1)
 	if !supported {
 		WriteError(w, http.StatusBadRequest, "unsupported target_type: "+req.TargetType)
@@ -257,6 +276,7 @@ func (h *ImpactHandler) findBlastRadius(w http.ResponseWriter, r *http.Request) 
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	affected = filterRowsByRepoIDForAccess(affected, access)
 
 	affected, truncated := trimImpactRows(affected, limit)
 	h.enrichBlastRadiusTiers(r.Context(), affected)

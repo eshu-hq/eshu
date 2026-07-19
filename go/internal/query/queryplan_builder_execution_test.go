@@ -243,16 +243,16 @@ func TestResourceInvestigationExecutesBuilderBytes(t *testing.T) {
 	selected := &resourceInvestigationCandidate{ID: "proof-resource", Labels: []string{"CloudResource"}}
 	req := resourceInvestigationRequest{Environment: "prod", MaxDepth: 3, Limit: 10}
 
-	if _, _, err := handler.resourceInvestigationWorkloads(context.Background(), req, selected); err != nil {
+	if _, _, err := handler.resourceInvestigationWorkloads(context.Background(), req, selected, repositoryAccessFilter{allScopes: true}); err != nil {
 		t.Fatalf("resourceInvestigationWorkloads() error = %v", err)
 	}
 	if _, err := handler.resourceInvestigationInstanceWorkloads(context.Background(), []map[string]any{{"instance_id": "proof-instance"}}); err != nil {
 		t.Fatalf("resourceInvestigationInstanceWorkloads() error = %v", err)
 	}
-	if _, _, err := handler.resourceInvestigationRepoPaths(context.Background(), req, selected, "outgoing"); err != nil {
+	if _, _, err := handler.resourceInvestigationRepoPaths(context.Background(), req, selected, "outgoing", repositoryAccessFilter{allScopes: true}); err != nil {
 		t.Fatalf("resourceInvestigationRepoPaths() error = %v", err)
 	}
-	if _, _, err := handler.resourceInvestigationRepoPaths(context.Background(), req, selected, "incoming"); err != nil {
+	if _, _, err := handler.resourceInvestigationRepoPaths(context.Background(), req, selected, "incoming", repositoryAccessFilter{allScopes: true}); err != nil {
 		t.Fatalf("resourceInvestigationRepoPaths(incoming) error = %v", err)
 	}
 	if len(captured) != 4 {
@@ -272,7 +272,12 @@ func TestResourceInvestigationExecutesBuilderBytes(t *testing.T) {
 	}
 	for index, wantSHA256 := range []string{
 		"e100f5b99cf9be76a0bfa62a92c405f069c571cd686a999c596efd0fbc1e3a32",
-		"1cb55f9bca8f9fead028b9408fda479a84e189e9f7568f8701e2bee1445357a0",
+		// #5167 W3: resourceInvestigationInstanceWorkloadsCypher gained
+		// `workload.repo_id AS workload_repo_id` so resourceInvestigationWorkloads
+		// can bind each dependent workload to the caller's grant
+		// (impact_resource_investigation_reads.go); this baseline is the
+		// post-change production digest.
+		"2463d998139bb2f60b10bdac64b62cc655d1e67d5ad9862c450ef317f6ae557e",
 		"4868f98cf10731ff8781ed9ba394da16d97c623c5cdd7d74217257bb5b641565",
 		"ecabb2254490134516441574ffd8a3e8edac0bcf227a37d5ec25495be610c4fc",
 	} {

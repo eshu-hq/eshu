@@ -73,7 +73,7 @@ func TestLiveResourceInvestigationReadsAreNornicDBSafe(t *testing.T) {
 	}
 
 	// Workloads read.
-	workloads, _, err := handler.resourceInvestigationWorkloads(ctx, req, selected)
+	workloads, _, err := handler.resourceInvestigationWorkloads(ctx, req, selected, repositoryAccessFilter{allScopes: true})
 	if err != nil {
 		t.Fatalf("resourceInvestigationWorkloads: %v", err)
 	}
@@ -98,7 +98,7 @@ func TestLiveResourceInvestigationReadsAreNornicDBSafe(t *testing.T) {
 	}
 
 	// Repository-paths read (outgoing) with full hop provenance.
-	paths, _, err := handler.resourceInvestigationRepoPaths(ctx, req, selected, "outgoing")
+	paths, _, err := handler.resourceInvestigationRepoPaths(ctx, req, selected, "outgoing", repositoryAccessFilter{allScopes: true})
 	if err != nil {
 		t.Fatalf("resourceInvestigationRepoPaths: %v", err)
 	}

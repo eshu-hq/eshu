@@ -263,6 +263,9 @@ func scopedHTTPRouteSupportsTenantFilter(r *http.Request) bool {
 	if scopedWorkItemEvidenceRoute(r) {
 		return true
 	}
+	if scopedImpactCompareRoute(r) {
+		return true
+	}
 	if r.Method != http.MethodPost {
 		return false
 	}

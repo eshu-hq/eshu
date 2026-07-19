@@ -454,7 +454,7 @@ entries:
     source:
       file: go/internal/query/impact_change_surface_legacy.go
       symbol: (*ImpactHandler).findChangeSurfaceImpactRows
-      source_sha256: 588becf80571c7da65b565341a59fcd56e6fa4ce336ff6e69c85abe012235f82
+      source_sha256: c5f2f7defb9741fa0877b4d8238f228692e461cd75179a746c78fedd7128ccdc
       line_hint: 107
     required_anchors:
       - label: Workload
@@ -476,7 +476,7 @@ entries:
         - AllNodesScan
         - CartesianProduct
         - UnboundedExpand
-    cypher_sha256: "ca18c2ad97d85d423b01760bfa655412b3417d9e828b54cd6f60d0d7750ffc8c"
+    cypher_sha256: "5e78165ee7bbde33ec370dac7baced49f8a62b9b07ce6e6230685f523a4acea0"
   - id: QP-RELATIONSHIPS-CATALOG-COUNT
     domain: relationships
     backend: nornicdb

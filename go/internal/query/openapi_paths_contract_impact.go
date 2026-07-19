@@ -8,8 +8,9 @@ const openAPIPathsContractImpact = `
       "post": {
         "tags": ["impact"],
         "summary": "Investigate contract impact",
-        "description": "Returns bounded cross-repository contract-impact rows from deterministic parser, spec, or config evidence. The route does not infer contract edges from string similarity or optional semantic output. HTTP provider lookups read anchored Endpoint evidence; topic and grpc return explicit unsupported family states until their deterministic projections are implemented.",
+        "description": "Returns bounded cross-repository contract-impact rows from deterministic parser, spec, or config evidence. The route does not infer contract edges from string similarity or optional semantic output. HTTP provider lookups read anchored Endpoint evidence; topic and grpc return explicit unsupported family states until their deterministic projections are implemented. Scoped tokens receive the same shape; a provider_repo_id outside the caller's grant renders the same empty-providers shape as an unknown repository.",
         "operationId": "investigateContractImpact",
+        "x-scoped-token-support": true,
         "requestBody": {
           "required": true,
           "content": {

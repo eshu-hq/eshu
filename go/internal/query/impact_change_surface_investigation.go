@@ -5,6 +5,7 @@ package query
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"slices"
@@ -88,6 +89,10 @@ func (h *ImpactHandler) investigateChangeSurface(w http.ResponseWriter, r *http.
 
 	codeSurface, err := h.changeSurfaceCodeSurface(r.Context(), req)
 	if err != nil {
+		if errors.Is(err, errChangeSurfaceRepoNotGranted) {
+			WriteError(w, http.StatusNotFound, "repository not found")
+			return
+		}
 		WriteError(w, http.StatusServiceUnavailable, err.Error())
 		return
 	}
@@ -232,12 +237,34 @@ func normalizeChangedPaths(paths []string) []string {
 	return normalized
 }
 
+// changeSurfaceEmptyGrantResolution builds the "no match" resolution envelope
+// for a scoped caller with an empty grant, mirroring
+// changeSurfaceNoTargetResolution's shape so an empty-grant caller cannot
+// distinguish "no such target" from "no granted repositories".
+func changeSurfaceEmptyGrantResolution(req changeSurfaceInvestigationRequest) map[string]any {
+	return map[string]any{
+		"input":       req.graphTarget(),
+		"target_type": req.graphTargetType(),
+		"status":      "no_match",
+		"candidates":  []map[string]any{},
+		"truncated":   false,
+	}
+}
+
 func (h *ImpactHandler) resolveChangeSurfaceTarget(
 	ctx context.Context,
 	req changeSurfaceInvestigationRequest,
 ) (*changeSurfaceTargetCandidate, map[string]any, error) {
 	if h == nil || h.Neo4j == nil {
 		return nil, nil, fmt.Errorf("graph backend is unavailable")
+	}
+	// #5167 W3: every changeSurfaceResolverQueries probe matches by id/name with
+	// no repo predicate, so an empty grant short-circuits to "no match" without
+	// running any resolver query, and every candidate returned is bound to the
+	// caller's grant below before ambiguity/selection logic runs.
+	access := repositoryAccessFilterFromContext(ctx)
+	if access.empty() {
+		return nil, changeSurfaceEmptyGrantResolution(req), nil
 	}
 	target := req.graphTarget()
 	candidates := make([]changeSurfaceTargetCandidate, 0, req.Limit+1)
@@ -248,7 +275,7 @@ func (h *ImpactHandler) resolveChangeSurfaceTarget(
 		if err != nil {
 			return nil, nil, fmt.Errorf("resolve change surface target: %w", err)
 		}
-		candidates = appendChangeSurfaceCandidates(candidates, changeSurfaceCandidates(rows), req.Limit+1)
+		candidates = appendChangeSurfaceCandidates(candidates, filterChangeSurfaceCandidatesForAccess(changeSurfaceCandidates(rows), access), req.Limit+1)
 		if len(candidates) > 0 {
 			break
 		}

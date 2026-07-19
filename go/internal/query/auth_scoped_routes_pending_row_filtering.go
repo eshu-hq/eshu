@@ -65,21 +65,19 @@ var pendingRowFilteringRoutes = map[string]struct{}{
 	"POST /api/v0/code/structure/inventory":           {},
 	"POST /api/v0/code/symbols/search":                {},
 	"POST /api/v0/code/topics/investigate":            {},
-	"POST /api/v0/compare/environments":               {},
 	"POST /api/v0/ecosystem/graph-summary":            {},
-	"POST /api/v0/impact/blast-radius":                {},
-	"POST /api/v0/impact/change-surface":              {},
-	"POST /api/v0/impact/change-surface/investigate":  {},
-	"POST /api/v0/impact/contracts":                   {},
-	"POST /api/v0/impact/deployment-config-influence": {},
-	"POST /api/v0/impact/developer-change-plan":       {},
-	"POST /api/v0/impact/explain-dependency-path":     {},
-	"POST /api/v0/impact/pre-change":                  {},
-	"POST /api/v0/impact/resource-investigation":      {},
-	"POST /api/v0/impact/trace-deployment-chain":      {},
-	"POST /api/v0/impact/trace-exposure-path":         {},
-	"POST /api/v0/impact/trace-resource-to-code":      {},
-	"POST /api/v0/relationships/edges":                {},
+	// #5167 W3 flagged (NOT allowlisted, still pending): each of the three
+	// routes below resolves an arbitrary graph node across many labels
+	// (impactAnchorLabelDisjunction) or an unbounded cross-repo CALLS chain,
+	// and most of those reachable node types carry no repo_id property at all
+	// (repo ownership requires a CONTAINS->REPO_CONTAINS traversal per node),
+	// so binding every traversal endpoint to a grant needs a live-graph schema
+	// check and a NornicDB-safe Cypher rewrite before it is safe to allowlist.
+	// See auth_scoped_routes_impact.go's doc comment.
+	"POST /api/v0/impact/explain-dependency-path": {},
+	"POST /api/v0/impact/trace-exposure-path":     {},
+	"POST /api/v0/impact/trace-resource-to-code":  {},
+	"POST /api/v0/relationships/edges":            {},
 }
 
 // pendingEvidenceRelationshipRoutePrefix anchors
