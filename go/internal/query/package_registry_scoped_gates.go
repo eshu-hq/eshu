@@ -20,8 +20,11 @@ type packageRegistryPackagesGateResult struct {
 	// redactSourcePath reports whether source_path must be blanked on served
 	// rows for the package_id-anchored and ecosystem-browse branches (see
 	// packageRegistryAnchorGate.redactSourcePath). The name+ecosystem branch
-	// uses nameAnchorRedactByID instead, since its candidates can carry a
-	// per-row mix of public and correlation-granted-private redaction.
+	// uses nameAnchorRedactByID for its well-formed candidate rows instead,
+	// since they can carry a per-row mix of public and
+	// correlation-granted-private redaction; it still sets redactSourcePath
+	// true as a fail-closed default for any row that fails identity
+	// extraction entirely (no package_id to look up in the map).
 	redactSourcePath bool
 	// useScopedEcosystemCypher reports whether listPackages must use
 	// packageRegistryPackagesScopedEcosystemCypher instead of
@@ -127,6 +130,13 @@ func packageRegistryPackagesGate(
 			return result, true
 		}
 		result.nameAnchorRedactByID = redactByID
+		// Fail-closed default for a row that fails identity extraction
+		// (packageRegistryPackageResultFromRow returns an issue instead of a
+		// PackageRegistryPackageResult, so it has no package_id to look up in
+		// nameAnchorRedactByID and its grant status cannot be determined).
+		// listPackages uses this bool, not the per-id map, for the
+		// identity-issue path.
+		result.redactSourcePath = true
 	default:
 		// Ecosystem-only browse: no per-package anchor exists, so scoped
 		// callers get the visibility='public'-filtered query shape instead
