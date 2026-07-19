@@ -89,7 +89,7 @@ func TestMaterializedEdgeTypeSetIsRegistryDerived(t *testing.T) {
 	t.Parallel()
 
 	set := MaterializedEdgeTypeSet()
-	for _, want := range []string{"CONTAINS", "QUERIES_TABLE", "REFERENCES_TABLE", "HAS_COLUMN", "TRIGGERS", "EXECUTES", "INDEXES"} {
+	for _, want := range []string{"CONTAINS", "QUERIES_TABLE", "REFERENCES_TABLE", "HAS_COLUMN", "TRIGGERS", "EXECUTES", "INDEXES", "DEPENDS_ON", "REPO_CONTAINS"} {
 		if _, ok := set[want]; !ok {
 			t.Errorf("MaterializedEdgeTypeSet() missing %q", want)
 		}
