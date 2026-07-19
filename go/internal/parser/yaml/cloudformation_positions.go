@@ -115,16 +115,27 @@ func cloudformationPositionsFromRoot(root *yamlv3.Node, document map[string]any)
 // document-root anchor that keeps a nested same-named key (a resource's
 // Properties containing its own "Resources" or "Outputs" map) from being
 // mistaken for a template section.
+//
+// A malformed template can repeat a top-level section key (two "Resources:"
+// blocks, for example). node_decode.go's yamlMappingNodeToAny flattens
+// duplicate keys with an unconditional `result[key] = value` overwrite, so
+// document -- the flattened value cloudformationPositionsFromRoot is handed
+// -- always reflects the LAST occurrence. This walk keeps scanning past the
+// first match and returns the LAST matching pair for the same reason, so the
+// node walk resolves entity names against the identical section the
+// flattened document agrees on; anchoring at the first match would resolve
+// names that no longer exist in document, degrading every entity in the
+// (only) surviving section to the wrong, stale first-block fallback line.
 func cloudformationSectionNodes(doc *yamlv3.Node, key string) (keyNode *yamlv3.Node, valueNode *yamlv3.Node) {
 	if doc == nil {
 		return nil, nil
 	}
 	for index := 0; index+1 < len(doc.Content); index += 2 {
 		if doc.Content[index].Value == key {
-			return doc.Content[index], doc.Content[index+1]
+			keyNode, valueNode = doc.Content[index], doc.Content[index+1]
 		}
 	}
-	return nil, nil
+	return keyNode, valueNode
 }
 
 // resolveAliasMapping follows a chain of yaml.v3 AliasNode indirection (for
