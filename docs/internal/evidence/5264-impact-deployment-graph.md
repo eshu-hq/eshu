@@ -129,13 +129,14 @@ plan nor statistics for `PROFILE`, so the proof uses directly timed emitted
 queries, exact output checks, the static query-plan registry, and the bounded
 51-row sentinel contract instead of claiming unavailable planner evidence.
 
-The config-derived candidate path was separately measured with 50 duplicate
-anchors against 1,563 matching retained CloudResource nodes. The old harness
-sent 50 production `CONTAINS $config_anchor` statements; it returned 2,550 raw
-rows and 51 unique rows. The accepted shape sends one regex-union statement
-with one global `LIMIT 51`; it returned 51 rows. The ordered resource-field
+The config-derived candidate path was separately measured through the old and
+new production helper semantics with 50 distinct literal anchors. Each anchor
+selected one retained CloudResource. The old helper made 50 sequential
+`CONTAINS $config_anchor` calls with its decreasing remaining limit; the new
+helper made one regex-union call with one global `LIMIT 51`. Both returned the
+same 50 rows in the same deterministic order. Their ordered resource-field
 digests were identical:
-`fbafc57faef5a202f408ed868483ade6bf9eddfe51ff5461923997184a0f7d36`.
+`c0213487f90d3a26206d4d3c0eb8f44bef64cfc6968e10cca591be286a8a57d5`.
 
 The timing harness used the exact old and new predicate/return shapes. The
 following is the runnable command form; it requires only the operator-local
@@ -169,38 +170,62 @@ RETURN DISTINCT coalesce(c.id, c.uid, c.resource_id, c.arn, c.name) AS id,
  coalesce(c.account_id, "") AS account_id, coalesce(c.region, "") AS region,
  coalesce(c.config_path, "") AS config_path
 ORDER BY name, id LIMIT $limit'
-old_payload="$(jq -nc --arg q "$old_query" \
-  '{statements:[range(0;50)|{statement:$q,parameters:{config_anchor:"/config",limit:51}}]}')"
-new_payload="$(jq -nc --arg q "$new_query" \
-  '{statements:[{statement:$q,parameters:{config_anchor_pattern:".*(?:/config).*",limit:51}}]}')"
-curl -fsS -o /dev/null -w '%{time_total}' \
-  -H 'Content-Type: application/json' \
-  --data-binary "$old_payload" \
-  "${NORNICDB_HTTP_URL}/db/nornic/tx/commit"
-curl -fsS -o /dev/null -w '%{time_total}' \
-  -H 'Content-Type: application/json' \
-  --data-binary "$new_payload" \
-  "${NORNICDB_HTTP_URL}/db/nornic/tx/commit"
+endpoint="${NORNICDB_HTTP_URL}/db/nornic/tx/commit"
+anchor_query='MATCH (c:CloudResource) RETURN c.name AS name
+ORDER BY name LIMIT 20000'
+anchors="$(jq -nc --arg q "$anchor_query" \
+  '{statements:[{statement:$q}]}' |
+  curl -fsS -H 'Content-Type: application/json' --data-binary @- "$endpoint" |
+  jq -c '[.results[0].data[].row[0] |
+    select(type == "string" and test("^[A-Za-z0-9/_-]+$"))] |
+    group_by(.) | map(select(length == 1) | .[0]) | .[:50]')"
+remaining=51
+while IFS= read -r anchor; do
+  old_payload="$(jq -nc --arg q "$old_query" --arg anchor "$anchor" \
+    --argjson limit "$remaining" \
+    '{statements:[{statement:$q,
+      parameters:{config_anchor:$anchor,limit:$limit}}]}')"
+  curl -fsS -H 'Content-Type: application/json' \
+    --data-binary "$old_payload" "$endpoint"
+  remaining=$((remaining - 1))
+done < <(jq -r '.[]' <<<"$anchors")
+pattern="$(jq -r '".*(?:" + join("|") + ").*"' <<<"$anchors")"
+new_payload="$(jq -nc --arg q "$new_query" --arg pattern "$pattern" \
+  '{statements:[{statement:$q,
+    parameters:{config_anchor_pattern:$pattern,limit:51}}]}')"
+curl -fsS -H 'Content-Type: application/json' \
+  --data-binary "$new_payload" "$endpoint"
 ```
 
-`old_payload` contained 50 identical statements with
-`config_anchor=/config` and `limit=51`. `new_payload` contained the production
-regex-union statement with `config_anchor_pattern=.*(?:/config).*` and
-`limit=51`. Ten warm samples in seconds were:
+The complete harness also canonicalized the first ten returned fields, sorted
+by name and ID, and hashed the resulting JSON. After discarding one warm-up,
+ten samples in seconds were:
 
-- old: `0.005109, 0.004102, 0.006727, 0.008196, 0.007544, 0.010745,
-  0.010936, 0.011407, 0.007902, 0.008456`;
-- new: `0.001138, 0.001166, 0.001144, 0.001240, 0.001234, 0.001632,
-  0.001620, 0.001324, 0.001443, 0.001460`.
+- old: `0.051653, 0.062340, 0.064680, 0.058054, 0.057789, 0.057091,
+  0.056474, 0.056648, 0.054275, 0.053487`;
+- new: `0.001513, 0.001519, 0.001258, 0.001150, 0.001681, 0.001396,
+  0.001433, 0.001420, 0.001649, 0.001398`.
+
+A second correctness trial used 50 distinct anchors with one broad anchor that
+saturated the 51-row sentinel and 49 exact anchors outside that broad match.
+All three shapes returned 51 rows. The old helper changed its ordered resource
+set when the broad anchor moved from first to last: digests
+`856b7689de5b50dad139bf31f8127e859d2fcf8377fd246773cd0f634d825d01`
+and `67b1fb1808d3c3b646105466a18e495cc82a05f85048240a00de1a4da5280e10`.
+The new global-order result was independent of anchor order and matched the
+latter digest. This is the intended behavior delta: bounded candidates are
+selected by their documented global name/ID order rather than upstream
+artifact order.
 
 An `any(config_anchor IN $config_anchors ...)` candidate was rejected before
 implementation: on the same data it returned 3,737 matches where the old
 single-anchor predicate returned 1,563, and its bounded resource digest did not
 match. The regex union preserves literal `CONTAINS` semantics by escaping every
-anchor, caps the key batch at 50, and applies the sentinel once globally.
+anchor, caps the key batch at 50, reports omitted or upstream-truncated anchor
+input, and applies the sentinel once globally.
 
 No-Regression Evidence: after the final rebase, focused query tests passed,
-the complete console suite passed 254 test files and 1,619 tests, console
+the complete console suite passed 255 test files and 1,619 tests, console
 typechecking passed, and the production console build passed with every emitted
 chunk within its checked-in budget. The B-7 golden-corpus gate passed 421
 checks with zero required failures and zero advisory warnings on the same

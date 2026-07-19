@@ -71,8 +71,38 @@ func TestConfigReadCloudResourceAnchorsEnforcesQueryKeyBound(t *testing.T) {
 		})
 	}
 
-	got := configReadCloudResourceAnchors(map[string]any{"artifacts": artifacts})
+	got, truncated := configReadCloudResourceAnchors(map[string]any{"artifacts": artifacts})
 	if len(got) != serviceCloudResourceDependencyLimit {
 		t.Fatalf("anchors = %d, want key bound %d", len(got), serviceCloudResourceDependencyLimit)
+	}
+	if !truncated {
+		t.Fatal("truncated = false, want true when a unique anchor is omitted")
+	}
+}
+
+func TestConfigDerivedCloudResourceDependenciesPropagateUpstreamArtifactTruncation(t *testing.T) {
+	t.Parallel()
+
+	calls := 0
+	got, truncated, err := loadConfigDerivedCloudResourceDependenciesBounded(
+		t.Context(),
+		fakeGraphReader{run: func(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
+			calls++
+			return nil, nil
+		}},
+		map[string]any{"artifacts_truncated": true},
+		2,
+	)
+	if err != nil {
+		t.Fatalf("loadConfigDerivedCloudResourceDependenciesBounded() error = %v", err)
+	}
+	if len(got) != 0 {
+		t.Fatalf("resources = %#v, want none", got)
+	}
+	if !truncated {
+		t.Fatal("truncated = false, want upstream artifacts_truncated to fail closed")
+	}
+	if calls != 0 {
+		t.Fatalf("graph calls = %d, want zero without usable config anchors", calls)
 	}
 }

@@ -131,9 +131,9 @@ func loadConfigDerivedCloudResourceDependenciesWithLimit(
 	if graph == nil || len(deploymentEvidence) == 0 {
 		return nil, false, nil
 	}
-	anchors := configReadCloudResourceAnchors(deploymentEvidence)
+	anchors, anchorsTruncated := configReadCloudResourceAnchors(deploymentEvidence)
 	if len(anchors) == 0 {
-		return nil, false, nil
+		return nil, anchorsTruncated, nil
 	}
 	anchorPattern := configReadCloudResourceAnchorPattern(anchors)
 	rows, err := graph.Run(ctx, `
@@ -193,7 +193,7 @@ LIMIT $limit`, map[string]any{
 		seen[key] = struct{}{}
 		resources = append(resources, resource)
 	}
-	return resources, len(rows) >= limit, nil
+	return resources, anchorsTruncated || len(rows) >= limit, nil
 }
 
 func configReadCloudResourceAnchorPattern(anchors []string) string {
@@ -215,9 +215,10 @@ func matchingConfigReadCloudResourceAnchor(row map[string]any, anchors []string)
 	return ""
 }
 
-func configReadCloudResourceAnchors(deploymentEvidence map[string]any) []string {
+func configReadCloudResourceAnchors(deploymentEvidence map[string]any) ([]string, bool) {
 	seen := map[string]struct{}{}
 	var anchors []string
+	truncated := BoolVal(deploymentEvidence, "artifacts_truncated")
 	for _, artifact := range mapSliceValue(deploymentEvidence, "artifacts") {
 		if strings.TrimSpace(StringVal(artifact, "relationship_type")) != "READS_CONFIG_FROM" {
 			continue
@@ -229,13 +230,14 @@ func configReadCloudResourceAnchors(deploymentEvidence map[string]any) []string 
 		if _, ok := seen[anchor]; ok {
 			continue
 		}
+		if len(anchors) >= serviceCloudResourceDependencyLimit {
+			truncated = true
+			continue
+		}
 		seen[anchor] = struct{}{}
 		anchors = append(anchors, anchor)
-		if len(anchors) >= serviceCloudResourceDependencyLimit {
-			break
-		}
 	}
-	return anchors
+	return anchors, truncated
 }
 
 func normalizeConfigReadCloudResourceAnchor(value string) string {

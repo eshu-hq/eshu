@@ -110,11 +110,11 @@ func (h *ImpactHandler) traceDeploymentChain(w http.ResponseWriter, r *http.Requ
 				WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query config-derived cloud resources: %v", configErr))
 				return
 			}
+			if configTruncated {
+				ctx["uncorrelated_cloud_resources_truncated"] = true
+			}
 			if len(configRows) > 0 && len(mapSliceValue(ctx, "uncorrelated_cloud_resources")) == 0 {
 				ctx["uncorrelated_cloud_resources"] = deploymentTraceCloudCandidates(configRows)
-				if configTruncated {
-					ctx["uncorrelated_cloud_resources_truncated"] = true
-				}
 			}
 		}
 		if len(cloudResources) > 0 {
@@ -364,9 +364,9 @@ func buildDeploymentTraceResponse(serviceName string, workloadContext map[string
 	}
 	if len(uncorrelatedCloudResources) > 0 {
 		response["uncorrelated_cloud_resources"] = uncorrelatedCloudResources
-		if BoolVal(workloadContext, "uncorrelated_cloud_resources_truncated") {
-			response["uncorrelated_cloud_resources_truncated"] = true
-		}
+	}
+	if BoolVal(workloadContext, "uncorrelated_cloud_resources_truncated") {
+		response["uncorrelated_cloud_resources_truncated"] = true
 	}
 	if len(imageRegistryTruth) > 0 {
 		response["image_registry_truth"] = imageRegistryTruth

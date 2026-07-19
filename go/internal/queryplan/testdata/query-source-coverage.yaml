@@ -13,7 +13,7 @@ source_coverage:
       - {symbol: "loadUncorrelatedCloudResourceCandidatesBounded", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
   - file: cloud_resource_dependencies.go
     calls:
-      - {symbol: "loadConfigDerivedCloudResourceDependenciesWithLimit", count: 1, non_hot: {class: keyed_support, source_sha256: 52b7142c10a55d25f654f3a2b5ad17c592fbb5d71e3e02ee3dd1eca4fa6048bc, key_bound: bounded_key_batch, max_keys: 50, max_results: 51}}
+      - {symbol: "loadConfigDerivedCloudResourceDependenciesWithLimit", count: 1, non_hot: {class: keyed_support, source_sha256: 26dfa46f5b1b66487ae4ed5b1b42c6895ed70fdd1e8f77000c74d023ee67023b, key_bound: bounded_key_batch, max_keys: 50, max_results: 51}}
       - {symbol: "loadMaterializedServiceCloudResourceDependencies", count: 1, source_sha256: 147687884747140d0e4cc8238bef499cff688799df7206de884d264e23269e3e, entry_ids: [QP-SVC-CLOUD-DEPS]}
   - file: cloud_resources.go
     calls:
