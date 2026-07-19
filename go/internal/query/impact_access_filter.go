@@ -113,3 +113,31 @@ func filterRowsByRepoIDForAccess(rows []map[string]any, access repositoryAccessF
 	}
 	return filtered
 }
+
+// filterProvisioningRepositoryCandidatesForAccess drops provisioning/consuming
+// repository candidates whose RepoID is outside the caller's grant (#5167 W3 P0,
+// fifth vector). queryProvisioningRepositoryCandidates anchors on the service's
+// own grant-verified repo and returns the FAR related repository with no grant
+// predicate, so a scoped caller must not see a cross-tenant candidate. Every
+// downstream field service_query_enrichment.go derives from these candidates
+// (dependents, consumer_repositories, provisioning_source_chains) is bound once
+// here, covering all three and every route that runs the enrichment
+// (service/workload context and story, /investigations/services/{name}, and
+// /impact/trace-deployment-chain). Deny-by-default when scoped (empty RepoID
+// dropped, matching impactRepoIDAllowed and the rest of the W3 row filters); an
+// all-scopes or shared-key caller is unaffected.
+func filterProvisioningRepositoryCandidatesForAccess(
+	candidates []provisioningRepositoryCandidate,
+	access repositoryAccessFilter,
+) []provisioningRepositoryCandidate {
+	if !access.scoped() {
+		return candidates
+	}
+	filtered := make([]provisioningRepositoryCandidate, 0, len(candidates))
+	for _, candidate := range candidates {
+		if impactRepoIDAllowed(candidate.RepoID, access) {
+			filtered = append(filtered, candidate)
+		}
+	}
+	return filtered
+}
