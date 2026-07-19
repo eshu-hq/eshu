@@ -865,14 +865,10 @@ path.
 
 ### Deployment Trace Config Reads
 
-No-Regression Evidence: issue #1696 baseline on `main` showed
-`go test ./internal/query -run TestTraceDeploymentChainKeepsConfigDerivedCloudResources -count=1`
-failing because deployment trace dropped explicit config-derived CloudResource
-rows when workload context did not preserve `deployment_evidence`. After the
-fix, `go test ./internal/query -run 'TestTraceDeploymentChainKeepsConfigDerivedCloudResources|TestConfigDerivedCloudResourceDependenciesRequireConfigReadEvidence' -count=1`,
-`go test ./internal/query -count=1`,
-`go test ./cmd/api ./internal/query ./internal/mcp -count=1`, and
-`go test ./... -count=1` pass.
+No-Regression Evidence: `go test ./internal/query -run
+'TestTraceDeploymentChainKeepsConfigDerivedCloudResourcesAsUncorrelatedCandidates|TestConfigDerivedCloudResourceDependenciesRequireConfigReadEvidence|TestBuildDeploymentTraceResponseExplainsUncorrelatedCloudCandidates'
+-count=1` proves explicit deployment-config matches remain visible without
+being promoted into canonical cloud-resource truth.
 
 The covered backend/version contract is the existing NornicDB/Neo4j
 `GraphQuery.Run` deployment-trace read path. The input shape starts from one
@@ -881,15 +877,18 @@ reads only for explicit `READS_CONFIG_FROM` deployment artifacts. The negative
 guard proves zero graph reads and zero rows when the artifact relationship is
 not `READS_CONFIG_FROM`; positive reads are capped by the existing
 service-story item limit, with each config anchor consuming only the remaining
-result budget.
+result budget plus one truncation probe.
 
 No-Observability-Change: the helper uses the existing `GraphQuery.Run` adapter,
 `neo4j.query` spans, query-duration metrics, and deployment-trace response
 fields. It introduces no new runtime stage, queue, worker, or telemetry surface.
-The change is safe because uncorrelated CloudResource candidates remain
-unpromoted; only explicit config-read deployment evidence can produce
-`relationship_basis=deployment_config_read_evidence`, preserving the
-missing-relationship contract for name or ARN coincidences.
+The change is safe because only a materialized
+`WorkloadInstance-[:USES]->CloudResource` relationship populates canonical
+`cloud_resources`. Config-read matches carry
+`match_basis=deployment_config_read_evidence` in bounded
+`uncorrelated_cloud_resources`, together with
+`missing_relationship=workload_cloud_relationship` and explicit truncation
+when the probe saturates.
 
 ### Code-Edge Resolution Provenance Write Shape
 

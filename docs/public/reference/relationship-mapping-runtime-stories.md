@@ -154,6 +154,24 @@ unless the response supplies a canonical graph relationship. Deployment
 sources are deterministically capped and disclose their coverage through
 `deployment_source_limits`.
 
+Impact consumers keep four completeness families independent:
+`runtime_topology_limits`, `deployment_source_limits`,
+`cloud_resource_limits`, and `k8s_resource_limits`. Runtime topology reports
+separate instance, direct-platform-edge, and provisioned-platform bounds.
+Kubernetes evidence reports separate repository-content and deployment-source
+probes because those rows are merged and deduplicated before the public cap.
+Missing or contradictory metadata is `completeness unverified`, not a complete
+empty result.
+
+Canonical `cloud_resources` come only from materialized workload-instance
+`USES` relationships. Free-text and deployment-config `READS_CONFIG_FROM`
+matches remain bounded `uncorrelated_cloud_resources` candidates and disclose
+their missing relationship and truncation state. Controllers are filtered to
+the selected service and capped through `controller_overview.entity_limits`;
+the read does not fall back to every controller in a deployment repository.
+`image_refs` contains only images attached to Kubernetes rows that survived the
+published bounds.
+
 ## Truthfulness Rules
 
 - If evidence is incomplete, ambiguous, or corpus-specific, say so.
