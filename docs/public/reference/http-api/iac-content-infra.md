@@ -618,6 +618,17 @@ Other `target_type` values (`repository`, `terraform_module`) have no
 registered coverage gap in this contract and report `complete: true` with an
 empty `coverage` array.
 
+No-Regression Evidence: the `crossplane_xrd` coverage fix (#5331) does not
+touch `blastRadiusCrossplaneCypher` — the Cypher statement text is byte-for-byte
+unchanged. It adds `crossplaneXrdBlastRadiusCoverage()`, a Go-side registry
+lookup over a fixed 2-element edge-type slice (`CONTAINS`, `SATISFIED_BY`),
+O(1) in practice, called once per `blastRadiusAffected` invocation alongside
+the existing sql_table coverage lookup this same function already performs.
+No new query, traversal, or write is introduced.
+No-Observability-Change: the `complete`/`coverage` response fields already
+existed (#5330); this change only corrects the value `crossplane_xrd` reports
+through them. No new metric, span, or log was added or removed.
+
 `/impact/change-surface/investigate` accepts one graph target family
 (`target` + `target_type`, `service_name`, `workload_id`, `resource_id`, or
 `module_id`) and/or a code scope (`topic`, `repo_id`, `changed_paths`).
