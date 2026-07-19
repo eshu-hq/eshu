@@ -33,6 +33,7 @@ func TestOpenAPIImpactDeploymentTraceDocumentsCanonicalPlatformIdentity(t *testi
 	platforms := mustMapField(t, instanceProperties, "platforms")
 	platformItems := mustMapField(t, platforms, "items")
 	platformProperties := mustMapField(t, platformItems, "properties")
+	assertRequiredProperty(t, platformItems, "topology_basis", "impact trace instances[].platforms[]")
 	if _, ok := platformProperties["platform_id"]; !ok {
 		t.Fatal("impact trace instances[].platforms[] schema missing platform_id")
 	}
@@ -60,22 +61,37 @@ func TestOpenAPIImpactDeploymentTraceDocumentsCanonicalPlatformIdentity(t *testi
 	provisioned := mustMapField(t, properties, "provisioned_platforms")
 	provisionedItems := mustMapField(t, provisioned, "items")
 	provisionedProperties := mustMapField(t, provisionedItems, "properties")
+	assertRequiredProperty(t, provisionedItems, "topology_basis", "impact trace provisioned_platforms[]")
 	if _, ok := provisionedProperties["topology_edges"]; !ok {
 		t.Fatal("impact trace provisioned_platforms[] schema missing topology_edges")
 	}
 	assertProvisioningFallbackTopologyBasis(t, provisionedProperties, "impact trace provisioned_platforms[]")
+	assertProvisionedPlatformSchema(t, provisionedProperties, "impact trace provisioned_platforms[]")
 	components := mustMapField(t, spec, "components")
 	schemas := mustMapField(t, components, "schemas")
 	workloadSession := mustMapField(t, schemas, "WorkloadContext")
 	workloadSessionProperties := mustMapField(t, workloadSession, "properties")
+	workloadInstances := mustMapField(t, workloadSessionProperties, "instances")
+	workloadInstanceItems := mustMapField(t, workloadInstances, "items")
+	workloadInstanceProperties := mustMapField(t, workloadInstanceItems, "properties")
+	workloadPlatforms := mustMapField(t, workloadInstanceProperties, "platforms")
+	workloadPlatformItems := mustMapField(t, workloadPlatforms, "items")
+	workloadPlatformProperties := mustMapField(t, workloadPlatformItems, "properties")
+	assertRequiredProperty(t, workloadPlatformItems, "topology_basis", "WorkloadContext instances[].platforms[]")
+	workloadTopologyBasis := mustMapField(t, workloadPlatformProperties, "topology_basis")
+	if got, want := workloadTopologyBasis["enum"], []any{"direct_runtime"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("WorkloadContext direct topology_basis enum = %#v, want %#v", got, want)
+	}
 	workloadProvisioned := mustMapField(t, workloadSessionProperties, "provisioned_platforms")
 	workloadProvisionedItems := mustMapField(t, workloadProvisioned, "items")
 	workloadProvisionedProperties := mustMapField(t, workloadProvisionedItems, "properties")
+	assertRequiredProperty(t, workloadProvisionedItems, "topology_basis", "WorkloadContext provisioned_platforms[]")
 	assertProvisioningFallbackTopologyBasis(
 		t,
 		workloadProvisionedProperties,
 		"WorkloadContext provisioned_platforms[]",
 	)
+	assertProvisionedPlatformSchema(t, workloadProvisionedProperties, "WorkloadContext provisioned_platforms[]")
 	for _, limitsField := range []string{"runtime_topology_limits", "cloud_resource_limits"} {
 		if _, ok := properties[limitsField]; !ok {
 			t.Fatalf("impact trace schema missing %s", limitsField)
@@ -119,6 +135,65 @@ func TestOpenAPIImpactDeploymentTraceDocumentsCanonicalPlatformIdentity(t *testi
 	} {
 		if _, ok := deploymentSourceLimitProperties[field]; !ok {
 			t.Fatalf("impact trace deployment_source_limits schema missing %s", field)
+		}
+	}
+}
+
+func assertRequiredProperty(t *testing.T, schema map[string]any, field, context string) {
+	t.Helper()
+	required, ok := schema["required"].([]any)
+	if !ok {
+		t.Fatalf("%s required = %T, want array containing %q", context, schema["required"], field)
+	}
+	for _, candidate := range required {
+		if candidate == field {
+			return
+		}
+	}
+	t.Fatalf("%s required = %#v, want %q", context, required, field)
+}
+
+func assertProvisionedPlatformSchema(t *testing.T, properties map[string]any, context string) {
+	t.Helper()
+	for _, field := range []string{
+		"platform_id",
+		"platform_name",
+		"platform_kind",
+		"platform_provider",
+		"platform_region",
+		"platform_locator",
+		"platform_confidence",
+		"platform_reason",
+		"topology_edges",
+	} {
+		if _, ok := properties[field]; !ok {
+			t.Fatalf("%s schema missing %s", context, field)
+		}
+	}
+	edges := mustMapField(t, properties, "topology_edges")
+	edgeItems := mustMapField(t, edges, "items")
+	for _, field := range []string{"relationship_type", "source_id", "target_id", "properties"} {
+		assertRequiredProperty(t, edgeItems, field, context+".topology_edges[]")
+	}
+	edgeProperties := mustMapField(t, edgeItems, "properties")
+	relationshipType := mustMapField(t, edgeProperties, "relationship_type")
+	if got, want := relationshipType["enum"], []any{"PROVISIONS_DEPENDENCY_FOR", "PROVISIONS_PLATFORM"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("%s topology relationship enum = %#v, want %#v", context, got, want)
+	}
+	for _, field := range []string{
+		"relationship_type",
+		"source_id",
+		"source_name",
+		"target_id",
+		"target_name",
+		"confidence",
+		"reason",
+		"evidence_source",
+		"source_tool",
+		"properties",
+	} {
+		if _, ok := edgeProperties[field]; !ok {
+			t.Fatalf("%s topology_edges[] schema missing %s", context, field)
 		}
 	}
 }

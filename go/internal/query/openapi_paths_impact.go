@@ -54,6 +54,7 @@ const openAPIPathsImpact = `
                             "type": "array",
                             "items": {
                               "type": "object",
+                              "required": ["topology_basis"],
                               "properties": {
                                 "platform_id": {"type": "string", "description": "Canonical graph Platform identity; never derived from the display name."},
                                 "platform_name": {"type": "string"},
@@ -112,6 +113,7 @@ const openAPIPathsImpact = `
                       "description": "Repository-level provisioning evidence kept separate from runtime instance placement. These rows never imply RUNS_ON.",
                       "items": {
                         "type": "object",
+                        "required": ["topology_basis"],
                         "properties": {
                           "platform_id": {"type": "string"},
                           "platform_name": {"type": "string"},
@@ -119,6 +121,8 @@ const openAPIPathsImpact = `
                           "platform_provider": {"type": "string"},
                           "platform_region": {"type": "string"},
                           "platform_locator": {"type": "string"},
+                          "platform_confidence": {"type": "number"},
+                          "platform_reason": {"type": "string"},
                           "topology_basis": {"type": "string", "enum": ["provisioning_fallback"], "description": "The platform is supported by exact repository provisioning relationships, not a WorkloadInstance RUNS_ON relationship."},
                           "topology_edges": {
                             "type": "array",
