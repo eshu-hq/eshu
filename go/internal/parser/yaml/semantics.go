@@ -29,6 +29,11 @@ func isKustomization(apiVersion string, filename string) bool {
 	if strings.HasPrefix(apiVersion, "kustomize.config.k8s.io/") {
 		return true
 	}
+	// A version-less "kustomize.config.k8s.io" (no "/version" suffix) falls
+	// through to the veto below and is routed to the generic k8s_resources
+	// fallthrough rather than kustomize_overlays. This is accepted: a real
+	// Kubernetes apiVersion always carries a version segment, so this shape
+	// never occurs from a genuine manifest.
 	if strings.TrimSpace(apiVersion) != "" {
 		return false
 	}

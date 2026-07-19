@@ -31,6 +31,18 @@ func TestIsKustomizationGenericGroupAndFilenameOnly(t *testing.T) {
 			filename:   "kustomization.yaml",
 			want:       false,
 		},
+		{
+			// Pinned intended behavior: a real Kubernetes apiVersion always
+			// carries a "/version" segment, so this shape never occurs from
+			// a genuine manifest. The exact-prefix generic-group check (with
+			// a trailing "/") does not match a version-less apiVersion, and
+			// the veto below routes it to the generic k8s_resources
+			// fallthrough rather than kustomize_overlays.
+			name:       "version-less generic group apiVersion routes away from kustomize overlays",
+			apiVersion: "kustomize.config.k8s.io",
+			filename:   "kustomization.yaml",
+			want:       false,
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
