@@ -277,6 +277,14 @@ input hash was
 `aec199c67ebd1ab409b4f3851e874709159613e00393d0bf038478d2772b8d1f`,
 and the retained sidecar ran image digest
 `sha256:ff20bdefc736e66b12127bbb997bf621be5d88a2a74991de6a8ec0959ebd7d5a`.
+After rebasing onto `969ed17bd5`, the equivalent truncation-accounting commit
+is `c7e6a53634`. Both commits have stable patch ID
+`0dc7ebb3d7d48af8d49926f8ef79659788f31fa3`. The incoming base range
+`f23362d410..969ed17bd5` changes observability collectors, collector
+documentation, and an observability reducer test; it does not change the
+Impact API, query plan, console, or retained-browser harness measured here.
+The retained API, browser, and performance proof therefore carries forward to
+the rebased equivalent commit.
 The scoped retained runner reported `/impact` PASS in 2,434 milliseconds with
 20 requests and no browser errors. Its broader 39-route invocation is not
 claimed as a pass: unrelated routes lacked their optional retained-data
