@@ -35,7 +35,17 @@ func (h *SupplyChainHandler) explainImpact(w http.ResponseWriter, r *http.Reques
 	if !rejectUnsupportedVulnerabilityScannerFilters(w, r, impactExplanationScannerFilters()) {
 		return
 	}
-	repositoryID, ok := h.resolveSupplyChainRepositorySelector(w, r, QueryParam(r, "repository_id"))
+	// Resolve scoped-token grants before any repository-selector, reducer, or
+	// readiness store read (#5167 W5). An empty grant returns the bounded
+	// no-evidence explanation without touching those stores so a scoped
+	// caller with no authorized repositories cannot probe cross-tenant
+	// findings, mirroring writeEmptyImpactFindingsPage's sibling routes.
+	access := repositoryAccessFilterFromContext(r.Context())
+	if access.empty() {
+		h.writeEmptyImpactExplanation(w, r)
+		return
+	}
+	repositoryID, ok := h.resolveSupplyChainImpactRepositorySelector(w, r, QueryParam(r, "repository_id"), access)
 	if !ok {
 		return
 	}
@@ -50,6 +60,10 @@ func (h *SupplyChainHandler) explainImpact(w http.ResponseWriter, r *http.Reques
 		WorkloadID:    QueryParam(r, "workload_id"),
 		ServiceID:     QueryParam(r, "service_id"),
 	})
+	if access.scoped() {
+		filter.AllowedRepositoryIDs = append([]string(nil), access.allowedRepositoryIDs...)
+		filter.AllowedScopeIDs = append([]string(nil), access.allowedScopeIDs...)
+	}
 	if !filter.hasBoundedScope() {
 		WriteError(w, http.StatusBadRequest, "finding_id, or advisory_id/cve_id plus package_id, repository_id, subject_digest, image_ref, workload_id, or service_id is required")
 		return

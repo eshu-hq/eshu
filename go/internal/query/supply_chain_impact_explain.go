@@ -32,6 +32,19 @@ type SupplyChainImpactExplanationFilter struct {
 	ImageRef      string `json:"image_ref,omitempty"`
 	WorkloadID    string `json:"workload_id,omitempty"`
 	ServiceID     string `json:"service_id,omitempty"`
+	// AllowedRepositoryIDs and AllowedScopeIDs carry scoped-token repository
+	// and ingestion-scope grants (#5167 W5). When both are empty the read is
+	// unrestricted (shared token, all-scope admin, or local dev mode). When
+	// either is populated the query intersects the matched finding's
+	// repository_id/scope_id with the granted set before a finding is ever
+	// returned, so a scoped caller can never explain an out-of-grant finding
+	// even when the request anchors on a non-repository selector such as
+	// finding_id, CVE, advisory, package, image, service, workload, or
+	// subject digest. These are excluded from JSON marshaling (Input echoes
+	// filter back to the caller) since they are an authorization concern, not
+	// caller-supplied input.
+	AllowedRepositoryIDs []string `json:"-"`
+	AllowedScopeIDs      []string `json:"-"`
 }
 
 // SupplyChainImpactExplanationRow contains the durable impact finding and only

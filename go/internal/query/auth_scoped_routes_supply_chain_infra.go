@@ -130,10 +130,16 @@ func scopedVulnerabilityScannerContractRoute(r *http.Request) bool {
 // scopedSupplyChainImpactRoute reports whether the request targets one of the
 // reducer-owned vulnerability impact read routes that compute counts, limits,
 // truncation, aggregate grouping, and offsets over only the scoped-token's
-// granted repositories. Adjacent supply-chain routes (impact explain, advisory
-// detail, SBOM attestation attachments, container-image identities, and
-// security-alert reconciliations) stay fail-closed for scoped tokens until each
-// is separately proven tenant-filtered.
+// granted repositories. impact/explain (#5167 W5) intersects the matched
+// finding's repository_id/scope_id with the same granted set before a finding
+// is ever returned -- see explainSupplyChainImpactFindingQuery's $11/$12
+// predicate -- so an out-of-grant finding_id, or a bare advisory/CVE plus
+// package/image/workload/service anchor that would otherwise resolve to
+// another tenant's finding, returns no_finding instead of leaking it. Adjacent
+// supply-chain routes (advisory detail, SBOM attestation attachments,
+// container-image identities, and security-alert reconciliations) stay
+// fail-closed for scoped tokens until each is separately proven
+// tenant-filtered.
 func scopedSupplyChainImpactRoute(r *http.Request) bool {
 	if r.Method != http.MethodGet {
 		return false
@@ -141,7 +147,8 @@ func scopedSupplyChainImpactRoute(r *http.Request) bool {
 	switch r.URL.Path {
 	case "/api/v0/supply-chain/impact/findings",
 		"/api/v0/supply-chain/impact/findings/count",
-		"/api/v0/supply-chain/impact/inventory":
+		"/api/v0/supply-chain/impact/inventory",
+		"/api/v0/supply-chain/impact/explain":
 		return true
 	default:
 		return false
@@ -152,15 +159,21 @@ func scopedSupplyChainImpactRoute(r *http.Request) bool {
 // investigation packet route whose handler intersects scoped-token grants before
 // data reads. Supply-chain packets require a granted repository selector before
 // the impact explanation store is read; deployable-unit packets reuse the
-// admission-decision scope/repository grant filter. Drift packets stay
-// fail-closed for scoped tokens until drift rows carry repository-grant proof.
+// admission-decision scope/repository grant filter. Drift packets (#5167 W5)
+// bind the scoped token's exact AllowedScopeIDs grant against the requested
+// cloud ingestion scope_id (getDriftPacket) -- drift findings have no
+// repository dimension at all, the same reason GET /api/v0/replatforming/
+// selectors binds AllowedScopeIDs directly instead of a repository map -- so
+// an empty grant or an out-of-grant scope_id returns a scope_not_found
+// refusal packet without a drift finding store read.
 func scopedInvestigationPacketRoute(r *http.Request) bool {
 	if r.Method != http.MethodGet {
 		return false
 	}
 	switch r.URL.Path {
 	case "/api/v0/investigations/supply-chain/impact/packet",
-		"/api/v0/investigations/deployable-unit/packet":
+		"/api/v0/investigations/deployable-unit/packet",
+		"/api/v0/investigations/drift/packet":
 		return true
 	default:
 		return false
