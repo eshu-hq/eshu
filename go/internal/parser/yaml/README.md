@@ -87,6 +87,23 @@ raw Kubernetes UIDs, or raw cluster server URLs.
 YAML intrinsic tags such as Ref and Sub are converted to the decoded shapes
 expected by the CloudFormation parser before template extraction.
 
+For a CloudFormation/SAM document, this package also walks the raw
+gopkg.in/yaml.v3 node tree to give each Parameters/Conditions/Resources/
+Outputs entity its own real line_number/end_line, instead of the single
+document-root line every entity in the document used to share (issue #5328).
+The walk is anchored strictly at the document root's own top-level section
+pairs -- never by searching for a key name anywhere in the tree -- so a
+resource's Properties block that happens to nest its own key named
+`Resources` or `Outputs` (for example an `AWS::CloudFormation::Stack`
+resource) is never mistaken for a template section. Anchors, aliases, and
+`<<:` merge keys resolve with a cycle guard; a structural fallback (an
+unresolvable section, or an entity the walk could not attribute) degrades to
+the section header's own line rather than a fabricated per-entity guess, and
+records a `cloudformation_position_fallbacks` payload row so the collector
+layer can turn it into telemetry. JSON CloudFormation templates keep the
+single document-root line_number and never get an end_line: JSON decoding
+does not preserve per-key positions, tracked separately in issue #5348.
+
 SanitizeTemplating is parser hygiene only. Do not treat it as a general
 template evaluator.
 

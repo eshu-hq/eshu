@@ -32,4 +32,19 @@
 // parser payload rows. The package keeps output deterministic by sorting
 // emitted buckets and by routing decoded CloudFormation documents through the
 // shared CloudFormation parser contract.
+//
+// For a CloudFormation/SAM document, the package additionally walks the raw
+// gopkg.in/yaml.v3 node tree (cloudformationPositionsFromRoot) to give the
+// shared CloudFormation parser real per-entity line_number/end_line values
+// instead of the single document-root line every Parameters/Conditions/
+// Resources/Outputs entity previously shared (issue #5328). The walk is
+// anchored strictly at the document root's own top-level section pairs, never
+// by searching for a key name anywhere in the tree, and resolves anchors,
+// aliases, and `<<:` merge keys. A degraded position -- an unresolvable
+// section or an entity the walk could not attribute -- falls back to the
+// section header's own line (never a fabricated per-entity guess) and is
+// recorded as a cloudformation_position_fallbacks row for the collector layer
+// to turn into telemetry; the entity itself is never dropped. JSON
+// CloudFormation templates are unaffected: JSON decoding does not preserve
+// per-key positions, a gap tracked separately in issue #5348.
 package yaml

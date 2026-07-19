@@ -64,12 +64,35 @@ func IsTemplate(document map[string]any) bool {
 	return false
 }
 
-// Parse extracts CloudFormation buckets from a JSON or YAML template document.
+// Parse extracts CloudFormation buckets from a JSON or YAML template
+// document. Every entity is stamped with the single document-root
+// lineNumber (end_line is omitted) because Parse has no per-entity position
+// evidence. JSON callers always use Parse: JSON decoding does not preserve
+// per-key positions (issue #5348). YAML callers with a measured Positions
+// value should call ParseWithPositions instead.
 func Parse(
 	document map[string]any,
 	path string,
 	lineNumber int,
 	lang string,
+) Result {
+	return ParseWithPositions(document, path, lineNumber, lang, Positions{})
+}
+
+// ParseWithPositions extracts CloudFormation buckets like Parse, but stamps
+// each Parameters/Conditions/Resources/Outputs entity -- and each entity's
+// Export, which inherits its owning Output's position because an Export
+// always nests inside its Output in the template shape -- with its own real
+// line_number/end_line from positions when the caller measured them, instead
+// of the single document-root lineNumber every entity received before this
+// parameter existed. A zero Positions (as Parse passes) reproduces Parse's
+// original single-lineNumber, no-end_line behavior exactly.
+func ParseWithPositions(
+	document map[string]any,
+	path string,
+	lineNumber int,
+	lang string,
+	positions Positions,
 ) Result {
 	result := Result{}
 	conditionEvaluations := evaluateConditions(document)
@@ -81,13 +104,17 @@ func Parse(
 	if params, ok := document["Parameters"].(map[string]any); ok {
 		for _, name := range sortedMapKeys(params) {
 			body, _ := params[name].(map[string]any)
+			startLine, endLine, knownLine := positions.Parameters.linesFor(name, lineNumber)
 			row := withFormat(map[string]any{
 				"name":        name,
-				"line_number": lineNumber,
+				"line_number": startLine,
 				"path":        path,
 				"lang":        lang,
 				"param_type":  "String",
 			})
+			if knownLine {
+				row["end_line"] = endLine
+			}
 			setOptionalString(row, "param_type", body["Type"])
 			setOptionalString(row, "default", body["Default"])
 			setOptionalString(row, "description", body["Description"])
@@ -98,9 +125,9 @@ func Parse(
 		}
 	}
 
-	appendConditions(&result, document, conditionEvaluations, lineNumber, path, lang, withFormat)
-	appendResources(&result, document, conditionEvaluations, lineNumber, path, lang, withFormat)
-	appendOutputs(&result, document, conditionEvaluations, lineNumber, path, lang, withFormat)
+	appendConditions(&result, document, conditionEvaluations, lineNumber, path, lang, withFormat, positions.Conditions)
+	appendResources(&result, document, conditionEvaluations, lineNumber, path, lang, withFormat, positions.Resources)
+	appendOutputs(&result, document, conditionEvaluations, lineNumber, path, lang, withFormat, positions.Outputs)
 
 	shared.SortNamedMaps(result.Resources)
 	shared.SortNamedMaps(result.Params)
@@ -119,19 +146,24 @@ func appendConditions(
 	path string,
 	lang string,
 	withFormat func(map[string]any) map[string]any,
+	sectionPositions SectionPositions,
 ) {
 	conditions, ok := document["Conditions"].(map[string]any)
 	if !ok {
 		return
 	}
 	for _, name := range sortedMapKeys(conditions) {
+		startLine, endLine, knownLine := sectionPositions.linesFor(name, lineNumber)
 		row := withFormat(map[string]any{
 			"name":        name,
-			"line_number": lineNumber,
+			"line_number": startLine,
 			"path":        path,
 			"lang":        lang,
 			"expression":  fmt.Sprint(conditions[name]),
 		})
+		if knownLine {
+			row["end_line"] = endLine
+		}
 		if evaluation, ok := conditionEvaluations[name]; ok && evaluation.Resolved {
 			row["evaluated"] = true
 			row["evaluated_value"] = evaluation.Value
@@ -148,6 +180,7 @@ func appendResources(
 	path string,
 	lang string,
 	withFormat func(map[string]any) map[string]any,
+	sectionPositions SectionPositions,
 ) {
 	resources, ok := document["Resources"].(map[string]any)
 	if !ok {
@@ -155,12 +188,16 @@ func appendResources(
 	}
 	for _, name := range sortedMapKeys(resources) {
 		body, _ := resources[name].(map[string]any)
+		startLine, endLine, knownLine := sectionPositions.linesFor(name, lineNumber)
 		row := withFormat(map[string]any{
 			"name":        name,
-			"line_number": lineNumber,
+			"line_number": startLine,
 			"path":        path,
 			"lang":        lang,
 		})
+		if knownLine {
+			row["end_line"] = endLine
+		}
 		resourceType := fmt.Sprint(body["Type"])
 		if strings.TrimSpace(resourceType) != "" && resourceType != "<nil>" {
 			row["resource_type"] = resourceType

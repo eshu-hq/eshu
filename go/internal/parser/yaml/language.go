@@ -119,16 +119,39 @@ func Parse(
 		return payload, nil
 	}
 
-	documents, err := DecodeDocuments(SanitizeTemplating(string(source)))
+	sanitizedSource := SanitizeTemplating(string(source))
+	documents, err := DecodeDocuments(sanitizedSource)
 	if err != nil {
 		return nil, fmt.Errorf("parse yaml file %q: %w", path, err)
 	}
+
+	// Raw *yamlv3.Node section roots are only decoded when at least one
+	// document in the stream is a CloudFormation/SAM template: every other
+	// YAML file (the overwhelming majority -- Kubernetes manifests, Argo CD,
+	// Crossplane, Kustomize) never pays for a second decode pass.
+	// decodeDocumentNodes applies the identical empty-document skip rule
+	// DecodeDocuments uses on this same sanitizedSource, so documentNodes
+	// stays index-aligned with documents.
+	var documentNodes []*yamlv3.Node
 	for _, document := range documents {
+		if object, ok := document.(map[string]any); ok && cloudformation.IsTemplate(object) {
+			if nodes, nodesErr := decodeDocumentNodes(sanitizedSource); nodesErr == nil {
+				documentNodes = nodes
+			}
+			break
+		}
+	}
+
+	for index, document := range documents {
 		object, ok := document.(map[string]any)
 		if !ok {
 			continue
 		}
-		appendYAMLDocument(payload, path, filename, object)
+		var rootNode *yamlv3.Node
+		if documentNodes != nil && index < len(documentNodes) {
+			rootNode = documentNodes[index]
+		}
+		appendYAMLDocument(payload, path, filename, object, rootNode)
 	}
 
 	for _, bucket := range []string{
@@ -182,6 +205,7 @@ func yamlBasePayload(path string, isDependency bool) map[string]any {
 	payload["cloudformation_conditions"] = []map[string]any{}
 	payload["cloudformation_cross_stack_imports"] = []map[string]any{}
 	payload["cloudformation_cross_stack_exports"] = []map[string]any{}
+	payload["cloudformation_position_fallbacks"] = []map[string]any{}
 	payload["atlantis_projects"] = []map[string]any{}
 	payload["atlantis_workflows"] = []map[string]any{}
 	payload["gitlab_pipelines"] = []map[string]any{}
@@ -191,7 +215,7 @@ func yamlBasePayload(path string, isDependency bool) map[string]any {
 	return payload
 }
 
-func appendYAMLDocument(payload map[string]any, path string, filename string, document map[string]any) {
+func appendYAMLDocument(payload map[string]any, path string, filename string, document map[string]any, rootNode *yamlv3.Node) {
 	lineNumber := shared.IntValue(document["__eshu_line_number"])
 	delete(document, "__eshu_line_number")
 	if lineNumber <= 0 {
@@ -202,7 +226,16 @@ func appendYAMLDocument(payload map[string]any, path string, filename string, do
 		return
 	}
 	if cloudformation.IsTemplate(document) {
-		result := cloudformation.Parse(document, path, lineNumber, "yaml")
+		positions, fallbacks := cloudformationPositionsFromRoot(rootNode, document)
+		for _, fallback := range fallbacks {
+			shared.AppendBucket(payload, "cloudformation_position_fallbacks", map[string]any{
+				"path":        path,
+				"section":     fallback.Section,
+				"reason":      fallback.Reason,
+				"line_number": firstPositiveInt(fallback.Line, lineNumber),
+			})
+		}
+		result := cloudformation.ParseWithPositions(document, path, lineNumber, "yaml", positions)
 		payload["cloudformation_resources"] = append(payload["cloudformation_resources"].([]map[string]any), result.Resources...)
 		payload["cloudformation_parameters"] = append(payload["cloudformation_parameters"].([]map[string]any), result.Params...)
 		payload["cloudformation_outputs"] = append(payload["cloudformation_outputs"].([]map[string]any), result.Outputs...)
