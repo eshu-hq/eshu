@@ -7,6 +7,9 @@ import "strings"
 
 type serviceListResponse struct {
 	Services []serviceJSON `json:"services"`
+	// More is PagerDuty classic offset pagination's "another page exists"
+	// signal; see incidentListResponse in normalize.go.
+	More bool `json:"more"`
 }
 
 type serviceResponse struct {
@@ -29,6 +32,8 @@ type serviceJSON struct {
 
 type integrationListResponse struct {
 	Integrations []integrationJSON `json:"integrations"`
+	// More is the pagination continuation signal; see serviceListResponse.
+	More bool `json:"more"`
 }
 
 type integrationJSON struct {

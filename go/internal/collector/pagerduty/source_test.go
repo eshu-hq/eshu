@@ -281,6 +281,59 @@ func TestClaimedSourceClassifiesAuthDeniedAndRateLimitedFailures(t *testing.T) {
 	}
 }
 
+func TestNewClaimedSourceRejectsPaginationBoundsOutOfRange(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		target TargetConfig
+	}{
+		{
+			name: "negative max pages",
+			target: TargetConfig{
+				Provider: ProviderPagerDuty, ScopeID: "pagerduty:account:example", AccountID: "example",
+				Token: "pd-token", PaginationMaxPages: -1,
+			},
+		},
+		{
+			name: "max pages above bound",
+			target: TargetConfig{
+				Provider: ProviderPagerDuty, ScopeID: "pagerduty:account:example", AccountID: "example",
+				Token: "pd-token", PaginationMaxPages: 101,
+			},
+		},
+		{
+			name: "negative max records",
+			target: TargetConfig{
+				Provider: ProviderPagerDuty, ScopeID: "pagerduty:account:example", AccountID: "example",
+				Token: "pd-token", PaginationMaxRecords: -1,
+			},
+		},
+		{
+			name: "max records above bound",
+			target: TargetConfig{
+				Provider: ProviderPagerDuty, ScopeID: "pagerduty:account:example", AccountID: "example",
+				Token: "pd-token", PaginationMaxRecords: 5001,
+			},
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := NewClaimedSource(SourceConfig{
+				CollectorInstanceID: "pagerduty-primary",
+				Targets:             []TargetConfig{tt.target},
+				ClientFactory:       func(TargetConfig) (EvidenceClient, error) { return staticEvidenceClient{}, nil },
+			})
+			if err == nil {
+				t.Fatal("NewClaimedSource() error = nil, want out-of-range pagination bound error")
+			}
+		})
+	}
+}
+
 type staticEvidenceClient struct {
 	result CollectionResult
 	err    error

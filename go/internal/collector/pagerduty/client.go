@@ -50,13 +50,19 @@ func NewHTTPClient(config HTTPClientConfig) (*HTTPClient, error) {
 }
 
 // CollectIncidentEvidence fetches one bounded PagerDuty incident evidence
-// window.
+// window. Each list endpoint (incidents, and per-incident log entries and
+// related change events) follows PagerDuty's classic offset pagination up to
+// the target's configured page/record bound; CollectionResult.Truncated and a
+// ConfigWarningTruncated coverage warning are set only when that bound was hit
+// while the provider still had more pages ("more":true), never when
+// pagination exhausted naturally.
 func (c *HTTPClient) CollectIncidentEvidence(
 	ctx context.Context,
 	target TargetConfig,
 	window CollectionWindow,
 ) (CollectionResult, error) {
-	incidents, err := c.listIncidents(ctx, target, window)
+	bounds := paginationBoundsForTarget(target)
+	incidents, pages, truncated, err := c.listIncidents(ctx, target, window, bounds)
 	if err != nil {
 		return CollectionResult{}, err
 	}
@@ -65,15 +71,32 @@ func (c *HTTPClient) CollectIncidentEvidence(
 		LifecycleEvents:     map[string][]LifecycleEvent{},
 		RelatedChangeEvents: map[string][]ChangeEvent{},
 		ObservedAt:          window.Until.UTC(),
-		PagesFetched:        1,
+		PagesFetched:        pages,
+	}
+	if truncated {
+		result.Truncated = true
+		result.Warnings = append(result.Warnings, ConfigWarning{
+			ResourceClass: ConfigResourceClassIncident,
+			Reason:        ConfigWarningTruncated,
+		})
 	}
 	for _, incident := range incidents {
-		logs, err := c.listLogEntries(ctx, incident.ID, target.LogEntryLimit)
+		logs, logPages, logTruncated, err := c.listLogEntries(ctx, incident.ID, target.LogEntryLimit, bounds)
 		if err != nil {
 			return CollectionResult{}, err
 		}
 		result.LifecycleEvents[incident.ID] = logs
-		changes, err := c.listRelatedChangeEvents(ctx, incident.ID, target.ChangeEventLimit)
+		result.PagesFetched += logPages
+		if logTruncated {
+			result.Truncated = true
+			result.Warnings = append(result.Warnings, ConfigWarning{
+				ResourceClass: ConfigResourceClassLogEntry,
+				ResourceID:    incident.ID,
+				Reason:        ConfigWarningTruncated,
+			})
+		}
+		changes, changePages, changeTruncated, err := c.listRelatedChangeEvents(ctx, incident.ID, target.ChangeEventLimit, bounds)
+		result.PagesFetched += changePages
 		if err != nil {
 			if retryableConfigError(err) {
 				return CollectionResult{}, err
@@ -85,57 +108,113 @@ func (c *HTTPClient) CollectIncidentEvidence(
 			return CollectionResult{}, err
 		}
 		result.RelatedChangeEvents[incident.ID] = changes
+		if changeTruncated {
+			result.Truncated = true
+			result.Warnings = append(result.Warnings, ConfigWarning{
+				ResourceClass: ConfigResourceClassRelatedChangeEvent,
+				ResourceID:    incident.ID,
+				Reason:        ConfigWarningTruncated,
+			})
+		}
 	}
 	return result, nil
 }
 
-func (c *HTTPClient) listIncidents(ctx context.Context, target TargetConfig, window CollectionWindow) ([]Incident, error) {
-	values := url.Values{}
-	if !window.Since.IsZero() {
-		values.Set("since", window.Since.UTC().Format(time.RFC3339))
-	}
-	if !window.Until.IsZero() {
-		values.Set("until", window.Until.UTC().Format(time.RFC3339))
-	}
-	if target.IncidentLimit > 0 {
-		values.Set("limit", strconv.Itoa(target.IncidentLimit))
-	}
-	for _, serviceID := range target.AllowedServiceIDs {
-		if trimmed := strings.TrimSpace(serviceID); trimmed != "" {
-			values.Add("service_ids[]", trimmed)
+func (c *HTTPClient) listIncidents(
+	ctx context.Context,
+	target TargetConfig,
+	window CollectionWindow,
+	bounds paginationBounds,
+) ([]Incident, int, bool, error) {
+	var all []incidentJSON
+	pages, _, truncated, err := paginateOffset(ctx, bounds, func(ctx context.Context, offset int) (int, bool, error) {
+		values := url.Values{}
+		if !window.Since.IsZero() {
+			values.Set("since", window.Since.UTC().Format(time.RFC3339))
 		}
+		if !window.Until.IsZero() {
+			values.Set("until", window.Until.UTC().Format(time.RFC3339))
+		}
+		if target.IncidentLimit > 0 {
+			values.Set("limit", strconv.Itoa(target.IncidentLimit))
+		}
+		for _, serviceID := range target.AllowedServiceIDs {
+			if trimmed := strings.TrimSpace(serviceID); trimmed != "" {
+				values.Add("service_ids[]", trimmed)
+			}
+		}
+		if offset > 0 {
+			values.Set("offset", strconv.Itoa(offset))
+		}
+		var decoded incidentListResponse
+		if err := c.getJSON(ctx, "/incidents", values, &decoded); err != nil {
+			return 0, false, err
+		}
+		all = append(all, decoded.Incidents...)
+		return len(decoded.Incidents), decoded.More, nil
+	})
+	if err != nil {
+		return nil, pages, truncated, err
 	}
-	var decoded incidentListResponse
-	if err := c.getJSON(ctx, "/incidents", values, &decoded); err != nil {
-		return nil, err
-	}
-	return normalizeIncidents(decoded.Incidents), nil
+	return normalizeIncidents(all), pages, truncated, nil
 }
 
-func (c *HTTPClient) listLogEntries(ctx context.Context, incidentID string, limit int) ([]LifecycleEvent, error) {
-	values := url.Values{}
-	if limit > 0 {
-		values.Set("limit", strconv.Itoa(limit))
-	}
-	var decoded logEntryListResponse
+func (c *HTTPClient) listLogEntries(
+	ctx context.Context,
+	incidentID string,
+	limit int,
+	bounds paginationBounds,
+) ([]LifecycleEvent, int, bool, error) {
+	var all []logEntryJSON
 	path := "/incidents/" + url.PathEscape(incidentID) + "/log_entries"
-	if err := c.getJSON(ctx, path, values, &decoded); err != nil {
-		return nil, err
+	pages, _, truncated, err := paginateOffset(ctx, bounds, func(ctx context.Context, offset int) (int, bool, error) {
+		values := url.Values{}
+		if limit > 0 {
+			values.Set("limit", strconv.Itoa(limit))
+		}
+		if offset > 0 {
+			values.Set("offset", strconv.Itoa(offset))
+		}
+		var decoded logEntryListResponse
+		if err := c.getJSON(ctx, path, values, &decoded); err != nil {
+			return 0, false, err
+		}
+		all = append(all, decoded.LogEntries...)
+		return len(decoded.LogEntries), decoded.More, nil
+	})
+	if err != nil {
+		return nil, pages, truncated, err
 	}
-	return normalizeLifecycleEvents(incidentID, decoded.LogEntries), nil
+	return normalizeLifecycleEvents(incidentID, all), pages, truncated, nil
 }
 
-func (c *HTTPClient) listRelatedChangeEvents(ctx context.Context, incidentID string, limit int) ([]ChangeEvent, error) {
-	values := url.Values{}
-	if limit > 0 {
-		values.Set("limit", strconv.Itoa(limit))
-	}
-	var decoded changeEventListResponse
+func (c *HTTPClient) listRelatedChangeEvents(
+	ctx context.Context,
+	incidentID string,
+	limit int,
+	bounds paginationBounds,
+) ([]ChangeEvent, int, bool, error) {
+	var all []changeEventJSON
 	path := "/incidents/" + url.PathEscape(incidentID) + "/related_change_events"
-	if err := c.getJSON(ctx, path, values, &decoded); err != nil {
-		return nil, err
+	pages, _, truncated, err := paginateOffset(ctx, bounds, func(ctx context.Context, offset int) (int, bool, error) {
+		values := url.Values{}
+		if limit > 0 {
+			values.Set("limit", strconv.Itoa(limit))
+		}
+		if offset > 0 {
+			values.Set("offset", strconv.Itoa(offset))
+		}
+		var decoded changeEventListResponse
+		if err := c.getJSON(ctx, path, values, &decoded); err != nil {
+			return 0, false, err
+		}
+		all = append(all, decoded.ChangeEvents...)
+		return len(decoded.ChangeEvents), decoded.More, nil
+	})
+	if err != nil {
+		return nil, pages, truncated, err
 	}
-	return normalizeChangeEvents(decoded.ChangeEvents), nil
+	return normalizeChangeEvents(all), pages, truncated, nil
 }
 
 func (c *HTTPClient) getJSON(ctx context.Context, path string, values url.Values, out any) error {

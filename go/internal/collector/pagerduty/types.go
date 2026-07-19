@@ -29,6 +29,10 @@ const (
 	// ConfigResourceClassRelatedChangeEvent marks related change-event
 	// enrichment coverage for a PagerDuty incident.
 	ConfigResourceClassRelatedChangeEvent = "related_change_event"
+	// ConfigResourceClassIncident marks the top-level incident list resource.
+	ConfigResourceClassIncident = "incident"
+	// ConfigResourceClassLogEntry marks incident lifecycle log-entry coverage.
+	ConfigResourceClassLogEntry = "log_entry"
 
 	// ConfigMatchStateNotCompared means reducer comparison has not run.
 	ConfigMatchStateNotCompared = "not_compared"
@@ -41,6 +45,12 @@ const (
 	ConfigWarningUnsupported = "unsupported"
 	// ConfigWarningPartial marks an incomplete live configuration read.
 	ConfigWarningPartial = "partial"
+	// ConfigWarningTruncated marks a resource list collection that stopped at
+	// a configured page/record pagination bound while the provider still had
+	// more pages available (its "more" field was true). It is only ever
+	// emitted when the bound was actually hit, never when pagination
+	// naturally exhausted "more".
+	ConfigWarningTruncated = "truncated"
 )
 
 const (
@@ -202,6 +212,11 @@ type ConfigCollectionResult struct {
 	PagesFetched int
 	Partial      bool
 	Redactions   int
+	// Truncated is true only when a configured pagination bound (max pages or
+	// max records) stopped a service or integration list fetch while the
+	// provider still had more pages available. It stays false when
+	// pagination exhausted the provider's "more" signal naturally.
+	Truncated bool
 }
 
 // EvidenceClient fetches PagerDuty incident evidence for one target and time
@@ -244,4 +259,6 @@ type TargetConfig struct {
 	AllowedServiceIDs       []string
 	ConfigValidationEnabled bool
 	ConfigResourceLimit     int
+	PaginationMaxPages      int
+	PaginationMaxRecords    int
 }
