@@ -98,10 +98,11 @@ ON CONFLICT (fact_id) DO UPDATE SET
 `
 
 // reducerFactBatchSize bounds how many fact rows are sent per unnest statement.
-// fact_records has 15 columns, so each row consumes 15 bind parameters; 1000
-// rows uses 15000 parameters, well under Postgres' 65535 parameter ceiling
-// while keeping each statement large enough to amortise round-trip cost. The
-// bound also caps per-statement memory and lock footprint for a single scope.
+// The unversioned insert binds 15 columns per row and the versioned insert 16
+// (it adds schema_version), so 1000 rows consumes at most 16000 bind parameters
+// — well under Postgres' 65535 parameter ceiling — while keeping each statement
+// large enough to amortise round-trip cost. The bound also caps per-statement
+// memory and lock footprint for a single scope.
 const reducerFactBatchSize = 1000
 
 // reducerFactRow is one canonical fact-record row for a batched insert. The
@@ -126,17 +127,50 @@ type reducerFactRow struct {
 	Payload          string
 }
 
+// dedupeReducerFactRowsByFactID collapses rows sharing a fact_id to a single
+// row carrying the LAST occurrence's value, reproducing the per-row loop's
+// last-write-wins upsert semantics. A single `unnest` INSERT ... ON CONFLICT
+// (fact_id) DO UPDATE statement rejects a batch that carries the same conflict
+// key twice (Postgres: "ON CONFLICT DO UPDATE command cannot affect row a second
+// time"), which would fail the writer and wedge the leased projection intent
+// into an infinite retry (the #2809/#2855 failure class). The per-row loop this
+// batching replaces issued one statement per row and upserted duplicates
+// silently, last write winning; deduping to the last occurrence reproduces that
+// exact final `fact_records` state without the poison-pill statement.
+func dedupeReducerFactRowsByFactID[T any](rows []T, factID func(T) string) []T {
+	if len(rows) < 2 {
+		return rows
+	}
+	lastIdx := make(map[string]int, len(rows))
+	for i, row := range rows {
+		lastIdx[factID(row)] = i
+	}
+	if len(lastIdx) == len(rows) {
+		return rows
+	}
+	out := make([]T, 0, len(lastIdx))
+	for i, row := range rows {
+		if lastIdx[factID(row)] == i {
+			out = append(out, row)
+		}
+	}
+	return out
+}
+
 // reducerBatchInsertFacts upserts rows in bounded chunks of reducerFactBatchSize
 // using reducerFactBatchInsertQuery. It issues ceil(len(rows)/batchSize)
 // ExecContext calls instead of one per row, so a scope with N rows costs
 // O(N/batchSize) round-trips rather than O(N). Each chunk is a single statement;
 // callers that need all chunks committed atomically must pass a transaction as
-// db. An empty rows slice issues no statements.
+// db. Rows sharing a fact_id are deduped to their last occurrence
+// (last-write-wins) to match the per-row loop and avoid the ON CONFLICT
+// double-affect error. An empty rows slice issues no statements.
 func reducerBatchInsertFacts(
 	ctx context.Context,
 	db workloadIdentityExecer,
 	rows []reducerFactRow,
 ) error {
+	rows = dedupeReducerFactRowsByFactID(rows, func(r reducerFactRow) string { return r.FactID })
 	for start := 0; start < len(rows); start += reducerFactBatchSize {
 		end := start + reducerFactBatchSize
 		if end > len(rows) {
@@ -150,6 +184,15 @@ func reducerBatchInsertFacts(
 }
 
 // execReducerFactChunk sends one bounded chunk as a single unnest statement.
+//
+// This and execReducerFactVersionedChunk are deliberately kept as separate,
+// explicit parallel functions rather than unified behind a shared helper. Each
+// mirrors one distinct positional query (the 15-column unversioned insert vs the
+// 16-column versioned insert, which interleaves schema_version at position 6),
+// and the array order here IS the column↔bind-parameter contract. Collapsing
+// them behind a generic argument builder would hide that mapping and reintroduce
+// exactly the column-misplacement risk this change was reviewed against on the
+// governed-fact path, for no runtime benefit; the duplication is intentional.
 func execReducerFactChunk(
 	ctx context.Context,
 	db workloadIdentityExecer,
@@ -210,6 +253,225 @@ func execReducerFactChunk(
 		payloads,
 	); err != nil {
 		return fmt.Errorf("batch insert reducer facts: %w", err)
+	}
+	return nil
+}
+
+// reducerFactBatchInsertVersionedQuery is the schema_version-carrying sibling
+// of reducerFactBatchInsertQuery. It is byte-equivalent, column-for-column and
+// conflict-for-conflict, to the versioned single-row upsert every governed
+// writer used before issue #5317 (the retired canonicalVersionedReducerFact
+// InsertQuery formerly in workload_identity_writer.go, removed once its last
+// caller migrated onto this batched path) the same way reducerFactBatchInsertQuery
+// mirrors canonicalReducerFactInsertQuery: a writer that publishes a governed
+// reducer-derived fact (schema_version set explicitly, e.g.
+// facts.ReducerDerivedSchemaVersionV1) MUST use this variant, not
+// reducerFactBatchInsertQuery — the unversioned query omits the schema_version
+// column entirely, so the table DEFAULT '0.0.0' would silently replace the
+// governed version on every insert and would leave an existing row's
+// schema_version untouched (not reset to the default) on conflict, which is
+// not byte-identical to the per-row loop it replaces.
+const reducerFactBatchInsertVersionedQuery = `
+INSERT INTO fact_records (
+    fact_id,
+    scope_id,
+    generation_id,
+    fact_kind,
+    stable_fact_key,
+    schema_version,
+    collector_kind,
+    source_confidence,
+    source_system,
+    source_fact_key,
+    source_uri,
+    source_record_id,
+    observed_at,
+    ingested_at,
+    is_tombstone,
+    payload
+)
+SELECT
+    fact_id,
+    scope_id,
+    generation_id,
+    fact_kind,
+    stable_fact_key,
+    schema_version,
+    collector_kind,
+    source_confidence,
+    source_system,
+    source_fact_key,
+    source_uri,
+    source_record_id,
+    observed_at,
+    ingested_at,
+    is_tombstone,
+    payload::jsonb
+FROM unnest(
+    $1::text[],
+    $2::text[],
+    $3::text[],
+    $4::text[],
+    $5::text[],
+    $6::text[],
+    $7::text[],
+    $8::text[],
+    $9::text[],
+    $10::text[],
+    $11::text[],
+    $12::text[],
+    $13::timestamptz[],
+    $14::timestamptz[],
+    $15::bool[],
+    $16::text[]
+) AS t(
+    fact_id,
+    scope_id,
+    generation_id,
+    fact_kind,
+    stable_fact_key,
+    schema_version,
+    collector_kind,
+    source_confidence,
+    source_system,
+    source_fact_key,
+    source_uri,
+    source_record_id,
+    observed_at,
+    ingested_at,
+    is_tombstone,
+    payload
+)
+ON CONFLICT (fact_id) DO UPDATE SET
+    fact_kind         = EXCLUDED.fact_kind,
+    stable_fact_key   = EXCLUDED.stable_fact_key,
+    schema_version    = EXCLUDED.schema_version,
+    collector_kind    = EXCLUDED.collector_kind,
+    source_confidence = EXCLUDED.source_confidence,
+    source_system     = EXCLUDED.source_system,
+    source_fact_key   = EXCLUDED.source_fact_key,
+    source_uri        = EXCLUDED.source_uri,
+    source_record_id  = EXCLUDED.source_record_id,
+    observed_at       = EXCLUDED.observed_at,
+    ingested_at       = EXCLUDED.ingested_at,
+    is_tombstone      = EXCLUDED.is_tombstone,
+    payload           = EXCLUDED.payload
+`
+
+// reducerFactVersionedRow is one canonical fact-record row for a batched
+// insert of a governed reducer-derived fact. It mirrors reducerFactRow with an
+// added SchemaVersion field, matching the positional arguments of the retired
+// versioned single-row upsert so a batched writer is a drop-in replacement for
+// the per-row loop it replaces.
+type reducerFactVersionedRow struct {
+	FactID           string
+	ScopeID          string
+	GenerationID     string
+	FactKind         string
+	StableFactKey    string
+	SchemaVersion    string
+	CollectorKind    string
+	SourceConfidence string
+	SourceSystem     string
+	SourceFactKey    string
+	SourceURI        *string
+	SourceRecordID   *string
+	ObservedAt       time.Time
+	IngestedAt       time.Time
+	IsTombstone      bool
+	Payload          string
+}
+
+// reducerBatchInsertVersionedFacts upserts governed reducer-derived fact rows
+// in bounded chunks of reducerFactBatchSize using
+// reducerFactBatchInsertVersionedQuery. It issues ceil(len(rows)/batchSize)
+// ExecContext calls instead of one per row, so a scope with N rows costs
+// O(N/batchSize) round-trips rather than O(N). Each chunk is a single
+// statement; callers that need all chunks committed atomically must pass a
+// transaction as db. An empty rows slice issues no statements.
+func reducerBatchInsertVersionedFacts(
+	ctx context.Context,
+	db workloadIdentityExecer,
+	rows []reducerFactVersionedRow,
+) error {
+	rows = dedupeReducerFactRowsByFactID(rows, func(r reducerFactVersionedRow) string { return r.FactID })
+	for start := 0; start < len(rows); start += reducerFactBatchSize {
+		end := start + reducerFactBatchSize
+		if end > len(rows) {
+			end = len(rows)
+		}
+		if err := execReducerFactVersionedChunk(ctx, db, rows[start:end]); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// execReducerFactVersionedChunk sends one bounded chunk as a single unnest
+// statement.
+func execReducerFactVersionedChunk(
+	ctx context.Context,
+	db workloadIdentityExecer,
+	chunk []reducerFactVersionedRow,
+) error {
+	n := len(chunk)
+	factIDs := make([]string, n)
+	scopeIDs := make([]string, n)
+	generationIDs := make([]string, n)
+	factKinds := make([]string, n)
+	stableKeys := make([]string, n)
+	schemaVersions := make([]string, n)
+	collectorKinds := make([]string, n)
+	sourceConfidences := make([]string, n)
+	sourceSystems := make([]string, n)
+	sourceFactKeys := make([]string, n)
+	sourceURIs := make([]*string, n)
+	sourceRecordIDs := make([]*string, n)
+	observedAts := make([]time.Time, n)
+	ingestedAts := make([]time.Time, n)
+	isTombstones := make([]bool, n)
+	payloads := make([]string, n)
+
+	for i, row := range chunk {
+		factIDs[i] = row.FactID
+		scopeIDs[i] = row.ScopeID
+		generationIDs[i] = row.GenerationID
+		factKinds[i] = row.FactKind
+		stableKeys[i] = row.StableFactKey
+		schemaVersions[i] = row.SchemaVersion
+		collectorKinds[i] = row.CollectorKind
+		sourceConfidences[i] = row.SourceConfidence
+		sourceSystems[i] = row.SourceSystem
+		sourceFactKeys[i] = row.SourceFactKey
+		sourceURIs[i] = row.SourceURI
+		sourceRecordIDs[i] = row.SourceRecordID
+		observedAts[i] = row.ObservedAt
+		ingestedAts[i] = row.IngestedAt
+		isTombstones[i] = row.IsTombstone
+		payloads[i] = row.Payload
+	}
+
+	if _, err := db.ExecContext(
+		ctx,
+		reducerFactBatchInsertVersionedQuery,
+		factIDs,
+		scopeIDs,
+		generationIDs,
+		factKinds,
+		stableKeys,
+		schemaVersions,
+		collectorKinds,
+		sourceConfidences,
+		sourceSystems,
+		sourceFactKeys,
+		sourceURIs,
+		sourceRecordIDs,
+		observedAts,
+		ingestedAts,
+		isTombstones,
+		payloads,
+	); err != nil {
+		return fmt.Errorf("batch insert versioned reducer facts: %w", err)
 	}
 	return nil
 }

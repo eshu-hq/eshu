@@ -290,13 +290,17 @@ func TestPostgresSupplyChainImpactWriterPersistsSignalsWithoutPriorityCollapse(t
 	if !strings.Contains(db.execs[0].query, "schema_version") {
 		t.Fatalf("insert query missing schema_version column for governed reducer fact: %s", db.execs[0].query)
 	}
-	if got, want := db.execs[0].args[5], "1.0.0"; got != want {
+	rows := decodeBatchedVersionedFactCalls(t, db.execs)
+	if got, want := len(rows), 1; got != want {
+		t.Fatalf("decoded rows = %d, want %d", got, want)
+	}
+	if got, want := rows[0].SchemaVersion, "1.0.0"; got != want {
 		t.Fatalf("schema_version = %v, want %v", got, want)
 	}
-	if got, want := db.execs[0].args[7], facts.SourceConfidenceInferred; got != want {
+	if got, want := rows[0].SourceConfidence, facts.SourceConfidenceInferred; got != want {
 		t.Fatalf("source_confidence = %v, want %v", got, want)
 	}
-	payload := unmarshalSupplyChainImpactPayload(t, db.execs[0].args[15])
+	payload := unmarshalSupplyChainImpactPayload(t, rows[0].Payload)
 	if got, want := payload["impact_status"], string(SupplyChainImpactAffectedExact); got != want {
 		t.Fatalf("impact_status = %#v, want %#v", got, want)
 	}

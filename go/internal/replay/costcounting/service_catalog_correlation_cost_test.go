@@ -29,11 +29,11 @@ const serviceCatalogCorrelationCostIntentID = "intent-service-catalog-correlatio
 // serviceCatalogCorrelationFixtureDecisions is the deterministic input for
 // this scenario: two correlated decisions for distinct provider entity
 // references in one scope. WriteServiceCatalogCorrelations
-// (go/internal/reducer/service_catalog_correlation_writer.go) issues one
-// ExecContext PER decision in a loop — unlike container_image_identity/
-// ci_cd_run_correlation/sbom_attestation_attachment, there is no
-// reducerBatchInsertFacts call here — so this writer's Postgres write cost is
-// O(N) round-trips, not O(N/batchSize).
+// (go/internal/reducer/service_catalog_correlation_writer.go) now calls the
+// shared reducerBatchInsertFacts bounded chunked bulk insert (issue #5317),
+// the same batching container_image_identity/ci_cd_run_correlation/
+// sbom_attestation_attachment already use, so two decisions fit in one 1000-row
+// chunk and cost exactly one ExecContext round-trip.
 func serviceCatalogCorrelationFixtureDecisions() []reducer.ServiceCatalogCorrelationDecision {
 	row := func(id string) reducer.ServiceCatalogCorrelationDecision {
 		return reducer.ServiceCatalogCorrelationDecision{
@@ -51,34 +51,21 @@ func serviceCatalogCorrelationFixtureDecisions() []reducer.ServiceCatalogCorrela
 	return []reducer.ServiceCatalogCorrelationDecision{row("a"), row("b")}
 }
 
-// TestCostBudget_ServiceCatalogCorrelation is the exact-equality cost-counting
-// gate for the service_catalog_correlation reducer projection. It drives the
+// TestCostBudget_ServiceCatalogCorrelation is the positive cost-counting gate
+// for the service_catalog_correlation reducer projection. It drives the
 // production PostgresServiceCatalogCorrelationWriter.WriteServiceCatalog
 // Correlations over two decisions in one scope, through a real
 // InstrumentedDB-backed sdkmetric.ManualReader, then asserts
 // eshu_dp_postgres_query_duration_seconds's write-attributed observation
-// count EQUALS the committed budget exactly.
+// count is within the committed budget.
 //
-// This writer has no batched insert path (unlike container_image_identity/
-// ci_cd_run_correlation/sbom_attestation_attachment): WriteServiceCatalog
-// Correlations issues one ExecContext per decision in a plain loop
-// (go/internal/reducer/service_catalog_correlation_writer.go), so its
-// Postgres write cost is inherently O(N) round-trips — there is no batching
-// boundary for a within-writer N+1 control to break, since splitting the SAME
-// N decisions across N separate Write calls costs the identical N
-// ExecContext round-trips as one Write call carrying all N (this was
-// confirmed empirically for the structurally identical aws_cloud_runtime_
-// drift writer — see aws_cloud_runtime_drift_cost_test.go's "N+1 control
-// shape" doc comment). The exact-equality assertion here (== budget, not <=
-// budget) is therefore the regression gate for this domain: any change that
-// adds or removes a round-trip per decision — an extra read-back, a retry
-// without idempotency, or a batching migration that changes the count — trips
-// it either direction. Migrating this writer to the shared
-// reducerBatchInsertFacts bounded bulk-insert path (as container_image_
-// identity/ci_cd_run_correlation/sbom_attestation_attachment already use) is
-// a follow-on tracked separately (C-14 issue #4367 orchestration); this
-// budget intentionally encodes the CURRENT known per-row write amplification
-// rather than silently absorbing it.
+// WriteServiceCatalogCorrelations now calls the shared reducerBatchInsertFacts
+// bounded chunked bulk insert (go/internal/reducer/reducer_fact_batch_insert.go,
+// batch size 1000, issue #5317) instead of one ExecContext per decision, so two
+// decisions fit one chunk and this scenario asserts exactly one write
+// observation. The companion N+1 negative control below
+// (TestCostBudget_ServiceCatalogCorrelation_N1_ExceedsBudget) proves the
+// budget still catches a per-decision regression.
 func TestCostBudget_ServiceCatalogCorrelation(t *testing.T) {
 	t.Parallel()
 
@@ -111,20 +98,17 @@ func TestCostBudget_ServiceCatalogCorrelation(t *testing.T) {
 	}
 
 	// PRIMARY assertion: read eshu_dp_postgres_query_duration_seconds's
-	// write-attributed observation count off the real otel reader, asserted
-	// EXACT (this per-row writer's cost is O(N); == pins the current known
-	// amplification rather than only capping a ceiling).
+	// write-attributed observation count off the real otel reader.
 	writes := collectAttributedHistogramCount(rm, "eshu_dp_postgres_query_duration_seconds", "operation", "write")
-	wantWrites, ok := budget.Budgets["eshu_dp_postgres_query_duration_seconds"]
+	maxWrites, ok := budget.Budgets["eshu_dp_postgres_query_duration_seconds"]
 	if !ok {
 		t.Fatal("budget missing required key eshu_dp_postgres_query_duration_seconds")
 	}
-	if writes != uint64(wantWrites) {
+	if writes > uint64(maxWrites) {
 		t.Fatalf(
-			"eshu_dp_postgres_query_duration_seconds write observations = %d, want exactly %d "+
-				"(scenario=%s): this per-row writer's cost is O(N) round-trips — any deviation, "+
-				"up or down, is a regression against the committed known-amplification budget",
-			writes, wantWrites, budget.Scenario,
+			"eshu_dp_postgres_query_duration_seconds write observations = %d exceeds budget %d "+
+				"(scenario=%s): algorithmic regression detected",
+			writes, maxWrites, budget.Scenario,
 		)
 	}
 	if writes == 0 {
@@ -133,17 +117,83 @@ func TestCostBudget_ServiceCatalogCorrelation(t *testing.T) {
 
 	// SECONDARY assertion: raw ExecContext call count from the counting fake.
 	execs := fake.totalExecs()
-	if wantExecs, ok := budget.Budgets["statements_executed"]; ok {
-		if execs != wantExecs {
+	if maxExecs, ok := budget.Budgets["statements_executed"]; ok {
+		if execs > maxExecs {
 			t.Fatalf(
-				"statements_executed = %d, want exactly %d (scenario=%s)",
-				execs, wantExecs, budget.Scenario,
+				"statements_executed = %d exceeds budget %d (scenario=%s): too many Postgres write operations",
+				execs, maxExecs, budget.Scenario,
 			)
+		}
+		if execs == 0 {
+			t.Fatal("statements_executed = 0: fake not recording (false green guard)")
 		}
 	}
 
 	t.Logf(
-		"scenario=%s eshu_dp_postgres_query_duration_seconds_writes=%d (budget=%d, exact) statements_executed=%d (budget=%d, exact)",
-		budget.Scenario, writes, wantWrites, execs, budget.Budgets["statements_executed"],
+		"scenario=%s eshu_dp_postgres_query_duration_seconds_writes=%d (budget=%d) statements_executed=%d (budget=%d)",
+		budget.Scenario, writes, maxWrites, execs, budget.Budgets["statements_executed"],
+	)
+}
+
+// TestCostBudget_ServiceCatalogCorrelation_N1_ExceedsBudget is the mandatory
+// negative control, run through the SAME production batched dispatch as the
+// positive test. It calls WriteServiceCatalogCorrelations once per fixture
+// decision instead of once for the whole batch — the classic N+1 anti-pattern
+// for a batched writer — and asserts the accumulated
+// eshu_dp_postgres_query_duration_seconds write observation count EXCEEDS the
+// committed budget.
+func TestCostBudget_ServiceCatalogCorrelation_N1_ExceedsBudget(t *testing.T) {
+	t.Parallel()
+
+	budget := loadBudgetFrom(t, serviceCatalogCorrelationBudgetRelPath)
+	decisions := serviceCatalogCorrelationFixtureDecisions()
+	if len(decisions) < 2 {
+		t.Fatalf("N+1 control needs >=2 decisions to exceed the budget; fixture has %d", len(decisions))
+	}
+
+	fake := &countingExecQueryer{}
+	db, reader := newInstrumentedReducerDB(t, fake)
+	writer := reducer.PostgresServiceCatalogCorrelationWriter{
+		DB:  db,
+		Now: func() time.Time { return time.Date(2026, time.July, 12, 12, 0, 0, 0, time.UTC) },
+	}
+
+	for _, decision := range decisions {
+		if _, err := writer.WriteServiceCatalogCorrelations(context.Background(), reducer.ServiceCatalogCorrelationWrite{
+			IntentID:     serviceCatalogCorrelationCostIntentID,
+			ScopeID:      "repo:team-api",
+			GenerationID: "generation-service-catalog-correlation-cost",
+			SourceSystem: "backstage",
+			Cause:        "reducer/service_catalog_correlation",
+			Decisions:    []reducer.ServiceCatalogCorrelationDecision{decision},
+		}); err != nil {
+			t.Fatalf("N+1 WriteServiceCatalogCorrelations() error = %v", err)
+		}
+	}
+
+	var rm metricdata.ResourceMetrics
+	if err := reader.Collect(context.Background(), &rm); err != nil {
+		t.Fatalf("Collect() error = %v", err)
+	}
+
+	writes := collectAttributedHistogramCount(rm, "eshu_dp_postgres_query_duration_seconds", "operation", "write")
+	maxWrites, ok := budget.Budgets["eshu_dp_postgres_query_duration_seconds"]
+	if !ok {
+		t.Fatal("budget has no eshu_dp_postgres_query_duration_seconds entry")
+	}
+
+	if writes <= uint64(maxWrites) {
+		t.Fatalf(
+			"N+1 negative control: eshu_dp_postgres_query_duration_seconds write observations = %d did NOT "+
+				"exceed budget %d — budget is too loose to catch N+1 regressions or the negative control is "+
+				"generating too few writes; tighten the budget or increase the N+1 fanout",
+			writes, maxWrites,
+		)
+	}
+
+	t.Logf(
+		"N+1 negative control passed: eshu_dp_postgres_query_duration_seconds write observations = %d > budget %d "+
+			"(N=%d decisions, scenario=%s)",
+		writes, maxWrites, len(decisions), budget.Scenario,
 	)
 }

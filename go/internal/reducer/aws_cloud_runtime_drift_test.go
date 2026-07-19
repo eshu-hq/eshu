@@ -405,31 +405,33 @@ func TestPostgresAWSCloudRuntimeDriftWriterPersistsOneFactPerFinding(t *testing.
 	if got, want := result.CanonicalWrites, 2; got != want {
 		t.Fatalf("CanonicalWrites = %d, want %d", got, want)
 	}
-	if got, want := len(db.execs), 2; got != want {
-		t.Fatalf("ExecContext calls = %d, want %d", got, want)
+	// One ExecContext call for two candidates: proves the batched path
+	// replaced the retired per-candidate loop.
+	if got, want := len(db.execs), 1; got != want {
+		t.Fatalf("ExecContext calls = %d, want %d (batched insert)", got, want)
 	}
-	if db.execs[0].args[0] == db.execs[1].args[0] {
-		t.Fatalf("fact ids must differ for multiple findings: %v", db.execs[0].args[0])
+	rows := decodeBatchedVersionedFactCalls(t, db.execs)
+	if got, want := len(rows), 2; got != want {
+		t.Fatalf("decoded rows = %d, want %d", got, want)
 	}
-	if got, want := db.execs[0].args[3], awsCloudRuntimeDriftFactKind; got != want {
+	if rows[0].FactID == rows[1].FactID {
+		t.Fatalf("fact ids must differ for multiple findings: %v", rows[0].FactID)
+	}
+	if got, want := rows[0].FactKind, awsCloudRuntimeDriftFactKind; got != want {
 		t.Fatalf("fact_kind = %v, want %v", got, want)
 	}
 	if !strings.Contains(db.execs[0].query, "schema_version") {
 		t.Fatalf("insert query missing schema_version column for governed reducer fact: %s", db.execs[0].query)
 	}
-	if got, want := db.execs[0].args[5], "1.0.0"; got != want {
+	if got, want := rows[0].SchemaVersion, "1.0.0"; got != want {
 		t.Fatalf("schema_version = %v, want %v", got, want)
 	}
-	if got, want := db.execs[0].args[7], facts.SourceConfidenceInferred; got != want {
+	if got, want := rows[0].SourceConfidence, facts.SourceConfidenceInferred; got != want {
 		t.Fatalf("source_confidence = %v, want %v", got, want)
 	}
 
-	payloadBytes, ok := db.execs[0].args[15].([]byte)
-	if !ok {
-		t.Fatalf("payload arg type = %T, want []byte", db.execs[0].args[15])
-	}
 	var payload map[string]any
-	if err := json.Unmarshal(payloadBytes, &payload); err != nil {
+	if err := json.Unmarshal(rows[0].Payload, &payload); err != nil {
 		t.Fatalf("unmarshal payload: %v", err)
 	}
 	if got, want := payload["finding_kind"], string(cloudruntime.FindingKindOrphanedCloudResource); got != want {
@@ -442,12 +444,8 @@ func TestPostgresAWSCloudRuntimeDriftWriterPersistsOneFactPerFinding(t *testing.
 		t.Fatalf("payload canonical_id = %#v, want %q", got, want)
 	}
 
-	payloadBytes, ok = db.execs[1].args[15].([]byte)
-	if !ok {
-		t.Fatalf("payload arg type = %T, want []byte", db.execs[1].args[15])
-	}
 	payload = map[string]any{}
-	if err := json.Unmarshal(payloadBytes, &payload); err != nil {
+	if err := json.Unmarshal(rows[1].Payload, &payload); err != nil {
 		t.Fatalf("unmarshal unmanaged payload: %v", err)
 	}
 	if got, want := payload["management_status"], cloudruntime.ManagementStatusTerraformStateOnly; got != want {

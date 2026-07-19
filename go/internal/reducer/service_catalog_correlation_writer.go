@@ -34,33 +34,32 @@ func (w PostgresServiceCatalogCorrelationWriter) WriteServiceCatalogCorrelations
 		return ServiceCatalogCorrelationWriteResult{}, fmt.Errorf("service catalog correlation database is required")
 	}
 	now := reducerWriterNow(w.Now)
+	rows := make([]reducerFactRow, 0, len(write.Decisions))
 	for _, decision := range write.Decisions {
 		payload := serviceCatalogCorrelationPayload(write, decision)
 		payloadJSON, err := json.Marshal(payload)
 		if err != nil {
 			return ServiceCatalogCorrelationWriteResult{}, fmt.Errorf("marshal service catalog correlation payload: %w", err)
 		}
-		if _, err := w.DB.ExecContext(
-			ctx,
-			canonicalReducerFactInsertQuery,
-			serviceCatalogCorrelationFactID(write, decision),
-			write.ScopeID,
-			write.GenerationID,
-			serviceCatalogCorrelationFactKind,
-			serviceCatalogCorrelationStableFactKey(write, decision),
-			reducerFactCollectorKind(write.SourceSystem),
-			facts.SourceConfidenceInferred,
-			write.SourceSystem,
-			write.IntentID,
-			nil,
-			nil,
-			now,
-			now,
-			false,
-			payloadJSON,
-		); err != nil {
-			return ServiceCatalogCorrelationWriteResult{}, fmt.Errorf("write service catalog correlation fact: %w", err)
-		}
+		rows = append(rows, reducerFactRow{
+			FactID:           serviceCatalogCorrelationFactID(write, decision),
+			ScopeID:          write.ScopeID,
+			GenerationID:     write.GenerationID,
+			FactKind:         serviceCatalogCorrelationFactKind,
+			StableFactKey:    serviceCatalogCorrelationStableFactKey(write, decision),
+			CollectorKind:    reducerFactCollectorKind(write.SourceSystem),
+			SourceConfidence: facts.SourceConfidenceInferred,
+			SourceSystem:     write.SourceSystem,
+			SourceFactKey:    write.IntentID,
+			ObservedAt:       now,
+			IngestedAt:       now,
+			Payload:          string(payloadJSON),
+		})
+	}
+	// Bounded chunked bulk insert: decisions are upserted in O(N/batchSize)
+	// round-trips rather than one ExecContext per decision.
+	if err := reducerBatchInsertFacts(ctx, w.DB, rows); err != nil {
+		return ServiceCatalogCorrelationWriteResult{}, fmt.Errorf("write service catalog correlation fact: %w", err)
 	}
 	return ServiceCatalogCorrelationWriteResult{
 		FactsWritten:    len(write.Decisions),

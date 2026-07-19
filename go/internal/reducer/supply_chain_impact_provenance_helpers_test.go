@@ -215,7 +215,11 @@ func TestPostgresSupplyChainImpactWriterSerializesProvenancePayload(t *testing.T
 	if err != nil {
 		t.Fatalf("WriteSupplyChainImpactFindings() error = %v", err)
 	}
-	payload := unmarshalSupplyChainImpactPayload(t, db.execs[0].args[15])
+	rows := decodeBatchedVersionedFactCalls(t, db.execs)
+	if got, want := len(rows), 1; got != want {
+		t.Fatalf("decoded rows = %d, want %d", got, want)
+	}
+	payload := unmarshalSupplyChainImpactPayload(t, rows[0].Payload)
 	provenance, ok := payload["provenance"].(map[string]any)
 	if !ok {
 		t.Fatalf("payload missing provenance block: %#v", payload)

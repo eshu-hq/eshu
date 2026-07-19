@@ -65,33 +65,32 @@ func (w PostgresIncidentRepositoryCorrelationWriter) WriteIncidentRepositoryCorr
 		return IncidentRepositoryCorrelationWriteResult{}, fmt.Errorf("incident repository correlation database is required")
 	}
 	now := reducerWriterNow(w.Now)
+	rows := make([]reducerFactRow, 0, len(write.Decisions))
 	for _, decision := range write.Decisions {
 		payload := incidentRepositoryCorrelationPayload(write, decision)
 		payloadJSON, err := json.Marshal(payload)
 		if err != nil {
 			return IncidentRepositoryCorrelationWriteResult{}, fmt.Errorf("marshal incident repository correlation payload: %w", err)
 		}
-		if _, err := w.DB.ExecContext(
-			ctx,
-			canonicalReducerFactInsertQuery,
-			incidentRepositoryCorrelationFactID(write, decision),
-			write.ScopeID,
-			write.GenerationID,
-			incidentRepositoryCorrelationFactKind,
-			incidentRepositoryCorrelationStableFactKey(write, decision),
-			reducerFactCollectorKind(write.SourceSystem),
-			facts.SourceConfidenceInferred,
-			write.SourceSystem,
-			write.IntentID,
-			nil,
-			nil,
-			now,
-			now,
-			false,
-			payloadJSON,
-		); err != nil {
-			return IncidentRepositoryCorrelationWriteResult{}, fmt.Errorf("write incident repository correlation fact: %w", err)
-		}
+		rows = append(rows, reducerFactRow{
+			FactID:           incidentRepositoryCorrelationFactID(write, decision),
+			ScopeID:          write.ScopeID,
+			GenerationID:     write.GenerationID,
+			FactKind:         incidentRepositoryCorrelationFactKind,
+			StableFactKey:    incidentRepositoryCorrelationStableFactKey(write, decision),
+			CollectorKind:    reducerFactCollectorKind(write.SourceSystem),
+			SourceConfidence: facts.SourceConfidenceInferred,
+			SourceSystem:     write.SourceSystem,
+			SourceFactKey:    write.IntentID,
+			ObservedAt:       now,
+			IngestedAt:       now,
+			Payload:          string(payloadJSON),
+		})
+	}
+	// Bounded chunked bulk insert: decisions are upserted in O(N/batchSize)
+	// round-trips rather than one ExecContext per decision.
+	if err := reducerBatchInsertFacts(ctx, w.DB, rows); err != nil {
+		return IncidentRepositoryCorrelationWriteResult{}, fmt.Errorf("write incident repository correlation fact: %w", err)
 	}
 	return IncidentRepositoryCorrelationWriteResult{
 		FactsWritten:    len(write.Decisions),
