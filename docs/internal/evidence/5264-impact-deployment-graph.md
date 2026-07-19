@@ -252,8 +252,8 @@ volumes; the retained development stack was not changed.
 After the exact workload-selector fix and scoped-topology authorization review,
 the gate was rerun at exact implementation head
 `186e534302098cd75f7034567baaac1200f391cd`. The authorization correction
-constrains defining repositories, owned workload instances, platform hydration
-inputs, and provisioning source/target repositories to caller grants; it also
+constrains defining repositories, platform hydration through admitted instance
+IDs, and provisioning source/target repositories to caller grants; it also
 selects an allowed defining repository deterministically when the Workload
 node's stored `repo_id` is not authorized.
 
@@ -285,6 +285,58 @@ That regression uses one shared workload with an allowed and a denied
 repository. It proves that repository identity, runtime instances, direct
 platform hydration, topology edges, and provisioning fallback contain only
 the allowed repository's data.
+
+After `origin/main` advanced to
+`6e611760057131dccc5263eac6b604f3641a028f`, the branch rebased without
+conflicts. The query and query-plan patch digest was identical before and
+after the rebase. The gate was nevertheless rerun at exact rebased head
+`a23a9993992d92a58f574c62bda68cab5390ff28`; it completed in 38 seconds with
+**421 pass, 0 required-fail, and 0 advisory-warn** and removed its isolated
+resources without changing the retained development stack.
+
+A subsequent hostile authorization review found one branch-owned truth
+contradiction: when a shared Workload had two allowed defining repositories,
+the scalar response selected repository A deterministically while the new
+topology returned exact `DEFINES` edges for both A and B. A production-subject
+regression reproduced the failure as `DEFINES` sources
+`[repo-team-a repo-team-b]`, where only the selected `repo-team-a` was valid for
+that response context. The final implementation passes the selected repository
+into the bounded runtime-topology query and adds the exact
+`repo.id = $repo_id` anchor.
+
+The same review established that `WorkloadInstance` has no canonical
+repository property. Scoped ownership is the documented
+`Repository-DEFINES-Workload-INSTANCE_OF` path, so the final query removes the
+misleading `i.repo_id` predicate instead of rejecting valid retained instances.
+The exact regression and the full affected query surface passed at final
+implementation head `0cf9c0e5075d2832edb356f42014c5cc0d4b73b1`:
+
+```bash
+cd go && go test ./internal/query -run \
+  '^TestFetchWorkloadContextBindsSharedWorkloadTopologyToSelectedAuthorizedRepository$' \
+  -count=1
+cd go && go test ./internal/query ./internal/queryplan ./cmd/api \
+  ./internal/mcp ./cmd/golden-corpus-gate -count=1
+```
+
+The final exact-head B-7 run used fresh isolated ports:
+
+```bash
+ESHU_POSTGRES_PORT=16540 \
+NEO4J_BOLT_PORT=8795 \
+NEO4J_HTTP_PORT=8583 \
+GATE_API_PORT=19089 \
+GATE_MCP_PORT=19099 \
+GATE_DRAIN_TIMEOUT=10m \
+GATE_BUDGET_SECONDS=600 \
+bash scripts/verify-golden-corpus-gate.sh
+```
+
+It completed in 38 seconds with **421 pass, 0 required-fail, and 0
+advisory-warn**. Phase timings were 4 seconds for bootstrap, 20 seconds for
+collector replay, 9 seconds for the first drain, 5 seconds for maintenance
+drains, and 4 seconds for graph/query checks. The isolated containers, network,
+and volumes were removed; the retained development stack remained running.
 
 Replay coverage also passed:
 
@@ -433,3 +485,14 @@ authorization correction did not regress the unscoped signed-in console path;
 the allowed-A/denied-B production-subject test and exact-head B-7 run above
 bind the scoped authorization behavior that the retained local admin session
 cannot exercise.
+
+After the final selected-repository correction, the feature-worktree API was
+rebuilt from exact implementation head
+`0cf9c0e5075d2832edb356f42014c5cc0d4b73b1` and the signed-in `service:base`
+browser route was rerun. It again selected
+**Deployment topology**, rendered **35 of 35 nodes** and **5 of 5 edges**,
+reported **complete within bounds**, and showed zero direct impacts. The
+composition readout was **0.000 ms**, and browser log inspection returned zero
+warnings or errors. This is the final browser binding for the exact reviewed
+implementation; the earlier exact-head results remain historical proof of the
+same bounded fallback behavior.
