@@ -243,7 +243,16 @@ func scopedHTTPRouteSupportsTenantFilter(r *http.Request) bool {
 	if scopedIaCResourceListRoute(r) {
 		return true
 	}
+	if scopedIaCDeadRoute(r) {
+		return true
+	}
+	if scopedIaCManagementRoute(r) {
+		return true
+	}
 	if scopedReplatformingSelectorRoute(r) {
+		return true
+	}
+	if scopedReplatformingPlanFamilyRoute(r) {
 		return true
 	}
 	if scopedWorkItemEvidenceRoute(r) {

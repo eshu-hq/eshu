@@ -10,6 +10,7 @@ const openAPIPathsIaC = `
         "summary": "Find dead IaC candidates",
         "description": "Finds bounded, content-derived dead-IaC candidates for explicit repository scopes. Dynamic references are returned as ambiguous until reducer-materialized usage rows make the result exact.",
         "operationId": "findDeadIaC",
+        "x-scoped-token-support": true,
         "requestBody": {
           "required": true,
           "content": {
@@ -89,6 +90,7 @@ const openAPIPathsIaC = `
         "summary": "Find unmanaged cloud resources",
         "description": "Finds AWS cloud resources whose active reducer drift facts show no Terraform config owner or only Terraform state ownership. Requests must be bounded by scope_id or account_id. Responses include safety gates, redacted sensitive evidence values, and refused import-plan actions for resources requiring security review.",
         "operationId": "findUnmanagedResources",
+        "x-scoped-token-support": true,
         "requestBody": {
           "required": true,
           "content": {
@@ -218,6 +220,7 @@ const openAPIPathsIaC = `
         "summary": "Propose Terraform import-plan candidates",
         "description": "Generates read-only Terraform import-plan candidates from active AWS IaC management findings. The route never runs Terraform, imports resources, or mutates cloud state. Safety-gated, ambiguous, unknown, stale, state-only, and unsupported findings are returned as refused candidates with reasons.",
         "operationId": "proposeTerraformImportPlanCandidates",
+        "x-scoped-token-support": true,
         "requestBody": {
           "required": true,
           "content": {
@@ -337,6 +340,7 @@ const openAPIPathsIaC = `
         "summary": "Get IaC management status for one cloud resource",
         "description": "Returns the current read-only IaC management status for one exact AWS resource identity. Requests must be bounded by scope_id or account_id and by arn or resource_id. Sensitive evidence values are redacted and sensitive, ambiguous, unknown, or stale findings require security review before import-plan use.",
         "operationId": "getIaCManagementStatus",
+        "x-scoped-token-support": true,
         "requestBody": {
           "required": true,
           "content": {
@@ -398,6 +402,7 @@ const openAPIPathsIaC = `
         "summary": "Explain IaC management status evidence",
         "description": "Explains one exact AWS IaC management status with grouped reducer evidence rows, redacted sensitive values, and the safety gate that applies before import-plan use.",
         "operationId": "explainIaCManagementStatus",
+        "x-scoped-token-support": true,
         "requestBody": {
           "required": true,
           "content": {

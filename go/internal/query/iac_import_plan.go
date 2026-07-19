@@ -90,6 +90,7 @@ func (h *IaCHandler) handleTerraformImportPlanCandidates(w http.ResponseWriter, 
 		WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	filter = bindIaCManagementFilterAccess(r.Context(), filter)
 	if h == nil || h.Management == nil {
 		WriteError(w, http.StatusServiceUnavailable, "IaC management store is required")
 		return

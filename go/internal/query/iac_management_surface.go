@@ -111,6 +111,11 @@ func (h *IaCHandler) handleIaCManagementExplanation(w http.ResponseWriter, r *ht
 	))
 }
 
+// readExactIaCManagementFilter reads and validates the bounded exact-selector
+// IaC management filter shared by handleIaCManagementStatus and
+// handleIaCManagementExplanation, then binds it to the caller's exact AWS
+// collector-scope grant (#5167 W4, bindIaCManagementFilterAccess) before any
+// store read.
 func (h *IaCHandler) readExactIaCManagementFilter(
 	w http.ResponseWriter,
 	r *http.Request,
@@ -146,6 +151,7 @@ func (h *IaCHandler) readExactIaCManagementFilter(
 	}
 	filter.Limit = 1
 	filter.Offset = 0
+	filter = bindIaCManagementFilterAccess(r.Context(), filter)
 	if h == nil || h.Management == nil {
 		err := fmt.Errorf("IaC management store is required")
 		WriteError(w, http.StatusServiceUnavailable, err.Error())

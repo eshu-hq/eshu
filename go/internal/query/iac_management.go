@@ -54,14 +54,27 @@ type ReplatformingSelectorPage struct {
 }
 
 // IaCManagementFilter bounds cloud management reads to one AWS scope or account.
+//
+// Scoped and AllowedScopeIDs carry the caller's exact AWS collector-scope
+// grant (#5167 W4, bindIaCManagementFilterAccess) through to
+// PostgresIaCManagementStore -> postgres.AWSCloudRuntimeDriftFindingFilter,
+// the same double-guard shape LiveActivityStore.ReadLiveActivity uses: a
+// scoped caller with no granted AWS scope gets zero rows without a query, and
+// a scoped caller with grants only ever sees rows whose scope_id is in the
+// grant, regardless of what scope_id/account_id the request body asks for.
+// The zero value (Scoped false) preserves the pre-#5167 all-scopes behavior,
+// so every existing fakeIaCManagementStore test that builds this struct
+// without setting Scoped stays correct.
 type IaCManagementFilter struct {
-	ScopeID      string
-	AccountID    string
-	Region       string
-	ARN          string
-	FindingKinds []string
-	Limit        int
-	Offset       int
+	ScopeID         string
+	AccountID       string
+	Region          string
+	ARN             string
+	FindingKinds    []string
+	Limit           int
+	Offset          int
+	Scoped          bool
+	AllowedScopeIDs []string
 }
 
 // IaCManagementFindingRow is one query-facing unmanaged cloud resource finding.
@@ -173,13 +186,15 @@ func (s *PostgresIaCManagementStore) ListUnmanagedCloudResources(
 		return nil, nil
 	}
 	rows, err := s.store.ListActiveFindings(ctx, postgres.AWSCloudRuntimeDriftFindingFilter{
-		ScopeID:      filter.ScopeID,
-		AccountID:    filter.AccountID,
-		Region:       filter.Region,
-		ARN:          filter.ARN,
-		FindingKinds: filter.FindingKinds,
-		Limit:        filter.Limit,
-		Offset:       filter.Offset,
+		ScopeID:         filter.ScopeID,
+		AccountID:       filter.AccountID,
+		Region:          filter.Region,
+		ARN:             filter.ARN,
+		FindingKinds:    filter.FindingKinds,
+		Limit:           filter.Limit,
+		Offset:          filter.Offset,
+		Scoped:          filter.Scoped,
+		AllowedScopeIDs: filter.AllowedScopeIDs,
 	})
 	if err != nil {
 		return nil, err
@@ -201,11 +216,13 @@ func (s *PostgresIaCManagementStore) CountUnmanagedCloudResources(
 		return 0, nil
 	}
 	return s.store.CountActiveFindings(ctx, postgres.AWSCloudRuntimeDriftFindingFilter{
-		ScopeID:      filter.ScopeID,
-		AccountID:    filter.AccountID,
-		Region:       filter.Region,
-		ARN:          filter.ARN,
-		FindingKinds: filter.FindingKinds,
+		ScopeID:         filter.ScopeID,
+		AccountID:       filter.AccountID,
+		Region:          filter.Region,
+		ARN:             filter.ARN,
+		FindingKinds:    filter.FindingKinds,
+		Scoped:          filter.Scoped,
+		AllowedScopeIDs: filter.AllowedScopeIDs,
 	})
 }
 
@@ -242,6 +259,7 @@ func (h *IaCHandler) handleUnmanagedCloudResources(w http.ResponseWriter, r *htt
 		WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	filter = bindIaCManagementFilterAccess(r.Context(), filter)
 	if h == nil || h.Management == nil {
 		WriteError(w, http.StatusServiceUnavailable, "IaC management store is required")
 		return
@@ -384,91 +402,6 @@ func normalizeIaCManagementFindingKinds(raw []string) ([]string, error) {
 	}
 	sort.Strings(kinds)
 	return kinds, nil
-}
-
-func awsRuntimeDriftRowToIaCManagement(
-	row postgres.AWSCloudRuntimeDriftFindingRow,
-) IaCManagementFindingRow {
-	parsed := parseAWSManagementARN(row.ARN)
-	evidence := make([]IaCManagementEvidenceRow, 0, len(row.Evidence))
-	statusInput := iacManagementStatusInput{
-		FindingKind: strings.TrimSpace(row.FindingKind),
-	}
-	tags := map[string]string{}
-	var redactions []string
-	enrichment := iacManagementEvidenceEnrichment{}
-	for _, atom := range row.Evidence {
-		statusInput.recordEvidence(atom.EvidenceType)
-		enrichment.recordEvidence(atom)
-		evidenceRow, redacted := sanitizeIaCManagementEvidence(atom)
-		if redacted {
-			redactions = append(redactions, iacManagementSafetyRedactionSensitiveEvidence)
-		}
-		if evidenceRow.ProvenanceOnly && strings.HasPrefix(atom.Key, "tag:") {
-			tags[strings.TrimPrefix(atom.Key, "tag:")] = evidenceRow.Value
-		}
-		evidence = append(evidence, evidenceRow)
-	}
-	if len(tags) == 0 {
-		tags = nil
-	}
-	status := normalizeIaCManagementStatus(row.ManagementStatus, deriveIaCManagementStatus(statusInput))
-	missingEvidence := firstNonEmptySlice(row.MissingEvidence, missingEvidenceForManagementStatus(status))
-	warningFlags := iacMergeStringSets(
-		row.WarningFlags,
-		warningFlagsForManagementFinding(status, parsed.resourceType, parsed.resourceID, tags),
-	)
-	finding := IaCManagementFindingRow{
-		ID:                           row.FactID,
-		Provider:                     "aws",
-		AccountID:                    parsed.accountID,
-		Region:                       parsed.region,
-		ResourceType:                 parsed.resourceType,
-		ResourceID:                   parsed.resourceID,
-		ARN:                          row.ARN,
-		Tags:                         tags,
-		FindingKind:                  row.FindingKind,
-		ManagementStatus:             status,
-		Confidence:                   row.Confidence,
-		ScopeID:                      row.ScopeID,
-		GenerationID:                 row.GenerationID,
-		SourceSystem:                 row.SourceSystem,
-		CandidateID:                  row.CandidateID,
-		MatchedTerraformStateAddress: iacFirstNonEmpty(row.MatchedTerraformStateAddress, enrichment.stateAddress),
-		MatchedTerraformConfigFile:   iacFirstNonEmpty(row.MatchedTerraformConfigFile, enrichment.configFile),
-		MatchedTerraformModulePath:   iacFirstNonEmpty(row.MatchedTerraformModulePath, enrichment.modulePath),
-		MatchedOtherIaCSource:        iacFirstNonEmpty(row.MatchedOtherIaCSource, enrichment.otherIaCSource),
-		ServiceCandidates:            firstNonEmptySlice(row.ServiceCandidates, enrichment.serviceCandidates),
-		EnvironmentCandidates:        firstNonEmptySlice(row.EnvironmentCandidates, enrichment.environmentCandidates),
-		DependencyPaths:              firstNonEmptySlice(row.DependencyPaths, enrichment.dependencyPaths),
-		RecommendedAction:            iacFirstNonEmpty(row.RecommendedAction, recommendedActionForManagementStatus(status)),
-		MissingEvidence:              missingEvidence,
-		WarningFlags:                 warningFlags,
-		SafetyGate:                   iacManagementSafetyGate(status, warningFlags, redactions),
-		Evidence:                     evidence,
-	}
-	normalizeIaCManagementFindingSafety(&finding)
-	return finding
-}
-
-type awsManagementARN struct {
-	accountID    string
-	region       string
-	resourceType string
-	resourceID   string
-}
-
-func parseAWSManagementARN(arn string) awsManagementARN {
-	parts := strings.SplitN(arn, ":", 6)
-	if len(parts) != 6 || parts[0] != "arn" {
-		return awsManagementARN{}
-	}
-	return awsManagementARN{
-		accountID:    parts[4],
-		region:       parts[3],
-		resourceType: parts[2],
-		resourceID:   parts[5],
-	}
 }
 
 func iacManagementTruncated(offset int, returned int, total int) bool {

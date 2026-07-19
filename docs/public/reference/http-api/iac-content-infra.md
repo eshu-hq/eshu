@@ -150,6 +150,11 @@ Ansible, and Docker Compose artifacts.
 `limit` defaults to 100 and is capped at 500. Dynamic or variable-selected
 references are returned as ambiguous only when `include_ambiguous=true`.
 
+Scoped tokens and signed-in scoped browser sessions resolve every `repo_id`/
+`repo_ids` selector against the caller's exact granted repositories and
+ingestion scopes; a selector outside the grant fails with `400` before either
+the reducer-materialized or content-derived read runs.
+
 ## AWS Management And Drift
 
 AWS management routes read active reducer materialization. They do not mutate
@@ -158,6 +163,15 @@ cloud resources, run Terraform, or write Terraform state.
 `/iac/unmanaged-resources` and `/aws/runtime-drift/findings` require
 `scope_id` or `account_id`; `region`, `finding_kinds`, `limit`, and `offset`
 narrow the page. `limit` defaults to 100 and is capped at 500.
+
+Scoped tokens and signed-in scoped browser sessions see only findings whose
+`scope_id` is in the caller's exact `allowed_scope_ids` AWS collector-scope
+grant, on `/iac/unmanaged-resources`, `/iac/management-status`,
+`/iac/management-status/explain`, and `/iac/terraform-import-plan/candidates`
+alike. A scoped caller with repository grants but no AWS scope grant receives
+a bounded empty/zero result without a store read, the same fail-closed
+behavior `/replatforming/selectors` documents below; the requested `scope_id`
+or `account_id` never bypasses the grant.
 
 `/iac/management-status` and `/iac/management-status/explain` inspect one
 resource. They require `scope_id` or `account_id` plus `arn` or `resource_id`.
@@ -330,6 +344,11 @@ account-wide `source_state_totals` and `readiness_totals`, plus
 readiness view. When `truncated` is true the rollup covers only the bounded
 page; re-run with `offset` or a tighter scope for a full rollup.
 
+Scoped tokens and signed-in scoped browser sessions see rollups aggregated
+only over findings whose `scope_id` is in the caller's exact
+`allowed_scope_ids` AWS collector-scope grant; a repository-only or empty
+grant returns a bounded empty rollup without a store read.
+
 ### Replatforming rollups observability
 
 No-Observability-Change: this read reuses the shared query-handler instrumentation.
@@ -392,6 +411,12 @@ capability's `derived` profile maximum. Lightweight local profiles cannot
 materialize the reducer-owned drift and IaC evidence and return
 `501 unsupported_capability`.
 
+Scoped tokens and signed-in scoped browser sessions see a plan composed only
+over findings whose `scope_id` is in the caller's exact `allowed_scope_ids`
+AWS collector-scope grant; a repository-only or empty grant returns a bounded
+empty plan without a store read, regardless of the `repository`/`workload`
+scope-kind narrowing fields supplied in the request.
+
 ## Replatforming Ownership Packets
 
 `POST /api/v0/replatforming/ownership-packets` answers "who likely owns this
@@ -432,6 +457,11 @@ tag or name coincidence never becomes exact ownership. The top-level
 single at-a-glance view of how much attribution is contested, missing, or
 safety-gated. When `truncated` is true the page is bounded; re-run with `offset`
 or a tighter scope.
+
+Scoped tokens and signed-in scoped browser sessions see ownership packets
+composed only over findings whose `scope_id` is in the caller's exact
+`allowed_scope_ids` AWS collector-scope grant; a repository-only or empty
+grant returns a bounded empty page without a store read.
 
 ### Replatforming ownership observability
 

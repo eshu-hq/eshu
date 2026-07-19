@@ -353,14 +353,28 @@ func deadIaCNextOffset(offset int, returned int, total int) *int {
 	return &next
 }
 
+// resolveRepositoryScope resolves each requested dead-IaC repository selector
+// exactly, bound to the caller's grant (#5167 W4). It reuses
+// resolveRepositorySelectorExactForAccess with
+// repositoryAccessFilterFromContext -- the same access-filtered resolution
+// chain the #5167 Group A single-repository routes
+// (auth_scoped_routes_repository.go) use -- so a selector naming a repository
+// outside a scoped caller's AllowedRepositoryIDs/AllowedScopeIDs grant fails
+// with repositorySelectorNotFoundError (surfaced by handleDeadIaC as 400,
+// matching every other selector-resolution error on this route) instead of
+// silently returning cross-tenant dead-IaC findings. An all-scopes caller
+// (no AuthContext, admin, or shared-key token) is unaffected:
+// repositoryAccessFilterFromContext returns allowsRepositoryID true for
+// every canonical id, matching the pre-#5167 unscoped behavior.
 func (h *IaCHandler) resolveRepositoryScope(ctx context.Context, selectors []string) ([]string, error) {
 	if h == nil || h.Content == nil {
 		return selectors, nil
 	}
+	access := repositoryAccessFilterFromContext(ctx)
 	resolved := make([]string, 0, len(selectors))
 	seen := make(map[string]struct{}, len(selectors))
 	for _, selector := range selectors {
-		repoID, err := resolveRepositorySelectorExact(ctx, nil, h.Content, selector)
+		repoID, err := resolveRepositorySelectorExactForAccess(ctx, nil, h.Content, selector, access)
 		if err != nil {
 			return nil, err
 		}
