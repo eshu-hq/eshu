@@ -23,6 +23,7 @@
             "cloudformation_cross_stack_imports": [],
             "cloudformation_outputs": [],
             "cloudformation_parameters": [],
+            "cloudformation_position_fallbacks": [],
             "cloudformation_resources": [],
             "crossplane_claims": [],
             "crossplane_compositions": [
