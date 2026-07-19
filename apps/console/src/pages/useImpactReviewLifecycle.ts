@@ -9,6 +9,7 @@ export interface ImpactReviewLifecycle {
   readonly busy: boolean;
   readonly error: string;
   readonly load: (input: ImpactReviewInput) => void;
+  readonly reset: () => void;
   readonly review: ImpactReview | null;
   readonly selectNode: (node: GraphNode | undefined) => void;
   readonly selectedNode: GraphNode | undefined;
@@ -28,6 +29,14 @@ export function useImpactReviewLifecycle(client: EshuApiClient | undefined): Imp
     },
     [],
   );
+
+  const reset = useCallback(() => {
+    generation.current += 1;
+    setReview(null);
+    setSelectedNode(undefined);
+    setError("");
+    setBusy(false);
+  }, []);
 
   const load = useCallback(
     (input: ImpactReviewInput) => {
@@ -62,5 +71,5 @@ export function useImpactReviewLifecycle(client: EshuApiClient | undefined): Imp
     [client],
   );
 
-  return { busy, error, load, review, selectNode: setSelectedNode, selectedNode };
+  return { busy, error, load, reset, review, selectNode: setSelectedNode, selectedNode };
 }

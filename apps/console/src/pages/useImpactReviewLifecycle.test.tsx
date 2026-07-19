@@ -50,6 +50,23 @@ describe("useImpactReviewLifecycle", () => {
     expect(screen.queryByText("alpha failed")).not.toBeInTheDocument();
     expect(screen.getByText("Idle")).toBeInTheDocument();
   });
+
+  it("invalidates a pending request when its URL-owned target is removed", async () => {
+    const alpha = deferred<ImpactReview>();
+    mockedLoadImpactReview.mockReturnValueOnce(alpha.promise);
+
+    render(<Harness />);
+    fireEvent.click(screen.getByRole("button", { name: "Load alpha" }));
+    fireEvent.click(screen.getByRole("button", { name: "Remove URL target" }));
+
+    expect(screen.getByText("No review")).toBeInTheDocument();
+    expect(screen.getByText("No selection")).toBeInTheDocument();
+    expect(screen.getByText("Idle")).toBeInTheDocument();
+    alpha.resolve(review("alpha"));
+
+    await waitFor(() => expect(screen.getByText("No review")).toBeInTheDocument());
+    expect(screen.queryByText("Review alpha")).not.toBeInTheDocument();
+  });
 });
 
 function Harness(): React.JSX.Element {
@@ -61,6 +78,9 @@ function Harness(): React.JSX.Element {
       </button>
       <button onClick={() => lifecycle.load(input("beta"))} type="button">
         Load beta
+      </button>
+      <button onClick={lifecycle.reset} type="button">
+        Remove URL target
       </button>
       <p>{lifecycle.busy ? "Loading" : "Idle"}</p>
       <p>{lifecycle.review ? `Review ${lifecycle.review.input.target}` : "No review"}</p>

@@ -336,6 +336,11 @@ function DeploymentSourceGroup({
                 <span>
                   {relationship.verb}: {relationship.source} → {relationship.target}
                 </span>
+                {relationship.canonicalSource && relationship.canonicalTarget ? (
+                  <span className="mono t-mut">
+                    {relationship.canonicalSource} → {relationship.canonicalTarget}
+                  </span>
+                ) : null}
                 {source.id ? <span className="mono">{source.id}</span> : null}
                 {source.detail ? <span>{source.detail}</span> : null}
               </article>
@@ -355,6 +360,8 @@ function deploymentSourceRelationship(
   readonly source: string;
   readonly target: string;
   readonly verb: string;
+  readonly canonicalSource?: string;
+  readonly canonicalTarget?: string;
 } {
   if (source.relationshipType === "DEPLOYS_FROM") {
     return {
@@ -362,14 +369,18 @@ function deploymentSourceRelationship(
       source: source.name,
       target: trace.repoName || trace.repoId,
       verb: "deploys from",
+      canonicalSource: source.sourceId,
+      canonicalTarget: source.targetId,
     };
   }
   if (source.relationshipType === "DEPLOYMENT_SOURCE") {
     return {
       family: "DEPLOYMENT_SOURCE",
-      source: source.sourceId ?? "source identity unavailable",
+      source: trace.serviceName || trace.workloadId || "service identity unavailable",
       target: source.name,
       verb: "deployment source",
+      canonicalSource: source.sourceId,
+      canonicalTarget: source.targetId ?? source.id,
     };
   }
   return {
@@ -377,6 +388,8 @@ function deploymentSourceRelationship(
     source: source.sourceId ?? "source identity unavailable",
     target: source.targetId ?? source.name,
     verb: "relationship unavailable",
+    canonicalSource: source.sourceId,
+    canonicalTarget: source.targetId,
   };
 }
 

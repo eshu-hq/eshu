@@ -52,7 +52,8 @@ export function ImpactPage({
     formFromSearch(searchParams, demoMode, liveDefaultTarget),
   );
   const [formError, setFormError] = useState("");
-  const { busy, error, load, review, selectNode, selectedNode } = useImpactReviewLifecycle(client);
+  const { busy, error, load, reset, review, selectNode, selectedNode } =
+    useImpactReviewLifecycle(client);
   const canLoad = (model.source === "live" || demoMode) && client !== undefined;
   const deployablePacketInitial = useMemo(() => packetFormFromSearch(searchParams), [searchParams]);
 
@@ -66,8 +67,10 @@ export function ImpactPage({
         target: next.target.trim(),
         targetKind: next.kind,
       });
+    } else {
+      reset();
     }
-  }, [canLoad, demoMode, liveDefaultTarget, load, searchParams]);
+  }, [canLoad, demoMode, liveDefaultTarget, load, reset, searchParams]);
 
   function submit(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();

@@ -128,8 +128,14 @@ describe("DeploymentTraceSummary deployment-source relationships", () => {
     expect(rows).toHaveLength(2);
     expect(within(rows[0]).getByText("DEPLOYMENT_SOURCE")).toBeInTheDocument();
     expect(
-      within(rows[0]).getByText("deployment source: instance:catalog:prod → deployment-config"),
+      within(rows[0]).getByText("deployment source: catalog-api → deployment-config"),
     ).toBeInTheDocument();
+    expect(
+      within(rows[0]).getByText("instance:catalog:prod → repository:r_config"),
+    ).toBeInTheDocument();
+    expect(
+      within(rows[0]).queryByText("deployment source: instance:catalog:prod → deployment-config"),
+    ).not.toBeInTheDocument();
     expect(within(rows[1]).getByText("DEPLOYS_FROM")).toBeInTheDocument();
     expect(
       within(rows[1]).getByText("deploys from: deployment-config → catalog-api"),
