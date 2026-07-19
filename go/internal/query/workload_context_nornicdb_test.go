@@ -19,12 +19,6 @@ func TestFetchWorkloadContextUsesScalarQueriesForNornicDBOptionalProjectionSafet
 				if strings.Contains(cypher, "OPTIONAL MATCH") || strings.Contains(cypher, "collect(DISTINCT {") {
 					t.Fatalf("cypher = %q, want scalar queries without optional map projection", cypher)
 				}
-				if strings.Contains(cypher, "MATCH (r:Repository)-[:DEFINES]->(w)") {
-					return map[string]any{
-						"repo_id":   "repository:datax",
-						"repo_name": "svc-orders",
-					}, nil
-				}
 				if !strings.Contains(cypher, "RETURN w.id as id, w.name as name, w.kind as kind") {
 					t.Fatalf("unexpected RunSingle cypher: %q", cypher)
 				}
@@ -45,6 +39,14 @@ func TestFetchWorkloadContextUsesScalarQueriesForNornicDBOptionalProjectionSafet
 					t.Fatalf("cypher = %q, want exact instance and RUNS_ON traversal in one MATCH", cypher)
 				}
 				switch {
+				case strings.Contains(cypher, "MATCH (w:Workload {id: $workload_id})<-[:DEFINES]-(r:Repository)"):
+					if got, want := params["workload_id"], "workload:svc-orders"; got != want {
+						t.Fatalf("params[workload_id] = %#v, want %#v", got, want)
+					}
+					return []map[string]any{{
+						"repo_id":   "repository:datax",
+						"repo_name": "svc-orders",
+					}}, nil
 				case strings.Contains(cypher, "<-[rel:PROVISIONS_DEPENDENCY_FOR]-"):
 					return nil, nil
 				case strings.Contains(cypher, "-[runsOn:RUNS_ON]->(p:Platform)"):
@@ -180,11 +182,6 @@ func TestFetchWorkloadContextPrefersInstanceRunsOnTruthOverProvisionedPlatformSh
 	handler := &EntityHandler{
 		Neo4j: fakeWorkloadGraphReader{
 			runSingle: func(_ context.Context, cypher string, _ map[string]any) (map[string]any, error) {
-				if strings.Contains(cypher, "MATCH (r:Repository)-[:DEFINES]->(w)") {
-					return map[string]any{
-						"repo_id": "repository:r_fdb82379", "repo_name": "sample-service",
-					}, nil
-				}
 				if !strings.Contains(cypher, "RETURN w.id as id, w.name as name, w.kind as kind") {
 					t.Fatalf("unexpected RunSingle cypher: %q", cypher)
 				}
@@ -197,6 +194,10 @@ func TestFetchWorkloadContextPrefersInstanceRunsOnTruthOverProvisionedPlatformSh
 			},
 			run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 				switch {
+				case strings.Contains(cypher, "MATCH (w:Workload {id: $workload_id})<-[:DEFINES]-(r:Repository)"):
+					return []map[string]any{{
+						"repo_id": "repository:r_fdb82379", "repo_name": "sample-service",
+					}}, nil
 				case strings.Contains(cypher, "-[runsOn:RUNS_ON]->(p:Platform)"):
 					if strings.Contains(cypher, "MATCH (i)-[runsOn:RUNS_ON]->") {
 						t.Fatalf("cypher = %q, want exact instance and RUNS_ON traversal in one MATCH", cypher)
@@ -339,6 +340,8 @@ func TestFetchDeploymentTraceKeepsProvisionedPlatformSeparateWhenInstanceRunsOnM
 			},
 			run: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 				switch {
+				case strings.Contains(cypher, "MATCH (w:Workload {id: $workload_id})<-[:DEFINES]-(r:Repository)"):
+					return []map[string]any{{"repo_id": "repository:legacy", "repo_name": "legacy-service"}}, nil
 				case strings.Contains(cypher, "-[runsOn:RUNS_ON]->(p:Platform)"):
 					return nil, nil
 				case strings.Contains(cypher, "WHERE i.workload_id = $workload_id"):

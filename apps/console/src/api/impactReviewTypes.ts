@@ -99,6 +99,7 @@ export interface BlastAffectedEntity {
 }
 
 export interface DeploymentTraceResult {
+  readonly cloudResourceLimits: BoundedCollectionLimits | null;
   readonly cloudResources: readonly DeploymentTraceEntity[];
   readonly deploymentOverview: Record<string, unknown>;
   readonly deploymentFacts: readonly DeploymentTraceFact[];
@@ -106,6 +107,7 @@ export interface DeploymentTraceResult {
   readonly deploymentSources: readonly DeploymentTraceSource[];
   readonly imageRefs: readonly string[];
   readonly invalidTopologyEdgeCount?: number;
+  readonly k8sResourceLimits: BoundedCollectionLimits | null;
   readonly k8sResources: readonly DeploymentTraceEntity[];
   readonly instances: readonly DeploymentTraceInstance[];
   readonly provisionedPlatforms: readonly DeploymentTracePlatform[];

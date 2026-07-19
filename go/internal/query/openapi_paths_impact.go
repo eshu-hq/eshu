@@ -199,6 +199,7 @@ const openAPIPathsImpact = `
                     },
                     "uncorrelated_cloud_resources": {"type": "array", "description": "CloudResource candidates that matched the service name or ARN/resource identifier but do not have a materialized workload-to-cloud relationship.", "items": {"type": "object"}},
                     "k8s_resources": {"type": "array", "items": {"type": "object"}},
+` + openAPIImpactK8sResourceLimits + `
                     "image_refs": {"type": "array", "items": {"type": "string"}},
                     "image_registry_truth": {"type": "array", "items": {"type": "object"}},
                     "k8s_relationships": {"type": "array", "items": {"type": "object"}},

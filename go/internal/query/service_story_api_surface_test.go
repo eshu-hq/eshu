@@ -25,6 +25,8 @@ func TestGetServiceStoryReadbackAlignsSupportOverviewSpecCountWithAPISurface(t *
 		Neo4j: fakeWorkloadGraphReader{
 			run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 				switch {
+				case strings.Contains(cypher, "MATCH (w:Workload {id: $workload_id})<-[:DEFINES]-(r:Repository)"):
+					return []map[string]any{{"repo_id": repoID, "repo_name": serviceName}}, nil
 				case strings.Contains(cypher, "w.name = $service_name"):
 					if got := params["service_name"]; got != serviceName {
 						t.Fatalf("service_name param = %#v, want %q", got, serviceName)

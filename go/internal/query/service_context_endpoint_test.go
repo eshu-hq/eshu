@@ -19,9 +19,6 @@ func TestGetServiceContextOmitsRepoEntryPoints(t *testing.T) {
 	handler := &EntityHandler{
 		Neo4j: fakeWorkloadGraphReader{
 			runSingleByMatch: map[string]map[string]any{
-				"MATCH (r:Repository)-[:DEFINES]->(w)": {
-					"repo_id": "repo-1", "repo_name": "service-edge-api",
-				},
 				"w.name = $service_name": {
 					"id":        "workload:service-edge-api",
 					"name":      "service-edge-api",
@@ -40,6 +37,8 @@ func TestGetServiceContextOmitsRepoEntryPoints(t *testing.T) {
 			},
 			run: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 				switch {
+				case strings.Contains(cypher, "MATCH (w:Workload {id: $workload_id})<-[:DEFINES]-(r:Repository)"):
+					return []map[string]any{{"repo_id": "repo-1", "repo_name": "service-edge-api"}}, nil
 				case strings.Contains(cypher, "fn.name IN"):
 					entryPointQueried = true
 					return []map[string]any{{"name": "main", "relative_path": "cmd/server/main.go", "language": "go"}}, nil
@@ -81,9 +80,6 @@ func TestFetchWorkloadContextAnchorsFollowUpQueriesByResolvedWorkloadID(t *testi
 	handler := &EntityHandler{
 		Neo4j: fakeWorkloadGraphReader{
 			runSingleByMatch: map[string]map[string]any{
-				"MATCH (r:Repository)-[:DEFINES]->(w)": {
-					"repo_id": "repo-1", "repo_name": "service-edge-api",
-				},
 				"w.name = $service_name": {
 					"id":   "workload:service-edge-api",
 					"name": "service-edge-api",
@@ -91,6 +87,9 @@ func TestFetchWorkloadContextAnchorsFollowUpQueriesByResolvedWorkloadID(t *testi
 				},
 			},
 			run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
+				if strings.Contains(cypher, "MATCH (w:Workload {id: $workload_id})<-[:DEFINES]-(r:Repository)") {
+					return []map[string]any{{"repo_id": "repo-1", "repo_name": "service-edge-api"}}, nil
+				}
 				if strings.Contains(cypher, "w.name = $service_name OR w.id = $service_name") {
 					t.Fatalf("follow-up cypher used broad service lookup after workload id was resolved: %s", cypher)
 				}
@@ -122,9 +121,6 @@ func TestGetServiceContextIncludesGraphDeploymentEvidenceWithoutContent(t *testi
 	handler := &EntityHandler{
 		Neo4j: fakeWorkloadGraphReader{
 			runSingleByMatch: map[string]map[string]any{
-				"MATCH (r:Repository)-[:DEFINES]->(w)": {
-					"repo_id": "repo-service", "repo_name": "checkout-service",
-				},
 				"w.name = $service_name": {
 					"id":        "workload:checkout-service",
 					"name":      "checkout-service",
@@ -135,6 +131,9 @@ func TestGetServiceContextIncludesGraphDeploymentEvidenceWithoutContent(t *testi
 				},
 			},
 			runByMatch: map[string][]map[string]any{
+				"MATCH (w:Workload {id: $workload_id})<-[:DEFINES]-(r:Repository)": {
+					{"repo_id": "repo-service", "repo_name": "checkout-service"},
+				},
 				"DEPENDS_ON|USES_MODULE|DEPLOYS_FROM": {},
 				"K8sResource OR":                      {},
 				"fn.name IN":                          {},

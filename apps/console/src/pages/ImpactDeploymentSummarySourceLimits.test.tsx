@@ -94,6 +94,7 @@ describe("ImpactGraphProvenance completeness", () => {
 
 function renderSummary(deploymentSourceLimits: DeploymentSourceLimits | null): void {
   const trace: DeploymentTraceResult = {
+    cloudResourceLimits: null,
     cloudResources: [],
     deploymentFacts: [],
     deploymentOverview: {},
@@ -101,6 +102,7 @@ function renderSummary(deploymentSourceLimits: DeploymentSourceLimits | null): v
     deploymentSources: [],
     imageRefs: [],
     instances: [],
+    k8sResourceLimits: null,
     k8sResources: [],
     provisionedPlatforms: [],
     repoId: "repository:r_catalog",

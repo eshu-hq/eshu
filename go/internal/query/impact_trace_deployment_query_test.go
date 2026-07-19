@@ -309,6 +309,9 @@ func TestFetchServiceTraceContextIncludesGraphDeploymentEvidenceWithoutContent(t
 				},
 			},
 			runByMatch: map[string][]map[string]any{
+				"MATCH (w:Workload {id: $workload_id})<-[:DEFINES]-(r:Repository)": {
+					{"repo_id": "repo-service", "repo_name": "checkout-service"},
+				},
 				"DEPENDS_ON|USES_MODULE|DEPLOYS_FROM": {},
 				"K8sResource OR":                      {},
 				"fn.name IN":                          {},

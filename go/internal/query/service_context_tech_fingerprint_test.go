@@ -34,6 +34,9 @@ func TestGetServiceContextIncludesTechFingerprint(t *testing.T) {
 			return nil, nil
 		},
 		runByMatch: map[string][]map[string]any{
+			"MATCH (w:Workload {id: $workload_id})<-[:DEFINES]-(r:Repository)": {
+				{"repo_id": "repo-fp-svc", "repo_name": "fp-service-repo"},
+			},
 			"INSTANCE_OF":                         {},
 			"DEPENDS_ON|USES_MODULE|DEPLOYS_FROM": {},
 			"K8sResource OR":                      {},

@@ -127,9 +127,9 @@ source_coverage:
       - {symbol: "hydrateResolvedEntityRepoIdentity", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
   - file: entity_workload_context.go
     calls:
-      - {symbol: "(*EntityHandler).fetchWorkloadContextForOperation", count: 1, source_sha256: 40ae7902ee82fc47573ee830667b29de995f309e2083dab813d89d5b5aa44da8, entry_ids: [QP-SVC-CONTEXT]}
+      - {symbol: "(*EntityHandler).fetchWorkloadContextForOperation", count: 1, source_sha256: 153aaa6f5226ae4225d3124a7058b10f218ca501b9bc6756953b82309c0ab10c, entry_ids: [QP-SVC-CONTEXT]}
       - {symbol: "(*EntityHandler).fetchWorkloadPlatformResult", count: 1, source_sha256: 32a2f173df26d536e734705924f20d9cf211e40337f85c4620227b9e8370caf9, entry_ids: [QP-SVC-RUNS-ON]}
-      - {symbol: "(*EntityHandler).fetchWorkloadRepositoryForAccess", count: 1, non_hot: {class: keyed_support, source_sha256: ce186c51db662303ef9323fc583c1378d86c466f615feac7741af96ea957c6b7, key_bound: single_key, max_results: 1}}
+      - {symbol: "(*EntityHandler).fetchWorkloadRepositoryForAccess", count: 1, non_hot: {class: keyed_support, source_sha256: 3f873243c8d98081e3e9e02831f6518fede69f9616649735e045f4e21dc79016, key_bound: single_key, max_results: 51}}
   - file: exposure_path.go
     calls:
       - {symbol: "(*ImpactHandler).exposurePathCandidates", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
@@ -180,10 +180,10 @@ source_coverage:
     calls:
       - symbol: "fetchCanonicalDeploymentSourceRows"
         count: 1
-        non_hot: {class: keyed_support, source_sha256: 60b73c0be8f9bca57ff190865ef9d6de0ca51dc60308c0cc3a9af860faa956d9, key_bound: single_key, max_results: 51}
+        non_hot: {class: keyed_support, source_sha256: 39e0731989196b96e3e5afa224d3da08981122cef4c555df694a68bbb8c4d920, key_bound: single_key, max_results: 51}
       - symbol: "fetchRepositoryDeploymentSourceRows"
         count: 1
-        non_hot: {class: keyed_support, source_sha256: 47e2977a15ef1d84cc7f051cf0fb041259bb5d0ac3fa1d3f68b6575ae74e0363, key_bound: single_key, max_results: 51}
+        non_hot: {class: keyed_support, source_sha256: 5f972b59c849f21aa766b75651e9765c8879f49f82b7362ae59ac45306e2d203, key_bound: single_key, max_results: 51}
   - file: impact_trace_deployment_oci.go
     calls:
       - {symbol: "fetchOCIImageTagRows", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}

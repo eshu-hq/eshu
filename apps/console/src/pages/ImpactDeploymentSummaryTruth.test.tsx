@@ -7,6 +7,7 @@ import type { DeploymentTraceResult } from "../api/impactReviewTypes";
 describe("DeploymentTraceSummary topology truth", () => {
   it("labels environment values as instance attributes and renders exact edge provenance", () => {
     const trace: DeploymentTraceResult = {
+      cloudResourceLimits: null,
       cloudResources: [],
       deploymentFacts: [],
       deploymentOverview: {},
@@ -38,6 +39,7 @@ describe("DeploymentTraceSummary topology truth", () => {
           ],
         },
       ],
+      k8sResourceLimits: null,
       k8sResources: [],
       provisionedPlatforms: [],
       repoId: "repository:r_catalog",

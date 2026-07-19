@@ -122,7 +122,7 @@ func (h *ImpactHandler) traceDeploymentChain(w http.ResponseWriter, r *http.Requ
 				ctx["uncorrelated_cloud_resources"] = cloudCandidates
 			}
 		}
-		k8sResources, imageRefs, err := h.fetchK8sResources(r.Context(), safeStr(ctx, "repo_id"), safeStr(ctx, "name"))
+		k8sResourceResult, err := h.fetchK8sResourceResult(r.Context(), safeStr(ctx, "repo_id"), safeStr(ctx, "name"))
 		if err != nil {
 			WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query k8s resources: %v", err))
 			return
@@ -136,8 +136,13 @@ func (h *ImpactHandler) traceDeploymentChain(w http.ResponseWriter, r *http.Requ
 			WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query deployment source gitops evidence: %v", err))
 			return
 		}
-		k8sResources = mergeDeploymentTraceRows(k8sResources, deploymentRepoK8s)
-		imageRefs = uniqueSortedStrings(append(append([]string{}, imageRefs...), deploymentRepoImages...))
+		k8sResourceResult = boundedK8sResourceResult(
+			k8sResourceResult.candidates,
+			k8sResourceResult.contentLowerBound,
+			deploymentRepoK8s,
+		)
+		k8sResources := k8sResourceResult.rows
+		imageRefs := uniqueSortedStrings(append(append([]string{}, k8sResourceResult.imageRefs...), deploymentRepoImages...))
 		imageRegistryTruth, err := h.fetchOCIImageRegistryTruth(r.Context(), imageRefs)
 		if err != nil {
 			WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query OCI image registry truth: %v", err))
@@ -146,6 +151,7 @@ func (h *ImpactHandler) traceDeploymentChain(w http.ResponseWriter, r *http.Requ
 		ctx["deployment_sources"] = deploymentSources
 		ctx["deployment_source_limits"] = deploymentSourceResult.limits
 		ctx["cloud_resource_limits"] = cloudResourceResult.limits
+		ctx["k8s_resource_limits"] = k8sResourceResult.limits
 		if len(cloudResources) > 0 {
 			ctx["cloud_resources"] = cloudResources
 		}
@@ -337,6 +343,9 @@ func buildDeploymentTraceResponse(serviceName string, workloadContext map[string
 	}
 	if cloudResourceLimits := mapValue(workloadContext, "cloud_resource_limits"); len(cloudResourceLimits) > 0 {
 		response["cloud_resource_limits"] = cloudResourceLimits
+	}
+	if k8sResourceLimits := mapValue(workloadContext, "k8s_resource_limits"); len(k8sResourceLimits) > 0 {
+		response["k8s_resource_limits"] = k8sResourceLimits
 	}
 	if len(uncorrelatedCloudResources) > 0 {
 		response["uncorrelated_cloud_resources"] = uncorrelatedCloudResources

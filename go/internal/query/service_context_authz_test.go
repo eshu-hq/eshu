@@ -59,16 +59,6 @@ func TestFetchWorkloadContextBindsSharedWorkloadTopologyToSelectedAuthorizedRepo
 
 	reader := fakeWorkloadGraphReader{
 		runSingle: func(_ context.Context, cypher string, params map[string]any) (map[string]any, error) {
-			if strings.Contains(cypher, "MATCH (r:Repository)-[:DEFINES]->(w)") {
-				requireScopedWorkloadRepositories(t, cypher, params, "repo-team-a", "repo-team-b")
-				if !strings.Contains(cypher, "ORDER BY CASE WHEN r.id = $preferred_repo_id THEN 0 ELSE 1 END, r.id") {
-					t.Fatalf("authorized defining repository lookup is not deterministic: %s", cypher)
-				}
-				if preferred := StringVal(params, "preferred_repo_id"); preferred != "" {
-					t.Fatalf("preferred_repo_id = %q, want empty for unauthorized stored repository", preferred)
-				}
-				return map[string]any{"repo_id": "repo-team-a", "repo_name": "payments-a"}, nil
-			}
 			if strings.Contains(cypher, "MATCH (w:Workload)") && strings.Contains(cypher, "w.id = $workload_id") {
 				requireScopedWorkloadRepositories(t, cypher, params, "repo-team-a", "repo-team-b")
 				return map[string]any{
@@ -85,6 +75,15 @@ func TestFetchWorkloadContextBindsSharedWorkloadTopologyToSelectedAuthorizedRepo
 		},
 		run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 			switch {
+			case strings.Contains(cypher, "MATCH (w:Workload {id: $workload_id})<-[:DEFINES]-(r:Repository)"):
+				requireScopedWorkloadRepositories(t, cypher, params, "repo-team-a", "repo-team-b")
+				if strings.Contains(cypher, "ORDER BY") || strings.Contains(cypher, "CASE WHEN") {
+					t.Fatalf("authorized defining repository lookup retained backend ordering: %s", cypher)
+				}
+				return []map[string]any{
+					{"repo_id": "repo-team-b", "repo_name": "payments-b"},
+					{"repo_id": "repo-team-a", "repo_name": "payments-a"},
+				}, nil
 			case strings.Contains(cypher, "[instanceOf:INSTANCE_OF]"):
 				rows := []map[string]any{
 					{

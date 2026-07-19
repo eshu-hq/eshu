@@ -2400,6 +2400,7 @@
           "image_refs",
           "instances",
           "k8s_relationships",
+          "k8s_resource_limits",
           "k8s_resources",
           "kind",
           "name",
@@ -4523,7 +4524,10 @@
           "data.deployment_source_limits.truncated",
           "data.cloud_resource_limits.limit",
           "data.cloud_resource_limits.returned_count",
-          "data.cloud_resource_limits.truncated"
+          "data.cloud_resource_limits.truncated",
+          "data.k8s_resource_limits.limit",
+          "data.k8s_resource_limits.returned_count",
+          "data.k8s_resource_limits.truncated"
         ],
         "required_json_values": {
           "data.instances[].platforms[].topology_edges[].relationship_type": "RUNS_ON",

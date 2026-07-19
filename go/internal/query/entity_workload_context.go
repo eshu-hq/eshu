@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"sort"
 	"strings"
 )
 
@@ -77,9 +78,10 @@ func (h *EntityHandler) fetchWorkloadContextForOperation(ctx context.Context, wh
 		return nil, nil
 	}
 
+	workloadID := StringVal(row, "id")
 	followupWhereClause := whereClause
 	followupParams := params
-	if workloadID := StringVal(row, "id"); workloadID != "" {
+	if workloadID != "" {
 		followupWhereClause = "w.id = $workload_id" // #nosec G101 -- Cypher parameterised query template, not a hardcoded credential
 		followupParams = map[string]any{"workload_id": workloadID}
 	}
@@ -90,7 +92,7 @@ func (h *EntityHandler) fetchWorkloadContextForOperation(ctx context.Context, wh
 	}
 	timer = startServiceQueryStage(ctx, h.Logger, operation, StringVal(row, "name"), preferredRepoID, "repository_lookup")
 	repoID, repoName, err := h.fetchWorkloadRepositoryForAccess(
-		ctx, followupWhereClause, followupParams, access, preferredRepoID,
+		ctx, workloadID, access, preferredRepoID,
 	)
 	timer.Done(ctx, slog.String("resolved_repo_id", repoID))
 	if err != nil {
@@ -220,36 +222,70 @@ func matchingRepositoryWorkloadIdentity(serviceName string, repo RepositoryCatal
 	return strings.TrimSpace(workloadNames[0])
 }
 
-// fetchWorkloadRepositoryForAccess resolves the repository link without
-// OPTIONAL MATCH while preserving scoped repository authorization. A stored
-// workload repo_id is only preferred after the DEFINES relationship proves it
-// is an actual candidate.
+const workloadRepositoryCandidateLimit = contextStoryItemLimit
+
+// fetchWorkloadRepositoryForAccess resolves a bounded repository candidate set
+// from one exact Workload anchor while preserving scoped authorization. It
+// sorts the complete bounded set in Go because NornicDB can re-plan backend
+// ORDER BY/CASE relationship reads as global scans. A stored workload repo_id
+// is preferred only after the DEFINES relationship proves it is a candidate.
 func (h *EntityHandler) fetchWorkloadRepositoryForAccess(
 	ctx context.Context,
-	whereClause string,
-	params map[string]any,
+	workloadID string,
 	access repositoryAccessFilter,
 	preferredRepoID string,
 ) (string, string, error) {
-	params = copyStringAnyMap(params)
-	params = access.graphParams(params)
-	params["preferred_repo_id"] = preferredRepoID
+	if strings.TrimSpace(workloadID) == "" {
+		return "", "", nil
+	}
+	queryLimit := workloadRepositoryCandidateLimit + 1
+	params := access.graphParams(map[string]any{
+		"workload_id":      workloadID,
+		"repository_limit": queryLimit,
+	})
 	cypher := fmt.Sprintf(`
-		MATCH (w:Workload) WHERE %s
-		MATCH (r:Repository)-[:DEFINES]->(w)
+		MATCH (w:Workload {id: $workload_id})<-[:DEFINES]-(r:Repository)
 		%s
-		RETURN r.id as repo_id, r.name as repo_name
-		ORDER BY CASE WHEN r.id = $preferred_repo_id THEN 0 ELSE 1 END, r.id
-		LIMIT 1
-	`, whereClause, access.graphWhereClause("r"))
-	row, err := h.Neo4j.RunSingle(ctx, cypher, params)
+		RETURN DISTINCT r.id as repo_id, r.name as repo_name
+		LIMIT $repository_limit
+	`, access.graphWhereClause("r"))
+	rows, err := h.Neo4j.Run(ctx, cypher, params)
 	if err != nil {
 		return "", "", err
 	}
-	if row == nil {
+	if len(rows) > workloadRepositoryCandidateLimit {
+		return "", "", fmt.Errorf(
+			"workload repository candidates exceed bound: returned %d, limit %d",
+			len(rows), workloadRepositoryCandidateLimit,
+		)
+	}
+	candidates := make([]map[string]any, 0, len(rows))
+	seen := make(map[string]struct{}, len(rows))
+	for _, row := range rows {
+		repoID := StringVal(row, "repo_id")
+		if repoID == "" {
+			continue
+		}
+		if _, exists := seen[repoID]; exists {
+			continue
+		}
+		seen[repoID] = struct{}{}
+		candidates = append(candidates, row)
+	}
+	if len(candidates) == 0 {
 		return "", "", nil
 	}
-	return StringVal(row, "repo_id"), StringVal(row, "repo_name"), nil
+	sort.Slice(candidates, func(i, j int) bool {
+		return StringVal(candidates[i], "repo_id") < StringVal(candidates[j], "repo_id")
+	})
+	selected := candidates[0]
+	for _, candidate := range candidates {
+		if StringVal(candidate, "repo_id") == preferredRepoID {
+			selected = candidate
+			break
+		}
+	}
+	return StringVal(selected, "repo_id"), StringVal(selected, "repo_name"), nil
 }
 
 func scopedWorkloadWhereClause(whereClause string, access repositoryAccessFilter) string {

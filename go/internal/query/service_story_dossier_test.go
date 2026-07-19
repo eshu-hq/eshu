@@ -305,6 +305,9 @@ func TestGetServiceStoryRepoSelectorDisambiguatesServiceName(t *testing.T) {
 		},
 		Neo4j: fakeWorkloadGraphReader{
 			run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
+				if strings.Contains(cypher, "MATCH (w:Workload {id: $workload_id})<-[:DEFINES]-(r:Repository)") {
+					return []map[string]any{{"repo_id": "repo-checkout-api", "repo_name": "checkout-api"}}, nil
+				}
 				if !strings.Contains(cypher, "w.name = $service_name") {
 					return nil, nil
 				}

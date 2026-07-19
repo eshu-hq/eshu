@@ -129,6 +129,58 @@ func TestFetchDeploymentSourcesOrdersCanonicalEndpointTiesDeterministically(t *t
 	}
 }
 
+func TestFetchDeploymentSourcesScopesEveryRepositoryEndpointBeforeLimit(t *testing.T) {
+	t.Parallel()
+
+	ctx := ContextWithAuthContext(t.Context(), AuthContext{
+		Mode:                 AuthModeScoped,
+		TenantID:             "tenant-a",
+		WorkspaceID:          "workspace-a",
+		AllowedRepositoryIDs: []string{"repository:allowed"},
+	})
+	reader := fakeGraphReader{run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
+		limitIndex := strings.Index(cypher, "LIMIT $source_limit")
+		if limitIndex < 0 {
+			t.Fatalf("deployment-source query is missing its bound:\n%s", cypher)
+		}
+		for _, want := range []string{"repo.id IN $allowed_repository_ids", "repo.id IN $allowed_scope_ids"} {
+			if predicateIndex := strings.Index(cypher, want); predicateIndex < 0 || predicateIndex > limitIndex {
+				t.Fatalf("deployment-source query does not scope source repository before LIMIT with %q:\n%s", want, cypher)
+			}
+		}
+		if strings.Contains(cypher, "targetRepo:Repository") {
+			for _, want := range []string{"targetRepo.id IN $allowed_repository_ids", "targetRepo.id IN $allowed_scope_ids"} {
+				if predicateIndex := strings.Index(cypher, want); predicateIndex < 0 || predicateIndex > limitIndex {
+					t.Fatalf("repository deployment-source query does not scope target before LIMIT with %q:\n%s", want, cypher)
+				}
+			}
+		}
+		if got := params["allowed_repository_ids"]; fmt.Sprint(got) != "[repository:allowed]" {
+			t.Fatalf("allowed_repository_ids = %#v, want the caller's repository grant", got)
+		}
+		if got := params["allowed_scope_ids"]; fmt.Sprint(got) != "[]" {
+			t.Fatalf("allowed_scope_ids = %#v, want an explicit empty scope grant", got)
+		}
+
+		// An out-of-grant source exists in the graph. A correctly scoped query
+		// cannot return it, while the pre-fix query would expose it here.
+		return nil, nil
+	}}
+
+	result, err := fetchDeploymentSourceResultFromGraph(
+		ctx,
+		reader,
+		"workload:orders",
+		"repository:allowed",
+	)
+	if err != nil {
+		t.Fatalf("fetchDeploymentSourceResultFromGraph() error = %v", err)
+	}
+	if len(result.rows) != 0 {
+		t.Fatalf("deployment source rows = %#v, want no cross-grant repositories", result.rows)
+	}
+}
+
 func TestFetchDeploymentSourcesBoundsGraphExpansionAndReportsCoverage(t *testing.T) {
 	t.Parallel()
 

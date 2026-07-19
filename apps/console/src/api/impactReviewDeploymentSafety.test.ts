@@ -371,6 +371,7 @@ async function loadReview(trace: Record<string, unknown>, unavailableIdentity = 
 
 function deploymentTrace(overrides: Record<string, unknown>): Record<string, unknown> {
   return {
+    cloud_resource_limits: completeCollectionLimits(0),
     cloud_resources: [],
     deployment_source_limits: {
       canonical_observed_count: 0,
@@ -385,6 +386,7 @@ function deploymentTrace(overrides: Record<string, unknown>): Record<string, unk
     },
     deployment_sources: [],
     instances: [],
+    k8s_resource_limits: completeCollectionLimits(0),
     k8s_resources: [],
     provisioned_platforms: [],
     repo_id: "repository:r_catalog",

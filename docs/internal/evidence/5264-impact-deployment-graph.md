@@ -448,51 +448,49 @@ single 16.7 ms frame budget. These are warm retained-data measurements on this
 local machine, not a hardware-independent product guarantee or a comparison to
 the earlier 0.357 s API-only measurement.
 
-The earlier post-review browser smoke used the exact integrated implementation
-head `9ce1e43aeb7d5df7691945d8298a144a24896a46`: the feature-worktree API ran on
-`127.0.0.1:19085` against the retained Postgres and NornicDB data, and the
-feature-worktree console proxy ran on `127.0.0.1:5195`. This closes the stale
-binary gap after the final topology-basis validation and OpenAPI contract
-commits. The bounded catalog scan selected `service:base` because it had a
-resolved zero-row change surface and a populated deployment trace. In the
-authenticated browser the page showed zero direct and zero deeper change
-impacts, skipped blast radius under the documented service-anchor contract,
-and selected **Deployment topology** rather than presenting an empty change
-surface as deployment impact.
+The final retained run exposed a backend-sensitive repository lookup before it
+could be accepted. The prior two-`MATCH` query with backend `ORDER BY CASE`
+took **79.49 to 192.86 seconds** and caused the console's 15-second request
+timeout. A same-data theory shim then proved that an exact connected
+`Workload{id}<-[:DEFINES]-Repository` traversal with a 51-row sentinel returned
+in **5.3 ms** while correctly rejecting a stale stored `repo_id`; the old query
+still exceeded the shim's 5-second deadline. A follow-up same-data measurement
+of the duplicate-safe `RETURN DISTINCT` shape completed in **1.60 to 1.86 ms**
+across three warm reads. The production implementation applies scoped
+authorization at the Repository node, deduplicates before the sentinel limit,
+fails closed on overflow, and performs preferred/deterministic selection in Go
+rather than asking NornicDB to globally order relationship candidates.
 
-The final graph rendered **35 of 35 nodes** and **5 of 5 edges** within the
-60/120 bounds and reported **complete within bounds**. The deployment panel
-reported four runtime instances and 29 cloud resources; the graph disclosed
-that cloud evidence remains disconnected when the trace supplies no exact
-topology endpoint instead of inventing relationships. The shipped composition
-readout was **0.100 ms**. Exact DOM checks found one deployment-topology
-heading, one zero-direct signal, one 35/35-node signal, one 5/5-edge signal,
-and one complete-within-bounds signal. The browser warning/error log was empty.
-The retained `api-node-boats` dual-platform proof and five-sample timing series
-above remain the positive ECS/Kubernetes and interactive-read evidence; this
-exact-head smoke specifically proves the final fallback selection and
-fail-closed contract integration in the signed-in console.
+The exact branch API was rebuilt on `127.0.0.1:19085`, and the worktree Vite
+proxy on `127.0.0.1:5195` was explicitly pointed at that API. On the signed-in
+retained `service:base` route, two concurrent repository lookups completed in
+**0.819 ms** and **0.967 ms**, selected the actual defining repository, and the
+page rendered **Deployment topology**, **35 of 35 nodes**, **5 of 5 edges**,
+and **complete within bounds**. It showed four runtime instances, 29 cloud
+resources, zero direct change impacts, and a **0.200 ms** composition readout.
+The cloud evidence remained disconnected because the trace supplied no exact
+topology endpoints; no relationship was invented. This authenticated proof
+did not require another password reset after the local credential was rotated.
 
-The final signed-in browser smoke rebuilt the feature-worktree API at exact
-security-fixed implementation head
-`186e534302098cd75f7034567baaac1200f391cd` on `127.0.0.1:19085` and reused
-the feature-worktree console proxy on `127.0.0.1:5195`. The retained
-`service:base` route again selected **Deployment topology**, rendered **35 of
-35 nodes** and **5 of 5 edges**, reported **complete within bounds**, and
-showed **0.100 ms** composition with zero direct change impacts. Browser log
-inspection returned zero warnings or errors. This exact-head smoke proves the
-authorization correction did not regress the unscoped signed-in console path;
-the allowed-A/denied-B production-subject test and exact-head B-7 run above
-bind the scoped authorization behavior that the retained local admin session
-cannot exercise.
+The affected Go surface passed:
 
-After the final selected-repository correction, the feature-worktree API was
-rebuilt from exact implementation head
-`0cf9c0e5075d2832edb356f42014c5cc0d4b73b1` and the signed-in `service:base`
-browser route was rerun. It again selected
-**Deployment topology**, rendered **35 of 35 nodes** and **5 of 5 edges**,
-reported **complete within bounds**, and showed zero direct impacts. The
-composition readout was **0.000 ms**, and browser log inspection returned zero
-warnings or errors. This is the final browser binding for the exact reviewed
-implementation; the earlier exact-head results remain historical proof of the
-same bounded fallback behavior.
+```bash
+cd go && go test ./internal/query ./internal/queryplan ./cmd/api \
+  ./internal/mcp ./cmd/golden-corpus-gate -count=1
+```
+
+The exact post-fix B-7 proof used NornicDB v1.1.11 and fresh isolated ports:
+
+```bash
+ESHU_POSTGRES_PORT=16542 NEO4J_BOLT_PORT=8797 \
+NEO4J_HTTP_PORT=8585 GATE_API_PORT=19091 GATE_MCP_PORT=19101 \
+GATE_DRAIN_TIMEOUT=10m GATE_BUDGET_SECONDS=600 \
+NORNICDB_IMAGE=tianthyss/nornicdb-cpu-bge:v1.1.11 \
+bash scripts/verify-golden-corpus-gate.sh
+```
+
+It completed in **40 seconds** with **421 pass, 0 required-fail, and 0
+advisory-warn**. Phase timings were 5 seconds for bootstrap, 20 seconds for
+collector replay, 8 seconds for the first drain, 7 seconds for maintenance
+drains, and 7 seconds for graph/query checks. The gate removed its isolated
+resources; the retained signed-in console, API, and data stack remain running.

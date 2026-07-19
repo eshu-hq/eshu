@@ -92,9 +92,26 @@ func TestOpenAPIImpactDeploymentTraceDocumentsCanonicalPlatformIdentity(t *testi
 		"WorkloadContext provisioned_platforms[]",
 	)
 	assertProvisionedPlatformSchema(t, workloadProvisionedProperties, "WorkloadContext provisioned_platforms[]")
-	for _, limitsField := range []string{"runtime_topology_limits", "cloud_resource_limits"} {
+	for _, limitsField := range []string{"runtime_topology_limits", "cloud_resource_limits", "k8s_resource_limits"} {
 		if _, ok := properties[limitsField]; !ok {
 			t.Fatalf("impact trace schema missing %s", limitsField)
+		}
+	}
+	k8sResourceLimits := mustMapField(t, properties, "k8s_resource_limits")
+	k8sResourceLimitProperties := mustMapField(t, k8sResourceLimits, "properties")
+	for _, field := range []string{
+		"limit",
+		"query_sentinel_limit",
+		"returned_count",
+		"observed_count",
+		"observed_count_is_lower_bound",
+		"content_observed_count",
+		"deployment_source_observed_count",
+		"truncated",
+		"ordering",
+	} {
+		if _, ok := k8sResourceLimitProperties[field]; !ok {
+			t.Fatalf("impact trace k8s_resource_limits schema missing %s", field)
 		}
 	}
 	for _, field := range []string{

@@ -95,6 +95,7 @@ export function GraphCanvas({
     [graph, layout],
   );
   const { height: canvasHeight, width: canvasWidth } = canvasDimensions;
+  const scrollable = layout === "layered" && (canvasWidth > VBW || canvasHeight > VBH);
   const pos = useMemo(
     () => computeLayout(graph, layout, canvasWidth, canvasHeight),
     [canvasHeight, canvasWidth, graph, layout],
@@ -153,133 +154,142 @@ export function GraphCanvas({
           </button>
         </div>
       </div>
-      <svg
-        ref={svgRef}
-        className={`gcanvas-svg${pan ? " is-panning" : ""}`}
-        viewBox={`0 0 ${canvasWidth} ${canvasHeight}`}
-        onWheel={(e) => {
-          e.preventDefault();
-          setVt((v) => ({
-            ...v,
-            k: Math.min(2.6, Math.max(0.55, +(v.k + (e.deltaY < 0 ? 0.12 : -0.12)).toFixed(2))),
-          }));
-        }}
-        onPointerDown={(e) => {
-          const p = toSvg(e);
-          setPan({ ox: vt.x, oy: vt.y, sx: p.x, sy: p.y });
-        }}
-        onPointerMove={(e) => {
-          if (!pan) return;
-          const p = toSvg(e);
-          setVt((v) => ({ ...v, x: pan.ox + (p.x - pan.sx), y: pan.oy + (p.y - pan.sy) }));
-        }}
-        onPointerUp={() => setPan(null)}
-        onPointerLeave={() => setPan(null)}
+      <div
+        aria-label={scrollable ? "Scrollable graph viewport" : undefined}
+        className={`gcanvas-viewport${scrollable ? " is-scrollable" : ""}`}
+        role={scrollable ? "region" : undefined}
+        tabIndex={scrollable ? 0 : undefined}
       >
-        <defs>
-          <marker id="g-arrow" markerWidth="9" markerHeight="9" refX="7.5" refY="4" orient="auto">
-            <path d="M0 0 L8 4 L0 8 Z" fill="var(--edge)" />
-          </marker>
-          <marker
-            id="g-arrow-hot"
-            markerWidth="9"
-            markerHeight="9"
-            refX="7.5"
-            refY="4"
-            orient="auto"
-          >
-            <path d="M0 0 L8 4 L0 8 Z" fill="var(--teal)" />
-          </marker>
-        </defs>
-        <g transform={`translate(${vt.x} ${vt.y}) scale(${vt.k})`}>
-          {graph.edges.map((e, i) => {
-            const a = pos[e.s],
-              b = pos[e.t];
-            if (!a || !b) return null;
-            const hot = edgeHot(e.s, e.t),
-              faded = active && !hot;
-            const col = LAYER_COLOR[e.layer];
-            const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
-            return (
-              <g key={i} className={`gedge${faded ? " is-faded" : ""}`}>
-                <path
-                  d={edgePath(a, b)}
-                  fill="none"
-                  stroke={hot ? col : "var(--edge)"}
-                  strokeWidth={hot ? 2.4 : 1.4}
-                  markerEnd={hot ? "url(#g-arrow-hot)" : "url(#g-arrow)"}
-                  opacity={hot ? 0.95 : 0.5}
-                />
-                {hot ? (
-                  <g>
-                    <rect
-                      className="gedge-lbl-bg"
-                      x={mid.x - (e.verb.length * 3.4 + 10)}
-                      y={mid.y - 19}
-                      rx="5"
-                      width={e.verb.length * 6.8 + 20}
-                      height="16"
-                    />
-                    <text className="gedge-lbl" x={mid.x} y={mid.y - 7} style={{ fill: col }}>
-                      {e.verb}
+        <svg
+          ref={svgRef}
+          className={`gcanvas-svg${pan ? " is-panning" : ""}`}
+          style={scrollable ? { height: canvasHeight, width: canvasWidth } : undefined}
+          viewBox={`0 0 ${canvasWidth} ${canvasHeight}`}
+          onWheel={(e) => {
+            if (scrollable && !e.ctrlKey && !e.metaKey) return;
+            e.preventDefault();
+            setVt((v) => ({
+              ...v,
+              k: Math.min(2.6, Math.max(0.55, +(v.k + (e.deltaY < 0 ? 0.12 : -0.12)).toFixed(2))),
+            }));
+          }}
+          onPointerDown={(e) => {
+            const p = toSvg(e);
+            setPan({ ox: vt.x, oy: vt.y, sx: p.x, sy: p.y });
+          }}
+          onPointerMove={(e) => {
+            if (!pan) return;
+            const p = toSvg(e);
+            setVt((v) => ({ ...v, x: pan.ox + (p.x - pan.sx), y: pan.oy + (p.y - pan.sy) }));
+          }}
+          onPointerUp={() => setPan(null)}
+          onPointerLeave={() => setPan(null)}
+        >
+          <defs>
+            <marker id="g-arrow" markerWidth="9" markerHeight="9" refX="7.5" refY="4" orient="auto">
+              <path d="M0 0 L8 4 L0 8 Z" fill="var(--edge)" />
+            </marker>
+            <marker
+              id="g-arrow-hot"
+              markerWidth="9"
+              markerHeight="9"
+              refX="7.5"
+              refY="4"
+              orient="auto"
+            >
+              <path d="M0 0 L8 4 L0 8 Z" fill="var(--teal)" />
+            </marker>
+          </defs>
+          <g transform={`translate(${vt.x} ${vt.y}) scale(${vt.k})`}>
+            {graph.edges.map((e, i) => {
+              const a = pos[e.s],
+                b = pos[e.t];
+              if (!a || !b) return null;
+              const hot = edgeHot(e.s, e.t),
+                faded = active && !hot;
+              const col = LAYER_COLOR[e.layer];
+              const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+              return (
+                <g key={i} className={`gedge${faded ? " is-faded" : ""}`}>
+                  <path
+                    d={edgePath(a, b)}
+                    fill="none"
+                    stroke={hot ? col : "var(--edge)"}
+                    strokeWidth={hot ? 2.4 : 1.4}
+                    markerEnd={hot ? "url(#g-arrow-hot)" : "url(#g-arrow)"}
+                    opacity={hot ? 0.95 : 0.5}
+                  />
+                  {hot ? (
+                    <g>
+                      <rect
+                        className="gedge-lbl-bg"
+                        x={mid.x - (e.verb.length * 3.4 + 10)}
+                        y={mid.y - 19}
+                        rx="5"
+                        width={e.verb.length * 6.8 + 20}
+                        height="16"
+                      />
+                      <text className="gedge-lbl" x={mid.x} y={mid.y - 7} style={{ fill: col }}>
+                        {e.verb}
+                      </text>
+                    </g>
+                  ) : null}
+                </g>
+              );
+            })}
+            {graph.nodes.map((n) => {
+              const p = pos[n.id];
+              if (!p) return null;
+              const { w, h } = nodeSize(n);
+              const nc = KIND_COLOR[n.kind] ?? "#9aa4af";
+              const sel = selectedId === n.id;
+              return (
+                <g
+                  key={n.id}
+                  aria-label={`${n.label} — ${n.sub ?? n.kind}`}
+                  aria-pressed={onSelect ? sel : undefined}
+                  className={`gnode gnode-${n.kind}${sel ? " is-sel" : ""}${n.hero ? " is-hero" : ""}${dim(n.id) ? " is-faded" : ""}`}
+                  role={onSelect ? "button" : undefined}
+                  tabIndex={onSelect ? 0 : undefined}
+                  transform={`translate(${p.x - w / 2} ${p.y - h / 2})`}
+                  style={{ "--nc": nc } as React.CSSProperties}
+                  onBlur={() => setHover(null)}
+                  onFocus={() => setHover(n.id)}
+                  onKeyDown={(event) => {
+                    if (!onSelect || (event.key !== "Enter" && event.key !== " ")) return;
+                    event.preventDefault();
+                    event.stopPropagation();
+                    onSelect(n);
+                  }}
+                  onMouseEnter={() => setHover(n.id)}
+                  onMouseLeave={() => setHover(null)}
+                  onClick={(ev) => {
+                    ev.stopPropagation();
+                    onSelect?.(n);
+                  }}
+                >
+                  <rect className="gnode-box" width={w} height={h} rx="12" />
+                  <rect className="gnode-accent" width="4" height={h} rx="2" />
+                  <circle className="gnode-dot" cx="22" cy={h / 2} r="6" />
+                  <text className="gnode-label" x="38" y={n.sub ? h / 2 - 4 : h / 2 + 5}>
+                    {n.label}
+                  </text>
+                  {n.sub ? (
+                    <text className="gnode-sub" x="38" y={h / 2 + 14}>
+                      {n.sub}
                     </text>
-                  </g>
-                ) : null}
-              </g>
-            );
-          })}
-          {graph.nodes.map((n) => {
-            const p = pos[n.id];
-            if (!p) return null;
-            const { w, h } = nodeSize(n);
-            const nc = KIND_COLOR[n.kind] ?? "#9aa4af";
-            const sel = selectedId === n.id;
-            return (
-              <g
-                key={n.id}
-                aria-label={`${n.label} — ${n.sub ?? n.kind}`}
-                aria-pressed={onSelect ? sel : undefined}
-                className={`gnode gnode-${n.kind}${sel ? " is-sel" : ""}${n.hero ? " is-hero" : ""}${dim(n.id) ? " is-faded" : ""}`}
-                role={onSelect ? "button" : undefined}
-                tabIndex={onSelect ? 0 : undefined}
-                transform={`translate(${p.x - w / 2} ${p.y - h / 2})`}
-                style={{ "--nc": nc } as React.CSSProperties}
-                onBlur={() => setHover(null)}
-                onFocus={() => setHover(n.id)}
-                onKeyDown={(event) => {
-                  if (!onSelect || (event.key !== "Enter" && event.key !== " ")) return;
-                  event.preventDefault();
-                  event.stopPropagation();
-                  onSelect(n);
-                }}
-                onMouseEnter={() => setHover(n.id)}
-                onMouseLeave={() => setHover(null)}
-                onClick={(ev) => {
-                  ev.stopPropagation();
-                  onSelect?.(n);
-                }}
-              >
-                <rect className="gnode-box" width={w} height={h} rx="12" />
-                <rect className="gnode-accent" width="4" height={h} rx="2" />
-                <circle className="gnode-dot" cx="22" cy={h / 2} r="6" />
-                <text className="gnode-label" x="38" y={n.sub ? h / 2 - 4 : h / 2 + 5}>
-                  {n.label}
-                </text>
-                {n.sub ? (
-                  <text className="gnode-sub" x="38" y={h / 2 + 14}>
-                    {n.sub}
-                  </text>
-                ) : null}
-                {n.kind === "vuln" ? (
-                  <text className="gnode-flag" x={w - 15} y={h / 2 + 5}>
-                    !
-                  </text>
-                ) : null}
-              </g>
-            );
-          })}
-        </g>
-      </svg>
+                  ) : null}
+                  {n.kind === "vuln" ? (
+                    <text className="gnode-flag" x={w - 15} y={h / 2 + 5}>
+                      !
+                    </text>
+                  ) : null}
+                </g>
+              );
+            })}
+          </g>
+        </svg>
+      </div>
       <div className="gcanvas-legend">
         {(["code", "deploy", "infra", "runtime", "security", "ops"] as const).map((k) => (
           <span key={k}>

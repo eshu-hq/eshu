@@ -234,22 +234,39 @@ func (h *ImpactHandler) fetchConfigDerivedCloudResourceRows(ctx context.Context,
 	return rows, nil
 }
 
+type k8sResourceResult struct {
+	rows              []map[string]any
+	imageRefs         []string
+	limits            map[string]any
+	candidates        []map[string]any
+	contentLowerBound bool
+}
+
 func (h *ImpactHandler) fetchK8sResources(
 	ctx context.Context,
 	repoID string,
 	workloadName string,
 ) ([]map[string]any, []string, error) {
+	result, err := h.fetchK8sResourceResult(ctx, repoID, workloadName)
+	return result.rows, result.imageRefs, err
+}
+
+func (h *ImpactHandler) fetchK8sResourceResult(
+	ctx context.Context,
+	repoID string,
+	workloadName string,
+) (k8sResourceResult, error) {
 	if h == nil || h.Content == nil || repoID == "" || workloadName == "" {
-		return nil, nil, nil
+		return boundedK8sResourceResult(nil, false, nil), nil
 	}
 
-	rows, err := h.Content.SearchEntitiesByName(ctx, repoID, "K8sResource", workloadName, 50)
+	queryLimit := serviceStoryItemLimit + 1
+	rows, err := h.Content.SearchEntitiesByName(ctx, repoID, "K8sResource", workloadName, queryLimit)
 	if err != nil {
-		return nil, nil, err
+		return k8sResourceResult{}, err
 	}
 
 	resources := make([]map[string]any, 0, len(rows))
-	imageSet := make(map[string]struct{})
 	for _, row := range rows {
 		if row.EntityName != workloadName {
 			continue
@@ -257,11 +274,9 @@ func (h *ImpactHandler) fetchK8sResources(
 		kind, _ := metadataNonEmptyString(row.Metadata, "kind")
 		qualifiedName, _ := metadataNonEmptyString(row.Metadata, "qualified_name")
 		images := metadataStringSlice(row.Metadata, "container_images")
-		for _, image := range images {
-			imageSet[image] = struct{}{}
-		}
 		resource := map[string]any{
 			"entity_id":        row.EntityID,
+			"repo_id":          row.RepoID,
 			"entity_name":      row.EntityName,
 			"kind":             kind,
 			"qualified_name":   qualifiedName,
@@ -281,13 +296,47 @@ func (h *ImpactHandler) fetchK8sResources(
 		}
 		resources = append(resources, resource)
 	}
+	return boundedK8sResourceResult(resources, len(rows) >= queryLimit, nil), nil
+}
 
+func boundedK8sResourceResult(
+	contentRows []map[string]any,
+	contentLowerBound bool,
+	deploymentSourceRows []map[string]any,
+) k8sResourceResult {
+	merged := mergeDeploymentTraceRows(contentRows, deploymentSourceRows)
+	sortDeploymentTraceMaps(merged)
+	observedCount := len(merged)
+	rows, mergedTruncated := capMapRows(merged, serviceStoryItemLimit)
+
+	imageSet := make(map[string]struct{})
+	for _, row := range rows {
+		for _, image := range StringSliceVal(row, "container_images") {
+			imageSet[image] = struct{}{}
+		}
+	}
 	imageRefs := make([]string, 0, len(imageSet))
 	for image := range imageSet {
 		imageRefs = append(imageRefs, image)
 	}
 	sort.Strings(imageRefs)
-	return resources, imageRefs, nil
+	return k8sResourceResult{
+		rows:              rows,
+		imageRefs:         imageRefs,
+		candidates:        merged,
+		contentLowerBound: contentLowerBound,
+		limits: map[string]any{
+			"limit":                            serviceStoryItemLimit,
+			"query_sentinel_limit":             serviceStoryItemLimit + 1,
+			"returned_count":                   len(rows),
+			"observed_count":                   observedCount,
+			"observed_count_is_lower_bound":    contentLowerBound,
+			"content_observed_count":           len(contentRows),
+			"deployment_source_observed_count": len(deploymentSourceRows),
+			"truncated":                        contentLowerBound || mergedTruncated,
+			"ordering":                         []string{"repo_id", "relative_path", "entity_id"},
+		},
+	}
 }
 
 func distinctSortedInstanceField(instances []map[string]any, key string) []string {

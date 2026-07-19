@@ -1,3 +1,4 @@
+import { boundedCollectionGraphAccounting } from "./impactBoundedCollectionLimits";
 import { requiredTopologyRelationshipLimitations } from "./impactDeploymentCompleteness";
 import { boundedGraph } from "./impactGraphSelection";
 import type {
@@ -191,6 +192,28 @@ export function deploymentTraceGraph(
   identityOmittedEdges += runtimeAccounting.omittedEdges;
   for (const limitation of runtimeAccounting.limitations) limitations.add(limitation);
 
+  const cloudResourceAccounting = boundedCollectionGraphAccounting(trace.cloudResourceLimits, {
+    edgeMultiplier: 0,
+    family: "cloud-resource",
+    familyPlural: "cloud resources",
+    item: "resource",
+    missingMetadataLimitation:
+      "cloud-resource completeness unverified because collection metadata is unavailable",
+    nodeMultiplier: 1,
+  });
+  const k8sResourceAccounting = boundedCollectionGraphAccounting(trace.k8sResourceLimits, {
+    edgeMultiplier: 0,
+    family: "Kubernetes-resource",
+    familyPlural: "Kubernetes resources",
+    item: "resource",
+    missingMetadataLimitation:
+      "Kubernetes-resource completeness unverified because collection metadata is unavailable",
+    nodeMultiplier: 1,
+  });
+  identityOmittedNodes += cloudResourceAccounting.omittedNodes + k8sResourceAccounting.omittedNodes;
+  for (const limitation of cloudResourceAccounting.limitations) limitations.add(limitation);
+  for (const limitation of k8sResourceAccounting.limitations) limitations.add(limitation);
+
   addEvidenceNodes(trace, truth, addNode, limitations);
   const bounded = boundedGraph(
     rawNodes,
@@ -202,10 +225,14 @@ export function deploymentTraceGraph(
   const completenessVerified =
     trace.runtimeTopologyLimits !== null &&
     trace.deploymentSourceLimits !== null &&
+    trace.cloudResourceLimits !== null &&
+    trace.k8sResourceLimits !== null &&
     !hasUnverifiedOmission;
   const truncated =
     bounded.presentation.truncated ||
     runtimeAccounting.truncated ||
+    cloudResourceAccounting.truncated ||
+    k8sResourceAccounting.truncated ||
     trace.deploymentSourceLimits?.truncated === true;
   return {
     graph: bounded.graph,

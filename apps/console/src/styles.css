@@ -266,7 +266,10 @@ h1, h2, h3, h4 { margin: 0; letter-spacing: -0.02em; font-weight: 700; }
 
 /* ----------------------------------------------------------- graph canvas */
 .gcanvas { position: relative; background: radial-gradient(120% 120% at 50% 0%, var(--bg-2), var(--bg)); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+.gcanvas-viewport { height: 100%; width: 100%; }
+.gcanvas-viewport.is-scrollable { overflow: auto; overscroll-behavior: contain; }
 .gcanvas-svg { width: 100%; height: 100%; display: block; cursor: grab; touch-action: none; background-image: radial-gradient(var(--line) 1px, transparent 1px); background-size: 26px 26px; }
+.gcanvas-viewport.is-scrollable .gcanvas-svg { touch-action: pan-x pan-y; }
 .gcanvas-svg.is-panning { cursor: grabbing; }
 .gcanvas-toolbar { position: absolute; top: 12px; left: 14px; right: 14px; display: flex; justify-content: space-between; align-items: center; z-index: 4; pointer-events: none; }
 .gcanvas-count { font-family: var(--mono); font-size: 0.72rem; color: var(--muted); background: color-mix(in oklab, var(--bg) 70%, transparent); padding: 4px 9px; border-radius: 7px; border: 1px solid var(--line); }

@@ -1,3 +1,4 @@
+import { normalizeBoundedCollectionLimits } from "./impactBoundedCollectionLimits";
 import type {
   DeploymentSourceLimits,
   DeploymentTraceEntity,
@@ -12,12 +13,14 @@ import type {
 import { normalizeRuntimeTopologyLimits } from "./impactRuntimeTopologyLimits";
 
 export interface DeploymentTraceResponse {
+  readonly cloud_resource_limits?: unknown;
   readonly cloud_resources?: readonly Record<string, unknown>[];
   readonly deployment_overview?: Record<string, unknown>;
   readonly deployment_facts?: readonly Record<string, unknown>[];
   readonly deployment_source_limits?: unknown;
   readonly deployment_sources?: readonly Record<string, unknown>[];
   readonly image_refs?: readonly string[];
+  readonly k8s_resource_limits?: unknown;
   readonly k8s_resources?: readonly Record<string, unknown>[];
   readonly instances?: readonly Record<string, unknown>[];
   readonly provisioned_platforms?: readonly Record<string, unknown>[];
@@ -31,7 +34,13 @@ export interface DeploymentTraceResponse {
 }
 
 export function normalizeDeploymentTrace(response: DeploymentTraceResponse): DeploymentTraceResult {
+  const cloudResources = (response.cloud_resources ?? []).map((record) =>
+    normalizeTraceEntity(record, ["name", "id", "resource_type"]),
+  );
   const instances = (response.instances ?? []).map(normalizeDeploymentInstance);
+  const k8sResources = (response.k8s_resources ?? []).map((record) =>
+    normalizeTraceEntity(record, ["entity_name", "name", "kind"]),
+  );
   const deploymentSources = (response.deployment_sources ?? []).map(normalizeDeploymentSource);
   const provisionedPlatforms = (response.provisioned_platforms ?? []).map(
     normalizeDeploymentPlatform,
@@ -53,9 +62,11 @@ export function normalizeDeploymentTrace(response: DeploymentTraceResponse): Dep
       0,
     );
   return {
-    cloudResources: (response.cloud_resources ?? []).map((record) =>
-      normalizeTraceEntity(record, ["name", "id", "resource_type"]),
+    cloudResourceLimits: normalizeBoundedCollectionLimits(
+      response.cloud_resource_limits,
+      cloudResources.length,
     ),
+    cloudResources,
     deploymentOverview: response.deployment_overview ?? {},
     deploymentFacts: (response.deployment_facts ?? []).map(normalizeDeploymentFact),
     deploymentSourceLimits: normalizeDeploymentSourceLimits(
@@ -65,9 +76,11 @@ export function normalizeDeploymentTrace(response: DeploymentTraceResponse): Dep
     deploymentSources,
     imageRefs: response.image_refs ?? [],
     invalidTopologyEdgeCount,
-    k8sResources: (response.k8s_resources ?? []).map((record) =>
-      normalizeTraceEntity(record, ["entity_name", "name", "kind"]),
+    k8sResourceLimits: normalizeBoundedCollectionLimits(
+      response.k8s_resource_limits,
+      k8sResources.length,
     ),
+    k8sResources,
     instances,
     provisionedPlatforms,
     repoId: nonEmpty(response.repo_id),

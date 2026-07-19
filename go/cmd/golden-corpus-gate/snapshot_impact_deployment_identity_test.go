@@ -23,7 +23,7 @@ func TestGoldenSnapshotTraceDeploymentChainRequiresCanonicalPlatformIdentity(t *
 	if !slices.Contains(mcpShape.RequiredResponseFields, "deployment_source_limits") {
 		t.Fatal("MCP trace_deployment_chain required fields missing deployment_source_limits")
 	}
-	for _, field := range []string{"topology_edges", "provisioned_platforms", "runtime_topology_limits", "cloud_resource_limits"} {
+	for _, field := range []string{"topology_edges", "provisioned_platforms", "runtime_topology_limits", "cloud_resource_limits", "k8s_resource_limits"} {
 		if !slices.Contains(mcpShape.RequiredResponseFields, field) {
 			t.Fatalf("MCP trace_deployment_chain required fields missing %s", field)
 		}
@@ -62,6 +62,9 @@ func TestGoldenSnapshotTraceDeploymentChainRequiresCanonicalPlatformIdentity(t *
 		"data.deployment_source_limits.truncated",
 		"data.cloud_resource_limits.limit",
 		"data.cloud_resource_limits.truncated",
+		"data.k8s_resource_limits.limit",
+		"data.k8s_resource_limits.returned_count",
+		"data.k8s_resource_limits.truncated",
 	} {
 		if !slices.Contains(shape.RequiredJSONPaths, identityPath) {
 			t.Fatalf("trace_deployment_chain.required_json_paths missing %q", identityPath)

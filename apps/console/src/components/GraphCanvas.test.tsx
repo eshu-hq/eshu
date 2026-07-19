@@ -43,7 +43,40 @@ describe("GraphCanvas", () => {
       />,
     );
 
-    expect(document.querySelector(".gcanvas-svg")).toHaveAttribute("viewBox", "0 0 1080 648");
+    const viewport = document.querySelector(".gcanvas-viewport");
+    const graph = document.querySelector(".gcanvas-svg");
+    expect(graph).toHaveAttribute("viewBox", "0 0 1080 648");
+    expect(viewport).toHaveClass("is-scrollable");
+    expect(graph).toHaveStyle({ height: "648px", width: "1080px" });
+  });
+
+  it("keeps dense evidence labels at a readable initial scale inside a scrollable viewport", () => {
+    render(
+      <GraphCanvas
+        graph={{
+          edges: [],
+          nodes: Array.from({ length: 29 }, (_, index) => ({
+            col: 6,
+            id: `cloud:${index}`,
+            kind: "aws",
+            label: `cloud-resource-${index}`,
+          })),
+        }}
+        height={590}
+      />,
+    );
+
+    const viewport = document.querySelector(".gcanvas-viewport");
+    const graph = document.querySelector(".gcanvas-svg");
+    expect(graph).toHaveAttribute("viewBox", "0 0 1080 2160");
+    expect(viewport).toHaveClass("is-scrollable");
+    expect(viewport).toHaveAttribute("tabindex", "0");
+    expect(graph).toHaveStyle({ height: "2160px", width: "1080px" });
+
+    fireEvent.wheel(graph!, { deltaY: 120 });
+    expect(screen.getByText("100%")).toBeInTheDocument();
+    fireEvent.wheel(graph!, { ctrlKey: true, deltaY: -120 });
+    expect(screen.getByText("112%")).toBeInTheDocument();
   });
 
   it("exposes selectable graph nodes to keyboard and assistive technology", () => {

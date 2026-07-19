@@ -116,6 +116,7 @@ function clientWithDeploymentSourceLimits(
       if (path === "/api/v0/impact/trace-deployment-chain") {
         return {
           data: {
+            cloud_resource_limits: completeRuntimeLimits(),
             deployment_source_limits: deploymentSourceLimits,
             deployment_sources: Array.from({ length: 50 }, (_, index) => ({
               relationship_type: "DEPLOYS_FROM",
@@ -125,6 +126,7 @@ function clientWithDeploymentSourceLimits(
               target_id: "repository:r_catalog",
             })),
             instances: [],
+            k8s_resource_limits: completeRuntimeLimits(),
             repo_id: "repository:r_catalog",
             repo_name: "catalog-api",
             runtime_topology_limits: runtimeTopologyLimits,
