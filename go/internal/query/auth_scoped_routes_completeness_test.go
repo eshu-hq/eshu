@@ -284,6 +284,39 @@ func TestScopedTokenAllowlistCompleteness(t *testing.T) {
 	}
 }
 
+// TestPendingRowFilteringRoutesDisjointFromScopedAndSharedKey is the #5167 W1
+// guardrail for the family workstreams (W2-W6). Each of the three route
+// classifications is a distinct terminal state, so a route may belong to
+// exactly one: the scoped-token allowlist ledger
+// (scopedTokenAdvertisedRoutes), the shared-key-only ledger
+// (sharedKeyOnlyRoutes), or the pending-row-filtering backlog
+// (pendingRowFilteringRoutes). This test fails the build when
+// pendingRowFilteringRoutes overlaps either of the other two, which is exactly
+// the mistake a family workstream makes when it lands the #5137 row-filtering
+// pattern for a Group B route and adds it to scopedTokenAdvertisedRoutes
+// (plus a matcher and marker) without deleting the now-stale
+// pendingRowFilteringRoutes entry. Without this check the route would be both
+// allowlisted and still advertised as an unfiltered gap -- a contradiction the
+// two staleness checks above do not catch, because both entries would name a
+// real implemented surface.
+//
+// All three maps are package-level vars in this package, so this literal-map
+// disjointness check lives here rather than in the go/internal/mcp
+// exhaustiveness test, which only sees the exported surface slices. The one
+// parameterized Group B entry (pendingRowFilteringEvidenceRelationshipRoute,
+// GET /api/v0/evidence/relationships/{id}) is intentionally not in either
+// literal ledger, so it cannot collide with a literal-map entry.
+func TestPendingRowFilteringRoutesDisjointFromScopedAndSharedKey(t *testing.T) {
+	for name := range pendingRowFilteringRoutes {
+		if _, ok := scopedTokenAdvertisedRoutes[name]; ok {
+			t.Errorf("%s: is in BOTH pendingRowFilteringRoutes and scopedTokenAdvertisedRoutes -- when a family workstream (W2-W6) allowlists a Group B route after adding real grant filtering, it MUST delete the route from pendingRowFilteringRoutes (auth_scoped_routes_pending_row_filtering.go); a route cannot be both allowlisted and advertised as an unfiltered pending gap", name)
+		}
+		if _, ok := sharedKeyOnlyRoutes[name]; ok {
+			t.Errorf("%s: is in BOTH pendingRowFilteringRoutes and sharedKeyOnlyRoutes -- a route is either a pending row-filtering gap or permanently shared-key-only, never both; remove it from pendingRowFilteringRoutes (auth_scoped_routes_pending_row_filtering.go)", name)
+		}
+	}
+}
+
 // TestScopedTokenAdvertisedRoutesReachHandlerThroughRealAuthMiddleware is the
 // #5154 convention-check gate. It sources its route set directly from
 // openAPIScopedTokenSupportRoutes (the OpenAPI marker), not from the
