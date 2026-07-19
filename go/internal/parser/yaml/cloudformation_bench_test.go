@@ -73,11 +73,11 @@ func maxInt(a, b int) int {
 
 // benchmarkParseCloudFormationTemplate drives the stable public Parse()
 // entrypoint over a generated CloudFormation template of the given shape, so
-// the same benchmark body runs unchanged against origin/main (single
-// DecodeDocuments pass, document-root line_number only) and this branch (the
-// added decodeDocumentNodes second pass plus the position walk). See issue
-// #5328 Performance Evidence for the before/after ns/op, B/op, and
-// allocs/op comparison recorded via a saved origin/main worktree.
+// the same benchmark body runs unchanged across origin/main (single
+// DecodeDocuments pass, document-root line_number only), the retired
+// double-decode fix, and this branch (decodeDocumentsWithNodes reuse plus the
+// position walk). See issue #5328 Performance Evidence for the three-point
+// ns/op, B/op, and allocs/op comparison recorded via saved worktree copies.
 func benchmarkParseCloudFormationTemplate(b *testing.B, resources, params, outputs, conditions int) {
 	b.Helper()
 	dir := b.TempDir()
@@ -102,15 +102,15 @@ func benchmarkParseCloudFormationTemplate(b *testing.B, resources, params, outpu
 
 // BenchmarkParseCloudFormationTemplateRepresentative measures Parse() over a
 // mid-size template (100 resources, 20 parameters, 15 outputs, 10
-// conditions) -- the common-case shape for issue #5328's added
-// decodeDocumentNodes second decode pass.
+// conditions) -- the common-case shape for issue #5328's CloudFormation
+// position walk.
 func BenchmarkParseCloudFormationTemplateRepresentative(b *testing.B) {
 	benchmarkParseCloudFormationTemplate(b, 100, 20, 15, 10)
 }
 
 // BenchmarkParseCloudFormationTemplateLarge measures Parse() over a
 // worst-case-partition template (500 resources, 40 parameters, 40 outputs,
-// 20 conditions) to confirm the added second decode pass does not degrade
+// 20 conditions) to confirm the position walk does not degrade
 // superlinearly on large templates.
 func BenchmarkParseCloudFormationTemplateLarge(b *testing.B) {
 	benchmarkParseCloudFormationTemplate(b, 500, 40, 40, 20)

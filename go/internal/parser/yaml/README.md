@@ -59,41 +59,61 @@ collector snapshot path and parent parser engine.
 
 ## Performance
 
-Performance Evidence: issue #5328 adds a second `gopkg.in/yaml.v3` decode pass
-(`decodeDocumentNodes` in `cloudformation_positions.go`) that is gated strictly
-behind CloudFormation/SAM detection -- `Parse` calls it at most once per file,
-only after `cloudformation.IsTemplate` matches at least one already-decoded
-document, so every other YAML shape this package handles (Kubernetes, Argo CD,
-Crossplane, Kustomize, Helm, Atlantis, GitLab CI) pays zero extra decode cost.
+Performance Evidence: issue #5328's original fix decoded every CloudFormation/
+SAM source twice -- `DecodeDocuments` (`language.go`) flattens each document to
+`map[string]any` via `yamlNodeToAny`, discarding every node's real `Line`
+except a single document-root capture, then a second full `gopkg.in/yaml.v3`
+decode pass (`decodeDocumentNodes`) re-parsed the identical source to recover
+the raw node tree the position walk needs. That second decode was measured as
+the dominant added cost (a throwaway microbench isolating `DecodeDocuments`
+alone vs `DecodeDocuments`+`decodeDocumentNodes` on the same representative
+100/500-resource templates showed +87% ns/op and +85% allocs/op from the
+second pass alone, matching the regression below almost exactly), so it has
+been retired: `decodeDocumentsWithNodes` now performs exactly one decode pass
+and returns each document's already-produced raw `*yamlv3.Node` root
+alongside the flattened value, index-aligned; `cloudformationPositionsFromRoot`
+reuses that same root instead of re-decoding. Retaining the root costs only an
+`O(1)` pointer append per document -- non-CFN YAML (Kubernetes, Argo CD,
+Crossplane, Kustomize, Helm, Atlantis, GitLab CI) never triggers a second
+parse and pays no measurable extra cost (a 100-document Kubernetes manifest
+stream microbench showed +0.05% allocs/op, i.e. exactly the one extra pointer
+append per document, no second-order cost).
 `BenchmarkParseCloudFormationTemplateRepresentative`/`...Large` in
 `cloudformation_bench_test.go` drive the stable public `Parse()` entrypoint
-unchanged, so the same benchmark body ran on both sides of the change: origin/main
-commit `2395e65c4` (single `DecodeDocuments` pass, document-root `line_number`
-only, via a `git worktree add --detach` saved copy so the shared feature
-worktree's tracked files stayed untouched) versus this branch (adds
-`decodeDocumentNodes` plus the per-entity position walk). `go test
-./internal/parser/yaml/ -run '^$' -bench BenchmarkParseCloudFormationTemplate
--benchmem -benchtime=2s -count=6` on darwin/arm64 (Apple M4 Pro):
+unchanged, so the same benchmark body ran across three points: origin/main
+commit `2395e65c4` (baseline, pre-#5328, single `DecodeDocuments` pass,
+document-root `line_number` only), commit `c5d7247a8` (the double-decode fix
+this recovery replaces), and this branch (`decodeDocumentsWithNodes` reuse) --
+each via a `git worktree add --detach` saved copy so the shared feature
+worktree's tracked files stayed untouched. `go test ./internal/parser/yaml/
+-run '^$' -bench BenchmarkParseCloudFormationTemplate -benchmem -benchtime=2s
+-count=8` on darwin/arm64 (Apple M4 Pro):
 
-| Shape (resources) | Before (old) | After (new) | Delta |
-| --- | ---: | ---: | ---: |
-| Representative (100) ns/op | 1.291ms | 2.252ms | +74.5% (p=0.002, n=6) |
-| Representative (100) B/op | 1.232Mi | 1.962Mi | +59.3% |
-| Representative (100) allocs/op | 18.98k | 33.35k | +75.8% |
-| Large / AWS per-stack resource ceiling (500) ns/op | 6.001ms | 10.639ms | +77.3% (p=0.002, n=6) |
-| Large (500) B/op | 5.551Mi | 8.869Mi | +59.8% |
-| Large (500) allocs/op | 85.97k | 152.14k | +77.0% |
+| Shape (resources) | origin/main baseline | Double-decode (old) | Reuse (new) | New vs baseline | New vs old |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Representative (100) ns/op | 1.308ms | 2.681ms | 1.344ms | +2.7% (p=0.021, n=8) | -49.9% (p=0.000, n=8) |
+| Representative (100) B/op | 1.232Mi | 1.962Mi | 1.269Mi | +3.0% | -35.3% |
+| Representative (100) allocs/op | 18.98k | 33.35k | 19.36k | +2.0% | -42.0% |
+| Large / AWS per-stack resource ceiling (500) ns/op | 6.003ms | 11.253ms | 6.068ms | +1.1% (p=0.005, n=8) | -46.1% (p=0.000, n=8) |
+| Large (500) B/op | 5.551Mi | 8.869Mi | 5.668Mi | +2.1% | -36.1% |
+| Large (500) allocs/op | 85.97k | 152.14k | 87.44k | +1.7% | -42.5% |
 
-No-Regression Evidence: the added cost is bounded, one-time-per-file, and stays
-inside the async collector snapshot/parse stage (`internal/collector` ->
+The reuse recovers essentially the entire #5328 regression: the residual
+~2-3% delta above the pre-#5328 baseline is the real per-entity position walk
+itself (`cloudformationPositionsFromRoot`), which is the intended feature, not
+decode overhead.
+
+No-Regression Evidence: the remaining cost is bounded, one-time-per-file, and
+stays inside the async collector snapshot/parse stage (`internal/collector` ->
 `internal/parser`), never a query-serving or graph-write hot path. Even at 500
 resources -- CloudFormation's own hard per-stack resource limit, so this is the
 worst-case partition a single template can ever present, not merely a
-"large" pick -- the absolute added cost is ~4.6ms per file. Non-CFN YAML files
-(the overwhelming majority of a repository's manifests) are provably unaffected:
-`decodeDocumentNodes` is only reachable after `cloudformation.IsTemplate`
-matches, confirmed by `TestParse...` cases in `language_test.go` and the
-detection guard in `language.go`'s `Parse`.
+"large" pick -- the absolute added cost over the pre-#5328 baseline is ~65us
+per file (down from ~5.25ms under the retired double-decode path). Non-CFN
+YAML files (the overwhelming majority of a repository's manifests) are
+provably unaffected: `decodeDocumentsWithNodes` performs one decode pass
+regardless of document type, so there is no CFN-detection branch left to keep
+non-CFN files off of a second parse -- there is no second parse to avoid.
 
 Observability Evidence: every degraded per-entity position (an unresolved alias
 target, an unattributable merge key, or a missing raw-node match) is counted
@@ -101,7 +121,7 @@ through `eshu_dp_cloudformation_position_fallback_total`
 (`internal/telemetry/instruments.go`, wired at
 `internal/collector/git_snapshot_parse_partitions.go:451`), documented in
 `docs/public/observability/telemetry-coverage.md`. An operator can use this
-counter to see how often the added decode pass is not paying for a real
+counter to see how often the position walk is not paying for a real
 per-entity line gain.
 
 ## Gotchas / invariants
