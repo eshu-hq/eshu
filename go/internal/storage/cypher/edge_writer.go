@@ -20,7 +20,16 @@ import (
 // domain-specific canonical Cypher statements through an Executor.
 // Writes are batched using UNWIND for efficiency.
 type EdgeWriter struct {
-	executor                      Executor
+	executor Executor
+	// Reader runs bounded read queries for retract paths that must compute a
+	// Go-side anti-join before deleting instead of relying on a Cypher
+	// relationship-existence predicate (`NOT (n)--()`, `(n)--()`, or
+	// `COUNT { (n)--() } = 0`), all of which are mis-evaluated on the pinned
+	// NornicDB backends -- see docs/public/reference/nornicdb-pitfalls.md
+	// ("Every Relationship-Existence Predicate Is Mis-Evaluated"). Required
+	// for shell-exec retracts (orphan ShellCommand cleanup); nil for a writer
+	// that never routes DomainShellExec retracts.
+	Reader                        OrphanSweepReader
 	BatchSize                     int
 	CodeCallBatchSize             int
 	CodeCallGroupBatchSize        int
