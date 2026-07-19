@@ -207,6 +207,46 @@ one candidate publisher is marked `ambiguous=true` and never collapsed to a
 single asserted publisher; a publisher repository that equals the consumer
 repository is dropped as a self-reference.
 
+### Scoped-token access (#5167 W5b)
+
+`/packages`, `/versions`, `/dependencies`, `/packages/count`, and
+`/packages/inventory` support scoped bearer tokens. Package/version/dependency
+graph nodes carry no repository or tenant property, so these routes gate on
+package `visibility` instead of a repository grant:
+
+- A `visibility: public` package's identity, versions, and dependencies are
+  world-readable to any scoped token (the same class of global data the
+  advisory-evidence route already exposes); `source_path` is redacted on these
+  rows because a public registry row can still name an unrelated repository's
+  manifest path.
+- A `visibility: private` or `visibility: unknown` package is visible only when
+  a reducer-owned package correlation (ownership, publication, or consumption)
+  proves the caller's granted repositories own, consume, or publish it — the
+  same bounded probe `/correlations` already exposes. `source_path` is
+  returned unredacted on a granted row.
+- A private/unknown package outside the caller's grant returns the exact same
+  empty page as a nonexistent `package_id` — there is no way to distinguish
+  "exists but denied" from "does not exist" through this surface.
+- `ecosystem`-only browsing on `/packages` (no `package_id` or `name`) returns
+  only `visibility: public` rows for a scoped caller; correlation-augmented
+  inclusion of a caller's own private packages in an ecosystem browse is not
+  yet implemented (tracked as a follow-up).
+- `/packages/count` and `/packages/inventory` force `visibility=public` onto a
+  scoped caller's aggregate regardless of the `visibility` query parameter,
+  UNLESS the caller explicitly requests `visibility=private` or
+  `visibility=unknown`, in which case the response is an empty envelope (the
+  response `scope` always reflects the value actually applied, not the
+  request). `group_by=visibility` therefore degenerates to a single `public`
+  bucket for scoped callers.
+
+**Operator hygiene:** a package-registry collector target's declared
+`visibility` (`public`/`private`) determines whether scoped tokens can ever see
+that target's packages via this path. A target with no declared `visibility`
+defaults to `unknown` and is treated as not-provably-public, so its packages
+are invisible to scoped callers unless a correlation grant proves ownership.
+Operators who intend a source to be publicly browsable by scoped tokens MUST
+set `visibility: public` on that collector target.
+
 ## Gated List Collector Readiness
 
 Seven gated supply-chain list routes are fed by opt-in collectors that stay off

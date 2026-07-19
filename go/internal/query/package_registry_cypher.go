@@ -50,6 +50,67 @@ MATCH (p:Package {uid: candidate_package_id})-[r:HAS_VERSION]->(v:PackageVersion
 RETURN p.uid AS package_id, count(r) AS version_count`, map[string]any{"package_ids": packageIDs}
 }
 
+// packageRegistryPackagesScopedEcosystemCypher is the scoped-caller variant
+// of the ecosystem-only browse branch of packageRegistryPackagesCypher: it
+// adds a visibility='public' predicate so a scoped caller's ecosystem browse
+// never returns private/unknown rows (correlation-augmented private-package
+// inclusion in scoped browse is deferred; see the F-6/W5b decision doc).
+//
+// The ecosystem and visibility predicates are combined in ONE WHERE clause
+// (`MATCH (p:Package) WHERE p.ecosystem = $ecosystem AND p.visibility =
+// 'public'`) rather than keeping the ecosystem filter as an inline MATCH
+// property with a trailing WHERE clause appended
+// (`MATCH (p:Package {ecosystem: $ecosystem}) WHERE p.visibility =
+// 'public'`). The latter shape is BROKEN on the pinned NornicDB build: it
+// silently drops the inline pattern's ecosystem filter and falls back to an
+// unfiltered :Package label scan, ignoring $ecosystem entirely -- verified
+// against both the HTTP tx/commit endpoint and the real Bolt protocol
+// (`MATCH (p:Package {ecosystem: $ecosystem}) WHERE p.visibility = 'public'
+// RETURN count(p)` returned the SAME total regardless of $ecosystem's
+// value). That is both a cross-ecosystem correctness leak and a latent
+// full-scan performance regression. See
+// docs/public/reference/nornicdb-pitfalls.md.
+func packageRegistryPackagesScopedEcosystemCypher(ecosystem string, limit int) (string, map[string]any) {
+	params := map[string]any{"limit": limit, "ecosystem": ecosystem}
+	return `MATCH (p:Package)
+WHERE p.ecosystem = $ecosystem AND p.visibility = 'public'
+OPTIONAL MATCH (p)-[:HAS_VERSION]->(v:PackageVersion)
+RETURN p.uid AS package_id,
+       p.ecosystem AS ecosystem,
+       p.registry AS registry,
+       p.namespace AS namespace,
+       p.normalized_name AS normalized_name,
+       p.purl AS purl,
+       p.bom_ref AS bom_ref,
+       p.package_manager AS package_manager,
+       p.source_path AS source_path,
+       p.source_specific_id AS source_specific_id,
+       p.visibility AS visibility,
+       p.source_confidence AS source_confidence,
+       count(v) AS version_count
+ORDER BY p.ecosystem, p.normalized_name, p.uid
+LIMIT $limit`, params
+}
+
+// packageRegistryAnchorVisibilityCypher resolves one Package node's
+// visibility by its indexed uid (uidConstraintLabels includes "Package"), so
+// the scoped-access gate can decide public-vs-gated before running the full
+// anchored read. Zero rows means the package does not exist.
+const packageRegistryAnchorVisibilityCypher = `MATCH (p:Package {uid: $package_id}) RETURN p.visibility AS visibility`
+
+// packageRegistryNameAnchorVisibilityCypher resolves a Package node's uid and
+// visibility by the {ecosystem, normalized_name} anchor the unscoped
+// packages-by-name branch already uses (packageRegistryPackagesCypher). No
+// composite index backs this pair; it mirrors the existing production anchor
+// rather than introducing a new query shape.
+const packageRegistryNameAnchorVisibilityCypher = `MATCH (p:Package {ecosystem: $ecosystem, normalized_name: $name}) RETURN p.uid AS package_id, p.visibility AS visibility`
+
+// packageRegistryVersionAnchorPackageIDCypher resolves a PackageVersion's
+// owning package id by its indexed uid (uidConstraintLabels includes
+// "PackageVersion"), for the dependencies-by-version_id path that has no
+// package_id anchor of its own.
+const packageRegistryVersionAnchorPackageIDCypher = `MATCH (v:PackageVersion {uid: $version_id}) RETURN v.package_id AS package_id`
+
 func packageRegistryVersionsCypher() string {
 	return `MATCH (p:Package {uid: $package_id})-[:HAS_VERSION]->(v:PackageVersion)
 RETURN v.uid AS version_id,

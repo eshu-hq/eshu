@@ -7,7 +7,9 @@ const openAPIPathsPackageRegistryAggregate = `
     "/api/v0/package-registry/packages/count": {
       "get": {
         "summary": "Count graph-backed package registry packages without paging the list endpoint",
+        "description": "Scoped tokens have visibility forced to 'public' regardless of the visibility filter parameter (a private/unknown filter value returns an empty envelope without querying); the response scope reflects the value actually applied.",
         "operationId": "countPackageRegistryPackages",
+        "x-scoped-token-support": true,
         "parameters": [
           {"name": "ecosystem", "in": "query", "schema": {"type": "string"}},
           {"name": "registry", "in": "query", "schema": {"type": "string"}},
@@ -37,7 +39,9 @@ const openAPIPathsPackageRegistryAggregate = `
     "/api/v0/package-registry/packages/inventory": {
       "get": {
         "summary": "Group graph-backed package registry packages by one dimension without paging the list endpoint",
+        "description": "Scoped tokens have visibility forced to 'public' regardless of the visibility filter parameter (a private/unknown filter value returns an empty envelope without querying); group_by=visibility therefore degenerates to a single 'public' bucket for scoped callers. The response scope reflects the value actually applied.",
         "operationId": "getPackageRegistryPackageInventory",
+        "x-scoped-token-support": true,
         "parameters": [
           {"name": "group_by", "in": "query", "schema": {"type": "string", "enum": ["ecosystem", "registry", "namespace", "package_manager", "visibility"], "default": "ecosystem"}},
           {"name": "ecosystem", "in": "query", "schema": {"type": "string"}},

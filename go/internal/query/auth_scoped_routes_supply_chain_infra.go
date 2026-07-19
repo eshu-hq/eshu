@@ -199,6 +199,42 @@ func scopedPackageRegistryCorrelationRoute(r *http.Request) bool {
 	return r.Method == http.MethodGet && r.URL.Path == "/api/v0/package-registry/correlations"
 }
 
+// scopedPackageRegistryIdentityRoute reports whether the request targets one
+// of the 5 graph-backed package-registry identity/aggregate read routes
+// (#5167 W5b). Unlike the correlation and dependency-chain routes (which
+// anchor on a repository), these routes anchor on package identity or
+// nothing at all -- (:Package)/(:PackageVersion)/(:PackageDependency) carry
+// no repository/tenant property (package_registry_canonical.go). The
+// handlers gate scoped callers on package visibility instead:
+// visibility='public' rows are served (registry identity metadata is
+// world-readable, the same class of global data the advisory-evidence
+// precedent already exposes to scoped tokens), and private/unknown rows
+// require a bounded LIMIT-1 correlation-grant probe reusing the exact
+// predicate the already-shipped scoped correlations route exposes
+// (package_registry_correlations.go, including the
+// candidate_repository_ids ?| branch) before ever being returned; a probe
+// miss returns the same empty page as a nonexistent package (no existence
+// oracle). The aggregate routes (count, inventory) instead force
+// visibility='public' onto the caller's filter, or return an empty envelope
+// without a store read if the caller explicitly asked for private/unknown.
+// See go/internal/query/package_registry_scoped_access.go for the gate
+// implementation.
+func scopedPackageRegistryIdentityRoute(r *http.Request) bool {
+	if r.Method != http.MethodGet {
+		return false
+	}
+	switch r.URL.Path {
+	case "/api/v0/package-registry/packages",
+		"/api/v0/package-registry/versions",
+		"/api/v0/package-registry/dependencies",
+		"/api/v0/package-registry/packages/count",
+		"/api/v0/package-registry/packages/inventory":
+		return true
+	default:
+		return false
+	}
+}
+
 // scopedPackageRegistryDependencyChainsRoute reports whether the request
 // targets the repo-scoped package dependency chain read. The handler requires
 // repository_id, intersects both the consumption and publisher reads with the

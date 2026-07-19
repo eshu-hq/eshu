@@ -145,21 +145,20 @@ func (h *PackageRegistryHandler) listPackages(w http.ResponseWriter, r *http.Req
 		WriteError(w, http.StatusBadRequest, "package_id or ecosystem is required")
 		return
 	}
-	if h.Neo4j == nil {
-		WriteContractError(
-			w,
-			r,
-			http.StatusServiceUnavailable,
-			"package registry queries require the authoritative graph",
-			ErrorCodeBackendUnavailable,
-			packageRegistryPackagesCapability,
-			h.profile(),
-			requiredProfile(packageRegistryPackagesCapability),
-		)
+	gate, handled := packageRegistryPackagesGate(w, r, h, span, packageID, ecosystem, name, limit)
+	if handled {
 		return
 	}
+	packageID = gate.packageID
+	redactSourcePath := gate.redactSourcePath
 
-	cypher, params := packageRegistryPackagesCypher(packageID, ecosystem, name, limit+1)
+	var cypher string
+	var params map[string]any
+	if gate.useScopedEcosystemCypher {
+		cypher, params = packageRegistryPackagesScopedEcosystemCypher(ecosystem, limit+1)
+	} else {
+		cypher, params = packageRegistryPackagesCypher(packageID, ecosystem, name, limit+1)
+	}
 	rows, err := h.Neo4j.Run(r.Context(), cypher, params)
 	if err != nil {
 		WriteError(w, http.StatusInternalServerError, err.Error())
@@ -171,12 +170,18 @@ func (h *PackageRegistryHandler) listPackages(w http.ResponseWriter, r *http.Req
 	for _, row := range rows {
 		result, issue := packageRegistryPackageResultFromRow(row)
 		if issue != nil {
+			if redactSourcePath {
+				issue.SourcePath = ""
+			}
 			identityIssues = append(identityIssues, *issue)
 			continue
 		}
 		if len(results) == limit {
 			truncated = true
 			continue
+		}
+		if redactSourcePath {
+			result.SourcePath = ""
 		}
 		results = append(results, result)
 	}
@@ -221,17 +226,7 @@ func (h *PackageRegistryHandler) listVersions(w http.ResponseWriter, r *http.Req
 		WriteError(w, http.StatusBadRequest, "package_id is required")
 		return
 	}
-	if h.Neo4j == nil {
-		WriteContractError(
-			w,
-			r,
-			http.StatusServiceUnavailable,
-			"package registry version queries require the authoritative graph",
-			ErrorCodeBackendUnavailable,
-			packageRegistryVersionsCapability,
-			h.profile(),
-			requiredProfile(packageRegistryVersionsCapability),
-		)
+	if packageRegistryVersionsGate(w, r, h, span, packageID, limit) {
 		return
 	}
 
@@ -306,17 +301,7 @@ func (h *PackageRegistryHandler) listDependencies(w http.ResponseWriter, r *http
 		WriteError(w, http.StatusBadRequest, "after_version_id and after_dependency_id must be provided together")
 		return
 	}
-	if h.Neo4j == nil {
-		WriteContractError(
-			w,
-			r,
-			http.StatusServiceUnavailable,
-			"package registry dependency queries require the authoritative graph",
-			ErrorCodeBackendUnavailable,
-			packageRegistryDependenciesCapability,
-			h.profile(),
-			requiredProfile(packageRegistryDependenciesCapability),
-		)
+	if packageRegistryDependenciesGate(w, r, h, span, packageID, versionID, limit) {
 		return
 	}
 

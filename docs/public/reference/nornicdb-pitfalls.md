@@ -435,6 +435,63 @@ shipped handler returns every package (including zero-version ones with
 full before/after tables including the rejected candidates and the
 200-package corpus timing.
 
+## Pitfall: Inline `MATCH` Property Pattern Silently Dropped By A Trailing `WHERE`
+
+### Observed shape
+
+On the pinned PR261/compose-default NornicDB image, combining an inline
+property pattern on a `MATCH` with a `WHERE` clause that filters a DIFFERENT
+property silently drops the inline pattern's filter -- the query falls back to
+an unfiltered label scan instead of erroring or returning an unfiltered-but-
+still-labelled result:
+
+```cypher
+-- BROKEN: $ecosystem is silently ignored. Returns the SAME total for every
+-- $ecosystem value (verified: a 120k-node "npm-shimb" partition and a
+-- disjoint "npm-shima" partition both returned the count of ALL
+-- visibility='public' Package nodes across BOTH partitions, not just the
+-- $ecosystem-matching partition).
+MATCH (p:Package {ecosystem: $ecosystem})
+WHERE p.visibility = 'public'
+RETURN count(p) AS c
+```
+
+```cypher
+-- CORRECT: combine both predicates in one WHERE clause; do not mix an inline
+-- MATCH property with a trailing WHERE on an unrelated property.
+MATCH (p:Package)
+WHERE p.ecosystem = $ecosystem AND p.visibility = 'public'
+RETURN count(p) AS c
+```
+
+Reproduced identically via the HTTP tx/commit endpoint (`/db/nornic/tx/commit`)
+AND the real Bolt protocol via `github.com/neo4j/neo4j-go-driver/v5` (the same
+driver `go/internal/query/neo4j.go`'s `Neo4jReader.Run` uses in production) --
+this is not an HTTP-transport artifact.
+
+### Eshu implications
+
+This is both a correctness bug (a cross-partition/cross-tenant leak: a query
+meant to be anchored on one label-property value instead scans and returns
+matches from every value of that property) and a latent performance
+regression (the intended selective anchor is defeated, forcing a full label
+scan). Found while proving the F-6/W5b (#5167) tenant-scoping theory for
+`packageRegistryPackagesCypher`'s ecosystem-browse branch
+(`go/internal/query/package_registry_cypher.go`,
+`packageRegistryPackagesScopedEcosystemCypher`), which was designed against
+this exact composition and had to be rewritten to the WHERE-only combined form
+before it could ship. Never append a `WHERE` clause referencing a different
+property onto a `MATCH` that carries an inline pattern property; move ALL
+selectivity predicates into one `WHERE` clause instead.
+
+### Validation
+
+`go test ./internal/query -run
+'TestPackageRegistryPackagesScopedEcosystemBrowseUsesVisibilityFilteredCypher'
+-count=1` asserts the shipped scoped-ecosystem-browse Cypher text uses the
+combined-`WHERE` form and explicitly rejects the inline-pattern-plus-trailing-
+`WHERE` shape.
+
 ## When To Patch NornicDB
 
 Patch NornicDB only when evidence supports one of these:
