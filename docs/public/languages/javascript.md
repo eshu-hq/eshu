@@ -82,7 +82,7 @@ Focused coverage lives in
 | --- | --- |
 | Grammar routing | `supported` |
 | Normalization | `supported` |
-| Framework and root evidence | React/TSX evidence, Next.js routes/app exports, Express, Koa, Fastify (including typed-parameter autoload/plugin patterns), NestJS, Hapi, AMQP consumers, package/bin/exports, migrations, seeds, AWS/GCP SDK evidence |
+| Framework and root evidence | React/TSX evidence, Next.js routes/app exports, Express, Koa, Fastify (including typed-parameter autoload/plugin patterns), NestJS, Hapi, AMQP consumers, package/bin/exports, migrations, seeds |
 | Query surfacing | `supported` |
 | Real-repo validation | `supported` |
 | End-to-end indexing | `supported` |
@@ -108,7 +108,12 @@ Supported today:
   chains, plugin loading, computed paths/methods, generated route maps, and
   DI/container-only behavior remain root or unsupported evidence only.
 - Node package entrypoints, `bin` targets, package exports, migrations, seeds,
-  AMQP consumers, and bounded AWS/GCP SDK evidence are modeled as live roots.
+  and AMQP consumers are modeled as live roots.
+- AWS/GCP SDK evidence (`framework_semantics.{aws,gcp}.services` and
+  `.client_symbols`) is parsed as framework evidence only. It is not modeled
+  as a dead-code root kind (`javaScriptDeadCodeRootKinds` in
+  `go/internal/parser/javascript/javascript_dead_code_roots.go` never reacts
+  to it) and has no dedicated query surface today.
 
 Not claimed today:
 
