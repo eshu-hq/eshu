@@ -149,25 +149,25 @@ seconds. Both the authenticated positive HTTP topology shape and the existing
 MCP trace shape passed.
 
 After rebasing onto
-`origin/main@1e697fd22c3904930bb0e1fa2b20371fa3580f20`, the full gate was rerun
-at exact implementation head `c8778875bf207c94ffe8f381786316785895f51b` on
+`origin/main@e8e3928b97c20335bf60cd47ea28a9ce884e9cf7`, the full gate was rerun
+at exact implementation head `0a3952c491a16c3e2fae5140f57efcd7c24100e9` on
 isolated ports:
 
 ```bash
-ESHU_POSTGRES_PORT=16533 \
-NEO4J_BOLT_PORT=8788 \
-NEO4J_HTTP_PORT=8576 \
-GATE_API_PORT=19081 \
-GATE_MCP_PORT=19092 \
+ESHU_POSTGRES_PORT=16534 \
+NEO4J_BOLT_PORT=8789 \
+NEO4J_HTTP_PORT=8577 \
+GATE_API_PORT=19082 \
+GATE_MCP_PORT=19093 \
 GATE_DRAIN_TIMEOUT=10m \
-GATE_BUDGET_SECONDS=900 \
+GATE_BUDGET_SECONDS=600 \
 bash scripts/verify-golden-corpus-gate.sh
 ```
 
-The post-rebase run completed in 33 seconds with **420 pass, 0
-required-fail, and 0 advisory-warn**. Its phase timings were 2 seconds for
-bootstrap, 20 seconds for collector replay, 6 seconds for the first drain, 5
-seconds for maintenance drains, and 3 seconds for graph/query checks. The
+The post-rebase run completed in 35 seconds with **420 pass, 0
+required-fail, and 0 advisory-warn**. Its phase timings were 3 seconds for
+bootstrap, 20 seconds for collector replay, 7 seconds for the first drain, 5
+seconds for maintenance drains, and 5 seconds for graph/query checks. The
 isolated containers, network, and volumes were removed by the gate; the
 retained development stack was not changed.
 
@@ -226,9 +226,26 @@ exact topology-edge contract and therefore included relationships that the
 mapper no longer synthesizes. It is retained only as historical diagnostic
 context and is not merge-readiness evidence.
 
-Final proof must use the authenticated retained browser on the exact reviewed
-head and compare API relationship type/source/target tuples with the rendered
-DOM. It must cover direct placement, provisioning fallback when present,
-environment-as-attribute behavior, source-limit disclosure, graph bounds, and
-click-to-visible completion. Those results are pending and will replace this
-paragraph before the branch is pushed.
+The final retained-browser run used the authenticated console at
+`http://127.0.0.1:5194/impact?kind=service&target=api-node-boats` against
+application head `4813a48b68e071fa232101b405abdb7cc8e86264`. The rendered
+deployment section agreed with the retained API tuple proof: six workload
+instances, nine `RUNS_ON` relationship type/source/target tuples, 14 deployment
+sources, six cloud resources, and one Kubernetes resource. The UI grouped the
+six instances by their `environment` attributes and rendered Kubernetes and
+ECS as child platform placements. It rendered one `api-node-boats` workload,
+not one service node per platform. The three shared `bg-*` instances each
+showed distinct Kubernetes and ECS placements; the remaining three instances
+showed their Kubernetes placements.
+
+The response reported no exact repository-level provisioning topology for this
+anchor, and the UI disclosed that absence instead of inventing a fallback.
+Every placement outside the bounded change-surface graph was labeled `Outside
+bounded graph` and exposed no misleading inspect control. The graph composition
+reported 26 of 26 nodes and 25 of 25 edges within the 60/120 bounds, marked
+complete. The deployment-source summary displayed all 14 sources; the API
+reported 14 of 14 with `truncated=false`, so no truncation warning was required.
+Selecting `endpoint:0d0c68e49c7ebb12a6332c16` in the rendered graph updated the
+visible Selected entity panel to that canonical endpoint ID and showed its
+`DIRECT_IMPACT -> workload:api-node-boats` edge, proving click-to-visible
+completion in the signed-in retained session.
