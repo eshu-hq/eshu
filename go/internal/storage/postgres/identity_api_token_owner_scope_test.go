@@ -244,3 +244,68 @@ func ownerHashParam(queryName string) string {
 	}
 	return "5"
 }
+
+// TestRotateLocalIdentityAPITokenPreservesSourceExpiry is the regression guard
+// for the codex P1: rotation must not silently drop a token's expiry. The
+// console rotate path posts an empty body, so the request carries no
+// expires_at; before this fix that bound NULL and the replacement became a
+// non-expiring credential. Both rotate statements (admin and self-service)
+// must default the replacement's expires_at to the SOURCE token's expires_at
+// via COALESCE($7, old_token.expires_at): an omitted request expiry preserves
+// the source instant (never extending the credential's lifetime; a
+// non-expiring source stays non-expiring), while an explicit request expiry
+// still overrides because a non-NULL $7 wins the COALESCE. Read within the
+// same INSERT-SELECT, so there is no separate round-trip or race.
+func TestRotateLocalIdentityAPITokenPreservesSourceExpiry(t *testing.T) {
+	t.Parallel()
+
+	// Both rotate statements must source the replacement expiry from the old
+	// token when the request supplies none.
+	for name, query := range map[string]string{
+		"admin":        rotateLocalIdentityAPITokenQuery,
+		"self-service": rotateLocalIdentityAPITokenByOwnerQuery,
+	} {
+		if !strings.Contains(collapseWhitespace(query), "COALESCE($7, old_token.expires_at)") {
+			t.Fatalf("%s rotate query does not preserve source expiry; want COALESCE($7, old_token.expires_at) in:\n%s", name, collapseWhitespace(query))
+		}
+	}
+
+	now := time.Date(2026, 7, 18, 11, 0, 0, 0, time.UTC)
+
+	// Omitted request expiry -> $7 bound as SQL NULL, so COALESCE preserves the
+	// source token's expires_at.
+	omitted := &fakeBeginnerExecQueryer{}
+	if err := NewIdentitySubjectStore(omitted).RotateLocalIdentityAPIToken(context.Background(), LocalIdentityAPITokenRotate{
+		OldTokenID:   "tok_old",
+		NewTokenID:   "tok_new",
+		NewTokenHash: "sha256:new-generated-token",
+		TenantID:     "tenant_local",
+		WorkspaceID:  "workspace_local",
+		RotatedAt:    now,
+		// NewTokenExpires intentionally left zero (console posts {}).
+	}); err != nil {
+		t.Fatalf("RotateLocalIdentityAPIToken(omitted expiry) error = %v", err)
+	}
+	if expiry, ok := omitted.execs[0].args[6].(sql.NullTime); !ok || expiry.Valid {
+		t.Fatalf("omitted-expiry rotate bound $7 = %#v, want a NULL sql.NullTime so COALESCE preserves the source", omitted.execs[0].args[6])
+	}
+
+	// Explicit request expiry -> $7 bound non-NULL, so COALESCE takes the
+	// override instead of the source.
+	explicit := &fakeBeginnerExecQueryer{}
+	want := now.Add(48 * time.Hour)
+	if err := NewIdentitySubjectStore(explicit).RotateLocalIdentityAPIToken(context.Background(), LocalIdentityAPITokenRotate{
+		OldTokenID:      "tok_old",
+		NewTokenID:      "tok_new",
+		NewTokenHash:    "sha256:new-generated-token",
+		TenantID:        "tenant_local",
+		WorkspaceID:     "workspace_local",
+		RotatedAt:       now,
+		NewTokenExpires: want,
+	}); err != nil {
+		t.Fatalf("RotateLocalIdentityAPIToken(explicit expiry) error = %v", err)
+	}
+	if expiry, ok := explicit.execs[0].args[6].(sql.NullTime); !ok || !expiry.Valid || !expiry.Time.Equal(want) {
+		t.Fatalf("explicit-expiry rotate bound $7 = %#v, want a valid sql.NullTime == %v so COALESCE overrides", explicit.execs[0].args[6], want)
+	}
+}
