@@ -47,49 +47,6 @@ const openAPIPathsCodeGraph = `
         }
       }
     },
-    "/api/v0/code/visualize": {
-      "post": {
-        "tags": ["code"], "summary": "Run bounded read-only Cypher and render a visualization packet",
-        "description": "Diagnostics-only graph query endpoint that projects the query result into a bounded, renderable subgraph (nodes and edges) instead of raw rows. Shares handleCypherQuery's read-only safety path: mutation keywords are rejected, the query is bounded with an injected LIMIT, and the row window is capped. Shared-key/all-scope callers only: the query text is caller-supplied and unbounded, so there is no selector to intersect against a tenant grant. Scoped and browser-session tokens are rejected before the handler runs.",
-        "operationId": "runReadOnlyCypherVisualization",
-        "x-shared-key-only": true,
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": ["cypher_query"],
-                "properties": {
-                  "cypher_query": {"type": "string"},
-                  "limit": {"type": "integer", "default": 100, "maximum": 1000}
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Bounded visualization packet",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "visualization_packet": {"type": "object", "additionalProperties": true},
-                    "limit": {"type": "integer"},
-                    "truncated": {"type": "boolean"}
-                  }
-                }
-              }
-            }
-          },
-          "400": {"$ref": "#/components/responses/BadRequest"},
-          "501": {"$ref": "#/components/responses/NotImplemented"},
-          "500": {"$ref": "#/components/responses/InternalError"}
-        }
-      }
-    },
     "/api/v0/code/bundles": {
       "post": {
         "tags": ["code"],

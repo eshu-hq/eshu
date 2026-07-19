@@ -1048,11 +1048,6 @@
     },
     {
       "category": "api_route",
-      "name": "POST /api/v0/code/visualize",
-      "readiness": "implemented"
-    },
-    {
-      "category": "api_route",
       "name": "POST /api/v0/compare/environments",
       "readiness": "implemented"
     },

@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"testing"
@@ -164,6 +166,35 @@ func openAPISharedKeyOnlyRoutes(t *testing.T) map[string]struct{} {
 	return openAPIBoolMarkerRoutes(t, "x-shared-key-only")
 }
 
+// openAPIKnownDriftRoutes parses .github/openapi-known-drift.txt and returns
+// the "METHOD /path" surface name for every route intentionally excluded from
+// the public OpenAPI surface. scripts/verify-openapi.sh subtracts these from
+// the HandleFunc side so a route with a live handler but no openapi_paths_*.go
+// entry stays green instead of tripping the drift gate. A shared-key-only
+// route may be OpenAPI-excluded (POST /api/v0/code/visualize, #3781): it has a
+// real handler, is in the sharedKeyOnlyRoutes Go ledger, but must NOT carry an
+// x-shared-key-only OpenAPI marker or appear in the served surface inventory,
+// because it is not part of the public OpenAPI at all. This set lets
+// TestScopedTokenAllowlistCompleteness validate such a route by Go-ledger
+// membership alone rather than demanding a marker it deliberately lacks.
+func openAPIKnownDriftRoutes(t *testing.T) map[string]struct{} {
+	t.Helper()
+	path := filepath.Join("..", "..", "..", ".github", "openapi-known-drift.txt")
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read known-drift file %s: %v", path, err)
+	}
+	routes := map[string]struct{}{}
+	for _, line := range strings.Split(string(raw), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		routes[line] = struct{}{}
+	}
+	return routes
+}
+
 // surfaceNameToRequest builds an *http.Request from a "METHOD /path" surface
 // name for probing scopedHTTPRouteSupportsTenantFilter or the real
 // AuthMiddlewareWithScopedTokens. OpenAPI path templates (e.g. "{repo_id}")
@@ -217,6 +248,7 @@ func TestScopedTokenAllowlistCompleteness(t *testing.T) {
 	tokenAdvertised := openAPIScopedTokenSupportRoutes(t)
 	browserOnlyAdvertised := openAPIBrowserSessionOnlyRoutes(t)
 	sharedKeyOnlyAdvertised := openAPISharedKeyOnlyRoutes(t)
+	knownDrift := openAPIKnownDriftRoutes(t)
 
 	for name := range tokenAdvertised {
 		if _, both := browserOnlyAdvertised[name]; both {
@@ -278,8 +310,26 @@ func TestScopedTokenAllowlistCompleteness(t *testing.T) {
 		}
 	}
 	for name := range sharedKeyOnlyRoutes {
-		if _, ok := surfaceSet[name]; !ok {
-			t.Errorf("%s: sharedKeyOnlyRoutes has a stale entry -- no implemented api_route surface has this name; remove the entry or fix the surface name to match capabilitycatalog.LoadSurfaceInventory()", name)
+		if _, ok := surfaceSet[name]; ok {
+			// The route is in the served OpenAPI surface (e.g.
+			// POST /api/v0/code/cypher): the loop above already validated its
+			// x-shared-key-only marker, so nothing more to check here.
+			continue
+		}
+		// The route is not in the served surface inventory. That is legitimate
+		// only when the route is intentionally OpenAPI-excluded via
+		// .github/openapi-known-drift.txt (POST /api/v0/code/visualize, #3781):
+		// it is a real, shared-key-only handler that verify-openapi.sh treats
+		// as covered, so this Go ledger is its sole machine-checkable
+		// classification -- it must NOT also carry an x-shared-key-only OpenAPI
+		// marker (it has no OpenAPI entry to carry one). Any other missing
+		// surface is a genuinely stale ledger entry.
+		if _, excluded := knownDrift[name]; !excluded {
+			t.Errorf("%s: sharedKeyOnlyRoutes has a stale entry -- no implemented api_route surface has this name and it is not in .github/openapi-known-drift.txt; remove the entry, fix the surface name to match capabilitycatalog.LoadSurfaceInventory(), or add it to known-drift if the route is intentionally OpenAPI-excluded", name)
+			continue
+		}
+		if _, marked := sharedKeyOnlyAdvertised[name]; marked {
+			t.Errorf("%s: is in .github/openapi-known-drift.txt (intentionally OpenAPI-excluded) yet also carries an \"x-shared-key-only\": true OpenAPI marker -- an OpenAPI-excluded route has no OpenAPI operation to mark; remove the marker or remove the route from known-drift", name)
 		}
 	}
 }
