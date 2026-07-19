@@ -113,13 +113,12 @@ func workflowArtifactDetails(content string) ([]string, []string, []string, []st
 	// The five GitHub Actions dependency-reference classes come from the
 	// shared structured extractor so this rollup and the content-relationship
 	// edge builder (githubActionsSourceRelationships) agree on exactly which
-	// refs a file declares (issue #5337 Detector 4). The remaining
-	// walk below covers the workflow-metadata fields that are unique to this
-	// rollup (triggers, permissions, matrix, run commands, and so on).
-	dependencyRefs := extractGitHubActionsDependencyRefs(content)
-	if dependencyRefs == nil {
-		dependencyRefs = &githubActionsDependencyRefs{}
-	}
+	// refs a file declares (issue #5337 Detector 4). Pass the already-decoded
+	// documents to the FromDocuments variant so the content is decoded once,
+	// not twice. The remaining walk below covers the workflow-metadata fields
+	// that are unique to this rollup (triggers, permissions, matrix, run
+	// commands, and so on).
+	dependencyRefs := extractGitHubActionsDependencyRefsFromDocuments(documents)
 	runCommands := make([]string, 0)
 	gatingConditions := make([]string, 0)
 	needsDependencies := make([]string, 0)

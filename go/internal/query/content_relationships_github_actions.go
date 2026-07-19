@@ -128,12 +128,26 @@ type githubActionsDependencyRefs struct {
 // prose or docs that merely mention `actions/checkout@`) that does not decode
 // to the expected structure now correctly yields nothing. There is
 // deliberately no fallback to line scanning.
+//
+// This is the raw-string entry point, used by githubActionsSourceRelationships
+// (which only has entity.SourceCache). Callers that have already decoded the
+// content to documents — for example workflowArtifactDetails — should call
+// extractGitHubActionsDependencyRefsFromDocuments directly to avoid a second
+// YAML decode of the same content.
 func extractGitHubActionsDependencyRefs(content string) *githubActionsDependencyRefs {
 	documents, err := decodeYAMLMaps(content)
 	if err != nil {
 		return nil
 	}
+	return extractGitHubActionsDependencyRefsFromDocuments(documents)
+}
 
+// extractGitHubActionsDependencyRefsFromDocuments walks already-decoded YAML
+// documents and returns the GitHub Actions dependency references they declare.
+// It is the shared implementation behind extractGitHubActionsDependencyRefs
+// (the raw-string entry) so callers holding pre-decoded documents reuse the
+// same walk without re-decoding the content.
+func extractGitHubActionsDependencyRefsFromDocuments(documents []map[string]any) *githubActionsDependencyRefs {
 	refs := &githubActionsDependencyRefs{}
 	for _, document := range documents {
 		if jobs, ok := document["jobs"].(map[string]any); ok {
