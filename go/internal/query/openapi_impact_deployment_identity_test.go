@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"net/http/httptest"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -27,6 +28,10 @@ func TestOpenAPIImpactDeploymentTraceDocumentsCanonicalPlatformIdentity(t *testi
 	jsonContent := mustMapField(t, content, "application/json")
 	schema := mustMapField(t, jsonContent, "schema")
 	properties := mustMapField(t, schema, "properties")
+	uncorrelatedCloudResources := mustMapField(t, properties, "uncorrelated_cloud_resources")
+	if description, _ := uncorrelatedCloudResources["description"].(string); !strings.Contains(description, "globally ordered by name and canonical ID") {
+		t.Fatalf("uncorrelated_cloud_resources description does not document ordering: %q", description)
+	}
 	instances := mustMapField(t, properties, "instances")
 	instanceItems := mustMapField(t, instances, "items")
 	instanceProperties := mustMapField(t, instanceItems, "properties")

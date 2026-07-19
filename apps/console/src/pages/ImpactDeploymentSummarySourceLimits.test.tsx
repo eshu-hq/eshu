@@ -9,6 +9,16 @@ import type {
 } from "../api/impactReviewTypes";
 
 describe("DeploymentTraceSummary deployment-source coverage", () => {
+  it("discloses truncated config-derived candidates with no returned rows", () => {
+    renderSummary(null, true);
+
+    expect(
+      screen.getByText(
+        "Config-derived cloud-resource candidates were truncated; additional uncorrelated candidates may be omitted.",
+      ),
+    ).toBeInTheDocument();
+  });
+
   it("discloses a lower-bound count when the server stopped at its sentinel", () => {
     renderSummary({
       canonicalObservedCount: 51,
@@ -92,7 +102,10 @@ describe("ImpactGraphProvenance completeness", () => {
   });
 });
 
-function renderSummary(deploymentSourceLimits: DeploymentSourceLimits | null): void {
+function renderSummary(
+  deploymentSourceLimits: DeploymentSourceLimits | null,
+  uncorrelatedCloudResourcesTruncated = false,
+): void {
   const trace: DeploymentTraceResult = {
     cloudResourceLimits: null,
     cloudResources: [],
@@ -111,6 +124,7 @@ function renderSummary(deploymentSourceLimits: DeploymentSourceLimits | null): v
     serviceName: "catalog-api",
     story: "Deployment source results are bounded.",
     topologyEdges: [],
+    uncorrelatedCloudResourcesTruncated,
     workloadId: "workload:catalog-api",
   };
 

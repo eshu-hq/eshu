@@ -225,7 +225,7 @@ anchor, caps the key batch at 50, reports omitted or upstream-truncated anchor
 input, and applies the sentinel once globally.
 
 No-Regression Evidence: after the final rebase, focused query tests passed,
-the complete console suite passed 255 test files and 1,619 tests, console
+the complete console suite passed 255 test files and 1,621 tests, console
 typechecking passed, and the production console build passed with every emitted
 chunk within its checked-in budget. The B-7 golden-corpus gate passed 421
 checks with zero required failures and zero advisory warnings on the same
@@ -246,7 +246,7 @@ instrument, or high-cardinality metric label.
 | Proof | Terminal result |
 | --- | --- |
 | Focused backend and OpenAPI tests | deployment truth, bounds, ambiguity, and schema tests passed |
-| Focused console tests and typecheck | 255 files and 1,619 tests passed; typecheck passed |
+| Focused console tests and typecheck | 255 files and 1,621 tests passed; typecheck passed |
 | NornicDB query proof | bounded emitted shapes and expected correctness delta proved; unavailable `PROFILE` output disclosed |
 | B-7 golden corpus | 421 passed, 0 required failures, 0 advisory warnings on the pinned PR261 image above |
 | Production console build | passed; all 80 emitted chunks remained within budget |
@@ -282,3 +282,13 @@ authorization, truncation, and missing-metadata behavior are covered by the
 deterministic route, console, and B-7 tests. Private repository names, retained
 canonical IDs, URLs, ports, credentials, and machine-specific paths are not
 recorded here.
+
+The preliminary hostile review found that the API's
+`uncorrelated_cloud_resources_truncated` signal was not yet carried through the
+console normalizer. The final implementation now marks that graph truncated,
+adds an explicit limitation even when zero candidate rows were returned, and
+renders a matching deployment-summary warning. Regression coverage exercises
+the real response normalizer, graph composition, and visible summary. The same
+review also found that the bounded candidate ordering was only recorded in this
+evidence packet; the OpenAPI response description and public HTTP reference now
+declare the global resource-name/canonical-ID order.

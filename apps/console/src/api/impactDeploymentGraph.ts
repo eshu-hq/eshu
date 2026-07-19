@@ -213,6 +213,12 @@ export function deploymentTraceGraph(
   identityOmittedNodes += cloudResourceAccounting.omittedNodes + k8sResourceAccounting.omittedNodes;
   for (const limitation of cloudResourceAccounting.limitations) limitations.add(limitation);
   for (const limitation of k8sResourceAccounting.limitations) limitations.add(limitation);
+  if (trace.uncorrelatedCloudResourcesTruncated === true) {
+    identityOmittedNodes += 1;
+    limitations.add(
+      "uncorrelated cloud-resource candidate input truncated upstream; additional candidates may be omitted",
+    );
+  }
 
   addEvidenceNodes(trace, truth, addNode, limitations);
   const bounded = boundedGraph(
@@ -233,7 +239,8 @@ export function deploymentTraceGraph(
     runtimeAccounting.truncated ||
     cloudResourceAccounting.truncated ||
     k8sResourceAccounting.truncated ||
-    trace.deploymentSourceLimits?.truncated === true;
+    trace.deploymentSourceLimits?.truncated === true ||
+    trace.uncorrelatedCloudResourcesTruncated === true;
   return {
     graph: bounded.graph,
     presentation: {

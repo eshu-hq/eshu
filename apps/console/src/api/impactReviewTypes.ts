@@ -117,6 +117,7 @@ export interface DeploymentTraceResult {
   readonly serviceName: string;
   readonly story: string;
   readonly topologyEdges: readonly DeploymentTraceTopologyEdge[];
+  readonly uncorrelatedCloudResourcesTruncated?: boolean;
   readonly workloadId: string;
 }
 

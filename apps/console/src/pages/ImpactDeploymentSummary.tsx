@@ -88,6 +88,12 @@ export function DeploymentTraceSummary({
       ) : trace.deploymentSourceLimits.truncated ? (
         <p className="inline-state">{deploymentSourceLimitation(trace.deploymentSourceLimits)}</p>
       ) : null}
+      {trace.uncorrelatedCloudResourcesTruncated === true ? (
+        <p className="inline-state">
+          Config-derived cloud-resource candidates were truncated; additional uncorrelated
+          candidates may be omitted.
+        </p>
+      ) : null}
 
       <div className="impact-pivots" aria-label="Deployment pivots">
         {trace.serviceName ? (

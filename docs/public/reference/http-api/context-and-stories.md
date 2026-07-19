@@ -474,7 +474,9 @@ they can explain why a resource should be investigated, but they do not create
 the reducer-owned workload-to-cloud relationship. Candidate rows expose
 `candidate_status`, `match_basis`, and `missing_relationship`, while
 `uncorrelated_cloud_resources_truncated=true` reports that additional bounded
-candidates may exist.
+candidates may exist. Candidate selection is globally ordered by resource name
+and canonical ID before the response bound is applied; deployment-evidence
+artifact order does not decide which candidates survive that bound.
 
 Repository story uses the same repository deployment-evidence read path as
 repository context and service story. When repository-scoped deployment evidence

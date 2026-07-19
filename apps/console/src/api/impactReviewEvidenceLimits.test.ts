@@ -4,6 +4,36 @@ import {
 } from "./impactReviewDeploymentGraph.testSupport";
 
 describe("impact deployment evidence coverage", () => {
+  it("surfaces truncated config-derived candidates even when no candidate rows were returned", async () => {
+    const review = await loadDeploymentReview(
+      deploymentTracePayload({
+        cloud_resource_limits: completeCollectionLimits(0),
+        deployment_source_limits: completeDeploymentSourceLimits(1),
+        k8s_resource_limits: completeKubernetesLimits(0),
+        runtime_topology_limits: completeRuntimeTopologyLimits(),
+        topology_edges: [
+          {
+            relationship_type: "DEFINES",
+            source_id: "repository:r_catalog",
+            target_id: "workload:catalog-api",
+          },
+        ],
+        uncorrelated_cloud_resources_truncated: true,
+      }),
+    );
+
+    expect(review.deploymentTrace.status).toBe("ready");
+    if (review.deploymentTrace.status !== "ready") return;
+    expect(review.deploymentTrace.data.uncorrelatedCloudResourcesTruncated).toBe(true);
+    expect(review.graphPresentation).toMatchObject({
+      completeness: "truncated",
+      truncated: true,
+    });
+    expect(review.graphPresentation.limitations).toContain(
+      "uncorrelated cloud-resource candidate input truncated upstream; additional candidates may be omitted",
+    );
+  });
+
   it.each([
     [
       "cloud resources",

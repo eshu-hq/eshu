@@ -1,4 +1,5 @@
 import { render } from "@testing-library/react";
+import type { RenderResult } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { vi } from "vitest";
 
@@ -137,7 +138,7 @@ export function clientFor(deriveData: EshuEnvelope<Record<string, unknown>>): {
   return { client, paths };
 }
 
-export function renderServiceEvidenceGraphAt(path: string, client: EshuApiClient) {
+export function renderServiceEvidenceGraphAt(path: string, client: EshuApiClient): RenderResult {
   return render(
     <MemoryRouter initialEntries={[path]}>
       <Routes>

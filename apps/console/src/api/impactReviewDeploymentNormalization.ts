@@ -31,6 +31,7 @@ export interface DeploymentTraceResponse {
   readonly service_name?: string;
   readonly story?: string;
   readonly topology_edges?: readonly unknown[];
+  readonly uncorrelated_cloud_resources_truncated?: boolean;
   readonly workload_id?: string;
 }
 
@@ -94,6 +95,7 @@ export function normalizeDeploymentTrace(response: DeploymentTraceResponse): Dep
     serviceName: nonEmpty(response.service_name),
     story: nonEmpty(response.story, "Deployment trace returned no story text."),
     topologyEdges: topology.edges,
+    uncorrelatedCloudResourcesTruncated: response.uncorrelated_cloud_resources_truncated === true,
     workloadId: nonEmpty(response.workload_id),
   };
 }
