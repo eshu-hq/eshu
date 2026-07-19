@@ -32,6 +32,11 @@ const (
 	labelsResourceClass    = ResourceClassLogSignal
 	seriesResourceClass    = ResourceClassLogSignal
 	rulesResourceClass     = ResourceClassRule
+	// defaultSeriesLookback bounds the /loki/api/v1/series query window when
+	// neither TargetConfig.SeriesLookback nor TargetConfig.StaleAfter is
+	// configured. Generous enough to avoid dropping series that are still
+	// within a typical observability retention window.
+	defaultSeriesLookback = 24 * time.Hour
 )
 
 // HTTPClient reads bounded Loki metadata through REST APIs.
@@ -233,6 +238,13 @@ func (c HTTPClient) collectSeries(ctx context.Context, target TargetConfig, resu
 		result.Signals = append(result.Signals, normalized)
 		recordObservationStats(normalized.FreshnessState, normalized.SeriesFingerprint != "", result)
 	}
+	if len(seen) > limit {
+		result.Stats.Truncated = true
+		result.Warnings = append(result.Warnings, Warning{
+			ResourceClass: seriesResourceClass,
+			Reason:        WarningTruncated,
+		})
+	}
 	return nil
 }
 
@@ -263,6 +275,13 @@ func (c HTTPClient) collectRules(ctx context.Context, target TargetConfig, resul
 				recordObservationStats(normalized.FreshnessState, normalized.QueryRedacted, result)
 			}
 		}
+	}
+	if len(seen) > limit {
+		result.Stats.Truncated = true
+		result.Warnings = append(result.Warnings, Warning{
+			ResourceClass: rulesResourceClass,
+			Reason:        WarningTruncated,
+		})
 	}
 	return nil
 }

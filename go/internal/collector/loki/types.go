@@ -116,6 +116,9 @@ const (
 	WarningStale = "stale"
 	// WarningHighCardinality marks rejected high-cardinality label values.
 	WarningHighCardinality = "high_cardinality_rejected"
+	// WarningTruncated marks a resource class where the client-side
+	// resource_limit cap dropped records the provider actually returned.
+	WarningTruncated = "truncated"
 )
 
 // EnvelopeContext carries durable fact-envelope identity for Loki facts.
@@ -189,6 +192,9 @@ type CollectionStats struct {
 	Stale                   int
 	HighCardinalityRejected int
 	Partial                 bool
+	// Truncated is true when any resource class hit its client-side
+	// resource_limit cap and dropped provider-returned records.
+	Truncated bool
 }
 
 // CollectionResult is one bounded Loki metadata snapshot.
@@ -232,9 +238,14 @@ type TargetConfig struct {
 	MaxLabelValuesPerLabel int
 	SeriesMatchers         []string
 	StaleAfter             time.Duration
-	Enabled                bool
-	DeclaredIDs            map[string]struct{}
-	ObservedOnlyHint       bool
+	// SeriesLookback bounds the /loki/api/v1/series query window's `start`
+	// parameter. When zero, it defaults to StaleAfter (keeping the series
+	// bound and the staleness signal in agreement) and falls back to
+	// defaultSeriesLookback when StaleAfter is also unset.
+	SeriesLookback   time.Duration
+	Enabled          bool
+	DeclaredIDs      map[string]struct{}
+	ObservedOnlyHint bool
 }
 
 // HTTPClientConfig configures the bounded Loki REST client.

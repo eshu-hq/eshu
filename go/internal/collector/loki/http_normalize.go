@@ -127,6 +127,12 @@ func timeQuery(observedAt time.Time) url.Values {
 
 func seriesQuery(target TargetConfig, observedAt time.Time) url.Values {
 	query := timeQuery(observedAt)
+	if !observedAt.IsZero() {
+		start := observedAt.Add(-normalizedSeriesLookback(target))
+		if start.Before(observedAt) {
+			query.Set("start", fmt.Sprintf("%d", start.UnixNano()))
+		}
+	}
 	matchers := cleanStringSlice(target.SeriesMatchers)
 	if len(matchers) == 0 {
 		matchers = []string{defaultSeriesMatcher}
@@ -135,6 +141,21 @@ func seriesQuery(target TargetConfig, observedAt time.Time) url.Values {
 		query.Add("match[]", matcher)
 	}
 	return query
+}
+
+// normalizedSeriesLookback resolves the bounded /loki/api/v1/series `start`
+// window: an explicit SeriesLookback wins, otherwise it agrees with the
+// StaleAfter freshness window so the two signals never diverge, and falls
+// back to defaultSeriesLookback when neither is configured.
+func normalizedSeriesLookback(target TargetConfig) time.Duration {
+	switch {
+	case target.SeriesLookback > 0:
+		return target.SeriesLookback
+	case target.StaleAfter > 0:
+		return target.StaleAfter
+	default:
+		return defaultSeriesLookback
+	}
 }
 
 func declaredMatchState(target TargetConfig, id string) string {
