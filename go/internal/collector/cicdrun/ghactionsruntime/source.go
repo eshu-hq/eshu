@@ -12,9 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
-	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
@@ -29,16 +26,24 @@ const (
 	maxRunPages      = 100
 	maxJobPages      = 500
 	maxArtifactPages = 500
+	// defaultMaxRuns bounds a target's run window with the DEFAULT, not the
+	// collection mechanism: an omitted/zero max_runs resolves to this value
+	// rather than requiring every target to spell out a limit. Steady-state
+	// per-repo request volume tracks the actual new-run rate (unchanged runs
+	// re-emit idempotently at projection), so 10 is a small, safe default;
+	// the hard cap (maxRunPages) stays 100 for targets that opt into a wider
+	// window explicitly.
+	defaultMaxRuns = 10
 )
 
 // ErrRateLimited marks provider throttling that should remain distinguishable
 // from malformed target or claim errors.
 var ErrRateLimited = errors.New("github actions provider rate limited")
 
-// Client fetches one bounded GitHub Actions run snapshot for a configured
+// Client fetches one bounded window of GitHub Actions runs for a configured
 // target.
 type Client interface {
-	FetchLatestRun(context.Context, TargetConfig) (RunSnapshot, error)
+	FetchRuns(context.Context, TargetConfig) (RunPage, error)
 }
 
 // SourceConfig configures one claim-aware GitHub Actions runtime source.
@@ -73,6 +78,18 @@ type RunSnapshot struct {
 	JobsPartial bool
 	Artifacts   []map[string]any
 	Warnings    []map[string]any
+}
+
+// RunPage carries the bounded window of runs one claim fetched (newest first,
+// as GitHub returns them), plus whether the provider's runs listing indicated
+// additional runs exist beyond the window. Each snapshot's normalized facts
+// are keyed by run ID at the cicdrun envelope layer, so re-fetching the same
+// window on a later claim cycle re-emits the same StableFactKey set per run
+// (an idempotent upsert at projection) rather than requiring a persistent
+// watermark/cursor here.
+type RunPage struct {
+	Snapshots []RunSnapshot
+	Truncated bool
 }
 
 // ClaimedSource resolves CI/CD run workflow claims into fact generations.
@@ -138,7 +155,7 @@ func (s ClaimedSource) NextClaimed(
 	observeCtx, observeSpan := s.startObserve(ctx)
 	defer observeSpan.End()
 	fetchCtx, fetchSpan := s.startFetch(observeCtx)
-	snapshot, err := s.client.FetchLatestRun(fetchCtx, target)
+	page, err := s.client.FetchRuns(fetchCtx, target)
 	if err != nil {
 		statusClass := classifyProviderStatus(err)
 		s.recordFetch(observeCtx, statusClass, startedAt)
@@ -150,29 +167,9 @@ func (s ClaimedSource) NextClaimed(
 	}
 	fetchSpan.End()
 	observedAt := s.now().UTC()
-	raw, err := json.Marshal(map[string]any{
-		"workflow":     snapshot.Workflow,
-		"run":          snapshot.Run,
-		"jobs":         snapshot.Jobs,
-		"jobs_partial": snapshot.JobsPartial,
-		"artifacts":    sanitizeArtifacts(snapshot.Artifacts),
-		"warnings":     snapshot.Warnings,
-	})
+	envelopes, err := s.buildRunEnvelopes(observeSpan, item, target, page, observedAt)
 	if err != nil {
-		recordSpanError(observeSpan, err)
-		return collector.CollectedGeneration{}, false, fmt.Errorf("marshal github actions snapshot: %w", err)
-	}
-	envelopes, err := cicdrun.GitHubActionsFixtureEnvelopes(raw, cicdrun.FixtureContext{
-		ScopeID:             item.ScopeID,
-		GenerationID:        item.GenerationID,
-		CollectorInstanceID: s.collectorInstanceID,
-		FencingToken:        item.CurrentFencingToken,
-		ObservedAt:          observedAt,
-		SourceURI:           target.SourceURI,
-	})
-	if err != nil {
-		recordSpanError(observeSpan, err)
-		return collector.CollectedGeneration{}, false, fmt.Errorf("normalize github actions snapshot: %w", err)
+		return collector.CollectedGeneration{}, false, err
 	}
 	scopeValue := scope.IngestionScope{
 		ScopeID:       item.ScopeID,
@@ -202,9 +199,76 @@ func (s ClaimedSource) NextClaimed(
 		return collector.CollectedGeneration{}, false, err
 	}
 	s.recordFacts(observeCtx, envelopes)
-	s.recordPartialGeneration(observeCtx, snapshot)
+	s.recordPartialGeneration(observeCtx, page)
 	s.recordFetch(observeCtx, "success", startedAt)
 	return collector.FactsFromSlice(scopeValue, generationValue, envelopes), true, nil
+}
+
+// buildRunEnvelopes normalizes one fetched run window into facts, emitting
+// one independently keyed fact-set per run (via the shared cicdrun fixture
+// normalizer's run-ID-scoped StableFactKey) instead of the single-run shape
+// the prior FetchLatestRun path produced. A truncated page attaches a
+// runs_truncated warning to the newest (first) run in the window so it
+// reaches the graph as a ci.warning fact through the existing
+// fixture.Warnings pipeline, mirroring the jobs_partial pattern.
+func (s ClaimedSource) buildRunEnvelopes(
+	observeSpan trace.Span,
+	item workflow.WorkItem,
+	target TargetConfig,
+	page RunPage,
+	observedAt time.Time,
+) ([]facts.Envelope, error) {
+	snapshots := attachRunsTruncatedWarning(page)
+	envelopes := make([]facts.Envelope, 0, len(snapshots))
+	for _, snapshot := range snapshots {
+		raw, err := json.Marshal(map[string]any{
+			"workflow":     snapshot.Workflow,
+			"run":          snapshot.Run,
+			"jobs":         snapshot.Jobs,
+			"jobs_partial": snapshot.JobsPartial,
+			"artifacts":    sanitizeArtifacts(snapshot.Artifacts),
+			"warnings":     snapshot.Warnings,
+		})
+		if err != nil {
+			recordSpanError(observeSpan, err)
+			return nil, fmt.Errorf("marshal github actions snapshot: %w", err)
+		}
+		runEnvelopes, err := cicdrun.GitHubActionsFixtureEnvelopes(raw, cicdrun.FixtureContext{
+			ScopeID:             item.ScopeID,
+			GenerationID:        item.GenerationID,
+			CollectorInstanceID: s.collectorInstanceID,
+			FencingToken:        item.CurrentFencingToken,
+			ObservedAt:          observedAt,
+			SourceURI:           target.SourceURI,
+		})
+		if err != nil {
+			recordSpanError(observeSpan, err)
+			return nil, fmt.Errorf("normalize github actions snapshot: %w", err)
+		}
+		envelopes = append(envelopes, runEnvelopes...)
+	}
+	return envelopes, nil
+}
+
+// attachRunsTruncatedWarning returns page.Snapshots unchanged when the page
+// was not truncated. When truncated, it returns a copy of the snapshots with
+// a runs_truncated warning appended to the newest (first, since GitHub
+// returns runs newest-first) run's Warnings, without mutating page.Snapshots
+// itself (recordPartialGeneration still reads the untouched page for its own
+// telemetry accounting).
+func attachRunsTruncatedWarning(page RunPage) []RunSnapshot {
+	if !page.Truncated || len(page.Snapshots) == 0 {
+		return page.Snapshots
+	}
+	snapshots := append([]RunSnapshot(nil), page.Snapshots...)
+	latest := snapshots[0]
+	latest.Warnings = append(append([]map[string]any(nil), latest.Warnings...), map[string]any{
+		"reason": "runs_truncated",
+		"message": "additional workflow runs exist beyond the collected window; " +
+			"increase max_runs or rely on idempotent re-collection to catch up",
+	})
+	snapshots[0] = latest
+	return snapshots
 }
 
 func (s ClaimedSource) validateClaim(item workflow.WorkItem) error {
@@ -253,7 +317,10 @@ func validateTarget(target TargetConfig) (TargetConfig, error) {
 	if !repositoryAllowed(target.Repository, target.AllowedRepositories) {
 		return TargetConfig{}, fmt.Errorf("repository must be listed in allowed_repositories")
 	}
-	if target.MaxRuns <= 0 || target.MaxRuns > maxRunPages {
+	if target.MaxRuns == 0 {
+		target.MaxRuns = defaultMaxRuns
+	}
+	if target.MaxRuns < 0 || target.MaxRuns > maxRunPages {
 		return TargetConfig{}, fmt.Errorf("max_runs must be between 1 and %d", maxRunPages)
 	}
 	if target.MaxJobs <= 0 || target.MaxJobs > maxJobPages {
@@ -339,86 +406,4 @@ func validateTargetURL(field, raw string, requireHTTPS bool) error {
 		return fmt.Errorf("%s must not include credentials", field)
 	}
 	return nil
-}
-
-func (s ClaimedSource) startObserve(ctx context.Context) (context.Context, trace.Span) {
-	if s.tracer == nil {
-		return ctx, trace.SpanFromContext(ctx)
-	}
-	return s.tracer.Start(ctx, telemetry.SpanCICDRunObserve, trace.WithAttributes(
-		attribute.String(telemetry.MetricDimensionProvider, string(cicdrun.ProviderGitHubActions)),
-	))
-}
-
-func (s ClaimedSource) startFetch(ctx context.Context) (context.Context, trace.Span) {
-	if s.tracer == nil {
-		return ctx, trace.SpanFromContext(ctx)
-	}
-	return s.tracer.Start(ctx, telemetry.SpanCICDRunFetch)
-}
-
-func classifyProviderStatus(err error) string {
-	if errors.Is(err, ErrRateLimited) {
-		return "rate_limited"
-	}
-	return "error"
-}
-
-func (s ClaimedSource) recordFetch(ctx context.Context, statusClass string, startedAt time.Time) {
-	if s.instruments == nil {
-		return
-	}
-	attrs := []attribute.KeyValue{
-		telemetry.AttrProvider(string(cicdrun.ProviderGitHubActions)),
-		telemetry.AttrStatusClass(statusClass),
-	}
-	s.instruments.CICDRunProviderRequests.Add(ctx, 1, metric.WithAttributes(attrs...))
-	s.instruments.CICDRunFetchDuration.Record(ctx, time.Since(startedAt).Seconds(), metric.WithAttributes(attrs...))
-}
-
-func (s ClaimedSource) recordRateLimit(ctx context.Context, statusClass string) {
-	if s.instruments == nil || statusClass != "rate_limited" {
-		return
-	}
-	s.instruments.CICDRunRateLimited.Add(ctx, 1, metric.WithAttributes(
-		telemetry.AttrProvider(string(cicdrun.ProviderGitHubActions)),
-	))
-}
-
-func (s ClaimedSource) recordFacts(ctx context.Context, envelopes []facts.Envelope) {
-	if s.instruments == nil {
-		return
-	}
-	for _, envelope := range envelopes {
-		s.instruments.CICDRunFactsEmitted.Add(ctx, 1, metric.WithAttributes(
-			telemetry.AttrProvider(string(cicdrun.ProviderGitHubActions)),
-			telemetry.AttrFactKind(envelope.FactKind),
-		))
-	}
-}
-
-func (s ClaimedSource) recordPartialGeneration(ctx context.Context, snapshot RunSnapshot) {
-	if s.instruments == nil {
-		return
-	}
-	if snapshot.JobsPartial {
-		s.instruments.CICDRunPartialGenerations.Add(ctx, 1, metric.WithAttributes(
-			telemetry.AttrProvider(string(cicdrun.ProviderGitHubActions)),
-			telemetry.AttrReason("jobs_truncated"),
-		))
-	}
-	if len(snapshot.Warnings) > 0 {
-		s.instruments.CICDRunPartialGenerations.Add(ctx, int64(len(snapshot.Warnings)), metric.WithAttributes(
-			telemetry.AttrProvider(string(cicdrun.ProviderGitHubActions)),
-			telemetry.AttrReason("provider_warning"),
-		))
-	}
-}
-
-func recordSpanError(span trace.Span, err error) {
-	if span == nil || err == nil {
-		return
-	}
-	span.RecordError(err)
-	span.SetStatus(codes.Error, err.Error())
 }
