@@ -366,3 +366,58 @@ func TestLoginListAndReadAdapterAgreeOnCollision(t *testing.T) {
 		}
 	}
 }
+
+// TestIconHintForKind proves iconHintForKind derives a generic, brand-free
+// icon selector from provider_kind — both the raw DB form ("external_oidc")
+// and the canonical wire form ("oidc") map to the same value, matching
+// displayLabelForKind's own dual-form handling, and an unrecognized kind
+// (e.g. "local") returns "" rather than a placeholder that would render as a
+// stray icon.
+func TestIconHintForKind(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		kind string
+		want string
+	}{
+		{"external_oidc", "oidc"},
+		{"oidc", "oidc"},
+		{"external_saml", "saml"},
+		{"saml", "saml"},
+		{"local", ""},
+		{"", ""},
+	}
+	for _, tc := range cases {
+		if got := iconHintForKind(tc.kind); got != tc.want {
+			t.Errorf("iconHintForKind(%q) = %q, want %q", tc.kind, got, tc.want)
+		}
+	}
+}
+
+// TestListLoginProvidersPopulatesIconHint proves ListLoginProviders sets
+// IconHint on every returned item (DB-sourced, env-SAML, and env-OIDC paths)
+// so the console login picker never has to fall back to deriving its own
+// icon from provider_kind.
+func TestListLoginProvidersPopulatesIconHint(t *testing.T) {
+	t.Parallel()
+
+	fakeDB := &authProvidersFakeDB{
+		dbRows: []pgstatus.LoginProviderItem{
+			{ProviderConfigID: "db-oidc", ProviderKind: "external_oidc"},
+		},
+		activeForTenant: map[string]bool{},
+	}
+	store := &authProviderListStore{
+		identity: pgstatus.NewIdentitySubjectStore(fakeDB),
+	}
+	items, err := store.ListLoginProviders(context.Background(), "tenant_a")
+	if err != nil {
+		t.Fatalf("ListLoginProviders() error = %v", err)
+	}
+	if len(items) != 1 {
+		t.Fatalf("items = %#v, want 1", items)
+	}
+	if items[0].IconHint != "oidc" {
+		t.Errorf("items[0].IconHint = %q, want %q", items[0].IconHint, "oidc")
+	}
+}

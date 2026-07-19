@@ -181,38 +181,84 @@ export function beginSamlLogin(
 }
 
 // AuthLoginProvider is the pre-auth view of one configured SSO provider.
-// Only the opaque provider_config_id, a safe generic display_label, and the
-// protocol class (provider_kind) are ever returned — no secrets, metadata URLs,
-// IdP hostnames, org names, or group names. Shape matches
-// go/internal/query/auth_providers_handler.go AuthProviderItem.
+// Only the opaque provider_config_id, a safe generic display_label, the
+// protocol class (provider_kind), and a generic icon_hint are ever returned —
+// no secrets, metadata URLs, IdP hostnames, org names, or group names. Shape
+// matches go/internal/query/auth_providers_handler.go AuthProviderItem.
 export interface AuthLoginProvider {
   readonly provider_config_id: string;
   readonly display_label: string;
   readonly provider_kind: "oidc" | "saml";
+  readonly icon_hint: "oidc" | "saml";
 }
 
-// listAuthProviders fetches the pre-auth provider discovery endpoint scoped to
-// a single tenant. tenantId must be non-empty to receive a non-empty response;
-// when tenantId is absent the endpoint returns an empty array (no global scan).
-// Returns an empty array when no providers are configured, when tenantId is
-// absent, or when the fetch fails (the login page falls back to local-only).
-export async function listAuthProviders(
+// AuthPosture is the tenant's derived pre-auth sign-in posture (issue #5165,
+// F-4): the configured providers, whether the local password form is
+// offered, and whether self-service personal API tokens are offered. Shape
+// matches go/internal/query/auth_posture.go AuthPosture verbatim — this is
+// the SAME derivation issue #5163 (F-2)'s MCP OAuth discovery consumes
+// server-side, so the console and MCP surfaces never disagree on posture.
+export interface AuthPosture {
+  readonly providers: readonly AuthLoginProvider[];
+  readonly local_login_offered: boolean;
+  readonly self_service_tokens_offered: boolean;
+}
+
+// FAIL_OPEN_POSTURE is the safe local-only default: no SSO buttons, local
+// form shown, self-service tokens assumed available. Used whenever the
+// posture cannot be determined (network/HTTP error) or a field is missing
+// from an older backend response — mirrors the backend's own fail-open
+// defaults for an empty tenant_id or a policy-store read error (see
+// query.DeriveAuthPosture's doc comment).
+const FAIL_OPEN_POSTURE: AuthPosture = {
+  providers: [],
+  local_login_offered: true,
+  self_service_tokens_offered: true,
+};
+
+// PartialAuthPostureWire is the subset of AuthPosture fields the backend
+// response is expected to carry. Modeled as partial (rather than requiring
+// every field) so a response from an older backend build — or any field a
+// future migration temporarily omits — degrades to FAIL_OPEN_POSTURE's safe
+// per-field defaults instead of throwing or rendering `undefined`.
+interface PartialAuthPostureWire {
+  readonly providers?: readonly AuthLoginProvider[];
+  readonly local_login_offered?: boolean;
+  readonly self_service_tokens_offered?: boolean;
+}
+
+// listAuthPosture fetches the tenant's derived sign-in posture from GET
+// /api/v0/auth/providers (one discovery call, replacing the console's former
+// separate listAuthProviders + loadPublicRequireSSO fetches). tenantId must
+// be non-empty to receive anything but the safe zero-configuration default;
+// when tenantId is absent the endpoint returns that default (no global
+// cross-tenant scan). On any fetch failure this returns FAIL_OPEN_POSTURE so
+// the login page always falls back to local-only rather than breaking.
+export async function listAuthPosture(
   client: EshuApiClient,
   tenantId?: string,
-): Promise<readonly AuthLoginProvider[]> {
+): Promise<AuthPosture> {
   try {
     const trimmed = tenantId?.trim() ?? "";
     const path =
       trimmed.length > 0
         ? `/api/v0/auth/providers?tenant_id=${encodeURIComponent(trimmed)}`
         : "/api/v0/auth/providers";
-    const resp = await client.getJson<{ providers: AuthLoginProvider[] }>(path);
-    return resp.providers ?? [];
+    const resp = await client.getJson<PartialAuthPostureWire>(path);
+    return {
+      providers: resp.providers ?? FAIL_OPEN_POSTURE.providers,
+      local_login_offered: resp.local_login_offered ?? FAIL_OPEN_POSTURE.local_login_offered,
+      self_service_tokens_offered:
+        resp.self_service_tokens_offered ?? FAIL_OPEN_POSTURE.self_service_tokens_offered,
+    };
   } catch (err) {
     // Pre-auth network errors must never break the login form, but warn so
     // backend outages are visible in devtools during development and triage.
-    console.warn("[eshu] GET /api/v0/auth/providers failed — SSO buttons hidden", err);
-    return [];
+    console.warn(
+      "[eshu] GET /api/v0/auth/providers failed — falling back to local-only login",
+      err,
+    );
+    return FAIL_OPEN_POSTURE;
   }
 }
 

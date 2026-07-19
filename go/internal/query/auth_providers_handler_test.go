@@ -234,6 +234,193 @@ func TestAuthProvidersRouteIsPublic(t *testing.T) {
 	}
 }
 
+// TestAuthProvidersHandlerPostureRequireSSOHidesLocalLogin proves issue
+// #5165's acceptance criterion at the HTTP layer: an org with Okta
+// configured AND require_sso on returns local_login_offered=false alongside
+// the provider list, in the SAME GET /api/v0/auth/providers response — no
+// second request to the sign-in-policy endpoint is required.
+func TestAuthProvidersHandlerPostureRequireSSOHidesLocalLogin(t *testing.T) {
+	t.Parallel()
+
+	store := &fakeAuthProviderStore{
+		byTenant: map[string][]AuthProviderItem{
+			"tenant-a": {
+				{ProviderConfigID: "okta-oidc", DisplayLabel: "Single sign-on (OIDC)", ProviderKind: "oidc", IconHint: "oidc"},
+			},
+		},
+	}
+	policy := &fakeSignInPolicyReadStore{policy: SignInPolicy{RequireSSO: true}}
+	handler := &AuthProviderListHandler{Store: store, Policy: policy}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/auth/providers?tenant_id=tenant-a", nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	var resp struct {
+		Providers                []map[string]any `json:"providers"`
+		LocalLoginOffered        bool             `json:"local_login_offered"`
+		SelfServiceTokensOffered bool             `json:"self_service_tokens_offered"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if len(resp.Providers) != 1 {
+		t.Fatalf("providers = %#v, want 1", resp.Providers)
+	}
+	if resp.Providers[0]["icon_hint"] != "oidc" {
+		t.Errorf("providers[0].icon_hint = %q, want %q", resp.Providers[0]["icon_hint"], "oidc")
+	}
+	if resp.LocalLoginOffered {
+		t.Error("local_login_offered = true, want false under require_sso")
+	}
+	if !resp.SelfServiceTokensOffered {
+		t.Error("self_service_tokens_offered = false, want true")
+	}
+}
+
+// TestAuthProvidersHandlerPostureNoRequireSSOOffersLocalLogin proves the
+// "Okta but no require_sso" acceptance criterion: both the provider AND
+// local_login_offered=true are present together.
+func TestAuthProvidersHandlerPostureNoRequireSSOOffersLocalLogin(t *testing.T) {
+	t.Parallel()
+
+	store := &fakeAuthProviderStore{
+		byTenant: map[string][]AuthProviderItem{
+			"tenant-a": {
+				{ProviderConfigID: "okta-oidc", DisplayLabel: "Single sign-on (OIDC)", ProviderKind: "oidc"},
+			},
+		},
+	}
+	policy := &fakeSignInPolicyReadStore{policy: SignInPolicy{RequireSSO: false}}
+	handler := &AuthProviderListHandler{Store: store, Policy: policy}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/auth/providers?tenant_id=tenant-a", nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	var resp struct {
+		Providers         []map[string]any `json:"providers"`
+		LocalLoginOffered bool             `json:"local_login_offered"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if len(resp.Providers) != 1 {
+		t.Fatalf("providers = %#v, want 1", resp.Providers)
+	}
+	if !resp.LocalLoginOffered {
+		t.Error("local_login_offered = false, want true when require_sso is off")
+	}
+}
+
+// TestAuthProvidersHandlerPostureZeroProvidersIsLocalOnly proves the "org
+// with nothing configured" acceptance criterion at the HTTP layer: empty
+// providers array, local_login_offered=true, matching "today's local-only
+// page, unchanged".
+func TestAuthProvidersHandlerPostureZeroProvidersIsLocalOnly(t *testing.T) {
+	t.Parallel()
+
+	store := &fakeAuthProviderStore{byTenant: map[string][]AuthProviderItem{}}
+	policy := &fakeSignInPolicyReadStore{policy: SignInPolicy{RequireSSO: false}}
+	handler := &AuthProviderListHandler{Store: store, Policy: policy}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/auth/providers?tenant_id=tenant-a", nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	var resp struct {
+		Providers                []map[string]any `json:"providers"`
+		LocalLoginOffered        bool             `json:"local_login_offered"`
+		SelfServiceTokensOffered bool             `json:"self_service_tokens_offered"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if len(resp.Providers) != 0 {
+		t.Fatalf("providers = %#v, want empty", resp.Providers)
+	}
+	if !resp.LocalLoginOffered || !resp.SelfServiceTokensOffered {
+		t.Errorf("local_login_offered=%v self_service_tokens_offered=%v, want both true", resp.LocalLoginOffered, resp.SelfServiceTokensOffered)
+	}
+}
+
+// TestAuthProvidersHandlerNilPolicyDefaultsLocalLoginOffered proves the
+// nil-safe convention documented on AuthProviderListHandler.Policy: an unwired
+// policy store (e.g. a test/dev environment) never breaks the response,
+// defaulting local_login_offered to true.
+func TestAuthProvidersHandlerNilPolicyDefaultsLocalLoginOffered(t *testing.T) {
+	t.Parallel()
+
+	store := &fakeAuthProviderStore{byTenant: map[string][]AuthProviderItem{"tenant-a": {}}}
+	handler := &AuthProviderListHandler{Store: store}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/auth/providers?tenant_id=tenant-a", nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	var resp struct {
+		LocalLoginOffered bool `json:"local_login_offered"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if !resp.LocalLoginOffered {
+		t.Error("local_login_offered = false, want true when Policy is nil")
+	}
+}
+
+// TestAuthProvidersHandlerAdminEnablesProviderReflectsWithoutRestart proves
+// issue #5165's "admin enables a provider → login page offers it on next
+// load, no restart" acceptance criterion: two requests against the SAME
+// handler/store instance (as it would be in the running process — the store
+// reads live DB rows on every call, there is no in-process cache), where the
+// second request observes a provider added between the two calls.
+func TestAuthProvidersHandlerAdminEnablesProviderReflectsWithoutRestart(t *testing.T) {
+	t.Parallel()
+
+	store := &fakeAuthProviderStore{byTenant: map[string][]AuthProviderItem{"tenant-a": {}}}
+	handler := &AuthProviderListHandler{Store: store}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	get := func() []map[string]any {
+		req := httptest.NewRequest(http.MethodGet, "/api/v0/auth/providers?tenant_id=tenant-a", nil)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		var resp struct {
+			Providers []map[string]any `json:"providers"`
+		}
+		if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+			t.Fatalf("unmarshal: %v", err)
+		}
+		return resp.Providers
+	}
+
+	if got := get(); len(got) != 0 {
+		t.Fatalf("providers before admin enables anything = %#v, want empty", got)
+	}
+
+	// Simulate an admin enabling a new provider in the dashboard: the store's
+	// backing data changes in place, exactly as a live DB row flipping to
+	// active would change what the next ListLoginProviders call returns.
+	store.byTenant["tenant-a"] = []AuthProviderItem{
+		{ProviderConfigID: "new-okta", DisplayLabel: "Single sign-on (OIDC)", ProviderKind: "oidc"},
+	}
+
+	got := get()
+	if len(got) != 1 || got[0]["provider_config_id"] != "new-okta" {
+		t.Fatalf("providers after admin enables new-okta = %#v, want [new-okta] with NO restart/re-mount of the handler", got)
+	}
+}
+
 func TestAuthProvidersHandlerNonGETIsNotPublic(t *testing.T) {
 	t.Parallel()
 

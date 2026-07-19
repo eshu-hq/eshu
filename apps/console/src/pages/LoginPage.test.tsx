@@ -42,31 +42,31 @@ function makeClient(overrides: Partial<EshuApiClient> = {}): EshuApiClient {
     postJson: vi.fn(async () => mockSessionRaw),
     logoutBrowserSession: vi.fn(async () => undefined),
     getBrowserSession: vi.fn(async () => mockSession),
-    // getJson is called by listAuthProviders (providers) and
-    // loadPublicRequireSSO (sign-in-policy) on mount; route by path so both
-    // fetches resolve to their own safe empty/false default and existing
-    // local-login tests remain unaffected.
-    getJson: vi.fn(async (path: string) => {
-      if (path.includes("sign-in-policy")) return { require_sso: false };
-      return { providers: [] };
-    }),
+    // getJson is called once on mount by listAuthPosture, which fetches the
+    // tenant's derived AuthPosture (issue #5165): providers +
+    // local_login_offered + self_service_tokens_offered in one response.
+    getJson: vi.fn(async () => ({
+      providers: [],
+      local_login_offered: true,
+      self_service_tokens_offered: true,
+    })),
     ...overrides,
   } as unknown as EshuApiClient;
 }
 
 // makeClientWithProvidersAndPolicy lets a test independently control the
-// provider list and the require_sso hint, routing by request path the same
-// way the real GET /api/v0/auth/providers and GET /api/v0/auth/sign-in-policy
-// endpoints are two distinct routes.
+// provider list and the require_sso-derived local_login_offered flag, both
+// carried in the single GET /api/v0/auth/providers posture response.
 function makeClientWithProvidersAndPolicy(
   providers: readonly unknown[],
   requireSSO: boolean,
 ): EshuApiClient {
   return makeClient({
-    getJson: vi.fn(async (path: string) => {
-      if (path.includes("sign-in-policy")) return { require_sso: requireSSO };
-      return { providers };
-    }),
+    getJson: vi.fn(async () => ({
+      providers,
+      local_login_offered: !requireSSO,
+      self_service_tokens_offered: true,
+    })),
   } as unknown as Partial<EshuApiClient>);
 }
 
@@ -336,6 +336,24 @@ describe("LoginPage", () => {
       expect(screen.getByLabelText(/^login$/i)).toBeInTheDocument();
       expect(screen.getByLabelText("Password")).toBeInTheDocument();
       expect(screen.queryByText(/requires single sign-on/i)).not.toBeInTheDocument();
+    });
+
+    // Issue #5165 (F-4): the console must derive the provider list and the
+    // require_sso hint from ONE posture fetch, not two separate requests to
+    // /api/v0/auth/providers and /api/v0/auth/sign-in-policy.
+    it("fetches the provider list and require_sso hint from a single GET /api/v0/auth/providers call", async () => {
+      window.history.pushState({}, "", "/login?tenant_id=tenant_a");
+      const client = makeClientWithProvidersAndPolicy(
+        [{ provider_config_id: "pc_1", display_label: "Okta", provider_kind: "oidc" }],
+        true,
+      );
+      renderLogin(client);
+
+      await screen.findByRole("button", { name: /continue with okta/i });
+      expect(client.getJson).toHaveBeenCalledTimes(1);
+      expect(client.getJson).toHaveBeenCalledWith(
+        expect.stringContaining("/api/v0/auth/providers?tenant_id=tenant_a"),
+      );
     });
   });
 
