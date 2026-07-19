@@ -79,9 +79,15 @@ func Parse(
 	// See jsonFilenameNeedsOrderedEntries: only filenames that read
 	// topLevelEntries below pay for the full ordered walk; every other file
 	// gets json_metadata via the cheaper key-order-only scan (issue #4873).
+	// sourceIndex is the newline offset->line index built once over
+	// normalizedBytes (the exact buffer this ordered walk decodes) and reused
+	// by every downstream real-line-number lookup for this file (issue
+	// #5329); it stays nil for files that do not need ordered entries.
 	var topLevelEntries []orderedJSONEntry
+	var sourceIndex *newlineIndex
 	if jsonFilenameNeedsOrderedEntries(filename) {
-		entries, err := unmarshalOrderedJSONObject(normalizedBytes)
+		sourceIndex = buildNewlineIndex(normalizedBytes)
+		entries, err := unmarshalOrderedJSONObjectAt(normalizedBytes, 0, sourceIndex)
 		if err == nil {
 			topLevelEntries = entries
 			payload["json_metadata"] = map[string]any{"top_level_keys": orderedJSONKeys(entries)}
@@ -112,26 +118,32 @@ func Parse(
 		return payload, nil
 	}
 
+	// Lockfile branches below build their own newlineIndex lazily (a cheap
+	// O(n) byte scan) rather than reusing sourceIndex: sourceIndex is only
+	// built for jsonFilenameNeedsOrderedEntries filenames, and lockfiles
+	// deliberately stay off that list (issue #4873) because their dependency
+	// rows are re-sorted for deterministic output, not walked in JSON source
+	// order the way package.json/composer.json/tsconfig* are.
 	switch {
 	case filename == "packages.lock.json":
-		payload["variables"] = nugetPackagesLockDependencyVariables(object, languageName)
+		payload["variables"] = nugetPackagesLockDependencyVariables(object, normalizedBytes, languageName)
 	case filename == "package-lock.json":
-		payload["variables"] = packageLockDependencyVariables(object, languageName)
+		payload["variables"] = packageLockDependencyVariables(object, normalizedBytes, languageName)
 	case filename == "composer.lock":
-		payload["variables"] = composerLockDependencyVariables(object, languageName)
+		payload["variables"] = composerLockDependencyVariables(object, normalizedBytes, languageName)
 	case filename == "pipfile.lock":
-		payload["variables"] = pipfileLockDependencyVariables(object)
+		payload["variables"] = pipfileLockDependencyVariables(object, normalizedBytes)
 	case filename == "package.resolved":
-		payload["variables"] = swiftPackageResolvedDependencyVariables(object, languageName)
+		payload["variables"] = swiftPackageResolvedDependencyVariables(object, normalizedBytes, languageName)
 	case !shouldSkipJSONEntities(filename):
 		switch {
 		case filename == "package.json":
-			payload["variables"] = packageJSONDependencyVariables(object, languageName, topLevelEntries)
-			payload["functions"] = jsonScriptFunctions(object, languageName, topLevelEntries)
+			payload["variables"] = packageJSONDependencyVariables(object, languageName, topLevelEntries, sourceIndex)
+			payload["functions"] = jsonScriptFunctions(object, languageName, topLevelEntries, sourceIndex)
 		case filename == "composer.json":
-			payload["variables"] = composerManifestDependencyVariables(object, languageName, topLevelEntries)
+			payload["variables"] = composerManifestDependencyVariables(object, languageName, topLevelEntries, sourceIndex)
 		case isTypeScriptConfigFilename(filename):
-			payload["variables"] = tsconfigVariables(object, languageName, topLevelEntries)
+			payload["variables"] = tsconfigVariables(object, languageName, topLevelEntries, sourceIndex)
 		}
 	}
 
@@ -145,6 +157,7 @@ func packageJSONDependencyVariables(
 	document map[string]any,
 	lang string,
 	topLevelEntries []orderedJSONEntry,
+	idx *newlineIndex,
 ) []map[string]any {
 	sections := []struct {
 		name  string
@@ -164,6 +177,7 @@ func packageJSONDependencyVariables(
 			section.name,
 			"npm",
 			topLevelEntries,
+			idx,
 			section.scope,
 			section.dev,
 		)
@@ -252,12 +266,20 @@ func isJSONCConfigFilename(filename string) bool {
 	return strings.HasSuffix(lower, ".jsonc") || isLowerTypeScriptConfigFilename(lower)
 }
 
+// dependencyVariablesWithScope emits one row per key in document[section].
+// Row order follows the JSON source (via orderedJSONSectionKeys); line_number
+// is the section entry's real source line from idx/topLevelEntries when
+// available (issue #5329) and is omitted — never fabricated — when the
+// ordered walk could not be run for this file (topLevelEntries empty or idx
+// nil), which forces the sortedMapKeys(raw) fallback inside
+// orderedJSONSectionKeys.
 func dependencyVariablesWithScope(
 	document map[string]any,
 	lang string,
 	section string,
 	packageManager string,
 	topLevelEntries []orderedJSONEntry,
+	idx *newlineIndex,
 	dependencyScope string,
 	developmentDependency bool,
 ) []map[string]any {
@@ -266,42 +288,46 @@ func dependencyVariablesWithScope(
 		return []map[string]any{}
 	}
 
+	lines := orderedJSONSectionLines(topLevelEntries, section, idx)
 	rows := make([]map[string]any, 0, len(raw))
-	lineNumber := 1
 	for _, name := range orderedJSONSectionKeys(topLevelEntries, section, raw) {
 		row := map[string]any{
 			"name":            name,
-			"line_number":     lineNumber,
 			"value":           fmt.Sprint(raw[name]),
 			"section":         section,
 			"config_kind":     "dependency",
 			"package_manager": packageManager,
 			"lang":            lang,
 		}
+		if line, ok := lines[name]; ok {
+			row["line_number"] = line
+		}
 		if dependencyScope != "" {
 			row["dependency_scope"] = dependencyScope
 			row["development_dependency"] = developmentDependency
 		}
 		rows = append(rows, row)
-		lineNumber++
 	}
 	return rows
 }
 
-func jsonScriptFunctions(document map[string]any, lang string, topLevelEntries []orderedJSONEntry) []map[string]any {
+// jsonScriptFunctions emits one row per "scripts" entry. line_number/end_line
+// carry the script key's real source line (both set to the same value: an
+// npm script is a one-line shell command string, not a multi-statement
+// function body) and are omitted together when no ordered walk data exists
+// for this file.
+func jsonScriptFunctions(document map[string]any, lang string, topLevelEntries []orderedJSONEntry, idx *newlineIndex) []map[string]any {
 	raw, ok := document["scripts"].(map[string]any)
 	if !ok {
 		return []map[string]any{}
 	}
 
+	lines := orderedJSONSectionLines(topLevelEntries, "scripts", idx)
 	rows := make([]map[string]any, 0, len(raw))
-	lineNumber := 1
 	for _, name := range orderedJSONSectionKeys(topLevelEntries, "scripts", raw) {
-		rows = append(rows, map[string]any{
-			"name":        name,
-			"line_number": lineNumber,
-			"end_line":    lineNumber,
-			"args":        []string{},
+		row := map[string]any{
+			"name": name,
+			"args": []string{},
 			// npm scripts are shell command strings, not parsed source functions,
 			// so there is no statement AST to measure. Emit 0 (unknown) instead of
 			// a fabricated 1 so complexity rankings exclude them via the existing
@@ -313,30 +339,43 @@ func jsonScriptFunctions(document map[string]any, lang string, topLevelEntries [
 			"context":               "scripts",
 			"context_type":          "json",
 			"lang":                  lang,
-		})
-		lineNumber++
+		}
+		if line, ok := lines[name]; ok {
+			row["line_number"] = line
+			row["end_line"] = line
+		}
+		rows = append(rows, row)
 	}
 	return rows
 }
 
-func tsconfigVariables(document map[string]any, lang string, topLevelEntries []orderedJSONEntry) []map[string]any {
+// tsconfigVariables emits rows for "extends", "references", and
+// "compilerOptions.paths". Each row's line_number is that entry's own real
+// source line (issue #5329) — a top-level entry lookup for "extends", a
+// per-array-element walk of the "references" array's raw bytes for
+// reference rows, and a nested-object lookup under "compilerOptions" for
+// path rows — never a shared incrementing counter across the three
+// sections. line_number is omitted when no ordered walk data is available.
+func tsconfigVariables(document map[string]any, lang string, topLevelEntries []orderedJSONEntry, idx *newlineIndex) []map[string]any {
 	rows := make([]map[string]any, 0)
-	lineNumber := 1
 
 	if extendsValue, ok := document["extends"].(string); ok {
-		rows = append(rows, map[string]any{
+		row := map[string]any{
 			"name":        "extends",
-			"line_number": lineNumber,
 			"value":       extendsValue,
 			"section":     "extends",
 			"config_kind": "extends",
 			"lang":        lang,
-		})
-		lineNumber++
+		}
+		if line, ok := orderedJSONEntryLine(topLevelEntries, "extends"); ok {
+			row["line_number"] = line
+		}
+		rows = append(rows, row)
 	}
 
 	if references, ok := document["references"].([]any); ok {
-		for _, item := range references {
+		referenceLines := tsconfigReferenceLines(topLevelEntries, idx)
+		for i, item := range references {
 			reference, ok := item.(map[string]any)
 			if !ok {
 				continue
@@ -345,15 +384,17 @@ func tsconfigVariables(document map[string]any, lang string, topLevelEntries []o
 			if strings.TrimSpace(referencePath) == "" {
 				continue
 			}
-			rows = append(rows, map[string]any{
+			row := map[string]any{
 				"name":        "reference:" + referencePath,
-				"line_number": lineNumber,
 				"value":       referencePath,
 				"section":     "references",
 				"config_kind": "reference",
 				"lang":        lang,
-			})
-			lineNumber++
+			}
+			if i < len(referenceLines) && referenceLines[i] > 0 {
+				row["line_number"] = referenceLines[i]
+			}
+			rows = append(rows, row)
 		}
 	}
 
@@ -365,22 +406,43 @@ func tsconfigVariables(document map[string]any, lang string, topLevelEntries []o
 	if !ok {
 		return rows
 	}
-	compilerOptionsEntries, ok, err := orderedJSONNestedObject(topLevelEntries, "compilerOptions")
-	if err != nil || !ok {
+	compilerOptionsEntries, ok := orderedJSONSectionEntries(topLevelEntries, "compilerOptions", idx)
+	if !ok {
 		compilerOptionsEntries = nil
 	}
+	pathsLines := orderedJSONSectionLines(compilerOptionsEntries, "paths", idx)
 	for _, alias := range orderedJSONSectionKeys(compilerOptionsEntries, "paths", paths) {
-		rows = append(rows, map[string]any{
+		row := map[string]any{
 			"name":        "path:" + alias,
-			"line_number": lineNumber,
 			"value":       normalizeJSONArrayValue(paths[alias]),
 			"section":     "compilerOptions.paths",
 			"config_kind": "path",
 			"lang":        lang,
-		})
-		lineNumber++
+		}
+		if line, ok := pathsLines[alias]; ok {
+			row["line_number"] = line
+		}
+		rows = append(rows, row)
 	}
 	return rows
+}
+
+// tsconfigReferenceLines returns the real source line of each element of the
+// top-level "references" array, in array order, or nil when idx is nil or
+// the array's raw bytes are unavailable (topLevelEntries empty).
+func tsconfigReferenceLines(topLevelEntries []orderedJSONEntry, idx *newlineIndex) []int {
+	if idx == nil {
+		return nil
+	}
+	raw, start, ok := orderedJSONEntryRaw(topLevelEntries, "references")
+	if !ok {
+		return nil
+	}
+	lines, err := unmarshalOrderedJSONArrayLines(raw, start, idx)
+	if err != nil {
+		return nil
+	}
+	return lines
 }
 
 func orderedJSONSectionKeys(entries []orderedJSONEntry, key string, fallback map[string]any) []string {

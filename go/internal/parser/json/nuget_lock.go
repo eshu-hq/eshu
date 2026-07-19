@@ -8,7 +8,12 @@ import (
 	"strings"
 )
 
-func nugetPackagesLockDependencyVariables(document map[string]any, lang string) []map[string]any {
+// nugetPackagesLockDependencyVariables converts one packages.lock.json
+// document into dependency rows keyed by target framework then package name.
+// line_number is each package key's real source line under
+// "dependencies"[targetFramework] (issue #5329), omitted when source is
+// unavailable or the line lookup fails.
+func nugetPackagesLockDependencyVariables(document map[string]any, source []byte, lang string) []map[string]any {
 	targets, ok := document["dependencies"].(map[string]any)
 	if !ok {
 		return nil
@@ -20,6 +25,7 @@ func nugetPackagesLockDependencyVariables(document map[string]any, lang string) 
 			continue
 		}
 		chains := nugetLockDependencyChains(dependencies)
+		lines := lockfileNestedSectionLines(source, "dependencies", targetFramework)
 		for _, packageName := range sortedMapKeys(dependencies) {
 			entry, ok := dependencies[packageName].(map[string]any)
 			if !ok || strings.EqualFold(nugetLockString(entry, "type"), "Project") {
@@ -35,10 +41,12 @@ func nugetPackagesLockDependencyVariables(document map[string]any, lang string) 
 				targetFramework,
 				nugetLockString(entry, "type"),
 				nugetLockString(entry, "requested"),
-				len(rows)+1,
 				lang,
 				chains[packageName],
 			)
+			if line, ok := lines[packageName]; ok {
+				row["line_number"] = line
+			}
 			rows = append(rows, row)
 		}
 	}
@@ -51,13 +59,11 @@ func nugetLockDependencyRow(
 	targetFramework string,
 	dependencyType string,
 	requestedRange string,
-	lineNumber int,
 	lang string,
 	dependencyPath []string,
 ) map[string]any {
 	row := map[string]any{
 		"name":             strings.TrimSpace(name),
-		"line_number":      lineNumber,
 		"value":            strings.TrimSpace(resolved),
 		"section":          "packages.lock.json:" + strings.TrimSpace(targetFramework),
 		"target_framework": strings.TrimSpace(targetFramework),

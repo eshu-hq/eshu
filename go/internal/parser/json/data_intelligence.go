@@ -119,13 +119,18 @@ func warehouseAssetRecord(asset map[string]any) map[string]any {
 		fmt.Sprint(asset["schema"]),
 		fmt.Sprint(asset["name"]),
 	), ".")
+	// line_number is intentionally omitted: this row summarizes a
+	// warehouse_replay.json asset record, which is a derived description of
+	// an external data-warehouse object, not one JSON key/value token in the
+	// replay document. Fabricating "line_number": 1 for every row would be a
+	// false position; omitting it lets materialize/query treat the entity as
+	// having no real source line (issue #5329).
 	return map[string]any{
-		"id":          "data-asset:" + assetName,
-		"name":        assetName,
-		"line_number": 1,
-		"database":    fmt.Sprint(asset["database"]),
-		"schema":      fmt.Sprint(asset["schema"]),
-		"kind":        defaultString(asset["kind"], "table"),
+		"id":       "data-asset:" + assetName,
+		"name":     assetName,
+		"database": fmt.Sprint(asset["database"]),
+		"schema":   fmt.Sprint(asset["schema"]),
+		"kind":     defaultString(asset["kind"], "table"),
 	}
 }
 
@@ -137,11 +142,12 @@ func warehouseColumnRecords(asset map[string]any, assetName string) []map[string
 			continue
 		}
 		qualifiedName := assetName + "." + columnName
+		// line_number omitted: derived summary row, no single source token.
+		// See warehouseAssetRecord's comment for the full rationale.
 		records = append(records, map[string]any{
-			"id":          "data-column:" + qualifiedName,
-			"asset_name":  assetName,
-			"name":        qualifiedName,
-			"line_number": 1,
+			"id":         "data-column:" + qualifiedName,
+			"asset_name": assetName,
+			"name":       qualifiedName,
 		})
 	}
 	return records
@@ -153,10 +159,11 @@ func warehouseQueryExecutionRecord(query map[string]any) map[string]any {
 	if queryName == "" {
 		queryName = queryID
 	}
+	// line_number omitted: derived summary row, no single source token.
+	// See warehouseAssetRecord's comment for the full rationale.
 	return map[string]any{
 		"id":          "query-execution:" + queryID,
 		"name":        queryName,
-		"line_number": 1,
 		"statement":   fmt.Sprint(query["statement"]),
 		"status":      defaultString(query["status"], "unknown"),
 		"executed_by": fmt.Sprint(query["executed_by"]),
@@ -206,12 +213,13 @@ func dashboardAssetRecord(dashboard map[string]any, workspace string) map[string
 	if dashboardID == "" {
 		dashboardID = strings.ToLower(strings.TrimSpace(fmt.Sprint(dashboard["name"])))
 	}
+	// line_number omitted: derived summary row, no single source token.
+	// See warehouseAssetRecord's comment for the full rationale.
 	return map[string]any{
-		"id":          "dashboard-asset:" + workspace + ":" + dashboardID,
-		"name":        defaultString(dashboard["name"], dashboardID),
-		"line_number": 1,
-		"path":        fmt.Sprint(dashboard["path"]),
-		"workspace":   workspace,
+		"id":        "dashboard-asset:" + workspace + ":" + dashboardID,
+		"name":      defaultString(dashboard["name"], dashboardID),
+		"path":      fmt.Sprint(dashboard["path"]),
+		"workspace": workspace,
 	}
 }
 
@@ -271,13 +279,14 @@ func semanticAssetRecord(model map[string]any) map[string]any {
 	if modelID == "" {
 		modelID = assetName
 	}
+	// line_number omitted: derived summary row, no single source token.
+	// See warehouseAssetRecord's comment for the full rationale.
 	return map[string]any{
-		"id":          "data-asset:" + assetName,
-		"name":        assetName,
-		"line_number": 1,
-		"path":        fmt.Sprint(model["path"]),
-		"kind":        defaultString(model["kind"], "semantic_model"),
-		"source_id":   modelID,
+		"id":        "data-asset:" + assetName,
+		"name":      assetName,
+		"path":      fmt.Sprint(model["path"]),
+		"kind":      defaultString(model["kind"], "semantic_model"),
+		"source_id": modelID,
 	}
 }
 
@@ -287,11 +296,12 @@ func semanticColumnRecord(assetName string, field map[string]any) (map[string]an
 		return nil, false
 	}
 	qualifiedName := assetName + "." + fieldName
+	// line_number omitted: derived summary row, no single source token.
+	// See warehouseAssetRecord's comment for the full rationale.
 	return map[string]any{
-		"id":          "data-column:" + qualifiedName,
-		"asset_name":  assetName,
-		"name":        qualifiedName,
-		"line_number": 1,
+		"id":         "data-column:" + qualifiedName,
+		"asset_name": assetName,
+		"name":       qualifiedName,
 	}, true
 }
 
@@ -337,13 +347,14 @@ func qualityCheckRecord(check map[string]any, workspace string) map[string]any {
 	if checkID == "" {
 		checkID = strings.ToLower(strings.TrimSpace(fmt.Sprint(check["name"])))
 	}
+	// line_number omitted: derived summary row, no single source token.
+	// See warehouseAssetRecord's comment for the full rationale.
 	return map[string]any{
-		"id":          "data-quality-check:" + workspace + ":" + checkID,
-		"name":        defaultString(check["name"], checkID),
-		"line_number": 1,
-		"path":        fmt.Sprint(check["path"]),
-		"check_type":  defaultString(check["check_type"], "assertion"),
-		"status":      defaultString(check["status"], "unknown"),
-		"severity":    defaultString(check["severity"], "medium"),
+		"id":         "data-quality-check:" + workspace + ":" + checkID,
+		"name":       defaultString(check["name"], checkID),
+		"path":       fmt.Sprint(check["path"]),
+		"check_type": defaultString(check["check_type"], "assertion"),
+		"status":     defaultString(check["status"], "unknown"),
+		"severity":   defaultString(check["severity"], "medium"),
 	}
 }

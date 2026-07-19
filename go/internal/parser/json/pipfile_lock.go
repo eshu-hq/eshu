@@ -15,14 +15,18 @@ import (
 // leading `==` stripped) so PyPI advisory ranges can be evaluated. Inline
 // git/path/url entries surface as non-`dependency` config_kind rows so the
 // reducer cannot mis-admit them as PyPI registry consumption.
-func pipfileLockDependencyVariables(document map[string]any) []map[string]any {
+func pipfileLockDependencyVariables(document map[string]any, source []byte) []map[string]any {
 	rows := make([]map[string]any, 0)
-	rows = append(rows, pipfileLockSectionRows(document, "default", false)...)
-	rows = append(rows, pipfileLockSectionRows(document, "develop", true)...)
+	rows = append(rows, pipfileLockSectionRows(document, source, "default", false)...)
+	rows = append(rows, pipfileLockSectionRows(document, source, "develop", true)...)
 	return rows
 }
 
-func pipfileLockSectionRows(document map[string]any, section string, dev bool) []map[string]any {
+// pipfileLockSectionRows converts one Pipfile.lock section ("default" or
+// "develop") into rows. line_number is each package key's real source line
+// within that section (issue #5329), omitted when source is unavailable or
+// the line lookup fails.
+func pipfileLockSectionRows(document map[string]any, source []byte, section string, dev bool) []map[string]any {
 	raw, ok := document[section].(map[string]any)
 	if !ok {
 		return nil
@@ -33,15 +37,20 @@ func pipfileLockSectionRows(document map[string]any, section string, dev bool) [
 	}
 	sort.Strings(names)
 
+	lines := lockfileSectionLines(source, section)
+
 	rows := make([]map[string]any, 0, len(names))
-	for index, name := range names {
+	for _, name := range names {
 		entry, ok := raw[name].(map[string]any)
 		if !ok {
 			continue
 		}
-		row := pipfileLockDependencyRow(name, entry, section, dev, index+1)
+		row := pipfileLockDependencyRow(name, entry, section, dev)
 		if row == nil {
 			continue
+		}
+		if line, ok := lines[name]; ok {
+			row["line_number"] = line
 		}
 		rows = append(rows, row)
 	}
@@ -53,11 +62,9 @@ func pipfileLockDependencyRow(
 	entry map[string]any,
 	section string,
 	dev bool,
-	lineNumber int,
 ) map[string]any {
 	row := map[string]any{
 		"name":            strings.TrimSpace(name),
-		"line_number":     lineNumber,
 		"section":         section,
 		"package_manager": "pypi",
 		"lang":            "json",

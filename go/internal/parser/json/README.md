@@ -89,6 +89,22 @@ ranges as partial evidence. The dependency coverage matrix also names non-JSON
 ecosystems, such as Cargo and Pub, because the public coverage table needs one
 sorted source of truth even when parser execution is owned by another package.
 
+`line_number` on dependency, script, and TypeScript path rows is the row's
+real JSON source line, captured via `encoding/json.Decoder.InputOffset()` and
+translated through a per-file `newlineIndex` (`newline_index.go`, built once,
+binary-search lookup) rather than a synthetic per-section counter. The same
+mechanism backs the lockfile producers (`package-lock.json`,
+`packages.lock.json`, `composer.lock`, `Pipfile.lock`, `Package.resolved`)
+through the shared helpers in `lockfile_lines.go`, which stay off the
+`jsonFilenameNeedsOrderedEntries` full-decode path (issue #4873) and instead
+run one targeted key extraction plus a value-skipping flat scan. Rows whose
+row summarizes a derived/synthesized record rather than pointing at one JSON
+source token (the `data_intelligence.go` and `governance.go` replay-fixture
+rows) omit `line_number` entirely instead of reporting a fabricated `1`;
+`content.CanonicalEntityID` hashes `line_number` into the materialized
+Variable/Function/DataAsset/etc. node identity, so a fabricated value is not
+just cosmetic — it is a wrong graph identity claim. See issue #5329.
+
 `composer.lock` rows likewise represent exact PHP package versions
 installed by Composer. The parser emits one row per package in the
 `packages` (runtime) and `packages-dev` (dev) arrays, preserves the

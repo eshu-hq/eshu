@@ -66,12 +66,17 @@ func governanceOwnerRecord(owner map[string]any, workspace string) map[string]an
 	if ownerID == "" {
 		ownerID = "data-owner"
 	}
+	// line_number is intentionally omitted: this row summarizes a
+	// governance_replay.json owner record, a derived description of an
+	// external data-governance assignment, not one JSON key/value token in
+	// the replay document. Fabricating "line_number": 1 for every row would
+	// be a false position; omitting it lets materialize/query treat the
+	// entity as having no real source line (issue #5329).
 	return map[string]any{
-		"name":        defaultString(owner["name"], ownerID),
-		"line_number": 1,
-		"path":        fmt.Sprint(owner["path"]),
-		"workspace":   workspace,
-		"team":        strings.TrimSpace(fmt.Sprint(owner["team"])),
+		"name":      defaultString(owner["name"], ownerID),
+		"path":      fmt.Sprint(owner["path"]),
+		"workspace": workspace,
+		"team":      strings.TrimSpace(fmt.Sprint(owner["team"])),
 	}
 }
 
@@ -80,9 +85,10 @@ func governanceContractRecord(contract map[string]any, workspace string) map[str
 	if contractID == "" {
 		contractID = "data-contract"
 	}
+	// line_number omitted: derived summary row, no single source token.
+	// See governanceOwnerRecord's comment for the full rationale.
 	return map[string]any{
 		"name":           defaultString(contract["name"], contractID),
-		"line_number":    1,
 		"path":           fmt.Sprint(contract["path"]),
 		"workspace":      workspace,
 		"contract_level": defaultString(contract["contract_level"], "unspecified"),
