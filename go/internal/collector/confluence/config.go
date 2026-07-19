@@ -17,21 +17,29 @@ import (
 const (
 	defaultPageLimit    = 100
 	defaultPollInterval = 5 * time.Minute
+	// defaultMaxTotalPages bounds the total pages assembled across a
+	// space/page-tree cursor walk when ESHU_CONFLUENCE_MAX_TOTAL_PAGES is
+	// unset. Confluence's cursor loop previously had no total-record cap
+	// (only a per-page limit), so this is the only PR-A collector where a
+	// new bound reduces coverage on very large wikis; the default stays
+	// generous and the knob is configurable for that reason.
+	defaultMaxTotalPages = 5000
 )
 
 // SourceConfig configures bounded Confluence documentation source syncs.
 type SourceConfig struct {
-	BaseURL      string
-	SpaceID      string
-	SpaceIDs     []string
-	SpaceKey     string
-	RootPageID   string
-	PageLimit    int
-	PollInterval time.Duration
-	Email        string
-	APIToken     string
-	BearerToken  string
-	Now          func() time.Time
+	BaseURL       string
+	SpaceID       string
+	SpaceIDs      []string
+	SpaceKey      string
+	RootPageID    string
+	PageLimit     int
+	MaxTotalPages int
+	PollInterval  time.Duration
+	Email         string
+	APIToken      string
+	BearerToken   string
+	Now           func() time.Time
 }
 
 // LoadConfig parses the Confluence collector environment contract.
@@ -40,15 +48,16 @@ func LoadConfig(getenv func(string) string) (SourceConfig, error) {
 		return SourceConfig{}, errors.New("confluence getenv is required")
 	}
 	config := SourceConfig{
-		BaseURL:      strings.TrimRight(strings.TrimSpace(getenv("ESHU_CONFLUENCE_BASE_URL")), "/"),
-		SpaceID:      strings.TrimSpace(getenv("ESHU_CONFLUENCE_SPACE_ID")),
-		SpaceKey:     strings.TrimSpace(getenv("ESHU_CONFLUENCE_SPACE_KEY")),
-		RootPageID:   strings.TrimSpace(getenv("ESHU_CONFLUENCE_ROOT_PAGE_ID")),
-		Email:        strings.TrimSpace(getenv("ESHU_CONFLUENCE_EMAIL")),
-		APIToken:     strings.TrimSpace(getenv("ESHU_CONFLUENCE_API_TOKEN")),
-		BearerToken:  strings.TrimSpace(getenv("ESHU_CONFLUENCE_BEARER_TOKEN")),
-		PageLimit:    defaultPageLimit,
-		PollInterval: defaultPollInterval,
+		BaseURL:       strings.TrimRight(strings.TrimSpace(getenv("ESHU_CONFLUENCE_BASE_URL")), "/"),
+		SpaceID:       strings.TrimSpace(getenv("ESHU_CONFLUENCE_SPACE_ID")),
+		SpaceKey:      strings.TrimSpace(getenv("ESHU_CONFLUENCE_SPACE_KEY")),
+		RootPageID:    strings.TrimSpace(getenv("ESHU_CONFLUENCE_ROOT_PAGE_ID")),
+		Email:         strings.TrimSpace(getenv("ESHU_CONFLUENCE_EMAIL")),
+		APIToken:      strings.TrimSpace(getenv("ESHU_CONFLUENCE_API_TOKEN")),
+		BearerToken:   strings.TrimSpace(getenv("ESHU_CONFLUENCE_BEARER_TOKEN")),
+		PageLimit:     defaultPageLimit,
+		MaxTotalPages: defaultMaxTotalPages,
+		PollInterval:  defaultPollInterval,
 	}
 	if raw := strings.TrimSpace(getenv("ESHU_CONFLUENCE_SPACE_IDS")); raw != "" {
 		spaceIDs, err := parseSpaceIDs(raw)
@@ -63,6 +72,13 @@ func LoadConfig(getenv func(string) string) (SourceConfig, error) {
 			return SourceConfig{}, fmt.Errorf("ESHU_CONFLUENCE_PAGE_LIMIT must be a positive integer")
 		}
 		config.PageLimit = limit
+	}
+	if raw := strings.TrimSpace(getenv("ESHU_CONFLUENCE_MAX_TOTAL_PAGES")); raw != "" {
+		maxTotalPages, err := strconv.Atoi(raw)
+		if err != nil || maxTotalPages <= 0 {
+			return SourceConfig{}, fmt.Errorf("ESHU_CONFLUENCE_MAX_TOTAL_PAGES must be a positive integer")
+		}
+		config.MaxTotalPages = maxTotalPages
 	}
 	if raw := strings.TrimSpace(getenv("ESHU_CONFLUENCE_POLL_INTERVAL")); raw != "" {
 		interval, err := time.ParseDuration(raw)

@@ -20,6 +20,10 @@ type fakeClient struct {
 	treePageIDs      []string
 	pagesByID        map[string]Page
 	forbiddenPageIDs map[string]struct{}
+	// truncated, when set, is returned by ListSpacePages/ListPageTree so
+	// source-level tests can exercise the coverage-warning path without a
+	// real HTTP cursor walk.
+	truncated bool
 }
 
 func (f *fakeClient) GetSpace(_ context.Context, id string) (Space, error) {
@@ -33,19 +37,19 @@ func (f *fakeClient) GetSpace(_ context.Context, id string) (Space, error) {
 	return f.space, nil
 }
 
-func (f *fakeClient) ListSpacePages(_ context.Context, id string, _ int) ([]Page, error) {
+func (f *fakeClient) ListSpacePages(_ context.Context, id string, _ int, _ int) ([]Page, bool, error) {
 	if f.spacePagesByID != nil {
 		pages, ok := f.spacePagesByID[id]
 		if !ok {
-			return nil, fmt.Errorf("missing test space pages %q", id)
+			return nil, false, fmt.Errorf("missing test space pages %q", id)
 		}
-		return pages, nil
+		return pages, f.truncated, nil
 	}
-	return f.spacePages, nil
+	return f.spacePages, f.truncated, nil
 }
 
-func (f *fakeClient) ListPageTree(_ context.Context, _ string, _ int) ([]string, error) {
-	return f.treePageIDs, nil
+func (f *fakeClient) ListPageTree(_ context.Context, _ string, _ int, _ int) ([]string, bool, error) {
+	return f.treePageIDs, f.truncated, nil
 }
 
 func (f *fakeClient) GetPage(_ context.Context, id string) (Page, error) {

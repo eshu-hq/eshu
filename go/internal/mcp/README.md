@@ -457,7 +457,7 @@ routes with the credential middleware instead.
 (`cmd/mcp-server/wiring.go`) passes the SAME credential chain that protects
 `/api/v0/*` — shared token (`ESHU_API_KEY`), scoped token
 (`ESHU_SCOPED_TOKENS_FILE`), and IdP bearer (`ESHU_AUTH_RESOURCE_URI`).
-`authenticatedTransportHandler` (`transport_auth.go:65`) wraps both transport
+`authenticatedTransportHandler` (`transport_auth.go:94`) wraps both transport
 routes. When a shared token (`ESHU_API_KEY`) is set, a credential-less request
 gets a bare 401 with no catalog or server-info disclosure. When the shared
 token is unset and only a scoped-token file or OIDC resolver is configured, the

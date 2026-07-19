@@ -8,8 +8,9 @@ const openAPIPathsPackageRegistry = `
       "get": {
         "tags": ["package-registry"],
         "summary": "List package registry packages",
-        "description": "Lists package identity nodes materialized from package-registry facts. Source repository hints remain provenance-only and are not returned as ownership truth.",
+        "description": "Lists package identity nodes materialized from package-registry facts. Source repository hints remain provenance-only and are not returned as ownership truth. Scoped tokens receive visibility='public' rows for an ecosystem browse (source_path redacted), and any package rows a bounded correlation grant proves the caller's repositories own, consume, or publish; a private/unknown package the caller has no grant for returns the same empty result as a nonexistent package.",
         "operationId": "listPackageRegistryPackages",
+        "x-scoped-token-support": true,
         "parameters": [
           {"name": "package_id", "in": "query", "schema": {"type": "string"}, "description": "Exact Package.uid lookup."},
           {"name": "ecosystem", "in": "query", "schema": {"type": "string"}, "description": "Package ecosystem scope such as npm, maven, pypi, go, cargo, hex, or nuget."},
@@ -91,8 +92,9 @@ const openAPIPathsPackageRegistry = `
       "get": {
         "tags": ["package-registry"],
         "summary": "List package registry versions",
-        "description": "Lists package-version identity nodes for one Package.uid. This endpoint reports registry identity and version metadata, not repository ownership.",
+        "description": "Lists package-version identity nodes for one Package.uid. This endpoint reports registry identity and version metadata, not repository ownership. Scoped tokens receive results only when the anchor package is visibility='public' or a bounded correlation grant proves the caller's repositories own, consume, or publish it; otherwise the response is the same empty result as a nonexistent package_id.",
         "operationId": "listPackageRegistryVersions",
+        "x-scoped-token-support": true,
         "parameters": [
           {"name": "package_id", "in": "query", "required": true, "schema": {"type": "string"}, "description": "Package.uid to anchor the version lookup."},
           {"name": "limit", "in": "query", "required": true, "schema": {"type": "integer", "minimum": 1, "maximum": 200}}
@@ -146,8 +148,9 @@ const openAPIPathsPackageRegistry = `
       "get": {
         "tags": ["package-registry"],
         "summary": "List package registry dependencies",
-        "description": "Lists package-native dependency edges materialized from package-registry facts. This endpoint reports declared package dependencies, not repository ownership or runtime consumption.",
+        "description": "Lists package-native dependency edges materialized from package-registry facts. This endpoint reports declared package dependencies, not repository ownership or runtime consumption. Scoped tokens receive results only when the source package (resolved from package_id, or from version_id's owning package) is visibility='public' or a bounded correlation grant proves the caller's repositories own, consume, or publish it; otherwise the response is the same empty result as a nonexistent anchor.",
         "operationId": "listPackageRegistryDependencies",
+        "x-scoped-token-support": true,
         "parameters": [
           {"name": "package_id", "in": "query", "schema": {"type": "string"}, "description": "Package.uid to anchor dependency lookup when version_id is absent."},
           {"name": "version_id", "in": "query", "schema": {"type": "string"}, "description": "PackageVersion.uid for an exact version-scoped dependency lookup."},

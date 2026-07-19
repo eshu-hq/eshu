@@ -391,7 +391,15 @@ Loki targets include `scope_id`, `instance_id`, `base_url`, optional
 `path_prefix`, optional `token_env`, optional `tenant_id` or `tenant_id_env`,
 optional `resource_limit`, optional `label_value_names`, optional
 `max_label_values_per_label`, optional `series_matchers`, optional
-`stale_after`, optional `declared_ids`, and `enabled: true`.
+`series_lookback`, optional `stale_after`, optional `declared_ids`, and
+`enabled: true`. `series_lookback` bounds the `/loki/api/v1/series` query's
+`start` window and is an independent knob: it defaults to a generous 24h when
+unset and does not inherit `stale_after` (a rule-staleness setting).
+**Coverage consequence:** series last active before the resolved
+`series_lookback` window are not observed in the current generation, and Loki
+reports no coverage warning for a time-window exclusion (unlike the
+`resource_limit` truncation warning, a `/series` time filter is silent).
+Widen `series_lookback` if you rely on full historical series visibility.
 
 Tempo targets include `scope_id`, `instance_id`, `base_url`, optional
 `path_prefix`, optional `token_env`, optional `tenant_id` or `tenant_id_env`,
@@ -473,7 +481,8 @@ upstreams and fails closed when the cached artifact is missing or stale.
 | `ESHU_CONFLUENCE_EMAIL` | unset | collector-confluence | Basic-auth email for read-only Confluence API access. |
 | `ESHU_CONFLUENCE_API_TOKEN` | unset | collector-confluence | Basic-auth API token. Required with email unless bearer token is set. |
 | `ESHU_CONFLUENCE_BEARER_TOKEN` | unset | collector-confluence | Bearer token alternative for read-only Confluence API access. |
-| `ESHU_CONFLUENCE_PAGE_LIMIT` | `100` | collector-confluence | Max pages fetched per bounded listing request. |
+| `ESHU_CONFLUENCE_PAGE_LIMIT` | `100` | collector-confluence | Max pages fetched per bounded listing request (per-page size only). |
+| `ESHU_CONFLUENCE_MAX_TOTAL_PAGES` | `5000` | collector-confluence | Max total pages assembled across a space/page-tree cursor walk. The walk also stops defensively after 200 paginated fetches or a repeated cursor. Raise this on large wikis that legitimately exceed the default; the source fact's `source_metadata.coverage_warning` reads `truncated` (vs. `complete`) when the cap or a defensive stop dropped pages the provider still had to return. |
 | `ESHU_CONFLUENCE_POLL_INTERVAL` | `5m` | collector-confluence | Interval between repeated Confluence sync attempts. |
 
 Set exactly one of `ESHU_CONFLUENCE_SPACE_ID`, `ESHU_CONFLUENCE_SPACE_IDS`, or

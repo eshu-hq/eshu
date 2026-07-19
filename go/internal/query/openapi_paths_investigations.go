@@ -59,8 +59,9 @@ const openAPIPathsInvestigations = `
       "get": {
         "tags": ["investigations"],
         "summary": "Export runtime-drift investigation packet",
-        "description": "Returns an investigation_evidence_packet.v2 artifact for bounded provider-neutral runtime drift findings.",
+        "description": "Returns an investigation_evidence_packet.v2 artifact for bounded provider-neutral runtime drift findings. Scoped tokens must carry an exact AllowedScopeIDs grant for the requested cloud ingestion scope_id -- drift findings have no repository dimension, so there is no repository-to-cloud-scope map on this path -- and receive a scope_not_found refusal packet instead of findings for an ungranted or empty-grant scope_id.",
         "operationId": "getDriftPacket",
+        "x-scoped-token-support": true,
         "parameters": [
           {"name": "scope_id", "in": "query", "required": false, "schema": {"type": "string"}, "description": "Canonical ingestion scope id. Required unless an account/project/subscription alias is set."},
           {"name": "account_id", "in": "query", "required": false, "schema": {"type": "string"}, "description": "Alias for scope_id for AWS account scope."},

@@ -54,6 +54,7 @@ func collectSwiftSemanticFacts(root *tree_sitter.Node, source []byte) swiftSeman
 	}
 	state := &swiftPrePassState{routeReceivers: make(map[string]swiftVaporRouteReceiver)}
 	collectSwiftFileFacts(root, source, "", "", &facts, state)
+	facts.hasVaporImport = state.hasVaporImport
 	if state.hasVaporImport {
 		facts.vaporRouteEntries = append(facts.vaporRouteEntries, swiftVaporRouteEntries(root, source, state.routeReceivers)...)
 	}

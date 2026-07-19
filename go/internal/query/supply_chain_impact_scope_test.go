@@ -54,6 +54,11 @@ func (s *failingSupplyChainImpactAggregateStore) SupplyChainImpactInventory(
 	return nil, errors.New("broad supply-chain impact inventory read")
 }
 
+// failingSupplyChainImpactExplanationStore (defined in
+// investigation_packet_api_test.go) records whether the reducer
+// impact-explanation store was read and always errors, so scope tests can
+// prove that empty or out-of-grant scoped explain requests never touch it.
+
 // failingSupplyChainImpactReadinessStore proves the readiness lookup is also
 // skipped for empty scoped grants.
 type failingSupplyChainImpactReadinessStore struct {
@@ -91,6 +96,7 @@ func TestAuthMiddlewareWithScopedTokensAllowsSupplyChainImpactRoutes(t *testing.
 		"/api/v0/supply-chain/impact/findings?repository_id=repo-team-a&limit=10",
 		"/api/v0/supply-chain/impact/findings/count?repository_id=repo-team-a",
 		"/api/v0/supply-chain/impact/inventory?repository_id=repo-team-a&limit=10",
+		"/api/v0/supply-chain/impact/explain?repository_id=repo-team-a&advisory_id=CVE-2026-0001",
 	} {
 		target := target
 		t.Run(target, func(t *testing.T) {
@@ -125,7 +131,6 @@ func TestAuthMiddlewareWithScopedTokensRejectsAdjacentSupplyChainImpactRoutes(t 
 	// Adjacent supply-chain reads stay fail-closed for scoped tokens until
 	// each is separately proven tenant-filtered (issue #2124 scope).
 	for _, target := range []string{
-		"/api/v0/supply-chain/impact/explain?repository_id=repo-team-a&advisory_id=CVE-2026-0001",
 		"/api/v0/supply-chain/advisories?limit=10",
 		"/api/v0/supply-chain/vulnerabilities/CVE-2026-0001",
 	} {
@@ -148,13 +153,15 @@ func TestSupplyChainImpactScopedEmptyGrantReturnsEmptyWithoutStoreRead(t *testin
 
 	findings := &failingSupplyChainImpactFindingStore{}
 	aggregates := &failingSupplyChainImpactAggregateStore{}
+	explanations := &failingSupplyChainImpactExplanationStore{}
 	readiness := &failingSupplyChainImpactReadinessStore{}
 	handler := &SupplyChainHandler{
-		Content:          repositorySelectorReadModelContentStore(),
-		ImpactFindings:   findings,
-		ImpactAggregates: aggregates,
-		Readiness:        readiness,
-		Profile:          ProfileProduction,
+		Content:            repositorySelectorReadModelContentStore(),
+		ImpactFindings:     findings,
+		ImpactAggregates:   aggregates,
+		ImpactExplanations: explanations,
+		Readiness:          readiness,
+		Profile:            ProfileProduction,
 	}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
@@ -174,6 +181,10 @@ func TestSupplyChainImpactScopedEmptyGrantReturnsEmptyWithoutStoreRead(t *testin
 		{
 			name:   "inventory",
 			target: "/api/v0/supply-chain/impact/inventory?group_by=ecosystem&limit=10",
+		},
+		{
+			name:   "explain",
+			target: "/api/v0/supply-chain/impact/explain?cve_id=CVE-2026-0001&package_id=pkg:npm/left-pad",
 		},
 	} {
 		tc := tc
@@ -197,6 +208,8 @@ func TestSupplyChainImpactScopedEmptyGrantReturnsEmptyWithoutStoreRead(t *testin
 				assertZeroImpactCountResponse(t, rec.Body.Bytes())
 			case "inventory":
 				assertEmptyImpactInventoryResponse(t, rec.Body.Bytes())
+			case "explain":
+				assertEmptyImpactExplanationResponse(t, rec.Body.Bytes())
 			}
 			if strings.Contains(rec.Body.String(), "CVE-2026-0001") {
 				t.Fatalf("empty scoped response echoed requested anchor: %s", rec.Body.String())
@@ -210,6 +223,9 @@ func TestSupplyChainImpactScopedEmptyGrantReturnsEmptyWithoutStoreRead(t *testin
 		t.Fatalf("aggregate store was called for empty scoped grants (count=%v inventory=%v)",
 			aggregates.countCalled, aggregates.inventoryCalled)
 	}
+	if explanations.called {
+		t.Fatal("impact explanation store was called for empty scoped grants")
+	}
 	if readiness.called {
 		t.Fatal("readiness store was called for empty scoped grants")
 	}
@@ -220,13 +236,15 @@ func TestSupplyChainImpactScopedRepositorySelectorDeniesOutOfGrantWithoutStoreRe
 
 	findings := &failingSupplyChainImpactFindingStore{}
 	aggregates := &failingSupplyChainImpactAggregateStore{}
+	explanations := &failingSupplyChainImpactExplanationStore{}
 	readiness := &failingSupplyChainImpactReadinessStore{}
 	handler := &SupplyChainHandler{
-		Content:          repositorySelectorReadModelContentStore(),
-		ImpactFindings:   findings,
-		ImpactAggregates: aggregates,
-		Readiness:        readiness,
-		Profile:          ProfileProduction,
+		Content:            repositorySelectorReadModelContentStore(),
+		ImpactFindings:     findings,
+		ImpactAggregates:   aggregates,
+		ImpactExplanations: explanations,
+		Readiness:          readiness,
+		Profile:            ProfileProduction,
 	}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
@@ -235,6 +253,7 @@ func TestSupplyChainImpactScopedRepositorySelectorDeniesOutOfGrantWithoutStoreRe
 		"/api/v0/supply-chain/impact/findings?repository_id=payments-api&limit=10",
 		"/api/v0/supply-chain/impact/findings/count?repository_id=payments-api",
 		"/api/v0/supply-chain/impact/inventory?repository_id=payments-api&limit=10",
+		"/api/v0/supply-chain/impact/explain?repository_id=payments-api&advisory_id=CVE-2026-0001",
 	} {
 		target := target
 		t.Run(target, func(t *testing.T) {
@@ -258,6 +277,9 @@ func TestSupplyChainImpactScopedRepositorySelectorDeniesOutOfGrantWithoutStoreRe
 	}
 	if findings.called {
 		t.Fatal("impact finding store was called for out-of-grant repository selector")
+	}
+	if explanations.called {
+		t.Fatal("impact explanation store was called for out-of-grant repository selector")
 	}
 	if aggregates.countCalled || aggregates.inventoryCalled {
 		t.Fatalf("aggregate store was called for out-of-grant repository selector (count=%v inventory=%v)",
@@ -352,6 +374,11 @@ func TestSupplyChainImpactHandlerPassesScopedGrants(t *testing.T) {
 	}
 }
 
+// TestSupplyChainImpactExplainScopedGrantsAcrossTenants and
+// assertEmptyImpactExplanationResponse live in
+// supply_chain_impact_explain_authz_test.go (split out to stay under the
+// repository's 500-line file cap).
+
 func TestSupplyChainImpactSQLAppliesScopedAuthorizationBeforeOrderingAndGrouping(t *testing.T) {
 	t.Parallel()
 
@@ -382,6 +409,13 @@ func TestSupplyChainImpactSQLAppliesScopedAuthorizationBeforeOrderingAndGrouping
 			beforeText: "GROUP BY",
 			repoParam:  "fact.payload->>'repository_id' = ANY($18::text[])",
 			scopeParam: "fact.scope_id = ANY($19::text[])",
+		},
+		{
+			name:       "explain",
+			query:      explainSupplyChainImpactFindingQuery,
+			beforeText: "scoped_facts AS",
+			repoParam:  "fact.payload->>'repository_id' = ANY($11::text[])",
+			scopeParam: "fact.scope_id = ANY($12::text[])",
 		},
 	} {
 		tc := tc

@@ -138,6 +138,48 @@ func TestBuildObservabilityCoverageDecisionsClassifiesGrafanaStackEvidence(t *te
 	assertCoverageOutcome(t, index["grafana|unsupported|unsupported:mute-timing"], ObservabilityCoverageRejected, "rejected")
 }
 
+// TestBuildObservabilityCoverageDecisionsClassifiesTruncatedWarningAsUnresolved
+// is the issue #5338 PR-A conformance proof: the new WarningTruncated
+// (warning_kind="truncated") coverage-warning fact — emitted by the grafana,
+// loki, and prometheusmimir collectors when a resource_limit cap drops
+// records — routes end-to-end through BuildObservabilityCoverageDecisions to
+// the pre-existing partial/unresolved outcome path, adding NO new graph-shape
+// branch. The truncated reason carries outcome="partial" (from each
+// collector's warningOutcome), and metadataOutcome has no special reasonCode
+// branch for "truncated", so it falls through to the shared
+// `case "unresolved", "partial"` arm. If a future change gave "truncated" its
+// own reducer branch, this test would fail and force the graph-shape decision
+// to be made deliberately rather than by silent drift.
+func TestBuildObservabilityCoverageDecisionsClassifiesTruncatedWarningAsUnresolved(t *testing.T) {
+	t.Parallel()
+
+	decisions, _, err := BuildObservabilityCoverageDecisions([]facts.Envelope{
+		observabilityFact("grafana-truncated", facts.ObservabilityCoverageWarningFactKind, map[string]any{
+			"provider":            "grafana",
+			"source_class":        "observed",
+			"source_kind":         "grafana",
+			"resource_class":      "datasource",
+			"provider_object_uid": "datasource:truncated-band",
+			"freshness_state":     "unknown",
+			"warning_kind":        "truncated",
+			"outcome":             "partial",
+		}),
+	})
+	if err != nil {
+		t.Fatalf("BuildObservabilityCoverageDecisions() error = %v, want nil", err)
+	}
+
+	index := observabilityDecisionsByProviderAndRef(decisions)
+	decision, ok := index["grafana|datasource|datasource:truncated-band"]
+	if !ok {
+		t.Fatalf("no decision for the truncated coverage-warning fact; decisions = %+v", decisions)
+	}
+	// The truncated reason reuses the partial-outcome path, so the projected
+	// outcome/status is the same Unresolved/gap the partial reason already
+	// produced — no new branch to leave uncovered.
+	assertCoverageOutcome(t, decision, ObservabilityCoverageUnresolved, "gap")
+}
+
 func TestObservabilityCoverageCorrelationFactKindsIncludesGrafanaStackSources(t *testing.T) {
 	t.Parallel()
 

@@ -65,6 +65,7 @@ allowlist.
 - `ESHU_CONFLUENCE_API_TOKEN`
 - `ESHU_CONFLUENCE_BEARER_TOKEN`
 - `ESHU_CONFLUENCE_PAGE_LIMIT`
+- `ESHU_CONFLUENCE_MAX_TOTAL_PAGES`
 - `ESHU_CONFLUENCE_POLL_INTERVAL`
 
 Exactly one bounded scope mode is required: `ESHU_CONFLUENCE_SPACE_ID`,
@@ -143,7 +144,16 @@ already gathered them from Eshu.
 - Duplicate titles are safe because stable document identity uses Confluence
   page ID, not title.
 - Stale or deleted pages are skipped unless their status is current.
-- Source metadata reports `page_count`, `failure_count`, and `sync_status`.
+- Source metadata reports `page_count`, `failure_count`, `sync_status`,
+  `coverage_warning`, and `max_total_pages`. `Client.ListSpacePages` and
+  `Client.ListPageTree` bound the space/page-tree `_links.next` cursor walk
+  three ways: `ESHU_CONFLUENCE_MAX_TOTAL_PAGES` (default 5000, the only
+  intentionally coverage-reducing bound this collector introduces), a
+  defensive 200-fetch backstop, and treating a repeated cursor as terminal.
+  `coverage_warning` reads `truncated` only when the walk stopped while the
+  provider still had more data (a definite signal from the cursor, not a
+  heuristic); it reads `complete` otherwise, mirroring the `sync_status`
+  partial/complete pattern.
 
 No-Regression Evidence: `go test ./internal/collector/confluence -run 'TestSourceBacksOffRetryableFailureWithoutTerminalError|TestHTTPClientReturnsRetryableErrorWithRetryAfter|TestHTTPClientRetryableErrorWrapsSDKHTTPError|TestHTTPClientReturnsBoundedSDKHTTPErrorForStatusFailure|TestLoadConfigRejectsCredentialBearingBaseURL' -count=1` proves Confluence 429 backoff honors provider retry guidance, stays non-terminal to `collector.Service`, keeps the same active scope, rejects credential-bearing base URLs, wraps retryable and non-retryable provider statuses in bounded SDK HTTP errors, and retries after the window without changing documentation fact shape.
 

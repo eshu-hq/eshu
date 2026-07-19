@@ -62,6 +62,16 @@ in metric labels.
 - Label values are counted and fingerprinted only when explicitly allowlisted
   and within the configured cardinality bound. High-cardinality values become
   `observability.coverage_warning` facts instead of raw payload fields.
+- Series and rule collection emit a `WarningTruncated`
+  (`observability.coverage_warning`) fact when the client-side
+  `resource_limit` cap drops records the provider returned, so a bounded read
+  is distinguishable from a complete one.
+- `series_lookback` bounds the `/loki/api/v1/series` `start` window and is an
+  independent knob: it falls back to a generous 24h default and never inherits
+  `stale_after`. Unlike the `resource_limit` truncation warning, a `/series`
+  time-window exclusion is silent -- series last active before the window are
+  not observed this generation and Loki reports no coverage warning. Widen
+  `series_lookback` when full historical series visibility is required.
 - Loki tenant IDs are request headers only. Facts keep tenant presence and a
   fingerprint, not the raw tenant value.
 - Disabled targets are skipped before client construction, so operators can

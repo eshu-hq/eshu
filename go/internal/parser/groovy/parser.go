@@ -40,8 +40,17 @@ func ParseWithParser(path string, isDependency bool, options shared.Options, par
 	payload["modules"] = []map[string]any{}
 	payload["module_inclusions"] = []map[string]any{}
 
-	for key, value := range PipelineMetadata(sourceText).Map() {
-		payload[key] = value
+	// PipelineMetadata is Jenkins/Groovy delivery evidence: it must only be
+	// extracted for an actual Jenkins artifact (a Jenkinsfile, or a shared
+	// library vars/*.groovy step), never for an arbitrary .groovy source
+	// file. Without this gate, a plain class whose method happens to be
+	// named e.g. pipelineDeploy would fabricate pipeline_calls evidence
+	// that the reducer's isJenkinsArtifact and query deployment surfaces
+	// then treat as real Jenkins pipeline truth.
+	if isJenkinsfile(path) || isSharedLibraryVarsFile(path) {
+		for key, value := range PipelineMetadata(sourceText).Map() {
+			payload[key] = value
+		}
 	}
 	for _, class := range syntax.classes {
 		shared.AppendBucket(payload, "classes", class)

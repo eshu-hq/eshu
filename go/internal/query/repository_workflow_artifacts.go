@@ -110,11 +110,15 @@ func workflowArtifactDetails(content string) ([]string, []string, []string, []st
 		return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, 0
 	}
 
-	reusableWorkflowRepositories := make([]string, 0)
-	localReusableWorkflowPaths := make([]string, 0)
-	checkoutRepositories := make([]string, 0)
-	actionRepositories := make([]string, 0)
-	workflowInputRepositories := make([]string, 0)
+	// The five GitHub Actions dependency-reference classes come from the
+	// shared structured extractor so this rollup and the content-relationship
+	// edge builder (githubActionsSourceRelationships) agree on exactly which
+	// refs a file declares (issue #5337 Detector 4). Pass the already-decoded
+	// documents to the FromDocuments variant so the content is decoded once,
+	// not twice. The remaining walk below covers the workflow-metadata fields
+	// that are unique to this rollup (triggers, permissions, matrix, run
+	// commands, and so on).
+	dependencyRefs := extractGitHubActionsDependencyRefsFromDocuments(documents)
 	runCommands := make([]string, 0)
 	gatingConditions := make([]string, 0)
 	needsDependencies := make([]string, 0)
@@ -140,26 +144,10 @@ func workflowArtifactDetails(content string) ([]string, []string, []string, []st
 			if !ok {
 				continue
 			}
-			if workflowRef := githubActionsReusableWorkflowRepoRef(StringVal(job, "uses")); workflowRef != "" {
-				reusableWorkflowRepositories = append(reusableWorkflowRepositories, workflowRef)
-			}
-			if localWorkflowPath := githubActionsLocalReusableWorkflowPath(StringVal(job, "uses")); localWorkflowPath != "" {
-				localReusableWorkflowPaths = append(localReusableWorkflowPaths, localWorkflowPath)
-			}
 			permissionScopes = append(permissionScopes, githubActionsPermissionScopes(job["permissions"])...)
 			concurrencyGroups = append(concurrencyGroups, githubActionsConcurrencyGroups(job["concurrency"])...)
 			environments = append(environments, githubActionsEnvironmentNames(job["environment"])...)
 			jobTimeoutMinutes = append(jobTimeoutMinutes, githubActionsJobTimeoutMetadata(jobName, job["timeout-minutes"])...)
-			workflowInputRepositories = append(
-				workflowInputRepositories,
-				githubActionsWorkflowInputRepositoryMetadata(job)...,
-			)
-			if with, ok := job["with"].(map[string]any); ok {
-				workflowInputRepositories = append(
-					workflowInputRepositories,
-					githubActionsWorkflowInputRepositoryMetadata(with)...,
-				)
-			}
 			if condition := strings.TrimSpace(StringVal(job, "if")); condition != "" {
 				gatingConditions = append(gatingConditions, "job "+jobName+" if "+condition)
 			}
@@ -176,12 +164,6 @@ func workflowArtifactDetails(content string) ([]string, []string, []string, []st
 				if !ok {
 					continue
 				}
-				if usesValue := StringVal(step, "uses"); strings.HasPrefix(strings.TrimSpace(usesValue), "actions/checkout@") {
-					checkoutRepositories = append(checkoutRepositories, githubActionsCheckoutRepositories(step)...)
-				}
-				if actionRepository := githubActionsActionRepositoryRef(StringVal(step, "uses")); actionRepository != "" {
-					actionRepositories = append(actionRepositories, actionRepository)
-				}
 				runCommand := strings.TrimSpace(StringVal(step, "run"))
 				if condition := strings.TrimSpace(StringVal(step, "if")); condition != "" {
 					gatingConditions = append(
@@ -197,11 +179,11 @@ func workflowArtifactDetails(content string) ([]string, []string, []string, []st
 		}
 	}
 
-	return sortedUniqueWorkflowStrings(reusableWorkflowRepositories),
-		sortedUniqueWorkflowStrings(localReusableWorkflowPaths),
-		sortedUniqueWorkflowStrings(checkoutRepositories),
-		sortedUniqueWorkflowStrings(actionRepositories),
-		sortedUniqueWorkflowStrings(workflowInputRepositories),
+	return sortedUniqueWorkflowStrings(dependencyRefs.reusableWorkflowRepos),
+		sortedUniqueWorkflowStrings(dependencyRefs.localReusableWorkflowPaths),
+		sortedUniqueWorkflowStrings(dependencyRefs.checkoutRepositories),
+		sortedUniqueWorkflowStrings(dependencyRefs.actionRepositories),
+		sortedUniqueWorkflowStrings(dependencyRefs.workflowInputRepositories),
 		sortedUniqueWorkflowStrings(runCommands),
 		sortedUniqueWorkflowStrings(gatingConditions),
 		sortedUniqueWorkflowStrings(needsDependencies),

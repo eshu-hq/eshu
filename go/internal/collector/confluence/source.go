@@ -45,7 +45,7 @@ func (s *Source) next(ctx context.Context) (collector.CollectedGeneration, bool,
 	observedAt := s.Config.now()
 
 	activeSpaceID := s.activeSpaceID()
-	pages, spaceValue, failureCount, err := s.collectPages(ctx)
+	pages, spaceValue, failureCount, truncated, err := s.collectPages(ctx)
 	if err != nil {
 		if s.recordRetryableFailure(ctx, observedAt, err) {
 			return collector.CollectedGeneration{}, false, nil
@@ -65,7 +65,7 @@ func (s *Source) next(ctx context.Context) (collector.CollectedGeneration, bool,
 		TriggerKind:   scope.TriggerKindSnapshot,
 		FreshnessHint: freshnessHint(pages),
 	}
-	envelopes, err := s.factEnvelopes(ctx, scopeValue, generationValue, spaceValue, pages, failureCount)
+	envelopes, err := s.factEnvelopes(ctx, scopeValue, generationValue, spaceValue, pages, failureCount, truncated)
 	if err != nil {
 		s.recordSyncFailure(ctx, "fact_build")
 		return collector.CollectedGeneration{}, false, err
@@ -129,6 +129,7 @@ func (s *Source) factEnvelopes(
 	spaceValue Space,
 	pages []Page,
 	failureCount int,
+	truncated bool,
 ) ([]facts.Envelope, error) {
 	sourcePayload := facts.DocumentationSourcePayload{
 		SourceID:     scopeValue.ScopeID,
@@ -148,9 +149,11 @@ func (s *Source) factEnvelopes(
 			PartialReason:  "confluence_source_restrictions_not_collected",
 		},
 		SourceMetadata: map[string]string{
-			"page_count":    strconv.Itoa(len(pages)),
-			"failure_count": strconv.Itoa(failureCount),
-			"sync_status":   syncStatus(failureCount),
+			"page_count":       strconv.Itoa(len(pages)),
+			"failure_count":    strconv.Itoa(failureCount),
+			"sync_status":      syncStatus(failureCount),
+			"coverage_warning": coverageWarning(truncated),
+			"max_total_pages":  strconv.Itoa(maxTotalPages(s.Config.MaxTotalPages)),
 		},
 	}
 	sourceEnvelope, err := envelope(scopeValue, generationValue, facts.DocumentationSourceFactKind, facts.DocumentationSourceStableID(sourcePayload), sourcePayload, s.Config.BaseURL, sourcePayload.ExternalID)
@@ -399,12 +402,42 @@ func pageLimit(limit int) int {
 	return limit
 }
 
+func maxTotalPages(value int) int {
+	if value <= 0 {
+		return defaultMaxTotalPages
+	}
+	return value
+}
+
 func syncStatus(failureCount int) string {
 	if failureCount > 0 {
 		return "partial"
 	}
 	return "complete"
 }
+
+// coverageWarning reports whether the space/page-tree cursor walk was
+// truncated before it exhausted the provider's data, mirroring
+// syncStatus's partial/complete status pattern. CoverageWarningTruncated
+// uses the same "truncated" string value as the sibling grafana, loki, and
+// prometheusmimir collectors' WarningTruncated constant.
+func coverageWarning(truncated bool) string {
+	if truncated {
+		return CoverageWarningTruncated
+	}
+	return CoverageWarningComplete
+}
+
+const (
+	// CoverageWarningComplete marks a Confluence sync whose space/page-tree
+	// cursor walk exhausted the provider's data within max_total_pages.
+	CoverageWarningComplete = "complete"
+	// CoverageWarningTruncated marks a Confluence sync whose cursor walk
+	// stopped at max_total_pages, the defensive max-cursor-pages backstop,
+	// or a repeated cursor while the provider still had more data to
+	// return.
+	CoverageWarningTruncated = "truncated"
+)
 
 func sourceType(config SourceConfig) string {
 	if config.SpaceID != "" || len(config.SpaceIDs) > 0 {

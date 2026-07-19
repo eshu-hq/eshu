@@ -119,6 +119,46 @@ private func unusedCleanupCandidate() {}
 	}
 }
 
+// TestDefaultEngineParsePathSwiftRequiresVaporImportForRouteHandlerRoot
+// characterizes issue #5337 Detector 2: collectSwiftVaporRouteHandler records
+// any `use:` labeled call argument as a Vapor route handler with zero gating
+// on whether the file actually imports Vapor, so a same-shaped `use:` call
+// from an unrelated framework/DSL fabricates a swift.vapor_route_handler
+// dead-code root. Without `import Vapor`, the identical
+// `app.get("health", use: health)` call shape must not root health.
+func TestDefaultEngineParsePathSwiftRequiresVaporImportForRouteHandlerRoot(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	sourcePath := filepath.Join(repoRoot, "Sources", "App", "NoVaporApp.swift")
+	writeTestFile(
+		t,
+		sourcePath,
+		`func configure(_ app: Application) throws {
+    app.get("health", use: health)
+}
+
+func health(_ req: Request) async throws -> String {
+    "ok"
+}
+`,
+	)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	got, err := engine.ParsePath(repoRoot, sourcePath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath(%s) error = %v, want nil", sourcePath, err)
+	}
+
+	if health := assertFunctionByName(t, got, "health"); health["dead_code_root_kinds"] != nil {
+		t.Fatalf("health dead_code_root_kinds = %#v, want nil (no import Vapor)", health["dead_code_root_kinds"])
+	}
+}
+
 func assertBucketMissingItemByName(t *testing.T, payload map[string]any, bucket string, name string) {
 	t.Helper()
 

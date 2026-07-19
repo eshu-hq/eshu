@@ -16,13 +16,20 @@ Canonical implementation: `go/internal/parser/registry.go` plus the entrypoint a
 | Capability | ID | Status | Extracted Bucket/Key | Required Fields | Graph Surface | Unit Coverage | Integration Coverage | Rationale |
 |-----------|----|--------|------------------------|-----------------|---------------|---------------|----------------------|-----------|
 | Jenkins shared libraries | `jenkins-shared-libraries` | supported | `shared_libraries` | `shared_libraries` | `property:File.shared_libraries` | `go/internal/parser/groovy_language_test.go::TestDefaultEngineParsePathGroovyJenkinsfile` | Compose-backed fixture verification | - |
-| Jenkins pipeline entry calls | `jenkins-pipeline-calls` | supported | `pipeline_calls` | `pipeline_calls` | `property:File.pipeline_calls` | `go/internal/parser/groovy_language_test.go::TestDefaultEngineParsePathGroovyJenkinsfile` | Compose-backed fixture verification | - |
+| Jenkins pipeline entry calls | `jenkins-pipeline-calls` | supported | `pipeline_calls` | `pipeline_calls` | `property:File.pipeline_calls` | `go/internal/parser/groovy_language_test.go::TestDefaultEngineParsePathGroovyJenkinsfile`, `go/internal/parser/groovy/pipeline_metadata_gate_test.go::TestParsePipelineMetadataGatedToJenkinsArtifacts` | Compose-backed fixture verification | Jenkins pipeline metadata (this row and the other `shared_libraries`/`entry_points`/`jenkins_pipeline_metadata`/`shell_commands`/`ansible_playbook_hints` rows) is populated only for Jenkins artifacts: files named `Jenkinsfile`/`Jenkinsfile.*` or shared-library scripts under `vars/*.groovy`. An ordinary `.groovy` class with a method named `pipelineDeploy` no longer fabricates Jenkins evidence. |
 | Jenkins deployment entry points | `jenkins-entry-points` | supported | `entry_points` | `entry_points` | `property:File.entry_points` | `go/internal/parser/groovy_language_test.go::TestDefaultEngineParsePathGroovyJenkinsfile` | Compose-backed fixture verification | - |
 | Jenkins deployment hints | `jenkins-deploy-hints` | supported | `jenkins_pipeline_metadata` | `use_configd, has_pre_deploy` | `property:File` | `go/internal/parser/groovy_language_test.go::TestDefaultEngineParsePathGroovyJenkinsfile` | Compose-backed fixture verification | - |
 | Jenkins shell command hints | `jenkins-shell-commands` | supported | `shell_commands` | `shell_commands` | `property:File.shell_commands` | `go/internal/parser/groovy_language_test.go::TestDefaultEngineParsePathGroovyJenkinsfileAnsibleHints` | Compose-backed fixture verification | - |
 | Jenkins Ansible playbook hints | `jenkins-ansible-hints` | supported | `ansible_playbook_hints` | `playbook, command` | `property:File.ansible_playbook_hints` | `go/internal/parser/groovy_language_test.go::TestDefaultEngineParsePathGroovyJenkinsfileAnsibleHints` | Compose-backed fixture verification | - |
 
 ## Parity Notes
+- Jenkins pipeline metadata (`shared_libraries`, `pipeline_calls`,
+  `entry_points`, `jenkins_pipeline_metadata`, `shell_commands`,
+  `ansible_playbook_hints`) is extracted only for Jenkins artifacts — files
+  named `Jenkinsfile`/`Jenkinsfile.*` or shared-library scripts under
+  `vars/*.groovy` — not for arbitrary `.groovy` files. An ordinary class with a
+  method named `pipelineDeploy` no longer fabricates Jenkins evidence
+  (`go/internal/parser/groovy/pipeline_metadata_gate_test.go::TestParsePipelineMetadataGatedToJenkinsArtifacts`).
 - Jenkinsfile parsing now preserves explicit shared-library refs, including
   `library(...)` step forms, and explicit GitHub repository URLs for the
   relationship layer.

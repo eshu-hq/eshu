@@ -25,6 +25,7 @@ func NewSourceInstanceEnvelope(ctx EnvelopeContext, source SourceInstance, stats
 	payload["warning_count"] = stats.Warnings
 	payload["pages_fetched"] = stats.PagesFetched
 	payload["partial"] = stats.Partial
+	payload["truncated"] = stats.Truncated
 	if source.TenantPresent || source.TenantRedacted {
 		payload["tenant_scope_state"] = "configured"
 		payload["tenant_redacted"] = true

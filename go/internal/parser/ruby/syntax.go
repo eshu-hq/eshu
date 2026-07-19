@@ -34,17 +34,55 @@ type rubyScope struct {
 // captures the structural facts (definitions, imports, inclusions, variables,
 // calls) discovered while walking the AST.
 type rubySyntax struct {
-	source     []byte
-	lines      []string
-	functions  []map[string]any
-	classes    []map[string]any
-	modules    []map[string]any
-	variables  []map[string]any
-	imports    []map[string]any
-	inclusions []map[string]any
-	calls      []map[string]any
-	seenCalls  map[string]struct{}
-	root       *tree_sitter.Node
+	source        []byte
+	lines         []string
+	functions     []map[string]any
+	classes       []map[string]any
+	modules       []map[string]any
+	variables     []map[string]any
+	imports       []map[string]any
+	inclusions    []map[string]any
+	calls         []map[string]any
+	seenCalls     map[string]struct{}
+	classRegistry rubyClassRegistry
+	root          *tree_sitter.Node
+}
+
+// rubyClassRegistry is the same-file, top-down transitive superclass view
+// built incrementally in visitClass as classes are discovered. Ruby source is
+// parsed top-down, so by the time a method's dead-code-root kind is computed,
+// the registry already holds every class defined earlier in the file,
+// including the method's own enclosing class. It backs the Rails controller
+// superclass-chain walk in dead_code_roots.go and intentionally does not
+// require a second AST walk.
+//
+// Known limitation — same-file short-name collisions: the maps are keyed by
+// the class's simple (last-segment) name, because that is the only class
+// identity readily available here. constantName already collapses a declared
+// name to its last "::" segment (a pre-existing convention that also names the
+// scope stack and the class_context field), and the method-side lookup in
+// dead_code_roots.go likewise only has the enclosing class's collapsed name.
+// So two classes defined in the SAME file whose short names collide across
+// different namespaces (for example `Admin::BaseController` and
+// `Api::BaseController`, both keyed as "BaseController"), or a reopened class,
+// overwrite each other's superclass entry: the last one registered in source
+// order wins, and a later class extending the bare short name resolves against
+// whichever superclass was registered last. Keying by the fully-qualified
+// module path is not done here because the qualified name is not available at
+// both registration and lookup without threading it through the whole
+// scope/context-resolution machinery (a change that would also move the
+// pre-existing collapsed class_context semantics). Correct repo-wide,
+// namespace- and reopening-aware resolution is the reducer follow-up #5376;
+// this registry stays deliberately same-file and short-name-keyed.
+type rubyClassRegistry struct {
+	// superclass maps a class's simple (last-segment) name to its declared
+	// superclass's full, possibly module-qualified name. A class with no
+	// declared superclass has no entry. On a same-file short-name collision
+	// the last registration in source order wins (see the type doc).
+	superclass map[string]string
+	// known holds every class simple name defined in the file so far,
+	// regardless of whether it declares a superclass.
+	known map[string]struct{}
 }
 
 // rubyBuildSyntax parses path with parser and returns the resolved syntax view.
@@ -53,7 +91,11 @@ func rubyBuildSyntax(source []byte, tree *tree_sitter.Tree, options shared.Optio
 		source:    source,
 		lines:     strings.Split(string(source), "\n"),
 		seenCalls: make(map[string]struct{}),
-		root:      tree.RootNode(),
+		classRegistry: rubyClassRegistry{
+			superclass: make(map[string]string),
+			known:      make(map[string]struct{}),
+		},
+		root: tree.RootNode(),
 	}
 	seenVariables := make(map[string]struct{})
 	syntax.walk(syntax.root, nil, "public", seenVariables, options)
@@ -168,9 +210,13 @@ func (s *rubySyntax) visitClass(
 		"lang":        "ruby",
 		"type":        "class",
 	}
+	s.classRegistry.known[name] = struct{}{}
 	if superclass := node.ChildByFieldName("superclass"); superclass != nil {
 		if base := s.superclassName(superclass); base != "" {
 			item["bases"] = []string{base}
+		}
+		if qualified := s.superclassQualifiedName(superclass); qualified != "" {
+			s.classRegistry.superclass[name] = qualified
 		}
 	}
 	s.classes = append(s.classes, item)
@@ -235,7 +281,7 @@ func (s *rubySyntax) visitMethod(
 			item["class_context"] = contextName
 		}
 	}
-	if rootKinds := rubyFunctionDefinitionRootKinds(name, functionType, contextName, string(contextType), resolvedVisibility); len(rootKinds) > 0 {
+	if rootKinds := rubyFunctionDefinitionRootKinds(name, functionType, contextName, string(contextType), resolvedVisibility, s.classRegistry); len(rootKinds) > 0 {
 		item["dead_code_root_kinds"] = rootKinds
 	}
 	if options.IndexSource {

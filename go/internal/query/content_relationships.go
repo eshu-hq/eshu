@@ -186,15 +186,30 @@ func buildOutgoingArgoCDRelationships(entity EntityContent) ([]map[string]any, b
 	}
 }
 
+// buildOutgoingGitHubActionsRelationships derives DEPLOYS_FROM,
+// DISCOVERS_CONFIG_IN, and DEPENDS_ON edges for a GitHub Actions workflow or
+// composite-action file from two sources, merged and deduped:
+//
+//   - githubActionsSourceRelationships: a structured YAML decode of
+//     entity.SourceCache (the real production signal path -- SourceCache is
+//     populated, entity.Metadata is not; see #5377). This replaced the former
+//     YAML-unaware raw-text line scanner (issue #5337 Detector 4), which
+//     mistook a `uses:` line inside a `run: |` block scalar for a real step
+//     key and fabricated edges.
+//   - githubActionsMetadataRelationships: the structured entity.Metadata path.
+//     Kept for forward compatibility; a harmless no-op while Metadata is
+//     empty, additive (and deduped) once #5377 populates it.
+//
+// Edges are deduped by (type, target, reason).
 func buildOutgoingGitHubActionsRelationships(entity EntityContent) ([]map[string]any, bool, error) {
-	metadataRelationships := githubActionsMetadataRelationships(entity.Metadata)
 	sourceRelationships := githubActionsSourceRelationships(entity)
-	if len(metadataRelationships)+len(sourceRelationships) == 0 {
+	metadataRelationships := githubActionsMetadataRelationships(entity.Metadata)
+	if len(sourceRelationships)+len(metadataRelationships) == 0 {
 		return nil, false, nil
 	}
 
-	relationships := make([]map[string]any, 0, len(metadataRelationships)+len(sourceRelationships))
-	seen := make(map[string]struct{}, len(metadataRelationships)+len(sourceRelationships))
+	relationships := make([]map[string]any, 0, len(sourceRelationships)+len(metadataRelationships))
+	seen := make(map[string]struct{}, len(sourceRelationships)+len(metadataRelationships))
 	add := func(relationship githubActionsRelationship) {
 		key := relationship.relationshipType + "|" + relationship.targetName + "|" + relationship.reason
 		if _, ok := seen[key]; ok {
@@ -208,10 +223,10 @@ func buildOutgoingGitHubActionsRelationships(entity EntityContent) ([]map[string
 		})
 	}
 
-	for _, relationship := range metadataRelationships {
+	for _, relationship := range sourceRelationships {
 		add(relationship)
 	}
-	for _, relationship := range sourceRelationships {
+	for _, relationship := range metadataRelationships {
 		add(relationship)
 	}
 

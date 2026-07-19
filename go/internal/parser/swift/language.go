@@ -18,6 +18,13 @@ type swiftSemanticFacts struct {
 	typeConformances   map[string]map[string]struct{}
 	vaporRouteHandlers map[string]struct{}
 	vaporRouteEntries  []map[string]string
+	// hasVaporImport reports whether the file carries `import Vapor`. It gates
+	// the swift.vapor_route_handler dead-code root (see
+	// swiftFunctionDeadCodeRootKinds) the same way it already gates
+	// vaporRouteEntries: a `use:` labeled call argument is real Vapor route
+	// evidence only when the file actually imports Vapor, not merely because
+	// some call anywhere in the file happens to use a `use:` argument label.
+	hasVaporImport bool
 }
 
 // Parse extracts Swift imports, types, functions, variables, and calls.

@@ -77,6 +77,35 @@ func (s *rubySyntax) superclassName(node *tree_sitter.Node) string {
 	return ""
 }
 
+// superclassQualifiedName returns the full, possibly module-qualified base
+// constant name from a (superclass) node (e.g. "ActionController::Base"),
+// unlike superclassName which collapses the same node down to its last path
+// segment ("Base") for the class-relationship "bases" fact. The full
+// qualification is required by the Rails controller superclass-chain walk in
+// dead_code_roots.go, which must not conflate an accepted qualified base
+// (ActionController::Base) with an unrelated class that merely shares the
+// same last segment (e.g. Sinatra::Base).
+func (s *rubySyntax) superclassQualifiedName(node *tree_sitter.Node) string {
+	cursor := node.Walk()
+	defer cursor.Close()
+	if !cursor.GotoFirstChild() {
+		return ""
+	}
+	for {
+		child := cursor.Node()
+		if child.IsNamed() {
+			switch child.Kind() {
+			case "constant", "scope_resolution":
+				return strings.TrimPrefix(s.text(child), "::")
+			}
+		}
+		if !cursor.GotoNextSibling() {
+			break
+		}
+	}
+	return ""
+}
+
 // methodArguments returns normalized parameter names from a (method_parameters)
 // node, matching legacy argument normalization.
 func (s *rubySyntax) methodArguments(node *tree_sitter.Node) []string {
