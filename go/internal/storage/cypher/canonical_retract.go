@@ -156,14 +156,8 @@ func BuildRetractCodeCallEdgeStatementsByFilePath(filePaths []string, evidenceSo
 // (the SQL sibling of #5116); the old single-statement unlabeled-scan builder
 // silently under-deleted on NornicDB v1.1.11 and was removed.
 
-// BuildDeleteOrphanPlatformNodes builds an orphan Platform node cleanup
-// statement.
-func BuildDeleteOrphanPlatformNodes(evidenceSource string) Statement {
-	return Statement{
-		Operation: OperationCanonicalRetract,
-		Cypher:    deleteOrphanPlatformNodesCypher,
-		Parameters: map[string]any{
-			"evidence_source": evidenceSource,
-		},
-	}
-}
+// Platform orphan node cleanup no longer has a dedicated single-statement
+// builder here (BuildDeleteOrphanPlatformNodes, removed by #5310): it relied
+// on a `NOT (p)--()` predicate that never matches on the pinned NornicDB
+// backends and had no production caller. See the comment on the removed
+// deleteOrphanPlatformNodesCypher constant in canonical.go.

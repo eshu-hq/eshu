@@ -36,11 +36,18 @@
    Predicate Is Mis-Evaluated") for the corrected finding and
    `evidence-5147-orphan-sweep-antijoin.md` for the anti-join replacement that
    never relies on a relationship-existence predicate. The `ShellCommand`
-   orphan cleanup in `edge_writer_shell_exec.go` still carries this predicate
-   and is not fixed by #5147 (out of scope: that cleanup targets a different
-   label/identity shape); it is tracked separately and must not be treated as
-   a working reference shape for new code. The wider orphan-sweep subsystem
-   carried the same negated-pattern shape and was tracked and fixed in #5147.
+   orphan cleanup in `edge_writer_shell_exec.go` carried this same
+   `COUNT { (target)--() } = 0` predicate class -- it was over-deleting every
+   in-scope `ShellCommand`, connected or not, on the pinned NornicDB backends.
+   **#5310 replaced it** with the same S1/S2 Go-side anti-join shape as
+   `orphan_sweep.go`: `cleanupOrphanShellCommands` reads candidate uids, reads
+   which of those uids currently have any relationship via a concrete
+   relationship variable, computes the anti-join in Go, and deletes only the
+   resulting non-connected uids by explicit key. Its live discriminating test
+   (`TestLiveShellCommandAntiJoinPreservesConnectedNode`, gated on
+   `ESHU_CYPHER_BOLT_DSN`) is the first proof for this cleanup that actually
+   asserts a connected `ShellCommand` under a different evidence source
+   survives while a true orphan is deleted, on both pinned NornicDB backends.
 
 ## Fixes
 
@@ -49,8 +56,9 @@
   cleanup, each statement in its own auto-commit transaction).
 - All `CodeInterprocEvidenceWriter` retracts route through the sequential
   `dispatchRetract`; the MERGE-shaped write keeps its grouped dispatch.
-- Both orphan ShellCommand cleanup statements use the COUNT-subquery orphan
-  check.
+- Both orphan ShellCommand cleanup paths (repo-scoped and file-scoped) used
+  the COUNT-subquery orphan check at the time this note was written; #5310
+  replaced both with the S1/S2 Go-side anti-join described above.
 
 ## Benchmark Evidence:
 
