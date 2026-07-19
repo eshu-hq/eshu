@@ -395,29 +395,62 @@ func TestIconHintForKind(t *testing.T) {
 }
 
 // TestListLoginProvidersPopulatesIconHint proves ListLoginProviders sets
-// IconHint on every returned item (DB-sourced, env-SAML, and env-OIDC paths)
+// IconHint on every returned item across all three surfacing paths — the
+// DB-sourced row (auth_providers.go:150), the env-SAML entry
+// (auth_providers.go:172), and the env-OIDC entry (auth_providers.go:199) —
 // so the console login picker never has to fall back to deriving its own
-// icon from provider_kind.
+// icon from provider_kind. Each path is exercised with a distinct id so a
+// gap in any one path fails a specific assertion below rather than being
+// masked by another path's item.
 func TestListLoginProvidersPopulatesIconHint(t *testing.T) {
 	t.Parallel()
 
 	fakeDB := &authProvidersFakeDB{
+		// DB-sourced OIDC row (surfaced via the DB path, not env-registered).
 		dbRows: []pgstatus.LoginProviderItem{
 			{ProviderConfigID: "db-oidc", ProviderKind: "external_oidc"},
 		},
-		activeForTenant: map[string]bool{},
+		// Both env-registered ids report active for the tenant so the env
+		// paths surface them (env entries are gated by their own per-tenant
+		// active check, unlike the DB row).
+		activeForTenant: map[string]bool{
+			"env-saml": true,
+			"env-oidc": true,
+		},
 	}
 	store := &authProviderListStore{
 		identity: pgstatus.NewIdentitySubjectStore(fakeDB),
+		// samlRuntimeEnabled must be true for a SAML entry to surface at all
+		// (its route is otherwise never mounted — see the field's doc comment).
+		samlRuntimeEnabled: true,
+		samlProviderIDs:    []string{"env-saml"},
+		oidcProviders: []query.OIDCRegisteredProvider{
+			{ProviderConfigID: "env-oidc", TenantID: "tenant_a"},
+		},
 	}
 	items, err := store.ListLoginProviders(context.Background(), "tenant_a")
 	if err != nil {
 		t.Fatalf("ListLoginProviders() error = %v", err)
 	}
-	if len(items) != 1 {
-		t.Fatalf("items = %#v, want 1", items)
+
+	iconByID := make(map[string]string, len(items))
+	for _, item := range items {
+		iconByID[item.ProviderConfigID] = item.IconHint
 	}
-	if items[0].IconHint != "oidc" {
-		t.Errorf("items[0].IconHint = %q, want %q", items[0].IconHint, "oidc")
+
+	// DB-sourced OIDC path (auth_providers.go:150).
+	if got := iconByID["db-oidc"]; got != "oidc" {
+		t.Errorf("db-oidc (DB path) IconHint = %q, want %q", got, "oidc")
+	}
+	// env-SAML path (auth_providers.go:172).
+	if got := iconByID["env-saml"]; got != "saml" {
+		t.Errorf("env-saml (env-SAML path) IconHint = %q, want %q", got, "saml")
+	}
+	// env-OIDC path (auth_providers.go:199).
+	if got := iconByID["env-oidc"]; got != "oidc" {
+		t.Errorf("env-oidc (env-OIDC path) IconHint = %q, want %q", got, "oidc")
+	}
+	if len(items) != 3 {
+		t.Fatalf("items = %#v, want exactly 3 (one per surfacing path)", items)
 	}
 }
