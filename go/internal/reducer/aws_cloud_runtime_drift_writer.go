@@ -40,6 +40,7 @@ func (w PostgresAWSCloudRuntimeDriftWriter) WriteAWSCloudRuntimeDriftFindings(
 
 	now := reducerWriterNow(w.Now)
 	canonicalIDs := make([]string, 0, len(write.Candidates))
+	rows := make([]reducerFactVersionedRow, 0, len(write.Candidates))
 	for _, candidate := range write.Candidates {
 		canonicalID := canonicalAWSCloudRuntimeDriftID(write, candidate)
 		payload, err := factschema.EncodeReducerAWSCloudRuntimeDriftFinding(
@@ -53,29 +54,27 @@ func (w PostgresAWSCloudRuntimeDriftWriter) WriteAWSCloudRuntimeDriftFindings(
 			return AWSCloudRuntimeDriftWriteResult{}, fmt.Errorf("marshal aws cloud runtime drift payload: %w", err)
 		}
 
-		if _, err := w.DB.ExecContext(
-			ctx,
-			canonicalVersionedReducerFactInsertQuery,
-			awsCloudRuntimeDriftFactID(write, candidate),
-			write.ScopeID,
-			write.GenerationID,
-			awsCloudRuntimeDriftFactKind,
-			awsCloudRuntimeDriftStableFactKey(write, candidate),
-			facts.ReducerDerivedSchemaVersionV1,
-			reducerFactCollectorKind(write.SourceSystem),
-			facts.SourceConfidenceInferred,
-			write.SourceSystem,
-			write.IntentID,
-			nil,
-			nil,
-			now,
-			now,
-			false,
-			payloadJSON,
-		); err != nil {
-			return AWSCloudRuntimeDriftWriteResult{}, fmt.Errorf("write aws cloud runtime drift fact: %w", err)
-		}
+		rows = append(rows, reducerFactVersionedRow{
+			FactID:           awsCloudRuntimeDriftFactID(write, candidate),
+			ScopeID:          write.ScopeID,
+			GenerationID:     write.GenerationID,
+			FactKind:         awsCloudRuntimeDriftFactKind,
+			StableFactKey:    awsCloudRuntimeDriftStableFactKey(write, candidate),
+			SchemaVersion:    facts.ReducerDerivedSchemaVersionV1,
+			CollectorKind:    reducerFactCollectorKind(write.SourceSystem),
+			SourceConfidence: facts.SourceConfidenceInferred,
+			SourceSystem:     write.SourceSystem,
+			SourceFactKey:    write.IntentID,
+			ObservedAt:       now,
+			IngestedAt:       now,
+			Payload:          string(payloadJSON),
+		})
 		canonicalIDs = append(canonicalIDs, canonicalID)
+	}
+	// Bounded chunked bulk insert: candidates are upserted in O(N/batchSize)
+	// round-trips rather than one ExecContext per candidate.
+	if err := reducerBatchInsertVersionedFacts(ctx, w.DB, rows); err != nil {
+		return AWSCloudRuntimeDriftWriteResult{}, fmt.Errorf("write aws cloud runtime drift fact: %w", err)
 	}
 
 	return AWSCloudRuntimeDriftWriteResult{

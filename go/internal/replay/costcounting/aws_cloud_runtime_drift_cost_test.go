@@ -183,14 +183,15 @@ func collectHistogramCount(rm metricdata.ResourceMetrics, name string) uint64 {
 // committed budget.
 //
 // Instrument read: eshu_dp_postgres_query_duration_seconds (a histogram, not a
-// counter — see collectHistogramCount). Unlike every Cypher writer in this
-// package, PostgresAWSCloudRuntimeDriftWriter has NO batching: it persists
-// one durable fact row per admitted candidate via one ExecContext call each
-// (aws_cloud_runtime_drift_writer.go WriteAWSCloudRuntimeDriftFindings' loop),
-// so the observation count always equals the candidate count regardless of
-// how many top-level Write calls wrap them — there is no UNWIND-style
-// batching to regress out of. Two admitted candidates give exactly 2
-// observations.
+// counter — see collectHistogramCount).
+// WriteAWSCloudRuntimeDriftFindings now calls the shared
+// reducerBatchInsertVersionedFacts bounded chunked bulk insert
+// (go/internal/reducer/reducer_fact_batch_insert.go, issue #5317) instead of
+// one ExecContext per candidate, so two admitted candidates fit one chunk and
+// give exactly 1 observation. The companion N+1 negative control below still
+// exercises the real regression shape for this domain: a duplicate
+// invocation (retry without idempotency, or a dedup bug) now costs 2 batched
+// round-trips instead of 1, which still exceeds this tightened budget.
 func TestCostBudget_AWSCloudRuntimeDrift(t *testing.T) {
 	t.Parallel()
 
@@ -254,23 +255,20 @@ func TestCostBudget_AWSCloudRuntimeDrift(t *testing.T) {
 	)
 }
 
-// TestCostBudget_AWSCloudRuntimeDrift_N1_ExceedsBudget is the mandatory
-// negative control, shaped for this domain's actual regression risk.
-// PostgresAWSCloudRuntimeDriftWriter has no batching to break (see the
-// positive test's doc comment), so the "call once per row instead of once for
-// the whole batch" shape every other scenario in this package uses would be a
-// no-op here: N calls with 1 candidate each produce the identical
-// eshu_dp_postgres_query_duration_seconds observation count as 1 call with N
-// candidates. The real cost regression this per-row Postgres writer is
-// exposed to is DUPLICATE invocation — a retry without an idempotency check,
-// or an evidence-loader/candidate-dedup bug that admits the same candidate
-// set twice — doubling Postgres write cost for identical logical work. This
-// control simulates exactly that: it calls
+// TestCostBudget_AWSCloudRuntimeDrift_N1_ExceedsBudget is a negative control
+// for the DUPLICATE-INVOCATION regression shape: a retry without an
+// idempotency check, or an evidence-loader/candidate-dedup bug that admits
+// the same candidate set twice, doubling Postgres write cost for identical
+// logical work. This control simulates exactly that: it calls
 // WriteAWSCloudRuntimeDriftFindings TWICE with the SAME candidate set and
-// asserts the accumulated observation count EXCEEDS the committed budget. It
-// is a REAL negative control: it drives the SAME production writer, through
-// the SAME InstrumentedDB wrapper, reading the SAME instrument off the SAME
-// real otel reader as the positive test.
+// asserts the accumulated observation count EXCEEDS the committed budget.
+// Even though WriteAWSCloudRuntimeDriftFindings now batches all candidates of
+// a single Write call into one ExecContext round-trip (issue #5317), two
+// separate Write calls still cost two round-trips, so this remains a valid
+// negative control against the tightened budget=1. The companion
+// TestCostBudget_AWSCloudRuntimeDrift_WithinCallN1_ExceedsBudget below covers
+// the standard WITHIN-CALL N+1 shape (call once per candidate instead of once
+// for the whole batch) that the batching migration introduced.
 func TestCostBudget_AWSCloudRuntimeDrift_N1_ExceedsBudget(t *testing.T) {
 	t.Parallel()
 
@@ -319,5 +317,64 @@ func TestCostBudget_AWSCloudRuntimeDrift_N1_ExceedsBudget(t *testing.T) {
 		"N+1 negative control passed: eshu_dp_postgres_query_duration_seconds observations = %d > budget %d "+
 			"(N=%d duplicate invocations of a %d-candidate set, scenario=%s)",
 		observations, maxObservations, 2, len(candidates), budget.Scenario,
+	)
+}
+
+// TestCostBudget_AWSCloudRuntimeDrift_WithinCallN1_ExceedsBudget is the
+// standard WITHIN-CALL N+1 negative control this batching migration (issue
+// #5317) introduced: it drives the SAME production batched dispatch as the
+// positive test, calling WriteAWSCloudRuntimeDriftFindings once per fixture
+// candidate instead of once for the whole batch — the classic N+1
+// anti-pattern for a batched writer — and asserts the accumulated
+// eshu_dp_postgres_query_duration_seconds observation count EXCEEDS the
+// committed budget.
+func TestCostBudget_AWSCloudRuntimeDrift_WithinCallN1_ExceedsBudget(t *testing.T) {
+	t.Parallel()
+
+	budget := loadBudgetFrom(t, awsCloudRuntimeDriftBudgetRelPath)
+	candidates := awsCloudRuntimeDriftFixtureCandidates()
+	if len(candidates) < 2 {
+		t.Fatalf("N+1 control needs >=2 candidates to exceed the budget; fixture has %d", len(candidates))
+	}
+
+	writer, _, reader := newInstrumentedAWSCloudRuntimeDriftWriter(t)
+
+	for _, candidate := range candidates {
+		if _, err := writer.WriteAWSCloudRuntimeDriftFindings(context.Background(), reducer.AWSCloudRuntimeDriftWrite{
+			IntentID:     "intent-aws-drift-cost",
+			ScopeID:      "aws:123456789012:us-east-1",
+			GenerationID: "generation-aws-cost",
+			SourceSystem: "aws",
+			Cause:        "reducer/aws_cloud_runtime_drift",
+			Candidates:   []model.Candidate{candidate},
+		}); err != nil {
+			t.Fatalf("within-call N+1 WriteAWSCloudRuntimeDriftFindings() error = %v", err)
+		}
+	}
+
+	var rm metricdata.ResourceMetrics
+	if err := reader.Collect(context.Background(), &rm); err != nil {
+		t.Fatalf("Collect() error = %v", err)
+	}
+
+	observations := collectHistogramCount(rm, "eshu_dp_postgres_query_duration_seconds")
+	maxObservations, ok := budget.Budgets["eshu_dp_postgres_query_duration_seconds"]
+	if !ok {
+		t.Fatal("budget has no eshu_dp_postgres_query_duration_seconds entry")
+	}
+
+	if int64(observations) <= maxObservations {
+		t.Fatalf(
+			"within-call N+1 negative control: eshu_dp_postgres_query_duration_seconds observations = %d did "+
+				"NOT exceed budget %d — budget is too loose to catch N+1 regressions or the negative control is "+
+				"generating too few writes; tighten the budget or increase the N+1 fanout",
+			observations, maxObservations,
+		)
+	}
+
+	t.Logf(
+		"within-call N+1 negative control passed: eshu_dp_postgres_query_duration_seconds observations = %d > "+
+			"budget %d (N=%d candidates, scenario=%s)",
+		observations, maxObservations, len(candidates), budget.Scenario,
 	)
 }
