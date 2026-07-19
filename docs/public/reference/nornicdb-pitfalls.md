@@ -397,8 +397,9 @@ added to the fixture:
 - `OPTIONAL MATCH (p)-[:HAS_VERSION]->(v) WITH p, collect(v) AS versions
   RETURN size(versions)`: the same "extra clause between the anchoring
   `MATCH`/`OPTIONAL MATCH` and the final `RETURN`" shape covered by the
-  "Multi-Clause Read Queries Silently Corrupt The Projection" pitfall above;
-  also always returns `0`.
+  "Multi-Clause Read Queries Silently Corrupt The Projection" pitfall in
+  [NornicDB Query-Shape Pitfalls](nornicdb-query-pitfalls.md); also always
+  returns `0`.
 
 The fix that measured correctly in every case (0-version, mixed 3-package,
 and a 200-package/100-with-version corpus) is a separate, single-clause,

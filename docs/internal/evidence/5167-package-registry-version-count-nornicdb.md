@@ -66,7 +66,9 @@ A `WITH p, collect(v) AS versions ... RETURN size(versions)` candidate (an
 extra clause between the anchoring `MATCH`/`OPTIONAL MATCH` and the final
 `RETURN`) was also tried and also returns `0` for every package regardless of
 real edge count — consistent with the existing "Multi-Clause Read Queries
-Silently Corrupt The Projection" pitfall. Rejected for the same reason.
+Silently Corrupt The Projection" pitfall in
+`docs/public/reference/nornicdb-query-pitfalls.md`. Rejected for the same
+reason.
 
 The only shape that returned correct counts in every case tried (0-version,
 2-version, and a 200-package/100-with-version mixed corpus) is the

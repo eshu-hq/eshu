@@ -6,6 +6,7 @@ package query
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -25,11 +26,17 @@ import (
 type recordingPackageRegistryGraphReader struct {
 	runRows      []map[string]any
 	runRowsQueue [][]map[string]any
-	lastCypher   string
-	lastParams   map[string]any
-	cypherCalls  []string
-	paramsCalls  []map[string]any
-	sawDeadline  bool
+	// errByCall maps a 1-based Run call index to an error to return on that
+	// call. A nil map (the default) never injects an error, so it leaves every
+	// existing test unchanged; it exists to exercise the second (version-count)
+	// round trip's failure path that listPackages added.
+	errByCall   map[int]error
+	callCount   int
+	lastCypher  string
+	lastParams  map[string]any
+	cypherCalls []string
+	paramsCalls []map[string]any
+	sawDeadline bool
 }
 
 func (r *recordingPackageRegistryGraphReader) Run(
@@ -37,11 +44,15 @@ func (r *recordingPackageRegistryGraphReader) Run(
 	cypher string,
 	params map[string]any,
 ) ([]map[string]any, error) {
+	r.callCount++
 	r.lastCypher = cypher
 	r.lastParams = params
 	r.cypherCalls = append(r.cypherCalls, cypher)
 	r.paramsCalls = append(r.paramsCalls, params)
 	_, r.sawDeadline = ctx.Deadline()
+	if err := r.errByCall[r.callCount]; err != nil {
+		return nil, err
+	}
 	if len(r.runRowsQueue) > 0 {
 		next := r.runRowsQueue[0]
 		r.runRowsQueue = r.runRowsQueue[1:]
@@ -233,6 +244,45 @@ func TestPackageRegistryListPackagesUsesIndexedPackageScopeAndTruncates(t *testi
 	}
 	if !resp.Truncated {
 		t.Fatal("truncated = false, want true")
+	}
+}
+
+// TestPackageRegistryListPackagesReturns500WhenVersionCountReadFails covers the
+// failure path of the second (version-count) round trip that this handler
+// added. A backend error resolving HAS_VERSION counts must surface as a 500,
+// not be swallowed into a page with silently-wrong (zero) counts.
+func TestPackageRegistryListPackagesReturns500WhenVersionCountReadFails(t *testing.T) {
+	t.Parallel()
+
+	reader := &recordingPackageRegistryGraphReader{
+		runRowsQueue: [][]map[string]any{
+			{
+				{
+					"package_id":      "package:npm:@eshu/core-api",
+					"ecosystem":       "npm",
+					"normalized_name": "core-api",
+				},
+			},
+		},
+		// Anchor read (call 1) succeeds; the version-count read (call 2) fails.
+		errByCall: map[int]error{2: errors.New("nornicdb: version-count read failed")},
+	}
+	handler := &PackageRegistryHandler{Neo4j: reader}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/package-registry/packages?ecosystem=npm&limit=10", nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusInternalServerError; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+	if got, want := len(reader.cypherCalls), 2; got != want {
+		t.Fatalf("len(cypherCalls) = %d, want %d (anchor read + failed version-count read)", got, want)
+	}
+	if !strings.Contains(w.Body.String(), "version-count read failed") {
+		t.Fatalf("body = %s, want it to surface the backend error", w.Body.String())
 	}
 }
 
