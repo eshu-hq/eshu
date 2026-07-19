@@ -107,7 +107,7 @@ export interface DeploymentTraceResult {
   readonly deploymentSources: readonly DeploymentTraceSource[];
   readonly imageRefs: readonly string[];
   readonly invalidTopologyEdgeCount?: number;
-  readonly k8sResourceLimits: BoundedCollectionLimits | null;
+  readonly k8sResourceLimits: KubernetesResourceLimits | null;
   readonly k8sResources: readonly DeploymentTraceEntity[];
   readonly instances: readonly DeploymentTraceInstance[];
   readonly provisionedPlatforms: readonly DeploymentTracePlatform[];
@@ -128,6 +128,14 @@ export interface BoundedCollectionLimits {
   readonly querySentinelLimit: number;
   readonly returnedCount: number;
   readonly truncated: boolean;
+}
+
+export interface KubernetesResourceLimits extends BoundedCollectionLimits {
+  readonly contentObservedCount: number;
+  readonly contentObservedCountIsLowerBound: boolean;
+  readonly deploymentSourceObservedCount: number;
+  readonly deploymentSourceObservedCountIsLowerBound: boolean;
+  readonly deploymentSourceQuerySentinelLimit: number;
 }
 
 export interface RuntimeTopologyLimits {

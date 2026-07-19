@@ -386,7 +386,7 @@ function deploymentTrace(overrides: Record<string, unknown>): Record<string, unk
     },
     deployment_sources: [],
     instances: [],
-    k8s_resource_limits: completeCollectionLimits(0),
+    k8s_resource_limits: completeKubernetesLimits(0),
     k8s_resources: [],
     provisioned_platforms: [],
     repo_id: "repository:r_catalog",
@@ -435,6 +435,17 @@ function completeCollectionLimits(returnedCount: number): Record<string, unknown
     query_sentinel_limit: 51,
     returned_count: returnedCount,
     truncated: false,
+  };
+}
+
+function completeKubernetesLimits(returnedCount: number): Record<string, unknown> {
+  return {
+    ...completeCollectionLimits(returnedCount),
+    content_observed_count: returnedCount,
+    content_observed_count_is_lower_bound: false,
+    deployment_source_observed_count: 0,
+    deployment_source_observed_count_is_lower_bound: false,
+    deployment_source_query_sentinel_limit: 201,
   };
 }
 

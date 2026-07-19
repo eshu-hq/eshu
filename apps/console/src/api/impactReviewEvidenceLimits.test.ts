@@ -28,9 +28,12 @@ describe("impact deployment evidence coverage", () => {
         deploymentTracePayload({
           cloud_resource_limits: completeCollectionLimits(0),
           deployment_source_limits: completeDeploymentSourceLimits(1),
-          k8s_resource_limits: completeCollectionLimits(0),
+          k8s_resource_limits: completeKubernetesLimits(0),
           runtime_topology_limits: completeRuntimeTopologyLimits(),
-          [limitsField]: truncatedCollectionLimits(1),
+          [limitsField]:
+            limitsField === "k8s_resource_limits"
+              ? truncatedKubernetesLimits(1)
+              : truncatedCollectionLimits(1),
           [resourcesField]: [resource],
           topology_edges: [
             {
@@ -68,9 +71,12 @@ describe("impact deployment evidence coverage", () => {
         deploymentTracePayload({
           cloud_resource_limits: completeCollectionLimits(0),
           deployment_source_limits: completeDeploymentSourceLimits(1),
-          k8s_resource_limits: completeCollectionLimits(0),
+          k8s_resource_limits: completeKubernetesLimits(0),
           runtime_topology_limits: completeRuntimeTopologyLimits(),
-          [limitsField]: completeCollectionLimits(1),
+          [limitsField]:
+            limitsField === "k8s_resource_limits"
+              ? completeKubernetesLimits(1)
+              : completeCollectionLimits(1),
           topology_edges: [
             {
               relationship_type: "DEFINES",
@@ -112,6 +118,17 @@ function completeDeploymentSourceLimits(returnedCount: number): Record<string, u
   };
 }
 
+function completeKubernetesLimits(returnedCount: number): Record<string, unknown> {
+  return {
+    ...completeCollectionLimits(returnedCount),
+    content_observed_count: returnedCount,
+    content_observed_count_is_lower_bound: false,
+    deployment_source_observed_count: 0,
+    deployment_source_observed_count_is_lower_bound: false,
+    deployment_source_query_sentinel_limit: 201,
+  };
+}
+
 function completeRuntimeTopologyLimits(): Record<string, unknown> {
   return {
     instances: completeCollectionLimits(0),
@@ -123,6 +140,17 @@ function completeRuntimeTopologyLimits(): Record<string, unknown> {
 function truncatedCollectionLimits(returnedCount: number): Record<string, unknown> {
   return {
     ...completeCollectionLimits(returnedCount),
+    observed_count: returnedCount + 1,
+    observed_count_is_lower_bound: true,
+    truncated: true,
+  };
+}
+
+function truncatedKubernetesLimits(returnedCount: number): Record<string, unknown> {
+  return {
+    ...completeKubernetesLimits(returnedCount),
+    content_observed_count: returnedCount + 1,
+    content_observed_count_is_lower_bound: true,
     observed_count: returnedCount + 1,
     observed_count_is_lower_bound: true,
     truncated: true,

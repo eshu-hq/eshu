@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 
 import { DeploymentTraceSummary } from "./ImpactDeploymentSummary";
@@ -92,3 +92,71 @@ describe("DeploymentTraceSummary topology truth", () => {
     ).toBeInTheDocument();
   });
 });
+
+describe("DeploymentTraceSummary deployment-source relationships", () => {
+  it("keeps same-repository deployment-source families distinguishable with human endpoints", () => {
+    const trace = baseTrace({
+      deploymentSources: [
+        {
+          id: "repository:r_config",
+          name: "deployment-config",
+          relationshipType: "DEPLOYMENT_SOURCE",
+          sourceId: "instance:catalog:prod",
+          targetId: "repository:r_config",
+        },
+        {
+          id: "repository:r_config",
+          name: "deployment-config",
+          relationshipType: "DEPLOYS_FROM",
+          sourceId: "repository:r_config",
+          targetId: "repository:r_catalog",
+        },
+      ],
+    });
+
+    render(
+      <MemoryRouter>
+        <DeploymentTraceSummary
+          canInspectEntity={() => true}
+          onInspectEntity={() => undefined}
+          trace={trace}
+        />
+      </MemoryRouter>,
+    );
+
+    const rows = screen.getAllByRole("listitem");
+    expect(rows).toHaveLength(2);
+    expect(within(rows[0]).getByText("DEPLOYMENT_SOURCE")).toBeInTheDocument();
+    expect(
+      within(rows[0]).getByText("deployment source: instance:catalog:prod → deployment-config"),
+    ).toBeInTheDocument();
+    expect(within(rows[1]).getByText("DEPLOYS_FROM")).toBeInTheDocument();
+    expect(
+      within(rows[1]).getByText("deploys from: deployment-config → catalog-api"),
+    ).toBeInTheDocument();
+  });
+});
+
+function baseTrace(overrides: Partial<DeploymentTraceResult>): DeploymentTraceResult {
+  return {
+    cloudResourceLimits: null,
+    cloudResources: [],
+    deploymentFacts: [],
+    deploymentOverview: {},
+    deploymentSourceLimits: null,
+    deploymentSources: [],
+    imageRefs: [],
+    instances: [],
+    k8sResourceLimits: null,
+    k8sResources: [],
+    provisionedPlatforms: [],
+    repoId: "repository:r_catalog",
+    repoName: "catalog-api",
+    runtimeTopologyLimits: null,
+    serviceName: "catalog-api",
+    story: "Exact deployment topology.",
+    topologyEdges: [],
+    workloadId: "workload:catalog-api",
+    ...overrides,
+  };
+}

@@ -118,12 +118,7 @@ export function DeploymentTraceSummary({
         )}
       </section>
 
-      <TraceEntityGroup
-        empty="No canonical deployment-source repositories returned."
-        label="Deployment sources"
-        rows={trace.deploymentSources}
-        repositoryLinks
-      />
+      <DeploymentSourceGroup trace={trace} />
 
       <section className="impact-trace-group">
         <div className="section-label">Deployment facts</div>
@@ -309,6 +304,80 @@ function deploymentSourceLimitation(limits: DeploymentSourceLimits): string {
     ? `at least ${limits.observedCount}`
     : String(limits.observedCount);
   return `Deployment sources truncated: showing ${limits.returnedCount} of ${observed} observed relationships (${limits.limit}-result limit).`;
+}
+
+function DeploymentSourceGroup({
+  trace,
+}: {
+  readonly trace: DeploymentTraceResult;
+}): React.JSX.Element {
+  return (
+    <section className="impact-trace-group">
+      <div className="section-label">Deployment sources</div>
+      {trace.deploymentSources.length === 0 ? (
+        <p className="empty">No canonical deployment-source repositories returned.</p>
+      ) : (
+        <div className="impact-entity-list" role="list">
+          {trace.deploymentSources.map((source, index) => {
+            const relationship = deploymentSourceRelationship(source, trace);
+            return (
+              <article
+                key={`${source.id ?? source.name}:${relationship.family}:${index}`}
+                role="listitem"
+              >
+                {source.id ? (
+                  <Link to={`/repositories/${encodeURIComponent(source.id)}/source`}>
+                    <strong>{source.name}</strong>
+                  </Link>
+                ) : (
+                  <strong>{source.name}</strong>
+                )}
+                <span>{relationship.family}</span>
+                <span>
+                  {relationship.verb}: {relationship.source} → {relationship.target}
+                </span>
+                {source.id ? <span className="mono">{source.id}</span> : null}
+                {source.detail ? <span>{source.detail}</span> : null}
+              </article>
+            );
+          })}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function deploymentSourceRelationship(
+  source: import("../api/impactReviewTypes").DeploymentTraceSource,
+  trace: DeploymentTraceResult,
+): {
+  readonly family: string;
+  readonly source: string;
+  readonly target: string;
+  readonly verb: string;
+} {
+  if (source.relationshipType === "DEPLOYS_FROM") {
+    return {
+      family: "DEPLOYS_FROM",
+      source: source.name,
+      target: trace.repoName || trace.repoId,
+      verb: "deploys from",
+    };
+  }
+  if (source.relationshipType === "DEPLOYMENT_SOURCE") {
+    return {
+      family: "DEPLOYMENT_SOURCE",
+      source: source.sourceId ?? "source identity unavailable",
+      target: source.name,
+      verb: "deployment source",
+    };
+  }
+  return {
+    family: "relationship family unavailable",
+    source: source.sourceId ?? "source identity unavailable",
+    target: source.targetId ?? source.name,
+    verb: "relationship unavailable",
+  };
 }
 
 function TraceEntityGroup({

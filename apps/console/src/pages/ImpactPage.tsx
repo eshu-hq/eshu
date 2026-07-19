@@ -1,18 +1,19 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useSearchParams } from "react-router-dom";
 
 import { DeployableUnitPacketPanel, packetFormFromSearch } from "./DeployableUnitPacketPanel";
 import { DeploymentTraceSummary, ImpactGraphProvenance } from "./ImpactDeploymentSummary";
+import { ImpactSelectedEdges } from "./ImpactSelectedEdges";
+import { useImpactReviewLifecycle } from "./useImpactReviewLifecycle";
 import type { ChangeSurfaceInvestigation } from "../api/changeSurface";
 import type { EshuApiClient } from "../api/client";
 import { demoDefaults } from "../api/demoClient";
 import type { EshuTruth } from "../api/envelope";
-import { loadImpactReview } from "../api/impactReview";
 import type { ImpactReview, ImpactSection, ImpactTargetKind } from "../api/impactReviewTypes";
 import { Badge, FreshDot, Panel, StatTile, TruthChip } from "../components/atoms";
 import { GraphCanvas } from "../components/GraphCanvas";
 import { defaultServiceName } from "../console/defaultEntity";
-import type { ConsoleModel, GraphNode } from "../console/types";
+import type { ConsoleModel } from "../console/types";
 import { fmt, uiFresh, uiTruth } from "../console/types";
 import "./impactPage.css";
 
@@ -50,56 +51,32 @@ export function ImpactPage({
   const [form, setForm] = useState<ImpactFormState>(() =>
     formFromSearch(searchParams, demoMode, liveDefaultTarget),
   );
-  const [review, setReview] = useState<ImpactReview | null>(null);
-  const [selectedNode, setSelectedNode] = useState<GraphNode | undefined>();
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
+  const [formError, setFormError] = useState("");
+  const { busy, error, load, review, selectNode, selectedNode } = useImpactReviewLifecycle(client);
   const canLoad = (model.source === "live" || demoMode) && client !== undefined;
   const deployablePacketInitial = useMemo(() => packetFormFromSearch(searchParams), [searchParams]);
-
-  const runReview = useCallback(
-    async (next: ImpactFormState) => {
-      const target = next.target.trim();
-      if (!client || target.length === 0) {
-        return;
-      }
-      setBusy(true);
-      setError("");
-      try {
-        const loaded = await loadImpactReview(client, {
-          environment: next.environment,
-          repoId: next.repoId,
-          target,
-          targetKind: next.kind,
-        });
-        setReview(loaded);
-        setSelectedNode(loaded.graph.nodes.find((node) => node.hero) ?? loaded.graph.nodes[0]);
-      } catch (runError) {
-        setReview(null);
-        setSelectedNode(undefined);
-        setError(runError instanceof Error ? runError.message : "failed to load impact review");
-      } finally {
-        setBusy(false);
-      }
-    },
-    [client],
-  );
 
   useEffect(() => {
     const next = formFromSearch(searchParams, demoMode, liveDefaultTarget);
     setForm(next);
     if (canLoad && next.target.trim().length > 0) {
-      void runReview(next);
+      load({
+        environment: next.environment,
+        repoId: next.repoId,
+        target: next.target.trim(),
+        targetKind: next.kind,
+      });
     }
-  }, [canLoad, demoMode, liveDefaultTarget, runReview, searchParams]);
+  }, [canLoad, demoMode, liveDefaultTarget, load, searchParams]);
 
   function submit(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
     const target = form.target.trim();
     if (target.length === 0) {
-      setError("Entity target is required.");
+      setFormError("Entity target is required.");
       return;
     }
+    setFormError("");
     const params = new URLSearchParams({
       kind: form.kind,
       target,
@@ -197,7 +174,7 @@ export function ImpactPage({
           {demoMode ? "Demo fixture client unavailable." : "Live Eshu API connection unavailable."}
         </p>
       ) : null}
-      {error ? <p className="src-err">{error}</p> : null}
+      {error || formError ? <p className="src-err">{error || formError}</p> : null}
 
       <div className="grid g-4 mt">
         {stats.map((stat) => (
@@ -232,7 +209,7 @@ export function ImpactPage({
               graph={graph}
               height={590}
               layout="layered"
-              onSelect={setSelectedNode}
+              onSelect={selectNode}
               selectedId={selectedNode?.id}
             />
           )}
@@ -251,17 +228,11 @@ export function ImpactPage({
               {selectedNode.sub ? <p className="mono t-mut">{selectedNode.sub}</p> : null}
               {selectedNode.truth ? <TruthChip level={selectedNode.truth} /> : null}
               <div className="section-label">Impact edges</div>
-              <div className="impact-edge-list">
-                {selectedEdges.map((edge, index) => (
-                  <div className="insp-evi-row" key={`${edge.s}:${edge.t}:${edge.verb}:${index}`}>
-                    {edge.verb} {edge.s === selectedNode.id ? "->" : "<-"}{" "}
-                    {edge.s === selectedNode.id ? edge.t : edge.s}
-                  </div>
-                ))}
-                {selectedEdges.length === 0 ? (
-                  <p className="empty">No edges selected yet.</p>
-                ) : null}
-              </div>
+              <ImpactSelectedEdges
+                edges={selectedEdges}
+                nodes={graph.nodes}
+                selectedID={selectedNode.id}
+              />
             </div>
           ) : (
             <p className="empty">No selected entity.</p>
@@ -298,7 +269,7 @@ export function ImpactPage({
               }
               onInspectEntity={(entityId) => {
                 const node = graph.nodes.find((candidate) => candidate.id === entityId);
-                if (node !== undefined) setSelectedNode(node);
+                if (node !== undefined) selectNode(node);
               }}
               trace={review.deploymentTrace.data}
             />

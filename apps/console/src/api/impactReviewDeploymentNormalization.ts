@@ -1,4 +1,5 @@
 import { normalizeBoundedCollectionLimits } from "./impactBoundedCollectionLimits";
+import { normalizeK8sResourceLimits } from "./impactK8sResourceLimits";
 import type {
   DeploymentSourceLimits,
   DeploymentTraceEntity,
@@ -76,7 +77,7 @@ export function normalizeDeploymentTrace(response: DeploymentTraceResponse): Dep
     deploymentSources,
     imageRefs: response.image_refs ?? [],
     invalidTopologyEdgeCount,
-    k8sResourceLimits: normalizeBoundedCollectionLimits(
+    k8sResourceLimits: normalizeK8sResourceLimits(
       response.k8s_resource_limits,
       k8sResources.length,
     ),

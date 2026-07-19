@@ -126,7 +126,7 @@ function clientWithDeploymentSourceLimits(
               target_id: "repository:r_catalog",
             })),
             instances: [],
-            k8s_resource_limits: completeRuntimeLimits(),
+            k8s_resource_limits: completeKubernetesLimits(0),
             repo_id: "repository:r_catalog",
             repo_name: "catalog-api",
             runtime_topology_limits: runtimeTopologyLimits,
@@ -168,6 +168,19 @@ function completeRuntimeLimits(): Record<string, unknown> {
     query_sentinel_limit: 51,
     returned_count: 0,
     truncated: false,
+  };
+}
+
+function completeKubernetesLimits(returnedCount: number): Record<string, unknown> {
+  return {
+    ...completeRuntimeLimits(),
+    content_observed_count: returnedCount,
+    content_observed_count_is_lower_bound: false,
+    deployment_source_observed_count: 0,
+    deployment_source_observed_count_is_lower_bound: false,
+    deployment_source_query_sentinel_limit: 201,
+    observed_count: returnedCount,
+    returned_count: returnedCount,
   };
 }
 
