@@ -43,6 +43,7 @@ type dartSyntaxIndex struct {
 	functions []dartFunctionSpan
 	variables []dartNamedSpan
 	imports   []dartNamedSpan
+	calls     []dartCallSite
 }
 
 func dartSourceAndSyntax(path string, parser *tree_sitter.Parser) ([]byte, dartSyntaxIndex, error) {
@@ -62,6 +63,7 @@ func dartSourceAndSyntax(path string, parser *tree_sitter.Parser) ([]byte, dartS
 	index := dartSyntaxIndex{}
 	lines := strings.Split(string(source), "\n")
 	index.collect(tree.RootNode(), source, lines, dartTypeSpan{})
+	index.calls = collectDartCallSites(tree.RootNode(), source)
 	return source, index, nil
 }
 
