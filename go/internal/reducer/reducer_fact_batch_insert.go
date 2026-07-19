@@ -98,10 +98,11 @@ ON CONFLICT (fact_id) DO UPDATE SET
 `
 
 // reducerFactBatchSize bounds how many fact rows are sent per unnest statement.
-// fact_records has 15 columns, so each row consumes 15 bind parameters; 1000
-// rows uses 15000 parameters, well under Postgres' 65535 parameter ceiling
-// while keeping each statement large enough to amortise round-trip cost. The
-// bound also caps per-statement memory and lock footprint for a single scope.
+// The unversioned insert binds 15 columns per row and the versioned insert 16
+// (it adds schema_version), so 1000 rows consumes at most 16000 bind parameters
+// — well under Postgres' 65535 parameter ceiling — while keeping each statement
+// large enough to amortise round-trip cost. The bound also caps per-statement
+// memory and lock footprint for a single scope.
 const reducerFactBatchSize = 1000
 
 // reducerFactRow is one canonical fact-record row for a batched insert. The
@@ -126,17 +127,50 @@ type reducerFactRow struct {
 	Payload          string
 }
 
+// dedupeReducerFactRowsByFactID collapses rows sharing a fact_id to a single
+// row carrying the LAST occurrence's value, reproducing the per-row loop's
+// last-write-wins upsert semantics. A single `unnest` INSERT ... ON CONFLICT
+// (fact_id) DO UPDATE statement rejects a batch that carries the same conflict
+// key twice (Postgres: "ON CONFLICT DO UPDATE command cannot affect row a second
+// time"), which would fail the writer and wedge the leased projection intent
+// into an infinite retry (the #2809/#2855 failure class). The per-row loop this
+// batching replaces issued one statement per row and upserted duplicates
+// silently, last write winning; deduping to the last occurrence reproduces that
+// exact final `fact_records` state without the poison-pill statement.
+func dedupeReducerFactRowsByFactID[T any](rows []T, factID func(T) string) []T {
+	if len(rows) < 2 {
+		return rows
+	}
+	lastIdx := make(map[string]int, len(rows))
+	for i, row := range rows {
+		lastIdx[factID(row)] = i
+	}
+	if len(lastIdx) == len(rows) {
+		return rows
+	}
+	out := make([]T, 0, len(lastIdx))
+	for i, row := range rows {
+		if lastIdx[factID(row)] == i {
+			out = append(out, row)
+		}
+	}
+	return out
+}
+
 // reducerBatchInsertFacts upserts rows in bounded chunks of reducerFactBatchSize
 // using reducerFactBatchInsertQuery. It issues ceil(len(rows)/batchSize)
 // ExecContext calls instead of one per row, so a scope with N rows costs
 // O(N/batchSize) round-trips rather than O(N). Each chunk is a single statement;
 // callers that need all chunks committed atomically must pass a transaction as
-// db. An empty rows slice issues no statements.
+// db. Rows sharing a fact_id are deduped to their last occurrence
+// (last-write-wins) to match the per-row loop and avoid the ON CONFLICT
+// double-affect error. An empty rows slice issues no statements.
 func reducerBatchInsertFacts(
 	ctx context.Context,
 	db workloadIdentityExecer,
 	rows []reducerFactRow,
 ) error {
+	rows = dedupeReducerFactRowsByFactID(rows, func(r reducerFactRow) string { return r.FactID })
 	for start := 0; start < len(rows); start += reducerFactBatchSize {
 		end := start + reducerFactBatchSize
 		if end > len(rows) {
@@ -351,6 +385,7 @@ func reducerBatchInsertVersionedFacts(
 	db workloadIdentityExecer,
 	rows []reducerFactVersionedRow,
 ) error {
+	rows = dedupeReducerFactRowsByFactID(rows, func(r reducerFactVersionedRow) string { return r.FactID })
 	for start := 0; start < len(rows); start += reducerFactBatchSize {
 		end := start + reducerFactBatchSize
 		if end > len(rows) {

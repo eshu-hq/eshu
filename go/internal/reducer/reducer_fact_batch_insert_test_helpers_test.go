@@ -21,6 +21,8 @@ type decodedBatchedFactRow struct {
 	SourceConfidence string
 	SourceSystem     string
 	SourceFactKey    string
+	SourceURI        *string
+	SourceRecordID   *string
 	ObservedAt       time.Time
 	IngestedAt       time.Time
 	IsTombstone      bool
@@ -59,6 +61,8 @@ func decodeBatchedFactCall(t *testing.T, call fakeWorkloadIdentityExecCall) []de
 	sourceConfidences := stringArg(t, call.args[6], "source_confidence")
 	sourceSystems := stringArg(t, call.args[7], "source_system")
 	sourceFactKeys := stringArg(t, call.args[8], "source_fact_key")
+	sourceURIs := stringPtrArg(t, call.args[9], "source_uri")
+	sourceRecordIDs := stringPtrArg(t, call.args[10], "source_record_id")
 	observedAts := timeArg(t, call.args[11], "observed_at")
 	ingestedAts := timeArg(t, call.args[12], "ingested_at")
 	isTombstones := boolArg(t, call.args[13], "is_tombstone")
@@ -77,6 +81,8 @@ func decodeBatchedFactCall(t *testing.T, call fakeWorkloadIdentityExecCall) []de
 			SourceConfidence: sourceConfidences[i],
 			SourceSystem:     sourceSystems[i],
 			SourceFactKey:    sourceFactKeys[i],
+			SourceURI:        sourceURIs[i],
+			SourceRecordID:   sourceRecordIDs[i],
 			ObservedAt:       observedAts[i],
 			IngestedAt:       ingestedAts[i],
 			IsTombstone:      isTombstones[i],
@@ -109,6 +115,8 @@ type decodedBatchedVersionedFactRow struct {
 	SourceConfidence string
 	SourceSystem     string
 	SourceFactKey    string
+	SourceURI        *string
+	SourceRecordID   *string
 	ObservedAt       time.Time
 	IngestedAt       time.Time
 	IsTombstone      bool
@@ -148,6 +156,8 @@ func decodeBatchedVersionedFactCall(t *testing.T, call fakeWorkloadIdentityExecC
 	sourceConfidences := stringArg(t, call.args[7], "source_confidence")
 	sourceSystems := stringArg(t, call.args[8], "source_system")
 	sourceFactKeys := stringArg(t, call.args[9], "source_fact_key")
+	sourceURIs := stringPtrArg(t, call.args[10], "source_uri")
+	sourceRecordIDs := stringPtrArg(t, call.args[11], "source_record_id")
 	observedAts := timeArg(t, call.args[12], "observed_at")
 	ingestedAts := timeArg(t, call.args[13], "ingested_at")
 	isTombstones := boolArg(t, call.args[14], "is_tombstone")
@@ -167,6 +177,8 @@ func decodeBatchedVersionedFactCall(t *testing.T, call fakeWorkloadIdentityExecC
 			SourceConfidence: sourceConfidences[i],
 			SourceSystem:     sourceSystems[i],
 			SourceFactKey:    sourceFactKeys[i],
+			SourceURI:        sourceURIs[i],
+			SourceRecordID:   sourceRecordIDs[i],
 			ObservedAt:       observedAts[i],
 			IngestedAt:       ingestedAts[i],
 			IsTombstone:      isTombstones[i],
@@ -181,6 +193,15 @@ func stringArg(t *testing.T, arg any, name string) []string {
 	values, ok := arg.([]string)
 	if !ok {
 		t.Fatalf("%s arg type = %T, want []string", name, arg)
+	}
+	return values
+}
+
+func stringPtrArg(t *testing.T, arg any, name string) []*string {
+	t.Helper()
+	values, ok := arg.([]*string)
+	if !ok {
+		t.Fatalf("%s arg type = %T, want []*string", name, arg)
 	}
 	return values
 }
