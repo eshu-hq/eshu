@@ -84,14 +84,12 @@ CREATE INDEX IF NOT EXISTS repository_refs_repo_default_idx
     ON repository_refs (repo_id, is_default, name);
 `
 
-// contentStoreSearchIndexSchemaSQL defines two pg_trgm GIN indexes that are load-bearing
-// for the all-repo / code-topic ILIKE '%term%' search read path (investigateCodeTopic
-// and the *AnyRepo content readers). The live-audit on an 838-repo drained stack confirmed
-// the planner selects both via Bitmap Index Scan. Forcing a sequential scan is ~4.9× slower
-// on content_entities, and the gap widens on larger corpora. Issue #4980 disproved replacing
-// these exact full-content reads with the curated/tokenized eshu_search_index_* surface.
-// Cold bootstrap may defer creation, but steady-state schema must keep both exact indexes.
-// See #4862 and evidence-4980-deferred-content-gin.md.
+// contentStoreSearchIndexSchemaSQL defines three load-bearing pg_trgm GIN
+// indexes. The file-content and entity-source indexes bound all-repository
+// source searches; the entity-name index bounds exact and substring global name
+// searches. Cold bootstrap defers all three until the write-heavy drain ends.
+// See #4862, #4980, #5318, evidence-4980-deferred-content-gin.md, and the #5318
+// evidence note for the measured index roles.
 const contentFilesSearchIndexSchemaSQL = `CREATE INDEX IF NOT EXISTS content_files_content_trgm_idx
     ON content_files USING gin (content gin_trgm_ops);
 `
@@ -100,7 +98,11 @@ const contentEntitiesSearchIndexSchemaSQL = `CREATE INDEX IF NOT EXISTS content_
     ON content_entities USING gin (source_cache gin_trgm_ops);
 `
 
-const contentStoreSearchIndexSchemaSQL = contentFilesSearchIndexSchemaSQL + contentEntitiesSearchIndexSchemaSQL
+const contentEntityNamesSearchIndexSchemaSQL = `CREATE INDEX IF NOT EXISTS content_entities_name_trgm_idx
+    ON content_entities USING gin (entity_name gin_trgm_ops);
+`
+
+const contentStoreSearchIndexSchemaSQL = contentFilesSearchIndexSchemaSQL + contentEntitiesSearchIndexSchemaSQL + contentEntityNamesSearchIndexSchemaSQL
 
 const contentStoreFilterIndexSchemaSQL = `CREATE INDEX IF NOT EXISTS content_files_artifact_type_idx
     ON content_files (artifact_type);

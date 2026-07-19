@@ -93,6 +93,7 @@ func (h *CodeHandler) handleSearch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	req.Query = strings.TrimSpace(req.Query)
 	if req.Query == "" {
 		WriteError(w, http.StatusBadRequest, "query is required")
 		return
@@ -103,6 +104,14 @@ func (h *CodeHandler) handleSearch(w http.ResponseWriter, r *http.Request) {
 	if req.Limit <= 0 {
 		req.Limit = 50
 	}
+	if req.Limit > entityNameSearchMaxLimit {
+		req.Limit = entityNameSearchMaxLimit
+	}
+	probeLimit := codeSearchProbeLimit(req.Limit)
+	if req.RepoID == "" && !req.Exact && len([]rune(req.Query)) < 3 {
+		WriteError(w, http.StatusBadRequest, "global substring code search requires at least 3 Unicode characters")
+		return
+	}
 
 	ctx := r.Context()
 	capability := "code_search.fuzzy_symbol"
@@ -112,8 +121,27 @@ func (h *CodeHandler) handleSearch(w http.ResponseWriter, r *http.Request) {
 		capability = "code_search.exact_symbol"
 	}
 
-	// Search graph entities by name pattern
-	graphResults, err := h.searchGraphEntitiesWithExact(ctx, req.RepoID, req.Query, req.Language, req.Limit, req.Exact)
+	if req.RepoID == "" {
+		results, err := h.searchGlobalEntityNames(r.Context(), req.Query, req.Language, probeLimit, req.Exact)
+		if err != nil {
+			if errors.Is(err, errEntityNameSearchUnavailable) {
+				WriteError(w, http.StatusServiceUnavailable, err.Error())
+				return
+			}
+			if writeContentSubstringIndexUnavailable(w, err) {
+				return
+			}
+			WriteError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		WriteSuccess(w, r, http.StatusOK, codeSearchPagePayload(
+			"content", "postgres_content_name_index", req.Query, "", results, req.Limit,
+		), BuildTruthEnvelope(h.profile(), capability, TruthBasisContentIndex, "resolved from the current content entity name index"))
+		return
+	}
+
+	// Repository-selected search retains the indexed graph query path.
+	graphResults, err := h.searchGraphEntitiesWithExact(ctx, req.RepoID, req.Query, req.Language, probeLimit, req.Exact)
 	if err != nil {
 		if writeContentSubstringIndexUnavailable(w, err) {
 			return
@@ -124,19 +152,14 @@ func (h *CodeHandler) handleSearch(w http.ResponseWriter, r *http.Request) {
 
 	// If graph search returns results, return them
 	if len(graphResults) > 0 {
-		WriteSuccess(w, r, http.StatusOK, map[string]any{
-			"source":         "graph",
-			"source_backend": "graph",
-			"query":          req.Query,
-			"repo_id":        req.RepoID,
-			"results":        graphResults,
-			"matches":        graphResults,
-		}, BuildTruthEnvelope(h.profile(), capability, TruthBasisAuthoritativeGraph, "resolved from graph-backed entity search"))
+		WriteSuccess(w, r, http.StatusOK, codeSearchPagePayload(
+			"graph", "graph", req.Query, req.RepoID, graphResults, req.Limit,
+		), BuildTruthEnvelope(h.profile(), capability, TruthBasisAuthoritativeGraph, "resolved from graph-backed entity search"))
 		return
 	}
 
 	// Fall back to content-based search if no graph results
-	contentResults, err := h.searchEntityContentWithExact(ctx, req.RepoID, req.Query, req.Language, req.Limit, req.Exact)
+	contentResults, err := h.searchEntityContentWithExact(ctx, req.RepoID, req.Query, req.Language, probeLimit, req.Exact)
 	if err != nil {
 		if writeContentSubstringIndexUnavailable(w, err) {
 			return
@@ -159,14 +182,9 @@ func (h *CodeHandler) handleSearch(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	WriteSuccess(w, r, http.StatusOK, map[string]any{
-		"source":         "content",
-		"source_backend": sourceBackend,
-		"query":          req.Query,
-		"repo_id":        req.RepoID,
-		"results":        contentResults,
-		"matches":        contentResults,
-	}, BuildTruthEnvelope(h.profile(), capability, TruthBasisContentIndex, truthDetail))
+	WriteSuccess(w, r, http.StatusOK, codeSearchPagePayload(
+		"content", sourceBackend, req.Query, req.RepoID, contentResults, req.Limit,
+	), BuildTruthEnvelope(h.profile(), capability, TruthBasisContentIndex, truthDetail))
 }
 
 // searchGraphEntities finds entities by name pattern in the Neo4j graph.
@@ -175,6 +193,9 @@ func (h *CodeHandler) searchGraphEntities(ctx context.Context, repoID, query, la
 }
 
 func (h *CodeHandler) searchGraphEntitiesWithExact(ctx context.Context, repoID, query, language string, limit int, exact bool) ([]map[string]any, error) {
+	if strings.TrimSpace(repoID) == "" {
+		return nil, errGlobalGraphEntitySearchUnsupported
+	}
 	if h == nil || h.Neo4j == nil {
 		return h.searchEntityContentWithExact(ctx, repoID, query, language, limit, exact)
 	}

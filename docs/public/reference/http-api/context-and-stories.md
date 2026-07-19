@@ -1,6 +1,6 @@
 # HTTP Context And Story Routes
 
-Use these routes when the caller has a fuzzy name or canonical entity and needs
+Use these routes when the caller has an exact name or canonical entity and needs
 context, catalog navigation, a narrative story, or an investigation packet. The
 route list is verified against `go/internal/query`.
 
@@ -31,8 +31,15 @@ envelope keep the legacy route payload shape.
 `repo_id`, and optional `limit`. `name` is required. The response includes
 `entities`, `count`, normalized `limit`, and `truncated`.
 
-Use this route before context or story routes when the caller starts with a
-fuzzy name, alias, or partial resource description.
+Name matching is exact and case-sensitive. When `repo_id` is omitted, `type`
+is required and must identify a content-backed entity family; unknown types
+fail closed. Global `repository`, `directory`, and `file` resolution requires
+`repo_id` because those graph-only families cannot be represented completely
+by the content snapshot. Canonical `content-entity:` IDs and `type=workload`
+retain their dedicated exact content and authoritative graph paths.
+
+Use this route before context or story routes when the caller has an exact
+entity name or canonical content handle and needs its stable identifier.
 
 ## Context
 

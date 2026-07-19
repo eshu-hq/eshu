@@ -19,6 +19,13 @@
 // collector source-to-read-surface contracts, so HTTP, MCP, and console callers
 // can trace collector fact kinds to projection/read consumers and proof gates
 // without hand-maintained provenance lists.
+// Global code-name search and typed entity resolution use the narrow
+// EntityNameSearcher content-index seam; they never fall back to an unanchored
+// graph scan. The seam requires an explicit all-repository or repository-set
+// scope so empty grants fail closed before SQL execution. Code search probes
+// one row beyond the public limit, trims that probe row, and returns count,
+// limit, and truncated consistently for global content, repository content,
+// and repository graph branches.
 //
 // Handler behavior, OpenAPI fragments, docs/public/reference/http-api.md,
 // truth-envelope fields, and MCP tool dispatch must stay aligned whenever a

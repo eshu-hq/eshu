@@ -5,17 +5,19 @@ workloads in one environment.
 
 ## 1. Resolve The Resource
 
-Start with a fuzzy entity lookup and keep the canonical ID from the response:
+Start with the resource investigation resolver and keep the canonical ID from
+the response:
 
 ```http
-POST /api/v0/entities/resolve
+POST /api/v0/impact/resource-investigation
 ```
 
 ```json
 {
   "query": "shared payments rds prod",
-  "types": ["cloud_resource", "terraform_module"],
+  "resource_type": "cloud_resource",
   "environment": "prod",
+  "max_depth": 4,
   "limit": 5
 }
 ```

@@ -21,6 +21,10 @@
 // canonical response envelopes. Citation tools stay in this transport layer and
 // delegate source hydration to the query package rather than reading storage
 // directly; the advertised citation schema caps input at 500 handles.
+// The find_code adapter forwards the caller's public page limit unchanged and
+// preserves count, limit, and truncated from /api/v0/code/search inside the
+// canonical data envelope; only the query layer performs the limit-plus-one
+// probe used to determine truncation.
 // Structural inventory and security investigation tools also stay
 // transport-only and delegate inventory filtering, import dependency
 // investigation, call graph metrics, or redacted finding generation to the

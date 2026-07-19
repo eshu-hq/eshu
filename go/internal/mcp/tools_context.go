@@ -7,18 +7,22 @@ func contextTools() []ToolDefinition {
 	return []ToolDefinition{
 		{
 			Name:        "resolve_entity",
-			Description: "Resolve a fuzzy or user-supplied identifier into ranked canonical graph entities.",
+			Description: "Resolve an exact case-sensitive entity name. Global calls require a supported type and use the current content entity index, except canonical content-entity IDs and workload resolution. Repository, directory, and file types require repo_id.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
 					"query": map[string]any{
 						"type":        "string",
-						"description": "Query string to resolve",
+						"description": "Exact case-sensitive entity name or canonical content-entity ID",
+					},
+					"type": map[string]any{
+						"type":        "string",
+						"description": "Single entity type. Required for global name resolution except canonical content-entity IDs; workload keeps its authoritative graph path.",
 					},
 					"types": map[string]any{
 						"type":        "array",
 						"items":       map[string]any{"type": "string"},
-						"description": "Filter by entity types",
+						"description": "Deprecated compatibility alias; only the first value is used when type is absent",
 					},
 					"repo_id": map[string]any{
 						"type":        "string",

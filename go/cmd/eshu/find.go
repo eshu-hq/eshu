@@ -89,10 +89,9 @@ func init() {
 func runFindName(cmd *cobra.Command, args []string) error {
 	client := apiClientFromCmd(cmd)
 	var result any
-	err := client.Post("/api/v0/entities/resolve", map[string]any{
+	if err := client.Post("/api/v0/entities/resolve", map[string]any{
 		"name": args[0],
-	}, &result)
-	if err != nil {
+	}, &result); err != nil {
 		return err
 	}
 	printJSON(result)

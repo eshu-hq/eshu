@@ -36,10 +36,18 @@ func TestCodebaseFindCodeSchema(t *testing.T) {
 	tool := requireToolDefinition(t, "find_code")
 	schema, _ := tool.InputSchema.(map[string]any)
 	properties, _ := schema["properties"].(map[string]any)
-	for _, field := range []string{"query", "exact", "edit_distance", "repo_id", "limit", "scope"} {
+	for _, field := range []string{"query", "exact", "edit_distance", "repo_id", "language", "limit", "scope"} {
 		if _, ok := properties[field]; !ok {
 			t.Fatalf("find_code schema missing %q", field)
 		}
+	}
+	limit, _ := properties["limit"].(map[string]any)
+	if limit["minimum"] != 1 || limit["maximum"] != 200 {
+		t.Fatalf("find_code limit bounds = %#v, want 1..200", limit)
+	}
+	if !strings.Contains(strings.ToLower(tool.Description), "case-sensitive") ||
+		!strings.Contains(strings.ToLower(tool.Description), "three unicode") {
+		t.Fatalf("find_code description missing global matching contract: %s", tool.Description)
 	}
 }
 
@@ -114,9 +122,11 @@ func TestCodebaseResolveRouteFindCode(t *testing.T) {
 	t.Parallel()
 
 	route, err := resolveRoute("find_code", map[string]any{
-		"query":   "auth",
-		"repo_id": "repo-1",
-		"limit":   float64(10),
+		"query":    "auth",
+		"repo_id":  "repo-1",
+		"language": "go",
+		"exact":    true,
+		"limit":    float64(10),
 	})
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
@@ -130,6 +140,9 @@ func TestCodebaseResolveRouteFindCode(t *testing.T) {
 	body, _ := route.body.(map[string]any)
 	if got, want := body["query"], "auth"; got != want {
 		t.Fatalf("body[query] = %#v, want %#v", got, want)
+	}
+	if body["language"] != "go" || body["exact"] != true {
+		t.Fatalf("body language/exact = %#v/%#v, want go/true", body["language"], body["exact"])
 	}
 }
 

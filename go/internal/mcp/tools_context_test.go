@@ -3,7 +3,10 @@
 
 package mcp
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestContextToolsAreRegistered(t *testing.T) {
 	t.Parallel()
@@ -17,12 +20,31 @@ func TestContextToolsAreRegistered(t *testing.T) {
 	}
 }
 
+func TestResolveEntitySchemaDocumentsExactTypedGlobalContract(t *testing.T) {
+	t.Parallel()
+
+	tool := requireToolDefinition(t, "resolve_entity")
+	schema, _ := tool.InputSchema.(map[string]any)
+	properties, _ := schema["properties"].(map[string]any)
+	for _, field := range []string{"query", "type", "types", "repo_id", "limit"} {
+		if _, ok := properties[field]; !ok {
+			t.Fatalf("resolve_entity schema missing %q", field)
+		}
+	}
+	description := strings.ToLower(tool.Description)
+	for _, fragment := range []string{"exact", "case-sensitive", "global", "content-entity"} {
+		if !strings.Contains(description, fragment) {
+			t.Fatalf("resolve_entity description missing %q: %s", fragment, tool.Description)
+		}
+	}
+}
+
 func TestResolveRouteMapsContextResolveEntity(t *testing.T) {
 	t.Parallel()
 
 	route, err := resolveRoute("resolve_entity", map[string]any{
 		"query": "my-service-api",
-		"types": []any{"workload"},
+		"type":  "function",
 		"limit": float64(10),
 	})
 	if err != nil {
@@ -33,6 +55,10 @@ func TestResolveRouteMapsContextResolveEntity(t *testing.T) {
 	}
 	if got, want := route.path, "/api/v0/entities/resolve"; got != want {
 		t.Fatalf("route.path = %q, want %q", got, want)
+	}
+	body, _ := route.body.(map[string]any)
+	if body["name"] != "my-service-api" || body["type"] != "function" {
+		t.Fatalf("route body = %#v, want exact typed global resolve", body)
 	}
 }
 

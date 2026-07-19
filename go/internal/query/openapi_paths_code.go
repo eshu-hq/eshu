@@ -7,7 +7,7 @@ const openAPIPathsCode = `
     "/api/v0/code/search": {
       "post": {
         "tags": ["code"], "summary": "Search code entities",
-        "description": "Searches code entities by name pattern or content.",
+        "description": "Searches code entities by case-sensitive name. Repository-selected requests use the indexed graph path. Global requests use the current content entity name index; global substring requests require at least 3 Unicode characters.",
         "operationId": "searchCode",
         "x-scoped-token-support": true,
         "requestBody": {
@@ -18,10 +18,11 @@ const openAPIPathsCode = `
                 "type": "object",
                 "required": ["query"],
                 "properties": {
-                  "query": {"type": "string", "description": "Search pattern"},
+                  "query": {"type": "string", "description": "Case-sensitive entity name or substring. Global substring searches require at least 3 Unicode characters."},
                   "repo_id": {"type": "string", "description": "Optional repository selector (canonical ID, name, slug, or path)"},
                   "language": {"type": "string", "description": "Optional language filter"},
-                  "limit": {"type": "integer", "description": "Max results (default 50)", "default": 50}
+                  "limit": {"type": "integer", "description": "Maximum returned page size (default 50, maximum 200)", "default": 50, "minimum": 1, "maximum": 200},
+                  "exact": {"type": "boolean", "description": "When true, require a complete case-sensitive entity-name match. Exact global searches may be shorter than 3 characters.", "default": false}
                 }
               }
             }

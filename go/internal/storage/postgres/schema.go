@@ -32,6 +32,10 @@ type schemaLockTimeoutExecutor interface {
 	execContextWithLockTimeout(context.Context, string, time.Duration) (sql.Result, error)
 }
 
+type schemaBootstrapLocker interface {
+	withSchemaBootstrapLock(context.Context, time.Duration, func(Executor) error) error
+}
+
 const defaultSchemaLockTimeout = 5 * time.Second
 
 //go:embed migrations/*.sql
@@ -170,13 +174,22 @@ func ApplyDefinitionsWithLockTimeout(
 
 // ApplyBootstrap applies the Wave 2 schema bootstrap layout.
 func ApplyBootstrap(ctx context.Context, exec Executor) error {
-	return ApplyDefinitions(ctx, exec, BootstrapDefinitions())
+	return applyBootstrapDefinitions(ctx, exec, BootstrapDefinitions())
 }
 
 // ApplyBootstrapWithoutContentSearchIndexes applies the bootstrap layout while
 // deferring content trigram indexes for a later bulk index build.
 func ApplyBootstrapWithoutContentSearchIndexes(ctx context.Context, exec Executor) error {
-	return ApplyDefinitions(ctx, exec, BootstrapDefinitionsWithoutContentSearchIndexes())
+	return applyBootstrapDefinitions(ctx, exec, BootstrapDefinitionsWithoutContentSearchIndexes())
+}
+
+func applyBootstrapDefinitions(ctx context.Context, exec Executor, definitions []Definition) error {
+	if locker, ok := exec.(schemaBootstrapLocker); ok {
+		return locker.withSchemaBootstrapLock(ctx, defaultSchemaLockTimeout, func(locked Executor) error {
+			return ApplyDefinitions(ctx, locked, definitions)
+		})
+	}
+	return ApplyDefinitions(ctx, exec, definitions)
 }
 
 // EnsureContentSearchIndexes creates and validates the trigram indexes that
@@ -266,6 +279,7 @@ func ensureContentSearchIndexesInTransaction(ctx context.Context, exec Executor)
 	}{
 		{name: "content_files", sql: contentFilesSearchIndexSchemaSQL},
 		{name: "content_entities", sql: contentEntitiesSearchIndexSchemaSQL},
+		{name: "content_entity_names", sql: contentEntityNamesSearchIndexSchemaSQL},
 		{name: "analyze", sql: "ANALYZE content_files; ANALYZE content_entities;"},
 	}
 	for _, step := range buildSteps {

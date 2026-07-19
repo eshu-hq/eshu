@@ -14,26 +14,14 @@ import (
 const handlerQueryplanRegisteredCloudResourceListVariant = "cloud-resource-list/resource-type"
 
 const (
-	handlerQueryplanDeferredGlobalVariantIssue = 5318
-	handlerQueryplanDeferredGlobalFamilySHA256 = "18365ef4e603f391f34e1d9e788d3cb2fb861588e8245a42101a28b4a233ff14"
-	handlerQueryplanSafeVariantFamilySHA256    = "b01b91652a1bd8146b9ca4a3e1d4e4e4001ba72bbc05697e943e182e57f1fa15"
+	handlerQueryplanSafeVariantFamilySHA256       = "b01b91652a1bd8146b9ca4a3e1d4e4e4001ba72bbc05697e943e182e57f1fa15"
+	entityNameSearchQueryplanVariantFamilySHA256  = "4d4f47c1555b8a42caa91d20a5971902fc19b6ef65d3c77440f9be5df4333ef5"
+	entityNameSearchQueryplanBuilderSourceSHA256  = "3057a508e8b5acf4e07b4d5567b00dbf5e900b360eed82b3102f358e2a1e1523"
+	entityNameSearchQueryplanExpectedVariantCount = 17
 )
 
 func TestHandlerQueryplanProductionVariantFamiliesStayExplicit(t *testing.T) {
 	t.Parallel()
-
-	deferred := handlerQueryplanDeferredGlobalCypherVariants()
-	if got, want := len(deferred), 18; got != want {
-		t.Fatalf("deferred global variant count = %d, want %d", got, want)
-	}
-	if got := queryplan.ProductionCypherFamilySHA256(deferred); got != handlerQueryplanDeferredGlobalFamilySHA256 {
-		t.Fatalf(
-			"deferred global variant family SHA-256 = %s, want %s; audit every changed branch under #%d",
-			got,
-			handlerQueryplanDeferredGlobalFamilySHA256,
-			handlerQueryplanDeferredGlobalVariantIssue,
-		)
-	}
 
 	safe := handlerQueryplanSafeCypherVariants()
 	wantSafe := 13 + len(allInfraLabels)*10 + 31
@@ -67,6 +55,127 @@ func TestHandlerQueryplanCloudResourceListVariantsStayCovered(t *testing.T) {
 	}
 }
 
+func TestEntityNameSearchQueryplanVariantsStayRegisteredAndSourceBound(t *testing.T) {
+	t.Parallel()
+
+	variants := entityNameSearchQueryplanVariants(t)
+	if err := validateEntityNameSearchQueryplanVariants(variants); err != nil {
+		t.Fatal(err)
+	}
+
+	drifted := make(map[string]string, len(variants))
+	for name, query := range variants {
+		drifted[name] = query
+	}
+	drifted["entity-name/all/code/exact/any-language"] += " /* unreviewed drift */"
+	if err := validateEntityNameSearchQueryplanVariants(drifted); err == nil || !strings.Contains(err.Error(), "family SHA-256") {
+		t.Fatalf("drift validation error = %v, want family SHA-256 rejection", err)
+	}
+
+	manifest := entityNameSearchQueryplanSourceManifest()
+	manifest.Entries[0].Source.SourceSHA256 = strings.Repeat("0", 64)
+	if err := queryplan.ValidateManifestSources(manifest, "../../.."); err == nil || !strings.Contains(err.Error(), "source_sha256") {
+		t.Fatalf("source drift validation error = %v, want source_sha256 rejection", err)
+	}
+}
+
+func entityNameSearchQueryplanVariants(t *testing.T) map[string]string {
+	t.Helper()
+
+	variants := make(map[string]string, entityNameSearchQueryplanExpectedVariantCount)
+	for _, scope := range []struct {
+		name          string
+		value         EntityNameScope
+		repositoryIDs []string
+	}{
+		{name: "all", value: EntityNameScopeAll},
+		{name: "scoped", value: EntityNameScopeRepositories, repositoryIDs: []string{"proof-repository"}},
+	} {
+		addVariant := func(name string, search EntityNameSearch) {
+			search.Name = "proof"
+			search.Scope = scope.value
+			search.RepositoryIDs = scope.repositoryIDs
+			search.Limit = 10
+			normalized, empty, err := normalizeEntityNameSearch(search)
+			if err != nil || empty {
+				t.Fatalf("normalize %s/%s: empty=%v err=%v", scope.name, name, empty, err)
+			}
+			query, _ := buildEntityNameSearchQuery(normalized)
+			variants[fmt.Sprintf("entity-name/%s/%s", scope.name, name)] = query
+		}
+
+		for _, entityType := range []struct {
+			name          string
+			entityType    string
+			metadataKey   string
+			metadataValue string
+		}{
+			{name: "entity/label", entityType: "Function"},
+			{name: "entity/semantic", entityType: "Function", metadataKey: "semantic_kind", metadataValue: "guard"},
+			{name: "entity/module", entityType: "Module", metadataKey: "module_kind", metadataValue: "protocol_implementation"},
+			{name: "entity/attribute", entityType: "Variable", metadataKey: "attribute_kind", metadataValue: "module_attribute"},
+		} {
+			addVariant(entityType.name, EntityNameSearch{
+				Match: EntityNameMatchExact, EntityType: entityType.entityType,
+				MetadataKey: entityType.metadataKey, MetadataValue: entityType.metadataValue,
+			})
+		}
+
+		for _, match := range []struct {
+			name  string
+			value EntityNameMatch
+		}{
+			{name: "exact", value: EntityNameMatchExact},
+			{name: "substring", value: EntityNameMatchSubstring},
+		} {
+			for _, language := range []struct {
+				name  string
+				value []string
+			}{
+				{name: "any-language"},
+				{name: "language", value: []string{"go"}},
+			} {
+				addVariant(fmt.Sprintf("code/%s/%s", match.name, language.name), EntityNameSearch{
+					Match: match.value, Languages: language.value,
+				})
+			}
+		}
+	}
+
+	_, empty, err := normalizeEntityNameSearch(EntityNameSearch{
+		Name: "proof", Match: EntityNameMatchExact, Scope: EntityNameScopeRepositories, Limit: 10,
+	})
+	if err != nil || !empty {
+		t.Fatalf("normalize empty grants: empty=%v err=%v", empty, err)
+	}
+	variants["entity-name/scoped/empty-grants"] = ""
+	return variants
+}
+
+func validateEntityNameSearchQueryplanVariants(variants map[string]string) error {
+	if got := len(variants); got != entityNameSearchQueryplanExpectedVariantCount {
+		return fmt.Errorf("entity-name SQL variant count = %d, want %d", got, entityNameSearchQueryplanExpectedVariantCount)
+	}
+	if got := queryplan.ProductionCypherFamilySHA256(variants); got != entityNameSearchQueryplanVariantFamilySHA256 {
+		return fmt.Errorf("entity-name SQL family SHA-256 = %s, want %s", got, entityNameSearchQueryplanVariantFamilySHA256)
+	}
+	if err := queryplan.ValidateManifestSources(entityNameSearchQueryplanSourceManifest(), "../../.."); err != nil {
+		return fmt.Errorf("entity-name SQL source binding: %w", err)
+	}
+	return nil
+}
+
+func entityNameSearchQueryplanSourceManifest() queryplan.Manifest {
+	return queryplan.Manifest{Entries: []queryplan.Entry{{
+		ID: "QP-ENTITY-NAME-SEARCH-SQL",
+		Source: queryplan.SourceRef{
+			File:         "go/internal/query/content_reader_entity_names.go",
+			Symbol:       "buildEntityNameSearchQuery",
+			SourceSHA256: entityNameSearchQueryplanBuilderSourceSHA256,
+		},
+	}}}
+}
+
 func cloudResourceListQueryplanVariants() map[string]string {
 	variants := make(map[string]string, 32)
 	for mask := 0; mask < 32; mask++ {
@@ -98,52 +207,6 @@ func cloudResourceListQueryplanVariants() map[string]string {
 		}
 		cypher, _ := buildCloudResourceListQuery(filter, cursor, 10)
 		variants["cloud-resource-list/"+strings.Join(parts, "+")] = cypher
-	}
-	return variants
-}
-
-func handlerQueryplanDeferredGlobalCypherVariants() map[string]string {
-	allAccess := repositoryAccessFilter{allScopes: true}
-	scopedAccess := queryplanScopedRepositoryAccess()
-	variants := make(map[string]string, 18)
-	entityTypes := []struct {
-		name string
-		kind string
-	}{
-		{name: "untyped"},
-		{name: "label", kind: "function"},
-		{name: "semantic-kind", kind: "guard"},
-		{name: "module-kind", kind: "protocol_implementation"},
-		{name: "attribute-kind", kind: "module_attribute"},
-	}
-	for _, access := range []struct {
-		name   string
-		filter repositoryAccessFilter
-	}{
-		{name: "all", filter: allAccess},
-		{name: "scoped", filter: scopedAccess},
-	} {
-		for _, entityType := range entityTypes {
-			cypher, _ := buildResolveEntityGraphQuery(resolveEntityRequest{
-				Name: "proof",
-				Type: entityType.kind,
-			}, 10, access.filter)
-			variants["entity/"+access.name+"/"+entityType.name] = cypher
-		}
-		for _, exact := range []bool{false, true} {
-			for _, language := range []string{"", "go"} {
-				matchName := "contains"
-				if exact {
-					matchName = "exact"
-				}
-				languageName := "any-language"
-				if language != "" {
-					languageName = "language"
-				}
-				cypher, _ := buildSearchGraphEntitiesQuery("", "proof", language, 10, exact, access.filter)
-				variants[fmt.Sprintf("code/%s/%s/%s", access.name, matchName, languageName)] = cypher
-			}
-		}
 	}
 	return variants
 }

@@ -12,7 +12,7 @@ only in diagnostics sections and local graph debugging.
 
 | Prompt family | Primary route | Prompt-ready status | Notes |
 | --- | --- | --- | --- |
-| Symbol or implementation lookup | `find_symbol`, `find_code` | Ready | Use repository scope and `limit` when broad names are possible. |
+| Symbol or implementation lookup | `find_symbol`, `find_code` | Ready | `find_code` is case-sensitive entity-name lookup: use `exact=true` for complete names, a repository when known, and at least three Unicode characters for global substrings. Use content-search tools for source text. |
 | Broad code behavior investigation | `investigate_code_topic` | Ready | Start here for behavior prompts before drilling into symbols, relationships, or source lines. |
 | Structural code inventory | `inspect_code_inventory` | Ready | Covers functions, classes, dataclasses, decorated methods, documented functions, class methods, `super()` calls, and function counts per file. |
 | Import dependency prompts | `investigate_import_dependencies` | Ready | Covers imports by file, module importers, package imports, direct Python file import cycles, and cross-module calls. |

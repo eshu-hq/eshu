@@ -17,6 +17,12 @@ they do not scan the entity universe before applying repository scope. A
 canonical `content-entity:` resolution request is served from the authoritative
 content row first. A missing canonical content row is an explicit empty result,
 not a reason to fall back to a broad graph name scan.
+Global code-name search and typed entity resolution do not use an unanchored
+graph scan. They call the narrow `EntityNameSearcher` extension on
+`ContentReader`, which applies repository grants, normalized language variants,
+entity type, and case-sensitive exact or substring matching before a stable
+limit. Untyped global entity resolution, unknown types, graph-only container
+types, and global substrings shorter than three Unicode characters fail closed.
 
 NornicDB direct-relationship metadata uses the content entity type as its graph
 label. When the content row is absent, the compatibility fallback probes the
@@ -970,6 +976,14 @@ poison `projection_bug` never drains via a scope-wide replay without force.
 - `ContentReader` traces each Postgres call with an OTEL span labeled
   `db.sql.table`; queries that scan multiple tables need per-call spans to avoid
   misleading attribution (`content_reader.go:45`).
+- `ContentReader.SearchEntityNames` is the only global entity-name read. Its
+  explicit scope enum prevents an empty repository grant from becoming an
+  all-repository query, and `db.operation=search_entity_names` identifies the
+  bounded Postgres call in traces. `/api/v0/code/search` asks this store for
+  `limit+1`, returns at most the public 200-row ceiling, and reports exact
+  `count` / `limit` / `truncated` page metadata. Repository display names are
+  hydrated once for the distinct repository IDs in the bounded page; a
+  per-result `LATERAL` scan over `ingestion_scopes` is forbidden.
 - `/api/v0/code/language-query` treats `entity_type=variable` as pure
   content-backed (`contentBackedEntityTypes`), not graph-first. The
   canonical-graph skip in the projector's `canonical_builder.go` removes plain

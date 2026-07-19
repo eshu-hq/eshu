@@ -182,7 +182,7 @@ Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:173`):
 
 | Tool | HTTP method | Path |
 |---|---|---|
-| `find_code` | POST | `/api/v0/code/search` |
+| `find_code` | POST | `/api/v0/code/search` — case-sensitive entity-name lookup; global substring calls require at least three Unicode characters, while `exact=true` permits shorter complete names |
 | `find_symbol` | POST | `/api/v0/code/symbols/search` |
 | `inspect_code_inventory` | POST | `/api/v0/code/structure/inventory` |
 | `investigate_import_dependencies` | POST | `/api/v0/code/imports/investigate` |
@@ -243,7 +243,7 @@ Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:173`):
 | `analyze_pre_change_impact` | POST | `/api/v0/impact/pre-change` |
 | `plan_developer_change` | POST | `/api/v0/impact/developer-change-plan` |
 | `investigate_resource` | POST | `/api/v0/impact/resource-investigation` |
-| `resolve_entity` | POST | `/api/v0/entities/resolve` |
+| `resolve_entity` | POST | `/api/v0/entities/resolve` — exact case-sensitive lookup; global calls require one supported `type`, except canonical `content-entity:` handles and workload resolution |
 | `get_service_story` | GET | `/api/v0/services/{service_selector}/story` (canonical `workload:*` inputs also pass `service_id`; `service_name` plus `repo`/`repository_id`/`repo_id` forwards repository-scoped story selection to HTTP) |
 | `investigate_service` | GET | `/api/v0/investigations/services/{service_name}` |
 | `get_file_content` | POST | `/api/v0/content/files/read` |

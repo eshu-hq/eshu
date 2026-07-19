@@ -40,9 +40,17 @@ absolute server paths are not portable client identifiers.
 ## Search And Discovery
 
 `POST /api/v0/code/search` requires `query`. Optional filters include
-`repo_id`, `language`, `limit`, `exact`, and `search_type`. The handler searches
-graph entities first and falls back to the content index when graph search has
-no rows.
+`repo_id`, `language`, `limit`, `exact`, and `search_type`. Matching is
+case-sensitive. Repository-selected requests use the indexed graph path.
+Requests without `repo_id` use one authorization-aware query over the current
+Postgres content-entity name index; authorization, language, and entity-name
+filters are applied before `LIMIT`. Global substring searches require at least
+three Unicode characters. Set `exact=true` for a complete name match; exact
+global searches may use names shorter than three characters. The public page
+limit defaults to 50 and is capped at 200. Every response includes `count`,
+`limit`, and `truncated`; the handler reads one extra row internally so
+`truncated=true` means at least one additional ordered match exists beyond the
+returned page. `matches` is the compatibility alias for `results`.
 
 `POST /api/v0/code/symbols/search` accepts `symbol` or `query`, optional
 `match_mode`, repository/language/entity filters, `limit`, and `offset`.

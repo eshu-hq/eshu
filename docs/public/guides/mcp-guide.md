@@ -52,7 +52,8 @@ Use focused tools for exact code questions:
 | Question | Start with |
 | --- | --- |
 | Where is this symbol? | `find_symbol` |
-| Search indexed code. | `find_code` or `search_file_content` |
+| Find code entities by case-sensitive name. | `find_code` (`exact=true` for complete names; global substrings require at least three Unicode characters) |
+| Search indexed source content. | `search_file_content` |
 | Who calls this function? | `get_code_relationship_story` |
 | What is the call chain between two functions? | `find_function_call_chain` with names, or exact `start_entity_id` and `end_entity_id` when ambiguity matters |
 | Which modules import this module? | `investigate_import_dependencies` |

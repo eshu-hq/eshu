@@ -11,6 +11,9 @@ func buildSearchGraphEntitiesQuery(
 	exact bool,
 	access repositoryAccessFilter,
 ) (string, map[string]any) {
+	if repoID == "" {
+		return "", nil
+	}
 	cypher := `
 		MATCH (e)<-[:CONTAINS]-(f:File)<-[:REPO_CONTAINS]-(r:Repository)
 	`

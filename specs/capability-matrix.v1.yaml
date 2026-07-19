@@ -8,17 +8,17 @@ capabilities:
   - capability: code_search.exact_symbol
     tools: [find_code]
     profiles:
-      local_lightweight: {status: supported, max_truth_level: exact, required_runtime: local_host, p95_latency_ms: 500, max_scope_size: active_repo, verification: [{go_test: ./internal/query}], notes: indexed entity lookup}
-      local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 500, max_scope_size: active_repo, verification: [{go_test: ./internal/query}], notes: indexed entity lookup, graph sidecar available but not required}
-      local_full_stack: {status: supported, max_truth_level: exact, required_runtime: full_stack, p95_latency_ms: 500, max_scope_size: indexed_workspace, verification: [{go_test: ./internal/query}], notes: indexed entity lookup}
-      production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 800, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-code-search-exact}], notes: indexed entity lookup}
+      local_lightweight: {status: supported, max_truth_level: exact, required_runtime: local_host, p95_latency_ms: 500, max_scope_size: active_repo, verification: [{go_test: ./internal/query}], notes: case-sensitive complete entity-name lookup through the content name index}
+      local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 500, max_scope_size: active_repo, verification: [{go_test: ./internal/query}], notes: repository-selected lookup uses the indexed graph and global lookup uses the content name index}
+      local_full_stack: {status: supported, max_truth_level: exact, required_runtime: full_stack, p95_latency_ms: 500, max_scope_size: indexed_workspace, verification: [{go_test: ./internal/query}], notes: case-sensitive complete entity-name lookup with authorization filters before the bounded limit}
+      production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 800, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-code-search-exact}], notes: repository-selected indexed graph lookup or global content entity-name lookup}
   - capability: code_search.fuzzy_symbol
     tools: [find_code]
     profiles:
-      local_lightweight: {status: supported, max_truth_level: derived, required_runtime: local_host, p95_latency_ms: 700, max_scope_size: active_repo, verification: [{go_test: ./internal/query}], notes: scored fuzzy match}
-      local_authoritative: {status: supported, max_truth_level: derived, required_runtime: local_host_plus_graph, p95_latency_ms: 700, max_scope_size: active_repo, verification: [{go_test: ./internal/query}], notes: scored fuzzy match}
-      local_full_stack: {status: supported, max_truth_level: derived, required_runtime: full_stack, p95_latency_ms: 700, max_scope_size: indexed_workspace, verification: [{go_test: ./internal/query}], notes: scored fuzzy match}
-      production: {status: supported, max_truth_level: derived, required_runtime: deployed_services, p95_latency_ms: 1000, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-code-search-fuzzy}], notes: scored fuzzy match}
+      local_lightweight: {status: supported, max_truth_level: derived, required_runtime: local_host, p95_latency_ms: 700, max_scope_size: active_repo, verification: [{go_test: ./internal/query}], notes: case-sensitive literal substring entity-name lookup; global names require at least three Unicode characters}
+      local_authoritative: {status: supported, max_truth_level: derived, required_runtime: local_host_plus_graph, p95_latency_ms: 700, max_scope_size: active_repo, verification: [{go_test: ./internal/query}], notes: repository-selected substring uses the indexed graph and global substring uses the content name index}
+      local_full_stack: {status: supported, max_truth_level: derived, required_runtime: full_stack, p95_latency_ms: 700, max_scope_size: indexed_workspace, verification: [{go_test: ./internal/query}], notes: escaped case-sensitive literal substring with authorization and language filters before the bounded limit}
+      production: {status: supported, max_truth_level: derived, required_runtime: deployed_services, p95_latency_ms: 1000, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-code-search-fuzzy}], notes: bounded case-sensitive literal substring lookup; this capability does not claim fuzzy scoring}
   - capability: code_search.symbol_lookup
     tools: [find_symbol]
     profiles:

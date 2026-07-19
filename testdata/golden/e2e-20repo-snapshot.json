@@ -1589,13 +1589,29 @@
           "repo_id",
           "results",
           "source",
-          "source_backend"
+          "source_backend",
+          "count",
+          "limit",
+          "truncated"
         ],
-        "minimum_results": 0,
+        "minimum_results": 1,
+        "result_item_required_fields": [
+          "entity_id",
+          "name",
+          "labels",
+          "repo_id",
+          "file_path"
+        ],
+        "required_json_values": {
+          "count": 1,
+          "limit": 1,
+          "truncated": true,
+          "results[].entity_id": "content-entity:e_85e904a13eae"
+        },
         "arguments": {
           "query": "main",
-          "repo_id": "orders-api",
-          "limit": 10
+          "exact": true,
+          "limit": 1
         }
       },
       "find_symbol": {
@@ -3412,9 +3428,25 @@
           "matches",
           "truncated"
         ],
-        "minimum_results": 0,
+        "minimum_results": 2,
+        "result_item_required_fields": [
+          "id",
+          "entity_id",
+          "name",
+          "labels",
+          "repo_id",
+          "file_path"
+        ],
+        "required_json_values": {
+          "count": 2,
+          "limit": 10,
+          "truncated": false,
+          "entities[].id": "content-entity:e_85e904a13eae",
+          "matches[].id": "content-entity:e_85bff2c7884a"
+        },
         "arguments": {
-          "name": "main",
+          "query": "main",
+          "type": "function",
           "limit": 10
         }
       },
@@ -4415,6 +4447,40 @@
       }
     },
     "http": {
+      "POST /api/v0/code/search": {
+        "description": "Global exact code-name search overflow proof; limit=1 must return one deterministic row and report that the duplicate name has another result.",
+        "truth_class": "content_index",
+        "required_response_fields": [
+          "matches",
+          "query",
+          "repo_id",
+          "results",
+          "source",
+          "source_backend",
+          "count",
+          "limit",
+          "truncated"
+        ],
+        "minimum_results": 1,
+        "result_item_required_fields": [
+          "entity_id",
+          "name",
+          "labels",
+          "repo_id",
+          "file_path"
+        ],
+        "required_json_values": {
+          "count": 1,
+          "limit": 1,
+          "truncated": true,
+          "results[].entity_id": "content-entity:e_85e904a13eae"
+        },
+        "request_body": {
+          "query": "main",
+          "exact": true,
+          "limit": 1
+        }
+      },
       "GET /api/v0/repositories": {
         "description": "Repository list endpoint (not /api/v0/repos)",
         "truth_class": "deterministic",

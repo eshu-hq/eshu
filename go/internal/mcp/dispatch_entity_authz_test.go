@@ -5,6 +5,7 @@ package mcp
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"log/slog"
 	"net/http"
@@ -34,6 +35,13 @@ func TestDispatchToolResolveEntityAllowsScopedEntityResolveRoute(t *testing.T) {
 		if _, ok := query.AuthContextFromContext(r.Context()); !ok {
 			t.Fatal("AuthContextFromContext() ok = false, want true")
 		}
+		var body map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatalf("decode resolve_entity body: %v", err)
+		}
+		if body["name"] != "HandlePayment" || body["type"] != "function" {
+			t.Fatalf("resolve_entity body = %#v, want typed global exact lookup", body)
+		}
 		query.WriteSuccess(w, r, http.StatusOK, map[string]any{
 			"entities":  []any{},
 			"matches":   []any{},
@@ -42,9 +50,9 @@ func TestDispatchToolResolveEntityAllowsScopedEntityResolveRoute(t *testing.T) {
 			"truncated": false,
 		}, query.BuildTruthEnvelope(
 			query.ProfileLocalAuthoritative,
-			"code_search.fuzzy_symbol",
-			query.TruthBasisHybrid,
-			"resolved from bounded graph and content entity resolution",
+			"code_search.exact_symbol",
+			query.TruthBasisContentIndex,
+			"resolved by exact case-sensitive name from the current content entity index",
 		))
 	}))
 
@@ -52,7 +60,7 @@ func TestDispatchToolResolveEntityAllowsScopedEntityResolveRoute(t *testing.T) {
 		context.Background(),
 		handler,
 		"resolve_entity",
-		map[string]any{"query": "HandlePayment", "limit": 5},
+		map[string]any{"query": "HandlePayment", "type": "function", "limit": 5},
 		"Bearer scoped-token",
 		slog.New(slog.NewTextHandler(io.Discard, nil)),
 	)
@@ -65,7 +73,8 @@ func TestDispatchToolResolveEntityAllowsScopedEntityResolveRoute(t *testing.T) {
 	if result.IsError {
 		t.Fatalf("dispatchTool() IsError = true, want false; envelope = %#v", result.Envelope)
 	}
-	if result.Envelope.Truth == nil || result.Envelope.Truth.Capability != "code_search.fuzzy_symbol" {
+	if result.Envelope.Truth == nil || result.Envelope.Truth.Capability != "code_search.exact_symbol" ||
+		result.Envelope.Truth.Basis != query.TruthBasisContentIndex {
 		t.Fatalf("truth = %#v, want entity resolve truth", result.Envelope.Truth)
 	}
 }

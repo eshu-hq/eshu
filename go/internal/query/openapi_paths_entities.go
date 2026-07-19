@@ -8,7 +8,7 @@ const openAPIPathsEntities = `
       "post": {
         "tags": ["entities"],
         "summary": "Resolve entity",
-        "description": "Resolves an entity by name with optional type and repository filters.",
+        "description": "Resolves an entity by exact case-sensitive name. Requests without repo_id require a supported type and use the current content entity index; repository, directory, and file types require repo_id. Canonical content-entity IDs and workload resolution keep their dedicated exact paths.",
         "operationId": "resolveEntity",
         "x-scoped-token-support": true,
         "requestBody": {
@@ -20,7 +20,7 @@ const openAPIPathsEntities = `
                 "required": ["name"],
                 "properties": {
                   "name": {"type": "string", "description": "Entity name to search for"},
-                  "type": {"type": "string", "description": "Optional entity type filter"},
+                  "type": {"type": "string", "description": "Entity type filter. Required when repo_id is omitted, except for canonical content-entity IDs. Unknown types fail closed."},
                   "repo_id": {"type": "string", "description": "Optional repository ID filter"},
                   "limit": {"type": "integer", "default": 10, "minimum": 1, "maximum": 100}
                 }

@@ -21,7 +21,7 @@ source_coverage:
   - file: code.go
     calls:
       - {symbol: "(*CodeHandler).runComplexityQuery", count: 1, non_hot_reason: "unlabeled complexity-by-id branch is inventoried but cannot be admitted until its production anchor is typed"}
-      - {symbol: "(*CodeHandler).searchGraphEntitiesWithExact", count: 1, source_sha256: 0908f8963be089df03eddcb22e9801b3744b24974fe5bcd5980b123db94298a7, entry_ids: [QP-CODE-SEARCH-REPOSITORY]}
+      - {symbol: "(*CodeHandler).searchGraphEntitiesWithExact", count: 1, source_sha256: 3cc14ccc4dbc64d56d9f031e122a83790e6f44e385a58a2be3b14b53005bffb9, entry_ids: [QP-CODE-SEARCH-REPOSITORY]}
   - file: code_call_chain.go
     calls:
       - {symbol: "(*CodeHandler).handleCallChain", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
@@ -104,7 +104,7 @@ source_coverage:
   - file: entity.go
     calls:
       - {symbol: "(*EntityHandler).getEntityContext", count: 1, non_hot_reason: "unlabeled entity-context lookup is inventoried but cannot be admitted until its production anchor is typed"}
-      - {symbol: "(*EntityHandler).resolveEntity", count: 1, source_sha256: 9094084be281ce1ac0fd8f2c7b567b80f959efacc623674e3c346c6a12745447, entry_ids: [QP-ENTITY-RESOLVE-REPOSITORY]}
+      - {symbol: "(*EntityHandler).resolveEntity", count: 1, source_sha256: 33e7944b8fdddfdd07f19b324ce747f33aa1d000adf2dddedab16bb85d2f907c, entry_ids: [QP-ENTITY-RESOLVE-REPOSITORY]}
   - file: entity_resolve_workload.go
     calls:
       - {symbol: "(*EntityHandler).resolveWorkloadEntities", count: 2, source_sha256: 83874ee2f3b3671a59477114863d85aeb37e477b8421a3d60c79c4336b179be1, entry_ids: [QP-WORKLOAD-RESOLVE-PROPERTY, QP-WORKLOAD-RESOLVE-RELATIONSHIP]}
