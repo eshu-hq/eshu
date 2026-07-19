@@ -25,6 +25,7 @@ func NewSourceInstanceEnvelope(ctx EnvelopeContext, stats CollectionStats) (fact
 	payload["warning_count"] = stats.Warnings
 	payload["pages_fetched"] = stats.PagesFetched
 	payload["partial"] = stats.Partial
+	payload["truncated"] = stats.Truncated
 	setRedactionState(payload)
 	if err := mergeContractPayload(payload, func() (map[string]any, error) {
 		return factschema.EncodeObservabilitySourceInstance(observabilityv1.SourceInstance{
@@ -348,6 +349,8 @@ func warningOutcome(reason string) string {
 	case WarningStale:
 		return OutcomeStale
 	default:
+		// WarningTruncated and unrecognized reasons both map to a
+		// generic partial-read outcome.
 		return OutcomePartial
 	}
 }

@@ -160,6 +160,15 @@ func (c HTTPClient) collectDatasources(ctx context.Context, target TargetConfig,
 		return err
 	}
 	result.Stats.PagesFetched++
+	limit := normalizedResourceLimit(target.ResourceLimit)
+	if len(response) > limit {
+		result.Stats.Truncated = true
+		result.Warnings = append(result.Warnings, Warning{
+			ResourceClass: ResourceClassDatasource,
+			Reason:        WarningTruncated,
+		})
+		response = response[:limit]
+	}
 	for _, raw := range response {
 		resource := Resource{
 			Class:              ResourceClassDatasource,
@@ -188,6 +197,15 @@ func (c HTTPClient) collectAlertRules(ctx context.Context, target TargetConfig, 
 		return err
 	}
 	result.Stats.PagesFetched++
+	limit := normalizedResourceLimit(target.ResourceLimit)
+	if len(response) > limit {
+		result.Stats.Truncated = true
+		result.Warnings = append(result.Warnings, Warning{
+			ResourceClass: ResourceClassAlertRule,
+			Reason:        WarningTruncated,
+		})
+		response = response[:limit]
+	}
 	for _, raw := range response {
 		rule := AlertRule{
 			UID:                     strings.TrimSpace(raw.UID),
