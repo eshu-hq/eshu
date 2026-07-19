@@ -10,7 +10,14 @@
 // Helm values metadata, Pub dependency rows, CloudFormation/SAM template rows,
 // and Atlantis repo-level project rows (one AtlantisProject row per project in
 // atlantis.yaml, dispatched by filename since the config carries no
-// apiVersion/kind). GitLab CI pipelines are likewise dispatched by filename:
+// apiVersion/kind). Flux CD Kustomization custom resources
+// (kustomize.toolkit.fluxcd.io/*, kind Kustomization) are captured separately
+// into a flux_kustomizations bucket: sourceRef, path, and targetNamespace
+// evidence only, deliberately kept evidence-only -- not registered for
+// content-entity materialization or relationship-evidence wiring, so it does
+// not become a graph node or a queryable surface. Modeling Flux as a
+// queryable deployment platform is tracked separately (issue #5360).
+// GitLab CI pipelines are likewise dispatched by filename:
 // one GitlabPipeline row per .gitlab-ci.yml plus one GitlabJob row per top-level
 // job (hidden/template jobs and reserved global keywords excluded). DecodeDocuments and SanitizeTemplating remain available for parent
 // compatibility paths that decode YAML-side metadata. Argo CD Application rows preserve the legacy

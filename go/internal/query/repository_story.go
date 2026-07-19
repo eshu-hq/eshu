@@ -262,11 +262,17 @@ func nonEmptyStrings(values []string) []string {
 	return filtered
 }
 
+// containsGitOpsSignals reports whether any platform or infrastructure-family
+// label names a GitOps delivery tool. Flux is deliberately not one of the
+// matched literals: no parser or collector emits a "flux_kustomization" or
+// "flux_helmrelease" platform/family value today (issue #5342 confirmed the
+// Flux Kustomization parse path only captures typed evidence, not a platform
+// label), so those cases were dead and are not restored until Flux modeling
+// lands a real emitter (#5360).
 func containsGitOpsSignals(platforms []string, infraFamilies []string) bool {
 	for _, platform := range mergeStringSets(platforms, infraFamilies) {
 		switch platform {
-		case "argocd_application", "argocd_applicationset", "flux_kustomization", "flux_helmrelease",
-			"argocd", "helm", "kustomize":
+		case "argocd_application", "argocd_applicationset", "argocd", "helm", "kustomize":
 			return true
 		}
 	}

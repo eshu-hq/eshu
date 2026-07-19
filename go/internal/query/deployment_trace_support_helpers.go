@@ -413,12 +413,16 @@ func deploymentTraceGitOpsToolFamilies(
 	controllerEntities []map[string]any,
 ) []string {
 	families := deploymentTraceEvidenceControllerFamilies(deploymentSources, deploymentEvidence, controllerEntities)
+	// "flux", "flux_kustomization", "flux_helmrelease" are deliberately not
+	// matched below: no parser or collector emits those as a platform-kind
+	// value today, so that branch was dead (issue #5342). The Flux
+	// Kustomization parse path captures typed evidence only and is not
+	// wired to any platform-kind classification until Flux modeling lands a
+	// real emitter (#5360).
 	for _, kind := range platformKinds {
-		switch strings.TrimSpace(strings.ToLower(kind)) {
-		case "argocd", "argocd_application", "argocd_applicationset":
+		normalized := strings.TrimSpace(strings.ToLower(kind))
+		if normalized == "argocd" || normalized == "argocd_application" || normalized == "argocd_applicationset" {
 			families = append(families, "argocd")
-		case "flux", "flux_kustomization", "flux_helmrelease":
-			families = append(families, "flux")
 		}
 	}
 	return uniqueSortedStrings(families)
