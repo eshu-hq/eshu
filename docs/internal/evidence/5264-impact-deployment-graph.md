@@ -110,12 +110,13 @@ GOCACHE=$PWD/.gocache-build5264 go test ./internal/query \
 # From the repository root:
 bash scripts/test-verify-query-plan-regression.sh
 bash scripts/test-verify-performance-evidence.sh
-ESHU_PERFORMANCE_EVIDENCE_BASE=e8e3928b97c20335bf60cd47ea28a9ce884e9cf7 \
+ESHU_PERFORMANCE_EVIDENCE_BASE=2090ca6005b56e176c3bf1e7dbcb1c51c9214782 \
   bash scripts/verify-performance-evidence.sh
 ```
 
-Results: `internal/queryplan` passed in 0.455 seconds, the production-builder
-binding tests passed in 0.793 seconds, the query-plan script contract reported
+Results after the final rebase: `internal/queryplan` passed in 0.609 seconds,
+the production-builder binding tests passed in 1.029 seconds, the query-plan
+script contract reported
 `test-verify-query-plan-regression: pass`, the performance-evidence verifier
 tests passed, and the branch verifier reported that benchmark and observability
 markers were present for the hot-path changes. These are static source/query
@@ -222,6 +223,30 @@ maintenance drains, and 3 seconds for graph/query checks. The gate removed its
 isolated containers, network, and volumes; the retained development stack was
 not changed.
 
+After rebasing onto
+`origin/main@2090ca6005b56e176c3bf1e7dbcb1c51c9214782` and resolving the B-12
+snapshot by retaining both the merged global-search shape and the deployment
+topology shape, the gate was rerun at exact implementation head
+`09be7fea103db370bae771877a5b89e64cd3c84c`:
+
+```bash
+ESHU_POSTGRES_PORT=16536 \
+NEO4J_BOLT_PORT=8791 \
+NEO4J_HTTP_PORT=8579 \
+GATE_API_PORT=19084 \
+GATE_MCP_PORT=19095 \
+GATE_DRAIN_TIMEOUT=10m \
+GATE_BUDGET_SECONDS=600 \
+bash scripts/verify-golden-corpus-gate.sh
+```
+
+The final rebased run completed in 35 seconds with **421 pass, 0
+required-fail, and 0 advisory-warn**. Its phase timings were 3 seconds for
+bootstrap, 20 seconds for collector replay, 6 seconds for the first drain, 6
+seconds for maintenance drains, and 4 seconds for graph/query checks. Both
+HTTP shapes passed. The gate removed its isolated containers, network, and
+volumes; the retained development stack was not changed.
+
 Replay coverage also passed:
 
 ```bash
@@ -277,10 +302,17 @@ exact topology-edge contract and therefore included relationships that the
 mapper no longer synthesizes. It is retained only as historical diagnostic
 context and is not merge-readiness evidence.
 
+The retained-browser run on application head `4813a48b68` is also superseded
+because later review fixes changed completeness normalization and presentation.
+Its counts remain diagnostic context, not final merge-readiness evidence.
+
 The final retained-browser run used the authenticated console at
 `http://127.0.0.1:5194/impact?kind=service&target=api-node-boats` against
-application head `4813a48b68e071fa232101b405abdb7cc8e86264`. The rendered
-deployment section agreed with the retained API tuple proof: six workload
+application head `09be7fea103db370bae771877a5b89e64cd3c84c`. The Vite process
+was verified to be serving directly from this feature worktree after the final
+rebase, while the retained API response shape was independently proven by the
+exact-head B-7 run above. The rendered deployment section agreed with the
+retained API tuple proof: six workload
 instances, nine `RUNS_ON` relationship type/source/target tuples, 14 deployment
 sources, six cloud resources, and one Kubernetes resource. The UI grouped the
 six instances by their `environment` attributes and rendered Kubernetes and
@@ -294,9 +326,12 @@ anchor, and the UI disclosed that absence instead of inventing a fallback.
 Every placement outside the bounded change-surface graph was labeled `Outside
 bounded graph` and exposed no misleading inspect control. The graph composition
 reported 26 of 26 nodes and 25 of 25 edges within the 60/120 bounds, marked
-complete. The deployment-source summary displayed all 14 sources; the API
+`complete within bounds`; it did not display `completeness unverified` because
+both required limit metadata blocks were present and internally consistent.
+The deployment-source summary displayed all 14 sources; the API
 reported 14 of 14 with `truncated=false`, so no truncation warning was required.
 Selecting `endpoint:0d0c68e49c7ebb12a6332c16` in the rendered graph updated the
 visible Selected entity panel to that canonical endpoint ID and showed its
 `DIRECT_IMPACT -> workload:api-node-boats` edge, proving click-to-visible
-completion in the signed-in retained session.
+completion in the signed-in retained session. The browser console contained no
+warnings or errors during this exact-head proof.
