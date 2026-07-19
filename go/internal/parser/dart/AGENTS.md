@@ -6,7 +6,7 @@
 2. doc.go - godoc contract for the Dart adapter
 3. parser.go - public parser and pre-scan entrypoints
 4. syntax_index.go - tree-sitter declaration extraction
-5. calls.go - legacy call row extraction
+5. calls.go - AST call-site extraction (function_calls rows)
 6. parser_test.go - behavior coverage for payload shape
 
 ## Invariants this package enforces
@@ -33,8 +33,11 @@
 
 - Missing declarations or root metadata usually mean the syntax index is not
   covering the relevant Dart grammar node shape.
-- Duplicate or unstable call rows usually mean seen-call tracking or bucket
-  sorting changed.
+- Duplicate or unstable call rows usually mean the `full_name` dedup in
+  `appendUniqueDartCall` or bucket sorting changed.
+- A missing call site or a call misclassified as a declaration (or vice
+  versa) usually means a new Dart grammar shape needs a case in
+  `walkDartCallSites` (see calls.go's node-kind switch).
 - Duplicate import rows usually mean wrapper and concrete import/export nodes
   are both being emitted.
 

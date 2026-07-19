@@ -23,15 +23,27 @@ Canonical implementation: `go/internal/parser/registry.go` plus the entrypoint a
 | Enums | `enums` | supported | `classes` | `name, line_number` | `node:Class` | `go/internal/parser/engine_long_tail_test.go::TestDefaultEngineParsePathDartFixtures` | Compose-backed fixture verification | - |
 | Library imports | `library-imports` | supported | `imports` | `name, line_number, import_type=import` | `relationship:IMPORTS` | `go/internal/parser/engine_long_tail_test.go::TestDefaultEngineParsePathDartFixtures` | Compose-backed fixture verification | - |
 | Library exports | `library-exports` | supported | `imports` | `name, line_number, import_type=export` | `relationship:IMPORTS` | `go/internal/parser/engine_long_tail_test.go::TestDefaultEngineParsePathDartFixtures` | Compose-backed fixture verification | - |
-| Function calls | `function-calls` | supported | `function_calls` | `name, line_number` | `relationship:CALLS` | `go/internal/parser/engine_long_tail_test.go::TestDefaultEngineParsePathDartFixtures` | Compose-backed fixture verification | - |
+| Function calls | `function-calls` | supported | `function_calls` | `name, full_name, line_number` | `relationship:CALLS` | `go/internal/parser/engine_long_tail_test.go::TestDefaultEngineParsePathDartFixtures`, `go/internal/parser/dart/calls_ast_test.go` | Compose-backed fixture verification | Call sites are extracted by an AST walk over the call-expression grammar shapes (`selector`/`argument_part`, cascades, `new`/`const` object creation), not a byte scan, so declaration signatures can never be misclassified as call sites. `full_name` is the dotted qualified callee chain (e.g. `f.build`, `fut.then`); genuine recursion (caller calls itself) still emits a real self-edge. |
 | Local variable declarations | `local-variable-declarations` | supported | `variables` | `name, line_number` | `node:Variable` | `go/internal/parser/engine_long_tail_test.go::TestDefaultEngineParsePathDartFixtures` | Compose-backed fixture verification | - |
 | Top-level variable declarations | `top-level-variable-declarations` | supported | `variables` | `name, line_number` | `node:Variable` | `go/internal/parser/engine_long_tail_test.go::TestDefaultEngineParsePathDartFixtures` | Compose-backed fixture verification | - |
 
 ## Known Limitations
 - Named constructors (`ClassName.named(...)`) are captured as function symbols
   with `class_context`, but the parser does not resolve constructor tear-offs
-- Cascade notation (`..method()`) is not tracked as a distinct call chain
+- Cascade notation (`..method()`) is tracked as a call site, but the chain's
+  receiver is not carried into `full_name` (`b..write("a")..write("b")`
+  emits `full_name="write"` for both call sites, not `b.write`), so repeat
+  cascade calls to the same method name on one receiver collapse into a
+  single `function_calls` row under the full-name dedup
 - `part`/`part of` directives are not modeled as import relationships
+- `function_calls` reflects real call-site truth: a call-site AST walk
+  (`go/internal/parser/dart/calls.go`) replaced an earlier byte-scanner that
+  misclassified every function/method/constructor declaration as a call to
+  itself, materializing a spurious self-loop `CALLS` edge for every
+  declaration in the corpus (eshu-hq/eshu#5332). Declarations and calls are
+  disjoint grammar node kinds, so a declaration can no longer be
+  misclassified as a call, while genuine recursion (a function calling
+  itself) still produces a real self-edge.
 
 ## Dead-Code Support
 
