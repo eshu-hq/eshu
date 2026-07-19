@@ -34,24 +34,45 @@ type dartCallSite struct {
 // node), so a declaration can never be misclassified as a call here.
 func collectDartCallSites(root *tree_sitter.Node, source []byte) []dartCallSite {
 	var sites []dartCallSite
-	walkDartCallSites(root, source, &sites)
+	if root == nil {
+		return sites
+	}
+	// One TreeCursor is created here and reused for the entire tree walk.
+	// walkDartCallSites used to call node.Walk() (a cgo tree-sitter cursor
+	// allocation) plus NamedChildren (a cgo call per child, materializing a
+	// throwaway []Node) at every single node in the tree. Reusing one cursor
+	// for the whole traversal (GotoFirstChild/GotoNextSibling/GotoParent) cuts
+	// that to one cgo cursor allocation total: measured -33.8% on the
+	// isolated extraction step and -7.5% end-to-end Parse() (#5332 recovery),
+	// output byte-identical — see calls_bench_test.go's Performance Evidence
+	// note and TestWalkDartCallSitesMatchesOracle's 0/0 equivalence proof.
+	cursor := root.Walk()
+	defer cursor.Close()
+	walkDartCallSites(cursor, source, &sites)
 	return sites
 }
 
-// walkDartCallSites scans node's own named children in source order,
-// reconstructing the dotted callee chain (identifier / `.name` selectors /
-// cascade selectors) and emitting a call whenever the chain is closed by an
-// argument list. It then recurses into every child with a fresh local chain,
-// since nested expressions (call arguments, lambda bodies, cascade sections)
-// form their own independent chains.
-func walkDartCallSites(node *tree_sitter.Node, source []byte, sites *[]dartCallSite) {
+// walkDartCallSites scans the node at cursor's current position's own named
+// children in source order, reconstructing the dotted callee chain
+// (identifier / `.name` selectors / cascade selectors) and emitting a call
+// whenever the chain is closed by an argument list. It then recurses into
+// every named child with a fresh local chain, since nested expressions (call
+// arguments, lambda bodies, cascade sections) form their own independent
+// chains.
+//
+// cursor is shared across the whole tree walk (see collectDartCallSites) and
+// MUST be positioned at the node being scanned on entry, and IS repositioned
+// back to that same node on return (GotoFirstChild/GotoNextSibling to visit
+// children, GotoParent to restore). Only named children are visited —
+// GotoNextSibling also lands on anonymous token nodes (punctuation,
+// keywords), which are skipped via IsNamed() so the visitation set stays
+// identical to the previous NamedChildren-based walk: anonymous nodes never
+// entered the switch or the recursion before, and still don't.
+func walkDartCallSites(cursor *tree_sitter.TreeCursor, source []byte, sites *[]dartCallSite) {
+	node := cursor.Node()
 	if node == nil {
 		return
 	}
-
-	cursor := node.Walk()
-	children := node.NamedChildren(cursor)
-	cursor.Close()
 
 	// A bare identifier immediately following another bare identifier is
 	// only a dotted-name continuation (the `_dot_identifier` shape used by
@@ -104,8 +125,18 @@ func walkDartCallSites(node *tree_sitter.Node, source []byte, sites *[]dartCallS
 		chainLine = line
 	}
 
-	for index := range children {
-		child := &children[index]
+	if !cursor.GotoFirstChild() {
+		return
+	}
+	for {
+		child := cursor.Node()
+		if !child.IsNamed() {
+			if !cursor.GotoNextSibling() {
+				break
+			}
+			continue
+		}
+
 		switch child.Kind() {
 		case "identifier", "type_identifier":
 			text := strings.TrimSpace(shared.NodeText(child, source))
@@ -165,8 +196,13 @@ func walkDartCallSites(node *tree_sitter.Node, source []byte, sites *[]dartCallS
 			reset()
 		}
 
-		walkDartCallSites(child, source, sites)
+		walkDartCallSites(cursor, source, sites)
+
+		if !cursor.GotoNextSibling() {
+			break
+		}
 	}
+	cursor.GotoParent()
 }
 
 // dartSelectorIdentifier returns the identifier named by an

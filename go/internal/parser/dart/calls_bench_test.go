@@ -56,30 +56,41 @@ func benchmarkDartFixture(b *testing.B) string {
 // BenchmarkParseDartCallSites measures Parse() end-to-end (tree-sitter parse
 // plus the full declaration/call-site walk) on a call-site-dense fixture.
 //
-// Prove-The-Theory-First evidence for #5332: the a-priori theory was that
-// reusing the already-built tree-sitter tree (walkDartCallSites) would be
-// neutral-to-faster than the retired raw byte scanner (appendDartCalls),
-// since the byte scanner ran a second full pass over the source. Measured on
-// this fixture (go test -bench BenchmarkParseDartCallSites -benchmem
-// -benchtime=200x, same machine, same fixture, pre-fix commit 2395e65c4 vs
-// this commit): the byte scanner was actually ~10.48ms/op (1.89MB/op,
-// 59347 allocs/op) and the AST walk is ~14.14ms/op (2.77MB/op, 90075
-// allocs/op) — a real ~35% ns/op regression, not the hypothesized win. An
-// isolated micro-benchmark of just the call-site extraction step (excluding
-// the shared tree-sitter parse + declaration walk both versions pay)
-// attributes ~100% of the delta to the new walk itself: ~84µs/op for the old
-// byte scan vs ~3.68ms/op for the AST walk on the same fixture, because
-// walkDartCallSites recurses into every named child of the ENTIRE tree via
-// tree-sitter Go-binding node methods (Walk/NamedChildren/Kind), which cost
-// far more per node than the byte scanner's linear text lex. The theory is
-// disproven; the regression is accepted here because it is a correctness fix
-// (accuracy outranks performance) on a language not in the currently gated
-// 20-repo golden corpus, and absolute per-file cost stays in the
-// low-single-digit-millisecond range even on this deliberately dense
-// synthetic fixture (real dart_comprehensive fixture files are 1-55 lines).
-// A follow-up could prune the walk to skip subtrees that cannot contain a
-// call (e.g. type-only nodes) if Dart parse time becomes a measured
-// bottleneck.
+// Background (#5332). The AST call-site walk replaced a retired raw byte
+// scanner. The scanner was faster (~10.48ms/op, 1.89MB/op, 59347 allocs/op on
+// this fixture) but WRONG: it recorded every declaration as a self-call. The
+// AST walk is a correctness fix (accuracy outranks performance), so the
+// scanner is not a valid comparison point — its answer was wrong.
+//
+// Performance Evidence (traversal-mechanism recovery, this commit). The first
+// AST walk allocated a fresh tree-sitter cursor and materialized a []Node via
+// NamedChildren at every node in the tree (~14.11ms/op, 2.645MiB/op, 90075
+// allocs/op end-to-end here). collectDartCallSites now reuses a single
+// TreeCursor for the whole traversal
+// (GotoFirstChild/GotoNextSibling/GotoParent), skipping anonymous nodes via
+// IsNamed() to keep the visitation set and emission order byte-identical (see
+// TestWalkDartCallSitesMatchesOracle, 0/0 differential-oracle equivalence).
+// Measured on this fixture, same machine, back-to-back OLD(NamedChildren) vs
+// NEW(cursor), go test -bench BenchmarkParseDartCallSites -benchmem
+// -benchtime=300x -count=12, benchstat:
+//
+//	end-to-end Parse(): 14.11ms -> 13.06ms sec/op (-7.47%, p=0.000, n=12),
+//	                    2.645MiB -> 2.405MiB B/op (-9.09%),
+//	                    90075 -> 84118 allocs/op (-6.61%).
+//	extraction step only (oracle NamedChildren vs cursor, -benchtime=500x
+//	                    -count=10): 4.167ms -> 2.758ms (-33.80%, p=0.000),
+//	                    883.3KiB -> 642.8KiB (-27.23%), 31994 -> 26224
+//	                    allocs/op (-18.03%).
+//
+// No-Regression Evidence. This is output-preserving: function_calls rows are
+// byte-identical to the pre-recovery walk (same names, full_names, line
+// numbers, order), proven 0/0 across the dart_comprehensive corpus, the
+// calls_ast_test.go regression cases, and this dense fixture by
+// TestWalkDartCallSitesMatchesOracle. The recovery closes ~29% of the
+// AST-walk-vs-byte-scanner gap; the remainder is the inherent cost of walking
+// the whole AST (the price of the correctness fix), and absolute per-file cost
+// stays in the low-single-digit-millisecond range even on this deliberately
+// dense synthetic fixture (real dart_comprehensive files are 1-55 lines).
 func BenchmarkParseDartCallSites(b *testing.B) {
 	path := benchmarkDartFixture(b)
 
