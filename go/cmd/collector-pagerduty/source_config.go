@@ -31,6 +31,8 @@ type targetJSON struct {
 	AllowedServiceIDs       []string `json:"allowed_service_ids"`
 	ConfigValidationEnabled bool     `json:"config_validation_enabled"`
 	ConfigResourceLimit     int      `json:"config_resource_limit"`
+	PaginationMaxPages      int      `json:"pagination_max_pages"`
+	PaginationMaxRecords    int      `json:"pagination_max_records"`
 }
 
 func loadPagerDutySourceConfig(
@@ -83,6 +85,8 @@ func mapTarget(target targetJSON, getenv func(string) string) (pagerduty.TargetC
 		AllowedServiceIDs:       cleanConfigStrings(target.AllowedServiceIDs),
 		ConfigValidationEnabled: target.ConfigValidationEnabled,
 		ConfigResourceLimit:     target.ConfigResourceLimit,
+		PaginationMaxPages:      target.PaginationMaxPages,
+		PaginationMaxRecords:    target.PaginationMaxRecords,
 	}, nil
 }
 
