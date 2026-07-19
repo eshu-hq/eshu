@@ -88,6 +88,10 @@ func plannerExcludedSurfaces() map[string]struct{} {
 		// callback; neither returns repository, graph, runtime, or cloud facts.
 		"GET /api/v0/auth/oidc/callback": {}, // consumes the OIDC IdP callback
 		"GET /api/v0/auth/oidc/login":    {}, // redirects the browser to the OIDC IdP
+		// GitHub SSO handshake routes (issue #5166, F-5): plain OAuth2 login
+		// redirect and callback; auth-flow plumbing, not retrieval surfaces.
+		"GET /api/v0/auth/github/callback": {}, // consumes the GitHub OAuth2 callback
+		"GET /api/v0/auth/github/login":    {}, // redirects the browser to GitHub OAuth2
 		// SAML SSO handshake routes: per-provider login redirect, metadata
 		// document, and assertion-consumer endpoint. All are SSO plumbing.
 		"GET /api/v0/auth/saml/providers/{provider_id}/login":    {}, // redirects to the SAML IdP
