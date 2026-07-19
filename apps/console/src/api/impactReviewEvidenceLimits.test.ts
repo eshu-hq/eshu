@@ -27,6 +27,7 @@ describe("impact deployment evidence coverage", () => {
     expect(review.deploymentTrace.data.uncorrelatedCloudResourcesTruncated).toBe(true);
     expect(review.graphPresentation).toMatchObject({
       completeness: "truncated",
+      omittedNodes: 0,
       truncated: true,
     });
     expect(review.graphPresentation.limitations).toContain(

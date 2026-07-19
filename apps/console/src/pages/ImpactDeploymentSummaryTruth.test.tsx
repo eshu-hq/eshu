@@ -63,6 +63,7 @@ describe("DeploymentTraceSummary topology truth", () => {
           targetId: "workload:catalog-api",
         },
       ],
+      uncorrelatedCloudResourcesTruncated: false,
       workloadId: "workload:catalog-api",
     };
 
@@ -183,5 +184,6 @@ function baseTrace(overrides: Partial<DeploymentTraceResult>): DeploymentTraceRe
     topologyEdges: [],
     workloadId: "workload:catalog-api",
     ...overrides,
+    uncorrelatedCloudResourcesTruncated: overrides.uncorrelatedCloudResourcesTruncated ?? false,
   };
 }

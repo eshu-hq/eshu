@@ -213,9 +213,9 @@ set when the broad anchor moved from first to last: digests
 `856b7689de5b50dad139bf31f8127e859d2fcf8377fd246773cd0f634d825d01`
 and `67b1fb1808d3c3b646105466a18e495cc82a05f85048240a00de1a4da5280e10`.
 The new global-order result was independent of anchor order and matched the
-latter digest. This is the intended behavior delta: bounded candidates are
-selected by their documented global name/ID order rather than upstream
-artifact order.
+latter digest. This is the intended behavior delta: bounded configuration-
+derived candidates are selected by their documented global name/ID order
+rather than upstream artifact order.
 
 An `any(config_anchor IN $config_anchors ...)` candidate was rejected before
 implementation: on the same data it returned 3,737 matches where the old
@@ -286,9 +286,12 @@ recorded here.
 The preliminary hostile review found that the API's
 `uncorrelated_cloud_resources_truncated` signal was not yet carried through the
 console normalizer. The final implementation now marks that graph truncated,
-adds an explicit limitation even when zero candidate rows were returned, and
-renders a matching deployment-summary warning. Regression coverage exercises
+adds an explicit limitation without fabricating an unknown omitted-node count
+even when zero candidate rows were returned, and renders a source-neutral
+deployment-summary warning because the API flag covers both free-text and
+configuration-derived candidates. Regression coverage exercises
 the real response normalizer, graph composition, and visible summary. The same
 review also found that the bounded candidate ordering was only recorded in this
 evidence packet; the OpenAPI response description and public HTTP reference now
-declare the global resource-name/canonical-ID order.
+declare the configuration-derived candidate resource-name/canonical-ID order
+without overstating the separate free-text ordering contract.

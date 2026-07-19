@@ -29,7 +29,7 @@ func TestOpenAPIImpactDeploymentTraceDocumentsCanonicalPlatformIdentity(t *testi
 	schema := mustMapField(t, jsonContent, "schema")
 	properties := mustMapField(t, schema, "properties")
 	uncorrelatedCloudResources := mustMapField(t, properties, "uncorrelated_cloud_resources")
-	if description, _ := uncorrelatedCloudResources["description"].(string); !strings.Contains(description, "globally ordered by name and canonical ID") {
+	if description, _ := uncorrelatedCloudResources["description"].(string); !strings.Contains(description, "Deployment-config candidates are globally ordered by name and canonical ID") {
 		t.Fatalf("uncorrelated_cloud_resources description does not document ordering: %q", description)
 	}
 	instances := mustMapField(t, properties, "instances")

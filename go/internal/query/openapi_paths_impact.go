@@ -197,7 +197,7 @@ const openAPIPathsImpact = `
                         "ordering": {"type": "array", "items": {"type": "string"}}
                       }
                     },
-                    "uncorrelated_cloud_resources": {"type": "array", "description": "CloudResource candidates from bounded free-text or deployment-config evidence that do not have a materialized workload-to-cloud relationship. Candidates are globally ordered by name and canonical ID before the response bound is applied.", "items": {"type": "object"}},
+                    "uncorrelated_cloud_resources": {"type": "array", "description": "CloudResource candidates from bounded free-text or deployment-config evidence that do not have a materialized workload-to-cloud relationship. Deployment-config candidates are globally ordered by name and canonical ID before the response bound is applied.", "items": {"type": "object"}},
                     "uncorrelated_cloud_resources_truncated": {"type": "boolean", "description": "Present and true when uncorrelated_cloud_resources was capped and additional candidates may exist."},
                     "k8s_resources": {"type": "array", "items": {"type": "object"}},
 ` + openAPIImpactK8sResourceLimits + `

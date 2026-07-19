@@ -90,8 +90,8 @@ export function DeploymentTraceSummary({
       ) : null}
       {trace.uncorrelatedCloudResourcesTruncated === true ? (
         <p className="inline-state">
-          Config-derived cloud-resource candidates were truncated; additional uncorrelated
-          candidates may be omitted.
+          Uncorrelated cloud-resource candidates were truncated; additional candidates may be
+          omitted.
         </p>
       ) : null}
 

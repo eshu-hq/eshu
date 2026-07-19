@@ -214,7 +214,6 @@ export function deploymentTraceGraph(
   for (const limitation of cloudResourceAccounting.limitations) limitations.add(limitation);
   for (const limitation of k8sResourceAccounting.limitations) limitations.add(limitation);
   if (trace.uncorrelatedCloudResourcesTruncated === true) {
-    identityOmittedNodes += 1;
     limitations.add(
       "uncorrelated cloud-resource candidate input truncated upstream; additional candidates may be omitted",
     );

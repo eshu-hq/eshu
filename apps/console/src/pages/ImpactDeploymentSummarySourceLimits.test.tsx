@@ -9,12 +9,12 @@ import type {
 } from "../api/impactReviewTypes";
 
 describe("DeploymentTraceSummary deployment-source coverage", () => {
-  it("discloses truncated config-derived candidates with no returned rows", () => {
+  it("discloses truncated uncorrelated candidates with no returned rows", () => {
     renderSummary(null, true);
 
     expect(
       screen.getByText(
-        "Config-derived cloud-resource candidates were truncated; additional uncorrelated candidates may be omitted.",
+        "Uncorrelated cloud-resource candidates were truncated; additional candidates may be omitted.",
       ),
     ).toBeInTheDocument();
   });
