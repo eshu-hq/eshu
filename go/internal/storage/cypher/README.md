@@ -451,7 +451,14 @@ writer adds one `UNWIND` + `MATCH Function uid` + `MERGE ShellCommand uid`
 write statement and no per-row graph round trip. Shell-exec retracts run the
 edge delete first, then a same-scope `ShellCommand` orphan cleanup anchored by
 indexed repo or path so removed command-call churn does not grow future retract
-anchors.
+anchors. That cleanup (`EdgeWriter.cleanupOrphanShellCommands`) is the same
+S1/S2 Go-side anti-join shape as `OrphanSweepStore` (see "`OrphanSweepStore`
+is the cleanup seam..." above): it reads candidate uids, reads which of those
+uids currently have any relationship via a concrete relationship variable,
+computes the anti-join in Go, and deletes only the non-connected uids by
+explicit key, through `EdgeWriter.Reader`. It never relies on a
+relationship-existence predicate (#5310; see
+docs/public/reference/nornicdb-pitfalls.md).
 
 No-Observability-Change: shell-exec writes use the existing
 `EdgeWriter.WriteEdges` / `RetractEdges` path, statement summaries,
@@ -893,7 +900,7 @@ backend-specific branch.
   `BuildRetractCodeCallEdgeStatementsByFilePath`,
   `BuildRetractInheritanceEdgeStatements`, `BuildRetractInheritanceEdgeStatementsByFilePath`,
   `BuildRetractSQLRelationshipEdgeStatements`,
-  `BuildRetractSQLRelationshipEdgeStatementsByFilePath`, `BuildDeleteOrphanPlatformNodes`
+  `BuildRetractSQLRelationshipEdgeStatementsByFilePath`
 
 **Read / check**
 

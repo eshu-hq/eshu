@@ -401,6 +401,18 @@ func TestAdapterWriteUsesDefaultBatchSizeWhenUnset(t *testing.T) {
 type recordingExecutor struct {
 	calls     []Statement
 	errAtCall error
+
+	// readCalls records every Reader.Run invocation (used by shell-exec
+	// orphan-cleanup retract tests, the only production path that reads
+	// through EdgeWriter.Reader). readCandidates/readConnected script the S1
+	// candidate keys and which of those currently have a relationship (S2);
+	// both are nil by default, so a test that never exercises shell-exec
+	// cleanup reads sees zero candidates and the production code performs no
+	// further read or write.
+	readCalls      []Statement
+	readCandidates []string
+	readConnected  map[string]bool
+	readErr        error
 }
 
 func (r *recordingExecutor) Execute(_ context.Context, statement Statement) error {
@@ -410,4 +422,30 @@ func (r *recordingExecutor) Execute(_ context.Context, statement Statement) erro
 	}
 
 	return nil
+}
+
+// Run implements OrphanSweepReader so recordingExecutor can double as the
+// EdgeWriter.Reader in shell-exec orphan-cleanup retract tests. It
+// distinguishes the S1 candidate-keys read (no "keys" parameter) from the S2
+// connected-keys read (a "keys" parameter) the same way the production
+// statements do.
+func (r *recordingExecutor) Run(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
+	r.readCalls = append(r.readCalls, Statement{Cypher: cypher, Parameters: params})
+	if r.readErr != nil {
+		return nil, r.readErr
+	}
+	if keys, ok := params["keys"].([]string); ok {
+		rows := make([]map[string]any, 0, len(keys))
+		for _, k := range keys {
+			if r.readConnected[k] {
+				rows = append(rows, map[string]any{"key": k})
+			}
+		}
+		return rows, nil
+	}
+	rows := make([]map[string]any, 0, len(r.readCandidates))
+	for _, k := range r.readCandidates {
+		rows = append(rows, map[string]any{"key": k})
+	}
+	return rows, nil
 }

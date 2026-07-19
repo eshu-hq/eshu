@@ -5,6 +5,7 @@ package cypher
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -61,8 +62,12 @@ func TestEdgeWriterWriteEdgesShellExec(t *testing.T) {
 func TestEdgeWriterRetractEdgesShellExecDeltaUsesFileScope(t *testing.T) {
 	t.Parallel()
 
-	executor := &recordingExecutor{}
+	executor := &recordingExecutor{
+		readCandidates: []string{"shell-command:abc123"},
+		readConnected:  map[string]bool{},
+	}
 	writer := NewEdgeWriter(executor, 0)
+	writer.Reader = executor
 
 	rows := []reducer.SharedProjectionIntentRow{
 		{
@@ -83,6 +88,9 @@ func TestEdgeWriterRetractEdgesShellExecDeltaUsesFileScope(t *testing.T) {
 	if err := writer.RetractEdges(context.Background(), reducer.DomainShellExec, rows, "reducer/shell-exec"); err != nil {
 		t.Fatalf("RetractEdges() error = %v", err)
 	}
+
+	// Edge delete, then the anti-join's S3 delete-by-uid write (the orphan
+	// candidate has no connected keys, so it is deleted).
 	if got, want := len(executor.calls), 2; got != want {
 		t.Fatalf("executor calls = %d, want %d", got, want)
 	}
@@ -90,7 +98,123 @@ func TestEdgeWriterRetractEdgesShellExecDeltaUsesFileScope(t *testing.T) {
 		t.Fatalf("delta retract did not anchor by target.path: %s", executor.calls[0].Cypher)
 	}
 	assertShellExecRetractScopesEvidenceSource(t, executor.calls[0], "file_paths")
-	assertShellExecCleanupStatement(t, executor.calls[1], "file_paths", "MATCH (target:ShellCommand {path: file_path})")
+	assertShellExecDeleteByUIDStatement(t, executor.calls[1], []string{"shell-command:abc123"})
+
+	// S1 candidate read, then S2 connected-keys read.
+	if got, want := len(executor.readCalls), 2; got != want {
+		t.Fatalf("reader calls = %d, want %d", got, want)
+	}
+	if !strings.Contains(executor.readCalls[0].Cypher, "MATCH (target:ShellCommand {path: file_path})") {
+		t.Fatalf("S1 candidate read did not anchor by target.path: %s", executor.readCalls[0].Cypher)
+	}
+	assertShellExecRetractScopesEvidenceSource(t, executor.readCalls[0], "file_paths")
+	if !strings.Contains(executor.readCalls[1].Cypher, "-[r]-(m)") {
+		t.Fatalf("S2 connected read missing concrete relationship variable: %s", executor.readCalls[1].Cypher)
+	}
+}
+
+func TestEdgeWriterRetractEdgesShellExecCleanupPreservesConnectedCandidate(t *testing.T) {
+	t.Parallel()
+
+	executor := &recordingExecutor{
+		readCandidates: []string{"shell-command:connected", "shell-command:orphan"},
+		readConnected:  map[string]bool{"shell-command:connected": true},
+	}
+	writer := NewEdgeWriter(executor, 0)
+	writer.Reader = executor
+
+	rows := []reducer.SharedProjectionIntentRow{
+		{
+			RepositoryID: "repo-a",
+			Payload:      map[string]any{"repo_id": "repo-a"},
+		},
+	}
+
+	if err := writer.RetractEdges(context.Background(), reducer.DomainShellExec, rows, "reducer/shell-exec"); err != nil {
+		t.Fatalf("RetractEdges() error = %v", err)
+	}
+
+	if got, want := len(executor.calls), 2; got != want {
+		t.Fatalf("executor calls = %d, want %d", got, want)
+	}
+	assertShellExecDeleteByUIDStatement(t, executor.calls[1], []string{"shell-command:orphan"})
+}
+
+func TestEdgeWriterRetractEdgesShellExecCleanupSkipsWriteWhenAllConnected(t *testing.T) {
+	t.Parallel()
+
+	executor := &recordingExecutor{
+		readCandidates: []string{"shell-command:connected"},
+		readConnected:  map[string]bool{"shell-command:connected": true},
+	}
+	writer := NewEdgeWriter(executor, 0)
+	writer.Reader = executor
+
+	rows := []reducer.SharedProjectionIntentRow{
+		{
+			RepositoryID: "repo-a",
+			Payload:      map[string]any{"repo_id": "repo-a"},
+		},
+	}
+
+	if err := writer.RetractEdges(context.Background(), reducer.DomainShellExec, rows, "reducer/shell-exec"); err != nil {
+		t.Fatalf("RetractEdges() error = %v", err)
+	}
+
+	// Only the edge delete: every candidate is connected, so the anti-join
+	// issues no delete-by-uid write.
+	if got, want := len(executor.calls), 1; got != want {
+		t.Fatalf("executor calls = %d, want %d (no write should fire when every candidate is connected)", got, want)
+	}
+}
+
+func TestEdgeWriterRetractEdgesShellExecCleanupSkipsReadsWhenNoCandidates(t *testing.T) {
+	t.Parallel()
+
+	executor := &recordingExecutor{}
+	writer := NewEdgeWriter(executor, 0)
+	writer.Reader = executor
+
+	rows := []reducer.SharedProjectionIntentRow{
+		{
+			RepositoryID: "repo-a",
+			Payload:      map[string]any{"repo_id": "repo-a"},
+		},
+	}
+
+	if err := writer.RetractEdges(context.Background(), reducer.DomainShellExec, rows, "reducer/shell-exec"); err != nil {
+		t.Fatalf("RetractEdges() error = %v", err)
+	}
+
+	if got, want := len(executor.readCalls), 1; got != want {
+		t.Fatalf("reader calls = %d, want %d (S1 empty should skip S2)", got, want)
+	}
+	if got, want := len(executor.calls), 1; got != want {
+		t.Fatalf("executor calls = %d, want %d (S1 empty should skip the delete write)", got, want)
+	}
+}
+
+func TestEdgeWriterRetractEdgesShellExecRequiresReader(t *testing.T) {
+	t.Parallel()
+
+	executor := &recordingExecutor{}
+	writer := NewEdgeWriter(executor, 0)
+	// writer.Reader intentionally left nil.
+
+	rows := []reducer.SharedProjectionIntentRow{
+		{
+			RepositoryID: "repo-a",
+			Payload:      map[string]any{"repo_id": "repo-a"},
+		},
+	}
+
+	err := writer.RetractEdges(context.Background(), reducer.DomainShellExec, rows, "reducer/shell-exec")
+	if err == nil {
+		t.Fatal("RetractEdges() error = nil, want reader-required error")
+	}
+	if !strings.Contains(err.Error(), "reader is required") {
+		t.Fatalf("error = %v, want reader-required error", err)
+	}
 }
 
 func TestBuildRetractShellExecEdgesUsesRepoAnchoredShellCommandLookup(t *testing.T) {
@@ -140,28 +264,77 @@ func TestBuildRetractShellExecEdgesByFilePathUsesPathAnchoredShellCommandLookup(
 	assertShellExecRetractScopesEvidenceSource(t, stmt, "file_paths")
 }
 
-func TestBuildCleanupOrphanShellCommandsUsesRepoAnchor(t *testing.T) {
+// TestShellCommandConnectedKeysQueryUsesConcreteRelationshipVariable pins the
+// S2 anti-join read shape: a concrete relationship variable anchored on
+// caller-supplied keys, never a relationship-existence predicate (#5310; see
+// docs/public/reference/nornicdb-pitfalls.md).
+func TestShellCommandConnectedKeysQueryUsesConcreteRelationshipVariable(t *testing.T) {
 	t.Parallel()
 
-	stmt := BuildCleanupOrphanShellCommands([]string{"repo-a"}, "reducer/shell-exec")
-	assertShellExecCleanupStatement(t, stmt, "repo_ids", "MATCH (target:ShellCommand {repo_id: repo_id})")
+	for _, want := range []string{
+		"UNWIND $keys AS candidate_key",
+		"MATCH (target:ShellCommand {uid: candidate_key})-[r]-(m)",
+		"RETURN DISTINCT target.uid AS key",
+	} {
+		if !strings.Contains(shellCommandConnectedKeysCypher, want) {
+			t.Fatalf("shellCommandConnectedKeysCypher = %q, want %q", shellCommandConnectedKeysCypher, want)
+		}
+	}
+	for _, unwanted := range []string{"NOT (", "COUNT {", "DETACH DELETE"} {
+		if strings.Contains(shellCommandConnectedKeysCypher, unwanted) {
+			t.Fatalf("shellCommandConnectedKeysCypher = %q, must not contain %q", shellCommandConnectedKeysCypher, unwanted)
+		}
+	}
 }
 
-func TestBuildCleanupOrphanShellCommandsByFilePathUsesPathAnchor(t *testing.T) {
+// TestShellCommandCandidateKeysQueriesCarryNoRelationshipPredicate pins the S1
+// reads: every in-scope ShellCommand uid, no relationship clause at all.
+func TestShellCommandCandidateKeysQueriesCarryNoRelationshipPredicate(t *testing.T) {
 	t.Parallel()
 
-	stmt := BuildCleanupOrphanShellCommandsByFilePath(
-		[]string{"/repo/cmd/archive/main.go"},
-		"reducer/shell-exec",
-	)
-	assertShellExecCleanupStatement(t, stmt, "file_paths", "MATCH (target:ShellCommand {path: file_path})")
+	for _, cypher := range []string{shellCommandCandidateKeysByRepoCypher, shellCommandCandidateKeysByFileCypher} {
+		if !strings.Contains(cypher, "target.evidence_source = $evidence_source") {
+			t.Fatalf("cypher = %q, want evidence_source predicate", cypher)
+		}
+		if !strings.Contains(cypher, "RETURN DISTINCT target.uid AS key") {
+			t.Fatalf("cypher = %q, want target.uid key projection", cypher)
+		}
+		for _, unwanted := range []string{"--()", "NOT (", "COUNT {", "-[r]-"} {
+			if strings.Contains(cypher, unwanted) {
+				t.Fatalf("cypher = %q, must not contain relationship clause %q", cypher, unwanted)
+			}
+		}
+	}
+}
+
+// TestShellCommandDeleteByUIDStatementIsKeyAnchoredNoDetach pins the S3 write:
+// key-anchored DELETE, never DETACH DELETE.
+func TestShellCommandDeleteByUIDStatementIsKeyAnchoredNoDetach(t *testing.T) {
+	t.Parallel()
+
+	for _, want := range []string{
+		"UNWIND $keys AS candidate_key",
+		"MATCH (target:ShellCommand {uid: candidate_key})",
+		"DELETE target",
+	} {
+		if !strings.Contains(deleteShellCommandsByUIDCypher, want) {
+			t.Fatalf("deleteShellCommandsByUIDCypher = %q, want %q", deleteShellCommandsByUIDCypher, want)
+		}
+	}
+	if strings.Contains(deleteShellCommandsByUIDCypher, "DETACH DELETE") {
+		t.Fatalf("deleteShellCommandsByUIDCypher = %q, want orphan-only DELETE not DETACH DELETE", deleteShellCommandsByUIDCypher)
+	}
 }
 
 func TestEdgeWriterRetractEdgesShellExecRunsSequentialOrderedCleanup(t *testing.T) {
 	t.Parallel()
 
-	executor := &sqlSequentialRecordingExecutor{}
+	executor := &sqlSequentialRecordingExecutor{
+		readCandidates: []string{"shell-command:abc123"},
+		readConnected:  map[string]bool{},
+	}
 	writer := NewEdgeWriter(executor, 0)
+	writer.Reader = executor
 
 	rows := []reducer.SharedProjectionIntentRow{
 		{
@@ -175,8 +348,9 @@ func TestEdgeWriterRetractEdgesShellExecRunsSequentialOrderedCleanup(t *testing.
 	if err := writer.RetractEdges(context.Background(), reducer.DomainShellExec, rows, "reducer/shell-exec"); err != nil {
 		t.Fatalf("RetractEdges() error = %v", err)
 	}
-	// The shell-exec retract runs its two statements sequentially, edge retract
-	// first so the orphan cleanup sees the detached ShellCommand nodes: grouped
+	// The shell-exec retract runs its edge delete and its anti-join's S3
+	// delete-by-uid write sequentially: edge retract first so the orphan
+	// cleanup's S1/S2 reads see the detached ShellCommand nodes; grouped
 	// DELETEs under-apply on NornicDB v1.1.11.
 	if got := len(executor.groupCalls); got != 0 {
 		t.Fatalf("ExecuteGroup calls = %d, want 0 (grouped DELETEs under-apply on NornicDB v1.1.11)", got)
@@ -188,14 +362,14 @@ func TestEdgeWriterRetractEdgesShellExecRunsSequentialOrderedCleanup(t *testing.
 	if !strings.Contains(stmts[0].Cypher, "MATCH ()-[rel:EXECUTES_SHELL]->(target)") {
 		t.Fatalf("first statement should retract EXECUTES_SHELL relationships: %s", stmts[0].Cypher)
 	}
-	assertShellExecCleanupStatement(t, stmts[1], "repo_ids", "MATCH (target:ShellCommand {repo_id: repo_id})")
+	assertShellExecDeleteByUIDStatement(t, stmts[1], []string{"shell-command:abc123"})
 }
 
 func assertShellExecRetractScopesEvidenceSource(t *testing.T, stmt Statement, scopeParam string) {
 	t.Helper()
 
-	if !strings.Contains(stmt.Cypher, "rel.evidence_source = $evidence_source") {
-		t.Fatalf("cypher = %q, want rel.evidence_source predicate", stmt.Cypher)
+	if !strings.Contains(stmt.Cypher, "evidence_source = $evidence_source") {
+		t.Fatalf("cypher = %q, want evidence_source predicate", stmt.Cypher)
 	}
 	if got, want := stmt.Parameters["evidence_source"], "reducer/shell-exec"; got != want {
 		t.Fatalf("evidence_source = %#v, want %#v", got, want)
@@ -205,29 +379,80 @@ func assertShellExecRetractScopesEvidenceSource(t *testing.T, stmt Statement, sc
 	}
 }
 
-func assertShellExecCleanupStatement(t *testing.T, stmt Statement, scopeParam string, anchor string) {
+func assertShellExecDeleteByUIDStatement(t *testing.T, stmt Statement, wantKeys []string) {
 	t.Helper()
 
 	if stmt.Operation != OperationCanonicalRetract {
 		t.Fatalf("operation = %q, want %q", stmt.Operation, OperationCanonicalRetract)
 	}
-	for _, want := range []string{
-		anchor,
-		"target.evidence_source = $evidence_source",
-		"COUNT { (target)--() } = 0",
-		"DELETE target",
-	} {
-		if !strings.Contains(stmt.Cypher, want) {
-			t.Fatalf("cleanup cypher = %q, want %q", stmt.Cypher, want)
-		}
+	if !strings.Contains(stmt.Cypher, "DELETE target") {
+		t.Fatalf("cleanup cypher = %q, want DELETE target", stmt.Cypher)
 	}
 	if strings.Contains(stmt.Cypher, "DETACH DELETE") {
 		t.Fatalf("cleanup cypher = %q, want orphan-only DELETE not DETACH DELETE", stmt.Cypher)
 	}
-	if got, want := stmt.Parameters["evidence_source"], "reducer/shell-exec"; got != want {
-		t.Fatalf("evidence_source = %#v, want %#v", got, want)
+	keys, ok := stmt.Parameters["keys"].([]string)
+	if !ok {
+		t.Fatalf("keys parameter missing or wrong type: %#v", stmt.Parameters)
 	}
-	if _, ok := stmt.Parameters[scopeParam]; !ok {
-		t.Fatalf("%s parameter missing: %#v", scopeParam, stmt.Parameters)
+	if got := keys; !equalStringSlices(got, wantKeys) {
+		t.Fatalf("keys = %#v, want %#v", got, wantKeys)
+	}
+}
+
+func equalStringSlices(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
+// TestCleanupOrphanShellCommandsChunksConnectedRead proves the S2 connected-keys
+// read is chunked at shellCommandConnectedKeysChunkSize, not sent as one
+// round trip -- the anchored read scales super-linearly on NornicDB (#5147).
+func TestCleanupOrphanShellCommandsChunksConnectedRead(t *testing.T) {
+	t.Parallel()
+
+	candidates := make([]string, 1200) // 3 chunks of 500/500/200
+	for i := range candidates {
+		candidates[i] = fmt.Sprintf("shell-command:%04d", i)
+	}
+	executor := &recordingExecutor{readCandidates: candidates, readConnected: map[string]bool{}}
+	writer := NewEdgeWriter(executor, 0)
+	writer.Reader = executor
+
+	if err := writer.cleanupOrphanShellCommands(
+		context.Background(),
+		shellCommandCandidateKeysByRepoCypher,
+		map[string]any{"repo_ids": []string{"repo-a"}, "evidence_source": "es"},
+	); err != nil {
+		t.Fatalf("cleanupOrphanShellCommands error = %v", err)
+	}
+
+	var s2Reads int
+	for _, c := range executor.readCalls {
+		keys, ok := c.Parameters["keys"].([]string)
+		if !ok {
+			continue // S1 candidate read (no "keys" param)
+		}
+		s2Reads++
+		if len(keys) > shellCommandConnectedKeysChunkSize {
+			t.Fatalf("S2 chunk carried %d keys, want <= %d", len(keys), shellCommandConnectedKeysChunkSize)
+		}
+	}
+	if want := 3; s2Reads != want {
+		t.Fatalf("S2 connected-keys reads = %d, want %d (1200 keys chunked at %d)", s2Reads, want, shellCommandConnectedKeysChunkSize)
+	}
+	if len(executor.calls) != 1 {
+		t.Fatalf("delete Execute calls = %d, want 1", len(executor.calls))
+	}
+	delKeys, _ := executor.calls[0].Parameters["keys"].([]string)
+	if len(delKeys) != 1200 {
+		t.Fatalf("delete carried %d orphan keys, want 1200 (all candidates were orphan)", len(delKeys))
 	}
 }

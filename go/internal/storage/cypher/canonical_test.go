@@ -445,19 +445,3 @@ func TestBuildRetractCodeCallEdgesMetaclassStatement(t *testing.T) {
 		}
 	}
 }
-
-func TestBuildDeleteOrphanPlatformNodesStatement(t *testing.T) {
-	t.Parallel()
-
-	stmt := BuildDeleteOrphanPlatformNodes("finalization/workloads")
-
-	if stmt.Operation != OperationCanonicalRetract {
-		t.Fatalf("Operation = %q, want %q", stmt.Operation, OperationCanonicalRetract)
-	}
-	if !strings.Contains(stmt.Cypher, "NOT (p)--()") {
-		t.Fatalf("Cypher missing orphan check: %s", stmt.Cypher)
-	}
-	if !strings.Contains(stmt.Cypher, "DELETE p") {
-		t.Fatalf("Cypher missing DELETE p: %s", stmt.Cypher)
-	}
-}

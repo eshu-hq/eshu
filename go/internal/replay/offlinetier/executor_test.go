@@ -158,6 +158,32 @@ func (e liveExecutor) ExecuteCypher(ctx context.Context, stmt graph.CypherStatem
 	return e.Execute(ctx, cypher.Statement{Cypher: stmt.Cypher, Parameters: stmt.Parameters})
 }
 
+// Run executes a read query and returns its rows, satisfying
+// cypher.OrphanSweepReader so liveExecutor can double as EdgeWriter.Reader for
+// the shell-exec orphan-cleanup retract's S1/S2 anti-join reads.
+func (e liveExecutor) Run(ctx context.Context, cypherText string, params map[string]any) ([]map[string]any, error) {
+	session := e.driver.NewSession(ctx, e.sessionConfig(neo4jdriver.AccessModeRead))
+	defer func() { _ = session.Close(ctx) }()
+
+	result, err := session.Run(ctx, cypherText, params)
+	if err != nil {
+		return nil, fmt.Errorf("run read query: %w", err)
+	}
+	records, err := result.Collect(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("collect read query: %w", err)
+	}
+	rows := make([]map[string]any, 0, len(records))
+	for _, record := range records {
+		row := make(map[string]any, len(record.Keys))
+		for i, key := range record.Keys {
+			row[key] = record.Values[i]
+		}
+		rows = append(rows, row)
+	}
+	return rows, nil
+}
+
 // count runs a single-row COUNT query and returns the int64 value.
 func (e liveExecutor) count(ctx context.Context, cypherText string, params map[string]any) (int64, error) {
 	session := e.driver.NewSession(ctx, e.sessionConfig(neo4jdriver.AccessModeRead))

@@ -88,6 +88,10 @@ func TestReducerContentEdgeRetractGraphTruth(t *testing.T) {
 	seedContentEdgeNodes(ctx, t, exec)
 
 	writer := cypher.NewEdgeWriter(exec, 0)
+	// The shell-exec orphan ShellCommand cleanup now runs a Go-side anti-join
+	// (S1 candidate keys, S2 connected keys) instead of a relationship-
+	// existence predicate (#5310); it needs a Reader for those reads.
+	writer.Reader = exec
 	write := func(domain, source string, rows []reducer.SharedProjectionIntentRow) {
 		t.Helper()
 		if err := writer.WriteEdges(ctx, domain, rows, source); err != nil {

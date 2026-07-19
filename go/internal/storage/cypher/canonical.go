@@ -230,10 +230,15 @@ DELETE rel`
 // node-label disjunction nor (on v1.1.11) an unlabeled source scan reliably
 // (#5116).
 
-const deleteOrphanPlatformNodesCypher = `MATCH (p:Platform)
-WHERE p.evidence_source = $evidence_source
-  AND NOT (p)--()
-DELETE p`
+// Platform orphan node cleanup used to live here as
+// deleteOrphanPlatformNodesCypher (`WHERE ... AND NOT (p)--()`). That
+// negated-pattern predicate is a permanently-false no-op on the pinned
+// NornicDB backends (see docs/public/reference/nornicdb-pitfalls.md, "Every
+// Relationship-Existence Predicate Is Mis-Evaluated"), and it had no
+// production caller -- BuildDeleteOrphanPlatformNodes was referenced only by
+// its own test. Platform orphan cleanup is covered instead by the S1/S2
+// Go-side anti-join in orphan_sweep.go (OrphanSweepLabelPlatform), which
+// never relies on a relationship-existence predicate. Removed by #5310.
 
 // --- Param structs ---
 

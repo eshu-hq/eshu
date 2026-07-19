@@ -20,6 +20,14 @@ import (
 type sqlSequentialRecordingExecutor struct {
 	calls      []Statement
 	groupCalls [][]Statement
+
+	// readCalls, readCandidates, and readConnected mirror recordingExecutor's
+	// Run scripting (writer_test.go) so shell-exec orphan-cleanup retract
+	// tests can use this double while still proving ExecuteGroup is never
+	// called.
+	readCalls      []Statement
+	readCandidates []string
+	readConnected  map[string]bool
 }
 
 func (r *sqlSequentialRecordingExecutor) Execute(_ context.Context, stmt Statement) error {
@@ -32,6 +40,26 @@ func (r *sqlSequentialRecordingExecutor) ExecuteGroup(_ context.Context, stmts [
 	copy(cloned, stmts)
 	r.groupCalls = append(r.groupCalls, cloned)
 	return nil
+}
+
+// Run implements OrphanSweepReader; see recordingExecutor.Run for the S1/S2
+// scripting contract this mirrors.
+func (r *sqlSequentialRecordingExecutor) Run(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
+	r.readCalls = append(r.readCalls, Statement{Cypher: cypher, Parameters: params})
+	if keys, ok := params["keys"].([]string); ok {
+		rows := make([]map[string]any, 0, len(keys))
+		for _, k := range keys {
+			if r.readConnected[k] {
+				rows = append(rows, map[string]any{"key": k})
+			}
+		}
+		return rows, nil
+	}
+	rows := make([]map[string]any, 0, len(r.readCandidates))
+	for _, k := range r.readCandidates {
+		rows = append(rows, map[string]any{"key": k})
+	}
+	return rows, nil
 }
 
 // TestSQLRelationshipRetractCoversEveryWriteEndpointLabel links the retract's

@@ -109,11 +109,9 @@ func (w *EdgeWriter) RetractEdges(
 			return err
 		}
 		if hasDeltaScope {
-			stmts := BuildRetractShellExecEdgeStatementsByFilePath(filePaths, evidenceSource)
-			return w.executeShellExecRetractStatements(ctx, stmts)
+			return w.retractShellExecEdgesByFilePath(ctx, filePaths, evidenceSource)
 		}
-		stmts := BuildRetractShellExecEdgeStatements(repoIDs, evidenceSource)
-		return w.executeShellExecRetractStatements(ctx, stmts)
+		return w.retractShellExecEdges(ctx, repoIDs, evidenceSource)
 	}
 	if domain == reducer.DomainRepoDependency {
 		return w.executeRepoDependencyRetractStatements(ctx, repoIDs, evidenceSource)
@@ -171,17 +169,6 @@ func (w *EdgeWriter) executeSequentialRetractStatements(ctx context.Context, stm
 		}
 	}
 	return nil
-}
-
-// executeShellExecRetractStatements runs the shell-exec retract statements
-// (edge DELETE plus orphan ShellCommand cleanup) sequentially, each in its own
-// transaction — deliberately NOT grouped through ExecuteGroup, for the same
-// NornicDB v1.1.11 managed-transaction reason documented on
-// executeCodeCallRetractStatements (measured here: the grouped path left the
-// in-scope EXECUTES_SHELL edge undeleted). Each statement is independently
-// scoped and idempotent, so sequential execution is safe.
-func (w *EdgeWriter) executeShellExecRetractStatements(ctx context.Context, stmts []Statement) error {
-	return w.executeSequentialRetractStatements(ctx, stmts)
 }
 
 // executeDocumentationRetractStatements runs the documentation delta retract

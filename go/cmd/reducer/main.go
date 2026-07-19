@@ -381,6 +381,13 @@ func buildReducerService(
 	}
 
 	edgeWriter := sourcecypher.NewEdgeWriter(neo4jExec, neo4jBatchSize(getenv))
+	// Shell-exec orphan ShellCommand cleanup runs a Go-side anti-join (S1
+	// candidate keys, S2 connected keys) rather than a relationship-existence
+	// predicate, which is mis-evaluated on the pinned NornicDB backends
+	// (#5310; see docs/public/reference/nornicdb-pitfalls.md). graphReader
+	// already satisfies OrphanSweepReader (query.GraphQuery.Run has the same
+	// shape) and is the same read port graphOrphanSweepRunnerFor uses.
+	edgeWriter.Reader = graphReader
 	edgeWriter.Instruments = instruments
 	edgeWriter.Logger = logger
 	edgeWriter.CodeCallBatchSize = codeCallEdgeBatchSize
