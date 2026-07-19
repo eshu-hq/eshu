@@ -50,8 +50,8 @@ func TestPackageRegistryNameBranchNoTimingOracle(t *testing.T) {
 	// no grant for.
 	existingGraph := &packageRegistryScopedGraphFake{
 		t: t,
-		nameAnchorByKey: map[string]map[string]any{
-			"npm\x00private-lib": {"package_id": "pkg:npm:private-lib", "visibility": "private"},
+		nameAnchorByKey: map[string][]map[string]any{
+			"npm\x00private-lib": {{"package_id": "pkg:npm:private-lib", "visibility": "private"}},
 		},
 		visibilityByPackageID: map[string]string{"pkg:npm:private-lib": "private"},
 		rows:                  []map[string]any{privateRow},
@@ -62,7 +62,7 @@ func TestPackageRegistryNameBranchNoTimingOracle(t *testing.T) {
 	// Nonexistent: name does not resolve.
 	nonexistentGraph := &packageRegistryScopedGraphFake{
 		t:               t,
-		nameAnchorByKey: map[string]map[string]any{}, // no match
+		nameAnchorByKey: map[string][]map[string]any{}, // no match
 		rows:            []map[string]any{privateRow},
 	}
 	nonexistentCorr := &countingPackageRegistryCorrelationStore{rows: nil}

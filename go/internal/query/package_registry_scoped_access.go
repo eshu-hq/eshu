@@ -159,30 +159,45 @@ func packageRegistryAnchorVisibility(ctx context.Context, graph GraphQuery, pack
 	return StringVal(rows[0], "visibility"), nil
 }
 
-// packageRegistryNameAnchorPackageIDAndVisibility resolves the package_id and
+// packageRegistryNameCandidate is one Package node matching a
+// {ecosystem, normalized_name} anchor.
+type packageRegistryNameCandidate struct {
+	PackageID  string
+	Visibility string
+}
+
+// packageRegistryNameAnchorCandidates resolves EVERY package_id and
 // visibility for the packages-by-name branch (ecosystem+name, no package_id
 // given), reusing the same {ecosystem, normalized_name} anchor the unscoped
-// list already matches on. An empty package_id return means no package
-// matched.
-func packageRegistryNameAnchorPackageIDAndVisibility(
+// list already matches on. normalized_name is not a unique package identity
+// within an ecosystem -- distinct registries or namespaces can legitimately
+// share it (packageRegistryNameAnchorVisibilityCypher has no LIMIT for this
+// reason) -- so callers MUST gate every returned candidate individually
+// rather than collapsing to a single resolved id. A zero-length return means
+// no package matched.
+func packageRegistryNameAnchorCandidates(
 	ctx context.Context,
 	graph GraphQuery,
 	ecosystem, name string,
-) (string, string, error) {
+) ([]packageRegistryNameCandidate, error) {
 	if graph == nil {
-		return "", "", fmt.Errorf("package registry graph is required")
+		return nil, fmt.Errorf("package registry graph is required")
 	}
 	rows, err := graph.Run(ctx, packageRegistryNameAnchorVisibilityCypher, map[string]any{
 		"ecosystem": ecosystem,
 		"name":      name,
 	})
 	if err != nil {
-		return "", "", fmt.Errorf("resolve package registry name anchor: %w", err)
+		return nil, fmt.Errorf("resolve package registry name anchor: %w", err)
 	}
-	if len(rows) == 0 {
-		return "", "", nil
+	candidates := make([]packageRegistryNameCandidate, 0, len(rows))
+	for _, row := range rows {
+		candidates = append(candidates, packageRegistryNameCandidate{
+			PackageID:  StringVal(row, "package_id"),
+			Visibility: StringVal(row, "visibility"),
+		})
 	}
-	return StringVal(rows[0], "package_id"), StringVal(rows[0], "visibility"), nil
+	return candidates, nil
 }
 
 // packageRegistryVersionAnchorPackageID resolves a PackageVersion's owning

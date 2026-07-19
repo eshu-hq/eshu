@@ -151,6 +151,12 @@ func (h *PackageRegistryHandler) listPackages(w http.ResponseWriter, r *http.Req
 	}
 	packageID = gate.packageID
 	redactSourcePath := gate.redactSourcePath
+	// nameAnchorRedactByID is set only for the scoped name+ecosystem branch:
+	// normalized_name is not a unique package identity within an ecosystem,
+	// so the read below returns EVERY package sharing the anchor and this
+	// map (built by gating each candidate individually) decides, per row,
+	// whether it is allowed and whether its source_path must be redacted.
+	nameAnchorRedactByID := gate.nameAnchorRedactByID
 
 	var cypher string
 	var params map[string]any
@@ -176,11 +182,24 @@ func (h *PackageRegistryHandler) listPackages(w http.ResponseWriter, r *http.Req
 			identityIssues = append(identityIssues, *issue)
 			continue
 		}
+		rowRedact := redactSourcePath
+		if nameAnchorRedactByID != nil {
+			redact, allowed := nameAnchorRedactByID[result.PackageID]
+			if !allowed {
+				// A name+ecosystem sibling the caller has no grant for
+				// (private/unknown, no correlation proof). Drop it silently
+				// -- same treatment as an ungranted package anywhere else in
+				// this handler; the caller only ever sees rows it is allowed
+				// to see.
+				continue
+			}
+			rowRedact = redact
+		}
 		if len(results) == limit {
 			truncated = true
 			continue
 		}
-		if redactSourcePath {
+		if rowRedact {
 			result.SourcePath = ""
 		}
 		results = append(results, result)

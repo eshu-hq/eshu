@@ -12,18 +12,31 @@ import (
 // packageRegistryPackagesGateResult carries the outcome of
 // packageRegistryPackagesGate back to listPackages.
 type packageRegistryPackagesGateResult struct {
-	// packageID is the caller-supplied package_id, or the package_id
-	// resolved from the name+ecosystem anchor when the caller supplied name
-	// instead.
+	// packageID is the caller-supplied package_id. It is set ONLY for the
+	// package_id-anchored branch; the name+ecosystem branch never collapses
+	// to a single id (see nameAnchorRedactByID) because normalized_name is
+	// not a unique package identity within an ecosystem.
 	packageID string
 	// redactSourcePath reports whether source_path must be blanked on served
-	// rows (see packageRegistryAnchorGate.redactSourcePath).
+	// rows for the package_id-anchored and ecosystem-browse branches (see
+	// packageRegistryAnchorGate.redactSourcePath). The name+ecosystem branch
+	// uses nameAnchorRedactByID instead, since its candidates can carry a
+	// per-row mix of public and correlation-granted-private redaction.
 	redactSourcePath bool
 	// useScopedEcosystemCypher reports whether listPackages must use
 	// packageRegistryPackagesScopedEcosystemCypher instead of
 	// packageRegistryPackagesCypher (the ecosystem-only browse branch for a
 	// scoped caller).
 	useScopedEcosystemCypher bool
+	// nameAnchorRedactByID is non-nil only for the name+ecosystem branch. It
+	// maps every package_id the caller is allowed to see (public, or
+	// correlation-granted private) to whether that row's source_path must be
+	// redacted. listPackages MUST use it to filter and redact the
+	// name-anchored read's full candidate set instead of trusting the
+	// underlying MATCH to have already scoped the result -- the query
+	// returns every package sharing the anchor regardless of visibility or
+	// grant.
+	nameAnchorRedactByID map[string]bool
 }
 
 // packageRegistryPackagesGate performs the empty-grant short-circuit, the
@@ -74,12 +87,18 @@ func packageRegistryPackagesGate(
 		}
 		result.redactSourcePath = gate.redactSourcePath
 	case name != "":
-		resolvedID, visibility, err := packageRegistryNameAnchorPackageIDAndVisibility(r.Context(), h.Neo4j, ecosystem, name)
+		// normalized_name is not a unique package identity within an
+		// ecosystem (distinct registries or namespaces can share it), so
+		// EVERY matching candidate must be resolved and gated individually
+		// -- collapsing to a single resolved id here would silently drop
+		// other legitimate public or grant-accessible packages sharing the
+		// name (see packageRegistryNameAnchorCandidates's doc comment).
+		candidates, err := packageRegistryNameAnchorCandidates(r.Context(), h.Neo4j, ecosystem, name)
 		if err != nil {
 			WriteError(w, http.StatusInternalServerError, err.Error())
 			return result, true
 		}
-		if resolvedID == "" {
+		if len(candidates) == 0 {
 			// Name did not resolve. Issue the same correlation probe a
 			// resolving-but-gated package would (against the sentinel anchor),
 			// discard its result, and write the empty page -- so a nonexistent
@@ -92,17 +111,22 @@ func packageRegistryPackagesGate(
 			writeEmptyPackageRegistryPackagesPage(w, r, h, limit)
 			return result, true
 		}
-		gate, err := packageRegistryGateForVisibility(r.Context(), span, h.Correlations, resolvedID, visibility, access)
-		if err != nil {
-			WriteError(w, http.StatusInternalServerError, err.Error())
-			return result, true
+		redactByID := make(map[string]bool, len(candidates))
+		for _, candidate := range candidates {
+			gate, gateErr := packageRegistryGateForVisibility(r.Context(), span, h.Correlations, candidate.PackageID, candidate.Visibility, access)
+			if gateErr != nil {
+				WriteError(w, http.StatusInternalServerError, gateErr.Error())
+				return result, true
+			}
+			if gate.proceed {
+				redactByID[candidate.PackageID] = gate.redactSourcePath
+			}
 		}
-		if !gate.proceed {
+		if len(redactByID) == 0 {
 			writeEmptyPackageRegistryPackagesPage(w, r, h, limit)
 			return result, true
 		}
-		result.packageID = resolvedID
-		result.redactSourcePath = gate.redactSourcePath
+		result.nameAnchorRedactByID = redactByID
 	default:
 		// Ecosystem-only browse: no per-package anchor exists, so scoped
 		// callers get the visibility='public'-filtered query shape instead

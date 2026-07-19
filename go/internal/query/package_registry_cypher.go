@@ -109,12 +109,17 @@ LIMIT $limit`, params
 // anchored read. Zero rows means the package does not exist.
 const packageRegistryAnchorVisibilityCypher = `MATCH (p:Package {uid: $package_id}) RETURN p.visibility AS visibility`
 
-// packageRegistryNameAnchorVisibilityCypher resolves a Package node's uid and
-// visibility by the {ecosystem, normalized_name} anchor the unscoped
-// packages-by-name branch already uses (packageRegistryPackagesCypher). No
-// composite index backs this pair; it mirrors the existing production anchor
-// rather than introducing a new query shape.
-const packageRegistryNameAnchorVisibilityCypher = `MATCH (p:Package {ecosystem: $ecosystem, normalized_name: $name}) RETURN p.uid AS package_id, p.visibility AS visibility`
+// packageRegistryNameAnchorVisibilityCypher resolves every Package node's uid
+// and visibility matching the {ecosystem, normalized_name} anchor the
+// unscoped packages-by-name branch already uses
+// (packageRegistryPackagesCypher). normalized_name is not a unique identity
+// within an ecosystem -- distinct registries or namespaces can share it --
+// so the caller MUST gate and return every row, not just the first. Bounded
+// by a generous fixed LIMIT (real collisions are a handful at most; this is
+// a defense-in-depth cap, not an expected page size) and ordered by uid for
+// determinism. No composite index backs this pair; it mirrors the existing
+// production anchor rather than introducing a new query shape.
+const packageRegistryNameAnchorVisibilityCypher = `MATCH (p:Package {ecosystem: $ecosystem, normalized_name: $name}) RETURN p.uid AS package_id, p.visibility AS visibility ORDER BY p.uid LIMIT 50`
 
 // packageRegistryVersionAnchorPackageIDCypher resolves a PackageVersion's
 // owning package id by its indexed uid (uidConstraintLabels includes

@@ -22,10 +22,11 @@ type packageRegistryScopedGraphFake struct {
 	t                     *testing.T
 	visibilityByPackageID map[string]string
 	packageIDByVersionID  map[string]string
-	// nameAnchorByKey maps "ecosystem\x00name" to a row carrying package_id and
-	// visibility for the packages-by-name branch's anchor lookup. An absent key
-	// means the name did not resolve.
-	nameAnchorByKey map[string]map[string]any
+	// nameAnchorByKey maps "ecosystem\x00name" to every candidate row (package_id
+	// + visibility) for the packages-by-name branch's anchor lookup, since
+	// normalized_name is not unique within an ecosystem. An absent key means
+	// the name did not resolve.
+	nameAnchorByKey map[string][]map[string]any
 	rows            []map[string]any
 	calls           []string
 	fatalOnCall     bool
@@ -50,12 +51,29 @@ func (f *packageRegistryScopedGraphFake) Run(_ context.Context, cypher string, p
 		}
 		return []map[string]any{{"package_id": packageID}}, nil
 	case packageRegistryNameAnchorVisibilityCypher:
-		row, ok := f.nameAnchorByKey[StringVal(params, "ecosystem")+"\x00"+StringVal(params, "name")]
+		rows, ok := f.nameAnchorByKey[StringVal(params, "ecosystem")+"\x00"+StringVal(params, "name")]
 		if !ok {
 			return nil, nil
 		}
-		return []map[string]any{row}, nil
+		return rows, nil
 	default:
+		// The real single-package uid-anchor read
+		// (packageRegistryPackagesCypher's packageID != "" branch) only
+		// returns the ONE matching row. Filtering here (instead of ignoring
+		// $package_id like every other canned-row case) matters for the
+		// F-6/W5 name-anchor regression test: it proves the name+ecosystem
+		// branch fetches ALL candidates instead of collapsing to a single
+		// resolved uid and re-reading by that uid alone.
+		if strings.HasPrefix(cypher, "MATCH (p:Package {uid: $package_id})\n") {
+			packageID := StringVal(params, "package_id")
+			filtered := make([]map[string]any, 0, 1)
+			for _, row := range f.rows {
+				if StringVal(row, "package_id") == packageID {
+					filtered = append(filtered, row)
+				}
+			}
+			return filtered, nil
+		}
 		return f.rows, nil
 	}
 }
