@@ -42,6 +42,7 @@ func (w PostgresMultiCloudRuntimeDriftWriter) WriteMultiCloudRuntimeDriftFinding
 
 	now := reducerWriterNow(w.Now)
 	canonicalIDs := make([]string, 0, len(write.Candidates))
+	rows := make([]reducerFactVersionedRow, 0, len(write.Candidates))
 	for _, candidate := range write.Candidates {
 		canonicalID := canonicalMultiCloudRuntimeDriftID(write, candidate)
 		payload, err := factschema.EncodeReducerMultiCloudRuntimeDriftFinding(
@@ -55,29 +56,27 @@ func (w PostgresMultiCloudRuntimeDriftWriter) WriteMultiCloudRuntimeDriftFinding
 			return MultiCloudRuntimeDriftWriteResult{}, fmt.Errorf("marshal multi cloud runtime drift payload: %w", err)
 		}
 
-		if _, err := w.DB.ExecContext(
-			ctx,
-			canonicalVersionedReducerFactInsertQuery,
-			multiCloudRuntimeDriftFactID(write, candidate),
-			write.ScopeID,
-			write.GenerationID,
-			multiCloudRuntimeDriftFactKind,
-			multiCloudRuntimeDriftStableFactKey(write, candidate),
-			facts.ReducerDerivedSchemaVersionV1,
-			reducerFactCollectorKind(write.SourceSystem),
-			facts.SourceConfidenceInferred,
-			write.SourceSystem,
-			write.IntentID,
-			nil,
-			nil,
-			now,
-			now,
-			false,
-			payloadJSON,
-		); err != nil {
-			return MultiCloudRuntimeDriftWriteResult{}, fmt.Errorf("write multi cloud runtime drift fact: %w", err)
-		}
+		rows = append(rows, reducerFactVersionedRow{
+			FactID:           multiCloudRuntimeDriftFactID(write, candidate),
+			ScopeID:          write.ScopeID,
+			GenerationID:     write.GenerationID,
+			FactKind:         multiCloudRuntimeDriftFactKind,
+			StableFactKey:    multiCloudRuntimeDriftStableFactKey(write, candidate),
+			SchemaVersion:    facts.ReducerDerivedSchemaVersionV1,
+			CollectorKind:    reducerFactCollectorKind(write.SourceSystem),
+			SourceConfidence: facts.SourceConfidenceInferred,
+			SourceSystem:     write.SourceSystem,
+			SourceFactKey:    write.IntentID,
+			ObservedAt:       now,
+			IngestedAt:       now,
+			Payload:          string(payloadJSON),
+		})
 		canonicalIDs = append(canonicalIDs, canonicalID)
+	}
+	// Bounded chunked bulk insert: candidates are upserted in O(N/batchSize)
+	// round-trips rather than one ExecContext per candidate.
+	if err := reducerBatchInsertVersionedFacts(ctx, w.DB, rows); err != nil {
+		return MultiCloudRuntimeDriftWriteResult{}, fmt.Errorf("write multi cloud runtime drift fact: %w", err)
 	}
 
 	return MultiCloudRuntimeDriftWriteResult{

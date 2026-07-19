@@ -284,35 +284,37 @@ func TestPostgresMultiCloudRuntimeDriftWriterPersistsOneFactPerFinding(t *testin
 	if got, want := result.CanonicalWrites, 2; got != want {
 		t.Fatalf("CanonicalWrites = %d, want %d", got, want)
 	}
-	if got, want := len(db.execs), 2; got != want {
-		t.Fatalf("ExecContext calls = %d, want %d", got, want)
+	// One ExecContext call for two candidates: proves the batched path
+	// replaced the retired per-candidate loop.
+	if got, want := len(db.execs), 1; got != want {
+		t.Fatalf("ExecContext calls = %d, want %d (batched insert)", got, want)
 	}
-	if db.execs[0].args[0] == db.execs[1].args[0] {
-		t.Fatalf("fact ids must differ for multiple findings: %v", db.execs[0].args[0])
+	rows := decodeBatchedVersionedFactCalls(t, db.execs)
+	if got, want := len(rows), 2; got != want {
+		t.Fatalf("decoded rows = %d, want %d", got, want)
 	}
-	if got, want := db.execs[0].args[3], multiCloudRuntimeDriftFactKind; got != want {
+	if rows[0].FactID == rows[1].FactID {
+		t.Fatalf("fact ids must differ for multiple findings: %v", rows[0].FactID)
+	}
+	if got, want := rows[0].FactKind, multiCloudRuntimeDriftFactKind; got != want {
 		t.Fatalf("fact_kind = %v, want %v", got, want)
 	}
 	if !strings.Contains(db.execs[0].query, "schema_version") {
 		t.Fatalf("insert query missing schema_version column for governed reducer fact: %s", db.execs[0].query)
 	}
-	if got, want := db.execs[0].args[5], "1.0.0"; got != want {
+	if got, want := rows[0].SchemaVersion, "1.0.0"; got != want {
 		t.Fatalf("schema_version = %v, want %v", got, want)
 	}
-	if got, want := db.execs[0].args[7], facts.SourceConfidenceInferred; got != want {
+	if got, want := rows[0].SourceConfidence, facts.SourceConfidenceInferred; got != want {
 		t.Fatalf("source_confidence = %v, want %v", got, want)
 	}
 
 	// Payload must carry the canonical uid and provider, and must not invent a
 	// config layer for the unmanaged finding.
 	var foundUnmanaged bool
-	for _, call := range db.execs {
-		payloadBytes, ok := call.args[15].([]byte)
-		if !ok {
-			t.Fatalf("payload arg type = %T, want []byte", call.args[15])
-		}
+	for _, row := range rows {
 		var payload map[string]any
-		if err := json.Unmarshal(payloadBytes, &payload); err != nil {
+		if err := json.Unmarshal(row.Payload, &payload); err != nil {
 			t.Fatalf("unmarshal payload: %v", err)
 		}
 		if payload["cloud_resource_uid"] == "" {
@@ -355,12 +357,17 @@ func TestPostgresMultiCloudRuntimeDriftWriterIsIdempotentAcrossReplays(t *testin
 	if len(first.execs) != len(second.execs) {
 		t.Fatalf("replay exec count = %d, want %d", len(second.execs), len(first.execs))
 	}
-	for i := range first.execs {
-		if first.execs[i].args[0] != second.execs[i].args[0] {
-			t.Fatalf("replay fact id[%d] = %v, want stable %v", i, second.execs[i].args[0], first.execs[i].args[0])
+	firstRows := decodeBatchedVersionedFactCalls(t, first.execs)
+	secondRows := decodeBatchedVersionedFactCalls(t, second.execs)
+	if len(firstRows) != len(secondRows) {
+		t.Fatalf("replay row count = %d, want %d", len(secondRows), len(firstRows))
+	}
+	for i := range firstRows {
+		if firstRows[i].FactID != secondRows[i].FactID {
+			t.Fatalf("replay fact id[%d] = %v, want stable %v", i, secondRows[i].FactID, firstRows[i].FactID)
 		}
-		if first.execs[i].args[4] != second.execs[i].args[4] {
-			t.Fatalf("replay stable_fact_key[%d] drifted: %v vs %v", i, first.execs[i].args[4], second.execs[i].args[4])
+		if firstRows[i].StableFactKey != secondRows[i].StableFactKey {
+			t.Fatalf("replay stable_fact_key[%d] drifted: %v vs %v", i, firstRows[i].StableFactKey, secondRows[i].StableFactKey)
 		}
 	}
 }
