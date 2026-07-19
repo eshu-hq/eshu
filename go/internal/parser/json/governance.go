@@ -66,6 +66,28 @@ func governanceOwnerRecord(owner map[string]any, workspace string) map[string]an
 	if ownerID == "" {
 		ownerID = "data-owner"
 	}
+	// line_number: 1 is a positional placeholder, not a meaningful source
+	// line. This row summarizes a governance_replay.json owner record, a
+	// derived description of an external data-governance assignment, not one
+	// JSON key/value token in the replay document, so no real source line
+	// exists to report. #5329 tried OMITTING line_number instead of
+	// fabricating one, on the theory that materialize/query would then treat
+	// the entity as having no real source line -- but that theory was wrong:
+	// entityBucketsFromParsed's snapshotPayloadInt defaults an absent
+	// line_number to 0, and shape.indexedEntity.lineNumber() coerces any
+	// LineNumber < 1 back to 1 before it is hashed into
+	// content.CanonicalEntityID and persisted as content.EntityRecord.StartLine.
+	// So the materialized entity gets the exact same fabricated line 1 either
+	// way; omitting line_number here changed nothing observable downstream,
+	// it only made the parser payload claim (falsely) that no line existed.
+	// Declaring line_number: 1 explicitly is the honest version of the value
+	// this row will carry regardless, and documents the known limitation
+	// instead of implying an accuracy fix that never took effect (issue
+	// #5358). Threading a genuine "no source line" sentinel through
+	// shape.Entity/content.EntityRecord.StartLine -- a Postgres NOT NULL
+	// column read by dozens of query/export/UI call sites across every
+	// language parser, and hard-validated by content_writer.go's Write() --
+	// was assessed as disproportionate for this fix.
 	return map[string]any{
 		"name":        defaultString(owner["name"], ownerID),
 		"line_number": 1,
@@ -80,6 +102,8 @@ func governanceContractRecord(contract map[string]any, workspace string) map[str
 	if contractID == "" {
 		contractID = "data-contract"
 	}
+	// line_number: 1 positional placeholder, not a real source line.
+	// See governanceOwnerRecord's comment for the full rationale.
 	return map[string]any{
 		"name":           defaultString(contract["name"], contractID),
 		"line_number":    1,

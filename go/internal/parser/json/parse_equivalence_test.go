@@ -24,7 +24,7 @@ func oldParseJSONMetadataKeys(t *testing.T, path string) ([]string, bool) {
 	if err != nil {
 		t.Fatalf("ReadSource(%q) error = %v, want nil", path, err)
 	}
-	normalized := normalizeJSONSource(source, filepath.Base(path))
+	normalized, _ := normalizeJSONSource(source, filepath.Base(path))
 	entries, err := unmarshalOrderedJSONObject([]byte(normalized))
 	if err != nil {
 		// Pre-change code left json_metadata at its base default (empty keys)

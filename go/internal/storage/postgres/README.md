@@ -2243,3 +2243,65 @@ Observability Evidence: every `ReadRepositoryFreshness` call records
 `go/internal/telemetry/instruments.go`, X1 row in
 `docs/public/observability/telemetry-coverage.md`); both are proven by an
 OTEL SDK-backed test in `repository_freshness_test.go`.
+
+### `content_entities` stale-row reap (#5329)
+
+`ContentWriter.Write` (`content_writer.go`, `content_writer_reap.go`)
+previously deleted a `content_entities` row only via an explicit
+`entity.Deleted` tombstone (whole-file delete) or a `PurgeEntities` path
+purge (entity-count cap / parse-bounded). Neither path fires when a
+reprocessed file's entity identity simply changes for the same logical
+entity, or when one entity disappears from a file that otherwise still
+exists — both left the old row behind forever. The #5329 JSON `line_number`
+fix (real source line instead of a fake counter) made this a live,
+permanent-duplication defect: `content.CanonicalEntityID` hashes
+`line_number`, so every line-shifting edit to a `package.json`/
+`composer.json` changes its dependency rows' `entity_id`.
+
+`reapStaleContentEntities` closes this: after every fresh entity row for a
+`Write()` call is upserted, it anti-joins `content_entities` against the
+complete fresh `entity_id` set for each touched path and deletes anything
+not in it (`entity_id <> ALL($fresh_ids)`, scoped to `repo_id` and
+`relative_path = ANY($paths)`) — the same anti-join shape #5147/#5327
+established for the Cypher orphan sweeps, adapted to plain SQL. It is scoped
+strictly to paths present in this call's fresh entity rows, grouped by path
+(not by label), so untouched files are never touched and a file with
+multiple entity labels only reaps the labels that actually left the fresh
+set. See `reapStaleContentEntities`'s doc comment for the completeness
+invariant (every caller gives `Write` the complete, all-label entity set for
+a touched file in one call) that makes this safe without orphan_sweep's
+TOCTOU re-verify.
+
+Performance Evidence: live double-ingest proof, Postgres 18-alpine +
+NornicDB `eshu-nornicdb-pr261:149245885258` (pinned local Compose stack),
+`tests/fixtures/ecosystems/json_comprehensive` (package.json + composer.json
++ 2 other files, 15 content entities). First ingest: `content_entities` = 15
+(11 from the two manifest files). Edited `package.json` to shift every
+dependency/script line by one and remove one `devDependencies` entry
+(`vitest`). Second ingest (re-ingest after the edit): `content_entities` =
+14 — not 15→26 (the pre-fix defect shape of 11 permanent stale duplicates on
+a single re-ingest) — every `package.json` entity row got a fresh
+`entity_id` at its new line, none of the prior-line `entity_id`s survived,
+`vitest`'s row is gone, and `composer.json`'s 4 rows (an untouched file)
+kept their original, unchanged `entity_id`s. Third ingest with no further
+changes: `content_entities` stayed at 14 with an identical `entity_id` set
+(the freshness-hint content-hash skip means bootstrap-index does not even
+reprocess the scope — `scopes_collected: 0` — which is itself the correct,
+cheapest form of idempotency). The added cost is one bounded `DELETE`
+per ≤500 touched paths per `Write()` call (`reapStaleContentEntitiesPathBatchSize`),
+after the existing entity upsert batches; no query-plan or index change.
+
+No-Observability-Change: the reap runs through the existing
+`ContentWriter.logStage` structured-log helper under a new `stage` value
+(`reap_stale_entities`, alongside the existing `prepare_entities`/
+`upsert_entities` stages), recording `fresh_row_count` and duration — no new
+metric, span, worker, queue, lease, or runtime knob. Operators already
+watching `content writer stage completed` logs see the new stage for free.
+
+Concurrency: see `TestContentWriterReapConcurrentDifferentRepos`
+(`content_writer_reap_concurrency_test.go`), which proves under `go test
+-race` that concurrent `Write()` calls for different repositories never
+cross-contaminate each other's reap DELETE, and documents that same-repo
+concurrent writes (the only overlap that could make this reap unsafe) are
+already excluded upstream by `claimProjectorWorkQuery`'s scope_id-scoped
+`NOT EXISTS` claim guard in `projector_queue_claim_sql.go`.

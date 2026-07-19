@@ -25,61 +25,85 @@ const composerLockDevSection = "packages-dev"
 // with the exact installed version, the `packages` or `packages-dev`
 // scope, and a `lockfile: true` flag so downstream code can distinguish
 // resolver-locked truth from manifest-declared ranges.
-func composerLockDependencyVariables(document map[string]any, lang string) []map[string]any {
-	rows := composerLockSectionRows(document, composerLockRuntimeSection, lang, 1)
-	rows = append(rows, composerLockSectionRows(document, composerLockDevSection, lang, len(rows)+1)...)
+// composerLockDependencyVariables converts one composer.lock document into
+// dependency rows for the "packages" (runtime) and "packages-dev" (dev)
+// sections.
+func composerLockDependencyVariables(document map[string]any, source []byte, lang string) []map[string]any {
+	rows := composerLockSectionRows(document, source, composerLockRuntimeSection, lang)
+	rows = append(rows, composerLockSectionRows(document, source, composerLockDevSection, lang)...)
 	return rows
 }
 
+// composerLockSectionRows converts one composer.lock array section into
+// rows. line_number is each package's real source line within that section's
+// JSON array (issue #5329): "packages"/"packages-dev" are arrays, not
+// keyed objects, so lines are captured by original array position
+// (lockfileArrayElementLines) and re-associated with each row after
+// composerLockSortedEntries reorders rows alphabetically for deterministic
+// output. line_number is omitted when source is unavailable or the line
+// lookup fails.
 func composerLockSectionRows(
 	document map[string]any,
+	source []byte,
 	section string,
 	lang string,
-	startLine int,
 ) []map[string]any {
 	raw, ok := document[section].([]any)
 	if !ok {
 		return nil
 	}
-	entries := composerLockSortedEntries(raw)
+	entries, originalIndexes := composerLockSortedEntries(raw)
 	chains := composerLockDependencyChains(entries)
+	elementLines := lockfileArrayElementLines(source, section)
 	rows := make([]map[string]any, 0, len(entries))
-	lineNumber := startLine
-	for _, entry := range entries {
-		row := composerLockDependencyRow(entry, section, lang, lineNumber, chains)
+	for i, entry := range entries {
+		row := composerLockDependencyRow(entry, section, lang, chains)
 		if row == nil {
 			continue
 		}
+		if originalIndex := originalIndexes[i]; originalIndex < len(elementLines) {
+			if line := elementLines[originalIndex]; line > 0 {
+				row["line_number"] = line
+			}
+		}
 		rows = append(rows, row)
-		lineNumber++
 	}
 	return rows
 }
 
-func composerLockSortedEntries(raw []any) []map[string]any {
+// composerLockSortedEntries sorts raw's object entries alphabetically by
+// package name for deterministic row output, and returns each sorted
+// entry's index in the original (JSON source) array order alongside it, so
+// callers can look up that entry's real source line by original position
+// after sorting.
+func composerLockSortedEntries(raw []any) ([]map[string]any, []int) {
 	type indexedEntry struct {
-		entry   map[string]any
-		sortKey string
+		entry         map[string]any
+		sortKey       string
+		originalIndex int
 	}
 	indexed := make([]indexedEntry, 0, len(raw))
-	for _, item := range raw {
+	for originalIndex, item := range raw {
 		entry, ok := item.(map[string]any)
 		if !ok {
 			continue
 		}
 		indexed = append(indexed, indexedEntry{
-			entry:   entry,
-			sortKey: strings.ToLower(composerLockEntryName(entry)),
+			entry:         entry,
+			sortKey:       strings.ToLower(composerLockEntryName(entry)),
+			originalIndex: originalIndex,
 		})
 	}
 	sort.SliceStable(indexed, func(i, j int) bool {
 		return indexed[i].sortKey < indexed[j].sortKey
 	})
 	entries := make([]map[string]any, len(indexed))
+	originalIndexes := make([]int, len(indexed))
 	for i, item := range indexed {
 		entries[i] = item.entry
+		originalIndexes[i] = item.originalIndex
 	}
-	return entries
+	return entries, originalIndexes
 }
 
 func composerLockEntryName(entry map[string]any) string {
@@ -110,7 +134,6 @@ func composerLockDependencyRow(
 	entry map[string]any,
 	section string,
 	lang string,
-	lineNumber int,
 	chains map[string]composerLockDependencyChain,
 ) map[string]any {
 	name := composerLockEntryName(entry)
@@ -123,7 +146,6 @@ func composerLockDependencyRow(
 	}
 	row := map[string]any{
 		"name":            name,
-		"line_number":     lineNumber,
 		"value":           version,
 		"section":         section,
 		"config_kind":     "dependency",

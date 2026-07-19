@@ -8,7 +8,13 @@ import (
 	"strings"
 )
 
-func swiftPackageResolvedDependencyVariables(document map[string]any, lang string) []map[string]any {
+// swiftPackageResolvedDependencyVariables converts one Package.resolved (v2)
+// document into dependency rows in "pins" array order. line_number is each
+// pin's real source line (issue #5329), correlated by loop index i since
+// "pins" is a JSON array (no object key to look up by name) and rows are
+// emitted in the same order the array is walked; it is omitted when source
+// is unavailable or the line lookup fails.
+func swiftPackageResolvedDependencyVariables(document map[string]any, source []byte, lang string) []map[string]any {
 	if !isSwiftPackageResolvedV2(document["version"]) {
 		return nil
 	}
@@ -16,8 +22,9 @@ func swiftPackageResolvedDependencyVariables(document map[string]any, lang strin
 	if !ok {
 		return nil
 	}
+	pinLines := lockfileArrayElementLines(source, "pins")
 	rows := make([]map[string]any, 0, len(pins))
-	for _, rawPin := range pins {
+	for i, rawPin := range pins {
 		pin, ok := rawPin.(map[string]any)
 		if !ok {
 			continue
@@ -44,7 +51,7 @@ func swiftPackageResolvedDependencyVariables(document map[string]any, lang strin
 		if !ok {
 			continue
 		}
-		rows = append(rows, map[string]any{
+		row := map[string]any{
 			"lang":             lang,
 			"name":             namespace + "/" + identity,
 			"value":            version,
@@ -56,7 +63,11 @@ func swiftPackageResolvedDependencyVariables(document map[string]any, lang strin
 			"source_namespace": namespace,
 			"lockfile":         true,
 			"lockfile_format":  "swift-package-resolved",
-		})
+		}
+		if i < len(pinLines) && pinLines[i] > 0 {
+			row["line_number"] = pinLines[i]
+		}
+		rows = append(rows, row)
 	}
 	return rows
 }

@@ -88,11 +88,14 @@ func TestPostgresContentWriterUpsertsFileAndEntityRowsAndDeletesTombstones(t *te
 	if got, want := result.DeletedCount, 2; got != want {
 		t.Fatalf("Write().DeletedCount = %d, want %d", got, want)
 	}
-	if got, want := len(db.execs), 7; got != want {
+	// 7 batched statements plus the #5329 stale-entity reap DELETE that runs
+	// after the entity insert for every path with a fresh entity this call
+	// (here, schema.sql).
+	if got, want := len(db.execs), 8; got != want {
 		t.Fatalf("exec count = %d, want %d", got, want)
 	}
 	// Batched order: file deletes first, then file reference cleanup and
-	// upsert batch, then entity deletes, then entity upsert batch.
+	// upsert batch, then entity deletes, then entity upsert batch, then reap.
 	if !strings.Contains(db.execs[0].query, "DELETE FROM content_entities") {
 		t.Fatalf("file tombstone entity cleanup query = %q, want content_entities delete", db.execs[0].query)
 	}
@@ -113,6 +116,9 @@ func TestPostgresContentWriterUpsertsFileAndEntityRowsAndDeletesTombstones(t *te
 	}
 	if !strings.Contains(db.execs[6].query, "INSERT INTO content_entities") {
 		t.Fatalf("entity query = %q, want content_entities insert", db.execs[6].query)
+	}
+	if !strings.Contains(db.execs[7].query, "DELETE FROM content_entities") || !strings.Contains(db.execs[7].query, "entity_id <> ALL") {
+		t.Fatalf("reap query = %q, want the stale-entity reap DELETE", db.execs[7].query)
 	}
 
 	args := db.execs[4].args
@@ -227,6 +233,10 @@ func TestPostgresContentWriterUpsertsFileAndEntityRowsAndDeletesTombstones(t *te
 	}
 	if got, want := db.execs[5].args[1], "content-entity:e_old"; got != want {
 		t.Fatalf("entity delete entity_id arg = %v, want %v", got, want)
+	}
+
+	if got, want := db.execs[7].args[0], "repository:r_test"; got != want {
+		t.Fatalf("reap repo_id arg = %v, want %v", got, want)
 	}
 }
 

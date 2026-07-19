@@ -89,6 +89,33 @@ ranges as partial evidence. The dependency coverage matrix also names non-JSON
 ecosystems, such as Cargo and Pub, because the public coverage table needs one
 sorted source of truth even when parser execution is owned by another package.
 
+`line_number` on dependency, script, and TypeScript path rows is the row's
+real JSON source line, captured via `encoding/json.Decoder.InputOffset()` and
+translated through a per-file `newlineIndex` (`newline_index.go`, built once,
+binary-search lookup) rather than a synthetic per-section counter. The same
+mechanism backs the lockfile producers (`package-lock.json`,
+`packages.lock.json`, `composer.lock`, `Pipfile.lock`, `Package.resolved`)
+through the shared helpers in `lockfile_lines.go`, which stay off the
+`jsonFilenameNeedsOrderedEntries` full-decode path (issue #4873) and instead
+run one targeted key extraction plus a value-skipping flat scan. Rows whose
+row summarizes a derived/synthesized record rather than pointing at one JSON
+source token (the `data_intelligence.go` and `governance.go` replay-fixture
+rows) carry `line_number: 1` as a documented positional placeholder, not a
+real source line — these rows describe an external system's state (a
+warehouse table, a BI dashboard, a data-governance assignment), not a JSON
+key/value token in the replay document, so no real source line exists to
+report. #5329 tried omitting `line_number` for these rows instead of stating
+the placeholder, on the theory that this would leave the materialized entity
+with no real source line. That theory did not hold: `entityBucketsFromParsed`
+defaults an absent `line_number` to `0`, and `shape.indexedEntity.lineNumber()`
+coerces any value below `1` back to `1` before it is hashed into
+`content.CanonicalEntityID` and persisted as the entity's `StartLine` — so the
+materialized entity ends up at line `1` whether the parser omits
+`line_number` or states it explicitly. `line_number` therefore states the
+value honestly instead of relying on that coercion while claiming otherwise.
+See issue #5358 for the follow-up correctness finding and issue #5329 for the
+original real-line-number work these rows are a documented exception to.
+
 `composer.lock` rows likewise represent exact PHP package versions
 installed by Composer. The parser emits one row per package in the
 `packages` (runtime) and `packages-dev` (dev) arrays, preserves the
@@ -113,6 +140,34 @@ source-control pins with an exact `state.version` become `config_kind:
 "dependency"` rows. Branch-only, revision-only, local, path, and unsupported
 pins remain non-evidence so supply-chain impact cannot infer a Swift package
 version from incomplete resolver state.
+
+## Performance
+
+Performance Evidence: issue #5329, `newline_index_bench_test.go`, Apple M4
+Pro, `go test ./internal/parser/json -run '^$' -bench . -benchtime=200x
+-count=3`, fixture `testdata/large-package-lock.json` (277KB, 609 top-level
+`packages` entries — the same fixture `BenchmarkOrderedWalk`/
+`BenchmarkKeyOrderOnly` use for the #4873 baseline). The always-paid baseline
+every JSON file already pays before this fix is `language.go`'s single
+`stdjson.Unmarshal(normalizedBytes, &document)` map decode:
+`BenchmarkStdlibUnmarshalMap` measured ~5.5-6.1ms/op on this fixture. The
+newline-index scan this fix adds (`buildNewlineIndex`, one pass over the whole
+file) measured ~311-323µs/op (847-890 MB/s), and a single `lineAt` binary-search
+lookup measured ~11-23ns/op with zero allocations — both bounded and cheap in
+isolation. The real added cost is end-to-end: `BenchmarkLockfileSectionLines`
+(newline-index build + `jsonObjectExtractKey` + `jsonObjectKeyLines` over the
+"packages" section — the exact path `package_lock.go` and its lockfile
+siblings now call to resolve each row's real line instead of the old
+`lineNumber := 1; lineNumber++` counter) measured ~8.1-9.4ms/op, roughly 1.4-1.7x
+the pre-existing baseline decode on this same 277KB/609-entry fixture. There is
+no old-vs-new speed comparison to make for this specific path — the old
+counter was O(1) per row but wrong (issue #5329); the fix trades a bounded,
+one-pass-per-file, O(file bytes) + O(log n)-per-key cost for a correct node
+identity. This cost is paid once per lockfile parse (not per query or per
+graph read) and scales with lockfile size, not repository size, so a
+repository with many small manifests sees microsecond-level overhead while one
+very large lockfile sees low-single-digit milliseconds added — well within the
+existing per-file parse budget.
 
 ## Related docs
 

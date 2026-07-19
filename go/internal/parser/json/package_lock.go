@@ -9,10 +9,16 @@ import (
 	"strings"
 )
 
-func packageLockDependencyVariables(document map[string]any, lang string) []map[string]any {
+// packageLockDependencyVariables converts one package-lock.json document into
+// dependency rows keyed by path (npm v2+ lockfile format). Row order stays
+// alphabetical by path for deterministic output; line_number carries each
+// path's real source line from the "packages" object (issue #5329) rather
+// than the row's position in that alphabetical order, and is omitted when
+// source is unavailable or the line lookup fails.
+func packageLockDependencyVariables(document map[string]any, source []byte, lang string) []map[string]any {
 	packages, ok := document["packages"].(map[string]any)
 	if !ok {
-		return packageLockV1DependencyVariables(document, lang)
+		return packageLockV1DependencyVariables(document, source, lang)
 	}
 	chains := packageLockDependencyChains(packages)
 	rootScopes := packageLockRootDependencyScopes(packages[""])
@@ -22,6 +28,8 @@ func packageLockDependencyVariables(document map[string]any, lang string) []map[
 		paths = append(paths, path)
 	}
 	sort.Strings(paths)
+
+	lines := lockfileSectionLines(source, "packages")
 
 	rows := make([]map[string]any, 0, len(paths))
 	for _, path := range paths {
@@ -38,12 +46,19 @@ func packageLockDependencyVariables(document map[string]any, lang string) []map[
 			continue
 		}
 		scope := packageLockDependencyScope(entry, chains[path], rootScopes)
-		rows = append(rows, packageLockDependencyRow(name, version, len(rows)+1, lang, chains[path], scope))
+		row := packageLockDependencyRow(name, version, lang, chains[path], scope)
+		if line, ok := lines[path]; ok {
+			row["line_number"] = line
+		}
+		rows = append(rows, row)
 	}
 	return rows
 }
 
-func packageLockV1DependencyVariables(document map[string]any, lang string) []map[string]any {
+// packageLockV1DependencyVariables handles the legacy npm v1 lockfile shape,
+// a flat "dependencies" object keyed by package name. line_number is that
+// key's real source line, omitted when unavailable.
+func packageLockV1DependencyVariables(document map[string]any, source []byte, lang string) []map[string]any {
 	dependencies, ok := document["dependencies"].(map[string]any)
 	if !ok {
 		return nil
@@ -53,6 +68,8 @@ func packageLockV1DependencyVariables(document map[string]any, lang string) []ma
 		names = append(names, name)
 	}
 	sort.Strings(names)
+
+	lines := lockfileSectionLines(source, "dependencies")
 
 	rows := make([]map[string]any, 0, len(names))
 	for _, name := range names {
@@ -64,7 +81,11 @@ func packageLockV1DependencyVariables(document map[string]any, lang string) []ma
 		if version == "" || version == "<nil>" {
 			continue
 		}
-		rows = append(rows, packageLockDependencyRow(name, version, len(rows)+1, lang, nil, packageLockLegacyDependencyScope(entry)))
+		row := packageLockDependencyRow(name, version, lang, nil, packageLockLegacyDependencyScope(entry))
+		if line, ok := lines[name]; ok {
+			row["line_number"] = line
+		}
+		rows = append(rows, row)
 	}
 	return rows
 }
@@ -94,14 +115,12 @@ func packageLockPackageName(path string) string {
 func packageLockDependencyRow(
 	name string,
 	version string,
-	lineNumber int,
 	lang string,
 	dependencyPath []string,
 	dependencyScope string,
 ) map[string]any {
 	row := map[string]any{
 		"name":            strings.TrimSpace(name),
-		"line_number":     lineNumber,
 		"value":           strings.TrimSpace(version),
 		"section":         "package-lock",
 		"config_kind":     "dependency",
