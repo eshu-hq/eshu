@@ -4,8 +4,6 @@
 package yaml
 
 import (
-	"strings"
-
 	"github.com/eshu-hq/eshu/go/internal/parser/cloudformation"
 
 	yamlv3 "gopkg.in/yaml.v3"
@@ -33,42 +31,19 @@ type cloudformationPositionFallback struct {
 	Line    int
 }
 
-// decodeDocumentNodes decodes source into per-document raw *yamlv3.Node
-// section roots, applying the identical empty-document skip rule
-// DecodeDocuments uses so the two functions' results stay index-aligned when
-// run against the same source. It exists because DecodeDocuments flattens
-// each document to map[string]any via yamlNodeToAny, discarding every node's
-// real Line except a single document-root capture; the CloudFormation
-// position walk needs the raw node tree to read each entity key's own Line.
-func decodeDocumentNodes(source string) ([]*yamlv3.Node, error) {
-	decoder := yamlv3.NewDecoder(strings.NewReader(source))
-	nodes := make([]*yamlv3.Node, 0)
-	for {
-		var node yamlv3.Node
-		err := decoder.Decode(&node)
-		if err != nil {
-			if err.Error() == "EOF" {
-				return nodes, nil
-			}
-			return nil, err
-		}
-		if len(node.Content) == 0 {
-			continue
-		}
-		nodes = append(nodes, node.Content[0])
-	}
-}
-
 // cloudformationPositionsFromRoot walks root -- one document's raw node tree,
-// as returned by decodeDocumentNodes -- and returns the real per-entity
+// as returned by decodeDocumentsWithNodes (the same single decode pass that
+// produced the document's flattened value) -- and returns the real per-entity
 // Positions for a CloudFormation/SAM document, plus any degraded-position
 // fallback events. document is the same document already flattened by
 // DecodeDocuments; it is used to know which entity names actually exist (so
 // a name present in the document but missing from the node walk's result
 // still gets a recorded fallback instead of silently keeping a stale
-// position). root == nil (the raw node tree was unavailable) degrades every
-// section to the document-root lineNumber, matching Parse's original
-// behavior, and records one fallback event.
+// position). root == nil is a defensive path only -- decodeDocumentsWithNodes
+// keeps documentNodes index-aligned with every document it produces, so
+// Parse's bounds check should never actually hit it -- but if it ever did,
+// this degrades every section to the document-root lineNumber, matching
+// Parse's original pre-#5328 behavior, and records one fallback event.
 func cloudformationPositionsFromRoot(root *yamlv3.Node, document map[string]any) (cloudformation.Positions, []cloudformationPositionFallback) {
 	if root == nil {
 		return cloudformation.Positions{}, []cloudformationPositionFallback{

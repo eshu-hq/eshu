@@ -120,26 +120,17 @@ func Parse(
 	}
 
 	sanitizedSource := SanitizeTemplating(string(source))
-	documents, err := DecodeDocuments(sanitizedSource)
+	// decodeDocumentsWithNodes performs exactly one decode pass over
+	// sanitizedSource and returns each document's raw *yamlv3.Node root
+	// alongside the flattened value DecodeDocuments has always produced.
+	// CloudFormation/SAM documents (the overwhelming minority) reuse that
+	// same root for real per-entity line positions instead of a second
+	// decode pass over the same source (issue #5328 performance recovery);
+	// every other YAML file pays only the O(1) cost of appending an already
+	// -produced pointer to documentNodes, never a second parse.
+	documents, documentNodes, err := decodeDocumentsWithNodes(sanitizedSource)
 	if err != nil {
 		return nil, fmt.Errorf("parse yaml file %q: %w", path, err)
-	}
-
-	// Raw *yamlv3.Node section roots are only decoded when at least one
-	// document in the stream is a CloudFormation/SAM template: every other
-	// YAML file (the overwhelming majority -- Kubernetes manifests, Argo CD,
-	// Crossplane, Kustomize) never pays for a second decode pass.
-	// decodeDocumentNodes applies the identical empty-document skip rule
-	// DecodeDocuments uses on this same sanitizedSource, so documentNodes
-	// stays index-aligned with documents.
-	var documentNodes []*yamlv3.Node
-	for _, document := range documents {
-		if object, ok := document.(map[string]any); ok && cloudformation.IsTemplate(object) {
-			if nodes, nodesErr := decodeDocumentNodes(sanitizedSource); nodesErr == nil {
-				documentNodes = nodes
-			}
-			break
-		}
 	}
 
 	for index, document := range documents {
@@ -148,7 +139,7 @@ func Parse(
 			continue
 		}
 		var rootNode *yamlv3.Node
-		if documentNodes != nil && index < len(documentNodes) {
+		if index < len(documentNodes) {
 			rootNode = documentNodes[index]
 		}
 		appendYAMLDocument(payload, path, filename, object, rootNode)
@@ -288,30 +279,57 @@ func appendYAMLDocument(payload map[string]any, path string, filename string, do
 // DecodeDocuments decodes one YAML source string into document values while
 // preserving the top-level line number on map documents.
 func DecodeDocuments(source string) ([]any, error) {
+	documents, _, err := decodeDocumentsWithNodes(source)
+	return documents, err
+}
+
+// decodeDocumentsWithNodes decodes source in a single pass and returns both
+// the flattened document values DecodeDocuments has always produced and each
+// document's raw *yamlv3.Node root, index-aligned with documents (both slices
+// apply the identical empty-document skip rule below, so index i in one
+// slice always corresponds to index i in the other).
+//
+// Retaining the root node costs nothing beyond appending a pointer this same
+// decode pass already produced -- yamlNodeToAny reads node.Content[0] to
+// build the flattened value regardless, so root is already in hand. This
+// lets a CloudFormation/SAM document (cloudformationPositionsFromRoot) reuse
+// the identical node tree for real per-entity line positions instead of
+// paying for a second full decode of the same source, which used to roughly
+// double CFN parse time (issue #5328 performance recovery; the prior
+// decodeDocumentNodes second pass is retired). Every document's root is
+// retained regardless of its eventual document type: non-CFN documents pay
+// only the O(1) append, never a second parse, so this stays free for the
+// overwhelming majority of YAML files (Kubernetes manifests, Argo CD,
+// Crossplane, Kustomize) that never read documentNodes at all.
+func decodeDocumentsWithNodes(source string) ([]any, []*yamlv3.Node, error) {
 	decoder := yamlv3.NewDecoder(strings.NewReader(source))
 	documents := make([]any, 0)
+	nodes := make([]*yamlv3.Node, 0)
 	for {
 		var node yamlv3.Node
 		err := decoder.Decode(&node)
 		if err != nil {
 			if err.Error() == "EOF" {
-				return documents, nil
+				return documents, nodes, nil
 			}
-			return nil, err
+			return nil, nil, err
 		}
 		if len(node.Content) == 0 {
 			continue
 		}
-		value, err := yamlNodeToAny(node.Content[0])
+		root := node.Content[0]
+		value, err := yamlNodeToAny(root)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		if object, ok := value.(map[string]any); ok {
-			object["__eshu_line_number"] = node.Content[0].Line
+			object["__eshu_line_number"] = root.Line
 			documents = append(documents, object)
+			nodes = append(nodes, root)
 			continue
 		}
 		documents = append(documents, value)
+		nodes = append(nodes, root)
 	}
 }
 
