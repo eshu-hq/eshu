@@ -312,7 +312,7 @@ diagnostic context, not the final merge-readiness browser proof.
 
 The final retained-browser run used the authenticated console at
 `http://127.0.0.1:5194/impact?kind=service&target=api-node-boats` against
-application head `0050671539028abdce2d1175239f44a35b97faa2`. The Vite process
+application head `fa29dff4cec182a3c3de8d7e0c07a85a9e61f7cf`. The Vite process
 was verified to be serving directly from this feature worktree after the final
 rebase, while the retained API response shape was independently proven by the
 exact backend B-7 run above. The post-B-7 implementation delta is confined to
@@ -346,13 +346,13 @@ warnings or errors during this exact-head proof.
 The same signed-in anchor also closed the interactive-read acceptance check.
 The primary route-ready metric starts immediately before browser reload and
 ends when the exact `Graph composition evidence` card is visible with the
-`complete within bounds` label. Five same-anchor reloads measured **1463 ms,
-1555 ms, 1333 ms, 1352 ms, and 1248 ms**; the observed median was **1352 ms**
-and the observed p95/max was **1555 ms**. That is inside the capability
+`complete within bounds` label. Five same-anchor reloads measured **1461 ms,
+1870 ms, 1467 ms, 1548 ms, and 1437 ms**; the observed median was **1467 ms**
+and the observed p95/max was **1870 ms**. That is inside the capability
 matrix's **4000 ms local-full-stack p95** contract for
 `platform_impact.deployment_chain`. The card's shipped
-`compositionDurationMs` readout measured **0.000 ms, 0.000 ms, 0.000 ms,
-0.100 ms, and 0.100 ms**; the observed p95/max was **0.100 ms**, inside a
+`compositionDurationMs` readout measured **0.100 ms, 0.000 ms, 0.100 ms,
+0.000 ms, and 0.100 ms**; the observed p95/max was **0.100 ms**, inside a
 single 16.7 ms frame budget. These are warm retained-data measurements on this
 local machine, not a hardware-independent product guarantee or a comparison to
 the earlier 0.357 s API-only measurement.
