@@ -293,8 +293,22 @@ source facts plus coverage warnings.
 Optional `api_base_url` overrides must use HTTPS because the runtime sends the
 PagerDuty token to that endpoint. Optional target fields bound collection with
 `incident_lookback`, `incident_limit`, `log_entry_limit`,
-`change_event_limit`, `allowed_service_ids`, `config_validation_enabled`, and
-`config_resource_limit`.
+`change_event_limit`, `allowed_service_ids`, `config_validation_enabled`,
+`config_resource_limit`, `pagination_max_pages`, and
+`pagination_max_records`.
+
+Every PagerDuty list endpoint (incidents, incident log entries, incident
+related-change events, services, service integrations) follows PagerDuty's
+classic offset pagination using the response's `more` field, not just the
+first page. `pagination_max_pages` (default `10`) and `pagination_max_records`
+(default `1000`, hard ceiling `5000`) triple-bound that follow: a page-count
+ceiling, a record-count ceiling, and the request context deadline. A target
+that hits either bound while the provider still reports `more:true` sets
+`Truncated` on the collection result and emits one
+`incident_routing.coverage_warning` fact with `reason=truncated` for the
+resource that was cut short; pagination that exhausts `more` naturally never
+sets `Truncated` and never emits that warning, even though it now observes
+more incidents/services/integrations than a single-page read would have.
 
 | Variable | Default | Read by | Purpose |
 | --- | --- | --- | --- |
