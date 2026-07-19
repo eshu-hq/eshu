@@ -15,6 +15,53 @@ import (
 
 const repositoryDeploymentEvidenceArtifactLimit = 50
 
+// deploymentEvidenceEndpointVisible reports whether a deployment-evidence
+// artifact endpoint repository (source or target) may be shown to the caller.
+// The anchor repository (anchorRepoID, the repo_id this evidence was queried
+// for) is always visible because it is grant-verified upstream before this path
+// runs -- the scoped workload WHERE clause (scopedWorkloadWhereClause) for the
+// service/workload context callers, or the Group-A repository selector for the
+// repository context/story callers. An empty endpoint reveals no repository. A
+// shared/all-scopes caller sees everything. Any other endpoint is a second,
+// potentially cross-tenant repository and is checked against the grant.
+func deploymentEvidenceEndpointVisible(repoID, anchorRepoID string, access repositoryAccessFilter) bool {
+	if !access.scoped() {
+		return true
+	}
+	if repoID == "" || repoID == anchorRepoID {
+		return true
+	}
+	return access.allowsRepositoryID(repoID)
+}
+
+// filterDeploymentEvidenceRowsForAccess drops deployment-evidence artifact rows
+// whose non-anchor repository endpoint is outside the caller's grant (#5167 W3
+// P0 cross-tenant disclosure). Every artifact ties an anchor repository (source
+// for outgoing rows, target for incoming rows) to a second repository via
+// EVIDENCES_REPOSITORY_RELATIONSHIP; that second endpoint can belong to a
+// different tenant, so BOTH endpoints must be visible for the row to survive.
+// It is the single shared choke point (queryRepoDeploymentEvidence graph path
+// and loadRepositoryDeploymentEvidence read-model path both call it) so every
+// caller -- service/workload/repository context and story, plus the #5167 W3
+// impact routes -- is bound identically, closing the pre-existing leak through
+// the already-allowlisted GET /services/{name}/context and repository routes at
+// the source. buildGraphDeploymentEvidence's aggregates (source_repo_ids,
+// target_repo_ids, artifact_count, evidence_index) are all derived from the
+// filtered set because filtering happens before the build.
+func filterDeploymentEvidenceRowsForAccess(rows []map[string]any, anchorRepoID string, access repositoryAccessFilter) []map[string]any {
+	if !access.scoped() {
+		return rows
+	}
+	filtered := make([]map[string]any, 0, len(rows))
+	for _, row := range rows {
+		if deploymentEvidenceEndpointVisible(StringVal(row, "source_repo_id"), anchorRepoID, access) &&
+			deploymentEvidenceEndpointVisible(StringVal(row, "target_repo_id"), anchorRepoID, access) {
+			filtered = append(filtered, row)
+		}
+	}
+	return filtered
+}
+
 // queryRepoDeploymentEvidence reads compact graph evidence pointers for
 // repository relationships without embedding raw Postgres evidence payloads.
 func queryRepoDeploymentEvidence(ctx context.Context, reader GraphQuery, content ContentStore, params map[string]any) (map[string]any, error) {
@@ -91,6 +138,13 @@ func queryRepoDeploymentEvidence(ctx context.Context, reader GraphQuery, content
 		ORDER BY path, artifact_id
 	`)
 	rows := append(outgoing, incoming...)
+	if len(rows) == 0 {
+		return nil, nil
+	}
+	// #5167 W3 P0: bind each cross-repo evidence artifact to the caller's grant
+	// before building the evidence map so a scoped caller never sees a
+	// cross-tenant repository on the non-anchor endpoint.
+	rows = filterDeploymentEvidenceRowsForAccess(rows, StringVal(params, "repo_id"), repositoryAccessFilterFromContext(ctx))
 	if len(rows) == 0 {
 		return nil, nil
 	}

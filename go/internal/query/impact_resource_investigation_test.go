@@ -365,3 +365,84 @@ func TestLoadResourceInvestigationSectionsRejectsUnknownAnchorLabel(t *testing.T
 		t.Fatalf("graph calls = %d, want 0", len(graph.runCalls))
 	}
 }
+
+// TestResourceInvestigationWorkloadsGrantFiltersBeforeTruncation is the #5167
+// W3 P1 mutation-check for resourceInvestigationWorkloads: a cross-tenant
+// workload sorted ahead of two granted ones (in the raw fetched instance-id
+// order) must not consume a limit slot and drop a granted workload past the
+// boundary. With the prior trim-before-filter order, limit=2 returned only one
+// granted workload; filtering the full fetched set before trimming returns
+// both. The grated rows are deliberately NOT all within the first `limit`
+// positions of the raw set.
+func TestResourceInvestigationWorkloadsGrantFiltersBeforeTruncation(t *testing.T) {
+	t.Parallel()
+
+	graph := &recordingResourceInvestigationGraph{
+		workloadRows: []map[string]any{
+			{"instance_id": "inst-b", "workload_id_raw": "wl-b", "instance_name": "svc-b", "relationship_type": "USES"},
+			{"instance_id": "inst-a1", "workload_id_raw": "wl-a1", "instance_name": "svc-a1", "relationship_type": "USES"},
+			{"instance_id": "inst-a2", "workload_id_raw": "wl-a2", "instance_name": "svc-a2", "relationship_type": "USES"},
+		},
+		instanceWorkloadRows: []map[string]any{
+			{"instance_id": "inst-b", "workload_id": "wl-b", "workload_name": "svc-b", "workload_repo_id": "repo-b"},
+			{"instance_id": "inst-a1", "workload_id": "wl-a1", "workload_name": "svc-a1", "workload_repo_id": "repo-a"},
+			{"instance_id": "inst-a2", "workload_id": "wl-a2", "workload_name": "svc-a2", "workload_repo_id": "repo-a"},
+		},
+	}
+	handler := &ImpactHandler{Neo4j: graph, Profile: ProfileLocalAuthoritative}
+	access := repositoryAccessFilterFromContext(ContextWithAuthContext(context.Background(), scopedTestAuthContext("tenant-a", []string{"repo-a"})))
+
+	workloads, _, err := handler.resourceInvestigationWorkloads(
+		context.Background(),
+		resourceInvestigationRequest{Limit: 2, MaxDepth: 2},
+		&resourceInvestigationCandidate{ID: "res", Labels: []string{"CloudResource"}},
+		access,
+	)
+	if err != nil {
+		t.Fatalf("resourceInvestigationWorkloads() error = %v", err)
+	}
+	if got, want := len(workloads), 2; got != want {
+		t.Fatalf("granted workload count = %d, want %d (both repo-a workloads must survive; trim-before-filter drops one): %#v", got, want, workloads)
+	}
+	for _, workload := range workloads {
+		if id := StringVal(workload, "workload_id"); id == "wl-b" {
+			t.Fatalf("cross-tenant workload wl-b (repo-b) present for repo-a caller: %#v", workloads)
+		}
+	}
+}
+
+// TestResourceInvestigationRepoPathsGrantFiltersBeforeTruncation is the same
+// #5167 W3 P1 proof for resourceInvestigationRepoPaths: a cross-tenant path
+// sorted ahead of two granted paths must not steal a limit slot.
+func TestResourceInvestigationRepoPathsGrantFiltersBeforeTruncation(t *testing.T) {
+	t.Parallel()
+
+	graph := &recordingResourceInvestigationGraph{
+		outgoingRows: []map[string]any{
+			{"repo_id": "repo-b", "repo_name": "svc-b", "depth": int64(1)},
+			{"repo_id": "repo-a", "repo_name": "svc-a1", "depth": int64(1)},
+			{"repo_id": "repo-a", "repo_name": "svc-a2", "depth": int64(2)},
+		},
+	}
+	handler := &ImpactHandler{Neo4j: graph, Profile: ProfileLocalAuthoritative}
+	access := repositoryAccessFilterFromContext(ContextWithAuthContext(context.Background(), scopedTestAuthContext("tenant-a", []string{"repo-a"})))
+
+	paths, _, err := handler.resourceInvestigationRepoPaths(
+		context.Background(),
+		resourceInvestigationRequest{Limit: 2, MaxDepth: 2},
+		&resourceInvestigationCandidate{ID: "res", Labels: []string{"CloudResource"}},
+		"outgoing",
+		access,
+	)
+	if err != nil {
+		t.Fatalf("resourceInvestigationRepoPaths() error = %v", err)
+	}
+	if got, want := len(paths), 2; got != want {
+		t.Fatalf("granted path count = %d, want %d (both repo-a paths must survive; trim-before-filter drops one): %#v", got, want, paths)
+	}
+	for _, path := range paths {
+		if repoID := StringVal(path, "repo_id"); repoID == "repo-b" {
+			t.Fatalf("cross-tenant repo-b path present for repo-a caller: %#v", paths)
+		}
+	}
+}

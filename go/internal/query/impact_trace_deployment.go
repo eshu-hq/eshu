@@ -88,7 +88,7 @@ func (h *ImpactHandler) traceDeploymentChain(w http.ResponseWriter, r *http.Requ
 			return
 		}
 		deploymentSources = filterRowsByRepoIDForAccess(deploymentSources, access)
-		cloudResources, err := h.fetchCloudResources(r.Context(), workloadID)
+		cloudResources, err := h.fetchCloudResources(r.Context(), workloadID, access)
 		if err != nil {
 			WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query cloud resources: %v", err))
 			return
