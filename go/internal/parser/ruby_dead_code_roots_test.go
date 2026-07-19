@@ -206,6 +206,94 @@ end
 	assertParserStringSliceContains(t, assertFunctionByName(t, got, "set_account"), "dead_code_root_kinds", "ruby.rails_callback_method")
 }
 
+// TestDefaultEngineParsePathRubyGatesControllerActionOnSuperclassChain
+// characterizes issue #5337 Detector 1: rubyIsRailsController must gate on a
+// same-file transitive superclass walk, not a "*Controller" name suffix. A
+// class whose superclass chain resolves to something other than an accepted
+// Rails base (< Thor, < Sinatra::Base) must NOT root its actions, even
+// though the class name ends in "Controller" and even though the rejected
+// base's own last path segment ("Base") collides with an accepted
+// fully-qualified base (ActionController::Base). A class with no declared
+// superclass keeps rooting (deliberate residual: per-file parsing cannot
+// distinguish a reopened Rails controller from a bare PORO). A transitive
+// chain through a same-file intermediate class, and an unresolved
+// "*Controller"-suffixed chain that leaves the file, must both still root.
+func TestDefaultEngineParsePathRubyGatesControllerActionOnSuperclassChain(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "gating.rb")
+	writeTestFile(
+		t,
+		filePath,
+		`class ReportController < Thor
+  def run_report
+    true
+  end
+end
+
+class LegacyApp < Sinatra::Base
+  def route_handler
+    true
+  end
+end
+
+class WidgetsController
+  def show_widget
+    true
+  end
+end
+
+class OrdersController < ApplicationController
+  def list_orders
+    true
+  end
+end
+
+class BaseControllerLocal < ActionController::Base
+end
+
+class UsersController < BaseControllerLocal
+  def list_users
+    true
+  end
+end
+
+class ApiController < Api::BaseController
+  def list_api
+    true
+  end
+end
+`,
+	)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath(%s) error = %v, want nil", filePath, err)
+	}
+
+	// Reject: declared superclass resolves to something not accepted.
+	assertParserStringSliceNotContains(t, assertFunctionByName(t, got, "run_report"), "dead_code_root_kinds", "ruby.rails_controller_action")
+	assertParserStringSliceNotContains(t, assertFunctionByName(t, got, "route_handler"), "dead_code_root_kinds", "ruby.rails_controller_action")
+
+	// Keep: no declared superclass at all.
+	assertParserStringSliceContains(t, assertFunctionByName(t, got, "show_widget"), "dead_code_root_kinds", "ruby.rails_controller_action")
+
+	// Accept: exact accepted base.
+	assertParserStringSliceContains(t, assertFunctionByName(t, got, "list_orders"), "dead_code_root_kinds", "ruby.rails_controller_action")
+
+	// Accept: transitive chain through a same-file intermediate class.
+	assertParserStringSliceContains(t, assertFunctionByName(t, got, "list_users"), "dead_code_root_kinds", "ruby.rails_controller_action")
+
+	// Accept: unresolved superclass name ending in "Controller" (chain leaves the file).
+	assertParserStringSliceContains(t, assertFunctionByName(t, got, "list_api"), "dead_code_root_kinds", "ruby.rails_controller_action")
+}
+
 func TestDefaultEngineParsePathRubyRejectsNonEqualityScriptGuard(t *testing.T) {
 	t.Parallel()
 

@@ -34,17 +34,35 @@ type rubyScope struct {
 // captures the structural facts (definitions, imports, inclusions, variables,
 // calls) discovered while walking the AST.
 type rubySyntax struct {
-	source     []byte
-	lines      []string
-	functions  []map[string]any
-	classes    []map[string]any
-	modules    []map[string]any
-	variables  []map[string]any
-	imports    []map[string]any
-	inclusions []map[string]any
-	calls      []map[string]any
-	seenCalls  map[string]struct{}
-	root       *tree_sitter.Node
+	source        []byte
+	lines         []string
+	functions     []map[string]any
+	classes       []map[string]any
+	modules       []map[string]any
+	variables     []map[string]any
+	imports       []map[string]any
+	inclusions    []map[string]any
+	calls         []map[string]any
+	seenCalls     map[string]struct{}
+	classRegistry rubyClassRegistry
+	root          *tree_sitter.Node
+}
+
+// rubyClassRegistry is the same-file, top-down transitive superclass view
+// built incrementally in visitClass as classes are discovered. Ruby source is
+// parsed top-down, so by the time a method's dead-code-root kind is computed,
+// the registry already holds every class defined earlier in the file,
+// including the method's own enclosing class. It backs the Rails controller
+// superclass-chain walk in dead_code_roots.go and intentionally does not
+// require a second AST walk.
+type rubyClassRegistry struct {
+	// superclass maps a class name to its declared superclass's full,
+	// possibly module-qualified name. A class with no declared superclass
+	// has no entry.
+	superclass map[string]string
+	// known holds every class name defined in the file so far, regardless
+	// of whether it declares a superclass.
+	known map[string]struct{}
 }
 
 // rubyBuildSyntax parses path with parser and returns the resolved syntax view.
@@ -53,7 +71,11 @@ func rubyBuildSyntax(source []byte, tree *tree_sitter.Tree, options shared.Optio
 		source:    source,
 		lines:     strings.Split(string(source), "\n"),
 		seenCalls: make(map[string]struct{}),
-		root:      tree.RootNode(),
+		classRegistry: rubyClassRegistry{
+			superclass: make(map[string]string),
+			known:      make(map[string]struct{}),
+		},
+		root: tree.RootNode(),
 	}
 	seenVariables := make(map[string]struct{})
 	syntax.walk(syntax.root, nil, "public", seenVariables, options)
@@ -168,9 +190,13 @@ func (s *rubySyntax) visitClass(
 		"lang":        "ruby",
 		"type":        "class",
 	}
+	s.classRegistry.known[name] = struct{}{}
 	if superclass := node.ChildByFieldName("superclass"); superclass != nil {
 		if base := s.superclassName(superclass); base != "" {
 			item["bases"] = []string{base}
+		}
+		if qualified := s.superclassQualifiedName(superclass); qualified != "" {
+			s.classRegistry.superclass[name] = qualified
 		}
 	}
 	s.classes = append(s.classes, item)
@@ -235,7 +261,7 @@ func (s *rubySyntax) visitMethod(
 			item["class_context"] = contextName
 		}
 	}
-	if rootKinds := rubyFunctionDefinitionRootKinds(name, functionType, contextName, string(contextType), resolvedVisibility); len(rootKinds) > 0 {
+	if rootKinds := rubyFunctionDefinitionRootKinds(name, functionType, contextName, string(contextType), resolvedVisibility, s.classRegistry); len(rootKinds) > 0 {
 		item["dead_code_root_kinds"] = rootKinds
 	}
 	if options.IndexSource {
