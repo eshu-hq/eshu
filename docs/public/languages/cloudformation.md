@@ -51,7 +51,12 @@ Not claimed today:
   anywhere in the tree -- so a nested same-named key (for example an
   `AWS::CloudFormation::Stack` resource whose own `Properties` happens to
   contain a `Resources` or `Outputs` key) is never mistaken for a template
-  section (issue #5328).
+  section (issue #5328). Because `line_number` participates in a content
+  entity's identity, upgrading to this real per-entity line re-identifies
+  every CFN entity in an already-indexed repo on its next snapshot (the old
+  entities, previously all sharing the document-root line, are retracted and
+  recreated with new ids) -- a one-time, self-healing entity-count churn with
+  no data loss.
 - JSON templates still report only a single document-level `line_number` for
   every Parameters/Conditions/Resources/Outputs/Exports/cross-stack-import
   entity in the file, and never set `end_line` at all: JSON decoding does not
