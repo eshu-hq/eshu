@@ -32,18 +32,16 @@ export function requiredTopologyRelationshipLimitations(
 
   for (const instance of trace.instances) {
     for (const platform of instance.platforms) {
+      if (platform.topologyBasis !== "direct_runtime") {
+        limitations.add("runtime topology basis unverified; expected direct_runtime");
+      }
       const hasExactRunsOn = platform.topologyEdges.some(
         (edge) =>
           edge.relationshipType === "RUNS_ON" &&
           edge.sourceId === instance.id &&
           edge.targetId === platform.id,
       );
-      if (
-        platform.topologyBasis === "direct_runtime" &&
-        instance.id.length > 0 &&
-        platform.id !== undefined &&
-        !hasExactRunsOn
-      ) {
+      if (!hasExactRunsOn) {
         limitations.add(
           "runtime relationship backbone incomplete; exact RUNS_ON edge was not returned",
         );
@@ -52,7 +50,9 @@ export function requiredTopologyRelationshipLimitations(
   }
 
   for (const platform of trace.provisionedPlatforms) {
-    if (platform.id === undefined || trace.repoId.length === 0) continue;
+    if (platform.topologyBasis !== "provisioning_fallback") {
+      limitations.add("provisioning topology basis unverified; expected provisioning_fallback");
+    }
     const hasExactDependency = platform.topologyEdges.some(
       (edge) =>
         edge.relationshipType === "PROVISIONS_DEPENDENCY_FOR" &&

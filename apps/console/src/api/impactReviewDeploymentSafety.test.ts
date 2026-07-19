@@ -86,6 +86,7 @@ describe("Impact deployment topology safety", () => {
             ],
           },
         ],
+        runtime_topology_limits: completeRuntimeTopologyLimits(1, 0, 1),
         topology_edges: [
           topologyEdge("DEFINES", "repository:r_catalog", "workload:catalog-api"),
           topologyEdge("INSTANCE_OF", "workload-instance:catalog-api:prod", "workload:catalog-api"),
@@ -104,6 +105,7 @@ describe("Impact deployment topology safety", () => {
         expect.objectContaining({ verb: "PROVISIONS_PLATFORM" }),
       ]),
     );
+    expect(review.graphPresentation.completeness).toBe("complete");
   });
 
   it.each([
