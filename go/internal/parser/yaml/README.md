@@ -3,9 +3,9 @@
 ## Purpose
 
 internal/parser/yaml owns YAML-family source extraction for Kubernetes,
-Argo CD, Crossplane, Kustomize, Helm, CloudFormation/SAM, Atlantis
-(`atlantis.yaml` repo-level project), and GitLab CI
-(`.gitlab-ci.yml` pipeline + jobs) payload rows. It
+Argo CD, Crossplane, Kustomize, Flux CD Kustomization custom resources, Helm,
+CloudFormation/SAM, Atlantis (`atlantis.yaml` repo-level project), and GitLab
+CI (`.gitlab-ci.yml` pipeline + jobs) payload rows. It
 exists so YAML parsing behavior can evolve behind a language-owned package
 without depending on the parent parser dispatcher. It also emits metadata-only
 declared observability rows from Helm values, GrafanaFolder and
@@ -38,6 +38,17 @@ mis-associate source details with the wrong repository.
 CloudFormation/SAM classification and row extraction belong to the sibling
 internal/parser/cloudformation package. YAML owns file decoding and intrinsic
 tag normalization before passing a decoded document to that package.
+
+`flux.go` owns Flux CD Kustomization custom resource detection and capture
+(`kustomize.toolkit.fluxcd.io/*` apiVersion group, kind `Kustomization`),
+kept a dedicated path rather than reusing `parseKustomization` because a Flux
+Kustomization nests its declarative fields under `spec` (`sourceRef`, `path`,
+`targetNamespace`) instead of carrying them at the document root like a
+`kustomization.yaml` build manifest (issue #5342). The resulting
+`flux_kustomizations` bucket is evidence-only: it is not registered for
+content-entity materialization and is not wired into relationship-evidence
+extraction, so it never becomes a graph node or a queryable surface. Modeling
+Flux as a queryable deployment platform is tracked separately (issue #5360).
 
 ## Exported surface
 

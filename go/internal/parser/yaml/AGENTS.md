@@ -8,8 +8,9 @@
 4. semantics.go - Kubernetes, Crossplane, Kustomize, and shared YAML metadata helpers
 5. argocd.go - Argo CD Application and ApplicationSet extraction
 6. helm.go - Helm chart, values, and template-manifest handling
-7. ../cloudformation/README.md - shared CloudFormation/SAM extraction contract
-8. ../shared/README.md - dependency-safe helper contracts for child parser packages
+7. flux.go - Flux CD Kustomization custom resource detection and evidence-only capture
+8. ../cloudformation/README.md - shared CloudFormation/SAM extraction contract
+9. ../shared/README.md - dependency-safe helper contracts for child parser packages
 
 ## Invariants this package enforces
 
@@ -33,6 +34,11 @@
   cases separate enough that generator and template evidence remain visible.
 - Add Helm behavior in helm.go and include path-sensitive coverage for chart,
   values, or template-manifest classification.
+- Add/adjust Flux Kustomization capture in flux.go, keeping the
+  `flux_kustomizations` bucket evidence-only (sourceRef/path/targetNamespace
+  fields, never a platform-kind string) until Flux gets a real graph-projected
+  read surface; do not widen isKustomization's generic apiVersion/filename
+  match to catch Flux's group instead.
 - Extend CloudFormation per-entity position support (currently Parameters,
   Conditions, Resources, Outputs, and Exports-via-their-owning-Output, see
   cloudformation_positions.go) in the same file, walking the raw
