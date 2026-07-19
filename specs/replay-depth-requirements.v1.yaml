@@ -195,6 +195,7 @@ retractable_edge_types:
   - EXECUTES_SHELL
   - EXPLAINS
   - HAS_COLUMN
+  - INDEXES
   - QUERIES_TABLE
   - REFERENCES_TABLE
   - TRIGGERS

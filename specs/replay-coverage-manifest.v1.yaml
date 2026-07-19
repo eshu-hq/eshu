@@ -595,12 +595,14 @@ coverage:
   # Reducer-materialized SQL relationships (#5116): all six source-label query
   # shapes are proven through the live production EdgeWriter for both repository
   # and delta-file retract scopes. REFERENCES_TABLE is exercised from SqlView
-  # and SqlFunction sources by the same test.
+  # and SqlFunction sources by the same test. INDEXES (#5330) was added to the
+  # same fixture table and retract disjunction (SqlIndex -[:INDEXES]-> SqlTable).
   - {surface: retractable_edge:QUERIES_TABLE, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_sql_relationship_retract_live_test.go, proof_gate: replay-tier}
   - {surface: retractable_edge:REFERENCES_TABLE, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_sql_relationship_retract_live_test.go, proof_gate: replay-tier}
   - {surface: retractable_edge:HAS_COLUMN, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_sql_relationship_retract_live_test.go, proof_gate: replay-tier}
   - {surface: retractable_edge:TRIGGERS, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_sql_relationship_retract_live_test.go, proof_gate: replay-tier}
   - {surface: retractable_edge:EXECUTES, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_sql_relationship_retract_live_test.go, proof_gate: replay-tier}
+  - {surface: retractable_edge:INDEXES, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_sql_relationship_retract_live_test.go, proof_gate: replay-tier}
   # Reducer-materialized rationale EXPLAINS edges (#5116 sibling): the delta
   # (by-file) retract anchored its target on a node-label disjunction, which
   # deletes nothing on NornicDB v1.1.11; proven by a live EdgeWriter
