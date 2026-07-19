@@ -128,11 +128,13 @@ func (w ContentWriter) reapStaleContentEntities(ctx context.Context, repoID stri
 	for path := range freshIDsByPath {
 		paths = append(paths, path)
 	}
-	// Deterministic path ordering: two concurrent Write() calls that both
-	// touch overlapping paths (see the concurrency proof in
-	// content_writer_reap_concurrency_test.go) always chunk and issue their
-	// reap DELETEs in the same path order, which keeps row-lock acquisition
-	// order consistent and avoids a lock-ordering deadlock between them.
+	// Deterministic path ordering: production never has two concurrent
+	// Write() calls touch the same (repo_id, path) — see the completeness
+	// invariant above and the concurrency proof in
+	// content_writer_reap_concurrency_test.go — but sorting keeps chunk
+	// boundaries and row-lock acquisition order reproducible across runs
+	// regardless of Go map iteration order, which is defense-in-depth
+	// against a lock-ordering deadlock if that invariant is ever violated.
 	sort.Strings(paths)
 
 	for i := 0; i < len(paths); i += reapStaleContentEntitiesPathBatchSize {
