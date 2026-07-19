@@ -126,14 +126,16 @@ func wrapAPIAuth(
 	next http.Handler,
 	audit query.GovernanceAuditAppender,
 	governanceStatus query.GovernanceStatusConfig,
+	authEnforcementConfigured bool,
 ) http.Handler {
-	return query.AuthMiddlewareWithBrowserSessionsScopedTokensGovernanceAuditAndRoutePolicy(
+	return query.AuthMiddlewareWithBrowserSessionsScopedTokensGovernanceAuditRoutePolicyAndEnforcement(
 		apiKey,
 		scopedTokenResolver,
 		sessionResolver,
 		next,
 		audit,
 		browserSessionRoutePolicy(governanceStatus),
+		authEnforcementConfigured,
 	)
 }
 

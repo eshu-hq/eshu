@@ -71,7 +71,11 @@ func wireAPI(
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("resolve api key: %w", err)
 	}
-	scopedTokenResolver, err := scopedtoken.ResolverFromEnv(getenv)
+	// fileScopedTokenResolver is captured in its own variable (not reused as
+	// scopedTokenResolver) so it survives the ChainResolvers merge below and
+	// can feed the authEnforcementConfigured predicate. Renamed to mirror
+	// F-7's cmd/mcp-server rename (#5168) for a trivial future merge.
+	fileScopedTokenResolver, err := scopedtoken.ResolverFromEnv(getenv)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("resolve scoped token registry: %w", err)
 	}
@@ -174,7 +178,10 @@ func wireAPI(
 		}
 		return nil, nil, nil, fmt.Errorf("construct oidc bearer resolver: %w", err)
 	}
-	scopedTokenResolver = scopedtoken.ChainResolvers(identityResolver, oidcBearerResolver, scopedTokenResolver)
+	// Headerless dev-open vs. enforced posture; see auth_enforcement.go.
+	enforcement := authEnforcementConfigured(apiKey, fileScopedTokenResolver, oidcBearerResolver)
+	scopedTokenResolver := scopedtoken.ChainResolvers(identityResolver, oidcBearerResolver, fileScopedTokenResolver)
+	logAuthEnforcementPosture(logger, enforcement)
 
 	// Bootstrap identity seeding (epic #4962, issue #4963): seed the first
 	// local owner/admin identity exactly once before the router mounts any
@@ -425,6 +432,7 @@ func wireAPI(
 		mux,
 		adminRecoveryAuditAppender(governanceAudit),
 		governanceStatus,
+		enforcement,
 	)
 
 	// Rewrite /api/v1/* to /api/v0/* before auth so scoped-token and

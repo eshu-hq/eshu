@@ -67,9 +67,10 @@ func wireAPI(
 		return nil, nil, nil, mcpAuthWiring{}, fmt.Errorf("resolve api key: %w", err)
 	}
 	// fileScopedTokenResolver is the raw ESHU_SCOPED_TOKENS_FILE registry
-	// resolver, kept separate (not yet merged with identity/OIDC) so
-	// requireMCPHTTPCredentialSource below can see whether THIS specific
-	// knob was configured, distinct from the always-wired Postgres identity
+	// resolver, kept separate (not yet merged with identity/OIDC) so both
+	// requireMCPHTTPCredentialSource below and the enforcement predicate
+	// (auth_enforcement.go) can see whether THIS specific knob was
+	// configured, distinct from the always-wired Postgres identity
 	// resolver added to the chain further down.
 	fileScopedTokenResolver, err := scopedtoken.ResolverFromEnv(getenv)
 	if err != nil {
@@ -153,8 +154,15 @@ func wireAPI(
 	// of the three explicit, operator-facing credential knobs is set. See
 	// mcpAuthWiring's doc comment for why the always-wired identityResolver
 	// itself is deliberately excluded from this signal.
+	//
+	// NOTE: this is definitionally the same predicate as authEnforcementConfigured
+	// below (auth_enforcement.go); the two are not yet consolidated. A later
+	// promotion is expected to unify them and make transportAuth below
+	// enforcement-aware.
 	credentialSourceConfigured := apiKey != "" || fileScopedTokenResolver != nil || oidcBearerResolver != nil
+	enforcement := authEnforcementConfigured(apiKey, fileScopedTokenResolver, oidcBearerResolver)
 	scopedTokenResolver := scopedtoken.ChainResolvers(identityResolver, oidcBearerResolver, fileScopedTokenResolver)
+	logAuthEnforcementPosture(logger, enforcement)
 
 	// Build query layer
 	neo4jReader := query.NewNeo4jReader(driver, neo4jDB)
@@ -210,7 +218,7 @@ func wireAPI(
 	// with auth middleware (shared token + optional scoped-token registry;
 	// protects all /api/v0/* routes when mounted by MCP server)
 	instrumentedMux := query.RequestMetricsMiddleware(mux)
-	authedHandler := query.AuthMiddlewareWithScopedTokensAndGovernanceAudit(apiKey, scopedTokenResolver, instrumentedMux, governanceAudit)
+	authedHandler := query.AuthMiddlewareWithScopedTokensGovernanceAuditAndEnforcement(apiKey, scopedTokenResolver, instrumentedMux, governanceAudit, enforcement)
 
 	adminMux, err := mountRuntimeSurface("mcp-server", statusReader, prometheusHandler, db, driver)
 	if err != nil {
