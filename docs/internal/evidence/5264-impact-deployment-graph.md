@@ -103,8 +103,16 @@ workload selection returns HTTP 409 rather than an internal-error response.
 
 ## Performance and observability
 
-Performance Evidence: the cloud-resource correctness rewrite was measured on
-NornicDB v1.1.11 against a representative synthetic partition containing one
+Performance Evidence: the query trials and B-7 replay used the local image tag
+`tianthyss/nornicdb-cpu-bge:v1.1.11`, resolved to immutable image ID
+`sha256:40121b82fda0dccebe7abc0afbf3237adaa8ffe53d434fa82882afbd5da19b5a`.
+Its OCI source is `orneryd/NornicDB` at revision
+`1492458852588c884c32f70d27ea2ee07086769c`, the repository's PR261 Compose
+backend. Despite the mutable tag name, this is not claimed as canonical
+NornicDB v1.1.11 evidence.
+
+The cloud-resource correctness rewrite was measured against a representative
+synthetic partition containing one
 workload, one runtime instance, 51 cloud resources, and 102 `USES`
 observations. Ten alternating warm executions measured the old aggregation at
 approximately 1.60-2.31 milliseconds and the observation-preserving query at
@@ -121,13 +129,83 @@ plan nor statistics for `PROFILE`, so the proof uses directly timed emitted
 queries, exact output checks, the static query-plan registry, and the bounded
 51-row sentinel contract instead of claiming unavailable planner evidence.
 
+The config-derived candidate path was separately measured with 50 duplicate
+anchors against 1,563 matching retained CloudResource nodes. The old harness
+sent 50 production `CONTAINS $config_anchor` statements; it returned 2,550 raw
+rows and 51 unique rows. The accepted shape sends one regex-union statement
+with one global `LIMIT 51`; it returned 51 rows. The ordered resource-field
+digests were identical:
+`fbafc57faef5a202f408ed868483ade6bf9eddfe51ff5461923997184a0f7d36`.
+
+The timing harness used the exact old and new predicate/return shapes. The
+following is the runnable command form; it requires only the operator-local
+transaction endpoint:
+
+```bash
+old_query='MATCH (c:CloudResource)
+WHERE coalesce(c.name, "") CONTAINS $config_anchor
+   OR coalesce(c.config_path, "") CONTAINS $config_anchor
+   OR coalesce(c.resource_id, "") CONTAINS $config_anchor
+   OR coalesce(c.arn, "") CONTAINS $config_anchor
+RETURN DISTINCT coalesce(c.id, c.uid, c.resource_id, c.arn, c.name) AS id,
+ c.name AS name, coalesce(c.kind, c.resource_type, c.data_type, "") AS kind,
+ coalesce(c.resource_type, c.data_type, c.kind, "") AS resource_type,
+ coalesce(c.provider, c.source_system, "") AS provider,
+ coalesce(c.environment, "") AS environment,
+ coalesce(c.resource_id, "") AS resource_id, coalesce(c.arn, "") AS arn,
+ coalesce(c.account_id, "") AS account_id, coalesce(c.region, "") AS region
+ORDER BY name, id LIMIT $limit'
+new_query='MATCH (c:CloudResource)
+WHERE coalesce(c.name, "") =~ $config_anchor_pattern
+   OR coalesce(c.config_path, "") =~ $config_anchor_pattern
+   OR coalesce(c.resource_id, "") =~ $config_anchor_pattern
+   OR coalesce(c.arn, "") =~ $config_anchor_pattern
+RETURN DISTINCT coalesce(c.id, c.uid, c.resource_id, c.arn, c.name) AS id,
+ c.name AS name, coalesce(c.kind, c.resource_type, c.data_type, "") AS kind,
+ coalesce(c.resource_type, c.data_type, c.kind, "") AS resource_type,
+ coalesce(c.provider, c.source_system, "") AS provider,
+ coalesce(c.environment, "") AS environment,
+ coalesce(c.resource_id, "") AS resource_id, coalesce(c.arn, "") AS arn,
+ coalesce(c.account_id, "") AS account_id, coalesce(c.region, "") AS region,
+ coalesce(c.config_path, "") AS config_path
+ORDER BY name, id LIMIT $limit'
+old_payload="$(jq -nc --arg q "$old_query" \
+  '{statements:[range(0;50)|{statement:$q,parameters:{config_anchor:"/config",limit:51}}]}')"
+new_payload="$(jq -nc --arg q "$new_query" \
+  '{statements:[{statement:$q,parameters:{config_anchor_pattern:".*(?:/config).*",limit:51}}]}')"
+curl -fsS -o /dev/null -w '%{time_total}' \
+  -H 'Content-Type: application/json' \
+  --data-binary "$old_payload" \
+  "${NORNICDB_HTTP_URL}/db/nornic/tx/commit"
+curl -fsS -o /dev/null -w '%{time_total}' \
+  -H 'Content-Type: application/json' \
+  --data-binary "$new_payload" \
+  "${NORNICDB_HTTP_URL}/db/nornic/tx/commit"
+```
+
+`old_payload` contained 50 identical statements with
+`config_anchor=/config` and `limit=51`. `new_payload` contained the production
+regex-union statement with `config_anchor_pattern=.*(?:/config).*` and
+`limit=51`. Ten warm samples in seconds were:
+
+- old: `0.005109, 0.004102, 0.006727, 0.008196, 0.007544, 0.010745,
+  0.010936, 0.011407, 0.007902, 0.008456`;
+- new: `0.001138, 0.001166, 0.001144, 0.001240, 0.001234, 0.001632,
+  0.001620, 0.001324, 0.001443, 0.001460`.
+
+An `any(config_anchor IN $config_anchors ...)` candidate was rejected before
+implementation: on the same data it returned 3,737 matches where the old
+single-anchor predicate returned 1,563, and its bounded resource digest did not
+match. The regex union preserves literal `CONTAINS` semantics by escaping every
+anchor, caps the key batch at 50, and applies the sentinel once globally.
+
 No-Regression Evidence: after the final rebase, focused query tests passed,
-the complete console suite passed 254 test files and 1,616 tests, console
+the complete console suite passed 254 test files and 1,619 tests, console
 typechecking passed, and the production console build passed with every emitted
 chunk within its checked-in budget. The B-7 golden-corpus gate passed 421
-checks with zero required failures and zero advisory warnings on NornicDB
-v1.1.11 in 32 seconds. Its phase durations were 2 seconds for bootstrap, 21
-seconds for collection, 4 seconds for the first drain, 5 seconds for
+checks with zero required failures and zero advisory warnings on the same
+PR261 image in 33 seconds. Its phase durations were 2 seconds for bootstrap, 21
+seconds for collection, 5 seconds for the first drain, 5 seconds for
 maintenance, and 3 seconds for graph queries. The post-rebase static query-plan
 test and generated-coverage verification also passed after removing stale
 callsite records introduced by the incoming base changes.
@@ -143,9 +221,9 @@ instrument, or high-cardinality metric label.
 | Proof | Terminal result |
 | --- | --- |
 | Focused backend and OpenAPI tests | deployment truth, bounds, ambiguity, and schema tests passed |
-| Focused console tests and typecheck | 254 files and 1,616 tests passed; typecheck passed |
+| Focused console tests and typecheck | 254 files and 1,619 tests passed; typecheck passed |
 | NornicDB query proof | bounded emitted shapes and expected correctness delta proved; unavailable `PROFILE` output disclosed |
-| B-7 golden corpus | 421 passed, 0 required failures, 0 advisory warnings on NornicDB v1.1.11 |
+| B-7 golden corpus | 421 passed, 0 required failures, 0 advisory warnings on the pinned PR261 image above |
 | Production console build | passed; all 80 emitted chunks remained within budget |
 | Authenticated retained-browser workflow | API rows, rendered identities, counts, and limitations agreed |
 
@@ -153,10 +231,14 @@ The retained-browser proof used a real authenticated session after rebuilding
 the API and console. A service with an empty code change surface switched to
 deployment-topology mode and rendered 12 of 12 nodes and 11 of 11 edges: the
 repository/workload backbone, five runtime instances, and five Kubernetes
-platforms. The response reported complete within bounds and the browser
-composition took 1.700 milliseconds. Selecting an instance showed human
+platforms. The response reported complete within bounds and the final browser
+composition took 0.800 milliseconds. Ten full reload-to-rendered-SVG samples,
+including API, React commit, the 12-node/11-edge label, and the visible SVG,
+were `1382, 1172, 1345, 1135, 1340, 1138, 1340, 1152, 1344, 1130`
+milliseconds (median 1,256 milliseconds; maximum 1,382 milliseconds).
+Selecting an instance showed human
 relationship labels with canonical IDs retained as secondary evidence. The
-browser console contained no errors or warnings.
+current proof window contained no browser console errors or warnings.
 
 A separate retained service confirmed six runtime instances across ECS and
 Kubernetes plus 14 deployment sources. Because that service had a non-empty
