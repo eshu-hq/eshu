@@ -86,6 +86,8 @@ const openAPIPathsEntities = `
                     "repo_id": {"type": "string"},
                     "repo_name": {"type": "string"},
                     "relationships": {"type": "array", "items": {"$ref": "#/components/schemas/Relationship"}},
+                    "relationships_complete": {"type": "boolean", "description": "Present and false only when a k8s SELECTS relationship build's K8sResource candidate scan was truncated at the repository entity limit (issue #5343 follow-up #5367); absent when the scan completed, so existing responses stay unchanged."},
+                    "relationships_truncation_reason": {"type": "string", "description": "Machine-readable reason paired with relationships_complete=false. Currently one value: k8s_resource_candidate_scan_truncated_at_5000.", "enum": ["k8s_resource_candidate_scan_truncated_at_5000"]},
                     "result_limits": {"type": "object", "description": "Additive drilldown block: bounded relationship limit, deterministic ordering, relationship count, truncation flag, and the get_relationship_evidence drilldown plus context path.", "additionalProperties": true},
                     "partial_reasons": {"type": "array", "description": "Explicit limitations or unsupported-evidence reasons for the entity context read; always present so the envelope shape is stable.", "items": {"type": "string"}}
                   }

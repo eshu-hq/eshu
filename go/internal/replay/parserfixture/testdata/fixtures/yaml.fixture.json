@@ -124,7 +124,8 @@
                 "name": "comprehensive-api",
                 "namespace": "production",
                 "path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/yaml/service.yaml",
-                "qualified_name": "production/Service/comprehensive-api"
+                "qualified_name": "production/Service/comprehensive-api",
+                "selector": "app=comprehensive-api"
               }
             ],
             "kustomize_overlays": [],
@@ -198,7 +199,9 @@
                 "name": "comprehensive-cache",
                 "namespace": "production",
                 "path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/yaml/statefulset.yaml",
-                "qualified_name": "production/StatefulSet/comprehensive-cache"
+                "pod_template_labels": "app=comprehensive-cache",
+                "qualified_name": "production/StatefulSet/comprehensive-cache",
+                "selector": "app=comprehensive-cache"
               }
             ],
             "kustomize_overlays": [],

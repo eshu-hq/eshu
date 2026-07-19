@@ -30,7 +30,7 @@ jobs:
         with:
           repository: myorg/deployment-kustomize
 `,
-	})
+	}, nil)
 	if err != nil {
 		t.Fatalf("buildContentRelationshipSet() error = %v, want nil", err)
 	}
@@ -89,7 +89,7 @@ func TestBuildContentRelationshipSetGitHubActionsWorkflowPromotesExplicitRefsFro
 			},
 			"checkout_repository": "myorg/deployment-kustomize",
 		},
-	})
+	}, nil)
 	if err != nil {
 		t.Fatalf("buildContentRelationshipSet() error = %v, want nil", err)
 	}
@@ -149,7 +149,7 @@ func TestBuildContentRelationshipSetGitHubActionsWorkflowPromotesAutomationRepos
       automation-repo: 'example-org/shared-automation'
       automation-repo-ref: 'refs/tags/v2'
 `,
-	})
+	}, nil)
 	if err != nil {
 		t.Fatalf("buildContentRelationshipSet() error = %v, want nil", err)
 	}
@@ -186,7 +186,7 @@ func TestBuildContentRelationshipSetGitHubActionsWorkflowPromotesWorkflowInputRe
     with:
       workflow_input_repository: 'example-org/shared-automation'
 `,
-	})
+	}, nil)
 	if err != nil {
 		t.Fatalf("buildContentRelationshipSet() error = %v, want nil", err)
 	}
@@ -225,7 +225,7 @@ func TestBuildContentRelationshipSetGitHubActionsWorkflowPromotesWorkflowInputRe
         - example-org/shared-automation
         - example-org/automation-fallback
 `,
-	})
+	}, nil)
 	if err != nil {
 		t.Fatalf("buildContentRelationshipSet() error = %v, want nil", err)
 	}
@@ -280,7 +280,7 @@ func TestBuildContentRelationshipSetGitHubActionsWorkflowPromotesWorkflowInputRe
 				"example-org/automation-fallback",
 			},
 		},
-	})
+	}, nil)
 	if err != nil {
 		t.Fatalf("buildContentRelationshipSet() error = %v, want nil", err)
 	}
@@ -331,7 +331,7 @@ func TestBuildContentRelationshipSetGitHubActionsWorkflowPromotesActionRepositor
       - uses: peter-evans/create-pull-request@v5
       - uses: ./.github/actions/local-helper
 `,
-	})
+	}, nil)
 	if err != nil {
 		t.Fatalf("buildContentRelationshipSet() error = %v, want nil", err)
 	}
@@ -377,7 +377,7 @@ func TestBuildContentRelationshipSetGitHubActionsWorkflowPromotesLocalReusableWo
   reusable:
     uses: ./.github/workflows/release.yaml
 `,
-	})
+	}, nil)
 	if err != nil {
 		t.Fatalf("buildContentRelationshipSet() error = %v, want nil", err)
 	}
@@ -412,7 +412,7 @@ func TestBuildContentRelationshipSetGitHubActionsWorkflowPromotesLocalReusableWo
 				"./.github/workflows/release.yaml@main",
 			},
 		},
-	})
+	}, nil)
 	if err != nil {
 		t.Fatalf("buildContentRelationshipSet() error = %v, want nil", err)
 	}

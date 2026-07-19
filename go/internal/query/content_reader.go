@@ -450,27 +450,7 @@ func (cr *ContentReader) ListRepoEntities(ctx context.Context, repoID string, li
 	}
 	defer func() { _ = rows.Close() }()
 
-	var results []EntityContent
-	for rows.Next() {
-		var e EntityContent
-		var rawMetadata []byte
-		if err := rows.Scan(&e.EntityID, &e.RepoID, &e.RelativePath, &e.EntityType,
-			&e.EntityName, &e.StartLine, &e.EndLine, &e.Language, &e.SourceCache, &rawMetadata); err != nil {
-			span.RecordError(err)
-			return nil, fmt.Errorf("scan repo entity: %w", err)
-		}
-		e.Metadata, err = decodeEntityMetadata(rawMetadata)
-		if err != nil {
-			span.RecordError(err)
-			return nil, fmt.Errorf("scan repo entity: %w", err)
-		}
-		results = append(results, e)
-	}
-	if err := rows.Err(); err != nil {
-		span.RecordError(err)
-		return results, err
-	}
-	return results, nil
+	return scanEntityContentRows(rows, span, "scan repo entity")
 }
 
 func decodeEntityMetadata(raw []byte) (map[string]any, error) {

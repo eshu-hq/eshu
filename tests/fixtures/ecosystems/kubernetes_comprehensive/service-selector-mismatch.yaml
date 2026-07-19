@@ -1,0 +1,33 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: legacy-worker
+  namespace: production
+spec:
+  selector:
+    app: legacy-v2
+  ports:
+    - port: 80
+      targetPort: 8080
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: legacy-worker
+  namespace: production
+  labels:
+    app: legacy-v1
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: legacy-v1
+  template:
+    metadata:
+      labels:
+        app: legacy-v1
+    spec:
+      containers:
+        - name: worker
+          image: myorg/legacy-worker:v1.0.0

@@ -22,7 +22,7 @@ func TestBuildContentRelationshipSetTerragruntConfigPromotesHelperPaths(t *testi
 			"find_in_parent_folders_paths": "env.hcl,root.hcl",
 			"local_config_asset_paths":     "config/runtime.yaml,templates/runtime.json",
 		},
-	})
+	}, nil)
 	if err != nil {
 		t.Fatalf("buildContentRelationshipSet() error = %v, want nil", err)
 	}
@@ -89,7 +89,7 @@ func TestBuildContentRelationshipSetTerragruntDependencyPromotesConfigDiscovery(
 		Metadata: map[string]any{
 			"config_path": "../payments-service",
 		},
-	})
+	}, nil)
 	if err != nil {
 		t.Fatalf("buildContentRelationshipSet() error = %v, want nil", err)
 	}
@@ -121,7 +121,7 @@ func TestBuildContentRelationshipSetNormalizesHelperBuiltTerraformSource(t *test
 		Metadata: map[string]any{
 			"terraform_source": `join("/", [get_repo_root(), "modules/app"])`,
 		},
-	})
+	}, nil)
 	if err != nil {
 		t.Fatalf("buildContentRelationshipSet() error = %v, want nil", err)
 	}
@@ -153,7 +153,7 @@ func TestBuildContentRelationshipSetNormalizesHelperBuiltDependencyConfigPath(t 
 		Metadata: map[string]any{
 			"config_path": `join("/", [get_repo_root(), "network/root.hcl"])`,
 		},
-	})
+	}, nil)
 	if err != nil {
 		t.Fatalf("buildContentRelationshipSet() error = %v, want nil", err)
 	}

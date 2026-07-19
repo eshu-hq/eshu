@@ -20,7 +20,7 @@ func TestBuildContentRelationshipSetDockerfilePromotesSourceLabel(t *testing.T) 
 		SourceCache: `FROM alpine:3.20
 LABEL org.opencontainers.image.source="https://github.com/acme/payments-service.git"
 `,
-	})
+	}, nil)
 	if err != nil {
 		t.Fatalf("buildContentRelationshipSet() error = %v, want nil", err)
 	}

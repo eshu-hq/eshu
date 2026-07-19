@@ -579,6 +579,18 @@ type Instruments struct {
 	// reads (issue #4630). Labels: reason (a bounded enum: "timeout" or
 	// "store_error").
 	QueryInputInvalidFactsErrors metric.Int64Counter
+	// QueryK8sSelectCandidateScanTruncated counts k8s SELECTS relationship
+	// builds (GET /api/v0/entities/{id}/context on a Service or Deployment
+	// K8sResource) whose K8sResource candidate scan hit the
+	// repositorySemanticEntityLimit ceiling and was truncated (issue #5343
+	// follow-up #5367: the scan is not yet paginated). Labels: direction
+	// ("outgoing" for Service->Deployment, "incoming" for Deployment->Service).
+	// A non-zero rate is the 3 AM operator signal that a repo outgrew the
+	// 5000-row K8sResource ceiling and some SELECTS edges may be missing from
+	// the response; the response also carries relationships_complete=false
+	// with reason k8s_resource_candidate_scan_truncated_at_5000 for the
+	// specific request that hit it.
+	QueryK8sSelectCandidateScanTruncated metric.Int64Counter
 	// ProjectorInputInvalidFacts counts projector canonical-extractor facts
 	// quarantined during typed payload decode because a required identity field
 	// was missing or null (input_invalid). Labels: stage (the projector
@@ -2797,6 +2809,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register QueryInputInvalidFactsErrors counter: %w", err)
+	}
+
+	inst.QueryK8sSelectCandidateScanTruncated, err = meter.Int64Counter(
+		"eshu_dp_query_k8s_select_candidate_scan_truncated_total",
+		metric.WithDescription("Total k8s SELECTS relationship builds whose K8sResource candidate scan was truncated at the repository entity limit, by direction (outgoing/incoming)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register QueryK8sSelectCandidateScanTruncated counter: %w", err)
 	}
 
 	inst.ProjectorInputInvalidFacts, err = meter.Int64Counter(

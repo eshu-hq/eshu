@@ -18,14 +18,15 @@ func buildK8sRelationships(k8sResources []map[string]any) []map[string]any {
 		}
 
 		if strings.EqualFold(sourceKind, "Service") {
+			serviceInput := k8sSelectMatchInputFromRow(source)
 			for _, target := range k8sResources {
-				targetKind := safeStr(target, "kind")
 				targetID := safeStr(target, "entity_id")
 				targetName := safeStr(target, "entity_name")
 				if targetID == "" || targetName == "" || targetID == sourceID {
 					continue
 				}
-				if !strings.EqualFold(targetKind, "Deployment") || targetName != sourceName {
+				matched, reason, _ := k8sSelectMatch(serviceInput, k8sSelectMatchInputFromRow(target))
+				if !matched {
 					continue
 				}
 				key := "SELECTS:" + sourceID + ":" + targetID
@@ -39,7 +40,7 @@ func buildK8sRelationships(k8sResources []map[string]any) []map[string]any {
 					"source_name": sourceName,
 					"target_id":   targetID,
 					"target_name": targetName,
-					"reason":      "k8s_service_name_namespace",
+					"reason":      reason,
 				})
 			}
 		}
