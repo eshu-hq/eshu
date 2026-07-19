@@ -21,7 +21,7 @@ entries:
     domain: entity
     backend: nornicdb_neo4j
     query_kind: cypher
-    source: {file: go/internal/query/entity.go, symbol: buildResolveEntityGraphQuery, source_sha256: 2a6f7c2a9ef6249d809476f762ea049a0ded7bbd846a538d4e4d4cef19f2821d}
+    source: {file: go/internal/query/entity.go, symbol: buildResolveEntityGraphQuery, source_sha256: 439eceb17f27489c7528c4284d5bdbb64de0875209dd47ae32a78f4259969188}
     query_fragment: 'MATCH (r:Repository {id: $repo_id})'
     cypher_sha256: ee51f2a612461a5e5bba6d28fc1e11e0259f44cd653819ca41380cee8985afc2
     required_anchors: [{label: Repository, property: id}]
@@ -36,7 +36,7 @@ entries:
     domain: code
     backend: nornicdb_neo4j
     query_kind: cypher
-    source: {file: go/internal/query/code_graph_search_query.go, symbol: buildSearchGraphEntitiesQuery, source_sha256: 72f8f9f7822334e915ce2d7386af4b2f63607d471be86b2ece96cefd5e4b4919}
+    source: {file: go/internal/query/code_graph_search_query.go, symbol: buildSearchGraphEntitiesQuery, source_sha256: 851c5ce5766976bcfcae3870765b7e67ca584f93da99ac54d989295ffdb8a5a8}
     query_fragment: 'MATCH (r:Repository {id: $repo_id})'
     cypher_sha256: 428464ccf4de18918b814cf137ad4bb330f1bfda643801bf29ffa0ad593e59f3
     required_anchors: [{label: Repository, property: id}]

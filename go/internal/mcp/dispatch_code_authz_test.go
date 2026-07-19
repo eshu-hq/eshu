@@ -5,6 +5,7 @@ package mcp
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"log/slog"
 	"net/http"
@@ -34,6 +35,13 @@ func TestDispatchToolFindCodeAllowsScopedCodeSearchRoute(t *testing.T) {
 		if _, ok := query.AuthContextFromContext(r.Context()); !ok {
 			t.Fatal("AuthContextFromContext() ok = false, want true")
 		}
+		var body map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatalf("decode find_code body: %v", err)
+		}
+		if body["query"] != "Handle" || body["language"] != "go" || body["exact"] != true {
+			t.Fatalf("find_code body = %#v, want global exact Go name lookup", body)
+		}
 		query.WriteSuccess(w, r, http.StatusOK, map[string]any{
 			"source":  "content",
 			"results": []any{},
@@ -50,7 +58,7 @@ func TestDispatchToolFindCodeAllowsScopedCodeSearchRoute(t *testing.T) {
 		context.Background(),
 		handler,
 		"find_code",
-		map[string]any{"query": "Handle", "limit": 5},
+		map[string]any{"query": "Handle", "language": "go", "exact": true, "limit": 5},
 		"Bearer scoped-token",
 		slog.New(slog.NewTextHandler(io.Discard, nil)),
 	)

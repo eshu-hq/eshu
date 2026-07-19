@@ -28,6 +28,14 @@
 // are ready for query truth. Generation liveness leaves exact cross-repository
 // repo_dependency source runs with that shared resolver instead of reopening
 // source-local projection; stuck-age reporting uses the same ownership rule.
+// Content substring index readiness requires exact full trigram GIN indexes
+// for file content, entity source, and entity names; bulk bootstrap defers all
+// three and publishes readiness only after catalog-shape validation succeeds.
+// SQLDB bootstrap owns one bounded session-level advisory lock on one
+// connection for the complete definition sequence, while each definition
+// retains its own lock timeout. Migration 062 also takes a transaction-scoped
+// advisory lock around the entity-name index check-and-create boundary so
+// concurrent migrators cannot race on the same catalog name.
 // ReducerGraphDrain gives local NornicDB
 // code-call projection a read-only view of reducer graph-domain backlog before
 // it starts its edge write lane. Shared projection partition leases use a

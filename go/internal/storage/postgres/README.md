@@ -69,7 +69,8 @@ High-signal invariants for this package:
 - Bootstrap DDL is idempotent and ordered through `BootstrapDefinitions`.
 - Cold-bootstrap content search indexing has a separate durable lifecycle in
   `content_substring_index_state`. Deferred schema creates the content tables
-  without the two exact trigram GINs; bootstrap-index builds the identical
+  without the three exact trigram GINs for file content, entity source, and
+  entity names; bootstrap-index builds the identical
   indexes after source-local projection drains, runs `ANALYZE`, verifies their
   catalog shape, and only then publishes `ready`. Normal schema bootstrap and
   upgrades retain the indexes and initialize the lifecycle from their actual
@@ -471,16 +472,22 @@ No-regression and observability proof for this retry class lives in
   referenced tables in the slice.
 
 No-Regression Evidence: #4222 bounds startup/restart schema lock waits for
-Postgres SQLDB executors by applying each schema definition on a dedicated
-connection after setting session `lock_timeout`, then resetting the session
-before the connection returns to the pool. Focused tests prove
+Postgres SQLDB executors. A bounded session-level advisory ownership boundary
+serializes one complete `ApplyBootstrap` on one connection; each definition
+still sets session `lock_timeout` and resets it before the next definition.
+Focused tests prove
 `ApplyDefinitionsWithLockTimeout` routes lock-timeout-capable executors through
 the bounded path and preserves direct execution order for simple test executors.
 Live Postgres proof covers `CREATE INDEX CONCURRENTLY` in autocommit mode and a
 held-lock failure returning inside the configured lock budget. Concurrent index
 schema applies also inspect `pg_index` before retrying and drop same-named
 invalid indexes left by failed concurrent builds, so `IF NOT EXISTS` cannot
-silently accept an unusable hot-path index.
+silently accept an unusable hot-path index. Migration 062 also owns its
+check-and-create boundary with a transaction-scoped advisory lock because
+Postgres does not make concurrent same-name `CREATE INDEX IF NOT EXISTS`
+attempts atomic. The live proof exercises a populated table, lock timeout,
+context interruption, concurrent migration retry, concurrent full bootstrap,
+and the exact three-index validator.
 
 Observability Evidence: no new metric series or labels were added. Operators
 continue to diagnose schema bootstrap through the one-shot `db-migrate` /

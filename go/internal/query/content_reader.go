@@ -33,6 +33,7 @@ func NewContentReader(db *sql.DB) *ContentReader {
 type EntityContent struct {
 	EntityID     string         `json:"entity_id"`
 	RepoID       string         `json:"repo_id"`
+	RepoName     string         `json:"repo_name,omitempty"`
 	RelativePath string         `json:"relative_path"`
 	EntityType   string         `json:"entity_type"`
 	EntityName   string         `json:"entity_name"`

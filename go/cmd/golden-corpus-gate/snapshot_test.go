@@ -183,6 +183,78 @@ func TestGoldenSnapshotIncludesDeadCodeReplayLibrary(t *testing.T) {
 	}
 }
 
+func TestGoldenSnapshotPinsDuplicateGlobalEntityResolution(t *testing.T) {
+	t.Parallel()
+
+	snapshot, err := LoadSnapshot(goldenSnapshotPath())
+	if err != nil {
+		t.Fatalf("LoadSnapshot() error = %v", err)
+	}
+	shape, ok := snapshot.QueryShapes.MCP["resolve_entity"]
+	if !ok {
+		t.Fatal("query_shapes.mcp missing resolve_entity")
+	}
+	if shape.MinimumResults != 2 {
+		t.Fatalf("resolve_entity minimum_results = %d, want 2", shape.MinimumResults)
+	}
+	for key, want := range map[string]any{
+		"count":         float64(2),
+		"limit":         float64(10),
+		"truncated":     false,
+		"entities[].id": "content-entity:e_85e904a13eae",
+		"matches[].id":  "content-entity:e_85bff2c7884a",
+	} {
+		if got := shape.RequiredJSONValues[key]; got != want {
+			t.Fatalf("resolve_entity required_json_values[%q] = %#v, want %#v", key, got, want)
+		}
+	}
+	for _, field := range []string{"id", "entity_id", "name", "labels", "repo_id", "file_path"} {
+		if !containsString(shape.ResultItemRequiredFields, field) {
+			t.Fatalf("resolve_entity result item fields missing %q", field)
+		}
+	}
+}
+
+func TestGoldenSnapshotPinsCodeSearchOverflowAcrossHTTPAndMCP(t *testing.T) {
+	t.Parallel()
+
+	snapshot, err := LoadSnapshot(goldenSnapshotPath())
+	if err != nil {
+		t.Fatalf("LoadSnapshot() error = %v", err)
+	}
+	for _, tc := range []struct {
+		name  string
+		shape QueryShape
+	}{
+		{name: "mcp", shape: snapshot.QueryShapes.MCP["find_code"]},
+		{name: "http", shape: snapshot.QueryShapes.HTTP["POST /api/v0/code/search"]},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.shape.MinimumResults != 1 {
+				t.Fatalf("minimum_results = %d, want 1", tc.shape.MinimumResults)
+			}
+			for key, want := range map[string]any{
+				"count":               float64(1),
+				"limit":               float64(1),
+				"truncated":           true,
+				"results[].entity_id": "content-entity:e_85e904a13eae",
+			} {
+				if got := tc.shape.RequiredJSONValues[key]; got != want {
+					t.Fatalf("required_json_values[%q] = %#v, want %#v", key, got, want)
+				}
+			}
+		})
+	}
+	for key, want := range map[string]any{"query": "main", "exact": true, "limit": float64(1)} {
+		if got := snapshot.QueryShapes.MCP["find_code"].Arguments[key]; got != want {
+			t.Fatalf("find_code arguments[%q] = %#v, want %#v", key, got, want)
+		}
+		if got := snapshot.QueryShapes.HTTP["POST /api/v0/code/search"].RequestBody[key]; got != want {
+			t.Fatalf("code search request_body[%q] = %#v, want %#v", key, got, want)
+		}
+	}
+}
+
 func TestGoldenSnapshotPinsServiceStoryVisualizationIdentityFields(t *testing.T) {
 	snap, err := LoadSnapshot(goldenSnapshotPath())
 	if err != nil {

@@ -32,12 +32,13 @@ func TestResolveEntityHonorsLimitAndReturnsEnvelope(t *testing.T) {
 				}, nil
 			},
 		},
+		Content: fakePortContentStore{repositories: []RepositoryCatalogEntry{{ID: "repository:r_proof", Name: "proof"}}},
 		Profile: ProfileLocalAuthoritative,
 	}
 	req := httptest.NewRequest(
 		http.MethodPost,
 		"/api/v0/entities/resolve",
-		bytes.NewBufferString(`{"name":"handler","limit":2}`),
+		bytes.NewBufferString(`{"name":"handler","repo_id":"repository:r_proof","limit":2}`),
 	)
 	req.Header.Set("Accept", EnvelopeMIMEType)
 	rec := httptest.NewRecorder()

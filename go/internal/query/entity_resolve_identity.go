@@ -9,9 +9,14 @@ import (
 	"strings"
 )
 
-func hydrateResolvedEntityRepoIdentity(ctx context.Context, graph GraphQuery, content ContentStore, entities []map[string]any) error {
+func hydrateResolvedEntityRepoIdentity(
+	ctx context.Context,
+	graph GraphQuery,
+	content ContentStore,
+	entities []map[string]any,
+) (bool, error) {
 	if len(entities) == 0 {
-		return nil
+		return false, nil
 	}
 	access := repositoryAccessFilterFromContext(ctx)
 
@@ -29,11 +34,11 @@ func hydrateResolvedEntityRepoIdentity(ctx context.Context, graph GraphQuery, co
 	}
 
 	if err := hydrateResolvedEntityRepoIdentityFromContent(ctx, content, entities); err != nil {
-		return err
+		return false, err
 	}
 	entityIDs := workloadEntityIDsNeedingRepoBackfill(entities)
 	if graph == nil || len(entityIDs) == 0 {
-		return nil
+		return false, nil
 	}
 
 	query := `
@@ -50,7 +55,7 @@ func hydrateResolvedEntityRepoIdentity(ctx context.Context, graph GraphQuery, co
 	`
 	rows, err := graph.Run(ctx, query, access.graphParams(map[string]any{"entity_ids": sortedUniqueStrings(entityIDs)}))
 	if err != nil {
-		return fmt.Errorf("hydrate resolved entity repo identity: %w", err)
+		return true, fmt.Errorf("hydrate resolved entity repo identity: %w", err)
 	}
 
 	reposByEntity := make(map[string]map[string]string, len(rows))
@@ -76,7 +81,7 @@ func hydrateResolvedEntityRepoIdentity(ctx context.Context, graph GraphQuery, co
 			entity["repo_name"] = repo["repo_name"]
 		}
 	}
-	return nil
+	return true, nil
 }
 
 func hydrateResolvedEntityRepoIdentityFromContent(

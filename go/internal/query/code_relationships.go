@@ -216,7 +216,7 @@ func (h *CodeHandler) hydrateRelationshipResponseRepoIdentity(ctx context.Contex
 	if h == nil {
 		return nil
 	}
-	if err := hydrateResolvedEntityRepoIdentity(ctx, h.Neo4j, h.Content, []map[string]any{entity}); err != nil {
+	if _, err := hydrateResolvedEntityRepoIdentity(ctx, h.Neo4j, h.Content, []map[string]any{entity}); err != nil {
 		return fmt.Errorf("hydrate relationship repo identity: %w", err)
 	}
 	response["repo_id"] = StringVal(entity, "repo_id")

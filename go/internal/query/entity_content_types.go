@@ -20,6 +20,84 @@ var resolverOnlyGraphEntityTypes = map[string]string{
 	"workload": "Workload",
 }
 
+var globalGraphOnlyEntityTypes = map[string]struct{}{
+	"repository": {},
+	"directory":  {},
+	"file":       {},
+}
+
+func knownResolveEntityType(typeName string) bool {
+	if _, ok := globalGraphOnlyEntityTypes[typeName]; ok {
+		return true
+	}
+	_, ok := globalContentEntityType(typeName)
+	return ok
+}
+
+type globalContentEntityFilter struct {
+	EntityType    string
+	MetadataKey   string
+	MetadataValue string
+}
+
+func globalContentEntityType(typeName string) (string, bool) {
+	filter, ok := globalContentEntityNameFilter(typeName)
+	return filter.EntityType, ok
+}
+
+func globalContentEntityNameFilter(typeName string) (globalContentEntityFilter, bool) {
+	if _, graphOnly := globalGraphOnlyEntityTypes[typeName]; graphOnly {
+		return globalContentEntityFilter{}, false
+	}
+	if semanticType, ok := elixirSemanticEntityTypes[typeName]; ok {
+		return globalContentEntityFilter{
+			EntityType: semanticType.baseType, MetadataKey: semanticType.metadataKey, MetadataValue: semanticType.metadataValue,
+		}, true
+	}
+	if entityType, ok := resolveContentBackedEntityTypes[typeName]; ok {
+		return globalContentEntityFilter{EntityType: entityType}, true
+	}
+	if entityType, ok := contentBackedEntityTypes[typeName]; ok {
+		return globalContentEntityFilter{EntityType: entityType}, true
+	}
+	if entityType, ok := graphBackedEntityTypes[typeName]; ok {
+		return globalContentEntityFilter{EntityType: entityType}, true
+	}
+	if entityType, ok := graphFirstContentBackedEntityTypes[typeName]; ok {
+		return globalContentEntityFilter{EntityType: entityType}, true
+	}
+	return globalContentEntityFilter{}, false
+}
+
+func (h *EntityHandler) resolveGlobalContentEntities(ctx context.Context, name, typeName string, limit int) ([]map[string]any, error) {
+	searcher, ok := h.Content.(EntityNameSearcher)
+	if !ok {
+		return nil, errEntityNameSearchUnavailable
+	}
+	filter, ok := globalContentEntityNameFilter(typeName)
+	if !ok {
+		return nil, fmt.Errorf("unsupported global entity type %q", typeName)
+	}
+	access := repositoryAccessFilterFromContext(ctx)
+	search := EntityNameSearch{
+		Name: name, Match: EntityNameMatchExact, Scope: EntityNameScopeAll,
+		EntityType: filter.EntityType, MetadataKey: filter.MetadataKey, MetadataValue: filter.MetadataValue, Limit: limit,
+	}
+	if access.scoped() {
+		search.Scope = EntityNameScopeRepositories
+		search.RepositoryIDs = access.repositorySearchIDs()
+	}
+	rows, err := searcher.SearchEntityNames(ctx, search)
+	if err != nil {
+		return nil, err
+	}
+	results := make([]map[string]any, 0, len(rows))
+	for _, row := range rows {
+		results = append(results, contentEntityToMap(row))
+	}
+	return results, nil
+}
+
 func (h *EntityHandler) writeCanonicalContentEntityResolution(
 	w http.ResponseWriter,
 	r *http.Request,
@@ -39,7 +117,8 @@ func (h *EntityHandler) writeCanonicalContentEntityResolution(
 	if !handled {
 		return false
 	}
-	if err := hydrateResolvedEntityRepoIdentity(r.Context(), h.Neo4j, h.Content, entities); err != nil {
+	graphHydrated, err := hydrateResolvedEntityRepoIdentity(r.Context(), h.Neo4j, h.Content, entities)
+	if err != nil {
 		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("hydrate entity repo identity: %v", err))
 		return true
 	}
@@ -53,7 +132,7 @@ func (h *EntityHandler) writeCanonicalContentEntityResolution(
 		r,
 		http.StatusOK,
 		resolvedEntityResponse(entities, limit, truncated),
-		entityResolveTruthEnvelope(h.profile()),
+		canonicalContentEntityResolveTruthEnvelope(h.profile(), graphHydrated),
 	)
 	return true
 }
@@ -220,6 +299,7 @@ func contentEntityToMap(entity EntityContent) map[string]any {
 		"labels":     []string{entity.EntityType},
 		"file_path":  entity.RelativePath,
 		"repo_id":    entity.RepoID,
+		"repo_name":  entity.RepoName,
 		"language":   entity.Language,
 		"start_line": entity.StartLine,
 		"end_line":   entity.EndLine,

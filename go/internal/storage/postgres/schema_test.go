@@ -286,12 +286,15 @@ func TestBootstrapDefinitionsWithoutContentSearchIndexesKeepsLookupIndexes(t *te
 	if strings.Contains(contentStore.SQL, "content_entities_source_trgm_idx") {
 		t.Fatal("content_store SQL includes content_entities trigram index")
 	}
+	if strings.Contains(contentStore.SQL, "content_entities_name_trgm_idx") {
+		t.Fatal("content_store SQL includes content_entities name trigram index")
+	}
 }
 
 func TestEnsureContentSearchIndexesAppliesOnlyTrigramIndexes(t *testing.T) {
 	t.Parallel()
 
-	exec := &contentSearchIndexScriptExecutor{rowsAffected: []int64{1, 1, 1, 1, 1, 1, 1, 1}}
+	exec := &contentSearchIndexScriptExecutor{rowsAffected: []int64{1, 1, 1, 1, 1, 1, 1, 1, 1}}
 	if err := EnsureContentSearchIndexes(context.Background(), exec); err != nil {
 		t.Fatalf("EnsureContentSearchIndexes() error = %v, want nil", err)
 	}
@@ -301,6 +304,9 @@ func TestEnsureContentSearchIndexesAppliesOnlyTrigramIndexes(t *testing.T) {
 	}
 	if !strings.Contains(statement, "content_entities_source_trgm_idx") {
 		t.Fatal("content search index SQL missing entity trigram index")
+	}
+	if !strings.Contains(statement, "content_entities_name_trgm_idx") {
+		t.Fatal("content search index SQL missing entity name trigram index")
 	}
 	if strings.Contains(statement, "CREATE TABLE") {
 		t.Fatal("content search index SQL unexpectedly creates tables")
@@ -326,6 +332,9 @@ func TestContentStoreSearchIndexSchemaSQLKeepsExactTrigramGINs(t *testing.T) {
 	}
 	if !strings.Contains(sql, "gin (source_cache gin_trgm_ops)") {
 		t.Fatalf("contentStoreSearchIndexSchemaSQL missing gin (source_cache gin_trgm_ops): %s", dropDisproven)
+	}
+	if !strings.Contains(sql, "content_entities_name_trgm_idx") || !strings.Contains(sql, "gin (entity_name gin_trgm_ops)") {
+		t.Fatalf("contentStoreSearchIndexSchemaSQL missing entity-name GIN: %s", dropDisproven)
 	}
 }
 

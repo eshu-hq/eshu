@@ -7,36 +7,42 @@ func codebaseTools() []ToolDefinition {
 	return []ToolDefinition{
 		{
 			Name:        "find_code",
-			Description: "Find relevant code snippets related to a keyword (e.g., function name, class name, or content) within an optional canonical repository identifier.",
+			Description: "Find code entities by case-sensitive name. Repository-selected calls use indexed graph lookup. Global substring calls use the content entity-name index and require at least three Unicode characters; set exact=true for complete names, including shorter names.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
 					"query": map[string]any{
 						"type":        "string",
-						"description": "Keyword or phrase to search for",
+						"description": "Case-sensitive entity name or literal substring",
 					},
 					"exact": map[string]any{
 						"type":        "boolean",
-						"description": "Whether to perform exact matching",
+						"description": "Require a complete case-sensitive entity-name match",
 						"default":     false,
 					},
 					"edit_distance": map[string]any{
 						"type":        "number",
-						"description": "Maximum edit distance for fuzzy matching",
+						"description": "Deprecated compatibility field; ignored by case-sensitive name matching",
 						"default":     2,
 					},
 					"repo_id": map[string]any{
 						"type":        "string",
 						"description": "Optional canonical repository identifier to scope the search",
 					},
+					"language": map[string]any{
+						"type":        "string",
+						"description": "Optional language filter applied before the bounded result limit",
+					},
 					"limit": map[string]any{
 						"type":        "integer",
 						"description": "Maximum number of results to return",
 						"default":     10,
+						"minimum":     1,
+						"maximum":     200,
 					},
 					"scope": map[string]any{
 						"type":        "string",
-						"description": "Search scope",
+						"description": "Deprecated compatibility field; repo_id controls repository scope",
 						"default":     "auto",
 					},
 				},

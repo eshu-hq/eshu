@@ -171,7 +171,8 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 	case "find_code":
 		return &route{method: "POST", path: "/api/v0/code/search", body: map[string]any{
 			"query": str(args, "query"), "repo_id": str(args, "repo_id"),
-			"limit": intOr(args, "limit", 10), "exact": boolOr(args, "exact", false),
+			"language": str(args, "language"), "limit": intOr(args, "limit", 10),
+			"exact": boolOr(args, "exact", false),
 		}}, nil
 	case "find_symbol":
 		return &route{method: "POST", path: "/api/v0/code/symbols/search", body: map[string]any{

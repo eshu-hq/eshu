@@ -21,7 +21,7 @@ func TestResolveEntityRanksCanonicalServiceEntitiesAheadOfAnonymousDirectories(t
 		Neo4j: fakeGraphReader{
 			run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 				switch {
-				case strings.Contains(cypher, "MATCH (e) WHERE e.name = $name"):
+				case strings.Contains(cypher, "MATCH (r:Repository {id: $repo_id})"):
 					if got, want := params["name"], "service-edge-api"; got != want {
 						t.Fatalf("params[name] = %#v, want %#v", got, want)
 					}
@@ -84,6 +84,7 @@ func TestResolveEntityRanksCanonicalServiceEntitiesAheadOfAnonymousDirectories(t
 				}
 			},
 		},
+		Content: fakePortContentStore{repositories: []RepositoryCatalogEntry{{ID: "repository:r_service_edge_api", Name: "service-edge-api"}}},
 	}
 
 	mux := http.NewServeMux()
@@ -92,7 +93,7 @@ func TestResolveEntityRanksCanonicalServiceEntitiesAheadOfAnonymousDirectories(t
 	req := httptest.NewRequest(
 		http.MethodPost,
 		"/api/v0/entities/resolve",
-		bytes.NewBufferString(`{"name":"service-edge-api"}`),
+		bytes.NewBufferString(`{"name":"service-edge-api","repo_id":"repository:r_service_edge_api"}`),
 	)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
@@ -141,7 +142,7 @@ func TestResolveEntityBackfillsRepoIdentityForCanonicalMatches(t *testing.T) {
 		Neo4j: fakeGraphReader{
 			run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 				switch {
-				case strings.Contains(cypher, "MATCH (e) WHERE e.name = $name"):
+				case strings.Contains(cypher, "MATCH (r:Repository {id: $repo_id})"):
 					if got, want := params["name"], "service-edge-api"; got != want {
 						t.Fatalf("params[name] = %#v, want %#v", got, want)
 					}
@@ -193,6 +194,7 @@ func TestResolveEntityBackfillsRepoIdentityForCanonicalMatches(t *testing.T) {
 				}
 			},
 		},
+		Content: fakePortContentStore{repositories: []RepositoryCatalogEntry{{ID: "repository:r_service_edge_api", Name: "service-edge-api"}}},
 	}
 
 	mux := http.NewServeMux()
@@ -201,7 +203,7 @@ func TestResolveEntityBackfillsRepoIdentityForCanonicalMatches(t *testing.T) {
 	req := httptest.NewRequest(
 		http.MethodPost,
 		"/api/v0/entities/resolve",
-		bytes.NewBufferString(`{"name":"service-edge-api"}`),
+		bytes.NewBufferString(`{"name":"service-edge-api","repo_id":"repository:r_service_edge_api"}`),
 	)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
@@ -244,7 +246,7 @@ func TestResolveEntityReplacesGraphProjectionPlaceholdersWithContentRepoIdentity
 	handler := &EntityHandler{
 		Neo4j: fakeGraphReader{
 			run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
-				if !strings.Contains(cypher, "MATCH (e) WHERE e.name = $name") {
+				if !strings.Contains(cypher, "MATCH (r:Repository {id: $repo_id})") {
 					t.Fatalf("cypher = %q, want entity resolve lookup", cypher)
 				}
 				if got, want := params["name"], "handleRelationships"; got != want {
@@ -290,7 +292,7 @@ func TestResolveEntityReplacesGraphProjectionPlaceholdersWithContentRepoIdentity
 	req := httptest.NewRequest(
 		http.MethodPost,
 		"/api/v0/entities/resolve",
-		bytes.NewBufferString(`{"name":"handleRelationships"}`),
+		bytes.NewBufferString(`{"name":"handleRelationships","repo_id":"repository:r_eshu"}`),
 	)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)

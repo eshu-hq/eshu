@@ -339,14 +339,24 @@ const openAPIComponents = `  "components": {
       },
       "CodeSearchResponse": {
         "type": "object",
+        "required": ["source", "source_backend", "query", "repo_id", "results", "matches", "count", "limit", "truncated"],
         "properties": {
           "source": {"type": "string", "enum": ["graph", "content"]},
+          "source_backend": {"type": "string"},
           "query": {"type": "string"},
           "repo_id": {"type": "string"},
           "results": {
             "type": "array",
             "items": {"$ref": "#/components/schemas/CodeSearchResult"}
-          }
+          },
+          "matches": {
+            "type": "array",
+            "items": {"$ref": "#/components/schemas/CodeSearchResult"},
+            "description": "Compatibility alias for results."
+          },
+          "count": {"type": "integer", "description": "Number of rows returned in this page."},
+          "limit": {"type": "integer", "minimum": 1, "maximum": 200},
+          "truncated": {"type": "boolean", "description": "True when at least one additional matching row exists beyond this page."}
         }
       },
       "SymbolSearchResult": {

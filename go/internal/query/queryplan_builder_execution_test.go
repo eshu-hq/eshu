@@ -33,22 +33,6 @@ func TestResolveEntityExecutesBuilderBytes(t *testing.T) {
 			req:        resolveEntityRequest{Name: "proof", RepoID: "repository:r_proof", Limit: 10},
 			wantSHA256: "ee51f2a612461a5e5bba6d28fc1e11e0259f44cd653819ca41380cee8985afc2",
 		},
-		{
-			name:       "all scopes",
-			body:       `{"name":"proof","limit":10}`,
-			req:        resolveEntityRequest{Name: "proof", Limit: 10},
-			wantSHA256: "bd2edbeb463a9a28054a7732a631aae1f9e481f5e9a62c11599d6d4e29cb6842",
-		},
-		{
-			name: "scoped",
-			body: `{"name":"proof","limit":10}`,
-			auth: &AuthContext{
-				Mode:                 AuthModeScoped,
-				AllowedRepositoryIDs: []string{"repository:r_proof"},
-			},
-			req:        resolveEntityRequest{Name: "proof", Limit: 10},
-			wantSHA256: "c23913fef907688eac9837fc5b4e8de7f6fbd1b764c889a8543bb97991dea11d",
-		},
 	}
 
 	for _, tt := range tests {
@@ -97,19 +81,6 @@ func TestSearchGraphEntitiesExecutesBuilderBytes(t *testing.T) {
 		{
 			name: "repository anchored", repoID: "repository:r_proof", exact: true,
 			wantSHA256: "428464ccf4de18918b814cf137ad4bb330f1bfda643801bf29ffa0ad593e59f3",
-		},
-		{
-			name: "all scopes", language: "go",
-			wantSHA256: "61094592cba4e452cd473449a75cc11383c216f21a96d97087371a7680bd3f8b",
-		},
-		{
-			name:  "scoped",
-			exact: true,
-			auth: &AuthContext{
-				Mode:                 AuthModeScoped,
-				AllowedRepositoryIDs: []string{"repository:r_proof"},
-			},
-			wantSHA256: "f7b7d1183c6bba1e58db4ab4d49ebe263f41dd7002db7d6b80aa25260fb950e0",
 		},
 	}
 

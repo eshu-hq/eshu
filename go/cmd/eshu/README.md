@@ -99,6 +99,10 @@ orchestration. It does not own service runtime internals:
   - documentation truth: `docs verify [path]` verifies local Markdown-family
     documentation claims against the CLI command tree, generated OpenAPI paths,
     and documented Eshu environment variables (`docs.go`)
+  - entity discovery: `find name <name>` preserves the legacy typed graph
+    resolution contract at `/api/v0/entities/resolve`. It does not silently
+    widen an untyped request into the global content-index search route
+    (`find.go`)
   - component package manager: `component init collector|inspect|verify|install|conform|index verify|list|enable|disable|uninstall|inventory|diagnostics`
     scaffolds optional collector component packages and manages local optional
     component manifests, fixture conformance, index publication metadata, and
@@ -113,7 +117,7 @@ orchestration. It does not own service runtime internals:
     `local_graph.go`)
   - `admin`: `facts`, `reindex`, `tuning-report`, `list`, `decisions`,
     `replay`, `dead-letter`, `skip`, `backfill`, `replay-events`
-  - `config`, `neo4j`, `find`, `analyze`, `ecosystem`, `workspace`,
+  - `config`, `neo4j`, `analyze`, `ecosystem`, `workspace`,
     `local-host`
 
 ## Configuration

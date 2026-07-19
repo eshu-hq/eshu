@@ -10,43 +10,20 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"slices"
-	"strings"
 	"testing"
 )
 
 func TestResolveEntityGraphAppliesScopedAuthBeforeLimit(t *testing.T) {
 	t.Parallel()
 
-	reader := fakeGraphReader{
-		run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
-			if !strings.Contains(cypher, "allowed_repository_ids") {
-				t.Fatalf("entity resolve query missing scoped repository predicate:\n%s", cypher)
-			}
-			allowed, ok := params["allowed_repository_ids"].([]string)
-			if !ok || len(allowed) != 1 || allowed[0] != "repo-team-a" {
-				t.Fatalf("allowed_repository_ids = %#v, want repo-team-a", params["allowed_repository_ids"])
-			}
-			if got, want := params["limit"], 6; got != want {
-				t.Fatalf("params[limit] = %#v, want %#v", got, want)
-			}
-			return []map[string]any{{
-				"id":         "entity-a",
-				"name":       "HandlePayment",
-				"labels":     []any{"Function"},
-				"file_path":  "payments/handler.go",
-				"repo_id":    "repo-team-a",
-				"repo_name":  "payments",
-				"language":   "go",
-				"start_line": int64(12),
-				"end_line":   int64(20),
-			}}, nil
-		},
-	}
-	handler := &EntityHandler{Neo4j: reader, Profile: ProfileLocalAuthoritative}
+	content := &recordingEntityResolveContentStore{byRepo: map[string][]EntityContent{"repo-team-a": {{
+		EntityID: "entity-a", RepoID: "repo-team-a", EntityName: "HandlePayment", EntityType: "Function", RelativePath: "payments/handler.go", Language: "go",
+	}}}}
+	handler := &EntityHandler{Content: content, Profile: ProfileLocalAuthoritative}
 	req := httptest.NewRequest(
 		http.MethodPost,
 		"/api/v0/entities/resolve",
-		bytes.NewBufferString(`{"name":"HandlePayment","limit":5}`),
+		bytes.NewBufferString(`{"name":"HandlePayment","type":"function","limit":5}`),
 	)
 	req = req.WithContext(ContextWithAuthContext(req.Context(), AuthContext{
 		Mode:                 AuthModeScoped,
@@ -92,7 +69,7 @@ func TestResolveEntityContentAppliesScopedAuthWithoutAnyRepoFallback(t *testing.
 	req := httptest.NewRequest(
 		http.MethodPost,
 		"/api/v0/entities/resolve",
-		bytes.NewBufferString(`{"name":"HandlePayment","limit":5}`),
+		bytes.NewBufferString(`{"name":"HandlePayment","type":"function","limit":5}`),
 	)
 	req = req.WithContext(ContextWithAuthContext(req.Context(), AuthContext{
 		Mode:                 AuthModeScoped,
@@ -127,7 +104,7 @@ func TestResolveEntityEmptyGrantReturnsEmptyWithoutBroadScan(t *testing.T) {
 	req := httptest.NewRequest(
 		http.MethodPost,
 		"/api/v0/entities/resolve",
-		bytes.NewBufferString(`{"name":"HandlePayment","limit":5}`),
+		bytes.NewBufferString(`{"name":"HandlePayment","type":"function","limit":5}`),
 	)
 	req = req.WithContext(ContextWithAuthContext(req.Context(), AuthContext{
 		Mode:        AuthModeScoped,
@@ -174,7 +151,7 @@ func TestResolveEntityAllScopeAdminKeepsAnyRepoFallback(t *testing.T) {
 	req := httptest.NewRequest(
 		http.MethodPost,
 		"/api/v0/entities/resolve",
-		bytes.NewBufferString(`{"name":"HandlePayment","limit":5}`),
+		bytes.NewBufferString(`{"name":"HandlePayment","type":"function","limit":5}`),
 	)
 	req = req.WithContext(ContextWithAuthContext(req.Context(), AuthContext{
 		Mode:        AuthModeScoped,
@@ -286,6 +263,19 @@ type recordingEntityResolveContentStore struct {
 	anyRepo          []EntityContent
 	repoNameCalls    []string
 	anyRepoNameCalls int
+}
+
+func (s *recordingEntityResolveContentStore) SearchEntityNames(_ context.Context, search EntityNameSearch) ([]EntityContent, error) {
+	if search.Scope == EntityNameScopeAll {
+		s.anyRepoNameCalls++
+		return limitEntityContent(s.anyRepo, search.Limit), nil
+	}
+	rows := make([]EntityContent, 0)
+	for _, repoID := range search.RepositoryIDs {
+		s.repoNameCalls = append(s.repoNameCalls, repoID)
+		rows = append(rows, s.byRepo[repoID]...)
+	}
+	return limitEntityContent(rows, search.Limit), nil
 }
 
 func (s *recordingEntityResolveContentStore) SearchEntitiesByName(

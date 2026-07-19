@@ -34,7 +34,7 @@ filesystem.
 
 | Command | Use it for | API route |
 | --- | --- | --- |
-| `eshu find name <name>` | Exact-name entity resolution. | `POST /api/v0/entities/resolve` |
+| `eshu find name <name>` | Legacy graph-domain name resolution. It sends the name unchanged and never widens a refused graph lookup into content search. Current servers fail closed for an untyped global name; use a typed/scoped `resolve_entity` request or `find pattern` when global content-name search is intended. | `POST /api/v0/entities/resolve` |
 | `eshu find pattern <text>` | Substring search when the exact symbol is unknown. | `POST /api/v0/code/search` |
 | `eshu find type <type>` | Nodes of a given type, such as `class`, `function`, or `module`. | `POST /api/v0/code/search` |
 | `eshu find variable <name>` | Variables by name. | `POST /api/v0/code/search` |

@@ -16,5 +16,8 @@
 // package binds exact production-builder bytes and builder source by SHA-256
 // before applying the static shape rules and live PROFILE assertions. Anchor
 // fragments remain bound to their owning builder symbols, while this package
-// keeps its no-network invariant.
+// keeps its no-network invariant. Global entity and code graph variants are
+// fail-closed: only repository-anchored graph shapes remain in the live PROFILE
+// family, while global name lookup is covered by its bounded Postgres SQL and
+// plan proof.
 package queryplan

@@ -37,6 +37,32 @@ func entityResolveTruthEnvelope(profile QueryProfile) *TruthEnvelope {
 	)
 }
 
+func globalContentEntityResolveTruthEnvelope(profile QueryProfile) *TruthEnvelope {
+	return BuildTruthEnvelope(
+		profile,
+		"code_search.exact_symbol",
+		TruthBasisContentIndex,
+		"resolved by exact case-sensitive name from the current content entity index",
+	)
+}
+
+func canonicalContentEntityResolveTruthEnvelope(profile QueryProfile, graphHydrated bool) *TruthEnvelope {
+	if graphHydrated {
+		return BuildTruthEnvelope(
+			profile,
+			"code_search.exact_symbol",
+			TruthBasisHybrid,
+			"resolved by canonical content entity ID with graph-backed workload repository hydration",
+		)
+	}
+	return BuildTruthEnvelope(
+		profile,
+		"code_search.exact_symbol",
+		TruthBasisContentIndex,
+		"resolved by canonical content entity ID from the current content index",
+	)
+}
+
 func trimResolvedEntityPage(entities []map[string]any, limit int) ([]map[string]any, bool) {
 	if len(entities) <= limit {
 		return entities, false

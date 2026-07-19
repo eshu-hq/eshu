@@ -58,7 +58,9 @@
 // Bolt health requires a selected protocol version to avoid a
 // TCP-accept/protocol-ready race), backend installation (`install`),
 // admin/operator workflows (`admin ...`), configuration (`config`, `neo4j`),
-// discovery (`find`, `analyze`, `ecosystem`), change-surface planning
+// discovery (`find`, whose `find name` path keeps the legacy typed
+// /api/v0/entities/resolve contract instead of widening untyped requests to
+// global content search; `analyze`; `ecosystem`), change-surface planning
 // (`change impact`, `change plan`, which preserve caller-derived changed-file
 // status and request bounded pre-change impact or read-only developer plan
 // envelopes), project-scoped assistant guidance

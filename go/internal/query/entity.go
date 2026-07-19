@@ -4,6 +4,7 @@
 package query
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -55,6 +56,9 @@ func buildResolveEntityGraphQuery(
 	access repositoryAccessFilter,
 ) (string, map[string]any) {
 	repositoryAnchored := req.RepoID != ""
+	if !repositoryAnchored {
+		return "", nil
+	}
 	cypher := `MATCH (e) WHERE e.name = $name`
 	params := map[string]any{"name": req.Name}
 	if repositoryAnchored {
@@ -117,9 +121,26 @@ func (h *EntityHandler) resolveEntity(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	req.Name = strings.TrimSpace(req.Name)
 	if req.Name == "" {
 		WriteError(w, http.StatusBadRequest, "name is required")
 		return
+	}
+	req.Type = strings.ToLower(strings.TrimSpace(req.Type))
+	canonicalContentHandle := strings.HasPrefix(strings.TrimSpace(req.Name), contentEntityIDPrefix)
+	if req.Type != "" && req.Type != "workload" && !knownResolveEntityType(req.Type) {
+		WriteError(w, http.StatusBadRequest, fmt.Sprintf("unknown entity type %q", req.Type))
+		return
+	}
+	if req.RepoID == "" {
+		if req.Type == "" && !canonicalContentHandle {
+			WriteError(w, http.StatusBadRequest, "global entity resolution requires type or repo_id")
+			return
+		}
+		if _, graphOnly := globalGraphOnlyEntityTypes[req.Type]; graphOnly {
+			WriteError(w, http.StatusBadRequest, fmt.Sprintf("global entity type %q requires repo_id", req.Type))
+			return
+		}
 	}
 	limit := normalizeResolveEntityLimit(req.Limit)
 	access := repositoryAccessFilterFromContext(r.Context())
@@ -137,6 +158,9 @@ func (h *EntityHandler) resolveEntity(w http.ResponseWriter, r *http.Request) {
 	}
 	if access.empty() {
 		truth := entityResolveTruthEnvelope(h.profile())
+		if req.RepoID == "" {
+			truth = globalContentEntityResolveTruthEnvelope(h.profile())
+		}
 		if strings.EqualFold(strings.TrimSpace(req.Type), "workload") {
 			truth = workloadEntityResolveTruthEnvelope(h.profile())
 		}
@@ -147,6 +171,23 @@ func (h *EntityHandler) resolveEntity(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if h.writeWorkloadEntityResolution(w, r, req, limit) {
+		return
+	}
+	if req.RepoID == "" {
+		entities, err := h.resolveGlobalContentEntities(r.Context(), req.Name, req.Type, limit+1)
+		if err != nil {
+			if errors.Is(err, errEntityNameSearchUnavailable) {
+				WriteError(w, http.StatusServiceUnavailable, err.Error())
+				return
+			}
+			if writeContentSubstringIndexUnavailable(w, err) {
+				return
+			}
+			WriteError(w, http.StatusInternalServerError, fmt.Sprintf("resolve content entities: %v", err))
+			return
+		}
+		entities, truncated := trimResolvedEntityPage(normalizeResolvedEntities(entities, limit+1), limit)
+		WriteSuccess(w, r, http.StatusOK, resolvedEntityResponse(entities, limit, truncated), globalContentEntityResolveTruthEnvelope(h.profile()))
 		return
 	}
 
@@ -190,7 +231,7 @@ func (h *EntityHandler) resolveEntity(w http.ResponseWriter, r *http.Request) {
 	for i := range entities {
 		attachSemanticSummary(entities[i])
 	}
-	if err := hydrateResolvedEntityRepoIdentity(r.Context(), h.Neo4j, h.Content, entities); err != nil {
+	if _, err := hydrateResolvedEntityRepoIdentity(r.Context(), h.Neo4j, h.Content, entities); err != nil {
 		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("hydrate entity repo identity: %v", err))
 		return
 	}
@@ -295,7 +336,7 @@ func (h *EntityHandler) getEntityContext(w http.ResponseWriter, r *http.Request)
 	if metadata := graphResultMetadata(row); len(metadata) > 0 {
 		response["metadata"] = metadata
 	}
-	if err := hydrateResolvedEntityRepoIdentity(r.Context(), h.Neo4j, h.Content, []map[string]any{response}); err != nil {
+	if _, err := hydrateResolvedEntityRepoIdentity(r.Context(), h.Neo4j, h.Content, []map[string]any{response}); err != nil {
 		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("hydrate entity repo identity: %v", err))
 		return
 	}

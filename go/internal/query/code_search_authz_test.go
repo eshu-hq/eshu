@@ -17,29 +17,13 @@ import (
 func TestCodeSearchGraphAppliesScopedAuthBeforeLimit(t *testing.T) {
 	t.Parallel()
 
-	reader := fakeGraphReader{
-		run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
-			if !strings.Contains(cypher, "allowed_repository_ids") {
-				t.Fatalf("code search query missing scoped repository predicate:\n%s", cypher)
-			}
-			allowed, ok := params["allowed_repository_ids"].([]string)
-			if !ok || len(allowed) != 1 || allowed[0] != "repo-team-a" {
-				t.Fatalf("allowed_repository_ids = %#v, want repo-team-a", params["allowed_repository_ids"])
-			}
-			return []map[string]any{{
-				"entity_id":  "entity-a",
-				"name":       "HandlePayment",
-				"labels":     []any{"Function"},
-				"file_path":  "payments/handler.go",
-				"repo_id":    "repo-team-a",
-				"repo_name":  "payments",
-				"language":   "go",
-				"start_line": int64(12),
-				"end_line":   int64(20),
-			}}, nil
-		},
-	}
-	handler := &CodeHandler{Neo4j: reader, Profile: ProfileLocalAuthoritative}
+	content := &recordingCodeSearchContentStore{byRepo: map[string][]EntityContent{"repo-team-a": {{
+		EntityID: "entity-a", RepoID: "repo-team-a", EntityName: "HandlePayment", EntityType: "Function", RelativePath: "payments/handler.go", Language: "go",
+	}}}}
+	handler := &CodeHandler{Neo4j: fakeGraphReader{run: func(context.Context, string, map[string]any) ([]map[string]any, error) {
+		t.Fatal("global code search called graph")
+		return nil, nil
+	}}, Content: content, Profile: ProfileLocalAuthoritative}
 	req := httptest.NewRequest(
 		http.MethodPost,
 		"/api/v0/code/search",
@@ -222,8 +206,8 @@ func TestCodeSearchAllScopeAdminKeepsAnyRepoFallback(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200; body = %s", rec.Code, rec.Body.String())
 	}
-	if content.anyRepoNameCalls != 1 || content.anyRepoSourceCalls != 1 {
-		t.Fatalf("any-repo calls = name:%d source:%d, want one each", content.anyRepoNameCalls, content.anyRepoSourceCalls)
+	if content.anyRepoNameCalls != 1 || content.anyRepoSourceCalls != 0 {
+		t.Fatalf("any-repo calls = name:%d source:%d, want one name-only call", content.anyRepoNameCalls, content.anyRepoSourceCalls)
 	}
 }
 
@@ -288,6 +272,19 @@ type recordingCodeSearchContentStore struct {
 	repoSourceCalls    []string
 	anyRepoNameCalls   int
 	anyRepoSourceCalls int
+}
+
+func (s *recordingCodeSearchContentStore) SearchEntityNames(_ context.Context, search EntityNameSearch) ([]EntityContent, error) {
+	if search.Scope == EntityNameScopeAll {
+		s.anyRepoNameCalls++
+		return limitEntityContent(s.anyRepo, search.Limit), nil
+	}
+	rows := make([]EntityContent, 0)
+	for _, repoID := range search.RepositoryIDs {
+		s.repoNameCalls = append(s.repoNameCalls, repoID)
+		rows = append(rows, s.byRepo[repoID]...)
+	}
+	return limitEntityContent(rows, search.Limit), nil
 }
 
 func (s *recordingCodeSearchContentStore) SearchEntitiesByName(
