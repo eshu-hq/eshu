@@ -127,7 +127,7 @@ func (c *HTTPClient) listIncidents(
 	bounds paginationBounds,
 ) ([]Incident, int, bool, error) {
 	var all []incidentJSON
-	pages, _, truncated, err := paginateOffset(ctx, bounds, func(ctx context.Context, offset int) (int, bool, error) {
+	pages, records, truncated, err := paginateOffset(ctx, bounds, func(ctx context.Context, offset int, requestLimit int) (int, bool, error) {
 		values := url.Values{}
 		if !window.Since.IsZero() {
 			values.Set("since", window.Since.UTC().Format(time.RFC3339))
@@ -135,8 +135,8 @@ func (c *HTTPClient) listIncidents(
 		if !window.Until.IsZero() {
 			values.Set("until", window.Until.UTC().Format(time.RFC3339))
 		}
-		if target.IncidentLimit > 0 {
-			values.Set("limit", strconv.Itoa(target.IncidentLimit))
+		if limit := paginationRequestLimit(target.IncidentLimit, requestLimit); limit > 0 {
+			values.Set("limit", strconv.Itoa(limit))
 		}
 		for _, serviceID := range target.AllowedServiceIDs {
 			if trimmed := strings.TrimSpace(serviceID); trimmed != "" {
@@ -156,6 +156,9 @@ func (c *HTTPClient) listIncidents(
 	if err != nil {
 		return nil, pages, truncated, err
 	}
+	if records < len(all) {
+		all = all[:records]
+	}
 	return normalizeIncidents(all), pages, truncated, nil
 }
 
@@ -167,10 +170,10 @@ func (c *HTTPClient) listLogEntries(
 ) ([]LifecycleEvent, int, bool, error) {
 	var all []logEntryJSON
 	path := "/incidents/" + url.PathEscape(incidentID) + "/log_entries"
-	pages, _, truncated, err := paginateOffset(ctx, bounds, func(ctx context.Context, offset int) (int, bool, error) {
+	pages, records, truncated, err := paginateOffset(ctx, bounds, func(ctx context.Context, offset int, requestLimit int) (int, bool, error) {
 		values := url.Values{}
-		if limit > 0 {
-			values.Set("limit", strconv.Itoa(limit))
+		if effective := paginationRequestLimit(limit, requestLimit); effective > 0 {
+			values.Set("limit", strconv.Itoa(effective))
 		}
 		if offset > 0 {
 			values.Set("offset", strconv.Itoa(offset))
@@ -185,6 +188,9 @@ func (c *HTTPClient) listLogEntries(
 	if err != nil {
 		return nil, pages, truncated, err
 	}
+	if records < len(all) {
+		all = all[:records]
+	}
 	return normalizeLifecycleEvents(incidentID, all), pages, truncated, nil
 }
 
@@ -196,10 +202,10 @@ func (c *HTTPClient) listRelatedChangeEvents(
 ) ([]ChangeEvent, int, bool, error) {
 	var all []changeEventJSON
 	path := "/incidents/" + url.PathEscape(incidentID) + "/related_change_events"
-	pages, _, truncated, err := paginateOffset(ctx, bounds, func(ctx context.Context, offset int) (int, bool, error) {
+	pages, records, truncated, err := paginateOffset(ctx, bounds, func(ctx context.Context, offset int, requestLimit int) (int, bool, error) {
 		values := url.Values{}
-		if limit > 0 {
-			values.Set("limit", strconv.Itoa(limit))
+		if effective := paginationRequestLimit(limit, requestLimit); effective > 0 {
+			values.Set("limit", strconv.Itoa(effective))
 		}
 		if offset > 0 {
 			values.Set("offset", strconv.Itoa(offset))
@@ -213,6 +219,9 @@ func (c *HTTPClient) listRelatedChangeEvents(
 	})
 	if err != nil {
 		return nil, pages, truncated, err
+	}
+	if records < len(all) {
+		all = all[:records]
 	}
 	return normalizeChangeEvents(all), pages, truncated, nil
 }

@@ -131,10 +131,10 @@ func (c *HTTPClient) listServices(
 	bounds paginationBounds,
 ) ([]serviceJSON, int, bool, error) {
 	var all []serviceJSON
-	pages, _, truncated, err := paginateOffset(ctx, bounds, func(ctx context.Context, offset int) (int, bool, error) {
+	pages, records, truncated, err := paginateOffset(ctx, bounds, func(ctx context.Context, offset int, requestLimit int) (int, bool, error) {
 		values := url.Values{}
-		if limit > 0 {
-			values.Set("limit", strconv.Itoa(limit))
+		if effective := paginationRequestLimit(limit, requestLimit); effective > 0 {
+			values.Set("limit", strconv.Itoa(effective))
 		}
 		if offset > 0 {
 			values.Set("offset", strconv.Itoa(offset))
@@ -146,6 +146,9 @@ func (c *HTTPClient) listServices(
 		all = append(all, decoded.Services...)
 		return len(decoded.Services), decoded.More, nil
 	})
+	if err == nil && records < len(all) {
+		all = all[:records]
+	}
 	return all, pages, truncated, err
 }
 
@@ -166,10 +169,10 @@ func (c *HTTPClient) listServiceIntegrations(
 ) ([]integrationJSON, int, bool, error) {
 	var all []integrationJSON
 	path := "/services/" + url.PathEscape(serviceID) + "/integrations"
-	pages, _, truncated, err := paginateOffset(ctx, bounds, func(ctx context.Context, offset int) (int, bool, error) {
+	pages, records, truncated, err := paginateOffset(ctx, bounds, func(ctx context.Context, offset int, requestLimit int) (int, bool, error) {
 		values := url.Values{}
-		if limit > 0 {
-			values.Set("limit", strconv.Itoa(limit))
+		if effective := paginationRequestLimit(limit, requestLimit); effective > 0 {
+			values.Set("limit", strconv.Itoa(effective))
 		}
 		if offset > 0 {
 			values.Set("offset", strconv.Itoa(offset))
@@ -181,6 +184,9 @@ func (c *HTTPClient) listServiceIntegrations(
 		all = append(all, decoded.Integrations...)
 		return len(decoded.Integrations), decoded.More, nil
 	})
+	if err == nil && records < len(all) {
+		all = all[:records]
+	}
 	return all, pages, truncated, err
 }
 
