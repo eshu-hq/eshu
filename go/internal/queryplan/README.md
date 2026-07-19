@@ -54,10 +54,15 @@ Live backend calls remain outside this package. The build-tagged test
 `internal/query/queryplan_profile_live_test.go` applies only the schema names
 required by both manifests to an isolated Neo4j database, binds every Cypher
 entry to its exact production builder or execution-path output, and profiles 16
-handler entries, 22 legacy entries, and 293 hash-frozen safe production
-variants. All 331 shapes must avoid `AllNodesScan` and expose an admitted bounded
-anchor operator. The accepted label and relationship-type scan exceptions are a
-closed Go policy; manifest data cannot expand that allowlist.
+handler entries, 22 legacy entries, and 324 hash-frozen safe production
+variants. The safe family includes the 31 cloud-resource list shapes not already
+represented by the registered resource-type-only handler entry, so all 32
+combinations of its optional filters and keyset cursor are covered. All 362
+shapes must avoid `AllNodesScan` and expose an admitted bounded anchor operator.
+The accepted label and relationship-type scan exceptions are a closed Go policy;
+manifest data cannot expand that allowlist. Cloud-resource shapes without a
+resource-type predicate or cursor must remain label-bounded, while shapes with
+either must retain an index seek.
 Global entity/code variants known to be unsafe are frozen separately against
 #5318 and are not presented as accepted shapes.
 NornicDB builds that do not

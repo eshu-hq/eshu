@@ -90,8 +90,11 @@ missing schema evidence, and forbidden plan signatures fail the gate. The same
 script provisions a pinned, isolated Neo4j container and runs the build-tagged
 live proof in `go/internal/query/queryplan_profile_live_test.go`. That proof
 profiles 16 handler entries and 22 legacy entries through Neo4j `PROFILE` using
-production-owned bytes, plus 293 hash-frozen safe production variants: 331
-shapes in total. A label or relationship-type scan is accepted only by the
+production-owned bytes, plus 324 hash-frozen safe production variants: 362
+shapes in total. The safe family includes the 31 cloud-resource list shapes not
+already represented by its registered resource-type-only entry, covering every
+combination of optional provider, resource type, region, account, and keyset
+cursor predicates. A label or relationship-type scan is accepted only by the
 closed code-level operator policy; manifest data cannot add an exception.
 Static validation
 does not replace live backend `EXPLAIN`,

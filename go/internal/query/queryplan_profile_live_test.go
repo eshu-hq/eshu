@@ -44,6 +44,17 @@ func TestQueryplanBoundedAnchorOperatorPolicyIsClosed(t *testing.T) {
 			t.Errorf("queryplanBoundedAnchorOperators(%q) = %v, want %v", entryID, got, want)
 		}
 	}
+	variantTests := map[string][]string{
+		"cloud-resource-list/unfiltered":              {"NodeByLabelScan"},
+		"cloud-resource-list/provider+region+account": {"NodeByLabelScan"},
+		"cloud-resource-list/resource-type":           {"NodeIndexSeek", "NodeUniqueIndexSeek"},
+		"cloud-resource-list/cursor":                  {"NodeIndexSeek", "NodeUniqueIndexSeek"},
+	}
+	for name, want := range variantTests {
+		if got := queryplanProductionVariantAnchorOperators(name); !slices.Equal(got, want) {
+			t.Errorf("queryplanProductionVariantAnchorOperators(%q) = %v, want %v", name, got, want)
+		}
+	}
 }
 
 func TestQueryplanForbiddenOperatorPolicyIsClosed(t *testing.T) {
@@ -175,13 +186,7 @@ func assertProductionVariantOperators(t *testing.T, name string, operators []str
 			}
 		}
 	}
-	allowed := []string{"NodeIndexSeek", "NodeUniqueIndexSeek"}
-	switch {
-	case strings.HasPrefix(name, "resource/") && strings.HasSuffix(name, "/workloads"):
-		allowed = []string{"DirectedRelationshipTypeScan"}
-	case strings.HasPrefix(name, "resource/") && strings.Contains(name, "/paths/"):
-		allowed = []string{"NodeByLabelScan", "NodeIndexSeek", "NodeUniqueIndexSeek"}
-	}
+	allowed := queryplanProductionVariantAnchorOperators(name)
 	for _, operator := range operators {
 		for _, candidate := range allowed {
 			if strings.EqualFold(operator, candidate) {
@@ -190,6 +195,21 @@ func assertProductionVariantOperators(t *testing.T, name string, operators []str
 		}
 	}
 	t.Fatalf("production variant %s has no bounded anchor operator (%s): %v", name, fmt.Sprint(allowed), operators)
+}
+
+func queryplanProductionVariantAnchorOperators(name string) []string {
+	switch {
+	case strings.HasPrefix(name, "cloud-resource-list/") &&
+		!strings.Contains(name, "resource-type") &&
+		!strings.Contains(name, "cursor"):
+		return []string{"NodeByLabelScan"}
+	case strings.HasPrefix(name, "resource/") && strings.HasSuffix(name, "/workloads"):
+		return []string{"DirectedRelationshipTypeScan"}
+	case strings.HasPrefix(name, "resource/") && strings.Contains(name, "/paths/"):
+		return []string{"NodeByLabelScan", "NodeIndexSeek", "NodeUniqueIndexSeek"}
+	default:
+		return []string{"NodeIndexSeek", "NodeUniqueIndexSeek"}
+	}
 }
 
 func applyQueryplanProfileSchema(
@@ -236,9 +256,12 @@ func applyQueryplanProfileSchema(
 
 func queryplanProfileParams() map[string]any {
 	return map[string]any{
+		"account_id":             "proof-account",
+		"after_id":               "proof-id",
 		"after_dependency_id":    "proof-dependency",
 		"after_edge":             "proof-edge",
 		"after_name":             "proof-name",
+		"after_resource_type":    "proof-type",
 		"after_version_id":       "proof-version",
 		"allowed_repository_ids": []string{"proof-repository"},
 		"allowed_scope_ids":      []string{"proof-scope"},
@@ -255,8 +278,10 @@ func queryplanProfileParams() map[string]any {
 		"offset":                 0,
 		"package":                "proof-package",
 		"package_id":             "proof-package",
+		"provider":               "proof-provider",
 		"q":                      "proof",
 		"query":                  "proof",
+		"region":                 "proof-region",
 		"repo_id":                "proof-repository",
 		"resource_id":            "proof-resource",
 		"resource_arn":           "arn:proof",

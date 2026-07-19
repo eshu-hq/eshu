@@ -64,10 +64,13 @@ merged later are frozen against their pre-extraction source at `2209892807`.
 The proof covers repository-anchored, all-scope, scoped, workload-property,
 workload-relationship, resource-workload, instance-workload, repository-name
 hydration, and both repository-path directions. A safe-variant family digest
-also freezes 293 reachable shapes: repository entity type filters; exact,
-substring, and language code filters; all/scoped workload resolution; and every
+also freezes 324 reachable shapes: repository entity type filters; exact,
+substring, and language code filters; all/scoped workload resolution; every
 whitelisted resource label, identity property, path direction, and minimum or
-maximum traversal depth.
+maximum traversal depth; and the 31 cloud-resource list shapes not already
+represented by its registered resource-type-only entry. Together with that
+entry, the proof covers all 32 combinations of optional provider, resource type,
+region, account, and keyset cursor predicates.
 
 The handler manifest registers 16 plan shapes spanning the repository-anchored
 entity and code reads corrected under #5244 and the import, entity-map, cloud
@@ -99,14 +102,14 @@ Backend: the hermetic script pins Neo4j by image digest
 (Neo4j 2026.05.0 in the proof run). It starts a uniquely named isolated
 container on an ephemeral port, applies only schema objects named by the handler
 and legacy manifests, waits for indexes, profiles the 16 handler entries, 22
-legacy entries, and all 293 safe production variants, and removes the container
+legacy entries, and all 324 safe production variants, and removes the container
 through an exit trap.
 
 ```text
 scripts/verify-query-plan-profile.sh
 ```
 
-Result: 331/331 registered and safe production plan shapes passed in the tagged
+Result: 362/362 registered and safe production plan shapes passed in the tagged
 test. Entity resolution, code search, import reads,
 entity-map traversal, call-graph metrics, and resource-investigation reads used
 `NodeUniqueIndexSeek` or `NodeIndexSeek` where the production predicate is
@@ -114,9 +117,12 @@ indexable. Graph-entity counts used
 `NodeCountFromCountStore`; its substring list used the explicitly label-bounded
 `NodeByLabelScan`. The resource workload and repository-path shapes used their
 explicitly admitted `DirectedRelationshipTypeScan` and `NodeByLabelScan`
-anchors. No plan contained `AllNodesScan`, `CartesianProduct`, or an unbounded
-expansion. The closed operator policy lives in Go code; manifest data cannot add
-arbitrary accepted operators.
+anchors. The eight cloud-resource list shapes without a resource-type predicate
+or cursor used the explicitly admitted `NodeByLabelScan`; the other 24
+cloud-resource shapes used `NodeIndexSeek` or `NodeIndexSeekByRange`. No plan
+contained `AllNodesScan`, `CartesianProduct`, or an unbounded expansion. The
+closed operator policy lives in Go code; manifest data cannot add arbitrary
+accepted operators.
 
 The pinned NornicDB Bolt/HTTP surface returned no plan object for `PROFILE`, so
 the NornicDB side remains enforced through the shared Cypher shape and exact
@@ -125,16 +131,19 @@ as success on backends that claim plan support.
 
 No-Regression Evidence: the focused handler and legacy production-binding and
 byte-preservation tests, `go test ./internal/queryplan -count=1`, the queryplan
-verification script, and the isolated 331-shape PROFILE test above all pass. The
-exact final regression command passed with the tagged PROFILE package in 12.022
+verification script, and the isolated 362-shape PROFILE test above all pass. The
+exact final regression command passed with the tagged PROFILE package in 11.464
 seconds and the full source-binding, unit, container-start, readiness, PROFILE,
-and cleanup command in 23.872 seconds.
+and cleanup command in 22.99 seconds.
 
 Performance Evidence: the prior gate profiled 14 copied fixture shapes and did
 not prove the bytes executed by production handlers. The finished gate profiles
-16 exact handler shapes, 22 production-bound legacy shapes, and 293 hash-frozen
+16 exact handler shapes, 22 production-bound legacy shapes, and 324 hash-frozen
 safe variants on isolated Neo4j 2026.05.0 with an empty proof graph (0 terminal
-result rows per shape).
+result rows per shape). A one-off production-builder probe first profiled all 32
+cloud-resource combinations on the same pinned planner: eight shapes without a
+resource-type predicate or cursor used `NodeByLabelScan`, while the other 24
+used the resource-type index through `NodeIndexSeek` or `NodeIndexSeekByRange`.
 The workload variants used `NodeIndexSeek`, and no accepted shape used
 `AllNodesScan`, `CartesianProduct`, or an
 unbounded expansion. This is planner-regression evidence, not a retained-corpus
