@@ -18,15 +18,31 @@ import (
 // relationships_catalog_cypher.go), split out of relationships_catalog_test.go
 // to keep that file under the repository's 500-line file cap.
 
+// scopedEdge is a fixture edge with explicit per-endpoint repository
+// attribution so scopedRelationshipEdgesGraphReader can model, precisely, what
+// a real WHERE-filtered backend returns: an edge survives only when EVERY
+// endpoint the dispatched Cypher actually binds is attributable to a granted
+// repository. Modeling source and target independently is what lets the
+// out-of-grant-target test below catch a regression that silently drops the
+// target-endpoint bind for a targetAttributable:true verb.
+type scopedEdge struct {
+	sourceID   string
+	sourceName string
+	sourceRepo string
+	targetID   string
+	targetName string
+	targetRepo string
+}
+
 // scopedRelationshipEdgesGraphReader simulates a real endpoint-anchored graph
-// backend for the #5167 scoped tests below: for a query whose Cypher carries
-// a WHERE clause, it returns edges only when the bound
-// allowed_repository_ids/allowed_scope_ids params include "repo-tenant-a"
-// (mirroring what a real WHERE-filtered graph read would return for an
-// unrelated or missing grant); for an unscoped query (no WHERE) it always
-// returns the fixture edges. It records every dispatched cypher/params pair.
+// backend. It inspects the dispatched Cypher to learn which endpoints are
+// bound (relationshipEndpointScopePredicate renders "s.repo_id IN
+// $allowed_repository_ids" and/or "t.repo_id IN $allowed_repository_ids") and
+// returns an edge only when every bound endpoint's repo is in the granted set
+// carried by the params. An unscoped query (no WHERE) binds nothing, so all
+// edges pass. Every dispatched cypher/params pair is recorded.
 type scopedRelationshipEdgesGraphReader struct {
-	edges []map[string]any
+	edges []scopedEdge
 	calls []struct {
 		cypher string
 		params map[string]any
@@ -47,29 +63,52 @@ func (f *scopedRelationshipEdgesGraphReader) Run(
 		params map[string]any
 	}{cypher, params})
 
-	if !strings.Contains(cypher, "WHERE") {
-		return f.edges, nil
-	}
-	grantedTenantA := false
-	if params != nil {
-		for _, key := range []string{"allowed_repository_ids", "allowed_scope_ids"} {
-			ids, _ := params[key].([]string)
-			for _, id := range ids {
-				if id == "repo-tenant-a" {
-					grantedTenantA = true
-				}
+	bindsSource := strings.Contains(cypher, "s.repo_id IN $allowed_repository_ids")
+	bindsTarget := strings.Contains(cypher, "t.repo_id IN $allowed_repository_ids")
+	granted := scopedEdgeGrantSet(params)
+
+	rows := make([]map[string]any, 0, len(f.edges))
+	for _, e := range f.edges {
+		if bindsSource {
+			if _, ok := granted[e.sourceRepo]; !ok {
+				continue
 			}
 		}
+		if bindsTarget {
+			if _, ok := granted[e.targetRepo]; !ok {
+				continue
+			}
+		}
+		rows = append(rows, map[string]any{
+			"source_id":   e.sourceID,
+			"source_name": e.sourceName,
+			"target_id":   e.targetID,
+			"target_name": e.targetName,
+			"evidence":    "",
+		})
 	}
-	if !grantedTenantA {
-		return nil, nil
-	}
-	return f.edges, nil
+	return rows, nil
 }
 
-func relationshipEdgesTenantAFixture() []map[string]any {
-	return []map[string]any{
-		{"source_id": "fn-tenant-a-1", "source_name": "tenantAHandler", "target_id": "fn-tenant-a-2", "target_name": "tenantACallee", "evidence": "call site"},
+// scopedEdgeGrantSet unions the allowed_repository_ids and allowed_scope_ids
+// params the handler binds (repositoryAccessFilter.graphParams), matching the
+// two arrays relationshipEndpointScopePredicate's IN clauses reference.
+func scopedEdgeGrantSet(params map[string]any) map[string]struct{} {
+	granted := map[string]struct{}{}
+	for _, key := range []string{"allowed_repository_ids", "allowed_scope_ids"} {
+		ids, _ := params[key].([]string)
+		for _, id := range ids {
+			granted[id] = struct{}{}
+		}
+	}
+	return granted
+}
+
+// tenantAEdge is a CALLS-style edge fully owned by repo-tenant-a on both ends.
+func tenantAEdge() scopedEdge {
+	return scopedEdge{
+		sourceID: "fn-tenant-a-1", sourceName: "tenantAHandler", sourceRepo: "repo-tenant-a",
+		targetID: "fn-tenant-a-2", targetName: "tenantACallee", targetRepo: "repo-tenant-a",
 	}
 }
 
@@ -80,7 +119,7 @@ func relationshipEdgesTenantAFixture() []map[string]any {
 func TestGetRelationshipEdgesScopedEmptyGrantReturnsEmptyWithoutGraphRead(t *testing.T) {
 	t.Parallel()
 
-	reader := &scopedRelationshipEdgesGraphReader{edges: relationshipEdgesTenantAFixture()}
+	reader := &scopedRelationshipEdgesGraphReader{edges: []scopedEdge{tenantAEdge()}}
 	handler := &InfraHandler{Neo4j: reader, Profile: ProfileProduction}
 
 	body, _ := json.Marshal(map[string]any{"verb": "calls"})
@@ -107,16 +146,13 @@ func TestGetRelationshipEdgesScopedEmptyGrantReturnsEmptyWithoutGraphRead(t *tes
 }
 
 // TestGetRelationshipEdgesScopedGrantBindsBothEndpointsAndReturnsRealRowData
-// covers CALLS (targetAttributable == true): a scoped caller with a matching
-// grant gets a WHERE clause binding BOTH s and t to the grant, and the real
-// fixture edge data flows through -- not just a 200 shape. Deleting the
-// target-endpoint binding for this verb (or the whole scope check) would let
-// a request with a non-matching grant slip through; the paired
-// out-of-grant/unattributable tests below catch that.
+// covers CALLS (targetAttributable == true) with an edge fully owned by the
+// caller: the WHERE clause binds BOTH s and t, and the real fixture edge data
+// flows through -- not just a 200 shape.
 func TestGetRelationshipEdgesScopedGrantBindsBothEndpointsAndReturnsRealRowData(t *testing.T) {
 	t.Parallel()
 
-	reader := &scopedRelationshipEdgesGraphReader{edges: relationshipEdgesTenantAFixture()}
+	reader := &scopedRelationshipEdgesGraphReader{edges: []scopedEdge{tenantAEdge()}}
 	handler := &InfraHandler{Neo4j: reader, Profile: ProfileProduction}
 
 	body, _ := json.Marshal(map[string]any{"verb": "calls"})
@@ -137,9 +173,6 @@ func TestGetRelationshipEdgesScopedGrantBindsBothEndpointsAndReturnsRealRowData(
 		t.Fatalf("graph received %d calls, want %d", got, want)
 	}
 	cypher := reader.calls[0].cypher
-	if !strings.Contains(cypher, "WHERE") {
-		t.Fatalf("scoped CALLS query missing WHERE clause: %s", cypher)
-	}
 	if !strings.Contains(cypher, "s.repo_id IN $allowed_repository_ids") {
 		t.Fatalf("scoped CALLS query must bind source endpoint s: %s", cypher)
 	}
@@ -161,17 +194,74 @@ func TestGetRelationshipEdgesScopedGrantBindsBothEndpointsAndReturnsRealRowData(
 	}
 }
 
+// TestGetRelationshipEdgesScopedGrantHidesCrossTenantTargetEdge is the #5167
+// F-6 W6 review-mandated mutation-killer for the target-endpoint bind on a
+// targetAttributable:true verb (the highest-risk leak class this family
+// guards). The fixture edge's SOURCE is owned by the caller (repo-tenant-a)
+// but its TARGET is another tenant's repo (repo-tenant-b), which the caller
+// does NOT hold. With both endpoints bound the target bind excludes the edge,
+// so the caller sees zero rows and never learns the cross-tenant target's
+// identity -- while the graph IS read (reader.calls == 1, not an empty-grant
+// short-circuit). Mutation proof: deleting the entry.targetAttributable branch
+// in relationshipEdgesScopeWhereClause (relationships_catalog_cypher.go) drops
+// the "t.repo_id IN ..." clause, so the source-only WHERE admits this edge and
+// this test goes red (edges == 1, leaking target_name "tenantBCallee").
+func TestGetRelationshipEdgesScopedGrantHidesCrossTenantTargetEdge(t *testing.T) {
+	t.Parallel()
+
+	crossTenantEdge := scopedEdge{
+		sourceID: "fn-tenant-a-1", sourceName: "tenantAHandler", sourceRepo: "repo-tenant-a",
+		targetID: "fn-tenant-b-1", targetName: "tenantBCallee", targetRepo: "repo-tenant-b",
+	}
+	reader := &scopedRelationshipEdgesGraphReader{edges: []scopedEdge{crossTenantEdge}}
+	handler := &InfraHandler{Neo4j: reader, Profile: ProfileProduction}
+
+	body, _ := json.Marshal(map[string]any{"verb": "calls"})
+	req := httptest.NewRequest(http.MethodPost, "/api/v0/relationships/edges", bytes.NewReader(body))
+	req.Header.Set("Accept", EnvelopeMIMEType)
+	req = req.WithContext(ContextWithAuthContext(req.Context(), AuthContext{
+		Mode:                 AuthModeScoped,
+		TenantID:             "tenant-a",
+		AllowedRepositoryIDs: []string{"repo-tenant-a"}, // owns source, NOT the repo-tenant-b target
+	}))
+	rec := httptest.NewRecorder()
+	handler.getRelationshipEdges(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", rec.Code, rec.Body.String())
+	}
+	if got, want := len(reader.calls), 1; got != want {
+		t.Fatalf("graph received %d calls, want %d (the graph IS read, then filtered)", got, want)
+	}
+	var env ResponseEnvelope
+	if err := json.Unmarshal(rec.Body.Bytes(), &env); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	data := env.Data.(map[string]any)
+	edges := data["edges"].([]any)
+	if len(edges) != 0 {
+		t.Fatalf("edges = %d, want 0; a source-owning caller must NOT see an edge to a repo it does not own; body = %s", len(edges), rec.Body.String())
+	}
+	if strings.Contains(rec.Body.String(), "tenantBCallee") || strings.Contains(rec.Body.String(), "fn-tenant-b-1") {
+		t.Fatalf("response leaked the cross-tenant target identity: %s", rec.Body.String())
+	}
+}
+
 // TestGetRelationshipEdgesScopedGrantUnattributableTargetBindsSourceOnly
 // covers RUNS_ON (targetAttributable == false, Platform has no tenant
 // attribution): the WHERE clause must bind s but must not attempt to bind t,
-// so a scoped caller with a matching grant on the source still sees the edge
-// to the shared/global target rather than an empty page.
+// so a scoped caller owning the source still sees the edge to the
+// shared/global target rather than an empty page.
 func TestGetRelationshipEdgesScopedGrantUnattributableTargetBindsSourceOnly(t *testing.T) {
 	t.Parallel()
 
-	reader := &scopedRelationshipEdgesGraphReader{edges: []map[string]any{
-		{"source_id": "instance-tenant-a-1", "source_name": "tenant-a-instance", "target_id": "platform-shared", "target_name": "prod-cluster", "evidence": ""},
-	}}
+	// RUNS_ON: source WorkloadInstance owned by repo-tenant-a; target is a
+	// shared Platform. targetRepo is left blank because the query must not
+	// bind the target at all for an unattributable-target verb.
+	reader := &scopedRelationshipEdgesGraphReader{edges: []scopedEdge{{
+		sourceID: "instance-tenant-a-1", sourceName: "tenant-a-instance", sourceRepo: "repo-tenant-a",
+		targetID: "platform-shared", targetName: "prod-cluster", targetRepo: "",
+	}}}
 	handler := &InfraHandler{Neo4j: reader, Profile: ProfileProduction}
 
 	body, _ := json.Marshal(map[string]any{"verb": "runs_on"})
@@ -189,9 +279,6 @@ func TestGetRelationshipEdgesScopedGrantUnattributableTargetBindsSourceOnly(t *t
 		t.Fatalf("status = %d, want 200; body=%s", rec.Code, rec.Body.String())
 	}
 	cypher := reader.calls[0].cypher
-	if !strings.Contains(cypher, "WHERE") {
-		t.Fatalf("scoped RUNS_ON query missing WHERE clause: %s", cypher)
-	}
 	if !strings.Contains(cypher, "s.repo_id IN $allowed_repository_ids") {
 		t.Fatalf("scoped RUNS_ON query must bind source endpoint s: %s", cypher)
 	}
@@ -219,7 +306,7 @@ func TestGetRelationshipEdgesScopedGrantUnattributableTargetBindsSourceOnly(t *t
 func TestGetRelationshipEdgesUnscopedQueryStaysUnfiltered(t *testing.T) {
 	t.Parallel()
 
-	reader := &scopedRelationshipEdgesGraphReader{edges: relationshipEdgesTenantAFixture()}
+	reader := &scopedRelationshipEdgesGraphReader{edges: []scopedEdge{tenantAEdge()}}
 	handler := &InfraHandler{Neo4j: reader, Profile: ProfileProduction}
 
 	body, _ := json.Marshal(map[string]any{"verb": "calls"})

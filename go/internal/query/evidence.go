@@ -46,11 +46,22 @@ func (h *EvidenceHandler) profile() QueryProfile {
 }
 
 // relationshipEvidenceRowWithinAccess reports whether the resolved
-// relationship row's source and target endpoints are both attributable to
-// access's granted repositories/ingestion scopes. Shared/admin/local callers
-// (access.scoped() == false) always pass. A scoped caller with no grants, or
-// whose row carries an empty or out-of-grant repo_id on either endpoint,
-// fails closed (see the #5167 doc comment at the call site).
+// relationship row is visible to access's granted repositories/ingestion
+// scopes. Shared/admin/local callers (access.scoped() == false) always pass;
+// a scoped caller with no grants fails closed.
+//
+// A scoped caller must always own the SOURCE repository (resolved_relationships
+// always carries a source repo). The TARGET grant is required only when the
+// target endpoint carries a tenant attribution, mirroring the
+// relationships/edges targetAttributable model (relationships_catalog_cypher.go,
+// relationshipVerbEntry.targetAttributable): for a targetAttributable:false
+// verb the target is a shared/global entity (IMPORTS->Module, RUNS_ON->Platform,
+// QUERIES_TABLE->SqlTable, INVOKES_CLOUD_ACTION->CloudAction) with no repo_id,
+// so there is no cross-tenant secret to protect and source ownership alone
+// authorizes the read. Requiring a grant on that empty repo_id (the pre-#5167
+// F-6 W6 review behavior) spuriously 404'd evidence a caller fully owned via
+// the source. For a targetAttributable:true verb the target names a real
+// repository, so the target grant is enforced.
 func relationshipEvidenceRowWithinAccess(row map[string]any, access repositoryAccessFilter) bool {
 	if !access.scoped() {
 		return true
@@ -58,8 +69,29 @@ func relationshipEvidenceRowWithinAccess(row map[string]any, access repositoryAc
 	if access.empty() {
 		return false
 	}
-	return access.allowsRepositoryID(relationshipEvidenceEndpointRepoID(row, "source")) &&
-		access.allowsRepositoryID(relationshipEvidenceEndpointRepoID(row, "target"))
+	if !access.allowsRepositoryID(relationshipEvidenceEndpointRepoID(row, "source")) {
+		return false
+	}
+	if !relationshipEvidenceTargetAttributable(row) {
+		return true
+	}
+	return access.allowsRepositoryID(relationshipEvidenceEndpointRepoID(row, "target"))
+}
+
+// relationshipEvidenceTargetAttributable reports whether the row's target
+// endpoint carries a tenant attribution that a scoped grant must gate on. It
+// resolves the row's relationship_type against the fixed relationships-catalog
+// verb set (relationshipVerbByName); a known verb uses its targetAttributable
+// classification. An unknown verb (outside the 16-verb catalog) falls back
+// fail-closed to the row's own target repo_id: a non-empty target repo_id
+// names a real repository that must be protected, an empty one has no tenant
+// secret, so source ownership suffices.
+func relationshipEvidenceTargetAttributable(row map[string]any) bool {
+	verb := strings.ToUpper(strings.TrimSpace(StringVal(row, "relationship_type")))
+	if entry, ok := relationshipVerbByName[verb]; ok {
+		return entry.targetAttributable
+	}
+	return relationshipEvidenceEndpointRepoID(row, "target") != ""
 }
 
 // relationshipEvidenceEndpointRepoID reads the repo_id string off the

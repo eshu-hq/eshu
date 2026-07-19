@@ -310,20 +310,25 @@ func relationshipEdgesCypherFiltered(entry relationshipVerbEntry, access reposit
 // Why not infraResourceScopePredicate directly (#5167 F-6 W6 review, P1 "do
 // not authorize relationship endpoints through shared workloads"):
 // relationshipVerbCatalog's sourceLabel/target set includes bare Workload
-// nodes (DEPENDS_ON's source and target, INSTANCE_OF's target). A Workload
-// name-collision (defined by two repositories) materializes only ONE durable
-// repo_id, so infraResourceScopePredicate's DEFINES disjunct admits that
-// shared node whenever ANY granted repository defines it. That is safe for a
-// reachability-counting caller (the admitted alias only gates a further,
-// independently-scoped hop), but this endpoint predicate is projected
-// directly as the returned edge's source_id/source_name/target_id/target_name
-// -- admitting a collision Workload via DEFINES would expose every edge
-// attached to it, including edges a DIFFERENT tenant's ingestion wrote,
-// purely because the two tenants' workloads share a name. Durable per-node
-// provenance (direct repo_id/id ownership, USES, or DEPLOYMENT_SOURCE) is
-// required instead; a bare Workload endpoint with none of those durably
-// attributable to the caller's grant is correctly excluded (under-
-// authorization is the fail-closed, acceptable outcome here, never a leak).
+// nodes (DEPENDS_ON's source and target, INSTANCE_OF's target). Workload
+// identity is name-derived only -- projection.go builds workload:%s from the
+// workload name and MERGEs on {id: $workload_id} -- so two repositories that
+// define same-named workloads collapse to a single Workload node with
+// last-writer-wins repo_id. A DEFINES disjunct (whether infraResourceScopePredicate's
+// own or a belt-and-suspenders EXISTS clause layered on top of it, as an
+// earlier version of this predicate carried) admits that shared node whenever
+// ANY granted repository defines it, not only the repository whose write won
+// the repo_id race. That is safe for a reachability-counting caller (the
+// admitted alias only gates a further, independently-scoped hop), but this
+// endpoint predicate is projected directly as the returned edge's
+// source_id/source_name/target_id/target_name -- admitting a collision
+// Workload via DEFINES would expose every edge attached to it, including
+// edges a DIFFERENT tenant's ingestion wrote, purely because the two tenants'
+// workloads share a name. Durable per-node provenance (direct repo_id/id
+// ownership, USES, or DEPLOYMENT_SOURCE) is required instead; a bare Workload
+// endpoint with none of those durably attributable to the caller's grant is
+// correctly excluded (under-authorization is the fail-closed, acceptable
+// outcome here, never a leak).
 func relationshipEndpointScopePredicate(alias string, scalars []string) string {
 	// Parenthesized as one atomic OR-group: callers AND-combine this with a
 	// sibling predicate (source AND target) or with an unrelated condition
