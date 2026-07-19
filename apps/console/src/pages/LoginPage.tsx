@@ -39,6 +39,7 @@ import {
   listAuthPosture,
   beginOidcLogin,
   beginSamlLogin,
+  beginGithubLogin,
   isCookiePersistenceAtRiskOrigin,
   INSECURE_COOKIE_ORIGIN_MESSAGE,
 } from "../api/authSession";
@@ -185,7 +186,7 @@ export function LoginPage({
 
   function handleSSOClick(provider: AuthLoginProvider): void {
     const returnTo = safeSSOReturnPath(globalThis.location?.pathname);
-    if (provider.provider_kind === "oidc") {
+    if (provider.provider_kind === "oidc" || provider.provider_kind === "github") {
       // tenant_id must be forwarded from the page's own URL (the same param
       // the mount-time useEffect above reads for listAuthPosture): a
       // DB-backed provider's OIDC login-start
@@ -196,14 +197,24 @@ export function LoginPage({
       // tenantID defaults from its own config either way
       // (resolveProviderContext), so this is a no-op for that case, but a
       // required fix for the DB-backed one this button is normally rendered
-      // for.
+      // for. GitHub login-start (go/internal/githublogin/service.go's
+      // provider(), issue #5166) has the identical requirement — same
+      // reasoning applies unchanged.
       const tenantId =
         new URLSearchParams(globalThis.location?.search ?? "").get("tenant_id") ?? undefined;
-      beginOidcLogin(
-        baseUrl,
-        { providerConfigId: provider.provider_config_id, tenantId, returnTo },
-        redirectFn ?? safeNavigate,
-      );
+      if (provider.provider_kind === "github") {
+        beginGithubLogin(
+          baseUrl,
+          { providerConfigId: provider.provider_config_id, tenantId, returnTo },
+          redirectFn ?? safeNavigate,
+        );
+      } else {
+        beginOidcLogin(
+          baseUrl,
+          { providerConfigId: provider.provider_config_id, tenantId, returnTo },
+          redirectFn ?? safeNavigate,
+        );
+      }
     } else {
       beginSamlLogin(
         baseUrl,

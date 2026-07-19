@@ -64,18 +64,19 @@ type LoginProviderItem struct {
 	ProviderKind     string
 }
 
-// listActiveLoginProvidersQuery selects the active OIDC and SAML provider rows
-// scoped to a single tenant for the pre-auth discovery endpoint. Scoping to one
-// tenant prevents cross-tenant provider enumeration by anonymous callers. Only
-// login-facing provider kinds are returned (external_oidc, external_saml). Rows
-// with tombstoned_at IS NOT NULL or status != 'active' are excluded.
+// listActiveLoginProvidersQuery selects the active OIDC, SAML, and GitHub
+// provider rows scoped to a single tenant for the pre-auth discovery
+// endpoint. Scoping to one tenant prevents cross-tenant provider
+// enumeration by anonymous callers. Only login-facing provider kinds are
+// returned (external_oidc, external_saml, external_github). Rows with
+// tombstoned_at IS NOT NULL or status != 'active' are excluded.
 const listActiveLoginProvidersQuery = `
 SELECT
     provider_config_id,
     provider_kind
 FROM identity_provider_configs
 WHERE tenant_id = $1
-  AND provider_kind IN ('external_oidc', 'external_saml')
+  AND provider_kind IN ('external_oidc', 'external_saml', 'external_github')
   AND status = 'active'
   AND tombstoned_at IS NULL
 ORDER BY provider_kind ASC, provider_config_id ASC

@@ -15,6 +15,7 @@ import {
   loginLocal,
   beginOidcLogin,
   beginSamlLogin,
+  beginGithubLogin,
   logout,
   isCookiePersistenceAtRiskOrigin,
 } from "./authSession";
@@ -290,6 +291,45 @@ describe("beginOidcLogin", () => {
     beginOidcLogin("/eshu-api/", { providerConfigId: "google", returnTo: "/" }, redirectFn);
     expect(redirectFn).toHaveBeenCalledTimes(1);
     expect(redirectFn).toHaveBeenCalledWith(expect.stringContaining("/api/v0/auth/oidc/login"));
+  });
+});
+
+describe("beginGithubLogin", () => {
+  it("returns a URL pointing to /api/v0/auth/github/login with provider_config_id", () => {
+    const url = beginGithubLogin("/eshu-api/", {
+      providerConfigId: "github-dev",
+      returnTo: "/dashboard",
+    });
+    expect(url).toContain("/api/v0/auth/github/login");
+    expect(url).toContain("provider_config_id=github-dev");
+    expect(url).toContain("return_to=");
+  });
+
+  it("includes tenant_id and workspace_id when provided", () => {
+    const url = beginGithubLogin("/eshu-api/", {
+      providerConfigId: "github-dev",
+      tenantId: "t1",
+      workspaceId: "w1",
+      returnTo: "/",
+    });
+    expect(url).toContain("tenant_id=t1");
+    expect(url).toContain("workspace_id=w1");
+  });
+
+  it("omits tenant_id and workspace_id when not provided", () => {
+    const url = beginGithubLogin("/eshu-api/", {
+      providerConfigId: "github-dev",
+      returnTo: "/",
+    });
+    expect(url).not.toContain("tenant_id");
+    expect(url).not.toContain("workspace_id");
+  });
+
+  it("uses optional redirect fn when provided", () => {
+    const redirectFn = vi.fn();
+    beginGithubLogin("/eshu-api/", { providerConfigId: "github-dev", returnTo: "/" }, redirectFn);
+    expect(redirectFn).toHaveBeenCalledTimes(1);
+    expect(redirectFn).toHaveBeenCalledWith(expect.stringContaining("/api/v0/auth/github/login"));
   });
 });
 

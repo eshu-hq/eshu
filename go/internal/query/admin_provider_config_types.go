@@ -85,6 +85,17 @@ type adminProviderConfigWriteRequest struct {
 	ServiceProviderACSURL   string `json:"service_provider_acs_url,omitempty"`
 	SPPrivateKey            string `json:"sp_private_key,omitempty"` // #nosec G101 -- JSON field name, not a credential
 	SPCertificate           string `json:"sp_certificate,omitempty"`
+
+	// GitHub fields (issue #5166, F-5). ClientID, ClientSecret, Scopes, and
+	// RedirectURL above are shared with the OIDC section (same field names,
+	// same meaning: an OAuth2 client id/secret/scopes/redirect). BaseURL and
+	// APIBaseURL default to github.com / api.github.com when omitted — set
+	// both only for a GitHub Enterprise Server instance. AllowedOrgs is
+	// mandatory and non-empty: see githublogin.ProviderConfig's doc comment
+	// for why a GitHub provider with no org allow-list is rejected outright.
+	BaseURL     string   `json:"base_url,omitempty"`
+	APIBaseURL  string   `json:"api_base_url,omitempty"`
+	AllowedOrgs []string `json:"allowed_orgs,omitempty"`
 }
 
 // adminProviderConfigRevertRequest is the JSON body for reverting to a prior

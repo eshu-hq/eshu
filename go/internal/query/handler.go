@@ -196,6 +196,7 @@ type APIRouter struct {
 	Profile                      *ProfileHandler
 	OIDCLogin                    *OIDCLoginHandler
 	SAML                         *SAMLHandler
+	GitHubLogin                  *GitHubLoginHandler
 	AuthProviders                *AuthProviderListHandler
 	AdminProviderConfigReads     *AdminProviderConfigReadHandler
 	AdminProviderConfigMutations *AdminProviderConfigMutationHandler
@@ -257,6 +258,9 @@ func (a *APIRouter) Mount(mux *http.ServeMux) {
 	}
 	if a.SAML != nil {
 		a.SAML.Mount(mux)
+	}
+	if a.GitHubLogin != nil {
+		a.GitHubLogin.Mount(mux)
 	}
 	if a.AuthProviders != nil {
 		a.AuthProviders.Mount(mux)

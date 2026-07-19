@@ -17,7 +17,7 @@ import (
 // field it was built from are held only in local variables for the duration
 // of one request; nothing here persists them.
 type builtProviderConfigWrite struct {
-	kind              string // "external_oidc" | "external_saml"
+	kind              string // "external_oidc" | "external_saml" | "external_github"
 	keyHash           string
 	issuerHash        string
 	clientIDHash      string
@@ -72,8 +72,10 @@ func buildProviderConfigWrite(body adminProviderConfigWriteRequest) (builtProvid
 		return buildOIDCProviderConfigWrite(body)
 	case "saml":
 		return buildSAMLProviderConfigWrite(body)
+	case "github":
+		return buildGitHubProviderConfigWrite(body)
 	default:
-		return builtProviderConfigWrite{}, fmt.Errorf("provider_kind must be %q or %q", "oidc", "saml")
+		return builtProviderConfigWrite{}, fmt.Errorf("provider_kind must be %q, %q, or %q", "oidc", "saml", "github")
 	}
 }
 
@@ -168,5 +170,82 @@ func buildSAMLProviderConfigWrite(body adminProviderConfigWriteRequest) (builtPr
 		configurationJSON: string(configJSON),
 		secretJSON:        string(secretJSON),
 		metadataForHash:   metadataForHash,
+	}, nil
+}
+
+// githubConfigurationFields mirrors githublogin.dbProviderConfiguration
+// (that package cannot import this one without a cycle — see its own
+// documented duplication note).
+type githubConfigurationFields struct {
+	ClientID    string   `json:"client_id"`
+	BaseURL     string   `json:"base_url,omitempty"`
+	APIBaseURL  string   `json:"api_base_url,omitempty"`
+	RedirectURL string   `json:"redirect_url,omitempty"`
+	Scopes      []string `json:"scopes,omitempty"`
+	AllowedOrgs []string `json:"allowed_orgs"`
+}
+
+// githubSecretFields mirrors githublogin.dbProviderSecret.
+type githubSecretFields struct {
+	ClientSecret string `json:"client_secret"` // #nosec G101 -- JSON field name, not a credential
+}
+
+func buildGitHubProviderConfigWrite(body adminProviderConfigWriteRequest) (builtProviderConfigWrite, error) {
+	clientID := strings.TrimSpace(body.ClientID)
+	clientSecret := body.ClientSecret
+	baseURL := strings.TrimSpace(body.BaseURL)
+	if clientID == "" {
+		return builtProviderConfigWrite{}, fmt.Errorf("client_id is required for a github provider config")
+	}
+	if strings.TrimSpace(clientSecret) == "" {
+		return builtProviderConfigWrite{}, fmt.Errorf("client_secret is required: write-only secrets must be resupplied on every create or update")
+	}
+	allowedOrgs := make([]string, 0, len(body.AllowedOrgs))
+	seenOrgs := map[string]struct{}{}
+	for _, org := range body.AllowedOrgs {
+		org = strings.ToLower(strings.TrimSpace(org))
+		if org == "" {
+			continue
+		}
+		if _, exists := seenOrgs[org]; exists {
+			continue
+		}
+		seenOrgs[org] = struct{}{}
+		allowedOrgs = append(allowedOrgs, org)
+	}
+	sort.Strings(allowedOrgs)
+	if len(allowedOrgs) == 0 {
+		return builtProviderConfigWrite{}, fmt.Errorf("allowed_orgs is required and must be non-empty for a github provider config: a github provider with no org allow-list would let any github account sign in")
+	}
+
+	scopes := append([]string(nil), body.Scopes...)
+	sort.Strings(scopes) // deterministic configuration_hash regardless of request field order
+	configJSON, err := json.Marshal(githubConfigurationFields{
+		ClientID:    clientID,
+		BaseURL:     baseURL,
+		APIBaseURL:  strings.TrimSpace(body.APIBaseURL),
+		RedirectURL: strings.TrimSpace(body.RedirectURL),
+		Scopes:      scopes,
+		AllowedOrgs: allowedOrgs,
+	})
+	if err != nil {
+		return builtProviderConfigWrite{}, fmt.Errorf("encode github configuration: %w", err)
+	}
+	secretJSON, err := json.Marshal(githubSecretFields{ClientSecret: clientSecret}) // #nosec G117 -- write-only secret payload marshaled solely to be sealed by secretcrypto.Seal; never emitted to any read surface.
+	if err != nil {
+		return builtProviderConfigWrite{}, fmt.Errorf("encode github secret: %w", err)
+	}
+
+	keySeed := baseURL
+	if keySeed == "" {
+		keySeed = "https://github.com"
+	}
+	return builtProviderConfigWrite{
+		kind:              "external_github",
+		keyHash:           localIdentityHash(keySeed + "|" + clientID),
+		issuerHash:        localIdentityHash(keySeed),
+		clientIDHash:      localIdentityHash(clientID),
+		configurationJSON: string(configJSON),
+		secretJSON:        string(secretJSON),
 	}, nil
 }

@@ -139,3 +139,24 @@ WHERE pc.provider_config_id = $1
   AND t.tombstoned_at IS NULL
 LIMIT 1
 `
+
+// selectActiveGitHubProviderConfigForTenantQuery checks whether a GitHub
+// provider config (issue #5166, F-5) is active in durable identity state and
+// belongs to the specified tenant, mirroring
+// selectActiveOIDCProviderConfigForTenantQuery. Used only by the pre-auth
+// provider-discovery endpoint to prevent cross-tenant GitHub runtime-config
+// entries from leaking into another tenant's provider list.
+const selectActiveGitHubProviderConfigForTenantQuery = `
+SELECT pc.provider_config_id
+FROM identity_provider_configs pc
+JOIN tenants t
+    ON t.tenant_id = pc.tenant_id
+WHERE pc.provider_config_id = $1
+  AND pc.tenant_id = $2
+  AND pc.provider_kind = 'external_github'
+  AND pc.status = 'active'
+  AND pc.tombstoned_at IS NULL
+  AND t.status = 'active'
+  AND t.tombstoned_at IS NULL
+LIMIT 1
+`

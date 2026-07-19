@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/eshu-hq/eshu/go/internal/githublogin"
 	"github.com/eshu-hq/eshu/go/internal/oidclogin"
 	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/samlauth"
@@ -79,6 +80,16 @@ func (t *providerConfigConnectionTester) TestProviderConnection(
 		}
 		_ = json.Unmarshal([]byte(material.Configuration), &cfg)
 		result, err := samlauth.TestConnection(ctx, t.keyring, providerConfigID, material.RevisionID, cfg.EntityID, cfg.MetadataURL, cfg.MetadataXML, material.SealedSecret)
+		if err != nil {
+			return query.AdminProviderConfigConnectionTestResult{}, err
+		}
+		return query.AdminProviderConfigConnectionTestResult{OK: result.OK, Detail: result.Detail, RevisionID: material.RevisionID}, nil
+	case "external_github":
+		var cfg struct {
+			APIBaseURL string `json:"api_base_url"`
+		}
+		_ = json.Unmarshal([]byte(material.Configuration), &cfg)
+		result, err := githublogin.TestConnection(ctx, t.keyring, providerConfigID, material.RevisionID, cfg.APIBaseURL, material.SealedSecret)
 		if err != nil {
 			return query.AdminProviderConfigConnectionTestResult{}, err
 		}

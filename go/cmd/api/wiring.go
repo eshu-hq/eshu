@@ -332,8 +332,17 @@ func wireAPI(
 		// and LocalIdentityHandler do.
 		samlHandler.SignInPolicy = browserSessionAdapter
 	}
+	githubLoginHandler, err := newGitHubLoginHandler(getenv, db, instruments, providerSecretKeyring)
+	if err != nil {
+		_ = db.Close()
+		if driver != nil {
+			_ = driver.Close(ctx)
+		}
+		return nil, nil, nil, fmt.Errorf("configure github login: %w", err)
+	}
+	router.GitHubLogin = githubLoginHandler
 	authProviders := &query.AuthProviderListHandler{
-		Store: newAuthProviderListStore(db, samlHandler, oidcLoginHandler),
+		Store: newAuthProviderListStore(db, samlHandler, oidcLoginHandler, githubLoginHandler),
 	}
 	if browserSessionAdapter != nil {
 		// browserSessionAdapter already implements query.SignInPolicyReadStore
