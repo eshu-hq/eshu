@@ -63,17 +63,21 @@ metadata as proof of an empty complete collection.
 Canonical `cloud_resources` require a materialized
 `WorkloadInstance-[:USES]->CloudResource` relationship. Free-text matches and
 explicit deployment-config `READS_CONFIG_FROM` matches do not create that
-relationship. They remain bounded `uncorrelated_cloud_resources` candidates
-with:
+relationship. They remain bounded `uncorrelated_cloud_resources` candidates.
+Every candidate has `candidate_status` and
+`missing_relationship=workload_cloud_relationship`. Configuration-derived
+candidates use `candidate_status=uncorrelated` and expose a `match_basis` for
+the deployment-config evidence. Generic free-text candidates do not invent a
+`match_basis`; their `candidate_status` can be `uncorrelated`,
+`ambiguous_anchor`, `stale_anchor`, or `weak_anchor` according to the retained
+service-anchor state.
 
-- `candidate_status=uncorrelated`;
-- a `match_basis` that identifies free-text or deployment-config evidence; and
-- `missing_relationship=workload_cloud_relationship`.
-
-`uncorrelated_cloud_resources_truncated=true` discloses that the candidate list
-hit its public cap. Candidate rows may be shown as missing evidence, but they
-must not become canonical graph edges or contribute to the canonical cloud
-resource count.
+`uncorrelated_cloud_resources_truncated=true` discloses incomplete candidate
+discovery: the returned list hit its cap, or deployment-config evidence or
+anchor input was truncated upstream. Additional candidates may therefore exist
+even when no candidate rows were returned. Candidate rows may be shown as
+missing evidence, but they must not become canonical graph edges or contribute
+to the canonical cloud resource count.
 
 ## Kubernetes, controller, and image bounds
 

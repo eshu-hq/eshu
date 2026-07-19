@@ -471,14 +471,19 @@ should treat them as missing evidence to investigate, not as attached
 dependencies.
 Deployment-config `READS_CONFIG_FROM` matches use the same candidate bucket:
 they can explain why a resource should be investigated, but they do not create
-the reducer-owned workload-to-cloud relationship. Candidate rows expose
-`candidate_status`, `match_basis`, and `missing_relationship`, while
-`uncorrelated_cloud_resources_truncated=true` reports that additional bounded
-candidates may exist. Deployment-config candidates are globally ordered by
-resource name and canonical ID before the response bound is applied;
-deployment-evidence artifact order does not decide which config-derived
-candidates survive that bound. Free-text candidate selection is a separate
-query path and does not use deployment-evidence artifact order.
+the reducer-owned workload-to-cloud relationship. All candidate rows expose
+`candidate_status` and `missing_relationship`. Deployment-config candidates
+also expose `match_basis`; free-text candidates instead preserve their service-
+anchor status, so `candidate_status` can be `uncorrelated`, `ambiguous_anchor`,
+`stale_anchor`, or `weak_anchor`.
+`uncorrelated_cloud_resources_truncated=true` reports that candidate discovery
+was incomplete because the returned list was capped or deployment-config
+evidence or anchor input was truncated. Additional candidates may therefore
+exist even when no candidate rows were returned. Deployment-config candidates
+are globally ordered by resource name and canonical ID before the response
+bound is applied; deployment-evidence artifact order does not decide which
+config-derived candidates survive that bound. Free-text candidate selection is
+a separate query path and does not use deployment-evidence artifact order.
 
 Repository story uses the same repository deployment-evidence read path as
 repository context and service story. When repository-scoped deployment evidence

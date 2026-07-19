@@ -29,8 +29,17 @@ func TestOpenAPIImpactDeploymentTraceDocumentsCanonicalPlatformIdentity(t *testi
 	schema := mustMapField(t, jsonContent, "schema")
 	properties := mustMapField(t, schema, "properties")
 	uncorrelatedCloudResources := mustMapField(t, properties, "uncorrelated_cloud_resources")
-	if description, _ := uncorrelatedCloudResources["description"].(string); !strings.Contains(description, "Deployment-config candidates are globally ordered by name and canonical ID") {
-		t.Fatalf("uncorrelated_cloud_resources description does not document ordering: %q", description)
+	uncorrelatedDescription, _ := uncorrelatedCloudResources["description"].(string)
+	if !strings.Contains(uncorrelatedDescription, "Deployment-config candidates are globally ordered by name and canonical ID") {
+		t.Fatalf("uncorrelated_cloud_resources description does not document ordering: %q", uncorrelatedDescription)
+	}
+	if !strings.Contains(uncorrelatedDescription, "Deployment-config candidates expose match_basis") || !strings.Contains(uncorrelatedDescription, "ambiguous_anchor") {
+		t.Fatalf("uncorrelated_cloud_resources description does not document source-specific fields: %q", uncorrelatedDescription)
+	}
+	uncorrelatedCloudResourcesTruncated := mustMapField(t, properties, "uncorrelated_cloud_resources_truncated")
+	truncationDescription, _ := uncorrelatedCloudResourcesTruncated["description"].(string)
+	if !strings.Contains(truncationDescription, "candidate discovery was incomplete") || !strings.Contains(truncationDescription, "anchor input") {
+		t.Fatalf("uncorrelated_cloud_resources_truncated description does not document upstream truncation: %q", truncationDescription)
 	}
 	instances := mustMapField(t, properties, "instances")
 	instanceItems := mustMapField(t, instances, "items")
