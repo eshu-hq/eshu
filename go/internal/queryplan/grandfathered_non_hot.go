@@ -88,7 +88,7 @@ var grandfatheredNonHotSourceDigests = map[string]string{
 	"repository.go:(*RepositoryHandler).listRepositories":                                                 "07fa08de96351f397a313a36bb05c2f384e3ad75cc216b81b135451610f36512",
 	"repository.go:queryRepositoryTotal":                                                                  "e603a18a6dd3f1973a5e2aff4e22f7e7f98bd89352edf2de52c18cf88a539e9a",
 	"repository_api_surface.go:queryRepoAPISurface":                                                       "0cf56ba43a52fad022d03be7959ce494527fa2372bbbbf9f0415688a94c76f46",
-	"repository_config_artifacts_loader.go:queryRelatedRepositoryArtifactSources":                         "672c6caa791486b84f7ce5340e47309ddb6dfaee2c26ef7150e1eeced8f5d2bb",
+	"repository_config_artifacts_loader.go:queryRelatedRepositoryArtifactSources":                         "5659c0f65fa8b74c50a2a9cb78eeb2883a7c4425fae9e9301dca95ee21d32aad",
 	"repository_context.go:(*RepositoryHandler).getRepositoryContext":                                     "adecc84dff44e30b3bb5f68507af4a8a3005a62c72c7fbc10883e75b8770184b",
 	"repository_context_counts.go:queryRepositoryContextCount":                                            "e8c66034cfbf42b460f9060c738234c0860b95c7e9547e03ba4f59cc20957901",
 	"repository_context_helpers.go:queryRepoConsumers":                                                    "66f6ce172dbeead283bf88e50ed34a8b1d1a08c7b999c7854a7e6d54aecb7d31",

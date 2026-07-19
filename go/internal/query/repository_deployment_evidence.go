@@ -74,12 +74,13 @@ func redactDeploymentEvidenceRowForAccess(row map[string]any, anchorRepoID strin
 	return true
 }
 
-// filterDeploymentEvidenceRowsForAccess binds every deployment-evidence artifact
-// row to the caller's grant (#5167 W3 P0 cross-tenant disclosure): it drops rows
-// naming a cross-tenant repository on a non-anchor endpoint and blanks the
-// recovered identity of any endpoint whose repo_id is empty (unverifiable). It
-// is the single shared choke point -- queryRepoDeploymentEvidence's graph path
-// and loadRepositoryDeploymentEvidence's Postgres read-model path (the
+// filterDeploymentEvidenceRowsForAccess binds every deployment-evidence
+// EvidenceArtifact row to the caller's grant (#5167 W3 P0 cross-tenant
+// disclosure): it drops rows naming a cross-tenant repository on a non-anchor
+// endpoint and blanks the recovered identity of any endpoint whose repo_id is
+// empty (unverifiable). It is the single shared choke point for that
+// EvidenceArtifact surface specifically -- queryRepoDeploymentEvidence's graph
+// path and loadRepositoryDeploymentEvidence's Postgres read-model path (the
 // production-primary path, since ImpactHandler/EntityHandler are wired with a
 // real ContentReader) both call it -- so every caller (service/workload/
 // repository context and story, plus the #5167 W3 impact routes) is bound
@@ -88,6 +89,22 @@ func redactDeploymentEvidenceRowForAccess(row map[string]any, anchorRepoID strin
 // buildGraphDeploymentEvidence's aggregates (source_repo_ids, target_repo_ids,
 // artifact_count, evidence_index) are all derived from the filtered/redacted
 // rows because this runs before the build.
+//
+// It is NOT the only path that contributes to a caller's deployment_evidence /
+// deployment_artifacts / infrastructure_overview output. When this
+// EvidenceArtifact set comes back empty for a repository (every artifact named
+// an out-of-grant endpoint, or none exist), loadServiceDeploymentEvidence and
+// the repository context/story handlers fall through to
+// loadDeploymentArtifactOverview, which fans out to a second, independent
+// cross-repository read: queryRelatedRepositoryArtifactSources
+// (repository_config_artifacts_loader.go) walks DEPENDS_ON/USES_MODULE/...
+// edges to related repositories and fetches their config/controller artifact
+// files. That fallback surface is bound by its own filter,
+// filterRepositoryArtifactSourcesForAccess, applied before any related
+// source's files are fetched (#5167 W3 P0, third round) -- not by this
+// function. The workflow/runtime/cloudformation artifact loaders reached from
+// the same fallback never leave the anchor repository, so they need no filter
+// of their own.
 func filterDeploymentEvidenceRowsForAccess(rows []map[string]any, anchorRepoID string, access repositoryAccessFilter) []map[string]any {
 	if !access.scoped() {
 		return rows

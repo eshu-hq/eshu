@@ -425,3 +425,8 @@ func TestServiceContextReadModelPathScopedBlanksCrossTenantIdentity(t *testing.T
 		t.Fatalf("scoped caller leaked recovered cross-tenant source name via /services/{name}/context read-model path: %s", scopedBody)
 	}
 }
+
+// TestServiceContextFallbackArtifactOverviewScopedFiltersCrossTenantRepo (the
+// #5167 W3 P0 third-round deployment-artifact-overview fallback mutation-check)
+// lives in auth_scoped_routes_impact_evidence_fallback_test.go, split out to
+// keep this file under the 500-line cap.
