@@ -32,6 +32,8 @@ export function selectImpactGraph(
       [blast.source],
       "Blast radius",
       blast.truth,
+      [],
+      boundedSourceCompleteness(blast.data.truncated),
     );
   }
   const traceSelectionLimitation = deploymentTraceSelectionLimitation(
@@ -48,6 +50,7 @@ export function selectImpactGraph(
         "Change surface",
         changeSurface.truth,
         [traceSelectionLimitation],
+        boundedSourceCompleteness(changeSurface.data.truncated),
       );
     }
     return existingGraph(
@@ -57,6 +60,7 @@ export function selectImpactGraph(
       "Impact graph",
       null,
       [traceSelectionLimitation],
+      "unverified",
     );
   }
   if (changeSurface.status === "ready" && changeSurface.data.impact.totalCount > 0) {
@@ -66,6 +70,8 @@ export function selectImpactGraph(
       [changeSurface.source],
       "Change surface",
       changeSurface.truth,
+      [],
+      boundedSourceCompleteness(changeSurface.data.truncated),
     );
   }
   if (
@@ -97,7 +103,11 @@ export function selectImpactGraph(
           "Change surface",
           changeSurface.truth,
           deployment.presentation.limitations,
-          deployment.presentation.completeness,
+          boundedSourceCompleteness(
+            changeSurface.data.truncated,
+            deployment.presentation.completeness,
+          ),
+          changeSurface.data.truncated || deployment.presentation.truncated,
         );
       }
       return existingGraph(
@@ -108,6 +118,7 @@ export function selectImpactGraph(
         deploymentTrace.truth,
         deployment.presentation.limitations,
         deployment.presentation.completeness,
+        deployment.presentation.truncated,
       );
     }
   }
@@ -118,6 +129,8 @@ export function selectImpactGraph(
       [changeSurface.source],
       "Change surface",
       changeSurface.truth,
+      [],
+      boundedSourceCompleteness(changeSurface.data.truncated),
     );
   }
   if (blast.status === "ready") {
@@ -127,9 +140,19 @@ export function selectImpactGraph(
       [blast.source],
       "Blast radius",
       blast.truth,
+      [],
+      boundedSourceCompleteness(blast.data.truncated),
     );
   }
-  return existingGraph({ edges: [], nodes: [] }, "empty", [], "Impact graph");
+  return existingGraph(
+    { edges: [], nodes: [] },
+    "empty",
+    [],
+    "Impact graph",
+    null,
+    [],
+    "unverified",
+  );
 }
 
 function existingGraph(
@@ -144,7 +167,10 @@ function existingGraph(
   } | null,
   limitations: readonly string[] = [],
   completeness: ImpactGraphPresentation["completeness"] = "complete",
+  truncated = completeness === "truncated",
 ): { readonly graph: GraphModel; readonly presentation: ImpactGraphPresentation } {
+  const activeLimitations = new Set(limitations);
+  if (truncated) activeLimitations.add(`${title.toLowerCase()} input truncated upstream`);
   return {
     graph,
     presentation: {
@@ -156,7 +182,7 @@ function existingGraph(
       freshness: truth?.freshness.state,
       inputEdges: graph.edges.length,
       inputNodes: graph.nodes.length,
-      limitations,
+      limitations: [...activeLimitations],
       mode,
       nodeLimit,
       omittedEdges: 0,
@@ -165,7 +191,7 @@ function existingGraph(
       renderedNodes: graph.nodes.length,
       sourceApis,
       title,
-      truncated: false,
+      truncated,
       truthBasis: truth?.basis,
       truthLevel: truth?.level,
     },
@@ -195,7 +221,21 @@ function deploymentTraceSelectionLimitation(
   if (changeSurface.data.resolution.selected?.id !== deploymentTrace.data.workloadId) {
     return "deployment topology not selected because trace and change-surface workload identities disagree";
   }
+  const selectedRepoID =
+    changeSurface.data.resolution.selected?.repoId.trim() || changeSurface.data.scope.repoId.trim();
+  if (selectedRepoID.length > 0 && selectedRepoID !== deploymentTrace.data.repoId) {
+    return "deployment topology not selected because trace and change-surface repository identities disagree";
+  }
   return undefined;
+}
+
+function boundedSourceCompleteness(
+  truncated: boolean,
+  inherited: ImpactGraphPresentation["completeness"] = "complete",
+): ImpactGraphPresentation["completeness"] {
+  if (inherited === "unverified") return "unverified";
+  if (truncated || inherited === "truncated") return "truncated";
+  return "complete";
 }
 
 function changeSurfaceGraph(

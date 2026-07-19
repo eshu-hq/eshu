@@ -160,7 +160,7 @@ describe("impact review adapter", () => {
               limit: 25,
               target: "catalog-api",
               target_type: "repository",
-              truncated: false,
+              truncated: true,
             },
             error: null,
             truth: truthEnvelope("platform_impact.blast_radius"),
@@ -200,6 +200,10 @@ describe("impact review adapter", () => {
     });
     expect(result.blast.status).toBe("ready");
     expect(result.deploymentTrace.status).toBe("skipped");
+    expect(result.graphPresentation).toMatchObject({
+      completeness: "truncated",
+      truncated: true,
+    });
     expect(result.graph.nodes.map((node) => node.label).sort()).toEqual([
       "catalog-api",
       "consumer-api",

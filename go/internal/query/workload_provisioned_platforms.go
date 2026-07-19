@@ -15,6 +15,12 @@ type provisionedPlatformResult struct {
 	limits map[string]any
 }
 
+type orderedProvisionedPlatform struct {
+	platform map[string]any
+	sourceID string
+	targetID string
+}
+
 func (h *EntityHandler) fetchProvisionedPlatformResult(ctx context.Context, repoID string) (provisionedPlatformResult, error) {
 	if h == nil || h.Neo4j == nil || strings.TrimSpace(repoID) == "" {
 		return provisionedPlatformResult{rows: []map[string]any{}}, nil
@@ -47,23 +53,32 @@ func (h *EntityHandler) fetchProvisionedPlatformResult(ctx context.Context, repo
 	if err != nil {
 		return provisionedPlatformResult{}, err
 	}
-	normalized := make([]map[string]any, 0, min(len(rows), contextStoryItemLimit))
+	ordered := make([]orderedProvisionedPlatform, 0, min(len(rows), contextStoryItemLimit))
 	seen := make(map[string]struct{}, len(rows))
 	for _, row := range rows {
 		platform := normalizeProvisionedPlatform(row)
-		key := StringVal(platform, "platform_id") + "\x00" + StringVal(row, "platform_source_id") + "\x00" + StringVal(row, "platform_dependency_target_id")
+		sourceID := StringVal(row, "platform_source_id")
+		targetID := StringVal(row, "platform_dependency_target_id")
+		key := StringVal(platform, "platform_id") + "\x00" + sourceID + "\x00" + targetID
 		if _, exists := seen[key]; exists {
 			continue
 		}
 		seen[key] = struct{}{}
-		if len(normalized) < contextStoryItemLimit {
-			normalized = append(normalized, platform)
+		if len(ordered) < contextStoryItemLimit {
+			ordered = append(ordered, orderedProvisionedPlatform{
+				platform: platform,
+				sourceID: sourceID,
+				targetID: targetID,
+			})
 		}
 	}
-	sort.Slice(normalized, func(i, j int) bool {
-		return StringVal(normalized[i], "platform_name")+"\x00"+StringVal(normalized[i], "platform_id") <
-			StringVal(normalized[j], "platform_name")+"\x00"+StringVal(normalized[j], "platform_id")
+	sort.Slice(ordered, func(i, j int) bool {
+		return provisionedPlatformOrderKey(ordered[i]) < provisionedPlatformOrderKey(ordered[j])
 	})
+	normalized := make([]map[string]any, 0, len(ordered))
+	for _, entry := range ordered {
+		normalized = append(normalized, entry.platform)
+	}
 	truncated := len(rows) >= queryLimit || len(seen) > contextStoryItemLimit
 	return provisionedPlatformResult{
 		rows: normalized,
@@ -72,6 +87,15 @@ func (h *EntityHandler) fetchProvisionedPlatformResult(ctx context.Context, repo
 			[]string{"platform_name", "platform_id", "source_repository_id", "target_repository_id"},
 		),
 	}, nil
+}
+
+func provisionedPlatformOrderKey(entry orderedProvisionedPlatform) string {
+	return strings.Join([]string{
+		StringVal(entry.platform, "platform_name"),
+		StringVal(entry.platform, "platform_id"),
+		entry.sourceID,
+		entry.targetID,
+	}, "\x00")
 }
 
 func normalizeProvisionedPlatform(row map[string]any) map[string]any {

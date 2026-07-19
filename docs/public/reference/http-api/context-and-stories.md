@@ -113,24 +113,6 @@ separately bounds service-matched controller entities and discloses source-scan
 saturation. `image_refs` contains images from returned bounded Kubernetes rows
 only; images belonging solely to omitted rows are not returned.
 
-Impact graph consumers may report `complete within bounds` only when four
-independent metadata families are present and internally consistent:
-`runtime_topology_limits`, `deployment_source_limits`,
-`cloud_resource_limits`, and `k8s_resource_limits`. The runtime block contains
-separate bounds for instances, direct platform edges, and provisioned
-platforms. The Kubernetes block contains separate content and
-deployment-source probes because those inputs are merged and deduplicated
-before the public cap. Missing, malformed, or contradictory metadata means
-`completeness unverified`; it never proves a complete empty collection.
-
-`cloud_resource_limits` describes only canonical resources returned from a
-materialized workload-instance `USES` relationship. When the handler reuses
-older context rows that were not sentinel-probed, it omits this block and the
-consumer must fail completeness closed. `controller_overview.entity_limits`
-separately bounds service-matched controller entities and discloses source-scan
-saturation. `image_refs` contains images from returned bounded Kubernetes rows
-only; images belonging solely to omitted rows are not returned.
-
 The top-level `topology_edges[]` array carries the selected subject backbone:
 `DEFINES` from `repo_id` to `workload_id`, plus `INSTANCE_OF` from every
 returned `instance_id` to that workload. Consumers should treat a missing or

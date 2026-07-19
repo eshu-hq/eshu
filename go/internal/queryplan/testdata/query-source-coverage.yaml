@@ -13,7 +13,7 @@ source_coverage:
       - {symbol: "loadUncorrelatedCloudResourceCandidatesBounded", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
   - file: cloud_resource_dependencies.go
     calls:
-      - {symbol: "loadConfigDerivedCloudResourceDependenciesWithLimit", count: 1, non_hot: {class: keyed_support, source_sha256: a23baa4bf0fc9894bb484e065f7f67b7cebc6d10b831789238f7625ebbe3ee2e, key_bound: bounded_key_batch, max_keys: 50, max_results: 51}}
+      - {symbol: "loadConfigDerivedCloudResourceDependenciesWithLimit", count: 1, non_hot: {class: keyed_support, source_sha256: 52b7142c10a55d25f654f3a2b5ad17c592fbb5d71e3e02ee3dd1eca4fa6048bc, key_bound: bounded_key_batch, max_keys: 50, max_results: 51}}
       - {symbol: "loadMaterializedServiceCloudResourceDependencies", count: 1, source_sha256: 147687884747140d0e4cc8238bef499cff688799df7206de884d264e23269e3e, entry_ids: [QP-SVC-CLOUD-DEPS]}
   - file: cloud_resources.go
     calls:
@@ -197,7 +197,7 @@ source_coverage:
       - {symbol: "resolveTraceWorkloadSelector", count: 1, non_hot: {class: keyed_support, source_sha256: 1ef726a82e1024e33d396eade2571b2a8215086146102bca94fb6de650e1b8ad, key_bound: single_key, max_results: 1}}
   - file: workload_provisioned_platforms.go
     calls:
-      - {symbol: "(*EntityHandler).fetchProvisionedPlatformResult", count: 1, non_hot: {class: keyed_support, source_sha256: 9719fba9451976957537a9a6c974756c90bee76fba1882b6689a91b9966aa9b6, key_bound: single_key, max_results: 51}}
+      - {symbol: "(*EntityHandler).fetchProvisionedPlatformResult", count: 1, non_hot: {class: keyed_support, source_sha256: dcd3b84ee640072005ebec74277db8b380f3c9dc4213f3e8117e98dfa2e69105, key_bound: single_key, max_results: 51}}
   - file: workload_runtime_topology.go
     calls:
       - {symbol: "fetchWorkloadRuntimeTopology", count: 1, non_hot: {class: keyed_support, source_sha256: 9532b5564ff9355653fdeb8b093af43165a5ff7203909129eabb25afb148a5ca, key_bound: single_key, max_results: 51}}

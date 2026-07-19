@@ -23,6 +23,7 @@ export function deploymentTraceGraph(
   let identityOmittedNodes = 0;
   let identityOmittedEdges = 0;
   let hasUnverifiedOmission = false;
+  const instanceIDs = new Set(trace.instances.map((instance) => instance.id));
 
   const addNode = (node: GraphNode | null, limitation: string): boolean => {
     if (node === null || node.id.trim().length === 0) {
@@ -62,7 +63,7 @@ export function deploymentTraceGraph(
   };
 
   addSubjectNodes(trace, truth, addNode);
-  addDeploymentSources(trace, truth, addNode, addEdge);
+  addDeploymentSources(trace, truth, instanceIDs, addNode, addEdge);
 
   for (const instance of trace.instances) {
     addNode(
@@ -99,7 +100,6 @@ export function deploymentTraceGraph(
     }
   }
 
-  const instanceIDs = new Set(trace.instances.map((instance) => instance.id));
   for (const edge of trace.topologyEdges) {
     if (!hasTopologyEndpoints(edge)) {
       addTopologyEdge(edge);
@@ -281,6 +281,7 @@ function addSubjectNodes(
 function addDeploymentSources(
   trace: DeploymentTraceResult,
   truth: UiTruth,
+  instanceIDs: ReadonlySet<string>,
   addNode: (node: GraphNode | null, limitation: string) => boolean,
   addEdge: (edge: GraphEdge | null, limitation: string) => void,
 ): void {
@@ -317,7 +318,9 @@ function addDeploymentSources(
     } else if (source.relationshipType === "DEPLOYMENT_SOURCE") {
       const evidence = source.detail ? [source.detail] : [];
       addEdge(
-        source.sourceId !== undefined && source.targetId === configRepoID
+        source.sourceId !== undefined &&
+          instanceIDs.has(source.sourceId) &&
+          source.targetId === configRepoID
           ? {
               ...(evidence.length > 0 ? { evidence } : {}),
               layer: "deploy",

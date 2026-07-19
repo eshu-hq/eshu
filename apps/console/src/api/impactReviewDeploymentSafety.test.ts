@@ -312,6 +312,33 @@ describe("Impact deployment topology safety", () => {
       },
     ],
     [
+      "a deployment-source relationship references an instance absent from the trace",
+      {
+        deployment_source_limits: {
+          canonical_observed_count: 1,
+          limit: 50,
+          observed_count: 1,
+          observed_count_is_lower_bound: false,
+          ordering: ["relationship_type_priority", "repo_name", "source_id", "target_id"],
+          query_sentinel_limit: 51,
+          repository_observed_count: 0,
+          returned_count: 1,
+          truncated: false,
+        },
+        deployment_sources: [
+          {
+            relationship_type: "DEPLOYMENT_SOURCE",
+            repo_id: "repository:r_config",
+            repo_name: "deployment-config",
+            source_id: "workload-instance:catalog-api:absent",
+            target_id: "repository:r_config",
+          },
+        ],
+        runtime_topology_limits: completeRuntimeTopologyLimits(0, 0, 0),
+        topology_edges: [topologyEdge("DEFINES", "repository:r_catalog", "workload:catalog-api")],
+      },
+    ],
+    [
       "an unsupported topology row is omitted",
       {
         runtime_topology_limits: completeRuntimeTopologyLimits(0, 0, 0),

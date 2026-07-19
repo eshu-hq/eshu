@@ -70,6 +70,37 @@ func TestFetchProvisionedPlatformsKeepsRepositoryTopologySeparate(t *testing.T) 
 	assertExactTopologyEdge(t, edges, "PROVISIONS_PLATFORM", "repository:infra", "platform:eks:prod", "fact-platform")
 }
 
+func TestFetchProvisionedPlatformsOrdersSamePlatformByRepositoryEndpoints(t *testing.T) {
+	t.Parallel()
+
+	reader := fakeGraphReader{run: func(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
+		return []map[string]any{
+			{
+				"platform_source_id": "repository:z-infra", "platform_dependency_target_id": "repository:orders",
+				"platform_id": "platform:eks:prod", "platform_name": "prod",
+			},
+			{
+				"platform_source_id": "repository:a-infra", "platform_dependency_target_id": "repository:orders",
+				"platform_id": "platform:eks:prod", "platform_name": "prod",
+			},
+		}, nil
+	}}
+
+	result, err := (&EntityHandler{Neo4j: reader}).fetchProvisionedPlatformResult(t.Context(), "repository:orders")
+	if err != nil {
+		t.Fatalf("fetchProvisionedPlatformResult() error = %v", err)
+	}
+	if got, want := len(result.rows), 2; got != want {
+		t.Fatalf("rows = %d, want %d", got, want)
+	}
+	for index, want := range []string{"repository:a-infra", "repository:z-infra"} {
+		edges := mapSliceValue(result.rows[index], "topology_edges")
+		if got := StringVal(edges[0], "source_id"); got != want {
+			t.Fatalf("rows[%d] source_id = %q, want %q", index, got, want)
+		}
+	}
+}
+
 func TestBuildDeploymentTraceResponseDoesNotCopyProvisioningUnderInstances(t *testing.T) {
 	t.Parallel()
 
