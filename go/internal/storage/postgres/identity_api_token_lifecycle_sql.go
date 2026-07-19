@@ -115,7 +115,12 @@ WHERE token_id = $1
       (
           token_class = 'personal'
           AND user_id IN (
-              SELECT user_id FROM identity_users WHERE subject_id_hash = $5
+              SELECT user_id
+              FROM identity_users
+              WHERE subject_id_hash = $5
+                AND status = 'active'
+                AND disabled_at IS NULL
+                AND tombstoned_at IS NULL
           )
       )
       OR (
@@ -123,9 +128,17 @@ WHERE token_id = $1
           AND service_principal_id IN (
               SELECT service_principal_id
               FROM identity_service_principals
-              WHERE owner_user_id IN (
-                  SELECT user_id FROM identity_users WHERE subject_id_hash = $5
-              )
+              WHERE status = 'active'
+                AND disabled_at IS NULL
+                AND tombstoned_at IS NULL
+                AND owner_user_id IN (
+                    SELECT user_id
+                    FROM identity_users
+                    WHERE subject_id_hash = $5
+                      AND status = 'active'
+                      AND disabled_at IS NULL
+                      AND tombstoned_at IS NULL
+                )
           )
       )
   )
@@ -237,7 +250,12 @@ WHERE old_token.token_id = $3
       (
           old_token.token_class = 'personal'
           AND old_token.user_id IN (
-              SELECT user_id FROM identity_users WHERE subject_id_hash = $8
+              SELECT user_id
+              FROM identity_users
+              WHERE subject_id_hash = $8
+                AND status = 'active'
+                AND disabled_at IS NULL
+                AND tombstoned_at IS NULL
           )
       )
       OR (
@@ -245,9 +263,17 @@ WHERE old_token.token_id = $3
           AND old_token.service_principal_id IN (
               SELECT service_principal_id
               FROM identity_service_principals
-              WHERE owner_user_id IN (
-                  SELECT user_id FROM identity_users WHERE subject_id_hash = $8
-              )
+              WHERE status = 'active'
+                AND disabled_at IS NULL
+                AND tombstoned_at IS NULL
+                AND owner_user_id IN (
+                    SELECT user_id
+                    FROM identity_users
+                    WHERE subject_id_hash = $8
+                      AND status = 'active'
+                      AND disabled_at IS NULL
+                      AND tombstoned_at IS NULL
+                )
           )
       )
   )

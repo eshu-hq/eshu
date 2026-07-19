@@ -180,3 +180,67 @@ func TestRotateLocalIdentityAPITokenByOwnerZeroRowsIsNotFound(t *testing.T) {
 		t.Fatalf("rotation committed despite a non-owned old token")
 	}
 }
+
+// collapseWhitespace normalizes runs of whitespace to single spaces so query
+// text can be substring-matched independent of SQL indentation.
+func collapseWhitespace(s string) string {
+	return strings.Join(strings.Fields(s), " ")
+}
+
+// TestRevokeAndRotateByOwnerFilterInactiveOwners is the defense-in-depth
+// regression guard requested during security review: the ownership predicate
+// must resolve the caller's subject only through an ACTIVE, non-disabled,
+// non-tombstoned identity — for both the personal owning user and the
+// service-principal branch (the SP itself and its owning user). This keeps the
+// by-owner path self-sufficient: a disabled or tombstoned owner's token cannot
+// be revoked or rotated regardless of what the auth layer admits, because the
+// ownership subquery returns no user_id and the mutation affects zero rows
+// (which the handler renders as a non-disclosing 404). The filter columns and
+// values mirror the sibling insertLocalIdentityPersonalAPITokenQuery and the
+// bearer resolver (identity_api_tokens_sql.go).
+func TestRevokeAndRotateByOwnerFilterInactiveOwners(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name  string
+		query string
+	}{
+		{"revoke", revokeLocalIdentityAPITokenByOwnerQuery},
+		{"rotate", rotateLocalIdentityAPITokenByOwnerQuery},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			normalized := collapseWhitespace(tc.query)
+
+			// The personal owning-user resolution must only match a live user.
+			personalOwner := "FROM identity_users WHERE subject_id_hash = $" +
+				ownerHashParam(tc.name) +
+				" AND status = 'active' AND disabled_at IS NULL AND tombstoned_at IS NULL"
+			if !strings.Contains(normalized, personalOwner) {
+				t.Fatalf("%s by-owner query does not filter inactive personal owners; want %q in:\n%s", tc.name, personalOwner, normalized)
+			}
+
+			// The service-principal branch must filter the SP's own liveness...
+			spLiveness := "FROM identity_service_principals WHERE status = 'active' AND disabled_at IS NULL AND tombstoned_at IS NULL"
+			if !strings.Contains(normalized, spLiveness) {
+				t.Fatalf("%s by-owner query does not filter inactive service principals; want %q in:\n%s", tc.name, spLiveness, normalized)
+			}
+			// ...and resolve the SP's owning user only when that user is live too.
+			spOwner := "owner_user_id IN ( SELECT user_id FROM identity_users WHERE subject_id_hash = $" +
+				ownerHashParam(tc.name) +
+				" AND status = 'active' AND disabled_at IS NULL AND tombstoned_at IS NULL )"
+			if !strings.Contains(normalized, spOwner) {
+				t.Fatalf("%s by-owner query does not filter inactive SP owners; want %q in:\n%s", tc.name, spOwner, normalized)
+			}
+		})
+	}
+}
+
+// ownerHashParam returns the positional parameter index carrying the caller's
+// subject_id_hash: $5 for the revoke UPDATE, $8 for the rotate INSERT-SELECT.
+func ownerHashParam(queryName string) string {
+	if queryName == "rotate" {
+		return "8"
+	}
+	return "5"
+}
