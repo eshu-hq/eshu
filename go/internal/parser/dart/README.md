@@ -4,8 +4,9 @@
 
 This package owns the Dart parser adapter used by the parent parser engine. It
 uses tree-sitter syntax for import/export names, class-style declarations,
-function rows, variables, and Dart/Flutter dead-code root metadata, while
-keeping lightweight call evidence in the legacy payload shape.
+function rows, variables, call sites, and Dart/Flutter dead-code root
+metadata, emitting call evidence in the legacy `function_calls` payload
+shape.
 
 ## Ownership boundary
 
@@ -42,7 +43,14 @@ declarations outside `lib/src/`. Annotations attached to class declarations are
 consumed at the declaration boundary so they do not become member decorators.
 Constructor detection comes from constructor signature nodes inside class
 bodies; constructor calls inside method bodies must remain call evidence, not
-constructor declarations. Import collection must avoid double-counting
+constructor declarations. `function_calls` rows come from an AST call-site
+walk (`calls.go`, `collectDartCallSites`) over call-expression grammar shapes
+(`selector`/`argument_part`, cascades, `new`/`const` object creation), not a
+byte scan, so a declaration signature can never be misclassified as a call
+site (eshu-hq/eshu#5332). Rows carry both `name` (bare callee) and
+`full_name` (dotted qualified chain, e.g. `f.build`), deduplicated by
+`full_name` so distinct receivers sharing a method name (`a.foo()` vs
+`b.foo()`) both survive. Import collection must avoid double-counting
 `import_or_export` wrapper nodes and their concrete library children, and it
 marks Dart `library_import` rows with `import_type=import` and
 `library_export` rows with `import_type=export` so downstream resolvers do not

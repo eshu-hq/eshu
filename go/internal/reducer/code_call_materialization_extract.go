@@ -4,6 +4,7 @@
 package reducer
 
 import (
+	"log/slog"
 	"sort"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
@@ -210,7 +211,51 @@ func extractCodeCallRowsWithIndex(
 		return left < right
 	})
 
+	recordCodeCallSelfLoopWritten(rows)
 	return repositoryIDs, rows
+}
+
+// recordCodeCallSelfLoopWritten observes a materialized code-call row whose
+// caller and callee resolve to the same entity (a genuinely recursive
+// function/method) and logs a per-language tally.
+//
+// This is deliberately observe-only: unlike the skipped_self_loop counters on
+// the IAM CAN_PERFORM/escalation projections (which drop a self-referential
+// grant as noise), a code-call self-loop is real recursion — legitimate graph
+// truth — and MUST still be written. Filtering it here would be the same
+// class of accuracy bug as eshu-hq/eshu#5332 (the raw Dart byte-scanner
+// recording every declaration as a self-call), just inverted: instead of a
+// false self-loop being written, a true one would be silently dropped. See
+// go/internal/parser/dart/calls.go for the parser-side fix that stopped
+// declarations from ever reaching this path as spurious self-loops; this
+// tally exists so a future regression in the opposite direction (a resolver
+// change that starts filtering real recursion) is visible in logs rather
+// than silently changing fan-in/call-count signals corpus-wide.
+func recordCodeCallSelfLoopWritten(rows []map[string]any) {
+	tally := make(map[string]int)
+	total := 0
+	for _, row := range rows {
+		callerID := anyToString(row["caller_entity_id"])
+		calleeID := anyToString(row["callee_entity_id"])
+		if callerID == "" || callerID != calleeID {
+			continue
+		}
+		lang := anyToString(row["lang"])
+		if lang == "" {
+			lang = "unknown"
+		}
+		tally[lang]++
+		total++
+	}
+	if total == 0 {
+		return
+	}
+	slog.Info(
+		"code call self loop written",
+		"event", "code_call_self_loop_written",
+		"total", total,
+		"by_lang", tally,
+	)
 }
 
 func collectCodeCallRepositoryIDs(envelopes []facts.Envelope) []string {

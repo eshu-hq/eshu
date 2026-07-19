@@ -29,7 +29,7 @@ func Parse(path string, isDependency bool, options shared.Options) (map[string]a
 
 // ParseWithParser extracts Dart declarations with a caller-owned tree-sitter parser.
 func ParseWithParser(path string, isDependency bool, options shared.Options, parser *tree_sitter.Parser) (map[string]any, error) {
-	source, syntax, err := dartSourceAndSyntax(path, parser)
+	_, syntax, err := dartSourceAndSyntax(path, parser)
 	if err != nil {
 		return nil, err
 	}
@@ -101,7 +101,9 @@ func ParseWithParser(path string, isDependency bool, options shared.Options, par
 			"lang":        "dart",
 		})
 	}
-	appendDartCalls(payload, seenCalls, source)
+	for _, call := range syntax.calls {
+		appendUniqueDartCall(payload, seenCalls, call.name, call.fullName, call.line)
+	}
 
 	shared.SortNamedBucket(payload, "functions")
 	shared.SortNamedBucket(payload, "classes")

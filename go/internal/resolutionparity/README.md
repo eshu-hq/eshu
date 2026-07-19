@@ -84,3 +84,14 @@ tier:
   Eshu's own output.
 - Any emitted method outside the ADR #2222 vocabulary fails the test
   immediately, guarding the closed-set invariant per language.
+- `golden_call_graph_dart_self_loop_test.go` is the real-pipeline regression
+  for eshu-hq/eshu#5332 (the Dart byte-scanner that misread every
+  declaration as a self-call): `TestDeclarationOnlyDartSourceHasNoCallGraphEdges`
+  drives a declaration-only Dart file through the same
+  `parser.DefaultEngine()` -> `reducer.ExtractCodeCallRows` pipeline and
+  asserts zero CALLS edges, while `TestDartRecursionCallGraphSelfLoopSurvives`
+  proves the fix does not overcorrect: genuine same-file recursion still
+  produces a real self-loop edge (`resolution_method="same_file"`). These are
+  standalone tests, not `sourceCallGraphFixtures` entries, because the
+  declaration-only case expects zero edges rather than the harness's one
+  caller-to-callee edge.

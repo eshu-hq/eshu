@@ -23,46 +23,28 @@
             ],
             "function_calls": [
               {
-                "full_name": "OrderService",
-                "lang": "dart",
-                "line_number": 6,
-                "name": "OrderService"
-              },
-              {
-                "full_name": "place",
-                "lang": "dart",
-                "line_number": 8,
-                "name": "place"
-              },
-              {
-                "full_name": "create",
+                "full_name": "repository.create",
                 "lang": "dart",
                 "line_number": 9,
                 "name": "create"
               },
               {
-                "full_name": "addLine",
+                "full_name": "order.addLine",
                 "lang": "dart",
                 "line_number": 11,
                 "name": "addLine"
               },
               {
-                "full_name": "save",
+                "full_name": "repository.save",
                 "lang": "dart",
                 "line_number": 13,
                 "name": "save"
               },
               {
-                "full_name": "byId",
+                "full_name": "repository.byId",
                 "lang": "dart",
                 "line_number": 16,
                 "name": "byId"
-              },
-              {
-                "full_name": "find",
-                "lang": "dart",
-                "line_number": 16,
-                "name": "find"
               }
             ],
             "functions": [
