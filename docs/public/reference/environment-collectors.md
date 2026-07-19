@@ -477,7 +477,8 @@ upstreams and fails closed when the cached artifact is missing or stale.
 | `ESHU_CONFLUENCE_EMAIL` | unset | collector-confluence | Basic-auth email for read-only Confluence API access. |
 | `ESHU_CONFLUENCE_API_TOKEN` | unset | collector-confluence | Basic-auth API token. Required with email unless bearer token is set. |
 | `ESHU_CONFLUENCE_BEARER_TOKEN` | unset | collector-confluence | Bearer token alternative for read-only Confluence API access. |
-| `ESHU_CONFLUENCE_PAGE_LIMIT` | `100` | collector-confluence | Max pages fetched per bounded listing request. |
+| `ESHU_CONFLUENCE_PAGE_LIMIT` | `100` | collector-confluence | Max pages fetched per bounded listing request (per-page size only). |
+| `ESHU_CONFLUENCE_MAX_TOTAL_PAGES` | `5000` | collector-confluence | Max total pages assembled across a space/page-tree cursor walk. The walk also stops defensively after 200 paginated fetches or a repeated cursor. Raise this on large wikis that legitimately exceed the default; the source fact's `source_metadata.coverage_warning` reads `truncated` (vs. `complete`) when the cap or a defensive stop dropped pages the provider still had to return. |
 | `ESHU_CONFLUENCE_POLL_INTERVAL` | `5m` | collector-confluence | Interval between repeated Confluence sync attempts. |
 
 Set exactly one of `ESHU_CONFLUENCE_SPACE_ID`, `ESHU_CONFLUENCE_SPACE_IDS`, or

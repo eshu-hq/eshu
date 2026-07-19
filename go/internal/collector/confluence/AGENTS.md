@@ -25,6 +25,12 @@
   Confluence-specific fact kinds.
 - **Partial-sync visibility** - permission gaps must increment
   `failure_count` and set `sync_status=partial`.
+- **Cursor-walk truncation visibility** - `ListSpacePages`/`ListPageTree` must
+  triple-bound their `_links.next` cursor walk (max total pages, a defensive
+  fetch-count backstop, repeated-cursor detection) and report `truncated`
+  only when the walk stopped while the provider still had more data, never
+  as a heuristic guess. `Source` must surface that as
+  `source_metadata.coverage_warning`.
 - **Bounded source metrics** - Confluence metrics may use `operation`,
   `result`, `status_class`, and `failure_class` only. Page IDs, titles, URLs,
   paths, body text, and excerpts stay out of metric labels.

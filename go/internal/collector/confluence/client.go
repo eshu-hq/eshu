@@ -20,17 +20,29 @@ import (
 	"go.opentelemetry.io/otel/metric"
 )
 
-const defaultHTTPTimeout = 30 * time.Second
+const (
+	defaultHTTPTimeout = 30 * time.Second
+	// maxCursorPages defensively bounds the number of paginated fetches
+	// issued while walking a Confluence cursor (`_links.next`) chain. It
+	// guards against a provider bug that never terminates the chain, even
+	// when max_total_pages is configured very high. Generous enough
+	// (defaultPageLimit * maxCursorPages records) to never trip under a
+	// normal walk toward defaultMaxTotalPages.
+	maxCursorPages = 200
+)
 
 // ErrPermissionDenied marks a Confluence page that the read-only credential
 // cannot view.
 var ErrPermissionDenied = errors.New("confluence permission denied")
 
-// Client reads bounded Confluence source evidence.
+// Client reads bounded Confluence source evidence. ListSpacePages and
+// ListPageTree take both a per-page limit and a total-record cap across the
+// whole cursor walk, and report whether that cap (or a defensive stop)
+// dropped records the provider still had to return.
 type Client interface {
 	GetSpace(context.Context, string) (Space, error)
-	ListSpacePages(context.Context, string, int) ([]Page, error)
-	ListPageTree(context.Context, string, int) ([]string, error)
+	ListSpacePages(ctx context.Context, spaceID string, limit int, maxTotalPages int) (pages []Page, truncated bool, err error)
+	ListPageTree(ctx context.Context, rootPageID string, limit int, maxTotalPages int) (ids []string, truncated bool, err error)
 	GetPage(context.Context, string) (Page, error)
 }
 
@@ -91,35 +103,67 @@ func (c *HTTPClient) GetSpace(ctx context.Context, id string) (Space, error) {
 	return space, nil
 }
 
-// ListSpacePages reads current pages visible in a Confluence space.
-func (c *HTTPClient) ListSpacePages(ctx context.Context, spaceID string, limit int) ([]Page, error) {
+// ListSpacePages reads current pages visible in a Confluence space, bounded
+// by both the per-page limit and maxTotalPages across the whole cursor walk.
+// The returned bool is true when the walk stopped (at maxTotalPages, the
+// defensive maxCursorPages backstop, or a repeated cursor) while the
+// provider still had more data to return -- never a false positive from the
+// walk's own natural end.
+func (c *HTTPClient) ListSpacePages(ctx context.Context, spaceID string, limit int, maxTotalPages int) ([]Page, bool, error) {
 	values := url.Values{}
 	values.Set("body-format", "storage")
 	values.Set("status", "current")
 	values.Set("limit", strconv.Itoa(limit))
+	maxTotalPages = normalizedMaxTotalPages(maxTotalPages)
 
 	var out []Page
+	seenEndpoints := map[string]struct{}{}
 	endpoint := "/api/v2/spaces/" + url.PathEscape(spaceID) + "/pages"
+	pagesFetched := 0
 	for endpoint != "" {
+		if pagesFetched >= maxCursorPages {
+			return out, true, nil
+		}
+		if _, seen := seenEndpoints[endpoint]; seen {
+			return out, true, nil
+		}
+		seenEndpoints[endpoint] = struct{}{}
 		var response pageListResponse
 		if err := c.getJSON(ctx, endpoint, values, &response); err != nil {
-			return nil, err
+			return nil, false, err
 		}
+		pagesFetched++
 		out = append(out, response.Results...)
 		endpoint = response.Links.Next
 		values = nil
+		if len(out) >= maxTotalPages {
+			return out[:maxTotalPages], endpoint != "", nil
+		}
 	}
-	return out, nil
+	return out, false, nil
 }
 
-// ListPageTree returns the root page ID and descendant page IDs.
-func (c *HTTPClient) ListPageTree(ctx context.Context, rootPageID string, limit int) ([]string, error) {
+// ListPageTree returns the root page ID and descendant page IDs, bounded by
+// both the per-page limit and maxTotalPages (including the root ID itself)
+// across the whole cursor walk. See ListSpacePages for the truncated-bool
+// contract.
+func (c *HTTPClient) ListPageTree(ctx context.Context, rootPageID string, limit int, maxTotalPages int) ([]string, bool, error) {
 	values := url.Values{}
 	values.Set("limit", strconv.Itoa(limit))
+	maxTotalPages = normalizedMaxTotalPages(maxTotalPages)
 
 	ids := []string{rootPageID}
+	seenEndpoints := map[string]struct{}{}
 	endpoint := "/api/v2/pages/" + url.PathEscape(rootPageID) + "/descendants"
+	pagesFetched := 0
 	for endpoint != "" {
+		if pagesFetched >= maxCursorPages {
+			return ids, true, nil
+		}
+		if _, seen := seenEndpoints[endpoint]; seen {
+			return ids, true, nil
+		}
+		seenEndpoints[endpoint] = struct{}{}
 		var response struct {
 			Results []struct {
 				ID   string `json:"id"`
@@ -128,8 +172,9 @@ func (c *HTTPClient) ListPageTree(ctx context.Context, rootPageID string, limit 
 			Links Links `json:"_links"`
 		}
 		if err := c.getJSON(ctx, endpoint, values, &response); err != nil {
-			return nil, err
+			return nil, false, err
 		}
+		pagesFetched++
 		for _, result := range response.Results {
 			if strings.EqualFold(result.Type, "page") && strings.TrimSpace(result.ID) != "" {
 				ids = append(ids, result.ID)
@@ -137,8 +182,21 @@ func (c *HTTPClient) ListPageTree(ctx context.Context, rootPageID string, limit 
 		}
 		endpoint = response.Links.Next
 		values = nil
+		if len(ids) >= maxTotalPages {
+			return ids[:maxTotalPages], endpoint != "", nil
+		}
 	}
-	return ids, nil
+	return ids, false, nil
+}
+
+// normalizedMaxTotalPages defends ListSpacePages/ListPageTree against a
+// caller that skips config.LoadConfig's defaulting (e.g. a direct
+// SourceConfig construction with MaxTotalPages left at zero).
+func normalizedMaxTotalPages(value int) int {
+	if value <= 0 {
+		return defaultMaxTotalPages
+	}
+	return value
 }
 
 // GetPage reads one Confluence page with body and labels.

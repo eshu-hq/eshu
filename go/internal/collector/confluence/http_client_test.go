@@ -44,7 +44,7 @@ func TestHTTPClientUsesReadOnlyRequests(t *testing.T) {
 		t.Fatalf("NewHTTPClient() error = %v, want nil", err)
 	}
 
-	pages, err := client.ListSpacePages(context.Background(), "100", 25)
+	pages, _, err := client.ListSpacePages(context.Background(), "100", 25, 0)
 	if err != nil {
 		t.Fatalf("ListSpacePages() error = %v, want nil", err)
 	}
@@ -136,7 +136,7 @@ func TestHTTPClientFollowsRelativeNextLinkWithQuery(t *testing.T) {
 		t.Fatalf("NewHTTPClient() error = %v, want nil", err)
 	}
 
-	pages, err := client.ListSpacePages(context.Background(), "100", 25)
+	pages, _, err := client.ListSpacePages(context.Background(), "100", 25, 0)
 	if err != nil {
 		t.Fatalf("ListSpacePages() error = %v, want nil", err)
 	}
@@ -185,7 +185,7 @@ func TestHTTPClientFollowsContextRootedNextLinkWithoutDuplicatingBasePath(t *tes
 		t.Fatalf("NewHTTPClient() error = %v, want nil", err)
 	}
 
-	pages, err := client.ListSpacePages(context.Background(), "100", 25)
+	pages, _, err := client.ListSpacePages(context.Background(), "100", 25, 0)
 	if err != nil {
 		t.Fatalf("ListSpacePages() error = %v, want nil", err)
 	}
@@ -212,7 +212,7 @@ func TestHTTPClientReturnsRetryableErrorWithRetryAfter(t *testing.T) {
 		t.Fatalf("NewHTTPClient() error = %v, want nil", err)
 	}
 
-	_, err = client.ListSpacePages(context.Background(), "100", 25)
+	_, _, err = client.ListSpacePages(context.Background(), "100", 25, 0)
 	if !errors.Is(err, ErrRetryable) {
 		t.Fatalf("ListSpacePages() error = %v, want ErrRetryable", err)
 	}
@@ -247,7 +247,7 @@ func TestHTTPClientRetryableErrorWrapsSDKHTTPError(t *testing.T) {
 		t.Fatalf("NewHTTPClient() error = %v, want nil", err)
 	}
 
-	_, err = client.ListSpacePages(context.Background(), "100", 25)
+	_, _, err = client.ListSpacePages(context.Background(), "100", 25, 0)
 	if !errors.Is(err, ErrRetryable) {
 		t.Fatalf("ListSpacePages() error = %v, want ErrRetryable", err)
 	}
@@ -326,7 +326,7 @@ func TestHTTPClientListPageTreeKeepsOnlyPageDescendants(t *testing.T) {
 		t.Fatalf("NewHTTPClient() error = %v, want nil", err)
 	}
 
-	ids, err := client.ListPageTree(context.Background(), "root", 25)
+	ids, _, err := client.ListPageTree(context.Background(), "root", 25, 0)
 	if err != nil {
 		t.Fatalf("ListPageTree() error = %v, want nil", err)
 	}

@@ -139,7 +139,7 @@ func TestHTTPClientRecordsBoundedRequestMetrics(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewHTTPClient() error = %v", err)
 	}
-	if _, err := client.ListSpacePages(context.Background(), "100", 25); err != nil {
+	if _, _, err := client.ListSpacePages(context.Background(), "100", 25, 0); err != nil {
 		t.Fatalf("ListSpacePages() error = %v, want nil", err)
 	}
 	if _, err := client.GetPage(context.Background(), "hidden"); !errors.Is(err, ErrPermissionDenied) {
@@ -314,12 +314,12 @@ func (c errorClient) GetSpace(context.Context, string) (Space, error) {
 	return Space{}, c.err
 }
 
-func (c errorClient) ListSpacePages(context.Context, string, int) ([]Page, error) {
-	return nil, c.err
+func (c errorClient) ListSpacePages(context.Context, string, int, int) ([]Page, bool, error) {
+	return nil, false, c.err
 }
 
-func (c errorClient) ListPageTree(context.Context, string, int) ([]string, error) {
-	return nil, c.err
+func (c errorClient) ListPageTree(context.Context, string, int, int) ([]string, bool, error) {
+	return nil, false, c.err
 }
 
 func (c errorClient) GetPage(context.Context, string) (Page, error) {
