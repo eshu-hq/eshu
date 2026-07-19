@@ -26,7 +26,7 @@ Canonical implementation: `go/internal/parser/registry.go` plus the entrypoint a
 | Function calls | `function-calls` | supported | `function_calls` | `name, line_number` | `relationship:CALLS` | `go/internal/parser/engine_swift_semantics_test.go::TestDefaultEngineParsePathSwiftEmitsImportAndCallMetadata` | Compose-backed fixture verification | - |
 | Property declarations | `property-declarations` | supported | `variables` | `name, line_number` | `node:Variable` | `go/internal/parser/engine_swift_semantics_test.go::TestDefaultEngineParsePathSwiftEmitsVariableContextAndTypeMetadata` | Compose-backed fixture verification | - |
 | Vapor literal route entries | `vapor-literal-route-entries` | supported | `framework_semantics.vapor.route_entries` | `method, path, handler` | `relationship:HANDLES_ROUTE` | `go/internal/parser/engine_swift_vapor_routes_test.go::TestDefaultEngineParsePathSwiftVaporRouteEntries`, `go/internal/parser/engine_swift_vapor_routes_test.go::TestDefaultEngineParsePathSwiftVaporRouteEntriesLiteralGroups`, `go/internal/reducer/handles_route_swift_test.go::TestBuildHandlesRouteIntentRowsEmitsSwiftVaporRouteMatches` | Focused reducer projection validation | Exact only in files importing `Vapor`, for literal registrations on receivers typed `Application` or `RoutesBuilder`, including literal route groups whose receiver is already proven and whose closure parameter is a simple identifier. Route handlers must use a simple `use:` handler identifier. |
-| Dead-code roots | `dead-code-derived-roots` | derived | `dead_code_root_kinds` | parser metadata | `code_quality.dead_code` root suppression | `go/internal/parser/swift_dead_code_roots_test.go::TestDefaultEngineParsePathSwiftEmitsDeadCodeRootKinds`, `go/internal/query/code_dead_code_swift_roots_test.go::TestHandleDeadCodeExcludesSwiftRootKindsFromMetadata` | Swift dogfood validation | Parser metadata marks `@main` types, top-level `main`, SwiftUI `App` types and `body`, protocol methods and same-file implementations, constructors, overrides, UIKit application delegate callbacks, Vapor route handlers, XCTest methods, and Swift Testing `@Test` functions as non-exact roots. |
+| Dead-code roots | `dead-code-derived-roots` | derived | `dead_code_root_kinds` | parser metadata | `code_quality.dead_code` root suppression | `go/internal/parser/swift_dead_code_roots_test.go::TestDefaultEngineParsePathSwiftEmitsDeadCodeRootKinds`, `go/internal/parser/swift_dead_code_roots_test.go::TestDefaultEngineParsePathSwiftRequiresVaporImportForRouteHandlerRoot`, `go/internal/query/code_dead_code_swift_roots_test.go::TestHandleDeadCodeExcludesSwiftRootKindsFromMetadata` | Swift dogfood validation | Parser metadata marks `@main` types, top-level `main`, SwiftUI `App` types and `body`, protocol methods and same-file implementations, constructors, overrides, UIKit application delegate callbacks, Vapor route handlers, XCTest methods, and Swift Testing `@Test` functions as non-exact roots. Vapor route-handler roots now require the file to `import Vapor` (mirroring the exact Vapor route-entries gate): a `use:` handler in a file that does not import Vapor no longer roots. |
 
 ## Known Limitations
 - Property wrappers are not tracked as distinct decorators
@@ -50,7 +50,9 @@ Supported today:
 
 - SwiftUI app types and `body`, UIKit application delegate callbacks, Vapor
   route handlers, XCTest methods, and Swift Testing `@Test` functions are
-  modeled as derived roots.
+  modeled as derived roots. Vapor route-handler roots require the file to
+  `import Vapor` (the same gate as exact Vapor route entries); a `use:`
+  handler in a non-Vapor file is not rooted.
 - Files importing `Vapor` can emit exact route entries for receiver route
   registrations on receivers typed `Application` or `RoutesBuilder`, with
   literal path segments and a simple `use:` handler identifier. Literal route

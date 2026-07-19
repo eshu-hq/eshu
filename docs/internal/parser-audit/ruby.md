@@ -15,14 +15,14 @@ List every construct the parser claims to extract, with source references.
 7. **Imports** — `syntax.go:255-268` (`require`, `require_relative`, `load`)
 8. **Module inclusions** — `syntax.go:269-278` (`include`)
 9. **Function calls** — `calls.go:19-39` (`call` nodes, dotted full name), `calls.go:44-59` (assignment-side bare identifier calls)
-10. **Dead-code root kinds** (`dead_code_roots.go:43-62`, `:66-83`):
-    - `ruby.rails_controller_action` (`dead_code_roots.go:54-59`)
-    - `ruby.rails_callback_method` (`dead_code_roots.go:67-69`)
-    - `ruby.dynamic_dispatch_hook` (`dead_code_roots.go:51-52`)
-    - `ruby.method_reference_target` (`dead_code_roots.go:71-74`)
-    - `ruby.script_entrypoint` (`dead_code_roots.go:76-79`)
-    - Rails callback methods: `before_action`, `after_action`, `around_action`, `before_filter`, `after_filter`, `around_filter` (`dead_code_roots.go:23-30`)
-    - Reflection methods: `method`, `send`, `public_send` (`dead_code_roots.go:35-38`)
+10. **Dead-code root kinds** (`dead_code_roots.go:42-62`, `:82-99`):
+    - `ruby.rails_controller_action` — emission `dead_code_roots.go:54-60`, gated by the same-file transitive superclass-chain walk `rubyIsRailsController` (`:328-360`, accepted bases `:285-291`, action-name filter `rubyIsRailsControllerActionName` `:362-369`)
+    - `ruby.rails_callback_method` (`dead_code_roots.go:84-88`)
+    - `ruby.dynamic_dispatch_hook` (`dead_code_roots.go:51-53`)
+    - `ruby.method_reference_target` (`dead_code_roots.go:89-93`)
+    - `ruby.script_entrypoint` (`dead_code_roots.go:94-98`)
+    - Rails callback methods: `before_action`, `after_action`, `around_action`, `before_filter`, `after_filter`, `around_filter` (`dead_code_roots.go:22-29`)
+    - Reflection methods: `method`, `send`, `public_send` (`dead_code_roots.go:33-37`)
 11. **Cyclomatic complexity** — `complexity.go:38-39`
 12. **Class superclass** — `syntax.go:171-174` (`bases` field)
 13. **Method arguments** — `syntax.go:223`, `nodes.go:82-104`

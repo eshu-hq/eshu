@@ -74,8 +74,10 @@ func swiftFunctionDeadCodeRootKinds(
 	if swiftConformsTo(facts, classContext, "UIApplicationDelegate") && name == "application" {
 		rootKinds = appendSwiftRootKind(rootKinds, "swift.ui_application_delegate_method")
 	}
-	if _, ok := facts.vaporRouteHandlers[name]; ok {
-		rootKinds = appendSwiftRootKind(rootKinds, "swift.vapor_route_handler")
+	if facts.hasVaporImport {
+		if _, ok := facts.vaporRouteHandlers[name]; ok {
+			rootKinds = appendSwiftRootKind(rootKinds, "swift.vapor_route_handler")
+		}
 	}
 	if swiftConformsTo(facts, classContext, "XCTestCase") && strings.HasPrefix(name, "test") {
 		rootKinds = appendSwiftRootKind(rootKinds, "swift.xctest_method")
