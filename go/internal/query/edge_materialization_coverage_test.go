@@ -61,6 +61,26 @@ func TestEdgeMaterializationCoverageReportsSatisfiedByUnmaterialized(t *testing.
 	}
 }
 
+// TestEdgeMaterializationCoverageReportsStructuralEdgeTypes proves the
+// registry reports materialized:true for the core structural edges the
+// #5335 edge-materialization gate needs for blast-radius queries with no
+// per-query coverage/complete disclosure field (repository, terraform_module):
+// DEPENDS_ON (reducer/code_import_repo_edge.go, reducer/package_consumption_repo_edge.go)
+// and REPO_CONTAINS (cypher/canonical_node_cypher.go).
+func TestEdgeMaterializationCoverageReportsStructuralEdgeTypes(t *testing.T) {
+	t.Parallel()
+
+	for _, edgeType := range []string{"DEPENDS_ON", "REPO_CONTAINS"} {
+		got := EdgeMaterializationCoverage(edgeType)
+		if !got.Materialized {
+			t.Errorf("EdgeMaterializationCoverage(%q).Materialized = false, want true", edgeType)
+		}
+		if got.Reason == "" {
+			t.Errorf("EdgeMaterializationCoverage(%q).Reason is empty, want a real reason", edgeType)
+		}
+	}
+}
+
 // TestMaterializedEdgeTypeSetIsRegistryDerived proves the full materialized
 // set is derived from the shared writer registries (not a second
 // hand-maintained list): it must include every SQL relationship write-reason
