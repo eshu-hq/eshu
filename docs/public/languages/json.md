@@ -41,3 +41,39 @@ Not claimed today:
 - `json_metadata.top_level_keys` is preserved in JSON source order for every JSON file. Manifest files that also emit source-ordered dependency, script, or TypeScript path rows (`package.json`, `composer.json`, `tsconfig*.json`) retain nested key order through a full ordered decode; every other file derives the top-level key order alone through a lighter key-order scan. Both paths yield identical `top_level_keys`; the distinction is an internal cost optimization, not a change in emitted evidence
 - npm `package-lock.json`, Composer `composer.lock`, NuGet `packages.lock.json`, Pipenv `Pipfile.lock`, and SwiftPM `Package.resolved` are parsed into exact-version dependency rows where the source file proves registry-style package identity and version; Pub `pubspec` coverage is YAML-owned. The per-ecosystem coverage map for supply-chain impact lives in [Dependency And Lockfile Coverage](../reference/dependency-coverage.md)
 - Minified JSON assets are intentionally kept metadata-only to avoid graph noise
+- `line_number` on `package.json`/`composer.json`/`tsconfig*.json` dependency,
+  script, and TypeScript-path rows, and on the npm/Composer/NuGet/Pipfile/Swift
+  lockfile rows, is the row's real JSON source line (issue #5329), replacing a
+  previously fabricated per-section counter. Because `content.CanonicalEntityID`
+  hashes `line_number` into the materialized entity's identity, this is a
+  one-time content-entity identity migration, live-verified against an
+  isolated Postgres + NornicDB stack with an old-binary-then-new-binary
+  re-ingest of the same repository:
+    - Function rows reach the graph (`node:Function`), and the existing
+      generation-stamped canonical retract
+      (`go/internal/storage/cypher/canonical_node_writer_retract.go`) cleanly
+      reaps the old counter-keyed nodes on the file's next reprocessing — no
+      duplicates were observed.
+    - A repository is only migrated on its **next actual content change** to
+      that file, not merely by the indexer running again: re-running
+      `bootstrap-index` against an unchanged repository is a no-op
+      (`scopes_collected: 0`) and leaves old-identity nodes/rows in place
+      until a real edit triggers reprocessing. This is a transient artifact
+      for the graph, but needs no operator action beyond the repository's
+      normal commit/ingest cadence.
+    - Plain `Variable` rows (`package.json`/`composer.json` dependencies) are
+      explicitly excluded from graph materialization
+      (`go/internal/projector/canonical_builder.go`, "Plain Variable rows
+      remain in the content store/search surface") and live only in Postgres
+      `content_entities`. That table has **no equivalent cleanup**: it deletes
+      a row only when a whole file is deleted, not when an entity's derived id
+      changes, so the old counter-keyed row and the new real-line row both
+      persist permanently after the file's next reprocessing (live-verified:
+      11 stale rows remained after a forced re-ingest that also wrote 11 new
+      rows for the same logical dependencies). This is a pre-existing gap in
+      `content_entities` lifecycle management, not new code from this fix, but
+      this migration is the first change guaranteed to trigger it for every
+      repository with a `package.json`/`composer.json` in one shot. Tracked as
+      a follow-up; until fixed, expect permanent duplicate
+      `content_entities`/search-surface rows for JSON dependency and script
+      entities after this migration.
