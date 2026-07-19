@@ -239,9 +239,12 @@ type TargetConfig struct {
 	SeriesMatchers         []string
 	StaleAfter             time.Duration
 	// SeriesLookback bounds the /loki/api/v1/series query window's `start`
-	// parameter. When zero, it defaults to StaleAfter (keeping the series
-	// bound and the staleness signal in agreement) and falls back to
-	// defaultSeriesLookback when StaleAfter is also unset.
+	// parameter. It is an independent knob: when zero it falls back to the
+	// generous defaultSeriesLookback and never inherits StaleAfter. Series
+	// last active before this window are not observed in the current
+	// generation, and Loki reports no coverage warning for a time-window
+	// exclusion, so widen this when full historical series visibility is
+	// required.
 	SeriesLookback   time.Duration
 	Enabled          bool
 	DeclaredIDs      map[string]struct{}

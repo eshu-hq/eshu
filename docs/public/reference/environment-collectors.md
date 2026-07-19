@@ -393,9 +393,13 @@ optional `resource_limit`, optional `label_value_names`, optional
 `max_label_values_per_label`, optional `series_matchers`, optional
 `series_lookback`, optional `stale_after`, optional `declared_ids`, and
 `enabled: true`. `series_lookback` bounds the `/loki/api/v1/series` query's
-`start` window; it defaults to `stale_after` when unset so the series bound
-and the staleness signal agree, and falls back to 24h when neither is
-configured.
+`start` window and is an independent knob: it defaults to a generous 24h when
+unset and does not inherit `stale_after` (a rule-staleness setting).
+**Coverage consequence:** series last active before the resolved
+`series_lookback` window are not observed in the current generation, and Loki
+reports no coverage warning for a time-window exclusion (unlike the
+`resource_limit` truncation warning, a `/series` time filter is silent).
+Widen `series_lookback` if you rely on full historical series visibility.
 
 Tempo targets include `scope_id`, `instance_id`, `base_url`, optional
 `path_prefix`, optional `token_env`, optional `tenant_id` or `tenant_id_env`,

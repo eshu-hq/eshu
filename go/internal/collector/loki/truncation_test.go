@@ -175,26 +175,31 @@ func TestHTTPClientNoTruncationWarningAtOrUnderLimit(t *testing.T) {
 	}
 }
 
-func TestSeriesQueryDefaultsStartToStaleAfterWindow(t *testing.T) {
+func TestSeriesQueryUsesExplicitSeriesLookback(t *testing.T) {
 	t.Parallel()
 
+	observedAt := time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC)
+	target := TargetConfig{SeriesLookback: 10 * time.Minute}
+
+	query := seriesQuery(target, observedAt)
+
+	assertBoundedStart(t, query, observedAt, 10*time.Minute)
+}
+
+func TestSeriesQueryDoesNotInheritStaleAfterForLookback(t *testing.T) {
+	t.Parallel()
+
+	// StaleAfter is a rule-staleness knob and was previously inert for the
+	// series window. It must stay inert: series lookback resolves to its own
+	// default when SeriesLookback is unset, regardless of StaleAfter, so a
+	// deployment that set stale_after does not silently gain a tighter (or
+	// looser) series-fetch window than the documented default.
 	observedAt := time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC)
 	target := TargetConfig{StaleAfter: time.Hour}
 
 	query := seriesQuery(target, observedAt)
 
-	assertBoundedStart(t, query, observedAt, time.Hour)
-}
-
-func TestSeriesQueryUsesExplicitSeriesLookbackOverStaleAfter(t *testing.T) {
-	t.Parallel()
-
-	observedAt := time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC)
-	target := TargetConfig{StaleAfter: time.Hour, SeriesLookback: 10 * time.Minute}
-
-	query := seriesQuery(target, observedAt)
-
-	assertBoundedStart(t, query, observedAt, 10*time.Minute)
+	assertBoundedStart(t, query, observedAt, defaultSeriesLookback)
 }
 
 func TestSeriesQueryFallsBackToDefaultLookbackWhenUnconfigured(t *testing.T) {
