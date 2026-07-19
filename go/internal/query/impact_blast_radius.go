@@ -184,8 +184,9 @@ var crossplaneXrdBlastRadiusEdgeTypes = []string{"CONTAINS", "SATISFIED_BY"}
 // against the materialized-edge registry, mirroring sqlTableBlastRadiusCoverage
 // (#5330). SATISFIED_BY has no writer, so complete is always false today and
 // coverage always reports it as materialized:false/reason:"no_writer" — this
-// flips to true automatically once a SATISFIED_BY writer lands in the registry
-// (#5347), with no further edit needed here.
+// flips to true automatically once a SATISFIED_BY writer lands and registers
+// itself in the materialized-edge registry (#5347); the coverage-function
+// code path here needs no edit.
 func crossplaneXrdBlastRadiusCoverage() (bool, []blastRadiusEdgeCoverage) {
 	complete := true
 	coverage := make([]blastRadiusEdgeCoverage, 0, len(crossplaneXrdBlastRadiusEdgeTypes))
