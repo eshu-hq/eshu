@@ -55,13 +55,33 @@ type rubySyntax struct {
 // including the method's own enclosing class. It backs the Rails controller
 // superclass-chain walk in dead_code_roots.go and intentionally does not
 // require a second AST walk.
+//
+// Known limitation — same-file short-name collisions: the maps are keyed by
+// the class's simple (last-segment) name, because that is the only class
+// identity readily available here. constantName already collapses a declared
+// name to its last "::" segment (a pre-existing convention that also names the
+// scope stack and the class_context field), and the method-side lookup in
+// dead_code_roots.go likewise only has the enclosing class's collapsed name.
+// So two classes defined in the SAME file whose short names collide across
+// different namespaces (for example `Admin::BaseController` and
+// `Api::BaseController`, both keyed as "BaseController"), or a reopened class,
+// overwrite each other's superclass entry: the last one registered in source
+// order wins, and a later class extending the bare short name resolves against
+// whichever superclass was registered last. Keying by the fully-qualified
+// module path is not done here because the qualified name is not available at
+// both registration and lookup without threading it through the whole
+// scope/context-resolution machinery (a change that would also move the
+// pre-existing collapsed class_context semantics). Correct repo-wide,
+// namespace- and reopening-aware resolution is the reducer follow-up #5376;
+// this registry stays deliberately same-file and short-name-keyed.
 type rubyClassRegistry struct {
-	// superclass maps a class name to its declared superclass's full,
-	// possibly module-qualified name. A class with no declared superclass
-	// has no entry.
+	// superclass maps a class's simple (last-segment) name to its declared
+	// superclass's full, possibly module-qualified name. A class with no
+	// declared superclass has no entry. On a same-file short-name collision
+	// the last registration in source order wins (see the type doc).
 	superclass map[string]string
-	// known holds every class name defined in the file so far, regardless
-	// of whether it declares a superclass.
+	// known holds every class simple name defined in the file so far,
+	// regardless of whether it declares a superclass.
 	known map[string]struct{}
 }
 

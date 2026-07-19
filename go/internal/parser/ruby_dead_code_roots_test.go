@@ -294,6 +294,58 @@ end
 	assertParserStringSliceContains(t, assertFunctionByName(t, got, "list_api"), "dead_code_root_kinds", "ruby.rails_controller_action")
 }
 
+// TestDefaultEngineParsePathRubySameFileShortNameCollisionResolvesToLastRegistered
+// pins the documented same-file short-name-collision limitation of
+// rubyClassRegistry (issue #5337 P2-1): two classes in one file whose simple
+// names collide across namespaces ("Admin::BaseController" and
+// "Api::BaseController", both keyed as "BaseController") share one registry
+// entry, so the last one registered in source order wins. Here Api::BaseController
+// (< Thor) is declared after Admin::BaseController (< ActionController::Base), so
+// a third class extending the bare "BaseController" resolves against < Thor and
+// does NOT root — the collision-affected verdict. This asserts the current
+// deterministic behavior (source-order last-wins), not the ideal one; correct
+// namespace-aware, repo-wide resolution is the reducer follow-up #5376.
+func TestDefaultEngineParsePathRubySameFileShortNameCollisionResolvesToLastRegistered(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "collision.rb")
+	writeTestFile(
+		t,
+		filePath,
+		`class Admin::BaseController < ActionController::Base
+end
+
+class Api::BaseController < Thor
+  def api_action
+    true
+  end
+end
+
+class UsersController < BaseController
+  def list_users
+    true
+  end
+end
+`,
+	)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath(%s) error = %v, want nil", filePath, err)
+	}
+
+	// The "BaseController" registry key was last written by Api::BaseController
+	// (< Thor), so UsersController's chain resolves to Thor and the root is
+	// dropped. Documented collision limitation; #5376 resolves it properly.
+	assertParserStringSliceNotContains(t, assertFunctionByName(t, got, "list_users"), "dead_code_root_kinds", "ruby.rails_controller_action")
+}
+
 func TestDefaultEngineParsePathRubyRejectsNonEqualityScriptGuard(t *testing.T) {
 	t.Parallel()
 

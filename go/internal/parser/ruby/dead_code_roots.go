@@ -319,6 +319,12 @@ var rubyRailsControllerAcceptedBases = map[string]struct{}{
 // For a dead-code tool, a false negative ("still call it live") is far
 // cheaper than a false positive that recommends deleting reachable code, so
 // ties resolve toward keeping the root.
+//
+// contextName and every registry key are simple (last-segment) class names, so
+// two same-file classes whose short names collide across namespaces share one
+// registry entry and the last one registered wins; see rubyClassRegistry's doc
+// for why the qualified name is not keyed here and why repo-wide resolution is
+// deferred to #5376.
 func rubyIsRailsController(contextName string, registry rubyClassRegistry) bool {
 	className := strings.TrimPrefix(strings.TrimSpace(contextName), "::")
 	if className == "" {
