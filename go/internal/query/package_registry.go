@@ -180,6 +180,10 @@ func (h *PackageRegistryHandler) listPackages(w http.ResponseWriter, r *http.Req
 		}
 		results = append(results, result)
 	}
+	if err := h.attachPackageVersionCounts(r.Context(), results); err != nil {
+		WriteError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
 	body := map[string]any{
 		"packages":        results,
 		"identity_issues": identityIssues,
@@ -381,6 +385,40 @@ func (h *PackageRegistryHandler) listDependencies(w http.ResponseWriter, r *http
 		TruthBasisAuthoritativeGraph,
 		"resolved from package-native dependency graph nodes",
 	))
+}
+
+// attachPackageVersionCounts resolves HAS_VERSION counts for one page of
+// packages as a separate, scoped query and zero-fills any package uid absent
+// from the result. This is deliberately not folded back into
+// packageRegistryPackagesCypher's OPTIONAL MATCH + count(v): on the pinned
+// NornicDB backend that composition silently collapses every zero-version
+// package out of the result set instead of returning it with version_count
+// 0 (see docs/public/reference/nornicdb-pitfalls.md). Skips the round trip
+// entirely when the page is empty.
+func (h *PackageRegistryHandler) attachPackageVersionCounts(
+	ctx context.Context,
+	results []PackageRegistryPackageResult,
+) error {
+	if len(results) == 0 {
+		return nil
+	}
+	packageIDs := make([]string, len(results))
+	for i, result := range results {
+		packageIDs[i] = result.PackageID
+	}
+	cypher, params := packageRegistryVersionCountsCypher(packageIDs)
+	rows, err := h.Neo4j.Run(ctx, cypher, params)
+	if err != nil {
+		return err
+	}
+	counts := make(map[string]int, len(rows))
+	for _, row := range rows {
+		counts[StringVal(row, "package_id")] = IntVal(row, "version_count")
+	}
+	for i := range results {
+		results[i].VersionCount = counts[results[i].PackageID]
+	}
+	return nil
 }
 
 func (h *PackageRegistryHandler) unsupported(w http.ResponseWriter, r *http.Request, capability string) bool {

@@ -14,30 +14,35 @@ func TestPackageRegistryListPackagesClassifiesBlankPackageIdentityRows(t *testin
 	t.Parallel()
 
 	reader := &recordingPackageRegistryGraphReader{
-		runRows: []map[string]any{
+		runRowsQueue: [][]map[string]any{
 			{
-				"package_id":         "",
-				"ecosystem":          "npm",
-				"registry":           "registry.npmjs.org",
-				"namespace":          "@bad",
-				"normalized_name":    "@bad/missing-id",
-				"purl":               "pkg:npm/%40bad/missing-id",
-				"bom_ref":            "pkg:npm/%40bad/missing-id",
-				"package_manager":    "npm",
-				"source_path":        "package.json",
-				"source_specific_id": "npm:@bad/missing-id",
-				"version_count":      int64(0),
+				{
+					"package_id":         "",
+					"ecosystem":          "npm",
+					"registry":           "registry.npmjs.org",
+					"namespace":          "@bad",
+					"normalized_name":    "@bad/missing-id",
+					"purl":               "pkg:npm/%40bad/missing-id",
+					"bom_ref":            "pkg:npm/%40bad/missing-id",
+					"package_manager":    "npm",
+					"source_path":        "package.json",
+					"source_specific_id": "npm:@bad/missing-id",
+				},
+				{
+					"package_id":      "npm://registry.npmjs.org/left-pad",
+					"ecosystem":       "npm",
+					"registry":        "registry.npmjs.org",
+					"normalized_name": "left-pad",
+					"purl":            "pkg:npm/left-pad",
+					"bom_ref":         "pkg:npm/left-pad",
+					"package_manager": "npm",
+				},
 			},
-			{
-				"package_id":      "npm://registry.npmjs.org/left-pad",
-				"ecosystem":       "npm",
-				"registry":        "registry.npmjs.org",
-				"normalized_name": "left-pad",
-				"purl":            "pkg:npm/left-pad",
-				"bom_ref":         "pkg:npm/left-pad",
-				"package_manager": "npm",
-				"version_count":   int64(0),
-			},
+			// The scoped version-count read only ever runs against valid
+			// package identities (the blank-package_id row is dropped as an
+			// identity issue first), and left-pad has no HAS_VERSION edges,
+			// so it correctly returns no rows here.
+			{},
 		},
 	}
 	handler := &PackageRegistryHandler{Neo4j: reader}
@@ -50,6 +55,13 @@ func TestPackageRegistryListPackagesClassifiesBlankPackageIdentityRows(t *testin
 
 	if got, want := w.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+	if got, want := len(reader.cypherCalls), 2; got != want {
+		t.Fatalf("len(cypherCalls) = %d, want %d (anchor read + scoped version-count read)", got, want)
+	}
+	countIDs, _ := reader.paramsCalls[1]["package_ids"].([]string)
+	if got, want := countIDs, []string{"npm://registry.npmjs.org/left-pad"}; !equalStringSlices(got, want) {
+		t.Fatalf("count params[package_ids] = %#v, want %#v (the blank-package_id identity-issue row must never reach the count query)", got, want)
 	}
 	var resp struct {
 		Packages []PackageRegistryPackageResult `json:"packages"`
@@ -174,18 +186,22 @@ func TestPackageRegistryListPackagesPreservesZeroVersionNPMIdentities(t *testing
 			t.Parallel()
 
 			reader := &recordingPackageRegistryGraphReader{
-				runRows: []map[string]any{
+				runRowsQueue: [][]map[string]any{
 					{
-						"package_id":      tc.packageID,
-						"ecosystem":       "npm",
-						"registry":        "registry.npmjs.org",
-						"namespace":       tc.namespace,
-						"normalized_name": tc.normalized,
-						"purl":            "pkg:npm/" + tc.normalized,
-						"bom_ref":         "pkg:npm/" + tc.normalized,
-						"package_manager": "npm",
-						"version_count":   int64(0),
+						{
+							"package_id":      tc.packageID,
+							"ecosystem":       "npm",
+							"registry":        "registry.npmjs.org",
+							"namespace":       tc.namespace,
+							"normalized_name": tc.normalized,
+							"purl":            "pkg:npm/" + tc.normalized,
+							"bom_ref":         "pkg:npm/" + tc.normalized,
+							"package_manager": "npm",
+						},
 					},
+					// No HAS_VERSION edges for this package; the scoped
+					// count read correctly returns no rows for it.
+					{},
 				},
 			}
 			handler := &PackageRegistryHandler{Neo4j: reader}
@@ -203,7 +219,7 @@ func TestPackageRegistryListPackagesPreservesZeroVersionNPMIdentities(t *testing
 			if got, want := w.Code, http.StatusOK; got != want {
 				t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
 			}
-			if got, want := reader.lastParams["name"], tc.queryName; got != want {
+			if got, want := reader.paramsCalls[0]["name"], tc.queryName; got != want {
 				t.Fatalf("params[name] = %#v, want %#v", got, want)
 			}
 			var resp struct {
