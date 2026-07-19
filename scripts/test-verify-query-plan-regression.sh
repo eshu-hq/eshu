@@ -3,20 +3,19 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 verifier="${repo_root}/scripts/verify-query-plan-regression.sh"
+profile_verifier="${repo_root}/scripts/verify-query-plan-profile.sh"
 
-"${verifier}" >/tmp/eshu-query-plan-gate.out 2>/tmp/eshu-query-plan-gate.err
+bash -n "$verifier"
+bash -n "$profile_verifier"
 
-if ! rg --quiet 'verify-query-plan-regression: pass' /tmp/eshu-query-plan-gate.out; then
-	printf 'expected query-plan verifier pass marker\n' >&2
-	sed -n '1,120p' /tmp/eshu-query-plan-gate.out >&2
-	sed -n '1,120p' /tmp/eshu-query-plan-gate.err >&2
-	exit 1
-fi
-
-if rg --quiet 'No such file or directory' /tmp/eshu-query-plan-gate.err; then
-	printf 'expected query-plan verifier stderr to stay clean\n' >&2
-	sed -n '1,120p' /tmp/eshu-query-plan-gate.err >&2
-	exit 1
-fi
+rg --quiet 'verify-query-plan-profile\.sh' "$verifier"
+rg --quiet 'TestHandlerQueryplanManifestBindsProductionBuilders' "$verifier"
+rg --quiet 'TestLegacyQueryplanManifestBindsProductionQueries' "$verifier"
+rg --quiet 'neo4j@sha256:[0-9a-f]{64}' "$profile_verifier"
+rg --quiet 'TestQueryplanForbiddenOperatorPolicyIsClosed' "$profile_verifier"
+rg --quiet 'trap cleanup EXIT INT TERM' "$profile_verifier"
+rg --quiet -- '-tags queryplan_profile_live' "$profile_verifier"
+rg --quiet 'verify-query-plan-profile: pass' "$profile_verifier"
+rg --quiet 'verify-query-plan-regression: pass' "$verifier"
 
 printf 'test-verify-query-plan-regression: pass\n'

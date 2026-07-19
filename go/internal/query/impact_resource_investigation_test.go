@@ -336,12 +336,30 @@ func TestLoadResourceInvestigationSectionsJoinsParallelErrors(t *testing.T) {
 	_, _, _, _, _, _, err := handler.loadResourceInvestigationSections(
 		context.Background(),
 		resourceInvestigationRequest{Limit: 1, MaxDepth: 1},
-		&resourceInvestigationCandidate{ID: "cloud:rds:orders"},
+		&resourceInvestigationCandidate{ID: "cloud:rds:orders", Labels: []string{"CloudResource"}},
 	)
 	if !errors.Is(err, workloadErr) {
 		t.Fatalf("joined error missing workload error: %v", err)
 	}
 	if !errors.Is(err, incomingErr) {
 		t.Fatalf("joined error missing incoming error: %v", err)
+	}
+}
+
+func TestLoadResourceInvestigationSectionsRejectsUnknownAnchorLabel(t *testing.T) {
+	t.Parallel()
+
+	graph := &recordingResourceInvestigationGraph{}
+	handler := &ImpactHandler{Neo4j: graph}
+	_, _, _, _, _, _, err := handler.loadResourceInvestigationSections(
+		context.Background(),
+		resourceInvestigationRequest{Limit: 1, MaxDepth: 1},
+		&resourceInvestigationCandidate{ID: "proof", Labels: []string{"Repository"}},
+	)
+	if err == nil || !strings.Contains(err.Error(), "supported infrastructure label") {
+		t.Fatalf("loadResourceInvestigationSections() error = %v, want fail-closed label error", err)
+	}
+	if len(graph.runCalls) != 0 {
+		t.Fatalf("graph calls = %d, want 0", len(graph.runCalls))
 	}
 }

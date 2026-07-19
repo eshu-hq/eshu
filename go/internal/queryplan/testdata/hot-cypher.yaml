@@ -18,7 +18,8 @@ required_ids:
   - QP-READINESS-SC-IMPACT
   - QP-IMPACT-CHANGE-SURFACE
   - QP-RELATIONSHIPS-CATALOG-COUNT
-  - QP-RELATIONSHIPS-CATALOG-SOURCE-TOOL
+  - QP-RELATIONSHIPS-CATALOG-SOURCE-TOOL-REPOSITORY
+  - QP-RELATIONSHIPS-CATALOG-SOURCE-TOOL-INSTANCE
   - QP-RELATIONSHIPS-EDGES
   - QP-INFRA-RESOURCE-SEARCH
   - QP-INFRA-RESOURCE-AGGREGATE
@@ -30,20 +31,8 @@ entries:
     source:
       file: go/internal/query/dependencies_cypher.go
       symbol: forwardDependenciesCypher
+      source_sha256: 8242442185b6f32d8b8e301d971a83929f00b28a06437329bc069ce7b5500966
       line_hint: 54
-    cypher: |
-      MATCH (src:Package {normalized_name: $package})-[:HAS_VERSION]->(v:PackageVersion)-[:DECLARES_DEPENDENCY]->(d:PackageDependency)-[:DEPENDS_ON_PACKAGE]->(target:Package)
-      WHERE ($ecosystem = '' OR src.ecosystem = $ecosystem)
-        AND d.uid IS NOT NULL AND d.uid <> ''
-        AND target.uid IS NOT NULL AND target.uid <> ''
-        AND d.dependency_normalized IS NOT NULL AND d.dependency_normalized <> ''
-        AND ($after_name = '' OR d.dependency_normalized > $after_name OR (d.dependency_normalized = $after_name AND d.uid > $after_edge))
-      RETURN src.uid AS anchor_package_id,
-             target.uid AS related_package_id,
-             d.uid AS edge_id,
-             d.dependency_normalized AS cursor_name
-      ORDER BY d.dependency_normalized, d.uid
-      LIMIT $limit
     required_anchors:
       - label: Package
         property: normalized_name
@@ -63,7 +52,7 @@ entries:
         - AllNodesScan
         - CartesianProduct
         - UnboundedExpand
-
+    cypher_sha256: "4659ec15db9b2b6c47609e1ac4a26b93d89d34dd9b18925e78983d50042f6ec1"
   - id: QP-SC-PKGREG-DEPS
     domain: supply_chain
     backend: nornicdb
@@ -71,23 +60,8 @@ entries:
     source:
       file: go/internal/query/package_registry_cypher.go
       symbol: packageRegistryDependenciesCypher
+      source_sha256: 4d26116484c45b52af46212e43880213c8c31862ae8eec48e996e06178df992c
       line_hint: 54
-    cypher: |
-      MATCH (d:PackageDependency)
-      WHERE d.version_id = $version_id
-      WITH d
-      MATCH (d)-[:DEPENDS_ON_PACKAGE]->(target:Package)
-      WHERE d.uid IS NOT NULL AND d.uid <> ''
-        AND d.package_id IS NOT NULL AND d.package_id <> ''
-        AND d.version_id IS NOT NULL AND d.version_id <> ''
-        AND target.uid IS NOT NULL AND target.uid <> ''
-        AND ($after_version_id = '' OR d.version_id > $after_version_id OR (d.version_id = $after_version_id AND d.uid > $after_dependency_id))
-      RETURN d.uid AS dependency_id,
-             d.package_id AS source_package_id,
-             d.version_id AS source_version_id,
-             target.uid AS dependency_package_id
-      ORDER BY d.version_id, d.uid
-      LIMIT $limit
     required_anchors:
       - label: PackageDependency
         property: version_id
@@ -107,7 +81,7 @@ entries:
       forbidden_operators:
         - AllNodesScan
         - CartesianProduct
-
+    cypher_sha256: "1667800168b7a369f0264fe155edfcb3f42480f0a335f309a6dfda307a11b8ac"
   - id: QP-DEPLOY-CATALOG-ENV
     domain: deployable
     backend: nornicdb
@@ -115,13 +89,8 @@ entries:
     source:
       file: go/internal/query/catalog_workload_environments.go
       symbol: catalogWorkloadEvidenceEnvironmentCypher
+      source_sha256: 8f497a0cddd14b3e16382d6a2fbddeb4e2ba4ef270c4b327581e4b494aabdf2d
       line_hint: 59
-    cypher: |
-      MATCH (w:Workload)<-[:DEFINES]-(repo:Repository)<-[:EVIDENCES_REPOSITORY_RELATIONSHIP]-(:EvidenceArtifact)-[:TARGETS_ENVIRONMENT]->(env:Environment)
-      WHERE w.id IN $ids
-      RETURN w.id AS id,
-             env.name AS environment
-      ORDER BY id, environment
     required_anchors:
       - label: Workload
         property: id
@@ -141,7 +110,7 @@ entries:
         - AllNodesScan
         - CartesianProduct
         - UnboundedExpand
-
+    cypher_sha256: "ba83cb90cf425cbea234e759660bbdde842c0021626df6b95c58214b483f90cc"
   - id: QP-DEPLOY-CATALOG-WORKLOAD-REPO
     domain: deployable
     backend: nornicdb
@@ -149,14 +118,8 @@ entries:
     source:
       file: go/internal/query/catalog_workload_environments.go
       symbol: catalogWorkloadRepoCypher
+      source_sha256: 48bc0c3a4025281cb07ee66365a66c52529de8c21f7f6026950946d41ce19ef4
       line_hint: 41
-    cypher: |
-      MATCH (w:Workload) WHERE w.id IN $ids
-      MATCH (repo:Repository)-[:DEFINES]->(w)
-      RETURN w.id AS id,
-             repo.id AS repo_id,
-             repo.name AS repo_name
-      ORDER BY id
     required_anchors:
       - label: Workload
         property: id
@@ -175,7 +138,7 @@ entries:
         - AllNodesScan
         - CartesianProduct
         - UnboundedExpand
-
+    cypher_sha256: "05f0ec10527a2710d5c54fa4c0825ce7b9437fab5181e660f80ba315f163f44e"
   - id: QP-DEPLOY-CATALOG-WORKLOAD-INSTANCE
     domain: deployable
     backend: nornicdb
@@ -183,14 +146,8 @@ entries:
     source:
       file: go/internal/query/catalog_workload_environments.go
       symbol: catalogWorkloadInstanceEnvironmentCypher
+      source_sha256: e608ddf0d30f39c34b1b542bda1adb03e707283d45066088932caf9282229f20
       line_hint: 51
-    cypher: |
-      MATCH (w:Workload) WHERE w.id IN $ids
-      MATCH (inst:WorkloadInstance)-[:INSTANCE_OF]->(w)
-      RETURN w.id AS id,
-             count(inst) AS instance_count,
-             collect(DISTINCT inst.environment) AS environments
-      ORDER BY id
     required_anchors:
       - label: Workload
         property: id
@@ -210,25 +167,16 @@ entries:
         - AllNodesScan
         - CartesianProduct
         - UnboundedExpand
-
+    cypher_sha256: "d12bf86cbc4a55ae7255a7953e28968a843be9e3a8081dee6124871d2ae896ae"
   - id: QP-SVC-RESOLVE
     domain: service
     backend: nornicdb
     query_kind: cypher
     source:
       file: go/internal/query/service_workload_resolution.go
-      symbol: queryServiceWorkloadCandidates
+      symbol: (*EntityHandler).queryServiceWorkloadCandidates
+      source_sha256: 9f267284258bc04cd9e7791a6d6d797c048371cd78aea0e559198ab1e2006910
       line_hint: 219
-    cypher: |
-      MATCH (w:Workload)
-      WHERE w.id = $workload_id
-      RETURN w.id as id,
-             w.name as name,
-             w.kind as kind,
-             w.repo_id as repo_id,
-             '' as environment
-      ORDER BY repo_id, id
-      LIMIT 2
     required_anchors:
       - label: Workload
         property: id
@@ -236,7 +184,7 @@ entries:
       - workload_id
       - nornicdb_workload_id_lookup
     required_limits:
-      - "2"
+      - "11"
     requires_order: true
     plan:
       operators:
@@ -245,20 +193,16 @@ entries:
       forbidden_operators:
         - AllNodesScan
         - CartesianProduct
-
+    cypher_sha256: "673bd42439ec9a44c01b7bf5f9fd111b19e06d00725f20aa8f039aa8c00c077d"
   - id: QP-SVC-CONTEXT
     domain: service
     backend: nornicdb
     query_kind: cypher
     source:
       file: go/internal/query/entity_workload_context.go
-      symbol: fetchWorkloadContextForOperation
+      symbol: (*EntityHandler).fetchWorkloadContextForOperation
+      source_sha256: 28bfc91a0b6411f1a7b8e076406be9a29dbff6b3748af3129f0a04fa78109ea3
       line_hint: 46
-    cypher: |
-      MATCH (w:Workload)
-      WHERE w.id = $workload_id
-      RETURN w.id as id, w.name as name, w.kind as kind, w.repo_id as repo_id
-      LIMIT 1
     required_anchors:
       - label: Workload
         property: id
@@ -273,21 +217,16 @@ entries:
       forbidden_operators:
         - AllNodesScan
         - CartesianProduct
-
+    cypher_sha256: "c2a3b4be925adc50839cf4c380aac6eee092ae848caa6adb04bb9102765ce855"
   - id: QP-SVC-RUNS-ON
     domain: service
     backend: nornicdb
     query_kind: cypher
     source:
       file: go/internal/query/entity_workload_context.go
-      symbol: fetchWorkloadPlatformRows
+      symbol: (*EntityHandler).fetchWorkloadPlatformRows
+      source_sha256: fae20b9391fd84bc35575df5bf63ee7397f3cc8f25cd90f585236243d69fac3f
       line_hint: 357
-    cypher: |
-      MATCH (i:WorkloadInstance)-[runsOn:RUNS_ON]->(p:Platform)
-      WHERE i.id IN $instance_ids
-      RETURN i.id as instance_id,
-             p.name as platform_name
-      ORDER BY instance_id, platform_name
     required_anchors:
       - label: WorkloadInstance
         property: id
@@ -303,7 +242,7 @@ entries:
       forbidden_operators:
         - AllNodesScan
         - CartesianProduct
-
+    cypher_sha256: "eb7acade0a7d4a1f5db6e5dfd506af29ca6993517100972e119a4ad27f46f46c"
   - id: QP-SVC-CLOUD-DEPS
     domain: service
     backend: nornicdb
@@ -311,13 +250,8 @@ entries:
     source:
       file: go/internal/query/cloud_resource_dependencies.go
       symbol: loadMaterializedServiceCloudResourceDependencies
+      source_sha256: 147687884747140d0e4cc8238bef499cff688799df7206de884d264e23269e3e
       line_hint: 10
-    cypher: |
-      MATCH (workload:Workload {id: $workload_id})<-[:INSTANCE_OF]-(instance:WorkloadInstance)-[rel:USES]->(c:CloudResource)
-      RETURN DISTINCT coalesce(c.id, c.uid, c.resource_id, c.arn, c.name) AS id,
-             c.name AS name
-      ORDER BY name, id
-      LIMIT $limit
     required_anchors:
       - label: Workload
         property: id
@@ -336,7 +270,7 @@ entries:
       forbidden_operators:
         - AllNodesScan
         - CartesianProduct
-
+    cypher_sha256: "ef641833902ea720432106011ef76ed72471135dd9ecc4fa7c59421f17c1b4be"
   - id: QP-CODE-REL-STORY
     domain: code_relationship
     backend: nornicdb
@@ -344,18 +278,8 @@ entries:
     source:
       file: go/internal/query/code_relationship_story_nornicdb.go
       symbol: nornicDBRelationshipStoryGraphCypher
+      source_sha256: d330e4456083939d04671eebe17376779e9a527f9f5ede83513cd1279a4cde52
       line_hint: 36
-    cypher: |
-      MATCH (anchor:Function {uid: $entity_id})-[rel:CALLS]->(target:Function)
-      RETURN 'outgoing' as direction,
-             'CALLS' as type,
-             anchor.id as source_legacy_id,
-             anchor.uid as source_uid,
-             target.id as target_legacy_id,
-             target.uid as target_uid
-      ORDER BY target.name, target.id, target.uid
-      SKIP $offset
-      LIMIT $limit
     required_anchors:
       - label: Function
         property: uid
@@ -365,6 +289,9 @@ entries:
     required_limits:
       - $limit
     requires_order: true
+    allow_unlabeled: true
+    caveats:
+      - The only unlabeled endpoint is reached from the indexed Function anchor through the fixed CALLS relationship; subsequent optional matches enrich already-bound endpoints and do not seed an all-node scan.
     plan:
       operators:
         - NodeIndexSeek
@@ -373,7 +300,7 @@ entries:
       forbidden_operators:
         - AllNodesScan
         - CartesianProduct
-
+    cypher_sha256: "f409312eb3069367a63cff54ec713212956ccf79f54519936463555d78181b7a"
   - id: QP-CODE-REL-TRANSITIVE
     domain: code_relationship
     backend: nornicdb
@@ -381,17 +308,8 @@ entries:
     source:
       file: go/internal/query/code_relationship_story_nornicdb.go
       symbol: nornicDBRelationshipStoryInheritanceDepthCypher
+      source_sha256: ab9f498ab7ac91bd94a8e076af79c3f3b3f5436828ab51546ef1410a99968377
       line_hint: 116
-    cypher: |
-      MATCH path = (anchor:Class {uid: $entity_id})-[:INHERITS*1..5]->(target:Class)
-      RETURN 'outgoing' as direction,
-             anchor.id as source_legacy_id,
-             anchor.uid as source_uid,
-             target.id as target_legacy_id,
-             target.uid as target_uid,
-             length(path) as depth
-      ORDER BY depth DESC, target.name, target.id, target.uid
-      LIMIT $limit
     required_anchors:
       - label: Class
         property: uid
@@ -410,7 +328,7 @@ entries:
         - AllNodesScan
         - CartesianProduct
         - UnboundedExpand
-
+    cypher_sha256: "8f475705f5185443065dbd6ed874ca7fd6bdd38ae2ff3279b7c17bf1e25d4c87"
   - id: QP-CODE-REL-STORY-INCOMING
     domain: code_relationship
     backend: nornicdb
@@ -418,18 +336,8 @@ entries:
     source:
       file: go/internal/query/code_relationship_story_nornicdb.go
       symbol: nornicDBRelationshipStoryGraphCypher
+      source_sha256: d330e4456083939d04671eebe17376779e9a527f9f5ede83513cd1279a4cde52
       line_hint: 36
-    cypher: |
-      MATCH (anchor:Function {uid: $entity_id})<-[rel:CALLS]-(source:Function)
-      RETURN 'incoming' as direction,
-             'CALLS' as type,
-             source.id as source_legacy_id,
-             source.uid as source_uid,
-             anchor.id as target_legacy_id,
-             anchor.uid as target_uid
-      ORDER BY source.name, source.id, source.uid
-      SKIP $offset
-      LIMIT $limit
     required_anchors:
       - label: Function
         property: uid
@@ -439,16 +347,11 @@ entries:
     required_limits:
       - $limit
     requires_order: true
+    allow_unlabeled: true
     caveats:
+      - The only unlabeled endpoint is reached backwards from the indexed Function anchor through the fixed CALLS relationship; subsequent optional matches enrich already-bound endpoints and do not seed an all-node scan.
       - >-
-        Incoming stories must seed the indexed target before expanding backwards.
-        In the earlier raw-Cypher registry proof, one retained Function target
-        had eight incoming edges: the source-first equivalent exceeded 25 seconds
-        while this target-first query returned the identical set in 0.044 seconds.
-        That query-only sample is distinct from the later one-relationship
-        production-path proof recorded in
-        docs/internal/evidence/5244-5253-dashboard-correctness.md (0.563 to 1.648 ms
-        for the new shape); the targets, cardinalities, and timing boundaries differ.
+        Incoming stories must seed the indexed target before expanding backwards. In the earlier raw-Cypher registry proof, one retained Function target had eight incoming edges: the source-first equivalent exceeded 25 seconds while this target-first query returned the identical set in 0.044 seconds. That query-only sample is distinct from the later one-relationship production-path proof recorded in docs/internal/evidence/5244-5253-dashboard-correctness.md (0.563 to 1.648 ms for the new shape); the targets, cardinalities, and timing boundaries differ.
     plan:
       operators:
         - NodeIndexSeek
@@ -457,20 +360,16 @@ entries:
       forbidden_operators:
         - AllNodesScan
         - CartesianProduct
-
+    cypher_sha256: "bf6d526cacc25c5058e24d28c3a45cb1ff04c486abe07649bb3b9df1e14381bf"
   - id: QP-CODE-REL-STORY-ANCHOR-COLLISION
     domain: code_relationship
     backend: nornicdb
     query_kind: cypher
     source:
       file: go/internal/query/code_relationship_story_nornicdb.go
-      symbol: resolveNornicDBRelationshipStoryAnchorProperty
+      symbol: (*CodeHandler).resolveNornicDBRelationshipStoryAnchorProperty
+      source_sha256: 8e5cde039dd4f4a605f8558cb610a4aaf8c6ba81898ae0aff858242ca0761cac
       line_hint: 48
-    cypher: |
-      MATCH (idAnchor:Function {id: $entity_id})
-      WHERE coalesce(idAnchor.uid, '') <> $entity_id
-      RETURN true AS collision
-      LIMIT 1
     required_anchors:
       - label: Function
         property: id
@@ -486,7 +385,7 @@ entries:
       forbidden_operators:
         - AllNodesScan
         - CartesianProduct
-
+    cypher_sha256: "d71088b47d328e2617bb85cea6f54f067d43c64dd47a46fce27c267823905426"
   - id: QP-CODE-IMPORT-CYCLES
     domain: code_relationship
     backend: nornicdb
@@ -494,19 +393,8 @@ entries:
     source:
       file: go/internal/query/code_import_dependencies.go
       symbol: fileImportCyclesCypher
+      source_sha256: bc80a62dfd1662bb0b12fa1d3d819b33c19ccca3b32098c3ec0791dfa20cede1
       line_hint: 280
-    cypher: |
-      MATCH (repo:Repository {id: $repo_id})-[:REPO_CONTAINS]->(source_file:File)-[source_import:IMPORTS]->(target_module:Module)
-      MATCH (repo:Repository)-[:REPO_CONTAINS]->(target_file:File)-[target_import:IMPORTS]->(source_module:Module)
-      WHERE source_file.name = source_module.name + '.py'
-        AND target_file.name = target_module.name + '.py'
-        AND source_file.relative_path < target_file.relative_path
-      RETURN repo.id as repo_id,
-             source_file.relative_path as source_file,
-             target_file.relative_path as target_file
-      ORDER BY source_file.relative_path, target_file.relative_path, source_module.name, target_module.name
-      SKIP $offset
-      LIMIT $limit
     required_anchors:
       - label: Repository
         property: id
@@ -527,18 +415,16 @@ entries:
         - AllNodesScan
         - CartesianProduct
         - UnboundedExpand
-
+    cypher_sha256: "4b91024d77867e6f7ffbe0e502a2d069c797b878fee5d57f74753fb7033e88a1"
   - id: QP-READINESS-HOSTED
     domain: readiness
     backend: nornicdb
     query_kind: cypher
     source:
       file: go/internal/query/status_hosted_readiness.go
-      symbol: readHostedRepositoryCount
+      symbol: (*StatusHandler).readHostedRepositoryCount
+      source_sha256: add2e56e1ca154fc60b94390bf6e55b5d9768ea3c895a9502c710be90ad2371e
       line_hint: 70
-    cypher: |
-      MATCH (r:Repository)
-      RETURN count(r) as count
     required_schema:
       - repository_id
       - nornicdb_repository_id_lookup
@@ -550,7 +436,7 @@ entries:
       forbidden_operators:
         - CartesianProduct
         - UnboundedExpand
-
+    cypher_sha256: "408895ec7f111c5838d75c5a47ddd5dfd6c4da2d59bcbc94ea04a5301f2f63d3"
   - id: QP-READINESS-SC-IMPACT
     domain: readiness
     backend: postgres
@@ -561,26 +447,15 @@ entries:
       line_hint: 3
     caveats:
       - Supply-chain impact readiness is reducer-owned SQL/read-model evidence, not hot Cypher; it is represented here so the gate tracks the caveat explicitly.
-
   - id: QP-IMPACT-CHANGE-SURFACE
     domain: impact
     backend: nornicdb
     query_kind: cypher
     source:
       file: go/internal/query/impact_change_surface_legacy.go
-      symbol: findChangeSurfaceImpactRows
+      symbol: (*ImpactHandler).findChangeSurfaceImpactRows
+      source_sha256: 588becf80571c7da65b565341a59fcd56e6fa4ce336ff6e69c85abe012235f82
       line_hint: 107
-    cypher: |
-      MATCH (start:Workload {id: $target_id})
-      OPTIONAL MATCH path = (start)-[rels*1..4]->(impacted)
-      WHERE impacted.id <> $target_id AND any(label IN labels(impacted) WHERE label IN ['Repository', 'Workload', 'WorkloadInstance', 'CloudResource', 'TerraformModule', 'DataAsset'])
-        AND ($environment = '' OR coalesce(impacted.environment, '') = '' OR impacted.environment = $environment)
-      UNWIND relationships(path) as rel
-      WITH impacted, rel, length(path) as depth
-      RETURN DISTINCT impacted.id as id, impacted.name as name, labels(impacted) as labels, impacted.environment as environment,
-             type(rel) as rel_type, rel.confidence as confidence, rel.reason as reason, depth
-      ORDER BY depth, impacted.name, impacted.id
-      LIMIT $limit
     required_anchors:
       - label: Workload
         property: id
@@ -601,7 +476,7 @@ entries:
         - AllNodesScan
         - CartesianProduct
         - UnboundedExpand
-
+    cypher_sha256: "ca18c2ad97d85d423b01760bfa655412b3417d9e828b54cd6f60d0d7750ffc8c"
   - id: QP-RELATIONSHIPS-CATALOG-COUNT
     domain: relationships
     backend: nornicdb
@@ -609,10 +484,8 @@ entries:
     source:
       file: go/internal/query/relationships_catalog_cypher.go
       symbol: relationshipCountCypher
+      source_sha256: 63519160be931a2d2ad003745bc30e11d08bfe26122c643f22c3e148ad1abff8
       line_hint: 84
-    cypher: |
-      MATCH ()-[r:CALLS]->()
-      RETURN count(r) AS count
     caveats:
       - "One bounded count per fixed catalog verb, each a bare relationship-type aggregate answered by the NornicDB relationship-type index (this entry is the CALLS representative of the 16-verb family in relationshipVerbCatalog). The endpoints are anonymous () nodes, not bound unlabeled nodes, so this is not an unlabeled-node all-node scan; it is the relationship-type-indexed whole-graph edge count the catalog contract promises. The count is intentionally whole-graph: when a relationship type is written by more than one source label (e.g. DEPENDS_ON is written for both Repository and Workload sources), the count includes all source labels combined while the companion edge-slice endpoint is anchored on the catalog entry's sourceLabel; the two numbers can legitimately differ. NornicDB has no composite relationship-type+label index, so a source-label-scoped count would require a full label-population scan (measured at 30s+ for 16 verbs at ~900k-edge scale); the whole-graph count is the only index-served option (issue #3429)."
     plan:
@@ -622,7 +495,7 @@ entries:
         - AllNodesScan
         - CartesianProduct
         - UnboundedExpand
-
+    cypher_sha256: "5b291be26d0e23d5fad1af36da66d405ac1a04c3c8071db8f1387c56cf367907"
   - id: QP-RELATIONSHIPS-EDGES
     domain: relationships
     backend: nornicdb
@@ -630,16 +503,8 @@ entries:
     source:
       file: go/internal/query/relationships_catalog_cypher.go
       symbol: relationshipEdgesCypher
+      source_sha256: bc5afa1307496b4b2173cadd3a990fd5181072fad6f586ac21057820c039fc16
       line_hint: 96
-    cypher: |
-      MATCH (s:Function)-[r:CALLS]->(t)
-      RETURN coalesce(s.id, s.uid, s.name, s.path) AS source_id,
-             coalesce(s.name, s.path, s.id, s.uid) AS source_name,
-             coalesce(t.id, t.uid, t.name, t.path) AS target_id,
-             coalesce(t.name, t.path, t.id, t.uid) AS target_name,
-             r.rationale AS evidence
-      ORDER BY s.uid, coalesce(t.id, t.uid)
-      LIMIT $limit
     required_schema:
       - function_uid_unique
       - nornicdb_function_uid_lookup
@@ -656,24 +521,21 @@ entries:
         - AllNodesScan
         - CartesianProduct
         - UnboundedExpand
-
-  - id: QP-RELATIONSHIPS-CATALOG-SOURCE-TOOL
+    cypher_sha256: "4500651a110f86f506eb8827db50b262278afb98bc987a3f01407ade1613eb73"
+  - id: QP-RELATIONSHIPS-CATALOG-SOURCE-TOOL-REPOSITORY
     domain: relationships
     backend: nornicdb
     query_kind: cypher
     source:
       file: go/internal/query/relationships_catalog_cypher.go
-      symbol: relationshipSourceToolBreakdownCypher
-      line_hint: 185
-    cypher: |
-      MATCH (s:Repository)-[r:DEPLOYS_FROM]->()
-      WHERE r.source_tool IS NOT NULL
-      RETURN r.source_tool AS source_tool, count(r) AS count
+      symbol: relationshipSourceToolBreakdownCyphers
+      source_sha256: 1c0b5add35cf4e5b2c2a296e9972b03d4c99d09a4a763b468b886f148632d55b
+      line_hint: 180
     required_schema:
       - repository_id
       - nornicdb_repository_id_lookup
     caveats:
-      - This is the Repository/DEPLOYS_FROM representative of the seven fixed source-tool breakdowns. Each query starts from the indexed source label that owns stamped edges; the handler overlaps the seven independent reads while preserving catalog output order. DEPENDS_ON intentionally uses Repository for this aggregate because source_tool is stamped on its Repository-to-Repository evidence edges, while the per-verb drill-down sourceLabel remains Workload.
+      - This is the production Repository-owned source-tool aggregate. The builder groups every stamped Repository relationship type into one query instead of the removed per-verb shape.
     plan:
       operators:
         - LabelScan
@@ -682,7 +544,30 @@ entries:
         - AllNodesScan
         - CartesianProduct
         - UnboundedExpand
-
+    cypher_sha256: "07a13370f975567f59765dd1dac5ac7ebb0c700df5536a518cf7a3ca23905aa0"
+  - id: QP-RELATIONSHIPS-CATALOG-SOURCE-TOOL-INSTANCE
+    domain: relationships
+    backend: nornicdb
+    query_kind: cypher
+    source:
+      file: go/internal/query/relationships_catalog_cypher.go
+      symbol: relationshipSourceToolBreakdownCyphers
+      source_sha256: 1c0b5add35cf4e5b2c2a296e9972b03d4c99d09a4a763b468b886f148632d55b
+      line_hint: 180
+    required_schema:
+      - workload_instance_id
+      - nornicdb_workload_instance_id_lookup
+    caveats:
+      - This is the production WorkloadInstance-owned source-tool aggregate. Keeping it distinct from the Repository-owned query prevents either current builder output from bypassing source binding or live PROFILE proof.
+    plan:
+      operators:
+        - LabelScan
+        - Expand
+      forbidden_operators:
+        - AllNodesScan
+        - CartesianProduct
+        - UnboundedExpand
+    cypher_sha256: "0e19f900818725d51a410a03f3cefe9f59b126381c71ed029366ab28b4ac7d8e"
   - id: QP-INFRA-RESOURCE-SEARCH
     domain: infra
     backend: nornicdb
@@ -690,17 +575,8 @@ entries:
     source:
       file: go/internal/query/infra.go
       symbol: (*InfraHandler).searchResources
+      source_sha256: 2f6c76e66dd4601d82ab8c71bee437ce39b3626776181515abf5f87a18430a17
       line_hint: 195
-    cypher: |
-      CALL {
-      MATCH (n:CloudResource)
-      WHERE true
-        AND coalesce(n.name, '') CONTAINS $query
-      RETURN coalesce(n.id, '') as id, coalesce(n.name, '') as name, labels(n) as labels
-      }
-      RETURN id, name, labels
-      ORDER BY name
-      LIMIT $limit
     required_limits:
       - $limit
     requires_order: true
@@ -715,7 +591,7 @@ entries:
         - AllNodesScan
         - CartesianProduct
         - UnboundedExpand
-
+    cypher_sha256: "dc61d96bcb6c31bca186f3b1701badb0591b926962814c92171ebd1b817bfac5"
   - id: QP-INFRA-RESOURCE-AGGREGATE
     domain: infra
     backend: nornicdb
@@ -723,13 +599,8 @@ entries:
     source:
       file: go/internal/query/infra_resource_aggregates_cypher.go
       symbol: infraResourceAggregatePerLabelCypher
+      source_sha256: fb3765dd690a048609abb5ee8d330372ca430c815f82db88af57d5fbc501cdaf
       line_hint: 42
-    cypher: |
-      CALL {
-      MATCH (n:CloudResource)
-      RETURN head(labels(n)) AS bucket, count(n) AS bucket_count
-      }
-      RETURN bucket, bucket_count
     caveats:
       - Representative of one branch of a dynamically generated per-label CALL { ... UNION ALL ... } (issue #5281), shown in its unfiltered form (the shape emitted when no property filter applies). CountInfraResources/fillBuckets/InfraResourceInventory build one MATCH (n:Label) branch per candidate infra label (up to the ~27-entry allInfraLabels set) and merge/sort/paginate the passed-through rows in Go. This replaced a single unlabeled MATCH (n) WHERE (n:A OR n:B ...) whole-graph scan (measured 380-410ms cold on a 91k-node corpus, growing with total graph size) — the same defect fixed for infra/resources/search in #5278. No required_anchors is declared because the only guarantee is a bounded per-label LabelScan; any property filter (e.g. n.provider = $provider) is optional and rendered by infraResourceAggregateBranchWhere without a "WHERE true" prefix. This static entry lints the query SHAPE (label-anchored, no AllNodesScan operator listed); the load-bearing drift guard that the generated query stays per-label CALL-anchored is the Go test TestInfraResourceScopePredicateRendersOnlyWhenScoped, not a live planner assertion.
       - The union is wrapped in CALL { ... } and each branch groups internally, passing rows through the outer RETURN without re-aggregating. Both are load-bearing on the pinned NornicDB backend (see docs/public/reference/nornicdb-pitfalls.md). A bare top-level UNION drops all rows when its first branch is empty (allInfraLabels starts with the frequently-empty CloudResource), and outer aggregation over a CALL subquery evaluates the group key to null and collapses every row into one bogus bucket. Callers therefore merge/sum the per-branch rows application-side.
@@ -740,3 +611,4 @@ entries:
         - AllNodesScan
         - CartesianProduct
         - UnboundedExpand
+    cypher_sha256: "c5c0da930b9583c73ffff79fdea9a7118da9a7ce65d2cc9ea32d052d63efd750"

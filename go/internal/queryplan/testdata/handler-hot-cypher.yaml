@@ -1,0 +1,240 @@
+version: 1
+required_ids:
+  - QP-ENTITY-RESOLVE-REPOSITORY
+  - QP-CODE-SEARCH-REPOSITORY
+  - QP-CODE-IMPORT-ROWS-REPOSITORY
+  - QP-ENTITY-MAP-RESOLVE-REPOSITORY
+  - QP-ENTITY-MAP-DIRECT-REPOSITORY
+  - QP-ENTITY-MAP-BOUNDED-REPOSITORY
+  - QP-CLOUD-RESOURCE-LIST
+  - QP-CALL-GRAPH-HUBS
+  - QP-CALL-GRAPH-RECURSIVE
+  - QP-GRAPH-ENTITY-COUNT
+  - QP-GRAPH-ENTITY-LIST
+  - QP-WORKLOAD-RESOLVE-PROPERTY
+  - QP-WORKLOAD-RESOLVE-RELATIONSHIP
+  - QP-RESOURCE-INVESTIGATION-WORKLOADS
+  - QP-RESOURCE-INVESTIGATION-INSTANCE-WORKLOADS
+  - QP-RESOURCE-INVESTIGATION-REPO-PATHS
+entries:
+  - id: QP-ENTITY-RESOLVE-REPOSITORY
+    domain: entity
+    backend: nornicdb_neo4j
+    query_kind: cypher
+    source: {file: go/internal/query/entity.go, symbol: buildResolveEntityGraphQuery, source_sha256: 2a6f7c2a9ef6249d809476f762ea049a0ded7bbd846a538d4e4d4cef19f2821d}
+    query_fragment: 'MATCH (r:Repository {id: $repo_id})'
+    cypher_sha256: ee51f2a612461a5e5bba6d28fc1e11e0259f44cd653819ca41380cee8985afc2
+    required_anchors: [{label: Repository, property: id}]
+    required_schema: [repository_id]
+    required_limits: [$limit]
+    requires_order: true
+    plan: &indexed_plan
+      operators: [NodeIndexSeek, Expand]
+      forbidden_operators: [AllNodesScan, CartesianProduct, UnboundedExpand]
+
+  - id: QP-CODE-SEARCH-REPOSITORY
+    domain: code
+    backend: nornicdb_neo4j
+    query_kind: cypher
+    source: {file: go/internal/query/code_graph_search_query.go, symbol: buildSearchGraphEntitiesQuery, source_sha256: 72f8f9f7822334e915ce2d7386af4b2f63607d471be86b2ece96cefd5e4b4919}
+    query_fragment: 'MATCH (r:Repository {id: $repo_id})'
+    cypher_sha256: 428464ccf4de18918b814cf137ad4bb330f1bfda643801bf29ffa0ad593e59f3
+    required_anchors: [{label: Repository, property: id}]
+    required_schema: [repository_id]
+    required_limits: [$limit]
+    requires_order: true
+    plan: *indexed_plan
+
+  - id: QP-CODE-IMPORT-ROWS-REPOSITORY
+    domain: code
+    backend: nornicdb_neo4j
+    query_kind: cypher
+    source: {file: go/internal/query/code_import_dependencies.go, symbol: importRowsCypher, source_sha256: fa1d697b1d220e40ea6e4aee8004511f479bcca17d58696ed0acbbe7a3dd08d5}
+    query_fragment: 'MATCH (repo:Repository {id: $repo_id})-[:REPO_CONTAINS]->(source_file:File {relative_path: $source_file})'
+    cypher_sha256: e835bb3dd6848992566029e4504696a166056b7e3493d116a0549f20fc5fd6d1
+    required_anchors: [{label: Repository, property: id}]
+    required_schema: [repository_id]
+    required_limits: [$limit]
+    requires_order: true
+    allow_unlabeled: true
+    caveats: [The second MATCH expands from source_file already bound by the indexed Repository anchor.]
+    plan: *indexed_plan
+
+  - id: QP-ENTITY-MAP-RESOLVE-REPOSITORY
+    domain: impact
+    backend: nornicdb_neo4j
+    query_kind: cypher
+    source: {file: go/internal/query/entity_map_resolver.go, symbol: entityMapNodeResolverQuery, source_sha256: 003a2fb8485039e15b883f4c760d92f79342d6fadd47220b5402665562122dce}
+    query_fragment: 'MATCH (n:%s {%s: $from})'
+    cypher_sha256: 785acf58218cccb6d99b9b783edacdd596930f3a3b627e36645069feed7dee9c
+    required_anchors: [{label: Repository, property: id}]
+    required_schema: [repository_id]
+    required_limits: [51]
+    requires_order: true
+    plan: *indexed_plan
+
+  - id: QP-ENTITY-MAP-DIRECT-REPOSITORY
+    domain: impact
+    backend: nornicdb_neo4j
+    query_kind: cypher
+    source: {file: go/internal/query/entity_map_traversal.go, symbol: entityMapDirectTraversalCypher, source_sha256: e917e1affe2806fca5fe5cc960290b1d04e4d6bc378eb6723dfb7e675968348b}
+    query_fragment: '(start:%s {%s: $from_id})-[rel:%s]->(entity)'
+    cypher_sha256: 1c133fed5c939ca0e9f310431ac7d5c6602a476eaa7c125c48d828aa930af2d7
+    required_anchors: [{label: Repository, property: id}]
+    required_schema: [repository_id]
+    required_limits: [$limit]
+    requires_order: true
+    plan: *indexed_plan
+
+  - id: QP-ENTITY-MAP-BOUNDED-REPOSITORY
+    domain: impact
+    backend: nornicdb_neo4j
+    query_kind: cypher
+    source: {file: go/internal/query/entity_map_traversal.go, symbol: entityMapVariableTraversalCypher, source_sha256: 06941c2283745c8a6d62d85e053bc7dabd7c213d500a3a555974b970531f91f7}
+    query_fragment: '(start:%s {%s: $from_id})-[%s]->(entity)'
+    cypher_sha256: 797d2c60e7de3f2a9539d6ebd078b1731e7193696ef5de84edc9b6f33cf2a573
+    required_anchors: [{label: Repository, property: id}]
+    required_schema: [repository_id]
+    required_limits: [$limit]
+    requires_order: true
+    plan: *indexed_plan
+
+  - id: QP-CLOUD-RESOURCE-LIST
+    domain: infra
+    backend: nornicdb_neo4j
+    query_kind: cypher
+    source: {file: go/internal/query/cloud_resources.go, symbol: buildCloudResourceListQuery, source_sha256: 80ebd115c1329cf4dafe0577f8cd9d3f4ee3bb0fafe0bc832947906adfe3827c}
+    query_fragment: 'MATCH (n:CloudResource)'
+    cypher_sha256: 6eab61a21db14cd00caacfddc0e877ff5a6801326a40148f5100ebbe6583f29c
+    required_anchors: [{label: CloudResource, property: resource_type}]
+    required_schema: [cloud_resource_type]
+    required_limits: [$limit]
+    requires_order: true
+    plan: *indexed_plan
+
+  - id: QP-CALL-GRAPH-HUBS
+    domain: code
+    backend: nornicdb_neo4j
+    query_kind: cypher
+    source: {file: go/internal/query/code_call_graph_metrics.go, symbol: hubFunctionsCypher, source_sha256: f6e8dd1b0bff52b4ee6229d6c2c2687f5d811e905f917e3d29774dcd11237675}
+    query_fragment: 'MATCH (repo:Repository {id: $repo_id})'
+    cypher_sha256: 37ca49895cf10169757e3e28914309611849c224d1d834c05b576b703e865e73
+    required_anchors: [{label: Repository, property: id}]
+    required_schema: [repository_id]
+    required_limits: [$limit]
+    requires_order: true
+    allow_unlabeled: true
+    caveats: [The OPTIONAL MATCH reuses repo and fn already bound by the indexed Repository path.]
+    plan: *indexed_plan
+
+  - id: QP-CALL-GRAPH-RECURSIVE
+    domain: code
+    backend: nornicdb_neo4j
+    query_kind: cypher
+    source: {file: go/internal/query/code_call_graph_metrics.go, symbol: recursiveFunctionsCypher, source_sha256: 8fb4d87b9ebc0549c95ba2ccafe017d28e1ee58f911f45ad6e80a659282619fe}
+    query_fragment: 'MATCH (repo:Repository {id: $repo_id})'
+    cypher_sha256: f98c39acc149acb709da084f82154be331c9affa3adb573ca81ffc47535ccac1
+    required_anchors: [{label: Repository, property: id}]
+    required_schema: [repository_id]
+    required_limits: [$limit]
+    requires_order: true
+    allow_unlabeled: true
+    caveats: [The later MATCH clauses reuse fn and partner already bound by the indexed Repository path.]
+    plan: *indexed_plan
+
+  - id: QP-GRAPH-ENTITY-COUNT
+    domain: graph
+    backend: nornicdb_neo4j
+    query_kind: cypher
+    source: {file: go/internal/query/graph_entity_inventory.go, symbol: graphEntityKindCountCypher, source_sha256: 4d23e6854ac1e0db31e947b55d246c30ae99aa9025fbad786182fcf703e2d9c2}
+    query_fragment: 'MATCH (n:'
+    cypher_sha256: 1f2e1be042ad073986974cce741a960bdb5321fd26c2d4a20823876182192a25
+    caveats: [Neo4j may use the label count store; NornicDB must remain label-bounded and must not use an all-node scan.]
+    plan:
+      operators: [NodeCountFromCountStore]
+      forbidden_operators: [AllNodesScan, CartesianProduct, UnboundedExpand]
+
+  - id: QP-GRAPH-ENTITY-LIST
+    domain: graph
+    backend: nornicdb_neo4j
+    query_kind: cypher
+    source: {file: go/internal/query/graph_entity_inventory.go, symbol: graphEntityKindListCypher, source_sha256: d5ebe60e75c9078e0f7d4915c73edfe6ff686a81c205b374625bc953c57c921e}
+    query_fragment: 'MATCH (n:'
+    cypher_sha256: ed4a6cde0b451ba5ea6b1f030c64faaa2d8378e882853f604d5fcbb6f79ef891
+    required_anchors: [{label: Workload, property: name}]
+    required_schema: [workload_name]
+    required_limits: [$limit]
+    requires_order: true
+    caveats: [Substring search is label-bounded; PROFILE must reject an all-node scan even when the backend cannot use the name index for CONTAINS.]
+    plan:
+      operators: [NodeByLabelScan]
+      forbidden_operators: [AllNodesScan, CartesianProduct, UnboundedExpand]
+
+  - id: QP-WORKLOAD-RESOLVE-PROPERTY
+    domain: entity
+    backend: nornicdb_neo4j
+    query_kind: cypher
+    source: {file: go/internal/query/entity_resolve_workload_query.go, symbol: buildResolveWorkloadQueries, source_sha256: 56d1a4c546df00fc0a3d01e923b5d23fd80659fe8ab88bbd5f931c690801ced6}
+    query_fragment: 'MATCH (w:Workload)'
+    cypher_sha256: 72a03ec3f654f82a76641fc7126a30be39b2b6d36c4ac3a74bd55c4726a92ae1
+    required_anchors: [{label: Workload, property: name}]
+    required_schema: [workload_name]
+    required_limits: [$limit]
+    requires_order: true
+    plan: *indexed_plan
+
+  - id: QP-WORKLOAD-RESOLVE-RELATIONSHIP
+    domain: entity
+    backend: nornicdb_neo4j
+    query_kind: cypher
+    source: {file: go/internal/query/entity_resolve_workload_query.go, symbol: buildResolveWorkloadQueries, source_sha256: 56d1a4c546df00fc0a3d01e923b5d23fd80659fe8ab88bbd5f931c690801ced6}
+    query_fragment: 'MATCH (w:Workload)<-[:DEFINES]-(repo:Repository)'
+    cypher_sha256: 230a12016a8d10d5063cd2c38a4205378b900ec6952d97ccfe7ebba6ccbcde10
+    required_anchors: [{label: Workload, property: name}]
+    required_schema: [workload_name]
+    required_limits: [$limit]
+    requires_order: true
+    plan: *indexed_plan
+
+  - id: QP-RESOURCE-INVESTIGATION-WORKLOADS
+    domain: impact
+    backend: nornicdb_neo4j
+    query_kind: cypher
+    source: {file: go/internal/query/impact_resource_investigation_reads.go, symbol: resourceInvestigationWorkloadsCypher, source_sha256: c0e2d2cc361ff17eb841261f4b482b52644355a2dab972c767877682e0626c35}
+    query_fragment: 'MATCH (instance:WorkloadInstance)-[rel:USES]->(%s)'
+    cypher_sha256: e100f5b99cf9be76a0bfa62a92c405f069c571cd686a999c596efd0fbc1e3a32
+    required_anchors: [{label: CloudResource, property: resource_id}]
+    required_schema: [cloud_resource_resource_id]
+    required_limits: [$limit]
+    requires_order: true
+    caveats: [The NornicDB-safe query anchors on the USES relationship type and a whitelisted resource label; Neo4j may choose DirectedRelationshipTypeScan on an empty proof graph, which remains bounded by relationship type and LIMIT.]
+    plan:
+      operators: [DirectedRelationshipTypeScan]
+      forbidden_operators: [AllNodesScan, CartesianProduct, UnboundedExpand]
+
+  - id: QP-RESOURCE-INVESTIGATION-INSTANCE-WORKLOADS
+    domain: impact
+    backend: nornicdb_neo4j
+    query_kind: cypher
+    source: {file: go/internal/query/impact_resource_investigation_reads.go, symbol: resourceInvestigationInstanceWorkloadsCypher, source_sha256: e2cec14b6edfaa7ad6c976f2ba973a7d576c76a06962592627c64508c0f4962f}
+    query_fragment: 'MATCH (instance:WorkloadInstance)-[:INSTANCE_OF]->(workload:Workload)'
+    cypher_sha256: 1cb55f9bca8f9fead028b9408fda479a84e189e9f7568f8701e2bee1445357a0
+    required_anchors: [{label: WorkloadInstance, property: id}]
+    required_schema: [workload_instance_id]
+    plan: *indexed_plan
+
+  - id: QP-RESOURCE-INVESTIGATION-REPO-PATHS
+    domain: impact
+    backend: nornicdb_neo4j
+    query_kind: cypher
+    source: {file: go/internal/query/impact_resource_investigation_reads.go, symbol: resourceInvestigationRepoPathsCypher, source_sha256: bbff09dc1e8ae8a6b64a4a32439f8ca746678ab84c7996d95095358f26133ead}
+    query_fragment: 'MATCH path = %s'
+    cypher_sha256: 4868f98cf10731ff8781ed9ba394da16d97c623c5cdd7d74217257bb5b641565
+    required_anchors: [{label: CloudResource, property: resource_id}]
+    required_schema: [cloud_resource_resource_id]
+    required_limits: [$limit]
+    requires_order: true
+    caveats: [The NornicDB-safe path read starts from the resolved whitelisted resource label and has fixed max depth plus LIMIT; the retained 91k-node precedent measured the label-bounded form at 1.2ms versus 410ms unlabeled.]
+    plan:
+      operators: [NodeByLabelScan, VarLengthExpand]
+      forbidden_operators: [AllNodesScan, CartesianProduct, UnboundedExpand]

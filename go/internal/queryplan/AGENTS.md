@@ -5,6 +5,8 @@
 1. `README.md` - package purpose, fixture contract, and evidence notes.
 2. `doc.go` - godoc boundary and non-runtime behavior.
 3. `validator.go` - manifest schema and static validation rules.
+4. `source_coverage.go` - production query-call discovery and fail-closed
+   inventory rules.
 
 ## Invariants
 
@@ -15,7 +17,17 @@
 - When a read path is backed by SQL/read-model evidence rather than Cypher,
   mark it as `query_kind: sql_read_model` and include a caveat.
 - New Cypher hot paths must declare source owner, anchor labels/properties,
-  schema evidence names, bounds, ordering requirements, and bad plan signatures.
+  exact production-builder SHA-256, schema evidence names, bounds, ordering
+  requirements, and bad plan signatures. Do not copy production Cypher into the
+  handler manifest.
+- Every non-test `Run` or `RunSingle` call under `internal/query` must appear in
+  `testdata/query-source-coverage.yaml` with the exact enclosing symbol and call
+  count. Link hot calls through `entry_ids`; new non-hot registrations must use
+  a typed `non_hot` class with a production source digest and applicable bounds.
+  `non_hot_reason` remains source-digest-frozen legacy migration debt and must
+  not be added or changed without converting the entry to the typed form.
+- Keep production-builder binding and live `PROFILE` tests in `internal/query`,
+  never in this package.
 
 ## Verification
 

@@ -67,15 +67,38 @@ graph writes, collectors, workers, leases, batching, concurrency primitives,
 Compose, Helm, pprof, and NornicDB knobs.
 
 `scripts/verify-query-plan-regression.sh` validates the static hot-path
-query-plan fixture at `go/internal/queryplan/testdata/hot-cypher.yaml` against
-the NornicDB schema statement contract. The fixture names supply-chain,
-deployable, service, code-relationship, and readiness paths; fails deliberately
-bad query shapes such as unbounded variable-length traversals, unlabeled
-anchors, pagination without deterministic ordering, missing schema evidence,
-and forbidden plan signatures; and records explicit caveats for SQL/read-model
-paths that do not have a Cypher plan. This gate prevents silent fixture drift
-and bad static shapes. It does not replace live backend `EXPLAIN`, `PROFILE`,
-or before/after runtime measurements for production Cypher changes.
+query-plan fixtures under `go/internal/queryplan/testdata/` against the NornicDB
+schema statement contract. The gate also parses every non-test Go file
+recursively beneath `go/internal/query` and compares each `Run` or `RunSingle` owner against
+`query-source-coverage.yaml` by file, enclosing symbol, and exact call count.
+Every callsite must link to registered hot entries or carry an explicit non-hot
+disposition. Typed non-hot dispositions freeze the reviewed source symbol and
+declare machine-checked key/result bounds. Grandfathered prose dispositions are
+immutable source-digest records: new or changed source must use the typed form.
+Hot dispositions also freeze the full graph-executing production symbol, so
+retaining the same `Run` count while rerouting to another query fails the gate.
+Handler and legacy entries contain no copied Cypher. Handler entries bind exact
+query and builder-source SHA-256 values plus an anchor `query_fragment` to the
+production builder; legacy entries bind exact query fingerprints to their
+declared production builder or execution-path owners and freeze those owners by
+source SHA-256. The regression script runs
+both query-package binding tests, which fill the manifests with production bytes
+before applying shape validation. New or stale execution sites, missing
+dispositions, unknown entry links, source-fragment or fingerprint drift,
+unbounded variable-length traversals, unlabeled anchors, unordered pagination,
+missing schema evidence, and forbidden plan signatures fail the gate. The same
+script provisions a pinned, isolated Neo4j container and runs the build-tagged
+live proof in `go/internal/query/queryplan_profile_live_test.go`. That proof
+profiles 16 handler entries and 22 legacy entries through Neo4j `PROFILE` using
+production-owned bytes, plus 324 hash-frozen safe production variants: 362
+shapes in total. The safe family includes the 31 cloud-resource list shapes not
+already represented by its registered resource-type-only entry, covering every
+combination of optional provider, resource type, region, account, and keyset
+cursor predicates. A label or relationship-type scan is accepted only by the
+closed code-level operator policy; manifest data cannot add an exception.
+Static validation
+does not replace live backend `EXPLAIN`,
+`PROFILE`, or before/after runtime measurements for production Cypher changes.
 
 Hot-path changes must update a versioned repo file with one benchmark marker:
 
