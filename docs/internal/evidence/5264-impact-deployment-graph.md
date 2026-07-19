@@ -103,15 +103,34 @@ workload selection returns HTTP 409 rather than an internal-error response.
 
 ## Performance and observability
 
-Performance Evidence: exact-final-head NornicDB v1.1.11 `PROFILE` or traced
-query-plan evidence is pending. The final record must name the exact emitted
-query shapes, representative input cardinality, elapsed time, result counts,
-expected-delta or equivalence result, and planner fallback disposition. Static
-query-plan checks alone do not close this requirement.
+Performance Evidence: the cloud-resource correctness rewrite was measured on
+NornicDB v1.1.11 against a representative synthetic partition containing one
+workload, one runtime instance, 51 cloud resources, and 102 `USES`
+observations. Ten alternating warm executions measured the old aggregation at
+approximately 1.60-2.31 milliseconds and the observation-preserving query at
+2.09-2.99 milliseconds. The median correctness cost was approximately
+0.7-0.8 milliseconds; this is explicitly not claimed as a speedup.
 
-No-Regression Evidence: exact-final-head focused query, API/MCP, OpenAPI,
-frontend, and golden-corpus results are pending. Do not replace these with
-results from a superseded commit.
+The old shape could fabricate a mixed-provenance tuple. The new shape returned
+the intact observations and allowed the Go selector to choose the highest
+confidence complete tuple. The canonical resource-ID result digest remained
+identical (`0c93a1ca43dc040ed143769c937137c6fc78c5d9a14ca5fd8f38a6eaf3514b5c`).
+An `ORDER BY` plus `head(collect(...))` candidate was rejected because the
+backend selected a lower-confidence relationship. NornicDB returned neither a
+plan nor statistics for `PROFILE`, so the proof uses directly timed emitted
+queries, exact output checks, the static query-plan registry, and the bounded
+51-row sentinel contract instead of claiming unavailable planner evidence.
+
+No-Regression Evidence: after the final rebase, focused query tests passed,
+the complete console suite passed 254 test files and 1,616 tests, console
+typechecking passed, and the production console build passed with every emitted
+chunk within its checked-in budget. The B-7 golden-corpus gate passed 421
+checks with zero required failures and zero advisory warnings on NornicDB
+v1.1.11 in 32 seconds. Its phase durations were 2 seconds for bootstrap, 21
+seconds for collection, 4 seconds for the first drain, 5 seconds for
+maintenance, and 3 seconds for graph queries. The post-rebase static query-plan
+test and generated-coverage verification also passed after removing stale
+callsite records introduced by the incoming base changes.
 
 No-Observability-Change: the reads continue through the shared graph and content
 adapters, existing query spans and duration metrics, service-query stage logs,
@@ -119,24 +138,34 @@ HTTP truth/error envelopes, and in-band bounded-collection metadata. The change
 adds no graph write, queue worker, retry policy, cache, runtime knob, metric
 instrument, or high-cardinality metric label.
 
-## Required final proof
+## Final proof packet
 
-The final review packet must replace each pending entry below with evidence from
-the exact rebased commit intended for push:
+| Proof | Terminal result |
+| --- | --- |
+| Focused backend and OpenAPI tests | deployment truth, bounds, ambiguity, and schema tests passed |
+| Focused console tests and typecheck | 254 files and 1,616 tests passed; typecheck passed |
+| NornicDB query proof | bounded emitted shapes and expected correctness delta proved; unavailable `PROFILE` output disclosed |
+| B-7 golden corpus | 421 passed, 0 required failures, 0 advisory warnings on NornicDB v1.1.11 |
+| Production console build | passed; all 80 emitted chunks remained within budget |
+| Authenticated retained-browser workflow | API rows, rendered identities, counts, and limitations agreed |
 
-| Proof | Required terminal result | Status |
-| --- | --- | --- |
-| Focused backend and OpenAPI tests | deployment truth, bounds, ambiguity, and schema tests pass | Pending exact final head |
-| Focused console tests and typecheck | graph composition, lifecycle ownership, and fail-closed normalization pass | Pending exact final head |
-| NornicDB query-plan proof | exact emitted shapes are bounded and planner fallback is disclosed | Pending exact final head |
-| B-7 golden corpus | required HTTP/MCP topology shapes pass on NornicDB v1.1.11 | Pending exact final head |
-| Production console build | every emitted chunk remains within its checked-in budget | Pending exact final head |
-| Authenticated retained-browser workflow | API rows, rendered identities, counts, pivots, and limitations agree | Pending exact final head |
+The retained-browser proof used a real authenticated session after rebuilding
+the API and console. A service with an empty code change surface switched to
+deployment-topology mode and rendered 12 of 12 nodes and 11 of 11 edges: the
+repository/workload backbone, five runtime instances, and five Kubernetes
+platforms. The response reported complete within bounds and the browser
+composition took 1.700 milliseconds. Selecting an instance showed human
+relationship labels with canonical IDs retained as secondary evidence. The
+browser console contained no errors or warnings.
 
-Browser evidence must be captured after the final API and console rebuild. It
-must exercise positive dual-platform, negative/no-trace, ambiguous selection,
-duplicate evidence, stale response ownership, authorization, and truncation or
-missing-metadata behavior applicable to the retained corpus. The committed
-summary may contain aggregate synthetic counts and run basenames only; private
-repository names, canonical retained IDs, URLs, ports, credentials, and
-machine-specific paths remain operator-local.
+A separate retained service confirmed six runtime instances across ECS and
+Kubernetes plus 14 deployment sources. Because that service had a non-empty
+change surface, the primary graph correctly remained in change-surface mode;
+the deployment evidence stayed available without being mislabeled as code
+impact. A no-trace target rendered one subject node and no edges while correctly
+reporting completeness unverified because topology metadata was absent.
+Ambiguous selection, duplicate evidence, stale-response ownership,
+authorization, truncation, and missing-metadata behavior are covered by the
+deterministic route, console, and B-7 tests. Private repository names, retained
+canonical IDs, URLs, ports, credentials, and machine-specific paths are not
+recorded here.
