@@ -4,7 +4,6 @@
 package json
 
 import (
-	"bytes"
 	stdjson "encoding/json"
 	"fmt"
 	"path/filepath"
@@ -52,7 +51,7 @@ func Parse(
 	}
 
 	payload := jsonBasePayload(path, isDependency)
-	normalized := normalizeJSONSource(source, filepath.Base(path))
+	normalized, translate := normalizeJSONSource(source, filepath.Base(path))
 	if strings.TrimSpace(normalized) == "" {
 		if options.IndexSource {
 			payload["source"] = string(source)
@@ -79,14 +78,19 @@ func Parse(
 	// See jsonFilenameNeedsOrderedEntries: only filenames that read
 	// topLevelEntries below pay for the full ordered walk; every other file
 	// gets json_metadata via the cheaper key-order-only scan (issue #4873).
-	// sourceIndex is the newline offset->line index built once over
-	// normalizedBytes (the exact buffer this ordered walk decodes) and reused
-	// by every downstream real-line-number lookup for this file (issue
-	// #5329); it stays nil for files that do not need ordered entries.
+	// sourceIndex answers offset->line lookups for offsets into
+	// normalizedBytes (the exact buffer this ordered walk decodes) but is
+	// built over source, the real on-disk bytes, with every query translated
+	// back through `translate` first (issue #5358): normalizedBytes has had
+	// leading blank lines, a `{{ }}` banner, or (for JSONC filenames)
+	// `/* */` comments removed, each of which can drop or shift '\n' bytes
+	// relative to source, so indexing normalizedBytes directly would report
+	// too-small line numbers for every entity after a stripped region. It
+	// stays nil for files that do not need ordered entries.
 	var topLevelEntries []orderedJSONEntry
 	var sourceIndex *newlineIndex
 	if jsonFilenameNeedsOrderedEntries(filename) {
-		sourceIndex = buildNewlineIndex(normalizedBytes)
+		sourceIndex = buildTranslatedNewlineIndex(source, translate)
 		entries, err := unmarshalOrderedJSONObjectAt(normalizedBytes, 0, sourceIndex)
 		if err == nil {
 			topLevelEntries = entries
@@ -215,30 +219,10 @@ func jsonBasePayload(path string, isDependency bool) map[string]any {
 	return payload
 }
 
-func normalizeJSONSource(source []byte, filename string) string {
-	trimmed := strings.TrimLeft(string(bytes.TrimPrefix(source, []byte("\xef\xbb\xbf"))), "\ufeff")
-	if strings.TrimSpace(trimmed) == "" {
-		return ""
-	}
-
-	lines := strings.Split(trimmed, "\n")
-	start := 0
-	for start < len(lines) {
-		candidate := strings.TrimSpace(lines[start])
-		if strings.HasPrefix(candidate, "{{") && strings.HasSuffix(candidate, "}}") {
-			start++
-			continue
-		}
-		break
-	}
-
-	normalized := strings.TrimLeft(strings.Join(lines[start:], "\n"), " \t\r\n")
-	if isJSONCConfigFilename(filename) {
-		normalized = stripJSONCComments(normalized)
-		normalized = stripTrailingCommas(normalized)
-	}
-	return normalized
-}
+// normalizeJSONSource, identityOffsetTranslator, and mapOffset live in
+// source_normalize.go (issue #5358: normalizeJSONSource grew an
+// offsetTranslator return value to keep line_number honest, which pushed
+// this file past the 500-line cap).
 
 // shouldSkipJSONEntities keeps package-lock.json and composer.lock listed
 // so the generic dependency and tsconfig branches do not

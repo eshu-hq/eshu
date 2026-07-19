@@ -15,7 +15,24 @@ type newlineIndex struct {
 	// offsets holds the byte offset of every '\n' in the source buffer, in
 	// ascending order.
 	offsets []int64
+
+	// translate, when non-nil, maps a caller-supplied offset (into whatever
+	// buffer the caller is walking, e.g. a normalized JSON buffer) to the
+	// corresponding offset in the buffer offsets was built from, before
+	// lineAt runs its binary search. This lets an index built over the real
+	// on-disk source still answer offset->line queries made in terms of a
+	// derived buffer's offsets (issue #5358: normalizeJSONSource can remove
+	// or shift '\n' bytes -- leading blank lines, a `{{ }}` template banner,
+	// or JSONC block comments -- so an index built from the normalized buffer
+	// itself would mis-map every line after a stripped region). nil means the
+	// caller's offsets already are offsets, unchanged.
+	translate offsetTranslator
 }
+
+// offsetTranslator maps a byte offset in a derived buffer back to the
+// corresponding byte offset in the reference buffer a newlineIndex was built
+// over.
+type offsetTranslator func(offset int64) int64
 
 // buildNewlineIndex scans data once and records every newline byte offset.
 // CRLF line endings are handled by counting only the '\n' byte; a lone '\r'
@@ -31,12 +48,29 @@ func buildNewlineIndex(data []byte) *newlineIndex {
 	return &newlineIndex{offsets: offsets}
 }
 
+// buildTranslatedNewlineIndex builds a newlineIndex over source (the
+// reference buffer real line numbers are counted against) whose lineAt
+// translates every queried offset through translate first. Use this instead
+// of buildNewlineIndex(derivedBuffer) whenever offsets being queried are
+// positions in a buffer normalizeJSONSource derived from source: the derived
+// buffer's own '\n' bytes are not a faithful stand-in for source's lines
+// (issue #5358).
+func buildTranslatedNewlineIndex(source []byte, translate offsetTranslator) *newlineIndex {
+	idx := buildNewlineIndex(source)
+	idx.translate = translate
+	return idx
+}
+
 // lineAt returns the 1-based line number containing byte offset in the
-// buffer buildNewlineIndex was built from. offset is clamped implicitly: an
-// offset at or beyond the end of the buffer resolves to the last line.
+// buffer buildNewlineIndex was built from (or, when translate is set, the
+// derived buffer translate maps offsets from). offset is clamped implicitly:
+// an offset at or beyond the end of the buffer resolves to the last line.
 func (idx *newlineIndex) lineAt(offset int64) int {
 	if idx == nil {
 		return 0
+	}
+	if idx.translate != nil {
+		offset = idx.translate(offset)
 	}
 	// Count newline offsets strictly less than offset; that count is the
 	// number of completed lines before offset, so +1 gives the 1-based line
