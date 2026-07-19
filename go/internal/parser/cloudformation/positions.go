@@ -46,15 +46,16 @@ type Positions struct {
 }
 
 // linesFor resolves the (start, end, known) triple ParseWithPositions stamps
-// on entity name in this section: the entity's own measured EntityPosition
-// when present, else the section's FallbackLine (the section header's own
-// line), else documentFallback (the document-root lineNumber the caller
-// passed to ParseWithPositions) with known=false. known is false only when
-// neither a per-entity measurement nor a section-header fallback exists --
-// the JSON contract (a zero SectionPositions, tracked separately in issue
-// #5348) and a YAML document-level walk failure (root node unavailable) both
-// look like this. ParseWithPositions uses known to decide whether to emit an
-// end_line field at all: Parse's zero-Positions callers must keep their
+// on entity name in this section, in precedence order: (1) the entity's own
+// measured EntityPosition when present -- the real per-entity line; (2)
+// otherwise the section's FallbackLine (the section header's own line) when
+// known; (3) otherwise documentFallback (the document-root lineNumber the
+// caller passed to ParseWithPositions), with known=false. Case (3) is the
+// only known=false case -- it fires only when neither (1) nor (2) resolved,
+// which happens for the JSON contract (a zero SectionPositions, tracked
+// separately in issue #5348) and a YAML document-level walk failure (root
+// node unavailable). ParseWithPositions uses known to decide whether to emit
+// an end_line field at all: Parse's zero-Positions callers must keep their
 // original line_number-only row shape verbatim, and a total-failure fallback
 // must not fabricate a same-as-start end_line that would collapse
 // materialize.go's snippet window to one line when its own
