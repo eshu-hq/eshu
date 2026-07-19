@@ -95,3 +95,50 @@ func TestBuildDeploymentConfigInfluenceResponseFailsClosedWithContradictoryStruc
 		t.Fatalf("limitations = %#v, want k8s_resource_limits_unavailable", limitations)
 	}
 }
+
+func TestDeploymentConfigBoundStateRejectsInconsistentFamilyCountsAndSentinels(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name                         string
+		limits                       map[string]any
+		requireDeploymentSourceProbe bool
+	}{
+		{
+			name: "deployment source observed count exceeds constituent counts",
+			limits: func() map[string]any {
+				limits := deploymentConfigExactDeploymentSourceLimits()
+				limits["observed_count"] = 2
+				return limits
+			}(),
+		},
+		{
+			name: "kubernetes observed count exceeds constituent counts",
+			limits: func() map[string]any {
+				limits := deploymentConfigExactK8sResourceLimits()
+				limits["observed_count"] = 2
+				return limits
+			}(),
+			requireDeploymentSourceProbe: true,
+		},
+		{
+			name: "kubernetes deployment source sentinel differs from producer contract",
+			limits: func() map[string]any {
+				limits := deploymentConfigExactK8sResourceLimits()
+				limits["deployment_source_query_sentinel_limit"] = repositorySemanticEntityLimit + 2
+				return limits
+			}(),
+			requireDeploymentSourceProbe: true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			_, _, available := deploymentConfigBoundState(test.limits, test.requireDeploymentSourceProbe)
+			if available {
+				t.Fatalf("deploymentConfigBoundState(%#v) available = true, want fail-closed false", test.limits)
+			}
+		})
+	}
+}

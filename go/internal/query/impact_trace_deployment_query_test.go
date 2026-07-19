@@ -373,7 +373,7 @@ func TestFetchServiceTraceContextIncludesGraphDeploymentEvidenceWithoutContent(t
 	}
 }
 
-func TestTraceDeploymentChainKeepsConfigDerivedCloudResources(t *testing.T) {
+func TestTraceDeploymentChainKeepsConfigDerivedCloudResourcesAsUncorrelatedCandidates(t *testing.T) {
 	t.Parallel()
 
 	db := openContentReaderTestDB(t, emptyServiceQueryContentResults())
@@ -453,21 +453,28 @@ func TestTraceDeploymentChainKeepsConfigDerivedCloudResources(t *testing.T) {
 		t.Fatalf("decode trace response: %v", err)
 	}
 	resources := mapSliceValue(body, "cloud_resources")
-	if got, want := len(resources), 1; got != want {
+	if got, want := len(resources), 0; got != want {
 		t.Fatalf("cloud_resources len = %d, want %d; body = %#v", got, want, body)
 	}
-	if got, want := StringVal(resources[0], "relationship_basis"), "deployment_config_read_evidence"; got != want {
-		t.Fatalf("relationship_basis = %q, want %q", got, want)
+	candidates := mapSliceValue(body, "uncorrelated_cloud_resources")
+	if got, want := len(candidates), 1; got != want {
+		t.Fatalf("uncorrelated_cloud_resources len = %d, want %d; body = %#v", got, want, body)
 	}
-	if candidates := mapSliceValue(body, "uncorrelated_cloud_resources"); len(candidates) != 0 {
-		t.Fatalf("uncorrelated_cloud_resources = %#v, want omitted", candidates)
+	if got, want := StringVal(candidates[0], "relationship_basis"), "deployment_config_read_evidence"; got != want {
+		t.Fatalf("candidate relationship_basis = %q, want %q", got, want)
+	}
+	if got, want := StringVal(candidates[0], "candidate_status"), "uncorrelated"; got != want {
+		t.Fatalf("candidate_status = %q, want %q", got, want)
 	}
 	overview := mapValue(body, "deployment_overview")
-	if got, want := IntVal(overview, "cloud_resource_count"), 1; got != want {
+	if got, want := IntVal(overview, "cloud_resource_count"), 0; got != want {
 		t.Fatalf("deployment_overview.cloud_resource_count = %d, want %d", got, want)
 	}
+	if got, want := IntVal(overview, "uncorrelated_cloud_resource_count"), 1; got != want {
+		t.Fatalf("deployment_overview.uncorrelated_cloud_resource_count = %d, want %d", got, want)
+	}
 	summary := mapValue(body, "deployment_fact_summary")
-	if missing := StringSliceVal(summary, "missing_evidence"); len(missing) != 0 {
-		t.Fatalf("deployment_fact_summary.missing_evidence = %#v, want empty", missing)
+	if missing := StringSliceVal(summary, "missing_evidence"); !slices.Equal(missing, []string{"workload_cloud_relationship_missing"}) {
+		t.Fatalf("deployment_fact_summary.missing_evidence = %#v, want workload relationship gap", missing)
 	}
 }

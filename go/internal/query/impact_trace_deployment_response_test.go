@@ -56,6 +56,7 @@ func TestBuildDeploymentTraceResponseExplainsUncorrelatedCloudCandidates(t *test
 			"candidate_status":     "uncorrelated",
 		},
 	}
+	ctx["uncorrelated_cloud_resources_truncated"] = true
 
 	got := buildDeploymentTraceResponse("sample-service-api", ctx)
 	if cloudResources := mapSliceValue(got, "cloud_resources"); len(cloudResources) != 0 {
@@ -64,6 +65,9 @@ func TestBuildDeploymentTraceResponseExplainsUncorrelatedCloudCandidates(t *test
 	candidates := mapSliceValue(got, "uncorrelated_cloud_resources")
 	if got, want := len(candidates), 1; got != want {
 		t.Fatalf("uncorrelated_cloud_resources len = %d, want %d", got, want)
+	}
+	if !BoolVal(got, "uncorrelated_cloud_resources_truncated") {
+		t.Fatal("uncorrelated_cloud_resources_truncated = false, want explicit candidate truncation")
 	}
 	overview := mapValue(got, "deployment_overview")
 	if got, want := IntVal(overview, "cloud_resource_count"), 0; got != want {

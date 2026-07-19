@@ -97,31 +97,40 @@ func (h *ImpactHandler) traceDeploymentChain(w http.ResponseWriter, r *http.Requ
 			cloudResourceResult.limits = nil
 			cloudResources = cloudResourceResult.rows
 		}
-		if len(cloudResources) == 0 {
-			configRows, configErr := loadConfigDerivedCloudResourceDependencies(
+		if len(cloudResources) == 0 && len(mapSliceValue(ctx, "uncorrelated_cloud_resources")) == 0 {
+			configRows, configTruncated, configErr := loadConfigDerivedCloudResourceDependenciesBounded(
 				r.Context(),
 				h.Neo4j,
 				mapValue(ctx, "deployment_evidence"),
-				serviceStoryItemLimit+1,
+				serviceStoryItemLimit,
 			)
 			if configErr != nil {
 				WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query config-derived cloud resources: %v", configErr))
 				return
 			}
-			cloudResourceResult = boundedCloudResourceResult(configRows, serviceStoryItemLimit+1)
-			cloudResources = cloudResourceResult.rows
+			if len(configRows) > 0 && len(mapSliceValue(ctx, "uncorrelated_cloud_resources")) == 0 {
+				ctx["uncorrelated_cloud_resources"] = deploymentTraceCloudCandidates(configRows)
+				if configTruncated {
+					ctx["uncorrelated_cloud_resources_truncated"] = true
+				}
+			}
 		}
 		if len(cloudResources) > 0 {
 			ctx["cloud_resources"] = cloudResources
 			delete(ctx, "uncorrelated_cloud_resources")
 		} else if len(mapSliceValue(ctx, "uncorrelated_cloud_resources")) == 0 {
-			cloudCandidates, err := loadUncorrelatedCloudResourceCandidates(r.Context(), h.Neo4j, safeStr(ctx, "name"), serviceStoryItemLimit)
+			cloudCandidates, cloudCandidatesTruncated, err := loadUncorrelatedCloudResourceCandidatesBounded(
+				r.Context(), h.Neo4j, safeStr(ctx, "name"), serviceStoryItemLimit,
+			)
 			if err != nil {
 				WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query uncorrelated cloud resources: %v", err))
 				return
 			}
 			if len(cloudCandidates) > 0 {
 				ctx["uncorrelated_cloud_resources"] = cloudCandidates
+				if cloudCandidatesTruncated {
+					ctx["uncorrelated_cloud_resources_truncated"] = true
+				}
 			}
 		}
 		k8sResourceResult, err := h.fetchK8sResourceResult(r.Context(), safeStr(ctx, "repo_id"), safeStr(ctx, "name"))
@@ -129,7 +138,7 @@ func (h *ImpactHandler) traceDeploymentChain(w http.ResponseWriter, r *http.Requ
 			WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query k8s resources: %v", err))
 			return
 		}
-		controllerEntities, deploymentRepoK8s, deploymentRepoImages, deploymentRepoLowerBound, err := h.fetchDeploymentSourceGitOps(
+		deploymentSourceGitOps, err := h.fetchDeploymentSourceGitOpsResult(
 			r.Context(),
 			safeStr(ctx, "name"),
 			deploymentSources,
@@ -141,11 +150,11 @@ func (h *ImpactHandler) traceDeploymentChain(w http.ResponseWriter, r *http.Requ
 		k8sResourceResult = boundedK8sResourceResult(
 			k8sResourceResult.candidates,
 			k8sResourceResult.contentLowerBound,
-			deploymentRepoK8s,
-			deploymentRepoLowerBound,
+			deploymentSourceGitOps.k8sResources,
+			deploymentSourceGitOps.k8sObservedCountIsLowerBound,
 		)
 		k8sResources := k8sResourceResult.rows
-		imageRefs := uniqueSortedStrings(append(append([]string{}, k8sResourceResult.imageRefs...), deploymentRepoImages...))
+		imageRefs := k8sResourceResult.imageRefs
 		imageRegistryTruth, err := h.fetchOCIImageRegistryTruth(r.Context(), imageRefs)
 		if err != nil {
 			WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query OCI image registry truth: %v", err))
@@ -163,7 +172,8 @@ func (h *ImpactHandler) traceDeploymentChain(w http.ResponseWriter, r *http.Requ
 		if len(imageRegistryTruth) > 0 {
 			ctx["image_registry_truth"] = imageRegistryTruth
 		}
-		ctx["controller_entities"] = controllerEntities
+		ctx["controller_entities"] = deploymentSourceGitOps.controllers
+		ctx["controller_entity_limits"] = deploymentSourceGitOps.controllerLimits
 	}
 
 	WriteSuccess(w, r, http.StatusOK, buildDeploymentTraceResponse(req.ServiceName, ctx), BuildTruthEnvelope(h.profile(), "platform_impact.deployment_chain", TruthBasisHybrid, "resolved from deployment topology and service evidence"))
@@ -332,7 +342,7 @@ func buildDeploymentTraceResponse(serviceName string, workloadContext map[string
 		"story":                   story,
 		"story_sections":          buildStorySections(platforms, platformKinds, materializedEnvironments),
 		"deployment_overview":     deploymentOverview,
-		"controller_overview":     buildControllerOverview(platforms, platformKinds, controllerEntities, deploymentSources, deploymentEvidence),
+		"controller_overview":     buildControllerOverview(platforms, platformKinds, controllerEntities, deploymentSources, deploymentEvidence, mapValue(workloadContext, "controller_entity_limits")),
 		"gitops_overview":         buildGitOpsOverview(platforms, platformKinds, deploymentSources, deploymentEvidence, controllerEntities),
 		"runtime_overview":        buildRuntimeOverview(materializedEnvironments),
 		"deployment_fact_summary": deploymentFactSummary,
@@ -352,6 +362,9 @@ func buildDeploymentTraceResponse(serviceName string, workloadContext map[string
 	}
 	if len(uncorrelatedCloudResources) > 0 {
 		response["uncorrelated_cloud_resources"] = uncorrelatedCloudResources
+		if BoolVal(workloadContext, "uncorrelated_cloud_resources_truncated") {
+			response["uncorrelated_cloud_resources_truncated"] = true
+		}
 	}
 	if len(imageRegistryTruth) > 0 {
 		response["image_registry_truth"] = imageRegistryTruth

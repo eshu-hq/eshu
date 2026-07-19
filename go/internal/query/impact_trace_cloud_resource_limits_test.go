@@ -39,3 +39,53 @@ func TestFetchCloudResourceResultUsesUniqueSentinel(t *testing.T) {
 		t.Fatalf("limits = %#v, want lower-bound truncation", result.limits)
 	}
 }
+
+func TestFetchCloudResourceResultKeepsOneProvenanceObservationIntact(t *testing.T) {
+	t.Parallel()
+
+	reader := fakeGraphReader{run: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+		if !strings.Contains(cypher, "collect({") {
+			t.Fatalf("cloud resource query must collect complete provenance observations: %s", cypher)
+		}
+		return []map[string]any{{
+			"id":   "cloud:orders",
+			"name": "orders",
+			"observations": []any{
+				map[string]any{
+					"confidence":         0.50,
+					"reason":             "lower-confidence-reason",
+					"relationship_basis": "lower-confidence-basis",
+					"source_fact_id":     "fact:lower",
+				},
+				map[string]any{
+					"confidence":         0.95,
+					"reason":             "selected-reason",
+					"relationship_basis": "selected-basis",
+					"source_fact_id":     "fact:selected",
+				},
+			},
+		}}, nil
+	}}
+	handler := &ImpactHandler{Neo4j: reader}
+
+	result, err := handler.fetchCloudResourceResult(t.Context(), "workload:orders")
+	if err != nil {
+		t.Fatalf("fetchCloudResourceResult() error = %v", err)
+	}
+	if got, want := len(result.rows), 1; got != want {
+		t.Fatalf("rows = %#v, want %d", result.rows, want)
+	}
+	row := result.rows[0]
+	if got, want := floatVal(row, "confidence"), 0.95; got != want {
+		t.Fatalf("confidence = %v, want %v", got, want)
+	}
+	if got, want := StringVal(row, "reason"), "selected-reason"; got != want {
+		t.Fatalf("reason = %q, want %q", got, want)
+	}
+	if got, want := StringVal(row, "relationship_basis"), "selected-basis"; got != want {
+		t.Fatalf("relationship_basis = %q, want %q", got, want)
+	}
+	if got, want := StringVal(row, "source_fact_id"), "fact:selected"; got != want {
+		t.Fatalf("source_fact_id = %q, want %q", got, want)
+	}
+}

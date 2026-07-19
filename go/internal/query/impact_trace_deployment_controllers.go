@@ -45,8 +45,25 @@ func (h *ImpactHandler) fetchDeploymentSourceGitOps(
 	serviceName string,
 	deploymentSources []map[string]any,
 ) ([]map[string]any, []map[string]any, []string, bool, error) {
+	result, err := h.fetchDeploymentSourceGitOpsResult(ctx, serviceName, deploymentSources)
+	return result.controllers, result.k8sResources, result.imageRefs, result.k8sObservedCountIsLowerBound, err
+}
+
+type deploymentSourceGitOpsResult struct {
+	controllers                  []map[string]any
+	controllerLimits             map[string]any
+	imageRefs                    []string
+	k8sObservedCountIsLowerBound bool
+	k8sResources                 []map[string]any
+}
+
+func (h *ImpactHandler) fetchDeploymentSourceGitOpsResult(
+	ctx context.Context,
+	serviceName string,
+	deploymentSources []map[string]any,
+) (deploymentSourceGitOpsResult, error) {
 	if h == nil || h.Content == nil || len(deploymentSources) == 0 {
-		return nil, nil, nil, false, nil
+		return deploymentSourceGitOpsResult{}, nil
 	}
 
 	repoIDs := uniqueNonEmptyRepoIDs(deploymentSources)
@@ -55,7 +72,7 @@ func (h *ImpactHandler) fetchDeploymentSourceGitOps(
 	for _, repoID := range repoIDs {
 		rows, err := h.Content.ListRepoEntities(ctx, repoID, repositorySemanticEntityLimit+1)
 		if err != nil {
-			return nil, nil, nil, false, fmt.Errorf("list deployment source entities for %s: %w", repoID, err)
+			return deploymentSourceGitOpsResult{}, fmt.Errorf("list deployment source entities for %s: %w", repoID, err)
 		}
 		if len(rows) >= repositorySemanticEntityLimit+1 {
 			observedCountIsLowerBound = true
@@ -66,9 +83,26 @@ func (h *ImpactHandler) fetchDeploymentSourceGitOps(
 		entities = append(entities, rows...)
 	}
 
-	controllers := selectRelevantDeploymentSourceControllers(serviceName, deploymentSources, entities)
+	observedControllers := selectRelevantDeploymentSourceControllers(serviceName, deploymentSources, entities)
+	controllers, controllersTruncated := capMapRows(observedControllers, serviceStoryItemLimit)
 	k8sResources, imageRefs := collectDeploymentSourceK8sResources(controllers, entities)
-	return controllers, k8sResources, imageRefs, observedCountIsLowerBound, nil
+	controllerObservedCountIsLowerBound := observedCountIsLowerBound
+	controllerTruncated := controllerObservedCountIsLowerBound || controllersTruncated
+	return deploymentSourceGitOpsResult{
+		controllers: controllers,
+		controllerLimits: map[string]any{
+			"limit":                         serviceStoryItemLimit,
+			"source_query_sentinel_limit":   repositorySemanticEntityLimit + 1,
+			"returned_count":                len(controllers),
+			"observed_count":                len(observedControllers),
+			"observed_count_is_lower_bound": controllerObservedCountIsLowerBound,
+			"truncated":                     controllerTruncated,
+			"ordering":                      []string{"repo_id", "relative_path", "entity_id"},
+		},
+		imageRefs:                    imageRefs,
+		k8sObservedCountIsLowerBound: controllerTruncated,
+		k8sResources:                 k8sResources,
+	}, nil
 }
 
 func buildControllerOverview(
@@ -77,6 +111,7 @@ func buildControllerOverview(
 	controllerEntities []map[string]any,
 	deploymentSources []map[string]any,
 	deploymentEvidence map[string]any,
+	controllerLimits map[string]any,
 ) map[string]any {
 	controllerNames := controllerEntityNames(controllerEntities)
 	controllerKinds := controllerOverviewKinds(controllerEntities, platformKinds)
@@ -100,6 +135,9 @@ func buildControllerOverview(
 	}
 	if len(controllerEntities) > 0 {
 		overview["entities"] = controllerEntities
+	}
+	if len(controllerLimits) > 0 {
+		overview["entity_limits"] = controllerLimits
 	}
 	return overview
 }

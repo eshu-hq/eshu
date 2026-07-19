@@ -28,12 +28,14 @@ func deploymentConfigBoundState(limits map[string]any, requireDeploymentSourcePr
 		contentCount, contentCountOK := limits["content_observed_count"].(int)
 		contentLowerBound, contentLowerBoundOK := limits["content_observed_count_is_lower_bound"].(bool)
 		available = available && deploymentSourceSentinelOK && deploymentSourceCountOK && deploymentSourceLowerBoundOK && contentCountOK && contentLowerBoundOK &&
-			deploymentSourceSentinel > 0 && deploymentSourceCount >= 0 && contentCount >= 0 && lowerBound == (contentLowerBound || deploymentSourceLowerBound)
+			deploymentSourceSentinel == repositorySemanticEntityLimit+1 && deploymentSourceCount >= 0 && contentCount >= 0 &&
+			observed <= contentCount+deploymentSourceCount && lowerBound == (contentLowerBound || deploymentSourceLowerBound)
 		return truncated, lowerBound, available
 	}
 	canonicalCount, canonicalCountOK := limits["canonical_observed_count"].(int)
 	repositoryCount, repositoryCountOK := limits["repository_observed_count"].(int)
-	available = available && canonicalCountOK && repositoryCountOK && canonicalCount >= 0 && repositoryCount >= 0
+	available = available && canonicalCountOK && repositoryCountOK && canonicalCount >= 0 && repositoryCount >= 0 &&
+		observed <= canonicalCount+repositoryCount
 	return truncated, lowerBound, available
 }
 

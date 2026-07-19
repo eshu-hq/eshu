@@ -197,7 +197,8 @@ const openAPIPathsImpact = `
                         "ordering": {"type": "array", "items": {"type": "string"}}
                       }
                     },
-                    "uncorrelated_cloud_resources": {"type": "array", "description": "CloudResource candidates that matched the service name or ARN/resource identifier but do not have a materialized workload-to-cloud relationship.", "items": {"type": "object"}},
+                    "uncorrelated_cloud_resources": {"type": "array", "description": "CloudResource candidates from bounded free-text or deployment-config evidence that do not have a materialized workload-to-cloud relationship.", "items": {"type": "object"}},
+                    "uncorrelated_cloud_resources_truncated": {"type": "boolean", "description": "Present and true when uncorrelated_cloud_resources was capped and additional candidates may exist."},
                     "k8s_resources": {"type": "array", "items": {"type": "object"}},
 ` + openAPIImpactK8sResourceLimits + `
                     "image_refs": {"type": "array", "items": {"type": "string"}},
@@ -220,7 +221,20 @@ const openAPIPathsImpact = `
                         "controller_count": {"type": "integer"},
                         "controllers": {"type": "array", "items": {"type": "string"}},
                         "controller_kinds": {"type": "array", "items": {"type": "string"}},
-                        "entities": {"type": "array", "items": {"type": "object"}}
+                        "entities": {"type": "array", "items": {"type": "object"}},
+                        "entity_limits": {
+                          "type": "object",
+                          "description": "Bound and source-scan completeness metadata for controller entities admitted to this service trace.",
+                          "properties": {
+                            "limit": {"type": "integer"},
+                            "source_query_sentinel_limit": {"type": "integer"},
+                            "returned_count": {"type": "integer"},
+                            "observed_count": {"type": "integer"},
+                            "observed_count_is_lower_bound": {"type": "boolean"},
+                            "truncated": {"type": "boolean"},
+                            "ordering": {"type": "array", "items": {"type": "string"}}
+                          }
+                        }
                       }
                     },
                     "runtime_overview": {"type": "object"},
@@ -239,67 +253,7 @@ const openAPIPathsImpact = `
         }
       }
     },
-    "/api/v0/impact/deployment-config-influence": {
-      "post": {
-        "tags": ["impact"],
-        "summary": "Investigate deployment configuration influence",
-        "description": "Returns a bounded service deployment configuration story with influencing repositories, values layers, image tag sources, runtime setting sources, resource limit sources, rendered targets, and portable file handles.",
-        "operationId": "investigateDeploymentConfigInfluence",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "description": "Provide service_name or workload_id.",
-                "anyOf": [
-                  {"required": ["service_name"]},
-                  {"required": ["workload_id"]}
-                ],
-                "properties": {
-                  "service_name": {"type": "string", "description": "Service name to investigate"},
-                  "workload_id": {"type": "string", "description": "Canonical workload id to investigate"},
-                  "environment": {"type": "string", "description": "Optional environment scope"},
-                  "limit": {"type": "integer", "default": 25, "minimum": 1, "maximum": 100}
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Deployment configuration influence story",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "service_name": {"type": "string"},
-                    "workload_id": {"type": "string"},
-                    "environment": {"type": "string"},
-                    "subject": {"type": "object"},
-                    "story": {"type": "string"},
-                    "influencing_repositories": {"type": "array", "items": {"type": "object"}},
-                    "values_layers": {"type": "array", "items": {"type": "object"}},
-                    "image_tag_sources": {"type": "array", "items": {"type": "object"}},
-                    "runtime_setting_sources": {"type": "array", "items": {"type": "object"}},
-                    "resource_limit_sources": {"type": "array", "items": {"type": "object"}},
-                    "rendered_targets": {"type": "array", "items": {"type": "object"}},
-                    "read_first_files": {"type": "array", "items": {"type": "object"}},
-                    "recommended_next_calls": {"type": "array", "items": {"type": "string"}},
-                    "limitations": {"type": "array", "items": {"type": "string"}},
-                    "coverage": {"type": "object"}
-                  }
-                }
-              }
-            }
-          },
-          "400": {"$ref": "#/components/responses/BadRequest"},
-          "404": {"$ref": "#/components/responses/NotFound"},
-          "500": {"$ref": "#/components/responses/InternalError"}
-        }
-      }
-    },
+` + openAPIPathDeploymentConfigInfluence + `
     "/api/v0/impact/blast-radius": {
       "post": {
         "tags": ["impact"],

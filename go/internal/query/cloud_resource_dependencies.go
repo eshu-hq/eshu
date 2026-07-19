@@ -90,6 +90,43 @@ func loadConfigDerivedCloudResourceDependencies(
 	deploymentEvidence map[string]any,
 	limit int,
 ) ([]map[string]any, error) {
+	resources, _, err := loadConfigDerivedCloudResourceDependenciesBounded(
+		ctx,
+		graph,
+		deploymentEvidence,
+		limit,
+	)
+	return resources, err
+}
+
+func loadConfigDerivedCloudResourceDependenciesBounded(
+	ctx context.Context,
+	graph GraphQuery,
+	deploymentEvidence map[string]any,
+	limit int,
+) ([]map[string]any, bool, error) {
+	if limit <= 0 || limit > serviceCloudResourceDependencyLimit {
+		limit = serviceCloudResourceDependencyLimit
+	}
+	resources, err := loadConfigDerivedCloudResourceDependenciesWithLimit(
+		ctx,
+		graph,
+		deploymentEvidence,
+		limit+1,
+	)
+	if err != nil {
+		return nil, false, err
+	}
+	resources, truncated := capMapRows(resources, limit)
+	return resources, truncated, nil
+}
+
+func loadConfigDerivedCloudResourceDependenciesWithLimit(
+	ctx context.Context,
+	graph GraphQuery,
+	deploymentEvidence map[string]any,
+	limit int,
+) ([]map[string]any, error) {
 	if graph == nil || len(deploymentEvidence) == 0 {
 		return nil, nil
 	}
@@ -97,15 +134,12 @@ func loadConfigDerivedCloudResourceDependencies(
 	if len(anchors) == 0 {
 		return nil, nil
 	}
-	if limit <= 0 || limit > serviceCloudResourceDependencyLimit {
-		limit = serviceCloudResourceDependencyLimit
-	}
-	resources := make([]map[string]any, 0, len(anchors))
+	resources := make([]map[string]any, 0, limit)
+	seen := make(map[string]struct{}, limit)
 	for _, anchor := range anchors {
 		if len(resources) >= limit {
 			break
 		}
-		remaining := limit - len(resources)
 		rows, err := graph.Run(ctx, `
 MATCH (c:CloudResource)
 WHERE coalesce(c.name, '') CONTAINS $config_anchor
@@ -122,10 +156,10 @@ RETURN DISTINCT coalesce(c.id, c.uid, c.resource_id, c.arn, c.name) AS id,
        coalesce(c.arn, '') AS arn,
        coalesce(c.account_id, '') AS account_id,
        coalesce(c.region, '') AS region
-ORDER BY name, id
-LIMIT $limit`, map[string]any{
+		ORDER BY name, id
+		LIMIT $limit`, map[string]any{
 			"config_anchor": anchor,
-			"limit":         remaining,
+			"limit":         limit,
 		})
 		if err != nil {
 			return nil, err
@@ -146,12 +180,21 @@ LIMIT $limit`, map[string]any{
 				"evidence_source":    "deployment_evidence",
 				"matched_value":      anchor,
 			})
-			if len(resource) > 0 {
-				resources = append(resources, resource)
+			key := serviceCloudResourceRowKey(resource)
+			if key == "" {
+				continue
+			}
+			if _, exists := seen[key]; exists {
+				continue
+			}
+			seen[key] = struct{}{}
+			resources = append(resources, resource)
+			if len(resources) >= limit {
+				break
 			}
 		}
 	}
-	return dedupeServiceCloudResourceRows(resources), nil
+	return resources, nil
 }
 
 func configReadCloudResourceAnchors(deploymentEvidence map[string]any) []string {
@@ -185,22 +228,6 @@ func normalizeConfigReadCloudResourceAnchor(value string) string {
 	return value
 }
 
-func dedupeServiceCloudResourceRows(rows []map[string]any) []map[string]any {
-	if len(rows) < 2 {
-		return rows
-	}
-	seen := map[string]struct{}{}
-	deduped := make([]map[string]any, 0, len(rows))
-	for _, row := range rows {
-		key := firstNonEmptyString(StringVal(row, "id"), StringVal(row, "resource_id"), StringVal(row, "arn"), StringVal(row, "name"))
-		if key == "" {
-			continue
-		}
-		if _, ok := seen[key]; ok {
-			continue
-		}
-		seen[key] = struct{}{}
-		deduped = append(deduped, row)
-	}
-	return deduped
+func serviceCloudResourceRowKey(row map[string]any) string {
+	return firstNonEmptyString(StringVal(row, "id"), StringVal(row, "resource_id"), StringVal(row, "arn"), StringVal(row, "name"))
 }

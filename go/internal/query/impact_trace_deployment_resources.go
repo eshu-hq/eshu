@@ -120,40 +120,27 @@ func (h *ImpactHandler) fetchCloudResourceResult(ctx context.Context, workloadID
 	queryLimit := serviceStoryItemLimit + 1
 	rows, err := h.Neo4j.Run(ctx, `
 		MATCH (w:Workload {id: $workload_id})<-[:INSTANCE_OF]-(i:WorkloadInstance)-[rel:USES]->(c:CloudResource)
-		WITH c.id as id, c.name as name, c.kind as kind, c.provider as provider,
-		     min(coalesce(rel.environment, c.environment, i.environment, '')) as environment,
-		     max(coalesce(rel.confidence, 0.0)) as confidence,
-		     min(coalesce(rel.reason, '')) as reason,
-		     min(coalesce(rel.relationship_basis, '')) as relationship_basis,
-		     min(coalesce(rel.resolution_mode, '')) as resolution_mode,
-		     min(coalesce(rel.evidence_source, '')) as evidence_source,
-		     min(coalesce(rel.service_anchor_source, '')) as service_anchor_source,
-		     min(coalesce(rel.service_anchor_reason, '')) as service_anchor_reason,
-		     min(coalesce(rel.source_fact_id, '')) as source_fact_id,
-		     min(coalesce(rel.stable_fact_key, '')) as stable_fact_key,
-		     min(coalesce(rel.source_system, '')) as source_system,
-		     min(coalesce(rel.source_record_id, '')) as source_record_id,
-		     min(coalesce(rel.collector_kind, '')) as collector_kind
-		RETURN id, name, kind, provider, environment, confidence, reason,
-		       relationship_basis, resolution_mode, evidence_source, service_anchor_source,
-		       service_anchor_reason, source_fact_id, stable_fact_key, source_system,
-		       source_record_id, collector_kind
+		WITH c, collect({
+		     environment: coalesce(rel.environment, c.environment, i.environment, ''),
+		     confidence: coalesce(rel.confidence, 0.0),
+		     reason: coalesce(rel.reason, ''),
+		     relationship_basis: coalesce(rel.relationship_basis, ''),
+		     resolution_mode: coalesce(rel.resolution_mode, ''),
+		     evidence_source: coalesce(rel.evidence_source, ''),
+		     service_anchor_source: coalesce(rel.service_anchor_source, ''),
+		     service_anchor_reason: coalesce(rel.service_anchor_reason, ''),
+		     source_fact_id: coalesce(rel.source_fact_id, ''),
+		     stable_fact_key: coalesce(rel.stable_fact_key, ''),
+		     source_system: coalesce(rel.source_system, ''),
+		     source_record_id: coalesce(rel.source_record_id, ''),
+		     collector_kind: coalesce(rel.collector_kind, '')
+		}) as observations
+		RETURN c.id as id, c.name as name, c.kind as kind, c.provider as provider, observations
 		ORDER BY name, id
 		LIMIT $cloud_resource_limit
 	`, map[string]any{"workload_id": workloadID, "cloud_resource_limit": queryLimit})
 	if err != nil {
 		return cloudResourceResult{}, err
-	}
-	if len(rows) == 0 {
-		rows, err = h.fetchConfigDerivedCloudResourceRows(ctx, workloadID, queryLimit)
-		if err != nil {
-			return cloudResourceResult{}, err
-		}
-		resources, err := deploymentTraceCloudResourcesFromRows(rows, "deployment_config_read_evidence")
-		if err != nil {
-			return cloudResourceResult{}, err
-		}
-		return boundedCloudResourceResult(resources, queryLimit), nil
 	}
 	resources, err := deploymentTraceCloudResourcesFromRows(rows, "")
 	if err != nil {
@@ -176,6 +163,7 @@ func boundedCloudResourceResult(rows []map[string]any, queryLimit int) cloudReso
 func deploymentTraceCloudResourcesFromRows(rows []map[string]any, defaultRelationshipBasis string) ([]map[string]any, error) {
 	resources := make([]map[string]any, 0, len(rows))
 	for _, row := range rows {
+		row = cloudResourceRowWithSelectedObservation(row)
 		resources = append(resources, map[string]any{
 			"id":                    StringVal(row, "id"),
 			"name":                  StringVal(row, "name"),
@@ -200,38 +188,65 @@ func deploymentTraceCloudResourcesFromRows(rows []map[string]any, defaultRelatio
 	return resources, nil
 }
 
-func (h *ImpactHandler) fetchConfigDerivedCloudResourceRows(ctx context.Context, workloadID string, limit int) ([]map[string]any, error) {
-	serviceName := strings.TrimPrefix(strings.TrimSpace(workloadID), "workload:")
-	if h == nil || h.Neo4j == nil || serviceName == "" {
-		return nil, nil
+func cloudResourceRowWithSelectedObservation(row map[string]any) map[string]any {
+	observations := mapSliceValue(row, "observations")
+	if len(observations) == 0 {
+		return row
 	}
-	rows, err := h.Neo4j.Run(ctx, `
-		MATCH (c:CloudResource)
-		WHERE coalesce(c.name, '') CONTAINS $service_name
-		   OR coalesce(c.id, '') CONTAINS $service_name
-		   OR coalesce(c.resource_id, '') CONTAINS $service_name
-		   OR coalesce(c.arn, '') CONTAINS $service_name
-		   OR coalesce(c.config_path, '') CONTAINS $service_name
-		RETURN DISTINCT coalesce(c.id, c.uid, c.resource_id, c.arn, c.name) as id,
-		       coalesce(c.name, '') as name,
-		       coalesce(c.kind, c.resource_type, c.data_type, '') as kind,
-		       coalesce(c.resource_type, c.data_type, c.kind, '') as resource_type,
-		       coalesce(c.provider, c.source_system, '') as provider,
-		       coalesce(c.environment, '') as environment,
-		       coalesce(c.resource_id, '') as resource_id,
-		       coalesce(c.arn, '') as arn,
-		       coalesce(c.account_id, '') as account_id,
-		       coalesce(c.region, '') as region
-		ORDER BY name, id
-		LIMIT $limit
-	`, map[string]any{
-		"service_name": serviceName,
-		"limit":        limit,
+	selected := append([]map[string]any(nil), observations...)
+	sort.SliceStable(selected, func(left, right int) bool {
+		leftConfidence := floatVal(selected[left], "confidence")
+		rightConfidence := floatVal(selected[right], "confidence")
+		if leftConfidence != rightConfidence {
+			return leftConfidence > rightConfidence
+		}
+		return cloudResourceObservationKey(selected[left]) < cloudResourceObservationKey(selected[right])
 	})
-	if err != nil {
-		return nil, err
+	merged := make(map[string]any, len(row)+len(selected[0]))
+	for key, value := range row {
+		if key != "observations" {
+			merged[key] = value
+		}
 	}
-	return rows, nil
+	for key, value := range selected[0] {
+		merged[key] = value
+	}
+	return merged
+}
+
+func cloudResourceObservationKey(observation map[string]any) string {
+	return strings.Join([]string{
+		StringVal(observation, "stable_fact_key"),
+		StringVal(observation, "source_fact_id"),
+		StringVal(observation, "source_system"),
+		StringVal(observation, "source_record_id"),
+		StringVal(observation, "relationship_basis"),
+		StringVal(observation, "resolution_mode"),
+		StringVal(observation, "evidence_source"),
+		StringVal(observation, "service_anchor_source"),
+		StringVal(observation, "service_anchor_reason"),
+		StringVal(observation, "collector_kind"),
+		StringVal(observation, "environment"),
+		StringVal(observation, "reason"),
+	}, "\x00")
+}
+
+func deploymentTraceCloudCandidates(rows []map[string]any) []map[string]any {
+	candidates := make([]map[string]any, 0, len(rows))
+	for _, row := range rows {
+		candidate := make(map[string]any, len(row)+3)
+		for key, value := range row {
+			candidate[key] = value
+		}
+		candidate["candidate_status"] = "uncorrelated"
+		candidate["match_basis"] = firstNonEmptyString(
+			StringVal(row, "relationship_basis"),
+			"deployment_config_read_evidence",
+		)
+		candidate["missing_relationship"] = "workload_cloud_relationship"
+		candidates = append(candidates, candidate)
+	}
+	return candidates
 }
 
 type k8sResourceResult struct {
