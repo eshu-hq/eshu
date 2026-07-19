@@ -102,7 +102,7 @@ func queryRepoDependencies(ctx context.Context, reader GraphQuery, params map[st
 		copyRelationshipEvidenceMetadata(entry, row)
 		result = append(result, entry)
 	}
-	return result
+	return filterRepoRelationshipTargetRowsForAccess(result, "target_id", repositoryAccessFilterFromContext(ctx))
 }
 
 func queryRepoRelationshipOverview(ctx context.Context, reader GraphQuery, params map[string]any) []map[string]any {
@@ -142,10 +142,13 @@ func queryRepoRelationshipOverview(ctx context.Context, reader GraphQuery, param
 		       rel.rationale AS rationale
 		ORDER BY type, source_name
 	`)
+	var combined []map[string]any
 	if len(outgoing) == 0 {
-		return incoming
+		combined = incoming
+	} else {
+		combined = append(outgoing, incoming...)
 	}
-	return append(outgoing, incoming...)
+	return filterRepoRelationshipOverviewRowsForAccess(combined, StringVal(params, "repo_id"), repositoryAccessFilterFromContext(ctx))
 }
 
 func queryRepoRelationshipOverviewDirection(ctx context.Context, reader GraphQuery, params map[string]any, cypher string) []map[string]any {
@@ -221,5 +224,64 @@ func queryRepoConsumers(ctx context.Context, reader GraphQuery, params map[strin
 			"id":   StringVal(row, "consumer_id"),
 		})
 	}
-	return result
+	return filterRepoRelationshipTargetRowsForAccess(result, "id", repositoryAccessFilterFromContext(ctx))
+}
+
+// filterRepoRelationshipTargetRowsForAccess drops repository-relationship rows
+// whose related repository (named by idField -- "target_id" for
+// queryRepoDependencies, "id" for queryRepoConsumers) is outside the caller's
+// grant (#5167 W3 P0, third vector). These helpers anchor only on the
+// grant-verified repo (r {id:$repo_id}); the RELATED repository they name
+// carries no grant predicate, so a scoped caller could otherwise read a
+// cross-tenant repository's id/name through dependencies[]/consumers[] on
+// /services/{name}/context, /workloads/{id}/context, and the repository
+// context/story routes. Deny-by-default when scoped (empty related id is
+// dropped), matching impactRepoIDAllowed and the rest of the W3 row filters. An
+// all-scopes or shared-key caller is unaffected (rows returned unchanged), so
+// non-scoped callers see no regression.
+func filterRepoRelationshipTargetRowsForAccess(rows []map[string]any, idField string, access repositoryAccessFilter) []map[string]any {
+	if !access.scoped() {
+		return rows
+	}
+	filtered := make([]map[string]any, 0, len(rows))
+	for _, row := range rows {
+		if impactRepoIDAllowed(StringVal(row, idField), access) {
+			filtered = append(filtered, row)
+		}
+	}
+	return filtered
+}
+
+// filterRepoRelationshipOverviewRowsForAccess drops relationship-overview rows
+// whose NON-anchor repository endpoint is outside the caller's grant (#5167 W3
+// P0, third vector). queryRepoRelationshipOverview returns both directions of
+// each edge: outgoing rows anchor on source (r {id:$repo_id}) and name the
+// related repo in target_id, incoming rows anchor on target and name the
+// related repo in source_id. The anchor endpoint (== anchorRepoID) is always
+// kept -- the caller reached this repo -- while the other endpoint must be in
+// grant, so a scoped caller never sees a cross-tenant repository's id/name via
+// relationship_overview. An all-scopes or shared-key caller is unaffected.
+func filterRepoRelationshipOverviewRowsForAccess(rows []map[string]any, anchorRepoID string, access repositoryAccessFilter) []map[string]any {
+	if !access.scoped() {
+		return rows
+	}
+	filtered := make([]map[string]any, 0, len(rows))
+	for _, row := range rows {
+		if repositoryRelationshipEndpointAllowed(StringVal(row, "source_id"), anchorRepoID, access) &&
+			repositoryRelationshipEndpointAllowed(StringVal(row, "target_id"), anchorRepoID, access) {
+			filtered = append(filtered, row)
+		}
+	}
+	return filtered
+}
+
+// repositoryRelationshipEndpointAllowed reports whether one repository endpoint
+// of a relationship-overview row may be shown to the caller: the grant-verified
+// anchor is always visible, and any other endpoint must be inside the grant
+// (deny-by-default on empty when scoped, via impactRepoIDAllowed).
+func repositoryRelationshipEndpointAllowed(repoID, anchorRepoID string, access repositoryAccessFilter) bool {
+	if repoID != "" && repoID == anchorRepoID {
+		return true
+	}
+	return impactRepoIDAllowed(repoID, access)
 }
