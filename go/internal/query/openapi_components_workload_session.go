@@ -135,11 +135,7 @@ const openAPIComponentsWorkloadSession = `      "WorkloadContext": {
               }
             }
           },
-          "runtime_topology_limits": {
-            "type": "object",
-            "description": "Completeness metadata for bounded instance, RUNS_ON, and provisioning reads.",
-            "additionalProperties": true
-          }
+          "runtime_topology_limits": ` + openAPIImpactRuntimeTopologyLimits + `
         }
       },
       "BrowserSessionAuth": {

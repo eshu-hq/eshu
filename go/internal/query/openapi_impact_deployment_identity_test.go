@@ -97,6 +97,25 @@ func TestOpenAPIImpactDeploymentTraceDocumentsCanonicalPlatformIdentity(t *testi
 			t.Fatalf("impact trace schema missing %s", limitsField)
 		}
 	}
+	runtimeTopologyLimits := mustMapField(t, properties, "runtime_topology_limits")
+	runtimeTopologyProperties := mustMapField(t, runtimeTopologyLimits, "properties")
+	for _, collection := range []string{"instances", "platform_edges", "provisioned_platforms"} {
+		collectionLimits := mustMapField(t, runtimeTopologyProperties, collection)
+		collectionLimitProperties := mustMapField(t, collectionLimits, "properties")
+		for _, field := range []string{
+			"limit",
+			"query_sentinel_limit",
+			"returned_count",
+			"observed_count",
+			"observed_count_is_lower_bound",
+			"truncated",
+			"ordering",
+		} {
+			if _, ok := collectionLimitProperties[field]; !ok {
+				t.Fatalf("impact trace runtime_topology_limits.%s schema missing %s", collection, field)
+			}
+		}
+	}
 	k8sResourceLimits := mustMapField(t, properties, "k8s_resource_limits")
 	k8sResourceLimitProperties := mustMapField(t, k8sResourceLimits, "properties")
 	for _, field := range []string{

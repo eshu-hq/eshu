@@ -146,7 +146,7 @@ const openAPIPathsImpact = `
                         }
                       }
                     },
-                    "runtime_topology_limits": {"type": "object", "description": "Completeness metadata for instances, direct RUNS_ON edges, and provisioned platforms.", "additionalProperties": true},
+                    "runtime_topology_limits": ` + openAPIImpactRuntimeTopologyLimits + `,
                     "hostnames": {"type": "array", "items": {"type": "object"}},
                     "entrypoints": {"type": "array", "items": {"type": "object"}},
                     "network_paths": {"type": "array", "items": {"type": "object"}},
