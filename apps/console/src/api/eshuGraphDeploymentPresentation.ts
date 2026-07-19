@@ -77,8 +77,8 @@ export function repoRef(
 ): { readonly id: string; readonly name: string } | null {
   const id = cleanText(idValue);
   const name = cleanText(nameValue);
-  if (id === "" && name === "") return null;
-  return { id: id || `repository:${name}`, name: name || id };
+  if (id === "") return null;
+  return { id, name: name || id };
 }
 
 export function repoNode(

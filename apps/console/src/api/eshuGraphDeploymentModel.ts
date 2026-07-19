@@ -95,9 +95,14 @@ export function buildDeploymentStoryGraph(
     traceTruth: options.traceTruth,
   });
   const sources = trace.deployment_sources ?? [];
+  const missingSourceIdentities: string[] = [];
   sources.slice(0, limits.sources).forEach((source) => {
     const repo = repoRef(source.repo_id, source.repo_name);
-    if (!repo || nodes.has(repo.id)) return;
+    if (!repo) {
+      missingSourceIdentities.push(cleanText(source.repo_name) || "unnamed source");
+      return;
+    }
+    if (nodes.has(repo.id)) return;
     addNode({
       ...repoNode(
         repo,
@@ -111,6 +116,15 @@ export function buildDeploymentStoryGraph(
       truth: graphTruth(options.traceTruth),
     });
   });
+  if (missingSourceIdentities.length > 0) {
+    summaries.push(
+      summaryNode(
+        "source_identity",
+        `${missingSourceIdentities.length} deployment sources missing canonical repository identity`,
+        `Relationships not admitted: ${missingSourceIdentities.join(", ")}`,
+      ),
+    );
+  }
   addOmissionSummary(
     summaries,
     "deployment sources",

@@ -133,4 +133,48 @@ describe("Graph Explorer production deployment wire shapes", () => {
       /nodes not shown/,
     );
   });
+
+  it("does not invent repository identities when canonical IDs are absent", () => {
+    const graph = deploymentStoryToGraph(
+      {
+        deployment_evidence: {
+          artifacts: [
+            {
+              artifact_id: "artifact:missing-source-id",
+              relationship_type: "DEPLOYS_FROM",
+              source_repo_name: "gitops-config",
+              target_repo_id: "repository:r_checkout",
+              target_repo_name: "checkout-api",
+            },
+          ],
+        },
+      },
+      "checkout-api",
+      {
+        deployment_sources: [{ repo_name: "runtime-deploy" }],
+        service_name: "checkout-api",
+      },
+      { contextTruth: exactTruth, traceTruth: exactTruth },
+    );
+
+    expect(graph.nodes).not.toContainEqual(
+      expect.objectContaining({ id: "repository:gitops-config" }),
+    );
+    expect(graph.nodes).not.toContainEqual(
+      expect.objectContaining({ id: "repository:runtime-deploy" }),
+    );
+    expect(graph.edges).not.toContainEqual(expect.objectContaining({ verb: "DEPLOYS_FROM" }));
+    expect(graph.nodes).toContainEqual(
+      expect.objectContaining({
+        id: "summary:not_admitted",
+        label: "1 deployment relationships not admitted",
+      }),
+    );
+    expect(graph.nodes).toContainEqual(
+      expect.objectContaining({
+        id: "summary:source_identity",
+        label: "1 deployment sources missing canonical repository identity",
+      }),
+    );
+  });
 });
