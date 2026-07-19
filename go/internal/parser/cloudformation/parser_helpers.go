@@ -17,6 +17,7 @@ func appendOutputs(
 	path string,
 	lang string,
 	withFormat func(map[string]any) map[string]any,
+	sectionPositions SectionPositions,
 ) {
 	outputs, ok := document["Outputs"].(map[string]any)
 	if !ok {
@@ -24,23 +25,34 @@ func appendOutputs(
 	}
 	for _, name := range sortedMapKeys(outputs) {
 		body, _ := outputs[name].(map[string]any)
+		startLine, endLine, knownLine := sectionPositions.linesFor(name, lineNumber)
 		row := withFormat(map[string]any{
 			"name":        name,
-			"line_number": lineNumber,
+			"line_number": startLine,
 			"path":        path,
 			"lang":        lang,
 		})
+		if knownLine {
+			row["end_line"] = endLine
+		}
 		setOptionalString(row, "description", body["Description"])
 		setOptionalString(row, "value", body["Value"])
 		if exportBody, ok := body["Export"].(map[string]any); ok {
 			setOptionalString(row, "export_name", exportBody["Name"])
 			if exportName, ok := row["export_name"].(string); ok && strings.TrimSpace(exportName) != "" {
-				result.Exports = append(result.Exports, withFormat(map[string]any{
+				// An Export always nests inside its Output in the template
+				// shape, so it inherits the owning Output's own EntityPosition
+				// rather than getting a separately-walked line.
+				exportRow := withFormat(map[string]any{
 					"name":        exportName,
-					"line_number": lineNumber,
+					"line_number": startLine,
 					"path":        path,
 					"lang":        lang,
-				}))
+				})
+				if knownLine {
+					exportRow["end_line"] = endLine
+				}
+				result.Exports = append(result.Exports, exportRow)
 			}
 		}
 		setOptionalString(row, "condition", body["Condition"])

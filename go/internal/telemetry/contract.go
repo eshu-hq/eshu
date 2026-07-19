@@ -251,6 +251,11 @@ const (
 	// user-assumed trust edges landing, and did a generation produce zero?" at
 	// 3 AM.
 	MetricDimensionPrincipalKind = "principal_kind"
+	// MetricDimensionCloudFormationSection labels
+	// CloudFormationPositionFallbacks (issue #5328) with the closed
+	// CloudFormation section name the fallback occurred in: Parameters,
+	// Conditions, Resources, or Outputs. Never a raw entity or export name.
+	MetricDimensionCloudFormationSection = "cloudformation_section"
 )
 
 // Span names define the stable data-plane tracing contract.

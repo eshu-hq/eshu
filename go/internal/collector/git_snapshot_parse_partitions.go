@@ -6,6 +6,7 @@ package collector
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sort"
@@ -20,6 +21,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/content/shape"
 	"github.com/eshu-hq/eshu/go/internal/parser"
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 type parseFileJob struct {
@@ -408,6 +410,7 @@ func (s NativeRepositorySnapshotter) parseRepositoryFile(
 		))
 	}
 	s.recordParseFileStatus(ctx, "succeeded")
+	s.recordCloudFormationPositionFallbacks(ctx, parsed, relativePath)
 
 	return parseResult{
 		index:     job.index,
@@ -426,6 +429,44 @@ func (s NativeRepositorySnapshotter) recordParseFileStatus(ctx context.Context, 
 	s.Instruments.FilesParsed.Add(ctx, 1, metric.WithAttributes(
 		attribute.String("status", status),
 	))
+}
+
+// cloudformationPositionFallbackDisproportionateThreshold is the per-file
+// fallback-row count above which recordCloudFormationPositionFallbacks also
+// emits a structured warning log, on top of the bounded counter increments.
+// One or two fallback rows in an otherwise-fine template is unremarkable (an
+// unusual anchor/merge shape the walk chose to degrade rather than
+// mis-attribute); a large count signals the position walk is systematically
+// missing a template pattern and an operator should look at the file.
+const cloudformationPositionFallbackDisproportionateThreshold = 20
+
+// recordCloudFormationPositionFallbacks emits the bounded
+// CloudFormationPositionFallbacks counter for every degraded-position row the
+// YAML CloudFormation adapter recorded in
+// parsed["cloudformation_position_fallbacks"] (issue #5328): a per-entity or
+// per-section case where the real yaml.v3 Node.Line walk could not resolve a
+// CloudFormation entity's own line and fell back to the section header line
+// or the document-root line instead. Best-effort: a nil Instruments is a
+// no-op so parsing still runs in instrument-free contexts and tests.
+func (s NativeRepositorySnapshotter) recordCloudFormationPositionFallbacks(ctx context.Context, parsed map[string]any, relativePath string) {
+	rows, ok := parsed["cloudformation_position_fallbacks"].([]map[string]any)
+	if !ok || len(rows) == 0 {
+		return
+	}
+	if s.Instruments != nil && s.Instruments.CloudFormationPositionFallbacks != nil {
+		for _, row := range rows {
+			s.Instruments.CloudFormationPositionFallbacks.Add(ctx, 1, metric.WithAttributes(
+				attribute.String(telemetry.MetricDimensionCloudFormationSection, snapshotPayloadString(row, "section")),
+				attribute.String(telemetry.MetricDimensionSkipReason, snapshotPayloadString(row, "reason")),
+			))
+		}
+	}
+	if len(rows) > cloudformationPositionFallbackDisproportionateThreshold && s.Logger != nil {
+		s.Logger.WarnContext(ctx, "cloudformation entity position fallback disproportionate",
+			slog.String("path", relativePath),
+			slog.Int("fallback_count", len(rows)),
+		)
+	}
 }
 
 func parseResultsToSnapshotFiles(

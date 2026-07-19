@@ -43,3 +43,24 @@ Not claimed today:
 
 ## Known Limitations
 - Intrinsic functions (!Ref, !Sub, !GetAtt) stored as string values, not resolved
+- YAML templates report each Parameters/Conditions/Resources/Outputs entity's
+  own real, distinct `line_number`, plus a real `end_line` spanning its value
+  (an Export inherits its owning Output's position). The YAML adapter walks
+  the raw `gopkg.in/yaml.v3` node tree -- anchored strictly at the document
+  root's own top-level section pairs, never by searching for a key name
+  anywhere in the tree -- so a nested same-named key (for example an
+  `AWS::CloudFormation::Stack` resource whose own `Properties` happens to
+  contain a `Resources` or `Outputs` key) is never mistaken for a template
+  section (issue #5328). Because `line_number` participates in a content
+  entity's identity, upgrading to this real per-entity line re-identifies
+  every CFN entity in an already-indexed repo on its next snapshot (the old
+  entities, previously all sharing the document-root line, are retracted and
+  recreated with new ids) -- a one-time, self-healing entity-count churn with
+  no data loss.
+- JSON templates still report only a single document-level `line_number` for
+  every Parameters/Conditions/Resources/Outputs/Exports/cross-stack-import
+  entity in the file, and never set `end_line` at all: JSON decoding does not
+  preserve each key's own physical line the way the YAML adapter's node walk
+  does. Every entity in a JSON CloudFormation template resolves to the same
+  line. Extending JSON to the same per-entity precision YAML now has is
+  tracked separately in issue #5348 and is not implemented yet.

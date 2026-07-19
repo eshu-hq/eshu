@@ -25,6 +25,13 @@
 - Expanding condition support requires positive, negative, and unresolved cases.
 - A new intrinsic parser belongs here only when both JSON and YAML callers can
   use the same decoded document shape.
+- Adding real per-entity source positions for a bucket this package does not
+  yet position (Imports, for example) means extending `Positions` with a new
+  `SectionPositions` field, threading it through the matching `append*`
+  helper's signature exactly like `Resources`/`Outputs`/`Conditions`/
+  `Parameters` already are, and keeping `Parse`'s zero-`Positions` behavior
+  (no `end_line` field at all) unchanged for callers with no position
+  evidence (issue #5328's `ParseWithPositions`).
 
 ## Failure modes
 

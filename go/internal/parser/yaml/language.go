@@ -119,16 +119,30 @@ func Parse(
 		return payload, nil
 	}
 
-	documents, err := DecodeDocuments(SanitizeTemplating(string(source)))
+	sanitizedSource := SanitizeTemplating(string(source))
+	// decodeDocumentsWithNodes performs exactly one decode pass over
+	// sanitizedSource and returns each document's raw *yamlv3.Node root
+	// alongside the flattened value DecodeDocuments has always produced.
+	// CloudFormation/SAM documents (the overwhelming minority) reuse that
+	// same root for real per-entity line positions instead of a second
+	// decode pass over the same source (issue #5328 performance recovery);
+	// every other YAML file pays only the O(1) cost of appending an already
+	// -produced pointer to documentNodes, never a second parse.
+	documents, documentNodes, err := decodeDocumentsWithNodes(sanitizedSource)
 	if err != nil {
 		return nil, fmt.Errorf("parse yaml file %q: %w", path, err)
 	}
-	for _, document := range documents {
+
+	for index, document := range documents {
 		object, ok := document.(map[string]any)
 		if !ok {
 			continue
 		}
-		appendYAMLDocument(payload, path, filename, object)
+		var rootNode *yamlv3.Node
+		if index < len(documentNodes) {
+			rootNode = documentNodes[index]
+		}
+		appendYAMLDocument(payload, path, filename, object, rootNode)
 	}
 
 	for _, bucket := range []string{
@@ -182,6 +196,7 @@ func yamlBasePayload(path string, isDependency bool) map[string]any {
 	payload["cloudformation_conditions"] = []map[string]any{}
 	payload["cloudformation_cross_stack_imports"] = []map[string]any{}
 	payload["cloudformation_cross_stack_exports"] = []map[string]any{}
+	payload["cloudformation_position_fallbacks"] = []map[string]any{}
 	payload["atlantis_projects"] = []map[string]any{}
 	payload["atlantis_workflows"] = []map[string]any{}
 	payload["gitlab_pipelines"] = []map[string]any{}
@@ -191,7 +206,7 @@ func yamlBasePayload(path string, isDependency bool) map[string]any {
 	return payload
 }
 
-func appendYAMLDocument(payload map[string]any, path string, filename string, document map[string]any) {
+func appendYAMLDocument(payload map[string]any, path string, filename string, document map[string]any, rootNode *yamlv3.Node) {
 	lineNumber := shared.IntValue(document["__eshu_line_number"])
 	delete(document, "__eshu_line_number")
 	if lineNumber <= 0 {
@@ -202,7 +217,16 @@ func appendYAMLDocument(payload map[string]any, path string, filename string, do
 		return
 	}
 	if cloudformation.IsTemplate(document) {
-		result := cloudformation.Parse(document, path, lineNumber, "yaml")
+		positions, fallbacks := cloudformationPositionsFromRoot(rootNode, document)
+		for _, fallback := range fallbacks {
+			shared.AppendBucket(payload, "cloudformation_position_fallbacks", map[string]any{
+				"path":        path,
+				"section":     fallback.Section,
+				"reason":      fallback.Reason,
+				"line_number": firstPositiveInt(fallback.Line, lineNumber),
+			})
+		}
+		result := cloudformation.ParseWithPositions(document, path, lineNumber, "yaml", positions)
 		payload["cloudformation_resources"] = append(payload["cloudformation_resources"].([]map[string]any), result.Resources...)
 		payload["cloudformation_parameters"] = append(payload["cloudformation_parameters"].([]map[string]any), result.Params...)
 		payload["cloudformation_outputs"] = append(payload["cloudformation_outputs"].([]map[string]any), result.Outputs...)
@@ -255,30 +279,57 @@ func appendYAMLDocument(payload map[string]any, path string, filename string, do
 // DecodeDocuments decodes one YAML source string into document values while
 // preserving the top-level line number on map documents.
 func DecodeDocuments(source string) ([]any, error) {
+	documents, _, err := decodeDocumentsWithNodes(source)
+	return documents, err
+}
+
+// decodeDocumentsWithNodes decodes source in a single pass and returns both
+// the flattened document values DecodeDocuments has always produced and each
+// document's raw *yamlv3.Node root, index-aligned with documents (both slices
+// apply the identical empty-document skip rule below, so index i in one
+// slice always corresponds to index i in the other).
+//
+// Retaining the root node costs nothing beyond appending a pointer this same
+// decode pass already produced -- yamlNodeToAny reads node.Content[0] to
+// build the flattened value regardless, so root is already in hand. This
+// lets a CloudFormation/SAM document (cloudformationPositionsFromRoot) reuse
+// the identical node tree for real per-entity line positions instead of
+// paying for a second full decode of the same source, which used to roughly
+// double CFN parse time (issue #5328 performance recovery; the prior
+// decodeDocumentNodes second pass is retired). Every document's root is
+// retained regardless of its eventual document type: non-CFN documents pay
+// only the O(1) append, never a second parse, so this stays free for the
+// overwhelming majority of YAML files (Kubernetes manifests, Argo CD,
+// Crossplane, Kustomize) that never read documentNodes at all.
+func decodeDocumentsWithNodes(source string) ([]any, []*yamlv3.Node, error) {
 	decoder := yamlv3.NewDecoder(strings.NewReader(source))
 	documents := make([]any, 0)
+	nodes := make([]*yamlv3.Node, 0)
 	for {
 		var node yamlv3.Node
 		err := decoder.Decode(&node)
 		if err != nil {
 			if err.Error() == "EOF" {
-				return documents, nil
+				return documents, nodes, nil
 			}
-			return nil, err
+			return nil, nil, err
 		}
 		if len(node.Content) == 0 {
 			continue
 		}
-		value, err := yamlNodeToAny(node.Content[0])
+		root := node.Content[0]
+		value, err := yamlNodeToAny(root)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		if object, ok := value.(map[string]any); ok {
-			object["__eshu_line_number"] = node.Content[0].Line
+			object["__eshu_line_number"] = root.Line
 			documents = append(documents, object)
+			nodes = append(nodes, root)
 			continue
 		}
 		documents = append(documents, value)
+		nodes = append(nodes, root)
 	}
 }
 

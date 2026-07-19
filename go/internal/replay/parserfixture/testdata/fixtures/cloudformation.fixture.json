@@ -20,23 +20,25 @@
             "classes": [],
             "cloudformation_conditions": [
               {
-                "evaluated": true,
-                "evaluated_value": false,
-                "expression": "map[Fn::And:[map[Condition:IsProduction] map[Fn::Equals:[map[Ref:EnableAlarms] true]]]]",
-                "file_format": "yaml",
-                "lang": "yaml",
-                "line_number": 1,
-                "name": "EnableMonitoring",
-                "path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/cloudformation/intrinsic-functions.yaml"
-              },
-              {
+                "end_line": 5,
                 "evaluated": true,
                 "evaluated_value": false,
                 "expression": "map[Fn::Equals:[map[Ref:Environment] production]]",
                 "file_format": "yaml",
                 "lang": "yaml",
-                "line_number": 1,
+                "line_number": 5,
                 "name": "IsProduction",
+                "path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/cloudformation/intrinsic-functions.yaml"
+              },
+              {
+                "end_line": 8,
+                "evaluated": true,
+                "evaluated_value": false,
+                "expression": "map[Fn::And:[map[Condition:IsProduction] map[Fn::Equals:[map[Ref:EnableAlarms] true]]]]",
+                "file_format": "yaml",
+                "lang": "yaml",
+                "line_number": 6,
+                "name": "EnableMonitoring",
                 "path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/cloudformation/intrinsic-functions.yaml"
               }
             ],
@@ -44,25 +46,28 @@
             "cloudformation_cross_stack_imports": [],
             "cloudformation_outputs": [
               {
+                "end_line": 46,
                 "file_format": "yaml",
                 "lang": "yaml",
-                "line_number": 1,
-                "name": "AccountId",
-                "path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/cloudformation/intrinsic-functions.yaml",
-                "value": "map[Ref:AWS::AccountId]"
-              },
-              {
-                "file_format": "yaml",
-                "lang": "yaml",
-                "line_number": 1,
+                "line_number": 45,
                 "name": "BucketName",
                 "path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/cloudformation/intrinsic-functions.yaml",
                 "value": "map[Fn::If:[IsProduction map[Ref:Bucket] dev-bucket]]"
               },
               {
+                "end_line": 48,
                 "file_format": "yaml",
                 "lang": "yaml",
-                "line_number": 1,
+                "line_number": 47,
+                "name": "AccountId",
+                "path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/cloudformation/intrinsic-functions.yaml",
+                "value": "map[Ref:AWS::AccountId]"
+              },
+              {
+                "end_line": 50,
+                "file_format": "yaml",
+                "lang": "yaml",
+                "line_number": 49,
                 "name": "StackRegion",
                 "path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/cloudformation/intrinsic-functions.yaml",
                 "value": "map[Ref:AWS::Region]"
@@ -70,43 +75,48 @@
             ],
             "cloudformation_parameters": [
               {
-                "default": "false",
+                "default": "development",
+                "end_line": 13,
                 "file_format": "yaml",
                 "lang": "yaml",
-                "line_number": 1,
-                "name": "EnableAlarms",
+                "line_number": 11,
+                "name": "Environment",
                 "param_type": "String",
                 "path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/cloudformation/intrinsic-functions.yaml"
               },
               {
-                "default": "development",
+                "default": "false",
+                "end_line": 16,
                 "file_format": "yaml",
                 "lang": "yaml",
-                "line_number": 1,
-                "name": "Environment",
+                "line_number": 14,
+                "name": "EnableAlarms",
                 "param_type": "String",
                 "path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/cloudformation/intrinsic-functions.yaml"
               }
             ],
+            "cloudformation_position_fallbacks": [],
             "cloudformation_resources": [
+              {
+                "end_line": 29,
+                "file_format": "yaml",
+                "lang": "yaml",
+                "line_number": 19,
+                "name": "Bucket",
+                "path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/cloudformation/intrinsic-functions.yaml",
+                "resource_type": "AWS::S3::Bucket"
+              },
               {
                 "condition": "EnableMonitoring",
                 "condition_evaluated": true,
                 "condition_value": false,
+                "end_line": 42,
                 "file_format": "yaml",
                 "lang": "yaml",
-                "line_number": 1,
+                "line_number": 31,
                 "name": "Alarm",
                 "path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/cloudformation/intrinsic-functions.yaml",
                 "resource_type": "AWS::CloudWatch::Alarm"
-              },
-              {
-                "file_format": "yaml",
-                "lang": "yaml",
-                "line_number": 1,
-                "name": "Bucket",
-                "path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/cloudformation/intrinsic-functions.yaml",
-                "resource_type": "AWS::S3::Bucket"
               }
             ],
             "crossplane_claims": [],
@@ -166,9 +176,10 @@
             "cloudformation_conditions": [],
             "cloudformation_cross_stack_exports": [
               {
+                "end_line": 50,
                 "file_format": "yaml",
                 "lang": "yaml",
-                "line_number": 1,
+                "line_number": 46,
                 "name": "map[Fn::Sub:${AWS::StackName}-RoleArn]",
                 "path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/cloudformation/simple-stack.yaml"
               }
@@ -177,19 +188,21 @@
             "cloudformation_outputs": [
               {
                 "description": "ARN of the S3 bucket",
+                "end_line": 44,
                 "file_format": "yaml",
                 "lang": "yaml",
-                "line_number": 1,
+                "line_number": 42,
                 "name": "BucketArn",
                 "path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/cloudformation/simple-stack.yaml",
                 "value": "map[Fn::GetAtt:DataBucket.Arn]"
               },
               {
                 "description": "ARN of the IAM role",
+                "end_line": 50,
                 "export_name": "map[Fn::Sub:${AWS::StackName}-RoleArn]",
                 "file_format": "yaml",
                 "lang": "yaml",
-                "line_number": 1,
+                "line_number": 46,
                 "name": "RoleArn",
                 "path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/cloudformation/simple-stack.yaml",
                 "value": "map[Fn::GetAtt:AppRole.Arn]"
@@ -197,42 +210,47 @@
             ],
             "cloudformation_parameters": [
               {
-                "description": "Name of the S3 bucket",
+                "allowed_values": "development,production,staging",
+                "default": "development",
+                "description": "Deployment environment",
+                "end_line": 12,
                 "file_format": "yaml",
                 "lang": "yaml",
-                "line_number": 1,
-                "name": "BucketName",
+                "line_number": 5,
+                "name": "Environment",
                 "param_type": "String",
                 "path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/cloudformation/simple-stack.yaml"
               },
               {
-                "allowed_values": "development,production,staging",
-                "default": "development",
-                "description": "Deployment environment",
+                "description": "Name of the S3 bucket",
+                "end_line": 16,
                 "file_format": "yaml",
                 "lang": "yaml",
-                "line_number": 1,
-                "name": "Environment",
+                "line_number": 14,
+                "name": "BucketName",
                 "param_type": "String",
                 "path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/cloudformation/simple-stack.yaml"
               }
             ],
+            "cloudformation_position_fallbacks": [],
             "cloudformation_resources": [
               {
+                "end_line": 27,
                 "file_format": "yaml",
                 "lang": "yaml",
-                "line_number": 1,
-                "name": "AppRole",
-                "path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/cloudformation/simple-stack.yaml",
-                "resource_type": "AWS::IAM::Role"
-              },
-              {
-                "file_format": "yaml",
-                "lang": "yaml",
-                "line_number": 1,
+                "line_number": 19,
                 "name": "DataBucket",
                 "path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/cloudformation/simple-stack.yaml",
                 "resource_type": "AWS::S3::Bucket"
+              },
+              {
+                "end_line": 39,
+                "file_format": "yaml",
+                "lang": "yaml",
+                "line_number": 29,
+                "name": "AppRole",
+                "path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/cloudformation/simple-stack.yaml",
+                "resource_type": "AWS::IAM::Role"
               }
             ],
             "crossplane_claims": [],

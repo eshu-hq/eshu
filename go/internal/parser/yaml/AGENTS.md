@@ -33,6 +33,13 @@
   cases separate enough that generator and template evidence remain visible.
 - Add Helm behavior in helm.go and include path-sensitive coverage for chart,
   values, or template-manifest classification.
+- Extend CloudFormation per-entity position support (currently Parameters,
+  Conditions, Resources, Outputs, and Exports-via-their-owning-Output, see
+  cloudformation_positions.go) in the same file, walking the raw
+  `*yamlv3.Node` tree the same way `cloudformationSectionNodes` and
+  `cloudformationWalkMappingEntries` already do -- never by adding a new
+  document-wide key search, which would risk matching a nested same-named key
+  inside a resource's Properties.
 - Keep registry dispatch, engine routing, and content metadata inference in the
   parent parser package.
 - Keep shared helpers language-neutral. YAML-only helpers belong in this
