@@ -73,3 +73,11 @@ The opaque body of a `run`/`env` step is intentionally **not** captured as a nod
 property — recording the step kind (`run`) is truthful without fabricating
 semantics for arbitrary shell. Both the workflow node and the `USES_WORKFLOW`
 edge are matched by canonical key (uid), like the other Atlantis edges.
+
+## Query surfacing
+
+`AtlantisProject`/`AtlantisWorkflow` and the `MANAGES`/`ATLANTIS_DEPENDS_ON`/
+`USES_WORKFLOW` edges above are graph-written, not yet query-exposed: no MCP
+tool, `execute_language_query` dispatch case, or `content_relationships`
+branch reads them today. Tracked in
+[#5369](https://github.com/eshu-hq/eshu/issues/5369).

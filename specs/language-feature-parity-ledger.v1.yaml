@@ -21,7 +21,7 @@ language_features:
     source_files: [go/internal/parser/yaml/atlantis.go, go/internal/parser/yaml/language.go]
     test_files: [go/internal/parser/yaml/atlantis_test.go]
     docs: [docs/public/languages/atlantis.md]
-    read_surfaces: [content_relationships]
+    read_surfaces: []
   - language: c
     docs_claim: docs/public/languages/c.md
     parser_backing: tree-sitter-backed
@@ -113,7 +113,7 @@ language_features:
     source_files: [go/internal/parser/yaml/gitlab_ci.go, go/internal/parser/yaml/language.go]
     test_files: [go/internal/parser/yaml/gitlab_ci_test.go]
     docs: [docs/public/languages/gitlab-ci.md]
-    read_surfaces: [content_relationships]
+    read_surfaces: []
   - language: go
     docs_claim: docs/public/languages/go.md
     parser_backing: tree-sitter-backed
@@ -310,7 +310,7 @@ language_features:
     source_files: [go/internal/parser/sql_language.go, go/internal/parser/sql/language.go]
     test_files: [go/internal/parser/engine_sql_test.go, go/internal/parser/sql_parity_test.go]
     docs: [docs/public/languages/sql.md]
-    read_surfaces: [execute_language_query, entity_context, content_relationships]
+    read_surfaces: [execute_language_query, entity_context]
   - language: swift
     docs_claim: docs/public/languages/swift.md
     parser_backing: tree-sitter-backed

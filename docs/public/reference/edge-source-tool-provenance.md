@@ -247,6 +247,16 @@ but nothing writes it, which is why `POST /api/v0/impact/blast-radius` with
 [Crossplane parser](../languages/crossplane.md#known-limitations)). None of
 these five carry a `source_tool` until a materializer exists.
 
+**Parsed but never entered into the edge-type registry:** the SQL/dbt
+manifest parser (`go/internal/parser/json/dbt_manifest.go`) emits
+`COMPILES_TO`, `ASSET_DERIVES_FROM`, `COLUMN_DERIVES_FROM`, and `USES_MACRO`
+relationship rows into the parser's own `data_relationships` payload bucket
+when it parses a dbt `manifest.json`. These four names are not `EdgeType`
+constants (`go/internal/graph/edgetype/edgetype.go`) and have no reducer
+decode path or `content_relationships` consumer — they never reach the graph
+at all, one stage earlier than the "registered but not materialized" edges
+above. See [SQL parser](../languages/sql.md#supported-surfaces).
+
 ## Re-auditing coverage
 
 The classification above is a snapshot of the emitters. To re-audit against a
