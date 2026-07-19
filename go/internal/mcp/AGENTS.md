@@ -107,7 +107,7 @@
 
 - **Change SSE keepalive interval** → edit the ticker duration in `handleSSE`
   (`server_sse.go`). The keepalive loop calls `Flush` after each tick
-  (`server_sse.go:125`). Update `README.md`. Why: clients may have hard-coded
+  (`server_sse.go:126`). Update `README.md`. Why: clients may have hard-coded
   assumptions about keepalive cadence.
 
 - **Change the MCP protocol version** → edit `ProtocolVersion` in
