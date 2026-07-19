@@ -1560,6 +1560,72 @@ trip, and the same public `SweepOrphanNodes`/`GraphOrphanNodeCounts` result
 shape; chunking is an internal round-trip-count change, not a new metric,
 span, log field, or config surface.
 
+### SQL Table Blast-Radius Branch Reduction (#5330)
+
+`blastRadiusSqlTableCypher` (`go/internal/query/impact_blast_radius.go`)
+dropped from six `CALL {...UNION...}` branches to five: the never-written
+`MIGRATES` and `MAPS_TO_TABLE` branches were removed outright, and the
+combined `EXISTS { MATCH (sql_node)-[:READS_FROM|TRIGGERS_ON|INDEXES]->(table)
+}` subquery branch was replaced with a direct typed `MATCH
+(:SqlTrigger)-[:TRIGGERS]->(table)` branch (the reducer only ever emits
+`TRIGGERS`, never the `TRIGGERS_ON` name the old branch checked) plus a direct
+typed `MATCH (:SqlIndex)-[:INDEXES]->(table)` branch (INDEXES is now wired,
+prior commits this PR). `blastRadiusSqlTableBranches` tracks the branch count
+exactly and gates the caller's `limit * blastRadiusSqlTableBranches`
+over-fetch before the app-side per-repo min-hop dedup, so 6 -> 5 also lowers
+the over-fetch multiplier and the row volume Go merges per call.
+
+This is primarily a correctness fix (#5330's honest-coverage rationale is
+above in `impact_blast_radius.go`), not a claimed speedup, so the required
+proof here is the same-shape no-regression check called for by
+`cypher-query-rigor`: prove NEW is not slower than OLD on the same data.
+
+No-Regression Evidence: theory shim (throwaway `_test.go` in
+`go/internal/replay/offlinetier`, deleted after capture) against an isolated
+NornicDB (build `eshu-nornicdb-pr261:149245885258`, Bolt driver, database
+`nornic`, schema bootstrapped first). Seeded 200 `Repository`/`File`/`SqlTable`
+triples (all named `target_table`, so one `CONTAINS` query name-matches every
+row) plus 50 each of `QUERIES_TABLE`, `REFERENCES_TABLE`, `TRIGGERS`, and
+`INDEXES` edges into the matched table, using the same
+`UNWIND $rows AS row CREATE ...` write shape the production canonical writers
+use (a multi-clause `WITH`/`CREATE` chain silently returns wrong results on
+this pinned NornicDB build, so the seed avoided that shape — see [NornicDB
+Pitfalls](nornicdb-pitfalls.md)). Ran the exact pre-#5330 OLD query text
+(`limit=51*6=306`) and the current NEW query text (`limit=51*5=255`) through
+the same `Run` adapter production uses (not the HTTP transactional endpoint —
+`docker exec`-wrapped HTTP calls floor out around 30ms and cannot resolve
+sub-millisecond differences), 20 reps each after a warmup rep, repeated across
+4 independent test runs:
+
+| Run | OLD (6 branches, ms/op) | NEW (5 branches, ms/op) | Delta |
+| --- | ---: | ---: | ---: |
+| 1 | 0.822 | 0.677 | -17.6% |
+| 2 | 0.854 | 0.708 | -17.1% |
+| 3 | 0.940 | 0.711 | -24.4% |
+| 4 | 0.957 | 0.667 | -30.3% |
+
+NEW was faster than OLD in every run (never slower), consistent with the
+lower branch count and lower over-fetch multiplier. Row counts matched the
+seeded data on both shapes (OLD 300 rows including the `INDEXES` edges it
+picks up incidentally through its `READS_FROM|TRIGGERS_ON|INDEXES` EXISTS
+disjunction; NEW 255 rows through its five direct branches), confirming
+neither shape errored or silently truncated on this dataset. This is a
+same-shape performance check only — OLD and NEW are intentionally NOT
+asserted result-set-equivalent, because dropping the dead `MIGRATES`/
+`MAPS_TO_TABLE` branches and renaming `TRIGGERS_ON` to `TRIGGERS` is the
+correctness fix under test (an accuracy delta, not an optimization); that
+delta is proven by `TestBlastRadiusSqlTableCypherDropsDeadBranchesKeepsLiveOnes`
+and `go/internal/query/impact_blast_radius_coverage_test.go`, not by this
+shim.
+
+No-Observability-Change: the query still runs through the existing
+`h.Neo4j.Run` adapter and per-query graph telemetry; no new span, metric,
+runtime knob, or queue behavior was added. The response gained the `complete`/
+`coverage` fields (documented separately in
+[HTTP API — IaC, content, and infra routes](http-api/iac-content-infra.md)),
+which are computed in Go from the existing `EdgeMaterializationCoverage`
+registry and add no graph read.
+
 ## Related Docs
 
 - [NornicDB Pitfalls](nornicdb-pitfalls.md)
