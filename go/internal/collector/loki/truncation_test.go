@@ -61,6 +61,111 @@ func TestHTTPClientMarksTruncatedSeriesWhenLimitExceeded(t *testing.T) {
 	assertWarningReason(t, result.Warnings, WarningTruncated)
 }
 
+func TestHTTPClientMarksTruncatedSeriesWhenLabelSetConsumesCapBudget(t *testing.T) {
+	t.Parallel()
+
+	// The label-set signal from collectLabels is appended to result.Signals
+	// BEFORE the series loop, so it consumes resource_limit budget. With a
+	// non-empty /labels result + exactly 2 distinct series + resource_limit=2,
+	// the label-set signal (1) plus the first series (2) fills the cap, and the
+	// second series is dropped by `len(result.Signals) >= limit`. Inferring
+	// truncation from the distinct-series count (len(seen)==2, not > 2) missed
+	// this real drop; detection must key off the actual cap-skip.
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/loki/api/v1/labels":
+			writeJSON(t, w, map[string]any{"status": "success", "data": []string{"app"}})
+		case "/loki/api/v1/series":
+			writeJSON(t, w, map[string]any{
+				"status": "success",
+				"data": []map[string]string{
+					{"app": "checkout-prod"},
+					{"app": "billing-prod"},
+				},
+			})
+		case "/loki/api/v1/rules":
+			w.Header().Set("Content-Type", "application/yaml")
+			_, _ = w.Write([]byte("{}\n"))
+		default:
+			t.Fatalf("unexpected request path %q", r.URL.Path)
+		}
+	}))
+	defer server.Close()
+
+	client, err := NewHTTPClient(HTTPClientConfig{BaseURL: server.URL, Client: server.Client()})
+	if err != nil {
+		t.Fatalf("NewHTTPClient() error = %v, want nil", err)
+	}
+
+	result, err := client.CollectObservedMetadata(context.Background(), TargetConfig{
+		ScopeID:       "loki:tenant:prod",
+		InstanceID:    "loki-prod",
+		BaseURL:       server.URL,
+		ResourceLimit: 2,
+	})
+	if err != nil {
+		t.Fatalf("CollectObservedMetadata() error = %v, want nil", err)
+	}
+	// label-set signal + 1 series retained; 2nd series dropped by the cap.
+	if got, want := len(result.Signals), 2; got != want {
+		t.Fatalf("len(Signals) = %d, want %d", got, want)
+	}
+	if !result.Stats.Truncated {
+		t.Fatal("Stats.Truncated = false, want true (a series was dropped by the cap after the label-set signal consumed budget)")
+	}
+	assertWarningReason(t, result.Warnings, WarningTruncated)
+}
+
+func TestHTTPClientNoTruncationWhenLabelSetPlusSeriesFitLimit(t *testing.T) {
+	t.Parallel()
+
+	// Non-empty /labels (1 label-set signal) + 1 series + resource_limit=2:
+	// both fit exactly, nothing is dropped, so no truncation warning must fire.
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/loki/api/v1/labels":
+			writeJSON(t, w, map[string]any{"status": "success", "data": []string{"app"}})
+		case "/loki/api/v1/series":
+			writeJSON(t, w, map[string]any{
+				"status": "success",
+				"data":   []map[string]string{{"app": "checkout-prod"}},
+			})
+		case "/loki/api/v1/rules":
+			w.Header().Set("Content-Type", "application/yaml")
+			_, _ = w.Write([]byte("{}\n"))
+		default:
+			t.Fatalf("unexpected request path %q", r.URL.Path)
+		}
+	}))
+	defer server.Close()
+
+	client, err := NewHTTPClient(HTTPClientConfig{BaseURL: server.URL, Client: server.Client()})
+	if err != nil {
+		t.Fatalf("NewHTTPClient() error = %v, want nil", err)
+	}
+
+	result, err := client.CollectObservedMetadata(context.Background(), TargetConfig{
+		ScopeID:       "loki:tenant:prod",
+		InstanceID:    "loki-prod",
+		BaseURL:       server.URL,
+		ResourceLimit: 2,
+	})
+	if err != nil {
+		t.Fatalf("CollectObservedMetadata() error = %v, want nil", err)
+	}
+	if got, want := len(result.Signals), 2; got != want {
+		t.Fatalf("len(Signals) = %d, want %d", got, want)
+	}
+	if result.Stats.Truncated {
+		t.Fatal("Stats.Truncated = true, want false (label-set + series fit the limit)")
+	}
+	for _, warning := range result.Warnings {
+		if warning.Reason == WarningTruncated {
+			t.Fatalf("unexpected truncated warning: %#v", warning)
+		}
+	}
+}
+
 func TestHTTPClientMarksTruncatedRulesWhenLimitExceeded(t *testing.T) {
 	t.Parallel()
 

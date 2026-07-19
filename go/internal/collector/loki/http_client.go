@@ -223,6 +223,7 @@ func (c HTTPClient) collectSeries(ctx context.Context, target TargetConfig, resu
 	result.Stats.PagesFetched++
 	limit := normalizedResourceLimit(target.ResourceLimit)
 	seen := map[string]struct{}{}
+	truncated := false
 	for _, series := range response.Data {
 		normalized := normalizeSeries(series, target, result.ObservedAt)
 		if normalized.ProviderObjectID == "" {
@@ -232,13 +233,18 @@ func (c HTTPClient) collectSeries(ctx context.Context, target TargetConfig, resu
 			continue
 		}
 		seen[normalized.ProviderObjectID] = struct{}{}
+		// The cap counts every retained signal, including the label-set signal
+		// collectLabels already appended, so detect truncation from the actual
+		// cap-skip of a distinct series -- not from len(seen), which would miss
+		// a drop whenever a non-series signal has consumed cap budget.
 		if len(result.Signals) >= limit {
+			truncated = true
 			continue
 		}
 		result.Signals = append(result.Signals, normalized)
 		recordObservationStats(normalized.FreshnessState, normalized.SeriesFingerprint != "", result)
 	}
-	if len(seen) > limit {
+	if truncated {
 		result.Stats.Truncated = true
 		result.Warnings = append(result.Warnings, Warning{
 			ResourceClass: seriesResourceClass,
@@ -257,6 +263,7 @@ func (c HTTPClient) collectRules(ctx context.Context, target TargetConfig, resul
 	result.Stats.PagesFetched++
 	limit := normalizedResourceLimit(target.ResourceLimit)
 	seen := map[string]struct{}{}
+	truncated := false
 	for namespace, groups := range response {
 		for _, group := range groups {
 			for _, raw := range group.Rules {
@@ -268,7 +275,11 @@ func (c HTTPClient) collectRules(ctx context.Context, target TargetConfig, resul
 					continue
 				}
 				seen[normalized.ProviderObjectID] = struct{}{}
+				// Detect truncation from the actual cap-skip of a distinct
+				// rule, mirroring collectSeries, so the signal stays correct
+				// even if result.Rules ever gains non-rule budget consumers.
 				if len(result.Rules) >= limit {
+					truncated = true
 					continue
 				}
 				result.Rules = append(result.Rules, normalized)
@@ -276,7 +287,7 @@ func (c HTTPClient) collectRules(ctx context.Context, target TargetConfig, resul
 			}
 		}
 	}
-	if len(seen) > limit {
+	if truncated {
 		result.Stats.Truncated = true
 		result.Warnings = append(result.Warnings, Warning{
 			ResourceClass: rulesResourceClass,
