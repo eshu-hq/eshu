@@ -1,0 +1,76 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+package query
+
+import "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+
+// contentContainmentEdgeType is CONTAINS: written for every content-entity
+// label (including every SQL entity label) by the generic File-to-entity
+// containment writer (cypher.buildEntityStatementsWithContainment, wired via
+// WithEntityContainmentInEntityUpsert in every production writer config). It
+// is not part of any domain-scoped write-reason whitelist because it applies
+// universally across entity types, so it is recorded here directly rather
+// than derived from a per-domain map the way the SQL relationship types are.
+const contentContainmentEdgeType = "CONTAINS"
+
+// contentContainmentEdgeReason is the human-readable reason recorded for
+// contentContainmentEdgeType in the materialized-edge registry.
+const contentContainmentEdgeReason = "generic File->entity containment writer (cypher.buildEntityStatementsWithContainment)"
+
+// EdgeCoverage reports whether a graph relationship type is written by a
+// known edge writer, and if not, why. It backs the honest blast-radius
+// response contract (#5330): a query's UNION branch whose edge type has no
+// writer must be reported as unmaterialized rather than silently
+// contributing zero rows to the affected set.
+type EdgeCoverage struct {
+	// EdgeType is the graph relationship type name (e.g. "INDEXES").
+	EdgeType string
+	// Materialized is true when a known writer produces this edge type.
+	Materialized bool
+	// Reason is a short human-readable explanation: the write-reason string
+	// recorded on the edge when Materialized is true, or "no_writer" when
+	// Materialized is false.
+	Reason string
+}
+
+// materializedEdgeTypes returns the set of graph relationship types this
+// registry knows to be written by a real edge writer, keyed by edge type name
+// and mapping to a short human-readable reason. It is registry-derived, not a
+// graph probe: it merges the SQL relationship edge-writer whitelist (the
+// authoritative source for REFERENCES_TABLE, HAS_COLUMN, TRIGGERS, EXECUTES,
+// QUERIES_TABLE, and INDEXES — see cypher.SQLRelationshipMaterializedEdgeTypes)
+// with the always-on structural CONTAINS edge. Because it reads the writer
+// whitelist directly, a new SQL relationship type added to that whitelist
+// flips this registry automatically without a second edit here.
+func materializedEdgeTypes() map[string]string {
+	out := cypher.SQLRelationshipMaterializedEdgeTypes()
+	out[contentContainmentEdgeType] = contentContainmentEdgeReason
+	return out
+}
+
+// EdgeMaterializationCoverage reports whether edgeType is materialized by a
+// known writer. It is reusable across blast-radius query domains — the SQL
+// domain wired here (#5330) and the Crossplane domain (#5331) — and by a
+// future static CI gate (#5335) that asserts a query's UNION branches only
+// claim edge types with a real writer.
+func EdgeMaterializationCoverage(edgeType string) EdgeCoverage {
+	reasons := materializedEdgeTypes()
+	if reason, ok := reasons[edgeType]; ok {
+		return EdgeCoverage{EdgeType: edgeType, Materialized: true, Reason: reason}
+	}
+	return EdgeCoverage{EdgeType: edgeType, Materialized: false, Reason: "no_writer"}
+}
+
+// MaterializedEdgeTypeSet returns the set of edge types this registry knows
+// to be materialized. Use this over repeated EdgeMaterializationCoverage
+// calls when a caller (a test, or a future static gate) needs the whole set
+// rather than one lookup.
+func MaterializedEdgeTypeSet() map[string]struct{} {
+	reasons := materializedEdgeTypes()
+	out := make(map[string]struct{}, len(reasons))
+	for edgeType := range reasons {
+		out[edgeType] = struct{}{}
+	}
+	return out
+}

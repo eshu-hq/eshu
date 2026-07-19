@@ -95,6 +95,23 @@ var sqlRelationshipWriteReasons = map[string]string{
 	"INDEXES":          "SQL entity metadata resolved an index-to-table edge",
 }
 
+// SQLRelationshipMaterializedEdgeTypes returns a defensive copy of
+// sqlRelationshipWriteReasons: the graph relationship types the SQL-entity
+// edge writer actually accepts, mapped to the write reason recorded on each
+// MERGEd edge. It is the authoritative, single source of truth for which
+// SQL-domain edge types are materialized in the graph — callers MUST derive
+// coverage from this registry rather than hand-maintaining a second list, so
+// a type added or removed here automatically flips downstream coverage
+// reporting (e.g. the blast-radius honesty registry in go/internal/query,
+// #5330) without a second edit.
+func SQLRelationshipMaterializedEdgeTypes() map[string]string {
+	out := make(map[string]string, len(sqlRelationshipWriteReasons))
+	for edgeType, reason := range sqlRelationshipWriteReasons {
+		out[edgeType] = reason
+	}
+	return out
+}
+
 func buildSQLRelationshipRowMap(
 	payload map[string]any,
 	evidenceSource string,
