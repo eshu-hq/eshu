@@ -23,6 +23,14 @@
 - High-cardinality label values become coverage warnings. Do not widen the
   allowlist or cardinality limit without tests that prove redaction and
   rejection behavior.
+- Series and rule client-truncation at `resource_limit` must emit a
+  `WarningTruncated` coverage-warning fact; never drop records silently.
+- `series_lookback` is an independent series-window knob. It must NOT inherit
+  `stale_after` (a rule-staleness setting that is inert for series) -- keep the
+  generous `defaultSeriesLookback` fallback so a deployment that set
+  `stale_after` does not silently change its series-fetch window. A `/series`
+  time-window exclusion is inherently silent (Loki cannot report what a window
+  excluded); document the coverage consequence whenever this default changes.
 - HTTP 200 Loki responses with API `status:error` fail closed with a bounded
   error. Do not retain the provider error body.
 

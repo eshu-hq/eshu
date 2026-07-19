@@ -115,6 +115,64 @@ func TestLoadClaimedRuntimeConfigAllowsLokiWithoutCredential(t *testing.T) {
 	}
 }
 
+func TestLoadClaimedRuntimeConfigResolvesLokiSeriesLookback(t *testing.T) {
+	t.Parallel()
+
+	env := map[string]string{
+		envCollectorInstances: `[{
+			"instance_id":"loki-primary",
+			"collector_kind":"loki",
+			"mode":"continuous",
+			"enabled":true,
+			"claims_enabled":true,
+			"configuration":{
+				"targets":[{
+					"scope_id":"loki:tenant:prod",
+					"instance_id":"prod",
+					"base_url":"https://loki.example.test/",
+					"series_lookback":"2h",
+					"enabled":true
+				}]
+			}
+		}]`,
+	}
+
+	config, err := loadClaimedRuntimeConfig(func(key string) string { return env[key] })
+	if err != nil {
+		t.Fatalf("loadClaimedRuntimeConfig() error = %v, want nil", err)
+	}
+	if got, want := config.Source.Targets[0].SeriesLookback, 2*time.Hour; got != want {
+		t.Fatalf("SeriesLookback = %s, want %s", got, want)
+	}
+}
+
+func TestLoadClaimedRuntimeConfigRejectsNegativeLokiSeriesLookback(t *testing.T) {
+	t.Parallel()
+
+	env := map[string]string{
+		envCollectorInstances: `[{
+			"instance_id":"loki-primary",
+			"collector_kind":"loki",
+			"mode":"continuous",
+			"enabled":true,
+			"claims_enabled":true,
+			"configuration":{
+				"targets":[{
+					"scope_id":"loki:local",
+					"instance_id":"local",
+					"base_url":"http://loki.monitoring.svc:3100",
+					"series_lookback":"-1s",
+					"enabled":true
+				}]
+			}
+		}]`,
+	}
+
+	if _, err := loadClaimedRuntimeConfig(func(key string) string { return env[key] }); err == nil {
+		t.Fatal("loadClaimedRuntimeConfig() error = nil, want negative series_lookback rejection")
+	}
+}
+
 func TestLoadClaimedRuntimeConfigRejectsNegativeLokiFreshnessWindow(t *testing.T) {
 	t.Parallel()
 

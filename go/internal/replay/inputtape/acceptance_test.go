@@ -60,7 +60,7 @@ func TestLokiRecordReplayProducesIdenticalFacts(t *testing.T) {
 	// RECORD: wrap the tape RoundTripper as the collector's HTTP client.
 	recorder := inputtape.New(inputtape.Config{
 		RedactHeaders:       []string{"X-Scope-OrgID"},
-		VolatileQueryParams: []string{"end"},
+		VolatileQueryParams: []string{"end", "start"},
 	})
 	recClient, err := loki.NewHTTPClient(loki.HTTPClientConfig{
 		BaseURL: server.URL,
@@ -86,7 +86,7 @@ func TestLokiRecordReplayProducesIdenticalFacts(t *testing.T) {
 
 	replayer, err := inputtape.NewReplayer(tape, inputtape.Config{
 		RedactHeaders:       []string{"X-Scope-OrgID"},
-		VolatileQueryParams: []string{"end"},
+		VolatileQueryParams: []string{"end", "start"},
 	})
 	if err != nil {
 		t.Fatalf("new replayer: %v", err)

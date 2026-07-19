@@ -137,6 +137,29 @@ func TestCoverageWarningEnvelopeUsesBoundedIdentity(t *testing.T) {
 	assertPayload(t, env, "redaction_state", "none")
 }
 
+func TestCoverageWarningEnvelopeUsesTruncatedReason(t *testing.T) {
+	t.Parallel()
+
+	if WarningTruncated != "truncated" {
+		t.Fatalf("WarningTruncated = %q, want %q", WarningTruncated, "truncated")
+	}
+
+	ctx := testEnvelopeContext()
+	warning := Warning{
+		ResourceClass: ResourceClassDatasource,
+		Reason:        WarningTruncated,
+	}
+
+	env, err := NewCoverageWarningEnvelope(ctx, warning)
+	if err != nil {
+		t.Fatalf("NewCoverageWarningEnvelope() error = %v, want nil", err)
+	}
+
+	assertObservabilityEnvelope(t, env, facts.ObservabilityCoverageWarningFactKind)
+	assertPayload(t, env, "warning_kind", WarningTruncated)
+	assertPayload(t, env, "resource_class", ResourceClassDatasource)
+}
+
 func testEnvelopeContext() EnvelopeContext {
 	return EnvelopeContext{
 		ScopeID:             "grafana:instance:prod",

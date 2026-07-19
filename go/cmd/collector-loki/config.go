@@ -48,6 +48,7 @@ type targetJSON struct {
 	LabelValueNames        []string `json:"label_value_names"`
 	MaxLabelValuesPerLabel int      `json:"max_label_values_per_label"`
 	SeriesMatchers         []string `json:"series_matchers"`
+	SeriesLookback         string   `json:"series_lookback"`
 	StaleAfter             string   `json:"stale_after"`
 	Enabled                bool     `json:"enabled"`
 	DeclaredIDs            []string `json:"declared_ids"`
@@ -174,6 +175,10 @@ func mapTarget(target targetJSON, getenv func(string) string) (loki.TargetConfig
 	if err != nil {
 		return loki.TargetConfig{}, err
 	}
+	seriesLookback, err := parseOptionalDuration(target.SeriesLookback, "series_lookback")
+	if err != nil {
+		return loki.TargetConfig{}, err
+	}
 	return loki.TargetConfig{
 		ScopeID:                strings.TrimSpace(target.ScopeID),
 		InstanceID:             strings.TrimSpace(target.InstanceID),
@@ -185,6 +190,7 @@ func mapTarget(target targetJSON, getenv func(string) string) (loki.TargetConfig
 		LabelValueNames:        cleanStringSlice(target.LabelValueNames),
 		MaxLabelValuesPerLabel: target.MaxLabelValuesPerLabel,
 		SeriesMatchers:         cleanStringSlice(target.SeriesMatchers),
+		SeriesLookback:         seriesLookback,
 		StaleAfter:             staleAfter,
 		Enabled:                target.Enabled,
 		DeclaredIDs:            stringSet(target.DeclaredIDs),

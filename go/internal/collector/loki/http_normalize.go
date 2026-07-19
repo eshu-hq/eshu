@@ -127,6 +127,12 @@ func timeQuery(observedAt time.Time) url.Values {
 
 func seriesQuery(target TargetConfig, observedAt time.Time) url.Values {
 	query := timeQuery(observedAt)
+	if !observedAt.IsZero() {
+		start := observedAt.Add(-normalizedSeriesLookback(target))
+		if start.Before(observedAt) {
+			query.Set("start", fmt.Sprintf("%d", start.UnixNano()))
+		}
+	}
 	matchers := cleanStringSlice(target.SeriesMatchers)
 	if len(matchers) == 0 {
 		matchers = []string{defaultSeriesMatcher}
@@ -135,6 +141,23 @@ func seriesQuery(target TargetConfig, observedAt time.Time) url.Values {
 		query.Add("match[]", matcher)
 	}
 	return query
+}
+
+// normalizedSeriesLookback resolves the bounded /loki/api/v1/series `start`
+// window. SeriesLookback is its own independent knob: an explicit value wins,
+// otherwise it falls back to the generous defaultSeriesLookback. It
+// deliberately does NOT inherit StaleAfter -- StaleAfter is a rule-staleness
+// concern that was inert for the series window, and repurposing it here would
+// silently change the series-fetch window for any deployment that set
+// stale_after. Series last active before this window are not observed in the
+// current generation and Loki reports no coverage warning for a time-window
+// exclusion; widen SeriesLookback when full historical series visibility is
+// required.
+func normalizedSeriesLookback(target TargetConfig) time.Duration {
+	if target.SeriesLookback > 0 {
+		return target.SeriesLookback
+	}
+	return defaultSeriesLookback
 }
 
 func declaredMatchState(target TargetConfig, id string) string {

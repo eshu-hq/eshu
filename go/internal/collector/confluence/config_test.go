@@ -61,6 +61,71 @@ func TestLoadConfigRequiresBoundedScopeAndReadOnlyCredentials(t *testing.T) {
 	}
 }
 
+func TestLoadConfigResolvesMaxTotalPages(t *testing.T) {
+	t.Parallel()
+
+	config, err := LoadConfig(func(key string) string {
+		values := map[string]string{
+			"ESHU_CONFLUENCE_BASE_URL":        "https://example.atlassian.net/wiki",
+			"ESHU_CONFLUENCE_SPACE_ID":        "100",
+			"ESHU_CONFLUENCE_API_TOKEN":       "token",
+			"ESHU_CONFLUENCE_EMAIL":           "bot@example.com",
+			"ESHU_CONFLUENCE_MAX_TOTAL_PAGES": "2500",
+		}
+		return values[key]
+	})
+	if err != nil {
+		t.Fatalf("LoadConfig() error = %v, want nil", err)
+	}
+	if got, want := config.MaxTotalPages, 2500; got != want {
+		t.Fatalf("MaxTotalPages = %d, want %d", got, want)
+	}
+}
+
+func TestLoadConfigDefaultsMaxTotalPagesWhenUnset(t *testing.T) {
+	t.Parallel()
+
+	config, err := LoadConfig(func(key string) string {
+		values := map[string]string{
+			"ESHU_CONFLUENCE_BASE_URL":  "https://example.atlassian.net/wiki",
+			"ESHU_CONFLUENCE_SPACE_ID":  "100",
+			"ESHU_CONFLUENCE_API_TOKEN": "token",
+			"ESHU_CONFLUENCE_EMAIL":     "bot@example.com",
+		}
+		return values[key]
+	})
+	if err != nil {
+		t.Fatalf("LoadConfig() error = %v, want nil", err)
+	}
+	if got, want := config.MaxTotalPages, defaultMaxTotalPages; got != want {
+		t.Fatalf("MaxTotalPages = %d, want default %d", got, want)
+	}
+}
+
+func TestLoadConfigRejectsInvalidMaxTotalPages(t *testing.T) {
+	t.Parallel()
+
+	tests := []string{"0", "-1", "not-a-number"}
+	for _, value := range tests {
+		t.Run(value, func(t *testing.T) {
+			t.Parallel()
+			_, err := LoadConfig(func(key string) string {
+				values := map[string]string{
+					"ESHU_CONFLUENCE_BASE_URL":        "https://example.atlassian.net/wiki",
+					"ESHU_CONFLUENCE_SPACE_ID":        "100",
+					"ESHU_CONFLUENCE_API_TOKEN":       "token",
+					"ESHU_CONFLUENCE_EMAIL":           "bot@example.com",
+					"ESHU_CONFLUENCE_MAX_TOTAL_PAGES": value,
+				}
+				return values[key]
+			})
+			if err == nil {
+				t.Fatal("LoadConfig() error = nil, want invalid max_total_pages error")
+			}
+		})
+	}
+}
+
 func TestLoadConfigAcceptsExplicitSpaceIDAllowlist(t *testing.T) {
 	t.Parallel()
 
