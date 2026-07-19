@@ -142,15 +142,37 @@ describe("ProfilePage", () => {
     expect(screen.getByText("current")).toBeInTheDocument();
   });
 
-  it("renders tokens table with token_id but no Label column (hash-as-label removed)", async () => {
+  it("renders tokens table with a Label column showing the real display_label (#3708)", async () => {
+    const client = {
+      getJson: async (path: string) => {
+        if (path === "/api/v0/auth/profile") return profileFixture;
+        if (path === "/api/v0/auth/sessions") return sessionsFixture;
+        return {
+          tokens: [
+            {
+              token_id: "tok-001",
+              token_class: "personal",
+              display_label: "owner laptop",
+              issued_at: NOW,
+              expires_at: NOW,
+            },
+          ],
+        };
+      },
+    } as unknown as EshuApiClient;
+    render(<ProfilePage client={client} />);
+    const table = await screen.findByRole("table", { name: "API tokens" });
+    expect(within(table).getByText("tok-001")).toBeInTheDocument();
+    expect(within(table).getByRole("columnheader", { name: "Label" })).toBeInTheDocument();
+    expect(within(table).getByText("owner laptop")).toBeInTheDocument();
+  });
+
+  it("renders a dash in the Label column when a token has no display_label", async () => {
     render(<ProfilePage client={happyClient()} />);
-    await waitFor(() =>
-      expect(screen.getByRole("table", { name: "API tokens" })).toBeInTheDocument(),
-    );
-    expect(screen.getByText("tok-001")).toBeInTheDocument();
-    // "Label" column was removed: SHA-256(display_label) must not be presented
-    // as a human label. Real-label persistence tracked in #3708.
-    expect(screen.queryByText("Label")).not.toBeInTheDocument();
+    const table = await screen.findByRole("table", { name: "API tokens" });
+    // tokensFixture's tok-001 carries no display_label.
+    const row = within(table).getByText("tok-001").closest("tr") as HTMLElement;
+    expect(within(row).getByText("—")).toBeInTheDocument();
   });
 
   it("labels an expired (not revoked) token 'expired', not 'active'", async () => {

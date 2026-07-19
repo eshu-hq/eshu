@@ -9,7 +9,7 @@ const openAPIPathsAuthTokens = `
       "post": {
         "tags": ["auth"],
         "summary": "Create a generated API token",
-        "description": "All-scopes admin route that creates a generated personal or service-principal API token. Shared-operator callers whose auth context has no tenant/workspace must provide tenant_id and workspace_id in the request body. The raw bearer value is returned once in api_token; storage persists only token_hash metadata, active subject ownership, status, expiry, and last-used timestamps. Personal tokens inherit the target user's active grants at request time, and service-principal tokens inherit the active service-principal role grants.",
+        "description": "Creates a generated personal or service-principal API token. Any authenticated caller may create a personal token bound to their OWN identity (self-service, issue #5164): a non-admin caller's token_class must be personal, user_id resolves to the caller's own session subject, and naming another user_id or a service_principal_id is rejected with 403. An all-scope admin additionally may create a token for another user by naming user_id and may create service-principal tokens. Shared-operator callers whose auth context has no tenant/workspace must provide tenant_id and workspace_id in the request body. The raw bearer value is returned once in api_token; storage persists only token_hash metadata, active subject ownership, status, an optional plaintext display_label, expiry, and last-used timestamps. Personal tokens inherit the target user's active grants at request time, and service-principal tokens inherit the active service-principal role grants.",
         "operationId": "createLocalIdentityAPIToken",
         "x-scoped-token-support": true,
         "requestBody": {
@@ -26,7 +26,7 @@ const openAPIPathsAuthTokens = `
       "get": {
         "tags": ["auth"],
         "summary": "List the caller's generated API tokens",
-        "description": "Returns metadata for the authenticated caller's own personal and service-principal generated API tokens: token id, class, and issued/expires/revoked timestamps. Never returns the token hash or raw bearer value, and never returns other subjects' tokens.",
+        "description": "Returns metadata for the authenticated caller's own personal and service-principal generated API tokens: token id, class, display_label, and issued/expires/revoked timestamps. Never returns the token hash, display label hash, or raw bearer value, and never returns other subjects' tokens.",
         "operationId": "listLocalIdentityAPITokens",
         "x-scoped-token-support": true,
         "responses": {
@@ -44,6 +44,7 @@ const openAPIPathsAuthTokens = `
                         "properties": {
                           "token_id": {"type": "string"},
                           "token_class": {"type": "string"},
+                          "display_label": {"type": "string", "description": "Present only when the token was created with a label."},
                           "issued_at": {"type": "string", "format": "date-time"},
                           "expires_at": {"type": "string", "format": "date-time"},
                           "revoked_at": {"type": "string", "format": "date-time"}
@@ -65,7 +66,7 @@ const openAPIPathsAuthTokens = `
       "post": {
         "tags": ["auth"],
         "summary": "Revoke a generated API token",
-        "description": "All-scopes admin route that immediately marks one active generated API token revoked within the caller's tenant/workspace. Shared-operator callers whose auth context has no tenant/workspace must provide tenant_id and workspace_id in the request body. The request never accepts or returns bearer token values and emits token_lifecycle audit events.",
+        "description": "Immediately marks one active generated API token revoked within the caller's tenant/workspace. Any authenticated caller may revoke a token they OWN (self-service, issue #5164): ownership is enforced atomically in storage, so a token the caller does not own is not revoked and returns 404 without disclosing whether it exists. An all-scope admin may revoke any token in the tenant/workspace. Shared-operator callers whose auth context has no tenant/workspace must provide tenant_id and workspace_id in the request body. The request never accepts or returns bearer token values and emits token_lifecycle audit events.",
         "operationId": "revokeLocalIdentityAPIToken",
         "x-scoped-token-support": true,
         "parameters": [{"name": "token_id", "in": "path", "required": true, "schema": {"type": "string"}}],
@@ -77,6 +78,7 @@ const openAPIPathsAuthTokens = `
           "204": {"description": "Generated API token revoked."},
           "400": {"$ref": "#/components/responses/BadRequest"},
           "403": {"$ref": "#/components/responses/Forbidden"},
+          "404": {"$ref": "#/components/responses/NotFound"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"}
         }
       }
@@ -85,7 +87,7 @@ const openAPIPathsAuthTokens = `
       "post": {
         "tags": ["auth"],
         "summary": "Rotate a generated API token",
-        "description": "All-scopes admin route that atomically inserts a replacement token hash and revokes the old generated API token in the same tenant/workspace. Shared-operator callers whose auth context has no tenant/workspace must provide tenant_id and workspace_id in the request body. The replacement api_token is returned once and never persisted raw.",
+        "description": "Atomically inserts a replacement token hash and revokes the old generated API token in the same tenant/workspace. Any authenticated caller may rotate a token they OWN (self-service, issue #5164): ownership is enforced atomically on the replacement insert, so a token the caller does not own is not rotated and returns 404 without disclosing whether it exists. An all-scope admin may rotate any token in the tenant/workspace. Shared-operator callers whose auth context has no tenant/workspace must provide tenant_id and workspace_id in the request body. The replacement api_token is returned once and never persisted raw.",
         "operationId": "rotateLocalIdentityAPIToken",
         "x-scoped-token-support": true,
         "parameters": [{"name": "token_id", "in": "path", "required": true, "schema": {"type": "string"}}],
@@ -97,6 +99,7 @@ const openAPIPathsAuthTokens = `
           "201": {"description": "Replacement generated API token created. The api_token value is returned once only.", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/LocalIdentityAPITokenResponse"}}}},
           "400": {"$ref": "#/components/responses/BadRequest"},
           "403": {"$ref": "#/components/responses/Forbidden"},
+          "404": {"$ref": "#/components/responses/NotFound"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"}
         }
       }

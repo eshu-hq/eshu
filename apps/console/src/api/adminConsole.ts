@@ -18,22 +18,21 @@
 // distinctly from "unavailable" (a real error). See #3717.
 import type { AdminProvenance } from "./adminConsoleTypes";
 import type { EshuApiClient } from "./client";
+import { EshuApiHttpError } from "./client";
+import type { CreateTokenResult, CreatedAPIToken } from "./userProfile";
 
 // Re-export the shared provenance types and the audit loaders so consumers can
 // import the entire admin-console surface from this one module. The audit
 // loaders live in adminConsoleAudit.ts to keep each file under the 500-line
 // limit; their 403→"forbidden" handling is documented there.
 export type { AdminProvenance, AdminAuditProvenance } from "./adminConsoleTypes";
-export {
-  loadAuditEvents,
-  loadAuditSummary
-} from "./adminConsoleAudit";
+export { loadAuditEvents, loadAuditSummary } from "./adminConsoleAudit";
 export type {
   AuditEventItem,
   AuditEventsResult,
   AuditCount,
   AuditSummaryData,
-  AuditSummaryResult
+  AuditSummaryResult,
 } from "./adminConsoleAudit";
 
 // ---------------------------------------------------------------------------
@@ -70,7 +69,7 @@ export async function loadInvitations(client: EshuApiClient): Promise<Invitation
     return {
       invitations: resp.invitations ?? [],
       truncated: resp.truncated ?? false,
-      provenance: "live"
+      provenance: "live",
     };
   } catch (err) {
     console.error("[adminConsole] loadInvitations failed", err);
@@ -109,7 +108,7 @@ interface RoleAssignmentsWire {
 // cannot break out of the query string.
 export async function loadRoleAssignments(
   client: EshuApiClient,
-  userId?: string
+  userId?: string,
 ): Promise<RoleAssignmentsResult> {
   const path =
     userId && userId.length > 0
@@ -120,7 +119,7 @@ export async function loadRoleAssignments(
     return {
       assignments: resp.role_assignments ?? [],
       truncated: resp.truncated ?? false,
-      provenance: "live"
+      provenance: "live",
     };
   } catch (err) {
     console.error("[adminConsole] loadRoleAssignments failed", err);
@@ -196,7 +195,7 @@ export async function loadIdPProviders(client: EshuApiClient): Promise<IdPProvid
     return {
       providers: resp.providers ?? [],
       truncated: resp.truncated ?? false,
-      provenance: "live"
+      provenance: "live",
     };
   } catch (err) {
     console.error("[adminConsole] loadIdPProviders failed", err);
@@ -232,17 +231,15 @@ interface IdPGroupMappingsWire {
   readonly truncated?: boolean;
 }
 
-export async function loadIdPGroupMappings(
-  client: EshuApiClient
-): Promise<IdPGroupMappingsResult> {
+export async function loadIdPGroupMappings(client: EshuApiClient): Promise<IdPGroupMappingsResult> {
   try {
     const resp = await client.getJson<IdPGroupMappingsWire>(
-      "/api/v0/auth/admin/idp-group-mappings"
+      "/api/v0/auth/admin/idp-group-mappings",
     );
     return {
       mappings: resp.group_mappings ?? [],
       truncated: resp.truncated ?? false,
-      provenance: "live"
+      provenance: "live",
     };
   } catch (err) {
     console.error("[adminConsole] loadIdPGroupMappings failed", err);
@@ -255,12 +252,15 @@ export async function loadIdPGroupMappings(
 // ---------------------------------------------------------------------------
 
 // AdminAPITokenItem never carries the token hash or display-label hash.
+// display_label (issue #3708) is the real, non-secret operator-facing label
+// and is present only when the token was created with one.
 export interface AdminAPITokenItem {
   readonly token_id: string;
   readonly token_class?: string;
   readonly user_id?: string;
   readonly service_principal_id?: string;
   readonly status?: string;
+  readonly display_label?: string;
   readonly issued_at?: string;
   readonly expires_at?: string;
   readonly revoked_at?: string;
@@ -295,14 +295,11 @@ export async function loadApiTokens(client: EshuApiClient): Promise<AdminAPIToke
 // ---------------------------------------------------------------------------
 
 // revokeInvitation — POST /api/v0/auth/local/invitations/{invite_id}/revoke
-export async function revokeInvitation(
-  client: EshuApiClient,
-  inviteId: string
-): Promise<boolean> {
+export async function revokeInvitation(client: EshuApiClient, inviteId: string): Promise<boolean> {
   try {
     await client.postJson(
       `/api/v0/auth/local/invitations/${encodeURIComponent(inviteId)}/revoke`,
-      {}
+      {},
     );
     return true;
   } catch (err) {
@@ -330,7 +327,7 @@ function withOptionalWorkspace(ref: RoleAssignmentRef): Record<string, string> {
 // grantRoleAssignment — POST /api/v0/auth/admin/role-assignments
 export async function grantRoleAssignment(
   client: EshuApiClient,
-  ref: RoleAssignmentRef
+  ref: RoleAssignmentRef,
 ): Promise<boolean> {
   try {
     await client.postJson("/api/v0/auth/admin/role-assignments", withOptionalWorkspace(ref));
@@ -344,13 +341,10 @@ export async function grantRoleAssignment(
 // revokeRoleAssignment — POST /api/v0/auth/admin/role-assignments/revoke
 export async function revokeRoleAssignment(
   client: EshuApiClient,
-  ref: RoleAssignmentRef
+  ref: RoleAssignmentRef,
 ): Promise<boolean> {
   try {
-    await client.postJson(
-      "/api/v0/auth/admin/role-assignments/revoke",
-      withOptionalWorkspace(ref)
-    );
+    await client.postJson("/api/v0/auth/admin/role-assignments/revoke", withOptionalWorkspace(ref));
     return true;
   } catch (err) {
     console.error("[adminConsole] revokeRoleAssignment failed", err);
@@ -370,12 +364,12 @@ export interface IdPGroupMappingCreate {
 // returned in clear. We do not retain or render it client-side.
 export async function createIdPGroupMapping(
   client: EshuApiClient,
-  input: IdPGroupMappingCreate
+  input: IdPGroupMappingCreate,
 ): Promise<boolean> {
   const body: Record<string, string> = {
     provider_config_id: input.provider_config_id,
     external_group: input.external_group,
-    role_id: input.role_id
+    role_id: input.role_id,
   };
   if (input.workspace_id && input.workspace_id.length > 0) {
     body.workspace_id = input.workspace_id;
@@ -392,12 +386,10 @@ export async function createIdPGroupMapping(
 // deleteIdPGroupMapping — DELETE /api/v0/auth/admin/idp-group-mappings/{mapping_ref}
 export async function deleteIdPGroupMapping(
   client: EshuApiClient,
-  mappingRef: string
+  mappingRef: string,
 ): Promise<boolean> {
   try {
-    await client.delete(
-      `/api/v0/auth/admin/idp-group-mappings/${encodeURIComponent(mappingRef)}`
-    );
+    await client.delete(`/api/v0/auth/admin/idp-group-mappings/${encodeURIComponent(mappingRef)}`);
     return true;
   } catch (err) {
     console.error("[adminConsole] deleteIdPGroupMapping failed", err);
@@ -408,18 +400,54 @@ export async function deleteIdPGroupMapping(
 // revokeApiToken — POST /api/v0/auth/local/api-tokens/{token_id}/revoke. This
 // route returns HTTP 204 (no body), so postNoContent is used instead of
 // postJson (which would throw parsing an empty body).
-export async function revokeApiToken(
-  client: EshuApiClient,
-  tokenId: string
-): Promise<boolean> {
+export async function revokeApiToken(client: EshuApiClient, tokenId: string): Promise<boolean> {
   try {
     await client.postNoContent(
       `/api/v0/auth/local/api-tokens/${encodeURIComponent(tokenId)}/revoke`,
-      {}
+      {},
     );
     return true;
   } catch (err) {
     console.error("[adminConsole] revokeApiToken failed", err);
     return false;
+  }
+}
+
+export interface ServicePrincipalTokenCreate {
+  readonly servicePrincipalId: string;
+  readonly displayLabel: string;
+  readonly expiresAt?: string;
+}
+
+// createServicePrincipalApiToken — POST /api/v0/auth/local/api-tokens
+// (token_class=service_principal, issue #5164). Unlike the self-service
+// personal-token create in userProfile.ts, a service principal is never the
+// caller's own identity, so service_principal_id is always supplied
+// explicitly by the admin. Reuses CreateTokenResult/CreatedAPIToken — the
+// wire response shape is identical to the personal-token create route.
+export async function createServicePrincipalApiToken(
+  client: EshuApiClient,
+  input: ServicePrincipalTokenCreate,
+): Promise<CreateTokenResult> {
+  const body: Record<string, string> = {
+    token_class: "service_principal",
+    service_principal_id: input.servicePrincipalId.trim(),
+    display_label: input.displayLabel.trim(),
+  };
+  if (input.expiresAt && input.expiresAt.length > 0) {
+    body.expires_at = input.expiresAt;
+  }
+  try {
+    const token = await client.postJson<CreatedAPIToken>("/api/v0/auth/local/api-tokens", body);
+    return { status: "created", token };
+  } catch (err) {
+    if (err instanceof EshuApiHttpError && err.status === 403) {
+      return { status: "forbidden" };
+    }
+    console.error("[adminConsole] createServicePrincipalApiToken failed", err);
+    return {
+      status: "error",
+      message: err instanceof Error ? err.message : "Failed to create API token.",
+    };
   }
 }

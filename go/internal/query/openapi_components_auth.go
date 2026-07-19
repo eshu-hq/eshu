@@ -80,9 +80,9 @@ const openAPIComponentsLocalIdentity = `
           "token_class": {"type": "string", "enum": ["personal", "service_principal"]},
           "tenant_id": {"type": "string"},
           "workspace_id": {"type": "string"},
-          "user_id": {"type": "string"},
+          "user_id": {"type": "string", "description": "Required for token_class=personal unless omitted, in which case a browser session resolves it to the caller's OWN internal user_id (self-service create). Explicitly naming a different user_id remains the existing all-scope admin flow."},
           "service_principal_id": {"type": "string"},
-          "display_label": {"type": "string", "description": "Operator-facing label hashed before storage."},
+          "display_label": {"type": "string", "description": "Operator-facing display label. Persisted as plaintext (non-secret) so list endpoints can render it; a separate SHA-256 handle hash of the same input is also stored."},
           "expires_at": {"type": "string", "format": "date-time"}
         }
       },

@@ -22,7 +22,8 @@ import {
   revokeRoleAssignment,
   createIdPGroupMapping,
   deleteIdPGroupMapping,
-  revokeApiToken
+  revokeApiToken,
+  createServicePrincipalApiToken,
 } from "./adminConsole";
 import { EshuApiHttpError } from "./client";
 import type { EshuApiClient } from "./client";
@@ -36,7 +37,7 @@ const NOW = "2026-06-24T10:00:00Z";
 describe("adminConsole loaders — endpoint paths and shapes", () => {
   it("loadInvitations calls GET /api/v0/auth/local/invitations", async () => {
     const getJson = vi.fn(async () => ({
-      invitations: [{ invite_id: "inv-1", role_id: "developer", status: "pending" }]
+      invitations: [{ invite_id: "inv-1", role_id: "developer", status: "pending" }],
     }));
     const client = { getJson } as unknown as EshuApiClient;
     const result = await loadInvitations(client);
@@ -58,14 +59,12 @@ describe("adminConsole loaders — endpoint paths and shapes", () => {
     const getJson = vi.fn(async () => ({ role_assignments: [] }));
     const client = { getJson } as unknown as EshuApiClient;
     await loadRoleAssignments(client, "user-42");
-    expect(getJson).toHaveBeenCalledWith(
-      "/api/v0/auth/admin/role-assignments?user_id=user-42"
-    );
+    expect(getJson).toHaveBeenCalledWith("/api/v0/auth/admin/role-assignments?user_id=user-42");
   });
 
   it("loadRoles calls GET /api/v0/auth/admin/roles", async () => {
     const getJson = vi.fn(async () => ({
-      roles: [{ role_id: "admin", status: "active", built_in: true, grants: [] }]
+      roles: [{ role_id: "admin", status: "active", built_in: true, grants: [] }],
     }));
     const client = { getJson } as unknown as EshuApiClient;
     const result = await loadRoles(client);
@@ -75,7 +74,7 @@ describe("adminConsole loaders — endpoint paths and shapes", () => {
 
   it("loadIdPProviders calls GET /api/v0/auth/admin/idp-providers", async () => {
     const getJson = vi.fn(async () => ({
-      providers: [{ provider_config_id: "p-1", provider_kind: "oidc", status: "active" }]
+      providers: [{ provider_config_id: "p-1", provider_kind: "oidc", status: "active" }],
     }));
     const client = { getJson } as unknown as EshuApiClient;
     const result = await loadIdPProviders(client);
@@ -86,8 +85,8 @@ describe("adminConsole loaders — endpoint paths and shapes", () => {
   it("loadIdPGroupMappings calls GET /api/v0/auth/admin/idp-group-mappings", async () => {
     const getJson = vi.fn(async () => ({
       group_mappings: [
-        { mapping_ref: "m-1", provider_config_id: "p-1", role_id: "viewer", status: "active" }
-      ]
+        { mapping_ref: "m-1", provider_config_id: "p-1", role_id: "viewer", status: "active" },
+      ],
     }));
     const client = { getJson } as unknown as EshuApiClient;
     const result = await loadIdPGroupMappings(client);
@@ -97,7 +96,7 @@ describe("adminConsole loaders — endpoint paths and shapes", () => {
 
   it("loadApiTokens calls GET /api/v0/auth/admin/api-tokens", async () => {
     const getJson = vi.fn(async () => ({
-      tokens: [{ token_id: "t-1", token_class: "personal", status: "active", issued_at: NOW }]
+      tokens: [{ token_id: "t-1", token_class: "personal", status: "active", issued_at: NOW }],
     }));
     const client = { getJson } as unknown as EshuApiClient;
     const result = await loadApiTokens(client);
@@ -107,7 +106,7 @@ describe("adminConsole loaders — endpoint paths and shapes", () => {
 
   it("loadAuditEvents calls GET /api/v0/auth/admin/audit/events", async () => {
     const getJson = vi.fn(async () => ({
-      events: [{ event_type: "authz", decision: "allow", occurred_at: NOW }]
+      events: [{ event_type: "authz", decision: "allow", occurred_at: NOW }],
     }));
     const client = { getJson } as unknown as EshuApiClient;
     const result = await loadAuditEvents(client);
@@ -131,7 +130,11 @@ describe("adminConsole loaders — endpoint paths and shapes", () => {
 
 describe("adminConsole loaders — unavailable on error, never fabricated", () => {
   function throwingClient(): EshuApiClient {
-    return { getJson: async () => { throw new Error("HTTP 503"); } } as unknown as EshuApiClient;
+    return {
+      getJson: async () => {
+        throw new Error("HTTP 503");
+      },
+    } as unknown as EshuApiClient;
   }
 
   it("loadInvitations → unavailable + empty on error", async () => {
@@ -178,12 +181,16 @@ describe("adminConsole loaders — unavailable on error, never fabricated", () =
 describe("adminConsole audit loaders — 403 vs failure", () => {
   function client403(): EshuApiClient {
     return {
-      getJson: async () => { throw new EshuApiHttpError(403); }
+      getJson: async () => {
+        throw new EshuApiHttpError(403);
+      },
     } as unknown as EshuApiClient;
   }
   function client503(): EshuApiClient {
     return {
-      getJson: async () => { throw new EshuApiHttpError(503); }
+      getJson: async () => {
+        throw new EshuApiHttpError(503);
+      },
     } as unknown as EshuApiClient;
   }
 
@@ -231,23 +238,32 @@ describe("adminConsole mutators — endpoint + body", () => {
     await revokeInvitation(client, "inv/with space");
     expect(postJson).toHaveBeenCalledWith(
       "/api/v0/auth/local/invitations/inv%2Fwith%20space/revoke",
-      {}
+      {},
     );
   });
 
   it("revokeInvitation returns false on error (never throws to the panel)", async () => {
-    const client = { postJson: async () => { throw new Error("boom"); } } as unknown as EshuApiClient;
+    const client = {
+      postJson: async () => {
+        throw new Error("boom");
+      },
+    } as unknown as EshuApiClient;
     expect(await revokeInvitation(client, "inv-1")).toBe(false);
   });
 
   it("grantRoleAssignment posts to /api/v0/auth/admin/role-assignments with user/role/workspace", async () => {
-    const postJson = vi.fn(async () => ({ user_id: "u", role_id: "r", status: "active", changed: true }));
+    const postJson = vi.fn(async () => ({
+      user_id: "u",
+      role_id: "r",
+      status: "active",
+      changed: true,
+    }));
     const client = { postJson } as unknown as EshuApiClient;
     const ok = await grantRoleAssignment(client, { user_id: "u", role_id: "r", workspace_id: "w" });
     expect(postJson).toHaveBeenCalledWith("/api/v0/auth/admin/role-assignments", {
       user_id: "u",
       role_id: "r",
-      workspace_id: "w"
+      workspace_id: "w",
     });
     expect(ok).toBe(true);
   });
@@ -258,7 +274,7 @@ describe("adminConsole mutators — endpoint + body", () => {
     await grantRoleAssignment(client, { user_id: "u", role_id: "r", workspace_id: "" });
     expect(postJson).toHaveBeenCalledWith("/api/v0/auth/admin/role-assignments", {
       user_id: "u",
-      role_id: "r"
+      role_id: "r",
     });
   });
 
@@ -268,7 +284,7 @@ describe("adminConsole mutators — endpoint + body", () => {
     const ok = await revokeRoleAssignment(client, { user_id: "u", role_id: "r" });
     expect(postJson).toHaveBeenCalledWith("/api/v0/auth/admin/role-assignments/revoke", {
       user_id: "u",
-      role_id: "r"
+      role_id: "r",
     });
     expect(ok).toBe(true);
   });
@@ -279,12 +295,12 @@ describe("adminConsole mutators — endpoint + body", () => {
     const ok = await createIdPGroupMapping(client, {
       provider_config_id: "p-1",
       external_group: "engineers",
-      role_id: "developer"
+      role_id: "developer",
     });
     expect(postJson).toHaveBeenCalledWith("/api/v0/auth/admin/idp-group-mappings", {
       provider_config_id: "p-1",
       external_group: "engineers",
-      role_id: "developer"
+      role_id: "developer",
     });
     expect(ok).toBe(true);
   });
@@ -313,7 +329,43 @@ describe("adminConsole mutators — endpoint + body", () => {
   });
 
   it("revokeApiToken returns false on error", async () => {
-    const client = { postNoContent: async () => { throw new Error("nope"); } } as unknown as EshuApiClient;
+    const client = {
+      postNoContent: async () => {
+        throw new Error("nope");
+      },
+    } as unknown as EshuApiClient;
     expect(await revokeApiToken(client, "t-1")).toBe(false);
+  });
+
+  it("createServicePrincipalApiToken posts token_class=service_principal with an explicit target (#5164)", async () => {
+    const postJson = vi.fn(async () => ({
+      token_id: "tok-new",
+      api_token: "raw-service-token",
+      issued_at: "2026-06-24T10:00:00Z",
+    }));
+    const client = { postJson } as unknown as EshuApiClient;
+    const result = await createServicePrincipalApiToken(client, {
+      servicePrincipalId: "  svc_ci  ",
+      displayLabel: "  CI pipeline  ",
+    });
+    expect(postJson).toHaveBeenCalledWith("/api/v0/auth/local/api-tokens", {
+      token_class: "service_principal",
+      service_principal_id: "svc_ci",
+      display_label: "CI pipeline",
+    });
+    expect(result.status).toBe("created");
+  });
+
+  it("createServicePrincipalApiToken returns 'forbidden' on a 403", async () => {
+    const client = {
+      postJson: async () => {
+        throw new EshuApiHttpError(403);
+      },
+    } as unknown as EshuApiClient;
+    const result = await createServicePrincipalApiToken(client, {
+      servicePrincipalId: "svc_ci",
+      displayLabel: "CI pipeline",
+    });
+    expect(result).toEqual({ status: "forbidden" });
   });
 });

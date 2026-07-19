@@ -333,6 +333,7 @@ CREATE TABLE IF NOT EXISTS identity_token_metadata (
     service_principal_id TEXT NULL REFERENCES identity_service_principals(service_principal_id) ON DELETE CASCADE,
     status TEXT NOT NULL,
     display_handle_hash TEXT NULL,
+    display_label TEXT NULL,
     policy_revision_hash TEXT NOT NULL,
     issued_at TIMESTAMPTZ NOT NULL,
     expires_at TIMESTAMPTZ NULL,

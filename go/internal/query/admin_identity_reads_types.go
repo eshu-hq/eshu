@@ -83,13 +83,15 @@ type AdminIdPGroupMappingListItem struct {
 
 // AdminAPITokenListItem is the metadata-only generated-token view returned to a
 // tenant admin across all users. It never carries token_hash or display label
-// hashes.
+// hashes. DisplayLabel (issue #3708) is the real, non-secret operator-facing
+// label and is safe to return as-is.
 type AdminAPITokenListItem struct {
 	TokenID            string
 	TokenClass         string
 	UserID             string
 	ServicePrincipalID string
 	Status             string
+	DisplayLabel       string
 	IssuedAt           time.Time
 	ExpiresAt          time.Time
 	RevokedAt          time.Time

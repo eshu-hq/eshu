@@ -30,6 +30,9 @@ type LocalIdentityAPITokenCreate struct {
 	UserID             string
 	ServicePrincipalID string
 	DisplayHandleHash  string
+	// DisplayLabel is the real, non-secret operator-facing label persisted as
+	// plaintext (issue #3708), distinct from DisplayHandleHash.
+	DisplayLabel       string
 	PolicyRevisionHash string
 	IssuedAt           time.Time
 	ExpiresAt          time.Time
@@ -41,6 +44,13 @@ type LocalIdentityAPITokenRevoke struct {
 	TenantID    string
 	WorkspaceID string
 	RevokedAt   time.Time
+	// OwnerSubjectIDHash, when non-empty, restricts the revoke to a token the
+	// named subject owns (self-service revoke, issue #5164). The store adds an
+	// atomic ownership predicate so a caller can never revoke a token they do
+	// not own; a non-matching token affects zero rows and the store reports it
+	// as not-found. An empty value keeps the existing unrestricted all-scope
+	// admin revoke.
+	OwnerSubjectIDHash string
 }
 
 // LocalIdentityAPITokenRotate atomically replaces one generated API token.
@@ -52,7 +62,20 @@ type LocalIdentityAPITokenRotate struct {
 	WorkspaceID     string
 	RotatedAt       time.Time
 	NewTokenExpires time.Time
+	// OwnerSubjectIDHash, when non-empty, restricts the rotation to a token the
+	// named subject owns (self-service rotate, issue #5164). The store adds an
+	// atomic ownership predicate to the replacement insert so a caller can
+	// never rotate a token they do not own; a non-matching token affects zero
+	// rows and the store reports it as not-found. An empty value keeps the
+	// existing unrestricted all-scope admin rotate.
+	OwnerSubjectIDHash string
 }
+
+// ErrLocalIdentityAPITokenNotFound reports that a self-service revoke or rotate
+// matched no active token the caller owns (issue #5164). Handlers translate it
+// into a non-disclosing 404 so a caller cannot probe another subject's token
+// existence by observing a different error.
+var ErrLocalIdentityAPITokenNotFound = errors.New("local identity api token not found")
 
 type localIdentityAPITokenCreateRequest struct {
 	TokenClass         string    `json:"token_class"`
@@ -114,22 +137,24 @@ func (h *LocalIdentityHandler) handleListAPITokens(w http.ResponseWriter, r *htt
 		WriteError(w, http.StatusInternalServerError, "failed to list api tokens")
 		return
 	}
-	// display_label is intentionally absent: the only value stored is
-	// SHA-256(display_label) which is a hash, not a human label. Rendering it
-	// as "Label" is misleading. Issue #3703 tracks persisting a real label.
+	// display_label (issue #3708) is the real, non-secret operator-facing
+	// label persisted alongside display_handle_hash. Unlike the hash, it is
+	// safe to render verbatim, so it is included here when set.
 	type tokenJSON struct {
-		TokenID    string     `json:"token_id"`
-		TokenClass string     `json:"token_class,omitempty"`
-		IssuedAt   time.Time  `json:"issued_at"`
-		ExpiresAt  *time.Time `json:"expires_at,omitempty"`
-		RevokedAt  *time.Time `json:"revoked_at,omitempty"`
+		TokenID      string     `json:"token_id"`
+		TokenClass   string     `json:"token_class,omitempty"`
+		DisplayLabel string     `json:"display_label,omitempty"`
+		IssuedAt     time.Time  `json:"issued_at"`
+		ExpiresAt    *time.Time `json:"expires_at,omitempty"`
+		RevokedAt    *time.Time `json:"revoked_at,omitempty"`
 	}
 	out := make([]tokenJSON, 0, len(items))
 	for _, item := range items {
 		t := tokenJSON{
-			TokenID:    item.TokenID,
-			TokenClass: item.TokenClass,
-			IssuedAt:   item.IssuedAt,
+			TokenID:      item.TokenID,
+			TokenClass:   item.TokenClass,
+			DisplayLabel: item.DisplayLabel,
+			IssuedAt:     item.IssuedAt,
 		}
 		if !item.ExpiresAt.IsZero() {
 			v := item.ExpiresAt
@@ -145,7 +170,11 @@ func (h *LocalIdentityHandler) handleListAPITokens(w http.ResponseWriter, r *htt
 }
 
 func (h *LocalIdentityHandler) handleCreateAPIToken(w http.ResponseWriter, r *http.Request) {
-	if !h.ready(w) || !h.requireAllScopeAuth(w, r) {
+	if !h.ready(w) {
+		return
+	}
+	auth, ok := h.authorizeTokenMutation(w, r)
+	if !ok {
 		return
 	}
 	if !h.requirePermissionFeature(
@@ -160,6 +189,20 @@ func (h *LocalIdentityHandler) handleCreateAPIToken(w http.ResponseWriter, r *ht
 	var req localIdentityAPITokenCreateRequest
 	if err := ReadJSON(r, &req); err != nil {
 		WriteError(w, http.StatusBadRequest, "invalid local identity api token request")
+		return
+	}
+	if auth.AllScopes {
+		// All-scope admin path (unchanged, issue #5164 preserves it): a blank
+		// user_id on a personal token resolves to the admin's own identity, and
+		// an explicit user_id mints a token for another user.
+		if err := h.resolveSelfServiceAPITokenUserID(r, &req); err != nil {
+			slog.ErrorContext(r.Context(), "resolve self-service api token user id failed", "err", err)
+			WriteError(w, http.StatusInternalServerError, "failed to create local identity api token")
+			return
+		}
+	} else if !h.enforceSelfServiceTokenCreateScope(w, r, &req, auth) {
+		// Non-admin self-service: the request is constrained to the caller's
+		// own personal token, or already denied with 403/500.
 		return
 	}
 	now := h.now()
@@ -188,7 +231,11 @@ func (h *LocalIdentityHandler) handleCreateAPIToken(w http.ResponseWriter, r *ht
 }
 
 func (h *LocalIdentityHandler) handleRevokeAPIToken(w http.ResponseWriter, r *http.Request) {
-	if !h.ready(w) || !h.requireAllScopeAuth(w, r) {
+	if !h.ready(w) {
+		return
+	}
+	auth, ok := h.authorizeTokenMutation(w, r)
+	if !ok {
 		return
 	}
 	if !h.requirePermissionFeature(
@@ -205,16 +252,19 @@ func (h *LocalIdentityHandler) handleRevokeAPIToken(w http.ResponseWriter, r *ht
 		WriteError(w, http.StatusBadRequest, "invalid local identity api token revoke request")
 		return
 	}
-	auth, _ := AuthContextFromContext(r.Context())
-	auth = normalizeAuthContext(auth)
 	tenantID, workspaceID := localIdentityAPITokenScope(req.TenantID, req.WorkspaceID, auth)
-	if err := h.Store.RevokeLocalIdentityAPIToken(r.Context(), LocalIdentityAPITokenRevoke{
-		TokenID:     PathParam(r, "token_id"),
-		TenantID:    tenantID,
-		WorkspaceID: workspaceID,
-		RevokedAt:   h.now(),
-	}); err != nil {
+	revoke := LocalIdentityAPITokenRevoke{
+		TokenID:            PathParam(r, "token_id"),
+		TenantID:           tenantID,
+		WorkspaceID:        workspaceID,
+		RevokedAt:          h.now(),
+		OwnerSubjectIDHash: selfServiceTokenOwner(auth),
+	}
+	if err := h.Store.RevokeLocalIdentityAPIToken(r.Context(), revoke); err != nil {
 		h.auditLocalIdentity(r, governanceaudit.EventTypeTokenLifecycle, governanceaudit.DecisionDenied, "api_token_revoke_failed", "")
+		if h.writeSelfServiceTokenNotFound(w, revoke.OwnerSubjectIDHash, err) {
+			return
+		}
 		WriteError(w, http.StatusBadRequest, "failed to revoke local identity api token")
 		return
 	}
@@ -229,7 +279,11 @@ func (h *LocalIdentityHandler) handleRevokeAPIToken(w http.ResponseWriter, r *ht
 }
 
 func (h *LocalIdentityHandler) handleRotateAPIToken(w http.ResponseWriter, r *http.Request) {
-	if !h.ready(w) || !h.requireAllScopeAuth(w, r) {
+	if !h.ready(w) {
+		return
+	}
+	auth, ok := h.authorizeTokenMutation(w, r)
+	if !ok {
 		return
 	}
 	if !h.requirePermissionFeature(
@@ -254,20 +308,22 @@ func (h *LocalIdentityHandler) handleRotateAPIToken(w http.ResponseWriter, r *ht
 		WriteError(w, http.StatusInternalServerError, "failed to rotate local identity api token")
 		return
 	}
-	auth, _ := AuthContextFromContext(r.Context())
-	auth = normalizeAuthContext(auth)
 	tenantID, workspaceID := localIdentityAPITokenScope(req.TenantID, req.WorkspaceID, auth)
 	rotation := LocalIdentityAPITokenRotate{
-		OldTokenID:      PathParam(r, "token_id"),
-		NewTokenID:      tokenID,
-		NewTokenHash:    localIdentityHash(apiToken),
-		TenantID:        tenantID,
-		WorkspaceID:     workspaceID,
-		RotatedAt:       now,
-		NewTokenExpires: req.ExpiresAt.UTC(),
+		OldTokenID:         PathParam(r, "token_id"),
+		NewTokenID:         tokenID,
+		NewTokenHash:       localIdentityHash(apiToken),
+		TenantID:           tenantID,
+		WorkspaceID:        workspaceID,
+		RotatedAt:          now,
+		NewTokenExpires:    req.ExpiresAt.UTC(),
+		OwnerSubjectIDHash: selfServiceTokenOwner(auth),
 	}
 	if err := h.Store.RotateLocalIdentityAPIToken(r.Context(), rotation); err != nil {
 		h.auditLocalIdentity(r, governanceaudit.EventTypeTokenLifecycle, governanceaudit.DecisionDenied, "api_token_rotate_failed", "")
+		if h.writeSelfServiceTokenNotFound(w, rotation.OwnerSubjectIDHash, err) {
+			return
+		}
 		WriteError(w, http.StatusBadRequest, "failed to rotate local identity api token")
 		return
 	}
@@ -279,6 +335,52 @@ func (h *LocalIdentityHandler) handleRotateAPIToken(w http.ResponseWriter, r *ht
 		IssuedAt:  now,
 		ExpiresAt: rotation.NewTokenExpires,
 	})
+}
+
+// resolveSelfServiceAPITokenUserID fills req.UserID from the caller's own
+// session when a personal-token create request omits it. A browser session
+// only ever carries a one-way SubjectIDHash (never the internal user_id
+// primary key identity_token_metadata.user_id requires), so the console's
+// self-service "create my own token" form structurally cannot supply
+// user_id — it has no way to learn it. This mirrors the same resolution
+// self-service TOTP enrollment already performs for the identical problem
+// (handleBeginTOTPEnrollment in local_identity_totp.go).
+//
+// This only ever fills a BLANK user_id. An explicit user_id in the request
+// body — the existing all-scope admin flow that mints a token for a
+// DIFFERENT target user — always wins outright and this resolution is
+// skipped entirely, so admin-driven creation on behalf of another user is
+// unaffected. Service-principal tokens are never self-resolved: a service
+// principal is not the human caller's own identity, so its token is always
+// minted by explicitly naming service_principal_id.
+func (h *LocalIdentityHandler) resolveSelfServiceAPITokenUserID(
+	r *http.Request,
+	req *localIdentityAPITokenCreateRequest,
+) error {
+	if strings.TrimSpace(req.UserID) != "" {
+		return nil
+	}
+	if localIdentityDefault(req.TokenClass, localIdentityAPITokenClassPersonal) != localIdentityAPITokenClassPersonal {
+		return nil
+	}
+	auth, ok := AuthContextFromContext(r.Context())
+	auth = normalizeAuthContext(auth)
+	if !ok || auth.SubjectIDHash == "" {
+		return nil
+	}
+	userID, found, err := h.Store.ResolveLocalIdentityUserID(r.Context(), auth.SubjectIDHash)
+	if err != nil {
+		return err
+	}
+	if !found {
+		// Leave UserID blank: the existing validation path in
+		// buildAPITokenCreateRecord/CreateLocalIdentityAPIToken already
+		// rejects a blank user_id with a clear 400, so this fails the same
+		// way it did before this resolution existed.
+		return nil
+	}
+	req.UserID = userID
+	return nil
 }
 
 func (h *LocalIdentityHandler) buildAPITokenCreateRecord(
@@ -304,6 +406,7 @@ func (h *LocalIdentityHandler) buildAPITokenCreateRecord(
 		UserID:             strings.TrimSpace(req.UserID),
 		ServicePrincipalID: strings.TrimSpace(req.ServicePrincipalID),
 		DisplayHandleHash:  localIdentityHash(req.DisplayLabel),
+		DisplayLabel:       strings.TrimSpace(req.DisplayLabel),
 		PolicyRevisionHash: policyRevision,
 		IssuedAt:           issuedAt,
 		ExpiresAt:          req.ExpiresAt.UTC(),

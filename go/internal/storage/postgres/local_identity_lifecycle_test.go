@@ -182,6 +182,7 @@ func TestCreateLocalIdentityAPITokenStoresHashOnlyPersonalToken(t *testing.T) {
 		WorkspaceID:        "workspace_local",
 		UserID:             "user_owner",
 		DisplayHandleHash:  "sha256:display",
+		DisplayLabel:       "owner laptop",
 		PolicyRevisionHash: "sha256:policy",
 		IssuedAt:           now,
 		ExpiresAt:          now.Add(7 * 24 * time.Hour),
@@ -195,6 +196,7 @@ func TestCreateLocalIdentityAPITokenStoresHashOnlyPersonalToken(t *testing.T) {
 	query := db.execs[0].query
 	for _, want := range []string{
 		"INSERT INTO identity_token_metadata",
+		"display_label",
 		"FROM identity_users user_subject",
 		"JOIN identity_tenant_memberships membership",
 		"user_subject.status = 'active'",
@@ -204,9 +206,13 @@ func TestCreateLocalIdentityAPITokenStoresHashOnlyPersonalToken(t *testing.T) {
 			t.Fatalf("personal token query missing %q:\n%s", want, query)
 		}
 	}
-	if fakeExecArgsContain(db.execs[0].args, "raw-generated-token") ||
-		fakeExecArgsContain(db.execs[0].args, "owner laptop") {
+	if fakeExecArgsContain(db.execs[0].args, "raw-generated-token") {
 		t.Fatalf("token create args leaked raw material: %#v", db.execs[0].args)
+	}
+	// The plaintext display label IS persisted (issue #3708) — it must appear
+	// as a bound query argument, unlike the raw bearer token above.
+	if !fakeExecArgsContain(db.execs[0].args, "owner laptop") {
+		t.Fatalf("token create args missing plaintext display label: %#v", db.execs[0].args)
 	}
 }
 
@@ -288,6 +294,9 @@ func TestRevokeAndRotateLocalIdentityAPITokenUpdateActiveMetadata(t *testing.T) 
 		"FROM identity_token_metadata old_token",
 		"old_token.status = 'active'",
 		"old_token.revoked_at IS NULL",
+		// A rotated token keeps its owner's display label (issue #3708); the
+		// replacement row carries the old row's plaintext label forward.
+		"old_token.display_label",
 	} {
 		if !fakeExecsContainQuery(db.execs, want) {
 			t.Fatalf("rotate execs missing %q: %#v", want, db.execs)

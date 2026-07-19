@@ -38,13 +38,15 @@ type AdminIdPGroupMappingListItem struct {
 
 // AdminAPITokenListItem is the metadata-only view of one generated API token for
 // the tenant-scoped admin list across all users. token_hash and
-// display_handle_hash are never selected.
+// display_handle_hash are never selected. DisplayLabel (issue #3708) is the
+// real, non-secret operator-facing label.
 type AdminAPITokenListItem struct {
 	TokenID            string
 	TokenClass         string
 	UserID             string
 	ServicePrincipalID string
 	Status             string
+	DisplayLabel       string
 	IssuedAt           time.Time
 	ExpiresAt          time.Time
 	RevokedAt          time.Time
@@ -246,7 +248,8 @@ func (s *IdentitySubjectStore) ListAdminIdPGroupMappings(
 
 // listAdminAPITokensQuery selects metadata-only token columns for every user in
 // the caller's tenant/workspace. token_hash and display_handle_hash are never
-// selected.
+// selected; display_label (issue #3708) is the real, non-secret
+// operator-facing label and is safe to return as-is.
 const listAdminAPITokensQuery = `
 SELECT
     token_id,
@@ -254,6 +257,7 @@ SELECT
     user_id,
     service_principal_id,
     status,
+    display_label,
     issued_at,
     expires_at,
     revoked_at,
@@ -291,7 +295,7 @@ func (s *IdentitySubjectStore) ListAdminAPITokens(
 	var items []AdminAPITokenListItem
 	for rows.Next() {
 		var item AdminAPITokenListItem
-		var userID, servicePrincipalID sql.NullString
+		var userID, servicePrincipalID, displayLabel sql.NullString
 		var expiresAt, revokedAt sql.NullTime
 		if err := rows.Scan(
 			&item.TokenID,
@@ -299,6 +303,7 @@ func (s *IdentitySubjectStore) ListAdminAPITokens(
 			&userID,
 			&servicePrincipalID,
 			&item.Status,
+			&displayLabel,
 			&item.IssuedAt,
 			&expiresAt,
 			&revokedAt,
@@ -312,6 +317,9 @@ func (s *IdentitySubjectStore) ListAdminAPITokens(
 		}
 		if servicePrincipalID.Valid {
 			item.ServicePrincipalID = servicePrincipalID.String
+		}
+		if displayLabel.Valid {
+			item.DisplayLabel = displayLabel.String
 		}
 		item.IssuedAt = item.IssuedAt.UTC()
 		if expiresAt.Valid {

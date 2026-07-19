@@ -89,8 +89,10 @@ func TestAdminIdentityReadQueriesSecurity(t *testing.T) {
 			name:  "api_tokens",
 			query: listAdminAPITokensQuery,
 			// identity_token_metadata has no tombstoned_at column; tokens use
-			// revoked_at + status instead.
-			want:      []string{"token_id", "token_class", "user_id", "service_principal_id", "status", "issued_at", "expires_at", "revoked_at"},
+			// revoked_at + status instead. display_label is the real,
+			// non-secret operator-facing label (issue #3708); it is safe to
+			// return to a tenant admin, unlike display_handle_hash.
+			want:      []string{"token_id", "token_class", "user_id", "service_principal_id", "status", "issued_at", "expires_at", "revoked_at", "display_label"},
 			forbidden: []string{"token_hash", "display_handle_hash"},
 			params:    []string{"$1", "$2"},
 		},

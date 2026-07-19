@@ -1,10 +1,12 @@
 // pages/admin/AdminTokensPanel.tsx
-// API tokens panel: lists every user's generated API tokens within the tenant
-// and offers a per-row Revoke. Renders token id, class, owning user/service
-// principal, status, and timestamps ONLY — never the token hash or display
-// label hash. On a load error the panel renders "unavailable" rather than
-// fabricated rows. Revoke is confirm-then-call, disables while in flight,
-// surfaces success/failure, and refetches on success.
+// API tokens panel: lists every user's generated API tokens within the tenant,
+// offers a per-row Revoke, and (issue #5164) a create form for a
+// service_principal token with a reveal-once panel. Renders token id, class,
+// owning user/service principal, status, display_label, and timestamps ONLY —
+// never the token hash or display-label hash. On a load error the panel
+// renders "unavailable" rather than fabricated rows. Revoke is
+// confirm-then-call, disables while in flight, surfaces success/failure, and
+// refetches on success.
 //
 // Stale-load guard: every useEffect load sets `cancelled = true` in its cleanup.
 // A refreshKey counter re-triggers the effect after a mutation; client changes
@@ -13,6 +15,7 @@
 import { useEffect, useState, useCallback } from "react";
 
 import { fmt, dash, truncatedNote } from "./adminFormat";
+import { CreateServicePrincipalTokenControl } from "./CreateServicePrincipalTokenControl";
 import { loadApiTokens, revokeApiToken } from "../../api/adminConsole";
 import type { AdminAPITokenItem } from "../../api/adminConsole";
 import type { EshuApiClient } from "../../api/client";
@@ -25,7 +28,7 @@ function statusBadge(status: string | undefined, revokedAt: string | undefined):
 }
 
 export function AdminTokensPanel({
-  client
+  client,
 }: {
   readonly client?: EshuApiClient;
 }): React.JSX.Element {
@@ -72,7 +75,7 @@ export function AdminTokensPanel({
         setNotice(`Failed to revoke token ${tokenId}.`);
       }
     },
-    [client]
+    [client],
   );
 
   if (loading) {
@@ -92,7 +95,11 @@ export function AdminTokensPanel({
 
   return (
     <Panel title="API tokens">
-      {notice ? <p className="empty-note" role="status">{notice}</p> : null}
+      {notice ? (
+        <p className="empty-note" role="status">
+          {notice}
+        </p>
+      ) : null}
       {truncated ? <p className="empty-note">{truncatedNote(truncated, items.length)}</p> : null}
       {items.length === 0 ? (
         <p className="empty-note">No API tokens found.</p>
@@ -101,6 +108,7 @@ export function AdminTokensPanel({
           <thead>
             <tr>
               <th>Token ID</th>
+              <th>Label</th>
               <th>Class</th>
               <th>Owner</th>
               <th>Status</th>
@@ -114,6 +122,7 @@ export function AdminTokensPanel({
               return (
                 <tr key={t.token_id}>
                   <td>{t.token_id}</td>
+                  <td>{dash(t.display_label)}</td>
                   <td>{dash(t.token_class)}</td>
                   <td>{dash(t.user_id ?? t.service_principal_id)}</td>
                   <td>{statusBadge(t.status, t.revoked_at)}</td>
@@ -134,6 +143,12 @@ export function AdminTokensPanel({
           </tbody>
         </table>
       )}
+      {client ? (
+        <CreateServicePrincipalTokenControl
+          client={client}
+          onCreated={() => setRefreshKey((k) => k + 1)}
+        />
+      ) : null}
     </Panel>
   );
 }

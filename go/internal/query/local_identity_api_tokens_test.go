@@ -72,6 +72,12 @@ func TestLocalIdentityCreatePersonalAPITokenReturnsSecretOnceAndStoresHashOnly(t
 	if created.TokenHash == "raw-generated-token" || created.DisplayHandleHash == "owner laptop" {
 		t.Fatalf("created token leaked raw material: %#v", created)
 	}
+	// The plaintext display label IS persisted separately from the hash
+	// (issue #3708): display_handle_hash stays a hash, display_label carries
+	// the real operator-facing text.
+	if got, want := created.DisplayLabel, "owner laptop"; got != want {
+		t.Fatalf("created token display label = %q, want %q", got, want)
+	}
 	if got, want := created.TokenClass, "personal"; got != want {
 		t.Fatalf("token class = %q, want %q", got, want)
 	}
@@ -297,5 +303,165 @@ func TestLocalIdentityAPITokenLifecycleUsesAuthenticatedTenantWorkspaceFirst(t *
 		store.rotatedAPIToken.WorkspaceID != "workspace_auth" {
 		t.Fatalf("rotate scope = %q/%q, want authenticated tenant/workspace",
 			store.rotatedAPIToken.TenantID, store.rotatedAPIToken.WorkspaceID)
+	}
+}
+
+// TestLocalIdentityCreateAPITokenThenListReturnsDisplayLabel is the #3708
+// regression test: a token created with a display_label must show that same
+// label on a subsequent list call, through the same handler mux and store —
+// not a hand-built stand-in. Before #3708, display_label was accepted on
+// create but only ever hashed into display_handle_hash and discarded; list
+// never returned any label at all.
+func TestLocalIdentityCreateAPITokenThenListReturnsDisplayLabel(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 6, 23, 9, 30, 0, 0, time.UTC)
+	store := &fakeLocalIdentityStore{}
+	handler := &LocalIdentityHandler{
+		Store:     store,
+		NewSecret: sequenceSecrets("token-id", "raw-generated-token"),
+		Now:       func() time.Time { return now },
+	}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+	auth := AuthContext{
+		Mode:          AuthModeBrowserSession,
+		TenantID:      "tenant_local",
+		WorkspaceID:   "workspace_local",
+		SubjectIDHash: "sha256:operator-subject",
+		AllScopes:     true,
+	}
+
+	createReq := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v0/auth/local/api-tokens",
+		bytes.NewBufferString(`{
+			"token_class":"personal",
+			"user_id":"user_owner",
+			"display_label":"owner laptop"
+		}`),
+	)
+	createReq = createReq.WithContext(ContextWithAuthContext(createReq.Context(), auth))
+	createRec := httptest.NewRecorder()
+	mux.ServeHTTP(createRec, createReq)
+
+	if createRec.Code != http.StatusCreated {
+		t.Fatalf("create status = %d, want %d: %s", createRec.Code, http.StatusCreated, createRec.Body.String())
+	}
+
+	listReq := httptest.NewRequest(http.MethodGet, "/api/v0/auth/local/api-tokens", nil)
+	listReq = listReq.WithContext(ContextWithAuthContext(listReq.Context(), auth))
+	listRec := httptest.NewRecorder()
+	mux.ServeHTTP(listRec, listReq)
+
+	if listRec.Code != http.StatusOK {
+		t.Fatalf("list status = %d, want %d: %s", listRec.Code, http.StatusOK, listRec.Body.String())
+	}
+	var listResponse struct {
+		Tokens []map[string]any `json:"tokens"`
+	}
+	if err := json.Unmarshal(listRec.Body.Bytes(), &listResponse); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if len(listResponse.Tokens) != 1 {
+		t.Fatalf("tokens = %#v, want exactly one listed token", listResponse.Tokens)
+	}
+	if got, want := listResponse.Tokens[0]["display_label"], "owner laptop"; got != want {
+		t.Fatalf("listed token display_label = %v, want %q", got, want)
+	}
+	if got, want := listResponse.Tokens[0]["token_id"], "token-id"; got != want {
+		t.Fatalf("listed token_id = %v, want %q", got, want)
+	}
+}
+
+// TestLocalIdentityCreatePersonalAPITokenResolvesOwnUserIDWhenOmitted proves
+// self-service create works: a browser session minting its OWN personal
+// token never learns its internal user_id (sessions only ever carry a
+// one-way subject_id_hash), so the console cannot supply user_id in the
+// request body. The handler must resolve it server-side from the session's
+// SubjectIDHash via Store.ResolveLocalIdentityUserID — the same capability
+// self-service TOTP enrollment already uses for this exact problem
+// (local_identity_totp.go handleBeginTOTPEnrollment) — rather than requiring
+// a value the console structurally cannot provide.
+func TestLocalIdentityCreatePersonalAPITokenResolvesOwnUserIDWhenOmitted(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 6, 23, 9, 40, 0, 0, time.UTC)
+	store := &fakeLocalIdentityStore{
+		resolvedUserID:      "user_resolved_from_session",
+		resolvedUserIDFound: true,
+	}
+	handler := &LocalIdentityHandler{
+		Store:     store,
+		NewSecret: sequenceSecrets("token-id", "raw-generated-token"),
+		Now:       func() time.Time { return now },
+	}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v0/auth/local/api-tokens",
+		bytes.NewBufferString(`{"token_class":"personal","display_label":"laptop"}`),
+	)
+	req = req.WithContext(ContextWithAuthContext(req.Context(), AuthContext{
+		Mode:          AuthModeBrowserSession,
+		TenantID:      "tenant_local",
+		WorkspaceID:   "workspace_local",
+		SubjectIDHash: "sha256:self-service-subject",
+		AllScopes:     true,
+	}))
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want %d: %s", rec.Code, http.StatusCreated, rec.Body.String())
+	}
+	if got, want := store.createdAPIToken.UserID, "user_resolved_from_session"; got != want {
+		t.Fatalf("created token UserID = %q, want resolved %q (self-service create is broken without this)", got, want)
+	}
+}
+
+// TestLocalIdentityCreatePersonalAPITokenAdminSuppliedUserIDWins proves the
+// self-resolve fallback above does NOT shadow the existing admin flow: when
+// the request body explicitly names a target user_id (an admin minting a
+// token for someone else), that value must win outright — the handler must
+// not call ResolveLocalIdentityUserID at all in that case.
+func TestLocalIdentityCreatePersonalAPITokenAdminSuppliedUserIDWins(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 6, 23, 9, 45, 0, 0, time.UTC)
+	store := &fakeLocalIdentityStore{
+		resolvedUserID:      "user_wrong_if_called",
+		resolvedUserIDFound: true,
+	}
+	handler := &LocalIdentityHandler{
+		Store:     store,
+		NewSecret: sequenceSecrets("token-id", "raw-generated-token"),
+		Now:       func() time.Time { return now },
+	}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v0/auth/local/api-tokens",
+		bytes.NewBufferString(`{"token_class":"personal","user_id":"user_target_explicit"}`),
+	)
+	req = req.WithContext(ContextWithAuthContext(req.Context(), AuthContext{
+		Mode:          AuthModeBrowserSession,
+		TenantID:      "tenant_local",
+		WorkspaceID:   "workspace_local",
+		SubjectIDHash: "sha256:admin-subject",
+		AllScopes:     true,
+	}))
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want %d: %s", rec.Code, http.StatusCreated, rec.Body.String())
+	}
+	if got, want := store.createdAPIToken.UserID, "user_target_explicit"; got != want {
+		t.Fatalf("created token UserID = %q, want explicit request value %q", got, want)
 	}
 }

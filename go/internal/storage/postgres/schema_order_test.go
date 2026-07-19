@@ -82,4 +82,5 @@ var orderedBootstrapDefinitionNames = []string{
 	"relationship_reference_candidate_keys",
 	"relationship_family_candidate_index",
 	"reducer_input_invalid_facts",
+	"identity_token_metadata_display_label",
 }
