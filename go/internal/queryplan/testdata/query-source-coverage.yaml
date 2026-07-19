@@ -158,7 +158,7 @@ source_coverage:
         count: 5
         non_hot:
           class: keyed_support
-          source_sha256: fa13cfede78bf7cd69a96724c1c7f9337b8729997195b7b5f7c5d6fddca1fce8
+          source_sha256: 25ed6186e4a509a7e86155ec344a80fc94c257922ccae909d0d40fdb90470b15
           key_bound: single_key
           max_results: 1005
       - {symbol: "(*ImpactHandler).enrichBlastRadiusTiers", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
