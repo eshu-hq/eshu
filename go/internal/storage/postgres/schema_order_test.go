@@ -84,4 +84,5 @@ var orderedBootstrapDefinitionNames = []string{
 	"reducer_input_invalid_facts",
 	"identity_token_metadata_display_label",
 	"content_entity_name_trgm_index",
+	"identity_github_login",
 }

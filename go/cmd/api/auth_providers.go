@@ -45,6 +45,20 @@ type authProviderListStore struct {
 	// the env-config OIDC runtime (ESHU_AUTH_OIDC_CONFIG_FILE). Only entries
 	// whose DB row is active for the matching tenant are surfaced.
 	oidcProviders []query.OIDCRegisteredProvider
+	// githubProviders is the set of (provider_config_id, tenant_id) pairs
+	// from the env-config GitHub runtime (ESHU_AUTH_GITHUB_CONFIG_FILE).
+	// Only entries whose DB row is active for the matching tenant are
+	// surfaced, mirroring oidcProviders (issue #5166, F-5).
+	githubProviders []query.GitHubRegisteredProvider
+	// githubRuntimeEnabled reports whether the GitHub login runtime is mounted
+	// at all (githubHandler != nil, i.e. ESHU_AUTH_GITHUB_ENABLED=true or a
+	// config file is set — see newGitHubLoginHandler). Like SAML,
+	// newGitHubLoginHandler returns nil when no activation path is configured,
+	// and query.APIRouter.Mount then never registers /api/v0/auth/github/login
+	// (its `if a.GitHubLogin != nil` gate). A DB-backed external_github row
+	// must never be surfaced as a login option while this is false: the button
+	// would 404 every time (issue #5166, F-5).
+	githubRuntimeEnabled bool
 }
 
 // newAuthProviderListStore constructs the store. db may be nil in test-only
@@ -54,6 +68,7 @@ func newAuthProviderListStore(
 	db *sql.DB,
 	samlHandler *query.SAMLHandler,
 	oidcHandler *query.OIDCLoginHandler,
+	githubHandler *query.GitHubLoginHandler,
 ) *authProviderListStore {
 	var samlIDs []string
 	if samlHandler != nil {
@@ -63,15 +78,21 @@ func newAuthProviderListStore(
 	if oidcHandler != nil {
 		oidcProviders = oidcHandler.RegisteredProviders()
 	}
+	var githubProviders []query.GitHubRegisteredProvider
+	if githubHandler != nil {
+		githubProviders = githubHandler.RegisteredProviders()
+	}
 	var identityStore *pgstatus.IdentitySubjectStore
 	if db != nil {
 		identityStore = pgstatus.NewIdentitySubjectStore(pgstatus.ExecQueryer(pgstatus.SQLDB{DB: db}))
 	}
 	return &authProviderListStore{
-		identity:           identityStore,
-		samlRuntimeEnabled: samlHandler != nil,
-		samlProviderIDs:    samlIDs,
-		oidcProviders:      oidcProviders,
+		identity:             identityStore,
+		samlRuntimeEnabled:   samlHandler != nil,
+		samlProviderIDs:      samlIDs,
+		oidcProviders:        oidcProviders,
+		githubProviders:      githubProviders,
+		githubRuntimeEnabled: githubHandler != nil,
 	}
 }
 
@@ -112,11 +133,16 @@ func (s *authProviderListStore) ListLoginProviders(ctx context.Context, tenantID
 
 	// Build the env-registered id set first so DB rows that collide with an
 	// env-registered provider are excluded below — env wins, not the DB row.
-	envIDs := make(map[string]struct{}, len(s.samlProviderIDs)+len(s.oidcProviders))
+	envIDs := make(map[string]struct{}, len(s.samlProviderIDs)+len(s.oidcProviders)+len(s.githubProviders))
 	for _, providerID := range s.samlProviderIDs {
 		envIDs[providerID] = struct{}{}
 	}
 	for _, p := range s.oidcProviders {
+		if p.TenantID == tenantID {
+			envIDs[p.ProviderConfigID] = struct{}{}
+		}
+	}
+	for _, p := range s.githubProviders {
 		if p.TenantID == tenantID {
 			envIDs[p.ProviderConfigID] = struct{}{}
 		}
@@ -136,6 +162,13 @@ func (s *authProviderListStore) ListLoginProviders(ctx context.Context, tenantID
 			// The SAML runtime is not mounted at all (see samlRuntimeEnabled's
 			// doc comment) — surfacing this row would offer a login button
 			// whose route always 404s.
+			continue
+		}
+		if item.ProviderKind == "external_github" && !s.githubRuntimeEnabled {
+			// The GitHub runtime is not mounted (see githubRuntimeEnabled's doc
+			// comment) — surfacing this row would offer a "Continue with GitHub"
+			// button whose /api/v0/auth/github/login route always 404s
+			// (issue #5166, F-5).
 			continue
 		}
 		label := displayLabelForKind(item.ProviderKind)
@@ -203,31 +236,73 @@ func (s *authProviderListStore) ListLoginProviders(ctx context.Context, tenantID
 		})
 	}
 
+	// Add env-config GitHub providers (issue #5166, F-5). Only include
+	// providers whose config-file tenant_id matches the requested tenant to
+	// prevent cross-tenant provider enumeration, mirroring the OIDC loop
+	// above.
+	for _, p := range s.githubProviders {
+		if p.TenantID != tenantID {
+			continue
+		}
+		if _, alreadySeen := seen[p.ProviderConfigID]; alreadySeen {
+			continue
+		}
+		active, err := s.identity.HasActiveGitHubProviderConfigForTenant(ctx, p.ProviderConfigID, tenantID)
+		if err != nil {
+			// Non-fatal: skip this provider rather than failing the whole list.
+			continue
+		}
+		if !active {
+			continue
+		}
+		seen[p.ProviderConfigID] = struct{}{}
+		result = append(result, query.AuthProviderItem{
+			ProviderConfigID: p.ProviderConfigID,
+			DisplayLabel:     displayLabelForKind("external_github"),
+			ProviderKind:     "github",
+			IconHint:         iconHintForKind("external_github"),
+		})
+	}
+
 	return result, nil
 }
 
 // displayLabelForKind returns a safe generic label for a provider_kind value.
 // NEVER echoes a domain, metadata URL, org name, or IdP identifier.
 // Returns "" for unknown or non-login-facing kinds (e.g. "local").
+//
+// GitHub (issue #5166, F-5) is the one exception to "never name the IdP
+// brand": unlike OIDC/SAML, where the underlying IdP is an operator choice
+// this label deliberately hides, a GitHub provider IS github.com (or a
+// GitHub Enterprise Server instance) by construction — there is no distinct
+// brand to protect. The label is "GitHub" (not "Continue with GitHub"): the
+// console's SSO button template already renders "Continue with
+// {display_label}" (LoginPage.tsx) for every provider_kind, so the issue's
+// acceptance criteria — the login page rendering "Continue with GitHub" —
+// is satisfied by composition, not by this label carrying the verb itself.
 func displayLabelForKind(kind string) string {
 	switch kind {
 	case "external_oidc", "oidc":
 		return "Single sign-on (OIDC)"
 	case "external_saml", "saml":
 		return "Single sign-on (SAML)"
+	case "external_github", "github":
+		return "GitHub"
 	default:
 		return ""
 	}
 }
 
 // canonicalKind normalises the DB provider_kind to the short form used in the
-// API response ("oidc", "saml").
+// API response ("oidc", "saml", "github").
 func canonicalKind(kind string) string {
 	switch kind {
 	case "external_oidc":
 		return "oidc"
 	case "external_saml":
 		return "saml"
+	case "external_github":
+		return "github"
 	default:
 		return kind
 	}
@@ -245,6 +320,8 @@ func iconHintForKind(kind string) string {
 		return "oidc"
 	case "external_saml", "saml":
 		return "saml"
+	case "external_github", "github":
+		return "github"
 	default:
 		return ""
 	}

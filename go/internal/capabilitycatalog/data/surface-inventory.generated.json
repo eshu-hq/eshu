@@ -78,6 +78,16 @@
     },
     {
       "category": "api_route",
+      "name": "GET /api/v0/auth/github/callback",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
+      "name": "GET /api/v0/auth/github/login",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
       "name": "GET /api/v0/auth/local/api-tokens",
       "readiness": "implemented"
     },
