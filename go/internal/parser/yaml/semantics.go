@@ -9,12 +9,28 @@ import (
 	"strings"
 )
 
-func isKustomization(apiVersion string, kind string, filename string) bool {
+// isKustomization reports whether a document is a generic Kustomize build
+// manifest: an explicit "kustomize.config.k8s.io/*" apiVersion (any
+// version), or a kustomization.yaml/.yml file carrying no apiVersion at all.
+//
+// It intentionally does NOT match on a bare "kustomize" apiVersion prefix.
+// That used to also capture Flux's "kustomize.toolkit.fluxcd.io/*"
+// Kustomization CRs (issue #5342), misrouting them into this generic
+// top-level-key parser even though a Flux Kustomization nests its
+// declarative fields under spec (sourceRef, path, targetNamespace) instead
+// of carrying them at the document root. See isFluxKustomization for the
+// dedicated Flux path.
+//
+// An explicit, non-generic apiVersion vetoes the filename-only branch: a
+// foreign CRD (Flux's Kustomization group, or any other apiVersion) saved as
+// kustomization.yaml must not re-enter this generic path just because of its
+// file name.
+func isKustomization(apiVersion string, filename string) bool {
 	if strings.HasPrefix(apiVersion, "kustomize.config.k8s.io/") {
 		return true
 	}
-	if kind == "Kustomization" && strings.HasPrefix(apiVersion, "kustomize") {
-		return true
+	if strings.TrimSpace(apiVersion) != "" {
+		return false
 	}
 	lower := strings.ToLower(filename)
 	return lower == "kustomization.yaml" || lower == "kustomization.yml"
