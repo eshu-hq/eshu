@@ -237,9 +237,21 @@ export function GraphCanvas({
             return (
               <g
                 key={n.id}
+                aria-label={`${n.label} — ${n.sub ?? n.kind}`}
+                aria-pressed={onSelect ? sel : undefined}
                 className={`gnode gnode-${n.kind}${sel ? " is-sel" : ""}${n.hero ? " is-hero" : ""}${dim(n.id) ? " is-faded" : ""}`}
+                role={onSelect ? "button" : undefined}
+                tabIndex={onSelect ? 0 : undefined}
                 transform={`translate(${p.x - w / 2} ${p.y - h / 2})`}
                 style={{ "--nc": nc } as React.CSSProperties}
+                onBlur={() => setHover(null)}
+                onFocus={() => setHover(n.id)}
+                onKeyDown={(event) => {
+                  if (!onSelect || (event.key !== "Enter" && event.key !== " ")) return;
+                  event.preventDefault();
+                  event.stopPropagation();
+                  onSelect(n);
+                }}
                 onMouseEnter={() => setHover(n.id)}
                 onMouseLeave={() => setHover(null)}
                 onClick={(ev) => {

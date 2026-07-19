@@ -5,18 +5,33 @@ package query
 
 import (
 	"context"
+	"sort"
 	"strings"
 )
+
+type deploymentSourceResult struct {
+	rows   []map[string]any
+	limits map[string]any
+}
 
 func (h *ImpactHandler) fetchDeploymentSources(
 	ctx context.Context,
 	workloadID string,
 	repoID string,
 ) ([]map[string]any, error) {
+	result, err := h.fetchDeploymentSourceResult(ctx, workloadID, repoID)
+	return result.rows, err
+}
+
+func (h *ImpactHandler) fetchDeploymentSourceResult(
+	ctx context.Context,
+	workloadID string,
+	repoID string,
+) (deploymentSourceResult, error) {
 	if h == nil || h.Neo4j == nil {
-		return nil, nil
+		return deploymentSourceResult{}, nil
 	}
-	return fetchDeploymentSourcesFromGraph(ctx, h.Neo4j, workloadID, repoID)
+	return fetchDeploymentSourceResultFromGraph(ctx, h.Neo4j, workloadID, repoID)
 }
 
 func fetchDeploymentSourcesFromGraph(
@@ -25,31 +40,118 @@ func fetchDeploymentSourcesFromGraph(
 	workloadID string,
 	repoID string,
 ) ([]map[string]any, error) {
-	canonicalRows, err := reader.Run(ctx, `
-		MATCH (w:Workload {id: $workload_id})<-[:INSTANCE_OF]-(i:WorkloadInstance)-[rel:DEPLOYMENT_SOURCE]->(repo:Repository)
-		RETURN DISTINCT i.id as instance_id, repo.id as repo_id, repo.name as repo_name,
-		       rel.confidence as confidence, rel.reason as reason
-		ORDER BY repo_name
-	`, map[string]any{"workload_id": workloadID})
+	result, err := fetchDeploymentSourceResultFromGraph(ctx, reader, workloadID, repoID)
+	return result.rows, err
+}
+
+func fetchDeploymentSourceResultFromGraph(
+	ctx context.Context,
+	reader GraphQuery,
+	workloadID string,
+	repoID string,
+) (deploymentSourceResult, error) {
+	queryLimit := contextStoryItemLimit + 1
+	canonicalRows, err := fetchCanonicalDeploymentSourceRows(ctx, reader, workloadID, queryLimit)
 	if err != nil {
-		return nil, err
+		return deploymentSourceResult{}, err
 	}
 	canonicalRows = deploymentSourceRowsWithEndpoints(canonicalRows, "DEPLOYMENT_SOURCE", "")
 
-	repositoryRows := []map[string]any{}
-	if strings.TrimSpace(repoID) != "" {
-		repositoryRows, err = reader.Run(ctx, `
-			MATCH (targetRepo:Repository {id: $repo_id})<-[rel:DEPLOYS_FROM]-(repo:Repository)
-			RETURN DISTINCT repo.id as repo_id, repo.name as repo_name, rel.confidence as confidence,
-			       coalesce(rel.reason, rel.evidence_type, 'repository_deploys_from') as reason
-			ORDER BY repo_name
-		`, map[string]any{"repo_id": repoID})
-		if err != nil {
-			return nil, err
-		}
-		repositoryRows = deploymentSourceRowsWithEndpoints(repositoryRows, "DEPLOYS_FROM", repoID)
+	repositoryRows, err := fetchRepositoryDeploymentSourceRows(ctx, reader, repoID, queryLimit)
+	if err != nil {
+		return deploymentSourceResult{}, err
 	}
-	return normalizedDeploymentSources(mergeDeploymentSourceRows(canonicalRows, repositoryRows)), nil
+	repositoryRows = deploymentSourceRowsWithEndpoints(repositoryRows, "DEPLOYS_FROM", repoID)
+	merged := normalizedDeploymentSources(mergeDeploymentSourceRows(canonicalRows, repositoryRows))
+	sortDeploymentSources(merged)
+	observedCount := len(merged)
+	rows, mergedTruncated := capMapRows(merged, contextStoryItemLimit)
+	lowerBound := len(canonicalRows) >= queryLimit || len(repositoryRows) >= queryLimit
+	return deploymentSourceResult{
+		rows: rows,
+		limits: map[string]any{
+			"limit":                         contextStoryItemLimit,
+			"query_sentinel_limit":          queryLimit,
+			"returned_count":                len(rows),
+			"observed_count":                observedCount,
+			"observed_count_is_lower_bound": lowerBound,
+			"canonical_observed_count":      len(canonicalRows),
+			"repository_observed_count":     len(repositoryRows),
+			"truncated":                     lowerBound || mergedTruncated,
+			"ordering": []string{
+				"relationship_type_priority",
+				"repo_name",
+				"source_id",
+				"target_id",
+			},
+		},
+	}, nil
+}
+
+func fetchCanonicalDeploymentSourceRows(
+	ctx context.Context,
+	reader GraphQuery,
+	workloadID string,
+	limit int,
+) ([]map[string]any, error) {
+	return reader.Run(ctx, `
+		MATCH (w:Workload {id: $workload_id})<-[:INSTANCE_OF]-(i:WorkloadInstance)-[rel:DEPLOYMENT_SOURCE]->(repo:Repository)
+		WITH i.id as instance_id, repo.id as repo_id, repo.name as repo_name,
+		     max(coalesce(rel.confidence, 0.0)) as confidence,
+		     min(coalesce(rel.reason, '')) as reason
+		RETURN instance_id, repo_id, repo_name, confidence, reason
+		ORDER BY repo_name, instance_id, repo_id
+		LIMIT $source_limit
+	`, map[string]any{"workload_id": workloadID, "source_limit": limit})
+}
+
+func fetchRepositoryDeploymentSourceRows(
+	ctx context.Context,
+	reader GraphQuery,
+	repoID string,
+	limit int,
+) ([]map[string]any, error) {
+	if strings.TrimSpace(repoID) == "" {
+		return nil, nil
+	}
+	return reader.Run(ctx, `
+		MATCH (targetRepo:Repository {id: $repo_id})<-[rel:DEPLOYS_FROM]-(repo:Repository)
+		WITH repo.id as repo_id, repo.name as repo_name,
+		     max(coalesce(rel.confidence, 0.0)) as confidence,
+		     min(coalesce(rel.reason, rel.evidence_type, 'repository_deploys_from')) as reason
+		RETURN repo_id, repo_name, confidence, reason
+		ORDER BY repo_name, repo_id
+		LIMIT $source_limit
+	`, map[string]any{"repo_id": repoID, "source_limit": limit})
+}
+
+func sortDeploymentSources(rows []map[string]any) {
+	sort.SliceStable(rows, func(i, j int) bool {
+		left, right := rows[i], rows[j]
+		leftPriority := deploymentSourceRelationshipPriority(StringVal(left, "relationship_type"))
+		rightPriority := deploymentSourceRelationshipPriority(StringVal(right, "relationship_type"))
+		if leftPriority != rightPriority {
+			return leftPriority < rightPriority
+		}
+		leftKey := strings.Join([]string{
+			StringVal(left, "repo_name"),
+			StringVal(left, "source_id"),
+			StringVal(left, "target_id"),
+		}, "\x00")
+		rightKey := strings.Join([]string{
+			StringVal(right, "repo_name"),
+			StringVal(right, "source_id"),
+			StringVal(right, "target_id"),
+		}, "\x00")
+		return leftKey < rightKey
+	})
+}
+
+func deploymentSourceRelationshipPriority(relationshipType string) int {
+	if relationshipType == "DEPLOYMENT_SOURCE" {
+		return 0
+	}
+	return 1
 }
 
 func normalizedDeploymentSources(rows []map[string]any) []map[string]any {
@@ -93,10 +195,6 @@ func mergeDeploymentSourceRows(
 	merged := make([]map[string]any, 0, len(canonicalRows)+len(repositoryRows))
 	seen := make(map[string]struct{}, len(canonicalRows)+len(repositoryRows))
 	appendRow := func(row map[string]any) {
-		repoID := StringVal(row, "repo_id")
-		if _, legacyDuplicate := seen[repoID]; repoID != "" && legacyDuplicate {
-			return
-		}
 		key := deploymentSourceRelationshipKey(row)
 		if key == "" {
 			return

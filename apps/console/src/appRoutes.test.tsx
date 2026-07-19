@@ -134,3 +134,22 @@ describe("AppRoutes /dead-code performance boundary", () => {
     expect(screen.getByRole("heading", { level: 2, name: "Dead code" })).toBeInTheDocument();
   });
 });
+
+describe("AppRoutes /impact performance boundary", () => {
+  it("keeps the Impact implementation behind a route-level lazy loading state", async () => {
+    render(
+      <MemoryRouter initialEntries={["/impact"]}>
+        <AppRoutes
+          client={undefined}
+          model={demoModel}
+          source={{ base: "", key: "", mode: "private", status: "connected", msg: "" }}
+          repositories={[]}
+          onOpenService={vi.fn()}
+        />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole("heading", { level: 1, name: "Loading impact" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { level: 2, name: "Impact" })).toBeInTheDocument();
+  });
+});

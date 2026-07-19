@@ -1,7 +1,75 @@
 import { EshuApiClient } from "./client";
+import { boundedGraph } from "./impactGraphSelection";
 import { loadImpactReview } from "./impactReview";
+import {
+  ambiguousChangeSurface,
+  deploymentSource,
+  deploymentTracePayload,
+  directRuntimeTopology,
+  loadDeploymentReview as loadReview,
+  nonEmptyChangeSurface,
+} from "./impactReviewDeploymentGraph.testSupport";
+import type { GraphEdge, GraphNode } from "../console/types";
 
 describe("impact deployment graph composition", () => {
+  it("selects the same bounded edge page regardless of backend row order", () => {
+    const nodes: readonly GraphNode[] = [
+      { col: 0, hero: true, id: "source", kind: "workload", label: "source", truth: "exact" },
+      { col: 1, id: "target", kind: "repo", label: "target", truth: "exact" },
+    ];
+    const edges: readonly GraphEdge[] = Array.from({ length: 130 }, (_, index) => ({
+      layer: "runtime",
+      s: "source",
+      t: "target",
+      verb: `EDGE_${String(index).padStart(3, "0")}`,
+    }));
+
+    const forward = boundedGraph(nodes, edges, 0, 0, new Set());
+    const reversed = boundedGraph(nodes, [...edges].reverse(), 0, 0, new Set());
+
+    expect(reversed.graph.edges).toEqual(forward.graph.edges);
+    expect(forward.graph.edges).toHaveLength(120);
+    expect(forward.presentation.omittedEdges).toBe(10);
+  });
+
+  it("merges duplicate-edge provenance deterministically without losing observations", () => {
+    const nodes: readonly GraphNode[] = [
+      { col: 0, id: "source", kind: "repo", label: "source", truth: "exact" },
+      { col: 1, id: "target", kind: "workload", label: "target", truth: "exact" },
+    ];
+    const edges: readonly GraphEdge[] = [
+      {
+        evidence: ["second observation"],
+        layer: "code",
+        method: "reducer",
+        s: "source",
+        sourceFamily: "projection",
+        t: "target",
+        verb: "DEFINES",
+      },
+      {
+        evidence: ["first observation"],
+        layer: "code",
+        method: "collector",
+        s: "source",
+        sourceFamily: "ingestion",
+        t: "target",
+        verb: "DEFINES",
+      },
+    ];
+
+    const forward = boundedGraph(nodes, edges, 0, 0, new Set());
+    const reversed = boundedGraph(nodes, [...edges].reverse(), 0, 0, new Set());
+
+    expect(reversed.graph.edges).toEqual(forward.graph.edges);
+    expect(forward.graph.edges[0]).toMatchObject({
+      evidence: ["first observation", "second observation"],
+      method: "collector + reducer",
+      sourceFamily: "ingestion + projection",
+    });
+    expect(forward.presentation.duplicateEdges).toBe(1);
+  });
+
   it("preserves distinct canonical identities and reports duplicates and omissions", async () => {
     const trace = deploymentTracePayload({
       deployment_sources: [deploymentSource(), deploymentSource()],
@@ -14,18 +82,28 @@ describe("impact deployment graph composition", () => {
               platform_id: "platform:ecs:a",
               platform_kind: "ecs",
               platform_name: "shared-runtime",
+              ...directRuntimeTopology("instance:catalog:prod", "platform:ecs:a"),
             },
             {
               platform_id: "platform:ecs:a",
               platform_kind: "ecs",
               platform_name: "shared-runtime",
+              ...directRuntimeTopology("instance:catalog:prod", "platform:ecs:a"),
             },
             {
               platform_id: "platform:kubernetes:b",
               platform_kind: "kubernetes",
               platform_name: "shared-runtime",
+              ...directRuntimeTopology("instance:catalog:prod", "platform:kubernetes:b"),
             },
-            { platform_kind: "kubernetes", platform_name: "shared-runtime" },
+            {
+              platform_kind: "kubernetes",
+              platform_name: "shared-runtime",
+              topology_basis: "direct_runtime",
+              topology_edges: [
+                { relationship_type: "RUNS_ON", source_id: "instance:catalog:prod" },
+              ],
+            },
           ],
         },
       ],
@@ -62,6 +140,10 @@ describe("impact deployment graph composition", () => {
           platform_id: `platform:${index === 0 ? "ecs" : "kubernetes"}:${String(index).padStart(2, "0")}`,
           platform_kind: index === 0 ? "ecs" : "kubernetes",
           platform_name: `cluster-${String(index).padStart(2, "0")}`,
+          ...directRuntimeTopology(
+            `instance:catalog:${String(index).padStart(2, "0")}`,
+            `platform:${index === 0 ? "ecs" : "kubernetes"}:${String(index).padStart(2, "0")}`,
+          ),
         },
       ],
     }));
@@ -82,10 +164,10 @@ describe("impact deployment graph composition", () => {
     expect(
       review.graph.nodes.filter((node) => node.kind === "platform").map((node) => node.sub),
     ).toEqual(expect.arrayContaining(["ecs", "kubernetes"]));
-    expect(review.graph.nodes.some((node) => node.kind === "env")).toBe(true);
+    expect(review.graph.nodes.some((node) => node.kind === "env")).toBe(false);
   });
 
-  it("separates retained environments, platforms, and evidence into navigable lanes", async () => {
+  it("separates instances, platforms, and evidence into navigable lanes", async () => {
     const instances = Array.from({ length: 6 }, (_, index) => ({
       environment: `environment-${index}`,
       instance_id: `instance:catalog:${index}`,
@@ -115,8 +197,10 @@ describe("impact deployment graph composition", () => {
     );
 
     expect(
-      new Set(review.graph.nodes.filter((node) => node.kind === "env").map((node) => node.col)),
-    ).toEqual(new Set([4]));
+      new Set(
+        review.graph.nodes.filter((node) => node.kind === "instance").map((node) => node.col),
+      ),
+    ).toEqual(new Set([3]));
     expect(
       new Set(
         review.graph.nodes.filter((node) => node.kind === "platform").map((node) => node.col),
@@ -178,12 +262,14 @@ describe("impact deployment graph composition", () => {
       }),
     );
 
-    expect(review.graph.edges).toContainEqual({
-      layer: "deploy",
-      s: "instance:catalog:prod",
-      t: "repository:r_config",
-      verb: "DEPLOYMENT_SOURCE",
-    });
+    expect(review.graph.edges).toContainEqual(
+      expect.objectContaining({
+        layer: "deploy",
+        s: "instance:catalog:prod",
+        t: "repository:r_config",
+        verb: "DEPLOYMENT_SOURCE",
+      }),
+    );
     expect(review.graph.edges.some((edge) => edge.verb === "DEPLOYS_FROM")).toBe(false);
   });
 
@@ -234,6 +320,33 @@ describe("impact deployment graph composition", () => {
     expect(review.graph.nodes.some((node) => node.id === "platform:ecs:prod")).toBe(false);
   });
 
+  it("keeps non-empty change surface primary for service and workload anchors", async () => {
+    const trace = deploymentTracePayload({
+      instances: [
+        {
+          environment: "prod",
+          instance_id: "instance:catalog:prod",
+          platforms: [
+            { platform_id: "platform:ecs:prod", platform_kind: "ecs", platform_name: "prod" },
+          ],
+        },
+      ],
+    });
+
+    for (const targetKind of ["service", "workload"] as const) {
+      const review = await loadReview(trace, "fresh", "exact", nonEmptyChangeSurface(), {
+        target: targetKind === "workload" ? "workload:catalog-api" : "catalog-api",
+        targetKind,
+      });
+
+      expect(review.graphPresentation.mode).toBe("change_surface");
+      expect(review.graphPresentation.sourceApis).toEqual([
+        "/api/v0/impact/change-surface/investigate",
+      ]);
+      expect(review.graph.nodes.some((node) => node.id === "platform:ecs:prod")).toBe(false);
+    }
+  });
+
   it("keeps authorization failures visible without leaking or fabricating topology", async () => {
     const client = new EshuApiClient({
       baseUrl: "http://localhost:8080",
@@ -261,119 +374,3 @@ describe("impact deployment graph composition", () => {
     });
   });
 });
-
-async function loadReview(
-  trace: Record<string, unknown>,
-  freshness = "fresh",
-  traceLevel: string | null = "exact",
-  changeSurface: Record<string, unknown> = zeroChangeSurface(),
-) {
-  const client = new EshuApiClient({
-    baseUrl: "http://localhost:8080",
-    fetcher: async (input: RequestInfo | URL): Promise<Response> => {
-      const path = new URL(new Request(input).url).pathname;
-      if (path === "/api/v0/impact/change-surface/investigate") {
-        return Response.json({
-          data: changeSurface,
-          error: null,
-          truth: truthEnvelope("derived", freshness),
-        });
-      }
-      if (path === "/api/v0/impact/trace-deployment-chain") {
-        return Response.json({
-          data: trace,
-          error: null,
-          truth: traceLevel === null ? null : truthEnvelope(traceLevel, freshness),
-        });
-      }
-      throw new Error(`unexpected request ${path}`);
-    },
-  });
-  return loadImpactReview(client, { target: "catalog-api", targetKind: "service" });
-}
-
-function ambiguousChangeSurface(): Record<string, unknown> {
-  return {
-    ...zeroChangeSurface(),
-    target_resolution: {
-      candidates: [
-        { id: "workload:catalog-api-a", labels: ["Workload"], name: "catalog-api-a" },
-        { id: "workload:catalog-api-b", labels: ["Workload"], name: "catalog-api-b" },
-      ],
-      input: "catalog-api",
-      status: "ambiguous",
-      target_type: "service",
-      truncated: false,
-    },
-  };
-}
-
-function deploymentTracePayload(overrides: Record<string, unknown> = {}): Record<string, unknown> {
-  return {
-    cloud_resources: [],
-    deployment_sources: [deploymentSource()],
-    instances: [],
-    k8s_resources: [],
-    repo_id: "repository:r_catalog",
-    repo_name: "catalog-api",
-    service_name: "catalog-api",
-    story: "catalog-api has exact deployment topology.",
-    workload_id: "workload:catalog-api",
-    ...overrides,
-  };
-}
-
-function deploymentSource(): Record<string, unknown> {
-  return {
-    confidence: 0.98,
-    reason: "canonical deployment source",
-    relationship_type: "DEPLOYS_FROM",
-    repo_id: "repository:r_config",
-    repo_name: "deployment-config",
-    source_id: "repository:r_config",
-    target_id: "repository:r_catalog",
-  };
-}
-
-function truthEnvelope(level: string, freshness: string): Record<string, unknown> {
-  return {
-    basis: "authoritative_graph",
-    capability: "platform_impact.deployment_chain",
-    freshness: { state: freshness },
-    level,
-    profile: "local_authoritative",
-  };
-}
-
-function zeroChangeSurface(): Record<string, unknown> {
-  return {
-    code_surface: {
-      changed_files: [],
-      matched_file_count: 0,
-      source_backends: [],
-      symbol_count: 0,
-      touched_symbols: [],
-    },
-    coverage: {
-      direct_count: 0,
-      limit: 25,
-      max_depth: 4,
-      query_shape: "resolved_change_surface_traversal",
-      transitive_count: 0,
-      truncated: false,
-    },
-    direct_impact: [],
-    impact_summary: { direct_count: 0, total_count: 0, transitive_count: 0 },
-    scope: { limit: 25, max_depth: 4, target: "catalog-api", target_type: "service" },
-    source_backend: "authoritative_graph",
-    target_resolution: {
-      input: "catalog-api",
-      selected: { id: "workload:catalog-api", labels: ["Workload"], name: "catalog-api" },
-      status: "resolved",
-      target_type: "service",
-      truncated: false,
-    },
-    transitive_impact: [],
-    truncated: false,
-  };
-}

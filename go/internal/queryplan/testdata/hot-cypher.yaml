@@ -201,7 +201,7 @@ entries:
     source:
       file: go/internal/query/entity_workload_context.go
       symbol: (*EntityHandler).fetchWorkloadContextForOperation
-      source_sha256: 28bfc91a0b6411f1a7b8e076406be9a29dbff6b3748af3129f0a04fa78109ea3
+      source_sha256: 3f688f31c2c510dca917ffaa25b70e93e2f644b9afd59fc247841522df0777ea
       line_hint: 46
     required_anchors:
       - label: Workload
@@ -224,9 +224,9 @@ entries:
     query_kind: cypher
     source:
       file: go/internal/query/entity_workload_context.go
-      symbol: (*EntityHandler).fetchWorkloadPlatformRows
-      source_sha256: fae20b9391fd84bc35575df5bf63ee7397f3cc8f25cd90f585236243d69fac3f
-      line_hint: 357
+      symbol: (*EntityHandler).fetchWorkloadPlatformResult
+      source_sha256: 32a2f173df26d536e734705924f20d9cf211e40337f85c4620227b9e8370caf9
+      line_hint: 292
     required_anchors:
       - label: WorkloadInstance
         property: id
@@ -234,6 +234,8 @@ entries:
       - workload_instance_id
       - nornicdb_workload_instance_id_lookup
       - platform_id
+    required_limits:
+      - $platform_edge_limit
     requires_order: true
     plan:
       operators:
@@ -242,7 +244,7 @@ entries:
       forbidden_operators:
         - AllNodesScan
         - CartesianProduct
-    cypher_sha256: "eb7acade0a7d4a1f5db6e5dfd506af29ca6993517100972e119a4ad27f46f46c"
+    cypher_sha256: "e7564de1e89bfe67c599cb3dd742b7b31bd226bb356fd7c8baab3c8bd9bd70ac"
   - id: QP-SVC-CLOUD-DEPS
     domain: service
     backend: nornicdb

@@ -101,22 +101,32 @@ func (h *EntityHandler) fetchWorkloadContextForOperation(ctx context.Context, wh
 	}
 
 	timer = startServiceQueryStage(ctx, h.Logger, operation, StringVal(row, "name"), repoID, "instance_lookup")
-	instances, err := h.fetchWorkloadInstances(ctx, followupWhereClause, followupParams, repoID)
-	timer.Done(ctx, slog.Int("row_count", len(instances)))
+	topology, err := h.fetchWorkloadDeploymentTopology(
+		ctx, followupWhereClause, followupParams, repoID, operation == "deployment_trace",
+	)
+	timer.Done(ctx, slog.Int("row_count", len(topology.instances)))
 	if err != nil {
 		return nil, err
 	}
+	instances := topology.instances
 	if len(instances) == 0 {
 		instances = extractInstances(row)
 	}
 
 	result := map[string]any{
-		"id":        StringVal(row, "id"),
-		"name":      StringVal(row, "name"),
-		"kind":      StringVal(row, "kind"),
-		"repo_id":   repoID,
-		"repo_name": repoName,
-		"instances": instances,
+		"id":                    StringVal(row, "id"),
+		"name":                  StringVal(row, "name"),
+		"kind":                  StringVal(row, "kind"),
+		"repo_id":               repoID,
+		"repo_name":             repoName,
+		"instances":             instances,
+		"topology_edges":        topology.topologyEdges,
+		"provisioned_platforms": topology.provisionedPlatforms,
+		"runtime_topology_limits": map[string]any{
+			"instances":             topology.instanceLimits,
+			"platform_edges":        topology.platformLimits,
+			"provisioned_platforms": topology.provisionedPlatformLimits,
+		},
 	}
 	if deploymentEvidence := mapValue(row, "deployment_evidence"); len(deploymentEvidence) > 0 {
 		result["deployment_evidence"] = deploymentEvidence
@@ -266,73 +276,69 @@ func scopedWorkloadWhereClause(whereClause string, access repositoryAccessFilter
 			)`
 }
 
-// fetchWorkloadInstances assembles instance and platform fields from scalar
-// rows so query surfaces do not depend on backend map-projection semantics.
-func (h *EntityHandler) fetchWorkloadInstances(ctx context.Context, whereClause string, params map[string]any, repoID string) ([]map[string]any, error) {
-	workloadID := StringVal(params, "workload_id")
-	instanceCypher := fmt.Sprintf(`
-		MATCH (w:Workload) WHERE %s
-		MATCH (w)<-[:INSTANCE_OF]-(i:WorkloadInstance)
-		RETURN i.id as instance_id,
-		       i.environment as environment,
-		       i.materialization_confidence as materialization_confidence,
-		       i.materialization_provenance as materialization_provenance
-		ORDER BY environment, instance_id
-	`, whereClause)
-	if workloadID != "" {
-		instanceCypher = `
-			MATCH (i:WorkloadInstance)
-			WHERE i.workload_id = $workload_id
-			RETURN i.id as instance_id,
-			       i.environment as environment,
-			       i.materialization_confidence as materialization_confidence,
-			       i.materialization_provenance as materialization_provenance
-			ORDER BY environment, instance_id
-		`
-	}
-	instanceRows, err := h.Neo4j.Run(ctx, instanceCypher, params)
-	if err != nil {
-		return nil, err
-	}
-	if len(instanceRows) == 0 {
-		return []map[string]any{}, nil
-	}
+const workloadPlatformEdgeLimit = contextStoryItemLimit * contextStoryItemLimit
 
-	instances := make([]map[string]any, 0, len(instanceRows))
-	byID := make(map[string]map[string]any, len(instanceRows))
-	for _, row := range instanceRows {
-		instanceID := StringVal(row, "instance_id")
-		if instanceID == "" {
-			continue
-		}
-		instance := map[string]any{
-			"instance_id":                instanceID,
-			"platform_name":              "",
-			"platform_kind":              "",
-			"platforms":                  []map[string]any{},
-			"environment":                StringVal(row, "environment"),
-			"materialization_confidence": floatVal(row, "materialization_confidence"),
-			"materialization_provenance": StringSliceVal(row, "materialization_provenance"),
-			"platform_confidence":        0.0,
-			"platform_reason":            "",
-		}
-		instances = append(instances, instance)
-		byID[instanceID] = instance
-	}
+type workloadPlatformResult struct {
+	rows   []map[string]any
+	limits map[string]any
+}
 
-	platformRows, err := h.fetchWorkloadPlatformRows(ctx, instances)
-	if err != nil {
-		return nil, err
+// fetchWorkloadPlatformRows anchors platform lookup by exact instance ids so
+// NornicDB can use indexed WorkloadInstance ids without one Bolt round trip per
+// instance.
+func (h *EntityHandler) fetchWorkloadPlatformRows(ctx context.Context, instances []map[string]any) ([]map[string]any, error) {
+	result, err := h.fetchWorkloadPlatformResult(ctx, instances)
+	return result.rows, err
+}
+
+func (h *EntityHandler) fetchWorkloadPlatformResult(ctx context.Context, instances []map[string]any) (workloadPlatformResult, error) {
+	if h == nil || h.Neo4j == nil || len(instances) == 0 {
+		return workloadPlatformResult{rows: []map[string]any{}}, nil
 	}
-	if len(platformRows) == 0 {
-		provisionedRows, err := h.fetchProvisionedPlatformRows(ctx, repoID)
-		if err != nil {
-			return nil, err
+	instanceIDs := make([]string, 0, len(instances))
+	for _, instance := range instances {
+		if instanceID := StringVal(instance, "instance_id"); instanceID != "" {
+			instanceIDs = append(instanceIDs, instanceID)
 		}
-		if len(provisionedRows) == 1 {
-			attachProvisionedPlatform(instances, provisionedRows[0])
-			return instances, nil
+	}
+	instanceIDs = sortedUniqueStrings(instanceIDs)
+	if len(instanceIDs) == 0 {
+		return workloadPlatformResult{rows: []map[string]any{}}, nil
+	}
+	queryLimit := workloadPlatformEdgeLimit + 1
+	const platformCypher = `
+		MATCH (i:WorkloadInstance)-[runsOn:RUNS_ON]->(p:Platform)
+		WHERE i.id IN $instance_ids
+		RETURN i.id as instance_id, p.id as platform_id, p.name as platform_name, p.kind as platform_kind,
+		       collect(DISTINCT properties(runsOn)) as platform_edges
+		ORDER BY instance_id, platform_name, platform_id
+		LIMIT $platform_edge_limit
+	`
+	rows, err := h.Neo4j.Run(ctx, platformCypher, map[string]any{
+		"instance_ids": instanceIDs, "platform_edge_limit": queryLimit,
+	})
+	if err != nil {
+		return workloadPlatformResult{}, err
+	}
+	returned, truncated := capMapRows(rows, workloadPlatformEdgeLimit)
+	for _, row := range returned {
+		if len(mapValue(row, "platform_edge")) == 0 {
+			row["platform_edge"] = deterministicEvidenceProperties(row, "platform_edges")
 		}
+	}
+	return workloadPlatformResult{
+		rows: returned,
+		limits: boundedCollectionMetadata(
+			workloadPlatformEdgeLimit, queryLimit, len(returned), len(rows), truncated,
+			[]string{"instance_id", "platform_name", "platform_id"},
+		),
+	}, nil
+}
+
+func attachDirectPlatforms(instances []map[string]any, platformRows []map[string]any) {
+	byID := make(map[string]map[string]any, len(instances))
+	for _, instance := range instances {
+		byID[StringVal(instance, "instance_id")] = instance
 	}
 	for _, row := range platformRows {
 		instance := byID[StringVal(row, "instance_id")]
@@ -345,6 +351,8 @@ func (h *EntityHandler) fetchWorkloadInstances(ctx context.Context, whereClause 
 			"platform_kind":       StringVal(row, "platform_kind"),
 			"platform_confidence": platformEdgeConfidence(row),
 			"platform_reason":     platformEdgeReason(row),
+			"topology_basis":      "direct_runtime",
+			"topology_edges":      []map[string]any{directPlatformTopologyEdge(row)},
 		}
 		instance["platforms"] = append(platformTargets(instance), platform)
 		if StringVal(instance, "platform_name") == "" {
@@ -354,44 +362,6 @@ func (h *EntityHandler) fetchWorkloadInstances(ctx context.Context, whereClause 
 			instance["platform_reason"] = platform["platform_reason"]
 		}
 	}
-
-	return instances, nil
-}
-
-// fetchWorkloadPlatformRows anchors platform lookup by exact instance ids so
-// NornicDB can use indexed WorkloadInstance ids without one Bolt round trip per
-// instance.
-func (h *EntityHandler) fetchWorkloadPlatformRows(ctx context.Context, instances []map[string]any) ([]map[string]any, error) {
-	if h == nil || h.Neo4j == nil || len(instances) == 0 {
-		return nil, nil
-	}
-	instanceIDs := make([]string, 0, len(instances))
-	for _, instance := range instances {
-		if instanceID := StringVal(instance, "instance_id"); instanceID != "" {
-			instanceIDs = append(instanceIDs, instanceID)
-		}
-	}
-	instanceIDs = sortedUniqueStrings(instanceIDs)
-	if len(instanceIDs) == 0 {
-		return nil, nil
-	}
-	const platformCypher = `
-		MATCH (i:WorkloadInstance)-[runsOn:RUNS_ON]->(p:Platform)
-		WHERE i.id IN $instance_ids
-		RETURN i.id as instance_id,
-		       p.id as platform_id,
-		       p.name as platform_name,
-		       p.kind as platform_kind,
-		       runsOn.confidence as platform_confidence,
-		       runsOn.reason as platform_reason,
-		       properties(runsOn) as platform_edge
-		ORDER BY instance_id, platform_name
-	`
-	rows, err := h.Neo4j.Run(ctx, platformCypher, map[string]any{"instance_ids": instanceIDs})
-	if err != nil {
-		return nil, err
-	}
-	return rows, nil
 }
 
 // platformEdgeConfidence preserves edge confidence when a backend can return
@@ -410,47 +380,4 @@ func platformEdgeReason(row map[string]any) string {
 		return reason
 	}
 	return StringVal(mapValue(row, "platform_edge"), "reason")
-}
-
-// fetchProvisionedPlatformRows uses repository-level platform evidence as a
-// bounded alternative to expanding RUNS_ON from each workload instance.
-func (h *EntityHandler) fetchProvisionedPlatformRows(ctx context.Context, repoID string) ([]map[string]any, error) {
-	if h == nil || h.Neo4j == nil || strings.TrimSpace(repoID) == "" {
-		return nil, nil
-	}
-	rows, err := h.Neo4j.Run(ctx, `
-		MATCH (target:Repository {id: $repo_id})<-[rel:PROVISIONS_DEPENDENCY_FOR]-(repo:Repository)-[:PROVISIONS_PLATFORM]->(p:Platform)
-		RETURN DISTINCT p.id as platform_id,
-		       p.name as platform_name,
-		       p.kind as platform_kind,
-		       p.provider as platform_provider,
-		       p.region as platform_region,
-		       p.locator as platform_locator,
-		       rel.confidence as platform_confidence,
-		       rel.reason as platform_reason
-		ORDER BY platform_name, platform_id
-	`, map[string]any{"repo_id": repoID})
-	if err != nil {
-		return nil, err
-	}
-	return rows, nil
-}
-
-// attachProvisionedPlatform applies one unambiguous provisioned platform to
-// all materialized workload instances for the service.
-func attachProvisionedPlatform(instances []map[string]any, row map[string]any) {
-	platform := map[string]any{
-		"platform_id":         StringVal(row, "platform_id"),
-		"platform_name":       StringVal(row, "platform_name"),
-		"platform_kind":       StringVal(row, "platform_kind"),
-		"platform_confidence": floatVal(row, "platform_confidence"),
-		"platform_reason":     StringVal(row, "platform_reason"),
-	}
-	for _, instance := range instances {
-		instance["platforms"] = []map[string]any{platform}
-		instance["platform_name"] = platform["platform_name"]
-		instance["platform_kind"] = platform["platform_kind"]
-		instance["platform_confidence"] = platform["platform_confidence"]
-		instance["platform_reason"] = platform["platform_reason"]
-	}
 }

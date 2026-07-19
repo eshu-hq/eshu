@@ -300,38 +300,32 @@ func buildRuntimeOverview(environments []string) map[string]any {
 
 func buildDeploymentFacts(
 	instances []map[string]any,
+	topologyEdges []map[string]any,
+	provisionedPlatforms []map[string]any,
 	deploymentSources []map[string]any,
 ) []map[string]any {
-	facts := make([]map[string]any, 0, len(instances)*2+len(deploymentSources))
-	for _, instance := range instances {
-		for _, platform := range platformTargets(instance) {
-			platformName := StringVal(platform, "platform_name")
-			if platformName == "" {
-				continue
-			}
-			fact := map[string]any{
-				"type":   "RUNS_ON_PLATFORM",
-				"target": platformName,
-				"confidence": firstPositiveFloat(
-					floatVal(platform, "platform_confidence"),
-					floatVal(instance, "materialization_confidence"),
-				),
-			}
-			if kind := StringVal(platform, "platform_kind"); kind != "" {
-				fact["kind"] = kind
-			}
-			if reason := StringVal(platform, "platform_reason"); reason != "" {
-				fact["reason"] = reason
-			}
+	facts := make([]map[string]any, 0, len(instances)*2+len(topologyEdges)+len(provisionedPlatforms)*2+len(deploymentSources))
+	for _, topologyEdge := range topologyEdges {
+		if fact := deploymentTopologyFact(topologyEdge, nil); fact != nil {
 			facts = append(facts, fact)
 		}
 	}
-	for _, environment := range distinctSortedInstanceField(instances, "environment") {
-		facts = append(facts, map[string]any{
-			"type":       "MATERIALIZED_IN_ENVIRONMENT",
-			"target":     environment,
-			"confidence": averageInstanceConfidenceForEnvironment(instances, environment),
-		})
+	for _, instance := range instances {
+		for _, platform := range platformTargets(instance) {
+			for _, topologyEdge := range mapSliceValue(platform, "topology_edges") {
+				fact := deploymentTopologyFact(topologyEdge, platform)
+				if fact != nil {
+					facts = append(facts, fact)
+				}
+			}
+		}
+	}
+	for _, platform := range provisionedPlatforms {
+		for _, topologyEdge := range mapSliceValue(platform, "topology_edges") {
+			if fact := deploymentTopologyFact(topologyEdge, platform); fact != nil {
+				facts = append(facts, fact)
+			}
+		}
 	}
 	for _, source := range deploymentSources {
 		fact := map[string]any{
@@ -349,25 +343,37 @@ func buildDeploymentFacts(
 	return facts
 }
 
-func averageInstanceConfidenceForEnvironment(instances []map[string]any, environment string) float64 {
-	total := 0.0
-	count := 0
-	for _, instance := range instances {
-		if StringVal(instance, "environment") != environment {
-			continue
-		}
-		if confidence := firstPositiveFloat(
-			floatVal(instance, "materialization_confidence"),
-			floatVal(instance, "platform_confidence"),
-		); confidence > 0 {
-			total += confidence
-			count++
+func deploymentTopologyFact(topologyEdge, platform map[string]any) map[string]any {
+	relationshipType := StringVal(topologyEdge, "relationship_type")
+	sourceID := StringVal(topologyEdge, "source_id")
+	targetID := StringVal(topologyEdge, "target_id")
+	if relationshipType == "" || sourceID == "" || targetID == "" {
+		return nil
+	}
+	targetName := firstNonEmptyString(
+		StringVal(topologyEdge, "target_name"),
+		StringVal(platform, "platform_name"),
+		targetID,
+	)
+	fact := map[string]any{
+		"type":       relationshipType,
+		"source_id":  sourceID,
+		"target_id":  targetID,
+		"target":     targetName,
+		"confidence": floatVal(topologyEdge, "confidence"),
+		"reason":     StringVal(topologyEdge, "reason"),
+	}
+	for _, field := range []string{"source_name", "evidence_source", "source_tool"} {
+		if value := StringVal(topologyEdge, field); value != "" {
+			fact[field] = value
 		}
 	}
-	if count == 0 {
-		return 0
+	if targetID == StringVal(platform, "platform_id") {
+		if kind := StringVal(platform, "platform_kind"); kind != "" {
+			fact["kind"] = kind
+		}
 	}
-	return total / float64(count)
+	return fact
 }
 
 func firstPositiveFloat(candidates ...float64) float64 {

@@ -90,8 +90,34 @@ relationship families distinct. Every `deployment_sources[]` row includes
 
 Consumers must render the returned direction and endpoints. A deployment-source
 repository name is display text, not permission to convert an instance edge into
-a repository edge. `instances[].platforms[].platform_id` is likewise the
-canonical platform identity; `platform_name` is only its label.
+a repository edge. Deployment-source expansion is capped at 50 rows. The
+`deployment_source_limits` object reports the returned and observed counts,
+per-family observed counts, deterministic ordering, truncation, and whether the
+observed count is only a lower bound because a graph query reached its sentinel.
+
+The top-level `topology_edges[]` array carries the selected subject backbone:
+`DEFINES` from `repo_id` to `workload_id`, plus `INSTANCE_OF` from every
+returned `instance_id` to that workload. Consumers should treat a missing or
+mismatched backbone edge as incomplete topology rather than reconnecting rows
+by name.
+
+`instances[].platforms[].platform_id` is the canonical platform identity;
+`platform_name` is only its label. Instance platforms carry
+`topology_basis=direct_runtime` and exact `RUNS_ON` topology edges from their
+containing instance to that platform.
+
+Repository-level provisioning is returned separately in
+`provisioned_platforms[]`, where `topology_basis=provisioning_fallback` preserves
+two relationship families:
+
+- `PROVISIONS_DEPENDENCY_FOR` from the infrastructure repository to the
+  service repository; and
+- `PROVISIONS_PLATFORM` from the infrastructure repository to the platform.
+
+Consumers must not copy a provisioned platform beneath every instance or turn
+repository provisioning into `RUNS_ON`. The instance
+`environment` field is structured runtime evidence, not proof of a graph edge
+to an `Environment` node.
 
 Repository context relationship rows expose the same correlation confidence
 metadata as relationship evidence drilldown: `confidence`, `confidence_basis`,

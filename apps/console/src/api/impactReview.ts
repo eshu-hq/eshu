@@ -6,16 +6,15 @@ import {
 import type { EshuApiClient } from "./client";
 import { EshuEnvelopeError, type EshuTruth } from "./envelope";
 import { selectImpactGraph } from "./impactGraph";
+import {
+  normalizeDeploymentTrace,
+  type DeploymentTraceResponse,
+} from "./impactReviewDeploymentNormalization";
 import type {
   BlastAffectedEntity,
   BlastRadiusResult,
   BlastTargetType,
-  DeploymentTraceEntity,
-  DeploymentTraceFact,
-  DeploymentTraceInstance,
-  DeploymentTracePlatform,
   DeploymentTraceResult,
-  DeploymentTraceSource,
   ImpactReview,
   ImpactReviewInput,
   ImpactSection,
@@ -39,21 +38,6 @@ interface BlastAffectedRecord {
   readonly repo_id?: string;
   readonly risk?: string;
   readonly tier?: string;
-}
-
-interface DeploymentTraceResponse {
-  readonly cloud_resources?: readonly Record<string, unknown>[];
-  readonly deployment_overview?: Record<string, unknown>;
-  readonly deployment_facts?: readonly Record<string, unknown>[];
-  readonly deployment_sources?: readonly Record<string, unknown>[];
-  readonly image_refs?: readonly string[];
-  readonly k8s_resources?: readonly Record<string, unknown>[];
-  readonly instances?: readonly Record<string, unknown>[];
-  readonly repo_id?: string;
-  readonly repo_name?: string;
-  readonly service_name?: string;
-  readonly story?: string;
-  readonly workload_id?: string;
 }
 
 const impactSource = {
@@ -296,107 +280,6 @@ function blastRadiusGraph(target: string, affected: readonly BlastAffectedEntity
   return { edges, nodes: [...nodes.values()] };
 }
 
-function normalizeDeploymentTrace(response: DeploymentTraceResponse): DeploymentTraceResult {
-  return {
-    cloudResources: (response.cloud_resources ?? []).map((record) =>
-      normalizeTraceEntity(record, ["name", "id", "resource_type"]),
-    ),
-    deploymentOverview: response.deployment_overview ?? {},
-    deploymentFacts: (response.deployment_facts ?? []).map(normalizeDeploymentFact),
-    deploymentSources: (response.deployment_sources ?? []).map(normalizeDeploymentSource),
-    imageRefs: response.image_refs ?? [],
-    k8sResources: (response.k8s_resources ?? []).map((record) =>
-      normalizeTraceEntity(record, ["entity_name", "name", "kind"]),
-    ),
-    instances: (response.instances ?? []).map(normalizeDeploymentInstance),
-    repoId: nonEmpty(response.repo_id),
-    repoName: nonEmpty(response.repo_name),
-    serviceName: nonEmpty(response.service_name),
-    story: nonEmpty(response.story, "Deployment trace returned no story text."),
-    workloadId: nonEmpty(response.workload_id),
-  };
-}
-
-function normalizeDeploymentSource(record: Record<string, unknown>): DeploymentTraceSource {
-  const name = nonEmpty(
-    stringField(record, "repo_name"),
-    stringField(record, "path"),
-    "deployment source",
-  );
-  return {
-    detail:
-      [stringField(record, "path"), stringField(record, "reason")]
-        .filter((value) => value.length > 0)
-        .join(" · ") || undefined,
-    id: optionalTrim(stringField(record, "repo_id")),
-    kind: "repository",
-    name,
-    relationshipType: deploymentSourceRelationshipType(stringField(record, "relationship_type")),
-    sourceId: optionalTrim(stringField(record, "source_id")),
-    targetId: optionalTrim(stringField(record, "target_id")),
-  };
-}
-
-function deploymentSourceRelationshipType(
-  value: string,
-): DeploymentTraceSource["relationshipType"] {
-  return value === "DEPLOYMENT_SOURCE" || value === "DEPLOYS_FROM" ? value : undefined;
-}
-
-function normalizeDeploymentFact(record: Record<string, unknown>): DeploymentTraceFact {
-  return {
-    confidence: numberField(record, "confidence"),
-    kind: optionalTrim(stringField(record, "kind")),
-    reason: optionalTrim(stringField(record, "reason")),
-    target: stringField(record, "target"),
-    targetId: optionalTrim(stringField(record, "target_id")),
-    type: stringField(record, "type"),
-  };
-}
-
-function normalizeDeploymentInstance(record: Record<string, unknown>): DeploymentTraceInstance {
-  const platforms = Array.isArray(record.platforms)
-    ? record.platforms.filter(isRecord).map(normalizeDeploymentPlatform)
-    : [];
-  return {
-    environment: optionalTrim(stringField(record, "environment")),
-    id: stringField(record, "instance_id"),
-    platforms,
-  };
-}
-
-function normalizeDeploymentPlatform(record: Record<string, unknown>): DeploymentTracePlatform {
-  return {
-    confidence: numberField(record, "platform_confidence"),
-    id: optionalTrim(stringField(record, "platform_id")),
-    kind: optionalTrim(stringField(record, "platform_kind")),
-    name: nonEmpty(stringField(record, "platform_name"), "runtime platform"),
-    reason: optionalTrim(stringField(record, "platform_reason")),
-  };
-}
-
-function normalizeTraceEntity(
-  record: Record<string, unknown>,
-  fields: readonly string[],
-): DeploymentTraceEntity {
-  const name =
-    fields.map((field) => stringField(record, field)).find((value) => value.length > 0) ?? "entity";
-  return {
-    detail:
-      fields
-        .map((field) => stringField(record, field))
-        .filter((value) => value.length > 0 && value !== name)
-        .join(" · ") || undefined,
-    id: optionalTrim(
-      stringField(record, "id") ||
-        stringField(record, "entity_id") ||
-        stringField(record, "resource_id"),
-    ),
-    kind: optionalTrim(stringField(record, "kind") || stringField(record, "resource_type")),
-    name,
-  };
-}
-
 function blastTargetType(kind: ImpactTargetKind): BlastTargetType | null {
   if (
     kind === "crossplane_xrd" ||
@@ -423,18 +306,4 @@ function optionalTrim(value: string | undefined): string | undefined {
 
 function nonEmpty(...values: readonly (string | undefined)[]): string {
   return values.find((value) => value !== undefined && value.trim().length > 0)?.trim() ?? "";
-}
-
-function stringField(record: Record<string, unknown>, field: string): string {
-  const value = record[field];
-  return typeof value === "string" ? value : "";
-}
-
-function numberField(record: Record<string, unknown>, field: string): number | undefined {
-  const value = record[field];
-  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }

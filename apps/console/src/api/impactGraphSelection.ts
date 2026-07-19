@@ -22,13 +22,44 @@ export function boundedGraph(
       left.kind.localeCompare(right.kind) ||
       left.id.localeCompare(right.id),
   );
-  const edgeByKey = new Map<string, GraphEdge>();
-  for (const edge of rawEdges) {
+  const edgeByKey = new Map<
+    string,
+    {
+      readonly base: GraphEdge;
+      readonly evidence: Set<string>;
+      readonly methods: Set<string>;
+      readonly sourceFamilies: Set<string>;
+    }
+  >();
+  const orderedRawEdges = [...rawEdges].sort((left, right) =>
+    edgeObservationKey(left).localeCompare(edgeObservationKey(right)),
+  );
+  for (const edge of orderedRawEdges) {
     const key = `${edge.s}\u0000${edge.verb}\u0000${edge.t}`;
-    if (!edgeByKey.has(key)) edgeByKey.set(key, edge);
+    const existing = edgeByKey.get(key);
+    if (existing === undefined) {
+      edgeByKey.set(key, {
+        base: edge,
+        evidence: new Set(edge.evidence ?? []),
+        methods: new Set(edge.method ? [edge.method] : []),
+        sourceFamilies: new Set(edge.sourceFamily ? [edge.sourceFamily] : []),
+      });
+      continue;
+    }
+    for (const evidence of edge.evidence ?? []) existing.evidence.add(evidence);
+    if (edge.method) existing.methods.add(edge.method);
+    if (edge.sourceFamily) existing.sourceFamilies.add(edge.sourceFamily);
   }
   const duplicateEdges = rawEdges.length - edgeByKey.size;
-  const uniqueEdges = [...edgeByKey.values()];
+  const uniqueEdges = [...edgeByKey.values()]
+    .map(mergedGraphEdge)
+    .sort(
+      (left, right) =>
+        left.s.localeCompare(right.s) ||
+        left.verb.localeCompare(right.verb) ||
+        left.t.localeCompare(right.t) ||
+        left.layer.localeCompare(right.layer),
+    );
   const nodes = selectBoundedNodes(uniqueNodes, uniqueEdges, nodeLimit);
   const renderedIDs = new Set(nodes.map((node) => node.id));
   const referenceOmittedEdges = uniqueEdges.filter(
@@ -62,6 +93,37 @@ export function boundedGraph(
       title: "Deployment topology",
       truncated,
     },
+  };
+}
+
+function edgeObservationKey(edge: GraphEdge): string {
+  return JSON.stringify([
+    edge.s,
+    edge.verb,
+    edge.t,
+    edge.layer,
+    edge.sourceFamily ?? "",
+    edge.method ?? "",
+    [...(edge.evidence ?? [])].sort(),
+    edge.confidenceTier ?? "",
+    edge.truthState ?? "",
+  ]);
+}
+
+function mergedGraphEdge(aggregate: {
+  readonly base: GraphEdge;
+  readonly evidence: Set<string>;
+  readonly methods: Set<string>;
+  readonly sourceFamilies: Set<string>;
+}): GraphEdge {
+  const evidence = [...aggregate.evidence].sort();
+  const methods = [...aggregate.methods].sort();
+  const sourceFamilies = [...aggregate.sourceFamilies].sort();
+  return {
+    ...aggregate.base,
+    ...(evidence.length > 0 ? { evidence } : {}),
+    ...(methods.length > 0 ? { method: methods.join(" + ") } : {}),
+    ...(sourceFamilies.length > 0 ? { sourceFamily: sourceFamilies.join(" + ") } : {}),
   };
 }
 

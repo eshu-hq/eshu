@@ -100,15 +100,31 @@ export interface DeploymentTraceResult {
   readonly cloudResources: readonly DeploymentTraceEntity[];
   readonly deploymentOverview: Record<string, unknown>;
   readonly deploymentFacts: readonly DeploymentTraceFact[];
+  readonly deploymentSourceLimits: DeploymentSourceLimits | null;
   readonly deploymentSources: readonly DeploymentTraceSource[];
   readonly imageRefs: readonly string[];
+  readonly invalidTopologyEdgeCount?: number;
   readonly k8sResources: readonly DeploymentTraceEntity[];
   readonly instances: readonly DeploymentTraceInstance[];
+  readonly provisionedPlatforms: readonly DeploymentTracePlatform[];
   readonly repoId: string;
   readonly repoName: string;
   readonly serviceName: string;
   readonly story: string;
+  readonly topologyEdges: readonly DeploymentTraceTopologyEdge[];
   readonly workloadId: string;
+}
+
+export interface DeploymentSourceLimits {
+  readonly canonicalObservedCount: number;
+  readonly limit: number;
+  readonly observedCount: number;
+  readonly observedCountIsLowerBound: boolean;
+  readonly ordering: readonly string[];
+  readonly querySentinelLimit: number;
+  readonly repositoryObservedCount: number;
+  readonly returnedCount: number;
+  readonly truncated: boolean;
 }
 
 export interface DeploymentTraceFact {
@@ -129,10 +145,34 @@ export interface DeploymentTraceInstance {
 export interface DeploymentTracePlatform {
   readonly confidence?: number;
   readonly id?: string;
+  readonly invalidTopologyEdgeCount?: number;
   readonly kind?: string;
   readonly name: string;
   readonly reason?: string;
+  readonly topologyBasis?: DeploymentTraceTopologyBasis;
+  readonly topologyEdges: readonly DeploymentTraceTopologyEdge[];
 }
+
+export type DeploymentTraceTopologyBasis = "direct_runtime" | "provisioning_fallback";
+
+export interface DeploymentTraceTopologyEdge {
+  readonly confidence?: number;
+  readonly evidenceSource?: string;
+  readonly reason?: string;
+  readonly relationshipType: DeploymentTraceTopologyRelationship;
+  readonly sourceId?: string;
+  readonly sourceName?: string;
+  readonly sourceTool?: string;
+  readonly targetId?: string;
+  readonly targetName?: string;
+}
+
+export type DeploymentTraceTopologyRelationship =
+  | "DEFINES"
+  | "INSTANCE_OF"
+  | "PROVISIONS_DEPENDENCY_FOR"
+  | "PROVISIONS_PLATFORM"
+  | "RUNS_ON";
 
 export interface DeploymentTraceEntity {
   readonly detail?: string;

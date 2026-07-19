@@ -53,13 +53,57 @@ const openAPIComponentsWorkloadSession = `      "WorkloadContext": {
                       "platform_name": {"type": "string"},
                       "platform_kind": {"type": "string"},
                       "platform_confidence": {"type": "number"},
-                      "platform_reason": {"type": "string"}
+                      "platform_reason": {"type": "string"},
+                      "topology_basis": {"type": "string", "enum": ["direct_runtime"], "description": "The platform is supported by an exact WorkloadInstance RUNS_ON Platform relationship."},
+                      "topology_edges": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "required": ["relationship_type", "source_id", "target_id"],
+                          "properties": {
+                            "relationship_type": {"type": "string", "enum": ["RUNS_ON"]},
+                            "source_id": {"type": "string"},
+                            "source_name": {"type": "string"},
+                            "target_id": {"type": "string"},
+                            "target_name": {"type": "string"},
+                            "confidence": {"type": "number"},
+                            "reason": {"type": "string"},
+                            "evidence_source": {"type": "string"},
+                            "source_tool": {"type": "string"},
+                            "properties": {"type": "object", "additionalProperties": true}
+                          }
+                        }
+                      }
                     }
                   }
                 },
                 "environment": {"type": "string"}
               }
             }
+          },
+          "topology_edges": {
+            "type": "array",
+            "description": "Exact graph-observed Repository DEFINES Workload and WorkloadInstance INSTANCE_OF Workload edges.",
+            "items": {
+              "type": "object",
+              "required": ["relationship_type", "source_id", "target_id", "properties"],
+              "properties": {
+                "relationship_type": {"type": "string", "enum": ["DEFINES", "INSTANCE_OF"]},
+                "source_id": {"type": "string"},
+                "target_id": {"type": "string"},
+                "properties": {"type": "object", "additionalProperties": true}
+              }
+            }
+          },
+          "provisioned_platforms": {
+            "type": "array",
+            "description": "Repository-level provisioning evidence kept separate from runtime instance placement.",
+            "items": {"type": "object"}
+          },
+          "runtime_topology_limits": {
+            "type": "object",
+            "description": "Completeness metadata for bounded instance, RUNS_ON, and provisioning reads.",
+            "additionalProperties": true
           }
         }
       },

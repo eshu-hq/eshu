@@ -278,6 +278,7 @@ func queryplanProfileParams() map[string]any {
 		"offset":                 0,
 		"package":                "proof-package",
 		"package_id":             "proof-package",
+		"platform_edge_limit":    workloadPlatformEdgeLimit + 1,
 		"provider":               "proof-provider",
 		"q":                      "proof",
 		"query":                  "proof",

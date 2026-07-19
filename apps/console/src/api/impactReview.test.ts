@@ -112,8 +112,8 @@ describe("impact review adapter", () => {
       duplicateNodes: 0,
       omittedEdges: 0,
       omittedNodes: 0,
-      renderedEdges: 9,
-      renderedNodes: 12,
+      renderedEdges: 4,
+      renderedNodes: 10,
       truncated: false,
     });
     expect(result.graph.nodes.map((node) => node.id)).toEqual([
@@ -122,8 +122,6 @@ describe("impact review adapter", () => {
       "workload:catalog-api",
       "instance:catalog:prod",
       "instance:catalog:stage",
-      "environment:prod",
-      "environment:stage",
       "platform:ecs:catalog-ecs",
       "platform:kubernetes:catalog-eks",
       "platform:kubernetes:catalog-stage-eks",
@@ -134,18 +132,8 @@ describe("impact review adapter", () => {
       expect.arrayContaining([
         expect.objectContaining({
           s: "instance:catalog:prod",
-          t: "workload:catalog-api",
-          verb: "INSTANCE_OF",
-        }),
-        expect.objectContaining({
-          s: "instance:catalog:prod",
           t: "platform:ecs:catalog-ecs",
           verb: "RUNS_ON",
-        }),
-        expect.objectContaining({
-          s: "workload:catalog-api",
-          t: "environment:prod",
-          verb: "MATERIALIZED_IN_ENVIRONMENT",
         }),
         expect.objectContaining({
           s: "repository:r_config",
@@ -445,11 +433,13 @@ function dualPlatformDeploymentTracePayload(): Record<string, unknown> {
             platform_id: "platform:ecs:catalog-ecs",
             platform_kind: "ecs",
             platform_name: "catalog-ecs",
+            ...directRuntimeTopology("instance:catalog:prod", "platform:ecs:catalog-ecs"),
           },
           {
             platform_id: "platform:kubernetes:catalog-eks",
             platform_kind: "kubernetes",
             platform_name: "catalog-eks",
+            ...directRuntimeTopology("instance:catalog:prod", "platform:kubernetes:catalog-eks"),
           },
         ],
       },
@@ -461,6 +451,10 @@ function dualPlatformDeploymentTracePayload(): Record<string, unknown> {
             platform_id: "platform:kubernetes:catalog-stage-eks",
             platform_kind: "kubernetes",
             platform_name: "catalog-stage-eks",
+            ...directRuntimeTopology(
+              "instance:catalog:stage",
+              "platform:kubernetes:catalog-stage-eks",
+            ),
           },
         ],
       },
@@ -471,5 +465,18 @@ function dualPlatformDeploymentTracePayload(): Record<string, unknown> {
     service_name: "catalog-api",
     story: "catalog-api runs on ECS and Kubernetes.",
     workload_id: "workload:catalog-api",
+  };
+}
+
+function directRuntimeTopology(sourceID: string, targetID: string): Record<string, unknown> {
+  return {
+    topology_basis: "direct_runtime",
+    topology_edges: [
+      {
+        relationship_type: "RUNS_ON",
+        source_id: sourceID,
+        target_id: targetID,
+      },
+    ],
   };
 }

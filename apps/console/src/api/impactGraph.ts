@@ -1,5 +1,5 @@
 import type { ChangeSurfaceImpactNode, ChangeSurfaceInvestigation } from "./changeSurface";
-import { boundedGraph } from "./impactGraphSelection";
+import { deploymentTraceGraph } from "./impactDeploymentGraph";
 import type {
   BlastRadiusResult,
   DeploymentTraceResult,
@@ -13,7 +13,6 @@ import {
   type GraphLayer,
   type GraphModel,
   type GraphNode,
-  type UiTruth,
 } from "../console/types";
 
 const nodeLimit = 60;
@@ -40,13 +39,23 @@ export function selectImpactGraph(
     changeSurface,
     deploymentTrace,
   );
-  if (traceSelectionLimitation !== undefined && changeSurface.status === "ready") {
+  if (traceSelectionLimitation !== undefined) {
+    if (changeSurface.status === "ready") {
+      return existingGraph(
+        changeSurfaceGraph(target, changeSurface.data),
+        "change_surface",
+        [changeSurface.source, deploymentTrace.source],
+        "Change surface",
+        changeSurface.truth,
+        [traceSelectionLimitation],
+      );
+    }
     return existingGraph(
-      changeSurfaceGraph(target, changeSurface.data),
-      "change_surface",
+      { edges: [], nodes: [] },
+      "empty",
       [changeSurface.source, deploymentTrace.source],
-      "Change surface",
-      changeSurface.truth,
+      "Impact graph",
+      null,
       [traceSelectionLimitation],
     );
   }
@@ -79,6 +88,26 @@ export function selectImpactGraph(
         },
       };
     }
+    if (deployment.presentation.limitations.length > 0) {
+      if (changeSurface.status === "ready") {
+        return existingGraph(
+          changeSurfaceGraph(target, changeSurface.data),
+          "change_surface",
+          [changeSurface.source, deploymentTrace.source],
+          "Change surface",
+          changeSurface.truth,
+          deployment.presentation.limitations,
+        );
+      }
+      return existingGraph(
+        { edges: [], nodes: [] },
+        "empty",
+        [deploymentTrace.source],
+        "Impact graph",
+        deploymentTrace.truth,
+        deployment.presentation.limitations,
+      );
+    }
   }
   if (changeSurface.status === "ready") {
     return existingGraph(
@@ -99,231 +128,6 @@ export function selectImpactGraph(
     );
   }
   return existingGraph({ edges: [], nodes: [] }, "empty", [], "Impact graph");
-}
-
-function deploymentTraceGraph(
-  trace: DeploymentTraceResult,
-  truth: UiTruth,
-): {
-  readonly graph: GraphModel;
-  readonly presentation: ImpactGraphPresentation;
-} {
-  const rawNodes: GraphNode[] = [];
-  const rawEdges: GraphEdge[] = [];
-  const limitations = new Set<string>();
-  let identityOmittedNodes = 0;
-  let identityOmittedEdges = 0;
-
-  const addNode = (node: GraphNode | null, limitation: string): boolean => {
-    if (node === null || node.id.trim().length === 0) {
-      identityOmittedNodes += 1;
-      limitations.add(limitation);
-      return false;
-    }
-    rawNodes.push(node);
-    return true;
-  };
-  const addEdge = (edge: GraphEdge | null, limitation: string): void => {
-    if (edge === null || edge.s.length === 0 || edge.t.length === 0) {
-      identityOmittedEdges += 1;
-      limitations.add(limitation);
-      return;
-    }
-    rawEdges.push(edge);
-  };
-
-  const workloadID = trace.workloadId;
-  const sourceRepoID = trace.repoId;
-  addNode(
-    workloadID.length > 0
-      ? {
-          col: 2,
-          hero: true,
-          id: workloadID,
-          kind: "workload",
-          label: trace.serviceName || workloadID,
-          sub: "deployment subject",
-          truth,
-        }
-      : null,
-    "workload omitted because the trace has no canonical workload_id",
-  );
-  addNode(
-    sourceRepoID.length > 0
-      ? {
-          col: 1,
-          id: sourceRepoID,
-          kind: "repo",
-          label: trace.repoName || sourceRepoID,
-          sub: "source repository",
-          truth,
-        }
-      : null,
-    "source repository omitted because the trace has no canonical repo_id",
-  );
-  if (sourceRepoID.length > 0 && workloadID.length > 0) {
-    addEdge({ layer: "code", s: sourceRepoID, t: workloadID, verb: "DEFINES" }, "");
-  }
-
-  for (const source of trace.deploymentSources) {
-    const configRepoID = source.id ?? "";
-    addNode(
-      configRepoID.length > 0
-        ? {
-            col: 0,
-            id: configRepoID,
-            kind: "repo",
-            label: source.name,
-            sub: source.detail ?? "deployment source",
-            truth,
-          }
-        : null,
-      "deployment source omitted because it has no canonical repo_id",
-    );
-    if (source.relationshipType === "DEPLOYS_FROM") {
-      addEdge(
-        source.sourceId === configRepoID && source.targetId === sourceRepoID
-          ? {
-              layer: "deploy",
-              s: source.sourceId,
-              t: source.targetId,
-              verb: "DEPLOYS_FROM",
-            }
-          : null,
-        "DEPLOYS_FROM edge omitted because its exact endpoints do not match the trace repositories",
-      );
-    } else if (source.relationshipType === "DEPLOYMENT_SOURCE") {
-      addEdge(
-        source.sourceId !== undefined && source.targetId === configRepoID
-          ? {
-              layer: "deploy",
-              s: source.sourceId,
-              t: source.targetId,
-              verb: "DEPLOYMENT_SOURCE",
-            }
-          : null,
-        "DEPLOYMENT_SOURCE edge omitted because its exact instance or repository endpoint is unavailable",
-      );
-    } else {
-      addEdge(
-        null,
-        "deployment-source edge omitted because the trace did not identify its relationship family and endpoints",
-      );
-    }
-  }
-
-  const environmentKeys = new Set<string>();
-  for (const instance of trace.instances) {
-    const instanceAdded = addNode(
-      instance.id.length > 0
-        ? {
-            col: 3,
-            id: instance.id,
-            kind: "instance",
-            label: instance.environment ?? instance.id,
-            sub: "runtime instance",
-            truth,
-          }
-        : null,
-      "runtime instance omitted because it has no canonical instance_id",
-    );
-    addEdge(
-      instanceAdded && workloadID.length > 0
-        ? { layer: "runtime", s: instance.id, t: workloadID, verb: "INSTANCE_OF" }
-        : null,
-      "instance edge omitted because an endpoint lacks canonical identity",
-    );
-
-    if (instance.environment !== undefined && instance.environment.length > 0) {
-      const environmentID = `environment:${instance.environment}`;
-      addNode(
-        {
-          col: 4,
-          id: environmentID,
-          kind: "env",
-          label: instance.environment,
-          sub: "materialized environment",
-          truth,
-        },
-        "",
-      );
-      if (!environmentKeys.has(environmentID)) {
-        addEdge(
-          workloadID.length > 0
-            ? {
-                layer: "runtime",
-                s: workloadID,
-                t: environmentID,
-                verb: "MATERIALIZED_IN_ENVIRONMENT",
-              }
-            : null,
-          "environment edge omitted because the workload lacks canonical identity",
-        );
-        environmentKeys.add(environmentID);
-      }
-    }
-
-    for (const platform of instance.platforms) {
-      const platformID = platform.id ?? "";
-      addNode(
-        platformID.length > 0
-          ? {
-              col: 5,
-              id: platformID,
-              kind: "platform",
-              label: platform.name,
-              sub: platform.kind ?? "runtime platform",
-              truth,
-            }
-          : null,
-        "runtime platform omitted because it has no canonical platform_id",
-      );
-      addEdge(
-        instanceAdded && platformID.length > 0
-          ? { layer: "runtime", s: instance.id, t: platformID, verb: "RUNS_ON" }
-          : null,
-        "RUNS_ON edge omitted because an endpoint lacks canonical identity",
-      );
-    }
-  }
-
-  for (const resource of trace.cloudResources) {
-    addNode(
-      resource.id !== undefined
-        ? {
-            col: 6,
-            id: resource.id,
-            kind: "aws",
-            label: resource.name,
-            sub: "evidence only · no exact topology edge",
-            truth,
-          }
-        : null,
-      "cloud-resource evidence omitted because it has no canonical identity",
-    );
-  }
-  for (const resource of trace.k8sResources) {
-    addNode(
-      resource.id !== undefined
-        ? {
-            col: 6,
-            id: resource.id,
-            kind: "k8s",
-            label: resource.name,
-            sub: "evidence only · no exact topology edge",
-            truth,
-          }
-        : null,
-      "Kubernetes evidence omitted because it has no canonical identity",
-    );
-  }
-  if (trace.cloudResources.length > 0 || trace.k8sResources.length > 0) {
-    limitations.add(
-      "cloud and Kubernetes evidence nodes remain disconnected unless the trace supplies exact topology endpoints",
-    );
-  }
-
-  return boundedGraph(rawNodes, rawEdges, identityOmittedNodes, identityOmittedEdges, limitations);
 }
 
 function existingGraph(
@@ -371,10 +175,12 @@ function deploymentTraceSelectionLimitation(
 ): string | undefined {
   if (
     (targetKind !== "service" && targetKind !== "workload") ||
-    changeSurface.status !== "ready" ||
     deploymentTrace.status !== "ready"
   ) {
     return undefined;
+  }
+  if (changeSurface.status !== "ready") {
+    return "deployment topology not selected because exact service identity verification is unavailable";
   }
   if (changeSurface.data.resolution.status === "ambiguous") {
     return "deployment topology not selected because the service target is ambiguous";

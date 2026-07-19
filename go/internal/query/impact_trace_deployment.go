@@ -5,6 +5,7 @@ package query
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -62,6 +63,10 @@ func (h *ImpactHandler) traceDeploymentChain(w http.ResponseWriter, r *http.Requ
 	traceOptions := traceEnrichmentOptions(req)
 	ctx, err := fetchServiceTraceContext(r.Context(), h.Neo4j, h.Content, h.Logger, req.ServiceName, traceOptions)
 	if err != nil {
+		if errors.Is(err, errAmbiguousTraceWorkloadSelector) {
+			WriteError(w, http.StatusConflict, err.Error())
+			return
+		}
 		if writeContentSubstringIndexUnavailable(w, err) {
 			return
 		}
@@ -73,30 +78,36 @@ func (h *ImpactHandler) traceDeploymentChain(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	if workloadID := safeStr(ctx, "id"); workloadID != "" {
-		deploymentSources, err := h.fetchDeploymentSources(r.Context(), workloadID, safeStr(ctx, "repo_id"))
+		deploymentSourceResult, err := h.fetchDeploymentSourceResult(r.Context(), workloadID, safeStr(ctx, "repo_id"))
 		if err != nil {
 			WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query deployment sources: %v", err))
 			return
 		}
-		cloudResources, err := h.fetchCloudResources(r.Context(), workloadID)
+		deploymentSources := deploymentSourceResult.rows
+		cloudResourceResult, err := h.fetchCloudResourceResult(r.Context(), workloadID)
 		if err != nil {
 			WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query cloud resources: %v", err))
 			return
 		}
+		cloudResources := cloudResourceResult.rows
 		if len(cloudResources) == 0 {
-			cloudResources = mapSliceValue(ctx, "cloud_resources")
+			contextRows := mapSliceValue(ctx, "cloud_resources")
+			cloudResourceResult = boundedCloudResourceResult(contextRows, len(contextRows))
+			cloudResources = cloudResourceResult.rows
 		}
 		if len(cloudResources) == 0 {
-			cloudResources, err = loadConfigDerivedCloudResourceDependencies(
+			configRows, configErr := loadConfigDerivedCloudResourceDependencies(
 				r.Context(),
 				h.Neo4j,
 				mapValue(ctx, "deployment_evidence"),
-				serviceStoryItemLimit,
+				serviceStoryItemLimit+1,
 			)
-			if err != nil {
-				WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query config-derived cloud resources: %v", err))
+			if configErr != nil {
+				WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query config-derived cloud resources: %v", configErr))
 				return
 			}
+			cloudResourceResult = boundedCloudResourceResult(configRows, serviceStoryItemLimit+1)
+			cloudResources = cloudResourceResult.rows
 		}
 		if len(cloudResources) > 0 {
 			ctx["cloud_resources"] = cloudResources
@@ -133,6 +144,8 @@ func (h *ImpactHandler) traceDeploymentChain(w http.ResponseWriter, r *http.Requ
 			return
 		}
 		ctx["deployment_sources"] = deploymentSources
+		ctx["deployment_source_limits"] = deploymentSourceResult.limits
+		ctx["cloud_resource_limits"] = cloudResourceResult.limits
 		if len(cloudResources) > 0 {
 			ctx["cloud_resources"] = cloudResources
 		}
@@ -156,7 +169,16 @@ func fetchServiceTraceContext(
 	traceOptions traceEnrichmentConfig,
 ) (map[string]any, error) {
 	entityHandler := &EntityHandler{Neo4j: graph, Content: content, Logger: logger}
-	workloadContext, err := entityHandler.fetchServiceWorkloadContext(ctx, serviceName, "deployment_trace")
+	workloadID, err := resolveTraceWorkloadSelector(ctx, graph, serviceName)
+	if err != nil {
+		return nil, err
+	}
+	var workloadContext map[string]any
+	if workloadID != "" {
+		workloadContext, err = entityHandler.fetchServiceWorkloadContext(ctx, serviceName, "deployment_trace")
+	} else {
+		workloadContext, err = entityHandler.fetchServiceReadModelWorkloadContext(ctx, serviceName)
+	}
 	if err != nil || workloadContext == nil {
 		return workloadContext, err
 	}
@@ -177,6 +199,8 @@ func fetchServiceTraceContext(
 func buildDeploymentTraceResponse(serviceName string, workloadContext map[string]any) map[string]any {
 	serviceName = canonicalServiceName(serviceName, workloadContext)
 	instances, _ := workloadContext["instances"].([]map[string]any)
+	topologyEdges := mapSliceValue(workloadContext, "topology_edges")
+	provisionedPlatforms := mapSliceValue(workloadContext, "provisioned_platforms")
 	deploymentSources, _ := workloadContext["deployment_sources"].([]map[string]any)
 	cloudResources, _ := workloadContext["cloud_resources"].([]map[string]any)
 	uncorrelatedCloudResources := mapSliceValue(workloadContext, "uncorrelated_cloud_resources")
@@ -200,7 +224,7 @@ func buildDeploymentTraceResponse(serviceName string, workloadContext map[string
 	materializedEnvironments := distinctSortedInstanceField(instances, "environment")
 	configEnvironments := StringSliceVal(workloadContext, "observed_config_environments")
 	mappingMode := deploymentMappingMode(platformKinds, deploymentSources)
-	deploymentFacts := buildDeploymentFacts(instances, deploymentSources)
+	deploymentFacts := buildDeploymentFacts(instances, topologyEdges, provisionedPlatforms, deploymentSources)
 	artifactLineage := buildDeploymentTraceArtifactLineage(
 		controllerEntities,
 		deploymentEvidence,
@@ -281,6 +305,8 @@ func buildDeploymentTraceResponse(serviceName string, workloadContext map[string
 			"name": safeStr(workloadContext, "name"),
 		},
 		"instances":               instances,
+		"topology_edges":          topologyEdges,
+		"provisioned_platforms":   provisionedPlatforms,
 		"deployment_sources":      deploymentSources,
 		"cloud_resources":         cloudResources,
 		"k8s_resources":           k8sResources,
@@ -297,6 +323,15 @@ func buildDeploymentTraceResponse(serviceName string, workloadContext map[string
 		"runtime_overview":        buildRuntimeOverview(materializedEnvironments),
 		"deployment_fact_summary": deploymentFactSummary,
 		"drilldowns":              buildDeploymentDrilldowns(serviceName, safeStr(workloadContext, "id")),
+	}
+	if runtimeTopologyLimits := mapValue(workloadContext, "runtime_topology_limits"); len(runtimeTopologyLimits) > 0 {
+		response["runtime_topology_limits"] = runtimeTopologyLimits
+	}
+	if deploymentSourceLimits := mapValue(workloadContext, "deployment_source_limits"); len(deploymentSourceLimits) > 0 {
+		response["deployment_source_limits"] = deploymentSourceLimits
+	}
+	if cloudResourceLimits := mapValue(workloadContext, "cloud_resource_limits"); len(cloudResourceLimits) > 0 {
+		response["cloud_resource_limits"] = cloudResourceLimits
 	}
 	if len(uncorrelatedCloudResources) > 0 {
 		response["uncorrelated_cloud_resources"] = uncorrelatedCloudResources

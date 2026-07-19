@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 
 import { GraphCanvas } from "./GraphCanvas";
 
@@ -44,5 +44,34 @@ describe("GraphCanvas", () => {
     );
 
     expect(document.querySelector(".gcanvas-svg")).toHaveAttribute("viewBox", "0 0 1080 648");
+  });
+
+  it("exposes selectable graph nodes to keyboard and assistive technology", () => {
+    const onSelect = vi.fn();
+    render(
+      <GraphCanvas
+        graph={{
+          edges: [],
+          nodes: [
+            {
+              col: 0,
+              id: "instance:catalog:prod",
+              kind: "instance",
+              label: "prod",
+              sub: "runtime instance",
+            },
+          ],
+        }}
+        onSelect={onSelect}
+      />,
+    );
+
+    const node = screen.getByRole("button", { name: "prod — runtime instance" });
+    act(() => node.focus());
+    fireEvent.keyDown(node, { key: "Enter" });
+    fireEvent.keyDown(node, { key: " " });
+
+    expect(node).toHaveFocus();
+    expect(onSelect).toHaveBeenCalledTimes(2);
   });
 });

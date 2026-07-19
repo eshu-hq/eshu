@@ -111,26 +111,66 @@ func deploymentFactSummaryLimitations(instances []map[string]any, configEnvironm
 	return limitations
 }
 
-func (h *ImpactHandler) fetchCloudResources(ctx context.Context, workloadID string) ([]map[string]any, error) {
+type cloudResourceResult struct {
+	rows   []map[string]any
+	limits map[string]any
+}
+
+func (h *ImpactHandler) fetchCloudResourceResult(ctx context.Context, workloadID string) (cloudResourceResult, error) {
+	queryLimit := serviceStoryItemLimit + 1
 	rows, err := h.Neo4j.Run(ctx, `
 		MATCH (w:Workload {id: $workload_id})<-[:INSTANCE_OF]-(i:WorkloadInstance)-[rel:USES]->(c:CloudResource)
-		RETURN DISTINCT c.id as id, c.name as name, c.kind as kind, c.provider as provider,
-		       coalesce(rel.environment, c.environment, i.environment, '') as environment,
-		       rel.confidence as confidence, rel.reason as reason,
-		       rel.relationship_basis as relationship_basis, rel.resolution_mode as resolution_mode,
-		       rel.evidence_source as evidence_source, rel.service_anchor_source as service_anchor_source,
-		       rel.service_anchor_reason as service_anchor_reason, rel.source_fact_id as source_fact_id,
-		       rel.stable_fact_key as stable_fact_key, rel.source_system as source_system,
-		       rel.source_record_id as source_record_id, rel.collector_kind as collector_kind
-		ORDER BY c.name
-	`, map[string]any{"workload_id": workloadID})
+		WITH c.id as id, c.name as name, c.kind as kind, c.provider as provider,
+		     min(coalesce(rel.environment, c.environment, i.environment, '')) as environment,
+		     max(coalesce(rel.confidence, 0.0)) as confidence,
+		     min(coalesce(rel.reason, '')) as reason,
+		     min(coalesce(rel.relationship_basis, '')) as relationship_basis,
+		     min(coalesce(rel.resolution_mode, '')) as resolution_mode,
+		     min(coalesce(rel.evidence_source, '')) as evidence_source,
+		     min(coalesce(rel.service_anchor_source, '')) as service_anchor_source,
+		     min(coalesce(rel.service_anchor_reason, '')) as service_anchor_reason,
+		     min(coalesce(rel.source_fact_id, '')) as source_fact_id,
+		     min(coalesce(rel.stable_fact_key, '')) as stable_fact_key,
+		     min(coalesce(rel.source_system, '')) as source_system,
+		     min(coalesce(rel.source_record_id, '')) as source_record_id,
+		     min(coalesce(rel.collector_kind, '')) as collector_kind
+		RETURN id, name, kind, provider, environment, confidence, reason,
+		       relationship_basis, resolution_mode, evidence_source, service_anchor_source,
+		       service_anchor_reason, source_fact_id, stable_fact_key, source_system,
+		       source_record_id, collector_kind
+		ORDER BY name, id
+		LIMIT $cloud_resource_limit
+	`, map[string]any{"workload_id": workloadID, "cloud_resource_limit": queryLimit})
 	if err != nil {
-		return nil, err
+		return cloudResourceResult{}, err
 	}
 	if len(rows) == 0 {
-		return h.fetchConfigDerivedCloudResources(ctx, workloadID)
+		rows, err = h.fetchConfigDerivedCloudResourceRows(ctx, workloadID, queryLimit)
+		if err != nil {
+			return cloudResourceResult{}, err
+		}
+		resources, err := deploymentTraceCloudResourcesFromRows(rows, "deployment_config_read_evidence")
+		if err != nil {
+			return cloudResourceResult{}, err
+		}
+		return boundedCloudResourceResult(resources, queryLimit), nil
 	}
-	return deploymentTraceCloudResourcesFromRows(rows, "")
+	resources, err := deploymentTraceCloudResourcesFromRows(rows, "")
+	if err != nil {
+		return cloudResourceResult{}, err
+	}
+	return boundedCloudResourceResult(resources, queryLimit), nil
+}
+
+func boundedCloudResourceResult(rows []map[string]any, queryLimit int) cloudResourceResult {
+	returned, truncated := capMapRows(rows, serviceStoryItemLimit)
+	return cloudResourceResult{
+		rows: returned,
+		limits: boundedCollectionMetadata(
+			serviceStoryItemLimit, queryLimit, len(returned), len(rows), truncated,
+			[]string{"name", "id"},
+		),
+	}
 }
 
 func deploymentTraceCloudResourcesFromRows(rows []map[string]any, defaultRelationshipBasis string) ([]map[string]any, error) {
@@ -160,7 +200,7 @@ func deploymentTraceCloudResourcesFromRows(rows []map[string]any, defaultRelatio
 	return resources, nil
 }
 
-func (h *ImpactHandler) fetchConfigDerivedCloudResources(ctx context.Context, workloadID string) ([]map[string]any, error) {
+func (h *ImpactHandler) fetchConfigDerivedCloudResourceRows(ctx context.Context, workloadID string, limit int) ([]map[string]any, error) {
 	serviceName := strings.TrimPrefix(strings.TrimSpace(workloadID), "workload:")
 	if h == nil || h.Neo4j == nil || serviceName == "" {
 		return nil, nil
@@ -186,12 +226,12 @@ func (h *ImpactHandler) fetchConfigDerivedCloudResources(ctx context.Context, wo
 		LIMIT $limit
 	`, map[string]any{
 		"service_name": serviceName,
-		"limit":        serviceStoryItemLimit,
+		"limit":        limit,
 	})
 	if err != nil {
 		return nil, err
 	}
-	return deploymentTraceCloudResourcesFromRows(rows, "deployment_config_read_evidence")
+	return rows, nil
 }
 
 func (h *ImpactHandler) fetchK8sResources(

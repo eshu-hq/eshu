@@ -127,11 +127,9 @@ source_coverage:
       - {symbol: "hydrateResolvedEntityRepoIdentity", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
   - file: entity_workload_context.go
     calls:
-      - {symbol: "(*EntityHandler).fetchProvisionedPlatformRows", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
       - {symbol: "(*EntityHandler).fetchRepositoryNameByID", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
-      - {symbol: "(*EntityHandler).fetchWorkloadContextForOperation", count: 1, source_sha256: 28bfc91a0b6411f1a7b8e076406be9a29dbff6b3748af3129f0a04fa78109ea3, entry_ids: [QP-SVC-CONTEXT]}
-      - {symbol: "(*EntityHandler).fetchWorkloadInstances", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
-      - {symbol: "(*EntityHandler).fetchWorkloadPlatformRows", count: 1, source_sha256: fae20b9391fd84bc35575df5bf63ee7397f3cc8f25cd90f585236243d69fac3f, entry_ids: [QP-SVC-RUNS-ON]}
+      - {symbol: "(*EntityHandler).fetchWorkloadContextForOperation", count: 1, source_sha256: 3f688f31c2c510dca917ffaa25b70e93e2f644b9afd59fc247841522df0777ea, entry_ids: [QP-SVC-CONTEXT]}
+      - {symbol: "(*EntityHandler).fetchWorkloadPlatformResult", count: 1, source_sha256: 32a2f173df26d536e734705924f20d9cf211e40337f85c4620227b9e8370caf9, entry_ids: [QP-SVC-RUNS-ON]}
       - {symbol: "(*EntityHandler).fetchWorkloadRepositoryForAccess", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
   - file: exposure_path.go
     calls:
@@ -179,9 +177,14 @@ source_coverage:
       - {symbol: "(*ImpactHandler).resourceInvestigationInstanceWorkloads", count: 1, source_sha256: 2fd9f8b87204123d1db73f2d7d15b01007dde0b0e3a75e5f9e53af0a4384c7cf, entry_ids: [QP-RESOURCE-INVESTIGATION-INSTANCE-WORKLOADS]}
       - {symbol: "(*ImpactHandler).resourceInvestigationRepoPaths", count: 1, source_sha256: 466f2d536aa176592ad902ebda945f0b2c5f66047589e97e7f79c29daf5a6869, entry_ids: [QP-RESOURCE-INVESTIGATION-REPO-PATHS]}
       - {symbol: "(*ImpactHandler).resourceInvestigationWorkloads", count: 1, source_sha256: 26765d4aad64c69b9de78b95fef02d0a95377a5ae4c7eddced413144d9c28935, entry_ids: [QP-RESOURCE-INVESTIGATION-WORKLOADS]}
-  - file: impact_trace_deployment.go
+  - file: impact_trace_deployment_sources.go
     calls:
-      - {symbol: "fetchDeploymentSourcesFromGraph", count: 2, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
+      - symbol: "fetchCanonicalDeploymentSourceRows"
+        count: 1
+        non_hot: {class: keyed_support, source_sha256: 60b73c0be8f9bca57ff190865ef9d6de0ca51dc60308c0cc3a9af860faa956d9, key_bound: single_key, max_results: 51}
+      - symbol: "fetchRepositoryDeploymentSourceRows"
+        count: 1
+        non_hot: {class: keyed_support, source_sha256: 47e2977a15ef1d84cc7f051cf0fb041259bb5d0ac3fa1d3f68b6575ae74e0363, key_bound: single_key, max_results: 51}
   - file: impact_trace_deployment_oci.go
     calls:
       - {symbol: "fetchOCIImageTagRows", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
@@ -189,8 +192,17 @@ source_coverage:
       - {symbol: "fetchOCIRepositoriesByUID", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
   - file: impact_trace_deployment_resources.go
     calls:
-      - {symbol: "(*ImpactHandler).fetchCloudResources", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
-      - {symbol: "(*ImpactHandler).fetchConfigDerivedCloudResources", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
+      - {symbol: "(*ImpactHandler).fetchCloudResourceResult", count: 1, non_hot: {class: keyed_support, source_sha256: 8655ce4bd5a92ae8406dba2b04f260cbb50b484060c655d284d4f41485c22f8d, key_bound: single_key, max_results: 51}}
+      - {symbol: "(*ImpactHandler).fetchConfigDerivedCloudResourceRows", count: 1, non_hot: {class: keyed_support, source_sha256: b000c6de66d63fd476be5506931317bf7bc592e4942cb9fdb16e57535fcea94b, key_bound: single_key, max_results: 51}}
+  - file: impact_trace_workload_selection.go
+    calls:
+      - {symbol: "resolveTraceWorkloadSelector", count: 1, non_hot: {class: keyed_support, source_sha256: 1ef726a82e1024e33d396eade2571b2a8215086146102bca94fb6de650e1b8ad, key_bound: single_key, max_results: 1}}
+  - file: workload_provisioned_platforms.go
+    calls:
+      - {symbol: "(*EntityHandler).fetchProvisionedPlatformResult", count: 1, non_hot: {class: keyed_support, source_sha256: dfcefae0f6afd6a75aac05e346ef849896fa4f3690281592de14e0a844940440, key_bound: single_key, max_results: 51}}
+  - file: workload_runtime_topology.go
+    calls:
+      - {symbol: "fetchWorkloadRuntimeTopology", count: 1, non_hot: {class: keyed_support, source_sha256: 06b4356d82c6c2521f1b21a4a338f231b66a7f2a69f8ade110dba301eb51e47b, key_bound: single_key, max_results: 51}}
   - file: infra.go
     calls:
       - {symbol: "(*InfraHandler).searchResources", count: 1, source_sha256: 2f6c76e66dd4601d82ab8c71bee437ce39b3626776181515abf5f87a18430a17, entry_ids: [QP-INFRA-RESOURCE-SEARCH]}

@@ -1,8 +1,11 @@
 import { Link } from "react-router-dom";
 
 import type {
+  DeploymentSourceLimits,
   DeploymentTraceEntity,
+  DeploymentTracePlatform,
   DeploymentTraceResult,
+  DeploymentTraceTopologyEdge,
   ImpactGraphPresentation,
 } from "../api/impactReviewTypes";
 
@@ -66,10 +69,18 @@ export function DeploymentTraceSummary({
     <div className="impact-summary-block">
       <div className="impact-mini-stats">
         <span>{trace.instances.length} runtime instances</span>
+        <span>{trace.provisionedPlatforms.length} provisioned platforms</span>
         <span>{trace.deploymentSources.length} deployment sources</span>
         <span>{trace.cloudResources.length} cloud resources</span>
         <span>{trace.k8sResources.length} Kubernetes resources</span>
       </div>
+      {trace.deploymentSourceLimits === null ? (
+        <p className="inline-state">
+          Deployment source coverage unavailable; deployment topology completeness is unverified.
+        </p>
+      ) : trace.deploymentSourceLimits.truncated ? (
+        <p className="inline-state">{deploymentSourceLimitation(trace.deploymentSourceLimits)}</p>
+      ) : null}
 
       <div className="impact-pivots" aria-label="Deployment pivots">
         {trace.serviceName ? (
@@ -92,6 +103,15 @@ export function DeploymentTraceSummary({
         <p>{trace.story}</p>
       </details>
 
+      <section className="impact-trace-group">
+        <div className="section-label">Subject relationship evidence</div>
+        {trace.topologyEdges.length === 0 ? (
+          <p className="empty">No exact repository-to-workload relationship backbone returned.</p>
+        ) : (
+          <TopologyEdgeEvidence edges={trace.topologyEdges} />
+        )}
+      </section>
+
       <TraceEntityGroup
         empty="No canonical deployment-source repositories returned."
         label="Deployment sources"
@@ -111,6 +131,14 @@ export function DeploymentTraceSummary({
                 <span>{fact.target}</span>
                 {fact.targetId ? <span className="mono">{fact.targetId}</span> : null}
                 {fact.reason ? <span>{fact.reason}</span> : null}
+                {fact.targetId ? (
+                  <EntityPivot
+                    canInspectEntity={canInspectEntity}
+                    entityId={fact.targetId}
+                    label={`Inspect ${fact.target}`}
+                    onInspectEntity={onInspectEntity}
+                  />
+                ) : null}
               </article>
             ))}
           </div>
@@ -125,24 +153,22 @@ export function DeploymentTraceSummary({
           <div className="impact-entity-list">
             {trace.instances.map((instance) => (
               <article key={instance.id || `missing:${instance.environment ?? "unknown"}`}>
-                <strong>{instance.environment ?? "environment unavailable"}</strong>
+                <strong>
+                  Environment attribute: {instance.environment ?? "environment unavailable"}
+                </strong>
                 <span className="mono">
                   {instance.id || "canonical instance identity unavailable"}
                 </span>
                 <div className="impact-pivots">
-                  {instance.environment ? (
-                    <EntityPivot
-                      canInspectEntity={canInspectEntity}
-                      entityId={`environment:${instance.environment}`}
-                      label={`Inspect ${instance.environment} environment`}
-                      onInspectEntity={onInspectEntity}
-                    />
-                  ) : null}
                   {instance.id ? (
                     <EntityPivot
                       canInspectEntity={canInspectEntity}
                       entityId={instance.id}
-                      label={`Inspect ${instance.id}`}
+                      label={
+                        instance.environment
+                          ? `Inspect ${instance.environment} runtime instance`
+                          : `Inspect ${instance.id}`
+                      }
                       onInspectEntity={onInspectEntity}
                     />
                   ) : null}
@@ -150,29 +176,36 @@ export function DeploymentTraceSummary({
                 {instance.platforms.length > 0 ? (
                   <div className="impact-entity-list">
                     {instance.platforms.map((platform, index) => (
-                      <span key={`${platform.id ?? platform.name}:${index}`}>
-                        {platform.name} ({platform.kind ?? "platform"} ·{" "}
-                        {platform.id ? (
-                          <>
-                            <span className="mono">{platform.id}</span>{" "}
-                            <EntityPivot
-                              canInspectEntity={canInspectEntity}
-                              entityId={platform.id}
-                              label={`Inspect ${platform.name} platform`}
-                              onInspectEntity={onInspectEntity}
-                            />
-                          </>
-                        ) : (
-                          "canonical identity unavailable"
-                        )}
-                        )
-                      </span>
+                      <PlatformEvidence
+                        canInspectEntity={canInspectEntity}
+                        key={`${platform.id ?? platform.name}:${index}`}
+                        onInspectEntity={onInspectEntity}
+                        platform={platform}
+                      />
                     ))}
                   </div>
                 ) : (
                   <span>No exact platform relationship returned</span>
                 )}
               </article>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section className="impact-trace-group">
+        <div className="section-label">Repository-provisioned platforms</div>
+        {trace.provisionedPlatforms.length === 0 ? (
+          <p className="empty">No exact repository-level provisioning topology returned.</p>
+        ) : (
+          <div className="impact-entity-list">
+            {trace.provisionedPlatforms.map((platform, index) => (
+              <PlatformEvidence
+                canInspectEntity={canInspectEntity}
+                key={`${platform.id ?? platform.name}:${index}`}
+                onInspectEntity={onInspectEntity}
+                platform={platform}
+              />
             ))}
           </div>
         )}
@@ -203,6 +236,73 @@ export function DeploymentTraceSummary({
       ) : null}
     </div>
   );
+}
+
+function PlatformEvidence({
+  canInspectEntity,
+  onInspectEntity,
+  platform,
+}: {
+  readonly canInspectEntity: (entityId: string) => boolean;
+  readonly onInspectEntity: (entityId: string) => void;
+  readonly platform: DeploymentTracePlatform;
+}): React.JSX.Element {
+  return (
+    <article>
+      <strong>{platform.name}</strong>
+      <span>{platform.kind ?? "platform"}</span>
+      {platform.id ? (
+        <>
+          <span className="mono">{platform.id}</span>
+          <EntityPivot
+            canInspectEntity={canInspectEntity}
+            entityId={platform.id}
+            label={`Inspect ${platform.name} platform`}
+            onInspectEntity={onInspectEntity}
+          />
+        </>
+      ) : (
+        <span>Canonical identity unavailable</span>
+      )}
+      <TopologyEdgeEvidence edges={platform.topologyEdges} />
+    </article>
+  );
+}
+
+function TopologyEdgeEvidence({
+  edges,
+}: {
+  readonly edges: readonly DeploymentTraceTopologyEdge[];
+}): React.JSX.Element | null {
+  if (edges.length === 0) return null;
+  return (
+    <div className="impact-entity-list">
+      {edges.map((edge, index) => (
+        <span
+          className="t-mut"
+          key={`${edge.relationshipType}:${edge.sourceId}:${edge.targetId}:${index}`}
+        >
+          {[
+            edge.relationshipType,
+            edge.sourceId && edge.targetId ? `${edge.sourceId} -> ${edge.targetId}` : undefined,
+            edge.evidenceSource,
+            edge.sourceTool,
+            edge.reason,
+            edge.confidence === undefined ? undefined : `confidence ${edge.confidence}`,
+          ]
+            .filter((value): value is string => value !== undefined && value.length > 0)
+            .join(" · ")}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function deploymentSourceLimitation(limits: DeploymentSourceLimits): string {
+  const observed = limits.observedCountIsLowerBound
+    ? `at least ${limits.observedCount}`
+    : String(limits.observedCount);
+  return `Deployment sources truncated: showing ${limits.returnedCount} of ${observed} observed relationships (${limits.limit}-result limit).`;
 }
 
 function TraceEntityGroup({

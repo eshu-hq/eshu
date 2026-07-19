@@ -28,7 +28,6 @@ import { FindingsPage } from "./pages/FindingsPage";
 import { FreshnessCausalityPage } from "./pages/FreshnessCausalityPage";
 import { IacPage } from "./pages/IacPage";
 import { ImagesPage } from "./pages/ImagesPage";
-import { ImpactPage } from "./pages/ImpactPage";
 import { IncidentContextPage } from "./pages/IncidentContextPage";
 import { NodesPage } from "./pages/NodesPage";
 import { ObservabilityPage } from "./pages/ObservabilityPage";
@@ -88,6 +87,12 @@ const VulnerabilitiesPage = lazy(() =>
 // the profile surface is not needed on initial app load for most routes.
 const ProfilePage = lazy(() =>
   import("./pages/ProfilePage").then((module) => ({ default: module.ProfilePage })),
+);
+
+// ImpactPage owns the deployment graph mapper, structured trace evidence, and
+// graph presentation. Keep that route-specific surface out of the eager shell.
+const ImpactPage = lazy(() =>
+  import("./pages/ImpactPage").then((module) => ({ default: module.ImpactPage })),
 );
 
 export interface AppRoutesProps {
@@ -175,7 +180,21 @@ export function AppRoutes({
           </Suspense>
         }
       />
-      <Route path={APP_ROUTE_PATHS.impact} element={<ImpactPage model={model} client={client} />} />
+      <Route
+        path={APP_ROUTE_PATHS.impact}
+        element={
+          <Suspense
+            fallback={
+              <section className="page-shell">
+                <h1>Loading impact</h1>
+                <p>Loading live data.</p>
+              </section>
+            }
+          >
+            <ImpactPage model={model} client={client} />
+          </Suspense>
+        }
+      />
       <Route
         path={APP_ROUTE_PATHS.exposure}
         element={

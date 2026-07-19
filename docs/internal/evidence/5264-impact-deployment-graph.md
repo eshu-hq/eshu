@@ -13,7 +13,24 @@ Topology identity uses the response's backend-owned keys:
 - `workload_id` for the service workload;
 - `instance_id` for materialized runtime instances;
 - `platform_id` for ECS and Kubernetes Platform nodes; and
-- `Environment.name`, the graph schema's merge key, for environment nodes.
+- exact `relationship_type`, `source_id`, and `target_id` values for topology
+  edges.
+
+The subject backbone remains explicit: the source repository `DEFINES` the
+selected workload and every returned runtime instance is connected to that
+workload by its exact `INSTANCE_OF` edge. The console validates those endpoints
+against the selected `repo_id`, `workload_id`, and returned `instance_id`
+values; mismatched subject edges are omitted and disclosed.
+
+Direct placement renders only returned `RUNS_ON` instance-to-platform edges.
+Repository provisioning fallback renders its two returned relationships:
+`PROVISIONS_DEPENDENCY_FOR` to the service repository and
+`PROVISIONS_PLATFORM` to the platform, in a separate top-level provisioned
+platform group rather than copying the platform beneath every instance. It
+never becomes an inferred `RUNS_ON`. The instance `environment` value remains
+structured evidence and is not rendered as a canonical node or relationship.
+Its human-readable inspect control pivots to the canonical runtime-instance
+node that owns the environment attribute.
 
 Rows without the required canonical key are omitted from the topology and
 reported in the graph-composition limitations. Distinct IDs with the same label
@@ -46,26 +63,35 @@ RETURN i.id as instance_id,
        runsOn.confidence as platform_confidence,
        runsOn.reason as platform_reason,
        properties(runsOn) as platform_edge
-ORDER BY instance_id, platform_name
+ORDER BY instance_id, platform_name, platform_id
 ```
 
-No-Regression Evidence: the OLD and NEW shapes have identical labeled anchors,
-`WHERE`, traversal, relationship family, parameters, ordering, row cardinality,
-and one-Bolt-call fan-out. NEW adds only the scalar `p.id AS platform_id`
-projection required to preserve canonical Platform identity in the existing
-response. Focused tests prove the exact instance-ID batch, one graph call,
-canonical ID propagation for direct `RUNS_ON` and unambiguous provisioned
-platform fallback, OpenAPI shape, same-label/different-ID preservation,
-duplicate and missing-identity accounting, and the 60-node/120-edge bounds. No
-local NornicDB-New checkout is present, so no live PROFILE is claimed; a planner
-comparison is not load-bearing because the MATCH, WHERE, traversal, ORDER BY,
-and result row set are unchanged.
+The direct query also projects `properties(runsOn)` so confidence, rationale,
+and provenance stay attached to the exact endpoints. The unambiguous
+repository fallback remains one indexed repository-anchored read and returns
+the distinct properties and endpoints of both provisioning relationships.
+Focused tests prove exact direct and fallback relationship families, endpoints,
+provenance, direct precedence, and ambiguous-fallback withholding.
+
+Deployment-source expansion is bounded at the graph reads: each relationship
+family orders deterministically and reads at most 51 rows for a 50-row response
+limit. The merged response reports its limit, returned and observed counts,
+per-family observed counts, ordering, truncation, and whether the observed
+count is only a lower bound. A 51-row failing-first regression proves the
+sentinel behavior and prevents an unbounded downstream GitOps expansion.
 
 No-Observability-Change: the backend read retains the shared `GraphQuery.Run`
 adapter, `neo4j.query` spans, query-duration metrics, service-query stage timer,
 and row-count logging. The console adds in-band composition metadata only. No
 metric, span, log field, graph write, queue behavior, worker, retry, cache,
 runtime knob, or API call was added.
+
+After rebasing over the production query-plan guardrail, the exact
+`QP-SVC-RUNS-ON` production source and Cypher fingerprints were refreshed for
+the additive endpoint and provenance projections. The deployment-source query
+fingerprints include the deterministic sentinel limits. Final query-plan
+regression and live-profile results are recorded below after the exact branch
+gate is rerun.
 
 ## Golden contract
 
@@ -76,9 +102,14 @@ authenticated HTTP golden shape calls
 fixture, `deployable-config`, and requires:
 
 - `data.instances[].platforms[].platform_id`;
+- `data.instances[].platforms[].topology_basis`;
+- `data.instances[].platforms[].topology_edges[].relationship_type` pinned to
+  `RUNS_ON` for the direct fixture;
+- `data.instances[].platforms[].topology_edges[].source_id` and `target_id`;
 - `data.deployment_sources[].relationship_type`;
 - `data.deployment_sources[].source_id`;
 - `data.deployment_sources[].target_id`;
+- deployment-source limit, returned-count, and truncation fields;
 - `truth.level=derived`; and
 - `truth.basis=hybrid`.
 
@@ -111,11 +142,34 @@ GATE_MCP_PORT=28091 \
 scripts/verify-golden-corpus-gate.sh
 ```
 
-Result: **419 pass, 0 required-fail, 0 advisory-warn** in 37 seconds.
-Phase timings were bootstrap 2 seconds, collector replay 21 seconds, first
-drain 8 seconds, maintenance drains 6 seconds, and graph/query checks 2
+Result: **420 pass, 0 required-fail, 0 advisory-warn** in 36 seconds. The gate
+reported bootstrap in 3 seconds, collector replay in 21 seconds, first drain in
+6 seconds, maintenance drains in 6 seconds, and graph/query checks in 4
 seconds. Both the authenticated positive HTTP topology shape and the existing
 MCP trace shape passed.
+
+After rebasing onto
+`origin/main@1e697fd22c3904930bb0e1fa2b20371fa3580f20`, the full gate was rerun
+at exact implementation head `c8778875bf207c94ffe8f381786316785895f51b` on
+isolated ports:
+
+```bash
+ESHU_POSTGRES_PORT=16533 \
+NEO4J_BOLT_PORT=8788 \
+NEO4J_HTTP_PORT=8576 \
+GATE_API_PORT=19081 \
+GATE_MCP_PORT=19092 \
+GATE_DRAIN_TIMEOUT=10m \
+GATE_BUDGET_SECONDS=900 \
+bash scripts/verify-golden-corpus-gate.sh
+```
+
+The post-rebase run completed in 33 seconds with **420 pass, 0
+required-fail, and 0 advisory-warn**. Its phase timings were 2 seconds for
+bootstrap, 20 seconds for collector replay, 6 seconds for the first drain, 5
+seconds for maintenance drains, and 3 seconds for graph/query checks. The
+isolated containers, network, and volumes were removed by the gate; the
+retained development stack was not changed.
 
 Replay coverage also passed:
 
@@ -128,3 +182,53 @@ scripts/verify-replay-coverage-gate.sh --blocking
 
 The blocking gate reported 386 pass, 0 required-fail, and 17 existing advisory
 coverage gaps; the blocking coverage threshold passed.
+
+## Retained API tuple proof
+
+The exact branch API was run against the retained Postgres and NornicDB stores
+without rebuilding or replacing the retained stack. Three consecutive
+authenticated `api-node-boats` deployment-trace calls returned HTTP 200 and the
+same 180,016-byte response in 0.828, 0.193, and 0.183 seconds. The response
+contained six canonical workload instances, nine unique direct `RUNS_ON`
+relationship type/source/target tuples, both ECS and Kubernetes platforms, and
+14 of 14 deployment-source relationships with `truncated=false`.
+
+A read-only graph query over the same six instance IDs returned each
+`environment` property and no instance-to-`Environment` relationship or
+environment node endpoint. The console therefore keeps those six environment
+values as instance attributes and does not manufacture environment nodes,
+relationships, or inspect controls. No unambiguous repository-provisioning
+fallback exists for this retained anchor; the direct-placement proof is the
+applicable live path. Focused tests cover the fallback relationship family;
+the golden fixture pins the direct `RUNS_ON` family.
+
+## Console bundle performance
+
+The first production build after the two upstream merges measured the eager
+main chunk at **728.8 KiB**, above the blocking **726.0 KiB** budget. Raising
+the threshold was rejected. The Impact route now uses the same route-level
+`React.lazy` boundary as other specialized console workbenches and exposes a
+visible `Loading impact` state while its route chunk loads.
+
+On the same rebased worktree and build command, the eager main chunk fell to
+**696.6 KiB** and the final async `ImpactPage` chunk measured **36.8 KiB**. This
+is a 32.2 KiB reduction in first-load JavaScript while preserving the complete
+Impact route behind its explicit loading boundary. `npm run console:build`
+reported all 81 emitted chunks within their existing budgets; no threshold or
+budget configuration changed. A failing-first route regression proved the
+Impact implementation was eager before the split and green after the lazy
+boundary.
+
+## Authenticated retained-browser proof
+
+The earlier browser run on head `a4fc312020` is invalidated: it preceded the
+exact topology-edge contract and therefore included relationships that the
+mapper no longer synthesizes. It is retained only as historical diagnostic
+context and is not merge-readiness evidence.
+
+Final proof must use the authenticated retained browser on the exact reviewed
+head and compare API relationship type/source/target tuples with the rendered
+DOM. It must cover direct placement, provisioning fallback when present,
+environment-as-attribute behavior, source-limit disclosure, graph bounds, and
+click-to-visible completion. Those results are pending and will replace this
+paragraph before the branch is pushed.

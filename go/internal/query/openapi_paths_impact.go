@@ -59,13 +59,89 @@ const openAPIPathsImpact = `
                                 "platform_name": {"type": "string"},
                                 "platform_kind": {"type": "string"},
                                 "platform_confidence": {"type": "number"},
-                                "platform_reason": {"type": "string"}
+                                "platform_reason": {"type": "string"},
+                                "topology_basis": {"type": "string", "enum": ["direct_runtime"], "description": "The platform is supported by an exact WorkloadInstance RUNS_ON Platform relationship."},
+                                "topology_edges": {
+                                  "type": "array",
+                                  "description": "Exact canonical RUNS_ON graph relationships supporting this runtime platform.",
+                                  "items": {
+                                    "type": "object",
+                                    "required": ["relationship_type", "source_id", "target_id"],
+                                    "properties": {
+                                      "relationship_type": {"type": "string", "enum": ["RUNS_ON"]},
+                                      "source_id": {"type": "string"},
+                                      "source_name": {"type": "string"},
+                                      "target_id": {"type": "string"},
+                                      "target_name": {"type": "string"},
+                                      "confidence": {"type": "number"},
+                                      "reason": {"type": "string"},
+                                      "evidence_source": {"type": "string"},
+                                      "source_tool": {"type": "string"},
+                                      "properties": {"type": "object", "additionalProperties": true, "description": "Exact observed relationship properties retained as evidence provenance."}
+                                    }
+                                  }
+                                }
                               }
                             }
                           }
                         }
                       }
                     },
+                    "topology_edges": {
+                      "type": "array",
+                      "description": "Exact graph-observed repository/workload and instance/workload identity edges. Endpoints are never inferred from ids.",
+                      "items": {
+                        "type": "object",
+                        "required": ["relationship_type", "source_id", "target_id", "properties"],
+                        "properties": {
+                          "relationship_type": {"type": "string", "enum": ["DEFINES", "INSTANCE_OF"]},
+                          "source_id": {"type": "string"},
+                          "source_name": {"type": "string"},
+                          "target_id": {"type": "string"},
+                          "target_name": {"type": "string"},
+                          "confidence": {"type": "number"},
+                          "reason": {"type": "string"},
+                          "evidence_source": {"type": "string"},
+                          "source_tool": {"type": "string"},
+                          "properties": {"type": "object", "additionalProperties": true}
+                        }
+                      }
+                    },
+                    "provisioned_platforms": {
+                      "type": "array",
+                      "description": "Repository-level provisioning evidence kept separate from runtime instance placement. These rows never imply RUNS_ON.",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "platform_id": {"type": "string"},
+                          "platform_name": {"type": "string"},
+                          "platform_kind": {"type": "string"},
+                          "platform_provider": {"type": "string"},
+                          "platform_region": {"type": "string"},
+                          "platform_locator": {"type": "string"},
+                          "topology_edges": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "required": ["relationship_type", "source_id", "target_id", "properties"],
+                              "properties": {
+                                "relationship_type": {"type": "string", "enum": ["PROVISIONS_DEPENDENCY_FOR", "PROVISIONS_PLATFORM"]},
+                                "source_id": {"type": "string"},
+                                "source_name": {"type": "string"},
+                                "target_id": {"type": "string"},
+                                "target_name": {"type": "string"},
+                                "confidence": {"type": "number"},
+                                "reason": {"type": "string"},
+                                "evidence_source": {"type": "string"},
+                                "source_tool": {"type": "string"},
+                                "properties": {"type": "object", "additionalProperties": true}
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "runtime_topology_limits": {"type": "object", "description": "Completeness metadata for instances, direct RUNS_ON edges, and provisioned platforms.", "additionalProperties": true},
                     "hostnames": {"type": "array", "items": {"type": "object"}},
                     "entrypoints": {"type": "array", "items": {"type": "object"}},
                     "network_paths": {"type": "array", "items": {"type": "object"}},
@@ -87,7 +163,35 @@ const openAPIPathsImpact = `
                         }
                       }
                     },
+                    "deployment_source_limits": {
+                      "type": "object",
+                      "description": "Coverage and deterministic bound metadata for deployment_sources. When observed_count_is_lower_bound is true, observed_count is the number seen through the per-query sentinel rather than an exact total.",
+                      "properties": {
+                        "limit": {"type": "integer"},
+                        "query_sentinel_limit": {"type": "integer"},
+                        "returned_count": {"type": "integer"},
+                        "observed_count": {"type": "integer"},
+                        "observed_count_is_lower_bound": {"type": "boolean"},
+                        "canonical_observed_count": {"type": "integer"},
+                        "repository_observed_count": {"type": "integer"},
+                        "truncated": {"type": "boolean"},
+                        "ordering": {"type": "array", "items": {"type": "string"}}
+                      }
+                    },
                     "cloud_resources": {"type": "array", "description": "CloudResource dependencies admitted only from materialized WorkloadInstance USES CloudResource relationships.", "items": {"type": "object"}},
+                    "cloud_resource_limits": {
+                      "type": "object",
+                      "description": "Deterministic bound and sentinel completeness metadata for cloud_resources.",
+                      "properties": {
+                        "limit": {"type": "integer"},
+                        "query_sentinel_limit": {"type": "integer"},
+                        "returned_count": {"type": "integer"},
+                        "observed_count": {"type": "integer"},
+                        "observed_count_is_lower_bound": {"type": "boolean"},
+                        "truncated": {"type": "boolean"},
+                        "ordering": {"type": "array", "items": {"type": "string"}}
+                      }
+                    },
                     "uncorrelated_cloud_resources": {"type": "array", "description": "CloudResource candidates that matched the service name or ARN/resource identifier but do not have a materialized workload-to-cloud relationship.", "items": {"type": "object"}},
                     "k8s_resources": {"type": "array", "items": {"type": "object"}},
                     "image_refs": {"type": "array", "items": {"type": "string"}},
@@ -122,6 +226,7 @@ const openAPIPathsImpact = `
             }
           },
           "400": {"$ref": "#/components/responses/BadRequest"},
+          "409": {"$ref": "#/components/responses/Conflict"},
           "404": {"$ref": "#/components/responses/NotFound"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"},
           "500": {"$ref": "#/components/responses/InternalError"}

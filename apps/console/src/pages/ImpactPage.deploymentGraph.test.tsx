@@ -31,8 +31,8 @@ describe("ImpactPage deployment topology", () => {
     expect(within(composition).getByText("truth exact")).toBeInTheDocument();
     expect(within(composition).getByText("basis authoritative_graph")).toBeInTheDocument();
     expect(within(composition).getByText("freshness stale")).toBeInTheDocument();
-    expect(within(composition).getByText("12/12 nodes")).toBeInTheDocument();
-    expect(within(composition).getByText("9/9 edges")).toBeInTheDocument();
+    expect(within(composition).getByText("10/10 nodes")).toBeInTheDocument();
+    expect(within(composition).getByText("7/7 edges")).toBeInTheDocument();
     expect(within(composition).getByText(/composition \d+\.\d{3} ms/)).toBeInTheDocument();
     expect(document.querySelector(".gnode-instance")).not.toBeNull();
     expect(document.querySelector(".gnode-platform")).not.toBeNull();
@@ -43,8 +43,8 @@ describe("ImpactPage deployment topology", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("2 runtime instances")).toBeInTheDocument();
     expect(screen.getByText("Runtime instances and platforms")).toBeInTheDocument();
-    expect(screen.getByText(/platform:ecs:catalog-ecs/)).toBeInTheDocument();
-    expect(screen.getByText(/platform:kubernetes:catalog-eks/)).toBeInTheDocument();
+    expect(screen.getAllByText(/platform:ecs:catalog-ecs/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/platform:kubernetes:catalog-eks/).length).toBeGreaterThan(0);
     expect(screen.getByText("Deployment facts")).toBeInTheDocument();
     expect(screen.getByText("DEPLOYS FROM")).toBeInTheDocument();
     expect(screen.getByText("Cloud resources")).toBeInTheDocument();
@@ -68,9 +68,17 @@ describe("ImpactPage deployment topology", () => {
       "href",
       "/repositories/repository%3Ar_config/source",
     );
-    expect(screen.getByRole("button", { name: "Inspect prod environment" })).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "Inspect instance:catalog:prod" }),
+      screen.queryByRole("button", { name: "Inspect prod environment" }),
+    ).not.toBeInTheDocument();
+    const runtimeInstanceRow = screen.getByText("instance:catalog:prod").closest("article");
+    expect(runtimeInstanceRow).not.toBeNull();
+    expect(
+      within(runtimeInstanceRow as HTMLElement).queryByText("Outside bounded graph"),
+    ).not.toBeInTheDocument();
+    expect(screen.getAllByText("prod").length).toBeGreaterThan(0);
+    expect(
+      screen.getByRole("button", { name: "Inspect prod runtime instance" }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Inspect catalog-ecs platform" }),
@@ -157,11 +165,13 @@ function deploymentTrace(
             platform_id: "platform:ecs:catalog-ecs",
             platform_kind: "ecs",
             platform_name: "catalog-ecs",
+            ...directRuntimeTopology("instance:catalog:prod", "platform:ecs:catalog-ecs"),
           },
           {
             platform_id: "platform:kubernetes:catalog-eks",
             platform_kind: "kubernetes",
             platform_name: "catalog-eks",
+            ...directRuntimeTopology("instance:catalog:prod", "platform:kubernetes:catalog-eks"),
           },
         ],
       },
@@ -173,6 +183,10 @@ function deploymentTrace(
             platform_id: "platform:kubernetes:catalog-stage-eks",
             platform_kind: "kubernetes",
             platform_name: "catalog-stage-eks",
+            ...directRuntimeTopology(
+              "instance:catalog:stage",
+              "platform:kubernetes:catalog-stage-eks",
+            ),
           },
         ],
       },
@@ -182,7 +196,37 @@ function deploymentTrace(
     repo_name: "catalog-api",
     service_name: "catalog-api",
     story: "catalog-api runs on ECS and Kubernetes through deployment-config.",
+    topology_edges: [
+      {
+        relationship_type: "DEFINES",
+        source_id: "repository:r_catalog",
+        target_id: "workload:catalog-api",
+      },
+      {
+        relationship_type: "INSTANCE_OF",
+        source_id: "instance:catalog:prod",
+        target_id: "workload:catalog-api",
+      },
+      {
+        relationship_type: "INSTANCE_OF",
+        source_id: "instance:catalog:stage",
+        target_id: "workload:catalog-api",
+      },
+    ],
     workload_id: "workload:catalog-api",
+  };
+}
+
+function directRuntimeTopology(sourceID: string, targetID: string): Record<string, unknown> {
+  return {
+    topology_basis: "direct_runtime",
+    topology_edges: [
+      {
+        relationship_type: "RUNS_ON",
+        source_id: sourceID,
+        target_id: targetID,
+      },
+    ],
   };
 }
 
