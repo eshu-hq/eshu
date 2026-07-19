@@ -26,7 +26,7 @@ import "fmt"
 // bounds each statement to this domain's edges, so the broad rel-type list
 // cannot over-delete — it exists so every (source label, relationship type)
 // pair the write path can create is retractable.
-const sqlRelationshipRetractRelTypes = "QUERIES_TABLE|REFERENCES_TABLE|HAS_COLUMN|TRIGGERS|EXECUTES"
+const sqlRelationshipRetractRelTypes = "QUERIES_TABLE|REFERENCES_TABLE|HAS_COLUMN|TRIGGERS|EXECUTES|INDEXES"
 
 // sqlRelationshipRetractSourceLabels lists the source node labels a SQL
 // relationship edge retract must cover. It MUST include every label the write
@@ -92,6 +92,7 @@ var sqlRelationshipWriteReasons = map[string]string{
 	"HAS_COLUMN":       "SQL entity metadata resolved a table-column containment edge",
 	"TRIGGERS":         "SQL entity metadata resolved a trigger edge",
 	"EXECUTES":         "SQL trigger metadata resolved a routine execution edge",
+	"INDEXES":          "SQL entity metadata resolved an index-to-table edge",
 }
 
 func buildSQLRelationshipRowMap(
