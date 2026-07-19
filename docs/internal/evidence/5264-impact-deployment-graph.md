@@ -312,7 +312,7 @@ The retained-browser run on application head `09be7fea10` is superseded by the
 final fail-closed completeness corrections. Its valid-path counts remain
 diagnostic context, not the final merge-readiness browser proof.
 
-The final retained-browser run used the authenticated console at
+The retained `api-node-boats` browser run used the authenticated console at
 `http://127.0.0.1:5194/impact?kind=service&target=api-node-boats` against
 application head `fa29dff4cec182a3c3de8d7e0c07a85a9e61f7cf`. The Vite process
 was verified to be serving directly from this feature worktree after the final
@@ -358,3 +358,28 @@ matrix's **4000 ms local-full-stack p95** contract for
 single 16.7 ms frame budget. These are warm retained-data measurements on this
 local machine, not a hardware-independent product guarantee or a comparison to
 the earlier 0.357 s API-only measurement.
+
+The final post-review browser smoke used the exact integrated implementation head
+`9ce1e43aeb7d5df7691945d8298a144a24896a46`: the feature-worktree API ran on
+`127.0.0.1:19085` against the retained Postgres and NornicDB data, and the
+feature-worktree console proxy ran on `127.0.0.1:5195`. This closes the stale
+binary gap after the final topology-basis validation and OpenAPI contract
+commits. The bounded catalog scan selected `service:base` because it had a
+resolved zero-row change surface and a populated deployment trace. In the
+authenticated browser the page showed zero direct and zero deeper change
+impacts, skipped blast radius under the documented service-anchor contract,
+and selected **Deployment topology** rather than presenting an empty change
+surface as deployment impact.
+
+The final graph rendered **35 of 35 nodes** and **5 of 5 edges** within the
+60/120 bounds and reported **complete within bounds**. The deployment panel
+reported four runtime instances and 29 cloud resources; the graph disclosed
+that cloud evidence remains disconnected when the trace supplies no exact
+topology endpoint instead of inventing relationships. The shipped composition
+readout was **0.100 ms**. Exact DOM checks found one deployment-topology
+heading, one zero-direct signal, one 35/35-node signal, one 5/5-edge signal,
+and one complete-within-bounds signal. The browser warning/error log was empty.
+The retained `api-node-boats` dual-platform proof and five-sample timing series
+above remain the positive ECS/Kubernetes and interactive-read evidence; this
+exact-head smoke specifically proves the final fallback selection and
+fail-closed contract integration in the signed-in console.
