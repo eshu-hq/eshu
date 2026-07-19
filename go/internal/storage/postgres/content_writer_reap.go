@@ -88,9 +88,10 @@ const reapStaleContentEntitiesPathBatchSize = contentFileBatchSize
 // never before — so the delete only ever removes rows this call's own fresh
 // set has superseded, not rows a still-in-flight batch is about to write.
 //
-// Scope invariant (load-bearing — see content_writer.go's Write() doc and
-// docs/public/reference/local-testing.md's Postgres content-writer entry for
-// the STEP 0 proof this relies on): every caller that reaches ContentWriter.Write
+// Scope invariant (load-bearing — see content_writer.go's Write() doc and the
+// "content_entities stale-row reap (#5329)" section of
+// go/internal/storage/postgres/README.md for the completeness-invariant proof
+// this relies on): every caller that reaches ContentWriter.Write
 // gives it the COMPLETE, all-label entity set for a touched file in one call
 // — go/internal/collector/git_snapshot_native.go parses a file once (all
 // EntityBuckets together) and go/internal/projector's per-generation

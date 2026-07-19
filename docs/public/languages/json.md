@@ -65,15 +65,18 @@ Not claimed today:
       explicitly excluded from graph materialization
       (`go/internal/projector/canonical_builder.go`, "Plain Variable rows
       remain in the content store/search surface") and live only in Postgres
-      `content_entities`. That table has **no equivalent cleanup**: it deletes
-      a row only when a whole file is deleted, not when an entity's derived id
-      changes, so the old counter-keyed row and the new real-line row both
-      persist permanently after the file's next reprocessing (live-verified:
-      11 stale rows remained after a forced re-ingest that also wrote 11 new
-      rows for the same logical dependencies). This is a pre-existing gap in
-      `content_entities` lifecycle management, not new code from this fix, but
-      this migration is the first change guaranteed to trigger it for every
-      repository with a `package.json`/`composer.json` in one shot. Tracked as
-      a follow-up; until fixed, expect permanent duplicate
-      `content_entities`/search-surface rows for JSON dependency and script
-      entities after this migration.
+      `content_entities`. Before this fix that table had no cleanup for
+      entity-id changes (it deleted a row only on whole-file deletion), so a
+      line shift would have left the old counter-keyed row and the new
+      real-line row both present. This change closes that gap with an anti-join
+      reap (`reapStaleContentEntities`,
+      `go/internal/storage/postgres/content_writer_reap.go`): after upserting a
+      file's complete fresh entity set, it deletes that file's rows whose id is
+      not in the fresh set, on every reprocess (live-verified: a re-ingest that
+      shifted every dependency line kept the row count correct — 15→14 with a
+      removed dependency — instead of doubling it, and a no-op third ingest is
+      idempotent). Residual, by design: a repository whose JSON file is
+      unchanged on disk keeps its old-identity rows until that file's next real
+      content change triggers a reprocess. The deeper cleanup — removing
+      `line_number` from content-store dependency identity so reordering never
+      churns identity — is tracked in #5357.
