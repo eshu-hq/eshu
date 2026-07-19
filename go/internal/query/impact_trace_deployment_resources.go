@@ -220,14 +220,26 @@ func (h *ImpactHandler) fetchK8sResources(
 		for _, image := range images {
 			imageSet[image] = struct{}{}
 		}
-		resources = append(resources, map[string]any{
+		resource := map[string]any{
 			"entity_id":        row.EntityID,
 			"entity_name":      row.EntityName,
 			"kind":             kind,
 			"qualified_name":   qualifiedName,
 			"relative_path":    row.RelativePath,
 			"container_images": images,
-		})
+			"namespace":        k8sNamespace(row.Metadata),
+		}
+		// selector/pod_template_labels presence carries tri-state meaning
+		// for k8sSelectMatch (see content_relationships_k8s_match.go): the
+		// key must be omitted entirely, not set to "", when the source
+		// content row lacks it.
+		if selector, ok := row.Metadata["selector"].(string); ok {
+			resource["selector"] = selector
+		}
+		if podTemplateLabels, ok := row.Metadata["pod_template_labels"].(string); ok {
+			resource["pod_template_labels"] = podTemplateLabels
+		}
+		resources = append(resources, resource)
 	}
 
 	imageRefs := make([]string, 0, len(imageSet))

@@ -201,20 +201,32 @@ func buildOutgoingK8sSelectRelationships(
 		return nil, false, nil
 	}
 
-	matches, err := reader.SearchEntitiesByName(
-		ctx, entity.RepoID, "K8sResource", entity.EntityName, contentRelationshipLimit,
-	)
-	if err != nil {
-		return nil, true, fmt.Errorf("search selected deployments: %w", err)
+	serviceInput := k8sSelectMatchInputFromEntity(entity)
+	// A Service with a known, empty selector is genuinely selectorless
+	// (ExternalName/manual Endpoints): no SELECTS edge is possible and no
+	// fallback applies (see k8sSelectMatch), so skip the query entirely.
+	if serviceInput.selectorPresent && serviceInput.selector == "" {
+		return nil, true, nil
 	}
 
-	relationships := make([]map[string]any, 0, len(matches))
-	seen := make(map[string]struct{}, len(matches))
-	for _, match := range matches {
+	// Selector matches are not name-scoped (a Service and the Deployment it
+	// selects commonly have different names), so candidates come from a
+	// repo-wide entity scan rather than a name lookup. This mirrors the
+	// existing ListRepoEntities(repositorySemanticEntityLimit) pattern used
+	// for controller-entity scans in impact_trace_deployment_controllers.go.
+	candidates, err := reader.ListRepoEntities(ctx, entity.RepoID, repositorySemanticEntityLimit)
+	if err != nil {
+		return nil, true, fmt.Errorf("list repo entities for k8s selects: %w", err)
+	}
+
+	relationships := make([]map[string]any, 0, len(candidates))
+	seen := make(map[string]struct{}, len(candidates))
+	for _, match := range candidates {
 		if match.EntityID == entity.EntityID || !isK8sResourceKind(match, "Deployment") {
 			continue
 		}
-		if !sameK8sNamespace(entity, match) {
+		matched, reason := k8sSelectMatch(serviceInput, k8sSelectMatchInputFromEntity(match))
+		if !matched {
 			continue
 		}
 		key := match.EntityID + ":" + match.EntityName
@@ -226,7 +238,7 @@ func buildOutgoingK8sSelectRelationships(
 			"type":        "SELECTS",
 			"target_name": match.EntityName,
 			"target_id":   match.EntityID,
-			"reason":      "k8s_service_name_namespace",
+			"reason":      reason,
 		})
 	}
 
@@ -308,20 +320,24 @@ func buildIncomingK8sSelectRelationships(
 		return nil, false, nil
 	}
 
-	matches, err := reader.SearchEntitiesByName(
-		ctx, entity.RepoID, "K8sResource", entity.EntityName, contentRelationshipLimit,
-	)
+	workloadInput := k8sSelectMatchInputFromEntity(entity)
+
+	// A matching Service can have any name, so candidates come from a
+	// repo-wide entity scan (see buildOutgoingK8sSelectRelationships for the
+	// same reasoning) rather than a name lookup.
+	candidates, err := reader.ListRepoEntities(ctx, entity.RepoID, repositorySemanticEntityLimit)
 	if err != nil {
-		return nil, true, fmt.Errorf("search selecting services: %w", err)
+		return nil, true, fmt.Errorf("list repo entities for k8s selects: %w", err)
 	}
 
-	relationships := make([]map[string]any, 0, len(matches))
-	seen := make(map[string]struct{}, len(matches))
-	for _, match := range matches {
+	relationships := make([]map[string]any, 0, len(candidates))
+	seen := make(map[string]struct{}, len(candidates))
+	for _, match := range candidates {
 		if match.EntityID == entity.EntityID || !isK8sResourceKind(match, "Service") {
 			continue
 		}
-		if !sameK8sNamespace(entity, match) {
+		matched, reason := k8sSelectMatch(k8sSelectMatchInputFromEntity(match), workloadInput)
+		if !matched {
 			continue
 		}
 		key := match.EntityID + ":" + match.EntityName
@@ -333,7 +349,7 @@ func buildIncomingK8sSelectRelationships(
 			"type":        "SELECTS",
 			"source_name": match.EntityName,
 			"source_id":   match.EntityID,
-			"reason":      "k8s_service_name_namespace",
+			"reason":      reason,
 		})
 	}
 
@@ -346,10 +362,6 @@ func isK8sResourceKind(entity EntityContent, kind string) bool {
 	}
 	value, _ := entity.Metadata["kind"].(string)
 	return strings.EqualFold(strings.TrimSpace(value), kind)
-}
-
-func sameK8sNamespace(left EntityContent, right EntityContent) bool {
-	return strings.EqualFold(k8sNamespace(left.Metadata), k8sNamespace(right.Metadata))
 }
 
 func k8sNamespace(metadata map[string]any) string {

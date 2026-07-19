@@ -126,7 +126,7 @@ func collectDeploymentSourceK8sResources(
 			imageSet[imageRef] = struct{}{}
 		}
 
-		resources = append(resources, map[string]any{
+		resource := map[string]any{
 			"entity_id":            entity.EntityID,
 			"entity_type":          entity.EntityType,
 			"entity_name":          entity.EntityName,
@@ -139,7 +139,19 @@ func collectDeploymentSourceK8sResources(
 			"controller_kind":      StringVal(controller, "controller_kind"),
 			"controller_entity_id": StringVal(controller, "entity_id"),
 			"controller_path":      StringVal(controller, "relative_path"),
-		})
+			"namespace":            k8sNamespace(entity.Metadata),
+		}
+		// selector/pod_template_labels presence carries tri-state meaning
+		// for k8sSelectMatch (see content_relationships_k8s_match.go): the
+		// key must be omitted entirely, not set to "", when the source
+		// content row lacks it.
+		if selector, ok := entity.Metadata["selector"].(string); ok {
+			resource["selector"] = selector
+		}
+		if podTemplateLabels, ok := entity.Metadata["pod_template_labels"].(string); ok {
+			resource["pod_template_labels"] = podTemplateLabels
+		}
+		resources = append(resources, resource)
 	}
 
 	sortDeploymentTraceMaps(resources)
