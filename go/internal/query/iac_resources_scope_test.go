@@ -56,7 +56,7 @@ func TestScopedIaCResourceListGateAllowsRoute(t *testing.T) {
 	}
 }
 
-func TestScopedIaCResourceListGateRejectsAdjacentRoute(t *testing.T) {
+func TestScopedIaCResourceListGateRejectsSharedKeyOnlyRoute(t *testing.T) {
 	t.Parallel()
 
 	resolver := &fakeScopedTokenResolver{
@@ -70,23 +70,24 @@ func TestScopedIaCResourceListGateRejectsAdjacentRoute(t *testing.T) {
 	}
 	handler := AuthMiddlewareWithScopedTokens("", resolver, mockHandler())
 
-	// POST /api/v0/impact/trace-resource-to-code is an adjacent
-	// resource-graph route that stays fail-closed for scoped tokens (#5167
-	// Group B, pendingRowFilteringRoutes -- it has no AllowedScopeIDs
-	// grant-filtering wired yet: the #5167 W3 family flagged it as unsafe to
-	// allowlist because its traversal endpoints carry no repo_id property; see
-	// auth_scoped_routes_impact.go's doc comment); only the GET list route and
-	// the #5167 W4 iac/replatforming family (POST /api/v0/iac/dead among
-	// them) are scoped-enabled. (POST /api/v0/aws/runtime-drift/findings,
-	// this test's route until the #5167 F-6 W6 cloud/aws family workstream
-	// scope-filtered it, is no longer a valid adjacent example -- it now
-	// reaches its handler under a scoped token like iac/dead.) iac/dead
-	// reaches its handler under a scoped token and enforces the grant there:
-	// TestHandleDeadIaCScopedGrantAllowsInGrantRepository serves an in-grant
-	// repo, while TestHandleDeadIaCScopedGrantRejectsOutOfGrantRepository and
-	// TestHandleDeadIaCScopedEmptyGrantRejectsAnyRepository return 400 at the
-	// handler (not a transport-layer 403).
-	req := httptest.NewRequest(http.MethodPost, "/api/v0/impact/trace-resource-to-code", nil)
+	// The negative control deliberately targets a PERMANENTLY shared-key-only
+	// route -- POST /api/v0/code/cypher (#5167 Group C, sharedKeyOnlyRoutes,
+	// auth_scoped_routes_shared_key_only.go) -- so this transport-layer 403
+	// assertion survives the whole #5167 epic. A scoped token on any route
+	// outside scopedHTTPRouteSupportsTenantFilter gets scopedRouteDeniedResponse
+	// (auth.go: the auth.Mode == AuthModeScoped && !scopedHTTPRouteSupportsTenantFilter
+	// branch), and /code/cypher can never join that allowlist: its handler runs
+	// the caller's literal Cypher with no selector to intersect against a grant,
+	// so it is excluded by design, not pending.
+	//
+	// Do NOT repoint this to a pendingRowFilteringRoutes entry: every route in
+	// that ledger is destined for scoped promotion by some F-6 family (the
+	// ledger draining to empty IS the epic's exit criterion), so a pending
+	// route would flip this control's expected 403 to 200 the moment its family
+	// lands -- exactly the W6 regression this replaced (aws/runtime-drift/findings
+	// was pending when W4 authored this test, then W6 promoted it and enforced
+	// the grant at its own handler via TestHandleAWSRuntimeDriftFindingsScoped*).
+	req := httptest.NewRequest(http.MethodPost, "/api/v0/code/cypher", nil)
 	req.Header.Set("Authorization", "Bearer scoped-token")
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
