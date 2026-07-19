@@ -113,6 +113,15 @@ func githubConnectionTestAPIBase(configurationJSON string) string {
 		BaseURL    string `json:"base_url"`
 		APIBaseURL string `json:"api_base_url"`
 	}
+	// A decode error is intentionally ignored and left to the safe default.
+	// The configuration blob is validated and re-serialized on write
+	// (buildGitHubProviderConfigWrite), so a failure here can only mean a
+	// stored blob predating the current JSON schema or a corrupted byte — not
+	// operator input. In that case cfg stays zero-valued and
+	// EffectiveAPIBaseURL("","") pins the probe to https://api.github.com, the
+	// safe default: the test simply targets github.com rather than a
+	// mis-derived host, and a genuinely broken config still fails the secret
+	// decode / reachability checks in TestConnection.
 	_ = json.Unmarshal([]byte(configurationJSON), &cfg)
 	return githublogin.EffectiveAPIBaseURL(cfg.BaseURL, cfg.APIBaseURL)
 }
