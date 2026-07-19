@@ -4,8 +4,12 @@
 
 1. `go/cmd/mcp-server/README.md` — pipeline position, lifecycle, configuration,
    and operational notes
-2. `go/cmd/mcp-server/wiring.go` — `wireAPI` and `newMCPQueryRouter`; understand
-   these before touching handler composition or env-var wiring
+2. `go/cmd/mcp-server/wiring.go` — `wireAPI` (env-var wiring, credential chain,
+   `mcpAuthWiring`); `go/cmd/mcp-server/wiring_router.go` — `newMCPQueryRouter`
+   and `newMCPQueryRouterWithSemanticEmbedding` (handler composition);
+   `go/cmd/mcp-server/transport_auth_guard.go` — the no-silent-open startup gate
+   (#5168). Understand these before touching handler composition, env-var
+   wiring, or transport auth
 3. `go/cmd/mcp-server/main.go` — transport selection and shutdown; understand
    the `switch transport` before touching startup or signal handling
 4. `go/internal/mcp/README.md` — MCP tool dispatch, the SSE session model, and
@@ -23,11 +27,19 @@
   and `ESHU_CONTENT_STORE_DSN` are empty. The `openQueryGraph` call is skipped
   when `ProfileLocalLightweight` is active or `ESHU_DISABLE_NEO4J` is true
   (`wiring.go:179`).
-- **IaC stores always wired** — `newMCPQueryRouter` always sets
-  `IaCHandler.Reachability` and `IaCHandler.Management` to Postgres-backed
-  query adapters (`wiring.go:146`). Do not set either to nil.
-- **MCP read tools must have matching query handlers** — `newMCPQueryRouter`
-  wires `CICDHandler` and `SupplyChainHandler` to their Postgres read models so
+- **IaC stores always wired** — `newMCPQueryRouterWithSemanticEmbedding`
+  (`wiring_router.go`) always sets `IaCHandler.Reachability` and
+  `IaCHandler.Management` to Postgres-backed query adapters. Do not set either
+  to nil.
+- **No silent open mode over HTTP (#5168)** — in `http` mode with no resolvable
+  credential source (`ESHU_API_KEY`, `ESHU_SCOPED_TOKENS_FILE`, or
+  `ESHU_AUTH_RESOURCE_URI`), `requireMCPHTTPCredentialSource` exits non-zero
+  unless `ESHU_MCP_ALLOW_UNAUTHENTICATED=true`. Do not weaken this by counting
+  the always-wired Postgres identity resolver as a credential source. stdio is
+  never gated.
+- **MCP read tools must have matching query handlers** —
+  `newMCPQueryRouterWithSemanticEmbedding` (`wiring_router.go`) wires
+  `CICDHandler` and `SupplyChainHandler` to their Postgres read models so
   `list_ci_cd_run_correlations`, `list_supply_chain_impact_findings`,
   `list_security_alert_reconciliations`, and
   `list_sbom_attestation_attachments` do not dispatch to 404 routes.
@@ -47,7 +59,8 @@
 ## Common changes and how to scope them
 
 - **Add a new query handler** → add a field to the `query.APIRouter` struct,
-  wire it in `newMCPQueryRouter` in `wiring.go`, assert it in
+  wire it in `newMCPQueryRouterWithSemanticEmbedding` in `wiring_router.go`,
+  assert it in
   `wiring_test.go`, and add the matching tool in `go/internal/mcp/dispatch.go`.
   Run
   `cd go && go test ./cmd/mcp-server ./internal/mcp -count=1`. Why: the
@@ -100,14 +113,19 @@
   and limits query capability. It is intended for lightweight local profiles
   only.
 
-- **Relying on MCP transport auth for `/api/` routes** — the MCP transport mux
-  does not protect `/api/`. Auth for those routes is enforced by
-  `query.AuthMiddleware` at `wiring.go:89`.
+- **Confusing the two auth layers** — as of #5168 the MCP transport endpoints
+  (`GET /sse`, `POST /mcp/message`) ARE authenticated, via
+  `mcp.WithTransportAuth` wired in `wireAPI`. The `/api/*` routes are protected
+  separately by `query.AuthMiddlewareWithScopedTokensAndGovernanceAudit`
+  wrapping the query mux (the `authedHandler` passed to `mcp.NewServer`). Both
+  use the SAME credential chain; do not assume one covers the other's mount, and
+  do not remove either wrap.
 
 ## What NOT to change without an ADR
 
-- The query handler composition in `newMCPQueryRouter` — adding or removing
-  handlers changes the MCP tool surface and must be coordinated with
-  `internal/mcp/dispatch.go` tool definitions and `docs/public/guides/mcp-guide.md`.
+- The query handler composition in `newMCPQueryRouterWithSemanticEmbedding`
+  (`wiring_router.go`) — adding or removing handlers changes the MCP tool
+  surface and must be coordinated with `internal/mcp/dispatch.go` tool
+  definitions and `docs/public/guides/mcp-guide.md`.
 - Transport options for `ESHU_MCP_TRANSPORT` — adding a new transport type
   changes the documented wire contract; see `docs/public/deployment/service-runtimes.md`.

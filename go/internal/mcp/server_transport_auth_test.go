@@ -229,3 +229,49 @@ func openSSESession(t *testing.T, mux *http.ServeMux, credential string) string 
 	}
 	return sessionID
 }
+
+// TestPeekMCPMethodExtractsSmallBodyAndPreservesIt proves the common case:
+// a normal (sub-limit) JSON-RPC body still yields the correct method label
+// and the reconstructed body is intact for the downstream handler.
+func TestPeekMCPMethodExtractsSmallBodyAndPreservesIt(t *testing.T) {
+	body := `{"jsonrpc":"2.0","id":1,"method":"tools/list"}`
+	req := httptest.NewRequest(http.MethodPost, "/mcp/message", strings.NewReader(body))
+
+	method, req := peekMCPMethod(req)
+	if method != "tools/list" {
+		t.Fatalf("method = %q, want tools/list", method)
+	}
+	got, err := io.ReadAll(req.Body)
+	if err != nil {
+		t.Fatalf("read reconstructed body: %v", err)
+	}
+	if string(got) != body {
+		t.Fatalf("reconstructed body = %q, want %q", got, body)
+	}
+}
+
+// TestPeekMCPMethodPreservesOversizedBody is the pre-auth memory-bound
+// hardening regression (issue #5168 review, optional item): peekMCPMethod
+// buffers at most mcpMethodPeekLimit bytes to read the method, but the
+// downstream authenticated handler must still see the FULL body -- a body
+// larger than the peek limit must be reconstructed byte-for-byte, never
+// truncated. The method label may degrade to a non-specific value for such a
+// body; that is acceptable (best-effort telemetry), but body preservation is
+// load-bearing.
+func TestPeekMCPMethodPreservesOversizedBody(t *testing.T) {
+	blob := strings.Repeat("x", mcpMethodPeekLimit*2)
+	body := `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"blob":"` + blob + `"}}`
+	if len(body) <= mcpMethodPeekLimit {
+		t.Fatalf("test body length = %d, want > peek limit %d", len(body), mcpMethodPeekLimit)
+	}
+	req := httptest.NewRequest(http.MethodPost, "/mcp/message", strings.NewReader(body))
+
+	_, req = peekMCPMethod(req)
+	got, err := io.ReadAll(req.Body)
+	if err != nil {
+		t.Fatalf("read reconstructed body: %v", err)
+	}
+	if string(got) != body {
+		t.Fatalf("reconstructed body length = %d, want %d (peek must not truncate)", len(got), len(body))
+	}
+}

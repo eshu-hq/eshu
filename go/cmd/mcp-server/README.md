@@ -3,7 +3,10 @@
 `eshu-mcp-server` boots the Eshu MCP tool transport over stdio or HTTP. It wires
 the same query layer used by `eshu-api` and dispatches MCP tool calls through
 `internal/mcp`. In HTTP mode it composes the shared runtime admin surface
-alongside the MCP-specific transport endpoints.
+alongside the MCP-specific transport endpoints, authenticates those transport
+endpoints with the same credential chain as `/api/v0/*` (issue #5168), and
+refuses to start an unauthenticated HTTP deployment unless an explicit escape
+hatch is set.
 
 ## Where this fits in the pipeline
 
@@ -34,13 +37,14 @@ flowchart TB
     wire["wireAPI()"]
     pg["sql.Open + PingContext\n(Postgres)"]
     neo4j["internalruntime.OpenNeo4jDriver\n(Neo4j / NornicDB)"]
-    router["newMCPQueryRouter()\nquery.APIRouter"]
+    router["newMCPQueryRouter()\nwiring_router.go\nquery.APIRouter"]
     auth["query.AuthMiddleware\nprotects /api/v0/*"]
     admin["mountRuntimeSurface()\ninternalruntime.NewStatusAdminMux"]
-    srv["mcp.NewServer(queryMux)"]
+    gate["requireMCPHTTPCredentialSource\nno silent open mode (#5168)"]
+    srv["mcp.NewServer(queryMux,\nWithTransportAuth)"]
     transport{ESHU_MCP_TRANSPORT}
     stdio["Server.Run(ctx)\nstdin/stdout"]
-    http["Server.RunHTTP(ctx, addr, adminMux)\n/sse /mcp/message /health /api/"]
+    http["Server.RunHTTP(ctx, addr, adminMux)\nauthed /sse /mcp/message; /health /api/"]
 
     main --> tel
     main --> wire
@@ -49,6 +53,7 @@ flowchart TB
     wire --> router
     router --> auth
     wire --> admin
+    main --> gate
     main --> srv
     main --> transport
     transport -->|"stdio"| stdio
@@ -75,18 +80,31 @@ flowchart TB
    `CompareHandler`) into a `query.APIRouter` and mounts it.
    Component-extension routes read the configured component registry only when
    `ESHU_COMPONENT_HOME` is set; otherwise they return an unavailable envelope.
-4. The mounted handler is wrapped by `query.AuthMiddleware`.
+4. The mounted handler is wrapped by `query.AuthMiddleware`. `wireAPI` also
+   returns an `mcpAuthWiring` carrying (a) `transportAuth`, the same credential
+   chain closure used to wrap `GET /sse` and `POST /mcp/message`, and (b)
+   `credentialSourceConfigured`, true when `ESHU_API_KEY`,
+   `ESHU_SCOPED_TOKENS_FILE`, or `ESHU_AUTH_RESOURCE_URI` is set (the
+   always-wired Postgres identity resolver is deliberately excluded; see
+   `mcpAuthWiring` in `transport_auth_guard.go`).
 5. `mountRuntimeSurface` creates a shared admin mux via
    `internalruntime.NewStatusAdminMux` exposing `/healthz`, `/readyz`,
    `/metrics`, and `/admin/status`. The admin mux and mounted `/api/v0/status/*`
    routes share the same status reader so semantic provider profile rows are
    redacted consistently.
-6. `mcp.NewServer` is called with the authed query handler.
-7. Transport selection reads `ESHU_MCP_TRANSPORT`:
+6. `requireMCPHTTPCredentialSource` enforces the no-silent-open gate (#5168):
+   in HTTP mode with no resolvable credential source it exits non-zero with an
+   actionable error unless `ESHU_MCP_ALLOW_UNAUTHENTICATED=true` (which logs a
+   prominent dev-only warning). stdio is never gated.
+7. `mcp.NewServer` is called with the authed query handler and
+   `mcp.WithTransportAuth(authWiring.transportAuth)`, so `GET /sse` and
+   `POST /mcp/message` (every JSON-RPC method) require the same credential as
+   `tools/call`'s internal dispatch.
+8. Transport selection reads `ESHU_MCP_TRANSPORT`:
    - `stdio` — `Server.Run` reads newline-delimited JSON-RPC from stdin;
      no HTTP listener starts.
    - `http` — `Server.RunHTTP` listens on `ESHU_MCP_ADDR` (default `:8080`).
-8. Shutdown is driven by `signal.NotifyContext` on `SIGINT`/`SIGTERM`.
+9. Shutdown is driven by `signal.NotifyContext` on `SIGINT`/`SIGTERM`.
    Telemetry providers shut down on a fresh `context.Background()` so
    in-flight traces are not cut short.
 
@@ -108,6 +126,7 @@ satisfies `query.GraphQuery` and `query.ContentReader` satisfies
 |---|---|---|
 | `ESHU_MCP_TRANSPORT` | `http` | `http` or `stdio` |
 | `ESHU_MCP_ADDR` | `:8080` | HTTP listen address |
+| `ESHU_MCP_ALLOW_UNAUTHENTICATED` | `false` | Dev/loopback escape hatch (#5168). Allows HTTP mode to start with no resolvable credential source; every request and SSE session is then unauthenticated. Never set on a publicly reachable bind. |
 | `ESHU_POSTGRES_DSN` | — | falls back to `ESHU_CONTENT_STORE_DSN` |
 | `ESHU_GRAPH_BACKEND` | — | parsed by `query.ParseGraphBackend`; defaults to NornicDB |
 | `ESHU_QUERY_PROFILE` | `production` | `loadQueryProfile` defaults to `query.ProfileProduction` |
@@ -139,16 +158,23 @@ or spans beyond the startup/connection events.
   returned before any datastore connection. `wireAPI` calls the config
   validators before opening any connection (`wiring.go:32-52`).
 - `stdio` mode does not start an HTTP listener. The admin surface (`/healthz`,
-  `/readyz`, `/metrics`) is not available in stdio mode.
-- The query API mounted under `/api/` is protected by `query.AuthMiddleware`,
-  not by the MCP transport auth.
+  `/readyz`, `/metrics`) is not available in stdio mode. stdio keeps its
+  process/filesystem trust boundary and is never gated by credential
+  configuration.
+- The query API mounted under `/api/` is protected by `query.AuthMiddleware`.
+  As of #5168 the MCP transport endpoints (`GET /sse`, `POST /mcp/message`) are
+  ALSO authenticated, with the same credential chain, via
+  `mcp.WithTransportAuth`. Denials increment
+  `eshu_dp_mcp_transport_auth_denied_total` (labeled by `mcp_method` and
+  `reason`).
 - `loadGraphBackend` with an empty `ESHU_GRAPH_BACKEND` defaults to
   `query.GraphBackendNornicDB`.
 
 ## Extension points
 
-- Add a new query handler: add it to `newMCPQueryRouter` in `wiring.go`,
-  assert it in `wiring_test.go`, and define the matching tool in
+- Add a new query handler: add it to `newMCPQueryRouterWithSemanticEmbedding`
+  in `wiring_router.go` (the router struct literal; `wiring.go` holds only
+  `wireAPI`), assert it in `wiring_test.go`, and define the matching tool in
   `internal/mcp/dispatch.go`.
 - Add a new transport mode: add a case to the `switch transport` in `main.go`
   and implement a corresponding `Server` method in `internal/mcp/server.go`.
@@ -161,8 +187,8 @@ or spans beyond the startup/connection events.
 - Version probes are pre-startup checks. Keep `printMCPServerVersionFlag` at
   the top of `main` so MCP clients and containers can inspect the binary safely.
 - `IaCHandler.Reachability` and `IaCHandler.Management` must be non-nil;
-  `newMCPQueryRouter` always sets them to the Postgres-backed adapters
-  (`wiring.go:146`).
+  `newMCPQueryRouterWithSemanticEmbedding` (`wiring_router.go`) always sets them
+  to the Postgres-backed adapters.
 - `CICDHandler.Correlations`, `SupplyChainHandler.SBOMAttachments`,
   `SupplyChainHandler.AdvisoryEvidence`, `SupplyChainHandler.ImpactFindings`,
   `SupplyChainHandler.ImpactExplanations`, and

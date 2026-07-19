@@ -86,22 +86,47 @@ type mcpMethodPeek struct {
 	Method string `json:"method"`
 }
 
-// peekMCPMethod reads r.Body fully, restores it (so the eventual handler can
-// still decode the full request unaffected), and returns the bounded method
-// label. It never truncates the body -- a partial restore would corrupt a
-// legitimate large tools/call arguments payload.
+// mcpMethodPeekLimit bounds how many leading bytes peekMCPMethod buffers to
+// extract the JSON-RPC "method" for the denial metric label. This peek runs
+// BEFORE auth, so it must not let an unauthenticated caller amplify memory by
+// posting a giant body (net/http does not bound request bodies by default).
+// A well-formed JSON-RPC envelope carries "method" near the front; 4 KiB is
+// ample. A body whose method sits past the limit simply degrades to the
+// "unknown" label -- the label is best-effort telemetry, never a correctness
+// input.
+const mcpMethodPeekLimit = 4 << 10
+
+// peekedBody restores the full request body after peekMCPMethod buffers only
+// its head: Read serves the buffered head followed by the untouched tail, and
+// Close closes the original body. This keeps the authenticated handler's view
+// of the body complete (no truncation of a legitimate large tools/call
+// payload) while bounding the pre-auth buffered bytes to mcpMethodPeekLimit.
+type peekedBody struct {
+	io.Reader
+	orig io.ReadCloser
+}
+
+func (b peekedBody) Close() error { return b.orig.Close() }
+
+// peekMCPMethod buffers at most mcpMethodPeekLimit leading bytes of r.Body to
+// read the JSON-RPC "method", stitches the untouched remainder back onto the
+// request (so the eventual authenticated handler still decodes the full
+// request), and returns the bounded method label. It never truncates the body
+// the handler sees; only the pre-auth peek buffer is bounded.
 func peekMCPMethod(r *http.Request) (string, *http.Request) {
 	if r.Body == nil {
 		return "unknown", r
 	}
-	raw, err := io.ReadAll(r.Body)
-	_ = r.Body.Close()
-	r.Body = io.NopCloser(bytes.NewReader(raw))
+	orig := r.Body
+	head, err := io.ReadAll(io.LimitReader(orig, mcpMethodPeekLimit))
+	// Reconstruct the full body regardless of outcome: buffered head first,
+	// then whatever remains unread on the original stream.
+	r.Body = peekedBody{Reader: io.MultiReader(bytes.NewReader(head), orig), orig: orig}
 	if err != nil {
 		return "unknown", r
 	}
 	var peek mcpMethodPeek
-	if jsonErr := json.Unmarshal(raw, &peek); jsonErr != nil || peek.Method == "" {
+	if jsonErr := json.Unmarshal(head, &peek); jsonErr != nil || peek.Method == "" {
 		return "unknown", r
 	}
 	if !knownMCPMethods[peek.Method] {

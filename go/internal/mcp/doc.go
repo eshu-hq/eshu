@@ -15,6 +15,18 @@
 // envelope carrying error code mcp_response_over_budget plus budget accounting
 // and narrowing guidance, so a single heavy graph-returning tool cannot blow the
 // model context budget. Per-route token budgets still apply first.
+//
+// In HTTP mode the transport itself is authenticated when the server is
+// constructed with WithTransportAuth (issue #5168): the GET /sse and
+// POST /mcp/message endpoints run every JSON-RPC method (initialize,
+// tools/list, tools/call, ping) through the caller-supplied credential chain,
+// so an unauthenticated request is refused with 401 and discloses nothing
+// about the tool catalog or server metadata. Each SSE session is bound to the
+// credential that opened it; a POST to that session whose credential resolves
+// to a different principal is rejected. Denials increment
+// eshu_dp_mcp_transport_auth_denied_total, labeled by mcp_method and reason.
+// The stdio transport is never authenticated -- it keeps its process and
+// filesystem trust boundary.
 // Helpers in this package normalize tool arguments, including shared
 // slice and identifier helpers in
 // dispatch_args.go, build request bodies for the underlying handler, and parse

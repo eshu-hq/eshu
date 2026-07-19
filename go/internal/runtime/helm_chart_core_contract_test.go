@@ -47,6 +47,21 @@ func TestHelmMCPDeploymentStartsHTTPTransport(t *testing.T) {
 	}
 }
 
+// TestHelmMCPDeploymentDisablesUnauthEscapeHatch is the issue #5168 review P1
+// regression: the mcp-server container runs `eshu mcp start --transport http`,
+// the same CLI subcommand that defaults ESHU_MCP_ALLOW_UNAUTHENTICATED on for a
+// loopback bind. The chart must pin that env to "false" so a Helm pod can never
+// silently inherit the dev/loopback escape hatch and defeat the no-silent-open
+// startup gate on a publicly reachable Service.
+func TestHelmMCPDeploymentDisablesUnauthEscapeHatch(t *testing.T) {
+	t.Parallel()
+
+	deployment := requireHelmManifest(t, renderHelmChart(t), "Deployment", "eshu-mcp-server")
+	container := requireHelmContainer(t, deployment, "mcp-server")
+	env := helmEnvByName(container)
+	assertHelmLiteralEnv(t, env, "ESHU_MCP_ALLOW_UNAUTHENTICATED", "false")
+}
+
 func TestHelmHTTPRuntimesScrapeMetricsOnHTTPPort(t *testing.T) {
 	t.Parallel()
 

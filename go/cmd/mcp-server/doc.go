@@ -26,6 +26,12 @@
 // and exposes `/sse`, `/mcp/message`, `/health`, the mounted `/api/*` routes,
 // and the shared `/healthz`, `/readyz`, `/metrics`, `/admin/status` admin
 // surface.
+//
+// In HTTP mode the transport endpoints (`/sse`, `/mcp/message`) are
+// authenticated with the same credential chain as the query API (issue #5168),
+// and the binary refuses to start with no resolvable credential source unless
+// ESHU_MCP_ALLOW_UNAUTHENTICATED=true is set for loopback/dev use. The stdio
+// transport keeps its process/filesystem trust boundary and is never gated.
 // SIGINT and SIGTERM trigger context cancellation and clean shutdown.
 //
 // When ESHU_PPROF_ADDR is set, the binary also exposes an opt-in
