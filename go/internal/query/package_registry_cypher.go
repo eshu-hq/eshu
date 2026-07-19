@@ -40,9 +40,12 @@ LIMIT $limit`, params
 // statement (a concrete relationship variable anchored on bound package
 // identities via UNWIND). NornicDB's OPTIONAL MATCH + count(v) aggregate
 // silently collapses every zero-match group into a single row instead of
-// grouping by every non-aggregate RETURN key, so packageRegistryPackagesCypher
-// must not carry the version count itself. Any package uid absent from this
-// query's result has zero versions; the caller zero-fills it. See
+// grouping by every non-aggregate RETURN key, so neither
+// packageRegistryPackagesCypher nor packageRegistryPackagesScopedEcosystemCypher
+// may carry the version count itself. Any package uid absent from this
+// query's result has zero versions; the caller
+// (PackageRegistryHandler.attachPackageVersionCounts) zero-fills it for
+// every listPackages branch, scoped and unscoped alike. See
 // docs/public/reference/nornicdb-pitfalls.md.
 func packageRegistryVersionCountsCypher(packageIDs []string) (string, map[string]any) {
 	return `UNWIND $package_ids AS candidate_package_id
@@ -70,11 +73,20 @@ RETURN p.uid AS package_id, count(r) AS version_count`, map[string]any{"package_
 // value). That is both a cross-ecosystem correctness leak and a latent
 // full-scan performance regression. See
 // docs/public/reference/nornicdb-pitfalls.md.
+//
+// This is deliberately an anchor-only read with NO version count column: the
+// same OPTIONAL MATCH (p)-[:HAS_VERSION]->(v) ... count(v) shape that made
+// packageRegistryPackagesCypher silently collapse every zero-version package
+// out of its result set (see the "OPTIONAL MATCH + Aggregate Collapses Every
+// Zero-Match Group Into One Row" pitfall) applies identically here -- a
+// public package with zero versions would vanish from the ecosystem-browse
+// page. The caller resolves version_count for the returned page via
+// packageRegistryVersionCountsCypher/attachPackageVersionCounts, exactly like
+// the unscoped packageRegistryPackagesCypher branches.
 func packageRegistryPackagesScopedEcosystemCypher(ecosystem string, limit int) (string, map[string]any) {
 	params := map[string]any{"limit": limit, "ecosystem": ecosystem}
 	return `MATCH (p:Package)
 WHERE p.ecosystem = $ecosystem AND p.visibility = 'public'
-OPTIONAL MATCH (p)-[:HAS_VERSION]->(v:PackageVersion)
 RETURN p.uid AS package_id,
        p.ecosystem AS ecosystem,
        p.registry AS registry,
@@ -86,8 +98,7 @@ RETURN p.uid AS package_id,
        p.source_path AS source_path,
        p.source_specific_id AS source_specific_id,
        p.visibility AS visibility,
-       p.source_confidence AS source_confidence,
-       count(v) AS version_count
+       p.source_confidence AS source_confidence
 ORDER BY p.ecosystem, p.normalized_name, p.uid
 LIMIT $limit`, params
 }

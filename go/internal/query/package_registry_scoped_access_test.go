@@ -356,11 +356,23 @@ func TestPackageRegistryPackagesScopedEcosystemBrowseUsesVisibilityFilteredCyphe
 	if strings.Contains(rec.Body.String(), "package.json") {
 		t.Fatalf("scoped ecosystem browse leaked source_path: %s", rec.Body.String())
 	}
-	if len(graph.calls) != 1 || !strings.Contains(graph.calls[0], "p.visibility = 'public'") {
-		t.Fatalf("expected the scoped visibility-filtered ecosystem cypher, got calls: %#v", graph.calls)
+	// Two calls: the anchor-only scoped-ecosystem read, then the separate
+	// UNWIND version-count read (packageRegistryVersionCountsCypher) that
+	// attachPackageVersionCounts merges in Go. The scoped-ecosystem cypher
+	// must NOT carry its own OPTIONAL MATCH + count(v) -- see
+	// packageRegistryPackagesScopedEcosystemCypher's doc comment and
+	// docs/public/reference/nornicdb-pitfalls.md.
+	if len(graph.calls) != 2 || !strings.Contains(graph.calls[0], "p.visibility = 'public'") {
+		t.Fatalf("expected the scoped visibility-filtered ecosystem cypher followed by the version-count cypher, got calls: %#v", graph.calls)
 	}
 	if strings.Contains(graph.calls[0], "{ecosystem: $ecosystem}") {
 		t.Fatalf("scoped ecosystem cypher must NOT use the inline-pattern+trailing-WHERE shape (NornicDB drops the inline anchor): %s", graph.calls[0])
+	}
+	if strings.Contains(graph.calls[0], "count(v)") || strings.Contains(graph.calls[0], "OPTIONAL MATCH") {
+		t.Fatalf("scoped ecosystem cypher must NOT carry its own OPTIONAL MATCH + count(v) (NornicDB collapses every zero-version row): %s", graph.calls[0])
+	}
+	if !strings.Contains(graph.calls[1], "UNWIND $package_ids") {
+		t.Fatalf("expected the second call to be the UNWIND version-count read, got: %s", graph.calls[1])
 	}
 }
 
@@ -391,10 +403,12 @@ func TestPackageRegistryPackagesUnscopedCallerNotRedactedNoGate(t *testing.T) {
 	if !strings.Contains(rec.Body.String(), "package.json") {
 		t.Fatalf("unscoped caller must see source_path unredacted: %s", rec.Body.String())
 	}
-	// Exactly one call: the real read. No anchor-visibility pre-check for an
-	// unscoped caller (resolvePackageRegistryAnchorGate is a no-op for
-	// access.scoped() == false).
-	if len(graph.calls) != 1 {
+	// Exactly two calls: the real read, then the separate version-count read
+	// every listPackages branch merges in Go (attachPackageVersionCounts). No
+	// anchor-visibility pre-check for an unscoped caller
+	// (resolvePackageRegistryAnchorGate is a no-op for access.scoped() ==
+	// false).
+	if len(graph.calls) != 2 {
 		t.Fatalf("unscoped caller must not trigger the scoped anchor gate, got calls: %#v", graph.calls)
 	}
 }

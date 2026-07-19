@@ -384,6 +384,19 @@ from every ecosystem-scoped list read, and an exact `package_id` lookup for a
 zero-version package returned an empty page — indistinguishable from "package
 does not exist."
 
+The F-6/W5b tenant-scoped ecosystem-browse variant,
+`packageRegistryPackagesScopedEcosystemCypher`, reused the identical
+`OPTIONAL MATCH (p)-[:HAS_VERSION]->(v) ... count(v)` composition (with the
+combined `WHERE p.ecosystem = $ecosystem AND p.visibility = 'public'`
+predicate from the pitfall below) and was exposed to the same row-collapse:
+a public, zero-version package would silently vanish from a scoped caller's
+ecosystem browse. It was rewritten to the same anchor-only + `UNWIND`
+version-count split before it shipped, confirmed live: the pre-fix scoped
+shape collapsed a 2-public-package fixture (one zero-version, one
+two-version) to a single row, with the two-version package's count leaking
+onto the zero-version package's id — the same wrong-id/count pairing as the
+unscoped shape's evidence above.
+
 Two candidate single-statement replacements were tried and also rejected —
 each looked correct in isolation but broke as soon as a non-zero-count row was
 added to the fixture:
@@ -424,16 +437,18 @@ correct on a same-cardinality-only fixture.
 
 ### Validation
 
-`go test ./internal/query -run TestLivePackageRegistryListPackagesReturnsZeroVersionPackages
+`go test ./internal/query -run
+'TestLivePackageRegistry(ListPackagesReturnsZeroVersionPackages|ScopedEcosystemBrowseReturnsZeroVersionPackages)'
 -count=1 -v` (env-gated on `ESHU_PKG_REGISTRY_PROVE_LIVE=1` and
-`ESHU_NEO4J_URI`) is the backend-required live proof: it captures the OLD
-`OPTIONAL MATCH`+`count(v)` shape's output for evidence, then asserts the
-shipped handler returns every package (including zero-version ones with
-`version_count: 0`) and resolves a zero-version package by exact
-`package_id`. See
+`ESHU_NEO4J_URI`) is the backend-required live proof for both the unscoped
+and scoped-ecosystem branches: each captures its OLD `OPTIONAL MATCH`+
+`count(v)` shape's output for evidence, then asserts the shipped handler
+returns every package (including zero-version ones with `version_count: 0`,
+and, for the scoped variant, excluding the private package) and, for the
+unscoped branch, resolves a zero-version package by exact `package_id`. See
 `docs/internal/evidence/5167-package-registry-version-count-nornicdb.md` for
-full before/after tables including the rejected candidates and the
-200-package corpus timing.
+full before/after tables including the rejected candidates, the
+200-package corpus timing, and the scoped-ecosystem before/after.
 
 ## Pitfall: Inline `MATCH` Property Pattern Silently Dropped By A Trailing `WHERE`
 
