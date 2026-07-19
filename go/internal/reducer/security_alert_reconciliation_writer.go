@@ -61,6 +61,7 @@ func (w PostgresSecurityAlertReconciliationWriter) WriteSecurityAlertReconciliat
 		return SecurityAlertReconciliationWriteResult{}, fmt.Errorf("security alert reconciliation database is required")
 	}
 	now := reducerWriterNow(w.Now)
+	rows := make([]reducerFactRow, 0, len(write.Decisions))
 	for _, decision := range write.Decisions {
 		scopeID := securityAlertReconciliationWriteScopeID(write, decision)
 		generationID := securityAlertReconciliationWriteGenerationID(write, decision)
@@ -69,27 +70,25 @@ func (w PostgresSecurityAlertReconciliationWriter) WriteSecurityAlertReconciliat
 		if err != nil {
 			return SecurityAlertReconciliationWriteResult{}, fmt.Errorf("marshal security alert reconciliation payload: %w", err)
 		}
-		if _, err := w.DB.ExecContext(
-			ctx,
-			canonicalReducerFactInsertQuery,
-			securityAlertReconciliationFactID(write, decision),
-			scopeID,
-			generationID,
-			securityAlertReconciliationFactKind,
-			securityAlertReconciliationStableFactKey(write, decision),
-			reducerFactCollectorKind(write.SourceSystem),
-			facts.SourceConfidenceInferred,
-			write.SourceSystem,
-			write.IntentID,
-			nil,
-			nil,
-			now,
-			now,
-			false,
-			payloadJSON,
-		); err != nil {
-			return SecurityAlertReconciliationWriteResult{}, fmt.Errorf("write security alert reconciliation fact: %w", err)
-		}
+		rows = append(rows, reducerFactRow{
+			FactID:           securityAlertReconciliationFactID(write, decision),
+			ScopeID:          scopeID,
+			GenerationID:     generationID,
+			FactKind:         securityAlertReconciliationFactKind,
+			StableFactKey:    securityAlertReconciliationStableFactKey(write, decision),
+			CollectorKind:    reducerFactCollectorKind(write.SourceSystem),
+			SourceConfidence: facts.SourceConfidenceInferred,
+			SourceSystem:     write.SourceSystem,
+			SourceFactKey:    write.IntentID,
+			ObservedAt:       now,
+			IngestedAt:       now,
+			Payload:          string(payloadJSON),
+		})
+	}
+	// Bounded chunked bulk insert: decisions are upserted in O(N/batchSize)
+	// round-trips rather than one ExecContext per decision.
+	if err := reducerBatchInsertFacts(ctx, w.DB, rows); err != nil {
+		return SecurityAlertReconciliationWriteResult{}, fmt.Errorf("write security alert reconciliation fact: %w", err)
 	}
 	return SecurityAlertReconciliationWriteResult{
 		CanonicalWrites: 0,
