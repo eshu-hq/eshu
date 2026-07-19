@@ -50,6 +50,30 @@ before treating a graph as current:
 
 `bootstrap-index` is one-shot and does not mount the shared HTTP admin surface.
 
+## MCP HTTP Transport Auth (Breaking Change)
+
+Issue #5168 closed a gap where `initialize`, `tools/list`, `ping`, and
+`GET /sse` session establishment on the MCP HTTP transport were reachable
+without a credential — only `tools/call` was checked, and only incidentally,
+through its internal re-dispatch. `GET /sse` and `POST /mcp/message` (every
+JSON-RPC method) now require the same credential chain as `/api/v0/*`:
+`ESHU_API_KEY`, a scoped token from `ESHU_SCOPED_TOKENS_FILE`, or an
+IdP-issued bearer token accepted by `ESHU_AUTH_RESOURCE_URI`. An
+unauthenticated request gets a bare `401` with no tool-catalog or
+server-identity disclosure. An SSE session is bound to the credential that
+opened it — a different credential cannot post to that session's `sessionId`.
+
+**Breaking change for operators running a keyless HTTP deployment.** Before
+#5168, `ESHU_MCP_TRANSPORT=http` with no `ESHU_API_KEY` served the MCP
+transport openly (only the query API surface behind it was gated). Now, that
+configuration refuses to start with an actionable error. Configure one of the
+three credential sources above, or set
+`ESHU_MCP_ALLOW_UNAUTHENTICATED=true` to keep the previous open behavior for
+loopback/dev use only — never on a publicly reachable port. `stdio`
+(`eshu mcp start`, `eshu local-host mcp-stdio`) is unaffected: it keeps its
+process/filesystem trust boundary and is never gated by credential
+configuration.
+
 ## Operational Defaults
 
 - Keep the workspace PVC on the ingester only.

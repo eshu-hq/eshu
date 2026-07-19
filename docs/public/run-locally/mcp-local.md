@@ -44,6 +44,19 @@ eshu mcp start --workspace-root /path/to/repo --transport http --host 127.0.0.1 
 The legacy `--transport sse` value is accepted as an alias for the HTTP
 transport.
 
+Local `eshu mcp start --transport http` inherits whatever credential the
+running local owner is configured with (typically none, since local dev
+usually has no `ESHU_API_KEY` set). As of #5168 an HTTP MCP server with no
+resolvable credential source refuses to start unless
+`ESHU_MCP_ALLOW_UNAUTHENTICATED=true` is set; the local CLI path sets it for
+you so `eshu mcp start --transport http` keeps working for local/loopback use
+without extra configuration. The default stdio path
+(`eshu mcp start --workspace-root <repo>`) is unaffected either way — it
+keeps its process/filesystem trust boundary and is never gated by credential
+configuration. See
+[Service Runtimes](../deployment/service-runtimes.md#mcp-http-transport-auth-breaking-change)
+for the full deployment-facing contract.
+
 ## Use the Compose MCP service
 
 Docker Compose starts an MCP server service:

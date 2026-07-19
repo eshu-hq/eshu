@@ -95,6 +95,12 @@ services:
       ESHU_MCP_ADDR: ":8080"
       ESHU_API_KEY: ${ESHU_DEMO_API_KEY:-}
       ESHU_AUTO_GENERATE_API_KEY: "false"
+      # Breaking change (#5168): unlike docker-compose.yaml's mcp-server (which
+      # sets ESHU_AUTO_GENERATE_API_KEY=true), this demo runtime deliberately
+      # never auto-generates a key. Set ESHU_DEMO_API_KEY before starting the
+      # demo stack, or the MCP server now refuses to start with no resolvable
+      # credential source. Set ESHU_MCP_ALLOW_UNAUTHENTICATED=true instead only
+      # for a throwaway demo you know is not reachable from outside this host.
       ESHU_DEPLOYMENT_ENVIRONMENT: local-compose-demo
       ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER: auto_hash
       # Neutralize every provider/secret env the extended base mcp-server

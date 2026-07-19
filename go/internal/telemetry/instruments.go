@@ -1052,6 +1052,16 @@ type Instruments struct {
 	// telemetry-coverage contract. Degraded search is expected in no-embedder mode.
 	SearchHybridDegraded metric.Int64Counter
 	OIDCLoginThrottled   metric.Int64Counter
+	// MCPTransportAuthDenied counts MCP transport-level authentication
+	// denials by mcp_method and reason (unauthenticated,
+	// session_principal_mismatch), so an operator can see catalog-enumeration
+	// or session-hijack attempts against initialize/tools/list/tools/call/
+	// ping/SSE (issue #5168). Like APIRequestDuration/APIRequestErrors, it is
+	// recorded from go/internal/mcp through the global meter (see
+	// go/internal/mcp/transport_auth_metrics.go), not through this struct's
+	// field; the field exists so the metric is registered and tracked by the
+	// telemetry-coverage contract.
+	MCPTransportAuthDenied metric.Int64Counter
 	// AuthSecretSealTotal and AuthSecretOpenTotal count go/internal/secretcrypto
 	// Keyring.Seal/Open calls made by identity bootstrap-credential seeding
 	// (epic #4962/#4963) and, later, provider-secret write/read (#4966), by
@@ -3739,6 +3749,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, fmt.Errorf("register OIDCLoginThrottled counter: %w", err)
 	}
 
+	inst.MCPTransportAuthDenied, err = meter.Int64Counter(
+		"eshu_dp_mcp_transport_auth_denied_total",
+		metric.WithDescription("MCP transport-level authentication denials by mcp_method and reason, so an operator can see catalog-enumeration or session-hijack attempts against initialize/tools/list/tools/call/ping/SSE"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register MCPTransportAuthDenied counter: %w", err)
+	}
+
 	inst.AuthSecretSealTotal, err = meter.Int64Counter(
 		"eshu_dp_auth_secret_seal_total",
 		metric.WithDescription("go/internal/secretcrypto Keyring.Seal calls by operation and result (success, error). Never carries plaintext, ciphertext, or key material."),
@@ -5144,6 +5162,13 @@ func AttrResult(v string) attribute.KeyValue {
 // AttrReason returns a reason attribute for metric recording.
 func AttrReason(v string) attribute.KeyValue {
 	return attribute.String(MetricDimensionReason, v)
+}
+
+// AttrMCPMethod returns an mcp_method attribute for
+// eshu_dp_mcp_transport_auth_denied_total. v must be a bounded JSON-RPC
+// method name or one of "sse", "other", "unknown".
+func AttrMCPMethod(v string) attribute.KeyValue {
+	return attribute.String(MetricDimensionMCPMethod, v)
 }
 
 // AttrKind returns a kind attribute for metric recording.

@@ -84,6 +84,9 @@ func scopedHTTPRouteSupportsTenantFilter(r *http.Request) bool {
 	if r.Method == http.MethodPost && r.URL.Path == "/api/v0/ask" {
 		return true
 	}
+	if scopedMCPTransportRoute(r) {
+		return true
+	}
 	if r.Method == http.MethodPost && r.URL.Path == "/api/v0/entities/resolve" {
 		return true
 	}

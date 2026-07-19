@@ -78,6 +78,15 @@ For a deployed HTTP endpoint, keep the bearer token out of committed docs and
 shell history when possible. Set `ESHU_MCP_URL` to the deployed `mcp-server`
 URL and `ESHU_MCP_TOKEN` to the token issued for that endpoint.
 
+!!! warning "Breaking change: MCP HTTP transport now requires a credential (#5168)"
+    Every MCP HTTP request — including `initialize`, `tools/list`, `ping`, and
+    `GET /sse` session establishment, not only tool calls — now requires the
+    same bearer credential as the query API. A deployment with no
+    `ESHU_API_KEY`, scoped-token file, or IdP bearer resolver configured
+    refuses to start over HTTP; see
+    [Service Runtimes](../deployment/service-runtimes.md#mcp-http-transport-auth-breaking-change)
+    for the escape hatch and the local `stdio` exception.
+
 Claude Code can add the deployed Eshu MCP server with:
 
 ```bash

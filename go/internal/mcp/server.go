@@ -89,9 +89,13 @@ type mcpResource struct {
 	Text     string `json:"text,omitempty"`
 }
 
-// sseSession holds the response channel for one SSE client.
+// sseSession holds the response channel for one SSE client. principal
+// identifies the credential that opened the session (see authPrincipalKey);
+// it is empty when transport auth is not configured, in which case session
+// binding is not enforced (see handleHTTPMessage).
 type sseSession struct {
-	ch chan []byte
+	ch        chan []byte
+	principal string
 }
 
 // Server is the Go MCP server that dispatches tool calls to internal HTTP handlers.
@@ -104,20 +108,30 @@ type Server struct {
 	// SSE session registry: sessionID -> session
 	sessMu   sync.RWMutex
 	sessions map[string]*sseSession
+
+	// transportAuth wraps GET /sse and POST /mcp/message with the caller's
+	// credential chain (see WithTransportAuth). nil means the HTTP transport
+	// is unauthenticated -- the local stdio path never uses this field at all,
+	// since Run() (stdio) never touches httpMux.
+	transportAuth func(http.Handler) http.Handler
 }
 
 // NewServer creates an MCP server backed by the given HTTP handler.
 // The handler should have all /api/v0/* query routes mounted.
-func NewServer(handler http.Handler, logger *slog.Logger) *Server {
+func NewServer(handler http.Handler, logger *slog.Logger, opts ...ServerOption) *Server {
 	if logger == nil {
 		logger = slog.New(slog.NewJSONHandler(os.Stderr, nil))
 	}
-	return &Server{
+	s := &Server{
 		handler:  handler,
 		tools:    ReadOnlyTools(),
 		logger:   logger,
 		sessions: make(map[string]*sseSession),
 	}
+	for _, opt := range opts {
+		opt(s)
+	}
+	return s
 }
 
 // RunHTTP starts the MCP server as an HTTP service listening on addr.
@@ -166,11 +180,12 @@ func (s *Server) httpMux(base *http.ServeMux) *http.ServeMux {
 		_, _ = w.Write([]byte(`{"status":"ok"}`))
 	})
 
-	// SSE transport endpoint.
-	httpMux.HandleFunc("GET /sse", s.handleSSE)
-
-	// MCP JSON-RPC endpoint (supports both standalone POST and SSE-linked POST).
-	httpMux.HandleFunc("POST /mcp/message", s.handleHTTPMessage)
+	// SSE transport endpoint and the JSON-RPC endpoint (standalone POST or
+	// SSE-linked POST) both require the same credential chain as tools/call
+	// when transport auth is configured (issue #5168); authenticatedTransportHandler
+	// is a no-op wrap when s.transportAuth is nil.
+	httpMux.HandleFunc("GET /sse", s.authenticatedTransportHandler("sse", s.handleSSE))
+	httpMux.HandleFunc("POST /mcp/message", s.authenticatedTransportHandler("", s.handleHTTPMessage))
 
 	// Mount the query API routes so the MCP service can also serve
 	// direct HTTP queries (single deployment surface in EKS).
@@ -189,9 +204,11 @@ func (s *Server) handleSSE(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Create a session for this SSE connection.
+	// Create a session for this SSE connection, binding it to the credential
+	// that opened it (empty when transport auth is not configured -- see
+	// authPrincipalKey and handleHTTPMessage's session-principal check).
 	sessionID := fmt.Sprintf("sess_%d", time.Now().UnixNano())
-	sess := &sseSession{ch: make(chan []byte, 64)}
+	sess := &sseSession{ch: make(chan []byte, 64), principal: authPrincipalKey(r.Context())}
 
 	s.sessMu.Lock()
 	s.sessions[sessionID] = sess
@@ -242,7 +259,37 @@ func (s *Server) handleSSE(w http.ResponseWriter, r *http.Request) {
 // handleHTTPMessage handles POST /mcp/message. If a sessionId query param is
 // present, the response is sent via the SSE stream. Otherwise, the response
 // is returned directly in the HTTP response body.
+//
+// When sessionId names a live session, the request's resolved credential
+// (via authPrincipalKey) must match the credential that opened the session
+// (issue #5168 session-hijack requirement): a different principal is rejected
+// with 403 before the request body is even decoded, so it cannot smuggle a
+// message into another principal's SSE stream. Sessions opened without
+// transport auth configured carry an empty principal and are never bound --
+// both sides of an unauthenticated deployment are equally open, so there is
+// nothing meaningful to bind.
 func (s *Server) handleHTTPMessage(w http.ResponseWriter, r *http.Request) {
+	sessionID := r.URL.Query().Get("sessionId")
+	var sess *sseSession
+	if sessionID != "" {
+		s.sessMu.RLock()
+		sess = s.sessions[sessionID]
+		s.sessMu.RUnlock()
+	}
+
+	if sess != nil && sess.principal != "" {
+		if reqPrincipal := authPrincipalKey(r.Context()); reqPrincipal != sess.principal {
+			recordMCPTransportAuthDenied(r.Context(), "mcp_message", mcpAuthDenyReasonSessionMismatch)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusForbidden)
+			_ = json.NewEncoder(w).Encode(jsonrpcResponse{
+				JSONRPC: "2.0",
+				Error:   &jsonrpcError{Code: -32001, Message: "credential does not match the session owner"},
+			})
+			return
+		}
+	}
+
 	var req jsonrpcRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		w.Header().Set("Content-Type", "application/json")
@@ -256,14 +303,8 @@ func (s *Server) handleHTTPMessage(w http.ResponseWriter, r *http.Request) {
 
 	resp := s.handleMessage(r.Context(), &req, r.Header.Get("Authorization"))
 
-	// Check for an SSE session.
-	sessionID := r.URL.Query().Get("sessionId")
-	if sessionID != "" {
-		s.sessMu.RLock()
-		sess, ok := s.sessions[sessionID]
-		s.sessMu.RUnlock()
-
-		if ok && resp != nil {
+	if sess != nil {
+		if resp != nil {
 			encoded, err := json.Marshal(resp)
 			if err == nil {
 				select {

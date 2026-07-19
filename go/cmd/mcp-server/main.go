@@ -70,16 +70,38 @@ func main() {
 		transport = "http"
 	}
 
-	queryMux, adminMux, cleanup, err := wireAPI(ctx, os.Getenv, logger, providers.PrometheusHandler)
+	queryMux, adminMux, cleanup, authWiring, err := wireAPI(ctx, os.Getenv, logger, providers.PrometheusHandler)
 	if err != nil {
 		logger.Error("wire api failed", telemetry.EventAttr("runtime.startup.failed"), "error", err)
 		os.Exit(1)
 	}
 	defer cleanup()
 
-	// Note: MCP server's internal httpMux handles auth for its own endpoints (/sse, /mcp/message, /health).
-	// The query API routes mounted under /api/ are protected by the query mux itself.
-	server := mcp.NewServer(queryMux, logger)
+	// No silent open mode over HTTP (issue #5168): refuse to start
+	// ESHU_MCP_TRANSPORT=http with no resolvable credential source, unless
+	// the operator explicitly opted into the dev/loopback escape hatch.
+	// stdio is never gated -- requireMCPHTTPCredentialSource is a no-op for
+	// any transport other than "http".
+	allowUnauthenticated := runtimecfg.IsTruthy(os.Getenv("ESHU_MCP_ALLOW_UNAUTHENTICATED"))
+	if err := requireMCPHTTPCredentialSource(transport, authWiring, allowUnauthenticated); err != nil {
+		logger.Error("mcp server refused to start", telemetry.EventAttr("runtime.startup.failed"), "error", err)
+		os.Exit(1)
+	}
+	if transport == "http" && !authWiring.credentialSourceConfigured && allowUnauthenticated {
+		logger.Warn(
+			"ESHU_MCP_ALLOW_UNAUTHENTICATED=true: MCP HTTP transport starting with no credential source -- "+
+				"every initialize/tools/list/tools/call/ping request and SSE session is unauthenticated. "+
+				"Dev/loopback use only; never expose this port publicly with the escape hatch set.",
+			telemetry.EventAttr("runtime.startup.warning"),
+		)
+	}
+
+	// The MCP server's internal httpMux authenticates GET /sse and
+	// POST /mcp/message with authWiring.transportAuth -- the SAME credential
+	// chain protecting /api/ and tools/call's internal dispatch (issue
+	// #5168). The query API routes mounted under /api/ are protected by the
+	// query mux itself (queryMux is already an authed handler).
+	server := mcp.NewServer(queryMux, logger, mcp.WithTransportAuth(authWiring.transportAuth))
 
 	switch transport {
 	case "stdio":
