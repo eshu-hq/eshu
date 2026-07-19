@@ -196,6 +196,7 @@ nav:
       - SARIF Export: reference/sarif-export.md
       - Story Missing Evidence Alignment: reference/story-missing-evidence.md
       - Reducer Claim-Latency Gate: reference/reducer-claim-latency-gate.md
+      - Read-Surface Consumer-Existence Gate: reference/read-surface-consumer-existence-gate.md
       - Code-Graph Sub-Scope Partitioning: reference/code-graph-subscope-partitioning.md
       - Hosted Search Embedder Gate: reference/hosted-search-embedder-gate.md
       - Hybrid Retrieval Production Gate: reference/hybrid-retrieval-production-gate.md

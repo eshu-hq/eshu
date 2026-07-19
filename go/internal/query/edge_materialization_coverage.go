@@ -18,6 +18,21 @@ const contentContainmentEdgeType = "CONTAINS"
 // contentContainmentEdgeType in the materialized-edge registry.
 const contentContainmentEdgeReason = "generic File->entity containment writer (cypher.buildEntityStatementsWithContainment)"
 
+// structuralEdgeTypes are core structural graph relationships with a real
+// writer that are outside the SQL-relationship and content-containment
+// domains this registry otherwise derives from. They are registered directly
+// (like contentContainmentEdgeType) rather than through a per-domain map.
+// Added for the #5335 edge-materialization gate
+// (impact_edge_materialization_gate.go): DEPENDS_ON and REPO_CONTAINS are
+// traversed by blast-radius queries with no per-query coverage/complete
+// disclosure field (repository, terraform_module), so the gate needs this
+// registry to actually know they have writers instead of reporting them as a
+// silent gap.
+var structuralEdgeTypes = map[string]string{
+	"DEPENDS_ON":    "repository dependency edge writer (reducer/code_import_repo_edge.go, reducer/package_consumption_repo_edge.go, reducer/dependency_domain.go)",
+	"REPO_CONTAINS": "generic Repository->File containment writer (cypher/canonical_node_cypher.go MERGE (r)-[:REPO_CONTAINS]->(f))",
+}
+
 // EdgeCoverage reports whether a graph relationship type is written by a
 // known edge writer, and if not, why. It backs the honest blast-radius
 // response contract (#5330): a query's UNION branch whose edge type has no
@@ -40,12 +55,16 @@ type EdgeCoverage struct {
 // graph probe: it merges the SQL relationship edge-writer whitelist (the
 // authoritative source for REFERENCES_TABLE, HAS_COLUMN, TRIGGERS, EXECUTES,
 // QUERIES_TABLE, and INDEXES — see cypher.SQLRelationshipMaterializedEdgeTypes)
-// with the always-on structural CONTAINS edge. Because it reads the writer
-// whitelist directly, a new SQL relationship type added to that whitelist
-// flips this registry automatically without a second edit here.
+// with the always-on structural CONTAINS edge and structuralEdgeTypes
+// (DEPENDS_ON, REPO_CONTAINS). Because it reads the writer whitelist
+// directly, a new SQL relationship type added to that whitelist flips this
+// registry automatically without a second edit here.
 func materializedEdgeTypes() map[string]string {
 	out := cypher.SQLRelationshipMaterializedEdgeTypes()
 	out[contentContainmentEdgeType] = contentContainmentEdgeReason
+	for edgeType, reason := range structuralEdgeTypes {
+		out[edgeType] = reason
+	}
 	return out
 }
 

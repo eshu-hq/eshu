@@ -31,12 +31,19 @@ type LanguageLedger struct {
 	Languages []LanguageLedgerEntry
 }
 
-// LanguageLedgerEntry is one language from the ledger. Only the language
-// identity is modeled here; the scoreboard keys on the language name and does
-// not consume the ledger's feature/source-file fields.
+// LanguageLedgerEntry is one language from the ledger. The scoreboard keys on
+// the language name and does not consume the ledger's feature/source-file
+// fields. ReadSurfaces is consumed by the #5335 read-surface consumer
+// existence gate (go/internal/mcp/read_surface_consumer_existence_test.go),
+// which resolves each label against a live MCP tool, Go symbol, or HTTP
+// route so a language row cannot claim a read surface with no real consumer.
 type LanguageLedgerEntry struct {
 	// Language is the stable language name (e.g. "go", "rust", "argocd").
 	Language string
+	// ReadSurfaces are the abstract read-surface labels this language row
+	// claims (e.g. "execute_language_query", "content_relationships"). Each
+	// label must resolve through the #5335 backing map to a live consumer.
+	ReadSurfaces []string
 }
 
 type languageLedgerFile struct {
@@ -45,7 +52,8 @@ type languageLedgerFile struct {
 }
 
 type languageLedgerFileFeature struct {
-	Language string `yaml:"language"`
+	Language     string   `yaml:"language"`
+	ReadSurfaces []string `yaml:"read_surfaces"`
 }
 
 // LoadLanguageLedger reads the language-feature-parity ledger from path and
@@ -73,7 +81,15 @@ func LoadLanguageLedger(path string) (LanguageLedger, error) {
 			return LanguageLedger{}, fmt.Errorf("language ledger %s: duplicate language %q", path, name)
 		}
 		seen[name] = struct{}{}
-		ledger.Languages = append(ledger.Languages, LanguageLedgerEntry{Language: name})
+		readSurfaces := make([]string, 0, len(rec.ReadSurfaces))
+		for _, surface := range rec.ReadSurfaces {
+			trimmed := strings.TrimSpace(surface)
+			if trimmed == "" {
+				return LanguageLedger{}, fmt.Errorf("language ledger %s: language %q has a blank read_surfaces entry", path, name)
+			}
+			readSurfaces = append(readSurfaces, trimmed)
+		}
+		ledger.Languages = append(ledger.Languages, LanguageLedgerEntry{Language: name, ReadSurfaces: readSurfaces})
 	}
 	sort.Slice(ledger.Languages, func(i, j int) bool {
 		return ledger.Languages[i].Language < ledger.Languages[j].Language

@@ -72,6 +72,54 @@ func TestLoadLanguageLedgerRejectsBlankAndDuplicate(t *testing.T) {
 	}
 }
 
+func TestLoadLanguageLedgerParsesReadSurfaces(t *testing.T) {
+	path := writeLanguageLedger(t, `version: 1
+language_features:
+  - language: go
+    read_surfaces: [execute_language_query, get_code_relationship_story]
+  - language: helm
+    read_surfaces: [content_relationships]
+  - language: haskell
+`)
+	ledger, err := LoadLanguageLedger(path)
+	if err != nil {
+		t.Fatalf("LoadLanguageLedger: %v", err)
+	}
+	want := map[string][]string{
+		"go":      {"execute_language_query", "get_code_relationship_story"},
+		"haskell": nil,
+		"helm":    {"content_relationships"},
+	}
+	if len(ledger.Languages) != len(want) {
+		t.Fatalf("languages = %d, want %d", len(ledger.Languages), len(want))
+	}
+	for _, entry := range ledger.Languages {
+		wantSurfaces, ok := want[entry.Language]
+		if !ok {
+			t.Fatalf("unexpected language %q", entry.Language)
+		}
+		if len(entry.ReadSurfaces) != len(wantSurfaces) {
+			t.Fatalf("%s: read_surfaces = %v, want %v", entry.Language, entry.ReadSurfaces, wantSurfaces)
+		}
+		for i, s := range wantSurfaces {
+			if entry.ReadSurfaces[i] != s {
+				t.Errorf("%s: read_surfaces[%d] = %q, want %q", entry.Language, i, entry.ReadSurfaces[i], s)
+			}
+		}
+	}
+}
+
+func TestLoadLanguageLedgerRejectsBlankReadSurface(t *testing.T) {
+	path := writeLanguageLedger(t, `version: 1
+language_features:
+  - language: go
+    read_surfaces: ["", execute_language_query]
+`)
+	if _, err := LoadLanguageLedger(path); err == nil {
+		t.Fatal("blank read_surfaces entry must be a load error")
+	}
+}
+
 func TestLoadLanguageLedgerMissingFileIsError(t *testing.T) {
 	// A missing ledger is the scoreboard denominator going silently empty, which
 	// would falsely claim every language is covered — so it must error.
