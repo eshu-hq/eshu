@@ -49,10 +49,13 @@ var sharedKeyOnlyRoutes = map[string]struct{}{
 // resolves MCP tool calls to concrete dispatched requests, not OpenAPI
 // templates -- can classify a route as intentionally excluded rather than an
 // unannotated gap.
+//
+// The lookup is method-agnostic (the map key encodes the method), mirroring
+// IsPendingRowFilteringRoute. An earlier POST-only early return was redundant
+// while every entry is a POST, but it would silently misclassify a future
+// non-POST shared-key route as unclassified and trip the exhaustiveness gate,
+// so it is intentionally absent.
 func IsSharedKeyOnlyRoute(r *http.Request) bool {
-	if r.Method != http.MethodPost {
-		return false
-	}
 	_, ok := sharedKeyOnlyRoutes[r.Method+" "+r.URL.Path]
 	return ok
 }

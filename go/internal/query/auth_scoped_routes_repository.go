@@ -8,8 +8,15 @@ import "strings"
 // scopedRepositorySingleResourceRoute reports whether path is a GET
 // /api/v0/repositories/{repo_id}/<suffix> route, the shape shared by
 // scopedRepositoryFreshnessRoute and every #5167 Group A matcher below: a
-// literal suffix trailing a single non-empty, slash-free {repo_id} path
-// segment.
+// literal suffix trailing a single non-empty {repo_id} path segment.
+//
+// Callers MUST pass the ESCAPED request path (r.URL.EscapedPath()), not
+// r.URL.Path. An org/repo-style selector is transmitted percent-encoded
+// (org%2Frepo) by the MCP dispatchers, and the slash-free guard here relies on
+// that encoding surviving: on r.URL.Path the %2F is already decoded back to a
+// slash, so a legitimate single-segment selector would look like two segments
+// and be rejected. On the escaped path the one selector segment stays
+// slash-free while a genuinely multi-segment path (a/b) still trips the guard.
 func scopedRepositorySingleResourceRoute(path, suffix string) bool {
 	const prefix = "/api/v0/repositories/"
 	if !strings.HasPrefix(path, prefix) || !strings.HasSuffix(path, suffix) {

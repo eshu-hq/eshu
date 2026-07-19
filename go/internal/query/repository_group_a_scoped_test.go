@@ -6,6 +6,7 @@ package query
 import (
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 )
 
@@ -179,6 +180,84 @@ func TestAuthMiddlewareWithScopedTokensAllowsGroupARepositoryRoutes(t *testing.T
 
 			if got, want := w.Code, http.StatusNotFound; got != want {
 				t.Fatalf("status = %d, want %d (grant filtering, not middleware 403); body = %s", got, want, w.Body.String())
+			}
+		})
+	}
+}
+
+// TestAuthMiddlewareWithScopedTokensAllowsGroupARepositoryOrgRepoSlug is the
+// #5167 PR #5324 review regression (P1): a scoped caller addressing a Group A
+// route by an org/repo-style selector must reach the grant-filtering handler,
+// not be 403'd by the allowlist matcher. The MCP dispatchers build the path
+// with url.PathEscape (github.com/eshu-hq/eshu/go/internal/mcp/
+// dispatch_repositories.go), so an "org/order-service" selector arrives as the
+// single escaped segment "org%2Forder-service". http.NewRequest decodes
+// r.URL.Path back to "org/order-service" (a slash reappears) but preserves the
+// escaped form in r.URL.RawPath/EscapedPath(); scopedRepositorySingleResourceRoute
+// therefore MUST match on the escaped path so its slash guard sees one segment,
+// not two. The slash-free-only Group A tests above miss this because "repo-1"
+// escapes to itself.
+//
+// order-service's canonical id is repo-1 (repositoryStatsCatalogEntry's
+// RepoSlug is "org/order-service"), so a caller granted repo-1 resolves and
+// reads it, while a caller granted only repo-other gets the same not-found
+// (404) parity as every other cross-tenant selector -- never a 403 that would
+// confirm the repository's existence.
+func TestAuthMiddlewareWithScopedTokensAllowsGroupARepositoryOrgRepoSlug(t *testing.T) {
+	t.Parallel()
+
+	const orgRepoSelector = "org/order-service" // repositoryStatsCatalogEntry().RepoSlug; resolves to repo-1
+
+	newMiddlewareWrappedHandler := func(allowedRepositoryIDs []string) http.Handler {
+		handler := groupARepositoryTestHandler()
+		mux := http.NewServeMux()
+		handler.Mount(mux)
+		resolver := &fakeScopedTokenResolver{
+			context: AuthContext{
+				Mode:                 AuthModeScoped,
+				TenantID:             "tenant-a",
+				WorkspaceID:          "workspace-a",
+				SubjectClass:         "team",
+				SubjectIDHash:        "sha256:team-a",
+				PolicyRevisionHash:   "sha256:policy",
+				AllowedRepositoryIDs: allowedRepositoryIDs,
+			},
+			ok: true,
+		}
+		return AuthMiddlewareWithScopedTokens("", resolver, mux)
+	}
+
+	for _, tc := range groupARepositoryRoutes {
+		// Build the path exactly as the MCP dispatcher does: PathEscape the
+		// selector so "org/order-service" becomes the single segment
+		// "org%2Forder-service".
+		escapedPath := "/api/v0/repositories/" + url.PathEscape(orgRepoSelector) + "/" + tc.name
+
+		t.Run(tc.name+"/granted org-repo slug reaches the handler", func(t *testing.T) {
+			t.Parallel()
+
+			middleware := newMiddlewareWrappedHandler([]string{"repo-1"})
+			req := httptest.NewRequest(http.MethodGet, escapedPath, nil)
+			req.Header.Set("Authorization", "Bearer scoped-token")
+			w := httptest.NewRecorder()
+			middleware.ServeHTTP(w, req)
+
+			if got, want := w.Code, http.StatusOK; got != want {
+				t.Fatalf("status = %d, want %d (middleware must not 403 a granted scoped caller using an org/repo slug); path = %s; body = %s", got, want, escapedPath, w.Body.String())
+			}
+		})
+
+		t.Run(tc.name+"/ungranted org-repo slug is a 404, not a 403", func(t *testing.T) {
+			t.Parallel()
+
+			middleware := newMiddlewareWrappedHandler([]string{"repo-other"})
+			req := httptest.NewRequest(http.MethodGet, escapedPath, nil)
+			req.Header.Set("Authorization", "Bearer scoped-token")
+			w := httptest.NewRecorder()
+			middleware.ServeHTTP(w, req)
+
+			if got, want := w.Code, http.StatusNotFound; got != want {
+				t.Fatalf("status = %d, want %d (grant filtering, not middleware 403); path = %s; body = %s", got, want, escapedPath, w.Body.String())
 			}
 		})
 	}
