@@ -223,6 +223,18 @@ git -C "${query_missing_dsl_repo}" add .
 git -C "${query_missing_dsl_repo}" commit -q -m 'language query without dsl docs'
 expect_fail "${query_missing_dsl_repo}"
 
+# A *_language_inventory.go change (the repositories/by-language +
+# language-inventory route handlers) is NOT a Language Query DSL source, so it
+# must NOT require a language-query-dsl.md update. This is the paired positive
+# for query_missing_dsl_repo above: together they prove is_language_query_source
+# still fires for a real DSL source (language_queries.go) but is correctly
+# narrowed to skip the by-language inventory handlers.
+language_inventory_repo="$(init_repo language-inventory)"
+printf 'package query\nfunc listRepositoriesByLanguage() {}\n' >"${language_inventory_repo}/go/internal/query/repository_language_inventory.go"
+git -C "${language_inventory_repo}" add .
+git -C "${language_inventory_repo}" commit -q -m 'by-language inventory handler without dsl docs'
+expect_pass "${language_inventory_repo}"
+
 unsupported_claim_repo="$(init_repo unsupported-claim)"
 cat >"${unsupported_claim_repo}/docs/public/languages/support-maturity.md" <<'MD'
 # Parser Support Matrix
