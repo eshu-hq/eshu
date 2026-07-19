@@ -32,13 +32,20 @@ type factKindRegistryFamiliesFile struct {
 	} `yaml:"families"`
 }
 
-// loadFactKindRegistryReadSurfaces reads the family-level read_surface field
+// LoadFactKindRegistryReadSurfaces reads the family-level read_surface field
 // from specs/fact-kind-registry.v1.yaml, keyed by family name. Families with
 // no read_surface or the "none" sentinel are omitted. A missing or malformed
 // file is an error: this is the fact-kind side of the #5335 read-surface
 // consumer-existence gate's denominator, so a silent empty read would falsely
 // report every family as covered.
-func loadFactKindRegistryReadSurfaces(path string) (map[string]string, error) {
+//
+// Exported (not test-only) so cmd/api's mounted-route-parity gate
+// (#5359 P1 fix) can load the same claimed-route set the documented-inventory
+// gate here checks, and additionally verify each one resolves on the
+// actually-mounted *http.ServeMux -- something only a cmd/api-resident test
+// can construct, since newRouter's DI wiring lives in package main and cannot
+// be imported.
+func LoadFactKindRegistryReadSurfaces(path string) (map[string]string, error) {
 	raw, err := os.ReadFile(path) // #nosec G304 -- path is the operator-configured fact-kind registry under specs/, not external input
 	if err != nil {
 		return nil, fmt.Errorf("read fact-kind registry %s: %w", path, err)
@@ -61,11 +68,15 @@ func loadFactKindRegistryReadSurfaces(path string) (map[string]string, error) {
 	return out, nil
 }
 
-// splitAPIRouteSurface splits a "METHOD /path" surface name into an
+// SplitAPIRouteSurface splits a "METHOD /path" surface name into an
 // uppercase HTTP method and slash-separated path segments with the trailing
 // slash stripped, for positional route-template matching. ok is false for a
 // malformed surface (no method/path separator).
-func splitAPIRouteSurface(surface string) (method string, segments []string, ok bool) {
+//
+// Exported so cmd/api's mounted-route-parity gate can turn a claimed
+// read_surface literal into a synthetic *http.Request path (see doc comment
+// on LoadFactKindRegistryReadSurfaces).
+func SplitAPIRouteSurface(surface string) (method string, segments []string, ok bool) {
 	parts := strings.SplitN(strings.TrimSpace(surface), " ", 2)
 	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
 		return "", nil, false
@@ -76,9 +87,13 @@ func splitAPIRouteSurface(surface string) (method string, segments []string, ok 
 	return method, segments, true
 }
 
-// isRoutePathParamSegment reports whether segment is a "{param}"-style
+// IsRoutePathParamSegment reports whether segment is a "{param}"-style
 // template placeholder.
-func isRoutePathParamSegment(segment string) bool {
+//
+// Exported so cmd/api's mounted-route-parity gate can substitute a literal
+// dummy token for each param segment when building a synthetic request path
+// (see doc comment on LoadFactKindRegistryReadSurfaces).
+func IsRoutePathParamSegment(segment string) bool {
 	return strings.HasPrefix(segment, "{") && strings.HasSuffix(segment, "}") && len(segment) > 2
 }
 
@@ -90,11 +105,11 @@ func isRoutePathParamSegment(segment string) bool {
 // "GET /api/v0/incidents/{id}/context" and
 // "GET /api/v0/incidents/{incident_id}/context" are the same route.
 func apiRouteSurfaceMatches(claimed, live string) bool {
-	claimedMethod, claimedSegments, ok := splitAPIRouteSurface(claimed)
+	claimedMethod, claimedSegments, ok := SplitAPIRouteSurface(claimed)
 	if !ok {
 		return false
 	}
-	liveMethod, liveSegments, ok := splitAPIRouteSurface(live)
+	liveMethod, liveSegments, ok := SplitAPIRouteSurface(live)
 	if !ok {
 		return false
 	}
@@ -102,7 +117,7 @@ func apiRouteSurfaceMatches(claimed, live string) bool {
 		return false
 	}
 	for i := range claimedSegments {
-		if isRoutePathParamSegment(claimedSegments[i]) || isRoutePathParamSegment(liveSegments[i]) {
+		if IsRoutePathParamSegment(claimedSegments[i]) || IsRoutePathParamSegment(liveSegments[i]) {
 			continue
 		}
 		if claimedSegments[i] != liveSegments[i] {

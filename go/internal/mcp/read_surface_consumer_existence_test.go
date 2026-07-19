@@ -109,7 +109,7 @@ func assertLanguageParityBackingNotStale(t *testing.T, used map[string]bool) {
 // read_surface_overrides (per-kind route substitutions, including a
 // non-route MCP-tool-shaped override) is out of scope for v1.
 func TestFactKindRegistryReadSurfacesResolveToLiveRoutes(t *testing.T) {
-	surfaces, err := loadFactKindRegistryReadSurfaces(filepath.Join(readSurfaceGateSpecsDir(t), "fact-kind-registry.v1.yaml"))
+	surfaces, err := LoadFactKindRegistryReadSurfaces(filepath.Join(readSurfaceGateSpecsDir(t), "fact-kind-registry.v1.yaml"))
 	if err != nil {
 		t.Fatalf("loadFactKindRegistryReadSurfaces: %v", err)
 	}

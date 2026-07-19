@@ -50,6 +50,23 @@ import (
 func TestNewRouterWiresEveryFieldOrDocumentsWhyNot(t *testing.T) {
 	t.Parallel()
 
+	router := newFullyWiredTestRouter(t)
+
+	assertRouterFieldsWired(t, router, routerFieldsNotWiredByNewRouter)
+}
+
+// newFullyWiredTestRouter builds a *query.APIRouter the same way
+// TestNewRouterWiresEveryFieldOrDocumentsWhyNot does: a real (never-dialed)
+// *sql.DB and real neo4jReader/contentReader instances, so every store field
+// newRouter builds from them is genuinely constructed rather than trivially
+// nil because the test passed nil dependencies. Shared with
+// fact_kind_mounted_route_gate_test.go's mounted-route-parity gate (#5359),
+// which needs the identical production wiring -- not a hand-picked subset of
+// handlers -- to prove a fact-kind read_surface resolves on the router
+// production traffic actually gets.
+func newFullyWiredTestRouter(t *testing.T) *query.APIRouter {
+	t.Helper()
+
 	db, err := sql.Open("pgx", "postgres://example.invalid/eshu")
 	if err != nil {
 		t.Fatalf("sql.Open() error = %v", err)
@@ -81,8 +98,7 @@ func TestNewRouterWiresEveryFieldOrDocumentsWhyNot(t *testing.T) {
 	if err != nil {
 		t.Fatalf("newRouter() error = %v, want nil", err)
 	}
-
-	assertRouterFieldsWired(t, router, routerFieldsNotWiredByNewRouter)
+	return router
 }
 
 // routerFieldsNotWiredByNewRouter documents every query.APIRouter top-level

@@ -4,9 +4,9 @@ Blocking, credential-free, Docker-free CI gate for issue
 [#5335](https://github.com/eshu-hq/eshu/issues/5335). It targets the epic's
 dominant defect class: a ledger row or a query claiming a capability with no
 real consumer behind it — a typo'd label, a renamed tool, or a UNION branch
-naming a relationship type nobody ever writes. Both halves ride the existing
-Go package test floor (`go test ./internal/mcp ./internal/query
-./internal/replaycoverage`); there is no separate workflow.
+naming a relationship type nobody ever writes. All three halves ride the
+existing Go package test floor (`go test ./internal/mcp ./internal/query
+./internal/replaycoverage ./cmd/api`); there is no separate workflow.
 
 ## GATE 1 — read-surface consumer existence
 
@@ -57,6 +57,50 @@ count, and every literal segment must match; a `{param}` segment on either
 side matches positionally regardless of its name (so
 `GET /api/v0/incidents/{id}/context` and
 `GET /api/v0/incidents/{incident_id}/context` are the same route).
+
+### Mounted-route parity (fact-kind registry)
+
+`TestFactKindRegistryReadSurfacesResolveToLiveRoutes` (above) only proves a
+fact-kind read_surface literal is *documented* — it matches
+`capabilitycatalog.LoadSurfaceInventory`, the OpenAPI-derived inventory
+generated from the served spec (`query.OpenAPISpec()` by way of
+`cmd/capability-inventory`'s `enumerateAPIRoutes`). `verify-openapi.sh` keeps
+that spec in parity with `HandleFunc` *declarations* in `openapi_paths_*.go`
+source files, not with what production wiring actually mounts on the API
+router's `*http.ServeMux` — a route can be declared (and so documented) while
+the handler that would serve it is never assigned onto `query.APIRouter`, in
+which case `APIRouter.Mount` silently skips it and a caller following the
+documented route gets a live 404. That gap was a #5359 codex-review P1 finding
+against this gate's own domain: an advertised-but-unservable route would pass
+GATE 1 as long as it stayed in the spec.
+
+`go/cmd/api/fact_kind_mounted_route_gate.go` closes it with a second,
+independent check: `TestFactKindReadSurfacesAreActuallyMountedOnRealRouter`
+(`go/cmd/api/fact_kind_mounted_route_gate_test.go`) builds the real production
+router (`newFullyWiredTestRouter`, the same construction
+`TestNewRouterWiresEveryFieldOrDocumentsWhyNot` uses), mounts it onto a real
+`*http.ServeMux`, and for every fact-kind read_surface literal asks the mux
+itself — via the stdlib's own `(*http.ServeMux).Handler(req)` — whether a
+synthetic request for that route resolves to a registered pattern. An empty
+returned pattern is conclusive: the route is not being served, regardless of
+what the spec says. `TestFactKindMountedRouteGateCatchesDocumentedButUnmountedRoute`
+is the regression test that proves this check actually discriminates
+documented-but-unmounted routes from genuinely live ones, by deliberately
+nil-ing `router.CICD` and confirming the gate fails for
+its one owned route while the documented inventory would still call it
+implemented.
+
+This test rides `go test ./cmd/api/...`, the same credential-free floor as
+every other Go package test — no separate workflow.
+
+**Residual scope limit:** `newFullyWiredTestRouter` wires everything
+`newRouter` wires, but not the two routes `wireAPI`
+(`cmd/api/wiring.go`) mounts directly onto the outer `apiMux` outside
+`APIRouter.Mount` (`POST /api/v0/ask`, the `serviceintelhttp.ReportHandler`
+report route) — see `routerFieldsNotWiredByNewRouter`'s `"Ask"` entry. No
+fact-kind read_surface names either route today, so this does not currently
+narrow the gate's coverage; a future read_surface pointed at one of those two
+routes would need the test's router construction extended to mount them too.
 
 ### Grandfathering
 
