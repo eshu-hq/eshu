@@ -68,6 +68,28 @@ func codeCallExactCandidateNames(call map[string]any, language string) []string 
 				}
 			}
 		}
+		if language == "dart" {
+			// Fail open (#5332 regression): the Dart AST rewrite emits a
+			// receiver-qualified full_name ("repository.create") for BOTH
+			// class/static/named-constructor references and ordinary
+			// instance-variable receivers — unlike Python, which only adds a
+			// bare fallback for class-style receivers
+			// (codeCallPythonQualifiedClassReceiver). A variable receiver's
+			// qualified full_name never matches a real declaration (the
+			// receiver is a local variable, not a resolvable scope), so
+			// without a bare fallback the call is silently unresolved and the
+			// CALLS edge is dropped. Dart therefore always appends the bare
+			// trailing name behind the qualified primary, regardless of how
+			// codeCallDartQualifiedClassReceiver classifies the receiver:
+			// for a class receiver it's a harmless last resort behind the
+			// already-tried qualified match; for a variable receiver it's the
+			// only way the call resolves at all, restoring the byte-scanner
+			// fallback behavior that predates the AST rewrite. This cannot
+			// mis-bind a bare name with multiple same-named declarations
+			// across the repo: index construction only keeps a name in
+			// uniqueNameByRepo when exactly one declaration claims it.
+			appendName(codeCallTrailingName(fullName))
+		}
 	}
 	for _, classContext := range codeCallClassContexts(call) {
 		appendName(classContext + "." + name)
@@ -112,6 +134,32 @@ func codeCallPythonQualifiedClassReceiver(fullName string) bool {
 		return false
 	}
 	receiver := codeCallTrailingName(trimmed[:dot])
+	if receiver == "" {
+		return false
+	}
+	first := rune(receiver[0])
+	return first >= 'A' && first <= 'Z'
+}
+
+// codeCallDartQualifiedClassReceiver mirrors
+// codeCallPythonQualifiedClassReceiver's structure: it reports whether a
+// Dart qualified full_name's receiver segment (the text before the final
+// delimiter, with a leading "_" or "$" stripped) is UpperCamelCase and
+// therefore names a class, static member, or named constructor rather than
+// an instance-variable, keyword ("super"/"this"), multi-segment, or
+// otherwise unrecognized receiver. Unlike the Python helper, this
+// classification does not gate whether codeCallExactCandidateNames appends
+// the bare fallback for Dart — that append is unconditional (fail open, see
+// the "dart" branch above) because a variable receiver has no other path to
+// resolution. The classifier exists to make that distinction explainable and
+// independently testable.
+func codeCallDartQualifiedClassReceiver(fullName string) bool {
+	trimmed := strings.TrimSpace(fullName)
+	dot := strings.LastIndex(trimmed, ".")
+	if dot <= 0 || dot >= len(trimmed)-1 {
+		return false
+	}
+	receiver := strings.TrimLeft(codeCallTrailingName(trimmed[:dot]), "_$")
 	if receiver == "" {
 		return false
 	}
