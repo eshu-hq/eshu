@@ -94,7 +94,7 @@ describe("DeploymentTraceSummary topology truth", () => {
 });
 
 describe("DeploymentTraceSummary deployment-source relationships", () => {
-  it("keeps same-repository deployment-source families distinguishable with human endpoints", () => {
+  it("distinguishes runtime-instance deployment sources with human endpoints", () => {
     const trace = baseTrace({
       deploymentSources: [
         {
@@ -107,10 +107,21 @@ describe("DeploymentTraceSummary deployment-source relationships", () => {
         {
           id: "repository:r_config",
           name: "deployment-config",
+          relationshipType: "DEPLOYMENT_SOURCE",
+          sourceId: "instance:catalog:stage",
+          targetId: "repository:r_config",
+        },
+        {
+          id: "repository:r_config",
+          name: "deployment-config",
           relationshipType: "DEPLOYS_FROM",
           sourceId: "repository:r_config",
           targetId: "repository:r_catalog",
         },
+      ],
+      instances: [
+        { environment: "prod", id: "instance:catalog:prod", platforms: [] },
+        { environment: "stage", id: "instance:catalog:stage", platforms: [] },
       ],
     });
 
@@ -125,20 +136,28 @@ describe("DeploymentTraceSummary deployment-source relationships", () => {
     );
 
     const rows = screen.getAllByRole("listitem");
-    expect(rows).toHaveLength(2);
+    expect(rows).toHaveLength(3);
     expect(within(rows[0]).getByText("DEPLOYMENT_SOURCE")).toBeInTheDocument();
     expect(
-      within(rows[0]).getByText("deployment source: catalog-api → deployment-config"),
+      within(rows[0]).getByText(
+        "deployment source: catalog-api (prod runtime instance) → deployment-config",
+      ),
     ).toBeInTheDocument();
     expect(
       within(rows[0]).getByText("instance:catalog:prod → repository:r_config"),
     ).toBeInTheDocument();
+    expect(within(rows[1]).getByText("DEPLOYMENT_SOURCE")).toBeInTheDocument();
     expect(
-      within(rows[0]).queryByText("deployment source: instance:catalog:prod → deployment-config"),
-    ).not.toBeInTheDocument();
-    expect(within(rows[1]).getByText("DEPLOYS_FROM")).toBeInTheDocument();
+      within(rows[1]).getByText(
+        "deployment source: catalog-api (stage runtime instance) → deployment-config",
+      ),
+    ).toBeInTheDocument();
     expect(
-      within(rows[1]).getByText("deploys from: deployment-config → catalog-api"),
+      within(rows[1]).getByText("instance:catalog:stage → repository:r_config"),
+    ).toBeInTheDocument();
+    expect(within(rows[2]).getByText("DEPLOYS_FROM")).toBeInTheDocument();
+    expect(
+      within(rows[2]).getByText("deploys from: deployment-config → catalog-api"),
     ).toBeInTheDocument();
   });
 });

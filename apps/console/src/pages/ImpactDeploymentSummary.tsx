@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 
+import { deploymentSourceRelationship } from "./impactDeploymentSourceRelationship";
 import type {
   DeploymentSourceLimits,
   DeploymentTraceEntity,
@@ -350,47 +351,6 @@ function DeploymentSourceGroup({
       )}
     </section>
   );
-}
-
-function deploymentSourceRelationship(
-  source: import("../api/impactReviewTypes").DeploymentTraceSource,
-  trace: DeploymentTraceResult,
-): {
-  readonly family: string;
-  readonly source: string;
-  readonly target: string;
-  readonly verb: string;
-  readonly canonicalSource?: string;
-  readonly canonicalTarget?: string;
-} {
-  if (source.relationshipType === "DEPLOYS_FROM") {
-    return {
-      family: "DEPLOYS_FROM",
-      source: source.name,
-      target: trace.repoName || trace.repoId,
-      verb: "deploys from",
-      canonicalSource: source.sourceId,
-      canonicalTarget: source.targetId,
-    };
-  }
-  if (source.relationshipType === "DEPLOYMENT_SOURCE") {
-    return {
-      family: "DEPLOYMENT_SOURCE",
-      source: trace.serviceName || trace.workloadId || "service identity unavailable",
-      target: source.name,
-      verb: "deployment source",
-      canonicalSource: source.sourceId,
-      canonicalTarget: source.targetId ?? source.id,
-    };
-  }
-  return {
-    family: "relationship family unavailable",
-    source: source.sourceId ?? "source identity unavailable",
-    target: source.targetId ?? source.name,
-    verb: "relationship unavailable",
-    canonicalSource: source.sourceId,
-    canonicalTarget: source.targetId,
-  };
 }
 
 function TraceEntityGroup({
