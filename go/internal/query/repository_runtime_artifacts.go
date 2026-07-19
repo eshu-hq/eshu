@@ -490,3 +490,9 @@ func isDockerComposeFilename(name string) bool {
 		name == "docker-compose.yml" ||
 		(strings.HasPrefix(name, "docker-compose.") && (strings.HasSuffix(name, ".yaml") || strings.HasSuffix(name, ".yml")))
 }
+
+// leadingWhitespaceWidth returns the count of leading spaces/tabs in value,
+// used by the Docker Compose line-oriented indentation scan above.
+func leadingWhitespaceWidth(value string) int {
+	return len(value) - len(strings.TrimLeft(value, " \t"))
+}

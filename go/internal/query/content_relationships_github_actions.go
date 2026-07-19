@@ -86,109 +86,198 @@ func githubActionsMetadataRelationships(metadata map[string]any) []githubActions
 	return relationships
 }
 
-func githubActionsSourceRelationships(entity EntityContent) []githubActionsRelationship {
-	if !entityLooksLikeGitHubActionsWorkflow(entity) {
+// githubActionsDependencyRefs is the set of first-class GitHub Actions
+// dependency reference lists a workflow or composite-action file declares. It
+// is produced by a single structured YAML decode of the file content
+// (extractGitHubActionsDependencyRefs) and consumed by both
+// workflowArtifactDetails (the repository workflow-artifact rollup) and
+// githubActionsSourceRelationships (the content-relationship edge builder), so
+// the two paths agree on exactly which refs a file declares.
+//
+// The lists carry leaf-extractor output, not raw scalars: reusableWorkflowRepos
+// and actionRepositories are already normalized `owner/repo` slugs,
+// localReusableWorkflowPaths are `.github/workflows/*.yml` paths, and
+// checkoutRepositories/workflowInputRepositories hold the raw `with:`/job input
+// values (the relationship builder normalizes those through
+// githubActionsRepositoryRef, matching the metadata path).
+type githubActionsDependencyRefs struct {
+	reusableWorkflowRepos      []string
+	localReusableWorkflowPaths []string
+	checkoutRepositories       []string
+	actionRepositories         []string
+	workflowInputRepositories  []string
+}
+
+// extractGitHubActionsDependencyRefs decodes content as (multi-document) YAML
+// and returns the dependency references it structurally declares. It is the
+// single structured replacement for the former raw-text `uses:` line scanner
+// (issue #5337 Detector 4): because it walks the decoded document tree, a
+// `uses:` line that lives inside a `run: |` block scalar is just part of a
+// string and never mistaken for a real step key.
+//
+// Both GitHub Actions workflow files (top-level `jobs:`) and composite action
+// files (top-level `runs.steps:` with no `jobs:`) are walked, so composite
+// action step dependencies are not silently dropped. Job-level `uses:`
+// (reusable workflows), step-level `uses:` (actions and checkout), and both
+// job-level and step-level `with:` input-repository keys are all covered.
+// Candidate values containing a `${{ ... }}` expression are skipped before ref
+// parsing, since they are not resolvable to a concrete repository here.
+//
+// On malformed YAML the function returns nil: an unparseable workflow cannot
+// run, so it declares no real dependency, and unrelated content (for example
+// prose or docs that merely mention `actions/checkout@`) that does not decode
+// to the expected structure now correctly yields nothing. There is
+// deliberately no fallback to line scanning.
+func extractGitHubActionsDependencyRefs(content string) *githubActionsDependencyRefs {
+	documents, err := decodeYAMLMaps(content)
+	if err != nil {
 		return nil
 	}
 
-	lines := strings.Split(entity.SourceCache, "\n")
-	relationships := make([]githubActionsRelationship, 0, 2)
-	for i := 0; i < len(lines); i++ {
-		usesValue, ok := yamlScalarValue(lines[i], "uses")
+	refs := &githubActionsDependencyRefs{}
+	for _, document := range documents {
+		if jobs, ok := document["jobs"].(map[string]any); ok {
+			for _, rawJob := range jobs {
+				job, ok := rawJob.(map[string]any)
+				if !ok {
+					continue
+				}
+				refs.collectJob(job)
+			}
+			continue
+		}
+		// Composite action files model their steps under runs.steps and carry
+		// no jobs key; walk them so composite step dependencies survive.
+		if runs, ok := document["runs"].(map[string]any); ok {
+			refs.collectSteps(runs["steps"])
+		}
+	}
+	return refs
+}
+
+// collectJob records a workflow job's reusable-workflow ref, its input
+// repositories (job-level and via job with:), and its steps' dependencies.
+func (refs *githubActionsDependencyRefs) collectJob(job map[string]any) {
+	if uses := StringVal(job, "uses"); !githubActionsExpressionRef(uses) {
+		if workflowRef := githubActionsReusableWorkflowRepoRef(uses); workflowRef != "" {
+			refs.reusableWorkflowRepos = append(refs.reusableWorkflowRepos, workflowRef)
+		}
+		if localWorkflowPath := githubActionsLocalReusableWorkflowPath(uses); localWorkflowPath != "" {
+			refs.localReusableWorkflowPaths = append(refs.localReusableWorkflowPaths, localWorkflowPath)
+		}
+	}
+	refs.workflowInputRepositories = append(
+		refs.workflowInputRepositories,
+		githubActionsWorkflowInputRepositoryMetadata(job)...,
+	)
+	if with, ok := job["with"].(map[string]any); ok {
+		refs.workflowInputRepositories = append(
+			refs.workflowInputRepositories,
+			githubActionsWorkflowInputRepositoryMetadata(with)...,
+		)
+	}
+	refs.collectSteps(job["steps"])
+}
+
+// collectSteps records action, checkout, and step-level input-repository
+// dependencies for a job's or composite action's steps.
+func (refs *githubActionsDependencyRefs) collectSteps(rawSteps any) {
+	steps, ok := rawSteps.([]any)
+	if !ok {
+		return
+	}
+	for _, rawStep := range steps {
+		step, ok := rawStep.(map[string]any)
 		if !ok {
 			continue
 		}
-		if targetName := githubActionsReusableWorkflowRepoRef(usesValue); targetName != "" {
+		if uses := StringVal(step, "uses"); !githubActionsExpressionRef(uses) {
+			if strings.HasPrefix(strings.TrimSpace(uses), "actions/checkout@") {
+				refs.checkoutRepositories = append(refs.checkoutRepositories, githubActionsCheckoutRepositories(step)...)
+			}
+			if actionRepository := githubActionsActionRepositoryRef(uses); actionRepository != "" {
+				refs.actionRepositories = append(refs.actionRepositories, actionRepository)
+			}
+		}
+		// Step-level with: may still carry an explicit automation/config
+		// repository input even when the step's own uses: is an expression or
+		// a local action.
+		if with, ok := step["with"].(map[string]any); ok {
+			refs.workflowInputRepositories = append(
+				refs.workflowInputRepositories,
+				githubActionsWorkflowInputRepositoryMetadata(with)...,
+			)
+		}
+	}
+}
+
+// githubActionsExpressionRef reports whether a candidate ref value is a GitHub
+// Actions `${{ ... }}` expression, which cannot be resolved to a concrete
+// repository at parse time and must be skipped before ref extraction.
+func githubActionsExpressionRef(value string) bool {
+	return strings.Contains(value, "${{")
+}
+
+// githubActionsSourceRelationships derives content-relationship edges from a
+// structured YAML decode of entity.SourceCache. It replaces the former
+// YAML-unaware raw-text line scanner (issue #5337 Detector 4) with the shared
+// extractGitHubActionsDependencyRefs walk, preserving every relationship type
+// and reason string the old scanner emitted so downstream consumers keyed on
+// those reasons keep working. entity.SourceCache is populated in production
+// (unlike entity.Metadata), so this is the real signal path.
+func githubActionsSourceRelationships(entity EntityContent) []githubActionsRelationship {
+	refs := extractGitHubActionsDependencyRefs(entity.SourceCache)
+	if refs == nil {
+		return nil
+	}
+
+	relationships := make([]githubActionsRelationship, 0, 4)
+	for _, targetName := range refs.reusableWorkflowRepos {
+		if targetName != "" {
 			relationships = append(relationships, githubActionsRelationship{
 				relationshipType: "DEPLOYS_FROM",
 				targetName:       targetName,
 				reason:           "github_actions_reusable_workflow_ref",
 			})
-		} else if targetPath := githubActionsLocalReusableWorkflowPath(usesValue); targetPath != "" {
+		}
+	}
+	for _, targetPath := range refs.localReusableWorkflowPaths {
+		if targetPath != "" {
 			relationships = append(relationships, githubActionsRelationship{
 				relationshipType: "DEPLOYS_FROM",
 				targetName:       targetPath,
 				reason:           "github_actions_local_reusable_workflow_ref",
 			})
 		}
-		for j := i + 1; j < len(lines); j++ {
-			nextTrimmed := strings.TrimSpace(lines[j])
-			if nextTrimmed == "" || strings.HasPrefix(nextTrimmed, "#") {
-				continue
-			}
-			if leadingWhitespaceWidth(lines[j]) < leadingWhitespaceWidth(lines[i]) {
-				break
-			}
-			for _, key := range []string{"workflow_input_repository", "workflow_input_repositories", "automation-repo", "automation_repo"} {
-				for _, repoValue := range yamlRepositoryValues(lines, j, key) {
-					targetName := githubActionsRepositoryRef(repoValue)
-					if targetName == "" {
-						continue
-					}
-					relationships = append(relationships, githubActionsRelationship{
-						relationshipType: "DISCOVERS_CONFIG_IN",
-						targetName:       targetName,
-						reason:           "github_actions_workflow_input_repository",
-					})
-				}
-			}
+	}
+	for _, repoRef := range refs.checkoutRepositories {
+		if targetName := githubActionsRepositoryRef(repoRef); targetName != "" {
+			relationships = append(relationships, githubActionsRelationship{
+				relationshipType: "DISCOVERS_CONFIG_IN",
+				targetName:       targetName,
+				reason:           "github_actions_checkout_repository",
+			})
 		}
-		if targetName := githubActionsReusableWorkflowRepoRef(usesValue); targetName != "" {
-			continue
+	}
+	for _, repoRef := range refs.workflowInputRepositories {
+		if targetName := githubActionsRepositoryRef(repoRef); targetName != "" {
+			relationships = append(relationships, githubActionsRelationship{
+				relationshipType: "DISCOVERS_CONFIG_IN",
+				targetName:       targetName,
+				reason:           "github_actions_workflow_input_repository",
+			})
 		}
-		if targetName := githubActionsActionRepositoryRef(usesValue); targetName != "" {
+	}
+	for _, targetName := range refs.actionRepositories {
+		if targetName != "" {
 			relationships = append(relationships, githubActionsRelationship{
 				relationshipType: "DEPENDS_ON",
 				targetName:       targetName,
 				reason:           "github_actions_action_repository",
 			})
-			continue
-		}
-		if !strings.HasPrefix(strings.TrimSpace(usesValue), "actions/checkout@") {
-			continue
-		}
-		stepIndent := leadingWhitespaceWidth(lines[i])
-		for j := i + 1; j < len(lines); j++ {
-			nextTrimmed := strings.TrimSpace(lines[j])
-			if nextTrimmed == "" || strings.HasPrefix(nextTrimmed, "#") {
-				continue
-			}
-			if leadingWhitespaceWidth(lines[j]) <= stepIndent {
-				break
-			}
-			repoValue, ok := yamlScalarValue(lines[j], "repository")
-			if !ok {
-				continue
-			}
-			if targetName := githubActionsRepositoryRef(repoValue); targetName != "" {
-				relationships = append(relationships, githubActionsRelationship{
-					relationshipType: "DISCOVERS_CONFIG_IN",
-					targetName:       targetName,
-					reason:           "github_actions_checkout_repository",
-				})
-			}
-			break
 		}
 	}
 	return relationships
-}
-
-func entityLooksLikeGitHubActionsWorkflow(entity EntityContent) bool {
-	if strings.Contains(strings.ToLower(entity.RelativePath), ".github/workflows/") {
-		return true
-	}
-	if strings.Contains(strings.ToLower(entity.SourceCache), "actions/checkout@") {
-		return true
-	}
-	if strings.Contains(strings.ToLower(entity.SourceCache), "/.github/workflows/") {
-		return true
-	}
-	return len(metadataStringSlice(entity.Metadata, "workflow_refs")) > 0 ||
-		len(metadataStringSlice(entity.Metadata, "workflow_ref")) > 0 ||
-		len(metadataStringSlice(entity.Metadata, "checkout_repositories")) > 0 ||
-		len(metadataStringSlice(entity.Metadata, "checkout_repository")) > 0 ||
-		len(metadataStringSlice(entity.Metadata, "action_repositories")) > 0 ||
-		len(githubActionsWorkflowInputRepositoryMetadata(entity.Metadata)) > 0
 }
 
 func githubActionsWorkflowInputRepositoryMetadata(metadata map[string]any) []string {
@@ -267,65 +356,6 @@ func isGitHubRepoSlug(value string) bool {
 	return parts[0] != "" && parts[1] != ""
 }
 
-func yamlScalarValue(line string, key string) (string, bool) {
-	trimmed := strings.TrimSpace(line)
-	if trimmed == "" || strings.HasPrefix(trimmed, "#") {
-		return "", false
-	}
-	if strings.HasPrefix(trimmed, "- ") {
-		trimmed = strings.TrimSpace(strings.TrimPrefix(trimmed, "- "))
-	}
-	prefix := key + ":"
-	if !strings.HasPrefix(trimmed, prefix) {
-		return "", false
-	}
-	value := strings.TrimSpace(strings.TrimPrefix(trimmed, prefix))
-	if value == "" {
-		return "", false
-	}
-	return trimGitHubActionsScalar(value), true
-}
-
-func yamlRepositoryValues(lines []string, index int, key string) []string {
-	if index < 0 || index >= len(lines) {
-		return nil
-	}
-	if value, ok := yamlScalarValue(lines[index], key); ok {
-		return []string{value}
-	}
-
-	trimmed := strings.TrimSpace(lines[index])
-	prefix := key + ":"
-	if !strings.HasPrefix(trimmed, prefix) {
-		return nil
-	}
-	if strings.TrimSpace(strings.TrimPrefix(trimmed, prefix)) != "" {
-		return nil
-	}
-
-	parentIndent := leadingWhitespaceWidth(lines[index])
-	values := make([]string, 0, 2)
-	for i := index + 1; i < len(lines); i++ {
-		nextTrimmed := strings.TrimSpace(lines[i])
-		if nextTrimmed == "" || strings.HasPrefix(nextTrimmed, "#") {
-			continue
-		}
-		nextIndent := leadingWhitespaceWidth(lines[i])
-		if nextIndent <= parentIndent {
-			break
-		}
-		if !strings.HasPrefix(nextTrimmed, "- ") {
-			break
-		}
-		value := trimGitHubActionsScalar(strings.TrimSpace(strings.TrimPrefix(nextTrimmed, "- ")))
-		if value == "" {
-			continue
-		}
-		values = append(values, value)
-	}
-	return values
-}
-
 func trimGitHubActionsScalar(value string) string {
 	trimmed := strings.TrimSpace(value)
 	if len(trimmed) < 2 {
@@ -336,8 +366,4 @@ func trimGitHubActionsScalar(value string) string {
 		return trimmed[1 : len(trimmed)-1]
 	}
 	return trimmed
-}
-
-func leadingWhitespaceWidth(value string) int {
-	return len(value) - len(strings.TrimLeft(value, " \t"))
 }
