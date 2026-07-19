@@ -84,17 +84,14 @@ func (h *EntityHandler) fetchWorkloadContextForOperation(ctx context.Context, wh
 		followupParams = map[string]any{"workload_id": workloadID}
 	}
 
-	repoID := StringVal(row, "repo_id")
-	if !access.allowsRepositoryID(repoID) {
-		repoID = ""
+	preferredRepoID := StringVal(row, "repo_id")
+	if !access.allowsRepositoryID(preferredRepoID) {
+		preferredRepoID = ""
 	}
-	timer = startServiceQueryStage(ctx, h.Logger, operation, StringVal(row, "name"), repoID, "repository_lookup")
-	repoName := ""
-	if repoID != "" {
-		repoName, err = h.fetchRepositoryNameByID(ctx, repoID)
-	} else {
-		repoID, repoName, err = h.fetchWorkloadRepositoryForAccess(ctx, followupWhereClause, followupParams, access)
-	}
+	timer = startServiceQueryStage(ctx, h.Logger, operation, StringVal(row, "name"), preferredRepoID, "repository_lookup")
+	repoID, repoName, err := h.fetchWorkloadRepositoryForAccess(
+		ctx, followupWhereClause, followupParams, access, preferredRepoID,
+	)
 	timer.Done(ctx, slog.String("resolved_repo_id", repoID))
 	if err != nil {
 		return nil, err
@@ -223,46 +220,36 @@ func matchingRepositoryWorkloadIdentity(serviceName string, repo RepositoryCatal
 	return strings.TrimSpace(workloadNames[0])
 }
 
-// fetchRepositoryNameByID uses the workload repo_id property as the selective
-// anchor and avoids a relationship traversal on hot service read paths.
-func (h *EntityHandler) fetchRepositoryNameByID(ctx context.Context, repoID string) (string, error) {
-	cypher := `
-		MATCH (r:Repository {id: $repo_id})
-		RETURN r.name as repo_name
-		LIMIT 1
-	`
-	row, err := h.Neo4j.RunSingle(ctx, cypher, map[string]any{"repo_id": repoID})
-	if err != nil || row == nil {
-		return "", err
-	}
-	return StringVal(row, "repo_name"), nil
-}
-
 // fetchWorkloadRepositoryForAccess resolves the repository link without
-// OPTIONAL MATCH while preserving scoped repository authorization.
+// OPTIONAL MATCH while preserving scoped repository authorization. A stored
+// workload repo_id is only preferred after the DEFINES relationship proves it
+// is an actual candidate.
 func (h *EntityHandler) fetchWorkloadRepositoryForAccess(
 	ctx context.Context,
 	whereClause string,
 	params map[string]any,
 	access repositoryAccessFilter,
+	preferredRepoID string,
 ) (string, string, error) {
+	params = copyStringAnyMap(params)
 	params = access.graphParams(params)
+	params["preferred_repo_id"] = preferredRepoID
 	cypher := fmt.Sprintf(`
 		MATCH (w:Workload) WHERE %s
 		MATCH (r:Repository)-[:DEFINES]->(w)
 		%s
 		RETURN r.id as repo_id, r.name as repo_name
-		ORDER BY r.id
+		ORDER BY CASE WHEN r.id = $preferred_repo_id THEN 0 ELSE 1 END, r.id
 		LIMIT 1
 	`, whereClause, access.graphWhereClause("r"))
-	rows, err := h.Neo4j.Run(ctx, cypher, params)
+	row, err := h.Neo4j.RunSingle(ctx, cypher, params)
 	if err != nil {
 		return "", "", err
 	}
-	if len(rows) == 0 {
+	if row == nil {
 		return "", "", nil
 	}
-	return StringVal(rows[0], "repo_id"), StringVal(rows[0], "repo_name"), nil
+	return StringVal(row, "repo_id"), StringVal(row, "repo_name"), nil
 }
 
 func scopedWorkloadWhereClause(whereClause string, access repositoryAccessFilter) string {

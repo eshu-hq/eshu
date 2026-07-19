@@ -48,8 +48,6 @@ var grandfatheredNonHotSourceDigests = map[string]string{
 	"deployment_trace_support_helpers.go:queryProvisioningRepositoryCandidates":                           "b18f8ac6ff855c1e7d06969b760c7642c0b39a4bd6a7152e87e87d7b37ff3b6d",
 	"entity.go:(*EntityHandler).getEntityContext":                                                         "0a471541f408acdf0bd9f6cf2b0cc14c8b217886dae172ed8594cfa505379d10",
 	"entity_resolve_identity.go:hydrateResolvedEntityRepoIdentity":                                        "2206902b6a66fe8ae06861b53946f5af00e0cba135c238ad1cd86cf50aac0342",
-	"entity_workload_context.go:(*EntityHandler).fetchRepositoryNameByID":                                 "6252fb8a0c693042c00362fb98d45b0dd050e0fb508dc64ae0bd2c1e1c9ec904",
-	"entity_workload_context.go:(*EntityHandler).fetchWorkloadRepositoryForAccess":                        "2fccb2db59d07d1b8e0bc35931685975e0adeac5beee711f0ab53dc526dca54c",
 	"exposure_path.go:(*ImpactHandler).exposurePathCandidates":                                            "157383f76058132a7c74d0105bf806386cedd0a7eae975ddecd90f29ab28b243",
 	"iac_resources.go:(*IaCHandler).listResources":                                                        "4fdf780e6e8230b8987c6e88023d204939dc4c777c19775c305c129bed346e29",
 	"images.go:(*ImageHandler).listImages":                                                                "43d3716541ea57dfa8517ac863666293b14d8672a9a7b80f90a8f33d9816c121",

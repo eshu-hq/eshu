@@ -127,10 +127,9 @@ source_coverage:
       - {symbol: "hydrateResolvedEntityRepoIdentity", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
   - file: entity_workload_context.go
     calls:
-      - {symbol: "(*EntityHandler).fetchRepositoryNameByID", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
-      - {symbol: "(*EntityHandler).fetchWorkloadContextForOperation", count: 1, source_sha256: 234db5ca8d5525200d9a84432348fde33d078f4e7b985d45a1eb9462accd94dd, entry_ids: [QP-SVC-CONTEXT]}
+      - {symbol: "(*EntityHandler).fetchWorkloadContextForOperation", count: 1, source_sha256: 40ae7902ee82fc47573ee830667b29de995f309e2083dab813d89d5b5aa44da8, entry_ids: [QP-SVC-CONTEXT]}
       - {symbol: "(*EntityHandler).fetchWorkloadPlatformResult", count: 1, source_sha256: 32a2f173df26d536e734705924f20d9cf211e40337f85c4620227b9e8370caf9, entry_ids: [QP-SVC-RUNS-ON]}
-      - {symbol: "(*EntityHandler).fetchWorkloadRepositoryForAccess", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
+      - {symbol: "(*EntityHandler).fetchWorkloadRepositoryForAccess", count: 1, non_hot: {class: keyed_support, source_sha256: ce186c51db662303ef9323fc583c1378d86c466f615feac7741af96ea957c6b7, key_bound: single_key, max_results: 1}}
   - file: exposure_path.go
     calls:
       - {symbol: "(*ImpactHandler).exposurePathCandidates", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
