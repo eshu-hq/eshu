@@ -80,36 +80,90 @@ LIMIT $limit`
 // blastRadiusSqlTableBranches is the number of UNION branches in
 // blastRadiusSqlTableCypher; a single repo can appear once per branch, so the
 // caller over-fetches by this factor before the app-side min-hop dedup and
-// trim, ensuring the requested unique-repo limit is met.
-const blastRadiusSqlTableBranches = 6
+// trim, ensuring the requested unique-repo limit is met. MUST track the exact
+// branch count below (guarded by TestBlastRadiusSqlTableCypherDropsDeadBranchesKeepsLiveOnes).
+const blastRadiusSqlTableBranches = 5
 
 // blastRadiusSqlTableCypher resolves repositories touching the matched SqlTable
-// through any of the code/schema relationship kinds, with a coarse hop marker.
-// The CALL{...UNION...} core with a PLAIN outer RETURN is the one multi-branch
-// shape this build executes correctly; the previous version appended a trailing
-// `OPTIONAL MATCH ... RETURN DISTINCT` after the CALL, which hard-errors
-// ("unsupported clause after CALL {}"). Tier is joined separately; per-repo min
-// hop is taken in Go across the UNION branches.
+// through any of the code/schema relationship kinds that have a real graph
+// writer, with a coarse hop marker. The CALL{...UNION...} core with a PLAIN
+// outer RETURN is the one multi-branch shape this build executes correctly;
+// the previous version appended a trailing `OPTIONAL MATCH ... RETURN
+// DISTINCT` after the CALL, which hard-errors ("unsupported clause after
+// CALL {}"). Tier is joined separately; per-repo min hop is taken in Go
+// across the UNION branches.
+//
+// #5330: this UNION only claims edge types the graph actually writes.
+// CONTAINS/QUERIES_TABLE/REFERENCES_TABLE always had writers. TRIGGERS
+// replaces the never-written TRIGGERS_ON name (the reducer only ever emits
+// TRIGGERS — see reducer/sql_relationship_materialization.go) with an
+// explicit (:SqlTrigger) endpoint-label constraint so a same-named unrelated
+// label cannot inflate the count. INDEXES is newly wired
+// (SqlIndex.table_name metadata -> reducer -> edge writer, #5330 Task 3),
+// also endpoint-label constrained. READS_FROM, MIGRATES, and MAPS_TO_TABLE
+// have no writer at all (confirmed by auditing every reducer/edge-writer
+// path) and are intentionally NOT UNIONed here — reporting them as a silent
+// zero would be a correctness bug. blastRadiusAffected reports their absence
+// honestly via the coverage/complete response fields instead
+// (sqlTableBlastRadiusEdgeTypes, sqlTableBlastRadiusCoverage).
 const blastRadiusSqlTableCypher = `CALL {
 	MATCH (table:SqlTable) WHERE table.name CONTAINS $target_name
 	MATCH (repo:Repository)-[:REPO_CONTAINS]->(:File)-[:CONTAINS]->(table) RETURN repo, 0 AS hops UNION
-	MATCH (table:SqlTable) WHERE table.name CONTAINS $target_name
-	MATCH (repo:Repository)-[:REPO_CONTAINS]->(:File)-[:MIGRATES]->(table) RETURN repo, 1 AS hops UNION
-	MATCH (table:SqlTable) WHERE table.name CONTAINS $target_name
-	MATCH (repo:Repository)-[:REPO_CONTAINS]->(:File)-[:CONTAINS]->(:Class)-[:MAPS_TO_TABLE]->(table) RETURN repo, 1 AS hops UNION
 	MATCH (table:SqlTable) WHERE table.name CONTAINS $target_name
 	MATCH (repo:Repository)-[:REPO_CONTAINS]->(:File)-[:CONTAINS]->(:Function)-[:QUERIES_TABLE]->(table) RETURN repo, 1 AS hops UNION
 	MATCH (table:SqlTable) WHERE table.name CONTAINS $target_name
 	MATCH (repo:Repository)-[:REPO_CONTAINS]->(:File)-[:CONTAINS]->(:SqlTable)-[:REFERENCES_TABLE]->(table) RETURN repo, 1 AS hops UNION
 	MATCH (table:SqlTable) WHERE table.name CONTAINS $target_name
-	MATCH (repo:Repository)-[:REPO_CONTAINS]->(:File)-[:CONTAINS]->(sql_node)
-	WHERE (sql_node:SqlView OR sql_node:SqlFunction OR sql_node:SqlTrigger OR sql_node:SqlIndex)
-	  AND EXISTS { MATCH (sql_node)-[:READS_FROM|TRIGGERS_ON|INDEXES]->(table) }
-	RETURN repo, 1 AS hops
+	MATCH (repo:Repository)-[:REPO_CONTAINS]->(:File)-[:CONTAINS]->(:SqlTrigger)-[:TRIGGERS]->(table) RETURN repo, 1 AS hops UNION
+	MATCH (table:SqlTable) WHERE table.name CONTAINS $target_name
+	MATCH (repo:Repository)-[:REPO_CONTAINS]->(:File)-[:CONTAINS]->(:SqlIndex)-[:INDEXES]->(table) RETURN repo, 1 AS hops
 }
 RETURN repo.name AS repo, repo.id AS repo_id, hops
 ORDER BY hops, repo
 LIMIT $limit`
+
+// sqlTableBlastRadiusEdgeTypes lists the graph relationship types the
+// sql_table blast-radius surface conceptually covers, independent of which
+// ones currently have a UNION branch in blastRadiusSqlTableCypher. Each is
+// checked against the materialized-edge registry (EdgeMaterializationCoverage,
+// #5330 Task 1) to build the response's honest coverage/complete fields:
+// CONTAINS, QUERIES_TABLE, REFERENCES_TABLE, TRIGGERS, and INDEXES are the
+// live UNION branches above; READS_FROM, MIGRATES, and MAPS_TO_TABLE have no
+// writer and are reported as unmaterialized rather than silently
+// contributing a zero to affected_count.
+var sqlTableBlastRadiusEdgeTypes = []string{
+	"CONTAINS", "QUERIES_TABLE", "REFERENCES_TABLE", "TRIGGERS", "INDEXES",
+	"READS_FROM", "MIGRATES", "MAPS_TO_TABLE",
+}
+
+// blastRadiusEdgeCoverage reports one graph relationship type's
+// materialization status in the blast-radius response's "coverage" array
+// (#5330). A target_type with no gaps registered against it (repository,
+// terraform_module, crossplane_xrd — none audited by this task) reports an
+// empty coverage array and complete:true rather than a false claim of full
+// coverage or an unaudited gap.
+type blastRadiusEdgeCoverage struct {
+	EdgeType     string `json:"edge_type"`
+	Materialized bool   `json:"materialized"`
+	Reason       string `json:"reason"`
+}
+
+// sqlTableBlastRadiusCoverage evaluates sqlTableBlastRadiusEdgeTypes against
+// the materialized-edge registry and reports whether every branch the
+// sql_table surface conceptually covers actually has a writer (complete),
+// alongside the per-edge-type coverage detail.
+func sqlTableBlastRadiusCoverage() (bool, []blastRadiusEdgeCoverage) {
+	complete := true
+	coverage := make([]blastRadiusEdgeCoverage, 0, len(sqlTableBlastRadiusEdgeTypes))
+	for _, edgeType := range sqlTableBlastRadiusEdgeTypes {
+		c := EdgeMaterializationCoverage(edgeType)
+		if !c.Materialized {
+			complete = false
+		}
+		coverage = append(coverage, blastRadiusEdgeCoverage(c))
+	}
+	return complete, coverage
+}
 
 // blastRadiusTierLookupCypher resolves the deployment Tier (name + risk) for a
 // bounded set of affected repositories, keyed on the concrete repo `id` (not
@@ -159,7 +213,7 @@ func (h *ImpactHandler) findBlastRadius(w http.ResponseWriter, r *http.Request) 
 	}
 
 	limit := normalizeImpactListLimit(req.Limit)
-	affected, supported, err := h.blastRadiusAffected(r.Context(), req.TargetType, req.Target, limit+1)
+	affected, supported, complete, coverage, err := h.blastRadiusAffected(r.Context(), req.TargetType, req.Target, limit+1)
 	if !supported {
 		WriteError(w, http.StatusBadRequest, "unsupported target_type: "+req.TargetType)
 		return
@@ -200,37 +254,45 @@ func (h *ImpactHandler) findBlastRadius(w http.ResponseWriter, r *http.Request) 
 		"affected_count": len(entries),
 		"limit":          limit,
 		"truncated":      truncated,
+		"complete":       complete,
+		"coverage":       coverage,
 	}, BuildTruthEnvelope(h.profile(), "platform_impact.blast_radius", TruthBasisHybrid, "resolved from platform graph impact analysis"))
 }
 
 // blastRadiusAffected resolves the affected repositories (repo, repo_id, hops,
 // and claim for crossplane) for the target, using NornicDB-safe queries per
-// target_type. It returns (rows, supported, error): supported is false for an
-// unknown target_type so the caller can emit a 400. Rows are de-duplicated by
-// repo with the minimum hop retained and sorted by (hops, repo).
-func (h *ImpactHandler) blastRadiusAffected(ctx context.Context, targetType, target string, limit int) ([]map[string]any, bool, error) {
+// target_type. It returns (rows, supported, complete, coverage, error):
+// supported is false for an unknown target_type so the caller can emit a 400.
+// Rows are de-duplicated by repo with the minimum hop retained and sorted by
+// (hops, repo). complete and coverage report the #5330 honesty contract: for
+// sql_table, coverage lists every edge type the surface conceptually covers
+// with its materialization status, and complete is false whenever any of
+// them has no writer; other target_types have no coverage gaps registered
+// against them in this task and report complete:true with empty coverage.
+func (h *ImpactHandler) blastRadiusAffected(ctx context.Context, targetType, target string, limit int) ([]map[string]any, bool, bool, []blastRadiusEdgeCoverage, error) {
 	params := map[string]any{"target_name": target, "limit": limit}
+	emptyCoverage := []blastRadiusEdgeCoverage{}
 	switch targetType {
 	case "repository":
 		rows, err := h.Neo4j.Run(ctx, blastRadiusRepositoryCypher, params)
-		return mergeBlastRadiusRows(rows), true, err
+		return mergeBlastRadiusRows(rows), true, true, emptyCoverage, err
 	case "terraform_module":
 		src, err := h.Neo4j.Run(ctx, blastRadiusTerraformSourceReposCypher, params)
 		if err != nil {
-			return nil, true, err
+			return nil, true, true, emptyCoverage, err
 		}
 		affected := src
 		if ids := distinctRepoIDs(src); len(ids) > 0 {
 			deps, err := h.Neo4j.Run(ctx, blastRadiusDependentsByIDCypher, map[string]any{"repo_ids": ids, "limit": limit})
 			if err != nil {
-				return nil, true, err
+				return nil, true, true, emptyCoverage, err
 			}
 			affected = append(affected, deps...)
 		}
-		return mergeBlastRadiusRows(affected), true, nil
+		return mergeBlastRadiusRows(affected), true, true, emptyCoverage, nil
 	case "crossplane_xrd":
 		rows, err := h.Neo4j.Run(ctx, blastRadiusCrossplaneCypher, params)
-		return mergeBlastRadiusRows(rows), true, err
+		return mergeBlastRadiusRows(rows), true, true, emptyCoverage, err
 	case "sql_table":
 		// A repo can reach the table through several UNION branches (up to
 		// blastRadiusSqlTableBranches rows for one repo), and the query's own
@@ -238,9 +300,10 @@ func (h *ImpactHandler) blastRadiusAffected(ctx context.Context, targetType, tar
 		// Over-fetch by the branch multiplier so the post-dedup unique set still
 		// covers the requested limit before the handler trims it.
 		rows, err := h.Neo4j.Run(ctx, blastRadiusSqlTableCypher, map[string]any{"target_name": target, "limit": limit * blastRadiusSqlTableBranches})
-		return mergeBlastRadiusRows(rows), true, err
+		complete, coverage := sqlTableBlastRadiusCoverage()
+		return mergeBlastRadiusRows(rows), true, complete, coverage, err
 	default:
-		return nil, false, nil
+		return nil, false, true, emptyCoverage, nil
 	}
 }
 
