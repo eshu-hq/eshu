@@ -128,7 +128,7 @@ source_coverage:
   - file: entity_workload_context.go
     calls:
       - {symbol: "(*EntityHandler).fetchRepositoryNameByID", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
-      - {symbol: "(*EntityHandler).fetchWorkloadContextForOperation", count: 1, source_sha256: 3f688f31c2c510dca917ffaa25b70e93e2f644b9afd59fc247841522df0777ea, entry_ids: [QP-SVC-CONTEXT]}
+      - {symbol: "(*EntityHandler).fetchWorkloadContextForOperation", count: 1, source_sha256: 234db5ca8d5525200d9a84432348fde33d078f4e7b985d45a1eb9462accd94dd, entry_ids: [QP-SVC-CONTEXT]}
       - {symbol: "(*EntityHandler).fetchWorkloadPlatformResult", count: 1, source_sha256: 32a2f173df26d536e734705924f20d9cf211e40337f85c4620227b9e8370caf9, entry_ids: [QP-SVC-RUNS-ON]}
       - {symbol: "(*EntityHandler).fetchWorkloadRepositoryForAccess", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
   - file: exposure_path.go
@@ -199,10 +199,10 @@ source_coverage:
       - {symbol: "resolveTraceWorkloadSelector", count: 1, non_hot: {class: keyed_support, source_sha256: 1ef726a82e1024e33d396eade2571b2a8215086146102bca94fb6de650e1b8ad, key_bound: single_key, max_results: 1}}
   - file: workload_provisioned_platforms.go
     calls:
-      - {symbol: "(*EntityHandler).fetchProvisionedPlatformResult", count: 1, non_hot: {class: keyed_support, source_sha256: dfcefae0f6afd6a75aac05e346ef849896fa4f3690281592de14e0a844940440, key_bound: single_key, max_results: 51}}
+      - {symbol: "(*EntityHandler).fetchProvisionedPlatformResult", count: 1, non_hot: {class: keyed_support, source_sha256: 9719fba9451976957537a9a6c974756c90bee76fba1882b6689a91b9966aa9b6, key_bound: single_key, max_results: 51}}
   - file: workload_runtime_topology.go
     calls:
-      - {symbol: "fetchWorkloadRuntimeTopology", count: 1, non_hot: {class: keyed_support, source_sha256: 06b4356d82c6c2521f1b21a4a338f231b66a7f2a69f8ade110dba301eb51e47b, key_bound: single_key, max_results: 51}}
+      - {symbol: "fetchWorkloadRuntimeTopology", count: 1, non_hot: {class: keyed_support, source_sha256: 89835d423329a89aba4a9f2892a4fdf4023bc2a76f1c93e78b925dae72843dda, key_bound: single_key, max_results: 51}}
   - file: infra.go
     calls:
       - {symbol: "(*InfraHandler).searchResources", count: 1, source_sha256: 2f6c76e66dd4601d82ab8c71bee437ce39b3626776181515abf5f87a18430a17, entry_ids: [QP-INFRA-RESOURCE-SEARCH]}

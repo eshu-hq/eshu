@@ -76,6 +76,52 @@ func TestFetchWorkloadRuntimeTopologyReturnsObservedIdentityEdges(t *testing.T) 
 	}
 }
 
+func TestFetchWorkloadRuntimeTopologyScopesDefiningRepositoriesToCallerGrants(t *testing.T) {
+	t.Parallel()
+
+	reader := fakeGraphReader{run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
+		if !strings.Contains(cypher, "repo.id IN $allowed_repository_ids") ||
+			!strings.Contains(cypher, "repo.id IN $allowed_scope_ids") ||
+			!strings.Contains(cypher, "i.repo_id IN $allowed_repository_ids") ||
+			!strings.Contains(cypher, "i.repo_id IN $allowed_scope_ids") {
+			return []map[string]any{
+				{
+					"repo_id": "repository:allowed", "repo_name": "allowed", "workload_id": "workload:orders",
+					"instance_id": "workload-instance:orders:prod", "environment": "prod",
+				},
+				{
+					"repo_id": "repository:allowed", "repo_name": "allowed", "workload_id": "workload:orders",
+					"instance_id": "workload-instance:orders:secret", "environment": "secret",
+					"instance_edge": map[string]any{"source_fact_id": "fact-secret"},
+				},
+			}, nil
+		}
+		if got := StringSliceVal(params, "allowed_repository_ids"); len(got) != 1 || got[0] != "repository:allowed" {
+			t.Fatalf("allowed_repository_ids = %#v, want only repository:allowed", got)
+		}
+		return []map[string]any{{
+			"repo_id": "repository:allowed", "repo_name": "allowed", "workload_id": "workload:orders",
+			"instance_id": "workload-instance:orders:prod", "environment": "prod",
+		}}, nil
+	}}
+	ctx := ContextWithAuthContext(t.Context(), AuthContext{
+		Mode:                 AuthModeScoped,
+		AllowedRepositoryIDs: []string{"repository:allowed"},
+	})
+
+	result, err := fetchWorkloadRuntimeTopology(
+		ctx, reader, "w.id = $workload_id", map[string]any{"workload_id": "workload:orders"},
+	)
+	if err != nil {
+		t.Fatalf("fetchWorkloadRuntimeTopology() error = %v", err)
+	}
+	for _, edge := range result.topologyEdges {
+		if got := StringVal(edge, "source_id"); got == "repository:secret" || got == "workload-instance:orders:secret" {
+			t.Fatalf("topology edge leaked unauthorized repository or instance: %#v", edge)
+		}
+	}
+}
+
 func TestFetchWorkloadRuntimeTopologyReportsInstanceSentinel(t *testing.T) {
 	t.Parallel()
 

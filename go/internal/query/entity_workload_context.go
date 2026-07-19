@@ -85,6 +85,9 @@ func (h *EntityHandler) fetchWorkloadContextForOperation(ctx context.Context, wh
 	}
 
 	repoID := StringVal(row, "repo_id")
+	if !access.allowsRepositoryID(repoID) {
+		repoID = ""
+	}
 	timer = startServiceQueryStage(ctx, h.Logger, operation, StringVal(row, "name"), repoID, "repository_lookup")
 	repoName := ""
 	if repoID != "" {
@@ -249,6 +252,7 @@ func (h *EntityHandler) fetchWorkloadRepositoryForAccess(
 		MATCH (r:Repository)-[:DEFINES]->(w)
 		%s
 		RETURN r.id as repo_id, r.name as repo_name
+		ORDER BY r.id
 		LIMIT 1
 	`, whereClause, access.graphWhereClause("r"))
 	rows, err := h.Neo4j.Run(ctx, cypher, params)

@@ -65,10 +65,31 @@ func fetchWorkloadRuntimeTopology(
 	params map[string]any,
 ) (workloadRuntimeTopologyResult, error) {
 	queryLimit := contextStoryItemLimit + 1
+	access := repositoryAccessFilterFromContext(ctx)
+	if access.empty() {
+		return workloadRuntimeTopologyResult{
+			instances:     []map[string]any{},
+			topologyEdges: []map[string]any{},
+			limits: boundedCollectionMetadata(
+				contextStoryItemLimit, queryLimit, 0, 0, false,
+				[]string{"environment", "instance_id"},
+			),
+		}, nil
+	}
 	params = copyStringAnyMap(params)
+	params = access.graphParams(params)
 	params["instance_limit"] = queryLimit
 	if StringVal(params, "workload_id") != "" {
 		whereClause = "i.workload_id = $workload_id AND (" + whereClause + ")"
+	}
+	whereClause += access.graphPredicate("repo")
+	if access.scoped() {
+		whereClause += ` AND (
+			i.repo_id IS NULL
+			OR i.repo_id = ''
+			OR i.repo_id IN $allowed_repository_ids
+			OR i.repo_id IN $allowed_scope_ids
+		)`
 	}
 	rows, err := reader.Run(ctx, fmt.Sprintf(`
 		MATCH (repo:Repository)-[defines:DEFINES]->(w:Workload)<-[instanceOf:INSTANCE_OF]-(i:WorkloadInstance)

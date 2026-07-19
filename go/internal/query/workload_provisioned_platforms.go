@@ -5,6 +5,7 @@ package query
 
 import (
 	"context"
+	"fmt"
 	"sort"
 	"strings"
 )
@@ -19,8 +20,18 @@ func (h *EntityHandler) fetchProvisionedPlatformResult(ctx context.Context, repo
 		return provisionedPlatformResult{rows: []map[string]any{}}, nil
 	}
 	queryLimit := contextStoryItemLimit + 1
-	rows, err := h.Neo4j.Run(ctx, `
+	access := repositoryAccessFilterFromContext(ctx)
+	if access.empty() || !access.allowsRepositoryID(repoID) {
+		return provisionedPlatformResult{rows: []map[string]any{}}, nil
+	}
+	scopeClause := ""
+	if access.scoped() {
+		scopeClause = "WHERE " + access.graphCondition("target") + " AND " + access.graphCondition("repo")
+	}
+	params := access.graphParams(map[string]any{"repo_id": repoID, "provisioned_platform_limit": queryLimit})
+	rows, err := h.Neo4j.Run(ctx, fmt.Sprintf(`
 		MATCH (target:Repository {id: $repo_id})<-[dependency:PROVISIONS_DEPENDENCY_FOR]-(repo:Repository)-[platformEdge:PROVISIONS_PLATFORM]->(p:Platform)
+		%s
 		WITH repo.id as platform_source_id, repo.name as platform_source_name,
 		     target.id as platform_dependency_target_id,
 		     p.id as platform_id, p.name as platform_name, p.kind as platform_kind,
@@ -32,7 +43,7 @@ func (h *EntityHandler) fetchProvisionedPlatformResult(ctx context.Context, repo
 		       dependency_edges, platform_edges
 		ORDER BY platform_name, platform_id, platform_source_id, platform_dependency_target_id
 		LIMIT $provisioned_platform_limit
-	`, map[string]any{"repo_id": repoID, "provisioned_platform_limit": queryLimit})
+	`, scopeClause), params)
 	if err != nil {
 		return provisionedPlatformResult{}, err
 	}
