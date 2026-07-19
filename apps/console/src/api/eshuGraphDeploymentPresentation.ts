@@ -4,6 +4,7 @@ import type {
   DeploymentInstanceRecord,
   NamedDeploymentRecord,
 } from "./eshuGraphDeploymentWire";
+import { deploymentArtifactID } from "./eshuGraphDeploymentWire";
 import { cleanText } from "./eshuGraphShared";
 import type { GraphNode, UiTruth } from "../console/types";
 
@@ -20,8 +21,9 @@ export function artifactAdmissionStatus(artifact: DeploymentArtifactRecord): str
 }
 
 export function artifactEvidence(artifact: DeploymentArtifactRecord): readonly string[] {
+  const artifactID = deploymentArtifactID(artifact);
   return compact([
-    cleanText(artifact.artifact_id) ? `artifact id: ${cleanText(artifact.artifact_id)}` : "",
+    artifactID ? `artifact id: ${artifactID}` : "",
     cleanText(artifact.generation_id) ? `generation id: ${cleanText(artifact.generation_id)}` : "",
     cleanText(artifact.evidence_kind) ? `evidence kind: ${cleanText(artifact.evidence_kind)}` : "",
     cleanText(artifact.path) ? `path: ${cleanText(artifact.path)}` : "",
@@ -100,34 +102,31 @@ export function repoNode(
 }
 
 export function addIsolatedRecords(
-  nodes: Map<string, GraphNode>,
   rows: readonly NamedDeploymentRecord[],
   limit: number,
   prefix: string,
   col: number,
-  maxNodes: number,
+  addNode: (node: GraphNode) => boolean,
   truth: UiTruth | ((row: NamedDeploymentRecord) => UiTruth),
 ): void {
   rows.slice(0, limit).forEach((row, index) => {
-    if (nodes.size >= maxNodes) return;
     const label =
       cleanText(row.name) || cleanText(row.target) || cleanText(row.id) || `${prefix} ${index + 1}`;
     const id = cleanText(row.id) || `${prefix}:${index}:${encodeKey(label)}`;
-    if (!nodes.has(id))
-      nodes.set(id, {
-        col,
-        id,
-        kind: cleanText(row.kind) || cleanText(row.type) || prefix,
-        label,
-        sub:
-          compact([
-            cleanText(row.environment),
-            cleanText(row.visibility),
-            cleanText(row.reason),
-            row.confidence !== undefined ? `confidence: ${row.confidence}` : "",
-          ]).join(" · ") || undefined,
-        truth: typeof truth === "function" ? truth(row) : truth,
-      });
+    addNode({
+      col,
+      id,
+      kind: cleanText(row.kind) || cleanText(row.type) || prefix,
+      label,
+      sub:
+        compact([
+          cleanText(row.environment),
+          cleanText(row.visibility),
+          cleanText(row.reason),
+          row.confidence !== undefined ? `confidence: ${row.confidence}` : "",
+        ]).join(" · ") || undefined,
+      truth: typeof truth === "function" ? truth(row) : truth,
+    });
   });
 }
 

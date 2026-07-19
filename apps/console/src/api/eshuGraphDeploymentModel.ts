@@ -40,19 +40,25 @@ export function buildDeploymentStoryGraph(
   const nodes = new Map<string, GraphNode>();
   const edges: GraphEdge[] = [];
   const edgeKeys = new Set<string>();
+  const omittedEdgeLabels = new Map<string, string>();
+  const omittedNodeIDs = new Set<string>();
   const summaries: GraphNode[] = [];
+  const summaryNodeReserve = 14;
   const serviceName = cleanText(trace.service_name) || cleanText(context.name) || fallbackName;
   const workloadID =
     cleanText(trace.workload_id) || cleanText(context.id) || `workload:${serviceName}`;
   const truth = graphTruth(options.traceTruth ?? options.contextTruth);
   const addNode = (node: GraphNode): boolean => {
     if (nodes.has(node.id)) return true;
-    if (nodes.size >= maxNodes - 12) return false;
+    if (omittedNodeIDs.has(node.id)) return false;
+    if (nodes.size >= maxNodes - summaryNodeReserve) {
+      omittedNodeIDs.add(node.id);
+      return false;
+    }
     nodes.set(node.id, node);
     return true;
   };
   const addEdge = (edge: GraphEdge): void => {
-    if (edges.length >= maxEdges || !nodes.has(edge.s) || !nodes.has(edge.t)) return;
     const key = [
       edge.s,
       edge.t,
@@ -63,6 +69,10 @@ export function buildDeploymentStoryGraph(
     ].join("\u0000");
     if (edgeKeys.has(key)) return;
     edgeKeys.add(key);
+    if (edges.length >= maxEdges || !nodes.has(edge.s) || !nodes.has(edge.t)) {
+      omittedEdgeLabels.set(key, `${edge.s} ${edge.verb} ${edge.t}`);
+      return;
+    }
     edges.push(edge);
   };
   addNode({
@@ -384,15 +394,8 @@ export function buildDeploymentStoryGraph(
     uniqueNamedRecords([...entrypointSources.contextRows, ...entrypointSources.traceRows]),
     (entrypoint) => deploymentProvenance.namedRecordTruth(entrypoint, entrypointSources),
   );
-  addIsolatedRecords(
-    nodes,
-    entrypoints,
-    limits.entrypoints,
-    "entrypoint",
-    4,
-    maxNodes - 12,
-    (entrypoint) =>
-      graphTruth(deploymentProvenance.namedRecordTruth(entrypoint, entrypointSources)),
+  addIsolatedRecords(entrypoints, limits.entrypoints, "entrypoint", 4, addNode, (entrypoint) =>
+    graphTruth(deploymentProvenance.namedRecordTruth(entrypoint, entrypointSources)),
   );
   addOmissionSummary(
     summaries,
@@ -404,15 +407,7 @@ export function buildDeploymentStoryGraph(
       entrypoints.slice(limits.entrypoints).map((entrypoint) => cleanText(entrypoint.type)),
     ),
   );
-  addIsolatedRecords(
-    nodes,
-    trace.cloud_resources ?? [],
-    limits.cloud,
-    "cloud",
-    5,
-    maxNodes - 12,
-    truth,
-  );
+  addIsolatedRecords(trace.cloud_resources ?? [], limits.cloud, "cloud", 5, addNode, truth);
   addOmissionSummary(
     summaries,
     "cloud resources",
@@ -428,6 +423,21 @@ export function buildDeploymentStoryGraph(
     context.api_surface?.endpoint_count ?? context.api_surface?.endpoints?.length ?? 0;
   if (endpointCount > 0)
     summaries.unshift(summaryNode("api_endpoints", `${endpointCount} API endpoints aggregated`));
+  if (omittedNodeIDs.size > 0 || omittedEdgeLabels.size > 0) {
+    const label = compact([
+      omittedNodeIDs.size > 0 ? `${omittedNodeIDs.size} nodes not shown` : "",
+      omittedEdgeLabels.size > 0 ? `${omittedEdgeLabels.size} relationships not shown` : "",
+    ]).join(" · ");
+    const nodeIdentities = [...omittedNodeIDs].slice(0, 6).join(", ") || "none";
+    const relationshipIdentities = [...omittedEdgeLabels.values()].slice(0, 6).join(", ") || "none";
+    summaries.push(
+      summaryNode(
+        "graph_bounds",
+        label,
+        `Graph bounds: ${maxNodes} nodes / ${maxEdges} relationships · omitted node identities: ${nodeIdentities} · omitted relationships: ${relationshipIdentities}`,
+      ),
+    );
+  }
   summaries.slice(0, maxNodes - nodes.size).forEach((node) => nodes.set(node.id, node));
   return { edges, nodes: [...nodes.values()] };
 }

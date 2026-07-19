@@ -36,7 +36,7 @@ const EXPANDED_LIMITS: DeploymentFamilyLimits = {
   cloud: 1,
   entrypoints: 1,
   instances: 14,
-  k8sRelationships: 1,
+  k8sRelationships: 4,
   k8sResources: 4,
   networkPaths: 1,
   platformPlacements: 12,

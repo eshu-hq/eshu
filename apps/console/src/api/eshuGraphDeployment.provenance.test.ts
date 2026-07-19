@@ -162,6 +162,43 @@ describe("Graph Explorer deployment source provenance", () => {
       startLine: 12,
     });
   });
+
+  it("deduplicates the production artifact id while preserving its evidence identity", () => {
+    const graph = deploymentStoryToGraph(
+      {
+        deployment_evidence: {
+          artifacts: [
+            {
+              ...artifact("shared"),
+              id: "evidence-artifact:shared",
+              path: "context/kustomization.yaml",
+            },
+          ],
+        },
+        id: "workload:checkout-api",
+        name: "checkout-api",
+      },
+      "checkout-api",
+      {
+        deployment_evidence: {
+          artifacts: [
+            {
+              ...artifact("shared"),
+              id: "evidence-artifact:shared",
+              path: "trace/kustomization.yaml",
+            },
+          ],
+        },
+      },
+      { contextTruth: freshTruth, traceTruth: freshTruth },
+    );
+
+    const edges = graph.edges.filter(
+      (edge) => edge.s === "repository:shared" && edge.verb === "DEPLOYS_FROM",
+    );
+    expect(edges).toHaveLength(1);
+    expect(edges[0]?.evidence).toContain("artifact id: evidence-artifact:shared");
+  });
 });
 
 function artifact(name: string) {

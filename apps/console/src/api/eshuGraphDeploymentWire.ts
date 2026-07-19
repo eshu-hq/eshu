@@ -2,6 +2,7 @@ export type DeploymentGraphDetail = "summary" | "expanded";
 
 export interface DeploymentArtifactRecord {
   readonly artifact_id?: string;
+  readonly id?: string;
   readonly artifact_family?: string;
   readonly commit_sha?: string;
   readonly confidence?: number;
@@ -44,6 +45,10 @@ export interface DeploymentInstanceRecord {
   readonly instance_id?: string;
   readonly materialization_confidence?: number;
   readonly materialization_provenance?: readonly string[];
+  readonly platform_confidence?: number;
+  readonly platform_kind?: string;
+  readonly platform_name?: string;
+  readonly platform_reason?: string;
   readonly platforms?: readonly DeploymentPlatformRecord[];
 }
 
@@ -132,7 +137,7 @@ export function mergeDeploymentInstances(
   traceRows: readonly DeploymentInstanceRecord[],
 ): DeploymentInstanceRecord[] {
   const instances = new Map<string, DeploymentInstanceRecord>();
-  [...contextRows, ...traceRows].forEach((row) => {
+  [...contextRows, ...traceRows].map(normalizeDeploymentInstance).forEach((row) => {
     const id = row.instance_id?.trim() ?? "";
     if (id === "") return;
     const current = instances.get(id);
@@ -155,6 +160,24 @@ export function mergeDeploymentInstances(
   return [...instances.values()];
 }
 
+function normalizeDeploymentInstance(row: DeploymentInstanceRecord): DeploymentInstanceRecord {
+  const flatPlatform =
+    row.platform_name?.trim() || row.platform_kind?.trim()
+      ? [
+          {
+            platform_confidence: row.platform_confidence,
+            platform_kind: row.platform_kind,
+            platform_name: row.platform_name,
+            platform_reason: row.platform_reason,
+          },
+        ]
+      : [];
+  return {
+    ...row,
+    platforms: uniquePlatforms([...flatPlatform, ...(row.platforms ?? [])]),
+  };
+}
+
 export function uniqueDeploymentArtifacts(
   rows: readonly DeploymentArtifactRecord[],
 ): DeploymentArtifactRecord[] {
@@ -172,8 +195,9 @@ export function uniqueNamedRecords(
 }
 
 export function deploymentArtifactKey(row: DeploymentArtifactRecord): string {
+  const canonicalID = deploymentArtifactID(row);
+  if (canonicalID !== "") return `canonical:${canonicalID}`;
   return [
-    row.artifact_id,
     row.generation_id,
     row.source_repo_id,
     row.target_repo_id,
@@ -197,6 +221,10 @@ export function deploymentArtifactKey(row: DeploymentArtifactRecord): string {
     row.runtime_platform_kind,
     row.direction,
   ].join("\u0000");
+}
+
+export function deploymentArtifactID(row: DeploymentArtifactRecord): string {
+  return row.artifact_id?.trim() || row.id?.trim() || "";
 }
 
 export function networkPathKey(row: NetworkPathRecord): string {
