@@ -6,6 +6,7 @@ package query
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -261,5 +262,166 @@ func TestTraceDeploymentChainScopedSkipsFreeTextCloudFallbacks(t *testing.T) {
 				t.Fatalf("scoped caller saw free-text CloudResource fallback candidate %q (no repo_id to bind to a grant): %s", tc.candidateName, scopedBody)
 			}
 		})
+	}
+}
+
+// readModelEvidenceContentStore embeds the full ContentStore fake and adds the
+// repositoryDeploymentEvidenceReadModelStore method so loadRepositoryDeploymentEvidence
+// takes its PRODUCTION-PRIMARY read-model branch (queryRepoDeploymentEvidence
+// tries the read-model first and only falls back to the graph). Production
+// wires ImpactHandler/EntityHandler with a real ContentReader, so this -- not
+// the Content=nil graph path the other evidence tests force -- is the path
+// trace_deployment_chain and /services/{name}/context actually run.
+type readModelEvidenceContentStore struct {
+	fakePortContentStore
+	readModel repositoryDeploymentEvidenceReadModel
+}
+
+func (s readModelEvidenceContentStore) repositoryDeploymentEvidence(context.Context, string) (repositoryDeploymentEvidenceReadModel, error) {
+	return s.readModel, nil
+}
+
+// crossTenantReadModelRow is the exact leaking shape the Postgres read-model
+// produces for an INCOMING relationship whose source (the non-anchor endpoint)
+// is unresolved: source_repo_id is empty, but the LATERAL join recovers the
+// other tenant's name / remote_url / scope_id and the scan derives
+// canonical_id / scope_key (see TestRepositoryDeploymentEvidenceReadModelUsesRelationshipGenerationSourceScope
+// for that deliberate identity recovery). The anchor is target_repo_id=repo-a.
+func crossTenantReadModelRow() map[string]any {
+	return map[string]any{
+		"direction":                "incoming",
+		"artifact_id":              "artifact-xtenant",
+		"name":                     "prod-values.yaml",
+		"domain":                   "deployment",
+		"path":                     "deploy/prod/values.yaml",
+		"evidence_kind":            "helm_values",
+		"artifact_family":          "helm",
+		"relationship_type":        "DEPLOYS_FROM",
+		"environment":              "prod",
+		"matched_alias":            "orders-api",
+		"matched_value":            "orders-api",
+		"source_repo_id":           "",
+		"source_repo_name":         "other-tenant-infra",
+		"source_repo_remote_url":   "https://github.com/other-tenant/infra",
+		"source_repo_scope_id":     "scope-other-tenant",
+		"source_repo_canonical_id": "github.com/other-tenant/infra",
+		"source_repo_scope_key":    "scope:s_deadbeef",
+		"target_repo_id":           "repo-a",
+		"target_repo_name":         "orders-api-repo",
+	}
+}
+
+// crossTenantSourceIdentityFields are the recovered non-anchor (source)
+// endpoint identity fields buildGraphDeploymentEvidence emits for the read-model
+// row: the raw name plus the privacy-hashed canonical_id (derived from
+// remote_url) and scope_key (hash of scope_id). All three must be blanked for a
+// scoped caller and populated for an all-scope caller.
+var crossTenantSourceIdentityFields = []string{
+	"source_repo_name",
+	"source_repo_canonical_id",
+	"source_repo_scope_key",
+}
+
+// TestLoadRepositoryDeploymentEvidenceReadModelBlanksCrossTenantIdentity is the
+// #5167 W3 P0 mutation-check for the read-model choke point: an empty
+// source_repo_id with a POPULATED recovered source identity must be blanked for
+// a scoped caller (repo_id can't be grant-verified, so the recovered identity
+// must not leak), while an all-scope caller keeps it. Deleting the
+// filterDeploymentEvidenceRowsForAccess call from loadRepositoryDeploymentEvidence
+// turns the scoped assertion red. Assertions are field-level because the
+// canonical_id/scope_key are privacy-hashed (recomputed by
+// attachRepositoryObservationIdentity), not the raw remote_url/scope_id.
+func TestLoadRepositoryDeploymentEvidenceReadModelBlanksCrossTenantIdentity(t *testing.T) {
+	t.Parallel()
+
+	loadArtifact := func(auth *AuthContext) map[string]any {
+		content := readModelEvidenceContentStore{
+			readModel: repositoryDeploymentEvidenceReadModel{Available: true, Rows: []map[string]any{crossTenantReadModelRow()}, Limit: 50},
+		}
+		ctx := context.Background()
+		if auth != nil {
+			ctx = ContextWithAuthContext(ctx, *auth)
+		}
+		result, err := loadRepositoryDeploymentEvidence(ctx, content, "repo-a")
+		if err != nil {
+			t.Fatalf("loadRepositoryDeploymentEvidence() error = %v", err)
+		}
+		artifacts, _ := result["artifacts"].([]map[string]any)
+		if len(artifacts) != 1 {
+			t.Fatalf("expected exactly one artifact, got %#v", result["artifacts"])
+		}
+		return artifacts[0]
+	}
+
+	// All-scope: the recovered source identity is present (proves it genuinely
+	// flows when unfiltered, so a removed filter turns the scoped case red).
+	allScope := loadArtifact(nil)
+	for _, field := range crossTenantSourceIdentityFields {
+		if StringVal(allScope, field) == "" {
+			t.Fatalf("all-scope caller: expected recovered %s populated, got artifact %#v", field, allScope)
+		}
+	}
+
+	// Scoped: the recovered source identity is blanked, but the anchored artifact
+	// (target=repo-a) survives -- only the unverifiable endpoint is redacted.
+	scoped := loadArtifact(ptrAuth(scopedTestAuthContext("tenant-a", []string{"repo-a"})))
+	for _, field := range crossTenantSourceIdentityFields {
+		if got := StringVal(scoped, field); got != "" {
+			t.Fatalf("scoped caller granted only repo-a leaked recovered cross-tenant %s = %q from the read-model path: %#v", field, got, scoped)
+		}
+	}
+	if got := StringVal(scoped, "target_repo_id"); got != "repo-a" {
+		t.Fatalf("anchored artifact must survive with target_repo_id=repo-a, got %q: %#v", got, scoped)
+	}
+	// The recovered source name string must not appear anywhere in the artifact.
+	scopedJSON, _ := json.Marshal(scoped)
+	if strings.Contains(string(scopedJSON), "other-tenant-infra") {
+		t.Fatalf("scoped caller leaked cross-tenant source name via the read-model path: %s", scopedJSON)
+	}
+}
+
+// ptrAuth returns a pointer to an AuthContext for the optional-auth test
+// helpers.
+func ptrAuth(auth AuthContext) *AuthContext { return &auth }
+
+// TestServiceContextReadModelPathScopedBlanksCrossTenantIdentity proves the
+// same fix on the production-wired end-to-end path: EntityHandler with a real
+// read-model Content store serving GET /services/{name}/context. This is the
+// blind spot the reviewer flagged -- production wires Content unconditionally,
+// so the read-model path runs, and the earlier Content=nil tests never
+// exercised it.
+func TestServiceContextReadModelPathScopedBlanksCrossTenantIdentity(t *testing.T) {
+	t.Parallel()
+
+	get := func(auth *AuthContext) string {
+		content := readModelEvidenceContentStore{
+			readModel: repositoryDeploymentEvidenceReadModel{Available: true, Rows: []map[string]any{crossTenantReadModelRow()}, Limit: 50},
+		}
+		handler := &EntityHandler{Neo4j: crossTenantEvidenceGraph(), Content: content, Profile: ProfileLocalAuthoritative}
+		mux := http.NewServeMux()
+		handler.Mount(mux)
+		req := httptest.NewRequest(http.MethodGet, "/api/v0/services/orders-api/context", nil)
+		if auth != nil {
+			req = req.WithContext(ContextWithAuthContext(req.Context(), *auth))
+		}
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
+		if got, want := w.Code, http.StatusOK; got != want {
+			t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+		}
+		return w.Body.String()
+	}
+
+	// The recovered cross-tenant source name is present for an all-scope caller
+	// (proving it flows unfiltered) and absent for a scoped caller.
+	allScope := get(nil)
+	if !strings.Contains(allScope, "other-tenant-infra") {
+		t.Fatalf("all-scope caller: expected recovered identity present in service context, got: %s", allScope)
+	}
+
+	scoped := scopedTestAuthContext("tenant-a", []string{"repo-a"})
+	scopedBody := get(&scoped)
+	if strings.Contains(scopedBody, "other-tenant-infra") {
+		t.Fatalf("scoped caller leaked recovered cross-tenant source name via /services/{name}/context read-model path: %s", scopedBody)
 	}
 }
