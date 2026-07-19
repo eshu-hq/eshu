@@ -227,23 +227,25 @@ After rebasing onto
 `origin/main@2090ca6005b56e176c3bf1e7dbcb1c51c9214782` and resolving the B-12
 snapshot by retaining both the merged global-search shape and the deployment
 topology shape, the gate was rerun at exact implementation head
-`09be7fea103db370bae771877a5b89e64cd3c84c`:
+`500668e063eb0c085fa44dfdc5e51fe6c717a1fe` after the production response and
+both OpenAPI fragments were corrected to expose
+`topology_basis=provisioning_fallback`:
 
 ```bash
-ESHU_POSTGRES_PORT=16536 \
-NEO4J_BOLT_PORT=8791 \
-NEO4J_HTTP_PORT=8579 \
-GATE_API_PORT=19084 \
-GATE_MCP_PORT=19095 \
+ESHU_POSTGRES_PORT=16537 \
+NEO4J_BOLT_PORT=8792 \
+NEO4J_HTTP_PORT=8580 \
+GATE_API_PORT=19085 \
+GATE_MCP_PORT=19096 \
 GATE_DRAIN_TIMEOUT=10m \
 GATE_BUDGET_SECONDS=600 \
 bash scripts/verify-golden-corpus-gate.sh
 ```
 
-The final rebased run completed in 35 seconds with **421 pass, 0
+The final contract run completed in 35 seconds with **421 pass, 0
 required-fail, and 0 advisory-warn**. Its phase timings were 3 seconds for
 bootstrap, 20 seconds for collector replay, 6 seconds for the first drain, 6
-seconds for maintenance drains, and 4 seconds for graph/query checks. Both
+seconds for maintenance drains, and 3 seconds for graph/query checks. Both
 HTTP shapes passed. The gate removed its isolated containers, network, and
 volumes; the retained development stack was not changed.
 
