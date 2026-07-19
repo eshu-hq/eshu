@@ -310,6 +310,17 @@ families:
     projection_hook: sbom_attestation_attachment
     admission_hook: facts.ValidateSchemaVersion
     read_surface: "GET /api/v0/supply-chain/sbom-attestations/attachments"
+    # sbom.dependency_relationship and sbom.external_reference are emitted by
+    # SBOM collectors but buildSBOMAttachmentIndex
+    # (go/internal/reducer/sbom_attestation_attachment_index.go) never decodes
+    # them -- sbomAttestationAttachmentFactKinds() lists them for queue
+    # routing only, with no decode case in the index switch, so they carry no
+    # attachment/document/component evidence and are not query-exposed.
+    # Tracked in #5370. attestation.slsa_provenance has the same gap plus a
+    # collector gap: no collector emits this kind today (grep confirms zero
+    # producers under go/internal/collector). Tracked in #5371. See
+    # docs/public/supply-chain-traceability.md#what-is-gated-or-preview.
+    read_surface_overrides: {sbom.dependency_relationship: "none", sbom.external_reference: "none", attestation.slsa_provenance: "none"}
     truth_profile: provider_gated
     provider_key_independent: false
     payload_schema_overrides:

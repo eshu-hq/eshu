@@ -84,6 +84,8 @@ reachability rows are per-ecosystem capability states.
 | AWS cloud posture | `implemented` (production-promoted) | None |
 | GCP / Azure cloud posture | `gated` | See [roadmap](roadmap.md#promotion-readiness) |
 | Kubernetes-live cloud posture | `foundation_only` | See [roadmap](roadmap.md#promotion-readiness) |
+| SBOM dependency-relationship / external-reference facts (`sbom.dependency_relationship`, `sbom.external_reference`) | `parsed, not query-exposed` | Emitted by SBOM collectors; `buildSBOMAttachmentIndex` never decodes them, so they carry no attachment/document/component evidence and are not served by `GET /api/v0/supply-chain/sbom-attestations/attachments`. See [issue #5370](https://github.com/eshu-hq/eshu/issues/5370). |
+| SLSA provenance attestation facts (`attestation.slsa_provenance`) | `typed, not emitted` | The payload schema exists but no collector emits this kind today; it would also hit the same undecoded-index gap as above if it were emitted. See [issue #5371](https://github.com/eshu-hq/eshu/issues/5371). |
 
 ## Running The Chain End To End
 
