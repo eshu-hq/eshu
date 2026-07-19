@@ -436,7 +436,8 @@ use the label-family fallback.
 `DomainSQLRelationships` writes SQL table, column, view, function, index,
 trigger, and embedded-query evidence with label-scoped endpoints. Function rows
 can emit `QUERIES_TABLE` to a `SqlTable`; trigger rows can emit both `TRIGGERS`
-to a `SqlTable` and `EXECUTES` to a `SqlFunction`. `EXECUTES` remains part of
+to a `SqlTable` and `EXECUTES` to a `SqlFunction`; index rows emit `INDEXES` to
+a `SqlTable` (#5330). `EXECUTES` remains part of
 dead-code reachability for stored routines and must stay in the relationship
 retraction set.
 `DomainShellExec` writes `Function-[:EXECUTES_SHELL]->ShellCommand` from parser
@@ -1226,6 +1227,7 @@ committed zero nodes.
 - SQL relationship endpoint labels are also whitelist values. `EdgeWriter`
   routes `Function` to `SqlTable` with `QUERIES_TABLE`, `SqlTrigger` to
   `SqlTable` with `TRIGGERS`, `SqlTrigger` to `SqlFunction` with `EXECUTES`,
+  `SqlIndex` to `SqlTable` with `INDEXES`,
   and `SqlFunction` / `SqlView` to `SqlTable` with table-reference edges. Keep
   `EXECUTES` in both write and retract paths, or trigger-bound stored routines
   can look unreachable to dead-code queries.

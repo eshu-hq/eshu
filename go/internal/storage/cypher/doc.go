@@ -25,8 +25,9 @@
 // OVERRIDES, ALIASES, INSTANTIATES, or USES_METACLASS. Go and TypeScript
 // type-reference metadata must remain REFERENCES so graph truth does not claim
 // that type literals are invocations. SQL
-// relationship rows may materialize as QUERIES_TABLE, TRIGGERS, EXECUTES, table
-// references, or column containment, with EXECUTES preserving trigger-bound
+// relationship rows may materialize as QUERIES_TABLE, TRIGGERS, EXECUTES,
+// INDEXES, table references, or column containment, with EXECUTES preserving
+// trigger-bound
 // SqlFunction reachability for dead-code analysis. Shell execution rows
 // materialize Function-[:EXECUTES_SHELL]->ShellCommand using structural
 // call-site metadata only; command text and arguments are not stored. When
