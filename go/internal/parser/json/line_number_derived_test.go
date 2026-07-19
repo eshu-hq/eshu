@@ -71,11 +71,26 @@ func lineNumbersByName(t *testing.T, payload map[string]any, bucket string) map[
 	return out
 }
 
-// TestDataIntelligenceReplayRowsOmitLineNumber pins issue #5329's
-// derived-row rule: warehouse_replay.json asset/column/query rows summarize
-// an external system's state, not one JSON source token, so they must omit
-// line_number entirely instead of fabricating "line_number": 1.
-func TestDataIntelligenceReplayRowsOmitLineNumber(t *testing.T) {
+// TestDataIntelligenceReplayRowsRetainPositionalLineNumber pins issue #5358's
+// derived-row decision: warehouse_replay.json asset/column/query rows
+// summarize an external system's state, not one JSON source token, so no
+// real source line exists for them. #5329 tried omitting line_number
+// entirely instead of fabricating "line_number": 1, on the theory that
+// materialize/query would then treat these rows as having no real source
+// line -- but that theory was wrong: entityBucketsFromParsed's
+// snapshotPayloadInt defaults an absent line_number to 0, and
+// shape.indexedEntity.lineNumber() coerces any LineNumber < 1 back to 1
+// before it is hashed into the entity's identity and persisted. So the
+// materialized entity gets the exact same fabricated line 1 whether the
+// parser omits line_number or states it explicitly; the omission changed
+// nothing observable downstream, it only made the parser payload claim
+// (falsely) that no line existed. Threading a genuine "no source line"
+// sentinel through the shared shape/content contract (used by every language
+// parser, and Postgres-schema-enforced NOT NULL) was assessed as
+// disproportionate for this fix, so these rows now state the documented
+// positional line_number: 1 placeholder explicitly instead of relying on an
+// incidental coercion while claiming otherwise.
+func TestDataIntelligenceReplayRowsRetainPositionalLineNumber(t *testing.T) {
 	t.Parallel()
 
 	path := writeJSONTestFile(t, "warehouse_replay.json", `{
@@ -104,8 +119,8 @@ func TestDataIntelligenceReplayRowsOmitLineNumber(t *testing.T) {
 		t.Fatalf("data_assets = %#v, want at least one row", payload["data_assets"])
 	}
 	for _, row := range assets {
-		if _, present := row["line_number"]; present {
-			t.Errorf("data_assets row %#v carries line_number, want it omitted (derived row)", row)
+		if got, ok := row["line_number"].(int); !ok || got != 1 {
+			t.Errorf("data_assets row %#v line_number = %v, want the positional placeholder 1", row, row["line_number"])
 		}
 	}
 
@@ -114,8 +129,8 @@ func TestDataIntelligenceReplayRowsOmitLineNumber(t *testing.T) {
 		t.Fatalf("data_columns = %#v, want at least one row", payload["data_columns"])
 	}
 	for _, row := range columns {
-		if _, present := row["line_number"]; present {
-			t.Errorf("data_columns row %#v carries line_number, want it omitted (derived row)", row)
+		if got, ok := row["line_number"].(int); !ok || got != 1 {
+			t.Errorf("data_columns row %#v line_number = %v, want the positional placeholder 1", row, row["line_number"])
 		}
 	}
 
@@ -124,15 +139,17 @@ func TestDataIntelligenceReplayRowsOmitLineNumber(t *testing.T) {
 		t.Fatalf("query_executions = %#v, want at least one row", payload["query_executions"])
 	}
 	for _, row := range queries {
-		if _, present := row["line_number"]; present {
-			t.Errorf("query_executions row %#v carries line_number, want it omitted (derived row)", row)
+		if got, ok := row["line_number"].(int); !ok || got != 1 {
+			t.Errorf("query_executions row %#v line_number = %v, want the positional placeholder 1", row, row["line_number"])
 		}
 	}
 }
 
-// TestGovernanceReplayRowsOmitLineNumber pins issue #5329's derived-row rule
-// for governance_replay.json owner/contract rows.
-func TestGovernanceReplayRowsOmitLineNumber(t *testing.T) {
+// TestGovernanceReplayRowsRetainPositionalLineNumber pins issue #5358's
+// derived-row decision for governance_replay.json owner/contract rows. See
+// TestDataIntelligenceReplayRowsRetainPositionalLineNumber for the full
+// rationale.
+func TestGovernanceReplayRowsRetainPositionalLineNumber(t *testing.T) {
 	t.Parallel()
 
 	path := writeJSONTestFile(t, "governance_replay.json", `{
@@ -155,8 +172,8 @@ func TestGovernanceReplayRowsOmitLineNumber(t *testing.T) {
 		t.Fatalf("data_owners = %#v, want at least one row", payload["data_owners"])
 	}
 	for _, row := range owners {
-		if _, present := row["line_number"]; present {
-			t.Errorf("data_owners row %#v carries line_number, want it omitted (derived row)", row)
+		if got, ok := row["line_number"].(int); !ok || got != 1 {
+			t.Errorf("data_owners row %#v line_number = %v, want the positional placeholder 1", row, row["line_number"])
 		}
 	}
 
@@ -165,8 +182,8 @@ func TestGovernanceReplayRowsOmitLineNumber(t *testing.T) {
 		t.Fatalf("data_contracts = %#v, want at least one row", payload["data_contracts"])
 	}
 	for _, row := range contracts {
-		if _, present := row["line_number"]; present {
-			t.Errorf("data_contracts row %#v carries line_number, want it omitted (derived row)", row)
+		if got, ok := row["line_number"].(int); !ok || got != 1 {
+			t.Errorf("data_contracts row %#v line_number = %v, want the positional placeholder 1", row, row["line_number"])
 		}
 	}
 }

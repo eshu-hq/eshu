@@ -100,10 +100,21 @@ through the shared helpers in `lockfile_lines.go`, which stay off the
 run one targeted key extraction plus a value-skipping flat scan. Rows whose
 row summarizes a derived/synthesized record rather than pointing at one JSON
 source token (the `data_intelligence.go` and `governance.go` replay-fixture
-rows) omit `line_number` entirely instead of reporting a fabricated `1`;
-`content.CanonicalEntityID` hashes `line_number` into the materialized
-Variable/Function/DataAsset/etc. node identity, so a fabricated value is not
-just cosmetic — it is a wrong graph identity claim. See issue #5329.
+rows) carry `line_number: 1` as a documented positional placeholder, not a
+real source line — these rows describe an external system's state (a
+warehouse table, a BI dashboard, a data-governance assignment), not a JSON
+key/value token in the replay document, so no real source line exists to
+report. #5329 tried omitting `line_number` for these rows instead of stating
+the placeholder, on the theory that this would leave the materialized entity
+with no real source line. That theory did not hold: `entityBucketsFromParsed`
+defaults an absent `line_number` to `0`, and `shape.indexedEntity.lineNumber()`
+coerces any value below `1` back to `1` before it is hashed into
+`content.CanonicalEntityID` and persisted as the entity's `StartLine` — so the
+materialized entity ends up at line `1` whether the parser omits
+`line_number` or states it explicitly. `line_number` therefore states the
+value honestly instead of relying on that coercion while claiming otherwise.
+See issue #5358 for the follow-up correctness finding and issue #5329 for the
+original real-line-number work these rows are a documented exception to.
 
 `composer.lock` rows likewise represent exact PHP package versions
 installed by Composer. The parser emits one row per package in the

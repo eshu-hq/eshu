@@ -119,18 +119,35 @@ func warehouseAssetRecord(asset map[string]any) map[string]any {
 		fmt.Sprint(asset["schema"]),
 		fmt.Sprint(asset["name"]),
 	), ".")
-	// line_number is intentionally omitted: this row summarizes a
-	// warehouse_replay.json asset record, which is a derived description of
-	// an external data-warehouse object, not one JSON key/value token in the
-	// replay document. Fabricating "line_number": 1 for every row would be a
-	// false position; omitting it lets materialize/query treat the entity as
-	// having no real source line (issue #5329).
+	// line_number: 1 is a positional placeholder, not a meaningful source
+	// line. This row summarizes a warehouse_replay.json asset record, a
+	// derived description of an external data-warehouse object, not one JSON
+	// key/value token in the replay document, so no real source line exists
+	// to report. #5329 tried OMITTING line_number instead of fabricating one,
+	// on the theory that materialize/query would then treat the entity as
+	// having no real source line -- but that theory was wrong:
+	// entityBucketsFromParsed's snapshotPayloadInt defaults an absent
+	// line_number to 0, and shape.indexedEntity.lineNumber() coerces any
+	// LineNumber < 1 back to 1 before it is hashed into
+	// content.CanonicalEntityID and persisted as content.EntityRecord.StartLine.
+	// So the materialized entity gets the exact same fabricated line 1 either
+	// way; omitting line_number here changed nothing observable downstream,
+	// it only made the parser payload claim (falsely) that no line existed.
+	// Declaring line_number: 1 explicitly is the honest version of the value
+	// this row will carry regardless, and documents the known limitation
+	// instead of implying an accuracy fix that never took effect (issue
+	// #5358). Threading a genuine "no source line" sentinel through
+	// shape.Entity/content.EntityRecord.StartLine -- a Postgres NOT NULL
+	// column read by dozens of query/export/UI call sites across every
+	// language parser, and hard-validated by content_writer.go's Write() --
+	// was assessed as disproportionate for this fix.
 	return map[string]any{
-		"id":       "data-asset:" + assetName,
-		"name":     assetName,
-		"database": fmt.Sprint(asset["database"]),
-		"schema":   fmt.Sprint(asset["schema"]),
-		"kind":     defaultString(asset["kind"], "table"),
+		"id":          "data-asset:" + assetName,
+		"name":        assetName,
+		"line_number": 1,
+		"database":    fmt.Sprint(asset["database"]),
+		"schema":      fmt.Sprint(asset["schema"]),
+		"kind":        defaultString(asset["kind"], "table"),
 	}
 }
 
@@ -142,12 +159,13 @@ func warehouseColumnRecords(asset map[string]any, assetName string) []map[string
 			continue
 		}
 		qualifiedName := assetName + "." + columnName
-		// line_number omitted: derived summary row, no single source token.
+		// line_number: 1 positional placeholder, not a real source line.
 		// See warehouseAssetRecord's comment for the full rationale.
 		records = append(records, map[string]any{
-			"id":         "data-column:" + qualifiedName,
-			"asset_name": assetName,
-			"name":       qualifiedName,
+			"id":          "data-column:" + qualifiedName,
+			"asset_name":  assetName,
+			"name":        qualifiedName,
+			"line_number": 1,
 		})
 	}
 	return records
@@ -159,11 +177,12 @@ func warehouseQueryExecutionRecord(query map[string]any) map[string]any {
 	if queryName == "" {
 		queryName = queryID
 	}
-	// line_number omitted: derived summary row, no single source token.
+	// line_number: 1 positional placeholder, not a real source line.
 	// See warehouseAssetRecord's comment for the full rationale.
 	return map[string]any{
 		"id":          "query-execution:" + queryID,
 		"name":        queryName,
+		"line_number": 1,
 		"statement":   fmt.Sprint(query["statement"]),
 		"status":      defaultString(query["status"], "unknown"),
 		"executed_by": fmt.Sprint(query["executed_by"]),
@@ -213,13 +232,14 @@ func dashboardAssetRecord(dashboard map[string]any, workspace string) map[string
 	if dashboardID == "" {
 		dashboardID = strings.ToLower(strings.TrimSpace(fmt.Sprint(dashboard["name"])))
 	}
-	// line_number omitted: derived summary row, no single source token.
+	// line_number: 1 positional placeholder, not a real source line.
 	// See warehouseAssetRecord's comment for the full rationale.
 	return map[string]any{
-		"id":        "dashboard-asset:" + workspace + ":" + dashboardID,
-		"name":      defaultString(dashboard["name"], dashboardID),
-		"path":      fmt.Sprint(dashboard["path"]),
-		"workspace": workspace,
+		"id":          "dashboard-asset:" + workspace + ":" + dashboardID,
+		"name":        defaultString(dashboard["name"], dashboardID),
+		"line_number": 1,
+		"path":        fmt.Sprint(dashboard["path"]),
+		"workspace":   workspace,
 	}
 }
 
@@ -279,14 +299,15 @@ func semanticAssetRecord(model map[string]any) map[string]any {
 	if modelID == "" {
 		modelID = assetName
 	}
-	// line_number omitted: derived summary row, no single source token.
+	// line_number: 1 positional placeholder, not a real source line.
 	// See warehouseAssetRecord's comment for the full rationale.
 	return map[string]any{
-		"id":        "data-asset:" + assetName,
-		"name":      assetName,
-		"path":      fmt.Sprint(model["path"]),
-		"kind":      defaultString(model["kind"], "semantic_model"),
-		"source_id": modelID,
+		"id":          "data-asset:" + assetName,
+		"name":        assetName,
+		"line_number": 1,
+		"path":        fmt.Sprint(model["path"]),
+		"kind":        defaultString(model["kind"], "semantic_model"),
+		"source_id":   modelID,
 	}
 }
 
@@ -296,12 +317,13 @@ func semanticColumnRecord(assetName string, field map[string]any) (map[string]an
 		return nil, false
 	}
 	qualifiedName := assetName + "." + fieldName
-	// line_number omitted: derived summary row, no single source token.
+	// line_number: 1 positional placeholder, not a real source line.
 	// See warehouseAssetRecord's comment for the full rationale.
 	return map[string]any{
-		"id":         "data-column:" + qualifiedName,
-		"asset_name": assetName,
-		"name":       qualifiedName,
+		"id":          "data-column:" + qualifiedName,
+		"asset_name":  assetName,
+		"name":        qualifiedName,
+		"line_number": 1,
 	}, true
 }
 
@@ -347,14 +369,15 @@ func qualityCheckRecord(check map[string]any, workspace string) map[string]any {
 	if checkID == "" {
 		checkID = strings.ToLower(strings.TrimSpace(fmt.Sprint(check["name"])))
 	}
-	// line_number omitted: derived summary row, no single source token.
+	// line_number: 1 positional placeholder, not a real source line.
 	// See warehouseAssetRecord's comment for the full rationale.
 	return map[string]any{
-		"id":         "data-quality-check:" + workspace + ":" + checkID,
-		"name":       defaultString(check["name"], checkID),
-		"path":       fmt.Sprint(check["path"]),
-		"check_type": defaultString(check["check_type"], "assertion"),
-		"status":     defaultString(check["status"], "unknown"),
-		"severity":   defaultString(check["severity"], "medium"),
+		"id":          "data-quality-check:" + workspace + ":" + checkID,
+		"name":        defaultString(check["name"], checkID),
+		"line_number": 1,
+		"path":        fmt.Sprint(check["path"]),
+		"check_type":  defaultString(check["check_type"], "assertion"),
+		"status":      defaultString(check["status"], "unknown"),
+		"severity":    defaultString(check["severity"], "medium"),
 	}
 }

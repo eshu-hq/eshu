@@ -55,7 +55,13 @@
   lockfile producers), never a `lineNumber := 1; lineNumber++` counter and
   never a hardcoded `1`. A row that summarizes a derived/synthesized record
   with no single source token (see `data_intelligence.go`/`governance.go`)
-  must omit `line_number` entirely instead of fabricating one.
+  states `line_number: 1` as a documented positional placeholder instead —
+  DO NOT omit it. Omitting is not honest here: `entityBucketsFromParsed`
+  defaults an absent `line_number` to `0`, and
+  `shape.indexedEntity.lineNumber()` coerces any value below `1` back to `1`
+  before it reaches `content.CanonicalEntityID`/`StartLine`, so an omitted
+  `line_number` still materializes to the same fabricated `1` — it only makes
+  the parser payload's claim dishonest (issue #5358).
 
 ## Failure modes
 
