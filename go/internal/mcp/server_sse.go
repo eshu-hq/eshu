@@ -156,6 +156,10 @@ func (s *Server) handleHTTPMessage(w http.ResponseWriter, r *http.Request) {
 	if sess != nil && sess.principal != "" {
 		if reqPrincipal := authPrincipalKey(r.Context()); reqPrincipal != sess.principal {
 			recordMCPTransportAuthDenied(r.Context(), "mcp_message", mcpAuthDenyReasonSessionMismatch)
+			// Tell authenticatedTransportHandler this 403 is already classified,
+			// so its status recorder does not double-count it as a generic
+			// unauthenticated denial (issue #5168 review P2).
+			markTransportDenyClassified(r.Context())
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusForbidden)
 			_ = json.NewEncoder(w).Encode(jsonrpcResponse{

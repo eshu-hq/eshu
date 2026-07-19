@@ -114,12 +114,15 @@
   only.
 
 - **Confusing the two auth layers** — as of #5168 the MCP transport endpoints
-  (`GET /sse`, `POST /mcp/message`) ARE authenticated, via
+  (`GET /sse`, `POST /mcp/message`) run through the credential middleware, via
   `mcp.WithTransportAuth` wired in `wireAPI`. The `/api/*` routes are protected
   separately by `query.AuthMiddlewareWithScopedTokensAndGovernanceAudit`
   wrapping the query mux (the `authedHandler` passed to `mcp.NewServer`). Both
   use the SAME credential chain; do not assume one covers the other's mount, and
-  do not remove either wrap.
+  do not remove either wrap. Note the residual: a headerless request is refused
+  only when a shared `ESHU_API_KEY` is set — a scoped-only/OIDC-only deployment
+  still passes headerless requests through the shared-token dev-bypass until the
+  companion auth-headerless-bypass hardening (under #5161) lands.
 
 ## What NOT to change without an ADR
 

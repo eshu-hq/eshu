@@ -16,17 +16,24 @@
 // and narrowing guidance, so a single heavy graph-returning tool cannot blow the
 // model context budget. Per-route token budgets still apply first.
 //
-// In HTTP mode the transport itself is authenticated when the server is
-// constructed with WithTransportAuth (issue #5168): the GET /sse and
-// POST /mcp/message endpoints run every JSON-RPC method (initialize,
-// tools/list, tools/call, ping) through the caller-supplied credential chain,
-// so an unauthenticated request is refused with 401 and discloses nothing
-// about the tool catalog or server metadata. Each SSE session is bound to the
-// credential that opened it; a POST to that session whose credential resolves
-// to a different principal is rejected. Denials increment
-// eshu_dp_mcp_transport_auth_denied_total, labeled by mcp_method and reason.
-// The stdio transport is never authenticated -- it keeps its process and
-// filesystem trust boundary.
+// In HTTP mode the transport is wrapped with the caller-supplied credential
+// middleware when the server is constructed with WithTransportAuth (issue
+// #5168): the GET /sse and POST /mcp/message endpoints run every JSON-RPC
+// method (initialize, tools/list, tools/call, ping) through the same middleware
+// that guards /api/v0/*, instead of being mounted with none. When that
+// middleware fails a request closed -- for example a shared-token (ESHU_API_KEY)
+// deployment receiving a request with no or a wrong credential -- the caller
+// gets a bare 401 that discloses nothing about the tool catalog or server
+// metadata. Each SSE session is also bound to the credential that opened it; a
+// POST to that session whose credential resolves to a different principal is
+// rejected with 403. Denials increment eshu_dp_mcp_transport_auth_denied_total,
+// labeled by mcp_method and reason. This wrap does not by itself close the
+// headerless bypass for a scoped-token-only or OIDC-only deployment (shared
+// ESHU_API_KEY unset): the shared credential middleware still passes a
+// headerless request through on an empty shared token, and that per-request
+// enforcement is finished by the companion auth-headerless-bypass hardening
+// (under #5161). The stdio transport is never wrapped -- it keeps its process
+// and filesystem trust boundary.
 // Helpers in this package normalize tool arguments, including shared
 // slice and identifier helpers in
 // dispatch_args.go, build request bodies for the underlying handler, and parse

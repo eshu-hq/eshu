@@ -40,8 +40,21 @@ type mcpAuthWiring struct {
 	// fail-closed default: an operator who provisions identity-backed
 	// tokens through cmd/api's admin flows without ALSO setting one of the
 	// three explicit knobs must pass ESHU_MCP_ALLOW_UNAUTHENTICATED=true to
-	// start the standalone MCP server. See the PR description for the
-	// tradeoff this represents and the coordinator sign-off on this default.
+	// start the standalone MCP server.
+	//
+	// Scope note (issue #5168): this signal only gates STARTUP. A configured
+	// scoped-token file (ESHU_SCOPED_TOKENS_FILE) or OIDC resolver
+	// (ESHU_AUTH_RESOURCE_URI) with the shared ESHU_API_KEY unset makes this
+	// true, so such a deployment starts -- but the shared credential middleware
+	// still lets a HEADERLESS request through, because query.AuthMiddleware's
+	// dev-mode bypass keys off an empty shared token alone (auth.go:261-270),
+	// regardless of a configured scoped or OIDC resolver. Closing that
+	// per-request headerless gap for scoped-only/OIDC-only deployments is the
+	// companion auth-headerless-bypass hardening (under #5161), the
+	// immediately-following change in this auth chain. The exclusion of the
+	// always-wired identity resolver here is a deliberate, coordinator-approved
+	// default: counting a resolver that is always present would make the gate
+	// permanently satisfied and useless.
 	credentialSourceConfigured bool
 }
 

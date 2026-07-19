@@ -98,8 +98,12 @@ flowchart TB
    prominent dev-only warning). stdio is never gated.
 7. `mcp.NewServer` is called with the authed query handler and
    `mcp.WithTransportAuth(authWiring.transportAuth)`, so `GET /sse` and
-   `POST /mcp/message` (every JSON-RPC method) require the same credential as
-   `tools/call`'s internal dispatch.
+   `POST /mcp/message` (every JSON-RPC method) run through the same credential
+   middleware as `tools/call`'s internal dispatch. A headerless request is
+   refused only when a shared `ESHU_API_KEY` is set; a scoped-only/OIDC-only
+   deployment still passes headerless requests through until the companion
+   auth-headerless-bypass hardening (under #5161) lands (see the residual gap
+   in [Service Runtimes](../../../docs/public/deployment/service-runtimes.md)).
 8. Transport selection reads `ESHU_MCP_TRANSPORT`:
    - `stdio` — `Server.Run` reads newline-delimited JSON-RPC from stdin;
      no HTTP listener starts.
@@ -162,9 +166,12 @@ or spans beyond the startup/connection events.
   process/filesystem trust boundary and is never gated by credential
   configuration.
 - The query API mounted under `/api/` is protected by `query.AuthMiddleware`.
-  As of #5168 the MCP transport endpoints (`GET /sse`, `POST /mcp/message`) are
-  ALSO authenticated, with the same credential chain, via
-  `mcp.WithTransportAuth`. Denials increment
+  As of #5168 the MCP transport endpoints (`GET /sse`, `POST /mcp/message`) run
+  through the SAME credential middleware, via `mcp.WithTransportAuth`, and SSE
+  sessions are principal-bound. A headerless request is refused only when a
+  shared `ESHU_API_KEY` is set; a scoped-only/OIDC-only deployment still passes
+  headerless requests through until the companion auth-headerless-bypass
+  hardening (under #5161). Denials increment
   `eshu_dp_mcp_transport_auth_denied_total` (labeled by `mcp_method` and
   `reason`).
 - `loadGraphBackend` with an empty `ESHU_GRAPH_BACKEND` defaults to

@@ -27,11 +27,15 @@
 // and the shared `/healthz`, `/readyz`, `/metrics`, `/admin/status` admin
 // surface.
 //
-// In HTTP mode the transport endpoints (`/sse`, `/mcp/message`) are
-// authenticated with the same credential chain as the query API (issue #5168),
-// and the binary refuses to start with no resolvable credential source unless
-// ESHU_MCP_ALLOW_UNAUTHENTICATED=true is set for loopback/dev use. The stdio
-// transport keeps its process/filesystem trust boundary and is never gated.
+// In HTTP mode the transport endpoints (`/sse`, `/mcp/message`) are wrapped
+// with the same credential middleware as the query API (issue #5168), SSE
+// sessions are principal-bound, and the binary refuses to start with no
+// resolvable credential source unless ESHU_MCP_ALLOW_UNAUTHENTICATED=true is set
+// for loopback/dev use. A headerless request is refused only when a shared
+// ESHU_API_KEY is set; a scoped-token-only or OIDC-only deployment still lets a
+// headerless request through until the companion auth-headerless-bypass
+// hardening (under #5161) lands. The stdio transport keeps its
+// process/filesystem trust boundary and is never gated.
 // SIGINT and SIGTERM trigger context cancellation and clean shutdown.
 //
 // When ESHU_PPROF_ADDR is set, the binary also exposes an opt-in

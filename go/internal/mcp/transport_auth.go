@@ -38,6 +38,35 @@ const (
 	mcpAuthDenyReasonSessionMismatch = "session_principal_mismatch"
 )
 
+// denyClassification lets an inner transport handler tell
+// authenticatedTransportHandler that it already recorded a specific denial
+// reason for this request, so the outer wrapper does not additionally count the
+// same 401/403 as a generic "unauthenticated" denial (issue #5168 review P2:
+// a session-hijack 403 recorded by handleHTTPMessage as
+// session_principal_mismatch was double-counted by the wrapper's status
+// recorder as unauthenticated). It is a pointer carried on the request context
+// so a mutation inside the inner handler is visible to the wrapper after
+// ServeHTTP returns, even though context values themselves are immutable.
+type denyClassification struct{ done bool }
+
+type denyClassificationCtxKey struct{}
+
+// withDenyClassification attaches a fresh denyClassification sentinel to ctx.
+func withDenyClassification(ctx context.Context) (context.Context, *denyClassification) {
+	c := &denyClassification{}
+	return context.WithValue(ctx, denyClassificationCtxKey{}, c), c
+}
+
+// markTransportDenyClassified records that the inner handler already counted a
+// specific denial reason for this request. It is a no-op when no sentinel is on
+// the context (for example on the unauthenticated pass-through path, or a
+// direct handler call in a test), so callers never need to guard it.
+func markTransportDenyClassified(ctx context.Context) {
+	if c, ok := ctx.Value(denyClassificationCtxKey{}).(*denyClassification); ok {
+		c.done = true
+	}
+}
+
 // knownMCPMethods bounds the "mcp_method" metric label extracted from a
 // POST /mcp/message body before auth has necessarily succeeded. An unknown or
 // unparsable method is labeled "other"/"unknown" rather than passed through
@@ -72,8 +101,19 @@ func (s *Server) authenticatedTransportHandler(staticMethod string, next http.Ha
 		if method == "" {
 			method, r = peekMCPMethod(r)
 		}
+		ctx, classified := withDenyClassification(r.Context())
+		r = r.WithContext(ctx)
 		rec := &authDenyStatusRecorder{ResponseWriter: w, status: http.StatusOK}
 		wrapped.ServeHTTP(rec, r)
+		// Only count a generic "unauthenticated" denial when the inner handler
+		// has NOT already classified this denial with a more specific reason.
+		// A session-hijack 403 is recorded by handleHTTPMessage as
+		// session_principal_mismatch and marks the sentinel; counting it again
+		// here would inflate a misleading unauthenticated series (issue #5168
+		// review P2).
+		if classified.done {
+			return
+		}
 		if rec.status == http.StatusUnauthorized || rec.status == http.StatusForbidden {
 			recordMCPTransportAuthDenied(r.Context(), method, mcpAuthDenyReasonUnauthenticated)
 		}

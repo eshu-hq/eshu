@@ -450,15 +450,21 @@ Before #5168 the HTTP transport leaked before auth ever ran: `GET /sse` and
 `POST /mcp/message` were mounted with no middleware, so `initialize`,
 `tools/list`, and `ping` enumerated the tool catalog and server metadata with
 no credential (only `tools/call` was checked, and only incidentally, through
-its internal `/api/v0` re-dispatch). `transport_auth.go` closes that gap.
+its internal `/api/v0` re-dispatch). `transport_auth.go` wraps the transport
+routes with the credential middleware instead.
 
 `NewServer` accepts `WithTransportAuth(middleware)`. The wiring
 (`cmd/mcp-server/wiring.go`) passes the SAME credential chain that protects
 `/api/v0/*` — shared token (`ESHU_API_KEY`), scoped token
 (`ESHU_SCOPED_TOKENS_FILE`), and IdP bearer (`ESHU_AUTH_RESOURCE_URI`).
 `authenticatedTransportHandler` (`transport_auth.go:65`) wraps both transport
-routes; a credential-less request gets a bare 401 with no catalog or
-server-info disclosure. When `transportAuth` is nil the wrap is a pass-through,
+routes. When a shared token (`ESHU_API_KEY`) is set, a credential-less request
+gets a bare 401 with no catalog or server-info disclosure. When the shared
+token is unset and only a scoped-token file or OIDC resolver is configured, the
+middleware's dev-mode bypass still passes a headerless request through
+(`internal/query/auth.go:261-270`); closing that per-request gap for
+scoped-only/OIDC-only deployments is the companion auth-headerless-bypass
+hardening (under #5161). When `transportAuth` is nil the wrap is a pass-through,
 so the stdio path and any unauthenticated deployment are unchanged.
 
 SSE sessions are bound to the credential that opened them:
