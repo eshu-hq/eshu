@@ -30,16 +30,32 @@ func TestOpenAPIImpactDeploymentTraceDocumentsCanonicalPlatformIdentity(t *testi
 	properties := mustMapField(t, schema, "properties")
 	uncorrelatedCloudResources := mustMapField(t, properties, "uncorrelated_cloud_resources")
 	uncorrelatedDescription, _ := uncorrelatedCloudResources["description"].(string)
-	if !strings.Contains(uncorrelatedDescription, "Deployment-config candidates are globally ordered by name and canonical ID") {
-		t.Fatalf("uncorrelated_cloud_resources description does not document ordering: %q", uncorrelatedDescription)
-	}
-	if !strings.Contains(uncorrelatedDescription, "Deployment-config candidates expose match_basis") || !strings.Contains(uncorrelatedDescription, "ambiguous_anchor") {
-		t.Fatalf("uncorrelated_cloud_resources description does not document source-specific fields: %q", uncorrelatedDescription)
+	for _, required := range []string{
+		"candidate_status",
+		"missing_relationship",
+		"Deployment-config candidates are globally ordered by name and canonical ID",
+		"Deployment-config candidates expose match_basis",
+		"uncorrelated",
+		"ambiguous_anchor",
+		"stale_anchor",
+		"weak_anchor",
+	} {
+		if !strings.Contains(uncorrelatedDescription, required) {
+			t.Fatalf("uncorrelated_cloud_resources description missing %q: %q", required, uncorrelatedDescription)
+		}
 	}
 	uncorrelatedCloudResourcesTruncated := mustMapField(t, properties, "uncorrelated_cloud_resources_truncated")
 	truncationDescription, _ := uncorrelatedCloudResourcesTruncated["description"].(string)
-	if !strings.Contains(truncationDescription, "candidate discovery was incomplete") || !strings.Contains(truncationDescription, "anchor input") {
-		t.Fatalf("uncorrelated_cloud_resources_truncated description does not document upstream truncation: %q", truncationDescription)
+	for _, required := range []string{
+		"candidate discovery was incomplete",
+		"returned list was capped",
+		"deployment-config evidence",
+		"anchor input",
+		"even when no rows were returned",
+	} {
+		if !strings.Contains(truncationDescription, required) {
+			t.Fatalf("uncorrelated_cloud_resources_truncated description missing %q: %q", required, truncationDescription)
+		}
 	}
 	instances := mustMapField(t, properties, "instances")
 	instanceItems := mustMapField(t, instances, "items")
