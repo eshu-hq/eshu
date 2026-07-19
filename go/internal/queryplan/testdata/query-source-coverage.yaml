@@ -154,7 +154,13 @@ source_coverage:
       - {symbol: "resolveImpactAnchorNode", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
   - file: impact_blast_radius.go
     calls:
-      - {symbol: "(*ImpactHandler).blastRadiusAffected", count: 5, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
+      - symbol: "(*ImpactHandler).blastRadiusAffected"
+        count: 5
+        non_hot:
+          class: keyed_support
+          source_sha256: fa13cfede78bf7cd69a96724c1c7f9337b8729997195b7b5f7c5d6fddca1fce8
+          key_bound: single_key
+          max_results: 1005
       - {symbol: "(*ImpactHandler).enrichBlastRadiusTiers", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
   - file: impact_change_surface_investigation.go
     calls:

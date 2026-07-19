@@ -223,8 +223,8 @@ and written through the canonical relationship upserts
 **Code edges** — tool is the node `language`; they carry `resolution_method`:
 `CALLS`, `REFERENCES`, `INHERITS`, `INSTANTIATES`, `USES_METACLASS`,
 `IMPLEMENTS`, `ALIASES`, `OVERRIDES`, `IMPORTS`, and the SQL parser edges
-(`HAS_COLUMN`, `REFERENCES_TABLE`, `READS_FROM`, `INDEXES`, `TRIGGERS_ON`,
-`QUERIES_TABLE`, `EXECUTES`, `TRIGGERS`).
+(`HAS_COLUMN`, `REFERENCES_TABLE`, `INDEXES`, `QUERIES_TABLE`, `EXECUTES`,
+`TRIGGERS`).
 
 **Structural edges** — no tool concept: `REPO_CONTAINS`, `CONTAINS`, `DEFINES`,
 `INSTANCE_OF`, `EXPOSES_ENDPOINT`, `DEPLOYMENT_SOURCE`,
@@ -232,10 +232,14 @@ and written through the canonical relationship upserts
 `TARGETS_ENVIRONMENT`, `HAS_PARAMETER`, `DOCUMENTS`, `EXPLAINS`, `USES`
 (workload→cloud-resource), `SATISFIED_BY`.
 
-**Registered but not currently materialized:** `MAPS_TO_TABLE` and `MIGRATES`
-appear in the edge-type registry and are read by `query/impact.go`, but no
-emitter MERGEs them in the current code. They carry no `source_tool` until a
-materializer exists.
+**Registered but not currently materialized:** `MAPS_TO_TABLE`, `MIGRATES`,
+`READS_FROM`, and `TRIGGERS_ON` appear in the edge-type registry and (for
+`MAPS_TO_TABLE`/`MIGRATES`) are read by `query/impact.go`, but no emitter
+MERGEs any of them in the current code (#5330 audited every SQL
+reducer/edge-writer path). `TRIGGERS_ON` is a distinct dead registry entry
+from the live `TRIGGERS` edge the SQL trigger writer actually emits — do not
+conflate the two names. They carry no `source_tool` until a materializer
+exists.
 
 ## Re-auditing coverage
 

@@ -26,7 +26,7 @@ import "fmt"
 // bounds each statement to this domain's edges, so the broad rel-type list
 // cannot over-delete — it exists so every (source label, relationship type)
 // pair the write path can create is retractable.
-const sqlRelationshipRetractRelTypes = "QUERIES_TABLE|REFERENCES_TABLE|HAS_COLUMN|TRIGGERS|EXECUTES"
+const sqlRelationshipRetractRelTypes = "QUERIES_TABLE|REFERENCES_TABLE|HAS_COLUMN|TRIGGERS|EXECUTES|INDEXES"
 
 // sqlRelationshipRetractSourceLabels lists the source node labels a SQL
 // relationship edge retract must cover. It MUST include every label the write
@@ -92,6 +92,24 @@ var sqlRelationshipWriteReasons = map[string]string{
 	"HAS_COLUMN":       "SQL entity metadata resolved a table-column containment edge",
 	"TRIGGERS":         "SQL entity metadata resolved a trigger edge",
 	"EXECUTES":         "SQL trigger metadata resolved a routine execution edge",
+	"INDEXES":          "SQL entity metadata resolved an index-to-table edge",
+}
+
+// SQLRelationshipMaterializedEdgeTypes returns a defensive copy of
+// sqlRelationshipWriteReasons: the graph relationship types the SQL-entity
+// edge writer actually accepts, mapped to the write reason recorded on each
+// MERGEd edge. It is the authoritative, single source of truth for which
+// SQL-domain edge types are materialized in the graph — callers MUST derive
+// coverage from this registry rather than hand-maintaining a second list, so
+// a type added or removed here automatically flips downstream coverage
+// reporting (e.g. the blast-radius honesty registry in go/internal/query,
+// #5330) without a second edit.
+func SQLRelationshipMaterializedEdgeTypes() map[string]string {
+	out := make(map[string]string, len(sqlRelationshipWriteReasons))
+	for edgeType, reason := range sqlRelationshipWriteReasons {
+		out[edgeType] = reason
+	}
+	return out
 }
 
 func buildSQLRelationshipRowMap(

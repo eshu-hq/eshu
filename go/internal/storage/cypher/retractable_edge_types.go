@@ -37,6 +37,7 @@ var retractableGraphEdgeTypes = []edgetype.EdgeType{
 	edgetype.HelmValueReference,
 	edgetype.Implements,
 	edgetype.Imports,
+	edgetype.Indexes,
 	edgetype.Inherits,
 	edgetype.Instantiates,
 	edgetype.InvokesCloudAction,

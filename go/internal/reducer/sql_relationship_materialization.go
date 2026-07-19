@@ -50,8 +50,8 @@ type SQLRelationshipIntentWriter interface {
 
 // SQLRelationshipMaterializationHandler reduces one SQL relationship follow-up
 // into durable shared-projection intent emission for REFERENCES_TABLE,
-// HAS_COLUMN, TRIGGERS, and EXECUTES edges. Each repository gets one whole-scope
-// refresh intent that owns the retract, and each edge gets a write-only per-edge
+// HAS_COLUMN, TRIGGERS, EXECUTES, and INDEXES edges. Each repository gets one
+// whole-scope refresh intent that owns the retract, and each edge gets a write-only per-edge
 // intent under a file-scoped partition key fenced behind that refresh (#2868).
 type SQLRelationshipMaterializationHandler struct {
 	FactLoader   FactLoader
@@ -315,6 +315,35 @@ func ExtractSQLRelationshipRows(envelopes []facts.Envelope) ([]string, []map[str
 				"source_path":       source.path,
 				"repo_id":           repoID,
 				"relationship_type": "HAS_COLUMN",
+			})
+
+		case "SqlIndex":
+			// table_name metadata -> INDEXES edge (index -> table). Mirrors the
+			// SqlTrigger table_name resolution above; an index whose table_name
+			// does not resolve to a present SqlTable is skipped rather than
+			// fabricated (#5330 Task 3 — wires the blast-radius INDEXES branch
+			// that has never had a writer).
+			tableName := sqlMetadataString(metadata, "table_name")
+			if tableName == "" {
+				continue
+			}
+			target, ok := resolveSQLRelationshipTarget(entityByName, tableName, "SqlTable", repoID, relativePath)
+			if !ok {
+				continue
+			}
+			edgeKey := entityID + "->INDEXES->" + target.entityID
+			if _, seen := seenEdges[edgeKey]; seen {
+				continue
+			}
+			seenEdges[edgeKey] = struct{}{}
+			rows = append(rows, map[string]any{
+				"source_entity_id":   entityID,
+				"target_entity_id":   target.entityID,
+				"source_entity_type": entityType,
+				"target_entity_type": target.entityType,
+				"source_path":        entityPath,
+				"repo_id":            repoID,
+				"relationship_type":  "INDEXES",
 			})
 		}
 	}

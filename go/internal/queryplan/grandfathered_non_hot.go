@@ -58,7 +58,6 @@ var grandfatheredNonHotSourceDigests = map[string]string{
 	"impact.go:(*ImpactHandler).explainDependencyPath":                                                    "a6d2800afbdb3a6fbec38762a2c44da60ff8aa597342ba90d7d20e0cc3685d32",
 	"impact.go:(*ImpactHandler).traceResourceToCode":                                                      "49a7e3d3b49f428564ba7525d3804ae220dce475e01b57c0fed68b3100d13fc0",
 	"impact_anchor_resolve.go:resolveImpactAnchorNode":                                                    "855e1f7f38dc0aa70ea08d4c84126d8e8c003f868f68ae6ab20621331b5c0bda",
-	"impact_blast_radius.go:(*ImpactHandler).blastRadiusAffected":                                         "7cf2e01f677a90f095d1cace91f2ebfe06123d7feb95cf014129e0a1962726b4",
 	"impact_blast_radius.go:(*ImpactHandler).enrichBlastRadiusTiers":                                      "0eb5aa3d3662a167e6502b08a62755388e0a23fc7321463435d3168dadb14078",
 	"impact_change_surface_investigation.go:(*ImpactHandler).resolveChangeSurfaceTarget":                  "72e46f8d21929c94c6afbc738041b5d8f6e6ac4eade7f83a1812087db9357fc0",
 	"impact_change_surface_response.go:(*ImpactHandler).changeSurfaceImpactRows":                          "a1cad14e89c9f5be8f94b1254cae15a31afc0baca52726a5f19c266497610b8c",

@@ -3,8 +3,8 @@
 
 // Reducer-materialized SQL relationship retract coverage for #5116.
 //
-// NornicDB v1.1.11 acknowledges a managed transaction containing these six
-// label-specific DELETE statements but applies none of them. The same statements
+// NornicDB v1.1.11 acknowledges a managed transaction containing these
+// per-source-label DELETE statements but applies none of them. The same statements
 // run as separate auto-commit transactions delete the intended edges. This test
 // drives the production EdgeWriter write and retract paths for both repository
 // and delta-file scopes and protects scope, evidence, and endpoint-node truth.
@@ -49,6 +49,7 @@ var sqlRetractInScopeFixtures = []sqlRetractFixture{
 	{"has-column", "SqlTable", "sql-retract:table", "SqlColumn", "sql-retract:column", "HAS_COLUMN", sqlRetractInRepoID, sqlRetractInPath, sqlRetractEvidence},
 	{"triggers", "SqlTrigger", "sql-retract:trigger-table", "SqlTable", "sql-retract:triggered-table", "TRIGGERS", sqlRetractInRepoID, sqlRetractInPath, sqlRetractEvidence},
 	{"executes", "SqlTrigger", "sql-retract:trigger-fn", "SqlFunction", "sql-retract:executed-fn", "EXECUTES", sqlRetractInRepoID, sqlRetractInPath, sqlRetractEvidence},
+	{"indexes", "SqlIndex", "sql-retract:index", "SqlTable", "sql-retract:indexed-table", "INDEXES", sqlRetractInRepoID, sqlRetractInPath, sqlRetractEvidence},
 }
 
 // TestReducerSQLRelationshipRetractGraphTruth is the failing-then-green live
@@ -178,7 +179,7 @@ func assertSQLRetractFixtureCount(ctx context.Context, t *testing.T, exec liveEx
 
 func cleanupSQLRetractScope(ctx context.Context, t *testing.T, exec liveExecutor) {
 	t.Helper()
-	for _, label := range []string{"Function", "SqlColumn", "SqlFunction", "SqlTable", "SqlTrigger", "SqlView"} {
+	for _, label := range []string{"Function", "SqlColumn", "SqlFunction", "SqlIndex", "SqlTable", "SqlTrigger", "SqlView"} {
 		if err := exec.Execute(ctx, cypher.Statement{
 			Cypher:     fmt.Sprintf("MATCH (n:%s) WHERE n.repo_id IN [$in, $out] DETACH DELETE n", label),
 			Parameters: map[string]any{"in": sqlRetractInRepoID, "out": sqlRetractOutRepoID},

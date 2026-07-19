@@ -20,7 +20,7 @@ full matrix, see [Parser Feature Matrix](feature-matrix.md) and
 | Surface | Current contract |
 | --- | --- |
 | Schema objects | Tables, columns, views, materialized views, indexes, functions, procedures, triggers, and migration metadata. |
-| Relationships | `HAS_COLUMN`, `REFERENCES_TABLE`, `READS_FROM`, `TRIGGERS_ON`, `EXECUTES`, `INDEXES`, and `MIGRATES` evidence where parsed. |
+| Relationships | Parsed and materialized to the graph: `HAS_COLUMN`, `REFERENCES_TABLE`, `TRIGGERS` (trigger -> table trigger evidence), `EXECUTES` (trigger -> routine), `QUERIES_TABLE`, and `INDEXES` (index -> table, #5330). Parsed but not currently materialized to the graph: `READS_FROM` and `MIGRATES` — see [Edge Source-Tool Provenance](../reference/edge-source-tool-provenance.md#tier-3-no-edge-level-tool-intentional) for the full registered-vs-materialized audit. |
 | Routine metadata | Bounded Postgres-style function and procedure bodies, including dollar-quoted bodies and `LANGUAGE` metadata. |
 | dbt lineage | Compiled-model lineage for supported select expressions, safe scalar wrappers, and documented unresolved summaries. |
 | Query fallback | SQL content entities can surface through entity resolve/context when materialized content rows exist. |

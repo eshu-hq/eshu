@@ -207,7 +207,7 @@ SET rel.confidence = 0.95,
 // reliably (#5116/#4367).
 
 // SQL relationship edge retraction (QUERIES_TABLE/REFERENCES_TABLE/HAS_COLUMN/
-// TRIGGERS/EXECUTES) is built per source label by
+// TRIGGERS/EXECUTES/INDEXES) is built per source label by
 // buildSQLRelationshipRetractStatements in edge_writer_sql.go, not as a single
 // constant: NornicDB matches neither a node-label disjunction nor (on v1.1.11)
 // an unlabeled source scan reliably, and multiple DELETEs grouped in one
