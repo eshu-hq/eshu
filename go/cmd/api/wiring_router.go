@@ -161,6 +161,7 @@ func newRouterWithSemanticEmbedding(
 			Content:      contentReader,
 			Reachability: query.NewPostgresIaCReachabilityStore(db),
 			Management:   query.NewPostgresIaCManagementStore(db),
+			Inventory:    query.NewPostgresIaCInventoryStore(db),
 			Graph:        neo4jReader,
 			Profile:      queryProfile,
 		},

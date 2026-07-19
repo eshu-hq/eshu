@@ -24,10 +24,11 @@ OpenAPI remains canonical for full request and response schemas.
 
 ## IaC Inventory
 
-`GET /api/v0/iac/resources` is a bounded, enveloped browse over the
-authoritative Terraform/IaC graph projection. It backs the Console IaC page and
-any client that needs a stable list of Terraform resources, modules, or data
-sources.
+`GET /api/v0/iac/resources` is a bounded, enveloped browse over the current
+active-generation Terraform/IaC inventory. Postgres selects the current,
+caller-authorized identities and the authoritative graph hydrates their display
+fields. The handler rejects the page if graph identity, name, or generation no
+longer agrees with the selected inventory rather than returning stale rows.
 
 - `kind` selects the node label: `resource` (default, `TerraformResource`),
   `module` (`TerraformModule`), or `data-source` (`TerraformDataSource`).
@@ -38,6 +39,12 @@ sources.
 - `module` filters by module name. For resources and data sources it matches the
   `module."<name>".` address prefix; for modules it matches the module name
   exactly.
+- `q` performs case-insensitive server search across name, source path, type,
+  provider, module, canonical repository id, and kind over the full current
+  caller-authorized inventory. `repository` filters by canonical repository id.
+- `include_facets=true` adds authoritative current totals and bounded type,
+  provider, module, and repository selectors. Each selector family is capped at
+  200 values and reports truncation explicitly.
 - `limit` is 1-200 and defaults to 50. The list is keyset-paginated and ordered
   by `(name, id)`; when `truncated` is true, pass `next_cursor.after_name` and
   `next_cursor.after_id` back as `after_name` and `after_id` to fetch the next
@@ -49,26 +56,34 @@ route returns `503`.
 
 ### IaC inventory performance and observability
 
-Performance Evidence: `MATCH (n:TerraformResource) ... ORDER BY n.name, n.id
-LIMIT $limit` against NornicDB (Compose `bolt://localhost:7687`, database
-`nornic`) over 2,089 `TerraformResource` nodes. The `resource_type` and
-`provider` filters use the `tf_resource_type` and `tf_resource_provider`
-indexes; the `module` filter is a bounded `STARTS WITH` prefix on `n.name`
-covering both the bare `module.<name>.` and for_each `module.<name>[` address
-forms. Live smoke against a locally built `eshu-api` (production profile)
-pointed at the running stack returned `200` for
-`GET /api/v0/iac/resources?limit=5` in ~0.01-0.02s end to end (cold), ~1ms
-warm; `limit=200` returned in ~0.11s; `kind=module`, `kind=data-source`, and
-`module=` for_each filters each returned `200` in under 0.05s. The bounded
-`limit+1` page keeps the read off the unbounded label scan path. No graph
-schema or write path changed, so this is a new bounded read with no regression
-to existing hot paths.
+Performance Evidence: on the retained 8,080,369-fact corpus, the current IaC
+identity read returned 24,610 identities. The existing broad index shape took
+1,351.841 ms and 851,388 local reads on a representative same-shape probe; the
+new partial expression-index shape took 93.671 ms and 24,723 reads with exact
+old/new set differences of 0/0. The index covers only the three IaC entity kinds
+and excludes large payload members. For graph hydration, the legacy
+`n.id`-plus-generation shape took 10-11 seconds, while the selected indexed
+`n.uid IN $candidate_ids` shape took 2.838-3.901 ms warm for the same 51
+identities. Postgres supplies the expected generation and the handler compares
+it after hydration, preserving current truth without weakening the measured
+graph lookup.
+
+Graph cleanup/rebuild cost: this change selects explicit read-time exclusion,
+not a destructive graph rebuild. The retained 18,064 historical IaC nodes stay
+available for retained-evidence workflows and add no cleanup work to ingestion;
+the bounded request hydrates only its current candidate page. A future physical
+retraction policy therefore remains independently measurable and reversible.
 
 Observability Evidence: `eshu_dp_iac_resource_list_duration_seconds`
 (histogram, `iac.kind` label) and `eshu_dp_iac_resource_list_errors_total`
 (counter, `iac.kind` + `reason` labels) expose handler latency and failure
 class; the `query.iac_resources` span carries the stable `http.route` and
 `eshu.capability` attributes.
+
+No-Observability-Change: the current-inventory split reuses those bounded
+handler metrics and span. Inventory-search, summary, graph, and consistency
+failures retain distinct bounded error reasons without adding high-cardinality
+labels.
 
 ## Graph Summary Packet
 

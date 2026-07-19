@@ -407,30 +407,35 @@ No-Observability-Change: the existing infra search query span
 metadata diagnose the bounded reads; the scope predicate adds no new spans,
 metrics, or fields.
 IaC resource browse (`GET /api/v0/iac/resources`, HTTP-only; no MCP tool maps to
-it) scans one canonical Terraform/IaC label per call (`TerraformResource`,
-`TerraformModule`, `TerraformDataSource`). Every node in those labels carries a
-durable `repo_id` property — the same disjunct-1 anchor the infra resource
-aggregate / search / relationship routes bind against — so the scoped predicate
-(`iacResourceScopeClause`, `iac_resources_scope.go`) is the direct
-`n.repo_id IN $allowed_repository_ids OR n.repo_id IN $allowed_scope_ids` compare
-appended to the list WHERE chain. It omits the CloudResource USES `EXISTS`
-disjunct because the three scanned labels always carry `repo_id`, so the hot list
-read avoids an unnecessary subquery traversal. The listed rows, `count`, the
-`limit+1` truncation flag, and the keyset `next_cursor` are computed over only
-granted-repository nodes; a node whose `repo_id` is not granted stays invisible.
-An empty-grant scoped token returns the bounded empty page without a graph read.
-No-Regression Evidence: focused scoped tests
-(`go test ./internal/query -run 'IaCResource|ScopedIaCResource'`) assert the gate
-allows the route and rejects adjacent IaC routes (`POST /api/v0/iac/dead`), the
-unscoped Cypher and parameters carry no grant predicate or `allowed_*` arrays
-(byte-identical to the pre-scoped read), the scoped Cypher binds the repo
-predicate before `ORDER BY` with both grant arrays, and empty grants
-short-circuit before the graph.
+it) is a hybrid exact-current read. `PostgresIaCInventoryStore` joins active
+`scope_generations` to non-tombstone `content_entity` facts and performs
+authorization, full-inventory search, typed filters, `(name, id)` keyset
+pagination, totals, and bounded facets there. Only those exact candidate uids
+are hydrated from one canonical graph label (`TerraformResource`,
+`TerraformModule`, or `TerraformDataSource`). The graph query deliberately keeps
+the simple `n.uid IN $candidate_ids` predicate required by NornicDB's property
+index seek; the handler then fails closed unless every candidate's id, name, and
+generation matches its graph row. This excludes retained superseded graph nodes
+without turning generation filtering into a multi-second graph scan. An
+empty-grant token or empty current candidate set returns a bounded empty page
+without a graph read.
+No-Regression Evidence: focused query and Postgres tests (`go test
+./internal/query ./internal/storage/postgres -run
+'IaCInventory|IaCResource|ActiveInventoryIndex|SchemaOrder' -count=1`) cover
+active-generation selection, caller grants, full-inventory search, stable
+pagination, bounded facets, empty inventory, and missing, duplicate, renamed,
+or stale-generation graph hydration.
+Performance Evidence: the retained 8,080,369-fact proof reduced the
+representative current-IaC read from 1,351.841 ms and 851,388 reads to 93.671 ms
+and 24,723 reads with exact old/new set differences of 0/0. Simple indexed
+`n.uid` hydration took 2.838-3.901 ms warm for 51 current candidates; the legacy
+`n.id`-plus-generation shape took 10-11 seconds and was rejected. Generation is
+still compared exactly in the handler before any row is returned.
 No-Observability-Change: the existing IaC resource list query span
 (`SpanQueryIaCResources`), truth envelope, `kind` / `resources` / `count` /
-`limit` / `truncated` / `next_cursor` response metadata, and per-kind duration /
-error metrics diagnose the bounded reads; the scope predicate adds no new spans,
-metrics, or fields.
+`limit` / `truncated` / `next_cursor` / `summary` response metadata, and
+per-kind duration/error metrics diagnose the bounded reads. Inventory search,
+summary, graph, and consistency errors use bounded reason values.
 Incident-context reads (`GET /api/v0/incidents/{incident_id}/context`, MCP
 `get_incident_context`) authorize scoped tokens against the reducer-owned durable
 incident→repository correlation edge (`reducer_incident_repository_correlation`,

@@ -34,9 +34,14 @@ type IaCHandler struct {
 	Content      ContentStore
 	Reachability IaCReachabilityStore
 	Management   IaCManagementStore
-	// Graph backs the bounded IaC resource inventory list
+	// Inventory reads the current active-generation IaC fact inventory. The
+	// resource route uses it to prevent retained historical graph nodes from
+	// leaking into current truth and to serve authoritative search and facets.
+	Inventory IaCInventoryStore
+	// Graph hydrates the bounded IaC resource inventory list
 	// (GET /api/v0/iac/resources) over the authoritative Terraform/IaC graph
-	// projection. It is optional: when nil the list route returns 503.
+	// projection. Inventory and Graph are optional wiring: when either is nil the
+	// list route returns 503.
 	Graph   GraphQuery
 	Profile QueryProfile
 }

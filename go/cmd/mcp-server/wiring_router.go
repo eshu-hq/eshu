@@ -134,13 +134,7 @@ func newMCPQueryRouterWithSemanticEmbedding(
 			Profile:     queryProfile,
 			Instruments: instruments,
 		},
-		IaC: &query.IaCHandler{
-			Content:      contentReader,
-			Reachability: query.NewPostgresIaCReachabilityStore(db),
-			Management:   query.NewPostgresIaCManagementStore(db),
-			Graph:        neo4jReader,
-			Profile:      queryProfile,
-		},
+		IaC: newMCPQueryIaCHandler(db, contentReader, neo4jReader, queryProfile),
 		Impact: &query.ImpactHandler{
 			Neo4j:       neo4jReader,
 			Content:     contentReader,

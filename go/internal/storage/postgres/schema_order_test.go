@@ -88,4 +88,5 @@ var orderedBootstrapDefinitionNames = []string{
 	"code_root_verdicts",
 	"create_documentation_findings_read_idx",
 	"create_documentation_findings_filter_idx",
+	"iac_active_inventory_index",
 }

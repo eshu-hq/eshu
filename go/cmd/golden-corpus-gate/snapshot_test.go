@@ -317,6 +317,24 @@ func assertDeadCodeEnvelopeShape(t *testing.T, key string, shape QueryShape) {
 	}
 }
 
+func TestGoldenSnapshotIaCInventoryRequiresCurrentSummary(t *testing.T) {
+	snap, err := LoadSnapshot(goldenSnapshotPath())
+	if err != nil {
+		t.Fatalf("LoadSnapshot() error = %v", err)
+	}
+
+	const key = "GET /api/v0/iac/resources?limit=50&include_facets=true"
+	shape, ok := snap.QueryShapes.HTTP[key]
+	if !ok {
+		t.Fatalf("query_shapes.http missing %s", key)
+	}
+	for _, field := range []string{"resources", "count", "summary"} {
+		if !containsString(shape.RequiredResponseFields, field) {
+			t.Fatalf("%s missing required response field %q", key, field)
+		}
+	}
+}
+
 func TestCountRangeContains(t *testing.T) {
 	r := CountRange{Min: 1, Max: 20}
 	cases := []struct {
