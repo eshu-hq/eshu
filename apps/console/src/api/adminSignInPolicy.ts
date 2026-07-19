@@ -11,7 +11,6 @@ import type { AdminProvenance } from "./adminConsoleTypes";
 import type { EshuApiClient } from "./client";
 
 const ADMIN_SIGN_IN_POLICY_PATH = "/api/v0/auth/admin/sign-in-policy";
-const PUBLIC_SIGN_IN_POLICY_PATH = "/api/v0/auth/sign-in-policy";
 
 export interface AdminSignInPolicy {
   readonly tenant_id: string;
@@ -117,31 +116,5 @@ export async function updateAdminSignInPolicy(
       ok: false,
       errorMessage: err instanceof Error ? err.message : "updateAdminSignInPolicy failed",
     };
-  }
-}
-
-interface PublicSignInPolicyWire {
-  readonly require_sso?: boolean;
-}
-
-// loadPublicRequireSSO — GET /api/v0/auth/sign-in-policy (public, pre-auth).
-// Used by LoginPage to decide whether to hide the local password form. On
-// any error, or when tenantId is empty, it returns false — the same
-// fail-open default the backend's own handler applies (this is a UX hint
-// only; POST /api/v0/auth/local/login is the real enforcement boundary and
-// is unaffected by this value).
-export async function loadPublicRequireSSO(
-  client: EshuApiClient,
-  tenantId: string | undefined,
-): Promise<boolean> {
-  if (!tenantId) return false;
-  try {
-    const resp = await client.getJson<PublicSignInPolicyWire>(
-      `${PUBLIC_SIGN_IN_POLICY_PATH}?tenant_id=${encodeURIComponent(tenantId)}`,
-    );
-    return resp.require_sso ?? false;
-  } catch (err) {
-    console.error("[adminSignInPolicy] loadPublicRequireSSO failed", err);
-    return false;
   }
 }

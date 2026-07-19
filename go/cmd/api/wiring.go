@@ -332,9 +332,27 @@ func wireAPI(
 		// and LocalIdentityHandler do.
 		samlHandler.SignInPolicy = browserSessionAdapter
 	}
-	router.AuthProviders = &query.AuthProviderListHandler{
+	authProviders := &query.AuthProviderListHandler{
 		Store: newAuthProviderListStore(db, samlHandler, oidcLoginHandler),
 	}
+	if browserSessionAdapter != nil {
+		// browserSessionAdapter already implements query.SignInPolicyReadStore
+		// (see its use for samlHandler.SignInPolicy above and
+		// cmd/api/browser_sessions.go's GetSignInPolicy) — reusing it here
+		// keeps the derived AuthPosture's local_login_offered field backed by
+		// the exact same sign-in-policy read path require_sso enforcement
+		// elsewhere in this file uses, rather than a second adapter instance.
+		// The explicit nil check (rather than assigning unconditionally, as
+		// samlHandler.SignInPolicy does above) avoids handing
+		// AuthProviderListHandler a non-nil query.SignInPolicyReadStore
+		// interface wrapping a nil *postgresBrowserSessionAdapter — which
+		// newPostgresBrowserSessionAdapter returns when db == nil — since
+		// DeriveAuthPosture's own nil-store check (policy != nil) cannot see
+		// through that wrapping and would otherwise call a method that
+		// dereferences the nil receiver.
+		authProviders.Policy = browserSessionAdapter
+	}
+	router.AuthProviders = authProviders
 
 	providerConfigTester := newProviderConfigConnectionTester(db, providerSecretKeyring)
 	router.AdminProviderConfigReads = newAdminProviderConfigReadHandler(db, oidcLoginHandler, samlHandler, logger)

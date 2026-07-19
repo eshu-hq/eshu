@@ -4,11 +4,7 @@
 // public require_sso hint's tenant_id/error fail-open behavior.
 import { describe, it, expect, vi } from "vitest";
 
-import {
-  loadAdminSignInPolicy,
-  updateAdminSignInPolicy,
-  loadPublicRequireSSO,
-} from "./adminSignInPolicy";
+import { loadAdminSignInPolicy, updateAdminSignInPolicy } from "./adminSignInPolicy";
 import type { EshuApiClient } from "./client";
 
 describe("adminSignInPolicy", () => {
@@ -65,34 +61,6 @@ describe("adminSignInPolicy", () => {
       expect(outcome.errorMessage).toBe(
         "require_sso cannot be enabled: no provider config has a passing connection test",
       );
-    });
-  });
-
-  describe("loadPublicRequireSSO", () => {
-    it("returns false without calling the API when tenantId is absent", async () => {
-      const getJson = vi.fn();
-      const client = { getJson } as unknown as EshuApiClient;
-      const result = await loadPublicRequireSSO(client, undefined);
-      expect(result).toBe(false);
-      expect(getJson).not.toHaveBeenCalled();
-    });
-
-    it("fetches the tenant-scoped public policy and returns require_sso", async () => {
-      const getJson = vi.fn(async () => ({ require_sso: true }));
-      const client = { getJson } as unknown as EshuApiClient;
-      const result = await loadPublicRequireSSO(client, "tenant_a");
-      expect(result).toBe(true);
-      expect(getJson).toHaveBeenCalledWith("/api/v0/auth/sign-in-policy?tenant_id=tenant_a");
-    });
-
-    it("returns false on a fetch error rather than throwing", async () => {
-      const client = {
-        getJson: vi.fn(async () => {
-          throw new Error("503");
-        }),
-      } as unknown as EshuApiClient;
-      const result = await loadPublicRequireSSO(client, "tenant_a");
-      expect(result).toBe(false);
     });
   });
 });

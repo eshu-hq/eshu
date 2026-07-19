@@ -1,24 +1,26 @@
 // LoginPage.tsx — production login surface.
 // Supports local login (login_id + password + optional MFA recovery code).
-// On mount, fetches GET /api/v0/auth/providers (public, no auth) and renders a
-// "Continue with <label>" button per discovered OIDC/SAML provider (#3682).
+// On mount, fetches GET /api/v0/auth/providers (public, no auth) — the
+// tenant's derived AuthPosture (issue #5165, F-4) — and renders a "Continue
+// with <label>" button per discovered OIDC/SAML provider (#3682).
 // Local username/password login remains the DEFAULT/primary surface.
 // If no providers are configured, no SSO buttons are rendered (current behavior).
 // On successful local login, calls onSuccess(session) — caller navigates.
 // Visuals match the approved auth mockup (authFlow.css) — elevated card,
 // icon-led fields, password reveal, loading button state.
 //
-// Sign-in policy require_sso (#4968, epic #4962): also fetches GET
-// /api/v0/auth/sign-in-policy (public, no auth) for the same tenant. When
-// require_sso is true, the local password form is hidden UNLESS the URL
-// carries ?local=1 — but that query param is a PURE UI HINT with no
-// server-side meaning: POST /api/v0/auth/local/login applies the identical
-// require_sso rule (session issued only for an admin identity) whether or
-// not this hint was present, so hiding/showing the form here never changes
-// what the server allows. This is why there is no client-side "am I an
-// admin" check before rendering the form under ?local=1 — the server is the
-// only authorization boundary; this page only decides what's convenient to
-// show.
+// Sign-in policy require_sso (#4968, epic #4962): the SAME posture fetch
+// carries local_login_offered, derived from require_sso server-side (issue
+// #5165 folded the console's former separate GET /api/v0/auth/sign-in-policy
+// fetch into this one discovery call). When local_login_offered is false, the
+// local password form is hidden UNLESS the URL carries ?local=1 — but that
+// query param is a PURE UI HINT with no server-side meaning: POST
+// /api/v0/auth/local/login applies the identical require_sso rule (session
+// issued only for an admin identity) whether or not this hint was present,
+// so hiding/showing the form here never changes what the server allows. This
+// is why there is no client-side "am I an admin" check before rendering the
+// form under ?local=1 — the server is the only authorization boundary; this
+// page only decides what's convenient to show.
 import {
   AlertTriangle,
   ChevronRight,
@@ -32,10 +34,9 @@ import {
 import { useState, useEffect, type FormEvent } from "react";
 
 import { AuthBrandMark } from "./AuthBrandMark";
-import { loadPublicRequireSSO } from "../api/adminSignInPolicy";
 import {
   loginLocal,
-  listAuthProviders,
+  listAuthPosture,
   beginOidcLogin,
   beginSamlLogin,
   isCookiePersistenceAtRiskOrigin,
@@ -92,19 +93,20 @@ export function LoginPage({
   const localFormHint = new URLSearchParams(globalThis.location?.search ?? "").get("local") === "1";
   const showLocalForm = !requireSSO || localFormHint;
 
-  // Fetch available SSO providers and the tenant's require_sso hint on mount.
-  // The tenant_id query param scopes both requests to a single tenant —
-  // without it, providers returns empty and require_sso defaults to false.
-  // Errors are swallowed so they never block the local login form.
+  // Fetch the tenant's derived sign-in posture on mount (issue #5165): one
+  // call carries both the provider list and the require_sso-derived
+  // local_login_offered flag, scoped by the tenant_id query param — without
+  // it, the backend returns the safe zero-configuration default (empty
+  // providers, local login offered). Errors are swallowed (listAuthPosture
+  // itself fails open) so they never block the local login form.
   useEffect(() => {
     let cancelled = false;
     const tenantId =
       new URLSearchParams(globalThis.location?.search ?? "").get("tenant_id") ?? undefined;
-    void listAuthProviders(client, tenantId).then((items) => {
-      if (!cancelled) setProviders(items);
-    });
-    void loadPublicRequireSSO(client, tenantId).then((value) => {
-      if (!cancelled) setRequireSSO(value);
+    void listAuthPosture(client, tenantId).then((posture) => {
+      if (cancelled) return;
+      setProviders(posture.providers);
+      setRequireSSO(!posture.local_login_offered);
     });
     return () => {
       cancelled = true;
@@ -185,8 +187,8 @@ export function LoginPage({
     const returnTo = safeSSOReturnPath(globalThis.location?.pathname);
     if (provider.provider_kind === "oidc") {
       // tenant_id must be forwarded from the page's own URL (the same param
-      // the mount-time useEffect above reads for listAuthProviders /
-      // loadPublicRequireSSO): a DB-backed provider's OIDC login-start
+      // the mount-time useEffect above reads for listAuthPosture): a
+      // DB-backed provider's OIDC login-start
       // resolution (go/internal/oidclogin/service.go's provider()) requires
       // a non-empty tenantID to consult dbProviders at all, and returns
       // ErrOIDCLoginInvalidRequest (400) without it — verified live via a

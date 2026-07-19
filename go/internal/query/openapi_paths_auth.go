@@ -12,8 +12,8 @@ const openAPIPathsAuth = `
     "/api/v0/auth/providers": {
       "get": {
         "tags": ["auth"],
-        "summary": "List configured SSO providers for login (tenant-scoped)",
-        "description": "Public pre-auth endpoint scoped to a single tenant. Returns the configured OIDC and SAML providers available for interactive browser login for the specified tenant so the console can render SSO buttons. The response exposes only the opaque provider_config_id (required by the redirect endpoints) and a safe generic display label derived from the protocol class (never an IdP hostname, issuer, or operator-specific name). No secrets or private IdP configuration are ever returned. When tenant_id is absent or empty an empty array is returned — the endpoint never performs a global cross-tenant scan. When no providers are configured for the tenant an empty array is returned. The response carries Cache-Control: public, max-age=60.",
+        "summary": "Derive the tenant's pre-auth sign-in posture (issue #5165)",
+        "description": "Public pre-auth endpoint scoped to a single tenant. Returns the tenant's derived AuthPosture: the configured OIDC/SAML providers available for interactive browser login, whether the local username/password form is offered, and whether self-service personal API tokens are offered — one discovery call for the console login picker instead of separate provider and sign-in-policy fetches. This is the single reusable posture derivation (query.DeriveAuthPosture) issue #5163 (F-2)'s MCP OAuth-discovery route also consumes to decide enablement. Provider entries expose only the opaque provider_config_id (required by the redirect endpoints), a safe generic display label, and a generic icon hint derived from the protocol class (never an IdP hostname, issuer, or operator-specific name). No secrets or private IdP configuration are ever returned. When tenant_id is absent or empty the safe zero-configuration default is returned (empty providers array, local login offered, self-service tokens offered) — the endpoint never performs a global cross-tenant scan. When no providers are configured for the tenant an empty array is returned. The response carries Cache-Control: public, max-age=60 — an admin enabling or disabling a provider is reflected on the tenant's NEXT (uncached) load, no restart required.",
         "operationId": "listAuthProviders",
         "security": [],
         "parameters": [
@@ -22,12 +22,12 @@ const openAPIPathsAuth = `
             "in": "query",
             "required": false,
             "schema": {"type": "string"},
-            "description": "Tenant to list SSO providers for. When absent or empty the response is always an empty providers array — no global cross-tenant scan is performed."
+            "description": "Tenant to derive the sign-in posture for. When absent or empty the response is always the safe zero-configuration default — no global cross-tenant scan is performed."
           }
         ],
         "responses": {
           "200": {
-            "description": "The configured SSO providers for the tenant. Empty array when tenant_id is absent or no providers are configured.",
+            "description": "The tenant's derived sign-in posture. Empty providers array when tenant_id is absent or no providers are configured.",
             "headers": {
               "Cache-Control": {
                 "description": "Always set to 'public, max-age=60'.",
@@ -38,12 +38,13 @@ const openAPIPathsAuth = `
               "application/json": {
                 "schema": {
                   "type": "object",
+                  "required": ["providers", "local_login_offered", "self_service_tokens_offered"],
                   "properties": {
                     "providers": {
                       "type": "array",
                       "items": {
                         "type": "object",
-                        "required": ["provider_config_id", "display_label", "provider_kind"],
+                        "required": ["provider_config_id", "display_label", "provider_kind", "icon_hint"],
                         "properties": {
                           "provider_config_id": {
                             "type": "string",
@@ -57,9 +58,22 @@ const openAPIPathsAuth = `
                             "type": "string",
                             "enum": ["oidc", "saml"],
                             "description": "Protocol class: oidc or saml. Used by the console to select the correct redirect helper."
+                          },
+                          "icon_hint": {
+                            "type": "string",
+                            "enum": ["oidc", "saml"],
+                            "description": "Generic icon selector for the login button, derived from provider_kind. Carries no IdP brand information — only the protocol class."
                           }
                         }
                       }
+                    },
+                    "local_login_offered": {
+                      "type": "boolean",
+                      "description": "Whether the console should render the local username/password form. A UX hint only: false exactly when the tenant's sign-in policy has require_sso=true. The server's break-glass admin path (POST /api/v0/auth/local/login) always stays reachable regardless of this value."
+                    },
+                    "self_service_tokens_offered": {
+                      "type": "boolean",
+                      "description": "Whether an authenticated caller may self-issue a personal API token (issue #5164). Always true today — self-service token creation has no sign-in-policy gate."
                     }
                   }
                 }

@@ -148,6 +148,7 @@ func (s *authProviderListStore) ListLoginProviders(ctx context.Context, tenantID
 			ProviderConfigID: item.ProviderConfigID,
 			DisplayLabel:     label,
 			ProviderKind:     canonicalKind(item.ProviderKind),
+			IconHint:         iconHintForKind(item.ProviderKind),
 		})
 	}
 
@@ -171,6 +172,7 @@ func (s *authProviderListStore) ListLoginProviders(ctx context.Context, tenantID
 			ProviderConfigID: providerID,
 			DisplayLabel:     displayLabelForKind("external_saml"),
 			ProviderKind:     "saml",
+			IconHint:         iconHintForKind("external_saml"),
 		})
 	}
 
@@ -197,6 +199,7 @@ func (s *authProviderListStore) ListLoginProviders(ctx context.Context, tenantID
 			ProviderConfigID: p.ProviderConfigID,
 			DisplayLabel:     displayLabelForKind("external_oidc"),
 			ProviderKind:     "oidc",
+			IconHint:         iconHintForKind("external_oidc"),
 		})
 	}
 
@@ -227,5 +230,22 @@ func canonicalKind(kind string) string {
 		return "saml"
 	default:
 		return kind
+	}
+}
+
+// iconHintForKind returns a generic icon selector for a provider_kind value,
+// derived the same way displayLabelForKind is. It intentionally carries no
+// IdP brand information (see AuthProviderItem.IconHint's doc comment) — only
+// the protocol class, so the console can pick a generic OIDC/SAML glyph
+// without the backend ever learning or echoing which specific IdP an
+// operator configured.
+func iconHintForKind(kind string) string {
+	switch kind {
+	case "external_oidc", "oidc":
+		return "oidc"
+	case "external_saml", "saml":
+		return "saml"
+	default:
+		return ""
 	}
 }
