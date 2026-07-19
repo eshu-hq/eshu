@@ -19,7 +19,6 @@ func packageRegistryPackagesCypher(packageID, ecosystem, name string, limit int)
 		params["ecosystem"] = ecosystem
 	}
 	return match + `
-OPTIONAL MATCH (p)-[:HAS_VERSION]->(v:PackageVersion)
 RETURN p.uid AS package_id,
        p.ecosystem AS ecosystem,
        p.registry AS registry,
@@ -31,10 +30,24 @@ RETURN p.uid AS package_id,
        p.source_path AS source_path,
        p.source_specific_id AS source_specific_id,
        p.visibility AS visibility,
-       p.source_confidence AS source_confidence,
-       count(v) AS version_count
+       p.source_confidence AS source_confidence
 ORDER BY p.ecosystem, p.normalized_name, p.uid
 LIMIT $limit`, params
+}
+
+// packageRegistryVersionCountsCypher resolves HAS_VERSION counts for an
+// explicit page of package uids as its own single-clause, MATCH-only
+// statement (a concrete relationship variable anchored on bound package
+// identities via UNWIND). NornicDB's OPTIONAL MATCH + count(v) aggregate
+// silently collapses every zero-match group into a single row instead of
+// grouping by every non-aggregate RETURN key, so packageRegistryPackagesCypher
+// must not carry the version count itself. Any package uid absent from this
+// query's result has zero versions; the caller zero-fills it. See
+// docs/public/reference/nornicdb-pitfalls.md.
+func packageRegistryVersionCountsCypher(packageIDs []string) (string, map[string]any) {
+	return `UNWIND $package_ids AS candidate_package_id
+MATCH (p:Package {uid: candidate_package_id})-[r:HAS_VERSION]->(v:PackageVersion)
+RETURN p.uid AS package_id, count(r) AS version_count`, map[string]any{"package_ids": packageIDs}
 }
 
 func packageRegistryVersionsCypher() string {

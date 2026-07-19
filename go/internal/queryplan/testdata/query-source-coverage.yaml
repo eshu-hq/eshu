@@ -225,8 +225,22 @@ source_coverage:
       - {symbol: "(*Neo4jReader).RunSingle", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
   - file: package_registry.go
     calls:
+      - symbol: "(*PackageRegistryHandler).attachPackageVersionCounts"
+        count: 1
+        non_hot:
+          class: keyed_support
+          source_sha256: 103491c5ca83920b2cf56215ddf3eab91301a4a2b94bc79da5c26450a79cb04c
+          key_bound: bounded_key_batch
+          max_keys: 200
+          max_results: 200
       - {symbol: "(*PackageRegistryHandler).listDependencies", count: 1, source_sha256: a3cb8fcb033c0a00bd4adc48b17d4966b91bff376c4b19f1a49e1c9a57c36740, entry_ids: [QP-SC-PKGREG-DEPS]}
-      - {symbol: "(*PackageRegistryHandler).listPackages", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
+      - symbol: "(*PackageRegistryHandler).listPackages"
+        count: 1
+        non_hot:
+          class: keyed_support
+          source_sha256: b652cf897e7da042e885ea6cbdc0844282c836b404fa85ba8308bb1957841ab4
+          key_bound: single_key
+          max_results: 201
       - {symbol: "(*PackageRegistryHandler).listVersions", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
   - file: package_registry_aggregates.go
     calls:

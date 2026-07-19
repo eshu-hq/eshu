@@ -344,6 +344,97 @@ that the anti-join correctly detects a true orphan that the old `NOT
 (n)--()` predicate silently ignored, on both the pinned v1.1.11 and the
 PR261/compose-default NornicDB images.
 
+## Pitfall: `OPTIONAL MATCH` + Aggregate Collapses Every Zero-Match Group Into One Row
+
+### Observed shape
+
+Measured directly over the HTTP `tx/commit` endpoint and independently via
+`neo4j-go-driver/v5` (both paths reproduce it) against the canonical
+`eshu-nornicdb-pr261:149245885258` pin:
+
+```cypher
+CREATE (:Package {uid:"pkg:mini:1", ecosystem:"npm-mini", normalized_name:"a"});
+CREATE (:Package {uid:"pkg:mini:2", ecosystem:"npm-mini", normalized_name:"b"});
+MATCH (p:Package {ecosystem:"npm-mini"})
+OPTIONAL MATCH (p)-[:HAS_VERSION]->(v:PackageVersion)
+RETURN p.uid AS id, count(v) AS vc ORDER BY p.uid
+-- expected 2 rows (both vc=0); ACTUAL 1 row
+```
+
+openCypher requires grouping by every non-aggregate `RETURN` key (here,
+`p.uid`), so a correct implementation returns one row per matched `p`. On the
+pinned NornicDB build the statement instead collapses to **at most one row
+total** the instant any group's optional side is null — not just wrong counts,
+a wrong row count. With mixed data (some packages with versions, some
+without), only the row for the alphabetically-first `p.uid` survives, and it
+can carry a count that belongs to a *different* package: seeding a third
+package with 2 real `HAS_VERSION` edges produced a single output row
+`{id: "no-versions-a", vc: 2}` — the id of the first zero-version package
+paired with the version count that actually belongs to the third package.
+
+### Eshu implications
+
+Any handler composing `OPTIONAL MATCH` with an aggregate (`count()`, `sum()`,
+`collect()`, etc.) over the anchor's non-aggregate columns silently drops
+every zero-match row instead of returning it with a zero/empty aggregate.
+`packageRegistryPackagesCypher` (`go/internal/query/package_registry_cypher.go`,
+issue #5167) served this exact shape for
+`GET /api/v0/package-registry/packages`: a zero-version `Package` vanished
+from every ecosystem-scoped list read, and an exact `package_id` lookup for a
+zero-version package returned an empty page — indistinguishable from "package
+does not exist."
+
+Two candidate single-statement replacements were tried and also rejected —
+each looked correct in isolation but broke as soon as a non-zero-count row was
+added to the fixture:
+
+- `size([(p)-[:HAS_VERSION]->() | 1]) AS version_count` (pattern
+  comprehension): correctly returned all packages with `vc=0` for the
+  zero-version case, but always evaluates to `0` even for a package with real
+  edges — a second, independent NornicDB defect (confirmed live: the
+  comprehension undercounts even though a plain `MATCH` on the same node
+  correctly returns both edges).
+- `OPTIONAL MATCH (p)-[:HAS_VERSION]->(v) WITH p, collect(v) AS versions
+  RETURN size(versions)`: the same "extra clause between the anchoring
+  `MATCH`/`OPTIONAL MATCH` and the final `RETURN`" shape covered by the
+  "Multi-Clause Read Queries Silently Corrupt The Projection" pitfall in
+  [NornicDB Query-Shape Pitfalls](nornicdb-query-pitfalls.md); also always
+  returns `0`.
+
+The fix that measured correctly in every case (0-version, mixed 3-package,
+and a 200-package/100-with-version corpus) is a separate, single-clause,
+inner-join `MATCH` scoped to the already-resolved page via `UNWIND`, merged in
+Go with the anchor read (the established "run as a SEPARATE single-clause
+query merged in Go" pattern from the relationship-existence pitfall above):
+
+```cypher
+UNWIND $package_ids AS candidate_package_id
+MATCH (p:Package {uid: candidate_package_id})-[r:HAS_VERSION]->(v:PackageVersion)
+RETURN p.uid AS package_id, count(r) AS version_count
+```
+
+Any package uid absent from this query's result has zero matches; the caller
+zero-fills it (`packageRegistryVersionCountsCypher` +
+`PackageRegistryHandler.attachPackageVersionCounts` in
+`go/internal/query/package_registry.go`). Do not reintroduce
+`OPTIONAL MATCH` + aggregate over an anchor's own projected columns on this
+backend; do not "fix" it with a pattern comprehension or a `WITH`+`collect`
+without proving it live first, both silently under-count in a way that looks
+correct on a same-cardinality-only fixture.
+
+### Validation
+
+`go test ./internal/query -run TestLivePackageRegistryListPackagesReturnsZeroVersionPackages
+-count=1 -v` (env-gated on `ESHU_PKG_REGISTRY_PROVE_LIVE=1` and
+`ESHU_NEO4J_URI`) is the backend-required live proof: it captures the OLD
+`OPTIONAL MATCH`+`count(v)` shape's output for evidence, then asserts the
+shipped handler returns every package (including zero-version ones with
+`version_count: 0`) and resolves a zero-version package by exact
+`package_id`. See
+`docs/internal/evidence/5167-package-registry-version-count-nornicdb.md` for
+full before/after tables including the rejected candidates and the
+200-package corpus timing.
+
 ## When To Patch NornicDB
 
 Patch NornicDB only when evidence supports one of these:
