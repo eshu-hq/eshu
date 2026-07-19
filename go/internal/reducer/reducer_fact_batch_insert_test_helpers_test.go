@@ -118,8 +118,7 @@ type decodedBatchedVersionedFactRow struct {
 // decodeBatchedVersionedFactCalls flattens every batched ExecContext call
 // recorded by a fakeWorkloadIdentityExecer into the per-row records they
 // encode. It asserts each call used reducerFactBatchInsertVersionedQuery so a
-// regression to per-row inserts (which use canonicalVersionedReducerFactInsertQuery)
-// fails loudly here.
+// regression to a per-row versioned insert fails loudly here.
 func decodeBatchedVersionedFactCalls(t *testing.T, calls []fakeWorkloadIdentityExecCall) []decodedBatchedVersionedFactRow {
 	t.Helper()
 	var rows []decodedBatchedVersionedFactRow

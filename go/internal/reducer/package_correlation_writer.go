@@ -64,45 +64,58 @@ func (w PostgresPackageCorrelationWriter) WritePackageCorrelations(
 		return PackageCorrelationWriteResult{}, fmt.Errorf("package correlation database is required")
 	}
 	now := reducerWriterNow(w.Now)
-	factsWritten := 0
+	rows := make(
+		[]reducerFactVersionedRow,
+		0,
+		len(write.OwnershipDecisions)+len(write.ConsumptionDecisions)+len(write.PublicationDecisions),
+	)
 	for _, decision := range write.OwnershipDecisions {
-		if err := w.writePayload(
-			ctx,
+		row, err := w.buildRow(
 			now,
 			packageOwnershipCorrelationFactKind,
 			packageOwnershipFactID(write, decision),
 			packageOwnershipStableFactKey(write, decision),
 			packageOwnershipPayload(write, decision),
-		); err != nil {
+		)
+		if err != nil {
 			return PackageCorrelationWriteResult{}, err
 		}
-		factsWritten++
+		rows = append(rows, row)
 	}
 	for _, decision := range write.ConsumptionDecisions {
-		if err := w.writePayload(
-			ctx,
+		row, err := w.buildRow(
 			now,
 			packageConsumptionCorrelationFactKind,
 			packageConsumptionFactID(write, decision),
 			packageConsumptionStableFactKey(write, decision),
 			packageConsumptionPayload(write, decision),
-		); err != nil {
+		)
+		if err != nil {
 			return PackageCorrelationWriteResult{}, err
 		}
-		factsWritten++
+		rows = append(rows, row)
 	}
 	for _, decision := range write.PublicationDecisions {
-		if err := w.writePayload(
-			ctx,
+		row, err := w.buildRow(
 			now,
 			packagePublicationCorrelationFactKind,
 			packagePublicationFactID(write, decision),
 			packagePublicationStableFactKey(write, decision),
 			packagePublicationPayload(write, decision),
-		); err != nil {
+		)
+		if err != nil {
 			return PackageCorrelationWriteResult{}, err
 		}
-		factsWritten++
+		rows = append(rows, row)
+	}
+	factsWritten := len(rows)
+	// Bounded chunked bulk insert: ownership, consumption, and publication
+	// rows share one fact_records table keyed by fact_id, so they upsert
+	// safely through a single reducerBatchInsertVersionedFacts call in
+	// O(N/batchSize) round-trips rather than one ExecContext per decision
+	// across three separate loops.
+	if err := reducerBatchInsertVersionedFacts(ctx, w.DB, rows); err != nil {
+		return PackageCorrelationWriteResult{}, err
 	}
 	canonicalWrites := packageCorrelationCanonicalWrites(write.ConsumptionDecisions)
 	return PackageCorrelationWriteResult{
@@ -118,41 +131,38 @@ func (w PostgresPackageCorrelationWriter) WritePackageCorrelations(
 	}, nil
 }
 
-func (w PostgresPackageCorrelationWriter) writePayload(
-	ctx context.Context,
+// buildRow constructs the batched-insert row for one package correlation
+// decision. It derives scope_id/generation_id/source_system/intent_id from
+// the already-built payload map, matching the retired per-row writePayload
+// helper's derivation exactly so the batched insert is byte-identical to the
+// per-row canonicalVersionedReducerFactInsertQuery loop it replaces.
+func (w PostgresPackageCorrelationWriter) buildRow(
 	now time.Time,
 	factKind string,
 	factID string,
 	stableFactKey string,
 	payload map[string]any,
-) error {
+) (reducerFactVersionedRow, error) {
 	payloadJSON, err := json.Marshal(payload)
 	if err != nil {
-		return fmt.Errorf("marshal package correlation payload: %w", err)
+		return reducerFactVersionedRow{}, fmt.Errorf("marshal package correlation payload: %w", err)
 	}
-	if _, err := w.DB.ExecContext(
-		ctx,
-		canonicalVersionedReducerFactInsertQuery,
-		factID,
-		payloadString(payload, "scope_id"),
-		payloadString(payload, "generation_id"),
-		factKind,
-		stableFactKey,
-		facts.ReducerDerivedSchemaVersionV1,
-		reducerFactCollectorKind(payloadString(payload, "source_system")),
-		facts.SourceConfidenceInferred,
-		payloadString(payload, "source_system"),
-		payloadString(payload, "intent_id"),
-		nil,
-		nil,
-		now,
-		now,
-		false,
-		payloadJSON,
-	); err != nil {
-		return fmt.Errorf("write package correlation fact: %w", err)
-	}
-	return nil
+	sourceSystem := payloadString(payload, "source_system")
+	return reducerFactVersionedRow{
+		FactID:           factID,
+		ScopeID:          payloadString(payload, "scope_id"),
+		GenerationID:     payloadString(payload, "generation_id"),
+		FactKind:         factKind,
+		StableFactKey:    stableFactKey,
+		SchemaVersion:    facts.ReducerDerivedSchemaVersionV1,
+		CollectorKind:    reducerFactCollectorKind(sourceSystem),
+		SourceConfidence: facts.SourceConfidenceInferred,
+		SourceSystem:     sourceSystem,
+		SourceFactKey:    payloadString(payload, "intent_id"),
+		ObservedAt:       now,
+		IngestedAt:       now,
+		Payload:          string(payloadJSON),
+	}, nil
 }
 
 func packageOwnershipFactID(write PackageCorrelationWrite, decision PackageSourceCorrelationDecision) string {

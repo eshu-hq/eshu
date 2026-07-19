@@ -216,8 +216,10 @@ func execReducerFactChunk(
 
 // reducerFactBatchInsertVersionedQuery is the schema_version-carrying sibling
 // of reducerFactBatchInsertQuery. It is byte-equivalent, column-for-column and
-// conflict-for-conflict, to canonicalVersionedReducerFactInsertQuery
-// (workload_identity_writer.go) the same way reducerFactBatchInsertQuery
+// conflict-for-conflict, to the versioned single-row upsert every governed
+// writer used before issue #5317 (the retired canonicalVersionedReducerFact
+// InsertQuery formerly in workload_identity_writer.go, removed once its last
+// caller migrated onto this batched path) the same way reducerFactBatchInsertQuery
 // mirrors canonicalReducerFactInsertQuery: a writer that publishes a governed
 // reducer-derived fact (schema_version set explicitly, e.g.
 // facts.ReducerDerivedSchemaVersionV1) MUST use this variant, not
@@ -315,9 +317,9 @@ ON CONFLICT (fact_id) DO UPDATE SET
 
 // reducerFactVersionedRow is one canonical fact-record row for a batched
 // insert of a governed reducer-derived fact. It mirrors reducerFactRow with an
-// added SchemaVersion field, matching the positional arguments of
-// canonicalVersionedReducerFactInsertQuery so a batched writer is a drop-in
-// replacement for the per-row loop it replaces.
+// added SchemaVersion field, matching the positional arguments of the retired
+// versioned single-row upsert so a batched writer is a drop-in replacement for
+// the per-row loop it replaces.
 type reducerFactVersionedRow struct {
 	FactID           string
 	ScopeID          string

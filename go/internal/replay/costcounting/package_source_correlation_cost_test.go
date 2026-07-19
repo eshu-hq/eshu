@@ -30,15 +30,14 @@ const packageSourceCorrelationCostIntentID = "intent-package-source-correlation-
 // packageSourceCorrelationFixtureDecisions is the deterministic input for
 // this scenario: two exact-outcome package OWNERSHIP decisions for distinct
 // packages in one scope. WritePackageCorrelations
-// (go/internal/reducer/package_correlation_writer.go) fans out over three
-// separate decision loops (ownership, consumption, publication), each calling
-// w.writePayload -> one ExecContext per decision; this scenario exercises
-// ONLY OwnershipDecisions (leaving Consumption/PublicationDecisions empty)
-// since package_source_correlation is the ownership-candidate projection —
-// consumption and publication are covered by the domain's own writer share,
-// not this manifest surface. There is no reducerBatchInsertFacts call
-// anywhere in this writer, so its Postgres write cost is O(N) round-trips per
-// decision list, not O(N/batchSize).
+// (go/internal/reducer/package_correlation_writer.go) now combines the
+// ownership, consumption, and publication decision lists into ONE
+// reducerBatchInsertVersionedFacts bulk-insert call (issue #5317) instead of
+// one ExecContext per decision spread across three separate loops; this
+// scenario exercises ONLY OwnershipDecisions (leaving Consumption/
+// PublicationDecisions empty) since package_source_correlation is the
+// ownership-candidate projection — consumption and publication are covered
+// by the domain's own writer share, not this manifest surface.
 func packageSourceCorrelationFixtureDecisions() []reducer.PackageSourceCorrelationDecision {
 	row := func(id string) reducer.PackageSourceCorrelationDecision {
 		return reducer.PackageSourceCorrelationDecision{
@@ -53,28 +52,21 @@ func packageSourceCorrelationFixtureDecisions() []reducer.PackageSourceCorrelati
 	return []reducer.PackageSourceCorrelationDecision{row("a"), row("b")}
 }
 
-// TestCostBudget_PackageSourceCorrelation is the exact-equality cost-counting
-// gate for the package_source_correlation reducer projection. It drives the
+// TestCostBudget_PackageSourceCorrelation is the positive cost-counting gate
+// for the package_source_correlation reducer projection. It drives the
 // production PostgresPackageCorrelationWriter.WritePackageCorrelations over
 // two ownership decisions in one scope (no consumption or publication
 // decisions), through a real InstrumentedDB-backed sdkmetric.ManualReader,
 // then asserts eshu_dp_postgres_query_duration_seconds's write-attributed
-// observation count EQUALS the committed budget exactly.
+// observation count is within the committed budget.
 //
-// This writer has no batched insert path: each of its three decision loops
-// (ownership, consumption, publication) issues one ExecContext per decision
-// via w.writePayload, so its Postgres write cost is inherently O(N)
-// round-trips per list — there is no batching boundary for a within-writer
-// N+1 control to break (splitting N decisions across N separate Write calls
-// costs the identical N round-trips as one call carrying all N; confirmed
-// empirically for the structurally identical aws_cloud_runtime_drift writer,
-// see aws_cloud_runtime_drift_cost_test.go's "N+1 control shape" doc
-// comment). The exact-equality assertion (== budget) is the regression gate
-// for this domain. Migrating this writer onto the shared
-// reducerBatchInsertFacts bounded bulk-insert path is a follow-on tracked
-// separately (C-14 issue #4367 orchestration); this budget intentionally
-// encodes the CURRENT known per-row write amplification rather than
-// absorbing it silently.
+// WritePackageCorrelations now combines its three decision lists (ownership,
+// consumption, publication) into ONE reducerBatchInsertVersionedFacts
+// bulk-insert call (issue #5317) instead of one ExecContext per decision, so
+// two ownership decisions fit one chunk and this scenario asserts exactly one
+// write observation. The companion N+1 negative control below
+// (TestCostBudget_PackageSourceCorrelation_N1_ExceedsBudget) proves the
+// budget still catches a per-decision regression.
 func TestCostBudget_PackageSourceCorrelation(t *testing.T) {
 	t.Parallel()
 
@@ -107,19 +99,17 @@ func TestCostBudget_PackageSourceCorrelation(t *testing.T) {
 	}
 
 	// PRIMARY assertion: read eshu_dp_postgres_query_duration_seconds's
-	// write-attributed observation count off the real otel reader, asserted
-	// EXACT (this per-row writer's cost is O(N)).
+	// write-attributed observation count off the real otel reader.
 	writes := collectAttributedHistogramCount(rm, "eshu_dp_postgres_query_duration_seconds", "operation", "write")
-	wantWrites, ok := budget.Budgets["eshu_dp_postgres_query_duration_seconds"]
+	maxWrites, ok := budget.Budgets["eshu_dp_postgres_query_duration_seconds"]
 	if !ok {
 		t.Fatal("budget missing required key eshu_dp_postgres_query_duration_seconds")
 	}
-	if writes != uint64(wantWrites) {
+	if writes > uint64(maxWrites) {
 		t.Fatalf(
-			"eshu_dp_postgres_query_duration_seconds write observations = %d, want exactly %d "+
-				"(scenario=%s): this per-row writer's cost is O(N) round-trips — any deviation, "+
-				"up or down, is a regression against the committed known-amplification budget",
-			writes, wantWrites, budget.Scenario,
+			"eshu_dp_postgres_query_duration_seconds write observations = %d exceeds budget %d "+
+				"(scenario=%s): algorithmic regression detected",
+			writes, maxWrites, budget.Scenario,
 		)
 	}
 	if writes == 0 {
@@ -128,17 +118,83 @@ func TestCostBudget_PackageSourceCorrelation(t *testing.T) {
 
 	// SECONDARY assertion: raw ExecContext call count from the counting fake.
 	execs := fake.totalExecs()
-	if wantExecs, ok := budget.Budgets["statements_executed"]; ok {
-		if execs != wantExecs {
+	if maxExecs, ok := budget.Budgets["statements_executed"]; ok {
+		if execs > maxExecs {
 			t.Fatalf(
-				"statements_executed = %d, want exactly %d (scenario=%s)",
-				execs, wantExecs, budget.Scenario,
+				"statements_executed = %d exceeds budget %d (scenario=%s): too many Postgres write operations",
+				execs, maxExecs, budget.Scenario,
 			)
+		}
+		if execs == 0 {
+			t.Fatal("statements_executed = 0: fake not recording (false green guard)")
 		}
 	}
 
 	t.Logf(
-		"scenario=%s eshu_dp_postgres_query_duration_seconds_writes=%d (budget=%d, exact) statements_executed=%d (budget=%d, exact)",
-		budget.Scenario, writes, wantWrites, execs, budget.Budgets["statements_executed"],
+		"scenario=%s eshu_dp_postgres_query_duration_seconds_writes=%d (budget=%d) statements_executed=%d (budget=%d)",
+		budget.Scenario, writes, maxWrites, execs, budget.Budgets["statements_executed"],
+	)
+}
+
+// TestCostBudget_PackageSourceCorrelation_N1_ExceedsBudget is the mandatory
+// negative control, run through the SAME production batched dispatch as the
+// positive test. It calls WritePackageCorrelations once per fixture ownership
+// decision instead of once for the whole batch — the classic N+1
+// anti-pattern for a batched writer — and asserts the accumulated
+// eshu_dp_postgres_query_duration_seconds write observation count EXCEEDS the
+// committed budget.
+func TestCostBudget_PackageSourceCorrelation_N1_ExceedsBudget(t *testing.T) {
+	t.Parallel()
+
+	budget := loadBudgetFrom(t, packageSourceCorrelationBudgetRelPath)
+	decisions := packageSourceCorrelationFixtureDecisions()
+	if len(decisions) < 2 {
+		t.Fatalf("N+1 control needs >=2 decisions to exceed the budget; fixture has %d", len(decisions))
+	}
+
+	fake := &countingExecQueryer{}
+	db, reader := newInstrumentedReducerDB(t, fake)
+	writer := reducer.PostgresPackageCorrelationWriter{
+		DB:  db,
+		Now: func() time.Time { return time.Date(2026, time.July, 12, 12, 0, 0, 0, time.UTC) },
+	}
+
+	for _, decision := range decisions {
+		if _, err := writer.WritePackageCorrelations(context.Background(), reducer.PackageCorrelationWrite{
+			IntentID:           packageSourceCorrelationCostIntentID,
+			ScopeID:            "repo:team-left-pad",
+			GenerationID:       "generation-package-source-correlation-cost",
+			SourceSystem:       "npm",
+			Cause:              "reducer/package_source_correlation",
+			OwnershipDecisions: []reducer.PackageSourceCorrelationDecision{decision},
+		}); err != nil {
+			t.Fatalf("N+1 WritePackageCorrelations() error = %v", err)
+		}
+	}
+
+	var rm metricdata.ResourceMetrics
+	if err := reader.Collect(context.Background(), &rm); err != nil {
+		t.Fatalf("Collect() error = %v", err)
+	}
+
+	writes := collectAttributedHistogramCount(rm, "eshu_dp_postgres_query_duration_seconds", "operation", "write")
+	maxWrites, ok := budget.Budgets["eshu_dp_postgres_query_duration_seconds"]
+	if !ok {
+		t.Fatal("budget has no eshu_dp_postgres_query_duration_seconds entry")
+	}
+
+	if writes <= uint64(maxWrites) {
+		t.Fatalf(
+			"N+1 negative control: eshu_dp_postgres_query_duration_seconds write observations = %d did NOT "+
+				"exceed budget %d — budget is too loose to catch N+1 regressions or the negative control is "+
+				"generating too few writes; tighten the budget or increase the N+1 fanout",
+			writes, maxWrites,
+		)
+	}
+
+	t.Logf(
+		"N+1 negative control passed: eshu_dp_postgres_query_duration_seconds write observations = %d > budget %d "+
+			"(N=%d decisions, scenario=%s)",
+		writes, maxWrites, len(decisions), budget.Scenario,
 	)
 }

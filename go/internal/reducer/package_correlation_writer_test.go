@@ -89,18 +89,25 @@ func TestPostgresPackageCorrelationWriterPersistsOwnershipAndConsumptionFacts(t 
 	if got, want := result.FactsWritten, 3; got != want {
 		t.Fatalf("FactsWritten = %d, want %d", got, want)
 	}
-	if got, want := len(db.execs), 3; got != want {
-		t.Fatalf("ExecContext calls = %d, want %d", got, want)
+	// One ExecContext call for three decisions across ownership, consumption,
+	// and publication: proves the batched path replaced the retired
+	// three-loop per-decision dispatch.
+	if got, want := len(db.execs), 1; got != want {
+		t.Fatalf("ExecContext calls = %d, want %d (batched insert)", got, want)
 	}
-	for i, exec := range db.execs {
-		if !strings.Contains(exec.query, "schema_version") {
-			t.Fatalf("exec %d query missing schema_version column for governed package correlation fact: %s", i, exec.query)
-		}
-		if got, want := exec.args[5], facts.ReducerDerivedSchemaVersionV1; got != want {
-			t.Fatalf("exec %d schema_version = %v, want %v", i, got, want)
+	if !strings.Contains(db.execs[0].query, "schema_version") {
+		t.Fatalf("query missing schema_version column for governed package correlation fact: %s", db.execs[0].query)
+	}
+	rows := decodeBatchedVersionedFactCalls(t, db.execs)
+	if got, want := len(rows), 3; got != want {
+		t.Fatalf("decoded rows = %d, want %d", got, want)
+	}
+	for i, row := range rows {
+		if got, want := row.SchemaVersion, facts.ReducerDerivedSchemaVersionV1; got != want {
+			t.Fatalf("row %d schema_version = %v, want %v", i, got, want)
 		}
 	}
-	ownershipPayload := unmarshalPackageCorrelationPayload(t, db.execs[0].args[15])
+	ownershipPayload := unmarshalPackageCorrelationPayload(t, rows[0].Payload)
 	if got, want := ownershipPayload["correlation_kind"], packageOwnershipCorrelationFactKind; got != want {
 		t.Fatalf("correlation_kind = %#v, want %#v", got, want)
 	}
@@ -110,7 +117,7 @@ func TestPostgresPackageCorrelationWriterPersistsOwnershipAndConsumptionFacts(t 
 	if got, want := ownershipPayload["provenance_only"], true; got != want {
 		t.Fatalf("provenance_only = %#v, want %#v", got, want)
 	}
-	consumptionPayload := unmarshalPackageCorrelationPayload(t, db.execs[1].args[15])
+	consumptionPayload := unmarshalPackageCorrelationPayload(t, rows[1].Payload)
 	if got, want := consumptionPayload["correlation_kind"], packageConsumptionCorrelationFactKind; got != want {
 		t.Fatalf("correlation_kind = %#v, want %#v", got, want)
 	}
@@ -135,7 +142,7 @@ func TestPostgresPackageCorrelationWriterPersistsOwnershipAndConsumptionFacts(t 
 	if got, want := consumptionPayload["development_dependency"], true; got != want {
 		t.Fatalf("development_dependency = %#v, want %#v", got, want)
 	}
-	publicationPayload := unmarshalPackageCorrelationPayload(t, db.execs[2].args[15])
+	publicationPayload := unmarshalPackageCorrelationPayload(t, rows[2].Payload)
 	if got, want := publicationPayload["correlation_kind"], packagePublicationCorrelationFactKind; got != want {
 		t.Fatalf("correlation_kind = %#v, want %#v", got, want)
 	}
