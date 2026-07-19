@@ -88,24 +88,20 @@ const reapStaleContentEntitiesPathBatchSize = contentFileBatchSize
 // never before — so the delete only ever removes rows this call's own fresh
 // set has superseded, not rows a still-in-flight batch is about to write.
 //
-// Scope invariant (load-bearing — see content_writer.go's Write() doc and the
-// "content_entities stale-row reap (#5329)" section of
-// go/internal/storage/postgres/README.md for the completeness-invariant proof
-// this relies on): every caller that reaches ContentWriter.Write
-// gives it the COMPLETE, all-label entity set for a touched file in one call
-// — go/internal/collector/git_snapshot_native.go parses a file once (all
-// EntityBuckets together) and go/internal/projector's per-generation
-// buildProjection loads a generation's full fact set via FactStore.LoadFacts
-// before calling Project once. Because of that invariant, grouping freshRows
-// by path and reaping only those paths is safe: a path absent from freshRows
-// was not touched by this generation, so its rows are correctly left alone,
-// and a path present in freshRows has its COMPLETE fresh identity set here,
-// not a label-filtered subset. If a future caller ever splits one file's
-// entities across two separate Write() calls (label-filtered batches, a
-// partial-generation retry that only replays a subset of facts, etc.), this
-// reap would over-delete under the #5147/#5327 defect class and MUST NOT be
-// enabled for that caller without re-deriving the anti-join from a durable
-// per-path fresh-set marker instead of this call's in-memory freshRows.
+// Scope invariant (load-bearing — see content_writer.go's Write() doc for the
+// completeness contract this relies on, and the "content_entities stale-row
+// reap (#5329)" section of go/internal/storage/postgres/README.md for the
+// full proof): Write()'s doc requires every caller to pass the COMPLETE,
+// all-label entity set for a touched file in one call, so grouping freshRows
+// by path and reaping only those paths is safe here: a path absent from
+// freshRows was not touched by this generation, so its rows are correctly
+// left alone, and a path present in freshRows has its COMPLETE fresh identity
+// set, not a label-filtered subset. If a future caller ever violates that
+// contract (a label-filtered batch, a partial-generation retry that only
+// replays a subset of facts, etc.), this reap would over-delete under the
+// #5147/#5327 defect class and MUST NOT be enabled for that caller without
+// re-deriving the anti-join from a durable per-path fresh-set marker instead
+// of this call's in-memory freshRows.
 //
 // Known residual gap: a path that legitimately drops to zero entities
 // without any tombstone or PurgeEntities signal (entityUpserts carries no

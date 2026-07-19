@@ -113,6 +113,16 @@ type preparedEntityRow struct {
 }
 
 // Write persists canonical file and entity rows and removes tombstoned rows.
+//
+// Completeness contract (load-bearing for reapStaleContentEntities in
+// content_writer_reap.go): for every touched file, callers MUST pass the
+// file's COMPLETE entity set — every label, in one Write call — never a
+// partial or label-filtered batch. reapStaleContentEntities assumes each
+// call's fresh rows already are each touched path's full fresh identity set;
+// a caller that splits one file's entities across two Write calls would
+// break that assumption and make the reap over-delete the labels the
+// split-out call didn't carry (the #5147/#5327 defect class). See
+// reapStaleContentEntities's doc for the current callers that uphold this.
 func (w ContentWriter) Write(ctx context.Context, materialization content.Materialization) (content.Result, error) {
 	if w.db == nil {
 		return content.Result{}, fmt.Errorf("content writer database is required")
