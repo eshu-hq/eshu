@@ -62,6 +62,7 @@ func TestFetchWorkloadRuntimeTopologyReturnsObservedIdentityEdges(t *testing.T) 
 
 	result, err := fetchWorkloadRuntimeTopology(
 		t.Context(), reader, "w.id = $workload_id", map[string]any{"workload_id": "workload:orders"},
+		"repository:orders",
 	)
 	if err != nil {
 		t.Fatalf("fetchWorkloadRuntimeTopology() error = %v", err)
@@ -82,8 +83,7 @@ func TestFetchWorkloadRuntimeTopologyScopesDefiningRepositoriesToCallerGrants(t 
 	reader := fakeGraphReader{run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 		if !strings.Contains(cypher, "repo.id IN $allowed_repository_ids") ||
 			!strings.Contains(cypher, "repo.id IN $allowed_scope_ids") ||
-			!strings.Contains(cypher, "i.repo_id IN $allowed_repository_ids") ||
-			!strings.Contains(cypher, "i.repo_id IN $allowed_scope_ids") {
+			!strings.Contains(cypher, "repo.id = $repo_id") {
 			return []map[string]any{
 				{
 					"repo_id": "repository:allowed", "repo_name": "allowed", "workload_id": "workload:orders",
@@ -99,6 +99,12 @@ func TestFetchWorkloadRuntimeTopologyScopesDefiningRepositoriesToCallerGrants(t 
 		if got := StringSliceVal(params, "allowed_repository_ids"); len(got) != 1 || got[0] != "repository:allowed" {
 			t.Fatalf("allowed_repository_ids = %#v, want only repository:allowed", got)
 		}
+		if got, want := StringVal(params, "repo_id"), "repository:allowed"; got != want {
+			t.Fatalf("repo_id = %q, want selected %q", got, want)
+		}
+		if strings.Contains(cypher, "i.repo_id") {
+			t.Fatalf("runtime topology must not invent WorkloadInstance repository ownership: %s", cypher)
+		}
 		return []map[string]any{{
 			"repo_id": "repository:allowed", "repo_name": "allowed", "workload_id": "workload:orders",
 			"instance_id": "workload-instance:orders:prod", "environment": "prod",
@@ -111,6 +117,7 @@ func TestFetchWorkloadRuntimeTopologyScopesDefiningRepositoriesToCallerGrants(t 
 
 	result, err := fetchWorkloadRuntimeTopology(
 		ctx, reader, "w.id = $workload_id", map[string]any{"workload_id": "workload:orders"},
+		"repository:allowed",
 	)
 	if err != nil {
 		t.Fatalf("fetchWorkloadRuntimeTopology() error = %v", err)
@@ -136,7 +143,10 @@ func TestFetchWorkloadRuntimeTopologyReportsInstanceSentinel(t *testing.T) {
 		return rows, nil
 	}}
 
-	result, err := fetchWorkloadRuntimeTopology(t.Context(), reader, "w.id = $workload_id", map[string]any{"workload_id": "workload:orders"})
+	result, err := fetchWorkloadRuntimeTopology(
+		t.Context(), reader, "w.id = $workload_id", map[string]any{"workload_id": "workload:orders"},
+		"repository:orders",
+	)
 	if err != nil {
 		t.Fatalf("fetchWorkloadRuntimeTopology() error = %v", err)
 	}

@@ -32,7 +32,7 @@ func (h *EntityHandler) fetchWorkloadDeploymentTopology(
 	repoID string,
 	includeProvisioning bool,
 ) (workloadDeploymentTopologyResult, error) {
-	runtimeResult, err := fetchWorkloadRuntimeTopology(ctx, h.Neo4j, whereClause, params)
+	runtimeResult, err := fetchWorkloadRuntimeTopology(ctx, h.Neo4j, whereClause, params, repoID)
 	if err != nil {
 		return workloadDeploymentTopologyResult{}, err
 	}
@@ -63,6 +63,7 @@ func fetchWorkloadRuntimeTopology(
 	reader GraphQuery,
 	whereClause string,
 	params map[string]any,
+	repoID string,
 ) (workloadRuntimeTopologyResult, error) {
 	queryLimit := contextStoryItemLimit + 1
 	access := repositoryAccessFilterFromContext(ctx)
@@ -83,14 +84,14 @@ func fetchWorkloadRuntimeTopology(
 		whereClause = "i.workload_id = $workload_id AND (" + whereClause + ")"
 	}
 	whereClause += access.graphPredicate("repo")
-	if access.scoped() {
-		whereClause += ` AND (
-			i.repo_id IS NULL
-			OR i.repo_id = ''
-			OR i.repo_id IN $allowed_repository_ids
-			OR i.repo_id IN $allowed_scope_ids
-		)`
+	if repoID != "" {
+		params["repo_id"] = repoID
+		whereClause += " AND repo.id = $repo_id"
 	}
+	// WorkloadInstance has no canonical repository ownership property. Its
+	// repository context comes from Repository-DEFINES-Workload-INSTANCE_OF;
+	// binding that path to the selected repository keeps the scalar repository
+	// and its observed DEFINES edge internally consistent.
 	rows, err := reader.Run(ctx, fmt.Sprintf(`
 		MATCH (repo:Repository)-[defines:DEFINES]->(w:Workload)<-[instanceOf:INSTANCE_OF]-(i:WorkloadInstance)
 		WHERE %s
