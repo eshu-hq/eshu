@@ -100,7 +100,7 @@ func (h *ImpactHandler) enrichDeploymentConfigInfluenceContext(ctx context.Conte
 	if k8sResult.err != nil {
 		return fmt.Errorf("query k8s resources: %w", k8sResult.err)
 	}
-	controllerEntities, deploymentRepoK8s, deploymentRepoImages, err := h.fetchDeploymentSourceGitOps(ctx, safeStr(workload, "name"), sourceResult.rows)
+	controllerEntities, deploymentRepoK8s, deploymentRepoImages, _, err := h.fetchDeploymentSourceGitOps(ctx, safeStr(workload, "name"), sourceResult.rows)
 	if err != nil {
 		return fmt.Errorf("query deployment source gitops evidence: %w", err)
 	}

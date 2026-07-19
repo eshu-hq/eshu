@@ -63,7 +63,11 @@ func TestGoldenSnapshotTraceDeploymentChainRequiresCanonicalPlatformIdentity(t *
 		"data.cloud_resource_limits.limit",
 		"data.cloud_resource_limits.truncated",
 		"data.k8s_resource_limits.limit",
+		"data.k8s_resource_limits.query_sentinel_limit",
+		"data.k8s_resource_limits.deployment_source_query_sentinel_limit",
 		"data.k8s_resource_limits.returned_count",
+		"data.k8s_resource_limits.content_observed_count_is_lower_bound",
+		"data.k8s_resource_limits.deployment_source_observed_count_is_lower_bound",
 		"data.k8s_resource_limits.truncated",
 	} {
 		if !slices.Contains(shape.RequiredJSONPaths, identityPath) {

@@ -44,24 +44,31 @@ func (h *ImpactHandler) fetchDeploymentSourceGitOps(
 	ctx context.Context,
 	serviceName string,
 	deploymentSources []map[string]any,
-) ([]map[string]any, []map[string]any, []string, error) {
+) ([]map[string]any, []map[string]any, []string, bool, error) {
 	if h == nil || h.Content == nil || len(deploymentSources) == 0 {
-		return nil, nil, nil, nil
+		return nil, nil, nil, false, nil
 	}
 
 	repoIDs := uniqueNonEmptyRepoIDs(deploymentSources)
 	entities := make([]EntityContent, 0, len(repoIDs)*8)
+	observedCountIsLowerBound := false
 	for _, repoID := range repoIDs {
-		rows, err := h.Content.ListRepoEntities(ctx, repoID, repositorySemanticEntityLimit)
+		rows, err := h.Content.ListRepoEntities(ctx, repoID, repositorySemanticEntityLimit+1)
 		if err != nil {
-			return nil, nil, nil, fmt.Errorf("list deployment source entities for %s: %w", repoID, err)
+			return nil, nil, nil, false, fmt.Errorf("list deployment source entities for %s: %w", repoID, err)
+		}
+		if len(rows) >= repositorySemanticEntityLimit+1 {
+			observedCountIsLowerBound = true
+		}
+		if len(rows) > repositorySemanticEntityLimit {
+			rows = rows[:repositorySemanticEntityLimit]
 		}
 		entities = append(entities, rows...)
 	}
 
 	controllers := selectRelevantDeploymentSourceControllers(serviceName, deploymentSources, entities)
 	k8sResources, imageRefs := collectDeploymentSourceK8sResources(controllers, entities)
-	return controllers, k8sResources, imageRefs, nil
+	return controllers, k8sResources, imageRefs, observedCountIsLowerBound, nil
 }
 
 func buildControllerOverview(

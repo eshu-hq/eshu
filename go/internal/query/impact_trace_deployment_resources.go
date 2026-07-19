@@ -257,7 +257,7 @@ func (h *ImpactHandler) fetchK8sResourceResult(
 	workloadName string,
 ) (k8sResourceResult, error) {
 	if h == nil || h.Content == nil || repoID == "" || workloadName == "" {
-		return boundedK8sResourceResult(nil, false, nil), nil
+		return boundedK8sResourceResult(nil, false, nil, false), nil
 	}
 
 	queryLimit := serviceStoryItemLimit + 1
@@ -296,13 +296,14 @@ func (h *ImpactHandler) fetchK8sResourceResult(
 		}
 		resources = append(resources, resource)
 	}
-	return boundedK8sResourceResult(resources, len(rows) >= queryLimit, nil), nil
+	return boundedK8sResourceResult(resources, len(rows) >= queryLimit, nil, false), nil
 }
 
 func boundedK8sResourceResult(
 	contentRows []map[string]any,
 	contentLowerBound bool,
 	deploymentSourceRows []map[string]any,
+	deploymentSourceLowerBound bool,
 ) k8sResourceResult {
 	merged := mergeDeploymentTraceRows(contentRows, deploymentSourceRows)
 	sortDeploymentTraceMaps(merged)
@@ -320,21 +321,25 @@ func boundedK8sResourceResult(
 		imageRefs = append(imageRefs, image)
 	}
 	sort.Strings(imageRefs)
+	observedCountIsLowerBound := contentLowerBound || deploymentSourceLowerBound
 	return k8sResourceResult{
 		rows:              rows,
 		imageRefs:         imageRefs,
 		candidates:        merged,
 		contentLowerBound: contentLowerBound,
 		limits: map[string]any{
-			"limit":                            serviceStoryItemLimit,
-			"query_sentinel_limit":             serviceStoryItemLimit + 1,
-			"returned_count":                   len(rows),
-			"observed_count":                   observedCount,
-			"observed_count_is_lower_bound":    contentLowerBound,
-			"content_observed_count":           len(contentRows),
-			"deployment_source_observed_count": len(deploymentSourceRows),
-			"truncated":                        contentLowerBound || mergedTruncated,
-			"ordering":                         []string{"repo_id", "relative_path", "entity_id"},
+			"limit":                                           serviceStoryItemLimit,
+			"query_sentinel_limit":                            serviceStoryItemLimit + 1,
+			"deployment_source_query_sentinel_limit":          repositorySemanticEntityLimit + 1,
+			"returned_count":                                  len(rows),
+			"observed_count":                                  observedCount,
+			"observed_count_is_lower_bound":                   observedCountIsLowerBound,
+			"content_observed_count":                          len(contentRows),
+			"content_observed_count_is_lower_bound":           contentLowerBound,
+			"deployment_source_observed_count":                len(deploymentSourceRows),
+			"deployment_source_observed_count_is_lower_bound": deploymentSourceLowerBound,
+			"truncated":                                       observedCountIsLowerBound || mergedTruncated,
+			"ordering":                                        []string{"repo_id", "relative_path", "entity_id"},
 		},
 	}
 }

@@ -102,11 +102,14 @@ func TestOpenAPIImpactDeploymentTraceDocumentsCanonicalPlatformIdentity(t *testi
 	for _, field := range []string{
 		"limit",
 		"query_sentinel_limit",
+		"deployment_source_query_sentinel_limit",
 		"returned_count",
 		"observed_count",
 		"observed_count_is_lower_bound",
 		"content_observed_count",
+		"content_observed_count_is_lower_bound",
 		"deployment_source_observed_count",
+		"deployment_source_observed_count_is_lower_bound",
 		"truncated",
 		"ordering",
 	} {

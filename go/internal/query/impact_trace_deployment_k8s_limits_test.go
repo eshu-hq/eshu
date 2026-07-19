@@ -15,6 +15,21 @@ type recordingK8sContentStore struct {
 	queryLimit int
 }
 
+type recordingDeploymentSourceGitOpsContentStore struct {
+	fakePortContentStore
+	rows       []EntityContent
+	queryLimit int
+}
+
+func (s *recordingDeploymentSourceGitOpsContentStore) ListRepoEntities(
+	_ context.Context,
+	_ string,
+	limit int,
+) ([]EntityContent, error) {
+	s.queryLimit = limit
+	return append([]EntityContent(nil), s.rows...), nil
+}
+
 func (s *recordingK8sContentStore) SearchEntitiesByName(
 	_ context.Context,
 	_ string,
@@ -117,6 +132,29 @@ func TestFetchK8sResourceResultReportsLowerBoundWhenSubstringRowsFillProbe(t *te
 	}
 }
 
+func TestFetchDeploymentSourceGitOpsReportsRepositoryProbeLowerBound(t *testing.T) {
+	t.Parallel()
+
+	rows := make([]EntityContent, repositorySemanticEntityLimit+1)
+	store := &recordingDeploymentSourceGitOpsContentStore{rows: rows}
+	handler := &ImpactHandler{Content: store}
+
+	_, _, _, lowerBound, err := handler.fetchDeploymentSourceGitOps(
+		t.Context(),
+		"payments-api",
+		[]map[string]any{{"repo_id": "repository:deploy"}},
+	)
+	if err != nil {
+		t.Fatalf("fetchDeploymentSourceGitOps() error = %v", err)
+	}
+	if got, want := store.queryLimit, repositorySemanticEntityLimit+1; got != want {
+		t.Fatalf("ListRepoEntities limit = %d, want sentinel limit %d", got, want)
+	}
+	if !lowerBound {
+		t.Fatal("fetchDeploymentSourceGitOps() lowerBound = false, want true after sentinel saturation")
+	}
+}
+
 func TestBoundedK8sResourceResultCapsMergedGitOpsRows(t *testing.T) {
 	t.Parallel()
 
@@ -133,7 +171,7 @@ func TestBoundedK8sResourceResultCapsMergedGitOpsRows(t *testing.T) {
 		{"entity_id": "gitops-b", "repo_id": "repo-deploy", "relative_path": "apps/b.yaml"},
 	}
 
-	result := boundedK8sResourceResult(contentRows, false, gitOpsRows)
+	result := boundedK8sResourceResult(contentRows, false, gitOpsRows, false)
 	if got, want := len(result.rows), serviceStoryItemLimit; got != want {
 		t.Fatalf("len(boundedK8sResourceResult().rows) = %d, want %d", got, want)
 	}
@@ -151,6 +189,22 @@ func TestBoundedK8sResourceResultCapsMergedGitOpsRows(t *testing.T) {
 	}
 	if got, want := IntVal(result.limits, "deployment_source_observed_count"), len(gitOpsRows); got != want {
 		t.Fatalf("k8s_resource_limits.deployment_source_observed_count = %d, want %d", got, want)
+	}
+}
+
+func TestBoundedK8sResourceResultPropagatesDeploymentSourceLowerBound(t *testing.T) {
+	t.Parallel()
+
+	result := boundedK8sResourceResult(nil, false, []map[string]any{{
+		"entity_id":     "gitops-a",
+		"repo_id":       "repo-deploy",
+		"relative_path": "apps/a.yaml",
+	}}, true)
+	if !BoolVal(result.limits, "observed_count_is_lower_bound") || !BoolVal(result.limits, "truncated") {
+		t.Fatalf("k8s_resource_limits = %#v, deployment-source saturation must fail completeness closed", result.limits)
+	}
+	if !BoolVal(result.limits, "deployment_source_observed_count_is_lower_bound") {
+		t.Fatalf("k8s_resource_limits = %#v, want deployment-source lower-bound disclosure", result.limits)
 	}
 }
 

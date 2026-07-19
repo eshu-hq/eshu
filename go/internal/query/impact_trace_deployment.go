@@ -92,7 +92,9 @@ func (h *ImpactHandler) traceDeploymentChain(w http.ResponseWriter, r *http.Requ
 		cloudResources := cloudResourceResult.rows
 		if len(cloudResources) == 0 {
 			contextRows := mapSliceValue(ctx, "cloud_resources")
-			cloudResourceResult = boundedCloudResourceResult(contextRows, len(contextRows))
+			contextRows, _ = capMapRows(contextRows, serviceStoryItemLimit)
+			cloudResourceResult.rows = contextRows
+			cloudResourceResult.limits = nil
 			cloudResources = cloudResourceResult.rows
 		}
 		if len(cloudResources) == 0 {
@@ -127,7 +129,7 @@ func (h *ImpactHandler) traceDeploymentChain(w http.ResponseWriter, r *http.Requ
 			WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query k8s resources: %v", err))
 			return
 		}
-		controllerEntities, deploymentRepoK8s, deploymentRepoImages, err := h.fetchDeploymentSourceGitOps(
+		controllerEntities, deploymentRepoK8s, deploymentRepoImages, deploymentRepoLowerBound, err := h.fetchDeploymentSourceGitOps(
 			r.Context(),
 			safeStr(ctx, "name"),
 			deploymentSources,
@@ -140,6 +142,7 @@ func (h *ImpactHandler) traceDeploymentChain(w http.ResponseWriter, r *http.Requ
 			k8sResourceResult.candidates,
 			k8sResourceResult.contentLowerBound,
 			deploymentRepoK8s,
+			deploymentRepoLowerBound,
 		)
 		k8sResources := k8sResourceResult.rows
 		imageRefs := uniqueSortedStrings(append(append([]string{}, k8sResourceResult.imageRefs...), deploymentRepoImages...))
