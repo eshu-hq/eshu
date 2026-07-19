@@ -37,7 +37,7 @@ export function addDeploymentArtifactGraph(options: ArtifactGraphOptions): void 
     traceTruth: options.traceTruth,
   };
   const artifacts = deploymentProvenance.currentRecordsFirst(
-    uniqueDeploymentArtifacts([...options.contextArtifacts, ...options.traceArtifacts]),
+    uniqueDeploymentArtifacts(deploymentProvenance.preferredSourceRows(sources)),
     (artifact) => deploymentProvenance.artifactRecordTruth(artifact, sources),
   );
   let notAdmitted = 0;

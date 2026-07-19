@@ -13,11 +13,21 @@ import type {
   NetworkPathRecord,
 } from "./eshuGraphDeploymentWire";
 
-interface SourceRows<T> {
+export interface SourceRows<T> {
   readonly contextRows: readonly T[];
   readonly contextTruth?: EshuTruth | null;
   readonly traceRows: readonly T[];
   readonly traceTruth?: EshuTruth | null;
+}
+
+export function preferredSourceRows<T>(sources: SourceRows<T>): T[] {
+  if (sources.traceRows.length > 0 && isCurrent(sources.traceTruth)) {
+    return [...sources.traceRows, ...sources.contextRows];
+  }
+  if (sources.contextRows.length > 0 && isCurrent(sources.contextTruth)) {
+    return [...sources.contextRows, ...sources.traceRows];
+  }
+  return [...sources.traceRows, ...sources.contextRows];
 }
 
 export function artifactRecordTruth(

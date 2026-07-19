@@ -123,13 +123,16 @@ export function buildDeploymentStoryGraph(
         .map((source) => cleanText(source.repo_name) || cleanText(source.repo_id)),
     ),
   );
-  const instances = mergeDeploymentInstances(context.instances ?? [], trace.instances ?? []);
   const instanceSources = {
     contextRows: context.instances ?? [],
     contextTruth: options.contextTruth,
     traceRows: trace.instances ?? [],
     traceTruth: options.traceTruth,
   };
+  const instances = mergeDeploymentInstances(
+    deploymentProvenance.preferredSourceRows(instanceSources),
+    [],
+  );
   let platformPlacements = 0;
   let staleRelationships = 0;
   instances.slice(0, limits.instances).forEach((instance) => {

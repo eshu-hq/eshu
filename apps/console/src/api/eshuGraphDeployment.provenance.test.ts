@@ -23,7 +23,7 @@ describe("Graph Explorer deployment source provenance", () => {
         id: "workload:checkout-api",
         instances: [
           {
-            environment: "prod",
+            environment: "stale-env",
             instance_id: "instance:prod",
             platforms: [
               {
@@ -78,6 +78,7 @@ describe("Graph Explorer deployment source provenance", () => {
         verb: "INSTANCE_OF",
       }),
     );
+    expect(graph.nodes.find((node) => node.id === "instance:prod")?.label).toBe("prod");
     expect(graph.edges).toContainEqual(
       expect.objectContaining({
         s: "instance:prod",
@@ -190,7 +191,7 @@ describe("Graph Explorer deployment source provenance", () => {
           ],
         },
       },
-      { contextTruth: freshTruth, traceTruth: freshTruth },
+      { contextTruth: staleTruth, traceTruth: freshTruth },
     );
 
     const edges = graph.edges.filter(
@@ -198,6 +199,8 @@ describe("Graph Explorer deployment source provenance", () => {
     );
     expect(edges).toHaveLength(1);
     expect(edges[0]?.evidence).toContain("artifact id: evidence-artifact:shared");
+    expect(edges[0]?.evidence).toContain("path: trace/kustomization.yaml");
+    expect(edges[0]?.evidence).not.toContain("path: context/kustomization.yaml");
   });
 });
 
