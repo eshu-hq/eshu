@@ -121,6 +121,9 @@ function normalizeDeploymentSourceLimits(
     returnedCount !== deploymentSourceCount ||
     returnedCount > limit ||
     returnedCount > observedCount ||
+    querySentinelLimit !== limit + 1 ||
+    ordering.length === 0 ||
+    observedCount > canonicalObservedCount + repositoryObservedCount ||
     !truncationIsConsistent
   ) {
     return null;

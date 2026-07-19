@@ -52,6 +52,15 @@ describe("impact deployment-source coverage normalization", () => {
     ["returned count exceeds the response limit", { limit: 49 }],
     ["observed count is smaller than the returned count", { observed_count: 49 }],
     ["a lower-bound observation is not marked truncated", { truncated: false }],
+    [
+      "the query sentinel is not exactly one greater than the response limit",
+      { query_sentinel_limit: 50 },
+    ],
+    ["the deterministic ordering contract is empty", { ordering: [] }],
+    [
+      "the observed count exceeds the sum of canonical and repository observations",
+      { observed_count: 55 },
+    ],
   ])("rejects contradictory coverage metadata when %s", async (_reason, override) => {
     const result = await loadImpactReview(
       clientWithDeploymentSourceLimits({ ...validDeploymentSourceLimits(), ...override }),

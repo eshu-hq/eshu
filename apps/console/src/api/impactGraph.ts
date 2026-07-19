@@ -97,6 +97,7 @@ export function selectImpactGraph(
           "Change surface",
           changeSurface.truth,
           deployment.presentation.limitations,
+          deployment.presentation.completeness,
         );
       }
       return existingGraph(
@@ -106,6 +107,7 @@ export function selectImpactGraph(
         "Impact graph",
         deploymentTrace.truth,
         deployment.presentation.limitations,
+        deployment.presentation.completeness,
       );
     }
   }
@@ -141,11 +143,12 @@ function existingGraph(
     readonly level: string;
   } | null,
   limitations: readonly string[] = [],
+  completeness: ImpactGraphPresentation["completeness"] = "complete",
 ): { readonly graph: GraphModel; readonly presentation: ImpactGraphPresentation } {
   return {
     graph,
     presentation: {
-      completeness: "complete",
+      completeness,
       compositionDurationMs: 0,
       duplicateEdges: 0,
       duplicateNodes: 0,

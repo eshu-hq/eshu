@@ -20,10 +20,12 @@ export function deploymentTraceGraph(
   const knownNodeIDs = new Set<string>();
   let identityOmittedNodes = 0;
   let identityOmittedEdges = 0;
+  let hasUnverifiedOmission = false;
 
   const addNode = (node: GraphNode | null, limitation: string): boolean => {
     if (node === null || node.id.trim().length === 0) {
       identityOmittedNodes += 1;
+      hasUnverifiedOmission = true;
       limitations.add(limitation);
       return false;
     }
@@ -34,6 +36,7 @@ export function deploymentTraceGraph(
   const addEdge = (edge: GraphEdge | null, limitation: string): void => {
     if (edge === null || edge.s.length === 0 || edge.t.length === 0) {
       identityOmittedEdges += 1;
+      hasUnverifiedOmission = true;
       limitations.add(limitation);
       return;
     }
@@ -195,6 +198,7 @@ export function deploymentTraceGraph(
   const invalidTopologyEdgeCount = trace.invalidTopologyEdgeCount ?? 0;
   if (invalidTopologyEdgeCount > 0) {
     identityOmittedEdges += invalidTopologyEdgeCount;
+    hasUnverifiedOmission = true;
     limitations.add(
       `${invalidTopologyEdgeCount} topology rows omitted because their relationship shape is unsupported or malformed`,
     );
@@ -213,8 +217,10 @@ export function deploymentTraceGraph(
     identityOmittedEdges,
     limitations,
   );
-  const completenessMetadataAvailable =
-    trace.runtimeTopologyLimits !== null && trace.deploymentSourceLimits !== null;
+  const completenessVerified =
+    trace.runtimeTopologyLimits !== null &&
+    trace.deploymentSourceLimits !== null &&
+    !hasUnverifiedOmission;
   const truncated =
     bounded.presentation.truncated ||
     runtimeAccounting.truncated ||
@@ -223,11 +229,7 @@ export function deploymentTraceGraph(
     graph: bounded.graph,
     presentation: {
       ...bounded.presentation,
-      completeness: completenessMetadataAvailable
-        ? truncated
-          ? "truncated"
-          : "complete"
-        : "unverified",
+      completeness: completenessVerified ? (truncated ? "truncated" : "complete") : "unverified",
       truncated,
     },
   };

@@ -170,6 +170,79 @@ describe("Impact deployment topology safety", () => {
     );
   });
 
+  it.each([
+    [
+      "a runtime platform has no canonical identity",
+      {
+        instances: [
+          {
+            environment: "prod",
+            instance_id: "workload-instance:catalog-api:prod",
+            platforms: [
+              {
+                platform_kind: "ecs",
+                platform_name: "prod",
+                topology_basis: "direct_runtime",
+                topology_edges: [],
+              },
+            ],
+          },
+        ],
+        runtime_topology_limits: completeRuntimeTopologyLimits(1, 1, 0),
+        topology_edges: [
+          topologyEdge("DEFINES", "repository:r_catalog", "workload:catalog-api"),
+          topologyEdge("INSTANCE_OF", "workload-instance:catalog-api:prod", "workload:catalog-api"),
+        ],
+      },
+    ],
+    [
+      "a deployment-source relationship has no exact endpoints",
+      {
+        deployment_source_limits: {
+          canonical_observed_count: 1,
+          limit: 50,
+          observed_count: 1,
+          observed_count_is_lower_bound: false,
+          ordering: ["relationship_type_priority", "repo_name", "source_id", "target_id"],
+          query_sentinel_limit: 51,
+          repository_observed_count: 0,
+          returned_count: 1,
+          truncated: false,
+        },
+        deployment_sources: [
+          {
+            relationship_type: "DEPLOYS_FROM",
+            repo_id: "repository:r_config",
+            repo_name: "deployment-config",
+          },
+        ],
+        runtime_topology_limits: completeRuntimeTopologyLimits(0, 0, 0),
+        topology_edges: [topologyEdge("DEFINES", "repository:r_catalog", "workload:catalog-api")],
+      },
+    ],
+    [
+      "an unsupported topology row is omitted",
+      {
+        runtime_topology_limits: completeRuntimeTopologyLimits(0, 0, 0),
+        topology_edges: [
+          topologyEdge("DEFINES", "repository:r_catalog", "workload:catalog-api"),
+          topologyEdge("UNSUPPORTED", "repository:r_catalog", "workload:catalog-api"),
+        ],
+      },
+    ],
+    [
+      "a subject edge does not match the selected repository and workload",
+      {
+        runtime_topology_limits: completeRuntimeTopologyLimits(0, 0, 0),
+        topology_edges: [topologyEdge("DEFINES", "repository:r_other", "workload:catalog-api")],
+      },
+    ],
+  ])("marks completeness unverified when %s", async (_reason, overrides) => {
+    const review = await loadReview(deploymentTrace(overrides));
+
+    expect(review.graphPresentation.completeness).toBe("unverified");
+  });
+
   it("withholds a name-selected trace when change-surface identity verification is unavailable", async () => {
     const review = await loadReview(deploymentTrace({}), true);
 
@@ -245,6 +318,30 @@ function topologyEdge(
     relationship_type: relationshipType,
     source_id: sourceId,
     target_id: targetId,
+  };
+}
+
+function completeRuntimeTopologyLimits(
+  instances: number,
+  platformEdges: number,
+  provisionedPlatforms: number,
+): Record<string, unknown> {
+  return {
+    instances: completeCollectionLimits(instances),
+    platform_edges: completeCollectionLimits(platformEdges),
+    provisioned_platforms: completeCollectionLimits(provisionedPlatforms),
+  };
+}
+
+function completeCollectionLimits(returnedCount: number): Record<string, unknown> {
+  return {
+    limit: 50,
+    observed_count: returnedCount,
+    observed_count_is_lower_bound: false,
+    ordering: ["canonical_identity"],
+    query_sentinel_limit: 51,
+    returned_count: returnedCount,
+    truncated: false,
   };
 }
 
