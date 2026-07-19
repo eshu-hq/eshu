@@ -138,10 +138,10 @@ var sqlTableBlastRadiusEdgeTypes = []string{
 
 // blastRadiusEdgeCoverage reports one graph relationship type's
 // materialization status in the blast-radius response's "coverage" array
-// (#5330). A target_type with no gaps registered against it (repository,
-// terraform_module, crossplane_xrd — none audited by this task) reports an
-// empty coverage array and complete:true rather than a false claim of full
-// coverage or an unaudited gap.
+// (#5330, extended for crossplane_xrd in #5331). A target_type with no gaps
+// registered against it (repository, terraform_module — not audited by
+// either task) reports an empty coverage array and complete:true rather than
+// a false claim of full coverage or an unaudited gap.
 type blastRadiusEdgeCoverage struct {
 	EdgeType     string `json:"edge_type"`
 	Materialized bool   `json:"materialized"`
@@ -156,6 +156,40 @@ func sqlTableBlastRadiusCoverage() (bool, []blastRadiusEdgeCoverage) {
 	complete := true
 	coverage := make([]blastRadiusEdgeCoverage, 0, len(sqlTableBlastRadiusEdgeTypes))
 	for _, edgeType := range sqlTableBlastRadiusEdgeTypes {
+		c := EdgeMaterializationCoverage(edgeType)
+		if !c.Materialized {
+			complete = false
+		}
+		coverage = append(coverage, blastRadiusEdgeCoverage(c))
+	}
+	return complete, coverage
+}
+
+// crossplaneXrdBlastRadiusEdgeTypes lists the graph relationship types the
+// crossplane_xrd blast-radius surface conceptually covers, mirroring
+// sqlTableBlastRadiusEdgeTypes (#5330). CONTAINS is the generic File->entity
+// containment edge blastRadiusCrossplaneCypher traverses (file -> claim) and
+// has a real writer (cypher.buildEntityStatementsWithContainment). SATISFIED_BY
+// (claim -> xrd) has none: no emitter anywhere in the codebase MERGEs it — the
+// internal/graph/edgetype.SatisfiedBy constant is orphaned, only ever read by
+// blastRadiusCrossplaneCypher (#5331; wiring a writer is tracked in #5347).
+// REPO_CONTAINS (repo -> file), also traversed by the query, is deliberately
+// excluded here, matching sqlTableBlastRadiusEdgeTypes: it is a universal
+// structural edge outside the materialized-edge registry's scope (see
+// edge_materialization_coverage.go), so listing it would register a false
+// "no_writer" gap instead of a real one.
+var crossplaneXrdBlastRadiusEdgeTypes = []string{"CONTAINS", "SATISFIED_BY"}
+
+// crossplaneXrdBlastRadiusCoverage evaluates crossplaneXrdBlastRadiusEdgeTypes
+// against the materialized-edge registry, mirroring sqlTableBlastRadiusCoverage
+// (#5330). SATISFIED_BY has no writer, so complete is always false today and
+// coverage always reports it as materialized:false/reason:"no_writer" — this
+// flips to true automatically once a SATISFIED_BY writer lands in the registry
+// (#5347), with no further edit needed here.
+func crossplaneXrdBlastRadiusCoverage() (bool, []blastRadiusEdgeCoverage) {
+	complete := true
+	coverage := make([]blastRadiusEdgeCoverage, 0, len(crossplaneXrdBlastRadiusEdgeTypes))
+	for _, edgeType := range crossplaneXrdBlastRadiusEdgeTypes {
 		c := EdgeMaterializationCoverage(edgeType)
 		if !c.Materialized {
 			complete = false
@@ -264,11 +298,13 @@ func (h *ImpactHandler) findBlastRadius(w http.ResponseWriter, r *http.Request) 
 // target_type. It returns (rows, supported, complete, coverage, error):
 // supported is false for an unknown target_type so the caller can emit a 400.
 // Rows are de-duplicated by repo with the minimum hop retained and sorted by
-// (hops, repo). complete and coverage report the #5330 honesty contract: for
-// sql_table, coverage lists every edge type the surface conceptually covers
-// with its materialization status, and complete is false whenever any of
-// them has no writer; other target_types have no coverage gaps registered
-// against them in this task and report complete:true with empty coverage.
+// (hops, repo). complete and coverage report the #5330/#5331 honesty
+// contract: for sql_table and crossplane_xrd, coverage lists every edge type
+// the surface conceptually covers with its materialization status, and
+// complete is false whenever any of them has no writer (crossplane_xrd is
+// always false today — SATISFIED_BY has no writer; see
+// crossplaneXrdBlastRadiusCoverage); other target_types have no coverage gaps
+// registered against them and report complete:true with empty coverage.
 func (h *ImpactHandler) blastRadiusAffected(ctx context.Context, targetType, target string, limit int) ([]map[string]any, bool, bool, []blastRadiusEdgeCoverage, error) {
 	params := map[string]any{"target_name": target, "limit": limit}
 	emptyCoverage := []blastRadiusEdgeCoverage{}
@@ -292,7 +328,8 @@ func (h *ImpactHandler) blastRadiusAffected(ctx context.Context, targetType, tar
 		return mergeBlastRadiusRows(affected), true, true, emptyCoverage, nil
 	case "crossplane_xrd":
 		rows, err := h.Neo4j.Run(ctx, blastRadiusCrossplaneCypher, params)
-		return mergeBlastRadiusRows(rows), true, true, emptyCoverage, err
+		complete, coverage := crossplaneXrdBlastRadiusCoverage()
+		return mergeBlastRadiusRows(rows), true, complete, coverage, err
 	case "sql_table":
 		// A repo can reach the table through several UNION branches (up to
 		// blastRadiusSqlTableBranches rows for one repo), and the query's own
