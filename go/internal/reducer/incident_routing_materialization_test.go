@@ -359,6 +359,32 @@ func TestExtractIncidentRoutingEvidenceRowsDoesNotPromoteUnsafeOutcomes(t *testi
 			wantOutcome: "unresolved",
 		},
 		{
+			// A PagerDuty pagination-bound-hit coverage warning
+			// (pagerduty.ConfigWarningTruncated, "truncated") carries no
+			// permission/stale/reject/unsupported signal, so it must fall
+			// through incidentRoutingWarningOutcome's default case exactly
+			// like any other unclassified reason and land as "unresolved" —
+			// the same generic routing "unresolved" already exercises above,
+			// proved here for the truncated reason specifically so a future
+			// change to the reason-substring classifier cannot silently
+			// reclassify it without failing a test.
+			name: "truncated (pagination bound hit)",
+			mutate: func(input *IncidentRoutingEvidenceInput) {
+				input.Declared = nil
+				input.Applied = nil
+				input.Observed = nil
+				input.Warnings = []IncidentRoutingCoverageWarning{{
+					FactID:           "warning-3",
+					SourceClass:      "observed",
+					SourceKind:       "pagerduty_api",
+					Reason:           "truncated",
+					ResourceClass:    "incident",
+					ProviderObjectID: "PSERVICE1",
+				}}
+			},
+			wantOutcome: "unresolved",
+		},
+		{
 			name: "rejected",
 			mutate: func(input *IncidentRoutingEvidenceInput) {
 				input.Declared = nil

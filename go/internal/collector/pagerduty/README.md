@@ -76,6 +76,16 @@ flowchart LR
   incident and lifecycle reads but hides related change events, the collector
   emits a coverage warning and keeps the readable incident evidence. Retryable
   related-change failures still retry the claim.
+- Incidents, incident log entries, incident related change events, services,
+  and service integrations all follow PagerDuty's classic offset pagination
+  (the response `more` field) instead of reading only the first page. Each
+  fetch is triple-bounded by `PaginationMaxPages` (target field
+  `pagination_max_pages`, default `10`), `PaginationMaxRecords`
+  (`pagination_max_records`, default `1000`, ceiling `5000` — kept below
+  PagerDuty's offset-10000 serving limit), and the request context deadline.
+  Hitting either bound while the provider still reports `more:true` sets
+  `Truncated` on the result and emits a `reason=truncated` coverage warning
+  for that resource; natural exhaustion of `more` never does.
 - PagerDuty facts never emit Jira work-item facts, GitHub pull-request facts,
   deployment truth, image truth, or code truth.
 - Collection is bounded by a time window, incident limit, log-entry limit,
@@ -110,12 +120,15 @@ token values stay out of labels.
 
 Collector Performance Evidence: request work is bounded by
 `IncidentLookback`, `IncidentLimit`, `LogEntryLimit`, `ChangeEventLimit`,
-`AllowedServiceIDs`, and `ConfigResourceLimit`. The focused
+`AllowedServiceIDs`, `ConfigResourceLimit`, `PaginationMaxPages`, and
+`PaginationMaxRecords`. The focused
 `go test ./internal/collector/pagerduty -count=1` proof covers envelope
 identity, redaction, claimed-source idempotency, provider failure classes, HTTP
 request shape, service allowlist query parameters, optional live config
-collection, permission-hidden related-change enrichment, partial failures, and
-rate-limit classification.
+collection, permission-hidden related-change enrichment, partial failures,
+rate-limit classification, and offset-pagination follow-through (multi-page
+fetch, single-page no-truncation, and bound-hit truncation for incidents,
+services, and integrations).
 
 Collector Observability Evidence: the hosted runtime exposes the shared
 `/healthz`, `/readyz`, `/metrics`, and `/admin/status` surface through

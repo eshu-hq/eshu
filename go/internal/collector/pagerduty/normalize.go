@@ -11,6 +11,11 @@ import (
 
 type incidentListResponse struct {
 	Incidents []incidentJSON `json:"incidents"`
+	// More is PagerDuty classic offset pagination's "another page exists"
+	// signal. Total is intentionally not decoded: PagerDuty omits it unless
+	// the request opts in with total=true, so More is the only reliable
+	// continuation signal (see docs/public/reference/environment-collectors.md).
+	More bool `json:"more"`
 }
 
 type incidentJSON struct {
@@ -36,6 +41,8 @@ type assignmentJSON struct {
 
 type logEntryListResponse struct {
 	LogEntries []logEntryJSON `json:"log_entries"`
+	// More is the pagination continuation signal; see incidentListResponse.
+	More bool `json:"more"`
 }
 
 type logEntryJSON struct {
@@ -54,6 +61,8 @@ type channelJSON struct {
 
 type changeEventListResponse struct {
 	ChangeEvents []changeEventJSON `json:"change_events"`
+	// More is the pagination continuation signal; see incidentListResponse.
+	More bool `json:"more"`
 }
 
 type changeEventJSON struct {
