@@ -22,9 +22,13 @@ type packageRegistryScopedGraphFake struct {
 	t                     *testing.T
 	visibilityByPackageID map[string]string
 	packageIDByVersionID  map[string]string
-	rows                  []map[string]any
-	calls                 []string
-	fatalOnCall           bool
+	// nameAnchorByKey maps "ecosystem\x00name" to a row carrying package_id and
+	// visibility for the packages-by-name branch's anchor lookup. An absent key
+	// means the name did not resolve.
+	nameAnchorByKey map[string]map[string]any
+	rows            []map[string]any
+	calls           []string
+	fatalOnCall     bool
 }
 
 func (f *packageRegistryScopedGraphFake) Run(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
@@ -45,6 +49,12 @@ func (f *packageRegistryScopedGraphFake) Run(_ context.Context, cypher string, p
 			return nil, nil
 		}
 		return []map[string]any{{"package_id": packageID}}, nil
+	case packageRegistryNameAnchorVisibilityCypher:
+		row, ok := f.nameAnchorByKey[StringVal(params, "ecosystem")+"\x00"+StringVal(params, "name")]
+		if !ok {
+			return nil, nil
+		}
+		return []map[string]any{row}, nil
 	default:
 		return f.rows, nil
 	}
