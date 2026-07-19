@@ -255,6 +255,49 @@ spec:
 			t.Fatalf("selector = %#v, want %#v (must not be the stringified nested map)", gotSelector, want)
 		}
 	})
+
+	t.Run("matchExpressions-only selector is not captured", func(t *testing.T) {
+		t.Parallel()
+
+		// A LabelSelector with only matchExpressions (no matchLabels) is a valid
+		// Kubernetes shape. It must NOT be stringified into the persisted
+		// selector metadata as garbage ("matchExpressions=[map[...]]"); it is
+		// emitted as "" (not captured, matchExpressions unsupported in v1).
+		path := filepath.Join(t.TempDir(), "deployment.yaml")
+		source := []byte(`
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: expr-only
+  namespace: prod
+spec:
+  selector:
+    matchExpressions:
+      - key: tier
+        operator: In
+        values: [cache]
+  template:
+    metadata:
+      labels:
+        tier: cache
+`)
+		if err := os.WriteFile(path, source, 0o600); err != nil {
+			t.Fatalf("write fixture: %v", err)
+		}
+
+		got, err := Parse(path, false, Options{})
+		if err != nil {
+			t.Fatalf("Parse() error = %v", err)
+		}
+
+		resources := got["k8s_resources"].([]map[string]any)
+		if len(resources) != 1 {
+			t.Fatalf("k8s_resources length = %d, want 1", len(resources))
+		}
+		if gotSelector, want := resources[0]["selector"], ""; gotSelector != want {
+			t.Fatalf("selector = %#v, want %#v (matchExpressions must not leak a stringified slice)", gotSelector, want)
+		}
+	})
 }
 
 // TestParseKubernetesServiceHasNoPodTemplateLabelsKey proves kinds without a

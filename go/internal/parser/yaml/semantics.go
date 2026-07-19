@@ -215,6 +215,17 @@ func collectSpecSelector(document map[string]any) string {
 	if matchLabels, ok := selector["matchLabels"].(map[string]any); ok {
 		return collectLabelLikeMap(matchLabels)
 	}
+	// A LabelSelector-shaped spec.selector (workload kinds) carrying
+	// matchExpressions but no matchLabels is deliberately NOT captured:
+	// matchExpressions is a list of set-based operator objects, not a flat
+	// label map, and a workload's own selector is never a SELECTS match key
+	// (matching keys off Service.selector vs workload.pod_template_labels). Emit
+	// "" rather than stringifying the raw slice-of-maps into the persisted
+	// metadata. matchExpressions support is out of scope for v1.
+	if _, ok := selector["matchExpressions"]; ok {
+		return ""
+	}
+	// Flat label selector (a Service's spec.selector, e.g. {app: x}).
 	return collectLabelLikeMap(selector)
 }
 

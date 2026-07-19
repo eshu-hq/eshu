@@ -32,7 +32,12 @@ and switches both builders to it. The LIMIT now applies to the
 **type-filtered** row set (`WHERE repo_id = $1 AND entity_type = $2 ORDER BY
 relative_path, start_line LIMIT $3`) instead of the full per-repo row set, so
 a rare entity type can no longer be pushed past the fetch horizon by
-unrelated rows of other types.
+unrelated rows of other types. (The ORDER BY also carries an `entity_id`
+tiebreaker for deterministic truncation, and the builders request
+`repositorySemanticEntityLimit + 1` = 5001 rows so an exact `> limit` overflow
+can be detected and disclosed; the EXPLAIN numbers below were captured at
+`LIMIT 5000` — the one-row delta does not affect the row-count/buffer-hit
+conclusion.)
 
 - Regression test (Go, red-then-green, see the P2-1 commit):
   `TestBuildContentRelationshipSetK8sServiceSelectsRecoversDeploymentPastTruncationHorizon`

@@ -61,7 +61,6 @@ func newMCPQueryRouter(
 	)
 }
 
-//nolint:funlen // wiring struct literal, one field per query.APIRouter handler; mirrors cmd/api/wiring_router.go's equally long newRouterWithSemanticEmbedding, which the linter does not see because it is not part of this diff.
 func newMCPQueryRouterWithSemanticEmbedding(
 	db *sql.DB,
 	neo4jReader query.GraphQuery,
