@@ -21,7 +21,7 @@ language_features:
     source_files: [go/internal/parser/yaml/atlantis.go, go/internal/parser/yaml/language.go]
     test_files: [go/internal/parser/yaml/atlantis_test.go]
     docs: [docs/public/languages/atlantis.md]
-    read_surfaces: []
+    read_surfaces: [none]
   - language: c
     docs_claim: docs/public/languages/c.md
     parser_backing: tree-sitter-backed
@@ -113,7 +113,7 @@ language_features:
     source_files: [go/internal/parser/yaml/gitlab_ci.go, go/internal/parser/yaml/language.go]
     test_files: [go/internal/parser/yaml/gitlab_ci_test.go]
     docs: [docs/public/languages/gitlab-ci.md]
-    read_surfaces: []
+    read_surfaces: [none]
   - language: go
     docs_claim: docs/public/languages/go.md
     parser_backing: tree-sitter-backed
