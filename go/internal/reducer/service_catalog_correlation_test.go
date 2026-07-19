@@ -287,10 +287,14 @@ func TestPostgresServiceCatalogCorrelationWriterPersistsReducerFacts(t *testing.
 	if result.FactsWritten != 1 {
 		t.Fatalf("FactsWritten = %d, want 1", result.FactsWritten)
 	}
-	if got, want := db.execs[0].args[3], serviceCatalogCorrelationFactKind; got != want {
+	rows := decodeBatchedFactCalls(t, db.execs)
+	if got, want := len(rows), 1; got != want {
+		t.Fatalf("decoded rows = %d, want %d", got, want)
+	}
+	if got, want := rows[0].FactKind, serviceCatalogCorrelationFactKind; got != want {
 		t.Fatalf("fact_kind = %v, want %v", got, want)
 	}
-	payload := unmarshalServiceCatalogCorrelationPayload(t, db.execs[0].args[14])
+	payload := unmarshalServiceCatalogCorrelationPayload(t, rows[0].Payload)
 	if got, want := payload["entity_ref"], "component:default/checkout"; got != want {
 		t.Fatalf("entity_ref = %#v, want %q", got, want)
 	}
