@@ -1,4 +1,5 @@
 import { boundedGraph } from "./impactGraphSelection";
+import { runtimeTopologyGraphAccounting } from "./impactRuntimeTopologyLimits";
 import type {
   DeploymentTraceResult,
   DeploymentTraceTopologyEdge,
@@ -199,6 +200,11 @@ export function deploymentTraceGraph(
     );
   }
 
+  const runtimeAccounting = runtimeTopologyGraphAccounting(trace.runtimeTopologyLimits);
+  identityOmittedNodes += runtimeAccounting.omittedNodes;
+  identityOmittedEdges += runtimeAccounting.omittedEdges;
+  for (const limitation of runtimeAccounting.limitations) limitations.add(limitation);
+
   addEvidenceNodes(trace, truth, addNode, limitations);
   const bounded = boundedGraph(
     rawNodes,
@@ -211,7 +217,10 @@ export function deploymentTraceGraph(
     graph: bounded.graph,
     presentation: {
       ...bounded.presentation,
-      truncated: bounded.presentation.truncated || trace.deploymentSourceLimits?.truncated === true,
+      truncated:
+        bounded.presentation.truncated ||
+        runtimeAccounting.truncated ||
+        trace.deploymentSourceLimits?.truncated === true,
     },
   };
 }

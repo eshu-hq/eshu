@@ -109,22 +109,32 @@ export interface DeploymentTraceResult {
   readonly provisionedPlatforms: readonly DeploymentTracePlatform[];
   readonly repoId: string;
   readonly repoName: string;
+  readonly runtimeTopologyLimits: RuntimeTopologyLimits | null;
   readonly serviceName: string;
   readonly story: string;
   readonly topologyEdges: readonly DeploymentTraceTopologyEdge[];
   readonly workloadId: string;
 }
 
-export interface DeploymentSourceLimits {
-  readonly canonicalObservedCount: number;
+export interface BoundedCollectionLimits {
   readonly limit: number;
   readonly observedCount: number;
   readonly observedCountIsLowerBound: boolean;
   readonly ordering: readonly string[];
   readonly querySentinelLimit: number;
-  readonly repositoryObservedCount: number;
   readonly returnedCount: number;
   readonly truncated: boolean;
+}
+
+export interface RuntimeTopologyLimits {
+  readonly instances: BoundedCollectionLimits;
+  readonly platformEdges: BoundedCollectionLimits;
+  readonly provisionedPlatforms: BoundedCollectionLimits;
+}
+
+export interface DeploymentSourceLimits extends BoundedCollectionLimits {
+  readonly canonicalObservedCount: number;
+  readonly repositoryObservedCount: number;
 }
 
 export interface DeploymentTraceFact {

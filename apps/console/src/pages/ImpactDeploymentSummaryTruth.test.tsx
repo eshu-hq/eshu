@@ -42,6 +42,7 @@ describe("DeploymentTraceSummary topology truth", () => {
       provisionedPlatforms: [],
       repoId: "repository:r_catalog",
       repoName: "catalog-api",
+      runtimeTopologyLimits: null,
       serviceName: "catalog-api",
       story: "Exact deployment topology.",
       topologyEdges: [

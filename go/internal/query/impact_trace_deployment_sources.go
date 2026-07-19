@@ -55,18 +55,22 @@ func fetchDeploymentSourceResultFromGraph(
 	if err != nil {
 		return deploymentSourceResult{}, err
 	}
+	canonicalReachedSentinel := len(canonicalRows) >= queryLimit
 	canonicalRows = deploymentSourceRowsWithEndpoints(canonicalRows, "DEPLOYMENT_SOURCE", "")
+	canonicalRows = deploymentSourceRowsWithCanonicalEndpoints(canonicalRows)
 
 	repositoryRows, err := fetchRepositoryDeploymentSourceRows(ctx, reader, repoID, queryLimit)
 	if err != nil {
 		return deploymentSourceResult{}, err
 	}
+	repositoryReachedSentinel := len(repositoryRows) >= queryLimit
 	repositoryRows = deploymentSourceRowsWithEndpoints(repositoryRows, "DEPLOYS_FROM", repoID)
+	repositoryRows = deploymentSourceRowsWithCanonicalEndpoints(repositoryRows)
 	merged := normalizedDeploymentSources(mergeDeploymentSourceRows(canonicalRows, repositoryRows))
 	sortDeploymentSources(merged)
 	observedCount := len(merged)
 	rows, mergedTruncated := capMapRows(merged, contextStoryItemLimit)
-	lowerBound := len(canonicalRows) >= queryLimit || len(repositoryRows) >= queryLimit
+	lowerBound := canonicalReachedSentinel || repositoryReachedSentinel
 	return deploymentSourceResult{
 		rows: rows,
 		limits: map[string]any{
@@ -188,6 +192,16 @@ func deploymentSourceRowsWithEndpoints(
 	return rows
 }
 
+func deploymentSourceRowsWithCanonicalEndpoints(rows []map[string]any) []map[string]any {
+	valid := make([]map[string]any, 0, len(rows))
+	for _, row := range rows {
+		if deploymentSourceRelationshipKey(row) != "" {
+			valid = append(valid, row)
+		}
+	}
+	return valid
+}
+
 func mergeDeploymentSourceRows(
 	canonicalRows []map[string]any,
 	repositoryRows []map[string]any,
@@ -218,12 +232,8 @@ func deploymentSourceRelationshipKey(row map[string]any) string {
 	relationshipType := StringVal(row, "relationship_type")
 	sourceID := StringVal(row, "source_id")
 	targetID := StringVal(row, "target_id")
-	if relationshipType == "DEPLOYMENT_SOURCE" && sourceID == "" {
-		return firstNonEmptyString(StringVal(row, "repo_id"), StringVal(row, "repo_name"))
+	if relationshipType == "" || sourceID == "" || targetID == "" {
+		return ""
 	}
-	key := strings.Join([]string{relationshipType, sourceID, targetID}, "\x00")
-	if key == "\x00\x00" {
-		return firstNonEmptyString(StringVal(row, "repo_id"), StringVal(row, "repo_name"))
-	}
-	return key
+	return strings.Join([]string{relationshipType, sourceID, targetID}, "\x00")
 }

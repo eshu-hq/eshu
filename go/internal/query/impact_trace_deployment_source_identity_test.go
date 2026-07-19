@@ -83,6 +83,28 @@ func TestFetchDeploymentSourcesPreservesRelationshipFamiliesForSameRepository(t 
 	}
 }
 
+func TestFetchDeploymentSourcesRejectsRelationshipsWithoutCanonicalEndpoints(t *testing.T) {
+	t.Parallel()
+
+	result, err := fetchDeploymentSourceResultFromGraph(t.Context(), fakeRepoGraphReader{
+		runByMatch: map[string][]map[string]any{
+			"MATCH (w:Workload {id: $workload_id})<-[:INSTANCE_OF]-(i:WorkloadInstance)-[rel:DEPLOYMENT_SOURCE]->(repo:Repository)": {{
+				"repo_id":   "repository:deploy",
+				"repo_name": "deploy",
+			}},
+		},
+	}, "workload:orders", "")
+	if err != nil {
+		t.Fatalf("fetchDeploymentSourceResultFromGraph() error = %v", err)
+	}
+	if len(result.rows) != 0 {
+		t.Fatalf("deployment source rows = %#v, want malformed endpoint row rejected", result.rows)
+	}
+	if got := IntVal(result.limits, "canonical_observed_count"); got != 0 {
+		t.Fatalf("canonical_observed_count = %d, want malformed row excluded", got)
+	}
+}
+
 func TestFetchDeploymentSourcesOrdersCanonicalEndpointTiesDeterministically(t *testing.T) {
 	t.Parallel()
 

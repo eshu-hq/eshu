@@ -57,9 +57,7 @@ func platformTopologyEdge(
 		"target_id":         targetID,
 		"confidence":        firstPositiveFloat(confidence, floatVal(properties, "confidence")),
 		"reason":            firstNonEmptyString(reason, StringVal(properties, "reason")),
-	}
-	if len(properties) > 0 {
-		edge["properties"] = copyStringAnyMap(properties)
+		"properties":        copyStringAnyMap(properties),
 	}
 	if sourceName != "" {
 		edge["source_name"] = sourceName

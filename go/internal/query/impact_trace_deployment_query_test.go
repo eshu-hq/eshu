@@ -62,10 +62,11 @@ func TestFetchDeploymentSourcesMergesCanonicalAndRepositorySources(t *testing.T)
 		runByMatch: map[string][]map[string]any{
 			"MATCH (w:Workload {id: $workload_id})<-[:INSTANCE_OF]-(i:WorkloadInstance)-[rel:DEPLOYMENT_SOURCE]->(repo:Repository)": {
 				{
-					"repo_id":    "repo-runtime-deploy",
-					"repo_name":  "runtime-deploy",
-					"confidence": 0.97,
-					"reason":     "canonical_instance_deployment_source",
+					"instance_id": "instance:runtime-deploy:prod",
+					"repo_id":     "repo-runtime-deploy",
+					"repo_name":   "runtime-deploy",
+					"confidence":  0.97,
+					"reason":      "canonical_instance_deployment_source",
 				},
 			},
 			"min(coalesce(rel.reason, rel.evidence_type, 'repository_deploys_from')) as reason": {
@@ -99,10 +100,11 @@ func TestFetchDeploymentSourcesPreservesCanonicalAndRepositoryRelationshipOverla
 		runByMatch: map[string][]map[string]any{
 			"MATCH (w:Workload {id: $workload_id})<-[:INSTANCE_OF]-(i:WorkloadInstance)-[rel:DEPLOYMENT_SOURCE]->(repo:Repository)": {
 				{
-					"repo_id":    "repo-runtime-deploy",
-					"repo_name":  "runtime-deploy",
-					"confidence": 0.97,
-					"reason":     "canonical_instance_deployment_source",
+					"instance_id": "instance:runtime-deploy:prod",
+					"repo_id":     "repo-runtime-deploy",
+					"repo_name":   "runtime-deploy",
+					"confidence":  0.97,
+					"reason":      "canonical_instance_deployment_source",
 				},
 			},
 			"min(coalesce(rel.reason, rel.evidence_type, 'repository_deploys_from')) as reason": {

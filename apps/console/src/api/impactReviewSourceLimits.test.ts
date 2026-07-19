@@ -63,10 +63,29 @@ describe("impact deployment-source coverage normalization", () => {
     if (result.deploymentTrace.status !== "ready") return;
     expect(result.deploymentTrace.data.deploymentSourceLimits).toBeNull();
   });
+
+  it("rejects contradictory runtime-topology coverage metadata", async () => {
+    const result = await loadImpactReview(
+      clientWithDeploymentSourceLimits(validDeploymentSourceLimits(), {
+        instances: { ...completeRuntimeLimits(), returned_count: 1 },
+        platform_edges: completeRuntimeLimits(),
+        provisioned_platforms: completeRuntimeLimits(),
+      }),
+      { target: "catalog-api", targetKind: "service" },
+    );
+
+    expect(result.deploymentTrace.status).toBe("ready");
+    if (result.deploymentTrace.status !== "ready") return;
+    expect(result.deploymentTrace.data.runtimeTopologyLimits).toBeNull();
+    expect(result.graphPresentation.limitations).toContain(
+      "runtime-topology completeness unverified because collection metadata is unavailable",
+    );
+  });
 });
 
 function clientWithDeploymentSourceLimits(
   deploymentSourceLimits: unknown = validDeploymentSourceLimits(),
+  runtimeTopologyLimits?: unknown,
 ): EshuApiClient {
   return {
     post: async (path: string) => {
@@ -87,6 +106,7 @@ function clientWithDeploymentSourceLimits(
             instances: [],
             repo_id: "repository:r_catalog",
             repo_name: "catalog-api",
+            runtime_topology_limits: runtimeTopologyLimits,
             service_name: "catalog-api",
             story: "Deployment source results are bounded.",
             topology_edges: [
@@ -105,6 +125,18 @@ function clientWithDeploymentSourceLimits(
       throw new Error(`unexpected path ${path}`);
     },
   } as unknown as EshuApiClient;
+}
+
+function completeRuntimeLimits(): Record<string, unknown> {
+  return {
+    limit: 50,
+    observed_count: 0,
+    observed_count_is_lower_bound: false,
+    ordering: ["canonical_identity"],
+    query_sentinel_limit: 51,
+    returned_count: 0,
+    truncated: false,
+  };
 }
 
 function validDeploymentSourceLimits(): Record<string, unknown> {

@@ -109,3 +109,22 @@ func TestOpenAPIImpactDeploymentTraceDocumentsCanonicalPlatformIdentity(t *testi
 		}
 	}
 }
+
+func TestProvisionedPlatformResponseSatisfiesRequiredPropertiesSchema(t *testing.T) {
+	t.Parallel()
+
+	edges := provisionedPlatformTopologyEdges(map[string]any{
+		"platform_source_id":            "repository:infra",
+		"platform_dependency_target_id": "repository:service",
+		"platform_id":                   "platform:prod",
+	})
+	for _, edge := range edges {
+		properties, ok := edge["properties"]
+		if !ok {
+			t.Fatalf("propertyless %s response omitted OpenAPI-required properties", StringVal(edge, "relationship_type"))
+		}
+		if _, ok := properties.(map[string]any); !ok {
+			t.Fatalf("propertyless %s response properties = %T, want object", StringVal(edge, "relationship_type"), properties)
+		}
+	}
+}

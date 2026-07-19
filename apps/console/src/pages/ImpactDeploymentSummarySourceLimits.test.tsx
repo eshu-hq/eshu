@@ -69,6 +69,7 @@ function renderSummary(deploymentSourceLimits: DeploymentSourceLimits | null): v
     provisionedPlatforms: [],
     repoId: "repository:r_catalog",
     repoName: "catalog-api",
+    runtimeTopologyLimits: null,
     serviceName: "catalog-api",
     story: "Deployment source results are bounded.",
     topologyEdges: [],

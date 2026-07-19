@@ -167,6 +167,103 @@ describe("impact deployment graph composition", () => {
     expect(review.graph.nodes.some((node) => node.kind === "env")).toBe(false);
   });
 
+  it.each([
+    [
+      "instances",
+      {
+        instances: truncatedCollectionLimits(1),
+        platform_edges: completeCollectionLimits(1),
+        provisioned_platforms: completeCollectionLimits(1),
+      },
+      "runtime instance input truncated upstream; showing 1 of at least 2 observed runtime instances; at least 1 instance was not returned",
+      1,
+      1,
+    ],
+    [
+      "direct placements",
+      {
+        instances: completeCollectionLimits(1),
+        platform_edges: truncatedCollectionLimits(1),
+        provisioned_platforms: completeCollectionLimits(1),
+      },
+      "direct placement input truncated upstream; showing 1 of at least 2 observed direct placements; at least 1 relationship was not returned",
+      0,
+      1,
+    ],
+    [
+      "provisioned platforms",
+      {
+        instances: completeCollectionLimits(1),
+        platform_edges: completeCollectionLimits(1),
+        provisioned_platforms: truncatedCollectionLimits(1),
+      },
+      "provisioned platform input truncated upstream; showing 1 of at least 2 observed provisioned platforms; at least 1 platform record was not returned",
+      0,
+      2,
+    ],
+  ])(
+    "surfaces upstream %s sentinel truncation in graph completeness",
+    async (_family, runtimeTopologyLimits, limitation, omittedNodes, omittedEdges) => {
+      const review = await loadReview(
+        deploymentTracePayload({
+          instances: [
+            {
+              environment: "prod",
+              instance_id: "instance:catalog:prod",
+              platforms: [
+                {
+                  platform_id: "platform:ecs:prod",
+                  platform_kind: "ecs",
+                  platform_name: "prod",
+                  ...directRuntimeTopology("instance:catalog:prod", "platform:ecs:prod"),
+                },
+              ],
+            },
+          ],
+          provisioned_platforms: [
+            {
+              platform_id: "platform:kubernetes:provisioned",
+              platform_kind: "kubernetes",
+              platform_name: "provisioned",
+              topology_edges: [
+                {
+                  relationship_type: "PROVISIONS_DEPENDENCY_FOR",
+                  source_id: "repository:r_infra",
+                  target_id: "repository:r_catalog",
+                },
+                {
+                  relationship_type: "PROVISIONS_PLATFORM",
+                  source_id: "repository:r_infra",
+                  target_id: "platform:kubernetes:provisioned",
+                },
+              ],
+            },
+          ],
+          runtime_topology_limits: runtimeTopologyLimits,
+          topology_edges: [
+            {
+              relationship_type: "DEFINES",
+              source_id: "repository:r_catalog",
+              target_id: "workload:catalog-api",
+            },
+            {
+              relationship_type: "INSTANCE_OF",
+              source_id: "instance:catalog:prod",
+              target_id: "workload:catalog-api",
+            },
+          ],
+        }),
+      );
+
+      expect(review.graphPresentation).toMatchObject({
+        omittedEdges,
+        omittedNodes,
+        truncated: true,
+      });
+      expect(review.graphPresentation.limitations).toContain(limitation);
+    },
+  );
+
   it("separates instances, platforms, and evidence into navigable lanes", async () => {
     const instances = Array.from({ length: 6 }, (_, index) => ({
       environment: `environment-${index}`,
@@ -374,3 +471,24 @@ describe("impact deployment graph composition", () => {
     });
   });
 });
+
+function completeCollectionLimits(returnedCount: number): Record<string, unknown> {
+  return {
+    limit: 50,
+    observed_count: returnedCount,
+    observed_count_is_lower_bound: false,
+    ordering: ["canonical_identity"],
+    query_sentinel_limit: 51,
+    returned_count: returnedCount,
+    truncated: false,
+  };
+}
+
+function truncatedCollectionLimits(returnedCount: number): Record<string, unknown> {
+  return {
+    ...completeCollectionLimits(returnedCount),
+    observed_count: returnedCount + 1,
+    observed_count_is_lower_bound: true,
+    truncated: true,
+  };
+}

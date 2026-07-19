@@ -9,6 +9,7 @@ import type {
   DeploymentTraceTopologyBasis,
   DeploymentTraceTopologyEdge,
 } from "./impactReviewTypes";
+import { normalizeRuntimeTopologyLimits } from "./impactRuntimeTopologyLimits";
 
 export interface DeploymentTraceResponse {
   readonly cloud_resources?: readonly Record<string, unknown>[];
@@ -22,6 +23,7 @@ export interface DeploymentTraceResponse {
   readonly provisioned_platforms?: readonly Record<string, unknown>[];
   readonly repo_id?: string;
   readonly repo_name?: string;
+  readonly runtime_topology_limits?: unknown;
   readonly service_name?: string;
   readonly story?: string;
   readonly topology_edges?: readonly unknown[];
@@ -70,6 +72,11 @@ export function normalizeDeploymentTrace(response: DeploymentTraceResponse): Dep
     provisionedPlatforms,
     repoId: nonEmpty(response.repo_id),
     repoName: nonEmpty(response.repo_name),
+    runtimeTopologyLimits: normalizeRuntimeTopologyLimits(response.runtime_topology_limits, {
+      instances: instances.length,
+      platformEdges: instances.reduce((count, instance) => count + instance.platforms.length, 0),
+      provisionedPlatforms: provisionedPlatforms.length,
+    }),
     serviceName: nonEmpty(response.service_name),
     story: nonEmpty(response.story, "Deployment trace returned no story text."),
     topologyEdges: topology.edges,

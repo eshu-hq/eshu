@@ -89,9 +89,10 @@ runtime knob, or API call was added.
 After rebasing over the production query-plan guardrail, the exact
 `QP-SVC-RUNS-ON` production source and Cypher fingerprints were refreshed for
 the additive endpoint and provenance projections. The deployment-source query
-fingerprints include the deterministic sentinel limits. Final query-plan
-regression and live-profile results are recorded below after the exact branch
-gate is rerun.
+fingerprints include the deterministic sentinel limits. Static query-plan
+regression and the backend-executed B-7 result are recorded below. The opt-in
+`ESHU_QUERYPLAN_PROFILE_LIVE=1` suite was not run for this correctness change,
+so this note makes no live PROFILE claim.
 
 ## Golden contract
 
