@@ -175,7 +175,12 @@ func fetchServiceTraceContext(
 	}
 	var workloadContext map[string]any
 	if workloadID != "" {
-		workloadContext, err = entityHandler.fetchServiceWorkloadContext(ctx, serviceName, "deployment_trace")
+		workloadContext, err = entityHandler.fetchWorkloadContextForOperation(
+			ctx,
+			"w.id = $workload_id",
+			map[string]any{"workload_id": workloadID},
+			"deployment_trace",
+		)
 	} else {
 		workloadContext, err = entityHandler.fetchServiceReadModelWorkloadContext(ctx, serviceName)
 	}

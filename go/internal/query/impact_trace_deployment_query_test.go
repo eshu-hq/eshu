@@ -194,7 +194,7 @@ func TestFetchServiceTraceContextAcceptsQualifiedWorkloadID(t *testing.T) {
 				if strings.Contains(cypher, "w.name = $service_name") {
 					return nil, nil
 				}
-				if strings.Contains(cypher, "w.id = $service_name") {
+				if strings.Contains(cypher, "w.id = $service_name") || strings.Contains(cypher, "w.id = $workload_id") {
 					return map[string]any{
 						"id":        "workload:service-edge-api",
 						"name":      "service-edge-api",
@@ -238,6 +238,52 @@ func TestFetchServiceTraceContextAcceptsQualifiedWorkloadID(t *testing.T) {
 	}
 }
 
+func TestFetchServiceTraceContextPreservesResolvedWorkloadIDWhenAnotherWorkloadNameCollides(t *testing.T) {
+	t.Parallel()
+
+	ctx, err := fetchServiceTraceContext(
+		t.Context(),
+		fakeWorkloadGraphReader{
+			runSingle: func(_ context.Context, cypher string, params map[string]any) (map[string]any, error) {
+				switch {
+				case strings.Contains(cypher, "w.id = $service_name"):
+					return map[string]any{
+						"id":   "workload:orders",
+						"name": "orders",
+					}, nil
+				case strings.Contains(cypher, "w.name = $service_name"):
+					return map[string]any{
+						"id":   "workload:other",
+						"name": "workload:orders",
+						"kind": "service",
+					}, nil
+				case strings.Contains(cypher, "w.id = $workload_id"):
+					if got, want := params["workload_id"], "workload:orders"; got != want {
+						t.Fatalf("params[workload_id] = %#v, want %#v", got, want)
+					}
+					return map[string]any{
+						"id":   "workload:orders",
+						"name": "orders",
+						"kind": "service",
+					}, nil
+				default:
+					return nil, nil
+				}
+			},
+		},
+		nil,
+		nil,
+		"workload:orders",
+		traceEnrichmentOptions(traceDeploymentChainRequest{ServiceName: "workload:orders"}),
+	)
+	if err != nil {
+		t.Fatalf("fetchServiceTraceContext() error = %v, want nil", err)
+	}
+	if got, want := safeStr(ctx, "id"), "workload:orders"; got != want {
+		t.Fatalf("context.id = %#v, want resolved workload id %#v", got, want)
+	}
+}
+
 func TestFetchServiceTraceContextIncludesGraphDeploymentEvidenceWithoutContent(t *testing.T) {
 	t.Parallel()
 
@@ -246,6 +292,14 @@ func TestFetchServiceTraceContextIncludesGraphDeploymentEvidenceWithoutContent(t
 		fakeWorkloadGraphReader{
 			runSingleByMatch: map[string]map[string]any{
 				"w.name = $service_name": {
+					"id":        "workload:checkout-service",
+					"name":      "checkout-service",
+					"kind":      "service",
+					"repo_id":   "repo-service",
+					"repo_name": "checkout-service",
+					"instances": []any{},
+				},
+				"w.id = $workload_id": {
 					"id":        "workload:checkout-service",
 					"name":      "checkout-service",
 					"kind":      "service",
@@ -324,6 +378,22 @@ func TestTraceDeploymentChainKeepsConfigDerivedCloudResources(t *testing.T) {
 		Neo4j: fakeWorkloadGraphReader{
 			runSingleByMatch: map[string]map[string]any{
 				"w.name = $service_name": {
+					"id":        "workload:orders-api",
+					"name":      "orders-api",
+					"kind":      "service",
+					"repo_id":   "repo-orders",
+					"repo_name": "orders-api",
+					"instances": []any{},
+					"deployment_evidence": map[string]any{
+						"artifacts": []map[string]any{
+							{
+								"relationship_type": "READS_CONFIG_FROM",
+								"matched_value":     "/config/orders-api/*",
+							},
+						},
+					},
+				},
+				"w.id = $workload_id": {
 					"id":        "workload:orders-api",
 					"name":      "orders-api",
 					"kind":      "service",
