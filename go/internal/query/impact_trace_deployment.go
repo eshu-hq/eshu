@@ -93,9 +93,11 @@ func (h *ImpactHandler) traceDeploymentChain(w http.ResponseWriter, r *http.Requ
 		if len(cloudResources) == 0 {
 			contextRows := mapSliceValue(ctx, "cloud_resources")
 			contextRows, _ = capMapRows(contextRows, serviceStoryItemLimit)
-			cloudResourceResult.rows = contextRows
-			cloudResourceResult.limits = nil
-			cloudResources = cloudResourceResult.rows
+			if len(contextRows) > 0 {
+				cloudResourceResult.rows = contextRows
+				cloudResourceResult.limits = nil
+				cloudResources = cloudResourceResult.rows
+			}
 		}
 		if len(cloudResources) == 0 && len(mapSliceValue(ctx, "uncorrelated_cloud_resources")) == 0 {
 			configRows, configTruncated, configErr := loadConfigDerivedCloudResourceDependenciesBounded(
