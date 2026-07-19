@@ -63,7 +63,7 @@ func ResolveAPIKey(getenv func(string) string) (string, error) {
 		return token, nil
 	}
 
-	if !isTruthy(getenv(autoGenerateAPIKeyEnvVar)) {
+	if !IsTruthy(getenv(autoGenerateAPIKeyEnvVar)) {
 		return "", nil
 	}
 
@@ -112,7 +112,12 @@ func generateAPIKey() (string, error) {
 	return hex.EncodeToString(seed[:]), nil
 }
 
-func isTruthy(value string) bool {
+// IsTruthy reports whether value is one of the accepted truthy spellings for
+// an Eshu boolean environment-variable flag (case-insensitive, surrounding
+// whitespace trimmed). It is the single source of truth for the "is this
+// escape-hatch/opt-in flag on" question across runtime env-var flags such as
+// ESHU_AUTO_GENERATE_API_KEY and ESHU_MCP_ALLOW_UNAUTHENTICATED.
+func IsTruthy(value string) bool {
 	switch strings.ToLower(strings.TrimSpace(value)) {
 	case "1", "true", "t", "yes", "y", "on":
 		return true

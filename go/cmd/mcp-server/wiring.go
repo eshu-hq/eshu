@@ -36,26 +36,26 @@ func wireAPI(
 	getenv func(string) string,
 	logger *slog.Logger,
 	prometheusHandler http.Handler,
-) (http.Handler, *http.ServeMux, func(), error) {
+) (http.Handler, *http.ServeMux, func(), mcpAuthWiring, error) {
 	queryProfile, err := loadQueryProfile(getenv)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("load query profile: %w", err)
+		return nil, nil, nil, mcpAuthWiring{}, fmt.Errorf("load query profile: %w", err)
 	}
 	graphBackend, err := loadGraphBackend(getenv)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("load graph backend: %w", err)
+		return nil, nil, nil, mcpAuthWiring{}, fmt.Errorf("load graph backend: %w", err)
 	}
 	semanticProviderProfiles, err := semanticprofile.LoadStatusesFromEnv(getenv)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("load semantic provider profiles: %w", err)
+		return nil, nil, nil, mcpAuthWiring{}, fmt.Errorf("load semantic provider profiles: %w", err)
 	}
 	semanticPolicy, err := semanticpolicy.LoadFromEnv(getenv)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("load semantic extraction policy: %w", err)
+		return nil, nil, nil, mcpAuthWiring{}, fmt.Errorf("load semantic extraction policy: %w", err)
 	}
 	semanticSearchEmbedding, err := searchembedruntime.ConfigFromEnv(getenv, nil)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("load semantic search embedder: %w", err)
+		return nil, nil, nil, mcpAuthWiring{}, fmt.Errorf("load semantic search embedder: %w", err)
 	}
 	semanticProviderProfiles = semanticpolicy.ApplyToProviderStatuses(
 		semanticProviderProfiles,
@@ -64,11 +64,16 @@ func wireAPI(
 
 	apiKey, err := internalruntime.ResolveAPIKey(getenv)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("resolve api key: %w", err)
+		return nil, nil, nil, mcpAuthWiring{}, fmt.Errorf("resolve api key: %w", err)
 	}
-	scopedTokenResolver, err := scopedtoken.ResolverFromEnv(getenv)
+	// fileScopedTokenResolver is the raw ESHU_SCOPED_TOKENS_FILE registry
+	// resolver, kept separate (not yet merged with identity/OIDC) so
+	// requireMCPHTTPCredentialSource below can see whether THIS specific
+	// knob was configured, distinct from the always-wired Postgres identity
+	// resolver added to the chain further down.
+	fileScopedTokenResolver, err := scopedtoken.ResolverFromEnv(getenv)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("resolve scoped token registry: %w", err)
+		return nil, nil, nil, mcpAuthWiring{}, fmt.Errorf("resolve scoped token registry: %w", err)
 	}
 	governanceStatus := query.GovernanceStatusConfigFromEnv(getenv, apiKey != "")
 
@@ -78,12 +83,12 @@ func wireAPI(
 	// after sql.Open below.
 	pgPoolCfg, err := internalruntime.LoadPostgresConfig(getenv)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("load postgres pool config: %w", err)
+		return nil, nil, nil, mcpAuthWiring{}, fmt.Errorf("load postgres pool config: %w", err)
 	}
 
 	driver, neo4jDB, err := openQueryGraph(ctx, getenv, queryProfile, logger)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, mcpAuthWiring{}, err
 	}
 
 	// Open Postgres using pgx driver
@@ -93,7 +98,7 @@ func wireAPI(
 		if driver != nil {
 			_ = driver.Close(ctx)
 		}
-		return nil, nil, nil, fmt.Errorf("ESHU_POSTGRES_DSN or ESHU_CONTENT_STORE_DSN is required")
+		return nil, nil, nil, mcpAuthWiring{}, fmt.Errorf("ESHU_POSTGRES_DSN or ESHU_CONTENT_STORE_DSN is required")
 	}
 
 	db, err := sql.Open("pgx", pgDSN)
@@ -101,7 +106,7 @@ func wireAPI(
 		if driver != nil {
 			_ = driver.Close(ctx)
 		}
-		return nil, nil, nil, fmt.Errorf("open postgres: %w", err)
+		return nil, nil, nil, mcpAuthWiring{}, fmt.Errorf("open postgres: %w", err)
 	}
 	// Bound the pool to the shared per-process ceiling (validated above, before the
 	// graph dial). Without this the mcp-server pool is database/sql-default
@@ -113,12 +118,12 @@ func wireAPI(
 		if driver != nil {
 			_ = driver.Close(ctx)
 		}
-		return nil, nil, nil, fmt.Errorf("ping postgres: %w", err)
+		return nil, nil, nil, mcpAuthWiring{}, fmt.Errorf("ping postgres: %w", err)
 	}
 	if logger != nil {
 		logger.Info("postgres connected", telemetry.EventAttr("runtime.postgres.connected"))
 	}
-	// identityResolver is kept separate from scopedTokenResolver (the
+	// identityResolver is kept separate from fileScopedTokenResolver (the
 	// file-registry resolver loaded above) until after instruments exists
 	// below: the IdP bearer resolver (#5162) needs instruments and must sit
 	// BETWEEN identity and file-registry in the chain
@@ -130,7 +135,7 @@ func wireAPI(
 		if driver != nil {
 			_ = driver.Close(ctx)
 		}
-		return nil, nil, nil, fmt.Errorf("register query instruments: %w", err)
+		return nil, nil, nil, mcpAuthWiring{}, fmt.Errorf("register query instruments: %w", err)
 	}
 
 	// IdP bearer-token resolver (#5162): see cmd/api's identical wiring
@@ -141,9 +146,15 @@ func wireAPI(
 		if driver != nil {
 			_ = driver.Close(ctx)
 		}
-		return nil, nil, nil, fmt.Errorf("construct oidc bearer resolver: %w", err)
+		return nil, nil, nil, mcpAuthWiring{}, fmt.Errorf("construct oidc bearer resolver: %w", err)
 	}
-	scopedTokenResolver = scopedtoken.ChainResolvers(identityResolver, oidcBearerResolver, scopedTokenResolver)
+	// credentialSourceConfigured feeds requireMCPHTTPCredentialSource's "no
+	// silent open mode over HTTP" gate (issue #5168): true when at least one
+	// of the three explicit, operator-facing credential knobs is set. See
+	// mcpAuthWiring's doc comment for why the always-wired identityResolver
+	// itself is deliberately excluded from this signal.
+	credentialSourceConfigured := apiKey != "" || fileScopedTokenResolver != nil || oidcBearerResolver != nil
+	scopedTokenResolver := scopedtoken.ChainResolvers(identityResolver, oidcBearerResolver, fileScopedTokenResolver)
 
 	// Build query layer
 	neo4jReader := query.NewNeo4jReader(driver, neo4jDB)
@@ -207,7 +218,7 @@ func wireAPI(
 		if driver != nil {
 			_ = driver.Close(ctx)
 		}
-		return nil, nil, nil, fmt.Errorf("mount runtime surface: %w", err)
+		return nil, nil, nil, mcpAuthWiring{}, fmt.Errorf("mount runtime surface: %w", err)
 	}
 
 	cleanup := func() {
@@ -217,5 +228,15 @@ func wireAPI(
 		}
 	}
 
-	return authedHandler, adminMux, cleanup, nil
+	// authWiring lets main.go authenticate the MCP HTTP transport (GET /sse,
+	// POST /mcp/message) with the SAME credential chain protecting
+	// /api/v0/* and tools/call's internal dispatch (issue #5168).
+	authWiring := mcpAuthWiring{
+		transportAuth: func(next http.Handler) http.Handler {
+			return query.AuthMiddlewareWithScopedTokensAndGovernanceAudit(apiKey, scopedTokenResolver, next, governanceAudit)
+		},
+		credentialSourceConfigured: credentialSourceConfigured,
+	}
+
+	return authedHandler, adminMux, cleanup, authWiring, nil
 }

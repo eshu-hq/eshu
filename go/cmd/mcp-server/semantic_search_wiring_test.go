@@ -209,7 +209,7 @@ func TestNewMCPQueryRouterWiresSemanticSearchScopeResolverWithPostgresInstrument
 }
 
 func TestWireAPIRejectsUnknownSemanticSearchLocalEmbedderBeforeDatastore(t *testing.T) {
-	_, _, _, err := wireAPI(context.Background(), func(key string) string {
+	_, _, _, _, err := wireAPI(context.Background(), func(key string) string {
 		if key == envSemanticSearchLocalEmbedder {
 			return "hosted"
 		}

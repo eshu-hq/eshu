@@ -53,6 +53,17 @@ spec:
               value: /tmp
             - name: ESHU_MCP_TRANSPORT
               value: http
+            # Defense in depth (#5168): the mcp-server container runs
+            # `eshu mcp start --transport http`, the same CLI subcommand that
+            # defaults the unauth escape hatch on for a loopback bind. This pod
+            # binds 0.0.0.0 (non-loopback), so the CLI already withholds the
+            # default; setting it false explicitly guarantees the no-silent-open
+            # startup gate governs even if that host logic ever changes. The
+            # gate is satisfied by the ESHU_API_KEY secret below; if that secret
+            # ever resolves empty, the pod fails closed rather than serving an
+            # unauthenticated MCP transport.
+            - name: ESHU_MCP_ALLOW_UNAUTHENTICATED
+              value: "false"
             - name: NEO4J_URI
               value: {{ .Values.neo4j.uri | quote }}
             {{- include "eshu.renderContentStoreEnv" . | nindent 12 }}

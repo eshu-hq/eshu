@@ -89,11 +89,6 @@ type mcpResource struct {
 	Text     string `json:"text,omitempty"`
 }
 
-// sseSession holds the response channel for one SSE client.
-type sseSession struct {
-	ch chan []byte
-}
-
 // Server is the Go MCP server that dispatches tool calls to internal HTTP handlers.
 type Server struct {
 	handler http.Handler
@@ -104,20 +99,30 @@ type Server struct {
 	// SSE session registry: sessionID -> session
 	sessMu   sync.RWMutex
 	sessions map[string]*sseSession
+
+	// transportAuth wraps GET /sse and POST /mcp/message with the caller's
+	// credential chain (see WithTransportAuth). nil means the HTTP transport
+	// is unauthenticated -- the local stdio path never uses this field at all,
+	// since Run() (stdio) never touches httpMux.
+	transportAuth func(http.Handler) http.Handler
 }
 
 // NewServer creates an MCP server backed by the given HTTP handler.
 // The handler should have all /api/v0/* query routes mounted.
-func NewServer(handler http.Handler, logger *slog.Logger) *Server {
+func NewServer(handler http.Handler, logger *slog.Logger, opts ...ServerOption) *Server {
 	if logger == nil {
 		logger = slog.New(slog.NewJSONHandler(os.Stderr, nil))
 	}
-	return &Server{
+	s := &Server{
 		handler:  handler,
 		tools:    ReadOnlyTools(),
 		logger:   logger,
 		sessions: make(map[string]*sseSession),
 	}
+	for _, opt := range opts {
+		opt(s)
+	}
+	return s
 }
 
 // RunHTTP starts the MCP server as an HTTP service listening on addr.
@@ -166,125 +171,18 @@ func (s *Server) httpMux(base *http.ServeMux) *http.ServeMux {
 		_, _ = w.Write([]byte(`{"status":"ok"}`))
 	})
 
-	// SSE transport endpoint.
-	httpMux.HandleFunc("GET /sse", s.handleSSE)
-
-	// MCP JSON-RPC endpoint (supports both standalone POST and SSE-linked POST).
-	httpMux.HandleFunc("POST /mcp/message", s.handleHTTPMessage)
+	// SSE transport endpoint and the JSON-RPC endpoint (standalone POST or
+	// SSE-linked POST) both require the same credential chain as tools/call
+	// when transport auth is configured (issue #5168); authenticatedTransportHandler
+	// is a no-op wrap when s.transportAuth is nil.
+	httpMux.HandleFunc("GET /sse", s.authenticatedTransportHandler("sse", s.handleSSE))
+	httpMux.HandleFunc("POST /mcp/message", s.authenticatedTransportHandler("", s.handleHTTPMessage))
 
 	// Mount the query API routes so the MCP service can also serve
 	// direct HTTP queries (single deployment surface in EKS).
 	httpMux.Handle("/api/", s.handler)
 
 	return httpMux
-}
-
-// handleSSE establishes an SSE connection. It sends an `endpoint` event telling
-// the client where to POST JSON-RPC messages, then streams keepalive events
-// and any responses for the session.
-func (s *Server) handleSSE(w http.ResponseWriter, r *http.Request) {
-	flusher, ok := w.(http.Flusher)
-	if !ok {
-		http.Error(w, "streaming not supported", http.StatusInternalServerError)
-		return
-	}
-
-	// Create a session for this SSE connection.
-	sessionID := fmt.Sprintf("sess_%d", time.Now().UnixNano())
-	sess := &sseSession{ch: make(chan []byte, 64)}
-
-	s.sessMu.Lock()
-	s.sessions[sessionID] = sess
-	s.sessMu.Unlock()
-
-	defer func() {
-		s.sessMu.Lock()
-		delete(s.sessions, sessionID)
-		s.sessMu.Unlock()
-		close(sess.ch)
-	}()
-
-	w.Header().Set("Content-Type", "text/event-stream")
-	w.Header().Set("Cache-Control", "no-cache")
-	w.Header().Set("Connection", "keep-alive")
-	w.Header().Set("X-Accel-Buffering", "no") // disable nginx buffering
-
-	// Send the endpoint event per MCP SSE spec.
-	// The client uses this URL to POST JSON-RPC requests.
-	_, _ = fmt.Fprintf(w, "event: endpoint\ndata: /mcp/message?sessionId=%s\n\n", sessionID)
-	flusher.Flush()
-
-	s.logger.Info("sse session started", "session_id", sessionID)
-
-	// Keepalive ticker.
-	ticker := time.NewTicker(30 * time.Second)
-	defer ticker.Stop()
-
-	ctx := r.Context()
-	for {
-		select {
-		case <-ctx.Done():
-			s.logger.Info("sse session closed", "session_id", sessionID)
-			return
-		case msg, ok := <-sess.ch:
-			if !ok {
-				return
-			}
-			_, _ = fmt.Fprintf(w, "event: message\ndata: %s\n\n", msg)
-			flusher.Flush()
-		case <-ticker.C:
-			_, _ = fmt.Fprintf(w, ": keepalive\n\n")
-			flusher.Flush()
-		}
-	}
-}
-
-// handleHTTPMessage handles POST /mcp/message. If a sessionId query param is
-// present, the response is sent via the SSE stream. Otherwise, the response
-// is returned directly in the HTTP response body.
-func (s *Server) handleHTTPMessage(w http.ResponseWriter, r *http.Request) {
-	var req jsonrpcRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusBadRequest)
-		_ = json.NewEncoder(w).Encode(jsonrpcResponse{
-			JSONRPC: "2.0",
-			Error:   &jsonrpcError{Code: -32700, Message: "parse error"},
-		})
-		return
-	}
-
-	resp := s.handleMessage(r.Context(), &req, r.Header.Get("Authorization"))
-
-	// Check for an SSE session.
-	sessionID := r.URL.Query().Get("sessionId")
-	if sessionID != "" {
-		s.sessMu.RLock()
-		sess, ok := s.sessions[sessionID]
-		s.sessMu.RUnlock()
-
-		if ok && resp != nil {
-			encoded, err := json.Marshal(resp)
-			if err == nil {
-				select {
-				case sess.ch <- encoded:
-				default:
-					s.logger.Warn("sse session buffer full, dropping message", "session_id", sessionID)
-				}
-			}
-			// For SSE-linked requests, return 202 Accepted (response sent via SSE).
-			w.WriteHeader(http.StatusAccepted)
-			return
-		}
-	}
-
-	// Standalone POST mode — return response directly.
-	w.Header().Set("Content-Type", "application/json")
-	if resp == nil {
-		w.WriteHeader(http.StatusNoContent)
-		return
-	}
-	_ = json.NewEncoder(w).Encode(resp)
 }
 
 // Run starts the stdio JSON-RPC transport. It reads from stdin and writes to stdout.

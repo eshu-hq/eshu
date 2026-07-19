@@ -44,6 +44,25 @@ eshu mcp start --workspace-root /path/to/repo --transport http --host 127.0.0.1 
 The legacy `--transport sse` value is accepted as an alias for the HTTP
 transport.
 
+Local `eshu mcp start --transport http` inherits whatever credential the
+running local owner is configured with (typically none, since local dev
+usually has no `ESHU_API_KEY` set). As of #5168 an HTTP MCP server with no
+resolvable credential source refuses to start unless
+`ESHU_MCP_ALLOW_UNAUTHENTICATED=true` is set. When you bind a **loopback**
+host — `--host 127.0.0.1` (as shown above), `::1`, `localhost`, or the local
+owner-attached flow — the CLI sets that escape hatch for you, so the documented
+local flow keeps working with zero configuration. Binding a non-loopback host
+(for example the `--host 0.0.0.0` wildcard) does **not** get the default: it
+must configure a real credential source or set `ESHU_MCP_ALLOW_UNAUTHENTICATED`
+itself, so an accidentally exposed local server fails closed. An explicit
+`ESHU_MCP_ALLOW_UNAUTHENTICATED` in your environment always wins over the
+loopback default. The default stdio path
+(`eshu mcp start --workspace-root <repo>`) is unaffected either way — it
+keeps its process/filesystem trust boundary and is never gated by credential
+configuration. See
+[Service Runtimes](../deployment/service-runtimes.md#mcp-http-transport-auth-breaking-change)
+for the full deployment-facing contract.
+
 ## Use the Compose MCP service
 
 Docker Compose starts an MCP server service:

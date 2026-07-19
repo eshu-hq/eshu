@@ -90,6 +90,7 @@ var coreEntries = []Entry{
 	// mcp
 	{Name: "ESHU_MCP_TRANSPORT", Type: VarEnum, Default: "http", Subsystem: "mcp", Allowed: []string{"http", "stdio"}, Description: "MCP server transport mode."},
 	{Name: "ESHU_MCP_ADDR", Type: VarString, Default: ":8080", Subsystem: "mcp", Description: "MCP HTTP transport listen address."},
+	{Name: "ESHU_MCP_ALLOW_UNAUTHENTICATED", Type: VarBool, Default: "false", Subsystem: "mcp", Description: "Dev/loopback escape hatch (issue #5168): when true, ESHU_MCP_TRANSPORT=http is allowed to start with no resolvable credential source (no ESHU_API_KEY, no ESHU_SCOPED_TOKENS_FILE, no ESHU_AUTH_RESOURCE_URI). Without it, that configuration refuses to start. Every initialize/tools/list/tools/call/ping request and SSE session is unauthenticated in that state; never set this on a publicly reachable port."},
 
 	// reducer
 	{Name: "ESHU_CODE_VALUE_FLOW_STALE_CLEANUP_DELETE_BATCH_LIMIT", Type: VarInt, Default: "500", Subsystem: "reducer", Description: "Maximum stale value-flow evidence nodes or edges deleted per active scope and family in one reducer cleanup pass."},

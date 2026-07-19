@@ -78,6 +78,12 @@ const (
 	MetricDimensionReason   = "reason"
 	MetricDimensionKind     = "kind"
 	MetricDimensionAction   = "action"
+	// MetricDimensionMCPMethod labels eshu_dp_mcp_transport_auth_denied_total
+	// with the bounded JSON-RPC method a denied MCP transport request named
+	// (initialize, tools/list, tools/call, ping, notifications/initialized,
+	// "sse", "other", or "unknown"), never a raw unbounded string parsed from
+	// an unauthenticated request body.
+	MetricDimensionMCPMethod = "mcp_method"
 	// MetricDimensionAuthPath labels every eshu_dp_gcp_freshness_events_total
 	// series with a bounded four-value enum: "shared_token" or "oidc" (the
 	// webhook listener's accepted auth path that authenticated the inbound

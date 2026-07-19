@@ -303,6 +303,7 @@ This reference is generated from the code-owned registry in `go/internal/envregi
 | Variable | Type | Default | Notes |
 | --- | --- | --- | --- |
 | `ESHU_MCP_ADDR` | string | `:8080` | MCP HTTP transport listen address. |
+| `ESHU_MCP_ALLOW_UNAUTHENTICATED` | bool | `false` | Dev/loopback escape hatch (issue #5168): when true, ESHU_MCP_TRANSPORT=http is allowed to start with no resolvable credential source (no ESHU_API_KEY, no ESHU_SCOPED_TOKENS_FILE, no ESHU_AUTH_RESOURCE_URI). Without it, that configuration refuses to start. Every initialize/tools/list/tools/call/ping request and SSE session is unauthenticated in that state; never set this on a publicly reachable port. |
 | `ESHU_MCP_TRANSPORT` | enum | `http` | MCP server transport mode. Allowed: `http`, `stdio`. |
 
 ## postgres

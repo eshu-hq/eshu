@@ -1,10 +1,10 @@
 # internal/mcp
 
 `mcp` owns the Model Context Protocol tool surface for Eshu. It implements the
-MCP server, the JSON-RPC dispatcher, the SSE session model, and the 129
-read-only tool definitions. Tool dispatch calls into the same `http.Handler`
-chain the HTTP API uses, so a tool response and the corresponding HTTP query
-response share the same truth. Dispatch wraps each handler request in a
+MCP server, the JSON-RPC dispatcher, the SSE session model, the HTTP transport
+authentication (issue #5168), and the 159 read-only tool definitions. Tool
+dispatch calls into the same `http.Handler` chain the HTTP API uses, so a tool
+response and the corresponding HTTP query response share the same truth. Dispatch wraps each handler request in a
 bounded context with a deterministic 30s default, so MCP calls cannot run
 without a deadline; handlers remain responsible for honoring `r.Context()`
 cancellation. Deadline and parent cancellation failures return an MCP error
@@ -48,7 +48,7 @@ flowchart LR
 
 ```mermaid
 flowchart TB
-    hm["handleMessage()\nserver.go:333"]
+    hm["handleMessage()\nserver.go:235"]
     parse["json.Unmarshal params\nmcpToolCallParams"]
     dt["dispatchTool()\ndispatch.go:18"]
     rr["resolveRoute(toolName, args)\ndispatch.go:173"]
@@ -418,37 +418,91 @@ membership as trust.
 
 | Identifier | File | Notes |
 |---|---|---|
-| `Server` | `server.go:94` | MCP server struct; fields `handler`, `tools`, `logger`, `sessions` |
-| `NewServer` | `server.go:107` | constructs `Server`; calls `ReadOnlyTools()` to populate `tools` |
-| `Server.Run` (`Run`) | `server.go:288` | stdio transport; reads stdin, writes stdout |
-| `Server.RunHTTP` (`RunHTTP`) | `server.go:128` | HTTP+SSE transport; listens on `addr` |
+| `Server` | `server.go:93` | MCP server struct; fields `handler`, `tools`, `logger`, `sessions`, `transportAuth` |
+| `NewServer` | `server.go:112` | constructs `Server`; calls `ReadOnlyTools()`; accepts `...ServerOption` (e.g. `WithTransportAuth`) |
+| `ServerOption` / `WithTransportAuth` | `transport_auth.go:24,28` | option that wraps the HTTP transport (`GET /sse`, `POST /mcp/message`) with a credential chain (#5168) |
+| `Server.Run` (`Run`) | `server.go:190` | stdio transport; reads stdin, writes stdout; never authenticated (process/filesystem trust boundary) |
+| `Server.RunHTTP` (`RunHTTP`) | `server.go:137` | HTTP+SSE transport; listens on `addr` |
 | `ToolDefinition` | `types.go:4` | `Name`, `Description`, `InputSchema` |
-| `ReadOnlyTools` | `types.go:11` | returns all 157 tool definitions |
+| `ReadOnlyTools` | `types.go:11` | returns all 159 tool definitions |
 
 ## SSE session model
 
-`handleSSE` (`server.go:181`) creates an `sseSession` with a 64-element
-channel. It sends an `endpoint` event with the POST URL, then loops on the
-session channel and a 30-second keepalive ticker. `handleHTTPMessage`
-(`server.go:241`) routes responses to the session channel when a `sessionId`
-query param is present and returns HTTP 202; otherwise it returns the response
-directly with HTTP 200.
+The SSE transport lives in `server_sse.go`. `handleSSE` (`server_sse.go:70`)
+creates an `sseSession` with a 64-element channel, sends an `endpoint` event
+with the POST URL, then loops on the session channel and a 30-second keepalive
+ticker. `handleHTTPMessage` (`server_sse.go:147`) routes responses to the
+session channel when a `sessionId` query param is present and returns HTTP 202;
+otherwise it returns the response directly with HTTP 200.
+
+The session channel lifecycle is mutex-guarded (`sseSession.send` /
+`sseSession.shutdown`, `server_sse.go:39,57`). `handleHTTPMessage` captures the
+session pointer before dispatch (to run the principal check) and reuses it to
+deliver after a potentially slow `tools/call`; if the SSE client disconnects in
+that window, `handleSSE`'s teardown calls `shutdown` (close-once under the
+lock), and a later `send` observes `closed` and drops the message instead of
+panicking on a closed channel. `send`/`shutdown` share the session mutex so the
+closed-check and the channel op are atomic with respect to close.
+
+## Transport authentication (#5168)
+
+Before #5168 the HTTP transport leaked before auth ever ran: `GET /sse` and
+`POST /mcp/message` were mounted with no middleware, so `initialize`,
+`tools/list`, and `ping` enumerated the tool catalog and server metadata with
+no credential (only `tools/call` was checked, and only incidentally, through
+its internal `/api/v0` re-dispatch). `transport_auth.go` wraps the transport
+routes with the credential middleware instead.
+
+`NewServer` accepts `WithTransportAuth(middleware)`. The wiring
+(`cmd/mcp-server/wiring.go`) passes the SAME credential chain that protects
+`/api/v0/*` — shared token (`ESHU_API_KEY`), scoped token
+(`ESHU_SCOPED_TOKENS_FILE`), and IdP bearer (`ESHU_AUTH_RESOURCE_URI`).
+`authenticatedTransportHandler` (`transport_auth.go:65`) wraps both transport
+routes. When a shared token (`ESHU_API_KEY`) is set, a credential-less request
+gets a bare 401 with no catalog or server-info disclosure. When the shared
+token is unset and only a scoped-token file or OIDC resolver is configured, the
+middleware's dev-mode bypass still passes a headerless request through
+(`internal/query/auth.go:261-270`); closing that per-request gap for
+scoped-only/OIDC-only deployments is the companion auth-headerless-bypass
+hardening (under #5161). When `transportAuth` is nil the wrap is a pass-through,
+so the stdio path and any unauthenticated deployment are unchanged.
+
+SSE sessions are bound to the credential that opened them:
+`authPrincipalKey` (`transport_auth.go:182`) derives a stable per-credential
+key from the request `AuthContext`, `handleSSE` stores it on the session, and
+`handleHTTPMessage` rejects a `POST /mcp/message?sessionId=...` whose credential
+resolves to a different principal with 403. An empty principal (transport auth
+not configured) is never bound.
+
+`peekMCPMethod` (`transport_auth.go`) buffers at most `mcpMethodPeekLimit`
+(4 KiB) leading bytes to label the denial metric by JSON-RPC method before auth
+runs, then reconstructs the full body for the authenticated handler — the
+pre-auth buffer is bounded so an unauthenticated caller cannot amplify memory
+with a giant body.
 
 ## Dependencies
 
 Internal packages: `internal/buildinfo` (version string for `mcpInitializeResult`),
-`internal/query` (`query.ResponseEnvelope`, `query.EnvelopeMIMEType`, the
-mounted `http.Handler`). No direct dependency on storage drivers, facts, or
-telemetry metric instruments.
+`internal/query` (`query.ResponseEnvelope`, `query.EnvelopeMIMEType`,
+`query.AuthContextFromContext`, `query.AuthMode*`, the mounted `http.Handler`),
+and `internal/telemetry` (`transport_auth_metrics.go` registers one counter
+through the global meter). No direct dependency on storage drivers or facts.
 
 ## Telemetry
 
-This package does not declare its own metrics or spans. Spans and metrics are
-emitted by the `internal/query` handlers that `dispatchTool` calls into.
-Structured log events in `server.go`: `"mcp server started"` (with `transport`
-and `tools` count), `"sse session started"`, `"sse session closed"`, and
-`"sse session buffer full"`. `dispatchTool` logs at debug level with tool name,
-HTTP method, and path (`dispatch.go:26`).
+This package declares one metric: `eshu_dp_mcp_transport_auth_denied_total`,
+a counter labeled by `mcp_method` (`initialize`, `tools/list`, `tools/call`,
+`ping`, `sse`, `mcp_message`, `other`, `unknown`) and `reason`
+(`unauthenticated`, `session_principal_mismatch`), registered through the
+global meter in `transport_auth_metrics.go` (the same self-contained pattern
+`internal/query/request_metrics.go` uses). It lets an operator see
+catalog-enumeration and session-hijack attempts. Everything else — tool
+dispatch spans and per-route latency/error metrics — is emitted by the
+`internal/query` handlers that `dispatchTool` calls into. Structured log events:
+`"mcp server started"` (with `transport` and `tools` count, `server.go`),
+`"sse session started"`, `"sse session closed"`, and `"sse session buffer full
+or closed"` (`server_sse.go`). `dispatchTool` logs at debug level with tool
+name, HTTP method, and path (`dispatch.go:26`).
 
 ## Operational notes
 
@@ -503,9 +557,10 @@ element and sets `repo_id` rather than `repo_ids`.
   and a version bump.
 
 - The `Envelope` field of `dispatchResult` is populated by
-  `parseCanonicalEnvelope` (`server.go:377`). When it is non-nil, the response
-  is returned as `structuredContent` plus a two-block `mcpToolResult`. Do not
-  substitute the `query.EnvelopeMIMEType` string literal; use the constant.
+  `parseCanonicalEnvelope` and consumed in `handleMessage` (`server.go:276`,
+  `if result.Envelope != nil`). When it is non-nil, the response is returned as
+  `structuredContent` plus a two-block `mcpToolResult`. Do not substitute the
+  `query.EnvelopeMIMEType` string literal; use the constant.
 
 - Plain JSON handler payloads are not canonical envelopes, but they still carry
   evidence. MCP returns those payloads in `structuredContent` and as an

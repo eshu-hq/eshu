@@ -4,9 +4,13 @@
 
 1. `go/internal/mcp/README.md` — pipeline position, tool groups, SSE session
    model, dispatch model, and exported surface
-2. `go/internal/mcp/server.go` — `Server`, `NewServer`, `handleMessage`,
-   `handleSSE`, `handleHTTPMessage`, and `RunHTTP`; understand the message
-   dispatch switch before touching protocol handling
+2. `go/internal/mcp/server.go` — `Server`, `NewServer`, `handleMessage`, and
+   `RunHTTP`; `go/internal/mcp/server_sse.go` — `handleSSE`,
+   `handleHTTPMessage`, and the mutex-guarded `sseSession` (send/shutdown);
+   `go/internal/mcp/transport_auth.go` — `WithTransportAuth`,
+   `authenticatedTransportHandler`, `authPrincipalKey`, and `peekMCPMethod`.
+   Understand the message dispatch switch and the transport-auth wrap before
+   touching protocol handling
 3. `go/internal/mcp/dispatch.go`, `go/internal/mcp/dispatch_timeout.go`,
    `go/internal/mcp/dispatch_args.go`, and
    `go/internal/mcp/dispatch_package_registry.go` — `dispatchTool`,
@@ -35,7 +39,7 @@
   `r.Context()` cancellation instead of starting unbounded work.
 
 - **Envelope MIME type constant** — `EnvelopeMIMEType` is written as the
-  resource MIME type at `server.go:389`. Do not replace with a string literal;
+  resource MIME type at `server.go:288`. Do not replace with a string literal;
   the constant is the public contract between this package and `internal/query`.
 
 - **Authorization passthrough** — `dispatchTool` forwards the `Authorization`
@@ -52,10 +56,13 @@
   apply this helper; missing it produces paths like
   `/api/v0/services/workload:name/context` which no handler matches.
 
-- **SSE buffer drop is non-fatal** — when the session channel is full,
-  the logger calls `Warn` at `server.go:268` and drops the message. Callers
-  must not assume every tool response arrives via SSE if the channel is
-  saturated.
+- **SSE buffer drop / closed session is non-fatal** — `sseSession.send`
+  (`server_sse.go`) returns false when the session channel is full OR the
+  session has already been closed (client disconnected mid-dispatch);
+  `handleHTTPMessage` then logs `Warn` (`"sse session buffer full or closed"`)
+  and drops the message. The send is mutex-guarded against the teardown's
+  `shutdown`, so a post-disconnect delivery never panics on a closed channel.
+  Callers must not assume every tool response arrives via SSE.
 
 ## Common changes and how to scope them
 
@@ -98,13 +105,13 @@
   Write a focused unit test. Why: helpers are
   shared by multiple tools; a type-assertion bug silently produces zero values.
 
-- **Change SSE keepalive interval** → edit the ticker duration in `handleSSE`.
-  The keepalive loop calls `Flush` after each tick (`server.go:215`). Update
-  `README.md`. Why: clients may have hard-coded assumptions about keepalive
-  cadence.
+- **Change SSE keepalive interval** → edit the ticker duration in `handleSSE`
+  (`server_sse.go`). The keepalive loop calls `Flush` after each tick
+  (`server_sse.go:126`). Update `README.md`. Why: clients may have hard-coded
+  assumptions about keepalive cadence.
 
 - **Change the MCP protocol version** → edit `ProtocolVersion` in
-  `handleMessage` (`server.go:339`). Check the MCP spec for backward
+  `handleMessage` (`server.go:242`). Check the MCP spec for backward
   compatibility. Why: clients that cache `initialize` results may reject
   version changes without a new session.
 
@@ -132,7 +139,8 @@
 
 - Symptom: `find_dead_iac` returns empty results with a Postgres-backed
   reachability store → the IaC reachability field may not be wired in
-  the binary; check `cmd/mcp-server/wiring.go` at `newMCPQueryRouter`.
+  the binary; check `cmd/mcp-server/wiring_router.go` at
+  `newMCPQueryRouterWithSemanticEmbedding`.
 
 ## Anti-patterns specific to this package
 

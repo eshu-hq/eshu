@@ -34,6 +34,7 @@ var metricDimensionKeys = []string{
 	MetricDimensionReason,
 	MetricDimensionKind,
 	MetricDimensionAction,
+	MetricDimensionMCPMethod,
 	MetricDimensionAuthPath,
 	MetricDimensionProvider,
 	MetricDimensionEventKind,

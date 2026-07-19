@@ -22,7 +22,7 @@ func TestWireAPIReturnsResolveAPIKeyErrorBeforeConnectingDatastores(t *testing.T
 	t.Setenv("ESHU_AUTO_GENERATE_API_KEY", "true")
 	t.Setenv("ESHU_HOME", "/dev/null/eshu")
 
-	_, _, _, err := wireAPI(context.Background(), func(string) string {
+	_, _, _, _, err := wireAPI(context.Background(), func(string) string {
 		return ""
 	}, nil, nil)
 	if err == nil {
@@ -31,7 +31,7 @@ func TestWireAPIReturnsResolveAPIKeyErrorBeforeConnectingDatastores(t *testing.T
 }
 
 func TestWireAPIReturnsInvalidQueryProfileErrorBeforeConnectingDatastores(t *testing.T) {
-	_, _, _, err := wireAPI(context.Background(), func(key string) string {
+	_, _, _, _, err := wireAPI(context.Background(), func(key string) string {
 		if key == "ESHU_QUERY_PROFILE" {
 			return "not-a-real-profile"
 		}
@@ -46,7 +46,7 @@ func TestWireAPIReturnsInvalidQueryProfileErrorBeforeConnectingDatastores(t *tes
 }
 
 func TestWireAPIReturnsInvalidGraphBackendErrorBeforeConnectingDatastores(t *testing.T) {
-	_, _, _, err := wireAPI(context.Background(), func(key string) string {
+	_, _, _, _, err := wireAPI(context.Background(), func(key string) string {
 		if key == "ESHU_GRAPH_BACKEND" {
 			return "not-a-real-backend"
 		}
@@ -61,7 +61,7 @@ func TestWireAPIReturnsInvalidGraphBackendErrorBeforeConnectingDatastores(t *tes
 }
 
 func TestWireAPIReturnsInvalidSemanticProviderProfilesBeforeConnectingDatastores(t *testing.T) {
-	_, _, _, err := wireAPI(context.Background(), func(key string) string {
+	_, _, _, _, err := wireAPI(context.Background(), func(key string) string {
 		if key == semanticprofile.EnvProviderProfilesJSON {
 			return `[{"profile_id":"semantic-docs-default","provider_kind":"deepseek","credential_source":{"kind":"environment_variable","handle":"sk-live-123"},"model_id":"deepseek-chat","source_classes":["documentation"],"source_policy_configured":true}]`
 		}
@@ -76,7 +76,7 @@ func TestWireAPIReturnsInvalidSemanticProviderProfilesBeforeConnectingDatastores
 }
 
 func TestWireAPIReturnsInvalidSemanticPolicyBeforeConnectingDatastores(t *testing.T) {
-	_, _, _, err := wireAPI(context.Background(), func(key string) string {
+	_, _, _, _, err := wireAPI(context.Background(), func(key string) string {
 		if key == semanticpolicy.EnvPolicyJSON {
 			return `{"enabled":true,"rules":[]}`
 		}

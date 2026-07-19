@@ -50,6 +50,58 @@ before treating a graph as current:
 
 `bootstrap-index` is one-shot and does not mount the shared HTTP admin surface.
 
+## MCP HTTP Transport Auth (Breaking Change)
+
+Issue #5168 addressed a gap where `initialize`, `tools/list`, `ping`, and
+`GET /sse` session establishment on the MCP HTTP transport were reachable
+without going through any credential check — only `tools/call` was checked, and
+only incidentally, through its internal re-dispatch. `GET /sse` and
+`POST /mcp/message` (every JSON-RPC method) now pass through the same credential
+middleware as `/api/v0/*`, backed by the same chain: `ESHU_API_KEY`, a scoped
+token from `ESHU_SCOPED_TOKENS_FILE`, or an IdP-issued bearer token accepted by
+`ESHU_AUTH_RESOURCE_URI`. An SSE session is also bound to the credential that
+opened it — a different credential cannot post to that session's `sessionId`
+(rejected with `403` before the body is decoded).
+
+What #5168 gives you:
+
+1. **Transport wrap.** The MCP transport routes run through the credential
+   middleware instead of being mounted with none, so a presented credential is
+   validated the same way the query API validates it, and SSE sessions are
+   principal-bound.
+2. **No-silent-open startup gate.** `ESHU_MCP_TRANSPORT=http` with no resolvable
+   credential source refuses to start with an actionable error, unless
+   `ESHU_MCP_ALLOW_UNAUTHENTICATED=true` is set.
+3. **Fail-closed for shared-key deployments.** When `ESHU_API_KEY` is set, a
+   headerless request is refused with a bare `401` that discloses no tool
+   catalog or server identity.
+
+**Residual gap for scoped-token-only and OIDC-only deployments (tracked,
+closed by the companion fix).** #5168 does not by itself make every *request*
+authenticated when the shared `ESHU_API_KEY` is unset and only
+`ESHU_SCOPED_TOKENS_FILE` or `ESHU_AUTH_RESOURCE_URI` is configured. In that
+configuration the shared credential middleware still lets a *headerless* request
+through — its dev-mode bypass keys off an empty shared token alone, regardless
+of a configured scoped or OIDC resolver — so `GET /sse`, `POST /mcp/message`,
+and the internally re-dispatched `tools/call` remain reachable without a
+credential. The #5168 startup gate treats a configured scoped-token file or
+OIDC resolver as a credential source, so such a deployment starts; it is the
+per-request headerless enforcement that is finished by the companion
+auth-headerless-bypass hardening (under #5161), the immediately-following change
+in this auth chain. Until that lands, run scoped-only or OIDC-only MCP HTTP
+deployments behind a network boundary, or also set `ESHU_API_KEY`.
+
+**Breaking change for operators running a keyless HTTP deployment.** Before
+#5168, `ESHU_MCP_TRANSPORT=http` with no credential source served the MCP
+transport openly (only the query API surface behind it was gated). Now, that
+configuration refuses to start with an actionable error. Configure one of the
+three credential sources above, or set
+`ESHU_MCP_ALLOW_UNAUTHENTICATED=true` to keep the previous open behavior for
+loopback/dev use only — never on a publicly reachable port. `stdio`
+(`eshu mcp start`, `eshu local-host mcp-stdio`) is unaffected: it keeps its
+process/filesystem trust boundary and is never gated by credential
+configuration.
+
 ## Operational Defaults
 
 - Keep the workspace PVC on the ingester only.

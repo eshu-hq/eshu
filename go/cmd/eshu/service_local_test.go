@@ -256,6 +256,11 @@ func TestRunMCPStartSSEAttachesRunningWorkspaceOwner(t *testing.T) {
 	assertEnvValue(t, calls.env, "ESHU_NEO4J_USERNAME", "admin")
 	assertEnvValue(t, calls.env, "ESHU_NEO4J_PASSWORD", "workspace-secret")
 	assertEnvValue(t, calls.env, "ESHU_POSTGRES_DSN", "host=127.0.0.1 port=15439 user=eshu password=change-me dbname=postgres sslmode=disable")
+	// #5168: local `eshu mcp start --transport http` is the documented
+	// loopback/dev flow and must keep working with zero credential setup, so
+	// it defaults ESHU_MCP_ALLOW_UNAUTHENTICATED=true unless the operator's
+	// own environment already sets it (see the override test below).
+	assertEnvValue(t, calls.env, "ESHU_MCP_ALLOW_UNAUTHENTICATED", "true")
 }
 
 func TestRunMCPStartSSEWithWorkspaceRootRequiresRunningOwner(t *testing.T) {
