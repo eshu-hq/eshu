@@ -137,7 +137,13 @@ func (c *HTTPClient) ListSpacePages(ctx context.Context, spaceID string, limit i
 		endpoint = response.Links.Next
 		values = nil
 		if len(out) >= maxTotalPages {
-			return out[:maxTotalPages], endpoint != "", nil
+			// Compute truncation BEFORE slicing: records are dropped when
+			// this page overflowed the cap (len(out) > maxTotalPages) even
+			// if it was the terminal page (endpoint == ""). Deriving the
+			// bool from endpoint alone would silently drop the overflow of a
+			// final page while reporting coverage_warning=complete.
+			truncated := len(out) > maxTotalPages || endpoint != ""
+			return out[:maxTotalPages], truncated, nil
 		}
 	}
 	return out, false, nil
@@ -183,7 +189,11 @@ func (c *HTTPClient) ListPageTree(ctx context.Context, rootPageID string, limit 
 		endpoint = response.Links.Next
 		values = nil
 		if len(ids) >= maxTotalPages {
-			return ids[:maxTotalPages], endpoint != "", nil
+			// Compute truncation BEFORE slicing: see ListSpacePages -- a
+			// terminal descendant page that overflows the cap still drops
+			// records, so endpoint alone would under-report truncation.
+			truncated := len(ids) > maxTotalPages || endpoint != ""
+			return ids[:maxTotalPages], truncated, nil
 		}
 	}
 	return ids, false, nil

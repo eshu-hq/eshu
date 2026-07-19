@@ -48,6 +48,76 @@ func TestHTTPClientListSpacePagesTruncatesWhenMoreDataExistsPastMaxTotalPages(t 
 	}
 }
 
+func TestHTTPClientListSpacePagesTruncatesWhenTerminalPageOverflowsMaxTotalPages(t *testing.T) {
+	t.Parallel()
+
+	// A single TERMINAL page (empty _links.next) whose record count exceeds
+	// max_total_pages. Records ARE dropped, so truncated must be true even
+	// though no cursor remains -- deriving the bool from endpoint alone would
+	// silently lose the overflow (the exact P0 this collector fixes).
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(pageListResponse{
+			Results: []Page{
+				confluencePage("page-1", "One", 1, "<p>1</p>"),
+				confluencePage("page-2", "Two", 1, "<p>2</p>"),
+				confluencePage("page-3", "Three", 1, "<p>3</p>"),
+			},
+		})
+	}))
+	defer server.Close()
+
+	client, err := NewHTTPClient(HTTPClientConfig{BaseURL: server.URL, BearerToken: "token", Client: server.Client()})
+	if err != nil {
+		t.Fatalf("NewHTTPClient() error = %v, want nil", err)
+	}
+
+	pages, truncated, err := client.ListSpacePages(context.Background(), "100", 25, 2)
+	if err != nil {
+		t.Fatalf("ListSpacePages() error = %v, want nil", err)
+	}
+	if got, want := len(pages), 2; got != want {
+		t.Fatalf("len(pages) = %d, want %d", got, want)
+	}
+	if !truncated {
+		t.Fatal("truncated = false, want true when a terminal page overflows max_total_pages (records dropped)")
+	}
+}
+
+func TestHTTPClientListPageTreeTruncatesWhenTerminalPageOverflowsMaxTotalPages(t *testing.T) {
+	t.Parallel()
+
+	// Terminal descendants page (no _links.next) returns more page IDs than
+	// max_total_pages leaves room for (the root ID counts toward the cap), so
+	// records are dropped and truncated must be true.
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"results": []map[string]string{
+				{"id": "child-1", "type": "page"},
+				{"id": "child-2", "type": "page"},
+				{"id": "child-3", "type": "page"},
+			},
+		})
+	}))
+	defer server.Close()
+
+	client, err := NewHTTPClient(HTTPClientConfig{BaseURL: server.URL, BearerToken: "token", Client: server.Client()})
+	if err != nil {
+		t.Fatalf("NewHTTPClient() error = %v, want nil", err)
+	}
+
+	// root + 3 children = 4 discovered IDs, capped at 2.
+	ids, truncated, err := client.ListPageTree(context.Background(), "root", 25, 2)
+	if err != nil {
+		t.Fatalf("ListPageTree() error = %v, want nil", err)
+	}
+	if got, want := len(ids), 2; got != want {
+		t.Fatalf("len(ids) = %d, want %d", got, want)
+	}
+	if !truncated {
+		t.Fatal("truncated = false, want true when a terminal descendants page overflows max_total_pages (records dropped)")
+	}
+}
+
 func TestHTTPClientListSpacePagesNoTruncationAtExactMaxTotalPages(t *testing.T) {
 	t.Parallel()
 
