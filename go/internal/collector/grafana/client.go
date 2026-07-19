@@ -119,6 +119,7 @@ func (c HTTPClient) collectSearchResources(ctx context.Context, target TargetCon
 	limit := normalizedResourceLimit(target.ResourceLimit)
 	perPage := min(limit, maxResourceLimit)
 	seen := map[string]struct{}{}
+	truncated := false
 	page := 1
 	for page <= maxSearchPages {
 		query := url.Values{}
@@ -141,6 +142,9 @@ func (c HTTPClient) collectSearchResources(ctx context.Context, target TargetCon
 			}
 			seen[key] = struct{}{}
 			if len(result.Resources) >= limit {
+				// A distinct search resource exists past the client-side cap;
+				// it is dropped, so the read is bounded, not complete.
+				truncated = true
 				continue
 			}
 			result.Resources = append(result.Resources, resource)
@@ -149,6 +153,13 @@ func (c HTTPClient) collectSearchResources(ctx context.Context, target TargetCon
 			break
 		}
 		page++
+	}
+	if truncated {
+		result.Stats.Truncated = true
+		result.Warnings = append(result.Warnings, Warning{
+			ResourceClass: ResourceClassDashboard,
+			Reason:        WarningTruncated,
+		})
 	}
 	return nil
 }
