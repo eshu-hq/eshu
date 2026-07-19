@@ -238,6 +238,159 @@ describe("ProviderConfigDrawer — create mode, OIDC (default)", () => {
   });
 });
 
+describe("ProviderConfigDrawer — create mode, GitHub (issue #5166, F-5)", () => {
+  function switchToGithub(): void {
+    fireEvent.click(screen.getByRole("radio", { name: "GitHub" }));
+  }
+
+  it("switching to GitHub shows the read-only OAuth2 callback URL", () => {
+    const client = makeClient(async () => ({}));
+    render(
+      <ProviderConfigDrawer
+        client={client}
+        baseUrl="https://eshu.example.test"
+        onClose={vi.fn()}
+        onSaved={vi.fn()}
+      />,
+    );
+    switchToGithub();
+    const callback = screen.getByLabelText("GitHub callback URL") as HTMLInputElement;
+    expect(callback.value).toBe("https://eshu.example.test/api/v0/auth/github/callback");
+    expect(callback).toHaveAttribute("readonly");
+  });
+
+  it("Save/Test stay disabled until client id, secret, AND a non-empty allowed-orgs list are filled", () => {
+    const client = makeClient(async () => ({}));
+    render(
+      <ProviderConfigDrawer
+        client={client}
+        baseUrl="https://eshu.example.test"
+        onClose={vi.fn()}
+        onSaved={vi.fn()}
+      />,
+    );
+    switchToGithub();
+    const save = () => screen.getByRole("button", { name: "Save" });
+    expect(save()).toBeDisabled();
+
+    fireEvent.change(screen.getByLabelText("GitHub client ID"), { target: { value: "gh-client" } });
+    fireEvent.change(screen.getByLabelText("GitHub client secret"), {
+      target: { value: "gh-secret" },
+    });
+    // Client id + secret filled but allowed-orgs still empty — must stay disabled
+    // (mirrors the backend's mandatory non-empty allowed_orgs).
+    expect(save()).toBeDisabled();
+
+    fireEvent.change(screen.getByLabelText("Allowed organizations"), {
+      target: { value: "my-org" },
+    });
+    expect(save()).toBeEnabled();
+  });
+
+  it("a whitespace/comma-only allowed-orgs value does not satisfy the required check", () => {
+    const client = makeClient(async () => ({}));
+    render(
+      <ProviderConfigDrawer
+        client={client}
+        baseUrl="https://eshu.example.test"
+        onClose={vi.fn()}
+        onSaved={vi.fn()}
+      />,
+    );
+    switchToGithub();
+    fireEvent.change(screen.getByLabelText("GitHub client ID"), { target: { value: "gh-client" } });
+    fireEvent.change(screen.getByLabelText("GitHub client secret"), {
+      target: { value: "gh-secret" },
+    });
+    fireEvent.change(screen.getByLabelText("Allowed organizations"), {
+      target: { value: " , , " },
+    });
+    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+  });
+
+  it("Run test sign-in posts a github create payload with provider_kind, allowed_orgs, and the callback redirect", async () => {
+    let createBody: Record<string, unknown> | null = null;
+    const client = makeClient(async (path, body) => {
+      if (path === PROVIDER_CONFIGS_PATH) {
+        createBody = body as Record<string, unknown>;
+        return {
+          provider_config_id: "pc_gh",
+          revision_id: "rev_1",
+          status: "draft",
+          changed: true,
+        };
+      }
+      if (path.endsWith("/test-connection")) {
+        return { provider_config_id: "pc_gh", ok: true, detail: "github api reachable" };
+      }
+      throw new Error(`unexpected path ${path}`);
+    });
+    render(
+      <ProviderConfigDrawer
+        client={client}
+        baseUrl="https://eshu.example.test"
+        onClose={vi.fn()}
+        onSaved={vi.fn()}
+      />,
+    );
+    switchToGithub();
+    fireEvent.change(screen.getByLabelText("GitHub client ID"), { target: { value: "gh-client" } });
+    fireEvent.change(screen.getByLabelText("GitHub client secret"), {
+      target: { value: "gh-secret" },
+    });
+    fireEvent.change(screen.getByLabelText("Allowed organizations"), {
+      target: { value: "My-Org, other-org" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Run test sign-in" }));
+
+    expect(await screen.findByText(/Test sign-in passed/)).toBeInTheDocument();
+    expect(createBody).toMatchObject({
+      provider_kind: "github",
+      client_id: "gh-client",
+      client_secret: "gh-secret",
+      allowed_orgs: ["My-Org", "other-org"],
+      redirect_url: "https://eshu.example.test/api/v0/auth/github/callback",
+    });
+  });
+
+  it("never pre-fills the write-only client secret when editing an existing github provider", () => {
+    const client = makeClient(async () => ({}));
+    const existingGithub: AdminProviderConfigItem = {
+      provider_config_id: "pc_gh_existing",
+      provider_kind: "external_github",
+      status: "active",
+      configuration: {
+        client_id: "gh-client",
+        base_url: "https://github.example.com",
+        allowed_orgs: ["my-org"],
+        scopes: ["read:org", "user:email"],
+      },
+      has_secret: true,
+      secret_fingerprint: "ghfp123",
+      shadowed_by_environment: false,
+      managed_by: "database",
+    };
+    render(
+      <ProviderConfigDrawer
+        client={client}
+        baseUrl="https://eshu.example.test"
+        existing={existingGithub}
+        onClose={vi.fn()}
+        onSaved={vi.fn()}
+      />,
+    );
+    expect((screen.getByLabelText("GitHub client ID") as HTMLInputElement).value).toBe("gh-client");
+    expect((screen.getByLabelText("Allowed organizations") as HTMLInputElement).value).toBe(
+      "my-org",
+    );
+    expect((screen.getByLabelText("GitHub client secret") as HTMLInputElement).value).toBe("");
+    // The kind toggle is not rendered in edit mode, so GitHub fields render
+    // directly from the existing provider's kind.
+    expect(screen.queryByRole("radio", { name: "GitHub" })).not.toBeInTheDocument();
+    expect(document.body.innerHTML).not.toContain("ghfp123");
+  });
+});
+
 describe("ProviderConfigDrawer — edit mode", () => {
   const existing: AdminProviderConfigItem = {
     provider_config_id: "pc_existing",

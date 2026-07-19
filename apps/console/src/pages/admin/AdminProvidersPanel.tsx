@@ -1,9 +1,10 @@
 // pages/admin/AdminProvidersPanel.tsx
 // Identity providers panel (#4967, consumes the #4966 DB-backed provider-config
 // CRUD API — replaces the prior read-only id/kind/status-only panel). Lists
-// every configured OIDC/SAML provider with a derived label, kind, status pill,
-// group-mapping count, and secret-rotation date; row actions are Test, Edit,
-// and Disable. Add/Edit opens ProviderConfigDrawer. Env-managed providers
+// every configured OIDC/SAML/GitHub provider (GitHub added by issue #5166,
+// F-5) with a derived label, kind, status pill, group-mapping count, and
+// secret-rotation date; row actions are Test, Edit, and Disable. Add/Edit
+// opens ProviderConfigDrawer. Env-managed providers
 // (managed_by === "environment") are visible and testable but Edit/Disable are
 // disabled — they are defined by deployment config, not editable here.
 //
@@ -24,7 +25,7 @@
 // dependency array. Any in-flight load from a prior client or prior key
 // checks `cancelled` before committing state.
 //
-// ProviderConfigDrawer (plus its OIDC/SAML field subcomponents) is loaded via
+// ProviderConfigDrawer (plus its OIDC/SAML/GitHub field subcomponents) is loaded via
 // React.lazy/dynamic import — it is only needed when an admin clicks Add or
 // Edit, so keeping it out of the eager main chunk matters for the console
 // bundle-budget gate (scripts/console-bundle-budget.mjs), the same pattern
@@ -48,7 +49,9 @@ const ProviderConfigDrawer = lazy(() =>
 );
 
 function kindLabel(kind: string): string {
-  return kind === "external_saml" ? "SAML" : "OIDC";
+  if (kind === "external_saml") return "SAML";
+  if (kind === "external_github") return "GitHub";
+  return "OIDC";
 }
 
 function statusBadge(status: string): React.JSX.Element {

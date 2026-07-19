@@ -20,18 +20,23 @@
 // drawer behaves identically to every other drawer in the console.
 import { useEffect, useRef, useState } from "react";
 
+import { GithubProviderFields } from "./GithubProviderFields";
 import { OidcProviderFields } from "./OidcProviderFields";
 import {
   emptyOidcForm,
   emptySamlForm,
+  emptyGithubForm,
   oidcFormFromExisting,
   samlFormFromExisting,
+  githubFormFromExisting,
   buildOidcInput,
   buildSamlInput,
+  buildGithubInput,
   oidcFormValid,
   samlFormValid,
+  githubFormValid,
 } from "./providerConfigForm";
-import type { OidcFormState, SamlFormState } from "./providerConfigForm";
+import type { OidcFormState, SamlFormState, GithubFormState } from "./providerConfigForm";
 import { SamlProviderFields } from "./SamlProviderFields";
 import type { AdminProviderConfigItem, ProviderConfigInput } from "../../api/adminProviderConfig";
 import {
@@ -41,6 +46,7 @@ import {
   testProviderConfigConnection,
   newClientProviderConfigId,
   oidcRedirectUri,
+  githubCallbackUri,
   samlAcsUrl,
   samlServiceProviderEntityId,
   toFormKind,
@@ -61,7 +67,7 @@ export function ProviderConfigDrawer({
   readonly onClose: () => void;
   readonly onSaved: () => void;
 }): React.JSX.Element {
-  const [kind, setKind] = useState<"oidc" | "saml">(
+  const [kind, setKind] = useState<"oidc" | "saml" | "github">(
     existing ? toFormKind(existing.provider_kind) : "oidc",
   );
   const [providerConfigId] = useState(
@@ -78,6 +84,11 @@ export function ProviderConfigDrawer({
     existing && toFormKind(existing.provider_kind) === "saml"
       ? samlFormFromExisting(existing)
       : emptySamlForm,
+  );
+  const [githubForm, setGithubForm] = useState<GithubFormState>(
+    existing && toFormKind(existing.provider_kind) === "github"
+      ? githubFormFromExisting(existing)
+      : emptyGithubForm,
   );
   const [testResult, setTestResult] = useState<{ ok: boolean; detail?: string } | null>(null);
   const [saving, setSaving] = useState(false);
@@ -130,12 +141,17 @@ export function ProviderConfigDrawer({
     }
   }
 
-  const valid = kind === "oidc" ? oidcFormValid(oidcForm) : samlFormValid(samlForm);
+  function formValid(): boolean {
+    if (kind === "oidc") return oidcFormValid(oidcForm);
+    if (kind === "github") return githubFormValid(githubForm);
+    return samlFormValid(samlForm);
+  }
+  const valid = formValid();
 
   function currentInput(): ProviderConfigInput {
-    return kind === "oidc"
-      ? buildOidcInput(oidcForm, providerConfigId, baseUrl)
-      : buildSamlInput(samlForm, providerConfigId, baseUrl);
+    if (kind === "oidc") return buildOidcInput(oidcForm, providerConfigId, baseUrl);
+    if (kind === "github") return buildGithubInput(githubForm, providerConfigId, baseUrl);
+    return buildSamlInput(samlForm, providerConfigId, baseUrl);
   }
 
   async function saveDraft(): Promise<boolean> {
@@ -208,6 +224,7 @@ export function ProviderConfigDrawer({
   }
 
   const redirectUri = oidcRedirectUri(baseUrl);
+  const githubCallback = githubCallbackUri(baseUrl);
   const acsUrl = samlAcsUrl(baseUrl, providerConfigId);
   const spEntityId = samlServiceProviderEntityId(baseUrl, providerConfigId);
   const busy = saving || testing;
@@ -263,6 +280,16 @@ export function ProviderConfigDrawer({
               >
                 SAML
               </button>
+              <button
+                type="button"
+                role="radio"
+                aria-checked={kind === "github"}
+                className={kind === "github" ? "active" : ""}
+                disabled={busy}
+                onClick={() => setKind("github")}
+              >
+                GitHub
+              </button>
             </div>
           )}
 
@@ -273,6 +300,16 @@ export function ProviderConfigDrawer({
               disabled={busy}
               onChange={(next) => {
                 setOidcForm(next);
+                setTestResult(null);
+              }}
+            />
+          ) : kind === "github" ? (
+            <GithubProviderFields
+              form={githubForm}
+              callbackUri={githubCallback}
+              disabled={busy}
+              onChange={(next) => {
+                setGithubForm(next);
                 setTestResult(null);
               }}
             />
