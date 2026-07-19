@@ -32,11 +32,18 @@ import (
 // accepted, visible via logAuthEnforcementPosture, and closable with any one
 // of the three env vars.
 //
-// This is definitionally the same predicate as #5168's
-// credentialSourceConfigured (F-7, cmd/mcp-server/wiring.go).
-// TODO(#5168-follow-up): consolidate this and cmd/api's identical expression
-// into one shared helper once F-7 merges; kept per-package now to avoid a
-// cross-branch build dependency.
+// F-7 (#5168) is merged: this is the single predicate wireAPI computes once,
+// as authSourceConfigured, and threads into BOTH
+// requireMCPHTTPCredentialSource's startup gate and
+// buildTransportAuthMiddleware's per-request enforcement -- for the shared
+// /api/v0/* authedHandler and the MCP HTTP transport (GET /sse,
+// POST /mcp/message) alike. See cmd/mcp-server/wiring.go.
+//
+// cmd/api/auth_enforcement.go carries an intentionally separate copy with the
+// identical expression: the two binaries wire their own credential sources
+// independently (different flag surfaces, different callers), so a shared
+// cross-package helper would need to accept the same three already-resolved
+// inputs this function does -- no simplification over calling it twice.
 func authEnforcementConfigured(
 	apiKey string,
 	fileResolver query.ScopedTokenResolver,

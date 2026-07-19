@@ -222,19 +222,60 @@ func TestAPIAuthSharedKeyDeniesHeaderlessAdmitsKey(t *testing.T) {
 	}
 }
 
+// TestAPIAuthBootstrapIdentityOnlyServesHeaderlessOpen proves the
+// bootstrap-identity-only case (#4962/#4963 seeded identities, NONE of the
+// three explicit credential knobs) genuinely, not by coincidence with the
+// no-identity demo case. TestAPIAuthDemoConfigServesHeaderlessOpen's stub
+// store returns not-found for every credential, so it cannot tell "the
+// identity resolver has real data and would authenticate a presented
+// credential" apart from "the identity resolver has nothing at all". This
+// test seeds ONE real identity-token row through the full production
+// resolution pipeline (seededIdentityQueryer) so the distinction is real: the
+// bootstrap identity resolves a MATCHING credential to 200, rejects a
+// non-matching one with 401 (proving it is not a blanket pass-through), and
+// -- the actual ruled behavior -- still serves a HEADERLESS request open,
+// because authEnforcementConfigured deliberately excludes the always-wired
+// identity resolver as a signal (the demo seeds identities by default).
 func TestAPIAuthBootstrapIdentityOnlyServesHeaderlessOpen(t *testing.T) {
 	t.Parallel()
 
-	// Bootstrap-identity-only (Fable ruling): seeded identities present via the
-	// real identity resolver, no explicit knobs -> headerless stays OPEN.
-	handler := buildAPIAuthHandler("", nil, nil, &fakeSessionResolver{})
+	const bootstrapToken = "bootstrap-identity-token-secret"
+	seeded := seededIdentityQueryer{
+		tokenHash:          pgstatus.ScopedAPITokenHash(bootstrapToken),
+		tenantID:           "tenant_bootstrap",
+		workspaceID:        "workspace_bootstrap",
+		subjectIDHash:      "sha256:bootstrap-subject",
+		policyRevisionHash: "policy-rev-bootstrap",
+		roleID:             "role-bootstrap-owner",
+	}
+	identityResolver := scopedtoken.NewPostgresIdentityResolver(pgstatus.NewScopedAPITokenStore(seeded))
+	enforcement := authEnforcementConfigured("", nil, nil)
+	scopedTokenResolver := scopedtoken.ChainResolvers(identityResolver, nil, nil)
+	handler := wrapAPIAuth(
+		"", scopedTokenResolver, &fakeSessionResolver{}, okHandler(), nil, query.GovernanceStatusConfig{}, enforcement,
+	)
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v0/repositories", nil)
-	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, req)
+	headerless := httptest.NewRequest(http.MethodGet, "/api/v0/repositories", nil)
+	headerlessRec := httptest.NewRecorder()
+	handler.ServeHTTP(headerlessRec, headerless)
+	if got, want := headerlessRec.Code, http.StatusOK; got != want {
+		t.Fatalf("headerless status = %d, want %d; body = %s", got, want, headerlessRec.Body.String())
+	}
 
-	if got, want := rec.Code, http.StatusOK; got != want {
-		t.Fatalf("headerless status = %d, want %d; body = %s", got, want, rec.Body.String())
+	matching := httptest.NewRequest(http.MethodGet, "/api/v0/repositories", nil)
+	matching.Header.Set("Authorization", "Bearer "+bootstrapToken)
+	matchingRec := httptest.NewRecorder()
+	handler.ServeHTTP(matchingRec, matching)
+	if got, want := matchingRec.Code, http.StatusOK; got != want {
+		t.Fatalf("seeded bootstrap identity token status = %d, want %d; body = %s -- the seeded row was not resolved", got, want, matchingRec.Body.String())
+	}
+
+	nonMatching := httptest.NewRequest(http.MethodGet, "/api/v0/repositories", nil)
+	nonMatching.Header.Set("Authorization", "Bearer wrong-token-not-seeded")
+	nonMatchingRec := httptest.NewRecorder()
+	handler.ServeHTTP(nonMatchingRec, nonMatching)
+	if got, want := nonMatchingRec.Code, http.StatusUnauthorized; got != want {
+		t.Fatalf("non-matching token status = %d, want %d; body = %s -- resolver must not admit arbitrary credentials", got, want, nonMatchingRec.Body.String())
 	}
 }
 
