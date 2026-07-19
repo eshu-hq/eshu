@@ -45,6 +45,33 @@ func (h *EvidenceHandler) profile() QueryProfile {
 	return h.Profile
 }
 
+// relationshipEvidenceRowWithinAccess reports whether the resolved
+// relationship row's source and target endpoints are both attributable to
+// access's granted repositories/ingestion scopes. Shared/admin/local callers
+// (access.scoped() == false) always pass. A scoped caller with no grants, or
+// whose row carries an empty or out-of-grant repo_id on either endpoint,
+// fails closed (see the #5167 doc comment at the call site).
+func relationshipEvidenceRowWithinAccess(row map[string]any, access repositoryAccessFilter) bool {
+	if !access.scoped() {
+		return true
+	}
+	if access.empty() {
+		return false
+	}
+	return access.allowsRepositoryID(relationshipEvidenceEndpointRepoID(row, "source")) &&
+		access.allowsRepositoryID(relationshipEvidenceEndpointRepoID(row, "target"))
+}
+
+// relationshipEvidenceEndpointRepoID reads the repo_id string off the
+// "source" or "target" endpoint map relationshipEvidenceEndpoint built.
+func relationshipEvidenceEndpointRepoID(row map[string]any, key string) string {
+	endpoint, _ := row[key].(map[string]any)
+	if endpoint == nil {
+		return ""
+	}
+	return StringVal(endpoint, "repo_id")
+}
+
 func (h *EvidenceHandler) getRelationshipEvidence(w http.ResponseWriter, r *http.Request) {
 	r, span := startQueryHandlerSpan(
 		r,
@@ -74,6 +101,20 @@ func (h *EvidenceHandler) getRelationshipEvidence(w http.ResponseWriter, r *http
 		return
 	}
 	if !readModel.Available || len(readModel.Row) == 0 {
+		WriteError(w, http.StatusNotFound, "relationship evidence not found")
+		return
+	}
+	// Access scoping (#5167 Group B): the resolved relationship connects a
+	// source and target endpoint, each carrying its own repo_id
+	// (relationshipEvidenceEndpoint in evidence_read_model.go). A scoped
+	// caller may only see the edge when BOTH endpoints are attributable to a
+	// granted repository or ingestion scope -- mirroring
+	// scopedInfraRelationshipsRoute's "both endpoints" contract
+	// (infra_scope.go) -- otherwise the relationship is served as not-found,
+	// disclosing neither the edge's existence nor either endpoint's identity
+	// to an out-of-grant caller.
+	access := repositoryAccessFilterFromContext(r.Context())
+	if !relationshipEvidenceRowWithinAccess(readModel.Row, access) {
 		WriteError(w, http.StatusNotFound, "relationship evidence not found")
 		return
 	}

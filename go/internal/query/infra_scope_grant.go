@@ -213,6 +213,33 @@ func (f repositoryAccessFilter) scopeGrantInlineScalars() (scalars []string, cap
 // relationship handlers). The predicate renders only in scoped mode; the
 // unscoped query shape for shared / admin / local callers is unchanged.
 func infraResourceScopePredicate(alias string, scalars []string) string {
+	disjuncts := infraResourceScopeCoreDisjuncts(alias, scalars)
+	if defines := scopeGrantInlineMapDisjunction(alias, scopeHopInbound, "DEFINES", "Repository", "id", scalars); defines != "" {
+		disjuncts = append(disjuncts, defines)
+	}
+	return "(" + strings.Join(disjuncts, " OR ") + ")"
+}
+
+// infraResourceScopeCoreDisjuncts returns disjuncts 1-3 of
+// infraResourceScopePredicate's doc comment (direct ownership, CloudResource
+// via USES, WorkloadInstance via DEPLOYMENT_SOURCE) WITHOUT disjunct 4
+// (Workload via DEFINES). Every disjunct here resolves through a durable,
+// per-node property or a forward-anchored deployment-source edge -- never
+// through reachability into a shared graph identity.
+//
+// Disjunct 4 is deliberately excluded from this shared core: it admits a bare
+// Workload node whenever ANY granted repository DEFINES it, which is safe for
+// infraResourceScopePredicate's reachability-counting callers (a Workload
+// admitted this way is only ever used to enumerate further per-instance
+// durably-scoped nodes one hop down) but unsafe for a caller that projects the
+// admitted alias's OWN id/name/edges directly -- a name-collision Workload
+// (defined by two repositories, materializing only ONE durable repo_id; see
+// infraResourceScopePredicate's doc comment) would expose its full edge set to
+// every repository that happens to define it, regardless of which tenant's
+// ingestion actually wrote a given edge. relationshipEndpointScopePredicate
+// (relationships_catalog_cypher.go) is exactly that caller and composes this
+// core directly instead of calling infraResourceScopePredicate.
+func infraResourceScopeCoreDisjuncts(alias string, scalars []string) []string {
 	disjuncts := []string{
 		alias + ".repo_id IN $allowed_repository_ids",
 		alias + ".repo_id IN $allowed_scope_ids",
@@ -225,8 +252,5 @@ func infraResourceScopePredicate(alias string, scalars []string) string {
 	disjuncts = append(disjuncts,
 		"EXISTS { MATCH ("+alias+")-[:DEPLOYMENT_SOURCE]->(scopeDeployRepo:Repository) "+
 			"WHERE (scopeDeployRepo.id IN $allowed_repository_ids OR scopeDeployRepo.id IN $allowed_scope_ids) }")
-	if defines := scopeGrantInlineMapDisjunction(alias, scopeHopInbound, "DEFINES", "Repository", "id", scalars); defines != "" {
-		disjuncts = append(disjuncts, defines)
-	}
-	return "(" + strings.Join(disjuncts, " OR ") + ")"
+	return disjuncts
 }

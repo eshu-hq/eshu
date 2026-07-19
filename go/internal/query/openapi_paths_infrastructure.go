@@ -130,8 +130,9 @@ const openAPIPathsInfrastructure = `
       "get": {
         "tags": ["infrastructure"],
         "summary": "Get ecosystem overview",
-        "description": "Returns high-level entity counts from the graph.",
+        "description": "Returns high-level entity counts from the graph. Scoped tokens receive counts restricted to entities reachable from the caller's granted repositories via DEFINES/INSTANCE_OF/RUNS_ON; a scoped caller with no grants receives all-zero counts without a graph read.",
         "operationId": "getEcosystemOverview",
+        "x-scoped-token-support": true,
         "responses": {
           "200": {
             "description": "Ecosystem overview",
@@ -157,8 +158,9 @@ const openAPIPathsInfrastructure = `
       "post": {
         "tags": ["infrastructure"],
         "summary": "Get graph summary packet",
-        "description": "Returns a bounded, summary-first graph packet: hot entities (most-connected functions by call degree), key relationship type counts, and a per-scope ecosystem map. With repo_id the packet is repo-scoped; without repo_id only bounded ecosystem-wide label counts plus a needs-repo note are returned. Never runs a whole-graph hot-entity scan.",
+        "description": "Returns a bounded, summary-first graph packet: hot entities (most-connected functions by call degree), key relationship type counts, and a per-scope ecosystem map. With repo_id the packet is repo-scoped; without repo_id only bounded ecosystem-wide label counts plus a needs-repo note are returned. Never runs a whole-graph hot-entity scan. Scoped tokens must supply a granted repo_id (not_found otherwise); the ecosystem-wide packet's counts are restricted to the caller's granted repositories, matching getEcosystemOverview.",
         "operationId": "getGraphSummaryPacket",
+        "x-scoped-token-support": true,
         "requestBody": {
           "required": true,
           "content": {
@@ -255,8 +257,9 @@ const openAPIPathsInfrastructure = `
       "post": {
         "tags": ["infrastructure"],
         "summary": "List concrete edges for one relationship verb",
-        "description": "Returns a bounded slice of concrete typed edges for one catalog verb, each with its source and target endpoints plus evidence. The verb must be one of the catalog verbs; the query is anchored on that verb's source-node label, ordered by the indexed source-anchor property, and always carries a LIMIT, so the index-ordered scan short-circuits at the page boundary and the slice is bounded.",
+        "description": "Returns a bounded slice of concrete typed edges for one catalog verb, each with its source and target endpoints plus evidence. The verb must be one of the catalog verbs; the query is anchored on that verb's source-node label, ordered by the indexed source-anchor property, and always carries a LIMIT, so the index-ordered scan short-circuits at the page boundary and the slice is bounded. Scoped tokens receive edges whose source endpoint is attributable to a granted repository/ingestion scope, and whose target endpoint is additionally grant-checked for verbs whose target carries its own tenant attribution (repository-to-repository and workload-family verbs); a scoped caller with no grants receives an empty page without a graph read.",
         "operationId": "getRelationshipEdges",
+        "x-scoped-token-support": true,
         "requestBody": {
           "required": true,
           "content": {

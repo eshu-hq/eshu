@@ -217,6 +217,21 @@ func (h *CloudRuntimeDriftHandler) listFindings(w http.ResponseWriter, r *http.R
 		return
 	}
 
+	// Access scoping (#5167 Group B): MultiCloudRuntimeDriftStore is shared
+	// with GET /api/v0/investigations/drift/packet (investigation_packet_api_drift.go),
+	// which this workstream does not own, so the fix is a caller-side grant
+	// precheck against the caller-supplied filter.ScopeID rather than a
+	// store/filter-level change. filter.ScopeID is always non-empty here
+	// (normalizeCloudRuntimeDriftRequest requires it). A scoped caller with no
+	// grants, or whose requested scope is outside its granted repositories/
+	// ingestion scopes, gets the same zero-finding page a real empty result
+	// would produce -- no existence disclosure, no store read.
+	access := repositoryAccessFilterFromContext(r.Context())
+	if access.empty() || (access.scoped() && !access.allowsRepositoryID(filter.ScopeID)) {
+		h.writeCloudRuntimeDriftFindings(w, r, filter, nil, 0)
+		return
+	}
+
 	total, err := h.Store.CountActiveMultiCloudRuntimeDriftFindings(r.Context(), filter)
 	if err != nil {
 		h.writeContractError(w, r, http.StatusInternalServerError, "cloud runtime drift readback failed", ErrorCodeInternalError)
@@ -227,6 +242,20 @@ func (h *CloudRuntimeDriftHandler) listFindings(w http.ResponseWriter, r *http.R
 		h.writeContractError(w, r, http.StatusInternalServerError, "cloud runtime drift readback failed", ErrorCodeInternalError)
 		return
 	}
+	h.writeCloudRuntimeDriftFindings(w, r, filter, rows, total)
+}
+
+// writeCloudRuntimeDriftFindings renders the bounded findings-page response.
+// Passing nil rows and total 0 renders the same zero-finding shape a real
+// empty result would, used by both the genuine-empty-result path and the
+// #5167 access-scoping precheck in listFindings.
+func (h *CloudRuntimeDriftHandler) writeCloudRuntimeDriftFindings(
+	w http.ResponseWriter,
+	r *http.Request,
+	filter MultiCloudRuntimeDriftFilter,
+	rows []MultiCloudRuntimeDriftFindingRow,
+	total int,
+) {
 	views := cloudRuntimeDriftFindingViews(rows)
 
 	WriteSuccess(w, r, http.StatusOK, map[string]any{

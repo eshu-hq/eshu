@@ -8,8 +8,9 @@ const openAPIPathsKubernetes = `
       "get": {
         "tags": ["kubernetes"],
         "summary": "List Kubernetes correlations",
-        "description": "Lists reducer-owned Kubernetes workload ownership and drift correlation rows. A live workload stays provenance-only unless its image digest or owner edge resolves exactly to deployment-source evidence.",
+        "description": "Lists reducer-owned Kubernetes workload ownership and drift correlation rows. A live workload stays provenance-only unless its image digest or owner edge resolves exactly to deployment-source evidence. Scoped tokens receive rows intersected with the caller's granted repositories/ingestion scopes; a scoped caller with no grants receives an empty page without a query.",
         "operationId": "listKubernetesCorrelations",
+        "x-scoped-token-support": true,
         "parameters": [
           {"name": "scope_id", "in": "query", "schema": {"type": "string"}, "description": "Reducer scope ID to anchor lookup."},
           {"name": "cluster_id", "in": "query", "schema": {"type": "string"}, "description": "Cluster ID to anchor lookup."},

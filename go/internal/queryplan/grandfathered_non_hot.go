@@ -67,8 +67,6 @@ var grandfatheredNonHotSourceDigests = map[string]string{
 	"impact_trace_deployment_resources.go:(*ImpactHandler).fetchCloudResources":                           "d25b7d26bab9e11c5cece1b3e01a185fd1fc6b9f02d34487f625f06f453d53d6",
 	"impact_trace_deployment_resources.go:(*ImpactHandler).fetchConfigDerivedCloudResources":              "740ccc6437798409464adae1cf4eaf752fb9284b632a35cd1198f18cc19a1e97",
 	"infra_argocd_search.go:(*InfraHandler).searchArgoCDCategoryRows":                                     "d2512cdc68361b1977be262c737e027f787577390cc83f52508b2ed58a1bef42",
-	"infra_ecosystem_overview.go:(*InfraHandler).getEcosystemOverview":                                    "f5d7c563f16256131a9ddbe8c34ea6f49d8998c5b4eb00ed1d8cab0e5dc78df0",
-	"infra_graph_summary_packet.go:(*InfraHandler).graphSummaryEcosystemPacket":                           "b99c241614b2b760cf704607150874c8f495faafefaf2771bd03abc85bb03c46",
 	"infra_graph_summary_packet.go:(*InfraHandler).graphSummaryHotEntities":                               "b6e5d1838ff51c5dc70235fa71b7abbaf9b1d89b291671b8ec3af3bc2b548260",
 	"infra_graph_summary_packet.go:(*InfraHandler).graphSummaryRelationshipCounts":                        "22168d083366531f6a88eeee694dc46f6fbc46bfa2d0e4815b32bbce42cee411",
 	"infra_graph_summary_packet.go:(*InfraHandler).graphSummaryRepoEcosystemMap":                          "f1fbee8ad896a2c3047c9eb0a317a009e1cd61222dd1facf39a33926c52b0875",

@@ -353,9 +353,10 @@ func TestScopedTokenAllowlistCompleteness(t *testing.T) {
 // All three maps are package-level vars in this package, so this literal-map
 // disjointness check lives here rather than in the go/internal/mcp
 // exhaustiveness test, which only sees the exported surface slices. The one
-// parameterized Group B entry (pendingRowFilteringEvidenceRelationshipRoute,
-// GET /api/v0/evidence/relationships/{id}) is intentionally not in either
-// literal ledger, so it cannot collide with a literal-map entry.
+// parameterized Group B entry, GET /api/v0/evidence/relationships/{id}, was
+// cleared by the #5167 F-6 W6 cloud/aws family workstream
+// (scopedRelationshipEvidenceRoute, auth_scoped_routes_cloud.go) and no
+// longer exists as a pending-ledger special case.
 func TestPendingRowFilteringRoutesDisjointFromScopedAndSharedKey(t *testing.T) {
 	for name := range pendingRowFilteringRoutes {
 		if _, ok := scopedTokenAdvertisedRoutes[name]; ok {

@@ -70,17 +70,23 @@ func TestScopedIaCResourceListGateRejectsAdjacentRoute(t *testing.T) {
 	}
 	handler := AuthMiddlewareWithScopedTokens("", resolver, mockHandler())
 
-	// POST /api/v0/aws/runtime-drift/findings is an adjacent AWS/IaC route
-	// that stays fail-closed for scoped tokens (#5167 Group B,
-	// pendingRowFilteringRoutes -- it has no AllowedScopeIDs grant-filtering
-	// wired yet); only the GET list route and the #5167 W4 iac/replatforming
-	// family (POST /api/v0/iac/dead among them) are scoped-enabled. iac/dead
+	// POST /api/v0/impact/trace-resource-to-code is an adjacent
+	// resource-graph route that stays fail-closed for scoped tokens (#5167
+	// Group B, pendingRowFilteringRoutes -- it has no AllowedScopeIDs
+	// grant-filtering wired yet: the #5167 W3 family flagged it as unsafe to
+	// allowlist because its traversal endpoints carry no repo_id property; see
+	// auth_scoped_routes_impact.go's doc comment); only the GET list route and
+	// the #5167 W4 iac/replatforming family (POST /api/v0/iac/dead among
+	// them) are scoped-enabled. (POST /api/v0/aws/runtime-drift/findings,
+	// this test's route until the #5167 F-6 W6 cloud/aws family workstream
+	// scope-filtered it, is no longer a valid adjacent example -- it now
+	// reaches its handler under a scoped token like iac/dead.) iac/dead
 	// reaches its handler under a scoped token and enforces the grant there:
 	// TestHandleDeadIaCScopedGrantAllowsInGrantRepository serves an in-grant
 	// repo, while TestHandleDeadIaCScopedGrantRejectsOutOfGrantRepository and
 	// TestHandleDeadIaCScopedEmptyGrantRejectsAnyRepository return 400 at the
 	// handler (not a transport-layer 403).
-	req := httptest.NewRequest(http.MethodPost, "/api/v0/aws/runtime-drift/findings", nil)
+	req := httptest.NewRequest(http.MethodPost, "/api/v0/impact/trace-resource-to-code", nil)
 	req.Header.Set("Authorization", "Bearer scoped-token")
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)

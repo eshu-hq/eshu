@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/lib/pq"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -102,6 +103,13 @@ func buildCloudInventoryIdentitiesSQL(filter cloudInventoryFilter) (string, []an
 		clauses = append(clauses, fmt.Sprintf(
 			"(fact_records.scope_id = $%d OR fact_records.payload->>'scope_id' = $%d)",
 			len(args), len(args),
+		))
+	}
+	if !filter.AllScopes {
+		args = append(args, pq.Array(filter.AllowedRepositoryIDs), pq.Array(filter.AllowedScopeIDs))
+		clauses = append(clauses, fmt.Sprintf(
+			"(fact_records.scope_id = ANY($%d) OR fact_records.scope_id = ANY($%d))",
+			len(args)-1, len(args),
 		))
 	}
 	limit := filter.Limit

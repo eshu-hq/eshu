@@ -33,10 +33,9 @@ func SharedKeyOnlyRouteSurfaces() []string {
 
 // PendingRowFilteringRouteSurfaces returns every "METHOD /path" surface name
 // in the literal pendingRowFilteringRoutes ledger
-// (auth_scoped_routes_pending_row_filtering.go) -- not including the one
-// parameterized entry pendingRowFilteringEvidenceRelationshipRoute matches --
-// for the mcp package's exhaustiveness gate to staleness-check against the
-// routes it actually dispatches to.
+// (auth_scoped_routes_pending_row_filtering.go), for the mcp package's
+// exhaustiveness gate to staleness-check against the routes it actually
+// dispatches to.
 func PendingRowFilteringRouteSurfaces() []string {
 	surfaces := make([]string, 0, len(pendingRowFilteringRoutes))
 	for surface := range pendingRowFilteringRoutes {

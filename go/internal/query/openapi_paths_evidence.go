@@ -8,8 +8,9 @@ const openAPIPathsEvidence = `
       "get": {
         "tags": ["evidence"],
         "summary": "Get relationship evidence",
-        "description": "Dereferences a compact relationship evidence pointer from repository context by resolved_id and returns the durable Postgres evidence row, preview details, and source/target metadata.",
+        "description": "Dereferences a compact relationship evidence pointer from repository context by resolved_id and returns the durable Postgres evidence row, preview details, and source/target metadata. Scoped tokens require BOTH the source and target repository to be attributable to a granted repository/ingestion scope; otherwise the relationship is served as not_found, disclosing neither its existence nor either endpoint's identity.",
         "operationId": "getRelationshipEvidence",
+        "x-scoped-token-support": true,
         "parameters": [
           {
             "name": "resolved_id",

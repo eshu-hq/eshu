@@ -318,22 +318,33 @@ func (h *InfraHandler) getRelationshipEdges(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	// Access scoping (#5167 Group B): this is a whole-graph edge scan across
+	// every source label in relationshipVerbCatalog, so a scoped caller with
+	// no granted repository or ingestion scope must never reach the graph
+	// (empty page, no read); a granted scoped caller's edges are bound to its
+	// grant on both endpoints via relationshipEdgesScopeWhereClause (source
+	// always, target when entry.targetAttributable).
+	access := repositoryAccessFilterFromContext(r.Context())
+
 	limit := req.limit()
 	var (
 		edges     []relationshipEdge
 		truncated bool
 	)
+	switch {
+	case access.empty():
+		edges = []relationshipEdge{}
 	// Short-circuit a source_tool filter on a verb that never stamps it (Tier-1
 	// self-labeling and Tier-3 code/structural verbs): no edge can match by this
 	// package's own contract, and running the filtered slice would still scan the
 	// verb's source label — e.g. the IMPORTS slice scans the large File label at
 	// ~9.9s even for zero edges (docs/public/reference/cypher-performance.md). An
 	// empty page is the correct, immediate answer.
-	if tool != "" && !entry.carriesSourceTool {
+	case tool != "" && !entry.carriesSourceTool:
 		edges = []relationshipEdge{}
-	} else {
+	default:
 		var err error
-		edges, truncated, err = h.relationshipEdges(r.Context(), entry, tool, limit)
+		edges, truncated, err = h.relationshipEdges(r.Context(), entry, tool, limit, access)
 		if err != nil {
 			WriteError(w, http.StatusInternalServerError, err.Error())
 			return
@@ -367,18 +378,25 @@ func (h *InfraHandler) getRelationshipEdges(w http.ResponseWriter, r *http.Reque
 // When tool is non-empty the filtered Cypher variant is used, which adds a
 // WHERE clause on r.source_tool. When tool is empty the unfiltered path is
 // used and the $source_tool param is never sent.
-func (h *InfraHandler) relationshipEdges(ctx context.Context, entry relationshipVerbEntry, tool string, limit int) ([]relationshipEdge, bool, error) {
+func (h *InfraHandler) relationshipEdges(
+	ctx context.Context,
+	entry relationshipVerbEntry,
+	tool string,
+	limit int,
+	access repositoryAccessFilter,
+) ([]relationshipEdge, bool, error) {
 	var (
 		cypher string
 		params map[string]any
 	)
 	if tool != "" {
-		cypher = relationshipEdgesCypherFiltered(entry)
+		cypher = relationshipEdgesCypherFiltered(entry, access)
 		params = map[string]any{"limit": limit + 1, "source_tool": tool}
 	} else {
-		cypher = relationshipEdgesCypher(entry)
+		cypher = relationshipEdgesCypher(entry, access)
 		params = map[string]any{"limit": limit + 1}
 	}
+	params = access.graphParams(params)
 	rows, err := h.Neo4j.Run(ctx, cypher, params)
 	if err != nil {
 		return nil, false, err
