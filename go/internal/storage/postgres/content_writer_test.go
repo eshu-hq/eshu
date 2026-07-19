@@ -107,12 +107,11 @@ func TestContentWriterBatchesEntityInserts(t *testing.T) {
 		t.Fatalf("EntityCount = %d, want %d", got, want)
 	}
 
-	// Should have exactly 1 exec call (batched insert)
-	if got, want := len(db.execs), 1; got != want {
-		t.Fatalf("exec count = %d, want %d (batched)", got, want)
+	// Batched insert + the stale-entity reap (#5329 content_entities reap).
+	if got, want := len(db.execs), 2; got != want {
+		t.Fatalf("exec count = %d, want %d (batched insert + reap)", got, want)
 	}
 
-	// Query should be a multi-row INSERT
 	query := db.execs[0].query
 	if !strings.Contains(query, "INSERT INTO content_entities") {
 		t.Fatalf("query should contain content_entities insert: %s", query)
@@ -120,6 +119,12 @@ func TestContentWriterBatchesEntityInserts(t *testing.T) {
 	valueGroups := strings.Count(query, "($")
 	if got, want := valueGroups, 2; got != want {
 		t.Fatalf("value groups = %d, want %d (one per entity)", got, want)
+	}
+
+	// Reap DELETE, anti-joined against both fresh ids so neither is reaped.
+	reapQuery := db.execs[1].query
+	if !strings.Contains(reapQuery, "DELETE FROM content_entities") || !strings.Contains(reapQuery, "entity_id <> ALL") {
+		t.Fatalf("second query should be the stale-entity reap: %s", reapQuery)
 	}
 }
 
@@ -404,13 +409,12 @@ func TestContentWriterBatchesLargeEntitySet(t *testing.T) {
 		t.Fatalf("EntityCount = %d, want %d", got, want)
 	}
 
-	// Should have exactly 2 exec calls (2 batches of 300)
-	if got, want := len(db.execs), 2; got != want {
-		t.Fatalf("exec count = %d, want %d (2 batches)", got, want)
+	// 2 insert batches of 300 + 1 reap DELETE (600 entities share one path).
+	if got, want := len(db.execs), 3; got != want {
+		t.Fatalf("exec count = %d, want %d (2 insert batches + reap)", got, want)
 	}
 
-	// Both queries should be multi-row INSERTs
-	for i, exec := range db.execs {
+	for i, exec := range db.execs[:2] {
 		if !strings.Contains(exec.query, "INSERT INTO content_entities") {
 			t.Fatalf("query %d should contain content_entities insert", i)
 		}
@@ -418,6 +422,11 @@ func TestContentWriterBatchesLargeEntitySet(t *testing.T) {
 		if got, want := valueGroups, 300; got != want {
 			t.Fatalf("batch %d: value groups = %d, want %d", i, got, want)
 		}
+	}
+
+	reapQuery := db.execs[2].query
+	if !strings.Contains(reapQuery, "DELETE FROM content_entities") || !strings.Contains(reapQuery, "entity_id <> ALL") {
+		t.Fatalf("third query should be the stale-entity reap: %s", reapQuery)
 	}
 }
 
@@ -453,25 +462,38 @@ func TestContentWriterUsesCustomEntityBatchSize(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Write() error = %v, want nil", err)
 	}
-	if got, want := len(db.execs), 3; got != want {
+	// 3 insert batches (200, 200, 50) + 1 reap DELETE (#5329 content_entities
+	// reap; all 450 entities share one path, reaped in a single chunk).
+	if got, want := len(db.execs), 4; got != want {
 		t.Fatalf("exec count = %d, want %d", got, want)
 	}
-	// Entity batches now fan out to runConcurrentBatches; the absolute order
-	// of value-group counts in db.execs is not deterministic. Assert the
-	// sorted multiset of batch sizes instead so the test still gates batch
-	// sizing without baking in the prior serial-order implementation detail.
-	got := make([]int, len(db.execs))
-	for i, exec := range db.execs {
-		got[i] = strings.Count(exec.query, "($")
+	// Entity batches fan out to runConcurrentBatches (nondeterministic
+	// order): assert the sorted multiset of insert batch sizes, and the
+	// reap DELETE separately since its $2/$3 array params read as "($2"/
+	// "($3" substrings that would otherwise pollute the "($" count.
+	var insertBatchSizes []int
+	reapCount := 0
+	for _, exec := range db.execs {
+		switch {
+		case strings.Contains(exec.query, "INSERT INTO content_entities"):
+			insertBatchSizes = append(insertBatchSizes, strings.Count(exec.query, "($"))
+		case strings.Contains(exec.query, "DELETE FROM content_entities") && strings.Contains(exec.query, "entity_id <> ALL"):
+			reapCount++
+		default:
+			t.Fatalf("unexpected query: %s", exec.query)
+		}
 	}
-	sort.Ints(got)
+	if reapCount != 1 {
+		t.Fatalf("reap exec count = %d, want 1", reapCount)
+	}
+	sort.Ints(insertBatchSizes)
 	want := []int{50, 200, 200}
-	if len(got) != len(want) {
-		t.Fatalf("batch size set = %v, want %v", got, want)
+	if len(insertBatchSizes) != len(want) {
+		t.Fatalf("insert batch size set = %v, want %v", insertBatchSizes, want)
 	}
 	for i, w := range want {
-		if got[i] != w {
-			t.Fatalf("batch size set = %v, want %v", got, want)
+		if insertBatchSizes[i] != w {
+			t.Fatalf("insert batch size set = %v, want %v", insertBatchSizes, want)
 		}
 	}
 }

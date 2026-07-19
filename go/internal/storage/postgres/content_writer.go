@@ -334,17 +334,11 @@ func (w ContentWriter) Write(ctx context.Context, materialization content.Materi
 		"deleted_count", result.DeletedCount,
 	)
 
-	// Batch upsert entity records
-	entityUpsertStart := time.Now()
-	if err := w.upsertContentEntityBatches(ctx, entityUpserts, indexedAt); err != nil {
+	// Batch upsert entity records, then reap any content_entities row an
+	// identity churn or removal left stale (see upsertAndReapEntities).
+	if err := w.upsertAndReapEntities(ctx, cloned, entityUpserts, indexedAt); err != nil {
 		return content.Result{}, err
 	}
-	w.logStage(
-		ctx, cloned, "upsert_entities", entityUpsertStart,
-		"row_count", len(entityUpserts),
-		"batch_count", contentBatchCount(len(entityUpserts), w.effectiveEntityBatchSize()),
-		"batch_concurrency", w.effectiveBatchConcurrency(),
-	)
 
 	return result, nil
 }
