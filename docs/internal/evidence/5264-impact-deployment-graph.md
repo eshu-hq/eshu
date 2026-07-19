@@ -284,7 +284,10 @@ is `c7e6a53634`. Both commits have stable patch ID
 documentation, and an observability reducer test; it does not change the
 Impact API, query plan, console, or retained-browser harness measured here.
 The retained API, browser, and performance proof therefore carries forward to
-the rebased equivalent commit.
+the rebased equivalent commit. A second rebase onto `2b1e79f538` moved the
+equivalent truncation-accounting commit to `2b39955620` with the same stable
+patch ID. The added base range `969ed17bd5..2b1e79f538` changes only the MCP
+package README, so it also does not affect the measured surfaces.
 The scoped retained runner reported `/impact` PASS in 2,434 milliseconds with
 20 requests and no browser errors. Its broader 39-route invocation is not
 claimed as a pass: unrelated routes lacked their optional retained-data
