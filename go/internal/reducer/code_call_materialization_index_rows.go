@@ -206,6 +206,11 @@ func appendCodeCallRow(
 	if resolutionMethod != "" {
 		row["resolution_method"] = resolutionMethod
 	}
+	// "lang" rides along so a corpus-wide pass (recordCodeCallSelfLoopWritten)
+	// can attribute a written self-loop (caller_entity_id == callee_entity_id
+	// — a genuinely recursive function, not a defect to filter: see #5332)
+	// to the source language without re-deriving it from file paths.
+	copyOptionalCodeCallField(row, edge, "lang")
 	copyOptionalCodeCallField(row, edge, "full_name")
 	copyOptionalCodeCallField(row, edge, "call_kind")
 	if relationshipType != "" {
