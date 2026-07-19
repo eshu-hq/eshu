@@ -96,6 +96,15 @@ Current extraction families:
 `EvidenceKind` constants live in `models.go` and are persisted. Renaming them
 requires a storage compatibility plan.
 
+GitHub Actions evidence details additionally carry `first_party_ref_version`/
+`action_ref_name`/`workflow_ref_name` sub-fields (the pinned ref, tag, or SHA
+from `owner/repo@ref`) computed in `go/internal/relationships/github_actions_evidence.go`.
+These are marshaled into the `Details` JSON persisted by
+`relationship_evidence_batch.go`, but no downstream reducer or edge writer
+reads them when it materializes the `DEPLOYS_FROM`/`DEPENDS_ON` edge, so the
+pinned ref/version never reaches the graph. Tracked in
+[#5372](https://github.com/eshu-hq/eshu/issues/5372).
+
 ## Matching Rules
 
 Relationship extraction uses the catalog passed into `DiscoverEvidence`.
