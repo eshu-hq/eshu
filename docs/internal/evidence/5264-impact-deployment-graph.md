@@ -229,8 +229,8 @@ the complete console suite passed 255 test files and 1,619 tests, console
 typechecking passed, and the production console build passed with every emitted
 chunk within its checked-in budget. The B-7 golden-corpus gate passed 421
 checks with zero required failures and zero advisory warnings on the same
-PR261 image in 33 seconds. Its phase durations were 2 seconds for bootstrap, 21
-seconds for collection, 5 seconds for the first drain, 5 seconds for
+PR261 image in 37 seconds. Its phase durations were 3 seconds for bootstrap, 20
+seconds for collection, 8 seconds for the first drain, 6 seconds for
 maintenance, and 3 seconds for graph queries. The post-rebase static query-plan
 test and generated-coverage verification also passed after removing stale
 callsite records introduced by the incoming base changes.
@@ -246,7 +246,7 @@ instrument, or high-cardinality metric label.
 | Proof | Terminal result |
 | --- | --- |
 | Focused backend and OpenAPI tests | deployment truth, bounds, ambiguity, and schema tests passed |
-| Focused console tests and typecheck | 254 files and 1,619 tests passed; typecheck passed |
+| Focused console tests and typecheck | 255 files and 1,619 tests passed; typecheck passed |
 | NornicDB query proof | bounded emitted shapes and expected correctness delta proved; unavailable `PROFILE` output disclosed |
 | B-7 golden corpus | 421 passed, 0 required failures, 0 advisory warnings on the pinned PR261 image above |
 | Production console build | passed; all 80 emitted chunks remained within budget |
@@ -261,6 +261,12 @@ composition took 0.800 milliseconds. Ten full reload-to-rendered-SVG samples,
 including API, React commit, the 12-node/11-edge label, and the visible SVG,
 were `1382, 1172, 1345, 1135, 1340, 1138, 1340, 1152, 1344, 1130`
 milliseconds (median 1,256 milliseconds; maximum 1,382 milliseconds).
+After the final config-evidence truncation fix, the API image was rebuilt from
+the exact branch head and the same signed-in route was repeated. Three
+reload-to-visible-SVG samples were `1491, 1160, 1346` milliseconds; the graph
+again reported 12 of 12 nodes, 11 of 11 edges, five runtime instances, and
+complete within bounds. The current browser-log window contained no errors or
+warnings.
 Selecting an instance showed human
 relationship labels with canonical IDs retained as secondary evidence. The
 current proof window contained no browser console errors or warnings.
