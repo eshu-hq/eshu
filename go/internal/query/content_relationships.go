@@ -211,10 +211,13 @@ func buildOutgoingK8sSelectRelationships(
 
 	// Selector matches are not name-scoped (a Service and the Deployment it
 	// selects commonly have different names), so candidates come from a
-	// repo-wide entity scan rather than a name lookup. This mirrors the
-	// existing ListRepoEntities(repositorySemanticEntityLimit) pattern used
-	// for controller-entity scans in impact_trace_deployment_controllers.go.
-	candidates, err := reader.ListRepoEntities(ctx, entity.RepoID, repositorySemanticEntityLimit)
+	// repo-wide entity scan rather than a name lookup. The scan is typed
+	// (ListRepoEntitiesByType, not ListRepoEntities) so the LIMIT applies to
+	// the K8sResource-filtered row set: a repo-wide scan can push late-sorting
+	// K8sResource rows past the limit and silently drop them, producing a
+	// missing SELECTS edge in a repo with more than repositorySemanticEntityLimit
+	// entities.
+	candidates, err := reader.ListRepoEntitiesByType(ctx, entity.RepoID, "K8sResource", repositorySemanticEntityLimit)
 	if err != nil {
 		return nil, true, fmt.Errorf("list repo entities for k8s selects: %w", err)
 	}
@@ -322,10 +325,11 @@ func buildIncomingK8sSelectRelationships(
 
 	workloadInput := k8sSelectMatchInputFromEntity(entity)
 
-	// A matching Service can have any name, so candidates come from a
+	// A matching Service can have any name, so candidates come from a typed
 	// repo-wide entity scan (see buildOutgoingK8sSelectRelationships for the
-	// same reasoning) rather than a name lookup.
-	candidates, err := reader.ListRepoEntities(ctx, entity.RepoID, repositorySemanticEntityLimit)
+	// same reasoning, including why ListRepoEntitiesByType and not
+	// ListRepoEntities) rather than a name lookup.
+	candidates, err := reader.ListRepoEntitiesByType(ctx, entity.RepoID, "K8sResource", repositorySemanticEntityLimit)
 	if err != nil {
 		return nil, true, fmt.Errorf("list repo entities for k8s selects: %w", err)
 	}

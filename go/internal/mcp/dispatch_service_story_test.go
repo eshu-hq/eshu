@@ -418,6 +418,10 @@ func (mcpNoopContentStore) ListRepoEntities(context.Context, string, int) ([]que
 	return nil, nil
 }
 
+func (mcpNoopContentStore) ListRepoEntitiesByType(context.Context, string, string, int) ([]query.EntityContent, error) {
+	return nil, nil
+}
+
 func (mcpNoopContentStore) ListRepoEntitiesByPaths(context.Context, string, []string, int) ([]query.EntityContent, error) {
 	return nil, nil
 }

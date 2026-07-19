@@ -130,6 +130,27 @@ func (f fakePortContentStore) ListRepoEntities(_ context.Context, _ string, limi
 	return append([]EntityContent(nil), f.entities...), nil
 }
 
+// ListRepoEntitiesByType filters f.entities by entity_type before applying
+// limit, mirroring the production ContentReader.ListRepoEntitiesByType
+// predicate order (type filter first, then limit) so callers exercising the
+// double still see the truncation-avoidance behavior the real query provides.
+func (f fakePortContentStore) ListRepoEntitiesByType(_ context.Context, repoID, entityType string, limit int) ([]EntityContent, error) {
+	filtered := make([]EntityContent, 0, len(f.entities))
+	for _, entity := range f.entities {
+		if repoID != "" && entity.RepoID != "" && entity.RepoID != repoID {
+			continue
+		}
+		if entity.EntityType != entityType {
+			continue
+		}
+		filtered = append(filtered, entity)
+		if limit > 0 && len(filtered) >= limit {
+			break
+		}
+	}
+	return filtered, nil
+}
+
 func (f fakePortContentStore) ListRepoEntitiesByPaths(
 	_ context.Context,
 	repoID string,
