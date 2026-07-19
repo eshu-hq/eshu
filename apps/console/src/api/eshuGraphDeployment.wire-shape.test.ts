@@ -62,15 +62,16 @@ describe("Graph Explorer production deployment wire shapes", () => {
       expect.objectContaining({
         id: "platform:ecs_service:checkout-prod",
         label: "checkout-prod",
+        truth: "exact",
       }),
     );
-    expect(summary.edges).toContainEqual(
-      expect.objectContaining({
-        s: "instance:prod",
-        t: "platform:ecs_service:checkout-prod",
-        verb: "RUNS_ON",
-      }),
+    const platformEdge = summary.edges.find(
+      (edge) => edge.s === "instance:prod" && edge.verb === "RUNS_ON",
     );
+    expect(platformEdge).toMatchObject({
+      t: "platform:ecs_service:checkout-prod",
+    });
+    expect(platformEdge?.evidence).toContain("truth level: exact");
     expect(expanded.edges.filter((edge) => edge.verb === "SELECTS")).toHaveLength(2);
     expect(expanded.nodes.length).toBeGreaterThanOrEqual(summary.nodes.length);
     expect(expanded.edges.length).toBeGreaterThanOrEqual(summary.edges.length);

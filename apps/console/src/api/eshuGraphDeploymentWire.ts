@@ -161,6 +161,15 @@ export function mergeDeploymentInstances(
 }
 
 function normalizeDeploymentInstance(row: DeploymentInstanceRecord): DeploymentInstanceRecord {
+  return {
+    ...row,
+    platforms: deploymentPlatforms(row),
+  };
+}
+
+export function deploymentPlatforms(
+  row: DeploymentInstanceRecord,
+): readonly DeploymentPlatformRecord[] {
   const flatPlatform =
     row.platform_name?.trim() || row.platform_kind?.trim()
       ? [
@@ -172,10 +181,7 @@ function normalizeDeploymentInstance(row: DeploymentInstanceRecord): DeploymentI
           },
         ]
       : [];
-  return {
-    ...row,
-    platforms: uniquePlatforms([...flatPlatform, ...(row.platforms ?? [])]),
-  };
+  return uniquePlatforms([...flatPlatform, ...(row.platforms ?? [])]);
 }
 
 export function uniqueDeploymentArtifacts(

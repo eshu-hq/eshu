@@ -1,6 +1,7 @@
 import type { EshuTruth } from "./envelope";
 import {
   deploymentArtifactKey,
+  deploymentPlatforms,
   deploymentPlatformKey,
   namedDeploymentRecordKey,
   networkPathKey,
@@ -59,7 +60,7 @@ export function platformRecordTruth(
     rows.some(
       (instance) =>
         instance.instance_id?.trim() === instanceID &&
-        (instance.platforms ?? []).some((candidate) => deploymentPlatformKey(candidate) === key),
+        deploymentPlatforms(instance).some((candidate) => deploymentPlatformKey(candidate) === key),
     );
   return selectSourceTruth(
     contains(sources.contextRows),
