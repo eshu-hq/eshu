@@ -261,12 +261,29 @@ composition took 0.800 milliseconds. Ten full reload-to-rendered-SVG samples,
 including API, React commit, the 12-node/11-edge label, and the visible SVG,
 were `1382, 1172, 1345, 1135, 1340, 1138, 1340, 1152, 1344, 1130`
 milliseconds (median 1,256 milliseconds; maximum 1,382 milliseconds).
-After the final config-evidence truncation fix, the API image was rebuilt from
-the exact branch head and the same signed-in route was repeated. Three
+After the config-evidence truncation fix at `e345e1b91f`, the API image was
+rebuilt from that code head and the same signed-in route was repeated. Three
 reload-to-visible-SVG samples were `1491, 1160, 1346` milliseconds; the graph
 again reported 12 of 12 nodes, 11 of 11 edges, five runtime instances, and
 complete within bounds. The current browser-log window contained no errors or
 warnings.
+
+The final truncation-accounting code head was `9131036c40`. Its retained API
+input hash was
+`aec199c67ebd1ab409b4f3851e874709159613e00393d0bf038478d2772b8d1f`,
+and the retained sidecar ran image digest
+`sha256:ff20bdefc736e66b12127bbb997bf621be5d88a2a74991de6a8ec0959ebd7d5a`.
+The scoped retained runner reported `/impact` PASS in 2,434 milliseconds with
+20 requests and no browser errors. Its broader 39-route invocation is not
+claimed as a pass: unrelated routes lacked their optional retained-data
+anchors, and pre-existing bootstrap/admin-token workflows also failed. In the
+signed-in in-app browser, an exact-code-head reload reached 12 of 12 nodes, 11
+of 11 edges, five runtime instances, and `complete within bounds` in 1,770
+milliseconds with no error or warning logs in that reload window. This retained
+anchor did not set the candidate-truncation flag, so the source-neutral warning,
+`truncated` completeness, zero returned candidate rows, and honest zero omitted-
+node count are proved by the exact-head integrated normalizer/graph/DOM
+regressions rather than misrepresented as a live retained-data observation.
 Selecting an instance showed human
 relationship labels with canonical IDs retained as secondary evidence. The
 current proof window contained no browser console errors or warnings.
