@@ -95,6 +95,88 @@ func expectedBatchedExecCount(rowCount int) int {
 	return (rowCount + reducerFactBatchSize - 1) / reducerFactBatchSize
 }
 
+// decodedBatchedVersionedFactRow is one row recovered from a
+// reducerFactBatchInsertVersionedQuery ExecContext call. It mirrors
+// decodedBatchedFactRow with an added SchemaVersion field.
+type decodedBatchedVersionedFactRow struct {
+	FactID           string
+	ScopeID          string
+	GenerationID     string
+	FactKind         string
+	StableFactKey    string
+	SchemaVersion    string
+	CollectorKind    string
+	SourceConfidence string
+	SourceSystem     string
+	SourceFactKey    string
+	ObservedAt       time.Time
+	IngestedAt       time.Time
+	IsTombstone      bool
+	Payload          []byte
+}
+
+// decodeBatchedVersionedFactCalls flattens every batched ExecContext call
+// recorded by a fakeWorkloadIdentityExecer into the per-row records they
+// encode. It asserts each call used reducerFactBatchInsertVersionedQuery so a
+// regression to per-row inserts (which use canonicalVersionedReducerFactInsertQuery)
+// fails loudly here.
+func decodeBatchedVersionedFactCalls(t *testing.T, calls []fakeWorkloadIdentityExecCall) []decodedBatchedVersionedFactRow {
+	t.Helper()
+	var rows []decodedBatchedVersionedFactRow
+	for callIndex, call := range calls {
+		if call.query != reducerFactBatchInsertVersionedQuery {
+			t.Fatalf("exec %d query = %q, want batched versioned fact insert", callIndex, call.query)
+		}
+		rows = append(rows, decodeBatchedVersionedFactCall(t, call)...)
+	}
+	return rows
+}
+
+// decodeBatchedVersionedFactCall decodes the parallel array arguments of a
+// single batched versioned insert call back into per-row records.
+func decodeBatchedVersionedFactCall(t *testing.T, call fakeWorkloadIdentityExecCall) []decodedBatchedVersionedFactRow {
+	t.Helper()
+	if len(call.args) != 16 {
+		t.Fatalf("batched versioned insert args = %d, want 16", len(call.args))
+	}
+	factIDs := stringArg(t, call.args[0], "fact_id")
+	scopeIDs := stringArg(t, call.args[1], "scope_id")
+	generationIDs := stringArg(t, call.args[2], "generation_id")
+	factKinds := stringArg(t, call.args[3], "fact_kind")
+	stableKeys := stringArg(t, call.args[4], "stable_fact_key")
+	schemaVersions := stringArg(t, call.args[5], "schema_version")
+	collectorKinds := stringArg(t, call.args[6], "collector_kind")
+	sourceConfidences := stringArg(t, call.args[7], "source_confidence")
+	sourceSystems := stringArg(t, call.args[8], "source_system")
+	sourceFactKeys := stringArg(t, call.args[9], "source_fact_key")
+	observedAts := timeArg(t, call.args[12], "observed_at")
+	ingestedAts := timeArg(t, call.args[13], "ingested_at")
+	isTombstones := boolArg(t, call.args[14], "is_tombstone")
+	payloads := stringArg(t, call.args[15], "payload")
+
+	n := len(factIDs)
+	rows := make([]decodedBatchedVersionedFactRow, n)
+	for i := 0; i < n; i++ {
+		rows[i] = decodedBatchedVersionedFactRow{
+			FactID:           factIDs[i],
+			ScopeID:          scopeIDs[i],
+			GenerationID:     generationIDs[i],
+			FactKind:         factKinds[i],
+			StableFactKey:    stableKeys[i],
+			SchemaVersion:    schemaVersions[i],
+			CollectorKind:    collectorKinds[i],
+			SourceConfidence: sourceConfidences[i],
+			SourceSystem:     sourceSystems[i],
+			SourceFactKey:    sourceFactKeys[i],
+			ObservedAt:       observedAts[i],
+			IngestedAt:       ingestedAts[i],
+			IsTombstone:      isTombstones[i],
+			Payload:          []byte(payloads[i]),
+		}
+	}
+	return rows
+}
+
 func stringArg(t *testing.T, arg any, name string) []string {
 	t.Helper()
 	values, ok := arg.([]string)

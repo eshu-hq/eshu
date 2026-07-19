@@ -36,6 +36,7 @@ func (w PostgresSupplyChainImpactWriter) WriteSupplyChainImpactFindings(
 		return SupplyChainImpactWriteResult{}, fmt.Errorf("supply chain impact database is required")
 	}
 	now := reducerWriterNow(w.Now)
+	rows := make([]reducerFactVersionedRow, 0, len(write.Findings))
 	for _, finding := range write.Findings {
 		payload, err := factschema.EncodeReducerSupplyChainImpactFinding(
 			supplyChainImpactTypedPayload(write, finding),
@@ -47,28 +48,26 @@ func (w PostgresSupplyChainImpactWriter) WriteSupplyChainImpactFindings(
 		if err != nil {
 			return SupplyChainImpactWriteResult{}, fmt.Errorf("marshal supply chain impact payload: %w", err)
 		}
-		if _, err := w.DB.ExecContext(
-			ctx,
-			canonicalVersionedReducerFactInsertQuery,
-			supplyChainImpactFactID(write, finding),
-			write.ScopeID,
-			write.GenerationID,
-			supplyChainImpactFactKind,
-			supplyChainImpactStableFactKey(write, finding),
-			facts.ReducerDerivedSchemaVersionV1,
-			reducerFactCollectorKind(write.SourceSystem),
-			facts.SourceConfidenceInferred,
-			write.SourceSystem,
-			write.IntentID,
-			nil,
-			nil,
-			now,
-			now,
-			false,
-			payloadJSON,
-		); err != nil {
-			return SupplyChainImpactWriteResult{}, fmt.Errorf("write supply chain impact fact: %w", err)
-		}
+		rows = append(rows, reducerFactVersionedRow{
+			FactID:           supplyChainImpactFactID(write, finding),
+			ScopeID:          write.ScopeID,
+			GenerationID:     write.GenerationID,
+			FactKind:         supplyChainImpactFactKind,
+			StableFactKey:    supplyChainImpactStableFactKey(write, finding),
+			SchemaVersion:    facts.ReducerDerivedSchemaVersionV1,
+			CollectorKind:    reducerFactCollectorKind(write.SourceSystem),
+			SourceConfidence: facts.SourceConfidenceInferred,
+			SourceSystem:     write.SourceSystem,
+			SourceFactKey:    write.IntentID,
+			ObservedAt:       now,
+			IngestedAt:       now,
+			Payload:          string(payloadJSON),
+		})
+	}
+	// Bounded chunked bulk insert: findings are upserted in O(N/batchSize)
+	// round-trips rather than one ExecContext per finding.
+	if err := reducerBatchInsertVersionedFacts(ctx, w.DB, rows); err != nil {
+		return SupplyChainImpactWriteResult{}, fmt.Errorf("write supply chain impact fact: %w", err)
 	}
 	canonicalWrites := supplyChainImpactCanonicalWrites(write.Findings)
 	return SupplyChainImpactWriteResult{
