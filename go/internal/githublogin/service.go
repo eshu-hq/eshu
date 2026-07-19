@@ -379,7 +379,7 @@ func normalizeConfig(config Config) (Config, error) {
 func normalizeProvider(provider ProviderConfig) (ProviderConfig, error) {
 	provider.ProviderConfigID = strings.TrimSpace(provider.ProviderConfigID)
 	provider.BaseURL = defaultString(strings.TrimSpace(provider.BaseURL), defaultBaseURL)
-	provider.APIBaseURL = defaultAPIBaseURLFor(provider.BaseURL, strings.TrimSpace(provider.APIBaseURL))
+	provider.APIBaseURL = EffectiveAPIBaseURL(provider.BaseURL, provider.APIBaseURL)
 	provider.ClientID = strings.TrimSpace(provider.ClientID)
 	provider.ClientSecretFile = strings.TrimSpace(provider.ClientSecretFile)
 	provider.RedirectURL = strings.TrimSpace(provider.RedirectURL)
@@ -400,9 +400,29 @@ func normalizeProvider(provider ProviderConfig) (ProviderConfig, error) {
 	return provider, nil
 }
 
+// EffectiveAPIBaseURL resolves the REST API base URL a GitHub provider's
+// login flow will actually call, given its (possibly blank) base_url and
+// api_base_url configuration. It applies the identical defaulting the login
+// path uses (see ResolveSealedProviderConfig / normalizeProvider): a blank
+// base_url means github.com; an explicit api_base_url wins; otherwise
+// github.com resolves to https://api.github.com and any GitHub Enterprise
+// Server host to <base_url>/api/v3.
+//
+// The admin connection tester (cmd/api) derives its probe URL through this so
+// it exercises exactly the endpoint login will reach — never a different
+// default. Without it, a GHES provider with base_url set but api_base_url
+// omitted would be probed at api.github.com while login uses the GHES host,
+// producing a false-green test that enables an unreachable provider
+// (issue #5166, F-5).
+func EffectiveAPIBaseURL(baseURL, apiBaseURL string) string {
+	return defaultAPIBaseURLFor(defaultString(strings.TrimSpace(baseURL), defaultBaseURL), strings.TrimSpace(apiBaseURL))
+}
+
 // defaultAPIBaseURLFor derives the REST API base URL for baseURL when
 // apiBaseURL is not explicitly set: github.com uses api.github.com, any
-// other (GitHub Enterprise Server) host uses baseURL + "/api/v3".
+// other (GitHub Enterprise Server) host uses baseURL + "/api/v3". baseURL is
+// assumed already defaulted (non-empty); callers with a possibly-blank
+// base_url should use EffectiveAPIBaseURL, which defaults it first.
 func defaultAPIBaseURLFor(baseURL string, apiBaseURL string) string {
 	if apiBaseURL != "" {
 		return apiBaseURL

@@ -298,3 +298,34 @@ func TestValidateConfigRejectsEmptyAllowedOrgs(t *testing.T) {
 		t.Fatal("ValidateConfig() error = nil, want error for empty allowed_orgs")
 	}
 }
+
+// TestEffectiveAPIBaseURL proves the shared derivation the login path and the
+// admin connection tester both use (issue #5166, F-5): a GitHub Enterprise
+// Server base_url with no explicit api_base_url must resolve to
+// <base_url>/api/v3 — NOT the api.github.com default — so the test-connection
+// probe targets the same host login calls. github.com (blank base) resolves
+// to api.github.com, and an explicit api_base_url always wins.
+func TestEffectiveAPIBaseURL(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name       string
+		baseURL    string
+		apiBaseURL string
+		want       string
+	}{
+		{"github.com blank base", "", "", "https://api.github.com"},
+		{"github.com explicit base", "https://github.com", "", "https://api.github.com"},
+		{"ghes base derives api/v3", "https://github.example.com", "", "https://github.example.com/api/v3"},
+		{"ghes base with trailing slash", "https://github.example.com/", "", "https://github.example.com/api/v3"},
+		{"explicit api_base_url wins", "https://github.example.com", "https://ghe-api.example.com", "https://ghe-api.example.com"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := EffectiveAPIBaseURL(tc.baseURL, tc.apiBaseURL); got != tc.want {
+				t.Fatalf("EffectiveAPIBaseURL(%q, %q) = %q, want %q", tc.baseURL, tc.apiBaseURL, got, tc.want)
+			}
+		})
+	}
+}

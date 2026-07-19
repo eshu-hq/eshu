@@ -134,6 +134,85 @@ func TestConnectorExchangeAndFetchIdentity(t *testing.T) {
 	}
 }
 
+// TestConnectorPaginatesOrgMembershipsAllowedOrgOnPageTwo proves the org
+// allow-list decision is not silently wrong for a user in more than one page
+// of active org memberships. GitHub's /user/memberships/orgs paginates at
+// per_page=100; a user with a full first page of non-allowed orgs and the
+// allowed org only on page 2 must still be admitted. Before the fix the
+// connector read only the first page, so the allowed org was never seen and
+// CompleteGitHubLogin would deny the login.
+func TestConnectorPaginatesOrgMembershipsAllowedOrgOnPageTwo(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/user", func(w http.ResponseWriter, _ *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{"id": 999, "login": "bigmember"})
+	})
+	mux.HandleFunc("/user/emails", func(w http.ResponseWriter, _ *http.Request) {
+		_ = json.NewEncoder(w).Encode([]map[string]any{
+			{"email": "big@example.test", "verified": true, "primary": true},
+		})
+	})
+	mux.HandleFunc("/user/teams", func(w http.ResponseWriter, _ *http.Request) {
+		_ = json.NewEncoder(w).Encode([]map[string]any{})
+	})
+	var orgPagesServed []string
+	mux.HandleFunc("/user/memberships/orgs", func(w http.ResponseWriter, r *http.Request) {
+		page := r.URL.Query().Get("page")
+		orgPagesServed = append(orgPagesServed, page)
+		switch page {
+		case "1":
+			// A full first page (100) of active memberships, NONE allowed.
+			memberships := make([]map[string]any, 0, 100)
+			for i := 0; i < 100; i++ {
+				memberships = append(memberships, map[string]any{
+					"state":        "active",
+					"organization": map[string]any{"login": fmt.Sprintf("noise-org-%d", i)},
+				})
+			}
+			_ = json.NewEncoder(w).Encode(memberships)
+		case "2":
+			// The allowed org appears only on page 2.
+			_ = json.NewEncoder(w).Encode([]map[string]any{
+				{"state": "active", "organization": map[string]any{"login": "eshu-hq"}},
+			})
+		default:
+			_ = json.NewEncoder(w).Encode([]map[string]any{})
+		}
+	})
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	connector, err := NewGitHubConnector(context.Background(), ProviderConfig{
+		BaseURL:      server.URL,
+		APIBaseURL:   server.URL,
+		ClientID:     "client-id",
+		ClientSecret: "client-secret",
+		RedirectURL:  "https://eshu.example.test/callback",
+		AllowedOrgs:  []string{"eshu-hq"},
+	})
+	if err != nil {
+		t.Fatalf("NewGitHubConnector() error = %v", err)
+	}
+
+	identity, err := connector.FetchIdentity(context.Background(), "gho_test_token", []string{"eshu-hq"})
+	if err != nil {
+		t.Fatalf("FetchIdentity() error = %v", err)
+	}
+	found := false
+	for _, org := range identity.ActiveOrgs {
+		if org == "eshu-hq" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("active orgs = %v, want the page-2 allowed org eshu-hq to be admitted", identity.ActiveOrgs)
+	}
+	if len(orgPagesServed) < 2 {
+		t.Fatalf("org membership pages requested = %v, want at least pages 1 and 2 to be fetched", orgPagesServed)
+	}
+}
+
 func TestConnectorExchangeSurfacesGitHubErrorResponse(t *testing.T) {
 	t.Parallel()
 

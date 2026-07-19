@@ -50,6 +50,15 @@ type authProviderListStore struct {
 	// Only entries whose DB row is active for the matching tenant are
 	// surfaced, mirroring oidcProviders (issue #5166, F-5).
 	githubProviders []query.GitHubRegisteredProvider
+	// githubRuntimeEnabled reports whether the GitHub login runtime is mounted
+	// at all (githubHandler != nil, i.e. ESHU_AUTH_GITHUB_ENABLED=true or a
+	// config file is set — see newGitHubLoginHandler). Like SAML,
+	// newGitHubLoginHandler returns nil when no activation path is configured,
+	// and query.APIRouter.Mount then never registers /api/v0/auth/github/login
+	// (its `if a.GitHubLogin != nil` gate). A DB-backed external_github row
+	// must never be surfaced as a login option while this is false: the button
+	// would 404 every time (issue #5166, F-5).
+	githubRuntimeEnabled bool
 }
 
 // newAuthProviderListStore constructs the store. db may be nil in test-only
@@ -78,11 +87,12 @@ func newAuthProviderListStore(
 		identityStore = pgstatus.NewIdentitySubjectStore(pgstatus.ExecQueryer(pgstatus.SQLDB{DB: db}))
 	}
 	return &authProviderListStore{
-		identity:           identityStore,
-		samlRuntimeEnabled: samlHandler != nil,
-		samlProviderIDs:    samlIDs,
-		oidcProviders:      oidcProviders,
-		githubProviders:    githubProviders,
+		identity:             identityStore,
+		samlRuntimeEnabled:   samlHandler != nil,
+		samlProviderIDs:      samlIDs,
+		oidcProviders:        oidcProviders,
+		githubProviders:      githubProviders,
+		githubRuntimeEnabled: githubHandler != nil,
 	}
 }
 
@@ -152,6 +162,13 @@ func (s *authProviderListStore) ListLoginProviders(ctx context.Context, tenantID
 			// The SAML runtime is not mounted at all (see samlRuntimeEnabled's
 			// doc comment) — surfacing this row would offer a login button
 			// whose route always 404s.
+			continue
+		}
+		if item.ProviderKind == "external_github" && !s.githubRuntimeEnabled {
+			// The GitHub runtime is not mounted (see githubRuntimeEnabled's doc
+			// comment) — surfacing this row would offer a "Continue with GitHub"
+			// button whose /api/v0/auth/github/login route always 404s
+			// (issue #5166, F-5).
 			continue
 		}
 		label := displayLabelForKind(item.ProviderKind)

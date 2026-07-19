@@ -85,11 +85,13 @@ func (t *providerConfigConnectionTester) TestProviderConnection(
 		}
 		return query.AdminProviderConfigConnectionTestResult{OK: result.OK, Detail: result.Detail, RevisionID: material.RevisionID}, nil
 	case "external_github":
-		var cfg struct {
-			APIBaseURL string `json:"api_base_url"`
-		}
-		_ = json.Unmarshal([]byte(material.Configuration), &cfg)
-		result, err := githublogin.TestConnection(ctx, t.keyring, providerConfigID, material.RevisionID, cfg.APIBaseURL, material.SealedSecret)
+		// Derive the probe URL with the SAME base_url/api_base_url defaulting
+		// the login resolver uses (githublogin.EffectiveAPIBaseURL), so a GHES
+		// provider with base_url set but api_base_url omitted is probed at
+		// <base_url>/api/v3 — the exact host login will call — instead of the
+		// api.github.com default, which would be a false-green (issue #5166).
+		apiBase := githubConnectionTestAPIBase(material.Configuration)
+		result, err := githublogin.TestConnection(ctx, t.keyring, providerConfigID, material.RevisionID, apiBase, material.SealedSecret)
 		if err != nil {
 			return query.AdminProviderConfigConnectionTestResult{}, err
 		}
@@ -97,4 +99,20 @@ func (t *providerConfigConnectionTester) TestProviderConnection(
 	default:
 		return query.AdminProviderConfigConnectionTestResult{OK: false, Detail: "unknown provider kind"}, nil
 	}
+}
+
+// githubConnectionTestAPIBase decodes a GitHub provider config's non-secret
+// configuration JSON and returns the REST API base URL the login flow will
+// actually call, via githublogin.EffectiveAPIBaseURL (the shared derivation).
+// This is the endpoint the connection tester must probe, so a GitHub
+// Enterprise Server provider (base_url set, api_base_url omitted) is tested
+// at <base_url>/api/v3 rather than the api.github.com default — see the
+// external_github case above (issue #5166, F-5).
+func githubConnectionTestAPIBase(configurationJSON string) string {
+	var cfg struct {
+		BaseURL    string `json:"base_url"`
+		APIBaseURL string `json:"api_base_url"`
+	}
+	_ = json.Unmarshal([]byte(configurationJSON), &cfg)
+	return githublogin.EffectiveAPIBaseURL(cfg.BaseURL, cfg.APIBaseURL)
 }

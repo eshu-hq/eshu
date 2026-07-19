@@ -97,7 +97,10 @@ func ResolveSealedProviderConfig(
 	}
 
 	baseURL := defaultString(strings.TrimSpace(cfg.BaseURL), defaultBaseURL)
-	apiBaseURL := defaultAPIBaseURLFor(baseURL, strings.TrimSpace(cfg.APIBaseURL))
+	// EffectiveAPIBaseURL applies the same defaulting the admin connection
+	// tester uses, so the login endpoint and the test-connection probe target
+	// the identical host (issue #5166, F-5).
+	apiBaseURL := EffectiveAPIBaseURL(cfg.BaseURL, cfg.APIBaseURL)
 	scopes := cleanLowerStrings(cfg.Scopes)
 	if len(scopes) == 0 {
 		scopes = []string{"read:org", "user:email"}

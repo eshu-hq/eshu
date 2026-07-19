@@ -27,6 +27,12 @@ const (
 	// number of team memberships cannot make a single login hang or issue
 	// unbounded API calls.
 	githubMaxTeamPages = 20
+	// githubOrgPageSize matches GitHub's documented maximum per_page for
+	// /user/memberships/orgs; githubMaxOrgPages bounds pagination the same way
+	// githubMaxTeamPages bounds /user/teams, so a user in a pathological number
+	// of orgs cannot hang a login.
+	githubOrgPageSize = 100
+	githubMaxOrgPages = 20
 )
 
 // githubConnector implements Connector against the real GitHub OAuth2 and
@@ -229,24 +235,49 @@ func (c *githubConnector) fetchVerifiedPrimaryEmail(ctx context.Context, accessT
 	return "", nil
 }
 
+// fetchActiveOrgs pages through GET /user/memberships/orgs (max 100 per page,
+// per GitHub's documented maximum) and returns the user's active memberships
+// restricted to allowed orgs. Pagination matters for the allow-list decision:
+// a user in more than one page of orgs whose allowed org lands on a later page
+// would otherwise be wrongly denied (CompleteGitHubLogin rejects before
+// team-role resolution when no allowed org is present). Bounded to
+// githubMaxOrgPages, and stops early once every configured allowed org has
+// been confirmed (no later page can change the decision then).
 func (c *githubConnector) fetchActiveOrgs(ctx context.Context, accessToken string, allowed map[string]struct{}) ([]string, error) {
-	var memberships []githubOrgMembership
-	if err := c.getJSON(ctx, accessToken, "/user/memberships/orgs?state=active&per_page=100", &memberships); err != nil {
-		return nil, fmt.Errorf("fetch github org memberships: %w", err)
-	}
-	orgs := make([]string, 0, len(memberships))
-	for _, membership := range memberships {
-		if !strings.EqualFold(membership.State, "active") {
-			continue
+	found := make(map[string]struct{}, len(allowed))
+	orgs := make([]string, 0, len(allowed))
+	for page := 1; page <= githubMaxOrgPages; page++ {
+		var memberships []githubOrgMembership
+		path := fmt.Sprintf("/user/memberships/orgs?state=active&per_page=%d&page=%d", githubOrgPageSize, page)
+		if err := c.getJSON(ctx, accessToken, path, &memberships); err != nil {
+			return nil, fmt.Errorf("fetch github org memberships: %w", err)
 		}
-		login := strings.ToLower(strings.TrimSpace(membership.Organization.Login))
-		if login == "" {
-			continue
+		for _, membership := range memberships {
+			if !strings.EqualFold(membership.State, "active") {
+				continue
+			}
+			login := strings.ToLower(strings.TrimSpace(membership.Organization.Login))
+			if login == "" {
+				continue
+			}
+			if _, ok := allowed[login]; !ok {
+				continue
+			}
+			if _, seen := found[login]; seen {
+				continue
+			}
+			found[login] = struct{}{}
+			orgs = append(orgs, login)
 		}
-		if _, ok := allowed[login]; !ok {
-			continue
+		// Every configured allowed org is confirmed; no later page can change
+		// the allow-list decision, so stop paging.
+		if len(found) == len(allowed) {
+			break
 		}
-		orgs = append(orgs, login)
+		// Last page reached (fewer than a full page returned).
+		if len(memberships) < githubOrgPageSize {
+			break
+		}
 	}
 	return cleanLowerStrings(orgs), nil
 }
