@@ -232,6 +232,34 @@ func githubActionsExpressionRef(value string) bool {
 	return strings.Contains(value, "${{")
 }
 
+// isGitHubActionsArtifactPath reports whether entity is a GitHub Actions
+// artifact file by its path alone. GitHub REQUIRES these exact locations, so
+// this is an exact structural gate, not a content heuristic: workflow files
+// live at `.github/workflows/*.yml`/`*.yaml`, and a composite or JavaScript
+// action's metadata file must be named exactly `action.yml`/`action.yaml`.
+//
+// The gate exists because githubActionsSourceRelationships runs a structured
+// YAML decode over every content entity's SourceCache; without it, an
+// unrelated YAML file that merely happens to have a top-level `jobs:` map with
+// `steps[].uses` (an internal CI config, a templated example, a GitLab CI
+// file) would fabricate github_actions_* edges — and because
+// buildOutgoingContentRelationships short-circuits on the first classifier
+// that returns any edge, that false positive would also prevent later
+// classifiers from handling the entity (issue #5337, codex P1 on PR #5379).
+func isGitHubActionsArtifactPath(entity EntityContent) bool {
+	path := strings.ToLower(entity.RelativePath)
+	if strings.Contains(path, ".github/workflows/") &&
+		(strings.HasSuffix(path, ".yml") || strings.HasSuffix(path, ".yaml")) {
+		return true
+	}
+	switch path[strings.LastIndex(path, "/")+1:] {
+	case "action.yml", "action.yaml":
+		return true
+	default:
+		return false
+	}
+}
+
 // githubActionsSourceRelationships derives content-relationship edges from a
 // structured YAML decode of entity.SourceCache. It replaces the former
 // YAML-unaware raw-text line scanner (issue #5337 Detector 4) with the shared
@@ -239,7 +267,15 @@ func githubActionsExpressionRef(value string) bool {
 // and reason string the old scanner emitted so downstream consumers keyed on
 // those reasons keep working. entity.SourceCache is populated in production
 // (unlike entity.Metadata), so this is the real signal path.
+//
+// It runs only for entities whose path is a GitHub Actions artifact
+// (isGitHubActionsArtifactPath); any other content entity returns nil so a
+// non-GitHub YAML with a jobs/steps/uses shape cannot fabricate github_actions_*
+// edges.
 func githubActionsSourceRelationships(entity EntityContent) []githubActionsRelationship {
+	if !isGitHubActionsArtifactPath(entity) {
+		return nil
+	}
 	refs := extractGitHubActionsDependencyRefs(entity.SourceCache)
 	if refs == nil {
 		return nil
