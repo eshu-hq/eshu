@@ -14,15 +14,6 @@ type deploymentSourceResult struct {
 	limits map[string]any
 }
 
-func (h *ImpactHandler) fetchDeploymentSources(
-	ctx context.Context,
-	workloadID string,
-	repoID string,
-) ([]map[string]any, error) {
-	result, err := h.fetchDeploymentSourceResult(ctx, workloadID, repoID)
-	return result.rows, err
-}
-
 func (h *ImpactHandler) fetchDeploymentSourceResult(
 	ctx context.Context,
 	workloadID string,

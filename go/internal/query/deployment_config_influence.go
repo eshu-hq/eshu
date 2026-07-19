@@ -5,6 +5,7 @@ package query
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"sort"
@@ -54,6 +55,10 @@ func (h *ImpactHandler) investigateDeploymentConfigInfluence(w http.ResponseWrit
 	}
 	ctx, err := fetchServiceTraceContext(r.Context(), h.Neo4j, h.Content, h.Logger, selector, traceEnrichmentConfig{maxDepth: 4})
 	if err != nil {
+		if errors.Is(err, errAmbiguousTraceWorkloadSelector) {
+			WriteError(w, http.StatusConflict, err.Error())
+			return
+		}
 		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query failed: %v", err))
 		return
 	}
@@ -84,12 +89,12 @@ func (h *ImpactHandler) enrichDeploymentConfigInfluenceContext(ctx context.Conte
 	k8sCh := make(chan deploymentConfigK8sResult, 1)
 
 	go func() {
-		deploymentSources, err := h.fetchDeploymentSources(ctx, workloadID, repoID)
-		sourceCh <- deploymentConfigSourcesResult{rows: deploymentSources, err: err}
+		result, err := h.fetchDeploymentSourceResult(ctx, workloadID, repoID)
+		sourceCh <- deploymentConfigSourcesResult{result: result, err: err}
 	}()
 	go func() {
-		k8sResources, imageRefs, err := h.fetchK8sResources(ctx, repoID, safeStr(workload, "name"))
-		k8sCh <- deploymentConfigK8sResult{resources: k8sResources, imageRefs: imageRefs, err: err}
+		result, err := h.fetchK8sResourceResult(ctx, repoID, safeStr(workload, "name"))
+		k8sCh <- deploymentConfigK8sResult{result: result, err: err}
 	}()
 
 	sourceResult := <-sourceCh
@@ -100,26 +105,33 @@ func (h *ImpactHandler) enrichDeploymentConfigInfluenceContext(ctx context.Conte
 	if k8sResult.err != nil {
 		return fmt.Errorf("query k8s resources: %w", k8sResult.err)
 	}
-	controllerEntities, deploymentRepoK8s, deploymentRepoImages, _, err := h.fetchDeploymentSourceGitOps(ctx, safeStr(workload, "name"), sourceResult.rows)
+	controllerEntities, deploymentRepoK8s, _, deploymentRepoLowerBound, err := h.fetchDeploymentSourceGitOps(ctx, safeStr(workload, "name"), sourceResult.result.rows)
 	if err != nil {
 		return fmt.Errorf("query deployment source gitops evidence: %w", err)
 	}
-	workload["deployment_sources"] = sourceResult.rows
-	workload["k8s_resources"] = mergeDeploymentTraceRows(k8sResult.resources, deploymentRepoK8s)
-	workload["image_refs"] = uniqueSortedStrings(append(append([]string{}, k8sResult.imageRefs...), deploymentRepoImages...))
+	k8sResult.result = boundedK8sResourceResult(
+		k8sResult.result.candidates,
+		k8sResult.result.contentLowerBound,
+		deploymentRepoK8s,
+		deploymentRepoLowerBound,
+	)
+	workload["deployment_sources"] = sourceResult.result.rows
+	workload["deployment_source_limits"] = sourceResult.result.limits
+	workload["k8s_resources"] = k8sResult.result.rows
+	workload["k8s_resource_limits"] = k8sResult.result.limits
+	workload["image_refs"] = k8sResult.result.imageRefs
 	workload["controller_entities"] = controllerEntities
 	return nil
 }
 
 type deploymentConfigSourcesResult struct {
-	rows []map[string]any
-	err  error
+	result deploymentSourceResult
+	err    error
 }
 
 type deploymentConfigK8sResult struct {
-	resources []map[string]any
-	imageRefs []string
-	err       error
+	result k8sResourceResult
+	err    error
 }
 
 func buildDeploymentConfigInfluenceResponse(req deploymentConfigInfluenceRequest, workload map[string]any) map[string]any {
@@ -146,7 +158,9 @@ func buildDeploymentConfigInfluenceResponse(req deploymentConfigInfluenceRequest
 		readFirstFiles = deploymentConfigReadFirstFiles(valuesLayers)
 	}
 
-	truncated := false
+	deploymentSourceLimits, k8sResourceLimits := mapValue(workload, "deployment_source_limits"), mapValue(workload, "k8s_resource_limits")
+	upstreamTruncated, upstreamLowerBound := deploymentConfigCoverageBounds(deploymentSourceLimits, k8sResourceLimits)
+	truncated := upstreamTruncated
 	valuesLayers, truncated = capRows(valuesLayers, limit, truncated)
 	imageTagSources, truncated = capRows(imageTagSources, limit, truncated)
 	resourceLimitSources, truncated = capRows(resourceLimitSources, limit, truncated)
@@ -155,7 +169,7 @@ func buildDeploymentConfigInfluenceResponse(req deploymentConfigInfluenceRequest
 	influencingRepos, truncated = capRows(influencingRepos, limit, truncated)
 	readFirstFiles, truncated = capRows(readFirstFiles, limit, truncated)
 
-	limitations := deploymentConfigLimitations(environment, artifacts, valuesLayers, renderedTargets)
+	limitations := deploymentConfigLimitations(environment, artifacts, valuesLayers, renderedTargets, deploymentSourceLimits, k8sResourceLimits)
 	return map[string]any{
 		"service_name":             serviceName,
 		"workload_id":              safeStr(workload, "id"),
@@ -171,16 +185,19 @@ func buildDeploymentConfigInfluenceResponse(req deploymentConfigInfluenceRequest
 		"read_first_files":         readFirstFiles,
 		"recommended_next_calls":   deploymentConfigNextCalls(readFirstFiles, serviceName, environment),
 		"limitations":              limitations,
+		"deployment_source_limits": deploymentSourceLimits,
+		"k8s_resource_limits":      k8sResourceLimits,
 		"coverage": map[string]any{
-			"query_shape":                "deployment_config_influence_story",
-			"limit":                      limit,
-			"truncated":                  truncated,
-			"artifact_candidate_count":   len(artifacts),
-			"deployment_source_count":    len(deploymentSources),
-			"rendered_target_count":      len(renderedTargets),
-			"environment":                environment,
-			"portable_file_handles":      len(readFirstFiles),
-			"uses_file_content_payloads": false,
+			"query_shape":                   "deployment_config_influence_story",
+			"limit":                         limit,
+			"truncated":                     truncated,
+			"observed_count_is_lower_bound": upstreamLowerBound,
+			"artifact_candidate_count":      len(artifacts),
+			"deployment_source_count":       len(deploymentSources),
+			"rendered_target_count":         len(renderedTargets),
+			"environment":                   environment,
+			"portable_file_handles":         len(readFirstFiles),
+			"uses_file_content_payloads":    false,
 		},
 	}
 }
@@ -422,23 +439,6 @@ func deploymentConfigStory(serviceName string, environment string, valuesLayers 
 	}
 	return fmt.Sprintf("%s is influenced by %d values layer(s), %d image tag source(s), %d runtime setting source(s), and %d resource limit source(s). The trace includes %d rendered or controller target(s). Read the returned file handles first, then drill into relationship evidence for exact provenance.",
 		scope, len(valuesLayers), len(imageSources), len(runtimeSources), len(resourceSources), len(targets))
-}
-
-func deploymentConfigLimitations(environment string, artifacts []map[string]any, valuesLayers []map[string]any, targets []map[string]any) []string {
-	limitations := []string{}
-	if environment != "" {
-		limitations = append(limitations, "Rows without explicit environment are retained because shared Helm or ArgoCD layers can still apply to the requested environment.")
-	}
-	if len(artifacts) == 0 {
-		limitations = append(limitations, "No deployment configuration artifacts were materialized for this service.")
-	}
-	if len(valuesLayers) == 0 {
-		limitations = append(limitations, "No Helm, Kustomize, ArgoCD, or Terraform values layer was found in the indexed evidence.")
-	}
-	if len(targets) == 0 {
-		limitations = append(limitations, "No rendered Kubernetes or controller target was found in the indexed evidence.")
-	}
-	return limitations
 }
 
 func deploymentConfigNextCalls(readFirstFiles []map[string]any, serviceName string, environment string) []string {
