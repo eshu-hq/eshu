@@ -26,6 +26,7 @@ describe("Impact deployment topology safety", () => {
             ],
           },
         ],
+        runtime_topology_limits: completeRuntimeTopologyLimits(1, 1, 0),
         topology_edges: [
           topologyEdge("DEFINES", "repository:r_catalog", "workload:catalog-api"),
           topologyEdge("INSTANCE_OF", "workload-instance:catalog-api:prod", "workload:catalog-api"),
@@ -56,6 +57,7 @@ describe("Impact deployment topology safety", () => {
         }),
       ]),
     );
+    expect(review.graphPresentation.completeness).toBe("complete");
   });
 
   it("keeps repository provisioning separate from direct instance placement", async () => {
@@ -104,33 +106,120 @@ describe("Impact deployment topology safety", () => {
     );
   });
 
-  it("reports each missing subject-backbone relationship independently", async () => {
-    const instance = {
-      environment: "prod",
-      instance_id: "workload-instance:catalog-api:prod",
-      platforms: [],
-    };
-    const missingInstanceOf = await loadReview(
-      deploymentTrace({
-        instances: [instance],
+  it.each([
+    [
+      "the exact INSTANCE_OF relationship",
+      {
+        instances: [
+          {
+            environment: "prod",
+            instance_id: "workload-instance:catalog-api:prod",
+            platforms: [],
+          },
+        ],
+        runtime_topology_limits: completeRuntimeTopologyLimits(1, 0, 0),
         topology_edges: [topologyEdge("DEFINES", "repository:r_catalog", "workload:catalog-api")],
-      }),
-    );
-    const missingDefines = await loadReview(
-      deploymentTrace({
-        instances: [instance],
+      },
+      "subject relationship backbone incomplete; exact INSTANCE_OF edges were not returned",
+    ],
+    [
+      "the exact DEFINES relationship",
+      {
+        instances: [
+          {
+            environment: "prod",
+            instance_id: "workload-instance:catalog-api:prod",
+            platforms: [],
+          },
+        ],
+        runtime_topology_limits: completeRuntimeTopologyLimits(1, 0, 0),
         topology_edges: [
           topologyEdge("INSTANCE_OF", "workload-instance:catalog-api:prod", "workload:catalog-api"),
         ],
-      }),
-    );
-
-    expect(missingInstanceOf.graphPresentation.limitations).toContain(
-      "subject relationship backbone incomplete; exact INSTANCE_OF edges were not returned",
-    );
-    expect(missingDefines.graphPresentation.limitations).toContain(
+      },
       "subject relationship backbone incomplete; exact DEFINES edge was not returned",
-    );
+    ],
+  ])("marks completeness unverified when %s is missing", async (_reason, overrides, limitation) => {
+    const review = await loadReview(deploymentTrace(overrides));
+
+    expect(review.graphPresentation.limitations).toContain(limitation);
+    expect(review.graphPresentation.completeness).toBe("unverified");
+  });
+
+  it.each([
+    [
+      "a direct runtime platform lacks its exact RUNS_ON relationship",
+      {
+        instances: [
+          {
+            environment: "prod",
+            instance_id: "workload-instance:catalog-api:prod",
+            platforms: [
+              {
+                platform_id: "platform:ecs:prod",
+                platform_kind: "ecs",
+                platform_name: "prod",
+                topology_basis: "direct_runtime",
+                topology_edges: [],
+              },
+            ],
+          },
+        ],
+        runtime_topology_limits: completeRuntimeTopologyLimits(1, 1, 0),
+        topology_edges: [
+          topologyEdge("DEFINES", "repository:r_catalog", "workload:catalog-api"),
+          topologyEdge("INSTANCE_OF", "workload-instance:catalog-api:prod", "workload:catalog-api"),
+        ],
+      },
+      "runtime relationship backbone incomplete; exact RUNS_ON edge was not returned",
+    ],
+    [
+      "a provisioned platform lacks its exact repository dependency relationship",
+      {
+        provisioned_platforms: [
+          {
+            platform_id: "platform:ecs:shared",
+            platform_kind: "ecs",
+            platform_name: "shared",
+            topology_basis: "provisioning_fallback",
+            topology_edges: [
+              topologyEdge("PROVISIONS_PLATFORM", "repository:r_runtime", "platform:ecs:shared"),
+            ],
+          },
+        ],
+        runtime_topology_limits: completeRuntimeTopologyLimits(0, 0, 1),
+        topology_edges: [topologyEdge("DEFINES", "repository:r_catalog", "workload:catalog-api")],
+      },
+      "provisioning relationship backbone incomplete; exact PROVISIONS_DEPENDENCY_FOR edge was not returned",
+    ],
+    [
+      "a provisioned platform lacks its exact platform relationship",
+      {
+        provisioned_platforms: [
+          {
+            platform_id: "platform:ecs:shared",
+            platform_kind: "ecs",
+            platform_name: "shared",
+            topology_basis: "provisioning_fallback",
+            topology_edges: [
+              topologyEdge(
+                "PROVISIONS_DEPENDENCY_FOR",
+                "repository:r_runtime",
+                "repository:r_catalog",
+              ),
+            ],
+          },
+        ],
+        runtime_topology_limits: completeRuntimeTopologyLimits(0, 0, 1),
+        topology_edges: [topologyEdge("DEFINES", "repository:r_catalog", "workload:catalog-api")],
+      },
+      "provisioning relationship backbone incomplete; exact PROVISIONS_PLATFORM edge was not returned",
+    ],
+  ])("marks completeness unverified when %s", async (_reason, overrides, limitation) => {
+    const review = await loadReview(deploymentTrace(overrides));
+
+    expect(review.graphPresentation.limitations).toContain(limitation);
+    expect(review.graphPresentation.completeness).toBe("unverified");
   });
 
   it("omits topology relationships whose endpoints do not match the selected subject", async () => {

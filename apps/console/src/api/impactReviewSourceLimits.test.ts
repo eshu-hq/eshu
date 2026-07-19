@@ -61,6 +61,14 @@ describe("impact deployment-source coverage normalization", () => {
       "the observed count exceeds the sum of canonical and repository observations",
       { observed_count: 55 },
     ],
+    [
+      "the canonical observation count exceeds the query sentinel",
+      { canonical_observed_count: 52 },
+    ],
+    [
+      "the repository observation count exceeds the query sentinel",
+      { repository_observed_count: 52 },
+    ],
   ])("rejects contradictory coverage metadata when %s", async (_reason, override) => {
     const result = await loadImpactReview(
       clientWithDeploymentSourceLimits({ ...validDeploymentSourceLimits(), ...override }),

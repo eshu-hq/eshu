@@ -1,3 +1,4 @@
+import { requiredTopologyRelationshipLimitations } from "./impactDeploymentCompleteness";
 import { boundedGraph } from "./impactGraphSelection";
 import type {
   DeploymentTraceResult,
@@ -154,30 +155,11 @@ export function deploymentTraceGraph(
     }
   }
 
-  const hasExactDefines = trace.topologyEdges.some(
-    (edge) =>
-      edge.relationshipType === "DEFINES" &&
-      edge.sourceId === trace.repoId &&
-      edge.targetId === trace.workloadId,
-  );
-  if (trace.repoId.length > 0 && trace.workloadId.length > 0 && !hasExactDefines) {
-    limitations.add(
-      "subject relationship backbone incomplete; exact DEFINES edge was not returned",
-    );
+  const missingRequiredRelationships = requiredTopologyRelationshipLimitations(trace);
+  if (missingRequiredRelationships.length > 0) {
+    hasUnverifiedOmission = true;
   }
-  const allInstancesHaveExactWorkload = trace.instances.every((instance) =>
-    trace.topologyEdges.some(
-      (edge) =>
-        edge.relationshipType === "INSTANCE_OF" &&
-        edge.sourceId === instance.id &&
-        edge.targetId === trace.workloadId,
-    ),
-  );
-  if (trace.instances.length > 0 && !allInstancesHaveExactWorkload) {
-    limitations.add(
-      "subject relationship backbone incomplete; exact INSTANCE_OF edges were not returned",
-    );
-  }
+  for (const limitation of missingRequiredRelationships) limitations.add(limitation);
   if (trace.deploymentSourceLimits === null) {
     limitations.add(
       "deployment-source completeness unverified because coverage metadata is unavailable",
