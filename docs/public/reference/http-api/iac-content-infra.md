@@ -602,9 +602,32 @@ graph relationship type the surface conceptually covers (`CONTAINS`,
 reachable only through an unmaterialized edge type is surfaced as a known gap
 instead of a silent zero. `READS_FROM` and `MIGRATES` are parsed but not
 materialized (see [SQL parser](../../languages/sql.md) and
-[Edge Source-Tool Provenance](../edge-source-tool-provenance.md)). Other
-`target_type` values have no registered coverage gap in this contract and
-report `complete: true` with an empty `coverage` array.
+[Edge Source-Tool Provenance](../edge-source-tool-provenance.md)).
+
+For `crossplane_xrd`, `coverage` lists `CONTAINS` (materialized) and
+`SATISFIED_BY` (claim -> XRD; **not** materialized — no graph writer emits
+it). `complete` is therefore always `false` for `crossplane_xrd` today: the
+query still returns whatever it can reach through `CONTAINS`/`REPO_CONTAINS`,
+but the claim -> XRD hop it also needs is unmaterialized, so `affected_count`
+must not be read as a complete answer (see
+[Crossplane parser](../../languages/crossplane.md#known-limitations) and
+[Edge Source-Tool Provenance](../edge-source-tool-provenance.md)). Wiring a
+`SATISFIED_BY` writer is tracked in eshu-hq/eshu#5347.
+
+Other `target_type` values (`repository`, `terraform_module`) have no
+registered coverage gap in this contract and report `complete: true` with an
+empty `coverage` array.
+
+No-Regression Evidence: the `crossplane_xrd` coverage fix (#5331) does not
+touch `blastRadiusCrossplaneCypher` — the Cypher statement text is byte-for-byte
+unchanged. It adds `crossplaneXrdBlastRadiusCoverage()`, a Go-side registry
+lookup over a fixed 2-element edge-type slice (`CONTAINS`, `SATISFIED_BY`),
+O(1) in practice, called once per `blastRadiusAffected` invocation alongside
+the existing sql_table coverage lookup this same function already performs.
+No new query, traversal, or write is introduced.
+No-Observability-Change: the `complete`/`coverage` response fields already
+existed (#5330); this change only corrects the value `crossplane_xrd` reports
+through them. No new metric, span, or log was added or removed.
 
 `/impact/change-surface/investigate` accepts one graph target family
 (`target` + `target_type`, `service_name`, `workload_id`, `resource_id`, or

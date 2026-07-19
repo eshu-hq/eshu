@@ -230,16 +230,22 @@ and written through the canonical relationship upserts
 `INSTANCE_OF`, `EXPOSES_ENDPOINT`, `DEPLOYMENT_SOURCE`,
 `HAS_DEPLOYMENT_EVIDENCE`, `EVIDENCES_REPOSITORY_RELATIONSHIP`,
 `TARGETS_ENVIRONMENT`, `HAS_PARAMETER`, `DOCUMENTS`, `EXPLAINS`, `USES`
-(workload→cloud-resource), `SATISFIED_BY`.
+(workload→cloud-resource).
 
 **Registered but not currently materialized:** `MAPS_TO_TABLE`, `MIGRATES`,
-`READS_FROM`, and `TRIGGERS_ON` appear in the edge-type registry and (for
-`MAPS_TO_TABLE`/`MIGRATES`) are read by `query/impact.go`, but no emitter
-MERGEs any of them in the current code (#5330 audited every SQL
-reducer/edge-writer path). `TRIGGERS_ON` is a distinct dead registry entry
-from the live `TRIGGERS` edge the SQL trigger writer actually emits — do not
-conflate the two names. They carry no `source_tool` until a materializer
-exists.
+`READS_FROM`, `TRIGGERS_ON`, and `SATISFIED_BY` appear in the edge-type
+registry, but no emitter MERGEs any of them in the current code.
+`MAPS_TO_TABLE`/`MIGRATES` are read by `query/impact.go` despite having no
+writer (#5330 audited every SQL reducer/edge-writer path). `TRIGGERS_ON` is a
+distinct dead registry entry from the live `TRIGGERS` edge the SQL trigger
+writer actually emits — do not conflate the two names. `SATISFIED_BY`
+(Crossplane Claim -> XRD) was previously miscategorized above as a
+materialized structural edge; auditing every reducer/edge-writer path found
+no emitter for it either (#5331) — `query/impact_blast_radius.go` reads it
+but nothing writes it, which is why `POST /api/v0/impact/blast-radius` with
+`target_type: crossplane_xrd` reports `complete: false` (see
+[Crossplane parser](../languages/crossplane.md#known-limitations)). None of
+these five carry a `source_tool` until a materializer exists.
 
 ## Re-auditing coverage
 

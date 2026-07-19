@@ -40,3 +40,12 @@ Not claimed today:
 - Composition patch transforms are not modeled as graph edges
 - XRD validation schema details are not extracted
 - Usage of Composition Functions (pipeline steps) is not captured as structured nodes
+- The `SATISFIED_BY` relationship (Claim -> XRD) has no graph writer: no
+  reducer or edge-writer path emits it, so it is registered but never
+  materialized (see [Edge Source-Tool Provenance](../reference/edge-source-tool-provenance.md)).
+  `POST /api/v0/impact/blast-radius` with `target_type: crossplane_xrd`
+  therefore always reports `complete: false` with `SATISFIED_BY` listed as
+  `materialized: false` in `coverage` — treat its `affected_count` as a
+  known-incomplete lower bound, not a confirmed zero (see
+  [HTTP API reference](../reference/http-api/iac-content-infra.md)). Wiring a
+  writer is tracked in eshu-hq/eshu#5347.

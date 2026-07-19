@@ -146,6 +146,88 @@ func TestFindBlastRadiusSqlTableReportsUnmaterializedCoverage(t *testing.T) {
 	}
 }
 
+// TestFindBlastRadiusCrossplaneXrdReportsUnmaterializedCoverage proves the
+// crossplane_xrd blast-radius response is honest (#5331): SATISFIED_BY
+// (claim -> xrd) has no graph writer anywhere in the codebase — the constant
+// is orphaned, only ever read by blastRadiusCrossplaneCypher — so the
+// response must report complete:false and list SATISFIED_BY in coverage as
+// materialized:false/reason:"no_writer" instead of silently presenting
+// affected_count as a complete answer. CONTAINS (claim -> file, the generic
+// content-containment edge) does have a writer and must report
+// materialized:true. Mirrors
+// TestFindBlastRadiusSqlTableReportsUnmaterializedCoverage (#5330).
+func TestFindBlastRadiusCrossplaneXrdReportsUnmaterializedCoverage(t *testing.T) {
+	t.Parallel()
+
+	handler := &ImpactHandler{
+		Profile: ProfileLocalAuthoritative,
+		Neo4j: fakeGraphReader{
+			run: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+				switch {
+				case strings.Contains(cypher, "CrossplaneClaim)-[:SATISFIED_BY]->(xrd)"):
+					return []map[string]any{{"repo": "platform-infra", "repo_id": "repo-platform-infra", "claim": "database-claim"}}, nil
+				case strings.Contains(cypher, "CONTAINS]-(tier:Tier)"):
+					return nil, nil
+				default:
+					t.Fatalf("unexpected cypher: %s", cypher)
+					return nil, nil
+				}
+			},
+		},
+	}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v0/impact/blast-radius",
+		bytes.NewBufferString(`{"target":"database-xrd","target_type":"crossplane_xrd"}`))
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status %d body %s", w.Code, w.Body.String())
+	}
+
+	var resp decodedBlastRadiusResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if resp.AffectedCount != 1 {
+		t.Fatalf("affected_count = %d, want 1 (the query still returns rows; only completeness honesty changed)", resp.AffectedCount)
+	}
+	if resp.Complete {
+		t.Fatal("complete = true, want false (SATISFIED_BY has no writer; affected_count:0 would be a silent false negative)")
+	}
+
+	byType := map[string]struct {
+		Materialized bool
+		Reason       string
+	}{}
+	for _, c := range resp.Coverage {
+		byType[c.EdgeType] = struct {
+			Materialized bool
+			Reason       string
+		}{c.Materialized, c.Reason}
+	}
+
+	satisfiedBy, ok := byType["SATISFIED_BY"]
+	if !ok {
+		t.Fatal("coverage missing entry for \"SATISFIED_BY\"")
+	}
+	if satisfiedBy.Materialized {
+		t.Error("coverage[\"SATISFIED_BY\"].materialized = true, want false (no emitter MERGEs this edge)")
+	}
+	if satisfiedBy.Reason != "no_writer" {
+		t.Errorf("coverage[\"SATISFIED_BY\"].reason = %q, want %q", satisfiedBy.Reason, "no_writer")
+	}
+
+	contains, ok := byType["CONTAINS"]
+	if !ok {
+		t.Fatal("coverage missing entry for \"CONTAINS\"")
+	}
+	if !contains.Materialized {
+		t.Error("coverage[\"CONTAINS\"].materialized = false, want true (generic File->entity containment writer)")
+	}
+}
+
 // TestFindBlastRadiusRepositoryCompleteWithEmptyCoverage proves a target_type
 // with no known coverage gaps registered reports complete:true and an empty
 // (never null) coverage array (#5330 Task 2).

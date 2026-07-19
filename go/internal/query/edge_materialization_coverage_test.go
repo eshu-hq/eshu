@@ -44,6 +44,23 @@ func TestEdgeMaterializationCoverageReportsDeadBranches(t *testing.T) {
 	}
 }
 
+// TestEdgeMaterializationCoverageReportsSatisfiedByUnmaterialized proves the
+// registry reports materialized:false/reason:"no_writer" for SATISFIED_BY
+// (Crossplane claim -> XRD): no emitter in the codebase MERGEs this edge —
+// the constant exists (internal/graph/edgetype.SatisfiedBy) but is only ever
+// read, by blastRadiusCrossplaneCypher (#5331).
+func TestEdgeMaterializationCoverageReportsSatisfiedByUnmaterialized(t *testing.T) {
+	t.Parallel()
+
+	got := EdgeMaterializationCoverage("SATISFIED_BY")
+	if got.Materialized {
+		t.Error("EdgeMaterializationCoverage(\"SATISFIED_BY\").Materialized = true, want false (no writer exists)")
+	}
+	if got.Reason != "no_writer" {
+		t.Errorf("EdgeMaterializationCoverage(\"SATISFIED_BY\").Reason = %q, want %q", got.Reason, "no_writer")
+	}
+}
+
 // TestMaterializedEdgeTypeSetIsRegistryDerived proves the full materialized
 // set is derived from the shared writer registries (not a second
 // hand-maintained list): it must include every SQL relationship write-reason
