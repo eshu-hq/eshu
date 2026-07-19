@@ -306,12 +306,19 @@ The retained-browser run on application head `4813a48b68` is also superseded
 because later review fixes changed completeness normalization and presentation.
 Its counts remain diagnostic context, not final merge-readiness evidence.
 
+The retained-browser run on application head `09be7fea10` is superseded by the
+final fail-closed completeness corrections. Its valid-path counts remain
+diagnostic context, not the final merge-readiness browser proof.
+
 The final retained-browser run used the authenticated console at
 `http://127.0.0.1:5194/impact?kind=service&target=api-node-boats` against
-application head `09be7fea103db370bae771877a5b89e64cd3c84c`. The Vite process
+application head `0050671539028abdce2d1175239f44a35b97faa2`. The Vite process
 was verified to be serving directly from this feature worktree after the final
 rebase, while the retained API response shape was independently proven by the
-exact-head B-7 run above. The rendered deployment section agreed with the
+exact backend B-7 run above. The post-B-7 implementation delta is confined to
+console normalization, completeness propagation, and their regression tests;
+it does not change the API or graph-query contract. The rendered deployment
+section agreed with the
 retained API tuple proof: six workload
 instances, nine `RUNS_ON` relationship type/source/target tuples, 14 deployment
 sources, six cloud resources, and one Kubernetes resource. The UI grouped the
@@ -335,3 +342,17 @@ visible Selected entity panel to that canonical endpoint ID and showed its
 `DIRECT_IMPACT -> workload:api-node-boats` edge, proving click-to-visible
 completion in the signed-in retained session. The browser console contained no
 warnings or errors during this exact-head proof.
+
+The same signed-in anchor also closed the interactive-read acceptance check.
+The primary route-ready metric starts immediately before browser reload and
+ends when the exact `Graph composition evidence` card is visible with the
+`complete within bounds` label. Five same-anchor reloads measured **1463 ms,
+1555 ms, 1333 ms, 1352 ms, and 1248 ms**; the observed median was **1352 ms**
+and the observed p95/max was **1555 ms**. That is inside the capability
+matrix's **4000 ms local-full-stack p95** contract for
+`platform_impact.deployment_chain`. The card's shipped
+`compositionDurationMs` readout measured **0.000 ms, 0.000 ms, 0.000 ms,
+0.100 ms, and 0.100 ms**; the observed p95/max was **0.100 ms**, inside a
+single 16.7 ms frame budget. These are warm retained-data measurements on this
+local machine, not a hardware-independent product guarantee or a comparison to
+the earlier 0.357 s API-only measurement.
