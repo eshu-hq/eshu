@@ -115,14 +115,14 @@ var fluxSourceLabels = map[string]struct{}{
 // FluxHelmRelease, issue #5483 C1) reduced to the fields the shared
 // RECONCILES_FROM resolution (resolveFluxSourceCandidate, T1-T4) needs.
 // FluxKustomization and FluxHelmRelease resolve against their source CR
-// through the IDENTICAL tier algorithm; sourceLabel and via record which
-// reconciler kind and which reference field (spec.sourceRef vs
-// spec.chart.spec.sourceRef vs spec.chartRef) produced this entity, purely
-// for template-family selection and provenance/testability -- reconciler_kind
-// and via are literal (not row-parameterized) in every static Cypher
-// template, since sourceLabel+targetLabel already determine them uniquely for
-// the current closed kind maps (see fluxHelmChartRefKindToLabel /
-// fluxHelmSourceRefKindToLabel in canonical_flux_helm_edges.go).
+// through the IDENTICAL tier algorithm; sourceLabel records which reconciler
+// kind produced this entity, purely for template-family selection. The
+// reconciler_kind and via edge properties are literal (not row-parameterized)
+// in every static Cypher template, since sourceLabel+targetLabel already
+// determine them uniquely for the current closed kind maps (see
+// fluxHelmChartRefKindToLabel / fluxHelmSourceRefKindToLabel in
+// canonical_flux_helm_edges.go), so no `via` field is threaded through the
+// row.
 type fluxReconcilerEntity struct {
 	uid          string
 	filePath     string
@@ -132,7 +132,6 @@ type fluxReconcilerEntity struct {
 	refKind      string // raw ref kind (spec.sourceRef.kind or spec.chartRef.kind)
 	refName      string // raw ref name
 	refNamespace string // raw ref namespace as declared, may be ""
-	via          string // "" (Kustomization) | "chart_source_ref" | "chart_ref" (HelmRelease)
 }
 
 // fluxSourceEntity is one FluxGitRepository/FluxOCIRepository/FluxBucket

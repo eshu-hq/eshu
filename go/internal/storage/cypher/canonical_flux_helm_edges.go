@@ -119,11 +119,15 @@ var fluxHelmReconcilesFromCypherByLabel = map[string]string{
 //
 // Per the Flux HelmRelease API, exactly one of spec.chart or spec.chartRef
 // must be set. This function enforces that as an honest-non-link rule using
-// the two signals the parser actually emits: a non-empty source_ref_name
-// (only present when spec.chart.spec.sourceRef.name was set) and a non-empty
-// chart_ref_kind (only present when spec.chartRef.kind was set). Both
-// present -- an invalid CR -- produces no entity, never an arbitrary pick
-// between the two candidate refs. Neither present -- an incomplete CR, or a
+// the signals the parser actually emits: the presence of a spec.chart block
+// (a non-empty `chart` field, or a non-empty source_ref_name from
+// spec.chart.spec.sourceRef.name) and a non-empty chart_ref_kind/name (from
+// spec.chartRef). A chart block AND a chartRef both present -- an invalid CR
+// Flux rejects at admission, so it never reconciles -- produces no entity,
+// never an edge for a CR that can never reconcile (issue #5483 C1 P3-1: the
+// guard keys on the chart BLOCK, not only a resolvable sourceRef name, so a
+// doubly-malformed CR with a chart block but no sourceRef plus a chartRef is
+// still an honest non-link). Neither present -- an incomplete CR, or a
 // HelmRelease with no reference field the parser captured -- also produces no
 // entity: there is nothing to resolve against.
 func collectFluxHelmReleaseEntities(entities []projector.EntityRow) ([]fluxReconcilerEntity, []string) {
@@ -137,6 +141,7 @@ func collectFluxHelmReleaseEntities(entities []projector.EntityRow) ([]fluxRecon
 			uids = append(uids, entity.EntityID)
 		}
 
+		chart := metadataString(entity.Metadata, "chart")
 		sourceRefKind := metadataString(entity.Metadata, "source_ref_kind")
 		sourceRefName := metadataString(entity.Metadata, "source_ref_name")
 		sourceRefNamespace := metadataString(entity.Metadata, "source_ref_namespace")
@@ -144,18 +149,24 @@ func collectFluxHelmReleaseEntities(entities []projector.EntityRow) ([]fluxRecon
 		chartRefName := metadataString(entity.Metadata, "chart_ref_name")
 		chartRefNamespace := metadataString(entity.Metadata, "chart_ref_namespace")
 
-		hasSourceRef := sourceRefName != ""
+		// A spec.chart block is present when either the chart name or its
+		// nested sourceRef.name was captured -- key the mutual-exclusion guard
+		// on the block, not just a resolvable sourceRef name, so a chart block
+		// with no sourceRef plus a chartRef is still caught (P3-1).
+		hasChartBlock := chart != "" || sourceRefName != ""
 		hasChartRef := chartRefKind != "" || chartRefName != ""
-		if hasSourceRef && hasChartRef {
-			// Both chart.spec.sourceRef and chartRef set: an invalid CR per
-			// the Flux API. Honest non-link, never a fabricated pick.
+		if hasChartBlock && hasChartRef {
+			// Both spec.chart and spec.chartRef set: an invalid CR per the
+			// Flux API (Flux rejects it at admission, so it never
+			// reconciles). Honest non-link, never a fabricated pick or an
+			// edge for a CR that can never reconcile.
 			continue
 		}
 
-		var refKind, refName, refNamespace, via, targetLabel string
+		var refKind, refName, refNamespace, targetLabel string
 		switch {
 		case hasChartRef:
-			refKind, refName, refNamespace, via = chartRefKind, chartRefName, chartRefNamespace, "chart_ref"
+			refKind, refName, refNamespace = chartRefKind, chartRefName, chartRefNamespace
 			if refName == "" {
 				continue // no chartRef name: never resolvable
 			}
@@ -166,8 +177,8 @@ func collectFluxHelmReleaseEntities(entities []projector.EntityRow) ([]fluxRecon
 				continue
 			}
 			targetLabel = label
-		case hasSourceRef:
-			refKind, refName, refNamespace, via = sourceRefKind, sourceRefName, sourceRefNamespace, "chart_source_ref"
+		case sourceRefName != "":
+			refKind, refName, refNamespace = sourceRefKind, sourceRefName, sourceRefNamespace
 			label, ok := fluxHelmSourceRefKindToLabel[refKind]
 			if !ok {
 				// Absent or unknown sourceRef.kind: honest non-link.
@@ -175,8 +186,8 @@ func collectFluxHelmReleaseEntities(entities []projector.EntityRow) ([]fluxRecon
 			}
 			targetLabel = label
 		default:
-			// Neither chart.spec.sourceRef nor chartRef set: nothing to
-			// resolve against.
+			// A chart block with no resolvable sourceRef name, or neither
+			// reference field set: nothing to resolve against.
 			continue
 		}
 
@@ -189,7 +200,6 @@ func collectFluxHelmReleaseEntities(entities []projector.EntityRow) ([]fluxRecon
 			refKind:      refKind,
 			refName:      refName,
 			refNamespace: refNamespace,
-			via:          via,
 		})
 	}
 	return helmReleases, uids
