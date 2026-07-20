@@ -103,6 +103,18 @@ language_features:
     test_files: [go/internal/parser/engine_elixir_ast_test.go, go/internal/parser/engine_elixir_semantics_test.go]
     docs: [docs/public/languages/elixir.md]
     read_surfaces: [execute_language_query]
+  - language: flux
+    docs_claim: docs/public/languages/flux.md
+    parser_backing: structured-parser-backed-exception
+    no_provider_required: true
+    supported_features: [flux-kustomizations, flux-kustomization-source-ref, flux-kustomization-source-path, flux-kustomization-target-namespace, flux-git-repositories, flux-git-repository-url, flux-git-repository-ref, flux-oci-repositories, flux-oci-repository-url, flux-oci-repository-ref, flux-buckets, flux-bucket-coordinates]
+    partial_features: []
+    derived_features: []
+    source_files: [go/internal/parser/yaml/flux.go, go/internal/parser/yaml/flux_source.go, go/internal/parser/yaml/language.go]
+    test_files: [go/internal/parser/yaml/flux_test.go, go/internal/parser/yaml/flux_source_test.go, go/internal/parser/engine_yaml_flux_semantics_test.go]
+    docs: [docs/public/languages/flux.md]
+    read_surfaces: [entity_context]
+    tracking_issues: [5360]
   - language: gitlab-ci
     docs_claim: docs/public/languages/gitlab-ci.md
     parser_backing: structured-parser-backed-exception

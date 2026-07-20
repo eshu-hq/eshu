@@ -144,23 +144,33 @@ func (f fakeCounter) ListNodeProperty(_ context.Context, label, prop string) ([]
 }
 
 // fileLanguageFloor seeds every unconditionally-asserted required_nodes floor
-// (rn-file-language, rn-dataplex-entry-group, rn-identity-platform-config) so a
+// (rn-file-language, rn-dataplex-entry-group, rn-identity-platform-config,
+// rn-flux-kustomization-source-ref, rn-flux-git-repository-url) so a
 // minimal-gate test can satisfy the snapshot's required nodes while focusing on
 // its own assertion. The two GCP posture-only entries pin identity via a single
-// CloudResource node carrying the matching resource_type value (see
+// CloudResource node carrying the matching resource_type value; the two Flux
+// entries (issue #5360 PR A) pin identity via a FluxKustomization node
+// carrying source_ref_kind and a FluxGitRepository node carrying url (see
 // testdata/golden/e2e-20repo-snapshot.json).
 func fileLanguageFloor() (map[string]int64, map[string][]string) {
 	langs := make([]string, 10)
 	for i := range langs {
 		langs[i] = "go"
 	}
-	nodes := map[string]int64{"File": int64(len(langs)), "CloudResource": 2}
+	nodes := map[string]int64{
+		"File":              int64(len(langs)),
+		"CloudResource":     2,
+		"FluxKustomization": 1,
+		"FluxGitRepository": 1,
+	}
 	nodeProp := map[string][]string{
 		"File|language": langs,
 		"CloudResource|resource_type": {
 			"dataplex.googleapis.com/EntryGroup",
 			"identitytoolkit.googleapis.com/Config",
 		},
+		"FluxKustomization|source_ref_kind": {"GitRepository"},
+		"FluxGitRepository|url":             {"https://github.com/acme/flux-system"},
 	}
 	return nodes, nodeProp
 }

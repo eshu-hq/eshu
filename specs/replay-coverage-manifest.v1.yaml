@@ -807,6 +807,14 @@ language_exemptions:
       carries an atlantis.yaml that the gate parses into AtlantisProject/AtlantisWorkflow
       nodes and requires rc-5 (MANAGES) and rc-6 (DEPENDS_ON) over. The fixture
       corpus is its replay scenario.
+  - surface: language:flux
+    reason: >-
+      Exercised end-to-end by the golden-corpus 20-repo corpus: kubernetes_comprehensive
+      carries flux-kustomization.yaml, flux-gitrepository.yaml, flux-ocirepository.yaml,
+      and flux-bucket.yaml that flow sync -> discover -> parse -> emit into typed
+      FluxKustomization/FluxGitRepository/FluxOCIRepository/FluxBucket nodes
+      (rn-flux-kustomization-source-ref, rn-flux-git-repository-url). The fixture
+      corpus is its replay scenario.
   - surface: language:gitlab-ci
     reason: >-
       Exercised end-to-end by the golden-corpus 20-repo corpus: terraform_comprehensive

@@ -1573,6 +1573,24 @@
             "identitytoolkit.googleapis.com/Config"
           ]
         }
+      },
+      {
+        "id": "rn-flux-kustomization-source-ref",
+        "description": "At least 1 FluxKustomization node carries source_ref_kind; kubernetes_comprehensive/flux-kustomization.yaml (apps, kustomize.toolkit.fluxcd.io) proves the typed Flux Kustomization walker captures spec.sourceRef instead of falling through to the generic K8sResource parser (issue #5360 PR A). No RECONCILES_FROM edge yet -- that correlation lands in a later PR.",
+        "label": "FluxKustomization",
+        "minimum_count": 1,
+        "required_node_properties": [
+          "source_ref_kind"
+        ]
+      },
+      {
+        "id": "rn-flux-git-repository-url",
+        "description": "At least 1 FluxGitRepository node carries url; kubernetes_comprehensive/flux-gitrepository.yaml (flux-system, source.toolkit.fluxcd.io) proves the typed Flux GitRepository walker captures spec.url instead of dropping it on the generic K8sResource path (issue #5360 PR A).",
+        "label": "FluxGitRepository",
+        "minimum_count": 1,
+        "required_node_properties": [
+          "url"
+        ]
       }
     ]
   },
