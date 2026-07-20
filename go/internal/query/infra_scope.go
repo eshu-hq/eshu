@@ -10,19 +10,23 @@ import "net/http"
 // (POST /api/v0/infra/relationships) read routes.
 //
 // Both routes run their own whole-graph Cypher rather than the aggregate store,
-// so they reuse infraResourceScopePredicate (infra_resource_aggregates.go) to
-// bound results to resources attributable to a scoped token's granted
-// repositories. The predicate is fail-closed with two durable joins:
+// so they reuse infraResourceScopePredicate (infra_scope_grant.go) to bound
+// results to resources attributable to a scoped token's granted repositories.
+// The predicate is fail-closed with two durable admission paths (#5384,
+// SHAPE-A):
 //
 //  1. Canonical IaC entity nodes (TerraformResource, K8sResource,
-//     CloudFormationResource, ArgoCDApplication, HelmChart, ...) carry a durable
-//     `repo_id` property, so the direct compare against the grant arrays is the
-//     join.
+//     CloudFormationResource, ArgoCDApplication, HelmChart, ...) and
+//     materialized Workload / WorkloadInstance nodes carry a durable `repo_id`
+//     property, so the direct compare against the grant arrays is the join.
 //  2. CloudResource nodes carry no `repo_id` and anchor to a repository only
-//     through the canonical
-//     (:Repository)-[:DEFINES]->(:Workload)<-[:INSTANCE_OF]-(:WorkloadInstance)-[:USES]->(n)
-//     chain, matched by an EXISTS subquery anchored on the indexed Repository.id
-//     grant filter.
+//     through the WorkloadInstance that USES them. Since the pinned NornicDB
+//     build mis-evaluates EXISTS{} subquery correlation for this shape (see
+//     docs/public/reference/nornicdb-pitfalls.md), admission instead uses a
+//     pattern-predicate OR-chain of inline-map property terms — one term per
+//     grant, e.g. `(n)<-[:USES]-(:WorkloadInstance {repo_id:$g})` — built by
+//     scopeGrantInlineMapDisjunction and capped at maxScopeGrantInlineTerms
+//     with fail-closed degradation.
 //
 // Nodes with no granted `repo_id` and no USES path from a granted repository
 // match nothing and stay invisible to scoped tokens. Empty-grant scoped tokens
