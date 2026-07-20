@@ -52,9 +52,13 @@ func buildCrossplaneSatisfiedByMaterializationReducerIntent(
 
 // crossplaneSatisfiedByTriggerFact reports whether envelope is a content_entity
 // row whose entity_type (falling back to entity_kind, mirroring
-// projector.buildContentEntityRecord's dual-path read) is k8s_resource or
-// crossplane_xrd — the two candidate types
-// reducer.ExtractCrossplaneSatisfiedByEdgeRows classifies.
+// projector.buildContentEntityRecord's dual-path read) is K8sResource or
+// CrossplaneXRD — the two candidate types
+// reducer.ExtractCrossplaneSatisfiedByEdgeRows classifies. These are the
+// canonical Neo4j label strings internal/content/shape/materialize.go's
+// materializeEntities stamps onto entity_type (PascalCase, matching the
+// label a content_entity fact ultimately projects to), not the lowercase
+// keys of projector.entityTypeLabelMap.
 func crossplaneSatisfiedByTriggerFact(envelope facts.Envelope) bool {
 	entityType, ok := payloadString(envelope.Payload, "entity_kind")
 	if !ok || entityType == "" {
@@ -64,7 +68,7 @@ func crossplaneSatisfiedByTriggerFact(envelope facts.Envelope) bool {
 		return false
 	}
 	switch entityType {
-	case "k8s_resource", "crossplane_xrd":
+	case "K8sResource", "CrossplaneXRD":
 		return true
 	default:
 		return false

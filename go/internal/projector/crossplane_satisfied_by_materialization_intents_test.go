@@ -12,6 +12,13 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
+// crossplaneCandidateEnvelope builds a content_entity fact envelope with the
+// given entity_type. entityType must be the canonical Neo4j label the real
+// pipeline stamps (internal/content/shape/materialize.go materializeEntities
+// sets EntityType to the PascalCase label, e.g. "K8sResource",
+// "CrossplaneXRD", "Function" -- never the lowercase entityTypeLabelMap key),
+// so a caller passing the lowercase form would silently test a shape the
+// production collector never emits.
 func crossplaneCandidateEnvelope(factID, scopeID, generationID, entityType string) facts.Envelope {
 	return facts.Envelope{
 		FactID:       factID,
@@ -49,7 +56,7 @@ func TestBuildProjectionQueuesCrossplaneSatisfiedByIntentForK8sResourceCandidate
 	}
 
 	projection, err := buildProjection(scopeValue, generation, []facts.Envelope{
-		crossplaneCandidateEnvelope("fact-k8s-1", scopeValue.ScopeID, generation.GenerationID, "k8s_resource"),
+		crossplaneCandidateEnvelope("fact-k8s-1", scopeValue.ScopeID, generation.GenerationID, "K8sResource"),
 	})
 	if err != nil {
 		t.Fatalf("buildProjection() error = %v, want nil", err)
@@ -84,7 +91,7 @@ func TestBuildProjectionQueuesCrossplaneSatisfiedByIntentForXRDCandidate(t *test
 	}
 
 	projection, err := buildProjection(scopeValue, generation, []facts.Envelope{
-		crossplaneCandidateEnvelope("fact-xrd-1", scopeValue.ScopeID, generation.GenerationID, "crossplane_xrd"),
+		crossplaneCandidateEnvelope("fact-xrd-1", scopeValue.ScopeID, generation.GenerationID, "CrossplaneXRD"),
 	})
 	if err != nil {
 		t.Fatalf("buildProjection() error = %v, want nil", err)
@@ -114,7 +121,7 @@ func TestBuildProjectionDoesNotQueueCrossplaneSatisfiedByForUnrelatedEntity(t *t
 	}
 
 	projection, err := buildProjection(scopeValue, generation, []facts.Envelope{
-		crossplaneCandidateEnvelope("fact-func-1", scopeValue.ScopeID, generation.GenerationID, "function"),
+		crossplaneCandidateEnvelope("fact-func-1", scopeValue.ScopeID, generation.GenerationID, "Function"),
 	})
 	if err != nil {
 		t.Fatalf("buildProjection() error = %v, want nil", err)

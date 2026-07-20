@@ -28,14 +28,18 @@ const crossplaneSatisfiedByRelType = string(edgetype.SatisfiedBy)
 const crossplaneSatisfiedByResolutionModeGroupClaimKind = "group_claim_kind"
 
 // crossplaneEntityTypeK8sResource and crossplaneEntityTypeXRD are the
-// content_entity payload entity_type values (internal/projector/canonical.go
-// entityTypeLabelMap) that identify a Claim candidate and an XRD candidate
-// respectively. A Claim is never parser-labeled (issue #5347): it is a
-// generic K8sResource row whose (group, kind) resolves against exactly one
-// XRD.
+// content_entity payload entity_type values that identify a Claim candidate
+// and an XRD candidate respectively. They are the canonical Neo4j label
+// strings (PascalCase) internal/content/shape/materialize.go's
+// materializeEntities stamps onto every content entity's entity_type field —
+// not the lowercase keys of internal/projector/canonical.go's
+// entityTypeLabelMap, which map the OTHER direction (content-store string ->
+// label) and are never themselves the stored value for a git-sourced content
+// entity. A Claim is never parser-labeled (issue #5347): it is a generic
+// K8sResource row whose (group, kind) resolves against exactly one XRD.
 const (
-	crossplaneEntityTypeK8sResource = "k8s_resource"
-	crossplaneEntityTypeXRD         = "crossplane_xrd"
+	crossplaneEntityTypeK8sResource = "K8sResource"
+	crossplaneEntityTypeXRD         = "CrossplaneXRD"
 )
 
 // crossplaneSatisfiedByEdgeTally is the bounded, honest accounting surface
@@ -192,9 +196,9 @@ type crossplaneXRDJoinKey struct {
 
 // crossplaneContentEntityType returns the content_entity payload's
 // entity_type (falling back to entity_kind, mirroring
-// projector.buildContentEntityRecord's own dual-path read), the value
-// entityTypeLabelMap keys on for K8sResource ("k8s_resource") and
-// CrossplaneXRD ("crossplane_xrd") rows.
+// projector.buildContentEntityRecord's own dual-path read): the canonical
+// Neo4j label string ("K8sResource" or "CrossplaneXRD") materializeEntities
+// stamps for these rows, not the lowercase entityTypeLabelMap key.
 func crossplaneContentEntityType(payload map[string]any) string {
 	if value := payloadStr(payload, "entity_kind"); value != "" {
 		return value

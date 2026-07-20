@@ -12,11 +12,13 @@ import (
 )
 
 // listActiveCrossplaneXRDFactsQuery loads active content_entity facts whose
-// entity_type is crossplane_xrd (internal/projector/canonical.go
-// entityTypeLabelMap), across every scope's currently active generation. XRDs
-// commonly live in a separate platform repo from the Claims that reference
-// them (issue #5347), so the Crossplane SATISFIED_BY correlation reducer
-// joins across scopes exactly like
+// entity_type is CrossplaneXRD — the canonical Neo4j label string
+// internal/content/shape/materialize.go's materializeEntities stamps onto
+// every XRD content entity, not the lowercase key of
+// internal/projector/canonical.go's entityTypeLabelMap — across every scope's
+// currently active generation. XRDs commonly live in a separate platform repo
+// from the Claims that reference them (issue #5347), so the Crossplane
+// SATISFIED_BY correlation reducer joins across scopes exactly like
 // listActiveContainerImageIdentityFactsQuery joins live Kubernetes workload
 // evidence against cross-scope deployment-source image evidence.
 const listActiveCrossplaneXRDFactsQuery = `
@@ -47,8 +49,8 @@ JOIN scope_generations AS generation
 WHERE fact.fact_kind = 'content_entity'
   AND fact.source_system = 'git'
   AND (
-    fact.payload->>'entity_type' = 'crossplane_xrd'
-    OR fact.payload->>'entity_kind' = 'crossplane_xrd'
+    fact.payload->>'entity_type' = 'CrossplaneXRD'
+    OR fact.payload->>'entity_kind' = 'CrossplaneXRD'
   )
   AND fact.is_tombstone = FALSE
   AND generation.status = 'active'
