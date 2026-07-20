@@ -850,9 +850,8 @@ query those relationships by verb instead. Consult the per-token tier table in
 [Edge Source-Tool Provenance](../edge-source-tool-provenance.md) to see which
 tokens are stamped (and which are Tier-1 only, or dual-tier like `gcp`).
 
-The canonical vocabulary is the closed enum in
-[Edge Source-Tool Provenance](../edge-source-tool-provenance.md):
-`terraform`, `terragrunt`, `helm`, `kustomize`, `argocd`, `ansible`, `puppet`,
-`chef`, `jenkins`, `github_actions`, `docker`, `docker_compose`, `gcp`,
-`atlantis`, `gitlab`, `gomod`, `npm`, `pip`, `maven`, `cargo`, `aws`, `azure`,
-`kubernetes`, `unknown`.
+The canonical vocabulary is the closed enum enumerated in
+[Edge Source-Tool Provenance](../edge-source-tool-provenance.md), which lists
+every valid `source_tool` token and is kept in lockstep with the
+`sourcetool.Canonical` set the API validates against. (This page deliberately
+does not duplicate that list — a second copy drifts out of date.)
