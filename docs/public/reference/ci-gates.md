@@ -8,7 +8,7 @@ of truth mapping a changed path to the local and CI checks it requires. See
 and `make prove` select from this table, and
 [Local Testing](local-testing.md) for the full verification map.
 
-The registry currently defines 80 gates. A row with no local command is
+The registry currently defines 81 gates. A row with no local command is
 CI-only (it needs a credential, a service container, or hosted infrastructure
 a laptop does not have); a row marked as an alias shares its check with the
 gate its reason names, under a different git hook stage.
@@ -56,12 +56,13 @@ gate its reason names, under a different git hook stage.
 | `docs-catalog-metadata` | Docs catalog metadata | exactness | pre-pr | true | `bash scripts/verify-docs-catalog.sh` | — | 5 path(s): docs/public/**, docs/mkdocs.yml, scripts/verify-docs-catalog.sh, … |
 | `storage-doc-bundled-nornicdb-example` | Storage doc bundled-NornicDB Helm example renders | exactness | pre-pr | true | `bash scripts/verify-storage-doc-bundled-nornicdb-example.sh` | — | 6 path(s): docs/public/deploy/kubernetes/storage.md, deploy/helm/eshu/**, scripts/verify-storage-doc-bundled-nornicdb-example.sh, … |
 | `docs-prose-quality` | Docs prose quality advisory | docs | pre-pr | false | `bash scripts/verify-docs-prose-quality.sh` | — | 5 path(s): docs/public/**, docs/mkdocs.yml, scripts/verify-docs-prose-quality.sh, … |
+| `docs-contradiction` | Docs self-contradiction advisory | docs | pre-pr | false | `bash scripts/verify-docs-contradiction.sh` | — | 7 path(s): docs/public/**, docs/mkdocs.yml, scripts/verify-docs-contradiction.sh, … |
 | `docs-refs` | Docs script reference existence | exactness | pre-pr | true | `bash scripts/verify-docs-refs.sh` | static-contract-gates.yml / Verify docs-refs gate | 6 path(s): docs/public/**, docs/mkdocs.yml, scripts/verify-docs-refs.sh, … |
 | `docs-build-changed` | Verify Docs Build (changed) | docs | pre-push | true | `bash scripts/verify-docs-build-changed.sh` | test.yml / docs-helm-hygiene | 5 path(s): docs/**, specs/**, AGENTS.md, … |
 | `frontend-format-changed` | Verify Frontend Format (changed) | frontend | pre-push | false | `bash scripts/verify-frontend-format-changed.sh` | frontend.yml / Prettier format check (issue #3763) | 11 path(s): src/**, apps/console/**, index.html, … |
 | `console-e2e` | Console e2e (mocked) | frontend | pre-push | true | `bash scripts/dev/precommit-console.sh e2e` | frontend.yml / Console (apps/console) | 2 path(s): apps/console/**, src/** |
 | `frontend-site` | Marketing site typecheck/test/build (root Vite) | frontend | pre-push | true | `npm run typecheck && npm test && npm run build` | frontend.yml / Marketing site (root Vite) | 7 path(s): src/**, index.html, package.json, … |
-| `frontend-console-checks` | Console typecheck/test/build (apps/console) | frontend | pre-push | true | `npm run console:typecheck && npm run console:test && npm run console:build` | frontend.yml / Console (apps/console) | 4 path(s): apps/console/**, src/**, package.json, … |
+| `frontend-console-checks` | Console typecheck/test/build (apps/console) | frontend | pre-push | true | `bash scripts/test-run-console-live-e2e.sh && bash scripts/test-run-console-retained-e2e.sh && npm run console:typecheck && npm run console:test && npm run console:build` | frontend.yml / Console (apps/console) | 12 path(s): apps/console/**, src/**, scripts/run-console-live-e2e.sh, … |
 | `console-a11y` | Console a11y audit (axe-core, critical+serious block) | frontend | pre-push | true | `npm run console:a11y` | frontend.yml / Console a11y audit (axe-core) | 1 path(s): apps/console/** |
 | `frontend-eslint` | ESLint flat config (src + apps/console/src) | frontend | pre-push | true | `bash scripts/verify-eslint-config.sh` | frontend.yml / ESLint flat config (issue #3763) | 6 path(s): src/**, apps/console/src/**, eslint.config.js, … |
 | `npm-audit` | npm audit (fail on high/critical) | frontend | pre-push | true | `npm audit --audit-level=high` | frontend.yml / npm audit (fail on high/critical) | 2 path(s): package.json, package-lock.json |
