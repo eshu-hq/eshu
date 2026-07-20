@@ -54,3 +54,17 @@ Not claimed today:
   reports `complete: true` with `SATISFIED_BY` listed as `materialized: true`
   in `coverage` (see
   [HTTP API reference](../reference/http-api/iac-content-infra.md)).
+- Cross-scope XRD-lag false-negative window: the SATISFIED_BY correlation is
+  intentionally ungated within a repo (the Claim and any same-repo XRD are
+  projector-canonical nodes committed before the correlation intent is
+  enqueued, so no same-scope race exists), but a Claim resolving against an
+  XRD from a *different* repo depends on that platform repo's XRD already
+  being active by the time the Claim's own generation runs its correlation.
+  If the XRD's repo is ingested for the first time *after* the Claim repo's
+  latest generation, the edge does not materialize until the Claim repo's
+  next sync generation — an unbounded window for a Claim repo that stops
+  changing. This is a false negative (the edge is real but not yet
+  observable), not a wrong answer, and no reducer-side gate can close it
+  without reproducing full cross-repo readiness tracking; tracked in
+  [#5476](https://github.com/eshu-hq/eshu/issues/5476) for a periodic
+  re-drive of stale cross-scope Claims.

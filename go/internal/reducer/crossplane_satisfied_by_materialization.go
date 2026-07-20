@@ -84,22 +84,47 @@ type crossplaneXRDFactLoader interface {
 // Kubernetes object and an ambiguous (2+ match) candidate stays
 // provenance-only; neither fabricates an edge.
 //
-// Deviation from the locked design's dual-keyspace readiness gate (documented
-// for orchestrator review): this handler does NOT gate on a
-// canonical-nodes-committed phase before resolving. The
-// GraphProjectionKeyspaceCodeEntitiesUID phase that would need to cover both
-// the Claim's own repo and the XRD's (commonly different) repo is published
-// with each repo's real collector-sync-cycle source_run_id
-// (internal/projector/runtime_phase.go's appendCanonicalRepositoryGraphPhase),
-// not the generation_id graphProjectionPhaseStateForIntent substitutes for
-// every other keyspace's readiness check. Reconstructing the correct
-// cross-repo phase key from this handler is not achievable with the existing
-// primitives without risking a permanently-mismatched, always-not-ready gate
-// (a stuck intent) — worse than the gap it would close. Safety is preserved
-// by construction instead: the writer's MATCH-MATCH-MERGE only ever produces
-// an edge when both endpoint nodes already exist in the graph, so an
-// uncommitted endpoint yields no edge this generation (self-healing on a
-// later retry) rather than a fabricated one.
+// Deviation from the locked design's dual-keyspace readiness gate (reviewed
+// and accepted, issue #5347): this handler does NOT gate on a
+// canonical-nodes-committed phase before resolving, for two independent
+// reasons — one that makes the gate unnecessary for the same-scope case, and
+// one that makes it near-impossible to violate even cross-scope.
+//
+//  1. Same-scope (the common case: Claim and XRD in the same repo). Both
+//     endpoints are projector-canonical nodes. internal/projector/runtime.go's
+//     Project writes the canonical projection (including any CrossplaneXRD and
+//     K8sResource nodes for this generation) at its writeCanonicalProjection
+//     call BEFORE it enqueues reducer intents at its IntentWriter.Enqueue call
+//     later in the same function. So by the time this handler's intent is even
+//     enqueued, both endpoint nodes for this scope's generation are already
+//     committed — there is no race to gate against, and a readiness gate here
+//     would only add latency for a hazard that cannot occur.
+//  2. Cross-scope (the XRD lives in a different, commonly platform, repo).
+//     internal/storage/postgres's listActiveCrossplaneXRDFactsQuery joins on
+//     scope.active_generation_id, and a generation becomes active only inside
+//     ProjectorQueue.Ack — called strictly after Project() (and therefore
+//     after that repo's own canonical write) returns successfully
+//     (internal/projector/service.go). So any CrossplaneXRD fact this handler
+//     loads cross-scope already has its node committed in the graph; a
+//     cross-scope MATCH-miss from an uncommitted XRD node is near-impossible
+//     by this activation ordering alone, not merely tolerated as a residual
+//     risk.
+//
+// The GraphProjectionKeyspaceCodeEntitiesUID phase that a literal port of the
+// locked design's dual-keyspace gate would need is therefore both unnecessary
+// (case 1) and would require reconstructing a cross-repo phase key this
+// handler cannot derive without risking a permanently-mismatched,
+// always-not-ready gate (case 2) — worse than the gap it would close. The one
+// residual gap neither argument above closes is XRD-lag: an XRD repo
+// ingested for the FIRST time after the Claim repo's latest generation has no
+// active generation yet, so the Claim's correlation finds no XRD candidate
+// until the Claim repo's own next sync generation re-runs it — a false
+// negative, not a wrong answer, and not a same-generation race. Tracked for a
+// periodic re-drive in issue #5476. Safety is preserved by construction on
+// top of both arguments: the writer's MATCH-MATCH-MERGE only ever produces an
+// edge when both endpoint nodes already exist in the graph, so even an
+// unforeseen uncommitted endpoint yields no edge this generation (self-healing
+// on a later retry) rather than a fabricated one.
 type CrossplaneSatisfiedByMaterializationHandler struct {
 	FactLoader  FactLoader
 	EdgeWriter  CrossplaneSatisfiedByEdgeWriter
