@@ -56,6 +56,7 @@ func TestOAuthDiscovery_EndToEnd(t *testing.T) {
 	challenge := &query.PostureOAuthChallengePolicy{
 		Providers:   providers,
 		TenantID:    "default",
+		Issuers:     resolver,
 		MetadataURL: metadataURL,
 		Scope:       query.DefaultOAuthChallengeScope,
 	}
