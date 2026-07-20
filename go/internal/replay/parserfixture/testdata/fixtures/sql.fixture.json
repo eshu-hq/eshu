@@ -8,6 +8,70 @@
         "collector_kind": "git",
         "fact_kind": "file",
         "payload": {
+          "graph_id": "sql:V1__add_paid_at.sql",
+          "graph_kind": "file",
+          "is_dependency": false,
+          "language": "sql",
+          "parsed_file_data": {
+            "iac_relevant": false,
+            "is_dependency": false,
+            "lang": "sql",
+            "path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/sql/V1__add_paid_at.sql",
+            "repo_path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/sql",
+            "sql_columns": [
+              {
+                "column_name": "paid_at",
+                "data_type": "TIMESTAMP",
+                "line_number": 1,
+                "name": "invoices.paid_at",
+                "sql_entity_type": "SqlColumn",
+                "table_name": "invoices",
+                "type": "content_entity"
+              }
+            ],
+            "sql_functions": [],
+            "sql_indexes": [],
+            "sql_migrations": [
+              {
+                "line_number": 1,
+                "migration_targets": [
+                  {
+                    "kind": "SqlTable",
+                    "line_number": 1,
+                    "name": "invoices",
+                    "operation": "alter"
+                  }
+                ],
+                "name": "V1__add_paid_at",
+                "sql_entity_type": "SqlMigration",
+                "tool": "flyway",
+                "type": "content_entity"
+              }
+            ],
+            "sql_parse_bounded": [],
+            "sql_relationships": [
+              {
+                "line_number": 1,
+                "source_name": "invoices",
+                "target_name": "invoices.paid_at",
+                "type": "HAS_COLUMN"
+              }
+            ],
+            "sql_tables": [],
+            "sql_triggers": [],
+            "sql_views": []
+          },
+          "relative_path": "V1__add_paid_at.sql",
+          "repo_id": "sql"
+        },
+        "source_confidence": "observed",
+        "source_uri": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/sql/V1__add_paid_at.sql",
+        "stable_fact_key": "file:sql:V1__add_paid_at.sql"
+      },
+      {
+        "collector_kind": "git",
+        "fact_kind": "file",
+        "payload": {
           "graph_id": "sql:schema.sql",
           "graph_kind": "file",
           "is_dependency": false,

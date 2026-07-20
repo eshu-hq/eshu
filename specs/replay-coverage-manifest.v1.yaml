@@ -483,6 +483,7 @@ coverage:
   - {surface: retractable_node:SqlColumn, scenario: cassette, scenario_type: delta_tombstone, ref: testdata/cassettes/replaydelta/multi-generation-tombstone.json, proof_gate: replay-tier}
   - {surface: retractable_node:SqlFunction, scenario: cassette, scenario_type: delta_tombstone, ref: testdata/cassettes/replaydelta/multi-generation-tombstone.json, proof_gate: replay-tier}
   - {surface: retractable_node:SqlIndex, scenario: cassette, scenario_type: delta_tombstone, ref: testdata/cassettes/replaydelta/multi-generation-tombstone.json, proof_gate: replay-tier}
+  - {surface: retractable_node:SqlMigration, scenario: cassette, scenario_type: delta_tombstone, ref: testdata/cassettes/replaydelta/multi-generation-tombstone.json, proof_gate: replay-tier}
   - {surface: retractable_node:SqlTable, scenario: cassette, scenario_type: delta_tombstone, ref: testdata/cassettes/replaydelta/multi-generation-tombstone.json, proof_gate: replay-tier}
   - {surface: retractable_node:SqlTrigger, scenario: cassette, scenario_type: delta_tombstone, ref: testdata/cassettes/replaydelta/multi-generation-tombstone.json, proof_gate: replay-tier}
   - {surface: retractable_node:SqlView, scenario: cassette, scenario_type: delta_tombstone, ref: testdata/cassettes/replaydelta/multi-generation-tombstone.json, proof_gate: replay-tier}
@@ -614,6 +615,7 @@ coverage:
   - {surface: retractable_edge:TRIGGERS, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_sql_relationship_retract_live_test.go, proof_gate: replay-tier}
   - {surface: retractable_edge:EXECUTES, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_sql_relationship_retract_live_test.go, proof_gate: replay-tier}
   - {surface: retractable_edge:INDEXES, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_sql_relationship_retract_live_test.go, proof_gate: replay-tier}
+  - {surface: retractable_edge:MIGRATES, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_sql_relationship_retract_live_test.go, proof_gate: replay-tier}
   # Reducer-materialized rationale EXPLAINS edges (#5116 sibling): the delta
   # (by-file) retract anchored its target on a node-label disjunction, which
   # deletes nothing on NornicDB v1.1.11; proven by a live EdgeWriter

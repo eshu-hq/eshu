@@ -272,8 +272,8 @@ func batchCypherForDomain(domain string) (string, error) {
 	case reducer.DomainSQLRelationships:
 		// SQL relationship edges have no single-template batch: each row is
 		// dispatched per relationship type by buildSQLRelationshipRowMap — a
-		// label-scoped MERGE for SqlView/SqlFunction/SqlTable/... endpoints
-		// (READS_FROM, INDEXES, HAS_COLUMN, TRIGGERS, ...) or the
+		// label-scoped MERGE for SqlView/SqlFunction/SqlTable/SqlMigration/... endpoints
+		// (READS_FROM, INDEXES, HAS_COLUMN, TRIGGERS, MIGRATES, ...) or the
 		// QUERIES_TABLE/HAS_COLUMN/TRIGGERS/EXECUTES fallback templates for
 		// mixed-label endpoints. This case exists only to satisfy WriteEdges'
 		// domain-recognition gate. It deliberately returns an empty template

@@ -152,16 +152,17 @@ Bidirectional: `TestImpactBlastRadiusCoverageEdgeTypesAreStillTraversed`
 fails a coverage-edge-type list entry that is neither traversed by any
 audited query nor a registered relationship type
 (`internal/graph/edgetype.IsRegistered`) — distinguishing the deliberate
-`sql_table` honesty pattern (`REFERENCES_TABLE`, `MIGRATES`, `MAPS_TO_TABLE`
-are listed as conceptually covered even though no UNION branch queries them,
-so the response can disclose the gap) from a genuinely stale or fake entry.
+`sql_table` honesty pattern (`REFERENCES_TABLE`, `MAPS_TO_TABLE` are listed as
+conceptually covered even though no UNION branch queries them, so the
+response can disclose the gap) from a genuinely stale or fake entry. `MIGRATES`
+left this list in #5346: it now has its own UNION branch and a real writer.
 
 Two anti-false-green mitigations:
 
 - **Positive-extraction floor** — each query has a `MinDistinctEdgeTypes`
   seeded from its current known token count (repository: 1,
   terraform-source-repos: 2, dependents-by-id: 1, crossplane: 3, sql_table:
-  6, tier-lookup: 1), so a tokenizer regression that silently drops tokens
+  7, tier-lookup: 1), so a tokenizer regression that silently drops tokens
   fails the floor instead of vacuously passing.
 - **Literal-only discipline** — `TestImpactBlastRadiusGateQueriesAreLiteralConstants`
   AST-parses `impact_blast_radius.go` and requires every audited query to be

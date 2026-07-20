@@ -27,11 +27,16 @@ func TestSchemaApplicationsDeclareCompatibilityDecision(t *testing.T) {
 			// The Helm template-value schema bump only adds
 			// HelmValueDefinition/HelmTemplateValueUsage constraints + uid
 			// constraints; an older writer can safely write against it. The
-			// additive chain pre-GitLab -> GitLab -> Helm is cumulative, so BOTH
-			// the immediate (GitLab) predecessor and the pre-GitLab predecessor
-			// stay compatible. The Function retract-index bump is also additive,
-			// so the immediately preceding schema stays compatible too.
+			// additive chain pre-GitLab -> GitLab -> Helm -> SqlMigration is
+			// cumulative, so the immediate (Helm) predecessor, the pre-GitLab
+			// predecessor, and the pre-SqlMigration (Helm) predecessor all stay
+			// compatible. The Function retract-index bump is also additive, so
+			// the immediately preceding schema stays compatible too. The
+			// SqlMigration uid-constraint bump (#5346) is likewise additive: an
+			// older writer creates no SqlMigration nodes, so the new constraint
+			// never applies to it.
 			compatible: []string{
+				graphSchemaNeo4jPreSqlMigrationFingerprint,
 				graphSchemaNeo4jPreShellExecRetractIndexesFingerprint,
 				graphSchemaNeo4jPreInheritanceRetractIndexesFingerprint,
 				graphSchemaNeo4jPreFunctionRetractIndexesFingerprint,
@@ -44,6 +49,7 @@ func TestSchemaApplicationsDeclareCompatibilityDecision(t *testing.T) {
 			backend:     SchemaBackendNornicDB,
 			fingerprint: graphSchemaNornicDBFingerprint,
 			compatible: []string{
+				graphSchemaNornicDBPreSqlMigrationFingerprint,
 				graphSchemaNornicDBPreFunctionLegacyIDLookupFingerprint,
 				graphSchemaNornicDBPreShellExecRetractIndexesFingerprint,
 				graphSchemaNornicDBPreInheritanceRetractIndexesFingerprint,

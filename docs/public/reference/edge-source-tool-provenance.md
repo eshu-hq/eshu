@@ -224,7 +224,7 @@ and written through the canonical relationship upserts
 `CALLS`, `REFERENCES`, `INHERITS`, `INSTANTIATES`, `USES_METACLASS`,
 `IMPLEMENTS`, `ALIASES`, `OVERRIDES`, `IMPORTS`, and the SQL parser edges
 (`HAS_COLUMN`, `READS_FROM`, `INDEXES`, `QUERIES_TABLE`, `EXECUTES`,
-`TRIGGERS`).
+`TRIGGERS`, `MIGRATES`).
 
 **Structural edges** — no tool concept: `REPO_CONTAINS`, `CONTAINS`, `DEFINES`,
 `INSTANCE_OF`, `EXPOSES_ENDPOINT`, `DEPLOYMENT_SOURCE`,
@@ -232,24 +232,28 @@ and written through the canonical relationship upserts
 `TARGETS_ENVIRONMENT`, `HAS_PARAMETER`, `DOCUMENTS`, `EXPLAINS`, `USES`
 (workload→cloud-resource).
 
-**Registered but not currently materialized:** `MAPS_TO_TABLE`, `MIGRATES`,
+**Registered but not currently materialized:** `MAPS_TO_TABLE`,
 `REFERENCES_TABLE`, `TRIGGERS_ON`, and `SATISFIED_BY` appear in the edge-type
 registry, but no emitter MERGEs any of them in the current code.
-`MAPS_TO_TABLE`/`MIGRATES` are read by `query/impact.go` despite having no
-writer (#5330 audited every SQL reducer/edge-writer path). `REFERENCES_TABLE`
-joined this list in #5345: the only prior producer was the SqlView/SqlFunction
+`MAPS_TO_TABLE` is read by `query/impact.go` despite having no writer (#5330
+audited every SQL reducer/edge-writer path). `REFERENCES_TABLE` joined this
+list in #5345: the only prior producer was the SqlView/SqlFunction
 source_tables case, which the parser/reducer bridge now emits as `READS_FROM`
 instead — `REFERENCES_TABLE` is reserved for a future table-level FK edge, not
-currently wired to any writer. `TRIGGERS_ON` is a distinct dead registry entry
-from the live `TRIGGERS` edge the SQL trigger writer actually emits — do not
-conflate the two names. `SATISFIED_BY`
+currently wired to any writer. `MIGRATES` left this list in #5346: the parser
+now emits one `SqlMigration` entity per recognized migration file with its
+resolved forward targets under `migration_targets` metadata, and the reducer
+derives `MIGRATES` edges directly (mirrors the `READS_FROM` bridge; DROP
+targets and migration-order reachability remain unresolved). `TRIGGERS_ON` is
+a distinct dead registry entry from the live `TRIGGERS` edge the SQL trigger
+writer actually emits — do not conflate the two names. `SATISFIED_BY`
 (Crossplane Claim -> XRD) was previously miscategorized above as a
 materialized structural edge; auditing every reducer/edge-writer path found
 no emitter for it either (#5331) — `query/impact_blast_radius.go` reads it
 but nothing writes it, which is why `POST /api/v0/impact/blast-radius` with
 `target_type: crossplane_xrd` reports `complete: false` (see
 [Crossplane parser](../languages/crossplane.md#known-limitations)). None of
-these five carry a `source_tool` until a materializer exists.
+these four carry a `source_tool` until a materializer exists.
 
 **Parsed but never entered into the edge-type registry:** the SQL/dbt
 manifest parser (`go/internal/parser/json/dbt_manifest.go`) emits

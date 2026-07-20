@@ -118,6 +118,10 @@ ALTER TABLE public.users ADD COLUMN email TEXT;
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
+	// #5346: buildSQLMigrationEntries emits ONE SqlMigration entity per file
+	// (not one row per touched target); its name is the migration's parent
+	// directory (prisma's migration.sql basename is worthless as a display
+	// name), and its forward targets nest under migration_targets metadata.
 	items, ok := got["sql_migrations"].([]map[string]any)
 	if !ok {
 		t.Fatalf("sql_migrations = %T, want []map[string]any", got["sql_migrations"])
@@ -128,11 +132,27 @@ ALTER TABLE public.users ADD COLUMN email TEXT;
 	if items[0]["tool"] != "prisma" {
 		t.Fatalf("sql_migrations[0].tool = %#v, want %#v", items[0]["tool"], "prisma")
 	}
-	if items[0]["target_kind"] != "SqlTable" {
-		t.Fatalf("sql_migrations[0].target_kind = %#v, want %#v", items[0]["target_kind"], "SqlTable")
+	if items[0]["name"] != "20260411_add_users" {
+		t.Fatalf("sql_migrations[0].name = %#v, want %#v", items[0]["name"], "20260411_add_users")
 	}
-	if items[0]["target_name"] != "public.users" {
-		t.Fatalf("sql_migrations[0].target_name = %#v, want %#v", items[0]["target_name"], "public.users")
+	if items[0]["sql_entity_type"] != "SqlMigration" {
+		t.Fatalf("sql_migrations[0].sql_entity_type = %#v, want %#v", items[0]["sql_entity_type"], "SqlMigration")
+	}
+	targets, ok := items[0]["migration_targets"].([]map[string]any)
+	if !ok {
+		t.Fatalf("migration_targets = %T, want []map[string]any", items[0]["migration_targets"])
+	}
+	if len(targets) != 1 {
+		t.Fatalf("len(migration_targets) = %d, want 1", len(targets))
+	}
+	if targets[0]["kind"] != "SqlTable" {
+		t.Fatalf("migration_targets[0].kind = %#v, want %#v", targets[0]["kind"], "SqlTable")
+	}
+	if targets[0]["name"] != "public.users" {
+		t.Fatalf("migration_targets[0].name = %#v, want %#v", targets[0]["name"], "public.users")
+	}
+	if targets[0]["operation"] != "create" {
+		t.Fatalf("migration_targets[0].operation = %#v, want %#v (CREATE TABLE wins over the later ALTER)", targets[0]["operation"], "create")
 	}
 }
 

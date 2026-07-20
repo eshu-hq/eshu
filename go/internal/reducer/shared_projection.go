@@ -160,7 +160,7 @@ func sharedProjectionReadinessPhase(domain string) (GraphProjectionPhase, bool) 
 		// while semantic_nodes_committed was never published).
 		//
 		// sql_relationships connects SqlTable/SqlColumn/SqlView/SqlFunction/
-		// SqlTrigger/SqlIndex nodes. Those are CANONICAL nodes: projector/canonical.go
+		// SqlTrigger/SqlIndex/SqlMigration nodes. Those are CANONICAL nodes: projector/canonical.go
 		// maps the sql_* canonical entity kinds to those labels and the canonical node
 		// writer commits them at canonical-nodes; the semantic-entity reducer never
 		// emits any Sql* label. Gating sql on semantic-nodes was the same latent stall

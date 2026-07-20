@@ -13,7 +13,7 @@ var nornicDBRelationshipEntityLabels = []string{
 	"Annotation", "Function", "Class", "Interface", "Module", "Variable",
 	"Struct", "Enum", "Union", "Macro", "ImplBlock", "Typedef", "TypeAlias",
 	"TypeAnnotation", "Component", "SqlColumn", "SqlFunction", "SqlIndex",
-	"SqlTable", "SqlTrigger", "SqlView", "TerraformModule", "TerragruntConfig",
+	"SqlMigration", "SqlTable", "SqlTrigger", "SqlView", "TerraformModule", "TerragruntConfig",
 	"TerragruntDependency",
 }
 

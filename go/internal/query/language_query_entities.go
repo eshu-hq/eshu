@@ -65,6 +65,7 @@ var graphFirstContentBackedEntityTypes = map[string]string{
 	"sql_column":              "SqlColumn",
 	"sql_function":            "SqlFunction",
 	"sql_index":               "SqlIndex",
+	"sql_migration":           "SqlMigration",
 	"sql_table":               "SqlTable",
 	"sql_trigger":             "SqlTrigger",
 	"sql_view":                "SqlView",
@@ -370,7 +371,7 @@ func graphLabelToContentEntityType(label string) string {
 		return "Annotation"
 	case "Function", "Class", "Interface", "Module", "Variable", "Struct", "Enum", "Union", "Macro", "ImplBlock", "Typedef", "TypeAlias", "TypeAnnotation", "Component":
 		return label
-	case "SqlColumn", "SqlFunction", "SqlIndex", "SqlTable", "SqlTrigger", "SqlView":
+	case "SqlColumn", "SqlFunction", "SqlIndex", "SqlMigration", "SqlTable", "SqlTrigger", "SqlView":
 		return label
 	case "TerraformModule", "TerragruntConfig", "TerragruntDependency":
 		return label

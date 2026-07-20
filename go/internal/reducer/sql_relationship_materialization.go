@@ -25,6 +25,7 @@ var sqlRelationshipContentEntityTypes = []string{
 	"SqlFunction",
 	"SqlTrigger",
 	"SqlIndex",
+	"SqlMigration",
 }
 
 type sqlRelationshipEntity struct {
@@ -126,6 +127,12 @@ func (h SQLRelationshipMaterializationHandler) Handle(
 		// re-deriving it from the graph (#5345).
 		slog.Int("unresolved_read_targets", rowStats.UnresolvedReadTargets),
 		slog.Int("ambiguous_read_targets", rowStats.AmbiguousReadTargets),
+		// unresolved/ambiguous_migration_targets mirror the read-target pair
+		// above for MIGRATES migration_targets entries resolveSQLMigrationTarget
+		// could not (unresolved) or refused to (ambiguous, #5346 Trap 1) turn
+		// into an edge.
+		slog.Int("unresolved_migration_targets", rowStats.UnresolvedMigrationTargets),
+		slog.Int("ambiguous_migration_targets", rowStats.AmbiguousMigrationTargets),
 	)
 
 	return Result{
@@ -144,7 +151,7 @@ func (h SQLRelationshipMaterializationHandler) Handle(
 // isSQLEntityType reports whether the entity type is a known SQL entity.
 func isSQLEntityType(entityType string) bool {
 	switch entityType {
-	case "SqlTable", "SqlColumn", "SqlView", "SqlFunction", "SqlTrigger", "SqlIndex":
+	case "SqlTable", "SqlColumn", "SqlView", "SqlFunction", "SqlTrigger", "SqlIndex", "SqlMigration":
 		return true
 	default:
 		return false
@@ -336,6 +343,46 @@ func ExtractSQLRelationshipRows(
 				"relationship_type": "HAS_COLUMN",
 			})
 
+		case "SqlMigration":
+			// migration_targets metadata -> MIGRATES edges (#5346). Each target
+			// carries its own resolved kind (stamped by the parser from the
+			// bucket it was captured in, or "SqlTable" for a bounded DML/ALTER/
+			// REFERENCES mention), so resolution is direct: no SqlTable/SqlView
+			// dual-kind fallback the way READS_FROM needs. A same-kind,
+			// same-name collision across files is reported as ambiguous rather
+			// than guessed (Trap 1); a target naming nothing in the repo is
+			// unresolved.
+			for _, target := range sqlMetadataMapSlice(metadata, "migration_targets") {
+				targetKind := anyToString(target["kind"])
+				targetName := anyToString(target["name"])
+				if targetKind == "" || targetName == "" {
+					continue
+				}
+				resolved, ambiguous, ok := resolveSQLMigrationTarget(entityByName, targetName, targetKind, repoID, relativePath)
+				if ambiguous {
+					stats.AmbiguousMigrationTargets++
+					continue
+				}
+				if !ok {
+					stats.UnresolvedMigrationTargets++
+					continue
+				}
+				edgeKey := entityID + "->MIGRATES->" + resolved.entityID
+				if _, seen := seenEdges[edgeKey]; seen {
+					continue
+				}
+				seenEdges[edgeKey] = struct{}{}
+				rows = append(rows, map[string]any{
+					"source_entity_id":   entityID,
+					"target_entity_id":   resolved.entityID,
+					"source_entity_type": entityType,
+					"target_entity_type": resolved.entityType,
+					"source_path":        entityPath,
+					"repo_id":            repoID,
+					"relationship_type":  "MIGRATES",
+				})
+			}
+
 		case "SqlIndex":
 			// table_name metadata -> INDEXES edge (index -> table). Mirrors the
 			// SqlTrigger table_name resolution above; an index whose table_name
@@ -380,47 +427,4 @@ func ExtractSQLRelationshipRows(
 	})
 
 	return repoIDs, rows, stats
-}
-
-// sqlMetadataString extracts a string value from SQL entity metadata.
-func sqlMetadataString(metadata map[string]any, key string) string {
-	if metadata == nil {
-		return ""
-	}
-	v, ok := metadata[key]
-	if !ok || v == nil {
-		return ""
-	}
-	s, ok := v.(string)
-	if !ok {
-		return ""
-	}
-	return s
-}
-
-// sqlMetadataStringSlice extracts a string slice from SQL entity metadata.
-func sqlMetadataStringSlice(metadata map[string]any, key string) []string {
-	if metadata == nil {
-		return nil
-	}
-	v, ok := metadata[key]
-	if !ok || v == nil {
-		return nil
-	}
-	switch typed := v.(type) {
-	case []string:
-		return typed
-	case []any:
-		out := make([]string, 0, len(typed))
-		for _, item := range typed {
-			s, ok := item.(string)
-			if !ok || s == "" {
-				continue
-			}
-			out = append(out, s)
-		}
-		return out
-	default:
-		return nil
-	}
 }

@@ -95,6 +95,7 @@ var snapshotEntityBuckets = []struct {
 	{bucket: "pagerduty_declarations", label: "PagerDutyDeclaration"},
 	{bucket: "helm_value_definitions", label: "HelmValueDefinition"},
 	{bucket: "helm_template_value_usages", label: "HelmTemplateValueUsage"},
+	{bucket: "sql_migrations", label: "SqlMigration"},
 }
 
 // NativeRepositorySnapshotter builds repository snapshots without Python bridge code.

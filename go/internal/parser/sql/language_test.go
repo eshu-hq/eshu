@@ -97,6 +97,9 @@ $proc$;
 	assertSQLRelationshipMissing(t, got, "READS_FROM", "public.archive_users", "public.user_archive")
 	assertSQLRelationshipExists(t, got, "READS_FROM", "public.archive_users", "public.users")
 	assertSQLMigrationExists(t, got, "prisma", "SqlTable", "public.user_archive")
+	// Prisma names every migration file "migration.sql"; the stamped identifier
+	// must be the migration's parent directory name instead (#5346).
+	assertSQLMigrationEntityName(t, got, "prisma", "20260509_sql_contract")
 }
 
 // TestParseProcedureIndexedSourceIsOriginalText guards that, when IndexSource is
@@ -126,33 +129,6 @@ $proc$;
 	if strings.Contains(source, "RETURNS void") {
 		t.Fatalf("indexed source must not contain the synthetic rewrite, got %q", source)
 	}
-}
-
-// TestParseMigrationTargetsFromAlterAndReferences guards that migration metadata
-// records tables that a migration only touches via ALTER TABLE or a REFERENCES
-// (foreign key) clause, not just tables reached through DML reads.
-func TestParseMigrationTargetsFromAlterAndReferences(t *testing.T) {
-	t.Parallel()
-
-	alterPath := writeSQLTestFile(
-		t,
-		filepath.Join("prisma", "migrations", "20260620_alter_only", "migration.sql"),
-		`ALTER TABLE public.existing_orders ADD COLUMN shipped_at TIMESTAMPTZ;
-`,
-	)
-	gotAlter := parseSQLTestFile(t, alterPath)
-	assertSQLMigrationExists(t, gotAlter, "prisma", "SqlTable", "public.existing_orders")
-
-	referencesPath := writeSQLTestFile(
-		t,
-		filepath.Join("prisma", "migrations", "20260621_fk_only", "migration.sql"),
-		`ALTER TABLE public.line_items
-  ADD CONSTRAINT line_items_order_fk
-  FOREIGN KEY (order_id) REFERENCES public.orders (id);
-`,
-	)
-	gotReferences := parseSQLTestFile(t, referencesPath)
-	assertSQLMigrationExists(t, gotReferences, "prisma", "SqlTable", "public.orders")
 }
 
 // TestParseViewAndFunctionStampSourceTablesMetadata guards #5345: the view and
@@ -217,51 +193,6 @@ func TestParseMSSQLBracketQuotedIdentifiers(t *testing.T) {
 	assertSQLBucketContainsName(t, got, "sql_tables", "dbo.Orders")
 	assertSQLBucketContainsName(t, got, "sql_columns", "dbo.Orders.OrderID")
 	assertSQLBucketContainsName(t, got, "sql_columns", "dbo.Orders.CustomerName")
-}
-
-func TestParseDMLDeleteMigrationTarget(t *testing.T) {
-	t.Parallel()
-
-	path := writeSQLTestFile(
-		t,
-		filepath.Join("prisma", "migrations", "20260622_delete", "migration.sql"),
-		`DELETE FROM public.old_records WHERE created_at < '2020-01-01';
-`,
-	)
-
-	got := parseSQLTestFile(t, path)
-
-	assertSQLMigrationExists(t, got, "prisma", "SqlTable", "public.old_records")
-}
-
-func TestParseDMLInsertMigrationTarget(t *testing.T) {
-	t.Parallel()
-
-	path := writeSQLTestFile(
-		t,
-		filepath.Join("prisma", "migrations", "20260623_insert", "migration.sql"),
-		`INSERT INTO public.audit_log (event, data) VALUES ('migration', '{}');
-`,
-	)
-
-	got := parseSQLTestFile(t, path)
-
-	assertSQLMigrationExists(t, got, "prisma", "SqlTable", "public.audit_log")
-}
-
-func TestParseDMLUpdateMigrationTarget(t *testing.T) {
-	t.Parallel()
-
-	path := writeSQLTestFile(
-		t,
-		filepath.Join("prisma", "migrations", "20260624_update", "migration.sql"),
-		`UPDATE public.accounts SET active = TRUE WHERE status = 'pending';
-`,
-	)
-
-	got := parseSQLTestFile(t, path)
-
-	assertSQLMigrationExists(t, got, "prisma", "SqlTable", "public.accounts")
 }
 
 func TestSQLLineIndexMatchesLineNumberForOffsets(t *testing.T) {
@@ -439,31 +370,4 @@ func assertSQLRelationshipMissing(
 			)
 		}
 	}
-}
-
-func assertSQLMigrationExists(
-	t *testing.T,
-	payload map[string]any,
-	tool string,
-	targetKind string,
-	targetName string,
-) {
-	t.Helper()
-
-	items, _ := payload["sql_migrations"].([]map[string]any)
-	for _, item := range items {
-		gotTool, _ := item["tool"].(string)
-		gotKind, _ := item["target_kind"].(string)
-		gotName, _ := item["target_name"].(string)
-		if gotTool == tool && gotKind == targetKind && gotName == targetName {
-			return
-		}
-	}
-	t.Fatalf(
-		"sql_migrations missing tool=%q target_kind=%q target_name=%q in %#v",
-		tool,
-		targetKind,
-		targetName,
-		items,
-	)
 }

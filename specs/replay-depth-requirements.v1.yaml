@@ -107,6 +107,7 @@ retractable_node_types:
   - SqlColumn
   - SqlFunction
   - SqlIndex
+  - SqlMigration
   - SqlTable
   - SqlTrigger
   - SqlView
@@ -202,6 +203,7 @@ retractable_edge_types:
   - EXPLAINS
   - HAS_COLUMN
   - INDEXES
+  - MIGRATES
   - QUERIES_TABLE
   - READS_FROM
   - TRIGGERS

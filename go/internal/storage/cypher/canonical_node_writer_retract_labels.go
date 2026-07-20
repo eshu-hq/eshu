@@ -83,12 +83,13 @@ var canonicalNodeRetractCloudFormationEntityLabels = map[string]struct{}{
 }
 
 var canonicalNodeRetractSQLEntityLabels = map[string]struct{}{
-	"SqlTable":    {},
-	"SqlView":     {},
-	"SqlFunction": {},
-	"SqlTrigger":  {},
-	"SqlIndex":    {},
-	"SqlColumn":   {},
+	"SqlTable":     {},
+	"SqlView":      {},
+	"SqlFunction":  {},
+	"SqlTrigger":   {},
+	"SqlIndex":     {},
+	"SqlColumn":    {},
+	"SqlMigration": {},
 }
 
 var canonicalNodeRetractDataEntityLabels = map[string]struct{}{

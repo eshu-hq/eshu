@@ -54,6 +54,17 @@ before touching any file in this directory.
   metadata and writes trigger-to-`SqlFunction` `EXECUTES` rows
   (`sql_relationship_materialization.go:347`). Code dead-code uses those rows
   as incoming reachability for stored routines.
+- **SQL migration files materialize as `MIGRATES` edges** — the `SqlMigration`
+  case in `ExtractSQLRelationshipRows` reads `migration_targets` (`{kind,name,
+  operation}`) from `SqlMigration` metadata and resolves each via
+  `resolveSQLMigrationTarget`, which constrains by **both kind and name** and
+  prefers a same-file match. **Ambiguity trap** (#5346): a repo that keeps both
+  `schema.sql` and a migrations dir has two same-kind same-name objects (e.g.
+  two `SqlTable "users"`); a target that resolves to more than one candidate
+  across different files is **skipped and tallied** (`AmbiguousMigrationTargets`),
+  never guessed — same never-fabricate discipline as READS_FROM. `select`-only
+  mentions are excluded from migration targets (a backfill's read is not a
+  migrate). DROP is not parsed yet (deferred).
 - **All canonical graph writes go through `internal/storage/cypher`** — no
   handler may call a Neo4j or NornicDB driver directly.
 - **`JavaScript` dynamic-call alias parsing is indexed once per function** —
