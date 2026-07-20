@@ -134,6 +134,10 @@ const (
 	ReadsConfigFrom EdgeType = "READS_CONFIG_FROM"
 	// ReadsFrom is the "READS_FROM" graph relationship type.
 	ReadsFrom EdgeType = "READS_FROM"
+	// ReconcilesFrom is the "RECONCILES_FROM" graph relationship type (a Flux
+	// Kustomization to the GitRepository/OCIRepository/Bucket source CR its
+	// spec.sourceRef resolves to, issue #5360 PR B).
+	ReconcilesFrom EdgeType = "RECONCILES_FROM"
 	// References is the "REFERENCES" graph relationship type.
 	References EdgeType = "REFERENCES"
 	// ReferencesTable is the "REFERENCES_TABLE" graph relationship type.
@@ -196,7 +200,7 @@ var registered = []EdgeType{
 	Inherits, InstanceOf, Instantiates, InvokesCloudAction,
 	LogsTo, Manages, MapsToTable, Migrates, Needs, Overrides,
 	ProvisionsDependencyFor, ProvisionsPlatform, QueriesTable, ReadsConfigFrom,
-	ReadsFrom, References, ReferencesTable, RepoContains,
+	ReadsFrom, ReconcilesFrom, References, ReferencesTable, RepoContains,
 	RunsImage, RunsIn, RunsOn, SatisfiedBy,
 	SecretsIamAssumesIamRole, SecretsIamAuthenticatesToVaultRole, SecretsIamGrantsSecretRead, SecretsIamUsesServiceAccount,
 	SecretsIamUsesVaultPolicy, TaintFlowsTo, TargetsEnvironment, To,

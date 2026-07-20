@@ -254,6 +254,13 @@ func (w *CanonicalNodeWriter) buildStructuralEdgeStatements(mat projector.Canoni
 	// properties written earlier this phase. No-op for non-Atlantis repos.
 	stmts = append(stmts, atlantisEdgeStatements(mat)...)
 
+	// Flux Kustomization RECONCILES_FROM (spec.sourceRef -> resolved
+	// GitRepository/OCIRepository/Bucket source CR) edges, derived from the
+	// FluxKustomization / FluxGitRepository / FluxOCIRepository / FluxBucket
+	// node properties written earlier this phase (issue #5360 PR B). No-op for
+	// non-Flux repos.
+	stmts = append(stmts, fluxReconcilesFromEdgeStatements(mat)...)
+
 	// GitLab CI DEFINES_JOB (pipeline -> job) and NEEDS (job -> job) edges,
 	// derived from the GitlabPipeline / GitlabJob node properties written
 	// earlier this phase. No-op for non-GitLab repos.
