@@ -161,6 +161,7 @@ func authMiddleware(
 	next http.Handler,
 	audit GovernanceAuditAppender,
 	authEnforcementConfigured bool,
+	oauthChallenge OAuthChallengePolicy,
 ) http.Handler {
 	return authMiddlewareWithRoutePolicy(
 		token,
@@ -170,6 +171,7 @@ func authMiddleware(
 		audit,
 		BrowserSessionRoutePolicy{},
 		authEnforcementConfigured,
+		oauthChallenge,
 	)
 }
 
@@ -181,6 +183,7 @@ func authMiddlewareWithRoutePolicy(
 	audit GovernanceAuditAppender,
 	policy BrowserSessionRoutePolicy,
 	authEnforcementConfigured bool,
+	oauthChallenge OAuthChallengePolicy,
 ) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Public paths: skip auth.
@@ -211,29 +214,51 @@ func authMiddlewareWithRoutePolicy(
 				next.ServeHTTP(w, r)
 				return
 			}
+			// Row 1 (issue #5163 decision table): a credential-less request
+			// denied under an enforcing posture is exactly the client that
+			// should be steered to the RFC 9728 discovery document, so attach
+			// the OAuth challenge (a nil policy leaves r unchanged and the 401
+			// byte-identical to today).
 			recordReadAuthorizationDenied(r, audit)
-			unauthorizedResponse(w, r)
+			unauthorizedResponse(w, requestWithOAuthChallenge(r, oauthChallenge))
 			return
 		}
 
 		scheme, credentials, found := strings.Cut(authorization, " ")
 		if !found || strings.ToLower(strings.TrimSpace(scheme)) != "bearer" {
+			// Row 8: a non-Bearer scheme is not a recognized issued token, so
+			// augment (a browser sending a cookie never reaches here — the
+			// cookie path self-enforces above).
 			recordReadAuthorizationDenied(r, audit)
-			unauthorizedResponse(w, r)
+			unauthorizedResponse(w, requestWithOAuthChallenge(r, oauthChallenge))
 			return
 		}
 
 		credentials = strings.TrimSpace(credentials)
 		if credentials == "" {
+			// Row 8: an empty Bearer credential is not a recognized issued
+			// token, so augment.
 			recordReadAuthorizationDenied(r, audit)
-			unauthorizedResponse(w, r)
+			unauthorizedResponse(w, requestWithOAuthChallenge(r, oauthChallenge))
 			return
 		}
 
 		if resolver != nil {
 			auth, ok, err := resolver.ResolveScopedToken(r.Context(), credentials)
 			if err != nil {
+				// Rows 5/6/7/11: augment ONLY when the resolver signals the
+				// credential was never a recognized issued token
+				// (ErrBearerCredentialUnrecognized — a JWT whose issuer is not
+				// in the active snapshot, or a pre-verify unparseable JWT). A
+				// post-match denial (expired, bad signature, wrong audience,
+				// malformed verified claims, no grants) or an infra error stays
+				// bare: that credential WAS understood, so pointing it at
+				// discovery is noise, and a bare 401 on an infra error is the
+				// fail-safe against anthropics/claude-code#59467.
 				recordReadAuthorizationDenied(r, audit)
+				if errors.Is(err, ErrBearerCredentialUnrecognized) {
+					r = requestWithOAuthChallenge(r, oauthChallenge)
+				}
 				unauthorizedResponse(w, r)
 				return
 			}
@@ -250,8 +275,15 @@ func authMiddlewareWithRoutePolicy(
 		}
 
 		if token == "" || !constantTimeEqual(credentials, token) {
+			// Row 9: the credential matched no resolver and is not the shared
+			// token — an unrecognized opaque (or IdP-less JWT-shaped)
+			// credential — so augment. A correct shared token never reaches
+			// here; it matches and serves below. (Documented residual
+			// #59467 risk: a client that presents a genuinely invalid token
+			// still gets steered to discovery here, but that client had no
+			// working credential anyway.)
 			recordReadAuthorizationDenied(r, audit)
-			unauthorizedResponse(w, r)
+			unauthorizedResponse(w, requestWithOAuthChallenge(r, oauthChallenge))
 			return
 		}
 
@@ -382,9 +414,14 @@ func constantTimeEqual(a, b string) bool {
 	return subtle.ConstantTimeCompare([]byte(a), []byte(b)) == 1
 }
 
-// unauthorizedResponse writes a 401 JSON error response.
+// unauthorizedResponse writes a 401 JSON error response. Its WWW-Authenticate
+// header is the bare "Bearer" challenge unless an OAuthChallengePolicy was
+// attached to the request context by requestWithOAuthChallenge at a genuine
+// bearer-credential denial site (issue #5163, F-2); the ~20 handler-level call
+// sites that build their own plain *http.Request never carry that context and
+// so always get the bare challenge. See auth_oauth_challenge_context.go.
 func unauthorizedResponse(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("WWW-Authenticate", "Bearer")
+	w.Header().Set("WWW-Authenticate", oauthWWWAuthenticateChallengeForRequest(r.Context()))
 	if acceptsEnvelope(r) {
 		WriteJSON(w, http.StatusUnauthorized, ResponseEnvelope{Error: &ErrorEnvelope{
 			Code:          ErrorCodeUnauthenticated,

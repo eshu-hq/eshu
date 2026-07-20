@@ -100,6 +100,16 @@ open read surface with one of those three environment variables. Both `cmd/api`
 and `cmd/mcp-server` log the resolved posture (`auth.enforcement.configured` or
 `auth.enforcement.open`) once at startup.
 
+When `ESHU_AUTH_RESOURCE_URI` and at least one OIDC bearer provider are
+configured, `cmd/mcp-server` also publishes an
+[RFC 9728](https://www.rfc-editor.org/rfc/rfc9728.html) OAuth 2.0 Protected
+Resource Metadata document at the unauthenticated
+`/.well-known/oauth-protected-resource` route so OAuth-capable MCP clients can
+discover where to obtain an access token, and adds a
+`WWW-Authenticate: Bearer resource_metadata="…"` challenge to a credential-less
+or unrecognized-credential `401`. A valid credential is served with no
+challenge. See [MCP OAuth 2.1 Discovery](../operate/mcp-oauth-discovery.md).
+
 ## Dashboard Browser Sessions
 
 Dashboard sessions are separate from explicit bearer tokens for CLI, MCP, and

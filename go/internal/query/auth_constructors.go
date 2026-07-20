@@ -28,7 +28,7 @@ import "net/http"
 //
 // Returns 401 Unauthorized with a JSON error body if authentication fails.
 func AuthMiddleware(token string, next http.Handler) http.Handler {
-	return authMiddleware(token, nil, nil, next, nil, token != "")
+	return authMiddleware(token, nil, nil, next, nil, token != "", nil)
 }
 
 // AuthMiddlewareWithGovernanceAudit wraps an HTTP handler with bearer token
@@ -39,7 +39,7 @@ func AuthMiddlewareWithGovernanceAudit(
 	next http.Handler,
 	audit GovernanceAuditAppender,
 ) http.Handler {
-	return authMiddleware(token, nil, nil, next, audit, token != "")
+	return authMiddleware(token, nil, nil, next, audit, token != "", nil)
 }
 
 // AuthMiddlewareWithScopedTokens wraps an HTTP handler with shared-token
@@ -49,7 +49,7 @@ func AuthMiddlewareWithScopedTokens(
 	resolver ScopedTokenResolver,
 	next http.Handler,
 ) http.Handler {
-	return authMiddleware(token, resolver, nil, next, nil, token != "")
+	return authMiddleware(token, resolver, nil, next, nil, token != "", nil)
 }
 
 // AuthMiddlewareWithBrowserSessionsAndScopedTokens wraps an HTTP handler with
@@ -60,7 +60,7 @@ func AuthMiddlewareWithBrowserSessionsAndScopedTokens(
 	sessionResolver BrowserSessionResolver,
 	next http.Handler,
 ) http.Handler {
-	return authMiddleware(token, resolver, sessionResolver, next, nil, token != "")
+	return authMiddleware(token, resolver, sessionResolver, next, nil, token != "", nil)
 }
 
 // AuthMiddlewareWithBrowserSessionsScopedTokensAndGovernanceAudit wraps an HTTP
@@ -73,7 +73,7 @@ func AuthMiddlewareWithBrowserSessionsScopedTokensAndGovernanceAudit(
 	next http.Handler,
 	audit GovernanceAuditAppender,
 ) http.Handler {
-	return authMiddleware(token, resolver, sessionResolver, next, audit, token != "")
+	return authMiddleware(token, resolver, sessionResolver, next, audit, token != "", nil)
 }
 
 // AuthMiddlewareWithScopedTokensAndGovernanceAudit wraps an HTTP handler with
@@ -92,7 +92,7 @@ func AuthMiddlewareWithScopedTokensAndGovernanceAudit(
 	next http.Handler,
 	audit GovernanceAuditAppender,
 ) http.Handler {
-	return authMiddleware(token, resolver, nil, next, audit, token != "")
+	return authMiddleware(token, resolver, nil, next, audit, token != "", nil)
 }
 
 // AuthMiddlewareWithScopedTokensGovernanceAuditAndEnforcement is the
@@ -110,5 +110,28 @@ func AuthMiddlewareWithScopedTokensGovernanceAuditAndEnforcement(
 	audit GovernanceAuditAppender,
 	authEnforcementConfigured bool,
 ) http.Handler {
-	return authMiddleware(token, resolver, nil, next, audit, authEnforcementConfigured)
+	return authMiddleware(token, resolver, nil, next, audit, authEnforcementConfigured, nil)
+}
+
+// AuthMiddlewareWithScopedTokensGovernanceAuditEnforcementAndOAuthChallenge is
+// the F-2 (issue #5163) production variant: it is
+// AuthMiddlewareWithScopedTokensGovernanceAuditAndEnforcement plus an
+// OAuthChallengePolicy. It threads the SAME explicit wiring-computed
+// authEnforcementConfigured predicate (so a scoped-token-file-only or
+// OIDC-bearer-only MCP deployment still denies headerless requests instead of
+// serving them open) and, when the deployment has at least one configured
+// identity provider, adds RFC 9728 resource_metadata (and an RFC 6750 scope) to
+// a genuine bearer-credential 401's WWW-Authenticate header. A nil
+// oauthChallenge leaves every 401 byte-identical to the *AndEnforcement
+// constructor's bare "Bearer". cmd/mcp-server/wiring.go uses this for both the
+// /api/ authed handler and the /sse + /mcp/message transport auth.
+func AuthMiddlewareWithScopedTokensGovernanceAuditEnforcementAndOAuthChallenge(
+	token string,
+	resolver ScopedTokenResolver,
+	next http.Handler,
+	audit GovernanceAuditAppender,
+	authEnforcementConfigured bool,
+	oauthChallenge OAuthChallengePolicy,
+) http.Handler {
+	return authMiddleware(token, resolver, nil, next, audit, authEnforcementConfigured, oauthChallenge)
 }

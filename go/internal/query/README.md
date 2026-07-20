@@ -837,6 +837,17 @@ live in [evidence-notes.md](evidence-notes.md).
   public GET routes. Dynamic SAML metadata/login/ACS paths are checked by
   `auth_public_routes.go` so provider identifiers can vary without opening a
   wider prefix. All data routes still require bearer or browser-session auth.
+- `OAuthProtectedResourceHandler` and `PostureOAuthChallengePolicy`
+  (`auth_oauth_discovery.go`, issue #5163, F-2) implement the RFC 9728 discovery
+  route and the gated `WWW-Authenticate` challenge. Enablement is derived per
+  request from `DeriveAuthPosture` plus the active bearer issuers, never a
+  static flag. A `401` augments its challenge only for a credential-less or
+  unrecognized-credential denial: `unauthorizedResponse` reads an
+  `OAuthChallengePolicy` from the request context that
+  `authMiddlewareWithRoutePolicy` attaches at exactly those sites, and the
+  resolver-error site keys on `ErrBearerCredentialUnrecognized` (wrapped by the
+  bearer resolver only for pre-match outcomes) so a recognized-but-rejected or
+  infra-error `401` stays byte-identically bare — the `#59467` fail-safe.
 - Browser session routes (`browser_session_handler.go`) exchange an explicit
   scoped credential for host-scoped HttpOnly session and readable CSRF cookies.
   Middleware hashes cookie and CSRF secrets before resolver calls, then attaches

@@ -131,6 +131,9 @@ satisfies `query.GraphQuery` and `query.ContentReader` satisfies
 | `ESHU_MCP_TRANSPORT` | `http` | `http` or `stdio` |
 | `ESHU_MCP_ADDR` | `:8080` | HTTP listen address |
 | `ESHU_MCP_ALLOW_UNAUTHENTICATED` | `false` | Dev/loopback escape hatch (#5168). Allows HTTP mode to start with no resolvable credential source; every request and SSE session is then unauthenticated. Never set on a publicly reachable bind. |
+| `ESHU_AUTH_RESOURCE_URI` | — | Canonical resource identifier. When set with an OIDC bearer provider, enables the RFC 9728 discovery document on the unauthenticated `/.well-known/oauth-protected-resource` route and the gated `WWW-Authenticate` challenge (#5163, F-2; `oauth_discovery_wiring.go`). Must be `https` (or loopback `http`) with no query/fragment. |
+| `ESHU_AUTH_PREREGISTERED_CLIENT_ID` | — | Optional `eshu_preregistered_client_id` extension member of the discovery document (#5163). See [MCP OAuth 2.1 Discovery](../../../docs/public/operate/mcp-oauth-discovery.md). |
+| `ESHU_AUTH_RESOURCE_DOCUMENTATION` | — | Optional `resource_documentation` field of the discovery document (#5163). |
 | `ESHU_POSTGRES_DSN` | — | falls back to `ESHU_CONTENT_STORE_DSN` |
 | `ESHU_GRAPH_BACKEND` | — | parsed by `query.ParseGraphBackend`; defaults to NornicDB |
 | `ESHU_QUERY_PROFILE` | `production` | `loadQueryProfile` defaults to `query.ProfileProduction` |

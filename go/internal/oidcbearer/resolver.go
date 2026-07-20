@@ -158,27 +158,37 @@ func (r *Resolver) ResolveScopedToken(ctx context.Context, credential string) (q
 
 	iss, err := peekUnverifiedIssuer(credential)
 	if err != nil {
-		return query.AuthContext{}, false, r.deny(ctx, "", outcomeMalformed)
+		// Pre-parse: the credential could not even be parsed far enough to read
+		// its issuer, so it is not a recognized issued token. Mark it
+		// unrecognized so the middleware can steer the client to OAuth discovery.
+		return query.AuthContext{}, false, r.deny(ctx, "", outcomeMalformed, true)
 	}
 
 	entry, matched := snap.byIssuer[iss]
 	if !matched {
-		return query.AuthContext{}, false, r.deny(ctx, iss, outcomeUnknownIssuer)
+		// Pre-match: the issuer is not in the active snapshot, so this token was
+		// issued by an authority this deployment does not accept — unrecognized.
+		return query.AuthContext{}, false, r.deny(ctx, iss, outcomeUnknownIssuer, true)
 	}
 
 	token, err := entry.verifier.Verify(ctx, credential)
 	if err != nil {
-		return query.AuthContext{}, false, r.deny(ctx, iss, classifyVerifyError(err))
+		// Post-match: the issuer WAS recognized; the token failed cryptographic
+		// or temporal verification (expired, bad signature, wrong audience).
+		// The credential was understood, so it is not "unrecognized".
+		return query.AuthContext{}, false, r.deny(ctx, iss, classifyVerifyError(err), false)
 	}
 
 	claims, err := extractVerifiedClaims(token, entry.provider.SubjectClaim, entry.provider.GroupsClaim)
 	if err != nil || claims.Subject == "" {
-		return query.AuthContext{}, false, r.deny(ctx, iss, outcomeMalformed)
+		// Post-match: verified token whose claims are malformed. Still a
+		// recognized issuer's token, so not "unrecognized".
+		return query.AuthContext{}, false, r.deny(ctx, iss, outcomeMalformed, false)
 	}
 
 	groupHashes := hashStrings(claims.Groups)
 	if len(groupHashes) == 0 {
-		return query.AuthContext{}, false, r.deny(ctx, iss, outcomeNoGrants)
+		return query.AuthContext{}, false, r.deny(ctx, iss, outcomeNoGrants, false)
 	}
 
 	now := r.now().UTC()
@@ -192,10 +202,10 @@ func (r *Resolver) ResolveScopedToken(ctx context.Context, credential string) (q
 	if err != nil {
 		r.logger0().Error("oidc bearer grant resolution failed; token denied",
 			"iss", iss, "provider_config_id", entry.provider.ProviderConfigID, "error", err)
-		return query.AuthContext{}, false, r.deny(ctx, iss, outcomeNoGrants)
+		return query.AuthContext{}, false, r.deny(ctx, iss, outcomeNoGrants, false)
 	}
 	if !ok || len(grants.RoleIDs) == 0 {
-		return query.AuthContext{}, false, r.deny(ctx, iss, outcomeNoGrants)
+		return query.AuthContext{}, false, r.deny(ctx, iss, outcomeNoGrants, false)
 	}
 
 	subjectIDHash := oidclogin.SHA256Hash(entry.provider.ProviderConfigID + ":" + claims.Subject)
@@ -222,11 +232,25 @@ func (r *Resolver) ResolveScopedToken(ctx context.Context, credential string) (q
 }
 
 // deny records the outcome counter, logs a structured warning carrying only
-// the issuer and outcome (never the raw token or any claim value), and
-// returns the generic wrapped error the middleware maps to a 401.
-func (r *Resolver) deny(ctx context.Context, iss, outcome string) error {
+// the issuer and outcome (never the raw token or any claim value), and returns
+// the generic wrapped error the middleware maps to a 401.
+//
+// When unrecognized is true, the returned error also wraps
+// query.ErrBearerCredentialUnrecognized (issue #5163, F-2): the credential was
+// never a recognized issued token for this deployment (a pre-parse-unparseable
+// JWT, or a JWT whose issuer is not in the active snapshot), so the middleware
+// may steer the client to the RFC 9728 discovery document. A post-match denial
+// (expired, bad signature, wrong audience, malformed verified claims, no
+// grants) passes false: that credential WAS understood, so it stays the bare
+// "Bearer" challenge. The outcome string alone cannot carry this distinction —
+// outcomeMalformed is used both pre-parse (unrecognized) and post-verify
+// (recognized) — so the caller passes it explicitly.
+func (r *Resolver) deny(ctx context.Context, iss, outcome string, unrecognized bool) error {
 	r.cache.recordOutcome(ctx, outcome)
 	r.logger0().Warn("oidc bearer token denied", "iss", iss, "outcome", outcome)
+	if unrecognized {
+		return fmt.Errorf("oidcbearer: bearer token denied: %s: %w", outcome, query.ErrBearerCredentialUnrecognized)
+	}
 	return fmt.Errorf("oidcbearer: bearer token denied: %s", outcome)
 }
 
