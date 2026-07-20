@@ -70,8 +70,9 @@ const openAPIPathsRepositories = `
       "get": {
         "tags": ["repositories"],
         "summary": "List repositories by language",
-        "description": "Returns aggregate counts and a bounded page of repositories that contain files for a language family. Language aliases such as typescript include tsx, javascript includes jsx, and terraform includes hcl and tfvars.",
+        "description": "Returns aggregate counts and a bounded page of repositories that contain files for a language family. Language aliases such as typescript include tsx, javascript includes jsx, and terraform includes hcl and tfvars. Scoped tokens receive counts and rows intersected with the caller's granted repositories/ingestion scopes; a scoped caller with no grants receives an empty page without a query.",
         "operationId": "listRepositoriesByLanguage",
+        "x-scoped-token-support": true,
         "parameters": [
           {"name": "language", "in": "query", "required": true, "schema": {"type": "string"}},
           {"name": "limit", "in": "query", "schema": {"type": "integer", "default": 100, "minimum": 0, "maximum": 500}},
@@ -132,8 +133,9 @@ const openAPIPathsRepositories = `
       "get": {
         "tags": ["repositories"],
         "summary": "List repository language inventory",
-        "description": "Returns aggregate repository and file counts for indexed language buckets without fetching per-repository coverage.",
+        "description": "Returns aggregate repository and file counts for indexed language buckets without fetching per-repository coverage. Scoped tokens receive counts intersected with the caller's granted repositories/ingestion scopes; a scoped caller with no grants receives an empty page without a query.",
         "operationId": "getRepositoryLanguageInventory",
+        "x-scoped-token-support": true,
         "parameters": [
           {"name": "limit", "in": "query", "schema": {"type": "integer", "default": 100, "minimum": 1, "maximum": 500}},
           {"name": "offset", "in": "query", "schema": {"type": "integer", "default": 0, "minimum": 0, "maximum": 10000}}

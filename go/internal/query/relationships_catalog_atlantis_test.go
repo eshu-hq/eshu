@@ -31,13 +31,13 @@ func TestManagesTargetIdentityUsesDirectoryPath(t *testing.T) {
 		t.Fatalf("MANAGES targetIdentityProperty = %q, want %q", entry.targetIdentityProperty, "path")
 	}
 
-	edges := relationshipEdgesCypher(entry)
+	edges := relationshipEdgesCypher(entry, repositoryAccessFilter{allScopes: true})
 	wantTargetID := "coalesce(t.path, t.id, t.uid, t.name) AS target_id"
 	if !strings.Contains(edges, wantTargetID) {
 		t.Fatalf("MANAGES edge cypher target_id must resolve t.path first: got %q, want to contain %q", edges, wantTargetID)
 	}
 
-	filtered := relationshipEdgesCypherFiltered(entry)
+	filtered := relationshipEdgesCypherFiltered(entry, repositoryAccessFilter{allScopes: true})
 	if !strings.Contains(filtered, wantTargetID) {
 		t.Fatalf("MANAGES filtered edge cypher target_id must resolve t.path first: got %q, want to contain %q", filtered, wantTargetID)
 	}

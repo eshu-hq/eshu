@@ -34,9 +34,40 @@ type ContentStore interface {
 	SearchEntitiesByLanguageAndType(ctx context.Context, repoID, language, entityType, query string, limit int) ([]EntityContent, error)
 	ListFrameworkRoutes(ctx context.Context, repoID string) ([]FrameworkRouteEvidence, error)
 	RepositoryCoverage(ctx context.Context, repoID string) (RepositoryContentCoverage, error)
-	CountRepositoriesByLanguage(ctx context.Context, languages []string) (RepositoryLanguageAggregate, error)
-	ListRepositoriesByLanguage(ctx context.Context, languages []string, limit int, offset int) ([]RepositoryLanguageRepository, error)
-	RepositoryLanguageInventory(ctx context.Context, limit int, offset int) ([]RepositoryLanguageInventoryRow, error)
+	// CountRepositoriesByLanguage, ListRepositoriesByLanguage, and
+	// RepositoryLanguageInventory all aggregate over content_files, which is
+	// keyed by repo_id but carries no scope grant of its own (#5167 Group B).
+	// allScopes selects the admin/all-scopes path (no row filtering, byte-
+	// identical to the pre-#5167 query). When allScopes is false, rows MUST be
+	// restricted to allowedRepositoryIDs/allowedScopeIDs so a scoped caller
+	// never observes another tenant's repository or language coverage; the
+	// query handler (repository_language_inventory.go) short-circuits to an
+	// empty page before calling these methods at all when a scoped caller
+	// holds no grants, matching the #5137 LiveActivityStore precedent.
+	CountRepositoriesByLanguage(
+		ctx context.Context,
+		languages []string,
+		allScopes bool,
+		allowedRepositoryIDs []string,
+		allowedScopeIDs []string,
+	) (RepositoryLanguageAggregate, error)
+	ListRepositoriesByLanguage(
+		ctx context.Context,
+		languages []string,
+		limit int,
+		offset int,
+		allScopes bool,
+		allowedRepositoryIDs []string,
+		allowedScopeIDs []string,
+	) ([]RepositoryLanguageRepository, error)
+	RepositoryLanguageInventory(
+		ctx context.Context,
+		limit int,
+		offset int,
+		allScopes bool,
+		allowedRepositoryIDs []string,
+		allowedScopeIDs []string,
+	) ([]RepositoryLanguageInventoryRow, error)
 	ListRepositories(ctx context.Context) ([]RepositoryCatalogEntry, error)
 	MatchRepositories(ctx context.Context, selector string) ([]RepositoryCatalogEntry, error)
 	ResolveRepository(ctx context.Context, selector string) (*RepositoryCatalogEntry, error)

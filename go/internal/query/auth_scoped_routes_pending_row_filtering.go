@@ -5,7 +5,6 @@ package query
 
 import (
 	"net/http"
-	"strings"
 )
 
 // pendingRowFilteringRoutes is the #5167 Group B ledger: the closed,
@@ -37,35 +36,26 @@ import (
 // allowedScopeIDs) returns zero rows on an empty grant without querying and
 // redacts source_key/source_display/lease_owner per row.
 var pendingRowFilteringRoutes = map[string]struct{}{
-	"GET /api/v0/cloud/inventory":                     {},
-	"GET /api/v0/ecosystem/overview":                  {},
-	"GET /api/v0/freshness/changed-since":             {},
-	"GET /api/v0/freshness/generations":               {},
-	"GET /api/v0/freshness/services/changed-since":    {},
-	"GET /api/v0/index-status":                        {},
-	"GET /api/v0/kubernetes/correlations":             {},
-	"GET /api/v0/observability/coverage/correlations": {},
-	"GET /api/v0/repositories/by-language":            {},
-	"GET /api/v0/repositories/language-inventory":     {},
-	"POST /api/v0/aws/runtime-drift/findings":         {},
-	"POST /api/v0/cloud/runtime-drift/findings":       {},
-	"POST /api/v0/code/bundles":                       {},
-	"POST /api/v0/code/call-chain":                    {},
-	"POST /api/v0/code/call-graph/metrics":            {},
-	"POST /api/v0/code/complexity":                    {},
-	"POST /api/v0/code/dead-code":                     {},
-	"POST /api/v0/code/dead-code/cross-repo":          {},
-	"POST /api/v0/code/dead-code/investigate":         {},
-	"POST /api/v0/code/imports/investigate":           {},
-	"POST /api/v0/code/language-query":                {},
-	"POST /api/v0/code/quality/inspect":               {},
-	"POST /api/v0/code/relationships":                 {},
-	"POST /api/v0/code/relationships/story":           {},
-	"POST /api/v0/code/security/secrets/investigate":  {},
-	"POST /api/v0/code/structure/inventory":           {},
-	"POST /api/v0/code/symbols/search":                {},
-	"POST /api/v0/code/topics/investigate":            {},
-	"POST /api/v0/ecosystem/graph-summary":            {},
+	"GET /api/v0/freshness/changed-since":            {},
+	"GET /api/v0/freshness/generations":              {},
+	"GET /api/v0/freshness/services/changed-since":   {},
+	"GET /api/v0/index-status":                       {},
+	"POST /api/v0/code/bundles":                      {},
+	"POST /api/v0/code/call-chain":                   {},
+	"POST /api/v0/code/call-graph/metrics":           {},
+	"POST /api/v0/code/complexity":                   {},
+	"POST /api/v0/code/dead-code":                    {},
+	"POST /api/v0/code/dead-code/cross-repo":         {},
+	"POST /api/v0/code/dead-code/investigate":        {},
+	"POST /api/v0/code/imports/investigate":          {},
+	"POST /api/v0/code/language-query":               {},
+	"POST /api/v0/code/quality/inspect":              {},
+	"POST /api/v0/code/relationships":                {},
+	"POST /api/v0/code/relationships/story":          {},
+	"POST /api/v0/code/security/secrets/investigate": {},
+	"POST /api/v0/code/structure/inventory":          {},
+	"POST /api/v0/code/symbols/search":               {},
+	"POST /api/v0/code/topics/investigate":           {},
 	// #5167 W3 flagged (NOT allowlisted, still pending): each of the three
 	// routes below resolves an arbitrary graph node across many labels
 	// (impactAnchorLabelDisjunction) or an unbounded cross-repo CALLS chain,
@@ -77,43 +67,21 @@ var pendingRowFilteringRoutes = map[string]struct{}{
 	"POST /api/v0/impact/explain-dependency-path": {},
 	"POST /api/v0/impact/trace-exposure-path":     {},
 	"POST /api/v0/impact/trace-resource-to-code":  {},
-	"POST /api/v0/relationships/edges":            {},
-}
-
-// pendingEvidenceRelationshipRoutePrefix anchors
-// pendingRowFilteringEvidenceRelationshipRoute: GET
-// /api/v0/evidence/relationships/{id} (get_relationship_evidence) carries a
-// path parameter, so it cannot sit in the literal pendingRowFilteringRoutes
-// map like its path-param-free Group B siblings.
-const pendingEvidenceRelationshipRoutePrefix = "/api/v0/evidence/relationships/"
-
-// pendingRowFilteringEvidenceRelationshipRoute matches GET
-// /api/v0/evidence/relationships/{id}, the one Group B route with a path
-// parameter (see pendingRowFilteringRoutes's doc comment for the ledger this
-// belongs to).
-func pendingRowFilteringEvidenceRelationshipRoute(r *http.Request) bool {
-	if r.Method != http.MethodGet {
-		return false
-	}
-	if !strings.HasPrefix(r.URL.Path, pendingEvidenceRelationshipRoutePrefix) {
-		return false
-	}
-	id := strings.TrimPrefix(r.URL.Path, pendingEvidenceRelationshipRoutePrefix)
-	return id != "" && !strings.Contains(id, "/")
 }
 
 // IsPendingRowFilteringRoute reports whether r targets a #5167 Group B route:
 // MCP-reachable, known to lack tenant-grant filtering, and tracked in the
-// closed pendingRowFilteringRoutes ledger (or matched by
-// pendingRowFilteringEvidenceRelationshipRoute for the one parameterized
-// entry) as a family-workstream follow-up rather than a silent gap. It is
-// exported for the same cross-package reason as ScopedHTTPRouteSupportsTenantFilter
-// and IsSharedKeyOnlyRoute: the MCP-reachability exhaustiveness gate lives in
-// go/internal/mcp, which imports this package, not the reverse.
+// closed pendingRowFilteringRoutes ledger as a family-workstream follow-up
+// rather than a silent gap. It is exported for the same cross-package reason
+// as ScopedHTTPRouteSupportsTenantFilter and IsSharedKeyOnlyRoute: the
+// MCP-reachability exhaustiveness gate lives in go/internal/mcp, which
+// imports this package, not the reverse.
+//
+// The one parameterized Group B entry, GET /api/v0/evidence/relationships/{id},
+// was cleared by the #5167 F-6 W6 cloud/aws family workstream
+// (scopedRelationshipEvidenceRoute, auth_scoped_routes_cloud.go) and no
+// longer needs the path-parameter matcher this function used to delegate to.
 func IsPendingRowFilteringRoute(r *http.Request) bool {
-	if pendingRowFilteringEvidenceRelationshipRoute(r) {
-		return true
-	}
 	_, ok := pendingRowFilteringRoutes[r.Method+" "+r.URL.Path]
 	return ok
 }

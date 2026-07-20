@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -174,6 +175,119 @@ func TestHandleCloudRuntimeDriftFindingsReturnsProviderNeutralFindings(t *testin
 	refused := secondGate["refused_actions"].([]any)
 	if len(refused) == 0 {
 		t.Fatalf("ambiguous finding must carry refused_actions, got %#v", secondGate)
+	}
+}
+
+// TestHandleCloudRuntimeDriftFindingsScopedOutOfGrantNeverCallsStore proves
+// the #5167 handler-side precheck (MultiCloudRuntimeDriftStore is shared with
+// GET /api/v0/investigations/drift/packet, owned by a different workstream,
+// so the fix is a caller-side grant check rather than a store/filter
+// change): a scoped caller whose requested scope_id is outside its grant must
+// get the zero-finding page without the store ever being invoked, proven by
+// the observedFilter staying at its zero value (Store is never called for
+// either Count or List).
+func TestHandleCloudRuntimeDriftFindingsScopedOutOfGrantNeverCallsStore(t *testing.T) {
+	t.Parallel()
+
+	var observed MultiCloudRuntimeDriftFilter
+	handler := &CloudRuntimeDriftHandler{
+		Profile: ProfileLocalAuthoritative,
+		Store: fakeMultiCloudRuntimeDriftStore{
+			observedFilter: &observed,
+			rows:           multiCloudRuntimeDriftFixtureRows(),
+			total:          5,
+		},
+	}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v0/cloud/runtime-drift/findings", bytes.NewBufferString(`{
+		"scope_id": "cloud-scope:gcp:project-synthetic",
+		"limit": 10
+	}`))
+	req.Header.Set("Accept", EnvelopeMIMEType)
+	req = req.WithContext(ContextWithAuthContext(req.Context(), AuthContext{
+		Mode:            AuthModeScoped,
+		TenantID:        "tenant-a",
+		AllowedScopeIDs: []string{"cloud-scope:aws:tenant-a"}, // does not grant the requested gcp scope
+	}))
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d body=%s", got, want, w.Body.String())
+	}
+	if observed.ScopeID != "" {
+		t.Fatalf("store was called for an out-of-grant scoped request: observed filter = %#v", observed)
+	}
+	var resp ResponseEnvelope
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v, want nil", err)
+	}
+	data := resp.Data.(map[string]any)
+	if got, want := data["total_findings_count"], float64(0); got != want {
+		t.Fatalf("total_findings_count = %v, want %v", got, want)
+	}
+	findings := data["drift_findings"].([]any)
+	if len(findings) != 0 {
+		t.Fatalf("drift_findings = %#v, want empty for an out-of-grant scoped request", findings)
+	}
+	if strings.Contains(w.Body.String(), "compute.googleapis.com") {
+		t.Fatalf("out-of-grant response leaked fixture row data: %s", w.Body.String())
+	}
+}
+
+// TestHandleCloudRuntimeDriftFindingsScopedInGrantReturnsRealRowData proves
+// the paired case: a scoped caller whose requested scope_id IS granted
+// reaches the store and gets the real fixture rows back, so the #5167
+// precheck is additive (blocks out-of-grant, passes in-grant) rather than a
+// blanket denial that would make the out-of-grant test above pass vacuously.
+func TestHandleCloudRuntimeDriftFindingsScopedInGrantReturnsRealRowData(t *testing.T) {
+	t.Parallel()
+
+	var observed MultiCloudRuntimeDriftFilter
+	handler := &CloudRuntimeDriftHandler{
+		Profile: ProfileLocalAuthoritative,
+		Store: fakeMultiCloudRuntimeDriftStore{
+			observedFilter: &observed,
+			rows:           multiCloudRuntimeDriftFixtureRows(),
+			total:          2,
+		},
+	}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v0/cloud/runtime-drift/findings", bytes.NewBufferString(`{
+		"scope_id": "cloud-scope:gcp:project-synthetic",
+		"limit": 10
+	}`))
+	req.Header.Set("Accept", EnvelopeMIMEType)
+	req = req.WithContext(ContextWithAuthContext(req.Context(), AuthContext{
+		Mode:            AuthModeScoped,
+		TenantID:        "tenant-a",
+		AllowedScopeIDs: []string{"cloud-scope:gcp:project-synthetic"},
+	}))
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d body=%s", got, want, w.Body.String())
+	}
+	if got, want := observed.ScopeID, "cloud-scope:gcp:project-synthetic"; got != want {
+		t.Fatalf("store was not called for an in-grant scoped request: observed.ScopeID = %q, want %q", got, want)
+	}
+	var resp ResponseEnvelope
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v, want nil", err)
+	}
+	data := resp.Data.(map[string]any)
+	findings := data["drift_findings"].([]any)
+	if len(findings) != 2 {
+		t.Fatalf("drift_findings len = %d, want 2; body = %s", len(findings), w.Body.String())
+	}
+	first := findings[0].(map[string]any)
+	if got, want := first["cloud_resource_uid"], "gcp:project-synthetic:compute.googleapis.com/Instance:vm-1"; got != want {
+		t.Fatalf("first cloud_resource_uid = %q, want %q (real row data)", got, want)
 	}
 }
 

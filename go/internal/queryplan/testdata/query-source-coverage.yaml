@@ -211,10 +211,15 @@ source_coverage:
       - {symbol: "(*InfraHandler).searchArgoCDCategoryRows", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
   - file: infra_ecosystem_overview.go
     calls:
-      - {symbol: "(*InfraHandler).getEcosystemOverview", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
+      - symbol: "runEcosystemOverviewCounts"
+        count: 1
+        non_hot:
+          class: label_inventory
+          source_sha256: 6311683657b320929b4f23e30c3d2324a53221a71f227f226b8236c6b4c0952f
+          label: "Repository|Workload|Platform|WorkloadInstance"
+          max_results: 1
   - file: infra_graph_summary_packet.go
     calls:
-      - {symbol: "(*InfraHandler).graphSummaryEcosystemPacket", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
       - {symbol: "(*InfraHandler).graphSummaryHotEntities", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
       - {symbol: "(*InfraHandler).graphSummaryRelationshipCounts", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
       - {symbol: "(*InfraHandler).graphSummaryRepoEcosystemMap", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
@@ -289,7 +294,7 @@ source_coverage:
           max_results: 1
   - file: relationships_catalog.go
     calls:
-      - {symbol: "(*InfraHandler).relationshipEdges", count: 1, source_sha256: 56fa1d3da0fcd50a5a8f61e5fe980e955350a487f2846d33ffef102253ad2b1d, entry_ids: [QP-RELATIONSHIPS-EDGES]}
+      - {symbol: "(*InfraHandler).relationshipEdges", count: 1, source_sha256: 0b98f807263105d3d47d130ba91b6cfea244ecd98fcb69aae3943473e024bf98, entry_ids: [QP-RELATIONSHIPS-EDGES]}
       - {symbol: "(*InfraHandler).relationshipSourceToolBreakdown", count: 1, source_sha256: d854d833cdc75c1e250b0d049ca0733a5429bb3580360bcbf958cf46aee39441, entry_ids: [QP-RELATIONSHIPS-CATALOG-SOURCE-TOOL-REPOSITORY, QP-RELATIONSHIPS-CATALOG-SOURCE-TOOL-INSTANCE]}
       - {symbol: "(*InfraHandler).relationshipVerbTiles", count: 1, source_sha256: 594369a3bf0dfd685853cec025547e41cf1b7929f913b208021bba627a3e3376, entry_ids: [QP-RELATIONSHIPS-CATALOG-COUNT]}
   - file: repository.go

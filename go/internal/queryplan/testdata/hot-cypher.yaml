@@ -503,8 +503,8 @@ entries:
     source:
       file: go/internal/query/relationships_catalog_cypher.go
       symbol: relationshipEdgesCypher
-      source_sha256: 2306cb9c5118099172e1390b80f2555715649796dce410e90ccc63965e8ee14f
-      line_hint: 161
+      source_sha256: 1a856b5dbe655b9f18c63b48a4f7f512aacc8390e04f62f01a07720b10e1ec3d
+      line_hint: 178
     required_schema:
       - function_uid_unique
       - nornicdb_function_uid_lookup

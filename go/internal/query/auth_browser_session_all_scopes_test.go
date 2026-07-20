@@ -162,13 +162,21 @@ func TestAuthMiddlewareRestrictedCredentialsCannotEnterWholeGraphConsoleRoutes(t
 	// the caller-supplied source_response the restricted caller already
 	// possesses, so it was moved into scopedHTTPRouteSupportsTenantFilter and
 	// a restricted credential is now expected to reach it, not be denied.
+	//
+	// GET /api/v0/ecosystem/overview is also deliberately absent (#5167 F-6
+	// W6 cloud/aws family workstream): getEcosystemOverview
+	// (infra_ecosystem_overview.go) now restricts every count to entities
+	// reachable from the caller's granted repositories via
+	// DEFINES/INSTANCE_OF/RUNS_ON (runEcosystemOverviewCounts), so a
+	// restricted credential is expected to reach it and receive grant-bound
+	// counts, not the whole-graph total. See
+	// TestAuthMiddlewareRestrictedCredentialsReachEcosystemOverviewRoute.
 	routes := []struct {
 		method string
 		path   string
 	}{
 		{method: http.MethodPost, path: "/api/v0/code/dead-code"},
 		{method: http.MethodGet, path: "/api/v0/graph/entities"},
-		{method: http.MethodGet, path: "/api/v0/ecosystem/overview"},
 	}
 
 	for _, tc := range routes {
@@ -315,6 +323,97 @@ func TestAuthMiddlewareRestrictedCredentialsReachVisualizationDeriveRoute(t *tes
 			BrowserSessionRoutePolicy{AllowTenantBoundAllScopes: true},
 		)
 		req := httptest.NewRequest(http.MethodPost, path, nil)
+		req.Header.Set("Authorization", "Bearer scoped-token")
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+
+		if !called {
+			t.Fatalf("next handler not called for a restricted scoped bearer; status = %d, body = %s", rec.Code, rec.Body.String())
+		}
+		if got, want := rec.Code, http.StatusOK; got != want {
+			t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
+		}
+	})
+}
+
+// TestAuthMiddlewareRestrictedCredentialsReachEcosystemOverviewRoute is the
+// #5167 F-6 W6 cloud/aws family counterpart of
+// TestAuthMiddlewareRestrictedCredentialsReachVisualizationDeriveRoute: it
+// proves a restricted (non-all-scopes, single-repository-grant) caller now
+// reaches GET /api/v0/ecosystem/overview under the real production
+// middleware (AuthMiddlewareWithBrowserSessionsScopedTokensGovernanceAuditAndRoutePolicy),
+// for both a browser-session cookie and a scoped bearer token, instead of the
+// 403 every other whole-graph console route still returns to the same
+// credential shape. getEcosystemOverview restricts the counts to the
+// caller's grant (runEcosystemOverviewCounts), so reaching the handler no
+// longer discloses whole-graph totals.
+func TestAuthMiddlewareRestrictedCredentialsReachEcosystemOverviewRoute(t *testing.T) {
+	t.Parallel()
+
+	const path = "/api/v0/ecosystem/overview"
+
+	t.Run("browser session", func(t *testing.T) {
+		t.Parallel()
+
+		called := false
+		resolver := &fakeBrowserSessionResolver{
+			context: AuthContext{
+				Mode:                 AuthModeBrowserSession,
+				TenantID:             "tenant-a",
+				WorkspaceID:          "workspace-a",
+				AllowedRepositoryIDs: []string{"repo-a"},
+			},
+			ok: true,
+		}
+		handler := AuthMiddlewareWithBrowserSessionsScopedTokensGovernanceAuditAndRoutePolicy(
+			"shared-token",
+			nil,
+			resolver,
+			http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				called = true
+				w.WriteHeader(http.StatusOK)
+			}),
+			nil,
+			BrowserSessionRoutePolicy{AllowTenantBoundAllScopes: true},
+		)
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		req.AddCookie(&http.Cookie{Name: BrowserSessionCookieName, Value: "session-secret"})
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+
+		if !called {
+			t.Fatalf("next handler not called for a restricted browser session; status = %d, body = %s", rec.Code, rec.Body.String())
+		}
+		if got, want := rec.Code, http.StatusOK; got != want {
+			t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
+		}
+	})
+
+	t.Run("scoped bearer", func(t *testing.T) {
+		t.Parallel()
+
+		called := false
+		resolver := &fakeScopedTokenResolver{
+			context: AuthContext{
+				Mode:                 AuthModeScoped,
+				TenantID:             "tenant-a",
+				WorkspaceID:          "workspace-a",
+				AllowedRepositoryIDs: []string{"repo-a"},
+			},
+			ok: true,
+		}
+		handler := AuthMiddlewareWithBrowserSessionsScopedTokensGovernanceAuditAndRoutePolicy(
+			"shared-token",
+			resolver,
+			nil,
+			http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				called = true
+				w.WriteHeader(http.StatusOK)
+			}),
+			nil,
+			BrowserSessionRoutePolicy{AllowTenantBoundAllScopes: true},
+		)
+		req := httptest.NewRequest(http.MethodGet, path, nil)
 		req.Header.Set("Authorization", "Bearer scoped-token")
 		rec := httptest.NewRecorder()
 		handler.ServeHTTP(rec, req)

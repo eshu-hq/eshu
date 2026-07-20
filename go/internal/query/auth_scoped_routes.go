@@ -266,6 +266,9 @@ func scopedHTTPRouteSupportsTenantFilter(r *http.Request) bool {
 	if scopedImpactCompareRoute(r) {
 		return true
 	}
+	if scopedCloudFamilyRoute(r) {
+		return true
+	}
 	if r.Method != http.MethodPost {
 		return false
 	}

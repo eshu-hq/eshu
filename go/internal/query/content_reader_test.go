@@ -143,7 +143,7 @@ func TestContentReaderListRepositoriesByLanguageUsesIndexedLanguageScope(t *test
 	})
 
 	reader := NewContentReader(db)
-	rows, err := reader.ListRepositoriesByLanguage(context.Background(), []string{"typescript", "tsx"}, 10, 0)
+	rows, err := reader.ListRepositoriesByLanguage(context.Background(), []string{"typescript", "tsx"}, 10, 0, true, nil, nil)
 	if err != nil {
 		t.Fatalf("ListRepositoriesByLanguage() error = %v, want nil", err)
 	}
@@ -186,7 +186,7 @@ func TestContentReaderCountRepositoriesByLanguageUsesDistinctRepoScope(t *testin
 	})
 
 	reader := NewContentReader(db)
-	aggregate, err := reader.CountRepositoriesByLanguage(context.Background(), []string{"typescript", "tsx"})
+	aggregate, err := reader.CountRepositoriesByLanguage(context.Background(), []string{"typescript", "tsx"}, true, nil, nil)
 	if err != nil {
 		t.Fatalf("CountRepositoriesByLanguage() error = %v, want nil", err)
 	}
@@ -215,7 +215,7 @@ func TestContentReaderRepositoryLanguageInventoryReturnsAggregateRows(t *testing
 	})
 
 	reader := NewContentReader(db)
-	rows, err := reader.RepositoryLanguageInventory(context.Background(), 10, 0)
+	rows, err := reader.RepositoryLanguageInventory(context.Background(), 10, 0, true, nil, nil)
 	if err != nil {
 		t.Fatalf("RepositoryLanguageInventory() error = %v, want nil", err)
 	}

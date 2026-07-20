@@ -91,13 +91,27 @@ func (h *InfraHandler) getGraphSummaryPacket(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
+	access := repositoryAccessFilterFromContext(r.Context())
+
 	if req.repoID() == "" {
-		data, err := h.graphSummaryEcosystemPacket(r.Context())
+		data, err := h.graphSummaryEcosystemPacket(r.Context(), access)
 		if err != nil {
 			WriteError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-		WriteSuccess(w, r, http.StatusOK, data, h.graphSummaryEnvelope())
+		WriteSuccess(w, r, http.StatusOK, data, ecosystemOverviewTruth(h.profile(), access))
+		return
+	}
+
+	// Access scoping (#5167 Group B): the repo-scoped branch runs hot-entity
+	// ranking, relationship counts, and the repo ecosystem map anchored
+	// entirely on the caller-supplied repo_id with no grant check of its own.
+	// A scoped caller whose repo_id is outside its granted repositories/
+	// ingestion scopes -- or who holds no grants at all -- gets not_found, the
+	// same no-existence-disclosure contract scopedIncidentContextRoute and
+	// scopedInfraRelationshipsRoute use for an out-of-grant seed.
+	if access.scoped() && !access.allowsRepositoryID(req.repoID()) {
+		WriteError(w, http.StatusNotFound, "repository not found")
 		return
 	}
 
@@ -119,16 +133,13 @@ func (h *InfraHandler) graphSummaryEnvelope() *TruthEnvelope {
 }
 
 // graphSummaryEcosystemPacket returns the bounded ecosystem-wide label counts
-// (the same single-label count shapes as getEcosystemOverview) plus a note that
-// a repo_id scope is required for hot entities and relationship counts.
-func (h *InfraHandler) graphSummaryEcosystemPacket(ctx context.Context) (map[string]any, error) {
-	ecosystem := make(map[string]any, len(ecosystemOverviewCounts))
-	for _, entry := range ecosystemOverviewCounts {
-		row, err := h.Neo4j.RunSingle(ctx, entry.cypher, nil)
-		if err != nil {
-			return nil, err
-		}
-		ecosystem[entry.field] = IntVal(row, "c")
+// (the same single-label count shapes as getEcosystemOverview, restricted to
+// access's grant per runEcosystemOverviewCounts) plus a note that a repo_id
+// scope is required for hot entities and relationship counts.
+func (h *InfraHandler) graphSummaryEcosystemPacket(ctx context.Context, access repositoryAccessFilter) (map[string]any, error) {
+	ecosystem, err := runEcosystemOverviewCounts(ctx, h.Neo4j, access)
+	if err != nil {
+		return nil, err
 	}
 	return map[string]any{
 		"scope":         "ecosystem",

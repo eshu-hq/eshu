@@ -171,6 +171,101 @@ func TestGraphSummaryPacketRepoScopedShapeIsBoundedAndDeterministic(t *testing.T
 	}
 }
 
+// TestGraphSummaryPacketRepoScopedOutOfGrantReturnsNotFound proves the #5167
+// grant check on the repo-scoped branch: the handler runs hot-entity ranking,
+// relationship counts, and the repo ecosystem map anchored entirely on the
+// caller-supplied repo_id with no store-level filter of its own, so a scoped
+// caller whose repo_id is outside its grant must get not_found -- with no
+// graph read at all -- rather than another tenant's repo data.
+func TestGraphSummaryPacketRepoScopedOutOfGrantReturnsNotFound(t *testing.T) {
+	t.Parallel()
+
+	var captured []string
+	reader := &graphSummaryRecordingReader{
+		recordOnly: &captured,
+		single: func(string, map[string]any) (map[string]any, error) {
+			return map[string]any{"count": int64(999)}, nil
+		},
+	}
+	handler := &InfraHandler{Profile: ProfileProduction, Neo4j: reader}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	body := strings.NewReader(`{"repo_id":"repo-tenant-b","limit":5}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/v0/ecosystem/graph-summary", body)
+	req.Header.Set("Content-Type", "application/json")
+	req = req.WithContext(ContextWithAuthContext(req.Context(), AuthContext{
+		Mode:                 AuthModeScoped,
+		TenantID:             "tenant-a",
+		AllowedRepositoryIDs: []string{"repo-tenant-a"}, // does not grant repo-tenant-b
+	}))
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusNotFound; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+	if len(captured) != 0 {
+		t.Fatalf("graph received %d calls, want 0 for an out-of-grant repo_id", len(captured))
+	}
+}
+
+// TestGraphSummaryPacketRepoScopedInGrantReturnsRealRowData is the paired
+// positive case, reusing the same fixture shape as
+// TestGraphSummaryPacketRepoScopedShapeIsBoundedAndDeterministic: a scoped
+// caller whose repo_id IS granted reaches the graph and gets real row data
+// back, proving the #5167 check is additive rather than a blanket denial.
+func TestGraphSummaryPacketRepoScopedInGrantReturnsRealRowData(t *testing.T) {
+	t.Parallel()
+
+	reader := &graphSummaryRecordingReader{
+		single: func(cypher string, params map[string]any) (map[string]any, error) {
+			if got, want := params["repo_id"], "repo-tenant-a"; got != want {
+				t.Fatalf("repo_id param = %#v, want %#v in %s", got, want, cypher)
+			}
+			if strings.Contains(cypher, "[r:CALLS]") {
+				return map[string]any{"count": int64(40)}, nil
+			}
+			return map[string]any{"count": int64(0)}, nil
+		},
+		multi: func(cypher string, _ map[string]any) ([]map[string]any, error) {
+			if strings.Contains(cypher, "total_degree") {
+				return []map[string]any{
+					{"function_id": "fn-a", "function_name": "Alpha", "file_path": "a.go", "incoming_calls": int64(10), "outgoing_calls": int64(5), "total_degree": int64(15)},
+				}, nil
+			}
+			return nil, nil
+		},
+	}
+	handler := &InfraHandler{Profile: ProfileProduction, Neo4j: reader}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	body := strings.NewReader(`{"repo_id":"repo-tenant-a","limit":5}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/v0/ecosystem/graph-summary", body)
+	req.Header.Set("Content-Type", "application/json")
+	req = req.WithContext(ContextWithAuthContext(req.Context(), AuthContext{
+		Mode:                 AuthModeScoped,
+		TenantID:             "tenant-a",
+		AllowedRepositoryIDs: []string{"repo-tenant-a"},
+	}))
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+	data := decodeGraphSummaryData(t, w.Body.Bytes())
+	hot := data["hot_entities"].([]any)
+	if len(hot) != 1 {
+		t.Fatalf("hot_entities len = %d, want 1; body = %s", len(hot), w.Body.String())
+	}
+	first := hot[0].(map[string]any)
+	if got, want := first["function_name"], "Alpha"; got != want {
+		t.Fatalf("hot_entities[0].function_name = %#v, want %#v (real row data)", got, want)
+	}
+}
+
 func TestGraphSummaryPacketWithoutRepoReturnsEcosystemCountsAndNote(t *testing.T) {
 	t.Parallel()
 

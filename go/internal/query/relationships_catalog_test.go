@@ -351,7 +351,7 @@ func TestRelationshipEdgesCypherIsSourceAnchoredAndIndexOrdered(t *testing.T) {
 
 	for _, entry := range relationshipVerbCatalog {
 		anchor := "(s:" + entry.sourceLabel + ")-[r:" + entry.verb + "]"
-		edges := relationshipEdgesCypher(entry)
+		edges := relationshipEdgesCypher(entry, repositoryAccessFilter{allScopes: true})
 		if !strings.Contains(edges, anchor) {
 			t.Fatalf("edge cypher for %s not source-anchored: %s", entry.verb, edges)
 		}
@@ -384,7 +384,7 @@ func TestRelationshipEdgesFilteredCypherHasWhereGuard(t *testing.T) {
 	t.Parallel()
 
 	for _, entry := range relationshipVerbCatalog {
-		filtered := relationshipEdgesCypherFiltered(entry)
+		filtered := relationshipEdgesCypherFiltered(entry, repositoryAccessFilter{allScopes: true})
 		if !strings.Contains(filtered, "WHERE r.source_tool = $source_tool") {
 			t.Fatalf("filtered edge cypher for %s missing WHERE guard: %s", entry.verb, filtered)
 		}
@@ -396,7 +396,7 @@ func TestRelationshipEdgesFilteredCypherHasWhereGuard(t *testing.T) {
 			t.Fatalf("filtered edge cypher for %s must order by indexed source property %q: %s", entry.verb, orderBy, filtered)
 		}
 		// Unfiltered path must not reference the source_tool param.
-		unfiltered := relationshipEdgesCypher(entry)
+		unfiltered := relationshipEdgesCypher(entry, repositoryAccessFilter{allScopes: true})
 		if strings.Contains(unfiltered, "$source_tool") {
 			t.Fatalf("unfiltered edge cypher for %s must not reference $source_tool: %s", entry.verb, unfiltered)
 		}

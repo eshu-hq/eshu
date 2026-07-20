@@ -6,6 +6,7 @@ package query
 import (
 	"database/sql/driver"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -112,6 +113,136 @@ func TestCloudInventoryHandlerListsCanonicalIdentities(t *testing.T) {
 	}
 	if got, want := resp.Truth.Basis, TruthBasisSemanticFacts; got != want {
 		t.Fatalf("truth.basis = %#v, want %#v", got, want)
+	}
+}
+
+// TestCloudInventoryHandlerScopedEmptyGrantReturnsEmptyWithoutQuery is the
+// #5167 counterpart to the admission-decision/kubernetes/observability-coverage
+// empty-grant precedents: a scoped caller with no granted repository or
+// ingestion scope must never reach Postgres.
+func TestCloudInventoryHandlerScopedEmptyGrantReturnsEmptyWithoutQuery(t *testing.T) {
+	t.Parallel()
+
+	db, recorder := openRecordingContentReaderDB(t, []recordingContentReaderQueryResult{
+		{columns: []string{"payload"}, rows: [][]driver.Value{{cloudInventoryReadbackPayloadRow(t)}}},
+	})
+	handler := &CloudInventoryHandler{Content: NewContentReader(db), Profile: ProfileProduction}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/cloud/inventory", nil)
+	req.Header.Set("Accept", EnvelopeMIMEType)
+	req = req.WithContext(ContextWithAuthContext(req.Context(), AuthContext{Mode: AuthModeScoped, TenantID: "tenant-a"}))
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+	if len(recorder.queries) != 0 {
+		t.Fatalf("Postgres received %d queries, want 0 for an empty-grant scoped caller", len(recorder.queries))
+	}
+	var resp ResponseEnvelope
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v, want nil", err)
+	}
+	data := resp.Data.(map[string]any)
+	if got, want := len(data["resources"].([]any)), 0; got != want {
+		t.Fatalf("len(resources) = %d, want %d", got, want)
+	}
+}
+
+// TestCloudInventoryHandlerScopedGrantHitsRealStoreAndReturnsRowData proves
+// the #5167 fix against the ACTUAL production backend (ContentReader over a
+// real *sql.DB, the same type cmd/api/wiring_handlers.go constructs): a
+// scoped caller with a matching grant reaches Postgres, the dispatched SQL
+// carries the access-scoping predicate with the caller's granted ids bound as
+// args, and the response surfaces the real row data the fake driver
+// returned -- not just a 200/shape check.
+func TestCloudInventoryHandlerScopedGrantHitsRealStoreAndReturnsRowData(t *testing.T) {
+	t.Parallel()
+
+	db, recorder := openRecordingContentReaderDB(t, []recordingContentReaderQueryResult{
+		{columns: []string{"payload"}, rows: [][]driver.Value{{cloudInventoryReadbackPayloadRow(t)}}},
+	})
+	handler := &CloudInventoryHandler{Content: NewContentReader(db), Profile: ProfileProduction}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/cloud/inventory?provider=gcp", nil)
+	req.Header.Set("Accept", EnvelopeMIMEType)
+	req = req.WithContext(ContextWithAuthContext(req.Context(), AuthContext{
+		Mode:            AuthModeScoped,
+		TenantID:        "tenant-a",
+		AllowedScopeIDs: []string{"cloud-scope:gcp:project-synthetic"},
+	}))
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+	if got, want := len(recorder.queries), 1; got != want {
+		t.Fatalf("Postgres received %d queries, want exactly %d", got, want)
+	}
+	dispatched := recorder.queries[0]
+	if !strings.Contains(dispatched, "fact_records.scope_id = ANY(") {
+		t.Fatalf("dispatched query missing #5167 access-scoping predicate:\n%s", dispatched)
+	}
+	found := false
+	for _, arg := range recorder.args[0] {
+		if s := fmt.Sprintf("%v", arg); strings.Contains(s, "cloud-scope:gcp:project-synthetic") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("bound args %#v did not include the granted scope id", recorder.args[0])
+	}
+
+	var resp ResponseEnvelope
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v, want nil", err)
+	}
+	data := resp.Data.(map[string]any)
+	resources := data["resources"].([]any)
+	if len(resources) != 1 {
+		t.Fatalf("len(resources) = %d, want 1; body = %s", len(resources), w.Body.String())
+	}
+	resource := resources[0].(map[string]any)
+	if got, want := resource["scope_id"], "cloud-scope:gcp:project-synthetic"; got != want {
+		t.Fatalf("scope_id = %#v, want %#v (real row data from the fake driver)", got, want)
+	}
+	if got, want := resource["provider"], "gcp"; got != want {
+		t.Fatalf("provider = %#v, want %#v (real row data from the fake driver)", got, want)
+	}
+}
+
+// TestCloudInventoryHandlerUnscopedQueryStaysUnfiltered is the no-regression
+// counterpart: a shared/admin caller (no AuthContext) must still issue the
+// byte-identical unscoped query with no access-scoping predicate.
+func TestCloudInventoryHandlerUnscopedQueryStaysUnfiltered(t *testing.T) {
+	t.Parallel()
+
+	db, recorder := openRecordingContentReaderDB(t, []recordingContentReaderQueryResult{
+		{columns: []string{"payload"}, rows: [][]driver.Value{{cloudInventoryReadbackPayloadRow(t)}}},
+	})
+	handler := &CloudInventoryHandler{Content: NewContentReader(db), Profile: ProfileProduction}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/cloud/inventory?provider=gcp", nil)
+	req.Header.Set("Accept", EnvelopeMIMEType)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+	if got, want := len(recorder.queries), 1; got != want {
+		t.Fatalf("Postgres received %d queries, want exactly %d", got, want)
+	}
+	if strings.Contains(recorder.queries[0], "fact_records.scope_id = ANY(") {
+		t.Fatalf("unscoped/admin query must stay unfiltered, got:\n%s", recorder.queries[0])
 	}
 }
 

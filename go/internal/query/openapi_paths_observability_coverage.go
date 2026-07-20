@@ -8,8 +8,9 @@ const openAPIPathsObservabilityCoverage = `
       "get": {
         "tags": ["observability"],
         "summary": "List observability coverage correlations",
-        "description": "Lists reducer-owned observability coverage correlation rows: which monitored cloud resources, services, or observability metadata identities have alarm, dashboard, scrape, rule, log, or trace coverage versus which coverage gaps remain. Coverage is structural correlation over source facts and resource identity facts, not a health assertion derived from telemetry values.",
+        "description": "Lists reducer-owned observability coverage correlation rows: which monitored cloud resources, services, or observability metadata identities have alarm, dashboard, scrape, rule, log, or trace coverage versus which coverage gaps remain. Coverage is structural correlation over source facts and resource identity facts, not a health assertion derived from telemetry values. Scoped tokens receive rows intersected with the caller's granted repositories/ingestion scopes; a scoped caller with no grants receives an empty page without a query.",
         "operationId": "listObservabilityCoverageCorrelations",
+        "x-scoped-token-support": true,
         "parameters": [
           {"name": "scope_id", "in": "query", "schema": {"type": "string"}, "description": "Reducer scope ID to anchor lookup."},
           {"name": "provider", "in": "query", "schema": {"type": "string"}, "description": "Observability provider such as aws, grafana, prometheus, mimir, loki, or tempo."},

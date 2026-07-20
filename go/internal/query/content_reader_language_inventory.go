@@ -15,10 +15,14 @@ import (
 )
 
 // CountRepositoriesByLanguage returns aggregate repository/file coverage for a
-// normalized language family.
+// normalized language family. See the ContentStore interface doc comment
+// (ports.go) for the #5167 access-scoping contract.
 func (cr *ContentReader) CountRepositoriesByLanguage(
 	ctx context.Context,
 	languages []string,
+	allScopes bool,
+	allowedRepositoryIDs []string,
+	allowedScopeIDs []string,
 ) (RepositoryLanguageAggregate, error) {
 	if cr == nil || cr.db == nil || len(languages) == 0 {
 		return RepositoryLanguageAggregate{}, nil
@@ -33,13 +37,18 @@ func (cr *ContentReader) CountRepositoriesByLanguage(
 	)
 	defer span.End()
 
-	row := cr.db.QueryRowContext(ctx, `
+	query := `
 		SELECT COUNT(DISTINCT repo_id) AS repository_count,
 		       COUNT(*) AS file_count,
 		       MAX(indexed_at) AS last_indexed_at
 		FROM content_files
-		WHERE language = ANY($1)
-	`, pq.Array(languages))
+		WHERE language = ANY($1)`
+	args := []any{pq.Array(languages)}
+	if !allScopes {
+		query += " AND (repo_id = ANY($2) OR repo_id = ANY($3))"
+		args = append(args, pq.Array(allowedRepositoryIDs), pq.Array(allowedScopeIDs))
+	}
+	row := cr.db.QueryRowContext(ctx, query, args...)
 
 	var aggregate RepositoryLanguageAggregate
 	var repositoryCount, fileCount int64
@@ -57,12 +66,16 @@ func (cr *ContentReader) CountRepositoriesByLanguage(
 }
 
 // ListRepositoriesByLanguage returns a bounded page of repositories that contain
-// at least one file in the normalized language family.
+// at least one file in the normalized language family. See the ContentStore
+// interface doc comment (ports.go) for the #5167 access-scoping contract.
 func (cr *ContentReader) ListRepositoriesByLanguage(
 	ctx context.Context,
 	languages []string,
 	limit int,
 	offset int,
+	allScopes bool,
+	allowedRepositoryIDs []string,
+	allowedScopeIDs []string,
 ) ([]RepositoryLanguageRepository, error) {
 	if cr == nil || cr.db == nil || len(languages) == 0 || limit <= 0 {
 		return nil, nil
@@ -79,6 +92,16 @@ func (cr *ContentReader) ListRepositoriesByLanguage(
 		),
 	)
 	defer span.End()
+
+	languageRowsWhere := "WHERE language = ANY($1)"
+	args := []any{pq.Array(languages)}
+	if !allScopes {
+		languageRowsWhere += " AND (repo_id = ANY($4) OR repo_id = ANY($5))"
+	}
+	args = append(args, limit, offset)
+	if !allScopes {
+		args = append(args, pq.Array(allowedRepositoryIDs), pq.Array(allowedScopeIDs))
+	}
 
 	rows, err := cr.db.QueryContext(ctx, `
 		WITH catalog AS (
@@ -98,7 +121,7 @@ func (cr *ContentReader) ListRepositoriesByLanguage(
 			       COUNT(*) AS file_count,
 			       MAX(indexed_at) AS last_indexed_at
 			FROM content_files
-			WHERE language = ANY($1)
+			`+languageRowsWhere+`
 			GROUP BY repo_id, language
 		),
 		repo_totals AS (
@@ -129,7 +152,7 @@ func (cr *ContentReader) ListRepositoriesByLanguage(
 		FROM page
 		JOIN language_rows ON language_rows.repo_id = page.repo_id
 		ORDER BY page.total_file_count DESC, page.repo_name, page.repo_id, language_rows.language
-	`, pq.Array(languages), limit, offset)
+	`, args...)
 	if err != nil {
 		span.RecordError(err)
 		return nil, fmt.Errorf("list repositories by language: %w", err)
@@ -179,11 +202,15 @@ func (cr *ContentReader) ListRepositoriesByLanguage(
 }
 
 // RepositoryLanguageInventory returns aggregate coverage for every indexed
-// language bucket.
+// language bucket. See the ContentStore interface doc comment (ports.go) for
+// the #5167 access-scoping contract.
 func (cr *ContentReader) RepositoryLanguageInventory(
 	ctx context.Context,
 	limit int,
 	offset int,
+	allScopes bool,
+	allowedRepositoryIDs []string,
+	allowedScopeIDs []string,
 ) ([]RepositoryLanguageInventoryRow, error) {
 	if cr == nil || cr.db == nil || limit <= 0 {
 		return nil, nil
@@ -201,16 +228,26 @@ func (cr *ContentReader) RepositoryLanguageInventory(
 	)
 	defer span.End()
 
+	where := ""
+	args := []any{}
+	if !allScopes {
+		where = "WHERE (repo_id = ANY($3) OR repo_id = ANY($4))\n\t\t"
+	}
+	args = append(args, limit, offset)
+	if !allScopes {
+		args = append(args, pq.Array(allowedRepositoryIDs), pq.Array(allowedScopeIDs))
+	}
+
 	rows, err := cr.db.QueryContext(ctx, `
 		SELECT coalesce(NULLIF(language, ''), 'unknown') AS language,
 		       COUNT(DISTINCT repo_id) AS repository_count,
 		       COUNT(*) AS file_count,
 		       MAX(indexed_at) AS last_indexed_at
 		FROM content_files
-		GROUP BY coalesce(NULLIF(language, ''), 'unknown')
+		`+where+`GROUP BY coalesce(NULLIF(language, ''), 'unknown')
 		ORDER BY repository_count DESC, file_count DESC, language
 		LIMIT $1 OFFSET $2
-	`, limit, offset)
+	`, args...)
 	if err != nil {
 		span.RecordError(err)
 		return nil, fmt.Errorf("repository language inventory: %w", err)
