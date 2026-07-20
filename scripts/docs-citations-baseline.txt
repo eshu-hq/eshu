@@ -1,0 +1,34 @@
+# scripts/docs-citations-baseline.txt
+#
+# Burn-down baseline for scripts/verify-doc-citations.sh (#5406).
+# Every docs/public/languages/*.md page (which already covers
+# feature-matrix.md and support-maturity.md) plus
+# docs/public/reference/parity-closure-matrix.md is scanned for
+# `<file>.go::TestName` and `tests/fixtures/...`/`testdata/...` citations.
+#
+# Two record shapes, one per line:
+#   TEST <doc-relpath> <cited-file>::<TestName>   - dead/renamed/moved test
+#   FIXTURE <fixture-path>                        - fixture that exists but
+#                                                   is not referenced by any
+#                                                   non-Markdown file in the
+#                                                   repo (deduplicated across
+#                                                   every citing doc, since
+#                                                   fixing the fixture fixes
+#                                                   every citing page at once)
+#
+# A subtest-form TEST citation (`TestName/subtest_case`) is NEVER written
+# here — it always fails the gate; cite the parent test function instead.
+#
+# Regenerate with:
+#   bash scripts/verify-doc-citations.sh -update
+
+# --- TEST records ---
+# --- FIXTURE records ---
+FIXTURE tests/fixtures/ecosystems/argocd_comprehensive/
+FIXTURE tests/fixtures/ecosystems/cpp_comprehensive/
+FIXTURE tests/fixtures/ecosystems/crossplane_comprehensive/
+FIXTURE tests/fixtures/ecosystems/flux_comprehensive/
+FIXTURE tests/fixtures/ecosystems/helm_comprehensive/
+FIXTURE tests/fixtures/ecosystems/json_comprehensive/
+FIXTURE tests/fixtures/ecosystems/kustomize_comprehensive/
+FIXTURE tests/fixtures/ecosystems/scala_comprehensive/
