@@ -2,8 +2,8 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { vi } from "vitest";
 
 import { useImpactReviewLifecycle } from "./useImpactReviewLifecycle";
-import { loadImpactReview } from "../api/impactReview";
 import type { EshuApiClient } from "../api/client";
+import { loadImpactReview } from "../api/impactReview";
 import type { ImpactReview, ImpactReviewInput } from "../api/impactReviewTypes";
 
 vi.mock("../api/impactReview", () => ({ loadImpactReview: vi.fn() }));
