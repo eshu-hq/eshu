@@ -231,7 +231,7 @@ None. Every supported surface has a replay scenario.
 | `read_surface:GET /api/v0/semantic/documentation-observations` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/semantic/documentation-observations?provider_profile_id=semantic-docs-default&limit=25` |
 | `read_surface:GET /api/v0/service-catalog/correlations` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/service-catalog/correlations?limit=50&scope_id=supply-chain-demo` |
 | `read_surface:GET /api/v0/supply-chain/impact/findings` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/supply-chain/impact/findings?limit=50&cve_id=CVE-2026-00000` |
-| `read_surface:GET /api/v0/supply-chain/sbom-attestations/attachments` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/supply-chain/sbom-attestations/attachments?limit=50&document_id=scd-sbom` |
+| `read_surface:GET /api/v0/supply-chain/sbom-attestations/attachments` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/supply-chain/sbom-attestations/attachments?limit=50&subject_digest=sha256:2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f80901a` |
 | `read_surface:GET /api/v0/supply-chain/security-alerts/reconciliations` | baseline | exempt | — | — |
 | `read_surface:GET /api/v0/work-items/evidence` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/work-items/evidence?limit=50&scope_id=jira:supply-chain-demo:SCD` |
 | `read_surface:POST /api/v0/aws/runtime-drift/findings` | baseline | api_mcp_golden | golden-corpus-gate | `POST /api/v0/aws/runtime-drift/findings` |

@@ -94,6 +94,41 @@
             "reference_type": "vcs",
             "reference_url": "https://github.com/eshu-hq/supply-chain-demo-lib"
           }
+        },
+        {
+          "fact_kind": "attestation.statement",
+          "stable_fact_key": "sbom_attestation:supply-chain-demo:statement:scd-attestation",
+          "schema_version": "1.0.0",
+          "collector_kind": "sbom_attestation",
+          "fencing_token": 1,
+          "source_confidence": "reported",
+          "payload": {
+            "statement_id": "scd-attestation",
+            "statement_digest": "sha256:9a8b7c6d5e4f30219e8d7c6b5a4938271605f4e3d2c1b0a9988776655443322a1",
+            "payload_digest": "sha256:9a8b7c6d5e4f30219e8d7c6b5a4938271605f4e3d2c1b0a9988776655443322a1",
+            "subject_digest": "sha256:2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f80901a",
+            "subject_digests": ["sha256:2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f80901a"],
+            "parse_status": "parsed",
+            "verification_status": "",
+            "verification_policy": "",
+            "attestation_format": "in-toto",
+            "attestation_version": "https://in-toto.io/Statement/v1",
+            "predicate_type": "https://slsa.dev/provenance/v1",
+            "source_format": "json"
+          }
+        },
+        {
+          "fact_kind": "attestation.slsa_provenance",
+          "stable_fact_key": "sbom_attestation:supply-chain-demo:slsa-provenance:scd-attestation",
+          "schema_version": "1.0.0",
+          "collector_kind": "sbom_attestation",
+          "fencing_token": 1,
+          "source_confidence": "reported",
+          "payload": {
+            "statement_id": "scd-attestation",
+            "predicate_type": "https://slsa.dev/provenance/v1",
+            "builder_id": "https://github.com/eshu-hq/supply-chain-demo/actions/runner@v1"
+          }
         }
       ]
     }
