@@ -87,12 +87,14 @@ var terraformAttributePromotionAllowlist = map[string][]string{
 // path is absent, unresolvable, non-scalar, or oversize.
 //
 // The result is a plain map[string]any of scalar values (string/bool/int64/
-// float64) run through canonicalGraphPropertyValue, the same normalization
-// the generic entity-metadata writer uses — deliberately reused here instead
-// of adding a map case to canonicalGraphPropertyValue itself, which would
-// let arbitrary nested config reach a node through the generic path. Every
-// value that reaches the caller has already been proven scalar and
-// size-capped by this function.
+// float64) run through terraformAttributeScalarValue, which gates
+// canonicalGraphPropertyValue (the same normalization the generic
+// entity-metadata writer uses, reused here instead of adding a map case to
+// canonicalGraphPropertyValue itself — that would let arbitrary nested
+// config reach a node through the generic path) to reject the []string/
+// []any list shapes that function would otherwise also accept. Every value
+// that reaches the caller has been proven scalar (not just proven present)
+// and size-capped by this function.
 func promoteTerraformResourceAttributes(resourceType string, attributes map[string]any) map[string]any {
 	if resourceType == "" || len(attributes) == 0 {
 		return nil
@@ -108,7 +110,7 @@ func promoteTerraformResourceAttributes(resourceType string, attributes map[stri
 		if !found {
 			continue
 		}
-		normalized, ok := canonicalGraphPropertyValue(raw)
+		normalized, ok := terraformAttributeScalarValue(raw)
 		if !ok {
 			continue
 		}
@@ -121,6 +123,25 @@ func promoteTerraformResourceAttributes(resourceType string, attributes map[stri
 		result[terraformAttributePromotionKeyPrefix+strings.ReplaceAll(path, ".", "_")] = normalized
 	}
 	return result
+}
+
+// terraformAttributeScalarValue gates canonicalGraphPropertyValue to true
+// scalars only (string/bool/int-family/float), rejecting the []string/[]any
+// list shapes canonicalGraphPropertyValue accepts for the generic
+// entity-metadata path (P2 finding F4). A promoted Terraform attribute must
+// always be a plain scalar node property, never a list: an allowlisted
+// attribute whose raw walked value is unexpectedly a list (a malformed
+// state payload, or a future Terraform provider schema change that turns a
+// scalar attribute into a list) is dropped rather than promoted, keeping
+// this function's "proven scalar" contract true regardless of what
+// canonicalGraphPropertyValue itself would otherwise accept.
+func terraformAttributeScalarValue(raw any) (any, bool) {
+	switch raw.(type) {
+	case []string, []any:
+		return nil, false
+	default:
+		return canonicalGraphPropertyValue(raw)
+	}
 }
 
 // terraformAttributePathValue walks a dot-separated attribute path (e.g.

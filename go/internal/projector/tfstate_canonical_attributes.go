@@ -16,11 +16,26 @@ package projector
 // classified attributes...}} instead of the classified object directly. This
 // is a pre-existing decode-library defect out of scope for #5441 to fix (it
 // is shared, contract-governed infrastructure with a wide blast radius across
-// every polymorphic Resource/Relationship struct); this helper only corrects
-// the read on this one new call site so TerraformResource attribute
-// promotion (go/internal/storage/cypher/terraform_attribute_promotion.go)
-// gets the real classified map. It degrades gracefully to the raw value
-// if the wrapper is ever fixed upstream (no double-unwrap, no panic).
+// every polymorphic Resource/Relationship struct — tracked as
+// https://github.com/eshu-hq/eshu/issues/5522, which supersedes this
+// workaround); this helper only corrects the read on this one new call site
+// so TerraformResource attribute promotion
+// (go/internal/storage/cypher/terraform_attribute_promotion.go) gets the
+// real classified map. It degrades gracefully to the raw value if the
+// wrapper is ever fixed upstream (no double-unwrap, no panic) — once #5522
+// lands, len(attributes) will never be 1 with a lone "attributes" key for a
+// resource carrying more than one classified attribute, and this whole
+// function becomes a no-op passthrough that #5522's fix should remove.
+//
+// Only handles the single-unclaimed-key shape (len(attributes) == 1). If a
+// future factschema change adds a second unclaimed field alongside
+// "attributes" (widening the remainder to more than one key), the
+// len(attributes) != 1 guard below short-circuits and returns the raw,
+// still-self-nested remainder unmodified — promotion then silently yields
+// zero properties (terraformAttributePathValue finds nothing at the
+// remainder's top level) rather than corrupting or fabricating data. See
+// TestTerraformStateResourceAttributesMultiKeyRemainderDegradesToRawValue
+// for the locked-in current behavior.
 func terraformStateResourceAttributes(attributes map[string]any) map[string]any {
 	if len(attributes) != 1 {
 		return attributes

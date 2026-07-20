@@ -164,10 +164,14 @@ func normalizeAnsibleReference(candidate ansibleRoleCandidate) (kind, name, norm
 // left untouched (it has pinned consumers) since edges now carry the pin as
 // its own first_party_ref_version property alongside the existing stripped
 // first_party_ref_normalized value. Returns "" when the source has no query
-// string, no ref parameter, or an empty ref value. Exported so the reducer's
-// cross-repo intent chokepoint (cross_repo_intent_row.go) can derive the
-// first_party_ref_version edge property from Details["source_ref"] without
-// duplicating the parsing rule.
+// string, no ref parameter, or an empty ref value. A trailing URL fragment
+// (everything from the first "#" onward) is stripped from the extracted
+// value: a fragment identifier is never part of the ref itself, so
+// "?ref=v1.2.3#subdir" yields "v1.2.3", not "v1.2.3#subdir" (P2 finding F7).
+// Exported so evidenceFactFirstPartyRefVersion
+// (evidence_edge_fields.go) can derive the first_party_ref_version edge
+// property from EvidenceFact.Details["source_ref"] without duplicating the
+// parsing rule.
 func ExtractTerraformRefPin(raw string) string {
 	trimmed := strings.TrimSpace(raw)
 	if trimmed == "" {
@@ -182,6 +186,9 @@ func ExtractTerraformRefPin(raw string) string {
 		key, value, ok := strings.Cut(param, "=")
 		if !ok || key != "ref" {
 			continue
+		}
+		if fragmentIdx := strings.Index(value, "#"); fragmentIdx >= 0 {
+			value = value[:fragmentIdx]
 		}
 		return strings.TrimSpace(value)
 	}

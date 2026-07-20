@@ -62,6 +62,25 @@ func TestExtractTerraformRefPin(t *testing.T) {
 			raw:  "terraform-aws-modules/vpc/aws",
 			want: "",
 		},
+		{
+			// P2 finding F7: a trailing URL fragment must not fold into the
+			// ref value. A "#" always demarcates a fragment identifier,
+			// separate from the query string it follows; "v1.2.3#subdir"
+			// would be a corrupted pin, not a valid version.
+			name: "ref followed by a trailing URL fragment",
+			raw:  "git::https://example.test/org/mod.git?ref=v1.2.3#subdir",
+			want: "v1.2.3",
+		},
+		{
+			name: "ref followed by a fragment with other query params first",
+			raw:  "git::https://example.test/org/mod.git?depth=1&ref=v1.2.3#readme",
+			want: "v1.2.3",
+		},
+		{
+			name: "empty ref value with a trailing fragment",
+			raw:  "git::https://example.test/org/mod.git?ref=#subdir",
+			want: "",
+		},
 	}
 
 	for _, tt := range tests {

@@ -160,6 +160,37 @@ func TestPromoteTerraformResourceAttributesNonAllowlistedFieldExcluded(t *testin
 	}
 }
 
+// TestPromoteTerraformResourceAttributesRejectsListValuedAttributes is P2
+// finding F4: an allowlisted attribute whose raw value is unexpectedly a
+// list ([]string or []any) must never be promoted as a list property.
+// canonicalGraphPropertyValue (reused here for scalar normalization) also
+// accepts []string/[]any for the generic entity-metadata path, so
+// promoteTerraformResourceAttributes must gate on scalar kinds itself
+// before calling it, or a malformed/future-drifted attribute value would
+// silently promote a list, contradicting this function's "proven scalar"
+// doc claim.
+func TestPromoteTerraformResourceAttributesRejectsListValuedAttributes(t *testing.T) {
+	t.Parallel()
+
+	gotStringSlice := promoteTerraformResourceAttributes("aws_instance", map[string]any{
+		"instance_type": []string{"t3.micro", "t3.small"},
+		"ami":           "ami-0abcdef1234567890",
+	})
+	if _, ok := gotStringSlice["tf_attr_instance_type"]; ok {
+		t.Fatalf("promoted a []string-valued attribute as a property: %#v", gotStringSlice)
+	}
+	if gotStringSlice["tf_attr_ami"] != "ami-0abcdef1234567890" {
+		t.Fatalf("bounded sibling attribute was dropped alongside the rejected list: %#v", gotStringSlice)
+	}
+
+	gotAnySlice := promoteTerraformResourceAttributes("aws_instance", map[string]any{
+		"instance_type": []any{"t3.micro", "t3.small"},
+	})
+	if _, ok := gotAnySlice["tf_attr_instance_type"]; ok {
+		t.Fatalf("promoted a []any-valued attribute as a property: %#v", gotAnySlice)
+	}
+}
+
 // TestPromoteTerraformResourceAttributesRedactsIAMPolicyDocuments is the
 // redaction regression guard: aws_iam_role.assume_role_policy and
 // aws_iam_policy.policy — the two free-form IAM policy JSON documents the

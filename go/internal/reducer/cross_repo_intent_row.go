@@ -69,16 +69,24 @@ func buildResolvedEdgeIntentRow(
 		"rationale":         r.Rationale,
 		"resolution_source": string(r.ResolutionSource),
 	}
-	// #5441: allowlist exactly three Details fields onto the edge itself.
-	// These answer "which git revision / which namespace / which module
-	// version is declared for env Y" directly from the graph edge, which is
-	// otherwise unanswerable without a Postgres lookup at query time. Every
-	// other Details key deliberately stays out of the payload; see
+	// #5441: allowlist exactly three fields onto the edge itself. These
+	// answer "which git revision / which namespace / which module version
+	// is declared for env Y" directly from the graph edge, which is
+	// otherwise unanswerable without a Postgres lookup at query time. Read
+	// as typed ResolvedRelationship fields, NOT from the untyped r.Details
+	// map — r.Details (built by relationships.aggregateCandidate) carries
+	// only "evidence_kinds"/"evidence_preview" and never held these three
+	// keys; reading them from Details was the #5441 P0 (this data always
+	// resolved to "" in production). See
+	// relationships.evidenceFactSourceRevision/
+	// evidenceFactDestinationNamespace/evidenceFactFirstPartyRefVersion
+	// (go/internal/relationships/evidence_edge_fields.go) for where these
+	// typed fields are actually populated from raw evidence facts, and
 	// copyRepoRelationshipMetadata in edge_writer_retract.go for the second
 	// half of this allowlist (Postgres payload -> graph row).
-	payload["source_revision"] = toDetailsString(r.Details["source_revision"])
-	payload["destination_namespace"] = toDetailsString(r.Details["destination_namespace"])
-	payload["first_party_ref_version"] = extractTerraformRefPinFromDetails(r.Details)
+	payload["source_revision"] = r.SourceRevision
+	payload["destination_namespace"] = r.DestinationNamespace
+	payload["first_party_ref_version"] = r.FirstPartyRefVersion
 
 	if evidenceType := resolvedRelationshipEvidenceType(r); evidenceType != "" {
 		payload["evidence_type"] = evidenceType
@@ -128,27 +136,4 @@ func buildResolvedEdgeIntentRow(
 		Payload:          payload,
 		CreatedAt:        createdAt,
 	}), routeType, true
-}
-
-// toDetailsString reads a string-typed Details value, returning "" when the
-// key is absent or not a string. Mirrors the cypher package's payloadString
-// absent-value convention (empty string, never a fabricated placeholder) so
-// the value round-trips unchanged into the graph row built by
-// copyRepoRelationshipMetadata.
-func toDetailsString(value any) string {
-	s, ok := value.(string)
-	if !ok {
-		return ""
-	}
-	return s
-}
-
-// extractTerraformRefPinFromDetails derives the first_party_ref_version edge
-// property from the raw pinned Terraform/Terragrunt module source stashed at
-// Details["source_ref"] (terraform_evidence.go). Only module-source evidence
-// populates source_ref today, so this is naturally "" for every other
-// evidence family (e.g. ArgoCD, which carries its own source_revision key
-// instead) rather than colliding with it.
-func extractTerraformRefPinFromDetails(details map[string]any) string {
-	return relationships.ExtractTerraformRefPin(toDetailsString(details["source_ref"]))
 }

@@ -5,12 +5,20 @@ Two additive, SET-clause-only changes:
 - **Edges**: allowlist `source_revision`, `destination_namespace`, and
   `first_party_ref_version` onto the five canonical repository relationship
   edges (`DEPLOYS_FROM`, `DISCOVERS_CONFIG_IN`, `PROVISIONS_DEPENDENCY_FOR`,
-  `USES_MODULE`, `READS_CONFIG_FROM`), both single-row and `UNWIND $rows`
-  batch templates (`go/internal/storage/cypher/canonical_relationships.go`),
-  fed from the reducer's `buildResolvedEdgeIntentRow` chokepoint
+  `USES_MODULE`, `READS_CONFIG_FROM`) in
+  `go/internal/storage/cypher/canonical_relationships.go`, fed from the
+  reducer's `buildResolvedEdgeIntentRow` chokepoint
   (`go/internal/reducer/cross_repo_intent_row.go`) and
   `copyRepoRelationshipMetadata`
-  (`go/internal/storage/cypher/edge_writer_retract.go`).
+  (`go/internal/storage/cypher/edge_writer_retract.go`). The production
+  write path is exclusively the `UNWIND $rows` batch templates via
+  `EdgeWriter.WriteEdges`/`buildRowMap`; the file also carries a matching
+  single-row `BuildCanonicalRepoRelationshipUpsert` builder and its five
+  single-row Cypher constants for contract/test symmetry, but that builder
+  has no production caller today (pre-existing, not introduced by #5441) —
+  see F6 in the #5441 review notes. Both were updated so the two shapes stay
+  byte-identical, but only the batch path matters for the perf evidence
+  below.
 - **Nodes**: promote a bounded, redaction-safe, allowlisted subset of a
   Terraform state resource's classified attributes onto its
   `TerraformResource` node as prefixed scalar properties (`tf_attr_*`), via a
