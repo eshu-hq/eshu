@@ -96,6 +96,35 @@ func TestRouteQueryProofMatrix(t *testing.T) {
 			expectResolved: true,
 		},
 		{
+			// #5395: JAX-RS, Micronaut, and Ktor share one fixture file
+			// (JvmRoutes.kt), cribbed verbatim from the parser's
+			// TestDefaultEngineParsePathKotlinJVMRouteSemantics fixture, so
+			// all three frameworks' route_entries are guaranteed to emit
+			// from a single combined parser walk.
+			language:       "kotlin",
+			framework:      "jax_rs",
+			ecosystemDir:   "kotlin_comprehensive",
+			fixtureRelPath: "routes/JvmRoutes.kt",
+			handlerFn:      "show",
+			expectResolved: true,
+		},
+		{
+			language:       "kotlin",
+			framework:      "micronaut",
+			ecosystemDir:   "kotlin_comprehensive",
+			fixtureRelPath: "routes/JvmRoutes.kt",
+			handlerFn:      "health",
+			expectResolved: true,
+		},
+		{
+			language:       "kotlin",
+			framework:      "ktor",
+			ecosystemDir:   "kotlin_comprehensive",
+			fixtureRelPath: "routes/JvmRoutes.kt",
+			handlerFn:      "ping",
+			expectResolved: true,
+		},
+		{
 			language:       "python",
 			framework:      "fastapi",
 			ecosystemDir:   "python_comprehensive",
