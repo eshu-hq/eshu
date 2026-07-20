@@ -44,16 +44,22 @@ type SBOMAttestationAttachmentResult struct {
 	ExternalReferences          []ExternalReferenceRow `json:"external_references,omitempty"`
 	ExternalReferenceCount      int                    `json:"external_reference_count"`
 	ExternalReferencesTruncated bool                   `json:"external_references_truncated"`
-	RepositoryIDs               []string               `json:"repository_ids,omitempty"`
-	WorkloadIDs                 []string               `json:"workload_ids,omitempty"`
-	ServiceIDs                  []string               `json:"service_ids,omitempty"`
-	WarningSummaries            []string               `json:"warning_summaries,omitempty"`
-	WarningSummaryCount         int                    `json:"warning_summary_count"`
-	WarningSummariesTruncated   bool                   `json:"warning_summaries_truncated"`
-	EvidenceFactIDs             []string               `json:"evidence_fact_ids,omitempty"`
-	MissingEvidence             []string               `json:"missing_evidence,omitempty"`
-	SourceFreshness             string                 `json:"source_freshness,omitempty"`
-	SourceConfidence            string                 `json:"source_confidence,omitempty"`
+	// SLSAProvenancePredicateType and SLSAProvenanceBuilderID mirror
+	// SBOMAttestationAttachmentRow's fields of the same name: the joined
+	// attestation.slsa_provenance evidence for this statement, empty when no
+	// such fact joined.
+	SLSAProvenancePredicateType string   `json:"slsa_provenance_predicate_type,omitempty"`
+	SLSAProvenanceBuilderID     string   `json:"slsa_provenance_builder_id,omitempty"`
+	RepositoryIDs               []string `json:"repository_ids,omitempty"`
+	WorkloadIDs                 []string `json:"workload_ids,omitempty"`
+	ServiceIDs                  []string `json:"service_ids,omitempty"`
+	WarningSummaries            []string `json:"warning_summaries,omitempty"`
+	WarningSummaryCount         int      `json:"warning_summary_count"`
+	WarningSummariesTruncated   bool     `json:"warning_summaries_truncated"`
+	EvidenceFactIDs             []string `json:"evidence_fact_ids,omitempty"`
+	MissingEvidence             []string `json:"missing_evidence,omitempty"`
+	SourceFreshness             string   `json:"source_freshness,omitempty"`
+	SourceConfidence            string   `json:"source_confidence,omitempty"`
 }
 
 func (h *SupplyChainHandler) listSBOMAttachments(w http.ResponseWriter, r *http.Request) {

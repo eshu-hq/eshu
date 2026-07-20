@@ -84,7 +84,6 @@ reachability rows are per-ecosystem capability states.
 | AWS cloud posture | `implemented` (production-promoted) | None |
 | GCP / Azure cloud posture | `gated` | See [roadmap](roadmap.md#promotion-readiness) |
 | Kubernetes-live cloud posture | `foundation_only` | See [roadmap](roadmap.md#promotion-readiness) |
-| SLSA provenance attestation facts (`attestation.slsa_provenance`) | `typed, not emitted` | The payload schema exists but no collector emits this kind today. See [issue #5371](https://github.com/eshu-hq/eshu/issues/5371). |
 
 ## Running The Chain End To End
 

@@ -110,6 +110,13 @@ type SBOMAttestationAttachmentRow struct {
 	ExternalReferences          []ExternalReferenceRow
 	ExternalReferenceCount      int
 	ExternalReferencesTruncated bool
+	// SLSAProvenancePredicateType and SLSAProvenanceBuilderID surface the
+	// joined attestation.slsa_provenance evidence for this statement's
+	// attachment. Both are empty when no SLSA provenance fact joined this
+	// statement_id — there is no count/truncation pair here because at most
+	// one provenance predicate is expected per statement.
+	SLSAProvenancePredicateType string
+	SLSAProvenanceBuilderID     string
 	RepositoryIDs               []string
 	WorkloadIDs                 []string
 	ServiceIDs                  []string
@@ -382,6 +389,8 @@ func decodeSBOMAttestationAttachmentRow(
 		ExternalReferences:               externalReferences,
 		ExternalReferenceCount:           externalReferenceCount,
 		ExternalReferencesTruncated:      externalReferenceCount > len(externalReferences),
+		SLSAProvenancePredicateType:      StringVal(payload, "slsa_provenance_predicate_type"),
+		SLSAProvenanceBuilderID:          StringVal(payload, "slsa_provenance_builder_id"),
 		RepositoryIDs:                    StringSliceVal(payload, "repository_ids"),
 		WorkloadIDs:                      StringSliceVal(payload, "workload_ids"),
 		ServiceIDs:                       StringSliceVal(payload, "service_ids"),

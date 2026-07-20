@@ -17,12 +17,12 @@ Eight fact kinds decode through this package:
 | --- | --- | --- | --- |
 | `sbom.document` | `Document` | `factschema.DecodeSBOMDocument` | yes |
 | `sbom.component` | `Component` | `factschema.DecodeSBOMComponent` | yes |
-| `sbom.dependency_relationship` | `DependencyRelationship` | `factschema.DecodeSBOMDependencyRelationship` | no (typed-but-deferred) |
-| `sbom.external_reference` | `ExternalReference` | `factschema.DecodeSBOMExternalReference` | no (typed-but-deferred) |
+| `sbom.dependency_relationship` | `DependencyRelationship` | `factschema.DecodeSBOMDependencyRelationship` | yes |
+| `sbom.external_reference` | `ExternalReference` | `factschema.DecodeSBOMExternalReference` | yes |
 | `sbom.warning` | `Warning` | `factschema.DecodeSBOMWarning` | yes |
 | `attestation.statement` | `Statement` | `factschema.DecodeAttestationStatement` | yes |
 | `attestation.signature_verification` | `SignatureVerification` | `factschema.DecodeAttestationSignatureVerification` | yes |
-| `attestation.slsa_provenance` | `SLSAProvenance` | `factschema.DecodeAttestationSLSAProvenance` | no (typed-but-deferred, no emitter yet) |
+| `attestation.slsa_provenance` | `SLSAProvenance` | `factschema.DecodeAttestationSLSAProvenance` | yes |
 
 ## Ownership boundary
 
@@ -64,12 +64,12 @@ Field mutability encodes the contract, per Contract System v1 §3.1
 | --- | --- | --- |
 | `Document` | `DocumentID` | Both collector document-envelope constructors always set it, and it is the reducer's sole index key for a document (`buildSBOMAttachmentIndex`). |
 | `Component` | `DocumentID` | Always set by the collector; the reducer's join key from a component back to its document AND into the supply-chain impact index. |
-| `DependencyRelationship` | `DocumentID` | Typed-but-deferred; matches the family's join-key convention. |
-| `ExternalReference` | `DocumentID` | Typed-but-deferred; matches the family's join-key convention. |
+| `DependencyRelationship` | `DocumentID` | The reducer's join key from a dependency edge back to its document (`buildSBOMAttachmentIndex`, #5370). |
+| `ExternalReference` | `DocumentID` | The reducer's join key from an external reference back to its document (`buildSBOMAttachmentIndex`, #5370). |
 | `Warning` | none | Two collector paths emit this kind with two mutually-exclusive identity keys (`document_id` from the SBOM path, `statement_id` from the attestation path); neither can be required without dead-lettering half of this kind's real traffic. |
 | `Statement` | `StatementID` | The attestation collector always sets it, even on a parse-failure statement; it is the reducer's join key for verification/warning evidence. |
 | `SignatureVerification` | `StatementID` | The attestation collector always sets it; the reducer's primary join key, with `DocumentID` as an optional fallback. |
-| `SLSAProvenance` | `StatementID` | Typed-but-deferred (no emitter yet); matches the family's join-key convention for when one is added. |
+| `SLSAProvenance` | `StatementID` | The SBOM runtime collector always sets it when it emits this kind; the reducer's join key back to the owning statement's attachment decision (`buildSBOMAttachmentIndex`, #5371). |
 
 Missing a required identity field dead-letters as `input_invalid` rather than
 silently orphaning a component, warning, or verification result from its
@@ -83,18 +83,16 @@ across both collector paths (`go/internal/collector/sbomdocument`,
 `go/internal/collector/sbomruntime`) — none is a polymorphic multi-shape
 envelope, so a flat struct with named fields covers the full payload.
 
-## Typed-but-not-yet-consumed kinds
+## Every kind is wired
 
-`DependencyRelationship`, `sbom.external_reference` (`ExternalReference`), and
-`attestation.slsa_provenance` (`SLSAProvenance`) have no reducer or storage
-read path today: `go/internal/reducer/sbom_attestation_attachment.go` loads
-their fact kinds alongside their consumed siblings, but no code decodes their
-payload fields. `SLSAProvenance` additionally has no collector emitter yet —
-SLSA provenance is currently observed only as `Statement.PredicateType` on the
-generic attestation statement. They are typed anyway so their join-key
-identity is established ahead of a future consumer, mirroring how the
-`terraform_state` family left `candidate`/`provider_binding`/`warning`
-typed-but-deferred.
+All eight fact kinds in this package now have both a collector emitter and a
+reducer decode/consume path — `DependencyRelationship` and `ExternalReference`
+were wired in #5370, and `SLSAProvenance` (the last typed-but-deferred kind)
+in #5371: the SBOM runtime collector
+(`go/internal/collector/sbomruntime/attestation.go`) emits it for a statement
+whose `predicateType` matches the closed SLSA provenance URI set, and
+`go/internal/reducer/sbom_attestation_attachment_index.go` decodes and joins
+it by `StatementID` onto that statement's attachment decision.
 
 ## Changing a struct
 

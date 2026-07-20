@@ -1193,6 +1193,40 @@ attachment scope and missing anchor evidence, then passed after the reducer fact
 payload, API row, OpenAPI fragment, and MCP tool description exposed that
 truth.
 
+Each attestation row also carries `slsa_provenance_predicate_type` and
+`slsa_provenance_builder_id`, decoded from a joined `attestation.slsa_provenance`
+fact keyed by the statement's `statement_id`. Both are empty when no SLSA
+provenance fact joined the statement: an attestation whose predicate type is
+outside the closed SLSA provenance set, or whose predicate could not be
+decoded (see the SBOM runtime collector's `malformed_slsa_predicate`
+warning), never fabricates these fields. A well-formed predicate with no
+reported `builder.id` still surfaces `slsa_provenance_predicate_type` with an
+empty `slsa_provenance_builder_id`.
+
+No-Regression Evidence: `go test ./internal/collector/sbomruntime -run
+'TestClaimedSource.*SLSA'
+-count=1` and `go test ./internal/reducer -run
+'TestBuildSBOMAttestationAttachmentDecisions.*SLSAProvenance'
+-count=1` and `go test ./internal/query -run
+'Test(DecodeSBOMAttestationAttachmentRowSurfacesSLSAProvenance|SupplyChainListSBOMAttestationAttachmentsSurfacesSLSAProvenanceWire)'
+-count=1` and `go test ./internal/mcp -run
+'TestDispatchToolSBOMAttestationAttachmentsSurfacesSLSAProvenance'
+-count=1` failed before the SBOM runtime collector emitted
+`attestation.slsa_provenance` and the reducer decoded and joined it by
+`statement_id` (issue #5371: the fact kind, typed struct, and schema already
+existed but no collector produced the fact), then passed after the collector
+emitter, reducer index/decision/writer, and HTTP/MCP read model all carried
+the SLSA provenance evidence through.
+
+No-Observability-Change: this wires an already-typed, already-queue-routed
+fact kind into the existing SBOM attachment decode/write/read path, following
+the same shape as issue #5370. It adds no new reducer domain, worker, queue,
+graph write, metric instrument, span, or runtime flag. Operators continue to
+diagnose the path through the existing `sbom_attestation_attachment` reducer
+counter by status, `query.sbom_attestation_attachments` span, and the
+`eshu_dp_reducer_input_invalid_facts_total` quarantine counter for a
+malformed `attestation.slsa_provenance` fact.
+
 No-Regression Evidence: `go test ./internal/query ./internal/mcp -run
 'Test(SupplyChainListSBOMAttestationAttachments(AcceptsRepositoryScope|ResolvesRepositorySelectors|RejectsInvalidRepositorySelectors)|SBOMAttestationAttachmentAggregateRoutes(ForwardSourceScopes|ResolveRepositorySelectors|RejectInvalidRepositorySelectors|DoNotDropServiceScope)|SBOMAttestationAttachmentAggregateQueriesFilterSourceScopes|ResolveRouteForwardsSBOMRepositoryScopeToHTTPContract|DispatchSBOMAggregateRepositoryScopeReturnsScopedCount)'
 -count=1` proves repository-scoped SBOM attachment list, count, inventory, and

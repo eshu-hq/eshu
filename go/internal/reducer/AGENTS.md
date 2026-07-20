@@ -828,12 +828,14 @@ payloads through the `sdk/go/factschema` seam
 `decodeAttestationStatement`/`decodeAttestationSignatureVerification` in
 `factschema_decode_sbom.go`) instead of raw `payloadString`/`payloadStrings`
 map lookups, mirroring the AWS/GCP/Azure/kubernetes_live migrations. Only the
-five WIRED kinds are typed this wave; `sbom.dependency_relationship`,
-`sbom.external_reference`, and `attestation.slsa_provenance` have no reducer
-or storage read path today (`attestation.slsa_provenance` additionally has no
-collector emitter), so they are typed-but-deferred in
-`sdk/go/factschema/sbom/v1` — matching how prior waves left an unconsumed
-kind's struct in place without a reducer decode call. `buildSBOMAttachmentIndex`
+five WIRED kinds were typed this wave; `sbom.dependency_relationship` and
+`sbom.external_reference` were left typed-but-deferred in
+`sdk/go/factschema/sbom/v1` at the time — matching how prior waves left an
+unconsumed kind's struct in place without a reducer decode call — and were
+wired to `buildSBOMAttachmentIndex` in a later change (#5370); the family's
+last typed-but-deferred kind, `attestation.slsa_provenance`, was wired in
+#5371 (SBOM runtime collector emitter plus reducer decode/join by
+`statement_id`). `buildSBOMAttachmentIndex`
 now returns a `[]quarantinedFact` alongside the index: a `sbom.document`,
 `sbom.component`, `attestation.statement`, or
 `attestation.signature_verification` fact missing its required identity

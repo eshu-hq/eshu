@@ -1983,9 +1983,9 @@
       "scenario_type": "baseline",
       "status": "covered",
       "scenario": "api_mcp_golden",
-      "ref": "GET /api/v0/supply-chain/sbom-attestations/attachments?limit=50\u0026document_id=scd-sbom",
+      "ref": "GET /api/v0/supply-chain/sbom-attestations/attachments?limit=50\u0026subject_digest=sha256:2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f80901a",
       "proof_gate": "golden-corpus-gate",
-      "detail": "snapshot HTTP query shape \"GET /api/v0/supply-chain/sbom-attestations/attachments?limit=50\u0026document_id=scd-sbom\""
+      "detail": "snapshot HTTP query shape \"GET /api/v0/supply-chain/sbom-attestations/attachments?limit=50\u0026subject_digest=sha256:2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f80901a\""
     },
     {
       "registry": "fact_kind_registry",

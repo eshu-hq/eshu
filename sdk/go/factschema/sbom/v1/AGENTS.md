@@ -54,12 +54,10 @@ remain independent from Eshu internals.
   - `Statement.StatementID`, `SignatureVerification.StatementID`,
     `SLSAProvenance.StatementID` — the reducer's join key back to an
     attestation statement.
-- **Deferred kinds — typed but not consumed**: `DependencyRelationship`,
-  `ExternalReference`, and `SLSAProvenance` have no reducer or storage read
-  path today (`SLSAProvenance` additionally has no collector emitter). They
-  are typed anyway for join-key consistency across the family; do not remove
-  them, and do not add speculative optional fields beyond what an emitter
-  already produces (`SLSAProvenance` in particular has no real payload shape
-  to derive from yet — keep it minimal).
+- **Every kind is wired.** `DependencyRelationship` and `ExternalReference`
+  were wired to the reducer in #5370; `SLSAProvenance` in #5371 (SBOM runtime
+  collector emitter in `go/internal/collector/sbomruntime/attestation.go`,
+  reducer decode/join in `sbom_attestation_attachment_index.go`). Do not add
+  speculative optional fields beyond what an emitter actually produces.
 - This package defines eight fact kinds. Adding a ninth kind or a `v2` major
   is follow-on work, not a casual edit.

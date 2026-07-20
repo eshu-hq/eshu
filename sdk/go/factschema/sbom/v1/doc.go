@@ -29,14 +29,14 @@
 // has one fixed field set across both collector paths (sbomdocument and
 // sbomruntime).
 //
-// DependencyRelationship, ExternalReference, and SLSAProvenance are
-// TYPED-BUT-NOT-YET-CONSUMED: their fact kinds are loaded by
-// sbom_attestation_attachment.go alongside their siblings, but no reducer or
-// storage read path decodes their payload today (SLSAProvenance additionally
-// has no collector emitter yet). They are typed anyway so their identity join
-// key is already established for when a consumer is added, matching how the
-// terraform_state family left candidate/provider_binding/warning
-// typed-but-deferred.
+// Every kind in this package is now wired end to end: DependencyRelationship
+// and ExternalReference are decoded and joined by document_id in
+// buildSBOMAttachmentIndex (#5370), and SLSAProvenance is emitted by the SBOM
+// runtime collector (sbomruntime.attestationSLSAProvenanceEnvelopes) and
+// decoded and joined by statement_id in the same index (#5371). All three
+// were typed before their consumer landed so their identity join key was
+// already established, matching how the terraform_state family staged
+// candidate/provider_binding/warning the same way.
 //
 // The reducer decodes only the latest struct for each kind. Version shims for
 // an older schema major live in the parent factschema package's decode seam

@@ -3169,7 +3169,7 @@
         }
       },
       "list_sbom_attestation_attachments": {
-        "description": "MCP tool coverage shape for list_sbom_attestation_attachments; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). minimum_results and the nested required_json_paths/values pin the scd-sbom cassette's one sbom.dependency_relationship and one sbom.external_reference fact (#5370 codex finding): the top-level required_response_fields alone would stay green even if the nested dependency/external-reference evidence never reached this result, so this asserts the populated array plus its exact reducer-computed count and untruncated flag.",
+        "description": "MCP tool coverage shape for list_sbom_attestation_attachments; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). Scoped by subject_digest rather than document_id so the response includes both the scd-sbom document attachment and the scd-attestation statement attachment sharing that image digest. minimum_results and the nested required_json_paths/values pin the scd-sbom cassette's one sbom.dependency_relationship fact, one sbom.external_reference fact (#5370 codex finding), and the scd-attestation statement's joined attestation.slsa_provenance fact (#5371): the top-level required_response_fields alone would stay green even if that nested evidence never reached this result, so this asserts the populated arrays plus their exact reducer-computed counts, flags, and SLSA fields. required_json_values matches when ANY attachment in the response carries the expected value, so the two rows' distinct evidence (dependency/external-reference on the document row, SLSA provenance on the statement row) are each pinned independently.",
         "required_response_fields": [
           "attachments",
           "collector_readiness",
@@ -3186,10 +3186,12 @@
           "attachments[].dependency_relationship_count": 1,
           "attachments[].dependency_relationships_truncated": false,
           "attachments[].external_reference_count": 1,
-          "attachments[].external_references_truncated": false
+          "attachments[].external_references_truncated": false,
+          "attachments[].slsa_provenance_predicate_type": "https://slsa.dev/provenance/v1",
+          "attachments[].slsa_provenance_builder_id": "https://github.com/eshu-hq/supply-chain-demo/actions/runner@v1"
         },
         "arguments": {
-          "document_id": "scd-sbom",
+          "subject_digest": "sha256:2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f80901a",
           "limit": 10
         }
       },
@@ -4569,8 +4571,8 @@
         ],
         "minimum_results": 0
       },
-      "GET /api/v0/supply-chain/sbom-attestations/attachments?limit=50&document_id=scd-sbom": {
-        "description": "SBOM attestation attachments for the synthetic supply-chain-demo SBOM document. minimum_results and the nested required_json_paths/values pin the scd-sbom cassette's one sbom.dependency_relationship and one sbom.external_reference fact (#5370 codex finding): the top-level required_response_fields alone would stay green even if the nested dependency/external-reference evidence never reached this HTTP result, so this asserts the populated array plus its exact reducer-computed count and untruncated flag.",
+      "GET /api/v0/supply-chain/sbom-attestations/attachments?limit=50&subject_digest=sha256:2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f80901a": {
+        "description": "SBOM attestation attachments for the synthetic supply-chain-demo image digest. Scoped by subject_digest rather than document_id so the response includes both the scd-sbom document attachment and the scd-attestation statement attachment sharing that image digest. minimum_results and the nested required_json_paths/values pin the scd-sbom cassette's one sbom.dependency_relationship fact, one sbom.external_reference fact (#5370 codex finding), and the scd-attestation statement's joined attestation.slsa_provenance fact (#5371): the top-level required_response_fields alone would stay green even if that nested evidence never reached this HTTP result, so this asserts the populated arrays plus their exact reducer-computed counts, flags, and SLSA fields. required_json_values matches when ANY attachment in the response carries the expected value, so the two rows' distinct evidence (dependency/external-reference on the document row, SLSA provenance on the statement row) are each pinned independently.",
         "required_response_fields": [
           "attachments",
           "count"
@@ -4584,7 +4586,9 @@
           "attachments[].dependency_relationship_count": 1,
           "attachments[].dependency_relationships_truncated": false,
           "attachments[].external_reference_count": 1,
-          "attachments[].external_references_truncated": false
+          "attachments[].external_references_truncated": false,
+          "attachments[].slsa_provenance_predicate_type": "https://slsa.dev/provenance/v1",
+          "attachments[].slsa_provenance_builder_id": "https://github.com/eshu-hq/supply-chain-demo/actions/runner@v1"
         }
       },
       "GET /api/v0/supply-chain/impact/findings?limit=50&cve_id=CVE-2026-00000": {

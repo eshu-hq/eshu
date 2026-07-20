@@ -44,6 +44,7 @@ WHERE fact.fact_kind IN (
     'sbom.external_reference',
     'attestation.statement',
     'attestation.signature_verification',
+    'attestation.slsa_provenance',
     'sbom.warning'
 )
   AND fact.is_tombstone = FALSE

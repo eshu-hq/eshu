@@ -108,3 +108,16 @@ func decodeAttestationSignatureVerification(env facts.Envelope) (sbomv1.Signatur
 	}
 	return verification, nil
 }
+
+// decodeAttestationSLSAProvenance decodes one attestation.slsa_provenance
+// envelope into the typed sbomv1.SLSAProvenance struct through the contracts
+// seam, returning a self-classifying *factDecodeError when the payload is
+// missing its required statement_id field or is otherwise malformed. It is
+// the single decode site for this kind on the reducer side.
+func decodeAttestationSLSAProvenance(env facts.Envelope) (sbomv1.SLSAProvenance, error) {
+	provenance, err := factschema.DecodeAttestationSLSAProvenance(factschemaEnvelope(env))
+	if err != nil {
+		return sbomv1.SLSAProvenance{}, newFactDecodeError(factschema.FactKindAttestationSLSAProvenance, err)
+	}
+	return provenance, nil
+}

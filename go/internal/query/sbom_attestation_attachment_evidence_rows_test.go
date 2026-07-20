@@ -148,3 +148,98 @@ func TestSupplyChainListSBOMAttestationAttachmentsSurfacesDependencyAndExternalR
 		t.Fatalf("response missing external_references key: %s", w.Body.String())
 	}
 }
+
+// TestDecodeSBOMAttestationAttachmentRowSurfacesSLSAProvenance is the
+// query-side accuracy regression for #5371: the reducer-persisted
+// slsa_provenance_predicate_type/slsa_provenance_builder_id payload keys must
+// decode into the typed row fields. Before the reducer joined
+// attestation.slsa_provenance evidence, decodeSBOMAttestationAttachmentRow
+// had no field to read, so this asserts against a payload shape the reducer
+// now actually writes.
+func TestDecodeSBOMAttestationAttachmentRowSurfacesSLSAProvenance(t *testing.T) {
+	t.Parallel()
+
+	payload := map[string]any{
+		"document_id":                    "stmt-slsa",
+		"attachment_status":              "attached_verified",
+		"slsa_provenance_predicate_type": "https://slsa.dev/provenance/v1",
+		"slsa_provenance_builder_id":     "https://github.com/actions/runner/v1",
+	}
+	payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("json.Marshal: %v", err)
+	}
+
+	row, err := decodeSBOMAttestationAttachmentRow("attachment-slsa", "inferred", payloadBytes)
+	if err != nil {
+		t.Fatalf("decodeSBOMAttestationAttachmentRow() error = %v", err)
+	}
+	if got, want := row.SLSAProvenancePredicateType, "https://slsa.dev/provenance/v1"; got != want {
+		t.Fatalf("SLSAProvenancePredicateType = %q, want %q", got, want)
+	}
+	if got, want := row.SLSAProvenanceBuilderID, "https://github.com/actions/runner/v1"; got != want {
+		t.Fatalf("SLSAProvenanceBuilderID = %q, want %q", got, want)
+	}
+}
+
+// TestSupplyChainListSBOMAttestationAttachmentsSurfacesSLSAProvenanceWire
+// proves the SLSA provenance fields reach the HTTP response body, not just
+// the internal Row struct: buildSBOMAttestationAttachmentResult does a raw
+// struct conversion from SBOMAttestationAttachmentRow to
+// SBOMAttestationAttachmentResult, so a field-order or field-name drift
+// between the two structs would compile but silently drop these fields from
+// the wire response.
+func TestSupplyChainListSBOMAttestationAttachmentsSurfacesSLSAProvenanceWire(t *testing.T) {
+	t.Parallel()
+
+	store := &recordingSBOMAttestationAttachmentStore{
+		page: SBOMAttestationAttachmentPage{
+			Attachments: []SBOMAttestationAttachmentRow{
+				{
+					AttachmentID:                "attachment-slsa",
+					DocumentID:                  "stmt-slsa",
+					AttachmentStatus:            "attached_verified",
+					SLSAProvenancePredicateType: "https://slsa.dev/provenance/v1",
+					SLSAProvenanceBuilderID:     "https://github.com/actions/runner/v1",
+				},
+			},
+		},
+	}
+	handler := &SupplyChainHandler{SBOMAttachments: store}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v0/supply-chain/sbom-attestations/attachments?document_id=stmt-slsa&limit=10",
+		nil,
+	)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+
+	var resp struct {
+		Attachments []SBOMAttestationAttachmentResult `json:"attachments"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("json.Unmarshal: %v", err)
+	}
+	if got, want := len(resp.Attachments), 1; got != want {
+		t.Fatalf("len(attachments) = %d, want %d", got, want)
+	}
+	result := resp.Attachments[0]
+	if got, want := result.SLSAProvenancePredicateType, "https://slsa.dev/provenance/v1"; got != want {
+		t.Fatalf("SLSAProvenancePredicateType = %q, want %q", got, want)
+	}
+	if got, want := result.SLSAProvenanceBuilderID, "https://github.com/actions/runner/v1"; got != want {
+		t.Fatalf("SLSAProvenanceBuilderID = %q, want %q", got, want)
+	}
+	if !strings.Contains(w.Body.String(), `"slsa_provenance_predicate_type"`) {
+		t.Fatalf("response missing slsa_provenance_predicate_type key: %s", w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), `"slsa_provenance_builder_id"`) {
+		t.Fatalf("response missing slsa_provenance_builder_id key: %s", w.Body.String())
+	}
+}
