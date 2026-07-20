@@ -84,12 +84,21 @@ func dartSourceAndSyntax(path string, parser *tree_sitter.Parser) ([]byte, dartS
 // callsOnly suppresses the declaration switch for a subtree while still running
 // call detection. It is set true for the CHILDREN of a signature node
 // (method/constructor/function) so their default-value and
-// parameter-annotation call sites are still extracted, without exposing the
-// declaration switch to formal_parameter_list node kinds — which would emit
-// spurious variable/function rows. The signature node's own declaration is
-// extracted before the flag is set, so nothing is dropped; function bodies are
-// siblings of the signature (reached from the parent frame with callsOnly
-// unchanged), so local-function extraction inside bodies is untouched.
+// parameter-annotation call sites are still extracted while the declaration
+// switch stays inert in that subtree. This faithfully preserves collect's
+// original signature early-return pruning (the pre-fold code did not descend
+// into signatures at all). It is correctness-by-construction defense, not a
+// guard against a live failure: no valid-Dart grammar shape places a
+// declaration-switch node inside a signature's formal_parameter_list — param
+// names are bare identifiers under formal_parameter, default values are sibling
+// expressions, and function-typed params nest another formal_parameter_list
+// rather than a function_signature — so a plain fall-through (callsOnly removed)
+// happens to emit nothing spurious on today's grammar. Keeping callsOnly guards
+// against future grammar drift and keeps the declaration/call split explicit.
+// The signature node's own declaration is extracted before the flag is set, so
+// nothing is dropped; function bodies are siblings of the signature (reached
+// from the parent frame with callsOnly unchanged), so local-function extraction
+// inside bodies is untouched.
 //
 // cursor is shared across the whole traversal and MUST be positioned at the
 // node being collected on entry; collect leaves it at that same node on return

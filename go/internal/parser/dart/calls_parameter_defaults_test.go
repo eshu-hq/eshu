@@ -81,15 +81,15 @@ func assertVariableSpanAbsent(t *testing.T, variables []dartNamedSpan, name stri
 	}
 }
 
-// TestParameterDefaultCallSitesAreExtracted is the #5350 gap regression guard.
-// All five call sites in parameter_defaults.dart live inside subtrees that
-// dartSyntaxIndex.collect prunes at the signature early-return
-// (method/constructor/function signatures): optional-positional and named
-// parameter default values, and a parameter annotation's argument list. The
-// two-pass walk finds them because walkDartCallSites descends every named
-// child; the single-pass fold must preserve that via calls-only descent into
-// signature children. A naive fold that stops descending at signatures turns
-// this red.
+// TestParameterDefaultCallSitesAreExtracted is the #5350 gap regression guard,
+// and the test that genuinely reddens on a broken fold. All five call sites in
+// parameter_defaults.dart live inside subtrees that the pre-fold two-pass code
+// pruned at collect's signature early-return (method/constructor/function
+// signatures): optional-positional and named parameter default values, and a
+// parameter annotation's argument list. The merged single-pass collect must
+// preserve them via calls-only descent into signature children. A pruning fold
+// that stops descending at signatures drops these calls, turning both this test
+// and the differential oracle (TestDartCallSitesMatchOracle) red.
 func TestParameterDefaultCallSitesAreExtracted(t *testing.T) {
 	t.Parallel()
 
@@ -110,13 +110,26 @@ func TestParameterDefaultCallSitesAreExtracted(t *testing.T) {
 }
 
 // TestParameterDefaultDeclarationsHaveNoSpuriousParamVariables pins the
-// declaration side of the same traversal. The functions wrapping the pruned
-// signatures must still be extracted, and NO parameter name may leak into
-// index.variables. A plain fall-through fold (removing the signature returns
-// without calls-only descent) would expose collect's declaration switch to
-// formal_parameter_list node kinds and emit these as spurious variable rows;
-// this test fails if that happens. It also guards "both walks agree on a wrong
-// answer" for the call side by asserting the exact declaration truth.
+// declaration side of the same traversal: the functions wrapping the pruned
+// signatures are extracted, and no parameter name appears in index.variables.
+//
+// Honesty note on what this actually guards. This assertion is defense-in-depth,
+// NOT the test that catches the fold's real failure mode. The CALL side
+// (TestParameterDefaultCallSitesAreExtracted plus the differential oracle) is
+// what reddens on a pruning fold. The spurious-variable mode is unexercised BY
+// CONSTRUCTION: no valid-Dart grammar shape places a declaration-switch node
+// inside a signature's formal_parameter_list. Parameter names are bare
+// `identifier` nodes under `formal_parameter` (not initialized_identifier /
+// initialized_variable_definition / static_final_declaration); default values
+// are sibling expressions, not variable declarations; and a function-typed
+// parameter nests another `formal_parameter_list`, never a `function_signature`.
+// So descending into a signature subtree with the declaration switch active — a
+// plain fall-through fold with callsOnly removed — still emits nothing here, and
+// this test stays green either way (verified empirically: neutralizing all
+// three `nextCallsOnly = true` leaves the whole suite green). The callsOnly
+// suppression is kept as a faithful, semantically explicit preservation of
+// collect's original signature early-return pruning, guarding against future
+// grammar drift rather than a failure the current grammar can produce.
 func TestParameterDefaultDeclarationsHaveNoSpuriousParamVariables(t *testing.T) {
 	t.Parallel()
 
