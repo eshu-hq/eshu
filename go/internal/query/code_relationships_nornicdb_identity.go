@@ -15,6 +15,11 @@ var nornicDBRelationshipEntityLabels = []string{
 	"TypeAnnotation", "Component", "SqlColumn", "SqlFunction", "SqlIndex",
 	"SqlMigration", "SqlTable", "SqlTrigger", "SqlView", "TerraformModule", "TerragruntConfig",
 	"TerragruntDependency",
+	// Flux typed entities (issue #5360 PR A): kept in lockstep with
+	// graphLabelToContentEntityType so the graph-only relationship-label
+	// fallback (h.Content nil) can resolve a Flux node's label, matching the
+	// content-backed path's nornicDBGraphLabelForContentEntityType gate.
+	"FluxKustomization", "FluxGitRepository", "FluxOCIRepository", "FluxBucket",
 }
 
 func (h *CodeHandler) nornicDBRelationshipEntityLabel(

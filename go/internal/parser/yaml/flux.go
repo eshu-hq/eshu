@@ -4,7 +4,6 @@
 package yaml
 
 import (
-	"fmt"
 	"strings"
 )
 
@@ -33,26 +32,53 @@ func isFluxKustomization(apiVersion string, kind string) bool {
 // source as typed deployment evidence: spec.sourceRef (kind/name/namespace),
 // spec.path, and spec.targetNamespace.
 //
+// spec.path is emitted under the "source_path" row key (not "spec_path") so
+// it lines up with the key deployment-trace helpers already read for other
+// GitOps controllers (e.g. impact_trace_deployment_gitops_helpers.go reading
+// metadataNonEmptyStringValue(entity.Metadata, "source_path") for ArgoCD).
+// This bucket had zero consumers before #5360 PR A, so the rename is free;
+// renaming after a consumer exists would not be.
+//
 // Fields are parsed defensively: an absent or empty field is simply omitted
 // from the row, never fabricated (a missing spec.path is recorded as absent,
 // not defaulted to "./").
 //
-// This bucket is evidence only. It is deliberately NOT registered in
-// go/internal/content/shape/materialize_tables.go's contentEntityBuckets and
-// is NOT wired into go/internal/relationships/structured_family_evidence.go,
-// so it does not become a graph node or a queryable relationship-evidence
-// surface -- there is no read surface backing it. Modeling Flux as a
-// queryable deployment platform is tracked separately (#5360).
+// Identity boundary: a Kustomization that uses metadata.generateName instead
+// of metadata.name has an empty name here (never a fabricated "<nil>"), so its
+// row identity is (repo_id, path, label, name="", start_line). That is unique
+// because two same-label entities cannot share a start line in one file --
+// multi-document YAML forces a distinct `---` document start line per entity.
+//
+// This bucket is registered in
+// go/internal/content/shape/materialize_tables.go's contentEntityBuckets as
+// the typed FluxKustomization content entity (issue #5360 PR A), making it
+// reachable through get_entity_context. It is still NOT wired into
+// go/internal/relationships/structured_family_evidence.go: the
+// RECONCILES_FROM correlation edge to its source CR (FluxGitRepository /
+// FluxOCIRepository / FluxBucket) is a separate, later change.
 func parseFluxKustomization(document map[string]any, metadata map[string]any, path string, lineNumber int) map[string]any {
 	spec, _ := document["spec"].(map[string]any)
 	sourceRef, _ := spec["sourceRef"].(map[string]any)
 
 	row := map[string]any{
-		"name":        strings.TrimSpace(fmt.Sprint(metadata["name"])),
+		// name kept present for row-shape stability; "" (not "<nil>") when the
+		// manifest uses metadata.generateName instead of metadata.name.
+		"name":        cleanYAMLString(metadata["name"]),
 		"line_number": lineNumber,
-		"namespace":   strings.TrimSpace(fmt.Sprint(metadata["namespace"])),
 		"path":        path,
 		"lang":        "yaml",
+	}
+	if generateName := cleanYAMLString(metadata["generateName"]); generateName != "" {
+		row["generate_name"] = generateName
+	}
+	// metadata.namespace is injected at apply-time far more often than it is
+	// written in the manifest, so an absent namespace is the common case: omit
+	// it, never fabricate "<nil>" (fmt.Sprint(nil)) or an empty string. This is
+	// distinct from spec.sourceRef.namespace (source_ref_namespace) captured
+	// below; the Flux default that fills an empty sourceRef namespace from the
+	// Kustomization's own namespace is a reducer rule, not a parser fabrication.
+	if namespace := cleanYAMLString(metadata["namespace"]); namespace != "" {
+		row["namespace"] = namespace
 	}
 	if kind := cleanYAMLString(sourceRef["kind"]); kind != "" {
 		row["source_ref_kind"] = kind
@@ -64,7 +90,7 @@ func parseFluxKustomization(document map[string]any, metadata map[string]any, pa
 		row["source_ref_namespace"] = namespace
 	}
 	if specPath := cleanYAMLString(spec["path"]); specPath != "" {
-		row["spec_path"] = specPath
+		row["source_path"] = specPath
 	}
 	if targetNamespace := cleanYAMLString(spec["targetNamespace"]); targetNamespace != "" {
 		row["target_namespace"] = targetNamespace

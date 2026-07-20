@@ -1,0 +1,10 @@
+apiVersion: source.toolkit.fluxcd.io/v1beta2
+kind: Bucket
+metadata:
+  name: flux-artifacts
+  namespace: flux-system
+spec:
+  interval: 5m
+  bucketName: flux-artifacts
+  endpoint: minio.acme.internal
+  provider: generic

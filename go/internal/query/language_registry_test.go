@@ -62,7 +62,12 @@ func TestSupportedEntityTypes(t *testing.T) {
 	// Atlantis entities carry language "yaml", which supportedLanguages does not
 	// accept, so they must NOT be advertised in the language-query entity_type
 	// enum (they resolve via resolve_entity/get_entity_context instead). #5369.
-	for _, absent := range []string{"atlantis_project", "atlantis_workflow"} {
+	// The four Flux typed entities are entity_context-only (#5360 PR A) and
+	// likewise carry language "yaml", so they must not leak into the enum either.
+	for _, absent := range []string{
+		"atlantis_project", "atlantis_workflow",
+		"flux_kustomization", "flux_git_repository", "flux_oci_repository", "flux_bucket",
+	} {
 		if typeSet[absent] {
 			t.Errorf("entity type %q must not be language-queryable (no yaml language)", absent)
 		}

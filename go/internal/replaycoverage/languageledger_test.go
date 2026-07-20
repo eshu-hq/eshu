@@ -135,7 +135,7 @@ func TestLoadLanguageLedgerMatchesRealSpecCount(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadLanguageLedger(real spec): %v", err)
 	}
-	if len(ledger.Languages) != 32 {
-		t.Fatalf("real ledger language count = %d, want 32 (update this guard only with an intentional ledger change)", len(ledger.Languages))
+	if len(ledger.Languages) != 33 {
+		t.Fatalf("real ledger language count = %d, want 33 (update this guard only with an intentional ledger change)", len(ledger.Languages))
 	}
 }

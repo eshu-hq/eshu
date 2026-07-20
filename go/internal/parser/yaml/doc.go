@@ -11,12 +11,16 @@
 // and Atlantis repo-level project rows (one AtlantisProject row per project in
 // atlantis.yaml, dispatched by filename since the config carries no
 // apiVersion/kind). Flux CD Kustomization custom resources
-// (kustomize.toolkit.fluxcd.io/*, kind Kustomization) are captured separately
-// into a flux_kustomizations bucket: sourceRef, path, and targetNamespace
-// evidence only, deliberately kept evidence-only -- not registered for
-// content-entity materialization or relationship-evidence wiring, so it does
-// not become a graph node or a queryable surface. Modeling Flux as a
-// queryable deployment platform is tracked separately (issue #5360).
+// (kustomize.toolkit.fluxcd.io/*, kind Kustomization) are captured into a
+// flux_kustomizations bucket (sourceRef, path under the source_path key, and
+// targetNamespace), and the Flux CD source-of-truth custom resources it
+// reconciles against (source.toolkit.fluxcd.io/*: GitRepository,
+// OCIRepository, Bucket) are captured into flux_git_repositories,
+// flux_oci_repositories, and flux_buckets buckets (url, ref, and bucket
+// coordinates). All four Flux buckets are registered content entities
+// reachable through get_entity_context; the RECONCILES_FROM correlation edge
+// from a FluxKustomization to its source CR is not materialized by this
+// package (issue #5360 PR A; see docs/public/languages/flux.md).
 // GitLab CI pipelines are likewise dispatched by filename:
 // one GitlabPipeline row per .gitlab-ci.yml plus one GitlabJob row per top-level
 // job (hidden/template jobs and reserved global keywords excluded). DecodeDocuments and SanitizeTemplating remain available for parent

@@ -144,23 +144,39 @@ func (f fakeCounter) ListNodeProperty(_ context.Context, label, prop string) ([]
 }
 
 // fileLanguageFloor seeds every unconditionally-asserted required_nodes floor
-// (rn-file-language, rn-dataplex-entry-group, rn-identity-platform-config) so a
-// minimal-gate test can satisfy the snapshot's required nodes while focusing on
-// its own assertion. The two GCP posture-only entries pin identity via a single
-// CloudResource node carrying the matching resource_type value (see
+// (rn-file-language, rn-dataplex-entry-group, rn-identity-platform-config,
+// rn-flux-kustomization-source-ref, rn-flux-git-repository-url,
+// rn-flux-oci-repository-url, rn-flux-bucket-name) so a minimal-gate test can
+// satisfy the snapshot's required nodes while focusing on its own assertion.
+// The two GCP posture-only entries pin identity via a single CloudResource
+// node carrying the matching resource_type value; the four Flux entries (issue
+// #5360 PR A) pin identity via a FluxKustomization node carrying
+// source_ref_kind, a FluxGitRepository node carrying url, a FluxOCIRepository
+// node carrying url, and a FluxBucket node carrying bucket_name (see
 // testdata/golden/e2e-20repo-snapshot.json).
 func fileLanguageFloor() (map[string]int64, map[string][]string) {
 	langs := make([]string, 10)
 	for i := range langs {
 		langs[i] = "go"
 	}
-	nodes := map[string]int64{"File": int64(len(langs)), "CloudResource": 2}
+	nodes := map[string]int64{
+		"File":              int64(len(langs)),
+		"CloudResource":     2,
+		"FluxKustomization": 1,
+		"FluxGitRepository": 1,
+		"FluxOCIRepository": 1,
+		"FluxBucket":        1,
+	}
 	nodeProp := map[string][]string{
 		"File|language": langs,
 		"CloudResource|resource_type": {
 			"dataplex.googleapis.com/EntryGroup",
 			"identitytoolkit.googleapis.com/Config",
 		},
+		"FluxKustomization|source_ref_kind": {"GitRepository"},
+		"FluxGitRepository|url":             {"https://github.com/acme/flux-system"},
+		"FluxOCIRepository|url":             {"oci://ghcr.io/acme/app-manifests"},
+		"FluxBucket|bucket_name":            {"flux-artifacts"},
 	}
 	return nodes, nodeProp
 }

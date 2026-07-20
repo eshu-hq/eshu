@@ -118,11 +118,57 @@ func TestParseFluxKustomizationCapturesSourceRefAndOmitsAbsentFields(t *testing.
 	if _, present := row["source_ref_namespace"]; present {
 		t.Fatalf("source_ref_namespace = %#v, want absent (not fabricated)", row["source_ref_namespace"])
 	}
-	if row["spec_path"] != "clusters/production" {
-		t.Fatalf("spec_path = %#v, want clusters/production", row["spec_path"])
+	if row["source_path"] != "clusters/production" {
+		t.Fatalf("source_path = %#v, want clusters/production", row["source_path"])
 	}
 	if _, present := row["target_namespace"]; present {
 		t.Fatalf("target_namespace = %#v, want absent (not fabricated)", row["target_namespace"])
+	}
+}
+
+func TestParseFluxKustomizationGenerateNameOnly(t *testing.T) {
+	t.Parallel()
+
+	document := map[string]any{
+		"spec": map[string]any{
+			"path": "clusters/production",
+			"sourceRef": map[string]any{
+				"kind": "GitRepository",
+				"name": "flux-system",
+			},
+		},
+	}
+	metadata := map[string]any{"generateName": "apps-"}
+
+	row := parseFluxKustomization(document, metadata, "/repo/gen.yaml", 1)
+
+	if name, ok := row["name"]; !ok {
+		t.Fatal("name key must be present (base-identity field), even when empty")
+	} else if name != "" {
+		t.Fatalf("name = %#v, want empty string when metadata.name absent (never fabricated as \"<nil>\")", name)
+	}
+	if row["generate_name"] != "apps-" {
+		t.Fatalf("generate_name = %#v, want apps- (the literal metadata.generateName)", row["generate_name"])
+	}
+	// sourceRef and path must still be captured for a generateName Kustomization.
+	if row["source_ref_kind"] != "GitRepository" {
+		t.Fatalf("source_ref_kind = %#v, want GitRepository", row["source_ref_kind"])
+	}
+}
+
+func TestParseFluxKustomizationWhollyNamelessOmitsGenerateName(t *testing.T) {
+	t.Parallel()
+
+	document := map[string]any{"spec": map[string]any{}}
+	metadata := map[string]any{}
+
+	row := parseFluxKustomization(document, metadata, "/repo/nameless.yaml", 1)
+
+	if name, ok := row["name"]; !ok || name != "" {
+		t.Fatalf("name = %#v (present=%v), want empty string, never \"<nil>\"", row["name"], ok)
+	}
+	if _, present := row["generate_name"]; present {
+		t.Fatalf("generate_name = %#v, want absent when metadata.generateName absent", row["generate_name"])
 	}
 }
 
@@ -136,9 +182,14 @@ func TestParseFluxKustomizationOmitsSourceRefWhenAbsent(t *testing.T) {
 
 	row := parseFluxKustomization(document, metadata, "/repo/bare.yaml", 1)
 
-	for _, key := range []string{"source_ref_kind", "source_ref_name", "source_ref_namespace", "spec_path", "target_namespace"} {
+	for _, key := range []string{"source_ref_kind", "source_ref_name", "source_ref_namespace", "source_path", "target_namespace"} {
 		if _, present := row[key]; present {
 			t.Fatalf("row[%q] = %#v, want absent when spec has no matching field", key, row[key])
 		}
+	}
+	// metadata.namespace is absent here too: it must be OMITTED, never
+	// fabricated as "<nil>" (fmt.Sprint(nil)) or an empty string.
+	if _, present := row["namespace"]; present {
+		t.Fatalf("namespace = %#v, want absent when metadata has no namespace (never fabricated)", row["namespace"])
 	}
 }

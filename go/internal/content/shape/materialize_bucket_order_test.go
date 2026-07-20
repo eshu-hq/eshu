@@ -5,61 +5,79 @@ package shape
 
 import "testing"
 
-// TestContentEntityBucketsHelmTemplateValuesAppendedAtEnd guards the
+// TestContentEntityBucketsFluxTypedEntitiesAppendedAtEnd guards the
 // frozen-table invariant documented in AGENTS.md: a newly added entity bucket
 // MUST be appended to the end of contentEntityBuckets, never inserted mid-table.
-// Inserting before the SQL/data/impl_blocks/pagerduty/gitlab buckets would shift
-// the persisted entity row order for every later label. sql_migrations
-// (SqlMigration, #5346) is now the most recent addition, so it must be the
-// trailing entry, with the Helm template-value buckets immediately before it.
-func TestContentEntityBucketsHelmTemplateValuesAppendedAtEnd(t *testing.T) {
+// Inserting before the SQL/data/impl_blocks/pagerduty/gitlab/helm/sql_migrations
+// buckets would shift the persisted entity row order for every later label. The
+// Flux typed entities (issue #5360 PR A) are the most recent addition, so they
+// must be the trailing four entries, with sql_migrations (SqlMigration, #5346)
+// immediately before them and the Helm template-value buckets before that.
+func TestContentEntityBucketsFluxTypedEntitiesAppendedAtEnd(t *testing.T) {
 	t.Parallel()
 
 	n := len(contentEntityBuckets)
-	if n < 5 {
-		t.Fatalf("contentEntityBuckets too short: %d", n)
+	if n < 9 {
+		t.Fatalf("contentEntityBuckets has %d entries, want at least 9", n)
 	}
 
+	fluxTypedEntities := map[string]string{
+		"flux_kustomizations":   "FluxKustomization",
+		"flux_git_repositories": "FluxGitRepository",
+		"flux_oci_repositories": "FluxOCIRepository",
+		"flux_buckets":          "FluxBucket",
+	}
 	helmTemplateValues := map[string]string{
 		"helm_value_definitions":     "HelmValueDefinition",
 		"helm_template_value_usages": "HelmTemplateValueUsage",
 	}
 
-	// The trailing entry must be sql_migrations (#5346).
-	last := contentEntityBuckets[n-1]
-	if last.bucket != "sql_migrations" || last.label != "SqlMigration" {
-		t.Fatalf("last bucket = %q/%q, want sql_migrations/SqlMigration (append at end)", last.bucket, last.label)
+	// The four trailing entries must be the Flux typed entities, in this
+	// fixed order.
+	wantTrailing := []entityBucketMapping{
+		{bucket: "flux_kustomizations", label: "FluxKustomization"},
+		{bucket: "flux_git_repositories", label: "FluxGitRepository"},
+		{bucket: "flux_oci_repositories", label: "FluxOCIRepository"},
+		{bucket: "flux_buckets", label: "FluxBucket"},
+	}
+	for i, want := range wantTrailing {
+		got := contentEntityBuckets[n-len(wantTrailing)+i]
+		if got != want {
+			t.Fatalf("bucket at trailing index %d = %#v, want %#v (append at end)", i, got, want)
+		}
+	}
+
+	// sql_migrations (#5346) must sit immediately before the Flux entries, never
+	// shifted.
+	sqlIdx := n - len(wantTrailing) - 1
+	if got := contentEntityBuckets[sqlIdx]; got.bucket != "sql_migrations" || got.label != "SqlMigration" {
+		t.Fatalf("bucket before flux entries = %q/%q, want sql_migrations/SqlMigration", got.bucket, got.label)
 	}
 
 	// The Helm template-value buckets (previous most-recent addition) must
 	// remain immediately before sql_migrations, never shifted.
-	penultimate := contentEntityBuckets[n-2]
-	if penultimate.bucket != "helm_template_value_usages" || penultimate.label != "HelmTemplateValueUsage" {
-		t.Fatalf("penultimate bucket = %q/%q, want helm_template_value_usages/HelmTemplateValueUsage (append at end)", penultimate.bucket, penultimate.label)
+	if got := contentEntityBuckets[sqlIdx-1]; got.bucket != "helm_template_value_usages" || got.label != "HelmTemplateValueUsage" {
+		t.Fatalf("bucket at sqlIdx-1 = %q/%q, want helm_template_value_usages/HelmTemplateValueUsage", got.bucket, got.label)
 	}
-	if got := contentEntityBuckets[n-3]; got.bucket != "helm_value_definitions" || got.label != "HelmValueDefinition" {
-		t.Fatalf("bucket at n-3 = %q/%q, want helm_value_definitions/HelmValueDefinition", got.bucket, got.label)
-	}
-
-	// The GitLab buckets must remain immediately before the Helm template-value
-	// buckets, never shifted.
-	if got := contentEntityBuckets[n-4]; got.bucket != "gitlab_jobs" || got.label != "GitlabJob" {
-		t.Fatalf("bucket at n-4 = %q/%q, want gitlab_jobs/GitlabJob (gitlab stays before helm template values)", got.bucket, got.label)
-	}
-	if got := contentEntityBuckets[n-5]; got.bucket != "gitlab_pipelines" || got.label != "GitlabPipeline" {
-		t.Fatalf("bucket at n-5 = %q/%q, want gitlab_pipelines/GitlabPipeline", got.bucket, got.label)
+	if got := contentEntityBuckets[sqlIdx-2]; got.bucket != "helm_value_definitions" || got.label != "HelmValueDefinition" {
+		t.Fatalf("bucket at sqlIdx-2 = %q/%q, want helm_value_definitions/HelmValueDefinition", got.bucket, got.label)
 	}
 
-	// No Helm template-value bucket, and no sql_migrations bucket, may appear
-	// anywhere else in the table.
-	for i := 0; i < n-3; i++ {
+	// No Flux typed-entity bucket and no Helm template-value bucket may appear
+	// anywhere earlier in the table.
+	for i := 0; i < sqlIdx-2; i++ {
+		if _, isFlux := fluxTypedEntities[contentEntityBuckets[i].bucket]; isFlux {
+			t.Fatalf("Flux typed-entity bucket %q found mid-table at index %d; it must be appended at the end", contentEntityBuckets[i].bucket, i)
+		}
 		if _, isHelm := helmTemplateValues[contentEntityBuckets[i].bucket]; isHelm {
 			t.Fatalf("Helm template-value bucket %q found mid-table at index %d; it must be appended at the end", contentEntityBuckets[i].bucket, i)
 		}
 	}
-	for i := 0; i < n-1; i++ {
-		if contentEntityBuckets[i].bucket == "sql_migrations" {
-			t.Fatalf("sql_migrations found mid-table at index %d; it must be the last entry", i)
+
+	// sql_migrations must appear only at sqlIdx, never elsewhere.
+	for i := 0; i < n; i++ {
+		if i != sqlIdx && contentEntityBuckets[i].bucket == "sql_migrations" {
+			t.Fatalf("sql_migrations found at index %d; it must sit only just before the flux entries", i)
 		}
 	}
 }

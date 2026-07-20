@@ -90,6 +90,7 @@ parser_backing:
       - go/internal/parser/yaml/semantics.go
       - go/internal/parser/yaml/argocd.go
       - go/internal/parser/yaml/flux.go
+      - go/internal/parser/yaml/flux_source.go
       - go/internal/parser/yaml/helm.go
       - go/internal/parser/yaml/gitlab_ci.go
       - go/internal/parser/yaml/atlantis.go
@@ -97,15 +98,11 @@ parser_backing:
       - go/internal/parser/yaml/language_test.go
       - go/internal/parser/yaml/atlantis_test.go
       - go/internal/parser/yaml/flux_test.go
+      - go/internal/parser/yaml/flux_source_test.go
       - go/internal/parser/yaml/gitlab_ci_test.go
       - go/internal/parser/yaml/helm_template_values_test.go
       - go/internal/parser/engine_yaml_semantics_test.go
       - go/internal/parser/engine_yaml_semantics_crossplane_test.go
-    # flux_kustomizations is deliberately absent from this list: it captures
-    # Flux CD Kustomization spec.sourceRef/path/targetNamespace as typed
-    # evidence only and is not registered in materialize_tables.go's
-    # contentEntityBuckets, so it produces no graph node (issue #5342; graph
-    # modeling deferred to #5360).
     graph_projection_relevance:
       - k8s_resources -> K8sResource
       - argocd_applications -> ArgoCDApplication
@@ -114,6 +111,10 @@ parser_backing:
       - crossplane_compositions -> CrossplaneComposition
       - crossplane_claims -> CrossplaneClaim
       - kustomize_overlays -> KustomizeOverlay
+      - flux_kustomizations -> FluxKustomization
+      - flux_git_repositories -> FluxGitRepository
+      - flux_oci_repositories -> FluxOCIRepository
+      - flux_buckets -> FluxBucket
       - helm_charts -> HelmChart
       - helm_values -> HelmValues
     docs:
@@ -121,5 +122,6 @@ parser_backing:
       - docs/public/languages/argocd.md
       - docs/public/languages/crossplane.md
       - docs/public/languages/kustomize.md
+      - docs/public/languages/flux.md
       - docs/public/languages/helm.md
       - docs/internal/parser-audit/yaml.md

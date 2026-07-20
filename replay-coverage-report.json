@@ -2,8 +2,8 @@
   "schema_version": "replay-coverage-report.v4",
   "blocking": true,
   "totals": {
-    "total": 408,
-    "covered": 398,
+    "total": 412,
+    "covered": 402,
     "uncovered": 0,
     "unresolved": 0,
     "exempt": 10,
@@ -93,8 +93,8 @@
     },
     {
       "registry": "retractable_type",
-      "total": 88,
-      "covered": 88,
+      "total": 92,
+      "covered": 92,
       "uncovered": 0,
       "unresolved": 0,
       "exempt": 0,
@@ -140,8 +140,8 @@
     },
     {
       "scenario_type": "delta_tombstone",
-      "total": 144,
-      "covered": 144,
+      "total": 148,
+      "covered": 148,
       "uncovered": 0,
       "unresolved": 0,
       "exempt": 0,
@@ -3293,6 +3293,46 @@
     },
     {
       "registry": "retractable_type",
+      "key": "retractable_node:FluxBucket",
+      "scenario_type": "delta_tombstone",
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
+    },
+    {
+      "registry": "retractable_type",
+      "key": "retractable_node:FluxGitRepository",
+      "scenario_type": "delta_tombstone",
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
+    },
+    {
+      "registry": "retractable_type",
+      "key": "retractable_node:FluxKustomization",
+      "scenario_type": "delta_tombstone",
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
+    },
+    {
+      "registry": "retractable_type",
+      "key": "retractable_node:FluxOCIRepository",
+      "scenario_type": "delta_tombstone",
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
+    },
+    {
+      "registry": "retractable_type",
       "key": "retractable_node:Function",
       "scenario_type": "delta_tombstone",
       "status": "covered",
@@ -4221,8 +4261,8 @@
   "gaps": null,
   "stale_manifest_surfaces": null,
   "language_scoreboard": {
-    "total": 32,
-    "exempt": 11,
+    "total": 33,
+    "exempt": 12,
     "fixture": 21,
     "uncovered": 0,
     "percent_satisfied": 100,
@@ -4271,6 +4311,11 @@
         "language": "elixir",
         "status": "fixture",
         "reason": "parser fixture replay scenario go/internal/replay/parserfixture/testdata/fixtures/elixir.fixture.json proven by parserfixture-tests"
+      },
+      {
+        "language": "flux",
+        "status": "exempt",
+        "reason": "Exercised end-to-end by the golden-corpus 20-repo corpus: kubernetes_comprehensive carries flux-kustomization.yaml, flux-gitrepository.yaml, flux-ocirepository.yaml, and flux-bucket.yaml that flow sync -\u003e discover -\u003e parse -\u003e emit into typed FluxKustomization/FluxGitRepository/FluxOCIRepository/FluxBucket nodes (rn-flux-kustomization-source-ref, rn-flux-git-repository-url). The fixture corpus is its replay scenario."
       },
       {
         "language": "gitlab-ci",

@@ -44,6 +44,7 @@ For audited family-level closure status, see
 | ArgoCD | `DefaultEngine (yaml)` | Y | - | - | Y | 7/7 | 7/7 | `tests/fixtures/ecosystems/argocd_comprehensive/` |
 | CloudFormation | `DefaultEngine (yaml)` | Y | Y | Y | - | 7/7 | 7/7 | `tests/fixtures/ecosystems/cloudformation_comprehensive/` |
 | Crossplane | `DefaultEngine (yaml)` | Y | - | - | Y | 7/7 | 7/7 | `tests/fixtures/ecosystems/crossplane_comprehensive/` |
+| Flux | `DefaultEngine (yaml)` | Y | - | - | - | 10/10 | 10/10 | `tests/fixtures/ecosystems/flux_comprehensive/` |
 | Helm | `DefaultEngine (yaml)` | Y | - | - | Y | 5/5 | 5/5 | `tests/fixtures/ecosystems/helm_comprehensive/` |
 | Kubernetes | `DefaultEngine (yaml)` | Y | - | - | - | 6/6 | 6/6 | `tests/fixtures/ecosystems/kubernetes_comprehensive/` |
 | Kustomize | `DefaultEngine (yaml)` | Y | - | - | - | 4/4 | 4/4 | `tests/fixtures/ecosystems/kustomize_comprehensive/` |

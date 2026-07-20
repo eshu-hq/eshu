@@ -24,8 +24,19 @@ type SchemaApplication struct {
 }
 
 const (
-	graphSchemaNeo4jFingerprint    = "2a84ae8521f4930e8ce3ba8ff7556ea2fb53b5cb843a60f1aab1b169e50bfda0"
-	graphSchemaNornicDBFingerprint = "35725c2a4d5a07e2fbeaddc5399a6e20af438a0193c4ebc8c1ecddacbf8b5866"
+	graphSchemaNeo4jFingerprint    = "edf86cd974966f8ddf66d050185f0f8ebeb3155b2106bfa7484a63d865699108"
+	graphSchemaNornicDBFingerprint = "c5f668561275341825c53914e7f92cc10ad54bdf229eae143cd8f7c8c153c8ba"
+
+	// graphSchemaNeo4jPreFluxTypedEntitiesFingerprint and its NornicDB peer are
+	// the schema fingerprints immediately before the FluxKustomization /
+	// FluxGitRepository / FluxOCIRepository / FluxBucket uid uniqueness
+	// constraints were added (issue #5360 PR A). On the current history the
+	// immediately-preceding schema is the SqlMigration bump (#5346), so these
+	// equal that predecessor's fingerprints. The bump is additive: a writer
+	// running the predecessor schema creates no Flux typed-entity nodes, so the
+	// predecessor stays compatible.
+	graphSchemaNeo4jPreFluxTypedEntitiesFingerprint    = "2a84ae8521f4930e8ce3ba8ff7556ea2fb53b5cb843a60f1aab1b169e50bfda0"
+	graphSchemaNornicDBPreFluxTypedEntitiesFingerprint = "35725c2a4d5a07e2fbeaddc5399a6e20af438a0193c4ebc8c1ecddacbf8b5866"
 
 	// graphSchemaNornicDBPreFunctionLegacyIDLookupFingerprint is the schema
 	// immediately before the additive Function.id lookup used by the bounded
@@ -101,6 +112,7 @@ const (
 var graphSchemaCompatibleFingerprints = map[SchemaBackend]map[string][]string{
 	SchemaBackendNeo4j: {
 		graphSchemaNeo4jFingerprint: {
+			graphSchemaNeo4jPreFluxTypedEntitiesFingerprint,
 			graphSchemaNeo4jPreSqlMigrationFingerprint,
 			graphSchemaNeo4jPreShellExecRetractIndexesFingerprint,
 			graphSchemaNeo4jPreInheritanceRetractIndexesFingerprint,
@@ -111,6 +123,7 @@ var graphSchemaCompatibleFingerprints = map[SchemaBackend]map[string][]string{
 	},
 	SchemaBackendNornicDB: {
 		graphSchemaNornicDBFingerprint: {
+			graphSchemaNornicDBPreFluxTypedEntitiesFingerprint,
 			graphSchemaNornicDBPreSqlMigrationFingerprint,
 			graphSchemaNornicDBPreFunctionLegacyIDLookupFingerprint,
 			graphSchemaNornicDBPreShellExecRetractIndexesFingerprint,
