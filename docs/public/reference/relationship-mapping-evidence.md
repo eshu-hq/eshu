@@ -142,8 +142,14 @@ consistent strip is not honestly achievable without redacting
 
 The repository workflow-artifact rollup (`repository_workflow_artifacts.go`)
 separately surfaces `unpinned_action_refs`: the raw `owner/repo@ref` string
-for every third-party action step whose ref is not a full-length commit SHA,
-using the same `ghactionsref.Pinned` classifier.
+for each action step whose ref is not a full-length commit SHA, using the
+same `ghactionsref.Pinned` classifier. This list draws from the same
+action-repository detection the rollup uses elsewhere, which excludes
+`actions/checkout` specifically (only `actions/checkout`, not all `actions/*`
+actions) because that step is modeled through its own checkout-repository
+signal, not as a plain action dependency. A mutable `actions/checkout@<tag>`
+therefore does not appear in `unpinned_action_refs`; the list is not an
+exhaustive audit of every unpinned `uses:` in the file.
 
 A `with: ref:` value passed to `actions/checkout` (checking out a specific
 ref of the TARGET repository, distinct from the `uses:` ref pinning the

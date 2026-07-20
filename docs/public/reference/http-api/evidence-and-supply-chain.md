@@ -40,10 +40,13 @@ equivalents: `get_repo_context`, `get_repo_story`, `get_service_context`,
 `get_service_story`, `get_workload_context`, `get_workload_story`,
 `trace_deployment_chain`, `investigate_deployment_config`, and
 `investigate_service`. The repository workflow-artifact rollup's
-`unpinned_action_refs` signal (the raw `owner/repo@ref` string for every
-third-party action pinned to something other than a full commit SHA) is
-surfaced through the same repository-context/story surfaces via the
-config-artifact fallback path (`repository_config_artifacts_loader.go`).
+`unpinned_action_refs` signal (the raw `owner/repo@ref` string for each action
+pinned to something other than a full commit SHA, excluding `actions/checkout`,
+which is modeled through its own checkout-repository signal, so the list is not
+an exhaustive audit of every unpinned `uses:`) is surfaced through the same
+repository-context/story surfaces via the workflow-artifact loader
+(`repository_workflow_artifacts_loader.go`, reached through
+`repository_deployment_artifacts_loader.go`).
 
 ## Relationship Evidence
 
