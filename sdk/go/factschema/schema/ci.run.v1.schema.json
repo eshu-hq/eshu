@@ -45,6 +45,12 @@
     "provider": {
       "type": "string"
     },
+    "provider_repository_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
     "repository_id": {
       "type": [
         "string",

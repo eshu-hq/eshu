@@ -67,12 +67,18 @@ type Run struct {
 	// observation.
 	CommitSHA *string `json:"commit_sha,omitempty"`
 
-	// RepositoryID is the reducer-facing repository locator the collector
-	// derives from the provider's repository reference
-	// (go/internal/collector/cicdrun/github_actions_fixture.go:367-373).
+	// RepositoryID is the canonical repository identifier
+	// (repository:r_<hex>) the collector derives from the repository's HTML
+	// URL or SourceURI, matching the join contract the git collector and
+	// repositoryidentity.CanonicalRepositoryID enforce.
 	// Optional: see CommitSHA for the unresolved-outcome matcher gate this
 	// field also participates in.
 	RepositoryID *string `json:"repository_id,omitempty"`
+
+	// ProviderRepositoryID preserves the raw provider-level repository
+	// locator (e.g. "github.com/eshu-hq/eshu") as provenance alongside
+	// the canonical repository_id. Optional.
+	ProviderRepositoryID *string `json:"provider_repository_id,omitempty"`
 
 	// RepositoryURL is the provider's repository URL. Optional.
 	RepositoryURL *string `json:"repository_url,omitempty"`

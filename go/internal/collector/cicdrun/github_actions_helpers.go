@@ -8,9 +8,56 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/repositoryidentity"
 )
 
+// repositoryID returns the canonical repository identifier (repository:r_<hex>)
+// derived from the repository's HTML URL, the fixture's SourceURI, or a
+// host/FullName fallback, matching the join contract the git collector and
+// repositoryidentity.CanonicalRepositoryID already enforce.
 func repositoryID(repository githubRepository, ctx FixtureContext) string {
+	canonicalURL := repositoryCanonicalURL(repository, ctx)
+	if canonicalURL == "" {
+		return ""
+	}
+	id, err := repositoryidentity.CanonicalRepositoryID(canonicalURL, "")
+	if err != nil {
+		return ""
+	}
+	return id
+}
+
+// repositoryCanonicalURL returns the URL string used to derive the canonical
+// repository ID. It prefers the repository's HTML URL, then the fixture
+// SourceURI, then falls back to the host/FullName URL pattern.
+func repositoryCanonicalURL(repository githubRepository, ctx FixtureContext) string {
+	// Prefer repository.HTMLURL (the canonical GitHub API URL).
+	if trimmed := strings.TrimSpace(repository.HTMLURL); trimmed != "" {
+		if _, err := url.Parse(trimmed); err == nil {
+			return trimmed
+		}
+	}
+	// Next: SourceURI (the API URL the fixture or runtime harvested from).
+	if trimmed := strings.TrimSpace(ctx.SourceURI); trimmed != "" {
+		if parsed, err := url.Parse(trimmed); err == nil && parsed.Host != "" {
+			return trimmed
+		}
+	}
+	// Last: host + "/" + FullName fallback (preserving repositoryHost semantics).
+	host := repositoryHost(repository, ctx)
+	fullName := strings.Trim(strings.TrimSpace(repository.FullName), "/")
+	if fullName == "" {
+		return ""
+	}
+	// Build an HTTPS URL from host + FullName. This is the same pattern
+	// repositoryID used before canonicalization: host + "/" + FullName.
+	return "https://" + host + "/" + fullName
+}
+
+// providerRepositoryID returns the raw provider-level repository locator
+// (e.g. "github.com/eshu-hq/eshu"), preserved as provenance alongside the
+// canonical repository_id.
+func providerRepositoryID(repository githubRepository, ctx FixtureContext) string {
 	fullName := strings.Trim(strings.TrimSpace(repository.FullName), "/")
 	if fullName == "" {
 		return ""
