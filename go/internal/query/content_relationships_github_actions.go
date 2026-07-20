@@ -25,11 +25,29 @@ type githubActionsRelationship struct {
 // checkoutRepositories/workflowInputRepositories hold the raw `with:`/job input
 // values (the relationship builder normalizes those through
 // githubActionsRepositoryRef).
+//
+// reusableWorkflowRefs and actionRefs (issue #5372) carry the RAW `uses:`
+// scalar (quotes trimmed, ${{ }} expressions and non-ref shapes already
+// excluded) for each entry in reusableWorkflowRepos/actionRepositories
+// respectively, at the same index -- so refs.actionRefs[i] is the ref-bearing
+// source of refs.actionRepositories[i]. This is deliberately NOT threaded
+// into the slug these lists feed to edge targets (githubActionsRepositoryRef
+// / githubActionsActionRepositoryRef keep their own local @-split, unchanged,
+// because an edge target is a Repository node and correctly has no version --
+// see githubActionsSourceRelationships's doc comment). The raw ref pairing
+// exists only for callers that need the @ref itself: the repository
+// workflow-artifact rollup's unpinned_action_refs signal
+// (repository_workflow_artifacts.go) and the ghactionsref both-paths-agree
+// regression test. Those callers split the ref value out with
+// ghactionsref.Parse, the single implementation this package and
+// go/internal/relationships both depend on.
 type githubActionsDependencyRefs struct {
 	reusableWorkflowRepos      []string
+	reusableWorkflowRefs       []string
 	localReusableWorkflowPaths []string
 	checkoutRepositories       []string
 	actionRepositories         []string
+	actionRefs                 []string
 	workflowInputRepositories  []string
 }
 
@@ -100,6 +118,7 @@ func (refs *githubActionsDependencyRefs) collectJob(job map[string]any) {
 	if uses := StringVal(job, "uses"); !githubActionsExpressionRef(uses) {
 		if workflowRef := githubActionsReusableWorkflowRepoRef(uses); workflowRef != "" {
 			refs.reusableWorkflowRepos = append(refs.reusableWorkflowRepos, workflowRef)
+			refs.reusableWorkflowRefs = append(refs.reusableWorkflowRefs, trimGitHubActionsScalar(uses))
 		}
 		if localWorkflowPath := githubActionsLocalReusableWorkflowPath(uses); localWorkflowPath != "" {
 			refs.localReusableWorkflowPaths = append(refs.localReusableWorkflowPaths, localWorkflowPath)
@@ -136,6 +155,7 @@ func (refs *githubActionsDependencyRefs) collectSteps(rawSteps any) {
 			}
 			if actionRepository := githubActionsActionRepositoryRef(uses); actionRepository != "" {
 				refs.actionRepositories = append(refs.actionRepositories, actionRepository)
+				refs.actionRefs = append(refs.actionRefs, trimGitHubActionsScalar(uses))
 			}
 		}
 		// Step-level with: may still carry an explicit automation/config
@@ -192,6 +212,21 @@ func isGitHubActionsArtifactPath(entity EntityContent) bool {
 // and reason string the old scanner emitted so downstream consumers keyed on
 // those reasons keep working. entity.SourceCache is populated in production
 // (unlike entity.Metadata), so this is the real signal path.
+//
+// Every targetName below is a bare `owner/repo` slug with its @ref already
+// stripped (githubActionsReusableWorkflowRepoRef / githubActionsRepositoryRef
+// / githubActionsActionRepositoryRef do this locally, independent of
+// ghactionsref). This is intentional and unchanged by issue #5372: an edge
+// built here always points at a Repository node, and a Repository has no
+// version -- only the artifact/evidence a ref appears in does. The @ref
+// itself is not dropped, though: it is exposed as a normalized pin signal
+// (ref_value + ref_pinned) on the deployment-evidence artifact surface
+// instead (repository_deployment_evidence_read_model.go,
+// go/internal/reducer/cross_repo_evidence_artifacts.go), and, for the
+// specific case of an unpinned third-party action, on the repository
+// workflow-artifact rollup's unpinned_action_refs
+// (repository_workflow_artifacts.go). Version truth lives on those artifact
+// surfaces, never on this file's Repository-typed edge targets.
 //
 // It runs only for entities whose path is a GitHub Actions artifact
 // (isGitHubActionsArtifactPath); any other content entity returns nil so a
