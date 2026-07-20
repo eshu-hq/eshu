@@ -340,17 +340,11 @@ func assertDocumentationFindingsLegacyIndexDefinition(t *testing.T, definition s
 
 func assertDocumentationFindingsIndexDefinition(t *testing.T, definition string) {
 	t.Helper()
-	for _, want := range []string{
-		"fact_records_documentation_findings_read_idx",
-		"finding_type",
-		"observed_at DESC",
-		"fact_id DESC",
-		"fact_kind = 'documentation_finding'",
-		"is_tombstone = false",
-	} {
-		if !strings.Contains(definition, want) {
-			t.Fatalf("documentation findings index definition missing %q: %s", want, definition)
-		}
+	if !strings.Contains(definition, "fact_records_documentation_findings_read_idx") {
+		t.Fatalf("documentation findings index definition has the wrong name: %s", definition)
+	}
+	if err := validateDocumentationFindingReadIndexForTest(definition); err != nil {
+		t.Fatalf("documentation findings index definition: %v: %s", err, definition)
 	}
 	for _, forbidden := range documentationFindingACLIndexPredicatesForTest() {
 		if strings.Contains(definition, forbidden) {

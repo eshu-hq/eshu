@@ -186,21 +186,21 @@ ANALYZE fact_records;
 PREPARE scoped_search AS
 SELECT fact_id
 FROM fact_records
-WHERE is_tombstone = FALSE
-  AND fact_kind IN (
+WHERE fact_records.is_tombstone = FALSE
+  AND fact_records.fact_kind IN (
     'documentation_source', 'documentation_document', 'documentation_section',
     'documentation_link', 'documentation_entity_mention',
     'documentation_claim_candidate', 'semantic.documentation_observation'
   )
-  AND scope_id = 'scope:largest-search-proof'
+  AND fact_records.scope_id = 'scope:largest-search-proof'
   AND LOWER(
-    COALESCE(payload->>'display_name', '') || ' ' ||
-    COALESCE(payload->>'title', '') || ' ' ||
-    COALESCE(payload->>'heading_text', '') || ' ' ||
-    COALESCE(payload->>'content', '') || ' ' ||
-    COALESCE(payload->>'target_uri', '')
+    COALESCE(fact_records.payload->>'display_name', '') || ' ' ||
+    COALESCE(fact_records.payload->>'title', '') || ' ' ||
+    COALESCE(fact_records.payload->>'heading_text', '') || ' ' ||
+    COALESCE(fact_records.payload->>'content', '') || ' ' ||
+    COALESCE(fact_records.payload->>'target_uri', '')
   ) LIKE '%needle%'
-ORDER BY observed_at DESC, fact_id DESC
+ORDER BY fact_records.observed_at DESC, fact_records.fact_id DESC
 LIMIT 51 OFFSET 0;
 
 PREPARE write_probe(TEXT) AS
@@ -220,7 +220,6 @@ SELECT $1 || n, 'scope:largest-search-proof', 'generation:search-proof',
        )
 FROM generate_series(1, 10000) AS n
 ON CONFLICT (fact_id) DO UPDATE SET
-  generation_id = EXCLUDED.generation_id,
   fact_kind = EXCLUDED.fact_kind,
   stable_fact_key = EXCLUDED.stable_fact_key,
   schema_version = EXCLUDED.schema_version,
