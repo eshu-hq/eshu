@@ -3,19 +3,19 @@
 
 package dart
 
-// Differential-oracle equivalence guard for the #5332 traversal-mechanism
-// recovery (single reused tree_sitter.TreeCursor instead of a per-node
-// node.Walk()+NamedChildren() cursor). oracleWalkDartCallSites is a frozen
-// copy of the pre-recovery recursive NamedChildren-based walk, kept
-// permanently as a test-only equivalence oracle rather than a one-shot
-// golden fixture: any future change to walkDartCallSites's traversal
-// mechanism (not its call-site semantics) is automatically re-proven
-// byte-identical against this oracle by TestWalkDartCallSitesMatchesOracle,
-// with no golden file to keep in sync.
+// Differential-oracle equivalence guard for Dart call-site extraction.
+// oracleWalkDartCallSites is a frozen full-tree recursive NamedChildren-based
+// walk, kept permanently as a test-only equivalence oracle rather than a
+// one-shot golden fixture. It originally guarded the #5332 traversal-mechanism
+// recovery; #5350 folded call-site detection into the single
+// dartSyntaxIndex.collect traversal, and this same frozen oracle now proves the
+// merged pass's index.calls stays byte-identical to the independent full-tree
+// walk (TestDartCallSitesMatchOracle). The fold changed traversal ownership,
+// not call-site semantics, so the oracle is unchanged.
 //
 // This file is test-only (frozen for equivalence, not for feature growth):
 // if a real call-site semantics change is needed, update both
-// walkDartCallSites in calls.go AND this oracle together so the two
+// dartCallChain.observe in calls.go AND this oracle together so the two
 // traversal mechanisms keep agreeing on the same call-site semantics.
 
 import (
@@ -37,12 +37,12 @@ func oracleCollectDartCallSites(root *tree_sitter.Node, source []byte) []dartCal
 	return sites
 }
 
-// oracleWalkDartCallSites is byte-for-byte the pre-recovery walkDartCallSites
-// body (per-node node.Walk() + NamedChildren()), frozen here as the
-// equivalence oracle. Keep this in sync with calls.go's call-site semantics
-// (state machine, node-kind dispatch, emission order) even though its
-// traversal mechanism must NOT be "recovered" to cursor reuse — the whole
-// point is that it stays the slow-but-obviously-correct baseline.
+// oracleWalkDartCallSites is a standalone full-tree walk (per-node node.Walk()
+// + NamedChildren()) frozen here as the equivalence oracle. Its node-kind
+// dispatch mirrors calls.go's dartCallChain.observe (state machine, emission
+// order); keep the two in sync on call-site SEMANTICS even though this oracle
+// deliberately keeps its own independent traversal — the whole point is that a
+// separately-written full-tree walk agrees with the merged collect.
 func oracleWalkDartCallSites(node *tree_sitter.Node, source []byte, sites *[]dartCallSite) {
 	if node == nil {
 		return
@@ -140,8 +140,21 @@ func oracleWalkDartCallSites(node *tree_sitter.Node, source []byte, sites *[]dar
 	}
 }
 
+// dartMergedCallSites runs the merged single-pass dartSyntaxIndex.collect and
+// returns its extracted call sites (index.calls). This is the production call
+// side after #5350 folded call-site detection into collect, so the oracle now
+// guards the merged pass's ownership of call extraction.
+func dartMergedCallSites(root *tree_sitter.Node, source []byte) []dartCallSite {
+	lines := strings.Split(string(source), "\n")
+	index := &dartSyntaxIndex{}
+	cursor := root.Walk()
+	defer cursor.Close()
+	index.collect(cursor, source, lines, dartTypeSpan{}, false)
+	return index.calls
+}
+
 // dartCallSitesForFile parses path with the given extraction function
-// (collectDartCallSites or oracleCollectDartCallSites) and returns the
+// (dartMergedCallSites or oracleCollectDartCallSites) and returns the
 // resulting call sites.
 func dartCallSitesForFile(t *testing.T, path string, extract func(*tree_sitter.Node, []byte) []dartCallSite) []dartCallSite {
 	t.Helper()
@@ -167,13 +180,17 @@ func dartCallSitesForFile(t *testing.T, path string, extract func(*tree_sitter.N
 	return extract(tree.RootNode(), source)
 }
 
-// TestWalkDartCallSitesMatchesOracle proves 0/0 equivalence: the cursor-reuse
-// walkDartCallSites (calls.go) must produce byte-identical dartCallSite rows
-// (same name, full_name, and line, same order) to the frozen pre-recovery
-// oracleWalkDartCallSites, across the dart_comprehensive fixture corpus, the
-// calls_ast_test.go regression corpus, and the dense synthetic benchmark
-// fixture used to measure the recovery.
-func TestWalkDartCallSitesMatchesOracle(t *testing.T) {
+// TestDartCallSitesMatchOracle proves 0/0 equivalence: the merged single-pass
+// dartSyntaxIndex.collect (syntax_index.go, #5350) must produce byte-identical
+// dartCallSite rows (same name, full_name, and line, same order) to the frozen
+// full-tree oracleWalkDartCallSites, across the dart_comprehensive fixture
+// corpus (including parameter_defaults.dart, whose call sites live inside the
+// signature subtrees the pre-fold collect pruned), the calls_ast_test.go
+// regression corpus, and the dense synthetic benchmark fixture. The oracle is
+// a frozen full-tree walk: the fold changed traversal ownership, not call-site
+// semantics, so the oracle output is unchanged and this test is a real gap
+// closure proof, not a vacuous pass.
+func TestDartCallSitesMatchOracle(t *testing.T) {
 	t.Parallel()
 
 	repoRoot := dartRepoRootForTest(t)
@@ -242,11 +259,11 @@ void render(Foo f) {
 		t.Run(filepath.Base(path), func(t *testing.T) {
 			t.Parallel()
 
-			got := dartCallSitesForFile(t, path, collectDartCallSites)
+			got := dartCallSitesForFile(t, path, dartMergedCallSites)
 			want := dartCallSitesForFile(t, path, oracleCollectDartCallSites)
 
 			if !reflect.DeepEqual(got, want) {
-				t.Fatalf("collectDartCallSites diverges from oracle for %q:\n  got:  %#v\n  want: %#v", path, got, want)
+				t.Fatalf("merged collect diverges from oracle for %q:\n  got:  %#v\n  want: %#v", path, got, want)
 			}
 		})
 	}

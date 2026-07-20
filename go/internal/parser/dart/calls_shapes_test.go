@@ -11,11 +11,12 @@ import (
 
 // assertBucketRows asserts that payload[bucket] has exactly want rows,
 // returning the slice for further per-row assertions. calls_oracle_test.go
-// proves collectDartCallSites's traversal mechanism matches a frozen oracle,
-// but that oracle shares the same node-kind dispatch logic, so a semantic bug
-// present in both would still pass. These tests instead pin the concrete
+// proves the merged dartSyntaxIndex.collect traversal produces call sites
+// matching a frozen full-tree oracle, but that oracle shares the same node-kind
+// dispatch logic (dartCallChain.observe), so a semantic bug present in both
+// would still pass. These tests instead pin the concrete
 // name/full_name/line_number/row-count that dart.md and calls.go's comments
-// claim walkDartCallSites supports, so a future regression in the dispatch
+// claim dartCallChain.observe supports, so a future regression in the dispatch
 // itself (not just the traversal mechanism) is caught.
 func assertBucketRows(t *testing.T, payload map[string]any, bucket string, want int) []map[string]any {
 	t.Helper()
@@ -54,7 +55,7 @@ func assertCallRow(t *testing.T, items []map[string]any, name string, fullName s
 // (`Point.origin()`): the call site emits one row keyed off the constructor
 // name, and the constructor's own declaration (`Point.origin() : x = 0;`,
 // handled by a disjoint `constructor_signature` grammar node, never an
-// `arguments`/`argument_part` node — see collectDartCallSites's doc comment)
+// `arguments`/`argument_part` node — see dartCallChain's doc comment)
 // produces no row.
 func TestParseNamedConstructorCall(t *testing.T) {
 	t.Parallel()
@@ -99,7 +100,7 @@ void useIt() {
 }
 
 // TestParseChainedCallEmitsEachLinkAndInnerClosureCall pins the chained-call
-// shape (`fetch().then((v) => process(v))`): actual walkDartCallSites
+// shape (`fetch().then((v) => process(v))`): actual dartCallChain.observe
 // behavior emits THREE separate rows, one per real invocation — `fetch()`
 // itself (the qualifier call before the chain continues), `.then(...)` (the
 // chained call; the receiver qualifier is lost at the `fetch()` call

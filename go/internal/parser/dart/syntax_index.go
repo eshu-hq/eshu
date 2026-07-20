@@ -62,70 +62,127 @@ func dartSourceAndSyntax(path string, parser *tree_sitter.Parser) ([]byte, dartS
 
 	index := dartSyntaxIndex{}
 	lines := strings.Split(string(source), "\n")
-	index.collect(tree.RootNode(), source, lines, dartTypeSpan{})
-	index.calls = collectDartCallSites(tree.RootNode(), source)
+	// One TreeCursor is created here and reused for the entire traversal
+	// (GotoFirstChild/GotoNextSibling/GotoParent), so collect allocates a single
+	// cgo cursor total instead of one node.Walk() plus a NamedChildren []Node
+	// materialization at every node (#5332 mechanism, applied to the merged
+	// #5350 pass).
+	cursor := tree.RootNode().Walk()
+	defer cursor.Close()
+	index.collect(cursor, source, lines, dartTypeSpan{}, false)
 	return source, index, nil
 }
 
-func (i *dartSyntaxIndex) collect(node *tree_sitter.Node, source []byte, lines []string, scope dartTypeSpan) {
+// collect walks the Dart syntax tree once, populating both the declaration
+// buckets (imports, types, functions, variables) and i.calls. Call-site
+// detection is folded into this single traversal (#5350) rather than run as a
+// separate second full tree walk: for each named child, a dartCallChain
+// observes the child (emitting a call site when a chain closes) BEFORE collect
+// recurses into it, so i.calls order matches a pre-order full-tree walk and
+// stays byte-identical to the frozen oracle (TestDartCallSitesMatchOracle).
+//
+// callsOnly suppresses the declaration switch for a subtree while still running
+// call detection. It is set true for the CHILDREN of a signature node
+// (method/constructor/function) so their default-value and
+// parameter-annotation call sites are still extracted while the declaration
+// switch stays inert in that subtree. This faithfully preserves collect's
+// original signature early-return pruning (the pre-fold code did not descend
+// into signatures at all). It is correctness-by-construction defense, not a
+// guard against a live failure: no valid-Dart grammar shape places a
+// declaration-switch node inside a signature's formal_parameter_list — param
+// names are bare identifiers under formal_parameter, default values are sibling
+// expressions, and function-typed params nest another formal_parameter_list
+// rather than a function_signature — so a plain fall-through (callsOnly removed)
+// happens to emit nothing spurious on today's grammar. Keeping callsOnly guards
+// against future grammar drift and keeps the declaration/call split explicit.
+// The signature node's own declaration is extracted before the flag is set, so
+// nothing is dropped; function bodies are siblings of the signature (reached
+// from the parent frame with callsOnly unchanged), so local-function extraction
+// inside bodies is untouched.
+//
+// cursor is shared across the whole traversal and MUST be positioned at the
+// node being collected on entry; collect leaves it at that same node on return
+// (GotoFirstChild/GotoNextSibling to visit children, GotoParent to restore).
+// Anonymous token children (punctuation, keywords) are skipped via IsNamed() so
+// the visitation set and emission order stay identical to a NamedChildren walk.
+func (i *dartSyntaxIndex) collect(cursor *tree_sitter.TreeCursor, source []byte, lines []string, scope dartTypeSpan, callsOnly bool) {
+	node := cursor.Node()
 	if node == nil {
 		return
 	}
 
-	nextScope := scope
-	switch node.Kind() {
-	case "library_import":
-		if imported := dartQuotedURI(shared.NodeText(node, source)); imported != "" {
-			i.imports = append(i.imports, dartNamedSpan{
-				name:       imported,
-				importType: "import",
-				line:       shared.NodeLine(node),
-			})
-		}
-	case "library_export":
-		if imported := dartQuotedURI(shared.NodeText(node, source)); imported != "" {
-			i.imports = append(i.imports, dartNamedSpan{
-				name:       imported,
-				importType: "export",
-				line:       shared.NodeLine(node),
-			})
-		}
-	case "class_definition", "mixin_declaration", "enum_declaration", "extension_declaration", "extension_type_declaration":
-		if typ := dartTypeFromNode(node, source); typ.name != "" {
-			nextScope = typ
-			i.types = append(i.types, typ)
-		}
-	case "method_signature":
-		if fn := dartFunctionFromNode(node, source, lines, scope); fn.name != "" {
-			i.functions = append(i.functions, fn)
-		}
-		return
-	case "constructor_signature", "constant_constructor_signature", "factory_constructor_signature", "redirecting_factory_constructor_signature":
-		if dartParentKind(node) != "method_signature" {
+	nextScope, nextCallsOnly := scope, callsOnly
+	if !callsOnly {
+		switch node.Kind() {
+		case "library_import":
+			if imported := dartQuotedURI(shared.NodeText(node, source)); imported != "" {
+				i.imports = append(i.imports, dartNamedSpan{
+					name:       imported,
+					importType: "import",
+					line:       shared.NodeLine(node),
+				})
+			}
+		case "library_export":
+			if imported := dartQuotedURI(shared.NodeText(node, source)); imported != "" {
+				i.imports = append(i.imports, dartNamedSpan{
+					name:       imported,
+					importType: "export",
+					line:       shared.NodeLine(node),
+				})
+			}
+		case "class_definition", "mixin_declaration", "enum_declaration", "extension_declaration", "extension_type_declaration":
+			if typ := dartTypeFromNode(node, source); typ.name != "" {
+				nextScope = typ
+				i.types = append(i.types, typ)
+			}
+		case "method_signature":
 			if fn := dartFunctionFromNode(node, source, lines, scope); fn.name != "" {
 				i.functions = append(i.functions, fn)
 			}
-			return
-		}
-	case "function_signature":
-		if dartParentKind(node) != "method_signature" {
-			if fn := dartFunctionFromNode(node, source, lines, scope); fn.name != "" {
-				i.functions = append(i.functions, fn)
+			// Calls-only descent into the signature subtree: the pre-#5350
+			// two-pass code returned here, dropping default-value and
+			// parameter-annotation call sites; those are now recovered without
+			// re-running the declaration switch on parameter nodes.
+			nextCallsOnly = true
+		case "constructor_signature", "constant_constructor_signature", "factory_constructor_signature", "redirecting_factory_constructor_signature":
+			// The dartParentKind guard is belt-and-suspenders: a signature
+			// nested in a method_signature is already reached in calls-only
+			// mode (its parent set the flag), so this switch is skipped for it.
+			if dartParentKind(node) != "method_signature" {
+				if fn := dartFunctionFromNode(node, source, lines, scope); fn.name != "" {
+					i.functions = append(i.functions, fn)
+				}
+				nextCallsOnly = true
 			}
-			return
-		}
-	case "initialized_identifier", "initialized_variable_definition", "static_final_declaration":
-		if name := dartVariableName(node, source); name != "" {
-			i.variables = append(i.variables, dartNamedSpan{name: name, line: shared.NodeLine(node)})
+		case "function_signature":
+			if dartParentKind(node) != "method_signature" {
+				if fn := dartFunctionFromNode(node, source, lines, scope); fn.name != "" {
+					i.functions = append(i.functions, fn)
+				}
+				nextCallsOnly = true
+			}
+		case "initialized_identifier", "initialized_variable_definition", "static_final_declaration":
+			if name := dartVariableName(node, source); name != "" {
+				i.variables = append(i.variables, dartNamedSpan{name: name, line: shared.NodeLine(node)})
+			}
 		}
 	}
 
-	cursor := node.Walk()
-	defer cursor.Close()
-	for _, child := range node.NamedChildren(cursor) {
-		child := child
-		i.collect(&child, source, lines, nextScope)
+	chain := dartCallChain{allowDotIdentifierContinuation: dartIsObjectCreationNode(node)}
+	if !cursor.GotoFirstChild() {
+		return
 	}
+	for {
+		child := cursor.Node()
+		if child.IsNamed() {
+			chain.observe(child, source, &i.calls)
+			i.collect(cursor, source, lines, nextScope, nextCallsOnly)
+		}
+		if !cursor.GotoNextSibling() {
+			break
+		}
+	}
+	cursor.GotoParent()
 }
 
 func dartTypeFromNode(node *tree_sitter.Node, source []byte) dartTypeSpan {
