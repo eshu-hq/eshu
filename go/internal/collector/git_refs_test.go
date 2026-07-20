@@ -281,7 +281,7 @@ func TestRemoteGitRefsIncludesTags(t *testing.T) {
 
 	// 2. Create a working repository with origin pointing to the bare repo.
 	workPath := t.TempDir()
-	runGit(t, workPath, "init")
+	runGit(t, workPath, "init", "-b", "main")
 	runGit(t, workPath, "config", "user.email", "test@example.com")
 	runGit(t, workPath, "config", "user.name", "Test")
 	runGit(t, workPath, "remote", "add", "origin", barePath)
