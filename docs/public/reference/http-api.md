@@ -80,6 +80,26 @@ active profile cannot answer correctly.
 - Repository-oriented routes accept a public repository selector and normalize
   it to the canonical `repo_id` server-side.
 
+## Authentication And Headerless Reads
+
+A request presents its credential as `Authorization: Bearer <token>` (shared
+`ESHU_API_KEY`, a scoped-token-file token, or an IdP-issued OIDC bearer token)
+or, for the dashboard, a browser-session cookie. Public routes (`/health`,
+`/api/v0/health`, `/api/v0/openapi.json`, the pre-auth setup/login routes, and
+the rest of `publicHTTPPaths`) are always served without a credential.
+
+Headerless requests to non-public routes are served open only when **no**
+explicit credential source is configured. Configuring any one of `ESHU_API_KEY`,
+`ESHU_SCOPED_TOKENS_FILE`, or `ESHU_AUTH_RESOURCE_URI` enables enforcement: a
+non-public request with no `Authorization` header and no valid session cookie is
+then rejected with `401`. With none of the three set the read surface is open
+(the deliberate local/demo dev-mode; see
+[Docker Compose](../run-locally/docker-compose.md)). Seeded bootstrap identities
+and console-minted tokens are not enforcement signals on their own — close the
+open read surface with one of those three environment variables. Both `cmd/api`
+and `cmd/mcp-server` log the resolved posture (`auth.enforcement.configured` or
+`auth.enforcement.open`) once at startup.
+
 ## Dashboard Browser Sessions
 
 Dashboard sessions are separate from explicit bearer tokens for CLI, MCP, and

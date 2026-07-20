@@ -459,13 +459,20 @@ routes with the credential middleware instead.
 (`ESHU_SCOPED_TOKENS_FILE`), and IdP bearer (`ESHU_AUTH_RESOURCE_URI`).
 `authenticatedTransportHandler` (`transport_auth.go:94`) wraps both transport
 routes. When a shared token (`ESHU_API_KEY`) is set, a credential-less request
-gets a bare 401 with no catalog or server-info disclosure. When the shared
-token is unset and only a scoped-token file or OIDC resolver is configured, the
-middleware's dev-mode bypass still passes a headerless request through
-(`internal/query/auth.go:261-270`); closing that per-request gap for
-scoped-only/OIDC-only deployments is the companion auth-headerless-bypass
-hardening (under #5161). When `transportAuth` is nil the wrap is a pass-through,
-so the stdio path and any unauthenticated deployment are unchanged.
+gets a bare 401 with no catalog or server-info disclosure. A scoped-token-file
+(`ESHU_SCOPED_TOKENS_FILE`) or OIDC-bearer (`ESHU_AUTH_RESOURCE_URI`)
+deployment with the shared token unset is treated the same: `wireAPI`
+(`cmd/mcp-server/wiring.go`) builds `transportAuth` with the SAME
+enforcement-aware middleware and the SAME `authSourceConfigured` predicate as
+the `/api/v0/*` handler, so the dev-mode-open branch of
+`authMiddlewareWithRoutePolicy` (`internal/query/auth.go:210`, the
+`if !authEnforcementConfigured` guard) is closed and a headerless request is
+denied 401 rather than served open. Earlier this per-request gap was open for
+scoped-only/OIDC-only deployments (only startup was gated); the
+auth-headerless-bypass hardening (under #5161) closed it, and this transport
+path now inherits that closure. When `transportAuth` is nil the wrap is a
+pass-through, so the stdio path and any unauthenticated (demo/dev) deployment
+are unchanged.
 
 SSE sessions are bound to the credential that opened them:
 `authPrincipalKey` (`transport_auth.go:182`) derives a stable per-credential

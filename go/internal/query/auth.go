@@ -154,83 +154,13 @@ func ContextWithAuthContext(ctx context.Context, auth AuthContext) context.Conte
 	return context.WithValue(ctx, authContextKey{}, auth)
 }
 
-// AuthMiddleware wraps an HTTP handler with bearer token authentication.
-//
-// If token is empty, authentication is disabled (dev mode).
-// If the request path is in publicHTTPPaths, authentication is skipped.
-// Otherwise, the Authorization header must contain "Bearer <token>" with
-// a token that matches the configured value using constant-time comparison.
-//
-// Returns 401 Unauthorized with a JSON error body if authentication fails.
-func AuthMiddleware(token string, next http.Handler) http.Handler {
-	return authMiddleware(token, nil, nil, next, nil)
-}
-
-// AuthMiddlewareWithGovernanceAudit wraps an HTTP handler with bearer token
-// authentication and records denied read-authorization events when a private
-// audit sink is available.
-func AuthMiddlewareWithGovernanceAudit(
-	token string,
-	next http.Handler,
-	audit GovernanceAuditAppender,
-) http.Handler {
-	return authMiddleware(token, nil, nil, next, audit)
-}
-
-// AuthMiddlewareWithScopedTokens wraps an HTTP handler with shared-token
-// compatibility plus optional scoped-token resolution.
-func AuthMiddlewareWithScopedTokens(
-	token string,
-	resolver ScopedTokenResolver,
-	next http.Handler,
-) http.Handler {
-	return authMiddleware(token, resolver, nil, next, nil)
-}
-
-// AuthMiddlewareWithBrowserSessionsAndScopedTokens wraps an HTTP handler with
-// shared-token, scoped-token, and server-managed browser-session authentication.
-func AuthMiddlewareWithBrowserSessionsAndScopedTokens(
-	token string,
-	resolver ScopedTokenResolver,
-	sessionResolver BrowserSessionResolver,
-	next http.Handler,
-) http.Handler {
-	return authMiddleware(token, resolver, sessionResolver, next, nil)
-}
-
-// AuthMiddlewareWithBrowserSessionsScopedTokensAndGovernanceAudit wraps an HTTP
-// handler with shared-token compatibility, scoped-token resolution, browser
-// session-cookie resolution, and denied read-authorization audit events.
-func AuthMiddlewareWithBrowserSessionsScopedTokensAndGovernanceAudit(
-	token string,
-	resolver ScopedTokenResolver,
-	sessionResolver BrowserSessionResolver,
-	next http.Handler,
-	audit GovernanceAuditAppender,
-) http.Handler {
-	return authMiddleware(token, resolver, sessionResolver, next, audit)
-}
-
-// AuthMiddlewareWithScopedTokensAndGovernanceAudit wraps an HTTP handler with
-// shared-token compatibility, optional scoped-token resolution, and denied
-// read-authorization audit events. A nil resolver disables scoped-token
-// resolution, leaving shared-token (or dev-mode when token is empty) behavior
-// unchanged.
-func AuthMiddlewareWithScopedTokensAndGovernanceAudit(
-	token string,
-	resolver ScopedTokenResolver,
-	next http.Handler,
-	audit GovernanceAuditAppender,
-) http.Handler {
-	return authMiddleware(token, resolver, nil, next, audit)
-}
-
 func authMiddleware(
 	token string,
 	resolver ScopedTokenResolver,
 	sessionResolver BrowserSessionResolver,
 	next http.Handler,
 	audit GovernanceAuditAppender,
+	authEnforcementConfigured bool,
 ) http.Handler {
 	return authMiddlewareWithRoutePolicy(
 		token,
@@ -239,6 +169,7 @@ func authMiddleware(
 		next,
 		audit,
 		BrowserSessionRoutePolicy{},
+		authEnforcementConfigured,
 	)
 }
 
@@ -249,6 +180,7 @@ func authMiddlewareWithRoutePolicy(
 	next http.Handler,
 	audit GovernanceAuditAppender,
 	policy BrowserSessionRoutePolicy,
+	authEnforcementConfigured bool,
 ) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Public paths: skip auth.
@@ -264,10 +196,24 @@ func authMiddlewareWithRoutePolicy(
 					return
 				}
 			}
-			if token == "" {
+			// Dev-mode open reads apply only when NO explicit auth source is
+			// configured. authEnforcementConfigured is the wiring-time
+			// predicate (shared key OR scoped-token file OR OIDC bearer
+			// audience); it deliberately EXCLUDES the always-wired Postgres
+			// identity resolver and the browser-session resolver, both
+			// unconditional in production. Counting either would make this
+			// constant-true and 401 the documented demo-open reads. The
+			// cookie path above self-enforces before this branch, so a
+			// cookieless headerless request in the open posture stays open.
+			// See the *AndEnforcement constructors and cmd/api +
+			// cmd/mcp-server wiring.
+			if !authEnforcementConfigured {
 				next.ServeHTTP(w, r)
 				return
 			}
+			recordReadAuthorizationDenied(r, audit)
+			unauthorizedResponse(w, r)
+			return
 		}
 
 		scheme, credentials, found := strings.Cut(authorization, " ")
