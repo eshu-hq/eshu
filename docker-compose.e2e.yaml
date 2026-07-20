@@ -233,6 +233,90 @@ services:
       retries: 20
       start_period: 5s
 
+  # HTTP MCP transport (F-9, issue #5170). Additive to this stack: the #4971
+  # browser-auth suite never starts this service (its runner only starts what
+  # it lists — `docker compose ... up` with no service args starts every
+  # service, but scripts/run-auth-e2e.sh's readiness probe and browser gate
+  # never depend on it, so adding it here does not change that suite's
+  # behavior or timing).
+  #
+  # No shared ESHU_API_KEY, and ESHU_AUTO_GENERATE_API_KEY disabled: this
+  # suite's whole point is proving the identity story (personal tokens, OIDC
+  # bearer, GitHub-mapped grants) end to end, so a static shared key must not
+  # be a working credential path here.
+  #
+  # ESHU_AUTH_RESOURCE_URI is the host-reachable loopback address (not the
+  # in-network "mcp-server" hostname): the RFC 9728 protected-resource
+  # metadata document echoes this value verbatim as "resource", and both the
+  # scripted OAuth client (apps/console/e2e/authMcpE2EOauthClient.ts, running
+  # on the host) and a real MCP client resolve it directly with no
+  # --host-resolver-rules mapping involved, unlike the mock IdP's in-network
+  # issuer URL below.
+  mcp-server:
+    extends:
+      file: docker-compose.yaml
+      service: mcp-server
+    build:
+      args:
+        SOURCE_DATE_EPOCH: ${SOURCE_DATE_EPOCH:-0}
+    environment:
+      <<: *e2e_runtime_env
+      ESHU_MCP_TRANSPORT: http
+      ESHU_API_KEY: ""
+      ESHU_AUTO_GENERATE_API_KEY: "false"
+      ESHU_AUTH_RESOURCE_URI: http://127.0.0.1:${ESHU_E2E_MCP_PORT:-29081}
+    ports: !override
+      - "${ESHU_E2E_BIND_ADDR:-127.0.0.1}:${ESHU_E2E_MCP_PORT:-29081}:8080"
+    volumes:
+      - type: volume
+        source: eshu_e2e_data
+        target: /data
+        volume:
+          nocopy: true
+      - ${ESHU_ESHUIGNORE_PATH:-/dev/null}:/tmp/eshuignore-source:ro
+
+  # Synthetic GitHub OAuth2/REST counterparty (go/cmd/mock-github, F-9 issue
+  # #5170). Serves the exact endpoint set go/internal/githublogin/connector.go
+  # calls, over the compose network at whatever base_url/api_base_url an
+  # admin-created provider config points at — this stack does not create that
+  # provider config itself; the E2E runner's shape-C module does, via the
+  # admin drawer UI, exactly like the mock OIDC IdP's provider config.
+  #
+  # Built from the dedicated `mock-github` Dockerfile stage, never the
+  # product image, mirroring mock-oidc-idp: a no-auth, any-caller identity
+  # stand-in must not ship inside the released Eshu image. The stage's own
+  # CMD runs the binary, so no `command:` override is needed here.
+  #
+  # Reachability mirrors mock-oidc-idp exactly (see that service's comment
+  # above for the full host.docker.internal / --host-resolver-rules
+  # reasoning): the eshu/mcp-server containers reach it at the in-network
+  # "mock-github" hostname (set as base_url/api_base_url on the provider
+  # config), and the host browser reaches it via a Chromium
+  # --host-resolver-rules="MAP mock-github 127.0.0.1:<this service's
+  # host-published port>" flag, extending the same table
+  # apps/console/e2e/authE2EOidcFlow.ts's chromiumLaunchArgs already builds.
+  mock-github:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: mock-github
+      args:
+        SOURCE_DATE_EPOCH: ${SOURCE_DATE_EPOCH:-0}
+    ports:
+      - "${ESHU_E2E_BIND_ADDR:-127.0.0.1}:${ESHU_E2E_MOCK_GITHUB_PORT:-29092}:8080"
+    environment:
+      MOCK_GITHUB_LOGIN: ${ESHU_E2E_MOCK_GITHUB_LOGIN:-e2e-github-user}
+      MOCK_GITHUB_USER_ID: ${ESHU_E2E_MOCK_GITHUB_USER_ID:-1001}
+      MOCK_GITHUB_EMAIL: ${ESHU_E2E_MOCK_GITHUB_EMAIL:-e2e-github-user@example.test}
+      MOCK_GITHUB_ORG: ${ESHU_E2E_MOCK_GITHUB_ORG:-eshu-e2e-org}
+      MOCK_GITHUB_TEAMS: ${ESHU_E2E_MOCK_GITHUB_TEAMS:-eshu-e2e-org/platform-team}
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 5s
+
 volumes:
   nornicdb_data:
   postgres_data:
