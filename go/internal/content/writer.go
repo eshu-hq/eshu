@@ -234,10 +234,12 @@ var dependencyIdentityPackageManagers = map[string]struct{}{
 //     own normalization);
 //  2. metadata["config_kind"] == "dependency";
 //  3. metadata["package_manager"] is "npm" or "composer";
-//  4. metadata["lockfile"] is not true. Checked defensively as either a native
-//     bool (collector snapshot site) or a JSON-decoded bool/"true" string
-//     (projector fact-replay site) — anything else (absent, false, other
-//     string) passes this condition;
+//  4. metadata["lockfile"] is absent or explicitly false. This is fail-safe:
+//     only an absent key or a recognized false value (native bool false, or
+//     the strings "false"/"" after trimming) passes; ANY other present value —
+//     bool true, string "true", but also an unrecognized truthy scalar (JSON
+//     number 1, "1", "yes", nil, an unexpected type) — fails this condition and
+//     falls back to the line-keyed id. See metadataLockfileAbsentOrFalse;
 //  5. metadata["section"], trimmed, is a non-empty string.
 //
 // This narrow gate exists because metadata["config_kind"] == "dependency"
@@ -289,7 +291,7 @@ func dependencyIdentitySection(entityType string, metadata map[string]any) (stri
 	if _, ok := dependencyIdentityPackageManagers[metadataStringValue(metadata, "package_manager")]; !ok {
 		return "", false
 	}
-	if metadataIsTrue(metadata, "lockfile") {
+	if !metadataLockfileAbsentOrFalse(metadata) {
 		return "", false
 	}
 	section := strings.TrimSpace(metadataStringValue(metadata, "section"))
@@ -310,16 +312,37 @@ func metadataStringValue(metadata map[string]any, key string) string {
 	return text
 }
 
-// metadataIsTrue reports whether metadata[key] represents boolean true,
-// accepting both a native bool (set by the collector snapshot mint site) and
-// a JSON-decoded bool or "true"/"TRUE" string (set by the projector
-// fact-replay fallback, which may see either shape depending on transport).
-func metadataIsTrue(metadata map[string]any, key string) bool {
-	switch typed := metadata[key].(type) {
+// metadataLockfileAbsentOrFalse reports whether a row's "lockfile" metadata
+// permits section-keyed dependency identity. It is deliberately fail-safe:
+// section-keying is allowed ONLY when the key is absent, or its value is a
+// recognized false (native bool false, or the strings "false"/"" after
+// trimming, case-insensitive). ANY other present value — bool true, string
+// "true", but also an unrecognized truthy scalar a future producer might emit
+// (JSON number 1, "1", "yes", nil, an unexpected type) — returns false so the
+// caller falls back to the legacy line-keyed CanonicalEntityID.
+//
+// This is the load-bearing safety check of the whole dependency-identity gate:
+// the section-keyed form collapses (path, section, name) to one id, which is
+// correct only for manifests that guarantee per-section name uniqueness.
+// Lockfiles do not — an npm lockfile legitimately repeats a package name
+// across nested node_modules at different versions — so admitting a lockfile
+// row would merge react@17 and react@18 into one identity, a hard accuracy
+// violation. Falling back to the line-keyed id is the safe direction: it never
+// merges distinct entities, it only risks line-churn (which is exactly the
+// churn this feature removes for real manifest rows). No current producer
+// emits a non-bool/non-"true"/"false" lockfile value; this guard defends the
+// discriminator against one that might.
+func metadataLockfileAbsentOrFalse(metadata map[string]any) bool {
+	value, present := metadata["lockfile"]
+	if !present {
+		return true
+	}
+	switch typed := value.(type) {
 	case bool:
-		return typed
+		return !typed
 	case string:
-		return strings.EqualFold(strings.TrimSpace(typed), "true")
+		trimmed := strings.TrimSpace(typed)
+		return trimmed == "" || strings.EqualFold(trimmed, "false")
 	default:
 		return false
 	}
