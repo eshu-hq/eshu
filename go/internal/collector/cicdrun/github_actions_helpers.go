@@ -54,15 +54,31 @@ func repositoryCanonicalURL(repository githubRepository, ctx FixtureContext) str
 	return "https://" + host + "/" + fullName
 }
 
-// canonicalGitHubHost strips the api. subdomain prefix from github.com and
-// GitHub Enterprise Server API hosts so the canonical repository_id matches
-// what the git collector computes from the repo's SSH/HTTPS remote URL.
-// For example:
-//   - api.github.com → github.com
-//   - api.github.example.com → github.example.com
-//   - ghes.example.com → ghes.example.com (no api. prefix, unchanged)
+// canonicalGitHubHost maps the api. subdomain prefix to the canonical host
+// for github.com and GitHub Enterprise Cloud (ghe.com) data-residency
+// tenants only. All other hosts — including legitimate non-GitHub api.*
+// enterprise hosts — pass through unchanged.
+//
+// The mapping is narrow by design: an unconditional prefix strip would
+// silently break the cross-collector join for any enterprise whose git
+// host legitimately starts with "api.". GHES self-hosted instances serve
+// the API at /api/v3 on the SAME host, so they never carry an api.
+// subdomain and are already unchanged here.
+//
+// Host comparison is case-insensitive (hosts are case-insensitive per
+// RFC 3986 §6.2.2.1).
 func canonicalGitHubHost(host string) string {
-	return strings.TrimPrefix(host, "api.")
+	// Strip port so api.github.com:8443 maps to github.com.
+	hostname, _, _ := strings.Cut(host, ":")
+	lower := strings.ToLower(hostname)
+	switch {
+	case lower == "api.github.com":
+		return "github.com"
+	case strings.HasSuffix(lower, ".ghe.com") && strings.HasPrefix(lower, "api."):
+		return hostname[len("api."):]
+	default:
+		return hostname
+	}
 }
 
 // providerRepositoryID returns the raw provider-level repository locator

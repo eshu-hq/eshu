@@ -263,6 +263,42 @@ func TestGitHubActionsFixtureCanonicalIDHandlesGHESAPIPath(t *testing.T) {
 	assertPayload(t, run.Payload, "repository_id", expectedID)
 }
 
+// TestCanonicalGitHubHostMapsOnlyKnownAPIPatterns proves the host-mapping
+// contract: api.github.com → github.com and api.<tenant>.ghe.com →
+// <tenant>.ghe.com (GitHub Enterprise Cloud data residency). All other hosts
+// — including legitimate non-GitHub api.* hosts — must pass through unchanged,
+// or the git collector and CI collector will hash different strings and
+// silently miss the join.
+func TestCanonicalGitHubHostMapsOnlyKnownAPIPatterns(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		input  string
+		want   string
+		reason string
+	}{
+		{"api.github.com", "github.com", "public github.com"},
+		{"API.GITHUB.COM", "github.com", "case-insensitive public github.com"},
+		{"Api.GitHub.Com", "github.com", "mixed-case github.com"},
+		{"api.acme.ghe.com", "acme.ghe.com", "GHEC data residency tenant"},
+		{"api.corp.example.com", "api.corp.example.com", "non-GitHub host — must not strip api prefix"},
+		{"ghes.example.com", "ghes.example.com", "GHES self-hosted — no api prefix to strip"},
+		{"github.com", "github.com", "already canonical — no change"},
+		{"api.github.com:8443", "github.com", "port-bearing — strip api, drop port"},
+		{"acme.ghe.com", "acme.ghe.com", "GHEC without api prefix — unchanged"},
+		{"", "", "empty host — unchanged"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.input, func(t *testing.T) {
+			got := canonicalGitHubHost(tc.input)
+			if got != tc.want {
+				t.Fatalf("canonicalGitHubHost(%q) = %q, want %q (%s)", tc.input, got, tc.want, tc.reason)
+			}
+		})
+	}
+}
+
 // BenchmarkRepositoryID measures the canonical repositoryID path used at
 // CI fact emission. One NormalizeRemoteURL + SHA1 per envelope.
 func BenchmarkRepositoryID(b *testing.B) {
