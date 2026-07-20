@@ -43,7 +43,11 @@ Canonical implementation: `go/internal/parser/registry.go` plus the entrypoint a
   declaration in the corpus (eshu-hq/eshu#5332). Declarations and calls are
   disjoint grammar node kinds, so a declaration can no longer be
   misclassified as a call, while genuine recursion (a function calling
-  itself) still produces a real self-edge.
+  itself) still produces a real self-edge. Call-site detection now runs in the
+  same single tree traversal as declaration extraction (folded into
+  `dartSyntaxIndex.collect` via `dartCallChain.observe`, eshu-hq/eshu#5350) —
+  an output-preserving optimization (byte-identical `function_calls`, guarded by
+  the frozen `oracleWalkDartCallSites` differential), not a behavior change.
 
 ## Dead-Code Support
 
