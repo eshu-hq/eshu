@@ -134,6 +134,9 @@ func appendScopeGenerationReducerIntents(
 	if intent, ok := buildKubernetesCorrelationMaterializationReducerIntent(scopeValue, generation, index); ok {
 		intents = append(intents, intent)
 	}
+	if intent, ok := buildCrossplaneSatisfiedByMaterializationReducerIntent(scopeValue, generation, index); ok {
+		intents = append(intents, intent)
+	}
 	if intent, ok := buildSecurityGroupEndpointMaterializationReducerIntent(scopeValue, generation, index); ok {
 		intents = append(intents, intent)
 	}
