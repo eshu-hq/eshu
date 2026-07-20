@@ -398,6 +398,58 @@ test_red_green_proof() {
   fi
 }
 
+# Case 10: RED->GREEN for the "not supported" negative-polarity fix (P1#2). A
+# doc that says "`foo` is supported" on one line and "`foo` is not supported"
+# on another is a genuine supported-vs-not-supported contradiction. It must be
+# flagged now; before the fix, is_positive matched " supported " even inside
+# " not supported " and is_negative had no "not supported" case, so the second
+# line read as POSITIVE and the contradiction was a false green. The RED half
+# is proven by running the SAME fixture through a scratch copy of the checker
+# library patched back to the pre-fix logic (via ESHU_DOCS_CONTRADICTION_LIB_AWK),
+# which must NOT flag it — the same revert-and-check shape as case9.
+test_not_supported_red_green() {
+  local root="${tmp_root}/case10"
+  local out_green="${tmp_root}/case10-green.out"
+  local out_red="${tmp_root}/case10-red.out"
+  write_doc "${root}" "reference/example.md" \
+    '# Example' \
+    '' \
+    'The `stream-export` path is supported for bounded inputs.' \
+    '' \
+    'The `stream-export` path is not supported for unbounded inputs.'
+
+  # GREEN: the shipped checker flags the supported-vs-not-supported pair.
+  if DOCS_CONTRADICTION_ENFORCE=true run_verifier "${root}" "${out_green}"; then
+    record_fail "case10: not-supported contradiction fails the gate under enforcement (verifier exited zero)"
+    cat "${out_green}" >&2
+  else
+    record_pass "case10: not-supported contradiction fails the gate under DOCS_CONTRADICTION_ENFORCE=true"
+  fi
+  assert_contains "polarity:stream-export" "${out_green}" \
+    "case10: shipped checker flags the supported-vs-not-supported contradiction"
+
+  # RED: build a pre-fix copy of the checker library — revert is_positive's
+  # " not supported " guard and drop is_negative's "not supported" cases — and
+  # prove the SAME fixture is NOT flagged under it. If the sed edits fail to
+  # match (the library moved), the copy stays identical to the shipped one and
+  # this assertion fails loudly, signalling the test needs updating.
+  local old_lib="${tmp_root}/case10-old-lib.awk"
+  sed \
+    -e 's|if (n ~ / supported / \&\& n !~ / not supported / \&\& n !~ / not yet supported /) return 1|if (n ~ / supported /) return 1|' \
+    -e '/if (n ~ \/ not supported \/) return 1/d' \
+    -e '/if (n ~ \/ not yet supported \/) return 1/d' \
+    "${repo_root}/scripts/lib/docs-contradiction-checks.awk" >"${old_lib}"
+  if cmp -s "${old_lib}" "${repo_root}/scripts/lib/docs-contradiction-checks.awk"; then
+    record_fail "case10: could not synthesize the pre-fix checker library (sed anchors moved)"
+  else
+    record_pass "case10: synthesized a distinct pre-fix checker library for the RED proof"
+  fi
+  ESHU_DOCS_CONTRADICTION_LIB_AWK="${old_lib}" DOCS_CONTRADICTION_ENFORCE=true \
+    run_verifier "${root}" "${out_red}" || true
+  assert_not_contains "polarity:stream-export" "${out_red}" \
+    "case10: pre-fix checker did NOT flag it (RED proof — the false green the P1 fixed)"
+}
+
 test_shared_anchor_contradiction_flagged
 test_different_subjects_not_flagged
 test_laravel_row_not_flagged
@@ -408,6 +460,7 @@ test_generated_doc_skipped
 test_real_tree_passes_with_committed_baseline
 test_real_baseline_matches_fresh_regeneration
 test_red_green_proof
+test_not_supported_red_green
 
 if [[ "${FAIL}" -ne 0 ]]; then
   printf 'test-verify-docs-contradiction FAILED: %d/%d\n' "${FAIL}" "$((PASS + FAIL))" >&2

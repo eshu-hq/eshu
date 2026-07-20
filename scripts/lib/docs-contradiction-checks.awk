@@ -4,8 +4,9 @@
 # docs/public so FILENAME is already the doc-relative path used in output.
 #
 # Check 1 (modal-polarity, shared-subject anchor): a doc self-contradicts when
-# the SAME specific subject is described as both implemented/supported AND
-# not-yet-implemented/planned/unsupported. The anchor must be a shared,
+# the SAME specific subject is described as both implemented/supported/available
+# AND not-implemented/not-supported/not-yet-implemented/not-yet-supported/
+# planned/unsupported. The anchor must be a shared,
 # specific subject — a backticked code span, a bare capability-ID string
 # (three-plus hyphen-joined components, e.g. slim-web-route-detection), or a
 # stopword-free three-word n-gram — never bare co-occurrence of a positive and
@@ -69,7 +70,12 @@ function is_positive(n) {
 	if (n ~ / is implemented /) return 1
 	if (n ~ / are implemented /) return 1
 	if (n ~ / now implemented /) return 1
-	if (n ~ / supported /) return 1
+	# The bare " supported " check must NOT fire on " not supported " /
+	# " not yet supported ": those are negative statements, and classifying
+	# them positive would make "X is not supported" read as both polarities
+	# (or, on a supported-vs-not-supported page, hide the contradiction as a
+	# false green). Exclude them here so such a line is negative-only.
+	if (n ~ / supported / && n !~ / not supported / && n !~ / not yet supported /) return 1
 	if (n ~ / is available /) return 1
 	return 0
 }
@@ -77,6 +83,8 @@ function is_positive(n) {
 function is_negative(n) {
 	if (n ~ / not implemented /) return 1
 	if (n ~ / not yet implemented /) return 1
+	if (n ~ / not supported /) return 1
+	if (n ~ / not yet supported /) return 1
 	if (n ~ / planned /) return 1
 	if (n ~ / unsupported /) return 1
 	return 0

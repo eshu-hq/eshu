@@ -55,7 +55,11 @@ drift gates own that content instead.
    stopword-free three-word n-gram — appears on one line matching a
    positive-polarity phrase (`is/are/now implemented`, `supported`, `is
    available`) and on a DIFFERENT line matching a negative-polarity phrase
-   (`not yet implemented`, `not implemented`, `planned`, `unsupported`). Bare
+   (`not implemented`, `not yet implemented`, `not supported`, `not yet
+   supported`, `planned`, `unsupported`). A `not supported` / `not yet
+   supported` line is negative-only — the positive `supported` check is
+   guarded to skip it — so "X is not supported" cannot read as both
+   polarities. Bare
    co-occurrence of a positive and a negative word in the same file is never
    enough — the anchor requirement is the deliberate false-positive guard.
    php.md's Laravel capability row is unflagged for two reasons, either of

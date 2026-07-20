@@ -47,11 +47,14 @@ set -euo pipefail
 tool_root="$(cd "$(dirname "$0")/.." && pwd)"
 repo_root="${ESHU_DOCS_CONTRADICTION_REPO_ROOT:-${tool_root}}"
 docs_root="${repo_root}/docs/public"
-# lib_awk always resolves from the SCRIPT's own location, never from
+# lib_awk defaults to the SCRIPT's own location, never
 # ESHU_DOCS_CONTRADICTION_REPO_ROOT: the awk library is part of the tool, not
 # part of the docs tree under test, so a test that points docs_root at a
 # scratch fixture tree still finds the real checker logic.
-lib_awk="${tool_root}/scripts/lib/docs-contradiction-checks.awk"
+# ESHU_DOCS_CONTRADICTION_LIB_AWK overrides only the checker library path, for
+# the test mirror's RED->GREEN proof (run the same fixture through the current
+# and a prior-logic copy of the library); production callers never set it.
+lib_awk="${ESHU_DOCS_CONTRADICTION_LIB_AWK:-${tool_root}/scripts/lib/docs-contradiction-checks.awk}"
 baseline_path="${ESHU_DOCS_CONTRADICTION_BASELINE_PATH:-${repo_root}/scripts/docs-contradiction-baseline.txt}"
 enforce="${DOCS_CONTRADICTION_ENFORCE:-false}"
 
