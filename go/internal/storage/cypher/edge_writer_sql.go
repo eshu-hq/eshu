@@ -30,7 +30,9 @@ import "fmt"
 // REFERENCES_TABLE (see sqlRelationshipWriteReasons), but a superset retract
 // is legal and cheap hygiene that also reaps any pre-#5345 REFERENCES_TABLE
 // edges still in the graph from the SqlView/SqlFunction source_tables writer.
-const sqlRelationshipRetractRelTypes = "QUERIES_TABLE|REFERENCES_TABLE|READS_FROM|HAS_COLUMN|TRIGGERS|EXECUTES|INDEXES"
+// MIGRATES was added in #5346 (SqlMigration -> SqlTable/View/Function/
+// Trigger/Index).
+const sqlRelationshipRetractRelTypes = "QUERIES_TABLE|REFERENCES_TABLE|READS_FROM|HAS_COLUMN|TRIGGERS|EXECUTES|INDEXES|MIGRATES"
 
 // sqlRelationshipRetractSourceLabels lists the source node labels a SQL
 // relationship edge retract must cover. It MUST include every label the write
@@ -38,7 +40,7 @@ const sqlRelationshipRetractRelTypes = "QUERIES_TABLE|REFERENCES_TABLE|READS_FRO
 // TestSQLRelationshipRetractCoversEveryWriteEndpointLabel — because an edge
 // written from a label missing here would survive every reprojection.
 var sqlRelationshipRetractSourceLabels = []string{
-	"Function", "SqlColumn", "SqlFunction", "SqlIndex", "SqlTable", "SqlTrigger", "SqlView",
+	"Function", "SqlColumn", "SqlFunction", "SqlIndex", "SqlMigration", "SqlTable", "SqlTrigger", "SqlView",
 }
 
 // buildSQLRelationshipRetractStatements emits one retract statement per source
@@ -74,13 +76,14 @@ func buildSQLRelationshipRetractStatements(unwindParam, alias, anchorProp string
 }
 
 var sqlRelationshipEntityLabels = map[string]struct{}{
-	"Function":    {},
-	"SqlColumn":   {},
-	"SqlFunction": {},
-	"SqlIndex":    {},
-	"SqlTable":    {},
-	"SqlTrigger":  {},
-	"SqlView":     {},
+	"Function":     {},
+	"SqlColumn":    {},
+	"SqlFunction":  {},
+	"SqlIndex":     {},
+	"SqlMigration": {},
+	"SqlTable":     {},
+	"SqlTrigger":   {},
+	"SqlView":      {},
 }
 
 // sqlRelationshipWriteReasons is the single source of truth for the
@@ -97,6 +100,7 @@ var sqlRelationshipWriteReasons = map[string]string{
 	"TRIGGERS":      "SQL entity metadata resolved a trigger edge",
 	"EXECUTES":      "SQL trigger metadata resolved a routine execution edge",
 	"INDEXES":       "SQL entity metadata resolved an index-to-table edge",
+	"MIGRATES":      "SQL migration metadata resolved a migration-to-target edge",
 }
 
 // SQLRelationshipMaterializedEdgeTypes returns a defensive copy of

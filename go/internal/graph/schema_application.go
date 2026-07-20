@@ -24,8 +24,8 @@ type SchemaApplication struct {
 }
 
 const (
-	graphSchemaNeo4jFingerprint    = "556d133c15610ecaaf773af2200717062e5d91d0edd2709fa7f6a83072a11c53"
-	graphSchemaNornicDBFingerprint = "cfff663a3a7cae4e7c36823e0304b25f7f046eed2e139951e8a9bf8121b9ba69"
+	graphSchemaNeo4jFingerprint    = "2a84ae8521f4930e8ce3ba8ff7556ea2fb53b5cb843a60f1aab1b169e50bfda0"
+	graphSchemaNornicDBFingerprint = "35725c2a4d5a07e2fbeaddc5399a6e20af438a0193c4ebc8c1ecddacbf8b5866"
 
 	// graphSchemaNornicDBPreFunctionLegacyIDLookupFingerprint is the schema
 	// immediately before the additive Function.id lookup used by the bounded
@@ -78,6 +78,18 @@ const (
 	// during a rolling deploy).
 	graphSchemaNeo4jPreGitlabFingerprint    = "be5aa2ca69761b9db112d7a45487ef7095b3fd58038de17cb2b3047479b93c0e"
 	graphSchemaNornicDBPreGitlabFingerprint = "b9e6a46df32f87a20b85cc5e8864a5b70bf0aa478edb055d17fc35d50204c3ff"
+
+	// graphSchemaNeo4jPreSqlMigrationFingerprint and its NornicDB peer are the
+	// schema fingerprints immediately before the SqlMigration bump (#5346: adds
+	// the SqlMigration uid uniqueness constraint so the new content-entity label
+	// gets the same MERGE-by-uid index every other SQL entity label has). The
+	// bump is additive: a writer running the predecessor schema creates no
+	// SqlMigration nodes, so the new constraint never applies to it, and the
+	// additive chain pre-Helm-template-values -> Helm-template-values ->
+	// SqlMigration is cumulative, so the prior current (Helm) schema stays
+	// compatible too.
+	graphSchemaNeo4jPreSqlMigrationFingerprint    = "556d133c15610ecaaf773af2200717062e5d91d0edd2709fa7f6a83072a11c53"
+	graphSchemaNornicDBPreSqlMigrationFingerprint = "cfff663a3a7cae4e7c36823e0304b25f7f046eed2e139951e8a9bf8121b9ba69"
 )
 
 // graphSchemaCompatibleFingerprints lists additive predecessor schema
@@ -89,6 +101,7 @@ const (
 var graphSchemaCompatibleFingerprints = map[SchemaBackend]map[string][]string{
 	SchemaBackendNeo4j: {
 		graphSchemaNeo4jFingerprint: {
+			graphSchemaNeo4jPreSqlMigrationFingerprint,
 			graphSchemaNeo4jPreShellExecRetractIndexesFingerprint,
 			graphSchemaNeo4jPreInheritanceRetractIndexesFingerprint,
 			graphSchemaNeo4jPreFunctionRetractIndexesFingerprint,
@@ -98,6 +111,7 @@ var graphSchemaCompatibleFingerprints = map[SchemaBackend]map[string][]string{
 	},
 	SchemaBackendNornicDB: {
 		graphSchemaNornicDBFingerprint: {
+			graphSchemaNornicDBPreSqlMigrationFingerprint,
 			graphSchemaNornicDBPreFunctionLegacyIDLookupFingerprint,
 			graphSchemaNornicDBPreShellExecRetractIndexesFingerprint,
 			graphSchemaNornicDBPreInheritanceRetractIndexesFingerprint,

@@ -182,6 +182,7 @@ var uidConstraintLabels = []string{
 	"SqlColumn",
 	"SqlFunction",
 	"SqlIndex",
+	"SqlMigration",
 	"SqlTable",
 	"SqlTrigger",
 	"SqlView",

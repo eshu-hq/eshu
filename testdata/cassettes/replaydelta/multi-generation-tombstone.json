@@ -1220,6 +1220,24 @@
         },
         {
           "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:sql_migration:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "sql_migration",
+            "entity_name": "retractProbe_sql_migration",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "go",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:sql_migration:probe"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
           "stable_fact_key": "git:repository:replay-delta-tombstone:entity:sql_table:probe",
           "schema_version": "1.0.0",
           "collector_kind": "git",

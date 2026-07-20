@@ -223,12 +223,13 @@ var entityTypeLabelMap = map[string]string{
 	"cloudformation_output":    "CloudFormationOutput",
 
 	// SQL entities
-	"sql_table":    "SqlTable",
-	"sql_view":     "SqlView",
-	"sql_function": "SqlFunction",
-	"sql_trigger":  "SqlTrigger",
-	"sql_index":    "SqlIndex",
-	"sql_column":   "SqlColumn",
+	"sql_table":     "SqlTable",
+	"sql_view":      "SqlView",
+	"sql_function":  "SqlFunction",
+	"sql_trigger":   "SqlTrigger",
+	"sql_index":     "SqlIndex",
+	"sql_column":    "SqlColumn",
+	"sql_migration": "SqlMigration",
 
 	// Data entities
 	"data_asset":         "DataAsset",
