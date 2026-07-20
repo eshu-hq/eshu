@@ -10,8 +10,7 @@ Canonical implementation: `go/internal/parser/registry.go` plus the entrypoint a
 - Entrypoint: `go/internal/parser/scala_language.go`
 - Fixture repo: `tests/fixtures/ecosystems/scala_comprehensive/`
 - Unit test suite: `go/internal/parser/engine_managed_oo_test.go`
-- Integration validation: compose-backed fixture verification plus Play
-  Framework and Scala compiler dogfood (see
+- Integration validation: compose-backed fixture verification (see
   `../reference/local-testing.md`)
 
 ## Capability Checklist
@@ -28,7 +27,7 @@ Canonical implementation: `go/internal/parser/registry.go` plus the entrypoint a
 | Var definitions | `var-definitions` | supported | `variables` | `name, line_number` | `node:Variable` | `go/internal/parser/engine_managed_oo_test.go::TestDefaultEngineParsePathScala` | Compose-backed fixture verification | - |
 | Parent context (class_context) | `parent-context-class-context` | supported | `functions` | `name, line_number, class_context` | `property:Function.class_context` | `go/internal/parser/engine_managed_oo_test.go::TestDefaultEngineParsePathScala` | Compose-backed fixture verification | - |
 | Exact Play/http4s route entries | `play-http4s-literal-route-truth` | supported | `framework_semantics.{play,http4s}.route_entries` | `method, path, handler` | `relationship:HANDLES_ROUTE` when the reducer resolves one exact handler | `go/internal/parser/scala_route_entries_test.go::TestDefaultEngineParsePathScalaEmitsExactPlayRouteEntries`, `go/internal/parser/scala_route_entries_test.go::TestDefaultEngineParsePathScalaEmitsExactHttp4sRouteEntries`, `go/internal/reducer/handles_route_scala_test.go::TestBuildHandlesRouteIntentRowsEmitsScalaPlayRouteMatches`, `go/internal/query/content_reader_framework_routes_scala_test.go::TestParseFrameworkSemanticsExtractsScalaRoutes` | Golden corpus gate | Exact Play `conf/routes` and `.routes` rows plus literal http4s `HttpRoutes.of` cases emit route entries. Reducer projection stays exact-only and skips unresolved or ambiguous handlers. |
-| Dead-code roots | `dead-code-roots` | supported | `dead_code_root_kinds` | parser metadata | `code_quality.dead_code` exclusion metadata | `go/internal/parser/scala_dead_code_roots_test.go` | Fixture-backed dead-code validation plus Play Framework and Scala compiler dogfood | Derived roots for main, `App`, traits, overrides, Play, Akka, JUnit, ScalaTest, and lifecycle callbacks |
+| Dead-code roots | `dead-code-roots` | supported | `dead_code_root_kinds` | parser metadata | `code_quality.dead_code` exclusion metadata | `go/internal/parser/scala_dead_code_roots_test.go` | Fixture-backed dead-code validation | Derived roots for main, `App`, traits, overrides, Play, Akka, JUnit, ScalaTest, and lifecycle callbacks |
 
 ## Known Limitations
 - Implicit conversions and given/using clauses (Scala 3) are not separately tracked
@@ -37,10 +36,16 @@ Canonical implementation: `go/internal/parser/registry.go` plus the entrypoint a
 - Dead-code support is `derived`, not exact. Macros, implicit/given resolution,
   dynamic dispatch, reflection, sbt source sets, Play route files, compiler
   plugin output, and broad public API surfaces remain named exactness blockers.
-- Issue #105 dogfood covered `playframework/playframework` at
+- Historical note (not current grade evidence): an Issue #105 dogfood run
+  covered `playframework/playframework` at
   `bcdc682de2250bbd0f2788bc5acc06f6d66ad5a7` and `scala/scala` at
-  `25075e9b9b79954a0f99de515618901818822e62`. Both runs returned fresh
-  `derived` dead-code API truth after queue drain.
+  `25075e9b9b79954a0f99de515618901818822e62`, and both returned fresh `derived`
+  dead-code API truth after queue drain. Those pinned SHAs are recorded as
+  provenance only; the run left no committed, offline-reproducible artifact, so
+  Scala's Real-Repo Validation and End-to-End Indexing grades are
+  `fixture-backed` (see
+  [Parser Support Matrix](support-maturity.md#grade-definitions)). The evidence
+  cells above cite the checked-in fixtures and tests.
 
 ## Framework And Library Support
 
