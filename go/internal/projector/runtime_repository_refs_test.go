@@ -114,3 +114,80 @@ func TestCanonicalGraphPhaseSkipsMissingRepositoryID(t *testing.T) {
 		t.Fatalf("len(rows) = %d, want 0; repository phase rows must not publish from a repository fact missing repo_id", len(rows))
 	}
 }
+
+func TestBuildRepositoryRefsTagNamedAsDefaultBranchIsNeverDefault(t *testing.T) {
+	t.Parallel()
+
+	refs := buildRepositoryRefs(facts.Envelope{
+		FactID:   "fact-repo-1",
+		FactKind: "repository",
+		Payload: map[string]any{
+			"repo_id":        "repo-1",
+			"default_branch": "main",
+			"git_refs": []any{
+				map[string]any{"name": "main", "kind": "branch", "head_sha": "abc123", "is_default": true},
+				// Tag named "main" — same string as the default branch.
+				// Must NOT inherit is_default=true just because it matches default_branch.
+				map[string]any{"name": "main", "kind": "tag", "head_sha": "def456"},
+			},
+		},
+	})
+	if got, want := len(refs), 2; got != want {
+		t.Fatalf("len(refs) = %d, want %d", got, want)
+	}
+	// Branch "main" is default.
+	if !refs[0].Default || refs[0].Kind != "branch" || refs[0].Name != "main" {
+		t.Fatalf("refs[0] = %#v, want branch main default=true", refs[0])
+	}
+	// Tag "main" is NOT default.
+	if refs[1].Default || refs[1].Kind != "tag" || refs[1].Name != "main" {
+		t.Fatalf("refs[1] = %#v, want tag main default=false", refs[1])
+	}
+}
+
+func TestBuildRepositoryRefsPlainTagIsNeverDefault(t *testing.T) {
+	t.Parallel()
+
+	refs := buildRepositoryRefs(facts.Envelope{
+		FactID:   "fact-repo-1",
+		FactKind: "repository",
+		Payload: map[string]any{
+			"repo_id":        "repo-1",
+			"default_branch": "main",
+			"git_refs": []any{
+				map[string]any{"name": "main", "kind": "branch", "head_sha": "abc123", "is_default": true},
+				map[string]any{"name": "v1.0.0", "kind": "tag", "head_sha": "def456"},
+			},
+		},
+	})
+	if got, want := len(refs), 2; got != want {
+		t.Fatalf("len(refs) = %d, want %d", got, want)
+	}
+	if refs[1].Default {
+		t.Fatalf("refs[1] (tag v1.0.0) default = true, want false")
+	}
+}
+
+func TestBuildRepositoryRefsKindAndHeadSHAPassthrough(t *testing.T) {
+	t.Parallel()
+
+	refs := buildRepositoryRefs(facts.Envelope{
+		FactID:   "fact-repo-1",
+		FactKind: "repository",
+		Payload: map[string]any{
+			"repo_id":        "repo-1",
+			"default_branch": "main",
+			"git_refs": []any{
+				map[string]any{"name": "main", "kind": "branch", "head_sha": "abc123", "is_default": true},
+				map[string]any{"name": "release", "kind": "branch", "head_sha": "def456"},
+				map[string]any{"name": "v1.0.0", "kind": "tag", "head_sha": "abc123"},
+			},
+		},
+	})
+	if got, want := len(refs), 3; got != want {
+		t.Fatalf("len(refs) = %d, want %d", got, want)
+	}
+	if refs[2].Kind != "tag" || refs[2].Name != "v1.0.0" || refs[2].HeadSHA != "abc123" {
+		t.Fatalf("refs[2] = %#v, want tag v1.0.0 head_sha=abc123", refs[2])
+	}
+}

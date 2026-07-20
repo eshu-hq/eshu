@@ -49,7 +49,7 @@ func repositoryRefBranchEntries(refs []RepositoryRef) []map[string]any {
 		if ref.Kind != "branch" {
 			continue
 		}
-		entries = append(entries, repositoryRefEntry(ref))
+		entries = append(entries, repositoryRefEntry(ref, true))
 	}
 	return entries
 }
@@ -60,22 +60,21 @@ func repositoryRefTagEntries(refs []RepositoryRef) []map[string]any {
 		if ref.Kind != "tag" {
 			continue
 		}
-		entry := repositoryRefEntry(ref)
-		// Tags are never default; omit the field rather than sending false.
-		delete(entry, "is_default")
-		entries = append(entries, entry)
+		entries = append(entries, repositoryRefEntry(ref, false))
 	}
 	return entries
 }
 
-func repositoryRefEntry(ref RepositoryRef) map[string]any {
+// repositoryRefEntry builds the wire entry for one repository ref.
+// includeDefault controls whether the is_default field appears;
+// branches always include it (legacy contract), tags never include it.
+func repositoryRefEntry(ref RepositoryRef, includeDefault bool) map[string]any {
 	entry := map[string]any{
 		"name":     ref.Name,
 		"kind":     ref.Kind,
 		"head_sha": ref.HeadSHA,
 	}
-	// Only include is_default for branches where the default signal is meaningful.
-	if ref.Default {
+	if includeDefault {
 		entry["is_default"] = ref.Default
 	}
 	if !ref.ObservedAt.IsZero() {

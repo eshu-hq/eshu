@@ -315,7 +315,10 @@ names, tag names, ref kind, default-branch marker, head SHA, observed timestamp,
 and the content-store indexed timestamp. The response returns `default_branch`
 plus `branches[]` rows (kind `branch`) and `tags[]` rows (kind `tag`), one per
 source-backed ref. Tags carry the peeled commit SHA for annotated tags so a
-release reference resolves to its commit. Older repositories without captured
+release reference resolves to its commit. The `head_sha` field carries the peeled
+(^{}) object SHA for annotated tags — a commit for normal release tags, the
+dereferenced blob or tree object for annotated tags of non-commit objects.
+Older repositories without captured
 ref metadata keep the legacy single indexed commit fallback: one `branches[]`
 entry carrying `head_sha` and `last_indexed_at`, with an empty `name` and
 `default_branch`, and an empty `tags[]` array, rather than fabricating branch
@@ -324,10 +327,10 @@ or tag names. A repository with no indexed commit returns empty `branches` and
 
 No-Regression Evidence: repository ref persistence writes at most one stale-row
 delete plus one bounded upsert per repository generation, keyed by
-`(repo_id, ref_kind, name)` and sized by Git branch count rather than file or
-entity count. Focused tests cover source-backed branch responses, selected-ref
-acceptance/rejection, repository ref schema bootstrap, writer upsert counts,
-projector materialization, and collector ref parsing/fact payloads.
+`(repo_id, ref_kind, name)` and sized by Git branch and tag count rather than
+file or entity count. Focused tests cover source-backed branch and tag responses,
+selected-ref acceptance/rejection, repository ref schema bootstrap, writer upsert
+counts, projector materialization, and collector ref parsing/fact payloads.
 
 No-Observability-Change: the existing projector `content_write` stage remains
 the operator-facing timing span/metric path, and the writer now logs

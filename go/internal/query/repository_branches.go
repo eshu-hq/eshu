@@ -80,6 +80,7 @@ func (h *RepositoryHandler) getRepositoryBranches(w http.ResponseWriter, r *http
 		map[string]any{
 			"default_branch": "", // not captured by ingestion yet (#1433)
 			"branches":       branches,
+			"tags":           make([]map[string]any, 0),
 		},
 		BuildTruthEnvelope(
 			h.profile(),

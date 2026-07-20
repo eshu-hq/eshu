@@ -4,7 +4,10 @@
 package collector
 
 import (
+	"context"
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -176,6 +179,21 @@ func TestParseRemoteGitRefsInvalidTagName(t *testing.T) {
 	}
 }
 
+func TestParseRemoteGitRefsRejectsColonInTagName(t *testing.T) {
+	t.Parallel()
+
+	output := "" +
+		"ref: refs/heads/main\tHEAD\n" +
+		"abc123\tHEAD\n" +
+		"abc123\trefs/heads/main\n" +
+		"def456\trefs/tags/v1:2.0\n"
+
+	_, err := parseRemoteGitRefs(output)
+	if err == nil {
+		t.Fatalf("parseRemoteGitRefs() error = nil, want error for tag name containing colon")
+	}
+}
+
 func TestBuildSelectedRepositoriesCarriesGitRefs(t *testing.T) {
 	t.Parallel()
 
@@ -245,5 +263,96 @@ func TestRepositoryFactEnvelopeCarriesGitRefs(t *testing.T) {
 	}
 	if got, want := refs[0]["is_default"], true; got != want {
 		t.Fatalf("git_refs[0].is_default = %#v, want %#v", got, want)
+	}
+}
+
+// TestRemoteGitRefsIncludesTags runs real git ls-remote against a bare
+// remote carrying both annotated and lightweight tags, verifying that the
+// argv change (adding refs/tags/*) actually produces tag entries.
+func TestRemoteGitRefsIncludesTags(t *testing.T) {
+	// Real-git test — skip when git is not available.
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skipf("git not found in PATH: %v", err)
+	}
+
+	// 1. Create a bare repository to serve as the remote.
+	barePath := t.TempDir()
+	runGit(t, barePath, "init", "--bare")
+
+	// 2. Create a working repository with origin pointing to the bare repo.
+	workPath := t.TempDir()
+	runGit(t, workPath, "init")
+	runGit(t, workPath, "config", "user.email", "test@example.com")
+	runGit(t, workPath, "config", "user.name", "Test")
+	runGit(t, workPath, "remote", "add", "origin", barePath)
+
+	// 3. Create a commit so we have a branch to push.
+	writeFile(t, workPath, "README.md", "# Test repo")
+	runGit(t, workPath, "add", "README.md")
+	runGit(t, workPath, "commit", "-m", "initial commit")
+	commitSHA := strings.TrimSpace(runGit(t, workPath, "rev-parse", "HEAD"))
+
+	// 4. Create an annotated tag (two objects: tag object + commit).
+	runGit(t, workPath, "tag", "-a", "v1.0.0", "-m", "annotated tag", commitSHA)
+	// Create a lightweight tag (one object: commit).
+	runGit(t, workPath, "tag", "lightweight", commitSHA)
+
+	// 5. Push branches and tags to the bare remote.
+	runGit(t, workPath, "push", "origin", "main", "--tags")
+
+	// 6. Call remoteGitRefs — the function under test.
+	ctx := context.Background()
+	config := RepoSyncConfig{ReposDir: workPath}
+	refs, err := remoteGitRefs(ctx, config, workPath, "" /* token */)
+	if err != nil {
+		t.Fatalf("remoteGitRefs() error = %v, want nil", err)
+	}
+
+	// 7. Assert: at least the branch + 2 tags.
+	if got := len(refs); got < 3 {
+		t.Fatalf("len(refs) = %d, want >= 3 (main + v1.0.0 + lightweight): %#v", got, refs)
+	}
+
+	// Find the branch and tag entries.
+	var branchMain *GitRef
+	var tagV1 *GitRef
+	var tagLightweight *GitRef
+	for i := range refs {
+		switch {
+		case refs[i].Kind == "branch" && refs[i].Name == "main":
+			branchMain = &refs[i]
+		case refs[i].Kind == "tag" && refs[i].Name == "v1.0.0":
+			tagV1 = &refs[i]
+		case refs[i].Kind == "tag" && refs[i].Name == "lightweight":
+			tagLightweight = &refs[i]
+		}
+	}
+
+	if branchMain == nil {
+		t.Fatalf("branch 'main' not found in refs: %#v", refs)
+	}
+	if branchMain.HeadSHA != commitSHA {
+		t.Fatalf("branch main HeadSHA = %s, want %s", branchMain.HeadSHA, commitSHA)
+	}
+
+	if tagV1 == nil {
+		t.Fatalf("tag 'v1.0.0' not found in refs: %#v", refs)
+	}
+	// Annotated tag: HeadSHA must be the peeled commit, not the tag object.
+	if tagV1.HeadSHA != commitSHA {
+		t.Fatalf("annotated tag v1.0.0 HeadSHA = %s, want %s (peeled commit)", tagV1.HeadSHA, commitSHA)
+	}
+	if tagV1.Default {
+		t.Fatal("tag v1.0.0 Default = true, want false")
+	}
+
+	if tagLightweight == nil {
+		t.Fatalf("tag 'lightweight' not found in refs: %#v", refs)
+	}
+	if tagLightweight.HeadSHA != commitSHA {
+		t.Fatalf("lightweight tag HeadSHA = %s, want %s", tagLightweight.HeadSHA, commitSHA)
+	}
+	if tagLightweight.Default {
+		t.Fatal("tag lightweight Default = true, want false")
 	}
 }

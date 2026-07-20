@@ -62,7 +62,12 @@ func parseRemoteGitRefs(output string) ([]GitRef, error) {
 		if strings.HasPrefix(fields[1], "refs/tags/") {
 			refspec := fields[1]
 			if strings.HasSuffix(refspec, "^{}") {
-				// Peeled line of an annotated tag — carry the commit SHA.
+				// Peeled line of an annotated tag — carry the object SHA.
+				// Note: git ls-remote does not report the object type, so
+				// the peeled SHA is always the dereferenced OBJECT (a commit
+				// for normal release tags, a blob for annotated tags of blobs,
+				// a tree for annotated tags of trees). Eshu stores the peeled
+				// object SHA as-is; it does not guarantee the SHA is a commit.
 				tagName, err := normalizeGitTagName(strings.TrimSuffix(strings.TrimPrefix(refspec, "refs/tags/"), "^{}"))
 				if err != nil {
 					return nil, err
@@ -199,9 +204,9 @@ func repositoryFactGitRefsPayload(refs []GitRef) []map[string]any {
 	return payload
 }
 
-// normalizeGitTagName validates a Git tag name. Tag names follow the same
-// safety rules as branch names with one difference: colons are allowed in tag
-// names (some Git workflows use colon-separated tag prefixes).
+// normalizeGitTagName validates a Git tag name against the same safety rules as
+// normalizeGitBranchName. Git forbids `:`, `..`, `\\`, whitespace, and control
+// characters in all ref names, including tags.
 func normalizeGitTagName(tag string) (string, error) {
 	tag = strings.TrimSpace(tag)
 	tag = strings.TrimPrefix(tag, "refs/tags/")
@@ -209,6 +214,7 @@ func normalizeGitTagName(tag string) (string, error) {
 		return "", nil
 	}
 	if strings.HasPrefix(tag, "-") ||
+		strings.Contains(tag, ":") ||
 		strings.Contains(tag, "..") ||
 		strings.Contains(tag, "\\") ||
 		strings.Contains(tag, "^{}") ||

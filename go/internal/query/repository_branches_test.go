@@ -52,6 +52,11 @@ func TestGetRepositoryBranchesReturnsSingleIndexedRef(t *testing.T) {
 	if entry["last_indexed_at"] == "" || entry["last_indexed_at"] == nil {
 		t.Fatalf("last_indexed_at missing: %#v", entry)
 	}
+	// Legacy fallback carries an empty tags array, not a missing key.
+	tags, ok := resp["tags"].([]any)
+	if !ok || len(tags) != 0 {
+		t.Fatalf("tags = %#v, want [] (empty, not absent)", resp["tags"])
+	}
 }
 
 func TestGetRepositoryBranchesReturnsSourceBackedRefs(t *testing.T) {
@@ -115,6 +120,11 @@ func TestGetRepositoryBranchesReturnsSourceBackedRefs(t *testing.T) {
 	}
 	if entry["last_indexed_at"] == "" || entry["last_indexed_at"] == nil {
 		t.Fatalf("last_indexed_at missing: %#v", entry)
+	}
+	// Non-default branch always carries is_default: false.
+	release := branches[1].(map[string]any)
+	if got, ok := release["is_default"]; !ok || got != false {
+		t.Fatalf("branches[1].is_default = %#v (ok=%v), want false, always present", got, ok)
 	}
 }
 
