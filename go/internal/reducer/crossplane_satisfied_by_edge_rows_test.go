@@ -69,6 +69,50 @@ func TestExtractCrossplaneSatisfiedByEdgeRowsResolvesRealisticClaim(t *testing.T
 	}
 }
 
+// TestExtractCrossplaneSatisfiedByEdgeRowsSameRepoXRDNotDoubleCounted proves
+// a same-repo Claim -> XRD pair still resolves when the identical XRD fact
+// appears twice in envelopes: once from the intent's own-scope content_entity
+// load, once from the handler's separate
+// crossplaneXRDFactLoader.ListActiveCrossplaneXRDFacts cross-scope call,
+// which does not exclude the requesting scope and so re-returns any XRD that
+// lives in the same repo as the Claim. Before this fix the duplicate uid
+// inflated the (group, claim_kind) candidate count to 2, tripping the
+// genuine-ambiguity branch and silently dropping the edge for every
+// same-repo Claim/XRD pair — caught by the B-7 golden-corpus rc-151
+// assertion reading 0 for the kubernetes_comprehensive fixture.
+func TestExtractCrossplaneSatisfiedByEdgeRowsSameRepoXRDNotDoubleCounted(t *testing.T) {
+	t.Parallel()
+
+	claim := crossplaneContentEntityEnvelope("k8s:claim-1", crossplaneEntityTypeK8sResource, map[string]any{
+		"api_version": "db.acme.internal/v1alpha1",
+		"kind":        "AcmeDatabase",
+	})
+	xrd := crossplaneContentEntityEnvelope("xrd:1", crossplaneEntityTypeXRD, map[string]any{
+		"group":      "db.acme.internal",
+		"claim_kind": "AcmeDatabase",
+	})
+
+	// The handler's loadEdgeFacts appends the cross-scope XRD load's result to
+	// the own-scope content_entity facts unconditionally (issue #5347); when
+	// the XRD lives in the requesting scope, that is the SAME fact twice.
+	rows, tally, err := ExtractCrossplaneSatisfiedByEdgeRows([]facts.Envelope{claim, xrd, xrd})
+	if err != nil {
+		t.Fatalf("ExtractCrossplaneSatisfiedByEdgeRows() error = %v, want nil", err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("len(rows) = %d, want 1 (duplicate XRD fact must not read as ambiguous): %#v", len(rows), rows)
+	}
+	if got := rows[0]["xrd_uid"]; got != "xrd:1" {
+		t.Errorf("rows[0][xrd_uid] = %v, want xrd:1", got)
+	}
+	if got := tally.totalMaterialized(); got != 1 {
+		t.Errorf("tally.totalMaterialized() = %d, want 1", got)
+	}
+	if tally.ambiguousSkipped != 0 {
+		t.Errorf("tally.ambiguousSkipped = %d, want 0 (same XRD node seen twice is not ambiguity)", tally.ambiguousSkipped)
+	}
+}
+
 // TestExtractCrossplaneSatisfiedByEdgeRowsNegativeCases proves the domain
 // never fabricates a SATISFIED_BY edge for evidence that is not a real,
 // unambiguously-resolvable Claim: a provider Managed Resource (the row the

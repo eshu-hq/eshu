@@ -111,6 +111,14 @@ type crossplaneXRDCandidate struct {
 // Rows are deduplicated by (claim_uid, SATISFIED_BY, xrd_uid) and sorted
 // deterministically so the batched MERGE write is byte-stable across retries
 // and reprojections.
+//
+// The same CrossplaneXRD node can appear twice in envelopes when it lives in
+// the requesting scope: once from the intent's own-scope content_entity load
+// and once more from the handler's cross-scope
+// crossplaneXRDFactLoader.ListActiveCrossplaneXRDFacts call, which loads
+// every scope's active XRDs and does not exclude the requesting scope. xrdUIDs
+// dedupes by uid per join key so one physical XRD node reached through both
+// paths counts as one candidate, not a fabricated ambiguity (issue #5347).
 func ExtractCrossplaneSatisfiedByEdgeRows(
 	envelopes []facts.Envelope,
 ) ([]map[string]any, crossplaneSatisfiedByEdgeTally, error) {
@@ -118,6 +126,7 @@ func ExtractCrossplaneSatisfiedByEdgeRows(
 
 	claims := make([]crossplaneClaimCandidate, 0, len(envelopes))
 	xrdsByKey := make(map[crossplaneXRDJoinKey][]string)
+	xrdUIDsSeenByKey := make(map[crossplaneXRDJoinKey]map[string]struct{})
 
 	for _, envelope := range envelopes {
 		if envelope.FactKind != factKindContentEntity || envelope.IsTombstone {
@@ -132,6 +141,15 @@ func ExtractCrossplaneSatisfiedByEdgeRows(
 		case crossplaneEntityTypeXRD:
 			if xrd, ok := crossplaneXRDCandidateFromPayload(envelope.Payload); ok {
 				key := crossplaneXRDJoinKey{group: xrd.group, claimKind: xrd.claimKind}
+				seen := xrdUIDsSeenByKey[key]
+				if seen == nil {
+					seen = make(map[string]struct{})
+					xrdUIDsSeenByKey[key] = seen
+				}
+				if _, dup := seen[xrd.uid]; dup {
+					continue
+				}
+				seen[xrd.uid] = struct{}{}
 				xrdsByKey[key] = append(xrdsByKey[key], xrd.uid)
 			}
 		}
