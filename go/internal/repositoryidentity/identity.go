@@ -119,10 +119,12 @@ func NormalizedRemoteKey(raw string) string {
 	}
 
 	// Handle SCP syntax (user@host:path) for forms that do not contain ://.
-	// This covers both git@host:path (already handled by NormalizeRemoteURL
-	// at the canonical-URL level) and user@host:path (any username prefix).
+	// For git@-prefixed SCP forms that NormalizeRemoteURL handles natively,
+	// route through it directly so the key matches the collector's canonical
+	// identity. For other SCP user-prefix forms, construct the https://
+	// equivalent and canonicalize through the NormalizeRemoteURL URL path.
 	if !strings.Contains(trimmed, "://") {
-		return scpKey(trimmed)
+		return scpNormalizedKey(trimmed)
 	}
 
 	// URL-shaped inputs: delegate to NormalizeRemoteURL, then extract the
@@ -131,35 +133,7 @@ func NormalizedRemoteKey(raw string) string {
 	if normalized == "" {
 		return ""
 	}
-	// Re-parse the normalized URL to reject control characters, bad
-	// percent-encoding, and hostless passthrough from NormalizeRemoteURL.
-	// This closes the leak class where NormalizeRemoteURL passes through
-	// garbage untouched because it starts with "https://".
-	//
-	// NormalizeRemoteURL strips brackets from IPv6 hosts (e.g. [::1]→::1);
-	// url.Parse rejects bare "::1" as an invalid port. Re-bracket IPv6
-	// hosts before the validation parse so legitimate IPv6 keys are not
-	// rejected.
-	reparseURL := normalized
-	if key := strings.TrimPrefix(normalized, "https://"); key != normalized {
-		if host, _, hasSlash := strings.Cut(key, "/"); hasSlash && strings.Contains(host, ":") {
-			// Bare : in the host means IPv6 (ports are already stripped
-			// by NormalizeRemoteURL's Hostname()).
-			reparseURL = "https://[" + host + "]" + key[len(host):]
-		}
-	}
-	if _, err := url.Parse(reparseURL); err != nil {
-		return ""
-	}
-	key := strings.TrimPrefix(normalized, "https://")
-	if key == normalized || key == "" {
-		return ""
-	}
-	// Reject keys whose extracted host segment is malformed.
-	if !isValidRemoteKey(key) {
-		return ""
-	}
-	return key
+	return keyFromNormalizedURL(normalized)
 }
 
 // isValidRemoteKey reports whether key has the form host/path with a non-empty
@@ -176,29 +150,70 @@ func isValidRemoteKey(key string) bool {
 	return hasSlash && host != "" && !strings.ContainsAny(host, "%@ ")
 }
 
-// scpKey extracts a host/path key from SCP-style syntax (user@host:path).
-// It lowercases the host and path, strips the .git suffix, and drops the
-// user@ prefix. Empty or malformed input produces "".
-func scpKey(raw string) string {
+// scpNormalizedKey returns a host/path key for SCP-style input.
+// For git@-prefixed forms that NormalizeRemoteURL handles natively, it
+// delegates to NormalizeRemoteURL directly — the same path the git collector
+// uses for identity hashing. For other SCP forms (non-git@ user prefix), it
+// constructs the https:// equivalent and canonicalizes through the
+// NormalizeRemoteURL URL path, then extracts and validates the key.
+func scpNormalizedKey(raw string) string {
 	beforeColon, afterColon, ok := strings.Cut(raw, ":")
 	if !ok || strings.TrimSpace(afterColon) == "" {
 		return ""
 	}
+
+	// git@ SCP forms: route through NormalizeRemoteURL directly.
+	// The collector hashes NormalizeRemoteURL(raw) for identity, so
+	// this key matches.
+	if strings.HasPrefix(raw, "git@") {
+		normalized := NormalizeRemoteURL(raw)
+		if normalized == "" || !strings.HasPrefix(normalized, "https://") {
+			return ""
+		}
+		return keyFromNormalizedURL(normalized)
+	}
+
+	// Non-git@ SCP forms: extract host and path, construct the https://
+	// equivalent, and canonicalize through the NormalizeRemoteURL URL path
+	// (which uses url.Parse for FieldsFunc collapse, percent handling, etc.).
 	host := beforeColon
 	if at := strings.LastIndex(host, "@"); at >= 0 && at < len(host)-1 {
 		host = host[at+1:]
 	}
 	host = strings.ToLower(strings.TrimSpace(host))
-	pathValue := strings.Trim(strings.TrimSpace(afterColon), "/")
-	pathValue = strings.TrimSuffix(pathValue, ".git")
+	pathValue := strings.TrimSpace(afterColon)
 	if host == "" || pathValue == "" {
 		return ""
 	}
-	key := host + "/" + strings.ToLower(pathValue)
+	normalized := NormalizeRemoteURL("https://" + host + "/" + pathValue)
+	if normalized == "" || !strings.HasPrefix(normalized, "https://") {
+		return ""
+	}
+	return keyFromNormalizedURL(normalized)
+}
 
-	// Re-parse as https:// URL to reject control characters and bad
-	// percent-encoding in the resulting key.
-	if _, err := url.Parse("https://" + key); err != nil {
+// keyFromNormalizedURL extracts and validates a host/path key from a
+// NormalizeRemoteURL-produced https:// URL. It applies the re-parse
+// guard (with IPv6 re-bracketing) and host-segment validation.
+func keyFromNormalizedURL(normalized string) string {
+	if normalized == "" || !strings.HasPrefix(normalized, "https://") {
+		return ""
+	}
+
+	// Re-parse to reject control characters, bad percent-encoding,
+	// and hostless passthrough.
+	reparseURL := normalized
+	if key := strings.TrimPrefix(normalized, "https://"); key != normalized {
+		if h, _, hasSlash := strings.Cut(key, "/"); hasSlash && strings.Contains(h, ":") {
+			reparseURL = "https://[" + h + "]" + key[len(h):]
+		}
+	}
+	if _, err := url.Parse(reparseURL); err != nil {
+		return ""
+	}
+
+	key := strings.TrimPrefix(normalized, "https://")
+	if key == normalized || key == "" {
 		return ""
 	}
 	if !isValidRemoteKey(key) {

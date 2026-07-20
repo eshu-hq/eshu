@@ -4109,11 +4109,13 @@ real extraction path, not a re-implementation.
 
 Benchmark Evidence: `go test ./internal/repositoryidentity -bench
 BenchmarkNormalizedRemoteKey -benchmem -count=3 -benchtime=500ms` (Apple M5 Max,
-darwin/arm64, 12 representative input shapes per op): ~3,772 ns/op, 3,947 B/op,
-69 allocs/op (~315 ns/input, ~5.8 allocs/input). The re-parse validation guard
-added ~60% over the pre-guard shape (~2,465 ns/op, 2,273 B/op, 55 allocs/op) —
-the price of rejecting control-character and bad-encoding garbage keys. Not a
-hot-loop function — runs once per hint/repository pair during correlation.
+darwin/arm64, 12 representative input shapes per op): ~5,332 ns/op, 4,355 B/op,
+82 allocs/op (~444 ns/input, ~6.8 allocs/input). The re-parse validation guard
+(N1) added ~60% over the pre-guard shape; the SCP canonicalization through
+NormalizeRemoteURL (Codex P1) added further cost by constructing an https:// URL
+and calling NormalizeRemoteURL + url.Parse for SCP inputs instead of simple
+string operations. This is the price of matching the collector's identity path
+for SCP hints — not a hot-loop function (runs once per hint/repository pair).
 
 No-Regression Evidence: `go test ./internal/repositoryidentity ./internal/reducer
 -count=1` (39 value-pinning cases, all green); `go test ./internal/query
