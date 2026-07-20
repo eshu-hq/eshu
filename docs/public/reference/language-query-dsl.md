@@ -67,15 +67,21 @@ Entity types are resolved against three backing stores:
 
 Accepted values in the current `entity_type` enum:
 
-`annotation`, `class`, `component`, `directory`, `enum`, `file`, `function`,
-`guard`, `impl_block`, `macro`, `module`, `module_attribute`, `protocol`,
-`protocol_implementation`, `repository`, `sql_column`, `sql_function`,
-`sql_index`, `sql_table`, `sql_trigger`, `sql_view`, `struct`,
-`terraform_backend`, `terraform_check`, `terraform_import`,
-`terraform_lock_provider`, `terraform_module`, `terraform_moved_block`,
-`terraform_removed_block`, `terragrunt_config`, `terragrunt_dependency`,
-`terragrunt_input`, `terragrunt_local`, `type_alias`, `type_annotation`,
-`typedef`, `union`, `variable`.
+`annotation`, `atlantis_project`, `atlantis_workflow`, `class`, `component`,
+`directory`, `enum`, `file`, `function`, `guard`, `impl_block`, `macro`,
+`module`, `module_attribute`, `protocol`, `protocol_implementation`,
+`repository`, `sql_column`, `sql_function`, `sql_index`, `sql_table`,
+`sql_trigger`, `sql_view`, `struct`, `terraform_backend`, `terraform_check`,
+`terraform_import`, `terraform_lock_provider`, `terraform_module`,
+`terraform_moved_block`, `terraform_removed_block`, `terragrunt_config`,
+`terragrunt_dependency`, `terragrunt_input`, `terragrunt_local`, `type_alias`,
+`type_annotation`, `typedef`, `union`, `variable`.
+
+`atlantis_project`/`atlantis_workflow` are graph-first with content fallback
+(same shape as the `terraform_*` entity types): they resolve to the
+`AtlantisProject`/`AtlantisWorkflow` graph labels first, falling back to the
+Postgres content store when the graph is empty for that language/type. See
+[Atlantis Parser](../languages/atlantis.md#query-surfacing).
 
 `guard` is a semantic filter over `function` entities and returns
 guard-classified functions only.

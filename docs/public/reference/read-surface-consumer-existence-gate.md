@@ -17,8 +17,8 @@ non-emptiness, not that the claim resolves to something real.
 
 `specs/language-feature-parity-ledger.v1.yaml` `read_surfaces` lists abstract
 labels (`execute_language_query`, `entity_context`, `content_relationships`,
-`find_dead_code`, `get_code_relationship_story`, `trace_deployment_chain`,
-`trace_resource_to_code`, `trace_route_callers`).
+`find_dead_code`, `get_code_relationship_story`, `list_relationship_edges`,
+`trace_deployment_chain`, `trace_resource_to_code`, `trace_route_callers`).
 `go/internal/replaycoverage/languageledger.go`'s `LoadLanguageLedger` parses
 the field into `LanguageLedgerEntry.ReadSurfaces`.
 
@@ -27,9 +27,13 @@ hand-maintained backing map (`languageParityReadSurfaceBacking`) from each
 label to a live artifact:
 
 - **`mcp_tool`** — the label (or its alias) must be a `tool.Name` in
-  `ReadOnlyTools()`. Six of the eight labels are literal MCP dispatch case
-  strings and are also registered tool names, so the ref equals the label.
-  `entity_context` aliases to the `get_entity_context` tool.
+  `ReadOnlyTools()`. Six of the nine labels are literal MCP dispatch case
+  strings (`dispatch.go`/`dispatch_impact.go`) and are also registered tool
+  names, so the ref equals the label. `list_relationship_edges` is a seventh
+  label that equals its tool name directly, routed through its own dispatch
+  function (`dispatch_relationship_edges.go`) rather than the shared
+  case-string switch. `entity_context` aliases to the `get_entity_context`
+  tool.
 - **`go_symbol`** — `content_relationships` aliases to the unexported
   `query.buildContentRelationshipSet` symbol. `query.ReadSurfaceGoSymbolBackings`
   (`go/internal/query/content_relationships_read_surface_backing.go`) holds a
@@ -42,7 +46,7 @@ label to a live artifact:
 not in the map, and for any label whose ref does not resolve. It also checks
 the reverse direction: a backing-map entry no ledger row's `read_surfaces`
 uses anymore is stale and fails
-(`assertLanguageParityBackingNotStale`) — scoped to the eight-label backing
+(`assertLanguageParityBackingNotStale`) — scoped to the nine-label backing
 map, not the full universe of `ReadOnlyTools()`/served routes.
 
 ### Fact-kind registry
